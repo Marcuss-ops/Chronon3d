@@ -32,6 +32,7 @@ add_library(chronon3d_media_video STATIC
     video/ffmpeg_pipe_sink.cpp
     video/process_runner.cpp
     video/video_sink_factory.cpp
+    video/video_config_validator.cpp
 )
 target_link_libraries(chronon3d_media_video PUBLIC
     chronon3d_media_interface

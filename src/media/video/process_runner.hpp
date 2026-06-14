@@ -8,11 +8,16 @@
 // no shell parsing, no injection risk.
 //
 // Lifecycle:  launch() → write()×N → close_stdin() → wait()
-//             launch() → write()×N → terminate() → wait()
+//             launch() → write()×N → terminate_and_wait() → wait()
+//
+// Timeout & escalation:
+//   terminate_and_wait(5s) → SIGTERM → wait 5s → SIGKILL → reap
+//   wait_for(2s)           → poll for exit up to 2s
 //
 // Thread-safety: NOT thread-safe.  Caller must serialise access.
 // ---------------------------------------------------------------------------
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -51,11 +56,25 @@ public:
 
     /// Wait for the child to exit and collect its exit code.
     /// Blocks until the child process terminates.
-    /// @return Exit code (0–255), or -1 on error (e.g. wait interrupted).
+    /// Retries on EINTR.
+    /// @return Exit code (0–255), or -1 on error.
     int wait();
 
+    /// Wait for the child to exit, with a timeout.
+    /// Polls non-blocking waitpid in a loop until the child exits or the
+    /// timeout expires.
+    /// @return Exit code (0–255), -1 on error, -2 on timeout.
+    int wait_for(std::chrono::milliseconds timeout);
+
+    /// Gracefully terminate the child with SIGTERM, wait up to
+    /// `graceful_timeout`, then escalate to SIGKILL if still running.
+    /// Closes stdin before signalling so the child can drain its input.
+    /// Blocks until the child is fully reaped.
+    /// @return Exit code (0–255), or -1 on error.
+    int terminate_and_wait(std::chrono::milliseconds graceful_timeout);
+
     /// Send SIGTERM (Linux/macOS) or TerminateProcess (Windows) to the
-    /// child.  Does NOT wait — call wait() afterwards.
+    /// child.  Does NOT wait — call wait() / wait_for() afterwards.
     void terminate();
 
     // ── Queries ─────────────────────────────────────────────────────────
@@ -77,6 +96,13 @@ private:
 #ifdef _WIN32
     void* process_handle_{nullptr};
 #endif
+
+    // ── Internal helpers ───────────────────────────────────────────────
+
+    /// Reap the child with waitpid(), retrying on EINTR.
+    /// Returns exit code (0–255), negative on error.
+    /// On success, sets child_pid_ = -1.
+    int reap_child();
 };
 
 } // namespace chronon3d::media::video

@@ -11,7 +11,13 @@
 namespace chronon3d::media::video {
 
 ProcessRunner::~ProcessRunner() noexcept {
-    close_stdin();
+    if (child_pid_ > 0) {
+        // Graceful shutdown: close stdin, SIGTERM, wait 5s, SIGKILL, reap.
+        // terminate_and_wait → wait_for handles close_stdin internally.
+        terminate_and_wait(std::chrono::seconds(5));
+    } else {
+        close_stdin();
+    }
 }
 
 ProcessRunner::ProcessRunner(ProcessRunner&& other) noexcept
@@ -28,7 +34,8 @@ ProcessRunner::ProcessRunner(ProcessRunner&& other) noexcept
 ProcessRunner& ProcessRunner::operator=(ProcessRunner&& other) noexcept {
     if (this != &other) {
         if (child_pid_ > 0) {
-            terminate();
+            // terminate_and_wait → wait_for handles close_stdin internally.
+            terminate_and_wait(std::chrono::seconds(5));
         }
         close_stdin();
         child_pid_         = other.child_pid_;
@@ -42,6 +49,23 @@ ProcessRunner& ProcessRunner::operator=(ProcessRunner&& other) noexcept {
     return *this;
 }
 
+int ProcessRunner::reap_child() {
+    if (child_pid_ <= 0) return -1;
+
+    int status;
+    pid_t result;
+    do {
+        result = ::waitpid(child_pid_, &status, 0);
+    } while (result < 0 && errno == EINTR);
+
+    child_pid_ = -1;
+
+    if (result < 0) return -1;
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    if (WIFSIGNALED(status)) return -WTERMSIG(status);
+    return -1;
+}
+
 bool ProcessRunner::launch(const std::string&, const std::vector<std::string>&) {
     std::fprintf(stderr, "[ProcessRunner] Windows CreateProcessW not yet implemented\n");
     return false;
@@ -49,6 +73,14 @@ bool ProcessRunner::launch(const std::string&, const std::vector<std::string>&) 
 bool ProcessRunner::write(const std::uint8_t*, std::size_t) { return false; }
 void ProcessRunner::close_stdin() {}
 int  ProcessRunner::wait() { return -1; }
+int  ProcessRunner::wait_for(std::chrono::milliseconds) { return -1; }
+int  ProcessRunner::terminate_and_wait(std::chrono::milliseconds) {
+    // On Windows stubs, just reap what we can.
+    if (child_pid_ > 0) {
+        child_pid_ = -1;
+    }
+    return -1;
+}
 void ProcessRunner::terminate() {}
 bool ProcessRunner::is_running() { return false; }
 
@@ -62,6 +94,7 @@ bool ProcessRunner::is_running() { return false; }
 #include <signal.h>
 #include <spawn.h>
 #include <sys/wait.h>
+#include <thread>
 #include <unistd.h>
 
 // POSIX requires `environ` for posix_spawnp.
@@ -75,12 +108,12 @@ namespace chronon3d::media::video {
 
 ProcessRunner::~ProcessRunner() noexcept {
     if (child_pid_ > 0) {
-        terminate();
-        int status;
-        waitpid(child_pid_, &status, 0);  // blocks until child exits
-        child_pid_ = -1;
+        // Graceful shutdown: terminate_and_wait → wait_for handles
+        // close_stdin internally before polling.
+        terminate_and_wait(std::chrono::seconds(5));
+    } else {
+        close_stdin();
     }
-    close_stdin();
 }
 
 ProcessRunner::ProcessRunner(ProcessRunner&& other) noexcept
@@ -97,9 +130,8 @@ ProcessRunner::ProcessRunner(ProcessRunner&& other) noexcept
 ProcessRunner& ProcessRunner::operator=(ProcessRunner&& other) noexcept {
     if (this != &other) {
         if (child_pid_ > 0) {
-            terminate();
-            int status;
-            waitpid(child_pid_, &status, 0);
+            // terminate_and_wait → wait_for handles close_stdin internally.
+            terminate_and_wait(std::chrono::seconds(5));
         }
         close_stdin();
 
@@ -113,6 +145,27 @@ ProcessRunner& ProcessRunner::operator=(ProcessRunner&& other) noexcept {
         other.exit_cached_ = false;
     }
     return *this;
+}
+
+// ============================================================================
+//  reap_child() — waitpid with EINTR retry
+// ============================================================================
+
+int ProcessRunner::reap_child() {
+    if (child_pid_ <= 0) return -1;
+
+    int status;
+    pid_t result;
+    do {
+        result = ::waitpid(child_pid_, &status, 0);
+    } while (result < 0 && errno == EINTR);
+
+    child_pid_ = -1;
+
+    if (result < 0) return -1;
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    if (WIFSIGNALED(status)) return -WTERMSIG(status);
+    return -1;
 }
 
 // ============================================================================
@@ -136,10 +189,15 @@ bool ProcessRunner::launch(const std::string& executable,
         return false;
     }
 
-    // Build posix_spawn file actions: dup2(read-end → stdin), close write-end.
+    // Build posix_spawn file actions:
+    //   - dup2(read-end → stdin) so the child reads from the pipe
+    //   - close both pipe_fds[0] and pipe_fds[1] in the child after dup2
+    //     (pipe_fds[0] is the original read-end fd — no longer needed
+    //      after dup2; pipe_fds[1] is the write-end — owned by the parent)
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);
     posix_spawn_file_actions_adddup2(&actions, pipe_fds[0], STDIN_FILENO);
+    posix_spawn_file_actions_addclose(&actions, pipe_fds[0]);
     posix_spawn_file_actions_addclose(&actions, pipe_fds[1]);
 
     // Build C-style argv array (null-terminated).
@@ -221,7 +279,7 @@ void ProcessRunner::close_stdin() {
 }
 
 // ============================================================================
-//  wait() — collect child exit status
+//  wait() — collect child exit status (with EINTR retry)
 // ============================================================================
 
 int ProcessRunner::wait() {
@@ -241,21 +299,7 @@ int ProcessRunner::wait() {
     // reading from stdin.
     close_stdin();
 
-    int status;
-    const pid_t result = waitpid(child_pid_, &status, 0);
-    if (result < 0) {
-        return -1;
-    }
-
-    child_pid_ = -1;
-
-    if (WIFEXITED(status)) {
-        return WEXITSTATUS(status);
-    }
-    if (WIFSIGNALED(status)) {
-        return -WTERMSIG(status);
-    }
-    return -1;
+    return reap_child();
 }
 
 // ============================================================================
@@ -279,7 +323,7 @@ bool ProcessRunner::is_running() {
     if (exit_cached_) return false;
 
     int status;
-    const pid_t result = waitpid(child_pid_, &status, WNOHANG);
+    const pid_t result = ::waitpid(child_pid_, &status, WNOHANG);
     if (result == 0) return true;   // still running
 
     // Child has exited — cache the exit status so wait() can retrieve it.
@@ -295,6 +339,101 @@ bool ProcessRunner::is_running() {
     }
     // result < 0: child already reaped or error — not running.
     return false;
+}
+
+// ============================================================================
+//  wait_for() — block up to `timeout` for child to exit
+// ============================================================================
+
+int ProcessRunner::wait_for(std::chrono::milliseconds timeout) {
+    if (child_pid_ <= 0) return -1;
+
+    // If is_running() already cached the exit status, use it.
+    if (exit_cached_) {
+        const int rc = cached_exit_status_;
+        child_pid_ = -1;
+        exit_cached_ = false;
+        return rc;
+    }
+
+    // Ensure stdin is closed — the child may be blocked reading.
+    close_stdin();
+
+    // If timeout is zero or negative, just check once non-blocking.
+    if (timeout.count() <= 0) {
+        int status;
+        const pid_t result = ::waitpid(child_pid_, &status, WNOHANG);
+        if (result == 0) return -2;  // still running → timeout
+        if (result < 0 && errno == EINTR) return -2;
+        if (result < 0) return -1;
+
+        child_pid_ = -1;
+        if (WIFEXITED(status)) return WEXITSTATUS(status);
+        if (WIFSIGNALED(status)) return -WTERMSIG(status);
+        return -1;
+    }
+
+    // Poll with WNOHANG, sleeping 10ms between polls.
+    // This is simpler and more portable than waitid(P_PID, ..., WEXITED | WNOWAIT)
+    // with a timer, and the granularity is fine for subprocess management.
+    constexpr auto kPollInterval = std::chrono::milliseconds(10);
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+
+    int status;
+    pid_t result;
+    do {
+        result = ::waitpid(child_pid_, &status, WNOHANG);
+        if (result > 0) {
+            // Child has exited.
+            child_pid_ = -1;
+            if (WIFEXITED(status)) return WEXITSTATUS(status);
+            if (WIFSIGNALED(status)) return -WTERMSIG(status);
+            return -1;
+        }
+        if (result < 0) {
+            if (errno == EINTR) continue;
+            // Child already reaped or error.
+            child_pid_ = -1;
+            return -1;
+        }
+        // result == 0 → still running, sleep.
+        if (std::chrono::steady_clock::now() >= deadline) {
+            return -2;  // timeout
+        }
+        std::this_thread::sleep_for(kPollInterval);
+    } while (true);
+}
+
+// ============================================================================
+//  terminate_and_wait() — SIGTERM → wait → SIGKILL → reap
+// ============================================================================
+
+int ProcessRunner::terminate_and_wait(std::chrono::milliseconds graceful_timeout) {
+    if (child_pid_ <= 0) return -1;
+
+    // If the child already exited via is_running(), use cached status.
+    if (exit_cached_) {
+        const int rc = cached_exit_status_;
+        child_pid_ = -1;
+        exit_cached_ = false;
+        return rc;
+    }
+
+    // Step 1: SIGTERM.
+    ::kill(child_pid_, SIGTERM);
+
+    // Step 2: Wait for graceful shutdown with timeout.
+    int rc = wait_for(graceful_timeout);
+    if (rc != -2) {
+        // Child exited or error (not a timeout).
+        return rc;
+    }
+
+    // Step 3: Timeout — escalate to SIGKILL.
+    ::kill(child_pid_, SIGKILL);
+
+    // Step 4: Must reap now — no timeout.
+    return reap_child();
 }
 
 } // namespace chronon3d::media::video

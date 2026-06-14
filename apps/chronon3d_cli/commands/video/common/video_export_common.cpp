@@ -1,4 +1,5 @@
 #include "video_export_common.hpp"
+#include "../../../utils/video/video_sink_adapter.hpp"
 #include "../../../utils/video/video_sink_encoders.hpp"
 #include <spdlog/spdlog.h>
 #include <cstdlib>
@@ -21,8 +22,8 @@ std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& o
             return std::make_unique<NullConvertEncoder>();
 
         case VideoSinkType::RawFile:
-            spdlog::info("[video] Using raw sink — frames will be written as raw pixel data to {}", opts.output);
-            return std::make_unique<RawVideoSinkEncoder>();
+            spdlog::info("[video] Using raw sink (new) — frames will be written as raw pixel data to {}", opts.output);
+            return std::make_unique<VideoSinkEncoderAdapter>(VideoSinkType::RawFile);
 
         case VideoSinkType::Ffmpeg:
             break;
@@ -37,7 +38,8 @@ std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& o
         spdlog::warn("[video] Native FFmpeg support is disabled at build time; falling back to pipe encoder");
     }
 #endif
-    return std::make_unique<FfmpegPipeEncoder>();
+    spdlog::info("[video] Using new FFmpeg pipe sink via VideoSinkEncoderAdapter");
+    return std::make_unique<VideoSinkEncoderAdapter>(VideoSinkType::Ffmpeg);
 }
 
 bool ffmpeg_in_path() {

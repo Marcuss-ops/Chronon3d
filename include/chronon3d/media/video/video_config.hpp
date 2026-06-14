@@ -178,4 +178,34 @@ struct VideoSinkConfig {
     std::string label;
 };
 
+// ==========================================================================
+//  Configuration validation
+// ==========================================================================
+
+/// Result of a VideoSinkConfig validation.
+struct ValidationResult {
+    /// True when the configuration is valid.
+    bool valid{true};
+
+    /// Human-readable error description (empty when valid).
+    std::string error_message;
+
+    /// Implicitly convertible to bool: true when valid.
+    explicit operator bool() const noexcept { return valid; }
+};
+
+/// Validate a complete VideoSinkConfig against all known constraints.
+///
+/// Checks:
+///  - Stream: width/height > 0, YUV requires even dims, frame_rate > 0
+///  - Encoder: CRF in [0,51] or -1, bitrate >= 0, codec/container compat
+///  - Transport: only synchronous mode supported (rejects async configs)
+///  - Output: path not empty
+///
+/// This is the single point of truth for config validation.  All sink
+/// implementations (FfmpegPipeSink, RawVideoSink, etc.) should call this
+/// at the top of open() and reject invalid configs early.
+[[nodiscard]] ValidationResult validate_video_sink_config(
+    const VideoSinkConfig& config) noexcept;
+
 } // namespace chronon3d::media::video
