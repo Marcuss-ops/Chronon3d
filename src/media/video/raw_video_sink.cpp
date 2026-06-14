@@ -57,7 +57,7 @@ bool RawVideoSink::open(const VideoSinkConfig& config) {
     }
 
     const auto& stream = config.stream;
-    const auto fmt = config.encoder.output_format;
+    const auto fmt = config.stream.submitted_format;
 
     if (stream.width <= 0 || stream.height <= 0) {
         state_ = VideoSinkState::Failed;
@@ -136,6 +136,13 @@ bool RawVideoSink::submit(const VideoFrameView& frame) {
         return false;
     }
 
+    // Validate packed stride (must be >= tight row; YUV planar only tight).
+    if (!validate_packed_stride(frame.pixel_format, frame.width,
+                                 frame.stride_bytes)) {
+        state_ = VideoSinkState::Failed;
+        return false;
+    }
+
     const auto t0 = std::chrono::steady_clock::now();
     const auto* data = static_cast<const uint8_t*>(frame.data);
     const size_t tight_row_bytes = frame_buffer_size(
@@ -194,16 +201,18 @@ bool RawVideoSink::submit_planar(const PlanarVideoFrameView& frame) {
         return false;
     }
 
-    // Validate strides: must be >= row width.
+    // Validate dimensions and strides.
+    if (!validate_planar_frame(frame.width, frame.height,
+                                frame.y_stride, frame.u_stride, frame.v_stride)) {
+        state_ = VideoSinkState::Failed;
+        return false;
+    }
+
     const size_t y_row  = static_cast<size_t>(frame.width);
     const size_t uv_row = static_cast<size_t>(frame.width / 2);
     const size_t y_stride  = (frame.y_stride > 0) ? frame.y_stride : y_row;
     const size_t u_stride  = (frame.u_stride > 0) ? frame.u_stride : uv_row;
     const size_t v_stride  = (frame.v_stride > 0) ? frame.v_stride : uv_row;
-    if (y_stride < y_row || u_stride < uv_row || v_stride < uv_row) {
-        state_ = VideoSinkState::Failed;
-        return false;
-    }
 
     const auto t0 = std::chrono::steady_clock::now();
 
@@ -291,15 +300,17 @@ bool RawVideoSink::submit_biplanar(const BiplanarVideoFrameView& frame) {
         return false;
     }
 
-    // Validate strides: must be >= row width.
+    // Validate dimensions and strides.
+    if (!validate_biplanar_frame(frame.width, frame.height,
+                                  frame.y_stride, frame.uv_stride)) {
+        state_ = VideoSinkState::Failed;
+        return false;
+    }
+
     const size_t y_row  = static_cast<size_t>(frame.width);
     const size_t uv_row = static_cast<size_t>(frame.width);
     const size_t y_stride  = (frame.y_stride > 0) ? frame.y_stride : y_row;
     const size_t uv_stride = (frame.uv_stride > 0) ? frame.uv_stride : uv_row;
-    if (y_stride < y_row || uv_stride < uv_row) {
-        state_ = VideoSinkState::Failed;
-        return false;
-    }
 
     const auto t0 = std::chrono::steady_clock::now();
 

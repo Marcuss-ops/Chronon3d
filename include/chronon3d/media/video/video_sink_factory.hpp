@@ -31,8 +31,8 @@ namespace chronon3d::media::video {
 ///
 /// Selection logic:
 ///  - Uncompressed codec + Raw container  → RawVideoSink
-///  - Non-pipe transport                  → NativeAvSink (if available)
-///  - Pipe transport (default)            → FfmpegPipeSink
+///  - Compressed codec (default)          → FfmpegPipeSink
+///  - Custom URI scheme                   → registered factory (if any)
 ///
 /// Returns nullptr if no suitable implementation is available
 /// (e.g. native FFmpeg not compiled in and no pipe fallback).

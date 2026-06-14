@@ -53,8 +53,8 @@ namespace {
     VideoSinkConfig cfg;
     cfg.stream.width  = w;
     cfg.stream.height = h;
-    cfg.stream.input_format = fmt;
-    cfg.encoder.output_format = fmt;
+    cfg.stream.submitted_format = fmt;
+    cfg.encoder.encoded_pixel_format = fmt;
     cfg.encoder.apply_gamma = false;  // linear for determinism
     cfg.output.output_path = std::filesystem::path(path);
     cfg.output.overwrite = overwrite;
@@ -1358,7 +1358,7 @@ TEST_CASE("RawVideoSink: open from Failed state is rejected") {
 //  Edge cases: open() while already Open is rejected
 // ═════════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("RawVideoSink: open while already open is rejected") {
+TEST_CASE("RawVideoSink: open while already open transitions to Failed") {
     const auto path = temp_path("double_open");
 
     RawVideoSink sink;
@@ -1366,26 +1366,34 @@ TEST_CASE("RawVideoSink: open while already open is rejected") {
     REQUIRE(sink.open(cfg));
     CHECK(sink.state() == VideoSinkState::Open);
 
-    // Second open must fail
+    // Second open must fail and transition to Failed.
     CHECK_FALSE(sink.open(cfg));
-    CHECK(sink.state() == VideoSinkState::Open);  // state unchanged
+    CHECK(sink.state() == VideoSinkState::Failed);  // open() from non-Created → Failed
 
     sink.close();
     std::filesystem::remove(path);
 }
 
-TEST_CASE("RawVideoSink: open while Flushing is rejected") {
-    const auto path = temp_path("open_flushing");
+TEST_CASE("RawVideoSink: open stays in Open after flush (not Flushing)") {
+    const auto path = temp_path("open_after_flush");
 
     RawVideoSink sink;
     auto cfg = make_config(8, 8, PixelFormat::RGBA8, path);
     REQUIRE(sink.open(cfg));
-    sink.flush();
-    CHECK(sink.state() == VideoSinkState::Flushing);
+    CHECK(sink.state() == VideoSinkState::Open);
 
-    // open during flush must fail
-    CHECK_FALSE(sink.open(cfg));
-    CHECK(sink.state() == VideoSinkState::Flushing);
+    sink.flush();
+    CHECK(sink.state() == VideoSinkState::Open);  // flush stays in Open
+
+    // Can submit again after flush
+    std::vector<uint8_t> buf(8 * 8 * 4, 0x42);
+    VideoFrameView fv;
+    fv.data          = buf.data();
+    fv.width         = 8;
+    fv.height        = 8;
+    fv.pixel_format  = PixelFormat::RGBA8;
+    fv.stride_bytes  = 0;
+    CHECK(sink.submit(fv));
 
     sink.close();
     std::filesystem::remove(path);
@@ -1395,17 +1403,15 @@ TEST_CASE("RawVideoSink: open while Flushing is rejected") {
 //  Edge cases: submit with wrong format (different from config)
 // ═════════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("RawVideoSink: submit with format different from config still writes") {
+TEST_CASE("RawVideoSink: submit with format different from session fails") {
     const auto path = temp_path("format_mismatch");
 
-    // Open with YUV420P config
+    // Open with YUV420P session.
     RawVideoSink sink;
     auto cfg = make_config(8, 8, PixelFormat::YUV420P, path);
     REQUIRE(sink.open(cfg));
 
-    // Submit an RGBA8 frame (different from config's YUV420P)
-    // RawVideoSink treats frames as raw bytes — no format conversion,
-    // so this should succeed but produce non-standard output.
+    // Submit an RGBA8 frame — must fail because the session is YUV420P.
     const size_t rgba_size = 8 * 8 * 4;
     std::vector<uint8_t> buf(rgba_size);
     fill_pattern(buf.data(), rgba_size);
@@ -1414,15 +1420,14 @@ TEST_CASE("RawVideoSink: submit with format different from config still writes")
     fv.data          = buf.data();
     fv.width         = 8;
     fv.height        = 8;
-    fv.pixel_format  = PixelFormat::RGBA8;  // different from config
+    fv.pixel_format  = PixelFormat::RGBA8;  // different from session
     fv.stride_bytes  = 0;
 
-    CHECK(sink.submit(fv));
-    CHECK(sink.frames_submitted() == 1);
-    CHECK(sink.stats().bytes_written == rgba_size);
+    CHECK_FALSE(sink.submit(fv));
+    CHECK(sink.state() == VideoSinkState::Failed);
+    CHECK(sink.frames_submitted() == 0);
 
     sink.close();
-    CHECK(file_has_size(path, rgba_size));
     std::filesystem::remove(path);
 }
 
@@ -1430,34 +1435,34 @@ TEST_CASE("RawVideoSink: submit with format different from config still writes")
 //  Edge cases: flush after I/O error simulation
 // ═════════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("RawVideoSink: submit after flush transitions to Flushing is rejected") {
+TEST_CASE("RawVideoSink: submit after flush succeeds (flush stays Open)") {
     const auto path = temp_path("submit_after_flush");
 
     RawVideoSink sink;
     auto cfg = make_config(8, 8, PixelFormat::RGBA8, path);
     REQUIRE(sink.open(cfg));
 
-    // Flush transitions to Flushing
+    // Flush stays in Open state.
     CHECK(sink.flush());
-    CHECK(sink.state() == VideoSinkState::Flushing);
+    CHECK(sink.state() == VideoSinkState::Open);
 
-    // Submit must fail during Flushing
+    // Submit must succeed after flush.
     std::vector<uint8_t> buf(8 * 8 * 4);
     VideoFrameView fv;
     fv.data          = buf.data();
     fv.width         = 8;
     fv.height        = 8;
     fv.pixel_format  = PixelFormat::RGBA8;
+    fv.stride_bytes  = 0;
 
-    CHECK_FALSE(sink.submit(fv));
-    CHECK(sink.state() == VideoSinkState::Flushing);  // unchanged
-    CHECK(sink.frames_submitted() == 0);
+    CHECK(sink.submit(fv));
+    CHECK(sink.frames_submitted() == 1);
 
     sink.close();
     std::filesystem::remove(path);
 }
 
-TEST_CASE("RawVideoSink: submit_planar after flush is rejected") {
+TEST_CASE("RawVideoSink: submit_planar after flush succeeds") {
     const auto path = temp_path("planar_after_flush");
 
     RawVideoSink sink;
@@ -1465,7 +1470,7 @@ TEST_CASE("RawVideoSink: submit_planar after flush is rejected") {
     REQUIRE(sink.open(cfg));
 
     CHECK(sink.flush());
-    CHECK(sink.state() == VideoSinkState::Flushing);
+    CHECK(sink.state() == VideoSinkState::Open);
 
     std::vector<uint8_t> y_buf(4 * 4);
     std::vector<uint8_t> uv_buf(4);
@@ -1476,14 +1481,15 @@ TEST_CASE("RawVideoSink: submit_planar after flush is rejected") {
     pfv.width    = 4;
     pfv.height   = 4;
 
-    CHECK_FALSE(sink.submit_planar(pfv));
-    CHECK(sink.state() == VideoSinkState::Flushing);
+    // Submit should succeed after flush.
+    CHECK(sink.submit_planar(pfv));
+    CHECK(sink.frames_submitted() == 1);
 
     sink.close();
     std::filesystem::remove(path);
 }
 
-TEST_CASE("RawVideoSink: submit_biplanar after flush is rejected") {
+TEST_CASE("RawVideoSink: submit_biplanar after flush succeeds") {
     const auto path = temp_path("biplanar_after_flush");
 
     RawVideoSink sink;
@@ -1491,7 +1497,7 @@ TEST_CASE("RawVideoSink: submit_biplanar after flush is rejected") {
     REQUIRE(sink.open(cfg));
 
     CHECK(sink.flush());
-    CHECK(sink.state() == VideoSinkState::Flushing);
+    CHECK(sink.state() == VideoSinkState::Open);
 
     std::vector<uint8_t> y_buf(4 * 4);
     std::vector<uint8_t> uv_buf(4 * 4 / 2);
@@ -1501,8 +1507,9 @@ TEST_CASE("RawVideoSink: submit_biplanar after flush is rejected") {
     bfv.width    = 4;
     bfv.height   = 4;
 
-    CHECK_FALSE(sink.submit_biplanar(bfv));
-    CHECK(sink.state() == VideoSinkState::Flushing);
+    // Submit should succeed after flush.
+    CHECK(sink.submit_biplanar(bfv));
+    CHECK(sink.frames_submitted() == 1);
 
     sink.close();
     std::filesystem::remove(path);
