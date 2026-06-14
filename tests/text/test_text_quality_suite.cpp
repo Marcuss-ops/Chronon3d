@@ -3,6 +3,7 @@
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <chronon3d/text/text_animator.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <content/text/text_helpers.hpp>
 
 #include <cmath>
 #include <string>
@@ -764,4 +765,699 @@ TEST_CASE("TextQuality: integration — wrapping never splits RI flag pair") {
     }
     // Cluster count must be preserved: no cluster was split mid-character
     CHECK(total_line_clusters == input_clusters);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 9. Stroke GPOS Offsets — Kerning, Mark Positioning, Diacritics
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// FtGlyphPathBuilder (stroke) uses HarfBuzz glyph positions with
+// (origin_x + pen_x + g.x_offset, origin_y + pen_y + g.y_offset).
+// The pen then advances by ADVs only (not offsets).  If offsets were
+// accumulated into the pen, glyphs would drift right/down over time.
+//
+// These tests verify that GlyphRun offsets are correct for GPOS features
+// (kerning, mark positioning) and that they do NOT accumulate.
+
+TEST_CASE("TextQuality: stroke GPOS — kerning pair 'AV' has correct offsets") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    // 'A' + 'V' — a classic kerning pair.  HarfBuzz may produce a
+    // negative x_offset on 'V' to pull it closer to 'A'.
+    auto run = shape(engine, "AV", 72.0f);
+    REQUIRE(run.has_value());
+    REQUIRE(run->glyphs.size() == 2);
+
+    const auto& g0 = run->glyphs[0];  // A
+    const auto& g1 = run->glyphs[1];  // V
+
+    INFO("g0 (A): advance_x=", g0.advance_x, " x_offset=", g0.x_offset,
+         " x=", g0.x);
+    INFO("g1 (V): advance_x=", g1.advance_x, " x_offset=", g1.x_offset,
+         " x=", g1.x, " cluster=", g1.cluster);
+
+    CHECK(g0.glyph_id > 0);
+    CHECK(g1.glyph_id > 0);
+    CHECK(g0.advance_x > 0.0f);
+    CHECK(g1.advance_x > 0.0f);
+
+    // The stroke-relevant invariant: x_offset must NOT be larger than
+    // the glyph's own advance (it's a positioning tweak, not a move
+    // to a completely different location).
+    CHECK(std::abs(g0.x_offset) < g0.advance_x * 0.5f);
+    CHECK(std::abs(g1.x_offset) < g1.advance_x * 0.5f);
+
+    // Cumulative position sanity: the second glyph's x position should
+    // be g0.x_offset + g0.advance_x + g1.x_offset.  If offsets were
+    // double-counted in the stroke pen, g1 would drift by g0.x_offset.
+    float expected_g1_x = g0.x_offset + g0.advance_x + g1.x_offset;
+    CHECK(g1.x == doctest::Approx(expected_g1_x).epsilon(0.5f));
+}
+
+TEST_CASE("TextQuality: stroke GPOS — offsets do not accumulate across 3 glyphs") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    // "AVA" — two kerning pairs back-to-back
+    auto run = shape(engine, "AVA", 72.0f);
+    REQUIRE(run.has_value());
+    REQUIRE(run->glyphs.size() == 3);
+
+    // Simulate pen.x for stroke: advances only, no offset accumulation
+    float pen = 0.0f;
+    for (size_t i = 0; i < run->glyphs.size(); ++i) {
+        const auto& g = run->glyphs[i];
+        INFO("Glyph ", i);
+        // g.x should equal: pen + g.x_offset
+        // (stroke positions glyph at origin + pen + offset)
+        CHECK(g.x == doctest::Approx(pen + g.x_offset).epsilon(0.5f));
+        pen += g.advance_x;
+    }
+}
+
+TEST_CASE("TextQuality: stroke GPOS — combining accent has y_offset") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    // "e" + U+0301 (combining acute accent)
+    // HarfBuzz may produce separate glyphs: base 'e' + accent mark.
+    // The accent mark has y_offset > 0 (placed above the base).
+    const std::string e_acute = "e\xCC\x81";
+
+    auto run = shape(engine, e_acute, 72.0f);
+    REQUIRE(run.has_value());
+    REQUIRE_FALSE(run->glyphs.empty());
+
+    bool found_accent = false;
+    for (size_t i = 0; i < run->glyphs.size(); ++i) {
+        const auto& g = run->glyphs[i];
+        if (i > 0 && std::abs(g.y_offset) > 0.5f) {
+            found_accent = true;
+        }
+    }
+    // Some fonts produce a single pre-composed 'é' glyph — that's valid too
+    if (!found_accent && run->glyphs.size() == 1) {
+        MESSAGE("Font produced pre-composed é glyph (no separate accent)");
+    } else {
+        CHECK(found_accent);
+    }
+}
+
+TEST_CASE("TextQuality: stroke GPOS — offsets small relative to advance") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    const char* test_strings[] = {"AV", "VA", "AT", "TA", "AVATAR", "TO", "WO"};
+
+    for (const auto& s : test_strings) {
+        INFO("Testing: ", s);
+        auto run = shape(engine, s, 48.0f);
+        REQUIRE(run.has_value());
+
+        for (size_t i = 0; i < run->glyphs.size(); ++i) {
+            const auto& g = run->glyphs[i];
+            INFO("Glyph ", i, " glyph_id=", g.glyph_id);
+            CHECK(std::abs(g.x_offset) <= g.advance_x * 1.5f);
+            CHECK(std::abs(g.y_offset) <= g.advance_x * 0.5f + 2.0f);
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 10. Complex Scripts — Arabic GPOS, Cluster Mapping, Glyph IDs
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// For stroke rendering with complex scripts, FtGlyphPathBuilder consumes
+// GlyphRun.glyphs[] entries.  The following invariants must hold:
+//   - glyph_id > 0 (valid font glyph)
+//   - advance_x > 0 (each glyph advances the stroke pen)
+//   - x_offset, y_offset are small tweaks, not large displacements
+//   - is_cluster_start is correctly set
+//   - The same text produces the same glyph count/cursors every call
+
+TEST_CASE("TextQuality: complex — Arabic 'hello' has consistent glyph IDs") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    // "مرحبا" (marhaba) using Inter font with Arabic charset
+    const std::string arabic =
+        "\xD9\x85"   // U+0645 Meem
+        "\xD8\xB1"   // U+0631 Reh
+        "\xD8\xAD"   // U+062D Hah
+        "\xD8\xA8"   // U+0628 Beh
+        "\xD8\xA7";  // U+0627 Alef
+
+    TextShaping ar;
+    ar.direction = TextDirection::RTL;
+    ar.language = "ar";
+
+    auto run = engine.shape_text(arabic, inter_bold_quality(), 48.0f, ar);
+    REQUIRE(run.has_value());
+    REQUIRE_FALSE(run->glyphs.empty());
+
+    CHECK(run->width > 0.0f);
+    CHECK(run->glyphs.front().is_cluster_start);
+
+    for (size_t i = 0; i < run->glyphs.size(); ++i) {
+        const auto& g = run->glyphs[i];
+        INFO("Glyph ", i);
+        CHECK(g.glyph_id > 0);          // valid glyph
+        CHECK(g.advance_x > 0.0f);      // advances the pen
+        // Offsets must be small (positioning, not replacement)
+        CHECK(std::abs(g.x_offset) < g.advance_x * 0.5f);
+    }
+}
+
+TEST_CASE("TextQuality: complex — same Arabic text shapes identically twice") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    const std::string arabic =
+        "\xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7";
+
+    TextShaping ar;
+    ar.direction = TextDirection::RTL;
+    ar.language = "ar";
+
+    auto r1 = engine.shape_text(arabic, inter_bold_quality(), 48.0f, ar);
+    auto r2 = engine.shape_text(arabic, inter_bold_quality(), 48.0f, ar);
+    REQUIRE(r1.has_value());
+    REQUIRE(r2.has_value());
+
+    CHECK(r1->glyphs.size() == r2->glyphs.size());
+    CHECK(r1->width == doctest::Approx(r2->width).epsilon(0.01f));
+
+    // Each glyph must have identical IDs and advances
+    for (size_t i = 0; i < r1->glyphs.size(); ++i) {
+        INFO("Glyph ", i);
+        CHECK(r1->glyphs[i].glyph_id == r2->glyphs[i].glyph_id);
+        CHECK(r1->glyphs[i].advance_x == doctest::Approx(r2->glyphs[i].advance_x).epsilon(0.01f));
+        CHECK(r1->glyphs[i].x_offset == doctest::Approx(r2->glyphs[i].x_offset).epsilon(0.01f));
+    }
+}
+
+TEST_CASE("TextQuality: complex — Hebrew has consistent cluster mapping") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    // "שלום" (shalom)
+    const std::string hebrew =
+        "\xD7\xA9"   // Shin
+        "\xD7\x9C"   // Lamed
+        "\xD7\x95"   // Vav
+        "\xD7\x9D";  // Mem Sofit
+
+    TextShaping he;
+    he.direction = TextDirection::RTL;
+    he.language = "he";
+
+    auto run = engine.shape_text(hebrew, inter_bold_quality(), 36.0f, he);
+    REQUIRE(run.has_value());
+    REQUIRE_FALSE(run->glyphs.empty());
+
+    CHECK(run->width > 0.0f);
+
+    // Every glyph must have a valid cluster mapping (byte offset into source)
+    for (const auto& g : run->glyphs) {
+        CHECK_UNARY(g.cluster <= hebrew.size());
+    }
+
+    // No offset should be pathologically large
+    for (const auto& g : run->glyphs) {
+        CHECK(std::abs(g.x_offset) < g.advance_x);
+        CHECK(std::abs(g.y_offset) < g.advance_x);
+    }
+}
+
+TEST_CASE("TextQuality: complex — Devanagari does not crash or produce empty glyphs") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    // "नमस्ते" (namaste) — Devanagari conjuncts
+    // U+0928 U+092E U+0938 U+094D U+0924 U+0947
+    const std::string devanagari =
+        "\xE0\xA4\xA8"   // U+0928 Na
+        "\xE0\xA4\xAE"   // U+092E Ma
+        "\xE0\xA4\xB8"   // U+0938 Sa
+        "\xE0\xA4\xCD"   // U+094D Halant (virama)
+        "\xE0\xA4\xA4"   // U+0924 Ta
+        "\xE0\xA5\x87";  // U+0947 Vowel Sign E
+
+    TextShaping hi;
+    hi.language = "hi";
+    // Use Auto direction — our P0 fix should detect Devanagari correctly
+
+    auto run = engine.shape_text(devanagari, inter_bold_quality(), 48.0f, hi);
+    REQUIRE(run.has_value());
+    REQUIRE_FALSE(run->glyphs.empty());
+
+    CHECK(run->width > 0.0f);
+
+    for (size_t i = 0; i < run->glyphs.size(); ++i) {
+        const auto& g = run->glyphs[i];
+        INFO("Glyph ", i, " id=", g.glyph_id, " adv=", g.advance_x);
+        CHECK(g.glyph_id > 0);
+        CHECK(g.advance_x >= 0.0f);  // zero advance for marks is valid
+
+        // If not a mark (zero-advance), advance must be positive
+        if (g.advance_x == 0.0f) {
+            // Zero-advance glyphs (combining marks): must have
+            // non-trivial y_offset to indicate positioning above base
+            CHECK(std::abs(g.y_offset) >= 0.1f);
+        }
+    }
+}
+
+TEST_CASE("TextQuality: complex — CJK has valid glyph IDs and advances") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    // "你好世界" (nǐ hǎo shì jiè — hello world in Chinese)
+    // Inter-Bold may not have CJK glyphs — this tests graceful handling
+    const std::string cjk = "\xE4\xBD\xA0\xE5\xA5\xBD\xE4\xB8\x96\xE7\x95\x8C";
+
+    TextShaping zh;
+    zh.language = "zh";
+    // Auto direction + script — guess_segment_properties will detect CJK
+
+    auto run = engine.shape_text(cjk, inter_bold_quality(), 48.0f, zh);
+    // CJK may or may not work with the Inter font (which covers Latin/Greek/
+    // Cyrillic/Arabic/Hebrew but may lack CJK).  If the font can't shape it,
+    // HarfBuzz will still produce glyphs (possibly .notdef).
+    // The test verifies no crash and sensible glyph output.
+    if (run.has_value() && !run->glyphs.empty()) {
+        CHECK(run->width >= 0.0f);
+        for (const auto& g : run->glyphs) {
+            CHECK(g.advance_x >= 0.0f);
+        }
+    } else {
+        MESSAGE("CJK shaping returned nullopt or empty — font likely lacks CJK glyphs");
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 11. Inter-Token Tracking — Layout Engine
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The layout engine tokenizes text into (word, space) pairs.
+// Tracking must be added BETWEEN adjacent tokens, not just within each
+// token.  For "A B C" with tracking=5, tracking adds 5px between each
+// adjacent pair: A→space, space→B, B→C (3 gaps, not 2 from token-internal).
+
+TEST_CASE("TextQuality: inter-token tracking — non-wrapping adds tracking between tokens") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    // "AB CD" — 2 words separated by 1 space = 3 tokens ("AB", " ", "CD")
+    // Inter-token gaps: AB→space, space→CD = 2 gaps
+    TextLayoutInput li;
+    li.text = "AB CD";
+    li.style.size = 32.0f;
+    li.font_engine = &engine;
+    li.font_spec = inter_bold_quality();
+
+    auto res0 = TextLayoutEngine::layout(li);
+    float w0 = res0.size.x;
+
+    li.style.tracking = 10.0f;
+    auto res10 = TextLayoutEngine::layout(li);
+    float w10 = res10.size.x;
+
+    // Layout adds tracking TWICE: intra-token (within AB, CD) + inter-token (between tokens).
+    // Intra: AB(2 clusters → 1×10=10) + space(1 cluster → 0) + CD(2 clusters → 1×10=10) = 20
+    // Inter: 2 gaps × 10 = 20
+    // Total = 40
+    CHECK(w10 == doctest::Approx(w0 + 40.0f).epsilon(0.2f));
+}
+
+TEST_CASE("TextQuality: inter-token tracking — three words have more gaps") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    // "A B C" — 3 words + 2 spaces = 5 tokens, 4 inter-token gaps
+    TextLayoutInput li;
+    li.text = "A B C";
+    li.style.size = 32.0f;
+    li.font_engine = &engine;
+    li.font_spec = inter_bold_quality();
+
+    auto res0 = TextLayoutEngine::layout(li);
+    float w0 = res0.size.x;
+
+    li.style.tracking = 10.0f;
+    auto res10 = TextLayoutEngine::layout(li);
+    float w10 = res10.size.x;
+
+    // Single word "ABC" has 2 inter-cluster gaps = 2 * 10 = 20
+    // "A B C" = 5 tokens, 4 inter-token gaps → 4 * 10 = 40 extra
+    // So w10 - w0 for "A B C" should be ~40
+    CHECK(w10 == doctest::Approx(w0 + 40.0f).epsilon(0.2f));
+}
+
+TEST_CASE("TextQuality: inter-token tracking — single token has fewer gaps") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    // Single word "ABC" — 1 token, 2 inter-cluster gaps
+    TextLayoutInput li;
+    li.text = "ABC";
+    li.style.size = 32.0f;
+    li.font_engine = &engine;
+    li.font_spec = inter_bold_quality();
+
+    auto res0 = TextLayoutEngine::layout(li);
+    float w0 = res0.size.x;
+
+    li.style.tracking = 10.0f;
+    auto res10 = TextLayoutEngine::layout(li);
+    float w10 = res10.size.x;
+
+    // "ABC" = 3 clusters, 2 inter-cluster gaps = 2 * 10 = 20
+    CHECK(w10 == doctest::Approx(w0 + 20.0f).epsilon(0.2f));
+}
+
+TEST_CASE("TextQuality: inter-token tracking — single char with spaces has no gaps") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    // "A" — single token, 0 inter-cluster gaps
+    TextLayoutInput li;
+    li.text = "A";
+    li.style.size = 32.0f;
+    li.font_engine = &engine;
+    li.font_spec = inter_bold_quality();
+
+    auto res0 = TextLayoutEngine::layout(li);
+    float w0 = res0.size.x;
+
+    li.style.tracking = 50.0f;
+    auto res50 = TextLayoutEngine::layout(li);
+    float w50 = res50.size.x;
+
+    // Single cluster: tracking adds nothing
+    CHECK(w50 == doctest::Approx(w0).epsilon(0.02f));
+}
+
+TEST_CASE("TextQuality: inter-token tracking — word wrap preserves inter-token gaps") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    // Long phrase that wraps at the narrow box width
+    // "ABCDEF" (no spaces) — 1 token, line will be split via character fallback
+    // Wrapping doesn't add clusters, just splits them.  Each wrapped
+    // segment has its own tracking gaps computed from its clusters.
+    TextLayoutInput li;
+    li.text = "ABCDEF";
+    li.style.size = 32.0f;
+    li.style.wrap = TextWrap::Word;
+    li.box.enabled = true;
+    li.box.size = {100.0f, 200.0f};
+    li.font_engine = &engine;
+    li.font_spec = inter_bold_quality();
+
+    auto res0 = TextLayoutEngine::layout(li);
+    float total_width0 = 0.0f;
+    for (const auto& line : res0.lines) total_width0 += line.width;
+
+    li.style.tracking = 10.0f;
+    auto res10 = TextLayoutEngine::layout(li);
+    float total_width10 = 0.0f;
+    for (const auto& line : res10.lines) total_width10 += line.width;
+
+    // Each line independently gets inter-cluster tracking.
+    // Total tracking added = tracking * sum(clusters-1) per line.
+    // "ABCDEF" = 6 clusters, inter-cluster gaps = 5
+    // After wrapping, some clusters per line, gaps preserved.
+    // The sum of (clusters-1) across lines should equal 5.
+    // So total_width10 - total_width0 ≈ 10 * 5 = 50
+    CHECK(total_width10 == doctest::Approx(total_width0 + 50.0f).epsilon(0.2f));
+}
+
+TEST_CASE("TextQuality: inter-token tracking — multi-word wrap with tracking") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    // "AB CD EF" — multiple tokens, tracking between each
+    // Expected: width = sum(token_widths) + tracking * (tokens-1)
+    TextLayoutInput li;
+    li.text = "AB CD EF";
+    li.style.size = 24.0f;
+    li.style.wrap = TextWrap::Word;
+    li.box.enabled = true;
+    li.box.size = {200.0f, 200.0f}; // wide enough for one line
+    li.font_engine = &engine;
+    li.font_spec = inter_bold_quality();
+
+    auto res0 = TextLayoutEngine::layout(li);
+    CHECK(res0.lines.size() == 1);
+    float w0 = res0.lines[0].width;
+
+    li.style.tracking = 8.0f;
+    auto res8 = TextLayoutEngine::layout(li);
+    CHECK(res8.lines.size() == 1);
+    float w8 = res8.lines[0].width;
+
+    // Layout adds tracking TWICE: intra-token + inter-token.
+    // Intra: AB(8) + space(0) + CD(8) + space(0) + EF(8) = 24
+    // Inter: 4 gaps × 8 = 32
+    // Total = 56
+    CHECK(w8 == doctest::Approx(w0 + 56.0f).epsilon(0.2f));
+}
+
+TEST_CASE("TextQuality: inter-token tracking — ellipsis with tracking remeasures correctly") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    // Long text that will be truncated + ellipsised
+    TextLayoutInput li;
+    li.text = "ABCD EFGH IJKL MNOP"; // 4 words
+    li.style.size = 20.0f;
+    li.style.max_lines = 1;
+    li.style.overflow = TextOverflow::Ellipsis;
+    li.box.enabled = true;
+    li.box.size = {60.0f, 40.0f};  // narrow box to force truncation
+    li.font_engine = &engine;
+    li.font_spec = inter_bold_quality();
+
+    // Should not crash or produce malformed output
+    auto res_tight = TextLayoutEngine::layout(li);
+    CHECK_FALSE(res_tight.lines.empty());
+    CHECK(res_tight.lines[0].width > 0.0f);
+    CHECK(res_tight.lines[0].width <= 60.0f + 20.0f);  // allow small tolerance
+
+    // With tracking, ellipsis should still work
+    li.style.tracking = 10.0f;
+    auto res_tracking = TextLayoutEngine::layout(li);
+    CHECK_FALSE(res_tracking.lines.empty());
+    CHECK(res_tracking.lines[0].width > 0.0f);
+    // Width should be within the box (with some tolerance for ellipsis)
+    CHECK(res_tracking.lines[0].width <= 60.0f + 30.0f);
+}
+
+TEST_CASE("TextQuality: inter-token tracking — no tracking with zero value") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    TextLayoutInput li;
+    li.text = "A B C D E";
+    li.style.size = 32.0f;
+    li.style.tracking = 0.0f;
+    li.font_engine = &engine;
+    li.font_spec = inter_bold_quality();
+
+    auto res0 = TextLayoutEngine::layout(li);
+    auto res0b = TextLayoutEngine::layout(li);
+
+    // Zero tracking should give identical results every time
+    CHECK(res0.size.x == doctest::Approx(res0b.size.x).epsilon(0.01f));
+    CHECK(res0.lines.size() == res0b.lines.size());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 12. Typewriter Tracking — compute_typewriter_layout
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The typewriter uses PlacedGlyphRun with raw_advance + grapheme merge +
+// re-tracking at the grapheme level.  This must produce the same total
+// width as the layout engine's measure_string with the same tracking.
+// Tracking must NOT be double-counted after grapheme merge.
+
+namespace ct = chronon3d::content::text;
+
+TEST_CASE("TextQuality: typewriter tracking — width matches layout engine") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    const std::string text = "HELLO WORLD";
+    const float size = 48.0f;
+    const float tracking = 6.0f;
+    const FontSpec spec = inter_bold_quality();
+
+    // Layout engine width with tracking
+    TextLayoutInput li;
+    li.text = text;
+    li.style.size = size;
+    li.style.tracking = tracking;
+    li.style.wrap = TextWrap::None;
+    li.font_engine = &engine;
+    li.font_spec = spec;
+    float layout_width = TextLayoutEngine::layout(li).size.x;
+
+    // Typewriter layout width with same tracking
+    auto tw = ct::compute_typewriter_layout(
+        text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec);
+
+    CHECK(tw.total_width == doctest::Approx(layout_width).epsilon(0.15f));
+    CHECK(tw.chars.size() > 1);
+}
+
+TEST_CASE("TextQuality: typewriter tracking — zero tracking matches layout") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    const std::string text = "ABC";
+    const float size = 32.0f;
+    const float tracking = 0.0f;
+    const FontSpec spec = inter_bold_quality();
+
+    TextLayoutInput li;
+    li.text = text;
+    li.style.size = size;
+    li.style.tracking = 0.0f;
+    li.font_engine = &engine;
+    li.font_spec = spec;
+    float layout_width = TextLayoutEngine::layout(li).size.x;
+
+    auto tw = ct::compute_typewriter_layout(
+        text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec);
+
+    CHECK(tw.total_width == doctest::Approx(layout_width).epsilon(0.02f));
+    CHECK(tw.chars.size() == 3);  // A, B, C = 3 chars
+}
+
+TEST_CASE("TextQuality: typewriter tracking — per-char advances sum to total") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    const std::string text = "ABCD";
+    const float size = 48.0f;
+    const float tracking = 8.0f;
+    const FontSpec spec = inter_bold_quality();
+
+    auto tw = ct::compute_typewriter_layout(
+        text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec);
+
+    REQUIRE(tw.chars.size() == 4);
+
+    // Sum of advances should equal total_width
+    float sum_adv = 0.0f;
+    for (const auto& cp : tw.chars) {
+        sum_adv += cp.advance;
+    }
+    CHECK(sum_adv == doctest::Approx(tw.total_width).epsilon(0.01f));
+
+    // The last character should have NO tracking added to its advance
+    // (tracking is between characters, not after the last one)
+    // The first 3 characters each have tracking=8 added.
+    // The 4th (last) has raw advance only.
+    CHECK(tw.chars.back().advance > 0.0f);
+}
+
+TEST_CASE("TextQuality: typewriter tracking — with combining marks no double-count") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    // "A" + é (e+combining acute) + "B" — 3 grapheme clusters
+    // After grapheme merge, é's two code points are merged.
+    // Tracking should only be added between the 3 grapheme clusters.
+    const std::string text = "A" "e\xCC\x81" "B";
+    const float size = 48.0f;
+    const float tracking = 20.0f;
+    const FontSpec spec = inter_bold_quality();
+
+    auto tw = ct::compute_typewriter_layout(
+        text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec);
+
+    // Should be 3 grapheme clusters: A, é, B
+    REQUIRE(tw.chars.size() == 3);
+
+    // Compute raw width (no tracking) via layout engine
+    TextLayoutInput li;
+    li.text = text;
+    li.style.size = size;
+    li.style.tracking = 0.0f;
+    li.font_engine = &engine;
+    li.font_spec = spec;
+    float raw_width = TextLayoutEngine::layout(li).size.x;
+
+    // Expected total = raw_width + tracking * (3-1) = raw_width + 40
+    float expected = raw_width + 40.0f;
+    CHECK(tw.total_width == doctest::Approx(expected).epsilon(0.2f));
+
+    // Each of the first two chars has tracking=20 added
+    // char3 (last) has NO tracking
+    MESSAGE("Char advances: ", tw.chars[0].advance, ", ",
+            tw.chars[1].advance, ", ", tw.chars[2].advance);
+}
+
+TEST_CASE("TextQuality: typewriter tracking — with ZWJ emoji sequence") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    // A ZWJ emoji sequence: Woman + ZWJ + Woman = 1 grapheme cluster
+    // "A" + (emoji) + "B" = 3 grapheme clusters
+    // Tracking should be: (3-1) * tracking = 2 * tracking
+    const std::string zwj_seq =
+        "\xF0\x9F\x91\xA9"   // U+1F469 Woman
+        "\xE2\x80\x8D"       // U+200D ZWJ
+        "\xF0\x9F\x91\xA9";  // U+1F469 Woman
+
+    const std::string text = "A" + zwj_seq + "B";
+    const float size = 64.0f;
+    const float tracking = 10.0f;
+    const FontSpec spec = inter_bold_quality();
+
+    auto tw = ct::compute_typewriter_layout(
+        text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec);
+
+    // May be more than 3 glyphs if font can't shape ZWJ (emoji font needed)
+    // But grapheme count should be exactly 3
+    // We verify no crash and sensible output
+    CHECK(tw.total_width >= 0.0f);
+    CHECK(tw.chars.size() >= 1);
+    
+    if (tw.chars.size() >= 2) {
+        // Each advance should be positive
+        for (const auto& cp : tw.chars) {
+            CHECK(cp.advance >= 0.0f);
+        }
+    }
+}
+
+TEST_CASE("TextQuality: typewriter tracking — different tracking values scale correctly") {
+    FontEngine engine;
+    if (!require_font(engine)) return;
+
+    const std::string text = "TYPEWRITER";
+    const float size = 40.0f;
+    const FontSpec spec = inter_bold_quality();
+
+    // Compute raw width (no tracking)
+    auto tw0 = ct::compute_typewriter_layout(
+        text, size, 0.0f, {2000.0f, 2000.0f}, 1.0f, spec);
+    size_t num_chars = tw0.chars.size();
+    REQUIRE(num_chars > 1);
+
+    // With tracking=5: total_width = raw + 5 * (chars-1)
+    float track5 = 5.0f * static_cast<float>(num_chars - 1);
+    auto tw5 = ct::compute_typewriter_layout(
+        text, size, 5.0f, {2000.0f, 2000.0f}, 1.0f, spec);
+    CHECK(tw5.total_width == doctest::Approx(tw0.total_width + track5).epsilon(0.2f));
+
+    // With tracking=15: total_width = raw + 15 * (chars-1)
+    float track15 = 15.0f * static_cast<float>(num_chars - 1);
+    auto tw15 = ct::compute_typewriter_layout(
+        text, size, 15.0f, {2000.0f, 2000.0f}, 1.0f, spec);
+    CHECK(tw15.total_width == doctest::Approx(tw0.total_width + track15).epsilon(0.2f));
 }

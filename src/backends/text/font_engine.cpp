@@ -1,6 +1,7 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
+#include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <spdlog/spdlog.h>
 
 #include <ft2build.h>
@@ -13,7 +14,9 @@
 
 #include <cmath>
 #include <algorithm>
+#include <set>
 #include <shared_mutex>
+#include <unordered_map>
 
 namespace chronon3d {
 
@@ -199,51 +202,45 @@ std::optional<GlyphRun> FontEngine::shape_text(
     if (!buf) return std::nullopt;
     hb_buffer_add_utf8(buf, text.data(), static_cast<int>(text.size()), 0, static_cast<int>(text.size()));
 
-    // Direction: explicit from the TextShaping param, or auto-detect
-    // by scanning the first strongly-directional character.
+    // ── Set explicit properties BEFORE guess_segment_properties ─────
+    // HarfBuzz's hb_buffer_guess_segment_properties() only fills in
+    // properties that are INVALID / unset.  If we set a property here,
+    // guess_segment_properties will NOT override it.
+
+    // Direction: set only when the caller was explicit (not Auto).
+    // When Auto we leave the buffer direction as HB_DIRECTION_INVALID
+    // so guess_segment_properties() uses Unicode Bidi on the text.
     if (shaping.direction == TextDirection::RTL) {
         hb_buffer_set_direction(buf, HB_DIRECTION_RTL);
     } else if (shaping.direction == TextDirection::LTR) {
         hb_buffer_set_direction(buf, HB_DIRECTION_LTR);
-    } else {
-        // Auto-detect
-        hb_direction_t dir = HB_DIRECTION_LTR;
-        bool detected = false;
-        for (size_t i = 0; i < text.size() && !detected; ) {
-            const unsigned char c = static_cast<unsigned char>(text[i]);
-            hb_codepoint_t cp;
-            size_t len = 1;
-            if (c < 0x80) { cp = c; len = 1; }
-            else if ((c & 0xE0) == 0xC0 && i + 1 < text.size()) { cp = ((c & 0x1F) << 6) | (text[i+1] & 0x3F); len = 2; }
-            else if ((c & 0xF0) == 0xE0 && i + 2 < text.size()) { cp = ((c & 0x0F) << 12) | ((text[i+1] & 0x3F) << 6) | (text[i+2] & 0x3F); len = 3; }
-            else if ((c & 0xF8) == 0xF0 && i + 3 < text.size()) { cp = ((c & 0x07) << 18) | ((text[i+1] & 0x3F) << 12) | ((text[i+2] & 0x3F) << 6) | (text[i+3] & 0x3F); len = 4; }
-            else { cp = 0xFFFD; len = 1; }
-            if ((cp >= 0x0590 && cp <= 0x08FF) ||
-                (cp >= 0xFB1D && cp <= 0xFDFF) ||
-                (cp >= 0xFE70 && cp <= 0xFEFF)) {
-                dir = HB_DIRECTION_RTL;
-                detected = true;
-            } else if (cp > 0x04FF && cp < 0x0590) {
-                detected = true;
-            } else if (cp > 0x0600) {
-                detected = true;
-            }
-            i += len;
-        }
-        hb_buffer_set_direction(buf, dir);
     }
+    // Auto: leave unset → guess_segment_properties() handles it.
 
-    // Script: explicit hb_script_t from shaping param, or COMMON (auto).
-    hb_buffer_set_script(buf,
-        shaping.script != 0
-            ? static_cast<hb_script_t>(shaping.script)
-            : HB_SCRIPT_COMMON);
+    // Script: set only when the caller provided an explicit script tag.
+    // When script==0 we leave it as HB_SCRIPT_INVALID (buffer default)
+    // so guess_segment_properties() auto-detects from the character
+    // range of the text (Latin, Arabic, Devanagari, CJK, etc.).
+    if (shaping.script != 0) {
+        hb_buffer_set_script(buf, static_cast<hb_script_t>(shaping.script));
+    }
+    // script==0: leave unset → guess_segment_properties() handles it.
 
-    // Language: explicit from shaping param, or "en" (auto-detect).
-    hb_buffer_set_language(buf,
-        hb_language_from_string(
-            shaping.language.empty() ? "en" : shaping.language.c_str(),
-            -1));
+    // Language: set only when the caller provided an explicit language.
+    // When empty we leave it as HB_LANGUAGE_INVALID so
+    // guess_segment_properties() auto-detects from character range.
+    if (!shaping.language.empty()) {
+        hb_buffer_set_language(buf,
+            hb_language_from_string(shaping.language.c_str(), -1));
+    }
+    // language.empty(): leave unset → guess_segment_properties() handles it.
+
+    // ── Auto-detect any unset properties ───────────────────────────
+    // HarfBuzz fills in direction, script, and language from the text
+    // content when they are HB_DIRECTION_INVALID / HB_SCRIPT_INVALID /
+    // HB_LANGUAGE_INVALID (the buffer defaults after creation).
+    // This correctly handles Arabic RTL, Devanagari, CJK, emoji, etc.
+    hb_buffer_guess_segment_properties(buf);
 
     hb_shape(entry->hb_font, buf, nullptr, 0);
 
@@ -412,6 +409,123 @@ FontEngine& shared_font_engine() {
 void reset_shared_font_engine() {
     auto& engine = shared_font_engine();
     engine.clear_cache();
+}
+
+// ── PlacedGlyphRun resolver ───────────────────────────────────────────
+
+PlacedGlyphRun resolve_placed_glyph_run(
+    const GlyphRun& hb_run,
+    float tracking,
+    std::string_view source_text
+) {
+    PlacedGlyphRun result;
+    result.ascent = hb_run.ascent;
+    result.descent = hb_run.descent;
+    result.baseline = hb_run.baseline;
+    result.font_size = hb_run.font_size;
+
+    if (hb_run.glyphs.empty()) return result;
+
+    // ── First pass: positions with tracking-aware advances ────────────
+    float pen_x = 0.0f;
+    float pen_y = 0.0f;
+    result.glyphs.reserve(hb_run.glyphs.size());
+
+    for (size_t i = 0; i < hb_run.glyphs.size(); ++i) {
+        const auto& g = hb_run.glyphs[i];
+        PlacedGlyph pg;
+        pg.glyph_id = g.glyph_id;
+        pg.x_offset = g.x_offset;
+        pg.y_offset = g.y_offset;
+        pg.is_cluster_start = g.is_cluster_start;
+        pg.cluster = g.cluster;
+
+        // Position: pen_accumulated + raw HarfBuzz offset
+        // This matches what HbToBlGlyphRun produces for fillGlyphRun
+        // (pen advances by advance, offset added to position at draw time)
+        // AND what FtGlyphPathBuilder uses for the outline origin.
+        pg.x = pen_x + g.x_offset;
+        pg.y = pen_y + g.y_offset;
+
+        // Raw advance from HarfBuzz — saved separately so consumers
+        // that re-apply tracking at a different granularity (e.g.
+        // the typewriter's grapheme-cluster merge) can use the raw
+        // value and add tracking themselves.
+        pg.raw_advance_x = g.advance_x;
+        pg.advance_x = g.advance_x;
+        pg.advance_y = g.advance_y;
+
+        // Apply per-cluster tracking: add tracking before the NEXT glyph
+        // when that glyph starts a new cluster.
+        if (tracking != 0.0f && i + 1 < hb_run.glyphs.size()) {
+            if (hb_run.glyphs[i + 1].is_cluster_start) {
+                pg.advance_x += tracking;
+            }
+        }
+
+        result.glyphs.push_back(pg);
+
+        // Advance pen by the adjusted advance (with tracking)
+        pen_x += pg.advance_x;
+        pen_y += g.advance_y;
+    }
+
+    result.total_width = pen_x;
+    result.total_height = hb_run.ascent + hb_run.descent;
+
+    // ── Second pass: cluster info from source text ────────────────────
+    if (!source_text.empty()) {
+        // Build cluster-interval map from HarfBuzz cluster values.
+        // HarfBuzz `cluster` values are byte offsets into the source text.
+        // Collect unique values, sort by source-text offset, and build
+        // intervals [sorted[k], sorted[k+1]).
+
+        // 1. Collect unique cluster values.
+        std::set<u32> cluster_set;
+        for (const auto& g : hb_run.glyphs) {
+            cluster_set.insert(g.cluster);
+        }
+        cluster_set.insert(static_cast<u32>(source_text.size())); // sentinel
+
+        // 2. Build sorted intervals.
+        std::vector<u32> sorted_clusters(cluster_set.begin(), cluster_set.end());
+        std::unordered_map<u32, std::pair<size_t, size_t>> cluster_to_range;
+        for (size_t k = 0; k + 1 < sorted_clusters.size(); ++k) {
+            cluster_to_range[sorted_clusters[k]] = {
+                static_cast<size_t>(sorted_clusters[k]),
+                static_cast<size_t>(sorted_clusters[k + 1])
+            };
+        }
+
+        // 3. Map byte ranges back to glyphs and build clusters.
+        result.clusters.reserve(sorted_clusters.size() - 1);
+        for (size_t k = 0; k + 1 < sorted_clusters.size(); ++k) {
+            const u32 c = sorted_clusters[k];
+            auto it = cluster_to_range.find(c);
+            if (it == cluster_to_range.end()) continue;
+
+            const auto& [start_byte, end_byte] = it->second;
+            if (end_byte <= start_byte || start_byte >= source_text.size()) continue;
+
+            PlacedGlyphRun::Cluster cl;
+            cl.byte_offset = start_byte;
+            cl.byte_len = end_byte - start_byte;                // Find glyph range for this cluster.
+            for (size_t gi = 0; gi < result.glyphs.size(); ++gi) {
+                if (result.glyphs[gi].cluster == c) {
+                    if (cl.start_glyph == 0 && cl.end_glyph == 0) {
+                        cl.start_glyph = gi;
+                    }
+                    cl.end_glyph = gi + 1;      // exclusive
+                    cl.advance += result.glyphs[gi].advance_x;      // with tracking
+                    cl.raw_advance += result.glyphs[gi].raw_advance_x; // raw
+                }
+            }
+
+            result.clusters.push_back(cl);
+        }
+    }
+
+    return result;
 }
 
 } // namespace chronon3d
