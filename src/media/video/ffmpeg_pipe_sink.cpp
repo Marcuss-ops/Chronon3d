@@ -137,10 +137,10 @@ std::vector<std::string> FfmpegPipeSink::build_argv(const VideoSinkConfig& confi
         argv.push_back("tv");
     }
 
-    // Fast start for MP4.
+    // Fragmented MP4 for pipe output (+faststart requires seek, not possible on pipes).
     if (config.output.container == VideoContainer::Mp4) {
         argv.push_back("-movflags");
-        argv.push_back("+faststart");
+        argv.push_back("frag_keyframe+empty_moov");
     }
 
     // Output path.
