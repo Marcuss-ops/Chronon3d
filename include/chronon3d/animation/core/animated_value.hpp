@@ -253,17 +253,6 @@ public:
     }
 
     /**
-     * @brief Returns true if this value depends on time in *any* way — either
-     * through keyframes OR through an expression.  Expressions like
-     * `sin(time * 2)` have no keyframes but are time-dependent; callers that
-     * decide whether to evaluate/recompute must use is_time_dependent(), not
-     * is_animated().
-     */
-    [[nodiscard]] bool is_time_dependent() const {
-        return is_animated() || has_expression();
-    }
-
-    /**
      * @brief Determines if evaluating this property at a specific frame is "expensive"
      * enough to justify caching.
      */
