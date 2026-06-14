@@ -1,6 +1,7 @@
 #include <chronon3d/media/video/video_sink_factory.hpp>
 
 #include "raw_video_sink.hpp"
+#include "ffmpeg_pipe_sink.hpp"
 
 #include <unordered_map>
 #include <utility>
@@ -27,9 +28,8 @@ std::unordered_map<std::string, VideoSinkFactoryFn>& custom_factories() {
         return std::make_unique<RawVideoSink>();
     }
 
-    // Other codecs will be handled by future implementations
-    // (FfmpegPipeSink, NativeAvSink).  For now return nullptr.
-    return nullptr;
+    // Compressed codecs → FfmpegPipeSink (pipe to ffmpeg subprocess).
+    return std::make_unique<FfmpegPipeSink>();
 }
 
 } // anonymous namespace
