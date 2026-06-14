@@ -6,7 +6,12 @@
 // effect tests (A1–A7).
 //
 // Usage:
-//   #include "tests/effects/test_helpers.hpp"
+//   using namespace test_fx;
+//   make_coord_fb(8, 8);
+//   check_color_near(...);
+//
+// All definitions live in `namespace test_fx` to avoid polluting the global
+// namespace for includers.
 
 #include <doctest/doctest.h>
 #include <chronon3d/core/memory/framebuffer.hpp>
@@ -15,6 +20,10 @@
 #include <cstdint>
 #include <limits>
 
+namespace test_fx {
+
+// Bring `Color`, `Framebuffer`, and friends into this namespace so the
+// definitions below are concise and remain free of `chronon3d::` qualifiers.
 using namespace chronon3d;
 
 // =============================================================================
@@ -175,3 +184,5 @@ inline constexpr float kHalfStraightB = 0.2f;
     }
     return max_err;
 }
+
+} // namespace test_fx

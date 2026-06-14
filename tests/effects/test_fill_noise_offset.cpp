@@ -15,6 +15,7 @@
 #include <chronon3d/backends/software/sampling/edge_mode.hpp>
 #include "src/backends/software/processors/effects/generate/fill_noise_offset.hpp"
 #include "tests/effects/test_helpers.hpp"
+using namespace test_fx;
 #include <cmath>
 #include <cstdint>
 
