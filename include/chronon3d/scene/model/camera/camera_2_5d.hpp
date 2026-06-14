@@ -41,9 +41,26 @@ struct MotionBlurSettings {
 
 struct DepthOfFieldSettings {
     bool  enabled{false};
+
+    // Legacy simple model (backward compatible):
+    //   blur = |layer_z - focus_z| * aperture, clamped to max_blur.
     f32   focus_z{0.0f};      // world-space Z at which blur = 0
     f32   aperture{0.015f};   // blur per unit of Z distance from focus
     f32   max_blur{24.0f};    // clamp: pixels of blur at extreme depths
+
+    // Physical lens model (opt-in via use_physical_model):
+    //   Uses focal length, sensor size, f-stop, and focus distance to
+    //   compute a physically-based Circle of Confusion in pixels.
+    f32   focal_length{50.0f};     // lens focal length in mm (35mm normal lens)
+    f32   sensor_width{36.0f};     // sensor width in mm (full-frame 35mm)
+    f32   f_stop{2.8f};            // f-number (aperture ratio)
+    f32   focus_distance{1000.0f}; // distance from camera to focus plane (scene units)
+    bool  use_physical_model{false};
+
+    // Near / far bokeh separation (for future iris shape rendering).
+    // Set to 0 to disable per-side bokeh control (uses uniform blur radius).
+    f32   near_bokeh_radius{0.0f};  // max blur radius for objects closer than focus
+    f32   far_bokeh_radius{0.0f};   // max blur radius for objects farther than focus
 };
 
 // How perspective strength is specified for Camera2_5D.

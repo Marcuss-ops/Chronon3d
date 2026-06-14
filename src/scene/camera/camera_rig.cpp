@@ -70,6 +70,13 @@ Camera2_5D CameraRig::evaluate(
     cam.dof.aperture = dof.aperture.evaluate(time);
     cam.dof.max_blur = dof.max_blur.evaluate(time);
 
+    // Physical lens params.
+    cam.dof.focal_length        = dof.focal_length.evaluate(time);
+    cam.dof.sensor_width        = dof.sensor_width.evaluate(time);
+    cam.dof.f_stop              = dof.f_stop.evaluate(time);
+    cam.dof.focus_distance      = dof.focus_distance.evaluate(time);
+    cam.dof.use_physical_model  = dof.use_physical_model;
+
     return cam;
 }
 
