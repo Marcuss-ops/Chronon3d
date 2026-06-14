@@ -108,6 +108,61 @@ struct TemporalSpatialSeparationMetrics {
 TemporalSpatialSeparationMetrics analyze_temporal_spatial_separation(
     const Framebuffer& fb);
 
+// ── Quaternion shortest-path metrics ────────────────────────────────────────
+
+struct QuaternionShortestPathMetrics {
+    float total_angular_distance_deg{0.0f};
+    float min_adjacent_dot{0.0f};
+    bool  shortest_path{false};  // true if rotation took short path (~2°)
+};
+
+QuaternionShortestPathMetrics analyze_quaternion_shortest_path(
+    const Framebuffer& fb);
+
+// ── Quaternion path orientation metrics ─────────────────────────────────────
+
+struct QuaternionPathOrientationMetrics {
+    float max_quat_norm_error{0.0f};
+    float min_forward_dot{0.0f};
+    float min_up_dot{0.0f};
+    float max_roll_delta_deg{0.0f};
+};
+
+QuaternionPathOrientationMetrics analyze_quaternion_path_orientation(
+    const Framebuffer& fb);
+
+// ── Two-node target lock metrics ────────────────────────────────────────────
+
+struct TwoNodeTargetLockMetrics {
+    float max_target_center_error_px{0.0f};
+    float mean_target_center_error_px{0.0f};
+    std::vector<float> center_errors;
+};
+
+TwoNodeTargetLockMetrics analyze_two_node_target_lock(const Framebuffer& fb);
+
+// ── Motion blur shutter metrics ─────────────────────────────────────────────
+
+struct MotionBlurShutterMetrics {
+    float blur_centroid_x{0.0f};
+    float blur_length_px{0.0f};
+    float edge_variance{0.0f};
+};
+
+/// Analyze blur in a single-panel region of the comparison framebuffer.
+MotionBlurShutterMetrics analyze_motion_blur_panel(
+    const Framebuffer& fb, int panel_x0, int panel_y0, int panel_w, int panel_h);
+
+// ── Arc-length cache invalidation metrics ───────────────────────────────────
+
+struct ArcLengthCacheInvalidationMetrics {
+    bool shape_changed{false};
+    double changed_pixel_ratio{0.0};
+};
+
+ArcLengthCacheInvalidationMetrics analyze_arc_length_cache_invalidation(
+    const Framebuffer& before, const Framebuffer& after);
+
 // ── Coefficient of variation helper ─────────────────────────────────────────
 
 inline float coefficient_of_variation(const std::vector<float>& values) {

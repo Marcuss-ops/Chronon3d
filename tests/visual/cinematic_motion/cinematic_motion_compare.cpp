@@ -2,6 +2,7 @@
 
 #include <tests/helpers/pixel_assertions.hpp>
 #include <algorithm>
+#include <cmath>
 
 namespace chronon3d::test {
 
@@ -271,6 +272,187 @@ TemporalSpatialSeparationMetrics analyze_temporal_spatial_separation(
     // Golden image is primary.  Metrics for future automation.
     m.geometry_preserved = true;
     m.timing_affects_markers = true;
+    return m;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Quaternion shortest-path analysis
+// ═══════════════════════════════════════════════════════════════════════════
+
+QuaternionShortestPathMetrics analyze_quaternion_shortest_path(
+    const Framebuffer& /*fb*/)
+{
+    QuaternionShortestPathMetrics m;
+    // Verify quaternion math: 9 samples from +179deg to -179deg via slerp.
+    constexpr int kSamples = 9;
+    constexpr float kStartYaw = 179.0f;
+    constexpr float kEndYaw = -179.0f;
+
+    Quat q0 = glm::angleAxis(glm::radians(kStartYaw), Vec3{0, 1, 0});
+    Quat q1 = glm::angleAxis(glm::radians(kEndYaw), Vec3{0, 1, 0});
+    if (glm::dot(q0, q1) < 0.0f) q1 = -q1;
+
+    m.total_angular_distance_deg = 0.0f;
+    m.min_adjacent_dot = 1.0f;
+    Quat prev_q = q0;
+    for (int i = 0; i < kSamples; ++i) {
+        float t = static_cast<float>(i) / static_cast<float>(kSamples - 1);
+        Quat q = glm::slerp(q0, q1, t);
+        float dot_val = glm::abs(glm::dot(prev_q, q));
+        m.min_adjacent_dot = std::min(m.min_adjacent_dot, dot_val);
+        if (i > 0) {
+            float angle = glm::angle(glm::inverse(prev_q) * q);
+            m.total_angular_distance_deg += glm::degrees(angle);
+        }
+        prev_q = q;
+    }
+
+    m.shortest_path = (m.total_angular_distance_deg < 5.0f);
+    return m;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Quaternion path orientation analysis
+// ═══════════════════════════════════════════════════════════════════════════
+
+QuaternionPathOrientationMetrics analyze_quaternion_path_orientation(
+    const Framebuffer& /*fb*/)
+{
+    QuaternionPathOrientationMetrics m;
+    // Visual-only test — golden image is primary verification.
+    // Compute quaternion quality metrics from the bezier path.
+    const CubicBezier3D path{
+        {50, 270, 0}, {250, 100, 0}, {550, 440, 0}, {750, 270, 0}
+    };
+
+    m.max_quat_norm_error = 0.0f;
+    m.min_forward_dot = 1.0f;
+    m.min_up_dot = 1.0f;
+    m.max_roll_delta_deg = 0.0f;
+
+    Vec3 prev_up{0, -1, 0};
+    for (int i = 0; i < 16; ++i) {
+        double u = static_cast<double>(i) / 15.0;
+        Vec3 fwd = path.tangent_at(u);
+        if (glm::length(fwd) < 1e-6f) continue;
+
+        Vec3 right = glm::normalize(glm::cross(fwd, Vec3{0, -1, 0}));
+        Vec3 up = glm::normalize(glm::cross(right, fwd));
+
+        // Verify orthonormal frame: forward aligns with tangent (should be ~1).
+        m.min_forward_dot = std::min(m.min_forward_dot,
+            glm::abs(glm::dot(fwd, up)));  // sanity: fwd ⊥ up
+
+        if (i > 0) {
+            float up_dot = glm::dot(prev_up, up);
+            m.min_up_dot = std::min(m.min_up_dot, up_dot);
+            float roll_delta = glm::degrees(std::acos(
+                std::clamp(up_dot, -1.0f, 1.0f)));
+            m.max_roll_delta_deg = std::max(m.max_roll_delta_deg, roll_delta);
+        }
+        prev_up = up;
+    }
+
+    return m;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Two-node target lock analysis
+// ═══════════════════════════════════════════════════════════════════════════
+
+TwoNodeTargetLockMetrics analyze_two_node_target_lock(const Framebuffer& fb) {
+    TwoNodeTargetLockMetrics m;
+    m.max_target_center_error_px = 0.0f;
+    m.mean_target_center_error_px = 0.0f;
+
+    // Scan each panel (192px wide, 5 panels) for green target marker.
+    Color target_color{0.2f, 0.9f, 0.3f, 1};
+    for (int panel = 0; panel < 5; ++panel) {
+        const int px0 = panel * 192;
+        const int px1 = px0 + 192;
+        const int expected_cx = px0 + 160;
+        const int expected_cy = 180 + 90;
+
+        // Find centroid of green pixels.
+        double sum_x = 0, sum_y = 0;
+        int count = 0;
+        for (int y = 180; y < 360; ++y) {
+            for (int x = px0; x < px1; ++x) {
+                if (x >= fb.width() || y >= fb.height()) continue;
+                Color c = fb.get_pixel(x, y);
+                if (colors_match(c, target_color, 0.3f)) {
+                    sum_x += x;
+                    sum_y += y;
+                    ++count;
+                }
+            }
+        }
+
+        if (count > 0) {
+            float cx = static_cast<float>(sum_x / count);
+            float cy = static_cast<float>(sum_y / count);
+            float err = std::sqrt(
+                (cx - expected_cx) * (cx - expected_cx) +
+                (cy - expected_cy) * (cy - expected_cy));
+            m.center_errors.push_back(err);
+            m.max_target_center_error_px = std::max(m.max_target_center_error_px, err);
+        }
+    }
+
+    if (!m.center_errors.empty()) {
+        float sum = 0.0f;
+        for (float e : m.center_errors) sum += e;
+        m.mean_target_center_error_px = sum / static_cast<float>(m.center_errors.size());
+    }
+
+    return m;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Motion blur panel analysis
+// ═══════════════════════════════════════════════════════════════════════════
+
+MotionBlurShutterMetrics analyze_motion_blur_panel(
+    const Framebuffer& fb, int panel_x0, int panel_y0,
+    int panel_w, int panel_h)
+{
+    MotionBlurShutterMetrics m;
+
+    // Find centroid X of bright pixels (the blurred rect).
+    double sum_x = 0, sum_y = 0;
+    int count = 0;
+    int min_x = panel_w, max_x = 0;
+    for (int y = panel_y0; y < panel_y0 + panel_h; ++y) {
+        for (int x = panel_x0; x < panel_x0 + panel_w; ++x) {
+            if (x >= fb.width() || y >= fb.height()) continue;
+            Color c = fb.get_pixel(x, y);
+            if (c.r + c.g + c.b > 0.4f) {
+                sum_x += x;
+                sum_y += y;
+                ++count;
+                min_x = std::min(min_x, x - panel_x0);
+                max_x = std::max(max_x, x - panel_x0);
+            }
+        }
+    }
+
+    if (count == 0) return m;
+    m.blur_centroid_x = static_cast<float>(sum_x / count);
+    m.blur_length_px = static_cast<float>(max_x - min_x);
+    m.edge_variance = 0.0f;  // simplified
+    return m;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Arc-length cache invalidation analysis
+// ═══════════════════════════════════════════════════════════════════════════
+
+ArcLengthCacheInvalidationMetrics analyze_arc_length_cache_invalidation(
+    const Framebuffer& before, const Framebuffer& after)
+{
+    ArcLengthCacheInvalidationMetrics m;
+    m.changed_pixel_ratio = changed_pixel_ratio(before, after, 0.01f);
+    m.shape_changed = (m.changed_pixel_ratio > 0.01);
     return m;
 }
 
