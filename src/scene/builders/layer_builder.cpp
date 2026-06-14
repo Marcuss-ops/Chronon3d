@@ -194,22 +194,26 @@ Layer LayerBuilder::build() {
             DepthRoleResolver::z_for(m_layer.depth_role) + m_layer.depth_offset;
     }
     m_layer.font_engine = m_font_engine;
-    if (m_layer.anim_transform.is_animated()) {
+    // Evaluate transform when ANY component is time-dependent (keyframes OR expressions).
+    // Expression-only properties (e.g. "sin(time * 2)") have no keyframes, so
+    // is_animated() alone would skip evaluation — causing stale values.
+    if (m_layer.anim_transform.is_time_dependent()) {
         const SampleTime local_time = m_layer.local_time(m_current_time);
         Transform baked = m_layer.anim_transform.evaluate(local_time);
-        if (m_layer.anim_transform.position.is_animated())
+        if (m_layer.anim_transform.position.is_time_dependent())
             m_layer.transform.position = baked.position;
-        if (m_layer.anim_transform.rotation_euler.is_animated())
+        if (m_layer.anim_transform.rotation_euler.is_time_dependent())
             m_layer.transform.rotation = baked.rotation;
-        if (m_layer.anim_transform.scale.is_animated())
+        if (m_layer.anim_transform.scale.is_time_dependent())
             m_layer.transform.scale = baked.scale;
-        if (m_layer.anim_transform.anchor.is_animated())
+        if (m_layer.anim_transform.anchor.is_time_dependent())
             m_layer.transform.anchor = baked.anchor;
-        if (m_layer.anim_transform.opacity.is_animated())
+        if (m_layer.anim_transform.opacity.is_time_dependent())
             m_layer.transform.opacity = baked.opacity;
     }
     // Bake animated blur into the effect stack at the current sub-frame time.
-    if (m_layer.anim_transform.blur.is_animated()) {
+    // Blur can also be expression-only.
+    if (m_layer.anim_transform.blur.is_time_dependent()) {
         const SampleTime local_time = m_layer.local_time(m_current_time);
         f32 blur_radius = m_layer.anim_transform.blur.evaluate(local_time);
         bool found = false;

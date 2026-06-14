@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/animation/easing/easing.hpp>
-#include <chronon3d/animation/path/spatial_bezier_path.hpp>  // for AutoOrientMode
+#include <chronon3d/animation/path/spatial_bezier_path.hpp>  // for AutoOrientMode, PathSample
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/core/types/frame.hpp>
@@ -143,6 +143,30 @@ public:
         Vec3 tan = tangent_at(t);
         f32 len = glm::length(tan);
         return (len > 1e-6f) ? (tan / len) : Vec3{0.0f, 0.0f, -1.0f};
+    }
+
+    /// Single query that returns position + forward from the *same* parametric
+    /// coordinate.  When arc-length is enabled this is the only way to keep
+    /// camera position and its forward direction perfectly synchronised.
+    [[nodiscard]] PathSample sample_at(f32 t, bool arc_length) const {
+        if (arc_length && m_waypoints.size() >= 2) {
+            ensure_arc_length_table();
+            const f32 target = std::clamp(t, 0.0f, 1.0f) * m_total_arc_length;
+            auto it = std::lower_bound(m_arc_lengths.begin(), m_arc_lengths.end(), target);
+            if (it == m_arc_lengths.begin()) return { m_samples[0], forward_at(0.0f) };
+            if (it == m_arc_lengths.end()) return { m_samples.back(), forward_at(1.0f) };
+            const size_t hi = static_cast<size_t>(std::distance(m_arc_lengths.begin(), it));
+            const size_t lo = hi - 1;
+            const f32 seg_len = m_arc_lengths[hi] - m_arc_lengths[lo];
+            const f32 frac = (seg_len > 1e-6f) ? (target - m_arc_lengths[lo]) / seg_len : 0.0f;
+            // Recover parametric t for the tangent query
+            const f32 t_lo = static_cast<f32>(lo) / static_cast<f32>(m_samples.size() - 1);
+            const f32 t_hi = static_cast<f32>(hi) / static_cast<f32>(m_samples.size() - 1);
+            const f32 param_t = t_lo + frac * (t_hi - t_lo);
+            Vec3 pos = m_samples[lo] + (m_samples[hi] - m_samples[lo]) * frac;
+            return { pos, forward_at(param_t) };
+        }
+        return { evaluate(t), forward_at(t) };
     }
 
     [[nodiscard]] Vec3 evaluate_arc_length(f32 t) const {
@@ -465,7 +489,9 @@ struct CatmullRomCameraMotion {
         const f32 raw_t = static_cast<f32>(frame - start) / static_cast<f32>(end - start);
         const f32 t = std::clamp(easing.apply(std::clamp(raw_t, 0.0f, 1.0f)), 0.0f, 1.0f);
 
-        cam.position = use_arc_length ? path.evaluate_arc_length(t) : path.evaluate(t);
+        // Single synchronised query: position + tangent from same parameter
+        const PathSample sample = path.sample_at(t, use_arc_length);
+        cam.position = sample.position;
         cam.zoom = zoom;
         cam.fov_deg = fov_deg;
         cam.projection_mode = projection_mode;
@@ -474,7 +500,7 @@ struct CatmullRomCameraMotion {
             case AutoOrientMode::None:
                 break;
             case AutoOrientMode::AlongPath: {
-                Vec3 forward = path.forward_at(t);
+                Vec3 forward = glm::normalize(sample.forward);
                 if (glm::length(forward) > 1e-4f) {
                     const Quat orientation = quat_look_along(forward);
                     cam.rotation = quat_to_camera_euler(orientation, roll_deg);
@@ -506,7 +532,9 @@ struct CatmullRomCameraMotion {
             return cam;
         }
         t = std::clamp(t, 0.0f, 1.0f);
-        cam.position = use_arc_length ? path.evaluate_arc_length(t) : path.evaluate(t);
+
+        const PathSample sample = path.sample_at(t, use_arc_length);
+        cam.position = sample.position;
         cam.zoom = zoom;
         cam.fov_deg = fov_deg;
         cam.projection_mode = projection_mode;
@@ -514,7 +542,7 @@ struct CatmullRomCameraMotion {
         switch (auto_orient) {
             case AutoOrientMode::None: break;
             case AutoOrientMode::AlongPath: {
-                Vec3 forward = path.forward_at(t);
+                Vec3 forward = glm::normalize(sample.forward);
                 if (glm::length(forward) > 1e-4f) {
                     const Quat orientation = quat_look_along(forward);
                     cam.rotation = quat_to_camera_euler(orientation, roll_deg);
