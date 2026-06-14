@@ -852,6 +852,12 @@ HWY_EXPORT(apply_alpha_matte_premul_impl);
 HWY_EXPORT(apply_luma_matte_premul_impl);
 HWY_EXPORT(premultiply_alpha_rgba8_impl);
 
+/// Returns true if any color channel is NaN or ±Inf.
+static bool has_bad_color(const Color& c) noexcept {
+    return !std::isfinite(c.r) || !std::isfinite(c.g) ||
+           !std::isfinite(c.b) || !std::isfinite(c.a);
+}
+
 /// Canary check on first + last pixel of both buffers.  Returns true if safe
 /// for the fast SIMD path; falls back to a safe scalar loop when contaminated.
 static bool check_nan_canary(const Color* dst, const Color* src, int pixel_count) {

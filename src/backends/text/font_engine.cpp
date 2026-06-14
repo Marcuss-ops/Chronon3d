@@ -268,8 +268,8 @@ std::optional<GlyphRun> FontEngine::shape_text(
         gp.advance_x = static_cast<float>(glyph_positions[i].x_advance) * scale;
         gp.advance_y = static_cast<float>(glyph_positions[i].y_advance) * scale;
         gp.cluster = static_cast<u32>(glyph_infos[i].cluster);
-        gp.is_cluster_start = (glyph_infos[i].cluster == 0) ||
-                              (i > 0 && glyph_infos[i].cluster != glyph_infos[i - 1].cluster);
+        gp.is_cluster_start = (i == 0) ||
+                              (glyph_infos[i].cluster != glyph_infos[i - 1].cluster);
 
         // Look up glyph bbox in cache first
         GlyphBBoxCacheKey key{face, gp.glyph_id, pixel_size};
