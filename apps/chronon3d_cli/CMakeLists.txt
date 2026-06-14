@@ -62,11 +62,6 @@ add_library(chronon3d_cli_video STATIC
     commands/video/exporters/chunked_exporter.cpp
     commands/video/exporters/null_render_exporter.cpp
     commands/video/exporters/null_convert_exporter.cpp
-    utils/video/ffmpeg_pipe_encoder.cpp
-    utils/video/ffmpeg_pipe_write_frame.cpp
-    utils/video/ffmpeg_pipe_encoder_uring.cpp
-    utils/video/ffmpeg_pipe_command.cpp
-    utils/video/ffmpeg_pipe_yuv.cpp
     utils/video/video_job_plan.cpp
     utils/video/video_job_validate.cpp
     utils/video/video_job_dry_run.cpp
