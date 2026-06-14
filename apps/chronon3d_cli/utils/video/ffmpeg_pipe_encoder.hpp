@@ -50,6 +50,11 @@ struct IVideoEncoder {
     [[nodiscard]] virtual double native_receive_packet_ms() const { return 0.0; }
     [[nodiscard]] virtual double native_mux_write_ms()   const { return 0.0; }
     [[nodiscard]] virtual double native_trailer_ms()     const { return 0.0; }
+
+    // ── Pipe encoder telemetry accessors ──
+    // Return 0.0 for native or null backends (no pipe I/O).
+    [[nodiscard]] virtual double total_write_blocked_ms() const { return 0.0; }
+    [[nodiscard]] virtual int    ffmpeg_pid() const { return -1; }
 };
 
 enum class PipePixelFormat {

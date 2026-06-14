@@ -215,22 +215,19 @@ bool FfmpegPipeSink::open(const VideoSinkConfig& config) {
         return false;
     }
 
-    const auto& stream = config.stream;
-    if (stream.width <= 0 || stream.height <= 0) {
+    // Centralised config validation — reject invalid configurations early.
+    const auto validation = validate_video_sink_config(config);
+    if (!validation) {
         state_ = VideoSinkState::Failed;
         return false;
     }
 
-    // YUV formats require even dimensions.
+    const auto& stream = config.stream;
     const auto fmt = config.stream.submitted_format;
-    if (fmt == PixelFormat::YUV420P || fmt == PixelFormat::NV12) {
-        if (stream.width % 2 != 0 || stream.height % 2 != 0) {
-            state_ = VideoSinkState::Failed;
-            return false;
-        }
-    }
 
     // Pre-check: if overwrite=false and file exists, fail early.
+    // (The central validator doesn't check file existence — that's a
+    //  runtime condition, not a configuration invariant.)
     if (!config.output.overwrite) {
         const auto output_path = config.output.output_path;
         if (std::filesystem::exists(output_path)) {
@@ -529,17 +526,23 @@ bool FfmpegPipeSink::close() noexcept {
     }
 
     // Normal path: close stdin (signals EOF) and wait for ffmpeg to exit.
+    // Use a generous 30s timeout — ffmpeg may need time to encode and mux
+    // the last frames before its encoder flushes the output.
     if (!pipe_failed_) {
-        const int exit_code = process_.wait();
+        const int exit_code = process_.wait_for(std::chrono::seconds(30));
+        if (exit_code == -2) {
+            // Timeout — escalate.
+            process_.terminate_and_wait(std::chrono::seconds(5));
+            state_ = VideoSinkState::Failed;
+            return false;
+        }
         if (exit_code != 0) {
             state_ = VideoSinkState::Failed;
             return false;
         }
     } else {
-        // Pipe failed — terminate the child rather than waiting potentially
-        // for a dead process.
-        process_.terminate();
-        process_.wait();
+        // Pipe failed — terminate the child gracefully, then escalate.
+        process_.terminate_and_wait(std::chrono::seconds(5));
         state_ = VideoSinkState::Failed;
         return false;
     }
