@@ -45,6 +45,15 @@ CacheEvalResult evaluate_cache(
     // Always compute the key to ensure we have a valid key digest for telemetry,
     // bypassed nodes, and the downstream video conversion frame cache.
     cr.key = node.cache_key(ctx);
+
+    // Propagate the central sub-frame tick so that every node that generates
+    // a frame-dependent cache key gets the same quantised time anchor without
+    // having to remember to include it themselves.  Static nodes keep tick=0,
+    // avoiding cache pollution.
+    if (cr.node_frame_dependent) {
+        cr.key.sample_time_key = ctx.frame.sample_time_key;
+    }
+
     cr.key.input_hash = input_hash;
     if (ctx.tile.tile_execution_enabled && ctx.tile.active_tile_clip) {
         cr.key.tile_x = ctx.tile.active_tile_clip->x0;

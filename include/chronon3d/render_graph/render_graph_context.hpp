@@ -30,6 +30,7 @@
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <chronon3d/core/memory/framebuffer_slot_view.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>
@@ -72,7 +73,9 @@ class RenderProfiler;
 // ── Per-frame immutable-ish info: frame number, time, dimensions ───────────
 struct RenderFrameInfo {
     Frame frame{0};
-    float time_seconds{0.0f};
+    SampleTime sample_time{};         // continuous sub-frame time coordinate
+    SampleTimeKey sample_time_key{};  // quantised cache key for sub-frame
+    float time_seconds{0.0f};         // wall-clock seconds = frame / fps
     float fps{30.0f};
     int width{0};
     int height{0};

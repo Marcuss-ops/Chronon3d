@@ -191,8 +191,18 @@ private:
     /// around and produce different values at frame vs frame+1 even when past
     /// the last keyframe time. Those are correctly rejected here.
     static bool layer_animation_done_at(const Layer& layer, Frame frame) {
-        // If not animated at all, it's always stable
-        if (!layer.anim_transform.is_animated()) return true;
+        // If not time-dependent at all, it's always stable
+        if (!layer.anim_transform.is_time_dependent()) return true;
+
+        // Expressions are inherently time-dependent — can't ever be "done"
+        if (layer.anim_transform.position.has_expression() ||
+            layer.anim_transform.scale.has_expression() ||
+            layer.anim_transform.rotation_euler.has_expression() ||
+            layer.anim_transform.anchor.has_expression() ||
+            layer.anim_transform.opacity.has_expression() ||
+            layer.anim_transform.blur.has_expression()) {
+            return false;
+        }
 
         // Helper: check if a single AnimatedValue is in Hold mode and past its last keyframe
         auto is_done = [&](const auto& val) -> bool {
@@ -212,17 +222,11 @@ private:
     static bool layer_is_static(const Layer& layer) {
         if (layer.kind == LayerKind::Video) return false; // Video is time-dependent
         if (layer.kind == LayerKind::Precomp) return false; // Precomp may reference animated compositions
-        if (layer.anim_transform.is_animated()) return false; // Animated transform (position, rotation, scale, anchor, opacity)
-        // Check expressions in anim_transform animated values
-        if (layer.anim_transform.position.has_expression()) return false;
-        if (layer.anim_transform.scale.has_expression()) return false;
-        if (layer.anim_transform.rotation_euler.has_expression()) return false;
-        if (layer.anim_transform.anchor.has_expression()) return false;
-        if (layer.anim_transform.opacity.has_expression()) return false;
+        if (layer.anim_transform.is_time_dependent()) return false; // Animated transform (keyframes OR expressions)
         // Transitions make a layer frame-dependent
         if (layer.transition_in.duration > 0 || layer.transition_out.duration > 0) return false; // Non-zero transitions are frame-dependent
         // Time Remap (AE-4): animated time_remap makes layer frame-dependent
-        if (layer.time_remap.time_remap.is_animated()) return false;
+        if (layer.time_remap.time_remap.is_time_dependent()) return false;
         return true;
     }
 
@@ -233,16 +237,11 @@ private:
         if (layer.kind == LayerKind::Video) return false;
         if (layer.kind == LayerKind::Precomp) return false;
         // If animation is done (all keyframes passed), layer is effectively static
-        if (layer.anim_transform.is_animated() && !layer_animation_done_at(layer, frame)) {
+        if (layer.anim_transform.is_time_dependent() && !layer_animation_done_at(layer, frame)) {
             return false;
         }
-        if (layer.anim_transform.position.has_expression()) return false;
-        if (layer.anim_transform.scale.has_expression()) return false;
-        if (layer.anim_transform.rotation_euler.has_expression()) return false;
-        if (layer.anim_transform.anchor.has_expression()) return false;
-        if (layer.anim_transform.opacity.has_expression()) return false;
         if (layer.transition_in.duration > 0 || layer.transition_out.duration > 0) return false;
-        if (layer.time_remap.time_remap.is_animated()) return false;
+        if (layer.time_remap.time_remap.is_time_dependent()) return false;
         return true;
     }
 

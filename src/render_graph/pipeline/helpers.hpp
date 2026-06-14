@@ -106,7 +106,14 @@ namespace chronon3d::graph {
     return RenderGraphContext{
         .frame = RenderFrameInfo{
             .frame = frame,
-            .time_seconds = static_cast<float>(frame) + frame_time,
+            .sample_time = SampleTime::from_frame(
+                static_cast<double>(frame) + static_cast<double>(frame_time), static_cast<double>(fps)),
+            .sample_time_key = SampleTimeKey::from_sample_time(
+                SampleTime::from_frame(
+                    static_cast<double>(frame) + static_cast<double>(frame_time), static_cast<double>(fps))),
+            .time_seconds = fps > 0.0f
+                ? (static_cast<float>(frame) + frame_time) / fps
+                : 0.0f,
             .fps = fps,
             .width = width,
             .height = height,
