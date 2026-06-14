@@ -504,6 +504,39 @@ inline size_t grapheme_byte_offset_at(std::string_view sv, size_t n) {
     enum class GB11State { Normal, ExtPict, ExtPictZWJ };
     GB11State gb11 = GB11State::Normal;
 
+    // Shared trailing-loop helper: consumes extenders and GB11 ZWJ sequences
+    // that belong to the current cluster after clusters == n is reached.
+    auto consume_trailing_extenders = [&]() {
+        while (offset < sv.size()) {
+            const unsigned char next_lead = static_cast<unsigned char>(sv[offset]);
+            const size_t next_len = utf8_seq_len(next_lead);
+            if (offset + next_len > sv.size()) break;
+            const char32_t next_cp = utf8_decode_at(sv, offset);
+            const bool next_ext = is_grapheme_extend(next_cp);
+            const bool next_zwj = (next_cp == 0x200D);
+            const bool next_ep  = is_extended_pictographic(next_cp);
+
+            // GB11: Extended_Pictographic after ExtPictZWJ continues the cluster.
+            if (next_ep && gb11 == GB11State::ExtPictZWJ) {
+                gb11 = GB11State::ExtPict;
+                offset += next_len;
+                continue;
+            }
+            // ZWJ after ExtPict → transition to ExtPictZWJ.
+            if (next_zwj && gb11 == GB11State::ExtPict) {
+                gb11 = GB11State::ExtPictZWJ;
+                offset += next_len;
+                continue;
+            }
+            // Any Extend keeps the current GB11 state.
+            if (next_ext) {
+                offset += next_len;
+                continue;
+            }
+            break;  // non-extender, non-GB11: end of cluster
+        }
+    };
+
     while (offset < sv.size() && clusters < n) {
         const unsigned char lead = static_cast<unsigned char>(sv[offset]);
         const size_t len = utf8_seq_len(lead);
@@ -526,12 +559,15 @@ inline size_t grapheme_byte_offset_at(std::string_view sv, size_t n) {
                         const unsigned char lead2 = static_cast<unsigned char>(sv[offset]);
                         const size_t len2 = utf8_seq_len(lead2);
                         if (offset + len2 <= sv.size()) {
-                        const char32_t next_cp = utf8_decode_at(sv, offset);
-                        if (is_regional_indicator(next_cp)) {
+                            const char32_t next_cp = utf8_decode_at(sv, offset);
+                            if (is_regional_indicator(next_cp)) {
                                 offset += len2;
                             }
                         }
                     }
+                    // RI breaks any ZWJ chain — reset GB11 before trailing loop.
+                    gb11 = GB11State::Normal;
+                    consume_trailing_extenders();
                     return offset;
                 }
             }
@@ -569,38 +605,7 @@ inline size_t grapheme_byte_offset_at(std::string_view sv, size_t n) {
         gb11 = is_ep ? GB11State::ExtPict : GB11State::Normal;
         if (clusters == n) {
             offset += len;
-            // Consume trailing extenders AND GB11 ZWJ sequences that
-            // belong to this cluster.  Mirrors the GB11 state machine
-            // from grapheme_cluster_count: ExtPict → ZWJ → ExtPictZWJ,
-            // and ExtPictZWJ + ExtPict continues the same cluster.
-            while (offset < sv.size()) {
-                const unsigned char next_lead = static_cast<unsigned char>(sv[offset]);
-                const size_t next_len = utf8_seq_len(next_lead);
-                if (offset + next_len > sv.size()) break;
-                const char32_t next_cp = utf8_decode_at(sv, offset);
-                const bool next_ext = is_grapheme_extend(next_cp);
-                const bool next_zwj = (next_cp == 0x200D);
-                const bool next_ep  = is_extended_pictographic(next_cp);
-
-                // GB11: Extended_Pictographic after ExtPictZWJ continues the cluster.
-                if (next_ep && gb11 == GB11State::ExtPictZWJ) {
-                    gb11 = GB11State::ExtPict;
-                    offset += next_len;
-                    continue;
-                }
-                // ZWJ after ExtPict → transition to ExtPictZWJ.
-                if (next_zwj && gb11 == GB11State::ExtPict) {
-                    gb11 = GB11State::ExtPictZWJ;
-                    offset += next_len;
-                    continue;
-                }
-                // Any Extend keeps the current GB11 state.
-                if (next_ext) {
-                    offset += next_len;
-                    continue;
-                }
-                break;  // non-extender, non-GB11: end of cluster
-            }
+            consume_trailing_extenders();
             return offset;
         }
         offset += len;
