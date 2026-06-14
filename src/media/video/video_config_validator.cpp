@@ -125,8 +125,12 @@ ValidationResult validate_video_sink_config(
         return {false, "encoder.bitrate must be >= 0 (0 = let encoder choose)"};
     }
 
+    // Resolve Auto codec before validating — the validator must check the
+    // actual codec that will be used, not the unresolved placeholder.
+    const auto resolved_codec = resolve_auto_codec(
+        enc.codec, config.output.container);
     if (const char* err = check_codec_container(
-            enc.codec, config.output.container)) {
+            resolved_codec, config.output.container)) {
         return {false, err};
     }
 

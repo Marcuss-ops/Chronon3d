@@ -90,9 +90,11 @@ std::vector<std::string> FfmpegPipeSink::build_argv(const VideoSinkConfig& confi
     // No audio.
     argv.push_back("-an");
 
-    // Codec.
+    // Codec — resolve Auto based on container before converting to string.
+    const auto resolved_codec = resolve_auto_codec(
+        config.encoder.codec, config.output.container);
     argv.push_back("-c:v");
-    argv.push_back(codec_to_string(config.encoder.codec));
+    argv.push_back(codec_to_string(resolved_codec));
 
     // CRF / quality.
     if (config.encoder.crf >= 0) {
@@ -178,11 +180,11 @@ bool FfmpegPipeSink::write_to_pipe(const uint8_t* data, size_t size) {
 
     const auto t0 = std::chrono::steady_clock::now();
 
-    // Use write_for() when a write_timeout is configured; fall back to
-    // blocking write() when timeout is zero (no deadline).
-    const bool ok = (write_timeout_.count() > 0)
-        ? process_.write_for(data, size, write_timeout_)
-        : process_.write(data, size);
+    // Always use write_for() — it handles O_NONBLOCK correctly via poll().
+    // When write_timeout is 0 (no deadline), write_for() substitutes a
+    // large default internally so the write never spuriously fails on
+    // EAGAIN.
+    const bool ok = process_.write_for(data, size, write_timeout_);
 
     const auto t1 = std::chrono::steady_clock::now();
 
@@ -528,6 +530,11 @@ bool FfmpegPipeSink::flush() {
 // ============================================================================
 
 bool FfmpegPipeSink::close() noexcept {
+    // Preserve the Failed state so it isn't overwritten to Closed below.
+    // This matters when submit() set Failed (e.g. invalid frame format)
+    // but the pipe itself is still intact — close() must still report failure.
+    const bool was_failed = (state_ == VideoSinkState::Failed);
+
     if (state_ == VideoSinkState::Closed) {
         return true;
     }
@@ -576,8 +583,10 @@ bool FfmpegPipeSink::close() noexcept {
         return false;
     }
 
-    state_ = VideoSinkState::Closed;
-    return true;
+    // Restore Failed if it was set before close(), e.g. by a submit() that
+    // rejected an invalid frame format without breaking the pipe.
+    state_ = was_failed ? VideoSinkState::Failed : VideoSinkState::Closed;
+    return !was_failed;
 }
 
 // ============================================================================
