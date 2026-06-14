@@ -41,8 +41,8 @@ std::unordered_map<std::string, VideoSinkFactoryFn>& custom_factories() {
 std::unique_ptr<VideoSink> create_video_sink(const VideoSinkConfig& config) {
     // 1. Check custom factories first (scheme-matched on output path).
     const auto path_str = config.output.output_path.string();
-    const auto scheme_end = path_str.find(':');
-    if (scheme_end != std::string::npos && scheme_end > 0) {
+    const auto scheme_end = path_str.find("://");
+    if (scheme_end != std::string::npos) {
         const auto scheme = path_str.substr(0, scheme_end);
         const auto& cf = custom_factories();
         auto it = cf.find(scheme);
