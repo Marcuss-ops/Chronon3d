@@ -87,6 +87,7 @@ bool ffmpeg_available() {
     cfg.output.output_path     = std::filesystem::path(path);
     cfg.output.overwrite       = overwrite;
     cfg.output.container       = VideoContainer::Mp4;
+    cfg.transport.asynchronous = false;
     return cfg;
 }
 

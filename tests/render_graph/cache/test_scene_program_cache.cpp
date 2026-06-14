@@ -351,7 +351,7 @@ TEST_CASE("scene_program_cache: LRU eviction with capacity 3 (spec)") {
     CHECK(cache.size() == 3);
 
     // Access A (promotes it to MRU head).
-    cache.find(key_a);
+    (void)cache.find(key_a);
     CHECK(cache.stats().hits >= 1);
 
     // Insert D → should evict B (LRU tail).
@@ -410,7 +410,7 @@ TEST_CASE("scene_program_cache: LRU touch promotes to MRU") {
 
     // k1 is LRU (head: k3, then k2, tail: k1).
     // Access k1 → becomes MRU (head: k1, then k3, tail: k2).
-    cache.find(k1);
+    (void)cache.find(k1);
 
     // Insert k4 → should evict k2 (now LRU tail), not k1.
     auto k4 = make_key(4);
