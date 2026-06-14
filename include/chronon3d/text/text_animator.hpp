@@ -124,14 +124,16 @@ inline f32 TextAnimator::measure_unit_width(const std::string& unit) const {
         FontSpec spec{m_font_path, "", m_font_weight};
         if (auto run = m_font_engine->shape_text(unit, spec, m_font_size)) {
             // Add tracking per code point (not per byte) to match layout engine behaviour
-            return run->width + m_tracking * static_cast<f32>(detail::utf8_length(unit));
+            return run->width + m_tracking * static_cast<f32>(
+                std::max(detail::grapheme_cluster_count(unit), size_t{1}) - 1);
         }
     }
     // Fallback to approximate character-width heuristic (UTF-8 code-point count)
     f32 w = 0.0f;
-    const size_t cp_count = detail::utf8_length(unit);
-    w += m_font_size * kCharWidthRatio * static_cast<f32>(cp_count);
-    w += m_tracking * static_cast<f32>(cp_count);
+    const size_t cluster_count = detail::grapheme_cluster_count(unit);
+    const f32 effective_clusters = static_cast<f32>(cluster_count > 0 ? cluster_count - 1 : 0);
+    w += m_font_size * kCharWidthRatio * static_cast<f32>(cluster_count);
+    w += m_tracking * effective_clusters;
     return w;
 }
 
