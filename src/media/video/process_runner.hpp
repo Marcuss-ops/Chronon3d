@@ -50,6 +50,14 @@ public:
     /// @return true if all bytes were written, false on pipe error.
     bool write(const std::uint8_t* data, std::size_t size);
 
+    /// Write bytes to the child's stdin with a per-write deadline.
+    /// Uses poll() with POLLOUT so the write is non-blocking; drains stderr
+    /// inside the poll loop to prevent the child from blocking on stderr.
+    /// @return true if all bytes were written before the deadline,
+    ///         false on timeout or pipe error.
+    bool write_for(const std::uint8_t* data, std::size_t size,
+                   std::chrono::milliseconds timeout);
+
     /// Close the write end of the stdin pipe.  The child receives EOF on
     /// its next read.  Idempotent.
     void close_stdin();
@@ -88,6 +96,9 @@ public:
     [[nodiscard]] int pid() const noexcept { return child_pid_; }
 
     // ── Diagnostics ─────────────────────────────────────────────────────
+
+    /// Maximum bytes of stderr to buffer (prevents unbounded memory growth).
+    static constexpr std::size_t kMaxStderrBytes = 1024 * 1024;  // 1 MiB
 
     /// Retrieve and clear the captured stderr output from the child process.
     /// Returns an empty string if no stderr was captured (or if capture was

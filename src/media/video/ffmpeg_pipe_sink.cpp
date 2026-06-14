@@ -177,7 +177,13 @@ bool FfmpegPipeSink::write_to_pipe(const uint8_t* data, size_t size) {
     }
 
     const auto t0 = std::chrono::steady_clock::now();
-    const bool ok = process_.write(data, size);
+
+    // Use write_for() when a write_timeout is configured; fall back to
+    // blocking write() when timeout is zero (no deadline).
+    const bool ok = (write_timeout_.count() > 0)
+        ? process_.write_for(data, size, write_timeout_)
+        : process_.write(data, size);
+
     const auto t1 = std::chrono::steady_clock::now();
 
     const double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
@@ -249,6 +255,9 @@ bool FfmpegPipeSink::open(const VideoSinkConfig& config) {
     if (!launch_ffmpeg(argv)) {
         return false;
     }
+
+    // Store the write timeout from config.
+    write_timeout_ = config.transport.write_timeout;
 
     // Reset stats.
     stats_ = Stats{};

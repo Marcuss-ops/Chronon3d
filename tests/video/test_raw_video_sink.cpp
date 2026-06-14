@@ -56,6 +56,8 @@ namespace {
     cfg.stream.submitted_format = fmt;
     cfg.encoder.encoded_pixel_format = fmt;
     cfg.encoder.apply_gamma = false;  // linear for determinism
+    // The current sinks only support synchronous mode.
+    cfg.transport.asynchronous = false;
     cfg.output.output_path = std::filesystem::path(path);
     cfg.output.overwrite = overwrite;
     return cfg;
