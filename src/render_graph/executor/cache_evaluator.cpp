@@ -51,7 +51,7 @@ CacheEvalResult evaluate_cache(
     // having to remember to include it themselves.  Static nodes keep tick=0,
     // avoiding cache pollution.
     if (cr.node_frame_dependent) {
-        cr.key.sample_time_key = ctx.frame.sample_time_key;
+        cr.key.temporal_key = ctx.frame.temporal_key;
     }
 
     cr.key.input_hash = input_hash;

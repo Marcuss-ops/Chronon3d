@@ -48,7 +48,7 @@ struct AnimatedCamera2_5D {
 
     /// Evaluate all animated properties at `frame` and return a static Camera2_5D.
     [[nodiscard]] Camera2_5D evaluate(Frame frame) const {
-        return evaluate(SampleTime::from_frame_int(frame));
+        return evaluate(SampleTime::from_frame_int(frame, FrameRate{30, 1}));
     }
 
     /// Sub-frame evaluation — enables true multi-sample motion blur.

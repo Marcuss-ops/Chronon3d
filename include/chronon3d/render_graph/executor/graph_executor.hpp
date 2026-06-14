@@ -47,6 +47,7 @@ public:
     void invalidate_plan_cache() {
         std::lock_guard<std::mutex> lock(m_plan_mutex);
         m_cached_plan.valid = false;
+        m_cached_plan.plan.reset();
     }
 
 private:
@@ -56,7 +57,7 @@ private:
     };
 
     struct CachedExecutionPlan {
-        ExecutionPlan plan;
+        std::shared_ptr<const ExecutionPlan> plan;
         std::uint64_t structure_hash{0};
         GraphNodeId output{k_invalid_node};
         bool valid{false};
@@ -67,7 +68,7 @@ private:
     mutable std::mutex m_plan_mutex;
     CachedExecutionPlan m_cached_plan;
 
-    [[nodiscard]] ExecutionPlan build_execution_plan(RenderGraph& graph, GraphNodeId output) const;
+    [[nodiscard]] std::shared_ptr<const ExecutionPlan> build_execution_plan(RenderGraph& graph, GraphNodeId output) const;
 
     /// Compute a hash that uniquely identifies the graph topology:
     /// node kinds, input connectivity, and output node ID.

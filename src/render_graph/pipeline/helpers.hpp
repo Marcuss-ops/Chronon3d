@@ -104,17 +104,15 @@ namespace chronon3d::graph {
     media::MediaFrameProvider* video_decoder,
     float fps
 ) {
-    const float effective_frame = static_cast<float>(frame) + frame_time;
+    // Preserve fractional FPS precision (e.g. 29.97 NTSC).
+    const FrameRate frm = FrameRate{static_cast<i32>(fps * 1000.0f + 0.5f), 1000};
     const SampleTime st = SampleTime::from_frame(
-        static_cast<double>(effective_frame), static_cast<double>(fps));
+        static_cast<double>(frame) + static_cast<double>(frame_time), frm);
     return RenderGraphContext{
         .frame = RenderFrameInfo{
             .frame = frame,
-            .sample_time = SampleTime::from_frame(
-                static_cast<double>(frame) + static_cast<double>(frame_time), static_cast<double>(fps)),
-            .sample_time_key = SampleTimeKey::from_sample_time(
-                SampleTime::from_frame(
-                    static_cast<double>(frame) + static_cast<double>(frame_time), static_cast<double>(fps))),
+            .sample_time = st,
+            .temporal_key = make_temporal_key(st, 0),
             .time_seconds = fps > 0.0f
                 ? (static_cast<float>(frame) + frame_time) / fps
                 : 0.0f,

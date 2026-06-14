@@ -88,4 +88,8 @@ std::vector<SamplerDescriptor> SamplerRegistry::list() const {
     return descriptors;
 }
 
+void SamplerRegistry::clear() {
+    m_samplers.clear();
+}
+
 } // namespace chronon3d::registry

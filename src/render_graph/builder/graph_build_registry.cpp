@@ -83,6 +83,10 @@ void GraphBuildRegistry::register_default_passes() {
                   std::make_unique<detail::OutputPass>());
 }
 
+void GraphBuildRegistry::clear() {
+    m_entries.clear();
+}
+
 void GraphBuildRegistry::apply_to_pipeline(GraphBuildPipeline& pipeline) {
     // Sort: first by phase, then by insertion order (stable).
     std::vector<const GraphBuildPassEntry*> sorted;

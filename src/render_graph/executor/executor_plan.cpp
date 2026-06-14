@@ -23,8 +23,9 @@ uint64_t GraphExecutor::compute_structure_signature(const RenderGraph& graph, Gr
     return sig;
 }
 
-GraphExecutor::ExecutionPlan GraphExecutor::build_execution_plan(RenderGraph& graph, GraphNodeId output) const {
-    ExecutionPlan plan;
+std::shared_ptr<const GraphExecutor::ExecutionPlan>
+GraphExecutor::build_execution_plan(RenderGraph& graph, GraphNodeId output) const {
+    auto plan = std::make_shared<ExecutionPlan>();
     const size_t node_count = graph.size();
     if (node_count == 0 || output >= node_count) {
         return plan;
@@ -46,7 +47,7 @@ GraphExecutor::ExecutionPlan GraphExecutor::build_execution_plan(RenderGraph& gr
 
     std::vector<std::vector<GraphNodeId>> children(node_count);
     std::vector<size_t> indegree(node_count, 0);
-    plan.consumer_counts.assign(node_count, 0);
+    plan->consumer_counts.assign(node_count, 0);
 
     for (GraphNodeId child = 0; child < node_count; ++child) {
         if (!reachable[child]) {
@@ -58,7 +59,7 @@ GraphExecutor::ExecutionPlan GraphExecutor::build_execution_plan(RenderGraph& gr
             }
             children[parent].push_back(child);
             ++indegree[child];
-            ++plan.consumer_counts[parent];
+            ++plan->consumer_counts[parent];
         }
     }
 
@@ -72,7 +73,7 @@ GraphExecutor::ExecutionPlan GraphExecutor::build_execution_plan(RenderGraph& gr
 
     size_t scheduled = 0;
     while (!current_level.empty()) {
-        plan.levels.push_back(current_level);
+        plan->levels.push_back(current_level);
         scheduled += current_level.size();
 
         std::vector<GraphNodeId> next_level;

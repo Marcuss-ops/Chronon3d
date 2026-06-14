@@ -28,7 +28,7 @@ struct AnimatedTransform {
 
     /// Legacy integer-frame evaluation (backward compatible).
     [[nodiscard]] Transform evaluate(Frame frame) const {
-        return evaluate(SampleTime::from_frame_int(frame));
+        return evaluate(SampleTime::from_frame_int(frame, FrameRate{30, 1}));
     }
 
     [[nodiscard]] bool is_animated() const {

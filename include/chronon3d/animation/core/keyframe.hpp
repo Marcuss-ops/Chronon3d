@@ -115,7 +115,7 @@ public:
         return sample_at(static_cast<f32>(current));
     }
 
-    /// SampleTime-based sampling — delegates to double-precision sample_at.
+    /// SampleTime-based sampling — preserves double-precision sub-frame.
     [[nodiscard]] T evaluate(SampleTime time) const {
         return sample_at(static_cast<f32>(time.frame));
     }

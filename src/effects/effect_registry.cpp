@@ -86,4 +86,8 @@ std::unique_ptr<graph::RenderGraphNode> EffectRegistry::create_node(const Effect
     return nullptr;
 }
 
+void EffectRegistry::clear() {
+    m_effects.clear();
+}
+
 } // namespace chronon3d::effects

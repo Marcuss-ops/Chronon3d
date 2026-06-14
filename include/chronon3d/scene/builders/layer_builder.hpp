@@ -212,7 +212,7 @@ public:
 
 private:
     Layer m_layer;
-    SampleTime m_current_time{SampleTime::from_frame_int(0)};
+    SampleTime m_current_time{SampleTime::from_frame_int(0, FrameRate{30, 1})};
     std::optional<Frame> m_until_frame{};
     bool m_duration_explicit{false};
     f32 m_screen_width{1920.0f};
