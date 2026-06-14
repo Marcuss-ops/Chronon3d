@@ -523,6 +523,18 @@ PlacedGlyphRun resolve_placed_glyph_run(
 
             result.clusters.push_back(cl);
         }
+
+        // ── Third pass: populate per-glyph source fields ───────────
+        // Copy byte offset/len from cluster info back to individual
+        // PlacedGlyph entries so every glyph exposes its source range.
+        for (const auto& cl : result.clusters) {
+            for (size_t gi = cl.start_glyph; gi < cl.end_glyph; ++gi) {
+                if (gi < result.glyphs.size()) {
+                    result.glyphs[gi].byte_offset = cl.byte_offset;
+                    result.glyphs[gi].byte_len = cl.byte_len;
+                }
+            }
+        }
     }
 
     return result;

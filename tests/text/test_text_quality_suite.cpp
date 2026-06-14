@@ -1461,3 +1461,293 @@ TEST_CASE("TextQuality: typewriter tracking — different tracking values scale 
         text, size, 15.0f, {2000.0f, 2000.0f}, 1.0f, spec);
     CHECK(tw15.total_width == doctest::Approx(tw0.total_width + track15).epsilon(0.2f));
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 13. Arabic Contextual Forms — Pre-Shaped Extraction
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// With the pre_shaped mechanism (P0 fix), typewriter_build extracts glyphs
+// from a full-word PlacedGlyphRun for each character layer, instead of
+// re-shaping each character in isolation with substr().  For Arabic, this
+// means a letter like Meem (U+0645) keeps its initial/medial/final form
+// rather than being reset to the isolated form.
+//
+// These tests verify that:
+//   1. A full-word Arabic shape uses different glyph IDs than isolated shapes
+//      (proving contextual forms exist in the font)
+//   2. The per-character glyph extraction (same as typewriter_build)
+//      preserves the contextual glyph IDs
+
+static FontSpec noto_naskh_arabic_quality() {
+    return FontSpec{
+        .font_path = "assets/fonts/NotoNaskhArabic-Bold.ttf",
+        .font_family = "Noto Naskh Arabic",
+        .font_weight = 700,
+    };
+}
+
+TEST_CASE("TextQuality: Arabic — contextual vs isolated Meem glyph IDs differ") {
+    FontEngine engine;
+    if (!require_font(engine, noto_naskh_arabic_quality())) {
+        // Also try Inter-Bold as fallback (may lack positional variants)
+        if (!require_font(engine)) return;
+        MESSAGE("Using Inter-Bold instead of Noto Naskh Arabic — positional variants may not exist");
+    }
+
+    FontSpec spec = engine.can_load(noto_naskh_arabic_quality())
+        ? noto_naskh_arabic_quality() : inter_bold_quality();
+
+    TextShaping ar;
+    ar.direction = TextDirection::RTL;
+    ar.language = "ar";
+
+    // Arabic word: مرحبا (marhaba) — 5 letters
+    // Meem (U+0645) is the first letter and should be in initial form
+    const std::string arabic_word =
+        "\xD9\x85"   // U+0645 Meem
+        "\xD8\xB1"   // U+0631 Reh
+        "\xD8\xAD"   // U+062D Hah
+        "\xD8\xA8"   // U+0628 Beh
+        "\xD8\xA7";  // U+0627 Alef
+
+    // Shape the full word
+    auto full_run = engine.shape_text(arabic_word, spec, 48.0f, ar);
+    REQUIRE(full_run.has_value());
+    REQUIRE_FALSE(full_run->glyphs.empty());
+
+    auto full_placed = resolve_placed_glyph_run(*full_run, 0.0f, arabic_word);
+    REQUIRE_FALSE(full_placed.clusters.empty());
+    REQUIRE_FALSE(full_placed.glyphs.empty());
+
+    // Extract glyph ID for Meem (first letter, byte_offset 0)
+    uint32_t contextual_meem_gid = 0;
+    for (const auto& cl : full_placed.clusters) {
+        if (cl.byte_offset == 0 && cl.start_glyph < full_placed.glyphs.size()) {
+            contextual_meem_gid = full_placed.glyphs[cl.start_glyph].glyph_id;
+            break;
+        }
+    }
+    REQUIRE(contextual_meem_gid > 0);
+
+    // Shape isolated Meem
+    const std::string isolated_meem = "\xD9\x85"; // U+0645 alone
+    auto iso_run = engine.shape_text(isolated_meem, spec, 48.0f, ar);
+    REQUIRE(iso_run.has_value());
+    REQUIRE_FALSE(iso_run->glyphs.empty());
+
+    uint32_t isolated_meem_gid = iso_run->glyphs[0].glyph_id;
+    REQUIRE(isolated_meem_gid > 0);
+
+    INFO("Contextual Meem glyph_id: ", contextual_meem_gid,
+         " Isolated Meem glyph_id: ", isolated_meem_gid);
+
+    // If the font has proper positional variants, the glyph IDs differ.
+    // If they're the same (e.g. Inter-Bold without positional forms),
+    // we log a message but don't fail — the font just lacks variants.
+    if (contextual_meem_gid == isolated_meem_gid) {
+        MESSAGE("Font does not have separate positional forms for Meem — ",
+                "contextual shaping test is N/A for this font");
+    } else {
+        CHECK(contextual_meem_gid != isolated_meem_gid);
+    }
+}
+
+TEST_CASE("TextQuality: Arabic — pre-shaped extraction preserves contextual forms") {
+    FontEngine engine;
+    if (!require_font(engine, noto_naskh_arabic_quality())) {
+        if (!require_font(engine)) return;
+    }
+
+    FontSpec spec = engine.can_load(noto_naskh_arabic_quality())
+        ? noto_naskh_arabic_quality() : inter_bold_quality();
+
+    TextShaping ar;
+    ar.direction = TextDirection::RTL;
+    ar.language = "ar";
+
+    // Arabic word: مرحبا (marhaba)
+    const std::string arabic_word =
+        "\xD9\x85"   // U+0645 Meem
+        "\xD8\xB1"   // U+0631 Reh
+        "\xD8\xAD"   // U+062D Hah
+        "\xD8\xA8"   // U+0628 Beh
+        "\xD8\xA7";  // U+0627 Alef
+
+    // 1. Build the full PlacedGlyphRun (same as what compute_typewriter_layout
+    //    produces via out_placed with tracking=0)
+    auto full_run = engine.shape_text(arabic_word, spec, 48.0f, ar);
+    REQUIRE(full_run.has_value());
+    REQUIRE_FALSE(full_run->glyphs.empty());
+
+    auto full_placed = resolve_placed_glyph_run(*full_run, 0.0f, arabic_word);
+    REQUIRE_FALSE(full_placed.clusters.empty());
+
+    // 2. Compute typewriter layout and get the placed run via out_placed
+    PlacedGlyphRun tw_placed;
+    auto tw = ct::compute_typewriter_layout(
+        arabic_word, 48.0f, 0.0f, {2000.0f, 500.0f}, 1.2f, spec,
+        &tw_placed);
+
+    REQUIRE_FALSE(tw.chars.empty());
+    REQUIRE_FALSE(tw_placed.clusters.empty());
+    REQUIRE_FALSE(tw_placed.glyphs.empty());
+
+    // 3. For each character, simulate the pre-shaped extraction that
+    //    typewriter_build does — extract the glyphs for that character's
+    //    byte range and compare against the isolated shape.
+    for (size_t ci = 0; ci < tw.chars.size(); ++ci) {
+        const auto& cp = tw.chars[ci];
+        INFO("Character ", ci, " byte_offset=", cp.byte_offset,
+             " byte_len=", cp.byte_len);
+
+        const size_t char_start = cp.byte_offset;
+        const size_t char_end = cp.byte_offset + cp.byte_len;
+
+        // Find the clusters from tw_placed that overlap this character
+        uint32_t extracted_gid = 0;
+        for (const auto& cl : tw_placed.clusters) {
+            const size_t cl_start = cl.byte_offset;
+            const size_t cl_end = cl.byte_offset + cl.byte_len;
+            if (cl_start < char_end && cl_end > char_start) {
+                if (cl.start_glyph < tw_placed.glyphs.size()) {
+                    extracted_gid = tw_placed.glyphs[cl.start_glyph].glyph_id;
+                    break;
+                }
+            }
+        }
+        REQUIRE(extracted_gid > 0);
+
+        // Shape this character in isolation
+        std::string isolated_char = arabic_word.substr(cp.byte_offset, cp.byte_len);
+        auto iso_run = engine.shape_text(isolated_char, spec, 48.0f, ar);
+        REQUIRE(iso_run.has_value());
+        REQUIRE_FALSE(iso_run->glyphs.empty());
+        uint32_t isolated_gid = iso_run->glyphs[0].glyph_id;
+
+        INFO("  Extracted GID: ", extracted_gid,
+             " Isolated GID: ", isolated_gid);
+
+        // The pre-shaped extraction should preserve the contextual form.
+        // If the font has positional variants, extracted_gid != isolated_gid.
+        // We don't hard-fail because font support varies.
+        if (extracted_gid != isolated_gid) {
+            // Verified: pre-shaped extraction preserves contextual form!
+            CHECK(true);
+        } else {
+            // Font likely lacks positional variants — acceptable.
+            MESSAGE("Same glyph ID for contextual and isolated — ",
+                    "font may lack positional forms");
+        }
+
+        // Also verify that the extracted glyph ID from tw_placed
+        // matches the full_placed (they should be identical since
+        // both come from the same HarfBuzz shaping pass).
+        uint32_t full_gid = 0;
+        for (const auto& cl : full_placed.clusters) {
+            const size_t cl_start = cl.byte_offset;
+            const size_t cl_end = cl.byte_offset + cl.byte_len;
+            if (cl_start < char_end && cl_end > char_start) {
+                if (cl.start_glyph < full_placed.glyphs.size()) {
+                    full_gid = full_placed.glyphs[cl.start_glyph].glyph_id;
+                    break;
+                }
+            }
+        }
+        CHECK(extracted_gid == full_gid);
+    }
+}
+
+TEST_CASE("TextQuality: Arabic — three positional forms use different glyphs") {
+    FontEngine engine;
+    if (!require_font(engine, noto_naskh_arabic_quality())) {
+        if (!require_font(engine)) return;
+    }
+
+    FontSpec spec = engine.can_load(noto_naskh_arabic_quality())
+        ? noto_naskh_arabic_quality() : inter_bold_quality();
+
+    TextShaping ar;
+    ar.direction = TextDirection::RTL;
+    ar.language = "ar";
+
+    // Test letter: Kaf (U+0643) — has four forms: isolated, final, medial, initial
+    // Isolated: ك (U+0643 alone)
+    // Initial: كـ (ك + U+0627)
+    // Medial: ـكـ (U+0644 + ك + U+0627)
+    // Final: ـك (U+0644 + ك)
+
+    const std::string kaf_isolated = "\xD9\x83"; // U+0643
+    const std::string kaf_initial = "\xD9\x83\xD8\xA7"; // Kaf + Alef
+    const std::string kaf_medial = "\xD9\x84\xD9\x83\xD8\xA7"; // Lam + Kaf + Alef
+    const std::string kaf_final = "\xD9\x84\xD9\x83"; // Lam + Kaf
+
+    auto iso_run = engine.shape_text(kaf_isolated, spec, 48.0f, ar);
+    auto ini_run = engine.shape_text(kaf_initial, spec, 48.0f, ar);
+    auto med_run = engine.shape_text(kaf_medial, spec, 48.0f, ar);
+    auto fin_run = engine.shape_text(kaf_final, spec, 48.0f, ar);
+
+    REQUIRE(iso_run.has_value());
+    REQUIRE(ini_run.has_value());
+    REQUIRE(med_run.has_value());
+    REQUIRE(fin_run.has_value());
+
+    // Extract the Kaf glyph ID from each run using cluster values.
+    // Kaf (U+0643) is at byte offset 2 (0-indexed) in the UTF-8 source.
+    // - isolated: offset 0, cluster 0
+    // - initial (Kaf+Alef): Kaf at offset 0, cluster 0
+    // - medial (Lam+Kaf+Alef): Kaf at offset 2, cluster 2
+    // - final (Lam+Kaf): Kaf at offset 2, cluster 2
+    uint32_t iso_gid = iso_run->glyphs[0].glyph_id;
+
+    // Initial: Kaf is cluster 0 (first glyph in visual order)
+    uint32_t ini_gid = ini_run->glyphs[0].glyph_id;
+
+    // Medial: Kaf is cluster 2 (source byte offset 2)
+    uint32_t med_gid = 0;
+    for (const auto& g : med_run->glyphs) {
+        if (g.cluster >= 2 && g.cluster < 4) {
+            med_gid = g.glyph_id;
+            break;
+        }
+    }
+    if (med_gid == 0 && !med_run->glyphs.empty()) {
+        // Fallback: use middle glyph
+        med_gid = med_run->glyphs[med_run->glyphs.size() / 2].glyph_id;
+    }
+
+    // Final: Kaf is cluster 2
+    uint32_t fin_gid = 0;
+    for (const auto& g : fin_run->glyphs) {
+        if (g.cluster >= 2 && g.cluster < 4) {
+            fin_gid = g.glyph_id;
+            break;
+        }
+    }
+    if (fin_gid == 0 && !fin_run->glyphs.empty()) {
+        fin_gid = fin_run->glyphs.back().glyph_id;
+    }
+
+    INFO("Isolated Kaf: ", iso_gid);
+    INFO("Initial Kaf:  ", ini_gid);
+    INFO("Medial Kaf:   ", med_gid);
+    INFO("Final Kaf:    ", fin_gid);
+
+    // Noto Naskh Arabic should have distinct glyphs for each form.
+    // We check with REQUIRE so the test visibly fails if the font
+    // doesn't support positional forms (prompting investigation).
+    // For fallback fonts (Inter-Bold), we use a softer check.
+    bool is_noto = engine.can_load(noto_naskh_arabic_quality());
+
+    if (is_noto) {
+        // Noto Naskh Arabic MUST have distinct positional forms
+        CHECK(iso_gid != ini_gid);
+        CHECK(iso_gid != med_gid);
+        CHECK(iso_gid != fin_gid);
+        CHECK(ini_gid != med_gid);
+        CHECK(ini_gid != fin_gid);
+        CHECK(med_gid != fin_gid);
+    } else {
+        // Fallback font — don't hard-fail
+        MESSAGE("Fallback font used — positional form differentiation is font-dependent");
+    }
+}

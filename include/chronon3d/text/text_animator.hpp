@@ -296,8 +296,13 @@ inline std::vector<TextAnimator::GlyphUnit> TextAnimator::split_glyphs() const {
         // Use the resolved x position of the first glyph in this cluster.
         if (cl.start_glyph < placed.glyphs.size()) {
             gu.x = placed.glyphs[cl.start_glyph].x;
-            gu.advance_x = placed.glyphs[cl.start_glyph].advance_x;
         }
+        // Use the CLUSTER's raw_advance (not just the first glyph's advance_x).
+        // This correctly accounts for multi-glyph clusters (ligatures,
+        // combining marks) where the cluster's total advance spans all
+        // its glyphs, not just the first one.
+        gu.advance_x = cl.raw_advance;
+
         units.push_back(std::move(gu));
     }
     return units;
@@ -369,8 +374,15 @@ inline void TextAnimator::build(SceneBuilder& scene, std::string_view layer_name
         }
 
         f32 total_width = 0.0f;
-        for (const auto& g : glyphs) {
-            total_width += g.advance_x;
+        for (size_t i = 0; i < glyphs.size(); ++i) {
+            total_width += glyphs[i].advance_x;
+            // Apply tracking between consecutive glyphs (not after the last).
+            // The resolver was called with tracking=0, so we must add the
+            // tracking gap ourselves — tp.tracking has no effect on single-
+            // cluster layers (tracking * (1-1) = 0).
+            if (i + 1 < glyphs.size()) {
+                total_width += m_tracking;
+            }
         }
 
         f32 scene_offset_x = 0.0f;
@@ -380,11 +392,20 @@ inline void TextAnimator::build(SceneBuilder& scene, std::string_view layer_name
             scene_offset_x = -total_width;
         }
 
+        f32 cumulative_tracking = 0.0f;
         for (size_t i = 0; i < glyphs.size(); ++i) {
             const auto& gu = glyphs[i];
             if (gu.text.empty()) continue;
 
-            f32 center_x = scene_offset_x + gu.x + gu.advance_x * 0.5f;
+            // Adjust the glyph's position by cumulative tracking so far.
+            // gu.x comes from the resolver (tracking=0), so we add the
+            // tracking gap from each preceding inter-glyph boundary.
+            f32 adjusted_x = gu.x + cumulative_tracking;
+            f32 center_x = scene_offset_x + adjusted_x + gu.advance_x * 0.5f;
+
+            // Record tracking for the NEXT boundary (after this glyph).
+            cumulative_tracking += m_tracking;
+
             Frame delay = unit_delay(i, glyphs.size());
 
             std::string layer_name = std::string(layer_name_prefix) + "_" + std::to_string(i);
@@ -404,7 +425,7 @@ inline void TextAnimator::build(SceneBuilder& scene, std::string_view layer_name
                 tp.color = m_color;
                 tp.align = m_align;
                 tp.line_height = m_line_height;
-                tp.tracking = m_tracking;
+                tp.tracking = m_tracking;  // no effect on single-cluster layers (kept for API consistency)
                 tp.size = {gu.advance_x + 10.0f, m_font_size * 1.4f};
                 lb.text("text_node", tp);
 

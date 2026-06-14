@@ -181,6 +181,7 @@ RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string n
     node.shape.text.style.max_size = p.max_font_size;
     node.shape.text.style.overflow = p.overflow;
     node.shape.text.style.wrap = p.wrap;
+    node.shape.text.style.pre_shaped = std::move(p.pre_shaped);
 
     node.shape.text.box.enabled = true;
     node.shape.text.box.size = p.size;

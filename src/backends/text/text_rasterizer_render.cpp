@@ -604,13 +604,22 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         run_spec.font_weight = run_style.font_weight;
         run_spec.font_style  = run_style.font_style;
 
-        auto hb_run = engine->shape_text(run.text, run_spec, run_shape_size, run_style.shaping);
-
-        // ── Canonical PlacedGlyphRun: resolve once, share between
-        // fill and stroke for identical tracking and positioning. ──
+        // ── Pre-shaped run bypass ─────────────────────────────────
+        // When the style carries a pre-shaped PlacedGlyphRun (e.g. from
+        // typewriter_build), skip HarfBuzz shaping entirely and use the
+        // pre-resolved glyphs directly.  This preserves contextual forms
+        // for Arabic, Devanagari, and other complex scripts.
         std::optional<PlacedGlyphRun> placed;
-        if (hb_run && !hb_run->glyphs.empty()) {
-            placed = resolve_placed_glyph_run(*hb_run, run_style.tracking, run.text);
+        if (run_style.pre_shaped) {
+            placed = *run_style.pre_shaped;
+        } else {
+            auto hb_run = engine->shape_text(run.text, run_spec, run_shape_size, run_style.shaping);
+
+            // ── Canonical PlacedGlyphRun: resolve once, share between
+            // fill and stroke for identical tracking and positioning. ──
+            if (hb_run && !hb_run->glyphs.empty()) {
+                placed = resolve_placed_glyph_run(*hb_run, run_style.tracking, run.text);
+            }
         }
 
         // ── Stroke: convert HarfBuzz glyphs to paths so fill and
@@ -672,23 +681,31 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         const float ly = text_start_y + line.position.y + line.baseline;
         const Color line_fill = resolve_fill_color(t.style);
 
-        // ── HarfBuzz-shaped glyph rendering ─────────────────────────
-        // Shape with FontEngine (HarfBuzz) so script/direction/language
-        // settings produce correct GSUB glyph substitutions (Arabic
-        // ligatures, Devanagari conjuncts, etc.) at render time.
-        FontSpec line_spec;
-        line_spec.font_path   = t.style.font_path;
-        line_spec.font_family = t.style.font_family;
-        line_spec.font_weight = t.style.font_weight;
-        line_spec.font_style  = t.style.font_style;
-
-        auto hb_run = engine->shape_text(line.text, line_spec, layout_res.font_size, t.style.shaping);
-
-        // ── Canonical PlacedGlyphRun: resolve once, share between
-        // fill and stroke for identical tracking and positioning. ──
+        // ── Pre-shaped run bypass ─────────────────────────────────
+        // Use pre-shaped glyphs when available (typewriter/TextAnimator).
         std::optional<PlacedGlyphRun> placed;
-        if (hb_run && !hb_run->glyphs.empty()) {
-            placed = resolve_placed_glyph_run(*hb_run, t.style.tracking, line.text);
+        if (t.style.pre_shaped) {
+            placed = *t.style.pre_shaped;
+        } else {
+            // ── HarfBuzz-shaped glyph rendering ─────────────────────
+            FontSpec line_spec;
+            line_spec.font_path   = t.style.font_path;
+            line_spec.font_family = t.style.font_family;
+            line_spec.font_weight = t.style.font_weight;
+            line_spec.font_style  = t.style.font_style;
+
+            // Use the resolved shaping direction from the run if available,
+            // falling back to the overall style direction (Auto).  When bidi
+            // segmentation is active, per-run directions (LTR/RTL) are more
+            // precise than Auto-detect on the concatenated line text.
+            const TextShaping& line_shaping = (!line.runs.empty())
+                ? line.runs[0].style.shaping
+                : t.style.shaping;
+            auto hb_run = engine->shape_text(line.text, line_spec, layout_res.font_size, line_shaping);
+
+            if (hb_run && !hb_run->glyphs.empty()) {
+                placed = resolve_placed_glyph_run(*hb_run, t.style.tracking, line.text);
+            }
         }
 
         // ── Stroke: same HarfBuzz glyph paths as fill (see render_run above).
