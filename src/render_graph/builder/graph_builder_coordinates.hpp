@@ -35,10 +35,7 @@ inline bool should_use_centered_rendering(const LayerGraphItem& item, const Rend
     if (!ctx.options.modular_coordinates) {
         return (item.layer && item.layer->uses_2_5d_projection);
     }
-    if (!item.layer) return true;
-    if (item.projected || item.native_3d) return false;
-    if (item.layer->kind == LayerKind::Precomp || item.layer->kind == LayerKind::Video) return false;
-    return true;
+    return layer_needs_render_transform(item, ctx) && !item.native_3d;
 }
 
 /// True only when item.transform is exactly the automatic 2D centering transform.
