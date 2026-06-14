@@ -13,6 +13,7 @@
 #include <chronon3d/backends/software/sampling/sampler2d.hpp>
 #include <chronon3d/backends/software/sampling/edge_mode.hpp>
 #include "tests/effects/test_helpers.hpp"
+using namespace test_fx;
 #include <cmath>
 
 using namespace chronon3d;

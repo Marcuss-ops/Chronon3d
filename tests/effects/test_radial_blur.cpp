@@ -18,6 +18,7 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include "src/backends/software/processors/effects/blur/radial_blur.hpp"
 #include "tests/effects/test_helpers.hpp"
+using namespace test_fx;
 #include <cmath>
 
 using namespace chronon3d;
