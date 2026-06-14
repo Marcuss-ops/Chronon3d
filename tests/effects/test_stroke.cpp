@@ -14,6 +14,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/effects/effect_params.hpp>
 #include "src/backends/software/processors/effects/stroke/stroke.hpp"
 #include "tests/effects/test_helpers.hpp"
 #include <cmath>
