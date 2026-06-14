@@ -226,6 +226,11 @@ template <typename T>
     return seed;
 }
 
+// Forward declaration so hash_shape can delegate to it
+[[nodiscard]] inline u64 hash_text_style_full(
+    const TextShape& t, float effective_size, int padding,
+    const Mat4* transform);
+
 [[nodiscard]] inline u64 hash_shape(const Shape& s) {
     u64 seed = hash_value(static_cast<int>(s.type));
     switch (s.type) {
@@ -296,21 +301,10 @@ template <typename T>
             seed = hash_combine(seed, hash_bytes(&s.grid_background.major_every, sizeof(i32)));
             return hash_combine(seed, hash_bytes(&s.grid_background.centered, sizeof(bool)));
         case ShapeType::Text:
-            seed = hash_combine(seed, hash_bytes(s.text.text.data(), s.text.text.size()));
-            seed = hash_combine(seed, hash_bytes(s.text.style.font_path.data(), s.text.style.font_path.size()));
-            seed = hash_combine(seed, hash_bytes(s.text.style.font_family.data(), s.text.style.font_family.size()));
-            seed = hash_combine(seed, hash_bytes(s.text.style.font_style.data(), s.text.style.font_style.size()));
-            seed = hash_combine(seed, hash_vec2(s.text.box.size));
-            seed = hash_combine(seed, hash_value(s.text.box.enabled));
-            seed = hash_combine(seed, hash_bytes(&s.text.style.font_weight, sizeof(int)));
-            seed = hash_combine(seed, hash_bytes(&s.text.style.size, sizeof(f32)));
-            seed = hash_combine(seed, hash_color(s.text.style.color));
-            seed = hash_combine(seed, hash_bytes(&s.text.style.anchor, sizeof(TextAnchor)));
-            seed = hash_combine(seed, hash_bytes(&s.text.style.centering_mode, sizeof(TextCenteringMode)));
-            seed = hash_combine(seed, hash_bytes(&s.text.style.align, sizeof(TextAlign)));
-            seed = hash_combine(seed, hash_bytes(&s.text.style.vertical_align, sizeof(VerticalAlign)));
-            seed = hash_combine(seed, hash_bytes(&s.text.style.line_height, sizeof(f32)));
-            return hash_combine(seed, hash_bytes(&s.text.style.tracking, sizeof(f32)));
+            // Delegate to the canonical text hash used by the raster cache.
+            // This ensures text nodes with different materials, gradients,
+            // shaping params, shadows, etc. get different content hashes.
+            return hash_text_style_full(s.text, s.text.style.size, 0, nullptr);
         case ShapeType::FakeBox3D:
             seed = hash_combine(seed, hash_vec3(s.fake_box3d.world_pos));
             seed = hash_combine(seed, hash_vec2(s.fake_box3d.size));

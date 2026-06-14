@@ -7,7 +7,9 @@
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
+#include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include <functional>
 
@@ -121,8 +123,8 @@ inline f32 TextAnimator::measure_unit_width(const std::string& unit) const {
     if (m_font_engine && !unit.empty()) {
         FontSpec spec{m_font_path, "", m_font_weight};
         if (auto run = m_font_engine->shape_text(unit, spec, m_font_size)) {
-            // Add tracking per character to match layout engine behaviour
-            return run->width + m_tracking * static_cast<f32>(unit.size());
+            // Add tracking per code point (not per byte) to match layout engine behaviour
+            return run->width + m_tracking * static_cast<f32>(detail::utf8_length(unit));
         }
     }
     // Fallback to approximate character-width heuristic (UTF-8 code-point count)
@@ -138,12 +140,83 @@ inline std::vector<std::string> TextAnimator::split_units() const {
 
     switch (m_config.mode) {
         case TextAnimMode::ByCharacter: {
-            // Use UTF-8 code-point iteration so multi-byte chars
-            // (emoji, accented, CJK) are not split into invalid bytes
-            for (size_t i = 0; i < m_text.size();) {
-                size_t len = detail::utf8_seq_len(static_cast<unsigned char>(m_text[i]));
-                units.push_back(m_text.substr(i, len));
+            // Grapheme-cluster iteration so combining marks (e.g. e + accent),
+            // ZWJ emoji sequences, and emoji modifiers stay attached to their
+            // base character and are never split mid-reveal.
+            // Implements UAX #29 GB11 for emoji ZWJ sequences.
+            // O(n) single-pass: accumulate code points into a cluster and
+            // only flush when we encounter the START of the NEXT cluster.
+            size_t cluster_start = 0;
+            size_t i = 0;
+            size_t ri_toggle = 0;
+
+            // GB11 state: see grapheme_cluster_count() in text_layout_engine.hpp
+            enum class GB11State { Normal, ExtPict, ExtPictZWJ };
+            GB11State gb11 = GB11State::Normal;
+
+            while (i < m_text.size()) {
+                // Decode one code point
+                const unsigned char lead = static_cast<unsigned char>(m_text[i]);
+                const size_t len = detail::utf8_seq_len(lead);
+                if (i + len > m_text.size()) { ++i; continue; }
+
+                char32_t cp;
+                switch (len) {
+                    case 1: cp = lead; break;
+                    case 2: cp = ((lead & 0x1F) << 6) | (static_cast<unsigned char>(m_text[i+1]) & 0x3F); break;
+                    case 3: cp = ((lead & 0x0F) << 12) | ((static_cast<unsigned char>(m_text[i+1]) & 0x3F) << 6) | (static_cast<unsigned char>(m_text[i+2]) & 0x3F); break;
+                    case 4: cp = ((lead & 0x07) << 18) | ((static_cast<unsigned char>(m_text[i+1]) & 0x3F) << 12) | ((static_cast<unsigned char>(m_text[i+2]) & 0x3F) << 6) | (static_cast<unsigned char>(m_text[i+3]) & 0x3F); break;
+                    default: cp = 0xFFFD; break;
+                }
+
+                const bool is_ext = detail::is_grapheme_extend(cp);
+                const bool is_ri  = detail::is_regional_indicator(cp);
+                const bool is_ep  = detail::is_extended_pictographic(cp);
+                const bool is_zwj = (cp == 0x200D);
+
+                // Determine if this code point starts a new cluster.
+                // Grapheme_Extend characters and the second RI of a flag
+                // continue the current cluster, as do ZWJ-joined emoji
+                // (GB11: Extended_Pictographic Extend* ZWJ × Extended_Pictographic).
+                bool starts_new_cluster = !is_ext && !(is_ri && ri_toggle == 1);
+
+                // GB11: ZWJ after Extended_Pictographic transitions to ExtPictZWJ.
+                if (is_zwj && gb11 == GB11State::ExtPict) {
+                    gb11 = GB11State::ExtPictZWJ;
+                    starts_new_cluster = false;
+                }
+
+                // GB11: Extended_Pictographic after ExtPictZWJ continues the cluster.
+                // Exclude Regional Indicators — they use separate GB12/GB13 rules
+                // and must not be absorbed into a ZWJ chain.
+                if (is_ep && !is_ri && gb11 == GB11State::ExtPictZWJ) {
+                    gb11 = GB11State::ExtPict;
+                    starts_new_cluster = false;
+                }
+
+                if (starts_new_cluster) {
+                    // Flush the PREVIOUS cluster (if any)
+                    if (i > cluster_start) {
+                        units.push_back(
+                            m_text.substr(cluster_start, i - cluster_start));
+                    }
+                    cluster_start = i;
+                }
+
+                // Update RI toggle AFTER the cluster-boundary decision.
+                if (is_ri) ri_toggle ^= 1;
+                else if (!is_ext) ri_toggle = 0;
+
+                // Update GB11 state for non-extend, non-ZWJ-sequenced characters
+                if (!is_ext && !(is_ep && gb11 == GB11State::ExtPictZWJ)) {
+                    gb11 = is_ep ? GB11State::ExtPict : GB11State::Normal;
+                }
+
                 i += len;
+            }
+            // Flush the final cluster
+            if (i > cluster_start) {
+                units.push_back(m_text.substr(cluster_start, i - cluster_start));
             }
             break;
         }
@@ -205,64 +278,46 @@ inline std::vector<TextAnimator::GlyphUnit> TextAnimator::split_glyphs() const {
     auto run = m_font_engine->shape_text(m_text, spec, m_font_size);
     if (!run) return units;
 
-    // RTL detection: if glyph clusters are decreasing (e.g. Arabic, Hebrew),
-    // fall back silently so callers get correct substring positions.
-    // We detect RTL by checking if the first glyph's cluster > last glyph's cluster
-    // (clusters are byte offsets into the source text, so for RTL they go
-    // from high to low).
-    if (!run->glyphs.empty() && run->glyphs.front().cluster > run->glyphs.back().cluster) {
-        // RTL text detected. For RTL, clusters DECREASE (high → low byte offsets)
-        // because HarfBuzz processes right-to-left. In the glyph array (visual order,
-        // left to right), glyph[0] has the highest cluster and glyph[N-1] the lowest.
-        //
-        // To extract correct substrings:
-        //   glyph[i].cluster   = end byte offset of this visual cluster
-        //   glyph[i+1].cluster = start byte offset of this visual cluster (lower)
-        //
-        // NOTE: Mixed-direction text (e.g. "Hello العربية") has non-monotonic clusters
-        // and is not handled by this simple RTL/LTR check. For mixed text, splitting
-        // is undefined — consider using ByCharacter mode for such cases.
-        for (size_t i = 0; i < run->glyphs.size(); ++i) {
-            const auto& gp = run->glyphs[i];
-            if (!gp.is_cluster_start) continue;
+    // Unified cluster-interval map (works for LTR, RTL, and mixed bidi).
+    // HarfBuzz `cluster` values are byte offsets into the source text.
+    // We collect unique cluster values, sort them by source-text offset,
+    // and build intervals [sorted[k], sorted[k+1]) — each glyph maps to
+    // its own interval via its cluster value regardless of visual order.
 
-            // Find the end of this cluster in the glyph array
-            size_t cluster_end = i + 1;
-            while (cluster_end < run->glyphs.size() && !run->glyphs[cluster_end].is_cluster_start) {
-                ++cluster_end;
-            }
+    // 1. Collect unique cluster values from the glyph run.
+    std::set<u32> cluster_set;
+    for (const auto& gp : run->glyphs) {
+        cluster_set.insert(gp.cluster);
+    }
+    cluster_set.insert(static_cast<u32>(m_text.size()));  // sentinel end
 
-            // For RTL: the next glyph's cluster (lower offset) is the start,
-            // this glyph's cluster (higher offset) is the end.
-            size_t text_start = (cluster_end < run->glyphs.size())
-                ? static_cast<size_t>(run->glyphs[cluster_end].cluster)
-                : 0;
-            size_t text_end   = static_cast<size_t>(run->glyphs[i].cluster);
-
-            if (text_end <= text_start) continue; // safety guard
-
-            GlyphUnit gu;
-            gu.text = m_text.substr(text_start, text_end - text_start);
-            gu.x = gp.x;
-            gu.advance_x = gp.advance_x;
-            units.push_back(std::move(gu));
-        }
-        return units;
+    // 2. Build sorted intervals and map each cluster → text range.
+    std::vector<u32> sorted_clusters(cluster_set.begin(), cluster_set.end());
+    std::unordered_map<u32, std::pair<size_t, size_t>> cluster_to_range;
+    for (size_t k = 0; k + 1 < sorted_clusters.size(); ++k) {
+        cluster_to_range[sorted_clusters[k]] = {
+            static_cast<size_t>(sorted_clusters[k]),
+            static_cast<size_t>(sorted_clusters[k + 1])
+        };
     }
 
-    // LTR path: clusters increase monotonically
+    // 3. Map each cluster-start glyph to its text range.
+    // Deduplicate: only emit one GlyphUnit per unique cluster value.
+    // Multiple glyphs sharing the same cluster (ligature parts, mark+base
+    // decompositions) are NOT duplicated — they all belong to the same
+    // source-text grapheme cluster.
+    std::set<u32> emitted_clusters;
     units.reserve(run->glyphs.size());
-    for (size_t i = 0; i < run->glyphs.size(); ++i) {
-        const auto& gp = run->glyphs[i];
-        size_t start_byte = gp.cluster;
-        size_t end_byte = m_text.size();
+    for (const auto& gp : run->glyphs) {
+        if (!gp.is_cluster_start) continue;
+        if (emitted_clusters.count(gp.cluster)) continue;
+        emitted_clusters.insert(gp.cluster);
 
-        for (size_t j = i + 1; j < run->glyphs.size(); ++j) {
-            if (run->glyphs[j].cluster > start_byte) {
-                end_byte = run->glyphs[j].cluster;
-                break;
-            }
-        }
+        auto it = cluster_to_range.find(gp.cluster);
+        if (it == cluster_to_range.end()) continue;
+
+        const auto& [start_byte, end_byte] = it->second;
+        if (end_byte <= start_byte || start_byte >= m_text.size()) continue;
 
         GlyphUnit gu;
         gu.text = m_text.substr(start_byte, end_byte - start_byte);

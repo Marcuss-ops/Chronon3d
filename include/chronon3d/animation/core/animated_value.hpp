@@ -244,6 +244,14 @@ public:
 
     [[nodiscard]] bool is_animated() const { return !m_keyframes.empty(); }
 
+    /// Returns true if the value depends on time (keyframes or expression).
+    /// Use this for cache invalidation, scene hashing, and dirty-rect decisions.
+    /// Unlike is_animated(), this also covers expression-only properties
+    /// that have no keyframes but still change over time.
+    [[nodiscard]] bool is_time_dependent() const {
+        return is_animated() || has_expression();
+    }
+
     /**
      * @brief Returns true if this value depends on time in *any* way — either
      * through keyframes OR through an expression.  Expressions like

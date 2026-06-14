@@ -204,9 +204,11 @@ private:
             return false;
         }
 
-        // Helper: check if a single AnimatedValue is in Hold mode and past its last keyframe
+        // Helper: check if a single AnimatedValue has reached its terminal state.
+        // Expression-only properties (no keyframes) are never done — they change every frame.
         auto is_done = [&](const auto& val) -> bool {
-            if (!val.is_animated()) return true;            // not animated → always stable
+            if (!val.is_time_dependent()) return true;   // not time-dependent → always stable
+            if (!val.is_animated()) return false;         // expression-only → never done
             if (val.loop_mode() != LoopMode::Hold) return false; // looping → never done
             return val.last_keyframe_time() <= frame;        // Hold + past last keyframe → stable
         };
