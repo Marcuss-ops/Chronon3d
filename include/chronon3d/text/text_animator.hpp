@@ -121,8 +121,8 @@ inline f32 TextAnimator::measure_unit_width(const std::string& unit) const {
     if (m_font_engine && !unit.empty()) {
         FontSpec spec{m_font_path, "", m_font_weight};
         if (auto run = m_font_engine->shape_text(unit, spec, m_font_size)) {
-            // Add tracking per character to match layout engine behaviour
-            return run->width + m_tracking * static_cast<f32>(unit.size());
+            // Add tracking per code point (not per byte) to match layout engine behaviour
+            return run->width + m_tracking * static_cast<f32>(detail::utf8_length(unit));
         }
     }
     // Fallback to approximate character-width heuristic (UTF-8 code-point count)
@@ -138,12 +138,57 @@ inline std::vector<std::string> TextAnimator::split_units() const {
 
     switch (m_config.mode) {
         case TextAnimMode::ByCharacter: {
-            // Use UTF-8 code-point iteration so multi-byte chars
-            // (emoji, accented, CJK) are not split into invalid bytes
-            for (size_t i = 0; i < m_text.size();) {
-                size_t len = detail::utf8_seq_len(static_cast<unsigned char>(m_text[i]));
-                units.push_back(m_text.substr(i, len));
+            // Grapheme-cluster iteration so combining marks (e.g. e + accent),
+            // ZWJ emoji sequences, and emoji modifiers stay attached to their
+            // base character and are never split mid-reveal.
+            // O(n) single-pass: accumulate code points into a cluster and
+            // only flush when we encounter the START of the NEXT cluster.
+            size_t cluster_start = 0;
+            size_t i = 0;
+            size_t ri_toggle = 0;
+            while (i < m_text.size()) {
+                // Decode one code point
+                const unsigned char lead = static_cast<unsigned char>(m_text[i]);
+                const size_t len = detail::utf8_seq_len(lead);
+                if (i + len > m_text.size()) { ++i; continue; }
+
+                char32_t cp;
+                switch (len) {
+                    case 1: cp = lead; break;
+                    case 2: cp = ((lead & 0x1F) << 6) | (static_cast<unsigned char>(m_text[i+1]) & 0x3F); break;
+                    case 3: cp = ((lead & 0x0F) << 12) | ((static_cast<unsigned char>(m_text[i+1]) & 0x3F) << 6) | (static_cast<unsigned char>(m_text[i+2]) & 0x3F); break;
+                    case 4: cp = ((lead & 0x07) << 18) | ((static_cast<unsigned char>(m_text[i+1]) & 0x3F) << 12) | ((static_cast<unsigned char>(m_text[i+2]) & 0x3F) << 6) | (static_cast<unsigned char>(m_text[i+3]) & 0x3F); break;
+                    default: cp = 0xFFFD; break;
+                }
+
+                const bool is_ext = detail::is_grapheme_extend(cp);
+                const bool is_ri  = detail::is_regional_indicator(cp);
+
+                // Determine if this code point starts a new cluster.
+                // Grapheme_Extend characters and the second RI of a flag
+                // continue the current cluster.
+                const bool starts_new_cluster =
+                    !is_ext && !(is_ri && ri_toggle == 1);
+
+                if (starts_new_cluster) {
+                    // Flush the PREVIOUS cluster (if any)
+                    if (i > cluster_start) {
+                        units.push_back(
+                            m_text.substr(cluster_start, i - cluster_start));
+                    }
+                    cluster_start = i;
+                }
+
+                // Update RI toggle AFTER the cluster-boundary decision.
+                // (The boundary check uses the state BEFORE this code point.)
+                if (is_ri) ri_toggle ^= 1;
+                else if (!is_ext) ri_toggle = 0;
+
                 i += len;
+            }
+            // Flush the final cluster
+            if (i > cluster_start) {
+                units.push_back(m_text.substr(cluster_start, i - cluster_start));
             }
             break;
         }

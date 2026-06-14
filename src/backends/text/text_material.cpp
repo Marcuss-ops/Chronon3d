@@ -145,9 +145,15 @@ void apply_text_material(BLImage& img, const TextMaterial& mat) {
             // Apply gradient color using the original alpha as mask.
             // BL_FORMAT_PRGB32 requires premultiplied alpha: RGB must be
             // multiplied by the pixel's alpha value.
-            float r = grad_color.r * emissive * a;
-            float g = grad_color.g * emissive * a;
-            float b = grad_color.b * emissive * a;
+            // Material alpha (grad_color.a) attenuates the output so that
+            // glass() and other semi-transparent presets actually render
+            // with reduced opacity.
+            const float material_alpha = grad_color.a;
+            const float out_a = a * material_alpha;
+
+            float r = grad_color.r * emissive * out_a;
+            float g = grad_color.g * emissive * out_a;
+            float b = grad_color.b * emissive * out_a;
 
             // Clamp
             r = std::clamp(r, 0.0f, 1.0f);
@@ -158,7 +164,7 @@ void apply_text_material(BLImage& img, const TextMaterial& mat) {
                 f32_to_u8(r),
                 f32_to_u8(g),
                 f32_to_u8(b),
-                f32_to_u8(a)
+                f32_to_u8(out_a)
             );
         }
     }

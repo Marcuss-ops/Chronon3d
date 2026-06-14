@@ -13,6 +13,7 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/core/config.hpp>
 #include <blend2d/gradient.h>
+#include <blend2d/font.h>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 
@@ -131,6 +132,35 @@ Blend2DResources& blend2d_resources() {
     return resources;
 }
 
+/// Converts a HarfBuzz GlyphRun to Blend2D's BLGlyphRun for fillGlyphRun().
+/// The struct must outlive the BLGlyphRun (which holds raw pointers into
+/// the vectors).  Keep the struct alive through the rendering call.
+struct HbToBlGlyphRun {
+    std::vector<uint32_t> glyph_ids;
+    std::vector<BLGlyphPlacement> placements;
+    BLGlyphRun bl_run{};
+
+    static HbToBlGlyphRun from(const GlyphRun& hb_run) {
+        HbToBlGlyphRun result;
+        result.glyph_ids.reserve(hb_run.glyphs.size());
+        result.placements.reserve(hb_run.glyphs.size());
+        for (const auto& g : hb_run.glyphs) {
+            result.glyph_ids.push_back(g.glyph_id);
+            BLGlyphPlacement p;
+            p.placement.reset(g.x, g.y);
+            p.advance.reset(g.advance_x, g.advance_y);
+            result.placements.push_back(p);
+        }
+        result.bl_run.glyphData = result.glyph_ids.data();
+        result.bl_run.glyphAdvance = int8_t(sizeof(uint32_t));
+        result.bl_run.placementData = result.placements.data();
+        result.bl_run.placementAdvance = int8_t(sizeof(BLGlyphPlacement));
+        result.bl_run.placementType = BL_GLYPH_PLACEMENT_TYPE_ADVANCE_OFFSET;
+        result.bl_run.size = result.glyph_ids.size();
+        return result;
+    }
+};
+
 } // namespace
 
 using CacheKey = u64;
@@ -139,22 +169,6 @@ CacheKey hash_text_style(const TextShape& t, float effective_size, int padding, 
 bool lookup_text_cache(const CacheKey& key, std::shared_ptr<TextRasterization>& out);
 void store_text_cache(const CacheKey& key, const std::shared_ptr<TextRasterization>& result);
 
-// Blend2D-based text measurement callback for the layout engine.
-// Uses the same engine as rasterization, eliminating the FT+HB vs B2D
-// width discrepancy that required pixel-ink centering corrections.
-namespace {
-float bl2d_measure_text(const void* font_face_ptr, std::string_view text, float font_size) {
-    auto* face = static_cast<const BLFontFace*>(font_face_ptr);
-    BLFont f;
-    f.createFromFace(*face, std::max(1.0f, font_size));
-    BLGlyphBuffer gb;
-    gb.setUtf8Text(text.data(), static_cast<int>(text.size()));
-    f.shape(gb);
-    BLTextMetrics m;
-    f.getTextMetrics(gb, m);
-    return m.boundingBox.x1 - m.boundingBox.x0;
-}
-} // namespace
 
 std::optional<TextRasterization> rasterize_text_to_bl_image(
     const TextShape& t,
@@ -216,11 +230,11 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     layout_in.font_engine = engine;
     layout_in.font_spec   = font_spec;
 
-    // Use Blend2D for text measurement — same engine as rasterization.
-    // This eliminates the FreeType+HarfBuzz vs Blend2D width discrepancy
-    // and makes the pixel-ink centering correction unnecessary.
-    layout_in.bl_font_ptr = &face;
-    layout_in.bl_measure_fn = bl2d_measure_text;
+    // Use FontEngine (HarfBuzz) for text measurement — same shaper as
+    // the fillGlyphRun calls below.  This eliminates the measurement vs
+    // renderer width discrepancy that previously required Blend2D as a
+    // bridge.  HarfBuzz is preferred for complex scripts (Arabic,
+    // Devanagari, CJK) where GSUB substitutions change glyph advances.
 
     auto start_layout = profiling::now();
     auto layout_res = TextLayoutEngine::layout(layout_in);
@@ -342,9 +356,9 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     float free_h = t.box.enabled ? (t.box.size.y - (t.style.box_style.enabled ? 2.0f * t.style.box_style.padding.y : 0.0f)) : 0.0f;
     float dx_align = 0.0f;
     float dy_align = 0.0f;
-    // With Blend2D measurement now used for layout (bl_measure_fn), the
-    // measurement engine matches the rendering engine, so dx_align should
-    // be accurate.  The pixel-ink centering below is kept as a safety net.
+    // With HarfBuzz used for both measurement and rendering, dx_align
+    // should be accurate.  The pixel-ink centering below is kept as a
+    // safety net for debugging / transitions.
     if (t.box.enabled) {
         if (t.style.align == TextAlign::Center) {
             dx_align = (free_w - layout_res.size.x) * 0.5f;
@@ -362,7 +376,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 
     float text_start_x = padding / 2.0f + (t.style.box_style.enabled ? t.style.box_style.padding.x : 0.0f) + dx_align;
     // Guard: clamp text_start_x so text is always within the image.
-    // With Blend2D measurement, this should rarely trigger.
+    // With HarfBuzz measurement, this should rarely trigger.
     if (t.box.enabled && text_start_x < padding / 2.0f) {
         text_start_x = padding / 2.0f;
     }
@@ -414,6 +428,24 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         const float lx = text_start_x + run.position.x;
         const Color run_fill = resolve_fill_color(run_style);
 
+        // ── HarfBuzz-shaped glyph rendering ─────────────────────────
+        // Shape with FontEngine (HarfBuzz) to get correct GSUB glyph
+        // substitutions for Arabic, Devanagari, CJK, etc.  Blend2D's
+        // fillUtf8Text re-shapes independently and may produce different
+        // glyphs.  Pass explicit HarfBuzz glyph positions via
+        // fillGlyphRun so script/direction/language flow end-to-end.
+        const float run_shape_size = std::max(1.0f, run_style.size);
+        FontSpec run_spec;
+        run_spec.font_path   = run_style.font_path;
+        run_spec.font_family = run_style.font_family;
+        run_spec.font_weight = run_style.font_weight;
+        run_spec.font_style  = run_style.font_style;
+
+        auto hb_run = engine->shape_text(run.text, run_spec, run_shape_size, run_style.shaping);
+
+        // Stroke: keep Blend2D's strokeUtf8Text — BLContext has no
+        // strokeGlyphRun, and glyph→path conversion adds measurable
+        // overhead with negligible visual difference for thin strokes.
         if (run_style.paint.stroke_enabled && run_style.paint.stroke_width > 0.0f) {
             ctx.setStrokeWidth(run_style.paint.stroke_width);
             ctx.setStrokeStyle(to_bl_rgba(run_style.paint.stroke_color));
@@ -429,7 +461,16 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             std::max(1.0f, run.width),
             line.baseline + line.descent
         );
-        ctx.fillUtf8Text(BLPoint(lx, baseline_y), run_font, run.text.c_str());
+
+        if (hb_run && !hb_run->glyphs.empty()) {
+            // HarfBuzz glyph indices match Blend2D glyph IDs because
+            // both read the same FreeType face from the same font file.
+            auto bl = HbToBlGlyphRun::from(*hb_run);
+            ctx.fillGlyphRun(BLPoint(lx, baseline_y), run_font, bl.bl_run);
+        } else {
+            // Fallback: Blend2D internal shaping if HarfBuzz unavailable
+            ctx.fillUtf8Text(BLPoint(lx, baseline_y), run_font, run.text.c_str());
+        }
     };
 
     for (const auto& line : layout_res.lines) {
@@ -446,6 +487,18 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         const float ly = text_start_y + line.position.y + line.baseline;
         const Color line_fill = resolve_fill_color(t.style);
 
+        // ── HarfBuzz-shaped glyph rendering ─────────────────────────
+        // Shape with FontEngine (HarfBuzz) so script/direction/language
+        // settings produce correct GSUB glyph substitutions (Arabic
+        // ligatures, Devanagari conjuncts, etc.) at render time.
+        FontSpec line_spec;
+        line_spec.font_path   = t.style.font_path;
+        line_spec.font_family = t.style.font_family;
+        line_spec.font_weight = t.style.font_weight;
+        line_spec.font_style  = t.style.font_style;
+
+        auto hb_run = engine->shape_text(line.text, line_spec, layout_res.font_size, t.style.shaping);
+
         if (t.style.paint.stroke_enabled && t.style.paint.stroke_width > 0.0f) {
             ctx.setStrokeWidth(t.style.paint.stroke_width);
             ctx.setStrokeStyle(to_bl_rgba(t.style.paint.stroke_color));
@@ -461,7 +514,13 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             text_block_w,
             text_block_h
         );
-        ctx.fillUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
+
+        if (hb_run && !hb_run->glyphs.empty()) {
+            auto bl = HbToBlGlyphRun::from(*hb_run);
+            ctx.fillGlyphRun(BLPoint(lx, ly), font, bl.bl_run);
+        } else {
+            ctx.fillUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
+        }
     }
 
     ctx.end();
@@ -672,10 +731,9 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             x_offset = -padding / 2.0f;
             // Pixel-ink centering (opt-in via TextCenteringMode::PixelInk):
             // Adjust x_offset so that the actual ink centre aligns with the
-            // centre of the text box.  This was the historical default when
-            // the layout engine (FreeType+HarfBuzz) disagreed with Blend2D
-            // rendering.  Now that both use Blend2D measurement, LayoutBox
-            // is accurate enough and PixelInk is a debug/transition aid.
+            // centre of the text box.  Now that both measurement and rendering
+            // use HarfBuzz, LayoutBox is accurate and PixelInk is a
+            // debug/transition aid.
             if (t.style.centering_mode == TextCenteringMode::PixelInk &&
                 ink_center_frac >= 0.0f && t.style.align == TextAlign::Center) {
                 const float box_img_cx = static_cast<float>(img_w) * 0.5f;
