@@ -4,8 +4,6 @@ add_executable(chronon3d_cli_tests
     ${TEST_MAIN}
     cli/test_frame_range_parser.cpp
     cli/test_frame_chunks.cpp
-    cli/test_ffmpeg_pipe_encoder.cpp
-    cli/test_video_pipeline_producer_consumer.cpp
     cli/test_pipe_export_helpers.cpp
     cli/test_pipe_export_session.cpp
     cli/test_render_loop_integration.cpp
@@ -19,11 +17,6 @@ add_executable(chronon3d_cli_tests
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/commands/video/common/video_export_common.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/commands/video/common/pipe_export_helpers.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/commands/video/common/pipe_export_session.cpp
-    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.cpp
-    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_write_frame.cpp
-    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder_uring.cpp
-    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_command.cpp
-    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_yuv.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/video_sink_encoders.cpp
 )
 

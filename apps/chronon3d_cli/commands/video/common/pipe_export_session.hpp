@@ -119,7 +119,6 @@ struct RenderLoopResult {
 struct PipeExportSession {
     // Encoder
     std::unique_ptr<IVideoEncoder> encoder;
-    std::unique_ptr<FfmpegPipeEncoder> pipe_encoder;  // non-null when !native
 
     // Renderer
     std::shared_ptr<SoftwareRenderer> renderer;
