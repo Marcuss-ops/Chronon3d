@@ -18,6 +18,7 @@
 #include <tests/helpers/check_helpers.hpp>
 
 #include <memory>
+#include <random>
 #include <vector>
 
 using namespace chronon3d;
@@ -190,11 +191,11 @@ TEST_CASE("matte: origin mapping — different origins") {
     //
     // So only the second column receives coverage.
 
-    auto fb_target = Framebuffer::create(2, 2);
+    auto fb_target = std::make_shared<Framebuffer>(2, 2);
     fb_target->set_origin(10, 10);
-    fb_target->fill(Color{0.8f, 0.8f, 0.8f, 1.0f});  // solid gray
+    fb_target->clear(Color{0.8f, 0.8f, 0.8f, 1.0f});  // solid gray
 
-    auto fb_matte = Framebuffer::create(1, 2);
+    auto fb_matte = std::make_shared<Framebuffer>(1, 2);
     fb_matte->set_origin(11, 10);
     fb_matte->pixels_row(0)[0] = Color{0.0f, 0.0f, 0.0f, 0.5f};  // half alpha
     fb_matte->pixels_row(1)[0] = Color{0.0f, 0.0f, 0.0f, 1.0f};  // full alpha
@@ -296,8 +297,8 @@ TEST_CASE("matte: alpha matte batch sizes") {
         std::uniform_real_distribution<float> d(0.0f, 1.0f);
         for (int i = 0; i < n; ++i) {
             float a = d(gen);
-            target[i] = {d(gen) * a, d(gen) * a, d(gen) * a, a};
-            matte_vals[i] = {0.0f, 0.0f, 0.0f, d(gen)};
+            target[i] = Color(d(gen) * a, d(gen) * a, d(gen) * a, a);
+            matte_vals[i] = Color(0.0f, 0.0f, 0.0f, d(gen));
             expected[i] = target[i];
             expected[i].r *= matte_vals[i].a;
             expected[i].g *= matte_vals[i].a;
@@ -320,8 +321,8 @@ TEST_CASE("matte: luma matte batch sizes") {
         std::uniform_real_distribution<float> d(0.0f, 1.0f);
         for (int i = 0; i < n; ++i) {
             float a = d(gen);
-            target[i] = {d(gen) * a, d(gen) * a, d(gen) * a, a};
-            matte_vals[i] = {d(gen) * a, d(gen) * a, d(gen) * a, a};
+            target[i] = Color(d(gen) * a, d(gen) * a, d(gen) * a, a);
+            matte_vals[i] = Color(d(gen) * a, d(gen) * a, d(gen) * a, a);
             float luma = 0.2126f * matte_vals[i].r + 0.7152f * matte_vals[i].g + 0.0722f * matte_vals[i].b;
             expected[i] = target[i];
             expected[i].r *= luma;
@@ -351,8 +352,8 @@ TEST_CASE("matte: all outputs finite for random inputs") {
         std::vector<Color> target(N), matte_vals(N), result(N);
         for (int i = 0; i < N; ++i) {
             float a = ad(gen);
-            target[i] = {d(gen) * a, d(gen) * a, d(gen) * a, a};
-            matte_vals[i] = {d(gen) * a, d(gen) * a, d(gen) * a, a};
+            target[i] = Color(d(gen) * a, d(gen) * a, d(gen) * a, a);
+            matte_vals[i] = Color(d(gen) * a, d(gen) * a, d(gen) * a, a);
         }
 
         result = target;
