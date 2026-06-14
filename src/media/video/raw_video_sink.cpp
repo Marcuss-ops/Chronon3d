@@ -19,18 +19,57 @@ RawVideoSink::~RawVideoSink() noexcept {
 }
 
 // ============================================================================
+//  validate_frame_match() — session contract enforcement
+// ============================================================================
+
+bool RawVideoSink::validate_frame_match(int width, int height, PixelFormat fmt) noexcept {
+    if (width <= 0 || height <= 0) {
+        state_ = VideoSinkState::Failed;
+        return false;
+    }
+    if (width != expected_width_ || height != expected_height_) {
+        state_ = VideoSinkState::Failed;
+        return false;
+    }
+    if (fmt != expected_format_) {
+        state_ = VideoSinkState::Failed;
+        return false;
+    }
+    // YUV420P and NV12 require even dimensions.
+    if (fmt == PixelFormat::YUV420P || fmt == PixelFormat::NV12) {
+        if (width % 2 != 0 || height % 2 != 0) {
+            state_ = VideoSinkState::Failed;
+            return false;
+        }
+    }
+    return true;
+}
+
+// ============================================================================
 //  open()
 // ============================================================================
 
 bool RawVideoSink::open(const VideoSinkConfig& config) {
-    if (state_ != VideoSinkState::Created && state_ != VideoSinkState::Closed) {
-        return false;  // already open
+    // Only Created → Open is valid.  Closed is terminal.
+    if (state_ != VideoSinkState::Created) {
+        state_ = VideoSinkState::Failed;
+        return false;
     }
 
     const auto& stream = config.stream;
+    const auto fmt = config.encoder.output_format;
+
     if (stream.width <= 0 || stream.height <= 0) {
         state_ = VideoSinkState::Failed;
         return false;
+    }
+
+    // YUV420P and NV12 require even dimensions.
+    if (fmt == PixelFormat::YUV420P || fmt == PixelFormat::NV12) {
+        if (stream.width % 2 != 0 || stream.height % 2 != 0) {
+            state_ = VideoSinkState::Failed;
+            return false;
+        }
     }
 
     // Open the output file.
@@ -50,8 +89,12 @@ bool RawVideoSink::open(const VideoSinkConfig& config) {
         return false;
     }
 
+    // Store session contract.
+    expected_width_  = stream.width;
+    expected_height_ = stream.height;
+    expected_format_ = fmt;
+
     // Compute stride and pre-allocate staging buffer for planar conversion.
-    const auto fmt = config.encoder.output_format;
     switch (fmt) {
         case PixelFormat::RGBA8:
             stride_ = static_cast<std::size_t>(stream.width) * 4;
@@ -83,17 +126,41 @@ bool RawVideoSink::submit(const VideoFrameView& frame) {
         return false;
     }
 
-    const auto t0 = std::chrono::steady_clock::now();
-    const auto* data = static_cast<const uint8_t*>(frame.data);
-    const size_t data_size = frame_buffer_size(
-        frame.pixel_format, frame.width, frame.height);
-
-    if (!data || data_size == 0) {
+    if (!frame.data) {
         state_ = VideoSinkState::Failed;
         return false;
     }
 
-    const bool ok = write_bytes(data, data_size);
+    // Validate session contract.
+    if (!validate_frame_match(frame.width, frame.height, frame.pixel_format)) {
+        return false;
+    }
+
+    const auto t0 = std::chrono::steady_clock::now();
+    const auto* data = static_cast<const uint8_t*>(frame.data);
+    const size_t tight_row_bytes = frame_buffer_size(
+        frame.pixel_format, frame.width, 1);  // bytes per tight row
+    const size_t tight_frame_size = frame_buffer_size(
+        frame.pixel_format, frame.width, frame.height);
+
+    const size_t actual_stride = (frame.stride_bytes > 0)
+        ? frame.stride_bytes
+        : tight_row_bytes;
+
+    bool ok;
+    if (actual_stride == tight_row_bytes) {
+        // Tight packing: write entire buffer in one shot.
+        ok = write_bytes(data, tight_frame_size);
+    } else {
+        // Row padding present: write row-by-row skipping padding bytes.
+        const auto* row = data;
+        for (int y = 0; y < frame.height; ++y) {
+            ok = write_bytes(row, tight_row_bytes);
+            if (!ok) break;
+            row += actual_stride;
+        }
+    }
+
     if (!ok) {
         state_ = VideoSinkState::Failed;
         return false;
@@ -104,7 +171,7 @@ bool RawVideoSink::submit(const VideoFrameView& frame) {
     stats_.total_submit_ms += elapsed;
     stats_.submit_count++;
     stats_.frames_submitted++;
-    stats_.bytes_written += data_size;
+    stats_.bytes_written += tight_frame_size;
     return true;
 }
 
@@ -117,10 +184,31 @@ bool RawVideoSink::submit_planar(const PlanarVideoFrameView& frame) {
         return false;
     }
 
+    if (!frame.y_data || !frame.u_data || !frame.v_data) {
+        state_ = VideoSinkState::Failed;
+        return false;
+    }
+
+    // Validate session contract.
+    if (!validate_frame_match(frame.width, frame.height, PixelFormat::YUV420P)) {
+        return false;
+    }
+
+    // Validate strides: must be >= row width.
+    const size_t y_row  = static_cast<size_t>(frame.width);
+    const size_t uv_row = static_cast<size_t>(frame.width / 2);
+    const size_t y_stride  = (frame.y_stride > 0) ? frame.y_stride : y_row;
+    const size_t u_stride  = (frame.u_stride > 0) ? frame.u_stride : uv_row;
+    const size_t v_stride  = (frame.v_stride > 0) ? frame.v_stride : uv_row;
+    if (y_stride < y_row || u_stride < uv_row || v_stride < uv_row) {
+        state_ = VideoSinkState::Failed;
+        return false;
+    }
+
     const auto t0 = std::chrono::steady_clock::now();
 
     // Pack Y + U + V into a single interleaved buffer.
-    const size_t y_size  = static_cast<size_t>(frame.width) * frame.height;
+    const size_t y_size  = y_row * static_cast<size_t>(frame.height);
     const size_t uv_size = y_size / 4;
     const size_t total   = y_size + uv_size * 2;  // YUV420P tight
 
@@ -129,43 +217,43 @@ bool RawVideoSink::submit_planar(const PlanarVideoFrameView& frame) {
     }
 
     // Copy Y plane.
-    if (frame.y_stride == 0 || frame.y_stride == static_cast<size_t>(frame.width)) {
+    if (y_stride == y_row) {
         std::memcpy(staging_.data(), frame.y_data, y_size);
     } else {
         const auto* src = static_cast<const uint8_t*>(frame.y_data);
         auto* dst = staging_.data();
         for (int y = 0; y < frame.height; ++y) {
-            std::memcpy(dst, src, static_cast<size_t>(frame.width));
-            src += frame.y_stride;
-            dst += static_cast<size_t>(frame.width);
+            std::memcpy(dst, src, y_row);
+            src += y_stride;
+            dst += y_row;
         }
     }
 
     // Copy U plane.
     auto* u_dst = staging_.data() + y_size;
-    if (frame.u_stride == 0 || frame.u_stride == static_cast<size_t>(frame.width / 2)) {
+    if (u_stride == uv_row) {
         std::memcpy(u_dst, frame.u_data, uv_size);
     } else {
         const auto* src = static_cast<const uint8_t*>(frame.u_data);
         auto* dst = u_dst;
         for (int y = 0; y < frame.height / 2; ++y) {
-            std::memcpy(dst, src, static_cast<size_t>(frame.width / 2));
-            src += frame.u_stride;
-            dst += static_cast<size_t>(frame.width / 2);
+            std::memcpy(dst, src, uv_row);
+            src += u_stride;
+            dst += uv_row;
         }
     }
 
     // Copy V plane.
     auto* v_dst = staging_.data() + y_size + uv_size;
-    if (frame.v_stride == 0 || frame.v_stride == static_cast<size_t>(frame.width / 2)) {
+    if (v_stride == uv_row) {
         std::memcpy(v_dst, frame.v_data, uv_size);
     } else {
         const auto* src = static_cast<const uint8_t*>(frame.v_data);
         auto* dst = v_dst;
         for (int y = 0; y < frame.height / 2; ++y) {
-            std::memcpy(dst, src, static_cast<size_t>(frame.width / 2));
-            src += frame.v_stride;
-            dst += static_cast<size_t>(frame.width / 2);
+            std::memcpy(dst, src, uv_row);
+            src += v_stride;
+            dst += uv_row;
         }
     }
 
@@ -193,10 +281,30 @@ bool RawVideoSink::submit_biplanar(const BiplanarVideoFrameView& frame) {
         return false;
     }
 
+    if (!frame.y_data || !frame.uv_data) {
+        state_ = VideoSinkState::Failed;
+        return false;
+    }
+
+    // Validate session contract.
+    if (!validate_frame_match(frame.width, frame.height, PixelFormat::NV12)) {
+        return false;
+    }
+
+    // Validate strides: must be >= row width.
+    const size_t y_row  = static_cast<size_t>(frame.width);
+    const size_t uv_row = static_cast<size_t>(frame.width);
+    const size_t y_stride  = (frame.y_stride > 0) ? frame.y_stride : y_row;
+    const size_t uv_stride = (frame.uv_stride > 0) ? frame.uv_stride : uv_row;
+    if (y_stride < y_row || uv_stride < uv_row) {
+        state_ = VideoSinkState::Failed;
+        return false;
+    }
+
     const auto t0 = std::chrono::steady_clock::now();
 
     // Pack Y + UV into a single buffer.
-    const size_t y_size  = static_cast<size_t>(frame.width) * frame.height;
+    const size_t y_size  = y_row * static_cast<size_t>(frame.height);
     const size_t uv_size = y_size / 2;  // NV12 UV plane = w*h/2 bytes
     const size_t total   = y_size + uv_size;
 
@@ -205,29 +313,29 @@ bool RawVideoSink::submit_biplanar(const BiplanarVideoFrameView& frame) {
     }
 
     // Copy Y plane.
-    if (frame.y_stride == 0 || frame.y_stride == static_cast<size_t>(frame.width)) {
+    if (y_stride == y_row) {
         std::memcpy(staging_.data(), frame.y_data, y_size);
     } else {
         const auto* src = static_cast<const uint8_t*>(frame.y_data);
         auto* dst = staging_.data();
         for (int y = 0; y < frame.height; ++y) {
-            std::memcpy(dst, src, static_cast<size_t>(frame.width));
-            src += frame.y_stride;
-            dst += static_cast<size_t>(frame.width);
+            std::memcpy(dst, src, y_row);
+            src += y_stride;
+            dst += y_row;
         }
     }
 
     // Copy UV plane.
     auto* uv_dst = staging_.data() + y_size;
-    if (frame.uv_stride == 0 || frame.uv_stride == static_cast<size_t>(frame.width)) {
+    if (uv_stride == uv_row) {
         std::memcpy(uv_dst, frame.uv_data, uv_size);
     } else {
         const auto* src = static_cast<const uint8_t*>(frame.uv_data);
         auto* dst = uv_dst;
         for (int y = 0; y < frame.height / 2; ++y) {
-            std::memcpy(dst, src, static_cast<size_t>(frame.width));
-            src += frame.uv_stride;
-            dst += static_cast<size_t>(frame.width);
+            std::memcpy(dst, src, uv_row);
+            src += uv_stride;
+            dst += uv_row;
         }
     }
 
@@ -255,12 +363,16 @@ bool RawVideoSink::flush() {
         return false;
     }
 
-    state_ = VideoSinkState::Flushing;
+    const auto t0 = std::chrono::steady_clock::now();
     file_.flush();
+    const auto t1 = std::chrono::steady_clock::now();
+
     if (!file_) {
         state_ = VideoSinkState::Failed;
         return false;
     }
+
+    stats_.total_flush_ms += std::chrono::duration<double, std::milli>(t1 - t0).count();
     return true;
 }
 
@@ -269,7 +381,8 @@ bool RawVideoSink::close() noexcept {
         return true;  // already closed
     }
     if (state_ == VideoSinkState::Created) {
-        state_ = VideoSinkState::Closed;  // close before open is valid
+        // close before open: release nothing, just mark terminal.
+        state_ = VideoSinkState::Closed;
         return true;
     }
 
@@ -277,6 +390,11 @@ bool RawVideoSink::close() noexcept {
         file_.flush();
         file_.close();
     }
+
+    // Clear session contract.
+    expected_width_ = 0;
+    expected_height_ = 0;
+    expected_format_ = PixelFormat::RGBA8;
 
     state_ = VideoSinkState::Closed;
     return true;
