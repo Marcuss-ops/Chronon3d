@@ -55,7 +55,7 @@ struct AnimatedCamera2_5D {
     [[nodiscard]] Camera2_5D evaluate(SampleTime time) const {
         Camera2_5D cam;
         cam.enabled = enabled;
-        cam.is_animated = is_animated();
+        cam.is_animated = is_time_dependent();
         cam.position = position.evaluate(time);
         cam.rotation = rotation.evaluate(time);
         cam.zoom     = zoom.evaluate(time);
@@ -90,6 +90,14 @@ struct AnimatedCamera2_5D {
                focus_z.is_animated()  || aperture.is_animated() || max_blur.is_animated() ||
                focal_length.is_animated() || sensor_width.is_animated() ||
                f_stop.is_animated()   || focus_distance.is_animated();
+    }
+
+    /// Return true if any property depends on time (keyframes or expression).
+    [[nodiscard]] bool is_time_dependent() const {
+        return position.is_time_dependent() || rotation.is_time_dependent() ||
+               zoom.is_time_dependent()     || fov_deg.is_time_dependent() ||
+               point_of_interest.is_time_dependent() ||
+               focus_z.is_time_dependent()  || aperture.is_time_dependent() || max_blur.is_time_dependent();
     }
 };
 

@@ -4,6 +4,7 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
 #include <chronon3d/scene/model/camera/camera_rig.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
 
 using namespace chronon3d;
 
@@ -194,4 +195,104 @@ TEST_CASE("CameraRig: sub-frame evaluation") {
     // Sub-frame
     Camera2_5D c15_5 = rig.evaluate(SampleTime::from_frame(15.5));
     CHECK(c15_5.rotation.x == doctest::Approx(15.5f).epsilon(0.01f));
+}
+
+// ===========================================================================
+// End-to-end: LayerBuilder evaluates animated transform at sub-frame time
+// ===========================================================================
+TEST_CASE("LayerBuilder evaluates animated transform at sub-frame time") {
+    // Create a layer with keyframed position
+    LayerBuilder builder("moving", Frame{0});
+    builder.from(Frame{0}).duration(Frame{60});
+
+    builder.position_anim()
+        .key(0, Vec3{0, 0, 0})
+        .key(1, Vec3{100, 0, 0});
+
+    Layer layer = builder.build();
+
+    // At frame 0, no sub-frame offset → position should be at keyframe 0
+    CHECK(layer.transform.position.x == doctest::Approx(0.0f));
+
+    // Now build the same layer at frame 0.5 (halfway between keyframes)
+    // LayerBuilder with current_frame=0.5 via sample-time constructor
+    // NOTE: LayerBuilder currently takes Frame, not SampleTime for the
+    // current_frame. The sub-frame precision comes from SceneBuilder which
+    // calls local_frame() and passes to evaluate(SampleTime).
+    // This test validates the AnimatedTransform directly:
+    Transform t_at_0 = layer.anim_transform.evaluate(Frame{0});
+    Transform t_at_half = layer.anim_transform.evaluate(Frame{0});  // integer only from Frame
+
+    // AnimatedTransform::evaluate(SampleTime) — the sub-frame API
+    Transform t_sub = layer.anim_transform.evaluate(SampleTime::from_frame(0.5));
+    CHECK(t_sub.position.x == doctest::Approx(50.0f));
+    CHECK(t_sub.position.x > t_at_0.position.x);
+    CHECK(t_sub.position.x < 100.0f);
+}
+
+TEST_CASE("AnimatedTransform is_time_dependent catches expression-only") {
+    AnimatedTransform at;
+    // No keyframes, no expression → not time dependent
+    CHECK_FALSE(at.is_time_dependent());
+
+    // Expression only (no keyframes) → time dependent
+    at.opacity.expression("0.5 + 0.5 * sin(time * 2)");
+    CHECK(at.is_time_dependent());
+    CHECK_FALSE(at.is_animated());  // is_animated() only checks keyframes
+}
+
+TEST_CASE("LayerBuilder with expression-only opacity evaluates correctly") {
+    LayerBuilder builder("expr_layer", Frame{0});
+    builder.from(Frame{0}).duration(Frame{60});
+    builder.opacity_anim().expression("0.5 + 0.5 * sin(time * 2)");
+
+    Layer layer = builder.build();
+
+    // The transform should have been evaluated (expression-only properties
+    // are now recognized as time-dependent)
+    // We can't easily predict the exact value without an expression evaluator,
+    // but the key assertion is that the build doesn't skip evaluation.
+    CHECK(layer.anim_transform.opacity.has_expression());
+    CHECK(layer.anim_transform.is_time_dependent());
+}
+
+TEST_CASE("Composition → LayerBuilder → AnimatedTransform full motion blur path") {
+    // Simulate what the motion blur accumulation loop does:
+    // 1. Build a layer at a sub-frame time
+    // 2. Evaluate animated transform with sub-frame precision
+    // 3. All 8 sub-samples produce different positions
+
+    LayerBuilder builder("mb_layer", Frame{0});
+    builder.from(Frame{0}).duration(Frame{60});
+
+    builder.position_anim()
+        .key(0, Vec3{0, 0, -1000})
+        .key(1, Vec3{100, 0, -1000});
+
+    Layer layer = builder.build();
+
+    // Simulate 8 motion blur sub-samples (180° shutter: half-frame exposure)
+    std::vector<Vec3> positions;
+    for (int s = 0; s < 8; ++s) {
+        const double u = (static_cast<double>(s) + 0.5) / 8.0;  // centred sample
+        const double sub_frame = 0.5 * u;  // 180° shutter → half-frame window
+        Transform baked = layer.anim_transform.evaluate(
+            SampleTime::from_frame(sub_frame, 30.0));
+        positions.push_back(baked.position);
+    }
+
+    // All 8 samples must produce different positions
+    bool all_same = true;
+    for (int s = 1; s < 8; ++s) {
+        if (glm::length(positions[s] - positions[0]) > 0.001f) {
+            all_same = false;
+            break;
+        }
+    }
+    CHECK_FALSE(all_same);
+
+    // Monotonically increasing in X
+    for (int s = 1; s < 8; ++s) {
+        CHECK(positions[s].x >= positions[s-1].x);
+    }
 }

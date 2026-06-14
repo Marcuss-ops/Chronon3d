@@ -10,12 +10,14 @@
 namespace chronon3d {
 
 // ── Primary constructor (SampleTime) ────────────────────────────────────────
+
 LayerBuilder::LayerBuilder(std::string name, SampleTime current_time, std::pmr::memory_resource* res)
     : m_layer(res), m_current_time(current_time) {
     m_layer.name = std::pmr::string{name, res};
 }
 
 // ── Backward-compatible constructor (Frame → SampleTime) ────────────────────
+
 LayerBuilder::LayerBuilder(std::string name, Frame current_frame, std::pmr::memory_resource* res)
     : LayerBuilder(std::move(name), SampleTime::from_frame_int(current_frame), res) {}
 

@@ -194,6 +194,33 @@ public:
         return m_total_arc_length;
     }
 
+    /// Unified arc-length query: returns position AND the parametric t so
+    /// the caller can also compute tangent/forward at the same point.
+    /// Without this, position and tangent could reference different points
+    /// when arc-length remaps the parameter.
+    struct ArcSample {
+        Vec3 position;
+        f32  parametric_t;
+    };
+
+    [[nodiscard]] ArcSample sample_at_arc_fraction(f32 t) const {
+        if (m_waypoints.size() < 2) return {evaluate(t), t};
+        ensure_arc_length_table();
+        t = std::clamp(t, 0.0f, 1.0f);
+        const f32 target_length = t * m_total_arc_length;
+        auto it = std::lower_bound(m_arc_lengths.begin(), m_arc_lengths.end(), target_length);
+        if (it == m_arc_lengths.begin()) return {m_samples[0], 0.0f};
+        if (it == m_arc_lengths.end()) return {m_samples.back(), 1.0f};
+        const size_t hi = static_cast<size_t>(std::distance(m_arc_lengths.begin(), it));
+        const size_t lo = hi - 1;
+        const f32 seg_len = m_arc_lengths[hi] - m_arc_lengths[lo];
+        const f32 frac = (seg_len > 1e-6f) ? (target_length - m_arc_lengths[lo]) / seg_len : 0.0f;
+        const int num_segments = static_cast<int>(m_samples.size()) - 1;
+        const f32 param_t = static_cast<f32>(lo) / static_cast<f32>(num_segments)
+                          + frac / static_cast<f32>(num_segments);
+        return {m_samples[lo] + (m_samples[hi] - m_samples[lo]) * frac, param_t};
+    }
+
 private:
     // Effective boundary: Closed only valid with ≥ 3 unique points.
     [[nodiscard]] CatmullRomBoundary effective_boundary() const {
