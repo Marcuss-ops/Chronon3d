@@ -10,11 +10,6 @@ add_executable(chronon3d_cli_tests
     cli/test_camera_path_command.cpp
     cli/test_video_end_semantics.cpp
     cli/test_video_sink_encoders.cpp
-    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/common/cli_utils.cpp
-    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/job/cli_render_utils.cpp
-    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/video_job_plan.cpp
-    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/commands/video/common/video_export_common.cpp
-    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/commands/video/common/pipe_export_helpers.cpp
 )
 
 target_link_libraries(chronon3d_cli_tests
@@ -22,6 +17,12 @@ target_link_libraries(chronon3d_cli_tests
         chronon3d_pipeline
         chronon3d_scene
         chronon3d_backend_software
+        chronon3d_cli_core
+        chronon3d_cli_video
+        chronon3d_cli_render
+        chronon3d_cli_dev
+        chronon3d_media_video
+        chronon3d_backend_image
         CLI11::CLI11
         doctest::doctest
         fmt::fmt
