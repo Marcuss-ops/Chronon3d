@@ -87,9 +87,20 @@ public:
     /// Child PID (Linux/macOS) or process ID (Windows), or -1 if not launched.
     [[nodiscard]] int pid() const noexcept { return child_pid_; }
 
+    // ── Diagnostics ─────────────────────────────────────────────────────
+
+    /// Retrieve and clear the captured stderr output from the child process.
+    /// Returns an empty string if no stderr was captured (or if capture was
+    /// not enabled / the child did not write to stderr).
+    /// Calling this method drains the internal buffer; subsequent calls
+    /// return the new stderr data produced after the last call.
+    [[nodiscard]] std::string consume_stderr() noexcept;
+
 private:
     int  child_pid_{-1};     // POSIX PID or Windows process ID
     int  stdin_fd_{-1};      // write-end of the pipe to child's stdin
+    int  stderr_fd_{-1};     // read-end of the child's stderr pipe
+    std::string stderr_buffer_;  // accumulated stderr output
     int  cached_exit_status_{0};  // stored by is_running() if child exited
     bool exit_cached_{false};     // true when cached_exit_status_ is valid
 
@@ -103,6 +114,10 @@ private:
     /// Returns exit code (0–255), negative on error.
     /// On success, sets child_pid_ = -1.
     int reap_child();
+
+    /// Drain any available stderr data from the child's stderr pipe into
+    /// stderr_buffer_.  Non-blocking read — does not block if no data.
+    void drain_stderr();
 };
 
 } // namespace chronon3d::media::video

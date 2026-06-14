@@ -18,16 +18,24 @@ ProcessRunner::~ProcessRunner() noexcept {
     } else {
         close_stdin();
     }
+
+    if (stderr_fd_ >= 0) {
+        ::close(stderr_fd_);
+        stderr_fd_ = -1;
+    }
 }
 
 ProcessRunner::ProcessRunner(ProcessRunner&& other) noexcept
     : child_pid_(other.child_pid_)
     , stdin_fd_(other.stdin_fd_)
+    , stderr_fd_(other.stderr_fd_)
+    , stderr_buffer_(std::move(other.stderr_buffer_))
     , cached_exit_status_(other.cached_exit_status_)
     , exit_cached_(other.exit_cached_)
 {
     other.child_pid_ = -1;
     other.stdin_fd_  = -1;
+    other.stderr_fd_ = -1;
     other.exit_cached_ = false;
 }
 
@@ -38,19 +46,31 @@ ProcessRunner& ProcessRunner::operator=(ProcessRunner&& other) noexcept {
             terminate_and_wait(std::chrono::seconds(5));
         }
         close_stdin();
-        child_pid_         = other.child_pid_;
-        stdin_fd_          = other.stdin_fd_;
+
+        if (stderr_fd_ >= 0) {
+            ::close(stderr_fd_);
+        }
+
+        child_pid_          = other.child_pid_;
+        stdin_fd_           = other.stdin_fd_;
+        stderr_fd_          = other.stderr_fd_;
+        stderr_buffer_      = std::move(other.stderr_buffer_);
         cached_exit_status_ = other.cached_exit_status_;
-        exit_cached_       = other.exit_cached_;
+        exit_cached_        = other.exit_cached_;
+
         other.child_pid_   = -1;
         other.stdin_fd_    = -1;
+        other.stderr_fd_   = -1;
         other.exit_cached_ = false;
     }
     return *this;
 }
 
 int ProcessRunner::reap_child() {
-    if (child_pid_ <= 0) return -1;
+    if (child_pid_ <= 0) {
+        drain_stderr();
+        return -1;
+    }
 
     int status;
     pid_t result;
@@ -59,6 +79,13 @@ int ProcessRunner::reap_child() {
     } while (result < 0 && errno == EINTR);
 
     child_pid_ = -1;
+
+    drain_stderr();
+
+    if (stderr_fd_ >= 0) {
+        ::close(stderr_fd_);
+        stderr_fd_ = -1;
+    }
 
     if (result < 0) return -1;
     if (WIFEXITED(status)) return WEXITSTATUS(status);
@@ -76,6 +103,7 @@ int  ProcessRunner::wait() { return -1; }
 int  ProcessRunner::wait_for(std::chrono::milliseconds) { return -1; }
 int  ProcessRunner::terminate_and_wait(std::chrono::milliseconds) {
     // On Windows stubs, just reap what we can.
+    drain_stderr();
     if (child_pid_ > 0) {
         child_pid_ = -1;
     }
@@ -83,6 +111,15 @@ int  ProcessRunner::terminate_and_wait(std::chrono::milliseconds) {
 }
 void ProcessRunner::terminate() {}
 bool ProcessRunner::is_running() { return false; }
+void ProcessRunner::drain_stderr() {
+    // No-op on Windows stubs.
+}
+std::string ProcessRunner::consume_stderr() noexcept {
+    drain_stderr();
+    std::string result;
+    result.swap(stderr_buffer_);
+    return result;
+}
 
 } // namespace chronon3d::media::video
 
@@ -109,21 +146,32 @@ namespace chronon3d::media::video {
 ProcessRunner::~ProcessRunner() noexcept {
     if (child_pid_ > 0) {
         // Graceful shutdown: terminate_and_wait → wait_for handles
-        // close_stdin internally before polling.
+        // close_stdin internally before polling. drain_stderr is called
+        // inside terminate_and_wait before we return.
         terminate_and_wait(std::chrono::seconds(5));
     } else {
         close_stdin();
+    }
+
+    // Close the stderr pipe read-end if the child exited without us
+    // having cleaned up (e.g. after a move).
+    if (stderr_fd_ >= 0) {
+        ::close(stderr_fd_);
+        stderr_fd_ = -1;
     }
 }
 
 ProcessRunner::ProcessRunner(ProcessRunner&& other) noexcept
     : child_pid_(other.child_pid_)
     , stdin_fd_(other.stdin_fd_)
+    , stderr_fd_(other.stderr_fd_)
+    , stderr_buffer_(std::move(other.stderr_buffer_))
     , cached_exit_status_(other.cached_exit_status_)
     , exit_cached_(other.exit_cached_)
 {
     other.child_pid_   = -1;
     other.stdin_fd_    = -1;
+    other.stderr_fd_   = -1;
     other.exit_cached_ = false;
 }
 
@@ -135,13 +183,21 @@ ProcessRunner& ProcessRunner::operator=(ProcessRunner&& other) noexcept {
         }
         close_stdin();
 
+        // Close our old stderr fd before taking ownership of other's.
+        if (stderr_fd_ >= 0) {
+            ::close(stderr_fd_);
+        }
+
         child_pid_         = other.child_pid_;
         stdin_fd_          = other.stdin_fd_;
+        stderr_fd_         = other.stderr_fd_;
+        stderr_buffer_     = std::move(other.stderr_buffer_);
         cached_exit_status_ = other.cached_exit_status_;
         exit_cached_       = other.exit_cached_;
 
         other.child_pid_   = -1;
         other.stdin_fd_    = -1;
+        other.stderr_fd_   = -1;
         other.exit_cached_ = false;
     }
     return *this;
@@ -152,7 +208,10 @@ ProcessRunner& ProcessRunner::operator=(ProcessRunner&& other) noexcept {
 // ============================================================================
 
 int ProcessRunner::reap_child() {
-    if (child_pid_ <= 0) return -1;
+    if (child_pid_ <= 0) {
+        drain_stderr();
+        return -1;
+    }
 
     int status;
     pid_t result;
@@ -161,6 +220,15 @@ int ProcessRunner::reap_child() {
     } while (result < 0 && errno == EINTR);
 
     child_pid_ = -1;
+
+    // Drain any remaining stderr after the child has fully exited.
+    drain_stderr();
+
+    // Close the stderr pipe read-end — no more data will arrive.
+    if (stderr_fd_ >= 0) {
+        ::close(stderr_fd_);
+        stderr_fd_ = -1;
+    }
 
     if (result < 0) return -1;
     if (WIFEXITED(status)) return WEXITSTATUS(status);
@@ -183,22 +251,35 @@ bool ProcessRunner::launch(const std::string& executable,
     // This is process-wide, which is the desired behaviour for a video pipeline.
     (void)signal(SIGPIPE, SIG_IGN);
 
-    // Create a pipe for the child's stdin.
-    int pipe_fds[2];
+    // Create pipes for stdin and stderr.
+    int pipe_fds[2];      // stdin  pipe: read-end→child, write-end→parent
+    int stderr_pipe[2];   // stderr pipe: write-end→child, read-end→parent
+
     if (::pipe(pipe_fds) != 0) {
+        return false;
+    }
+    if (::pipe(stderr_pipe) != 0) {
+        ::close(pipe_fds[0]);
+        ::close(pipe_fds[1]);
         return false;
     }
 
     // Build posix_spawn file actions:
     //   - dup2(read-end → stdin) so the child reads from the pipe
-    //   - close both pipe_fds[0] and pipe_fds[1] in the child after dup2
-    //     (pipe_fds[0] is the original read-end fd — no longer needed
-    //      after dup2; pipe_fds[1] is the write-end — owned by the parent)
+    //   - dup2(write-end → stderr) so the child writes stderr to the pipe
+    //   - close all pipe ends in the child after dup2
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);
+
+    // stdin
     posix_spawn_file_actions_adddup2(&actions, pipe_fds[0], STDIN_FILENO);
     posix_spawn_file_actions_addclose(&actions, pipe_fds[0]);
     posix_spawn_file_actions_addclose(&actions, pipe_fds[1]);
+
+    // stderr
+    posix_spawn_file_actions_adddup2(&actions, stderr_pipe[1], STDERR_FILENO);
+    posix_spawn_file_actions_addclose(&actions, stderr_pipe[0]);
+    posix_spawn_file_actions_addclose(&actions, stderr_pipe[1]);
 
     // Build C-style argv array (null-terminated).
     std::vector<char*> cargv;
@@ -218,22 +299,69 @@ bool ProcessRunner::launch(const std::string& executable,
         environ);
 
     posix_spawn_file_actions_destroy(&actions);
-    ::close(pipe_fds[0]);  // close the read end (parent doesn't need it)
+    ::close(pipe_fds[0]);      // close stdin read-end  (parent doesn't need it)
+    ::close(stderr_pipe[1]);   // close stderr write-end (child owns the dup'd fd)
 
     if (ret != 0) {
         ::close(pipe_fds[1]);
+        ::close(stderr_pipe[0]);
         return false;
     }
 
     child_pid_  = static_cast<int>(pid);
     stdin_fd_   = pipe_fds[1];
+    stderr_fd_  = stderr_pipe[0];
     exit_cached_ = false;
+    stderr_buffer_.clear();
+
+    // Set the stderr read-end to non-blocking so drain_stderr() never blocks.
+    const int flags = ::fcntl(stderr_fd_, F_GETFL);
+    if (flags >= 0) {
+        ::fcntl(stderr_fd_, F_SETFL, flags | O_NONBLOCK);
+    }
 
     // Enlarge the kernel pipe buffer to reduce backpressure.
     constexpr int kDesiredPipeSize = 2 * 1024 * 1024;  // 2 MiB
     (void)fcntl(stdin_fd_, F_SETPIPE_SZ, kDesiredPipeSize);
 
     return true;
+}
+
+// ============================================================================
+//  drain_stderr() — collect child stderr into buffer (non-blocking)
+// ============================================================================
+
+void ProcessRunner::drain_stderr() {
+    if (stderr_fd_ < 0) return;
+
+    char buf[4096];
+    for (;;) {
+        const ssize_t n = ::read(stderr_fd_, buf, sizeof(buf));
+        if (n > 0) {
+            stderr_buffer_.append(buf, static_cast<std::size_t>(n));
+        } else if (n == 0) {
+            // EOF — pipe write-end closed by the child.
+            break;
+        } else {
+            // n < 0
+            if (errno == EINTR) continue;
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                break;  // no more data right now
+            }
+            break;  // real error — stop draining
+        }
+    }
+}
+
+// ============================================================================
+//  consume_stderr() — return captured stderr and clear the buffer
+// ============================================================================
+
+std::string ProcessRunner::consume_stderr() noexcept {
+    drain_stderr();
+    std::string result;
+    result.swap(stderr_buffer_);
+    return result;
 }
 
 // ============================================================================
@@ -284,11 +412,13 @@ void ProcessRunner::close_stdin() {
 
 int ProcessRunner::wait() {
     if (child_pid_ <= 0) {
+        drain_stderr();
         return -1;
     }
 
     // If is_running() already cached the exit status, use it.
     if (exit_cached_) {
+        drain_stderr();
         const int rc = cached_exit_status_;
         child_pid_ = -1;
         exit_cached_ = false;
@@ -298,6 +428,8 @@ int ProcessRunner::wait() {
     // Ensure stdin is closed before waiting — the child may be blocked
     // reading from stdin.
     close_stdin();
+
+    drain_stderr();
 
     return reap_child();
 }
@@ -346,10 +478,14 @@ bool ProcessRunner::is_running() {
 // ============================================================================
 
 int ProcessRunner::wait_for(std::chrono::milliseconds timeout) {
-    if (child_pid_ <= 0) return -1;
+    if (child_pid_ <= 0) {
+        drain_stderr();
+        return -1;
+    }
 
     // If is_running() already cached the exit status, use it.
     if (exit_cached_) {
+        drain_stderr();
         const int rc = cached_exit_status_;
         child_pid_ = -1;
         exit_cached_ = false;
@@ -361,6 +497,7 @@ int ProcessRunner::wait_for(std::chrono::milliseconds timeout) {
 
     // If timeout is zero or negative, just check once non-blocking.
     if (timeout.count() <= 0) {
+        drain_stderr();
         int status;
         const pid_t result = ::waitpid(child_pid_, &status, WNOHANG);
         if (result == 0) return -2;  // still running → timeout
@@ -386,6 +523,7 @@ int ProcessRunner::wait_for(std::chrono::milliseconds timeout) {
         if (result > 0) {
             // Child has exited.
             child_pid_ = -1;
+            drain_stderr();
             if (WIFEXITED(status)) return WEXITSTATUS(status);
             if (WIFSIGNALED(status)) return -WTERMSIG(status);
             return -1;
@@ -394,10 +532,12 @@ int ProcessRunner::wait_for(std::chrono::milliseconds timeout) {
             if (errno == EINTR) continue;
             // Child already reaped or error.
             child_pid_ = -1;
+            drain_stderr();
             return -1;
         }
         // result == 0 → still running, sleep.
         if (std::chrono::steady_clock::now() >= deadline) {
+            drain_stderr();
             return -2;  // timeout
         }
         std::this_thread::sleep_for(kPollInterval);
@@ -409,10 +549,14 @@ int ProcessRunner::wait_for(std::chrono::milliseconds timeout) {
 // ============================================================================
 
 int ProcessRunner::terminate_and_wait(std::chrono::milliseconds graceful_timeout) {
-    if (child_pid_ <= 0) return -1;
+    if (child_pid_ <= 0) {
+        drain_stderr();
+        return -1;
+    }
 
     // If the child already exited via is_running(), use cached status.
     if (exit_cached_) {
+        drain_stderr();
         const int rc = cached_exit_status_;
         child_pid_ = -1;
         exit_cached_ = false;
@@ -426,6 +570,7 @@ int ProcessRunner::terminate_and_wait(std::chrono::milliseconds graceful_timeout
     int rc = wait_for(graceful_timeout);
     if (rc != -2) {
         // Child exited or error (not a timeout).
+        drain_stderr();
         return rc;
     }
 
