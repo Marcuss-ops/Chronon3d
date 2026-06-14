@@ -362,58 +362,22 @@ inline TypewriterLayout compute_typewriter_layout(
     auto run = engine.shape_text(text, font_spec, font_size);
     if (!run || run->glyphs.empty()) return result;
 
-    // ── Unified cluster-interval map (LTR, RTL, mixed bidi) ────────────
-    //
-    // HarfBuzz `cluster` values are byte offsets into the source text.
-    // Collect unique values, sort by source-text offset, and build
-    // intervals [sorted[k], sorted[k+1]) — each cluster-start glyph
-    // maps to its own interval regardless of visual (glyph) order.
-    //
-    // This replaces the old per-glyph RTL/LTR heuristic which assumed
-    // cluster == end byte and broke for complex scripts.
+    // ── Canonical PlacedGlyphRun: resolves positions and builds
+    // cluster info (byte offsets, advances with tracking). ───────────
+    auto placed = resolve_placed_glyph_run(*run, tracking, text);
+    if (placed.clusters.empty()) return result;
 
+    // ── Convert PlacedGlyphRun::Cluster → CharAdv for grapheme merge ──
+    // Use raw_advance (without per-HarfBuzz-cluster tracking) so that
+    // tracking is applied cleanly at the grapheme level below.
     struct CharAdv { size_t byte_offset; size_t byte_len; f32 advance; };
-
-    // 1. Collect unique cluster values.
-    std::set<u32> cluster_set;
-    for (const auto& gp : run->glyphs) {
-        cluster_set.insert(gp.cluster);
-    }
-    cluster_set.insert(static_cast<u32>(text.size()));
-
-    // 2. Build sorted intervals → cluster-to-range map.
-    std::vector<u32> sorted_clusters(cluster_set.begin(), cluster_set.end());
-    std::unordered_map<u32, std::pair<size_t, size_t>> cluster_to_range;
-    for (size_t k = 0; k + 1 < sorted_clusters.size(); ++k) {
-        cluster_to_range[sorted_clusters[k]] = {
-            static_cast<size_t>(sorted_clusters[k]),
-            static_cast<size_t>(sorted_clusters[k + 1])
-        };
-    }
-
-    // 3. Aggregate advances per cluster (multiple glyphs may share a cluster).
-    std::unordered_map<u32, f32> cluster_advances;
-    for (const auto& gp : run->glyphs) {
-        cluster_advances[gp.cluster] += gp.advance_x;
-    }
-
-    // 4. Emit one entry per unique cluster in source-text order, with
-    //    tracking added once per cluster (not per glyph within a cluster).
     std::vector<CharAdv> char_advances;
-    char_advances.reserve(sorted_clusters.size());
-
-    for (size_t k = 0; k + 1 < sorted_clusters.size(); ++k) {
-        const u32 c = sorted_clusters[k];
-        auto it = cluster_to_range.find(c);
-        if (it == cluster_to_range.end()) continue;
-
-        const auto& [start_byte, end_byte] = it->second;
-        if (end_byte <= start_byte || start_byte >= text.size()) continue;
-
+    char_advances.reserve(placed.clusters.size());
+    for (const auto& cl : placed.clusters) {
         CharAdv ca;
-        ca.byte_offset = start_byte;
-        ca.byte_len = end_byte - start_byte;
-        ca.advance = cluster_advances[c] + tracking;  // tracking once per cluster
+        ca.byte_offset = cl.byte_offset;
+        ca.byte_len = cl.byte_len;
+        ca.advance = cl.raw_advance;  // raw advance — NO per-HB-cluster tracking
         char_advances.push_back(ca);
     }
 
@@ -497,6 +461,19 @@ inline TypewriterLayout compute_typewriter_layout(
         }
 
         char_advances = std::move(merged);
+    }
+
+    // ── Apply tracking BETWEEN final grapheme clusters (not within) ────
+    // Tracking adds `tracking` pixels of extra space between each adjacent
+    // pair of grapheme clusters.  We add it to the advance of every
+    // grapheme except the last, so positioning works correctly.
+    //
+    // Note: raw_advance from the resolver has no per-HarfBuzz-cluster
+    // tracking, so tracking is applied cleanly only at the grapheme
+    // level (after the merge).  This avoids double-counting that would
+    // occur if the resolver's tracking-inclusive advances were used.
+    for (size_t i = 0; i + 1 < char_advances.size(); ++i) {
+        char_advances[i].advance += tracking;
     }
 
     // Word-wrap

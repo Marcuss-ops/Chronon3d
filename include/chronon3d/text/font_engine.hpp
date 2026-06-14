@@ -90,23 +90,93 @@ struct TextShaping {
     TextDirection direction{TextDirection::Auto};
 
     // HarfBuzz script tag (HB_SCRIPT_*).  The 4-byte OpenType script tag
-    // is passed through to hb_buffer_set_script().  We avoid pulling the
-    // full <hb.h> into this public header; the implementation casts this
-    // int to hb_script_t.  Common values:
-    //   HB_SCRIPT_COMMON   = 0x5A797979  (0)  // auto-detect
+    // is passed through to hb_buffer_set_script() when non-zero; when 0
+    // (default) the implementation leaves it as HB_SCRIPT_INVALID so
+    // hb_buffer_guess_segment_properties() auto-detects the script from
+    // the text content (Latin, Arabic, Devanagari, CJK, etc.).
+    //
+    // Common values (for explicit opt-in):
+    //   HB_SCRIPT_COMMON   = 0x5A797979
     //   HB_SCRIPT_LATIN    = 0x4C61746E
     //   HB_SCRIPT_ARABIC   = 0x41726162
     //   HB_SCRIPT_HEBREW   = 0x48656272
     //   HB_SCRIPT_DEVANAGARI = 0x44657661
     //   HB_SCRIPT_HAN      = 0x48616E20
-    // Default: 0 (HB_SCRIPT_COMMON) which HarfBuzz treats as
-    // "auto-detect from text".
+    // Default: 0 → auto-detect via guess_segment_properties.
     int  script{0};
 
     // BCP-47 language tag, e.g. "en", "ar", "he", "hi", "zh-Hans".
-    // Default: "en" (matches the previous hardcoded behaviour).
-    std::string language{"en"};
+    // When empty (default), hb_buffer_guess_segment_properties()
+    // auto-detects the language from the text's character range.
+    std::string language{};
 };
+
+// ── PlacedGlyph ─────────────────────────────────────────────────────────
+// A single glyph with resolved, tracking-aware positioning.
+// Produced by resolve_placed_glyph_run() from a HarfBuzz-shaped GlyphRun.
+// Contains:
+//   - Raw HarfBuzz offset & advance
+//   - Resolved cumulative x,y position (pen_accumulated + x_offset)
+//   - Advance with per-cluster tracking baked in
+//   - Source-text byte range and cluster info
+
+struct PlacedGlyph {
+    u32     glyph_id{0};
+    float   advance_x{0.0f};       // advance INCLUDING per-cluster tracking
+    float   raw_advance_x{0.0f};   // advance WITHOUT tracking (raw HarfBuzz advance)
+    float   advance_y{0.0f};
+    float   x_offset{0.0f};        // raw HarfBuzz relative offset
+    float   y_offset{0.0f};
+    float   x{0.0f};               // resolved cumulative x position = pen_x + x_offset
+    float   y{0.0f};               // resolved cumulative y position = pen_y + y_offset
+    size_t  byte_offset{0};        // byte offset in source text for this glyph's cluster
+    size_t  byte_len{0};           // bytes in source text for this glyph's cluster
+    u32     cluster{0};            // HarfBuzz cluster value
+    bool    is_cluster_start{false}; // first glyph of a HarfBuzz cluster
+};
+
+// ── PlacedGlyphRun ─────────────────────────────────────────────────────
+// Fully-resolved glyph run with tracking applied and cluster information.
+// Every consumer (fill, stroke, typewriter, text animator) should use this
+// as the single source of truth for glyph positioning, eliminating the
+// duplicated tracking-logic and cluster-map code that previously existed
+// in HbToBlGlyphRun, FtGlyphPathBuilder, compute_typewriter_layout, and
+// TextAnimator::split_glyphs.
+
+struct PlacedGlyphRun {
+    std::vector<PlacedGlyph> glyphs;
+    float total_width{0.0f};       // total advance width including tracking
+    float total_height{0.0f};      // total height (ascent + descent)
+    float ascent{0.0f};
+    float descent{0.0f};
+    float baseline{0.0f};
+    float font_size{0.0f};
+
+    /// Information about a single HarfBuzz-level cluster.
+    /// Multiple clusters may merge to form one grapheme cluster.
+    struct Cluster {
+        size_t start_glyph{0};     // index into glyphs
+        size_t end_glyph{0};       // exclusive
+        size_t byte_offset{0};     // byte offset in source text
+        size_t byte_len{0};        // bytes in source text
+        float  advance{0.0f};      // total advance for this cluster (including tracking)
+        float  raw_advance{0.0f};  // total advance WITHOUT tracking
+    };
+    std::vector<Cluster> clusters;
+};
+
+/// Resolve a HarfBuzz GlyphRun into placed glyph positions with tracking.
+///
+/// @param hb_run       The HarfBuzz shaping result
+/// @param tracking     Extra per-cluster spacing in pixels
+/// @param source_text  Optional source text; if provided, cluster byte-ranges
+///                     are populated (otherwise byte_offset/byte_len are 0)
+/// @return A PlacedGlyphRun with resolved positions and cluster info
+[[nodiscard]] PlacedGlyphRun resolve_placed_glyph_run(
+    const GlyphRun& hb_run,
+    float tracking = 0.0f,
+    std::string_view source_text = {}
+);
 
 } // namespace chronon3d
 

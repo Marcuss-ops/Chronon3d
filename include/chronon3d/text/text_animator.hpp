@@ -280,51 +280,24 @@ inline std::vector<TextAnimator::GlyphUnit> TextAnimator::split_glyphs() const {
     auto run = m_font_engine->shape_text(m_text, spec, m_font_size);
     if (!run) return units;
 
-    // Unified cluster-interval map (works for LTR, RTL, and mixed bidi).
-    // HarfBuzz `cluster` values are byte offsets into the source text.
-    // We collect unique cluster values, sort them by source-text offset,
-    // and build intervals [sorted[k], sorted[k+1]) — each glyph maps to
-    // its own interval via its cluster value regardless of visual order.
+    // ── Canonical PlacedGlyphRun: resolves positions and builds
+    // cluster info with byte offsets and advances. ────────────────
+    // Tracking is 0 here because the TextAnimator has its own
+    // animated tracking in m_tracking (applied separately).
+    auto placed = resolve_placed_glyph_run(*run, 0.0f, m_text);
 
-    // 1. Collect unique cluster values from the glyph run.
-    std::set<u32> cluster_set;
-    for (const auto& gp : run->glyphs) {
-        cluster_set.insert(gp.cluster);
-    }
-    cluster_set.insert(static_cast<u32>(m_text.size()));  // sentinel end
-
-    // 2. Build sorted intervals and map each cluster → text range.
-    std::vector<u32> sorted_clusters(cluster_set.begin(), cluster_set.end());
-    std::unordered_map<u32, std::pair<size_t, size_t>> cluster_to_range;
-    for (size_t k = 0; k + 1 < sorted_clusters.size(); ++k) {
-        cluster_to_range[sorted_clusters[k]] = {
-            static_cast<size_t>(sorted_clusters[k]),
-            static_cast<size_t>(sorted_clusters[k + 1])
-        };
-    }
-
-    // 3. Map each cluster-start glyph to its text range.
-    // Deduplicate: only emit one GlyphUnit per unique cluster value.
-    // Multiple glyphs sharing the same cluster (ligature parts, mark+base
-    // decompositions) are NOT duplicated — they all belong to the same
-    // source-text grapheme cluster.
-    std::set<u32> emitted_clusters;
-    units.reserve(run->glyphs.size());
-    for (const auto& gp : run->glyphs) {
-        if (!gp.is_cluster_start) continue;
-        if (emitted_clusters.count(gp.cluster)) continue;
-        emitted_clusters.insert(gp.cluster);
-
-        auto it = cluster_to_range.find(gp.cluster);
-        if (it == cluster_to_range.end()) continue;
-
-        const auto& [start_byte, end_byte] = it->second;
-        if (end_byte <= start_byte || start_byte >= m_text.size()) continue;
+    // ── Map each cluster to a GlyphUnit ──────────────────────────
+    units.reserve(placed.clusters.size());
+    for (const auto& cl : placed.clusters) {
+        if (cl.byte_len == 0) continue;
 
         GlyphUnit gu;
-        gu.text = m_text.substr(start_byte, end_byte - start_byte);
-        gu.x = gp.x;
-        gu.advance_x = gp.advance_x;
+        gu.text = m_text.substr(cl.byte_offset, cl.byte_len);
+        // Use the resolved x position of the first glyph in this cluster.
+        if (cl.start_glyph < placed.glyphs.size()) {
+            gu.x = placed.glyphs[cl.start_glyph].x;
+            gu.advance_x = placed.glyphs[cl.start_glyph].advance_x;
+        }
         units.push_back(std::move(gu));
     }
     return units;
