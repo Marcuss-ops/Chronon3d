@@ -67,6 +67,15 @@ public:
     /// Total wall-clock time spent blocked on pipe writes (ms).
     [[nodiscard]] double total_write_blocked_ms() const noexcept { return total_write_blocked_ms_; }
 
+    /// Return diagnostics: PID, blocked write time, backend name.
+    [[nodiscard]] Diagnostics diagnostics() const noexcept override {
+        return Diagnostics{
+            .child_pid        = process_.pid(),
+            .blocked_write_ms = total_write_blocked_ms_,
+            .backend          = "ffmpeg-pipe",
+        };
+    }
+
 private:
     // ── Subprocess management ──────────────────────────────────────────
 
@@ -102,6 +111,10 @@ private:
 
     bool                      pipe_failed_{false};
     double                    total_write_blocked_ms_{0.0};
+
+    /// Per-frame write deadline (from config.transport.write_timeout).
+    /// 0ms = no timeout (blocking write).
+    std::chrono::milliseconds write_timeout_{30000};
 };
 
 } // namespace chronon3d::media::video

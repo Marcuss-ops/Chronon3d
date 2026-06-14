@@ -26,6 +26,6 @@ target_link_libraries(chronon3d_cli_tests
         doctest::doctest
         fmt::fmt
 )
-target_include_directories(chronon3d_cli_tests PRIVATE ${CMAKE_SOURCE_DIR})
+target_include_directories(chronon3d_cli_tests PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)
 chronon3d_enable_test_pch(chronon3d_cli_tests)
 add_test(NAME chronon3d_cli_tests COMMAND chronon3d_cli_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

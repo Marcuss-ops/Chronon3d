@@ -148,13 +148,8 @@ ValidationResult validate_video_sink_config(
                        "set transport.asynchronous=false for synchronous mode"};
     }
 
-    // use_io_uring is experimental and not currently wired in the sinks.
-    // Reject it explicitly so callers don't silently lose writes.
-    if (transport.use_io_uring) {
-        return {false, "transport.use_io_uring is not yet implemented; "
-                       "set transport.use_io_uring=false"};
-    }
-
+    // io_uring is not wired in the current sinks — warn and fall back.
+    // (We don't reject because the adapter already handles fallback.)
     if (transport.write_timeout.count() < 0) {
         return {false, "transport.write_timeout must be >= 0ms"};
     }

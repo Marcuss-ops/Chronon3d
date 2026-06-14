@@ -135,6 +135,24 @@ public:
 
     /// Reset cumulative statistics (without changing state).
     virtual void reset_stats() noexcept = 0;
+
+    // ── Diagnostics ────────────────────────────────────────────────────
+
+    struct Diagnostics {
+        /// Child process PID (-1 if not applicable or not running).
+        int child_pid{-1};
+
+        /// Total time blocked on writes (ms).
+        double blocked_write_ms{0.0};
+
+        /// Backend identifier (e.g. "ffmpeg-pipe", "raw-file").
+        std::string_view backend;
+    };
+
+    /// Return runtime diagnostics from the sink implementation.
+    [[nodiscard]] virtual Diagnostics diagnostics() const noexcept {
+        return {};
+    }
 };
 
 } // namespace chronon3d::media::video

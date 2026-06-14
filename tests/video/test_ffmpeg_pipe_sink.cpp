@@ -82,6 +82,8 @@ bool ffmpeg_available() {
     cfg.encoder.apply_gamma    = false;  // linear for determinism
     cfg.encoder.crf            = 30;     // low quality, fast encode
     cfg.encoder.preset         = "ultrafast";
+    // The current sinks only support synchronous mode.
+    cfg.transport.asynchronous = false;
     cfg.output.output_path     = std::filesystem::path(path);
     cfg.output.overwrite       = overwrite;
     cfg.output.container       = VideoContainer::Mp4;
@@ -1089,6 +1091,138 @@ TEST_CASE("FfmpegPipeSink: packed stride too small fails") {
 
     sink.close();
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Write timeout tests (requires ffmpeg)
+// ═════════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("FfmpegPipeSink: write_timeout=0 uses blocking write (normal)") {
+    if (!ffmpeg_available()) {
+        MESSAGE("Skipping — ffmpeg not available");
+        return;
+    }
+
+    const auto path = temp_path("tmout0.mp4");
+    TempFile cleanup(path);
+    constexpr int W = 16, H = 16, N = 3;
+    const size_t frame_bytes = static_cast<size_t>(W) * H * 4;
+
+    FfmpegPipeSink sink;
+    auto cfg = make_config(W, H, PixelFormat::RGBA8, path);
+    cfg.transport.write_timeout = std::chrono::milliseconds(0);  // no timeout
+    REQUIRE(sink.open(cfg));
+    CHECK(sink.state() == VideoSinkState::Open);
+
+    for (int i = 0; i < N; ++i) {
+        std::vector<uint8_t> buf(frame_bytes);
+        fill_pattern(buf.data(), frame_bytes, static_cast<uint8_t>(i * 33));
+        VideoFrameView fv;
+        fv.data         = buf.data();
+        fv.width        = W;
+        fv.height       = H;
+        fv.pixel_format = PixelFormat::RGBA8;
+        CHECK(sink.submit(fv));
+    }
+    CHECK(sink.frames_submitted() == N);
+    CHECK(sink.close());
+    CHECK(file_nonempty(path));
+}
+
+TEST_CASE("FfmpegPipeSink: write_timeout=5ms succeeds for normal writes") {
+    if (!ffmpeg_available()) {
+        MESSAGE("Skipping — ffmpeg not available");
+        return;
+    }
+
+    const auto path = temp_path("tmout5.mp4");
+    TempFile cleanup(path);
+    constexpr int W = 16, H = 16;
+    const size_t frame_bytes = static_cast<size_t>(W) * H * 4;
+
+    FfmpegPipeSink sink;
+    auto cfg = make_config(W, H, PixelFormat::RGBA8, path);
+    cfg.transport.write_timeout = std::chrono::milliseconds(5);  // very short
+    REQUIRE(sink.open(cfg));
+    CHECK(sink.state() == VideoSinkState::Open);
+
+    // Submit a few frames — with ffmpeg consuming stdin, the pipe stays
+    // drained enough that writes complete within 5ms.
+    for (int i = 0; i < 3; ++i) {
+        std::vector<uint8_t> buf(frame_bytes);
+        fill_pattern(buf.data(), frame_bytes, static_cast<uint8_t>(i));
+        VideoFrameView fv;
+        fv.data         = buf.data();
+        fv.width        = W;
+        fv.height       = H;
+        fv.pixel_format = PixelFormat::RGBA8;
+        CHECK(sink.submit(fv));
+    }
+    CHECK(sink.frames_submitted() == 3);
+    CHECK(sink.close());
+    CHECK(file_nonempty(path));
+}
+
+TEST_CASE("FfmpegPipeSink: write_timeout=10ms with killed child fails fast") {
+    if (!ffmpeg_available()) {
+        MESSAGE("Skipping — ffmpeg not available");
+        return;
+    }
+
+    const auto path = temp_path("tmout_kill.mp4");
+    TempFile cleanup(path);
+    constexpr int W = 16, H = 16;
+    const size_t frame_bytes = static_cast<size_t>(W) * H * 4;
+
+    FfmpegPipeSink sink;
+    auto cfg = make_config(W, H, PixelFormat::RGBA8, path);
+    cfg.transport.write_timeout = std::chrono::milliseconds(10);
+    REQUIRE(sink.open(cfg));
+
+    // Send one frame successfully.
+    {
+        std::vector<uint8_t> buf(frame_bytes);
+        fill_pattern(buf.data(), frame_bytes);
+        VideoFrameView fv;
+        fv.data         = buf.data();
+        fv.width        = W;
+        fv.height       = H;
+        fv.pixel_format = PixelFormat::RGBA8;
+        CHECK(sink.submit(fv));
+    }
+
+    // Kill ffmpeg — subsequent writes should fail quickly (EPIPE, not timeout).
+    int pid = sink.ffmpeg_pid();
+    REQUIRE(pid > 0);
+    ::kill(pid, SIGKILL);
+
+    // Wait for child to die, then verify write fails fast (within 10ms).
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    auto t0 = std::chrono::steady_clock::now();
+    {
+        std::vector<uint8_t> buf(frame_bytes);
+        fill_pattern(buf.data(), frame_bytes);
+        VideoFrameView fv;
+        fv.data         = buf.data();
+        fv.width        = W;
+        fv.height       = H;
+        fv.pixel_format = PixelFormat::RGBA8;
+        CHECK_FALSE(sink.submit(fv));
+    }
+    auto elapsed = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - t0).count();
+
+    CHECK(sink.state() == VideoSinkState::Failed);
+    // The failure should be fast (EPIPE breaks immediately, or pipe full
+    // hits the 10ms timeout).  Allow a generous margin for CI noise.
+    CHECK(elapsed < 500);  // well under 30s default
+
+    sink.close();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Overwrite tests (requires ffmpeg)
+// ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("FfmpegPipeSink: overwrite=true succeeds when file exists") {
     if (!ffmpeg_available()) {

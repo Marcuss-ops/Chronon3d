@@ -200,7 +200,9 @@ Layer LayerBuilder::build() {
     // Expression-only properties (e.g. "sin(time * 2)") have no keyframes, so
     // is_animated() alone would skip evaluation — causing stale values.
     if (m_layer.anim_transform.is_time_dependent()) {
-        const SampleTime local_time = m_layer.local_time(m_current_time);
+        const auto local_frame_int = static_cast<Frame>(std::round(m_current_time.frame));
+        const Frame remapped_frame = m_layer.local_frame(local_frame_int);
+        const SampleTime local_time = SampleTime::from_frame_int(remapped_frame, m_current_time.fps);
         Transform baked = m_layer.anim_transform.evaluate(local_time);
         if (m_layer.anim_transform.position.is_time_dependent())
             m_layer.transform.position = baked.position;
@@ -216,7 +218,9 @@ Layer LayerBuilder::build() {
     // Bake animated blur into the effect stack at the current sub-frame time.
     // Blur can also be expression-only.
     if (m_layer.anim_transform.blur.is_time_dependent()) {
-        const SampleTime local_time = m_layer.local_time(m_current_time);
+        const auto local_frame_int = static_cast<Frame>(std::round(m_current_time.frame));
+        const Frame remapped_frame = m_layer.local_frame(local_frame_int);
+        const SampleTime local_time = SampleTime::from_frame_int(remapped_frame, m_current_time.fps);
         f32 blur_radius = m_layer.anim_transform.blur.evaluate(local_time);
         bool found = false;
         for (auto& effect : m_layer.effects) {

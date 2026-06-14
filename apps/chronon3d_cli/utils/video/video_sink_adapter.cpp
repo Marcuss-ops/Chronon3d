@@ -19,8 +19,23 @@ namespace chronon3d::cli {
 chronon3d::media::video::VideoCodec
 VideoSinkEncoderAdapter::map_codec(const std::string& codec) {
     using media::video::VideoCodec;
-    if (codec == "libx264" || codec == "h264" || codec == "h264_nvenc" ||
-        codec == "h264_amf" || codec == "h264_qsv" || codec == "h264_videotoolbox") {
+
+    // Hardware codecs are not available in CPU-only mode — warn and fall
+    // back to the equivalent software encoder.
+    if (codec == "h264_nvenc" || codec == "h264_amf" ||
+        codec == "h264_qsv" || codec == "h264_videotoolbox") {
+        spdlog::warn("[video_adapter] Hardware codec '{}' is unavailable in CPU-only mode; "
+                      "falling back to libx264", codec);
+        return VideoCodec::H264;
+    }
+    if (codec == "hevc_nvenc" || codec == "hevc_amf" ||
+        codec == "hevc_qsv" || codec == "hevc_videotoolbox") {
+        spdlog::warn("[video_adapter] Hardware codec '{}' is unavailable in CPU-only mode; "
+                      "falling back to libx265", codec);
+        return VideoCodec::H265;
+    }
+
+    if (codec == "libx264" || codec == "h264") {
         return VideoCodec::H264;
     }
     if (codec == "libx265" || codec == "h265" || codec == "hevc") {
@@ -95,7 +110,10 @@ bool VideoSinkEncoderAdapter::build_sink_config(
         config.encoder.crf   = -1;
         config.encoder.bitrate = 0;
     } else {
-        config.encoder.codec    = map_codec(opts.codec);
+        const auto container = detect_container(opts.output_path);
+        auto raw_codec = map_codec(opts.codec);
+        // Resolve Auto to a concrete codec based on container.
+        config.encoder.codec = media::video::resolve_auto_codec(raw_codec, container);
         config.encoder.crf      = opts.crf;
         config.encoder.bitrate  = 0;  // CLI doesn't set bitrate (CRF-based)
         config.encoder.preset   = opts.preset;
@@ -112,7 +130,13 @@ bool VideoSinkEncoderAdapter::build_sink_config(
     // behaviour until the async path is fully tested.
     config.transport.asynchronous   = false;
     config.transport.queue_capacity = 4;
-    config.transport.use_io_uring   = (opts.pipe_writer == "io_uring");
+    // io_uring is not wired in the current sinks — silently fall back to
+    // classic synchronous writes.
+    if (opts.pipe_writer == "io_uring") {
+        spdlog::warn("[video_adapter] io_uring pipe writer is not implemented; "
+                      "falling back to classic synchronous pipe");
+    }
+    config.transport.use_io_uring   = false;
     config.transport.write_timeout  = std::chrono::milliseconds(30000);
 
     // ── Output config ──────────────────────────────────────────────────
@@ -188,8 +212,15 @@ bool VideoSinkEncoderAdapter::open(const FfmpegPipeOptions& options) {
     // ── Reset state ────────────────────────────────────────────────────
     frames_written_   = 0;
     write_blocked_ms_ = 0.0;
-    ffmpeg_pid_       = -1;
     last_telemetry_   = EncoderFrameTelemetry{};
+
+    // Read the PID from the underlying sink via diagnostics().
+    if (sink_) {
+        auto diag = sink_->diagnostics();
+        ffmpeg_pid_ = diag.child_pid;
+    } else {
+        ffmpeg_pid_ = -1;
+    }
 
     const char* fmt_str = "rgba";
     if (options.input_format == PipePixelFormat::YUV420P) fmt_str = "yuv420p";
