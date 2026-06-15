@@ -15,12 +15,23 @@
 namespace chronon3d {
 
 // Generic keyframe used by AnimatedValue<T>.
+// When T is a spatial type (Vec2/Vec3/Vec4), in_handle and out_handle
+// are used as cubic bezier control offsets from value, enabling smooth
+// curved paths through multiple keyframes.
 template <typename T>
 struct Keyframe {
     Frame        frame{0};
     T            value{};
     EasingCurve  easing{Easing::Linear};
     bool         roving{false};  // roving keyframe: auto-timed for constant velocity
+
+    // Spatial bezier handles: offsets from `value` that control the shape
+    // of the cubic bezier path through this keyframe.
+    // out_handle → outgoing tangent (pulls the curve toward this point)
+    // in_handle  → incoming tangent (pulls the curve from the previous keyframe)
+    // Zero by default (straight-line interpolation).
+    T out_handle{};
+    T in_handle{};
 
     constexpr Keyframe(Frame f, T v, EasingCurve e = EasingCurve{Easing::Linear}, bool r = false)
         : frame(f), value(v), easing(e), roving(r) {}
