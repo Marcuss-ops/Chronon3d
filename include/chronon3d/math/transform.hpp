@@ -21,6 +21,7 @@ struct Transform {
     Vec3 scale{1.0f, 1.0f, 1.0f};
     Vec3 anchor{0.0f, 0.0f, 0.0f};
     f32 opacity{1.0f};
+    f32 blur{0.0f};   // gaussian blur radius in pixels; propagated from AnimatedTransform
 
     constexpr Transform() = default;
     constexpr Transform(Vec3 p, Quat r = Quat(1.0f, 0.0f, 0.0f, 0.0f), Vec3 s = Vec3(1.0f), Vec3 a = Vec3(0.0f), f32 o = 1.0f)
@@ -37,13 +38,13 @@ struct Transform {
         return position.x != 0.0f || position.y != 0.0f || position.z != 0.0f ||
                rotation.w != 1.0f || scale.x != 1.0f || scale.y != 1.0f || scale.z != 1.0f ||
                anchor.x != 0.0f || anchor.y != 0.0f || anchor.z != 0.0f ||
-               opacity != 1.0f;
+               opacity != 1.0f || blur != 0.0f;
     }
 
     [[nodiscard]] bool is_identity_2d() const {
         return position.x == 0.0f && position.y == 0.0f && rotation.w == 1.0f && 
                scale.x == 1.0f && scale.y == 1.0f && anchor.x == 0.0f && anchor.y == 0.0f &&
-               opacity == 1.0f;
+               opacity == 1.0f && blur == 0.0f;
     }
 };
 

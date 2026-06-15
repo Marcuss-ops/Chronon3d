@@ -115,7 +115,8 @@ public:
     // between their non-roving neighbors is constant. Call once after all
     // keyframes are set, before evaluation.
 
-    void compute_roving();
+    /// Auto-compute roving.  Callable on const objects (lazy cache).
+    void compute_roving() const;
 
     // ── Auto-bezier computation ──────────────────────────────────────────────
     // Fills in tangent handles for all AutoBezier keyframes based on the
@@ -275,6 +276,11 @@ private:
 
         ensure_sorted();
 
+        // Auto-compute roving before evaluation if dirty.
+        if (m_roving_dirty) {
+            compute_roving();
+        }
+
         if (m_auto_bezier_dirty) {
             compute_auto_beziers();
             m_auto_bezier_dirty = false;
@@ -320,7 +326,7 @@ private:
     f32 m_default_value{0.0f};
     mutable std::vector<AnimationKeyframe> m_keyframes;  // mutable for const sort in ensure_sorted()
     mutable bool m_sorted{true};
-    bool m_roving_dirty{false};
+    mutable bool m_roving_dirty{false};
     mutable bool m_auto_bezier_dirty{false};  // set true when AutoBezier keyframes are added
 };
 
@@ -370,7 +376,7 @@ inline void AnimationCurve::compute_auto_beziers() const {
     }
 }
 
-inline void AnimationCurve::compute_roving() {
+inline void AnimationCurve::compute_roving() const {
     if (!m_roving_dirty) return;
     ensure_sorted();
 
