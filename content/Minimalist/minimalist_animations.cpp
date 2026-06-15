@@ -2,20 +2,13 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
+#include "content/common/animation_helpers.hpp"
 #include "content/text/text_helpers.hpp"
 
 
 namespace chronon3d::content::minimalist {
 
-namespace {
-
-inline void add_black_background(SceneBuilder& s) {
-    s.layer("_bg", [](LayerBuilder& l) {
-        l.fullscreen_rect("bg", Color{0.0f, 0.0f, 0.0f, 1.0f});
-    });
-}
-
-} // namespace
+using namespace chronon3d::content::animation_helpers;
 
 Composition minimalist_text_fade() {
     return composition({.name = "MinimalistTextFade", .width = 1920, .height = 1080, .duration = 150}, [](const FrameContext& ctx) {

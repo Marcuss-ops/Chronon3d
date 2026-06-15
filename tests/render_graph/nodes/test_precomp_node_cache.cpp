@@ -72,7 +72,7 @@ struct TestContext {
         ctx.resources.node_cache      = &node_cache;
         ctx.resources.framebuffer_pool = pool;
         ctx.resources.registry        = &registry;
-        ctx.frame                     = {Frame{0}, 0.0f, 30.0f, w, h};
+        ctx.frame                     = {Frame{0}, 0.0f, 30, w, h};
     }
 
     void add_comp(const char* name, int w, int h, Color color) {
