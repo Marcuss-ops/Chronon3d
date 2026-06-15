@@ -44,10 +44,17 @@ bool save_png(const Framebuffer& framebuffer, const std::string& path);
 /**
  * Saves a Framebuffer to an OpenEXR file (linear float RGBA).
  * Returns true on success, false otherwise.
+ * Requires CHRONON3D_ENABLE_EXR at compile time.
  */
+#ifdef CHRONON3D_ENABLE_EXR
 bool save_exr(const Framebuffer& framebuffer,
               const std::string& path,
               const ImageWriteOptions& options = {});
+#else
+inline bool save_exr(const Framebuffer&, const std::string&, const ImageWriteOptions& = {}) {
+    return false;
+}
+#endif
 
 /**
  * Saves a Framebuffer to an image file, detecting format from extension.

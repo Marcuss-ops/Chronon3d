@@ -1,290 +1,117 @@
-# Chronon3d Architecture Evolution Plan
+# Architecture Evolution Plan — Chronon3d
 
-Stato aggiornato: refactor completato, fasi 1-7 concluse. Questo documento contiene solo le priorita' residue.
-
----
-
-## 1. Regola Operativa
-
-I file core restano protetti. Le nuove feature devono usare registri, moduli, pass o nodi specifici.
-
-Non modificare questi file senza motivazione esplicita:
-
-```text
-include/chronon3d/render_graph/render_graph_node.hpp
-include/chronon3d/render_graph/render_graph.hpp
-include/chronon3d/render_graph/graph_executor.hpp
-src/render_graph/executor/*
-src/render_graph/compiler/*
-src/render_graph/builder/graph_builder_pipeline.cpp
-src/render_graph/builder/graph_build_pipeline.cpp
-src/render_graph/render_pipeline*.cpp
-include/chronon3d/scene/model/*
-include/chronon3d/scene/builders/*
-include/chronon3d/scene/validation/*
-include/chronon3d/specscene/model/*
-src/scene/*
-src/scene/model/*
-src/specscene/model/*
-src/specscene/parser/*
-```
-
-Se serve toccarli, scrivere prima:
-
-```text
-File:
-Motivo:
-Perche' non basta un extension point:
-Rischi:
-Test:
-```
+> **Status:** Questo documento è il punto di ingresso per l'architettura del motore.
+> Sostituisce i vecchi piani di modularizzazione pre-riorganizzazione e
+> consolida la struttura corrente.
+>
+> **TL;DR:** Il motore è passato da `SoftwareRenderer` monolitico a una
+> pipeline modulare: `Composition → Scene → RenderGraph (DAG) → 
+> GraphExecutor → SoftwareRenderer → Framebuffer → output`.
+> La V3 introdurrà rendering tile-based.
 
 ---
 
-## 2. Priorita' Residue
+## Architettura Corrente
 
-### 2.1 Completato: Estrarre RenderGraphContext
+Il flusso di rendering principale:
 
-`RenderGraphContext` e' stato separato da `render_graph_node.hpp`.
-
-**Stato attuale:**
-
-```text
-include/chronon3d/render_graph/render_graph_context.hpp
-include/chronon3d/render_graph/framebuffer_acquire.hpp
-src/render_graph/framebuffer_acquire.cpp
+```
+Composition (C++) → Scene → RenderGraph (DAG) 
+  → GraphBuildPipeline → GraphExecutor → SoftwareRenderer → Framebuffer → PNG/MP4
 ```
 
-`render_graph_node.hpp` deve restare limitato a:
+### Componenti chiave
 
-```text
-RenderGraphNodeKind
-CacheFramePolicy
-RenderGraphNode base class
-metodi virtuali dei nodi
-metadata minimo del nodo
-```
+| Layer | Ruolo | Collocazione |
+|---|---|---|
+| **Composition** | Definisce scena animabile in C++ | `content/` |
+| **SceneBuilder** | API fluente per layer, shapes, camera, effetti | `include/chronon3d/scene/builders/` |
+| **RenderGraph** | DAG di nodi di rendering per frame | `include/chronon3d/render_graph/` |
+| **GraphBuildPipeline** | Pass di costruzione (resolve, source, layer, lighting, output) | `src/render_graph/builder/passes/` |
+| **GraphExecutor** | Esecuzione DAG con caching + dirty rect | `include/chronon3d/render_graph/executor/` |
+| **SoftwareRenderer** | Rasterizzazione CPU con SIMD (Highway) | `include/chronon3d/backends/software/` |
 
-**Test da mantenere:**
+### Fasi di Modularizzazione Completate
 
-```text
-tests/architecture/test_protected_core_contracts.cpp
-tests/render_graph/executor/test_framebuffer_lifetime.cpp
-```
+Il motore è stato riorganizzato in fasi successive:
+
+| Fase | Cosa | Documentazione |
+|---|---|---|
+| **Fase 1-2** | Scomposizione di `SoftwareRenderer`: `RendererFrameHistory`, `RendererDirtyTelemetry`, `RendererLayerHistory`, `RendererBufferRing`, `TransformScratchBuffer`, `CompiledGraphCache` | `include/chronon3d/backends/software/renderer_types.hpp`, `buffer_ring.hpp`, `scratch_buffer.hpp`, `graph_cache.hpp` |
+| **Fase 3-4** | Pipeline builder: `GraphBuildPipeline` con pass indipendenti (resolve, source, layer, lighting, output, validation) | `src/render_graph/builder/passes/` |
+| **Fase 5** | Sistema di estensione: `ExtensionModule` e `GraphNodeRegistry` | `include/chronon3d/extension/` |
+| **Fase 6** | LayerCommand system per motion presets | `include/chronon3d/scene/builders/layer_command.hpp` |
+| **Fase 7** | Scene validation con `SceneValidator` | `include/chronon3d/scene/validation/` |
+| **Fase 8** | Content Module registration (Minimalist, Text, 2D5) | `content/register_content_modules.cpp` |
 
 ---
 
-### 2.2 Completato: Split Executor
+## Evoluzione Futura: V3 Tile-Based
 
-L'executor e' stato modularizzato in file per responsabilita'. `executor.cpp` mantiene API pubblica, piano di esecuzione e orchestration; la logica di dominio vive nei file dedicati.
+L'evoluzione V3 è documentata separatamente in **[V3_BLUEPRINT.md](V3_BLUEPRINT.md)**.
 
-```text
-src/render_graph/executor/executor.cpp
-src/render_graph/executor/internal.cpp
-src/render_graph/executor/execution_state.hpp
-src/render_graph/executor/input_resolver.cpp
-src/render_graph/executor/cache_evaluator.hpp
-src/render_graph/executor/cache_evaluator.cpp
-src/render_graph/executor/executor_levels.hpp
-src/render_graph/executor/executor_levels.cpp
-src/render_graph/executor/framebuffer_lifetime.hpp
-src/render_graph/executor/framebuffer_lifetime.cpp
-src/render_graph/executor/node_runner.hpp
-src/render_graph/executor/node_runner.cpp
-src/render_graph/executor/telemetry_emitter.hpp
-src/render_graph/executor/telemetry_emitter.cpp
-src/render_graph/executor/tile_pruning.hpp
-src/render_graph/executor/tile_pruning.cpp
-```
+Dieci pillar per passare da frame-based a tile-based rendering:
 
-Ogni nuova logica executor deve restare in un file dedicato, non in `executor.cpp`.
+1. **P1** — TileGrid execution (tile 256×256 invece di framebuffer full-frame)
+2. **P2** — Display list compilation (scene compiled once, params delta only)
+3. **P3** — TileMask invalidation (solo tile cambiati)
+4. **P4** — Static/Dynamic separation (tile cache per frame-invariant)
+5. **P5** — Procedural kernels (kernel C++/SIMD dedicati per pattern)
+6. **P6** — Compositing per tile (solo tile attivi)
+7. **P7** — TileSurface cache (tile persistenti copy-on-write)
+8. **P8** — Encoder pipeline separata (output asincrono)
+9. **P9** — Tile scheduler (parallelismo per-tile)
+10. **P10** — Per-tile cache (cache key per nodo + tile + params hash)
 
-`executor.cpp` deve fare solo:
-
-```text
-1. ottenere o costruire execution plan
-2. creare ExecutionState
-3. iterare i livelli
-4. chiamare helper dedicati
-5. restituire output framebuffer
-```
-
-`internal.cpp` e' vuoto di fatto e deve restare senza nuova logica.
-
-**Test da aggiungere:**
-
-```text
-tests/render_graph/executor/test_input_resolver.cpp
-tests/render_graph/executor/test_cache_evaluator.cpp
-tests/render_graph/executor/test_tile_pruning.cpp
-tests/render_graph/executor/test_framebuffer_lifetime.cpp
-```
+**Raccomandazione:** Prima di implementare P1–P10, completare la stabilizzazione
+P0 (CI obbligatoria, path documentali corretti, confine V2↔V3 formale).
 
 ---
 
-### 2.3 Rifinire Export Video CLI
+## Ownership & Regole
 
-La logica video/export e' stata alleggerita ma resta accoppiata al CLI.
+La struttura di ownership è documentata in **[CORE_OWNERSHIP.md](CORE_OWNERSHIP.md)**:
 
-**Creare:**
-
-```text
-apps/chronon3d_cli/commands/video/exporter.hpp
-apps/chronon3d_cli/commands/video/exporter_registry.hpp
-apps/chronon3d_cli/commands/video/exporter_registry.cpp
-apps/chronon3d_cli/commands/video/exporters/pipe_exporter.cpp
-apps/chronon3d_cli/commands/video/exporters/chunked_exporter.cpp
-apps/chronon3d_cli/commands/video/exporters/native_exporter.cpp
-```
-
-**Interfaccia target:**
-
-```cpp
-class VideoExporter {
-public:
-    virtual ~VideoExporter() = default;
-    virtual std::string_view id() const = 0;
-    virtual int export_video(const VideoExportJob& job) = 0;
-};
-```
-
-**Bug da risolvere:** In pipe export, errori/cancel/render null non devono registrare success=true.
+- **Core Zone** — file protetti (render graph, scene model, executor)
+- **Feature Zone** — lavoro di default (content, effects, nodes, CLI)
+- **Integration Zone** — extension points (extension system, registries, validation)
+- **Regole per agenti** — come toccare il core, checklist PR
 
 ---
 
-### 2.4 Hardening Dynamic Module Loading
+## Roadmap Attiva
 
-`ExtensionModule` ed `ExtensionLoader` esistono. Il lavoro residuo e' hardening runtime.
+Gli item prioritari correnti sono in **[ROADMAP.md](ROADMAP.md)**.
 
-**Test da creare:**
+Priorità suggerite dall'analisi architetturale:
 
-```text
-tests/extension/test_extension_loader_failure_modes.cpp
-tests/extension/test_extension_loader_abi_contract.cpp
-```
+### P0 — Stabilizzazione
+1. ✅ CI su `main` — GitHub Actions: fast tests on PR, full suite on push
+2. ✅ Path documentali sincronizzati
+3. Confine formale fra V2 e V3
+4. Benchmark baseline per 1080p e 4K
+5. Conclusione migrazione `VideoSink`
 
-**Contratto plugin:**
+### P1 — Pulizia architetturale
+1. `RenderSession` obbligatoria per frame isolation
+2. `GraphExecutor` stateless / session-based
+3. Ridurre `SoftwareRenderer` a facciata sottile
+4. Dipendenze opzionali (`CHRONON3D_ENABLE_TEXT`, `ENABLE_EXR`, `ENABLE_VIDEO`)
 
-```cpp
-extern "C" chronon3d::ExtensionModule* chronon3d_create_extension();
-```
-
-**Vincoli:**
-
-- Gestione errori `dlopen` / `LoadLibrary`
-- Ownership chiara del modulo
-- Versione ABI
-- Unload opzionale solo se sicuro
-
----
-
-### 2.5 Test Contrattuali Core
-
-**Test da creare:**
-
-```text
-tests/architecture/test_protected_core_contracts.cpp
-tests/render_graph/builder/test_graph_snapshot.cpp
-tests/render_graph/builder/test_graph_build_pass_order.cpp
-tests/render_graph/executor/test_dirty_rect_contract.cpp
-tests/render_graph/executor/test_cache_key_contract.cpp
-tests/scene/test_layer_order_contract.cpp
-tests/specscene/test_specscene_compile_contract.cpp
-tests/extension/test_extension_registry.cpp
-tests/extension/test_graph_node_registry.cpp
-```
-
-**Contratti minimi:**
-
-```text
-stessa scene -> stesso graph hash
-ordine layer stabile
-cache key include input hash, frame policy e tile info
-dirty rect non perde pixel necessari
-arena framebuffer non leak-a wrapper
-executor non rilascia input prima dell'ultimo consumer
-specscene compile mantiene semantica layer
-extension registry non registra duplicati silenziosamente
-```
+### P2 — Evoluzione tile-first
+Migrazione incrementale: `TileLayout + TileMask → Tile-aware pool → 
+CompositeNode tile-aware → SourceNode tile-aware → effetti tile-aware → 
+per-tile cache → rimozione LegacyNodeAdapter`
 
 ---
 
-## 3. Monitoraggio File Caldi
+## Riferimenti
 
-Mantenere una lista di file caldi e intervenire quando tornano a crescere:
-
-```text
-include/chronon3d/render_graph/render_graph_node.hpp
-src/render_graph/builder/graph_builder_pipeline.cpp
-src/render_graph/builder/graph_build_pipeline.cpp
-src/render_graph/executor/executor.cpp
-src/render_graph/executor/internal.cpp
-src/scene/layer_builder.cpp
-src/scene/model/layer.cpp
-apps/chronon3d_cli/commands/video/video_export_pipe.cpp
-apps/chronon3d_cli/commands/video/video_export_chunked.cpp
-```
-
-**Comando:**
-
-```bash
-git log --format= --name-only --all \
-  | sed '/^$/d' \
-  | sort \
-  | uniq -c \
-  | sort -nr \
-  | sed -n '1,40p'
-```
-
----
-
-## 4. Checklist Per Nuove Modifiche
-
-**Prima di iniziare:**
-
-```text
-[ ] La modifica puo' stare in content/, effects/, nodes/, assets/, video/ o CLI?
-[ ] Esiste gia' un registry o command adatto?
-[ ] Serve davvero toccare scene/layer/graph/executor?
-[ ] Il comportamento e' locale o cambia un contratto globale?
-```
-
-**Durante:**
-
-```text
-[ ] Aggiungere file nuovi quando possibile.
-[ ] Evitare file protetti.
-[ ] Non mescolare refactor core e feature.
-[ ] Aggiungere test nel dominio corretto.
-```
-
-**Prima di chiudere:**
-
-```text
-[ ] Build mirata passa.
-[ ] Test mirati passano.
-[ ] File protetti toccati? Motivazione scritta.
-[ ] Nessuna modifica non correlata.
-```
-
----
-
-## 5. Ordine Consigliato
-
-Priorita' residue:
-
-```text
-1. Estrarre RenderGraphContext da render_graph_node.hpp
-2. Completare split executor e ridurre internal.cpp/internal.hpp
-3. Rifinire export video CLI: exporter boundary, progress, failure reporting
-4. Hardening ExtensionLoader: failure modes, ABI contract
-5. Test contrattuali core per impedire regressioni
-```
-
-La metrica di successo:
-
-```text
-Una nuova feature deve poter essere implementata aggiungendo file locali,
-senza modificare render_graph_node.hpp, graph_builder_pipeline.cpp,
-layer_builder.cpp o executor internals.
-```
+| Documento | Contenuto |
+|---|---|
+| **[V3_BLUEPRINT.md](V3_BLUEPRINT.md)** | Architettura tile-based: 10 pillar |
+| **[CORE_OWNERSHIP.md](CORE_OWNERSHIP.md)** | File protetti, regole agenti, ownership |
+| **[ROADMAP.md](ROADMAP.md)** | Roadmap attiva: item prioritari |
+| **[ORIENTATION.md](ORIENTATION.md)** | Panoramica architettura, build guide, API reference |
+| **[CHANGELOG.md](CHANGELOG.md)** | Cronologia item completati |
+| **`docs/archive/`** | Documentazione storica (pre-riorganizzazione) |

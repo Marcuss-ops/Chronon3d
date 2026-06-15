@@ -20,13 +20,13 @@
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
-#include <chronon3d/backends/software/renderer_frame_state.hpp>
 #include <chronon3d/backends/software/renderer_cache_state.hpp>
 #include <chronon3d/backends/software/renderer_runtime_resources.hpp>
 
 #include <memory>
 #include <optional>
 #include <unordered_map>
+#include <chronon3d/core/memory/render_session.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
@@ -84,9 +84,8 @@ public:
         clear_node_cache();
         if (m_cache_state.framebuffer_pool) m_cache_state.framebuffer_pool->clear();
         m_cache_state.graph_cache.reset();
-        m_frame_state.frame_history.prev_graph_structure_fingerprint = 0;
-        m_frame_state.buffer_ring.reset();
-        m_frame_state.scratch_buffer.reset();
+        m_session.frame_history.prev_graph_structure_fingerprint = 0;
+        m_session.clear_per_frame();
         // Video cache clearing is now responsibility of the decoder implementation
     }
 
@@ -120,13 +119,13 @@ public:
     }
 
     // ── Dirty-rect telemetry (populated by render_scene_via_graph) ──────────
-    [[nodiscard]] double last_dirty_area_ratio() const { return m_frame_state.dirty_telemetry.last_dirty_area_ratio; }
-    [[nodiscard]] bool last_dirty_rect_enabled() const { return m_frame_state.dirty_telemetry.last_dirty_rect_enabled; }
-    [[nodiscard]] std::optional<raster::BBox> last_dirty_rect() const { return m_frame_state.dirty_telemetry.last_dirty_rect; }
-    [[nodiscard]] bool last_tile_execution_used() const { return m_frame_state.dirty_telemetry.last_tile_execution_used; }
-    [[nodiscard]] bool last_fast_path_reused() const { return m_frame_state.dirty_telemetry.last_fast_path_reused; }
-    [[nodiscard]] bool last_graph_reused() const { return m_frame_state.dirty_telemetry.last_graph_reused; }
-    [[nodiscard]] int last_layer_count() const { return m_frame_state.dirty_telemetry.last_layer_count; }
+    [[nodiscard]] double last_dirty_area_ratio() const { return m_session.dirty_telemetry.last_dirty_area_ratio; }
+    [[nodiscard]] bool last_dirty_rect_enabled() const { return m_session.dirty_telemetry.last_dirty_rect_enabled; }
+    [[nodiscard]] std::optional<raster::BBox> last_dirty_rect() const { return m_session.dirty_telemetry.last_dirty_rect; }
+    [[nodiscard]] bool last_tile_execution_used() const { return m_session.dirty_telemetry.last_tile_execution_used; }
+    [[nodiscard]] bool last_fast_path_reused() const { return m_session.dirty_telemetry.last_fast_path_reused; }
+    [[nodiscard]] bool last_graph_reused() const { return m_session.dirty_telemetry.last_graph_reused; }
+    [[nodiscard]] int last_layer_count() const { return m_session.dirty_telemetry.last_layer_count; }
 
     // Public for use by graph nodes via RenderGraphContext.
     void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state,
@@ -150,8 +149,9 @@ public:
     ~SoftwareRenderer() override;
 
     // Non-copyable.  Movable: all encapsulated state structs
-    // (RendererFrameState, RendererCacheState, RendererRuntimeResources)
+    // (RenderSession, RendererCacheState, RendererRuntimeResources)
     // contain only moveable types (shared_ptr, unique_ptr, plain data).
+    // RenderSession stores FrameArena behind unique_ptr for movability.
     // Callers may move SoftwareRenderer as long as no outstanding Handle
     // or dangling pointer references the old location.
     SoftwareRenderer(const SoftwareRenderer&) = delete;
@@ -159,33 +159,37 @@ public:
     SoftwareRenderer(SoftwareRenderer&&) noexcept = default;
     SoftwareRenderer& operator=(SoftwareRenderer&&) noexcept = default;
 
-    // ── Accessor methods for per-frame state ────────────────────────────
+    // ── RenderSession access ────────────────────────────────────────────
+    [[nodiscard]] RenderSession& session() { return m_session; }
+    [[nodiscard]] const RenderSession& session() const { return m_session; }
+
+    // ── Convenience accessors (forward to session) ──────────────────────
     using LayerBBoxState          = chronon3d::LayerBBoxState;
     using RendererFrameHistory    = chronon3d::RendererFrameHistory;
     using RendererDirtyTelemetry  = chronon3d::RendererDirtyTelemetry;
     using RendererLayerHistory    = chronon3d::RendererLayerHistory;
 
-    [[nodiscard]] RendererFrameHistory& frame_history() { return m_frame_state.frame_history; }
-    [[nodiscard]] const RendererFrameHistory& frame_history() const { return m_frame_state.frame_history; }
-    [[nodiscard]] RendererDirtyTelemetry& dirty_telemetry() { return m_frame_state.dirty_telemetry; }
-    [[nodiscard]] const RendererDirtyTelemetry& dirty_telemetry() const { return m_frame_state.dirty_telemetry; }
-    [[nodiscard]] RendererLayerHistory& layer_history() { return m_frame_state.layer_history; }
-    [[nodiscard]] const RendererLayerHistory& layer_history() const { return m_frame_state.layer_history; }
-    [[nodiscard]] graph::SceneHasher& scene_hasher() { return m_frame_state.scene_hasher; }
-    [[nodiscard]] const graph::SceneHasher& scene_hasher() const { return m_frame_state.scene_hasher; }
+    [[nodiscard]] RendererFrameHistory& frame_history() { return m_session.frame_history; }
+    [[nodiscard]] const RendererFrameHistory& frame_history() const { return m_session.frame_history; }
+    [[nodiscard]] RendererDirtyTelemetry& dirty_telemetry() { return m_session.dirty_telemetry; }
+    [[nodiscard]] const RendererDirtyTelemetry& dirty_telemetry() const { return m_session.dirty_telemetry; }
+    [[nodiscard]] RendererLayerHistory& layer_history() { return m_session.layer_history; }
+    [[nodiscard]] const RendererLayerHistory& layer_history() const { return m_session.layer_history; }
+    [[nodiscard]] graph::SceneHasher& scene_hasher() { return m_session.scene_hasher; }
+    [[nodiscard]] const graph::SceneHasher& scene_hasher() const { return m_session.scene_hasher; }
 
     // ── Convenience methods for graph pipeline orchestration ────────────
     void mark_fast_path_reused(Frame frame, const Camera2_5D& cam, uint64_t combined_fp) {
-        m_frame_state.dirty_telemetry.last_dirty_area_ratio = 0.0;
-        m_frame_state.dirty_telemetry.last_dirty_rect_enabled = false;
-        m_frame_state.dirty_telemetry.last_dirty_rect = std::nullopt;
-        m_frame_state.dirty_telemetry.last_tile_execution_used = false;
-        m_frame_state.dirty_telemetry.last_fast_path_reused = true;
-        m_frame_state.dirty_telemetry.last_graph_reused = false;
-        m_frame_state.frame_history.prev_frame = frame;
-        m_frame_state.frame_history.prev_scene_fingerprint = combined_fp;
-        m_frame_state.frame_history.prev_camera = cam;
-        m_frame_state.frame_history.prev_camera_valid = cam.enabled;
+        m_session.dirty_telemetry.last_dirty_area_ratio = 0.0;
+        m_session.dirty_telemetry.last_dirty_rect_enabled = false;
+        m_session.dirty_telemetry.last_dirty_rect = std::nullopt;
+        m_session.dirty_telemetry.last_tile_execution_used = false;
+        m_session.dirty_telemetry.last_fast_path_reused = true;
+        m_session.dirty_telemetry.last_graph_reused = false;
+        m_session.frame_history.prev_frame = frame;
+        m_session.frame_history.prev_scene_fingerprint = combined_fp;
+        m_session.frame_history.prev_camera = cam;
+        m_session.frame_history.prev_camera_valid = cam.enabled;
     }
 
     /// Alias for backward compatibility — prefer commit_prev_frame_state().
@@ -201,31 +205,31 @@ public:
                                   uint64_t combined_fp, uint64_t static_fp,
                                   uint64_t structure_fp, uint64_t active_at_fp,
                                   std::unordered_map<std::string, LayerBBoxState>&& layer_bboxes) {
-        m_frame_state.layer_history.prev_layer_bboxes = std::move(layer_bboxes);
-        m_frame_state.frame_history.prev_frame = frame;
-        m_frame_state.frame_history.prev_scene_fingerprint = combined_fp;
-        m_frame_state.frame_history.prev_static_scene_fingerprint = static_fp;
-        m_frame_state.frame_history.prev_graph_structure_fingerprint = structure_fp;
-        m_frame_state.frame_history.prev_active_at_fingerprint = active_at_fp;
-        m_frame_state.frame_history.prev_camera = cam;
-        m_frame_state.frame_history.prev_camera_valid = cam.enabled;
+        m_session.layer_history.prev_layer_bboxes = std::move(layer_bboxes);
+        m_session.frame_history.prev_frame = frame;
+        m_session.frame_history.prev_scene_fingerprint = combined_fp;
+        m_session.frame_history.prev_static_scene_fingerprint = static_fp;
+        m_session.frame_history.prev_graph_structure_fingerprint = structure_fp;
+        m_session.frame_history.prev_active_at_fingerprint = active_at_fp;
+        m_session.frame_history.prev_camera = cam;
+        m_session.frame_history.prev_camera_valid = cam.enabled;
     }
 
     void update_dirty_telemetry(bool rect_enabled, std::optional<raster::BBox> rect,
                                  bool tile_execution_used, bool fast_path_reused,
                                  bool graph_reused) {
-        m_frame_state.dirty_telemetry.last_dirty_rect_enabled = rect_enabled;
-        m_frame_state.dirty_telemetry.last_dirty_rect = rect;
-        m_frame_state.dirty_telemetry.last_tile_execution_used = tile_execution_used;
-        m_frame_state.dirty_telemetry.last_fast_path_reused = fast_path_reused;
-        m_frame_state.dirty_telemetry.last_graph_reused = graph_reused;
+        m_session.dirty_telemetry.last_dirty_rect_enabled = rect_enabled;
+        m_session.dirty_telemetry.last_dirty_rect = rect;
+        m_session.dirty_telemetry.last_tile_execution_used = tile_execution_used;
+        m_session.dirty_telemetry.last_fast_path_reused = fast_path_reused;
+        m_session.dirty_telemetry.last_graph_reused = graph_reused;
     }
 
     // ── RAII buffer management ──────────────────────────────────────────
-    [[nodiscard]] RendererBufferRing& buffer_ring() { return m_frame_state.buffer_ring; }
-    [[nodiscard]] const RendererBufferRing& buffer_ring() const { return m_frame_state.buffer_ring; }
-    [[nodiscard]] TransformScratchBuffer& scratch_buffer() { return m_frame_state.scratch_buffer; }
-    [[nodiscard]] const TransformScratchBuffer& scratch_buffer() const { return m_frame_state.scratch_buffer; }
+    [[nodiscard]] RendererBufferRing& buffer_ring() { return m_session.buffer_ring; }
+    [[nodiscard]] const RendererBufferRing& buffer_ring() const { return m_session.buffer_ring; }
+    [[nodiscard]] TransformScratchBuffer& scratch_buffer() { return m_session.scratch_buffer; }
+    [[nodiscard]] const TransformScratchBuffer& scratch_buffer() const { return m_session.scratch_buffer; }
     [[nodiscard]] CompiledGraphCache& graph_cache() { return m_cache_state.graph_cache; }
     [[nodiscard]] const CompiledGraphCache& graph_cache() const { return m_cache_state.graph_cache; }
 
@@ -244,8 +248,8 @@ private:
     RendererCacheState       m_cache_state;
     // ── Encapsulated runtime resources ─────────────────────────────────
     RendererRuntimeResources m_runtime_resources;
-    // ── Encapsulated per-frame state ─────────────────────────────────────
-    RendererFrameState       m_frame_state;
+    // ── Encapsulated per-session state ───────────────────────────────────
+    RenderSession            m_session;
 };
 
 } // namespace chronon3d

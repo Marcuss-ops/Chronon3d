@@ -106,13 +106,20 @@ target_link_libraries(chronon3d_core INTERFACE
     # Core should be dependency-minimal for server-side / headless use.
 )
 
+if(CHRONON3D_ENABLE_VIDEO)
+    target_link_libraries(chronon3d_core INTERFACE chronon3d_backend_video)
+endif()
+
 add_library(chronon3d_software INTERFACE)
 target_link_libraries(chronon3d_software INTERFACE
     chronon3d_backend_software
-    chronon3d_backend_video
     chronon3d_backend_assets
     chronon3d_backend_image
 )
+
+if(CHRONON3D_ENABLE_VIDEO)
+    target_link_libraries(chronon3d_software INTERFACE chronon3d_backend_video)
+endif()
 
 add_library(chronon3d_pipeline INTERFACE)
 target_link_libraries(chronon3d_pipeline INTERFACE

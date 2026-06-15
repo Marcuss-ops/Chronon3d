@@ -12,6 +12,7 @@
 #include <chronon3d/core/parallel_tracked.hpp>
 #include <tbb/parallel_for.h>
 
+#ifdef CHRONON3D_ENABLE_LIBYUV
 // libyuv forward declarations — C linkage, no header conflicts.
 extern "C" {
 int ABGRToI420(const uint8_t* src_abgr, int src_stride_abgr,
@@ -24,6 +25,7 @@ int ABGRToNV12(const uint8_t* src_abgr, int src_stride_abgr,
                uint8_t* dst_uv, int dst_stride_uv,
                int width, int height);
 }
+#endif
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 extern "C" {
@@ -176,6 +178,7 @@ static ConvertFrameResult convert_rgba_to_rgb24(const ConvertFrameRequest& req) 
 }
 
 // ── libyuv RGBA8 → YUV420P ─────────────────────────────────────────────────
+#ifdef CHRONON3D_ENABLE_LIBYUV
 static ConvertFrameResult convert_rgba_to_yuv420p_libyuv(const ConvertFrameRequest& req) {
     if (req.width % 2 != 0 || req.height % 2 != 0)
         return ConvertFrameResult{.success = false};
@@ -206,7 +209,14 @@ static ConvertFrameResult convert_rgba_to_yuv420p_libyuv(const ConvertFrameReque
     };
 }
 
+#else
+static ConvertFrameResult convert_rgba_to_yuv420p_libyuv(const ConvertFrameRequest&) {
+    return ConvertFrameResult{.success = false};
+}
+#endif
+
 // ── libyuv RGBA8 → NV12 ──────────────────────────────────────────────────
+#ifdef CHRONON3D_ENABLE_LIBYUV
 static ConvertFrameResult convert_rgba_to_nv12_libyuv(const ConvertFrameRequest& req) {
     if (req.width % 2 != 0 || req.height % 2 != 0)
         return ConvertFrameResult{.success = false};
@@ -234,6 +244,11 @@ static ConvertFrameResult convert_rgba_to_nv12_libyuv(const ConvertFrameRequest&
         .conversion_ns = now_ns() - t0,
     };
 }
+#else
+static ConvertFrameResult convert_rgba_to_nv12_libyuv(const ConvertFrameRequest&) {
+    return ConvertFrameResult{.success = false};
+}
+#endif
 
 ConvertFrameResult convert_frame(const ConvertFrameRequest& req) {
     // ── YUV420P / NV12 ──────────────────────────────────────────────────
@@ -258,8 +273,12 @@ ConvertFrameResult convert_frame(const ConvertFrameRequest& req) {
                 auto libyuv = convert_rgba_to_yuv420p_libyuv(req);
                 if (libyuv.success) return libyuv;
             } else {
+#ifdef CHRONON3D_ENABLE_LIBYUV
                 auto libyuv = convert_rgba_to_nv12_libyuv(req);
                 if (libyuv.success) return libyuv;
+#else
+                (void)convert_rgba_to_nv12_libyuv(req);
+#endif
             }
         }
     }

@@ -6,14 +6,17 @@ add_library(chronon3d_backend_image STATIC
     image_loader.cpp
     image_writer.cpp
     stb_image_backend.cpp
-    exr_mmap.cpp
 )
+
+if(CHRONON3D_ENABLE_EXR)
+    target_sources(chronon3d_backend_image PRIVATE exr_mmap.cpp)
+endif()
+
 target_link_libraries(chronon3d_backend_image PUBLIC
     chronon3d
     spdlog::spdlog_header_only
     fmt::fmt
-)
-if(CHRONON3D_USE_OPENEXR)
+)if(CHRONON3D_ENABLE_EXR)
     target_link_libraries(chronon3d_backend_image PUBLIC OpenEXR::OpenEXR)
 endif()
 target_include_directories(chronon3d_backend_image PRIVATE ${Stb_INCLUDE_DIR})

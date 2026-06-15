@@ -6,6 +6,7 @@
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/pipeline/graph_filter.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/core/memory/render_session.hpp>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::cli {
@@ -59,7 +60,8 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
 
     // Execute the graph for just the selected layer
     graph::GraphExecutor executor;
-    auto fb = executor.execute(graph, selection.selected_output, graph_ctx);
+    RenderSession session;
+    auto fb = executor.execute(graph, selection.selected_output, graph_ctx, session);
 
     if (!fb) {
         spdlog::error("[bake-layer] Bake failed: layer '{}' produced no framebuffer",
