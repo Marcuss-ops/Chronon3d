@@ -44,7 +44,10 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(text_shadow_cache_hits) \
     X(text_shadow_cache_misses) \
     X(text_glow_cache_hits) \
-    X(text_glow_cache_misses)
+    X(text_glow_cache_misses) \
+    X(glyph_atlas_hits) \
+    X(glyph_atlas_misses) \
+    X(glyph_atlas_stored)
 
 #define CHRONON_COUNTERS_TILE(X) \
     X(tiles_total) \

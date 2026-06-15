@@ -105,17 +105,22 @@ Le conversioni `bl_image_prgb32_to_color_row` e `color_to_prgb32_row` sono state
 
 ---
 
-## 🟡 6. Cache Granularità: Solo Full-Image — PARZIALMENTE RISOLTO
+## ✅ 6. Cache Granularità: Solo Full-Image — RISOLTO
 
-> **Migliorato:** ~Giugno 2026
+> **Risolto:** Giugno 2026
 
-**Stato attuale**: Il `GlyphAtlas` è implementato con LRU cache (32MB default, 8 shard, `shared_mutex`). Supporta lookup/store per-glyph keyed by `(font_path, glyph_id, font_size)` con `glyph_atlas_store_from_text()` per estrarre bitmap individuali da testo renderizzato.
+**Stato attuale**: Il `GlyphAtlas` è integrato nel percorso critico di `text_rasterizer_render.cpp`. Per ogni run di testo con fill solido (no gradienti, no stroke, no box background, no transform geometrico), il renderer:
 
-**Rimanente**: Il GlyphAtlas non è ancora integrato nel percorso critico di `text_rasterizer_render.cpp` — l'infrastruttura esiste ma il rendering principale usa ancora la cache full-image.
+1. **Lookup**: verifica che tutti i glifi siano in cache con lo stesso `fill_color_rgba`
+2. **Hit**: blita i bitmap individuali da atlas (salta `fillGlyphRun`)
+3. **Miss**: renderizza normalmente, poi dopo `ctx.end()` estrae e memorizza i bitmap individuali via `glyph_atlas_store_from_placed_run()`
+
+La cache è keyed da `(font_path, glyph_id, font_size)` con matching del colore fill. 3 nuovi counter profiling: `glyph_atlas_hits`, `glyph_atlas_misses`, `glyph_atlas_stored`.
 
 **Dove**:
-- `glyph_atlas.cpp` — LRU cache per-glyph con stats (hits/misses)
-- `text_rasterizer_cache.cpp` — cache full-image ancora primaria
+- `glyph_atlas.cpp` — `glyph_atlas_store_from_placed_run()` (estrazione per-glyph da PlacedGlyphRun)
+- `text_rasterizer_render.cpp` — `try_atlas_blit()`, `can_use_glyph_atlas()`, `pending_glyph_stores`
+- `counters.hpp` — counter `glyph_atlas_hits/misses/stored`
 
 ---
 
@@ -141,7 +146,7 @@ Le conversioni `bl_image_prgb32_to_color_row` e `color_to_prgb32_row` sono state
 | **3** | Ink trimming full-image scan | w×h pixel letti a ogni miss | 🔥🔥 Overhead su testi grandi | Basso | `text_rasterizer_render.cpp` | ✅ Risolto |
 | **4** | Bevel O(w×h×bp²) | Edge detection naive | 🔥🔥 2-5ms su testi medi | Medio | `text_material.cpp` | ✅ Risolto |
 | **5** | Shadow/glow: copie pixel | BLImage→FB→blur→FB | 🔥 1-3ms per layer | Medio | `text_shadow.cpp`, `text_glow.cpp` | 🟡 SIMD benchmark negativo |
-| **6** | Cache full-image, non per-glyph | Miss per scale diverse | 🔥 Animazioni degradate | Alto | `text_rasterizer_cache.cpp`, `glyph_atlas.cpp` | 🟡 Infrastruttura pronta |
+| **6** | Cache full-image, non per-glyph | Miss per scale diverse | 🔥 Animazioni degradate | Alto | `text_rasterizer_render.cpp`, `glyph_atlas.cpp` | ✅ Risolto |
 | **7** | Mutex contention | Lock globali sotto multi-thread | 🔥 Solo con parall. frame-level | Basso | `font_engine.cpp`, cache vari | ✅ Risolto |
 
 ---
@@ -157,7 +162,7 @@ Le conversioni `bl_image_prgb32_to_color_row` e `color_to_prgb32_row` sono state
 
 ### Fase 2 — Da completare
 - [x] **#5** SIMD AVX2 2-pixel path implementato + benchmark (SIMD più lento — integer unpack necessario per speedup reale)
-- [ ] **#6** Integrare GlyphAtlas nel percorso critico di `text_rasterizer_render.cpp`
+- [x] **#6** Integrare GlyphAtlas nel percorso critico di `text_rasterizer_render.cpp`
 
 ### Fase 3 — Nuove feature
 - [ ] MSDF font atlas per scalabilità testo (ROADMAP L7)

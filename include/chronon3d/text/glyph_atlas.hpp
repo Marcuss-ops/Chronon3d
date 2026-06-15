@@ -14,6 +14,8 @@ class BLFontFace;
 
 namespace chronon3d {
 
+struct PlacedGlyphRun;  // forward-declare (font_engine.hpp)
+
 // ── GlyphAtlas — per-glyph rasterization cache ─────────────────────────
 //
 // Caches individual glyph bitmaps keyed by (font_path, glyph_id, font_size).
@@ -24,9 +26,10 @@ namespace chronon3d {
 
 struct GlyphAtlasEntry {
     std::shared_ptr<BLImage> image;
-    int    x_offset{0};  // offset from origin to glyph left edge
-    int    y_offset{0};
+    int    x_offset{0};  // pen-relative left offset (bbox.x0)
+    int    y_offset{0};  // pen-relative top  offset (bbox.y0)
     float  advance_x{0.0f};
+    u32    fill_color_rgba{0};  // solid fill color used at rasterization time
 };
 
 // Returns a cached glyph entry or std::nullopt on miss.
@@ -67,6 +70,19 @@ void glyph_atlas_store_from_text(
     float text_origin_x,
     float text_origin_y,
     float font_size
+);
+
+// Store individual glyph bitmaps from a HarfBuzz-shaped PlacedGlyphRun.// Uses pg.x/pg.y + font.getGlyphBounds() to locate each glyph in the
+// rendered image.  Skips glyphs already cached with the same fill_color_rgba.
+void glyph_atlas_store_from_placed_run(
+    const std::string& font_path,
+    const BLImage& rendered_text,
+    const PlacedGlyphRun& placed,
+    const BLFont& font,
+    float origin_x,
+    float origin_y,
+    float font_size,
+    u32 fill_color_rgba
 );
 
 } // namespace chronon3d
