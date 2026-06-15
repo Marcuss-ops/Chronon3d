@@ -15,8 +15,8 @@ std::unique_ptr<IVideoEncoder> create_pipe_encoder(
     std::string& out_codec,
     FfmpegPipeOptions& out_pipe_options)
 {
-    const bool codec_auto = opts.codec == "auto";
-    out_codec = codec_auto ? "libx264" : resolve_cli_ffmpeg_codec(opts.codec, opts.hardware_encoder);
+    const bool codec_auto = opts.encoder.codec == "auto";
+    out_codec = codec_auto ? "libx264" : resolve_cli_ffmpeg_codec(opts.encoder.codec, opts.encoder.hardware_encoder);
 
     out_pipe_options = make_pipe_options(comp, opts, out_codec);
 

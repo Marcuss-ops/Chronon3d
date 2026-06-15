@@ -23,7 +23,7 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         return PipeExportResult{};
     }
 
-    if (opts.chunks != 1) {
+    if (opts.sink.chunks != 1) {
         spdlog::warn("[video] --chunks is ignored with --ffmpeg-mode pipe in V1");
     }
 

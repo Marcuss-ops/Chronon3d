@@ -12,7 +12,7 @@ std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& o
     // Note: video_sink_type_id is set in setup_pipe_export_session() after the
     // renderer (and its counters) are created — g_current_counters is null here.
 
-    switch (opts.sink_type) {
+    switch (opts.sink.sink_type) {
         case VideoSinkType::NullRender:
             spdlog::info("[video] Using null-render sink — frames will be counted but not converted/written");
             return std::make_unique<NullRenderEncoder>();
@@ -22,7 +22,7 @@ std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& o
             return std::make_unique<NullConvertEncoder>();
 
         case VideoSinkType::RawFile:
-            spdlog::info("[video] Using raw sink (new) — frames will be written as raw pixel data to {}", opts.output);
+            spdlog::info("[video] Using raw sink (new) — frames will be written as raw pixel data to {}", opts.output.output);
             return std::make_unique<VideoSinkEncoderAdapter>(VideoSinkType::RawFile);
 
         case VideoSinkType::Ffmpeg:
@@ -30,11 +30,11 @@ std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& o
     }
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
-    if (opts.encoder_backend == "native") {
+    if (opts.encoder.encoder_backend == "native") {
         return std::make_unique<NativeAvEncoder>();
     }
 #else
-    if (opts.encoder_backend == "native") {
+    if (opts.encoder.encoder_backend == "native") {
         spdlog::warn("[video] Native FFmpeg support is disabled at build time; falling back to pipe encoder");
     }
 #endif
