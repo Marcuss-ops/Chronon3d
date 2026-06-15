@@ -124,11 +124,22 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
 
             if (path.stroke.enabled) {
                 bool hit = false;
+                // Use gradient stroke colour when available.
+                const Color base_color = [&]() -> Color {
+                    if (path.stroke.gradient.has_value()) {
+                        Fill gradient_fill;
+                        gradient_fill.enabled  = true;
+                        gradient_fill.type     = path.stroke.gradient->type;
+                        gradient_fill.gradient = *path.stroke.gradient;
+                        return resolve_fill_color(gradient_fill, p, bbox, 1.0f);
+                    }
+                    return path.stroke.color.to_linear();
+                }();
                 Color pixel_color{
-                    stroke_color.r * path.stroke.color.r,
-                    stroke_color.g * path.stroke.color.g,
-                    stroke_color.b * path.stroke.color.b,
-                    stroke_color.a * path.stroke.color.a
+                    stroke_color.r * base_color.r,
+                    stroke_color.g * base_color.g,
+                    stroke_color.b * base_color.b,
+                    stroke_color.a * base_color.a
                 };
                 for (const auto& contour : screen_contours) {
                     if (contour.points.size() < 2) continue;

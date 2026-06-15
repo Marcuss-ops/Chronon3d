@@ -220,15 +220,6 @@ inline Fill FillStyle::to_fill() const {
     return Fill::solid_color(solid_color);
 }
 
-inline ShapeStroke StrokeStyle::to_shape_stroke() const {
-    ShapeStroke s;
-    s.enabled   = enabled;
-    s.color     = color;
-    s.width     = width;
-    s.alignment = alignment;
-    return s;
-}
-
 inline PathStroke StrokeStyle::to_path_stroke() const {
     PathStroke s;
     s.enabled     = enabled;
@@ -240,7 +231,308 @@ inline PathStroke StrokeStyle::to_path_stroke() const {
     s.dash_offset = dash_offset;
     s.trim_start  = trim_start;
     s.trim_end    = trim_end;
+
+    // Bridge gradient if present (GradientDefinition → GradientFill).
+    if (gradient.has_value()) {
+        const auto& g = *gradient;
+        GradientFill gf;
+        gf.stops.reserve(g.color_stops.size());
+        for (const auto& cs : g.color_stops) {
+            chronon3d::GradientStop fs;
+            fs.offset = cs.position;
+            fs.color  = cs.color;
+            // Blend opacity stops into colour stop alpha.
+            if (!g.opacity_stops.empty()) {
+                const f32 op = detail::sample_opacity_stops(
+                    g.opacity_stops, cs.position);
+                fs.color.a *= op;
+            }
+            gf.stops.push_back(std::move(fs));
+        }
+        // Map gradient geometry to GradientFill from/to.
+        // For Linear: start→from, end→to.
+        // For Radial: center→from, to encodes radius from center.
+        // For Conic: center→from, to encodes angle direction.
+        switch (g.type) {
+            case GradientType::Linear:
+                gf.type = FillType::LinearGradient;
+                gf.from = g.start;
+                gf.to   = g.end;
+                break;
+            case GradientType::Radial:
+                gf.type = FillType::RadialGradient;
+                gf.from = g.center;
+                gf.to   = {g.center.x + g.radius, g.center.y};
+                break;
+            case GradientType::Conic:
+                gf.type = FillType::ConicGradient;
+                gf.from = g.center;
+                gf.to   = {g.center.x + std::cos(g.angle),
+                           g.center.y + std::sin(g.angle)};
+                break;
+        }
+        s.gradient = std::move(gf);
+    }
+
     return s;
+}
+
+inline ShapeStroke StrokeStyle::to_shape_stroke() const {
+    ShapeStroke s;
+    s.enabled   = enabled;
+    s.color     = color;
+    s.width     = width;
+    s.alignment = alignment;
+
+    // Bridge gradient if present (same conversion as to_path_stroke).
+    if (gradient.has_value()) {
+        const auto& g = *gradient;
+        GradientFill gf;
+        gf.stops.reserve(g.color_stops.size());
+        for (const auto& cs : g.color_stops) {
+            chronon3d::GradientStop fs;
+            fs.offset = cs.position;
+            fs.color  = cs.color;
+            if (!g.opacity_stops.empty()) {
+                const f32 op = detail::sample_opacity_stops(
+                    g.opacity_stops, cs.position);
+                fs.color.a *= op;
+            }
+            gf.stops.push_back(std::move(fs));
+        }
+        switch (g.type) {
+            case GradientType::Linear:
+                gf.type = FillType::LinearGradient;
+                gf.from = g.start;
+                gf.to   = g.end;
+                break;
+            case GradientType::Radial:
+                gf.type = FillType::RadialGradient;
+                gf.from = g.center;
+                gf.to   = {g.center.x + g.radius, g.center.y};
+                break;
+            case GradientType::Conic:
+                gf.type = FillType::ConicGradient;
+                gf.from = g.center;
+                gf.to   = {g.center.x + std::cos(g.angle),
+                           g.center.y + std::sin(g.angle)};
+                break;
+        }
+        s.gradient = std::move(gf);
+    }
+
+    return s;
+}
+
+
+// ══════════════════════════════════════════════════════════════════════
+//  FillStyle / GradientDefinition interpolation (animation helpers)
+// ══════════════════════════════════════════════════════════════════════
+
+/// Lerp two GradientStop values by position and colour.
+[[nodiscard]] inline GradientStop lerp_gradient_stop(
+    const GradientStop& a,
+    const GradientStop& b,
+    f32 t) noexcept
+{
+    return {
+        a.position + (b.position - a.position) * t,
+        {
+            a.color.r + (b.color.r - a.color.r) * t,
+            a.color.g + (b.color.g - a.color.g) * t,
+            a.color.b + (b.color.b - a.color.b) * t,
+            a.color.a + (b.color.a - a.color.a) * t,
+        }
+    };
+}
+
+namespace detail {
+
+/// Merge two sorted position vectors into a single sorted unique set.
+[[nodiscard]] inline std::vector<f32> merge_stop_positions(
+    const std::vector<GradientStop>& a,
+    const std::vector<GradientStop>& b)
+{
+    std::vector<f32> positions;
+    positions.reserve(a.size() + b.size());
+    for (const auto& s : a) positions.push_back(s.position);
+    for (const auto& s : b) positions.push_back(s.position);
+    std::sort(positions.begin(), positions.end());
+    auto last = std::unique(positions.begin(), positions.end());
+    positions.erase(last, positions.end());
+    return positions;
+}
+
+/// Lerp two opacity stop vectors: merge positions, sample & lerp.
+[[nodiscard]] inline std::vector<OpacityStop> lerp_opacity_stops(
+    const std::vector<OpacityStop>& a,
+    const std::vector<OpacityStop>& b,
+    f32 t)
+{
+    if (a.empty() && b.empty()) return {};
+    if (a.empty()) return b;
+    if (b.empty()) return a;
+
+    // Merge positions
+    std::vector<f32> positions;
+    positions.reserve(a.size() + b.size());
+    for (const auto& s : a) positions.push_back(s.position);
+    for (const auto& s : b) positions.push_back(s.position);
+    std::sort(positions.begin(), positions.end());
+    auto last = std::unique(positions.begin(), positions.end());
+    positions.erase(last, positions.end());
+
+    std::vector<OpacityStop> result;
+    result.reserve(positions.size());
+    for (f32 pos : positions) {
+        const f32 oa = detail::sample_opacity_stops(a, pos);
+        const f32 ob = detail::sample_opacity_stops(b, pos);
+        result.push_back({pos, oa + (ob - oa) * t});
+    }
+    return result;
+}
+
+} // namespace detail
+
+/// Interpolate two GradientDefinition values.
+///
+/// For same-type gradients, geometry is lerped and colour stops are
+/// resampled at merged positions then lerped.  Opacity stops are also
+/// merged and lerped.
+///
+/// For different-type gradients, the result type follows the type of
+/// the input closer to t=1 (i.e. switches at t=0.5) while stops are
+/// resampled and lerped.
+[[nodiscard]] inline GradientDefinition lerp_gradient(
+    const GradientDefinition& a,
+    const GradientDefinition& b,
+    f32 t) noexcept
+{
+    // Determine result type — morph toward b's type as t → 1
+    const GradientType result_type = (t < 0.5f) ? a.type : b.type;
+
+    // Merge colour stop positions, sample both at each, lerp
+    const auto positions = detail::merge_stop_positions(
+        a.color_stops, b.color_stops);
+
+    std::vector<GradientStop> lerped_stops;
+    lerped_stops.reserve(positions.size());
+    for (f32 pos : positions) {
+        // Sample both gradients at this normalised position.
+        // Use detail::sample_color_stops (no opacity baking) so that the
+        // separately-lerped opacity stops in the result are the single
+        // source of opacity — avoiding double-application of opacity.
+        const Color ca = detail::sample_color_stops(a.color_stops, pos);
+        const Color cb = detail::sample_color_stops(b.color_stops, pos);
+        lerped_stops.push_back({
+            pos,
+            {
+                ca.r + (cb.r - ca.r) * t,
+                ca.g + (cb.g - ca.g) * t,
+                ca.b + (cb.b - ca.b) * t,
+                ca.a + (cb.a - ca.a) * t,
+            }
+        });
+    }
+
+    // Merge and lerp opacity stops (stored separately in the result so
+    // they are applied once during rendering).
+    const auto lerped_op = detail::lerp_opacity_stops(
+        a.opacity_stops, b.opacity_stops, t);
+
+    GradientDefinition result;
+    result.type        = result_type;
+    result.color_stops = std::move(lerped_stops);
+    result.opacity_stops = std::move(lerped_op);
+    result.spread      = (t < 0.5f) ? a.spread : b.spread;
+
+    // Lerp geometry based on result type
+    switch (result_type) {
+        case GradientType::Linear: {
+            result.start = {
+                a.start.x + (b.start.x - a.start.x) * t,
+                a.start.y + (b.start.y - a.start.y) * t
+            };
+            result.end   = {
+                a.end.x   + (b.end.x   - a.end.x)   * t,
+                a.end.y   + (b.end.y   - a.end.y)   * t
+            };
+            break;
+        }
+        case GradientType::Radial: {
+            result.center = {
+                a.center.x + (b.center.x - a.center.x) * t,
+                a.center.y + (b.center.y - a.center.y) * t
+            };
+            result.radius = a.radius + (b.radius - a.radius) * t;
+            break;
+        }
+        case GradientType::Conic: {
+            result.center = {
+                a.center.x + (b.center.x - a.center.x) * t,
+                a.center.y + (b.center.y - a.center.y) * t
+            };
+            result.angle  = a.angle + (b.angle - a.angle) * t;
+            break;
+        }
+    }
+
+    return result;
+}
+
+/// Interpolate two FillStyle values.
+///
+/// Both solid  → lerp colours.
+/// One solid   → treat solid as a 1-stop gradient of the solid color,
+///                then delegate to lerp_gradient.
+/// Both gradient → delegate to lerp_gradient.
+[[nodiscard]] inline FillStyle lerp_fill_style(
+    const FillStyle& a,
+    const FillStyle& b,
+    f32 t) noexcept
+{
+    const bool a_solid = a.is_solid() || !a.enabled;
+    const bool b_solid = b.is_solid() || !b.enabled;
+
+    // Both solid: simple colour lerp
+    if (a_solid && b_solid) {
+        const Color& ca = a.solid_color;
+        const Color& cb = b.solid_color;
+        return FillStyle{
+            true,
+            {
+                ca.r + (cb.r - ca.r) * t,
+                ca.g + (cb.g - ca.g) * t,
+                ca.b + (cb.b - ca.b) * t,
+                ca.a + (cb.a - ca.a) * t,
+            },
+            std::nullopt
+        };
+    }
+
+    // At least one is a gradient: convert solid(s) to 1-stop gradients
+    const auto to_gdef = [](const FillStyle& fs) -> GradientDefinition {
+        if (fs.gradient.has_value()) return *fs.gradient;
+        // Solid colour → 1-stop gradient (same colour at both ends)
+        GradientDefinition g;
+        g.type = GradientType::Linear;
+        g.start = {0.0f, 0.5f};
+        g.end   = {1.0f, 0.5f};
+        g.color_stops = {
+            {0.0f, fs.solid_color},
+            {1.0f, fs.solid_color},
+        };
+        return g;
+    };
+
+    const GradientDefinition ga = to_gdef(a);
+    const GradientDefinition gb = to_gdef(b);
+    const GradientDefinition lerped = lerp_gradient(ga, gb, t);
+
+    FillStyle result;
+    result.enabled = true;
+    result.gradient = lerped;
+    return result;
 }
 
 } // namespace chronon3d::graphics
