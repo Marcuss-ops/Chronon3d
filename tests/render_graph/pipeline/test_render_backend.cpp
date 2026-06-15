@@ -4,6 +4,7 @@
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
+#include <chronon3d/core/memory/render_session.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
@@ -66,7 +67,8 @@ TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
     RenderGraph graph = GraphBuilder::build(scene, ctx);
     
     GraphExecutor executor;
-    auto out = executor.execute(graph, ctx);
+    RenderSession session;
+    auto out = executor.execute(graph, ctx, session);
     
     REQUIRE(out != nullptr);
     CHECK(backend.draw_node_called == 1);
@@ -92,7 +94,8 @@ TEST_CASE("RenderBackend - EffectStackNode execution calls apply_effect_stack on
     RenderGraph graph = GraphBuilder::build(scene, ctx);
     
     GraphExecutor executor;
-    auto out = executor.execute(graph, ctx);
+    RenderSession session;
+    auto out = executor.execute(graph, ctx, session);
     
     REQUIRE(out != nullptr);
     CHECK(backend.apply_effect_stack_called >= 1);
@@ -116,7 +119,8 @@ TEST_CASE("RenderBackend - CompositeNode execution calls composite_layer on back
     RenderGraph graph = GraphBuilder::build(scene, ctx);
     
     GraphExecutor executor;
-    auto out = executor.execute(graph, ctx);
+    RenderSession session;
+    auto out = executor.execute(graph, ctx, session);
     
     REQUIRE(out != nullptr);
     // There are 2 layer composite nodes

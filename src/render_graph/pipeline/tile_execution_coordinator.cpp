@@ -6,6 +6,7 @@
 #include <chronon3d/core/profiling/trace_categories.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
+#include <chronon3d/core/memory/render_session.hpp>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::graph {
@@ -89,10 +90,12 @@ TileExecutionResult execute_tile_or_fallback(
         {
             CHRONON_ZONE_C("graph_execute", trace_category::kGraph);
             if (sw_renderer && sw_renderer->executor()) {
-                result.fb = sw_renderer->executor()->execute(compiled, ctx);
+                result.fb = sw_renderer->executor()->execute(
+                    compiled, ctx, sw_renderer->session());
             } else {
+                RenderSession local_session;
                 GraphExecutor local_executor;
-                result.fb = local_executor.execute(compiled, ctx);
+                result.fb = local_executor.execute(compiled, ctx, local_session);
             }
         }
         // Track tile fallbacks when tile system requested but couldn't execute

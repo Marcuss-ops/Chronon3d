@@ -83,7 +83,7 @@ namespace chronon3d::graph::detail {
 
     FrameArena tile_arena;
     auto tile_fb = sw_renderer->executor()->execute(
-        compiled, tile_ctx, &tile_arena);
+        compiled, tile_ctx, sw_renderer->session(), &tile_arena);
 
     if (tile_fb) {
         for (i32 y = region_bbox.y0; y < region_bbox.y1; ++y) {

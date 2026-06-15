@@ -10,6 +10,7 @@
 // caches can invalidate nested state.
 // ──────────────────────────────────────────────────────────────────────────────
 
+#include <chronon3d/core/memory/render_session.hpp>
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
@@ -99,6 +100,7 @@ private:
     std::unique_ptr<cache::SceneProgramCache> m_cache;
     FrameParameterBlock m_param_block;
     std::unique_ptr<GraphExecutor> m_executor;
+    RenderSession m_session;  // per-session state (arena + frame history)
     cache::ProgramEvictCallback m_on_evict;
 
     // ── Auto-tuning state ─────────────────────────────────────────────

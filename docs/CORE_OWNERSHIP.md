@@ -14,15 +14,13 @@ Modificare questi file solo con motivazione esplicita, test dedicata e review.
 
 ```
 include/chronon3d/render_graph/render_graph.hpp
-include/chronon3d/render_graph/render_graph_node.hpp
-include/chronon3d/render_graph/render_graph_hashing.hpp
-include/chronon3d/render_graph/graph_executor.hpp
-include/chronon3d/render_graph/graph_builder.hpp
-include/chronon3d/render_graph/render_pipeline.hpp
-include/chronon3d/render_graph/cache_policy.hpp
-include/chronon3d/render_graph/scene_hasher.hpp
+include/chronon3d/render_graph/nodes/render_graph_node.hpp
+include/chronon3d/render_graph/core/render_graph_hashing.hpp
+include/chronon3d/render_graph/executor/graph_executor.hpp
+include/chronon3d/render_graph/pipeline/render_pipeline.hpp
+include/chronon3d/render_graph/core/cache_policy.hpp
+include/chronon3d/render_graph/core/scene_hasher.hpp
 include/chronon3d/render_graph/render_graph_context.hpp    # Fase 1 — ancora in assestamento
-include/chronon3d/render_graph/framebuffer_acquire.hpp     # Fase 1 — ancora in assestamento
 include/chronon3d/render_graph/compiler/frame_graph_compiler.hpp
 include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp
 include/chronon3d/render_graph/compiler/frame_graph_compile_options.hpp
@@ -40,7 +38,7 @@ src/render_graph/optimizer/graph_optimizer.cpp
 _Ristrutturato in Fasi 3-4. La pipeline orchestra pass indipendenti._
 
 ```
-include/chronon3d/render_graph/graph_builder.hpp
+include/chronon3d/render_graph/builder/graph_builder.hpp
 include/chronon3d/render_graph/builder/graph_build_pass.hpp
 include/chronon3d/render_graph/builder/graph_build_context.hpp
 include/chronon3d/render_graph/builder/graph_build_pipeline.hpp
@@ -402,13 +400,12 @@ ctest --test-dir build/chronon/linux-debug --output-on-failure -R "render_graph|
 Monitorare questi file — se continuano a salire in `git log`, estrarre un extension point:
 
 ```
-include/chronon3d/render_graph/render_graph_node.hpp
+include/chronon3d/render_graph/nodes/render_graph_node.hpp
 include/chronon3d/render_graph/nodes/basic_nodes.hpp
-include/chronon3d/render_graph/graph_builder.hpp
-include/chronon3d/render_graph/render_graph_hashing.hpp
+include/chronon3d/render_graph/builder/graph_builder.hpp
+include/chronon3d/render_graph/core/render_graph_hashing.hpp
 src/render_graph/builder/graph_builder_pipeline.cpp
 src/render_graph/builder/graph_builder_layer_pipeline.cpp
-src/render_graph/graph_executor.cpp
 src/render_graph/executor/executor.cpp
 src/render_graph/executor/internal.cpp
 src/scene/layer_builder.cpp

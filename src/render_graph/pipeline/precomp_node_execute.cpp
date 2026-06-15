@@ -19,6 +19,7 @@
 ///   7. Execute the cached program via the inner GraphExecutor.
 // =============================================================================
 
+#include <chronon3d/core/memory/render_session.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
@@ -42,6 +43,7 @@ PrecompNode::PrecompNode(std::string comp_name, Frame start_frame, Frame duratio
     , m_cache_frame(cache_frame)
     , m_cache(std::make_unique<cache::SceneProgramCache>(cache_capacity))
     , m_executor(std::make_unique<GraphExecutor>())
+    , m_session()  // owns its own RenderSession
     , m_tune_mode(tune_mode)
     , m_tune_interval(tune_interval)
     , m_tune_min_cap(tune_min_cap)
@@ -134,7 +136,7 @@ OwnedFB PrecompNode::execute(
     detail::refresh_compiled_graph_payloads(program->frame_graph, nested_scene, nested_ctx, resolved);
 
     // ── 8. Execute the cached program ────────────────────────────────────
-    auto nested_result = m_executor->execute(program->frame_graph, nested_ctx);
+    auto nested_result = m_executor->execute(program->frame_graph, nested_ctx, m_session);
 
     // ── 9. Auto-tune check (inside function scope) ───────────────────────
     // Run after every successful execution.  The check is lightweight

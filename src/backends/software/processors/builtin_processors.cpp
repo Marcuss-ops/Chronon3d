@@ -15,7 +15,9 @@ std::unique_ptr<ShapeProcessor> create_line_processor();
 std::unique_ptr<ShapeProcessor> create_path_processor();
 std::unique_ptr<ShapeProcessor> create_fake_box3d_processor();
 std::unique_ptr<ShapeProcessor> create_grid_plane_processor();
+#ifdef CHRONON3D_ENABLE_TEXT
 std::unique_ptr<ShapeProcessor> create_text_processor();
+#endif
 
 // Forward declarations for effect processors
 std::unique_ptr<EffectProcessor> create_blur_effect_processor();
@@ -43,7 +45,9 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     registry.register_shape(ShapeType::Image, create_image_processor());
     registry.register_shape(ShapeType::TiledImage, create_tiled_image_processor());
     registry.register_shape(ShapeType::GridBackground, create_grid_background_processor());
+#ifdef CHRONON3D_ENABLE_TEXT
     registry.register_shape(ShapeType::Text, create_text_processor());
+#endif
     registry.register_shape(ShapeType::Mesh, create_mesh_processor());
     registry.register_shape(ShapeType::FakeBox3D, create_fake_box3d_processor());
     registry.register_shape(ShapeType::GridPlane, create_grid_plane_processor());
