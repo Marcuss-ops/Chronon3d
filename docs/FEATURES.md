@@ -64,7 +64,7 @@ Chronon3d has a fully-functional, cache-invalidation-safe Text V1 layout engine 
 | **Text Gradient Fill** | Linear, radial, and conic gradient fills via `FillStyle` / `apply_text_fill_style()` |
 | **Text Stroke** | Stroke with HarfBuzz-shaped glyphs via `FtGlyphPathBuilder` (consistent GSUB for Arabic, Devanagari, etc.) |
 | **Text Material** | Premium effects: gradient fill, bevel, top highlight, bottom shade, inner shadow, emissive boost. Presets: `premium()`, `neon()`, `glass()`, `flat()` |
-| **Glyph Atlas** | Per-glyph LRU cache (32MB, 8 shards) keyed by `(font_path, glyph_id, font_size)` |
+| **Glyph Atlas** | Per-glyph LRU cache (32MB, 8 shards) keyed by `(font_path, glyph_id, font_size, fill_color)`. Wired into render hot-path — solid-color runs use cached bitmaps |
 | **Pre-shaped Bypass** | Typewriter/TextAnimator can pass pre-shaped `PlacedGlyphRun` to skip re-shaping |
 
 ### Limitations
@@ -72,7 +72,7 @@ Chronon3d has a fully-functional, cache-invalidation-safe Text V1 layout engine 
 > [!IMPORTANT]
 > **CJK Line-Breaking**: CJK text renders correctly via HarfBuzz auto-detection, but word-wrapping uses byte-level logic. Proper CJK line-breaking (ICU-based) is planned.
 > **Emoji**: Emoji rendering depends on the font containing emoji glyphs. Color emoji (COLR/CBDT) is not yet supported.
-> **GlyphAtlas Integration**: The per-glyph atlas infrastructure is implemented but not yet wired into the main rendering hot-path.
+> **GlyphAtlas Integration**: ✅ The per-glyph atlas is wired into the main rendering hot-path. Solid-color runs use cached glyph bitmaps (skip `fillGlyphRun`); on miss, glyphs are extracted and stored after `ctx.end()` for future reuse. See `text_rasterizer_render.cpp` → `try_atlas_blit()`.
 
 ### Implementation Details
 

@@ -17,6 +17,7 @@
 #include <blend2d/path.h>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/text/glyph_atlas.hpp>
 
 #ifdef CHRONON3D_ENABLE_TEXT
 #include <ft2build.h>
@@ -611,6 +612,65 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         return blend2d_resources().get_face(path);
     };
 
+    // ── GlyphAtlas: per-glyph cache integration ─────────────────────
+    // On atlas hit: blit cached glyph bitmaps (skip fillGlyphRun).
+    // On miss: render normally, then store glyphs for future reuse.
+    // Only for solid-color fills without geometric transforms, box
+    // backgrounds, or strokes (ensures clean glyph extraction).
+    struct PendingGlyphStore {
+        std::string font_path;
+        PlacedGlyphRun placed;
+        BLFont font;
+        float origin_x{0.0f}, origin_y{0.0f};
+        float font_size{0.0f};
+        u32   fill_rgba{0};
+    };
+    std::vector<PendingGlyphStore> pending_glyph_stores;
+
+    auto can_use_glyph_atlas = [&](
+        const TextStyle& style, bool has_placed, bool has_stroke
+    ) -> bool {
+        return has_placed
+            && !use_geometric_transform
+            && !t.style.box_style.enabled
+            && !has_stroke
+            && (!style.paint.fill_style.has_value()
+                || style.paint.fill_style->type == FillType::Solid);
+    };
+
+    auto resolve_atlas_fill_rgba = [](
+        const TextStyle& style, const Color& fallback
+    ) -> u32 {
+        if (style.paint.fill_style.has_value()
+            && style.paint.fill_style->type == FillType::Solid)
+            return to_bl_rgba(style.paint.fill_style->solid).value;
+        return to_bl_rgba(fallback).value;
+    };
+
+    auto try_atlas_blit = [&](
+        const PlacedGlyphRun& run, const std::string& fp,
+        float fs, u32 fill_rgba, float ox, float oy
+    ) -> bool {
+        if (run.glyphs.empty()) return false;
+        const u32 fsu = static_cast<u32>(std::ceil(fs));
+        std::vector<GlyphAtlasEntry> entries;
+        entries.reserve(run.glyphs.size());
+        for (const auto& pg : run.glyphs) {
+            auto e = glyph_atlas_lookup(fp, pg.glyph_id, fsu);
+            if (!e || e->fill_color_rgba != fill_rgba) return false;
+            entries.push_back(std::move(*e));
+        }
+        for (size_t i = 0; i < run.glyphs.size(); ++i) {
+            const auto& pg = run.glyphs[i];
+            const auto& e  = entries[i];
+            ctx.blitImage(
+                BLPoint(ox + pg.x + static_cast<float>(e.x_offset),
+                        oy + pg.y + static_cast<float>(e.y_offset)),
+                *e.image);
+        }
+        return true;
+    };
+
     auto render_run = [&](const TextLayoutLineRun& run, const TextLayoutLine& line) {
         if (run.text.empty()) return;
 
@@ -698,8 +758,27 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         );
 
         if (placed) {
-            auto bl = HbToBlGlyphRun::from(*placed, run_face, run_shape_size);
-            ctx.fillGlyphRun(BLPoint(lx, baseline_y), run_font, bl.bl_run);
+            const bool has_stroke = run_style.paint.stroke_enabled
+                && run_style.paint.stroke_width > 0.0f;
+            if (can_use_glyph_atlas(run_style, true, has_stroke)) {
+                const u32 frgba = resolve_atlas_fill_rgba(run_style, run_fill);
+                if (try_atlas_blit(*placed, run_style.font_path,
+                        run_shape_size, frgba, lx, baseline_y)) {
+                    if (profiling::g_current_counters)
+                        profiling::g_current_counters->glyph_atlas_hits.fetch_add(1, std::memory_order_relaxed);
+                    return;
+                }
+                auto bl = HbToBlGlyphRun::from(*placed, run_face, run_shape_size);
+                ctx.fillGlyphRun(BLPoint(lx, baseline_y), run_font, bl.bl_run);
+                pending_glyph_stores.push_back({
+                    run_style.font_path, std::move(*placed), run_font,
+                    lx, baseline_y, run_shape_size, frgba});
+                if (profiling::g_current_counters)
+                    profiling::g_current_counters->glyph_atlas_misses.fetch_add(1, std::memory_order_relaxed);
+            } else {
+                auto bl = HbToBlGlyphRun::from(*placed, run_face, run_shape_size);
+                ctx.fillGlyphRun(BLPoint(lx, baseline_y), run_font, bl.bl_run);
+            }
         } else {
             ctx.fillUtf8Text(BLPoint(lx, baseline_y), run_font, run.text.c_str());
         }
@@ -771,23 +850,48 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                 ctx.setStrokeStyle(to_bl_rgba(t.style.paint.stroke_color));
                 ctx.strokeUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
             }
-        }
-
-        apply_text_fill_style(
+        }        apply_text_fill_style(
             ctx, t.style, line_fill,
             text_start_x, text_start_y,
-            text_block_w, text_block_h
+            text_block_w,
+            text_block_h
         );
 
         if (placed) {
-            auto bl = HbToBlGlyphRun::from(*placed, face, layout_res.font_size);
-            ctx.fillGlyphRun(BLPoint(lx, ly), font, bl.bl_run);
+            const bool has_stroke = t.style.paint.stroke_enabled
+                && t.style.paint.stroke_width > 0.0f;
+            if (can_use_glyph_atlas(t.style, true, has_stroke)) {
+                const u32 frgba = resolve_atlas_fill_rgba(t.style, line_fill);
+                if (try_atlas_blit(*placed, t.style.font_path,
+                        layout_res.font_size, frgba, lx, ly)) {
+                    if (profiling::g_current_counters)
+                        profiling::g_current_counters->glyph_atlas_hits.fetch_add(1, std::memory_order_relaxed);
+                    continue;
+                }
+                auto bl = HbToBlGlyphRun::from(*placed, face, layout_res.font_size);
+                ctx.fillGlyphRun(BLPoint(lx, ly), font, bl.bl_run);
+                pending_glyph_stores.push_back({
+                    t.style.font_path, std::move(*placed), font,
+                    lx, ly, layout_res.font_size, frgba});
+                if (profiling::g_current_counters)
+                    profiling::g_current_counters->glyph_atlas_misses.fetch_add(1, std::memory_order_relaxed);
+            } else {
+                auto bl = HbToBlGlyphRun::from(*placed, face, layout_res.font_size);
+                ctx.fillGlyphRun(BLPoint(lx, ly), font, bl.bl_run);
+            }
         } else {
             ctx.fillUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
         }
     }
 
     ctx.end();
+
+    // ── GlyphAtlas: store individual glyphs for future reuse ────────
+    for (const auto& ps : pending_glyph_stores) {
+        glyph_atlas_store_from_placed_run(
+            ps.font_path, img, ps.placed, ps.font,
+            ps.origin_x, ps.origin_y, ps.font_size, ps.fill_rgba);
+    }
 
     // ── Trim trailing rows AND compute ink-bounds for centering ───────
     float ink_center_frac = -1.0f;

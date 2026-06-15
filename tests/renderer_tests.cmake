@@ -70,6 +70,7 @@ add_executable(chronon3d_renderer_tests
     specscene/specscene_boundary_tests.cpp
     golden/golden_render_tests.cpp
     golden/glow_golden_tests.cpp
+    golden/stroked_shape_golden_tests.cpp
     golden/suite_chronon3d_tests.cpp
     golden/roadmap_2_5d_suite.cpp
     runtime/test_telemetry.cpp

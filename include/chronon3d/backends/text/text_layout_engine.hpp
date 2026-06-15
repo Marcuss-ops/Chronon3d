@@ -798,16 +798,43 @@ private:
         // Precompute ASCII character widths at this font size for O(1)
         // lookup during wrapping.  Uses Blend2D when available (same engine
         // as rasterization), falling back to FT+HarfBuzz otherwise.
+        // Optimization: batch all 95 printable ASCII chars into a single
+        // shape_text() call instead of 95 individual HarfBuzz shaping
+        // invocations.  For Blend2D we still measure individually since
+        // bl_measure_fn doesn't expose per-glyph advances.
         std::array<float, 256> char_widths{};
         const bool use_bl2d = input.bl_measure_fn != nullptr && input.bl_font_ptr != nullptr;
         const bool have_precomputed = use_bl2d || input.font_engine != nullptr;
-        if (have_precomputed) {
+        if (use_bl2d) {
             for (int c = 32; c < 127; ++c) {
                 char buf[2] = {static_cast<char>(c), '\0'};
-                if (use_bl2d) {
-                    char_widths[c] = input.bl_measure_fn(
-                        input.bl_font_ptr, std::string_view(buf, 1), font_size);
-                } else {
+                char_widths[c] = input.bl_measure_fn(
+                    input.bl_font_ptr, std::string_view(buf, 1), font_size);
+            }
+        } else if (input.font_engine) {
+            // Batch: shape all 95 printable ASCII characters in one HarfBuzz
+            // call instead of 95 individual shaping invocations.
+            // Note: batch shaping may produce marginally different per-glyph
+            // advances than individual shaping due to contextual kerning
+            // (e.g. "AV" kerning).  The difference is negligible for ASCII
+            // and the wrapping result is correct because the precompute table
+            // is an approximation used for fast line-break decisions — the
+            // final rendered width is determined by the full-string shape_text
+            // calls in measure_string().  Falls back to individual measurements
+            // if the batch glyph count doesn't match (e.g. ligatures).
+            std::string ascii_batch;
+            ascii_batch.reserve(95);
+            for (int c = 32; c < 127; ++c) ascii_batch.push_back(static_cast<char>(c));
+            auto batch_run = input.font_engine->shape_text(
+                ascii_batch, input.font_spec, font_size, input.style.shaping);
+            if (batch_run && batch_run->glyphs.size() == 95) {
+                for (size_t i = 0; i < 95; ++i) {
+                    const int c = 32 + static_cast<int>(i);
+                    char_widths[c] = batch_run->glyphs[i].advance_x;
+                }
+            } else {
+                for (int c = 32; c < 127; ++c) {
+                    char buf[2] = {static_cast<char>(c), '\0'};
                     char_widths[c] = input.font_engine->measure_text(
                         buf, input.font_spec, font_size, input.style.shaping);
                 }
@@ -1016,23 +1043,56 @@ private:
             if (apply_ellipsis && !raw_lines.empty()) {
                 std::string& last_line = raw_lines.back();
                 float& last_line_w = line_widths.back();
-                const float ellipsis_w = measure_string_input("...");
-                // Grapheme-cluster-aware trim: remove whole clusters, never
-                // splitting combining marks, ZWJ sequences, or flag pairs.
-                while (!last_line.empty() && last_line_w + ellipsis_w > max_width) {
-                    const size_t num_clusters = detail::grapheme_cluster_count(last_line);
-                    if (num_clusters <= 1) {
-                        last_line.clear();
-                        last_line_w = 0.0f;
-                        break;
+                // Precompute grapheme cluster byte-offsets and per-cluster
+                // widths so trimming is O(1) per step instead of O(n).
+                // The old loop called grapheme_cluster_count +
+                // grapheme_byte_offset_at + measure_string_input (all O(n))
+                // on EVERY trim iteration → O(n²) total.
+                std::vector<size_t> cluster_offsets;
+                std::vector<size_t> cluster_ends;  // end-offset (exclusive) per cluster
+                std::vector<float> cluster_widths;
+                {
+                    size_t off = 0;
+                    while (off < last_line.size()) {
+                        cluster_offsets.push_back(off);
+                        const size_t next = detail::grapheme_byte_offset_at(
+                            std::string_view(last_line.data() + off,
+                                             last_line.size() - off), 1);
+                        cluster_ends.push_back(off + next);
+                        const float cw = (next > 0)
+                            ? measure_string_input(std::string_view(
+                                  last_line.data() + off, next))
+                            : 0.0f;
+                        cluster_widths.push_back(cw);
+                        off += next;
+                        if (next == 0) break; // safety
                     }
-                    const size_t trim_to = detail::grapheme_byte_offset_at(
-                        last_line, num_clusters - 1);
-                    last_line.resize(trim_to);
-                    // Remeasure the trimmed line directly — this correctly
-                    // accounts for inter-token tracking that incremental
-                    // subtraction would miss.
-                    last_line_w = measure_string_input(last_line);
+                }
+                const size_t num_clusters = cluster_offsets.size();
+                // Reverse prefix sum: cluster_reverse_w[k] = width of
+                // clusters [k..end).  Width of first k clusters is
+                // total_w - cluster_reverse_w[k].
+                std::vector<float> cluster_reverse_w(num_clusters + 1, 0.0f);
+                for (size_t k = num_clusters; k > 0; --k) {
+                    cluster_reverse_w[k - 1] = cluster_widths[k - 1]
+                        + cluster_reverse_w[k];
+                }
+                const float total_w = cluster_reverse_w[0];
+                // Precompute ellipsis width for fit-check.
+                const float ellipsis_w = measure_string_input("...");
+                // Find the largest prefix that fits with "..." appended.
+                size_t trim_to_clusters = num_clusters;
+                while (trim_to_clusters > 0) {
+                    const float prefix_w = total_w - cluster_reverse_w[trim_to_clusters];
+                    if (prefix_w + ellipsis_w <= max_width) break;
+                    --trim_to_clusters;
+                }
+                if (trim_to_clusters == 0) {
+                    last_line.clear();
+                    last_line_w = 0.0f;
+                } else {
+                    last_line.resize(cluster_ends[trim_to_clusters - 1]);
+                    last_line_w = total_w - cluster_reverse_w[trim_to_clusters];
                 }
                 // Append "..." and re-measure the ENTIRE line so that
                 // the inter-character tracking between the last preserved
@@ -1087,17 +1147,30 @@ private:
         result.font_size = font_size_hint;
 
         // Precompute ASCII character widths (same approach as layout_single_run).
-        // Uses Blend2D when available, falling back to FT+HarfBuzz.
+        // Uses batch shape_text() for FontEngine, individual for Blend2D.
         std::array<float, 256> char_widths{};
         const bool use_bl2d = input.bl_measure_fn != nullptr && input.bl_font_ptr != nullptr;
         const bool have_precomputed = use_bl2d || input.font_engine != nullptr;
-        if (have_precomputed) {
+        if (use_bl2d) {
             for (int c = 32; c < 127; ++c) {
                 char buf[2] = {static_cast<char>(c), '\0'};
-                if (use_bl2d) {
-                    char_widths[c] = input.bl_measure_fn(
-                        input.bl_font_ptr, std::string_view(buf, 1), font_size_hint);
-                } else {
+                char_widths[c] = input.bl_measure_fn(
+                    input.bl_font_ptr, std::string_view(buf, 1), font_size_hint);
+            }
+        } else if (input.font_engine) {
+            std::string ascii_batch;
+            ascii_batch.reserve(95);
+            for (int c = 32; c < 127; ++c) ascii_batch.push_back(static_cast<char>(c));
+            auto batch_run = input.font_engine->shape_text(
+                ascii_batch, input.font_spec, font_size_hint, input.style.shaping);
+            if (batch_run && batch_run->glyphs.size() == 95) {
+                for (size_t i = 0; i < 95; ++i) {
+                    const int c = 32 + static_cast<int>(i);
+                    char_widths[c] = batch_run->glyphs[i].advance_x;
+                }
+            } else {
+                for (int c = 32; c < 127; ++c) {
+                    char buf[2] = {static_cast<char>(c), '\0'};
                     char_widths[c] = input.font_engine->measure_text(
                         buf, input.font_spec, font_size_hint, input.style.shaping);
                 }
@@ -1370,26 +1443,57 @@ private:
                 if (line.runs.size() == 1) {
                     auto& run = line.runs.front();
                     const float run_size = std::max(1.0f, run.style.size <= 0.0f ? font_size_hint : run.style.size);
-                    // Grapheme-cluster-aware trim: remove whole clusters.
-                    while (!run.text.empty() && line.width > max_width_limit) {
-                        const size_t num_clusters = detail::grapheme_cluster_count(run.text);
-                        if (num_clusters <= 1) {
-                            line.width -= run.width;
-                            run.width = 0.0f;
-                            run.text.clear();
-                            break;
+                    // Precompute grapheme cluster boundaries + widths for O(1)
+                    // trimming per step instead of O(n) per step.
+                    std::vector<size_t> cluster_offsets;
+                    std::vector<size_t> cluster_ends;
+                    std::vector<float> cluster_widths;
+                    {
+                        size_t off = 0;
+                        while (off < run.text.size()) {
+                            cluster_offsets.push_back(off);
+                            const size_t next = detail::grapheme_byte_offset_at(
+                                std::string_view(run.text.data() + off,
+                                                 run.text.size() - off), 1);
+                            cluster_ends.push_back(off + next);
+                            const float cw = (next > 0)
+                                ? measure_string(input, run.style,
+                                    std::string_view(run.text.data() + off, next), run_size)
+                                : 0.0f;
+                            cluster_widths.push_back(cw);
+                            off += next;
+                            if (next == 0) break;
                         }
-                        const size_t trim_to = detail::grapheme_byte_offset_at(
-                            run.text, num_clusters - 1);
-                        run.text.resize(trim_to);
-                        const float new_width = measure_string(input, run.style, run.text, run_size);
-                        line.width -= (run.width - new_width);
-                        run.width = new_width;
                     }
+                    const size_t num_clusters = cluster_offsets.size();
+                    std::vector<float> cluster_reverse_w(num_clusters + 1, 0.0f);
+                    for (size_t k = num_clusters; k > 0; --k) {
+                        cluster_reverse_w[k - 1] = cluster_widths[k - 1]
+                            + cluster_reverse_w[k];
+                    }
+                    const float total_w = cluster_reverse_w[0];
                     const float ellip_w = measure_string(input, run.style, "...", run_size);
+                    size_t trim_to_clusters = num_clusters;
+                    while (trim_to_clusters > 0) {
+                        const float prefix_w = total_w - cluster_reverse_w[trim_to_clusters];
+                        if (prefix_w + ellip_w <= max_width_limit) break;
+                        --trim_to_clusters;
+                    }
+                    const float new_width = (trim_to_clusters > 0)
+                        ? total_w - cluster_reverse_w[trim_to_clusters] : 0.0f;
+                    line.width -= (run.width - new_width);
+                    run.width = new_width;
+                    if (trim_to_clusters == 0) {
+                        run.text.clear();
+                    } else {
+                        run.text.resize(cluster_ends[trim_to_clusters - 1]);
+                    }
+                    // Re-measure the full run after appending ellipsis so that
+                    // tracking between last char and "." is correctly accounted
+                    // for (consistent with layout_single_run).
                     run.text += "...";
-                    run.width += ellip_w;
-                    line.width += ellip_w;
+                    run.width = measure_string(input, run.style, run.text, run_size);
+                    line.width = run.width;
                 }
             }
         }
