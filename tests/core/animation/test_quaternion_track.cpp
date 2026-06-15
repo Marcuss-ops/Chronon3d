@@ -1,0 +1,292 @@
+#include <doctest/doctest.h>
+#include <chronon3d/animation/core/quaternion_track.hpp>
+#include <chronon3d/animation/effects/animated_transform.hpp>
+#include <chronon3d/math/glm_types.hpp>
+
+using namespace chronon3d;
+
+// =========================================================================
+// AnimatedQuat — quaternion track with slerp
+// =========================================================================
+
+TEST_CASE("AnimatedQuat: default value returned when no keyframes") {
+    AnimatedQuat q(Quat{1.0f, 0.0f, 0.0f, 0.0f});
+    Quat result = q.evaluate(Frame{0});
+    CHECK(result.w == doctest::Approx(1.0f));
+    CHECK(result.x == doctest::Approx(0.0f));
+    CHECK(result.y == doctest::Approx(0.0f));
+    CHECK(result.z == doctest::Approx(0.0f));
+}
+
+TEST_CASE("AnimatedQuat: single keyframe holds value") {
+    AnimatedQuat q;
+    // 90° around Y → should rotate (0,0,-1) to a direction on XZ plane
+    q.key(Frame{0}, glm::angleAxis(glm::radians(90.0f), Vec3{0, 1, 0}));
+    Quat result = q.evaluate(Frame{100});
+
+    Vec3 forward = result * Vec3{0, 0, -1};
+    // After 90° Y rotation, the forward vector should be perpendicular to Z
+    CHECK(std::abs(forward.z) < 0.01f);
+    // X should be non-zero (direction depends on GLM convention)
+    CHECK(std::abs(forward.x) > 0.9f);
+}
+
+TEST_CASE("AnimatedQuat: slerp produces correct midpoint") {
+    AnimatedQuat q;
+    // Identity at frame 0, 90° around Y at frame 60
+    q.key(Frame{0}, Quat{1.0f, 0.0f, 0.0f, 0.0f})
+     .key(Frame{60}, glm::angleAxis(glm::radians(90.0f), Vec3{0, 1, 0}));
+
+    Quat result = q.evaluate(Frame{30});
+    // Midpoint should be a 45° rotation around Y
+    // Check that rotating (0,0,-1) gives a 45° angle on the XZ plane
+    Vec3 forward = result * Vec3{0, 0, -1};
+    f32 xz_angle = std::atan2(forward.x, -forward.z);  // angle from -Z toward +X
+    CHECK(xz_angle == doctest::Approx(glm::radians(45.0f)).epsilon(0.02f));
+}
+
+TEST_CASE("AnimatedQuat: slerp shortest path avoids long rotation") {
+    // Two tests: 359°→0° and 170°→-170° should both take the short path
+    AnimatedQuat q;
+
+    // Test 1: 359°→0° (shortest = 1°, not 359°)
+    q.key(Frame{0}, glm::angleAxis(glm::radians(359.0f), Vec3{0, 1, 0}))
+     .key(Frame{60}, glm::angleAxis(glm::radians(0.0f), Vec3{0, 1, 0}));
+
+    // Without shortest-path, midpoint would be at ~179.5° rotation
+    // With shortest-path, midpoint should be near identity (only 0.5° rotation)
+    Quat result = q.evaluate(Frame{30});
+    Vec3 forward = result * Vec3{0, 0, -1};
+    // Forward should be very close to (0,0,-1) since we only rotated 0.5°
+    CHECK(std::abs(forward.x) < 0.01f);
+    CHECK(forward.z == doctest::Approx(-1.0f).epsilon(0.01f));
+}
+
+TEST_CASE("AnimatedQuat: shortest path handles 170°→-170° correctly") {
+    AnimatedQuat q;
+    // 170° and -170° are 20° apart via the short path (through 180°)
+    Quat a = glm::angleAxis(glm::radians(170.0f), Vec3{0, 1, 0});
+    Quat b = glm::angleAxis(glm::radians(-170.0f), Vec3{0, 1, 0});
+
+    q.key(Frame{0}, a)
+     .key(Frame{60}, b);
+
+    Quat result = q.evaluate(Frame{30});
+
+    // Midpoint on the 20° arc through 180° should give 180° rotation
+    // Forward vector should point straight back (+Z)
+    Vec3 forward = result * Vec3{0, 0, -1};
+    CHECK(forward.z > 0.9f);  // Points in +Z direction (behind)
+}
+
+TEST_CASE("AnimatedQuat: easing affects interpolation speed") {
+    AnimatedQuat q_linear, q_eased;
+    // Identity → 90° around Y
+    Quat a{1.0f, 0.0f, 0.0f, 0.0f};
+    Quat b = glm::angleAxis(glm::radians(90.0f), Vec3{0, 1, 0});
+
+    q_linear.key(Frame{0}, a).key(Frame{60}, b);
+    q_eased.key(Frame{0}, a).key(Frame{60}, b, EasingCurve{Easing::InOutCubic});
+
+    // At t=0.25 (frame 15): linear=25%, eased<25% (slow start)
+    Quat ql = q_linear.evaluate(Frame{15});
+    Quat qe = q_eased.evaluate(Frame{15});
+
+    // Linear should have rotated more than eased
+    Vec3 fwd_linear = ql * Vec3{0, 0, -1};
+    Vec3 fwd_eased  = qe * Vec3{0, 0, -1};
+
+    // At 25% progress, linear rotates 22.5°, eased < 22.5°
+    // Linear forward should have larger X component (more rotated away from -Z)
+    CHECK(std::abs(fwd_linear.x) > std::abs(fwd_eased.x));
+}
+
+TEST_CASE("AnimatedQuat: sub-frame evaluation produces different results") {
+    AnimatedQuat q;
+    const FrameRate rate{30, 1};
+    q.key(SampleTime::from_frame(0.0, rate), Quat{1.0f, 0.0f, 0.0f, 0.0f})
+     .key(SampleTime::from_frame(1.0, rate),
+          glm::angleAxis(glm::radians(90.0f), Vec3{0, 1, 0}));
+
+    // 8 sub-frame samples should all be different
+    std::vector<Vec3> forwards;
+    for (int s = 0; s < 8; ++s) {
+        const double u = (static_cast<double>(s) + 0.5) / 8.0;
+        const double sub_frame = 0.5 * u;
+        Quat qv = q.evaluate(SampleTime::from_frame(sub_frame, rate));
+        forwards.push_back(qv * Vec3{0, 0, -1});
+    }
+
+    bool all_same = true;
+    for (int s = 1; s < 8; ++s) {
+        if (glm::length(forwards[s] - forwards[0]) > 0.001f) {
+            all_same = false;
+            break;
+        }
+    }
+    CHECK_FALSE(all_same);
+}
+
+TEST_CASE("AnimatedQuat: three keyframes produce smooth interpolation") {
+    AnimatedQuat q;
+    q.key(Frame{0},  Quat{1.0f, 0.0f, 0.0f, 0.0f})
+     .key(Frame{30}, glm::angleAxis(glm::radians(45.0f), Vec3{0, 1, 0}))
+     .key(Frame{60}, glm::angleAxis(glm::radians(90.0f), Vec3{0, 1, 0}));
+
+    // Frame 15: halfway between identity and 45° = 22.5°
+    Vec3 fwd15 = q.evaluate(Frame{15}) * Vec3{0, 0, -1};
+    f32 angle15 = std::atan2(fwd15.x, -fwd15.z);
+    CHECK(angle15 > 0.0f);
+    CHECK(angle15 < glm::radians(45.0f));
+
+    // Frame 45: halfway between 45° and 90° = 67.5°
+    Vec3 fwd45 = q.evaluate(Frame{45}) * Vec3{0, 0, -1};
+    f32 angle45 = std::atan2(fwd45.x, -fwd45.z);
+    CHECK(angle45 > glm::radians(45.0f));
+    CHECK(angle45 < glm::radians(90.0f));
+}
+
+TEST_CASE("AnimatedQuat: is_animated and is_time_dependent") {
+    AnimatedQuat q;
+    CHECK_FALSE(q.is_animated());
+    CHECK_FALSE(q.is_time_dependent());
+
+    q.key(Frame{0}, Quat{1.0f, 0.0f, 0.0f, 0.0f});
+
+    CHECK(q.is_animated());
+    CHECK(q.is_time_dependent());
+}
+
+TEST_CASE("AnimatedQuat: clear removes all keyframes") {
+    AnimatedQuat q;
+    q.key(Frame{0}, Quat{1.0f, 0.0f, 0.0f, 0.0f})
+     .key(Frame{60}, glm::angleAxis(glm::radians(90.0f), Vec3{0, 1, 0}));
+
+    CHECK(q.size() == 2);
+    q.clear();
+    CHECK(q.size() == 0);
+    CHECK(q.empty());
+}
+
+TEST_CASE("AnimatedQuat: set overrides value and clears keyframes") {
+    AnimatedQuat q;
+    q.key(Frame{0}, Quat{1.0f, 0.0f, 0.0f, 0.0f});
+    q.set(glm::angleAxis(glm::radians(45.0f), Vec3{0, 1, 0}));
+
+    CHECK(q.empty());
+
+    // Frame 0 should give the default value (45° Y rotation)
+    Vec3 forward = q.evaluate(Frame{0}) * Vec3{0, 0, -1};
+    f32 angle = std::atan2(forward.x, -forward.z);
+    CHECK(angle == doctest::Approx(glm::radians(45.0f)).epsilon(0.02f));
+}
+
+TEST_CASE("AnimatedQuat: shift offsets all keyframes") {
+    AnimatedQuat q;
+    const FrameRate rate{30, 1};
+    q.key(SampleTime::from_frame(10.0, rate), Quat{1.0f, 0.0f, 0.0f, 0.0f})
+     .key(SampleTime::from_frame(50.0, rate),
+          glm::angleAxis(glm::radians(90.0f), Vec3{0, 1, 0}));
+
+    q.shift(Frame{20});
+
+    // Frame 0 < shifted first keyframe at frame 30 → first keyframe value
+    Vec3 forward = q.evaluate(Frame{0}) * Vec3{0, 0, -1};
+    // Should be identity (the first keyframe's value)
+    CHECK(forward.z == doctest::Approx(-1.0f).epsilon(0.01f));
+}
+
+// =========================================================================
+// AnimatedTransform — quaternion rotation integration
+// =========================================================================
+
+TEST_CASE("AnimatedTransform: rotation_quat_track preferred over rotation_euler") {
+    AnimatedTransform at;
+
+    // Set Euler rotation (should be ignored when quat track is active)
+    at.rotation_euler.key(Frame{0}, Vec3{0.0f, 0.0f, 0.0f})
+                     .key(Frame{60}, Vec3{0.0f, 90.0f, 0.0f});
+
+    // Set quaternion rotation (90° around Y)
+    at.rotation_quat_track.key(Frame{0}, Quat{1.0f, 0.0f, 0.0f, 0.0f})
+                          .key(Frame{60},
+                               glm::angleAxis(glm::radians(90.0f), Vec3{0, 1, 0}));
+
+    Transform t = at.evaluate(Frame{30});
+    // Should use quaternion track (45° around Y)
+    Vec3 forward = t.rotation * Vec3{0, 0, -1};
+    f32 angle = std::atan2(forward.x, -forward.z);
+    CHECK(angle == doctest::Approx(glm::radians(45.0f)).epsilon(0.02f));
+}
+
+TEST_CASE("AnimatedTransform: falls back to rotation_euler when quat track empty") {
+    AnimatedTransform at;
+
+    at.rotation_euler.key(Frame{0}, Vec3{0.0f, 0.0f, 0.0f})
+                     .key(Frame{60}, Vec3{0.0f, 90.0f, 0.0f});
+
+    // rotation_quat_track is NOT animated
+
+    Transform t = at.evaluate(Frame{30});
+    // Should use Euler (45° around Y)
+    Vec3 forward = t.rotation * Vec3{0, 0, -1};
+    f32 angle = std::atan2(forward.x, -forward.z);
+    CHECK(angle == doctest::Approx(glm::radians(45.0f)).epsilon(0.02f));
+}
+
+TEST_CASE("AnimatedTransform: is_animated detects quat track") {
+    AnimatedTransform at;
+    CHECK_FALSE(at.is_animated());
+
+    at.rotation_quat_track.key(Frame{0}, Quat{1.0f, 0.0f, 0.0f, 0.0f});
+    CHECK(at.is_animated());
+}
+
+TEST_CASE("AnimatedTransform: is_time_dependent detects quat track") {
+    AnimatedTransform at;
+    CHECK_FALSE(at.is_time_dependent());
+
+    at.rotation_quat_track.key(Frame{0}, Quat{1.0f, 0.0f, 0.0f, 0.0f});
+    CHECK(at.is_time_dependent());
+}
+
+TEST_CASE("AnimatedTransform: shift affects quat track") {
+    AnimatedTransform at;
+    at.rotation_quat_track.key(Frame{0}, Quat{1.0f, 0.0f, 0.0f, 0.0f})
+                           .key(Frame{60},
+                                glm::angleAxis(glm::radians(90.0f), Vec3{0, 1, 0}));
+
+    at.shift(Frame{30});
+
+    // Frame 15 < first key at frame 30 → first keyframe value (identity)
+    Vec3 forward = at.evaluate(Frame{15}).rotation * Vec3{0, 0, -1};
+    CHECK(forward.z == doctest::Approx(-1.0f).epsilon(0.01f));
+}
+
+// =========================================================================
+// quat_from_euler_degrees utility
+// =========================================================================
+
+TEST_CASE("quat_from_euler_degrees: matches glm::quat(radians(...))") {
+    Vec3 euler{30.0f, 45.0f, 60.0f};
+    Quat expected = glm::quat(glm::radians(euler));
+    Quat result = quat_from_euler_degrees(euler);
+    // q and -q represent the same rotation
+    CHECK(glm::abs(glm::dot(expected, result)) > 0.999f);
+}
+
+TEST_CASE("quat_from_euler_degrees: zero euler gives identity") {
+    Quat q = quat_from_euler_degrees(Vec3{0.0f});
+    CHECK(q.w == doctest::Approx(1.0f));
+    CHECK(q.x == doctest::Approx(0.0f));
+    CHECK(q.y == doctest::Approx(0.0f));
+    CHECK(q.z == doctest::Approx(0.0f));
+}
+
+TEST_CASE("quat_from_euler_degrees: 90° yaw produces correct rotation") {
+    Quat q = quat_from_euler_degrees(Vec3{0.0f, 90.0f, 0.0f});
+    Vec3 forward = q * Vec3{0, 0, -1};
+    // After 90° Y rotation, forward should be perpendicular to Z
+    CHECK(std::abs(forward.z) < 0.01f);
+    CHECK(std::abs(forward.x) > 0.9f);
+}
