@@ -23,6 +23,7 @@ namespace chronon3d::graphics {
 enum class GradientType : u8 {
     Linear,
     Radial,
+    Conic,
 };
 
 // ── Spread mode (how coordinates outside [0, 1] are handled) ───────────
@@ -70,6 +71,9 @@ struct GradientDefinition {
     Vec2 center{0.5f, 0.5f};
     f32  radius{0.5f};
 
+    // ── Conic gradient geometry ──────────────────────────────────────
+    f32  angle{0.0f};  // start angle in radians (used only for Conic)
+
     // ── Spread ────────────────────────────────────────────────────────
     GradientSpread spread{GradientSpread::Pad};
 
@@ -110,6 +114,26 @@ struct GradientDefinition {
         def.type        = GradientType::Radial;
         def.center      = c;
         def.radius      = r;
+        def.color_stops = std::move(stops);
+        def.spread      = sp;
+        return def;
+    }
+
+    static GradientDefinition conic(
+        Vec2 c, f32 a,
+        std::vector<GradientStop> stops,
+        GradientSpread sp = GradientSpread::Pad)
+    {
+        // Stable-sort stops by ascending position so binary-search sampling
+        // works and equal-position stops preserve insertion order (determinism).
+        std::stable_sort(stops.begin(), stops.end(),
+            [](const GradientStop& a, const GradientStop& b) {
+                return a.position < b.position;
+            });
+        GradientDefinition def;
+        def.type        = GradientType::Conic;
+        def.center      = c;
+        def.angle       = a;
         def.color_stops = std::move(stops);
         def.spread      = sp;
         return def;

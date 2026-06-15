@@ -105,6 +105,27 @@ TEST_CASE("FillStyle solid -> gradient via to_fill distinction") {
     CHECK(grad_fs.to_fill().type == FillType::LinearGradient);
 }
 
+TEST_CASE("FillStyle -> conic gradient bridge") {
+    namespace gfx = chronon3d::graphics;
+    std::vector<gfx::GradientStop> stops = {
+        gs(0.0f, {1.0f, 0.0f, 0.0f, 1.0f}),
+        gs(0.5f, {0.0f, 1.0f, 0.0f, 1.0f}),
+        gs(1.0f, {0.0f, 0.0f, 1.0f, 1.0f}),
+    };
+    const auto fs = gfx::FillStyle::conic({0.5f, 0.5f}, 0.0f, stops);
+    REQUIRE(fs.is_gradient());
+
+    const Fill f = fs.to_fill();
+    CHECK(f.enabled);
+    CHECK(f.type == FillType::ConicGradient);
+    CHECK(f.gradient.stops.size() == 3);
+    CHECK(f.gradient.from.x == doctest::Approx(0.5f));
+    CHECK(f.gradient.from.y == doctest::Approx(0.5f));
+    // angle_rad=0 → to encodes (center.x + cos(0), center.y + sin(0)) = (1.5, 0.5)
+    CHECK(f.gradient.to.x == doctest::Approx(1.5f));
+    CHECK(f.gradient.to.y == doctest::Approx(0.5f));
+}
+
 TEST_CASE("FillStyle opacity stops blended into colour stops") {
     namespace gfx = chronon3d::graphics;
     std::vector<gfx::GradientStop> c_stops = {
