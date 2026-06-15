@@ -61,6 +61,9 @@ add_custom_target(chronon3d_tests_render
         chronon3d_animation_tests
         chronon3d_content_tests
         chronon3d_breathing_golden_tests
+        chronon3d_visual_test_support_tests
+        chronon3d_camera_visual_tests
+        chronon3d_cinematic_motion_visual_tests
 )
 
 # Video tests: video pipeline tests (isolated, no pipeline dependency)
