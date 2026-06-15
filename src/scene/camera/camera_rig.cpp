@@ -113,7 +113,8 @@ Camera2_5D CameraRig::evaluate(
         zoom.is_time_dependent() || fov_deg.is_time_dependent() ||
         dof.focus_z.is_time_dependent() || dof.aperture.is_time_dependent() || dof.max_blur.is_time_dependent() ||
         dof.focal_length.is_time_dependent() || dof.sensor_width.is_time_dependent() ||
-        dof.f_stop.is_time_dependent() || dof.focus_distance.is_time_dependent();
+        dof.sensor_height.is_time_dependent() || dof.f_stop.is_time_dependent() ||
+        dof.close_focus.is_time_dependent() || dof.focus_distance.is_time_dependent();
 
     // ── Propagate motion blur from rig to camera ────────────────────────────
     cam.motion_blur.enabled          = motion_blur.enabled;
