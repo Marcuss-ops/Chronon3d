@@ -78,7 +78,6 @@ public:
     AnimationCurve& key(Frame frame, f32 value, KeyInterp interp = KeyInterp::Linear) {
         m_keyframes.push_back(AnimationKeyframe(frame, value, interp));
         m_sorted = false;
-        m_roving_dirty = true;
         if (interp == KeyInterp::AutoBezier) m_auto_bezier_dirty = true;
         return *this;
     }
@@ -90,7 +89,6 @@ public:
         kf.out_tangent = out_tan;
         m_keyframes.push_back(kf);
         m_sorted = false;
-        m_roving_dirty = true;
         if (interp == KeyInterp::AutoBezier) m_auto_bezier_dirty = true;
         return *this;
     }
