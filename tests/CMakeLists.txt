@@ -28,6 +28,8 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/media_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/compositor_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/breathing_golden_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/visual_tests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/graphics_tests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/gradient_visual_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/deterministic_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/benchmarks.cmake)
 
@@ -64,6 +66,7 @@ add_custom_target(chronon3d_tests_render
         chronon3d_visual_test_support_tests
         chronon3d_camera_visual_tests
         chronon3d_cinematic_motion_visual_tests
+        chronon3d_gradient_visual_tests
 )
 
 # Video tests: video pipeline tests (isolated, no pipeline dependency)
