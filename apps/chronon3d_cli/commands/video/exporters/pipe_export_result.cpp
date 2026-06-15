@@ -46,7 +46,7 @@ PipeExportResult make_pipe_export_result(
         }
         log_pipe_export_failure(status);
     } else {
-        spdlog::info("[video] Wrote {}", session.opts.output);
+        spdlog::info("[video] Wrote {}", session.opts.output.output);
     }
 
     return result;

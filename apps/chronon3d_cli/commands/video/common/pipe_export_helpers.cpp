@@ -64,29 +64,29 @@ FfmpegPipeOptions make_pipe_options(
     const std::string& codec)
 {
     const std::string effective_preset =
-        (opts.encoder_backend == "native" && opts.encode_preset == "superfast")
+        (opts.encoder.encoder_backend == "native" && opts.encoder.encode_preset == "superfast")
             ? "ultrafast"
-            : opts.encode_preset;
+            : opts.encoder.encode_preset;
     const std::string effective_tune =
-        (!opts.tune.empty())
-            ? opts.tune
-            : ((opts.codec == "libx264" && opts.encoder_backend != "native") ? "zerolatency" : "");
+        (!opts.encoder.tune.empty())
+            ? opts.encoder.tune
+            : ((opts.encoder.codec == "libx264" && opts.encoder.encoder_backend != "native") ? "zerolatency" : "");
 
     FfmpegPipeOptions pipe_options{
         .width = comp.width(),
         .height = comp.height(),
-        .fps = opts.fps,
-        .crf = opts.crf,
+        .fps = opts.output.fps,
+        .crf = opts.encoder.crf,
         .preset = effective_preset,
         .codec = codec,
-        .output_path = opts.output,
-        .input_format = parse_pipe_pixfmt(opts.pipe_pixfmt),
-        .verbose = opts.ffmpeg_verbose,
+        .output_path = opts.output.output,
+        .input_format = parse_pipe_pixfmt(opts.pipe.pipe_pixfmt),
+        .verbose = opts.pipe.ffmpeg_verbose,
         .color_transform = {
-            .output = parse_color_output(opts.color_output),
+            .output = parse_color_output(opts.pipe.color_output),
         },
         .tune = effective_tune,
-        .pipe_writer = opts.pipe_writer,
+        .pipe_writer = opts.pipe.pipe_writer,
     };
     pipe_options.output_pix_fmt = resolve_cli_ffmpeg_output_pix_fmt(codec);
     return pipe_options;
@@ -110,7 +110,7 @@ void track_pipe_encoder_process(
     IVideoEncoder& encoder,
     SystemMetricsCollector& sys_metrics)
 {
-    if (opts.encoder_backend == "native") {
+    if (opts.encoder.encoder_backend == "native") {
         return;
     }
 
@@ -126,7 +126,7 @@ void warmup_pipe_renderer(
     const Composition& comp,
     const FfmpegExportOptions& opts)
 {
-    if (!opts.warmup_renderer) {
+    if (!opts.warmup.warmup_renderer) {
         return;
     }
 
@@ -139,10 +139,10 @@ void warmup_pipe_renderer(
     runtime::warmup_renderer(renderer, comp, runtime::RendererWarmupOptions{
         .width = comp.width(),
         .height = comp.height(),
-        .framebuffer_count = opts.warmup_framebuffers,
+        .framebuffer_count = opts.warmup.warmup_framebuffers,
         .preallocate_framebuffers = true,
         .touch_memory = true,
-        .render_dummy_frame = opts.warmup_dummy_frame,
+        .render_dummy_frame = opts.warmup.warmup_dummy_frame,
         .dummy_frame = 0,
         .quiet = false,
     });

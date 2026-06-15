@@ -10,6 +10,10 @@
 #endif
 #include "../../../utils/telemetry/telemetry_run.hpp"
 #include "sink_options.hpp"
+#include "output_options.hpp"
+#include "encoder_options.hpp"
+#include "pipe_options.hpp"
+#include "warmup_options.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/core/cancellation_token.hpp>
@@ -31,30 +35,11 @@ std::string resolve_cli_ffmpeg_codec(const std::string& codec, const std::string
 std::string resolve_cli_ffmpeg_output_pix_fmt(const std::string& codec);
 
 struct FfmpegExportOptions {
-    std::string output;
-    std::string frames_dir_name;
-    int fps;
-    int crf;
-    std::string codec;
-    std::string hardware_encoder;
-    std::string encode_preset;
-    std::string tune;
-    bool keep_frames;
-    int chunks;
-    std::string ffmpeg_mode{"pipe"};
-    bool ffmpeg_verbose{false};
-    std::string pipe_pixfmt{"rgba"};
-    std::string color_output{"srgb"};
-    std::string pipe_writer{"classic"};
-    std::string encoder_backend{"native"};
-
-    // Renderer warmup
-    bool   warmup_renderer{false};
-    size_t warmup_framebuffers{2};
-    bool   warmup_dummy_frame{false};
-
-    // Video sink type for pipeline isolation measurement
-    VideoSinkType sink_type{VideoSinkType::Ffmpeg};
+    OutputOptions         output;
+    EncoderOptions        encoder;
+    PipeOptions           pipe;
+    RenderWarmupOptions   warmup;
+    SinkOptions           sink;
 
     // Graceful cancellation (optional — set by command_video SIGINT handler)
     chronon3d::CancellationToken* cancellation_token{nullptr};

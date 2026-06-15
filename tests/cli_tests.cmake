@@ -10,6 +10,7 @@ add_executable(chronon3d_cli_tests
     cli/test_camera_path_command.cpp
     cli/test_video_end_semantics.cpp
     cli/test_video_sink_encoders.cpp
+    cli/test_ffmpeg_export_options.cpp
 )
 
 target_link_libraries(chronon3d_cli_tests

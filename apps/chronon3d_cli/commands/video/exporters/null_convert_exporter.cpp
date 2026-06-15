@@ -80,7 +80,7 @@ public:
         const int height  = job.comp.height();
 
         spdlog::info("[null-convert] Rendering+converting {} frames [{}, {}) at {} fps — no output written",
-                     total, start, end, opts.fps);
+                     total, start, end, opts.output.fps);
 
         profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
         profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
@@ -96,15 +96,15 @@ public:
         }
 
         // ── Warmup (optional) ───────────────────────────────────────────
-        if (opts.warmup_renderer) {
+        if (opts.warmup.warmup_renderer) {
             const auto warmup_t0 = profiling::now();
             runtime::warmup_renderer(*sw_renderer, job.comp, runtime::RendererWarmupOptions{
                 .width = width,
                 .height = height,
-                .framebuffer_count = opts.warmup_framebuffers,
+                .framebuffer_count = opts.warmup.warmup_framebuffers,
                 .preallocate_framebuffers = true,
                 .touch_memory = true,
-                .render_dummy_frame = opts.warmup_dummy_frame,
+                .render_dummy_frame = opts.warmup.warmup_dummy_frame,
                 .dummy_frame = 0,
                 .quiet = false,
             });

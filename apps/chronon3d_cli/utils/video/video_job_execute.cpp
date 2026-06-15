@@ -15,26 +15,11 @@ namespace chronon3d::cli {
 
 [[nodiscard]] static FfmpegExportOptions make_ffmpeg_opts(const VideoJobPlan& plan) {
     FfmpegExportOptions opts;
-    opts.output            = plan.output.output;
-    opts.frames_dir_name   = plan.output.frames_dir_name;
-    opts.fps               = plan.output.fps;
-    opts.codec             = plan.encoder.codec;
-    opts.hardware_encoder  = plan.encoder.hardware_encoder;
-    opts.encode_preset     = plan.encoder.encode_preset;
-    opts.tune              = plan.encoder.tune;
-    opts.crf               = plan.encoder.crf;
-    opts.encoder_backend   = plan.encoder.encoder_backend;
-    opts.pipe_pixfmt       = plan.pipe.pipe_pixfmt;
-    opts.pipe_writer       = plan.pipe.pipe_writer;
-    opts.color_output      = plan.pipe.color_output;
-    opts.ffmpeg_verbose    = plan.pipe.ffmpeg_verbose;
-    opts.warmup_renderer     = plan.warmup.warmup_renderer;
-    opts.warmup_framebuffers = plan.warmup.warmup_framebuffers;
-    opts.warmup_dummy_frame  = plan.warmup.warmup_dummy_frame;
-    opts.keep_frames       = plan.sink.keep_frames;
-    opts.chunks            = plan.sink.chunks;
-    opts.ffmpeg_mode       = plan.sink.ffmpeg_mode;
-    opts.sink_type         = plan.sink.sink_type;
+    opts.output    = plan.output;
+    opts.encoder   = plan.encoder;
+    opts.pipe      = plan.pipe;
+    opts.warmup    = plan.warmup;
+    opts.sink      = plan.sink;
     return opts;
 }
 
@@ -62,13 +47,13 @@ int render_and_encode_ffmpeg(
 {
     // Safety-net validation for direct callers (e.g. command_video_camera)
     // that bypass validate_video_job().
-    if (opts.output.empty() &&
-        opts.sink_type != VideoSinkType::NullRender &&
-        opts.sink_type != VideoSinkType::NullConvert) {
+    if (opts.output.output.empty() &&
+        opts.sink.sink_type != VideoSinkType::NullRender &&
+        opts.sink.sink_type != VideoSinkType::NullConvert) {
         spdlog::error("[video] No output path specified.");
         return 1;
     }
-    if (opts.sink_type == VideoSinkType::Ffmpeg && !ffmpeg_in_path()) {
+    if (opts.sink.sink_type == VideoSinkType::Ffmpeg && !ffmpeg_in_path()) {
         spdlog::error("[video] ffmpeg not found in PATH.");
         return 1;
     }
@@ -76,20 +61,20 @@ int render_and_encode_ffmpeg(
         spdlog::error("[video] Empty frame range [{}, {})", start, end);
         return 1;
     }
-    if (opts.ffmpeg_mode != "png" && opts.ffmpeg_mode != "pipe") {
+    if (opts.sink.ffmpeg_mode != "png" && opts.sink.ffmpeg_mode != "pipe") {
         spdlog::error("[video] Unknown --ffmpeg-mode '{}'. Expected: png, pipe",
-                      opts.ffmpeg_mode);
+                      opts.sink.ffmpeg_mode);
         return 1;
     }
-    if (opts.encoder_backend == "native" && opts.ffmpeg_mode != "pipe") {
+    if (opts.encoder.encoder_backend == "native" && opts.sink.ffmpeg_mode != "pipe") {
         spdlog::error("[video] --encoder-backend native requires --ffmpeg-mode pipe");
         return 1;
     }
 
-    auto* exporter = shared_exporter_registry().find(opts.ffmpeg_mode);
+    auto* exporter = shared_exporter_registry().find(opts.sink.ffmpeg_mode);
     if (!exporter) {
         spdlog::error("[video] Unknown ffmpeg-mode '{}'. Expected one of: pipe, png",
-                      opts.ffmpeg_mode);
+                      opts.sink.ffmpeg_mode);
         return 1;
     }
 
