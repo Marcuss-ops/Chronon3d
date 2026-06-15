@@ -304,6 +304,140 @@ TEST_CASE("AnimatedValue<FillStyle> — evaluate with AnimationEvalContext") {
 }
 
 // ===========================================================================
+// AnimatedValue<StrokeStyle> — expression support
+// ===========================================================================
+
+TEST_CASE("AnimatedValue<StrokeStyle> — solid(r,g,b,a) expression") {
+    AnimatedValue<StrokeStyle> v(StrokeStyle::solid({0.0f, 0.0f, 0.0f, 1.0f}));
+    v.expression("solid(1.0, 0.5, 0.0, 1.0)");
+
+    const StrokeStyle out = v.evaluate(Frame{0});
+    CHECK(out.color.r == doctest::Approx(1.0f));
+    CHECK(out.color.g == doctest::Approx(0.5f));
+    CHECK(out.color.b == doctest::Approx(0.0f));
+    CHECK(out.color.a == doctest::Approx(1.0f));
+    // Other fields should remain at defaults
+    CHECK(out.width == doctest::Approx(1.0f));
+}
+
+TEST_CASE("AnimatedValue<StrokeStyle> — expression with frame variable") {
+    AnimatedValue<StrokeStyle> v(StrokeStyle::solid({0.0f, 0.0f, 0.0f, 1.0f}));
+    v.expression("solid(frame / 60.0, 0.0, 0.0, 1.0)");
+
+    const StrokeStyle out = v.evaluate(Frame{30});
+    CHECK(out.color.r == doctest::Approx(0.5f).epsilon(0.01f));
+}
+
+TEST_CASE("AnimatedValue<StrokeStyle> — expression with time variable") {
+    AnimatedValue<StrokeStyle> v(StrokeStyle::solid({0.0f, 0.0f, 0.0f, 1.0f}));
+    v.expression("solid(time * 0.1, 0.5, 0.8, 1.0)");
+
+    AnimationEvalContext ctx;
+    ctx.fps = 30.0f;
+
+    const StrokeStyle out = v.evaluate(Frame{30}, ctx);
+    CHECK(out.color.r == doctest::Approx(0.1f).epsilon(0.01f));
+    CHECK(out.color.g == doctest::Approx(0.5f));
+    CHECK(out.color.b == doctest::Approx(0.8f));
+}
+
+TEST_CASE("AnimatedValue<StrokeStyle> — expression with index variable") {
+    AnimatedValue<StrokeStyle> v(StrokeStyle::solid({0.0f, 0.0f, 0.0f, 1.0f}));
+    v.expression("solid(index / 10.0, 0.0, 0.0, 1.0)");
+
+    AnimationEvalContext ctx;
+    ctx.index = 5;
+
+    const StrokeStyle out = v.evaluate(Frame{0}, ctx);
+    CHECK(out.color.r == doctest::Approx(0.5f).epsilon(0.01f));
+}
+
+TEST_CASE("AnimatedValue<StrokeStyle> — expression falls back on parser error") {
+    const StrokeStyle default_val = StrokeStyle::solid({0.5f, 0.5f, 0.5f, 1.0f}, 3.0f);
+    AnimatedValue<StrokeStyle> v(default_val);
+    v.expression("unknown_var + 1");
+
+    const StrokeStyle out = v.evaluate(Frame{0});
+    CHECK(out.color.r == doctest::Approx(0.5f));
+    CHECK(out.width == doctest::Approx(3.0f));
+}
+
+TEST_CASE("AnimatedValue<StrokeStyle> — expression with keyframes") {
+    const StrokeStyle red  = StrokeStyle::solid({1.0f, 0.0f, 0.0f, 1.0f});
+    const StrokeStyle blue = StrokeStyle::solid({0.0f, 0.0f, 1.0f, 1.0f});
+
+    AnimatedValue<StrokeStyle> v(red);
+    v.key(0, red);
+    v.key(60, blue);
+    v.expression("solid(0.0, 1.0, 0.0, 1.0)");
+
+    // Expression takes priority: should always return green
+    const StrokeStyle at0  = v.evaluate(Frame{0});
+    const StrokeStyle at30 = v.evaluate(Frame{30});
+    const StrokeStyle at60 = v.evaluate(Frame{60});
+
+    CHECK(at0.color.g  == doctest::Approx(1.0f));
+    CHECK(at30.color.g == doctest::Approx(1.0f));
+    CHECK(at60.color.g == doctest::Approx(1.0f));
+}
+
+TEST_CASE("AnimatedValue<StrokeStyle> — no expression returns keyframed value") {
+    const StrokeStyle red  = StrokeStyle::solid({1.0f, 0.0f, 0.0f, 1.0f});
+    const StrokeStyle blue = StrokeStyle::solid({0.0f, 0.0f, 1.0f, 1.0f});
+
+    AnimatedValue<StrokeStyle> v(red);
+    v.key(0, red);
+    v.key(60, blue);
+
+    const StrokeStyle at30 = v.evaluate(Frame{30});
+    CHECK(at30.color.r == doctest::Approx(0.5f).epsilon(0.01f));
+    CHECK(at30.color.b == doctest::Approx(0.5f).epsilon(0.01f));
+}
+
+TEST_CASE("AnimatedValue<StrokeStyle> — expression with clamping") {
+    AnimatedValue<StrokeStyle> v(StrokeStyle::solid({0.0f, 0.0f, 0.0f, 1.0f}));
+    v.expression("solid(2.0, -0.5, 0.5, 1.0)");
+
+    const StrokeStyle out = v.evaluate(Frame{0});
+    CHECK(out.color.r == doctest::Approx(1.0f));
+    CHECK(out.color.g == doctest::Approx(0.0f));
+}
+
+TEST_CASE("AnimatedValue<StrokeStyle> — constant value returns same") {
+    const StrokeStyle teal = StrokeStyle::solid({0.0f, 0.5f, 0.5f, 1.0f}, 2.5f);
+    AnimatedValue<StrokeStyle> v(teal);
+
+    const StrokeStyle out = v.evaluate(Frame{99});
+    CHECK(out.color.g == doctest::Approx(0.5f));
+    CHECK(out.width == doctest::Approx(2.5f));
+}
+
+TEST_CASE("AnimatedValue<StrokeStyle> — default constructed returns default") {
+    AnimatedValue<StrokeStyle> v;
+    const StrokeStyle out = v.evaluate(Frame{0});
+    CHECK_FALSE(out.enabled);  // StrokeStyle default enabled=false
+    CHECK(out.width == doctest::Approx(1.0f));
+}
+
+TEST_CASE("AnimatedValue<StrokeStyle> — set() clears keyframes and expression") {
+    const StrokeStyle a = StrokeStyle::solid({1.0f, 0.0f, 0.0f, 1.0f});
+    const StrokeStyle b = StrokeStyle::solid({0.0f, 0.0f, 1.0f, 1.0f});
+
+    AnimatedValue<StrokeStyle> v(b);
+    v.key(0, a);
+    v.key(60, b);
+    v.expression("solid(0, 1, 0, 1)");
+    CHECK(v.is_animated());
+
+    v.set(a);
+    CHECK_FALSE(v.is_animated());
+    CHECK_FALSE(v.has_expression());
+
+    const StrokeStyle out = v.evaluate(Frame{99});
+    CHECK(out.color.r == doctest::Approx(1.0f));
+}
+
+// ===========================================================================
 // AnimatedValue<FillStyle> — edge cases
 // ===========================================================================
 
