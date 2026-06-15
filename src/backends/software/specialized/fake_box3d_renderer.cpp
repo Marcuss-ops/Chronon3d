@@ -80,7 +80,7 @@ void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState&
         if (!projected.visible) continue;
 
         Vec2 quad[4];
-        for (int ci = 0; ci < 4; ++ci) quad[ci] = projected.corners[ci];
+        for (int ci = 0; ci < 4; ++ci) quad[ci] = {projected.corners[ci].x, projected.corners[ci].y};
 
         float light = k_box_light.shade_ndotl(faces[fi].normal);
 

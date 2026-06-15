@@ -35,10 +35,15 @@ void render_card3d(
 ) {
     if (!card.visible || opacity <= 0.0f) return;
 
-    const Vec2& TL = card.corners[0];
-    const Vec2& TR = card.corners[1];
-    const Vec2& BR = card.corners[2];
-    const Vec2& BL = card.corners[3];
+    const Vec3& TL = card.corners[0];
+    const Vec3& TR = card.corners[1];
+    const Vec3& BR = card.corners[2];
+    const Vec3& BL = card.corners[3];
+
+    // Vec2 versions for functions that don't need Z
+    const Vec2 TL2{TL.x, TL.y}, TR2{TR.x, TR.y};
+    const Vec2 BR2{BR.x, BR.y}, BL2{BL.x, BL.y};
+    const Vec2 corners2d[4] = {TL2, TR2, BR2, BL2};
 
     const Vec2 extrude_dir = light_extrude_dir(material.light_direction);
     const float t = material.thickness_px;
@@ -74,7 +79,7 @@ void render_card3d(
         material.front_bottom_color.with_alpha(material.front_bottom_color.a * opacity),
         material.front_bottom_color.with_alpha(material.front_bottom_color.a * opacity),
     };
-    fill_gradient_quad(fb, card.corners, gc);
+    fill_gradient_quad(fb, corners2d, gc);
 
     // Edge highlight
     if (material.edge_highlight_intensity > 0.0f && material.edge_highlight_color.a > 0.0f) {
@@ -83,7 +88,7 @@ void render_card3d(
             material.edge_highlight_color.a * material.edge_highlight_intensity * opacity
         );
 
-        auto highlight_edge = [&](const Vec2& e0, const Vec2& e1, bool flip_normal) {
+        auto highlight_edge = [&](const Vec3& e0, const Vec3& e1, bool flip_normal) {
             Vec2 edge_dir = normalize_v2({e1.x - e0.x, e1.y - e0.y});
             Vec2 out_normal = flip_normal ? Vec2{edge_dir.y, -edge_dir.x} : Vec2{-edge_dir.y, edge_dir.x};
             Vec2 center = {(TL.x + TR.x + BR.x + BL.x) * 0.25f, (TL.y + TR.y + BR.y + BL.y) * 0.25f};
@@ -110,7 +115,7 @@ void render_card3d(
             material.rim_light_color.a * material.rim_light_intensity * opacity * 0.5f
         );
 
-        auto rim_edge = [&](const Vec2& e0, const Vec2& e1) {
+        auto rim_edge = [&](const Vec3& e0, const Vec3& e1) {
             Vec2 edge_dir = normalize_v2({e1.x - e0.x, e1.y - e0.y});
             Vec2 out_normal = {-edge_dir.y, edge_dir.x};
             Vec2 center = {(TL.x + TR.x + BR.x + BL.x) * 0.25f, (TL.y + TR.y + BR.y + BL.y) * 0.25f};

@@ -27,12 +27,13 @@ rendering::ProjectedCard make_flat_card(float cx, float cy, float w, float h) {
     rendering::ProjectedCard card;
     const float hw = w * 0.5f;
     const float hh = h * 0.5f;
-    card.corners[0] = {cx - hw, cy - hh}; // TL
-    card.corners[1] = {cx + hw, cy - hh}; // TR
-    card.corners[2] = {cx + hw, cy + hh}; // BR
-    card.corners[3] = {cx - hw, cy + hh}; // BL
+    const float z = 500.0f;  // depth
+    card.corners[0] = {cx - hw, cy - hh, z}; // TL
+    card.corners[1] = {cx + hw, cy - hh, z}; // TR
+    card.corners[2] = {cx + hw, cy + hh, z}; // BR
+    card.corners[3] = {cx - hw, cy + hh, z}; // BL
     card.visible = true;
-    card.depth = 500.0f;
+    card.depth = z;
     return card;
 }
 
