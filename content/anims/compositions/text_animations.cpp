@@ -270,7 +270,7 @@ Composition anim_slide_up() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
-        const f32 p = std::min(1.0f, ctx.progress() * 3.0f);
+        const f32 p = std::min(1.0f, static_cast<f32>(ctx.progress()) * 3.0f);
         const f32 eased = interpolate(p, 0.0f, 0.30f, 0.0f, 1.0f, Easing::OutCubic);
         s.layer("text", [p, eased](LayerBuilder& l) {
             l.pin_to(Anchor::Center)
@@ -289,7 +289,7 @@ Composition anim_scale_pop() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
-        const f32 p = std::min(1.0f, ctx.progress() * 3.0f);
+        const f32 p = std::min(1.0f, static_cast<f32>(ctx.progress()) * 3.0f);
         const f32 sv = interpolate(p, 0.0f, 0.30f, 0.6f, 1.0f, Easing::OutBack);
         s.layer("text", [p, sv](LayerBuilder& l) {
             l.pin_to(Anchor::Center)
@@ -327,7 +327,7 @@ Composition anim_slide_left() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
-        const f32 p = std::min(1.0f, ctx.progress() * 3.0f);
+        const f32 p = std::min(1.0f, static_cast<f32>(ctx.progress()) * 3.0f);
         const f32 eased = interpolate(p, 0.0f, 0.30f, 0.0f, 1.0f, Easing::OutCubic);
         s.layer("text", [p, eased](LayerBuilder& l) {
             l.pin_to(Anchor::Center)
@@ -346,7 +346,7 @@ Composition anim_bounce_drop() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
-        const f32 p = std::min(1.0f, ctx.progress() * 2.5f);
+        const f32 p = std::min(1.0f, static_cast<f32>(ctx.progress()) * 2.5f);
         const f32 y_offset = interpolate(p, 0.0f, 0.30f, -230.0f, BASE_Y, Easing::OutBounce);
         s.layer("text", [p, y_offset](LayerBuilder& l) {
             l.pin_to(Anchor::Center)
