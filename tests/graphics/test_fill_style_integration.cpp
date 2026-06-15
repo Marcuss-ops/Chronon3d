@@ -242,6 +242,206 @@ TEST_CASE("Radial gradient fills centre white, edge blue") {
 }
 
 // ===========================================================================
+// Stroke gradient rendering
+// ===========================================================================
+//
+// NOTE: The stroke rasterizer has a hit-test quirk where left/top stroke
+// bands are excluded (inner/outer rects start at local (0,0) rather than
+// at half-stroke offset).  Right/bottom outer strokes are correctly hit.
+// We sample at the RIGHT outer stroke (screen x ~170, y at centre).
+//
+// The rect is smaller than the framebuffer so the outer stroke half
+// (outside the rect) falls within the framebuffer and is not shadowed
+// by the fill (fill_hit is false outside the rect bounds).
+//
+// Color must have alpha > 0 to avoid the early return in
+// draw_transformed_shape (shape_rasterizer.cpp line ~182).
+
+TEST_CASE("StrokeStyle linear gradient renders right stroke gradient") {
+    constexpr int W = 200, H = 200;
+    constexpr f32 RECT_W = 120.0f, STROKE_W = 20.0f;
+
+    // Red->blue horizontal gradient stroke.
+    auto stops = std::vector<gfx::GradientStop>{
+        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+    };
+    const auto stroke = gfx::StrokeStyle::linear_gradient(
+        {0.0f, 0.5f}, {1.0f, 0.5f}, stops, STROKE_W);
+
+    Composition comp(CompositionSpec{.name = "StrokeGrad", .width = W, .height = H, .duration = 1},
+        [&](const FrameContext& ctx) {
+            SceneBuilder s(ctx);
+            // Use opaque color so the rasterizer doesn't early-return.
+            // The rect is SMALLER than the framebuffer so the outer
+            // half of the Center-aligned stroke falls inside the FB.
+            s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {0,0,0},
+                .stroke = stroke});
+            return s.build();
+        });
+
+    auto fb = render_frame(comp, Frame{0});
+    REQUIRE(fb != nullptr);
+
+    // Right outer stroke at screen x ~170, y ~100 (center of rect).
+    // Local x ≈ 130, which is outside the rect (120) but inside the
+    // outer stroke (140).  Gradient at t=1 → blue.
+    Color right_stroke = fb->get_pixel(170, 100);
+    CHECK(right_stroke.b > 0.7f);
+    CHECK(right_stroke.r < 0.4f);
+
+    // Inside the rect (fill area) should be opaque white.
+    Color interior = fb->get_pixel(60, 100);
+    CHECK(interior.r > 0.9f);
+    CHECK(interior.g > 0.9f);
+    CHECK(interior.b > 0.9f);
+}
+
+// ===========================================================================
+// Animated stroke gradient via KeyframeTrack
+// ===========================================================================
+
+TEST_CASE("KeyframeTrack<StrokeStyle> animates gradient red-blue to green-yellow stroke") {
+    constexpr int W = 200, H = 200;
+    constexpr f32 RECT_W = 120.0f, STROKE_W = 20.0f;
+
+    auto stops_a = std::vector<gfx::GradientStop>{
+        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+    };
+    const auto grad_a = gfx::StrokeStyle::linear_gradient(
+        {0.0f, 0.5f}, {1.0f, 0.5f}, stops_a, STROKE_W);
+
+    auto stops_b = std::vector<gfx::GradientStop>{
+        {0.0f, {0.0f, 1.0f, 0.0f, 1.0f}},
+        {1.0f, {1.0f, 1.0f, 0.0f, 1.0f}},
+    };
+    const auto grad_b = gfx::StrokeStyle::linear_gradient(
+        {0.0f, 0.5f}, {1.0f, 0.5f}, stops_b, STROKE_W);
+
+    KeyframeTrack<gfx::StrokeStyle> stroke_track;
+    stroke_track.key(Frame{0},  grad_a)
+                .key(Frame{60}, grad_b);
+
+    // Frame 0: red->blue stroke → right edge is blue.
+    {
+        Composition comp(CompositionSpec{.name = "SA0", .width = W, .height = H, .duration = 1},
+            [&](const FrameContext& ctx) {
+                SceneBuilder s(ctx);
+                s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {0,0,0},
+                    .stroke = stroke_track.sample_at(0.0f)});
+                return s.build();
+            });
+        auto fb = render_frame(comp, Frame{0});
+        REQUIRE(fb != nullptr);
+        Color rs = fb->get_pixel(170, 100);
+        CHECK(rs.b > 0.7f);
+    }
+
+    // Frame 60: green->yellow stroke → right edge is green+yellow.
+    {
+        Composition comp(CompositionSpec{.name = "SA60", .width = W, .height = H, .duration = 1},
+            [&](const FrameContext& ctx) {
+                SceneBuilder s(ctx);
+                s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {0,0,0},
+                    .stroke = stroke_track.sample_at(60.0f)});
+                return s.build();
+            });
+        auto fb = render_frame(comp, Frame{60});
+        REQUIRE(fb != nullptr);
+        Color rs = fb->get_pixel(170, 100);
+        CHECK(rs.g > 0.5f);
+    }
+
+    // Frame 30: interpolated.
+    {
+        Composition comp(CompositionSpec{.name = "SA30", .width = W, .height = H, .duration = 1},
+            [&](const FrameContext& ctx) {
+                SceneBuilder s(ctx);
+                s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {0,0,0},
+                    .stroke = stroke_track.sample_at(30.0f)});
+                return s.build();
+            });
+        auto fb = render_frame(comp, Frame{30});
+        REQUIRE(fb != nullptr);
+        Color rs = fb->get_pixel(170, 100);
+        // Interpolated: sRGB(0.5, 0.5, 0.5) → linear ≈ 0.218.
+        CHECK(rs.r > 0.15f);
+        CHECK(rs.g > 0.15f);
+        CHECK(rs.b > 0.15f);
+    }
+}
+
+// ===========================================================================
+// Solid -> gradient stroke morph
+// ===========================================================================
+
+TEST_CASE("KeyframeTrack<StrokeStyle> morphs solid white stroke to red-blue gradient") {
+    constexpr int W = 200, H = 200;
+    constexpr f32 RECT_W = 120.0f, STROKE_W = 20.0f;
+
+    const auto solid_white = gfx::StrokeStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}, STROKE_W);
+
+    auto stops = std::vector<gfx::GradientStop>{
+        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+    };
+    const auto grad_rb = gfx::StrokeStyle::linear_gradient(
+        {0.0f, 0.5f}, {1.0f, 0.5f}, stops, STROKE_W);
+
+    KeyframeTrack<gfx::StrokeStyle> stroke_track;
+    stroke_track.key(Frame{0},  solid_white)
+                .key(Frame{60}, grad_rb);
+
+    // Frame 0: solid white stroke → right edge is white.
+    {
+        Composition comp(CompositionSpec{.name = "SS0", .width = W, .height = H, .duration = 1},
+            [&](const FrameContext& ctx) {
+                SceneBuilder s(ctx);
+                s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {0,0,0},
+                    .stroke = stroke_track.sample_at(0.0f)});
+                return s.build();
+            });
+        auto fb = render_frame(comp, Frame{0});
+        REQUIRE(fb != nullptr);
+        Color c = fb->get_pixel(170, 100);
+        CHECK(c.r > 0.9f);
+        CHECK(c.g > 0.9f);
+        CHECK(c.b > 0.9f);
+    }
+
+    // Frame 60: red->blue gradient stroke → right edge is blue.
+    {
+        Composition comp(CompositionSpec{.name = "SS60", .width = W, .height = H, .duration = 1},
+            [&](const FrameContext& ctx) {
+                SceneBuilder s(ctx);
+                s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {0,0,0},
+                    .stroke = stroke_track.sample_at(60.0f)});
+                return s.build();
+            });
+        auto fb = render_frame(comp, Frame{60});
+        REQUIRE(fb != nullptr);
+        CHECK(fb->get_pixel(170, 100).b > 0.7f);
+    }
+
+    // Frame 30: interpolated → right edge has visible color.
+    {
+        Composition comp(CompositionSpec{.name = "SS30", .width = W, .height = H, .duration = 1},
+            [&](const FrameContext& ctx) {
+                SceneBuilder s(ctx);
+                s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {0,0,0},
+                    .stroke = stroke_track.sample_at(30.0f)});
+                return s.build();
+            });
+        auto fb = render_frame(comp, Frame{30});
+        REQUIRE(fb != nullptr);
+        Color rs = fb->get_pixel(170, 100);
+        // Interpolated: lerp(white, blue, 0.5) at right edge → linear ≈ 0.5.
+        CHECK(rs.b > 0.4f);
+    }
+}
+
+// ===========================================================================
 // Determinism test
 // ===========================================================================
 
