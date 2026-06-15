@@ -23,6 +23,7 @@ struct AnimatedTransform {
         t.scale    = scale.evaluate(time);
         t.anchor   = anchor.evaluate(time);
         t.opacity  = opacity.evaluate(time);
+        t.blur     = blur.evaluate(time);
         return t;
     }
 
