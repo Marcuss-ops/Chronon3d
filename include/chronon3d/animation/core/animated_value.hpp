@@ -10,6 +10,13 @@
 #include <type_traits>
 #include <unordered_map>
 
+// Helper: detect glm vector types (vec2, vec3, vec4) for spatial roving.
+template<typename T>
+inline constexpr bool is_glm_vec_type_v =
+    std::is_same_v<T, glm::vec2> ||
+    std::is_same_v<T, glm::vec3> ||
+    std::is_same_v<T, glm::vec4>;
+
 namespace chronon3d {
 
 // Generic component-wise lerp used by AnimatedValue<T>.
@@ -75,7 +82,11 @@ public:
     // Recompute roving keyframe timing for constant velocity.
     // For each group of consecutive roving keyframes between two non-roving
     // anchors, redistributes their frames so velocity is constant.
-    void compute_roving() {
+    //
+    // This method is callable on const objects because it's a lazy cache
+    // operation triggered automatically during evaluate().  The mutable
+    // qualifiers on m_keyframes and m_roving_dirty allow this.
+    void compute_roving() const {
         if (!m_roving_dirty) return;
         if (m_keyframes.size() < 3) { m_roving_dirty = false; return; }
 
@@ -130,7 +141,7 @@ public:
                         )};
                     }
                 }
-            } else if constexpr (requires(const T& a, const T& b) { glm::length(a - b); }) {
+            } else if constexpr (is_glm_vec_type_v<T>) {
                 // Spatial types (Vec3, etc.): roving based on spatial distance
                 const f32 total_dist = glm::length(m_keyframes[right].value - m_keyframes[left].value);
                 if (total_dist < 1e-7f || dt <= 0.0f) {
@@ -280,6 +291,10 @@ public:
 private:
     // Core interpolation engine — works with double precision for sub-frame accuracy.
     [[nodiscard]] T evaluate_base_double(double frame) const {
+        // Auto-compute roving before evaluation if dirty.
+        if (m_roving_dirty) {
+            compute_roving();
+        }
         if (m_keyframes.empty()) {
             return m_default_value;
         }
@@ -354,10 +369,10 @@ private:
 
 
     T m_default_value{};
-    std::vector<Keyframe<T>> m_keyframes;
+    mutable std::vector<Keyframe<T>> m_keyframes;
     LoopMode m_loop_mode{LoopMode::Hold};
     std::string m_expression;
-    bool m_roving_dirty{false};
+    mutable bool m_roving_dirty{false};
 };
 
 } // namespace chronon3d

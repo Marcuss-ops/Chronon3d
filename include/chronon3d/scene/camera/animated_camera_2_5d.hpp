@@ -93,11 +93,15 @@ struct AnimatedCamera2_5D {
     }
 
     /// Return true if any property depends on time (keyframes or expression).
+    /// Includes physical lens parameters that affect the visual result
+    /// (focal_length, sensor_width, f_stop, focus_distance).
     [[nodiscard]] bool is_time_dependent() const {
         return position.is_time_dependent() || rotation.is_time_dependent() ||
                zoom.is_time_dependent()     || fov_deg.is_time_dependent() ||
                point_of_interest.is_time_dependent() ||
-               focus_z.is_time_dependent()  || aperture.is_time_dependent() || max_blur.is_time_dependent();
+               focus_z.is_time_dependent()  || aperture.is_time_dependent() || max_blur.is_time_dependent() ||
+               focal_length.is_time_dependent() || sensor_width.is_time_dependent() ||
+               f_stop.is_time_dependent()   || focus_distance.is_time_dependent();
     }
 };
 

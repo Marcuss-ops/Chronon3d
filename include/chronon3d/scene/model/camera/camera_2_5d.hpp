@@ -108,6 +108,12 @@ struct Camera2_5D {
 
     DepthOfFieldSettings dof;
 
+    // Motion blur settings — populated by CameraRig::evaluate() and
+    // AnimatedCamera2_5D flows.  The render pipeline prefers camera-level
+    // motion blur over the global RenderSettings value when the camera
+    // has explicit motion blur configuration.
+    MotionBlurSettings motion_blur{};
+
     [[nodiscard]] Quat rotation_quaternion() const {
         return math::camera_rotation_quat(rotation);
     }

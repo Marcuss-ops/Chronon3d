@@ -1,4 +1,5 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d {
 
@@ -66,7 +67,28 @@ Camera2_5D CameraRig::evaluate(
     }
 
     cam.dof.enabled = dof.enabled;
-    cam.dof.focus_z = dof.use_target_z ? resolved_target.z : dof.focus_z.evaluate(time);
+
+    // Focus: resolve focus_target_name if set (can differ from rig target).
+    // Compute camera-space focus distance for the physical model.
+    if (dof.use_target_z) {
+        Vec3 focus_target_world = resolved_target;
+        if (resolved && !dof.focus_target_name.empty()) {
+            if (auto ft_world = resolved->world_position(dof.focus_target_name)) {
+                focus_target_world = *ft_world;
+            } else {
+                spdlog::warn("CameraRig '{}': focus_target '{}' not found in resolver, "
+                             "falling back to rig target",
+                             name, dof.focus_target_name);
+            }
+        }
+        // Camera-space distance — correct for orbiting/rotated cameras.
+        const f32 focus_dist = glm::length(focus_target_world - pos);
+        cam.dof.focus_distance = focus_dist;
+        cam.dof.focus_z = focus_target_world.z;
+    } else {
+        cam.dof.focus_z = dof.focus_z.evaluate(time);
+    }
+
     cam.dof.aperture = dof.aperture.evaluate(time);
     cam.dof.max_blur = dof.max_blur.evaluate(time);
 
@@ -76,6 +98,26 @@ Camera2_5D CameraRig::evaluate(
     cam.dof.f_stop              = dof.f_stop.evaluate(time);
     cam.dof.focus_distance      = dof.focus_distance.evaluate(time);
     cam.dof.use_physical_model  = dof.use_physical_model;
+
+    // ── Mark camera as animated if any property has keyframes/expressions ────
+    cam.is_animated =
+        target.is_time_dependent() || orbit_yaw.is_time_dependent() ||
+        orbit_pitch.is_time_dependent() || orbit_radius.is_time_dependent() ||
+        track.is_time_dependent() || dolly.is_time_dependent() ||
+        pan.is_time_dependent() || tilt.is_time_dependent() || roll.is_time_dependent() ||
+        zoom.is_time_dependent() || fov_deg.is_time_dependent() ||
+        dof.focus_z.is_time_dependent() || dof.aperture.is_time_dependent() || dof.max_blur.is_time_dependent() ||
+        dof.focal_length.is_time_dependent() || dof.sensor_width.is_time_dependent() ||
+        dof.f_stop.is_time_dependent() || dof.focus_distance.is_time_dependent();
+
+    // ── Propagate motion blur from rig to camera ────────────────────────────
+    cam.motion_blur.enabled          = motion_blur.enabled;
+    cam.motion_blur.samples          = motion_blur.samples;
+    cam.motion_blur.shutter_angle_deg = motion_blur.shutter_angle_deg;
+    cam.motion_blur.shutter_phase_deg = motion_blur.shutter_phase_deg;
+    cam.motion_blur.pattern          = motion_blur.pattern;
+    cam.motion_blur.filter           = motion_blur.filter;
+    cam.motion_blur.jitter_seed      = motion_blur.jitter_seed;
 
     return cam;
 }
