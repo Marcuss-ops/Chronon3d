@@ -58,6 +58,9 @@ public:
     /// Clear all registered shapes (used in tests for clean reset).
     void clear();
 
+    /// Clear all shapes and re-register built-in shapes.
+    void reset();
+
 private:
     std::map<std::string, ShapeDescriptor, std::less<>> m_shapes;
 };

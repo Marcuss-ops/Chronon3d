@@ -8,26 +8,26 @@ using namespace chronon3d;
 // ── hash_noise tests ─────────────────────────────────────────────────────────
 
 TEST_CASE("hash_noise: deterministic for same input") {
-    f32 a = detail::hash_noise(42, 0);
-    f32 b = detail::hash_noise(42, 0);
+    f32 a = chronon3d::detail::hash_noise(42, 0);
+    f32 b = chronon3d::detail::hash_noise(42, 0);
     CHECK(a == doctest::Approx(b));
 }
 
 TEST_CASE("hash_noise: different for different input") {
-    f32 a = detail::hash_noise(1, 0);
-    f32 b = detail::hash_noise(2, 0);
+    f32 a = chronon3d::detail::hash_noise(1, 0);
+    f32 b = chronon3d::detail::hash_noise(2, 0);
     CHECK(a != doctest::Approx(b));
 }
 
 TEST_CASE("hash_noise: different seeds produce different values") {
-    f32 a = detail::hash_noise(1, 0);
-    f32 b = detail::hash_noise(1, 100);
+    f32 a = chronon3d::detail::hash_noise(1, 0);
+    f32 b = chronon3d::detail::hash_noise(1, 100);
     CHECK(a != doctest::Approx(b));
 }
 
 TEST_CASE("hash_noise: output range [-1, 1]") {
     for (int i = 0; i < 100; ++i) {
-        f32 v = detail::hash_noise(i, 7);
+        f32 v = chronon3d::detail::hash_noise(i, 7);
         CHECK(v >= -1.0f);
         CHECK(v <= 1.0f);
     }
@@ -36,14 +36,14 @@ TEST_CASE("hash_noise: output range [-1, 1]") {
 // ── smooth_noise tests ───────────────────────────────────────────────────────
 
 TEST_CASE("smooth_noise: deterministic") {
-    f32 a = detail::smooth_noise(1.5f, 0);
-    f32 b = detail::smooth_noise(1.5f, 0);
+    f32 a = chronon3d::detail::smooth_noise(1.5f, 0);
+    f32 b = chronon3d::detail::smooth_noise(1.5f, 0);
     CHECK(a == doctest::Approx(b));
 }
 
 TEST_CASE("smooth_noise: continuous (no discontinuities at integers)") {
-    f32 left = detail::smooth_noise(4.999f, 0);
-    f32 right = detail::smooth_noise(5.001f, 0);
+    f32 left = chronon3d::detail::smooth_noise(4.999f, 0);
+    f32 right = chronon3d::detail::smooth_noise(5.001f, 0);
     CHECK(std::abs(left - right) < 0.5f);  // smoothstep ensures continuity
 }
 

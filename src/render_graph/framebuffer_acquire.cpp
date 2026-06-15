@@ -298,8 +298,20 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     copy.tile.tile_size             = tile.tile_size;
     copy.tile.tile_execution_enabled = tile.tile_execution_enabled;
     copy.tile.active_tile_clip      = tile.active_tile_clip;
-    copy.scratch.transform_scratch = scratch.transform_scratch;
-    copy.scratch.ping_write          = scratch.ping_write;
+    // When tile execution is enabled, don't copy the scratch buffer pointers —
+    // each tile falls back to pool allocation instead.  This avoids data races
+    // when multiple tiles execute transform nodes in parallel on the same
+    // scratch slot (FramebufferSlotView contains raw pointers; copying them
+    // would let multiple tiles simultaneously acquire and mutate the same buffer).
+    // In non-tile mode the scratch buffer is safe (single-threaded) and remains
+    // available as an optimization.
+    if (tile.tile_execution_enabled) {
+        copy.scratch.transform_scratch = {};
+        copy.scratch.ping_write          = {};
+    } else {
+        copy.scratch.transform_scratch = scratch.transform_scratch;
+        copy.scratch.ping_write          = scratch.ping_write;
+    }
 
     // ── Vectors — selectively copy only what node.execute() may read ────
     // • early_exit_skip:  checked against the *parent* ctx before the copy
