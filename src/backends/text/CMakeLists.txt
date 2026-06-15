@@ -23,4 +23,7 @@ if(CHRONON3D_ENABLE_TEXT)
         harfbuzz::harfbuzz
     )
 endif()
+if(CHRONON3D_USE_FRIBIDI)
+    target_link_libraries(chronon3d_backend_text PUBLIC fribidi)
+endif()
 target_include_directories(chronon3d_backend_text PRIVATE ${CMAKE_SOURCE_DIR})

@@ -84,7 +84,7 @@ void ExtensionRegistry::clear_modules() {
     // starts from a truly clean state (no effects, shapes, graph
     // nodes, or build passes left over from a previous session).
     effects::EffectRegistry::instance().clear();
-    registry::ShapeRegistry::instance().clear();
+    registry::ShapeRegistry::instance().reset();  // clear + re-register builtins
     graph::GraphBuildRegistry::instance().clear();
     graph::GraphNodeRegistry::instance().clear();
 

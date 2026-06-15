@@ -194,4 +194,9 @@ void ShapeRegistry::clear() {
     m_shapes.clear();
 }
 
+void ShapeRegistry::reset() {
+    clear();
+    register_builtin_shapes(*this);
+}
+
 } // namespace chronon3d::registry
