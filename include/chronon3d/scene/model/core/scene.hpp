@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/scene/model/render/render_node.hpp>
+#include <filesystem>
 #include <chronon3d/scene/model/layer/layer.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/layer/layer_hierarchy.hpp>
@@ -131,6 +132,9 @@ public:
 
     [[nodiscard]] std::pmr::memory_resource* resource() const { return m_nodes.get_allocator().resource(); }
 
+    [[nodiscard]] const std::filesystem::path& assets_root() const { return m_assets_root; }
+    void set_assets_root(std::filesystem::path root) { m_assets_root = std::move(root); }
+
 private:
     std::pmr::vector<RenderNode> m_nodes;
     std::pmr::vector<Layer> m_layers;
@@ -139,6 +143,7 @@ private:
     rendering::RimLight m_rim{};
     rendering::DepthGrade m_depth_grade{};
     bool m_hierarchy_baked{false};
+    std::filesystem::path m_assets_root;
 };
 
 } // namespace chronon3d

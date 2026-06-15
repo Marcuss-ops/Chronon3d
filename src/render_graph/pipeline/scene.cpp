@@ -26,6 +26,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/trace_categories.hpp>
 #include <chronon3d/core/config.hpp>
+#include <chronon3d/assets/asset_registry.hpp>
 
 #include "helpers.hpp"
 #include "scene_internal.hpp"
@@ -69,6 +70,24 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         backend, node_cache, camera, width, height, frame, frame_time,
         settings, registry, video_decoder, fps
     );
+
+    // Thread the per-composition assets root through to the render context
+    // and set the thread-local guard so AssetRegistry::resolve() uses the
+    // correct root for this render job, even when multiple compositions
+    // are rendered concurrently on different threads.
+    // Uses an RAII guard so that early returns (fast-path reuse, etc.)
+    // always clear the thread-local on any exit path.
+    struct AssetRootGuard {
+        bool active{false};
+        ~AssetRootGuard() {
+            if (active) AssetRegistry::clear_thread_local_root();
+        }
+    } root_guard;
+    if (const auto& root = scene.assets_root(); !root.empty()) {
+        ctx.frame.assets_root = root.string();
+        AssetRegistry::set_thread_local_root(root);
+        root_guard.active = true;
+    }
 
     ctx.camera.light_context = scene.light_context();
     const auto resolved_camera = resolve_scene_camera(scene);
@@ -283,6 +302,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             resolved, frame_fp, dirty_out, width, height);
     }
 
+    // RAII: AssetRootGuard (declared at start of function) cleans up
+    // the thread-local assets root on any return path.
     return exec_result.fb;
 }
 

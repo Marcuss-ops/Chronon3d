@@ -79,6 +79,7 @@ struct RenderFrameInfo {
     float fps{30.0f};
     int width{0};
     int height{0};
+    std::string assets_root;  // per-composition assets directory (thread-safe resolve)
 };
 
 // ── Camera + projection + lighting (everything geometry-related) ──────────

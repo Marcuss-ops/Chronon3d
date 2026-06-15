@@ -3,6 +3,7 @@
 #include <chronon3d/core/types/time.hpp>
 #include <algorithm>
 #include <memory_resource>
+#include <string>
 
 namespace chronon3d {
 
@@ -14,6 +15,7 @@ struct FrameContext {
     FrameRate frame_rate{30, 1};
     i32 width{1920};
     i32 height{1080};
+    std::string assets_root;
     std::pmr::memory_resource* resource{std::pmr::get_default_resource()};
 
     [[nodiscard]] double fps() const { return frame_rate.fps(); }
