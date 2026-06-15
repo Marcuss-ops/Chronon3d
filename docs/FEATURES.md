@@ -35,7 +35,6 @@ auto result_file = chronon3d::assets::load_svg_path_file("assets/my_icon.svg");
 | `C` / `c` | Cubic bezier | ✅ |
 | `Q` / `q` | Quadratic bezier | ✅ |
 | `Z` / `z` | Close path | N/A |
-| `A` / `a` | Arc (SVG elliptical) | ✅ |
 
 ### Limitations (V1)
 
