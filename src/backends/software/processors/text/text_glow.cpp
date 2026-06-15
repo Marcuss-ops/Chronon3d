@@ -27,6 +27,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/effects/glow_pipeline.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/simd/kernels.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <array>
 #include <cmath>
@@ -117,8 +118,8 @@ struct PaddedMask {
 }
 
 /// Convert a BLImage (PRGB32 format) to a Framebuffer.
-/// PRGB32 stores premultiplied RGBA, so we un-premultiply on read:
-///   RGB = stored_RGB * (255.0 / alpha)  to recover the original color.
+/// PRGB32 stores premultiplied RGBA, so we un-premultiply on read.
+/// Uses SIMD-accelerated row conversion (chronon3d::simd::bl_image_prgb32_to_color_row).
 [[nodiscard]] static inline std::shared_ptr<Framebuffer> bl_image_to_framebuffer(const BLImage& img) {
     const int w = img.width();
     const int h = img.height();
@@ -128,25 +129,15 @@ struct PaddedMask {
         const int stride = static_cast<int>(md.stride / sizeof(uint32_t));
         const auto* px = static_cast<const uint32_t*>(md.pixelData);
         for (int y = 0; y < h; ++y) {
-            for (int x = 0; x < w; ++x) {
-                const uint32_t p = px[y * stride + x];
-                const float a = static_cast<float>((p >> 24) & 0xFF) / 255.0f;
-                if (a > 0.0f) {
-                    const float inv_a = 1.0f / a;
-                    fb->set_pixel(x, y, Color{
-                        std::clamp(((p >> 16) & 0xFF) / 255.0f * inv_a, 0.0f, 1.0f),
-                        std::clamp(((p >>  8) & 0xFF) / 255.0f * inv_a, 0.0f, 1.0f),
-                        std::clamp(( p        & 0xFF) / 255.0f * inv_a, 0.0f, 1.0f),
-                        a
-                    });
-                }
-            }
+            chronon3d::simd::bl_image_prgb32_to_color_row(
+                fb->pixels_row(y), px + y * stride, w);
         }
     }
     return fb;
 }
 
 /// Convert a Framebuffer to a BLImage (PRGB32 format).
+/// Uses SIMD-accelerated row conversion (chronon3d::simd::color_to_prgb32_row).
 [[nodiscard]] static inline BLImage framebuffer_to_bl_image(const Framebuffer& fb) {
     const int w = fb.width();
     const int h = fb.height();
@@ -157,17 +148,8 @@ struct PaddedMask {
         const int stride = static_cast<int>(md.stride / sizeof(uint32_t));
         auto* px = static_cast<uint32_t*>(md.pixelData);
         for (int y = 0; y < h; ++y) {
-            const Color* row = fb.pixels_row(y);
-            for (int x = 0; x < w; ++x) {
-                const Color& c = row[x];
-                // PRGB32 requires premultiplied alpha: RGB × alpha
-                const float pa = std::clamp(c.a, 0.0f, 1.0f);
-                px[y * stride + x] =
-                    (static_cast<uint32_t>(pa * 255.0f + 0.5f) << 24) |
-                    (static_cast<uint32_t>(std::clamp(c.r * pa, 0.0f, 1.0f) * 255.0f + 0.5f) << 16) |
-                    (static_cast<uint32_t>(std::clamp(c.g * pa, 0.0f, 1.0f) * 255.0f + 0.5f) <<  8) |
-                     static_cast<uint32_t>(std::clamp(c.b * pa, 0.0f, 1.0f) * 255.0f + 0.5f);
-            }
+            chronon3d::simd::color_to_prgb32_row(
+                px + y * stride, fb.pixels_row(y), w);
         }
     }
     return img;

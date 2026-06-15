@@ -99,7 +99,6 @@ endif()
 if(CHRONON3D_ENABLE_VIDEO)
     add_compile_definitions(CHRONON3D_ENABLE_VIDEO)
 endif()
-endif()
 
 if(CHRONON3D_UNITY_BUILD)
     set(CMAKE_UNITY_BUILD ON)
@@ -142,8 +141,6 @@ if(CHRONON3D_ENABLE_EXR)
 endif()
 
 if(CHRONON3D_ENABLE_LIBYUV)
-    find_package(libyuv CONFIG REQUIRED)
-endif()
     find_package(libyuv CONFIG REQUIRED)
 endif()
 
