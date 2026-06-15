@@ -67,8 +67,10 @@ void NodeCache::clear() {
     m_cache.clear();
 }
 
-void NodeCache::set_capacity(size_t /*capacity_bytes*/) {
-    // LruCache doesn't support dynamic capacity resize yet.
+void NodeCache::set_capacity(size_t capacity_bytes) {
+    if (capacity_bytes > 0) {
+        m_cache.resize(capacity_bytes);
+    }
 }
 
 bool NodeCache::erase(const NodeCacheKey& key) {

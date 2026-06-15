@@ -129,6 +129,19 @@ public:
         m_evictions.store(0);
     }
 
+    /// Resize the cache capacity.  If the new capacity is smaller than the
+    /// current weight, the least-recently-used entries are evicted until the
+    /// weight fits.  If the new capacity is zero, nothing changes.
+    void resize(size_t new_capacity_weight) {
+        if (new_capacity_weight == 0) return;
+        const size_t shard_cap = std::max(size_t{1}, new_capacity_weight / m_shards.size());
+        for (auto& shard : m_shards) {
+            std::lock_guard lock(shard->mutex);
+            shard->capacity_weight = shard_cap;
+            shard->evict_if_needed(0, m_evictions);
+        }
+    }
+
     LruCache& operator=(LruCache&& other) noexcept {
         if (this != &other) {
             m_shards = std::move(other.m_shards);
