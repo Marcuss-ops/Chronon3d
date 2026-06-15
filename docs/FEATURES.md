@@ -35,6 +35,7 @@ auto result_file = chronon3d::assets::load_svg_path_file("assets/my_icon.svg");
 | `C` / `c` | Cubic bezier | ✅ |
 | `Q` / `q` | Quadratic bezier | ✅ |
 | `Z` / `z` | Close path | N/A |
+| `A` / `a` | Arc (SVG elliptical) | ✅ |
 
 ### Limitations (V1)
 
@@ -56,16 +57,27 @@ Chronon3d has a fully-functional, cache-invalidation-safe Text V1 layout engine 
 | **Auto-Fit** | Binary-search algorithm to scale text down to fit a target box |
 | **Layout Presets** | Predefined templates: `headline`, `subtitle`, `lower_third`, `quote`, `breaking_news`, `luxury_gold`, `neon` |
 | **Subtitles** | Standard cues, word timings, highlight models |
-| **HarfBuzz Shaping** | Glyph positioning for Latin and simple UTF-8 scripts |
-| **Per-glyph Animation** | `TextAnimMode::ByGlyph` with cluster substring extraction |
+| **HarfBuzz Shaping** | Full glyph positioning via `hb_shape()` with auto-detection of script, direction, and language |
+| **Bidi Segmentation** | Right-to-left text support via FriBidi (`bidi_segmenter.cpp`). Auto-detects Arabic, Hebrew, and other RTL scripts |
+| **Text Direction** | `TextDirection::Auto/RTL/LTR` with HarfBuzz auto-detection from Unicode character ranges |
+| **Per-glyph Animation** | `TextAnimMode::ByGlyph` with cluster substring extraction via `PlacedGlyphRun` |
+| **PlacedGlyphRun** | Canonical glyph positioning with tracking-aware advances and cluster info. Single source of truth for fill, stroke, typewriter, and TextAnimator |
+| **Text Gradient Fill** | Linear, radial, and conic gradient fills via `FillStyle` / `apply_text_fill_style()` |
+| **Text Stroke** | Stroke with HarfBuzz-shaped glyphs via `FtGlyphPathBuilder` (consistent GSUB for Arabic, Devanagari, etc.) |
+| **Text Material** | Premium effects: gradient fill, bevel, top highlight, bottom shade, inner shadow, emissive boost. Presets: `premium()`, `neon()`, `glass()`, `flat()` |
+| **Glyph Atlas** | Per-glyph LRU cache (32MB, 8 shards) keyed by `(font_path, glyph_id, font_size)` |
+| **Pre-shaped Bypass** | Typewriter/TextAnimator can pass pre-shaped `PlacedGlyphRun` to skip re-shaping |
 
 ### Limitations
 
 > [!IMPORTANT]
-> **Unicode & Language Support**: Text V1 wrapping and layout engine measures strings byte-by-byte (`char`). It is friendly with Latin / simple UTF-8 languages (English, Italian, Spanish, Portuguese, etc.). Global Unicode layout, RTL languages (Arabic, Hebrew), complex ligatures (Hindi), CJK line-breaking, emoji, and HarfBuzz/ICU integration are planned for future versions.
+> **CJK Line-Breaking**: CJK text renders correctly via HarfBuzz auto-detection, but word-wrapping uses byte-level logic. Proper CJK line-breaking (ICU-based) is planned.
+> **Emoji**: Emoji rendering depends on the font containing emoji glyphs. Color emoji (COLR/CBDT) is not yet supported.
+> **GlyphAtlas Integration**: The per-glyph atlas infrastructure is implemented but not yet wired into the main rendering hot-path.
 
 ### Implementation Details
 
-- Font engine: FreeType face loading + HarfBuzz `hb_shape`
-- Glyph cache: LRU with configurable max memory (`CHRONON_TEXT_CACHE_MAX_MB`)
-- Text centering uses **pixel-ink centering** — measures actual rendered pixel bounds rather than font metrics (see [ORIENTATION.md](ORIENTATION.md#text-rendering-pixel-ink-centering))
+- Font engine: FreeType face loading + HarfBuzz `hb_shape()` with auto-detect (`hb_buffer_guess_segment_properties()`)
+- Bidi: FriBidi for RTL segmentation (`segment_bidi_runs()`)
+- Glyph cache: Full-image LRU (`CHRONON_TEXT_CACHE_MAX_MB`) + per-glyph atlas (`CHRONON_GLYPH_ATLAS_MAX_BYTES`)
+- Text centering: Layout-box centering (default) or **pixel-ink centering** (opt-in via `TextCenteringMode::PixelInk`)

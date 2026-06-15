@@ -6,7 +6,7 @@
 > - 🔵 **Planned** — non ancora implementato.
 >
 > Ogni voce deve avere un test, un benchmark o una issue collegata.
-> Ultimo aggiornamento: 2026-06-13
+> Ultimo aggiornamento: 2026-06-15
 
 ---
 
@@ -185,8 +185,8 @@
 
 | Categoria | Conteggio |
 |-----------|-----------|
-| ✅ Verified | 12 |
-| 🟡 Partial | 9 |
+| ✅ Verified | 20 |
+| 🟡 Partial | 10 |
 | 🔵 Planned | 5 (oltre 8 Long-term) |
 | 🌀 Long-term | 8 |
 
@@ -217,6 +217,13 @@
 | **CancellationToken** | `cancellation_token.hpp/.cpp` — SIGINT handler | |
 | **CLI --dry-run** | `command_video.cpp` — flag `--dry-run` | |
 | **HarfBuzz text shaping** | `font_engine.hpp/.cpp` — FreeType + hb_shape | |
+| **PlacedGlyphRun** | `font_engine.hpp/.cpp` — tracking-aware canonical positioning | |
+| **Bidi segmentation** | `bidi_segmenter.cpp` — FriBidi RTL support | |
+| **Text gradient fill** | `text_rasterizer_render.cpp` — linear/radial/conic | |
+| **GlyphAtlas** | `glyph_atlas.cpp` — LRU per-glyph cache 32MB | |
+| **ConicGradient** | `graphics/` namespace + Blend2D | |
+| **Depth-aware rasterizer** | `rasterizers/` — per-pixel depth test | |
+| **Golden visual tests** | `tests/graphics/` — 15 reference images | |
 | **Hot-path benchmarks** | `tests/bench/micro_benchmarks.cpp` | |
 | **.clang-tidy + CI** | `.clang-tidy` (18 categorie) + job CI | |
 | **PathFlattenCache** | `path_cache.hpp` — 16 shard, 64 MB | |
