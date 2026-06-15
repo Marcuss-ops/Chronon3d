@@ -5,6 +5,7 @@ add_executable(chronon3d_deterministic_tests
     ${TEST_MAIN}
     deterministic/test_deterministic.cpp
     deterministic/test_determinism_harness.cpp
+    deterministic/gradient_determinism_tests.cpp
 )
 
 target_link_libraries(chronon3d_deterministic_tests
