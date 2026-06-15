@@ -72,7 +72,7 @@ add_subdirectory(registry)          # chronon3d_registry
 add_subdirectory(assets)            # chronon3d_assets
 add_subdirectory(backends/image)    # chronon3d_backend_image
 add_subdirectory(media)             # chronon3d_media_interface + chronon3d_backend_video
-if(CHRONON3D_USE_FREETYPE AND CHRONON3D_USE_HARFBUZZ AND CHRONON3D_USE_FRIBIDI AND CHRONON3D_USE_BLEND2D)
+if(CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D)
     add_subdirectory(backends/text)     # chronon3d_backend_text (needs Blend2D for glyph rasteriser)
 endif()
 add_subdirectory(backends/assets)   # chronon3d_backend_assets
