@@ -7,6 +7,7 @@ add_executable(chronon3d_renderer_tests
     renderer/camera/test_camera_rig.cpp
     renderer/test_blend_pixel_nan.cpp
     renderer/camera/test_dof.cpp
+    renderer/camera/test_lens_model.cpp
     renderer/camera/test_per_pixel_dof.cpp
     renderer/effects/test_adjustment_layer.cpp
     renderer/effects/test_adjustment_layer_ae5.cpp

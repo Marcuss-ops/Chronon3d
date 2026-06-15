@@ -26,11 +26,11 @@ inline ProjectionContext make_projection_context(const Camera2_5D& camera, i32 w
     out.view = camera.view_matrix();
     const f32 fw = static_cast<f32>(width);
     const f32 fh = static_cast<f32>(height);
-    if (camera.projection_mode == Camera2_5DProjectionMode::Fov) {
-        out.focal = (fh * 0.5f) / std::tan(glm::radians(camera.fov_deg) * 0.5f);
-    } else {
-        out.focal = camera.zoom;
-    }
+    // Use the unified focal_from_camera which handles:
+    //   - Physical lens + gate-fit (when use_physical_model is true)
+    //   - Fov mode
+    //   - Zoom mode (legacy)
+    out.focal = chronon3d::camera_math::focal_from_camera(camera, fw, fh);
     out.vp_cx = fw * 0.5f;
     out.vp_cy = fh * 0.5f;
     return out;

@@ -27,8 +27,7 @@ Composition make_moving_layer_comp(int w, int h, f32 x_left, f32 x_right) {
             l.rect("bg_fill", RectParams{
                 .size = {static_cast<f32>(w), static_cast<f32>(h)},
                 .color = Color::black(),
-                .pos  = {static_cast<f32>(w) * 0.5f, static_cast<f32>(h) * 0.5f, 0.0f},
-                .fill = Fill::solid_color(Color::black())
+                .pos  = {static_cast<f32>(w) * 0.5f, static_cast<f32>(h) * 0.5f, 0.0f},.fill  = FillStyle::solid(Color::black())
             });
         });
         // Moving red block: travels x_left → x_right in 1 frame
@@ -41,7 +40,7 @@ Composition make_moving_layer_comp(int w, int h, f32 x_left, f32 x_right) {
                 .size = {20.0f, static_cast<f32>(h)},
                 .color = Color::red(),
                 .pos   = {0.0f, 0.0f, 0.0f},
-                .fill  = Fill::solid_color(Color::red())
+                .fill  = FillStyle::solid(Color::red())
             });
         });
         AnimatedCamera2_5D cam;

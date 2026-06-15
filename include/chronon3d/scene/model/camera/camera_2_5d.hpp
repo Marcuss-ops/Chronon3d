@@ -3,6 +3,7 @@
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/math/camera_pose.hpp>
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/scene/model/camera/lens_model.hpp>
 #include <string>
 #include <memory_resource>
 
@@ -105,6 +106,15 @@ struct Camera2_5D {
     std::pmr::string parent_name;
     std::pmr::string target_name; // If set, POI is resolved from this layer's world position
     Vec3 rotation{0, 0, 0};
+
+    // Physical lens model — carries focal length, sensor size, f-stop,
+    // close focus, and gate-fit mode.  Replaces the loose lens parameters
+    // that were previously scattered in DepthOfFieldSettings.
+    //
+    // The lens model is independent of DoF: you can set a lens without
+    // enabling depth of field.  DoF reads its physical parameters from
+    // here when dof.use_physical_model is true.
+    LensModel lens{50.0f, 2.8f, 450.0f, 36.0f, 24.0f, GateFit::Fill};
 
     DepthOfFieldSettings dof;
 
