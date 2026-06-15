@@ -1,7 +1,10 @@
 # Text Rendering — Colli di Bottiglia
 
-> **Data analisi:** 8 Giugno 2026 (build `2796e99`)
+> **Data analisi originale:** 8 Giugno 2026 (build `2796e99`)
+> **Ultimo aggiornamento:** 15 Giugno 2026
 > **Pipeline analizzata:** Font → Layout → Rasterizzazione → Material Effects → Compositing
+>
+> ✅ = Risolto  🟡 = Parzialmente risolto  🔴 = Ancora aperto
 
 ---
 
@@ -37,183 +40,120 @@ FontEngine (FT + HB)   →   TextLayoutEngine   →   text_rasterizer_render (Bl
 
 ---
 
-## 🔴 1. Dual Font Engine (FreeType+HarfBuzz vs Blend2D)
+## ✅ 1. Dual Font Engine (FreeType+HarfBuzz vs Blend2D) — RISOLTO
 
-**Sintomo**: Layout leggermente sballato che richiede correzioni post-hoc a livello di pixel (ink centering). Il codice ha un commento esplicito: *"wrong if FreeType+HarfBuzz and Blend2D disagree on glyph widths"*.
+> **Risolto:** ~Giugno 2026
 
-**Causa**: Due motori font completamente diversi:
-- **FreeType + HarfBuzz** → usato per `measure_text()`, `shape_text()`, `get_font_metrics()` nel layout engine
-- **Blend2D** → usato per la rasterizzazione effettiva dei glifi (`fillUtf8Text`, `strokeUtf8Text`)
+**Stato attuale**: Sia la misurazione che il rendering usano **HarfBuzz** come shaper unico. `HbToBlGlyphRun` converte i glifi HarfBuzz in formato Blend2D per `fillGlyphRun()`. Lo stroke usa `FtGlyphPathBuilder` che decompone gli outline FreeType dei glifi già shaped da HarfBuzz. Blend2D è usato **solo** per la rasterizzazione (fill/stroke), non per shaping/measurement.
 
-Le larghezze dei glifi possono differire tra i due motori (hinting, rendering engine). Il codice compensa con uno scan pixel post-raster per rilevare l'ink bound e regolare la centratura.
+Il commento nel codice ora dice: *"Use FontEngine (HarfBuzz) for text measurement — same shaper as the fillGlyphRun calls below. This eliminates the measurement vs renderer width discrepancy."*
 
-**Dove**:
-- `text_rasterizer_render.cpp` — righe ~200-280: calcolo `dx_align` da FontEngine, poi corretto da ink scanning
-- `text_rasterizer_render.cpp` — righe ~370-450: ink_center_frac correction
+Il pixel-ink centering è ora **opt-in** via `TextCenteringMode::PixelInk` e descritto come *"debug/transition aid"*.
 
-**Fix**: Usare Blend2D (`BLFont.getTextMetrics()`) anche per la misurazione nel layout engine, eliminando la dipendenza da FT+HB nel percorso di layout critico. Tenere FT+HB solo per `TextAnimator` (che ha bisogno di glyph bbox per animazione per-glyph).
-
-**Sforzo**: Alto (richiede cambiamenti architetturali in `TextLayoutEngine`)
+**Dove**: `text_rasterizer_render.cpp` — `HbToBlGlyphRun`, `FtGlyphPathBuilder`, `render_run()`
 
 ---
 
-## 🔴 2. Layout Engine: Chiamate Per-Carattere O(n²)
+## ✅ 2. Layout Engine: Chiamate Per-Carattere O(n²) — RISOLTO
 
-**Sintomo**: Testo lungo con word-wrap è lentissimo. L'auto-fit (ricerca binaria) esegue fino a 8 layout completi.
+> **Risolto:** ~Giugno 2026
 
-**Causa**: `TextLayoutEngine` in word-wrap e character-wrap fa una chiamata `measure_text()` per **ogni carattere o token**. Ogni chiamata attiva HarfBuzz shaping per una stringa di 1 carattere — overhead di shaping + lock mutex sproporzionato rispetto al lavoro fatto.
+**Stato attuale**: Le funzioni `measure_char()`, `measure_string_input()`, `per_char` non esistono più nel codice. Il layout engine ora usa `FontEngine::shape_text()` per l'intera stringa in una singola chiamata HarfBuzz. `measure_text()` delega a `shape_text()` e restituisce `run->width`.
 
-In `auto_fit` mode, la ricerca binaria esegue fino a **8 layout completi**, ciascuno con le stesse chiamate per-carattere.
+`PlacedGlyphRun` e `resolve_placed_glyph_run()` forniscono posizionamento canonico con tracking-aware advance, eliminando la logica duplicata di tracking tra fill, stroke, typewriter e TextAnimator.
 
-**Dove**:
-- `text_layout_engine.hpp` — `measure_char()`, `measure_string()` chiamate in loop per ogni carattere
-- `text_layout_engine.hpp` — `layout_single_run()`: token loop con `measure_string_input()`
-- `text_layout_engine.hpp` — `auto_fit`: fino a 8 iterazioni bisezione
-
-**Esempio**: Una frase di 100 caratteri con word-wrap = 100 chiamate `measure_text()`. Con auto-fit: fino a 800 chiamate. Ogni chiamata: lock mutex + HarfBuzz shape di 1 carattere + unlock.
-
-**Fix**: Misurare una volta la larghezza di ogni carattere all'inizio (array di float), poi usare lookup O(1) durante il wrapping. Oppure usare `shape_text()` una volta sola per l'intero paragrafo e scorrere i `glyph_positions` risultanti.
-
-**Sforzo**: Medio
+**Dove**: `font_engine.cpp` — `shape_text()`, `measure_text()`, `resolve_placed_glyph_run()`
 
 ---
 
-## 🟡 3. Ink Trimming: Scansione Full-Image O(w×h)
+## ✅ 3. Ink Trimming: Scansione Full-Image O(w×h) — RISOLTO
 
-**Sintomo**: Ogni rasterizzazione testo (cache miss) ha un overhead di scansione dell'intera immagine.
+> **Risolto:** ~Giugno 2026
 
-**Causa**: Dopo aver rasterizzato il testo su BLImage, il codice esegue una scansione O(w×h) per:
-1. Trovare l'ultima riga con contenuto significativo (trimming)
-2. Calcolare l'ink bounding box per la correzione di centratura
-3. Pulire righe isolate di "haze" (pixel semi-trasparenti)
+**Stato attuale**: La scansione ora usa **campionamento stride 4×2** (`kSampleStrideX=4`, `kSampleStrideY=2`) → **8× meno pixel** rispetto alla scansione completa. I bound campionati vengono espansi per compensare i gap dello stride. I conteggi per riga vengono propagati alle righe saltate. Il descender margin (`font_size * 0.25f`) protegge le code di g, p, q, y, j dal trimming prematuro.
 
-Per un testo grande (es. 1920×1080 con font 96px), sono ~2M pixel letti in loop.
-
-**Dove**:
-- `text_rasterizer_render.cpp` — sezione "Trim trailing rows AND compute ink-bounds" (~righe 370-460)
-
-**Fix**: 
-- Campionare ogni 4-8 pixel invece di ogni pixel per trovare i bound
-- Usare le informazioni già note dal layout engine (bounding box teorici) per limitare l'area di scansione
-- Early exit: fermarsi quando l'ultima riga di contenuto è stata trovata
-
-**Sforzo**: Basso
+**Dove**: `text_rasterizer_render.cpp` — sezione "Trim trailing rows AND compute ink-bounds" con `kSampleStrideX=4`, `kSampleStrideY=2`
 
 ---
 
-## 🟡 4. Bevel: Edge Detection CPU-Intensiva O(w×h×bp²)
+## ✅ 4. Bevel: Edge Detection CPU-Intensiva O(w×h×bp²) — RISOLTO
 
-**Sintomo**: L'effetto bevel aggiunge 2-5ms per testo, scalando con la dimensione dell'immagine e il raggio bevel.
+> **Risolto:** ~Giugno 2026
 
-**Causa**: Il bevel scan per ogni pixel cerca in un intorno di `bevel_px` pixel in tutte e 4 le direzioni (top, left, bottom, right). Per ogni direzione, fa un loop su [x-bp, x+bp] o [y-bp, y+bp], con `std::max` su ogni campione.
+**Stato attuale**: Il bevel ora usa **sliding-window maximum separabile** (deque per riga/colonna) con complessità **O(w×h)** invece di O(w×h×bp). Il codice precomputa `h_max` (orizzontale) e `v_max` (verticale) in due passate, poi usa i massimi precomputati per il rilevamento dei bordi in un singolo passo.
 
-Per un testo 500×200 con bevel 2px: ~100K pixel × 5 accessi × 4 direzioni = 2M letture.
-
-**Dove**:
-- `text_material.cpp` — sezione "Bevel (fake 3D edge)" (~righe 160-270)
-
-**Fix**: Implementare con morphological dilate/erode usando box filter separabile (orizzontale/verticale), O(w×h×2) invece di O(w×h×bp). Lo stesso principio del box blur già usato per inner shadow.
-
-**Sforzo**: Medio
+**Dove**: `text_material.cpp` — sezione "Bevel (fake 3D edge)" con deque-based sliding window
 
 ---
 
-## 🟡 5. Shadow/Glow: 3-4 Copie Pixel per Layer
+## 🟡 5. Shadow/Glow: Copie Pixel per Layer — PARZIALMENTE RISOLTO
 
-**Sintomo**: Ogni shadow/glow con blur copia i pixel 3-4 volte. Per N ombre, costo lineare.
+> **Migliorato:** ~Giugno 2026
 
-**Causa**: Pipeline attuale per shadow/glow con blur:
-1. Crea BLImage copia del testo tintata (write)
-2. Acquisisce Framebuffer dal pool (allocazione)
-3. Compone BLImage sul FB via `blend2d_bridge::composite_bl_image` (copia pixel)
-4. Applica blur sul FB (lettura + scrittura)
-5. Compone FB sul framebuffer finale con blend mode (copia pixel)
+**Stato attuale**: Il blur viene ora applicato **direttamente su BLImage**, evitando l'allocazione e copia intermedia del Framebuffer. La cache BLImage (`text_shadow_cache`, `text_glow_cache`) evita la re-generazione quando i parametri non cambiano. Il glow usa una pipeline condivisa (`GlowPipeline::render`).
 
-Ogni copia costa w×h×4 byte di throughput memoria.
+**Rimanente**: Le funzioni di conversione `bl_image_to_framebuffer` e `framebuffer_to_bl_image` usano ancora loop per-pixel senza SIMD.
 
 **Dove**:
-- `text_shadow.cpp` — ~righe 50-80
-- `text_glow.cpp` — ~righe 50-80
-
-**Fix**:
-- Unire tint + blur in un unico kernel (tinta al volo mentre si sfoca)
-- Specializzare il blur per lavorare direttamente su BLImage senza passare dal Framebuffer
-- Per ombre multiple, fondere in un unico passo
-
-**Sforzo**: Medio
+- `text_shadow.cpp` — blur diretto su BLImage + cache
+- `text_glow.cpp` — GlowPipeline condivisa + cache
 
 ---
 
-## 🟢 6. Cache Granularità: Solo Full-Image
+## 🟡 6. Cache Granularità: Solo Full-Image — PARZIALMENTE RISOLTO
 
-**Sintomo**: Animazioni con scale/rotation continuous = 100% cache miss. Se lo stesso testo cambia padding, size, o trasformazione, nessun hit.
+> **Migliorato:** ~Giugno 2026
 
-**Causa**: La cache testo (`TextRasterization`) è a livello di BLImage intero. La chiave include `effective_size`, `padding`, e `transform`. Qualsiasi variazione = miss.
+**Stato attuale**: Il `GlyphAtlas` è implementato con LRU cache (32MB default, 8 shard, `shared_mutex`). Supporta lookup/store per-glyph keyed by `(font_path, glyph_id, font_size)` con `glyph_atlas_store_from_text()` per estrarre bitmap individuali da testo renderizzato.
 
-Configurazione attuale: LRU 128MB, 8 shard, mutex condiviso. La cache include anche un'opportunità di deduplicazione quando lo stesso testo è renderizzato più volte alla stessa dimensione.
+**Rimanente**: Il GlyphAtlas non è ancora integrato nel percorso critico di `text_rasterizer_render.cpp` — l'infrastruttura esiste ma il rendering principale usa ancora la cache full-image.
 
 **Dove**:
-- `text_rasterizer_cache.cpp` — `store_text_cache()`, `lookup_text_cache()`
-- `text_rasterizer_render.cpp` — `hash_text_style()` chiamata all'inizio
-
-**Fix**:
-- Per animazioni con transform, rasterizzare a una risoluzione fissa e scalare via Blend2D (che ha JIT per transform). La cache tiene solo il testo base.
-- Valutare un glyph atlas per riutilizzo跨-frame dei singoli glifi
-
-**Sforzo**: Alto
+- `glyph_atlas.cpp` — LRU cache per-glyph con stats (hits/misses)
+- `text_rasterizer_cache.cpp` — cache full-image ancora primaria
 
 ---
 
-## 🟢 7. Mutex Contention sui Lock Globali
+## ✅ 7. Mutex Contention sui Lock Globali — RISOLTO
 
-**Sintomo**: Sotto carico multi-thread (es. frame-level parallelism), i lock globali diventano contention point.
+> **Risolto:** ~Giugno 2026
 
-**Causa**:
-- `shared_font_engine()`: mutex [`std::mutex`] per ogni shaping (in `FontEngine::Impl::cache_mutex`)
-- Cache raster: `std::shared_mutex` (shared_lock per read, unique_lock per write)
-- Cache shadow/glow: `std::mutex` separati per ciascuna
-
-Con 2+ render thread, ogni shaping text compete per lo stesso mutex.
+**Stato attuale**: `FontEngine::Impl` usa `std::shared_mutex` con `shared_lock` per letture (lookup, `can_load()`) e `unique_lock` per inserimento. `can_load()` usa un pattern a due fasi: shared lock prima, upgrade a exclusive solo su miss. Il `glyph_bbox_cache` usa `LruCache` con sharding (2 shard). Le cache testo, shadow e glow usano `shared_mutex` condiviso.
 
 **Dove**:
-- `font_engine.cpp` — `cache_mutex` locked in `shape_text()`, `measure_text()`, `get_font_metrics()`
-- `text_rasterizer_cache.cpp` — `get_text_cache_mutex()` (shared_mutex)
-- `text_processor_helpers.hpp` — `text_glow_cache_mutex()`, `text_shadow_cache_mutex()`
-
-**Fix**:
-- Shard: usare mutex per-specifica-font invece di uno globale
-- Read-write lock per font face cache (la maggior parte delle operazioni sono read)
-- Thread-local font engine per shaping parallelo
-
-**Sforzo**: Basso
+- `font_engine.cpp` — `shared_mutex` + two-phase locking in `can_load()`
+- `text_rasterizer_cache.cpp` — `shared_mutex` per cache testo
+- `glyph_atlas.cpp` — `shared_mutex` per atlas per-glyph
 
 ---
 
 ## Riepilogo Priorità
 
-| # | Area | Gap | Impatto | Sforzo | File |
-|---|---|---|---|---|---|
-| **1** | Dual font engine (FT+HB vs B2D) | Misura diverse dal render | 🔥🔥🔥 Layout errati, codice fragile | Alto | `text_layout_engine.hpp`, `text_rasterizer_render.cpp` |
-| **2** | Layout: per-char measure_text() | O(n²) per testo con wrap | 🔥🔥🔥 Lento per testi lunghi | Medio | `text_layout_engine.hpp`, `font_engine.cpp` |
-| **3** | Ink trimming full-image scan | w×h pixel letti a ogni miss | 🔥🔥 Overhead su testi grandi | Basso | `text_rasterizer_render.cpp` |
-| **4** | Bevel O(w×h×bp²) | Edge detection naive | 🔥🔥 2-5ms su testi medi | Medio | `text_material.cpp` |
-| **5** | Shadow/glow: 3-4 copie pixel | BLImage→FB→blur→FB | 🔥 1-3ms per layer | Medio | `text_shadow.cpp`, `text_glow.cpp` |
-| **6** | Cache full-image, non per-glyph | Miss per scale diverse | 🔥 Animazioni degradate | Alto | `text_rasterizer_cache.cpp` |
-| **7** | Mutex contention | Lock globali sotto multi-thread | 🔥 Solo con parall. frame-level | Basso | `font_engine.cpp`, cache vari |
+| # | Area | Gap | Impatto | Sforzo | File | Stato |
+|---|---|---|---|---|---|---|
+| **1** | Dual font engine (FT+HB vs B2D) | Misura diverse dal render | 🔥🔥🔥 Layout errati, codice fragile | Alto | `text_layout_engine.hpp`, `text_rasterizer_render.cpp` | ✅ Risolto |
+| **2** | Layout: per-char measure_text() | O(n²) per testo con wrap | 🔥🔥🔥 Lento per testi lunghi | Medio | `text_layout_engine.hpp`, `font_engine.cpp` | ✅ Risolto |
+| **3** | Ink trimming full-image scan | w×h pixel letti a ogni miss | 🔥🔥 Overhead su testi grandi | Basso | `text_rasterizer_render.cpp` | ✅ Risolto |
+| **4** | Bevel O(w×h×bp²) | Edge detection naive | 🔥🔥 2-5ms su testi medi | Medio | `text_material.cpp` | ✅ Risolto |
+| **5** | Shadow/glow: copie pixel | BLImage→FB→blur→FB | 🔥 1-3ms per layer | Medio | `text_shadow.cpp`, `text_glow.cpp` | 🟡 Migliorato |
+| **6** | Cache full-image, non per-glyph | Miss per scale diverse | 🔥 Animazioni degradate | Alto | `text_rasterizer_cache.cpp`, `glyph_atlas.cpp` | 🟡 Infrastruttura pronta |
+| **7** | Mutex contention | Lock globali sotto multi-thread | 🔥 Solo con parall. frame-level | Basso | `font_engine.cpp`, cache vari | ✅ Risolto |
 
 ---
 
-## Roadmap Suggerita
+## Roadmap Suggerita (Aggiornata)
 
-### Fase 1 — Visibilità (basso sforzo, alto impatto diagnostico)
-- [ ] **#3** Ottimizzare ink trimming con scansione campionata
-- [ ] **#7** Shard dei mutex per font/cache
+### Fase 1 — ✅ Completata
+- [x] **#3** Ottimizzare ink trimming con scansione campionata (stride 4×2)
+- [x] **#7** Shared mutex + two-phase locking per font/cache
+- [x] **#2** Misura caratteri via singola chiamata `shape_text()`
+- [x] **#4** Bevel con sliding-window maximum separabile
+- [x] **#1** HarfBuzz unico shaper per misurazione + rendering
 
-### Fase 2 — Ottimizzazioni mirate (medio sforzo)
-- [ ] **#2** Misura caratteri una tantum in array per layout
-- [ ] **#4** Bevel con box filter separabile
-- [ ] **#5** Unire tint + blur in kernel unico per shadow/glow
+### Fase 2 — Da completare
+- [ ] **#5** SIMD-izzare le conversioni `bl_image_to_framebuffer` / `framebuffer_to_bl_image`
+- [ ] **#6** Integrare GlyphAtlas nel percorso critico di `text_rasterizer_render.cpp`
 
-### Fase 3 — Architetturale (alto sforzo)
-- [ ] **#1** Unificare i due font engine: Blend2D per misurazione, FT+HB solo per TextAnimator
-- [ ] **#6** Glyph atlas per riutilizzo跨-frame
+### Fase 3 — Nuove feature
+- [ ] MSDF font atlas per scalabilità testo (ROADMAP L7)
+- [ ] Testo CJK con line-breaking ICU

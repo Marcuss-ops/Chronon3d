@@ -98,6 +98,42 @@ Unificato con S5.
 
 2026-06-02/09 (8eb9d85, 80f0299) — `FontEngine` class con FreeType + HarfBuzz integration. `shape_text()` produce `GlyphRun` con posizioni precise, cluster mapping, glyph bbox cache con LRU eviction.
 
+### L7 — PlacedGlyphRun + Unificazione Shaping
+
+2026-06-10/14 — `PlacedGlyphRun` e `resolve_placed_glyph_run()` come unica source of truth per posizionamento glifi. Tracking-aware advance, cluster info, byte-range mapping. Eliminata logica duplicata tra `HbToBlGlyphRun`, `FtGlyphPathBuilder`, typewriter, e TextAnimator. `HbToBlGlyphRun::from()` converte HarfBuzz→Blend2D con scale in font design units.
+
+### L8 — Bidi Segmentation + RTL Support
+
+2026-06-10/14 — `bidi_segmenter.cpp` con FriBidi per segmentazione bidirezionale. `TextDirection::Auto/RTL/LTR` con auto-detection HarfBuzz. `TextShaping` struct con script, language, direction. Supporto Arabic (NotoNaskhArabic), Hebrew, Devanagari, CJK via `hb_buffer_guess_segment_properties()`. Font assets Arabic inclusi.
+
+### L9 — Text Material: Bevel Sliding-Window + Ink Sampling
+
+2026-06-10/14 — Bevel in `text_material.cpp` riscritto con sliding-window maximum separabile (deque): O(w×h) invece di O(w×h×bp). Ink trimming in `text_rasterizer_render.cpp` usa scansione campionata stride 4×2 (8× meno pixel). Descender margin per proteggere g/p/q/y/j.
+
+### L10 — Text Gradient Fill + Stroke Gradient
+
+2026-06-10/14 — `apply_text_fill_style()` e `apply_text_stroke_style()` supportano gradienti lineari, radiali e conici via `FillStyle`. Stroke usa `FtGlyphPathBuilder` per outline FreeType shaped da HarfBuzz, garantendo GSUB consistente per Arabic/Devanagari.
+
+### L11 — GlyphAtlas per-Glyph Cache
+
+2026-06-10/14 — `GlyphAtlas` con LRU cache per-glyph (32MB default, 8 shard, `shared_mutex`). Keyed by `(font_path, glyph_id, font_size)`. `glyph_atlas_store_from_text()` estrae bitmap individuali da testo renderizzato. Infrastruttura pronta per integrazione nel hot-path.
+
+### L12 — FontEngine Shared Mutex + Two-Phase Locking
+
+2026-06-10/14 — `FontEngine::Impl` usa `std::shared_mutex` con `shared_lock` per letture e `unique_lock` per inserimento. `can_load()` usa pattern a due fasi (shared→exclusive su miss). Glyph bbox cache con LruCache sharded (2 shard).
+
+### L13 — ConicGradient + Graphics Namespace
+
+2026-06-10/14 — `GradientDefinition` nel namespace `graphics/` con stable-sort stops, binary-search opacity, spread types (pad/reflect/repeat). ConicGradient support via Blend2D `BLConicGradientValues`. Integrato in `FillStyle`/`StrokeStyle` con `KeyframeTrack`.
+
+### L14 — Depth-Aware Scanline Rasterizer (P4)
+
+2026-06-13/14 — Rasterizzatore scanline depth-aware con depth test per-pixel e 3D raster scanning. Card3D depth test integrato. `LensModel` unificato con GateFit e presets lens-aware.
+
+### L15 — Golden Visual Test Suite + Gradient Tests
+
+2026-06-10/14 — Suite golden visual con 15 reference images. Test matematici gradient da 9 a 23 casi. Test determinismo per rendering gradient. Integrazione in CMake.
+
 ---
 
 ## Refactoring
