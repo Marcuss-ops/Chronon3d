@@ -138,7 +138,7 @@ Composition img_reference_shake_reveal() {
             .centered = true
         });
 
-        const f32 p = std::clamp(ctx.progress(), 0.0f, 1.0f);
+        const f32 p = std::clamp(static_cast<f32>(ctx.progress()), 0.0f, 1.0f);
         const f32 t = static_cast<f32>(ctx.frame) / ctx.fps();
 
         const f32 fade = std::clamp(p / 0.22f, 0.0f, 1.0f);

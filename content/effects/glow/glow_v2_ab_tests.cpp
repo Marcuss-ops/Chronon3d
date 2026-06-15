@@ -204,7 +204,7 @@ Composition glow_typewriter_reveal_test() {
 
         s.layer("reveal", [ctx](LayerBuilder& l) {
             l.pin_to(Anchor::Center);
-            const f32 p = std::min(1.0f, ctx.progress() * 2.5f);
+            const f32 p = std::min(1.0f, static_cast<f32>(ctx.progress()) * 2.5f);
             l.opacity(p);
             // Bloom starts BIG and shrinks to the recommended V2 radii
             const f32 settle = 1.0f - std::max(0.0f, p - 0.5f) * 2.0f;  // 1→0 over second half
