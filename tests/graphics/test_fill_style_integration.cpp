@@ -13,9 +13,13 @@
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <tests/helpers/sample_helpers.hpp>
 
 using namespace chronon3d;
 namespace gfx = chronon3d::graphics;
+using chronon3d::test::sample_center;
+using chronon3d::test::sample_left;
+using chronon3d::test::sample_right;
 
 static std::shared_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame) {
     SoftwareRenderer renderer;
@@ -23,35 +27,6 @@ static std::shared_ptr<Framebuffer> render_frame(const Composition& comp, Frame 
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
     return renderer.render_frame(comp, frame);
-}
-
-static Color sample_center(const Framebuffer& fb, int half = 8) {
-    const int cx = fb.width() / 2; const int cy = fb.height() / 2;
-    float r = 0, g = 0, b = 0, a = 0; int n = 0;
-    for (int dy = -half; dy <= half; ++dy)
-        for (int dx = -half; dx <= half; ++dx) {
-            Color c = fb.get_pixel(cx + dx, cy + dy);
-            r += c.r; g += c.g; b += c.b; a += c.a; ++n;
-        }
-    return {r / n, g / n, b / n, a / n};
-}
-
-static Color sample_left(const Framebuffer& fb, int x_off = 15) {
-    const int cy = fb.height() / 2;
-    float r = 0, g = 0, b = 0, a = 0; int n = 0;
-    for (int dy = -4; dy <= 4; ++dy) {
-        Color c = fb.get_pixel(x_off, cy + dy); r += c.r; g += c.g; b += c.b; a += c.a; ++n;
-    }
-    return {r / n, g / n, b / n, a / n};
-}
-
-static Color sample_right(const Framebuffer& fb, int x_off = 15) {
-    const int cx = fb.width() - x_off; const int cy = fb.height() / 2;
-    float r = 0, g = 0, b = 0, a = 0; int n = 0;
-    for (int dy = -4; dy <= 4; ++dy) {
-        Color c = fb.get_pixel(cx, cy + dy); r += c.r; g += c.g; b += c.b; a += c.a; ++n;
-    }
-    return {r / n, g / n, b / n, a / n};
 }
 
 // ===========================================================================
