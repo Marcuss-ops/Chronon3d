@@ -36,10 +36,25 @@ public:
         return inst;
     }
 
+    /// Mount the global (default) assets root.  Used as a fallback when no
+    /// per-render-job AssetContext is active on the current thread.
     static void mount(const std::filesystem::path& root_path) {
         auto& inst = instance();
         std::lock_guard<std::mutex> lock(inst.m_mutex);
         inst.m_root_path = root_path;
+    }
+
+    /// Set the per-thread assets root for the current render job.
+    /// When set, resolve() prefers this root over the global singleton.
+    /// Call clear_thread_local_root() when the render job finishes.
+    static void set_thread_local_root(const std::filesystem::path& root) {
+        tls_current_root() = root;
+    }
+
+    /// Clear the per-thread assets root so future resolve() calls
+    /// fall back to the global singleton.
+    static void clear_thread_local_root() {
+        tls_current_root().clear();
     }
 
     static void clear() {
@@ -51,10 +66,17 @@ public:
     }
 
     static std::string resolve(const std::filesystem::path& relative_path) {
+        // Per-render-job thread-local root takes priority over global singleton.
+        // Read TLS before acquiring the mutex — thread-local is inherently
+        // thread-safe (only the owning thread can read/write its own copy).
+        const auto& tls_root = tls_current_root();
         auto& inst = instance();
         std::lock_guard<std::mutex> lock(inst.m_mutex);
         if (relative_path.is_absolute()) {
             return relative_path.lexically_normal().string();
+        }
+        if (!tls_root.empty()) {
+            return (tls_root / relative_path).lexically_normal().string();
         }
         if (inst.m_root_path.empty()) {
             return relative_path.lexically_normal().string();
@@ -169,7 +191,28 @@ private:
     std::filesystem::path               m_root_path;
     std::vector<AssetMetadata>          m_assets;
     std::unordered_map<AssetId, usize>  m_by_id;
+
+    /// Thread-local per-render-job assets root, set by the render pipeline
+    /// before executing the graph and cleared afterward.  resolve() checks
+    /// this first, so concurrent render jobs on different threads never
+    /// interfere with each other's asset resolution.
+    static std::filesystem::path& tls_current_root() {
+        thread_local std::filesystem::path s_root;
+        return s_root;
+    }
 };
+
+// ── Per-render-job scoped asset resolution ──────────────────────────
+//
+// The assets root for the current composition is set via
+// AssetRegistry::set_thread_local_root() before graph execution
+// and cleared afterward.  This prevents races when concurrent
+// render jobs use different assets directories.
+//
+// Usage:
+//   AssetRegistry::set_thread_local_root(comp.assets_root());
+//   // ... render ...
+//   AssetRegistry::clear_thread_local_root();
 
 // Free function asset() helper
 inline std::string asset(const std::string& path) {

@@ -56,10 +56,6 @@ public:
 private:
     [[nodiscard]] Scene evaluate_double(double frame, FrameRate rate,
                                         std::pmr::memory_resource* res) const {
-        if (!m_spec.assets_root.empty()) {
-            AssetRegistry::mount(m_spec.assets_root);
-        }
-
         const Frame integral = static_cast<Frame>(std::floor(frame));
         FrameContext ctx{
             .frame      = integral,
@@ -69,9 +65,17 @@ private:
             .frame_rate = rate,
             .width      = m_spec.width,
             .height     = m_spec.height,
+            .assets_root = m_spec.assets_root,
             .resource   = res
         };
-        return m_render(ctx);
+        // No longer calling AssetRegistry::mount() globally — the assets root
+        // is threaded through FrameContext → Scene → RenderGraphContext →
+        // thread-local guard, so concurrent render jobs don't interfere.
+        Scene result = m_render(ctx);
+        if (!ctx.assets_root.empty()) {
+            result.set_assets_root(ctx.assets_root);
+        }
+        return result;
     }
 
 public:
