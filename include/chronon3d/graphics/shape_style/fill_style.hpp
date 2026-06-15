@@ -59,6 +59,13 @@ struct FillStyle {
                 GradientDefinition::radial(center, radius, std::move(stops), sp)};
     }
 
+    static FillStyle conic(Vec2 center, f32 angle_rad,
+                            std::vector<GradientStop> stops,
+                            GradientSpread sp = GradientSpread::Pad) {
+        return {true, {1.0f, 1.0f, 1.0f, 1.0f},
+                GradientDefinition::conic(center, angle_rad, std::move(stops), sp)};
+    }
+
     // ── Query helpers ────────────────────────────────────────────────
 
     [[nodiscard]] bool is_solid()   const noexcept { return !gradient.has_value(); }
@@ -68,8 +75,9 @@ struct FillStyle {
 
     /// Convert FillStyle to the legacy Fill struct for the existing render
     /// pipeline.  Handles Solid → FillType::Solid, Linear → LinearGradient,
-    /// Radial → RadialGradient.  Opacity stops from GradientDefinition are
-    /// flattened into the colour stop alpha during conversion.
+    /// Radial → RadialGradient, Conic → ConicGradient.
+    /// Opacity stops from GradientDefinition are flattened into the colour
+    /// stop alpha during conversion.
     Fill to_fill() const;
 };
 
@@ -124,6 +132,17 @@ struct StrokeStyle {
                 StrokeAlignment::Center,
                 LineCap::Butt, LineJoin::Miter, {}, 0.0f, 0.0f, 1.0f,
                 GradientDefinition::radial(center, radius, std::move(stops), sp)};
+    }
+
+    static StrokeStyle conic_gradient(
+        Vec2 center, f32 angle_rad,
+        std::vector<GradientStop> stops,
+        f32 w = 1.0f,
+        GradientSpread sp = GradientSpread::Pad) {
+        return {true, {1.0f, 1.0f, 1.0f, 1.0f}, w,
+                StrokeAlignment::Center,
+                LineCap::Butt, LineJoin::Miter, {}, 0.0f, 0.0f, 1.0f,
+                GradientDefinition::conic(center, angle_rad, std::move(stops), sp)};
     }
 
     // ── Query helpers ────────────────────────────────────────────────
@@ -188,6 +207,11 @@ inline Fill FillStyle::to_fill() const {
         }
         case GradientType::Radial: {
             Fill f = Fill::radial(g.center, g.radius, convert_stops());
+            f.enabled = enabled;
+            return f;
+        }
+        case GradientType::Conic: {
+            Fill f = Fill::conic(g.center, g.angle, convert_stops());
             f.enabled = enabled;
             return f;
         }
