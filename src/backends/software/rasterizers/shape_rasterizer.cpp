@@ -216,13 +216,14 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
     glm::mat3 invH = glm::inverse(H);
 
     const bool use_gradient = fill && fill->type != FillType::Solid;
-    const Vec2 sz = use_gradient ? shape_size_for_fill(shape) : Vec2{0, 0};
+    const bool has_stroke = stroke_width_for_shape(shape) > 0.0f;
+    const bool use_stroke_gradient = has_stroke && stroke_has_gradient(shape);
+    const Vec2 sz = (use_gradient || use_stroke_gradient) ? shape_size_for_fill(shape) : Vec2{0, 0};
 
     const Vec3 col0 = invH[0];
     const Vec3 col1 = invH[1];
     const Vec3 col2 = invH[2];
 
-    const bool has_stroke = stroke_width_for_shape(shape) > 0.0f;
     const bool can_use_simd = !use_gradient && (corner_radius <= 0.0f) && !has_stroke && (!state || !state->mask || !state->mask->enabled());
 
     for (i32 y = bbox.y0; y < bbox.y1; ++y) {
@@ -260,7 +261,7 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
                 if (fill_hit || stroke_hit) {
                     const Color pixel_color = fill_hit
                         ? (use_gradient ? resolve_gradient_color(*fill, lp, sz, color.a) : color)
-                        : stroke_color_for_shape(shape);
+                        : (use_stroke_gradient ? resolve_stroke_gradient_color(shape, lp, sz) : stroke_color_for_shape(shape));
 
                     // Guard: skip NaN/Inf pixels to prevent framebuffer contamination.
                     if (!std::isnan(pixel_color.r) && !std::isnan(pixel_color.g) &&
