@@ -70,7 +70,8 @@ static void populate_fb_and_depth(Framebuffer& fb, std::vector<float>& depth,
 // ══════════════════════════════════════════════════════════════════════════
 
 static void apply_disc_dof(Framebuffer& fb, const std::vector<float>& depth,
-                           const DepthOfFieldSettings& dof) {
+                           const DepthOfFieldSettings& dof,
+                           const LensModel& lens) {
     if (!dof.enabled) return;
 
     constexpr float kUnsetDepth = 1e18f;
@@ -85,7 +86,7 @@ static void apply_disc_dof(Framebuffer& fb, const std::vector<float>& depth,
             const size_t idx = static_cast<size_t>(y) * w + x;
             const float z = depth[idx];
             if (z < kUnsetDepth * 0.5f) {
-                blur_radii[idx] = compute_dof_blur_radius(dof, z);
+                blur_radii[idx] = compute_dof_blur_radius(dof, lens, z);
             }
         }
     }
@@ -182,14 +183,13 @@ static void BM_DofDiscKernel(benchmark::State& state) {
 
     Framebuffer fb(w, h);
     std::vector<float> depth;
-    populate_fb_and_depth(fb, depth, w, h);
-
-    const DepthOfFieldSettings dof{
+    populate_fb_and_depth(fb, depth, w, h);        const DepthOfFieldSettings dof{
         .enabled = true,
         .focus_z = 0.0f,
         .aperture = aperture,
         .max_blur = 48.0f
     };
+    const LensModel lens;
 
     for (auto _ : state) {
         apply_disc_dof(fb, depth, dof);
@@ -210,17 +210,16 @@ static void BM_DofSeparable(benchmark::State& state) {
 
     Framebuffer fb(w, h);
     std::vector<float> depth;
-    populate_fb_and_depth(fb, depth, w, h);
-
-    const DepthOfFieldSettings dof{
+    populate_fb_and_depth(fb, depth, w, h);        const DepthOfFieldSettings dof{
         .enabled = true,
         .focus_z = 0.0f,
         .aperture = aperture,
         .max_blur = 48.0f
     };
+    const LensModel lens;
 
     for (auto _ : state) {
-        apply_per_pixel_dof(fb, depth, dof);
+        apply_per_pixel_dof(fb, depth, dof, lens);
         benchmark::DoNotOptimize(fb.get_pixel(0, 0));
     }
 

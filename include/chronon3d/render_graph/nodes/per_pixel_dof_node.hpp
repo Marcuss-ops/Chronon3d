@@ -103,7 +103,7 @@ public:
         }
 
         // Apply per-pixel DOF blur using the depth buffer populated by compositing
-        renderer::apply_per_pixel_dof(*result, ctx.telemetry.dof_depth, m_camera.dof, clip);
+        renderer::apply_per_pixel_dof(*result, ctx.telemetry.dof_depth, m_camera.dof, m_camera.lens, clip);
 
         if (ctx.telemetry.counters) {
             ctx.telemetry.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);

@@ -37,6 +37,7 @@ namespace chronon3d::renderer {
 /// @param fb        Framebuffer to blur in-place.
 /// @param depth     Per-pixel world_z buffer (width × height, row-major).
 /// @param dof       Camera DOF settings (focus_z, aperture, max_blur).
+/// @param lens      Physical lens model (focal_length, sensor_width, f_stop).
 /// @param clip      Optional clip rectangle; only pixels inside are blurred.
 ///
 /// The depth buffer must be the same size as the framebuffer (width × height).
@@ -45,6 +46,7 @@ inline void apply_per_pixel_dof(
     Framebuffer& fb,
     const std::vector<float>& depth,
     const DepthOfFieldSettings& dof,
+    const LensModel& lens,
     const std::optional<raster::BBox>& clip = std::nullopt)
 {
     if (!dof.enabled) return;
@@ -74,7 +76,7 @@ inline void apply_per_pixel_dof(
             const size_t idx = static_cast<size_t>(y) * w + x;
             const float z = depth[idx];
             if (z < kUnsetDepth * 0.5f) {
-                blur_radii[idx] = compute_dof_blur_radius(dof, z);
+                blur_radii[idx] = compute_dof_blur_radius(dof, lens, z);
             }
             max_r = std::max(max_r, blur_radii[idx]);
         }

@@ -84,11 +84,7 @@ struct AnimatedCamera2_5D {
         cam.dof.aperture = aperture.evaluate(time);
         cam.dof.max_blur = max_blur.evaluate(time);
 
-        // Physical lens params are now cam.lens (populated above).
-        // Copy to dof for backward compat with existing DOF code.
-        cam.dof.focal_length        = cam.lens.focal_length;
-        cam.dof.sensor_width        = cam.lens.sensor_width;
-        cam.dof.f_stop              = cam.lens.f_stop;
+        // Focus distance (runtime-evaluated, stays in dof).
         cam.dof.focus_distance      = focus_distance.evaluate(time);
         cam.dof.use_physical_model  = use_physical_model;
 
