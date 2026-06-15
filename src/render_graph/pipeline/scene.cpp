@@ -147,23 +147,31 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     FrameFingerprints frame_fp;
     FrameFingerprints prev_fp; // populated with zero if no history
 
-    if (sw_renderer && sw_renderer->frame_history().prev_static_scene_fingerprint != 0) {
+    // Compute fingerprints unconditionally so that frame_fp is populated even
+    // on the first frame.  Previously the computation was gated by
+    // prev_static_scene_fingerprint != 0, which created a chicken-and-egg
+    // problem: fingerprints were never computed for the first frame, so the
+    // history was never populated, preventing all subsequent frames from
+    // benefiting from the graph cache.
+    if (sw_renderer) {
         frame_fp = compute_frame_fingerprints(
             sw_renderer->scene_hasher(), scene, frame);
 
-        scene_structure_unchanged =
-            (frame_fp.structure_fp == sw_renderer->frame_history().prev_graph_structure_fingerprint);
+        if (sw_renderer->frame_history().prev_static_scene_fingerprint != 0) {
+            scene_structure_unchanged =
+                (frame_fp.structure_fp == sw_renderer->frame_history().prev_graph_structure_fingerprint);
 
-        const Camera2_5D& cam = ctx.camera.camera_2_5d;
-        static_cam_changed = detail::camera_changed(
-            cam, &sw_renderer->frame_history().prev_camera,
-            sw_renderer->frame_history().prev_camera_valid);
+            const Camera2_5D& cam = ctx.camera.camera_2_5d;
+            static_cam_changed = detail::camera_changed(
+                cam, &sw_renderer->frame_history().prev_camera,
+                sw_renderer->frame_history().prev_camera_valid);
 
-        scene_is_static = sw_renderer->scene_hasher().is_static_scene_at(scene, frame);
+            scene_is_static = sw_renderer->scene_hasher().is_static_scene_at(scene, frame);
 
-        // Save previous frame's fingerprints for comparison in static fast-path
-        prev_fp.static_fp = sw_renderer->frame_history().prev_static_scene_fingerprint;
-        prev_fp.active_at_fp = sw_renderer->frame_history().prev_active_at_fingerprint;
+            // Save previous frame's fingerprints for comparison in static fast-path
+            prev_fp.static_fp = sw_renderer->frame_history().prev_static_scene_fingerprint;
+            prev_fp.active_at_fp = sw_renderer->frame_history().prev_active_at_fingerprint;
+        }
     }
 
     // ── 3. Fast-path: Static scene (no dirty rects required) ─────────────

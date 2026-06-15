@@ -73,7 +73,7 @@ TEST_CASE("RenderCounters: all atomic fields are 64-byte aligned") {
             &c.dirty_full_fallback_reasons);
         const auto slot1 = reinterpret_cast<std::uintptr_t>(
             &c.dirty_full_fallback_reasons[1]);
-        // Two adjacent 8-byte slots must NOT share a cache line.
+        // Two adjacent 64-byte padded slots must NOT share a cache line.
         CHECK((base / 64) != (slot1 / 64));
     }
 
@@ -110,9 +110,9 @@ TEST_CASE("RenderCounters: merge_tls aggregates single-thread raw correctly") {
     CHECK(global.tiles_total.load()     == 100);
     CHECK(global.tbb_arena_max_concurrency.load() == 16);
     CHECK(global.image_decode_ms.load() == 5);
-    CHECK(global.dirty_full_fallback_reasons[0].load() == 3);
+    CHECK(global.dirty_full_fallback_reasons[0].value.load() == 3);
     if (dirty_fallback_reason_count() >= 2) {
-        CHECK(global.dirty_full_fallback_reasons[1].load() == 11);
+        CHECK(global.dirty_full_fallback_reasons[1].value.load() == 11);
     }
 }
 
@@ -288,10 +288,10 @@ TEST_CASE("RenderCounters: dirty_full_fallback_reasons array integrity") {
     for (auto& th : threads) th.join();
 
     for (int slot = 0; slot < slots_to_test; ++slot) {
-        CHECK(global.dirty_full_fallback_reasons[slot].load() == 100);
+        CHECK(global.dirty_full_fallback_reasons[slot].value.load() == 100);
     }
     for (int slot = slots_to_test; slot < dirty_fallback_reason_count(); ++slot) {
-        CHECK(global.dirty_full_fallback_reasons[slot].load() == 0);
+        CHECK(global.dirty_full_fallback_reasons[slot].value.load() == 0);
     }
 }
 

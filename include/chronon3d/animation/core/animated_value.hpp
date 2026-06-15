@@ -430,7 +430,8 @@ public:
     }
 
     [[nodiscard]] T evaluate(Frame frame, const AnimationEvalContext& ctx) const {
-        return evaluate(SampleTime::from_frame_int(frame, FrameRate{30, 1}), ctx);
+        const double fps = (ctx.fps > 0.0f) ? static_cast<double>(ctx.fps) : 30.0;
+        return evaluate(SampleTime::from_frame_int(frame, fps), ctx);
     }
 
     [[nodiscard]] bool is_animated() const { return !m_keyframes.empty(); }

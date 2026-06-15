@@ -704,8 +704,9 @@ HWY_ATTR void composite_color_burn_premul_impl(float* HWY_RESTRICT dst_ptr,
         const auto cs_le_0 = hn::Le(Cs_clamped, hn::Zero(d4));
         const auto cb_ge_1 = hn::Ge(Cb_clamped, one);
 
-        auto B = hn::IfThenElse(cs_le_0, hn::Zero(d4), burned);
-        B = hn::IfThenElse(cb_ge_1, one, B);
+        // Match reference (blend_math.hpp): cs <= 0 takes priority over cb >= 1.
+        auto B = hn::IfThenElse(cb_ge_1, one, burned);
+        B = hn::IfThenElse(cs_le_0, hn::Zero(d4), B);
 
         const auto inv_As = hn::Sub(one, As);
         const auto inv_Ab = hn::Sub(one, Ab);

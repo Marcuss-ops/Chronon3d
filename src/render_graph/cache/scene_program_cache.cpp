@@ -39,6 +39,13 @@ graph::CompiledSceneProgram* SceneProgramCache::find(
     // Promote to MRU head.
     shard.lru_list.splice(shard.lru_list.begin(), shard.lru_list,
                           it->second.lru_iterator);
+
+    // Record the cache hit for stats and telemetry.
+    m_hits.fetch_add(1, std::memory_order_relaxed);
+    if (m_counters) {
+        m_counters->program_cache_hits.fetch_add(1, std::memory_order_relaxed);
+    }
+
     return it->second.program.get();
 }
 

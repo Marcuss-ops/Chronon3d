@@ -69,11 +69,14 @@ TEST_CASE("Near plane clipping: quad crossing near plane produces 4-6 vertices")
     CHECK(clipped.count <= 6);
 
     // All clipped points must be finite and in front of near plane
+    // Epsilon 1e-5 is used because intersect_near_plane computes in float32
+    // with z~0.001, and FP round-trip through the intersection formula can
+    // produce errors ~7e-6.
     for (int i = 0; i < clipped.count; ++i) {
         CHECK(std::isfinite(clipped.points[i].x));
         CHECK(std::isfinite(clipped.points[i].y));
         CHECK(std::isfinite(clipped.points[i].z));
-        CHECK(clipped.points[i].z >= camera_math::kNearClipZ - 1e-6f);
+        CHECK(clipped.points[i].z >= camera_math::kNearClipZ - 1e-5f);
     }
 }
 

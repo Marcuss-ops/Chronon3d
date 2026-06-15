@@ -110,6 +110,7 @@ void composite_bl_image(Framebuffer& fb, const BLImage& img, int x, int y, float
     const int stride = static_cast<int>(data.stride / sizeof(uint32_t));
 
     const float inv255 = 1.0f / 255.0f;
+
     const bool has_mask = state && state->mask && state->mask->enabled();
     if (has_mask) {
         ensure_mask_alpha_cache(*state, fb.width(), fb.height());
@@ -197,6 +198,7 @@ void composite_bl_image(Framebuffer& fb, const BLImage& img, int x, int y, float
     } else {
         process_rows(0, sh);
     }
+
 }
 
 void composite_framebuffer(Framebuffer& dst_fb, const Framebuffer& src_fb, int x, int y, float opacity, BlendMode mode, const RenderState* state) {

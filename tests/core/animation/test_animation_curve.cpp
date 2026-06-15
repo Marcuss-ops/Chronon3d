@@ -254,9 +254,11 @@ TEST_CASE("AnimatedValue: roving with Vec3 type") {
 
     val.compute_roving();
 
-    // Non-arithmetic Vec3 → even distribution at frame 50
+    // Vec3 uses spatial-distance roving (glm::length): the keyframe at value 50
+    // moves to frame 25 (frac = 70.71/282.84 = 0.25), so evaluate at frame 50
+    // interpolates between (50,50,0) at frame 25 and (200,200,0) at frame 100 → (100,100,0)
     Vec3 v = val.evaluate(Frame{50});
-    CHECK(v.x == doctest::Approx(50.0f));
+    CHECK(v.x == doctest::Approx(100.0f));
 }
 
 // ── Fluent API Tests ─────────────────────────────────────────────────────────

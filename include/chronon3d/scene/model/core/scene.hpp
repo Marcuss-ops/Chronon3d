@@ -79,8 +79,15 @@ public:
             auto world_mat_opt = results.world_matrix(std::string(layer.name));
             if (world_mat_opt) {
                 f32 opacity = layer.transform.opacity;
+                // Walk the parent chain to accumulate inherited opacity.
+                // Guard against cycles (e.g., self-parent or A→B→A) by limiting
+                // the chain depth. Real parent chains are never deeper than ~10;
+                // a limit of 64 catches any cycle without dangling pointers or
+                // extra allocations.
+                constexpr int kMaxParentDepth = 64;
                 std::string current_parent = std::string(layer.parent_name);
-                while (!current_parent.empty()) {
+                int safety = 0;
+                while (!current_parent.empty() && safety < kMaxParentDepth) {
                     bool found = false;
                     for (const auto& p_layer : m_layers) {
                         if (std::string_view(p_layer.name) == current_parent) {
@@ -91,6 +98,7 @@ public:
                         }
                     }
                     if (!found) break;
+                    ++safety;
                 }
                 
                 Vec3 original_anchor = layer.transform.anchor;

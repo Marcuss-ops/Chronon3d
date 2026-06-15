@@ -106,13 +106,24 @@ inline ClippedPolygon3D clip_polygon_against_near_plane(
         // else: both outside → emit nothing
     }
 
-    // If nothing was clipped, return the original polygon
+    // If nothing was clipped, return the original polygon (or invisible if none
+    // of the vertices are inside the near plane — the polygon is entirely
+    // behind the camera).
     if (!any_clipped) {
+        // Check whether at least one vertex is inside; if all are outside
+        // (z < near_z) the polygon is invisible, not visible.
+        bool any_inside = false;
+        for (int i = 0; i < src_count; ++i) {
+            if ((*src)[i].z >= near_z) {
+                any_inside = true;
+                break;
+            }
+        }
         out.count = src_count;
         for (int i = 0; i < src_count; ++i) {
             out.points[i] = (*src)[i];
         }
-        out.visible = (src_count >= 3);
+        out.visible = any_inside && (src_count >= 3);
         out.was_clipped = false;
         return out;
     }

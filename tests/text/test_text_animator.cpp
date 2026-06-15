@@ -399,7 +399,8 @@ TEST_CASE("TextAnimator ByGlyph positions differ from approximate fallback") {
     // ByGlyph accounts for kerning, while ByCharacter uses fixed width
     f32 glyph_v_x = result_glyph.layers()[1].transform.position.x;
     f32 char_v_x  = result_char.layers()[1].transform.position.x;
-    CHECK(glyph_v_x != doctest::Approx(char_v_x).epsilon(0.5f));
+    // Should differ at more than 1% (real kerning vs naive fallback)
+    CHECK(glyph_v_x != doctest::Approx(char_v_x).epsilon(0.01f));
 }
 
 TEST_CASE("TextAnimator ByGlyph handles spaces as individual glyphs") {

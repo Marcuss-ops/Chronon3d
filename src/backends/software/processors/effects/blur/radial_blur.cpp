@@ -23,6 +23,7 @@
 //   centre invariant.
 
 #include "radial_blur.hpp"
+#include <chronon3d/backends/software/sampling/sampler2d.hpp>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -138,6 +139,13 @@ void apply_radial_blur(
     auto temp = std::make_unique<Framebuffer>(w, h);
     temp->blit(fb, 0, 0);
 
+    // Use a Clamp-edge sampler so that out-of-bounds taps clamp to the
+    // nearest edge pixel rather than returning transparent black. This is
+    // critical for correctness: a constant image must remain constant after
+    // any amount of radial blur, and edge pixels should not bleed to
+    // transparent.
+    sampling::Sampler2D sampler(*temp, sampling::EdgeMode::Clamp);
+
     for (int y = y0; y < y1; ++y) {
         Color* dst_row = fb.pixels_row(y);
         const float py = static_cast<float>(y);
@@ -158,7 +166,7 @@ void apply_radial_blur(
             for (const auto& tap : taps) {
                 const float sx = px + tap.dx;
                 const float sy = py + tap.dy;
-                const Color c = temp->sample_bilinear(sx, sy);
+                const Color c = sampler.bilinear(sx, sy);
                 r += c.r * tap.weight;
                 g += c.g * tap.weight;
                 b += c.b * tap.weight;

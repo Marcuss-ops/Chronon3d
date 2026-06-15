@@ -182,29 +182,30 @@ inline Color blend_reference_premul(
             bb = blend_exclusion(cb_b, cs_b);
             break;
 
-        // B3: Advanced modes — clamp to [0,1] per HDR contract.
+        // B3: Advanced modes — clamp to [0,1] per HDR contract
+        // (matches SIMD clamping in highway_color_kernels.cpp).
         case BlendMode::SoftLight:
-            br = blend_soft_light(std::min(cb_r, 1.0f), std::min(cs_r, 1.0f));
-            bg = blend_soft_light(std::min(cb_g, 1.0f), std::min(cs_g, 1.0f));
-            bb = blend_soft_light(std::min(cb_b, 1.0f), std::min(cs_b, 1.0f));
+            br = blend_soft_light(std::clamp(cb_r, 0.0f, 1.0f), std::clamp(cs_r, 0.0f, 1.0f));
+            bg = blend_soft_light(std::clamp(cb_g, 0.0f, 1.0f), std::clamp(cs_g, 0.0f, 1.0f));
+            bb = blend_soft_light(std::clamp(cb_b, 0.0f, 1.0f), std::clamp(cs_b, 0.0f, 1.0f));
             break;
 
         case BlendMode::HardLight:
-            br = blend_hard_light(std::min(cb_r, 1.0f), std::min(cs_r, 1.0f));
-            bg = blend_hard_light(std::min(cb_g, 1.0f), std::min(cs_g, 1.0f));
-            bb = blend_hard_light(std::min(cb_b, 1.0f), std::min(cs_b, 1.0f));
+            br = blend_hard_light(std::clamp(cb_r, 0.0f, 1.0f), std::clamp(cs_r, 0.0f, 1.0f));
+            bg = blend_hard_light(std::clamp(cb_g, 0.0f, 1.0f), std::clamp(cs_g, 0.0f, 1.0f));
+            bb = blend_hard_light(std::clamp(cb_b, 0.0f, 1.0f), std::clamp(cs_b, 0.0f, 1.0f));
             break;
 
         case BlendMode::ColorDodge:
-            br = blend_color_dodge(std::min(cb_r, 1.0f), std::min(cs_r, 1.0f));
-            bg = blend_color_dodge(std::min(cb_g, 1.0f), std::min(cs_g, 1.0f));
-            bb = blend_color_dodge(std::min(cb_b, 1.0f), std::min(cs_b, 1.0f));
+            br = blend_color_dodge(std::clamp(cb_r, 0.0f, 1.0f), std::clamp(cs_r, 0.0f, 1.0f));
+            bg = blend_color_dodge(std::clamp(cb_g, 0.0f, 1.0f), std::clamp(cs_g, 0.0f, 1.0f));
+            bb = blend_color_dodge(std::clamp(cb_b, 0.0f, 1.0f), std::clamp(cs_b, 0.0f, 1.0f));
             break;
 
         case BlendMode::ColorBurn:
-            br = blend_color_burn(std::min(cb_r, 1.0f), std::min(cs_r, 1.0f));
-            bg = blend_color_burn(std::min(cb_g, 1.0f), std::min(cs_g, 1.0f));
-            bb = blend_color_burn(std::min(cb_b, 1.0f), std::min(cs_b, 1.0f));
+            br = blend_color_burn(std::clamp(cb_r, 0.0f, 1.0f), std::clamp(cs_r, 0.0f, 1.0f));
+            bg = blend_color_burn(std::clamp(cb_g, 0.0f, 1.0f), std::clamp(cs_g, 0.0f, 1.0f));
+            bb = blend_color_burn(std::clamp(cb_b, 0.0f, 1.0f), std::clamp(cs_b, 0.0f, 1.0f));
             break;
 
         default:
