@@ -9,7 +9,7 @@ namespace chronon3d::rendering {
 // Produced by ProjectionContext::project_card().
 // Used by Image, Rect, Text, and specialized renderers to render flat layers in 3D space.
 struct ProjectedCard {
-    Vec2 corners[4]{};               // screen-space corners: TL, TR, BR, BL
+    Vec3 corners[4]{};               // screen-space corners: TL, TR, BR, BL (z = camera-space depth)
     Vec2 uvs[4]{                     // texture coordinates matching corners
         {0.0f, 0.0f}, {1.0f, 0.0f},
         {1.0f, 1.0f}, {0.0f, 1.0f}
