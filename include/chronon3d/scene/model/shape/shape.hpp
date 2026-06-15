@@ -131,6 +131,12 @@ struct TextPaint {
     bool stroke_enabled{false};
     Color stroke_color{0.0f, 0.0f, 0.0f, 1.0f};
     f32 stroke_width{2.0f};
+
+    /// Optional gradient/colour override for stroke.  When present, the
+    /// stroke uses this Fill instead of `stroke_color`, enabling gradient
+    /// strokes for text (Linear, Radial, Conic) just like shape strokes.
+    /// Falls back to solid `stroke_color` when absent.
+    std::optional<Fill> stroke_style{};
 };
 
 struct TextShadow {
