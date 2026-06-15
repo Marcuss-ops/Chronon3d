@@ -40,10 +40,14 @@ struct AnimatedCamera2_5D {
     bool  dof_enabled{false};
 
     // Physical lens parameters (used when dof.use_physical_model is true).
+    // These mirror the fields in LensModel for animation support.
     AnimatedValue<f32>  focal_length{50.0f};
     AnimatedValue<f32>  sensor_width{36.0f};
+    AnimatedValue<f32>  sensor_height{24.0f};
     AnimatedValue<f32>  f_stop{2.8f};
     AnimatedValue<f32>  focus_distance{1000.0f};
+    AnimatedValue<f32>  close_focus{450.0f};
+    GateFit             gate_fit{GateFit::Fill};
     bool  use_physical_model{false};
 
     /// Evaluate all animated properties at `frame` and return a static Camera2_5D.
@@ -64,6 +68,14 @@ struct AnimatedCamera2_5D {
         cam.point_of_interest          = point_of_interest.evaluate(time);
         cam.point_of_interest_enabled  = point_of_interest_enabled;
 
+        // Populate physical lens model from animated fields.
+        cam.lens.focal_length   = focal_length.evaluate(time);
+        cam.lens.sensor_width   = sensor_width.evaluate(time);
+        cam.lens.sensor_height  = sensor_height.evaluate(time);
+        cam.lens.f_stop         = f_stop.evaluate(time);
+        cam.lens.close_focus    = close_focus.evaluate(time);
+        cam.lens.gate_fit       = gate_fit;
+
         // DoF: enabled explicitly OR via any animated param (legacy or physical).
         cam.dof.enabled  = dof_enabled || focus_z.is_animated() || aperture.is_animated() || max_blur.is_animated()
                            || focal_length.is_animated() || f_stop.is_animated() || focus_distance.is_animated()
@@ -72,10 +84,11 @@ struct AnimatedCamera2_5D {
         cam.dof.aperture = aperture.evaluate(time);
         cam.dof.max_blur = max_blur.evaluate(time);
 
-        // Physical lens params.
-        cam.dof.focal_length        = focal_length.evaluate(time);
-        cam.dof.sensor_width        = sensor_width.evaluate(time);
-        cam.dof.f_stop              = f_stop.evaluate(time);
+        // Physical lens params are now cam.lens (populated above).
+        // Copy to dof for backward compat with existing DOF code.
+        cam.dof.focal_length        = cam.lens.focal_length;
+        cam.dof.sensor_width        = cam.lens.sensor_width;
+        cam.dof.f_stop              = cam.lens.f_stop;
         cam.dof.focus_distance      = focus_distance.evaluate(time);
         cam.dof.use_physical_model  = use_physical_model;
 
@@ -88,8 +101,8 @@ struct AnimatedCamera2_5D {
                zoom.is_animated()     || fov_deg.is_animated() ||
                point_of_interest.is_animated() ||
                focus_z.is_animated()  || aperture.is_animated() || max_blur.is_animated() ||
-               focal_length.is_animated() || sensor_width.is_animated() ||
-               f_stop.is_animated()   || focus_distance.is_animated();
+               focal_length.is_animated() || sensor_width.is_animated() || sensor_height.is_animated() ||
+               f_stop.is_animated()   || focus_distance.is_animated() || close_focus.is_animated();
     }
 
     /// Return true if any property depends on time (keyframes or expression).
@@ -100,8 +113,8 @@ struct AnimatedCamera2_5D {
                zoom.is_time_dependent()     || fov_deg.is_time_dependent() ||
                point_of_interest.is_time_dependent() ||
                focus_z.is_time_dependent()  || aperture.is_time_dependent() || max_blur.is_time_dependent() ||
-               focal_length.is_time_dependent() || sensor_width.is_time_dependent() ||
-               f_stop.is_time_dependent()   || focus_distance.is_time_dependent();
+               focal_length.is_time_dependent() || sensor_width.is_time_dependent() || sensor_height.is_time_dependent() ||
+               f_stop.is_time_dependent()   || focus_distance.is_time_dependent() || close_focus.is_time_dependent();
     }
 };
 
