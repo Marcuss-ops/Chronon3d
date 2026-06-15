@@ -1,7 +1,7 @@
 # Text Rendering — Colli di Bottiglia
 
 > **Data analisi originale:** 8 Giugno 2026 (build `2796e99`)
-> **Ultimo aggiornamento:** 15 Giugno 2026
+> **Ultimo aggiornamento:** 15 Giugno 2026 (aggiornamento SIMD benchmark)
 > **Pipeline analizzata:** Font → Layout → Rasterizzazione → Material Effects → Compositing
 >
 > ✅ = Risolto  🟡 = Parzialmente risolto  🔴 = Ancora aperto
@@ -92,11 +92,16 @@ Il pixel-ink centering è ora **opt-in** via `TextCenteringMode::PixelInk` e des
 
 **Stato attuale**: Il blur viene ora applicato **direttamente su BLImage**, evitando l'allocazione e copia intermedia del Framebuffer. La cache BLImage (`text_shadow_cache`, `text_glow_cache`) evita la re-generazione quando i parametri non cambiano. Il glow usa una pipeline condivisa (`GlowPipeline::render`).
 
-**Rimanente**: Le funzioni di conversione `bl_image_to_framebuffer` e `framebuffer_to_bl_image` usano ancora loop per-pixel senza SIMD.
+Le conversioni `bl_image_prgb32_to_color_row` e `color_to_prgb32_row` sono state implementate con path AVX2 2-pixel (ScalableTag 8 lanes, LowerHalf/UpperHalf, transparent-pair fast-path). **Benchmark standalone** (std::chrono, 200 warmup + 10 runs, mediana) mostra che il path SIMD è **1.5-2.7× più lento** dello scalare per righe tipiche del glow (256-3840px). Il bottleneck è lo scalar unpack/pack dei uint32 (bit shifts, `1/a` division), non il calcolo float SIMD. Solo a 1920px per PRGB32→Color c'è un leggero miglioramento (1.12×, transparent-pair fast-path). 28 unit test validano la correttezza.
+
+**Rimanente**: Per ottenere un vero speedup, servirebbe integer SIMD unpack (`ScalableTag<uint32_t>` + `ShiftRight<24>` + `And` + `ConvertTo<float>`) per eliminare il bottleneck scalare.
 
 **Dove**:
 - `text_shadow.cpp` — blur diretto su BLImage + cache
 - `text_glow.cpp` — GlowPipeline condivisa + cache
+- `highway_color_kernels.cpp` — implementazioni AVX2 + benchmark negative
+- `tests/bench/bench_prgb32_conversion.cpp` — benchmark standalone SIMD vs scalar
+- `tests/simd/test_simd_kernels.cpp` — 28 unit test PRGB32↔Color
 
 ---
 
@@ -135,7 +140,7 @@ Il pixel-ink centering è ora **opt-in** via `TextCenteringMode::PixelInk` e des
 | **2** | Layout: per-char measure_text() | O(n²) per testo con wrap | 🔥🔥🔥 Lento per testi lunghi | Medio | `text_layout_engine.hpp`, `font_engine.cpp` | ✅ Risolto |
 | **3** | Ink trimming full-image scan | w×h pixel letti a ogni miss | 🔥🔥 Overhead su testi grandi | Basso | `text_rasterizer_render.cpp` | ✅ Risolto |
 | **4** | Bevel O(w×h×bp²) | Edge detection naive | 🔥🔥 2-5ms su testi medi | Medio | `text_material.cpp` | ✅ Risolto |
-| **5** | Shadow/glow: copie pixel | BLImage→FB→blur→FB | 🔥 1-3ms per layer | Medio | `text_shadow.cpp`, `text_glow.cpp` | 🟡 Migliorato |
+| **5** | Shadow/glow: copie pixel | BLImage→FB→blur→FB | 🔥 1-3ms per layer | Medio | `text_shadow.cpp`, `text_glow.cpp` | 🟡 SIMD benchmark negativo |
 | **6** | Cache full-image, non per-glyph | Miss per scale diverse | 🔥 Animazioni degradate | Alto | `text_rasterizer_cache.cpp`, `glyph_atlas.cpp` | 🟡 Infrastruttura pronta |
 | **7** | Mutex contention | Lock globali sotto multi-thread | 🔥 Solo con parall. frame-level | Basso | `font_engine.cpp`, cache vari | ✅ Risolto |
 
@@ -151,7 +156,7 @@ Il pixel-ink centering è ora **opt-in** via `TextCenteringMode::PixelInk` e des
 - [x] **#1** HarfBuzz unico shaper per misurazione + rendering
 
 ### Fase 2 — Da completare
-- [ ] **#5** SIMD-izzare le conversioni `bl_image_to_framebuffer` / `framebuffer_to_bl_image`
+- [x] **#5** SIMD AVX2 2-pixel path implementato + benchmark (SIMD più lento — integer unpack necessario per speedup reale)
 - [ ] **#6** Integrare GlyphAtlas nel percorso critico di `text_rasterizer_render.cpp`
 
 ### Fase 3 — Nuove feature
