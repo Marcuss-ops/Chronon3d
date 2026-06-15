@@ -68,16 +68,11 @@ option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
 option(CHRONON3D_ENABLE_SQLITE_TELEMETRY "Enable SQLite telemetry store" OFF)
 option(CHRONON3D_ENABLE_MESH "Enable mesh processing support" ON)
 
-# ── Optional heavy dependencies ───────────────────────────────────────
-# These gate find_package() calls so that a minimal build (all OFF)
-# only needs spdlog, fmt, TBB, concurrentqueue, glm, xxHash, magic_enum,
-# tomlplusplus, nlohmann_json, Stb, and Highway SIMD.
+# ── Optional heavy dependency: Blend2D ──────────────────────────────────
+# Blend2D is the only USE_ option because it is independent of its ENABLE_
+# counterpart (ENABLE_TEXT gates freetype+harfbuzz but not Blend2D).
+# All other optional deps use the ENABLE_* options exclusively.
 option(CHRONON3D_USE_BLEND2D "Enable Blend2D software rendering backend" ON)
-option(CHRONON3D_USE_FREETYPE "Enable FreeType font loading" ON)
-option(CHRONON3D_USE_HARFBUZZ "Enable HarfBuzz text shaping" ON)
-option(CHRONON3D_USE_FRIBIDI "Enable FriBidi bidirectional text support" ON)
-option(CHRONON3D_USE_OPENEXR "Enable OpenEXR image format support" ON)
-option(CHRONON3D_USE_LIBYUV "Enable libyuv video colour conversion" ON)
 
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     add_compile_definitions(CHRONON3D_ENABLE_NATIVE_FFMPEG)
