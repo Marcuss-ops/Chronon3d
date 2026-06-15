@@ -86,7 +86,7 @@ struct ProjectionContext {
         for (int i = 0; i < 4; ++i) {
             Vec4 w = trs * Vec4(local[i], 1.0f);
             const auto p = project_point({w.x, w.y, w.z});
-            out.corners[i] = p.screen;
+            out.corners[i] = Vec3{p.screen.x, p.screen.y, p.depth};
             visible = visible && p.visible;
             depth_sum += p.depth;
         }
