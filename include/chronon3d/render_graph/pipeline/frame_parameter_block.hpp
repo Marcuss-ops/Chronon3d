@@ -64,6 +64,16 @@ struct FrameParameterBlock {
     /// entries if the count matches.  Returns true if no reallocation occurred.
     bool warm_up(size_t count) {
         if (count == layers.size()) {
+            // Clear all state (residual guards) even when size matches.
+            // Zero out runtime fields so no stale values survive.
+            for (auto& l : layers) {
+                l.matrix = Mat4{1.0f};
+                l.opacity = 0.0f;
+                l.effect_blur_radius = 0.0f;
+                l.has_animated_blur = false;
+                l.refreshed_this_frame = false;
+            }
+            refresh_count = 0;
             return true;  // already sized — no reallocation
         }
         // Clear all state (residual guards)

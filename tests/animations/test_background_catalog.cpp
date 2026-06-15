@@ -1,5 +1,6 @@
 #include <chronon3d/api/backgrounds.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/core/composition/register_builtin_compositions.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 
@@ -9,6 +10,9 @@
 
 using namespace chronon3d;
 using namespace chronon3d::api;
+
+// Register built-in compositions once before any test case.
+static bool _bg_registered = (chronon3d::register_builtin_compositions(), true);
 
 TEST_CASE("Builtin background catalog exposes grid_clean preset") {
     const auto& catalog = builtin_background_catalog();

@@ -152,8 +152,8 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.dirty_pixels.fetch_add(src.dirty_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.dirty_full_fallbacks.fetch_add(src.dirty_full_fallbacks.load(std::memory_order_relaxed), std::memory_order_relaxed);
     for (std::size_t i = 0; i < dirty_fallback_reason_count(); ++i) {
-        dst.dirty_full_fallback_reasons[i].fetch_add(
-            src.dirty_full_fallback_reasons[i].load(std::memory_order_relaxed),
+        dst.dirty_full_fallback_reasons[i].value.fetch_add(
+            src.dirty_full_fallback_reasons[i].value.load(std::memory_order_relaxed),
             std::memory_order_relaxed
         );
     }

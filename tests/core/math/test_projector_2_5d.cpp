@@ -67,8 +67,8 @@ TEST_CASE("ProjectionContext: project_card — flat card at z=0 is visible and c
     CHECK(card.depth == doctest::Approx(1000.0f).epsilon(5.0f));
     // TL (local x-) projects left of TR (local x+)
     CHECK(card.corners[0].x < card.corners[1].x);
-    // With LH projection: local y- → screen y- (above center), local y+ → screen y+ (below center)
-    CHECK(card.corners[0].y < card.corners[2].y);
+    // With inverted-Y projection: local y- → screen y+ (below center), local y+ → screen y- (above center)
+    CHECK(card.corners[0].y > card.corners[2].y);
 }
 
 TEST_CASE("ProjectionContext: project_card — card offset right projects offset right") {

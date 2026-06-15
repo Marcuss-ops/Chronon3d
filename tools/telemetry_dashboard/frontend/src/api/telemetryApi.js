@@ -8,11 +8,14 @@ async function handleApiResponse(res, defaultError) {
   throw new Error(data.error || defaultError);
 }
 
-export const outputPathToArtifactUrl = (outputPath) => {
+export const outputPathToArtifactUrl = (outputPath, version = '') => {
   if (!outputPath) return '';
   const base = API_BASE || window.location.origin;
   const url = new URL(`${base}/artifact`);
   url.searchParams.set('path', outputPath);
+  if (version) {
+    url.searchParams.set('v', version);
+  }
   return url.toString();
 };
 
@@ -20,11 +23,11 @@ export const isVideoOutput = (outputPath) => /\.(mp4|webm|mov)$/i.test(outputPat
 export const isImageOutput = (outputPath) => /\.(png|jpg|jpeg|webp|gif|svg)$/i.test(outputPath || '');
 
 export const fetchRuns = async () => {
-  const res = await fetch(`${API_BASE}/api/runs`);
+  const res = await fetch(`${API_BASE}/api/runs?_=${Date.now()}`);
   return await handleApiResponse(res, 'Failed to load runs');
 };
 
 export const fetchRunDetail = async (id) => {
-  const res = await fetch(`${API_BASE}/api/run/${id}`);
+  const res = await fetch(`${API_BASE}/api/run/${id}?_=${Date.now()}`);
   return await handleApiResponse(res, 'Failed to load run details');
 };

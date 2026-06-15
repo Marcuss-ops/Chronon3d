@@ -169,7 +169,7 @@ public:
                 }
             }
 
-            if (blur_radius > 0.0f && ctx.resources.backend) {
+            if (blur_radius > 0.0f && ctx.resources.backend && projected_pixels > 0) {
                 ctx.resources.backend->apply_blur(*shadow_fb, blur_radius, ctx.tile.clip_rect);
             }
 

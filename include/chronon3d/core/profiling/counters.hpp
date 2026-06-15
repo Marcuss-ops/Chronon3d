@@ -292,6 +292,12 @@ struct RenderCountersRaw {
     }
 };
 
+// Each slot occupies its own 64-byte cache line so that bumping one
+// reason does not cause false sharing with another reason.
+struct alignas(kHardwareDestructiveInterferenceSize) DirtyFallbackSlot {
+    std::atomic<uint64_t> value{0};
+};
+
 // ---------------------------------------------------------------------------
 // RenderCounters — the global, process-wide counter store.
 //
@@ -315,10 +321,9 @@ struct RenderCounters {
     CHRONON_RENDER_COUNTERS(X)
 #undef X
 
-    // The dirty-fallback reason array: each slot gets its own cache line so
-    // bumping one reason does not invalidate the cache line of another.
-    alignas(kHardwareDestructiveInterferenceSize)
-    std::array<std::atomic<uint64_t>, dirty_fallback_reason_count()>
+    // The dirty-fallback reason array: each slot is individually cache-line
+    // padded so bumping one reason does not invalidate the cache line of another.
+    std::array<DirtyFallbackSlot, dirty_fallback_reason_count()>
         dirty_full_fallback_reasons{};
 
     // System / setup counters — written infrequently (sampler tick or
@@ -346,8 +351,8 @@ private:
         CHRONON_RENDER_COUNTERS(X)
 #undef X
         for (std::size_t i = 0; i < dirty_fallback_reason_count(); ++i) {
-            dirty_full_fallback_reasons[i].store(
-                other.dirty_full_fallback_reasons[i].load(std::memory_order_relaxed),
+            dirty_full_fallback_reasons[i].value.store(
+                other.dirty_full_fallback_reasons[i].value.load(std::memory_order_relaxed),
                 std::memory_order_relaxed
             );
         }
@@ -392,14 +397,14 @@ public:
         CHRONON_RENDER_COUNTERS_SETUP(X)
 #undef X
         for (auto& reason : dirty_full_fallback_reasons) {
-            reason.store(0, std::memory_order_relaxed);
+            reason.value.store(0, std::memory_order_relaxed);
         }
     }
 
     void increment_dirty_full_fallback_reason(DirtyFallbackReason reason) {
         const auto index = static_cast<std::size_t>(reason);
         if (index < dirty_fallback_reason_count()) {
-            dirty_full_fallback_reasons[index].fetch_add(1, std::memory_order_relaxed);
+            dirty_full_fallback_reasons[index].value.fetch_add(1, std::memory_order_relaxed);
         }
     }
 
@@ -417,7 +422,7 @@ public:
         CHRONON_RENDER_COUNTERS(X)
 #undef X
         for (std::size_t i = 0; i < dirty_fallback_reason_count(); ++i) {
-            dirty_full_fallback_reasons[i].fetch_add(
+            dirty_full_fallback_reasons[i].value.fetch_add(
                 tls.dirty_full_fallback_reasons[i], std::memory_order_relaxed);
         }
 #define X(name) name.fetch_add(tls.name, std::memory_order_relaxed);

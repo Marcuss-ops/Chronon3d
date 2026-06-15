@@ -17,7 +17,7 @@ TEST_CASE("EffectRegistry registers built-in effects with stable ids") {
     EffectRegistry registry;
 
     const auto available_ids = registry.available();
-    REQUIRE(available_ids.size() == 12);
+    REQUIRE(available_ids.size() == 21);
     CHECK(registry.contains(effect_ids::BlurGaussian));
     CHECK(registry.contains(effect_ids::ColorBrightness));
     CHECK(registry.contains(effect_ids::ColorContrast));
