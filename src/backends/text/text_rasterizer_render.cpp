@@ -744,8 +744,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                 }
             } else {
                 // Fallback when HarfBuzz shaping is unavailable
-                ctx.setStrokeWidth(run_style.paint.stroke_width);
-                ctx.setStrokeStyle(to_bl_rgba(run_style.paint.stroke_color));
                 ctx.strokeUtf8Text(BLPoint(lx, baseline_y), run_font, run.text.c_str());
             }
         }
@@ -846,8 +844,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                     }
                 }
             } else {
-                ctx.setStrokeWidth(t.style.paint.stroke_width);
-                ctx.setStrokeStyle(to_bl_rgba(t.style.paint.stroke_color));
                 ctx.strokeUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
             }
         }        apply_text_fill_style(
