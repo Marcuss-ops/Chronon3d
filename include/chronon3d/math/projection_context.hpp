@@ -17,8 +17,8 @@ struct ProjectedPoint {
 };
 
 struct ProjectedQuad {
-    Vec2 corners[4]{};
-    f32 depth{0.0f};
+    Vec3 corners[4]{};           // screen-space corners (x, y, z=camera-space depth)
+    f32 depth{0.0f};             // average depth
     bool visible{false};
 };
 
@@ -64,7 +64,7 @@ struct ProjectionContext {
         f32 depth_sum = 0.0f;
         for (int i = 0; i < 4; ++i) {
             const auto p = project_point(corners_world[i]);
-            out.corners[i] = p.screen;
+            out.corners[i] = Vec3{p.screen.x, p.screen.y, p.depth};
             visible = visible && p.visible;
             depth_sum += p.depth;
         }
