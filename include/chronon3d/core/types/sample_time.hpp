@@ -65,16 +65,21 @@ struct SampleTime {
     }
 
     // ── legacy factories (deprecated — keep for transition) ──────────────────
+    // Preserve fractional FPS (e.g. 29.97 NTSC) by scaling to milliseconds
+    // instead of truncating via static_cast<i32>(fps).
     static SampleTime from_frame(double frame, double fps) {
-        return { frame, FrameRate{static_cast<i32>(fps), 1} };
+        const auto fps_ms = static_cast<i32>(std::llround(fps * 1000.0));
+        return { frame, FrameRate{fps_ms, 1000} };
     }
 
     static SampleTime from_seconds(double seconds, double fps) {
-        return { seconds * fps, FrameRate{static_cast<i32>(fps), 1} };
+        const auto fps_ms = static_cast<i32>(std::llround(fps * 1000.0));
+        return { seconds * fps, FrameRate{fps_ms, 1000} };
     }
 
     static SampleTime from_frame_int(Frame frame, double fps) {
-        return { static_cast<double>(frame), FrameRate{static_cast<i32>(fps), 1} };
+        const auto fps_ms = static_cast<i32>(std::llround(fps * 1000.0));
+        return { static_cast<double>(frame), FrameRate{fps_ms, 1000} };
     }
 
     /// Legacy: from integer Frame with implicit 30 FPS (deprecated).
