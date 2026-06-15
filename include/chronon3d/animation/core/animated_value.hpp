@@ -70,6 +70,22 @@ public:
         return *this;
     }
 
+    /// Add a keyframe with spatial bezier handles for smooth curved paths.
+    /// The handles are offsets from `value` that control the cubic bezier path:
+    ///   out_handle → outgoing tangent direction from this keyframe
+    ///   in_handle  → incoming tangent direction toward the next keyframe
+    /// When both handles are zero (default), straight-line interpolation is used.
+    /// When non-zero, the segment between consecutive keyframes uses a
+    /// CubicBezier3D curve.
+    AnimatedValue& key(Frame frame, const T& value, EasingCurve easing,
+                        T out_handle, T in_handle) {
+        m_keyframes.emplace_back(frame, value, easing, false);
+        m_keyframes.back().out_handle = out_handle;
+        m_keyframes.back().in_handle = in_handle;
+        std::sort(m_keyframes.begin(), m_keyframes.end());
+        return *this;
+    }
+
     // Mark the last-added keyframe as roving (constant velocity).
     AnimatedValue& roving() {
         if (!m_keyframes.empty()) {
@@ -200,10 +216,10 @@ public:
     [[nodiscard]] const std::string& expression() const { return m_expression; }
     [[nodiscard]] bool has_expression() const { return !m_expression.empty(); }
 
-    // Preferred name in new code.
+    // ── Frame evaluation (backward compatible + forward) ────────────────────
     [[nodiscard]] T value_at(Frame frame) const { return evaluate(frame); }
 
-    // ── Sub-frame evaluation (SampleTime) ── the future ─────────────────────
+    // Sub-frame evaluation (SampleTime) — the future
     [[nodiscard]] T evaluate(SampleTime time) const {
         return evaluate(time, AnimationEvalContext{});
     }
@@ -244,7 +260,7 @@ public:
         return base;
     }
 
-    // ── Legacy Frame evaluation (backward compatible) ────────────────────────
+    // Frame evaluation (backward compatible)
     [[nodiscard]] T evaluate(Frame frame) const {
         return evaluate(SampleTime::from_frame_int(frame, FrameRate{30, 1}));
     }
@@ -289,6 +305,14 @@ public:
     }
 
 private:
+    // Check if any handle is non-zero (spatial bezier mode).
+    [[nodiscard]] static bool has_spatial_handles(const Keyframe<T>& kf) {
+        if constexpr (std::is_same_v<T, Vec3> || std::is_same_v<T, glm::vec2> || std::is_same_v<T, glm::vec4>) {
+            return glm::length2(kf.out_handle) > 1e-12f || glm::length2(kf.in_handle) > 1e-12f;
+        }
+        return false;
+    }
+
     // Core interpolation engine — works with double precision for sub-frame accuracy.
     [[nodiscard]] T evaluate_base_double(double frame) const {
         // Auto-compute roving before evaluation if dirty.
@@ -346,6 +370,26 @@ private:
         if (next_f <= prev_f) return prev.value;
 
         const f32 t = static_cast<f32>((eval_frame - prev_f) / (next_f - prev_f));
+
+        // Spatial bezier path: when handles are present, use CubicBezier3D
+        // for smooth curved interpolation through 3+ points.
+        if constexpr (std::is_same_v<T, Vec3> || std::is_same_v<T, glm::vec2> || std::is_same_v<T, glm::vec4>) {
+            if (has_spatial_handles(prev) || has_spatial_handles(next)) {
+                const f32 eased_t = prev.easing.apply(std::clamp(t, 0.0f, 1.0f));
+                // Build CubicBezier3D from the four control points
+                const Vec3 p0 = prev.value;
+                const Vec3 p1 = prev.value + prev.out_handle;
+                const Vec3 p3 = next.value;
+                const Vec3 p2 = next.value + next.in_handle;
+                // De Casteljau evaluation
+                const f32 u = 1.0f - eased_t;
+                return u * u * u * p0
+                     + 3.0f * u * u * eased_t * p1
+                     + 3.0f * u * eased_t * eased_t * p2
+                     + eased_t * eased_t * eased_t * p3;
+            }
+        }
+
         return interpolate_values(prev.value, next.value, std::clamp(t, 0.0f, 1.0f), prev.easing);
     }
 
@@ -365,8 +409,6 @@ private:
     [[nodiscard]] T evaluate_base(Frame frame) const {
         return evaluate_base_double(static_cast<double>(frame));
     }
-
-
 
     T m_default_value{};
     mutable std::vector<Keyframe<T>> m_keyframes;
