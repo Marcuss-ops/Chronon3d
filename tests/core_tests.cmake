@@ -32,6 +32,7 @@ add_executable(chronon3d_core_tests
     core/animation/test_wiggle.cpp
     core/animation/test_sample_time.cpp
     core/animation/test_temporal_spatial_curve.cpp
+    core/animation/test_quaternion_track.cpp
     core/timeline/test_timeline.cpp
     core/timeline/test_timeline_builder.cpp
     core/timeline/test_code_first_composition.cpp
