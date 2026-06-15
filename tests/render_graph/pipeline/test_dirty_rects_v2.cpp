@@ -410,7 +410,7 @@ TEST_CASE("Dirty Rects: Output correct with effects (blur)") {
     const auto* counters = renderer.counters();
     uint64_t effect_fallback = counters->dirty_full_fallback_reasons[
         static_cast<std::size_t>(DirtyFallbackReason::EffectBoundsUnknown)
-    ].load();
+    ].value.load();
 
     // The key invariant: output must be pixel-correct regardless of
     // whether the dirty rect system took the partial or full-frame path.

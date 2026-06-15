@@ -149,51 +149,50 @@ void apply_offset(Framebuffer& fb, float dx, float dy,
 
     const int w = fb.width(), h = fb.height();
 
-    // ── Integer fast path: memmove-based shift ──────────────────────────
+    // Determine the processing region.
+    int x0 = 0, x1 = w, y0 = 0, y1 = h;
+    if (clip) {
+        x0 = std::clamp(clip->x0, 0, w); x1 = std::clamp(clip->x1, 0, w);
+        y0 = std::clamp(clip->y0, 0, h); y1 = std::clamp(clip->y1, 0, h);
+    }
+
+    // Create a temporary copy of the entire framebuffer so that sampling
+    // reads from the pre-offset state regardless of the processing region.
+    auto temp = std::make_unique<Framebuffer>(w, h);
+    temp->blit(fb, 0, 0);
+    const chronon3d::sampling::Sampler2D sampler(*temp, edge_mode);
+
+    // ── Integer fast path: nearest-neighbour with edge modes ────────────
     const bool is_integer = (dx == std::floor(dx) && dy == std::floor(dy));
     if (is_integer && filter == chronon3d::sampling::SampleFilter::Nearest) {
         const int idx = static_cast<int>(dx);
         const int idy = static_cast<int>(dy);
 
-        if (edge_mode == chronon3d::sampling::EdgeMode::Transparent) {
-            // Use Framebuffer::shift() with memmove
-            fb.shift(idx, idy);
-            return;
-        }
-
-        // Non-transparent edge mode: map source rows instead of memmove.
-        // Create a temporary copy, then sample with edge-aware mapping.
-        auto temp = std::make_unique<Framebuffer>(w, h);
-        temp->blit(fb, 0, 0);
-        const chronon3d::sampling::Sampler2D sampler(*temp, edge_mode);
-
-        for (int y = 0; y < h; ++y) {
+        for (int y = y0; y < y1; ++y) {
             Color* row = fb.pixels_row(y);
-            for (int x = 0; x < w; ++x) {
-                row[x] = sampler.nearest(static_cast<float>(x + idx),
-                                          static_cast<float>(y + idy));
+            for (int x = x0; x < x1; ++x) {
+                // dst(x) = src(x - dx), clamped at edges.
+                row[x] = sampler.nearest(static_cast<float>(x - idx),
+                                          static_cast<float>(y - idy));
             }
         }
         return;
     }
 
     // ── Subpixel / bilinear path ──────────────────────────────────────
-    {
-        auto temp = std::make_unique<Framebuffer>(w, h);
-        temp->blit(fb, 0, 0);
-        const chronon3d::sampling::Sampler2D sampler(*temp, edge_mode);
+    for (int y = y0; y < y1; ++y) {
+        Color* row = fb.pixels_row(y);
+        for (int x = x0; x < x1; ++x) {
+            // dst(x) = src(x - dx): sample from the source at
+            // (x - dx, y - dy) so that a positive offset shifts the
+            // source rightward / downward.
+            const float sx = static_cast<float>(x) - dx;
+            const float sy = static_cast<float>(y) - dy;
 
-        for (int y = 0; y < h; ++y) {
-            Color* row = fb.pixels_row(y);
-            for (int x = 0; x < w; ++x) {
-                const float sx = static_cast<float>(x) + dx;
-                const float sy = static_cast<float>(y) + dy;
-
-                if (filter == chronon3d::sampling::SampleFilter::Nearest) {
-                    row[x] = sampler.nearest(sx, sy);
-                } else {
-                    row[x] = sampler.bilinear(sx, sy);
-                }
+            if (filter == chronon3d::sampling::SampleFilter::Nearest) {
+                row[x] = sampler.nearest(sx, sy);
+            } else {
+                row[x] = sampler.bilinear(sx, sy);
             }
         }
     }

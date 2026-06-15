@@ -115,9 +115,10 @@ inline Color blend(const Color& src, const Color& dst, BlendMode mode) {
                 return cb + (2.0f * cs - 1.0f) * (d(cb) - cb);
             };
             // Clamp input straight RGB to [0,1] for the blend function (HDR contract).
-            return {sl(std::min(dst.r, 1.0f), std::min(src.r, 1.0f)),
-                    sl(std::min(dst.g, 1.0f), std::min(src.g, 1.0f)),
-                    sl(std::min(dst.b, 1.0f), std::min(src.b, 1.0f)), a};
+            // Matches SIMD clamping in highway_color_kernels.cpp.
+            return {sl(std::clamp(dst.r, 0.0f, 1.0f), std::clamp(src.r, 0.0f, 1.0f)),
+                    sl(std::clamp(dst.g, 0.0f, 1.0f), std::clamp(src.g, 0.0f, 1.0f)),
+                    sl(std::clamp(dst.b, 0.0f, 1.0f), std::clamp(src.b, 0.0f, 1.0f)), a};
         }
         case BlendMode::HardLight: {
             const f32 a = src.a + dst.a * (1.0f - src.a);
@@ -126,9 +127,9 @@ inline Color blend(const Color& src, const Color& dst, BlendMode mode) {
                 if (cs <= 0.5f) return 2.0f * cb * cs;
                 return 1.0f - 2.0f * (1.0f - cb) * (1.0f - cs);
             };
-            return {hl(std::min(dst.r, 1.0f), std::min(src.r, 1.0f)),
-                    hl(std::min(dst.g, 1.0f), std::min(src.g, 1.0f)),
-                    hl(std::min(dst.b, 1.0f), std::min(src.b, 1.0f)), a};
+            return {hl(std::clamp(dst.r, 0.0f, 1.0f), std::clamp(src.r, 0.0f, 1.0f)),
+                    hl(std::clamp(dst.g, 0.0f, 1.0f), std::clamp(src.g, 0.0f, 1.0f)),
+                    hl(std::clamp(dst.b, 0.0f, 1.0f), std::clamp(src.b, 0.0f, 1.0f)), a};
         }
         case BlendMode::ColorDodge: {
             const f32 a = src.a + dst.a * (1.0f - src.a);
@@ -138,9 +139,9 @@ inline Color blend(const Color& src, const Color& dst, BlendMode mode) {
                 if (cb <= 0.0f) return 0.0f;
                 return std::min(1.0f, cb / std::max(1.0f - cs, 1e-8f));
             };
-            return {dodge(std::min(dst.r, 1.0f), std::min(src.r, 1.0f)),
-                    dodge(std::min(dst.g, 1.0f), std::min(src.g, 1.0f)),
-                    dodge(std::min(dst.b, 1.0f), std::min(src.b, 1.0f)), a};
+            return {dodge(std::clamp(dst.r, 0.0f, 1.0f), std::clamp(src.r, 0.0f, 1.0f)),
+                    dodge(std::clamp(dst.g, 0.0f, 1.0f), std::clamp(src.g, 0.0f, 1.0f)),
+                    dodge(std::clamp(dst.b, 0.0f, 1.0f), std::clamp(src.b, 0.0f, 1.0f)), a};
         }
         case BlendMode::ColorBurn: {
             const f32 a = src.a + dst.a * (1.0f - src.a);
@@ -150,9 +151,9 @@ inline Color blend(const Color& src, const Color& dst, BlendMode mode) {
                 if (cb >= 1.0f) return 1.0f;
                 return 1.0f - std::min(1.0f, (1.0f - cb) / std::max(cs, 1e-8f));
             };
-            return {burn(std::min(dst.r, 1.0f), std::min(src.r, 1.0f)),
-                    burn(std::min(dst.g, 1.0f), std::min(src.g, 1.0f)),
-                    burn(std::min(dst.b, 1.0f), std::min(src.b, 1.0f)), a};
+            return {burn(std::clamp(dst.r, 0.0f, 1.0f), std::clamp(src.r, 0.0f, 1.0f)),
+                    burn(std::clamp(dst.g, 0.0f, 1.0f), std::clamp(src.g, 0.0f, 1.0f)),
+                    burn(std::clamp(dst.b, 0.0f, 1.0f), std::clamp(src.b, 0.0f, 1.0f)), a};
         }
         default:
             return blend_normal(src, dst);

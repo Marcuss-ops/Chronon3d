@@ -213,10 +213,17 @@ TEST_CASE("blend_simd: Normal compositor::blend matches blend_reference_premul")
         Color src = random_premul();
         Color dst = random_premul();
 
-        // Via compositor::blend (blend_mode.hpp switch statement).
-        Color expected = compositor::blend(src, dst, BlendMode::Normal);
+        // compositor::blend(Normal) → blend_normal() expects straight-alpha source.
+        // Convert from premultiplied to straight before passing to compositor::blend.
+        Color straight_src{
+            src.a > 1e-8f ? src.r / src.a : 0.0f,
+            src.a > 1e-8f ? src.g / src.a : 0.0f,
+            src.a > 1e-8f ? src.b / src.a : 0.0f,
+            src.a
+        };
+        Color expected = compositor::blend(straight_src, dst, BlendMode::Normal);
 
-        // Via blend_reference_premul (canonical formula from blend_math.hpp).
+        // Via blend_reference_premul (canonical premultiplied formula from blend_math.hpp).
         Color ref = blend_reference_premul(src, dst, BlendMode::Normal);
 
         check_color_close(expected, ref, kEpsilonScalar);

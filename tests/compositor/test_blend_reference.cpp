@@ -236,7 +236,8 @@ TEST_CASE("blend: source alpha 0 → destination unchanged") {
 }
 
 TEST_CASE("blend: destination alpha 0 → source unchanged") {
-    Color transparent_dst{0.5f, 0.3f, 0.7f, 0.0f};
+    // Use a valid premultiplied transparent color (alpha=0, RGB=0).
+    Color transparent_dst{0.0f, 0.0f, 0.0f, 0.0f};
     for (int m = 0; m <= static_cast<int>(BlendMode::ColorBurn); ++m) {
         auto mode = static_cast<BlendMode>(m);
         if (mode == BlendMode::Add) continue;
@@ -314,33 +315,50 @@ TEST_CASE("blend: identity properties") {
     Color black{0.0f, 0.0f, 0.0f, 1.0f};
     Color gray_premul{0.3f, 0.3f, 0.3f, 0.6f};
 
-    // Multiply with white → source (straight: gray * 1 = gray)
+    // NOTE: In premultiplied Porter-Duff compositing, the identities
+    // "Multiply with white → source" etc. only hold in straight alpha
+    // without the over compositing.  Here B(Cb, Cs) is the blend function
+    // on straight RGB, but the final output is:
+    //   Co = cb*(1-As) + cs*(1-Ab) + B(Cb,Cs)*(As*Ab)
+    //
+    // For cs={0.3,0.3,0.3,0.6} with white ({1,1,1,1}) Multiply:
+    //   Cs=0.5, Cb=1.0 → B=0.5*1.0=0.5
+    //   Co = 1.0*0.4 + 0.3*0.0 + 0.5*0.6 = 0.4 + 0.3 = {0.7,0.7,0.7,1.0}
     Color r = blend_reference_premul(gray_premul, white, BlendMode::Multiply);
-    check_color_close(r, gray_premul);
+    check_color_close(r, {0.7f, 0.7f, 0.7f, 1.0f});
 
-    // Screen with black → source
+    // Screen with black: B = Cs+0-Cs*0 = 0.5 → Co = 0 + 0.3*0 + 0.5*0.6 = {0.3,0.3,0.3,1.0}
     r = blend_reference_premul(gray_premul, black, BlendMode::Screen);
-    check_color_close(r, gray_premul);
+    check_color_close(r, {0.3f, 0.3f, 0.3f, 1.0f});
 
-    // Difference with black → source
+    // Difference with black: B = |0.5-0| = 0.5 → same as Screen
     r = blend_reference_premul(gray_premul, black, BlendMode::Difference);
-    check_color_close(r, gray_premul);
+    check_color_close(r, {0.3f, 0.3f, 0.3f, 1.0f});
 
-    // Darken with white → source
+    // Darken with white: B = min(0.5, 1.0) = 0.5 → same as Multiply
     r = blend_reference_premul(gray_premul, white, BlendMode::Darken);
-    check_color_close(r, gray_premul);
+    check_color_close(r, {0.7f, 0.7f, 0.7f, 1.0f});
 
-    // Lighten with black → source
+    // Lighten with black: B = max(0.5, 0) = 0.5 → same as Screen
     r = blend_reference_premul(gray_premul, black, BlendMode::Lighten);
-    check_color_close(r, gray_premul);
+    check_color_close(r, {0.3f, 0.3f, 0.3f, 1.0f});
 }
 
-TEST_CASE("blend: same image Difference/Exclusion → black") {
+TEST_CASE("blend: same image Difference/Exclusion with over compositing") {
+    // In premultiplied Porter-Duff, Difference(same, same) ≠ 0 because:
+    //   Co = cb*(1-As) + cs*(1-Ab) + |Cs-Cs|*(As*Ab) = 2*cb*(1-As)
+    // With c={0.4,0.2,0.1,0.5}: Co = 2*{0.4,0.2,0.1}*0.5 = {0.4,0.2,0.1}
+    // and Ao = 0.5+0.5-0.25 = 0.75
     Color c{0.4f, 0.2f, 0.1f, 0.5f};
     Color diff = blend_reference_premul(c, c, BlendMode::Difference);
-    check_color_close(diff, Color{0.0f, 0.0f, 0.0f, diff.a});
+    check_color_close(diff, {0.4f, 0.2f, 0.1f, 0.75f});
+
+    // Exclusion(same,same): B = Cs+Cs-2*Cs*Cs = 2*Cs*(1-Cs) ≠ 0
+    // Cs = (0.8, 0.4, 0.2)
+    // B_r = 0.8+0.8-2*0.64 = 0.32, B_g = 0.4+0.4-2*0.16 = 0.48, B_b = 0.2+0.2-2*0.04 = 0.32
+    // Co.g = 0.2*0.5 + 0.2*0.5 + 0.48*0.25 = 0.1 + 0.1 + 0.12 = 0.32
     Color excl = blend_reference_premul(c, c, BlendMode::Exclusion);
-    check_color_close(excl, Color{0.0f, 0.0f, 0.0f, excl.a});
+    check_color_close(excl, {0.48f, 0.32f, 0.18f, 0.75f});
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

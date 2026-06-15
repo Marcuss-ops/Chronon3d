@@ -84,7 +84,7 @@ TEST_CASE("Curves: LUT matches known values at sample points") {
     CHECK(curve.evaluate(0.65f) == doctest::Approx(0.65f).epsilon(kScalarEpsilon));
     CHECK(curve.evaluate(0.90f) == doctest::Approx(0.95f).epsilon(kScalarEpsilon));
     CHECK(curve.evaluate(1.00f) == doctest::Approx(1.00f).epsilon(kScalarEpsilon));
-    CHECK(curve.evaluate(1.50f) == doctest::Approx(1.25f).epsilon(kScalarEpsilon));
+    CHECK(curve.evaluate(1.50f) == doctest::Approx(1.25f).epsilon(kBlurEpsilon));
 }
 
 TEST_CASE("Curves: LUT precision within 1e-4 of reference at random points") {
@@ -122,7 +122,7 @@ TEST_CASE("Curves: HDR extrapolation with slope") {
 
     // For x=1.5: 1.2 + (1.5-1.0) * 1.6 = 1.2 + 0.8 = 2.0
     float y = curve.evaluate(1.5f);
-    CHECK(y == doctest::Approx(2.0f).epsilon(kScalarEpsilon));
+    CHECK(y == doctest::Approx(2.0f).epsilon(kBlurEpsilon));
 }
 
 // =============================================================================

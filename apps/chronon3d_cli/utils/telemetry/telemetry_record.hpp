@@ -57,16 +57,16 @@ inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& ru
     run.dirty_full_fallbacks = counters.dirty_full_fallbacks.load(std::memory_order_relaxed);
     run.dirty_full_fallback_predicted_bounds_missing =
         counters.dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::PredictedBoundsMissing)]
-            .load(std::memory_order_relaxed);
+            .value.load(std::memory_order_relaxed);
     run.dirty_full_fallback_composite_missing_input_bounds =
         counters.dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::CompositeMissingInputBounds)]
-            .load(std::memory_order_relaxed);
+            .value.load(std::memory_order_relaxed);
     run.dirty_full_fallback_transform_bounds_unknown =
         counters.dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::TransformBoundsUnknown)]
-            .load(std::memory_order_relaxed);
+            .value.load(std::memory_order_relaxed);
     run.dirty_full_fallback_effect_bounds_unknown =
         counters.dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::EffectBoundsUnknown)]
-            .load(std::memory_order_relaxed);
+            .value.load(std::memory_order_relaxed);
     run.framebuffer_acquire_ms = counters.framebuffer_acquire_ms.load(std::memory_order_relaxed);
     run.framebuffer_clear_ms = counters.framebuffer_clear_ms.load(std::memory_order_relaxed);
     run.clearnode_ms = counters.clearnode_ms.load(std::memory_order_relaxed);

@@ -75,7 +75,7 @@ bool save_png(const Framebuffer& framebuffer, const std::string& path) {
     
     // Convert Framebuffer (float RGBA) to byte RGBA
     std::vector<uint8_t> data(width * height * 4);
-    
+
     for (i32 y = 0; y < height; ++y) {
         for (i32 x = 0; x < width; ++x) {
             Color linear_c = framebuffer.get_pixel(x, y);

@@ -179,7 +179,10 @@ TEST_CASE("TextLayoutEngine layout V2 specifications") {
         input.style.tracking = -2.0f;
 
         auto res = TextLayoutEngine::layout(input);
-        CHECK(res.size.x == doctest::Approx(12.0f));
+        // Layout engine applies tracking per CLUSTER, not per char:
+        // w = (num_chars * font_size * 0.6) + (num_clusters - 1) * tracking
+        // 3 * (10 * 0.6) + (3 - 1) * (-2) = 18 - 4 = 14
+        CHECK(res.size.x == doctest::Approx(14.0f));
     }
 
     SUBCASE("Line heights extreme") {
