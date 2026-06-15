@@ -462,3 +462,405 @@ TEST_CASE("lerp_gradient — opacity stops merged and lerped") {
     CHECK(m.opacity_stops[0].opacity == doctest::Approx(0.5f));  // (0+1)/2
     CHECK(m.opacity_stops[1].opacity == doctest::Approx(0.5f));  // (1+0)/2
 }
+
+
+// ── KeyframeTrack<FillStyle> ─────────────────────────────────────────
+
+TEST_CASE("KeyframeTrack<FillStyle> — solid to solid") {
+    namespace gfx = chronon3d::graphics;
+    KeyframeTrack<gfx::FillStyle> track;
+    track.key(0,  gfx::FillStyle::solid({1.0f, 0.0f, 0.0f, 1.0f}))
+         .key(60, gfx::FillStyle::solid({0.0f, 0.0f, 1.0f, 1.0f}));
+
+    // Before first keyframe → first value
+    const auto pre = track.sample_at(-10.0f);
+    CHECK(pre.is_solid());
+    CHECK(pre.solid_color.r == doctest::Approx(1.0f));
+
+    // At first keyframe
+    const auto t0 = track.sample_at(0.0f);
+    CHECK(t0.solid_color.r == doctest::Approx(1.0f));
+
+    // Midpoint
+    const auto mid = track.sample_at(30.0f);
+    CHECK(mid.is_solid());
+    CHECK(mid.solid_color.r == doctest::Approx(0.5f));
+    CHECK(mid.solid_color.b == doctest::Approx(0.5f));
+
+    // After last keyframe → last value
+    const auto post = track.sample_at(100.0f);
+    CHECK(post.is_solid());
+    CHECK(post.solid_color.b == doctest::Approx(1.0f));
+}
+
+TEST_CASE("KeyframeTrack<FillStyle> — linear gradient to linear gradient") {
+    namespace gfx = chronon3d::graphics;
+    std::vector<gfx::GradientStop> stops_a = {
+        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+    };
+    std::vector<gfx::GradientStop> stops_b = {
+        {0.0f, {0.0f, 1.0f, 0.0f, 1.0f}},
+        {1.0f, {1.0f, 1.0f, 0.0f, 1.0f}},
+    };
+
+    KeyframeTrack<gfx::FillStyle> track;
+    track.key(0,  gfx::FillStyle::linear({0.0f, 0.0f}, {1.0f, 0.0f}, stops_a))
+         .key(60, gfx::FillStyle::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops_b));
+
+    // Before first → first value
+    const auto pre = track.sample_at(-5.0f);
+    REQUIRE(pre.is_gradient());
+    REQUIRE(pre.gradient.has_value());
+    CHECK(pre.gradient->start.x == doctest::Approx(0.0f));
+    CHECK(pre.gradient->start.y == doctest::Approx(0.0f));
+
+    // Midpoint — colours and geometry lerped
+    const auto mid = track.sample_at(30.0f);
+    REQUIRE(mid.is_gradient());
+    REQUIRE(mid.gradient.has_value());
+    CHECK(mid.gradient->start.y == doctest::Approx(0.25f));  // (0+0.5)/2
+    CHECK(mid.gradient->end.y   == doctest::Approx(0.25f));
+
+    // After last → last value
+    const auto post = track.sample_at(200.0f);
+    REQUIRE(post.is_gradient());
+    REQUIRE(post.gradient.has_value());
+    CHECK(post.gradient->start.y == doctest::Approx(0.5f));
+}
+
+TEST_CASE("KeyframeTrack<FillStyle> — solid to gradient") {
+    namespace gfx = chronon3d::graphics;
+    const auto solid = gfx::FillStyle::solid({1.0f, 1.0f, 1.0f, 1.0f});
+    std::vector<gfx::GradientStop> stops = {
+        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+    };
+    const auto grad = gfx::FillStyle::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops);
+
+    KeyframeTrack<gfx::FillStyle> track;
+    track.key(0,  solid)
+         .key(60, grad);
+
+    // t=0 → solid
+    const auto t0 = track.sample_at(0.0f);
+    // Solid is converted to 1-stop gradient internally, so result is gradient
+    CHECK(t0.is_gradient());
+
+    // t=1.0 → gradient
+    const auto t1 = track.sample_at(60.0f);
+    REQUIRE(t1.is_gradient());
+    REQUIRE(t1.gradient.has_value());
+    CHECK(t1.gradient->end.y == doctest::Approx(0.5f));
+
+    // Midpoint — should be gradient
+    const auto mid = track.sample_at(30.0f);
+    CHECK(mid.is_gradient());
+}
+
+TEST_CASE("KeyframeTrack<FillStyle> — with easing") {
+    namespace gfx = chronon3d::graphics;
+    KeyframeTrack<gfx::FillStyle> track;
+    track.key(0,  gfx::FillStyle::solid({1.0f, 0.0f, 0.0f, 1.0f}))
+         .key(60, gfx::FillStyle::solid({0.0f, 0.0f, 1.0f, 1.0f}), EasingCurve{Easing::OutCubic});
+
+    // Hold easing mode
+    const auto hold = track.sample_at(0.0f);
+    CHECK(hold.solid_color.r == doctest::Approx(1.0f));
+
+    // Midpoint with easing — result differs from linear
+    const auto linear = track.sample_at(30.0f);
+    CHECK(linear.is_solid());
+    // OutCubic at t=0.5 should be > 0.5 (slower start, faster end)
+    CHECK(linear.solid_color.r < 0.7f);  // eased past midpoint
+}
+
+TEST_CASE("KeyframeTrack<FillStyle> — accessor methods") {
+    namespace gfx = chronon3d::graphics;
+    KeyframeTrack<gfx::FillStyle> track;
+    CHECK(track.empty());
+    CHECK(track.size() == 0);
+
+    track.key(10, gfx::FillStyle::solid({1.0f, 1.0f, 1.0f, 1.0f}))
+         .key(20, gfx::FillStyle::solid({0.5f, 0.5f, 0.5f, 1.0f}));
+
+    CHECK_FALSE(track.empty());
+    CHECK(track.size() == 2);
+
+    // evaluate(SampleTime) variant
+    const SampleTime st = SampleTime::from_frame(15.0, FrameRate{30, 1});
+    const auto mid = track.evaluate(st);
+    CHECK(mid.solid_color.r == doctest::Approx(0.75f));
+
+    // evaluate(Frame) variant
+    const auto at5  = track.evaluate(Frame{5});
+    CHECK(at5.solid_color.r == doctest::Approx(1.0f));  // before first → first
+
+    const auto at25 = track.evaluate(Frame{25});
+    CHECK(at25.solid_color.r == doctest::Approx(0.5f));  // after last → last
+}
+
+TEST_CASE("KeyframeTrack<FillStyle> — single keyframe") {
+    namespace gfx = chronon3d::graphics;
+    KeyframeTrack<gfx::FillStyle> track;
+    track.key(30, gfx::FillStyle::solid({1.0f, 0.0f, 0.0f, 1.0f}));
+
+    // Any query returns the single value
+    CHECK(track.sample_at(0.0f).solid_color.r == doctest::Approx(1.0f));
+    CHECK(track.sample_at(30.0f).solid_color.r == doctest::Approx(1.0f));
+    CHECK(track.sample_at(100.0f).solid_color.r == doctest::Approx(1.0f));
+}
+
+
+// ── lerp_stroke_style ────────────────────────────────────────────────
+
+TEST_CASE("lerp_stroke_style — solid to solid") {
+    namespace gfx = chronon3d::graphics;
+    const auto a = gfx::StrokeStyle::solid({1.0f, 0.0f, 0.0f, 1.0f}, 2.0f);
+    const auto b = gfx::StrokeStyle::solid({0.0f, 0.0f, 1.0f, 1.0f}, 6.0f);
+
+    const auto m = gfx::lerp_stroke_style(a, b, 0.5f);
+    CHECK(m.is_solid());  // both solid → no gradient
+    CHECK(m.color.r == doctest::Approx(0.5f));
+    CHECK(m.color.b == doctest::Approx(0.5f));
+    CHECK(m.width   == doctest::Approx(4.0f));  // (2+6)/2
+
+    // t=0 → a
+    const auto r0 = gfx::lerp_stroke_style(a, b, 0.0f);
+    CHECK(r0.color.r == doctest::Approx(1.0f));
+    CHECK(r0.width   == doctest::Approx(2.0f));
+    CHECK(r0.enabled == a.enabled);
+
+    // t=1 → b
+    const auto r1 = gfx::lerp_stroke_style(a, b, 1.0f);
+    CHECK(r1.color.b == doctest::Approx(1.0f));
+    CHECK(r1.width   == doctest::Approx(6.0f));
+}
+
+TEST_CASE("lerp_stroke_style — solid to gradient") {
+    namespace gfx = chronon3d::graphics;
+    const auto solid = gfx::StrokeStyle::solid({1.0f, 1.0f, 1.0f, 1.0f}, 3.0f);
+    std::vector<gfx::GradientStop> stops = {
+        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+    };
+    const auto grad = gfx::StrokeStyle::linear_gradient(
+        {0.0f, 0.0f}, {1.0f, 0.0f}, stops, 5.0f);
+
+    // t=0 → solid (converted to 1-stop gradient internally)
+    const auto r0 = gfx::lerp_stroke_style(solid, grad, 0.0f);
+    CHECK(r0.is_gradient());  // solid converted to 1-stop gradient
+    CHECK(r0.width == doctest::Approx(3.0f));
+
+    // t=1 → gradient
+    const auto r1 = gfx::lerp_stroke_style(solid, grad, 1.0f);
+    REQUIRE(r1.is_gradient());
+    CHECK(r1.width == doctest::Approx(5.0f));
+
+    // Midpoint → gradient (both colour and width lerped)
+    const auto m = gfx::lerp_stroke_style(solid, grad, 0.5f);
+    REQUIRE(m.is_gradient());
+    CHECK(m.width == doctest::Approx(4.0f));  // (3+5)/2
+}
+
+TEST_CASE("lerp_stroke_style — gradient to gradient") {
+    namespace gfx = chronon3d::graphics;
+    std::vector<gfx::GradientStop> stops_a = {
+        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+    };
+    std::vector<gfx::GradientStop> stops_b = {
+        {0.0f, {0.0f, 1.0f, 0.0f, 1.0f}},
+        {1.0f, {1.0f, 1.0f, 0.0f, 1.0f}},
+    };
+    const auto ga = gfx::StrokeStyle::linear_gradient(
+        {0.0f, 0.0f}, {1.0f, 0.0f}, stops_a, 2.0f);
+    const auto gb = gfx::StrokeStyle::linear_gradient(
+        {0.0f, 0.5f}, {1.0f, 0.5f}, stops_b, 8.0f);
+
+    const auto m = gfx::lerp_stroke_style(ga, gb, 0.5f);
+    REQUIRE(m.is_gradient());
+    REQUIRE(m.gradient.has_value());
+    // Geometry lerped
+    CHECK(m.gradient->start.y == doctest::Approx(0.25f));  // (0+0.5)/2
+    CHECK(m.gradient->end.y   == doctest::Approx(0.25f));
+    // Width lerped
+    CHECK(m.width == doctest::Approx(5.0f));  // (2+8)/2
+    // Colours lerped
+    REQUIRE(m.gradient->color_stops.size() >= 2);
+    CHECK(m.gradient->color_stops[0].color.r == doctest::Approx(0.5f));
+    CHECK(m.gradient->color_stops[0].color.g == doctest::Approx(0.5f));
+}
+
+TEST_CASE("lerp_stroke_style — enum properties switch at t=0.5") {
+    namespace gfx = chronon3d::graphics;
+    auto a = gfx::StrokeStyle::solid({1.0f, 0.0f, 0.0f, 1.0f}, 2.0f);
+    auto b = gfx::StrokeStyle::solid({0.0f, 0.0f, 1.0f, 1.0f}, 2.0f);
+    a.alignment = StrokeAlignment::Outside;
+    b.alignment = StrokeAlignment::Inside;
+    a.cap = LineCap::Round;
+    b.cap = LineCap::Square;
+    a.join = LineJoin::Round;
+    b.join = LineJoin::Bevel;
+
+    // t < 0.5 → follows a
+    const auto r0 = gfx::lerp_stroke_style(a, b, 0.3f);
+    CHECK(r0.alignment == StrokeAlignment::Outside);
+    CHECK(r0.cap == LineCap::Round);
+    CHECK(r0.join == LineJoin::Round);
+
+    // t >= 0.5 → follows b
+    const auto r1 = gfx::lerp_stroke_style(a, b, 0.7f);
+    CHECK(r1.alignment == StrokeAlignment::Inside);
+    CHECK(r1.cap == LineCap::Square);
+    CHECK(r1.join == LineJoin::Bevel);
+}
+
+TEST_CASE("lerp_stroke_style — scalar attributes lerped") {
+    namespace gfx = chronon3d::graphics;
+    auto a = gfx::StrokeStyle::solid({1.0f, 0.0f, 0.0f, 1.0f}, 2.0f);
+    auto b = gfx::StrokeStyle::solid({0.0f, 0.0f, 1.0f, 1.0f}, 6.0f);
+    a.dash_offset = 0.0f;
+    b.dash_offset = 10.0f;
+    a.trim_start  = 0.1f;
+    b.trim_start  = 0.5f;
+    a.trim_end    = 0.9f;
+    b.trim_end    = 0.5f;
+
+    const auto m = gfx::lerp_stroke_style(a, b, 0.5f);
+    CHECK(m.dash_offset == doctest::Approx(5.0f));  // (0+10)/2
+    CHECK(m.trim_start  == doctest::Approx(0.3f));  // (0.1+0.5)/2
+    CHECK(m.trim_end    == doctest::Approx(0.7f));  // (0.9+0.5)/2
+}
+
+
+// ── KeyframeTrack<StrokeStyle> ───────────────────────────────────────
+
+TEST_CASE("KeyframeTrack<StrokeStyle> — solid to solid") {
+    namespace gfx = chronon3d::graphics;
+    KeyframeTrack<gfx::StrokeStyle> track;
+    track.key(0,  gfx::StrokeStyle::solid({1.0f, 0.0f, 0.0f, 1.0f}, 2.0f))
+         .key(60, gfx::StrokeStyle::solid({0.0f, 0.0f, 1.0f, 1.0f}, 6.0f));
+
+    // Before first → first value
+    const auto pre = track.sample_at(-10.0f);
+    CHECK(pre.color.r == doctest::Approx(1.0f));
+    CHECK(pre.width   == doctest::Approx(2.0f));
+
+    // Midpoint
+    const auto mid = track.sample_at(30.0f);
+    CHECK(mid.is_solid());
+    CHECK(mid.color.r == doctest::Approx(0.5f));
+    CHECK(mid.color.b == doctest::Approx(0.5f));
+    CHECK(mid.width   == doctest::Approx(4.0f));
+
+    // After last → last value
+    const auto post = track.sample_at(100.0f);
+    CHECK(post.color.b == doctest::Approx(1.0f));
+    CHECK(post.width   == doctest::Approx(6.0f));
+}
+
+TEST_CASE("KeyframeTrack<StrokeStyle> — gradient to gradient") {
+    namespace gfx = chronon3d::graphics;
+    std::vector<gfx::GradientStop> stops_a = {
+        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+    };
+    std::vector<gfx::GradientStop> stops_b = {
+        {0.0f, {0.0f, 1.0f, 0.0f, 1.0f}},
+        {1.0f, {1.0f, 1.0f, 0.0f, 1.0f}},
+    };
+
+    KeyframeTrack<gfx::StrokeStyle> track;
+    track.key(0,  gfx::StrokeStyle::linear_gradient(
+                     {0.0f, 0.0f}, {1.0f, 0.0f}, stops_a, 2.0f))
+         .key(60, gfx::StrokeStyle::linear_gradient(
+                     {0.0f, 0.5f}, {1.0f, 0.5f}, stops_b, 8.0f));
+
+    // Before first → first value
+    const auto pre = track.sample_at(-5.0f);
+    REQUIRE(pre.is_gradient());
+    CHECK(pre.width == doctest::Approx(2.0f));
+
+    // Midpoint — geometry and width lerped
+    const auto mid = track.sample_at(30.0f);
+    REQUIRE(mid.is_gradient());
+    REQUIRE(mid.gradient.has_value());
+    CHECK(mid.gradient->start.y == doctest::Approx(0.25f));  // (0+0.5)/2
+    CHECK(mid.gradient->end.y   == doctest::Approx(0.25f));
+    CHECK(mid.width == doctest::Approx(5.0f));  // (2+8)/2
+
+    // After last → last value
+    const auto post = track.sample_at(200.0f);
+    REQUIRE(post.is_gradient());
+    CHECK(post.width == doctest::Approx(8.0f));
+}
+
+TEST_CASE("KeyframeTrack<StrokeStyle> — solid to gradient") {
+    namespace gfx = chronon3d::graphics;
+    const auto solid = gfx::StrokeStyle::solid({1.0f, 1.0f, 1.0f, 1.0f}, 3.0f);
+    std::vector<gfx::GradientStop> stops = {
+        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+    };
+    const auto grad = gfx::StrokeStyle::linear_gradient(
+        {0.0f, 0.5f}, {1.0f, 0.5f}, stops, 5.0f);
+
+    KeyframeTrack<gfx::StrokeStyle> track;
+    track.key(0,  solid)
+         .key(60, grad);
+
+    // t=0 → solid (converted to 1-stop gradient internally)
+    const auto t0 = track.sample_at(0.0f);
+    CHECK(t0.is_gradient());
+    CHECK(t0.width == doctest::Approx(3.0f));
+
+    // t=1 → gradient
+    const auto t1 = track.sample_at(60.0f);
+    REQUIRE(t1.is_gradient());
+    CHECK(t1.width == doctest::Approx(5.0f));
+
+    // Midpoint — should be gradient with lerped width
+    const auto mid = track.sample_at(30.0f);
+    CHECK(mid.is_gradient());
+    CHECK(mid.width == doctest::Approx(4.0f));
+}
+
+TEST_CASE("KeyframeTrack<StrokeStyle> — enum-topped attributes switch at t=0.5") {
+    namespace gfx = chronon3d::graphics;
+    auto a = gfx::StrokeStyle::solid({1.0f, 0.0f, 0.0f, 1.0f}, 2.0f);
+    auto b = gfx::StrokeStyle::solid({0.0f, 0.0f, 1.0f, 1.0f}, 2.0f);
+    a.cap = LineCap::Round;
+    b.cap = LineCap::Square;
+
+    KeyframeTrack<gfx::StrokeStyle> track;
+    track.key(0,  a)
+         .key(60, b);
+
+    // t=0.25 → follows a (t < 0.5)
+    const auto r0 = track.sample_at(15.0f);
+    CHECK(r0.cap == LineCap::Round);
+
+    // t=0.75 → follows b (t >= 0.5)
+    const auto r1 = track.sample_at(45.0f);
+    CHECK(r1.cap == LineCap::Square);
+}
+
+TEST_CASE("KeyframeTrack<StrokeStyle> — empty track returns default") {
+    namespace gfx = chronon3d::graphics;
+    KeyframeTrack<gfx::StrokeStyle> track;
+    const auto out = track.sample_at(30.0f);
+    CHECK(out.is_solid());
+    CHECK_FALSE(out.enabled);
+    CHECK(out.width == doctest::Approx(1.0f));
+}
+
+TEST_CASE("KeyframeTrack<StrokeStyle> — single keyframe") {
+    namespace gfx = chronon3d::graphics;
+    KeyframeTrack<gfx::StrokeStyle> track;
+    track.key(30, gfx::StrokeStyle::solid({1.0f, 0.0f, 0.0f, 1.0f}, 5.0f));
+
+    CHECK(track.sample_at(0.0f).color.r == doctest::Approx(1.0f));
+    CHECK(track.sample_at(30.0f).width  == doctest::Approx(5.0f));
+    CHECK(track.sample_at(100.0f).color.r == doctest::Approx(1.0f));
+}

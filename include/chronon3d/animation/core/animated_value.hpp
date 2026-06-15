@@ -4,6 +4,7 @@
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/math/expression.hpp>
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include <vector>
 #include <string>
 #include <algorithm>
@@ -41,6 +42,96 @@ struct AnimationEvalContext {
     // When set, expressions can use layer('name').property, thisComp.*, etc.
     const math::ExpressionContext* expression_context{nullptr};
 };
+
+// ── FillStyle expression evaluation ─────────────────────────────────────
+// Parses expressions of the form: solid(r, g, b, a)
+// Each argument is itself a numeric expression supporting variables:
+//   frame, time, fps, index
+// Returns the base value on parse failure or non-solid expression.
+
+namespace detail {
+
+/// Split function arguments by commas, respecting nested parentheses.
+[[nodiscard]] inline std::vector<std::string> split_expr_args(
+    const std::string& inner)
+{
+    std::vector<std::string> args;
+    int depth = 0;
+    size_t start = 0;
+    for (size_t i = 0; i < inner.size(); ++i) {
+        char c = inner[i];
+        if (c == '(') ++depth;
+        else if (c == ')') --depth;
+        else if (c == ',' && depth == 0) {
+            args.push_back(inner.substr(start, i - start));
+            start = i + 1;
+        }
+    }
+    if (start < inner.size()) {
+        args.push_back(inner.substr(start));
+    }
+    return args;
+}
+
+} // namespace detail
+
+[[nodiscard]] inline graphics::FillStyle evaluate_fill_expression(
+    const std::string& expr,
+    const graphics::FillStyle& base,
+    const AnimationEvalContext& ctx,
+    f32 fps,
+    double t,
+    double frame)
+{
+    if (expr.empty()) return base;
+
+    // ── solid(r, g, b, a) ────────────────────────────────────────────
+    constexpr std::string_view kSolidPrefix = "solid(";
+    if (expr.size() > kSolidPrefix.size() &&
+        expr.substr(0, kSolidPrefix.size()) == kSolidPrefix)
+    {
+        // Find matching closing paren (accounting for nested parens in args)
+        int depth = 1;
+        size_t close = kSolidPrefix.size();
+        for (; close < expr.size() && depth > 0; ++close) {
+            char c = expr[close];
+            if (c == '(') ++depth;
+            else if (c == ')') --depth;
+        }
+
+        if (depth == 0 && close > kSolidPrefix.size()) {
+            const size_t inner_start = kSolidPrefix.size();
+            const size_t inner_len = close - 1 - inner_start;
+            const std::string inner = expr.substr(inner_start, inner_len);
+            const auto args = detail::split_expr_args(inner);
+
+            if (args.size() == 4) {
+                const std::unordered_map<std::string, double> vars{
+                    {"frame", frame},
+                    {"time", t},
+                    {"fps", static_cast<double>(fps)},
+                    {"index", static_cast<double>(ctx.index)},
+                };
+
+                auto eval_arg = [&](const std::string& arg) -> f32 {
+                    if (arg.empty()) return 0.0f;
+                    return static_cast<f32>(
+                        math::evaluate_expression(arg, vars, 0.0)
+                    );
+                };
+
+                const f32 r = std::clamp(eval_arg(args[0]), 0.0f, 1.0f);
+                const f32 g = std::clamp(eval_arg(args[1]), 0.0f, 1.0f);
+                const f32 b = std::clamp(eval_arg(args[2]), 0.0f, 1.0f);
+                const f32 a = std::clamp(eval_arg(args[3]), 0.0f, 1.0f);
+
+                return graphics::FillStyle::solid(Color{r, g, b, a});
+            }
+        }
+    }
+
+    return base;
+}
 
 template <typename T>
 class AnimatedValue {
@@ -256,6 +347,13 @@ public:
             return static_cast<f32>(
                 math::evaluate_expression(m_expression, vars, static_cast<double>(base))
             );
+        } else if constexpr (std::is_same_v<T, graphics::FillStyle>) {
+            const double fps = time.fps();
+            const double t = time.seconds();
+            const double frame = time.frame;
+            return evaluate_fill_expression(
+                m_expression, base, ctx,
+                static_cast<f32>(fps), t, frame);
         }
         return base;
     }

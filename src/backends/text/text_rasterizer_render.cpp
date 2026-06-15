@@ -112,6 +112,82 @@ inline void apply_text_fill_style(
     ctx.setFillStyle(to_bl_rgba(fallback_color));
 }
 
+inline void apply_text_stroke_style(
+    BLContext& ctx,
+    const TextStyle& style,
+    const Color& fallback_stroke_color,
+    float origin_x,
+    float origin_y,
+    float width,
+    float height
+) {
+    if (!style.paint.stroke_style.has_value()) {
+        ctx.setStrokeStyle(to_bl_rgba(fallback_stroke_color));
+        return;
+    }
+
+    const Fill& fill = *style.paint.stroke_style;
+    if (fill.type == FillType::Solid) {
+        ctx.setStrokeStyle(to_bl_rgba(fill.solid));
+        return;
+    }
+
+    std::vector<BLGradientStop> stops;
+    stops.reserve(fill.gradient.stops.size());
+    for (const auto& stop : fill.gradient.stops) {
+        stops.emplace_back(static_cast<double>(stop.offset), to_bl_rgba(stop.color));
+    }
+
+    if (stops.empty()) {
+        ctx.setStrokeStyle(to_bl_rgba(fallback_stroke_color));
+        return;
+    }
+
+    const float safe_w = std::max(1.0f, width);
+    const float safe_h = std::max(1.0f, height);
+
+    if (fill.type == FillType::LinearGradient) {
+        const BLLinearGradientValues values(
+            origin_x + fill.gradient.from.x * safe_w,
+            origin_y + fill.gradient.from.y * safe_h,
+            origin_x + fill.gradient.to.x * safe_w,
+            origin_y + fill.gradient.to.y * safe_h
+        );
+        BLGradient gradient(values, BL_EXTEND_MODE_PAD, stops.data(), stops.size());
+        ctx.setStrokeStyle(gradient);
+        return;
+    }
+
+    if (fill.type == FillType::RadialGradient) {
+        const float radius_norm = std::max(0.001f, fill.gradient.to.x - fill.gradient.from.x);
+        const float radius = std::max(safe_w, safe_h) * radius_norm;
+        const BLRadialGradientValues values(
+            origin_x + fill.gradient.from.x * safe_w,
+            origin_y + fill.gradient.from.y * safe_h,
+            origin_x + fill.gradient.from.x * safe_w,
+            origin_y + fill.gradient.from.y * safe_h,
+            0.0,
+            radius
+        );
+        BLGradient gradient(values, BL_EXTEND_MODE_PAD, stops.data(), stops.size());
+        ctx.setStrokeStyle(gradient);
+        return;
+    }
+
+    if (fill.type == FillType::ConicGradient) {
+        const double cx = origin_x + fill.gradient.from.x * safe_w;
+        const double cy = origin_y + fill.gradient.from.y * safe_h;
+        const Vec2 dir = fill.gradient.to - fill.gradient.from;
+        const double angle = std::atan2(dir.y, dir.x);
+        const BLConicGradientValues values(cx, cy, angle);
+        BLGradient gradient(values, BL_EXTEND_MODE_PAD, stops.data(), stops.size());
+        ctx.setStrokeStyle(gradient);
+        return;
+    }
+
+    ctx.setStrokeStyle(to_bl_rgba(fallback_stroke_color));
+}
+
 struct Blend2DResources {
     std::unordered_map<std::string, BLFontFace> faces;
     std::mutex mutex;
@@ -639,22 +715,29 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         // stroke use identical shaped glyphs.  strokeUtf8Text would
         // re-shape with Blend2D's internal shaper and may produce
         // different GSUB substitutions for Arabic, Devanagari, etc.
+        // Stroke colour supports gradients via stroke_style Fill.
         if (run_style.paint.stroke_enabled && run_style.paint.stroke_width > 0.0f) {
+            apply_text_stroke_style(
+                ctx,
+                run_style,
+                run_style.paint.stroke_color,
+                text_start_x,
+                text_start_y,
+                std::max(1.0f, run.width),
+                line.baseline + line.descent
+            );
+            ctx.setStrokeWidth(run_style.paint.stroke_width);
             if (placed) {
                 const std::string stroke_font_path = run_style.font_path;
                 FtGlyphPathBuilder ft_path;
                 if (ft_path.load_face(stroke_font_path, run_shape_size)) {
                     BLPath stroke_path = ft_path.build_path(*placed, lx, baseline_y);
                     if (!stroke_path.empty()) {
-                        ctx.setStrokeWidth(run_style.paint.stroke_width);
-                        ctx.setStrokeStyle(to_bl_rgba(run_style.paint.stroke_color));
                         ctx.strokePath(stroke_path);
                     }
                 }
             } else {
                 // Fallback when HarfBuzz shaping is unavailable
-                ctx.setStrokeWidth(run_style.paint.stroke_width);
-                ctx.setStrokeStyle(to_bl_rgba(run_style.paint.stroke_color));
                 ctx.strokeUtf8Text(BLPoint(lx, baseline_y), run_font, run.text.c_str());
             }
         }
@@ -720,21 +803,28 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         }
 
         // ── Stroke: same HarfBuzz glyph paths as fill (see render_run above).
+        // Stroke colour supports gradients via stroke_style Fill.
         if (t.style.paint.stroke_enabled && t.style.paint.stroke_width > 0.0f) {
+            apply_text_stroke_style(
+                ctx,
+                t.style,
+                t.style.paint.stroke_color,
+                text_start_x,
+                text_start_y,
+                text_block_w,
+                text_block_h
+            );
+            ctx.setStrokeWidth(t.style.paint.stroke_width);
             if (placed) {
                 const std::string stroke_font_path = t.style.font_path;
                 FtGlyphPathBuilder ft_path;
                 if (ft_path.load_face(stroke_font_path, layout_res.font_size)) {
                     BLPath stroke_path = ft_path.build_path(*placed, lx, ly);
                     if (!stroke_path.empty()) {
-                        ctx.setStrokeWidth(t.style.paint.stroke_width);
-                        ctx.setStrokeStyle(to_bl_rgba(t.style.paint.stroke_color));
                         ctx.strokePath(stroke_path);
                     }
                 }
             } else {
-                ctx.setStrokeWidth(t.style.paint.stroke_width);
-                ctx.setStrokeStyle(to_bl_rgba(t.style.paint.stroke_color));
                 ctx.strokeUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
             }
         }
