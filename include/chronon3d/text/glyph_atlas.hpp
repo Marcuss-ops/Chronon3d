@@ -72,4 +72,17 @@ void glyph_atlas_store_from_placed_run(
     u32 fill_color_rgba
 );
 
+// Store individual glyph bitmaps from a HarfBuzz-shaped PlacedGlyphRun.// Uses pg.x/pg.y + font.getGlyphBounds() to locate each glyph in the
+// rendered image.  Skips glyphs already cached with the same fill_color_rgba.
+void glyph_atlas_store_from_placed_run(
+    const std::string& font_path,
+    const BLImage& rendered_text,
+    const PlacedGlyphRun& placed,
+    const BLFont& font,
+    float origin_x,
+    float origin_y,
+    float font_size,
+    u32 fill_color_rgba
+);
+
 } // namespace chronon3d
