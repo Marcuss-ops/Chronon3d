@@ -21,8 +21,6 @@ target_link_libraries(chronon3d_backend_software
         chronon3d_effects
         chronon3d_backend_assets
         chronon3d_backend_image
-        chronon3d_backend_text
-        blend2d::blend2d
     PRIVATE
         spdlog::spdlog_header_only
         hwy::hwy
@@ -31,11 +29,17 @@ target_link_libraries(chronon3d_backend_software
         tomlplusplus::tomlplusplus
         TBB::tbb
 )
+if(CHRONON3D_USE_BLEND2D)
+    target_link_libraries(chronon3d_backend_software PUBLIC blend2d::blend2d)
+endif()
+if(TARGET chronon3d_backend_text)
+    target_link_libraries(chronon3d_backend_software PUBLIC chronon3d_backend_text)
+endif()
 target_include_directories(chronon3d_backend_software PRIVATE ${Stb_INCLUDE_DIR} ${CMAKE_SOURCE_DIR})
 target_include_directories(chronon3d_backend_software PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_precompile_headers(chronon3d_backend_software PRIVATE
     <chronon3d/detail/pch.hpp>
-    <blend2d.h>
+    $<$<BOOL:${CHRONON3D_USE_BLEND2D}>:<blend2d.h>>
 )
 
 # ==============================================================================

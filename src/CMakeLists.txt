@@ -45,7 +45,7 @@ target_compile_definitions(chronon3d INTERFACE
     CHRONON3D_GIT_COMMIT="${CHRONON3D_GIT_COMMIT}"
     $<$<BOOL:${MSVC}>:_DISABLE_STRING_VIEW_FIND_FIRST_NOT_OF_OPTIMIZATION>
 )
-option(CHRONON3D_ENABLE_MESH "Enable mesh processing support" ON)
+# CHRONON3D_ENABLE_MESH is defined in the root CMakeLists.txt.
 
 # Only link meshoptimizer when mesh support is active
 set(CHRONON3D_MESHOPTIMIZER_LINK "")
@@ -72,7 +72,9 @@ add_subdirectory(registry)          # chronon3d_registry
 add_subdirectory(assets)            # chronon3d_assets
 add_subdirectory(backends/image)    # chronon3d_backend_image
 add_subdirectory(media)             # chronon3d_media_interface + chronon3d_backend_video
-add_subdirectory(backends/text)     # chronon3d_backend_text
+if(CHRONON3D_USE_FREETYPE AND CHRONON3D_USE_HARFBUZZ AND CHRONON3D_USE_FRIBIDI AND CHRONON3D_USE_BLEND2D)
+    add_subdirectory(backends/text)     # chronon3d_backend_text (needs Blend2D for glyph rasteriser)
+endif()
 add_subdirectory(backends/assets)   # chronon3d_backend_assets
 add_subdirectory(render_graph)      # chronon3d_graph
 add_subdirectory(runtime)           # chronon3d_runtime
@@ -100,7 +102,8 @@ target_link_libraries(chronon3d_core INTERFACE
     chronon3d_cache
     chronon3d_animations
     chronon3d_core_impl
-    chronon3d_backend_video
+    # chronon3d_backend_video is linked via chronon3d_software, not core.
+    # Core should be dependency-minimal for server-side / headless use.
 )
 
 add_library(chronon3d_software INTERFACE)
