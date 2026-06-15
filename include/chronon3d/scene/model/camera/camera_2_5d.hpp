@@ -49,13 +49,10 @@ struct DepthOfFieldSettings {
     f32   aperture{0.015f};   // blur per unit of Z distance from focus
     f32   max_blur{24.0f};    // clamp: pixels of blur at extreme depths
 
-    // Physical lens model (opt-in via use_physical_model):
-    //   Uses focal length, sensor size, f-stop, and focus distance to
-    //   compute a physically-based Circle of Confusion in pixels.
-    f32   focal_length{50.0f};     // lens focal length in mm (35mm normal lens)
-    f32   sensor_width{36.0f};     // sensor width in mm (full-frame 35mm)
-    f32   f_stop{2.8f};            // f-number (aperture ratio)
-    f32   focus_distance{1000.0f}; // distance from camera to focus plane (scene units)
+    // Physical lens model: camera-space distance to focus plane (scene units).
+    // Used by compute_physical_coc() when use_physical_model is true.
+    // Evaluated per-frame from camera_rig / animated_camera.
+    f32   focus_distance{1000.0f};
     bool  use_physical_model{false};
 
     // Near / far bokeh separation (for future iris shape rendering).

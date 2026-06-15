@@ -125,7 +125,7 @@ private:
     // both the legacy linear model and the physical thin-lens CoC model.
     [[nodiscard]] f32 dof_blur_radius(const Camera2_5D& camera, f32 layer_world_z, f32 viewport_w) const {
         if (!m_dof.enabled) return 0.0f;
-        return compute_dof_blur_radius(m_dof, layer_world_z, viewport_w);
+        return compute_dof_blur_radius(m_dof, camera.lens, layer_world_z, viewport_w);
     }
 
     // Apply a separable box-blur with radius `r` to `src` → `dst`. Used as

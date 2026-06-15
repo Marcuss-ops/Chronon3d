@@ -100,10 +100,7 @@ Camera2_5D CameraRig::evaluate(
     cam.lens.close_focus    = dof.close_focus.evaluate(time);
     cam.lens.gate_fit       = dof.gate_fit;
 
-    // Physical lens params (backward compat copies for existing DOF code).
-    cam.dof.focal_length        = cam.lens.focal_length;
-    cam.dof.sensor_width        = cam.lens.sensor_width;
-    cam.dof.f_stop              = cam.lens.f_stop;
+    // Focus distance (runtime-evaluated, stays in dof).
     cam.dof.focus_distance      = dof.focus_distance.evaluate(time);
     cam.dof.use_physical_model  = dof.use_physical_model;
 
