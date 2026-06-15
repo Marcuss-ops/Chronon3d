@@ -33,7 +33,7 @@ void dark_bg(SceneBuilder& s) {
             .size  = {1920.0f, 1080.0f},
             .color = {0.06f, 0.06f, 0.10f, 1.0f},
             .pos   = {0.0f, 0.0f, 0.0f},
-            .fill  = Fill::linear({0,0}, {0,1}, {
+            .fill  = FillStyle::linear({0,0}, {0,1}, {
                 {0.0f, {0.05f, 0.05f, 0.10f, 1.0f}},
                 {1.0f, {0.10f, 0.07f, 0.18f, 1.0f}},
             })

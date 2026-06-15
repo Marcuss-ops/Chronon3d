@@ -7,8 +7,10 @@ namespace chronon3d {
 
 namespace {
 void apply_style(PathParams& path, const ShapeStyle& style, const Color& color) {
-    path.fill = style.fill;
-    path.stroke = style.stroke;
+    // Bridge FillStyle → legacy Fill for the existing render pipeline.
+    // The renderer still consumes Fill, so we convert here once.
+    path.fill = style.fill.to_fill();
+    path.stroke = style.stroke.to_path_stroke();
     path.color = color;
     path.color.a *= style.opacity;
 }

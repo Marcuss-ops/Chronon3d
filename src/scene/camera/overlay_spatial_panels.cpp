@@ -22,7 +22,7 @@ void draw_topdown_preview(const OverlayContext& ctx) {
     }
     td_x += ctx.options.panel_offset_x; td_y += ctx.options.panel_offset_y;
 
-    l.rect("topdown_bg", RectParams{.size = {td_w, td_h}, .pos = {td_x, td_y, 0.0f}, .fill = Fill{.enabled = true, .solid = Color{0.0f, 0.02f, 0.05f, 0.7f}}, .stroke = {.enabled = true, .color = Color{0.3f, 0.5f, 0.8f, 0.35f}, .width = 1.0f}});
+    l.rect("topdown_bg", RectParams{.size = {td_w, td_h}, .pos = {td_x, td_y, 0.0f}, .fill = FillStyle::solid(Color{0.0f, 0.02f, 0.05f, 0.7f}), .stroke = {.enabled = true, .color = Color{0.3f, 0.5f, 0.8f, 0.35f}, .width = 1.0f}});
     l.text("topdown_title", TextParams{.text = "TOP-DOWN VIEW (XZ)", .pos = {td_x + 10.0f, td_y + 16.0f, 0.0f}, .font_size = 10.0f, .color = Color{0.8f, 0.85f, 1.0f, 0.8f}});
 
     float w_min_x = 1e9f, w_max_x = -1e9f, w_min_z = 1e9f, w_max_z = -1e9f;
@@ -106,7 +106,7 @@ void draw_sideview_depth(const OverlayContext& ctx) {
     }
     sv_x += ctx.options.panel_offset_x; sv_y += ctx.options.panel_offset_y;
 
-    l.rect("sideview_bg", RectParams{.size = {sv_w, sv_h}, .pos = {sv_x, sv_y, 0.0f}, .fill = Fill{.enabled = true, .solid = Color{0.0f, 0.03f, 0.02f, 0.7f}}, .stroke = {.enabled = true, .color = Color{0.3f, 0.6f, 0.5f, 0.35f}, .width = 1.0f}});
+    l.rect("sideview_bg", RectParams{.size = {sv_w, sv_h}, .pos = {sv_x, sv_y, 0.0f}, .fill = FillStyle::solid(Color{0.0f, 0.03f, 0.02f, 0.7f}), .stroke = {.enabled = true, .color = Color{0.3f, 0.6f, 0.5f, 0.35f}, .width = 1.0f}});
     l.text("sv_title", TextParams{.text = "DEPTH SIDE VIEW (X vs Z)", .pos = {sv_x + 10.0f, sv_y + 16.0f, 0.0f}, .font_size = 10.0f, .color = Color{0.8f, 1.0f, 0.85f, 0.8f}});
 
     float w_min_x = 1e9f, w_max_x = -1e9f, w_min_z = 1e9f, w_max_z = -1e9f;
@@ -156,7 +156,7 @@ void draw_sideview_depth(const OverlayContext& ctx) {
         else if (in_report) { bar_color = passed ? Color{0.2f, 0.9f, 0.3f, 0.85f} : Color{1.0f, 0.3f, 0.15f, 0.85f}; }
         else { bar_color = pos.z < 0.0f ? Color{0.3f, 0.85f, 1.0f, 0.8f} : Color{0.3f, 0.5f, 0.9f, 0.7f}; }
 
-        l.rect("sv_bar_" + std::to_string(sv_idx), RectParams{.size = {16.0f, 5.0f}, .pos = {screen.x - 8.0f, screen.y - 2.5f, 0.0f}, .fill = Fill{.enabled = true, .solid = bar_color}, .stroke = {.enabled = true, .color = Color{bar_color.r, bar_color.g, bar_color.b, 0.5f}, .width = 0.5f}});
+        l.rect("sv_bar_" + std::to_string(sv_idx), RectParams{.size = {16.0f, 5.0f}, .pos = {screen.x - 8.0f, screen.y - 2.5f, 0.0f}, .fill = FillStyle::solid(bar_color), .stroke = {.enabled = true, .color = Color{bar_color.r, bar_color.g, bar_color.b, 0.5f}, .width = 0.5f}});
 
         if (!is_null && w_min_z < 0.0f && w_max_z > 0.0f) {
             float z0_y = d_y0 + d_h - (0.0f - w_min_z) * s;

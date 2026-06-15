@@ -31,18 +31,18 @@ Composition make_center_target_composition() {
 
             s.layer("center_cross", [](LayerBuilder& l) {
                 l.enable_3d().position({0.0f, 0.0f, 0.0f});
-                l.rect("h", {.size = {80.0f, 10.0f}, .color = Color::white(), .pos = {0.0f, 0.0f, 0.0f}, .fill = Fill::solid_color(Color::white())});
-                l.rect("v", {.size = {10.0f, 80.0f}, .color = Color::white(), .pos = {0.0f, 0.0f, 0.0f}, .fill = Fill::solid_color(Color::white())});
+                l.rect("h", {.size = {80.0f, 10.0f}, .color = Color::white(), .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::solid(Color::white())});
+                l.rect("v", {.size = {10.0f, 80.0f}, .color = Color::white(), .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::solid(Color::white())});
             });
 
             s.layer("left_marker", [](LayerBuilder& l) {
                 l.enable_3d().position({-300.0f, 0.0f, 0.0f});
-                l.rect("m", {.size = {80.0f, 80.0f}, .color = Color{0.0f, 0.5f, 1.0f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = Fill::solid_color(Color{0.0f, 0.5f, 1.0f, 1.0f})});
+                l.rect("m", {.size = {80.0f, 80.0f}, .color = Color{0.0f, 0.5f, 1.0f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::solid(Color{0.0f, 0.5f, 1.0f, 1.0f})});
             });
 
             s.layer("right_marker", [](LayerBuilder& l) {
                 l.enable_3d().position({300.0f, 0.0f, 0.0f});
-                l.rect("m", {.size = {80.0f, 80.0f}, .color = Color{1.0f, 0.2f, 0.2f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = Fill::solid_color(Color{1.0f, 0.2f, 0.2f, 1.0f})});
+                l.rect("m", {.size = {80.0f, 80.0f}, .color = Color{1.0f, 0.2f, 0.2f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::solid(Color{1.0f, 0.2f, 0.2f, 1.0f})});
             });
 
             s.camera().enable()
@@ -76,17 +76,17 @@ Composition make_parallax_stack_composition() {
 
             s.layer("far_card", [](LayerBuilder& l) {
                 l.enable_3d().position({0.0f, 0.0f, 500.0f});
-                l.rect("card", {.size = {120.0f, 120.0f}, .color = Color{0.2f, 0.4f, 1.0f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = Fill::solid_color(Color{0.2f, 0.4f, 1.0f, 1.0f})});
+                l.rect("card", {.size = {120.0f, 120.0f}, .color = Color{0.2f, 0.4f, 1.0f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::solid(Color{0.2f, 0.4f, 1.0f, 1.0f})});
             });
 
             s.layer("mid_card", [](LayerBuilder& l) {
                 l.enable_3d().position({0.0f, 0.0f, 0.0f});
-                l.rect("card", {.size = {120.0f, 120.0f}, .color = Color{0.2f, 1.0f, 0.4f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = Fill::solid_color(Color{0.2f, 1.0f, 0.4f, 1.0f})});
+                l.rect("card", {.size = {120.0f, 120.0f}, .color = Color{0.2f, 1.0f, 0.4f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::solid(Color{0.2f, 1.0f, 0.4f, 1.0f})});
             });
 
             s.layer("near_card", [](LayerBuilder& l) {
                 l.enable_3d().position({0.0f, 0.0f, -300.0f});
-                l.rect("card", {.size = {120.0f, 120.0f}, .color = Color::red(), .pos = {0.0f, 0.0f, 0.0f}, .fill = Fill::solid_color(Color::red())});
+                l.rect("card", {.size = {120.0f, 120.0f}, .color = Color::red(), .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::solid(Color::red())});
             });
 
             AnimatedCamera2_5D cam;
@@ -125,12 +125,12 @@ Composition make_orbit_two_node_composition() {
             s.layer("subject", [](LayerBuilder& l) {
                 l.enable_3d().position({0.0f, 0.0f, 0.0f});
                 l.rounded_rect("card", {.size = {280.0f, 140.0f}, .radius = 22.0f,
-                    .color = Color{0.99f, 0.44f, 0.82f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = Fill::solid_color(Color{0.99f, 0.44f, 0.82f, 1.0f})});
+                    .color = Color{0.99f, 0.44f, 0.82f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::solid(Color{0.99f, 0.44f, 0.82f, 1.0f})});
             });
 
             s.layer("accent", [](LayerBuilder& l) {
                 l.enable_3d().position({240.0f, -20.0f, -180.0f});
-                l.circle("dot", {.radius = 24.0f, .color = Color{0.15f, 0.85f, 1.0f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = Fill::solid_color(Color{0.15f, 0.85f, 1.0f, 1.0f})});
+                l.circle("dot", {.radius = 24.0f, .color = Color{0.15f, 0.85f, 1.0f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::solid(Color{0.15f, 0.85f, 1.0f, 1.0f})});
             });
 
             AnimatedCamera2_5D cam;
@@ -181,7 +181,7 @@ Composition make_near_plane_crossing_composition() {
                 l.enable_3d()
                  .position({0.0f, 0.0f, -999.5f})
                  .rotate({0.0f, 82.0f, 0.0f});
-                l.rect("card", {.size = {600.0f, 400.0f}, .color = Color{0.9f, 0.9f, 0.9f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = Fill::solid_color(Color{0.9f, 0.9f, 0.9f, 1.0f})});
+                l.rect("card", {.size = {600.0f, 400.0f}, .color = Color{0.9f, 0.9f, 0.9f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::solid(Color{0.9f, 0.9f, 0.9f, 1.0f})});
             });
 
             s.camera().enable()
@@ -215,17 +215,17 @@ Composition make_z_sort_stack_composition() {
 
             s.layer("far_card", [](LayerBuilder& l) {
                 l.enable_3d().position({0.0f, 0.0f, 500.0f});
-                l.rect("card", {.size = {200.0f, 200.0f}, .color = Color{0.2f, 0.4f, 1.0f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = Fill::solid_color(Color{0.2f, 0.4f, 1.0f, 1.0f})});
+                l.rect("card", {.size = {200.0f, 200.0f}, .color = Color{0.2f, 0.4f, 1.0f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::solid(Color{0.2f, 0.4f, 1.0f, 1.0f})});
             });
 
             s.layer("mid_card", [](LayerBuilder& l) {
                 l.enable_3d().position({0.0f, 0.0f, 0.0f});
-                l.rect("card", {.size = {200.0f, 200.0f}, .color = Color{0.2f, 1.0f, 0.4f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = Fill::solid_color(Color{0.2f, 1.0f, 0.4f, 1.0f})});
+                l.rect("card", {.size = {200.0f, 200.0f}, .color = Color{0.2f, 1.0f, 0.4f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::solid(Color{0.2f, 1.0f, 0.4f, 1.0f})});
             });
 
             s.layer("near_card", [](LayerBuilder& l) {
                 l.enable_3d().position({0.0f, 0.0f, -300.0f});
-                l.rect("card", {.size = {200.0f, 200.0f}, .color = Color{1.0f, 0.2f, 0.2f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = Fill::solid_color(Color{1.0f, 0.2f, 0.2f, 1.0f})});
+                l.rect("card", {.size = {200.0f, 200.0f}, .color = Color{1.0f, 0.2f, 0.2f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::solid(Color{1.0f, 0.2f, 0.2f, 1.0f})});
             });
 
             s.camera().enable()

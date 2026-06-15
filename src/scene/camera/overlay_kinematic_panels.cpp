@@ -54,7 +54,7 @@ void draw_jerk_graph(const OverlayContext& ctx) {
 
     l.rect("graph_bg", RectParams{
         .size = {graph_w, graph_h}, .pos = {graph_x, graph_y, 0.0f},
-        .fill = Fill{ .enabled = true, .solid = Color{0.0f, 0.0f, 0.0f, 0.6f} },
+        .fill = FillStyle::solid(Color{0.0f, 0.0f, 0.0f, 0.6f}),
         .stroke = { .enabled = true, .color = Color{0.5f, 0.5f, 0.5f, 0.3f}, .width = 1.0f }
     });
 
@@ -161,7 +161,7 @@ void draw_path_trace(const OverlayContext& ctx) {
 
     l.rect("trace_bg", RectParams{
         .size = {trace_w, trace_h}, .pos = {trace_x, trace_y, 0.0f},
-        .fill = Fill{ .enabled = true, .solid = Color{0.0f, 0.0f, 0.05f, 0.55f} },
+        .fill = FillStyle::solid(Color{0.0f, 0.0f, 0.05f, 0.55f}),
         .stroke = { .enabled = true, .color = Color{0.4f, 0.4f, 0.6f, 0.3f}, .width = 1.0f }
     });
 

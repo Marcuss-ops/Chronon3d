@@ -19,7 +19,7 @@ inline void deep_bg(SceneBuilder& s, Color top, Color bot) {
             .size  = {(f32)kW, (f32)kH},
             .color = top,
             .pos   = {0.f, 0.f, 0.f},
-            .fill  = Fill::linear({0,0},{0,1},{{0.f,top},{1.f,bot}})
+            .fill  = FillStyle::linear({0,0},{0,1},{{0.f,top},{1.f,bot}})
         });
     });
 }

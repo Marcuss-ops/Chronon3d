@@ -24,7 +24,7 @@ void draw_safe_area_and_target(const OverlayContext& ctx, bool& has_target, Scre
         l.rect("safe_area_hud", RectParams{
             .size = {ctx.viewport.width * 0.90f, ctx.viewport.height * 0.90f},
             .pos = {ctx.viewport.width * 0.05f, ctx.viewport.height * 0.05f, 0.0f},
-            .fill = Fill{ .enabled = false },
+            .fill = FillStyle{ .enabled = false },
             .stroke = { .enabled = true, .color = safe_area_color, .width = 1.5f }
         });
     }
@@ -104,7 +104,7 @@ void draw_null_parent_markers(const OverlayContext& ctx) {
                 l.rect("null_parent_rect_" + name, RectParams{
                     .size = {12.0f, 12.0f},
                     .pos = {n_sp.position.x - 6.0f, n_sp.position.y - 6.0f, 0.0f},
-                    .fill = Fill{ .enabled = false },
+                    .fill = FillStyle{ .enabled = false },
                     .stroke = { .enabled = true, .color = Color{0.0f, 0.9f, 1.0f, 0.8f}, .width = 1.5f }
                 });
                 l.line("null_parent_h_" + name, LineParams{
@@ -168,7 +168,7 @@ void draw_projected_bounds(const OverlayContext& ctx) {
             std::string node_name = "bounds_hud_" + lr.name + "_" + std::to_string(idx);
             l.rect(node_name, RectParams{
                 .size = b_size, .pos = {lr.bounds.min.x, lr.bounds.min.y, 0.0f},
-                .fill = Fill{ .enabled = false },
+                .fill = FillStyle{ .enabled = false },
                 .stroke = { .enabled = true, .color = border_color, .width = 1.5f }
             });
             if (ctx.options.show_layer_names) {
