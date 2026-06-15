@@ -41,7 +41,8 @@ TEST_CASE("Deterministic Spring") {
     CHECK(mid > 0.0f);
     CHECK(mid < 200.0f); // might overshoot depending on damping
 
-    // Multiple evaluations at SAME t should give SAME result (pure function of t)
+    // Determinism Tier 1: multiple evaluations at same t must give
+    // the same result (spring is a pure function of time).
     CHECK(spring(0.5f, from, to) == mid);
 }
 
@@ -128,6 +129,7 @@ TEST_CASE("Render Determinism & Telemetry Hash") {
     CHECK(renderer.counters()->nodes_executed.load() > 0);
     CHECK(renderer.counters()->pixels_touched.load() > 0);
 
-    // Check core render counters are active
-    CHECK(renderer.counters()->cache_hits.load() + renderer.counters()->cache_misses.load() >= 0);
+    // Determinism Tier 1 — same build, same platform, same thread:
+    // identical scene + identical inputs must produce bit-exact output.
+    CHECK(hash1 == hash2);
 }
