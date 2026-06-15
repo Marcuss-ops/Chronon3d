@@ -42,7 +42,7 @@ target_include_directories(chronon3d_media_video PRIVATE ${CMAKE_SOURCE_DIR})
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_link_libraries(chronon3d_backend_video PUBLIC chronon3d_ffmpeg_light)
 endif()
-target_link_libraries(chronon3d_backend_video PRIVATE
-    yuv
-)
+if(CHRONON3D_USE_LIBYUV)
+    target_link_libraries(chronon3d_backend_video PRIVATE yuv)
+endif()
 target_include_directories(chronon3d_backend_video PRIVATE ${CMAKE_SOURCE_DIR})
