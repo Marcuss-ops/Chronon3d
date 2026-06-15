@@ -45,7 +45,7 @@ Composition make_gradient_static_comp() {
                 .radius = 12.0f,
                 .color  = Color::white(),
                 .pos    = {-60, -30, 0},
-                .fill   = Fill::linear(
+                .fill   = FillStyle::linear(
                     {0.0f, 0.5f}, {1.0f, 0.5f},
                     {{0.0f, Color::from_hex("#1e3a5f")}, {1.0f, Color::from_hex("#3b82f6")}}),
             });
@@ -55,7 +55,7 @@ Composition make_gradient_static_comp() {
                 .radius = 12.0f,
                 .color  = Color::white(),
                 .pos    = {80, -20, 0},
-                .fill   = Fill::linear(
+                .fill   = FillStyle::linear(
                     {0.5f, 0.0f}, {0.5f, 1.0f},
                     {{0.0f, Color::from_hex("#065f46")}, {1.0f, Color::from_hex("#34d399")}}),
             });
@@ -68,7 +68,7 @@ Composition make_gradient_static_comp() {
                     .radius = 10.0f,
                     .color  = Color::white(),
                     .pos    = {0, 0, 0},
-                    .fill   = Fill::linear(
+                    .fill   = FillStyle::linear(
                         {0.0f, 0.0f}, {1.0f, 1.0f},
                         {{0.0f, Color::from_hex("#7c3aed")}, {1.0f, Color::from_hex("#e879f9")}}),
                 });
@@ -80,7 +80,7 @@ Composition make_gradient_static_comp() {
                     .radius = 50.0f,
                     .color  = Color::white(),
                     .pos    = {0, 0, 0},
-                    .fill   = Fill::radial(
+                    .fill   = FillStyle::radial(
                         {0.5f, 0.5f}, 0.5f,
                         {{0.0f, Color::from_hex("#fef08a")}, {1.0f, Color::from_hex("#b45309")}}),
                 });
@@ -105,7 +105,7 @@ Composition make_gradient_animated_comp() {
                     .radius = 8.0f,
                     .color  = Color::white(),
                     .pos    = {0, 0, 0},
-                    .fill   = Fill::linear(
+                    .fill   = FillStyle::linear(
                         {0.0f, 0.5f}, {1.0f, 0.5f},
                         {{0.0f, Color::from_hex("#ef4444")}, {1.0f, Color::from_hex("#3b82f6")}}),
                 });

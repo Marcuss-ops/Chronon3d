@@ -104,7 +104,7 @@ Composition premium_thumbnail_buttery_smooth() {
             l.rect("bg_glow", {
                 .size = {(f32)kW, (f32)kH},
                 .pos = {0.0f, 0.0f, 0.0f},
-                .fill = Fill::radial(
+                .fill = FillStyle::radial(
                     {0.82f, 0.50f}, // Spotlight glow on the right
                     0.80f,
                     {
@@ -196,7 +196,7 @@ Composition premium_thumbnail_saas_blue() {
                 .size = {(f32)kW, (f32)kH},
                 .color = Color::white(),
                 .pos = {0.0f, 0.0f, 0.0f},
-                .fill = Fill::radial(
+                .fill = FillStyle::radial(
                     {0.5f, 0.5f},
                     0.80f,
                     {
@@ -249,7 +249,7 @@ Composition premium_thumbnail_saas_blue() {
                 .size = {120.0f, 120.0f},
                 .radius = 23.0f,
                 .color = Color::white(),
-                .fill = Fill::linear(
+                .fill = FillStyle::linear(
                     {0.0f, 0.0f},
                     {0.0f, 1.0f},
                     {

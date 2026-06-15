@@ -25,7 +25,7 @@ RenderNode make_render_node(const VisualDesc& vd,
             node.name            = std::pmr::string{"rect", res};
             node.shape.type      = ShapeType::Rect;
             node.shape.rect.size = v.size;
-            node.shape.rect.stroke = v.stroke;
+            node.shape.rect.stroke = v.stroke.to_shape_stroke();
             node.color           = v.color;
             node.world_transform.position = layer_transform.position + v.pos;
             node.world_transform.anchor   = {v.size.x * 0.5f, v.size.y * 0.5f, 0.0f};
@@ -35,7 +35,7 @@ RenderNode make_render_node(const VisualDesc& vd,
             node.shape.type                   = ShapeType::RoundedRect;
             node.shape.rounded_rect.size      = v.size;
             node.shape.rounded_rect.radius    = v.radius;
-            node.shape.rounded_rect.stroke    = v.stroke;
+            node.shape.rounded_rect.stroke    = v.stroke.to_shape_stroke();
             node.color                        = v.color;
             node.world_transform.position     = layer_transform.position + v.pos;
             node.world_transform.anchor       = {v.size.x * 0.5f, v.size.y * 0.5f, 0.0f};
@@ -44,7 +44,7 @@ RenderNode make_render_node(const VisualDesc& vd,
             node.name                     = std::pmr::string{"circle", res};
             node.shape.type               = ShapeType::Circle;
             node.shape.circle.radius      = v.radius;
-            node.shape.circle.stroke      = v.stroke;
+            node.shape.circle.stroke      = v.stroke.to_shape_stroke();
             node.color                    = v.color;
             node.world_transform.position = layer_transform.position + v.pos;
             node.world_transform.anchor   = {v.radius, v.radius, 0.0f};

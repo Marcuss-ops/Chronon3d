@@ -366,7 +366,7 @@ inline void draw_stroked_rounded_rect(LayerBuilder& l,
     p.size = size;
     p.radius = radius;
     p.color = fill_color;
-    p.fill = Fill::solid_color(fill_color);
+    p.fill = FillStyle::solid(fill_color);
     p.stroke.enabled = stroke_width > 0.0f;
     p.stroke.color = stroke_color;
     p.stroke.width = stroke_width;
@@ -383,7 +383,7 @@ inline void draw_stroked_circle(LayerBuilder& l,
     CircleParams p;
     p.radius = radius;
     p.color = fill_color;
-    p.fill = Fill::solid_color(fill_color);
+    p.fill = FillStyle::solid(fill_color);
     p.stroke.enabled = stroke_width > 0.0f;
     p.stroke.color = stroke_color;
     p.stroke.width = stroke_width;

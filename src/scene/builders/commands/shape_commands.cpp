@@ -92,20 +92,19 @@ LayerBuilder& LayerBuilder::callout(std::string name, CalloutParams p) {
 
 LayerBuilder& LayerBuilder::progress_bar(std::string name, ProgressBarParams p) {
     PathParams bg_path;
-    bg_path.commands = make_rounded_rect_commands({0.0f, 0.0f}, p.size, p.corner_radius);
-    bg_path.fill = p.background_style.fill;
-    bg_path.stroke = p.background_style.stroke;
-    bg_path.pos = p.pos;
-    bg_path.closed = true;
-    path(name + "_bg", bg_path);
+    bg_path.commands = make_rounded_rect_commands({0.0f, 0.0f}, p.size, p.corner_radius);        bg_path.fill = p.background_style.fill.to_fill();
+        bg_path.stroke = p.background_style.stroke.to_path_stroke();
+        bg_path.pos = p.pos;
+        bg_path.closed = true;
+        path(name + "_bg", bg_path);
 
-    if (p.progress > 0.0f) {
-        PathParams fg_path;
-        f32 fg_w = p.size.x * std::clamp(p.progress, 0.0f, 1.0f);
-        Vec2 fg_center{ -p.size.x * 0.5f + fg_w * 0.5f, 0.0f };
-        fg_path.commands = make_rounded_rect_commands(fg_center, {fg_w, p.size.y}, p.corner_radius);
-        fg_path.fill = p.fill_style.fill;
-        fg_path.stroke = p.fill_style.stroke;
+        if (p.progress > 0.0f) {
+            PathParams fg_path;
+            f32 fg_w = p.size.x * std::clamp(p.progress, 0.0f, 1.0f);
+            Vec2 fg_center{ -p.size.x * 0.5f + fg_w * 0.5f, 0.0f };
+            fg_path.commands = make_rounded_rect_commands(fg_center, {fg_w, p.size.y}, p.corner_radius);
+            fg_path.fill = p.fill_style.fill.to_fill();
+            fg_path.stroke = p.fill_style.stroke.to_path_stroke();
         fg_path.pos = p.pos;
         fg_path.closed = true;
         if (p.color != Color{1,1,1,1}) {
@@ -118,23 +117,22 @@ LayerBuilder& LayerBuilder::progress_bar(std::string name, ProgressBarParams p) 
 
 LayerBuilder& LayerBuilder::timeline_bar(std::string name, TimelineBarParams p) {
     PathParams bg_path;
-    bg_path.commands = make_rounded_rect_commands({0.0f, 0.0f}, p.size, p.corner_radius);
-    bg_path.fill = p.background_style.fill;
-    bg_path.stroke = p.background_style.stroke;
-    bg_path.pos = p.pos;
-    bg_path.closed = true;
-    path(name + "_bg", bg_path);
+    bg_path.commands = make_rounded_rect_commands({0.0f, 0.0f}, p.size, p.corner_radius);        bg_path.fill = p.background_style.fill.to_fill();
+        bg_path.stroke = p.background_style.stroke.to_path_stroke();
+        bg_path.pos = p.pos;
+        bg_path.closed = true;
+        path(name + "_bg", bg_path);
 
-    f32 s = std::clamp(p.start, 0.0f, 1.0f);
-    f32 e = std::clamp(p.end, 0.0f, 1.0f);
-    if (e > s) {
-        PathParams fg_path;
-        f32 fg_w = p.size.x * (e - s);
-        f32 start_pos = -p.size.x * 0.5f + s * p.size.x;
-        Vec2 fg_center{ start_pos + fg_w * 0.5f, 0.0f };
-        fg_path.commands = make_rounded_rect_commands(fg_center, {fg_w, p.size.y}, p.corner_radius);
-        fg_path.fill = p.fill_style.fill;
-        fg_path.stroke = p.fill_style.stroke;
+        f32 s = std::clamp(p.start, 0.0f, 1.0f);
+        f32 e = std::clamp(p.end, 0.0f, 1.0f);
+        if (e > s) {
+            PathParams fg_path;
+            f32 fg_w = p.size.x * (e - s);
+            f32 start_pos = -p.size.x * 0.5f + s * p.size.x;
+            Vec2 fg_center{ start_pos + fg_w * 0.5f, 0.0f };
+            fg_path.commands = make_rounded_rect_commands(fg_center, {fg_w, p.size.y}, p.corner_radius);
+            fg_path.fill = p.fill_style.fill.to_fill();
+            fg_path.stroke = p.fill_style.stroke.to_path_stroke();
         fg_path.pos = p.pos;
         fg_path.closed = true;
         if (p.color != Color{1,1,1,1}) {

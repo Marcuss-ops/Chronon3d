@@ -21,7 +21,7 @@ void add_header(SceneBuilder& s, const std::string& id, const std::string& title
             .radius = 12.0f,
             .color = {0.34f, 0.38f, 0.78f, 1.0f},
             .pos = {0.0f, 0.0f, 0.0f},
-            .fill = Fill::linear(
+            .fill = FillStyle::linear(
                 {0.0f, 0.0f},
                 {0.0f, 1.0f},
                 {
@@ -137,7 +137,7 @@ void add_card(SceneBuilder& s, const std::string& id, Vec3 pos, Vec3 rot, Vec2 s
             .radius = radius,
             .color = fill,
             .pos = {0.0f, 0.0f, 0.0f},
-            .fill = Fill::linear(
+            .fill = FillStyle::linear(
                 {0.0f, 0.0f},
                 {0.0f, 1.0f},
                 {
@@ -204,7 +204,7 @@ Composition floating_cards_test() {
                 .radius = 28.0f,
                 .color = {0.06f, 0.07f, 0.14f, 0.66f},
                 .pos = {0.0f, 0.0f, 0.0f},
-                .fill = Fill::linear(
+                .fill = FillStyle::linear(
                     {0.0f, 0.0f},
                     {1.0f, 1.0f},
                     {
@@ -295,7 +295,7 @@ Composition floating_cards_test() {
                 .radius = 16.0f,
                 .color = {0.42f, 0.14f, 0.72f, 1.0f},
                 .pos = {0.0f, 130.0f, 0.0f},
-                .fill = Fill::linear(
+                .fill = FillStyle::linear(
                     {0.0f, 0.0f},
                     {1.0f, 0.0f},
                     {
@@ -393,7 +393,7 @@ Composition orbit_camera_test() {
                 .radius = 31.0f,
                 .color = {0.22f, 0.09f, 0.40f, 1.0f},
                 .pos = {0.0f, 0.0f, 0.0f},
-                .fill = Fill::linear(
+                .fill = FillStyle::linear(
                     {0.0f, 0.0f},
                     {1.0f, 0.0f},
                     {
@@ -524,7 +524,7 @@ Composition depth_fog_test() {
                 .size = {1500.0f, 240.0f},
                 .color = {0.03f, 0.05f, 0.12f, 1.0f},
                 .pos = {0.0f, 0.0f, 0.0f},
-                .fill = Fill::linear(
+                .fill = FillStyle::linear(
                     {0.0f, 0.0f},
                     {0.0f, 1.0f},
                     {
@@ -607,7 +607,7 @@ Composition z_stack_parallax_test() {
                     .radius = 18.0f,
                     .color = fill,
                     .pos = {0.0f, 0.0f, 0.0f},
-                    .fill = Fill::linear(
+                    .fill = FillStyle::linear(
                         {0.0f, 0.0f},
                         {0.0f, 1.0f},
                         {
@@ -673,7 +673,7 @@ Composition shadow_glow_consistency_test() {
                 .radius = 28.0f,
                 .color = {0.10f, 0.06f, 0.18f, 0.82f},
                 .pos = {0.0f, 0.0f, 0.0f},
-                .fill = Fill::linear(
+                .fill = FillStyle::linear(
                     {0.0f, 0.0f},
                     {0.0f, 1.0f},
                     {
@@ -694,7 +694,7 @@ Composition shadow_glow_consistency_test() {
                 .radius = 18.0f,
                 .color = {0.12f, 0.10f, 0.20f, 0.94f},
                 .pos = {0.0f, 0.0f, 0.0f},
-                .fill = Fill::linear(
+                .fill = FillStyle::linear(
                     {0.0f, 0.0f},
                     {0.0f, 1.0f},
                     {
@@ -908,7 +908,7 @@ Composition y_rotation_text_test() {
                 .radius = 18.0f,
                 .color = {0.20f, 0.12f, 0.38f, 1.0f},
                 .pos = {0.0f, 112.0f, 0.0f},
-                .fill = Fill::linear(
+                .fill = FillStyle::linear(
                     {0.0f, 0.0f},
                     {1.0f, 0.0f},
                     {
