@@ -535,4 +535,108 @@ namespace detail {
     return result;
 }
 
+/// Interpolate two StrokeStyle values.
+///
+/// Both solid  → lerp colours + all scalar attributes.
+/// One solid   → treat solid as a 1-stop gradient, then delegate gradient
+///                interpolation to lerp_gradient.
+/// Both gradient → delegate gradient interpolation to lerp_gradient.
+///
+/// Enum properties (alignment, cap, join) and dash_array switch at t=0.5.
+/// Scalar properties (width, dash_offset, trim_start, trim_end) are lerped.
+[[nodiscard]] inline StrokeStyle lerp_stroke_style(
+    const StrokeStyle& a,
+    const StrokeStyle& b,
+    f32 t) noexcept
+{
+    StrokeStyle result;
+    result.enabled = (t < 0.5f) ? a.enabled : b.enabled;
+
+    // Lerp solid colour
+    result.color = {
+        a.color.r + (b.color.r - a.color.r) * t,
+        a.color.g + (b.color.g - a.color.g) * t,
+        a.color.b + (b.color.b - a.color.b) * t,
+        a.color.a + (b.color.a - a.color.a) * t,
+    };
+
+    // Lerp scalar stroke attributes
+    result.width       = a.width + (b.width - a.width) * t;
+    result.dash_offset = a.dash_offset + (b.dash_offset - a.dash_offset) * t;
+    result.trim_start  = a.trim_start + (b.trim_start - a.trim_start) * t;
+    result.trim_end    = a.trim_end + (b.trim_end - a.trim_end) * t;
+
+    // Enum properties — switch at t=0.5
+    result.alignment = (t < 0.5f) ? a.alignment : b.alignment;
+    result.cap       = (t < 0.5f) ? a.cap : b.cap;
+    result.join      = (t < 0.5f) ? a.join : b.join;
+
+    // Dash array — switch at t=0.5 (too complex to interpolate element-wise)
+    result.dash_array = (t < 0.5f) ? a.dash_array : b.dash_array;
+
+    // ── Gradient handling (same pattern as lerp_fill_style) ────────────
+    const bool a_grad = a.gradient.has_value();
+    const bool b_grad = b.gradient.has_value();
+
+    if (!a_grad && !b_grad) {
+        // Both solid — gradient stays nullopt, color already lerped above
+        result.gradient = std::nullopt;
+    } else {
+        // At least one is a gradient: convert solid(s) to 1-stop gradients
+        const auto to_gdef = [](const StrokeStyle& s) -> GradientDefinition {
+            if (s.gradient.has_value()) return *s.gradient;
+            GradientDefinition g;
+            g.type = GradientType::Linear;
+            g.start = {0.0f, 0.5f};
+            g.end   = {1.0f, 0.5f};
+            g.color_stops = {
+                {0.0f, s.color},
+                {1.0f, s.color},
+            };
+            return g;
+        };
+
+        const GradientDefinition ga = to_gdef(a);
+        const GradientDefinition gb = to_gdef(b);
+        result.gradient = lerp_gradient(ga, gb, t);
+    }
+
+    return result;
+}
+
 } // namespace chronon3d::graphics
+
+// ── KeyframeTrack<FillStyle> / KeyframeTrack<StrokeStyle> specializations ─
+// Wire FillStyle and StrokeStyle into the generic keyframe animation system.
+// Without these, KeyframeTrack<T> would try to use operator+ and operator*
+// on T, which are not defined for these types.
+
+#include <chronon3d/animation/core/keyframe.hpp>
+
+namespace chronon3d {
+
+template <>
+inline graphics::FillStyle interpolate_values<graphics::FillStyle>(
+    const graphics::FillStyle& a,
+    const graphics::FillStyle& b,
+    f32 t,
+    EasingCurve e)
+{
+    if (!e.cubic.has_value() && e.preset == Easing::Hold) return a;
+    const f32 eased_t = e.apply(t);
+    return graphics::lerp_fill_style(a, b, eased_t);
+}
+
+template <>
+inline graphics::StrokeStyle interpolate_values<graphics::StrokeStyle>(
+    const graphics::StrokeStyle& a,
+    const graphics::StrokeStyle& b,
+    f32 t,
+    EasingCurve e)
+{
+    if (!e.cubic.has_value() && e.preset == Easing::Hold) return a;
+    const f32 eased_t = e.apply(t);
+    return graphics::lerp_stroke_style(a, b, eased_t);
+}
+
+} // namespace chronon3d
