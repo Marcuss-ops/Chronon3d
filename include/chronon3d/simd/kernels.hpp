@@ -138,6 +138,20 @@ void rasterize_rect_simd(
 /// `src` is RGBA8, `dst` is PRGB32 (0xAARRGGBB).
 void premultiply_alpha_rgba8(uint32_t* __restrict__ dst, const uint8_t* __restrict__ src, int pixel_count);
 
+/// Convert a row of PRGB32 pixels (premultiplied 0xAARRGGBB) to Color (float RGBA, un-premultiplied).
+/// Processes `pixel_count` contiguous pixels.  `dst` must point to `pixel_count` contiguous Color elements.
+/// Caller is responsible for stride offset (pass src = base + y * stride).
+void bl_image_prgb32_to_color_row(Color* __restrict__ dst,
+                                   const uint32_t* __restrict__ src,
+                                   int pixel_count);
+
+/// Convert a row of Color (float RGBA) to PRGB32 pixels (premultiplied 0xAARRGGBB).
+/// Processes `pixel_count` contiguous pixels.  `src` must point to `pixel_count` contiguous Color elements.
+/// Caller is responsible for stride offset (pass dst = base + y * stride).
+void color_to_prgb32_row(uint32_t* __restrict__ dst,
+                          const Color* __restrict__ src,
+                          int pixel_count);
+
 /// Apply alpha matte coverage to a contiguous run of target pixels.
 /// Each target pixel[i] is multiplied by matte[i].alpha (or 1-alpha if inverted).
 void apply_alpha_matte_premul(
