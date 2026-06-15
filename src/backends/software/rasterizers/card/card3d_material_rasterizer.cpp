@@ -9,19 +9,16 @@ namespace chronon3d::renderer {
 
 // ─── ProjectedCard-based render_card3d ─────────────────────────────────────
 
-// Compute a normalized vector from two points.
 static Vec2 normalize_v2(Vec2 v) {
     const float len = std::sqrt(v.x * v.x + v.y * v.y);
     if (len < 1e-8f) return {0.0f, 0.0f};
     return {v.x / len, v.y / len};
 }
 
-// Extrude a screen-space corner along a direction by thickness_px.
 static Vec2 extrude(Vec2 corner, Vec2 dir, float thickness) {
     return {corner.x + dir.x * thickness, corner.y + dir.y * thickness};
 }
 
-// Compute the screen-space extrusion direction from a world-space light direction.
 static Vec2 light_extrude_dir(const Vec3& light_dir) {
     Vec2 dir{light_dir.x, -light_dir.y};
     return normalize_v2(dir);
@@ -31,7 +28,8 @@ void render_card3d(
     Framebuffer& fb,
     const rendering::ProjectedCard& card,
     const Card3DMaterial& material,
-    float opacity
+    float opacity,
+    std::span<float> depth_buffer
 ) {
     if (!card.visible || opacity <= 0.0f) return;
 
@@ -40,48 +38,57 @@ void render_card3d(
     const Vec3& BR = card.corners[2];
     const Vec3& BL = card.corners[3];
 
-    // Vec2 versions for functions that don't need Z
-    const Vec2 TL2{TL.x, TL.y}, TR2{TR.x, TR.y};
-    const Vec2 BR2{BR.x, BR.y}, BL2{BL.x, BL.y};
-    const Vec2 corners2d[4] = {TL2, TR2, BR2, BL2};
+    const bool use_depth = !depth_buffer.empty();
 
     const Vec2 extrude_dir = light_extrude_dir(material.light_direction);
     const float t = material.thickness_px;
+    const float avg_z = (TL.z + TR.z + BR.z + BL.z) * 0.25f;
 
-    auto side_quad = [&](Vec2 e0, Vec2 e1) {
-        const Vec2 q[4] = {
-            e0, e1,
-            extrude(e1, extrude_dir, t),
-            extrude(e0, extrude_dir, t),
+    // ── Side quads (extruded edges) ──────────────────────────────────────
+    auto side_quad_depth = [&](const Vec3& a, const Vec3& b) {
+        const Vec2 b2d{b.x, b.y};
+        const Vec2 e_a = extrude({a.x, a.y}, extrude_dir, t);
+        const Vec2 e_b = extrude(b2d, extrude_dir, t);
+        const Vec3 q[4] = {
+            a,
+            b,
+            {e_b.x, e_b.y, avg_z},   // extruded → use avg_z (slightly behind card)
+            {e_a.x, e_a.y, avg_z},
         };
-        fill_convex_quad(fb, q, material.side_color.with_alpha(material.side_color.a * opacity));
+        fill_convex_quad(fb, q, material.side_color.with_alpha(material.side_color.a * opacity),
+                         depth_buffer);
     };
 
     const bool show_right = extrude_dir.x > 0.0f;
     const bool show_bottom = extrude_dir.y > 0.0f;
 
     if (show_right) {
-        side_quad(TR, BR);
+        side_quad_depth(TR, BR);
     } else {
-        side_quad(BL, TL);
+        side_quad_depth(BL, TL);
     }
 
     if (show_bottom) {
-        side_quad(BR, BL);
+        side_quad_depth(BR, BL);
     } else {
-        side_quad(TR, TL);
+        side_quad_depth(TR, TL);
     }
 
-    // Front face with gradient
+    // ── Front face with gradient ────────────────────────────────────────
     Color gc[4] = {
         material.front_top_color.with_alpha(material.front_top_color.a * opacity),
         material.front_top_color.with_alpha(material.front_top_color.a * opacity),
         material.front_bottom_color.with_alpha(material.front_bottom_color.a * opacity),
         material.front_bottom_color.with_alpha(material.front_bottom_color.a * opacity),
     };
-    fill_gradient_quad(fb, corners2d, gc);
+    if (use_depth) {
+        fill_gradient_quad(fb, card.corners, gc, depth_buffer);
+    } else {
+        const Vec2 corners2d[4] = {{TL.x, TL.y}, {TR.x, TR.y}, {BR.x, BR.y}, {BL.x, BL.y}};
+        fill_gradient_quad(fb, corners2d, gc);
+    }
 
-    // Edge highlight
+    // ── Edge highlight ──────────────────────────────────────────────────
     if (material.edge_highlight_intensity > 0.0f && material.edge_highlight_color.a > 0.0f) {
         const float hl_w = std::max(1.5f, t * 0.12f);
         const Color hl_c = material.edge_highlight_color.with_alpha(
@@ -96,19 +103,25 @@ void render_card3d(
             if (out_normal.x * to_center.x + out_normal.y * to_center.y > 0.0f) {
                 out_normal = {-out_normal.x, -out_normal.y};
             }
-            const Vec2 hl[4] = {
-                e0, e1,
-                {e1.x + out_normal.x * hl_w, e1.y + out_normal.y * hl_w},
-                {e0.x + out_normal.x * hl_w, e0.y + out_normal.y * hl_w},
+            const Vec3 hl[4] = {
+                e0,
+                e1,
+                {e1.x + out_normal.x * hl_w, e1.y + out_normal.y * hl_w, avg_z},
+                {e0.x + out_normal.x * hl_w, e0.y + out_normal.y * hl_w, avg_z},
             };
-            fill_convex_quad(fb, hl, hl_c);
+            if (use_depth) {
+                fill_convex_quad(fb, hl, hl_c, depth_buffer);
+            } else {
+                const Vec2 hl2[4] = {{hl[0].x, hl[0].y}, {hl[1].x, hl[1].y}, {hl[2].x, hl[2].y}, {hl[3].x, hl[3].y}};
+                fill_convex_quad(fb, hl2, hl_c);
+            }
         };
 
         highlight_edge(TL, TR, false); // top
         highlight_edge(TL, BL, true);  // left
     }
 
-    // Rim light
+    // ── Rim light ───────────────────────────────────────────────────────
     if (material.rim_light_intensity > 0.0f && material.rim_light_color.a > 0.0f) {
         const float rim_w = std::max(2.0f, t * 0.20f);
         const Color rim_c = material.rim_light_color.with_alpha(
@@ -123,12 +136,18 @@ void render_card3d(
             if (out_normal.x * to_center.x + out_normal.y * to_center.y > 0.0f) {
                 out_normal = {-out_normal.x, -out_normal.y};
             }
-            const Vec2 r[4] = {
-                e0, e1,
-                {e1.x + out_normal.x * rim_w, e1.y + out_normal.y * rim_w},
-                {e0.x + out_normal.x * rim_w, e0.y + out_normal.y * rim_w},
+            const Vec3 r[4] = {
+                e0,
+                e1,
+                {e1.x + out_normal.x * rim_w, e1.y + out_normal.y * rim_w, avg_z},
+                {e0.x + out_normal.x * rim_w, e0.y + out_normal.y * rim_w, avg_z},
             };
-            fill_convex_quad(fb, r, rim_c);
+            if (use_depth) {
+                fill_convex_quad(fb, r, rim_c, depth_buffer);
+            } else {
+                const Vec2 r2[4] = {{r[0].x, r[0].y}, {r[1].x, r[1].y}, {r[2].x, r[2].y}, {r[3].x, r[3].y}};
+                fill_convex_quad(fb, r2, rim_c);
+            }
         };
 
         rim_edge(TL, TR); // top
@@ -261,13 +280,30 @@ void draw_line(Framebuffer& fb, Vec2 p0, Vec2 p1, float thickness, const Color& 
     fill_quad(fb, v0, v1, v2, v3, color);
 }
 
+// ── Depth-aware local helpers ──────────────────────────────────────────────
+
+void fill_triangle_depth(Framebuffer& fb, Vec3 v0, Vec3 v1, Vec3 v2,
+                         const Color& color, std::span<float> depth_buffer) {
+    const Vec3 arr[3] = {v0, v1, v2};
+    chronon3d::renderer::fill_triangle(fb, arr, color, depth_buffer);
+}
+
+void fill_quad_depth(Framebuffer& fb, Vec3 p0, Vec3 p1, Vec3 p2, Vec3 p3,
+                     const Color& color, std::span<float> depth_buffer) {
+    const Vec3 tri1[3] = {p0, p1, p2};
+    const Vec3 tri2[3] = {p0, p2, p3};
+    chronon3d::renderer::fill_triangle(fb, tri1, color, depth_buffer);
+    chronon3d::renderer::fill_triangle(fb, tri2, color, depth_buffer);
+}
+
 } // anonymous namespace
 
 void render_card3d_material(
     Framebuffer& fb,
     const Card3DMaterial& material,
     const Card3DRenderParams& params,
-    const std::optional<rendering::LightContext>& lit_context
+    const std::optional<rendering::LightContext>& lit_context,
+    std::span<float> depth_buffer
 ) {
     if (!material.enabled || params.size.x <= 0.0f || params.size.y <= 0.0f) return;
 
@@ -301,17 +337,42 @@ void render_card3d_material(
     const Vec2 b_side_br{e_br.x, e_br.y};
     const Vec2 b_side_bl{e_bl.x, e_bl.y};
 
+    bool use_depth = !depth_buffer.empty();
+
     // 1. Right side quad
     if (t > 0.5f) {
-        fill_quad(fb, r_side_tl, r_side_tr, r_side_br, r_side_bl, material.side_color);
+        if (use_depth) {
+            // Use a reasonable Z for side faces (same as card position depth)
+            float side_z = 0.0f; // default: render unlittered
+            fill_quad_depth(fb,
+                {r_side_tl.x, r_side_tl.y, side_z},
+                {r_side_tr.x, r_side_tr.y, side_z},
+                {r_side_br.x, r_side_br.y, side_z},
+                {r_side_bl.x, r_side_bl.y, side_z},
+                material.side_color, depth_buffer);
+        } else {
+            fill_quad(fb, r_side_tl, r_side_tr, r_side_br, r_side_bl, material.side_color);
+        }
     }
 
     // 2. Bottom side quad
     if (t > 0.5f) {
-        fill_quad(fb, b_side_tl, b_side_tr, b_side_br, b_side_bl, material.side_color);
+        if (use_depth) {
+            float side_z = 0.0f;
+            fill_quad_depth(fb,
+                {b_side_tl.x, b_side_tl.y, side_z},
+                {b_side_tr.x, b_side_tr.y, side_z},
+                {b_side_br.x, b_side_br.y, side_z},
+                {b_side_bl.x, b_side_bl.y, side_z},
+                material.side_color, depth_buffer);
+        } else {
+            fill_quad(fb, b_side_tl, b_side_tr, b_side_br, b_side_bl, material.side_color);
+        }
     }
 
     // 3. Front face with gradient
+    // Note: render_card3d_material uses local pixel coordinates without real Z values,
+    // so depth testing is applied to side faces (for self-occlusion) but not the front face.
     fill_gradient_quad(fb, f_tl, f_tr, f_br, f_bl, material.front_top_color, material.front_bottom_color);
 
     // 4. Edge highlight along extruded edges
@@ -344,7 +405,17 @@ void render_card3d_material(
             Color lit_tint = ctx.ambient_color * ctx.ambient +
                              ctx.directional_color * ctx.diffuse;
             lit_tint.a = 0.25f;
-            fill_quad(fb, f_tl, f_tr, f_br, f_bl, lit_tint);
+            if (use_depth) {
+                float front_z = 0.0f;
+                fill_quad_depth(fb,
+                    {f_tl.x, f_tl.y, front_z},
+                    {f_tr.x, f_tr.y, front_z},
+                    {f_br.x, f_br.y, front_z},
+                    {f_bl.x, f_bl.y, front_z},
+                    lit_tint, depth_buffer);
+            } else {
+                fill_quad(fb, f_tl, f_tr, f_br, f_bl, lit_tint);
+            }
         }
     }
 }

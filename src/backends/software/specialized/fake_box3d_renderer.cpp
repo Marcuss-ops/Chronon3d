@@ -8,6 +8,7 @@
 #include <glm/glm.hpp>
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace chronon3d {
 namespace renderer {
@@ -61,10 +62,13 @@ void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState&
         {{4,0,3,7}, {-1, 0, 0}},  // Left
     };
 
-    const int draw_order[NFACES] = {1, 3, 5, 4, 2, 0};
+    // ── Depth buffer for 3D raster scanning ──────────────────────────────
+    // Create a per-framebuffer depth buffer initialized to 0 (uninitialized).
+    // Camera-space depth is always positive, so 0 means "no depth written yet".
+    std::vector<float> depth_buffer_vec(static_cast<size_t>(fb.width()) * fb.height(), 0.0f);
+    std::span<float> depth_buffer(depth_buffer_vec);
 
-    for (int oi = 0; oi < NFACES; ++oi) {
-        const int fi = draw_order[oi];
+    for (int fi = 0; fi < NFACES; ++fi) {
         // Transform face normal to world space for backface culling
         Vec3 wn = Vec3(rt.world_matrix * Vec4(faces[fi].normal, 0.0f));
         if (glm::dot(to_cam, wn) <= -0.1f) continue;
@@ -79,9 +83,8 @@ void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState&
         const auto projected = projector.project_quad(face_world);
         if (!projected.visible) continue;
 
-        Vec2 quad[4];
-        for (int ci = 0; ci < 4; ++ci) quad[ci] = {projected.corners[ci].x, projected.corners[ci].y};
-
+        // projected.corners are now Vec3 (with z = camera-space depth)
+        // Pass directly to depth-aware scanline functions.
         float light = k_box_light.shade_ndotl(faces[fi].normal);
 
         if (fi == 2) {
@@ -91,7 +94,7 @@ void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState&
             Color c_back  = Color{base.r*light_back,  base.g*light_back,  base.b*light_back,  base.a*op};
             Color c_front = Color{std::min(1.0f,base.r*light_front), std::min(1.0f,base.g*light_front), std::min(1.0f,base.b*light_front), base.a*op};
             Color gc[4] = {c_back, c_back, c_front, c_front};
-            fill_gradient_quad(fb, quad, gc);
+            fill_gradient_quad(fb, projected.corners, gc, depth_buffer);
         } else if (fi == 0) {
             // Front face: subtle top-to-bottom gradient
             float light_top = std::min(1.0f, light * 1.04f);
@@ -99,10 +102,10 @@ void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState&
             Color c_top = Color{std::min(1.0f,base.r*light_top), std::min(1.0f,base.g*light_top), std::min(1.0f,base.b*light_top), base.a*op};
             Color c_bot = Color{base.r*light_bot, base.g*light_bot, base.b*light_bot, base.a*op};
             Color gc[4] = {c_top, c_top, c_bot, c_bot};
-            fill_gradient_quad(fb, quad, gc);
+            fill_gradient_quad(fb, projected.corners, gc, depth_buffer);
         } else {
             Color face_c = Color{base.r*light, base.g*light, base.b*light, base.a*op};
-            fill_convex_quad(fb, quad, face_c);
+            fill_convex_quad(fb, projected.corners, face_c, depth_buffer);
         }
     }
 }
