@@ -14,8 +14,13 @@ target_link_libraries(chronon3d_backend_text PUBLIC
     chronon3d_cache
     spdlog::spdlog_header_only
     blend2d::blend2d
-    freetype
-    harfbuzz::harfbuzz
-    PkgConfig::FRIBIDI
+
 )
+
+if(CHRONON3D_ENABLE_TEXT)
+    target_link_libraries(chronon3d_backend_text PUBLIC
+        freetype
+        harfbuzz::harfbuzz
+    )
+endif()
 target_include_directories(chronon3d_backend_text PRIVATE ${CMAKE_SOURCE_DIR})

@@ -70,6 +70,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
     RenderGraph& graph,
     GraphNodeId output,
     RenderGraphContext& ctx,
+    RenderSession& session,
     FrameArena* arena_override
 ) {
     // ── Cached execution plan ───────────────────────────────────────
@@ -114,7 +115,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         return nullptr;
     }
 
-    FrameArena& active_arena = arena_override ? *arena_override : m_frame_arena;
+    FrameArena& active_arena = arena_override ? *arena_override : session.arena();
     auto* res = active_arena.resource();
     struct ArenaGuard { 
         FrameArena& arena;
@@ -163,6 +164,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
 std::shared_ptr<Framebuffer> GraphExecutor::execute(
     CompiledFrameGraph& compiled,
     RenderGraphContext& ctx,
+    RenderSession& session,
     FrameArena* arena_override
 ) {
     auto& graph = compiled.graph;
@@ -174,7 +176,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         return nullptr;
     }
 
-    FrameArena& active_arena = arena_override ? *arena_override : m_frame_arena;
+    FrameArena& active_arena = arena_override ? *arena_override : session.arena();
     auto* res = active_arena.resource();
     struct ArenaGuard { 
         FrameArena& arena;

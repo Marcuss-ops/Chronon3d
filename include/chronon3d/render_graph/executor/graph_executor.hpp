@@ -2,7 +2,7 @@
 
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
-#include <chronon3d/core/memory/arena.hpp>
+#include <chronon3d/core/memory/render_session.hpp>
 #include <tbb/task_arena.h>
 #include <cstdint>
 #include <memory>
@@ -16,29 +16,30 @@ public:
     GraphExecutor();
 
     /// Execute a render graph.
-    /// @param arena_override  Optional external arena for temporary allocations.
-    ///        When provided, the executor uses this arena instead of its internal
-    ///        m_frame_arena, allowing multiple execute() calls to run concurrently
-    ///        on the same executor instance without data races on the shared arena.
-    ///        Each concurrent caller MUST provide its own arena.
+    /// @param session  The RenderSession providing the frame arena and per-frame state.
+    /// @param arena_override  Optional external arena override for temporary allocations.
+    ///        When provided, the executor uses this arena instead of session.arena,
+    ///        allowing tile-execution paths to supply a short-lived local arena.
     std::shared_ptr<Framebuffer> execute(
         RenderGraph& graph,
         GraphNodeId output,
         RenderGraphContext& ctx,
+        RenderSession& session,
         FrameArena* arena_override = nullptr
     );
 
     std::shared_ptr<Framebuffer> execute(
         RenderGraph& graph,
         RenderGraphContext& ctx,
-        FrameArena* arena_override = nullptr
+        RenderSession& session
     ) {
-        return execute(graph, graph.output(), ctx, arena_override);
+        return execute(graph, graph.output(), ctx, session);
     }
 
     std::shared_ptr<Framebuffer> execute(
         CompiledFrameGraph& compiled,
         RenderGraphContext& ctx,
+        RenderSession& session,
         FrameArena* arena_override = nullptr
     );
 
@@ -64,7 +65,7 @@ private:
     };
 
     tbb::task_arena m_arena;
-    FrameArena      m_frame_arena;
+    // m_frame_arena removed — moved to RenderSession
     mutable std::mutex m_plan_mutex;
     CachedExecutionPlan m_cached_plan;
 

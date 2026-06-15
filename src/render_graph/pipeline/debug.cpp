@@ -1,3 +1,4 @@
+#include <chronon3d/core/memory/render_session.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -106,10 +107,11 @@ SceneGraphStats analyze_scene_graph(
         stats.cache_before = node_cache.stats();
     const auto t_exec0 = profiling::now();
     GraphExecutor executor;
+    RenderSession session;
     std::shared_ptr<Framebuffer> fb_shared;
     {
         CHRONON_ZONE_C("execute_graph", trace_category::kGraph);
-        fb_shared = executor.execute(graph, graph.output(), ctx);
+        fb_shared = executor.execute(graph, graph.output(), ctx, session);
     }
     const auto t_exec1 = profiling::now();
         stats.cache_after  = node_cache.stats();

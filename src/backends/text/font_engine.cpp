@@ -4,6 +4,7 @@
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <spdlog/spdlog.h>
 
+#ifdef CHRONON3D_ENABLE_TEXT
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_GLYPH_H
@@ -11,6 +12,7 @@
 
 #include <hb.h>
 #include <hb-ft.h>
+#endif
 
 #include <cmath>
 #include <algorithm>
@@ -20,7 +22,10 @@
 
 namespace chronon3d {
 
-// ── Internal face cache entry ─────────────────────────────────────────
+// =============================================================================
+// Full implementation with FreeType + HarfBuzz
+// =============================================================================
+#ifdef CHRONON3D_ENABLE_TEXT
 
 struct FaceEntry {
     FT_Face ft_face{nullptr};
@@ -31,9 +36,6 @@ struct FaceEntry {
 
     bool valid() const { return ft_face != nullptr && hb_font != nullptr; }
 };
-
-// ── Glyph bbox cache ──────────────────────────────────────────────────
-// Keyed by (face pointer, glyph_id, pixel_size) for fast bbox lookups.
 
 struct GlyphBBoxCacheKey {
     FT_Face face{nullptr};
@@ -71,8 +73,6 @@ namespace chronon3d {
 struct FontEngine::Impl {
     FT_Library ft_library{nullptr};
     mutable std::unordered_map<FontSpec, FaceEntry, std::hash<FontSpec>> face_cache;
-    // shared_mutex allows concurrent readers for face_cache lookups
-    // (glyph_bbox_cache is internally synchronized via LruCache sharding).
     mutable std::shared_mutex face_cache_mutex;
     mutable cache::LruCache<GlyphBBoxCacheKey, GlyphBBoxCacheEntry, std::hash<GlyphBBoxCacheKey>> glyph_bbox_cache{8192, 2};
 
@@ -109,7 +109,7 @@ struct FontEngine::Impl {
 
         std::string resolved = AssetRegistry::resolve(spec.font_path);
         if (resolved.empty()) {
-            resolved = spec.font_path; // try raw path
+            resolved = spec.font_path;
         }
 
         FT_Face face = nullptr;
@@ -120,11 +120,8 @@ struct FontEngine::Impl {
             return std::nullopt;
         }
 
-        // Set a nominal size so hb_ft_font_create gets a face with valid metrics.
-        // Per-call sizing in shape_text / get_font_metrics overrides this.
         FT_Set_Pixel_Sizes(face, 0, 16);
 
-        // Create HarfBuzz font from FreeType face
         hb_font_t* hb_font = hb_ft_font_create(face, nullptr);
         if (!hb_font) {
             FT_Done_Face(face);
@@ -141,24 +138,15 @@ struct FontEngine::Impl {
         return entry;
     }
 
-        // After hb_ft_font_changed(), both HarfBuzz glyph positions and
-    // FT glyph/size metrics are in 26.6 fixed-point format.
-    // Multiplying by 1/64 converts to pixels for both subsystems.
     [[nodiscard]] static float pixel_scale_26_6() {
-        return 1.0f / 64.0f;
-    }
-
-    // FT size metrics and glyph metrics are in 26.6 fixed-point after FT_Set_Pixel_Sizes.
-    [[nodiscard]] static float ft_pixel_scale() {
         return 1.0f / 64.0f;
     }
 };
 
-// ── FontEngine public API ─────────────────────────────────────────────
+// ── FontEngine public API (full) ─────────────────────────────────────
 
 FontEngine::FontEngine() : m_impl(std::make_unique<Impl>()) {}
 FontEngine::~FontEngine() = default;
-
 FontEngine::FontEngine(FontEngine&&) noexcept = default;
 FontEngine& FontEngine::operator=(FontEngine&&) noexcept = default;
 
@@ -172,10 +160,6 @@ std::optional<GlyphRun> FontEngine::shape_text(
         return std::nullopt;
     }
 
-    // Lock the face cache for lookup.  FreeType faces are not thread-safe,
-    // so we hold an exclusive lock for the entire shaping operation when a
-    // face is in use.  The glyph_bbox_cache (LruCache) is internally
-    // synchronized and does not need the external lock.
     std::unique_lock<std::shared_mutex> face_lock(m_impl->face_cache_mutex);
     auto it = m_impl->face_cache.find(spec);
     if (it == m_impl->face_cache.end()) {
@@ -191,57 +175,30 @@ std::optional<GlyphRun> FontEngine::shape_text(
     FT_Face face = entry->ft_face;
     const float scale = Impl::pixel_scale_26_6();
 
-    // Re-set pixel size in case font_size differs from cache creation size.
-    // Must call hb_ft_font_changed() so HarfBuzz sees the new FT scale.
     FT_Error size_err = FT_Set_Pixel_Sizes(face, 0, static_cast<unsigned int>(std::ceil(font_size)));
     if (size_err != 0) return std::nullopt;
     hb_ft_font_changed(entry->hb_font);
 
-    // Create HarfBuzz buffer and shape
     hb_buffer_t* buf = hb_buffer_create();
     if (!buf) return std::nullopt;
     hb_buffer_add_utf8(buf, text.data(), static_cast<int>(text.size()), 0, static_cast<int>(text.size()));
 
-    // ── Set explicit properties BEFORE guess_segment_properties ─────
-    // HarfBuzz's hb_buffer_guess_segment_properties() only fills in
-    // properties that are INVALID / unset.  If we set a property here,
-    // guess_segment_properties will NOT override it.
-
-    // Direction: set only when the caller was explicit (not Auto).
-    // When Auto we leave the buffer direction as HB_DIRECTION_INVALID
-    // so guess_segment_properties() uses Unicode Bidi on the text.
     if (shaping.direction == TextDirection::RTL) {
         hb_buffer_set_direction(buf, HB_DIRECTION_RTL);
     } else if (shaping.direction == TextDirection::LTR) {
         hb_buffer_set_direction(buf, HB_DIRECTION_LTR);
     }
-    // Auto: leave unset → guess_segment_properties() handles it.
 
-    // Script: set only when the caller provided an explicit script tag.
-    // When script==0 we leave it as HB_SCRIPT_INVALID (buffer default)
-    // so guess_segment_properties() auto-detects from the character
-    // range of the text (Latin, Arabic, Devanagari, CJK, etc.).
     if (shaping.script != 0) {
         hb_buffer_set_script(buf, static_cast<hb_script_t>(shaping.script));
     }
-    // script==0: leave unset → guess_segment_properties() handles it.
 
-    // Language: set only when the caller provided an explicit language.
-    // When empty we leave it as HB_LANGUAGE_INVALID so
-    // guess_segment_properties() auto-detects from character range.
     if (!shaping.language.empty()) {
         hb_buffer_set_language(buf,
             hb_language_from_string(shaping.language.c_str(), -1));
     }
-    // language.empty(): leave unset → guess_segment_properties() handles it.
 
-    // ── Auto-detect any unset properties ───────────────────────────
-    // HarfBuzz fills in direction, script, and language from the text
-    // content when they are HB_DIRECTION_INVALID / HB_SCRIPT_INVALID /
-    // HB_LANGUAGE_INVALID (the buffer defaults after creation).
-    // This correctly handles Arabic RTL, Devanagari, CJK, emoji, etc.
     hb_buffer_guess_segment_properties(buf);
-
     hb_shape(entry->hb_font, buf, nullptr, 0);
 
     unsigned int glyph_count = 0;
@@ -254,7 +211,6 @@ std::optional<GlyphRun> FontEngine::shape_text(
 
     float cursor_x = 0.0f;
     float cursor_y = 0.0f;
-
     const u32 pixel_size = static_cast<u32>(std::ceil(font_size));
 
     for (unsigned int i = 0; i < glyph_count; ++i) {
@@ -270,7 +226,6 @@ std::optional<GlyphRun> FontEngine::shape_text(
         gp.is_cluster_start = (i == 0) ||
                               (glyph_infos[i].cluster != glyph_infos[i - 1].cluster);
 
-        // Look up glyph bbox in cache first
         GlyphBBoxCacheKey key{face, gp.glyph_id, pixel_size};
         auto cached = m_impl->glyph_bbox_cache.get(key);
         if (cached) {
@@ -279,7 +234,6 @@ std::optional<GlyphRun> FontEngine::shape_text(
             gp.bbox_x1 = cached->x1;
             gp.bbox_y1 = cached->y1;
         } else {
-            // Load glyph to get bounding box (FT glyph metrics are in 26.6 after FT_Set_Pixel_Sizes)
             FT_Error err = FT_Load_Glyph(face, gp.glyph_id, FT_LOAD_DEFAULT);
             if (err == 0) {
                 FT_GlyphSlot slot = face->glyph;
@@ -302,7 +256,6 @@ std::optional<GlyphRun> FontEngine::shape_text(
     hb_buffer_destroy(buf);
 
     run.width = cursor_x;
-    // face->size->metrics are in 26.6 after FT_Set_Pixel_Sizes
     run.ascent  = static_cast<float>(face->size->metrics.ascender)  * scale;
     run.descent = -static_cast<float>(face->size->metrics.descender) * scale;
     run.baseline = 0.0f;
@@ -321,7 +274,6 @@ FontEngine::FontMetrics FontEngine::get_font_metrics(const FontSpec& spec, float
     FontMetrics metrics{};
     if (!m_impl || !m_impl->ft_library || font_size <= 0.0f) return metrics;
 
-    // Lock for thread safety — FT_Face is not thread-safe.
     std::unique_lock<std::shared_mutex> face_lock(m_impl->face_cache_mutex);
     auto it = m_impl->face_cache.find(spec);
     if (it == m_impl->face_cache.end()) {
@@ -340,12 +292,10 @@ FontEngine::FontMetrics FontEngine::get_font_metrics(const FontSpec& spec, float
     FT_Error size_err = FT_Set_Pixel_Sizes(face, 0, static_cast<unsigned int>(std::ceil(font_size)));
     if (size_err != 0) return metrics;
 
-    // face->size->metrics are in 26.6 after FT_Set_Pixel_Sizes
     metrics.ascent  = static_cast<float>(face->size->metrics.ascender)  * scale;
     metrics.descent = -static_cast<float>(face->size->metrics.descender) * scale;
     metrics.line_height = static_cast<float>(face->size->metrics.height) * scale;
 
-    // x-height from 'x' glyph, cap-height from 'H' glyph (glyph metrics in 26.6)
     FT_Load_Char(face, 'x', FT_LOAD_DEFAULT);
     if (face->glyph) {
         metrics.x_height = static_cast<float>(face->glyph->metrics.horiBearingY) * scale;
@@ -368,13 +318,11 @@ void FontEngine::clear_cache() {
 
 size_t FontEngine::glyph_bbox_cache_size() const {
     if (!m_impl) return 0;
-    // glyph_bbox_cache is internally synchronized (LruCache with sharded mutexes).
     return m_impl->glyph_bbox_cache.stats().current_size;
 }
 
 bool FontEngine::can_load(const FontSpec& spec) {
     if (!m_impl || !m_impl->ft_library) return false;
-    // Shared lock first — most calls will hit the cache.
     {
         std::shared_lock<std::shared_mutex> shared_lock(m_impl->face_cache_mutex);
         auto it = m_impl->face_cache.find(spec);
@@ -382,7 +330,6 @@ bool FontEngine::can_load(const FontSpec& spec) {
             return it->second.valid();
         }
     }
-    // Cache miss: upgrade to exclusive lock for insertion.
     std::unique_lock<std::shared_mutex> unique_lock(m_impl->face_cache_mutex);
     auto it = m_impl->face_cache.find(spec);
     if (it != m_impl->face_cache.end()) {
@@ -394,7 +341,47 @@ bool FontEngine::can_load(const FontSpec& spec) {
     return ok && inserted_it->second.valid();
 }
 
-// ── Global convenience ──────────────────────────────────────────────
+// =============================================================================
+// Stub implementation (no FreeType / HarfBuzz available)
+// =============================================================================
+#else
+
+struct FontEngine::Impl {
+    ~Impl() = default;
+};
+
+FontEngine::FontEngine() : m_impl(std::make_unique<Impl>()) {}
+FontEngine::~FontEngine() = default;
+FontEngine::FontEngine(FontEngine&&) noexcept = default;
+FontEngine& FontEngine::operator=(FontEngine&&) noexcept = default;
+
+std::optional<GlyphRun> FontEngine::shape_text(
+    std::string_view, const FontSpec&, float, const TextShaping&
+) const {
+    return std::nullopt;
+}
+
+float FontEngine::measure_text(
+    std::string_view, const FontSpec&, float, const TextShaping&
+) const {
+    return 0.0f;
+}
+
+FontEngine::FontMetrics FontEngine::get_font_metrics(
+    const FontSpec&, float
+) const {
+    return FontMetrics{};
+}
+
+void FontEngine::clear_cache() {}
+
+size_t FontEngine::glyph_bbox_cache_size() const { return 0; }
+
+bool FontEngine::can_load(const FontSpec&) { return false; }
+
+#endif // CHRONON3D_ENABLE_TEXT
+
+// ── Global convenience (always available) ─────────────────────────────
 
 std::optional<GlyphRun> shape_text(std::string_view text, const FontSpec& spec, float font_size, const TextShaping& shaping) {
     static FontEngine engine;
@@ -411,7 +398,7 @@ void reset_shared_font_engine() {
     engine.clear_cache();
 }
 
-// ── PlacedGlyphRun resolver ───────────────────────────────────────────
+// ── PlacedGlyphRun resolver (no freetype/harfbuzz dependency) ────────
 
 PlacedGlyphRun resolve_placed_glyph_run(
     const GlyphRun& hb_run,
@@ -426,7 +413,6 @@ PlacedGlyphRun resolve_placed_glyph_run(
 
     if (hb_run.glyphs.empty()) return result;
 
-    // ── First pass: positions with tracking-aware advances ────────────
     float pen_x = 0.0f;
     float pen_y = 0.0f;
     result.glyphs.reserve(hb_run.glyphs.size());
@@ -440,23 +426,13 @@ PlacedGlyphRun resolve_placed_glyph_run(
         pg.is_cluster_start = g.is_cluster_start;
         pg.cluster = g.cluster;
 
-        // Position: pen_accumulated + raw HarfBuzz offset
-        // This matches what HbToBlGlyphRun produces for fillGlyphRun
-        // (pen advances by advance, offset added to position at draw time)
-        // AND what FtGlyphPathBuilder uses for the outline origin.
         pg.x = pen_x + g.x_offset;
         pg.y = pen_y + g.y_offset;
 
-        // Raw advance from HarfBuzz — saved separately so consumers
-        // that re-apply tracking at a different granularity (e.g.
-        // the typewriter's grapheme-cluster merge) can use the raw
-        // value and add tracking themselves.
         pg.raw_advance_x = g.advance_x;
         pg.advance_x = g.advance_x;
         pg.advance_y = g.advance_y;
 
-        // Apply per-cluster tracking: add tracking before the NEXT glyph
-        // when that glyph starts a new cluster.
         if (tracking != 0.0f && i + 1 < hb_run.glyphs.size()) {
             if (hb_run.glyphs[i + 1].is_cluster_start) {
                 pg.advance_x += tracking;
@@ -464,8 +440,6 @@ PlacedGlyphRun resolve_placed_glyph_run(
         }
 
         result.glyphs.push_back(pg);
-
-        // Advance pen by the adjusted advance (with tracking)
         pen_x += pg.advance_x;
         pen_y += g.advance_y;
     }
@@ -473,21 +447,13 @@ PlacedGlyphRun resolve_placed_glyph_run(
     result.total_width = pen_x;
     result.total_height = hb_run.ascent + hb_run.descent;
 
-    // ── Second pass: cluster info from source text ────────────────────
     if (!source_text.empty()) {
-        // Build cluster-interval map from HarfBuzz cluster values.
-        // HarfBuzz `cluster` values are byte offsets into the source text.
-        // Collect unique values, sort by source-text offset, and build
-        // intervals [sorted[k], sorted[k+1]).
-
-        // 1. Collect unique cluster values.
         std::set<u32> cluster_set;
         for (const auto& g : hb_run.glyphs) {
             cluster_set.insert(g.cluster);
         }
-        cluster_set.insert(static_cast<u32>(source_text.size())); // sentinel
+        cluster_set.insert(static_cast<u32>(source_text.size()));
 
-        // 2. Build sorted intervals.
         std::vector<u32> sorted_clusters(cluster_set.begin(), cluster_set.end());
         std::unordered_map<u32, std::pair<size_t, size_t>> cluster_to_range;
         for (size_t k = 0; k + 1 < sorted_clusters.size(); ++k) {
@@ -497,7 +463,6 @@ PlacedGlyphRun resolve_placed_glyph_run(
             };
         }
 
-        // 3. Map byte ranges back to glyphs and build clusters.
         result.clusters.reserve(sorted_clusters.size() - 1);
         for (size_t k = 0; k + 1 < sorted_clusters.size(); ++k) {
             const u32 c = sorted_clusters[k];
@@ -509,15 +474,15 @@ PlacedGlyphRun resolve_placed_glyph_run(
 
             PlacedGlyphRun::Cluster cl;
             cl.byte_offset = start_byte;
-            cl.byte_len = end_byte - start_byte;                // Find glyph range for this cluster.
+            cl.byte_len = end_byte - start_byte;
             for (size_t gi = 0; gi < result.glyphs.size(); ++gi) {
                 if (result.glyphs[gi].cluster == c) {
                     if (cl.start_glyph == 0 && cl.end_glyph == 0) {
                         cl.start_glyph = gi;
                     }
-                    cl.end_glyph = gi + 1;      // exclusive
-                    cl.advance += result.glyphs[gi].advance_x;      // with tracking
-                    cl.raw_advance += result.glyphs[gi].raw_advance_x; // raw
+                    cl.end_glyph = gi + 1;
+                    cl.advance += result.glyphs[gi].advance_x;
+                    cl.raw_advance += result.glyphs[gi].raw_advance_x;
                 }
             }
 

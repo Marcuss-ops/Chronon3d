@@ -7,11 +7,6 @@
 #include <optional>
 #include <vector>
 
-#include <ft2build.h>
-#include FT_FREETYPE_H
-#include FT_GLYPH_H
-#include FT_OUTLINE_H
-
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
@@ -22,6 +17,13 @@
 #include <blend2d/path.h>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+
+#ifdef CHRONON3D_ENABLE_TEXT
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#include FT_GLYPH_H
+#include FT_OUTLINE_H
+#endif
 
 namespace chronon3d {
 
@@ -247,7 +249,6 @@ struct HbToBlGlyphRun {
         const double upem = static_cast<double>(face.unitsPerEm());
         const double scale = (upem > 0.0 && font_size > 0.0f)
             ? upem / static_cast<double>(font_size) : 1.0;
-
         HbToBlGlyphRun result;
         result.glyph_ids.reserve(placed.glyphs.size());
         result.placements.reserve(placed.glyphs.size());
@@ -270,18 +271,12 @@ struct HbToBlGlyphRun {
     }
 };
 
-/// Converts a HarfBuzz-shaped GlyphRun to a Blend2D BLPath by decomposing
-/// each glyph's FreeType outline.  Used so that fill (via fillGlyphRun) and
-/// stroke (via this path) use the identical shaped glyphs from HarfBuzz.
-/// Without this, strokeUtf8Text would re-shape independently with Blend2D's
-/// internal shaper, potentially producing different GSUB glyphs for Arabic,
-/// Devanagari, and other complex scripts.
+#ifdef CHRONON3D_ENABLE_TEXT
 struct FtGlyphPathBuilder {
     FT_Face    ft_face{nullptr};
     std::string loaded_path;
-    std::mutex  mutex;  // FT_Face is not thread-safe
+    std::mutex  mutex;
 
-    /// Returns a shared process-wide FT_Library (initialised once, never freed).
     static FT_Library shared_ft_lib() {
         static FT_Library lib = [] {
             FT_Library l = nullptr;
@@ -293,8 +288,6 @@ struct FtGlyphPathBuilder {
         return lib;
     }
 
-    /// Load (or reuse) the font face at the given pixel size.
-    /// Returns false if the font file cannot be opened.
     bool load_face(const std::string& font_path, float font_size) {
         std::lock_guard<std::mutex> lock(mutex);
         const std::string resolved = AssetRegistry::resolve(font_path);
@@ -320,25 +313,13 @@ struct FtGlyphPathBuilder {
     FtGlyphPathBuilder(const FtGlyphPathBuilder&) = delete;
     FtGlyphPathBuilder& operator=(const FtGlyphPathBuilder&) = delete;
 
-    /// Build a BLPath from a PlacedGlyphRun, translating each glyph outline
-    /// to the given (origin_x, origin_y) baseline position.
-    /// Uses the pre-computed cumulative positions from PlacedGlyphRun,
-    /// so no pen tracking or tracking logic is needed here.
-    /// Returns an empty path if the face cannot be loaded or the run is empty.
     BLPath build_path(const PlacedGlyphRun& placed, float origin_x, float origin_y) {
         BLPath path;
         if (!ft_face || placed.glyphs.empty()) return path;
 
         std::lock_guard<std::mutex> lock(mutex);
 
-        // FT glyph coordinates are in 26.6 fixed-point; divide by 64 for pixels.
-        // FT uses y-up (positive = above baseline); BL uses y-down.
         constexpr float kScale = 1.0f / 64.0f;
-
-        // Weight for converting standard quadratic Bézier (FT conic) to
-        // Blend2D's rational quadratic conicTo.  Weight 1.0 makes them
-        // identical: the rational form with w=1 collapses to the standard
-        // quadratic (the denominator becomes 1).
         constexpr double kConicWeight = 1.0;
 
         struct DecomposeCtx {
@@ -389,16 +370,9 @@ struct FtGlyphPathBuilder {
         funcs.delta = 0;
         funcs.shift = 0;
 
-        // Use the pre-computed cumulative positions from PlacedGlyphRun.
-        // Each glyph's x/y already includes pen accumulation + x_offset.
-        // No pen tracking needed — positions come from the resolver.
         for (const auto& pg : placed.glyphs) {
-            if (FT_Load_Glyph(ft_face, pg.glyph_id, FT_LOAD_NO_BITMAP) != 0) {
-                continue;
-            }
-            if (ft_face->glyph->format != FT_GLYPH_FORMAT_OUTLINE) {
-                continue;
-            }
+            if (FT_Load_Glyph(ft_face, pg.glyph_id, FT_LOAD_NO_BITMAP) != 0) continue;
+            if (ft_face->glyph->format != FT_GLYPH_FORMAT_OUTLINE) continue;
 
             {
                 const float glyph_ox = origin_x + pg.x;
@@ -412,15 +386,15 @@ struct FtGlyphPathBuilder {
         return path;
     }
 };
+#endif // CHRONON3D_ENABLE_TEXT
 
-} // namespace
+} // anonymous namespace
 
 using CacheKey = u64;
 
 CacheKey hash_text_style(const TextShape& t, float effective_size, int padding, const Mat4* transform);
 bool lookup_text_cache(const CacheKey& key, std::shared_ptr<TextRasterization>& out);
 void store_text_cache(const CacheKey& key, const std::shared_ptr<TextRasterization>& result);
-
 
 std::optional<TextRasterization> rasterize_text_to_bl_image(
     const TextShape& t,
@@ -430,6 +404,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     const Mat4* transform,
     FontEngine* font_engine
 ) {
+#ifdef CHRONON3D_ENABLE_TEXT
     std::string font_path = t.style.font_path;
     if (t.text.empty() || font_path.empty()) return std::nullopt;
 
@@ -462,9 +437,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         layout_box.size.y = std::max(0.0f, t.box.size.y - 2.0f * t.style.box_style.padding.y);
     }
 
-    // Reuse the caller-provided FontEngine if available; otherwise fall back
-    // to a local instance (preserves backward compatibility for tests &
-    // direct API callers).
     FontEngine local_engine;
     FontEngine* engine = font_engine ? font_engine : &local_engine;
 
@@ -482,29 +454,18 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     layout_in.font_engine = engine;
     layout_in.font_spec   = font_spec;
 
-    // Use FontEngine (HarfBuzz) for text measurement — same shaper as
-    // the fillGlyphRun calls below.  This eliminates the measurement vs
-    // renderer width discrepancy that previously required Blend2D as a
-    // bridge.  HarfBuzz is preferred for complex scripts (Arabic,
-    // Devanagari, CJK) where GSUB substitutions change glyph advances.
-
     auto start_layout = profiling::now();
     auto layout_res = TextLayoutEngine::layout(layout_in);
-        if (profiling::g_current_counters) {
+    if (profiling::g_current_counters) {
         auto dur = static_cast<uint64_t>(profiling::elapsed_ms(start_layout));
         profiling::g_current_counters->text_layout_ms.fetch_add(static_cast<uint64_t>(dur), std::memory_order_relaxed);
     }
 
-    // Recreate the font at the final resolved size from the layout engine
     font.createFromFace(face, layout_res.font_size);
-
-
 
     int tw = 0;
     int th = 0;
     if (t.box.enabled) {
-        // Use the larger of box size and actual layout size so wrapped text
-        // is never clipped vertically (or horizontally).
         tw = static_cast<int>(std::ceil(std::max(t.box.size.x, layout_res.size.x))) + padding;
         th = static_cast<int>(std::ceil(std::max(t.box.size.y, layout_res.size.y))) + padding;
     } else {
@@ -608,9 +569,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     float free_h = t.box.enabled ? (t.box.size.y - (t.style.box_style.enabled ? 2.0f * t.style.box_style.padding.y : 0.0f)) : 0.0f;
     float dx_align = 0.0f;
     float dy_align = 0.0f;
-    // With HarfBuzz used for both measurement and rendering, dx_align
-    // should be accurate.  The pixel-ink centering below is kept as a
-    // safety net for debugging / transitions.
     if (t.box.enabled) {
         if (t.style.align == TextAlign::Center) {
             dx_align = (free_w - layout_res.size.x) * 0.5f;
@@ -627,8 +585,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     }
 
     float text_start_x = padding / 2.0f + (t.style.box_style.enabled ? t.style.box_style.padding.x : 0.0f) + dx_align;
-    // Guard: clamp text_start_x so text is always within the image.
-    // With HarfBuzz measurement, this should rarely trigger.
     if (t.box.enabled && text_start_x < padding / 2.0f) {
         text_start_x = padding / 2.0f;
     }
@@ -656,9 +612,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     };
 
     auto render_run = [&](const TextLayoutLineRun& run, const TextLayoutLine& line) {
-        if (run.text.empty()) {
-            return;
-        }
+        if (run.text.empty()) return;
 
         TextStyle run_style = run.style;
         if (run_style.font_path.empty()) run_style.font_path = t.style.font_path;
@@ -669,9 +623,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         if (run_style.line_height <= 0.0f) run_style.line_height = t.style.line_height;
 
         BLFontFace run_face = resolve_font_face(run_style);
-        if (run_face.empty()) {
-            return;
-        }
+        if (run_face.empty()) return;
 
         BLFont run_font;
         run_font.createFromFace(run_face, std::max(1.0f, run_style.size));
@@ -680,12 +632,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         const float lx = text_start_x + run.position.x;
         const Color run_fill = resolve_fill_color(run_style);
 
-        // ── HarfBuzz-shaped glyph rendering ─────────────────────────
-        // Shape with FontEngine (HarfBuzz) to get correct GSUB glyph
-        // substitutions for Arabic, Devanagari, CJK, etc.  Blend2D's
-        // fillUtf8Text re-shapes independently and may produce different
-        // glyphs.  Pass explicit HarfBuzz glyph positions via
-        // fillGlyphRun so script/direction/language flow end-to-end.
         const float run_shape_size = std::max(1.0f, run_style.size);
         FontSpec run_spec;
         run_spec.font_path   = run_style.font_path;
@@ -738,16 +684,15 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                 }
             } else {
                 // Fallback when HarfBuzz shaping is unavailable
+                ctx.setStrokeWidth(run_style.paint.stroke_width);
+                ctx.setStrokeStyle(to_bl_rgba(run_style.paint.stroke_color));
                 ctx.strokeUtf8Text(BLPoint(lx, baseline_y), run_font, run.text.c_str());
             }
         }
 
         apply_text_fill_style(
-            ctx,
-            run_style,
-            run_fill,
-            text_start_x,
-            text_start_y,
+            ctx, run_style, run_fill,
+            text_start_x, text_start_y,
             std::max(1.0f, run.width),
             line.baseline + line.descent
         );
@@ -756,7 +701,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             auto bl = HbToBlGlyphRun::from(*placed, run_face, run_shape_size);
             ctx.fillGlyphRun(BLPoint(lx, baseline_y), run_font, bl.bl_run);
         } else {
-            // Fallback: Blend2D internal shaping if HarfBuzz unavailable
             ctx.fillUtf8Text(BLPoint(lx, baseline_y), run_font, run.text.c_str());
         }
     };
@@ -765,9 +709,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         if (line.text.empty()) continue;
 
         if (line.runs.size() > 1) {
-            for (const auto& run : line.runs) {
-                render_run(run, line);
-            }
+            for (const auto& run : line.runs) render_run(run, line);
             continue;
         }
 
@@ -825,18 +767,16 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                     }
                 }
             } else {
+                ctx.setStrokeWidth(t.style.paint.stroke_width);
+                ctx.setStrokeStyle(to_bl_rgba(t.style.paint.stroke_color));
                 ctx.strokeUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
             }
         }
 
         apply_text_fill_style(
-            ctx,
-            t.style,
-            line_fill,
-            text_start_x,
-            text_start_y,
-            text_block_w,
-            text_block_h
+            ctx, t.style, line_fill,
+            text_start_x, text_start_y,
+            text_block_w, text_block_h
         );
 
         if (placed) {
@@ -850,7 +790,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     ctx.end();
 
     // ── Trim trailing rows AND compute ink-bounds for centering ───────
-    float ink_center_frac = -1.0f; // -1 = unknown / no ink
+    float ink_center_frac = -1.0f;
     float ink_w = 0.0f;
     int ink_left = 0, ink_right = 0, ink_top = 0, ink_bottom = 0;
     {
@@ -861,10 +801,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             const int stride = static_cast<int>(trim_data.stride / sizeof(uint32_t));
             auto* pixels = reinterpret_cast<uint32_t*>(trim_data.pixelData);
 
-            // 1. Count non-zero-alpha pixels per row and find the maximum.
-            //    Also track the overall ink column bounds.
-            //    Sampled scan: stride 4 horizontally, stride 2 vertically
-            //    (8x fewer pixels vs full scan; bounds expanded to compensate).
             constexpr int kSampleStrideX = 4;
             constexpr int kSampleStrideY = 2;
             std::vector<int> row_counts(static_cast<size_t>(sh), 0);
@@ -884,17 +820,10 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                 if (row_counts[static_cast<size_t>(y)] > max_count)
                     max_count = row_counts[static_cast<size_t>(y)];
             }
-            // Expand sampled ink bounds to cover the stride gaps.
-            // A non-zero pixel at (x,y) means content could extend to
-            // (x - kSampleStrideX + 1) on the left and
-            // (x + kSampleStrideX - 1) on the right, similarly for y.
             local_ink_left   = std::max(0, local_ink_left - (kSampleStrideX - 1));
             local_ink_right  = std::min(sw - 1, local_ink_right + kSampleStrideX - 1);
             local_ink_top    = std::max(0, local_ink_top - (kSampleStrideY - 1));
             local_ink_bottom = std::min(sh - 1, local_ink_bottom + kSampleStrideY - 1);
-            // Propagate row counts to skipped rows so trimming works correctly.
-            // Only fill unsampled rows (y % kSampleStrideY != 0); sampled rows
-            // that legitimately have zero count must stay zero.
             for (int y = 1; y < sh; ++y) {
                 if (row_counts[static_cast<size_t>(y)] == 0 &&
                     y % kSampleStrideY != 0 &&
@@ -905,7 +834,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             }
 
             if (max_count > 0) {
-                // 2. Find the last row that has *meaningful* content.
                 const int content_threshold = std::max(5,
                     static_cast<int>(std::ceil(static_cast<float>(max_count) * 0.02f)));
                 int last_content_row = -1;
@@ -915,14 +843,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                     }
                 }
 
-                // 3. Clear empty rows below the last ink.
-                //    Use local_ink_bottom (absolute last row with any non-zero
-                //    pixel) + a font-size-based safety margin for descender
-                //    glyphs, instead of the 2%-threshold last_content_row which
-                //    clips descenders (p, q, y, g, j) whose few bottom pixels
-                //    fall below the threshold.
-                //    When a text box is enabled, the box itself is the natural
-                //    boundary — skip the trim entirely to be safe.
                 if (!t.box.enabled) {
                     const int descender_margin = std::max(8,
                         static_cast<int>(std::ceil(layout_res.font_size * 0.25f)));
@@ -934,7 +854,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                         }
                     }
 
-                    // 4. Also clear isolated haze rows at the very bottom.
                     const int trace_threshold = std::max(2,
                         static_cast<int>(std::ceil(static_cast<float>(max_count) * 0.005f)));
                     for (int y = sh - 1; y >= 0; --y) {
@@ -945,7 +864,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                     }
                 }
 
-                // 5. Compute ink fractional center for text-alignment fix.
                 ink_left  = local_ink_left;
                 ink_right = local_ink_right;
                 ink_top   = local_ink_top;
@@ -955,13 +873,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                     ink_center_frac = ink_cx;
                     ink_w = static_cast<float>(ink_right - ink_left);
                 }
-            }
-            
-            // Debug: log text bounds for box-enabled text (env-gated)
-            if (t.box.enabled && !t.text.empty() && chronon3d::Config::get().debug_text_raster) {
-                spdlog::info("[TextRaster] '{}' img={}x{} box={:.0f}x{:.0f} ink=[{},{},{},{}] ink_w={:.0f} ink_cx={:.1f}",
-                    t.text, sw, sh, t.box.size.x, t.box.size.y,
-                    ink_left, ink_right, ink_top, ink_bottom, ink_w, ink_center_frac);
             }
         }
     }
@@ -973,13 +884,11 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 
         const float pad_f = static_cast<float>(padding) * 0.5f;
 
-        // 1. Text box boundary (red) — only when box is enabled
         if (t.box.enabled) {
             dbg.setStrokeStyle(BLRgba32(255, 48, 48, 200));
             dbg.setStrokeWidth(2.0f);
             dbg.strokeRect(pad_f, pad_f, t.box.size.x, t.box.size.y);
 
-            // Box center crosshair (cyan)
             const float cx = pad_f + t.box.size.x * 0.5f;
             const float cy = pad_f + t.box.size.y * 0.5f;
             dbg.setStrokeStyle(BLRgba32(0, 255, 255, 200));
@@ -988,17 +897,15 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             dbg.strokeLine(cx, cy - 14.0f, cx, cy + 14.0f);
         }
 
-        // 2. Ink bounding box (green)
         if (ink_left < ink_right) {
             const float ink_x = static_cast<float>(ink_left);
             const float ink_y = static_cast<float>(ink_top);
-            const float ink_w = static_cast<float>(ink_right - ink_left);
+            const float ink_w2 = static_cast<float>(ink_right - ink_left);
             const float ink_h = static_cast<float>(ink_bottom - ink_top);
             dbg.setStrokeStyle(BLRgba32(48, 255, 48, 200));
             dbg.setStrokeWidth(1.0f);
-            dbg.strokeRect(ink_x, ink_y, ink_w, ink_h);
+            dbg.strokeRect(ink_x, ink_y, ink_w2, ink_h);
 
-            // Ink center crosshair (yellow)
             const float icx = static_cast<float>(ink_left + ink_right) * 0.5f;
             const float icy = static_cast<float>(ink_top + ink_bottom) * 0.5f;
             dbg.setStrokeStyle(BLRgba32(255, 255, 48, 200));
@@ -1007,31 +914,12 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             dbg.strokeLine(icx, icy - 8.0f, icx, icy + 8.0f);
         }
 
-        // 3. Baseline (blue) — first line's expected baseline
         if (!layout_res.lines.empty()) {
             const float baseline_y = text_start_y + layout_res.lines[0].position.y + font.metrics().ascent;
             dbg.setStrokeStyle(BLRgba32(48, 128, 255, 180));
             dbg.setStrokeWidth(1.0f);
             dbg.strokeLine(0.0f, baseline_y, static_cast<float>(img_w), baseline_y);
         }
-
-        // 4. Text label in top-left corner with content info
-        if (!font.empty()) {
-            // Use a fixed-size font for the debug label (10% of effective_size, min 12)
-            BLFont dbg_label_font;
-            const float label_size = std::max(12.0f, effective_size * 0.1f);
-            dbg_label_font.createFromFace(face, label_size);
-            if (!dbg_label_font.empty()) {
-                char label_buf[128];
-                std::snprintf(label_buf, sizeof(label_buf), "[%.*s] %.0fx%.0f",
-                    std::min(24, static_cast<int>(t.text.size())), t.text.data(),
-                    t.box.enabled ? t.box.size.x : 0.0f,
-                    t.box.enabled ? t.box.size.y : 0.0f);
-                dbg.setFillStyle(BLRgba32(255, 255, 255, 220));
-                dbg.fillUtf8Text(BLPoint(4.0f, label_size + 2.0f), dbg_label_font, label_buf);
-            }
-        }
-
         dbg.end();
     }
 
@@ -1053,18 +941,12 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     } else {
         if (t.box.enabled) {
             x_offset = -padding / 2.0f;
-            // Pixel-ink centering (opt-in via TextCenteringMode::PixelInk):
-            // Adjust x_offset so that the actual ink centre aligns with the
-            // centre of the text box.  Now that both measurement and rendering
-            // use HarfBuzz, LayoutBox is accurate and PixelInk is a
-            // debug/transition aid.
             if (t.style.centering_mode == TextCenteringMode::PixelInk &&
                 ink_center_frac >= 0.0f && t.style.align == TextAlign::Center) {
                 const float box_img_cx = static_cast<float>(img_w) * 0.5f;
                 const float shift = std::round(box_img_cx - ink_center_frac);
                 x_offset += shift;
             }
-            // For Right-aligned text, shift image so box-right aligns with layer origin
             else if (t.style.align == TextAlign::Right) {
                 x_offset -= t.box.size.x;
             }
@@ -1073,7 +955,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             if (t.style.align == TextAlign::Center) x_offset = -full_width * 0.5f;
             else if (t.style.align == TextAlign::Right) x_offset = -full_width;
             x_offset += metrics.boundingBox.x0 - (padding / 2.0f);
-            // Pixel-ink centering for non-box text (opt-in via PixelInk)
             if (t.style.centering_mode == TextCenteringMode::PixelInk &&
                 ink_center_frac >= 0.0f && t.style.align == TextAlign::Center) {
                 const float box_img_cx = static_cast<float>(img_w) * 0.5f;
@@ -1092,17 +973,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         }
     }
 
-    // Debug: log final offsets for box text
-    if (t.box.enabled && !t.text.empty() && chronon3d::Config::get().debug_text_raster) {
-        spdlog::info("[TextFinal] '{}' box={:.0f}x{:.0f} img={}x{} ink_center={:.1f} shift={:.1f} x_offset_final={:.1f} y_offset_final={:.1f} model_x={:.0f} frame_ink_cx={:.0f}",
-            t.text, t.box.size.x, t.box.size.y, img_w, img_h,
-            ink_center_frac,
-            (t.style.align == TextAlign::Center && ink_center_frac >= 0.0f ? static_cast<float>(img_w) * 0.5f - ink_center_frac : 0.0f),
-            x_offset, y_offset,
-            (transform ? (*transform)[3][0] : 0.0f),
-            (transform ? (*transform)[3][0] + x_offset + (ink_center_frac >= 0.0f ? ink_center_frac : 0.0f) : 0.0f));
-    }
-
     auto result = std::make_shared<TextRasterization>();
     result->image = std::move(img);
     result->x_offset = x_offset;
@@ -1113,6 +983,14 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     store_text_cache(key, result);
 
     return *result;
+#else
+    // Text rendering disabled — return early
+    (void)padding;
+    (void)cache_hit;
+    (void)transform;
+    (void)font_engine;
+    return std::nullopt;
+#endif // CHRONON3D_ENABLE_TEXT
 }
 
 } // namespace chronon3d

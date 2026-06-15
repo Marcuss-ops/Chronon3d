@@ -2,7 +2,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
+#ifdef CHRONON3D_ENABLE_EXR
 #include <chronon3d/backends/image/exr_mmap.hpp>
+#endif
 
 #include <filesystem>
 #include <spdlog/spdlog.h>
@@ -44,7 +46,12 @@ std::unique_ptr<ImageBuffer> StbImageBackend::load_image(const std::string& path
     const std::string resolved_path = resolve_existing_path(path);
 
     if (resolved_path.length() >= 4 && resolved_path.substr(resolved_path.length() - 4) == ".exr") {
+#ifdef CHRONON3D_ENABLE_EXR
         return load_exr_mmap(resolved_path);
+#else
+        spdlog::warn("[image] EXR support not enabled (recompile with CHRONON3D_ENABLE_EXR=ON)");
+        return nullptr;
+#endif
     }
 
     int w, h, ch;

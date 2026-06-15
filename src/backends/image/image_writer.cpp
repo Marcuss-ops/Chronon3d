@@ -3,12 +3,14 @@
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 
+#ifdef CHRONON3D_ENABLE_EXR
 #include <OpenEXR/ImfOutputFile.h>
 #include <OpenEXR/ImfTiledOutputFile.h>
 #include <OpenEXR/ImfChannelList.h>
 #include <OpenEXR/ImfFrameBuffer.h>
 #include <OpenEXR/ImfHeader.h>
 #include <Imath/half.h>
+#endif
 
 #include <vector>
 #include <filesystem>
@@ -95,6 +97,7 @@ bool save_png(const Framebuffer& framebuffer, const std::string& path) {
     return stbi_write_png(path.c_str(), width, height, 4, data.data(), width * 4) != 0;
 }
 
+#ifdef CHRONON3D_ENABLE_EXR
 bool save_exr(const Framebuffer& framebuffer,
               const std::string& path,
               const ImageWriteOptions& options) {
@@ -221,6 +224,9 @@ bool save_exr(const Framebuffer& framebuffer,
         return false;
     }
 }
+#else
+// save_exr not compiled — inline stub in header returns false
+#endif
 
 bool save_image(const Framebuffer& framebuffer,
                 const std::string& path,
