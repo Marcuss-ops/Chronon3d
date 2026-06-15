@@ -119,6 +119,7 @@ namespace chronon3d::graph {
             .fps = fps,
             .width = width,
             .height = height,
+            .assets_root = {},
         },
         .camera = RenderCameraContext{
             .camera = camera,
