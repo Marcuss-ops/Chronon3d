@@ -117,14 +117,14 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
     // Scene 1: Linear Gradient
     Composition comp_lin(CompositionSpec{.width = 512, .height = 128}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        std::vector<GradientStop> stops = {
+        std::vector<graphics::GradientStop> stops = {
             {0.0f, Color::red()},
             {1.0f, Color::blue()}
         };
         s.rect("linear_box", {
             .size = {512, 128},
             .pos = {-256, -64, 0},
-            .fill = Fill::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops)
+            .fill = FillStyle::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops)
         });
         return s.build();
     });
@@ -135,14 +135,14 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
     // Scene 2: Radial Gradient
     Composition comp_rad(CompositionSpec{.width = 512, .height = 512}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        std::vector<GradientStop> stops = {
+        std::vector<graphics::GradientStop> stops = {
             {0.0f, Color::white()},
             {1.0f, Color::black()}
         };
         s.circle("radial_circle", {
             .radius = 200.0f,
             .pos = {-200, -200, 0},
-            .fill = Fill::radial({0.5f, 0.5f}, 0.5f, stops)
+            .fill = FillStyle::radial({0.5f, 0.5f}, 0.5f, stops)
         });
         return s.build();
     });
@@ -153,7 +153,7 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
     // Scene 3: Multi-Stop Gradient
     Composition comp_multi(CompositionSpec{.width = 512, .height = 128}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        std::vector<GradientStop> stops = {
+        std::vector<graphics::GradientStop> stops = {
             {0.0f, Color::red()},
             {0.25f, Color{1, 1, 0, 1}}, // yellow
             {0.5f, Color::green()},
@@ -163,7 +163,7 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
         s.rect("multi_box", {
             .size = {512, 128},
             .pos = {-256, -64, 0},
-            .fill = Fill::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops)
+            .fill = FillStyle::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops)
         });
         return s.build();
     });
@@ -315,14 +315,14 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
     SUBCASE("Linear Gradient Mixing and Coordinates") {
         Composition comp(CompositionSpec{.width = 512, .height = 128}, [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            std::vector<GradientStop> stops = {
+            std::vector<graphics::GradientStop> stops = {
                 {0.0f, Color::red()},
                 {1.0f, Color::blue()}
             };
             s.rect("grad_rect", {
                 .size = {512, 128},
                 .pos = {0, 0, 0},
-                .fill = Fill::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops)
+                .fill = FillStyle::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops)
             });
             return s.build();
         });
@@ -349,7 +349,7 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
     SUBCASE("Multi-Stop Precision Checks") {
         Composition comp(CompositionSpec{.width = 512, .height = 128}, [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            std::vector<GradientStop> stops = {
+            std::vector<graphics::GradientStop> stops = {
                 {0.0f, Color::red()},
                 {0.25f, Color{1, 1, 0, 1}}, // yellow
                 {0.5f, Color::green()},
@@ -359,7 +359,7 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
             s.rect("multi_rect", {
                 .size = {512, 128},
                 .pos = {0, 0, 0},
-                .fill = Fill::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops)
+                .fill = FillStyle::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops)
             });
             return s.build();
         });
@@ -390,14 +390,14 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
     SUBCASE("Radial Gradient Clamping") {
         Composition comp(CompositionSpec{.width = 400, .height = 400}, [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            std::vector<GradientStop> stops = {
+            std::vector<graphics::GradientStop> stops = {
                 {0.0f, Color::white()},
                 {1.0f, Color::black()}
             };
             s.circle("radial_circle", {
                 .radius = 200.0f,
                 .pos = {0, 0, 0},
-                .fill = Fill::radial({0.5f, 0.5f}, 0.5f, stops)
+                .fill = FillStyle::radial({0.5f, 0.5f}, 0.5f, stops)
             });
             return s.build();
         });
@@ -420,14 +420,14 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
     SUBCASE("Conic Gradient Clamping") {
         Composition comp(CompositionSpec{.width = 400, .height = 400}, [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            std::vector<GradientStop> stops = {
+            std::vector<graphics::GradientStop> stops = {
                 {0.0f, Color::red()},
                 {1.0f, Color::blue()}
             };
             s.circle("conic_circle", {
                 .radius = 200.0f,
                 .pos = {0, 0, 0},
-                .fill = Fill::conic({0.5f, 0.5f}, 0.0f, stops)
+                .fill = FillStyle::conic({0.5f, 0.5f}, 0.0f, stops)
             });
             return s.build();
         });
@@ -850,7 +850,7 @@ TEST_CASE("Chronon3d Suite: Final Combined Stress Test") {
             });
             
             // 2. Card with radial gradient and dynamic position (offset from canvas center 256, 256)
-            std::vector<GradientStop> stops = {
+            std::vector<graphics::GradientStop> stops = {
                 {0.0f, Color{0.1f, 0.4f, 0.8f, 1.0f}},
                 {1.0f, Color{0.01f, 0.05f, 0.2f, 1.0f}}
             };
@@ -858,7 +858,7 @@ TEST_CASE("Chronon3d Suite: Final Combined Stress Test") {
                 .size = {300, 300},
                 .radius = 16.0f,
                 .pos = {t * 20.0f - 150.0f, -150.0f, 0.0f},
-                .fill = Fill::radial({0.5f, 0.5f}, 0.5f, stops)
+                .fill = FillStyle::radial({0.5f, 0.5f}, 0.5f, stops)
             });
             
             // 3. Trimmed dashed outline shape

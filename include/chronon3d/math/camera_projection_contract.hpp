@@ -53,21 +53,36 @@ struct ProjectedPoint {
     bool  visible{false};
 };
 
-// ── Contract: focal length ──────────────────────────────────────────────────
+// ── Contract: focal length (pixels) ──────────────────────────────────────────
 //
-// Returns the focal length (in pixels) for a given camera and viewport height.
+// Returns the focal length in pixels for a given camera and viewport dimensions.
 //
 // Rules:
 //   - Fov mode: focal = (viewport_height / 2) / tan(fov_deg / 2)
 //   - Zoom mode: focal = camera.zoom
+//   - Lens mode (physical): uses LensModel::focal_pixels() with gate-fit,
+//     falling back to Fov/Zoom when use_physical_model is false.
 //
 // At depth == focal the perspective scale is exactly 1.0.
-inline f32 focal_from_camera(const Camera2_5D& camera, f32 viewport_height) {
+inline f32 focal_from_camera(const Camera2_5D& camera, f32 viewport_width, f32 viewport_height) {
+    // Physical lens path: use lens model with gate-fit.
+    // Only applies when the camera has a physical lens configured.
+    if (camera.lens.focal_length > 0.0f && camera.dof.use_physical_model) {
+        return camera.lens.focal_pixels(viewport_width, viewport_height);
+    }
+    // Legacy paths (backward compatible).
     if (camera.projection_mode == Camera2_5DProjectionMode::Fov) {
         const f32 fov_rad = glm::radians(camera.fov_deg);
         return (viewport_height * 0.5f) / std::tan(fov_rad * 0.5f);
     }
     return camera.zoom;
+}
+
+// Single-arg overload for backward compat with callers that don't yet pass viewport_width.
+// Legacy code paths use only viewport_height (Fov/Zoom modes ignore viewport_width).
+// For lens mode, this is a fallback — prefer the 2-arg overload with real viewport dims.
+inline f32 focal_from_camera(const Camera2_5D& camera, f32 viewport_height) {
+    return focal_from_camera(camera, viewport_height, viewport_height);
 }
 
 // ── Contract: view matrix ───────────────────────────────────────────────────
@@ -143,7 +158,7 @@ inline ProjectedPoint project_world_point(
         return out;
     }
 
-    const f32 focal = focal_from_camera(camera, viewport.height);
+    const f32 focal = focal_from_camera(camera, viewport.width, viewport.height);
     const f32 scale = focal / cam.depth;
     out.perspective_scale = scale;
 

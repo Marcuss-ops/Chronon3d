@@ -30,8 +30,11 @@ struct CameraRigDOF {
     // Physical lens model.
     AnimatedValue<f32> focal_length{50.0f};
     AnimatedValue<f32> sensor_width{36.0f};
+    AnimatedValue<f32> sensor_height{24.0f};
     AnimatedValue<f32> f_stop{2.8f};
     AnimatedValue<f32> focus_distance{1000.0f};
+    AnimatedValue<f32> close_focus{450.0f};
+    GateFit             gate_fit{GateFit::Fill};
     bool use_physical_model{false};
 };
 
