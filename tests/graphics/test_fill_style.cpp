@@ -174,6 +174,58 @@ TEST_CASE("StrokeStyle -> PathStroke bridge") {
     CHECK(ps.width == doctest::Approx(2.5f));
 }
 
+TEST_CASE("StrokeStyle -> PathStroke with linear gradient") {
+    namespace gfx = chronon3d::graphics;
+    std::vector<gfx::GradientStop> stops = {
+        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+    };
+    const auto ss = gfx::StrokeStyle::linear_gradient({0.0f, 0.0f}, {1.0f, 0.0f}, stops, 3.0f);
+    const PathStroke ps = ss.to_path_stroke();
+    CHECK(ps.enabled);
+    CHECK(ps.width == doctest::Approx(3.0f));
+    // Gradient should be propagated
+    REQUIRE(ps.gradient.has_value());
+    CHECK(ps.gradient->type == FillType::LinearGradient);
+    REQUIRE(ps.gradient->stops.size() == 2);
+    CHECK(ps.gradient->stops[0].offset == doctest::Approx(0.0f));
+    CHECK(ps.gradient->stops[0].color.r == doctest::Approx(1.0f));
+    CHECK(ps.gradient->from.x == doctest::Approx(0.0f));
+    CHECK(ps.gradient->to.x == doctest::Approx(1.0f));
+}
+
+TEST_CASE("StrokeStyle -> ShapeStroke with radial gradient") {
+    namespace gfx = chronon3d::graphics;
+    std::vector<gfx::GradientStop> stops = {
+        {0.0f, {0.0f, 1.0f, 0.0f, 1.0f}},
+        {1.0f, {1.0f, 1.0f, 0.0f, 1.0f}},
+    };
+    const auto ss = gfx::StrokeStyle::radial_gradient({0.5f, 0.5f}, 0.5f, stops, 2.0f);
+    const ShapeStroke s = ss.to_shape_stroke();
+    CHECK(s.enabled);
+    CHECK(s.width == doctest::Approx(2.0f));
+    // Gradient should be propagated
+    REQUIRE(s.gradient.has_value());
+    CHECK(s.gradient->type == FillType::RadialGradient);
+    CHECK(s.gradient->from.x == doctest::Approx(0.5f));
+    CHECK(s.gradient->to.x == doctest::Approx(1.0f));  // 0.5 + 0.5
+}
+
+TEST_CASE("StrokeStyle -> PathStroke with conic gradient") {
+    namespace gfx = chronon3d::graphics;
+    std::vector<gfx::GradientStop> stops = {
+        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+    };
+    const auto ss = gfx::StrokeStyle::conic_gradient({0.5f, 0.5f}, 1.57f, stops, 4.0f);
+    const PathStroke ps = ss.to_path_stroke();
+    CHECK(ps.enabled);
+    CHECK(ps.width == doctest::Approx(4.0f));
+    REQUIRE(ps.gradient.has_value());
+    CHECK(ps.gradient->type == FillType::ConicGradient);
+    CHECK(ps.gradient->from.x == doctest::Approx(0.5f));
+}
+
 TEST_CASE("StrokeStyle gradient query") {
     namespace gfx = chronon3d::graphics;
     std::vector<gfx::GradientStop> stops = {
@@ -258,4 +310,155 @@ TEST_CASE("FillStyle gradient sampling at endpoints") {
     CHECK(cm.r == doctest::Approx(0.5f));
     CHECK(cm.b == doctest::Approx(0.5f));
     CHECK(cm.g == doctest::Approx(0.0f));
+}
+
+
+// ── FillStyle / Gradient interpolation ──────────────────────────────
+
+TEST_CASE("lerp_gradient_stop — position and colour") {
+    namespace gfx = chronon3d::graphics;
+    const gfx::GradientStop a{0.0f, {1.0f, 0.0f, 0.0f, 1.0f}};
+    const gfx::GradientStop b{1.0f, {0.0f, 0.0f, 1.0f, 1.0f}};
+
+    const auto m = gfx::lerp_gradient_stop(a, b, 0.5f);
+    CHECK(m.position == doctest::Approx(0.5f));
+    CHECK(m.color.r == doctest::Approx(0.5f));
+    CHECK(m.color.b == doctest::Approx(0.5f));
+    CHECK(m.color.g == doctest::Approx(0.0f));
+
+    // t=0 → a, t=1 → b
+    CHECK(gfx::lerp_gradient_stop(a, b, 0.0f).position == doctest::Approx(0.0f));
+    CHECK(gfx::lerp_gradient_stop(a, b, 1.0f).position == doctest::Approx(1.0f));
+}
+
+TEST_CASE("lerp_fill_style — solid to solid") {
+    namespace gfx = chronon3d::graphics;
+    const auto red   = gfx::FillStyle::solid({1.0f, 0.0f, 0.0f, 1.0f});
+    const auto blue  = gfx::FillStyle::solid({0.0f, 0.0f, 1.0f, 1.0f});
+
+    const auto m = gfx::lerp_fill_style(red, blue, 0.5f);
+    CHECK(m.is_solid());
+    CHECK(m.solid_color.r == doctest::Approx(0.5f));
+    CHECK(m.solid_color.b == doctest::Approx(0.5f));
+    CHECK(m.solid_color.g == doctest::Approx(0.0f));
+
+    // t=0 → pure red
+    const auto r0 = gfx::lerp_fill_style(red, blue, 0.0f);
+    CHECK(r0.solid_color.r == doctest::Approx(1.0f));
+    CHECK(r0.solid_color.b == doctest::Approx(0.0f));
+
+    // t=1 → pure blue
+    const auto r1 = gfx::lerp_fill_style(red, blue, 1.0f);
+    CHECK(r1.solid_color.r == doctest::Approx(0.0f));
+    CHECK(r1.solid_color.b == doctest::Approx(1.0f));
+}
+
+TEST_CASE("lerp_fill_style — linear gradient to linear gradient") {
+    namespace gfx = chronon3d::graphics;
+    std::vector<gfx::GradientStop> stops_a = {
+        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+    };
+    std::vector<gfx::GradientStop> stops_b = {
+        {0.0f, {0.0f, 1.0f, 0.0f, 1.0f}},
+        {1.0f, {1.0f, 1.0f, 0.0f, 1.0f}},
+    };
+    const auto ga = gfx::FillStyle::linear({0.0f, 0.0f}, {1.0f, 0.0f}, stops_a);
+    const auto gb = gfx::FillStyle::linear({0.0f, 0.0f}, {1.0f, 0.0f}, stops_b);
+
+    // Midpoint — colours lerped
+    const auto m = gfx::lerp_fill_style(ga, gb, 0.5f);
+    REQUIRE(m.is_gradient());
+    REQUIRE(m.gradient.has_value());
+    const auto& g = *m.gradient;
+    // Both input have 2 identical positions (0,1) → merged = 2 stops
+    REQUIRE(g.color_stops.size() == 2);
+    // Stop 0: lerp(red, green) → (0.5, 0.5, 0, 1)
+    CHECK(g.color_stops[0].color.r == doctest::Approx(0.5f));
+    CHECK(g.color_stops[0].color.g == doctest::Approx(0.5f));
+    // Stop 1: lerp(blue, yellow) → (0.5, 0.5, 0.5, 1)
+    CHECK(g.color_stops[1].color.r == doctest::Approx(0.5f));
+    CHECK(g.color_stops[1].color.g == doctest::Approx(0.5f));
+    CHECK(g.color_stops[1].color.b == doctest::Approx(0.5f));
+
+    // Geometry lerped (same start/end in both, so unchanged)
+    CHECK(g.start.x == doctest::Approx(0.0f));
+    CHECK(g.end.x   == doctest::Approx(1.0f));
+}
+
+TEST_CASE("lerp_fill_style — solid to linear gradient") {
+    namespace gfx = chronon3d::graphics;
+    const auto solid = gfx::FillStyle::solid({1.0f, 1.0f, 1.0f, 1.0f});
+    std::vector<gfx::GradientStop> stops = {
+        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+    };
+    const auto grad = gfx::FillStyle::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops);
+
+    // t=0 → solid (still solid in result since we convert to 1-stop gradient)
+    const auto r0 = gfx::lerp_fill_style(solid, grad, 0.0f);
+    CHECK(r0.is_gradient());  // solid is converted to 1-stop gradient for lerp
+    // t=1 → gradient
+    const auto r1 = gfx::lerp_fill_style(solid, grad, 1.0f);
+    REQUIRE(r1.is_gradient());
+    // Midpoint
+    const auto m = gfx::lerp_fill_style(solid, grad, 0.5f);
+    REQUIRE(m.is_gradient());
+}
+
+TEST_CASE("lerp_fill_style — radial gradient to radial") {
+    namespace gfx = chronon3d::graphics;
+    std::vector<gfx::GradientStop> stops_a = {
+        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {1.0f, {1.0f, 1.0f, 1.0f, 1.0f}},
+    };
+    std::vector<gfx::GradientStop> stops_b = {
+        {0.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+        {1.0f, {1.0f, 1.0f, 1.0f, 1.0f}},
+    };
+    const auto ra = gfx::FillStyle::radial({0.3f, 0.3f}, 0.4f, stops_a);
+    const auto rb = gfx::FillStyle::radial({0.7f, 0.7f}, 0.6f, stops_b);
+
+    const auto m = gfx::lerp_fill_style(ra, rb, 0.5f);
+    REQUIRE(m.is_gradient());
+    REQUIRE(m.gradient.has_value());
+    const auto& g = *m.gradient;
+    CHECK(g.center.x == doctest::Approx(0.5f));  // (0.3+0.7)/2
+    CHECK(g.center.y == doctest::Approx(0.5f));
+    CHECK(g.radius   == doctest::Approx(0.5f));  // (0.4+0.6)/2
+}
+
+TEST_CASE("lerp_fill_style — conic gradient to conic") {
+    namespace gfx = chronon3d::graphics;
+    std::vector<gfx::GradientStop> stops = {
+        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+    };
+    const auto ca = gfx::FillStyle::conic({0.5f, 0.5f}, 0.0f, stops);
+    const auto cb = gfx::FillStyle::conic({0.5f, 0.5f}, 1.57f, stops);  // ~π/2
+
+    const auto m = gfx::lerp_fill_style(ca, cb, 0.5f);
+    REQUIRE(m.is_gradient());
+    REQUIRE(m.gradient.has_value());
+    CHECK(m.gradient->angle == doctest::Approx(0.785f).epsilon(0.01f));  // ~π/4
+}
+
+TEST_CASE("lerp_gradient — opacity stops merged and lerped") {
+    namespace gfx = chronon3d::graphics;
+    std::vector<gfx::GradientStop> c_stops = {
+        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+    };
+    std::vector<gfx::OpacityStop> o_a = {{0.0f, 0.0f}, {1.0f, 1.0f}};
+    std::vector<gfx::OpacityStop> o_b = {{0.0f, 1.0f}, {1.0f, 0.0f}};
+
+    gfx::GradientDefinition ga = gfx::GradientDefinition::linear({0,0}, {1,0}, c_stops);
+    ga.opacity_stops = o_a;
+    gfx::GradientDefinition gb = gfx::GradientDefinition::linear({0,0}, {1,0}, c_stops);
+    gb.opacity_stops = o_b;
+
+    const auto m = gfx::lerp_gradient(ga, gb, 0.5f);
+    REQUIRE(m.opacity_stops.size() == 2);
+    CHECK(m.opacity_stops[0].opacity == doctest::Approx(0.5f));  // (0+1)/2
+    CHECK(m.opacity_stops[1].opacity == doctest::Approx(0.5f));  // (1+0)/2
 }

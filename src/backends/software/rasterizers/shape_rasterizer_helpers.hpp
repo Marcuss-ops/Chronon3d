@@ -148,6 +148,49 @@ namespace chronon3d::renderer {
     }
 }
 
+/// Check whether a shape's stroke carries a gradient fill.
+[[nodiscard]] static inline bool stroke_has_gradient(const Shape& shape) {
+    switch (shape.type) {
+        case ShapeType::Rect:
+            return shape.rect.stroke.gradient.has_value();
+        case ShapeType::RoundedRect:
+            return shape.rounded_rect.stroke.gradient.has_value();
+        case ShapeType::Circle:
+            return shape.circle.stroke.gradient.has_value();
+        default:
+            return false;
+    }
+}
+
+/// Resolve the gradient colour at a local pixel position for a shape
+/// stroke that carries a gradient.  Uses the same gradient sampling
+/// logic as resolve_gradient_color but reads from the stroke gradient.
+[[nodiscard]] static inline Color resolve_stroke_gradient_color(
+    const Shape& shape, Vec2 lp, Vec2 sz)
+{
+    const std::optional<GradientFill>* g = nullptr;
+    switch (shape.type) {
+        case ShapeType::Rect:
+            g = &shape.rect.stroke.gradient;
+            break;
+        case ShapeType::RoundedRect:
+            g = &shape.rounded_rect.stroke.gradient;
+            break;
+        case ShapeType::Circle:
+            g = &shape.circle.stroke.gradient;
+            break;
+        default:
+            return Color{0.0f, 0.0f, 0.0f, 0.0f};
+    }
+    if (!g || !g->has_value()) {
+        return Color{0.0f, 0.0f, 0.0f, 0.0f};
+    }
+    Fill fake_fill;
+    fake_fill.type     = g->value().type;
+    fake_fill.gradient = g->value();
+    return resolve_gradient_color(fake_fill, lp, sz, 1.0f);
+}
+
 // ── Hit testing helpers ────────────────────────────────────────────
 
 [[nodiscard]] static inline bool hit_test_rect_like(const Vec2& p, Vec2 size, f32 corner_radius, f32 spread) {

@@ -45,6 +45,10 @@ struct ShapeStroke {
     Color color{0.0f, 0.0f, 0.0f, 1.0f};
     f32 width{1.0f};
     StrokeAlignment alignment{StrokeAlignment::Center};
+
+    /// Optional gradient fill.  When present, the stroke colours come
+    /// from the gradient instead of the solid `color` field.
+    std::optional<GradientFill> gradient;
 };
 
 struct RectShape {
