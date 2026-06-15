@@ -134,6 +134,14 @@ Unificato con S5.
 
 2026-06-10/14 — Suite golden visual con 15 reference images. Test matematici gradient da 9 a 23 casi. Test determinismo per rendering gradient. Integrazione in CMake.
 
+### L16 — SIMD AVX2 PRGB32↔Color Conversion + Unit Tests
+
+2026-06-15 (`9af5e9ff`) — Implementazione full AVX2 2-pixel path per `bl_image_prgb32_to_color_row` e `color_to_prgb32_row` in `highway_color_kernels.cpp`. Pattern: ScalableTag 8 lanes, LowerHalf/UpperHalf per-pixel math, transparent-pair fast-path, prefetch, scalar remainder fallback. Chiamanti aggiornati in `text_glow.cpp` (rimosso `const_cast`). Fix pre-esistenti CMakeLists.txt (extra `endif`, `find_package` duplicato, concatenazione `)if(`). 28 unit test in `test_simd_kernels.cpp` (opaque/transparent/50%-alpha, scalar reference, AVX2 pair paths, near-zero alpha, odd pixel count, determinismo 10k pixel, round-trip PRGB32↔Color ±1, batch sizes 1..17).
+
+### L17 — PRGB32↔Color SIMD Benchmark
+
+2026-06-15 (`64f2cd8e`) — Benchmark standalone (std::chrono, no Google Benchmark dependency) per PRGB32↔Color SIMD vs scalar a 4 larghezze (256, 640, 1920, 3840px) con ~60% transparent padding (glow pattern). **Risultato**: SIMD AVX2 2-pixel è 1.5-2.7× più lento dello scalare per righe tipiche. Il bottleneck è lo scalar unpack/pack dei uint32 (bit shifts, `1/a` division), non il calcolo float SIMD. Solo 1920px PRGB32→Color mostra 1.12× speedup (transparent-pair fast-path). **Conclusione**: serve integer SIMD unpack (`ScalableTag<uint32_t>` + `ShiftRight<24>` + `And` + `ConvertTo<float>`) per speedup reale.
+
 ---
 
 ## Refactoring
