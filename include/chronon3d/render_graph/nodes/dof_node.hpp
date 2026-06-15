@@ -25,7 +25,7 @@ public:
     [[nodiscard]] bool cacheable() const override { return true; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
-        const float blur = compute_dof_blur_radius(m_camera.dof, m_layer_world_z,
+        const float blur = compute_dof_blur_radius(m_camera.dof, m_camera.lens, m_layer_world_z,
                                                   static_cast<f32>(ctx.frame.width));
 
         return cache::NodeCacheKey{
@@ -55,7 +55,7 @@ public:
         if (bbox.is_empty()) {
             return bbox;
         }
-        const float blur = compute_dof_blur_radius(m_camera.dof, m_layer_world_z,
+        const float blur = compute_dof_blur_radius(m_camera.dof, m_camera.lens, m_layer_world_z,
                                                   static_cast<f32>(ctx.frame.width));
         if (blur <= 0.5f) {
             return bbox;
@@ -74,7 +74,7 @@ public:
             return empty;
         }
 
-        const float blur = compute_dof_blur_radius(m_camera.dof, m_layer_world_z,
+        const float blur = compute_dof_blur_radius(m_camera.dof, m_camera.lens, m_layer_world_z,
                                                   static_cast<f32>(ctx.frame.width));
         if (blur <= 0.5f) {
             return ctx.acquire_owned_fb(*inputs[0]);
