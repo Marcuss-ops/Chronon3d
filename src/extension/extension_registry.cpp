@@ -5,6 +5,7 @@
 #include <chronon3d/registry/sampler_registry.hpp>
 #include <chronon3d/render_graph/builder/graph_build_registry.hpp>
 #include <chronon3d/render_graph/registry/graph_node_registry.hpp>
+#include <chronon3d/core/composition/composition_registration.hpp>
 
 #include <algorithm>
 #include <stdexcept>
@@ -78,6 +79,17 @@ void ExtensionRegistry::clear_modules() {
     // on next access, which re-registers their builtins automatically.
     m_impl->source_reg.reset();
     m_impl->sampler_reg.reset();
+
+    // Reset external singleton registries so that re-initialization
+    // starts from a truly clean state (no effects, shapes, graph
+    // nodes, or build passes left over from a previous session).
+    effects::EffectRegistry::instance().clear();
+    registry::ShapeRegistry::instance().clear();
+    graph::GraphBuildRegistry::instance().clear();
+    graph::GraphNodeRegistry::instance().clear();
+
+    // Clear builtin composition factories registered by modules.
+    detail::clear_builtin_compositions();
 }
 
 bool ExtensionRegistry::has_module(std::string_view id) const {
