@@ -114,9 +114,9 @@ Unificato con S5.
 
 2026-06-10/14 — `apply_text_fill_style()` e `apply_text_stroke_style()` supportano gradienti lineari, radiali e conici via `FillStyle`. Stroke usa `FtGlyphPathBuilder` per outline FreeType shaped da HarfBuzz, garantendo GSUB consistente per Arabic/Devanagari.
 
-### L11 — GlyphAtlas per-Glyph Cache
+### L11 — GlyphAtlas per-Glyph Cache + Hot-Path Integration
 
-2026-06-10/14 — `GlyphAtlas` con LRU cache per-glyph (32MB default, 8 shard, `shared_mutex`). Keyed by `(font_path, glyph_id, font_size)`. `glyph_atlas_store_from_text()` estrae bitmap individuali da testo renderizzato. Infrastruttura pronta per integrazione nel hot-path.
+2026-06-10/15 — `GlyphAtlas` con LRU cache per-glyph (32MB default, 8 shard, `shared_mutex`). Keyed by `(font_path, glyph_id, font_size)` con `fill_color_rgba` per matching colore. `glyph_atlas_store_from_placed_run()` estrae bitmap individuali da testo HarfBuzz-shaped. **Integrato nel percorso critico** di `text_rasterizer_render.cpp`: solid-color fill → lookup per-glyph → hit blita da atlas (salta `fillGlyphRun`) → miss renderizza + store post-`ctx.end()`. 3 counter profiling: `glyph_atlas_hits/misses/stored`.
 
 ### L12 — FontEngine Shared Mutex + Two-Phase Locking
 

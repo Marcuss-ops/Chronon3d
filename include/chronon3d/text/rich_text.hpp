@@ -10,7 +10,6 @@
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <chronon3d/text/text_material.hpp>
 #include <chronon3d/text/font_engine.hpp>
