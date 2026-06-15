@@ -245,21 +245,16 @@ TEST_CASE("Radial gradient fills centre white, edge blue") {
 // Stroke gradient rendering
 // ===========================================================================
 //
-// NOTE: The stroke rasterizer has a hit-test quirk where left/top stroke
-// bands are excluded (inner/outer rects start at local (0,0) rather than
-// at half-stroke offset).  Right/bottom outer strokes are correctly hit.
-// We sample at the RIGHT outer stroke (screen x ~170, y at centre).
-//
 // The rect is smaller than the framebuffer so the outer stroke half
-// (outside the rect) falls within the framebuffer and is not shadowed
-// by the fill (fill_hit is false outside the rect bounds).
+// (outside the rect) falls within the framebuffer and fill_hit is false
+// there (fill doesn't shadow the stroke).
 //
 // Color must have alpha > 0 to avoid the early return in
 // draw_transformed_shape (shape_rasterizer.cpp line ~182).
 
 TEST_CASE("StrokeStyle linear gradient renders right stroke gradient") {
     constexpr int W = 200, H = 200;
-    constexpr f32 RECT_W = 120.0f, STROKE_W = 20.0f;
+    constexpr f32 RECT_W = 120.0f, STROKE_W = 20.0f; // half = 10
 
     // Red->blue horizontal gradient stroke.
     auto stops = std::vector<gfx::GradientStop>{
@@ -283,10 +278,10 @@ TEST_CASE("StrokeStyle linear gradient renders right stroke gradient") {
     auto fb = render_frame(comp, Frame{0});
     REQUIRE(fb != nullptr);
 
-    // Right outer stroke at screen x ~170, y ~100 (center of rect).
-    // Local x ≈ 130, which is outside the rect (120) but inside the
-    // outer stroke (140).  Gradient at t=1 → blue.
-    Color right_stroke = fb->get_pixel(170, 100);
+    // Right outer stroke: local x ∈ [120, 130] (half=10 from rect edge).
+    // Sample at local (125, 60) → screen (165, 100).
+    // Gradient geometry from {0, 0.5} to {1, 0.5}: at norm_x ≈ 125/120 = 1.04 → t=1 → blue.
+    Color right_stroke = fb->get_pixel(165, 100);
     CHECK(right_stroke.b > 0.7f);
     CHECK(right_stroke.r < 0.4f);
 
@@ -303,7 +298,7 @@ TEST_CASE("StrokeStyle linear gradient renders right stroke gradient") {
 
 TEST_CASE("KeyframeTrack<StrokeStyle> animates gradient red-blue to green-yellow stroke") {
     constexpr int W = 200, H = 200;
-    constexpr f32 RECT_W = 120.0f, STROKE_W = 20.0f;
+    constexpr f32 RECT_W = 120.0f, STROKE_W = 20.0f; // half = 10
 
     auto stops_a = std::vector<gfx::GradientStop>{
         {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
@@ -334,7 +329,7 @@ TEST_CASE("KeyframeTrack<StrokeStyle> animates gradient red-blue to green-yellow
             });
         auto fb = render_frame(comp, Frame{0});
         REQUIRE(fb != nullptr);
-        Color rs = fb->get_pixel(170, 100);
+        Color rs = fb->get_pixel(165, 100);
         CHECK(rs.b > 0.7f);
     }
 
@@ -349,7 +344,7 @@ TEST_CASE("KeyframeTrack<StrokeStyle> animates gradient red-blue to green-yellow
             });
         auto fb = render_frame(comp, Frame{60});
         REQUIRE(fb != nullptr);
-        Color rs = fb->get_pixel(170, 100);
+        Color rs = fb->get_pixel(165, 100);
         CHECK(rs.g > 0.5f);
     }
 
@@ -364,7 +359,7 @@ TEST_CASE("KeyframeTrack<StrokeStyle> animates gradient red-blue to green-yellow
             });
         auto fb = render_frame(comp, Frame{30});
         REQUIRE(fb != nullptr);
-        Color rs = fb->get_pixel(170, 100);
+        Color rs = fb->get_pixel(165, 100);
         // Interpolated: sRGB(0.5, 0.5, 0.5) → linear ≈ 0.218.
         CHECK(rs.r > 0.15f);
         CHECK(rs.g > 0.15f);
@@ -378,7 +373,7 @@ TEST_CASE("KeyframeTrack<StrokeStyle> animates gradient red-blue to green-yellow
 
 TEST_CASE("KeyframeTrack<StrokeStyle> morphs solid white stroke to red-blue gradient") {
     constexpr int W = 200, H = 200;
-    constexpr f32 RECT_W = 120.0f, STROKE_W = 20.0f;
+    constexpr f32 RECT_W = 120.0f, STROKE_W = 20.0f; // half = 10
 
     const auto solid_white = gfx::StrokeStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}, STROKE_W);
 
@@ -404,7 +399,7 @@ TEST_CASE("KeyframeTrack<StrokeStyle> morphs solid white stroke to red-blue grad
             });
         auto fb = render_frame(comp, Frame{0});
         REQUIRE(fb != nullptr);
-        Color c = fb->get_pixel(170, 100);
+        Color c = fb->get_pixel(165, 100);
         CHECK(c.r > 0.9f);
         CHECK(c.g > 0.9f);
         CHECK(c.b > 0.9f);
@@ -421,7 +416,7 @@ TEST_CASE("KeyframeTrack<StrokeStyle> morphs solid white stroke to red-blue grad
             });
         auto fb = render_frame(comp, Frame{60});
         REQUIRE(fb != nullptr);
-        CHECK(fb->get_pixel(170, 100).b > 0.7f);
+        CHECK(fb->get_pixel(165, 100).b > 0.7f);
     }
 
     // Frame 30: interpolated → right edge has visible color.
@@ -435,7 +430,7 @@ TEST_CASE("KeyframeTrack<StrokeStyle> morphs solid white stroke to red-blue grad
             });
         auto fb = render_frame(comp, Frame{30});
         REQUIRE(fb != nullptr);
-        Color rs = fb->get_pixel(170, 100);
+        Color rs = fb->get_pixel(165, 100);
         // Interpolated: lerp(white, blue, 0.5) at right edge → linear ≈ 0.5.
         CHECK(rs.b > 0.4f);
     }

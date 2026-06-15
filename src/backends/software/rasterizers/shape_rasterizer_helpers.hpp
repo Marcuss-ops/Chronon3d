@@ -257,22 +257,46 @@ namespace chronon3d::renderer {
     const f32 outer_spread = alignment == StrokeAlignment::Inside ? spread : spread + half;
     const f32 inner_spread = alignment == StrokeAlignment::Outside ? spread : std::max(0.0f, spread - half);
 
+    // ── Origin offsets for inner/outer rects ────────────────────────────
+    //
+    // hit_test_rect_like assumes the rect starts at (0, 0).  For strokes
+    // that extend symmetrically past the rect edge (Center, Outside) we
+    // must shift p so the virtual rect covers the correct region.
+    //
+    //   Inside   — outer = rect itself (no shift); inner = rect inset by
+    //              `stroke` from each edge → shift inner origin by (stroke, stroke)
+    //   Center   — stroke is centred on the rect edge: outer extends half
+    //              outward (shift origin by -half), inner is inset by half
+    //              (shift origin by +half)
+    //   Outside  — stroke extends outward: outer shifted by -half, inner
+    //              = rect itself (no shift)
+
+    Vec2 outer_origin{0, 0}, inner_origin{0, 0};
+    if (alignment == StrokeAlignment::Center) {
+        outer_origin = {-half, -half};
+        inner_origin = { half,  half};
+    } else if (alignment == StrokeAlignment::Outside) {
+        outer_origin = {-half, -half};
+    } else { // Inside
+        inner_origin = {stroke, stroke};
+    }
+
     switch (shape.type) {
         case ShapeType::Rect: {
             const Vec2 outer_size = alignment == StrokeAlignment::Inside ? shape.rect.size : shape.rect.size + Vec2{stroke, stroke};
             const Vec2 inner_size = alignment == StrokeAlignment::Outside ? shape.rect.size : Vec2{std::max(0.0f, shape.rect.size.x - stroke), std::max(0.0f, shape.rect.size.y - stroke)};
             const f32 outer_radius = alignment == StrokeAlignment::Inside ? corner_radius : std::max(0.0f, corner_radius + half);
             const f32 inner_radius = alignment == StrokeAlignment::Outside ? corner_radius : std::max(0.0f, corner_radius - half);
-            return hit_test_rect_like(p, outer_size, outer_radius, outer_spread) &&
-                   !hit_test_rect_like(p, inner_size, inner_radius, inner_spread);
+            return hit_test_rect_like(p - outer_origin, outer_size, outer_radius, outer_spread) &&
+                   !hit_test_rect_like(p - inner_origin, inner_size, inner_radius, inner_spread);
         }
         case ShapeType::RoundedRect: {
             const Vec2 outer_size = alignment == StrokeAlignment::Inside ? shape.rounded_rect.size : shape.rounded_rect.size + Vec2{stroke, stroke};
             const Vec2 inner_size = alignment == StrokeAlignment::Outside ? shape.rounded_rect.size : Vec2{std::max(0.0f, shape.rounded_rect.size.x - stroke), std::max(0.0f, shape.rounded_rect.size.y - stroke)};
             const f32 outer_radius = alignment == StrokeAlignment::Inside ? shape.rounded_rect.radius : shape.rounded_rect.radius + half;
             const f32 inner_radius = alignment == StrokeAlignment::Outside ? shape.rounded_rect.radius : std::max(0.0f, shape.rounded_rect.radius - half);
-            return hit_test_rect_like(p, outer_size, outer_radius, outer_spread) &&
-                   !hit_test_rect_like(p, inner_size, inner_radius, inner_spread);
+            return hit_test_rect_like(p - outer_origin, outer_size, outer_radius, outer_spread) &&
+                   !hit_test_rect_like(p - inner_origin, inner_size, inner_radius, inner_spread);
         }
         case ShapeType::Circle: {
             const f32 outer_radius = alignment == StrokeAlignment::Inside ? shape.circle.radius : shape.circle.radius + half;
