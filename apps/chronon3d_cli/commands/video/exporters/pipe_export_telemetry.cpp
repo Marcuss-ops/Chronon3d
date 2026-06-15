@@ -23,7 +23,7 @@ void record_pipe_telemetry(
     double render_ms,
     double encode_ms)
 {
-    const bool is_native = (session.opts.encoder_backend == "native");
+    const bool is_native = (session.opts.encoder.encoder_backend == "native");
     const double conv_copy_ms = session.renderer && session.renderer->counters()
         ? static_cast<double>(session.renderer->counters()->frame_conversion_copy_ms.load())
         : 0.0;
@@ -137,7 +137,7 @@ void record_pipe_telemetry(
     const auto& counters = session.renderer->counters();
 
     cli::telemetry::record_output_run(
-        composition_id, session.opts.output, loop_result.status.success,
+        composition_id, session.opts.output.output, loop_result.status.success,
         static_cast<int>(session.total_frames), encoded_frames,
         wall_time_ms, render_ms, close_result.write_blocked_ms,
         session.started_at_iso, phases, resolved_counters,

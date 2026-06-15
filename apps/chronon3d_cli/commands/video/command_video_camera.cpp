@@ -80,18 +80,18 @@ int command_video_camera(const CompositionRegistry& registry,
         });
 
     FfmpegExportOptions opts;
-    opts.output          = output;
-    opts.frames_dir_name = "chronon_camera_" + lower_copy(args.axis);
-    opts.fps             = args.fps;
-    opts.crf             = args.crf;
-    opts.codec           = args.codec;
-    opts.hardware_encoder = args.hardware_encoder;
-    opts.encode_preset   = args.encode_preset;
-    opts.tune            = args.tune;
-    opts.keep_frames     = false; // default for camera motion
-    opts.chunks          = 1;
-    opts.ffmpeg_mode     = "png";
-    opts.ffmpeg_verbose  = false;
+    opts.output.output          = output;
+    opts.output.frames_dir_name = "chronon_camera_" + lower_copy(args.axis);
+    opts.output.fps             = args.fps;
+    opts.encoder.crf            = args.crf;
+    opts.encoder.codec          = args.codec;
+    opts.encoder.hardware_encoder = args.hardware_encoder;
+    opts.encoder.encode_preset  = args.encode_preset;
+    opts.encoder.tune           = args.tune;
+    opts.sink.keep_frames       = false; // default for camera motion
+    opts.sink.chunks            = 1;
+    opts.sink.ffmpeg_mode       = "png";
+    opts.pipe.ffmpeg_verbose    = false;
 
     return render_and_encode_ffmpeg(registry, comp, comp.name(),
                                     settings, args.start, cam_end, opts);

@@ -9,7 +9,7 @@ namespace chronon3d::cli {
 EncoderCloseResult close_pipe_encoder(PipeExportSession& session) {
     EncoderCloseResult result;
 
-    const bool is_native = (session.opts.encoder_backend == "native");
+    const bool is_native = (session.opts.encoder.encoder_backend == "native");
     result.write_blocked_ms = pipe_write_blocked_ms(is_native, *session.encoder);
 
     result.native_convert_ms   = session.encoder->native_convert_ms();

@@ -35,7 +35,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
 
     const int total = result.frames_total;
-    const std::filesystem::path frames_dir = std::filesystem::temp_directory_path() / opts.frames_dir_name;
+    const std::filesystem::path frames_dir = std::filesystem::temp_directory_path() / opts.output.frames_dir_name;
     std::error_code ec;
     std::filesystem::create_directories(frames_dir, ec);
     if (ec) {
@@ -43,10 +43,10 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
         return result; // return_code=1, success=false (defaults)
     }
 
-    int chunks = std::max(1, std::min(opts.chunks, total));
+    int chunks = std::max(1, std::min(opts.sink.chunks, total));
 
     spdlog::info("[video] Rendering {} frames [{}, {}) at {} fps in {} chunks → {}",
-                 total, start, end, opts.fps, chunks, opts.output);
+                 total, start, end, opts.output.fps, chunks, opts.output.output);
 
     const auto started_at_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
     const auto wall_t0 = profiling::now();
@@ -91,15 +91,15 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                 uint64_t saved_fb_reuses = 0;
                 uint64_t saved_fb_bytes = 0;
                 uint64_t saved_fb_peak = 0;
-                if (opts.warmup_renderer) {
+                if (opts.warmup.warmup_renderer) {
                     const auto warmup_t0 = profiling::now();
                     runtime::warmup_renderer(*renderer, comp, runtime::RendererWarmupOptions{
                         .width = comp.width(),
                         .height = comp.height(),
-                        .framebuffer_count = opts.warmup_framebuffers,
+                        .framebuffer_count = opts.warmup.warmup_framebuffers,
                         .preallocate_framebuffers = true,
                         .touch_memory = true,
-                        .render_dummy_frame = opts.warmup_dummy_frame,
+                        .render_dummy_frame = opts.warmup.warmup_dummy_frame,
                         .dummy_frame = 0,
                         .quiet = false,
                     });
@@ -221,7 +221,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     bool success = !result.chunk_failed;
 
     if (success) {
-        const auto output_parent = std::filesystem::path(opts.output).parent_path();
+        const auto output_parent = std::filesystem::path(opts.output.output).parent_path();
         if (!output_parent.empty()) {
             std::filesystem::create_directories(output_parent, ec);
             if (ec) {
@@ -233,16 +233,16 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
 
         if (success) {
             const std::string pattern = (frames_dir / "frame_%06d.png").string();
-            const std::string codec   = resolve_cli_ffmpeg_codec(opts.codec, opts.hardware_encoder);
+            const std::string codec   = resolve_cli_ffmpeg_codec(opts.encoder.codec, opts.encoder.hardware_encoder);
             const std::string pix_fmt = resolve_cli_ffmpeg_output_pix_fmt(codec);
             const std::string cmd     = fmt::format(
                 "ffmpeg -y -framerate {} -i \"{}\" -c:v {} -crf {} -preset {} -pix_fmt {} -movflags +faststart \"{}\"",
-                opts.fps, pattern, codec, opts.crf, opts.encode_preset, pix_fmt, opts.output);
+                opts.output.fps, pattern, codec, opts.encoder.crf, opts.encoder.encode_preset, pix_fmt, opts.output.output);
 
             spdlog::info("[video] {}", cmd);
             const auto encode_t0 = profiling::now();
             const int rc = [&]() {
-                if (!is_shell_safe(opts.encode_preset) || !is_shell_safe(opts.output)) {
+                if (!is_shell_safe(opts.encoder.encode_preset) || !is_shell_safe(opts.output.output)) {
                     spdlog::error("[video] encode_preset or output path contains shell metacharacters, refusing to execute");
                     result.encode_failed = true;
                     return -1;
@@ -260,7 +260,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
         }
     }
 
-    if (!opts.keep_frames) {
+    if (!opts.sink.keep_frames) {
         std::filesystem::remove_all(frames_dir, ec);
     }
 
@@ -289,7 +289,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     const int encoded_frames = success ? frames_written : 0;
     cli::telemetry::record_output_run(
         /*composition_id=*/composition_id,
-        /*output_path=*/opts.output,
+        /*output_path=*/opts.output.output,
         /*success=*/success,
         /*frames_total=*/total,
         /*frames_written=*/encoded_frames,
@@ -313,7 +313,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
         return result;
     }
 
-    spdlog::info("[video] Done → {}", opts.output);
+    spdlog::info("[video] Done → {}", opts.output.output);
     return result;
 }
 

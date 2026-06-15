@@ -34,10 +34,10 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
 
     // ── Resolve codec ─────────────────────────────────────────────────────
-    const bool codec_auto = opts.codec == "auto";
+    const bool codec_auto = opts.encoder.codec == "auto";
     const std::string codec = codec_auto
         ? "libx264"
-        : resolve_cli_ffmpeg_codec(opts.codec, opts.hardware_encoder);
+        : resolve_cli_ffmpeg_codec(opts.encoder.codec, opts.encoder.hardware_encoder);
 
     // ── Create encoder ────────────────────────────────────────────────────
     session->encoder = create_video_encoder(opts);
@@ -47,9 +47,9 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     }
 
     // Only create output directory for sinks that actually write output
-    if (opts.sink_type == VideoSinkType::Ffmpeg ||
-        opts.sink_type == VideoSinkType::RawFile) {
-        if (!ensure_output_directory_exists(opts.output)) {
+    if (opts.sink.sink_type == VideoSinkType::Ffmpeg ||
+        opts.sink.sink_type == VideoSinkType::RawFile) {
+        if (!ensure_output_directory_exists(opts.output.output)) {
             return session;
         }
     }
@@ -61,7 +61,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     }
 
     // Track FFmpeg process only for ffmpeg pipe sink
-    if (opts.sink_type == VideoSinkType::Ffmpeg) {
+    if (opts.sink.sink_type == VideoSinkType::Ffmpeg) {
         track_pipe_encoder_process(opts, *session->encoder, session->sys_metrics);
     }
 
@@ -83,7 +83,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
 
         // Record the sink type in telemetry counters (renderer must exist first)
         session->sw_renderer->counters()->video_sink_type_id.store(
-            static_cast<uint64_t>(opts.sink_type), std::memory_order_relaxed);
+            static_cast<uint64_t>(opts.sink.sink_type), std::memory_order_relaxed);
     }
 
     // ── Arena, queue ──────────────────────────────────────────────────────
