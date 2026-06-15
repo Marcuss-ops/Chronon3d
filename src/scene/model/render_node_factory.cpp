@@ -16,11 +16,11 @@ RenderNode RenderNodeFactory::rect(std::pmr::memory_resource* res, std::string n
     auto node = base(res, std::move(name));
     node.shape.type = ShapeType::Rect;
     node.shape.rect.size = p.size;
-    node.shape.rect.stroke = p.stroke;
+    node.shape.rect.stroke = p.stroke.to_shape_stroke();
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
     node.world_transform.position = p.pos;
     node.color = p.color;
-    node.fill = p.fill.value_or(Fill::solid_color(p.color));
+    node.fill = p.fill.has_value() ? p.fill->to_fill() : Fill::solid_color(p.color);
     return node;
 }
 
@@ -29,12 +29,12 @@ RenderNode RenderNodeFactory::rounded_rect(std::pmr::memory_resource* res, std::
     node.shape.type = ShapeType::RoundedRect;
     node.shape.rounded_rect.size = p.size;
     node.shape.rounded_rect.radius = p.radius;
-    node.shape.rounded_rect.stroke = p.stroke;
+    node.shape.rounded_rect.stroke = p.stroke.to_shape_stroke();
     node.corner_radius = p.radius;
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
     node.world_transform.position = p.pos;
     node.color = p.color;
-    node.fill = p.fill.value_or(Fill::solid_color(p.color));
+    node.fill = p.fill.has_value() ? p.fill->to_fill() : Fill::solid_color(p.color);
     return node;
 }
 
@@ -42,11 +42,11 @@ RenderNode RenderNodeFactory::circle(std::pmr::memory_resource* res, std::string
     auto node = base(res, std::move(name));
     node.shape.type = ShapeType::Circle;
     node.shape.circle.radius = p.radius;
-    node.shape.circle.stroke = p.stroke;
+    node.shape.circle.stroke = p.stroke.to_shape_stroke();
     node.world_transform.anchor = {p.radius, p.radius, 0.0f};
     node.world_transform.position = p.pos;
     node.color = p.color;
-    node.fill = p.fill.value_or(Fill::solid_color(p.color));
+    node.fill = p.fill.has_value() ? p.fill->to_fill() : Fill::solid_color(p.color);
     return node;
 }
 

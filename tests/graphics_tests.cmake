@@ -3,6 +3,7 @@
 add_executable(chronon3d_graphics_tests
     ${TEST_MAIN}
     graphics/test_gradient_sampler.cpp
+    graphics/test_fill_style.cpp
 )
 target_link_libraries(chronon3d_graphics_tests
     PRIVATE

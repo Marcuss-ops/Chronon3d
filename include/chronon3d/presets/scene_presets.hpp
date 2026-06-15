@@ -31,24 +31,24 @@ namespace detail {
 
 inline std::string default_font() { return "assets/fonts/Inter-Bold.ttf"; }
 
-inline Fill soft_radial_gradient(Color inner, Color outer) {
-    return Fill::radial({0.5f, 0.5f}, 0.5f, {
-        {0.0f, inner},
-        {1.0f, outer},
+inline FillStyle soft_radial_gradient(Color inner, Color outer) {
+    return FillStyle::radial({0.5f, 0.5f}, 0.5f, {
+        {graphics::GradientStop{0.0f, inner}},
+        {graphics::GradientStop{1.0f, outer}},
     });
 }
 
-inline Fill linear_gradient_v(Color top, Color bottom) {
-    return Fill::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {
-        {0.0f, top},
-        {1.0f, bottom},
+inline FillStyle linear_gradient_v(Color top, Color bottom) {
+    return FillStyle::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {
+        {graphics::GradientStop{0.0f, top}},
+        {graphics::GradientStop{1.0f, bottom}},
     });
 }
 
-inline Fill linear_gradient_h(Color left, Color right) {
-    return Fill::linear({0.0f, 0.0f}, {1.0f, 0.0f}, {
-        {0.0f, left},
-        {1.0f, right},
+inline FillStyle linear_gradient_h(Color left, Color right) {
+    return FillStyle::linear({0.0f, 0.0f}, {1.0f, 0.0f}, {
+        {graphics::GradientStop{0.0f, left}},
+        {graphics::GradientStop{1.0f, right}},
     });
 }
 

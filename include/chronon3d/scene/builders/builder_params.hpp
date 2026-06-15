@@ -2,7 +2,7 @@
 
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/scene/model/shape/fill.hpp>
+#include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/media/media_placement.hpp>
 #include <memory>
@@ -15,8 +15,8 @@ struct RectParams {
     Vec2 size{100, 100};
     Color color{1, 1, 1, 1};
     Vec3 pos{0, 0, 0};
-    std::optional<Fill> fill{};
-    ShapeStroke stroke{};
+    std::optional<graphics::FillStyle> fill{};
+    graphics::StrokeStyle stroke{};
 };
 
 struct RoundedRectParams {
@@ -24,16 +24,16 @@ struct RoundedRectParams {
     f32 radius{8.0f};
     Color color{1, 1, 1, 1};
     Vec3 pos{0, 0, 0};
-    std::optional<Fill> fill{};
-    ShapeStroke stroke{};
+    std::optional<graphics::FillStyle> fill{};
+    graphics::StrokeStyle stroke{};
 };
 
 struct CircleParams {
     f32 radius{50.0f};
     Color color{1, 1, 1, 1};
     Vec3 pos{0, 0, 0};
-    std::optional<Fill> fill{};
-    ShapeStroke stroke{};
+    std::optional<graphics::FillStyle> fill{};
+    graphics::StrokeStyle stroke{};
 };
 
 struct ShapeStrokeParams {

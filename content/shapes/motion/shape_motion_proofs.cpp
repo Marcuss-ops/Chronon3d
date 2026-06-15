@@ -124,8 +124,8 @@ Composition shape_motion_proofs() {
             pbp.size = {280.0f, 30.0f};
             pbp.progress = std::clamp(p * 1.3f, 0.0f, 1.0f);
             pbp.corner_radius = 15.0f;
-            pbp.background_style.fill = Fill::solid_color({0.15f, 0.15f, 0.2f, 1.0f});
-            pbp.fill_style.fill = Fill::solid_color({0.95f, 0.65f, 0.1f, 1.0f});
+            pbp.background_style.fill = FillStyle::solid({0.15f, 0.15f, 0.2f, 1.0f});
+            pbp.fill_style.fill = FillStyle::solid({0.95f, 0.65f, 0.1f, 1.0f});
             pbp.color = {0.95f, 0.65f, 0.1f, 1.0f};
             l.progress_bar("pb", pbp);
         });
@@ -141,8 +141,8 @@ Composition shape_motion_proofs() {
             tbp.start = 0.15f;
             tbp.end = 0.15f + 0.7f * std::clamp(p * 1.2f, 0.0f, 1.0f);
             tbp.corner_radius = 15.0f;
-            tbp.background_style.fill = Fill::solid_color({0.15f, 0.15f, 0.2f, 1.0f});
-            tbp.fill_style.fill = Fill::solid_color({0.1f, 0.75f, 0.95f, 1.0f});
+            tbp.background_style.fill = FillStyle::solid({0.15f, 0.15f, 0.2f, 1.0f});
+            tbp.fill_style.fill = FillStyle::solid({0.1f, 0.75f, 0.95f, 1.0f});
             tbp.color = {0.1f, 0.75f, 0.95f, 1.0f};
             l.timeline_bar("tb", tbp);
         });
@@ -167,8 +167,8 @@ Composition shape_motion_proofs() {
             bp.radius = 60.0f;
             bp.scallops = 18;
             bp.scallop_depth = 6.0f;
-            bp.style.fill = Fill::solid_color({0.95f, 0.2f, 0.5f, 1.0f});
-            bp.style.stroke = PathStroke{.enabled = true, .color = {1, 1, 1, 1}, .width = 3.0f};
+            bp.style.fill = FillStyle::solid({0.95f, 0.2f, 0.5f, 1.0f});
+            bp.style.stroke = StrokeStyle{.enabled = true, .color = {1, 1, 1, 1}, .width = 3.0f};
             l.badge("badge", bp);
         });
 
@@ -185,8 +185,8 @@ Composition shape_motion_proofs() {
             cp.corner_radius = 8.0f;
             cp.target_point = {100.0f, -30.0f};
             cp.pointer_width = 16.0f;
-            cp.style.fill = Fill::solid_color({0.0f, 0.0f, 0.0f, 0.85f});
-            cp.style.stroke = PathStroke{.enabled = true, .color = {0.2f, 0.85f, 0.95f, 1.0f}, .width = 2.0f};
+            cp.style.fill = FillStyle::solid({0.0f, 0.0f, 0.0f, 0.85f});
+            cp.style.stroke = StrokeStyle{.enabled = true, .color = {0.2f, 0.85f, 0.95f, 1.0f}, .width = 2.0f};
             l.callout("callout", cp);
         });
 

@@ -178,8 +178,8 @@ Composition shape_proofs() {
             PathParams p;
             p.commands = make_rounded_rect_commands({0.0f, -18.0f}, {160.0f, 84.0f}, 8.0f);
             p.fill = Fill::linear({0.0f, 0.0f}, {1.0f, 1.0f}, {
-                GradientStop{0.0f, Color{0.0f, 0.95f, 0.95f, 1.0f}},
-                GradientStop{1.0f, Color{0.15f, 0.2f, 0.95f, 1.0f}}
+                {0.0f, Color{0.0f, 0.95f, 0.95f, 1.0f}},
+                {1.0f, Color{0.15f, 0.2f, 0.95f, 1.0f}}
             });
             l.path("shape", p);
         });
@@ -191,8 +191,8 @@ Composition shape_proofs() {
             PathParams p;
             p.commands = make_rounded_rect_commands({0.0f, -18.0f}, {160.0f, 84.0f}, 8.0f);
             p.fill = Fill::radial({0.5f, 0.5f}, 0.5f, {
-                GradientStop{0.0f, Color{1.0f, 0.8f, 0.0f, 1.0f}},
-                GradientStop{1.0f, Color{0.8f, 0.1f, 0.0f, 1.0f}}
+                {0.0f, Color{1.0f, 0.8f, 0.0f, 1.0f}},
+                {1.0f, Color{0.8f, 0.1f, 0.0f, 1.0f}}
             });
             l.path("shape", p);
         });
@@ -206,9 +206,9 @@ Composition shape_proofs() {
             bp.radius = 35.0f;
             bp.scallops = 16;
             bp.scallop_depth = 4.0f;
-            bp.style.fill = Fill::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {
-                GradientStop{0.0f, Color{0.9f, 0.5f, 0.1f, 1.0f}},
-                GradientStop{1.0f, Color{0.95f, 0.15f, 0.5f, 1.0f}}
+            bp.style.fill = FillStyle::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {
+                graphics::GradientStop{0.0f, Color{0.9f, 0.5f, 0.1f, 1.0f}},
+                graphics::GradientStop{1.0f, Color{0.95f, 0.15f, 0.5f, 1.0f}}
             });
             l.badge("shape", bp);
         });
@@ -301,7 +301,7 @@ Composition shape_proofs() {
             ap.thickness = 12.0f;
             ap.head_width = 30.0f;
             ap.head_length = 26.0f;
-            ap.style.fill = Fill::solid_color({0.95f, 0.15f, 0.15f, 1.0f});
+            ap.style.fill = FillStyle::solid({0.95f, 0.15f, 0.15f, 1.0f});
             l.arrow("shape", ap);
         });
 
@@ -326,8 +326,8 @@ Composition shape_proofs() {
             cp.corner_radius = 6.0f;
             cp.target_point = {45.0f, -26.0f};
             cp.pointer_width = 12.0f;
-            cp.style.fill = Fill::solid_color({0.0f, 0.0f, 0.0f, 0.8f});
-            cp.style.stroke = PathStroke{.enabled = true, .color = {0.0f, 0.95f, 0.95f, 1.0f}, .width = 2.0f};
+            cp.style.fill = FillStyle::solid({0.0f, 0.0f, 0.0f, 0.8f});
+            cp.style.stroke = StrokeStyle{.enabled = true, .color = {0.0f, 0.95f, 0.95f, 1.0f}, .width = 2.0f};
             l.callout("shape", cp);
         });
 
@@ -342,8 +342,8 @@ Composition shape_proofs() {
             sbp.pointer_tip = {-18.0f, -24.0f};
             sbp.pointer_width = 14.0f;
             sbp.pointer_center = -18.0f;
-            sbp.style.fill = Fill::solid_color({0.15f, 0.18f, 0.24f, 1.0f});
-            sbp.style.stroke = PathStroke{.enabled = true, .color = {0.6f, 0.7f, 0.8f, 1.0f}, .width = 2.0f};
+            sbp.style.fill = FillStyle::solid({0.15f, 0.18f, 0.24f, 1.0f});
+            sbp.style.stroke = StrokeStyle{.enabled = true, .color = {0.6f, 0.7f, 0.8f, 1.0f}, .width = 2.0f};
             l.speech_bubble("shape", sbp);
         });
 
@@ -357,8 +357,8 @@ Composition shape_proofs() {
             cp.corner_radius = 4.0f;
             cp.target_point = {-45.0f, -18.0f};
             cp.pointer_width = 8.0f;
-            cp.style.fill = Fill::solid_color({0.85f, 0.15f, 0.45f, 1.0f});
-            cp.style.stroke = PathStroke{.enabled = true, .color = {1, 1, 1, 1}, .width = 1.5f};
+            cp.style.fill = FillStyle::solid({0.85f, 0.15f, 0.45f, 1.0f});
+            cp.style.stroke = StrokeStyle{.enabled = true, .color = {1, 1, 1, 1}, .width = 1.5f};
             l.callout("shape", cp);
         });
 
@@ -414,8 +414,8 @@ Composition shape_proofs() {
             sp.points = 5;
             sp.outer_radius = 32.0f;
             sp.inner_radius = 15.0f;
-            sp.style.fill = Fill::solid_color({0.95f, 0.8f, 0.1f, 1.0f});
-            sp.style.stroke = PathStroke{.enabled = true, .color = {1, 0.9f, 0.5f, 1.0f}, .width = 2.0f};
+            sp.style.fill = FillStyle::solid({0.95f, 0.8f, 0.1f, 1.0f});
+            sp.style.stroke = StrokeStyle{.enabled = true, .color = {1, 0.9f, 0.5f, 1.0f}, .width = 2.0f};
             l.star("shape", sp);
         });
 
@@ -442,8 +442,8 @@ Composition shape_proofs() {
             pbp.size = {120.0f, 14.0f};
             pbp.progress = 0.25f;
             pbp.corner_radius = 7.0f;
-            pbp.background_style.fill = Fill::solid_color({0.12f, 0.12f, 0.16f, 1.0f});
-            pbp.fill_style.fill = Fill::solid_color({0.95f, 0.25f, 0.65f, 1.0f});
+            pbp.background_style.fill = FillStyle::solid({0.12f, 0.12f, 0.16f, 1.0f});
+            pbp.fill_style.fill = FillStyle::solid({0.95f, 0.25f, 0.65f, 1.0f});
             pbp.color = {0.95f, 0.25f, 0.65f, 1.0f};
             l.progress_bar("shape", pbp);
         });
@@ -457,8 +457,8 @@ Composition shape_proofs() {
             pbp.size = {120.0f, 14.0f};
             pbp.progress = 0.75f;
             pbp.corner_radius = 7.0f;
-            pbp.background_style.fill = Fill::solid_color({0.12f, 0.12f, 0.16f, 1.0f});
-            pbp.fill_style.fill = Fill::solid_color({0.1f, 0.85f, 0.5f, 1.0f});
+            pbp.background_style.fill = FillStyle::solid({0.12f, 0.12f, 0.16f, 1.0f});
+            pbp.fill_style.fill = FillStyle::solid({0.1f, 0.85f, 0.5f, 1.0f});
             pbp.color = {0.1f, 0.85f, 0.5f, 1.0f};
             l.progress_bar("shape", pbp);
         });
@@ -473,8 +473,8 @@ Composition shape_proofs() {
             tbp.start = 0.25f;
             tbp.end = 0.75f;
             tbp.corner_radius = 6.0f;
-            tbp.background_style.fill = Fill::solid_color({0.12f, 0.12f, 0.16f, 1.0f});
-            tbp.fill_style.fill = Fill::solid_color({0.0f, 0.75f, 0.95f, 1.0f});
+            tbp.background_style.fill = FillStyle::solid({0.12f, 0.12f, 0.16f, 1.0f});
+            tbp.fill_style.fill = FillStyle::solid({0.0f, 0.75f, 0.95f, 1.0f});
             tbp.color = {0.0f, 0.75f, 0.95f, 1.0f};
             l.timeline_bar("shape", tbp);
         });
