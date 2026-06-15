@@ -82,7 +82,7 @@ Composition make_linear_horizontal() {
                     .radius = 24.0f,
                     .color  = Color::white(),
                     .pos    = {0.0f, 0.0f, 0.0f},
-                    .fill   = Fill::linear(
+                    .fill   = graphics::FillStyle::linear(
                         {0.0f, 0.5f}, {1.0f, 0.5f},
                         {
                             {0.0f, Color::from_hex("#1e3a5f")},
@@ -120,7 +120,7 @@ Composition make_linear_vertical() {
                     .radius = 24.0f,
                     .color  = Color::white(),
                     .pos    = {0.0f, 0.0f, 0.0f},
-                    .fill   = Fill::linear(
+                    .fill   = graphics::FillStyle::linear(
                         {0.5f, 0.0f}, {0.5f, 1.0f},
                         {
                             {0.0f, Color::from_hex("#065f46")},
@@ -158,7 +158,7 @@ Composition make_linear_diagonal() {
                     .radius = 24.0f,
                     .color  = Color::white(),
                     .pos    = {0.0f, 0.0f, 0.0f},
-                    .fill   = Fill::linear(
+                    .fill   = graphics::FillStyle::linear(
                         {0.0f, 0.0f}, {1.0f, 1.0f},
                         {
                             {0.0f, Color::from_hex("#7c3aed")},
@@ -194,7 +194,7 @@ Composition make_radial_centered() {
                     .radius = 200.0f,
                     .color  = Color::white(),
                     .pos    = {0.0f, 0.0f, 0.0f},
-                    .fill   = Fill::radial(
+                    .fill   = graphics::FillStyle::radial(
                         {0.5f, 0.5f}, 0.5f,
                         {
                             {0.0f, Color::from_hex("#fef08a")},
@@ -231,7 +231,7 @@ Composition make_radial_offset() {
                     .radius = 200.0f,
                     .color  = Color::white(),
                     .pos    = {0.0f, 0.0f, 0.0f},
-                    .fill   = Fill::radial(
+                    .fill   = graphics::FillStyle::radial(
                         {0.25f, 0.3f}, 0.6f,
                         {
                             {0.0f, Color::from_hex("#e0f2fe")},
@@ -269,7 +269,7 @@ Composition make_multiple_stops() {
                     .radius = 16.0f,
                     .color  = Color::white(),
                     .pos    = {0.0f, 0.0f, 0.0f},
-                    .fill   = Fill::linear(
+                    .fill   = graphics::FillStyle::linear(
                         {0.0f, 0.5f}, {1.0f, 0.5f},
                         {
                             {0.0f, Color::from_hex("#ef4444")},   // red
@@ -311,7 +311,7 @@ Composition make_alpha_stops() {
                         .radius = 20.0f,
                         .color  = Color::white(),
                         .pos    = {0.0f, 0.0f, 0.0f},
-                        .fill   = Fill::linear(
+                        .fill   = graphics::FillStyle::linear(
                             {0.5f, 0.0f}, {0.5f, 1.0f},
                             {
                                 {0.0f, Color{1.0f, 0.3f, 0.3f, 1.0f}},
@@ -351,7 +351,7 @@ Composition make_transformed_shape() {
                     .radius = 20.0f,
                     .color  = Color::white(),
                     .pos    = {0.0f, 0.0f, 0.0f},
-                    .fill   = Fill::linear(
+                    .fill   = graphics::FillStyle::linear(
                         {0.0f, 0.5f}, {1.0f, 0.5f},
                         {
                             {0.0f, Color::from_hex("#831843")},
@@ -388,7 +388,7 @@ Composition make_clipped_shape() {
                     .radius = 350.0f,
                     .color  = Color::white(),
                     .pos    = {0.0f, 0.0f, 0.0f},
-                    .fill   = Fill::radial(
+                    .fill   = graphics::FillStyle::radial(
                         {0.5f, 0.5f}, 0.5f,
                         {
                             {0.0f, Color::from_hex("#22d3ee")},
@@ -465,7 +465,7 @@ Composition make_composite_scene() {
                     .radius = 20.0f,
                     .color  = Color::white(),
                     .pos    = {0.0f, 0.0f, 0.0f},
-                    .fill   = Fill::linear(
+                    .fill   = graphics::FillStyle::linear(
                         {0.0f, 0.5f}, {1.0f, 0.5f},
                         {{0.0f, Color::from_hex("#1e3a5f")}, {1.0f, Color::from_hex("#3b82f6")}}),
                 });
@@ -480,7 +480,7 @@ Composition make_composite_scene() {
                     .radius = 20.0f,
                     .color  = Color::white(),
                     .pos    = {0.0f, 0.0f, 0.0f},
-                    .fill   = Fill::linear(
+                    .fill   = graphics::FillStyle::linear(
                         {0.5f, 0.0f}, {0.5f, 1.0f},
                         {{0.0f, Color::from_hex("#065f46")}, {1.0f, Color::from_hex("#34d399")}}),
                 });
@@ -495,7 +495,7 @@ Composition make_composite_scene() {
                     .radius = 20.0f,
                     .color  = Color::white(),
                     .pos    = {0.0f, 0.0f, 0.0f},
-                    .fill   = Fill::linear(
+                    .fill   = graphics::FillStyle::linear(
                         {0.0f, 0.0f}, {1.0f, 1.0f},
                         {{0.0f, Color::from_hex("#7c3aed")}, {1.0f, Color::from_hex("#e879f9")}}),
                 });
@@ -508,7 +508,7 @@ Composition make_composite_scene() {
                     .radius = 150.0f,
                     .color  = Color::white(),
                     .pos    = {0.0f, 0.0f, 0.0f},
-                    .fill   = Fill::radial(
+                    .fill   = graphics::FillStyle::radial(
                         {0.5f, 0.5f}, 0.5f,
                         {{0.0f, Color::from_hex("#fef08a")}, {1.0f, Color::from_hex("#b45309")}}),
                 });
@@ -522,7 +522,7 @@ Composition make_composite_scene() {
                     .radius = 16.0f,
                     .color  = Color::white(),
                     .pos    = {0.0f, 0.0f, 0.0f},
-                    .fill   = Fill::linear(
+                    .fill   = graphics::FillStyle::linear(
                         {0.0f, 0.5f}, {1.0f, 0.5f},
                         {
                             {0.0f, Color::from_hex("#ef4444")},
@@ -543,7 +543,7 @@ Composition make_composite_scene() {
                     .radius = 24.0f,
                     .color  = Color::white(),
                     .pos    = {0.0f, 0.0f, 0.0f},
-                    .fill   = Fill::linear(
+                    .fill   = graphics::FillStyle::linear(
                         {0.0f, 0.5f}, {1.0f, 0.5f},
                         {{0.0f, Color::from_hex("#831843")}, {1.0f, Color::from_hex("#f472b6")}}),
                 });
@@ -583,7 +583,7 @@ Composition make_animated_gradient() {
                     .radius = 24.0f,
                     .color  = Color::white(),
                     .pos    = {0.0f, 0.0f, 0.0f},
-                    .fill   = Fill::linear(
+                    .fill   = graphics::FillStyle::linear(
                         {sweep * 0.8f, 0.5f}, {sweep * 0.8f + 0.4f, 0.5f},
                         {
                             {0.0f, Color::from_hex("#1e3a5f")},
