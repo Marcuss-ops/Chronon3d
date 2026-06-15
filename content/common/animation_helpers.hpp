@@ -8,6 +8,8 @@ namespace chronon3d::content::animation_helpers {
 
 // ── Shared constants ───────────────────────────────────────────────────────
 inline constexpr Color SHADOW_COLOR = {0.0f, 0.0f, 0.0f, 0.15f};
+inline constexpr Color TEXT_COLOR   = {0.92f, 0.93f, 0.97f, 1.0f};
+inline constexpr const char* FONT_REGULAR = "assets/fonts/Poppins-Regular.ttf";
 inline constexpr f32   BOX_W = 1200.0f;
 inline constexpr f32   BOX_H = 240.0f;
 
@@ -29,7 +31,7 @@ inline TextParams make_text(const std::string& text, f32 font_size = 64.0f) {
         .pos = {0.0f, 0.0f, 0.0f},
         .font_path = "assets/fonts/Poppins-Bold.ttf",
         .font_size = font_size,
-        .color = {0.92f, 0.93f, 0.97f, 1.0f},
+        .color = TEXT_COLOR,
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle,
         .line_height = 0.95f,

@@ -35,6 +35,7 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 
+#include "content/common/animation_helpers.hpp"
 #include "content/common/background_helpers.hpp"
 
 #include <string>
@@ -43,14 +44,13 @@
 
 namespace chronon3d::content::anims {
 
+// ── Typography constants (from shared headers) ──────────────────────────
+using chronon3d::content::animation_helpers::TEXT_COLOR;
+using chronon3d::content::animation_helpers::SHADOW_COLOR;
+using chronon3d::content::animation_helpers::FONT_REGULAR;
+
 namespace {
 
-// ── Premium typography constants ─────────────────────────────────────────
-
-constexpr const char* FONT_PATH = "assets/fonts/Poppins-Regular.ttf";
-
-constexpr Color TEXT_COLOR   = {0.92f, 0.93f, 0.97f, 1.0f};
-constexpr Color SHADOW_COLOR = {0.0f,  0.0f,  0.0f,  0.15f};
 
 constexpr f32 BOX_W = 1400.0f;
 constexpr f32 BOX_H = 130.0f;
@@ -69,7 +69,7 @@ TextParams txt_center(std::string text, f32 font_size = 72.0f) {
         .text = std::move(text),
         .size = {BOX_W, BOX_H},
         .pos = {0.0f, 0.0f, 0.0f},
-        .font_path = FONT_PATH,
+        .font_path = FONT_REGULAR,
         .font_size = font_size,
         .color = TEXT_COLOR,
         .align = TextAlign::Center,
@@ -97,7 +97,7 @@ constexpr f32 TRACKING = 4.0f;
 
 f32 measure_text_width(const std::string& text, f32 font_size) {
     FontEngine& engine = anim_font_engine();
-    FontSpec spec{FONT_PATH, "", 400};
+    FontSpec spec{FONT_REGULAR, "", 400};
     auto run = engine.shape_text(text, spec, font_size);
     if (!run) return 0.0f;
     // Add tracking per glyph (excluding last) to match layout_text cursor logic
@@ -124,7 +124,7 @@ std::vector<TypeChar> layout_text(const std::string& text, f32 font_size,
                                   f32 ref_offset_x = 0.0f)
 {
     FontEngine& engine = anim_font_engine();
-    FontSpec spec{FONT_PATH, "", 400};
+    FontSpec spec{FONT_REGULAR, "", 400};
     auto run = engine.shape_text(text, spec, font_size);
     if (!run || run->glyphs.empty()) return {};
 
@@ -224,7 +224,7 @@ void build_typewriter_line(SceneBuilder& s, const std::string& text,
             tp.text = ch;
             tp.size = {tc_w + (glow_intensity > 0.01f ? 40.0f : 12.0f), BOX_H};
             tp.pos = {0.0f, 0.0f, 0.0f};
-            tp.font_path = FONT_PATH;
+            tp.font_path = FONT_REGULAR;
             tp.font_size = fs;
             tp.color = TEXT_COLOR;
             tp.align = TextAlign::Center;
@@ -432,7 +432,7 @@ Composition anim_typewriter_cursor() {
             tp.text = "|";
             tp.size = {20.0f, BOX_H};
             tp.pos = {0.0f, 0.0f, 0.0f};
-            tp.font_path = FONT_PATH;
+            tp.font_path = FONT_REGULAR;
             tp.font_size = 76.0f;
             tp.color = TEXT_COLOR;
             tp.align = TextAlign::Center;
