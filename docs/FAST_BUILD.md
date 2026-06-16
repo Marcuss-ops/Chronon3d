@@ -21,8 +21,8 @@ implementation lives in two places:
 
 ```bash
 # First run (one per machine): configure + bootstrap ccache + first build
-#   → baseline cold: 5–60 min depending on host
-#     (warm vcpkg: 5–15 min; fresh vcpkg manifest install: up to 30–60 min)
+#   → baseline cold: 3–60 min depending on host
+#     (warm vcpkg: 3–15 min; fresh vcpkg manifest install: up to 30–60 min)
 ./build-fast.sh
 
 # Day‑to‑day incremental rebuild (~13–17 s with warm ccache + tmpfs)
@@ -204,7 +204,7 @@ Use:
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| First build takes many minutes | cold ccache + cold tmpfs dir | expected; see "Cold build (zero hit)" above for the host‑profile range (5–60 min depending on vcpkg state). After the first warm‑vcpkg run, drops to 13–17 s |
+| First build takes many minutes | cold ccache + cold tmpfs dir | expected; see "Cold build (zero hit)" above for the host‑profile range (3–60 min depending on vcpkg state). After the first warm‑vcpkg run, drops to 13–17 s |
 | Cold run feels stuck on a slow disk | IO thrash from full parallelism | try `JOBS=$(($(nproc) / 2)) ./build-fast.sh` to halve parallelism |
 | `./build-fast.sh` says `/tmp` has too little free space | `CHRONON3D_TMPFS_MIN_GB` too high OR another tmpfs consumer | drop the threshold or use `BUILD_DIR_OVERRIDE=/path/on/ssd` |
 | ++`⚠️ … is a populated directory; not touching it.` | legacy on‑disk slot is real | `rm -rf build/chronon/linux-fast-dev` (only if empty of artifacts you need) or `BUILD_DIR_OVERRIDE=/tmp/chronon-builds/linux-fast-dev` |
