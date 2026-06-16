@@ -165,6 +165,95 @@ AnimatedValue<Vec3>& LayerBuilder::anchor_anim()   { return m_layer.anim_transfo
 AnimatedValue<f32>&  LayerBuilder::opacity_anim()  { return m_layer.anim_transform.opacity; }
 AnimatedValue<f32>&  LayerBuilder::blur_anim()    { return m_layer.anim_transform.blur; }
 
+// ── Motion Timeline adapters ────────────────────────────────────────────────
+// These map a single-axis motion::Timeline<f32> onto the corresponding axis of
+// the layer's animated transform (Vec3 for rotate/position, f32 for opacity).
+// The easing from the timeline is mapped to AnimatedValue's convention
+// (prev->easing controls the outgoing segment) via timeline::Point::outgoing_easing.
+
+namespace {
+
+/// Helper: apply a single-axis timeline to an AnimatedValue<Vec3>,
+/// keeping the other two axes at their base values.
+void apply_axis_timeline(AnimatedValue<Vec3>& dest, Vec3 base,
+                         int axis,  // 0=X, 1=Y, 2=Z
+                         const motion::Timeline<f32>& timeline) {
+    dest.clear();
+    for (const auto& pt : timeline.points()) {
+        Vec3 v = base;
+        v[axis] = pt.value;
+        dest.key(pt.frame, v, pt.outgoing_easing);
+    }
+}
+
+} // anonymous namespace
+
+LayerBuilder& LayerBuilder::rotate_x(const motion::Timeline<f32>& timeline) {
+    Vec3 base = glm::degrees(glm::eulerAngles(m_layer.transform.rotation));
+    apply_axis_timeline(rotate_anim(), base, 0, timeline);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::rotate_y(const motion::Timeline<f32>& timeline) {
+    Vec3 base = glm::degrees(glm::eulerAngles(m_layer.transform.rotation));
+    apply_axis_timeline(rotate_anim(), base, 1, timeline);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::rotate_z(const motion::Timeline<f32>& timeline) {
+    Vec3 base = glm::degrees(glm::eulerAngles(m_layer.transform.rotation));
+    apply_axis_timeline(rotate_anim(), base, 2, timeline);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::position_x(const motion::Timeline<f32>& timeline) {
+    Vec3 base = m_layer.transform.position;
+    apply_axis_timeline(position_anim(), base, 0, timeline);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::position_y(const motion::Timeline<f32>& timeline) {
+    Vec3 base = m_layer.transform.position;
+    apply_axis_timeline(position_anim(), base, 1, timeline);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::position_z(const motion::Timeline<f32>& timeline) {
+    Vec3 base = m_layer.transform.position;
+    apply_axis_timeline(position_anim(), base, 2, timeline);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::opacity_timeline(const motion::Timeline<f32>& timeline) {
+    auto& anim = opacity_anim();
+    anim.clear();
+    for (const auto& pt : timeline.points()) {
+        anim.key(pt.frame, pt.value, pt.outgoing_easing);
+    }
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::scale_x(const motion::Timeline<f32>& timeline) {
+    Vec3 base = m_layer.transform.scale;
+    apply_axis_timeline(scale_anim(), base, 0, timeline);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::scale_y(const motion::Timeline<f32>& timeline) {
+    Vec3 base = m_layer.transform.scale;
+    apply_axis_timeline(scale_anim(), base, 1, timeline);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::blur_timeline(const motion::Timeline<f32>& timeline) {
+    auto& anim = blur_anim();
+    anim.clear();
+    for (const auto& pt : timeline.points()) {
+        anim.key(pt.frame, pt.value, pt.outgoing_easing);
+    }
+    return *this;
+}
+
 // Motion preset methods (slide_in, soft_pop, float_idle, etc.) are now
 // defined in src/scene/builders/commands/motion_preset_methods.cpp.
 // This reduces layer_builder.cpp from 815 → ~515 lines.
