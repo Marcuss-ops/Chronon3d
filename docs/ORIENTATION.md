@@ -46,12 +46,12 @@ cmake --build build/chronon/linux-release -j$(nproc)
 Build presets: `linux-release`, `linux-debug`, `linux-debug-render`.
 Preset per il workflow FAST: `linux-fast-dev` (auto-wired da `./build-fast.sh`).
 
-> **Build veloce (sub‑30 s):** vedi [`docs/FAST_BUILD.md`](FAST_BUILD.md) — spiega come
-> `bootstrap_ccache` configura `~/.ccache/ccache.conf` con `max_size=20G` e una
-> `sloppiness` aggressiva, e come `resolve_build_dir` sposta automaticamente la
-> build dir su un tmpfs `/tmp/chronon-builds/linux-fast-dev` se `/tmp` ha almeno
-> `CHRONON3D_TMPFS_MIN_GB` (default 16) GiB liberi. Lo swap è atomico
-> (`ln + mv -T`) e non distrugge la dir on-disk se è popolata.
+> **Build veloce (sotto i 30 s):** vedi [`docs/FAST_BUILD.md`](FAST_BUILD.md).
+> Lo script `bootstrap_ccache` configura `~/.ccache/ccache.conf` con
+> `max_size=20G` e una `sloppiness` aggressiva; `resolve_build_dir` sposta
+> automaticamente la build dir su un tmpfs `/tmp/chronon-builds/linux-fast-dev`
+> se `/tmp` ha almeno `CHRONON3D_TMPFS_MIN_GB` (default 16) GiB liberi. Lo
+> swap è atomico (`ln + mv -T`) e non distrugge la dir on-disk se è popolata.
 
 ### Windows
 

@@ -32,8 +32,7 @@ implementation lives in two places:
 ./build-fast.sh test '<pattern>'
 
 # Turbo path (CLI only, no tests/content, batch size 32): even faster cold
-cmake --preset linux-turbo
-cmake --build build/chronon/linux-turbo --target chronon3d_cli -j$(nproc)
+./build-fast.sh turbo
 ```
 
 No manual ccache configuration required — `build-fast.sh` bootstraps it on
