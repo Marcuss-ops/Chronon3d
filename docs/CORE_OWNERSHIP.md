@@ -361,7 +361,14 @@ Un agente non deve invadere l'area di un altro senza dichiararlo.
 ### Build obbligatoria
 
 ```bash
-cmake --build --preset linux-fast --target chronon3d_shared -j 4
+# Workflow veloce (sub‑30 s incrementale): vedi docs/FAST_BUILD.md
+./build-fast.sh
+```
+
+Per build di release / verifica deterministica:
+
+```bash
+cmake --build --preset linux-fast-dev --target chronon3d_shared -j 4
 ```
 
 ### Test obbligatori (quando disponibili)
@@ -388,7 +395,7 @@ ctest --test-dir build/chronon/linux-debug --output-on-failure -R "render_graph|
 
 - [ ] Motivazione scritta nel commit message
 - [ ] Alternativa locale valutata e documentata
-- [ ] Build mirata passa (`cmake --build --preset linux-fast`)
+- [ ] Build mirata passa (`./build-fast.sh` oppure `cmake --build --preset linux-fast-dev`)
 - [ ] Test mirati passano (`ctest -R "render_graph|scene|specscene|cache"`)
 - [ ] Nessuna modifica non correlata nello stesso commit
 - [ ] Refactor e feature separati in commit distinti

@@ -67,6 +67,7 @@ bash tools/chronon-linux.sh
 ```
 
 See [ORIENTATION.md](docs/ORIENTATION.md) for a full build guide and architecture overview.
+For the **sub‑30 s incremental workflow** (ccache + tmpfs + daily cheatsheet) see [FAST_BUILD.md](docs/FAST_BUILD.md).
 
 ### Prerequisites (Linux)
 
@@ -76,9 +77,9 @@ sudo apt-get install -y build-essential cmake ninja-build
 
 # Install ccache for faster rebuilds (optional but recommended)
 sudo apt-get install -y ccache
-# Configure cache size to your liking (default: 5 GB)
-ccache --set-config=max_size=10G
-ccache --set-config=compression=true
+# ccache config is auto-bootstrapped by ./build-fast.sh on first run
+# (max_size=20G, sloppiness=include_file_mtime,include_file_ctime,time_macros,pch_defines,file_macro)
+# See docs/FAST_BUILD.md
 
 # ffmpeg runtime (for video export via external process)
 sudo apt-get install -y ffmpeg
@@ -88,6 +89,20 @@ sudo apt-get install -y ffmpeg
 
 sudo apt-get install -y zip unzip curl pkg-config
 ```
+
+### Fast build (sub‑30 s incremental)
+
+```bash
+# One-time: configure + bootstrap ccache + first cold build
+./build-fast.sh
+
+# Day-to-day:
+./build-fast.sh                     # ~13–17 s with warm ccache + tmpfs
+./build-fast.sh cli                 # ~3 s relink only
+./build-fast.sh test 'GraphExec*'   # run filtered core tests
+```
+
+Full reference: [docs/FAST_BUILD.md](docs/FAST_BUILD.md).
 
 > **Windows:** Standard CMake + vcpkg — see [ORIENTATION.md](docs/ORIENTATION.md#windows) for details.
 
@@ -187,6 +202,7 @@ The default build includes example compositions, so `chronon3d_cli list` and `ch
 | Document | Content |
 |---|---|
 | **[ORIENTATION.md](docs/ORIENTATION.md)** | Architecture overview, repo structure, build guide, CLI reference, API overview, telemetry dashboard, test instructions |
+| **[FAST_BUILD.md](docs/FAST_BUILD.md)** | Sub‑30 s incremental workflow — ccache bootstrap, tmpfs build dir, daily cheatsheet, troubleshooting |
 | **[ROADMAP.md](docs/ROADMAP.md)** | Active roadmap — prioritized items to implement |
 | **[CHANGELOG.md](docs/CHANGELOG.md)** | Completed items and release history |
 | **[CONTRIBUTING.md](CONTRIBUTING.md)** | Contributor guide |
