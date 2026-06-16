@@ -365,10 +365,11 @@ Un agente non deve invadere l'area di un altro senza dichiararlo.
 ./build-fast.sh
 ```
 
-Per build di release / verifica deterministica:
+Per build di release / verifica deterministica (preset `linux-release`, niente sloppiness/ccache):
 
 ```bash
-cmake --build --preset linux-fast-dev --target chronon3d_shared -j 4
+cmake --preset linux-release
+cmake --build build/chronon/linux-release -j 4
 ```
 
 ### Test obbligatori (quando disponibili)
