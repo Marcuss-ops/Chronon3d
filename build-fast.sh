@@ -75,7 +75,7 @@ bootstrap_ccache() {
         cat > "$CCACHE_DIR/ccache.conf" <<CCACHE_EOF
 # Chronon3d ccache settings — auto-bootstrapped by build-fast.sh
 max_size = 20G
-sloppiness = pch_defines,time_macros
+sloppiness = include_file_mtime,include_file_ctime,time_macros,pch_defines,file_macro
 compression = true
 compression_level = 6
 hash_dir = false
