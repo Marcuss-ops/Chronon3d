@@ -44,13 +44,17 @@ struct CameraDebugOverlayOptions {
 /// Standardised diagnostic overlay for camera test compositions.
 /// Draws: screen-center cross, target marker (coloured by error),
 /// RGB camera axes, layer bounding boxes, and a metrics text panel.
-/// Enabled by default via CameraDebugOverlayOptions.
+///
+/// SAFETY: All flags default to FALSE so production renders stay clean.
+/// Camera-test compositions opt in by passing an explicit diag{}
+/// with the desired boolean set.  Final renders MUST NOT show any
+/// of these HUD elements.
 struct CameraDiagnosticOverlay {
-    bool show_center_cross{true};
-    bool show_target_marker{true};
-    bool show_camera_axes{true};
-    bool show_projected_bbox{true};
-    bool show_metrics_text{true};
+    bool show_center_cross{false};
+    bool show_target_marker{false};
+    bool show_camera_axes{false};
+    bool show_projected_bbox{false};
+    bool show_metrics_text{false};
 };
 
 void add_camera_debug_overlay(

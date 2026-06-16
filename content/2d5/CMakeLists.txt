@@ -4,6 +4,9 @@ add_library(chronon3d_content_2d5 STATIC
     compositions/camera_calibration_scene.cpp
     compositions/camera_advanced_tests.cpp
     compositions/camera_test_orchestrator.cpp
+    compositions/camera_pitch_tests.cpp
+    compositions/camera_near_plane_test.cpp
+    compositions/camera_floor_grid_test.cpp
 )
 set_target_properties(chronon3d_content_2d5 PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_2d5 PRIVATE ${CMAKE_SOURCE_DIR})

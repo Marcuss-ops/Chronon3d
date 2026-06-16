@@ -204,10 +204,23 @@ void composite_projected_framebuffer(Framebuffer& dst, const Framebuffer& src,
     const float sh = static_cast<float>(src.height());
 
     // card corners in order: TL(0), TR(1), BR(2), BL(3)
-    const Vec2 TL{card.corners[0].x, card.corners[0].y};
-    const Vec2 TR{card.corners[1].x, card.corners[1].y};
-    const Vec2 BR{card.corners[2].x, card.corners[2].y};
-    const Vec2 BL{card.corners[3].x, card.corners[3].y};
+    Vec2 TL{card.corners[0].x, card.corners[0].y};
+    Vec2 TR{card.corners[1].x, card.corners[1].y};
+    Vec2 BR{card.corners[2].x, card.corners[2].y};
+    Vec2 BL{card.corners[3].x, card.corners[3].y};
+
+    // ── Correct winding ────────────────────────────────────────────────
+    // When the projected quad has negative signed area (CW in screen space
+    // due to Y inversion), the homography UV mapping will be flipped.
+    // Swap TR ↔ BR to restore correct UV orientation.
+    const float quad_area =
+        TL.x * TR.y - TR.x * TL.y +
+        TR.x * BR.y - BR.x * TR.y +
+        BR.x * BL.y - BL.x * BR.y +
+        BL.x * TL.y - TL.x * BL.y;
+    if (quad_area < 0.0f) {
+        std::swap(TR, BR);
+    }
 
     const Vec2 src_pts[4] = {
         {0.0f, 0.0f},
