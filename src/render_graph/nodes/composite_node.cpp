@@ -63,6 +63,18 @@ OwnedFB CompositeNode::execute(
     }
 
     // ── Acquire output framebuffer ────────────────────────────────────
+    //
+    // The existing acquire_owned_fb(const Framebuffer&) overload already
+    // implements zero-copy via scratch.reusable_inputs when the input has
+    // sole ownership (consumer_remaining==1 && use_count==1).  When the
+    // bottom is reusable, it swaps pixel storage without copying ~8MB.
+    //
+    // NOTE: in a chain of composites the CachedFB often has use_count>1
+    // because the node_cache holds a reference, so the reusable path is
+    // skipped and a full copy occurs.  This is mitigated by increasing
+    // the framebuffer pool budget (1 GB) and max_buffers_per_size_class
+    // (8) to reduce pool thrashing + eviction pressure — the root cause
+    // of the 70.9K ms compositenode_acquire_ms bottleneck.
     const auto t_acquire0 = profiling::now();
     OwnedFB result;
     if (bottom->width() == ctx.frame.width && bottom->height() == ctx.frame.height) {
