@@ -39,7 +39,18 @@ void add_camera_debug_overlay(
         draw_projected_bounds(ctx);
 
         // ── Standardised diagnostic overlay ─────────────────────────
-        CameraDiagnosticOverlay diag{};
+        // SAFETY: header default is `false` so production flows stay clean
+        // of cyan crosshair/axes.  Camera-test orchestrator relies on seeing
+        // EVERY HUD panel, so we EXPLICITLY enable all flags here.
+        // Compositions that want a custom subset should pass their own
+        // diag{} via a future add_camera_debug_overlay(... CameraDiagnosticOverlay) overload.
+        CameraDiagnosticOverlay diag{
+            .show_center_cross   = true,
+            .show_target_marker  = true,
+            .show_camera_axes    = true,
+            .show_projected_bbox = true,
+            .show_metrics_text   = true,
+        };
         draw_diagnostic_overlay(ctx, diag);
     });
 }

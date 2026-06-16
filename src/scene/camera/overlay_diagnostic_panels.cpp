@@ -44,6 +44,11 @@ void draw_diagnostic_overlay(
             .color = cc,
             .pos   = {center.x, center.y, 0.0f}
         });
+        l.text("diag_center_lbl", TextParams{
+            .text = "(SCREEN)",
+            .pos  = {center.x + 20.0f, center.y + 4.0f, 0.0f},
+            .font_size = 8.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.15f}
+        });
     }
 
     // ── 2. Target marker (coloured by deviation) ──────────────────────
@@ -125,6 +130,11 @@ void draw_diagnostic_overlay(
             });
         };
 
+        l.text("diag_axes_lbl", TextParams{
+            .text = "(WORLD)",
+            .pos  = {center.x + 20.0f, center.y - 12.0f, 0.0f},
+            .font_size = 8.0f, .color = Color{0.5f, 0.5f, 0.5f, 0.15f}
+        });
         draw_axis("X", pose.right(),   Color{1.0f, 0.25f, 0.25f, 0.85f}, "X");
         draw_axis("Y", pose.up(),      Color{0.25f, 1.0f, 0.25f, 0.85f}, "Y");
         draw_axis("Z", pose.forward(), Color{0.25f, 0.40f, 1.0f, 0.85f}, "Z");

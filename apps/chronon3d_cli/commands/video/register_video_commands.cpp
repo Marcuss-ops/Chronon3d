@@ -20,9 +20,9 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--start", args.start, "Start frame (inclusive, default 0)");
     cmd->add_option("--end", args.end, "End frame exclusive (default: composition duration)");
     cmd->add_option("--fps", args.fps, "Output frame rate")->default_val(30);
-    cmd->add_option("--crf", args.crf, "x264 CRF (0-51, lower=better)")->default_val(23);
+    cmd->add_option("--crf", args.crf, "x264 CRF (0-51, lower=better). Use 16 for finals/clean text+glow; 18 prototypes; lower=better")->default_val(16);
     cmd->add_option("--codec", args.codec, "Video encoder (auto, libx264, mpeg4)")->default_val("auto");
-    cmd->add_option("--encode-preset,--preset", args.encode_preset, "x264 preset")->default_val("superfast");
+    cmd->add_option("--encode-preset,--preset", args.encode_preset, "x264 preset (slow | veryslow for production; medium for prototyping; fast/superfast are dev-only)")->default_val("slow");
     cmd->add_option("--tune", args.tune, "x264 tune (e.g. zerolatency)");
     cmd->add_option("--hardware", args.hardware_encoder, "Hardware encoder: none, auto, nvenc, qsv, videotoolbox, amf")->default_val("none");
     cmd->add_flag("--keep-frames", args.keep_frames, "Keep temporary PNG frames");

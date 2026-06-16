@@ -103,8 +103,18 @@ OwnedFB TransformNode::execute(
 
     const auto winding = projected_quad_signed_area(pixel_model, w_src, h_src);
     const bool flipped = winding.has_value() && *winding < 0.0f;
-    if (ctx.telemetry.counters && flipped) {
-        ctx.telemetry.counters->projected_winding_flips.fetch_add(1, std::memory_order_relaxed);
+    if (ctx.telemetry.counters) {
+        ctx.telemetry.counters->projected_winding_flips.fetch_add(flipped ? 1 : 0, std::memory_order_relaxed);
+    }
+
+    // ── Correct UV orientation when winding is flipped ────────────────
+    // When the projected quad has negative winding, the UV coordinates are
+    // inverted (texture appears flipped).  We correct this by negating the
+    // V-component of the inverse homography's Y step, which flips the V
+    // direction in the row-by-row sampling.
+    glm::mat3 inv_H_corrected = inv_pixel_model_3x3;
+    if (flipped) {
+        inv_H_corrected[1] = -inv_H_corrected[1];
     }
 
     if (ctx.options.diagnostics_enabled) {
@@ -120,7 +130,7 @@ OwnedFB TransformNode::execute(
             H[2][0], H[2][1], H[2][2]
         );
         if (flipped) {
-            spdlog::warn("[transform-debug] node='{}' projected quad has negative winding", name());
+            spdlog::warn("[transform-debug] node='{}' projected quad has negative winding, corrected", name());
         }
 #endif
     }
@@ -214,9 +224,9 @@ OwnedFB TransformNode::execute(
     }
 
     // General path: affine or projective, row-based
-    const Vec3 h_col_start = inv_pixel_model_3x3 * Vec3(static_cast<f32>(x0) + 0.5f, static_cast<f32>(y0) + 0.5f, 1.0f);
-    const Vec3 h_step_x = inv_pixel_model_3x3[0];
-    const Vec3 h_step_y = inv_pixel_model_3x3[1];
+    const Vec3 h_col_start = inv_H_corrected * Vec3(static_cast<f32>(x0) + 0.5f, static_cast<f32>(y0) + 0.5f, 1.0f);
+    const Vec3 h_step_x = inv_H_corrected[0];
+    const Vec3 h_step_y = inv_H_corrected[1];
 
     if (is_affine) {
         const f32 inv_z = 1.0f / h_col_start.z;
