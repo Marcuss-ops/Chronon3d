@@ -25,6 +25,9 @@ Composition camera_multi_target_bounding_box_fit_test();
 Composition camera_depth_perspective_scale_diagnostic_test();
 Composition camera_coordinate_contract_test();
 Composition camera_binding_anchor_test();
+Composition camera_front_baseline_test();
+Composition camera_yaw_positive_test();
+Composition camera_yaw_negative_test();
 Composition dof_showcase();
 
 } // namespace chronon3d::content::two_point_five_d
@@ -63,6 +66,11 @@ public:
         // Diagnostic coordinate tests
         registry.register_composition("CameraCoordinateContractTest", camera_coordinate_contract_test);
         registry.register_composition("CameraBindingAnchorTest", camera_binding_anchor_test);
+
+        // Yaw baseline tests
+        registry.register_composition("CameraFrontBaselineTest", camera_front_baseline_test);
+        registry.register_composition("CameraYawPositiveTest", camera_yaw_positive_test);
+        registry.register_composition("CameraYawNegativeTest", camera_yaw_negative_test);
     }
 };
 
