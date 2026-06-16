@@ -559,4 +559,212 @@ Composition camera_depth_perspective_scale_diagnostic_test() {
     });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// D1 — CameraCoordinateContractTest
+//     Card with 4 colored corners, frontal camera, NO animation.
+//     Verifies: TL=red top-left, TR=green top-right, BL=blue bottom-left,
+//     BR=yellow bottom-right, text not mirrored, center within 1px.
+// ─────────────────────────────────────────────────────────────────────────────
+Composition camera_coordinate_contract_test() {
+    // Single frame, no animation — just the coordinate sanity check
+    return composition({.name = "CameraCoordinateContractTest", .width = 1920, .height = 1080, .duration = 1}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+
+        // Dark gray background
+        s.layer("bg_fill", [](LayerBuilder& l) {
+            l.pin_to(Anchor::Center);
+            l.rect("bg", {.size = {1920.0f, 1080.0f}, .color = {0.04f, 0.04f, 0.06f, 1.0f}});
+        });
+
+        // Screen center cross (2D pin)
+        s.layer("screen_center", [](LayerBuilder& l) {
+            l.pin_to(Anchor::Center);
+            l.line("ch_h", {.from = {-30.0f, 0.0f, 0.0f}, .to = {30.0f, 0.0f, 0.0f}, .thickness = 1.0f, .color = {1.0f, 1.0f, 1.0f, 0.5f}});
+            l.line("ch_v", {.from = {0.0f, -30.0f, 0.0f}, .to = {0.0f, 30.0f, 0.0f}, .thickness = 1.0f, .color = {1.0f, 1.0f, 1.0f, 0.5f}});
+        });
+
+        // World-space axes (X=red, Y=green)
+        s.layer("axis_x", [](LayerBuilder& l) {
+            l.enable_3d().position({0.0f, 0.0f, 0.0f});
+            l.line("x_line", {.from = {0.0f, 0.0f, 0.0f}, .to = {250.0f, 0.0f, 0.0f}, .thickness = 2.5f, .color = {1.0f, 0.2f, 0.2f, 0.8f}});
+            l.text("x_lbl", {.text = "X", .pos = {258.0f, 0.0f, 0.1f}, .font_size = 18.0f, .color = {1.0f, 0.2f, 0.2f, 0.8f}, .anchor = TextAnchor::TopLeft, .align = TextAlign::Left});
+        });
+        s.layer("axis_y", [](LayerBuilder& l) {
+            l.enable_3d().position({0.0f, 0.0f, 0.0f});
+            l.line("y_line", {.from = {0.0f, 0.0f, 0.0f}, .to = {0.0f, 200.0f, 0.0f}, .thickness = 2.5f, .color = {0.2f, 1.0f, 0.2f, 0.8f}});
+            l.text("y_lbl", {.text = "Y", .pos = {0.0f, 208.0f, 0.1f}, .font_size = 18.0f, .color = {0.2f, 1.0f, 0.2f, 0.8f}, .anchor = TextAnchor::BottomCenter, .align = TextAlign::Center});
+        });
+
+        // Camera target at origin
+        s.null_layer("camera_target", [](NullBuilder& n) {
+            n.position({0.0f, 0.0f, 0.0f});
+        });
+
+        // Diagnostic card at Z=0 — 4 colored corners, centered
+        constexpr f32 CARD_W = 400.0f;
+        constexpr f32 CARD_H = 300.0f;
+        constexpr f32 CORNER = 36.0f;
+        constexpr f32 HALF_W = CARD_W * 0.5f;
+        constexpr f32 HALF_H = CARD_H * 0.5f;
+
+        s.layer("diagnostic_card", [](LayerBuilder& l) {
+            l.enable_3d().position({0.0f, 0.0f, 0.0f});
+
+            // Card body (dark, thin border)
+            l.rounded_rect("card_body", {
+                .size = {CARD_W, CARD_H},
+                .radius = 4.0f,
+                .color = {0.06f, 0.06f, 0.10f, 1.0f},
+                .stroke = {.enabled = true, .color = {0.5f, 0.5f, 0.6f, 0.4f}, .width = 1.0f}
+            });
+
+            // ── Four colored corner markers ─────────────────────
+            // Must appear on screen as:
+            //   RED (TL)      GREEN (TR)
+            //   BLUE (BL)     YELLOW (BR)
+            l.rect("corner_tl", {.size = {CORNER, CORNER}, .color = {1.0f, 0.0f, 0.0f, 1.0f},
+                .pos = {-HALF_W + 2.0f, -HALF_H + 2.0f, 0.1f}});    // RED top-left
+            l.rect("corner_tr", {.size = {CORNER, CORNER}, .color = {0.0f, 1.0f, 0.0f, 1.0f},
+                .pos = {HALF_W - CORNER - 2.0f, -HALF_H + 2.0f, 0.1f}});  // GREEN top-right
+            l.rect("corner_bl", {.size = {CORNER, CORNER}, .color = {0.0f, 0.0f, 1.0f, 1.0f},
+                .pos = {-HALF_W + 2.0f, HALF_H - CORNER - 2.0f, 0.1f}}); // BLUE bottom-left
+            l.rect("corner_br", {.size = {CORNER, CORNER}, .color = {1.0f, 1.0f, 0.0f, 1.0f},
+                .pos = {HALF_W - CORNER - 2.0f, HALF_H - CORNER - 2.0f, 0.1f}}); // YELLOW bottom-right
+
+            // Center dot
+            l.circle("center_dot", {.radius = 5.0f, .color = {1.0f, 1.0f, 1.0f, 0.9f}, .pos = {0.0f, 0.0f, 0.1f}});
+        });
+
+        // Camera: front-facing at (0, 0, -1000), looking at origin
+        CameraShotProfile shot;
+        shot.rig.mode = CameraRigMode::TwoNode;
+        shot.rig.target_name = "camera_target";
+        shot.rig.orbit_radius.set(1000.0f);
+        shot.rig.orbit_yaw.set(0.0f);
+        shot.rig.orbit_pitch.set(0.0f);
+        shot.rig.roll.set(0.0f);
+        shot.rig.projection_mode = Camera2_5DProjectionMode::Fov;
+        shot.rig.fov_deg.set(50.0f);
+
+        shot.validator
+            .register_layer_size("diagnostic_card", {CARD_W, CARD_H})
+            .require_target_centered("camera_target", 1.0f)
+            .require_visible("diagnostic_card", 0.80f);
+
+        return camera_test_orchestrator(ctx, s, shot, "CameraCoordinateContractTest",
+            {"diagnostic_card"}, {0});
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// D2 — CameraBindingAnchorTest
+//     Compares look-at pivot (layer position) vs visual center.
+//     Card has a geometry offset from its position, so the pivot
+//     differs from the visual center. Two frames show the difference.
+// ─────────────────────────────────────────────────────────────────────────────
+Composition camera_binding_anchor_test() {
+    return composition({.name = "CameraBindingAnchorTest", .width = 1920, .height = 1080, .duration = 2}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+
+        // Dark gray background
+        s.layer("bg_fill", [](LayerBuilder& l) {
+            l.pin_to(Anchor::Center);
+            l.rect("bg", {.size = {1920.0f, 1080.0f}, .color = {0.04f, 0.04f, 0.06f, 1.0f}});
+        });
+
+        // Screen center cross (2D pin)
+        s.layer("screen_center", [](LayerBuilder& l) {
+            l.pin_to(Anchor::Center);
+            l.line("ch_h", {.from = {-30.0f, 0.0f, 0.0f}, .to = {30.0f, 0.0f, 0.0f}, .thickness = 1.0f, .color = {1.0f, 1.0f, 1.0f, 0.5f}});
+            l.line("ch_v", {.from = {0.0f, -30.0f, 0.0f}, .to = {0.0f, 30.0f, 0.0f}, .thickness = 1.0f, .color = {1.0f, 1.0f, 1.0f, 0.5f}});
+        });
+
+        // Origin target at (0,0,0) — the layer's position/pivot
+        s.null_layer("origin_target", [](NullBuilder& n) {
+            n.position({0.0f, 0.0f, 0.0f});
+        });
+
+        // Visual center target at the card's geometry center
+        // The card's rounded_rect is offset from the layer position
+        // by {200, 100, 0}. So the visual center is at {200, 100, 0}.
+        constexpr f32 CARD_OFFSET_X = 200.0f;
+        constexpr f32 CARD_OFFSET_Y = 100.0f;
+        s.null_layer("visual_center_target", [](NullBuilder& n) {
+            n.position({CARD_OFFSET_X, CARD_OFFSET_Y, 0.0f});
+        });
+
+        // Card that shows the pivot vs visual center
+        constexpr f32 CARD_W = 400.0f;
+        constexpr f32 CARD_H = 280.0f;
+
+        s.layer("test_card", [](LayerBuilder& l) {
+            l.enable_3d().position({0.0f, 0.0f, 0.0f});
+
+            // Card body offset — visual center NOT at layer position
+            l.rounded_rect("card_body", {
+                .size = {CARD_W, CARD_H},
+                .radius = 12.0f,
+                .color = {0.08f, 0.10f, 0.18f, 1.0f},
+                .pos = {CARD_OFFSET_X, CARD_OFFSET_Y, 0.0f},
+                .stroke = {.enabled = true, .color = {0.0f, 0.85f, 1.0f, 0.5f}, .width = 2.0f}
+            });
+
+            // Center cross at CARD's visual center (the rect center)
+            l.line("card_center_h", {.from = {CARD_OFFSET_X - 25.0f, CARD_OFFSET_Y, 0.2f},
+                .to = {CARD_OFFSET_X + 25.0f, CARD_OFFSET_Y, 0.2f},
+                .thickness = 2.5f, .color = {1.0f, 0.85f, 0.1f, 1.0f}});
+            l.line("card_center_v", {.from = {CARD_OFFSET_X, CARD_OFFSET_Y - 25.0f, 0.2f},
+                .to = {CARD_OFFSET_X, CARD_OFFSET_Y + 25.0f, 0.2f},
+                .thickness = 2.5f, .color = {1.0f, 0.85f, 0.1f, 1.0f}});
+
+            // Pivot marker (red dot at the layer's position = origin)
+            l.circle("pivot_dot", {.radius = 6.0f, .color = {1.0f, 0.0f, 0.0f, 1.0f}, .pos = {0.0f, 0.0f, 0.3f}});
+
+            // Cross at origin (layer pivot)
+            l.line("pivot_h", {.from = {-12.0f, 0.0f, 0.3f}, .to = {12.0f, 0.0f, 0.3f}, .thickness = 1.5f, .color = {1.0f, 0.5f, 0.5f, 0.6f}});
+            l.line("pivot_v", {.from = {0.0f, -12.0f, 0.3f}, .to = {0.0f, 12.0f, 0.3f}, .thickness = 1.5f, .color = {1.0f, 0.5f, 0.5f, 0.6f}});
+
+            // Labels on the card
+            l.text("pivot_label", {.text = "PIVOT", .pos = {14.0f, 14.0f, 0.3f}, .font_size = 11.0f,
+                .color = {1.0f, 0.5f, 0.5f, 0.7f}, .anchor = TextAnchor::TopLeft, .align = TextAlign::Left});
+            l.text("center_label", {.text = "CENTER", .pos = {CARD_OFFSET_X + 28.0f, CARD_OFFSET_Y, 0.3f}, .font_size = 11.0f,
+                .color = {1.0f, 0.85f, 0.1f, 0.8f}, .anchor = TextAnchor::TopLeft, .align = TextAlign::Left});
+        });
+
+        // Camera: front-facing, no animation
+        CameraShotProfile shot;
+        shot.rig.mode = CameraRigMode::TwoNode;
+        shot.rig.orbit_radius.set(1000.0f);
+        shot.rig.orbit_yaw.set(0.0f);
+        shot.rig.orbit_pitch.set(0.0f);
+        shot.rig.roll.set(0.0f);
+        shot.rig.projection_mode = Camera2_5DProjectionMode::Fov;
+        shot.rig.fov_deg.set(50.0f);
+
+        // Frame 0: aim at origin/pivot → card body NOT centered on screen
+        // Frame 1: aim at visual center → card body centered on screen
+        if (ctx.frame == 0) {
+            shot.rig.target_name = "origin_target";
+        } else {
+            shot.rig.target_name = "visual_center_target";
+        }
+
+        // HUD label showing which frame
+        s.layer("frame_label", [ctx](LayerBuilder& l) {
+            std::string label = (ctx.frame == 0) ? "LOOK AT PIVOT (origin_target)" : "LOOK AT VISUAL CENTER (visual_center_target)";
+            Color label_color = (ctx.frame == 0) ? Color{1.0f, 0.4f, 0.4f, 0.9f} : Color{0.4f, 1.0f, 0.4f, 0.9f};
+            l.pin_to(Anchor::TopLeft, 20.0f);
+            l.text("hud", {.text = label, .pos = {0.0f, 0.0f, 0.0f}, .font_size = 22.0f,
+                .color = label_color, .anchor = TextAnchor::TopLeft, .align = TextAlign::Left});
+        });
+
+        shot.validator
+            .register_layer_size("test_card", {CARD_W + CARD_OFFSET_X, CARD_H + CARD_OFFSET_Y})
+            .require_visible("test_card", 0.50f);
+
+        return camera_test_orchestrator(ctx, s, shot, "CameraBindingAnchorTest",
+            {"test_card"}, {0, 1});
+    });
+}
+
 } // namespace chronon3d::content::two_point_five_d

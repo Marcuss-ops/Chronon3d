@@ -232,7 +232,7 @@ void add_camera_calibration_scene(SceneBuilder& s) {
         // Text labels
         l.text("label_top", {
             .text = "TOP",
-            .pos = {0.0f, -kCardHalfH + 18.0f, 0.15f},
+            .pos = {0.0f, kCardHalfH - 18.0f, 0.15f},
             .font_size = 20.0f,
             .color = {0.75f, 0.85f, 1.0f, 0.85f},
             .anchor = TextAnchor::Center,
@@ -268,7 +268,7 @@ void add_camera_calibration_scene(SceneBuilder& s) {
 
         l.text("label_bottom", {
             .text = "BOTTOM",
-            .pos = {0.0f, kCardHalfH - 18.0f, 0.15f},
+            .pos = {0.0f, -kCardHalfH + 18.0f, 0.15f},
             .font_size = 20.0f,
             .color = {0.75f, 0.85f, 1.0f, 0.85f},
             .anchor = TextAnchor::Center,
