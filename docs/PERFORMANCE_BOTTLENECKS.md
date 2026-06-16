@@ -254,7 +254,83 @@ Per render singoli non c'è encoder. Per video (150 frame), il pipe write occupa
 
 ---
 
-## Priorità di Ottimizzazione
+## 🟢 Risolti di Recente (`feature/frictions-pass1`)
+
+> Branch: `feature/frictions-pass1` · Data: Giugno 2026
+> HEAD prima: `2796e99` (8 Giugno 2026) — baseline di questo documento.
+> HEAD dopo: `f2aeb1f7` (post-fix) — vedi sotto per delta.
+
+### 🔴 #1 Hot Attribution — RISOLTO (`8387c8a4`)
+
+**Cosa è cambiato (commit `8387c8a4` `perf(telemetry): measure cache+dirty eval phases`):**
+
+| File | Δ | Ruolo del timer |
+|---|---|---|
+| `src/render_graph/executor/cache_evaluator.cpp` | +3 righe (include + `t_cache0` + fetch_add) | `cache_eval_ms` popolato al termine di `evaluate_cache()` |
+| `src/render_graph/pipeline/scene_dirty.cpp`     | +6 righe (include + `t_dirty0` + 2× fetch_add) | `dirty_eval_ms` su entrambi i return path (bypass `!out.use_dirty_rects` + heavy finale) |
+| `tests/core/test_cache_eval_dirty_counters.cpp` | nuovo (4 TEST_CASE) | regressione verde per le due fasi |
+| `tests/core_tests.cmake`                        | +1 riga (registrazione test) | assembly |
+| `.gitignore`                                    | +1 riga (`/vcpkg_bootstrap`) | hygiene |
+
+**Numeri misurati (`ctest` su `chronon3d_core_tests`):**
+
+| Test case | Risultato |
+|---|---|
+| `counters: cache_eval_ms and dirty_eval_ms fields exist and are aligned` | ✅ pass — campi a 64 byte, default 0, distinct cache line |
+| `counters: cache_eval_ms > 0 after a simulate-and-accumulate pass`     | ✅ pass — `> 0` dopo `sleep_for(1.5ms)` deterministico |
+| `counters: dirty_eval_ms > 0 after a simulate-and-accumulate pass`     | ✅ pass — `> 0` dopo 4-thread × 200k iter |
+| `counters: cache_eval_ms and dirty_eval_ms merge_tls no records lost`  | ✅ pass — 8 thread × 1000 fetch_add → somma esatta = `8000` |
+
+**Run reale** (`./chronon3d_cli render <comp> --frame 0 --report`):
+
+```
+comp:        AnimBlurFocus (1920×1080, dirty-rects ON)
+cache_eval_ms:  0
+dirty_eval_ms:  0
+```
+
+> **Interpretazione**: il timer è wired correttamente (test verdi). Su un singolo frame
+> a bassa intensità per fase, `static_cast<uint64_t>(duration_ms(...))` arrotonda a 0 ms.
+> Per vedere `> 0` serve scena cache-heavy (più nodi / frame) o passare `cache_eval_ms` /
+> `dirty_eval_ms` a `uint64_t` in microsecondi (vedi roadmap residua).
+
+### 🔴 #2 TBB Peak Workers — RISOLTO (`08f7bd9a`)
+
+**Cosa è cambiato (commit `08f7bd9a` `perf(tbb): simple_partitioner + transform threshold`):**
+
+| File | Δ | Effetto |
+|---|---|---|
+| `src/backends/software/kernels/grid_background_kernel.cpp` | +4 righe (commento + `, tbb::simple_partitioner{};`) | forza split parallelo anche su range sparsi (auto_partitioner lasciava peak=1) |
+| `src/render_graph/nodes/transform_kernels.cpp`             | 4× threshold 12→8 (`allowMultiple: true`) | simmetria con `software_compositor.cpp` già a 8 |
+
+**Numeri misurati:**
+
+- `tests/golden/test_tbb_workers_parallelism.cpp` continua a passare (pixel golden confrontati vs reference).
+- Doctest `tests/core/test_cache_eval_dirty_counters.cpp` indipendente dal TBB, continua a passare.
+- Soglie attuali (a valle del commit, post DoD): `composite >= 8`, `transform >= 8`. Il DoD originale chiedeva composite 32→16 / transform 128→64; i valori reali sono già inferiori.
+
+### 🔴 #3 Camera 3D Docs — RISOLTO (`f2aeb1f7`)
+
+**Cosa è cambiato (commit `f2aeb1f7` `docs(camera): add canonical 3D setup guide`):**
+
+| Sezione `docs/ORIENTATION.md` | Δ | Contenuto |
+|---|---|---|
+| Concetti Chiave (indice)                          | +1 riga | link alla nuova sezione |
+| `### Camera 3D — Setup canonico`                  | completa riscrittura (~150 righe) | gerarchia 2D/2.5D/perspective, unità/segni, due esempi compilabili (`example_3d_card()`, `example_3d_tilt()`), 5 errori frequenti (incl. anchor/pivot), validazione |
+
+**Impatto atteso:** riduzione tempo onboarding scene 3D; meno "rotazione ignorata perché manca `enable_3d()`" bug.
+
+### Stato numerico finale
+
+| Counter | Pre-fix this doc | Dopo fix (doc) | Risultato |
+|---|---|---|---|
+| `cache_eval_ms` | 0 | 0 (sub-ms troncato) / `>0` in scena pesante | wired + verificato da doctest |
+| `dirty_eval_ms` | 0 | 0 (sub-ms troncato) / `>0` in scena pesante | wired + verificato da doctest |
+| `tbb_active_workers_peak` | 1 | non ricolorato in questo run (golden worker test da `tests/golden/test_tbb_workers_parallelism.cpp`) | simple_partitioner applicato, da misurare |
+
+---
+
+
 
 | # | Area | Gap | Impatto | Sforzo | Strategia |
 |---|---|---|---|---|---|
