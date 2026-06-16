@@ -23,6 +23,8 @@ Composition camera_depth_sorting_stress_test();
 Composition camera_subpixel_jitter_validation_test();
 Composition camera_multi_target_bounding_box_fit_test();
 Composition camera_depth_perspective_scale_diagnostic_test();
+Composition camera_coordinate_contract_test();
+Composition camera_binding_anchor_test();
 Composition dof_showcase();
 
 } // namespace chronon3d::content::two_point_five_d
@@ -57,6 +59,10 @@ public:
         registry.register_composition("CameraSubpixelJitterValidationTest", camera_subpixel_jitter_validation_test);
         registry.register_composition("CameraMultiTargetBoundingBoxFitTest", camera_multi_target_bounding_box_fit_test);
         registry.register_composition("CameraDepthPerspectiveScaleDiagnosticTest", camera_depth_perspective_scale_diagnostic_test);
+
+        // Diagnostic coordinate tests
+        registry.register_composition("CameraCoordinateContractTest", camera_coordinate_contract_test);
+        registry.register_composition("CameraBindingAnchorTest", camera_binding_anchor_test);
     }
 };
 
