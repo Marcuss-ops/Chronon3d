@@ -41,5 +41,5 @@
       "dependencies": ["tracy"]
     }
   },
-  "default-features": []
+  "default-features": ["telemetry"]
 }
