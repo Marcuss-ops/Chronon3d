@@ -2,6 +2,7 @@
 #include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/effects/effect_instance.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
+#include <ranges>
 #include <stdexcept>
 #include <utility>
 
@@ -63,18 +64,14 @@ const EffectDescriptor& EffectRegistry::get(std::string_view id) const {
 std::vector<std::string> EffectRegistry::available() const {
     std::vector<std::string> ids;
     ids.reserve(m_effects.size());
-    for (const auto& [id, _] : m_effects) {
-        ids.push_back(id);
-    }
+    std::ranges::copy(m_effects | std::views::keys, std::back_inserter(ids));
     return ids;
 }
 
 std::vector<EffectDescriptor> EffectRegistry::list() const {
     std::vector<EffectDescriptor> descriptors;
     descriptors.reserve(m_effects.size());
-    for (const auto& [_, descriptor] : m_effects) {
-        descriptors.push_back(descriptor);
-    }
+    std::ranges::copy(m_effects | std::views::values, std::back_inserter(descriptors));
     return descriptors;
 }
 

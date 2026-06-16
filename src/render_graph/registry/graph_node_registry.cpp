@@ -1,6 +1,7 @@
 #include <chronon3d/render_graph/registry/graph_node_registry.hpp>
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 
+#include <ranges>
 #include <algorithm>
 #include <stdexcept>
 
@@ -42,29 +43,24 @@ const GraphNodeDescriptor& GraphNodeRegistry::get(std::string_view id) const {
 std::vector<std::string> GraphNodeRegistry::available() const {
     std::vector<std::string> ids;
     ids.reserve(m_nodes.size());
-    for (const auto& [id, _] : m_nodes) {
-        ids.push_back(id);
-    }
+    std::ranges::copy(m_nodes | std::views::keys, std::back_inserter(ids));
     return ids;
 }
 
 std::vector<GraphNodeDescriptor> GraphNodeRegistry::list() const {
     std::vector<GraphNodeDescriptor> result;
     result.reserve(m_nodes.size());
-    for (const auto& [_, desc] : m_nodes) {
-        result.push_back(desc);
-    }
+    std::ranges::copy(m_nodes | std::views::values, std::back_inserter(result));
     return result;
 }
 
 std::vector<GraphNodeDescriptor> GraphNodeRegistry::list_by_category(std::string_view category) const {
-    std::vector<GraphNodeDescriptor> result;
-    for (const auto& [_, desc] : m_nodes) {
-        if (desc.category == category) {
-            result.push_back(desc);
-        }
-    }
-    return result;
+    auto filtered = m_nodes
+                  | std::views::values
+                  | std::views::filter([category](const GraphNodeDescriptor& desc) {
+                        return desc.category == category;
+                    });
+    return {filtered.begin(), filtered.end()};
 }
 
 std::unique_ptr<RenderGraphNode> GraphNodeRegistry::create(std::string_view id) const {

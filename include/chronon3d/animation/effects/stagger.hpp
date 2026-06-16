@@ -48,9 +48,14 @@ inline Frame compute_stagger_delay(size_t rank, size_t total, const StaggerConfi
     return base;
 }
 
+/// Concept: GetPosition must be invocable with const T& and return
+/// something convertible to Vec3 (or comparable for spatial sorting).
+template<typename F, typename T>
+concept PositionGetter = std::invocable<F, const T&>;
+
 namespace detail {
 
-template<typename T, typename GetPosition>
+template<typename T, PositionGetter<T> GetPosition>
 std::vector<size_t> compute_stagger_ranks_impl(
     const std::vector<T*>& items,
     StaggerOrder order,

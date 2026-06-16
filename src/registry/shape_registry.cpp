@@ -1,6 +1,7 @@
 #include <chronon3d/registry/shape_registry.hpp>
 #include <chronon3d/scene/model/render/render_node_factory.hpp>
 
+#include <ranges>
 #include <stdexcept>
 #include <utility>
 #include <variant>
@@ -163,18 +164,14 @@ const ShapeDescriptor& ShapeRegistry::get(std::string_view id) const {
 std::vector<std::string> ShapeRegistry::available() const {
     std::vector<std::string> ids;
     ids.reserve(m_shapes.size());
-    for (const auto& [id, _] : m_shapes) {
-        ids.push_back(id);
-    }
+    std::ranges::copy(m_shapes | std::views::keys, std::back_inserter(ids));
     return ids;
 }
 
 std::vector<ShapeDescriptor> ShapeRegistry::list() const {
     std::vector<ShapeDescriptor> descriptors;
     descriptors.reserve(m_shapes.size());
-    for (const auto& [_, descriptor] : m_shapes) {
-        descriptors.push_back(descriptor);
-    }
+    std::ranges::copy(m_shapes | std::views::values, std::back_inserter(descriptors));
     return descriptors;
 }
 
