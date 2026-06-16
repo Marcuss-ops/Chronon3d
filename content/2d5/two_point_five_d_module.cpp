@@ -28,6 +28,10 @@ Composition camera_binding_anchor_test();
 Composition camera_front_baseline_test();
 Composition camera_yaw_positive_test();
 Composition camera_yaw_negative_test();
+Composition camera_pitch_positive_test();
+Composition camera_pitch_negative_test();
+Composition camera_near_plane_crossing_test();
+Composition camera_floor_grid_comparison_test();
 Composition dof_showcase();
 
 } // namespace chronon3d::content::two_point_five_d
@@ -71,6 +75,16 @@ public:
         registry.register_composition("CameraFrontBaselineTest", camera_front_baseline_test);
         registry.register_composition("CameraYawPositiveTest", camera_yaw_positive_test);
         registry.register_composition("CameraYawNegativeTest", camera_yaw_negative_test);
+
+        // Pitch tests
+        registry.register_composition("CameraPitchPositiveTest", camera_pitch_positive_test);
+        registry.register_composition("CameraPitchNegativeTest", camera_pitch_negative_test);
+
+        // Near-plane crossing test
+        registry.register_composition("CameraNearPlaneCrossingTest", camera_near_plane_crossing_test);
+
+        // Floor grid comparison test (Y=+250 vs Y=-250)
+        registry.register_composition("CameraFloorGridComparisonTest", camera_floor_grid_comparison_test);
     }
 };
 

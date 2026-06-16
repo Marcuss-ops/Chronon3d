@@ -9,8 +9,10 @@ namespace chronon3d::content::two_point_five_d {
 constexpr Color kBgColor{0.04f, 0.04f, 0.06f, 1.0f};
 
 // ── Asymmetric calibration card dimensions ────────────────────────────────
-constexpr f32 kCardW = 500.0f;
-constexpr f32 kCardH = 350.0f;
+// Card is sized to ~1.44x the previous 500×350 to fill the canvas better
+// when framed at 1920×1080 (≈37% width vs former ≈26% width).
+constexpr f32 kCardW = 720.0f;
+constexpr f32 kCardH = 504.0f;
 constexpr f32 kCardHalfW = kCardW * 0.5f;
 constexpr f32 kCardHalfH = kCardH * 0.5f;
 
@@ -40,9 +42,11 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
         });
     });
 
-    // ── 3. Ground grid plane (XZ at Y=-250) ─────────────────────────────
+    // ── 3. Ground grid plane (XZ at Y=+250) ─────────────────────────────
+    // Y-down convention: positive Y = down = floor, negative Y = up = ceiling
+    // So Y=+250 places the grid BELOW the origin, as a floor, not a ceiling.
     s.layer("floor_grid", [](LayerBuilder& l) {
-        l.cache_static().enable_3d().position({0.0f, -250.0f, 0.0f});
+        l.cache_static().enable_3d().position({0.0f, 250.0f, 0.0f});
         l.grid_plane("grid", {
             .pos = {0.0f, 0.0f, 0.0f},
             .axis = PlaneAxis::XZ,
@@ -200,7 +204,21 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
     s.layer("calibration_card", [](LayerBuilder& l) {
         l.cache_static().enable_3d().position({0.0f, 0.0f, 0.0f});
 
-        // Card body (dark gray with thick cyan border)
+        // Card body (dark gray with 2-layer cyan border for clean aesthetic:
+        // sharp 2px foreground + soft 8px aura behind).
+        // Aura layer (drawn first, lower z, wider stroke, low alpha).
+        l.rounded_rect("card_aura", {
+            .size = {kCardW, kCardH},
+            .radius = 14.0f,
+            .color = {0.08f, 0.10f, 0.18f, 1.0f},
+            .pos = {0.0f, 0.0f, -0.05f},
+            .stroke = {
+                .enabled = true,
+                .color = {0.0f, 0.85f, 1.0f, 0.18f},
+                .width = 8.0f
+            }
+        });
+        // Sharp body + crisp 2px border on top.
         l.rounded_rect("card_body", {
             .size = {kCardW, kCardH},
             .radius = 12.0f,
@@ -208,8 +226,8 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
             .pos = {0.0f, 0.0f, 0.0f},
             .stroke = {
                 .enabled = true,
-                .color = {0.0f, 0.85f, 1.0f, 0.65f},
-                .width = 3.0f
+                .color = {0.0f, 0.85f, 1.0f, 0.85f},
+                .width = 2.0f
             }
         });
 

@@ -75,9 +75,9 @@ struct VideoArgs {
     Frame start{0};
     Frame end{0};
     int fps{30};
-    int crf{18};
+    int crf{16};                       // Production-clean: 16 is the sweet spot for text/glow at 1080p
     std::string codec{"auto"};
-    std::string encode_preset{"veryfast"};
+    std::string encode_preset{"slow"}; // Production-clean: 'medium' for prototypes, 'slow' for finals
     std::string tune;
     bool keep_frames{false};
     RenderPipelineArgs pipeline{};

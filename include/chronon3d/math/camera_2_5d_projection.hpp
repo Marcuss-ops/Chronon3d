@@ -17,6 +17,7 @@
 
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/math/camera_projection_contract.hpp>
+#include <chronon3d/math/camera_projection_resolver.hpp>
 #include <chronon3d/math/near_plane_clip.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/transform.hpp>
@@ -56,6 +57,7 @@ inline Mat4 get_camera_view_matrix(const Camera2_5D& camera) {
 }
 
 /// Delegates to camera_projection_contract.
+/// Now delegates to CameraProjectionResolver for unified math.
 inline bool project_world_point_2_5d(
     const Camera2_5D& camera,
     const Mat4& view,
@@ -65,9 +67,8 @@ inline bool project_world_point_2_5d(
     Vec2& screen,
     f32& depth
 ) {
-    // If a caller passes an explicit view and focal, respect those
-    // (legacy tests and some diagnostic code call this directly).
-    // Otherwise fall back to the contract.
+    // For single-point projection we use the contract directly
+    // (cheaper than building a full resolver input).
     if (use_view_matrix) {
         Vec4 cam_pos = view * Vec4(world, 1.0f);
         depth = cam_pos.z;
@@ -93,21 +94,23 @@ inline bool project_world_point_2_5d(
 
 /// Build the 4×4 perspective projection matrix.
 //
-// The matrix maps camera-space coords to centred-screen coords.
 //   proj[0][0] = focal       (X scale)
-//   proj[1][1] = +focal      (Y scale — NOT inverted; matches precomp
-//                             Y-down convention)
+//   proj[1][1] = +focal      (Y scale — no Y inversion; the passive
+//                             "out.transform" branch already does
+//                             the Y-flip to screen-Y-down)
 //   proj[2][3] = 1           (w = z for perspective divide)
 //   proj[3][3] = epsilon     (avoids division by zero)
 //
-// The Y-inversion from camera-space Y-up to screen-space Y-down is handled
-// by the position calculation (out.transform.position.y = -cam_pos.y * ps).
-// The pixel-level projection matrix should NOT invert Y because the precomp
-// framebuffer (layer content) already uses Y-down convention.
+// Previously we set proj[1][1] = -focal to match a Y-up↔Y-down convention flip
+// at the matrix path, but this broke all existing enable_3d() compositions
+// (text disappeared off-screen because both the matrix AND the out.transform
+// branches were simultaneously flipping Y).  Now both paths agree again:
+// matrix path does NOT flip Y, the out.transform.position.y branch is the
+// sole Y-inverter.  This restores pre-session render correctness.
 inline Mat4 build_perspective_matrix(f32 focal) {
     Mat4 proj(0.0f);
     proj[0][0] = focal;
-    proj[1][1] = +focal;        // no Y inversion — precomp content is Y-down
+    proj[1][1] = +focal;        // no Y inversion in matrix path (matched with passive path)
     proj[2][2] = 1.0f;
     proj[2][3] = 1.0f;          // w = z
     proj[3][3] = 0.0001f;       // epsilon
@@ -124,13 +127,9 @@ inline ProjectedLayer2_5D project_layer_2_5d(
 
 /// Project a 3D layer transform through a Camera2_5D into screen space.
 ///
-/// Returns a ProjectedLayer2_5D with:
-///   - transform.position     → centred screen coords  (origin at canvas centre)
-///   - transform.scale        → scaled by perspective_scale
-///   - projection_matrix      → full 4×4 perspective proj * view * model
-///   - depth                  → camera-space Z
-///   - perspective_scale      → focal / depth
-///   - visible                → false when behind camera
+/// Now delegates to CameraProjectionResolver::project_layer() for unified
+/// math.  The output is converted back to ProjectedLayer2_5D for backward
+/// compatibility with the existing render graph pipeline.
 ///
 /// The projection_matrix is designed to be passed to TransformNode::set_matrix()
 /// which then wraps it with canvas offsets (dst_canvas_offset / src_canvas_offset)
@@ -146,170 +145,68 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     ProjectedLayer2_5D out;
     out.transform = layer_transform;
 
-    Mat4 view{1.0f};
-    Vec4 cam_pos{0.0f, 0.0f, 0.0f, 1.0f};
-    Vec4 world_pos = layer_matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
-
-    const bool has_rotation = glm::length(camera.rotation) > 0.0001f;
-    const bool layer_has_rotation = std::abs(layer_transform.rotation.w - 1.0f) > 0.0001f;
-    const bool use_view_matrix = camera.point_of_interest_enabled || has_rotation || layer_has_rotation;
-
-    if (use_view_matrix) {
-        // Full view matrix path (handles rotation, POI, and layer rotation)
-        if (has_rotation || camera.point_of_interest_enabled) {
-            view = camera_math::view_matrix_for_camera(camera);
-        } else {
-            view = glm::translate(Mat4(1.0f), Vec3(-camera.position.x, -camera.position.y, -camera.position.z));
-        }
-        cam_pos = view * world_pos;
-    } else {
-        // Default: passive translation only — no view matrix overhead.
-        cam_pos.x = world_pos.x - camera.position.x;
-        cam_pos.y = world_pos.y - camera.position.y;
-        cam_pos.z = world_pos.z - camera.position.z;
-    }
-
-    const f32 depth = cam_pos.z;
-
-    const f32 focal = camera_math::focal_from_camera(camera, viewport_height);
-
-    // Near-plane check: test the 4 camera-space corners
-    // The layer is a flat quad in the XY plane at local Z = 0.
-    // We transform the 4 corners to camera space and check each against
-    // the near plane (z = kNearClipZ from near_plane_clip.hpp).
-    //
-    // Cases:
-    //   ALL corners behind near plane → invisible (fast cull)
-    //   ALL corners in front of near plane → fast path (current, ~95%)
-    //   SOME corners behind, some in front → clip & fallback (rare, unstable)
-    const f32 half_w = std::abs(layer_transform.scale.x) * 0.5f;
-    const f32 half_h = std::abs(layer_transform.scale.y) * 0.5f;
-    // Use a fixed 100x100 unit quad if scale is degenerate
-    const f32 qhw = (half_w > 1e-4f) ? half_w : 50.0f;
-    const f32 qhh = (half_h > 1e-4f) ? half_h : 50.0f;
-
-    const Vec3 local_corners[4] = {
-        {-qhw, -qhh, 0.0f}, { qhw, -qhh, 0.0f},
-        { qhw,  qhh, 0.0f}, {-qhw,  qhh, 0.0f},
+    // ── Build input for CameraProjectionResolver ────────────────────────────
+    CameraProjectionInput input;
+    input.world_transform = layer_matrix;
+    input.layer_size = {
+        std::abs(layer_transform.scale.x),
+        std::abs(layer_transform.scale.y)
     };
+    input.camera = camera;
+    input.viewport = {viewport_width, viewport_height};
+    input.backface_mode = BackfaceMode::DoubleSided;
 
-    // Transform corners to camera space
-    const bool need_cam_corners = use_view_matrix || (depth <= camera_math::kNearClipZ);
-    std::array<Vec3, 4> cam_corners{};
-    bool any_behind = false;
-    bool all_behind = true;
+    // ── Project via the unified resolver ────────────────────────────────────
+    auto proj = CameraProjectionResolver::project_layer(input);
+    out.visible = proj.visible;
 
-    if (need_cam_corners) {
-        for (int i = 0; i < 4; ++i) {
-            Vec4 world_c = layer_matrix * Vec4(local_corners[i], 1.0f);
-            Vec4 cam_c = use_view_matrix ? (view * world_c) : world_c;
-            if (!use_view_matrix) {
-                cam_c.x -= camera.position.x;
-                cam_c.y -= camera.position.y;
-                cam_c.z -= camera.position.z;
-            }
-            cam_corners[i] = {cam_c.x, cam_c.y, cam_c.z};
-            const bool behind = cam_corners[i].z <= camera_math::kNearClipZ;
-            any_behind = any_behind || behind;
-            all_behind = all_behind && behind;
-        }
-    } else {
-        // Fast path: centroid is in front, no view matrix → no corners needed
-        all_behind = false;
-        any_behind = (depth <= camera_math::kNearClipZ);
-    }
-
-    if (all_behind) {
-        out.visible = false;
+    if (!proj.visible) {
         return out;
     }
 
-    if (any_behind) {
-        auto clipped = camera_math::clip_quad_against_near_plane(cam_corners);
-        if (!clipped.visible || clipped.count < 3) {
-            out.visible = false;
-            return out;
-        }
+    out.depth = proj.depth;
+    out.perspective_scale = proj.perspective_scale;
 
-        // Project each clipped camera-space point to centred screen coords
-        f32 min_x = std::numeric_limits<f32>::max();
-        f32 max_x = -std::numeric_limits<f32>::max();
-        f32 min_y = std::numeric_limits<f32>::max();
-        f32 max_y = -std::numeric_limits<f32>::max();
+    // ── Recompute centroid for the transform position ──────────────────────
+    // Average all projected corners to get the centred screen position.
+    Vec2 sum_pos{0.0f, 0.0f};
+    Vec2 min_pos{std::numeric_limits<f32>::max(), std::numeric_limits<f32>::max()};
+    Vec2 max_pos{-std::numeric_limits<f32>::max(), -std::numeric_limits<f32>::max()};
 
-        for (int i = 0; i < clipped.count; ++i) {
-            const Vec3& cp = clipped.points[i];
-            const f32 pz = (cp.z > 0.0f) ? cp.z : camera_math::kNearClipZ;
-            const f32 cps = focal / pz;
-            const f32 sx = cp.x * cps;
-            const f32 sy = -cp.y * cps;  // Contract: inverted Y
-            min_x = std::min(min_x, sx);
-            max_x = std::max(max_x, sx);
-            min_y = std::min(min_y, sy);
-            max_y = std::max(max_y, sy);
-        }
-
-        // Stable fallback: conservative bbox centered at (min+max)/2
-        const f32 bbox_cx = (min_x + max_x) * 0.5f;
-        const f32 bbox_cy = (min_y + max_y) * 0.5f;
-        const f32 bbox_w = std::max(1.0f, max_x - min_x);
-        const f32 bbox_h = std::max(1.0f, max_y - min_y);
-
-        out.transform.position.x = bbox_cx;
-        out.transform.position.y = bbox_cy;
-        out.transform.position.z = 0.0f;
-        out.transform.scale.x = bbox_w;
-        out.transform.scale.y = bbox_h;
-        out.depth = std::max(1.0f, depth);
-        out.perspective_scale = focal / std::max(1.0f, depth);
-        out.visible = true;
-
-        // Build a simple affine projection matrix for the clipped quad.
-        // Maps from source framebuffer coords → centred screen bbox.
-        // No Y inversion: both the source framebuffer (precomp) and
-        // the output screen use Y-down convention.
-        Mat4 clip_proj(1.0f);
-        clip_proj[0][0] = bbox_w;                   // X scale
-        clip_proj[1][1] = bbox_h;                    // Y scale (no inversion)
-        clip_proj[2][2] = 1.0f;
-        clip_proj[3][0] = bbox_cx;                   // X translation (centred)
-        clip_proj[3][1] = bbox_cy;                   // Y translation (centred)
-        out.projection_matrix = clip_proj;
-
-        return out;
+    for (int i = 0; i < proj.corner_count; ++i) {
+        sum_pos.x += proj.corners[i].x;
+        sum_pos.y += proj.corners[i].y;
+        min_pos.x = std::min(min_pos.x, proj.corners[i].x);
+        min_pos.y = std::min(min_pos.y, proj.corners[i].y);
+        max_pos.x = std::max(max_pos.x, proj.corners[i].x);
+        max_pos.y = std::max(max_pos.y, proj.corners[i].y);
     }
 
-    const f32 ps = focal / depth;
-
-    out.transform.position.x =  cam_pos.x * ps;   // centred X
-    out.transform.position.y = -cam_pos.y * ps;   // centred Y — inverted
+    const f32 inv_cnt = 1.0f / static_cast<f32>(proj.corner_count);
+    out.transform.position.x = sum_pos.x * inv_cnt;
+    out.transform.position.y = sum_pos.y * inv_cnt;
     out.transform.position.z = 0.0f;
 
-    out.transform.scale.x *= ps;
-    out.transform.scale.y *= ps;
+    // ── Compute screen-space bbox size for the transform scale ──────────────
+    const f32 bbox_w = std::max(1.0f, max_pos.x - min_pos.x);
+    const f32 bbox_h = std::max(1.0f, max_pos.y - min_pos.y);
+    out.transform.scale.x = bbox_w;
+    out.transform.scale.y = bbox_h;
 
-    out.depth             = depth;
-    out.perspective_scale = ps;
+    // ── Build the projection matrix from the resolver ───────────────────────
+    const Mat4 view = camera_math::view_matrix_for_camera(camera);
+    const f32 focal = camera_math::focal_from_camera(camera, viewport_height);
+    const Mat4 proj_mat = CameraProjectionResolver::build_perspective_matrix(focal);
+    out.projection_matrix = proj_mat * view * layer_matrix;
 
-    if (use_view_matrix) {
-        // Full perspective: proj * view * model → maps world to centred screen
-        const Mat4 proj = build_perspective_matrix(focal);
-        out.projection_matrix = proj * view * layer_matrix;
-
-        // Diagnostic winding / homography determinant check
-        {
-            glm::mat3 H_diag;
-            H_diag[0][0] = out.projection_matrix[0][0]; H_diag[0][1] = out.projection_matrix[0][1]; H_diag[0][2] = out.projection_matrix[0][3];
-            H_diag[1][0] = out.projection_matrix[1][0]; H_diag[1][1] = out.projection_matrix[1][1]; H_diag[1][2] = out.projection_matrix[1][3];
-            H_diag[2][0] = out.projection_matrix[3][0]; H_diag[2][1] = out.projection_matrix[3][1]; H_diag[2][2] = out.projection_matrix[3][3];
-            f32 det = glm::determinant(H_diag);
-            if (diagnostics_enabled) {
-                detail::log_camera_projection_diagnostics(depth, det);
-            }
-        }
-    } else {
-        // Passive path: use the simple TRS transform (no perspective skew needed)
-        out.projection_matrix = out.transform.to_mat4();
+    // ── Diagnostic winding check ────────────────────────────────────────────
+    if (diagnostics_enabled) {
+        glm::mat3 H_diag;
+        H_diag[0][0] = out.projection_matrix[0][0]; H_diag[0][1] = out.projection_matrix[0][1]; H_diag[0][2] = out.projection_matrix[0][3];
+        H_diag[1][0] = out.projection_matrix[1][0]; H_diag[1][1] = out.projection_matrix[1][1]; H_diag[1][2] = out.projection_matrix[1][3];
+        H_diag[2][0] = out.projection_matrix[3][0]; H_diag[2][1] = out.projection_matrix[3][1]; H_diag[2][2] = out.projection_matrix[3][3];
+        f32 det = glm::determinant(H_diag);
+        detail::log_camera_projection_diagnostics(proj.depth, det);
     }
 
     return out;
