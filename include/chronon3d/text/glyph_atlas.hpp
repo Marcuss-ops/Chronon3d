@@ -59,19 +59,6 @@ struct GlyphAtlasStats {
 };
 [[nodiscard]] GlyphAtlasStats glyph_atlas_stats();
 
-// Extracts individual glyph bitmaps from a rendered text image and stores
-// them in the atlas.  Uses the glyph buffer (shaped by BLFont) to locate
-// each glyph's position and bounding box in the rendered image.
-void glyph_atlas_store_from_text(
-    const std::string& font_path,
-    const BLImage& rendered_text,
-    const BLGlyphBuffer& gb,
-    const BLFont& font,
-    float text_origin_x,
-    float text_origin_y,
-    float font_size
-);
-
 // Store individual glyph bitmaps from a HarfBuzz-shaped PlacedGlyphRun.// Uses pg.x/pg.y + font.getGlyphBounds() to locate each glyph in the
 // rendered image.  Skips glyphs already cached with the same fill_color_rgba.
 void glyph_atlas_store_from_placed_run(

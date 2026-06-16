@@ -24,10 +24,12 @@ Camera2_5D CameraRig::evaluate(
     cam.projection_mode = projection_mode;
 
     Vec3 resolved_target = target.evaluate(time);
+    bool target_from_hierarchy = false;
 
     if (resolved && !target_name.empty()) {
         if (auto target_world = resolved->world_position(target_name)) {
             resolved_target = *target_world;
+            target_from_hierarchy = true;  // target is in WORLD space
         }
     }
 
@@ -36,16 +38,27 @@ Camera2_5D CameraRig::evaluate(
     const f32 radius = orbit_radius.evaluate(time);
 
     Vec3 pos = resolved_target + orbit_offset(yaw, pitch, radius);
-
     pos += track.evaluate(time);
 
-    const Vec3 forward = glm::normalize(resolved_target - pos);
-    pos += forward * dolly.evaluate(time);
-
+    // Apply parent transform:
+    //   - Camera position (pos): ALWAYS follows parent ("camera trasformata dal parent")
+    //   - Target: transformed ONLY when in local space (not from hierarchy)
+    //     When target_from_hierarchy is true, resolved_target is already in
+    //     WORLD space — applying parent would double-transform it.
     if (resolved && !parent_name.empty()) {
         if (auto parent_matrix = resolved->world_matrix(parent_name)) {
             pos = Vec3((*parent_matrix) * Vec4(pos, 1.0f));
-            resolved_target = Vec3((*parent_matrix) * Vec4(resolved_target, 1.0f));
+            if (!target_from_hierarchy) {
+                resolved_target = Vec3((*parent_matrix) * Vec4(resolved_target, 1.0f));
+            }
+        }
+    }
+
+    // Dolly: push camera along world-space forward AFTER parent transform.
+    {
+        const Vec3 diff = resolved_target - pos;
+        if (glm::length(diff) > 0.0001f) {
+            pos += (diff / glm::length(diff)) * dolly.evaluate(time);
         }
     }
 

@@ -95,16 +95,19 @@ inline bool project_world_point_2_5d(
 //
 // The matrix maps camera-space coords to centred-screen coords.
 //   proj[0][0] = focal       (X scale)
-//   proj[1][1] = -focal      (Y scale — inverted, matching contract Y sign)
+//   proj[1][1] = +focal      (Y scale — NOT inverted; matches precomp
+//                             Y-down convention)
 //   proj[2][3] = 1           (w = z for perspective divide)
 //   proj[3][3] = epsilon     (avoids division by zero)
 //
-// Result: after perspective divide, centred_screen.x = focal * cam.x / cam.z
-//         centred_screen.y = -focal * cam.y / cam.z  ← inverted Y
+// The Y-inversion from camera-space Y-up to screen-space Y-down is handled
+// by the position calculation (out.transform.position.y = -cam_pos.y * ps).
+// The pixel-level projection matrix should NOT invert Y because the precomp
+// framebuffer (layer content) already uses Y-down convention.
 inline Mat4 build_perspective_matrix(f32 focal) {
     Mat4 proj(0.0f);
     proj[0][0] = focal;
-    proj[1][1] = -focal;        // ← Contract: inverted Y
+    proj[1][1] = +focal;        // no Y inversion — precomp content is Y-down
     proj[2][2] = 1.0f;
     proj[2][3] = 1.0f;          // w = z
     proj[3][3] = 0.0001f;       // epsilon
@@ -261,11 +264,13 @@ inline ProjectedLayer2_5D project_layer_2_5d(
         out.perspective_scale = focal / std::max(1.0f, depth);
         out.visible = true;
 
-        // Build a simple affine projection matrix for the clipped quad
-        // Maps from source framebuffer coords → centred screen bbox
+        // Build a simple affine projection matrix for the clipped quad.
+        // Maps from source framebuffer coords → centred screen bbox.
+        // No Y inversion: both the source framebuffer (precomp) and
+        // the output screen use Y-down convention.
         Mat4 clip_proj(1.0f);
         clip_proj[0][0] = bbox_w;                   // X scale
-        clip_proj[1][1] = -bbox_h;                   // Y scale (inverted)
+        clip_proj[1][1] = bbox_h;                    // Y scale (no inversion)
         clip_proj[2][2] = 1.0f;
         clip_proj[3][0] = bbox_cx;                   // X translation (centred)
         clip_proj[3][1] = bbox_cy;                   // Y translation (centred)
