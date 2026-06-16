@@ -20,7 +20,8 @@ implementation lives in two places:
 ## TL;DR
 
 ```bash
-# First run (one per machine): configure + bootstrap ccache + first build (~5 min cold)
+# First run (one per machine): configure + bootstrap ccache + first build
+#   → baseline cold: 5–15 min depending on host (see "Cold build" below)
 ./build-fast.sh
 
 # Day‑to‑day incremental rebuild (~13–17 s with warm ccache + tmpfs)
@@ -97,11 +98,45 @@ populated directory, `build-fast.sh` refuses the swap and prints:
 
 | Scenario | Wall‑clock | ccache hit | Notes |
 |---|---|---|---|
-| Cold full rebuild (`-z` reset, no unity reuse) | ~5 m 27 s | 0 % | acceptable; one‑off per day |
+| Cold full rebuild (`-z` reset, no unity reuse) | **5 m 27 s** | 0 % | one‑off per day; baseline 5–15 min on other host profiles (see "Cold build" below) |
 | No changes → `./build-fast.sh` | **~13 s** | n/a | ninja no‑work + dep scan |
 | `touch 1 .cpp` → `./build-fast.sh` | **~17 s** | 100 % | sloppiness‑driven hit |
 | Touch hot header `src/scene/camera/camera_debug_overlay_panels.hpp` (7 dependents) | **~17 s** | 100 % | sloppiness covers mtime flicker |
 | `./build-fast.sh cli` (relink only) | ~3–5 s | n/a | single‑target |
+
+## Cold build (zero hit) — first run on a fresh machine
+
+If you are the **first contributor on a fresh machine** — no ccache entries,
+no populated build directory — the first `./build-fast.sh` will compile
+**everything** from scratch. This is unavoidable; it just adds minutes.
+
+| Host profile | Approx. wall‑clock (cold) |
+|---|---|
+| 4 cores, 8 GB RAM, SATA SSD, `/tmp` < 16 GiB free (no tmpfs path) | **10–15 min** |
+| 8 cores, 16+ GB RAM, `/tmp` with ≥ 16 GiB free (tmpfs builds apply) | **5–7 min** |
+| 16+ cores, 32+ GB RAM, tmpfs builds apply | **3–5 min** |
+
+Measured on this 8‑core / 22 GB host with tmpfs enabled: **5 m 27 s** from a
+`ccache -C` reset.
+
+What dominates the cold build, in order of impact:
+
+1. **vcpkg manifest install** — one‑time fetch + compile of dependencies
+   (spdlog, fmt, glm, tbb, blend2d, freetype+harfbuzz, openexr, libyuv, …).
+   Dominates fresh machines; cached in `vcpkg_installed/` thereafter.
+2. **CMake configure** — fast (single‑digit seconds) once vcpkg is warm.
+3. **Ninja invocation** — single `cmake --build` against the `linux-fast-dev`
+   preset (Debug, unity build with `CMAKE_UNITY_BUILD_BATCH_SIZE=16`).
+4. **Relink** of `chronon3d_cli` + tests (mold, fast on tmpfs).
+
+Useful flag during a cold run on slow disks:
+
+```bash
+JOBS=$(($(nproc) / 2)) ./build-fast.sh    # halve parallelism to reduce IO thrash
+```
+
+After the first cold run, ccache starts firing and subsequent runs land in
+13–17 s.
 
 ---
 
@@ -147,7 +182,8 @@ Use:
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| First build takes many minutes | cold ccache + cold tmpfs dir | expected; ccache hits accumulate across runs |
+| First build takes many minutes | cold ccache + cold tmpfs dir | expected; **5–15 min baseline** depending on host (see "Cold build (zero hit)" above), drops to 13–17 s after the first run |
+| Cold run feels stuck on a slow disk | IO thrash from full parallelism | try `JOBS=$(($(nproc) / 2)) ./build-fast.sh` to halve parallelism |
 | `./build-fast.sh` says `/tmp` has too little free space | `CHRONON3D_TMPFS_MIN_GB` too high OR another tmpfs consumer | drop the threshold or use `BUILD_DIR_OVERRIDE=/path/on/ssd` |
 | ++`⚠️ … is a populated directory; not touching it.` | legacy on‑disk slot is real | `rm -rf build/chronon/linux-fast-dev` (only if empty of artifacts you need) or `BUILD_DIR_OVERRIDE=/tmp/chronon-builds/linux-fast-dev` |
 | `ccache -s` shows MISS where you expected HIT | sloppiness not in effect | confirm `~/.ccache/ccache.conf` matches above; for shared CI caches the bootstrap is intentionally skipped |
