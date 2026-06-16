@@ -67,6 +67,10 @@ Scene camera_test_orchestrator(
     }
     scene.set_camera_2_5d(cam);
 
+    // ── Mandatory visibility check: fail on black frames ───────────
+    // Applied to every camera test composition automatically.
+    shot.validator.require_frame_visibility();
+
     // Perform validation
     auto report = shot.validator.validate(cam, resolved, {static_cast<f32>(ctx.width), static_cast<f32>(ctx.height)});
     report.composition_name = comp_name;
@@ -309,6 +313,12 @@ Scene camera_test_orchestrator(
         metrics["back_visible_ratio"] = back_ratio;
         metrics["safe_area_valid"] = safe_area_valid;
         metrics["depth_order_valid"] = depth_order_valid;
+
+        // ── Visibility metrics (auto-fail black frames) ───────────
+        metrics["frame_visible_ratio"] = report.visibility.visible_pixel_ratio;
+        metrics["is_black_frame"] = report.visibility.is_black_frame;
+        metrics["estimated_visible_area"] = report.visibility.estimated_visible_area;
+        metrics["max_layer_visibility"] = report.visibility.max_layer_visibility;
 
         if (comp_name == "CameraDollyPerspectiveScaleTest") {
             metrics["dolly_growth_valid"] = dolly_growth_valid;

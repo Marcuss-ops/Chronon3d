@@ -20,12 +20,24 @@ struct CameraLayerShotReport {
     std::vector<std::string> failures;
 };
 
+/// Global frame visibility metrics — estimated from layer bounding boxes.
+/// A frame that is entirely black (is_black_frame = true) indicates
+/// a camera or scene setup error and must fail validation.
+struct VisibilityMetrics {
+    float visible_pixel_ratio{1.0f};    // estimated bbox-area / viewport-area
+    float max_layer_visibility{0.0f};   // max visible_ratio across all layers
+    float estimated_visible_area{0.0f}; // Σ(bbox_area * visible_ratio)
+    bool is_black_frame{false};         // true if estimated_visible_area == 0
+};
+
 struct CameraShotReport {
     std::string composition_name{"Unknown"};
     int frame{0};
 
     bool passed{true};
     float target_center_error_px{0.0f};
+
+    VisibilityMetrics visibility;
 
     std::vector<CameraLayerShotReport> layers;
     std::vector<std::string> failures;
@@ -58,6 +70,13 @@ public:
         std::vector<std::string> front_to_back
     );
 
+    /// Mandatory global visibility check — fails frames that are
+    /// entirely black or have too few visible pixels.
+    /// Default thresholds: 0 pixels = black frame, < 0.5% visible = too dark.
+    const CameraShotValidator& require_frame_visibility(
+        float min_visible_ratio = 0.005f
+    ) const;
+
     CameraShotReport validate(
         const Camera2_5D& camera,
         const TransformResolverResult& transforms,
@@ -86,6 +105,12 @@ private:
     std::vector<RuleVisible> m_rules_visible;
     std::vector<RuleInsideSafeArea> m_rules_safe_area;
     std::vector<RuleDepthOrder> m_rules_depth_order;
+
+    // Global visibility thresholds (default: disabled).
+    // Mutable because require_frame_visibility() is called on const validators
+    // from the camera_test_orchestrator's const CameraShotProfile reference.
+    mutable bool  m_frame_visibility_enabled{false};
+    mutable float m_min_frame_visible_ratio{0.005f};
 };
 
 } // namespace chronon3d

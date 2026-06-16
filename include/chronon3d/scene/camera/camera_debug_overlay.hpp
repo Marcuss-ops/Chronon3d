@@ -41,6 +41,18 @@ struct CameraDebugOverlayOptions {
     float panel_offset_y{0.0f};
 };
 
+/// Standardised diagnostic overlay for camera test compositions.
+/// Draws: screen-center cross, target marker (coloured by error),
+/// RGB camera axes, layer bounding boxes, and a metrics text panel.
+/// Enabled by default via CameraDebugOverlayOptions.
+struct CameraDiagnosticOverlay {
+    bool show_center_cross{true};
+    bool show_target_marker{true};
+    bool show_camera_axes{true};
+    bool show_projected_bbox{true};
+    bool show_metrics_text{true};
+};
+
 void add_camera_debug_overlay(
     SceneBuilder& s,
     const CameraShotReport& report,
@@ -49,6 +61,17 @@ void add_camera_debug_overlay(
     Viewport viewport,
     CameraDebugOverlayOptions options = {},
     const CameraPathVisualization* path = nullptr
+);
+
+/// Forward declaration — defined in camera_debug_overlay_panels.hpp.
+struct OverlayContext;
+
+/// Draw the standardised diagnostic overlay (center cross, target marker,
+/// RGB axes, bboxes, metrics) inside the same LayerBuilder context as the
+/// other HUD panels.  Called from add_camera_debug_overlay.
+void draw_diagnostic_overlay(
+    const OverlayContext& ctx,
+    const CameraDiagnosticOverlay& diag
 );
 
 } // namespace chronon3d
