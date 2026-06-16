@@ -10,10 +10,8 @@ Thanks for your interest! This is a code-first, headless, CPU-only motion graphi
 # Install build tools
 sudo apt-get install -y build-essential cmake ninja-build
 
-# Install ccache for faster rebuilds (optional but recommended)
+# Install ccache for faster rebuilds (recommended — auto-bootstrapped by build-fast.sh)
 sudo apt-get install -y ccache
-ccache --set-config=max_size=10G
-ccache --set-config=compression=true
 
 # ffmpeg for video export
 sudo apt-get install -y ffmpeg
@@ -27,12 +25,24 @@ sudo apt-get install -y ffmpeg
    export VCPKG_ROOT="${VCPKG_ROOT:-$HOME/vcpkg}"
    ```
    Or let `tools/chronon-linux.sh` handle it automatically.
-3. Configure and build (ccache is auto-detected):
+
+3. **Daily workflow (sub‑30 s incremental)** — preferred for development:
+   ```bash
+   # First run: configures, bootstraps ccache (~/.ccache/ccache.conf), populates tmpfs build dir
+   ./build-fast.sh
+
+   # Subsequent runs: incremental rebuild lands ~13–17 s on warm ccache + tmpfs
+   ./build-fast.sh
+   ./build-fast.sh test 'ExtensionLoader*'
+   ```
+   See [`docs/FAST_BUILD.md`](docs/FAST_BUILD.md) for the full cheatsheet.
+
+4. **Release build** — for publishing (no sloppiness, no tmpfs):
    ```bash
    cmake --preset linux-release
    cmake --build build/chronon/linux-release -j$(nproc)
+   ctest --preset linux-test
    ```
-4. Run tests: `ctest --preset linux-test`
 
 ## Development Workflow
 

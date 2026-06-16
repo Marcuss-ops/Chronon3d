@@ -23,7 +23,13 @@ Componi video scrivendo codice C++ — niente GUI, niente JSON, niente editor di
 # Primo build (vcpkg + cmake + build — tutto automatico)
 bash tools/chronon-linux.sh
 
-# Build incrementale
+# Build incrementale FAST (sub‑30s) — ccache + tmpfs + unity build:
+# vedi docs/FAST_BUILD.md per il workflow completo.
+./build-fast.sh                          # ~13–17 s con ccache caldo
+./build-fast.sh cli                      # ~3 s, solo relink
+./build-fast.sh test '<pattern>'         # rebuild + run doctest filtrato
+
+# Build incrementale classico (preset release, no sloppiness):
 cmake --preset linux-release
 cmake --build build/chronon/linux-release -j$(nproc)
 
@@ -38,6 +44,14 @@ cmake --build build/chronon/linux-release -j$(nproc)
 ```
 
 Build presets: `linux-release`, `linux-debug`, `linux-debug-render`.
+Preset per il workflow FAST: `linux-fast-dev` (auto-wired da `./build-fast.sh`).
+
+> **Build veloce (sub‑30 s):** vedi [`docs/FAST_BUILD.md`](FAST_BUILD.md) — spiega come
+> `bootstrap_ccache` configura `~/.ccache/ccache.conf` con `max_size=20G` e una
+> `sloppiness` aggressiva, e come `resolve_build_dir` sposta automaticamente la
+> build dir su un tmpfs `/tmp/chronon-builds/linux-fast-dev` se `/tmp` ha almeno
+> `CHRONON3D_TMPFS_MIN_GB` (default 16) GiB liberi. Lo swap è atomico
+> (`ln + mv -T`) e non distrugge la dir on-disk se è popolata.
 
 ### Windows
 
@@ -93,6 +107,7 @@ Composition (C++) → Scene → RenderGraph (DAG) → GraphExecutor → Software
 
 | Documento | Contenuto |
 |---|---|
+| **`FAST_BUILD.md`** | Workflow build veloce (sub‑30 s incrementale): ccache bootstrap + tmpfs build dir + cheatsheet |
 | **`ROADMAP.md`** | Roadmap attiva: item prioritari da implementare |
 | **`CHANGELOG.md`** | Cronologia item completati |
 | **`V3_BLUEPRINT.md`** | Architettura tile-based: da frame-based a tile-first |
