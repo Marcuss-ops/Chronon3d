@@ -48,7 +48,11 @@ CameraApi& CameraApi::parent(std::string name) {
 }
 
 CameraApi& CameraApi::rotation(Vec3 euler_deg) {
-    owner_->edit_camera([&](Camera2_5D& cam) { cam.rotation = euler_deg; });
+    owner_->edit_camera([&](Camera2_5D& cam) {
+        cam.rotation = euler_deg;
+        cam.orientation = math::camera_rotation_quat(euler_deg);
+        cam.orientation_valid = true;
+    });
     return *this;
 }
 

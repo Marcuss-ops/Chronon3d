@@ -28,6 +28,7 @@ CameraPathReport sample_camera_path(
             sample.forward = glm::normalize(cam.point_of_interest - cam.position);
         } else {
             Quat rot = cam.rotation_quaternion();
+            if (cam.orientation_valid) cam.orientation = rot;
             sample.forward = rot * Vec3{0.0f, 0.0f, 1.0f};
         }
 

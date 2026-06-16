@@ -3,6 +3,7 @@
 #include <chronon3d/scene/model/camera/camera_rig.hpp>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace chronon3d {
 
@@ -16,6 +17,14 @@ public:
         return *this;
     }
 
+    /// TwoNode with blended multi-target.  Clears legacy target_name.
+    CameraRigBuilder& two_node(std::vector<CameraBinding> bindings) {
+        rig.mode = CameraRigMode::TwoNode;
+        rig.target_bindings = std::move(bindings);
+        rig.target_name.clear();
+        return *this;
+    }
+
     CameraRigBuilder& one_node() {
         rig.mode = CameraRigMode::OneNode;
         return *this;
@@ -23,6 +32,13 @@ public:
 
     CameraRigBuilder& parent(std::string name) {
         rig.parent_name = std::move(name);
+        return *this;
+    }
+
+    /// Add a target binding for weighted blending.  Clears legacy target_name.
+    CameraRigBuilder& bind_target(std::string name, f32 weight = 1.0f) {
+        rig.target_bindings.push_back(CameraBinding{std::move(name), weight});
+        rig.target_name.clear();
         return *this;
     }
 
@@ -68,7 +84,18 @@ public:
         rig.dof.focus_target_name = std::move(name);
         rig.dof.aperture.set(aperture);
         rig.dof.max_blur.set(max_blur);
-        rig.dof.use_target_z = true;
+        rig.dof.focus_mode = CameraFocusMode::TargetBinding;
+        return *this;
+    }
+
+    /// Focus via unified binding (replaces legacy focus_target_name).
+    CameraRigBuilder& focus_target(CameraBinding binding, f32 aperture = 0.015f, f32 max_blur = 24.0f) {
+        rig.dof.enabled = true;
+        rig.dof.focus_binding = std::move(binding);
+        rig.dof.focus_target_name.clear();
+        rig.dof.aperture.set(aperture);
+        rig.dof.max_blur.set(max_blur);
+        rig.dof.focus_mode = CameraFocusMode::TargetBinding;
         return *this;
     }
 

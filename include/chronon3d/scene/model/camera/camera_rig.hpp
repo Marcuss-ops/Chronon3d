@@ -4,10 +4,12 @@
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
+#include <chronon3d/scene/camera/camera_binding.hpp>
 #include <chronon3d/scene/model/core/transform_resolver.hpp>
 #include <string>
 #include <utility>
 #include <functional>
+#include <vector>
 
 namespace chronon3d {
 class SceneBuilder;
@@ -17,15 +19,31 @@ enum class CameraRigMode {
     TwoNode
 };
 
+/// How the camera's focus plane is resolved during evaluation.
+/// Replaces the ambiguous `use_target_z` boolean.
+enum class CameraFocusMode {
+    ManualDistance,   // use dof.focus_distance.evaluate(time) directly
+    TargetBinding,    // compute focus distance from focus_target_name's world position
+    LegacyWorldZ      // backward-compatible: use dof.focus_z (world-space Z plane)
+};
+
 struct CameraRigDOF {
     bool enabled{false};
+
+    /// Legacy string-based focus target (backward compat).
+    /// Prefer focus_binding for new code.
     std::string focus_target_name;
 
-    // Legacy model.
+    /// Unified binding for the focus target layer.
+    /// When non-empty, overrides focus_target_name in evaluate().
+    CameraBinding focus_binding;
+
+    CameraFocusMode focus_mode{CameraFocusMode::ManualDistance};
+
+    // Legacy model: world-space Z plane (used only with LegacyWorldZ mode)
     AnimatedValue<f32> focus_z{0.0f};
     AnimatedValue<f32> aperture{0.015f};
     AnimatedValue<f32> max_blur{24.0f};
-    bool use_target_z{false};
 
     // Physical lens model.
     AnimatedValue<f32> focal_length{50.0f};
@@ -51,8 +69,18 @@ struct CameraRigMotionBlur {
 struct CameraRig {
     std::string name{"MainCameraRig"};
     CameraRigMode mode{CameraRigMode::TwoNode};
+
+    /// Legacy string-based parent binding (backward compat).
     std::string parent_name;
+
+    /// Legacy string-based target name (backward compat).
+    /// When target_bindings is non-empty, this is ignored in evaluate().
     std::string target_name;
+
+    /// Unified multi-target bindings with optional weighted blending.
+    /// When non-empty, evaluate() blends all resolved positions.
+    /// When empty, falls back to legacy target_name resolution.
+    std::vector<CameraBinding> target_bindings;
 
     AnimatedValue<Vec3> target{Vec3{0.0f, 0.0f, 0.0f}};
     AnimatedValue<f32> orbit_yaw{0.0f};
@@ -87,7 +115,7 @@ struct CameraRig {
     ) const;
 };
 
-// ── Keep old camera_rig namespace and animated presets for backward compatibility ──
+// ── Legacy camera_rig namespace — deprecated. Migrate to chronon3d::CameraRig. ──
 namespace camera_rig {
 
 enum class RigMode {
@@ -95,7 +123,7 @@ enum class RigMode {
     TwoNode
 };
 
-struct CameraRig {
+struct [[deprecated("Use chronon3d::CameraRig instead")]] CameraRig {
     RigMode mode{RigMode::TwoNode};
     bool enabled{true};
 
@@ -123,6 +151,8 @@ struct CameraRig {
         cam.enabled = enabled;
         cam.position = camera_position.evaluate(frame);
         cam.rotation = camera_rotation.evaluate(frame);
+        cam.orientation = math::camera_rotation_quat(cam.rotation);
+        cam.orientation_valid = true;
         cam.zoom = zoom.evaluate(frame);
         cam.fov_deg = fov_deg.evaluate(frame);
         cam.projection_mode = use_fov ? Camera2_5DProjectionMode::Fov : Camera2_5DProjectionMode::Zoom;

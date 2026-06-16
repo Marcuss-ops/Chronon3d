@@ -361,6 +361,8 @@ struct CameraMotionPath {
                 if (glm::length(forward) > 1e-4f) {
                     const Quat orientation = quat_look_along(forward);
                     cam.rotation = quat_to_camera_euler(orientation, roll_deg);
+                    cam.orientation = orientation;
+                    cam.orientation_valid = true;
                     cam.point_of_interest = cam.position + forward * 1000.0f;
                     cam.point_of_interest_enabled = true;
                 }
@@ -409,6 +411,8 @@ struct CameraMotionPath {
                 if (glm::length(forward) > 1e-4f) {
                     const Quat orientation = quat_look_along(forward);
                     cam.rotation = quat_to_camera_euler(orientation, roll_deg);
+                    cam.orientation = orientation;
+                    cam.orientation_valid = true;
                     cam.point_of_interest = cam.position + forward * 1000.0f;
                     cam.point_of_interest_enabled = true;
                 }

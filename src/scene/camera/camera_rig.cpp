@@ -25,9 +25,18 @@ Camera2_5D CameraRig::evaluate(
 
     Vec3 resolved_target = target.evaluate(time);
 
-    if (resolved && !target_name.empty()) {
-        if (auto target_world = resolved->world_position(target_name)) {
-            resolved_target = *target_world;
+    // ── Target resolution: bindings → legacy name fallback ─────────────
+    CameraBindingResolver binding_resolver(resolved);
+
+    if (resolved) {
+        if (!target_bindings.empty()) {
+            if (auto blended = binding_resolver.resolve_blend(target_bindings)) {
+                resolved_target = *blended;
+            }
+        } else if (!target_name.empty()) {
+            if (auto target_world = resolved->world_position(target_name)) {
+                resolved_target = *target_world;
+            }
         }
     }
 
@@ -57,6 +66,8 @@ Camera2_5D CameraRig::evaluate(
         cam.point_of_interest = resolved_target;
         cam.point_of_interest_enabled = true;
         cam.rotation.z = roll.evaluate(time);
+        cam.orientation = math::camera_rotation_quat(cam.rotation);
+        cam.orientation_valid = true;
     } else {
         cam.point_of_interest_enabled = false;
         cam.rotation = Vec3{
@@ -64,29 +75,57 @@ Camera2_5D CameraRig::evaluate(
             pan.evaluate(time),
             roll.evaluate(time)
         };
+        cam.orientation = math::camera_rotation_quat(cam.rotation);
+        cam.orientation_valid = true;
     }
 
     cam.dof.enabled = dof.enabled;
 
-    // Focus: resolve focus_target_name if set (can differ from rig target).
-    // Compute camera-space focus distance for the physical model.
-    if (dof.use_target_z) {
-        Vec3 focus_target_world = resolved_target;
-        if (resolved && !dof.focus_target_name.empty()) {
-            if (auto ft_world = resolved->world_position(dof.focus_target_name)) {
-                focus_target_world = *ft_world;
-            } else {
-                spdlog::warn("CameraRig '{}': focus_target '{}' not found in resolver, "
-                             "falling back to rig target",
-                             name, dof.focus_target_name);
+    // ── Focus resolution ────────────────────────────────────────────────
+    // Resolve focus plane using the declared focus_mode.  The three modes
+    // are mutually exclusive — no fallback assignment can overwrite the
+    // resolved value (fixes the focus-target overwrite bug).
+    cam.dof.use_physical_model = dof.use_physical_model;
+
+    switch (dof.focus_mode) {
+        case CameraFocusMode::TargetBinding: {
+            Vec3 focus_target_world = resolved_target;
+            if (resolved) {
+                // Prefer unified binding; fall back to legacy string.
+                if (!dof.focus_binding.empty()) {
+                    if (auto ft = binding_resolver.resolve_position(dof.focus_binding)) {
+                        focus_target_world = *ft;
+                    } else {
+                        spdlog::warn("CameraRig '{}': focus_binding '{}' not found in resolver, "
+                                     "falling back to rig target",
+                                     name, dof.focus_binding.name);
+                    }
+                } else if (!dof.focus_target_name.empty()) {
+                    if (auto ft_world = resolved->world_position(dof.focus_target_name)) {
+                        focus_target_world = *ft_world;
+                    } else {
+                        spdlog::warn("CameraRig '{}': focus_target '{}' not found in resolver, "
+                                     "falling back to rig target",
+                                     name, dof.focus_target_name);
+                    }
+                }
             }
+            // Camera-space distance — correct for orbiting/rotated cameras.
+            cam.dof.focus_distance = glm::length(focus_target_world - pos);
+            cam.dof.focus_z = focus_target_world.z;
+            break;
         }
-        // Camera-space distance — correct for orbiting/rotated cameras.
-        const f32 focus_dist = glm::length(focus_target_world - pos);
-        cam.dof.focus_distance = focus_dist;
-        cam.dof.focus_z = focus_target_world.z;
-    } else {
-        cam.dof.focus_z = dof.focus_z.evaluate(time);
+        case CameraFocusMode::ManualDistance: {
+            cam.dof.focus_distance = dof.focus_distance.evaluate(time);
+            cam.dof.focus_z = dof.focus_z.evaluate(time);
+            break;
+        }
+        case CameraFocusMode::LegacyWorldZ: {
+            cam.dof.focus_z = dof.focus_z.evaluate(time);
+            break;
+        }
+        default:
+            break;
     }
 
     cam.dof.aperture = dof.aperture.evaluate(time);
@@ -100,12 +139,8 @@ Camera2_5D CameraRig::evaluate(
     cam.lens.close_focus    = dof.close_focus.evaluate(time);
     cam.lens.gate_fit       = dof.gate_fit;
 
-    // Focus distance (runtime-evaluated, stays in dof).
-    cam.dof.focus_distance      = dof.focus_distance.evaluate(time);
-    cam.dof.use_physical_model  = dof.use_physical_model;
-
-    // ── Mark camera as animated if any property has keyframes/expressions ────
-    cam.is_animated =
+    // ── Mark camera as animated (local properties + external dependencies) ──
+    const bool has_local_animation =
         target.is_time_dependent() || orbit_yaw.is_time_dependent() ||
         orbit_pitch.is_time_dependent() || orbit_radius.is_time_dependent() ||
         track.is_time_dependent() || dolly.is_time_dependent() ||
@@ -115,6 +150,17 @@ Camera2_5D CameraRig::evaluate(
         dof.focal_length.is_time_dependent() || dof.sensor_width.is_time_dependent() ||
         dof.sensor_height.is_time_dependent() || dof.f_stop.is_time_dependent() ||
         dof.close_focus.is_time_dependent() || dof.focus_distance.is_time_dependent();
+
+    // External dependencies: parent_name, target_name, target_bindings,
+    // and focus_target_name/focus_binding may reference layers with animated
+    // transforms.  When any external reference is present, conservatively
+    // treat the camera as animated to prevent stale cache hits.
+    const bool has_external_dependencies =
+        !parent_name.empty() || !target_name.empty() ||
+        !target_bindings.empty() ||
+        !dof.focus_target_name.empty() || !dof.focus_binding.empty();
+
+    cam.is_animated = has_local_animation || has_external_dependencies;
 
     // ── Propagate motion blur from rig to camera ────────────────────────────
     cam.motion_blur.enabled          = motion_blur.enabled;

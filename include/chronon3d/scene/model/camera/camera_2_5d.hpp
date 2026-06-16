@@ -102,6 +102,16 @@ struct Camera2_5D {
     // Hierarchy
     std::pmr::string parent_name;
     std::pmr::string target_name; // If set, POI is resolved from this layer's world position
+
+    // ── Orientation ──────────────────────────────────────────────────────
+    // Primary orientation: Quat (gimbal-lock free).  When orientation_valid
+    // is true, this is the source of truth; rotation is kept in sync as a
+    // read-only Euler approximation.
+    Quat orientation{1.0f, 0.0f, 0.0f, 0.0f};
+    bool orientation_valid{false};
+
+    // Legacy Euler rotation (degrees).  Still writable for backward compat.
+    // Set orientation_valid=true and use .orientation directly in new code.
     Vec3 rotation{0, 0, 0};
 
     // Physical lens model — carries focal length, sensor size, f-stop,
@@ -121,51 +131,72 @@ struct Camera2_5D {
     // has explicit motion blur configuration.
     MotionBlurSettings motion_blur{};
 
+    /// Returns the resolved orientation: primary Quat when set, else
+    /// converts legacy Euler rotation.
     [[nodiscard]] Quat rotation_quaternion() const {
+        if (orientation_valid) return orientation;
         return math::camera_rotation_quat(rotation);
     }
 
     [[nodiscard]] Vec3 rotation_euler() const {
+        if (orientation_valid) return glm::degrees(glm::eulerAngles(orientation));
         return rotation;
     }
 
     void set_rotation_euler(Vec3 euler_deg) {
         rotation = euler_deg;
+        orientation = math::camera_rotation_quat(euler_deg);
+        orientation_valid = true;
     }
 
     void set_tilt(f32 degrees) {
         rotation.x = degrees;
+        orientation = math::camera_rotation_quat(rotation);
+        orientation_valid = true;
     }
 
     void add_tilt(f32 delta_degrees) {
         rotation.x += delta_degrees;
+        orientation = math::camera_rotation_quat(rotation);
+        orientation_valid = true;
     }
 
     void set_pan(f32 degrees) {
         rotation.y = degrees;
+        orientation = math::camera_rotation_quat(rotation);
+        orientation_valid = true;
     }
 
     void add_pan(f32 delta_degrees) {
         rotation.y += delta_degrees;
+        orientation = math::camera_rotation_quat(rotation);
+        orientation_valid = true;
     }
 
     void set_roll(f32 degrees) {
         rotation.z = degrees;
+        orientation = math::camera_rotation_quat(rotation);
+        orientation_valid = true;
     }
 
     void add_roll(f32 delta_degrees) {
         rotation.z += delta_degrees;
+        orientation = math::camera_rotation_quat(rotation);
+        orientation_valid = true;
     }
 
     [[nodiscard]] Mat4 view_matrix() const {
         if (point_of_interest_enabled && glm::length(point_of_interest - position) > 0.001f) {
-            Mat4 view = glm::lookAtLH(position, point_of_interest, Vec3{0.0f, 1.0f, 0.0f});
-            if (std::abs(rotation.z) > 0.0001f) {
-                const f32 r = glm::radians(rotation.z);
-                Mat4 roll_m = glm::rotate(Mat4{1.0f}, r, Vec3{0.0f, 0.0f, 1.0f});
-                view = roll_m * view;
+            f32 roll = 0.0f;
+            if (orientation_valid) {
+                roll = glm::degrees(glm::roll(orientation));
+            } else {
+                roll = rotation.z;
             }
-            return view;
+            const Quat look_orient = resolve_look_at_orientation(
+                position, point_of_interest, Vec3{0.0f, 1.0f, 0.0f}, roll);
+            const Mat4 rot_mat = glm::toMat4(look_orient);
+            return glm::inverse(glm::translate(Mat4{1.0f}, position) * rot_mat);
         }
         const Quat rot = rotation_quaternion();
         return math::camera_view_matrix(position, rot);

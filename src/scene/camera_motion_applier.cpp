@@ -12,6 +12,8 @@ Camera2_5D make_camera_from_pose(const CameraMotionPose& pose) {
     cam.enabled = true;
     cam.position = pose.position;
     cam.rotation = pose.rotation;
+    cam.orientation = math::camera_rotation_quat(pose.rotation);
+    cam.orientation_valid = true;
     cam.zoom = pose.zoom;
     return cam;
 }
@@ -26,6 +28,8 @@ void apply_camera_motion(SceneBuilder& s,
         const f32 t = chronon3d::easing::apply(p.primary.easing, normalized_time(local_frame, p.primary.duration));
         cam.position = lerp(p.primary.from.position, p.primary.to.position, t);
         cam.rotation = lerp(p.primary.from.rotation, p.primary.to.rotation, t);
+        cam.orientation = math::camera_rotation_quat(cam.rotation);
+        cam.orientation_valid = true;
         cam.zoom = lerp(p.primary.from.zoom, p.primary.to.zoom, t);
     } else {
         const f32 t = normalized_time(local_frame, p.duration);
@@ -42,6 +46,8 @@ void apply_camera_motion(SceneBuilder& s,
             cam.rotation.z = lerp(p.start_deg, p.end_deg, t);
             break;
         }
+        cam.orientation = math::camera_rotation_quat(cam.rotation);
+        cam.orientation_valid = true;
     }
 
     if (p.idle.enabled) {
@@ -52,6 +58,8 @@ void apply_camera_motion(SceneBuilder& s,
             : make_camera_from_pose(p.primary.enabled ? p.primary.from : p.pose);
         cam.position = idle_base.position + p.idle.position_amplitude * wave;
         cam.rotation = idle_base.rotation + p.idle.rotation_amplitude_deg * wave;
+        cam.orientation = math::camera_rotation_quat(cam.rotation);
+        cam.orientation_valid = true;
         cam.zoom = idle_base.zoom + p.idle.zoom_amplitude * wave;
     }
 

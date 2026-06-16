@@ -292,6 +292,8 @@ Scene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame frame, st
         cam.point_of_interest  = scene.camera->point_of_interest;
         cam.point_of_interest_enabled = scene.camera->point_of_interest_enabled;
         cam.rotation           = scene.camera->rotation.value_at(frame);
+        cam.orientation        = math::camera_rotation_quat(cam.rotation);
+        cam.orientation_valid  = true;
 
         double time = static_cast<double>(frame) / (static_cast<double>(scene.frame_rate.numerator) / scene.frame_rate.denominator);
         if (scene.camera->zoom.has_expression()) {

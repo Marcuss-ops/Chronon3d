@@ -76,6 +76,8 @@ Camera2_5D CameraNullRig::evaluate(Frame frame) const {
 
     cam.position = world_cam_pos;
     cam.rotation = acc_euler + cam_rot_offset;
+    cam.orientation = math::camera_rotation_quat(cam.rotation);
+    cam.orientation_valid = true;
 
     // --- Step 4: Point of Interest (Two-Node mode) ---
     if (point_of_interest_enabled) {
