@@ -19,7 +19,10 @@ public:
         m_effects[type] = std::move(processor);
     }
 
+    /// Register an effect processor for the given effect-params type T.
+    /// Constrained to complete object types (avoids void/function nonsense).
     template<typename T>
+        requires std::is_object_v<T>
     void register_effect_processor(std::unique_ptr<EffectProcessor> processor) {
         register_effect(std::type_index(typeid(T)), std::move(processor));
     }

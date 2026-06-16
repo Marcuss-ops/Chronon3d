@@ -18,6 +18,14 @@ inline constexpr bool is_glm_vec_type_v =
     std::is_same_v<T, glm::vec3> ||
     std::is_same_v<T, glm::vec4>;
 
+/// Concept for types that can be animated by AnimatedValue<T>.
+/// Requires default construction and copyability — the minimal contract
+/// that every animated value (f32, Vec3, Color, FillStyle, etc.) satisfies.
+template<typename T>
+concept AnimatableValue =
+    std::is_default_constructible_v<T> &&
+    std::is_copy_constructible_v<T>;
+
 namespace chronon3d {
 
 // Generic component-wise lerp used by AnimatedValue<T>.
@@ -192,7 +200,7 @@ namespace detail {
     return base;
 }
 
-template <typename T>
+template <AnimatableValue T>
 class AnimatedValue {
 public:
     AnimatedValue() = default;

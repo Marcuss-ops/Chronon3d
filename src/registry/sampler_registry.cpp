@@ -1,5 +1,6 @@
 #include <chronon3d/registry/sampler_registry.hpp>
 
+#include <ranges>
 #include <stdexcept>
 #include <utility>
 
@@ -73,18 +74,14 @@ const SamplerDescriptor& SamplerRegistry::get(std::string_view id) const {
 std::vector<std::string> SamplerRegistry::available() const {
     std::vector<std::string> ids;
     ids.reserve(m_samplers.size());
-    for (const auto& [id, _] : m_samplers) {
-        ids.push_back(id);
-    }
+    std::ranges::copy(m_samplers | std::views::keys, std::back_inserter(ids));
     return ids;
 }
 
 std::vector<SamplerDescriptor> SamplerRegistry::list() const {
     std::vector<SamplerDescriptor> descriptors;
     descriptors.reserve(m_samplers.size());
-    for (const auto& [_, descriptor] : m_samplers) {
-        descriptors.push_back(descriptor);
-    }
+    std::ranges::copy(m_samplers | std::views::values, std::back_inserter(descriptors));
     return descriptors;
 }
 
