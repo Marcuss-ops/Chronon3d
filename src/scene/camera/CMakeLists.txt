@@ -14,4 +14,5 @@ target_sources(chronon3d_scene PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/overlay_hud_panels.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/overlay_kinematic_panels.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/overlay_spatial_panels.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/overlay_diagnostic_panels.cpp
 )

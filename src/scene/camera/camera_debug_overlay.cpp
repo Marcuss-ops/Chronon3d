@@ -37,6 +37,10 @@ void add_camera_debug_overlay(
         draw_topdown_preview(ctx);
         draw_sideview_depth(ctx);
         draw_projected_bounds(ctx);
+
+        // ── Standardised diagnostic overlay ─────────────────────────
+        CameraDiagnosticOverlay diag{};
+        draw_diagnostic_overlay(ctx, diag);
     });
 }
 

@@ -1,6 +1,7 @@
 add_library(chronon3d_content_2d5 STATIC
     two_point_five_d_module.cpp
     compositions/two_point_five_d_compositions.cpp
+    compositions/camera_calibration_scene.cpp
     compositions/camera_advanced_tests.cpp
     compositions/camera_test_orchestrator.cpp
 )

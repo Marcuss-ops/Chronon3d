@@ -2,6 +2,8 @@
 #include <cmath>
 #include <algorithm>
 #include <limits>
+#include <sstream>
+#include <iomanip>
 
 namespace chronon3d {
 
@@ -27,6 +29,12 @@ CameraShotValidator& CameraShotValidator::require_inside_safe_area(std::string l
 
 CameraShotValidator& CameraShotValidator::require_depth_order(std::vector<std::string> front_to_back) {
     m_rules_depth_order.push_back({std::move(front_to_back)});
+    return *this;
+}
+
+const CameraShotValidator& CameraShotValidator::require_frame_visibility(float min_visible_ratio) const {
+    m_frame_visibility_enabled = true;
+    m_min_frame_visible_ratio = std::max(0.0f, min_visible_ratio);
     return *this;
 }
 
@@ -165,6 +173,51 @@ CameraShotReport CameraShotValidator::validate(
 
     for (auto&& pair : layer_reports) {
         report.layers.push_back(std::move(pair.second));
+    }
+
+    // ── Global frame visibility (mandatory — fail black frames) ───
+    if (m_frame_visibility_enabled) {
+        // Estimate frame visibility from layer bounding boxes.
+        // Sum of (bbox_area × visible_ratio) across all layers.
+        // Overlapping layers are double-counted — this is intentional
+        // because we only need to catch the "zero content" case.
+        float total_visible_area = 0.0f;
+        float max_layer_ratio    = 0.0f;
+
+        for (const auto& lr : report.layers) {
+            float area = (lr.bounds.max.x - lr.bounds.min.x)
+                       * (lr.bounds.max.y - lr.bounds.min.y);
+            total_visible_area += area * lr.bounds.visible_ratio;
+            max_layer_ratio = std::max(max_layer_ratio, lr.bounds.visible_ratio);
+        }
+
+        float viewport_area = static_cast<float>(viewport.width * viewport.height);
+        report.visibility.visible_pixel_ratio   =
+            (viewport_area > 0.0f) ? (total_visible_area / viewport_area) : 0.0f;
+        report.visibility.max_layer_visibility   = max_layer_ratio;
+        report.visibility.estimated_visible_area = total_visible_area;
+        report.visibility.is_black_frame         = (total_visible_area == 0.0f);
+
+        // Fail on completely black frame.
+        if (report.visibility.is_black_frame) {
+            report.passed = false;
+            report.failures.push_back(
+                "FRAME IS BLACK: zero visible pixels detected. "
+                "Camera may be outside the scene, objects behind camera, "
+                "or framebuffer not connected.");
+        }
+
+        // Fail on visible ratio below threshold.
+        if (report.visibility.visible_pixel_ratio < m_min_frame_visible_ratio
+            && !report.visibility.is_black_frame) {
+            report.passed = false;
+            std::ostringstream oss;
+            oss << std::fixed << std::setprecision(4)
+                << "Frame visible ratio " << report.visibility.visible_pixel_ratio
+                << " is below minimum " << m_min_frame_visible_ratio
+                << " (" << std::setprecision(1) << (m_min_frame_visible_ratio * 100.0f) << "%)";
+            report.failures.push_back(oss.str());
+        }
     }
 
     return report;
