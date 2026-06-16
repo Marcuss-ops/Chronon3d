@@ -112,7 +112,28 @@ no populated build directory — the first `./build-fast.sh` will compile
 
 | Host profile | Approx. wall‑clock (cold) |
 |---|---|
+A **vcpkg‑cold** row, for a contributor on a truly fresh machine where even
+the dependency manifest is not yet installed, sits *above* the table — vcpkg
+assembles the whole dependency chain from sources (spdlog, fmt, glm, tbb,
+blend2d, freetype+harfbuzz, openexr, libyuv, …) on the first cmake configure:
+
+| Host profile (vcpkg cold + ccache cold + tmpfs) | Approx. wall‑clock (cold) |
+|---|---|
+| 4 cores, 8 GB RAM, no tmpfs | **30–60 min** |
+| 8 cores, 16+ GB RAM, tmpfs enabled | **15–25 min** |
+| 16+ cores, 32+ GB RAM, tmpfs enabled | **10–20 min** |
+
+These bounds collapse to the table above once vcpkg has warmed up
+(`vcpkg_installed/` is populated), which is the state a contributor on
+day 2+ experiences.
+
+The numbers below are measured **after** vcpkg is already warm:
+
+| Host profile (`vcpkg_installed/` already warm, ccache cold, on this host) | Approx. wall‑clock (cold) |
+|---|---|
 | 4 cores, 8 GB RAM, SATA SSD, `/tmp` < 16 GiB free (no tmpfs path) | **10–15 min** |
+| 8 cores, 16+ GB RAM, `/tmp` with ≥ 16 GiB free (tmpfs builds apply) | **5–7 min** |
+| 16+ cores, 32+ GB RAM, tmpfs builds apply | **3–5 min** |
 | 8 cores, 16+ GB RAM, `/tmp` with ≥ 16 GiB free (tmpfs builds apply) | **5–7 min** |
 | 16+ cores, 32+ GB RAM, tmpfs builds apply | **3–5 min** |
 
