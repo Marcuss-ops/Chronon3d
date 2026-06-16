@@ -307,10 +307,18 @@ Composition camera_dolly_perspective_scale_test() {
 Composition camera_parent_null_rig_test() {
     return composition({.name = "CameraParentNullRigTest", .duration = 91}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_camera_calibration_scene(s);
 
-        // Parent null that rotates — camera_rig_null, camera_target
-        // and card_null all share this parent hierarchy
+        // Dark gray background (same as calibration scene for consistency)
+        s.layer("bg_fill", [](LayerBuilder& l) {
+            l.pin_to(Anchor::Center);
+            l.rect("bg", {
+                .size = {1920.0f, 1080.0f},
+                .color = {0.04f, 0.04f, 0.06f, 1.0f},
+                .pos = {0.0f, 0.0f, -10.0f}
+            });
+        });
+
+        // Parent null that rotates
         s.null_layer("camera_rig_null", [ctx](NullBuilder& n) {
             n.position({0.0f, 0.0f, 0.0f});
             n.rotation({0.0f, ctx.progress() * 20.0f, 0.0f});
@@ -321,7 +329,7 @@ Composition camera_parent_null_rig_test() {
             n.parent("camera_rig_null");
         });
 
-        // Reparent camera_target under the rig null
+        // Camera target (child of rig null)
         s.null_layer("camera_target", [](NullBuilder& n) {
             n.position({0.0f, 0.0f, 0.0f});
             n.parent("camera_rig_null");
@@ -349,7 +357,6 @@ Composition camera_parent_null_rig_test() {
         shot.rig.fov_deg.set(50.0f);
 
         shot.validator
-            .register_layer_size("calibration_card", {500.0f, 350.0f})
             .register_layer_size("card_a", {200.0f, 150.0f})
             .register_layer_size("card_b", {200.0f, 150.0f})
             .require_target_centered("camera_target", 3.0f)
@@ -666,9 +673,9 @@ Composition camera_coordinate_contract_test() {
                 .color = {1.0f, 0.3f, 0.3f, 0.7f}, .anchor = TextAnchor::TopLeft, .align = TextAlign::Left});
             l.text("tr_lbl", {.text = "TR", .pos = {HALF_W - CORNER - 52.0f, -HALF_H + CORNER + 2.0f, 0.2f}, .font_size = 10.0f,
                 .color = {0.3f, 1.0f, 0.3f, 0.7f}, .anchor = TextAnchor::TopLeft, .align = TextAlign::Left});
-            l.text("bl_lbl", {.text = "BL", .pos = {-HALF_W + 38.0f, -HALF_H + CORNER + 2.0f, 0.2f}, .font_size = 10.0f,
+            l.text("bl_lbl", {.text = "BL", .pos = {-HALF_W + 38.0f, HALF_H - CORNER - 2.0f, 0.2f}, .font_size = 10.0f,
                 .color = {0.3f, 0.3f, 1.0f, 0.7f}, .anchor = TextAnchor::TopLeft, .align = TextAlign::Left});
-            l.text("br_lbl", {.text = "BR", .pos = {HALF_W - CORNER - 52.0f, -HALF_H + CORNER + 2.0f, 0.2f}, .font_size = 10.0f,
+            l.text("br_lbl", {.text = "BR", .pos = {HALF_W - CORNER - 52.0f, HALF_H - CORNER - 2.0f, 0.2f}, .font_size = 10.0f,
                 .color = {1.0f, 1.0f, 0.3f, 0.7f}, .anchor = TextAnchor::TopLeft, .align = TextAlign::Left});
         });
 
@@ -810,7 +817,7 @@ Composition camera_binding_anchor_test() {
 Composition camera_front_baseline_test() {
     return composition({.name = "CameraFrontBaselineTest", .width = 1920, .height = 1080, .duration = 1}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_camera_calibration_scene(s);
+        add_camera_calibration_scene(s, false);
 
         CameraShotProfile shot;
         shot.rig.mode = CameraRigMode::TwoNode;
@@ -828,7 +835,7 @@ Composition camera_front_baseline_test() {
             .require_visible("calibration_card", 0.80f);
 
         return camera_test_orchestrator(ctx, s, shot, "CameraFrontBaselineTest",
-            calibration_landmark_layers(), {0});
+            {"calibration_card"}, {0});
     });
 }
 
@@ -840,7 +847,7 @@ Composition camera_front_baseline_test() {
 Composition camera_yaw_positive_test() {
     return composition({.name = "CameraYawPositiveTest", .width = 1920, .height = 1080, .duration = 1}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_camera_calibration_scene(s);
+        add_camera_calibration_scene(s, false);
 
         CameraShotProfile shot;
         shot.rig.mode = CameraRigMode::TwoNode;
@@ -858,7 +865,7 @@ Composition camera_yaw_positive_test() {
             .require_visible("calibration_card", 0.70f);
 
         return camera_test_orchestrator(ctx, s, shot, "CameraYawPositiveTest",
-            calibration_landmark_layers(), {0});
+            {"calibration_card"}, {0});
     });
 }
 
@@ -869,7 +876,7 @@ Composition camera_yaw_positive_test() {
 Composition camera_yaw_negative_test() {
     return composition({.name = "CameraYawNegativeTest", .width = 1920, .height = 1080, .duration = 1}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_camera_calibration_scene(s);
+        add_camera_calibration_scene(s, false);
 
         CameraShotProfile shot;
         shot.rig.mode = CameraRigMode::TwoNode;
@@ -887,7 +894,7 @@ Composition camera_yaw_negative_test() {
             .require_visible("calibration_card", 0.70f);
 
         return camera_test_orchestrator(ctx, s, shot, "CameraYawNegativeTest",
-            calibration_landmark_layers(), {0});
+            {"calibration_card"}, {0});
     });
 }
 

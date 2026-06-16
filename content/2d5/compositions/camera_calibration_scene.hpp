@@ -21,13 +21,13 @@ namespace chronon3d::content::two_point_five_d {
 ///       • Yellow center dot
 ///       • Thick cyan border
 ///       • Asymmetric text labels (TOP, LEFT, FRONT →, RIGHT, BOTTOM)
-///   - Three pillars at different Z depths (fake-box3d):
+///   - Three pillars at different Z depths (fake-box3d) [if include_pillars=true]:
 ///       pillar_near  → Z=-400  (cyan, tall)
 ///       pillar_mid   → Z=0     (blue, medium)
 ///       pillar_far   → Z=+400  (dark muted, short)
 ///   - A null layer named "camera_target" at origin
 ///   - A null layer named "camera_parent" at origin (for parent tests)
-void add_camera_calibration_scene(SceneBuilder& s);
+void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars = true);
 
 /// Returns the list of landmark layer names for auto-framing.
 /// These cover the main card + three pillars + axes area.
