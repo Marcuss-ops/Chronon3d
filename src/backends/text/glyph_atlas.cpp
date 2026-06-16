@@ -105,6 +105,7 @@ GlyphAtlasStats glyph_atlas_stats() {
     return s;
 }
 
+// ── glyph_atlas_store_from_text — Extract glyphs from a rendered text image ──
 void glyph_atlas_store_from_text(
     const std::string& font_path,
     const BLImage& rendered_text,
@@ -131,9 +132,8 @@ void glyph_atlas_store_from_text(
 
     for (size_t i = 0; i < run.size; ++i) {
         const u32 glyph_id = glyph_ids[i];
-        if (glyph_id == 0) continue; // skip .notdef
+        if (glyph_id == 0) continue;
 
-        // Get glyph placement from the run (already computed by Blend2D)
         const BLGlyphPlacement& placement = placements[i];
 
         // Get glyph bounds via batch API (single glyph)
@@ -143,11 +143,9 @@ void glyph_atlas_store_from_text(
         const BLBox bbox{static_cast<double>(bbox_i.x0), static_cast<double>(bbox_i.y0),
                          static_cast<double>(bbox_i.x1), static_cast<double>(bbox_i.y1)};
 
-        // Glyph position in the rendered image
         const int gx = static_cast<int>(std::floor(text_origin_x + placement.placement.x));
         const int gy = static_cast<int>(std::floor(text_origin_y + placement.placement.y));
 
-        // Bounding box of the glyph in the image
         const int gx0 = gx + static_cast<int>(std::floor(bbox.x0));
         const int gy0 = gy + static_cast<int>(std::floor(bbox.y0));
         const int gx1 = gx + static_cast<int>(std::ceil(bbox.x1));
@@ -158,7 +156,6 @@ void glyph_atlas_store_from_text(
         if (gw <= 0 || gh <= 0) continue;
         if (gx0 < 0 || gy0 < 0 || gx1 > img_w || gy1 > img_h) continue;
 
-        // Extract glyph bitmap
         auto glyph_img = std::make_shared<BLImage>(gw, gh, BL_FORMAT_PRGB32);
         {
             BLImageData glyph_data;
@@ -184,6 +181,7 @@ void glyph_atlas_store_from_text(
     }
 }
 
+// ── glyph_atlas_store_from_placed_run — Store from a shaped PlacedGlyphRun ──
 void glyph_atlas_store_from_placed_run(
     const std::string& font_path,
     const BLImage& rendered_text,
@@ -207,7 +205,6 @@ void glyph_atlas_store_from_placed_run(
     for (const auto& pg : placed.glyphs) {
         if (pg.glyph_id == 0) continue;
 
-        // Skip if already cached with matching color
         auto existing = glyph_atlas_lookup(font_path, pg.glyph_id, fs);
         if (existing && existing->fill_color_rgba == fill_color_rgba) continue;
 
@@ -237,8 +234,8 @@ void glyph_atlas_store_from_placed_run(
 
         GlyphAtlasEntry entry;
         entry.image     = glyph_img;
-        entry.x_offset  = static_cast<int>(bbox.x0);
-        entry.y_offset  = static_cast<int>(bbox.y0);
+        entry.x_offset  = bbox_i.x0;
+        entry.y_offset  = bbox_i.y0;
         entry.advance_x = pg.advance_x;
         entry.fill_color_rgba = fill_color_rgba;
         glyph_atlas_store(font_path, pg.glyph_id, fs, entry);

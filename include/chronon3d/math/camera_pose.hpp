@@ -3,7 +3,23 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <glm/gtx/quaternion.hpp>
 
-namespace chronon3d::math {
+namespace chronon3d {
+
+/// Camera pose utility: position + orientation quaternion with direction helpers.
+struct CameraPose {
+    Vec3 position;
+    Quat orientation;
+
+    CameraPose() = default;
+    CameraPose(const Vec3& pos, const Quat& orient)
+        : position(pos), orientation(orient) {}
+
+    Vec3 forward() const { return orientation * Vec3{0.0f, 0.0f, -1.0f}; }
+    Vec3 right()   const { return orientation * Vec3{1.0f, 0.0f, 0.0f};  }
+    Vec3 up()      const { return orientation * Vec3{0.0f, 1.0f, 0.0f};  }
+};
+
+namespace math {
 
 inline Quat camera_rotation_quat(const Vec3& euler_degrees) {
     return glm::quat(glm::radians(euler_degrees));
@@ -31,3 +47,4 @@ inline Mat4 camera_view_matrix(const Vec3& position, const Quat& rotation,
 }
 
 } // namespace chronon3d::math
+} // namespace chronon3d

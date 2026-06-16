@@ -24,7 +24,7 @@ static void add_corner_marker(LayerBuilder& l, const char* name,
     });
 }
 
-void add_camera_calibration_scene(SceneBuilder& s) {
+void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
     // ── 1. Ambient & directional lights ─────────────────────────────────
     s.ambient_light({1.0f, 1.0f, 1.0f, 1.0f}, 0.45f);
     s.directional_light({0.0f, 0.0f, -1.0f},
@@ -229,10 +229,11 @@ void add_camera_calibration_scene(SceneBuilder& s) {
             .pos = {0.0f, 0.0f, 0.15f}
         });
 
-        // Text labels
+        // Text labels — Y-down convention (positive Y = down on screen).
+        // TOP is at NEGATIVE Y (above center), BOTTOM at POSITIVE Y (below center).
         l.text("label_top", {
             .text = "TOP",
-            .pos = {0.0f, kCardHalfH - 18.0f, 0.15f},
+            .pos = {0.0f, -kCardHalfH + 18.0f, 0.15f},
             .font_size = 20.0f,
             .color = {0.75f, 0.85f, 1.0f, 0.85f},
             .anchor = TextAnchor::Center,
@@ -268,7 +269,7 @@ void add_camera_calibration_scene(SceneBuilder& s) {
 
         l.text("label_bottom", {
             .text = "BOTTOM",
-            .pos = {0.0f, -kCardHalfH + 18.0f, 0.15f},
+            .pos = {0.0f, kCardHalfH - 18.0f, 0.15f},
             .font_size = 20.0f,
             .color = {0.75f, 0.85f, 1.0f, 0.85f},
             .anchor = TextAnchor::Center,
