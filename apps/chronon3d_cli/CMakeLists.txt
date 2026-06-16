@@ -164,6 +164,7 @@ target_link_libraries(chronon3d_cli PRIVATE
     chronon3d_cli_dev
     chronon3d_cli_bench
     chronon3d_backend_image
+    chronon3d_backend_text
     spdlog::spdlog_header_only
     fmt::fmt
 )

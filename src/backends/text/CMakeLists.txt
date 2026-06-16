@@ -8,6 +8,7 @@ add_library(chronon3d_backend_text STATIC
     text_material.cpp
     font_engine.cpp
     bidi_segmenter.cpp
+    glyph_atlas.cpp
 )
 target_link_libraries(chronon3d_backend_text PUBLIC
     chronon3d
