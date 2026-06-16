@@ -369,7 +369,7 @@ Per build di release / verifica deterministica (preset `linux-release`, niente s
 
 ```bash
 cmake --preset linux-release
-cmake --build build/chronon/linux-release -j 4
+cmake --build build/chronon/linux-release -j$(nproc)
 ```
 
 ### Test obbligatori (quando disponibili)
