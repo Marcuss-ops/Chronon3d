@@ -41,4 +41,11 @@ void draw_path_trace(const OverlayContext& ctx);
 void draw_topdown_preview(const OverlayContext& ctx);
 void draw_sideview_depth(const OverlayContext& ctx);
 
+// ── Standardised diagnostic overlay ──────────────────────────────
+
+void draw_diagnostic_overlay(
+    const OverlayContext& ctx,
+    const CameraDiagnosticOverlay& diag
+);
+
 } // namespace chronon3d
