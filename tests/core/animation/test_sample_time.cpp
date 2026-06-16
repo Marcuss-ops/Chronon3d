@@ -202,26 +202,28 @@ TEST_CASE("TemporalSampleKey: static node key shared across sub-samples") {
 }
 
 // ===========================================================================
-// SampleTimeKey — backward compatibility tests (deprecated)
+// TemporalSampleKey — backward compatibility via make_temporal_key
 // ===========================================================================
-TEST_CASE("SampleTimeKey: same time → same key (legacy)") {
+TEST_CASE("TemporalSampleKey: same time + version → same key (backward compat)") {
     const FrameRate rate{30, 1};
-    auto k1 = SampleTimeKey::from_sample_time(SampleTime::from_frame(12.375, rate));
-    auto k2 = SampleTimeKey::from_sample_time(SampleTime::from_frame(12.375, rate));
+    auto st = SampleTime::from_frame(12.375, rate);
+    auto k1 = make_temporal_key(st, 0);
+    auto k2 = make_temporal_key(st, 0);
     CHECK(k1 == k2);
-    CHECK(k1.ticks == k2.ticks);
+    CHECK(k1.subframe_tick == static_cast<u32>(std::llround(0.375 * 65536)));
 }
 
-TEST_CASE("SampleTimeKey: different times → different keys (legacy)") {
+TEST_CASE("TemporalSampleKey: different times → different keys (backward compat)") {
     const FrameRate rate{30, 1};
-    auto k1 = SampleTimeKey::from_sample_time(SampleTime::from_frame(12.0, rate));
-    auto k2 = SampleTimeKey::from_sample_time(SampleTime::from_frame(12.5, rate));
+    auto k1 = make_temporal_key(SampleTime::from_frame(12.0, rate), 0);
+    auto k2 = make_temporal_key(SampleTime::from_frame(12.5, rate), 0);
     CHECK(k1 != k2);
 }
 
-TEST_CASE("SampleTimeKey: from_frame_int matches integer frame (legacy)") {
-    auto k = SampleTimeKey::from_frame_int(42);
-    CHECK(k.ticks == 42 * SampleTimeKey::kTicksPerFrame);
+TEST_CASE("TemporalSampleKey: from_frame_int via TemporalSampleKey (backward compat)") {
+    const FrameRate rate{30, 1};
+    auto k = make_temporal_key(SampleTime::from_frame_int(42, rate), 0);
+    CHECK(k.frame == 42);
 }
 
 // ===========================================================================
