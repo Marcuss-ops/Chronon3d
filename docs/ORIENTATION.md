@@ -110,6 +110,7 @@ Composition (C++) → Scene → RenderGraph (DAG) → GraphExecutor → Software
 - **CPU-only**: software rendering con SIMD (Google Highway) — nessuna GPU
 - **Render Graph**: DAG con caching per content-hash, invalidazione dirty rect
 - **Camera 2.5D**: AE-style Classic 3D con Z depth, parallax, prospettiva
+- **Camera 3D**: layer `enable_3d()` + `camera_2_5d(...)` con posizione, zoom, `point_of_interest` → vedi [Camera 3D — Setup canonico](#camera-3d--setup-canonico)
 - **Framebuffer Pool**: preallocazione con Huge Pages per minimizzare allocazioni runtime
 
 ---
@@ -389,6 +390,154 @@ s.camera_2_5d({
 });
 ```
 Convention: Z negative = closer (larger), Z positive = farther (smaller).
+
+### Camera 3D — Setup canonico
+
+> **TL;DR.** Una scena diventa davvero 3D prospettico solo quando **due**
+> blocchi sono presenti contemporaneamente: una camera `camera_2_5d(...)`
+> completamente configurata **e** il/i layer `enable_3d(true)` con
+> posizione in coordinate mondo. Senza camera il layer 3D degenera in un
+> quad 2D stirato; senza `enable_3d()` la posizione è interpretata in
+> pixel schermo. Le due convenzioni si escludono a vicenda.
+
+#### Gerarchia delle coordinate
+
+| Modalità | Posizione del layer | Rotazione | Quando si usa |
+|---|---|---|---|
+| **2D** (default) | pixel schermo top-left `(x, y, 0)` | ignorata | sprite, titoli, layout statici |
+| **Layer 2.5D** (`enable_3d()`) | coordinate mondo centrate `(x, y, z)` | gradi Euler XYZ | parallax, scale-by-Z, glow proiettato |
+| **Camera prospettica** (richiede *anche* `camera_2_5d(...)`) | come sopra + proiezione prospettica | come sopra | rotazione 3D vera, DoF, dolly, pan, tilt, orbit |
+
+Le righe 2D della renderer pipeline rimangono sempre attive per layer
+senza `enable_3d()`, quindi è possibile mischiare layer 2D e 3D nella
+stessa scena — l'ordinamento è painter-algorithm (insertion order).
+
+#### Unità, segni e convenzioni
+
+- **Angoli di rotazione**: gradi (NON radianti). `rotate({15.0f, -20.0f, 0.0f})` = +15° X, −20° Y, 0° Z.
+- **Segno rotazioni**: positivo = antiorario guardando il semiasse positivo dell'asse (right-hand rule).
+- **Asse Z**: **Z negativo = più vicino alla camera (più grande)**; Z positivo = più lontano (più piccolo). È la convenzione AE.
+- **`point_of_interest`**: è il punto che la camera mantiene centrato nel frame. Spostarlo equivale a orbitare la camera attorno ad esso. Se è fuori dal viewport l'inquadratura si inclina di conseguenza.
+- **`zoom`**: fattore di scala della proiezione. Range sano `100 – 5000`. **`zoom = 0` disattiva silenziosamente la proiezione** (appare come layer 2D stirato, identico al caso `camera_2_5d` non abilitato).
+- **`position`**: coordinate **mondo centrate** `(0, 0, 0)` non `(W/2, H/2, 0)`.
+
+#### Esempio minimo canonico
+
+```cpp
+// ── Compilabile, autocontenuto, copiabile in un nuovo file di composizione. ──
+Composition example_3d_card() {
+    return composition(
+        {
+            .name = "Example3DCard",
+            .width = 1920,
+            .height = 1080,
+            .duration = 150,
+        },
+        [](const FrameContext& ctx) {
+            SceneBuilder scene(ctx);
+
+            // 1. Camera prospettica (richiesto perché enable_3d() è true sotto).
+            scene.camera_2_5d({
+                .enabled           = true,
+                .position          = {0.0f, 0.0f, -1200.0f}, // Z negativo = più vicino
+                .point_of_interest = {0.0f, 0.0f, 0.0f},
+                .zoom              = 1000.0f,                // ! mai zero
+            });
+
+            // 2. Layer in coordinate mondo (NON pixel schermo).
+            scene.layer("card", [&](LayerBuilder& layer) {
+                layer.enable_3d(true);
+                layer.position({0.0f, 0.0f, 120.0f});       // mondo, centrato
+                layer.rotate({0.0f, -15.0f, 0.0f});         // gradi, −15° su Y
+
+                // Contenuto del layer.
+                layer.rounded_rect("body",
+                    {.size = {300.0f, 420.0f},
+                     .radius = 24.0f,
+                     .color = {0.10f, 0.13f, 0.18f, 1.0f}});
+                layer.text("title",
+                    {.content = "EXAMPLE 3D",
+                     .style   = {.font_size = 64.0f,
+                                 .color     = {1.0f, 1.0f, 1.0f, 1.0f},
+                                 .align     = TextAlign::Center}});
+            });
+
+            return scene.build();
+        }
+    );
+}
+```
+
+#### Esempio breve di animazione prospettica
+
+```cpp
+Composition example_3d_tilt() {
+    return composition(
+        {.name = "Example3DTilt", .width = 1920, .height = 1080, .duration = 90},
+        [](const FrameContext& ctx) {
+            SceneBuilder scene(ctx);
+
+            scene.camera_2_5d({
+                .enabled           = true,
+                .position          = {0.0f, 0.0f, -1000.0f},
+                .point_of_interest = {0.0f, 0.0f, 0.0f},
+                .zoom              = 1000.0f,
+            });
+
+            const float t = static_cast<float>(ctx.frame);
+            const float rotY = std::sin(t * 0.06f) * 25.0f; // −25° … +25°
+
+            scene.layer("card", [&](LayerBuilder& layer) {
+                layer.enable_3d(true)
+                     .position({0.0f, 0.0f, 80.0f})
+                     .rotate({0.0f, rotY, 0.0f});
+                layer.text("hero",
+                    {.content = "TILT", .style = {.font_size = 140.0f}});
+            });
+            return scene.build();
+        }
+    );
+}
+```
+
+#### Errori frequenti (le cinque trappole più comuni)
+
+| # | Errore | Cosa si vede | Soluzione |
+|---|---|---|---|
+| 1 | **`rotate({..., yaw, ...})` senza `enable_3d(true)`** | il layer non ruota (rotazione ignorata per layer 2D) | aggiungere `enable_3d(true)` *prima* di `rotate(...)` |
+| 2 | **`enable_3d(true)` ma `camera_2_5d` non abilitato / fuori frame** | layer stirato 2D o clipped | configurare `camera_2_5d({.enabled = true, .zoom > 0.f})` con `zoom ∈ [100, 5000]` |
+| 3 | **Posizione dietro al near-plane** (`z > −200` con `zoom >= 1000`) o dietro la camera (`z >= cam.position.z`) | layer invisibile o capovolto (rotazione speculare) | tenere `z ∈ [cam.position.z, cam.position.z − 3000]` per layer visibili |
+| 4 | **Angoli in radianti** | rotazione di 57× più veloce del previsto, jitter | convertire con `glm::degrees(rad)`; l'API pubblica accetta **gradi** |
+| 5 | **Anchor 2D applicato a layer 3D** (`pin_to(Anchor::Center)`) | il pivot viene interpretato come pixel schermo, la rotazione orbita attorno a un punto inatteso | per layer 3D usare `position({x, y, z})` in coordinate mondo, **mai** `pin_to` |
+
+#### Cosa succede se `enable_3d(true)` manca su un layer con `camera_2_5d` attiva
+
+Il layer viene comunque renderizzato, ma la sua posizione è
+interpretata come pixel schermo e la rotazione è ignorata. Visivamente
+appare come un rettangolo 2D «sopra» la prospettiva del resto della
+scena. È il bug più comune e il più difficile da diagnosticare perché
+non genera errori.
+
+#### Implementazioni di riferimento
+
+- `content/2d5/compositions/camera_calibration_scene.cpp` — scena multi-layer con pillar `cache_static`.
+- `content/anims/compositions/tilt_sweep_title_v2.cpp` — hero layer 3D + animazione camera.
+- `tests/renderer/camera/test_camera_*.cpp` — unit test del rig, motion, DoF, gerarchia.
+- `tests/visual/camera/camera_visual_scenes.cpp` — smoke visivi per gli assi `Orbit / Tilt / Roll / Pan`.
+
+#### Validazione pratica
+
+```bash
+# Smoke shot canonici (4 scene coperte dal validator):
+bash tools/render_camera_artifacts.sh
+
+# Safe-area + clipping + integrità testo:
+python3 tools/visual_quality_suite.py \
+  --executable ./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli \
+  --camera-template OrbitCameraTest ExtremePerspectiveTest \
+                    HeroTextFrontTest ZStackParallaxTest \
+  --camera-output-dir output/camera_smoke
+```
 
 ### Animation
 ```cpp
