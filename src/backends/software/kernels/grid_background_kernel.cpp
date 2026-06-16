@@ -129,65 +129,69 @@ void render_grid_background_kernel(
     const bool has_active_cols = !active_x.empty();
     const i32 active_count = static_cast<i32>(active_x.size());
 
-    // auto_partitioner (no explicit grain size) — TBB dynamically adapts
-    // chunk size based on workload, cache locality, and available workers.
+    // simple_partitioner forces TBB to split the range into chunks (one per
+    // worker) instead of relying on auto_partitioner's adaptive coarse default,
+    // which empirically leaves parallel_for serialised on sparse grid rows
+    // and caps peak workers at 1. The extra scheduling overhead is negligible
+    // for the per-row body weight here.
     tbb::parallel_for(tbb::blocked_range<i32>(y0, y1),
         [&](const tbb::blocked_range<i32>& range) {
+            for (i32 y = range.begin(); y != range.end(); ++y) {
+                Color* row = fb.pixels_row(y);
 
-        for (i32 y = range.begin(); y != range.end(); ++y) {
-            Color* row = fb.pixels_row(y);
+                const f32 gy          = static_cast<f32>(y) - origin_y - offset_y;
+                const f32 row_minor_w = line_weight(cell_distance(gy, minor_step), minor_thickness);
+                const f32 row_major_w = use_major
+                    ? line_weight(cell_distance(gy, major_step), major_thickness)
+                    : 0.0f;
+                const bool row_active = (row_minor_w > 0.0f || row_major_w > 0.0f);
 
-            const f32 gy          = static_cast<f32>(y) - origin_y - offset_y;
-            const f32 row_minor_w = line_weight(cell_distance(gy, minor_step), minor_thickness);
-            const f32 row_major_w = use_major
-                ? line_weight(cell_distance(gy, major_step), major_thickness)
-                : 0.0f;
-            const bool row_active = (row_minor_w > 0.0f || row_major_w > 0.0f);
+                if (row_active) {
+                    // ── Full horizontal scan: row has a grid line ──────────
+                    for (i32 x = x0; x < x1; ++x) {
+                        if (mask_pixels) {
+                            if (x < 0 || x >= mask_w || y < 0 || y >= mask_h) continue;
+                            if (mask_pixels[static_cast<usize>(y) * mask_w + x].a <= 0.5f) continue;
+                        }
 
-            if (row_active) {
-                // ── Full horizontal scan: row has a grid line ──────────
-                for (i32 x = x0; x < x1; ++x) {
-                    if (mask_pixels) {
-                        if (x < 0 || x >= mask_w || y < 0 || y >= mask_h) continue;
-                        if (mask_pixels[static_cast<usize>(y) * mask_w + x].a <= 0.5f) continue;
+                        const auto& cw = cols[static_cast<usize>(x - x0)];
+                        const f32 minor_alpha = std::max(row_minor_w, cw.minor) * minor_adj.a;
+                        const f32 major_alpha = std::max(row_major_w, cw.major) * major_adj.a;
+
+                        if (major_alpha <= 0.0f && minor_alpha <= 0.0f) continue;
+
+                        const f32 alpha = std::max(minor_alpha, major_alpha);
+                        Color line = (major_alpha >= minor_alpha) ? major_adj : minor_adj;
+                        line.a = alpha;
+                        row[x] = compositor::blend_normal(line, row[x]);
                     }
+                } else if (has_active_cols) {
+                    // ── Sparse: only touch columns that have a vertical line ─
+                    for (i32 ci = 0; ci < active_count; ++ci) {
+                        const i32 x = active_x[static_cast<usize>(ci)];
+                        if (mask_pixels) {
+                            if (x < 0 || x >= mask_w || y < 0 || y >= mask_h) continue;
+                            if (mask_pixels[static_cast<usize>(y) * mask_w + x].a <= 0.5f) continue;
+                        }
 
-                    const auto& cw = cols[static_cast<usize>(x - x0)];
-                    const f32 minor_alpha = std::max(row_minor_w, cw.minor) * minor_adj.a;
-                    const f32 major_alpha = std::max(row_major_w, cw.major) * major_adj.a;
+                        const auto& cw = cols[static_cast<usize>(x - x0)];
+                        // row weights are zero since row_active == false
+                        const f32 minor_alpha = cw.minor * minor_adj.a;
+                        const f32 major_alpha = cw.major * major_adj.a;
 
-                    if (major_alpha <= 0.0f && minor_alpha <= 0.0f) continue;
+                        if (major_alpha <= 0.0f && minor_alpha <= 0.0f) continue;
 
-                    const f32 alpha = std::max(minor_alpha, major_alpha);
-                    Color line = (major_alpha >= minor_alpha) ? major_adj : minor_adj;
-                    line.a = alpha;
-                    row[x] = compositor::blend_normal(line, row[x]);
-                }
-            } else if (has_active_cols) {
-                // ── Sparse: only touch columns that have a vertical line ─
-                for (i32 ci = 0; ci < active_count; ++ci) {
-                    const i32 x = active_x[static_cast<usize>(ci)];
-                    if (mask_pixels) {
-                        if (x < 0 || x >= mask_w || y < 0 || y >= mask_h) continue;
-                        if (mask_pixels[static_cast<usize>(y) * mask_w + x].a <= 0.5f) continue;
+                        const f32 alpha = std::max(minor_alpha, major_alpha);
+                        Color line = (major_alpha >= minor_alpha) ? major_adj : minor_adj;
+                        line.a = alpha;
+                        row[x] = compositor::blend_normal(line, row[x]);
                     }
-
-                    const auto& cw = cols[static_cast<usize>(x - x0)];
-                    // row weights are zero since row_active == false
-                    const f32 minor_alpha = cw.minor * minor_adj.a;
-                    const f32 major_alpha = cw.major * major_adj.a;
-
-                    if (major_alpha <= 0.0f && minor_alpha <= 0.0f) continue;
-
-                    const f32 alpha = std::max(minor_alpha, major_alpha);
-                    Color line = (major_alpha >= minor_alpha) ? major_adj : minor_adj;
-                    line.a = alpha;
-                    row[x] = compositor::blend_normal(line, row[x]);
                 }
+                // else: no grid lines in this row or column → nothing to blend
             }
-            // else: no grid lines in this row or column → nothing to blend
-        }
-    });
+        },
+        tbb::simple_partitioner{}
+    );
 }
 
 } // namespace chronon3d::renderer
