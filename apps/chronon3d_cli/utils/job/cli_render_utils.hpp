@@ -11,11 +11,38 @@
 namespace chronon3d {
 namespace cli {
 
+/// Concept: Args must have a nested 'pipeline' struct with all the
+/// standard render-settings fields that settings_from_args accesses.
+/// Intentionally exhaustive — catches missing fields at concept-check
+/// time rather than deep in the template body.
+template<typename Args>
+concept PipelinableArgs = requires(const Args& a) {
+    a.pipeline.diagnostic;
+    a.pipeline.diagnostic_plan;
+    a.pipeline.diagnostic_plan_output;
+    a.pipeline.use_modular_graph;
+    a.pipeline.dirty_rects;
+    a.pipeline.tile_size;
+    a.pipeline.quality.motion_blur;
+    a.pipeline.quality.motion_blur_samples;
+    a.pipeline.quality.shutter_angle_deg;
+    a.pipeline.quality.shutter_phase_deg;
+    a.pipeline.quality.motion_blur_pattern;
+    a.pipeline.quality.motion_blur_filter;
+    a.pipeline.quality.ssaa;
+    a.pipeline.force_scalar_normal_blend;
+    a.pipeline.program_cache_capacity;
+    a.pipeline.program_cache_tune;
+    a.pipeline.program_cache_tune_interval;
+    a.pipeline.program_cache_tune_min_capacity;
+    a.pipeline.program_cache_tune_max_capacity;
+};
+
 /// Build a RenderSettings from any args struct that has the standard render fields
 /// (pipeline.use_modular_graph, pipeline.quality.motion_blur, etc.).
 /// motion_blur_allowed: set to false when the composition type doesn't support it (e.g. specscene).
 /// diagnostic: pass args.pipeline.diagnostic if available, otherwise defaults to false.
-template<typename Args>
+template<PipelinableArgs Args>
 RenderSettings settings_from_args(const Args& args,
                                   bool motion_blur_allowed = true,
                                   bool diagnostic = false) {

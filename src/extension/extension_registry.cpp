@@ -7,6 +7,7 @@
 #include <chronon3d/render_graph/registry/graph_node_registry.hpp>
 #include <chronon3d/core/composition/composition_registration.hpp>
 
+#include <ranges>
 #include <algorithm>
 #include <stdexcept>
 #include <unordered_set>
@@ -98,12 +99,9 @@ bool ExtensionRegistry::has_module(std::string_view id) const {
 }
 
 std::vector<std::string> ExtensionRegistry::module_ids() const {
-    std::vector<std::string> ids;
-    ids.reserve(m_impl->modules.size());
-    for (const auto& m : m_impl->modules) {
-        ids.emplace_back(m->id());
-    }
-    return ids;
+    auto ids_view = m_impl->modules
+                  | std::views::transform([](const auto& m) { return std::string(m->id()); });
+    return {ids_view.begin(), ids_view.end()};
 }
 
 // ── Domain registry accessors ──────────────────────────────────────────
