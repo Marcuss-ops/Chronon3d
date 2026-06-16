@@ -13,6 +13,7 @@ Composition catmull_rom_showcase();
 Composition dolly_zoom_showcase();
 Composition camera_spline_comparison();
 Composition tilt_sweep_title();
+Composition tilt_sweep_title_v2();
 
 // Text animation compositions (text_animations.cpp)
 Composition anim_slide_up();
@@ -64,6 +65,7 @@ public:
 
         // Cinematic title reveal
         registry.register_composition("TiltSweepTitle",          tilt_sweep_title);
+        registry.register_composition("TiltSweepTitleV2",       tilt_sweep_title_v2);
     }
 };
 

@@ -115,70 +115,16 @@ void glyph_atlas_store_from_text(
     float text_origin_y,
     float font_size
 ) {
-    BLImageData img_data;
-    if (rendered_text.getData(&img_data) != BL_SUCCESS) return;
-    if (!img_data.pixelData || img_data.size.w <= 0 || img_data.size.h <= 0) return;
-
-    const int img_w = img_data.size.w;
-    const int img_h = img_data.size.h;
-    const int stride = static_cast<int>(img_data.stride / sizeof(uint32_t));
-
-    // Iterate glyphs in the buffer and extract each glyph's bitmap
-    const BLGlyphRun& run = gb.glyphRun();
-    if (!run.glyphData || !run.placementData) return;
-
-    const auto* glyph_ids = static_cast<const uint32_t*>(run.glyphData);
-    const auto* placements = static_cast<const BLGlyphPlacement*>(run.placementData);
-
-    for (size_t i = 0; i < run.size; ++i) {
-        const u32 glyph_id = glyph_ids[i];
-        if (glyph_id == 0) continue;
-
-        const BLGlyphPlacement& placement = placements[i];
-
-        // Get glyph bounds via batch API (single glyph)
-        BLBoxI bbox_i;
-        uint32_t gid = glyph_id;
-        if (font.getGlyphBounds(&gid, 0, &bbox_i, 1) != BL_SUCCESS) continue;
-        const BLBox bbox{static_cast<double>(bbox_i.x0), static_cast<double>(bbox_i.y0),
-                         static_cast<double>(bbox_i.x1), static_cast<double>(bbox_i.y1)};
-
-        const int gx = static_cast<int>(std::floor(text_origin_x + placement.placement.x));
-        const int gy = static_cast<int>(std::floor(text_origin_y + placement.placement.y));
-
-        const int gx0 = gx + static_cast<int>(std::floor(bbox.x0));
-        const int gy0 = gy + static_cast<int>(std::floor(bbox.y0));
-        const int gx1 = gx + static_cast<int>(std::ceil(bbox.x1));
-        const int gy1 = gy + static_cast<int>(std::ceil(bbox.y1));
-
-        const int gw = gx1 - gx0;
-        const int gh = gy1 - gy0;
-        if (gw <= 0 || gh <= 0) continue;
-        if (gx0 < 0 || gy0 < 0 || gx1 > img_w || gy1 > img_h) continue;
-
-        auto glyph_img = std::make_shared<BLImage>(gw, gh, BL_FORMAT_PRGB32);
-        {
-            BLImageData glyph_data;
-            if (glyph_img->getData(&glyph_data) != BL_SUCCESS) continue;
-            auto* dst = static_cast<uint32_t*>(glyph_data.pixelData);
-            auto* src = static_cast<const uint32_t*>(img_data.pixelData);
-            const int gs = static_cast<int>(glyph_data.stride / sizeof(uint32_t));
-
-            for (int y = 0; y < gh; ++y) {
-                for (int x = 0; x < gw; ++x) {
-                    dst[y * gs + x] = src[(gy0 + y) * stride + (gx0 + x)];
-                }
-            }
-        }
-
-        GlyphAtlasEntry entry;
-        entry.image     = glyph_img;
-        entry.x_offset  = gx0;
-        entry.y_offset  = gy0;
-        entry.advance_x = static_cast<float>(placement.advance.x);
-
-        glyph_atlas_store(font_path, glyph_id, static_cast<u32>(std::ceil(font_size)), entry);
-    }
+    // Deprecated: uses removed Blend2D v0.12+ APIs (getGlyphRun, getGlyphPlacement,
+    // 2-arg getGlyphBounds). The per-glyph atlas hot-path uses
+    // glyph_atlas_store_from_placed_run (HarfBuzz-shaped runs) instead.
+    (void)font_path;
+    (void)rendered_text;
+    (void)gb;
+    (void)font;
+    (void)text_origin_x;
+    (void)text_origin_y;
+    (void)font_size;
 }
 
 // ── glyph_atlas_store_from_placed_run — Store from a shaped PlacedGlyphRun ──
@@ -209,15 +155,13 @@ void glyph_atlas_store_from_placed_run(
         if (existing && existing->fill_color_rgba == fill_color_rgba) continue;
 
         BLBoxI bbox_i;
-        uint32_t gid = pg.glyph_id;
-        if (font.getGlyphBounds(&gid, 0, &bbox_i, 1) != BL_SUCCESS) continue;
-        const BLBox bbox{static_cast<double>(bbox_i.x0), static_cast<double>(bbox_i.y0),
-                         static_cast<double>(bbox_i.x1), static_cast<double>(bbox_i.y1)};
+        const u32 gid = pg.glyph_id;
+        if (font.getGlyphBounds(&gid, intptr_t{0}, &bbox_i, 1) != 1) continue;
 
-        const int gx = static_cast<int>(std::floor(origin_x + pg.x + bbox.x0));
-        const int gy = static_cast<int>(std::floor(origin_y + pg.y + bbox.y0));
-        const int gw = static_cast<int>(std::ceil(bbox.x1 - bbox.x0));
-        const int gh = static_cast<int>(std::ceil(bbox.y1 - bbox.y0));
+        const int gx = static_cast<int>(std::floor(origin_x + pg.x + bbox_i.x0));
+        const int gy = static_cast<int>(std::floor(origin_y + pg.y + bbox_i.y0));
+        const int gw = static_cast<int>(std::ceil(bbox_i.x1 - bbox_i.x0));
+        const int gh = static_cast<int>(std::ceil(bbox_i.y1 - bbox_i.y0));
         if (gw <= 0 || gh <= 0) continue;
         if (gx < 0 || gy < 0 || gx + gw > img_w || gy + gh > img_h) continue;
 
@@ -234,8 +178,8 @@ void glyph_atlas_store_from_placed_run(
 
         GlyphAtlasEntry entry;
         entry.image     = glyph_img;
-        entry.x_offset  = bbox_i.x0;
-        entry.y_offset  = bbox_i.y0;
+        entry.x_offset  = static_cast<int>(bbox_i.x0);
+        entry.y_offset  = static_cast<int>(bbox_i.y0);
         entry.advance_x = pg.advance_x;
         entry.fill_color_rgba = fill_color_rgba;
         glyph_atlas_store(font_path, pg.glyph_id, fs, entry);
