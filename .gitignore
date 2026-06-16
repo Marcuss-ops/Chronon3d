@@ -15,6 +15,8 @@ obj/
 vcpkg/
 vcpkg_bootstrap/
 vcpkg_bootstrap2/
+# Top-level binary bootstrap file created by ./vcpkg_bootstrap (no slash → file or dir).
+/vcpkg_bootstrap
 
 # IDE files
 .vscode/

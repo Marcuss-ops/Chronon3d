@@ -3,6 +3,7 @@
 #include <chronon3d/cache/persistent_bake_cache.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 #include <cstdlib>
 #include <string_view>
@@ -29,6 +30,8 @@ CacheEvalResult evaluate_cache(
     CacheEvalResult cr;
     const auto policy = node.cache_policy();
     bool is_cacheable = policy.cacheable;
+
+    const auto t_cache0 = profiling::now();
 
     cr.node_frame_dependent =
         policy.frame_dependent ||
@@ -104,6 +107,11 @@ CacheEvalResult evaluate_cache(
                               static_cast<int>(ctx.frame.frame), node.name(), node_id, to_string(node.kind()));
             }
         }
+    }
+    if (ctx.telemetry.counters) {
+        ctx.telemetry.counters->cache_eval_ms.fetch_add(
+            static_cast<uint64_t>(profiling::duration_ms(t_cache0, profiling::now())),
+            std::memory_order_relaxed);
     }
     return cr;
 }

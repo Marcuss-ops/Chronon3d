@@ -10,6 +10,7 @@
 #include <chronon3d/backends/software/renderer_types.hpp>
 #include <chronon3d/core/tile_grid.hpp>
 #include <chronon3d/core/dirty_tile_mask.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include "scene_dirty_helpers.hpp"
 #include "scene_internal.hpp"
 #include <algorithm>
@@ -33,6 +34,8 @@ DirtyRectOutput compute_dirty_rect(
         return out;
     }
 
+    const auto t_dirty0 = profiling::now();
+
     const Camera2_5DRuntime& cam25d = resolved.camera.camera;
 
     // ── Parallel layer bbox computation ─────────────────────────────────
@@ -51,6 +54,11 @@ DirtyRectOutput compute_dirty_rect(
 
     if (!out.use_dirty_rects) {
         out.dirty_rect = raster::BBox{0, 0, width, height};
+        if (ctx.telemetry.counters) {
+            ctx.telemetry.counters->dirty_eval_ms.fetch_add(
+                static_cast<uint64_t>(profiling::duration_ms(t_dirty0, profiling::now())),
+                std::memory_order_relaxed);
+        }
         return out;
     }
 
@@ -203,6 +211,11 @@ DirtyRectOutput compute_dirty_rect(
         }
     }
 
+    if (ctx.telemetry.counters) {
+        ctx.telemetry.counters->dirty_eval_ms.fetch_add(
+            static_cast<uint64_t>(profiling::duration_ms(t_dirty0, profiling::now())),
+            std::memory_order_relaxed);
+    }
     return out;
 }
 

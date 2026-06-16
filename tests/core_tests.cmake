@@ -13,6 +13,7 @@ add_executable(chronon3d_core_tests
     cache/test_persistent_bake_cache.cpp
     core/test_sharded_telemetry_store.cpp
     core/test_render_counters.cpp
+    core/test_cache_eval_dirty_counters.cpp
     core/math/test_camera_pose.cpp
     core/math/test_camera_2_5d_projection.cpp
     core/math/test_projector_2_5d.cpp
