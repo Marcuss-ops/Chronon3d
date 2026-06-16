@@ -4,18 +4,15 @@
 #include <chronon3d/presets/motion_preset_registry.hpp>
 #include <chronon3d/presets/motion_resolver.hpp>
 
-// Note: do NOT bring the top-level `chronon3d` namespace into the
-// current scope — it also exposes `chronon3d::motion` (a separate
-// animation primitive), and `using namespace chronon3d::presets;`
-// already exposes `chronon3d::presets::motion` (the motion-preset
-// surface). With both in scope, bare `presets::motion::MotionPreset` is
-// ambiguous. We instead pull in only the chronon3d top-level types we
-// actually use.
-using chronon3d::FrameContext;
-using chronon3d::Color;
-using chronon3d::BlendMode;
 using namespace chronon3d::presets;
+using namespace chronon3d::presets::motion;
 using namespace chronon3d::presets::phrase;
+
+using chronon3d::FrameContext;
+using chronon3d::f32;
+using chronon3d::Easing;
+using chronon3d::EasingCurve;
+using chronon3d::video::VideoSource;
 
 TEST_CASE("PhraseTheme Factory Properties") {
     auto doc = PhraseTheme::documentary();
@@ -131,39 +128,39 @@ TEST_CASE("StyleKit Preset Factories and Defaults") {
 }
 
 TEST_CASE("MotionPresetRegistry Dynamic Registration and Evaluation") {
-    auto& registry = presets::motion::MotionPresetRegistry::instance();
+    auto& registry = MotionPresetRegistry::instance();
 
     // 1. Verify standard built-in preset is registered
-    CHECK(registry.contains(presets::motion::MotionPreset::PopIn));
-    CHECK(registry.get(presets::motion::MotionPreset::PopIn).name == "PopIn");
+    CHECK(registry.contains(MotionPreset::PopIn));
+    CHECK(registry.get(MotionPreset::PopIn).name == "PopIn");
 
     // 2. Register custom callback for MotionPreset::None to test dynamic resolution override
     bool custom_called = false;
     registry.register_preset({
-        presets::motion::MotionPreset::None,
+        MotionPreset::None,
         "CustomNone",
-        [&](const FrameContext&, const presets::motion::MotionObject&, f32, presets::motion::MotionState& st) {
+        [&](const FrameContext&, const MotionObject&, f32, MotionState& st) {
             custom_called = true;
             st.opacity = 0.42f;
         }
     });
 
-    presets::motion::MotionObject obj;
-    obj.preset(presets::motion::MotionPreset::None);
+    MotionObject obj;
+    obj.preset(MotionPreset::None);
 
     FrameContext ctx;
     ctx.frame = 10;
     ctx.frame_rate = {60, 1};
 
-    auto state = presets::motion::resolve_motion_state(ctx, obj);
+    auto state = resolve_motion_state(ctx, obj);
     CHECK(custom_called == true);
     CHECK(state.opacity == doctest::Approx(0.42f));
 
     // 3. Restore standard None resolver to avoid breaking downstream pipeline tests
     registry.register_preset({
-        presets::motion::MotionPreset::None,
+        MotionPreset::None,
         "None",
-        [](const FrameContext&, const presets::motion::MotionObject&, f32, presets::motion::MotionState&) {}
+        [](const FrameContext&, const MotionObject&, f32, MotionState&) {}
     });
 }
 
@@ -172,7 +169,7 @@ TEST_CASE("MotionStyle and unified effects resolving") {
     DropShadowParams shadow_p{.offset = {0, 18}, .radius = 24.0f};
     BloomParams bloom_p{.threshold = 0.5f, .radius = 12.0f};
 
-    auto obj = presets::motion::MotionObject::text("test_obj", "Testing Style")
+    auto obj = MotionObject::text("test_obj", "Testing Style")
         .glow(glow_p)
         .shadow(shadow_p)
         .bloom(bloom_p)
@@ -191,7 +188,7 @@ TEST_CASE("MotionStyle and unified effects resolving") {
     FrameContext ctx;
     ctx.frame = 10;
     ctx.frame_rate = {60, 1};
-    auto state = presets::motion::resolve_motion_state(ctx, obj);
+    auto state = resolve_motion_state(ctx, obj);
 
     CHECK(state.effects.glow_enabled == true);
     CHECK(state.effects.glow.radius == doctest::Approx(45.0f));
@@ -202,25 +199,25 @@ TEST_CASE("MotionStyle and unified effects resolving") {
 }
 
 TEST_CASE("Video and Stock MotionObject + 3D presets resolving") {
-    video::VideoSource source{.path = "test.mp4", .size = {1920.0f, 1080.0f}};
-    auto v_obj = presets::motion::MotionObject::video("video_test", source)
-        .preset(presets::motion::MotionPreset::CinematicPushIn);
+    VideoSource source{.path = "test.mp4", .size = {1920.0f, 1080.0f}};
+    auto v_obj = MotionObject::video("video_test", source)
+        .preset(MotionPreset::CinematicPushIn);
 
-    CHECK(v_obj.type == presets::motion::MotionObjectType::Video);
+    CHECK(v_obj.type == MotionObjectType::Video);
     CHECK(v_obj.video_source_value.path == "test.mp4");
     CHECK(v_obj.size_value.x == doctest::Approx(1920.0f));
 
-    auto s_obj = presets::motion::MotionObject::stock("stock_test", "tag_name")
-        .preset(presets::motion::MotionPreset::ParallaxFloat);
+    auto s_obj = MotionObject::stock("stock_test", "tag_name")
+        .preset(MotionPreset::ParallaxFloat);
 
-    CHECK(s_obj.type == presets::motion::MotionObjectType::Stock);
+    CHECK(s_obj.type == MotionObjectType::Stock);
     CHECK(s_obj.stock_tag_value == "tag_name");
 
     FrameContext ctx;
     ctx.frame = 15;
     ctx.frame_rate = {60, 1};
 
-    auto state = presets::motion::resolve_motion_state(ctx, v_obj);
+    auto state = resolve_motion_state(ctx, v_obj);
     CHECK(state.visible == true);
     CHECK(state.position.z != doctest::Approx(0.0f));
 }

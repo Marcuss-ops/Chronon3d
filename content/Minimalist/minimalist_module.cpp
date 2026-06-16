@@ -5,18 +5,16 @@
 namespace chronon3d::content::minimalist {
 
 // Text animations
-Composition minimalist_text_fade();
-Composition minimalist_text_rise();
-Composition minimalist_text_focus();
-Composition minimalist_text_scale();
-Composition minimalist_text_drift();
-Composition minimalist_text_typewriter();
-Composition minimalist_text_tw_cascade();
-Composition minimalist_text_tw_wave();
-Composition minimalist_text_tw_snap();
-Composition minimalist_text_tw_drift();
-Composition minimalist_text_tw_bold();
-Composition minimalist_text_typewriter_unicode();
+Composition minimalist_text_fade_up();
+Composition minimalist_text_tracking_reveal();
+Composition minimalist_text_clip_reveal();
+Composition minimalist_text_fade_down();
+Composition minimalist_text_soft_scale();
+Composition minimalist_text_blur_focus();
+Composition minimalist_text_slide_left();
+Composition minimalist_text_slide_right();
+Composition minimalist_text_scale_pop();
+Composition minimalist_text_float_in();
 
 // Image presets
 Composition minimalist_image_fade_in();
@@ -42,18 +40,16 @@ public:
         using namespace content::minimalist;
 
         // Text animations
-        registry.register_composition("MinimalistTextFade", minimalist_text_fade);
-        registry.register_composition("MinimalistTextRise", minimalist_text_rise);
-        registry.register_composition("MinimalistTextFocus", minimalist_text_focus);
-        registry.register_composition("MinimalistTextScale", minimalist_text_scale);
-        registry.register_composition("MinimalistTextDrift", minimalist_text_drift);
-        registry.register_composition("MinimalistTextTypewriter", minimalist_text_typewriter);
-        registry.register_composition("MinimalistTextTWCascade", minimalist_text_tw_cascade);
-        registry.register_composition("MinimalistTextTWWave", minimalist_text_tw_wave);
-        registry.register_composition("MinimalistTextTWSnap", minimalist_text_tw_snap);
-        registry.register_composition("MinimalistTextTWDrift", minimalist_text_tw_drift);
-        registry.register_composition("MinimalistTextTWBold", minimalist_text_tw_bold);
-        registry.register_composition("MinimalistTextTypewriterUnicode", minimalist_text_typewriter_unicode);
+        registry.register_composition("MinimalistTextFadeUp", minimalist_text_fade_up);
+        registry.register_composition("MinimalistTextTrackingReveal", minimalist_text_tracking_reveal);
+        registry.register_composition("MinimalistTextClipReveal", minimalist_text_clip_reveal);
+        registry.register_composition("MinimalistTextFadeDown", minimalist_text_fade_down);
+        registry.register_composition("MinimalistTextSoftScale", minimalist_text_soft_scale);
+        registry.register_composition("MinimalistTextBlurFocus", minimalist_text_blur_focus);
+        registry.register_composition("MinimalistTextSlideLeft", minimalist_text_slide_left);
+        registry.register_composition("MinimalistTextSlideRight", minimalist_text_slide_right);
+        registry.register_composition("MinimalistTextScalePop", minimalist_text_scale_pop);
+        registry.register_composition("MinimalistTextFloatIn", minimalist_text_float_in);
 
         // Image presets
         registry.register_composition("MinimalistImageFadeIn", minimalist_image_fade_in);
