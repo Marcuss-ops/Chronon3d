@@ -28,6 +28,7 @@ add_executable(chronon3d_scene_tests
     scene/camera/test_camera_constraints_p5.cpp
     scene/camera/test_camera_framing_solver.cpp
     scene/camera/test_shot_timeline.cpp
+    scene/camera/test_camera_motion_blur.cpp
     scene/camera/test_camera_projection_contract.cpp
     scene/camera/test_camera_near_plane_clip.cpp
     scene/camera/test_camera_motion_path.cpp
