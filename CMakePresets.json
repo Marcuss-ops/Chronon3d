@@ -46,6 +46,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CHRONON3D_BUILD_C_API": "OFF",
+        "CHRONON3D_BUILD_CONTENT": "ON",
         "VCPKG_MANIFEST_FEATURES": "tests",
         "CHRONON3D_BUILD_TESTS": "ON"
       }
@@ -79,6 +80,7 @@
         "CHRONON3D_BUILD_C_API": "OFF",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_BUILD_CONTENT": "ON",
         "VCPKG_MANIFEST_FEATURES": "tests",
         "CHRONON3D_BUILD_TESTS": "ON"
       }
@@ -94,7 +96,8 @@
       "name": "linux-ci-c-api",
       "inherits": "linux-ci",
       "cacheVariables": {
-        "CHRONON3D_BUILD_C_API": "ON"
+        "CHRONON3D_BUILD_C_API": "ON",
+        "CHRONON3D_BUILD_CONTENT": "ON"
       }
     },
     {

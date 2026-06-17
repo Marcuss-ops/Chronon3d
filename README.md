@@ -168,7 +168,7 @@ static Composition MyComp() {
 CHRONON_REGISTER_COMPOSITION("MyComp", MyComp)
 ```
 
-The default build includes example compositions, so `chronon3d_cli list` and `chronon3d_cli verify` work out of the box.
+Example compositions are disabled by default for fast CI builds. Enable them with `-DCHRONON3D_BUILD_CONTENT=ON` or use the `linux-fast-dev` preset.
 
 ---
 

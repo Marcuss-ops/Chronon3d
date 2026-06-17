@@ -16,7 +16,7 @@ void register_bench_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--frames", args.frames, "Measured frames")->default_val(120);
     cmd->add_option("--warmup", args.warmup, "Warmup frames")->default_val(10);
     cmd->add_flag("--graph,!--no-graph", args.use_modular_graph, "Use modular RenderGraph path");
-    cmd->add_flag("--dirty-rects", args.dirty_rects, "Enable dirty rectangles invalidation");
+    cmd->add_flag("--no-dirty-rects", args.no_dirty_rects, "Disable dirty-rectangle invalidation (dirty rects are ON by default)");
     cmd->add_option("--json", args.json_file, "Path to output benchmark JSON telemetry");
     cmd->add_option("--compare", args.compare_file, "Compare against previous benchmark JSON");
     cmd->add_flag("--quiet", args.quiet, "Only print summary");

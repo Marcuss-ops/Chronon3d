@@ -40,12 +40,8 @@ Thumbs.db
 __pycache__/
 *.pyc
 
-# Local/Secrets
-token.json
-credentials.json
 
-# Xmake
-.xmake/
+
 
 # AI context
 .claude/
@@ -65,8 +61,6 @@ render_*.png
 chronon3d-*.log
 *.mp4
 
-transform_output/
-scenes/
 
 # Generated visual test outputs
 test_renders/
@@ -86,11 +80,6 @@ camera_path_report.json
 camera_shot_report*.json
 
 # Local tool metadata and scratch
-.antigravitycli/
-scratch/
-update
-self-update
-*.db
 
 # Local dev artifacts
 logs/

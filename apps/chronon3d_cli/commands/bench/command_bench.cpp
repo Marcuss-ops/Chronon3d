@@ -62,7 +62,7 @@ struct BenchRuntimeContext {
     std::shared_ptr<SoftwareRenderer> renderer;
     int frames{0};
     int warmup{0};
-    bool dirty_rects{false};
+    bool no_dirty_rects{false};
 };
 
 thread_local BenchRuntimeContext* g_bench_context = nullptr;
@@ -260,8 +260,11 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     auto composition = registry.create(args.comp_id);
     RenderSettings settings;
     settings.use_modular_graph = args.use_modular_graph;
-    // dirty.enabled already defaults to true in DirtyRenderSettings.
-    // The --dirty-rects CLI flag enables dirty rects explicitly when passed.
+    if (args.no_dirty_rects) {
+        settings.dirty.enabled = false;
+        settings.dirty.use_bitmask = false;
+        settings.dirty.use_tiles = false;
+    }
     auto renderer = create_renderer(registry, settings);
 
     std::unique_ptr<ScopedSpdlogLevel> quiet_log_guard;
@@ -328,7 +331,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     context.renderer = std::move(renderer);
     context.frames = args.frames;
     context.warmup = args.warmup;
-    context.dirty_rects = args.dirty_rects;
+    context.no_dirty_rects = args.no_dirty_rects;
 
     g_bench_context = &context;
 
@@ -336,7 +339,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     benchmark::AddCustomContext("frames", std::to_string(args.frames));
     benchmark::AddCustomContext("warmup", std::to_string(args.warmup));
     benchmark::AddCustomContext("use_modular_graph", args.use_modular_graph ? "true" : "false");
-    benchmark::AddCustomContext("dirty_rects", args.dirty_rects ? "true" : "false");
+    benchmark::AddCustomContext("dirty_rects_status", context.no_dirty_rects ? "disabled" : "enabled");
     benchmark::AddCustomContext("warmup_renderer", args.warmup_renderer ? "true" : "false");
 
     std::optional<std::filesystem::path> temp_json_path;
