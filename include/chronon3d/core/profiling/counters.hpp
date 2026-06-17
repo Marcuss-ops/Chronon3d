@@ -3,6 +3,7 @@
 #include <atomic>
 #include <array>
 #include <cstdint>
+#include <string_view>
 namespace chronon3d {
 
 constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
@@ -477,5 +478,18 @@ inline RenderCountersRaw& thread_local_counters() {
 constexpr std::size_t render_counters_field_count() {
     return sizeof(RenderCountersRaw) / sizeof(uint64_t);
 }
+
+/// Constexpr array of counter field names for logging, introspection, and
+/// debug output.  Affiancato (non sostitutivo) alla X-macro per non rompere
+/// l'allineamento anti false-sharing dei campi struct.
+/// Uses CTAD (C++17) to let the compiler count elements automatically,
+/// avoiding size mismatches with dirty_fallback_reasons array slots.
+constexpr std::array kCounterNames = {
+#define X(name) std::string_view{#name},
+    CHRONON_RENDER_COUNTERS(X)
+    CHRONON_RENDER_COUNTERS_SYSTEM(X)
+    CHRONON_RENDER_COUNTERS_SETUP(X)
+#undef X
+};
 
 } // namespace chronon3d
