@@ -18,7 +18,7 @@ namespace chronon3d::camera_v1 {
 /// Immutable per-sample evaluation context shared by Motion / Constraint / Trajectory.
 struct CameraMotionContext {
     Frame         frame{0};                  ///< Integer frame index.
-    SampleTime    sample_time;               ///< Sub-frame normalized time (seconds).
+    SampleTime    sample_time;               ///< Continuous frame position (sub-frame aware).
     Vec3          base_position{0,0,0};      ///< Pre-motion camera position.
     Vec3          base_target{0,0,0};        ///< Pre-motion look-at target.
     f32           base_zoom{1.0f};           ///< Pre-motion zoom factor.
