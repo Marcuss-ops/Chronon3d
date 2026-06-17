@@ -651,7 +651,7 @@ bool draw_text_run(
             shadow.color.a * shadow.opacity
         };
         const size_t sh_drawn = draw_run_layer(
-            shadow_img, shadow_color, bucket_radius_for_tier(shadow.blur));
+            shadow_img, shadow_color, detail::bucket_radius_for_tier(shadow.blur));
         if (sh_drawn == 0) continue;
 
         // Shadow translation: model + image-local offset + shadow offset.
@@ -668,7 +668,7 @@ bool draw_text_run(
     // ── Main run layer ───────────────────────────────────────────────
     BLImage img(img_w, img_h, BL_FORMAT_PRGB32);
     const size_t glyphs_drawn = draw_run_layer(
-        img, std::nullopt, bucket_radius_for_tier(max_blur));
+        img, std::nullopt, detail::bucket_radius_for_tier(max_blur));
 
     if (glyphs_drawn == 0) return false;
 
@@ -806,26 +806,45 @@ raster::BBox compute_text_run_world_bbox(
 #ifdef CHRONON3D_ENABLE_TEXT
 std::unique_ptr<ShapeProcessor> create_text_run_processor() {
     struct TextRunProcessor : ShapeProcessor {
-        const char* name() const override { return "TextRun"; }
-        bool is_text_run() const override { return true; }
-        // No direct rasterize — the TextRunNode in the render graph
-        // (registered as `RenderGraphNodeKind::TextRun` and routed by
-        // `graph_builder_source_pass`) handles rasterization for any
-        // RenderNode carrying `is_text_run_shape=true`.
-        //
-        // Returning `false` is the correct contract here: the
-        // compositor treats `false` as a non-passing bypass and
-        // debits nothing to the frame.  Returning `true` would lie
-        // to the compositor ("this node rasterized") while the
-        // framebuffer was untouched.
-        bool rasterize(
+        // The canonical renderer path for text runs goes through the
+        // `TextRunNode` in the render graph (driven by `draw_text_run()`
+        // above), so this ShapeProcessor is a thin no-op marker: it
+        // carries the `is_text_run_shape=true` RenderNode flag and
+        // forwards through the graph-builder.  The composite/bbox/hit-test
+        // overrides below are body-empty / return-zero so they satisfy the
+        // ShapeProcessor abstract interface without duplicating logic that
+        // the graph already handles (via MultiSourceNode::predicted_bbox
+        // and the TextRunNode executor).
+
+        void draw(
             SoftwareRenderer& /*renderer*/,
+            Framebuffer& /*fb*/,
             const RenderNode& /*node*/,
-            const Mat4& /*model*/,
-            f32 /*opacity*/,
-            BlendMode /*blend*/,
-            Framebuffer& /*fb*/
+            const RenderState& /*state*/,
+            const Camera& /*camera*/,
+            i32 /*width*/,
+            i32 /*height*/
         ) override {
+            // No-op: rasterization flows through TextRunNode downstream.
+        }
+
+        raster::BBox compute_world_bbox(
+            const Shape& /*shape*/,
+            const Mat4& /*model*/,
+            f32 /*spread*/
+        ) override {
+            // The graph uses `renderer::compute_text_run_world_bbox` for
+            // predicted_bbox on is_text_run_shape nodes, so this entry is
+            // ignored.  Return a deliberately-empty bbox.
+            return {0, 0, 0, 0};
+        }
+
+        bool hit_test(
+            const Shape& /*shape*/,
+            Vec2 /*local_point*/,
+            f32 /*spread*/
+        ) override {
+            // Text-run hit testing is handled at the graph layer.
             return false;
         }
     };

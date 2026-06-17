@@ -5,6 +5,7 @@
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/media/media_placement.hpp>
+#include <chronon3d/text/text_animator_property.hpp>
 #include <memory>
 #include <optional>
 #include <string>
@@ -176,7 +177,7 @@ struct TextRunParams {
     // (see PR 4 follow-up).  Carrying them now avoids API churn when
     // the text_run() builder entry point lands.
     std::vector<TextAnimatorSpec> animators;
-    std::vector<TextSelectorSpec> selectors;   // optional top-level selectors
+    std::vector<GlyphSelectorSpec> selectors;  // optional top-level selectors (renamed from TextSelectorSpec after TextAnimator V2 refactor)
 
     // Optional pre-shaped glyph run (typewriter-style, contextual scripts).
     std::shared_ptr<PlacedGlyphRun> pre_shaped;
