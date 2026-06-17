@@ -29,8 +29,8 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <memory>
 #include <string>
-
 using namespace chronon3d;
+using namespace chronon3d::cache;
 using namespace chronon3d::graph;
 
 namespace {
@@ -208,14 +208,14 @@ TEST_CASE("MultiSourceNode: execute tolerant of text_run item with null shape") 
     items.push_back({&rect_node, rect_node.world_transform.to_mat4(), 1.0f});
 
     SoftwareRenderer backend;
-    FramebufferPool pool(8);
+    auto pool = std::make_shared<FramebufferPool>(8);
     NodeCache node_cache;
     RenderGraphContext ctx;
     ctx.frame.width = 1920;
     ctx.frame.height = 1080;
     ctx.frame.frame = 0;
     ctx.resources.backend = &backend;
-    ctx.resources.framebuffer_pool = &pool;
+    ctx.resources.framebuffer_pool = pool;
     ctx.resources.node_cache = &node_cache;
 
     cache::NodeCacheKey key{};
@@ -257,14 +257,14 @@ TEST_CASE("MultiSourceNode: execute with mixed rect + text_run returns valid fb"
     items.push_back({&text_node, text_node.world_transform.to_mat4(), 1.0f});
 
     SoftwareRenderer backend;
-    FramebufferPool pool(8);
+    auto pool = std::make_shared<FramebufferPool>(8);
     NodeCache node_cache;
     RenderGraphContext ctx;
     ctx.frame.width = 1920;
     ctx.frame.height = 1080;
     ctx.frame.frame = 0;
     ctx.resources.backend = &backend;
-    ctx.resources.framebuffer_pool = &pool;
+    ctx.resources.framebuffer_pool = pool;
     ctx.resources.node_cache = &node_cache;
 
     cache::NodeCacheKey key{};
