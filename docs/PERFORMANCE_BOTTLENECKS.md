@@ -157,7 +157,7 @@ Transform è **9× più lento** del composite per byte processato.
 
 ### 11. WhipPanel + Abyss: 7-8× il tempo di `node_execute` per frame
 
-**Sintomo — SQLite `~/.chronon3d/telemetry/chronon3d_render_history.sqlite`** (ultima run per compa, `render --frame X`):
+**Sintomo — SQLite `~/.chronon3d/telemetry/chronon3d_render_history.sqlite`** (ultima run per comp, `render --frame X`):
 
 | Comp                       | wall_ms | layers_rendered | composite_calls | transform_calls | text_glyphs_rasterized |
 |---|---:|---:|---:|---:|---:|
@@ -209,10 +209,12 @@ solo per i clear-nodi, non per i layer compositivi trasparenti.
 2. ⏳ **TODO (commit di follow-up)**: wire il populate in
    `src/render_graph/executor/executor_levels.cpp:36–39`. Dopo
    `level_resolved[i] = resolve_inputs(...)` aggiungere
-   `level_resolved[i].resolved_opacity = layer.opacity_at(cur_frame_snapshot)`
-   (la firma esatta dipende da quale membro di layer espone l'opacity a
-   frame-F — da ispezionare in `src/scene/builders/layer_builder.{hpp,cpp}`
-   prima dell'edit).
+   `level_resolved[i].resolved_opacity = layer.opacity_anim().evaluate(cur_frame)`
+   (alta confidenza: `LayerBuilder::opacity_anim()` ritorna
+   `AnimatedValue<f32>&` su `m_layer.anim_transform.opacity`, che espone
+   `evaluate(frame_t)` come tutti gli altri `AnimatedValue` — verificare
+   comunque in `src/scene/builders/layer_builder.{hpp,cpp}` se la firma è
+   cambiata).
 
 3. ⏳ **Validation after populate**: rieseguire lo stesso bench 30-frame con
    `CHRONON3D_SKIP_INVISIBLE_LAYERS=1` ON e misurare il delta reale con
@@ -225,7 +227,7 @@ solo per i clear-nodi, non per i layer compositivi trasparenti.
 |---|---:|---:|---:|
 | `WhipPanHeroReveal`        | ~200 ms | ~26 ms | **~7.7×** |
 | `AbyssFreefallStagger`     | ~178 ms | ~26 ms | **~6.8×** |
-| `RackFocusTitleSwap`       | ~116 ms | ~50 ms (3 letter invisibili nel rack) | ~2.3× |
+| `RackFocusTitleSwap`       | ~116 ms | ~50 ms (stima: ~3 letter invisibili nel rack — da verificare) | ~2.3× |
 | `DeepParallaxCascade`      |  ~63 ms | ~50 ms | ~1.3× |
 | `OrbitHandheldGlow`        |  ~39 ms | invariato (1 sola letter staggered visibile dopo frame 0) | ~1× |
 | `MinimalistImageTrackingBreathing` | ~26 ms | invariato | 1× (baseline) |
