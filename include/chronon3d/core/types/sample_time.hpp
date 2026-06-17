@@ -6,7 +6,6 @@
 
 #include <cmath>
 #include <cstdint>
-#include <functional>
 
 namespace chronon3d {
 
@@ -121,21 +120,5 @@ struct TemporalSampleKey {
         .version = version
     };
 }
-
-// ── TemporalSampleKeyHash — hashing functor (forward-looking) ─────────────
-//
-// Currently FrameCacheKey / NodeCacheKey use their own XXH3-based digest()
-// method.  This hash is provided for future std::unordered_map<TemporalSampleKey>
-// usage (e.g. per-node temporal key maps).
-
-struct TemporalSampleKeyHash {
-    size_t operator()(const TemporalSampleKey& k) const noexcept {
-        // Combine frame, subframe_tick, and version with a simple hash.
-        size_t h = std::hash<Frame>{}(k.frame);
-        h ^= std::hash<u32>{}(k.subframe_tick) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        h ^= std::hash<EvaluationVersion>{}(k.version) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        return h;
-    }
-};
 
 } // namespace chronon3d

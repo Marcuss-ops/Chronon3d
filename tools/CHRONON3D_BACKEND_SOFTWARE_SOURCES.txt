@@ -22,8 +22,6 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/rasterizers/scanline_rasterizer.cpp
     src/backends/software/rasterizers/shape_rasterizer.cpp
     src/backends/software/software_compositor.cpp
-    src/backends/software/software_effect_runner.cpp
-    src/backends/software/software_node_dispatcher.cpp
     src/backends/software/software_renderer.cpp
     src/backends/software/specialized/fake_box3d_renderer.cpp
     src/backends/software/specialized/glass_panel_renderer.cpp

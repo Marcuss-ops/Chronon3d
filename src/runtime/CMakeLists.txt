@@ -3,8 +3,6 @@
 # ==============================================================================
 
 set(CHRONON3D_RUNTIME_SOURCES
-    bench_runner.cpp
-    scene_to_render_graph.cpp
     timeline_evaluator.cpp
     sub_composition_registry.cpp
     telemetry/telemetry_manager.cpp

@@ -29,7 +29,6 @@ add_executable(chronon3d_renderer_tests
     renderer/2d5/test_card3d_rasterizer.cpp
     renderer/2d5/test_depth_grade.cpp
     render_graph/features/test_unified_transform_path.cpp
-    renderer/dispatch/test_software_node_dispatcher.cpp
     backends/software/sampling/test_sampler2d.cpp
     render_graph/features/test_transition.cpp
     registry/test_registries.cpp

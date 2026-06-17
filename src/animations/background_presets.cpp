@@ -1,15 +1,11 @@
 #include <chronon3d/api/backgrounds.hpp>
-#include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/core/memory/framebuffer.hpp>
-#include <glm/gtc/constants.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/utils/dark_grid_background.hpp>
 #include <nlohmann/json.hpp>
 
-#include <algorithm>
 #include <array>
 #include <cmath>
 #include <filesystem>
@@ -36,44 +32,6 @@ const std::array<Preset, 1> kBuiltinBackgrounds = {{
 const BackgroundCatalog& builtin_background_catalog_storage() {
     static const BackgroundCatalog catalog{std::vector<Preset>(kBuiltinBackgrounds.begin(), kBuiltinBackgrounds.end())};
     return catalog;
-}
-
-struct GridRenderer {
-    static inline f32 dist(f32 v, f32 s) { return s <= 1e-6f ? 0.0f : std::abs(v - std::round(v / s) * s); }
-
-    static void rasterize(Framebuffer& fb, const BackgroundOptions& opt) {
-        const i32 W = fb.width(), H = fb.height();
-        const f32 hw = W * 0.5f, hh = H * 0.5f;
-        const Color bg = opt.background.to_linear();
-        const Color glow = opt.glow.with_alpha(std::clamp(opt.intensity * 0.10f, 0.0f, 0.18f)).to_linear();
-        const Color line = opt.accent.with_alpha(std::clamp(opt.accent.a * opt.intensity, 0.72f, 0.95f)).to_linear();
-        const Color major = Color{line.r, line.g, line.b, 1.0f};
-
-        fb.clear(bg);
-        for (i32 y = 0; y < H; ++y) {
-            f32 gy = y - hh;
-            f32 mdy = dist(gy, 160.0f), Mdy = dist(gy, 640.0f);
-            for (i32 x = 0; x < W; ++x) {
-                f32 gx = x - hw;
-                f32 mdx = dist(gx, 160.0f), Mdx = dist(gx, 640.0f);
-                if (mdx <= 8.0f || mdy <= 8.0f) fb.set_pixel(x, y, compositor::blend_normal(glow, fb.get_pixel(x, y)));
-                if (mdx <= 2.5f || mdy <= 2.5f) fb.set_pixel(x, y, compositor::blend_normal(line, fb.get_pixel(x, y)));
-                if (mdx <= 5.5f || mdy <= 5.5f || Mdx <= 5.5f || Mdy <= 5.5f) fb.set_pixel(x, y, compositor::blend_normal(major, fb.get_pixel(x, y)));
-            }
-        }
-    }
-};
-
-std::filesystem::path ensure_cached_grid(i32 w, i32 h, const BackgroundOptions& opt) {
-    auto dir = std::filesystem::path("output") / "cache" / "grid_clean";
-    std::filesystem::create_directories(dir);
-    auto path = dir / (std::to_string(w) + "x" + std::to_string(h) + ".png");
-    if (!std::filesystem::exists(path)) {
-        Framebuffer fb(w, h);
-        GridRenderer::rasterize(fb, opt);
-        save_png(fb, path.string());
-    }
-    return path;
 }
 
 } // namespace

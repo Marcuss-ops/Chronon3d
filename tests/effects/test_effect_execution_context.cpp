@@ -8,7 +8,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/effects/effect_execution_context.hpp>
 #include <chronon3d/backends/software/effect_processor.hpp>
-#include <chronon3d/backends/software/software_effect_runner.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include "src/backends/software/utils/render_effects_processor.hpp"
@@ -133,7 +132,12 @@ TEST_CASE("EffectExecutionContext: context flows through EffectProcessor") {
     // Create a minimal framebuffer for the test
     Framebuffer fb(64, 64);
 
-    SoftwareEffectRunner::apply_effect_stack(fb, stack, registry, context);
+    for (const auto& effect : stack) {
+        if (!effect.enabled) continue;
+        if (auto* proc = registry.get_effect(effect.param_type_index())) {
+            proc->apply(fb, effect.params, context);
+        }
+    }
 
     CHECK(captured.time_seconds == 2.0f);
     CHECK(captured.frame == 15);
@@ -226,7 +230,12 @@ TEST_CASE("EffectExecutionContext: disabled effect is skipped") {
     Framebuffer fb(64, 64);
 
     const EffectExecutionContext context{};
-    SoftwareEffectRunner::apply_effect_stack(fb, stack, registry, context);
+    for (const auto& effect : stack) {
+        if (!effect.enabled) continue;
+        if (auto* proc = registry.get_effect(effect.param_type_index())) {
+            proc->apply(fb, effect.params, context);
+        }
+    }
 
     // The spy should NOT have been called because the effect is disabled
     CHECK(captured.time_seconds == 0.0f);
