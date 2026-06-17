@@ -16,10 +16,7 @@ target_link_libraries(chronon3d_content_tests
 target_include_directories(chronon3d_content_tests PRIVATE ${CMAKE_SOURCE_DIR})
 # WHOLE_ARCHIVE removed — content uses explicit ExtensionRegistry registration
 if(CHRONON3D_BUILD_CONTENT)
-    target_link_libraries(chronon3d_content_tests PRIVATE chronon3d_all_content_modules)
-    target_sources(chronon3d_content_tests PRIVATE
-        ${CMAKE_SOURCE_DIR}/content/register_content_modules.cpp
-    )
+    target_link_libraries(chronon3d_content_tests PRIVATE chronon3d_content_registry)
     target_include_directories(chronon3d_content_tests PRIVATE ${CMAKE_SOURCE_DIR})
     target_compile_definitions(chronon3d_content_tests PRIVATE CHRONON3D_HAS_CONTENT_MINIMALIST CHRONON3D_HAS_CONTENT_2D5)
 endif()
