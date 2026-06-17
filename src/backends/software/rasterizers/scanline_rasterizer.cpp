@@ -51,7 +51,7 @@ static void fill_span(Framebuffer& fb, int y, int x0, int x1,
 // 2D (flat) scanline rasterizers — no depth testing
 // ─────────────────────────────────────────────────────────────────────────────
 
-void fill_convex_quad(Framebuffer& fb, const Vec2 v[4], const Color& color) {
+void fill_convex_quad(Framebuffer& fb, std::span<const Vec2, 4> v, const Color& color) {
     if (color.a <= 0.0f) return;
 
     f32 y_min = v[0].y, y_max = v[0].y;
@@ -81,7 +81,7 @@ void fill_convex_quad(Framebuffer& fb, const Vec2 v[4], const Color& color) {
     }
 }
 
-void fill_gradient_quad(Framebuffer& fb, const Vec2 v[4], const Color colors[4]) {
+void fill_gradient_quad(Framebuffer& fb, std::span<const Vec2, 4> v, std::span<const Color, 4> colors) {
     f32 y_min = v[0].y, y_max = v[0].y;
     for (int i = 1; i < 4; ++i) { y_min = std::min(y_min, v[i].y); y_max = std::max(y_max, v[i].y); }
     const i32 row0 = std::max(0, static_cast<i32>(std::ceil(y_min)));
@@ -117,7 +117,7 @@ void fill_gradient_quad(Framebuffer& fb, const Vec2 v[4], const Color colors[4])
     }
 }
 
-void fill_triangle(Framebuffer& fb, const Vec2 v[3], const Color& color) {
+void fill_triangle(Framebuffer& fb, std::span<const Vec2, 3> v, const Color& color) {
     if (color.a <= 0.0f) return;
 
     f32 y_min = v[0].y, y_max = v[0].y;
@@ -147,7 +147,7 @@ void fill_triangle(Framebuffer& fb, const Vec2 v[3], const Color& color) {
     }
 }
 
-void fill_gradient_triangle(Framebuffer& fb, const Vec2 v[3], const Color colors[3]) {
+void fill_gradient_triangle(Framebuffer& fb, std::span<const Vec2, 3> v, std::span<const Color, 3> colors) {
     f32 y_min = v[0].y, y_max = v[0].y;
     for (int i = 1; i < 3; ++i) { y_min = std::min(y_min, v[i].y); y_max = std::max(y_max, v[i].y); }
     const i32 row0 = std::max(0, static_cast<i32>(std::ceil(y_min)));
@@ -187,7 +187,7 @@ void fill_gradient_triangle(Framebuffer& fb, const Vec2 v[3], const Color colors
 // 3D scanline rasterizers — with per-pixel depth test
 // ─────────────────────────────────────────────────────────────────────────────
 
-void fill_triangle(Framebuffer& fb, const Vec3 v[3], const Color& color,
+void fill_triangle(Framebuffer& fb, std::span<const Vec3, 3> v, const Color& color,
                     std::span<float> depth_buffer) {
     if (color.a <= 0.0f) return;
     if (!is_clean_color(color)) return;
@@ -250,7 +250,7 @@ void fill_triangle(Framebuffer& fb, const Vec3 v[3], const Color& color,
     }
 }
 
-void fill_gradient_triangle(Framebuffer& fb, const Vec3 v[3], const Color colors[3],
+void fill_gradient_triangle(Framebuffer& fb, std::span<const Vec3, 3> v, std::span<const Color, 3> colors,
                              std::span<float> depth_buffer) {
     if (!is_clean_color(colors[0]) && !is_clean_color(colors[1]) && !is_clean_color(colors[2])) return;
 
@@ -367,17 +367,18 @@ void fill_gradient_triangle(Framebuffer& fb, const Vec3 v[3], const Color colors
     }
 }
 
-void fill_convex_quad(Framebuffer& fb, const Vec3 v[4], const Color& color,
+void fill_convex_quad(Framebuffer& fb, std::span<const Vec3, 4> v, const Color& color,
                        std::span<float> depth_buffer) {
-    // Split quad into two triangles: TL→TR→BR and TL→BR→BL
-    fill_triangle(fb, &v[0], color, depth_buffer);    // v[0]=TL, v[1]=TR, v[2]=BR
+    // Split quad into two triangles: TL→TR→BR and TL→BR→BL.
+    // first<3>() extracts v[0..2] = TL, TR, BR for the first triangle.
+    fill_triangle(fb, v.first<3>(), color, depth_buffer);
     {
         Vec3 tri[3] = {v[0], v[2], v[3]};             // v[0]=TL, v[2]=BR, v[3]=BL
         fill_triangle(fb, tri, color, depth_buffer);
     }
 }
 
-void fill_gradient_quad(Framebuffer& fb, const Vec3 v[4], const Color colors[4],
+void fill_gradient_quad(Framebuffer& fb, std::span<const Vec3, 4> v, std::span<const Color, 4> colors,
                          std::span<float> depth_buffer) {
     // Split quad into two gradient triangles: TL→TR→BR and TL→BR→BL
     {
