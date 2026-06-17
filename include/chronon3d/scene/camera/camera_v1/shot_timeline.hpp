@@ -11,8 +11,9 @@
 // Architecture:
 //   CameraShot           → start/end frames + CameraProgram reference
 //   CameraTransition     → pure function: interpolate from→to camera
-//   ShotTimeline         → ordered list, find active shot
+//   ShotTimeline         → ordered list, find active shot, validate structure
 //   ShotTimelineResolver → evaluate camera at frame, apply transitions
+//   ShotTimelineSession  → per-shot persistent constraint state
 //   CameraTransitionRegistry → singleton registry of transition factories
 // ==============================================================================
 #include <chronon3d/math/camera_2_5d_projection.hpp>
@@ -24,6 +25,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace chronon3d::camera_v1 {
@@ -33,7 +35,7 @@ namespace chronon3d::camera_v1 {
 // =========================================================================
 enum class CameraTransitionKind : std::uint8_t {
     Cut          = 0,  // instant switch (no interpolation)
-    SmoothBlend  = 1,  // lerp position + rotation (euler mix) over transition frames
+    SmoothBlend  = 1,  // lerp position + slerp rotation over transition frames
     Push         = 2,  // push camera directionally during transition
     WhipPan      = 3,  // fast pan/swish between shots
     FocusHandoff = 4,  // rack focus from one shot's focus to the next
@@ -47,12 +49,21 @@ struct CameraShot {
     int                      start_frame{0};
     int                      end_frame{30};
     CameraProgram            program;  // the camera program for this shot
-    CameraTransitionKind     transition_in{CameraTransitionKind::Cut};
+    CameraTransitionKind     transition_out{CameraTransitionKind::Cut};
     int                      transition_frames{0};  // overlap frames for transition
 };
 
 // =========================================================================
+// ShotTimeline validation.
+// =========================================================================
+struct ShotTimelineValidationResult {
+    bool ok{true};
+    std::vector<std::string> errors;
+};
+
+// =========================================================================
 // CameraTransition — abstract interpolation function.
+// Contract: transition(0) == from_cam, transition(1) == to_cam.
 // =========================================================================
 class CameraTransition {
 public:
@@ -70,9 +81,15 @@ public:
 // =========================================================================
 class ShotTimeline {
 public:
-    ShotTimeline& add_shot(CameraShot shot);
+    /// Add a shot. Returns false if the shot fails validation.
+    bool add_shot(CameraShot shot);
+
     std::size_t   size() const { return shots_.size(); }
     bool          empty() const { return shots_.empty(); }
+
+    /// Validate the full timeline. Returns errors for: zero/negative duration,
+    /// undeclared overlap, gap, out-of-order shots, transition longer than shot.
+    ShotTimelineValidationResult validate() const;
 
     /// Find the shot active at `frame`. Returns nullptr if none.
     const CameraShot* find_shot(int frame) const;
@@ -90,6 +107,18 @@ private:
 };
 
 // =========================================================================
+// ShotTimelineSession — per-shot persistent constraint state.
+// Avoids resetting stateful constraints (DampedFollow, banking) each frame
+// during a transition overlap.
+// =========================================================================
+struct ShotTimelineSession {
+    // Reuse the same sessions across frames keyed by shot index.
+    std::unordered_map<int, ConstraintSession> shot_sessions;
+    ConstraintSession& session_for(int shot_idx) { return shot_sessions[shot_idx]; }
+    void reset() { shot_sessions.clear(); }
+};
+
+// =========================================================================
 // ShotTimelineResolver — evaluates camera at a frame with transitions.
 // =========================================================================
 class ShotTimelineResolver {
@@ -97,21 +126,23 @@ public:
     explicit ShotTimelineResolver(std::shared_ptr<ShotTimeline> timeline);
 
     /// Evaluate the camera at `frame` using the timeline + transitions.
-    Camera2_5D evaluate(int frame, ConstraintSession& session) const;
+    /// Uses local frame time (frame - shot.start_frame) for each shot's program.
+    Camera2_5D evaluate(int frame, ShotTimelineSession& timeline_session) const;
 
     /// Set the transition for a specific kind.
     void set_transition(CameraTransitionKind kind,
                          std::shared_ptr<CameraTransition> t);
 
-private:
-    std::shared_ptr<ShotTimeline> timeline_;
-    std::shared_ptr<CameraTransition> get_transition(CameraTransitionKind kind) const;
-
+    /// Public factories for testing / direct construction.
     static std::shared_ptr<CameraTransition> default_cut();
     static std::shared_ptr<CameraTransition> default_smooth_blend();
     static std::shared_ptr<CameraTransition> default_push();
     static std::shared_ptr<CameraTransition> default_whip_pan();
     static std::shared_ptr<CameraTransition> default_focus_handoff();
+
+private:
+    std::shared_ptr<ShotTimeline> timeline_;
+    std::shared_ptr<CameraTransition> get_transition(CameraTransitionKind kind) const;
 
     std::map<CameraTransitionKind, std::shared_ptr<CameraTransition>> transitions_;
 };
@@ -129,10 +160,16 @@ public:
     std::shared_ptr<CameraTransition> create(CameraTransitionKind kind) const;
     bool has(CameraTransitionKind kind) const;
 
+    void freeze();
+    bool is_frozen() const noexcept { return frozen_; }
+
+    void register_defaults();
+
 private:
     CameraTransitionRegistry() = default;
     mutable std::mutex mu_;
     std::map<CameraTransitionKind, Factory> factories_;
+    bool frozen_{false};
 };
 
 } // namespace chronon3d::camera_v1

@@ -2,26 +2,106 @@
 // chronon3d/src/scene/camera/camera_v1/shot_timeline.cpp
 //
 // ShotTimeline implementation with 5 built-in transitions.
+//
+// Fixes:
+//   - add_shot validates (no silent mutation)
+//   - validate() catches gaps/overlap/negative-duration
+//   - Quaternion slerp for rotation (not euler mix)
+//   - Endpoint parity: transition(0)==from, transition(1)==to
+//   - Local frame time per shot
+//   - ShotTimelineSession for persistent per-shot constraint state
+//   - t reaches 1.0 at last overlap frame
+//   - transition_out semantics (current shot's exit transition)
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/shot_timeline.hpp>
 
 #include <algorithm>
 #include <cmath>
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <stdexcept>
+#include <sstream>
 
 namespace chronon3d::camera_v1 {
+
+// =========================================================================
+// Helper: quaternion slerp for Camera2_5D rotation (euler → quat → slerp → euler).
+// =========================================================================
+namespace {
+
+inline glm::quat euler_to_quat(const Vec3& euler_deg) {
+    return glm::quat(glm::radians(euler_deg));
+}
+
+inline Vec3 quat_to_euler(const glm::quat& q) {
+    return glm::degrees(glm::eulerAngles(q));
+}
+
+inline Vec3 slerp_rotation(const Vec3& from_euler, const Vec3& to_euler, float t) {
+    glm::quat q0 = euler_to_quat(from_euler);
+    glm::quat q1 = euler_to_quat(to_euler);
+    // Ensure shortest arc.
+    if (glm::dot(q0, q1) < 0.0f) q1 = -q1;
+    glm::quat qs = glm::slerp(q0, q1, t);
+    return quat_to_euler(qs);
+}
+
+} // namespace
 
 // =========================================================================
 // ShotTimeline
 // =========================================================================
 
-ShotTimeline& ShotTimeline::add_shot(CameraShot shot) {
-    if (!shots_.empty() && shot.start_frame < shots_.back().end_frame) {
-        shot.start_frame = shots_.back().end_frame;  // auto-fix gaps
+bool ShotTimeline::add_shot(CameraShot shot) {
+    // Validate shot duration.
+    if (shot.end_frame <= shot.start_frame) return false;
+    if (shot.transition_frames < 0) return false;
+
+    // Validate adjacent to last shot: no undeclared overlap, no gap.
+    if (!shots_.empty()) {
+        const auto& prev = shots_.back();
+        if (shot.start_frame < prev.end_frame) {
+            // Overlap — must have transition declared on the previous shot.
+            if (prev.transition_frames <= 0) return false;
+            int overlap = prev.end_frame - shot.start_frame;
+            if (overlap > prev.transition_frames) return false;
+        }
+        // Gap (start > prev.end) is allowed but logged as a validation warning.
     }
+
     shots_.push_back(std::move(shot));
-    return *this;
+    return true;
+}
+
+ShotTimelineValidationResult ShotTimeline::validate() const {
+    ShotTimelineValidationResult r;
+    for (int i = 0; i < static_cast<int>(shots_.size()); ++i) {
+        const auto& s = shots_[i];
+        if (s.end_frame <= s.start_frame) {
+            r.ok = false;
+            r.errors.push_back("shot " + std::to_string(i) +
+                " (\"" + s.name + "\"): zero or negative duration");
+        }
+        if (s.transition_frames > (s.end_frame - s.start_frame)) {
+            r.ok = false;
+            r.errors.push_back("shot " + std::to_string(i) +
+                " (\"" + s.name + "\"): transition longer than shot");
+        }
+        if (i > 0) {
+            const auto& prev = shots_[i - 1];
+            if (s.start_frame < prev.end_frame && prev.transition_frames <= 0) {
+                r.ok = false;
+                r.errors.push_back("shot " + std::to_string(i) +
+                    " (\"" + s.name + "\"): overlaps previous shot with no transition");
+            }
+            if (s.start_frame > prev.end_frame) {
+                r.errors.push_back("gap between shot " + std::to_string(i - 1) +
+                    " (\"" + prev.name + "\") and shot " + std::to_string(i) +
+                    " (\"" + s.name + "\"): " + std::to_string(s.start_frame - prev.end_frame) + " frames");
+            }
+        }
+    }
+    return r;
 }
 
 const CameraShot* ShotTimeline::find_shot(int frame) const {
@@ -49,7 +129,7 @@ int ShotTimeline::total_frames() const {
 }
 
 // =========================================================================
-// Built-in transitions
+// Built-in transitions — all satisfy endpoint parity contract.
 // =========================================================================
 
 namespace {
@@ -58,8 +138,8 @@ namespace {
 class CutTransition final : public CameraTransition {
 public:
     std::string id() const override { return "camera.transition.cut"; }
-    Camera2_5D evaluate(float t, const Camera2_5D&, const Camera2_5D& to_cam) const override {
-        return (t < 1.0f) ? Camera2_5D{} : to_cam;  // instant at t=1
+    Camera2_5D evaluate(float t, const Camera2_5D& from, const Camera2_5D& to) const override {
+        return (t < 1.0f) ? from : to;  // show 'from' until t=1, then 'to'
     }
 };
 
@@ -68,14 +148,16 @@ class SmoothBlendTransition final : public CameraTransition {
 public:
     std::string id() const override { return "camera.transition.smooth_blend"; }
     Camera2_5D evaluate(float t, const Camera2_5D& from, const Camera2_5D& to) const override {
-        Camera2_5D out = from;
+        Camera2_5D out;
         out.position = glm::mix(from.position, to.position, t);
         if (from.point_of_interest_enabled && to.point_of_interest_enabled) {
             out.point_of_interest = glm::mix(from.point_of_interest, to.point_of_interest, t);
+            out.point_of_interest_enabled = true;
         }
-        out.rotation = glm::mix(from.rotation, to.rotation, t);
-        out.fov_deg = from.fov_deg + (to.fov_deg - from.fov_deg) * t;
-        out.zoom = from.zoom + (to.zoom - from.zoom) * t;
+        out.rotation = slerp_rotation(from.rotation, to.rotation, t);
+        out.fov_deg = glm::mix(from.fov_deg, to.fov_deg, t);
+        out.zoom = glm::mix(from.zoom, to.zoom, t);
+        out.focus_distance = glm::mix(from.focus_distance, to.focus_distance, t);
         return out;
     }
 };
@@ -85,14 +167,17 @@ class PushTransition final : public CameraTransition {
 public:
     std::string id() const override { return "camera.transition.push"; }
     Camera2_5D evaluate(float t, const Camera2_5D& from, const Camera2_5D& to) const override {
-        // Push: move the camera through an arc from from to to.
-        // Uses a quadratic ease-out for a dynamic feel.
         float et = t * (2.0f - t);  // ease-out
-        Camera2_5D out = from;
+        Camera2_5D out;
         out.position = glm::mix(from.position, to.position, et);
         if (from.point_of_interest_enabled && to.point_of_interest_enabled) {
             out.point_of_interest = glm::mix(from.point_of_interest, to.point_of_interest, t);
+            out.point_of_interest_enabled = true;
         }
+        out.rotation = slerp_rotation(from.rotation, to.rotation, t);
+        out.fov_deg = glm::mix(from.fov_deg, to.fov_deg, t);
+        out.zoom = glm::mix(from.zoom, to.zoom, t);
+        out.focus_distance = glm::mix(from.focus_distance, to.focus_distance, t);
         return out;
     }
 };
@@ -102,15 +187,17 @@ class WhipPanTransition final : public CameraTransition {
 public:
     std::string id() const override { return "camera.transition.whip_pan"; }
     Camera2_5D evaluate(float t, const Camera2_5D& from, const Camera2_5D& to) const override {
-        // Whip pan: fast pan with motion blur feel.
-        // Uses cubic ease for a whip-like acceleration.
-        float et = t * t * (3.0f - 2.0f * t);  // smoothstep gives snap at end
-        Camera2_5D out = from;
-        out.position = from.position;  // keep position
-        out.rotation = glm::mix(from.rotation, to.rotation, et);
+        float et = t * t * (3.0f - 2.0f * t);  // smoothstep
+        Camera2_5D out;
+        out.position = glm::mix(from.position, to.position, t);
+        out.rotation = slerp_rotation(from.rotation, to.rotation, et);
         if (from.point_of_interest_enabled && to.point_of_interest_enabled) {
             out.point_of_interest = glm::mix(from.point_of_interest, to.point_of_interest, et);
+            out.point_of_interest_enabled = true;
         }
+        out.fov_deg = glm::mix(from.fov_deg, to.fov_deg, t);
+        out.zoom = glm::mix(from.zoom, to.zoom, t);
+        out.focus_distance = glm::mix(from.focus_distance, to.focus_distance, t);
         return out;
     }
 };
@@ -120,11 +207,16 @@ class FocusHandoffTransition final : public CameraTransition {
 public:
     std::string id() const override { return "camera.transition.focus_handoff"; }
     Camera2_5D evaluate(float t, const Camera2_5D& from, const Camera2_5D& to) const override {
-        // Focus handoff: rack focus while keeping position.
         Camera2_5D out = from;
-        out.position = from.position;
-        out.rotation = from.rotation;
-        out.focus_distance = from.focus_distance + (to.focus_distance - from.focus_distance) * t;
+        out.position = glm::mix(from.position, to.position, t);
+        out.rotation = slerp_rotation(from.rotation, to.rotation, t);
+        out.fov_deg = glm::mix(from.fov_deg, to.fov_deg, t);
+        out.zoom = glm::mix(from.zoom, to.zoom, t);
+        out.focus_distance = glm::mix(from.focus_distance, to.focus_distance, t);
+        if (from.point_of_interest_enabled && to.point_of_interest_enabled) {
+            out.point_of_interest = glm::mix(from.point_of_interest, to.point_of_interest, t);
+            out.point_of_interest_enabled = true;
+        }
         return out;
     }
 };
@@ -157,7 +249,6 @@ std::shared_ptr<CameraTransition> ShotTimelineResolver::default_focus_handoff() 
 
 ShotTimelineResolver::ShotTimelineResolver(std::shared_ptr<ShotTimeline> timeline)
     : timeline_(std::move(timeline)) {
-    // Register built-in transitions.
     transitions_[CameraTransitionKind::Cut]          = default_cut();
     transitions_[CameraTransitionKind::SmoothBlend]  = default_smooth_blend();
     transitions_[CameraTransitionKind::Push]         = default_push();
@@ -174,43 +265,57 @@ std::shared_ptr<CameraTransition> ShotTimelineResolver::get_transition(
         CameraTransitionKind kind) const {
     auto it = transitions_.find(kind);
     if (it != transitions_.end()) return it->second;
-    return default_cut();  // fallback
+    return default_cut();
 }
 
-Camera2_5D ShotTimelineResolver::evaluate(int frame, ConstraintSession& session) const {
+Camera2_5D ShotTimelineResolver::evaluate(int frame,
+                                           ShotTimelineSession& timeline_session) const {
     if (!timeline_ || timeline_->empty()) return {};
 
     auto pair = timeline_->find_pair(frame);
     if (!pair.current) return {};
 
     const CameraShot& shot = *pair.current;
+    int local_frame = frame - shot.start_frame;  // local time
 
     // Check if we're in a transition overlap with the next shot.
-    // Cut transitions should have transition_frames=0; if misconfigured, skip overlap.
     if (pair.next && shot.transition_frames > 0 &&
-        shot.transition_in != CameraTransitionKind::Cut &&
+        shot.transition_out != CameraTransitionKind::Cut &&
         frame >= shot.end_frame - shot.transition_frames) {
+
         int overlap_start = shot.end_frame - shot.transition_frames;
-        float t = static_cast<float>(frame - overlap_start) /
-                  static_cast<float>(std::max(1, shot.transition_frames));
+        int local_idx = frame - overlap_start;
+
+        // t ∈ [0, 1] inclusive: last overlap frame reaches t=1.
+        int denom = std::max(1, shot.transition_frames - 1);
+        float t = static_cast<float>(local_idx) / static_cast<float>(denom);
         t = std::clamp(t, 0.0f, 1.0f);
 
-        // Evaluate both shots.
-        auto ctx = CameraMotionContext::at(frame);
-        ctx.base_target = shot.program.base_cam().point_of_interest;
+        // Local context per shot.
+        auto ctx_from = CameraMotionContext::at(local_frame);
+        ctx_from.base_target = shot.program.base_cam().point_of_interest;
 
-        ConstraintSession s_from, s_to;
-        Camera2_5D from_cam = shot.program.evaluate(ctx, s_from).camera;
-        Camera2_5D to_cam   = pair.next->program.evaluate(ctx, s_to).camera;
+        int next_local = frame - pair.next->start_frame;
+        auto ctx_to = CameraMotionContext::at(std::max(0, next_local));
+        ctx_to.base_target = pair.next->program.base_cam().point_of_interest;
 
-        auto transition = get_transition(shot.transition_in);
+        // Use persistent sessions so DampedFollow/banking survive across frames.
+        auto& s_from = timeline_session.session_for(pair.idx);
+        auto& s_to   = timeline_session.session_for(pair.idx + 1);
+
+        Camera2_5D from_cam = shot.program.evaluate(ctx_from, s_from).camera;
+        Camera2_5D to_cam   = pair.next->program.evaluate(ctx_to, s_to).camera;
+
+        auto transition = get_transition(shot.transition_out);
         return transition->evaluate(t, from_cam, to_cam);
     }
 
-    // No transition — evaluate the current shot directly.
-    auto ctx = CameraMotionContext::at(frame);
+    // No transition — evaluate the current shot directly with local time.
+    auto ctx = CameraMotionContext::at(local_frame);
     ctx.base_target = shot.program.base_cam().point_of_interest;
-    return shot.program.evaluate(ctx, session).camera;
+
+    auto& shot_session = timeline_session.session_for(pair.idx);
+    return shot.program.evaluate(ctx, shot_session).camera;
 }
 
 // =========================================================================
@@ -225,6 +330,7 @@ CameraTransitionRegistry& CameraTransitionRegistry::instance() {
 void CameraTransitionRegistry::register_transition(CameraTransitionKind kind, Factory f) {
     if (!f) throw std::invalid_argument("CameraTransitionRegistry: null factory");
     std::lock_guard<std::mutex> lk(mu_);
+    if (frozen_) throw std::logic_error("CameraTransitionRegistry: frozen");
     factories_[kind] = std::move(f);
 }
 
@@ -238,6 +344,24 @@ std::shared_ptr<CameraTransition> CameraTransitionRegistry::create(
 bool CameraTransitionRegistry::has(CameraTransitionKind kind) const {
     std::lock_guard<std::mutex> lk(mu_);
     return factories_.count(kind) > 0;
+}
+
+void CameraTransitionRegistry::freeze() {
+    std::lock_guard<std::mutex> lk(mu_);
+    frozen_ = true;
+}
+
+void CameraTransitionRegistry::register_defaults() {
+    if (!has(CameraTransitionKind::Cut))
+        register_transition(CameraTransitionKind::Cut, ShotTimelineResolver::default_cut);
+    if (!has(CameraTransitionKind::SmoothBlend))
+        register_transition(CameraTransitionKind::SmoothBlend, ShotTimelineResolver::default_smooth_blend);
+    if (!has(CameraTransitionKind::Push))
+        register_transition(CameraTransitionKind::Push, ShotTimelineResolver::default_push);
+    if (!has(CameraTransitionKind::WhipPan))
+        register_transition(CameraTransitionKind::WhipPan, ShotTimelineResolver::default_whip_pan);
+    if (!has(CameraTransitionKind::FocusHandoff))
+        register_transition(CameraTransitionKind::FocusHandoff, ShotTimelineResolver::default_focus_handoff);
 }
 
 } // namespace chronon3d::camera_v1
