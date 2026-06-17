@@ -34,6 +34,17 @@ CameraProgram& CameraProgram::trajectory(std::shared_ptr<CameraTrajectory> t) {
     return *this;
 }
 
+CameraProgram& CameraProgram::add_constraint(std::shared_ptr<CameraConstraint> c) {
+    constraints_.add(std::move(c));
+    return *this;
+}
+
+CameraProgram& CameraProgram::add_constraint_named(const std::string& registry_id) {
+    auto c = CameraConstraintRegistry::instance().create(registry_id);
+    if (c) constraints_.add(std::move(c));
+    return *this;
+}
+
 bool CameraProgram::has_motion() const {
     auto* m = std::get_if<RegisteredMotionSource>(&source_);
     return m && m->valid;

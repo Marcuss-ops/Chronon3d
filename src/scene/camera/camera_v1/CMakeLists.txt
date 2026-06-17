@@ -14,4 +14,5 @@
 target_sources(chronon3d_scene PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_trajectory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_program.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/register_camera_v1.cpp
 )
