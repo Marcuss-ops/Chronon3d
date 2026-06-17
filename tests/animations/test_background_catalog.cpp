@@ -1,4 +1,3 @@
-#include <chronon3d/api/backgrounds.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/composition/register_builtin_compositions.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
@@ -8,7 +7,6 @@
 #include <cmath>
 
 using namespace chronon3d;
-using namespace chronon3d::api;
 
 // Register built-in compositions once before any test case.
 static bool _bg_registered = (chronon3d::register_builtin_compositions(), true);
