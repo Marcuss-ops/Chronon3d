@@ -1,66 +1,67 @@
 # ==============================================================================
-# Content Sub-Targets
-# Each category can be built independently or as a whole via chronon3d_content
+# Content Gallery — single flat library (was 9 sub-libraries + 9 modules)
+#
+# Previously each family (shapes, images, etc.) was a separate STATIC library
+# with its own CMakeLists, PCH, UNITY_BUILD setting, and alias target.
+# Flattened into one library: simpler, fewer targets, no per-family overhead.
 # ==============================================================================
 
-# Add category subdirectories
-add_subdirectory(shapes)
-add_subdirectory(images)
-add_subdirectory(anims)
-add_subdirectory(Minimalist)
-add_subdirectory(SpecialNames)
-add_subdirectory(ImportantWords)
-add_subdirectory(effects)
-add_subdirectory(2d5)
-add_subdirectory(grid)
+add_library(chronon3d_content_gallery STATIC
+    register_content_modules.cpp
 
-# =============================================================================
-# Canonical content module list — single source of truth for all content targets.
-#
-# Any target that needs to link all content modules (whether inside a
-# --whole-archive wrapper for shared-lib builds, or as regular PUBLIC deps
-# for static/executable targets) should use this INTERFACE target rather
-# than listing individual modules separately.
-#
-# WHOLE_ARCHIVE has been removed from static targets — content modules now
-# use explicit ExtensionRegistry::register_composition() calls instead of
-# CHRONON_REGISTER_COMPOSITION static-initialisation macros, so the linker
-# preserves registration symbols without whole-archive for executable and
-# static library targets. Shared libraries (chronon3d_shared) still need
-# --whole-archive because STATIC symbols may be dropped by the linker.
-# =============================================================================
-add_library(chronon3d_all_content_modules INTERFACE)
-target_link_libraries(chronon3d_all_content_modules INTERFACE
-    chronon3d_content_shapes
-    chronon3d_content_images
-    chronon3d_content_anims
-    chronon3d_content_minimalist
-    chronon3d_content_special_names
-    chronon3d_content_important_words
-    chronon3d_content_effects
-    chronon3d_content_2d5
-    chronon3d_content_grid
+    # Shape proofs
+    shapes/register_shapes_content.cpp
+    shapes/shape_proofs.cpp
+
+    # Image proofs
+    images/register_images_content.cpp
+    images/image_proofs.cpp
+
+    # Animation proofs
+    anims/register_anims_content.cpp
+    anims/anim_proofs.cpp
+
+    # Minimalist animations
+    minimalist/register_minimalist_content.cpp
+    minimalist/minimalist_animations.cpp
+
+    # Special names
+    special_names/register_special_names_content.cpp
+    special_names/special_names_animations.cpp
+
+    # Important words
+    important_words/register_important_words_content.cpp
+    important_words/important_words_animations.cpp
+
+    # Effects
+    effects/register_effects_content.cpp
+    effects/glow_compositions.cpp
+
+    # 2.5D compositions
+    2d5/register_2d5_content.cpp
+    2d5/compositions.cpp
+
+    # Grid proofs
+    grid/register_grid_content.cpp
+    grid/grid_proofs.cpp
 )
-add_library(chronon3d::all_content_modules ALIAS chronon3d_all_content_modules)
 
-# Content module registration (links all content modules together)
+target_include_directories(chronon3d_content_gallery PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(chronon3d_content_gallery
+    PUBLIC chronon3d
+    PRIVATE chronon3d_extension
+)
+
+add_library(chronon3d::content_gallery ALIAS chronon3d_content_gallery)
+
+# Content module registration (uses ExtensionRegistry)
 add_library(chronon3d_content_registry STATIC
     register_content_modules.cpp
 )
 target_include_directories(chronon3d_content_registry PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(chronon3d_content_registry
-    PUBLIC
-        chronon3d
-        chronon3d_all_content_modules
+    PUBLIC chronon3d
     PRIVATE chronon3d_extension
 )
+
 add_library(chronon3d::content_registry ALIAS chronon3d_content_registry)
-
-# Meta-target: all content (used for full builds)
-add_custom_target(chronon3d_content ALL
-    DEPENDS
-        chronon3d_all_content_modules
-        chronon3d_content_registry
-)
-
-
