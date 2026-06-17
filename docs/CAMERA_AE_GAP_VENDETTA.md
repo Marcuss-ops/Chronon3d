@@ -92,12 +92,12 @@ SampleTime current_time_;
 Le cache devono usare una rappresentazione deterministica del sub-frame:
 
 ```cpp
-struct SampleTimeKey {
-    int64_t ticks;
+struct TemporalSampleKey {
+    Frame frame{0};
+    u32 subframe_tick{0};
+    EvaluationVersion version{0};
+    static constexpr u32 kTicksPerFrame = 65536;
 };
-
-// Esempio: 1/65536 di frame
-ticks = std::llround(time.frame * 65536.0);
 ```
 
 Non usare direttamente `double` come chiave hash.
