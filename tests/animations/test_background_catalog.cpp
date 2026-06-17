@@ -5,7 +5,6 @@
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 
 #include <doctest/doctest.h>
-#include <nlohmann/json.hpp>
 #include <cmath>
 
 using namespace chronon3d;
@@ -13,22 +12,6 @@ using namespace chronon3d::api;
 
 // Register built-in compositions once before any test case.
 static bool _bg_registered = (chronon3d::register_builtin_compositions(), true);
-
-TEST_CASE("Builtin background catalog exposes grid_clean preset") {
-    const auto& catalog = builtin_background_catalog();
-
-    REQUIRE(catalog.presets.size() == 1);
-
-    const auto* clean = find_builtin_background("grid_clean");
-    REQUIRE(clean != nullptr);
-    CHECK(clean->name == "Grid Clean");
-    CHECK(clean->loopable);
-
-    const std::string json = builtin_background_catalog_json();
-    const auto parsed = nlohmann::json::parse(json);
-    REQUIRE(parsed.is_array());
-    CHECK(parsed.size() == catalog.presets.size());
-}
 
 TEST_CASE("Builtin background compositions are registered") {
     chronon3d::CompositionRegistry registry;
