@@ -4,6 +4,12 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/backends/text/bidi_segmenter.hpp>
 
+// ── Extracted modules (keep includes before namespace block) ──────
+// text_unicode_utils.hpp: UTF-8 codec + grapheme cluster (chronon3d::detail)
+// text_layout_types.hpp: TextLayoutRun/Input/Line/Result data structures
+#include "text_unicode_utils.hpp"
+#include "text_layout_types.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -13,16 +19,6 @@
 #include <vector>
 
 namespace chronon3d {
-
-// ── UTF-8 code-point helpers + grapheme cluster segmentation ─────
-// Extracted into text_unicode_utils.hpp so consumers that only need
-// codec / grapheme utilities don't compile the full layout engine.
-#include "text_unicode_utils.hpp"
-
-// ── Layout data structures ────────────────────────────────────────
-// Extracted into text_layout_types.hpp so consumers that only need
-// the types don't compile the full layout engine.
-#include "text_layout_types.hpp"
 
 class TextLayoutEngine {
 private:
