@@ -1,8 +1,31 @@
 // ==============================================================================
 // chronon3d/src/scene/camera/camera_v1/camera_motion_blur.cpp
 //
-// CameraMotionBlurIntegrator implementation.
+// CameraMotionBlurIntegrator — temporal pose-temporal filter.
 //
+// SCOPE (what this is):
+//   Sub-samples the camera evaluator across the shutter window and produces
+//   a single Camera2_5D  via quaternion NLerp + per-channel weighted average.
+//   This is useful as a  CameraPoseTemporalFilter: smooths a camera that would
+//   otherwise snap (e.g. when several program evaluations disagree near t=0).
+//
+// SCOPE (what this is NOT):
+//   This does NOT accumulate framebuffers. It does not paint temporal streaks
+//   on screen. Naming is misleading: the "motion blur" label refers to the
+//   pipeline being a prerequisite for true motion blur (sub-sampled poses
+//   are the camera positions the future  FramebufferMotionBlurPipeline will
+//   render),
+//   not the visible blur itself.
+//
+// FUTURE WORK (P9+):
+//   Real motion blur requires a FramebufferMotionBlurPipeline:
+//     1. Sub-sample the camera at N shutter positions (use this integrator
+//        for pose sub-sampling).
+//     2. Render each sub-frame into a transient framebuffer.
+//     3. Accumulate framebuffer × filter_weight, normalize, output.
+//   Tracked at: TODO(P9): implement FramebufferMotionBlurPipeline.
+//
+
 // Sub-sample distribution:
 //   exposure_duration = shutter_angle / 360 * (1 / fps)
 //   window_start = frame - exposure_duration * (0.5 + shutter_phase / 360)

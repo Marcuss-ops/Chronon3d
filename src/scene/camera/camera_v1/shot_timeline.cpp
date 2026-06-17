@@ -149,11 +149,20 @@ class SmoothBlendTransition final : public CameraTransition {
 public:
     std::string id() const override { return "camera.transition.smooth_blend"; }
     Camera2_5D evaluate(float t, const Camera2_5D& from, const Camera2_5D& to) const override {
-        Camera2_5D out;
+        // Bug 4 fix: endpoint parity (matches contract transition(0)==from,
+        // transition(1)==to) AND preserve every non-animated field (is_animated,
+        // enabled, lens, hierarchy, motion_blur, dof.use_* etc.) by initializing
+        // out from `from` and only mutating the animated channels.
+        if (t <= 0.0f) return from;
+        if (t >= 1.0f) return to;
+        Camera2_5D out = from;
         out.position = glm::mix(from.position, to.position, t);
         if (from.point_of_interest_enabled && to.point_of_interest_enabled) {
             out.point_of_interest = glm::mix(from.point_of_interest, to.point_of_interest, t);
             out.point_of_interest_enabled = true;
+        } else {
+            out.point_of_interest = from.point_of_interest;
+            out.point_of_interest_enabled = from.point_of_interest_enabled;
         }
         out.rotation = slerp_rotation(from.rotation, to.rotation, t);
         out.fov_deg = glm::mix(from.fov_deg, to.fov_deg, t);
@@ -168,12 +177,18 @@ class PushTransition final : public CameraTransition {
 public:
     std::string id() const override { return "camera.transition.push"; }
     Camera2_5D evaluate(float t, const Camera2_5D& from, const Camera2_5D& to) const override {
+        // Bug 4 fix: see SmoothBlend above.
+        if (t <= 0.0f) return from;
+        if (t >= 1.0f) return to;
         float et = t * (2.0f - t);  // ease-out
-        Camera2_5D out;
+        Camera2_5D out = from;
         out.position = glm::mix(from.position, to.position, et);
         if (from.point_of_interest_enabled && to.point_of_interest_enabled) {
             out.point_of_interest = glm::mix(from.point_of_interest, to.point_of_interest, t);
             out.point_of_interest_enabled = true;
+        } else {
+            out.point_of_interest = from.point_of_interest;
+            out.point_of_interest_enabled = from.point_of_interest_enabled;
         }
         out.rotation = slerp_rotation(from.rotation, to.rotation, t);
         out.fov_deg = glm::mix(from.fov_deg, to.fov_deg, t);
@@ -188,13 +203,19 @@ class WhipPanTransition final : public CameraTransition {
 public:
     std::string id() const override { return "camera.transition.whip_pan"; }
     Camera2_5D evaluate(float t, const Camera2_5D& from, const Camera2_5D& to) const override {
+        // Bug 4 fix: see SmoothBlend above.
+        if (t <= 0.0f) return from;
+        if (t >= 1.0f) return to;
         float et = t * t * (3.0f - 2.0f * t);  // smoothstep
-        Camera2_5D out;
+        Camera2_5D out = from;
         out.position = glm::mix(from.position, to.position, t);
         out.rotation = slerp_rotation(from.rotation, to.rotation, et);
         if (from.point_of_interest_enabled && to.point_of_interest_enabled) {
             out.point_of_interest = glm::mix(from.point_of_interest, to.point_of_interest, et);
             out.point_of_interest_enabled = true;
+        } else {
+            out.point_of_interest = from.point_of_interest;
+            out.point_of_interest_enabled = from.point_of_interest_enabled;
         }
         out.fov_deg = glm::mix(from.fov_deg, to.fov_deg, t);
         out.zoom = glm::mix(from.zoom, to.zoom, t);
@@ -208,6 +229,9 @@ class FocusHandoffTransition final : public CameraTransition {
 public:
     std::string id() const override { return "camera.transition.focus_handoff"; }
     Camera2_5D evaluate(float t, const Camera2_5D& from, const Camera2_5D& to) const override {
+        // Bug 4 fix: see SmoothBlend above.
+        if (t <= 0.0f) return from;
+        if (t >= 1.0f) return to;
         Camera2_5D out = from;
         out.position = glm::mix(from.position, to.position, t);
         out.rotation = slerp_rotation(from.rotation, to.rotation, t);
@@ -250,11 +274,23 @@ std::shared_ptr<CameraTransition> ShotTimelineResolver::default_focus_handoff() 
 
 ShotTimelineResolver::ShotTimelineResolver(std::shared_ptr<ShotTimeline> timeline)
     : timeline_(std::move(timeline)) {
-    transitions_[CameraTransitionKind::Cut]          = default_cut();
-    transitions_[CameraTransitionKind::SmoothBlend]  = default_smooth_blend();
-    transitions_[CameraTransitionKind::Push]         = default_push();
-    transitions_[CameraTransitionKind::WhipPan]      = default_whip_pan();
-    transitions_[CameraTransitionKind::FocusHandoff] = default_focus_handoff();
+    // Bug 5 fix: pull transitions from CameraTransitionRegistry instead of
+    // building a parallel local map. The registry is the single source of truth
+    // (populated by register_camera_v1_builtins() via register_defaults()).
+    // We still fall back to the local defaults so tests that bypassed the
+    // bootstrap can construct a resolver without crashing.
+    auto& reg = CameraTransitionRegistry::instance();
+    auto fetch = [&](CameraTransitionKind k,
+                     std::shared_ptr<CameraTransition> fallback)
+        -> std::shared_ptr<CameraTransition> {
+        auto t = reg.create(k);
+        return t ? t : fallback;
+    };
+    transitions_[CameraTransitionKind::Cut]          = fetch(CameraTransitionKind::Cut,          default_cut());
+    transitions_[CameraTransitionKind::SmoothBlend]  = fetch(CameraTransitionKind::SmoothBlend,  default_smooth_blend());
+    transitions_[CameraTransitionKind::Push]         = fetch(CameraTransitionKind::Push,         default_push());
+    transitions_[CameraTransitionKind::WhipPan]      = fetch(CameraTransitionKind::WhipPan,      default_whip_pan());
+    transitions_[CameraTransitionKind::FocusHandoff] = fetch(CameraTransitionKind::FocusHandoff, default_focus_handoff());
 }
 
 void ShotTimelineResolver::set_transition(CameraTransitionKind kind,
