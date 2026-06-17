@@ -33,10 +33,15 @@ void CameraConstraintRegistry::register_factory(std::string id, Factory f) {
 }
 
 std::shared_ptr<CameraConstraint> CameraConstraintRegistry::create(const std::string& id) const {
+    return create(id, CameraConstraintParams{});
+}
+
+std::shared_ptr<CameraConstraint> CameraConstraintRegistry::create(
+    const std::string& id, const CameraConstraintParams& params) const {
     std::lock_guard<std::mutex> lk(mu_);
     auto it = factories_.find(id);
     if (it == factories_.end()) return nullptr;
-    return it->second();
+    return it->second(params);
 }
 
 std::vector<std::string> CameraConstraintRegistry::ids() const {
@@ -79,8 +84,10 @@ ConstraintResult CameraConstraintStack::resolve(const Camera2_5D& start,
                                                 ConstraintSession& session) const {
     ConstraintResult r;
     r.camera = start;
-    for (auto& c : stack_) {
-        r = c->evaluate(r.camera, ctx, session);
+    session.ensure_states(stack_.size());
+    for (std::size_t i = 0; i < stack_.size(); ++i) {
+        session.active_index = i;
+        r = stack_[i]->evaluate(r.camera, ctx, session);
         if (!r.ok) break;
     }
     return r;
@@ -146,17 +153,18 @@ public:
                               const CameraMotionContext& ctx,
                               ConstraintSession& session) const override {
         ConstraintResult r;
-        if (!session.has_previous) {
+        auto& state = session.states[session.active_index];
+        if (!state.has_previous) {
             r.camera = in;
-            session.previous_camera = in;
-            session.previous_velocity = {0,0,0};
-            session.previous_time = ctx.sample_time;
-            session.has_previous = true;
+            state.previous_camera = in;
+            state.previous_velocity = {0,0,0};
+            state.previous_time = ctx.sample_time;
+            state.has_previous = true;
             r.ok = true;
             return r;
         }
-        float dt = ctx.sample_time.seconds() - session.previous_time.seconds();
-        Vec3 anchor_prev = session.previous_camera.position + session.previous_velocity * dt;
+        float dt = ctx.sample_time.seconds() - state.previous_time.seconds();
+        Vec3 anchor_prev = state.previous_camera.position + state.previous_velocity * dt;
         r.camera = in;
         float a = std::clamp(damping_, 0.0f, 1.0f);
         r.camera.position = {
@@ -164,13 +172,13 @@ public:
             in.position.y + a * (anchor_prev.y - in.position.y),
             in.position.z + a * (anchor_prev.z - in.position.z),
         };
-        session.previous_velocity = {
-            (r.camera.position.x - session.previous_camera.position.x) / std::max(1e-6f, dt),
-            (r.camera.position.y - session.previous_camera.position.y) / std::max(1e-6f, dt),
-            (r.camera.position.z - session.previous_camera.position.z) / std::max(1e-6f, dt),
+        state.previous_velocity = {
+            (r.camera.position.x - state.previous_camera.position.x) / std::max(1e-6f, dt),
+            (r.camera.position.y - state.previous_camera.position.y) / std::max(1e-6f, dt),
+            (r.camera.position.z - state.previous_camera.position.z) / std::max(1e-6f, dt),
         };
-        session.previous_camera = r.camera;
-        session.previous_time = ctx.sample_time;
+        state.previous_camera = r.camera;
+        state.previous_time = ctx.sample_time;
         r.ok = true;
         return r;
     }
@@ -181,13 +189,13 @@ private:
 // =========================================================================
 // Factory functions for built-in constraints.
 // =========================================================================
-static std::shared_ptr<CameraConstraint> make_look_at() {
+static std::shared_ptr<CameraConstraint> make_look_at(const CameraConstraintParams& /*params*/) {
     return std::make_shared<LookAtConstraint>();
 }
-static std::shared_ptr<CameraConstraint> make_keep_horizon() {
+static std::shared_ptr<CameraConstraint> make_keep_horizon(const CameraConstraintParams& /*params*/) {
     return std::make_shared<KeepHorizonConstraint>();
 }
-static std::shared_ptr<CameraConstraint> make_damped_follow_default() {
+static std::shared_ptr<CameraConstraint> make_damped_follow_default(const CameraConstraintParams& /*params*/) {
     return std::make_shared<DampedFollowConstraint>(0.15f);
 }
 

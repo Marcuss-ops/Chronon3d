@@ -47,4 +47,9 @@ private:
     bool frozen_{false};
 };
 
+/// Register built-in constraints (look_at, keep_horizon, damped_follow,
+/// distance, rotation_limit). Called by register_camera_v1_builtins().
+/// Does NOT freeze the registry.
+void register_default_camera_constraints();
+
 } // namespace chronon3d::camera_v1

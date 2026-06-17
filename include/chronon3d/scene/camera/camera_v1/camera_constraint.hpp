@@ -63,7 +63,8 @@ struct ConstraintState {
 /// active_index = i before calling constraint[i].evaluate().
 struct ConstraintSession {
     std::vector<ConstraintState> states;
-    float banking_roll{0.0f};   // shared banking state (CameraProgram)
+    std::size_t active_index{0}; ///< Set by the caller before each evaluate().
+    float banking_roll{0.0f};    // shared banking state (CameraProgram)
 
     void ensure_states(std::size_t n) {
         if (states.size() < n) states.resize(n);
@@ -71,6 +72,7 @@ struct ConstraintSession {
 
     void reset() {
         for (auto& s : states) s = {};
+        active_index = 0;
         banking_roll = 0.0f;
     }
 };

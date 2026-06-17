@@ -66,12 +66,12 @@ TEST_CASE("PR2: duplicate constraint ID throws") {
     // Make sure the ID doesn't already exist.
     if (!reg.has("camera.test_dup_constraint"))
         reg.register_factory("camera.test_dup_constraint",
-            +[]() -> std::shared_ptr<CameraConstraint> { return nullptr; });
+            +[](const CameraConstraintParams&) -> std::shared_ptr<CameraConstraint> { return nullptr; });
 
     bool threw = false;
     try {
         reg.register_factory("camera.test_dup_constraint",
-            +[]() -> std::shared_ptr<CameraConstraint> { return nullptr; });
+            +[](const CameraConstraintParams&) -> std::shared_ptr<CameraConstraint> { return nullptr; });
     } catch (const std::invalid_argument&) {
         threw = true;
     }
