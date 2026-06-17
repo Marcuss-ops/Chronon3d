@@ -17,6 +17,18 @@
 namespace chronon3d::camera_v1 {
 
 // =========================================================================
+// Angular deviation helper (degrees) between two direction vectors viewed
+// from the camera origin.  Returns 0 if either direction is degenerate.
+// =========================================================================
+static float angular_deviation_deg(const Vec3& a, const Vec3& b) {
+    const float la = glm::length(a);
+    const float lb = glm::length(b);
+    if (la < 1e-3f || lb < 1e-3f) return 0.0f;
+    const float cos_a = std::clamp(glm::dot(a, b) / (la * lb), -1.0f, 1.0f);
+    return glm::degrees(glm::acos(cos_a));
+}
+
+// =========================================================================
 // CameraFramingSolver
 // =========================================================================
 
@@ -157,9 +169,11 @@ float CameraFramingSolver::compute_dolly(const CameraFramingRequest& req,
 }
 
 Vec3 CameraFramingSolver::compute_aim_point(const CameraFramingRequest& req,
-                                             const Camera2_5D& cam) const {
+                                             const Camera2_5D& cam,
+                                             const FramingSession& session) const {
     auto active = select_targets(req);
     Vec3 centroid = compute_centroid(active);
+    Vec3 aim = centroid;
 
     if (req.strategy == FramingStrategy::RuleOfThirds && !active.empty()) {
         Vec2 target_screen = rule_of_thirds_target(active[0], cam, req.viewport, 1, 1);
@@ -172,10 +186,25 @@ Vec3 CameraFramingSolver::compute_aim_point(const CameraFramingRequest& req,
         float world_x = (target_screen.x - req.viewport.width  * 0.5f) * (depth * fov_scale) / (req.viewport.width  * 0.5f);
         float world_y = (target_screen.y - req.viewport.height * 0.5f) * (depth * fov_scale) / (req.viewport.height * 0.5f);
 
-        return centroid + Vec3{world_x, world_y, 0.0f};
+        aim = centroid + Vec3{world_x, world_y, 0.0f};
     }
 
-    return centroid;
+    // Framing hard-point fix: aim_error_deg tolerance gate.  std::max guards
+    // against negative thresholds (treated the same as 0/disabled), preserving
+    // the "0 = disabled" sentinel contract.    angular_deviation_deg returns
+    // a non-negative value, so when tol == 0 the < tol comparison is always
+    // false and the gate never fires regardless of has_value().
+    const float tol = std::max(0.0f, req.aim_error_deg);
+    if (tol > 0.0f && session.previous_aim_target.has_value()) {
+        const Vec3 prev_aim   = *session.previous_aim_target;
+        const Vec3 old_dir    = prev_aim - cam.position;
+        const Vec3 fresh_dir  = aim    - cam.position;
+        if (angular_deviation_deg(old_dir, fresh_dir) < tol) {
+            aim = prev_aim;  // micro-adjustment suppressed — keep prior aim
+        }
+    }
+
+    return aim;
 }
 
 Vec2 CameraFramingSolver::rule_of_thirds_target(const FramingBBox&,
@@ -218,6 +247,12 @@ Camera2_5D CameraFramingSolver::apply_dead_zone(
 
     session.previous_camera = result;
     session.has_previous = true;
+    // Mirror the previous aim into session state so the compute_aim_point
+    // tolerance gate has a baseline on the next frame.  std::optional makes
+    // "no previous" explicit, sidestepping the (0,0,0)-truthy-sentinel hazard.
+    if (target.point_of_interest_enabled) {
+        session.previous_aim_target = result.point_of_interest;
+    }
     return result;
 }
 
@@ -239,7 +274,7 @@ CameraFramingResult CameraFramingSolver::solve(
 
     for (int iter = 0; iter < kMaxIters; ++iter) {
         float dolly = compute_dolly(req, current);
-        Vec3 aim = compute_aim_point(req, current);
+        Vec3 aim = compute_aim_point(req, current, session);
 
         bool dolly_enabled = false, aim_enabled = false;
         switch (req.strategy) {
@@ -299,7 +334,18 @@ CameraFramingResult CameraFramingSolver::solve(
     Camera2_5D prev = session.has_previous ? session.previous_camera : current;
     result.camera = apply_dead_zone(current, prev, req.dead_zone, session);
 
+    // Report the residual convergence error for both dolly and aim so callers
+    // can decide when to stop iterating / log diagnostics. aim_error_deg is
+    // measured at the camera origin between the framed aim and the base
+    // camera's prior aim (or final aim if no prior was set).
     result.convergence.dolly_error = glm::length(result.camera.position - base_camera.position);
+    if (result.camera.point_of_interest_enabled) {
+        Vec3 final_dir = result.camera.point_of_interest - result.camera.position;
+        Vec3 base_dir  = base_camera.point_of_interest_enabled
+            ? (base_camera.point_of_interest - base_camera.position)
+            : final_dir;
+        result.convergence.aim_error_deg = angular_deviation_deg(final_dir, base_dir);
+    }
     result.ok = true;
     return result;
 }
