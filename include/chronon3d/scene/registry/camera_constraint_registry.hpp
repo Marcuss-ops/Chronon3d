@@ -2,13 +2,11 @@
 // ==============================================================================
 // chronon3d/scene/registry/camera_constraint_registry.hpp
 //
-// Singleton registry of CameraConstraint factories, keyed by dotted id
-// (e.g. "camera.look_at", "camera.keep_horizon", "camera.damped_follow").
-// Used by CameraProgram::add_constraint_named() to attach a constraint by id
-// without writing a builder chain at the call site.
+// Singleton registry of CameraConstraint factories, keyed by dotted id.
+// Factories now accept CameraConstraintParams for typed configuration.
 //
-// Threading: register_factory() is intended to run at startup; after freeze()
-// the registry is read-only and safe to query from any thread without locks.
+// Threading: register_factory() intended at startup; after freeze() the
+// registry is read-only and safe to query from any thread.
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_constraint.hpp>
 
@@ -24,27 +22,22 @@ class CameraConstraintRegistry {
 public:
     static CameraConstraintRegistry& instance();
 
-    /// Factory function pointer: zero-arg, returns a fresh constraint.
-    using Factory = std::shared_ptr<CameraConstraint> (*)();
+    using Factory = ConstraintFactory;
 
-    /// Register a factory. Throws std::invalid_argument on null or duplicate id.
-    /// Throws std::logic_error if the registry is already frozen.
+    /// Register a factory. Throws on null, empty id, or duplicate.
+    /// Throws std::logic_error if frozen.
     void register_factory(std::string id, Factory f);
 
-    /// Create a constraint by id. Returns nullptr on miss (no throw).
+    /// Create a constraint by id with default params. Returns nullptr on miss.
     std::shared_ptr<CameraConstraint> create(const std::string& id) const;
 
-    /// Enumerate all registered ids (alphabetical).
+    /// Create with explicit params (for non-default configuration).
+    std::shared_ptr<CameraConstraint> create(const std::string& id,
+                                              const CameraConstraintParams& params) const;
+
     std::vector<std::string> ids() const;
-
     bool has(const std::string& id) const;
-
-    /// Freeze the registry: after this, reads are concurrent-safe (no mutex)
-    /// and any register_factory() call throws std::logic_error.
-    /// Idempotent: calling freeze() multiple times is a no-op.
     void freeze();
-
-    /// True if freeze() has been called.
     bool is_frozen() const noexcept { return frozen_; }
 
 private:
