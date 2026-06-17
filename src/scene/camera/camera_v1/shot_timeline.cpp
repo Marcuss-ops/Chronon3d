@@ -158,7 +158,7 @@ public:
         out.rotation = slerp_rotation(from.rotation, to.rotation, t);
         out.fov_deg = glm::mix(from.fov_deg, to.fov_deg, t);
         out.zoom = glm::mix(from.zoom, to.zoom, t);
-        out.focus_distance = glm::mix(from.focus_distance, to.focus_distance, t);
+        out.dof.focus_distance = glm::mix(from.dof.focus_distance, to.dof.focus_distance, t);
         return out;
     }
 };
@@ -178,7 +178,7 @@ public:
         out.rotation = slerp_rotation(from.rotation, to.rotation, t);
         out.fov_deg = glm::mix(from.fov_deg, to.fov_deg, t);
         out.zoom = glm::mix(from.zoom, to.zoom, t);
-        out.focus_distance = glm::mix(from.focus_distance, to.focus_distance, t);
+        out.dof.focus_distance = glm::mix(from.dof.focus_distance, to.dof.focus_distance, t);
         return out;
     }
 };
@@ -198,7 +198,7 @@ public:
         }
         out.fov_deg = glm::mix(from.fov_deg, to.fov_deg, t);
         out.zoom = glm::mix(from.zoom, to.zoom, t);
-        out.focus_distance = glm::mix(from.focus_distance, to.focus_distance, t);
+        out.dof.focus_distance = glm::mix(from.dof.focus_distance, to.dof.focus_distance, t);
         return out;
     }
 };
@@ -213,7 +213,7 @@ public:
         out.rotation = slerp_rotation(from.rotation, to.rotation, t);
         out.fov_deg = glm::mix(from.fov_deg, to.fov_deg, t);
         out.zoom = glm::mix(from.zoom, to.zoom, t);
-        out.focus_distance = glm::mix(from.focus_distance, to.focus_distance, t);
+        out.dof.focus_distance = glm::mix(from.dof.focus_distance, to.dof.focus_distance, t);
         if (from.point_of_interest_enabled && to.point_of_interest_enabled) {
             out.point_of_interest = glm::mix(from.point_of_interest, to.point_of_interest, t);
             out.point_of_interest_enabled = true;

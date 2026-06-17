@@ -195,7 +195,7 @@ Camera2_5D CameraMotionBlurIntegrator::evaluate(
 
         acc_zoom  += sub_cam.zoom * w;
         acc_fov   += sub_cam.fov_deg * w;
-        acc_focus += sub_cam.focus_distance * w;
+        acc_focus += sub_cam.dof.focus_distance * w;
     }
 
     // Normalize.
@@ -213,7 +213,7 @@ Camera2_5D CameraMotionBlurIntegrator::evaluate(
 
     result.zoom           = acc_zoom * inv_w;
     result.fov_deg        = acc_fov * inv_w;
-    result.focus_distance = acc_focus * inv_w;
+    result.dof.focus_distance = acc_focus * inv_w;
 
     // Preserve non-accumulated fields from the base camera.
     result.motion_blur = settings_;

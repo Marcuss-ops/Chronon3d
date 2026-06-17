@@ -170,7 +170,7 @@ TEST_CASE("PR8: static camera unchanged by motion blur") {
     baseline.rotation = {30, 45, 15};
     baseline.zoom = 1200.0f;
     baseline.fov_deg = 60.0f;
-    baseline.focus_distance = 800.0f;
+    baseline.dof.focus_distance = 800.0f;
 
     FrameRate fr{30, 1};
     auto result = integrator.evaluate(5.0, fr, [&](SampleTime) { return baseline; });
@@ -180,7 +180,7 @@ TEST_CASE("PR8: static camera unchanged by motion blur") {
     CHECK(approx(result.position.z, -500.0f));
     CHECK(approx(result.zoom, 1200.0f, 0.1f));
     CHECK(approx(result.fov_deg, 60.0f, 0.1f));
-    CHECK(approx(result.focus_distance, 800.0f, 0.1f));
+    CHECK(approx(result.dof.focus_distance, 800.0f, 0.1f));
 }
 
 // ==============================================================================
@@ -335,11 +335,11 @@ TEST_CASE("PR8: focus distance accumulated across sub-samples") {
     FrameRate fr{30, 1};
     auto result = integrator.evaluate(10.0, fr, [](SampleTime) {
         Camera2_5D cam;
-        cam.focus_distance = 500.0f;
+        cam.dof.focus_distance = 500.0f;
         return cam;
     });
 
-    CHECK(approx(result.focus_distance, 500.0f, 1.0f));
+    CHECK(approx(result.dof.focus_distance, 500.0f, 1.0f));
 }
 
 } // namespace
