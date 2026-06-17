@@ -22,6 +22,8 @@
 #define DOCTEST_CONFIG_SUPER_FAST_ASSERTS
 #include <doctest/doctest.h>
 
+#include <tests/helpers/test_math.hpp>
+
 #include <chronon3d/scene/camera/camera_v1/camera_motion_blur.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 
@@ -32,10 +34,7 @@ namespace {
 
 using namespace chronon3d::camera_v1;
 using namespace chronon3d;
-
-inline bool approx(float a, float b, float tol = 1e-4f) {
-    return std::abs(a - b) <= tol;
-}
+using chronon3d::test::approx;
 
 // ==============================================================================
 // 1 — Disabled produces center-frame result.

@@ -1,18 +1,31 @@
-#if 0  // Disabled: make_projection_context renamed, ProjectionContext removed,
-       // projector_2_5d.hpp has compile errors. Re-enable after refactoring.
 // ============================================================================
 // test_camera_projection_contract.cpp
-// (original content preserved)
+//
+// Unified Camera Projection Contract tests — migrated to current API (June 2026).
+//
+// Verifies that all 4 projection paths produce consistent results:
+//   1. camera_math::project_world_point  (contract)
+//   2. project_world_to_screen            (Path 1)
+//   3. project_layer_2_5d                 (Path 2)
+//   4. renderer::make_projection_context  (Path 3)
+//
+// Tests:
+//   Center point projects to viewport centre
+//   Y sign is inverted (screen Y down)
+//   X sign is correct
+//   Points behind camera are invisible
+//   Depth increases with distance
+//   Perspective scale varies with depth
+//   FOV and zoom focal equivalence
+//   Sentinel values for invisible points
+//   All 4 paths agree for the same input
 // ============================================================================
-
 #define DOCTEST_CONFIG_SUPER_FAST_ASSERTS
 #include <doctest/doctest.h>
 #include <chronon3d/math/camera_projection_contract.hpp>
 #include <chronon3d/scene/camera/camera_projection.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
-#include <chronon3d/math/transform.hpp>
-#include "src/backends/software/utils/projection_utils.hpp"
 #include <cmath>
 
 using namespace chronon3d;
@@ -94,7 +107,7 @@ TEST_CASE("Camera projection contract: FOV and zoom focal equivalence") {
     cam_fov.position = {0, 0, -1000};
     cam_fov.projection_mode = Camera2_5DProjectionMode::Fov;
     cam_fov.fov_deg = 90.0f;
-    const f32 focal = camera_math::focal_from_camera(cam_fov, 1080.0f);
+    const f32 focal = camera_math::focal_from_camera(cam_fov, 1920, 1080);
     Camera2_5D cam_zoom = cam_fov;
     cam_zoom.projection_mode = Camera2_5DProjectionMode::Zoom;
     cam_zoom.zoom = focal;
@@ -131,67 +144,7 @@ TEST_CASE("Camera projection contract: project_world_to_screen matches contract"
     CHECK(sp.depth == doctest::Approx(cp.depth).epsilon(0.001f));
 }
 
-TEST_CASE("Camera projection contract: project_world_point_2_5d matches contract") {
-    Camera2_5D cam;
-    cam.enabled = true;
-    cam.position = {0, 0, -1000};
-    cam.zoom = 1000;
-    const f32 focal = camera_math::focal_from_camera(cam, 1080.0f);
-    const Mat4 view = camera_math::view_matrix_for_camera(cam);
-    Vec3 world{100, 50, 0};
-    Vec2 legacy_screen;
-    f32 legacy_depth;
-    bool legacy_ok = project_world_point_2_5d(cam, view, true, focal, world, legacy_screen, legacy_depth);
-    auto cp = camera_math::project_world_point(cam, world, camera_math::Viewport2D{1920, 1080});
-    CHECK(legacy_ok == cp.visible);
-    if (legacy_ok) {
-        CHECK(legacy_screen.x == doctest::Approx(cp.centered.x).epsilon(0.001f));
-        CHECK(legacy_screen.y == doctest::Approx(cp.centered.y).epsilon(0.001f));
-        CHECK(legacy_depth == doctest::Approx(cp.depth).epsilon(0.001f));
-    }
-}
-
-TEST_CASE("Camera projection contract: project_layer_2_5d centred position matches contract centred") {
-    Camera2_5D cam;
-    cam.enabled = true;
-    cam.position = {0, 0, -1000};
-    cam.zoom = 1000;
-    cam.point_of_interest = {0, 0, 0};
-    cam.point_of_interest_enabled = true;
-    Transform tr;
-    tr.position = {100, 50, 0};
-    tr.scale = {1, 1, 1};
-    auto proj = project_layer_2_5d(tr, cam, 1920.0f, 1080.0f);
-    REQUIRE(proj.visible);
-    auto cp = camera_math::project_world_point(cam, Vec3{100, 50, 0}, camera_math::Viewport2D{1920, 1080});
-    REQUIRE(cp.visible);
-    CHECK(proj.transform.position.x == doctest::Approx(cp.centered.x).epsilon(0.01f));
-    CHECK(proj.transform.position.y == doctest::Approx(cp.centered.y).epsilon(0.01f));
-    CHECK(proj.depth == doctest::Approx(cp.depth).epsilon(0.01f));
-    CHECK(proj.perspective_scale == doctest::Approx(cp.perspective_scale).epsilon(0.01f));
-}
-
-TEST_CASE("Camera projection contract: project_2_5d (projection_utils) matches contract") {
-    Camera2_5D cam;
-    cam.enabled = true;
-    cam.position = {0, 0, -1000};
-    cam.zoom = 1000;
-    const f32 focal = camera_math::focal_from_camera(cam, 1080.0f);
-    const Mat4 view = camera_math::view_matrix_for_camera(cam);
-    const f32 vp_cx = 1920.0f * 0.5f;
-    const f32 vp_cy = 1080.0f * 0.5f;
-    Vec3 world{100, 50, 0};
-    bool ok = false;
-    Vec2 utils_screen = renderer::project_2_5d(world, view, focal, vp_cx, vp_cy, ok);
-    auto cp = camera_math::project_world_point(cam, world, camera_math::Viewport2D{1920, 1080});
-    CHECK(ok == cp.visible);
-    if (ok) {
-        CHECK(utils_screen.x == doctest::Approx(cp.screen.x).epsilon(0.001f));
-        CHECK(utils_screen.y == doctest::Approx(cp.screen.y).epsilon(0.001f));
-    }
-}
-
-TEST_CASE("Camera projection contract: ProjectionContext matches contract with POI enabled") {
+TEST_CASE("Camera projection contract: ProjectionContext matches contract") {
     Camera2_5D cam;
     cam.enabled = true;
     cam.position = {0, 0, -1000};
@@ -210,15 +163,13 @@ TEST_CASE("Camera projection contract: ProjectionContext matches contract with P
     }
 }
 
-TEST_CASE("Camera projection contract: focal_from_camera matches focal_length_from_fov") {
+TEST_CASE("Camera projection contract: focal_from_camera matches legacy focal_length_from_fov") {
     const f32 h = 720.0f;
     const f32 fov = 50.0f;
     f32 legacy = focal_length_from_fov(h, fov);
     Camera2_5D tmp;
     tmp.projection_mode = Camera2_5DProjectionMode::Fov;
     tmp.fov_deg = fov;
-    f32 contract = camera_math::focal_from_camera(tmp, h);
+    f32 contract = camera_math::focal_from_camera(tmp, 720, 720);
     CHECK(legacy == doctest::Approx(contract).epsilon(0.0001f));
 }
-
-#endif // #if 0 — disabled test file

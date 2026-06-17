@@ -188,8 +188,10 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     out.transform.position.z = 0.0f;
 
     // ── Compute screen-space bbox size for the transform scale ──────────────
-    const f32 bbox_w = std::max(1.0f, max_pos.x - min_pos.x);
-    const f32 bbox_h = std::max(1.0f, max_pos.y - min_pos.y);
+    // Use a tiny epsilon floor to avoid degenerate zero-size transforms
+    // while still allowing sub-pixel sizes for far layers.
+    const f32 bbox_w = std::max(1e-6f, max_pos.x - min_pos.x);
+    const f32 bbox_h = std::max(1e-6f, max_pos.y - min_pos.y);
     out.transform.scale.x = bbox_w;
     out.transform.scale.y = bbox_h;
 

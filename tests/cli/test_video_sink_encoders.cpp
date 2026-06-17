@@ -30,6 +30,7 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <thread>
 #include <vector>
 
 using namespace chronon3d;
@@ -212,10 +213,10 @@ TEST_CASE("NullConvertEncoder: write_frame updates profiling counters") {
     }
 
     // Conversion counters should have accumulated.
-    // NOTE: conversion may complete in under 1ms on fast machines.
-    // Add a small sleep to guarantee counter resolution.
-    CHECK(counters.video_conversion_ms.load(std::memory_order_relaxed) >= 0);
-    CHECK(counters.frame_conversion_copy_ms.load(std::memory_order_relaxed) >= 0);
+    // Use a small sleep to guarantee counter resolution on fast machines.
+    std::this_thread::sleep_for(std::chrono::microseconds(1500));
+    CHECK(counters.video_conversion_ms.load(std::memory_order_relaxed) > 0);
+    CHECK(counters.frame_conversion_copy_ms.load(std::memory_order_relaxed) > 0);
     CHECK(counters.video_frames_submitted.load(std::memory_order_relaxed) == 2);
     CHECK(counters.video_frames_converted.load(std::memory_order_relaxed) == 2);
 

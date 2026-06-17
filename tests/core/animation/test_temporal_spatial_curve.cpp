@@ -74,23 +74,24 @@ TEST_CASE("CubicBezier3D: from_handles constructs correctly") {
     CHECK(glm::length(curve.p3 - Vec3{100, 0, 0}) < 1e-4f);
 }
 
-#if 0  // Disabled: pre-existing precision bug — derivative not constant for straight line.
-       // Re-enable after CubicBezier3D::derivative() fix.
 TEST_CASE("CubicBezier3D: straight line produces constant derivative") {
+    // Use exactly equally-spaced control points so that P1-P0 == P2-P1 == P3-P2.
+    // 0, 30, 60, 90 are all exactly representable in float, giving equal deltas.
     CubicBezier3D curve{
         {0, 0, 0},
-        {33.333f, 0, 0},
-        {66.667f, 0, 0},
-        {100, 0, 0}
+        {30, 0, 0},
+        {60, 0, 0},
+        {90, 0, 0}
     };
     auto d0 = curve.derivative(0.0);
     auto d5 = curve.derivative(0.5);
     auto d1 = curve.derivative(1.0);
-    // For a straight line, the derivative is constant.
+    // For a straight line with equally-spaced control points,
+    // the derivative is constant: 3*(P1-P0) = 90 at every u.
     CHECK(glm::length(d0 - d5) < 1e-4f);
     CHECK(glm::length(d5 - d1) < 1e-4f);
+    CHECK(d0.x == doctest::Approx(90.0f));
 }
-#endif // #if 0
 
 // ── PR 4: from_tangents ────────────────────────────────────────────────────
 
