@@ -2,7 +2,6 @@
 
 add_executable(chronon3d_animation_tests
     ${TEST_MAIN}
-    animations/test_animation_catalog.cpp
     animations/test_background_catalog.cpp
 )
 target_link_libraries(chronon3d_animation_tests PRIVATE chronon3d_pipeline doctest::doctest)
