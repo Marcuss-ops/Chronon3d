@@ -4,7 +4,8 @@ add_library(chronon3d_content_effects STATIC
     glow/glow_basic_word.cpp
     glow/glow_v2_ab_tests.cpp
     thumbnails/premium_thumbnail_showcase.cpp
-    ref_2_5d/reference_2_5d_suite.cpp
+    ref_2_5d/reference_2_5d_suite_cards.cpp
+    ref_2_5d/reference_2_5d_suite_scenes.cpp
 )
 set_target_properties(chronon3d_content_effects PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_effects PRIVATE ${CMAKE_SOURCE_DIR})

@@ -16,9 +16,8 @@
 using namespace chronon3d;
 using namespace chronon3d::test;
 
-namespace chronon3d::content::images {
-    Composition image_proofs();
-}
+#include "content/images/compositions/image_proofs.hpp"
+
 namespace chronon3d::content::shapes {
     Composition shape_proofs();
 }

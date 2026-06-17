@@ -2,7 +2,6 @@
 /build/
 /build*/
 /tests/build/
-filament-sdk/
 vcpkg_installed/
 temp_assets/
 .vs/
@@ -14,7 +13,6 @@ obj/
 # Dependency management
 vcpkg/
 vcpkg_bootstrap/
-vcpkg_bootstrap2/
 # Top-level binary bootstrap file created by ./vcpkg_bootstrap (no slash → file or dir).
 /vcpkg_bootstrap
 
@@ -45,7 +43,6 @@ __pycache__/
 # Local/Secrets
 token.json
 credentials.json
-reauthenticate_drive.py
 
 # Xmake
 .xmake/
@@ -77,6 +74,10 @@ output/new_features/
 .history/
 /test_output_*.png
 
+# Camera path output
+/path.json
+camera_path*.json
+
 # Camera test generated artifacts
 *_state.bin
 *_report*.json
@@ -93,7 +94,6 @@ self-update
 
 # Local dev artifacts
 logs/
-test_buffy.txt
 
 # ISO timestamp temp files (e.g. 2026-06-09T16:00) — accidentally created
 # by heredocs / SQL dumps / ad-hoc scripts.  Matches any filename starting

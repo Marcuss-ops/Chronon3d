@@ -81,21 +81,6 @@ TEST_CASE("SampleTime: from_seconds and from_frame roundtrip") {
     CHECK(t1.frame == doctest::Approx(t2.frame));
 }
 
-TEST_CASE("SampleTime: legacy factories still work") {
-    // Deprecated but still functional during migration.
-    auto t1 = SampleTime::from_frame(12.375, 30.0);
-    CHECK(t1.frame == doctest::Approx(12.375));
-
-    auto t2 = SampleTime::from_seconds(2.5, 30.0);
-    CHECK(t2.frame == doctest::Approx(75.0));
-
-    auto t3 = SampleTime::from_frame_int(45, 30.0);
-    CHECK(t3.frame == doctest::Approx(45.0));
-
-    auto t4 = SampleTime::from_frame_int(42);
-    CHECK(t4.frame == doctest::Approx(42.0));
-}
-
 // ===========================================================================
 // TemporalSampleKey — deterministic hashing with version
 // ===========================================================================

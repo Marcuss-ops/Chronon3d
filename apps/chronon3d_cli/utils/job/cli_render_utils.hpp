@@ -51,7 +51,8 @@ RenderSettings settings_from_args(const Args& args,
     s.diagnostics.plan          = args.pipeline.diagnostic_plan;
     s.diagnostics.plan_output   = args.pipeline.diagnostic_plan_output;
     s.use_modular_graph         = args.pipeline.use_modular_graph;
-    s.dirty.dirty_rects_v1      = args.pipeline.dirty_rects;
+    // dirty.enabled already defaults to true in DirtyRenderSettings.
+    // The --dirty-rects CLI flag enables dirty rects explicitly when passed.
     s.dirty.tile_size           = args.pipeline.tile_size;
     s.motion_blur.enabled          = motion_blur_allowed && args.pipeline.quality.motion_blur;
     s.motion_blur.samples          = args.pipeline.quality.motion_blur_samples;

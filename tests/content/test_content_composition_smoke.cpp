@@ -16,7 +16,7 @@ using namespace chronon3d;
 #ifdef CHRONON3D_HAS_CONTENT_2D5
 
 TEST_CASE("2D5: core 2.5D scenes evaluate frame 0") {
-    register_two_point_five_d_content();
+    register_content_modules();
     CompositionRegistry registry;
 
     const std::vector<std::string> names = {
@@ -32,7 +32,7 @@ TEST_CASE("2D5: core 2.5D scenes evaluate frame 0") {
 }
 
 TEST_CASE("2D5: camera test compositions evaluate frame 0") {
-    register_two_point_five_d_content();
+    register_content_modules();
     CompositionRegistry registry;
 
     const std::vector<std::string> names = {

@@ -22,13 +22,13 @@ namespace chronon3d {
 // The two confusing flags from the previous design:
 //
 //   enable_dirty_rects  →  dirty.enabled  (V2 master switch)
-//   dirty_rects         →  dirty.dirty_rects_v1  (V1 legacy force-enable)
+//   enable_dirty_bitmask →  dirty.use_bitmask
 //
 // are now clearly separated; use is_active() to check if any version is on.
 struct DirtyRenderSettings {
     /// V2 master switch.  When true, the pipeline computes per-layer bounding
     /// boxes and tries to re-render only the changed region of the screen.
-    /// Equivalent to the previous `enable_dirty_rects`.
+    /// Equivalent to the previous `enable_dirty_rects` and `dirty_rects`.
     bool enabled{true};
 
     /// V2 64×64 bitmask tracking.  When true, dirty pixels are recorded on a
@@ -36,18 +36,6 @@ struct DirtyRenderSettings {
     /// for tile-based execution to work.
     /// Equivalent to the previous `enable_dirty_bitmask`.
     bool use_bitmask{true};
-
-    /// Deprecated: kept only for old graph-node bbox clipping path.
-    /// Prefer dirty.enabled + dirty.use_bitmask.
-    ///
-    /// When true, graph nodes may restrict their work to the node's
-    /// predicted bbox instead of the layer's true bbox.  This is a
-    /// pre-V2 fallback and is rarely useful in modern scenes.
-    /// Equivalent to the previous `dirty_rects` field.
-    ///
-    /// @deprecated Will be removed in a future release.  Use
-    /// dirty.enabled + dirty.use_bitmask instead.
-    bool dirty_rects_v1{false};
 
     /// Attempt tile-based execution when tile_size > 0 and the bitmask is
     /// enabled.  Tile-based execution re-runs the graph per dirty tile and
@@ -72,10 +60,8 @@ struct DirtyRenderSettings {
     double tile_dirty_ratio_threshold{0.30};
 
     /// True if any version of the dirty-rect optimization is enabled.
-    /// Preserves the OR semantics of the previous
-    /// `enable_dirty_rects || dirty_rects || enable_dirty_bitmask`.
     [[nodiscard]] constexpr bool is_active() const noexcept {
-        return enabled || dirty_rects_v1 || use_bitmask;
+        return enabled || use_bitmask;
     }
 
     /// True if tile-based execution should be attempted given the current

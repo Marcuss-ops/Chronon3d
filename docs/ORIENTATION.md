@@ -9,7 +9,7 @@ Componi video scrivendo codice C++ — niente GUI, niente JSON, niente editor di
 > `README.md` (root) e `CONTRIBUTING.md` (root).
 > Per la roadmap tecnica attiva, vedi [`ROADMAP.md`](ROADMAP.md).
 > Per la cronologia degli item completati, vedi [`CHANGELOG.md`](CHANGELOG.md).
-> I documenti storici sono in [`docs/archive/`](archive/).
+
 >
 > Nuove sezioni in questa pagina vanno aggiunte in inglese per favorire
 > la collaborazione internazionale; le sezioni preesistenti restano
@@ -43,15 +43,12 @@ cmake --build build/chronon/linux-release -j$(nproc)
 ./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli video MyComp --start 0 --end 90 --fps 30 -o output/video.mp4
 ```
 
-Build presets: `linux-release`, `linux-debug`, `linux-debug-render`.
+Build presets: `linux-release`, `linux-debug`.
 Preset per il workflow FAST: `linux-fast-dev` (auto-wired da `./build-fast.sh`).
 
 > **Build veloce (sotto i 30 s):** vedi [`docs/FAST_BUILD.md`](FAST_BUILD.md).
-> Lo script `bootstrap_ccache` configura `~/.ccache/ccache.conf` con
-> `max_size=20G` e una `sloppiness` aggressiva; `resolve_build_dir` sposta
-> automaticamente la build dir su un tmpfs `/tmp/chronon-builds/linux-fast-dev`
-> se `/tmp` ha almeno `CHRONON3D_TMPFS_MIN_GB` (default 16) GiB liberi. Lo
-> swap è atomico (`ln + mv -T`) e non distrugge la dir on-disk se è popolata.
+> Lo script `build-fast.sh` usa tmpfs (`/tmp/chronon-builds/linux-fast-dev`)
+> di default; imposta `BUILD_DIR_OVERRIDE` per un percorso su disco.
 
 ### Windows
 
@@ -113,7 +110,7 @@ Composition (C++) → Scene → RenderGraph (DAG) → GraphExecutor → Software
 | **`V3_BLUEPRINT.md`** | Architettura tile-based: da frame-based a tile-first |
 | **`ARCHITECTURE_EVOLUTION_PLAN.md`** | Piano di modularizzazione del motore |
 | **`CORE_OWNERSHIP.md`** | File protetti, regole agenti, ownership |
-| **`archive/`** | Documentazione storica (roadmap passate, idee speculative, backlog archiviati) |
+| **`README.md`** | Panoramica del progetto e documenti collegati |
 
 ---
 
@@ -279,36 +276,7 @@ python3 tools/telemetry_dashboard/server.py
 
 ---
 
-## Text Rendering: Pixel-Ink Centering
-
-**File**: `src/backends/text/text_rasterizer_render.cpp`
-
-Il testo centrato (`TextAlign::Center`) viene allineato misurando l'inchiostro effettivamente renderizzato, non le metriche del font.
-
-### Problema originale
-
-`FontEngine::measure_text()` (FreeType + HarfBuzz) restituiva larghezze diverse da ciò che Blend2D effettivamente rasterizzava.
-Esempio: "CIAO MONDO" misurato ~886px ma renderizzato ~301px — il testo appariva spostato di ~289px.
-
-### Soluzione
-
-Dopo il rendering del testo, viene eseguita una scansione dei pixel per trovare i bound effettivi dell'inchiostro (`ink_left`/`ink_right`/`ink_top`/`ink_bottom`).
-La `x_offset` viene poi spostata in modo che il centro dell'inchiostro coincida con il centro del box/frame.
-
-```cpp
-// Pseudo-codice del fix:
-// 1. Scansiona i pixel renderizzati, trova ink_left e ink_right
-// 2. Calcola ink_center = (ink_left + ink_right) * 0.5f
-// 3. Calcola shift = box_center - ink_center
-// 4. x_offset += shift  // ora l'inchiostro è centrato
-```
-
-### Importante per futuri sviluppatori
-
-- Questo fix si applica **sia** al centraggio in box **sia** al centraggio senza box
-- I golden test delle immagini vanno rigenerati dopo modifiche a questo codice
-- Il fix è nel ramo `t.box.enabled == true` (centraggio box) e nel ramo `else` (centraggio senza box)
-- L'offset calcolato viene cacheato come parte del `TextRasterization`, quindi la scansione pixel viene eseguita una sola volta per combinazione stile+testo
+> **Pixel-ink centering postmortem**: see [`docs/postmortems/pixel-ink-centering.md`](postmortems/pixel-ink-centering.md).
 
 ---
 
@@ -322,34 +290,7 @@ L'evoluzione V3 del motore è documentata in [`V3_BLUEPRINT.md`](V3_BLUEPRINT.md
 4. **P2** — Display list compilation (scene compiled once)
 5. ... e altri fino a P10 (per-tile cache, output pipeline separata)
 
----
-
-## API Changes (June 2026 Refactoring)
-
-### Renderer State Refactoring
-
-The `SoftwareRenderer` internal state has been decomposed into dedicated aggregates. These types live in the new headers under `include/chronon3d/backends/software/`:
-
-| Type | Header | Purpose |
-|---|---|---|
-| `RendererFrameHistory` | `renderer_types.hpp` | Per-frame camera + fingerprint history for fast-path reuse checks |
-| `RendererDirtyTelemetry` | `renderer_types.hpp` | Dirty-rect / tile-execution telemetry counters |
-| `RendererLayerHistory` | `renderer_types.hpp` | Per-layer bbox state for frame-to-frame dirty-rect diffing |
-| `LayerBBoxState` | `renderer_types.hpp` | Per-layer bounding box + diff state |
-| `RendererBufferRing` | `buffer_ring.hpp` | managed ping-pong framebuffer ring (replaces raw `m_ping_fb[]`) |
-| `TransformScratchBuffer` | `scratch_buffer.hpp` | managed transform scratch buffer (replaces raw `m_transform_scratch`) |
-| `CompiledGraphCache` | `graph_cache.hpp` | managed cached compiled render graph (replaces `m_cached_compiled_graph`) |
-
-**SoftwareRenderer accessors** — `SoftwareRenderer` now exposes `.frame_history()`, `.dirty_telemetry()`, `.layer_history()`, `.buffer_ring()`, `.scratch_buffer()`, and `.graph_cache()` instead of the old direct public members.
-
-**Deleted headers:**
-- `include/chronon3d/backends/software/software_renderer_internal.hpp` — removed; migrate includes to the four new headers above.
-
-### Breaking Changes
-
-- **`TextAnchor` is now an `enum class : u8`** (was a struct). Remove `.align` / `.padding` accessors — use `TextStyle::align` and `TextStyle::vertical_align` directly.
-- **`SceneBuilder` / `LayerBuilder` includes are no longer transitive.** Add `#include <chronon3d/scene/builders/scene_builder.hpp>` explicitly in your code.
-- **`project_layer_2_5d()`** Mat4 overload gains `bool diagnostics_enabled = false` default parameter.
+> **API migration guides**: see [`docs/migrations/`](migrations/) for historical breaking-change details.
 
 ---
 

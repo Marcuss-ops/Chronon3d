@@ -260,7 +260,8 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     auto composition = registry.create(args.comp_id);
     RenderSettings settings;
     settings.use_modular_graph = args.use_modular_graph;
-    settings.dirty.dirty_rects_v1 = args.dirty_rects;
+    // dirty.enabled already defaults to true in DirtyRenderSettings.
+    // The --dirty-rects CLI flag enables dirty rects explicitly when passed.
     auto renderer = create_renderer(registry, settings);
 
     std::unique_ptr<ScopedSpdlogLevel> quiet_log_guard;

@@ -38,6 +38,7 @@
 #include "content/common/animation_helpers.hpp"
 #include "content/common/background_helpers.hpp"
 
+#include <functional>
 #include <string>
 #include <algorithm>
 #include <vector>
@@ -79,10 +80,31 @@ TextParams txt_center(std::string text, f32 font_size = 72.0f) {
     };
 }
 
-// Smooth fade helper
-f32 fade(Frame frame, f32 start, f32 duration) {
-    f32 t = std::clamp((static_cast<f32>(frame) - start) / duration, 0.0f, 1.0f);
-    return interpolate(t, 0.0f, 0.30f, 0.0f, 1.0f, Easing::OutCubic);
+// ── make_easy_anim ─────────────────────────────────────────────────────────
+// Shared helper for the 5 easy text animation compositions.  Encapsulates the
+// common skeleton (grid bg, centered layer, drop shadow, 80pt text) and lets
+// each composition supply only its animation-specific setup via a lambda.
+//
+// Previously each composition duplicated ~15 lines of identical boilerplate;
+// now they are 5–10 lines of pure animation logic.
+using EasyAnimSetup = std::function<void(LayerBuilder& l, const FrameContext& ctx)>;
+
+Composition make_easy_anim(const char* name, const char* text,
+                           f32 duration, EasyAnimSetup setup) {
+    return composition(
+        {.name = name, .width = 1920, .height = 1080,
+         .duration = static_cast<Frame>(duration)},
+        [text, setup = std::move(setup)](const FrameContext& ctx) {
+            SceneBuilder s(ctx);
+            add_bg(s);
+            s.layer("text", [&](LayerBuilder& l) {
+                l.pin_to(Anchor::Center);
+                setup(l, ctx);
+                l.drop_shadow(Vec2{0.0f, 4.0f}, SHADOW_COLOR, 8.0f)
+                 .text("label", txt_center(text, 80.0f));
+            });
+            return s.build();
+        });
 }
 
 // ── Local FontEngine (file-scoped singleton, avoids shared_font_engine issues) ─
@@ -261,102 +283,62 @@ void build_2line_typewriter(SceneBuilder& s,
 } // anonymous namespace
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  5 EASY ANIMATIONS (single text layer)
+//  5 EASY ANIMATIONS — each delegates the common skeleton to make_easy_anim.
 // ═══════════════════════════════════════════════════════════════════════════
 
-// ── 1. AnimSlideUp ──────────────────────────────────────────────────────
+// 1. AnimSlideUp — slides up from below with fade
 Composition anim_slide_up() {
-    return composition({.name = "AnimSlideUp", .width = 1920, .height = 1080, .duration = 60},
-    [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        add_bg(s);
-        const f32 p = std::min(1.0f, static_cast<f32>(ctx.progress()) * 3.0f);
-        const f32 eased = interpolate(p, 0.0f, 0.30f, 0.0f, 1.0f, Easing::OutCubic);
-        s.layer("text", [p, eased](LayerBuilder& l) {
-            l.pin_to(Anchor::Center)
-             .position({0.0f, BASE_Y + (1.0f - eased) * 80.0f, 0.0f})
-             .opacity(p)
-             .drop_shadow(Vec2{0.0f, 4.0f}, SHADOW_COLOR, 8.0f)
-             .text("label", txt_center("Slide Up", 80.0f));
+    return make_easy_anim("AnimSlideUp", "Slide Up", 60.0f,
+        [](LayerBuilder& l, const FrameContext& ctx) {
+            const f32 p = std::min(1.0f, static_cast<f32>(ctx.progress()) * 3.0f);
+            const f32 eased = interpolate(p, 0.0f, 0.30f, 0.0f, 1.0f, Easing::OutCubic);
+            l.position({0.0f, BASE_Y + (1.0f - eased) * 80.0f, 0.0f})
+             .opacity(p);
         });
-        return s.build();
-    });
 }
 
-// ── 2. AnimScalePop ─────────────────────────────────────────────────────
+// 2. AnimScalePop — scales from small with overshoot
 Composition anim_scale_pop() {
-    return composition({.name = "AnimScalePop", .width = 1920, .height = 1080, .duration = 60},
-    [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        add_bg(s);
-        const f32 p = std::min(1.0f, static_cast<f32>(ctx.progress()) * 3.0f);
-        const f32 sv = interpolate(p, 0.0f, 0.30f, 0.6f, 1.0f, Easing::OutBack);
-        s.layer("text", [p, sv](LayerBuilder& l) {
-            l.pin_to(Anchor::Center)
-             .position({0.0f, BASE_Y, 0.0f})
+    return make_easy_anim("AnimScalePop", "Scale Pop", 60.0f,
+        [](LayerBuilder& l, const FrameContext& ctx) {
+            const f32 p = std::min(1.0f, static_cast<f32>(ctx.progress()) * 3.0f);
+            const f32 sv = interpolate(p, 0.0f, 0.30f, 0.6f, 1.0f, Easing::OutBack);
+            l.position({0.0f, BASE_Y, 0.0f})
              .opacity(p)
-             .scale({sv, sv, 1.0f})
-             .drop_shadow(Vec2{0.0f, 4.0f}, SHADOW_COLOR, 8.0f)
-             .text("label", txt_center("Scale Pop", 80.0f));
+             .scale({sv, sv, 1.0f});
         });
-        return s.build();
-    });
 }
 
-// ── 3. AnimBlurFocus ────────────────────────────────────────────────────
+// 3. AnimBlurFocus — blurry → sharp via focus_in
 Composition anim_blur_focus() {
-    return composition({.name = "AnimBlurFocus", .width = 1920, .height = 1080, .duration = 60},
-    [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        add_bg(s);
-        s.layer("text", [](LayerBuilder& l) {
-            l.pin_to(Anchor::Center)
-             .position({0.0f, BASE_Y, 0.0f})
+    return make_easy_anim("AnimBlurFocus", "Blur Focus", 60.0f,
+        [](LayerBuilder& l, const FrameContext& /*ctx*/) {
+            l.position({0.0f, BASE_Y, 0.0f})
              .opacity(1.0f)
-             .focus_in(24.0f, Frame{20})
-             .drop_shadow(Vec2{0.0f, 4.0f}, SHADOW_COLOR, 8.0f)
-             .text("label", txt_center("Blur Focus", 80.0f));
+             .focus_in(24.0f, Frame{20});
         });
-        return s.build();
-    });
 }
 
-// ── 4. AnimSlideLeft ────────────────────────────────────────────────────
+// 4. AnimSlideLeft — slides in from the left
 Composition anim_slide_left() {
-    return composition({.name = "AnimSlideLeft", .width = 1920, .height = 1080, .duration = 60},
-    [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        add_bg(s);
-        const f32 p = std::min(1.0f, static_cast<f32>(ctx.progress()) * 3.0f);
-        const f32 eased = interpolate(p, 0.0f, 0.30f, 0.0f, 1.0f, Easing::OutCubic);
-        s.layer("text", [p, eased](LayerBuilder& l) {
-            l.pin_to(Anchor::Center)
-             .position({(1.0f - eased) * -120.0f, BASE_Y, 0.0f})
-             .opacity(p)
-             .drop_shadow(Vec2{0.0f, 4.0f}, SHADOW_COLOR, 8.0f)
-             .text("label", txt_center("Slide Left", 80.0f));
+    return make_easy_anim("AnimSlideLeft", "Slide Left", 60.0f,
+        [](LayerBuilder& l, const FrameContext& ctx) {
+            const f32 p = std::min(1.0f, static_cast<f32>(ctx.progress()) * 3.0f);
+            const f32 eased = interpolate(p, 0.0f, 0.30f, 0.0f, 1.0f, Easing::OutCubic);
+            l.position({(1.0f - eased) * -120.0f, BASE_Y, 0.0f})
+             .opacity(p);
         });
-        return s.build();
-    });
 }
 
-// ── 5. AnimBounceDrop ───────────────────────────────────────────────────
+// 5. AnimBounceDrop — drops from above with bounce
 Composition anim_bounce_drop() {
-    return composition({.name = "AnimBounceDrop", .width = 1920, .height = 1080, .duration = 80},
-    [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        add_bg(s);
-        const f32 p = std::min(1.0f, static_cast<f32>(ctx.progress()) * 2.5f);
-        const f32 y_offset = interpolate(p, 0.0f, 0.30f, -230.0f, BASE_Y, Easing::OutBounce);
-        s.layer("text", [p, y_offset](LayerBuilder& l) {
-            l.pin_to(Anchor::Center)
-             .opacity(std::min(1.0f, p * 2.0f))
-             .position({0.0f, y_offset, 0.0f})
-             .drop_shadow(Vec2{0.0f, 4.0f}, SHADOW_COLOR, 8.0f)
-             .text("label", txt_center("Bounce Drop", 80.0f));
+    return make_easy_anim("AnimBounceDrop", "Bounce Drop", 80.0f,
+        [](LayerBuilder& l, const FrameContext& ctx) {
+            const f32 p = std::min(1.0f, static_cast<f32>(ctx.progress()) * 2.5f);
+            const f32 y_offset = interpolate(p, 0.0f, 0.30f, -230.0f, BASE_Y, Easing::OutBounce);
+            l.opacity(std::min(1.0f, p * 2.0f))
+             .position({0.0f, y_offset, 0.0f});
         });
-        return s.build();
-    });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
