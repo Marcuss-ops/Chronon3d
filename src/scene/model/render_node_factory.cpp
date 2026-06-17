@@ -1,4 +1,6 @@
 #include <chronon3d/scene/model/render/render_node_factory.hpp>
+#include <chronon3d/scene/builders/text_run_builder.hpp>
+#include <chronon3d/text/font_engine.hpp>
 
 #include <utility>
 
@@ -187,6 +189,42 @@ RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string n
     node.shape.text.box.size = p.size;
     node.world_transform.anchor = resolve_text_anchor(p.anchor, p.size);
     node.world_transform.position = p.pos;
+    node.color = p.color;
+    node.fill = Fill::solid_color(p.color);
+    return node;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PR 4 — text_run factory
+// ═══════════════════════════════════════════════════════════════════════════
+
+RenderNode RenderNodeFactory::text_run(
+    std::pmr::memory_resource* res,
+    std::string name,
+    TextRunParams p,
+    FontEngine* engine,
+    SampleTime sample_time
+) {
+    auto node = base(res, std::move(name));
+    node.shape.type = ShapeType::TextRun;
+    node.is_text_run_shape = true;
+    node.font_engine = engine;
+
+    // World transform from TextRunParams.
+    node.world_transform.position = p.pos;
+    node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
+
+    auto shape = materialize_text_run_shape(p, engine, sample_time);
+    if (!shape) {
+        // Materialization failed (shaping / empty text).  Leave
+        // text_run_shape null and `is_text_run_shape=true` so the
+        // graph-builder source-pass routes to TextRunNode, which
+        // will emit an `spdlog::error` for missing-shape.  Better
+        // than silently dropping the entry.
+    } else {
+        node.text_run_shape = std::move(shape);
+    }
+
     node.color = p.color;
     node.fill = Fill::solid_color(p.color);
     return node;

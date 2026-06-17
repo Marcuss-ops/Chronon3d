@@ -2,6 +2,7 @@
 
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <memory_resource>
 #include <string>
 
@@ -18,7 +19,25 @@ public:
     static RenderNode tiled_image(std::pmr::memory_resource* res, std::string name, ImageParams p);
     static RenderNode grid_background(std::pmr::memory_resource* res, std::string name, const GridBackgroundParams& p);
     static RenderNode text(std::pmr::memory_resource* res, std::string name, TextParams p);
-    
+
+    // ── PR 4: text-run factory ──
+    //
+    // Materializes a TextRunParams into a `RenderNode` flagged with
+    // `is_text_run_shape=true`.  Shares its core with
+    // `LayerBuilder::text_run(...)` via the helper
+    // `materialize_text_run_shape(...)`.
+    //
+    // Evaluates animators at `sample_time` (default: frame 0, 30fps).
+    // For per-frame fidelity within a composition, callers should
+    // prefer `LayerBuilder::text_run(...)` which evaluates at the
+    // layer's local time at build().
+    static RenderNode text_run(
+        std::pmr::memory_resource* res,
+        std::string name,
+        TextRunParams p,
+        FontEngine* engine = nullptr,
+        SampleTime sample_time = {});
+
     // Specialized 3D Shapes
     static RenderNode fake_box3d(std::pmr::memory_resource* res, std::string name, const FakeBox3DParams& p);
     static RenderNode grid_plane(std::pmr::memory_resource* res, std::string name, const GridPlaneParams& p);

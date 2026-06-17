@@ -11,13 +11,15 @@ std::optional<raster::BBox> compute_dirty_clip(
 ) {
     CHRONON_ZONE_C("dirty_rect_clip", trace_category::kPipeline);
 
-    // Source, Transform, Video and Precomp nodes must render their FULL content.
-    // The dirty-rect clip is only valid for Clear (which area to clear) and
-    // Composite (which area to blend).  Applying a dirty-rect clip to a source
-    // node causes the rendered image to be physically clipped to the dirty
-    // region — the image appears "cut off" or shows only a thin strip of
-    // content.  See https://github.com/orgs/community/discussions/regression-fix
+    // Source, Transform, Video, Precomp, and TextRun (PR 3) nodes must
+    // render their FULL content.  The dirty-rect clip is only valid for
+    // Clear (which area to clear) and Composite (which area to blend).
+    // Applying a dirty-rect clip to a source node causes the rendered
+    // image to be physically clipped to the dirty region — the image
+    // appears "cut off" or shows only a thin strip of content.
+    // See https://github.com/orgs/community/discussions/regression-fix
     if (node.kind() == RenderGraphNodeKind::Source ||
+        node.kind() == RenderGraphNodeKind::TextRun ||    // PR 3 additive
         node.kind() == RenderGraphNodeKind::Transform ||
         node.kind() == RenderGraphNodeKind::Video ||
         node.kind() == RenderGraphNodeKind::Precomp) {
@@ -67,6 +69,7 @@ std::optional<raster::BBox> compute_dirty_clip(
                     case RenderGraphNodeKind::Transition:
                         return DirtyFallbackReason::EffectBoundsUnknown;
                     case RenderGraphNodeKind::Source:
+                    case RenderGraphNodeKind::TextRun:       // PR 3: treated like Source
                     case RenderGraphNodeKind::Precomp:
                     case RenderGraphNodeKind::Video:
                     case RenderGraphNodeKind::Output:

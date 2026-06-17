@@ -151,7 +151,8 @@ struct TextUnitMap {
     const TextUnitMap& unit_map,
     u32 glyph_index,
     std::string_view source,
-    SampleTime time
+    SampleTime time,
+    const PlacedGlyphRun* placed = nullptr
 );
 
 /// Evaluate a stack of selectors with combine modes.
@@ -162,7 +163,8 @@ struct TextUnitMap {
     const TextUnitMap& unit_map,
     u32 glyph_index,
     std::string_view source,
-    SampleTime time
+    SampleTime time,
+    const PlacedGlyphRun* placed = nullptr
 );
 
 // ── Internal helpers (exposed for testing) ───────────────────────────────
@@ -191,6 +193,54 @@ namespace detail {
 /// Deterministic hash-based unit float in [0, 1).
 /// Uses the same key every time for the same (seed, unit_index) pair.
 [[nodiscard]] f32 hash_to_unit_float(u64 seed, u64 unit_index);
+
+/// Returns true if all bytes in [start, start+len) are ASCII whitespace
+/// (space, tab, CR, LF). Empty range or slice that runs past `source.size()`
+/// is treated as whitespace (i.e. nothing-of-interest, conservative).
+[[nodiscard]] inline bool is_whitespace_run(
+    std::string_view source,
+    size_t start,
+    size_t len
+) noexcept {
+    if (len == 0) return true;
+    if (start >= source.size()) return true;
+    const size_t end = std::min(start + len, source.size());
+    for (size_t i = start; i < end; ++i) {
+        const unsigned char c = static_cast<unsigned char>(source[i]);
+        if (c != ' ' && c != '\t' && c != '\n' && c != '\r') {
+            return false;  // first non-whitespace byte ends the check early
+        }
+    }
+    return true;
+}
+
+/// Returns true if the unit containing `glyph_index` is whitespace-only and
+/// should be excluded when `spec.exclude_spaces` is true. Requires `placed`
+/// for cluster byte-offset lookup at the per-glyph granularity. For word /
+/// line units, walks TextUnitMap to find the first glyph belonging to that
+/// unit and inspects its cluster's byte range.
+///
+/// When `placed == nullptr`, this returns false (caller must opt in by
+/// threading the placed run through). This preserves backward compatibility
+/// for API consumers that don't pass it.
+[[nodiscard]] bool should_exclude_unit(
+    const GlyphSelectorSpec& spec,
+    const TextUnitMap& unit_map,
+    u32 glyph_index,
+    std::string_view source,
+    const PlacedGlyphRun* placed
+);
+
+/// Returns a deterministic permutation of [0..total_units) seeded by `seed`,
+/// precomputed via Fisher-Yates and cached per-thread per (seed, total).
+/// The returned vector has length `total_units`; entry `perm[i]` is the
+/// output position where the original index `i` lands after the shuffle.
+/// This guarantees a bijection — every output position is hit exactly once,
+/// unlike the previous `floor(rand * total)` scheme which could collide.
+[[nodiscard]] const std::vector<u32>& get_or_build_permutation(
+    u64 seed,
+    u32 total_units
+);
 
 } // namespace detail
 

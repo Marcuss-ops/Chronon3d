@@ -24,6 +24,9 @@ namespace chronon3d {
 
 class FontEngine;  // forward declaration
 
+class TextRunBuilder;  // forward declaration (PR 4 — `text_run(...)`)
+struct TextRunSpec;     // forward declaration (PR 4 — pending text-run entries)
+
 namespace layer_builder_internal {
 
 [[nodiscard]] RenderNode* last_node(Layer& layer);
@@ -183,6 +186,22 @@ public:
     LayerBuilder& tiled_image(std::string name, ImageParams p);
     LayerBuilder& grid_background(std::string name, GridBackgroundParams p);
     LayerBuilder& text(std::string name, TextParams p);
+
+    // ── TextRunBuilder (PR 4 — TextAnimator V2) ──────────────────────────
+    /// Push a new text-run entry into the layer's pending specs and
+    /// return a `TextRunBuilder&` for fluent chaining.  The text-run
+    /// entry is committed to a `RenderNode` (with `is_text_run_shape
+    /// = true` and a populated `text_run_shape`) inside
+    /// `LayerBuilder::build()`.  Multiple `text_run(...)` calls per
+    /// layer are allowed — each spawns a separate RenderNode plus
+    /// downstream TextRunNode at compose time.
+    ///
+    /// Note: this method does NOT participate in `LayerBuilder`'s
+    /// `return *this` chain.  The returned `TextRunBuilder&` is the
+    /// next layer in the chain; calling `.commit()` explicitly hands
+    /// control back to the layer-level builder.
+    [[nodiscard]] TextRunBuilder& text_run(std::string name, TextRunParams params);
+
     LayerBuilder& shape(std::string_view id, std::string name, registry::ShapeParams params);
 
     // ── 3D Shapes (Delegated) ──
@@ -231,6 +250,21 @@ private:
     f32 m_screen_width{1920.0f};
     f32 m_screen_height{1080.0f};
     FontEngine* m_font_engine{nullptr};
+
+    // ── PR 4 — pending text-run specs + builder pool ──────────────────
+    //
+    // `m_text_runs` holds the spec data the builder writes into; stored
+    // via `unique_ptr` so push_back doesn't invalidate references.
+    //
+    // `m_text_run_builders` holds each TextRunBuilder keyed to the
+    // matching spec.  Builders own nothing on the stack — the caller
+    // keeps a `TextRunBuilder&` reference borrowed from this pool,
+    // so destruction of this LayerBuilder (or any explicit reset())
+    // is what ends the builder's lifetime.  This is the only way the
+    // compiler accepts `layer.text_run(...).position(...).opacity(...)`
+    // when chained on multiple statements.
+    std::vector<std::unique_ptr<TextRunSpec>> m_text_runs;
+    std::vector<std::unique_ptr<TextRunBuilder>> m_text_run_builders;
 };
 
 } // namespace chronon3d

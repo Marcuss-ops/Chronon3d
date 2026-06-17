@@ -43,9 +43,23 @@ add_library(chronon3d_graph_nodes STATIC
     nodes/composite_node.cpp
     nodes/track_matte_node.cpp
     nodes/transition/transition_node_math.cpp
+    nodes/text_run_node.cpp   # PR 3 (TextAnimator V2 batched text node)
 )
 set_target_properties(chronon3d_graph_nodes PROPERTIES UNITY_BUILD OFF)
-target_link_libraries(chronon3d_graph_nodes PUBLIC chronon3d_graph_core)
+target_link_libraries(chronon3d_graph_nodes
+    PUBLIC
+        chronon3d_graph_core
+        # PR 3: TextRunNode.hpp publicly references TextRunShape from
+        # chronon3d_text_core (forward-declared but requires the lib for
+        # the type-erased shared_ptr deleter instantiation on consumers).
+        chronon3d_text_core
+    PRIVATE
+        # PR 3: TextRunNode.cpp dynamically casts RenderBackend to
+        # SoftwareRenderer and calls `renderer::draw_text_run` from
+        # chronon3d_backend_software (PRIVATE so consumers don't pull
+        # software-specific deps transitively).
+        chronon3d_backend_software
+)
 target_precompile_headers(chronon3d_graph_nodes PRIVATE
     <glm/glm.hpp>
     <glm/gtc/matrix_transform.hpp>

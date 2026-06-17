@@ -491,9 +491,26 @@ TEST_CASE("Property: ScaleProperty Add vs Multiply produce different results") {
     CHECK(mul_states[0].scale.x == doctest::Approx(0.5f));
 }
 
-TEST_CASE("Property: TrackingProperty applies horizontal position offset") {
+// Cumulative tracking semantics — V1 carry-over from
+// include/chronon3d/text/text_animator.hpp:325-337.
+//
+// After Effects-style tracking is the running letter-spacing gap between
+// consecutive glyphs.  Algorithm (apply-first, then increment):
+//
+//   cumulative_tracking_delta = 0;
+//   for each glyph gi:
+//       gs[gi].position.x += cumulative_tracking_delta;  // apply CURRENT sum
+//       cumulative_tracking_delta += tracking_for_gi;     // increment NEXT
+//
+// So glyph 0 receives cumulative = 0 (no preceding letter → no gap),
+// glyph 1 receives cumulative = tracking, glyph 2 receives cumulative = 2*tracking.
+// The text does NOT move uniformly; instead its width grows by `tracking`
+// per successive glyph.
+
+TEST_CASE("Property: TrackingProperty cumulative — single glyph is unaffected") {
+    // The first glyph has no preceding letter; cumulative starts at 0.
     TextAnimatorSpec spec;
-    spec.id = "track";
+    spec.id = "track_single";
     spec.selectors.push_back({});
     spec.selectors.back().amount.set(100.0f);
     spec.properties.push_back(TrackingProperty{14.0f});
@@ -504,5 +521,161 @@ TEST_CASE("Property: TrackingProperty applies horizontal position offset") {
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
-    CHECK(states[0].position.x == doctest::Approx(14.0f));
+    // Glyph 0 receives cumulative_tracking_delta = 0; the increment to 14
+    // happens AFTER the apply, so it doesn't affect this glyph.
+    CHECK(states[0].position.x == doctest::Approx(0.0f));
+}
+
+TEST_CASE("Property: TrackingProperty cumulative — N glyphs spread evenly") {
+    // 5 glyphs with tracking=10: glyph i receives cumulative offset = i * 10.
+    // Total spread (glyph 0 vs glyph 4): 4 * 10 = 40.
+    TextAnimatorSpec spec;
+    spec.id = "track_spread";
+    spec.selectors.push_back({});
+    spec.selectors.back().amount.set(100.0f);
+    spec.properties.push_back(TrackingProperty{10.0f});
+
+    constexpr size_t N = 5;
+    auto placed = make_test_placed_run_prop(N);
+    auto source = make_source_prop(N);
+    SampleTime t = SampleTime::from_frame_int(Frame{0});
+
+    auto states = evaluate_animator_stack({spec}, placed, source, t);
+
+    // Each successive glyph is offset by one more unit of tracking.
+    // Glyph 0: 0,  Glyph 1: 10,  Glyph 2: 20,  Glyph 3: 30,  Glyph 4: 40.
+    for (size_t i = 0; i < N; ++i) {
+        const float expected = static_cast<float>(i) * 10.0f;
+        CHECK(states[i].position.x == doctest::Approx(expected));
+    }
+    // Specifically check end-to-end spread.
+    CHECK(states[N - 1].position.x - states[0].position.x == doctest::Approx(static_cast<float>(N - 1) * 10.0f));
+}
+
+TEST_CASE("Property: TrackingProperty cumulative — first and last hold the gap") {
+    // With tracking=4 and 8 glyphs: glyph 0 stays put, glyph 7 ends at 7*4=28.
+    TextAnimatorSpec spec;
+    spec.id = "track_gap";
+    spec.selectors.push_back({});
+    spec.selectors.back().amount.set(100.0f);
+    spec.properties.push_back(TrackingProperty{4.0f});
+
+    constexpr size_t N = 8;
+    auto placed = make_test_placed_run_prop(N);
+    auto source = make_source_prop(N);
+    SampleTime t = SampleTime::from_frame_int(Frame{0});
+
+    auto states = evaluate_animator_stack({spec}, placed, source, t);
+
+    CHECK(states[0].position.x == doctest::Approx(0.0f));
+    CHECK(states[N - 1].position.x == doctest::Approx(static_cast<float>(N - 1) * 4.0f));
+}
+
+TEST_CASE("Property: TrackingProperty with partial selector weight halves the spread") {
+    // weight=50% means each glyph still gets the same RUNNING cumulative
+    // (the apply uses the current value before increment), but the
+    // increment is weight * tracking instead of full tracking.  So gap
+    // halves: glyph 4 reaches 2.0 instead of 4.0.
+    TextAnimatorSpec spec;
+    spec.id = "track_half";
+    spec.selectors.push_back({});
+    spec.selectors.back().amount.set(50.0f);  // 50% weight
+    spec.properties.push_back(TrackingProperty{10.0f});
+
+    constexpr size_t N = 5;
+    auto placed = make_test_placed_run_prop(N);
+    auto source = make_source_prop(N);
+    SampleTime t = SampleTime::from_frame_int(Frame{0});
+
+    auto states = evaluate_animator_stack({spec}, placed, source, t);
+
+    for (size_t i = 0; i < N; ++i) {
+        // delta per glyph = tracking * weight = 10 * 0.5 = 5
+        const float expected = static_cast<float>(i) * 5.0f;
+        CHECK(states[i].position.x == doctest::Approx(expected));
+    }
+}
+
+TEST_CASE("Property: TrackingProperty Replace matches Add when starting from identity") {
+    // Within a single animator whose initial `position.x` is 0 (the factory
+    // default for `make_initial_glyph_states`), Replace (`gs.x = cumul`) and
+    // Add (`gs.x += cumul`) produce identical output.  This documents the
+    // degenerate-but-true behavior; the diagnostic distinction lives in the
+    // multi-animator case below.
+    TextAnimatorSpec spec;
+    spec.id = "track_replace";
+    spec.transform_mode = TextPropertyBlendMode::Replace;
+    spec.selectors.push_back({});
+    spec.selectors.back().amount.set(100.0f);
+    spec.properties.push_back(TrackingProperty{6.0f});
+
+    constexpr size_t N = 4;
+    auto placed = make_test_placed_run_prop(N);
+    auto source = make_source_prop(N);
+    SampleTime t = SampleTime::from_frame_int(Frame{0});
+
+    auto states = evaluate_animator_stack({spec}, placed, source, t);
+
+    for (size_t i = 0; i < N; ++i) {
+        const float expected = static_cast<float>(i) * 6.0f;
+        CHECK(states[i].position.x == doctest::Approx(expected));
+    }
+}
+
+TEST_CASE("Property: TrackingProperty Replace vs Add in a multi-animator stack") {
+    // Animator 1 adds uniform leftward shift of +20 px (sets the per-glyph
+    // baseline at 20 px each).
+    // Animator 2 applies TrackingProperty{10} with blend=Replace — should
+    // OVERWRITE position.x with the inline cumulative [0, 10, 20, 30] so the
+    // final value is the cumulative pattern alone, ignoring Animator 1's
+    // contribution.
+    // Same setup with blend=Add — should produce Animator 1's +20 PLUS the
+    // running cumulative shift baked in: [20, 30, 40, 50].
+    constexpr size_t N = 4;
+    const float kStaticShift = 20.0f;
+
+    auto base_spec = [](TextPropertyBlendMode track_blend) {
+        TextAnimatorSpec s1;
+        s1.id = "static_shift";
+        s1.transform_mode = TextPropertyBlendMode::Add;
+        s1.selectors.push_back({});
+        s1.selectors.back().amount.set(100.0f);
+        s1.properties.push_back(
+            PositionProperty{{kStaticShift, 0.0f, 0.0f}});
+
+        TextAnimatorSpec s2;
+        s2.id = "tracking";
+        s2.transform_mode = track_blend;
+        s2.selectors.push_back({});
+        s2.selectors.back().amount.set(100.0f);
+        s2.properties.push_back(TrackingProperty{10.0f});
+
+        return std::vector<TextAnimatorSpec>{s1, s2};
+    };
+
+    auto placed = make_test_placed_run_prop(N);
+    auto source = make_source_prop(N);
+    SampleTime t = SampleTime::from_frame_int(Frame{0});
+
+    // Replace path — Animator 2 overwrites Animator 1's contribution.
+    {
+        auto states = evaluate_animator_stack(base_spec(TextPropertyBlendMode::Replace),
+                                              placed, source, t);
+        // positions: cumulative only — [0, 10, 20, 30]
+        for (size_t i = 0; i < N; ++i) {
+            const float expected = static_cast<float>(i) * 10.0f;
+            CHECK(states[i].position.x == doctest::Approx(expected));
+        }
+    }
+
+    // Add path — Animator 2 ADDS to Animator 1's contribution.
+    {
+        auto states = evaluate_animator_stack(base_spec(TextPropertyBlendMode::Add),
+                                              placed, source, t);
+        // positions: 20 (static shift) + cumulative — [20, 30, 40, 50]
+        for (size_t i = 0; i < N; ++i) {
+            const float expected = kStaticShift + static_cast<float>(i) * 10.0f;
+            CHECK(states[i].position.x == doctest::Approx(expected));
+        }
+    }
 }
