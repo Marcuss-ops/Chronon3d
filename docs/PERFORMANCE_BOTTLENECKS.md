@@ -147,6 +147,131 @@ Transform è **9× più lento** del composite per byte processato.
 
 ---
 
+## 🔴 Nuovi Colli di Bottiglia — Composizioni Cinematografiche Text-Heavy
+
+> Date jobs raccolta: **17 Giugno 2026**, build `05887865` (HEAD dopo rebase su `origin/main`).
+> Scene benchmark: 5 nuove comps in `content/anims/compositions/cinematic_text_camera.cpp` —
+> `DeepParallaxCascade`, `WhipPanHeroReveal`, `OrbitHandheldGlow`,
+> `RackFocusTitleSwap`, `AbyssFreefallStagger`.
+> Confronto: `MinimalistImageTrackingBreathing` (baseline di questo documento).
+
+### 11. WhipPanel + Abyss: 7-8× il tempo di `node_execute` per frame
+
+**Sintomo — SQLite `~/.chronon3d/telemetry/chronon3d_render_history.sqlite`** (ultima run per compa, `render --frame X`):
+
+| Comp                       | wall_ms | layers_rendered | composite_calls | transform_calls | text_glyphs_rasterized |
+|---|---:|---:|---:|---:|---:|
+| `MinimalistImageTrackingBreathing` (baseline) | 2245 |  3 |  3 |  1 |  0 |
+| `DeepParallaxCascade`                         | 2825 |  5 |  5 |  3 | 42 |
+| **`WhipPanHeroReveal`** ⚠️                     | 2502 | **19** | **19** | **18** | 23 |
+| `OrbitHandheldGlow`                           | 2341 |  3 |  3 |  0 |  6 |
+| `RackFocusTitleSwap`                          | 3590 |  3 |  3 |  2 | 18 |
+| **`AbyssFreefallStagger`** ⚠️                  | 2604 |  9 |  9 |  8 |  6 |
+
+**Misura precedente (render 30-frame, sessione bench):**
+
+| Comp                       | `node_execute_actual_ms` / frame | vs baseline |
+|---|---:|---:|
+| `MinimalistImageTrackingBreathing` (baseline) | ~26 ms | 1× |
+| `DeepParallaxCascade`                         | ~63 ms | ~2.4× |
+| **`WhipPanHeroReveal`** ⚠️                     | **~200 ms** | **~7.7×** |
+| `OrbitHandheldGlow`                           | ~39 ms | ~1.5× |
+| `RackFocusTitleSwap`                          | ~116 ms | ~4.5× |
+| **`AbyssFreefallStagger`** ⚠️                  | **~178 ms** | **~6.8×** |
+
+**Causa:** `cinematic_text_camera.cpp` definisce comps con fino a **19 layer staggered**
+letter-by-letter via `text_helpers::glow::apply_ae_glow`. Le lettere sono tenute
+a `opacity=0` durante il lead-in (WhipPanel frames 0–21, Abyss analogo).
+Tuttavia il graph executor **esegue comunque il path completo** di
+`execute_single_node` per ogni layer (cache eval + dirty rect + clone context +
+run_node + state assign + telemetry emit) prima di renders.
+
+Il `text_glyphs_rasterized` resta **basso** in entrambe le comps (WhipPanel=23 in
+30 frame = ~0.77/frame, Abyss=6/0.2/frame) → **NON è il glyph rasterization** il
+collo di bottiglia; è l'overhead di orchestrazione per layer la cui composizione
+finale è trasparente.
+
+**Causa strutturale:** nessun skip esiste per `effective_opacity < threshold` in
+`execute_single_node`. Esiste `ctx.tile.early_exit_skip[id]` ma viene impostato
+solo per i clear-nodi, non per i layer compositivi trasparenti.
+
+**Come superarlo — lavoro in 3 fasi:**
+
+1. ✅ **Prep work committed (05887865)** — feature-flag dormiente:
+   - `PreResolvedNode::resolved_opacity: f32 = 1.0f` (`execution_state.hpp`),
+   - hoist di `node/input_ids/pr` al top di `execute_single_node`,
+   - guard env-gated **`CHRONON3D_SKIP_INVISIBLE_LAYERS=1`** che, quando attivo E
+     `pr.resolved_opacity <= 0.001f`, ritorna una FB 64×64 trasparente e
+     `return;` — rispecchiando il pattern di `early_exit_skip`.
+   - Defaults **OFF** + `resolved_opacity` default **1.0f** = **zero regressione**
+     fintantoché (a) il populate site non è wired e (b) l'env var non è settato.
+
+2. ⏳ **TODO (commit di follow-up)**: wire il populate in
+   `src/render_graph/executor/executor_levels.cpp:36–39`. Dopo
+   `level_resolved[i] = resolve_inputs(...)` aggiungere
+   `level_resolved[i].resolved_opacity = layer.opacity_at(cur_frame_snapshot)`
+   (la firma esatta dipende da quale membro di layer espone l'opacity a
+   frame-F — da ispezionare in `src/scene/builders/layer_builder.{hpp,cpp}`
+   prima dell'edit).
+
+3. ⏳ **Validation after populate**: rieseguire lo stesso bench 30-frame con
+   `CHRONON3D_SKIP_INVISIBLE_LAYERS=1` ON e misurare il delta reale con
+   `render_counters` (`layers_culled` atteso in crescita, `node_execute_actual_ms`
+   atteso in calo).
+
+### Delta atteso (post-populate + env=1)
+
+| Comp                       | node_exec/frame pre | target post | speedup |
+|---|---:|---:|---:|
+| `WhipPanHeroReveal`        | ~200 ms | ~26 ms | **~7.7×** |
+| `AbyssFreefallStagger`     | ~178 ms | ~26 ms | **~6.8×** |
+| `RackFocusTitleSwap`       | ~116 ms | ~50 ms (3 letter invisibili nel rack) | ~2.3× |
+| `DeepParallaxCascade`      |  ~63 ms | ~50 ms | ~1.3× |
+| `OrbitHandheldGlow`        |  ~39 ms | invariato (1 sola letter staggered visibile dopo frame 0) | ~1× |
+| `MinimalistImageTrackingBreathing` | ~26 ms | invariato | 1× (baseline) |
+
+### File coinvolti
+
+| File | Ruolo per il fix |
+|---|---|
+| `src/render_graph/executor/execution_state.hpp`   | nuovo campo `resolved_opacity` su `PreResolvedNode` (✅ in `05887865`) |
+| `src/render_graph/executor/node_runner.cpp`       | hoist + guard env-gated (✅ in `05887865`) |
+| `src/render_graph/executor/executor_levels.cpp`   | populate site — **TODO follow-up** (~riga 36–39) |
+| `src/scene/builders/layer_builder.{hpp,cpp}`      | inspection per la signature esatta di `layer.opacity_at(frame)` |
+| `content/anims/compositions/cinematic_text_camera.cpp` | origine delle 5 comps text-heavy |
+
+---
+
+### 12. Hygiene review (queued, deferred)
+
+Il commit `05887865` ha lasciato **6 punti di hygiene** identificati dal
+`code-reviewer-minimax-m3` non risolti deliberatamente per mantenere il
+commit chirurgico:
+
+1. **Code duplication** — il blocco 11-line post-guard `CHRONON3D_SKIP_INVISIBLE_LAYERS`
+   è byte-for-byte il body di `early_exit_skip`. Estrarre un helper
+   `emit_transparent_skip(state, id, ctx, parent_pool, parent_counters)`
+   condiviso da entrambe le guardie.
+2. **Silent no-op risk** — env var ON + `resolved_opacity` mai popolato = guard
+   dormiente senza segnale. Aggiungere `spdlog::warn` one-shot al primo
+   `kSkipInvisibleOpacity && pr.resolved_opacity == 1.0f`.
+3. **Static env init** — `static const bool kSkipInvisibleOpacity = ...` cacha
+   al primo call; OK per produzione, blocca test flag-toggle workflows. (Da
+   accettare o rifattorizzare con `std::atomic<bool>` invalidato su env change.)
+4. **`input_ids` hoist non usato** da nessuna delle due guardie — rimetterlo
+   dopo `profiling::ProfilingGuard node_guard`.
+5. **`execution_state.hpp` doc-reference stale** — il commento menziona una
+   funzione `populate_inputs_invisible_layers()` che non esiste; fixare a una
+   riga sola ("Defaults to 1.0; populated at resolve-time from
+   `m_layer.anim_transform.opacity`").
+6. **Verbose guard docblock** — 10 righe di spiegazione vs 0 di `early_exit_skip`.
+   Assottigliare a 2-3 righe per matchare lo stile del file.
+
+**Sforzo:** ~30 righe in 2 file (`node_runner.cpp` + `execution_state.hpp`),
+1 commit separato, **nessuna dipendenza dal #11 populate step**.
+
+---
+
 ## 🟡 Colli di Bottiglia Moderati
 
 ### 4. Node Parallelism: TBB Peak = 1
@@ -359,6 +484,33 @@ dirty_eval_ms:  0
 7. Frame-level parallelism (se necessario, dopo aver misurato con hot attribution al 90%)
 
 ---
+
+## ⚠️ Stato Working Tree (sessione corrente)
+
+> Flag non-codice: serve per agganciarsi al prossimo commit dell'utente, non
+> per modificare file qui.
+
+> Dopo il push di `05887865`, `git status` mostra le seguenti modifiche /
+> file untracked, **NON mie** — appartengono all'utente e vanno eseguiti
+> in commit separati per non mischiarli con il fix preparatorio
+> già pushato:
+
+| Path | Stato | Note |
+|---|---|---|
+| `content/anims/compositions/cinematic_text_camera.cpp` (+ `.hpp`) | untracked | Le **5 nuove comps text-camera** che hanno originato questo studio di bottleneck. Commit naturale: `feat(content): add cinematic text-camera compositions`. |
+| `content/CMakeLists.txt`                                                  | modified | Probabilmente wiring CMake delle comps di cui sopra. |
+| `content/anims/CMakeLists.txt`                                             | modified | Idem. |
+| `content/common/text_helpers.hpp`                                          | modified | Helper `centered_text::make_centered_text` + `glow::apply_ae_glow` referenziati dalle 5 comps. |
+| `content/register_content_modules.cpp`                                     | modified | Registrazione moduli. |
+| `apps/chronon3d_cli/commands/telemetry/command_telemetry_helpers.cpp`     | modified | Stub `generate_telemetry_report` aggiunto in sessione precedente per risolvere linker error dopo `-DCHRONON3D_ENABLE_SQLITE_TELEMETRY=ON`. |
+| `tools/start_dashboard_shim.py`                                            | untracked | Helper di avvio dashboard. |
+
+**Azione raccomandata (utente, prossimo commit):** `git add -A` di tutti i
+path sopra (tutti relativi a contenuti / tooling / telemetry, **nessuna
+collisione** con `05887865`), con messaggio tipo `feat(content): add
+cinematic text-camera compositions + telemetry stub + dashboard shim`.
+Pushare insieme al branch locale, poi procedere con il populate step
+(#11 step 2) come ulteriore commit separato.
 
 ## File Chiave
 
