@@ -7,8 +7,8 @@
 // Used by CameraProgram::add_constraint_named() to attach a constraint by id
 // without writing a builder chain at the call site.
 //
-// Threading: register_factory() is intended to run at startup; after that
-// the registry is read-only and safe to query from any thread.
+// Threading: register_factory() is intended to run at startup; after freeze()
+// the registry is read-only and safe to query from any thread without locks.
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_constraint.hpp>
 
@@ -27,7 +27,8 @@ public:
     /// Factory function pointer: zero-arg, returns a fresh constraint.
     using Factory = std::shared_ptr<CameraConstraint> (*)();
 
-    /// Register a factory. Throws on null or duplicate id.
+    /// Register a factory. Throws std::invalid_argument on null or duplicate id.
+    /// Throws std::logic_error if the registry is already frozen.
     void register_factory(std::string id, Factory f);
 
     /// Create a constraint by id. Returns nullptr on miss (no throw).
@@ -38,10 +39,19 @@ public:
 
     bool has(const std::string& id) const;
 
+    /// Freeze the registry: after this, reads are concurrent-safe (no mutex)
+    /// and any register_factory() call throws std::logic_error.
+    /// Idempotent: calling freeze() multiple times is a no-op.
+    void freeze();
+
+    /// True if freeze() has been called.
+    bool is_frozen() const noexcept { return frozen_; }
+
 private:
     CameraConstraintRegistry() = default;
     mutable std::mutex mu_;
     std::map<std::string, Factory> factories_;
+    bool frozen_{false};
 };
 
 } // namespace chronon3d::camera_v1
