@@ -248,6 +248,8 @@ CameraProgramResult CameraProgram::evaluate(const CameraMotionContext& ctx,
     r.camera = intermediate;
     r.ok = true;
 
+    session.ensure_states(constraints_.size());
+
     for (auto& c : constraints_.all()) {
         auto cr = c->evaluate(r.camera, ctx, session);
 
