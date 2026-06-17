@@ -130,19 +130,11 @@ struct TextRunParams;
 class TextRunBuilder {
 public:
     // ── Constructor ──────────────────────────────────────────────────
-    /// Builds a TextRunBuilder attached to `parent` and carrying
-    /// `spec` by value (small, moves cheaply).  PR 4 originally
-    /// declared this `private:` with `friend class LayerBuilder;`,
-    /// but the friend model proved brittle under Unity builds: when
-    /// `layer_builder.cpp` is bundled into a unity TU (e.g.
-    /// `unity_2_cxx.cxx.o`) the compiler repeatedly reports
-    /// `TextRunBuilder::TextRunBuilder(...) is private within this
-    /// context` even though the call site is inside a LayerBuilder
-    /// method and both classes are otherwise complete.  Promoting
-    /// the ctor to public keeps the documented entry discipline
-    /// (`LayerBuilder::text_run` is still the only legitimate caller)
-    /// without depending on cross-TU friend-graph resolution.
-    TextRunBuilder(LayerBuilder* parent, TextRunSpec spec);
+    /// Builds a TextRunBuilder attached to `parent`, holding a
+    /// non-owning pointer to `spec` (owned by LayerBuilder::m_text_runs).
+    /// Public constructor (was private + friend) to avoid unity-build
+    /// friend-graph resolution issues.
+    TextRunBuilder(LayerBuilder* parent, TextRunSpec* spec);
 
     // ── Per-glyph transform mutators (inject implicit TextAnimatorSpec) ──
     TextRunBuilder& position(Vec3 v);
