@@ -1,4 +1,5 @@
 #include <chronon3d/scene/camera/camera_path_sampler.hpp>
+#include <chronon3d/scene/camera/camera_path_validation.hpp>
 #include <chronon3d/scene/camera/camera_projection.hpp>
 #include <glm/glm.hpp>
 #include <algorithm>
@@ -12,6 +13,7 @@ CameraPathReport sample_camera_path(
     Viewport viewport,
     int start_frame,
     int end_frame,
+    const CameraPathValidationOptions& opts,
     int step
 ) {
     CameraPathReport report;
@@ -70,16 +72,53 @@ CameraPathReport sample_camera_path(
         }
     }
 
-    if (report.max_target_center_error_px > 5.0f) {
+    if (report.max_target_center_error_px > opts.max_target_center_error_px) {
         report.passed = false;
-        report.failures.push_back("Max target center error (" + std::to_string(report.max_target_center_error_px) + " px) exceeds 5.0 px limit.");
+        report.failures.push_back("Max target center error (" + std::to_string(report.max_target_center_error_px) + " px) exceeds " + std::to_string(opts.max_target_center_error_px) + " px limit.");
     }
-    if (report.max_acceleration_jump > 15.0f) {
+    if (report.max_acceleration_jump > opts.max_acceleration_jump) {
         report.passed = false;
-        report.failures.push_back("Max acceleration jump (" + std::to_string(report.max_acceleration_jump) + ") indicates jerky movement.");
+        report.failures.push_back("Max acceleration jump (" + std::to_string(report.max_acceleration_jump) + ") exceeds " + std::to_string(opts.max_acceleration_jump) + " — jerky movement.");
+    }
+    if (opts.require_point_of_interest) {
+        // Late-binding target presence check: walk every sample and verify
+        // that the engine evaluated the layer-id lookup AND attached a point
+        // of interest. Without this, a "no-target" camera passes silently.
+        for (const auto& s : report.samples) {
+            // We re-derive presence from the camera state via the rig at
+            // each frame; if `cam.point_of_interest_enabled == false` we
+            // tag the report.
+            Camera2_5D cam = rig.evaluate(s.frame, &transforms);
+            if (!cam.point_of_interest_enabled) {
+                report.passed = false;
+                report.failures.push_back(
+                    "Frame " + std::to_string(s.frame) +
+                    ": opt.require_point_of_interest failed (POI disabled).");
+                break;  // fail-once for the first frame is enough.
+            }
+        }
     }
 
     return report;
+}
+
+// -----------------------------------------------------------------------------
+// Legacy ABI-preserving overload: defaults `opts` to the documented baseline
+// (5.0f / 15.0f) so existing call sites see exactly the previously hardcoded
+// behavior. New code should prefer calling the overload that takes opts.
+// -----------------------------------------------------------------------------
+CameraPathReport sample_camera_path(
+    const CameraRig& rig,
+    const TransformResolverResult& transforms,
+    Viewport viewport,
+    int start_frame,
+    int end_frame,
+    int step
+) {
+    return sample_camera_path(
+        rig, transforms, viewport,
+        start_frame, end_frame,
+        CameraPathValidationOptions{}, step);
 }
 
 } // namespace chronon3d
