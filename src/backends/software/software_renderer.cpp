@@ -3,8 +3,7 @@
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
-#include <chronon3d/backends/software/software_effect_runner.hpp>
-#include <chronon3d/backends/software/software_node_dispatcher.hpp>
+
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
@@ -196,7 +195,7 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
     m_counters.pixels_touched.fetch_add(clipped_area(width, height, to_local_clip(fb, state.clip_rect)), std::memory_order_relaxed);
     auto* processor = software_registry().get_shape(node.shape.type);
     if (!processor) {
-        SoftwareNodeDispatcher::draw_node(*this, fb, node, state, camera, width, height, software_registry());
+        spdlog::error("No processor registered for shape type");
         return;
     }
     processor->draw(*this, fb, node, state, camera, width, height);

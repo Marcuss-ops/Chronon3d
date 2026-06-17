@@ -1,6 +1,5 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/effect_processor.hpp>
-#include <chronon3d/backends/software/software_effect_runner.hpp>
 #include "../utils/render_effects_processor.hpp"
 #include "effects/color/exposure_levels.hpp"
 #include "effects/generate/fill_noise_offset.hpp"
@@ -19,7 +18,7 @@ public:
     void apply(Framebuffer& fb, const EffectParams& params,
                const effects::EffectExecutionContext& /*context*/) override {
         if (auto* p = std::get_if<BlurParams>(&params)) {
-            SoftwareEffectRunner::apply_blur(fb, p->radius);
+            renderer::apply_blur(fb, p->radius);
         }
     }
 };

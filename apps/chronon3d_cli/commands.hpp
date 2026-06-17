@@ -198,12 +198,6 @@ struct CameraPathArgs {
     std::string format{"auto"}; // "json", "csv", or "auto" (detect from -o extension)
 };
 
-struct VisualTestCameraArgs {
-    bool update_golden{false};
-    std::string case_name;
-    std::string out_dir{"artifacts/visual/camera"};
-};
-
 struct TextAuditArgs {
     std::string comp_id;
     std::string frames;            // e.g. "0,19,20,40,80,160,299" or "0-300x10"
@@ -217,7 +211,6 @@ struct TextAuditArgs {
     int   alpha_threshold{8};
 };
 
-int command_visual_test_camera(const VisualTestCameraArgs& args);
 int command_list(const CompositionRegistry& registry);
 int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_doctor(const CompositionRegistry& registry);
