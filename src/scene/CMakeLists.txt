@@ -2,7 +2,6 @@
 # src/scene/CMakeLists.txt — chronon3d_scene
 #
 # This target aggregates sources from scene/, timeline/, animations/camera/,
-# layout/, math/, presets/, specscene/, media/, and vector/. Sources outside
 # scene/ are referenced via relative paths (e.g. ../timeline/...).
 # ==============================================================================
 
@@ -28,10 +27,6 @@ add_library(chronon3d_scene STATIC
     presets/motion_presets_impact.cpp
     presets/phrase_presets.cpp
     presets/phrase_group_builder.cpp
-    specscene/specscene.cpp
-    specscene/specscene_parsers.cpp
-    specscene/specscene_compiler.cpp
-    specscene/specscene_validator.cpp
 )
 
 # ==============================================================================
