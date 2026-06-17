@@ -114,4 +114,3 @@ per-tile cache → rimozione LegacyNodeAdapter`
 | **[ROADMAP.md](ROADMAP.md)** | Roadmap attiva: item prioritari |
 | **[ORIENTATION.md](ORIENTATION.md)** | Panoramica architettura, build guide, API reference |
 | **[CHANGELOG.md](CHANGELOG.md)** | Cronologia item completati |
-| **`docs/archive/`** | Documentazione storica (pre-riorganizzazione) |

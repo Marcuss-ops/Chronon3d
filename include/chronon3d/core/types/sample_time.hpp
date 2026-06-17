@@ -64,29 +64,6 @@ struct SampleTime {
         return { static_cast<double>(frame), rate };
     }
 
-    // ── legacy factories (deprecated — keep for transition) ──────────────────
-    // Preserve fractional FPS (e.g. 29.97 NTSC) by scaling to milliseconds
-    // instead of truncating via static_cast<i32>(fps).
-    static SampleTime from_frame(double frame, double fps) {
-        const auto fps_ms = static_cast<i32>(std::llround(fps * 1000.0));
-        return { frame, FrameRate{fps_ms, 1000} };
-    }
-
-    static SampleTime from_seconds(double seconds, double fps) {
-        const auto fps_ms = static_cast<i32>(std::llround(fps * 1000.0));
-        return { seconds * fps, FrameRate{fps_ms, 1000} };
-    }
-
-    static SampleTime from_frame_int(Frame frame, double fps) {
-        const auto fps_ms = static_cast<i32>(std::llround(fps * 1000.0));
-        return { static_cast<double>(frame), FrameRate{fps_ms, 1000} };
-    }
-
-    /// Legacy: from integer Frame with implicit 30 FPS (deprecated).
-    static SampleTime from_frame_int(Frame frame) {
-        return { static_cast<double>(frame), FrameRate{30, 1} };
-    }
-
     // Equality (C++20 default)
     bool operator==(const SampleTime&) const = default;
 };
@@ -94,8 +71,7 @@ struct SampleTime {
 
 // ── TemporalSampleKey — deterministic cache key with version ──────────────
 //
-// Replaces `SampleTimeKey` (which used absolute ticks).  `TemporalSampleKey`
-// separates the integral frame, sub-frame tick, and a content version so that:
+// Separates the integral frame, sub-frame tick, and a content version so that:
 //
 // • Static nodes can share the same key across all motion-blur sub-samples
 //   (frame=0, subframe_tick=0, version=node_version).
@@ -146,56 +122,11 @@ struct TemporalSampleKey {
     };
 }
 
-// ── SampleTimeKey (deprecated — replaced by TemporalSampleKey) ──────────────
-//
-// Kept for backward compatibility during migration.  New code should use
-// `TemporalSampleKey` and `make_temporal_key()` instead.
-
-struct SampleTimeKey {
-    int64_t ticks{0};
-
-    static constexpr int64_t kTicksPerFrame = 65536;
-
-    [[deprecated("Use make_temporal_key() instead")]]
-    static SampleTimeKey from_sample_time(const SampleTime& t) {
-        const double base = std::floor(t.frame);
-        const double fraction = t.frame - base;
-        auto tick = static_cast<int64_t>(
-            std::llround(fraction * static_cast<double>(kTicksPerFrame)));
-        int64_t frame_part = static_cast<int64_t>(base);
-        if (tick >= kTicksPerFrame) {
-            ++frame_part;
-            tick = 0;
-        } else if (tick < 0) {
-            --frame_part;
-            tick += kTicksPerFrame;
-        }
-        return { frame_part * kTicksPerFrame + tick };
-    }
-
-    [[deprecated("Use TemporalSampleKey instead")]]
-    static SampleTimeKey from_frame_int(Frame frame) {
-        return { static_cast<int64_t>(frame) * kTicksPerFrame };
-    }
-
-    bool operator==(const SampleTimeKey&) const = default;
-    bool operator<(const SampleTimeKey& other) const { return ticks < other.ticks; }
-
-    SampleTime to_sample_time(FrameRate rate = FrameRate{30, 1}) const {
-        const double f = static_cast<double>(ticks) / static_cast<double>(kTicksPerFrame);
-        return SampleTime::from_frame(f, rate);
-    }
-};
-
-} // namespace chronon3d
-
 // ── TemporalSampleKeyHash — hashing functor (forward-looking) ─────────────
 //
 // Currently FrameCacheKey / NodeCacheKey use their own XXH3-based digest()
 // method.  This hash is provided for future std::unordered_map<TemporalSampleKey>
 // usage (e.g. per-node temporal key maps).
-
-namespace chronon3d {
 
 struct TemporalSampleKeyHash {
     size_t operator()(const TemporalSampleKey& k) const noexcept {
@@ -204,17 +135,6 @@ struct TemporalSampleKeyHash {
         h ^= std::hash<u32>{}(k.subframe_tick) + 0x9e3779b9 + (h << 6) + (h >> 2);
         h ^= std::hash<EvaluationVersion>{}(k.version) + 0x9e3779b9 + (h << 6) + (h >> 2);
         return h;
-    }
-};
-
-} // namespace chronon3d
-
-// ── SampleTimeKeyHash — hashing functor for deprecated SampleTimeKey ────────
-namespace chronon3d {
-
-struct SampleTimeKeyHash {
-    size_t operator()(const SampleTimeKey& k) const noexcept {
-        return std::hash<int64_t>{}(k.ticks);
     }
 };
 

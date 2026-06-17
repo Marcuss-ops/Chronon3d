@@ -1,36 +1,28 @@
-// Content module registration helpers.
-// Registers content ExtensionModules with the ExtensionRegistry.
-// Call once at startup before any CompositionRegistry is constructed.
+// Content module registration — single entry point.
+// Call register_content_modules() once at startup before any
+// CompositionRegistry is constructed.  Safe to call multiple times.
 #pragma once
+
+#include <chronon3d/extension/extension_registry.hpp>
+#include <memory>
 
 namespace chronon3d {
 
-/// Register the Minimalist content module (requires chronon3d_content_anims).
-void register_minimalist_content();
-
-/// Register the 2.5D content module (requires chronon3d_content_2d5).
-void register_two_point_five_d_content();
-
-/// Register the Images content module (requires chronon3d_content_images).
-/// Exposes ImgGradient, ImgChecker, ImgGridTest, ImgTestPattern,
-/// ImgShakeZoom, ImgReferenceShakeReveal, ImgCornerSmoothing, ImageProofs.
-void register_images_content();
-
-/// Register the Shapes content module.
-void register_shapes_content();
-
-/// Register the Animation compositions module.
-void register_anims_content();
-
-/// Register the Grid content module.
-void register_grid_content();
-
-/// Register the Effects content module.
-void register_effects_content();
+/// Inline helper: registers a module with the ExtensionRegistry if not
+/// already present.  Used by register_content_modules() to consolidate
+/// all 9 per-module registration functions into a single call site.
+inline void register_module_if_needed(std::string_view id,
+                                      std::unique_ptr<ExtensionModule> (*creator)()) {
+    auto& reg = ExtensionRegistry::instance();
+    if (!reg.has_module(id)) {
+        reg.register_module(creator());
+    }
+}
 
 /// Register all built-in content modules and initialize them.
-/// Calls all per-module registration functions above.
-/// Safe to call multiple times — modules are only initialized once.
+/// Replaces 9 individual register_X_content() functions with a single
+/// consolidated call that registers every module then calls
+/// initialize_all() exactly once.
 void register_content_modules();
 
 } // namespace chronon3d

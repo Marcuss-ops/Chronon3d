@@ -1,34 +1,7 @@
 #include <chronon3d/extension/extension_module.hpp>
 #include <chronon3d/extension/extension_registry.hpp>
-#include <chronon3d/timeline/composition.hpp>
 
-namespace chronon3d::content::minimalist {
-
-// Text animations
-Composition minimalist_text_fade_up();
-Composition minimalist_text_tracking_reveal();
-Composition minimalist_text_clip_reveal();
-Composition minimalist_text_fade_down();
-Composition minimalist_text_soft_scale();
-Composition minimalist_text_blur_focus();
-Composition minimalist_text_slide_left();
-Composition minimalist_text_slide_right();
-Composition minimalist_text_scale_pop();
-Composition minimalist_text_float_in();
-
-// Image presets
-Composition minimalist_image_fade_in();
-Composition minimalist_image_focus_in();
-Composition minimalist_image_scale_drop();
-Composition minimalist_image_fade_shift_vertical();
-Composition minimalist_image_center_split();
-Composition minimalist_image_reveal_from_bottom();
-Composition minimalist_image_framing_bracket();
-Composition minimalist_image_tracking_breathing();
-Composition minimalist_image_elegant_exit();
-Composition minimalist_image_elastic_slide();
-
-} // namespace chronon3d::content::minimalist
+#include "minimalist_animations.hpp"
 
 namespace chronon3d {
 
@@ -50,6 +23,18 @@ public:
         registry.register_composition("MinimalistTextSlideRight", minimalist_text_slide_right);
         registry.register_composition("MinimalistTextScalePop", minimalist_text_scale_pop);
         registry.register_composition("MinimalistTextFloatIn", minimalist_text_float_in);
+        registry.register_composition("MinimalistTextLetterRise", minimalist_text_letter_rise);
+        registry.register_composition("MinimalistTextDriftIn", minimalist_text_drift_in);
+        registry.register_composition("MinimalistTextTiltIn", minimalist_text_tilt_in);
+        registry.register_composition("MinimalistTextMaskReveal", minimalist_text_mask_reveal);
+        registry.register_composition("MinimalistTextSnapPop", minimalist_text_snap_pop);
+
+        // Exit animations
+        registry.register_composition("MinimalistTextFadeAway", minimalist_text_fade_away);
+        registry.register_composition("MinimalistTextScaleOut", minimalist_text_scale_out);
+        registry.register_composition("MinimalistTextSlideUpOut", minimalist_text_slide_up_out);
+        registry.register_composition("MinimalistTextBlurAway", minimalist_text_blur_away);
+        registry.register_composition("MinimalistTextTiltOut", minimalist_text_tilt_out);
 
         // Image presets
         registry.register_composition("MinimalistImageFadeIn", minimalist_image_fade_in);

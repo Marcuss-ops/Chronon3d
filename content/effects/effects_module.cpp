@@ -2,26 +2,18 @@
 #include <chronon3d/extension/extension_registry.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
+#include "ref_2_5d/reference_2_5d_suite.hpp"
+
 namespace chronon3d::content::effects {
 
 // ── Glow compositions ───────────────────────────────────────────────────────
 Composition glow_02_orb_galaxy();
 Composition glow_basic_word();
-// Composition glow_03_cinematic_text();  // removed — fresh start
 Composition glow_sharpness_test();
 Composition glow_paragraph_test();
 Composition glow_radius_compare_test();
 Composition glow_typewriter_reveal_test();
 Composition glow_shadow_balance_test();
-
-// ── 2.5D reference compositions ─────────────────────────────────────────────
-Composition floating_cards_test();
-Composition orbit_camera_test();
-Composition depth_fog_test();
-Composition z_stack_parallax_test();
-Composition shadow_glow_consistency_test();
-Composition extreme_perspective_test();
-Composition y_rotation_text_test();
 
 // ── Thumbnail compositions ──────────────────────────────────────────────────
 Composition premium_thumbnail_buttery_smooth();

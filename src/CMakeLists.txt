@@ -87,10 +87,6 @@ add_subdirectory(animations)        # chronon3d_animations
 # Final aggregate targets
 # ==============================================================================
 
-# --- Aggregati Architetturali finali ---
-# Aggregati Architetturali finali
-# WHOLE_ARCHIVE removed — all built-in compositions now use explicit
-# registration via register_builtin_compositions().
 add_library(chronon3d_core INTERFACE)
 target_link_libraries(chronon3d_core INTERFACE
     chronon3d_extension

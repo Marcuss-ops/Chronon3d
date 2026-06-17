@@ -1,33 +1,10 @@
 #include <chronon3d/extension/extension_module.hpp>
 #include <chronon3d/extension/extension_registry.hpp>
-#include <chronon3d/timeline/composition.hpp>
 
-namespace chronon3d::content::anims {
-
-// Forward declarations (definitions in separate .cpp files)
-Composition anim_fade_in_text();
-Composition anim_slide_text();
-Composition anim_scale_text();
-Composition anim_typewriter();
-Composition catmull_rom_showcase();
-Composition dolly_zoom_showcase();
-Composition camera_spline_comparison();
-Composition tilt_sweep_title();
-Composition tilt_sweep_title_v2();
-
-// Text animation compositions (text_animations.cpp)
-Composition anim_slide_up();
-Composition anim_scale_pop();
-Composition anim_blur_focus();
-Composition anim_slide_left();
-Composition anim_bounce_drop();
-Composition anim_typewriter_simple();
-Composition anim_typewriter_cursor();
-Composition anim_typewriter_slide();
-Composition anim_typewriter_glow();
-Composition anim_typewriter_stagger();
-
-} // namespace chronon3d::content::anims
+#include "compositions/animation_compositions.hpp"
+#include "compositions/text_animations.hpp"
+#include "compositions/cinematic_showcase.hpp"
+#include "compositions/cinematic_title_reveal.hpp"
 
 namespace chronon3d {
 

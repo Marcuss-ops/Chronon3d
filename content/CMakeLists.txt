@@ -8,6 +8,8 @@ add_subdirectory(shapes)
 add_subdirectory(images)
 add_subdirectory(anims)
 add_subdirectory(Minimalist)
+add_subdirectory(SpecialNames)
+add_subdirectory(ImportantWords)
 add_subdirectory(effects)
 add_subdirectory(2d5)
 add_subdirectory(grid)
@@ -33,6 +35,8 @@ target_link_libraries(chronon3d_all_content_modules INTERFACE
     chronon3d_content_images
     chronon3d_content_anims
     chronon3d_content_minimalist
+    chronon3d_content_special_names
+    chronon3d_content_important_words
     chronon3d_content_effects
     chronon3d_content_2d5
     chronon3d_content_grid
@@ -42,13 +46,6 @@ add_library(chronon3d::all_content_modules ALIAS chronon3d_all_content_modules)
 # Content module registration (links all content modules together)
 add_library(chronon3d_content_registry STATIC
     register_content_modules.cpp
-    register_minimalist_content.cpp
-    register_shapes_content.cpp
-    register_images_content.cpp
-    register_2d5_content.cpp
-    register_anims_content.cpp
-    register_grid_content.cpp
-    register_effects_content.cpp
 )
 target_include_directories(chronon3d_content_registry PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(chronon3d_content_registry

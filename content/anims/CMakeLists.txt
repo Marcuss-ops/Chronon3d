@@ -2,7 +2,9 @@ add_library(chronon3d_content_anims STATIC
     anims_module.cpp
     compositions/animation_compositions.cpp
     compositions/text_animations.cpp
-    compositions/cinematic_showcase.cpp
+    compositions/catmull_rom_showcase.cpp
+    compositions/dolly_zoom_showcase.cpp
+    compositions/camera_spline_comparison.cpp
     compositions/cinematic_title_reveal.cpp
     compositions/tilt_sweep_title_v2.cpp
 )
