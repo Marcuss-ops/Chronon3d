@@ -48,7 +48,7 @@ _Data: fine maggio 2026_
 
 ### S1 — io_uring per Pipe FFmpeg
 
-2026-05-29/06-05 — io_uring implementato in `ffmpeg_pipe_encoder.cpp` con `IORING_OP_WRITE_FIXED`, supporto registered buffers, fallback a write() classico.
+2026-05-29/06-05 — io_uring implementato in `ffmpeg_pipe_encoder.cpp` con `IORING_OP_WRITE_FIXED`, supporto registered buffers, fallback a write() classico. *(File migrato in `commands/video/exporters/` a giugno 2026.)*
 
 ### S4 — OpenEXR DWAA Bake
 
@@ -152,6 +152,7 @@ Unificato con S5.
 - Logica invertita: `#ifndef CHRONON3D_LEAN_UMBRELLA` (opt-out) → `#ifdef CHRONON3D_LEGACY_FULL_UMBRELLA` (opt-in)
 - `chronon3d.hpp` ora è **leggero di default**: include solo l'API pubblica scene-building
 - Per il vecchio comportamento (runtime + internal): compilare con `-DCHRONON3D_LEGACY_FULL_UMBRELLA`
+- *(Rimosso a giugno 2026 — l'header è ora definitivamente leggero.)*
 
 ### R2 — Split di chronon3d_c_api.cpp in 4 file
 
