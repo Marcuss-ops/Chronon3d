@@ -157,13 +157,13 @@ TEST_CASE("PR7: whip pan interpolates rotation via quaternion") {
 // ==============================================================================
 TEST_CASE("PR7: focus handoff transitions focus distance") {
     Camera2_5D from, to;
-    from.focus_distance = 100.0f;
-    to.focus_distance   = 900.0f;
+    from.dof.focus_distance = 100.0f;
+    to.dof.focus_distance   = 900.0f;
 
     auto fh = ShotTimelineResolver::default_focus_handoff();
 
     auto mid = fh->evaluate(0.5f, from, to);
-    CHECK(approx(mid.focus_distance, 500.0f, 50.0f));
+    CHECK(approx(mid.dof.focus_distance, 500.0f, 50.0f));
 }
 
 // ==============================================================================
@@ -216,12 +216,12 @@ TEST_CASE("PR7: endpoint parity for all transitions") {
     from.rotation = {5, 10, 2};
     from.fov_deg = 45.0f;
     from.zoom = 1.5f;
-    from.focus_distance = 200.0f;
+    from.dof.focus_distance = 200.0f;
     to.position = {100, 200, -500};
     to.rotation = {30, 80, 15};
     to.fov_deg = 60.0f;
     to.zoom = 2.0f;
-    to.focus_distance = 800.0f;
+    to.dof.focus_distance = 800.0f;
 
     auto transitions = {
         ShotTimelineResolver::default_cut(),
