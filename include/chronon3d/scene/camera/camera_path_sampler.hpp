@@ -15,6 +15,7 @@ struct CameraPathSample {
     Vec3 target{0.0f, 0.0f, 0.0f};
     Vec3 forward{0.0f, 0.0f, 1.0f};
     float target_center_error_px{0.0f};
+    bool point_of_interest_enabled{false};  // stored during first evaluation (no re-eval)
 };
 
 struct CameraPathReport {
@@ -23,26 +24,16 @@ struct CameraPathReport {
     float max_target_center_error_px{0.0f};
     float max_velocity_jump{0.0f};
     float max_acceleration_jump{0.0f};
+    float max_jerk{0.0f};                   // max |Δacceleration| / dt
 
     bool passed{true};
     std::vector<std::string> failures;
 };
 
-CameraPathReport sample_camera_path(
-    const CameraRig& rig,
-    const TransformResolverResult& transforms,
-    Viewport viewport,
-    int start_frame,
-    int end_frame,
-    int step
-);
-
 // Forward declaration so callers can include only this header.
-// The full definition lives in camera_path_validation.hpp (P1).
 struct CameraPathValidationOptions;
 
-/// Configurable-thresholds overload (Camera V1 — P1). Default opts preserve
-/// the previously hardcoded behavior (5.0f target error, 15.0f accel jump).
+/// Validates a camera path with configurable thresholds (Camera V1 — P1).
 CameraPathReport sample_camera_path(
     const CameraRig& rig,
     const TransformResolverResult& transforms,
@@ -52,5 +43,32 @@ CameraPathReport sample_camera_path(
     const CameraPathValidationOptions& opts,
     int step = 1
 );
+
+/// Legacy ABI-preserving overload (default opts = hardcoded 5.0f / 15.0f).
+CameraPathReport sample_camera_path(
+    const CameraRig& rig,
+    const TransformResolverResult& transforms,
+    Viewport viewport,
+    int start_frame,
+    int end_frame,
+    int step
+);
+
+/// SampleRange for the new analyze_camera_path API.
+struct SampleRange {
+    int start_frame{0};
+    int end_frame{30};
+    int step{1};
+};
+
+/// Analyzer entry-point (Camera V1 — P5 hardening). Replaces the old
+/// `sample_camera_path()` as the canonical API. Returns a structured report
+/// with velocity/acceleration/jerk stats and configurable validation.
+CameraPathReport analyze_camera_path(
+    const CameraRig& rig,
+    const TransformResolverResult& transforms,
+    Viewport viewport,
+    SampleRange range,
+    CameraPathValidationOptions options);
 
 } // namespace chronon3d
