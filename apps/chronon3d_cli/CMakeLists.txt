@@ -22,7 +22,6 @@ add_library(chronon3d_cli_render STATIC
     commands/render/register_render_commands.cpp
     commands/render/command_render.cpp
     commands/render/command_preflight.cpp
-    commands/render/command_proofs.cpp
     commands/render/command_bake_layer.cpp
     commands/render/command_graph.cpp
     utils/job/render_job.cpp
@@ -85,24 +84,6 @@ add_library(chronon3d_cli_telemetry STATIC
     commands/telemetry/command_telemetry.cpp
     commands/telemetry/command_telemetry_helpers.cpp
     commands/telemetry/command_telemetry_summary.cpp
-    commands/telemetry/command_telemetry_report.cpp
-    commands/telemetry/telemetry_report_model.cpp
-    commands/telemetry/telemetry_report_analyzer.cpp
-    commands/telemetry/telemetry_report_markdown.cpp
-    commands/telemetry/telemetry_report_sections/overview_perf.cpp
-    commands/telemetry/telemetry_report_sections/frame_summary.cpp
-    commands/telemetry/telemetry_report_sections/core_render_phases.cpp
-    commands/telemetry/telemetry_report_sections/phase_cpu_efficiency.cpp
-    commands/telemetry/telemetry_report_sections/counters_metrics.cpp
-    commands/telemetry/telemetry_report_sections/framebuffer_pool.cpp
-    commands/telemetry/telemetry_report_sections/hot_nodes.cpp
-    commands/telemetry/telemetry_report_sections/hot_work_attribution.cpp
-    commands/telemetry/telemetry_report_sections/layer_cost_breakdown.cpp
-    commands/telemetry/telemetry_report_sections/frame_samples.cpp
-    commands/telemetry/telemetry_report_sections/cache_diagnostics.cpp
-    commands/telemetry/telemetry_report_sections/parallelism_decisions.cpp
-    commands/telemetry/telemetry_report_sections/system_resources.cpp
-    commands/telemetry/telemetry_report_sections/bottleneck_diagnosis.cpp
 )
 target_include_directories(chronon3d_cli_telemetry PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)
 target_link_libraries(chronon3d_cli_telemetry PRIVATE chronon3d_cli_core chronon3d_pipeline CLI11::CLI11 spdlog::spdlog_header_only fmt::fmt)
@@ -116,7 +97,6 @@ add_library(chronon3d_cli_dev STATIC
     commands/group_dev.cpp
     commands/dev/register_dev_commands.cpp
     commands/dev/register_inspect_commands.cpp
-    commands/dev/command_studio.cpp
     commands/dev/command_batch.cpp
     commands/dev/command_bench_convert.cpp
     commands/dev/command_doctor_verify.cpp
