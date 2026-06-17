@@ -129,6 +129,21 @@ struct TextRunParams;
 
 class TextRunBuilder {
 public:
+    // ── Constructor ──────────────────────────────────────────────────
+    /// Builds a TextRunBuilder attached to `parent` and carrying
+    /// `spec` by value (small, moves cheaply).  PR 4 originally
+    /// declared this `private:` with `friend class LayerBuilder;`,
+    /// but the friend model proved brittle under Unity builds: when
+    /// `layer_builder.cpp` is bundled into a unity TU (e.g.
+    /// `unity_2_cxx.cxx.o`) the compiler repeatedly reports
+    /// `TextRunBuilder::TextRunBuilder(...) is private within this
+    /// context` even though the call site is inside a LayerBuilder
+    /// method and both classes are otherwise complete.  Promoting
+    /// the ctor to public keeps the documented entry discipline
+    /// (`LayerBuilder::text_run` is still the only legitimate caller)
+    /// without depending on cross-TU friend-graph resolution.
+    TextRunBuilder(LayerBuilder* parent, TextRunSpec spec);
+
     // ── Per-glyph transform mutators (inject implicit TextAnimatorSpec) ──
     TextRunBuilder& position(Vec3 v);
     TextRunBuilder& opacity(f32 v);
@@ -166,12 +181,13 @@ public:
     [[nodiscard]] LayerBuilder& parent() const noexcept { return *m_parent; }
 
 private:
-    friend class LayerBuilder;
-
-    /// Private constructor — only `LayerBuilder::text_run(...)` may
-    /// construct a fresh builder.  Carries the spec by value (it's
-    /// small / moves cheaply).
-    TextRunBuilder(LayerBuilder* parent, TextRunSpec spec);
+    // `friend class LayerBuilder;` was REMOVED — the declaration now
+    // lives one block above as a public ctor.  See the rationale on
+    // that declaration: the friend model failed in Unity-build TU
+    // boundaries even when both classes were complete.
+    // `append_animator` and `make_global_glyph_selector` remain
+    // private; they're only called from this class's own methods
+    // (no external friend needed).
 
     /// Append a fully-formed TextAnimatorSpec to the spec's animator
     /// vector.  Internal helper that both `.animator()` and the
