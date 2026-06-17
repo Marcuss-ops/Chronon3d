@@ -5,6 +5,8 @@
 add_library(chronon3d_animations STATIC
     animation_catalog.cpp
     background_presets.cpp
+    animation_curve.cpp
+    animated_value.cpp
 )
 target_link_libraries(chronon3d_animations PUBLIC
     chronon3d
