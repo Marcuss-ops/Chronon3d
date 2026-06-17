@@ -33,7 +33,7 @@ std::optional<VideoJobPlan> plan_video_job(
     const auto& comp = *resolved.comp;
 
     // ── RenderSettings ──────────────────────────────────────────────────
-    RenderSettings settings = settings_from_args(args, !resolved.from_specscene);
+    RenderSettings settings = settings_from_args(args);
 
     // ── CLI end is EXCLUSIVE (documented semantic [start, end)) ─────────
     const Frame end = (args.end > args.start)
@@ -115,7 +115,6 @@ std::optional<VideoJobPlan> plan_video_job(
         .start          = args.start,
         .end_exclusive  = end,
         .dry_run        = args.dry_run,
-        .from_specscene = resolved.from_specscene,
     };
 }
 

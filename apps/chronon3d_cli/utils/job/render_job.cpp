@@ -17,8 +17,7 @@ std::optional<RenderJobPlan> plan_render_job(const CompositionRegistry& registry
     plan.comp = std::move(resolved.comp);
     plan.comp_id = args.comp_id;
     plan.output = args.output;
-    plan.settings = settings_from_args(args, !resolved.from_specscene, args.pipeline.diagnostic);
-    plan.from_specscene = resolved.from_specscene;
+    plan.settings = settings_from_args(args, true, args.pipeline.diagnostic);
     plan.log_level = args.log_level;
     plan.benchmark_all = args.benchmark_all;
     plan.report = args.report;
