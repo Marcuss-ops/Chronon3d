@@ -7,12 +7,12 @@
 
 namespace chronon3d::content::shapes {
 
-namespace {
-
-constexpr f32 W = 1920.0f;
-constexpr f32 H = 1080.0f;
-
-} // namespace
+// NOTE: no anonymous-namespace canvas-size constants here.  Earlier
+// revisions of this file declared `constexpr f32 W = 1920; H = 1080;`
+// but they collided with the same identifiers in
+// content/images/compositions/*.cpp under unity aggregation.  This
+// file only uses CELL_W / CELL_H / GAP_X / GAP_Y below, so no W / H
+// are needed.
 
 Composition shape_motion_proofs() {
     return composition({.name = "ShapeMotionProofs", .duration = 90}, [](const FrameContext& ctx) {
