@@ -240,7 +240,7 @@ OwnedFB MultiSourceNode::execute(
                 };
                 const bool drew = renderer::draw_text_run(*sw_renderer, params);
 
-                if (renderer::counters_t* rc = sw_renderer->counters()) {
+                if (auto* rc = sw_renderer->counters()) {
                     // Best-effort counter wiring — keeps the telemetry
                     // dashboard picking up text glyph counts across
                     // multi-source layers.

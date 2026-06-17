@@ -266,7 +266,7 @@ OwnedFB TextRunNode::execute(
         );
     }
 
-    if (renderer::counters_t* rc = sw_renderer->counters()) {
+    if (auto* rc = sw_renderer->counters()) {
         // Best-effort counter wiring — uses the existing text counters so
         // the telemetry dashboard picks up TextRun frames automatically.
         rc->text_glyphs_rasterized.fetch_add(
