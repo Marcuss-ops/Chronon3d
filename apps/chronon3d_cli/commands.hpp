@@ -207,6 +207,7 @@ struct TextAuditArgs {
 };
 
 int command_list(const CompositionRegistry& registry);
+int command_watch(const CompositionRegistry& registry, const std::string& comp_id);
 int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_doctor(const CompositionRegistry& registry);
 int command_verify(const CompositionRegistry& registry, const std::string& output_dir);
