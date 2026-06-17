@@ -3,6 +3,7 @@
 #include <chronon3d/rendering/lighting_eval.hpp>
 #include "../scanline_rasterizer.hpp"
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 namespace chronon3d::renderer {
@@ -280,22 +281,6 @@ void draw_line(Framebuffer& fb, Vec2 p0, Vec2 p1, float thickness, const Color& 
     fill_quad(fb, v0, v1, v2, v3, color);
 }
 
-// ── Depth-aware local helpers ──────────────────────────────────────────────
-
-void fill_triangle_depth(Framebuffer& fb, Vec3 v0, Vec3 v1, Vec3 v2,
-                         const Color& color, std::span<float> depth_buffer) {
-    const Vec3 arr[3] = {v0, v1, v2};
-    chronon3d::renderer::fill_triangle(fb, arr, color, depth_buffer);
-}
-
-void fill_quad_depth(Framebuffer& fb, Vec3 p0, Vec3 p1, Vec3 p2, Vec3 p3,
-                     const Color& color, std::span<float> depth_buffer) {
-    const Vec3 tri1[3] = {p0, p1, p2};
-    const Vec3 tri2[3] = {p0, p2, p3};
-    chronon3d::renderer::fill_triangle(fb, tri1, color, depth_buffer);
-    chronon3d::renderer::fill_triangle(fb, tri2, color, depth_buffer);
-}
-
 } // anonymous namespace
 
 void render_card3d_material(
@@ -344,12 +329,13 @@ void render_card3d_material(
         if (use_depth) {
             // Use a reasonable Z for side faces (same as card position depth)
             float side_z = 0.0f; // default: render unlittered
-            fill_quad_depth(fb,
+            const std::array<Vec3, 4> pts_r{{
                 {r_side_tl.x, r_side_tl.y, side_z},
                 {r_side_tr.x, r_side_tr.y, side_z},
                 {r_side_br.x, r_side_br.y, side_z},
                 {r_side_bl.x, r_side_bl.y, side_z},
-                material.side_color, depth_buffer);
+            }};
+            fill_convex_quad(fb, pts_r, material.side_color, depth_buffer);
         } else {
             fill_quad(fb, r_side_tl, r_side_tr, r_side_br, r_side_bl, material.side_color);
         }
@@ -359,12 +345,13 @@ void render_card3d_material(
     if (t > 0.5f) {
         if (use_depth) {
             float side_z = 0.0f;
-            fill_quad_depth(fb,
+            const std::array<Vec3, 4> pts_b{{
                 {b_side_tl.x, b_side_tl.y, side_z},
                 {b_side_tr.x, b_side_tr.y, side_z},
                 {b_side_br.x, b_side_br.y, side_z},
                 {b_side_bl.x, b_side_bl.y, side_z},
-                material.side_color, depth_buffer);
+            }};
+            fill_convex_quad(fb, pts_b, material.side_color, depth_buffer);
         } else {
             fill_quad(fb, b_side_tl, b_side_tr, b_side_br, b_side_bl, material.side_color);
         }
@@ -407,12 +394,13 @@ void render_card3d_material(
             lit_tint.a = 0.25f;
             if (use_depth) {
                 float front_z = 0.0f;
-                fill_quad_depth(fb,
+                const std::array<Vec3, 4> pts_f{{
                     {f_tl.x, f_tl.y, front_z},
                     {f_tr.x, f_tr.y, front_z},
                     {f_br.x, f_br.y, front_z},
                     {f_bl.x, f_bl.y, front_z},
-                    lit_tint, depth_buffer);
+                }};
+                fill_convex_quad(fb, pts_f, lit_tint, depth_buffer);
             } else {
                 fill_quad(fb, f_tl, f_tr, f_br, f_bl, lit_tint);
             }
