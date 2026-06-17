@@ -7,6 +7,7 @@
 #include <chronon3d/compositor/composite_operator.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
+#include <glm/glm.hpp>
 #include <memory>
 #include <optional>
 
@@ -14,6 +15,7 @@ namespace chronon3d {
     struct RenderNode;
     struct RenderState;
     struct RenderCounters;
+    struct TextRunShape;  // forward decl for draw_text_run
 }
 
 namespace chronon3d::cache {
@@ -62,6 +64,20 @@ public:
         float radius,
         const std::optional<raster::BBox>& clip = std::nullopt
     ) = 0;
+
+    /// Draw a batched text run with per-glyph animation state.
+    /// The default implementation returns false (unsupported).
+    /// Backends that support text rendering (e.g. SoftwareRenderer)
+    /// override this to route through their text-run processor.
+    virtual bool draw_text_run(
+        Framebuffer& /*fb*/,
+        const chronon3d::TextRunShape& /*shape*/,
+        const glm::mat4& /*model_matrix*/,
+        float /*opacity*/,
+        bool /*diagnostic_mode*/
+    ) {
+        return false;
+    }
 };
 
 } // namespace chronon3d::graph

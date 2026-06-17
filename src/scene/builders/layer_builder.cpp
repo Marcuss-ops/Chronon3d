@@ -293,11 +293,13 @@ TextRunBuilder& LayerBuilder::text_run(std::string name, TextRunParams params) {
     TextRunSpec* spec_ptr = spec_uptr.get();
     m_text_runs.push_back(std::move(spec_uptr));
     // Push a fresh builder into the pool, keyed to the same spec we
-    // just added.  Pool storage means the returned reference stays
+    // just added.  The builder holds a non-owning pointer so its
+    // mutators write directly into the spec inside m_text_runs.
+    // Pool storage means the returned reference stays
     // valid for the lifetime of the LayerBuilder — even across many
     // `.text_run(...)` calls.
     m_text_run_builders.push_back(
-        std::make_unique<TextRunBuilder>(this, *spec_ptr));
+        std::make_unique<TextRunBuilder>(this, spec_ptr));
     return *m_text_run_builders.back();
 }
 

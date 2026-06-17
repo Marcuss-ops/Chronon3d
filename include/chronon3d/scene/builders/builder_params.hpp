@@ -12,6 +12,10 @@
 
 namespace chronon3d {
 
+// ── Forward declarations for TextRunParams (full headers included by users) ─
+struct TextAnimatorSpec;
+struct GlyphSelectorSpec;
+
 struct RectParams {
     Vec2 size{100, 100};
     Color color{1, 1, 1, 1};
@@ -177,6 +181,7 @@ struct TextRunParams {
     // (see PR 4 follow-up).  Carrying them now avoids API churn when
     // the text_run() builder entry point lands.
     std::vector<TextAnimatorSpec> animators;
+<<<<<<< HEAD
     std::vector<GlyphSelectorSpec> selectors;  // optional top-level selectors (renamed from TextSelectorSpec after TextAnimator V2 refactor)
 
     // Optional pre-shaped glyph run (typewriter-style, contextual scripts).

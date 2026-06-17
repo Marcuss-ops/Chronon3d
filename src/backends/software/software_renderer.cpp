@@ -3,6 +3,7 @@
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
+#include <chronon3d/backends/software/text_run_processor.hpp>
 
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/builtin_processors.hpp>
@@ -209,6 +210,24 @@ void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src,
     CHRONON_ZONE_C("composite_layer", trace_category::kComposite);
     m_counters.pixels_touched.fetch_add(clipped_area(dst.width(), dst.height(), to_local_clip(dst, clip)), std::memory_order_relaxed);
     SoftwareCompositor::composite_layer(dst, src, mode, clip, op, m_settings.force_scalar_normal_blend);
+}
+
+bool SoftwareRenderer::draw_text_run(
+    Framebuffer& fb,
+    const TextRunShape& shape,
+    const Mat4& model_matrix,
+    float opacity,
+    bool diagnostic_mode
+) {
+    CHRONON_ZONE_C("draw_text_run", trace_category::kText);
+    renderer::TextRunDrawParams params{
+        .fb = fb,
+        .shape = shape,
+        .model_matrix = model_matrix,
+        .opacity = opacity,
+        .diagnostic_mode = diagnostic_mode,
+    };
+    return renderer::draw_text_run(*this, params);
 }
 
 } // namespace chronon3d

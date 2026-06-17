@@ -2,8 +2,6 @@ add_library(chronon3d_content_shapes STATIC
     proofs/shape_proofs.cpp
     motion/shape_motion_proofs.cpp
 )
-# shape_registrations.cpp was merged into shapes_module.cpp
-# (legacy file retained as comment placeholder)
 set_target_properties(chronon3d_content_shapes PROPERTIES UNITY_BUILD OFF)
 
 # GCC 14.2 ICE workaround: magic_enum.hpp triggers internal compiler error
