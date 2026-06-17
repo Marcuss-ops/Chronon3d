@@ -181,7 +181,6 @@ struct TextRunParams {
     // (see PR 4 follow-up).  Carrying them now avoids API churn when
     // the text_run() builder entry point lands.
     std::vector<TextAnimatorSpec> animators;
-<<<<<<< HEAD
     std::vector<GlyphSelectorSpec> selectors;  // optional top-level selectors (renamed from TextSelectorSpec after TextAnimator V2 refactor)
 
     // Optional pre-shaped glyph run (typewriter-style, contextual scripts).
