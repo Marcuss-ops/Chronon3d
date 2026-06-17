@@ -126,6 +126,66 @@ struct TextParams {
     std::shared_ptr<PlacedGlyphRun> pre_shaped;
 };
 
+// ---------------------------------------------------------------------------
+// TextRunParams — PR 3 forward-compat for PR 4 (`LayerBuilder::text_run(...)`).
+//
+// Established stable surface for the upcoming text_run() builder entry point.
+// Mirrors the shape of TextParams but adds:
+//   - `animators`     : ordered stack of TextAnimatorSpec
+//   - `selectors`     : per-animator GlyphSelectors (carried in TextAnimatorSpec
+//                       itself; this field is a top-level convenience)
+//   - 2.5D-aware geometry (position.z is honoured by the TextRunNode processor)
+//
+// LayerBuilder::text_run(name, TextRunParams{...}) lands in PR 4 and will:
+//   1. Build/cached TextRunLayout (HarfBuzz + FreeType shaping) once
+//   2. Evaluate animators per-frame via `evaluate_animator_stack`
+//   3. Construct a RenderNode with `is_text_run_shape = true` and
+//      `text_run_shape = std::make_shared<TextRunShape>(...)`
+//   4. The graph-builder source-pass routes that RenderNode to a TextRunNode
+//
+// All fields here use defaults that produce a sensible empty run, so PR 3
+// scaffolding can include this struct without forcing PR 4 work.
+// ---------------------------------------------------------------------------
+struct TextRunParams {
+    std::string text;
+    std::string font_path{"assets/fonts/Inter-Bold.ttf"};
+    std::string font_family{"Inter"};
+    int font_weight{800};
+    std::string font_style{"normal"};
+    f32 font_size{72.0f};
+    Color color{1.0f, 1.0f, 1.0f, 1.0f};
+
+    Vec3 pos{0.0f, 0.0f, 0.0f};        // also drives position.z (2.5D depth)
+    Vec2 size{0.0f, 0.0f};             // 0 = intrinsic text wrapping disabled
+
+    TextAnchor anchor{TextAnchor::Center};
+    TextAlign align{TextAlign::Center};
+    VerticalAlign vertical_align{VerticalAlign::Middle};
+    TextWrap wrap{TextWrap::None};
+    TextDirection direction{TextDirection::Auto};
+    std::string language;              // BCP-47 language tag (auto = empty)
+
+    f32 line_height{1.2f};
+    f32 tracking{0.0f};
+
+    TextPaint paint{};
+    std::vector<TextShadow> shadows{};
+    TextMaterial material{};
+
+    // PR 4 will populate these through a TextRunBuilder fluent chain
+    // (see PR 4 follow-up).  Carrying them now avoids API churn when
+    // the text_run() builder entry point lands.
+    std::vector<TextAnimatorSpec> animators;
+    std::vector<TextSelectorSpec> selectors;   // optional top-level selectors
+
+    // Optional pre-shaped glyph run (typewriter-style, contextual scripts).
+    std::shared_ptr<PlacedGlyphRun> pre_shaped;
+
+    // Source text cache hint — when a re-evaluation would produce an
+    // identical TextRunLayout, the layout cache can skip re-shaping.
+    bool cache_layout{true};
+};
+
 struct ShadowStyle {
     TextShadow contact{
         .enabled = true,

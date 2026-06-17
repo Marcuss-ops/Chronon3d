@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numeric>
+#include <unordered_map>
 
 namespace chronon3d {
 
@@ -223,34 +225,70 @@ u32 apply_selector_order(
             return total_units - 1 - original_index;
 
         case TextSelectorOrder::FromCenter: {
-            // Distribute outward from centre.
-            // Even count (4): [0,1,2,3] → ordered output [1,0,2,3]
-            //   index 0→pos 1, index 1→pos 0, index 2→pos 2, index 3→pos 3
-            // Odd count (5):  [0,1,2,3,4] → ordered output [2,1,3,0,4]
-            //   index 2→pos 0, index 1→pos 1, index 3→pos 2, index 0→pos 3, index 4→pos 4
+            // Alternate outward from the centre, After Effects-style.
+            //
+            // The returned value is `perm[original_index]`, i.e. the OUTPUT
+            // POSITION where this source index fires during animation.  The
+            // examples below list the activation order (which index fires at
+            // each time slot `pos 0, 1, 2, ...`).
+            //
+            // Odd count (e.g. n=5, mid=2, indices [0,1,2,3,4]):
+            //   perm table (= position table, indexed by source index):
+            //     perm[0] = 3   (edge-left   fires at pos 3)
+            //     perm[1] = 1   (centre-left  fires at pos 1)
+            //     perm[2] = 0   (centre       fires at pos 0)
+            //     perm[3] = 2   (centre-right fires at pos 2)
+            //     perm[4] = 4   (edge-right  fires at pos 4)
+            //   Activation order (which index fires per pos):
+            //     pos 0: index 2 (centre), pos 1: 1 (centre-left),
+            //     pos 2: 3 (centre-right), pos 3: 0 (edge-left),  pos 4: 4
+            //
+            // Even count (e.g. n=4, mid=2, indices [0,1,2,3]):
+            //   perm table (= position table, indexed by source index):
+            //     perm[0] = 2   (edge-left)
+            //     perm[1] = 0   (centre-left   of central pair)
+            //     perm[2] = 1   (centre-right  of central pair)
+            //     perm[3] = 3   (edge-right)
+            //   Activation order:
+            //     pos 0: index 1, pos 1: 2,  pos 2: 0, pos 3: 3
+            //
+            // For larger even counts (e.g. n=6 indices [0,1,2,3,4,5]):
+            //   perm[0] = 4, perm[1] = 2, perm[2] = 0, perm[3] = 1,
+            //   perm[4] = 3, perm[5] = 5
+            //   Activation order: pos 0: idx 2, pos 1: idx 3,
+            //                     pos 2: idx 1, pos 3: idx 4,
+            //                     pos 4: idx 0, pos 5: idx 5
+
             const u32 mid = total_units / 2;
 
             if (total_units % 2 == 1) {
-                // Odd count: centre element goes to position 0
+                // Odd count: single centre element at index `mid`.
                 if (original_index == mid) return 0;
 
+                // Distance from the centre, on whichever side the index sits.
                 if (original_index < mid) {
-                    // Left side: fill positions 1, 3, 5... (odd) outward from centre
-                    const u32 dist_from_centre = mid - 1 - original_index;
-                    return dist_from_centre * 2 + 1;
+                    const u32 dist = mid - original_index;        // 1, 2, ...
+                    return 2u * dist - 1u;                        // odd output positions
                 }
-                // Right side: fill positions 2, 4, 6... (even) outward from centre
-                const u32 dist_from_centre = original_index - mid - 1;
-                return dist_from_centre * 2 + 2;
+                const u32 dist = original_index - mid;            // 1, 2, ...
+                return 2u * dist;                                 // even output positions
             }
 
-            // Even count: no centre element
-            if (original_index < mid) {
-                // Left side: fill positions 0, 1, 2... outward from centre
-                return mid - 1 - original_index;
+            // Even count: central pair = (mid-1, mid), no single centre.
+            if (original_index == mid - 1) return 0;             // centre-left
+            if (original_index == mid)      return 1;             // centre-right
+
+            if (original_index < mid - 1) {
+                // Left of central pair.  pair_dist = 1, 2, 3,... means
+                // we're 1, 2, 3,... pairs away from the central pair on the
+                // left.  Output positions for pairs: 2, 4, 6, ...
+                const u32 pair_dist = (mid - 1) - original_index;
+                return 2u + 2u * (pair_dist - 1u);
             }
-            // Right side: keep original relative order
-            return original_index;
+
+            // Right of central pair.
+            const u32 pair_dist = original_index - mid;
+            return 3u + 2u * (pair_dist - 1u);
         }
 
         case TextSelectorOrder::ToCenter: {
@@ -262,10 +300,10 @@ u32 apply_selector_order(
         }
 
         case TextSelectorOrder::Random: {
-            // Deterministic shuffle using Fisher-Yates via hash
-            // The hash determines where this unit ends up.
-            const f32 r = hash_to_unit_float(random_seed, static_cast<u64>(original_index));
-            return static_cast<u32>(std::floor(r * static_cast<f32>(total_units)));
+            // True Fisher-Yates permutation guaranteed to be a bijection.
+            // perm[i] = output position where original index i lands.
+            const auto& perm = get_or_build_permutation(random_seed, total_units);
+            return perm[original_index];
         }
     }
 
@@ -293,6 +331,109 @@ f32 hash_to_unit_float(u64 seed, u64 unit_index) {
     return static_cast<f32>(static_cast<f64>(x) * kInvU64Max);
 }
 
+// ─── Permutation cache (Fisher-Yates) ────────────────────────────────────
+//
+// We seed the Fisher-Yates draw from hash_to_unit_float() so that any
+// (seed, total_units) pair deterministically produces the same permutation.
+// Keeping a thread-local cache avoids recomputing for the (rare) repeats of
+// identical (seed ∈ specs, total_units ∈ text length) combinations across
+// per-glyph evaluations in a layer.
+
+struct PermutationKey {
+    u64 seed;
+    u32 total_units;
+    bool operator==(const PermutationKey& o) const noexcept {
+        return seed == o.seed && total_units == o.total_units;
+    }
+};
+
+struct PermutationKeyHash {
+    size_t operator()(const PermutationKey& k) const noexcept {
+        // combine via splitmix64-style mixing so the (seed, total) tuple
+        // is well distributed in the hashtable
+        size_t h = static_cast<size_t>(k.seed);
+        h ^= static_cast<size_t>(k.total_units) + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+        return h;
+    }
+};
+
+const std::vector<u32>& get_or_build_permutation(u64 seed, u32 total_units) {
+    thread_local std::unordered_map<PermutationKey, std::vector<u32>, PermutationKeyHash> cache;
+    PermutationKey key{seed, total_units};
+    auto it = cache.find(key);
+    if (it != cache.end()) {
+        return it->second;
+    }
+
+    // Fisher-Yates: start with identity, swap from the right drawing the
+    // swap-index from the per-step hash.  This guarantees a true
+    // permutation (bijection from [0..total) → [0..total)).
+    std::vector<u32> perm(total_units);
+    std::iota(perm.begin(), perm.end(), 0u);
+    for (u32 i = total_units; i > 1; --i) {
+        const u32 u = i - 1;
+        const f32 r = hash_to_unit_float(seed, static_cast<u64>(u));
+        const u32 raw_j = static_cast<u32>(static_cast<f32>(i) * r);
+        const u32 j = (raw_j < i) ? raw_j : u;  // safety clamp (hash_to_unit_float returns [0,1))
+        std::swap(perm[u], perm[j]);
+    }
+    auto inserted = cache.emplace(key, std::move(perm));
+    return inserted.first->second;
+}
+
+// ─── Whitespace-aware unit exclusion (calls into header-defined is_whitespace_run) ─
+
+bool should_exclude_unit(
+    const GlyphSelectorSpec& spec,
+    const TextUnitMap& unit_map,
+    u32 glyph_index,
+    std::string_view source,
+    const PlacedGlyphRun* placed
+) {
+    if (!spec.exclude_spaces) return false;
+    if (placed == nullptr) return false;  // backward-compat: opt-in via PlacedGlyphRun
+    if (placed->glyphs.empty()) return false;
+
+    switch (spec.unit) {
+        case TextSelectorUnit::Glyph:
+        case TextSelectorUnit::Grapheme:
+        case TextSelectorUnit::Character: {
+            // Per-cluster: inspect the byte range of this glyph's cluster.
+            if (glyph_index >= placed->glyphs.size()) return false;
+            const auto& g = placed->glyphs[glyph_index];
+            return is_whitespace_run(source, g.byte_offset, g.byte_len);
+        }
+        case TextSelectorUnit::Word: {
+            // For word units, look up any glyph belonging to the same word
+            // and inspect that cluster's byte range.  We pick the first such
+            // glyph so we test the word's first character semantics.
+            if (glyph_index >= unit_map.glyph_to_word.size()) return false;
+            const u32 word_idx = unit_map.glyph_to_word[glyph_index];
+            for (size_t gi = 0; gi < placed->glyphs.size(); ++gi) {
+                if (static_cast<u32>(gi) < unit_map.glyph_to_word.size()
+                    && unit_map.glyph_to_word[gi] == word_idx) {
+                    const auto& g = placed->glyphs[gi];
+                    return is_whitespace_run(source, g.byte_offset, g.byte_len);
+                }
+            }
+            return false;
+        }
+        case TextSelectorUnit::Line: {
+            if (glyph_index >= unit_map.glyph_to_line.size()) return false;
+            const u32 line_idx = unit_map.glyph_to_line[glyph_index];
+            for (size_t gi = 0; gi < placed->glyphs.size(); ++gi) {
+                if (static_cast<u32>(gi) < unit_map.glyph_to_line.size()
+                    && unit_map.glyph_to_line[gi] == line_idx) {
+                    const auto& g = placed->glyphs[gi];
+                    return is_whitespace_run(source, g.byte_offset, g.byte_len);
+                }
+            }
+            return false;
+        }
+    }
+    return false;
+}
+
 } // namespace detail
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -304,29 +445,15 @@ SelectorWeight evaluate_selector(
     const TextUnitMap& unit_map,
     u32 glyph_index,
     std::string_view source,
-    SampleTime time
+    SampleTime time,
+    const PlacedGlyphRun* placed
 ) {
-    // ── Space exclusion ────────────────────────────────────────────────
-    if (spec.exclude_spaces) {
-        // Check if this unit maps to a whitespace-only character.
-        // For glyph mode: examine the glyph's cluster byte offset in source.
-        // For word/line mode: the unit_index identifies the word/line;
-        // if the first byte of that word/line is a space, it's excluded.
-        if (glyph_index < unit_map.glyph_to_grapheme.size()) {
-            const u32 unit_idx = unit_map.unit_index(glyph_index, spec.unit);
-            // Approximate check: use the grapheme index to find the byte offset
-            // in the source and check if it's whitespace.
-            // For a precise check we would need access to the PlacedGlyphRun's
-            // byte_offset field, but we only have source text here.
-            // As a heuristic, if the grapheme index maps to a space-only
-            // cluster, we can detect this via the source text.
-            // For now, a simple implementation: check if ANY glyph in the
-            // grapheme cluster has a space at its byte_offset in source.
-            (void)unit_idx; // see note above — full implementation deferred
-            // Deferred: full space exclusion needs per-cluster source inspection.
-            // The glyph_selector is primarily consumed by a text run evaluator
-            // that will have access to the full PlacedGlyphRun.
-        }
+    // ── Space exclusion (real implementation) ────────────────────────────
+    // Requires the placed run for cluster byte-offset access.  When the
+    // caller hasn't threaded `placed` through, exclude_spaces is a no-op
+    // (preserving backward compatibility).
+    if (detail::should_exclude_unit(spec, unit_map, glyph_index, source, placed)) {
+        return 0.0f;
     }
 
     // ── Determine unit index ───────────────────────────────────────────
@@ -416,13 +543,14 @@ SelectorWeight evaluate_selectors(
     const TextUnitMap& unit_map,
     u32 glyph_index,
     std::string_view source,
-    SampleTime time
+    SampleTime time,
+    const PlacedGlyphRun* placed
 ) {
     SelectorWeight combined = 0.0f;
     bool first = true;
 
     for (const auto& spec : specs) {
-        const SelectorWeight w = evaluate_selector(spec, unit_map, glyph_index, source, time);
+        const SelectorWeight w = evaluate_selector(spec, unit_map, glyph_index, source, time, placed);
 
         if (first) {
             combined = w;

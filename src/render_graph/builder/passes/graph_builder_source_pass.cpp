@@ -4,6 +4,7 @@
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/nodes/video_node.hpp>
+#include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <memory>
 #include <spdlog/spdlog.h>
@@ -54,6 +55,70 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             const u64 content_hash = hash_render_node_content_only(node);
             const u64 placement_hash = hash_render_node_placement_only(node);
             GraphNodeId source;
+
+            // ── PR 3 TextRun branch ─────────────────────────────────────────
+            // If the source RenderNode was flagged as a TextRun shape (PR 4 sets
+            // this when LayerBuilder::text_run() emits the node), route to a
+            // TextRunNode instead of a SourceNode.  Only single-node layers
+            // are supported here — multi-node aggregation into MultiSourceNode
+            // does not currently know about TextRunShape and is left for PR 5.
+            if (node.is_text_run_shape) {
+                // Defensive: a flagged text_run node with a null shape is a
+                // programmer error (PR 4 wiring forgot to attach the shape).
+                // Surface loudly so the user fixes the binding rather than
+                // wondering why their text silently vanished.
+                if (!node.text_run_shape) {
+                    spdlog::error(
+                        "[source-pass] layer='{}' node='{}' is_text_run_shape=true "
+                        "but text_run_shape is null — PR 4 wiring forgot to attach "
+                        "the shape; falling through to SourceNode path.",
+                        layer.name.c_str(), std::string(node.name));
+                } else {
+                    cache::NodeCacheKey run_key{
+                        .scope = "layer.textrun:" + std::string(layer.name) + ":" + std::string(node.name),
+                        .frame = source_is_static ? Frame{0} : ctx.frame.frame,
+                        .width = ctx.frame.width,
+                        .height = ctx.frame.height,
+                        .params_hash = content_hash,
+                        .source_hash = hash_combine(hash_string(node.name), placement_hash)
+                    };
+                    const Mat4 run_matrix = use_local
+                        ? node.world_transform.to_mat4()
+                        : (item_source_world * node.world_transform.to_mat4());
+                    const f32 run_opacity = use_local
+                        ? node.world_transform.opacity
+                        : (item.transform.opacity * node.world_transform.opacity);
+
+                    source = graph.add_node(std::make_unique<TextRunNode>(
+                        std::string(node.name),
+                        node.text_run_shape,
+                        node,
+                        run_key,
+                        should_use_centered_rendering(item, ctx),
+                        item.projected,
+                        ctx.options.modular_coordinates ? std::optional<Mat4>(run_matrix) : std::nullopt,
+                        ctx.options.modular_coordinates ? std::optional<f32>(run_opacity) : std::nullopt,
+                        source_is_static
+                    ));
+                    graph.node(source).set_frame_dependent(!source_is_static);
+
+                    if (ctx.options.diagnostics_enabled) {
+                        spdlog::info(
+                            "[source-pass] layer='{}' routed to TextRunNode "
+                            "glyphs={} centered={} projected={}",
+                            layer.name.c_str(),
+                            node.text_run_shape->glyphs.size(),
+                            should_use_centered_rendering(item, ctx),
+                            item.projected
+                        );
+                    }
+                    return source;
+                }
+                // Null shape → fall through to existing SourceNode paths so the
+                // composition still builds.  The error log above is the user
+                // signal; the resulting SourceNode will render a blank layer.
+            }
+
             if (node.shape.type == ShapeType::Text) {
                 cache::NodeCacheKey source_key{
                     .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
@@ -113,12 +178,25 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         // Build an aggregated cache key
         u64 aggregated_params_hash = 0;
         u64 aggregated_source_hash = hash_string(std::string(layer.name) + "_multisource");
+        // PR 3 limitation: MultiSourceNode doesn't know about TextRunShape.
+        // Surface a warning when ANY node in this multi-node layer is flagged
+        // as text_run so the developer knows their text will not render here.
+        bool any_text_run = false;
         for (const auto& node : layer.nodes) {
+            if (node.is_text_run_shape) any_text_run = true;
             aggregated_params_hash = hash_combine(aggregated_params_hash, hash_render_node_content_only(node));
             aggregated_source_hash = hash_combine(
                 aggregated_source_hash,
                 hash_combine(hash_string(node.name), hash_render_node_placement_only(node))
             );
+        }
+        if (any_text_run) {
+            spdlog::warn(
+                "[source-pass] layer='{}' contains a text_run-flagged node "
+                "in a multi-node layer — MultiSourceNode does not yet support "
+                "TextRunShape (PR 5 limitation). The text will not render "
+                "until this layer is split into one node per layer.",
+                layer.name.c_str());
         }
 
         cache::NodeCacheKey source_key{
