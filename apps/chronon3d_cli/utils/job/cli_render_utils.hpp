@@ -21,7 +21,7 @@ concept PipelinableArgs = requires(const Args& a) {
     a.pipeline.diagnostic_plan;
     a.pipeline.diagnostic_plan_output;
     a.pipeline.use_modular_graph;
-    a.pipeline.dirty_rects;
+    a.pipeline.no_dirty_rects;
     a.pipeline.tile_size;
     a.pipeline.quality.motion_blur;
     a.pipeline.quality.motion_blur_samples;
@@ -51,8 +51,11 @@ RenderSettings settings_from_args(const Args& args,
     s.diagnostics.plan          = args.pipeline.diagnostic_plan;
     s.diagnostics.plan_output   = args.pipeline.diagnostic_plan_output;
     s.use_modular_graph         = args.pipeline.use_modular_graph;
-    // dirty.enabled already defaults to true in DirtyRenderSettings.
-    // The --dirty-rects CLI flag enables dirty rects explicitly when passed.
+    if (args.pipeline.no_dirty_rects) {
+        s.dirty.enabled = false;
+        s.dirty.use_bitmask = false;
+        s.dirty.use_tiles = false;
+    }
     s.dirty.tile_size           = args.pipeline.tile_size;
     s.motion_blur.enabled          = motion_blur_allowed && args.pipeline.quality.motion_blur;
     s.motion_blur.samples          = args.pipeline.quality.motion_blur_samples;
