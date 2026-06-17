@@ -41,6 +41,7 @@ add_subdirectory(camera)
 add_subdirectory(model)
 add_subdirectory(builders)
 add_subdirectory(validation)
+add_subdirectory(registry)    # Camera System V1 — motion/constraint registries
 target_include_directories(chronon3d_scene PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(chronon3d_scene
     PUBLIC
