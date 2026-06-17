@@ -63,6 +63,21 @@ struct SampleTime {
         return { static_cast<double>(frame), rate };
     }
 
+    // --- LEGACY single-argument overload: 30 fps implicit default -----------
+    //
+    // WARNING: Pre-V1 test code (and ~80 call sites across apps/tests) calls
+    // from_frame_int(Frame) WITHOUT supplying a frame rate. We accept the call
+    // by defaulting to 30 fps (= FrameRate{30, 1}). Sub-frame timing will be
+    // CORRECT only for tests running at 30 fps; non-30-fps tests will silently
+    // produce wrong micro-second timestamps. If your test runs at any other
+    // rate, use the canonical from_frame_int(Frame, FrameRate) overload.
+    //
+    // Delete this overload once the test suite migrates to
+    // from_frame(double, FrameRate) and FrameRate is propagated everywhere.
+    static SampleTime from_frame_int(Frame frame) noexcept {
+        return { static_cast<double>(frame), FrameRate{30, 1} };
+    }
+
     // Equality (C++20 default)
     bool operator==(const SampleTime&) const = default;
 };
