@@ -23,6 +23,7 @@ add_executable(chronon3d_scene_tests
     scene/camera_path_sampler_tests.cpp
     scene/camera/test_camera_stabilization.cpp
     scene/camera/test_camera_trajectory.cpp
+    scene/camera/test_camera_registry.cpp
     scene/camera/test_camera_projection_contract.cpp
     scene/camera/test_camera_near_plane_clip.cpp
     scene/camera/test_camera_motion_path.cpp

@@ -1,6 +1,7 @@
 // ==============================================================================
 // chronon3d/src/scene/registry/camera_constraint_registry.cpp
 // ==============================================================================
+#include <chronon3d/scene/registry/camera_constraint_registry.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_constraint_resolver.hpp>
 
 #include <map>
@@ -9,6 +10,55 @@
 #include <cmath>
 
 namespace chronon3d::camera_v1 {
+
+// =========================================================================
+// CameraConstraintRegistry — singleton + registration.
+// =========================================================================
+
+CameraConstraintRegistry& CameraConstraintRegistry::instance() {
+    static CameraConstraintRegistry r;
+    return r;
+}
+
+void CameraConstraintRegistry::register_factory(std::string id, Factory f) {
+    if (!f) throw std::invalid_argument("CameraConstraintRegistry: null factory");
+    if (id.empty()) throw std::invalid_argument("CameraConstraintRegistry: empty id");
+    std::lock_guard<std::mutex> lk(mu_);
+    if (frozen_) throw std::logic_error("CameraConstraintRegistry: frozen — cannot register '" + id + "'");
+    if (factories_.count(id)) {
+        throw std::invalid_argument("CameraConstraintRegistry: duplicate id '" + id + "'");
+    }
+    factories_.emplace(std::move(id), f);
+}
+
+std::shared_ptr<CameraConstraint> CameraConstraintRegistry::create(const std::string& id) const {
+    std::lock_guard<std::mutex> lk(mu_);
+    auto it = factories_.find(id);
+    if (it == factories_.end()) return nullptr;
+    return it->second();
+}
+
+std::vector<std::string> CameraConstraintRegistry::ids() const {
+    std::lock_guard<std::mutex> lk(mu_);
+    std::vector<std::string> out;
+    out.reserve(factories_.size());
+    for (auto& kv : factories_) out.push_back(kv.first);
+    return out;
+}
+
+bool CameraConstraintRegistry::has(const std::string& id) const {
+    std::lock_guard<std::mutex> lk(mu_);
+    return factories_.count(id) > 0;
+}
+
+void CameraConstraintRegistry::freeze() {
+    std::lock_guard<std::mutex> lk(mu_);
+    frozen_ = true;
+}
+
+// =========================================================================
+// CameraConstraintStack
+// =========================================================================
 
 CameraConstraintStack& CameraConstraintStack::add(std::shared_ptr<CameraConstraint> c) {
     if (!c) throw std::invalid_argument("CameraConstraintStack: null constraint");
@@ -38,8 +88,6 @@ ConstraintResult CameraConstraintStack::resolve(const Camera2_5D& start,
 // =========================================================================
 // Built-in constraint: camera.look_at
 // Forces the camera to look at a fixed target (Vec3 from ctx.base_target).
-// Idempotent: if the camera is already looking there, no-op.
-// Robustness: if distance is < 1e-3, returns ok=false with reason.
 // =========================================================================
 class LookAtConstraint final : public CameraConstraint {
 public:
@@ -56,10 +104,8 @@ public:
             r.reason = "target-coincident";
             return r;
         }
-        // P5 placeholder: target bookkeeping only; rotation update lands when the
-        // P5 plumbing is merged (PUT rotation helper into engine).
-        // Mark ok=false with a clear reason so consumers can distinguish
-        // "constraint is incomplete" from "constraint succeeded".
+        // P5 placeholder: target bookkeeping only; rotation update lands when
+        // the P5 plumbing is merged.
         r.camera = in;
         r.camera.point_of_interest = ctx.base_target;
         r.camera.point_of_interest_enabled = true;
@@ -71,8 +117,7 @@ public:
 
 // =========================================================================
 // Built-in constraint: camera.keep_horizon
-// Removes roll from the camera. We treat "roll=0" as the canonical horizon.
-// Idempotent.
+// Removes roll from the camera. Idempotent.
 // =========================================================================
 class KeepHorizonConstraint final : public CameraConstraint {
 public:
@@ -90,8 +135,7 @@ public:
 
 // =========================================================================
 // Built-in constraint: camera.damped_follow (stateful)
-// Smooths the camera position toward ctx.base_position with damping f.
-// Stateful: reads session.previous_camera / previous_time to apply EMA.
+// Smooths the camera position toward ctx.base_position with damping factor.
 // =========================================================================
 class DampedFollowConstraint final : public CameraConstraint {
 public:
@@ -110,9 +154,6 @@ public:
             r.ok = true;
             return r;
         }
-        // Velocity extrapolation: use the previously-measured velocity (set by
-        // an earlier constraint in the stack) projected forward by sample-time
-        // delta, then blend the *extrapolated* anchor with the live input.
         float dt = ctx.sample_time.seconds() - session.previous_time.seconds();
         Vec3 anchor_prev = session.previous_camera.position + session.previous_velocity * dt;
         r.camera = in;
@@ -122,7 +163,6 @@ public:
             in.position.y + a * (anchor_prev.y - in.position.y),
             in.position.z + a * (anchor_prev.z - in.position.z),
         };
-        // Update velocity for the next sample (forward-difference from session).
         session.previous_velocity = {
             (r.camera.position.x - session.previous_camera.position.x) / std::max(1e-6f, dt),
             (r.camera.position.y - session.previous_camera.position.y) / std::max(1e-6f, dt),
@@ -138,14 +178,8 @@ private:
 };
 
 // =========================================================================
-// (CameraConstraintRegistry implementation moved to
-//  include/chronon3d/scene/registry/camera_constraint_registry.hpp
-//  so that camera_program.cpp can use it too.)
+// Factory functions for built-in constraints.
 // =========================================================================
-
-// ---------------------------------------------------------------------------
-// Built-in registrations (called once from chronon3d_camera_v1::register_defaults).
-// ---------------------------------------------------------------------------
 static std::shared_ptr<CameraConstraint> make_look_at() {
     return std::make_shared<LookAtConstraint>();
 }
@@ -156,13 +190,19 @@ static std::shared_ptr<CameraConstraint> make_damped_follow_default() {
     return std::make_shared<DampedFollowConstraint>(0.15f);
 }
 
+// =========================================================================
+// register_default_camera_constraints — called once at startup.
+// Checks each ID individually so that a partial registration is always
+// completed, regardless of what other callers may have registered first.
+// =========================================================================
 void register_default_camera_constraints() {
     auto& r = CameraConstraintRegistry::instance();
-    if (!r.ids().size()) {
+    if (!r.has("camera.look_at"))
         r.register_factory("camera.look_at", &make_look_at);
+    if (!r.has("camera.keep_horizon"))
         r.register_factory("camera.keep_horizon", &make_keep_horizon);
+    if (!r.has("camera.damped_follow"))
         r.register_factory("camera.damped_follow", &make_damped_follow_default);
-    }
 }
 
 } // namespace chronon3d::camera_v1
