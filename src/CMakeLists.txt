@@ -39,7 +39,6 @@ endif()
 add_library(chronon3d INTERFACE)
 target_include_directories(chronon3d INTERFACE 
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/deps/include>
 )
 target_compile_definitions(chronon3d INTERFACE 
     CHRONON3D_GIT_COMMIT="${CHRONON3D_GIT_COMMIT}"

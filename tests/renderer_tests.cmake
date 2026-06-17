@@ -66,7 +66,6 @@ add_executable(chronon3d_renderer_tests
     renderer/helpers/test_stroke_gradient_helpers.cpp
     effects/effect_graph_tests.cpp
     scene/shapes/mask_tests.cpp
-    specscene/specscene_boundary_tests.cpp
     golden/golden_render_tests.cpp
     golden/glow_golden_tests.cpp
     golden/stroked_shape_golden_tests.cpp

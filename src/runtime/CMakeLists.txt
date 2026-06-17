@@ -3,8 +3,6 @@
 # ==============================================================================
 
 set(CHRONON3D_RUNTIME_SOURCES
-    timeline_evaluator.cpp
-    sub_composition_registry.cpp
     telemetry/telemetry_manager.cpp
     renderer_warmup.cpp
 )
