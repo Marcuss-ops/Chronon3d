@@ -8,7 +8,15 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
-#include <chrono>
+// FIX: GCC 14 + PCH + Unity build — <chrono> cascades through
+// /usr/include/c++/14/chrono (transitively-visible headers like
+// <ratio>/<version> lost across unity-aggregator boundaries,
+// 'time_point' and friends fail to resolve). Same issue for the
+// <fmt/format.h> formatting surface.  Removed from the PCH; the
+// small number of TUs that need each include it directly (compiler
+// cache makes the per-TU cost negligible).  Add back when the
+// toolchain matures past the GCC-14 + C++20 + Unity + PCH
+// interaction cascade.
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -36,10 +44,6 @@
 #include <utility>
 #include <variant>
 #include <vector>
-
-// --- fmt (formatting) ---
-#include <fmt/core.h>
-#include <fmt/format.h>
 
 // --- spdlog (logging) ---
 #include <spdlog/spdlog.h>

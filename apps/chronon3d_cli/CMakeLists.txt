@@ -155,13 +155,40 @@ endif()
 
 target_include_directories(chronon3d_cli PRIVATE ${CMAKE_SOURCE_DIR})
 
+# FIX: GCC 14 + Unity-build — <chrono> and <fmt/format.h> cascade
+# through unity-aggregated TUs (transitively-visible headers like
+# <ratio>/<version>/... lost across aggregator boundaries, 'time_point'
+# and friends fail to resolve inside /usr/include/c++/14/chrono, and
+# fmt format-string formatting surface breaks similarly).  Force
+# per-TU include by excluding them from the CLI PCH list.  Per-TU
+# include cost is negligible (compiler caches standard headers).
 target_precompile_headers(chronon3d_cli PRIVATE
-    <algorithm> <atomic> <condition_variable> <chrono> <deque>
+    <algorithm> <atomic> <condition_variable> <deque>
     <filesystem> <memory> <mutex> <thread> <vector>
-    <spdlog/spdlog.h> <fmt/format.h> <CLI/CLI.hpp>
+    <spdlog/spdlog.h> <CLI/CLI.hpp>
 )
 
 # SQLite for telemetry group
 if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
     target_link_libraries(chronon3d_cli PRIVATE unofficial::sqlite3::sqlite3)
 endif()
+
+# FIX: GCC 14 + Unity-build + third-party transitive include cascade.
+# <chrono> and <fmt/format.h> are pulled in transitively via <CLI/CLI.hpp>
+# and <spdlog/spdlog.h>; aggregated into unity TUs the include order loses
+# the standard-library transitive deps that /usr/include/c++/14/chrono and
+# /fmt/format.h require (time_point, seconds, days, local_time, utc_time,
+# is_printable, ...).  Compile each CLI TU independently so its include
+# order is preserved.  Unity builds remain ON for the heavy engine
+# libraries (chronon3d_pipeline, chronon3d_backend_*, chronon3d_graph_*)
+# where they actually buy meaningful compile-time.
+set_target_properties(
+    chronon3d_cli_core
+    chronon3d_cli_render
+    chronon3d_cli_video
+    chronon3d_cli_telemetry
+    chronon3d_cli_dev
+    chronon3d_cli_bench
+    chronon3d_cli
+    PROPERTIES UNITY_BUILD OFF
+)

@@ -18,30 +18,46 @@ struct BatchState {
 
 struct RenderState { std::shared_ptr<RenderArgs> args{std::make_shared<RenderArgs>()}; };
 
-void register_watch(CLI::App& dev, CliContext& ctx) {
+void register_watch(CLI::App& app, CliContext& ctx) {
     auto watch_id = std::make_shared<std::string>();
-    auto* watch = dev.add_subcommand("watch", "Watch for changes and re-render");
+    auto* watch = app.add_subcommand("watch", "Watch for changes and re-render");
     watch->add_option("id", *watch_id, "Composition name")->required();
     watch->callback([watch_id, &ctx]() {
         ctx.exit_code = command_watch(ctx.registry, *watch_id);
     });
 }
 
-void register_render_all(CLI::App& dev, CliContext& ctx) {
+void register_render_all(CLI::App& app, CliContext& ctx) {
     auto output_dir = std::make_shared<std::string>(chronon_artifact_path("verify", "").string());
-    auto* render_all = dev.add_subcommand("render-all", "Render frame 0 of every registered composition");
+    auto* render_all = app.add_subcommand("render-all", "Render frame 0 of every registered composition");
     render_all->add_option("-o,--output-dir", *output_dir, "Output directory")->default_val(chronon_artifact_path("verify", "").string());
     render_all->callback([output_dir, &ctx]() {
         ctx.exit_code = command_verify(ctx.registry, *output_dir);
     });
 }
 
-void register_batch(CLI::App& dev, CliContext& ctx) {
+void register_batch(CLI::App& app, CliContext& ctx) {
     auto jobs = std::make_shared<std::vector<std::string>>();
-    auto* cmd = dev.add_subcommand("batch", "Run multiple rendering jobs from explicit CLI job specs");
+    auto* cmd = app.add_subcommand("batch", "Run multiple rendering jobs from explicit CLI job specs");
     cmd->add_option("--job", *jobs, "Job spec string: composition|frames|output|diagnostic|graph")->required();
     cmd->callback([jobs, &ctx]() {
         ctx.exit_code = command_batch(ctx.registry, *jobs);
     });
 }
+
+}  // namespace (closes anonymous namespace)
+
+// Top-level dispatcher — declared in command_registry.hpp:11 and called from
+// command_registry.cpp's register_all_commands().  Mirrors the flat-mount
+// convention used by register_render_commands / register_video_commands:
+// each helper adds its subcommand directly to the provided `app`.  Must live
+// OUTSIDE the anonymous namespace above so it has external linkage and the
+// linker can resolve calls from group_dev.cpp / command_registry.cpp.
+void register_dev_commands(CLI::App& app, CliContext& ctx) {
+    register_watch(app, ctx);
+    register_render_all(app, ctx);
+    register_batch(app, ctx);
+}
+
+}  // namespace chronon3d::cli
 
