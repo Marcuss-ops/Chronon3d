@@ -15,10 +15,10 @@
 
 namespace chronon3d::cli {
 
-/// Register built-in content ExtensionModules and scene/animation compositions.
+/// Register built-in content compositions and scene/animation compositions.
 /// Must be called *before* CompositionRegistry is constructed so that
-/// module compositions are available when populate() runs.
-/// Safe to call multiple times — modules initialise only once.
+/// compositions are available when populate() runs.
+/// Safe to call multiple times.
 inline void init_content_modules() {
 #ifdef CHRONON3D_BUILD_CONTENT
     chronon3d::register_content_modules();

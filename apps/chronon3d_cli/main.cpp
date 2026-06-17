@@ -33,8 +33,8 @@ int main(int argc, char** argv) {
     CLI::App app{"Chronon3d CLI - Motion Graphics Engine"};
     app.require_subcommand(1);
 
-    // Initialize content ExtensionModules via the init hook
-    // (Must happen before CompositionRegistry construction so module
+    // Initialize content compositions via the init hook
+    // (Must happen before CompositionRegistry construction so
     //  compositions are in the static builtin_composition_entries()
     //  when populate() is called.)
     chronon3d::cli::init_content_modules();
