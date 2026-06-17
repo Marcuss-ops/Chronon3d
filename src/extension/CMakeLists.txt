@@ -4,7 +4,6 @@
 
 add_library(chronon3d_extension STATIC
     extension_registry.cpp
-    extension_loader.cpp
 )
 target_link_libraries(chronon3d_extension PUBLIC
     chronon3d

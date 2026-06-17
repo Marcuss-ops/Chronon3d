@@ -1,6 +1,5 @@
-// Content registration — single direct registration replacing 9 ExtensionModule subclasses.
-// All compositions register directly via ExtensionRegistry::instance().register_composition()
-// instead of going through virtual class factories.
+// Content registration — single direct registration of all built-in compositions.
+// All compositions register directly via ExtensionRegistry::instance().register_composition().
 #include "register_content_modules.hpp"
 
 #include <chronon3d/extension/extension_registry.hpp>
@@ -292,8 +291,6 @@ void register_content_modules() {
         reg.register_composition("CameraYawNegativeTest",                    camera_yaw_negative_test);
     }
 
-    // Initialize all registrations (safe to call multiple times).
-    reg.initialize_all();
 }
 
 } // namespace chronon3d

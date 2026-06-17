@@ -62,10 +62,6 @@ add_executable(chronon3d_core_tests
     text/text_run_tests.cpp
     media/test_media_placement.cpp
     scene_presets/test_scene_presets.cpp
-    extension/test_extension_loader.cpp
-    extension/test_extension_loader_failure_modes.cpp
-    extension/test_extension_loader_abi_contract.cpp
-    extension/test_extension_registry.cpp
     extension/test_graph_node_registry.cpp
     architecture/test_protected_core_contracts.cpp
     core/test_scene_hasher_camera.cpp
@@ -75,17 +71,6 @@ add_executable(chronon3d_core_tests
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline chronon3d_extension doctest::doctest)
 
-# Build a real mini shared library for ExtensionLoader real plugin tests
-# Make CMAKE_CURRENT_BINARY_DIR available to the test executable for finding the .so
-target_compile_definitions(chronon3d_core_tests PRIVATE
-    CMAKE_CURRENT_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}"
-)
-# Additional test plugins for failure mode / ABI tests
-
-
-
-add_dependencies(chronon3d_core_tests
-)
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/tests)
 chronon3d_enable_test_pch(chronon3d_core_tests)
 add_test(NAME chronon3d_core_tests COMMAND chronon3d_core_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
