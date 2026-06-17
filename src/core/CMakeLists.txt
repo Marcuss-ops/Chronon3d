@@ -13,7 +13,6 @@ add_library(chronon3d_core_impl STATIC
 )
 target_include_directories(chronon3d_core_impl PUBLIC
     ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/deps/include
 )
 target_link_libraries(chronon3d_core_impl PUBLIC
     nlohmann_json::nlohmann_json

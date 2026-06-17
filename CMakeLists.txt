@@ -56,7 +56,6 @@ endif()
 option(CHRONON3D_UNITY_BUILD "Enable unity (jumbo) build" OFF)
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" OFF)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
-option(CHRONON3D_BUILD_C_API "Build experimental C bindings (shared library + C tests)" OFF)
 option(CHRONON3D_BUILD_BENCHMARKS "Build Chronon3d benchmarks" OFF)
 option(CHRONON3D_BUILD_CONTENT "Build bundled content compositions (proofs, demos)" OFF)
 option(CHRONON3D_ENABLE_NATIVE_FFMPEG "Enable native FFmpeg/libav encoder support" OFF)
@@ -163,9 +162,6 @@ if(NOT CHRONON3D_GIT_COMMIT)
     set(CHRONON3D_GIT_COMMIT "unknown")
 endif()
 
-# ==============================================================================
-# SUBDIRECTORIES
-# ==============================================================================
 add_subdirectory(src)
 
 # 10. Content Generation (optional — proofs/demos, not core engine)
@@ -202,15 +198,11 @@ if(CHRONON3D_BUILD_CLI AND CHRONON3D_BUILD_TESTS)
     )
 endif()
 
-# ==============================================================================
-# C API SHARED LIBRARY & C TEST (Experimental — opt-in via CHRONON3D_BUILD_C_API)
-# ==============================================================================
 # The C bindings expose JSON → TOML → specscene compilation via a C ABI for
 # interop with Python, Rust, and other languages. They are NOT part of the
 # core engine surface and are opt-in to keep the default build lean.
 #
 # Files live in bindings/c/ rather than src/c_api/ to make the isolation clear.
-if(CHRONON3D_BUILD_C_API)
     add_library(chronon3d_shared SHARED
         bindings/c/chronon3d_c_api.cpp
         bindings/c/c_api_context.cpp
@@ -228,7 +220,7 @@ if(CHRONON3D_BUILD_C_API)
             # libraries linked into a SHARED target.
             target_link_libraries(chronon3d_shared PRIVATE
                 chronon3d_content_registry
-                chronon3d_all_content_modules
+                chronon3d_content_gallery
             )
         endif()
         target_compile_definitions(chronon3d_shared PRIVATE CHRONON3D_BUILD_CONTENT)
