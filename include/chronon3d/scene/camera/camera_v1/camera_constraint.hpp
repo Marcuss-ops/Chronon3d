@@ -32,11 +32,15 @@ struct ConstraintSession {
     SampleTime previous_time{};
     bool       has_previous{false};
 
+    // Banking state: EMA-smoothed roll angle (used by CameraProgram).
+    float banking_roll{0.0f};
+
     void reset() {
         previous_camera = {};
         previous_velocity = {0,0,0};
         previous_time = {};
         has_previous = false;
+        banking_roll = 0.0f;
     }
 };
 
