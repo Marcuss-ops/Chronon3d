@@ -36,8 +36,8 @@ add_library(chronon3d_content_gallery STATIC
     anims/compositions/tilt_sweep_title_v2.cpp
 
     # Minimalist
-    minimalist/minimalist_animations.cpp
-    minimalist/minimalist_image_presets.cpp
+    Minimalist/minimalist_animations.cpp
+    Minimalist/minimalist_image_presets.cpp
 
     # Special names
     SpecialNames/special_names_animations.cpp
