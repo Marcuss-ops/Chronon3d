@@ -20,16 +20,17 @@ void CameraMotionRegistry::register_motion(std::shared_ptr<CameraMotion> motion)
     auto desc = motion->descriptor();
     if (desc.id.empty()) throw std::invalid_argument("CameraMotionRegistry: empty id");
     std::lock_guard<std::mutex> lk(mu_);
+    if (frozen_) throw std::logic_error("CameraMotionRegistry: frozen — cannot register '" + desc.id + "'");
     if (motions_.count(desc.id)) {
         throw std::invalid_argument("CameraMotionRegistry: duplicate id '" + desc.id + "'");
     }
     motions_.emplace(desc.id, std::move(motion));
 }
 
-const CameraMotion* CameraMotionRegistry::find(const std::string& id) const {
+std::shared_ptr<const CameraMotion> CameraMotionRegistry::find(const std::string& id) const {
     std::lock_guard<std::mutex> lk(mu_);
     auto it = motions_.find(id);
-    return it == motions_.end() ? nullptr : it->second.get();
+    return it == motions_.end() ? nullptr : it->second;
 }
 
 bool CameraMotionRegistry::has(const std::string& id) const {
@@ -53,10 +54,15 @@ std::vector<CameraMotionDescriptor> CameraMotionRegistry::catalog() const {
     return out;
 }
 
+void CameraMotionRegistry::freeze() {
+    std::lock_guard<std::mutex> lk(mu_);
+    frozen_ = true;
+}
+
 Camera2_5D CameraMotionRegistry::build(const std::string& id,
                                        const CameraMotionContext& ctx,
                                        const Camera2_5D& base) const {
-    const CameraMotion* m = find(id);
+    auto m = find(id);
     if (!m) return base;  // graceful fallback for missing preset ids
     return m->evaluate(ctx);
 }

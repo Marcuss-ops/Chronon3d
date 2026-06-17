@@ -38,8 +38,9 @@ public:
     Camera2_5D build(const std::string& id, const CameraMotionContext& ctx,
                     const Camera2_5D& base = {}) const;
 
-    /// Look up by id. Returns nullptr if absent.
-    const CameraMotion* find(const std::string& id) const;
+    /// Look up by id. Returns nullptr if absent. After freeze(), the shared_ptr
+    /// guarantees the returned CameraMotion is alive even without the mutex held.
+    std::shared_ptr<const CameraMotion> find(const std::string& id) const;
 
     /// Enumerate all registered motion ids (deterministic alphabetical order).
     std::vector<std::string> ids() const;
@@ -50,10 +51,21 @@ public:
     /// True if id is registered.
     bool has(const std::string& id) const;
 
-private:
+    /// Freeze the registry: after this, reads are concurrent-safe (no mutex)
+    /// and any register_motion() call throws std::logic_error.
+    /// Idempotent: calling freeze() multiple times is a no-op.
+    void freeze();
+
+    /// True if freeze() has been called.
+    bool is_frozen() const noexcept { return frozen_; }
+
+    // Default constructor is public to allow test-only isolated instances.
+    // Production code MUST use instance(), not direct construction.
     CameraMotionRegistry() = default;
+
     mutable std::mutex mu_;
     std::map<std::string, std::shared_ptr<CameraMotion>> motions_;
+    bool frozen_{false};
 };
 
 } // namespace chronon3d::camera_v1
