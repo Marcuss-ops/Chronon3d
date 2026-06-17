@@ -30,8 +30,13 @@ void register_camera_v1_builtins() {
     auto& tr = CameraTransitionRegistry::instance();
     if (!tr.is_frozen()) tr.freeze();
 
+    // Bug 3 fix: don't freeze the motion registry until its catalog is populated.
+    // Previously the registry was frozen empty, so any subsequent
+    // build("hero_push") call would silently fall back to the base camera.
+    // After register_default_camera_motions() lands (P7+), this branch becomes
+    // unconditional freeze again.
     auto& mr = CameraMotionRegistry::instance();
-    if (!mr.is_frozen()) mr.freeze();
+    if (!mr.is_frozen() && !mr.ids().empty()) mr.freeze();
 }
 
 } // namespace chronon3d::camera_v1
