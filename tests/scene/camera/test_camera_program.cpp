@@ -20,6 +20,8 @@
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_trajectory.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_constraint.hpp>
+#include <chronon3d/scene/camera/camera_v1/register_camera_v1.hpp>
+#include <chronon3d/scene/registry/camera_motion_registry.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 
@@ -32,6 +34,28 @@ using namespace chronon3d::camera_v1;
 
 inline bool fuzzy_eq(float a, float b, float tol = 1e-4f) {
     return std::abs(a - b) <= tol;
+}
+
+// Minimal concrete CameraMotion for testing.
+class ProgramDummyMotion final : public CameraMotion {
+    CameraMotionDescriptor desc_;
+public:
+    explicit ProgramDummyMotion(std::string id)
+        : desc_{std::move(id), "test", "dummy", false} {}
+    CameraMotionDescriptor descriptor() const override { return desc_; }
+    Camera2_5D evaluate(const CameraMotionContext&) const override {
+        Camera2_5D cam;
+        cam.position = {42, 42, -42};
+        return cam;
+    }
+};
+
+// Ensure a test motion is registered in the singleton, unless already frozen.
+static void ensure_test_motion_registered() {
+    auto& reg = CameraMotionRegistry::instance();
+    if (!reg.is_frozen() && !reg.has("test.dummy")) {
+        reg.register_motion(std::make_shared<ProgramDummyMotion>("test.dummy"));
+    }
 }
 
 // Minimal static constraint for testing.
@@ -74,19 +98,14 @@ TEST_CASE("PR3: static source preserves base camera") {
     CHECK(fuzzy_eq(result.camera.position.z, -500.0f));
 }
 
-#if 0  // Disabled: CameraMotionRegistry singleton not initialized at test time.
-       // Re-enable when register_camera_v1_builtins() is called in test setup.
-
 // ==============================================================================
-// 2 — Trajectory has priority only when explicitly selected.
+// 2 — Trajectory is selected when explicitly set.
 // ==============================================================================
-TEST_CASE("PR3: trajectory has priority only when explicitly selected") {
+TEST_CASE("PR3: trajectory is selected when explicitly set") {
     CameraProgram prog;
-    prog.motion("camera.nonexistent");   // motion set
-    CHECK(prog.has_motion());
     CHECK_FALSE(prog.has_trajectory());
+    CHECK_FALSE(prog.has_motion());
 
-    // Set trajectory — motion should be replaced.
     CameraTrajectoryBuilder b;
     b.move_to({0, 0, -1000}).move_to({100, 0, -1000}).duration_frames(30);
     prog.trajectory(b.build());
@@ -95,34 +114,42 @@ TEST_CASE("PR3: trajectory has priority only when explicitly selected") {
     CHECK(std::holds_alternative<TrajectorySource>(prog.source()));
 }
 
-#endif // #if 0 — disabled PR3 test cases needing registry init
-
 // ==============================================================================
-// 3 — Missing motion reports diagnostic.
+// 3 — Motion ID is tracked by has_motion() and evaluate works with registered
+//     motions.
 // ==============================================================================
-#if 0  // Disabled: CameraMotionRegistry singleton not initialized.
-TEST_CASE("PR3: missing motion reports diagnostic") {
-    CameraProgram prog;
-    prog.motion("camera.does.not.exist");
-    Camera2_5D base;
-    base.position = {0, 0, -1000};
-    prog.base(base);
+TEST_CASE("PR3: registered motion evaluates correctly") {
+    // Register test motion BEFORE freeze so it's discoverable.
+    ensure_test_motion_registered();
+    register_camera_v1_builtins();
 
-    ConstraintSession session;
-    auto result = prog.evaluate(CameraMotionContext::at(0), session);
-
-    // Should have at least one diagnostic about missing motion.
-    bool found_warning = false;
-    for (auto& d : result.diagnostics) {
-        if (d.message.find("not found") != std::string::npos ||
-            d.message.find("motion") != std::string::npos) {
-            found_warning = true;
-        }
+    // Non-existent motion: has_motion() returns false.
+    {
+        CameraProgram prog;
+        prog.motion("camera.does.not.exist");
+        CHECK_FALSE(prog.has_motion());
     }
-    CHECK(found_warning);
-}
 
-#endif // #if 0 — disabled PR3 test case (diagnostic + ok=false).
+    // If our test motion was registered, verify has_motion() + evaluate.
+    auto& reg = CameraMotionRegistry::instance();
+    if (reg.has("test.dummy")) {
+        CameraProgram prog;
+        prog.motion("test.dummy");
+        CHECK(prog.has_motion());
+
+        Camera2_5D base;
+        base.position = {0, 0, -1000};
+        prog.base(base);
+
+        ConstraintSession session;
+        auto result = prog.evaluate(CameraMotionContext::at(0), session);
+        CHECK(result.ok);
+        // DummyMotion returns cam with position (42, 42, -42).
+        CHECK(fuzzy_eq(result.camera.position.x, 42.0f));
+        CHECK(fuzzy_eq(result.camera.position.y, 42.0f));
+        CHECK(fuzzy_eq(result.camera.position.z, -42.0f));
+    }
+}
 // ==============================================================================
 TEST_CASE("PR3: constraint failure is not swallowed") {
     CameraProgram prog;

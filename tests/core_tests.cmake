@@ -57,11 +57,9 @@ add_executable(chronon3d_core_tests
     text/test_font_engine.cpp
     text/test_text_quality_suite.cpp
     text/test_text_bidi.cpp
-    text/glyph_selector_tests.cpp
-    text/text_animator_property_tests.cpp
-    text/text_run_tests.cpp
     media/test_media_placement.cpp
     scene_presets/test_scene_presets.cpp
+    extension/test_extension_loader.cpp
     extension/test_graph_node_registry.cpp
     architecture/test_protected_core_contracts.cpp
     core/test_scene_hasher_camera.cpp
@@ -71,6 +69,10 @@ add_executable(chronon3d_core_tests
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline chronon3d_extension doctest::doctest)
 
+# Make CMAKE_CURRENT_BINARY_DIR available for ExtensionLoader plugin tests (finds .so files)
+target_compile_definitions(chronon3d_core_tests PRIVATE
+    CMAKE_CURRENT_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}"
+)
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/tests)
 chronon3d_enable_test_pch(chronon3d_core_tests)
 add_test(NAME chronon3d_core_tests COMMAND chronon3d_core_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

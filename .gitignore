@@ -45,6 +45,7 @@ __pycache__/
 
 # AI context
 .claude/
+.antigravitycli/
 
 # Trace/log files
 *.trace

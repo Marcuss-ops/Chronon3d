@@ -26,4 +26,16 @@ if(CHRONON3D_ENABLE_TEXT)
     )
 endif()
 
+# ── FriBidi for bidi text segmentation ──
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(FRIBIDI IMPORTED_TARGET fribidi)
+endif()
+if(FRIBIDI_FOUND)
+    target_link_libraries(chronon3d_backend_text PUBLIC PkgConfig::FRIBIDI)
+    target_compile_definitions(chronon3d_backend_text PUBLIC CHRONON3D_HAS_FRIBIDI)
+else()
+    message(WARNING "FriBidi not found — bidi text segmentation will use LTR-only fallback")
+endif()
+
 target_include_directories(chronon3d_backend_text PRIVATE ${CMAKE_SOURCE_DIR})

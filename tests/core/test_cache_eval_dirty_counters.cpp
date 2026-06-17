@@ -82,8 +82,6 @@ TEST_CASE("counters: cache_eval_ms > 0 after a simulate-and-accumulate pass") {
 // ── 3. dirty_eval_ms accumulates when a (mock) dirty_eval phase runs. ───
 // Mirrors the instrumentation pattern used inside
 // `scene_dirty.cpp::compute_dirty_rect()`.
-#if 0  // Disabled: pre-existing timing flaky — dirty_eval_ms may round to 0 on fast machines.
-       // Re-enable after adding minimum sleep or relaxing to >= 0.
 TEST_CASE("counters: dirty_eval_ms > 0 after a simulate-and-accumulate pass") {
     RenderCounters c;
     c.reset();
@@ -108,13 +106,13 @@ TEST_CASE("counters: dirty_eval_ms > 0 after a simulate-and-accumulate pass") {
     }
     for (auto& th : workers) th.join();
     CHECK(sum.load() > 0);
+    std::this_thread::sleep_for(std::chrono::microseconds(1500));
     const auto elapsed = static_cast<std::uint64_t>(duration_ms(t0, now()));
     c.dirty_eval_ms.fetch_add(elapsed, std::memory_order_relaxed);
 
     CHECK(c.dirty_eval_ms.load() > 0);
     CHECK(c.dirty_eval_ms.load() < 10'000);
 }
-#endif // #if 0
 
 // ── 4. Concurrent fetch_add from N threads doesn't lose records. ───
 // Confirms the chosen atomic ordering (relaxed) is correct for these
