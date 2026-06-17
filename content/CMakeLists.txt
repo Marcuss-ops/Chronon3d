@@ -1,49 +1,63 @@
 # ==============================================================================
-# Content Gallery — single flat library (was 9 sub-libraries + 9 modules)
-#
-# Previously each family (shapes, images, etc.) was a separate STATIC library
-# with its own CMakeLists, PCH, UNITY_BUILD setting, and alias target.
-# Flattened into one library: simpler, fewer targets, no per-family overhead.
+# Content Gallery — single flat library
+# (was 9 sub-libraries + 9 modules — flattened for simplicity)
 # ==============================================================================
 
 add_library(chronon3d_content_gallery STATIC
     register_content_modules.cpp
 
-    # Shape proofs
-    shapes/register_shapes_content.cpp
-    shapes/shape_proofs.cpp
+    # 2.5D
+    2d5/compositions/two_point_five_d_compositions.cpp
+    2d5/compositions/camera_test_orchestrator.cpp
+    2d5/compositions/camera_advanced_tests_diag.cpp
+    2d5/compositions/camera_advanced_tests_rig.cpp
+    2d5/compositions/camera_advanced_tests_scene.cpp
+    2d5/compositions/camera_calibration_scene.cpp
+    2d5/compositions/camera_floor_grid_test.cpp
+    2d5/compositions/camera_near_plane_test.cpp
+    2d5/compositions/camera_pitch_tests.cpp
 
-    # Image proofs
-    images/register_images_content.cpp
-    images/image_proofs.cpp
+    # Shapes
+    shapes/proofs/shape_proofs.cpp
+    shapes/motion/shape_motion_proofs.cpp
 
-    # Animation proofs
-    anims/register_anims_content.cpp
-    anims/anim_proofs.cpp
+    # Images
+    images/compositions/image_proofs.cpp
+    images/compositions/image_animated_reveals.cpp
+    images/compositions/image_test_patterns.cpp
 
-    # Minimalist animations
-    minimalist/register_minimalist_content.cpp
+    # Animations
+    anims/compositions/animation_compositions.cpp
+    anims/compositions/camera_spline_comparison.cpp
+    anims/compositions/catmull_rom_showcase.cpp
+    anims/compositions/cinematic_title_reveal.cpp
+    anims/compositions/dolly_zoom_showcase.cpp
+    anims/compositions/text_animations.cpp
+    anims/compositions/tilt_sweep_title_v2.cpp
+
+    # Minimalist
     minimalist/minimalist_animations.cpp
+    minimalist/minimalist_image_presets.cpp
 
     # Special names
-    special_names/register_special_names_content.cpp
-    special_names/special_names_animations.cpp
+    SpecialNames/special_names_animations.cpp
 
     # Important words
-    important_words/register_important_words_content.cpp
-    important_words/important_words_animations.cpp
+    ImportantWords/important_words_animations.cpp
 
     # Effects
-    effects/register_effects_content.cpp
-    effects/glow_compositions.cpp
+    effects/glow/glow_02_orb_galaxy.cpp
+    effects/glow/glow_basic_word.cpp
+    effects/glow/glow_v2_ab_tests.cpp
+    effects/ref_2_5d/reference_2_5d_suite_cards.cpp
+    effects/ref_2_5d/reference_2_5d_suite_scenes.cpp
+    effects/thumbnails/premium_thumbnail_showcase.cpp
 
-    # 2.5D compositions
-    2d5/register_2d5_content.cpp
-    2d5/compositions.cpp
+    # Grid
+    grid/compositions/grid_showcase.cpp
 
-    # Grid proofs
-    grid/register_grid_content.cpp
-    grid/grid_proofs.cpp
+    # Text
+    text/text_basic_glow.cpp
 )
 
 target_include_directories(chronon3d_content_gallery PRIVATE ${CMAKE_SOURCE_DIR})
@@ -54,7 +68,6 @@ target_link_libraries(chronon3d_content_gallery
 
 add_library(chronon3d::content_gallery ALIAS chronon3d_content_gallery)
 
-# Content module registration (uses ExtensionRegistry)
 add_library(chronon3d_content_registry STATIC
     register_content_modules.cpp
 )
