@@ -17,4 +17,5 @@ target_sources(chronon3d_scene PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/register_camera_v1.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_framing_solver.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/shot_timeline.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/camera_motion_blur.cpp
 )
