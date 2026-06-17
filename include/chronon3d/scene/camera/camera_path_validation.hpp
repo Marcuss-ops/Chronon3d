@@ -20,8 +20,12 @@
 // Backward compatibility: every field has a sensible default that matches
 // the prior hardcoded behavior. Callers that don't construct opts explicitly
 // (or pass `CameraPathValidationOptions{}`) see the same numbers as before.
+//
+// `f32` resolves via chronon3d/core/types/types.hpp (the engine's umbrella
+// types header — same one Camera2_5D pulls in, see
+// include/chronon3d/scene/model/camera/camera_2_5d.hpp:3).
 // ==============================================================================
-#include <chronon3d/core/types/algebra_types.hpp>  // f32
+#include <chronon3d/core/types/types.hpp>   // f32
 
 namespace chronon3d {
 
