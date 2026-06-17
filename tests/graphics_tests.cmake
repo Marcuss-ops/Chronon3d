@@ -4,6 +4,7 @@ add_executable(chronon3d_graphics_tests
     graphics/test_fill_style.cpp
     graphics/test_fill_style_integration.cpp
 )
+target_include_directories(chronon3d_graphics_tests PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(chronon3d_graphics_tests
     PRIVATE
         chronon3d_pipeline
