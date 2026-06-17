@@ -250,7 +250,9 @@ CameraProgramResult CameraProgram::evaluate(const CameraMotionContext& ctx,
 
     session.ensure_states(constraints_.size());
 
-    for (auto& c : constraints_.all()) {
+    for (std::size_t i = 0; i < constraints_.all().size(); ++i) {
+        auto& c = constraints_.all()[i];
+        session.active_index = i;
         auto cr = c->evaluate(r.camera, ctx, session);
 
         if (!cr.ok) {
