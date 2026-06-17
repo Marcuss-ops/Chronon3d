@@ -76,6 +76,12 @@ RenderSettings settings_from_args(const Args& args,
 struct ResolvedComposition {
     std::shared_ptr<Composition> comp;
 
+    /// Legacy flag reflecting whether the composition was loaded via the
+    /// (removed) specscene compiler pipeline. Default false. Kept for
+    /// ABI compatibility with downstream plan types (VideoJobPlan,
+    /// RenderJobPlan) that still mirror this field.
+    bool from_specscene{false};
+
     /// True if the composition was successfully resolved.
     explicit operator bool() const { return comp != nullptr; }
 };

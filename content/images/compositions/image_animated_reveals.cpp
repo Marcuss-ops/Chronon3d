@@ -12,8 +12,12 @@ namespace chronon3d::content::images {
 
 namespace {
 
-constexpr f32 W = 1920.0f;
-constexpr f32 H = 1080.0f;
+// File-local canvas size.  Renamed from W / H to avoid unity-build
+// redefinition collisions with image_proofs.cpp and
+// image_test_patterns.cpp, which both declare W / H in the same
+// (anonymous-namespace-inside-content::images) scope.
+constexpr f32 IMG_REVEAL_W = 1920.0f;
+constexpr f32 IMG_REVEAL_H = 1080.0f;
 
 } // namespace
 
@@ -23,7 +27,7 @@ Composition img_shake_zoom() {
         SceneBuilder s(ctx);
 
         s.layer("grid", [](auto& l) {
-            l.grid_background("grid", {.size = {W, H}, .grid_color = {0.18f, 0.52f, 1, 0.10f}, .spacing = 80});
+            l.grid_background("grid", {.size = {IMG_REVEAL_W, IMG_REVEAL_H}, .grid_color = {0.18f, 0.52f, 1, 0.10f}, .spacing = 80});
         });
 
         f32 t = static_cast<f32>(ctx.frame) / 60.0f;
@@ -89,7 +93,7 @@ Composition img_corner_smoothing() {
         SceneBuilder s(ctx);
         s.layer("bg", [](auto& l) { l.fill({0.01f, 0.012f, 0.02f, 1}); });
         s.layer("grid", [](auto& l) {
-            l.grid_background("grid", {.size = {W, H}, .grid_color = {0.18f, 0.52f, 1, 0.12f}, .spacing = 80});
+            l.grid_background("grid", {.size = {IMG_REVEAL_W, IMG_REVEAL_H}, .grid_color = {0.18f, 0.52f, 1, 0.12f}, .spacing = 80});
         });
 
         f32 t = static_cast<f32>(ctx.frame) / 60.0f;

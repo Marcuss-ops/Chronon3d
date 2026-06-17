@@ -4,7 +4,10 @@
 # ==============================================================================
 
 add_library(chronon3d_content_gallery STATIC
-    register_content_modules.cpp
+    # NOTE: register_content_modules.cpp is owned by
+    # chronon3d_content_registry below — it must NOT also live in
+    # the gallery or the linker sees duplicate
+    # `chronon3d::register_content_modules()` symbols.
 
     # 2.5D
     2d5/compositions/two_point_five_d_compositions.cpp
@@ -75,6 +78,11 @@ target_include_directories(chronon3d_content_registry PRIVATE ${CMAKE_SOURCE_DIR
 target_link_libraries(chronon3d_content_registry
     PUBLIC chronon3d
     PRIVATE chronon3d_extension
+    # FIX: chronon3d_content_registry forward-declares all the
+    # composition factories in register_content_modules.cpp; their
+    # definitions live in chronon3d_content_gallery.  Link the gallery
+    # transitively so the linker resolves every registered symbol.
+    PUBLIC chronon3d_content_gallery
 )
 
 add_library(chronon3d::content_registry ALIAS chronon3d_content_registry)
