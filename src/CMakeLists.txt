@@ -81,6 +81,7 @@ add_subdirectory(extension)         # chronon3d_extension
 add_subdirectory(backends/software) # chronon3d_backend_software
 add_subdirectory(scene)             # chronon3d_scene
 add_subdirectory(animations)        # chronon3d_animations
+add_subdirectory(text)              # chronon3d_text_core
 
 # ==============================================================================
 # Final aggregate targets
@@ -97,6 +98,7 @@ target_link_libraries(chronon3d_core INTERFACE
     chronon3d_cache
     chronon3d_animations
     chronon3d_core_impl
+    chronon3d_text_core
     # chronon3d_backend_video is linked via chronon3d_software, not core.
     # Core should be dependency-minimal for server-side / headless use.
 )

@@ -11,7 +11,7 @@
 #include <vector>
 #include <chronon3d/text/text_material.hpp>
 #include <chronon3d/media/media_placement.hpp>
-#include <chronon3d/text/font_engine.hpp>  // TextDirection, TextShaping
+#include <chronon3d/text/font_engine.hpp>  // TextDirection, TextShaping, TextWrap
 
 namespace chronon3d {
 
@@ -160,12 +160,6 @@ struct TextBoxStyle {
 enum class TextOverflow {
     Clip,
     Ellipsis,
-};
-
-enum class TextWrap {
-    None,
-    Word,
-    Character,
 };
 
 // TextDirection and TextShaping are defined in <chronon3d/text/font_engine.hpp>.
