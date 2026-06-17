@@ -45,7 +45,6 @@ struct VideoJobPlan {
     Frame end_exclusive{0};
 
     bool dry_run{false};
-    bool from_specscene{false};
 };
 
 /// Phase 1 — Plan.

@@ -26,11 +26,6 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
 
     auto& renderer = setup.renderer;
 
-    // ── Short interlude: specscene motion-blur warning ──────────────
-    if (plan.from_specscene && plan.settings.motion_blur.enabled) {
-        spdlog::warn("Motion blur is ignored for specscene inputs in this build");
-    }
-
     spdlog::info("Rendering {} [{} -> {} step {}]{}{}...",
                  plan.comp_id, plan.range.start, plan.range.end, plan.range.step,
                  plan.settings.motion_blur.enabled
