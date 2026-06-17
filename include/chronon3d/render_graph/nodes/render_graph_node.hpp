@@ -54,7 +54,22 @@ enum class RenderGraphNodeKind {
     ColorConvert,
     TrackMatte,
     Output,
-    Transition
+    Transition,
+    // ── PR 3 (TextAnimator V2 integration) ────────────────────────
+    // After Effects-style batched text node.  Owns a TextRunShape
+    // (immutable layout + per-glyph animated state) and is rendered
+    // by the SoftwareTextRunProcessor (text_run_processor.cpp::draw_text_run).
+    //
+    // Distinct from SourceNode because:
+    //   1. The geometry is computed per-glyph (not per-quote shape).
+    //   2. The processor is dedicated (`renderer::draw_text_run`).
+    //   3. Predicted bbox uses the 2.5D-aware
+    //      `renderer::compute_text_run_world_bbox`.
+    //
+    // Mirrors SourceNode for cache_key / execute / predicted_bbox
+    // ownership semantics; the difference is the storage of the run-
+    // shape and the rendering backend route.  See text_run_node.hpp.
+    TextRun
 };
 
 [[nodiscard]] inline std::string_view to_string(RenderGraphNodeKind kind) {

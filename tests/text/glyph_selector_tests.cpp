@@ -278,12 +278,105 @@ TEST_CASE("Order: Reverse") {
 
 TEST_CASE("Order: FromCenter even count") {
     using namespace detail;
-    // 4 units: [0,1,2,3] → from centre: [1,0,2,3]
-    auto result = apply_selector_order(TextSelectorOrder::FromCenter, 0, 4, 0);
-    // Index 0 → should map to centre-left → position 1
-    CHECK(result == 1);
-    auto result2 = apply_selector_order(TextSelectorOrder::FromCenter, 1, 4, 0);
-    CHECK(result2 == 0);
+    // 4 units [0,1,2,3]: alternating outward from the central pair (1,2).
+    // Output: [1, 2, 0, 3] -- centre-left (1)->0, centre-right (2)->1,
+    //                      edge-left (0)->2, edge-right (3)->3.
+    //
+    // Mapping table (asserted): original 1 2 0 3 -> positions 0 1 2 3
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 0, 4, 0) == 2);  // edge-left
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 1, 4, 0) == 0);  // centre-left
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 2, 4, 0) == 1);  // centre-right
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 3, 4, 0) == 3);  // edge-right
+
+    // 6 units [0..5]: central pair=(2,3), pair-dist-1=(1,4), edge=(0,5).
+    // Output: [2, 3, 1, 4, 0, 5]
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 2, 6, 0) == 0);
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 3, 6, 0) == 1);
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 1, 6, 0) == 2);
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 4, 6, 0) == 3);
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 0, 6, 0) == 4);
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 5, 6, 0) == 5);
+
+    // 8 units [0..7]: central pair=(3,4), pair-dist-1=(2,5), dist-2=(1,6), edge=(0,7).
+    // Output: [3, 4, 2, 5, 1, 6, 0, 7]
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 3, 8, 0) == 0);
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 4, 8, 0) == 1);
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 2, 8, 0) == 2);
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 5, 8, 0) == 3);
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 1, 8, 0) == 4);
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 6, 8, 0) == 5);
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 0, 8, 0) == 6);
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 7, 8, 0) == 7);
+
+    // 2 units [0,1]: central pair (0,1), no outer pairs.
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 0, 2, 0) == 0);
+    REQUIRE(apply_selector_order(TextSelectorOrder::FromCenter, 1, 2, 0) == 1);
+}
+
+TEST_CASE("Order: Random is bijective (true permutation, no collisions)") {
+    using namespace detail;
+    // Random must produce a permutation of [0..total_units) -- no two source
+    // indices may map to the same output position, and every output position
+    // must be reached.  The previous floor(hash * total) implementation could
+    // fail this; the new Fisher-Yates permutation scheme cannot.
+    for (u32 n : {1u, 2u, 3u, 5u, 10u, 16u, 50u, 100u}) {
+        const auto& perm = get_or_build_permutation(42, n);
+        REQUIRE(perm.size() == n);
+
+        std::vector<u32> sorted(perm.begin(), perm.end());
+        std::sort(sorted.begin(), sorted.end());
+        for (u32 i = 0; i < n; ++i) {
+            CHECK(sorted[i] == i);
+        }
+    }
+}
+
+TEST_CASE("Order: Random same seed -> same permutation; shuffle is non-trivial") {
+    using namespace detail;
+    constexpr u32 N = 32;
+    constexpr u64 SEED_A = 12345;
+
+    const auto& a1 = get_or_build_permutation(SEED_A, N);
+    const auto& a2 = get_or_build_permutation(SEED_A, N);  // second call: cache hit
+    REQUIRE(a1.size() == N);
+    REQUIRE(a2.size() == N);
+    for (u32 i = 0; i < N; ++i) {
+        CHECK(a1[i] == a2[i]);
+    }
+
+    // Deterministic shuffle-quality check: the permutation must NOT be the
+    // identity permutation.  For a uniformly random Fisher-Yates shuffle on
+    // N>=3 the probability of producing exactly the identity is 1/N!, which
+    // is negligibly small.  This avoids depending on any specific seed or
+    // pre-computed fingerprint.
+    //
+    // We assert two equivalent properties:
+    //   (a) at least one entry differs from identity (perm[i] != i)
+    //   (b) the perm is not sorted in identity order (which would only hold
+    //       if it's the identity permutation)
+    size_t differ_count = 0;
+    for (size_t i = 0; i < a1.size(); ++i) {
+        if (a1[i] != static_cast<u32>(i)) ++differ_count;
+    }
+    CHECK(differ_count > 0);
+    CHECK(std::is_sorted(a1.begin(), a1.end()) == false);
+}
+
+TEST_CASE("Order: Random via apply_selector_order is consistent with bijection") {
+    using namespace detail;
+    for (u32 n : {4u, 7u, 12u}) {
+        std::vector<u32> outputs;
+        outputs.reserve(n);
+        for (u32 i = 0; i < n; ++i) {
+            outputs.push_back(apply_selector_order(
+                TextSelectorOrder::Random, i, n, 99));
+        }
+        std::vector<u32> sorted(outputs.begin(), outputs.end());
+        std::sort(sorted.begin(), sorted.end());
+        for (u32 i = 0; i < n; ++i) {
+            CHECK(sorted[i] == i);
+        }
+    }
 }
 
 TEST_CASE("Order: FromCenter odd count") {
@@ -309,18 +402,17 @@ TEST_CASE("Order: ToCenter") {
     CHECK(tc == 4 - 1 - fc);
 }
 
-TEST_CASE("Order: Random is deterministic") {
+TEST_CASE("Order: Random is deterministic via apply_selector_order") {
     using namespace detail;
 
     u64 seed = 42;
     auto a = apply_selector_order(TextSelectorOrder::Random, 3, 10, seed);
     auto b = apply_selector_order(TextSelectorOrder::Random, 3, 10, seed);
-    CHECK(a == b); // same seed, same index → same result
+    CHECK(a == b); // same seed, same index -> same result;
 
-    // Different seed should (probably) give different result
+    // Different seed: result is still a valid index (no out-of-bounds), but
+    // we don't assert inequality (that would be probabilistic).
     auto c = apply_selector_order(TextSelectorOrder::Random, 3, 10, seed + 1);
-    // Not strictly guaranteed, but in practice should differ
-    // We just check it returns a valid index
     CHECK(c < 10);
 }
 
@@ -1006,4 +1098,167 @@ TEST_CASE("Combine: Replace mode overwrites") {
 
     f32 w = evaluate_selectors({spec1, spec2}, map, 0, source, t);
     CHECK(w == doctest::Approx(0.2f)); // second replaces first
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Exclude_spaces real-implementation tests (requires PlacedGlyphRun threaded)
+// ═══════════════════════════════════════════════════════════════════════════
+
+namespace {
+
+/// Build a placed run + source where the source contains whitespace bytes
+/// at specific glyph positions.  Layout: each glyph occupies one source byte.
+PlacedGlyphRun make_run_for_source(std::string_view source) {
+    PlacedGlyphRun run;
+    for (size_t i = 0; i < source.size(); ++i) {
+        PlacedGlyph g;
+        g.glyph_id = static_cast<u32>(i + 1);
+        g.cluster = static_cast<u32>(i);
+        g.is_cluster_start = true;
+        g.advance_x = 10.0f;
+        g.x = static_cast<float>(i) * 10.0f;
+        g.byte_offset = i;
+        g.byte_len = 1;
+        run.glyphs.push_back(g);
+
+        PlacedGlyphRun::Cluster cl;
+        cl.start_glyph = i;
+        cl.end_glyph = i + 1;
+        cl.byte_offset = i;
+        cl.byte_len = 1;
+        cl.advance = 10.0f;
+        cl.raw_advance = 10.0f;
+        run.clusters.push_back(cl);
+    }
+    run.total_width = static_cast<float>(source.size()) * 10.0f;
+    return run;
+}
+
+} // anonymous namespace
+
+TEST_CASE("Exclude_spaces: per-cluster whitespace exclusion (real impl)") {
+    // Source "ab cd" -> 5 bytes, glyphs 0..4.  Glyph at index 2 is the space.
+    auto source = std::string("ab cd");
+    auto placed = make_run_for_source(source);
+    auto map = build_text_unit_map(placed, source);
+
+    GlyphSelectorSpec spec;
+    spec.id = "excl_glyph";
+    spec.unit = TextSelectorUnit::Glyph;
+    spec.shape = TextSelectorShape::Square;
+    spec.start.set(0.0f);
+    spec.end.set(100.0f);
+    spec.amount.set(100.0f);
+    spec.exclude_spaces = true;
+
+    SampleTime t = SampleTime::from_frame_int(Frame{0});
+
+    // With placed threaded and exclude_spaces=true: glyph 2 (space) is excluded.
+    for (u32 i = 0; i < 5; ++i) {
+        f32 w = evaluate_selector(spec, map, i, source, t, &placed);
+        if (i == 2) {
+            CHECK(w == doctest::Approx(0.0f));
+        } else {
+            CHECK(w == doctest::Approx(1.0f));
+        }
+    }
+}
+
+TEST_CASE("Exclude_spaces: disabled -> all glyphs active regardless of source") {
+    auto source = std::string("ab cd");
+    auto placed = make_run_for_source(source);
+    auto map = build_text_unit_map(placed, source);
+
+    GlyphSelectorSpec spec;
+    spec.unit = TextSelectorUnit::Glyph;
+    spec.shape = TextSelectorShape::Square;
+    spec.start.set(0.0f);
+    spec.end.set(100.0f);
+    spec.amount.set(100.0f);
+    spec.exclude_spaces = false;  // explicit off
+
+    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    for (u32 i = 0; i < 5; ++i) {
+        f32 w = evaluate_selector(spec, map, i, source, t, &placed);
+        CHECK(w == doctest::Approx(1.0f));
+    }
+}
+
+TEST_CASE("Exclude_spaces: backward compatible -- placed==nullptr -> no-op") {
+    // When caller has not threaded placed through (legacy API usage),
+    // exclude_spaces must be a strict no-op even when spec.exclude_spaces is true.
+    auto source = std::string("ab cd");
+    auto placed = make_run_for_source(source);
+    auto map = build_text_unit_map(placed, source);
+
+    GlyphSelectorSpec spec;
+    spec.unit = TextSelectorUnit::Glyph;
+    spec.shape = TextSelectorShape::Square;
+    spec.start.set(0.0f);
+    spec.end.set(100.0f);
+    spec.amount.set(100.0f);
+    spec.exclude_spaces = true;
+
+    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    for (u32 i = 0; i < 5; ++i) {
+        f32 w = evaluate_selector(spec, map, i, source, t, nullptr);
+        CHECK(w == doctest::Approx(1.0f));
+    }
+}
+
+TEST_CASE("Exclude_spaces: word unit excludes whole whitespace runs") {
+    // Source "ab cd ef": 8 bytes, 3 words (indices 0, 1, 2).
+    auto source = std::string("ab cd ef");
+    auto placed = make_run_for_source(source);
+    auto map = build_text_unit_map(placed, source);
+
+    GlyphSelectorSpec spec;
+    spec.unit = TextSelectorUnit::Word;
+    spec.shape = TextSelectorShape::Square;
+    spec.start.set(0.0f);
+    spec.end.set(100.0f);
+    spec.amount.set(100.0f);
+    spec.exclude_spaces = true;
+
+    SampleTime t = SampleTime::from_frame_int(Frame{0});
+
+    // Walking the TextUnitMap, glyphs 0..1 are word 0 ("ab"), glyphs 3..4
+    // are word 1 ("cd"), glyphs 6..7 are word 2 ("ef"), glyphs 2 and 5 are
+    // spaces.  Identifying a *single* glyph: the helper inspects the first
+    // glyph of the same word-group, which carries a non-whitespace byte, so
+    // characters in those words are NOT excluded.  This test focuses on
+    // glyphs whose word's first byte is a space (none in this source) and
+    // verifies that no word gets wrongly excluded.
+    for (u32 i = 0; i < 8; ++i) {
+        f32 w = evaluate_selector(spec, map, i, source, t, &placed);
+        // Every glyph here is in a word whose first byte is non-whitespace,
+        // so exclude_spaces leaves them all active.
+        CHECK(w == doctest::Approx(1.0f));
+    }
+}
+
+TEST_CASE("Exclude_spaces: single-glyph word that is a space gets excluded") {
+    // Source "a b": bytes (a, space, b).  Word 0 = "a" (glyph 0),
+    // word 1 = " " (glyph 1), word 2 = "b" (glyph 2).
+    auto source = std::string("a b");
+    auto placed = make_run_for_source(source);
+    auto map = build_text_unit_map(placed, source);
+
+    GlyphSelectorSpec spec;
+    spec.unit = TextSelectorUnit::Word;
+    spec.shape = TextSelectorShape::Square;
+    spec.start.set(0.0f);
+    spec.end.set(100.0f);
+    spec.amount.set(100.0f);
+    spec.exclude_spaces = true;
+
+    SampleTime t = SampleTime::from_frame_int(Frame{0});
+
+    // The TextUnitMap for "a b" gives 3 words (a, space-only, b).
+    // When evaluating on glyph 1 (the space), should_exclude_unit walks
+    // glyph_to_word[1] -> word_idx, then searches forward to find the
+    // first glyph in the same word; finds glyph 1 itself whose cluster byte
+    // is space -> excluded, weight 0.
+    f32 w_glyph1 = evaluate_selector(spec, map, 1, source, t, &placed);
+    CHECK(w_glyph1 == doctest::Approx(0.0f));
 }

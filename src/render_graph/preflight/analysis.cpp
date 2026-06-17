@@ -74,6 +74,7 @@ std::string build_enriched_dot(
         std::string color = "white";
         switch (node.kind()) {
             case RenderGraphNodeKind::Source:    color = "#AED6F1"; break;
+            case RenderGraphNodeKind::TextRun:   color = "#A9CCE3"; break; // PR 3 (batched text)
             case RenderGraphNodeKind::Transform: color = "#D5D8DC"; break;
             case RenderGraphNodeKind::Effect:    color = "#FCF3CF"; break;
             case RenderGraphNodeKind::Composite: color = "#ABEBC6"; break;

@@ -14,5 +14,6 @@ inline constexpr std::string_view TiledImage = "shape.tiled_image";
 inline constexpr std::string_view GridBackground = "shape.grid_background";
 inline constexpr std::string_view Mesh = "shape.mesh";
 inline constexpr std::string_view Text = "shape.text";
+inline constexpr std::string_view TextRun = "shape.text_run";
 
 } // namespace chronon3d::registry::shape_ids

@@ -195,3 +195,108 @@ TEST_CASE("TextRunBBox: glyph with blur has larger bbox") {
     CHECK(bbox_no_blur.x1 < bbox_blur.x1);   // blur makes x1 larger (enlarges right)
     CHECK(bbox_no_blur.y1 < bbox_blur.y1);   // blur makes y1 larger (enlarges bottom)
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PR 5: TextRunProcessor completion tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+#include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/text/text_run.hpp>
+
+// Helper: bucket radius logic mirrors the inline `bucket_radius` lambda
+// inside draw_text_run.  Exposed here for testing the 4-tier mapping
+// without requiring a real GPU-renderer integration.
+[[nodiscard]] static int expected_bucket_radius(float r) {
+    // Same as production — calls the shared tier-mapping helper.
+    return chronon3d::renderer::detail::bucket_radius_for_tier(r);
+}
+
+TEST_CASE("TextRun processor: 4-tier bucket sigma mapping (PR 5)") {
+    CHECK(expected_bucket_radius(0.0f)  == 0);   // no blur
+    CHECK(expected_bucket_radius(0.5f)  == 2);   // tier 1
+    CHECK(expected_bucket_radius(4.0f)  == 2);
+    CHECK(expected_bucket_radius(5.0f)  == 7);   // tier 2
+    CHECK(expected_bucket_radius(8.0f)  == 7);
+    CHECK(expected_bucket_radius(9.0f)  == 13);  // tier 3
+    CHECK(expected_bucket_radius(16.0f) == 13);
+    CHECK(expected_bucket_radius(17.0f) == 20);  // tier 4 (cap)
+    CHECK(expected_bucket_radius(60.0f) == 20);
+}
+
+TEST_CASE("TextRunBBox: world bbox safely disjoint from framebuffer (PR 5 safe-clip)") {
+    // Glyph deliberately translated FAR off the framebuffer so the
+    // safe-clip intersection is empty.  This is the case draw_text_run
+    // now guards against in PR 5 (silent early return).
+    auto shape = make_test_shape("A");
+    Mat4 translated_off_canvas = glm::translate(
+        Mat4{1.0f}, Vec3{100000.0f, 100000.0f, 0.0f});
+
+    auto bbox = compute_text_run_world_bbox(shape, translated_off_canvas, 0.0f);
+
+    // The bbox should land far outside any reasonable framebuffer.
+    CHECK(bbox.x0 > 10000);
+    CHECK(bbox.x1 > 10000);
+    CHECK(bbox.y0 > 10000);
+    CHECK(bbox.y1 > 10000);
+
+    // A 1920x1080 framebuffer does NOT intersect this bbox.
+    raster::BBox fb_bbox{0, 0, 1920, 1080};
+    raster::BBox intersection{
+        std::max(bbox.x0, fb_bbox.x0),
+        std::max(bbox.y0, fb_bbox.y0),
+        std::min(bbox.x1, fb_bbox.x1),
+        std::min(bbox.y1, fb_bbox.y1)
+    };
+    CHECK(intersection.x1 <= intersection.x0);
+    CHECK(intersection.y1 <= intersection.y0);
+}
+
+TEST_CASE("TextRunBBox: 180°-rotated extreme transform still leaves intersecting region (sanity)") {
+    // Rotation by 180° flips the bbox but the EXTENT stays positive
+    // and the world bbox still intersects the framebuffer if the
+    // model translation is on-canvas.  PR 5 safe-clip should NOT
+    // accidentally skip this case.
+    auto shape = make_test_shape("Hi");
+    Mat4 rotated_180 = glm::translate(Mat4{1.0f}, Vec3{500.0f, 500.0f, 0.0f});
+    rotated_180 = glm::rotate(rotated_180, glm::radians(180.0f),
+        Vec3{0.0f, 0.0f, 1.0f}) * rotated_180;
+    auto bbox = compute_text_run_world_bbox(shape, rotated_180, 0.0f);
+    CHECK(bbox.x0 < bbox.x1);
+    CHECK(bbox.y0 < bbox.y1);
+    // The intersection with a 1920x1080 framebuffer is non-empty.
+    raster::BBox fb_bbox{0, 0, 1920, 1080};
+    CHECK(bbox.x1 > fb_bbox.x0);
+    CHECK(bbox.y1 > fb_bbox.y0);
+}
+
+TEST_CASE("TextRunGlyph: baseline_shift transports the glyph along Y (PR 5)") {
+    // baseline_shift is on GlyphInstanceState and is wired into
+    // build_glyph_matrix as `m.translate(0, baseline_shift)` between
+    // the layout translate (step 1) and the position translate (step 2).
+    // Verifying the build_glyph_matrix requires friend access; instead
+    // we verify the field round-trips through evaluate_animator_stack,
+    // confirming the upstream producer wired baseline_shift correctly.
+    auto layout = make_test_layout_trp("ABC");
+    PlacedGlyphRun& placed = layout->placed;
+
+    TextAnimatorSpec baseline_spec;
+    baseline_spec.id = "test_baseline_shift";
+    baseline_spec.enabled = true;
+    baseline_spec.selectors = {{
+        .id = "all_sel",
+        .unit = TextSelectorUnit::Glyph,
+        .shape = TextSelectorShape::Square,
+        .start = {0.0f}, .end = {100.0f}, .amount = {100.0f}
+    }};
+    TextShaping shaping_unused;  // (default)
+    (void)shaping_unused;
+    baseline_spec.properties = { BaselineShiftProperty{8.0f} };
+
+    std::vector<TextAnimatorSpec> animators{ baseline_spec };
+    SampleTime st = SampleTime::from_frame_int(1, FrameRate{30, 1});
+    auto states = evaluate_animator_stack(animators, placed, "ABC", st);
+    REQUIRE(states.size() == placed.glyphs.size());
+    for (const auto& s : states) {
+        CHECK(s.baseline_shift == doctest::Approx(8.0f));
+    }
+}

@@ -1,8 +1,13 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/builders/text_run_builder.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/effects/effect_ids.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/text/text_run.hpp>
+#include <chronon3d/text/text_animator_property.hpp>
+#include <chronon3d/text/glyph_selector.hpp>
+#include <spdlog/spdlog.h>
 
 #include <cmath>
 #include <utility>
@@ -275,6 +280,27 @@ FontEngine* LayerBuilder::font_engine() const {
     return m_font_engine;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TextRunBuilder — PR 4 (TextAnimator V2)
+// ═══════════════════════════════════════════════════════════════════════════
+
+TextRunBuilder& LayerBuilder::text_run(std::string name, TextRunParams params) {
+    auto spec_uptr = std::make_unique<TextRunSpec>(TextRunSpec{
+        .name = std::move(name),
+        .params = std::move(params),
+        .consumed = false,
+    });
+    TextRunSpec* spec_ptr = spec_uptr.get();
+    m_text_runs.push_back(std::move(spec_uptr));
+    // Push a fresh builder into the pool, keyed to the same spec we
+    // just added.  Pool storage means the returned reference stays
+    // valid for the lifetime of the LayerBuilder — even across many
+    // `.text_run(...)` calls.
+    m_text_run_builders.push_back(
+        std::make_unique<TextRunBuilder>(this, *spec_ptr));
+    return *m_text_run_builders.back();
+}
+
 Layer LayerBuilder::build() {
     if (m_until_frame && !m_duration_explicit) {
         m_layer.duration = *m_until_frame - m_layer.from;
@@ -322,6 +348,54 @@ Layer LayerBuilder::build() {
             });
         }
     }
+
+    // ── PR 4 — Materialize pending text-run specs ───────────────────
+    //
+    // For each TextRunSpec pushed via `LayerBuilder::text_run(name,
+    // TextRunParams)`, evaluate the animator stack at the layer's
+    // current local time and append a corresponding RenderNode
+    // flagged with `is_text_run_shape=true`.  The graph-builder
+    // source-pass (PR 3) auto-routes these to a TextRunNode.
+    //
+    // Each entry uses the layer's FontEngine if one was set, falling
+    // back to the process-wide shared FontEngine.  Shaping failures
+    // log warn-level and skip the entry (the layer otherwise renders
+    // as a normal Layer — explicit empty-place behavior).
+    if (!m_text_runs.empty()) {
+        const SampleTime local_time = m_layer.local_time(m_current_time);
+        std::pmr::memory_resource* res = m_layer.nodes.get_allocator().resource();
+
+        for (auto& spec_uptr : m_text_runs) {
+            TextRunSpec& spec = *spec_uptr;
+            if (spec.consumed) continue;
+
+            RenderNode& node = m_layer.nodes.emplace_back(res);
+            node.name = std::pmr::string{spec.name, res};
+            node.is_text_run_shape = true;     // always flagged
+            node.font_engine = m_font_engine;
+            node.world_transform.position = spec.params.pos;
+            node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
+            node.world_transform.scale = Vec3{1.0f, 1.0f, 1.0f};
+            node.world_transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+            node.color = spec.params.color;
+            node.fill = Fill::solid_color(spec.params.color);
+
+            auto shape = materialize_text_run_shape(
+                spec.params, m_font_engine, local_time);
+            if (shape) {
+                node.text_run_shape = std::move(shape);
+            }
+            // On failure, leave `text_run_shape = nullptr` and rely on
+            // the graph-builder source-pass to emit its existing
+            // one-shot `spdlog::error` for null-shape fallthrough.
+            // We do NOT silently drop the placeholder node, so the
+            // user sees the failure at compose time, not just in
+            // build-time logs.
+
+            spec.consumed = true;
+        }
+    }
+
     return std::move(m_layer);
 }
 

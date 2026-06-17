@@ -30,6 +30,7 @@ enum class ShapeType {
     FakeBox3D,
     GridPlane,
     FakeExtrudedText,
+    TextRun,
 };
 
 enum class PlaneAxis { XZ, XY };

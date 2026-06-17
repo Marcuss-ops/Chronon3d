@@ -163,14 +163,13 @@ void apply_property_to_glyph(
             }
         }
         else if constexpr (std::is_same_v<T, TrackingProperty>) {
-            // Tracking: accumulated pixels per-glyph, applies as horizontal position offset.
-            // After Effects-style tracking animators shift each glyph by its tracking delta.
-            const f32 delta = p.pixels * weight;
-            if (blend == TextPropertyBlendMode::Replace) {
-                gs.position.x = delta;
-            } else {
-                gs.position.x += delta;
-            }
+            // Tracking is handled in evaluate_animator via a cumulative
+            // accumulator that spans this animator's per-glyph iterations
+            // (port from V1 include/chronon3d/text/text_animator.hpp:325-337).
+            // We no-op here to avoid double-counting; this branch is reached
+            // only if a caller invokes apply_property_to_glyph directly.
+            (void)p;
+            (void)gs;
         }
         else if constexpr (std::is_same_v<T, BaselineShiftProperty>) {
             if (blend == TextPropertyBlendMode::Replace) {
@@ -189,11 +188,23 @@ void evaluate_animator(
     const TextUnitMap& unit_map,
     std::vector<GlyphInstanceState>& glyph_states,
     std::string_view source,
-    SampleTime time
+    SampleTime time,
+    const PlacedGlyphRun* placed = nullptr
 ) {
     if (!spec.enabled) return;
 
     const size_t glyph_count = glyph_states.size();
+
+    // ── Cumulative tracking ──────────────────────────────────────────────
+    // After Effects-style tracking is the running letter-spacing gap between
+    // consecutive glyphs.  Without accumulating across iterations, every
+    // glyph receives the same delta and the text moves but does not widen.
+    //
+    // Carry-over from include/chronon3d/text/text_animator.hpp:325-337 where
+    // V1 wrote `cumulative_tracking += m_tracking` then `glyph.x += cumul…`.
+    // V2 reproduces the same shape, but the per-glyph delta is gated by the
+    // selector weight, so weighted-out glyphs don't widen the spacing.
+    f32 cumulative_tracking_delta = 0.0f;
 
     for (size_t gi = 0; gi < glyph_count; ++gi) {
         // Compute combined selector weight for this glyph
@@ -202,7 +213,8 @@ void evaluate_animator(
             unit_map,
             static_cast<u32>(gi),
             source,
-            time
+            time,
+            placed
         );
 
         // Apply each property scaled by the weight
@@ -213,6 +225,34 @@ void evaluate_animator(
                 std::holds_alternative<StrokeColorProperty>(prop)) {
                 blend = spec.color_mode;
             }
+
+            // TrackingProperty routes through the cumulative accumulator
+            // BEFORE reaching apply_property_to_glyph.  The order — apply,
+            // then increment — mirrors the V1 reference at
+            // include/chronon3d/text/text_animator.hpp:333-339:
+            //
+            //     f32 adjusted_x = gu.x + cumulative_tracking;
+            //     ... use adjusted_x ...
+            //     cumulative_tracking += m_tracking;
+            //
+            // So the FIRST glyph receives cumulative_tracking = 0 (no letter
+            // preceding it to spread from), and subsequent glyphs each
+            // receive the running sum from previous iterations.  This is the
+            // AE-style "letter-spacing gap between consecutive letters"
+            // semantic.
+            if (std::holds_alternative<TrackingProperty>(prop)) {
+                const auto& tp = std::get<TrackingProperty>(prop);
+                auto& gs = glyph_states[gi];
+                if (blend == TextPropertyBlendMode::Replace) {
+                    gs.position.x = cumulative_tracking_delta;
+                } else {
+                    gs.position.x += cumulative_tracking_delta;
+                }
+                const f32 delta = tp.pixels * weight;
+                cumulative_tracking_delta += delta;
+                continue;
+            }
+
             apply_property_to_glyph(glyph_states[gi], prop, weight, blend);
         }
     }
@@ -228,7 +268,7 @@ std::vector<GlyphInstanceState> evaluate_animator_stack(
     auto unit_map = build_text_unit_map(placed, source);
 
     for (const auto& animator : animators) {
-        evaluate_animator(animator, unit_map, states, source, time);
+        evaluate_animator(animator, unit_map, states, source, time, &placed);
     }
 
     return states;

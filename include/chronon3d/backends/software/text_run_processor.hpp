@@ -47,5 +47,27 @@ struct TextRunDrawParams {
     f32 spread
 );
 
+// ═══════════════════════════════════════════════════════════════════════════
+// bucket_radius_for_tier — 4-tier blur radius mapping
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Maps a blur radius (px) to the integer box-blur radius used by
+// `draw_text_run`'s per-layer blur pass.  Tiers: 0/1–4/5–8/9–16/>16
+// → 0/2/7/13/20 (the 20 is a cap that prevents edge wash at extreme
+// radii on high-DPI canvases).  Single source of truth: same function
+// consumed by production code and tests.
+
+namespace detail {
+
+[[nodiscard]] inline int bucket_radius_for_tier(float r) {
+    if (r <= 0.0f)  return 0;
+    if (r <= 4.0f)  return 2;
+    if (r <= 8.0f)  return 7;
+    if (r <= 16.0f) return 13;
+    return 20;
+}
+
+} // namespace detail
+
 } // namespace renderer
 } // namespace chronon3d
