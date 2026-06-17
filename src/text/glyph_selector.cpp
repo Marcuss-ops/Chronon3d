@@ -52,31 +52,28 @@ TextUnitMap build_text_unit_map(
         bool in_word = false;
 
         // Build a per-byte word/line index lookup for O(1) mapping.
+        // Whitespace and newlines map to word index kNoUnit (skipped).
+        // Only non-whitespace runs increment word_idx.
+        constexpr u32 kNoUnit = UINT32_MAX;
         const size_t src_len = source.size();
-        std::vector<u32> byte_to_word(src_len + 1, 0);
+        std::vector<u32> byte_to_word(src_len + 1, kNoUnit);
         std::vector<u32> byte_to_line(src_len + 1, 0);
 
         for (size_t b = 0; b < src_len;) {
-            // Decode UTF-8 to find code point length
-            unsigned char lead = static_cast<unsigned char>(source[b]);
+            // Decode the next Unicode code point
             size_t cp_len = 1;
-            if ((lead & 0x80u) != 0) {
-                if ((lead & 0xE0u) == 0xC0u) cp_len = 2;
-                else if ((lead & 0xF0u) == 0xE0u) cp_len = 3;
-                else if ((lead & 0xF8u) == 0xF0u) cp_len = 4;
-            }
+            const char32_t cp = detail::decode_utf8_codepoint_from(source, b, cp_len);
             if (b + cp_len > src_len) cp_len = src_len - b;
 
-            // Check if this byte starts a whitespace or newline
-            bool is_space = (cp_len == 1 && (lead == ' ' || lead == '\t'));
-            bool is_newline = (cp_len == 1 && lead == '\n');
+            // Check if this code point is a newline or whitespace
+            bool is_newline = (cp == u'\n' || cp == 0x2028 || cp == 0x2029);
+            bool is_space = (!is_newline && detail::is_unicode_whitespace(cp));
 
             if (is_newline) {
                 if (in_word) { word_idx++; in_word = false; }
                 for (size_t j = 0; j < cp_len && (b + j) < src_len; ++j) {
-                    byte_to_word[b + j] = word_idx;
+                    byte_to_word[b + j] = kNoUnit;
                 }
-                word_idx++;
                 line_idx++;
                 for (size_t j = 0; j < cp_len && (b + j) < src_len; ++j) {
                     byte_to_line[b + j] = line_idx;
@@ -84,10 +81,9 @@ TextUnitMap build_text_unit_map(
             } else if (is_space) {
                 if (in_word) { word_idx++; in_word = false; }
                 for (size_t j = 0; j < cp_len && (b + j) < src_len; ++j) {
-                    byte_to_word[b + j] = word_idx;
+                    byte_to_word[b + j] = kNoUnit;
                     byte_to_line[b + j] = line_idx;
                 }
-                word_idx++;
             } else {
                 in_word = true;
                 for (size_t j = 0; j < cp_len && (b + j) < src_len; ++j) {
@@ -101,7 +97,7 @@ TextUnitMap build_text_unit_map(
 
         // Fill trailing bytes
         for (size_t b = src_len; b <= src_len; ++b) {
-            byte_to_word[b] = word_idx;
+            byte_to_word[b] = kNoUnit;
             byte_to_line[b] = line_idx;
         }
 
@@ -461,6 +457,11 @@ SelectorWeight evaluate_selector(
     const u32 total = unit_map.unit_count(spec.unit);
 
     if (total == 0) return 0.0f;
+
+    // Guard: compacted word/line indices may produce kNoUnit values
+    // (UINT32_MAX) for whitespace glyphs.  When the unit index exceeds
+    // the compacted count, the glyph has no valid unit — return zero.
+    if (raw_index >= total) return 0.0f;
 
     // ── Apply order ────────────────────────────────────────────────────
     u32 ordered_index;

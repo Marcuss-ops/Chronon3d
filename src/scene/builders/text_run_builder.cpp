@@ -1,14 +1,16 @@
 #include <chronon3d/scene/builders/text_run_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 
+#include <cassert>
+#include <iterator>
 #include <utility>
 
 namespace chronon3d {
 
 // ── Private ctor ────────────────────────────────────────────────────────
 
-TextRunBuilder::TextRunBuilder(LayerBuilder* parent, TextRunSpec spec)
-    : m_parent(parent), m_spec(std::move(spec)) {}
+TextRunBuilder::TextRunBuilder(LayerBuilder* parent, TextRunSpec* spec)
+    : m_parent(parent), m_spec(spec) {}
 
 // ── Internal helpers ────────────────────────────────────────────────────
 
@@ -25,7 +27,7 @@ GlyphSelectorSpec TextRunBuilder::make_global_glyph_selector(std::string id) {
 }
 
 void TextRunBuilder::append_animator(TextAnimatorSpec spec) {
-    m_spec.params.animators.push_back(std::move(spec));
+    m_spec->params.animators.push_back(std::move(spec));
 }
 
 // ── Per-glyph mutators (inject implicit animator) ───────────────────────
@@ -91,7 +93,7 @@ TextRunBuilder& TextRunBuilder::font_size(f32 v) {
     // shaping), not a per-frame animated glyph property.  Mutating it
     // here does NOT animate; it updates the base parameter and will
     // invalidate the layout cache on the next commit.
-    m_spec.params.font_size = v;
+    m_spec->params.font_size = v;
     m_cache_layout = false;  // force re-shape next commit
     return *this;
 }
@@ -129,20 +131,26 @@ TextRunBuilder& TextRunBuilder::baseline_shift(f32 px) {
 // ── Explicit user-supplied animators / selectors ────────────────────────
 
 TextRunBuilder& TextRunBuilder::animator(TextAnimatorSpec spec) {
+    // Prepend any pending selectors accumulated via `.selector()` calls BEFORE
+    // this `.animator()` call.  This ensures `.selector(s).animator(a)` chains
+    // correctly: s controls a, not a phantom placeholder.
+    if (!m_pending_selectors.empty()) {
+        spec.selectors.insert(
+            spec.selectors.begin(),
+            std::make_move_iterator(m_pending_selectors.begin()),
+            std::make_move_iterator(m_pending_selectors.end()));
+        m_pending_selectors.clear();
+    }
     append_animator(std::move(spec));
     return *this;
 }
 
 TextRunBuilder& TextRunBuilder::selector(GlyphSelectorSpec spec) {
-    if (m_spec.params.animators.empty()) {
-        // Create a placeholder animator (no properties; user is staging
-        // selectors ahead of an upcoming `.animator(...)` call).
-        TextAnimatorSpec placeholder;
-        placeholder.id = "__trb_placeholder_" + std::to_string(m_implicit_id_seq++);
-        placeholder.enabled = true;
-        append_animator(std::move(placeholder));
-    }
-    m_spec.params.animators.back().selectors.push_back(std::move(spec));
+    // Accumulate pending selectors.  When the next `.animator()` is called,
+    // these selectors are prepended to the animator's selector list so that
+    // `.selector(...).animator(...)` chains correctly — the selector controls
+    // the subsequent animator, not a phantom placeholder.
+    m_pending_selectors.push_back(std::move(spec));
     return *this;
 }
 
@@ -159,7 +167,7 @@ TextRunBuilder& TextRunBuilder::cache_layout(bool value) {
 }
 
 TextRunBuilder& TextRunBuilder::name(std::string n) {
-    m_spec.name = std::move(n);
+    m_spec->name = std::move(n);
     return *this;
 }
 
@@ -172,15 +180,13 @@ TextRunBuilder& TextRunBuilder::name(std::string n) {
 // the right place to do it.
 
 LayerBuilder& TextRunBuilder::commit() {
-    if (m_parent == nullptr) {
-        return *static_cast<LayerBuilder*>(nullptr);
-    }
+    assert(m_parent != nullptr && "TextRunBuilder commit() called with null parent");
     // LayerBuilder::build() reads m_text_runs directly; the spec is
     // already up-to-date.  Touching m_cache_layout=false here forces
     // a re-shape even if the layout cache already contains an entry
     // for the spec's TextRunParams (because user edits may have
     // changed shaping inputs).
-    m_spec.params.cache_layout = m_cache_layout;
+    m_spec->params.cache_layout = m_cache_layout;
     if (m_font_engine != nullptr) {
         // Forward font_engine override onto the spec via a side channel
         // (LayerBuilder reads m_font_engine for shaping during commit).

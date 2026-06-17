@@ -1,6 +1,5 @@
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/text_run_processor.hpp>
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
@@ -192,28 +191,14 @@ OwnedFB TextRunNode::execute(
     // Acquire full-canvas framebuffer (no clear-skip — text can't fill a frame).
     auto fb = ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height, /*clear=*/true);
 
-    // Resolve SoftwareRenderer for the dedicated TextRunProcessor.
+    // Resolve backend and dispatch through the virtual draw_text_run.
     auto* backend = ctx.resources.backend;
-    auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(backend);
-    if (!sw_renderer) {
-        // Backend is not the SoftwareRenderer.  PR 3 cannot route through
-        // a generic RenderBackend::draw_text_run (that lands in PR 5).
-        // Surface this AT ERROR LEVEL once per node lifetime, then fall
-        // back to debug to avoid flooding production logs at 60 fps.
-        const char* backend_type = backend ? typeid(*backend).name() : "nullptr";
+    if (!backend) {
         if (!m_backend_warned) {
             spdlog::error(
-                "[text-run] node='{}' cannot render: backend is not the "
-                "SoftwareRenderer (got typeid={}); returning cleared fb. "
-                "PR 5 will add `RenderBackend::draw_text_run` to remove this "
-                "limitation.",
-                m_name, backend_type);
+                "[text-run] node='{}' cannot render: backend is null; "
+                "returning cleared fb.", m_name);
             m_backend_warned = true;
-        } else {
-            spdlog::debug(
-                "[text-run] node='{}' still missing SoftwareRenderer "
-                "(backend={}); cleared fb.",
-                m_name, backend_type);
         }
         return fb;
     }
@@ -239,15 +224,16 @@ OwnedFB TextRunNode::execute(
 
     const f32 opacity = m_opacity_override.value_or(m_render_ref.world_transform.opacity);
 
-    renderer::TextRunDrawParams params{
-        .fb = *fb,
-        .shape = *m_shape,
-        .model_matrix = world_matrix,
-        .opacity = opacity,
-        .diagnostic_mode = ctx.options.diagnostics_enabled,
-    };
+    const bool drew = backend->draw_text_run(
+        *fb, *m_shape, world_matrix, opacity,
+        ctx.options.diagnostics_enabled);
 
-    const bool drew = renderer::draw_text_run(*sw_renderer, params);
+    if (!drew && !m_backend_warned) {
+        spdlog::error(
+            "[text-run] node='{}' backend does not support "
+            "draw_text_run; returning cleared fb.", m_name);
+        m_backend_warned = true;
+    }
 
     if (ctx.options.diagnostics_enabled) {
         // DEBUG (not INFO): this fires every frame.  The diagnostic-mode
@@ -266,13 +252,9 @@ OwnedFB TextRunNode::execute(
         );
     }
 
-    if (auto* rc = sw_renderer->counters()) {
-        // Best-effort counter wiring — uses the existing text counters so
-        // the telemetry dashboard picks up TextRun frames automatically.
-        rc->text_glyphs_rasterized.fetch_add(
-            static_cast<uint64_t>(m_shape->glyphs.size()),
-            std::memory_order_relaxed);
-    }
+    // NOTE: draw_text_run() already increments text_glyphs_rasterized
+    // inside the processor.  Do NOT double-count here — the processor is
+    // the single source of truth for telemetry.
 
     return fb;
 }

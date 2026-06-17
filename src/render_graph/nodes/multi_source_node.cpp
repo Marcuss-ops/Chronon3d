@@ -1,20 +1,11 @@
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/text_run_processor.hpp>
 #include <chronon3d/text/text_run.hpp>
 #include <spdlog/spdlog.h>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <limits>
-
-// ── PR 6 helper: type label for non-SoftwareRenderer backend callbacks ──────
-// Avoids dragging `<typeinfo>` into this translation unit just to call
-// `typeid().name()` in a log line.  The label is informational only; the
-// dispatch decision is the dynamic_cast itself.
-namespace {
-constexpr const char* kNonSoftwareBackendLabel = "non-SoftwareRenderer backend";
-} // namespace
 
 namespace chronon3d::graph {
 
@@ -175,46 +166,23 @@ OwnedFB MultiSourceNode::execute(
         const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.options.ssaa_factor, ctx.options.ssaa_factor, 1.0f));
         const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
 
-        // PR 6: text_run items are dispatched to `renderer::draw_text_run`
-        // (via SoftwareRenderer dynamic_cast) instead of the generic
-        // `RenderBackend::draw_node` because the former routes through the
-        // dedicated SoftwareTextRunProcessor with the per-glyph transform
-        // stack.  The text is rasterized directly onto the SHARED `*fb`
-        // so it composites SRC_OVER any earlier non-text items in the
-        // same layer (vector order).
-        SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(ctx.resources.backend);
+        // PR 6: text_run items are dispatched to `RenderBackend::draw_text_run`
+        // instead of the generic `RenderBackend::draw_node` because the
+        // former routes through the dedicated text-run processor with the
+        // per-glyph transform stack.  The text is rasterized directly onto
+        // the SHARED `*fb` so it composites SRC_OVER any earlier non-text
+        // items in the same layer (vector order).
 
         for (const auto& item : m_items) {
             if (!item.node) continue;
 
             // ── PR 6 text_run branch ─────────────────────────────────────
-            // Dispatch to SoftwareTextRunProcessor when:
-            //   - the item carries `is_text_run_shape = true`, AND
-            //   - backend resolved as SoftwareRenderer (mandatory for now).
-            // Falls through to the generic `draw_node` path when the
-            // backend isn't SoftwareRenderer so the layer still produces
-            // partial output (shapes render; text is skipped with a
-            // one-shot error→debug log — see m_backend_warned rationale
-            // in the header).
+            // Dispatch via the virtual RenderBackend::draw_text_run when
+            // the item carries `is_text_run_shape = true`.  Falls through
+            // to the generic `draw_node` path when the backend doesn't
+            // support text (draw_text_run returns false) so the layer still
+            // produces partial output (shapes render; text is skipped).
             if (item.node->is_text_run_shape) {
-                if (!sw_renderer) {
-                    if (!m_backend_warned) {
-                        spdlog::error(
-                            "[multi-source] node='{}' contains text run items "
-                            "but active backend is {}; skipping text render.  "
-                            "Replace the backend with SoftwareRenderer or "
-                            "implement RenderBackend::draw_text_run to enable "
-                            "this.",
-                            m_name, kNonSoftwareBackendLabel);
-                        m_backend_warned = true;
-                    } else {
-                        spdlog::debug(
-                            "[multi-source] node='{}' text runs still missing "
-                            "SoftwareRenderer (backend={}); skipping.",
-                            m_name, kNonSoftwareBackendLabel);
-                    }
-                    continue;  // text item cannot draw; shapes continue.
-                }
                 if (!item.node->text_run_shape) {
                     // Orphan text_run: an upstream source-pass already
                     // logs this once per layer (PR 6 one-shot guard);
@@ -231,23 +199,20 @@ OwnedFB MultiSourceNode::execute(
                     world_matrix = ssaa_scale * item.matrix;
                 }
 
-                renderer::TextRunDrawParams params{
-                    .fb = *fb,
-                    .shape = *item.node->text_run_shape,
-                    .model_matrix = world_matrix,
-                    .opacity = item.opacity,
-                    .diagnostic_mode = ctx.options.diagnostics_enabled,
-                };
-                const bool drew = renderer::draw_text_run(*sw_renderer, params);
+                const bool drew = ctx.resources.backend->draw_text_run(
+                    *fb, *item.node->text_run_shape, world_matrix,
+                    item.opacity, ctx.options.diagnostics_enabled);
 
-                if (auto* rc = sw_renderer->counters()) {
-                    // Best-effort counter wiring — keeps the telemetry
-                    // dashboard picking up text glyph counts across
-                    // multi-source layers.
-                    rc->text_glyphs_rasterized.fetch_add(
-                        static_cast<uint64_t>(item.node->text_run_shape->glyphs.size()),
-                        std::memory_order_relaxed);
+                if (!drew && !m_backend_warned) {
+                    spdlog::error(
+                        "[multi-source] node='{}' contains text run items "
+                        "but active backend does not support draw_text_run; "
+                        "skipping text render.", m_name);
+                    m_backend_warned = true;
                 }
+
+                // NOTE: draw_text_run() already increments text_glyphs_rasterized
+                // inside the processor.  Do NOT double-count here.
 
                 if (ctx.options.diagnostics_enabled) {
                     spdlog::debug(

@@ -194,9 +194,92 @@ namespace detail {
 /// Uses the same key every time for the same (seed, unit_index) pair.
 [[nodiscard]] f32 hash_to_unit_float(u64 seed, u64 unit_index);
 
-/// Returns true if all bytes in [start, start+len) are ASCII whitespace
-/// (space, tab, CR, LF). Empty range or slice that runs past `source.size()`
-/// is treated as whitespace (i.e. nothing-of-interest, conservative).
+/// Returns true if `cp` is a Unicode whitespace or separator character.
+/// Covers ASCII (space, tab, CR, LF) plus common Unicode whitespace:
+/// U+00A0 NBSP, U+1680 ogham space, U+2000–U+200A (en/em/thin/hair spaces),
+/// U+2028 LINE SEPARATOR, U+2029 PARAGRAPH SEPARATOR,
+/// U+202F NARROW NO-BREAK SPACE, U+205F MEDIUM MATHEMATICAL SPACE,
+/// U+3000 IDEOGRAPHIC SPACE, U+FEFF ZERO WIDTH NO-BREAK SPACE.
+[[nodiscard]] inline bool is_unicode_whitespace(char32_t cp) noexcept {
+    if (cp <= 0x7F) {
+        return cp == ' ' || cp == '\t' || cp == '\n' || cp == '\r';
+    }
+    switch (cp) {
+        case 0x00A0:  // NO-BREAK SPACE
+        case 0x1680:  // OGHAM SPACE MARK
+        case 0x2000:  // EN QUAD
+        case 0x2001:  // EM QUAD
+        case 0x2002:  // EN SPACE
+        case 0x2003:  // EM SPACE
+        case 0x2004:  // THREE-PER-EM SPACE
+        case 0x2005:  // FOUR-PER-EM SPACE
+        case 0x2006:  // SIX-PER-EM SPACE
+        case 0x2007:  // FIGURE SPACE
+        case 0x2008:  // PUNCTUATION SPACE
+        case 0x2009:  // THIN SPACE
+        case 0x200A:  // HAIR SPACE
+        case 0x2028:  // LINE SEPARATOR
+        case 0x2029:  // PARAGRAPH SEPARATOR
+        case 0x202F:  // NARROW NO-BREAK SPACE
+        case 0x205F:  // MEDIUM MATHEMATICAL SPACE
+        case 0x3000:  // IDEOGRAPHIC SPACE
+        case 0xFEFF:  // ZERO WIDTH NO-BREAK SPACE / BOM
+            return true;
+        default:
+            return false;
+    }
+}
+
+/// Decode a single UTF-8 code point starting at `source[start]`.
+/// On success, sets `cp_len` to the byte length (1–4) and returns the
+/// code point.  On decode error (truncated, overlong, surrogate), returns
+/// U+FFFD REPLACEMENT CHARACTER and sets cp_len to 1.
+[[nodiscard]] inline char32_t decode_utf8_codepoint_from(
+    std::string_view source,
+    size_t start,
+    size_t& cp_len
+) noexcept {
+    if (start >= source.size()) {
+        cp_len = 0;
+        return 0xFFFD;
+    }
+    const unsigned char lead = static_cast<unsigned char>(source[start]);
+    if ((lead & 0x80u) == 0) {
+        cp_len = 1;
+        return static_cast<char32_t>(lead);
+    }
+    if ((lead & 0xE0u) == 0xC0u) {
+        cp_len = 2;
+        if (start + 1 >= source.size()) return 0xFFFD;
+        return static_cast<char32_t>(
+            ((lead & 0x1Fu) << 6) |
+            (static_cast<unsigned char>(source[start + 1]) & 0x3Fu));
+    }
+    if ((lead & 0xF0u) == 0xE0u) {
+        cp_len = 3;
+        if (start + 2 >= source.size()) return 0xFFFD;
+        return static_cast<char32_t>(
+            ((lead & 0x0Fu) << 12) |
+            ((static_cast<unsigned char>(source[start + 1]) & 0x3Fu) << 6) |
+            (static_cast<unsigned char>(source[start + 2]) & 0x3Fu));
+    }
+    if ((lead & 0xF8u) == 0xF0u) {
+        cp_len = 4;
+        if (start + 3 >= source.size()) return 0xFFFD;
+        return static_cast<char32_t>(
+            ((lead & 0x07u) << 18) |
+            ((static_cast<unsigned char>(source[start + 1]) & 0x3Fu) << 12) |
+            ((static_cast<unsigned char>(source[start + 2]) & 0x3Fu) << 6) |
+            (static_cast<unsigned char>(source[start + 3]) & 0x3Fu));
+    }
+    cp_len = 1;
+    return 0xFFFD;
+}
+
+/// Returns true if all code points in [start, start+len) are Unicode
+/// whitespace.  Uses `is_unicode_whitespace` for code-point-level checks.
+/// Empty range or slice past `source.size()` is treated as whitespace
+/// (conservative: nothing-of-interest).
 [[nodiscard]] inline bool is_whitespace_run(
     std::string_view source,
     size_t start,
@@ -205,11 +288,13 @@ namespace detail {
     if (len == 0) return true;
     if (start >= source.size()) return true;
     const size_t end = std::min(start + len, source.size());
-    for (size_t i = start; i < end; ++i) {
-        const unsigned char c = static_cast<unsigned char>(source[i]);
-        if (c != ' ' && c != '\t' && c != '\n' && c != '\r') {
-            return false;  // first non-whitespace byte ends the check early
-        }
+    size_t pos = start;
+    while (pos < end) {
+        size_t cp_len = 0;
+        const char32_t cp = detail::decode_utf8_codepoint_from(source, pos, cp_len);
+        if (cp_len == 0) break;
+        if (!detail::is_unicode_whitespace(cp)) return false;
+        pos += cp_len;
     }
     return true;
 }
