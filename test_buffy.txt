@@ -1,7 +1,0 @@
-=== Test di connessione da Codebuff/Buffy ===
-Data: Sun Jun  7 06:19:48 UTC 2026
-Host: vps-334f342f
-User: pierone
-Pwd: /home/pierone
-
-Connessione SSH via paramiko funzionante! Buffy operativa sul server remoto.

@@ -34,8 +34,6 @@ TEST_CASE("BidiSegmenter: pure Latin returns single LTR run") {
     CHECK(runs[0].byte_offset == 0);
 }
 
-#if 0  // Disabled: pre-existing bidi segmenter logic bugs — REQUIRE on run count fails.
-       // Re-enable after bidi_segmenter fixes.
 TEST_CASE("BidiSegmenter: pure Arabic returns single RTL run") {
     // "مرحبا" = Arabic "hello"
     auto runs = segment_bidi_runs("\xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7");
@@ -43,9 +41,7 @@ TEST_CASE("BidiSegmenter: pure Arabic returns single RTL run") {
     CHECK(runs[0].direction == TextDirection::RTL);
     CHECK(runs[0].byte_offset == 0);
 }
-#endif // #if 0
 
-#if 0  // Disabled: pre-existing bidi segmenter logic bug.
 TEST_CASE("BidiSegmenter: mixed Latin + Arabic returns three runs [LTR, RTL, LTR]") {
     // "Hello مرحبا World"
     std::string mixed = "Hello \xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 World";
@@ -64,9 +60,7 @@ TEST_CASE("BidiSegmenter: mixed Latin + Arabic returns three runs [LTR, RTL, LTR
     CHECK(runs[2].text == " World");
     CHECK(runs[2].byte_offset == 16);
 }
-#endif // #if 0
 
-#if 0  // Disabled: pre-existing bidi segmenter logic bug.
 TEST_CASE("BidiSegmenter: Arabic embedded in Latin numbers works") {
     // "Order 5 مرحبا items" — number (5) is weak, takes surrounding LTR direction
     std::string mixed = "Order 5 \xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 items";
@@ -79,9 +73,7 @@ TEST_CASE("BidiSegmenter: Arabic embedded in Latin numbers works") {
     CHECK(runs[2].direction == TextDirection::LTR);
     CHECK(runs[2].text == " items");
 }
-#endif // #if 0
 
-#if 0  // Disabled: pre-existing bidi segmenter logic bug.
 TEST_CASE("BidiSegmenter: Hebrew + English produces correct runs") {
     // "שלום World"
     std::string mixed = "\xD7\xA9\xD7\x9C\xD7\x95\xD7\x9D World";
@@ -96,9 +88,7 @@ TEST_CASE("BidiSegmenter: Hebrew + English produces correct runs") {
     CHECK(runs[0].byte_offset == 0);
     CHECK(runs[1].byte_offset + runs[1].text.size() == mixed.size());
 }
-#endif // #if 0
 
-#if 0  // Disabled: pre-existing bidi segmenter logic bug.
 TEST_CASE("BidiSegmenter: mixed Arabic+Hebrew+English") {
     // "مرحبا שלום World"
     std::string mixed = "\xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 \xD7\xA9\xD7\x9C\xD7\x95\xD7\x9D World";
@@ -110,9 +100,7 @@ TEST_CASE("BidiSegmenter: mixed Arabic+Hebrew+English") {
     }
     CHECK(has_rtl);
 }
-#endif // #if 0
 
-#if 0  // Disabled: pre-existing bidi segmenter logic bug.
 TEST_CASE("BidiSegmenter: explicit LTR base direction") {
     std::string mixed = "Hello \xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 World";
     auto runs = segment_bidi_runs(mixed, 1); // FRIBIDI_PAR_DIR_LTR
@@ -121,9 +109,7 @@ TEST_CASE("BidiSegmenter: explicit LTR base direction") {
     CHECK(runs[1].direction == TextDirection::RTL);
     CHECK(runs[2].direction == TextDirection::LTR);
 }
-#endif // #if 0
 
-#if 0  // Disabled: pre-existing bidi segmenter logic bug.
 TEST_CASE("BidiSegmenter: explicit RTL base direction") {
     std::string mixed = "Hello \xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 World";
     auto runs = segment_bidi_runs(mixed, 2); // FRIBIDI_PAR_DIR_RTL
@@ -134,7 +120,6 @@ TEST_CASE("BidiSegmenter: explicit RTL base direction") {
     }
     CHECK(has_rtl);
 }
-#endif // #if 0
 
 // ── Layout Engine Bidi Integration Tests ───────────────────────────────
 
@@ -171,7 +156,6 @@ TEST_CASE("TextLayout: bidi with pure Arabic text") {
     CHECK(result.lines[0].width > 0.0f);
 }
 
-#if 0  // Disabled: pre-existing text layout bidi integration bug.
 TEST_CASE("TextLayout: bidi with mixed Arabic+English") {
     FontEngine engine;
 
@@ -198,7 +182,6 @@ TEST_CASE("TextLayout: bidi with mixed Arabic+English") {
     CHECK(has_ltr);
     CHECK(has_rtl);
 }
-#endif // #if 0
 
 TEST_CASE("TextLayout: explicit LTR direction skips bidi segmentation") {
     FontEngine engine;
