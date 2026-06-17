@@ -234,7 +234,8 @@ TEST_CASE("PR4: factory creates DampedFollow with custom damping") {
     sh.ensure_states(1); sl.ensure_states(1);
     auto rh0 = high->evaluate(cam, ctx, sh);
     auto rl0 = low->evaluate(cam, ctx, sl);
-    CHECK(rh0.ok && rl0.ok);  // both initialized
+    CHECK(rh0.ok);
+    CHECK(rl0.ok);  // both initialized
 
     // Second frame — apply damping.
     ctx = CameraMotionContext::at(1);

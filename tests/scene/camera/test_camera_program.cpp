@@ -30,7 +30,7 @@ namespace {
 
 using namespace chronon3d::camera_v1;
 
-inline bool approx(float a, float b, float tol = 1e-4f) {
+inline bool fuzzy_eq(float a, float b, float tol = 1e-4f) {
     return std::abs(a - b) <= tol;
 }
 
@@ -69,9 +69,9 @@ TEST_CASE("PR3: static source preserves base camera") {
     ConstraintSession session;
     auto result = prog.evaluate(CameraMotionContext::at(0), session);
     CHECK(result.ok);
-    CHECK(approx(result.camera.position.x, 10.0f));
-    CHECK(approx(result.camera.position.y, 20.0f));
-    CHECK(approx(result.camera.position.z, -500.0f));
+    CHECK(fuzzy_eq(result.camera.position.x, 10.0f));
+    CHECK(fuzzy_eq(result.camera.position.y, 20.0f));
+    CHECK(fuzzy_eq(result.camera.position.z, -500.0f));
 }
 
 // ==============================================================================
@@ -215,7 +215,7 @@ TEST_CASE("PR3: keep-horizon removes roll but preserves yaw/pitch") {
 
     CHECK(result.ok);
     // Roll should be 0 (KeepHorizon).
-    CHECK(approx(result.camera.rotation.z, 0.0f, 0.1f));
+    CHECK(fuzzy_eq(result.camera.rotation.z, 0.0f, 0.1f));
     // Yaw/pitch should still be set (non-zero direction).
 }
 
@@ -272,9 +272,9 @@ TEST_CASE("PR3: program evaluation is deterministic") {
     ConstraintSession s2;
     auto r2 = prog.evaluate(CameraMotionContext::at(15), s2);
 
-    CHECK(approx(r1.camera.position.x, r2.camera.position.x));
-    CHECK(approx(r1.camera.position.y, r2.camera.position.y));
-    CHECK(approx(r1.camera.position.z, r2.camera.position.z));
+    CHECK(fuzzy_eq(r1.camera.position.x, r2.camera.position.x));
+    CHECK(fuzzy_eq(r1.camera.position.y, r2.camera.position.y));
+    CHECK(fuzzy_eq(r1.camera.position.z, r2.camera.position.z));
 }
 
 // ==============================================================================
