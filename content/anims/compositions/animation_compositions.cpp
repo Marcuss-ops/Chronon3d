@@ -113,6 +113,14 @@ Composition camera_spline_comparison();
 Composition tilt_sweep_title();
 Composition tilt_sweep_title_v2();
 
+// Cinematic text + camera compositions (post-diet registration path).
+// Defined in cinematic_text_camera.cpp (same translation-unit group).
+Composition deep_parallax_cascade();
+Composition whip_pan_hero_reveal();
+Composition orbit_handheld_glow();
+Composition rack_focus_title_swap();
+Composition abyss_freefall_stagger();
+
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_anim_compositions() {
     static bool done = false;
@@ -139,6 +147,13 @@ void register_anim_compositions() {
 #endif
     detail::add_builtin_composition("TiltSweepTitle",          tilt_sweep_title);
     detail::add_builtin_composition("TiltSweepTitleV2",        tilt_sweep_title_v2);
+
+    // Cinematic text + camera compositions (5 new, see cinematic_text_camera.cpp).
+    detail::add_builtin_composition("DeepParallaxCascade",     deep_parallax_cascade);
+    detail::add_builtin_composition("WhipPanHeroReveal",       whip_pan_hero_reveal);
+    detail::add_builtin_composition("OrbitHandheldGlow",       orbit_handheld_glow);
+    detail::add_builtin_composition("RackFocusTitleSwap",      rack_focus_title_swap);
+    detail::add_builtin_composition("AbyssFreefallStagger",    abyss_freefall_stagger);
 }
 
 } // namespace chronon3d::content::anims
