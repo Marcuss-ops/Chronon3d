@@ -70,6 +70,13 @@ private:
     bool m_centered{false};
     bool m_uses_2_5d_projection{false};
     bool m_cache_static{false};
+
+    // ── Log throttle (PR 6 polish) ───────────────────────────────────────
+    // When a text_run item shows up in a layer but the active backend is not
+    // the SoftwareRenderer (e.g. a future GPU backend), we cannot rasterize
+    // the text.  Surface the mismatch ONCE at error level per node lifetime,
+    // then fall back to debug so production logs survive at 60 fps.
+    mutable bool m_backend_warned{false};
 };
 
 } // namespace chronon3d::graph

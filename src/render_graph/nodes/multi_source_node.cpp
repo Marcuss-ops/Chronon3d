@@ -1,8 +1,20 @@
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/software/text_run_processor.hpp>
+#include <chronon3d/text/text_run.hpp>
+#include <spdlog/spdlog.h>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <limits>
+
+// ── PR 6 helper: type label for non-SoftwareRenderer backend callbacks ──────
+// Avoids dragging `<typeinfo>` into this translation unit just to call
+// `typeid().name()` in a log line.  The label is informational only; the
+// dispatch decision is the dynamic_cast itself.
+namespace {
+constexpr const char* kNonSoftwareBackendLabel = "non-SoftwareRenderer backend";
+} // namespace
 
 namespace chronon3d::graph {
 
@@ -44,7 +56,16 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
         spread += 8.0f;
 
         raster::BBox bbox;
-        if (ctx.camera.has_camera_2_5d &&
+        if (item.node->is_text_run_shape && item.node->text_run_shape) {
+            // PR 6: text_run items use the 2.5D-aware
+            // `compute_text_run_world_bbox` instead of the regular
+            // shape-driven `compute_world_bbox`.  The helper accounts for
+            // per-glyph rotation.x/y shears and scale.z expansion,
+            // per-glyph blur/stroke, and the shadow stack inside the
+            // shape itself — the spread arg covers node-level shadow/glow.
+            bbox = renderer::compute_text_run_world_bbox(
+                *item.node->text_run_shape, matrix, spread);
+        } else if (ctx.camera.has_camera_2_5d &&
             (item.node->shape.type == ShapeType::FakeBox3D || item.node->shape.type == ShapeType::GridPlane)) {
             if (auto proj_bbox = detail::projected_native_3d_bbox(ctx, *item.node, item.matrix, spread)) {
                 bbox = *proj_bbox;
@@ -113,6 +134,30 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
     for (const auto& item : m_items) {
         key.params_hash = hash_combine(key.params_hash, hash_value(item.matrix));
         key.params_hash = hash_combine(key.params_hash, hash_value(item.opacity));
+        // PR 6: text_run items also fold the per-glyph animated state of
+        // the underlying TextRunShape so the cache key invalidates when
+        // `evaluate_animator_stack` mutates glyph state.  Without this
+        // fold two animated frames with identical geometry would hit a
+        // stale cache entry.
+        if (item.node && item.node->is_text_run_shape && item.node->text_run_shape) {
+            key.params_hash = hash_combine(
+                key.params_hash,
+                chronon3d::hash_text_run_shape(*item.node->text_run_shape));
+        }
+    }
+
+    // 2.5D camera transform — invalidate when the camera moves so the bg
+    // matrix inside compute_text_run_world_bbox / compute_world_bbox is
+    // up-to-date.  Mirrors SourceNode::cache_key and TextRunNode::cache_key.
+    if (m_uses_2_5d_projection && ctx.camera.has_camera_2_5d) {
+        const auto& cam = ctx.camera.camera_2_5d;
+        key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.position, sizeof(Vec3)));
+        key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.rotation, sizeof(Vec3)));
+        key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.zoom, sizeof(f32)));
+        key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.fov_deg, sizeof(f32)));
+        if (cam.point_of_interest_enabled) {
+            key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.point_of_interest, sizeof(Vec3)));
+        }
     }
 
     return key;
@@ -130,8 +175,97 @@ OwnedFB MultiSourceNode::execute(
         const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.options.ssaa_factor, ctx.options.ssaa_factor, 1.0f));
         const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
 
+        // PR 6: text_run items are dispatched to `renderer::draw_text_run`
+        // (via SoftwareRenderer dynamic_cast) instead of the generic
+        // `RenderBackend::draw_node` because the former routes through the
+        // dedicated SoftwareTextRunProcessor with the per-glyph transform
+        // stack.  The text is rasterized directly onto the SHARED `*fb`
+        // so it composites SRC_OVER any earlier non-text items in the
+        // same layer (vector order).
+        SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(ctx.resources.backend);
+
         for (const auto& item : m_items) {
             if (!item.node) continue;
+
+            // ── PR 6 text_run branch ─────────────────────────────────────
+            // Dispatch to SoftwareTextRunProcessor when:
+            //   - the item carries `is_text_run_shape = true`, AND
+            //   - backend resolved as SoftwareRenderer (mandatory for now).
+            // Falls through to the generic `draw_node` path when the
+            // backend isn't SoftwareRenderer so the layer still produces
+            // partial output (shapes render; text is skipped with a
+            // one-shot error→debug log — see m_backend_warned rationale
+            // in the header).
+            if (item.node->is_text_run_shape) {
+                if (!sw_renderer) {
+                    if (!m_backend_warned) {
+                        spdlog::error(
+                            "[multi-source] node='{}' contains text run items "
+                            "but active backend is {}; skipping text render.  "
+                            "Replace the backend with SoftwareRenderer or "
+                            "implement RenderBackend::draw_text_run to enable "
+                            "this.",
+                            m_name, kNonSoftwareBackendLabel);
+                        m_backend_warned = true;
+                    } else {
+                        spdlog::debug(
+                            "[multi-source] node='{}' text runs still missing "
+                            "SoftwareRenderer (backend={}); skipping.",
+                            m_name, kNonSoftwareBackendLabel);
+                    }
+                    continue;  // text item cannot draw; shapes continue.
+                }
+                if (!item.node->text_run_shape) {
+                    // Orphan text_run: an upstream source-pass already
+                    // logs this once per layer (PR 6 one-shot guard);
+                    // here we silently skip so the layer still produces
+                    // partial output for any non-text siblings on the
+                    // shared framebuffer.
+                    continue;
+                }
+
+                Mat4 world_matrix;
+                if (m_uses_2_5d_projection || m_centered) {
+                    world_matrix = canvas_center * ssaa_scale * item.matrix;
+                } else {
+                    world_matrix = ssaa_scale * item.matrix;
+                }
+
+                renderer::TextRunDrawParams params{
+                    .fb = *fb,
+                    .shape = *item.node->text_run_shape,
+                    .model_matrix = world_matrix,
+                    .opacity = item.opacity,
+                    .diagnostic_mode = ctx.options.diagnostics_enabled,
+                };
+                const bool drew = renderer::draw_text_run(*sw_renderer, params);
+
+                if (renderer::counters_t* rc = sw_renderer->counters()) {
+                    // Best-effort counter wiring — keeps the telemetry
+                    // dashboard picking up text glyph counts across
+                    // multi-source layers.
+                    rc->text_glyphs_rasterized.fetch_add(
+                        static_cast<uint64_t>(item.node->text_run_shape->glyphs.size()),
+                        std::memory_order_relaxed);
+                }
+
+                if (ctx.options.diagnostics_enabled) {
+                    spdlog::debug(
+                        "[multi-source] node='{}' text_run drew={} glyphs={} "
+                        "hash=0x{:016x} opacity={:.3f} tx={:.1f} ty={:.1f}",
+                        m_name,
+                        drew,
+                        item.node->text_run_shape->glyphs.size(),
+                        chronon3d::hash_text_run_shape(*item.node->text_run_shape),
+                        item.opacity,
+                        world_matrix[3][0],
+                        world_matrix[3][1]
+                    );
+                }
+                continue;  // text_run item is rendered; advance to next.
+            }
+
+            // ── regular (non-text-run) item — unchanged from PR 5 ───────
             RenderState state;
             state.frame_number = static_cast<int>(ctx.frame.frame);
             state.ssaa_factor = ctx.options.ssaa_factor;

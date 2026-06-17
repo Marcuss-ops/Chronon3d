@@ -175,27 +175,45 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             return source;
         }
 
-        // Build an aggregated cache key
+        // Build an aggregated cache key.
+        //
+        // PR 6: MultiSourceNode now understands text_run-flagged nodes —
+        // it dispatches them to `renderer::draw_text_run` (via
+        // SoftwareRenderer dynamic_cast) inside `execute()`.  No warning
+        // is emitted: text and shapes coexist in the same layer, in
+        // vector order, and composite onto the shared framebuffer.
+        //
+        // The `hash_text_run_shape(*shape)` fold is intentionally NOT
+        // added here — `MultiSourceNode::cache_key()` re-folds it per
+        // item at evaluation time so animator mutations invalidate the
+        // entry per-frame.  Folding it once at build time would also
+        // work (with refresh as fallback) but doubles the bytes hashed
+        // each evaluation.  Single source of truth lives in `cache_key`.
+        //
+        // Orphan guard (parity with the single-source path's per-item
+        // wiring-error log): if any text_run-flagged node lacks an
+        // attached shape, surface it ONCE per layer so multi-source
+        // errors aren't silent.
         u64 aggregated_params_hash = 0;
         u64 aggregated_source_hash = hash_string(std::string(layer.name) + "_multisource");
-        // PR 3 limitation: MultiSourceNode doesn't know about TextRunShape.
-        // Surface a warning when ANY node in this multi-node layer is flagged
-        // as text_run so the developer knows their text will not render here.
-        bool any_text_run = false;
+        bool saw_orphan_text_run = false;
         for (const auto& node : layer.nodes) {
-            if (node.is_text_run_shape) any_text_run = true;
+            if (node.is_text_run_shape && !node.text_run_shape) {
+                saw_orphan_text_run = true;
+            }
             aggregated_params_hash = hash_combine(aggregated_params_hash, hash_render_node_content_only(node));
             aggregated_source_hash = hash_combine(
                 aggregated_source_hash,
                 hash_combine(hash_string(node.name), hash_render_node_placement_only(node))
             );
         }
-        if (any_text_run) {
-            spdlog::warn(
+        if (saw_orphan_text_run) {
+            spdlog::error(
                 "[source-pass] layer='{}' contains a text_run-flagged node "
-                "in a multi-node layer — MultiSourceNode does not yet support "
-                "TextRunShape (PR 5 limitation). The text will not render "
-                "until this layer is split into one node per layer.",
+                "with null text_run_shape in a multi-node layer — the text "
+                "will be skipped at execute time.  PR 4 wiring forgot to "
+                "attach the shape; check LayerBuilder::text_run + "
+                "materialize_text_run_shape.",
                 layer.name.c_str());
         }
 
@@ -211,6 +229,12 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         std::vector<MultiSourceItem> items;
         items.reserve(layer.nodes.size());
 
+        // Items are pushed unconditionally — even text_run-flagged nodes —
+        // because MultiSourceNode::execute() dispatches on
+        // `item.node->is_text_run_shape` per item (PR 6).  Order is the
+        // layer.nodes vector order, so later items composite SRC_OVER
+        // earlier ones on the shared framebuffer (matches pre-PR-6
+        // behaviour for non-text items).
         for (const auto& node : layer.nodes) {
             const Mat4 shape_matrix = use_local
                 ? node.world_transform.to_mat4()
