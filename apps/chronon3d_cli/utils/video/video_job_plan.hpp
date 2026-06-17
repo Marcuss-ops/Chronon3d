@@ -76,11 +76,6 @@ struct VideoJobPlan {
 
 // ── Legacy entry point (kept for command_video_camera) ──────────────────────
 
-/// Exporter lookup helper — returns a single static registry shared
-/// across validate/execute paths (avoids duplicate singletons).
-class ExporterRegistry;
-[[nodiscard]] ExporterRegistry& shared_exporter_registry();
-
 /// Shared render + encode dispatch used by both the job executor and
 /// the video-camera command (which builds its own composition on the fly).
 /// Validates internally as a safety net for direct callers (e.g.

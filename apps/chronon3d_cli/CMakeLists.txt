@@ -54,11 +54,7 @@ add_library(chronon3d_cli_video STATIC
     commands/video/exporters/pipe_export_result.cpp
     commands/video/common/pipe_export_session.cpp
     commands/video/exporters/video_export_chunked.cpp
-    commands/video/exporter_registry.cpp
-    commands/video/exporters/pipe_exporter.cpp
-    commands/video/exporters/chunked_exporter.cpp
-    commands/video/exporters/null_render_exporter.cpp
-    commands/video/exporters/null_convert_exporter.cpp
+
     utils/video/video_job_plan.cpp
     utils/video/video_job_validate.cpp
     utils/video/video_job_dry_run.cpp

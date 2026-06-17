@@ -26,8 +26,8 @@ PipeExportResult make_pipe_export_result(
 
     // An encoder close failure overrides success: even if all frames were
     // rendered and encoded, a failed close means the output is incomplete
-    // or corrupted. The caller (PipeExporter) relies on return_code for the
-    // process exit code, so both success and return_code must reflect this.
+    // or corrupted. The caller relies on return_code for the process exit
+    // code, so both success and return_code must reflect this.
     if (result.encoder_close_failed) {
         result.success = false;
     }
