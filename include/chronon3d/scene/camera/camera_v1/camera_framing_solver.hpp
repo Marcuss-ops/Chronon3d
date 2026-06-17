@@ -20,6 +20,7 @@
 #include <chronon3d/scene/camera/camera_projection.hpp> // Viewport
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -79,6 +80,14 @@ struct CameraFramingRequest {
     float max_zoom{10000.0f};
     float min_distance{10.0f};
     float max_distance{50000.0f};
+
+    /// Aim-point tolerance in degrees.  If the angular deviation between the
+    /// current aim and the freshly-computed aim (measured at the camera
+    /// origin) is below this threshold, the solver KEEPS the prior aim point
+    /// instead of updating — avoiding micro-adjustments that would otherwise
+    /// manifest as jitter on small camera motions.
+    /// 0 (default) disables gating (preserves legacy behavior).
+    float aim_error_deg{0.0f};
 };
 
 // =========================================================================
@@ -105,12 +114,19 @@ struct CameraFramingResult {
 // Session — state that persists across frames for hysteresis.
 // =========================================================================
 struct FramingSession {
-    Camera2_5D previous_camera{};
-    Vec3       previous_aim_target{0,0,0};
-    float      smoothed_dolly{0.0f};
-    bool       has_previous{false};
+    Camera2_5D          previous_camera{};
+    /// Last aim point returned by compute_aim_point (post-gate).  std::optional
+    /// is intentional — the previous_aim_target Vec3 default of (0,0,0) would
+    /// otherwise be truthy and the aim-error gate would misfire on cold start
+    /// against the world origin.
+    std::optional<Vec3> previous_aim_target;
+    float               smoothed_dolly{0.0f};
+    bool                has_previous{false};
 
-    void reset() { *this = {}; }
+    void reset() {
+        *this = {};
+        previous_aim_target.reset();
+    }
 };
 
 // =========================================================================
@@ -137,9 +153,13 @@ private:
     float compute_dolly(const CameraFramingRequest& req,
                          const Camera2_5D& cam) const;
 
-    /// Target aim point in world space.
+    /// Target aim point in world space.  When req.aim_error_deg > 0 and the
+    /// session has a prior aim_target, the resulting aim is snapped to the
+    /// prior point unless the angular deviation (measured at the camera
+    /// origin) exceeds req.aim_error_deg.
     Vec3 compute_aim_point(const CameraFramingRequest& req,
-                            const Camera2_5D& cam) const;
+                            const Camera2_5D& cam,
+                            const FramingSession& session) const;
 
     /// Apply dead zone + hysteresis to smooth the transition.
     Camera2_5D apply_dead_zone(const Camera2_5D& target,

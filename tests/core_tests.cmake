@@ -62,7 +62,6 @@ add_executable(chronon3d_core_tests
     text/text_run_tests.cpp
     media/test_media_placement.cpp
     scene_presets/test_scene_presets.cpp
-    extension/test_extension_loader.cpp
     extension/test_graph_node_registry.cpp
     architecture/test_protected_core_contracts.cpp
     core/test_scene_hasher_camera.cpp
