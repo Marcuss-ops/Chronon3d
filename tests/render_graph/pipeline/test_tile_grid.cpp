@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/core/tile_grid.hpp>
 #include <chronon3d/core/dirty_tile_mask.hpp>
+using namespace chronon3d;
 
 using namespace chronon3d::raster;
 

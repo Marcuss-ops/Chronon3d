@@ -5,8 +5,8 @@
 
 #include <doctest/doctest.h>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 // Register built-in compositions once before any test case.
 static bool _bg_registered = (chronon3d::register_builtin_compositions(), true);

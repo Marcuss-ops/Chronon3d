@@ -14,8 +14,8 @@
 using namespace test_fx;
 #include <set>
 #include <string>
-
 using namespace chronon3d;
+
 using namespace chronon3d::effects;
 
 // =============================================================================

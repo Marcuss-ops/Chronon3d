@@ -5,8 +5,8 @@
 #include <chronon3d/math/color.hpp>
 #include <cmath>
 #include <vector>
-
 using namespace chronon3d;
+
 using namespace chronon3d::video;
 
 // ---------------------------------------------------------------------------

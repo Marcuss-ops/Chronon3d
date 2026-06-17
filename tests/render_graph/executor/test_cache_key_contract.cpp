@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/cache/node_cache.hpp>
 #include <unordered_set>
+using namespace chronon3d;
 
 using namespace chronon3d::cache;
 

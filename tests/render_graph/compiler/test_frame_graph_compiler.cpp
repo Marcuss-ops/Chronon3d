@@ -6,8 +6,8 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <memory>
 #include <stdexcept>
-
 using namespace chronon3d;
+
 using namespace chronon3d::graph;
 
 namespace {

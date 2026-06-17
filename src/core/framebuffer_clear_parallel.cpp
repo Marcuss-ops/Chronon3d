@@ -9,6 +9,8 @@
 // we split the framebuffer into bands and clear each band in parallel.
 
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/parallel_tracked.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>

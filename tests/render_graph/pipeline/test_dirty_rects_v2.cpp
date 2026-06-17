@@ -12,8 +12,8 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <cmath>
 #include <algorithm>
-
 using namespace chronon3d;
+
 
 namespace {
 

@@ -3,6 +3,7 @@
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <blend2d.h>
 #include <spdlog/spdlog.h>
 

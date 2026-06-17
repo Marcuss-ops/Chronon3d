@@ -7,8 +7,8 @@
 #include <tests/helpers/test_utils.hpp>
 
 #include <xxhash.h>
-
 using namespace chronon3d;
+
 using namespace chronon3d::test;
 
 namespace {

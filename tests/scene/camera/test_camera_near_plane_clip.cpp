@@ -16,8 +16,8 @@
 #include <chronon3d/math/transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 // ────────────────────────────────────────────────────────────────────────────
 // Sutherland-Hodgman clipping unit tests

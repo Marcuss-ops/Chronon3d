@@ -9,8 +9,8 @@
 #include <tests/helpers/test_utils.hpp>
 #include <filesystem>
 #include <cmath>
-
 using namespace chronon3d;
+
 using namespace chronon3d::test;
 
 namespace {

@@ -2,8 +2,8 @@
 #include <chronon3d/backends/software/rasterizers/card3d_material_rasterizer.hpp>
 #include <chronon3d/scene/model/core/card3d_material.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
-
 using namespace chronon3d;
+
 using namespace chronon3d::renderer;
 
 static Card3DMaterial default_material() {

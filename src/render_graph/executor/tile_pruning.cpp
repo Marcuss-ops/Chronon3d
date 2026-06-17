@@ -1,6 +1,7 @@
 #include "execution_state.hpp"
 #include <chronon3d/core/dirty_fallback_reason.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 namespace chronon3d::graph {
 

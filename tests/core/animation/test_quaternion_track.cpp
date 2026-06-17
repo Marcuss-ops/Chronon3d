@@ -2,8 +2,8 @@
 #include <chronon3d/animation/core/quaternion_track.hpp>
 #include <chronon3d/animation/effects/animated_transform.hpp>
 #include <chronon3d/math/glm_types.hpp>
-
 using namespace chronon3d;
+
 
 // =========================================================================
 // AnimatedQuat — quaternion track with slerp

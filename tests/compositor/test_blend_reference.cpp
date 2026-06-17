@@ -19,8 +19,8 @@
 
 #include <random>
 #include <cmath>
-
 using namespace chronon3d;
+
 using namespace chronon3d::blend_math;
 using namespace chronon3d::test;
 

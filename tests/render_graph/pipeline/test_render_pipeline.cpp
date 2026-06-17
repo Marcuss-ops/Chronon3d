@@ -4,8 +4,8 @@
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
-
 using namespace chronon3d;
+
 using namespace chronon3d::graph;
 
 TEST_CASE("RenderPipeline - render_scene_via_graph produces valid framebuffer") {

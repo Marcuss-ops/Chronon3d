@@ -27,8 +27,8 @@
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 TEST_CASE("Camera projection contract: center point projects to viewport centre") {
     Camera2_5D cam;

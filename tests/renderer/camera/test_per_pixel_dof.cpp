@@ -23,8 +23,8 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
-
 using namespace chronon3d;
+
 
 static const LensModel kDefaultLens;
 

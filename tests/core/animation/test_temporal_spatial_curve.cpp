@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/animation/core/temporal_spatial_curve.hpp>
 #include <chronon3d/math/glm_types.hpp>
-
 using namespace chronon3d;
+
 
 // =========================================================================
 // CubicBezier3D — pure math

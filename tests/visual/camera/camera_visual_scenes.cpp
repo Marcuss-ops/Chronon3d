@@ -3,6 +3,7 @@
 
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/model/camera/camera_rig.hpp>
+using namespace chronon3d;
 
 namespace chronon3d::test {
 

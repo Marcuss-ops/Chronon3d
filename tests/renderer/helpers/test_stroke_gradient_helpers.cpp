@@ -13,8 +13,8 @@
 #include <chronon3d/scene/model/shape/fill.hpp>
 #include <chronon3d/math/color.hpp>
 #include "src/backends/software/rasterizers/shape_rasterizer_helpers.hpp"
-
 using namespace chronon3d;
+
 using namespace chronon3d::renderer;
 
 // ── Helpers ─────────────────────────────────────────────────────────────

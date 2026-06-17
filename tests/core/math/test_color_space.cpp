@@ -2,8 +2,8 @@
 #include <chronon3d/math/color.hpp>
 #include <optional>
 #include <algorithm>
-
 using namespace chronon3d;
+
 
 TEST_CASE("Color: safe hex parsing") {
     SUBCASE("try_from_hex") {

@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 
+
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 
 #include <atomic>
@@ -8,6 +9,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+using namespace chronon3d;
 
 namespace {
 

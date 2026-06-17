@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 TEST_CASE("Camera2_5D projection: subject at z=0 has scale 1 with default zoom") {
     Camera2_5D cam;

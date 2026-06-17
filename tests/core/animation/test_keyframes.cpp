@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/animation/core/keyframe.hpp>
-
 using namespace chronon3d;
+
 
 // ---------------------------------------------------------------------------
 TEST_CASE("keyframes: before first holds first value") {

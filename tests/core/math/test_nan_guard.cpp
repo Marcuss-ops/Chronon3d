@@ -5,8 +5,8 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <cmath>
 #include <limits>
-
 using namespace chronon3d;
+
 
 namespace {
 

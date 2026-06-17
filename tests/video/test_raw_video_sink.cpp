@@ -32,6 +32,7 @@
 #include <fstream>
 #include <memory>
 #include <vector>
+using namespace chronon3d;
 
 using namespace chronon3d::media::video;
 

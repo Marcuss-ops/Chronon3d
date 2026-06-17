@@ -5,8 +5,8 @@
 #include <OpenEXR/ImfInputFile.h>
 #include <OpenEXR/ImfChannelList.h>
 #include <filesystem>
-
 using namespace chronon3d;
+
 
 TEST_CASE("save_exr writes RGBA EXR file (float)") {
     const std::string path = "output/tests/io/test_frame_float.exr";

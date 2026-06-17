@@ -6,8 +6,8 @@
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <fstream>
 #include <vector>
-
 using namespace chronon3d;
+
 
 TEST_CASE("PNG Validity - Contro-test 6") {
     Framebuffer fb(100, 100);

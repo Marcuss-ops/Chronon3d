@@ -8,8 +8,8 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 using namespace chronon3d::graph;
 
 namespace {

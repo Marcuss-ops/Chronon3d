@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/cache/video_frame_cache.hpp>
+using namespace chronon3d;
 
 using namespace chronon3d::cache;
 

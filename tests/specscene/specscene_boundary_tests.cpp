@@ -8,8 +8,8 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <filesystem>
 #include <fstream>
-
 using namespace chronon3d;
+
 using namespace chronon3d::specscene;
 
 TEST_CASE("Test 14.1 — TOML compilation and pipeline rendering parity") {

@@ -2,8 +2,8 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/registry/shape_ids.hpp>
-
 using namespace chronon3d;
+
 namespace shape_ids = chronon3d::registry::shape_ids;
 
 TEST_CASE("SceneBuilder minimal") {

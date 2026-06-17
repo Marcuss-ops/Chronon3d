@@ -11,8 +11,8 @@
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include "src/backends/software/utils/render_effects_processor.hpp"
-
 using namespace chronon3d;
+
 using namespace chronon3d::effects;
 using namespace chronon3d::renderer;
 

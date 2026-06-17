@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/presets/text/text_style_presets.hpp>
-
 using namespace chronon3d;
+
 
 TEST_CASE("Text presets: premium stack exposes richer text styles") {
     SUBCASE("Premium hero title has gradient, stroke and material") {

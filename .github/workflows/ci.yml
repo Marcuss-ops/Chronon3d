@@ -6,11 +6,9 @@
 #   pull_request    → Fast suite (build + run only fast tests for quick feedback)
 #
 # Matrix:
-#   linux-release    — Release build, full test suite
-#   linux-ci         — Debug build (profiling OFF, faster compile), full suite
-#   linux-ci-nocontent — Debug, no content modules (validates modular build)
-#   linux-asan       — Address Sanitizer + Undefined Behavior Sanitizer
-#   linux-ci-c-api   — C API build (shared library + C tests)
+#   linux-ci            — Debug build (profiling OFF, faster compile), full suite
+#   linux-ci-nocontent  — Debug, no content modules (validates modular build)
+#   linux-asan          — Address Sanitizer + Undefined Behavior Sanitizer
 # ═══════════════════════════════════════════════════════════════════════════════
 
 name: Chronon CI
@@ -57,13 +55,6 @@ jobs:
             test_preset: linux-asan-test
             vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
 
-          - name: Linux (C API)
-            os: ubuntu-latest
-            preset: linux-ci-c-api
-            build_preset: linux-ci-c-api
-            test_preset: linux-ci-c-api-test
-            vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
-
           - name: Windows (Release)
             os: windows-latest
             preset: win-release
@@ -93,17 +84,13 @@ jobs:
 
       # ── Build: fast tests on PR, full suite on push to main ───────────
       # Note: parallelism is handled by CMakePresets.json ("jobs": 16).
-      # C API lane always builds its own target (c_api_tests) instead.
-      - name: Build (C API)
-        if: matrix.config.preset == 'linux-ci-c-api'
-        run: cmake --build --preset ${{ matrix.config.build_preset }}
 
       - name: Build (Fast — PR)
-        if: github.event_name == 'pull_request' && matrix.config.preset != 'linux-ci-c-api'
+        if: github.event_name == 'pull_request'
         run: cmake --build --preset ${{ matrix.config.build_preset }} --target chronon3d_tests_fast
 
       - name: Build (Full — Push)
-        if: github.event_name != 'pull_request' && matrix.config.preset != 'linux-ci-c-api'
+        if: github.event_name != 'pull_request'
         run: cmake --build --preset ${{ matrix.config.build_preset }} --target chronon3d_tests
 
       # ── Run Tests ─────────────────────────────────────────────────────

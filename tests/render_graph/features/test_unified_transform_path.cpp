@@ -17,8 +17,8 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
-
 using namespace chronon3d;
+
 using namespace chronon3d::test;
 
 namespace {

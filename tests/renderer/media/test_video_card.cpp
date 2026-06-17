@@ -10,8 +10,8 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <tests/helpers/render_fixtures.hpp>
 #include <tests/helpers/test_utils.hpp>
-
 using namespace chronon3d;
+
 using namespace chronon3d::test;
 
 namespace {

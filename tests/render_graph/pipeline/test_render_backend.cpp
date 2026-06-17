@@ -8,8 +8,8 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
-
 using namespace chronon3d;
+
 using namespace chronon3d::graph;
 
 class FakeBackend : public RenderBackend {

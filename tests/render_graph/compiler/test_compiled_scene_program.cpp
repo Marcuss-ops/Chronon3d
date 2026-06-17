@@ -49,8 +49,8 @@
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
 
 #include <memory>
-
 using namespace chronon3d;
+
 using namespace chronon3d::graph;
 using namespace chronon3d::test;
 

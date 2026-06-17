@@ -2,8 +2,8 @@
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/rendering/lighting_eval.hpp>
 #include <glm/glm.hpp>
-
 using namespace chronon3d;
+
 using namespace chronon3d::rendering;
 
 TEST_CASE("LightContext: default_scene matches legacy FakeBox3D constants") {

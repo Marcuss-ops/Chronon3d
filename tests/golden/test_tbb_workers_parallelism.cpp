@@ -16,8 +16,8 @@
 #include <cstdlib>
 #include <filesystem>
 #include <string>
-
 using namespace chronon3d;
+
 using namespace chronon3d::test;
 
 namespace {

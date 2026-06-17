@@ -2,6 +2,7 @@
 #include <chronon3d/math/expression.hpp>
 #include <cmath>
 #include <limits>
+using namespace chronon3d;
 
 using namespace chronon3d::math;
 

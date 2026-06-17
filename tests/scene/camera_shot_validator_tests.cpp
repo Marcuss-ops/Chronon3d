@@ -3,8 +3,8 @@
 #include <chronon3d/scene/camera/camera_shot_validator.hpp>
 #include <chronon3d/scene/model/core/transform_resolver.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 TEST_CASE("Camera Shot Validator logic check") {
     Camera2_5D camera;

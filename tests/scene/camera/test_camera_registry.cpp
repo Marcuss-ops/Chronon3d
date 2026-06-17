@@ -26,6 +26,7 @@
 #include <string>
 #include <vector>
 #include <set>
+using namespace chronon3d;
 
 namespace {
 

@@ -15,8 +15,8 @@
 #include <cmath>
 #include <memory>
 #include <vector>
-
 using namespace chronon3d;
+
 using namespace chronon3d::test;
 
 namespace {

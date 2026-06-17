@@ -3,6 +3,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/math/color.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>

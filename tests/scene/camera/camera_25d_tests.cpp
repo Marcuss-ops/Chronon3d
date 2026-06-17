@@ -10,8 +10,8 @@
 #include <chronon3d/api/renderer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 namespace {
 

@@ -8,8 +8,8 @@
 #include <limits>
 #include <span>
 #include <vector>
-
 using namespace chronon3d;
+
 
 // ---------------------------------------------------------------------------
 // Helpers

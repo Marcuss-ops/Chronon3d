@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/animation/easing/spring.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 TEST_CASE("Spring — underdamped (default config)") {
     f32 from = 0.0f;

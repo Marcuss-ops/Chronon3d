@@ -8,8 +8,8 @@
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 namespace {
 

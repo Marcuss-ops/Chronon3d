@@ -2,8 +2,8 @@
 #include <chronon3d/scene/model/core/transform_resolver.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 TEST_CASE("Transform3D: local matrix calculations with anchor point") {
     Transform3D t;

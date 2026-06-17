@@ -27,6 +27,7 @@
 
 #include <cmath>
 #include <string>
+using namespace chronon3d;
 
 namespace {
 

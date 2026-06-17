@@ -23,8 +23,8 @@ using namespace test_fx;
 #include <cstdint>
 #include <random>
 #include <vector>
-
 using namespace chronon3d;
+
 
 // =============================================================================
 // 1. Curva identità (sezione 6.1)
