@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <span>
 #include <vector>
 
 using namespace chronon3d;
@@ -51,7 +52,7 @@ TEST_CASE("simd::composite_normal_premul fully opaque src replaces dst") {
         ref[i] = src[i];
     }
 
-    simd::composite_normal_premul(dst, src, N);
+    simd::composite_normal_premul(std::span<Color>(dst, N), std::span<const Color>(src, N));
 
     auto diff = compare_buffers(dst, ref, N);
     CHECK(diff.max_diff < 1e-5f);
@@ -68,7 +69,7 @@ TEST_CASE("simd::composite_normal_premul transparent src leaves dst unchanged") 
         ref[i] = dst[i];
     }
 
-    simd::composite_normal_premul(dst, src, N);
+    simd::composite_normal_premul(std::span<Color>(dst, N), std::span<const Color>(src, N));
 
     auto diff = compare_buffers(dst, ref, N);
     CHECK(diff.max_diff < 1e-5f);
@@ -94,7 +95,7 @@ TEST_CASE("simd::composite_normal_premul partial alpha blends correctly") {
         };
     }
 
-    simd::composite_normal_premul(dst, src, N);
+    simd::composite_normal_premul(std::span<Color>(dst, N), std::span<const Color>(src, N));
 
     auto diff = compare_buffers(dst, ref, N);
     CHECK(diff.max_diff < 1e-5f);
@@ -124,8 +125,8 @@ TEST_CASE("simd::composite_normal_premul large buffer is deterministic") {
 
     // Run twice — should produce identical results
     std::vector<Color> copy = dst;
-    simd::composite_normal_premul(dst.data(), src.data(), N);
-    simd::composite_normal_premul(copy.data(), src.data(), N);
+    simd::composite_normal_premul(std::span<Color>(dst), std::span<const Color>(src));
+    simd::composite_normal_premul(std::span<Color>(copy), std::span<const Color>(src));
 
     auto diff = compare_buffers(dst.data(), copy.data(), N);
     CHECK(diff.max_diff < 1e-6f);
@@ -161,7 +162,7 @@ TEST_CASE("simd::composite_normal_premul matches scalar reference") {
         };
     }
 
-    simd::composite_normal_premul(dst.data(), src.data(), N);
+    simd::composite_normal_premul(std::span<Color>(dst), std::span<const Color>(src));
 
     auto diff = compare_buffers(dst.data(), scalar_ref.data(), N);
     CHECK_MESSAGE(diff.max_diff < 1e-5f,
@@ -207,7 +208,7 @@ TEST_CASE("simd::composite_normal_premul NaN src (canary: first pixel) triggers 
     src[0] = Color{std::numeric_limits<float>::quiet_NaN(), 0.5f, 0.5f, 0.5f};
     ref[0] = dst[0]; // scalar fallback skips bad pixel → dst unchanged
 
-    simd::composite_normal_premul(dst, src, N);
+    simd::composite_normal_premul(std::span<Color>(dst, N), std::span<const Color>(src, N));
 
     // First pixel: should be left untouched (fallback skipped it)
     CHECK_EQ(dst[0].r, doctest::Approx(ref[0].r));
@@ -251,7 +252,7 @@ TEST_CASE("simd::composite_normal_premul NaN dst (canary: last pixel) triggers f
     ref[N - 1] = dst[N - 1]; // fallback skips bad pixel → but dst was already set to NaN so it stays NaN
     // Actually, fallback skips if has_bad(dst), so dst[N-1] stays unchanged (NaN)
 
-    simd::composite_normal_premul(dst, src, N);
+    simd::composite_normal_premul(std::span<Color>(dst, N), std::span<const Color>(src, N));
 
     // Last pixel: untouched by fallback (bad dst detected)
     // All other pixels: blended correctly
@@ -287,7 +288,7 @@ TEST_CASE("simd::composite_normal_premul Inf src (canary: first+last both good) 
         };
     }
 
-    simd::composite_normal_premul(dst.data(), src.data(), N);
+    simd::composite_normal_premul(std::span<Color>(dst), std::span<const Color>(src));
 
     auto diff = compare_buffers(dst.data(), ref.data(), N);
     CHECK(diff.max_diff < 1e-5f);
@@ -308,7 +309,7 @@ TEST_CASE("simd::clear_framebuffer fills with constant color") {
     std::vector<Color> buf(N, Color{1.0f, 1.0f, 1.0f, 1.0f});
     const Color clear_color{0.3f, 0.6f, 0.9f, 1.0f};
 
-    simd::clear_framebuffer(buf.data(), N, clear_color);
+    simd::clear_framebuffer(std::span<Color>(buf), clear_color);
 
     for (int i = 0; i < N; ++i) {
         CHECK_EQ(buf[i].r, doctest::Approx(0.3f));
@@ -322,7 +323,7 @@ TEST_CASE("simd::clear_framebuffer single pixel") {
     std::vector<Color> buf(1, Color{0.0f, 0.0f, 0.0f, 0.0f});
     const Color clear_color{0.5f, 0.5f, 0.5f, 0.5f};
 
-    simd::clear_framebuffer(buf.data(), 1, clear_color);
+    simd::clear_framebuffer(std::span<Color>(buf), clear_color);
 
     CHECK_EQ(buf[0].r, doctest::Approx(0.5f));
     CHECK_EQ(buf[0].g, doctest::Approx(0.5f));
@@ -333,7 +334,7 @@ TEST_CASE("simd::clear_framebuffer single pixel") {
 TEST_CASE("simd::clear_framebuffer zero pixels is safe") {
     Color buf[1] = {Color{1.0f, 1.0f, 1.0f, 1.0f}};
     // Should not crash
-    simd::clear_framebuffer(buf, 0, Color{0.0f, 0.0f, 0.0f, 1.0f});
+    simd::clear_framebuffer(std::span<Color>(buf, 0), Color{0.0f, 0.0f, 0.0f, 1.0f});
     CHECK_EQ(buf[0].r, doctest::Approx(1.0f)); // unchanged
 }
 
