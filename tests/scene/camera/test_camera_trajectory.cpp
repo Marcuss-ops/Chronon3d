@@ -25,14 +25,12 @@
 #include <vector>
 #include <algorithm>
 
-#if 0  // Disabled: Camera V1 API refactored — SampleTime::from_frame() now requires FrameRate,
-       // CameraMotionContext::at() API changed, duration_frames() signature changed.
-
 namespace {
 
 using namespace chronon3d::camera_v1;
 
 constexpr float kEps = 1e-4f;
+constexpr FrameRate kFps30{30, 1};
 
 inline bool approx(float a, float b, float tol = kEps) {
     return std::abs(a - b) <= tol;
@@ -77,7 +75,7 @@ TEST_CASE("CameraTrajectory linear uses segment indices") {
 
     // At frame 0:  should be at P0,   tangent toward P1.
     {
-        auto ctx = CameraMotionContext::at(chronon3d::Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0});
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(0, 0, 0)));
         // Tangent points toward P1 (not toward P2 which would be direction (20,0,0)).
@@ -87,9 +85,8 @@ TEST_CASE("CameraTrajectory linear uses segment indices") {
 
     // At frame 30: beginning of second segment → at P1, tangent toward P2.
     {
-        // ctx.sample_time.frame = 30.0
-        auto ctx = CameraMotionContext::at(chronon3d::Frame{0});
-        ctx.sample_time = chronon3d::SampleTime::from_frame(30.0, 30.0);
+        auto ctx = CameraMotionContext::at(Frame{0});
+        ctx.sample_time = SampleTime::from_frame(30.0, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(10, 0, 0)));
         // Tangent should point toward P2 (20,0,0) not P0 (0,0,0).
@@ -98,8 +95,8 @@ TEST_CASE("CameraTrajectory linear uses segment indices") {
 
     // At frame 60: end of last segment → at P2.
     {
-        auto ctx = CameraMotionContext::at(chronon3d::Frame{0});
-        ctx.sample_time = chronon3d::SampleTime::from_frame(60.0, 30.0);
+        auto ctx = CameraMotionContext::at(Frame{0});
+        ctx.sample_time = SampleTime::from_frame(60.0, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(20, 0, 0)));
     }
@@ -116,11 +113,11 @@ TEST_CASE("CameraTrajectory Bezier derivative matches finite difference") {
     auto tr = b.build();
 
     // Sample position at t=0.5 and at t=0.5+dt, compute finite-difference tangent.
-    auto ctx = CameraMotionContext::at(chronon3d::Frame{0});
-    ctx.sample_time = chronon3d::SampleTime::from_frame(30.0, 30.0);
+    auto ctx = CameraMotionContext::at(Frame{0});
+    ctx.sample_time = SampleTime::from_frame(30.0, kFps30);
     auto s0 = tr->sample(ctx);
 
-    ctx.sample_time = chronon3d::SampleTime::from_frame(30.1, 30.0);
+    ctx.sample_time = SampleTime::from_frame(30.1, kFps30);
     auto s1 = tr->sample(ctx);
 
     Vec3 fd_tangent = {
@@ -151,8 +148,8 @@ TEST_CASE("CameraTrajectory handle contract uses local offsets") {
      .duration_frames(30);
     auto tr = b.build();
 
-    auto ctx = CameraMotionContext::at(chronon3d::Frame{0});
-    ctx.sample_time = chronon3d::SampleTime::from_frame(15.0, 30.0);
+    auto ctx = CameraMotionContext::at(Frame{0});
+    ctx.sample_time = SampleTime::from_frame(15.0, kFps30);
     auto s = tr->sample(ctx);
 
     // At t=0.5, should be near the midpoint (100, 0, -1000).
@@ -168,31 +165,31 @@ TEST_CASE("CameraTrajectory samples fractional frames") {
     auto tr = make_linear(make_vec(0, 0, 0), make_vec(100, 0, 0));
     // At integer frame 0: position = (0,0,0)
     {
-        auto ctx = CameraMotionContext::at(chronon3d::Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0});
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(0, 0, 0)));
     }
     // At fractional frame 15.0 (halfway): position = (50,0,0)
     {
-        auto ctx = CameraMotionContext::at(chronon3d::Frame{0});
-        ctx.sample_time = chronon3d::SampleTime::from_frame(15.0, 30.0);
+        auto ctx = CameraMotionContext::at(Frame{0});
+        ctx.sample_time = SampleTime::from_frame(15.0, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(50, 0, 0)));
     }
     // At frame 30.0 (end): position = (100,0,0)
     {
-        auto ctx = CameraMotionContext::at(chronon3d::Frame{0});
-        ctx.sample_time = chronon3d::SampleTime::from_frame(30.0, 30.0);
+        auto ctx = CameraMotionContext::at(Frame{0});
+        ctx.sample_time = SampleTime::from_frame(30.0, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(100, 0, 0)));
     }
     // At frame 15.5 (sub-frame): position should differ from frame 15.
     {
-        auto ctx = CameraMotionContext::at(chronon3d::Frame{0});
-        ctx.sample_time = chronon3d::SampleTime::from_frame(15.5, 30.0);
+        auto ctx = CameraMotionContext::at(Frame{0});
+        ctx.sample_time = SampleTime::from_frame(15.5, kFps30);
         auto s_sub = tr->sample(ctx);
 
-        ctx.sample_time = chronon3d::SampleTime::from_frame(15.0, 30.0);
+        ctx.sample_time = SampleTime::from_frame(15.0, kFps30);
         auto s_int = tr->sample(ctx);
         CHECK_FALSE(approx_vec(s_sub.position, s_int.position, 0.01f));
     }
@@ -264,9 +261,9 @@ TEST_CASE("Arc-length spacing CV less than 0.03") {
     constexpr int N = 32;
     std::vector<Vec3> positions;
     for (int i = 0; i <= N; ++i) {
-        auto ctx = CameraMotionContext::at(chronon3d::Frame{0});
-        ctx.sample_time = chronon3d::SampleTime::from_frame(
-            static_cast<double>(i) * 60.0 / static_cast<double>(N), 30.0);
+        auto ctx = CameraMotionContext::at(Frame{0});
+        ctx.sample_time = SampleTime::from_frame(
+            static_cast<double>(i) * 60.0 / static_cast<double>(N), kFps30);
         positions.push_back(tr->sample(ctx).position);
     }
 
@@ -299,23 +296,23 @@ TEST_CASE("Multi-segment trajectory respects every boundary") {
 
     // Segment 0: Linear, frames [0, 30).  At frame 0 → P0.
     {
-        auto ctx = CameraMotionContext::at(chronon3d::Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0});
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(0, 0, -1000)));
     }
 
     // Segment 0→1 boundary: frame 30 should be P1 (end of linear seg).
     {
-        auto ctx = CameraMotionContext::at(chronon3d::Frame{0});
-        ctx.sample_time = chronon3d::SampleTime::from_frame(30.0, 30.0);
+        auto ctx = CameraMotionContext::at(Frame{0});
+        ctx.sample_time = SampleTime::from_frame(30.0, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(100, 50, -800)));
     }
 
     // Segment 1: Bezier, frames [30, 75).  Midpoint at frame 52.5.
     {
-        auto ctx = CameraMotionContext::at(chronon3d::Frame{0});
-        ctx.sample_time = chronon3d::SampleTime::from_frame(52.5, 30.0);
+        auto ctx = CameraMotionContext::at(Frame{0});
+        ctx.sample_time = SampleTime::from_frame(52.5, kFps30);
         auto s = tr->sample(ctx);
         // Should NOT be at P1 or P2; should be somewhere on the bezier curve.
         CHECK_FALSE(approx_vec(s.position, make_vec(100, 50, -800)));
@@ -324,16 +321,16 @@ TEST_CASE("Multi-segment trajectory respects every boundary") {
 
     // Segment 1→2 boundary: frame 75 should be P2 (end of bezier seg).
     {
-        auto ctx = CameraMotionContext::at(chronon3d::Frame{0});
-        ctx.sample_time = chronon3d::SampleTime::from_frame(75.0, 30.0);
+        auto ctx = CameraMotionContext::at(Frame{0});
+        ctx.sample_time = SampleTime::from_frame(75.0, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(300, 100, -600)));
     }
 
     // Segment 2: CatmullRom, frames [75, 135).  End at frame 135.
     {
-        auto ctx = CameraMotionContext::at(chronon3d::Frame{0});
-        ctx.sample_time = chronon3d::SampleTime::from_frame(135.0, 30.0);
+        auto ctx = CameraMotionContext::at(Frame{0});
+        ctx.sample_time = SampleTime::from_frame(135.0, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(500, 0, -400)));
     }
@@ -352,8 +349,8 @@ TEST_CASE("Hold segment preserves exact position") {
     // hold_for creates a Hold segment at the last point for 20 frames.
     // At frame 15 (mid-hold): position should equal P1 (100,0,0).
     {
-        auto ctx = CameraMotionContext::at(chronon3d::Frame{0});
-        ctx.sample_time = chronon3d::SampleTime::from_frame(15.0, 30.0);
+        auto ctx = CameraMotionContext::at(Frame{0});
+        ctx.sample_time = SampleTime::from_frame(15.0, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(100, 0, 0)));
         CHECK(approx(s.tangent.x, 0.0f));
@@ -362,8 +359,8 @@ TEST_CASE("Hold segment preserves exact position") {
     }
     // At frame 30 (end): still at same position.
     {
-        auto ctx = CameraMotionContext::at(chronon3d::Frame{0});
-        ctx.sample_time = chronon3d::SampleTime::from_frame(30.0, 30.0);
+        auto ctx = CameraMotionContext::at(Frame{0});
+        ctx.sample_time = SampleTime::from_frame(30.0, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(100, 0, 0)));
     }
@@ -379,8 +376,8 @@ TEST_CASE("Zero-length segment never emits NaN") {
     auto tr = b.build();
 
     for (int f = 0; f <= 30; f += 10) {
-        auto ctx = CameraMotionContext::at(chronon3d::Frame{0});
-        ctx.sample_time = chronon3d::SampleTime::from_frame(static_cast<double>(f), 30.0);
+        auto ctx = CameraMotionContext::at(Frame{0});
+        ctx.sample_time = SampleTime::from_frame(static_cast<double>(f), kFps30);
         auto s = tr->sample(ctx);
         CHECK_FALSE(std::isnan(s.position.x));
         CHECK_FALSE(std::isnan(s.position.y));
@@ -392,5 +389,3 @@ TEST_CASE("Zero-length segment never emits NaN") {
 }
 
 } // namespace
-
-#endif // #if 0 — disabled test file
