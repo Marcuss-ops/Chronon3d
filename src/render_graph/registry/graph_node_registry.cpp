@@ -2,7 +2,6 @@
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 
 #include <ranges>
-#include <algorithm>
 #include <stdexcept>
 
 namespace chronon3d::graph {
