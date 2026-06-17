@@ -1,6 +1,11 @@
 #pragma once
 
-#include <chronon3d/specscene/model/specscene.hpp>
+// specscene/model/specscene.hpp was removed during the Camera V1 cleanup pass;
+// this parser lives on as header-only TOML helpers but no longer needs the
+// deleted model header. Commented instead of deleted in case a future specscene
+// module reintroduces these types under the original path.
+// #include <chronon3d/specscene/model/specscene.hpp>
+
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/model/core/depth_role.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
