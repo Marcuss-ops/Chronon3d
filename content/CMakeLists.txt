@@ -30,6 +30,7 @@ add_library(chronon3d_content STATIC
     anims/compositions/dolly_zoom_showcase.cpp
     anims/compositions/text_animations.cpp
     anims/compositions/tilt_sweep_title_v2.cpp
+    anims/compositions/cinematic_text_camera.cpp
 
     # Minimalist
     Minimalist/minimalist_animations.cpp
