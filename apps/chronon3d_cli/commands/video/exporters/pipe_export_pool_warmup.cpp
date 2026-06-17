@@ -22,7 +22,7 @@ namespace {
 // margins). Pre-warming them gives exact-hit + best-fit reuse instead of
 // fresh allocations on the hot EffectStack path.
 void warmup_text_size_classes(cache::FramebufferPool& pool) {
-    struct TextSizeClass { int w; int h; int count; const char* label; };
+    struct TextSizeClass { int w; int h; size_t count; const char* label; };
     // Counts tuned against the FramebufferPool default budget (384 MB) so the
     // total preallocation stays well under the cap. Color is float4 = 16 B/px,
     // so e.g. the canvas bucket (1920×1152) costs ~35 MB per buffer. The

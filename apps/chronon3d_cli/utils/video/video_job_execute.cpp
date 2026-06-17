@@ -3,15 +3,15 @@
 // ---------------------------------------------------------------------------
 
 #include "video_job_plan.hpp"
-#include "../../commands/video/exporter_registry.hpp"
+#include "../../commands/video/common/pipe_export_session.hpp"
+#include "../../commands/video/common/video_export_common.hpp"
 #include <chronon3d/core/cancellation_token.hpp>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::cli {
 
 // ── Helper: assemble FfmpegExportOptions from focused sub-option structs ────
-// Single point where the legacy flat options struct is populated, so both
-// the FFmpeg and null-sink paths stay in sync.
+// Single point where the legacy flat options struct is populated.
 
 [[nodiscard]] static FfmpegExportOptions make_ffmpeg_opts(const VideoJobPlan& plan) {
     FfmpegExportOptions opts;
@@ -21,17 +21,6 @@ namespace chronon3d::cli {
     opts.warmup    = plan.warmup;
     opts.sink      = plan.sink;
     return opts;
-}
-
-// ── Shared exporter registry (single instance across validate + execute) ────
-
-ExporterRegistry& shared_exporter_registry() {
-    static ExporterRegistry reg = []() {
-        ExporterRegistry r;
-        register_builtin_exporters(r);
-        return r;
-    }();
-    return reg;
 }
 
 // ── Shared render + encode dispatch ─────────────────────────────────────────
@@ -47,13 +36,11 @@ int render_and_encode_ffmpeg(
 {
     // Safety-net validation for direct callers (e.g. command_video_camera)
     // that bypass validate_video_job().
-    if (opts.output.output.empty() &&
-        opts.sink.sink_type != VideoSinkType::NullRender &&
-        opts.sink.sink_type != VideoSinkType::NullConvert) {
+    if (opts.output.output.empty()) {
         spdlog::error("[video] No output path specified.");
         return 1;
     }
-    if (opts.sink.sink_type == VideoSinkType::Ffmpeg && !ffmpeg_in_path()) {
+    if (!ffmpeg_in_path()) {
         spdlog::error("[video] ffmpeg not found in PATH.");
         return 1;
     }
@@ -71,53 +58,33 @@ int render_and_encode_ffmpeg(
         return 1;
     }
 
-    auto* exporter = shared_exporter_registry().find(opts.sink.ffmpeg_mode);
-    if (!exporter) {
-        spdlog::error("[video] Unknown ffmpeg-mode '{}'. Expected one of: pipe, png",
-                      opts.sink.ffmpeg_mode);
-        return 1;
+    // Direct dispatch: pipe → render_and_encode_ffmpeg_pipe, png → chunked
+    if (opts.sink.ffmpeg_mode == "pipe") {
+        auto result = render_and_encode_ffmpeg_pipe(
+            registry, comp, composition_id,
+            settings, start, end, opts);
+        return result.return_code;
+    }
+    if (opts.sink.ffmpeg_mode == "png") {
+        auto result = render_and_encode_ffmpeg_chunked(
+            registry, comp, composition_id,
+            settings, start, end, opts);
+        return result.return_code;
     }
 
-    const VideoExportJob job{
-        .registry       = registry,
-        .comp           = comp,
-        .composition_id = composition_id,
-        .settings       = settings,
-        .start          = start,
-        .end            = end,
-        .opts           = opts,
-    };
-    return exporter->export_video(job);
+    spdlog::error("[video] Unknown ffmpeg-mode '{}'. Expected one of: pipe, png",
+                  opts.sink.ffmpeg_mode);
+    return 1;
 }
 
 // ── Phase 4 — Execute ───────────────────────────────────────────────────────
 
 int execute_video_job(const VideoJobPlan& plan) {
-    // ── Sink-based dispatch ────────────────────────────────────────────
-    // Null sinks (null-render, null-convert) are for benchmarking and
-    // bypass the FFmpeg path entirely.  They use a simplified VideoExportJob
-    // constructed from the plan's sub-option structs.
+    // Only FFmpeg sinks are supported (null-render/null-convert removed —
+    // use `bench` and `dev bench-convert` for benchmarking).
     if (plan.sink.sink_type != VideoSinkType::Ffmpeg) {
-        const auto sink_id = std::string(to_string(plan.sink.sink_type));
-        auto* exporter = shared_exporter_registry().find(sink_id);
-        if (!exporter) {
-            spdlog::error("[video] Unknown sink '{}'", sink_id);
-            return 1;
-        }
-
-        // Build VideoExportJob from sub-option structs
-        auto opts = make_ffmpeg_opts(plan);
-
-        const VideoExportJob job{
-            .registry       = *plan.registry,
-            .comp           = *plan.comp,
-            .composition_id = plan.comp_id,
-            .settings       = plan.settings,
-            .start          = plan.start,
-            .end            = plan.end_exclusive,
-            .opts           = opts,
-        };
-        return exporter->export_video(job);
+        spdlog::error("[video] Non-FFmpeg sink types not supported. Use 'bench' command for benchmarking.");
+        return 1;
     }
 
     // ── FFmpeg path (pipe / png) ───────────────────────────────────────

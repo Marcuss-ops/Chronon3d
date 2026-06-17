@@ -89,9 +89,6 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
                     "Maximum capacity when up-tuning (default 128)");
 
     // ── Sink type selection (extends --ffmpeg-mode) ────────────────────
-    cmd->add_option("--sink", args.sink_type, "Output sink type: ffmpeg, null-render, null-convert")
-        ->default_val("ffmpeg");
-
     cmd->callback([state, &ctx]() { ctx.exit_code = command_video(ctx.registry, *state->args); });
 }
 
