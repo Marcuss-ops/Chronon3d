@@ -177,7 +177,7 @@ public:
     LayerBuilder& commit();
 
     // ── Read-only accessors ──
-    [[nodiscard]] const TextRunParams& spec() const noexcept { return m_spec.params; }
+    [[nodiscard]] const TextRunParams& spec() const noexcept { return m_spec->params; }
     [[nodiscard]] LayerBuilder& parent() const noexcept { return *m_parent; }
 
 private:
@@ -200,11 +200,14 @@ private:
     [[nodiscard]] static GlyphSelectorSpec make_global_glyph_selector(std::string id);
 
     LayerBuilder* m_parent;
-    TextRunSpec   m_spec;
+    TextRunSpec*  m_spec;             // non-owning pointer into LayerBuilder::m_text_runs
     FontEngine*   m_font_engine{nullptr};
     bool          m_cache_layout{true};
     // Counter to give each implicit animator a unique diagnostics id.
     int m_implicit_id_seq{0};
+    // Pending selectors accumulated via `.selector()` before the next
+    // `.animator()` call.  Preprended to the animator's selector list on append.
+    std::vector<GlyphSelectorSpec> m_pending_selectors;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

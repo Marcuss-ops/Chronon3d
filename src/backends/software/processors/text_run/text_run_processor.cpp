@@ -27,6 +27,9 @@
 
 namespace chronon3d::renderer {
 
+// Forward-declared in detail:: header; brought into scope for this TU.
+using detail::bucket_radius_for_tier;
+
 namespace {
 
 // ── Helper: Blend2D color conversion (inline, local to this TU) ───────
@@ -443,29 +446,43 @@ bool draw_text_run(
     const float offset_x = min_x - margin;
     const float offset_y = min_y - margin;
 
-    // ── Bucket sigma (4-tier) ────────────────────────────────────────
-    // Per the user spec: 0 px → σ=0 (skip); 1-4 → tier1 (σ≈2.0);
-    // 5-8 → tier2 (σ≈6.5); 9-16 → tier3 (σ≈12.5); >16 → tier4 (σ=20 cap).
-    // σ here is the integer RADIUS for our separable box blur — the
-    // gaussian/box visual identity is close-but-not-exact because box
-    // blur is cheaper than true σ-Gaussian.  Trade-off documented.
-    auto bucket_radius = [](float r) -> int {
-        if (r <= 0.0f)  return 0;
-        if (r <= 4.0f)  return 2;     // tier 1
-        if (r <= 8.0f)  return 7;     // tier 2
-        if (r <= 16.0f) return 13;    // tier 3
-        return 20;                    // tier 4 (cap)
+    // ── Per-glyph blur tiers ─────────────────────────────────────────
+    // Glyphs are grouped into 5 tiers by their per-glyph blur value.
+    // Each tier is rasterized onto its own surface, blurred individually,
+    // and then composited SRC_OVER onto the final run image.  This means
+    // a glyph with blur=16 does NOT smear across glyphs with blur=0.
+    //
+    // Tier thresholds and box-blur radii:
+    //   tier 0: blur = 0     → radius 0  (no blur)
+    //   tier 1: blur 1–4     → radius 2
+    //   tier 2: blur 5–8     → radius 7
+    //   tier 3: blur 9–16    → radius 13
+    //   tier 4: blur > 16    → radius 20 (capped)
+    static constexpr int kBlurTierRadii[5] = { 0, 2, 7, 13, 20 };
+    static constexpr int kNumBlurTiers = 5;
+
+    auto classify_blur_tier = [](float blur) -> int {
+        if (blur <= 0.0f) return 0;
+        if (blur <= 4.0f) return 1;
+        if (blur <= 8.0f) return 2;
+        if (blur <= 16.0f) return 3;
+        return 4;
     };
 
-    // Find max blur across main glyphs and shadows.
-    float max_blur = 0.0f;
-    for (const auto& g : shape.glyphs) max_blur = std::max(max_blur, g.blur);
-    for (const auto& sh : shape.shadows) max_blur = std::max(max_blur, sh.blur);
+    // Keep bucket_radius for shadow passes (shadows composite per-shadow
+    // so they don't need tiering — each shadow has a uniform blur radius).
+    auto bucket_radius = [](float r) -> int {
+        if (r <= 0.0f)  return 0;
+        if (r <= 4.0f)  return kBlurTierRadii[1];
+        if (r <= 8.0f)  return kBlurTierRadii[2];
+        if (r <= 16.0f) return kBlurTierRadii[3];
+        return kBlurTierRadii[4];
+    };
 
-    // ── Inline separable box-blur (BLImageData path) ────────────────
-    // Operates on BL_FORMAT_PRGB32 in-place.  Falls back to Blend2D's
-    // BLImage::blur when available, but for stable sigma control across
-    // BL versions, we run our own.  Costs roughly 2 × w × h × box reads.
+    // ── Inline separable box-blur (sliding window, O(w×h)) ──────────
+    // Operates on BL_FORMAT_PRGB32 in-place.  Uses a sliding window so
+    // the per-pixel cost is O(1) instead of O(radius).  Total cost is
+    // roughly 2 × w × h independent of radius.
     auto apply_box_blur = [](BLImage& image, int radius) {
         if (radius <= 0) return;
         BLImageData data;
@@ -492,44 +509,78 @@ bool draw_text_run(
                    (static_cast<uint32_t>(std::clamp(b, 0, 255)));
         };
 
-        // Horizontal pass: tmp[y,x] = mean of base[y, x-r..x+r].
+        // Horizontal pass (sliding window): tmp[y,x] = mean of base[y, x-r..x+r].
         for (int y = 0; y < h; ++y) {
             const uint32_t* row = base + static_cast<size_t>(y) * stride;
-            for (int x = 0; x < w; ++x) {
-                int sum_a = 0, sum_r = 0, sum_g = 0, sum_b = 0, count = 0;
-                int k0 = std::max(0, x - r);
-                int k1 = std::min(w - 1, x + r);
-                for (int k = k0; k <= k1; ++k) {
+            int sum_a = 0, sum_r = 0, sum_g = 0, sum_b = 0, count = 0;
+
+            // Initial window: pixels [0, min(w-1, r)]
+            const int init_right = std::min(w - 1, r);
+            for (int k = 0; k <= init_right; ++k) {
+                int pa, pr, pg, pb;
+                unpack(row[k], pa, pr, pg, pb);
+                sum_a += pa; sum_r += pr; sum_g += pg; sum_b += pb;
+                ++count;
+            }
+            tmp[static_cast<size_t>(y) * w] =
+                pack(sum_a / count, sum_r / count, sum_g / count, sum_b / count);
+
+            for (int x = 1; x < w; ++x) {
+                // Subtract pixel leaving the window
+                const int leave = x - r - 1;
+                if (leave >= 0) {
                     int pa, pr, pg, pb;
-                    unpack(row[k], pa, pr, pg, pb);
+                    unpack(row[leave], pa, pr, pg, pb);
+                    sum_a -= pa; sum_r -= pr; sum_g -= pg; sum_b -= pb;
+                    --count;
+                }
+                // Add pixel entering the window
+                const int enter = x + r;
+                if (enter < w) {
+                    int pa, pr, pg, pb;
+                    unpack(row[enter], pa, pr, pg, pb);
                     sum_a += pa; sum_r += pr; sum_g += pg; sum_b += pb;
                     ++count;
                 }
-                if (count > 0) {
-                    tmp[static_cast<size_t>(y) * w + x] =
-                        pack(sum_a / count, sum_r / count,
-                            sum_g / count, sum_b / count);
-                }
+                tmp[static_cast<size_t>(y) * w + x] =
+                    pack(sum_a / count, sum_r / count, sum_g / count, sum_b / count);
             }
         }
-        // Vertical pass: base[y,x] = mean of tmp[y-r..y+r, x].
+
+        // Vertical pass (sliding window): base[y,x] = mean of tmp[y-r..y+r, x].
         for (int x = 0; x < w; ++x) {
-            for (int y = 0; y < h; ++y) {
-                int sum_a = 0, sum_r = 0, sum_g = 0, sum_b = 0, count = 0;
-                int k0 = std::max(0, y - r);
-                int k1 = std::min(h - 1, y + r);
-                for (int k = k0; k <= k1; ++k) {
+            int sum_a = 0, sum_r = 0, sum_g = 0, sum_b = 0, count = 0;
+
+            // Initial window: rows [0, min(h-1, r)]
+            const int init_bottom = std::min(h - 1, r);
+            for (int k = 0; k <= init_bottom; ++k) {
+                int pa, pr, pg, pb;
+                unpack(tmp[static_cast<size_t>(k) * w + x], pa, pr, pg, pb);
+                sum_a += pa; sum_r += pr; sum_g += pg; sum_b += pb;
+                ++count;
+            }
+            base[static_cast<size_t>(0) * stride + x] =
+                pack(sum_a / count, sum_r / count, sum_g / count, sum_b / count);
+
+            for (int y = 1; y < h; ++y) {
+                // Subtract row leaving the window
+                const int leave = y - r - 1;
+                if (leave >= 0) {
                     int pa, pr, pg, pb;
-                    unpack(tmp[static_cast<size_t>(k) * w + x],
-                           pa, pr, pg, pb);
+                    unpack(tmp[static_cast<size_t>(leave) * w + x], pa, pr, pg, pb);
+                    sum_a -= pa; sum_r -= pr; sum_g -= pg; sum_b -= pb;
+                    --count;
+                }
+                // Add row entering the window
+                const int enter = y + r;
+                if (enter < h) {
+                    int pa, pr, pg, pb;
+                    unpack(tmp[static_cast<size_t>(enter) * w + x], pa, pr, pg, pb);
                     sum_a += pa; sum_r += pr; sum_g += pg; sum_b += pb;
                     ++count;
                 }
-                if (count > 0) {
-                    base[static_cast<size_t>(y) * stride + x] =
-                        pack(sum_a / count, sum_r / count,
-                            sum_g / count, sum_b / count);
-                }
+                base[static_cast<size_t>(y) * stride + x] =
+                    pack(sum_a / count, sum_r / count, sum_g / count, sum_b / count);
             }
         }
     };
@@ -549,10 +600,15 @@ bool draw_text_run(
     // shadow pass.  When `override_color` is nullopt, glyph-level
     // `g.fill` / `g.stroke` are honoured, with `shape.paint.fill` as a
     // default for glyphs whose fill is the "no override" sentinel.
+    //
+    // `only_tier` (optional): when set, only glyphs whose `g.blur` maps
+    // to this tier are drawn.  When nullopt, all glyphs are drawn
+    // (existing shadow-pass behavior).
     auto draw_run_layer = [&](
         BLImage& target,
         std::optional<Color> override_color,
-        int blur_radius
+        int blur_radius,
+        std::optional<int> only_tier = std::nullopt
     ) -> size_t {
         size_t drawn = 0;
         BLContext ctx(target);
@@ -563,6 +619,15 @@ bool draw_text_run(
 
         for (size_t gi = 0; gi < shape.glyphs.size(); ++gi) {
             const auto& g = shape.glyphs[gi];
+
+            // ── Per-glyph blur tier filter ──────────────────────────
+            // When `only_tier` is set, skip glyphs whose blur value
+            // maps to a different tier.  This enables the main-run
+            // tiered compositing loop below.
+            if (only_tier.has_value()
+                && classify_blur_tier(g.blur) != *only_tier) {
+                continue;
+            }
 
             // Effective stroke: per-glyph if animator set it, else fall
             // back to shape.paint.stroke when no override is in effect.
@@ -665,10 +730,41 @@ bool draw_text_run(
             params.opacity, BlendMode::Normal);
     }
 
-    // ── Main run layer ───────────────────────────────────────────────
+    // ── Main run: tiered per-glyph blur compositing ──────────────────
+    //
+    // Instead of drawing all glyphs to one image and blurring with the
+    // single max_blur (which smears blur-0 glyphs), we group glyphs into
+    // 5 blur tiers, rasterize each tier onto its own surface, apply the
+    // tier's box-blur radius, then composite SRC_OVER onto a final image.
+    //
+    // This means glyphs with blur=0 stay sharp while adjacent blur=16
+    // glyphs are fully blurred — the core motivation for per-glyph blur.
     BLImage img(img_w, img_h, BL_FORMAT_PRGB32);
-    const size_t glyphs_drawn = draw_run_layer(
-        img, std::nullopt, detail::bucket_radius_for_tier(max_blur));
+    // Clear the final composite image to transparent.
+    {
+        BLContext ctx(img);
+        ctx.setCompOp(BL_COMP_OP_SRC_COPY);
+        ctx.setFillStyle(BLRgba32(0, 0, 0, 0));
+        ctx.fillAll();
+        ctx.end();
+    }
+
+    size_t glyphs_drawn = 0;
+    for (int tier = 0; tier < kNumBlurTiers; ++tier) {
+        BLImage tier_img(img_w, img_h, BL_FORMAT_PRGB32);
+        const size_t drawn = draw_run_layer(
+            tier_img, std::nullopt, kBlurTierRadii[tier], tier);
+        if (drawn == 0) continue;
+        glyphs_drawn += drawn;
+
+        // Composite tier_img onto the final image SRC_OVER.
+        {
+            BLContext ctx(img);
+            ctx.setCompOp(BL_COMP_OP_SRC_OVER);
+            ctx.blitImage(BLPoint(0, 0), tier_img);
+            ctx.end();
+        }
+    }
 
     if (glyphs_drawn == 0) return false;
 
@@ -806,45 +902,16 @@ raster::BBox compute_text_run_world_bbox(
 #ifdef CHRONON3D_ENABLE_TEXT
 std::unique_ptr<ShapeProcessor> create_text_run_processor() {
     struct TextRunProcessor : ShapeProcessor {
-        // The canonical renderer path for text runs goes through the
-        // `TextRunNode` in the render graph (driven by `draw_text_run()`
-        // above), so this ShapeProcessor is a thin no-op marker: it
-        // carries the `is_text_run_shape=true` RenderNode flag and
-        // forwards through the graph-builder.  The composite/bbox/hit-test
-        // overrides below are body-empty / return-zero so they satisfy the
-        // ShapeProcessor abstract interface without duplicating logic that
-        // the graph already handles (via MultiSourceNode::predicted_bbox
-        // and the TextRunNode executor).
+        // No-op: the TextRunNode in the render graph handles rasterization.
+        // This processor exists only as a registry marker.
+        void draw(SoftwareRenderer&, Framebuffer&, const RenderNode&,
+                  const RenderState&, const Camera&, i32, i32) override {}
 
-        void draw(
-            SoftwareRenderer& /*renderer*/,
-            Framebuffer& /*fb*/,
-            const RenderNode& /*node*/,
-            const RenderState& /*state*/,
-            const Camera& /*camera*/,
-            i32 /*width*/,
-            i32 /*height*/
-        ) override {
-            // No-op: rasterization flows through TextRunNode downstream.
-        }
-
-        raster::BBox compute_world_bbox(
-            const Shape& /*shape*/,
-            const Mat4& /*model*/,
-            f32 /*spread*/
-        ) override {
-            // The graph uses `renderer::compute_text_run_world_bbox` for
-            // predicted_bbox on is_text_run_shape nodes, so this entry is
-            // ignored.  Return a deliberately-empty bbox.
+        raster::BBox compute_world_bbox(const Shape&, const Mat4&, f32) override {
             return {0, 0, 0, 0};
         }
 
-        bool hit_test(
-            const Shape& /*shape*/,
-            Vec2 /*local_point*/,
-            f32 /*spread*/
-        ) override {
-            // Text-run hit testing is handled at the graph layer.
+        bool hit_test(const Shape&, Vec2, f32) override {
             return false;
         }
     };
