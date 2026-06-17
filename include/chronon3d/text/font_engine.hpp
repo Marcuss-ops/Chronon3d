@@ -77,6 +77,16 @@ enum class TextDirection {
     RTL,
 };
 
+/// Wrapping mode for text layout.
+///   None      — text extends beyond box bounds (no wrapping).
+///   Word      — break at word boundaries (spaces, hyphens).
+///   Character — break at any character (including mid-word).
+enum class TextWrap {
+    None,
+    Word,
+    Character,
+};
+
 // ── TextShaping ───────────────────────────────────────────────────────
 // Optional per-call shaping parameters.  Forwarded to HarfBuzz so we get
 // correct shaping for non-Latin scripts (Arabic, Hebrew, Devanagari, CJK,
