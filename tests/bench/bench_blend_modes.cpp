@@ -25,6 +25,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <span>
 
 using namespace chronon3d;
 
@@ -53,7 +54,7 @@ static void fill_premul_fb(Framebuffer& fb, uint32_t seed = 0xDEADBEEF) {
 }
 
 /// Alias for a SIMD blend kernel.
-using BlendFunc = void (*)(Color* dst, const Color* src, int count);
+using BlendFunc = void (*)(std::span<Color> dst, std::span<const Color> src);
 
 /// Platform-portable aligned allocation (C11 aligned_alloc or MSVC _aligned_malloc).
 static Color* aligned_color_alloc(int count) {
@@ -74,8 +75,13 @@ static void aligned_color_free(Color* ptr) {
 #endif
 }
 
-/// Benchmark helper: run `blend_func` on `pixels` elements, reporting
-/// standard benchmark counters including GB/s throughput.
+/// Normal blend wrapper — adapts composite_normal_premul (3 params with default)
+/// to the 2-param BlendFunc signature for benchmarking.
+namespace simd {
+static void composite_normal_premul_wrapper(std::span<Color> d, std::span<const Color> s) {
+    composite_normal_premul(d, s);
+}
+}  // namespace simd
 static void bench_blend(benchmark::State& state, BlendFunc blend_func,
                         int pixels, const char* name) {
     // Allocate and fill source & destination buffers.
@@ -106,10 +112,10 @@ static void bench_blend(benchmark::State& state, BlendFunc blend_func,
     }
 
     // Warmup: one call to ensure any lazy resolution/caching is done.
-    blend_func(dst, src, pixels);
+    blend_func(std::span<Color>(dst, pixels), std::span<const Color>(src, pixels));
 
     for (auto _ : state) {
-        blend_func(dst, src, pixels);
+        blend_func(std::span<Color>(dst, pixels), std::span<const Color>(src, pixels));
         benchmark::DoNotOptimize(dst[0]);
         benchmark::ClobberMemory();
     }
@@ -158,7 +164,7 @@ constexpr int kPixels_Large  = 1920 * 1080;    // 2M
 // 8 blend modes benchmarked at 3 resolutions = 24 benchmarks
 // ══════════════════════════════════════════════════════════════════════════
 
-DEFINE_BLEND_BENCH(Normal,     composite_normal_premul);
+DEFINE_BLEND_BENCH(Normal,     composite_normal_premul_wrapper);
 DEFINE_BLEND_BENCH(Multiply,   composite_multiply_premul);
 DEFINE_BLEND_BENCH(Screen,     composite_screen_premul);
 DEFINE_BLEND_BENCH(Overlay,    composite_overlay_premul);
@@ -182,22 +188,22 @@ DEFINE_BLEND_BENCH(ColorBurn,  composite_color_burn_premul);
 // ══════════════════════════════════════════════════════════════════════════
 
 static void BM_Matte_Alpha_Small(benchmark::State& state) {
-    bench_blend(state, [](Color* d, const Color* s, int c) {
-        simd::apply_alpha_matte_premul(d, s, c, false);
+    bench_blend(state, [](std::span<Color> d, std::span<const Color> s) {
+        simd::apply_alpha_matte_premul(d, s, false);
     }, kPixels_Small, "AlphaMatte");
 }
 BENCHMARK(BM_Matte_Alpha_Small)->Unit(benchmark::kMicrosecond);
 
 static void BM_Matte_Alpha_Inverted_Small(benchmark::State& state) {
-    bench_blend(state, [](Color* d, const Color* s, int c) {
-        simd::apply_alpha_matte_premul(d, s, c, true);
+    bench_blend(state, [](std::span<Color> d, std::span<const Color> s) {
+        simd::apply_alpha_matte_premul(d, s, true);
     }, kPixels_Small, "AlphaMatteInverted");
 }
 BENCHMARK(BM_Matte_Alpha_Inverted_Small)->Unit(benchmark::kMicrosecond);
 
 static void BM_Matte_Luma_Small(benchmark::State& state) {
-    bench_blend(state, [](Color* d, const Color* s, int c) {
-        simd::apply_luma_matte_premul(d, s, c, false);
+    bench_blend(state, [](std::span<Color> d, std::span<const Color> s) {
+        simd::apply_luma_matte_premul(d, s, false);
     }, kPixels_Small, "LumaMatte");
 }
 BENCHMARK(BM_Matte_Luma_Small)->Unit(benchmark::kMicrosecond);

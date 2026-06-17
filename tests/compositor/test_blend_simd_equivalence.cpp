@@ -18,6 +18,7 @@
 
 #include <random>
 #include <cmath>
+#include <span>
 #include <vector>
 
 using namespace chronon3d;
@@ -44,15 +45,17 @@ Color random_premul(float alpha_min = 0.0f, float alpha_max = 1.0f,
 
 // ── Dispatch ─────────────────────────────────────────────────────────────
 void apply_simd(Color& dst, const Color& src, BlendMode mode) {
+    const std::span<Color> dst_span(&dst, 1);
+    const std::span<const Color> src_span(&src, 1);
     switch (mode) {
-        case BlendMode::Darken:      simd::composite_darken_premul(&dst, &src, 1); break;
-        case BlendMode::Lighten:     simd::composite_lighten_premul(&dst, &src, 1); break;
-        case BlendMode::Difference:  simd::composite_difference_premul(&dst, &src, 1); break;
-        case BlendMode::Exclusion:   simd::composite_exclusion_premul(&dst, &src, 1); break;
-        case BlendMode::SoftLight:   simd::composite_soft_light_premul(&dst, &src, 1); break;
-        case BlendMode::HardLight:   simd::composite_hard_light_premul(&dst, &src, 1); break;
-        case BlendMode::ColorDodge:  simd::composite_color_dodge_premul(&dst, &src, 1); break;
-        case BlendMode::ColorBurn:   simd::composite_color_burn_premul(&dst, &src, 1); break;
+        case BlendMode::Darken:      simd::composite_darken_premul(dst_span, src_span); break;
+        case BlendMode::Lighten:     simd::composite_lighten_premul(dst_span, src_span); break;
+        case BlendMode::Difference:  simd::composite_difference_premul(dst_span, src_span); break;
+        case BlendMode::Exclusion:   simd::composite_exclusion_premul(dst_span, src_span); break;
+        case BlendMode::SoftLight:   simd::composite_soft_light_premul(dst_span, src_span); break;
+        case BlendMode::HardLight:   simd::composite_hard_light_premul(dst_span, src_span); break;
+        case BlendMode::ColorDodge:  simd::composite_color_dodge_premul(dst_span, src_span); break;
+        case BlendMode::ColorBurn:   simd::composite_color_burn_premul(dst_span, src_span); break;
         default: FAIL("Unsupported mode: " << static_cast<int>(mode));
     }
 }
@@ -92,7 +95,7 @@ void test_simd_equivalence(BlendMode mode, int num_samples = 50000) {
 // ── Multi-pixel batch test driver ────────────────────────────────────────
 // Properly calls the actual SIMD kernel functions with full arrays of each
 // size, exercising AVX2 2-pixel paths, FixedTag remainder paths, etc.
-using BatchFunc = void (*)(Color* dst, const Color* src, int count);
+using BatchFunc = void (*)(std::span<Color> dst, std::span<const Color> src);
 
 BatchFunc get_batch_func(BlendMode mode) {
     switch (mode) {
@@ -128,7 +131,7 @@ void test_simd_batch_sizes(BlendMode mode) {
 
         // Apply SIMD kernel ONCE on the whole array — this is the key fix.
         std::vector<Color> simd_result = dst;
-        batch_func(simd_result.data(), src.data(), n);
+        batch_func(std::span<Color>(simd_result), std::span<const Color>(src));
 
         for (int i = 0; i < n; ++i) {
             check_color_close(simd_result[i], expected[i], kEpsilonSIMD);

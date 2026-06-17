@@ -37,7 +37,7 @@ inline bool framebuffer_is_clear_color(const Color& color) {
 // ── Clear helpers ──────────────────────────────────────────────────
 
 inline void framebuffer_clear_contiguous(Color* data, usize pixel_count, const Color& color) {
-    simd::clear_framebuffer(data, static_cast<int>(pixel_count), color);
+    simd::clear_framebuffer(std::span<Color>(data, static_cast<int>(pixel_count)), color);
 }
 
 inline void framebuffer_clear_strided(Color* data, i32 allocated_width, i32 x, i32 y, i32 w, i32 h, const Color& color) {
@@ -55,7 +55,7 @@ inline void framebuffer_clear_strided(Color* data, i32 allocated_width, i32 x, i
     }
     Color* row = data + static_cast<usize>(y) * allocated_width + x;
     for (i32 yy = 0; yy < h; ++yy) {
-        simd::clear_framebuffer(row, w, color);
+        simd::clear_framebuffer(std::span<Color>(row, w), color);
         row += static_cast<size_t>(allocated_width);
     }
 }

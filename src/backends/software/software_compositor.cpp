@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <optional>
+#include <span>
 
 namespace chronon3d {
 
@@ -50,9 +51,9 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
             if (dx0 < 0 || dx0 + width_to_process > dst.width()) continue;
 
             if (alpha_op) {
-                simd::apply_alpha_matte_premul(d_row + dx0, s_row + sx0, width_to_process, inverted);
+                simd::apply_alpha_matte_premul(std::span<Color>(d_row + dx0, width_to_process), std::span<const Color>(s_row + sx0, width_to_process), inverted);
             } else {
-                simd::apply_luma_matte_premul(d_row + dx0, s_row + sx0, width_to_process, inverted);
+                simd::apply_luma_matte_premul(std::span<Color>(d_row + dx0, width_to_process), std::span<const Color>(s_row + sx0, width_to_process), inverted);
             }
         }
         return;
@@ -215,11 +216,11 @@ bool SoftwareCompositor::composite_layer_normal_optimized(
             }
             if (!use_tbb) {
                 const auto t_rs0 = profiling::now();
-                simd::composite_normal_premul(d_row, s_row, width_to_process, force_scalar_normal_blend);
+                simd::composite_normal_premul(std::span<Color>(d_row, width_to_process), std::span<const Color>(s_row, width_to_process), force_scalar_normal_blend);
                 const auto t_rs1 = profiling::now();
                 row_setup_ns += static_cast<uint64_t>(profiling::duration_us(t_rs0, t_rs1) * 1000.0);
             } else {
-                simd::composite_normal_premul(d_row, s_row, width_to_process, force_scalar_normal_blend);
+                simd::composite_normal_premul(std::span<Color>(d_row, width_to_process), std::span<const Color>(s_row, width_to_process), force_scalar_normal_blend);
             }
             d_row += d_stride;
             s_row += s_stride;
@@ -281,40 +282,40 @@ bool SoftwareCompositor::composite_layer_non_normal_optimized(
             }
             switch (mode) {
                 case BlendMode::Add:
-                    simd::composite_add_premul(d_row, s_row, width_to_process);
+                    simd::composite_add_premul(std::span<Color>(d_row, width_to_process), std::span<const Color>(s_row, width_to_process));
                     break;
                 case BlendMode::Multiply:
-                    simd::composite_multiply_premul(d_row, s_row, width_to_process);
+                    simd::composite_multiply_premul(std::span<Color>(d_row, width_to_process), std::span<const Color>(s_row, width_to_process));
                     break;
                 case BlendMode::Screen:
-                    simd::composite_screen_premul(d_row, s_row, width_to_process);
+                    simd::composite_screen_premul(std::span<Color>(d_row, width_to_process), std::span<const Color>(s_row, width_to_process));
                     break;
                 case BlendMode::Overlay:
-                    simd::composite_overlay_premul(d_row, s_row, width_to_process);
+                    simd::composite_overlay_premul(std::span<Color>(d_row, width_to_process), std::span<const Color>(s_row, width_to_process));
                     break;
                 case BlendMode::Darken:
-                    simd::composite_darken_premul(d_row, s_row, width_to_process);
+                    simd::composite_darken_premul(std::span<Color>(d_row, width_to_process), std::span<const Color>(s_row, width_to_process));
                     break;
                 case BlendMode::Lighten:
-                    simd::composite_lighten_premul(d_row, s_row, width_to_process);
+                    simd::composite_lighten_premul(std::span<Color>(d_row, width_to_process), std::span<const Color>(s_row, width_to_process));
                     break;
                 case BlendMode::Difference:
-                    simd::composite_difference_premul(d_row, s_row, width_to_process);
+                    simd::composite_difference_premul(std::span<Color>(d_row, width_to_process), std::span<const Color>(s_row, width_to_process));
                     break;
                 case BlendMode::Exclusion:
-                    simd::composite_exclusion_premul(d_row, s_row, width_to_process);
+                    simd::composite_exclusion_premul(std::span<Color>(d_row, width_to_process), std::span<const Color>(s_row, width_to_process));
                     break;
                 case BlendMode::SoftLight:
-                    simd::composite_soft_light_premul(d_row, s_row, width_to_process);
+                    simd::composite_soft_light_premul(std::span<Color>(d_row, width_to_process), std::span<const Color>(s_row, width_to_process));
                     break;
                 case BlendMode::HardLight:
-                    simd::composite_hard_light_premul(d_row, s_row, width_to_process);
+                    simd::composite_hard_light_premul(std::span<Color>(d_row, width_to_process), std::span<const Color>(s_row, width_to_process));
                     break;
                 case BlendMode::ColorDodge:
-                    simd::composite_color_dodge_premul(d_row, s_row, width_to_process);
+                    simd::composite_color_dodge_premul(std::span<Color>(d_row, width_to_process), std::span<const Color>(s_row, width_to_process));
                     break;
                 case BlendMode::ColorBurn:
-                    simd::composite_color_burn_premul(d_row, s_row, width_to_process);
+                    simd::composite_color_burn_premul(std::span<Color>(d_row, width_to_process), std::span<const Color>(s_row, width_to_process));
                     break;
                 default:
                     break;
