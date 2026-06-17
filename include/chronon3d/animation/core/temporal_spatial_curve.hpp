@@ -228,8 +228,8 @@ public:
         }
         return *this;
     }
-    TemporalCurve1D(TemporalCurve1D&&) = default;
-    TemporalCurve1D& operator=(TemporalCurve1D&&) = default;
+    TemporalCurve1D(TemporalCurve1D&&) noexcept = default;
+    TemporalCurve1D& operator=(TemporalCurve1D&&) noexcept = default;
 
 private:
     EasingCurve m_easing{Easing::Linear};
