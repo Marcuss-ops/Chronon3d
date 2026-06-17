@@ -55,6 +55,12 @@ void refresh_multi_source_node(
             .opacity = render_opacity
         });
         aggregated_params_hash = hash_combine(aggregated_params_hash, hash_render_node(src_node));
+        // NOTE: PR 6 deliberately does NOT fold `hash_text_run_shape`
+        // here.  `MultiSourceNode::cache_key()` re-folds it per item at
+        // evaluation time so per-frame animator mutations invalidate the
+        // entry correctly.  Folding it here would DUPLICATE the bytes
+        // (source-pass already avoided the fold for the same reason)
+        // and stale out as soon as the shape mutates between refreshes.
     }
 
     cache::NodeCacheKey key{
