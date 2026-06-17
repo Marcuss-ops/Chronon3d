@@ -63,15 +63,16 @@ TEST_CASE("PR2: duplicate motion ID throws") {
 // ==============================================================================
 TEST_CASE("PR2: duplicate constraint ID throws") {
     CameraConstraintRegistry& reg = CameraConstraintRegistry::instance();
-    // Make sure the ID doesn't already exist.
+    // Factory takes CameraConstraintParams now.
+    auto dummy_factory = +[](const CameraConstraintParams&) -> std::shared_ptr<CameraConstraint> {
+        return nullptr;
+    };
     if (!reg.has("camera.test_dup_constraint"))
-        reg.register_factory("camera.test_dup_constraint",
-            +[]() -> std::shared_ptr<CameraConstraint> { return nullptr; });
+        reg.register_factory("camera.test_dup_constraint", dummy_factory);
 
     bool threw = false;
     try {
-        reg.register_factory("camera.test_dup_constraint",
-            +[]() -> std::shared_ptr<CameraConstraint> { return nullptr; });
+        reg.register_factory("camera.test_dup_constraint", dummy_factory);
     } catch (const std::invalid_argument&) {
         threw = true;
     }
