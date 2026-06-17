@@ -15,8 +15,8 @@
 #include <chronon3d/math/camera_projection_contract.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 // -- Shared test setup (unique names to avoid conflict with resolver tests) -----
 static Camera2_5D make_gs_camera() {

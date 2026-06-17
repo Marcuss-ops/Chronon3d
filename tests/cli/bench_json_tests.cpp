@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/core/profiling/benchmark_report.hpp>
 #include <nlohmann/json.hpp>
-
 using namespace chronon3d;
+
 
 TEST_CASE("benchmark_report to_json produces correct schema") {
     BenchmarkReport report;

@@ -13,6 +13,7 @@ using chronon3d::f32;
 using chronon3d::Easing;
 using chronon3d::EasingCurve;
 using chronon3d::video::VideoSource;
+using namespace chronon3d;
 
 TEST_CASE("PhraseTheme Factory Properties") {
     auto doc = PhraseTheme::documentary();

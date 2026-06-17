@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/rendering/depth_grade.hpp>
-
 using namespace chronon3d;
+
 using namespace chronon3d::rendering;
 
 TEST_CASE("DepthGrade: defaults") {

@@ -17,7 +17,6 @@
 #include <chronon3d/text/glyph_selector.hpp>
 #include <doctest/doctest.h>
 
-using namespace chronon3d;
 
 namespace {
 
@@ -171,6 +170,7 @@ TEST_CASE("TextRunBuilder: commit hands control back to parent") {
 #include <chronon3d/registry/shape_ids.hpp>
 #include <chronon3d/registry/shape_params.hpp>
 #include <chronon3d/scene/model/render/render_node_factory.hpp>
+using namespace chronon3d;
 
 TEST_CASE("TextRun registry: shape_ids::TextRun exposed + factory wires RenderNodeFactory::text_run") {
     auto& reg = chronon3d::registry::ShapeRegistry::instance();

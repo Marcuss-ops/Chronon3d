@@ -26,8 +26,8 @@
 #include <cstdint>
 #include <thread>
 #include <vector>
-
 using namespace chronon3d;
+
 
 namespace {
 

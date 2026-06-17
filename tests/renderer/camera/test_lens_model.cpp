@@ -4,8 +4,8 @@
 #include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
 #include <chronon3d/scene/model/camera/camera_rig.hpp>
 #include <chronon3d/math/camera_projection_contract.hpp>
-
 using namespace chronon3d;
+
 
 // =========================================================================
 // LensModel — defaults and basic properties

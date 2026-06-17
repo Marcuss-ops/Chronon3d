@@ -5,9 +5,9 @@
 #include <vector>
 #include <atomic>
 #include <iostream>
+using namespace chronon3d;
 
 using namespace chronon3d::cache;
-using namespace chronon3d;
 
 TEST_CASE("LruCache - Sharding Contention") {
     const size_t num_shards = 16;

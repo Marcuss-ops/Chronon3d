@@ -2,8 +2,8 @@
 #include <chronon3d/animation/effects/wiggle.hpp>
 #include <chronon3d/scene/model/camera/camera_shake.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 // ── hash_noise tests ─────────────────────────────────────────────────────────
 

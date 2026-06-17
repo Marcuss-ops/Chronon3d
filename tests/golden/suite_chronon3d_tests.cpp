@@ -13,10 +13,10 @@
 #include <algorithm>
 #include <iostream>
 
-using namespace chronon3d;
 using namespace chronon3d::test;
 
 #include "content/images/compositions/image_proofs.hpp"
+using namespace chronon3d;
 
 namespace chronon3d::content::shapes {
     Composition shape_proofs();

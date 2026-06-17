@@ -4,8 +4,8 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/model/layer/layer_hierarchy.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 namespace {
 

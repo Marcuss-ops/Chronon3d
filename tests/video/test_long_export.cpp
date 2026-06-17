@@ -8,8 +8,8 @@
 #include <vector>
 #include <cstdlib>
 #include <xxhash.h>
-
 using namespace chronon3d;
+
 using namespace chronon3d::video;
 using namespace chronon3d::cache;
 

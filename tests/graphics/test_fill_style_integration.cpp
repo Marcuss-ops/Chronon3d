@@ -14,8 +14,8 @@
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <tests/helpers/sample_helpers.hpp>
-
 using namespace chronon3d;
+
 namespace gfx = chronon3d::graphics;
 using chronon3d::test::sample_center;
 using chronon3d::test::sample_left;

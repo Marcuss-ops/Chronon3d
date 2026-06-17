@@ -6,8 +6,8 @@
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
-
 using namespace chronon3d;
+
 
 // ── Dirty Rect Contract ──────────────────────────────────────────────────────
 //

@@ -3,8 +3,8 @@
 #include <chronon3d/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
-
 using namespace chronon3d;
+
 using namespace chronon3d::graph;
 
 namespace {

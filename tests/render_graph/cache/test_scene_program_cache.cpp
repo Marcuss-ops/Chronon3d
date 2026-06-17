@@ -21,8 +21,8 @@
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 
 #include <memory>
-
 using namespace chronon3d;
+
 using namespace chronon3d::graph;
 using namespace chronon3d::cache;
 

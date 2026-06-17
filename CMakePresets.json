@@ -45,7 +45,6 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CHRONON3D_BUILD_C_API": "OFF",
         "CHRONON3D_BUILD_CONTENT": "ON",
         "VCPKG_MANIFEST_FEATURES": "tests",
         "CHRONON3D_BUILD_TESTS": "ON"
@@ -61,7 +60,6 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CHRONON3D_BUILD_C_API": "OFF",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "VCPKG_MANIFEST_FEATURES": "tests",
         "CHRONON3D_BUILD_TESTS": "ON"
@@ -77,7 +75,6 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CHRONON3D_BUILD_C_API": "OFF",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
         "CHRONON3D_BUILD_CONTENT": "ON",
@@ -90,14 +87,6 @@
       "inherits": "linux-ci",
       "cacheVariables": {
         "CHRONON3D_BUILD_CONTENT": "OFF"
-      }
-    },
-    {
-      "name": "linux-ci-c-api",
-      "inherits": "linux-ci",
-      "cacheVariables": {
-        "CHRONON3D_BUILD_C_API": "ON",
-        "CHRONON3D_BUILD_CONTENT": "ON"
       }
     },
     {
@@ -130,7 +119,6 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CHRONON3D_BUILD_C_API": "OFF",
         "CHRONON3D_BUILD_TESTS": "ON",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
         "CHRONON3D_BUILD_CONTENT": "ON",
@@ -153,7 +141,6 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CHRONON3D_BUILD_C_API": "OFF",
         "CHRONON3D_BUILD_TESTS": "ON",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
         "CHRONON3D_BUILD_CONTENT": "ON",
@@ -174,7 +161,6 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CHRONON3D_BUILD_C_API": "OFF",
         "CHRONON3D_BUILD_TESTS": "ON",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
         "CHRONON3D_BUILD_CONTENT": "OFF",
@@ -200,7 +186,6 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CHRONON3D_BUILD_C_API": "ON",
         "CHRONON3D_BUILD_TESTS": "ON",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
         "CHRONON3D_BUILD_CONTENT": "ON",
@@ -221,7 +206,6 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CHRONON3D_BUILD_C_API": "ON",
         "CHRONON3D_BUILD_TESTS": "ON",
         "CHRONON3D_BUILD_BENCHMARKS": "ON",
         "CHRONON3D_BUILD_CONTENT": "ON",
@@ -242,7 +226,6 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CHRONON3D_BUILD_C_API": "OFF",
         "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
         "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined",
         "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address,undefined",
@@ -260,7 +243,6 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CHRONON3D_BUILD_C_API": "OFF",
         "VCPKG_MANIFEST_FEATURES": "tests",
         "CHRONON3D_BUILD_TESTS": "ON"
       }
@@ -275,17 +257,9 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CHRONON3D_BUILD_C_API": "OFF",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "VCPKG_MANIFEST_FEATURES": "tests",
         "CHRONON3D_BUILD_TESTS": "ON"
-      }
-    },
-    {
-      "name": "win-ci-c-api",
-      "inherits": "win-release",
-      "cacheVariables": {
-        "CHRONON3D_BUILD_C_API": "ON"
       }
     }
   ],
@@ -398,22 +372,6 @@
         "chronon3d_tests"
       ],
       "jobs": 16
-    },
-    {
-      "name": "linux-ci-c-api",
-      "configurePreset": "linux-ci-c-api",
-      "targets": [
-        "chronon3d_c_api_tests"
-      ],
-      "jobs": 16
-    },
-    {
-      "name": "win-ci-c-api",
-      "configurePreset": "win-ci-c-api",
-      "targets": [
-        "chronon3d_c_api_tests"
-      ],
-      "jobs": 16
     }
   ],
   "testPresets": [
@@ -479,13 +437,5 @@
       "output": {
         "outputOnFailure": true
       }
-    },
-    {
-      "name": "linux-ci-c-api-test",
-      "configurePreset": "linux-ci-c-api",
-      "output": {
-        "outputOnFailure": true
-      }
-    }
-  ]
+    }  ]  
 }

@@ -14,10 +14,10 @@
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/scene/model/shape/path.hpp>
 #include <chronon3d/vector/shape_style.hpp>
+using namespace chronon3d;
 
 // Bring in chronon3d (Fill, ShapeStroke, PathStroke, ShapeStyle, etc.)
 // chronon3d::graphics is used via qualified names to avoid GradientStop clash.
-using namespace chronon3d;
 
 // ── Helpers ──────────────────────────────────────────────────────────
 

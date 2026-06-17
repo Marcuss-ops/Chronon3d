@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/animation/easing/interpolate.hpp>
-
 using namespace chronon3d;
+
 
 TEST_CASE("interpolate basics") {
     SUBCASE("Linear interpolation at midpoint") {

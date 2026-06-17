@@ -2,8 +2,8 @@
 #include <chronon3d/geometry/bounds.hpp>
 #include <chronon3d/geometry/ray.hpp>
 #include <chronon3d/geometry/mesh.hpp>
-
 using namespace chronon3d;
+
 
 TEST_CASE("AABB operations") {
     AABB box(Vec3(0.0f), Vec3(1.0f));

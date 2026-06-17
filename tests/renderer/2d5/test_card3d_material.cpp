@@ -8,8 +8,8 @@
 #include <chronon3d/math/color.hpp>
 #include <filesystem>
 #include <cmath>
-
 using namespace chronon3d;
+
 using namespace chronon3d::renderer;
 using chronon3d::test::load_png_as_framebuffer;
 

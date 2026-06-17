@@ -9,8 +9,8 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
-
 using namespace chronon3d;
+
 
 TEST_CASE("Composition Immutability") {
     CompositionSpec spec;

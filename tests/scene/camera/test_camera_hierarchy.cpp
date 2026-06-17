@@ -8,8 +8,8 @@
 
 #include "src/backends/software/utils/projection_utils.hpp"
 #include "src/render_graph/pipeline/scene_internal.hpp"
-
 using namespace chronon3d;
+
 
 namespace {
 

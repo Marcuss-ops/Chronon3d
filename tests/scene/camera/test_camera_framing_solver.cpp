@@ -23,6 +23,7 @@
 #include <chronon3d/scene/camera/camera_v1/camera_framing_solver.hpp>
 
 #include <cmath>
+using namespace chronon3d;
 
 namespace {
 

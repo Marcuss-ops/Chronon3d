@@ -2,8 +2,8 @@
 #include <chronon3d/core/types/time.hpp>
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/math/glm_types.hpp>
-
 using namespace chronon3d;
+
 
 TEST_CASE("Time system") {
     FrameRate fps{30, 1};

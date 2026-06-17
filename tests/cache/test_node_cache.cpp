@@ -2,6 +2,7 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
+using namespace chronon3d;
 
 using namespace chronon3d::cache;
 

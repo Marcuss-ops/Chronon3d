@@ -10,8 +10,8 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
-
 using namespace chronon3d;
+
 
 namespace {
 

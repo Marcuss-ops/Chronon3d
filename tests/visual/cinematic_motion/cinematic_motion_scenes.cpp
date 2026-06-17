@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
+using namespace chronon3d;
 
 namespace chronon3d::test {
 

@@ -2,6 +2,7 @@
 
 #include <doctest/doctest.h>
 
+
 namespace chronon3d::test {
 
 // The implementation is now in image_diff.cpp and golden_test.cpp in

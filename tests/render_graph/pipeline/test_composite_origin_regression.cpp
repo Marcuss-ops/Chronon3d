@@ -14,8 +14,8 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 namespace {
 

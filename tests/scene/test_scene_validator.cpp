@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/validation/scene_validator.hpp>
-
 using namespace chronon3d;
+
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

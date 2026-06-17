@@ -7,8 +7,8 @@
 #include <vector>
 #include <cmath>
 #include <xxhash.h>
-
 using namespace chronon3d;
+
 using namespace chronon3d::video;
 
 TEST_CASE("Near-static frames: small color variations produce mostly cache hits") {

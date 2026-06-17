@@ -5,8 +5,8 @@
 #include <chronon3d/scene/model/core/transform_resolver.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 TEST_CASE("CameraRig orbit keeps constant radius") {
     CameraRig rig;

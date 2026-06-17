@@ -32,6 +32,7 @@
 #include <cmath>
 #include <vector>
 #include <algorithm>
+using namespace chronon3d;
 
 namespace {
 

@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/animation/core/animation_curve.hpp>
 #include <chronon3d/animation/core/animated_value.hpp>
-
 using namespace chronon3d;
+
 
 // ── AnimationCurve Basic Tests ───────────────────────────────────────────────
 

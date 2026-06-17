@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/timeline/sequence.hpp>
-
 using namespace chronon3d;
+
 
 TEST_CASE("Sequence — active window") {
     FrameContext ctx;

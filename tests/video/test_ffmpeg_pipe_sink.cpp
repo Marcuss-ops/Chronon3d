@@ -40,6 +40,7 @@
 #if !defined(_WIN32)
 #include <sys/types.h>
 #include <signal.h>
+using namespace chronon3d;
 #endif
 
 using namespace chronon3d::media::video;

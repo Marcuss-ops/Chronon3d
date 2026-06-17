@@ -18,8 +18,8 @@
 using namespace test_fx;
 #include <cmath>
 #include <cstdint>
-
 using namespace chronon3d;
+
 using namespace chronon3d::renderer;
 using namespace chronon3d::sampling;
 

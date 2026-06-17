@@ -8,8 +8,8 @@
 
 #include <cmath>
 #include <filesystem>
-
 using namespace chronon3d;
+
 using namespace chronon3d::animation;
 
 namespace {

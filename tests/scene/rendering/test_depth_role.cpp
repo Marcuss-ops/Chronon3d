@@ -2,8 +2,8 @@
 #include <chronon3d/scene/model/core/depth_role.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
-
 using namespace chronon3d;
+
 
 // ---------------------------------------------------------------------------
 // DepthRoleResolver

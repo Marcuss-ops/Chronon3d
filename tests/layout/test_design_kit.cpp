@@ -5,8 +5,8 @@
 #include <chronon3d/scene/model/render/render_node_factory.hpp>
 
 #include <memory_resource>
-
 using namespace chronon3d;
+
 
 TEST_CASE("RichTextLine measures a mixed inline line with text, spacing and symbol") {
     RichTextLine rtl;

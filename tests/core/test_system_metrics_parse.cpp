@@ -1,4 +1,5 @@
 #include <doctest/doctest.h>
+
 #include "src/core/system_metrics_parse.hpp"
 
 using chronon3d::detail::parse_proc_stat;

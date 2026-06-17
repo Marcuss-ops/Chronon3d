@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/text/text_animator_property.hpp>
-
 using namespace chronon3d;
+
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 

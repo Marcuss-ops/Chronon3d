@@ -11,8 +11,8 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 namespace {
 

@@ -23,8 +23,8 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
-
 using namespace chronon3d;
+
 using namespace chronon3d::video;
 using namespace chronon3d::renderer;
 

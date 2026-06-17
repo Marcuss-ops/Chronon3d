@@ -29,11 +29,11 @@
 
 #include <cmath>
 #include <vector>
+using namespace chronon3d;
 
 namespace {
 
 using namespace chronon3d::camera_v1;
-using namespace chronon3d;
 using chronon3d::test::approx;
 
 // ==============================================================================

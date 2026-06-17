@@ -3,8 +3,8 @@
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
-
 using namespace chronon3d;
+
 using namespace chronon3d::cache;
 
 TEST_CASE("FramebufferPool::acquire returns framebuffer with requested size") {

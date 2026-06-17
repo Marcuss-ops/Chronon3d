@@ -30,10 +30,10 @@
 #include <cstdint>
 #include <thread>
 #include <vector>
+using namespace chronon3d;
 
 using chronon3d::profiling::duration_ms;
 using chronon3d::profiling::now;
-using namespace chronon3d;
 
 // ── 1. Fields exist, are aligned, and default to zero. ───────────────
 TEST_CASE("counters: cache_eval_ms and dirty_eval_ms fields exist and are aligned") {

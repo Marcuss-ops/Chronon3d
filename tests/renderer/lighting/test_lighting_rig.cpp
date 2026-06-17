@@ -4,8 +4,8 @@
 #include <chronon3d/rendering/lighting_eval.hpp>
 #include <chronon3d/scene/model/shape/material_2_5d.hpp>
 #include <glm/glm.hpp>
-
 using namespace chronon3d;
+
 using namespace chronon3d::rendering;
 
 TEST_CASE("LightingRig: RimLight defaults") {

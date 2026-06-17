@@ -26,8 +26,8 @@
 #include <cstdio>
 #include <cstring>
 #include <vector>
-
 using namespace chronon3d;
+
 
 // ── Scalar reference implementations ────────────────────────────────────────
 

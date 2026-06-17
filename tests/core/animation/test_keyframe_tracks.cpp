@@ -4,8 +4,8 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/color.hpp>
-
 using namespace chronon3d;
+
 
 TEST_CASE("KeyframeTrack Basic Interpolation") {
     auto track = keyframes<f32>({

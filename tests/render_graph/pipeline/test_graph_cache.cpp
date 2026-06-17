@@ -3,8 +3,8 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
-
 using namespace chronon3d;
+
 using namespace chronon3d::graph;
 
 // Helper: render a single frame and return the framebuffer.

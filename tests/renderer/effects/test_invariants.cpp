@@ -14,8 +14,8 @@
 #include <xxhash.h>
 #include <cmath>
 #include <iostream>
-
 using namespace chronon3d;
+
 
 namespace {
 

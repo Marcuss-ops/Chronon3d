@@ -10,8 +10,8 @@
 #include <cmath>
 #include "src/render_graph/builder/graph_builder_coordinates.hpp"
 #include "src/render_graph/builder/graph_builder_internal.hpp"
-
 using namespace chronon3d;
+
 using namespace chronon3d::graph;
 
 TEST_CASE("Coordinate Centered vs Top Left - 2D standard top left layer") {

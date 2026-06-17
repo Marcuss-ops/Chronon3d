@@ -20,8 +20,8 @@
 #include <algorithm>
 #include <limits>
 #include <numeric>
-
 using namespace chronon3d;
+
 using namespace chronon3d::renderer;
 using namespace chronon3d::raster;
 

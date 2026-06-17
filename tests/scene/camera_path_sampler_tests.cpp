@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/scene/camera/camera_path_sampler.hpp>
-
 using namespace chronon3d;
+
 
 TEST_CASE("Camera Path Sampler test suite") {
     CameraRig rig;

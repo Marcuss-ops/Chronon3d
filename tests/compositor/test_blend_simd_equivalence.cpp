@@ -20,8 +20,8 @@
 #include <cmath>
 #include <span>
 #include <vector>
-
 using namespace chronon3d;
+
 using namespace chronon3d::blend_math;
 using namespace chronon3d::test;
 

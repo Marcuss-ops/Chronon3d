@@ -9,8 +9,8 @@
 #include <tests/visual/support/golden_test.hpp>
 
 #include <filesystem>
-
 using namespace chronon3d;
+
 using namespace chronon3d::test;
 
 namespace {

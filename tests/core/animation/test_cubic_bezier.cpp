@@ -2,8 +2,8 @@
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/animation/easing/interpolate.hpp>
-
 using namespace chronon3d;
+
 
 TEST_CASE("CubicBezier basic easing and solvers") {
     SUBCASE("Linear cubic-bezier(0,0,1,1) matches t exactly") {

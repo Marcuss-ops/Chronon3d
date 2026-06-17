@@ -26,8 +26,8 @@
 #include <cstdint>
 #include <cstring>
 #include <span>
-
 using namespace chronon3d;
+
 
 namespace {
 

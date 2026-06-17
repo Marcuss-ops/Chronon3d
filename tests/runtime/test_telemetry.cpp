@@ -6,8 +6,8 @@
 #include <nlohmann/json.hpp>
 #include <filesystem>
 #include <fstream>
-
 using namespace chronon3d;
+
 using namespace chronon3d::telemetry;
 
 TEST_CASE("Telemetry: System Info Queries") {

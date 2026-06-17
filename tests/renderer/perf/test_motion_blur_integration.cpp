@@ -9,8 +9,8 @@
 
 #include <cmath>
 #include <vector>
-
 using namespace chronon3d;
+
 
 namespace {
 

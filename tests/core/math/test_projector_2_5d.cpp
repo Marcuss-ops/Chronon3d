@@ -2,8 +2,8 @@
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 using namespace chronon3d::renderer;
 
 // ProjectionContext requires look_at convention (negative view_z = visible).
