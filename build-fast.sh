@@ -92,7 +92,7 @@ resolve_build_dir() {
     mkdir -p "$BUILD_DIR"
     local symlink="$ROOT_DIR/build/chronon/linux-fast-dev"
     mkdir -p "$(dirname "$symlink")"
-    ln -sfn "$BUILD_DIR" "$symlink"
+    ln -sfnT "$BUILD_DIR" "$symlink"
 }
 
 bootstrap_ccache
@@ -104,7 +104,7 @@ JOBS="${JOBS:-$(nproc)}"
 
 ensure_configured() {
     if [[ ! -f "$BUILD_DIR/build.ninja" ]]; then
-        cmake --preset "$PRESET"
+        cmake --preset "$PRESET" -B "$BUILD_DIR"
     fi
 }
 

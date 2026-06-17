@@ -30,7 +30,7 @@ struct CameraMotionContext {
     static CameraMotionContext at(Frame f) {
         CameraMotionContext c;
         c.frame = f;
-        c.sample_time = SampleTime::from_frame_int(f);
+        c.sample_time = SampleTime::from_frame_int(f, FrameRate{30, 1});
         return c;
     }
 };

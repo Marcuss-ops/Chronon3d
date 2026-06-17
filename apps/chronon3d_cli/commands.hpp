@@ -25,9 +25,11 @@ struct RenderPipelineArgs {
     bool   diagnostic{false};
     bool   diagnostic_plan{false};
     std::string diagnostic_plan_output;
-    bool   dirty_rects{false};
     int    tile_size{0};
     RenderQualityArgs quality{};
+
+    // Renderer warmup (preallocation + optional dummy frame)
+    bool   no_dirty_rects{false};
 
     // Renderer warmup (preallocation + optional dummy frame)
     bool   warmup_renderer{false};
@@ -135,7 +137,7 @@ struct BenchArgs {
     int frames{100};
     int warmup{10};
     bool use_modular_graph{true};
-    bool dirty_rects{false};
+    bool no_dirty_rects{false};
 
     std::string json_file;
     std::string compare_file;

@@ -27,7 +27,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--diagnostic-plan-output", args.pipeline.diagnostic_plan_output,
                     "Write graph preflight report to a file path pattern");
     cmd->add_flag("--graph,!--no-graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
-    cmd->add_flag("--dirty-rects", args.pipeline.dirty_rects, "Enable dirty rectangles invalidation");
+    cmd->add_flag("--no-dirty-rects", args.pipeline.no_dirty_rects, "Disable dirty-rectangle invalidation (dirty rects are ON by default)");
     cmd->add_option("--tile-size", args.pipeline.tile_size, "Tile size for dirty-rect tile execution (e.g. 64)");
     cmd->add_flag("--motion-blur", args.pipeline.quality.motion_blur, "Enable temporal motion blur");
     cmd->add_option("--motion-blur-samples", args.pipeline.quality.motion_blur_samples, "Subframe samples (default 8)");

@@ -93,12 +93,17 @@ jobs:
 
       # ── Build: fast tests on PR, full suite on push to main ───────────
       # Note: parallelism is handled by CMakePresets.json ("jobs": 16).
+      # C API lane always builds its own target (c_api_tests) instead.
+      - name: Build (C API)
+        if: matrix.config.preset == 'linux-ci-c-api'
+        run: cmake --build --preset ${{ matrix.config.build_preset }}
+
       - name: Build (Fast — PR)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && matrix.config.preset != 'linux-ci-c-api'
         run: cmake --build --preset ${{ matrix.config.build_preset }} --target chronon3d_tests_fast
 
       - name: Build (Full — Push)
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && matrix.config.preset != 'linux-ci-c-api'
         run: cmake --build --preset ${{ matrix.config.build_preset }} --target chronon3d_tests
 
       # ── Run Tests ─────────────────────────────────────────────────────
