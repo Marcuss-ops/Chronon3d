@@ -12,11 +12,8 @@ int main(int argc, char** argv) {
     doctest::Context context;
     context.applyCommandLine(argc, argv);
 
-#ifdef CHRONON3D_HAS_CONTENT_MINIMALIST
-    chronon3d::register_minimalist_content();
-#endif
-#ifdef CHRONON3D_HAS_CONTENT_2D5
-    chronon3d::register_two_point_five_d_content();
+#if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_2D5)
+    chronon3d::register_content_modules();
 #endif
 
     // Mount AssetRegistry to current path so that relative paths work correctly

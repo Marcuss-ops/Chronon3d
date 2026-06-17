@@ -19,6 +19,5 @@ target_sources(chronon3d_backend_software PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/effects/effect_glow_impl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/effects/effect_shadow_impl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/effects/effect_bloom_impl.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/effects/effect_focus_ladder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/effects/effect_stack.cpp
 )

@@ -3,11 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Build location: prefer tmpfs (/tmp) for speed; fall back to the on-disk
-# location. The symlink at $ROOT_DIR/build/chronon/<preset> keeps the
-# CMake binaryDir stable so reconfigure is not needed.
-LEGACY_BUILD_DIR="$ROOT_DIR/build/chronon/linux-fast-dev"
-TMPFS_BUILD_DIR="/tmp/chronon-builds/linux-fast-dev"
+# Build location: default to tmpfs for speed; override with BUILD_DIR_OVERRIDE.
+BUILD_DIR="${BUILD_DIR_OVERRIDE:-/tmp/chronon-builds/linux-fast-dev}"
 
 # ccache: persistent, SSD-backed by default. 20 GiB cap and sloppiness
 # tuned for Clang/GCC PCH header drift.
@@ -39,14 +36,11 @@ Commands:
 Environment:
   JOBS                       Parallel jobs (default: nproc)
   CCACHE_DIR                 ccache store (default: \${HOME}/.ccache, max 20G)
-  BUILD_DIR_OVERRIDE         Override the resolved build dir (skips tmpfs auto-detect)
-  CHRONON3D_TMPFS_MIN_GB     Minimum /tmp free GiB to auto-pick tmpfs (default: 16)
+  BUILD_DIR_OVERRIDE         Override the resolved build dir (default: /tmp/chronon-builds/linux-fast-dev)
 
 Notes:
-  - Build dir is auto-resolved to a tmpfs location (/tmp/chronon-builds/...)
-    when /tmp has >= CHRONON3D_TMPFS_MIN_GB GiB free AND the legacy on-disk
-    slot is empty or already a symlink; otherwise on-disk. The symlink at
-    \${ROOT_DIR}/build/chronon/<preset> keeps the CMake binaryDir stable.
+  - Build dir defaults to tmpfs (/tmp/chronon-builds/linux-fast-dev).
+    Set BUILD_DIR_OVERRIDE for an on-disk location.
   - ccache config is auto-bootstrapped on first run (skipped when CCACHE_DIR
     is explicitly set to a non-default path to avoid clobbering CI caches).
 
@@ -94,55 +88,11 @@ resolve_build_dir() {
         BUILD_DIR="$BUILD_DIR_OVERRIDE"
         return
     fi
-    # If the legacy symlink already points elsewhere, just use it.
-    if [[ -L "$LEGACY_BUILD_DIR" ]]; then
-        BUILD_DIR="$LEGACY_BUILD_DIR"
-        return
-    fi
-    # Auto-detect: tmpfs if /tmp has enough free space AND legacy slot is
-    # empty (or already provisioned). Never clobber a populated on-disk
-    # build directory.
-    local tmpfs_min_gib="${CHRONON3D_TMPFS_MIN_GB:-16}"
-    if [[ -d /tmp ]] && command -v df >/dev/null 2>&1; then
-        # Local df helper that won't trip `set -e` on a non-zero exit.
-        local free_kb
-        free_kb=$(df -Pk /tmp 2>/dev/null | awk 'NR==2 {print $4}') || free_kb=""
-        if [[ "$free_kb" =~ ^[0-9]+$ ]]; then
-            local free_gib=$(( free_kb / 1048576 ))
-            if (( free_gib >= tmpfs_min_gib )); then
-                mkdir -p "$TMPFS_BUILD_DIR"
-                if [[ -d "$LEGACY_BUILD_DIR" && ! -L "$LEGACY_BUILD_DIR" ]]; then
-                    if [[ -z "$(ls -A "$LEGACY_BUILD_DIR" 2>/dev/null)" ]]; then
-                        rmdir "$LEGACY_BUILD_DIR"
-                    else
-                        echo "⚠️  $LEGACY_BUILD_DIR is a populated directory; not touching it." >&2
-                        echo "    Remove/rename it, or set BUILD_DIR_OVERRIDE to skip auto-detect." >&2
-                        BUILD_DIR="$LEGACY_BUILD_DIR"
-                        return 0
-                    fi
-                fi
-                # Atomic symlink install: create temp link then mv into place.
-                local tmp_link="${LEGACY_BUILD_DIR}.ln.$$"
-                if ! ln -s "$TMPFS_BUILD_DIR" "$tmp_link"; then
-                    echo "⚠️  failed to stage tmpfs symlink; falling back to on-disk dir" >&2
-                    BUILD_DIR="$LEGACY_BUILD_DIR"
-                    return 0
-                fi
-                mv -T "$tmp_link" "$LEGACY_BUILD_DIR" || {
-                    rm -f "$tmp_link"
-                    echo "⚠️  failed to move symlink into place; falling back to on-disk dir" >&2
-                    BUILD_DIR="$LEGACY_BUILD_DIR"
-                    return 0
-                }
-                BUILD_DIR="$LEGACY_BUILD_DIR"
-                echo "→ Using tmpfs build dir: $TMPFS_BUILD_DIR (free ~${free_gib} GiB)"
-                return 0
-            else
-                echo "→ /tmp has ~${free_gib}G free (< ${tmpfs_min_gib} GiB); using on-disk build dir"
-            fi
-        fi
-    fi
-    BUILD_DIR="$LEGACY_BUILD_DIR"
+    # Default: tmpfs with a symlink so CMake binaryDir stays stable.
+    mkdir -p "$BUILD_DIR"
+    local symlink="$ROOT_DIR/build/chronon/linux-fast-dev"
+    mkdir -p "$(dirname "$symlink")"
+    ln -sfn "$BUILD_DIR" "$symlink"
 }
 
 bootstrap_ccache

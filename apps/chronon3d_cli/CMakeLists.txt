@@ -45,9 +45,6 @@ add_library(chronon3d_cli_video STATIC
     commands/video/command_video_camera.cpp
     commands/video/common/video_export_common.cpp
     commands/video/common/pipe_export_helpers.cpp
-    commands/video/common/pipe_export_setup.cpp
-    commands/video/common/pipe_export_close.cpp
-    commands/video/common/pipe_export_telemetry.cpp
     commands/video/exporters/video_export_pipe.cpp
     commands/video/exporters/pipe_export_session_setup.cpp
     commands/video/exporters/pipe_export_pool_warmup.cpp

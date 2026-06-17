@@ -58,7 +58,7 @@ option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" OFF)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
 option(CHRONON3D_BUILD_C_API "Build experimental C bindings (shared library + C tests)" OFF)
 option(CHRONON3D_BUILD_BENCHMARKS "Build Chronon3d benchmarks" OFF)
-option(CHRONON3D_BUILD_CONTENT "Build bundled content compositions (proofs, demos)" ON)
+option(CHRONON3D_BUILD_CONTENT "Build bundled content compositions (proofs, demos)" OFF)
 option(CHRONON3D_ENABLE_NATIVE_FFMPEG "Enable native FFmpeg/libav encoder support" OFF)
 option(CHRONON3D_ENABLE_TEXT "Enable text rendering support (freetype + harfbuzz)" ON)
 option(CHRONON3D_ENABLE_EXR "Enable OpenEXR image format support" ON)
@@ -201,9 +201,6 @@ if(CHRONON3D_BUILD_CLI AND CHRONON3D_BUILD_TESTS)
             chronon3d_tests_fast
     )
 endif()
-
-# CHRONON3D_BUILD_TOOLS removed — the option was a no-op (the only target
-# it guarded, preview_new_features, was deleted in a previous cleanup).
 
 # ==============================================================================
 # C API SHARED LIBRARY & C TEST (Experimental — opt-in via CHRONON3D_BUILD_C_API)

@@ -77,7 +77,8 @@ TEST_CASE("Dirty Rectangles V1 Pixel-Perfect Equivalence & Counters Test") {
     SoftwareRenderer renderer_baseline;
     RenderSettings settings_baseline;
     settings_baseline.use_modular_graph = true;
-    settings_baseline.dirty.dirty_rects_v1 = false;
+    settings_baseline.dirty.enabled = false;
+    settings_baseline.dirty.use_bitmask = false;
     renderer_baseline.set_settings(settings_baseline);
 
     auto fb_baseline = renderer_baseline.render_frame(comp, 10);
@@ -87,7 +88,7 @@ TEST_CASE("Dirty Rectangles V1 Pixel-Perfect Equivalence & Counters Test") {
     SoftwareRenderer renderer_opt;
     RenderSettings settings_opt;
     settings_opt.use_modular_graph = true;
-    settings_opt.dirty.dirty_rects_v1 = true;
+    settings_opt.dirty.enabled = true;
     renderer_opt.set_settings(settings_opt);
 
     auto fb_opt = renderer_opt.render_frame(comp, 10);
@@ -180,13 +181,14 @@ TEST_CASE("Dirty rectangles stay stable for geometric backgrounds across frames"
     SoftwareRenderer renderer_baseline;
     RenderSettings settings_baseline;
     settings_baseline.use_modular_graph = true;
-    settings_baseline.dirty.dirty_rects_v1 = false;
+    settings_baseline.dirty.enabled = false;
+    settings_baseline.dirty.use_bitmask = false;
     renderer_baseline.set_settings(settings_baseline);
 
     SoftwareRenderer renderer_opt;
     RenderSettings settings_opt;
     settings_opt.use_modular_graph = true;
-    settings_opt.dirty.dirty_rects_v1 = true;
+    settings_opt.dirty.enabled = true;
     renderer_opt.set_settings(settings_opt);
 
     int total_mismatches = 0;

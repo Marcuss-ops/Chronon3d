@@ -46,11 +46,11 @@ TEST_CASE("DirtyRectContract: static scene is pixel-identical with and without d
     });
 
     SoftwareRenderer renderer_base;
-    RenderSettings s_base; s_base.use_modular_graph = true; s_base.dirty.dirty_rects_v1 = false;
+    RenderSettings s_base; s_base.use_modular_graph = true; s_base.dirty.enabled = false; s_base.dirty.use_bitmask = false;
     renderer_base.set_settings(s_base);
 
     SoftwareRenderer renderer_opt;
-    RenderSettings s_opt; s_opt.use_modular_graph = true; s_opt.dirty.dirty_rects_v1 = true;
+    RenderSettings s_opt; s_opt.use_modular_graph = true; s_opt.dirty.enabled = true;
     renderer_opt.set_settings(s_opt);
 
     for (int f = 0; f < spec.duration; ++f) {
@@ -75,11 +75,11 @@ TEST_CASE("DirtyRectContract: animated scene is pixel-identical with dirty rects
     });
 
     SoftwareRenderer renderer_base;
-    RenderSettings s_base; s_base.use_modular_graph = true; s_base.dirty.dirty_rects_v1 = false;
+    RenderSettings s_base; s_base.use_modular_graph = true; s_base.dirty.enabled = false; s_base.dirty.use_bitmask = false;
     renderer_base.set_settings(s_base);
 
     SoftwareRenderer renderer_opt;
-    RenderSettings s_opt; s_opt.use_modular_graph = true; s_opt.dirty.dirty_rects_v1 = true;
+    RenderSettings s_opt; s_opt.use_modular_graph = true; s_opt.dirty.enabled = true;
     renderer_opt.set_settings(s_opt);
 
     for (int f = 0; f < spec.duration; ++f) {
@@ -110,7 +110,7 @@ TEST_CASE("DirtyRectContract: dirty pixels counter is less than total pixels") {
     });
 
     SoftwareRenderer renderer;
-    RenderSettings s; s.use_modular_graph = true; s.dirty.dirty_rects_v1 = true;
+    RenderSettings s; s.use_modular_graph = true; s.dirty.enabled = true;
     renderer.set_settings(s);
 
     // Render enough frames to exercise dirty rect tracking

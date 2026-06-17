@@ -28,14 +28,6 @@
       }
     },
     {
-      "name": "base-linux-mold",
-      "hidden": true,
-      "inherits": "base-linux",
-      "cacheVariables": {
-        "CMAKE_LINKER_TYPE": "MOLD"
-      }
-    },
-    {
       "name": "base-win",
       "hidden": true,
       "inherits": "base",
@@ -103,42 +95,6 @@
       "inherits": "linux-ci",
       "cacheVariables": {
         "CHRONON3D_BUILD_C_API": "ON"
-      }
-    },
-    {
-      "name": "linux-debug-render",
-      "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CHRONON3D_BUILD_C_API": "OFF",
-        "CHRONON3D_BUILD_TESTS": "OFF",
-        "CHRONON3D_UNITY_BUILD": "OFF"
-      }
-    },
-    {
-      "name": "linux-fast",
-      "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CHRONON3D_BUILD_C_API": "OFF",
-        "CHRONON3D_BUILD_TESTS": "OFF",
-        "CHRONON3D_BUILD_BENCHMARKS": "OFF",
-        "CHRONON3D_BUILD_CONTENT": "OFF",
-        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
-        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "OFF",
-        "CHRONON3D_ENABLE_PROFILING": "OFF",
-        "CHRONON3D_UNITY_BUILD": "ON",
-        "CMAKE_UNITY_BUILD_BATCH_SIZE": "16"
       }
     },
     {
@@ -368,24 +324,8 @@
       "jobs": 16
     },
     {
-      "name": "linux-debug-render",
-      "configurePreset": "linux-debug-render",
-      "targets": [
-        "chronon3d_cli"
-      ],
-      "jobs": 16
-    },
-    {
       "name": "linux-turbo",
       "configurePreset": "linux-turbo",
-      "targets": [
-        "chronon3d_cli"
-      ],
-      "jobs": 16
-    },
-    {
-      "name": "linux-fast",
-      "configurePreset": "linux-fast",
       "targets": [
         "chronon3d_cli"
       ],

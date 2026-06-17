@@ -73,27 +73,12 @@ Trade‑off: a header whose **content** changes without its mtime updating
 may serve a stale object. Acceptable for dev; CI uses a fresh cache.
 
 `CMAKE_CXX_COMPILER_LAUNCHER=ccache` is automatically set by
-`CMakeLists.txt` when the binary is on PATH — no CMake‑side plumbing needed.
+`CMakeLists.txt` when the binary is on PATH — no CMake‑side plumbing needed.### 2. Build dir on `tmpfs` (RAM disk)
 
-### 2. Build dir on `tmpfs` (RAM disk)
-
-Resolved by `resolve_build_dir()` inside `build-fast.sh`:
-
-1. If `$ROOT_DIR/build/chronon/<preset>` is already a symlink → use it (no‑op).
-2. Else if `/tmp` has at least `CHRONON3D_TMPFS_MIN_GB` GiB free (default **16 GiB**) → move the legacy on‑disk slot into a tmpfs path and install an atomic symlink (`ln ... .ln.<pid> && mv -T`).
-3. Else → fall back to on‑disk location (with a clear warning).
-
-Result: `cmake --build build/chronon/linux-fast-dev` resolves through the
-symlink to `/tmp/chronon-builds/linux-fast-dev` and reads/writes RAM. No
-CMake reconfigure is needed.
-
-The legacy on‑disk slot is **never silently destroyed** — if it is a real
-populated directory, `build-fast.sh` refuses the swap and prints:
-
-```
-⚠️  /…/build/chronon/<preset> is a populated directory; not touching it.
-    Remove/rename it, or set BUILD_DIR_OVERRIDE to skip auto-detect.
-```
+`build-fast.sh` defaults the build directory to `/tmp/chronon-builds/linux-fast-dev`.
+Set `BUILD_DIR_OVERRIDE` to use an on-disk location instead.
+A symlink at `build/chronon/linux-fast-dev` keeps the CMake binaryDir stable
+so `cmake --build` resolves through it transparently.
 
 ### Measured timings on this host
 
@@ -170,8 +155,7 @@ All optional. Listed in `./build-fast.sh --help` as well.
 |---|---|---|
 | `JOBS` | `nproc` | parallel ninja jobs (`JOBS=8 ./build-fast.sh`) |
 | `CCACHE_DIR` | `~/.ccache` | overridable for isolated CI caches (bootstrap is **skipped** when CCACHE_DIR is set to a non‑default value, to avoid clobbering a shared cache) |
-| `BUILD_DIR_OVERRIDE` | unset | skip tmpfs auto‑detect; use exactly this path |
-| `CHRONON3D_TMPFS_MIN_GB` | `16` | minimum free GiB in `/tmp` to qualify for the tmpfs path |
+| `BUILD_DIR_OVERRIDE` | `/tmp/chronon-builds/linux-fast-dev` | override the default tmpfs build directory |
 
 ---
 
@@ -206,8 +190,7 @@ Use:
 |---|---|---|
 | First build takes many minutes | cold ccache + cold tmpfs dir | expected; see "Cold build (zero hit)" above for the host‑profile range (3–60 min depending on vcpkg state). After the first warm‑vcpkg run, drops to 13–17 s |
 | Cold run feels stuck on a slow disk | IO thrash from full parallelism | try `JOBS=$(($(nproc) / 2)) ./build-fast.sh` to halve parallelism |
-| `./build-fast.sh` says `/tmp` has too little free space | `CHRONON3D_TMPFS_MIN_GB` too high OR another tmpfs consumer | drop the threshold or use `BUILD_DIR_OVERRIDE=/path/on/ssd` |
-| ++`⚠️ … is a populated directory; not touching it.` | legacy on‑disk slot is real | `rm -rf build/chronon/linux-fast-dev` (only if empty of artifacts you need) or `BUILD_DIR_OVERRIDE=/tmp/chronon-builds/linux-fast-dev` |
+| `./build-fast.sh` says `/tmp` has too little free space | `/tmp` is too small for the build | use `BUILD_DIR_OVERRIDE=/path/on/ssd` |
 | `ccache -s` shows MISS where you expected HIT | sloppiness not in effect | confirm `~/.ccache/ccache.conf` matches above; for shared CI caches the bootstrap is intentionally skipped |
 | `--report` runs ignore the build cache | expected — each run re‑renders | this is a render‑time concern, not a build‑time concern |
 

@@ -1,21 +1,9 @@
 #include <chronon3d/extension/extension_module.hpp>
 #include <chronon3d/extension/extension_registry.hpp>
-#include <chronon3d/timeline/composition.hpp>
 
-namespace chronon3d::content::images {
-
-// ── Forward declarations (definitions in image_compositions.cpp) ──────
-
-Composition img_gradient();
-Composition img_checker();
-Composition img_grid_test();
-Composition img_test_pattern();
-Composition img_shake_zoom();
-Composition img_reference_shake_reveal();
-Composition img_corner_smoothing();
-Composition image_proofs();
-
-} // namespace chronon3d::content::images
+#include "compositions/image_test_patterns.hpp"
+#include "compositions/image_animated_reveals.hpp"
+#include "compositions/image_proofs.hpp"
 
 namespace chronon3d {
 

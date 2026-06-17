@@ -18,7 +18,7 @@ using namespace chronon3d;
 #ifdef CHRONON3D_HAS_CONTENT_2D5
 
 TEST_CASE("2D5 module: registers with stable id") {
-    register_two_point_five_d_content();
+    register_content_modules();
     auto& reg = ExtensionRegistry::instance();
     CHECK(reg.has_module("2d5"));
 }
@@ -26,13 +26,13 @@ TEST_CASE("2D5 module: registers with stable id") {
 TEST_CASE("2D5 module: idempotent registration") {
     auto& reg = ExtensionRegistry::instance();
     auto before = reg.module_count();
-    register_two_point_five_d_content();
-    register_two_point_five_d_content();
+    register_content_modules();
+    register_content_modules();
     CHECK(reg.module_count() == before);
 }
 
 TEST_CASE("2D5 module: core 2.5D scenes are available") {
-    register_two_point_five_d_content();
+    register_content_modules();
     CompositionRegistry registry;
 
     CHECK(registry.contains("ParallaxSimple"));
@@ -42,7 +42,7 @@ TEST_CASE("2D5 module: core 2.5D scenes are available") {
 }
 
 TEST_CASE("2D5 module: camera test compositions are available") {
-    register_two_point_five_d_content();
+    register_content_modules();
     CompositionRegistry registry;
 
     CHECK(registry.contains("CameraOrbitTargetLockTest"));

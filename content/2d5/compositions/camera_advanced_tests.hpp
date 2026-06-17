@@ -21,4 +21,13 @@ Composition camera_safe_framing_aspect_ratio_4_5();
 
 Composition camera_depth_perspective_scale_diagnostic_test();
 
+// Diagnostic coordinate contract tests
+Composition camera_coordinate_contract_test();
+Composition camera_binding_anchor_test();
+
+// Yaw baseline tests
+Composition camera_front_baseline_test();
+Composition camera_yaw_positive_test();
+Composition camera_yaw_negative_test();
+
 } // namespace chronon3d::content::two_point_five_d

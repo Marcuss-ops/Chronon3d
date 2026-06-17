@@ -48,6 +48,12 @@ enum class BlurStrategy : uint8_t {
     DownsampleQuarter,  // radius > 24.0f — 4× downsample, blur at quarter res, bilinear upscale
 };
 
+// TBB grain size for all `parallel_for` calls in this file. Higher = less
+// scheduler overhead, lower CPU under-utilisation. Empirically 16 yields the
+// best throughput across 8+ core machines while still leaving enough tasks
+// (~30+ for half-res, ~17 for quarter-res) to keep every core busy.
+static constexpr int kTbbGrain = 16;
+
 /// Resolve the optimal blur strategy for a given pixel radius.
 static BlurStrategy resolve_blur_strategy(f32 radius) noexcept {
     if (radius <= 0.5f) return BlurStrategy::None;
@@ -75,7 +81,7 @@ static void apply_fullres_blur(Framebuffer& fb, i32 r, int blur_passes,
     Framebuffer& tmp = *tmp_fb;
 
     for (int pass = 0; pass < blur_passes; ++pass) {
-        tbb::parallel_for(tbb::blocked_range<i32>(y0, y1, 4), [&](const tbb::blocked_range<i32>& range) {
+        tbb::parallel_for(tbb::blocked_range<i32>(y0, y1, kTbbGrain), [&](const tbb::blocked_range<i32>& range) {
             for (i32 y = range.begin(); y < range.end(); ++y) {
                 const Color* src_row = fb.pixels_row(y);
                 Color* tmp_row = tmp.pixels_row(y);
@@ -99,7 +105,7 @@ static void apply_fullres_blur(Framebuffer& fb, i32 r, int blur_passes,
             }
         });
 
-        tbb::parallel_for(tbb::blocked_range<i32>(x0, x1, 4), [&](const tbb::blocked_range<i32>& range) {
+        tbb::parallel_for(tbb::blocked_range<i32>(x0, x1, kTbbGrain), [&](const tbb::blocked_range<i32>& range) {
             for (i32 x = range.begin(); x < range.end(); ++x) {
                 Color sum{0, 0, 0, 0};
                 if ((x & 15) == 0 && y0 + 16 < y1) {
@@ -157,7 +163,7 @@ static Color bilinear_sample(const Framebuffer& src, f32 fx, f32 fy,
 static void downsample_2x(const Framebuffer& src, Framebuffer& dst) {
     const int sw = src.width(), sh = src.height();
     const int dw = dst.width(), dh = dst.height();
-    tbb::parallel_for(tbb::blocked_range<i32>(0, dh, 4), [&](const tbb::blocked_range<i32>& range) {
+    tbb::parallel_for(tbb::blocked_range<i32>(0, dh, kTbbGrain), [&](const tbb::blocked_range<i32>& range) {
         for (int dy = range.begin(); dy < range.end(); ++dy) {
             const int sy = dy * 2;
             Color* dst_row = dst.pixels_row(dy);
@@ -182,7 +188,7 @@ static void downsample_2x(const Framebuffer& src, Framebuffer& dst) {
 static void downsample_4x(const Framebuffer& src, Framebuffer& dst) {
     const int sw = src.width(), sh = src.height();
     const int dw = dst.width(), dh = dst.height();
-    tbb::parallel_for(tbb::blocked_range<i32>(0, dh, 4), [&](const tbb::blocked_range<i32>& range) {
+    tbb::parallel_for(tbb::blocked_range<i32>(0, dh, kTbbGrain), [&](const tbb::blocked_range<i32>& range) {
         for (int dy = range.begin(); dy < range.end(); ++dy) {
             const int sy = dy * 4;
             Color* dst_row = dst.pixels_row(dy);
@@ -211,7 +217,7 @@ static void upscale_bilinear(const Framebuffer& small, Framebuffer& fb) {
     const f32 scale_x = static_cast<f32>(sw) / static_cast<f32>(dw);
     const f32 scale_y = static_cast<f32>(sh) / static_cast<f32>(dh);
 
-    tbb::parallel_for(tbb::blocked_range<i32>(0, dh, 4), [&](const tbb::blocked_range<i32>& range) {
+    tbb::parallel_for(tbb::blocked_range<i32>(0, dh, kTbbGrain), [&](const tbb::blocked_range<i32>& range) {
         for (int dy = range.begin(); dy < range.end(); ++dy) {
             const f32 fy = (static_cast<f32>(dy) + 0.5f) * scale_y - 0.5f;
             Color* dst_row = fb.pixels_row(dy);

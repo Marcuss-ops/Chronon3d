@@ -84,6 +84,19 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                             ctx.telemetry.counters->increment_dirty_full_fallback_reason(
                                 DirtyFallbackReason::EffectBoundsUnknown);
                         }
+                    } else {
+                        // Layer is dirty-rect safe, but Blur/Light effects
+                        // can extend the effective region beyond the geometric
+                        // bbox. Dilate by the computed spatial spread so we
+                        // get partial-dirty tracking instead of full-frame
+                        // every active frame.
+                        const f32 spread = compute_layer_spatial_spread(*rl.layer);
+                        if (spread > 0.0f) {
+                            bbox.x0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.x0) - spread)));
+                            bbox.y0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.y0) - spread)));
+                            bbox.x1 = std::min(width,  static_cast<i32>(std::ceil(static_cast<f32>(bbox.x1) + spread)));
+                            bbox.y1 = std::min(height, static_cast<i32>(std::ceil(static_cast<f32>(bbox.y1) + spread)));
+                        }
                     }
 
                     LayerBBoxState state;
