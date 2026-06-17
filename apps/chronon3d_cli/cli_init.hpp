@@ -23,9 +23,8 @@ inline void init_content_modules() {
 #ifdef CHRONON3D_BUILD_CONTENT
     chronon3d::register_content_modules();
 #endif
-    // Register scene/animation built-in compositions (DarkGridBackground,
-    // GridCleanBackground, CameraImageClip).  Replaces the old
-    // CHRONON_REGISTER_COMPOSITION static-initialiser macros.
+    // Register non-content built-in compositions (DarkGridBackground,
+    // GridCleanBackground, CameraImageClip).
     chronon3d::register_builtin_compositions();
 }
 
