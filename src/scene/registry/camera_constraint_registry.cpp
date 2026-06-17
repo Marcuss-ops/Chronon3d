@@ -99,6 +99,12 @@ ConstraintResult CameraConstraintStack::resolve(const Camera2_5D& start,
                                                 ConstraintSession& session) const {
     ConstraintResult r;
     r.camera = start;
+    // Bug 1 fix: ensure session.states has a slot for every constraint. Without
+    // this, stateful constraints (DampedFollow) crash on session.active_state()
+    // when the caller never called ensure_states() themselves. CameraProgram was
+    // protected because it called ensure_states() internally; the public stack
+    // resolve() API is not.
+    session.ensure_states(stack_.size());
     for (std::size_t i = 0; i < stack_.size(); ++i) {
         session.active_index = i;  // per-constraint state slot
         r = stack_[i]->evaluate(r.camera, ctx, session);
@@ -131,13 +137,20 @@ inline void rotate_toward_target(Camera2_5D& cam, Vec3 target) {
 // =========================================================================
 class LookAtConstraint final : public CameraConstraint {
 public:
-    explicit LookAtConstraint(const LookAtParams& /*params*/) {}
+    explicit LookAtConstraint(const LookAtParams& params) : target_override_(params.target) {}
     std::string id() const override { return "camera.look_at"; }
     ConstraintResult evaluate(const Camera2_5D& in,
                               const CameraMotionContext& ctx,
                               ConstraintSession& /*session*/) const override {
         ConstraintResult r;
-        Vec3 dir = ctx.base_target - in.position;
+        // Bug 2 fix: honor params.target when non-zero, else fall back to ctx.
+        // Contract picked: explicit override (LookAtParams.target) wins over the
+        // implicit context base_target. Default-constructed LookAtParams{} has
+        // target == (0,0,0), which is treated as "unset" via the length sentinel.
+        const Vec3 target = (glm::length(target_override_) > 1e-3f)
+            ? target_override_
+            : ctx.base_target;
+        Vec3 dir = target - in.position;
         float d = glm::length(dir);
         if (d < 1e-3f) {
             r.camera = in;
@@ -146,10 +159,12 @@ public:
             return r;
         }
         r.camera = in;
-        rotate_toward_target(r.camera, ctx.base_target);
+        rotate_toward_target(r.camera, target);
         r.ok = true;
         return r;
     }
+private:
+    Vec3 target_override_{0, 0, 0};  // zero = "unset" → use ctx.base_target
 };
 
 // =========================================================================

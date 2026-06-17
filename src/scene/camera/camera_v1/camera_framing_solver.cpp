@@ -55,12 +55,25 @@ void CameraFramingSolver::project_bbox(const FramingBBox& bbox,
 
     out_min = {1e9f, 1e9f};
     out_max = {-1e9f, -1e9f};
+    bool any_projected = false;
     for (auto& c : corners) {
         auto sp = project_world_to_screen(c, cam, vp);
+        // Framing hard-point fix: skip behind-camera corners. Without this,
+        // their inverted screen positions overflow the bounding box and spuriously
+        // force a dolly-out even when the bbox is fully visible in front of the
+        // camera.
+        if (sp.behind_camera) continue;
         out_min.x = std::min(out_min.x, sp.position.x);
         out_min.y = std::min(out_min.y, sp.position.y);
         out_max.x = std::max(out_max.x, sp.position.x);
         out_max.y = std::max(out_max.y, sp.position.y);
+        any_projected = true;
+    }
+    // If every corner ended up behind the camera, leave the bbox at a sentinel
+    // that downstream code will see as empty (out_min > out_max).
+    if (!any_projected) {
+        out_min = {1e9f, 1e9f};
+        out_max = {-1e9f, -1e9f};
     }
 }
 
@@ -276,6 +289,11 @@ CameraFramingResult CameraFramingSolver::solve(
         }
         result.convergence.iterations = iter + 1;
     }
+
+    // Framing hard-point fix: clamp zoom to request bounds (min_zoom, max_zoom).
+    // Previously these were accepted in CameraFramingRequest but never applied,
+    // leaving users with one fewer knob than the API implied.
+    current.zoom = std::clamp(current.zoom, req.min_zoom, req.max_zoom);
 
     // Dead zone + hysteresis.
     Camera2_5D prev = session.has_previous ? session.previous_camera : current;
