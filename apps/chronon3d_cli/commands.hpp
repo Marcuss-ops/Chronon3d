@@ -160,11 +160,6 @@ struct GraphArgs {
     bool plan{false};     // print layer/frame placement before execution
 };
 
-struct ProofsArgs {
-    std::string output_dir{"output/proofs"};
-    float ssaa{1.0f};
-};
-
 struct TelemetryArgs {
     std::string run_id;
     std::string output_file;
@@ -216,17 +211,12 @@ int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_doctor(const CompositionRegistry& registry);
 int command_verify(const CompositionRegistry& registry, const std::string& output_dir);
 int command_render(const CompositionRegistry& registry, const RenderArgs& args);
-int command_preview(const CompositionRegistry& registry, const RenderArgs& args);
-int command_contact_sheet(const CompositionRegistry& registry, const RenderArgs& args);
-int command_storyboard(const CompositionRegistry& registry, const RenderArgs& args);
 int command_video(const CompositionRegistry& registry, const VideoArgs& args);
 int command_video_camera(const CompositionRegistry& registry, const VideoCameraArgs& args);
 int command_bench_convert(const CompositionRegistry& registry, const BenchConvertArgs& args);
 int command_bench(const CompositionRegistry& registry, const BenchArgs& args);
 int command_graph(const CompositionRegistry& registry, const GraphArgs& args);
 int command_batch(const CompositionRegistry& registry, const std::vector<std::string>& job_specs);
-int command_watch(const CompositionRegistry& registry, const std::string& comp_id);
-int command_proofs(const CompositionRegistry& registry, const ProofsArgs& args);
 int command_telemetry(const TelemetryArgs& args);
 int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args);
 int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs& args);
