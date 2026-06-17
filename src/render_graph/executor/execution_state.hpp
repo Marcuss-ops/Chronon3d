@@ -45,6 +45,11 @@ struct PreResolvedNode {
     bool has_cacheable_inputs = false;
     bool inputs_all_cache_hits = false;
     u64 input_hash = 0;
+    // Effective opacity at the current frame, evaluated at resolve-time from
+    // the layer's m_layer.anim_transform.opacity. Defaults to 1.0 to keep
+    // existing call sites safe until populate_inputs_invisible_layers() is
+    // wired inside executor_levels.cpp::resolve_layer pass.
+    f32 resolved_opacity = 1.0f;
 
     explicit PreResolvedNode(std::pmr::memory_resource* res)
         : inputs(res), input_bboxes(res) {}
