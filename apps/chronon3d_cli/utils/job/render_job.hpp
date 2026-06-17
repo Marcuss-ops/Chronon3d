@@ -17,7 +17,6 @@ struct RenderJobPlan {
     std::string comp_id;
     std::string output;
     RenderSettings settings;
-    bool from_specscene{false};
     std::string log_level;
     bool benchmark_all{false};
     bool report{false};
