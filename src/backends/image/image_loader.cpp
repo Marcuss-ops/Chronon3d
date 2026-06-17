@@ -1,16 +1,17 @@
 #include <chronon3d/backends/image/image_loader.hpp>
 #include <stb_image.h>
 #include <algorithm>
+#include <string>
 
 namespace chronon3d::io {
 
 std::shared_ptr<Framebuffer> load_image_as_framebuffer(
-    const std::string& path,
+    std::string_view path,
     i32 target_width,
     i32 target_height
 ) {
     int width, height, channels;
-    unsigned char* raw = stbi_load(path.c_str(), &width, &height, &channels, 4);
+    unsigned char* raw = stbi_load(std::string(path).c_str(), &width, &height, &channels, 4);
 
     if (!raw) {
         return nullptr;

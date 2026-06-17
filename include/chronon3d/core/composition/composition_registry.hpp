@@ -4,6 +4,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <functional>
 #include <string>
+#include <string_view>
 #include <map>
 #include <memory>
 #include <stdexcept>
@@ -31,16 +32,16 @@ public:
         factories_[std::move(name)] = std::move(factory);
     }
 
-    [[nodiscard]] Composition create(const std::string& name) const {
+    [[nodiscard]] Composition create(std::string_view name) const {
         auto it = factories_.find(name);
         if (it == factories_.end()) {
-            throw std::runtime_error("Unknown composition: " + name);
+            throw std::runtime_error(std::string("Unknown composition: ") + std::string(name));
         }
 
         return it->second();
     }
 
-    [[nodiscard]] bool contains(const std::string& name) const {
+    [[nodiscard]] bool contains(std::string_view name) const {
         return factories_.contains(name);
     }
 
@@ -54,7 +55,7 @@ public:
     }
 
 private:
-    std::map<std::string, Factory> factories_;
+    std::map<std::string, Factory, std::less<>> factories_;
 };
 
 namespace detail {
