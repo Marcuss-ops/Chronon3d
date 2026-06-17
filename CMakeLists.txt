@@ -198,5 +198,3 @@ if(CHRONON3D_BUILD_CLI AND CHRONON3D_BUILD_TESTS)
     )
 endif()
 
-endif()
-
