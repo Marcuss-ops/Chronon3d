@@ -3,6 +3,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <memory>
 #include <string>
+#include <string_view>
 
 namespace chronon3d::io {
 
@@ -11,7 +12,7 @@ namespace chronon3d::io {
  * The image is resized/padded to fit the target width and height if they are specified (> 0).
  */
 std::shared_ptr<Framebuffer> load_image_as_framebuffer(
-    const std::string& path,
+    std::string_view path,
     i32 target_width = -1,
     i32 target_height = -1
 );
