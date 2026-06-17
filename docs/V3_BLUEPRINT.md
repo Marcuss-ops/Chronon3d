@@ -193,7 +193,7 @@ if (!active_mask.is_tile_affected(tx, ty)) continue;  // zero lavoro
 **Dove:**
 - `include/chronon3d/cli/video/output_pipeline.hpp` (nuovo) — `OutputPipeline`
 - `apps/chronon3d_cli/utils/video/output_pipeline.cpp` (nuovo)
-- `apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.cpp` — riscrittura
+- `apps/chronon3d_cli/commands/video/exporters/` — riscrittura su `PipeExportSession`
 
 **Guadagno stimato:** Zero attesa nel render thread, pipeline parallela con encoding del frame successivo.
 
