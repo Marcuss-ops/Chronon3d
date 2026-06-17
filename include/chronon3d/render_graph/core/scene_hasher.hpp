@@ -82,7 +82,7 @@ public:
     /// When static, we relax the m_prev_frame == frame check to allow
     /// m_prev_frame == frame - 1 (consecutive frames), enabling the fast-path
     /// to work in real video exports (frames 0,1,2,3...) not just benchmarks.
-    bool is_static_scene(const Scene& scene) const;
+    [[nodiscard]] bool is_static_scene(const Scene& scene) const;
 
     /// Frame-aware variant: returns true if the scene is static AT the given
     /// frame (i.e., the scene output won't change between frame and frame+1).
@@ -90,7 +90,7 @@ public:
     /// accounts for animations that have reached their terminal state.
     /// For example, tracking_breathing(1.04f, Frame{120}) on a 150-frame comp:
     /// frames 120-149 are effectively static (scale has settled at 1.0).
-    bool is_static_scene_at(const Scene& scene, Frame frame) const {
+    [[nodiscard]] bool is_static_scene_at(const Scene& scene, Frame frame) const {
         return is_effectively_static_at(scene, frame);
     }
 
@@ -261,7 +261,7 @@ private:
     }
 
     /// Check if the entire scene is effectively static at the given frame.
-    bool is_effectively_static_at(const Scene& scene, Frame frame) const {
+    [[nodiscard]] bool is_effectively_static_at(const Scene& scene, Frame frame) const {
         for (const auto& layer : scene.layers()) {
             if (!layer_is_static_at(layer, frame)) return false;
         }

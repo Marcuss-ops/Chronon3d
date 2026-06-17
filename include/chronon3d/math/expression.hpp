@@ -64,7 +64,7 @@ struct ExpressionState {
 
 namespace expr_detail {
 
-inline double seeded_random(unsigned int seed) {
+inline constexpr double seeded_random(unsigned int seed) {
     // Simple hash-based PRNG — deterministic for a given seed.
     unsigned int x = seed;
     x ^= x << 13;
@@ -73,7 +73,7 @@ inline double seeded_random(unsigned int seed) {
     return static_cast<double>(x % 100000u) / 100000.0;
 }
 
-inline double random_range(double lo, double hi, unsigned int seed) {
+inline constexpr double random_range(double lo, double hi, unsigned int seed) {
     return lo + (hi - lo) * seeded_random(seed);
 }
 
@@ -107,7 +107,7 @@ inline double wiggle_impl(double freq, double amp, double time, unsigned int see
 }
 
 // linear(t, t_min, t_max, v_min, v_max) — AE-style remapping.
-inline double linear_t(double t, double t_min, double t_max, double v_min, double v_max) {
+inline constexpr double linear_t(double t, double t_min, double t_max, double v_min, double v_max) {
     if (std::abs(t_max - t_min) < 1e-12) return v_min;
     double frac = (t - t_min) / (t_max - t_min);
     frac = std::clamp(frac, 0.0, 1.0);
@@ -115,7 +115,7 @@ inline double linear_t(double t, double t_min, double t_max, double v_min, doubl
 }
 
 // ease(t, t_min, t_max, v_min, v_max) — smoothstep remapping.
-inline double ease_t(double t, double t_min, double t_max, double v_min, double v_max) {
+inline constexpr double ease_t(double t, double t_min, double t_max, double v_min, double v_max) {
     if (std::abs(t_max - t_min) < 1e-12) return v_min;
     double frac = (t - t_min) / (t_max - t_min);
     frac = std::clamp(frac, 0.0, 1.0);
