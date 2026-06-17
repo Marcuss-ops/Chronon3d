@@ -30,6 +30,7 @@ add_executable(chronon3d_renderer_tests
     renderer/2d5/test_depth_grade.cpp
     render_graph/features/test_unified_transform_path.cpp
     backends/software/sampling/test_sampler2d.cpp
+    backends/software/text_run_processor_tests.cpp
     render_graph/features/test_transition.cpp
     registry/test_registries.cpp
     cache/test_cache_sharding.cpp
