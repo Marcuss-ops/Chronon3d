@@ -70,8 +70,8 @@ struct ConstraintSession {
         if (states.size() < n) states.resize(n);
     }
 
-    ConstraintState& active_state() { return states[active_index]; }
-    const ConstraintState& active_state() const { return states[active_index]; }
+    ConstraintState& active_state() { return states.at(active_index); }
+    const ConstraintState& active_state() const { return states.at(active_index); }
 
     void reset() {
         for (auto& s : states) s = {};
