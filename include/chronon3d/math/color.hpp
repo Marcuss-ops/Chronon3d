@@ -154,7 +154,7 @@ struct Color {
 };
 
 // Specialized lerp for AnimatedValue
-inline Color lerp(const Color& a, const Color& b, f32 t) {
+inline constexpr Color lerp(const Color& a, const Color& b, f32 t) {
     return {
         a.r + (b.r - a.r) * t,
         a.g + (b.g - a.g) * t,

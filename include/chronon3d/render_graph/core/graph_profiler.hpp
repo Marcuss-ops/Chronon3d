@@ -129,8 +129,8 @@ public:
 
     const std::vector<FrameProfile>& history() const { return m_history; }
 
-    ProfilerSummary get_summary() const;
-    std::string generate_report_json() const;
+    [[nodiscard]] ProfilerSummary get_summary() const;
+    [[nodiscard]] std::string generate_report_json() const;
 
 private:
 

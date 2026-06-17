@@ -224,7 +224,7 @@ inline ProjectedLayer2_5D project_layer_2_5d(
                               diagnostics_enabled);
 }
 
-inline f32 quad_signed_area(const Vec2& p0, const Vec2& p1, const Vec2& p2, const Vec2& p3) {
+inline constexpr f32 quad_signed_area(const Vec2& p0, const Vec2& p1, const Vec2& p2, const Vec2& p3) {
     const f32 twice_area =
         p0.x * p1.y - p1.x * p0.y +
         p1.x * p2.y - p2.x * p1.y +
