@@ -121,7 +121,6 @@ add_library(chronon3d_cli_dev STATIC
     commands/dev/command_bench_convert.cpp
     commands/dev/command_doctor_verify.cpp
     commands/dev/command_camera_path.cpp
-    commands/dev/command_visual_test_camera.cpp
     commands/dev/command_text_audit.cpp
     commands/dev/text_audit_engine.cpp
     utils/batch/batch_job_spec.cpp
