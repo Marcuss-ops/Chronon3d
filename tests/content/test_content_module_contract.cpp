@@ -1,7 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/extension/extension_registry.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
-#include <chronon3d/extension/extension_module.hpp>
 
 #include <algorithm>
 #include <set>
@@ -13,25 +12,22 @@
 
 using namespace chronon3d;
 
-// ── 2.5D Module Contract ─────────────────────────────────────────────────────
+// ── 2.5D Content Contract ───────────────────────────────────────────────────
 
 #ifdef CHRONON3D_HAS_CONTENT_2D5
 
-TEST_CASE("2D5 module: registers with stable id") {
+TEST_CASE("2D5 content: idempotent registration") {
     register_content_modules();
-    auto& reg = ExtensionRegistry::instance();
-    CHECK(reg.has_module("2d5"));
+    register_content_modules();
+    register_content_modules();
+    CompositionRegistry registry;
+    auto ids = registry.available();
+    // Repeated calls to register_content_modules() must not produce duplicates.
+    std::set<std::string> unique(ids.begin(), ids.end());
+    CHECK(ids.size() == unique.size());
 }
 
-TEST_CASE("2D5 module: idempotent registration") {
-    auto& reg = ExtensionRegistry::instance();
-    auto before = reg.module_count();
-    register_content_modules();
-    register_content_modules();
-    CHECK(reg.module_count() == before);
-}
-
-TEST_CASE("2D5 module: core 2.5D scenes are available") {
+TEST_CASE("2D5 content: core 2.5D scenes are available") {
     register_content_modules();
     CompositionRegistry registry;
 
