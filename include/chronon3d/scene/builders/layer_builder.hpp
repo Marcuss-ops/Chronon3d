@@ -3,6 +3,7 @@
 #include <chronon3d/scene/model/layer/layer.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
+#include <chronon3d/scene/builders/text_run_builder.hpp>  // PR 4 — full type required for `std::unique_ptr<TextRunBuilder>` / `std::unique_ptr<TextRunSpec>` members (was forward-declared; caused `sizeof incomplete` + cascaded `private constructor` errors at `std::make_unique` sites and at every TU that destroys a LayerBuilder).
 #include <chronon3d/registry/shape_registry.hpp>
 #include <chronon3d/vector/path_factories.hpp>
 #include <chronon3d/scene/model/layer/mask.hpp>
@@ -24,8 +25,16 @@ namespace chronon3d {
 
 class FontEngine;  // forward declaration
 
-class TextRunBuilder;  // forward declaration (PR 4 — `text_run(...)`)
-struct TextRunSpec;     // forward declaration (PR 4 — pending text-run entries)
+// `TextRunBuilder` and `TextRunSpec` are now pulled in fully via
+// `#include <chronon3d/scene/builders/text_run_builder.hpp>` above.
+// Forward declarations of these types here caused the pre-existing
+// build break: any TU that includes this header but not the full
+// `text_run_builder.hpp` triggered `invalid application of sizeof to
+// incomplete type` in `std::unique_ptr<TextRunBuilder>::default_delete`,
+// which in turn cascaded into a misleading `private constructor` error
+// at the `std::make_unique<TextRunBuilder>(this, *spec_ptr)` call site
+// (the friend relationship was correct, but incomplete type was
+// masking the access check).
 
 namespace layer_builder_internal {
 
