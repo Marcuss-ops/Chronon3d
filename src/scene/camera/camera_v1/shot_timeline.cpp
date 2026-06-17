@@ -95,6 +95,7 @@ ShotTimelineValidationResult ShotTimeline::validate() const {
                     " (\"" + s.name + "\"): overlaps previous shot with no transition");
             }
             if (s.start_frame > prev.end_frame) {
+                r.ok = false;
                 r.errors.push_back("gap between shot " + std::to_string(i - 1) +
                     " (\"" + prev.name + "\") and shot " + std::to_string(i) +
                     " (\"" + s.name + "\"): " + std::to_string(s.start_frame - prev.end_frame) + " frames");
