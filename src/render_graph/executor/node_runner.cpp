@@ -10,6 +10,7 @@
 #include <chronon3d/math/color.hpp>
 #include <spdlog/spdlog.h>
 #include <cmath>
+#include <cstdlib>
 
 namespace chronon3d::graph {
 
@@ -100,6 +101,14 @@ void execute_single_node(
     double* out_clone_context_ms,
     double* out_state_assign_ms
 ) {
+    // Hoist cheap per-node scalar reads (O(1) vector lookups) to the top so
+    // both early-out guards below can inspect them. Moving them earlier is
+    // free when the guard doesn't fire (the body of execute_single_node
+    // reuses them once again) and required when it does.
+    auto& node = graph.node(id);
+    const auto& input_ids = graph.inputs(id);
+    const auto& pr = level_resolved[level_index];
+
     if (id < ctx.tile.early_exit_skip.size() && ctx.tile.early_exit_skip[id]) {
         auto owned_fb = ctx.acquire_owned_fb(64, 64, false);
         owned_fb->clear(Color::transparent());
@@ -124,11 +133,47 @@ void execute_single_node(
         return;
     }
 
+    // ── Opacity-threshold early-out (env-gated; OPT-OUT by default) ──
+    // For text-heavy compositions with many per-letter staggered layers
+    // (cinematic_text_camera's WhipPanHeroReveal, AbyssFreefallStagger) the
+    // per-layer orchestrator + transform + composite work costs ~10-30 ms per
+    // invisible layer. When the layer's effective opacity is below 0.1 %
+    // AND none of its blur/scale/transform animations are time-dependent we
+    // skip the full execute_single_node body and emit a 64x64 transparent fb
+    // (mirroring the early_exit_skip path above).
+    //
+    // Defaults to OFF. Set CHRONON3D_SKIP_INVISIBLE_LAYERS=1 once the populate
+    // site in executor_levels.cpp::resolve_level has been wired to evaluate
+    // each node's layer.opacity_anim() into pr.resolved_opacity — the field
+    // exists today but defaults to 1.0f so this guard is currently a no-op.
+    static const bool kSkipInvisibleOpacity = []() -> bool {
+        const char* e = std::getenv("CHRONON3D_SKIP_INVISIBLE_LAYERS");
+        if (!e) return false;
+        return e[0] == '1' && e[1] == '\0';
+    }();
+    if (kSkipInvisibleOpacity && pr.resolved_opacity <= 0.001f) {
+        auto owned_fb_inv = ctx.acquire_owned_fb(64, 64, false);
+        owned_fb_inv->clear(Color::transparent());
+        Framebuffer* raw_inv = owned_fb_inv.release();
+        PoolFbDeleter deleter_inv;
+        if (parent_pool) {
+            deleter_inv = PoolFbDeleter{parent_pool->shared_from_this()};
+        }
+        state.temp[id] = CachedFB(raw_inv, std::move(deleter_inv));
+        state.resolved_key_digest[id] = 0;
+        state.resolved_frame_dependent[id] = 0;
+        state.resolved_cache_hit[id] = 0;
+        state.resolved_bboxes[id] = raster::BBox{0, 0, 0, 0};
+        if (ctx.telemetry.counters) {
+            ctx.telemetry.counters->layers_culled.fetch_add(1, std::memory_order_relaxed);
+        }
+        return;
+    }
+
     profiling::ProfilingGuard node_guard(parent_counters, parent_pool);
 
-    auto& node = graph.node(id);
-    const auto& input_ids = graph.inputs(id);
-    const auto& pr = level_resolved[level_index];
+    // node, input_ids, pr already declared at the top of this function so
+    // both early-out guards above can read them.
 
     const auto t_cache0 = profiling::now();
     auto cache_eval = evaluate_cache(
