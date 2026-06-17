@@ -58,17 +58,20 @@ struct ConstraintState {
 };
 
 /// Session passed to every constraint evaluate() call. Contains one slot
-/// per constraint (aligned to the stack index). The caller calls
-/// ensure_states(n) before evaluating an n-constraint stack, and sets
-/// active_index = i before calling constraint[i].evaluate().
+/// per constraint (aligned to the stack index). The caller sets
+/// active_index = i before calling constraint[i].evaluate() so that
+/// stateful constraints can read/write session.states[active_index].
 struct ConstraintSession {
     std::vector<ConstraintState> states;
-    std::size_t active_index{0}; ///< Set by the caller before each evaluate().
-    float banking_roll{0.0f};    // shared banking state (CameraProgram)
+    std::size_t                  active_index{0};
+    float banking_roll{0.0f};   // shared banking state (CameraProgram)
 
     void ensure_states(std::size_t n) {
         if (states.size() < n) states.resize(n);
     }
+
+    ConstraintState& active_state() { return states.at(active_index); }
+    const ConstraintState& active_state() const { return states.at(active_index); }
 
     void reset() {
         for (auto& s : states) s = {};
