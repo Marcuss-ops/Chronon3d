@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <chronon3d/text/font_engine.hpp>
-
 using namespace chronon3d;
+
 
 namespace {
     static float mock_char_width_layout(const void* /*ctx*/, char /*c*/, float font_size) {

@@ -24,10 +24,10 @@
 #include <cmath>
 #include <string>
 #include <vector>
+using namespace chronon3d;
 
 namespace {
 
-using namespace chronon3d;
 using chronon3d::test::approx;
 
 // --- Section A: CameraPathValidationOptions invariants (4 cases) ---

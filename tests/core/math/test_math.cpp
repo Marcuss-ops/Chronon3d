@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>
-
 using namespace chronon3d;
+
 
 TEST_CASE("Vec2 operations") {
     Vec2 a{1.0f, 2.0f};

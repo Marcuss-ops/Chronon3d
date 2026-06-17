@@ -8,8 +8,8 @@
 #include <chronon3d/effects/effect_ids.hpp>
 #include <stdexcept>
 #include <string>
-
 using namespace chronon3d;
+
 using namespace chronon3d::effects;
 namespace effect_ids = chronon3d::effects::ids;
 

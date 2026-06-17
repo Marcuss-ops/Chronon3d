@@ -3,6 +3,7 @@
 #include <chronon3d/specscene/compiler/specscene_compiler.hpp>
 #include <filesystem>
 #include <fstream>
+using namespace chronon3d;
 
 using namespace chronon3d::specscene;
 

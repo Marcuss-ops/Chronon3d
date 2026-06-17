@@ -3,8 +3,8 @@
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/glyph_selector.hpp>
-
 using namespace chronon3d;
+
 
 namespace {
 

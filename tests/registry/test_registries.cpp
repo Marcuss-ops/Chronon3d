@@ -5,9 +5,9 @@
 #include <chronon3d/registry/sampler_registry.hpp>
 #include <chronon3d/registry/shape_ids.hpp>
 #include <stdexcept>
+using namespace chronon3d;
 
 using namespace chronon3d::registry;
-using namespace chronon3d;
 namespace shape_ids = chronon3d::registry::shape_ids;
 
 TEST_CASE("SourceRegistry exposes built-in source descriptors") {

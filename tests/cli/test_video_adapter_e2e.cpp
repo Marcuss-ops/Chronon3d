@@ -28,8 +28,8 @@
 #include <string>
 #include <system_error>
 #include <vector>
-
 using namespace chronon3d;
+
 using namespace chronon3d::cli;
 
 namespace {

@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/media/media_placement.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 TEST_CASE("compute_media_placement tests") {
     Vec2 source_size{200.0f, 100.0f}; // Aspect ratio 2:1

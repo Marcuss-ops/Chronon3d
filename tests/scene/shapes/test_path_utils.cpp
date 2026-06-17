@@ -1,7 +1,7 @@
 #include <chronon3d/math/path_utils.hpp>
 #include <doctest/doctest.h>
-
 using namespace chronon3d;
+
 using namespace chronon3d::math;
 
 TEST_CASE("Path Utilities: Flattening") {

@@ -3,8 +3,8 @@
 #include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
-
 using namespace chronon3d;
+
 
 static Layer make_layer(Vec3 pos, LayoutRules rules = {}) {
     Layer l;

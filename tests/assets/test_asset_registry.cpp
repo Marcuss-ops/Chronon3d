@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/assets/asset_registry.hpp>
-
 using namespace chronon3d;
+
 
 TEST_CASE("AssetRegistry: import_image returns stable id") {
     AssetRegistry reg;

@@ -2,6 +2,7 @@
 
 #include <chronon3d/cache/lru_cache.hpp>
 #include <string>
+using namespace chronon3d;
 
 using namespace chronon3d::cache;
 

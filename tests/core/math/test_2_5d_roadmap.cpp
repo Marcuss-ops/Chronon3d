@@ -20,8 +20,8 @@
 #include <array>
 #include <cmath>
 #include <span>
-
 using namespace chronon3d;
+
 
 namespace {
 

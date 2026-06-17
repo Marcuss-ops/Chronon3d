@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/animation/effects/animated_transform.hpp>
-
 using namespace chronon3d;
+
 
 TEST_CASE("AnimatedTransform: evaluate position at frame") {
     AnimatedTransform at;

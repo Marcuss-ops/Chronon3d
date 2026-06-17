@@ -1,5 +1,7 @@
 #include "video_sink_encoders.hpp"
 #include "ffmpeg_pipe_encoder.hpp"
+#include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
 
 namespace chronon3d::cli {

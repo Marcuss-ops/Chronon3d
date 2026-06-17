@@ -5,8 +5,8 @@
 #include <tests/helpers/test_utils.hpp>
 #include <tests/helpers/pixel_assertions.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 using namespace chronon3d::test;
 
 

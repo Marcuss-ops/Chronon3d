@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/assets/svg_path_loader.hpp>
 #include <fstream>
-
 using namespace chronon3d;
+
 using namespace chronon3d::assets;
 
 TEST_CASE("SVG path parser supports M L Z") {

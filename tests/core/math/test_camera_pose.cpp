@@ -3,8 +3,8 @@
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-
 using namespace chronon3d;
+
 
 TEST_CASE("Camera pose math is shared between Camera and Camera2_5D") {
     Camera cam3d;

@@ -32,8 +32,8 @@
 
 #include <memory>
 #include <random>
-
 using namespace chronon3d;
+
 using namespace chronon3d::graph;
 
 namespace {

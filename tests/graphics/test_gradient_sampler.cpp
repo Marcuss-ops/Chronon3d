@@ -2,8 +2,8 @@
 #include <chronon3d/graphics/gradient.hpp>
 #include <chronon3d/math/color.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 using namespace chronon3d::graphics;
 
 // ── Helper: approximate float equality ─────────────────────────────────

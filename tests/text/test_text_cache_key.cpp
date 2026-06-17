@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
-
 using namespace chronon3d;
+
 
 TEST_CASE("TextRasterizerCache cache key hashing specifications") {
     TextShape base_text;

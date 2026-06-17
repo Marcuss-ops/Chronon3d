@@ -1,7 +1,6 @@
 #include <doctest/doctest.h>
 #include <apps/chronon3d_cli/utils/video/frame_chunks.hpp>
 
-using namespace chronon3d;
 using namespace chronon3d::cli;
 
 TEST_CASE("split_frame_range returns empty for invalid ranges") {

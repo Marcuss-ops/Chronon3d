@@ -28,8 +28,8 @@
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 // ── Shared test setup ────────────────────────────────────────────────────────
 // Camera at (0, 0, -1000), looking toward origin.

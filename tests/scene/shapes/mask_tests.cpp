@@ -6,8 +6,8 @@
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
-
 using namespace chronon3d;
+
 
 namespace {
 

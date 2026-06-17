@@ -14,8 +14,8 @@
 #include <string>
 #include <cmath>
 #include <tbb/global_control.h>
-
 using namespace chronon3d;
+
 using namespace chronon3d::test;
 
 namespace {

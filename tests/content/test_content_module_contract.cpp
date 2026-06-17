@@ -8,9 +8,9 @@
 
 #if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_TEXT) || defined(CHRONON3D_HAS_CONTENT_2D5)
 #include <content/register_content_modules.hpp>
+using namespace chronon3d;
 #endif
 
-using namespace chronon3d;
 
 // ── 2.5D Content Contract ───────────────────────────────────────────────────
 

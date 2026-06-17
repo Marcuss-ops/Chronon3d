@@ -11,8 +11,8 @@
 #include <cmath>
 #include <functional>
 #include <limits>
-
 using namespace chronon3d;
+
 
 namespace {
 

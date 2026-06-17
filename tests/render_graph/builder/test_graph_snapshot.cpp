@@ -23,8 +23,8 @@
 #include <algorithm>
 #include <sstream>
 #include <string>
-
 using namespace chronon3d;
+
 using namespace chronon3d::graph;
 
 namespace {

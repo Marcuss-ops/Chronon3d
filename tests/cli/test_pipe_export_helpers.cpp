@@ -4,7 +4,6 @@
 
 #include <stdexcept>
 
-using namespace chronon3d;
 using namespace chronon3d::cli;
 
 TEST_CASE("PipeExportHelpers: progress logs at ten percent intervals and final frame") {

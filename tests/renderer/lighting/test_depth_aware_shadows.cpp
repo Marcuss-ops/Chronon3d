@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/rendering/shadow_settings.hpp>
-
 using namespace chronon3d;
+
 using namespace chronon3d::rendering;
 
 TEST_CASE("ShadowSettings: defaults") {

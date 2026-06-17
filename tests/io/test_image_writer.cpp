@@ -4,8 +4,8 @@
 #include <filesystem>
 #include <fstream>
 #include <vector>
-
 using namespace chronon3d;
+
 
 TEST_CASE("image writer detects output format from path") {
     CHECK(image_format_from_path("frame.png") == ImageFormat::Png);

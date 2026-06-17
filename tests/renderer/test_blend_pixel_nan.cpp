@@ -8,8 +8,8 @@
 // since this test specifically validates the NaN/Inf guard we added there.
 // CMAKE_SOURCE_DIR is the project root, so this path resolves correctly.
 #include "src/backends/software/utils/blend2d_bridge_detail.hpp"
-
 using namespace chronon3d;
+
 
 namespace {
 

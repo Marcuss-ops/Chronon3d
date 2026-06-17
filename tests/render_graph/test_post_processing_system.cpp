@@ -2,8 +2,8 @@
 #include <chronon3d/render_graph/pipeline/post_processing_system.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 static Framebuffer make_filled_fb(i32 W, i32 H, const Color& c) {
     Framebuffer fb(W, H);

@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/render_graph/builder/graph_build_registry.hpp>
+using namespace chronon3d;
 
 using namespace chronon3d::graph;
 

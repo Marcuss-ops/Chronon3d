@@ -5,8 +5,8 @@
 
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
-
 using namespace chronon3d;
+
 
 struct TestLine {
     Vec3 from;

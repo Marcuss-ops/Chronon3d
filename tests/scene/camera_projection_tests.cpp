@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/scene/camera/camera_projection.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 TEST_CASE("Camera Projection logic check") {
     Camera2_5D camera;

@@ -9,8 +9,8 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <tests/helpers/render_fixtures.hpp>
 #include <xxhash.h>
-
 using namespace chronon3d;
+
 
 namespace {
 

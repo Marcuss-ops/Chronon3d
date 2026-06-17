@@ -7,6 +7,7 @@
 #include <cctype>
 #include <sstream>
 #include <system_error>
+using namespace chronon3d;
 
 namespace chronon3d::test {
 

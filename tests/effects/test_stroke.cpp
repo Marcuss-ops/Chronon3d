@@ -20,8 +20,8 @@
 using namespace test_fx;
 #include <cmath>
 #include <vector>
-
 using namespace chronon3d;
+
 using namespace chronon3d::renderer;
 
 namespace {

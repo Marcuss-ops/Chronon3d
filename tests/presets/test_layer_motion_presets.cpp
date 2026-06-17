@@ -2,8 +2,8 @@
 #include <cmath>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-
 using namespace chronon3d;
+
 
 TEST_CASE("LayerBuilder::slide_in creates animated keyframes") {
     LayerBuilder builder("test", Frame{0});

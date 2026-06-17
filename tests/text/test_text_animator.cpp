@@ -2,8 +2,8 @@
 #include <chronon3d/text/text_animator.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/text/font_engine.hpp>
-
 using namespace chronon3d;
+
 
 static FontSpec inter_bold_spec() {
     return FontSpec{

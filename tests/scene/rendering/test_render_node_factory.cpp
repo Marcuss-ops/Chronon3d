@@ -2,8 +2,8 @@
 
 #include <chronon3d/scene/model/render/render_node_factory.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
-
 using namespace chronon3d;
+
 
 TEST_CASE("RenderNodeFactory creates rect nodes with centered anchors") {
     auto* res = std::pmr::get_default_resource();

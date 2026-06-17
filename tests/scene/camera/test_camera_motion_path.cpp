@@ -2,8 +2,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/animation/path/spatial_bezier_path.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 // ── SpatialBezierPath Tests ──────────────────────────────────────────────────
 

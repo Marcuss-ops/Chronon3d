@@ -11,8 +11,8 @@
 #include <tests/helpers/test_utils.hpp>
 
 #include <algorithm>
-
 using namespace chronon3d;
+
 using namespace chronon3d::test;
 
 namespace {

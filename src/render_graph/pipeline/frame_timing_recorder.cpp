@@ -1,5 +1,7 @@
 #include "frame_timing_recorder.hpp"
 #include "frame_state_commit.hpp"
+#include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::graph {

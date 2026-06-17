@@ -9,8 +9,8 @@
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/nodes/adjustment_node.hpp>
 #include <chronon3d/cache/node_cache.hpp>
-
 using namespace chronon3d;
+
 using namespace chronon3d::graph;
 using namespace chronon3d::graph::optimizer;
 

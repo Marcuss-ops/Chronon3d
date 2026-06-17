@@ -7,8 +7,8 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
-
 using namespace chronon3d;
+
 
 namespace {
 

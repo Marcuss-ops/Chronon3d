@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/core/types/frame_context.hpp>
-
 using namespace chronon3d;
+
 
 TEST_CASE("FrameContext basics") {
     FrameContext ctx{

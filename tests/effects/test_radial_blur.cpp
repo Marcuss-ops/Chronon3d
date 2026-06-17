@@ -20,8 +20,8 @@
 #include "tests/effects/test_helpers.hpp"
 using namespace test_fx;
 #include <cmath>
-
 using namespace chronon3d;
+
 using namespace chronon3d::renderer;
 
 namespace {

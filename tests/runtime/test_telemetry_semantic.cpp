@@ -2,8 +2,8 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <vector>
 #include <algorithm>
-
 using namespace chronon3d;
+
 
 // Helper: reset all counters to zero
 static void reset_counters(RenderCounters& c) {

@@ -5,8 +5,8 @@
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 namespace {
 

@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/math/expression.hpp>
+using namespace chronon3d;
 
 using namespace chronon3d::math;
 

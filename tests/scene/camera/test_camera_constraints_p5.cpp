@@ -25,6 +25,7 @@
 #include <chronon3d/core/types/sample_time.hpp>
 
 #include <cmath>
+using namespace chronon3d;
 
 namespace {
 

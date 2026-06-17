@@ -2,8 +2,8 @@
 #include <chronon3d/render_graph/nodes/velocity_buffer_motion_blur.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 // Helper: build a 16x16 framebuffer filled with `c`.
 static Framebuffer make_filled_fb(i32 W, i32 H, const Color& c) {

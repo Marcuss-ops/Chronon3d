@@ -15,8 +15,8 @@
 #include <fstream>
 #include <cstdio>
 #include <cmath>
-
 using namespace chronon3d;
+
 
 // ── Helper: create a composition with a known linear camera path ─────────────
 // Camera moves from (0,0,-1000) to (300,0,-1000) over 90 frames
