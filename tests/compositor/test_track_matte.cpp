@@ -19,6 +19,7 @@
 
 #include <memory>
 #include <random>
+#include <span>
 #include <vector>
 
 using namespace chronon3d;
@@ -36,7 +37,7 @@ TEST_CASE("matte: alpha coverage — exact spec values") {
     Color matte{0.0f, 0.0f, 0.0f, 0.25f};
 
     Color result = target;
-    simd::apply_alpha_matte_premul(&result, &matte, 1, false);
+    simd::apply_alpha_matte_premul(std::span<Color>(&result, 1), std::span<const Color>(&matte, 1), false);
     check_color_close(result, {0.1f, 0.05f, 0.025f, 0.125f});
 }
 
@@ -48,7 +49,7 @@ TEST_CASE("matte: alpha inverted coverage — exact spec values") {
     Color matte{0.0f, 0.0f, 0.0f, 0.25f};
 
     Color result = target;
-    simd::apply_alpha_matte_premul(&result, &matte, 1, true);
+    simd::apply_alpha_matte_premul(std::span<Color>(&result, 1), std::span<const Color>(&matte, 1), true);
     check_color_close(result, {0.3f, 0.15f, 0.075f, 0.375f});
 }
 
@@ -79,7 +80,7 @@ TEST_CASE("matte: luma coverage — no alpha² bug") {
     Color matte{0.4f, 0.1f, 0.05f, 0.5f};
 
     Color result = target;
-    simd::apply_luma_matte_premul(&result, &matte, 1, false);
+    simd::apply_luma_matte_premul(std::span<Color>(&result, 1), std::span<const Color>(&matte, 1), false);
     check_color_close(result, {0.064068f, 0.032034f, 0.016017f, 0.080085f}, kEpsilonScalar);
 
     // Verify that the INCORRECT alpha² method would NOT match:
@@ -98,7 +99,7 @@ TEST_CASE("matte: luma inverted coverage") {
     Color matte{0.4f, 0.1f, 0.05f, 0.5f};
 
     Color result = target;
-    simd::apply_luma_matte_premul(&result, &matte, 1, true);
+    simd::apply_luma_matte_premul(std::span<Color>(&result, 1), std::span<const Color>(&matte, 1), true);
 
     const float expected_coverage = 1.0f - 0.16017f;
     check_color_close(result, {
@@ -123,7 +124,7 @@ TEST_CASE("matte: StencilAlpha — exact spec values") {
     Color source{0.0f, 0.0f, 0.0f, 0.25f};
 
     Color result = backdrop;
-    simd::apply_alpha_matte_premul(&result, &source, 1, false);
+    simd::apply_alpha_matte_premul(std::span<Color>(&result, 1), std::span<const Color>(&source, 1), false);
     check_color_close(result, {0.05f, 0.10f, 0.15f, 0.20f});
 }
 
@@ -137,7 +138,7 @@ TEST_CASE("matte: SilhouetteAlpha — exact spec values") {
     Color source{0.0f, 0.0f, 0.0f, 0.25f};
 
     Color result = backdrop;
-    simd::apply_alpha_matte_premul(&result, &source, 1, true);
+    simd::apply_alpha_matte_premul(std::span<Color>(&result, 1), std::span<const Color>(&source, 1), true);
     check_color_close(result, {0.15f, 0.30f, 0.45f, 0.60f});
 }
 
@@ -148,10 +149,10 @@ TEST_CASE("matte: Stencil + Silhouette = original backdrop (complementary)") {
     Color source{0.0f, 0.0f, 0.0f, 0.25f};
 
     Color stencil = backdrop;
-    simd::apply_alpha_matte_premul(&stencil, &source, 1, false);
+    simd::apply_alpha_matte_premul(std::span<Color>(&stencil, 1), std::span<const Color>(&source, 1), false);
 
     Color silhouette = backdrop;
-    simd::apply_alpha_matte_premul(&silhouette, &source, 1, true);
+    simd::apply_alpha_matte_premul(std::span<Color>(&silhouette, 1), std::span<const Color>(&source, 1), true);
 
     Color sum{stencil.r + silhouette.r, stencil.g + silhouette.g,
               stencil.b + silhouette.b, stencil.a + silhouette.a};
@@ -167,7 +168,7 @@ TEST_CASE("matte: StencilLuma coverage") {
     Color source{0.4f, 0.1f, 0.05f, 0.5f};
 
     Color result = backdrop;
-    simd::apply_luma_matte_premul(&result, &source, 1, false);
+    simd::apply_luma_matte_premul(std::span<Color>(&result, 1), std::span<const Color>(&source, 1), false);
 
     const float c = 0.16017f;
     check_color_close(result, {
@@ -212,14 +213,14 @@ TEST_CASE("matte: origin mapping — different origins") {
     Color row0[2] = {Color{0.8f, 0.8f, 0.8f, 1.0f}, Color{0.8f, 0.8f, 0.8f, 1.0f}};
     // Pixel 1: matte at (0,0) = alpha 0.5 → coverage 0.5
     Color matte_color{0.0f, 0.0f, 0.0f, 0.5f};
-    simd::apply_alpha_matte_premul(&row0[1], &matte_color, 1, false);
+    simd::apply_alpha_matte_premul(std::span<Color>(&row0[1], 1), std::span<const Color>(&matte_color, 1), false);
     check_color_close(row0[0], {0.8f, 0.8f, 0.8f, 1.0f});  // outside = unchanged (normal)
     check_color_close(row0[1], {0.4f, 0.4f, 0.4f, 0.5f});   // coverage applied
 
     // Row 1: both columns, but only pixel 1 is inside matte
     Color row1[2] = {Color{0.8f, 0.8f, 0.8f, 1.0f}, Color{0.8f, 0.8f, 0.8f, 1.0f}};
     Color matte_color2{0.0f, 0.0f, 0.0f, 1.0f};
-    simd::apply_alpha_matte_premul(&row1[1], &matte_color2, 1, false);
+    simd::apply_alpha_matte_premul(std::span<Color>(&row1[1], 1), std::span<const Color>(&matte_color2, 1), false);
     check_color_close(row1[0], {0.8f, 0.8f, 0.8f, 1.0f});  // outside = unchanged
     check_color_close(row1[1], {0.8f, 0.8f, 0.8f, 1.0f});  // coverage 1.0
 }
@@ -233,7 +234,7 @@ TEST_CASE("matte: inverted outside matte bounds = full coverage") {
     Color matte{0.0f, 0.0f, 0.0f, 0.0f};
 
     Color result = target;
-    simd::apply_alpha_matte_premul(&result, &matte, 1, true);
+    simd::apply_alpha_matte_premul(std::span<Color>(&result, 1), std::span<const Color>(&matte, 1), true);
     check_color_close(result, target);  // unchanged = full coverage
 }
 
@@ -306,7 +307,7 @@ TEST_CASE("matte: alpha matte batch sizes") {
             expected[i].a *= matte_vals[i].a;
         }
         auto simd_result = target;
-        simd::apply_alpha_matte_premul(simd_result.data(), matte_vals.data(), n, false);
+        simd::apply_alpha_matte_premul(std::span<Color>(simd_result), std::span<const Color>(matte_vals), false);
         for (int i = 0; i < n; ++i) {
             check_color_close(simd_result[i], expected[i], kEpsilonSIMD);
         }
@@ -331,7 +332,7 @@ TEST_CASE("matte: luma matte batch sizes") {
             expected[i].a *= luma;
         }
         auto simd_result = target;
-        simd::apply_luma_matte_premul(simd_result.data(), matte_vals.data(), n, false);
+        simd::apply_luma_matte_premul(std::span<Color>(simd_result), std::span<const Color>(matte_vals), false);
         for (int i = 0; i < n; ++i) {
             check_color_close(simd_result[i], expected[i], kEpsilonSIMD);
         }
@@ -357,19 +358,19 @@ TEST_CASE("matte: all outputs finite for random inputs") {
         }
 
         result = target;
-        simd::apply_alpha_matte_premul(result.data(), matte_vals.data(), N, false);
+        simd::apply_alpha_matte_premul(std::span<Color>(result), std::span<const Color>(matte_vals), false);
         for (int i = 0; i < N; ++i) check_finite(result[i]);
 
         result = target;
-        simd::apply_alpha_matte_premul(result.data(), matte_vals.data(), N, true);
+        simd::apply_alpha_matte_premul(std::span<Color>(result), std::span<const Color>(matte_vals), true);
         for (int i = 0; i < N; ++i) check_finite(result[i]);
 
         result = target;
-        simd::apply_luma_matte_premul(result.data(), matte_vals.data(), N, false);
+        simd::apply_luma_matte_premul(std::span<Color>(result), std::span<const Color>(matte_vals), false);
         for (int i = 0; i < N; ++i) check_finite(result[i]);
 
         result = target;
-        simd::apply_luma_matte_premul(result.data(), matte_vals.data(), N, true);
+        simd::apply_luma_matte_premul(std::span<Color>(result), std::span<const Color>(matte_vals), true);
         for (int i = 0; i < N; ++i) check_finite(result[i]);
     }
 }

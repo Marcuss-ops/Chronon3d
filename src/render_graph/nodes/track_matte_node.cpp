@@ -21,6 +21,7 @@
 #include <chronon3d/render_graph/nodes/track_matte_node.hpp>
 #include <chronon3d/compositor/matte.hpp>
 #include <chronon3d/simd/kernels.hpp>
+#include <span>
 
 namespace chronon3d::graph {
 
@@ -110,15 +111,13 @@ OwnedFB TrackMatteNode::execute(
                 // Apply matte coverage via SIMD kernels.
                 if (use_luma) {
                     simd::apply_luma_matte_premul(
-                        out_row + seg_start,
-                        matte_row + matte_x_start,
-                        seg_len,
+                        std::span<Color>(out_row + seg_start, seg_len),
+                        std::span<const Color>(matte_row + matte_x_start, seg_len),
                         inverted);
                 } else {
                     simd::apply_alpha_matte_premul(
-                        out_row + seg_start,
-                        matte_row + matte_x_start,
-                        seg_len,
+                        std::span<Color>(out_row + seg_start, seg_len),
+                        std::span<const Color>(matte_row + matte_x_start, seg_len),
                         inverted);
                 }
             }

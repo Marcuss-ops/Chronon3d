@@ -1022,7 +1022,8 @@ namespace chronon3d::simd {
 
 // ── B4: Safe scalar fallbacks for matte ─────────────────────────────────────
 
-static void apply_alpha_matte_safe(Color* target, const Color* matte, int pixel_count, bool inverted) {
+static void apply_alpha_matte_safe(std::span<Color> target, std::span<const Color> matte, bool inverted) {
+    const int pixel_count = static_cast<int>(std::min(target.size(), matte.size()));
     for (int i = 0; i < pixel_count; ++i) {
         const float ma = matte[i].a;
         const float coverage = inverted ? (1.0f - ma) : ma;
@@ -1034,7 +1035,8 @@ static void apply_alpha_matte_safe(Color* target, const Color* matte, int pixel_
     }
 }
 
-static void apply_luma_matte_safe(Color* target, const Color* matte, int pixel_count, bool inverted) {
+static void apply_luma_matte_safe(std::span<Color> target, std::span<const Color> matte, bool inverted) {
+    const int pixel_count = static_cast<int>(std::min(target.size(), matte.size()));
     for (int i = 0; i < pixel_count; ++i) {
         const float luma = 0.2126f * matte[i].r + 0.7152f * matte[i].g + 0.0722f * matte[i].b;
         const float coverage = inverted ? (1.0f - luma) : luma;
@@ -1076,13 +1078,15 @@ static bool has_bad_color(const Color& c) {
 
 /// Canary check on first + last pixel of both buffers.  Returns true if safe
 /// for the fast SIMD path; falls back to a safe scalar loop when contaminated.
-static bool check_nan_canary(const Color* dst, const Color* src, int pixel_count) {
+static bool check_nan_canary(std::span<const Color> src, std::span<const Color> dst) {
+    if (src.empty() || dst.empty()) return false;
     return !has_bad_color(src[0]) && !has_bad_color(dst[0]) &&
-           !has_bad_color(src[pixel_count - 1]) && !has_bad_color(dst[pixel_count - 1]);
+           !has_bad_color(src.back()) && !has_bad_color(dst.back());
 }
 
 /// Safe scalar fallback for Normal blend (called when NaN/Inf detected).
-static void composite_normal_premul_safe(Color* dst, const Color* src, int pixel_count) {
+static void composite_normal_premul_safe(std::span<Color> dst, std::span<const Color> src) {
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
     for (int i = 0; i < pixel_count; ++i) {
         const Color& s = src[i];
         Color& d = dst[i];
@@ -1096,18 +1100,20 @@ static void composite_normal_premul_safe(Color* dst, const Color* src, int pixel
     }
 }
 
-void composite_normal_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count, bool force_scalar) {
-    if (pixel_count <= 0) return;
-    if (!check_nan_canary(dst, src, pixel_count) || force_scalar || g_force_scalar_normal_blend.load(std::memory_order_relaxed)) {
-        composite_normal_premul_safe(dst, src, pixel_count);
+void composite_normal_premul(std::span<Color> dst, std::span<const Color> src, bool force_scalar) {
+    if (dst.empty() || src.empty()) return;
+    if (!check_nan_canary(src, dst) || force_scalar || g_force_scalar_normal_blend.load(std::memory_order_relaxed)) {
+        composite_normal_premul_safe(dst, src);
         return;
     }
-    HWY_DYNAMIC_DISPATCH(composite_normal_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
+    HWY_DYNAMIC_DISPATCH(composite_normal_premul_impl)(reinterpret_cast<float*>(dst.data()), reinterpret_cast<const float*>(src.data()), pixel_count);
 }
 
 // ── Non-normal blend modes (Add, Multiply, Screen, Overlay, Darken, etc.) ──
 
-static void composite_add_safe(Color* dst, const Color* src, int pixel_count) {
+static void composite_add_safe(std::span<Color> dst, std::span<const Color> src) {
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
     for (int i = 0; i < pixel_count; ++i) {
         if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
         Color& d = dst[i];
@@ -1116,7 +1122,8 @@ static void composite_add_safe(Color* dst, const Color* src, int pixel_count) {
     }
 }
 
-static void composite_multiply_safe(Color* dst, const Color* src, int pixel_count) {
+static void composite_multiply_safe(std::span<Color> dst, std::span<const Color> src) {
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
     for (int i = 0; i < pixel_count; ++i) {
         if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
         Color& d = dst[i];
@@ -1127,7 +1134,8 @@ static void composite_multiply_safe(Color* dst, const Color* src, int pixel_coun
     }
 }
 
-static void composite_screen_safe(Color* dst, const Color* src, int pixel_count) {
+static void composite_screen_safe(std::span<Color> dst, std::span<const Color> src) {
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
     for (int i = 0; i < pixel_count; ++i) {
         if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
         Color& d = dst[i];
@@ -1141,7 +1149,8 @@ static void composite_screen_safe(Color* dst, const Color* src, int pixel_count)
     }
 }
 
-static void composite_overlay_safe(Color* dst, const Color* src, int pixel_count) {
+static void composite_overlay_safe(std::span<Color> dst, std::span<const Color> src) {
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
     for (int i = 0; i < pixel_count; ++i) {
         if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
         Color& d = dst[i];
@@ -1159,7 +1168,8 @@ static void composite_overlay_safe(Color* dst, const Color* src, int pixel_count
 
 // ── B2 safe scalar fallbacks ─────────────────────────────────────────────
 
-static void composite_darken_safe(Color* dst, const Color* src, int pixel_count) {
+static void composite_darken_safe(std::span<Color> dst, std::span<const Color> src) {
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
     for (int i = 0; i < pixel_count; ++i) {
         if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
         Color& d = dst[i];
@@ -1173,7 +1183,8 @@ static void composite_darken_safe(Color* dst, const Color* src, int pixel_count)
     }
 }
 
-static void composite_lighten_safe(Color* dst, const Color* src, int pixel_count) {
+static void composite_lighten_safe(std::span<Color> dst, std::span<const Color> src) {
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
     for (int i = 0; i < pixel_count; ++i) {
         if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
         Color& d = dst[i];
@@ -1187,7 +1198,8 @@ static void composite_lighten_safe(Color* dst, const Color* src, int pixel_count
     }
 }
 
-static void composite_difference_safe(Color* dst, const Color* src, int pixel_count) {
+static void composite_difference_safe(std::span<Color> dst, std::span<const Color> src) {
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
     for (int i = 0; i < pixel_count; ++i) {
         if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
         Color& d = dst[i];
@@ -1201,7 +1213,8 @@ static void composite_difference_safe(Color* dst, const Color* src, int pixel_co
     }
 }
 
-static void composite_exclusion_safe(Color* dst, const Color* src, int pixel_count) {
+static void composite_exclusion_safe(std::span<Color> dst, std::span<const Color> src) {
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
     for (int i = 0; i < pixel_count; ++i) {
         if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
         Color& d = dst[i];
@@ -1215,81 +1228,90 @@ static void composite_exclusion_safe(Color* dst, const Color* src, int pixel_cou
     }
 }
 
-void composite_add_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
-    if (pixel_count <= 0) return;
-    if (!check_nan_canary(dst, src, pixel_count)) {
-        composite_add_safe(dst, src, pixel_count);
+void composite_add_premul(std::span<Color> dst, std::span<const Color> src) {
+    if (dst.empty() || src.empty()) return;
+    if (!check_nan_canary(src, dst)) {
+        composite_add_safe(dst, src);
         return;
     }
-    HWY_DYNAMIC_DISPATCH(composite_add_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
+    HWY_DYNAMIC_DISPATCH(composite_add_premul_impl)(reinterpret_cast<float*>(dst.data()), reinterpret_cast<const float*>(src.data()), pixel_count);
 }
 
-void composite_multiply_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
-    if (pixel_count <= 0) return;
-    if (!check_nan_canary(dst, src, pixel_count)) {
-        composite_multiply_safe(dst, src, pixel_count);
+void composite_multiply_premul(std::span<Color> dst, std::span<const Color> src) {
+    if (dst.empty() || src.empty()) return;
+    if (!check_nan_canary(src, dst)) {
+        composite_multiply_safe(dst, src);
         return;
     }
-    HWY_DYNAMIC_DISPATCH(composite_multiply_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
+    HWY_DYNAMIC_DISPATCH(composite_multiply_premul_impl)(reinterpret_cast<float*>(dst.data()), reinterpret_cast<const float*>(src.data()), pixel_count);
 }
 
-void composite_screen_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
-    if (pixel_count <= 0) return;
-    if (!check_nan_canary(dst, src, pixel_count)) {
-        composite_screen_safe(dst, src, pixel_count);
+void composite_screen_premul(std::span<Color> dst, std::span<const Color> src) {
+    if (dst.empty() || src.empty()) return;
+    if (!check_nan_canary(src, dst)) {
+        composite_screen_safe(dst, src);
         return;
     }
-    HWY_DYNAMIC_DISPATCH(composite_screen_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
+    HWY_DYNAMIC_DISPATCH(composite_screen_premul_impl)(reinterpret_cast<float*>(dst.data()), reinterpret_cast<const float*>(src.data()), pixel_count);
 }
 
-void composite_overlay_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
-    if (pixel_count <= 0) return;
-    if (!check_nan_canary(dst, src, pixel_count)) {
-        composite_overlay_safe(dst, src, pixel_count);
+void composite_overlay_premul(std::span<Color> dst, std::span<const Color> src) {
+    if (dst.empty() || src.empty()) return;
+    if (!check_nan_canary(src, dst)) {
+        composite_overlay_safe(dst, src);
         return;
     }
-    HWY_DYNAMIC_DISPATCH(composite_overlay_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
+    HWY_DYNAMIC_DISPATCH(composite_overlay_premul_impl)(reinterpret_cast<float*>(dst.data()), reinterpret_cast<const float*>(src.data()), pixel_count);
 }
 
-void composite_darken_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
-    if (pixel_count <= 0) return;
-    if (!check_nan_canary(dst, src, pixel_count)) {
-        composite_darken_safe(dst, src, pixel_count);
+void composite_darken_premul(std::span<Color> dst, std::span<const Color> src) {
+    if (dst.empty() || src.empty()) return;
+    if (!check_nan_canary(src, dst)) {
+        composite_darken_safe(dst, src);
         return;
     }
-    HWY_DYNAMIC_DISPATCH(composite_darken_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
+    HWY_DYNAMIC_DISPATCH(composite_darken_premul_impl)(reinterpret_cast<float*>(dst.data()), reinterpret_cast<const float*>(src.data()), pixel_count);
 }
 
-void composite_lighten_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
-    if (pixel_count <= 0) return;
-    if (!check_nan_canary(dst, src, pixel_count)) {
-        composite_lighten_safe(dst, src, pixel_count);
+void composite_lighten_premul(std::span<Color> dst, std::span<const Color> src) {
+    if (dst.empty() || src.empty()) return;
+    if (!check_nan_canary(src, dst)) {
+        composite_lighten_safe(dst, src);
         return;
     }
-    HWY_DYNAMIC_DISPATCH(composite_lighten_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
+    HWY_DYNAMIC_DISPATCH(composite_lighten_premul_impl)(reinterpret_cast<float*>(dst.data()), reinterpret_cast<const float*>(src.data()), pixel_count);
 }
 
-void composite_difference_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
-    if (pixel_count <= 0) return;
-    if (!check_nan_canary(dst, src, pixel_count)) {
-        composite_difference_safe(dst, src, pixel_count);
+void composite_difference_premul(std::span<Color> dst, std::span<const Color> src) {
+    if (dst.empty() || src.empty()) return;
+    if (!check_nan_canary(src, dst)) {
+        composite_difference_safe(dst, src);
         return;
     }
-    HWY_DYNAMIC_DISPATCH(composite_difference_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
+    HWY_DYNAMIC_DISPATCH(composite_difference_premul_impl)(reinterpret_cast<float*>(dst.data()), reinterpret_cast<const float*>(src.data()), pixel_count);
 }
 
-void composite_exclusion_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
-    if (pixel_count <= 0) return;
-    if (!check_nan_canary(dst, src, pixel_count)) {
-        composite_exclusion_safe(dst, src, pixel_count);
+void composite_exclusion_premul(std::span<Color> dst, std::span<const Color> src) {
+    if (dst.empty() || src.empty()) return;
+    if (!check_nan_canary(src, dst)) {
+        composite_exclusion_safe(dst, src);
         return;
     }
-    HWY_DYNAMIC_DISPATCH(composite_exclusion_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
+    HWY_DYNAMIC_DISPATCH(composite_exclusion_premul_impl)(reinterpret_cast<float*>(dst.data()), reinterpret_cast<const float*>(src.data()), pixel_count);
 }
 
 // ── B3 safe scalar fallbacks ────────────────────────────────────────────────
 
-static void composite_soft_light_safe(Color* dst, const Color* src, int pixel_count) {
+static void composite_soft_light_safe(std::span<Color> dst, std::span<const Color> src) {
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
     for (int i = 0; i < pixel_count; ++i) {
         if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
         Color& d = dst[i];
@@ -1315,7 +1337,8 @@ static void composite_soft_light_safe(Color* dst, const Color* src, int pixel_co
     }
 }
 
-static void composite_hard_light_safe(Color* dst, const Color* src, int pixel_count) {
+static void composite_hard_light_safe(std::span<Color> dst, std::span<const Color> src) {
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
     for (int i = 0; i < pixel_count; ++i) {
         if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
         Color& d = dst[i];
@@ -1341,7 +1364,8 @@ static void composite_hard_light_safe(Color* dst, const Color* src, int pixel_co
     }
 }
 
-static void composite_color_dodge_safe(Color* dst, const Color* src, int pixel_count) {
+static void composite_color_dodge_safe(std::span<Color> dst, std::span<const Color> src) {
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
     for (int i = 0; i < pixel_count; ++i) {
         if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
         Color& d = dst[i];
@@ -1367,7 +1391,8 @@ static void composite_color_dodge_safe(Color* dst, const Color* src, int pixel_c
     }
 }
 
-static void composite_color_burn_safe(Color* dst, const Color* src, int pixel_count) {
+static void composite_color_burn_safe(std::span<Color> dst, std::span<const Color> src) {
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
     for (int i = 0; i < pixel_count; ++i) {
         if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
         Color& d = dst[i];
@@ -1393,58 +1418,64 @@ static void composite_color_burn_safe(Color* dst, const Color* src, int pixel_co
     }
 }
 
-void composite_soft_light_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
-    if (pixel_count <= 0) return;
-    if (!check_nan_canary(dst, src, pixel_count)) {
-        composite_soft_light_safe(dst, src, pixel_count);
+void composite_soft_light_premul(std::span<Color> dst, std::span<const Color> src) {
+    if (dst.empty() || src.empty()) return;
+    if (!check_nan_canary(src, dst)) {
+        composite_soft_light_safe(dst, src);
         return;
     }
-    HWY_DYNAMIC_DISPATCH(composite_soft_light_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
+    HWY_DYNAMIC_DISPATCH(composite_soft_light_premul_impl)(reinterpret_cast<float*>(dst.data()), reinterpret_cast<const float*>(src.data()), pixel_count);
 }
 
-void composite_hard_light_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
-    if (pixel_count <= 0) return;
-    if (!check_nan_canary(dst, src, pixel_count)) {
-        composite_hard_light_safe(dst, src, pixel_count);
+void composite_hard_light_premul(std::span<Color> dst, std::span<const Color> src) {
+    if (dst.empty() || src.empty()) return;
+    if (!check_nan_canary(src, dst)) {
+        composite_hard_light_safe(dst, src);
         return;
     }
-    HWY_DYNAMIC_DISPATCH(composite_hard_light_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
+    HWY_DYNAMIC_DISPATCH(composite_hard_light_premul_impl)(reinterpret_cast<float*>(dst.data()), reinterpret_cast<const float*>(src.data()), pixel_count);
 }
 
-void composite_color_dodge_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
-    if (pixel_count <= 0) return;
-    if (!check_nan_canary(dst, src, pixel_count)) {
-        composite_color_dodge_safe(dst, src, pixel_count);
+void composite_color_dodge_premul(std::span<Color> dst, std::span<const Color> src) {
+    if (dst.empty() || src.empty()) return;
+    if (!check_nan_canary(src, dst)) {
+        composite_color_dodge_safe(dst, src);
         return;
     }
-    HWY_DYNAMIC_DISPATCH(composite_color_dodge_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
+    HWY_DYNAMIC_DISPATCH(composite_color_dodge_premul_impl)(reinterpret_cast<float*>(dst.data()), reinterpret_cast<const float*>(src.data()), pixel_count);
 }
 
-void composite_color_burn_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
-    if (pixel_count <= 0) return;
-    if (!check_nan_canary(dst, src, pixel_count)) {
-        composite_color_burn_safe(dst, src, pixel_count);
+void composite_color_burn_premul(std::span<Color> dst, std::span<const Color> src) {
+    if (dst.empty() || src.empty()) return;
+    if (!check_nan_canary(src, dst)) {
+        composite_color_burn_safe(dst, src);
         return;
     }
-    HWY_DYNAMIC_DISPATCH(composite_color_burn_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+    const int pixel_count = static_cast<int>(std::min(dst.size(), src.size()));
+    HWY_DYNAMIC_DISPATCH(composite_color_burn_premul_impl)(reinterpret_cast<float*>(dst.data()), reinterpret_cast<const float*>(src.data()), pixel_count);
 }
 
-void apply_alpha_matte_premul(Color* __restrict__ target, const Color* __restrict__ matte, int pixel_count, bool inverted) {
-    if (pixel_count <= 0) return;
-    if (!check_nan_canary(target, matte, pixel_count)) {
-        apply_alpha_matte_safe(target, matte, pixel_count, inverted);
+void apply_alpha_matte_premul(std::span<Color> target, std::span<const Color> matte, bool inverted) {
+    if (target.empty() || matte.empty()) return;
+    if (!check_nan_canary(matte, target)) {
+        apply_alpha_matte_safe(target, matte, inverted);
         return;
     }
-    HWY_DYNAMIC_DISPATCH(apply_alpha_matte_premul_impl)(reinterpret_cast<float*>(target), reinterpret_cast<const float*>(matte), pixel_count, inverted);
+    const int pixel_count = static_cast<int>(std::min(target.size(), matte.size()));
+    HWY_DYNAMIC_DISPATCH(apply_alpha_matte_premul_impl)(reinterpret_cast<float*>(target.data()), reinterpret_cast<const float*>(matte.data()), pixel_count, inverted);
 }
 
-void apply_luma_matte_premul(Color* __restrict__ target, const Color* __restrict__ matte, int pixel_count, bool inverted) {
-    if (pixel_count <= 0) return;
-    if (!check_nan_canary(target, matte, pixel_count)) {
-        apply_luma_matte_safe(target, matte, pixel_count, inverted);
+void apply_luma_matte_premul(std::span<Color> target, std::span<const Color> matte, bool inverted) {
+    if (target.empty() || matte.empty()) return;
+    if (!check_nan_canary(matte, target)) {
+        apply_luma_matte_safe(target, matte, inverted);
         return;
     }
-    HWY_DYNAMIC_DISPATCH(apply_luma_matte_premul_impl)(reinterpret_cast<float*>(target), reinterpret_cast<const float*>(matte), pixel_count, inverted);
+    const int pixel_count = static_cast<int>(std::min(target.size(), matte.size()));
+    HWY_DYNAMIC_DISPATCH(apply_luma_matte_premul_impl)(reinterpret_cast<float*>(target.data()), reinterpret_cast<const float*>(matte.data()), pixel_count, inverted);
 }
 
 void premultiply_alpha_rgba8(uint32_t* __restrict__ dst, const uint8_t* __restrict__ src, int pixel_count) {
@@ -1467,17 +1498,18 @@ void color_to_prgb32_row(uint32_t* __restrict__ dst,
         dst, reinterpret_cast<const float*>(src), pixel_count);
 }
 
-void clear_framebuffer(Color* data, int pixel_count, const Color& color) {
-    if (pixel_count <= 0) return;
+void clear_framebuffer(std::span<Color> data, const Color& color) {
+    if (data.empty()) return;
+    const int pixel_count = static_cast<int>(data.size());
     // Zero-fill via memset is ~4-8× faster than std::fill (which writes
     // one Color at a time) because the CPU's write-combining and ERMSB
     // rep stosb microcode handles large memset in ~1 cycle per 16 bytes.
     if (color.r == 0.0f && color.g == 0.0f && color.b == 0.0f && color.a == 0.0f) {
-        std::memset(static_cast<void*>(data), 0,
+        std::memset(static_cast<void*>(data.data()), 0,
                      static_cast<size_t>(pixel_count) * sizeof(Color));
         return;
     }
-    std::fill(data, data + pixel_count, color);
+    std::fill(data.data(), data.data() + pixel_count, color);
 }
 
 }  // namespace chronon3d::simd

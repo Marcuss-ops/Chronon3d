@@ -76,7 +76,7 @@ void framebuffer_clear_parallel(
                 [&](const tbb::blocked_range<i32>& range) {
                     const usize offset = static_cast<usize>(y0 + range.begin()) * stride;
                     const usize count  = static_cast<usize>(range.size()) * stride;
-                    simd::clear_framebuffer(base + offset, static_cast<int>(count), color);
+                    simd::clear_framebuffer(std::span<Color>(base + offset, static_cast<int>(count)), color);
                 }
             );
         } else {
@@ -86,7 +86,7 @@ void framebuffer_clear_parallel(
                 [&](const tbb::blocked_range<i32>& range) {
                     Color* row = base + static_cast<usize>(y0 + range.begin()) * stride + x0;
                     for (i32 yy = 0; yy < range.size(); ++yy) {
-                        simd::clear_framebuffer(row, w, color);
+                        simd::clear_framebuffer(std::span<Color>(row, w), color);
                         row += static_cast<size_t>(stride);
                     }
                 }

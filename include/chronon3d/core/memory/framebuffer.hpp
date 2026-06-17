@@ -285,7 +285,7 @@ public:
             }
             // Clear vacated top rows (y < dy)
             for (i32 y = 0; y < dy && y < m_height; ++y) {
-                simd::clear_framebuffer(pixels_row(y), m_allocated_width, Color::transparent());
+                simd::clear_framebuffer(std::span<Color>(pixels_row(y), m_allocated_width), Color::transparent());
             }
         } else {
             // Shift up, process rows from top to bottom
@@ -297,20 +297,20 @@ public:
             }
             // Clear vacated bottom rows (y >= m_height - abs_dy)
             for (i32 y = std::max(0, m_height - abs_dy); y < m_height; ++y) {
-                simd::clear_framebuffer(pixels_row(y), m_allocated_width, Color::transparent());
+                simd::clear_framebuffer(std::span<Color>(pixels_row(y), m_allocated_width), Color::transparent());
             }
         }
         // Clear vacated horizontal strips (columns that shifted out)
         if (dx > 0) {
             // Content shifted right, clear left columns
             for (i32 y = 0; y < m_height; ++y) {
-                simd::clear_framebuffer(pixels_row(y), dx, Color::transparent());
+                simd::clear_framebuffer(std::span<Color>(pixels_row(y), dx), Color::transparent());
             }
         } else if (dx < 0) {
             // Content shifted left, clear right columns
             const i32 abs_dx = -dx;
             for (i32 y = 0; y < m_height; ++y) {
-                simd::clear_framebuffer(pixels_row(y) + m_width - abs_dx, abs_dx, Color::transparent());
+                simd::clear_framebuffer(std::span<Color>(pixels_row(y) + m_width - abs_dx, abs_dx), Color::transparent());
             }
         }
     }
