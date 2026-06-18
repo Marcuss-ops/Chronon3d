@@ -72,7 +72,6 @@ Composition premium_thumbnail_buttery_smooth();
 Composition premium_thumbnail_saas_blue();
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 Composition glow_sharpness_test();
-Composition glow_paragraph_test();
 Composition glow_radius_compare_test();
 Composition glow_typewriter_reveal_test();
 Composition glow_shadow_balance_test();
@@ -83,6 +82,9 @@ Composition z_stack_parallax_test();
 Composition shadow_glow_consistency_test();
 Composition extreme_perspective_test();
 Composition y_rotation_text_test();
+// NOTE: `glow_paragraph_test` was removed when the V1 glow API was retired
+// (see comment at top of glow_v2_ab_tests.cpp); its registration entry was
+// also removed below to avoid undefined-symbol link errors.
 #endif
 
 // ── Per-domain registration ──────────────────────────────────────────────────
@@ -98,7 +100,6 @@ void register_effect_compositions() {
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
     // Diagnostic compositions (A/B tests + 2.5D reference suite)
     detail::add_builtin_composition("GlowSharpnessTest",          glow_sharpness_test);
-    detail::add_builtin_composition("GlowParagraphTest",          glow_paragraph_test);
     detail::add_builtin_composition("GlowRadiusCompareTest",      glow_radius_compare_test);
     detail::add_builtin_composition("GlowTypewriterRevealTest",   glow_typewriter_reveal_test);
     detail::add_builtin_composition("GlowShadowBalanceTest",      glow_shadow_balance_test);
