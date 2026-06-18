@@ -107,7 +107,9 @@ Composition anim_typewriter_glow();
 Composition anim_typewriter_stagger();
 Composition catmull_rom_showcase();
 Composition dolly_zoom_showcase();
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
 Composition camera_spline_comparison();
+#endif
 Composition tilt_sweep_title();
 Composition tilt_sweep_title_v2();
 
@@ -132,7 +134,9 @@ void register_anim_compositions() {
     detail::add_builtin_composition("AnimTypewriterStagger",   anim_typewriter_stagger);
     detail::add_builtin_composition("CatmullRomShowcase",      catmull_rom_showcase);
     detail::add_builtin_composition("DollyZoomShowcase",       dolly_zoom_showcase);
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
     detail::add_builtin_composition("CameraSplineComparison",  camera_spline_comparison);
+#endif
     detail::add_builtin_composition("TiltSweepTitle",          tilt_sweep_title);
     detail::add_builtin_composition("TiltSweepTitleV2",        tilt_sweep_title_v2);
 }

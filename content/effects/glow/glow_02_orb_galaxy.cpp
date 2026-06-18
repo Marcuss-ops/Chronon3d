@@ -68,13 +68,14 @@ Composition glow_02_orb_galaxy() {
 
 // Forward-declare factories from companion files
 Composition glow_basic_word();
+Composition premium_thumbnail_buttery_smooth();
+Composition premium_thumbnail_saas_blue();
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
 Composition glow_sharpness_test();
 Composition glow_paragraph_test();
 Composition glow_radius_compare_test();
 Composition glow_typewriter_reveal_test();
 Composition glow_shadow_balance_test();
-Composition premium_thumbnail_buttery_smooth();
-Composition premium_thumbnail_saas_blue();
 Composition floating_cards_test();
 Composition orbit_camera_test();
 Composition depth_fog_test();
@@ -82,21 +83,25 @@ Composition z_stack_parallax_test();
 Composition shadow_glow_consistency_test();
 Composition extreme_perspective_test();
 Composition y_rotation_text_test();
+#endif
 
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_effect_compositions() {
     static bool done = false;
     if (done) return;
     done = true;
+    // Product compositions
     detail::add_builtin_composition("GlowOrbGalaxy",              glow_02_orb_galaxy);
     detail::add_builtin_composition("GlowBasicWord",              glow_basic_word);
+    detail::add_builtin_composition("PremiumThumbnailButterySmooth", premium_thumbnail_buttery_smooth);
+    detail::add_builtin_composition("PremiumThumbnailSaaSBlue",   premium_thumbnail_saas_blue);
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
+    // Diagnostic compositions (A/B tests + 2.5D reference suite)
     detail::add_builtin_composition("GlowSharpnessTest",          glow_sharpness_test);
     detail::add_builtin_composition("GlowParagraphTest",          glow_paragraph_test);
     detail::add_builtin_composition("GlowRadiusCompareTest",      glow_radius_compare_test);
     detail::add_builtin_composition("GlowTypewriterRevealTest",   glow_typewriter_reveal_test);
     detail::add_builtin_composition("GlowShadowBalanceTest",      glow_shadow_balance_test);
-    detail::add_builtin_composition("PremiumThumbnailButterySmooth", premium_thumbnail_buttery_smooth);
-    detail::add_builtin_composition("PremiumThumbnailSaaSBlue",   premium_thumbnail_saas_blue);
     detail::add_builtin_composition("FloatingCardsTest",          floating_cards_test);
     detail::add_builtin_composition("OrbitCameraTest",            orbit_camera_test);
     detail::add_builtin_composition("DepthFogTest",               depth_fog_test);
@@ -104,6 +109,7 @@ void register_effect_compositions() {
     detail::add_builtin_composition("ShadowGlowConsistencyTest",  shadow_glow_consistency_test);
     detail::add_builtin_composition("ExtremePerspectiveTest",     extreme_perspective_test);
     detail::add_builtin_composition("YRotationTextTest",          y_rotation_text_test);
+#endif
 }
 
 } // namespace chronon3d::content::effects
