@@ -10,7 +10,7 @@
 /// Extracted from scene_dirty_helpers.hpp during PR 4 split.
 
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
-#include <chronon3d/backends/software/renderer_types.hpp>
+#include <chronon3d/math/renderer_state.hpp>
 #include <string>
 #include <unordered_map>
 
