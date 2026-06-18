@@ -1,4 +1,5 @@
 #include <chronon3d/media/frame_conversion/converted_frame_cache.hpp>
+#include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/cache/cache_policy.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/hash/hash_builder.hpp>
@@ -44,7 +45,20 @@ ConvertedFrameCache::ConvertedFrameCache(
     std::size_t max_entries,
     std::size_t num_shards)
     : m_cache(
-        /*capacity_weight=*/resolve_max_entries(max_entries),
+        [&] {
+            auto cap = resolve_max_entries(max_entries);
+            using namespace chronon3d::cache;
+            m_diag_handle = CacheDiagnostics::instance().register_cache(
+                CacheDomain::ConvertedFrames,
+                [this]() -> GenericCacheStats {
+                    auto s = m_cache.stats();
+                    return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
+                },
+                [this] { m_cache.clear(); },
+                [this] { return m_cache.capacity_mode(); },
+                cap);
+            return cap;
+        }(),
         /*num_shards=*/num_shards,
         /*mode=*/cache::capacity_mode_for(cache::CacheDomain::ConvertedFrames),
         /*on_evict=*/{})

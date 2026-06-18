@@ -15,6 +15,7 @@
 //   alternative since LruCache returns values by value (no pointer stability).
 // =============================================================================
 
+#include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
@@ -76,6 +77,7 @@ public:
 
 private:
     LruCache<FrameCacheKey, Value, FrameCacheKeyHash> m_cache;
+    CacheDiagnostics::Handle m_diag_handle;
 };
 
 } // namespace chronon3d::cache
