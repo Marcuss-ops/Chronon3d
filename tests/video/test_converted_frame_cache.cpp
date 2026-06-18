@@ -13,8 +13,8 @@ using namespace chronon3d::video;
 //  LruCache-backed semantics (Commit 3)
 // ---------------------------------------------------------------------------
 
-TEST_CASE("ConvertedFrameCache: defaulted ctor uses kDefaultEntryCap (8)") {
-    ConvertedFrameCache cache;  // 0 → Config / fallback 8
+TEST_CASE("ConvertedFrameCache: defaulted ctor uses policy default (8)") {
+    ConvertedFrameCache cache;  // 0 → resolve_cache_policy(ConvertedFrames) → 8
     CHECK(cache.size() == 0);
     CHECK(cache.hits() == 0);
     CHECK(cache.misses() == 0);

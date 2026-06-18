@@ -13,6 +13,7 @@
 // =============================================================================
 
 #include <chronon3d/render_graph/cache/scene_program_cache.hpp>
+#include <chronon3d/cache/cache_policy.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>
 
@@ -20,18 +21,11 @@ namespace chronon3d::cache {
 
 // ── Capacity resolution ────────────────────────────────────────────────────
 
-namespace {
-constexpr std::size_t kSceneProgramCacheDefaultFallback = 8;
-
-std::size_t resolve_scene_program_cache_max_entries(std::size_t caller_value) {
-    if (caller_value > 0) return caller_value;
-    const auto v = chronon3d::Config::get().scene_program_cache_max_entries;
-    return v > 0 ? v : kSceneProgramCacheDefaultFallback;
-}
-} // namespace
-
 std::size_t SceneProgramCache::resolve_max_entries(std::size_t caller_value) {
-    return resolve_scene_program_cache_max_entries(caller_value);
+    return resolve_cache_policy(
+        CacheDomain::ScenePrograms,
+        caller_value > 0 ? std::optional<std::size_t>(caller_value) : std::nullopt
+    ).capacity;
 }
 
 // ── Construction ───────────────────────────────────────────────────────────
@@ -42,7 +36,7 @@ SceneProgramCache::SceneProgramCache(
     : m_cache(
         /*capacity_weight=*/resolve_max_entries(capacity),
         /*num_shards=*/num_shards,
-        /*mode=*/chronon3d::cache::CapacityMode::Count,
+        /*mode=*/cache::capacity_mode_for(cache::CacheDomain::ScenePrograms),
         /*on_remove=*/[this](
             const graph::SceneStructureKey& key,
             const std::shared_ptr<graph::CompiledSceneProgram>& /*value*/,

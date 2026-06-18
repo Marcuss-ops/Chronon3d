@@ -1,5 +1,5 @@
 #include <chronon3d/cache/frame_cache.hpp>
-#include <chronon3d/core/config.hpp>
+#include <chronon3d/cache/cache_policy.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <string_view>
 #include <utility>
@@ -17,20 +17,6 @@ template <typename T>
 }
 
 } // namespace frame_cache_detail
-
-namespace {
-
-// Hardcoded fallback when both the caller's argument and Config are zero.
-// 256 entries × ~8MB/framebuffer (1080p RGBA) ≈ 2GB ceiling, plenty of headroom
-// for typical cinematic exports (a few hundred distinct frames).
-constexpr size_t kFrameCacheDefaultEntryCap = 256;
-
-size_t resolve_frame_cache_default_capacity() {
-    auto v = Config::get().frame_cache_max_entries;
-    return v > 0 ? v : kFrameCacheDefaultEntryCap;
-}
-
-} // namespace
 
 u64 FrameCacheKey::digest() const {
     u64 seed = frame_cache_detail::hash_string(composition_id);
@@ -51,9 +37,10 @@ size_t FrameCacheKeyHash::operator()(const FrameCacheKey& key) const noexcept {
 
 FrameCache::FrameCache(size_t max_entries, size_t num_shards)
     : m_cache(
-          max_entries > 0 ? max_entries : resolve_frame_cache_default_capacity(),
+          resolve_cache_policy(CacheDomain::RenderedFrames,
+                               max_entries > 0 ? std::optional<std::size_t>(max_entries) : std::nullopt).capacity,
           num_shards,
-          CapacityMode::Count)
+          capacity_mode_for(CacheDomain::RenderedFrames))
 {}
 
 bool FrameCache::contains(const FrameCacheKey& key) const {
@@ -68,7 +55,6 @@ std::shared_ptr<Framebuffer> FrameCache::find(const FrameCacheKey& key) {
 
 void FrameCache::store(FrameCacheKey key, Value value) {
     // Count mode overrides put's weight to 1; we pass 1 explicitly for clarity.
-    // (The cached framebuffer's byte size is irrelevant for count-based caps.)
     m_cache.put(std::move(key), std::move(value), /*weight=*/1);
 }
 

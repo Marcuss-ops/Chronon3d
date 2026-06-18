@@ -1,5 +1,5 @@
 #include <chronon3d/cache/video_frame_cache.hpp>
-#include <chronon3d/core/config.hpp>
+#include <chronon3d/cache/cache_policy.hpp>
 
 #include <algorithm>
 #include <utility>
@@ -25,15 +25,6 @@ namespace {
     return seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6U) + (seed >> 2U));
 }
 
-// Hardcoded fallback for VideoFrameCache: a single 1080p YUV420P frame is
-// ~3.1 MB; 64 frames ≈ 200 MB ceiling — fits the typical encoder-window use
-// case (look-back 4 frames × nearest-neighbor seek + prefetch ring).
-constexpr size_t kVideoFrameCacheDefaultEntryCap = 64;
-
-size_t resolve_video_frame_cache_default_capacity() {
-    auto v = Config::get().video_frame_max_entries;
-    return v > 0 ? v : kVideoFrameCacheDefaultEntryCap;
-}
 
 } // namespace
 
@@ -69,9 +60,10 @@ size_t VideoFrameKeyHash::operator()(const VideoFrameKey& key) const noexcept {
 
 VideoFrameCache::VideoFrameCache(size_t max_entries, size_t num_shards)
     : m_cache(
-          max_entries > 0 ? max_entries : resolve_video_frame_cache_default_capacity(),
+          resolve_cache_policy(CacheDomain::VideoFrames,
+                               max_entries > 0 ? std::optional<std::size_t>(max_entries) : std::nullopt).capacity,
           num_shards,
-          CapacityMode::Count)
+          capacity_mode_for(CacheDomain::VideoFrames))
 {}
 
 bool VideoFrameCache::contains(const VideoFrameKey& key) const {
