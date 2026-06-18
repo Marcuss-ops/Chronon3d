@@ -31,6 +31,13 @@ concept AnimatableValue =
 
 namespace chronon3d {
 
+// Forward declaration for AnimationTrack<T> (full definition lives in
+// animation_track.hpp). Including that header here would create a pointless
+// transitive dependency in every TU that uses AnimatedValue<T>, so we
+// forward-declare and rely on TUs that call apply_track()/animate_{x,y,z}()
+// to include animation_track.hpp themselves.
+template <typename T> class AnimationTrack;
+
 // Generic component-wise lerp used by AnimatedValue<T>.
 template <typename T>
 inline T lerp(const T& a, const T& b, f32 t) {
@@ -479,6 +486,83 @@ public:
     }
 
     void clear() { m_keyframes.clear(); m_roving_dirty = true; m_auto_bezier_dirty = false; }
+
+    // ── AnimationTrack<T> declarative builder────────────────────────
+    // Bake an AnimationTrack<T>'s keyframes into this AnimatedValue, replacing
+    // any previous keyframe schedule. Mirrors the Framer Motion / React-Spring
+    // / Remotion declarative-builder pattern: build the curve once at
+    // composition construction time, then apply the same track to N animated
+    // properties (e.g. title.scale_anim() and title_shadow.scale_anim()
+    // sharing one AnimationTrack<float>).
+    //
+    // Each keyframe's .easing curve is preserved; roving=false (the
+    // AnimationTrack model doesn't carry roving). Sorted by Frame after bake
+    // so evaluate_base_double() sees its sorted-invariant.
+    AnimatedValue& apply_track(const AnimationTrack<T>& track) {
+        clear();
+        for (const auto& kf : track.keys()) {
+            m_keyframes.emplace_back(kf.frame, kf.value, kf.easing, /*roving=*/false);
+        }
+        std::sort(m_keyframes.begin(), m_keyframes.end());
+        return *this;
+    }
+
+    // ── Vec3 single-axis drivers from a scalar AnimationTrack────────────
+    // SFINAE: only available when AnimatedValue stores a 3-vector type
+    // (Vec3 from glm_types.hpp or glm::vec3). The driven axis varies with the
+    // scalar track; the other two axes hold the supplied defaults (1.0f by
+    // default — the typical choice for "scale" / "perspective" tracks).
+    // Previous keyframe schedule is cleared.
+    template <typename U = T,
+              typename = std::enable_if_t<
+                  std::is_same_v<U, Vec3> || std::is_same_v<U, glm::vec3>>>
+    AnimatedValue& animate_x(const AnimationTrack<float>& track,
+                              f32 y_default = 1.0f,
+                              f32 z_default = 1.0f) {
+        clear();
+        for (const auto& kf : track.keys()) {
+            m_keyframes.emplace_back(
+                kf.frame,
+                T{static_cast<f32>(kf.value), y_default, z_default},
+                kf.easing, /*roving=*/false);
+        }
+        std::sort(m_keyframes.begin(), m_keyframes.end());
+        return *this;
+    }
+
+    template <typename U = T,
+              typename = std::enable_if_t<
+                  std::is_same_v<U, Vec3> || std::is_same_v<U, glm::vec3>>>
+    AnimatedValue& animate_y(const AnimationTrack<float>& track,
+                              f32 x_default = 1.0f,
+                              f32 z_default = 1.0f) {
+        clear();
+        for (const auto& kf : track.keys()) {
+            m_keyframes.emplace_back(
+                kf.frame,
+                T{x_default, static_cast<f32>(kf.value), z_default},
+                kf.easing, /*roving=*/false);
+        }
+        std::sort(m_keyframes.begin(), m_keyframes.end());
+        return *this;
+    }
+
+    template <typename U = T,
+              typename = std::enable_if_t<
+                  std::is_same_v<U, Vec3> || std::is_same_v<U, glm::vec3>>>
+    AnimatedValue& animate_z(const AnimationTrack<float>& track,
+                              f32 x_default = 1.0f,
+                              f32 y_default = 1.0f) {
+        clear();
+        for (const auto& kf : track.keys()) {
+            m_keyframes.emplace_back(
+                kf.frame,
+                T{x_default, y_default, static_cast<f32>(kf.value)},
+                kf.easing, /*roving=*/false);
+        }
+        std::sort(m_keyframes.begin(), m_keyframes.end());
+        return *this;
+    }
 
     /// Shift every keyframe forward (or backward) by offset frames.
     /// Keyframes are clamped at Frame{0} to prevent negative frame indices.
