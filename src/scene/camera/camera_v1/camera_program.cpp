@@ -476,6 +476,24 @@ Camera2_5D CameraProgram::evaluate_compiled_source(const CameraEvalContext& ctx)
     const auto& source = descriptor_.source;
     const auto& base = descriptor_.base;
 
+    // PR3: if compile_camera() resolved a RegisteredMotionRef via
+    // CameraMotionRegistry fallback, call it directly instead of
+    // dispatching on the descriptor source.
+    if (resolved_motion_) {
+        CameraMotionContext motion_ctx;
+        motion_ctx.frame = ctx.frame;
+        motion_ctx.sample_time = ctx.sample_time;
+        motion_ctx.base_position = base.position;
+        motion_ctx.base_target = base.point_of_interest;
+        if (auto* zp = std::get_if<ZoomProjection>(&base.projection)) {
+            motion_ctx.base_zoom = zp->zoom.evaluate(ctx.sample_time);
+        } else if (auto* fp = std::get_if<FovProjection>(&base.projection)) {
+            motion_ctx.base_fov_deg = fp->fov_deg.evaluate(ctx.sample_time);
+        }
+        motion_ctx.base_focus_distance = base.dof.focus_distance;
+        return resolved_motion_->evaluate(motion_ctx);
+    }
+
     if (auto* pts = std::get_if<PoseTracksSource>(&source)) {
         return eval_pose_tracks(base, descriptor_.orientation, *pts, ctx);
     }
