@@ -14,6 +14,19 @@
 
 namespace chronon3d {
 
+// ── Interpolation mode for keyframes ──────────────────────────────────────
+// Replaces the old AnimationCurve's KeyInterp enum.
+// Easing: use the easing curve (default, backward compatible)
+// Hold:   step function — value jumps at keyframe
+// Bezier: custom temporal tangent handles (in/out independently adjustable)
+// AutoBezier: auto-computed temporal tangents from adjacent keyframes
+enum class InterpMode {
+    Easing,      // default — use EasingCurve
+    Hold,        // step to next value at keyframe
+    Bezier,      // custom temporal handles
+    AutoBezier   // auto-computed temporal tangents
+};
+
 // Generic keyframe used by AnimatedValue<T>.
 // When T is a spatial type (Vec2/Vec3/Vec4), in_handle and out_handle
 // are used as cubic bezier control offsets from value, enabling smooth
@@ -24,6 +37,18 @@ struct Keyframe {
     T            value{};
     EasingCurve  easing{Easing::Linear};
     bool         roving{false};  // roving keyframe: auto-timed for constant velocity
+
+    // Interpolation mode (replaces old KeyInterp from AnimationCurve).
+    InterpMode   interp{InterpMode::Easing};
+
+    // Temporal tangent handles (After Effects-style).
+    // dx = time offset in frames from keyframe (positive = forward)
+    // dy = value offset from the keyframe value
+    // Used when interp == Bezier or AutoBezier.
+    f32 temporal_in_dx{0.0f};
+    f32 temporal_in_dy{0.0f};
+    f32 temporal_out_dx{0.0f};
+    f32 temporal_out_dy{0.0f};
 
     // Spatial bezier handles: offsets from `value` that control the shape
     // of the cubic bezier path through this keyframe.
