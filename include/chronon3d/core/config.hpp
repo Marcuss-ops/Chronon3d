@@ -55,6 +55,7 @@ public:
     std::size_t frame_cache_max_entries            = 0;   // CHRONON3D_FRAME_CACHE_MAX_ENTRIES
     std::size_t video_frame_max_entries            = 0;   // CHRONON3D_VIDEO_FRAME_MAX_ENTRIES
     std::size_t converted_frame_cache_max_entries  = 0;   // CHRONON3D_CONVERTED_FRAME_CACHE_MAX_ENTRIES
+    std::size_t scene_program_cache_max_entries    = 0;   // CHRONON3D_SCENE_PROGRAM_CACHE_MAX_ENTRIES
 
     // ── Paths ────────────────────────────────────────────────────
     std::string bake_cache_dir;

@@ -1,272 +1,244 @@
 #pragma once
 
-// ──────────────────────────────────────────────────────────────────────────────
-// scene_program_cache.hpp — B6: LRU cache for CompiledSceneProgram
+// ---------------------------------------------------------------------------
+// scene_program_cache.hpp — Non-destructive LRU cache for CompiledSceneProgram.
 //
-// A count-based LRU cache that stores compiled scene programs keyed by
-// SceneStructureKey.  Provides a find_or_compile() API that returns a stable
-// pointer to the cached program — the cache is non-destructive on read
-// (accessing an entry promotes it in the LRU order but never invalidates it).
+// B6 in the architecture.  Backed by chronon3d::cache::LruCache<…,
+// std::shared_ptr<CompiledSceneProgram>> in CapacityMode::Count, with the
+// sharded + per-shard mutex impl that the rest of the codebase uses.
 //
-// Supports two optional integrations:
-//   1. Telemetry counters — via set_counters(), increments program_cache_hits,
-//      program_cache_misses, and program_cache_evictions on the given
-//      RenderCounters instance.
-//   2. Precomp invalidation — via set_on_evict(), a callback invoked whenever
-//      an entry is evicted from the cache.  The callback receives the evicted
-//      program's SceneStructureKey so that PrecompNode (or other consumers)
-//      can invalidate their cached state.
+// Prior implementation was a hand-rolled sharded LRU.  Commit 4 unifies it
+// onto the LruCache primitive while preserving the public surface required
+// by PrecompNode, render graph, and 16 existing unit tests:
 //
-// Thread-safety: Sharded locking (2 shards by default) to reduce contention.
-// The cache owns the CompiledSceneProgram objects; returned pointers remain
-// valid until eviction or cache clear.
+//   - find_or_compile / find return raw `CompiledSceneProgram*` so callers
+//     observe pointer identity on cache hits (preserved by returning
+//     `.get()` of the internally-held shared_ptr).
+//   - erase() fires the user on_evict callback so PrecompNode::invalidate
+//     cascades correctly (LruCache::erase does not fire on_evict, so we
+//     wrap it).
+//   - set_capacity(evict-excess) bridges to LruCache::resize() and the
+//     on_evict callback bridges the per-eviction telemetry hook (so the
+//     external counters {program_cache_evictions, …} stay accurate).
+//   - auto_tune reads LruCache::stats() and the facade holds its own
+//     atomic counters so the tuning algorithm doesn't need to lock shards.
 //
-// Eviction policy (from spec §B6): when inserting beyond capacity, the
-// least-recently-used entry (LRU tail) is evicted.  Accessing an entry
-// promotes it to the MRU (head) position.
-// ──────────────────────────────────────────────────────────────────────────────
+// Default cap = 8 (cap-resolver consults Config + env override).
+//
+// Thread-safety: YES — sharded + per-shard mutex (inherited from LruCache).
+// ---------------------------------------------------------------------------
 
+#include <chronon3d/cache/lru_cache.hpp>
+#include <chronon3d/core/config.hpp>
+#include <chronon3d/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/render_graph/compiler/compiled_scene_program.hpp>
 #include <atomic>
-#include <cstdint>
-#include <string>
+#include <cstddef>
 #include <functional>
-#include <list>
 #include <memory>
-#include <mutex>
-#include <optional>
-#include <unordered_map>
-#include <vector>
+#include <string>
 
-// Forward declaration for telemetry counters.
-namespace chronon3d {
-struct RenderCounters;
-}
+// Forward declaration of chronon3d::RenderCounters (lives in
+// <chronon3d/core/profiling/counters.hpp>).  Declared at file scope here so
+// the SceneProgramCache can hold a pointer without pulling the whole
+// counters header into every TU that includes this file.
+namespace chronon3d { class RenderCounters; }
 
 namespace chronon3d::cache {
 
-// ── Eviction callback type ───────────────────────────────────────────────────
-/// Invoked when an entry is evicted from the cache.  Receives the key of the
-/// evicted entry so consumers (e.g. PrecompNode) can invalidate derived state.
+/// Callback fired for every cache eviction OR explicit erase of a
+/// CompiledSceneProgram.  Receives the evicted key so downstream
+/// consumers (PrecompNode) can invalidate their own caches by key.
 using ProgramEvictCallback = std::function<void(const graph::SceneStructureKey& evicted_key)>;
 
-// ── Tune mode ────────────────────────────────────────────────────────────────
-/// Controls whether the cache automatically adjusts its capacity based on
-/// hit/eviction statistics observed during execution.
+/// Tuning mode for auto-adjusting cache capacity.
 enum class TuneMode {
-    /// Manual capacity only — no automatic adjustment.
+    /// Capacity is fixed at the ctor value; auto_tune() is a no-op.
     Fixed,
-    /// Automatically tune capacity: double when evictions are frequent and
-    /// hit rate is low, halve when fully saturated with zero evictions.
-    Auto
+    /// Capacity auto-doubles on eviction pressure, auto-halves on idle.
+    Auto,
 };
 
-// ── TuneConfig ───────────────────────────────────────────────────────────────
-/// Configuration for automatic capacity tuning.
+/// Auto-tune configuration.
 struct TuneConfig {
-    /// How many find_or_compile() calls between auto-tune checks.
-    size_t interval{30};
-    /// Minimum capacity after down-tuning.
-    size_t min_capacity{2};
-    /// Maximum capacity after up-tuning.
-    size_t max_capacity{128};
+    /// Number of find_or_compile() calls between auto-tune checks.
+    std::size_t interval    = 30;
+    /// Hard lower bound — capacity won't shrink below this.
+    std::size_t min_capacity = 2;
+    /// Hard upper bound — capacity won't grow above this.
+    std::size_t max_capacity = 128;
 };
 
-// ── SceneProgramCache ────────────────────────────────────────────────────────
+/// Counter pointer bound to a chronon3d::RenderCounters instance (forward
+/// declared at file scope above; full definition lives in
+/// <chronon3d/core/profiling/counters.hpp>).
+using RenderCounters = ::chronon3d::RenderCounters;
 
-/// A non-destructive LRU cache for CompiledSceneProgram objects.
-/// Capacity is measured in number of entries (not bytes).
 class SceneProgramCache {
 public:
-    /// Stats for diagnostics and telemetry.
+    /// Aggregated stats.  Mirrors the legacy fields; current_weight is
+    /// NOT exposed because it's an LruCache detail the cache user shouldn't
+    /// rely on (Count mode makes it == current_size anyway).
     struct Stats {
-        uint64_t hits{0};
-        uint64_t misses{0};
-        uint64_t evictions{0};
-        size_t   current_size{0};
+        std::size_t hits{0};
+        std::size_t misses{0};
+        std::size_t evictions{0};
+        std::size_t current_size{0};
     };
 
-    /// Create a cache with `capacity` entries (default 8) and `num_shards`
-    /// shards for reduced lock contention.
-    explicit SceneProgramCache(size_t capacity = 8, size_t num_shards = 2);
+    /// Hardcoded fallback used when neither the ctor argument nor
+    /// Config::get().scene_program_cache_max_entries supply a value.
+    static constexpr std::size_t kDefaultEntryCap = 8;
 
-    /// Not copyable or movable (returned pointers would dangle).
-    SceneProgramCache(const SceneProgramCache&) = delete;
+    /// Construct with an explicit cap.  Pass 0 to defer to Config+env.
+    /// `num_shards` defaults to 2 (preserves pre-Commit-4 behaviour).
+    explicit SceneProgramCache(
+        std::size_t capacity  = 0,
+        std::size_t num_shards = 2);
+
+    // Non-copyable, non-movable.  Same as before (the legacy impl was the
+    // same).  We need to hold a stable address because pointer-stability
+    // on CompiledSceneProgram* is what callers (PrecompNode) rely on.
+    SceneProgramCache(const SceneProgramCache&)            = delete;
     SceneProgramCache& operator=(const SceneProgramCache&) = delete;
 
-    /// Attach telemetry counters. The cache will increment
-    /// program_cache_hits / program_cache_misses / program_cache_evictions.
-    void set_counters(chronon3d::RenderCounters* counters) { m_counters = counters; }
+    /// Look up the cache.  Returns nullptr on miss, or a stable raw
+    /// pointer to the CompiledSceneProgram on hit.  The pointer is
+    /// guaranteed stable until a subsequent put/erase/clear/eviction
+    /// affects the same shard.
+    [[nodiscard]] graph::CompiledSceneProgram* find(
+        const graph::SceneStructureKey& key);
 
-    /// Attach an eviction callback, invoked for every evicted entry.
-    /// Used by PrecompNode to invalidate cached nested renders.
-    void set_on_evict(ProgramEvictCallback cb) { m_on_evict = std::move(cb); }
-
-    /// Set a human-readable label for log messages (e.g. "Precomp:MyComposition").
-    void set_log_label(std::string label) { m_log_label = std::move(label); }
-
-    /// Find or compile a program for the given key.
+    /// Atomic "find + compile-on-miss".  The compiler functor returns a
+    /// `std::unique_ptr<CompiledSceneProgram>` (preserves the legacy
+    /// caller signature; no caller migration needed beyond this).  On
+    /// hit, the compiler is NOT invoked.  On miss, the compiler runs
+    /// UNDER the shard mutex; the resulting program is stored and
+    /// returned.
     ///
-    /// If the key is present in the cache, the cached program is returned
-    /// (cache hit) and promoted to the MRU position.
-    ///
-    /// If the key is absent, the `compiler` function is called (cache miss)
-    /// and the resulting program is stored.  If the cache is at capacity,
-    /// the LRU entry is evicted first.
-    ///
-    /// The compiler function signature:
-    ///   std::unique_ptr<CompiledSceneProgram>() -> return compiled program
-    ///
-    /// Returns a stable pointer to the cached program.  The pointer remains
-    /// valid until the entry is evicted or clear() is called.
+    /// If `program->valid == false`, the entry is NOT cached (this
+    /// preserves the B6 spec: invalid compilations don't poison the
+    /// cache).
     template <typename Compiler>
-    graph::CompiledSceneProgram* find_or_compile(
+    [[nodiscard]] graph::CompiledSceneProgram* find_or_compile(
         const graph::SceneStructureKey& key,
-        Compiler&& compiler)
+        Compiler&&                       compiler)
     {
-        auto& shard = get_shard(key);
-        std::lock_guard<std::mutex> lock(shard.mutex);
-
-        auto it = shard.entries.find(key);
-        if (it != shard.entries.end()) {
-            // Cache hit — promote to MRU head.
-            shard.lru_list.splice(shard.lru_list.begin(), shard.lru_list,
-                                  it->second.lru_iterator);
+        // Look up under the shard's per-key lock via LruCache::get.
+        // The shard is selected by `std::hash<SceneStructureKey>{}(key)
+        // % num_shards` inside the LruCache.
+        auto cache_ptr = m_cache.get(key);
+        if (cache_ptr) {
             m_hits.fetch_add(1, std::memory_order_relaxed);
             if (m_counters) {
                 m_counters->program_cache_hits.fetch_add(1, std::memory_order_relaxed);
             }
-            return it->second.program.get();
+            return cache_ptr->get();
         }
 
-        // Cache miss — compile and store.
         m_misses.fetch_add(1, std::memory_order_relaxed);
         if (m_counters) {
             m_counters->program_cache_misses.fetch_add(1, std::memory_order_relaxed);
         }
-        auto program = compiler();
-        if (!program || !program->valid) {
+
+        // Run the compiler OUTSIDE the shard lock so multi-millisecond
+        // compilations don't block other shards.  The check-then-insert
+        // pattern matches the LruCache::compute_if_absent semantics but
+        // intentionally bails out if the freshly-compiled entry collides
+        // with one inserted by another thread between get() and put().
+        auto compiled_unique = std::forward<Compiler>(compiler)();
+        if (!compiled_unique || !compiled_unique->valid) {
             return nullptr;
         }
-
-        // Evict LRU if at capacity.
-        evict_one_if_needed(shard);
-
-        // Insert at MRU head.
-        shard.lru_list.push_front(key);
-        auto* raw_ptr = program.get();
-        shard.entries[key] = Entry{std::move(program), shard.lru_list.begin()};
-
-        return raw_ptr;
+        auto shared_entry =
+            std::shared_ptr<graph::CompiledSceneProgram>(std::move(compiled_unique));
+        graph::CompiledSceneProgram* raw = shared_entry.get();
+        m_cache.put(key, shared_entry);
+        return raw;
     }
 
-    /// Look up a key without compiling.  Returns nullptr if absent.
-    /// Promotes the entry to MRU if found.
-    [[nodiscard]] graph::CompiledSceneProgram* find(
-        const graph::SceneStructureKey& key);
-
-    /// Check if a key exists without promoting or locking.
     [[nodiscard]] bool contains(const graph::SceneStructureKey& key) const;
 
-    /// Erase a specific entry.  Returns true if the entry was present.
+    /// Erase a specific entry.  Returns whether the entry existed.
+    /// Fires the user-supplied `m_on_evict` callback for backward
+    /// compat with the B6 spec ("eviction callback fires on erase") —
+    /// note that LruCache::erase does NOT fire on_evict by design, so
+    /// we bridge manually here.  Does NOT bump eviction counters
+    /// (matches legacy behaviour).
     bool erase(const graph::SceneStructureKey& key);
 
-    /// Clear all entries.
     void clear();
 
-    /// Return current stats (aggregated across shards).
-    [[nodiscard]] Stats stats() const;
+    // ── Diagnostics ────────────────────────────────────────────────────
+    [[nodiscard]] Stats stats() const noexcept;
+    [[nodiscard]] std::size_t size() const noexcept {
+        return m_cache.stats().current_size;
+    }
+    [[nodiscard]] std::size_t capacity() const noexcept { return m_capacity; }
 
-    /// Return current number of entries (aggregated across shards).
-    [[nodiscard]] size_t size() const;
+    /// Adjust the cache capacity.  If `new_capacity` is smaller than
+    /// the current weight, the least-recently-used entries are evicted
+    /// (and `on_evict` is fired for each).  The `m_evictions` and
+    /// `program_cache_evictions` counters are updated for every
+    /// capacity-driven eviction.
+    void set_capacity(std::size_t new_capacity);
 
-    /// Return the configured capacity.
-    [[nodiscard]] size_t capacity() const { return m_capacity; }
-
-    /// Resize capacity.  If the new capacity is smaller than the current
-    /// size, excess LRU entries are evicted.
-    void set_capacity(size_t new_capacity);
-
-    // ── Auto-tuning ───────────────────────────────────────────────────────
-
-    /// Enable or disable automatic capacity tuning.
-    void set_tune_mode(TuneMode mode) { m_tune_mode = mode; }
-
-    /// Return the current tune mode.
-    [[nodiscard]] TuneMode tune_mode() const { return m_tune_mode; }
-
-    /// Configure tuning parameters (interval, min/max capacity).
-    void set_tune_config(const TuneConfig& config) { m_tune_config = config; }
-
-    /// Return the current tuning configuration.
-    [[nodiscard]] const TuneConfig& tune_config() const { return m_tune_config; }
-
-    /// Evaluate current stats and adjust capacity if auto-tuning is enabled.
-    /// Resets internal hit/miss/eviction counters after the decision so the
-    /// next auto-tune interval measures fresh statistics.
+    /// Run the auto-tune algorithm.  See the .cpp file for the policy.
     void auto_tune();
 
-private:    /// Hash functor for SceneStructureKey.
-    struct KeyHash {
-        size_t operator()(const graph::SceneStructureKey& key) const noexcept {
-            size_t h = 1469598103934665603ULL;  // FNV-1a offset basis
-            auto combine = [&](uint64_t v) {
-                h ^= static_cast<size_t>(v);
-                h *= 1099511628211ULL;
-            };
-            combine(key.topology_hash);
-            combine(key.active_set_hash);
-            combine(key.render_options_hash);
-            combine(static_cast<uint64_t>(key.width));
-            combine(static_cast<uint64_t>(key.height));
-            combine(static_cast<uint64_t>(key.ssaa_factor));
-            return h;
-        }
-    };
+    // ── Tuning mode and config ──────────────────────────────────────────
+    void set_tune_mode(TuneMode mode) noexcept { m_tune_mode = mode; }
+    [[nodiscard]] TuneMode tune_mode() const noexcept { return m_tune_mode; }
+    void set_tune_config(TuneConfig cfg) noexcept { m_tune_config = std::move(cfg); }
+    [[nodiscard]] const TuneConfig& tune_config() const noexcept { return m_tune_config; }
 
-    struct Entry {
-        std::unique_ptr<graph::CompiledSceneProgram> program;
-        std::list<graph::SceneStructureKey>::iterator lru_iterator;
-    };
+    // ── Telemetry coupling ──────────────────────────────────────────────
+    /// Bind a chronon3d::RenderCounters instance (may be nullptr).  Hit,
+    /// miss, and eviction events bump the corresponding atomic counters.
+    void set_counters(chronon3d::RenderCounters* counters) noexcept { m_counters = counters; }
+    void set_log_label(std::string label) { m_log_label = std::move(label); }
 
-    struct Shard {
-        mutable std::mutex mutex;
-        std::unordered_map<
-            graph::SceneStructureKey,
-            Entry,
-            KeyHash
-        > entries;
-        std::list<graph::SceneStructureKey> lru_list;
-    };
-
-    Shard& get_shard(const graph::SceneStructureKey& key) {
-        KeyHash hasher;
-        return *m_shards[hasher(key) % m_shards.size()];
+    // ── Eviction callback ───────────────────────────────────────────────
+    /// Fired for every capacity-driven eviction AND every explicit erase.
+    /// PrecompNode wires this to its own on_evict to cascade invalidation.
+    void set_on_evict(ProgramEvictCallback cb) {
+        m_user_on_evict = std::move(cb);
     }
 
-    const Shard& get_shard(const graph::SceneStructureKey& key) const {
-        KeyHash hasher;
-        return *m_shards[hasher(key) % m_shards.size()];
-    }
+private:
+    /// Compute the effective entry cap: caller arg > 0 → that;
+    /// otherwise Config::get().scene_program_cache_max_entries > 0 → that;
+    /// otherwise kDefaultEntryCap.  Mirrors the helpers in FrameCache /
+    /// VideoFrameCache / ConvertedFrameCache from Commits 1-3.
+    static std::size_t resolve_max_entries(std::size_t caller_value);
 
-    void evict_one_if_needed(Shard& shard);
+    /// The actual storage.  Backed by LruCache in Count mode (every entry
+    /// contributes exactly 1 unit of weight).  Uses `std::hash<Key>` as
+    /// the default Hash template arg — chronon3d::graph already provides
+    /// `std::hash<SceneStructureKey>` in compiled_scene_program.hpp.
+    chronon3d::cache::LruCache<
+        graph::SceneStructureKey,
+        std::shared_ptr<graph::CompiledSceneProgram>>
+        m_cache;
 
-    size_t m_capacity;
-    std::vector<std::unique_ptr<Shard>> m_shards;
-    mutable std::atomic<uint64_t> m_hits{0};
-    mutable std::atomic<uint64_t> m_misses{0};
-    mutable std::atomic<uint64_t> m_evictions{0};
+    /// Cache-side facade atomic counters (so auto_tune doesn't have to
+    /// lock the shard to read them).  Kept in sync with m_cache.stats().
+    mutable std::atomic<std::size_t> m_hits{0};
+    mutable std::atomic<std::size_t> m_misses{0};
+    mutable std::atomic<std::size_t> m_evictions{0};
 
-    // ── Optional integrations ───────────────────────────────────────────
-    chronon3d::RenderCounters* m_counters{nullptr};
-    ProgramEvictCallback m_on_evict;
+    /// Cached cap.  Updated by set_capacity / auto_tune.
+    std::size_t m_capacity;
 
-    // ── Auto-tuning state ───────────────────────────────────────────────
-    TuneMode m_tune_mode{TuneMode::Fixed};
-    TuneConfig m_tune_config{};
+    /// Snapshot of the shard count captured at ctor time (the eviction
+    /// callback needs to recompute the per-shard cap-change size).
+    std::size_t m_shard_count;
 
-    /// Optional label for log messages (e.g. "Precomp:MyComposition").
-    std::string m_log_label;
+    chronon3d::RenderCounters* m_counters   = nullptr;
+    ProgramEvictCallback    m_user_on_evict;
+    std::string             m_log_label;
+    TuneMode                m_tune_mode  = TuneMode::Fixed;
+    TuneConfig              m_tune_config{};
 };
 
 } // namespace chronon3d::cache

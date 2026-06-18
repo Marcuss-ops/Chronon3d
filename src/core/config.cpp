@@ -97,6 +97,7 @@ Config::Config() {
     frame_cache_max_entries           = resolve_env_int("CHRONON3D_FRAME_CACHE_MAX_ENTRIES", 0);
     video_frame_max_entries           = resolve_env_int("CHRONON3D_VIDEO_FRAME_MAX_ENTRIES", 0);
     converted_frame_cache_max_entries = resolve_env_int("CHRONON3D_CONVERTED_FRAME_CACHE_MAX_ENTRIES", 0);
+    scene_program_cache_max_entries   = resolve_env_int("CHRONON3D_SCENE_PROGRAM_CACHE_MAX_ENTRIES", 0);
 
     // Paths
     bake_cache_dir = env_string("CHRONON_BAKE_CACHE_DIR");
