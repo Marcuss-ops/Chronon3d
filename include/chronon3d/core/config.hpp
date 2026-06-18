@@ -49,11 +49,12 @@ public:
     std::size_t glow_cache_max_bytes  = 0;
 
     // ── Cache limits (entry count) ─────────────────────────────
-    // LruBackedCache instances (FrameCache, VideoFrameCache) honor these
-    // when constructed without an explicit cap.  0 = use the per-cache
-    // hardcoded fallback inside the cache's constructor.
-    std::size_t frame_cache_max_entries   = 0;   // CHRONON3D_FRAME_CACHE_MAX_ENTRIES
-    std::size_t video_frame_max_entries   = 0;   // CHRONON3D_VIDEO_FRAME_MAX_ENTRIES
+    // LruBackedCache instances (FrameCache, VideoFrameCache, ConvertedFrameCache)
+    // honor these when constructed without an explicit cap.
+    // 0 = use the per-cache hardcoded fallback inside the cache's constructor.
+    std::size_t frame_cache_max_entries            = 0;   // CHRONON3D_FRAME_CACHE_MAX_ENTRIES
+    std::size_t video_frame_max_entries            = 0;   // CHRONON3D_VIDEO_FRAME_MAX_ENTRIES
+    std::size_t converted_frame_cache_max_entries  = 0;   // CHRONON3D_CONVERTED_FRAME_CACHE_MAX_ENTRIES
 
     // ── Paths ────────────────────────────────────────────────────
     std::string bake_cache_dir;

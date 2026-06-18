@@ -102,6 +102,7 @@ void BM_ConvertedFrameCacheHit(benchmark::State& state) {
     ConvertedFrameCache cache(64);
     const size_t y_sz = w * h;
     const size_t uv_sz = (w / 2) * (h / 2);
+    (void)uv_sz;
 
     auto fb = std::make_shared<Framebuffer>(w, h);
     fb->clear(Color{1.0f, 0.0f, 0.0f, 1.0f});
@@ -125,9 +126,9 @@ void BM_ConvertedFrameCacheHit(benchmark::State& state) {
     cache.insert(key, y.data(), y_sz + uv_sz * 2);
 
     for (auto _ : state) {
-        benchmark::DoNotOptimize(cache.lookup(key));
-        benchmark::DoNotOptimize(cache.lookup(key));
-        benchmark::DoNotOptimize(cache.lookup(key));
+        benchmark::DoNotOptimize(cache.lookup(key).get());
+        benchmark::DoNotOptimize(cache.lookup(key).get());
+        benchmark::DoNotOptimize(cache.lookup(key).get());
     }
 
     state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * 3);

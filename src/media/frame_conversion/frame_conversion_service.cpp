@@ -61,7 +61,7 @@ ConvertedFrame FrameConversionService::convert(
 
     // ── Cache lookup ──────────────────────────────────────────────────
     if (can_cache) {
-        const auto* hit = cache_.lookup(make_cache_key(digest, opts));
+        const auto hit = cache_.lookup(make_cache_key(digest, opts));
         if (hit) {
             ++stats_.cache_hits;
             ConvertedFrame result;
@@ -156,7 +156,7 @@ bool FrameConversionService::convert_to_buffer(
 
     // ── Cache lookup ──────────────────────────────────────────────────
     if (can_cache) {
-        const auto* hit = cache_.lookup(make_cache_key(digest, opts));
+        const auto hit = cache_.lookup(make_cache_key(digest, opts));
         if (hit) {
             std::memcpy(dst, hit->data.data(), std::min(hit->data_size, dst_size));
             ++stats_.cache_hits;

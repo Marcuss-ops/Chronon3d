@@ -44,7 +44,7 @@ TEST_CASE("Long export: 1000 varying frames via frame converter + cache") {
             .apply_gamma = true,
         };
 
-        auto* entry = cache.lookup(key);
+        const auto entry = cache.lookup(key);
         if (entry) {
             ++cache_hits;
         } else {
@@ -166,7 +166,7 @@ TEST_CASE("Long export: near-duplicate frames hit converted frame cache") {
             .apply_gamma = true,
         };
 
-        auto* entry = cache.lookup(key);
+        const auto entry = cache.lookup(key);
         if (entry) {
             ++total_hits;
         } else {

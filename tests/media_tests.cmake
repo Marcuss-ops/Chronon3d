@@ -8,6 +8,7 @@
 add_executable(chronon3d_media_video_tests
     ${TEST_MAIN}
     video/test_frame_converter.cpp
+    video/test_converted_frame_cache.cpp
     video/test_video_diff.cpp
     video/test_long_export.cpp
     video/test_near_static_frames.cpp
