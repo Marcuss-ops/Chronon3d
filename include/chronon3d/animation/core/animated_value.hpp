@@ -11,6 +11,7 @@
 #include <string_view>
 #include <vector>
 #include <algorithm>
+#include <cmath>
 #include <type_traits>
 
 // Helper: detect glm vector types (vec2, vec3, vec4) for spatial roving.
@@ -116,6 +117,19 @@ public:
         if (roving) m_roving_dirty = true;
     }
 
+    /// Add a keyframe with InterpMode + temporal tangent handles.
+    void add_keyframe(Frame frame, const T& value, InterpMode interp,
+                       f32 in_dx, f32 in_dy, f32 out_dx, f32 out_dy) {
+        m_keyframes.emplace_back(frame, value, EasingCurve{Easing::Linear}, false);
+        m_keyframes.back().interp = interp;
+        m_keyframes.back().temporal_in_dx = in_dx;
+        m_keyframes.back().temporal_in_dy = in_dy;
+        m_keyframes.back().temporal_out_dx = out_dx;
+        m_keyframes.back().temporal_out_dy = out_dy;
+        std::sort(m_keyframes.begin(), m_keyframes.end());
+        if (interp == InterpMode::AutoBezier) m_auto_bezier_dirty = true;
+    }
+
     // Fluent alias for add_keyframe — enables chaining.
     AnimatedValue& key(Frame frame, const T& value, EasingCurve easing = EasingCurve{Easing::Linear}) {
         add_keyframe(frame, value, easing);
@@ -157,6 +171,9 @@ public:
     void compute_roving() const {
         if (!m_roving_dirty) return;
         if (m_keyframes.size() < 3) { m_roving_dirty = false; return; }
+
+        // Auto-compute bezier tangents before roving (like AnimationCurve).
+        compute_auto_beziers();
 
         std::sort(m_keyframes.begin(), m_keyframes.end());
 
@@ -248,6 +265,66 @@ public:
         std::sort(m_keyframes.begin(), m_keyframes.end());
     }
 
+    /// Auto-compute temporal bezier tangents for AutoBezier keyframes.
+    /// Like AnimationCurve::compute_auto_beziers() — only meaningful for
+    /// arithmetic (scalar) types.
+    void compute_auto_beziers() const {
+        if (!m_auto_bezier_dirty) return;
+        if (m_keyframes.size() < 3) { m_auto_bezier_dirty = false; return; }
+
+        for (size_t i = 0; i < m_keyframes.size(); ++i) {
+            auto& kf = m_keyframes[i];
+            if (kf.interp != InterpMode::AutoBezier) continue;
+
+            const bool has_prev = (i > 0);
+            const bool has_next = (i + 1 < m_keyframes.size());
+
+            constexpr f32 kTension = 1.0f / 3.0f;
+
+            if (has_prev && has_next) {
+                const f32 dt_prev = static_cast<f32>(kf.frame - m_keyframes[i - 1].frame);
+                const f32 dt_next = static_cast<f32>(m_keyframes[i + 1].frame - kf.frame);
+
+                if constexpr (std::is_arithmetic_v<T>) {
+                    const f32 dv_prev = static_cast<f32>(kf.value - m_keyframes[i - 1].value);
+                    const f32 dv_next = static_cast<f32>(m_keyframes[i + 1].value - kf.value);
+                    const f32 slope = (dv_prev + dv_next) / (dt_prev + dt_next);
+
+                    kf.temporal_in_dx  = -dt_prev * kTension;
+                    kf.temporal_in_dy  = -slope * dt_prev * kTension;
+                    kf.temporal_out_dx = dt_next * kTension;
+                    kf.temporal_out_dy = slope * dt_next * kTension;
+                } else {
+                    kf.temporal_in_dx = 0.0f;
+                    kf.temporal_in_dy = 0.0f;
+                    kf.temporal_out_dx = 0.0f;
+                    kf.temporal_out_dy = 0.0f;
+                }
+            } else if (has_prev) {
+                if constexpr (std::is_arithmetic_v<T>) {
+                    const f32 dt = static_cast<f32>(kf.frame - m_keyframes[i - 1].frame);
+                    const f32 dv = static_cast<f32>(kf.value - m_keyframes[i - 1].value);
+                    const f32 slope = (dt > 0.0f) ? (dv / dt) : 0.0f;
+                    kf.temporal_in_dx  = -dt * kTension;
+                    kf.temporal_in_dy  = -slope * dt * kTension;
+                }
+                kf.temporal_out_dx = 0.0f;
+                kf.temporal_out_dy = 0.0f;
+            } else if (has_next) {
+                if constexpr (std::is_arithmetic_v<T>) {
+                    const f32 dt = static_cast<f32>(m_keyframes[i + 1].frame - kf.frame);
+                    const f32 dv = static_cast<f32>(m_keyframes[i + 1].value - kf.value);
+                    const f32 slope = (dt > 0.0f) ? (dv / dt) : 0.0f;
+                    kf.temporal_out_dx = dt * kTension;
+                    kf.temporal_out_dy = slope * dt * kTension;
+                }
+                kf.temporal_in_dx = 0.0f;
+                kf.temporal_in_dy = 0.0f;
+            }
+        }
+        m_auto_bezier_dirty = false;
+    }
+
     // Set a constant value (clears all keyframes).
     AnimatedValue& set(const T& value) {
         clear();
@@ -270,6 +347,11 @@ public:
 
     // ── Frame evaluation (backward compatible + forward) ────────────────────
     [[nodiscard]] T value_at(Frame frame) const { return evaluate(frame); }
+
+    /// Double-precision evaluation (for TemporalCurve1D compatibility).
+    [[nodiscard]] T evaluate(double frame) const {
+        return evaluate_base_double(frame);
+    }
 
     // Sub-frame evaluation (SampleTime) — the future
     [[nodiscard]] T evaluate(SampleTime time) const {
@@ -355,6 +437,12 @@ public:
 
     [[nodiscard]] bool should_cache(const SampleTime& time) const { return should_cache_double(time.frame); }
 
+    /// Returns the time (frame) of the first keyframe, or Frame{0} if empty.
+    [[nodiscard]] Frame first_keyframe_time() const {
+        if (m_keyframes.empty()) return Frame{0};
+        return m_keyframes.front().frame;
+    }
+
     /// Returns the time (frame) of the last keyframe, or Frame{0} if empty.
     /// Useful for determining when an animation has reached its terminal state.
     [[nodiscard]] Frame last_keyframe_time() const {
@@ -362,7 +450,12 @@ public:
         return m_keyframes.back().frame;
     }
 
-    void clear() { m_keyframes.clear(); m_roving_dirty = true; }
+    /// Read-only access to keyframes (for TemporalCurve1D compatibility).
+    [[nodiscard]] const std::vector<Keyframe<T>>& keyframes() const {
+        return m_keyframes;
+    }
+
+    void clear() { m_keyframes.clear(); m_roving_dirty = true; m_auto_bezier_dirty = false; }
 
     /// Shift every keyframe forward (or backward) by offset frames.
     /// Keyframes are clamped at Frame{0} to prevent negative frame indices.
@@ -383,7 +476,10 @@ private:
 
     // Core interpolation engine — works with double precision for sub-frame accuracy.
     [[nodiscard]] T evaluate_base_double(double frame) const {
-        // Auto-compute roving before evaluation if dirty.
+        // Auto-compute beziers and roving before evaluation if dirty.
+        if (m_auto_bezier_dirty) {
+            compute_auto_beziers();
+        }
         if (m_roving_dirty) {
             compute_roving();
         }
@@ -439,6 +535,16 @@ private:
 
         const f32 t = static_cast<f32>((eval_frame - prev_f) / (next_f - prev_f));
 
+        // Hold interpolation: value jumps at keyframe.
+        if (prev.interp == InterpMode::Hold) return prev.value;
+
+        // Temporal bezier interpolation (arithmetic/scalar types).
+        if constexpr (std::is_arithmetic_v<T>) {
+            if (prev.interp == InterpMode::Bezier || prev.interp == InterpMode::AutoBezier) {
+                return eval_temporal_bezier(prev, next, t);
+            }
+        }
+
         // Spatial bezier path: when handles are present, use CubicBezier3D
         // for smooth curved interpolation through 3+ points.
         if constexpr (std::is_same_v<T, Vec3> || std::is_same_v<T, glm::vec2> || std::is_same_v<T, glm::vec4>) {
@@ -459,6 +565,69 @@ private:
         }
 
         return interpolate_values(prev.value, next.value, std::clamp(t, 0.0f, 1.0f), prev.easing);
+    }
+
+    // ── Temporal bezier evaluation (scalar only) ─────────────────────────
+    // Uses Newton-Raphson to solve x(u) = t, then returns y(u).
+    [[nodiscard]] static T eval_temporal_bezier(
+        const Keyframe<T>& prev, const Keyframe<T>& next, f32 t)
+    {
+        const f32 duration = static_cast<f32>(next.frame - prev.frame);
+        if (duration <= 0.0f) return next.value;
+
+        const f32 p0y = static_cast<f32>(prev.value);
+        const f32 p3y = static_cast<f32>(next.value);
+
+        // Out-tangent from prev keyframe
+        const f32 p1x = std::clamp(prev.temporal_out_dx / duration, 0.0f, 1.0f);
+        const f32 p1y = p0y + prev.temporal_out_dy;
+
+        // In-tangent from next keyframe
+        const f32 p2x = std::clamp(1.0f + next.temporal_in_dx / duration, 0.0f, 1.0f);
+        const f32 p2y = p3y + next.temporal_in_dy;
+
+        // X coefficients
+        const f32 cx = 3.0f * p1x;
+        const f32 bx = 3.0f * (p2x - p1x) - cx;
+        const f32 ax = 1.0f - cx - bx;
+
+        // Y coefficients
+        const f32 cy = 3.0f * (p1y - p0y);
+        const f32 by = 3.0f * (p2y - 2.0f * p1y + p0y);
+        const f32 ay = p3y - p0y - cy - by;
+
+        auto sample_x = [&](f32 u) -> f32 {
+            return ((ax * u + bx) * u + cx) * u;
+        };
+        auto sample_y = [&](f32 u) -> f32 {
+            return ((ay * u + by) * u + cy) * u + p0y;
+        };
+        auto sample_dx = [&](f32 u) -> f32 {
+            return (3.0f * ax * u + 2.0f * bx) * u + cx;
+        };
+
+        // Newton-Raphson
+        f32 u = t;
+        for (int i = 0; i < 8; ++i) {
+            f32 x_val = sample_x(u) - t;
+            if (std::abs(x_val) < 1e-6f)
+                return static_cast<T>(sample_y(u));
+            f32 dVal = sample_dx(u);
+            if (std::abs(dVal) < 1e-6f) break;
+            u -= x_val / dVal;
+        }
+
+        // Bisection fallback
+        f32 lo = 0.0f, hi = 1.0f;
+        u = t;
+        for (int i = 0; i < 16; ++i) {
+            f32 x_val = sample_x(u);
+            if (std::abs(x_val - t) < 1e-6f)
+                return static_cast<T>(sample_y(u));
+            if (t > x_val) lo = u; else hi = u;
+            u = (lo + hi) * 0.5f;
+        }
+        return static_cast<T>(sample_y(u));
     }
 
     // Shared cache-check logic (Frame + SampleTime)
@@ -483,6 +652,7 @@ private:
     LoopMode m_loop_mode{LoopMode::Hold};
     std::string m_expression;
     mutable bool m_roving_dirty{false};
+    mutable bool m_auto_bezier_dirty{false};
 };
 
 } // namespace chronon3d

@@ -382,14 +382,20 @@ TEST_CASE("TemporalCurve1D: clamps input") {
     CHECK(curve.evaluate_normalized(1.5f) == doctest::Approx(1.0f));
 }
 
-TEST_CASE("TemporalCurve1D: from AnimationCurve with keyframes") {
-    AnimationCurve ac;
-    // Map t ∈ [0,1] to values [0,100] with easing.
-    ac.key(Frame{0}, 0.0f)
-      .key(Frame{100}, 100.0f, KeyInterp::Bezier,
-           Tangent{0, 30}, Tangent{-20, -30});
+TEST_CASE("TemporalCurve1D: from AnimatedValue<f32> with keyframes") {
+    AnimatedValue<f32> av(0.0f);
+    // Map t ∈ [0,1] to values [0,100] with temporal bezier handles.
+    av.add_keyframe(Frame{0}, 0.0f);
+    av.add_keyframe(Frame{100}, 100.0f, InterpMode::Bezier,
+                    0.0f, 0.0f, 20.0f, 30.0f);  // out: dx=20, dy=30
 
-    TemporalCurve1D curve(std::move(ac));
+    // Update the first keyframe's out-tangent via keyframes() access
+    auto& kfs = const_cast<std::vector<Keyframe<f32>>&>(av.keyframes());
+    kfs[0].interp = InterpMode::Bezier;
+    kfs[0].temporal_out_dx = 0.0f;
+    kfs[0].temporal_out_dy = 30.0f;
+
+    TemporalCurve1D curve(std::move(av));
     CHECK(curve.has_animation_curve());
     CHECK(curve.evaluate_normalized(0.0f) == doctest::Approx(0.0f));
     CHECK(curve.evaluate_normalized(1.0f) == doctest::Approx(1.0f));

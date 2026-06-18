@@ -15,7 +15,7 @@
 // Integration with CameraRig / AnimatedCamera comes in a follow-up PR.
 // ────────────────────────────────────────────────────────────────────────────
 
-#include <chronon3d/animation/core/animation_curve.hpp>
+#include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/animation/path/spatial_bezier_path.hpp>  // for PathSample
 #include <chronon3d/core/types/sample_time.hpp>
@@ -187,16 +187,16 @@ public:
         : m_easing(std::move(easing)) {}
 
     /// Construct from a keyframed timing curve.
-    explicit TemporalCurve1D(AnimationCurve curve)
-        : m_curve(std::make_unique<AnimationCurve>(std::move(curve))) {}
+    explicit TemporalCurve1D(AnimatedValue<f32> curve)
+        : m_curve(std::make_unique<AnimatedValue<f32>>(std::move(curve))) {}
 
     /// Evaluate normalised progress at local time t ∈ [0, 1].
     [[nodiscard]] f32 evaluate_normalized(f32 t) const {
         t = std::clamp(t, 0.0f, 1.0f);
-        if (m_curve && !m_curve->empty()) {
+        if (m_curve && m_curve->is_animated()) {
             // Map [0,1] to the curve's frame range.
-            const f32 start_f = static_cast<f32>(m_curve->keyframes().front().frame);
-            const f32 end_f   = static_cast<f32>(m_curve->keyframes().back().frame);
+            const f32 start_f = static_cast<f32>(m_curve->first_keyframe_time());
+            const f32 end_f   = static_cast<f32>(m_curve->last_keyframe_time());
             const f32 range   = end_f - start_f;
             if (range <= 0.0f) return m_easing.apply(t);
             const f32 frame = start_f + t * range;
@@ -209,22 +209,22 @@ public:
 
     /// Returns true if the curve does more than simple linear pass-through.
     [[nodiscard]] bool is_non_trivial() const {
-        if (m_curve && !m_curve->empty()) return true;
+        if (m_curve && m_curve->is_animated()) return true;
         return m_easing.preset != Easing::Linear || m_easing.cubic.has_value();
     }
 
     [[nodiscard]] bool has_animation_curve() const {
-        return m_curve != nullptr && !m_curve->empty();
+        return m_curve != nullptr && m_curve->is_animated();
     }
 
-    // Copy / move support (AnimationCurve is deep-copied via unique_ptr).
+    // Copy / move support (AnimatedValue<f32> is deep-copied via unique_ptr).
     TemporalCurve1D(const TemporalCurve1D& other)
         : m_easing(other.m_easing)
-        , m_curve(other.m_curve ? std::make_unique<AnimationCurve>(*other.m_curve) : nullptr) {}
+        , m_curve(other.m_curve ? std::make_unique<AnimatedValue<f32>>(*other.m_curve) : nullptr) {}
     TemporalCurve1D& operator=(const TemporalCurve1D& other) {
         if (this != &other) {
             m_easing = other.m_easing;
-            m_curve = other.m_curve ? std::make_unique<AnimationCurve>(*other.m_curve) : nullptr;
+            m_curve = other.m_curve ? std::make_unique<AnimatedValue<f32>>(*other.m_curve) : nullptr;
         }
         return *this;
     }
@@ -233,7 +233,7 @@ public:
 
 private:
     EasingCurve m_easing{Easing::Linear};
-    std::unique_ptr<AnimationCurve> m_curve;
+    std::unique_ptr<AnimatedValue<f32>> m_curve;
 };
 
 // ── SpatialKeyframe3D — a spatial waypoint at a specific time ──────────────
