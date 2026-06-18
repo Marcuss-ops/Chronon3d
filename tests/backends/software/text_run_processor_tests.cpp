@@ -136,6 +136,25 @@ TEST_CASE("TextRunBBox: spread enlarges bbox") {
     CHECK(bbox_no_spread.y1 < bbox_with_spread.y1);  // spread makes y1 larger
 }
 
+TEST_CASE("TextRunBBox: spread is applied once (per-side delta == spread, not 2x)") {
+    // After the fix: `spread` is added only at the final global pad (post
+    // corner transformation), not also at the per-glyph inner pad.  With an
+    // identity matrix the per-side inflation equals exactly the spread
+    // amount.  Pre-fix, the per-glyph pad also contained `spread`, so the
+    // per-side delta was 2x the spread value.
+    auto shape = make_test_shape("ABC");
+    Mat4 identity{1.0f};
+    constexpr float kSpread = 20.0f;
+
+    auto bbox_0 = compute_text_run_world_bbox(shape, identity, 0.0f);
+    auto bbox_k = compute_text_run_world_bbox(shape, identity, kSpread);
+
+    CHECK(bbox_0.x0 - bbox_k.x0 == static_cast<i32>(kSpread));
+    CHECK(bbox_k.x1 - bbox_0.x1 == static_cast<i32>(kSpread));
+    CHECK(bbox_0.y0 - bbox_k.y0 == static_cast<i32>(kSpread));
+    CHECK(bbox_k.y1 - bbox_0.y1 == static_cast<i32>(kSpread));
+}
+
 TEST_CASE("TextRunBBox: translation moves bbox") {
     auto shape = make_test_shape("A");
     Mat4 translation = glm::translate(Mat4{1.0f}, Vec3{100.0f, 50.0f, 0.0f});

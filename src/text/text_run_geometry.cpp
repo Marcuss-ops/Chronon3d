@@ -51,7 +51,7 @@ raster::BBox compute_text_run_world_bbox(
             * static_cast<float>(g.layout_position.x);
         const float scale_extra = std::abs(static_cast<float>(g.scale.z) - 1.0f)
             * std::abs(static_cast<float>(g.layout_position.y));
-        const float pad = g.blur + g.stroke_width + 8.0f + spread
+        const float pad = g.blur + g.stroke_width + 8.0f
             + shear_x_extra + shear_y_extra + scale_extra;
         min_x = std::min(min_x, gx - pad);
         max_x = std::max(max_x, gx + pad + 12.0f);  // approximate glyph advance
