@@ -2,10 +2,9 @@
 // content/backgrounds/grid_clean.cpp
 //
 // GridCleanBackground — opinionated, PNG-cached product-grade grid
-// background.  Originally lived in src/scene/utils/dark_grid_background.cpp
-// (PR 1.x — diet split).  Moved here per the original spec of proposta #1
-// so product-grade compositions are owned by content/ and only registered
-// when CHRONON3D_BUILD_CONTENT=ON.
+// background.  Moved from src/scene/utils/dark_grid_background.cpp
+// during the diet split so product-grade compositions are owned by
+// content/ and only registered when CHRONON3D_BUILD_CONTENT=ON.
 //
 // The composition reuses scene::utils::detail::ensure_dark_grid_background_image
 // from core (PNG-cached rasterization utility) — only the composition factory
