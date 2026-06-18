@@ -168,6 +168,27 @@ struct GlowPipeline {
 
 } // namespace chronon3d
 
+// ── Bench/test-exposed glow helpers ───────────────────────────────────────────
+//
+// `accumulate_glow_pass` / `accumulate_scaled_glow_pass` /
+// `build_falloff_lut` / `kFalloffLutSize` live in `chronon3d::renderer`
+// (NOT in an anonymous namespace) so Google benchmarks (`tests/bench/micro_benchmarks.cpp`)
+// and golden tests can call them directly.  Do not use these from production
+// code paths — call `GlowPipeline::render` or `renderer::run_glow_pipeline`
+// instead.  kGlowFalloffLutSize must stay in sync with
+// `kFalloffLutSize` in `src/backends/software/utils/effects/glow_pipeline.cpp`.
+inline constexpr int kGlowFalloffLutSize = 257;
+
+inline void build_falloff_lut(float falloff,
+                              float (&lut)[kGlowFalloffLutSize]) noexcept;
+
+void accumulate_glow_pass(class Framebuffer& dst, const class Framebuffer& src,
+                          const GlowPipeline& p, const float* falloff_lut);
+
+void accumulate_scaled_glow_pass(class Framebuffer& dst, const class Framebuffer& src,
+                                 const GlowPipeline& p, float scale,
+                                 const float* falloff_lut);
+
 namespace chronon3d::renderer {
 
 /// Run the glow pipeline. Dispatches on GlowPipeline::mode.
