@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/animation/core/animation_track.hpp>
 #include <chronon3d/animation/core/keyframe.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/math/color.hpp>
@@ -30,13 +31,6 @@ concept AnimatableValue =
     std::is_copy_constructible_v<T>;
 
 namespace chronon3d {
-
-// Forward declaration for AnimationTrack<T> (full definition lives in
-// animation_track.hpp). Including that header here would create a pointless
-// transitive dependency in every TU that uses AnimatedValue<T>, so we
-// forward-declare and rely on TUs that call apply_track()/animate_{x,y,z}()
-// to include animation_track.hpp themselves.
-template <typename T> class AnimationTrack;
 
 // Generic component-wise lerp used by AnimatedValue<T>.
 template <typename T>
