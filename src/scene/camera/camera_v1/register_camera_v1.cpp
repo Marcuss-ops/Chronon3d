@@ -8,6 +8,8 @@
 #include <chronon3d/scene/camera/camera_v1/shot_timeline.hpp>
 #include <chronon3d/scene/registry/camera_constraint_registry.hpp>
 #include <chronon3d/scene/registry/camera_motion_registry.hpp>
+#include <chronon3d/scene/camera/camera_v1/register_camera_motion_presets.hpp>
+#include <chronon3d/scene/camera/camera_v1/register_camera_rig_motions.hpp>
 
 namespace chronon3d::camera_v1 {
 
@@ -21,7 +23,11 @@ void register_camera_v1_builtins() {
     // Register transitions (5 builtins: Cut, SmoothBlend, Push, WhipPan, FocusHandoff).
     CameraTransitionRegistry::instance().register_defaults();
 
-    // TODO(P7): register_default_camera_motions() — motion presets (hero_push, etc.).
+    // Register the camera_motion::* + camera_rig::* motion presets with default
+    // config. Replaces TODO(P7); see register_camera_motion_presets.cpp +
+    // register_camera_rig_motions.cpp for the data definitions.
+    register_camera_motion_presets();
+    register_camera_rig_motions();
 
     // Freeze all registries so they become read-only + concurrent-safe.
     auto& cr = CameraConstraintRegistry::instance();
@@ -30,11 +36,9 @@ void register_camera_v1_builtins() {
     auto& tr = CameraTransitionRegistry::instance();
     if (!tr.is_frozen()) tr.freeze();
 
-    // Bug 3 fix: don't freeze the motion registry until its catalog is populated.
-    // Previously the registry was frozen empty, so any subsequent
-    // build("hero_push") call would silently fall back to the base camera.
-    // After register_default_camera_motions() lands (P7+), this branch becomes
-    // unconditional freeze again.
+    // Motion registry is freeze-gated on ids().empty() so a fresh registration
+    // survives; once any preset registers (above), this becomes an unconditional
+    // freeze on subsequent calls.
     auto& mr = CameraMotionRegistry::instance();
     if (!mr.is_frozen() && !mr.ids().empty()) mr.freeze();
 }

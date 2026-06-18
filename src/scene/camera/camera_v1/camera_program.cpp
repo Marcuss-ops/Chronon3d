@@ -10,6 +10,10 @@
 //   - Banking with curvature-derived roll + EMA smoothing in ConstraintSession
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_session.hpp>
+#include <chronon3d/scene/model/core/transform_resolver.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_motion_descriptor.hpp>
 #include <chronon3d/scene/registry/camera_motion_registry.hpp>
 #include <chronon3d/scene/registry/camera_constraint_registry.hpp>
 #include <chronon3d/animation/path/spatial_bezier_path.hpp>  // quat_look_along, quat_to_camera_euler
@@ -18,6 +22,37 @@
 #include <algorithm>
 
 namespace chronon3d::camera_v1 {
+
+// =============================================================================
+// Free helpers (implementation detail, not in header).
+// =============================================================================
+
+/// Check if a CameraSourceSpec variant is time-dependent.
+static bool source_is_time_dependent(const CameraSourceSpec& source) {
+    if (std::holds_alternative<StaticCameraSource>(source)) {
+        return false;
+    }
+    if (auto* pts = std::get_if<PoseTracksSource>(&source)) {
+        return pts->position.is_time_dependent() ||
+               pts->rotation.is_time_dependent() ||
+               pts->target.is_time_dependent() ||
+               pts->zoom.is_time_dependent() ||
+               pts->fov_deg.is_time_dependent();
+    }
+    if (auto* orbit = std::get_if<OrbitMotion>(&source)) {
+        return orbit->yaw.is_time_dependent() ||
+               orbit->pitch.is_time_dependent() ||
+               orbit->radius.is_time_dependent() ||
+               orbit->track.is_time_dependent() ||
+               orbit->dolly.is_time_dependent() ||
+               orbit->roll.is_time_dependent() ||
+               orbit->target.is_time_dependent();
+    }
+    if (auto* traj = std::get_if<TrajectoryMotion>(&source)) {
+        return traj->trajectory != nullptr;
+    }
+    return true;
+}
 
 // =========================================================================
 // Source management
@@ -296,6 +331,267 @@ CameraProgramResult CameraProgram::evaluate(const CameraMotionContext& ctx,
     }
 
     result.camera = r.camera;
+    result.ok = true;
+    return result;
+}
+
+// =============================================================================
+// COMPILED EVALUATION PATH (PR1) — no registry lookup in evaluate().
+// =============================================================================
+
+// =========================================================================
+// evaluate_compiled_source — dispatch to the right evaluator by variant.
+// =========================================================================
+
+// ── Free helpers for compiled source dispatch (no header declarations needed) ──
+
+/// Apply orientation from an OrientationSpec variant (free function).
+static void apply_orientation_spec_free(const void* orient_variant,
+                                         const CameraEvalContext& ctx,
+                                         Camera2_5D& cam) {
+    const auto& orient = *static_cast<const OrientationSpec*>(orient_variant);
+
+    if (std::holds_alternative<FixedOrientation>(orient)) {
+        return;
+    }
+    if (auto* lap = std::get_if<LookAtPoint>(&orient)) {
+        Vec3 look_dir = lap->target - cam.position;
+        float len = glm::length(look_dir);
+        if (len > 1e-4f) {
+            look_dir = look_dir / len;
+            const Quat orientation = quat_look_along(look_dir);
+            cam.rotation = quat_to_camera_euler(orientation, cam.rotation.z);
+            cam.point_of_interest = lap->target;
+            cam.point_of_interest_enabled = true;
+        }
+        return;
+    }
+    if (auto* lal = std::get_if<LookAtLayer>(&orient)) {
+        if (ctx.transforms) {
+            auto world_pos = ctx.transforms->world_position(lal->target);
+            if (world_pos) {
+                Vec3 look_dir = *world_pos - cam.position;
+                float len = glm::length(look_dir);
+                if (len > 1e-4f) {
+                    look_dir = look_dir / len;
+                    const Quat orientation = quat_look_along(look_dir);
+                    cam.rotation = quat_to_camera_euler(orientation, cam.rotation.z);
+                    cam.point_of_interest = *world_pos;
+                    cam.point_of_interest_enabled = true;
+                }
+                return;
+            }
+        }
+        return;
+    }
+    if (std::holds_alternative<OrientAlongPath>(orient)) {
+        return;
+    }
+}
+
+/// Evaluate a PoseTracksSource by sampling all animated channels.
+static Camera2_5D eval_pose_tracks(const CameraBaseSpec& base,
+                                    const OrientationSpec& orient,
+                                    const PoseTracksSource& src,
+                                    const CameraEvalContext& ctx) {
+    Camera2_5D cam;
+    cam.enabled = base.enabled;
+    cam.is_animated = src.position.is_time_dependent() ||
+                      src.rotation.is_time_dependent() ||
+                      src.target.is_time_dependent() ||
+                      src.zoom.is_time_dependent() ||
+                      src.fov_deg.is_time_dependent();
+
+    cam.position = src.position.evaluate(ctx.sample_time);
+    cam.rotation = src.rotation.evaluate(ctx.sample_time);
+    cam.point_of_interest = src.target.evaluate(ctx.sample_time);
+    cam.point_of_interest_enabled = src.use_target;
+
+    cam.zoom = src.zoom.evaluate(ctx.sample_time);
+    cam.fov_deg = src.fov_deg.evaluate(ctx.sample_time);
+    cam.projection_mode = Camera2_5DProjectionMode::Zoom;
+
+    cam.lens = base.lens;
+    cam.dof = base.dof;
+    cam.motion_blur = base.motion_blur;
+    cam.parent_name = base.parent_name;
+
+    apply_orientation_spec_free(&orient, ctx, cam);
+
+    return cam;
+}
+
+/// Evaluate an OrbitMotion by computing orbit + track + dolly.
+static Camera2_5D eval_orbit_motion(const CameraBaseSpec& base,
+                                     const OrientationSpec& orient,
+                                     const OrbitMotion& orbit,
+                                     const CameraEvalContext& ctx,
+                                     bool is_animated) {
+    const Vec3 target_pos = orbit.target.evaluate(ctx.sample_time);
+    const float yaw_rad   = glm::radians(orbit.yaw.evaluate(ctx.sample_time));
+    const float pitch_rad = glm::radians(orbit.pitch.evaluate(ctx.sample_time));
+    const float radius    = orbit.radius.evaluate(ctx.sample_time);
+    const Vec3  track     = orbit.track.evaluate(ctx.sample_time);
+    const float dolly     = orbit.dolly.evaluate(ctx.sample_time);
+    const float roll_deg  = orbit.roll.evaluate(ctx.sample_time);
+
+    const Vec3 forward{
+        std::cos(pitch_rad) * std::sin(yaw_rad),
+        std::sin(pitch_rad),
+        std::cos(pitch_rad) * std::cos(yaw_rad)
+    };
+    Vec3 pos = target_pos + forward * radius + track;
+    pos.z += dolly;
+
+    Camera2_5D cam;
+    cam.enabled = base.enabled;
+    cam.is_animated = is_animated;
+    cam.position = pos;
+    cam.rotation = Vec3{0.0f, 0.0f, roll_deg};
+    cam.point_of_interest = target_pos;
+    cam.point_of_interest_enabled = true;
+
+    cam.lens = base.lens;
+    cam.dof = base.dof;
+    cam.motion_blur = base.motion_blur;
+    cam.parent_name = base.parent_name;
+
+    if (auto* zp = std::get_if<ZoomProjection>(&base.projection)) {
+        cam.zoom = zp->zoom.evaluate(ctx.sample_time);
+        cam.projection_mode = Camera2_5DProjectionMode::Zoom;
+    } else if (auto* fp = std::get_if<FovProjection>(&base.projection)) {
+        cam.fov_deg = fp->fov_deg.evaluate(ctx.sample_time);
+        cam.projection_mode = Camera2_5DProjectionMode::Fov;
+    }
+
+    apply_orientation_spec_free(&orient, ctx, cam);
+    return cam;
+}
+
+// =========================================================================
+// evaluate_compiled_source — dispatch to the right evaluator by variant.
+// =========================================================================
+
+Camera2_5D CameraProgram::evaluate_compiled_source(const CameraEvalContext& ctx) const {
+    const auto& source = descriptor_.source;
+    const auto& base = descriptor_.base;
+
+    if (auto* pts = std::get_if<PoseTracksSource>(&source)) {
+        return eval_pose_tracks(base, descriptor_.orientation, *pts, ctx);
+    }
+    if (auto* orbit = std::get_if<OrbitMotion>(&source)) {
+        bool animated = source_is_time_dependent(source);
+        return eval_orbit_motion(base, descriptor_.orientation, *orbit, ctx, animated);
+    }
+    if (auto* traj = std::get_if<TrajectoryMotion>(&source)) {
+        if (traj->trajectory) {
+            CameraMotionContext motion_ctx;
+            motion_ctx.frame = ctx.frame;
+            motion_ctx.sample_time = ctx.sample_time;
+            motion_ctx.base_position = base.position;
+            motion_ctx.base_target = base.point_of_interest;
+            motion_ctx.base_zoom = 1000.0f;
+            motion_ctx.base_fov_deg = 50.0f;
+            motion_ctx.base_focus_distance = base.dof.focus_distance;
+
+            auto t = traj->trajectory->sample(motion_ctx);
+            Camera2_5D cam;
+            cam.enabled = base.enabled;
+            cam.position = t.position;
+            cam.zoom = 1000.0f;
+            cam.fov_deg = 50.0f;
+            cam.point_of_interest = base.point_of_interest;
+            if (t.target) cam.point_of_interest = *t.target;
+            cam.point_of_interest_enabled = true;
+
+            apply_orientation_spec_free(&descriptor_.orientation, ctx, cam);
+            return cam;
+        }
+    }
+
+    // StaticCameraSource or unknown: use base.
+    Camera2_5D cam;
+    cam.enabled = base.enabled;
+    cam.position = base.position;
+    cam.rotation = base.rotation;
+    cam.lens = base.lens;
+    cam.dof = base.dof;
+    cam.motion_blur = base.motion_blur;
+    cam.parent_name = base.parent_name;
+    cam.point_of_interest = base.point_of_interest;
+    cam.point_of_interest_enabled = base.point_of_interest_enabled;
+
+    if (auto* zp = std::get_if<ZoomProjection>(&base.projection)) {
+        cam.zoom = zp->zoom.evaluate(ctx.sample_time);
+        cam.projection_mode = Camera2_5DProjectionMode::Zoom;
+    } else if (auto* fp = std::get_if<FovProjection>(&base.projection)) {
+        cam.fov_deg = fp->fov_deg.evaluate(ctx.sample_time);
+        cam.projection_mode = Camera2_5DProjectionMode::Fov;
+    }
+
+    return cam;
+}
+
+// ── apply_orientation_spec member delegates to free function ────────────────
+
+void CameraProgram::apply_orientation_spec(const void* orient_variant,
+                                            const CameraEvalContext& ctx,
+                                            Camera2_5D& cam) const {
+    apply_orientation_spec_free(orient_variant, ctx, cam);
+}
+
+// =========================================================================
+// compiled evaluate() — no registry lookup, no mutex.
+// =========================================================================
+
+CameraProgramResult CameraProgram::evaluate(const CameraEvalContext& ctx,
+                                             CameraSession& session) const {
+    CameraProgramResult result;
+
+    if (!compiled_) {
+        result.diagnostics.push_back({
+            CameraProgramDiagnostic::Severity::Error,
+            "CameraProgram not compiled — call compile_camera() first"
+        });
+        result.ok = false;
+        return result;
+    }
+
+    // Evaluate source directly (no registry lookup).
+    Camera2_5D intermediate = evaluate_compiled_source(ctx);
+
+    // Apply modifiers (PR1: idle oscillation only).
+    for (const auto& mod : descriptor_.modifiers) {
+        if (auto* idle = std::get_if<IdleOscillation>(&mod)) {
+            const double t_sec = ctx.sample_time.seconds();
+            const float phase = idle->frequency_hz * static_cast<float>(t_sec) * 2.0f * glm::pi<float>()
+                                + idle->phase;
+            const float s = std::sin(phase);
+            const float c = std::cos(phase);
+            intermediate.position.x += idle->position_amplitude.x * s;
+            intermediate.position.y += idle->position_amplitude.y * c;
+            intermediate.position.z += idle->position_amplitude.z * s;
+            intermediate.rotation.x += idle->rotation_amplitude_deg.x * c;
+            intermediate.rotation.y += idle->rotation_amplitude_deg.y * s;
+            intermediate.rotation.z += idle->rotation_amplitude_deg.z * c;
+            intermediate.zoom += idle->zoom_amplitude * s;
+        }
+    }
+
+    // Re-apply orientation after modifiers.
+    apply_orientation_spec(&descriptor_.orientation, ctx, intermediate);
+
+    // Set is_animated flag.
+    intermediate.is_animated = time_dependent_;
+
+    // Carry forward lens, DOF, motion blur from descriptor base.
+    intermediate.lens = descriptor_.base.lens;
+    intermediate.dof = descriptor_.base.dof;
+    intermediate.motion_blur = descriptor_.base.motion_blur;
+
+    // TODO(PR7): evaluate descriptor constraints.
+
+    result.camera = intermediate;
     result.ok = true;
     return result;
 }
