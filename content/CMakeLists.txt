@@ -48,6 +48,9 @@ add_library(chronon3d_content STATIC
 
     # Grid
     grid/compositions/grid_showcase.cpp
+
+    # Backgrounds (product: GridCleanBackground)
+    backgrounds/grid_clean.cpp
 )
 
 target_include_directories(chronon3d_content PRIVATE ${CMAKE_SOURCE_DIR})

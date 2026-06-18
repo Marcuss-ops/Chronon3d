@@ -1,5 +1,8 @@
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/composition/register_builtin_compositions.hpp>
+#if defined(CHRONON3D_HAS_CONTENT_BACKGROUNDS)
+#include <content/backgrounds/grid_clean.hpp>
+#endif
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 
@@ -9,7 +12,18 @@ using namespace chronon3d;
 
 
 // Register built-in compositions once before any test case.
-static bool _bg_registered = (chronon3d::register_builtin_compositions(), true);
+// DarkGridBackground is registered via the always-available
+// register_builtin_compositions().  GridCleanBackground lives behind
+// CHRONON3D_BUILD_CONTENT and is registered via
+// content::backgrounds::register_grid_clean_background() when the
+// CHRONON3D_HAS_CONTENT_BACKGROUNDS define is set (CMake-gated).
+static bool _bg_registered = (
+    chronon3d::register_builtin_compositions(),
+#if defined(CHRONON3D_HAS_CONTENT_BACKGROUNDS)
+    chronon3d::content::backgrounds::register_grid_clean_background(),
+#endif
+    true
+);
 
 TEST_CASE("Builtin background compositions are registered") {
     chronon3d::CompositionRegistry registry;
