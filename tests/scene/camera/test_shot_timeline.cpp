@@ -35,7 +35,7 @@ using chronon3d::test::approx;
 // ==============================================================================
 // 1 — Empty timeline.
 // ==============================================================================
-TEST_CASE("PR7: empty timeline returns empty camera") {
+TEST_CASE("empty timeline returns empty camera") {
     auto timeline = std::make_shared<ShotTimeline>();
     ShotTimelineResolver resolver(timeline);
 
@@ -50,7 +50,7 @@ TEST_CASE("PR7: empty timeline returns empty camera") {
 // ==============================================================================
 // 2 — Add shot and find.
 // ==============================================================================
-TEST_CASE("PR7: add shot and find at frame") {
+TEST_CASE("add shot and find at frame") {
     auto timeline = std::make_shared<ShotTimeline>();
     CameraShot shot;
     shot.name = "test-shot";
@@ -67,7 +67,7 @@ TEST_CASE("PR7: add shot and find at frame") {
 // ==============================================================================
 // 3 — Shot pair.
 // ==============================================================================
-TEST_CASE("PR7: shot pair returns current and next for overlap") {
+TEST_CASE("shot pair returns current and next for overlap") {
     auto timeline = std::make_shared<ShotTimeline>();
     CameraShot s1, s2;
     s1.name = "first";  s1.start_frame = 0;  s1.end_frame = 30;
@@ -85,7 +85,7 @@ TEST_CASE("PR7: shot pair returns current and next for overlap") {
 // ==============================================================================
 // 4 — Cut transition shows 'from' until t=1, then 'to'.
 // ==============================================================================
-TEST_CASE("PR7: cut transition shows from until t=1") {
+TEST_CASE("cut transition shows from until t=1") {
     Camera2_5D from, to;
     from.position = {0, 0, -1000};
     to.position   = {500, 0, -1000};
@@ -105,7 +105,7 @@ TEST_CASE("PR7: cut transition shows from until t=1") {
 // ==============================================================================
 // 5 — SmoothBlend interpolates position.
 // ==============================================================================
-TEST_CASE("PR7: smooth blend interpolates position") {
+TEST_CASE("smooth blend interpolates position") {
     Camera2_5D from, to;
     from.position = {0, 0, -1000};
     to.position   = {400, 0, -1000};
@@ -122,7 +122,7 @@ TEST_CASE("PR7: smooth blend interpolates position") {
 // ==============================================================================
 // 6 — Push transition (ease-out).
 // ==============================================================================
-TEST_CASE("PR7: push transition uses ease-out") {
+TEST_CASE("push transition uses ease-out") {
     Camera2_5D from, to;
     from.position = {0, 0, -1000};
     to.position   = {400, 0, -1000};
@@ -137,7 +137,7 @@ TEST_CASE("PR7: push transition uses ease-out") {
 // ==============================================================================
 // 7 — WhipPan transition.
 // ==============================================================================
-TEST_CASE("PR7: whip pan interpolates rotation via quaternion") {
+TEST_CASE("whip pan interpolates rotation via quaternion") {
     Camera2_5D from, to;
     from.rotation = {0, 0, 0};
     to.rotation   = {0, 90, 0};
@@ -152,7 +152,7 @@ TEST_CASE("PR7: whip pan interpolates rotation via quaternion") {
 // ==============================================================================
 // 8 — FocusHandoff.
 // ==============================================================================
-TEST_CASE("PR7: focus handoff transitions focus distance") {
+TEST_CASE("focus handoff transitions focus distance") {
     Camera2_5D from, to;
     from.dof.focus_distance = 100.0f;
     to.dof.focus_distance   = 900.0f;
@@ -166,7 +166,7 @@ TEST_CASE("PR7: focus handoff transitions focus distance") {
 // ==============================================================================
 // 9 — Overlap boundary non-NaN.
 // ==============================================================================
-TEST_CASE("PR7: overlap boundary produces non-NaN camera") {
+TEST_CASE("overlap boundary produces non-NaN camera") {
     auto timeline = std::make_shared<ShotTimeline>();
     CameraShot s1, s2;
     s1.name = "first";  s1.start_frame = 0;  s1.end_frame = 30;
@@ -188,7 +188,7 @@ TEST_CASE("PR7: overlap boundary produces non-NaN camera") {
 // ==============================================================================
 // 10 — TransitionRegistry register + create + freeze.
 // ==============================================================================
-TEST_CASE("PR7: transition registry register, create, and freeze") {
+TEST_CASE("transition registry register, create, and freeze") {
     auto& reg = CameraTransitionRegistry::instance();
 
     reg.register_transition(CameraTransitionKind::Cut,
@@ -205,7 +205,7 @@ TEST_CASE("PR7: transition registry register, create, and freeze") {
 // ==============================================================================
 // 11 — Endpoint parity: t=0 == from_cam, t=1 == to_cam.
 // ==============================================================================
-TEST_CASE("PR7: endpoint parity for all transitions") {
+TEST_CASE("endpoint parity for all transitions") {
     Camera2_5D from, to;
     from.position = {10, 20, -100};
     from.rotation = {5, 10, 2};
@@ -243,7 +243,7 @@ TEST_CASE("PR7: endpoint parity for all transitions") {
 // ==============================================================================
 // 12 — Validation catches zero/negative duration.
 // ==============================================================================
-TEST_CASE("PR7: validation catches zero/negative duration") {
+TEST_CASE("validation catches zero/negative duration") {
     auto timeline = std::make_shared<ShotTimeline>();
     CameraShot bad;
     bad.name = "bad-shot";
