@@ -1,5 +1,7 @@
 // Content registration — single direct registration of all built-in compositions.
-// All compositions register directly via ExtensionRegistry::instance().register_composition().
+// Product compositions register unconditionally.
+// Diagnostic compositions (tests, calibrations, A/B) only register when
+// CHRONON3D_BUILD_DIAGNOSTICS is defined.
 #include "register_content_modules.hpp"
 
 #include <chronon3d/extension/extension_registry.hpp>
@@ -59,25 +61,31 @@ Composition important_word_writer_cool();
 Composition important_word_trio();
 }
 
-// ── Shapes ────────────────────────────────────────────────────────────────────
+// ── Shapes (proofs → diagnostics) ─────────────────────────────────────────────
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
 namespace chronon3d::content::shapes {
 Composition shape_proofs();
 Composition shape_motion_proofs();
 }
+#endif
 
-// ── Images ────────────────────────────────────────────────────────────────────
+// ── Images (product + diagnostics) ────────────────────────────────────────────
+namespace chronon3d::content::images {
+Composition img_shake_zoom();
+Composition img_reference_shake_reveal();
+Composition img_corner_smoothing();
+}
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
 namespace chronon3d::content::images {
 Composition img_gradient();
 Composition img_checker();
 Composition img_grid_test();
 Composition img_test_pattern();
-Composition img_shake_zoom();
-Composition img_reference_shake_reveal();
-Composition img_corner_smoothing();
 Composition image_proofs();
 }
+#endif
 
-// ── Anims ─────────────────────────────────────────────────────────────────────
+// ── Anims (product + diagnostic comparison) ───────────────────────────────────
 namespace chronon3d::content::anims {
 Composition anim_fade_in_text();
 Composition anim_slide_text();
@@ -95,40 +103,50 @@ Composition anim_typewriter_glow();
 Composition anim_typewriter_stagger();
 Composition catmull_rom_showcase();
 Composition dolly_zoom_showcase();
-Composition camera_spline_comparison();
 Composition tilt_sweep_title();
 Composition tilt_sweep_title_v2();
 }
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
+namespace chronon3d::content::anims {
+Composition camera_spline_comparison();
+}
+#endif
 
-// ── Effects (Glow + Thumbnails + 2.5D Reference Suite) ────────────────────────
+// ── Effects (Glow + Thumbnails = product; A/B tests + Ref 2.5D = diagnostics) ─
 namespace chronon3d::content::effects {
 Composition glow_02_orb_galaxy();
 Composition glow_basic_word();
+Composition premium_thumbnail_buttery_smooth();
+Composition premium_thumbnail_saas_blue();
+}
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
+namespace chronon3d::content::effects {
 Composition glow_sharpness_test();
 Composition glow_paragraph_test();
 Composition glow_radius_compare_test();
 Composition glow_typewriter_reveal_test();
 Composition glow_shadow_balance_test();
-Composition premium_thumbnail_buttery_smooth();
-Composition premium_thumbnail_saas_blue();
 }
 // ref_2_5d functions declared in effects/ref_2_5d/reference_2_5d_suite.hpp
 #include "effects/ref_2_5d/reference_2_5d_suite.hpp"
+#endif
 
 // ── Grid ──────────────────────────────────────────────────────────────────────
 namespace chronon3d::content::grid {
 Composition grid_color_showcase();
 }
 
-// ── 2.5D ──────────────────────────────────────────────────────────────────────
+// ── 2.5D (product + camera diagnostics) ───────────────────────────────────────
 namespace chronon3d::content::two_point_five_d {
 Composition parallax_simple();
 Composition depth_scene();
 Composition card_flip();
 Composition dof_showcase();
 }
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
 // Camera test functions declared in 2d5/compositions/camera_advanced_tests.hpp
 #include "2d5/compositions/camera_advanced_tests.hpp"
+#endif
 
 namespace chronon3d {
 
@@ -190,27 +208,15 @@ void register_content_modules() {
         reg.register_composition("ImportantWordTrio",           important_word_trio);
     }
 
-    // ── Shapes ───────────────────────────────────────────────────────────
-    {
-        using namespace content::shapes;
-        reg.register_composition("ShapeProofs",       shape_proofs);
-        reg.register_composition("ShapeMotionProofs", shape_motion_proofs);
-    }
-
-    // ── Images ───────────────────────────────────────────────────────────
+    // ── Images (product) ─────────────────────────────────────────────────
     {
         using namespace content::images;
-        reg.register_composition("ImgGradient",    img_gradient);
-        reg.register_composition("ImgChecker",     img_checker);
-        reg.register_composition("ImgGridTest",    img_grid_test);
-        reg.register_composition("ImgTestPattern", img_test_pattern);
-        reg.register_composition("ImgShakeZoom",             img_shake_zoom);
-        reg.register_composition("ImgReferenceShakeReveal",  img_reference_shake_reveal);
-        reg.register_composition("ImgCornerSmoothing",       img_corner_smoothing);
-        reg.register_composition("ImageProofs",    image_proofs);
+        reg.register_composition("ImgShakeZoom",            img_shake_zoom);
+        reg.register_composition("ImgReferenceShakeReveal", img_reference_shake_reveal);
+        reg.register_composition("ImgCornerSmoothing",      img_corner_smoothing);
     }
 
-    // ── Anims ────────────────────────────────────────────────────────────
+    // ── Anims (product) ──────────────────────────────────────────────────
     {
         using namespace content::anims;
         reg.register_composition("AnimFadeInText",          anim_fade_in_text);
@@ -229,23 +235,66 @@ void register_content_modules() {
         reg.register_composition("AnimTypewriterStagger",   anim_typewriter_stagger);
         reg.register_composition("CatmullRomShowcase",      catmull_rom_showcase);
         reg.register_composition("DollyZoomShowcase",       dolly_zoom_showcase);
-        reg.register_composition("CameraSplineComparison",  camera_spline_comparison);
         reg.register_composition("TiltSweepTitle",          tilt_sweep_title);
         reg.register_composition("TiltSweepTitleV2",        tilt_sweep_title_v2);
     }
 
-    // ── Effects (Glow + Thumbnails + 2.5D Reference Suite) ──────────────
+    // ── Effects (product) ────────────────────────────────────────────────
     {
         using namespace content::effects;
         reg.register_composition("GlowOrbGalaxy",              glow_02_orb_galaxy);
         reg.register_composition("GlowBasicWord",              glow_basic_word);
+        reg.register_composition("PremiumThumbnailButterySmooth", premium_thumbnail_buttery_smooth);
+        reg.register_composition("PremiumThumbnailSaaSBlue",   premium_thumbnail_saas_blue);
+    }
+
+    // ── Grid ─────────────────────────────────────────────────────────────
+    {
+        using namespace content::grid;
+        reg.register_composition("GridColorShowcase", grid_color_showcase);
+    }
+
+    // ── 2.5D (product) ───────────────────────────────────────────────────
+    {
+        using namespace content::two_point_five_d;
+        reg.register_composition("ParallaxSimple",  parallax_simple);
+        reg.register_composition("DepthScene",      depth_scene);
+        reg.register_composition("CardFlip",        card_flip);
+        reg.register_composition("DofShowcase",     dof_showcase);
+    }
+
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
+    // ── Shapes (diagnostic proofs) ───────────────────────────────────────
+    {
+        using namespace content::shapes;
+        reg.register_composition("ShapeProofs",       shape_proofs);
+        reg.register_composition("ShapeMotionProofs", shape_motion_proofs);
+    }
+
+    // ── Images (diagnostic) ──────────────────────────────────────────────
+    {
+        using namespace content::images;
+        reg.register_composition("ImgGradient",    img_gradient);
+        reg.register_composition("ImgChecker",     img_checker);
+        reg.register_composition("ImgGridTest",    img_grid_test);
+        reg.register_composition("ImgTestPattern", img_test_pattern);
+        reg.register_composition("ImageProofs",    image_proofs);
+    }
+
+    // ── Anims (diagnostic) ───────────────────────────────────────────────
+    {
+        using namespace content::anims;
+        reg.register_composition("CameraSplineComparison", camera_spline_comparison);
+    }
+
+    // ── Effects (diagnostic: A/B tests + 2.5D Reference Suite) ───────────
+    {
+        using namespace content::effects;
         reg.register_composition("GlowSharpnessTest",          glow_sharpness_test);
         reg.register_composition("GlowParagraphTest",          glow_paragraph_test);
         reg.register_composition("GlowRadiusCompareTest",      glow_radius_compare_test);
         reg.register_composition("GlowTypewriterRevealTest",   glow_typewriter_reveal_test);
         reg.register_composition("GlowShadowBalanceTest",      glow_shadow_balance_test);
-        reg.register_composition("PremiumThumbnailButterySmooth", premium_thumbnail_buttery_smooth);
-        reg.register_composition("PremiumThumbnailSaaSBlue",   premium_thumbnail_saas_blue);
 
         // 2.5D Reference Suite (declared in content::effects via ref_2_5d header)
         reg.register_composition("FloatingCardsTest",          floating_cards_test);
@@ -257,19 +306,9 @@ void register_content_modules() {
         reg.register_composition("YRotationTextTest",          y_rotation_text_test);
     }
 
-    // ── Grid ─────────────────────────────────────────────────────────────
-    {
-        using namespace content::grid;
-        reg.register_composition("GridColorShowcase", grid_color_showcase);
-    }
-
-    // ── 2.5D ─────────────────────────────────────────────────────────────
+    // ── 2.5D (diagnostic: camera tests) ──────────────────────────────────
     {
         using namespace content::two_point_five_d;
-        reg.register_composition("ParallaxSimple",  parallax_simple);
-        reg.register_composition("DepthScene",      depth_scene);
-        reg.register_composition("CardFlip",        card_flip);
-        reg.register_composition("DofShowcase",     dof_showcase);
         reg.register_composition("CameraOrbitTargetLockTest",                camera_orbit_target_lock_test);
         reg.register_composition("CameraDollyPerspectiveScaleTest",          camera_dolly_perspective_scale_test);
         reg.register_composition("CameraParentNullRigTest",                  camera_parent_null_rig_test);
@@ -290,7 +329,7 @@ void register_content_modules() {
         reg.register_composition("CameraYawPositiveTest",                    camera_yaw_positive_test);
         reg.register_composition("CameraYawNegativeTest",                    camera_yaw_negative_test);
     }
-
+#endif
 }
 
 } // namespace chronon3d
