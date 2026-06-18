@@ -1,7 +1,7 @@
 // ==============================================================================
 // tests/scene/camera/test_camera_program.cpp
 //
-// PR3 — CameraProgram contract completion tests.
+// CameraProgram contract completion tests.
 //
 // 9 TEST_CASEs:
 //   1. Static source preserves base camera
@@ -81,7 +81,7 @@ public:
 // ==============================================================================
 // 1 — Static source preserves base camera.
 // ==============================================================================
-TEST_CASE("PR3: static source preserves base camera") {
+TEST_CASE("static source preserves base camera") {
     CameraProgram prog;
     Camera2_5D base;
     base.position = {10.0f, 20.0f, -500.0f};
@@ -102,7 +102,7 @@ TEST_CASE("PR3: static source preserves base camera") {
 // ==============================================================================
 // 2 — Trajectory is selected when explicitly set.
 // ==============================================================================
-TEST_CASE("PR3: trajectory is selected when explicitly set") {
+TEST_CASE("trajectory is selected when explicitly set") {
     CameraProgram prog;
     CHECK_FALSE(prog.has_trajectory());
     CHECK_FALSE(prog.has_motion());
@@ -119,7 +119,7 @@ TEST_CASE("PR3: trajectory is selected when explicitly set") {
 // 3 — Motion ID is tracked by has_motion() and evaluate works with registered
 //     motions.
 // ==============================================================================
-TEST_CASE("PR3: registered motion evaluates correctly") {
+TEST_CASE("registered motion evaluates correctly") {
     // Register test motion BEFORE freeze so it's discoverable.
     ensure_test_motion_registered();
     register_camera_v1_builtins();
@@ -152,7 +152,7 @@ TEST_CASE("PR3: registered motion evaluates correctly") {
     }
 }
 // ==============================================================================
-TEST_CASE("PR3: constraint failure is not swallowed") {
+TEST_CASE("constraint failure is not swallowed") {
     CameraProgram prog;
     prog.add_constraint(std::make_shared<AlwaysPassConstraint>());
     prog.add_constraint(std::make_shared<AlwaysFailConstraint>());
@@ -178,7 +178,7 @@ TEST_CASE("PR3: constraint failure is not swallowed") {
 // ==============================================================================
 // 4b — SkipFailedConstraint continues past failures.
 // ==============================================================================
-TEST_CASE("PR3: SkipFailedConstraint continues past failures") {
+TEST_CASE("SkipFailedConstraint continues past failures") {
     CameraProgram prog;
     prog.add_constraint(std::make_shared<AlwaysFailConstraint>());
     prog.add_constraint(std::make_shared<AlwaysPassConstraint>());
@@ -203,7 +203,7 @@ TEST_CASE("PR3: SkipFailedConstraint continues past failures") {
 // ==============================================================================
 // 5 — Orientation along path follows tangent.
 // ==============================================================================
-TEST_CASE("PR3: orientation along path follows tangent") {
+TEST_CASE("orientation along path follows tangent") {
     CameraTrajectoryBuilder b;
     // A trajectory that moves along +X (tangent = (1,0,0) forward).
     b.move_to({0, 0, -1000}).move_to({300, 0, -1000}).duration_frames(60);
@@ -230,7 +230,7 @@ TEST_CASE("PR3: orientation along path follows tangent") {
 // ==============================================================================
 // 6 — Keep-horizon removes roll but preserves yaw/pitch from OrientAlongPath.
 // ==============================================================================
-TEST_CASE("PR3: keep-horizon removes roll but preserves yaw/pitch") {
+TEST_CASE("keep-horizon removes roll but preserves yaw/pitch") {
     CameraTrajectoryBuilder b;
     b.move_to({0, 0, -1000}).move_to({100, 50, -900}).duration_frames(30);
     auto traj = b.build();
@@ -255,7 +255,7 @@ TEST_CASE("PR3: keep-horizon removes roll but preserves yaw/pitch") {
 // ==============================================================================
 // 7 — Banking respects max_roll.
 // ==============================================================================
-TEST_CASE("PR3: banking respects max_roll") {
+TEST_CASE("banking respects max_roll") {
     CameraTrajectoryBuilder b;
     // A curve that would produce significant roll.
     b.move_to({0, 0, -1000})
@@ -285,7 +285,7 @@ TEST_CASE("PR3: banking respects max_roll") {
 // ==============================================================================
 // 8 — Program evaluation is deterministic (same inputs → same output).
 // ==============================================================================
-TEST_CASE("PR3: program evaluation is deterministic") {
+TEST_CASE("program evaluation is deterministic") {
     CameraTrajectoryBuilder b;
     b.move_to({0, 0, -1000}).move_to({100, 50, -800}).duration_frames(30);
     auto traj = b.build();
@@ -313,7 +313,7 @@ TEST_CASE("PR3: program evaluation is deterministic") {
 // ==============================================================================
 // 9 — Program evaluation is deterministic across repeated evaluations.
 // ==============================================================================
-TEST_CASE("PR3: program evaluation is deterministic across evaluations") {
+TEST_CASE("program evaluation is deterministic across evaluations") {
     // "Compile" = build the program once.
     CameraProgram prog;
     prog.motion("camera.does.not.exist");  // triggers diagnostic, not throw

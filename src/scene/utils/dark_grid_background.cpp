@@ -5,7 +5,7 @@ namespace chronon3d {
 
 // DarkGridBackground — procedural grid via native shape.
 // GridCleanBackground (the opinionated PNG-cached product variant) was
-// moved to content/backgrounds/grid_clean.cpp during PR 1.x so product-grade
+// Underlying rasterization utility for grid backgrounds. The opinionated
 // compositions are owned by content/ and gated by CHRONON3D_BUILD_CONTENT.
 void register_dark_grid_background() {
     detail::add_builtin_composition("DarkGridBackground", []() {
