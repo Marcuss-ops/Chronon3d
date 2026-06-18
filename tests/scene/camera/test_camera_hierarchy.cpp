@@ -4,7 +4,11 @@
 #include <chronon3d/scene/model/layer/layer_hierarchy.hpp>
 #include <cmath>
 
-#include "src/render_graph/pipeline/scene_internal.hpp"
+// PUBLIC camera hierarchy test — depends only on the public scene-hierarchy
+// resolution surface (resolve_camera_hierarchy). No backend-internal headers
+// (scene_internal.hpp, projection_utils.hpp, ...); internal coverage lives
+// in tests/backends/software/utils/ and any future graph-internal companion
+// tests.
 using namespace chronon3d;
 
 
@@ -111,9 +115,12 @@ TEST_CASE("Camera hierarchy: fast target swap is detected") {
 
     auto resolved_b = resolve_camera_hierarchy(scene.layers(), scene.resource(), swapped);
 
+    // Swap detected: resolved_b's POI shifted from (250, 30) to (520, 40)
+    // after re-resolving with target_b. Direct POI values are the public
+    // contract — no graph::detail::camera_changed() smoke check here
+    // (that helper lives in the backend-internal camera_change_policy.hpp).
     CHECK(resolved_b.camera.point_of_interest.x == doctest::Approx(520.0f).epsilon(0.0001f));
     CHECK(resolved_b.camera.point_of_interest.y == doctest::Approx(40.0f).epsilon(0.0001f));
-    CHECK(chronon3d::graph::detail::camera_changed(resolved_b.camera, &resolved_a.camera, true));
 }
 
 
