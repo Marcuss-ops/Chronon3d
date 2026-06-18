@@ -2,6 +2,12 @@
   "name": "chronon3d",
   "version": "0.1.0",
   "builtin-baseline": "cb2981c4e03d421fa03b9bb5044cd1986180e7e4",
+  "overrides": [
+    {
+      "name": "sqlite3",
+      "version": "3.53.2"
+    }
+  ],
   "dependencies": [
     "spdlog",
     "fmt",
@@ -32,7 +38,8 @@
     "benchmarks": {
       "description": "Build benchmarks (requires Google Benchmark)",
       "dependencies": ["benchmark"]
-    },    "telemetry": {
+    },
+    "telemetry": {
       "description": "Marker feature. sqlite3 is unconditionally installed as a top-level dependency."
     },
     "profiling": {
