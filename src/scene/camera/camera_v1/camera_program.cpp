@@ -564,6 +564,47 @@ Camera2_5D CameraProgram::evaluate_compiled_source(const CameraEvalContext& ctx)
     return cam;
 }
 
+// ── Compiled constraint evaluation helper ─────────────────────────────────
+
+/// Result from applying a single CameraConstraintSpec.
+struct CompiledConstraintResult {
+    Camera2_5D camera;
+    bool       ok{true};
+    std::string reason;
+};
+
+/// Apply a single CameraConstraintSpec to a camera.
+static CompiledConstraintResult apply_constraint_spec(
+    const CameraConstraintSpec& spec,
+    const Camera2_5D& in,
+    const CameraEvalContext& ctx) {
+
+    if (auto* look_at = std::get_if<LookAtConstraint>(&spec)) {
+        Vec3 look_dir = look_at->target - in.position;
+        float len = glm::length(look_dir);
+        if (len > 1e-4f) {
+            Camera2_5D cam = in;
+            look_dir = look_dir / len;
+            const Quat orientation = quat_look_along(look_dir);
+            cam.rotation = quat_to_camera_euler(orientation, cam.rotation.z);
+            cam.point_of_interest = look_at->target;
+            cam.point_of_interest_enabled = true;
+            return {cam, true};
+        }
+        return {in, true};
+    }
+
+    if (std::holds_alternative<KeepHorizonConstraint>(spec)) {
+        Camera2_5D cam = in;
+        cam.rotation.z = 0.0f;
+        return {cam, true};
+    }
+
+    // Other constraints (DampedFollow, Distance, RotationLimit) — not yet
+    // implemented in the compiled path. Pass through unchanged.
+    return {in, true};
+}
+
 // ── apply_orientation_spec member delegates to free function ────────────────
 
 void CameraProgram::apply_orientation_spec(const void* orient_variant,
@@ -624,7 +665,29 @@ CameraProgramResult CameraProgram::evaluate(const CameraEvalContext& ctx,
     intermediate.lens = descriptor_.base.lens;
     intermediate.motion_blur = descriptor_.base.motion_blur;
 
-    // TODO(PR7): evaluate descriptor constraints.
+    // Evaluate descriptor constraints (PR6: LookAtConstraint + KeepHorizonConstraint).
+    // Pre-allocate state slots for stateful constraints in session.
+    session.ensure_constraint_states(descriptor_.constraints.size());
+
+    for (const auto& constraint : descriptor_.constraints) {
+        auto cr = apply_constraint_spec(constraint, intermediate, ctx);
+        if (!cr.ok) {
+            result.diagnostics.push_back({
+                CameraProgramDiagnostic::Severity::Warning,
+                cr.reason
+            });
+            switch (failure_policy_) {
+            case CameraFailurePolicy::Stop:
+            case CameraFailurePolicy::KeepLastValidCamera:
+                result.camera = cr.camera;
+                result.ok = false;
+                return result;
+            case CameraFailurePolicy::SkipFailedConstraint:
+                continue;
+            }
+        }
+        intermediate = cr.camera;
+    }
 
     result.camera = intermediate;
     result.ok = true;

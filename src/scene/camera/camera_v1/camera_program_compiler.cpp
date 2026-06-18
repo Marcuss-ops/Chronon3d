@@ -106,9 +106,10 @@ bool compile_camera(const CameraDescriptor& descriptor,
 
     // ── 4. Compute time_dependent flag ───────────────────────────────────
     // Conservative: any non-static source is assumed time-dependent.
-    // A more precise check (inspecting AnimatedValue keyframes) will be
-    // added in PR3+.
-    out_program.time_dependent_ = !std::holds_alternative<StaticCameraSource>(descriptor.source);
+    // Any modifier also makes the camera time-dependent (e.g. IdleOscillation).
+    bool source_is_static = std::holds_alternative<StaticCameraSource>(descriptor.source);
+    bool has_modifiers = !descriptor.modifiers.empty();
+    out_program.time_dependent_ = !source_is_static || has_modifiers;
 
     // ── 5. Mark as compiled and return ───────────────────────────────────
     out_program.compiled_ = true;
