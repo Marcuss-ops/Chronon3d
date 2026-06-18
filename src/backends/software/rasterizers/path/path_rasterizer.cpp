@@ -12,11 +12,49 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <string>
 #include <glm/glm.hpp>
+
+// PR4: BL2 fill orchestration.  Only linked when CHRONON3D_USE_BLEND2D
+// is ON (see src/backends/software/blend2d/CMakeLists.txt); when the
+// option is OFF this header is not on the include path so the legacy
+// build keeps its Custom-only default semantics.  The CMake target
+// adds `-Isrc/backends/software/blend2d`, so the include is bare.
+#include "blend2d_path_filler.hpp"
+// PR5: BL2 stroke orchestration (BLStrokeOptions + dash deferred to
+// Chronon pre-raster).  Same gating by CHRONON3D_USE_BLEND2D.
+#include "blend2d_path_stroker.hpp"
 
 #include "../shape_rasterizer.hpp"
 
 namespace chronon3d::renderer {
+
+// ── PR4: vector rasterizer dispatch mode ─────────────────────────────
+// Toggled at runtime via the env var
+//   CHRONON3D_VECTOR_RASTERIZER_MODE ∈ {Custom, Blend2D, Compare}.
+//
+// Default is `Custom` (the legacy PIP-based loop) so every existing
+// golden test stays pixel-exact.  `Blend2D` delegates the fill
+// rasterisation to `rasterize_path_fill_blend2d(...)` (BL2 A8
+// coverage + Chronon shade/composite).  `Compare` is reserved for the
+// QA scaffold and currently aliases to `Blend2D`; a side-by-side
+// diff harness arrives in a follow-up.
+enum class VectorRasterizerDebugMode { Custom, Blend2D, Compare };
+
+namespace {
+[[nodiscard]] VectorRasterizerDebugMode current_vector_rasterizer_mode() {
+    static const VectorRasterizerDebugMode cached = []() {
+        const char* env = std::getenv("CHRONON3D_VECTOR_RASTERIZER_MODE");
+        if (!env || !*env) return VectorRasterizerDebugMode::Custom;
+        const std::string v(env);
+        if (v == "Blend2D") return VectorRasterizerDebugMode::Blend2D;
+        if (v == "Compare") return VectorRasterizerDebugMode::Compare;
+        return VectorRasterizerDebugMode::Custom;
+    }();
+    return cached;
+}
+} // anonymous namespace
 
 raster::BBox compute_path_bbox(const PathShape& path, const Mat4& model, f32 spread) {
     // PR2: source-of-truth now lives in path_geometry.hpp but stroke
@@ -93,12 +131,34 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
     const f32 opacity = stroke_color.a;
     const bool fill_enabled = path.fill.enabled;
 
+    // PR4: delegate fill rasterisation to BL2 when the debug mode is
+    // active.  The custom per-pixel fill block below is skipped in that
+    // case so the ROI isn't filled twice.
+    const VectorRasterizerDebugMode vec_mode = current_vector_rasterizer_mode();
+    if (fill_enabled && vec_mode != VectorRasterizerDebugMode::Custom) {
+        rasterize_path_fill_blend2d(fb, path, model, opacity, bbox, state);
+    }
+    const bool use_custom_fill =
+        fill_enabled && (vec_mode == VectorRasterizerDebugMode::Custom);
+
     // PR1: prepare trim + dash once outside the per-pixel loop.
     // Legacy code recomputed trim_polyline_points / dash_polyline_points
     // for every (x, y, contour) — O(W·H·N) wasted allocations.
     std::vector<detail::PreparedStrokeContour> prepared_strokes;
     if (path.stroke.enabled) {
         prepared_strokes = prepare_stroke_contours(screen_contours, path.stroke);
+    }
+
+    // PR5: in Blend2D mode hand the prepared contours to the BL2
+    // stroker.  Cap / join / anti-aliased outline coverage come from
+    // BL2; Chronon keeps colour resolution + alpha modulation.
+    const bool use_custom_stroke =
+        (vec_mode == VectorRasterizerDebugMode::Custom) && path.stroke.enabled;
+    if (path.stroke.enabled && vec_mode != VectorRasterizerDebugMode::Custom) {
+        rasterize_path_stroke_blend2d(
+            fb, path, model, stroke_color,
+            prepared_strokes.data(), prepared_strokes.size(),
+            bbox, state);
     }
 
     for (i32 y = bbox.y0; y < bbox.y1; ++y) {
@@ -108,7 +168,7 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
 
             const Vec2 p{static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f};
 
-            if (fill_enabled) {
+            if (use_custom_fill) {
                 bool inside = false;
                 const PipMode mode = get_pip_mode();
                 const bool prefetch = is_prefetch_enabled();
@@ -139,7 +199,7 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                 }
             }
 
-            if (path.stroke.enabled) {
+            if (use_custom_stroke) {
                 bool hit = false;
                 // Use gradient stroke colour when available.
                 const Color base_color = [&]() -> Color {

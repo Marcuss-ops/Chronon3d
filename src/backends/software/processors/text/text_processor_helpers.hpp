@@ -13,6 +13,11 @@
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/config.hpp>
+// PR3: include the shared paint module via a path-relative form so the
+// build picks it up regardless of the public include/ root.  The new
+// header lives at src/backends/software/utils/ and is mirrored only
+// locally for sibling TUs in src/backends/software/processors/text/.
+#include "../../utils/blend2d_paint.hpp"
 #include <blend2d.h>
 #include <cstdlib>
 #include <memory>
@@ -22,15 +27,14 @@
 namespace chronon3d::renderer {
 
 // ── Blend2D color conversion ───────────────────────────────────────
+//
+// PR3: re-export the canonical `to_bl_rgba` from `blend2d_bridge::paint`
+// so the previous `static inline` copy (which produced one ODR-trap
+// instance per translation unit) is replaced by a single shared
+// version.  Visible to downstream `using chronon3d::renderer::to_bl_rgba`
+// imports that previously resolved to the legacy local definition.
 
-[[nodiscard]] static inline BLRgba32 to_bl_rgba(const Color& c) {
-    return BLRgba32(
-        static_cast<uint8_t>(std::clamp(c.r * 255.0f, 0.0f, 255.0f)),
-        static_cast<uint8_t>(std::clamp(c.g * 255.0f, 0.0f, 255.0f)),
-        static_cast<uint8_t>(std::clamp(c.b * 255.0f, 0.0f, 255.0f)),
-        static_cast<uint8_t>(std::clamp(c.a * 255.0f, 0.0f, 255.0f))
-    );
-}
+using chronon3d::blend2d_bridge::paint::to_bl_rgba;
 
 // ── Transform utilities ────────────────────────────────────────────
 
