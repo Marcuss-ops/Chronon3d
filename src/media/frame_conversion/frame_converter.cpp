@@ -1,7 +1,4 @@
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
-#include <chronon3d/media/frame_conversion/direct_yuv_converter.hpp>
-#include <chronon3d/media/frame_conversion/direct_yuv_lut.hpp>
-#include "internal/yuv_conversion_internal.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <algorithm>
@@ -28,15 +25,13 @@ namespace chronon3d::video {
 
 const FrameConversionCapabilities& frame_conversion_capabilities() {
     static const FrameConversionCapabilities caps{
-        .highway_direct = true,
+        .highway_direct = false,  // PR4B: Highway removed
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
         .swscale = true,
 #else
         .swscale = false,
 #endif
-        .highway_direct_matrices = static_cast<uint8_t>(
-            (1u << static_cast<uint8_t>(YuvMatrix::BT601)) |
-            (1u << static_cast<uint8_t>(YuvMatrix::BT709))),
+        .highway_direct_matrices = 0,
     };
     return caps;
 }
@@ -64,26 +59,11 @@ FrameConversionBackend select_backend(const ConvertFrameRequest& req) {
     if (req.format == EncoderPixelFormat::RGBA8) {
         return FrameConversionBackend::Packed;
     }
-    if (req.format == EncoderPixelFormat::RGB24) {
-        return caps.swscale ? FrameConversionBackend::Swscale
-                            : FrameConversionBackend::Unavailable;
+    // PR4B: All YUV420P/NV12/RGB24/BT.2020 route through swscale.
+    if (caps.swscale) {
+        return FrameConversionBackend::Swscale;
     }
-    // YUV420P / NV12 backend selection:
-    //   - BT.2020 must go to swscale (HighwayDirect rejects it).
-    //   - BT.601/BT.709 go to HighwayDirect if available.
-    //   - Otherwise swscale if available.
-    if (req.matrix == YuvMatrix::BT2020) {
-        return caps.swscale ? FrameConversionBackend::Swscale
-                            : FrameConversionBackend::Unavailable;
-    }
-    if (caps.highway_direct) {
-        const auto bits = caps.highway_direct_matrices;
-        const bool supported =
-            ((bits >> static_cast<uint8_t>(req.matrix)) & 0x1u) != 0u;
-        if (supported) return FrameConversionBackend::HighwayDirect;
-    }
-    return caps.swscale ? FrameConversionBackend::Swscale
-                        : FrameConversionBackend::Unavailable;
+    return FrameConversionBackend::Unavailable;
 }
 
 ConversionError validate_conversion_request(const ConvertFrameRequest& req) {
@@ -103,7 +83,7 @@ ConversionError validate_conversion_request(const ConvertFrameRequest& req) {
     if (req.format == EncoderPixelFormat::RGB24 && !req.planes.y) {
         return ConversionError::NullPointer;
     }
-    // Range: full range is currently supported by HighwayDirect + Swscale.
+    // Range: full range is supported by Swscale.
     // (No backend-specific reject for Limited/Full needed today.)
     return ConversionError::None;
 }
@@ -300,6 +280,11 @@ static ConvertFrameResult swscale_dispatch(const ConvertFrameRequest& req, AVPix
         .conversion_ns = profiling::timestamp_ns() - t0,
     };
 }
+
+/// Thin wrapper: RGB24 output via swscale (AV_PIX_FMT_RGB24).
+static ConvertFrameResult swscale_dispatch_rgb24(const ConvertFrameRequest& req) {
+    return swscale_dispatch(req, AV_PIX_FMT_RGB24);
+}
 #endif  // CHRONON3D_ENABLE_NATIVE_FFMPEG
 
 ConvertFrameResult convert_rgba_to_yuv420p_swscale(const ConvertFrameRequest& req) {
@@ -367,52 +352,11 @@ ConvertFrameResult convert_frame(const ConvertFrameRequest& req) {
                 .conversion_ns = profiling::timestamp_ns() - t0,
             };
         }
-        case FrameConversionBackend::HighwayDirect: {
-            // PR3: Highway-only float→YUV; scalar/TBB fallback removed.
-            // On failure, fall through to swscale (below in this switch —
-            // handled by the caller logic after this case returns).
-            const bool is_yuv = (req.format == EncoderPixelFormat::YUV420P ||
-                                 req.format == EncoderPixelFormat::NV12);
-            if (!is_yuv) {
-                return ConvertFrameResult{
-                    .success = false,
-                    .backend = FrameConversionBackend::HighwayDirect,
-                    .error = ConversionError::UnsupportedFormat,
-                };
-            }
-            DirectYuvRequest dreq{
-                .src = req.src,
-                .planes = req.planes,
-                .width = req.width,
-                .height = req.height,
-                .format = req.format,
-                .matrix = req.matrix,
-                .range = req.range,
-                .apply_gamma = req.apply_gamma,
-            };
-            auto direct = convert_framebuffer_to_yuv_direct(dreq);
-            if (direct.success) {
-                return ConvertFrameResult{
-                    .success = true,
-                    .backend = FrameConversionBackend::HighwayDirect,
-                    .error = ConversionError::None,
-                    .conversion_ns = direct.conversion_ns,
-                };
-            }
-            // Highway failed — fall back to swscale (same YUV paths as
-            // the Swscale case below).
-            if (req.format == EncoderPixelFormat::YUV420P) return convert_rgba_to_yuv420p_swscale(req);
-            if (req.format == EncoderPixelFormat::NV12)    return convert_rgba_to_nv12_swscale(req);
-            return ConvertFrameResult{
-                .success = false,
-                .backend = FrameConversionBackend::Unavailable,
-                .error = ConversionError::BackendError,
-            };
-        }
+        case FrameConversionBackend::HighwayDirect:
         case FrameConversionBackend::Swscale: {
-            // RGB24 → swscale (no RGBA8 staging).  Definition is gated by
-            // CHRONON3D_ENABLE_NATIVE_FFMPEG; when FFmpeg is OFF, return a
-            // BackendError so the dispatcher compiles either way.
+            // PR4B: Swscale is the canonical YUV/RGB backend.
+            // HighwayDirect enum kept for API compatibility but never reached
+            // (select_backend always returns Swscale for non-RGBA8).
             if (req.format == EncoderPixelFormat::RGB24) {
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
                 return swscale_dispatch_rgb24(req);
@@ -424,7 +368,6 @@ ConvertFrameResult convert_frame(const ConvertFrameRequest& req) {
                 };
 #endif
             }
-            // BT.2020 YUV → swscale (direct paths reject BT.2020).
             if (req.format == EncoderPixelFormat::YUV420P) return convert_rgba_to_yuv420p_swscale(req);
             if (req.format == EncoderPixelFormat::NV12)    return convert_rgba_to_nv12_swscale(req);
             return ConvertFrameResult{

@@ -48,8 +48,8 @@ enum class ColorRange {
 
 /// Backend that actually produced the converted framebuffer.
 enum class FrameConversionBackend {
-    HighwayDirect,   ///< Inline GPU-style SIMD (direct float→YUV, no RGBA8 staging).
-    Swscale,         ///< FFmpeg libswscale path (used for BT.2020 / RGB24 / fallback).
+    HighwayDirect,   ///< PR4B: deprecated — removed from production.  Kept for API compat.
+    Swscale,         ///< FFmpeg libswscale path (canonical YUV/RGB24/BT.2020 backend).
     Packed,          ///< Direct float→uint8 path for RGBA8.
     Unavailable,     ///< No backend could satisfy the request.
 };

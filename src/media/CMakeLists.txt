@@ -10,8 +10,6 @@ target_link_libraries(chronon3d_media_interface INTERFACE chronon3d)
 if(CHRONON3D_ENABLE_VIDEO)
     add_library(chronon3d_backend_video STATIC
         frame_conversion/frame_converter.cpp
-        frame_conversion/direct_yuv_converter.cpp
-        frame_conversion/direct_yuv_converter_hwy.cpp
         frame_conversion/converted_frame_cache.cpp
         frame_conversion/frame_conversion_service.cpp
     )
@@ -23,7 +21,6 @@ if(CHRONON3D_ENABLE_VIDEO)
         spdlog::spdlog_header_only
         fmt::fmt
         TBB::tbb
-        hwy::hwy
     )
     # ── chronon3d_media_video — Video sink library ──────────────────
     add_library(chronon3d_media_video STATIC

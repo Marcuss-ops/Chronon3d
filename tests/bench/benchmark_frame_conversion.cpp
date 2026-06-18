@@ -1,34 +1,20 @@
 // ============================================================================
-// benchmark_frame_conversion.cpp — PR2: per-backend YUV conversion benchmarks
+// benchmark_frame_conversion.cpp — PR4B: per-backend YUV conversion benchmarks
 //
 // Benchmarks each conversion path in isolation:
-//   BM_YuvConvert_Highway   — direct float→YUV Highway SIMD
-//   BM_YuvConvert_Swscale   — float→RGBA8→swscale
-//   BM_YuvConvert_ScalarRef — float→YUV TBB scalar (correctness reference)
+//   BM_YuvConvert_Swscale   — float→RGBA8→swscale (canonical YUV backend)
+//   BM_YuvConvert_ScalarRef — single-thread scalar reference (correctness)
 //
-// Runs across 4 resolutions (640×360 … 3840×2160), 4 realistic datasets,
-// YUV420P + NV12, gamma on/off, BT.601 + BT.709.  Reports MPix/s and GB/s
-// as custom counters.  The ScalarRef path is correctness-only; the plan
-// removes it from production in PR3.
+// PR4B: Highway removed from production and from this benchmark.
 //
-// Usage:
-//   ./chronon3d_benchmarks \
-//     --benchmark_filter='BM_YuvConvert.*1080.*' \
-//     --benchmark_repetitions=15 \
-//     --benchmark_min_time=0.5 \
-//     --benchmark_report_aggregates_only=true \
-//     --benchmark_out=yuv_backend_baseline.json \
-//     --benchmark_out_format=json
+// Runs across 4 resolutions, 4 datasets, YUV420P+NV12, gamma on/off,
+// BT.601+BT.709.  Reports MPix/s and GB/s as custom counters.
 // ============================================================================
 
 #include <benchmark/benchmark.h>
 
-// Internal header: exposes Highway and swscale backends directly.
-// PR3: Scalar reference now lives in tests/video/reference_yuv_converter.hpp.
-#include "src/media/frame_conversion/internal/yuv_conversion_internal.hpp"
 #include "../video/reference_yuv_converter.hpp"
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
-#include <chronon3d/media/frame_conversion/direct_yuv_converter.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -232,62 +218,7 @@ static FramePlanes make_planes(
 }
 
 // ============================================================================
-//  BM_YuvConvert_Highway — direct float→YUV Highway SIMD path
-// ============================================================================
-
-static void BM_YuvConvert_Highway(benchmark::State& state) {
-    const auto p = BenchParams::from_state(state);
-
-    // Build input framebuffer once (not timed)
-    Framebuffer src = make_dataset(p.width, p.height, p.dataset);
-
-    // Pre-allocate output buffer
-    std::vector<uint8_t> out_buf;
-    const FramePlanes planes = make_planes(out_buf, p.width, p.height, p.format);
-
-    // Warmup: one untimed run to populate TBB worker-pool and caches
-    DirectYuvRequest dreq{
-        .src = src,
-        .planes = planes,
-        .width = p.width,
-        .height = p.height,
-        .format = p.format,
-        .matrix = p.matrix,
-        .range = ColorRange::Limited,
-        .apply_gamma = p.apply_gamma,
-    };
-    if (p.format == EncoderPixelFormat::YUV420P)
-        convert_to_yuv420p_hwy(dreq);
-    else
-        convert_to_nv12_hwy(dreq);
-
-    for (auto _ : state) {
-        std::memset(out_buf.data(), 0, out_buf.size());
-        const auto res = (p.format == EncoderPixelFormat::YUV420P)
-            ? convert_to_yuv420p_hwy(dreq)
-            : convert_to_nv12_hwy(dreq);
-
-        if (!res.success) {
-            state.SkipWithError("Highway conversion failed");
-            return;
-        }
-        state.SetIterationTime(
-            static_cast<double>(res.conversion_ns) / 1e9);
-    }
-
-    const int64_t px = static_cast<int64_t>(state.iterations()) * p.width * p.height;
-    state.SetItemsProcessed(px);
-    state.counters["MPix/s"] = benchmark::Counter(
-        static_cast<double>(px) / 1e6,
-        benchmark::Counter::kIsRate);
-    const double total_bytes = static_cast<double>(px) * 1.5;
-    state.counters["GB/s"] = benchmark::Counter(
-        total_bytes / 1e9,
-        benchmark::Counter::kIsRate);
-}
-
-// ============================================================================
-//  BM_YuvConvert_Swscale — float→RGBA8 staging→swscale path
+//  BM_YuvConvert_Swscale — float→RGBA8 staging→swscale (canonical YUV path)
 // ============================================================================
 
 static void BM_YuvConvert_Swscale(benchmark::State& state) {
@@ -309,16 +240,11 @@ static void BM_YuvConvert_Swscale(benchmark::State& state) {
     };
 
     // Warmup
-    if (p.format == EncoderPixelFormat::YUV420P)
-        convert_rgba_to_yuv420p_swscale(creq);
-    else
-        convert_rgba_to_nv12_swscale(creq);
+    convert_frame(creq);
 
     for (auto _ : state) {
         std::memset(out_buf.data(), 0, out_buf.size());
-        const auto res = (p.format == EncoderPixelFormat::YUV420P)
-            ? convert_rgba_to_yuv420p_swscale(creq)
-            : convert_rgba_to_nv12_swscale(creq);
+        const auto res = convert_frame(creq);
 
         if (!res.success) {
             state.SkipWithError("Swscale conversion failed");
@@ -350,30 +276,29 @@ static void BM_YuvConvert_ScalarRef(benchmark::State& state) {
     std::vector<uint8_t> out_buf;
     const FramePlanes planes = make_planes(out_buf, p.width, p.height, p.format);
 
-    DirectYuvRequest dreq{
+    ReferenceYuvRequest rreq{
         .src = src,
         .planes = planes,
         .width = p.width,
         .height = p.height,
         .format = p.format,
         .matrix = p.matrix,
-        .range = ColorRange::Limited,
         .apply_gamma = p.apply_gamma,
     };
 
     // Warmup
     if (p.format == EncoderPixelFormat::YUV420P)
-        reference_convert_to_yuv420p(dreq);
+        reference_convert_to_yuv420p(rreq);
     else
-        reference_convert_to_nv12(dreq);
+        reference_convert_to_nv12(rreq);
 
     for (auto _ : state) {
         std::memset(out_buf.data(), 0, out_buf.size());
         // Reference oracle doesn't self-time; measure wall clock here.
         const uint64_t t0 = profiling::timestamp_ns();
         const auto res = (p.format == EncoderPixelFormat::YUV420P)
-            ? reference_convert_to_yuv420p(dreq)
-            : reference_convert_to_nv12(dreq);
+            ? reference_convert_to_yuv420p(rreq)
+            : reference_convert_to_nv12(rreq);
         const uint64_t t1 = profiling::timestamp_ns();
 
         if (!res.success) {
@@ -413,8 +338,6 @@ static constexpr int kResolutions[][2] = {
     {3840, 2160},
 };
 
-/// Register one conversion benchmark over all dimension/format/matrix/gamma/dataset combos.
-/// Each registration chain is at file scope (google-benchmark requirement).
 static void register_yuv_bench(benchmark::internal::Benchmark* b) {
     for (const auto& res : kResolutions) {
         for (int fmt = 0; fmt <= 1; ++fmt) {
@@ -433,7 +356,6 @@ static void register_yuv_bench(benchmark::internal::Benchmark* b) {
      ->UseManualTime();
 }
 
-// Register the three backends
-BENCHMARK(BM_YuvConvert_Highway)->Apply(register_yuv_bench);
+// Register the two backends
 BENCHMARK(BM_YuvConvert_Swscale)->Apply(register_yuv_bench);
 BENCHMARK(BM_YuvConvert_ScalarRef)->Apply(register_yuv_bench);

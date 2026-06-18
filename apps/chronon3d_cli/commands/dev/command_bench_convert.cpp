@@ -3,8 +3,6 @@
 #include "../../utils/job/cli_render_utils.hpp"
 
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
-#include <chronon3d/media/frame_conversion/direct_yuv_converter.hpp>
-#include "src/media/frame_conversion/internal/yuv_conversion_internal.hpp"
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
@@ -88,72 +86,46 @@ struct BenchResult {
     bool used_simd{false};  // legacy column (set when backend == HighwayDirect for backwards compatibility)
 };
 
-static BenchResult run_bench_path(
-    const std::string& name,
+static BenchResult run_swscale_bench(
     const Framebuffer& fb,
     int w, int h,
     const std::string& fmt_name,
     bool apply_gamma,
     int iterations,
-    const std::vector<uint8_t>& ref_buf,  // HWY reference for mismatch
-    std::vector<uint8_t>& work_buf)       // reusable output buffer
+    std::vector<uint8_t>& work_buf)
 {
     const uint64_t total_bytes = yuv_bytes(w, h, fmt_name);
     uint64_t total_ns = 0;
+
+    const bool is_yuv = (fmt_name == "yuv420p");
+    const auto fmt = is_yuv ? video::EncoderPixelFormat::YUV420P
+                            : video::EncoderPixelFormat::NV12;
+    uint8_t* y_ptr  = work_buf.data();
+    uint8_t* u_ptr  = is_yuv ? work_buf.data() + static_cast<size_t>(w) * h : nullptr;
+    uint8_t* v_ptr  = is_yuv ? work_buf.data() + static_cast<size_t>(w) * h * 5 / 4 : nullptr;
+    uint8_t* uv_ptr = is_yuv ? nullptr : work_buf.data() + static_cast<size_t>(w) * h;
 
     for (int i = 0; i < iterations; ++i) {
         std::memset(work_buf.data(), 0, work_buf.size());
         const uint64_t t0 = now_ns();
 
-        // Dispatch to the named path
-        const bool is_yuv = (fmt_name == "yuv420p");
-        const auto fmt = is_yuv ? video::EncoderPixelFormat::YUV420P
-                                : video::EncoderPixelFormat::NV12;
-        // FramePlanes uses non-const uint8_t*; work_buf is non-const.
-        // The pointers below are scratch output destinations for the conversion.
-        uint8_t* y_ptr  = work_buf.data();
-        uint8_t* u_ptr  = is_yuv ? work_buf.data() + static_cast<size_t>(w) * h : nullptr;
-        uint8_t* v_ptr  = is_yuv ? work_buf.data() + static_cast<size_t>(w) * h * 5 / 4 : nullptr;
-        uint8_t* uv_ptr = is_yuv ? nullptr : work_buf.data() + static_cast<size_t>(w) * h;
-        if (name == "direct_hwy_yuv") {
-            DirectYuvRequest dreq{
-                .src = fb,
-                .planes = video::FramePlanes{
-                    .y = y_ptr, .u = u_ptr, .v = v_ptr, .uv = uv_ptr,
-                    .stride_y = w, .stride_u = w/2, .stride_v = w/2, .stride_uv = w,
-                },
-                .width = w,
-                .height = h,
-                .format = fmt,
-                .matrix = video::YuvMatrix::BT709,
-                .range = video::ColorRange::Limited,
-                .apply_gamma = apply_gamma,
-            };
-            if (fmt_name == "yuv420p")
-                video::convert_to_yuv420p_hwy(dreq);
-            else
-                video::convert_to_nv12_hwy(dreq);
-
-        } else if (name == "sws_scale") {
-            video::ConvertFrameRequest creq{
-                .src = fb,
-                .planes = video::FramePlanes{
-                    .y = y_ptr, .u = u_ptr, .v = v_ptr, .uv = uv_ptr,
-                    .stride_y = w, .stride_u = w/2, .stride_v = w/2, .stride_uv = w,
-                },
-                .width = w,
-                .height = h,
-                .format = fmt,
-                .matrix = video::YuvMatrix::BT709,
-                .range = video::ColorRange::Limited,
-                .apply_gamma = apply_gamma,
-            };
-            if (fmt_name == "yuv420p")
-                video::convert_rgba_to_yuv420p_swscale(creq);
-            else
-                video::convert_rgba_to_nv12_swscale(creq);
-
-        }
+        video::ConvertFrameRequest creq{
+            .src = fb,
+            .planes = video::FramePlanes{
+                .y = y_ptr, .u = u_ptr, .v = v_ptr, .uv = uv_ptr,
+                .stride_y = w, .stride_u = w/2, .stride_v = w/2, .stride_uv = w,
+            },
+            .width = w,
+            .height = h,
+            .format = fmt,
+            .matrix = video::YuvMatrix::BT709,
+            .range = video::ColorRange::Limited,
+            .apply_gamma = apply_gamma,
+        };
+        if (fmt_name == "yuv420p")
+            video::convert_rgba_to_yuv420p_swscale(creq);
+        else
+            video::convert_rgba_to_nv12_swscale(creq);
 
         total_ns += now_ns() - t0;
     }
@@ -164,16 +136,11 @@ static BenchResult run_bench_path(
         ? (static_cast<double>(total_bytes) / wall_s) / 1e9
         : 0.0;
 
-    BenchResult result;
-    result.name      = name;
-    result.mean_ns   = mean_ns;
-    result.gb_s      = gb_s;
-    result.used_simd = (name == "direct_hwy_yuv");  // post-PR1 only the HWY path uses HWY SIMD
-    if (name != "direct_hwy_yuv" && !ref_buf.empty()) {
-        result.bytes_mismatch   = count_mismatched_bytes(ref_buf.data(), work_buf.data(), total_bytes);
-        result.max_channel_diff = max_abs_diff(ref_buf.data(), work_buf.data(), total_bytes);
-    }
-    return result;
+    return BenchResult{
+        .name = "sws_scale",
+        .mean_ns = mean_ns,
+        .gb_s = gb_s,
+    };
 }
 
 // ==========================================================================
@@ -223,91 +190,24 @@ int command_bench_convert(const CompositionRegistry& registry, const BenchConver
                  w, h, fmt, yuv_total, args.iterations,
                  args.apply_gamma ? "sRGB" : "linear");
 
-    // ── Pre-allocate output buffers ────────────────────────────────────
-    std::vector<uint8_t> ref_buf(yuv_total);
+    // ── Pre-allocate output buffer ─────────────────────────────────────
     std::vector<uint8_t> work_buf(yuv_total);
 
-    // ── Phase 1: HWY reference run (also warms caches) ─────────────────
-    BenchResult hwy = run_bench_path("direct_hwy_yuv", *fb, w, h, fmt,
-                                     args.apply_gamma, 1, ref_buf, ref_buf);
-    hwy.name = "direct_hwy_yuv";
+    // ── sws_scale benchmark ────────────────────────────────────────────
+    auto sws = run_swscale_bench(*fb, w, h, fmt,
+                                 args.apply_gamma, args.iterations,
+                                 work_buf);
 
-    // Run remaining HWY iterations for timing (with warm cache)
-    {
-        auto timing = run_bench_path("direct_hwy_yuv", *fb, w, h, fmt,
-                                     args.apply_gamma, args.iterations,
-                                     ref_buf, work_buf);
-        hwy.mean_ns   = timing.mean_ns;
-        hwy.gb_s      = timing.gb_s;
-        hwy.used_simd = true;
-    }
-
-    // ── Phase 2: sws_scale (RGBA8 staging) ─────────────────────────────
-    auto sws = run_bench_path("sws_scale", *fb, w, h, fmt,
-                              args.apply_gamma, args.iterations,
-                              ref_buf, work_buf);
-
-    // ── Print results table ────────────────────────────────────────────
-    const auto col_name = std::setw(17);
-    const auto col_val  = std::setw(12);
-    const auto col_unit = std::setw(10);
-
+    // ── Print results ──────────────────────────────────────────────────
     std::ostringstream out;
     out << "\n"
-        << "═══════════════════════════════════════════════════════════════════════\n"
-        << "  FRAME CONVERSION BENCHMARK  —  " << w << "×" << h << "  "
-        << fmt << "  ×" << args.iterations << " iters\n"
-        << "═══════════════════════════════════════════════════════════════════════\n\n"
-        << std::left << col_name << "Path"
-        << std::right << col_val << "ms/frame"
-        << col_val << "GB/s"
-        << col_val << "SIMD"
-        << col_val << "Mismatch"
-        << col_unit << "MaxΔ"
-        << "\n"
-        << std::string(75, '-') << "\n";
-
-    auto print_row = [&](const BenchResult& r) {
-        out << std::left << col_name << r.name
-            << std::right << col_val << fmt::format("{:.3f}", r.mean_ns / 1e6)
-            << col_val << fmt::format("{:.2f}", r.gb_s)
-            << col_val << (r.used_simd ? "YES" : "no")
-            << col_val;
-        if (r.name == "direct_hwy_yuv") {
-            out << "— (ref)";
-        } else {
-            const double mismatch_pct = yuv_total > 0
-                ? (static_cast<double>(r.bytes_mismatch) / static_cast<double>(yuv_total)) * 100.0
-                : 0.0;
-            out << fmt::format("{:.2f}%", mismatch_pct);
-        }
-        out << col_unit;
-        if (r.name == "direct_hwy_yuv") {
-            out << "—";
-        } else {
-            out << fmt::format("{:.1f}", r.max_channel_diff);
-        }
-        out << "\n";
-    };
-
-    print_row(hwy);
-    print_row(sws);
-
-    // ── Speedup ratios ─────────────────────────────────────────────────
-    if (hwy.mean_ns > 0 && sws.mean_ns > 0) {
-        const double speedup = sws.mean_ns / hwy.mean_ns;
-        out << "  HWY SIMD vs sws_scale:   "
-            << fmt::format("{:.2f}× faster", speedup);
-        if (sws.bytes_mismatch > 0) {
-            const double mismatch_pct = yuv_total > 0
-                ? (static_cast<double>(sws.bytes_mismatch) / static_cast<double>(yuv_total)) * 100.0
-                : 0.0;
-            out << "  (" << fmt::format("{:.2f}%", mismatch_pct) << " bytes differ)";
-        }
-        out << "\n";
-    }
-
-    out << "\n═══════════════════════════════════════════════════════════════════════\n";
+        << "═══════════════════════════════════════════════\n"
+        << "  FRAME CONVERSION (swscale) — " << w << "×" << h << " "
+        << fmt << " ×" << args.iterations << " iters\n"
+        << "═══════════════════════════════════════════════\n\n"
+        << "  ms/frame: " << fmt::format("{:.3f}", sws.mean_ns / 1e6) << "\n"
+        << "  GB/s:     " << fmt::format("{:.2f}", sws.gb_s) << "\n"
+        << "\n═══════════════════════════════════════════════\n";
     spdlog::info("{}", out.str());
 
     return 0;
