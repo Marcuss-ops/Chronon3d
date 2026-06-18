@@ -78,10 +78,10 @@ Config::Config() {
         const char* pp_v = std::getenv("CHRONON_PINGPONG_FRAMEBUFFER");
         if (pp_v && *pp_v) pingpong_framebuffer = env_bool("CHRONON_PINGPONG_FRAMEBUFFER");
     }
-    prefetch_enabled        = env_bool("CHRONON_PREFETCH");
-    pip_mode                = env_bool("CHRONON_PIP_MODE");
-    disable_disk_node_cache = env_bool("CHRONON_DISABLE_DISK_NODE_CACHE");
-    pin_main_thread         = env_bool("CHRONON3D_PIN_MAIN_THREAD");
+    prefetch_enabled                           = env_bool("CHRONON_PREFETCH");
+    pip_mode                                   = env_bool("CHRONON_PIP_MODE");
+    disable_persistent_framebuffer_cache       = env_bool("CHRONON_DISABLE_PERSISTENT_FB_CACHE");
+    pin_main_thread                            = env_bool("CHRONON3D_PIN_MAIN_THREAD");
 
     // Cache limits
     fb_pool_max_bytes      = resolve_env_mb("CHRONON_FB_POOL_MAX_MB", 0);
@@ -99,9 +99,8 @@ Config::Config() {
     converted_frame_cache_max_entries = resolve_env_int("CHRONON3D_CONVERTED_FRAME_CACHE_MAX_ENTRIES", 0);
     scene_program_cache_max_entries   = resolve_env_int("CHRONON3D_SCENE_PROGRAM_CACHE_MAX_ENTRIES", 0);
 
-    // Paths
-    bake_cache_dir = env_string("CHRONON_BAKE_CACHE_DIR");
-    disk_cache_dir = env_string("CHRONON_DISK_CACHE_DIR");
+    // Paths — persistent framebuffer store (replaces bake + disk cache dirs).
+    persistent_framebuffer_cache_dir = env_string("CHRONON_PERSISTENT_FB_CACHE_DIR");
 }
 
 } // namespace chronon3d

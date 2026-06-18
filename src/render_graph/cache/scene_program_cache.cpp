@@ -5,11 +5,11 @@
 // chronon3d::cache::LruCache<…, shared_ptr<…>> in CapacityMode::Count.
 // This file adds:
 //   - capacity resolution (caller-arg > Config/env > kDefaultEntryCap)
-//   - bridges for `erase` → user on_evict (LruCache::erase doesn't fire it)
-//   - bridges for telemetry counters (in the LruCache.on_evict lambda)
+//   - removal-callback lambda that filters by reason (bumps eviction
+//     counters only for Capacity/Resize, always forwards to m_user_on_evict)
 //   - auto-tune loop (reads LruCache::stats())
-//   - capacity resize bridge (LruCache::resize emits per-eviction on_evict
-//     firing, which the bridge lambda translates into counter updates).
+//   - capacity resize bridge (LruCache::resize emits per-eviction removal
+//     callbacks with Resize reason).
 // =============================================================================
 
 #include <chronon3d/render_graph/cache/scene_program_cache.hpp>
@@ -43,18 +43,19 @@ SceneProgramCache::SceneProgramCache(
         /*capacity_weight=*/resolve_max_entries(capacity),
         /*num_shards=*/num_shards,
         /*mode=*/chronon3d::cache::CapacityMode::Count,
-        /*on_evict=*/[this](
+        /*on_remove=*/[this](
             const graph::SceneStructureKey& key,
-            const std::shared_ptr<graph::CompiledSceneProgram>& /*value*/) {
-            // LruCache fires on_evict for every UNCONDITIONAL LRU eviction,
-            // AND for every resize-driven eviction.  We translate each into
-            // (a) telemetry counter bump, (b) user callback forwarding.
-            //
-            // NOTE: LruCache::erase() does NOT fire this lambda.  The
-            // erase() path is handled in SceneProgramCache::erase() below.
-            m_evictions.fetch_add(1, std::memory_order_relaxed);
-            if (m_counters) {
-                m_counters->program_cache_evictions.fetch_add(1, std::memory_order_relaxed);
+            const std::shared_ptr<graph::CompiledSceneProgram>& /*value*/,
+            CacheRemovalReason reason) {
+            // LruCache fires on_remove for EVERY entry removal: capacity
+            // eviction, resize eviction, erase, clear, and replace.
+            // We bump eviction counters only for Capacity/Resize reasons.
+            if (reason == CacheRemovalReason::Capacity ||
+                reason == CacheRemovalReason::Resize) {
+                m_evictions.fetch_add(1, std::memory_order_relaxed);
+                if (m_counters) {
+                    m_counters->program_cache_evictions.fetch_add(1, std::memory_order_relaxed);
+                }
             }
             if (m_user_on_evict) {
                 m_user_on_evict(key);
@@ -89,15 +90,10 @@ bool SceneProgramCache::contains(const graph::SceneStructureKey& key) const {
 // ── erase ───────────────────────────────────────────────────────────────────
 
 bool SceneProgramCache::erase(const graph::SceneStructureKey& key) {
-    const bool existed = m_cache.erase(key);
-    if (existed && m_user_on_evict) {
-        // Preserve the legacy behaviour: explicit erase fires the user
-        // callback but does NOT bump m_evictions / telemetry counter
-        // (the spec says: "eviction callback fires on erase", but
-        // counter bumps are reserved for capacity-driven evictions).
-        m_user_on_evict(key);
-    }
-    return existed;
+    // LruCache::erase now fires the removal callback with reason=ExplicitErase.
+    // Our bridge lambda forwards to m_user_on_evict but does NOT bump
+    // eviction counters (it checks the reason and skips for ExplicitErase).
+    return m_cache.erase(key);
 }
 
 // ── clear ───────────────────────────────────────────────────────────────────
@@ -126,8 +122,8 @@ void SceneProgramCache::set_capacity(std::size_t new_capacity) {
     if (new_capacity == 0) new_capacity = 1;
     m_capacity = new_capacity;
     // LruCache::resize evicts LRU-tail entries until the per-shard
-    // capacity_weight fits, firing on_evict for each.  Our bridge lambda
-    // updates m_evictions + telemetry + m_user_on_evict.
+    // capacity_weight fits, firing on_remove for each with Resize reason.
+    // Our bridge lambda updates m_evictions + telemetry + m_user_on_evict.
     m_cache.resize(new_capacity);
 
     if (m_counters) {

@@ -3,8 +3,7 @@
 #include "node_runner.hpp"
 #include "tile_pruning.hpp"
 #include "telemetry_emitter.hpp"
-#include <chronon3d/cache/disk_node_cache.hpp>
-#include <chronon3d/cache/persistent_bake_cache.hpp>
+#include <chronon3d/cache/persistent_framebuffer_store.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/math/color.hpp>
@@ -74,8 +73,8 @@ double run_node(
 
         if (use_cache && ctx.resources.node_cache && !is_scratch) {
             ctx.resources.node_cache->store(key, result);
-            if (node.cache_policy().disk_cacheable && disk_node_cache_enabled_for_current_run()) {
-                cache::DiskNodeCache::instance().put(key, *result);
+            if (node.cache_policy().disk_cacheable && persistent_framebuffer_cache_enabled_for_current_run()) {
+                cache::PersistentFramebufferStore::instance().put(key, *result);
             }
         }
     }
