@@ -12,6 +12,12 @@
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/core/config.hpp>
+// PR3: include the shared paint module via a path-relative form so the
+// build picks it up regardless of the public include/ root.  The new
+// header lives at src/backends/software/utils/ and is mirrored only
+// locally; the convention here matches `"../../utils/blend2d_bridge.hpp"`
+// used by sibling software-effect TUs.
+#include "../software/utils/blend2d_paint.hpp"
 #include <blend2d/gradient.h>
 #include <blend2d/font.h>
 #include <blend2d/path.h>
@@ -28,17 +34,59 @@
 
 namespace chronon3d {
 
+// PR3: `to_bl_rgba` and `build_bl_gradient` come from the shared
+// `blend2d_bridge::paint` module; the previous 6 inline copies of
+// `BLGradient gradient(values, BL_EXTEND_MODE_PAD, stops.data(),
+// stops.size())` are now a single canonical implementation.
+// Using-declarations live inside `namespace chronon3d` so unqualified
+// callers in this TU find them through `chronon3d::to_bl_rgba` lookup
+// at the right scope (consistent with `text_processor_helpers.hpp`).
+using chronon3d::blend2d_bridge::paint::to_bl_rgba;
+using chronon3d::blend2d_bridge::paint::build_bl_gradient;
+
 namespace {
 
-inline BLRgba32 to_bl_rgba(const Color& c) {
-    return BLRgba32(
-        static_cast<uint8_t>(std::clamp(c.r * 255.0f, 0.0f, 255.0f)),
-        static_cast<uint8_t>(std::clamp(c.g * 255.0f, 0.0f, 255.0f)),
-        static_cast<uint8_t>(std::clamp(c.b * 255.0f, 0.0f, 255.0f)),
-        static_cast<uint8_t>(std::clamp(c.a * 255.0f, 0.0f, 255.0f))
-    );
+/// Apply a `Fill` to `ctx` as either fill or stroke, delegating to the
+/// shared `blend2d_bridge::paint::build_bl_gradient` for gradient
+/// construction.  `op` discriminates `setFillStyle` vs `setStrokeStyle`
+/// so the legacy duplication between `apply_text_fill_style` and
+/// `apply_text_stroke_style` (~90 lines each, textual mirror images)
+/// collapses to one helper.
+inline void apply_text_style(
+    BLContext& ctx,
+    chronon3d::blend2d_bridge::paint::StyleOp op,
+    const std::optional<Fill>& style_opt,
+    const Color& fallback_color,
+    float origin_x,
+    float origin_y,
+    float width,
+    float height
+) {
+    auto set = [&](auto&& value) {
+        if (op == chronon3d::blend2d_bridge::paint::StyleOp::Fill)
+            ctx.setFillStyle(std::forward<decltype(value)>(value));
+        else
+            ctx.setStrokeStyle(std::forward<decltype(value)>(value));
+    };
+
+    if (!style_opt.has_value()) {
+        set(to_bl_rgba(fallback_color));
+        return;
+    }
+    const Fill& fill = *style_opt;
+    if (fill.type == FillType::Solid) {
+        set(to_bl_rgba(fill.solid));
+        return;
+    }
+    if (auto gradient = build_bl_gradient(fill, origin_x, origin_y, width, height)) {
+        set(*gradient);
+        return;
+    }
+    set(to_bl_rgba(fallback_color));
 }
 
+/// Thin wrappers preserving the legacy call-site signature.  Both will
+/// be removed once all callers are migrated to `apply_text_style`.
 inline void apply_text_fill_style(
     BLContext& ctx,
     const TextStyle& style,
@@ -48,71 +96,10 @@ inline void apply_text_fill_style(
     float width,
     float height
 ) {
-    if (!style.paint.fill_style.has_value()) {
-        ctx.setFillStyle(to_bl_rgba(fallback_color));
-        return;
-    }
-
-    const Fill& fill = *style.paint.fill_style;
-    if (fill.type == FillType::Solid) {
-        ctx.setFillStyle(to_bl_rgba(fill.solid));
-        return;
-    }
-
-    std::vector<BLGradientStop> stops;
-    stops.reserve(fill.gradient.stops.size());
-    for (const auto& stop : fill.gradient.stops) {
-        stops.emplace_back(static_cast<double>(stop.offset), to_bl_rgba(stop.color));
-    }
-
-    if (stops.empty()) {
-        ctx.setFillStyle(to_bl_rgba(fallback_color));
-        return;
-    }
-
-    const float safe_w = std::max(1.0f, width);
-    const float safe_h = std::max(1.0f, height);
-
-    if (fill.type == FillType::LinearGradient) {
-        const BLLinearGradientValues values(
-            origin_x + fill.gradient.from.x * safe_w,
-            origin_y + fill.gradient.from.y * safe_h,
-            origin_x + fill.gradient.to.x * safe_w,
-            origin_y + fill.gradient.to.y * safe_h
-        );
-        BLGradient gradient(values, BL_EXTEND_MODE_PAD, stops.data(), stops.size());
-        ctx.setFillStyle(gradient);
-        return;
-    }
-
-    if (fill.type == FillType::RadialGradient) {
-        const float radius_norm = std::max(0.001f, fill.gradient.to.x - fill.gradient.from.x);
-        const float radius = std::max(safe_w, safe_h) * radius_norm;
-        const BLRadialGradientValues values(
-            origin_x + fill.gradient.from.x * safe_w,
-            origin_y + fill.gradient.from.y * safe_h,
-            origin_x + fill.gradient.from.x * safe_w,
-            origin_y + fill.gradient.from.y * safe_h,
-            0.0,
-            radius
-        );
-        BLGradient gradient(values, BL_EXTEND_MODE_PAD, stops.data(), stops.size());
-        ctx.setFillStyle(gradient);
-        return;
-    }
-
-    if (fill.type == FillType::ConicGradient) {
-        const double cx = origin_x + fill.gradient.from.x * safe_w;
-        const double cy = origin_y + fill.gradient.from.y * safe_h;
-        const Vec2 dir = fill.gradient.to - fill.gradient.from;
-        const double angle = std::atan2(dir.y, dir.x);
-        const BLConicGradientValues values(cx, cy, angle);
-        BLGradient gradient(values, BL_EXTEND_MODE_PAD, stops.data(), stops.size());
-        ctx.setFillStyle(gradient);
-        return;
-    }
-
-    ctx.setFillStyle(to_bl_rgba(fallback_color));
+    apply_text_style(ctx,
+        chronon3d::blend2d_bridge::paint::StyleOp::Fill,
+        style.paint.fill_style, fallback_color,
+        origin_x, origin_y, width, height);
 }
 
 inline void apply_text_stroke_style(
@@ -124,71 +111,10 @@ inline void apply_text_stroke_style(
     float width,
     float height
 ) {
-    if (!style.paint.stroke_style.has_value()) {
-        ctx.setStrokeStyle(to_bl_rgba(fallback_stroke_color));
-        return;
-    }
-
-    const Fill& fill = *style.paint.stroke_style;
-    if (fill.type == FillType::Solid) {
-        ctx.setStrokeStyle(to_bl_rgba(fill.solid));
-        return;
-    }
-
-    std::vector<BLGradientStop> stops;
-    stops.reserve(fill.gradient.stops.size());
-    for (const auto& stop : fill.gradient.stops) {
-        stops.emplace_back(static_cast<double>(stop.offset), to_bl_rgba(stop.color));
-    }
-
-    if (stops.empty()) {
-        ctx.setStrokeStyle(to_bl_rgba(fallback_stroke_color));
-        return;
-    }
-
-    const float safe_w = std::max(1.0f, width);
-    const float safe_h = std::max(1.0f, height);
-
-    if (fill.type == FillType::LinearGradient) {
-        const BLLinearGradientValues values(
-            origin_x + fill.gradient.from.x * safe_w,
-            origin_y + fill.gradient.from.y * safe_h,
-            origin_x + fill.gradient.to.x * safe_w,
-            origin_y + fill.gradient.to.y * safe_h
-        );
-        BLGradient gradient(values, BL_EXTEND_MODE_PAD, stops.data(), stops.size());
-        ctx.setStrokeStyle(gradient);
-        return;
-    }
-
-    if (fill.type == FillType::RadialGradient) {
-        const float radius_norm = std::max(0.001f, fill.gradient.to.x - fill.gradient.from.x);
-        const float radius = std::max(safe_w, safe_h) * radius_norm;
-        const BLRadialGradientValues values(
-            origin_x + fill.gradient.from.x * safe_w,
-            origin_y + fill.gradient.from.y * safe_h,
-            origin_x + fill.gradient.from.x * safe_w,
-            origin_y + fill.gradient.from.y * safe_h,
-            0.0,
-            radius
-        );
-        BLGradient gradient(values, BL_EXTEND_MODE_PAD, stops.data(), stops.size());
-        ctx.setStrokeStyle(gradient);
-        return;
-    }
-
-    if (fill.type == FillType::ConicGradient) {
-        const double cx = origin_x + fill.gradient.from.x * safe_w;
-        const double cy = origin_y + fill.gradient.from.y * safe_h;
-        const Vec2 dir = fill.gradient.to - fill.gradient.from;
-        const double angle = std::atan2(dir.y, dir.x);
-        const BLConicGradientValues values(cx, cy, angle);
-        BLGradient gradient(values, BL_EXTEND_MODE_PAD, stops.data(), stops.size());
-        ctx.setStrokeStyle(gradient);
-        return;
-    }
-
-    ctx.setStrokeStyle(to_bl_rgba(fallback_stroke_color));
+    apply_text_style(ctx,
+        chronon3d::blend2d_bridge::paint::StyleOp::Stroke,
+        style.paint.stroke_style, fallback_stroke_color,
+        origin_x, origin_y, width, height);
 }
 
 struct Blend2DResources {
