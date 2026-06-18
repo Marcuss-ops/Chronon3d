@@ -8,10 +8,6 @@ namespace chronon3d::cache {
 
 namespace {
 
-constexpr size_t align_up(size_t value, size_t alignment) {
-    return (value + alignment - 1) & ~(alignment - 1);
-}
-
 [[nodiscard]] size_t bytes_for_format(i32 width, i32 height, VideoPixelFormat format) {
     const size_t w = static_cast<size_t>(std::max<i32>(width, 0));
     const size_t h = static_cast<size_t>(std::max<i32>(height, 0));
