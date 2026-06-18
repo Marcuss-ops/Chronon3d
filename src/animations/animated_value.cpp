@@ -29,6 +29,61 @@ std::vector<std::string> split_expr_args(const std::string& inner) {
     return args;
 }
 
+[[nodiscard]] std::optional<Color> evaluate_solid_color_expression(
+    std::string_view expr,
+    const AnimationEvalContext& ctx,
+    f32 fps,
+    double t,
+    double frame)
+{
+    if (expr.empty()) return std::nullopt;
+
+    constexpr std::string_view kSolidPrefix = "solid(";
+    if (expr.size() <= kSolidPrefix.size() ||
+        expr.substr(0, kSolidPrefix.size()) != kSolidPrefix)
+        return std::nullopt;
+
+    int depth = 1;
+    size_t close = kSolidPrefix.size();
+    for (; close < expr.size() && depth > 0; ++close) {
+        char c = expr[close];
+        if (c == '(') ++depth;
+        else if (c == ')') --depth;
+    }
+
+    if (depth != 0 || close <= kSolidPrefix.size())
+        return std::nullopt;
+
+    const size_t inner_start = kSolidPrefix.size();
+    const size_t inner_len = close - 1 - inner_start;
+    const std::string inner(expr.substr(inner_start, inner_len));
+    const auto args = split_expr_args(inner);
+
+    if (args.size() != 4)
+        return std::nullopt;
+
+    const std::unordered_map<std::string, double> vars{
+        {"frame", frame},
+        {"time", t},
+        {"fps", static_cast<double>(fps)},
+        {"index", static_cast<double>(ctx.index)},
+    };
+
+    auto eval_arg = [&](const std::string& arg) -> f32 {
+        if (arg.empty()) return 0.0f;
+        return static_cast<f32>(
+            math::evaluate_expression(arg, vars, 0.0)
+        );
+    };
+
+    const f32 r = std::clamp(eval_arg(args[0]), 0.0f, 1.0f);
+    const f32 g = std::clamp(eval_arg(args[1]), 0.0f, 1.0f);
+    const f32 b = std::clamp(eval_arg(args[2]), 0.0f, 1.0f);
+    const f32 a = std::clamp(eval_arg(args[3]), 0.0f, 1.0f);
+
+    return Color{r, g, b, a};
+}
+
 } // namespace detail
 
 graphics::FillStyle evaluate_fill_expression(
@@ -39,52 +94,8 @@ graphics::FillStyle evaluate_fill_expression(
     double t,
     double frame)
 {
-    if (expr.empty()) return base;
-
-    constexpr std::string_view kSolidPrefix = "solid(";
-    if (expr.size() > kSolidPrefix.size() &&
-        expr.substr(0, kSolidPrefix.size()) == kSolidPrefix)
-    {
-        int depth = 1;
-        size_t close = kSolidPrefix.size();
-        for (; close < expr.size() && depth > 0; ++close) {
-            char c = expr[close];
-            if (c == '(') ++depth;
-            else if (c == ')') --depth;
-        }
-
-        if (depth == 0 && close > kSolidPrefix.size()) {
-            const size_t inner_start = kSolidPrefix.size();
-            const size_t inner_len = close - 1 - inner_start;
-            const std::string inner = expr.substr(inner_start, inner_len);
-            const auto args = detail::split_expr_args(inner);
-
-            if (args.size() == 4) {
-                const std::unordered_map<std::string, double> vars{
-                    {"frame", frame},
-                    {"time", t},
-                    {"fps", static_cast<double>(fps)},
-                    {"index", static_cast<double>(ctx.index)},
-                };
-
-                auto eval_arg = [&](const std::string& arg) -> f32 {
-                    if (arg.empty()) return 0.0f;
-                    return static_cast<f32>(
-                        math::evaluate_expression(arg, vars, 0.0)
-                    );
-                };
-
-                const f32 r = std::clamp(eval_arg(args[0]), 0.0f, 1.0f);
-                const f32 g = std::clamp(eval_arg(args[1]), 0.0f, 1.0f);
-                const f32 b = std::clamp(eval_arg(args[2]), 0.0f, 1.0f);
-                const f32 a = std::clamp(eval_arg(args[3]), 0.0f, 1.0f);
-
-                return graphics::FillStyle::solid(Color{r, g, b, a});
-            }
-        }
-    }
-
-    return base;
+    auto color = detail::evaluate_solid_color_expression(expr, ctx, fps, t, frame);
+    return color ? graphics::FillStyle::solid(*color) : base;
 }
 
 graphics::StrokeStyle evaluate_stroke_expression(
@@ -95,54 +106,12 @@ graphics::StrokeStyle evaluate_stroke_expression(
     double t,
     double frame)
 {
-    if (expr.empty()) return base;
+    auto color = detail::evaluate_solid_color_expression(expr, ctx, fps, t, frame);
+    if (!color) return base;
 
-    constexpr std::string_view kSolidPrefix = "solid(";
-    if (expr.size() > kSolidPrefix.size() &&
-        expr.substr(0, kSolidPrefix.size()) == kSolidPrefix)
-    {
-        int depth = 1;
-        size_t close = kSolidPrefix.size();
-        for (; close < expr.size() && depth > 0; ++close) {
-            char c = expr[close];
-            if (c == '(') ++depth;
-            else if (c == ')') --depth;
-        }
-
-        if (depth == 0 && close > kSolidPrefix.size()) {
-            const size_t inner_start = kSolidPrefix.size();
-            const size_t inner_len = close - 1 - inner_start;
-            const std::string inner = expr.substr(inner_start, inner_len);
-            const auto args = detail::split_expr_args(inner);
-
-            if (args.size() == 4) {
-                const std::unordered_map<std::string, double> vars{
-                    {"frame", frame},
-                    {"time", t},
-                    {"fps", static_cast<double>(fps)},
-                    {"index", static_cast<double>(ctx.index)},
-                };
-
-                auto eval_arg = [&](const std::string& arg) -> f32 {
-                    if (arg.empty()) return 0.0f;
-                    return static_cast<f32>(
-                        math::evaluate_expression(arg, vars, 0.0)
-                    );
-                };
-
-                const f32 r = std::clamp(eval_arg(args[0]), 0.0f, 1.0f);
-                const f32 g = std::clamp(eval_arg(args[1]), 0.0f, 1.0f);
-                const f32 b = std::clamp(eval_arg(args[2]), 0.0f, 1.0f);
-                const f32 a = std::clamp(eval_arg(args[3]), 0.0f, 1.0f);
-
-                graphics::StrokeStyle result = base;
-                result.color = Color{r, g, b, a};
-                return result;
-            }
-        }
-    }
-
-    return base;
+    auto result = base;
+    result.color = *color;
+    return result;
 }
 
 } // namespace chronon3d

@@ -2,11 +2,14 @@
 
 #include <chronon3d/animation/core/keyframe.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
+#include <chronon3d/math/color.hpp>
 #include <chronon3d/math/expression.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
-#include <vector>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 #include <algorithm>
 #include <type_traits>
 
@@ -61,6 +64,17 @@ namespace detail {
 /// Split function arguments by commas, respecting nested parentheses.
 [[nodiscard]] std::vector<std::string> split_expr_args(
     const std::string& inner);
+
+/// Parse a solid(r, g, b, a) expression into a Color.
+/// Each argument is evaluated as a numeric expression with variables:
+///   frame, time, fps, index
+/// Returns std::nullopt if the expression is not a valid solid(...) call.
+[[nodiscard]] std::optional<Color> evaluate_solid_color_expression(
+    std::string_view expr,
+    const AnimationEvalContext& ctx,
+    f32 fps,
+    double t,
+    double frame);
 
 } // namespace detail
 
