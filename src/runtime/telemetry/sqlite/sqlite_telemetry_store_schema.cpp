@@ -4,9 +4,6 @@
 #include <string>
 #include <vector>
 
-#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
-#include <sqlite3.h>
-
 namespace chronon3d::telemetry {
 
 namespace {
@@ -216,4 +213,3 @@ bool SqliteTelemetryStore::initialize(const std::string& db_path) {
 }
 
 } // namespace chronon3d::telemetry
-#endif
