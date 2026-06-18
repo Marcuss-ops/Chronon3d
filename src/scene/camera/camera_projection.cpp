@@ -22,15 +22,33 @@ ScreenPoint project_world_to_screen(
     const Camera2_5D& camera,
     Viewport viewport
 ) {
+    // Stability guard: when camera position and the queried world point are
+    // numerically coincident, downstream projection math (focal / depth,
+    // lookAtLH) can divide by zero and emit ±Inf or NaN. Emit a safe default
+    // so callers don't have to chase NaN explosions downstream.
+    constexpr float kMinSeparation = 1e-4f;
+    const float separation = glm::length(world - camera.position);
+    if (separation < kMinSeparation) {
+        ScreenPoint sp;
+        sp.position = Vec2{0.0f, 0.0f};
+        sp.depth = 0.0f;
+        sp.behind_camera = true;  // defend against off-screen divide-by-zero
+        return sp;
+    }
+
     auto p = camera_math::project_world_point(
         camera,
         world,
         camera_math::Viewport2D{viewport.width, viewport.height}
     );
 
+    // Second guard: even when separation is ok, a degenerate camera config
+    // (focal == 0, etc.) can still produce non-finite screen coords. Clamp.
     ScreenPoint sp;
-    sp.position = p.screen;
-    sp.depth = p.depth;
+    sp.position = (std::isfinite(p.screen.x) && std::isfinite(p.screen.y))
+        ? p.screen
+        : Vec2{0.0f, 0.0f};
+    sp.depth = std::isfinite(p.depth) ? p.depth : 0.0f;
     sp.behind_camera = !p.visible;
     return sp;
 }

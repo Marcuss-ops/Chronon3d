@@ -43,7 +43,8 @@ TEST_CASE("PR7: empty timeline returns empty camera") {
     auto cam = resolver.evaluate(0, tls);
     CHECK(approx(cam.position.x, 0.0f));
     CHECK(approx(cam.position.y, 0.0f));
-    CHECK(approx(cam.position.z, 0.0f));
+    CHECK(approx(cam.position.z, -1000.0f));
+    CHECK_FALSE(cam.enabled);
 }
 
 // ==============================================================================
