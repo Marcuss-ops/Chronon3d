@@ -451,9 +451,11 @@ std::span<const NamedCameraPreset> builtin_camera_presets() {
                     bs.rotation = Vec3{0.0f, 0.0f, 0.0f};
                     bs.projection = ZoomProjection{AnimatedValue<float>{1000.0f}};
                     bs.dof.enabled = true;
-                    bs.dof.focus_distance = 0.0f;
                     bs.dof.aperture = 0.03f;
                     bs.dof.max_blur = 24.0f;
+                    // focus_distance is animated via PoseTracksSource.focus_distance
+                    // keyframes below; the base value is the start of the pull.
+                    bs.dof.focus_distance = 0.0f;
                     return bs;
                 }(),
                 []() {
@@ -462,9 +464,9 @@ std::span<const NamedCameraPreset> builtin_camera_presets() {
                     pts.position.set(Vec3{0.0f, 0.0f, -1000.0f});
                     pts.use_target = false;
                     pts.zoom.set(1000.0f);
-                    // Note: DOF focus_z is handled in the compiled evaluation
-                    // path by reading descriptor.base.dof.focus_distance.
-                    // The PoseTracksSource here just holds the camera motion.
+                    // Animated DOF: pull focus from 0 → 500 over 90 frames.
+                    pts.focus_distance.key(Frame{0}, 0.0f)
+                                      .key(Frame{90}, 500.0f, easing);
                     return pts;
                 }())),
 

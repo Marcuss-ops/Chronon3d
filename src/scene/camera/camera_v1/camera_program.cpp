@@ -37,7 +37,10 @@ static bool source_is_time_dependent(const CameraSourceSpec& source) {
                pts->rotation.is_time_dependent() ||
                pts->target.is_time_dependent() ||
                pts->zoom.is_time_dependent() ||
-               pts->fov_deg.is_time_dependent();
+               pts->fov_deg.is_time_dependent() ||
+               pts->focus_distance.is_time_dependent() ||
+               pts->aperture.is_time_dependent() ||
+               pts->max_blur.is_time_dependent();
     }
     if (auto* orbit = std::get_if<OrbitMotion>(&source)) {
         return orbit->yaw.is_time_dependent() ||
@@ -400,7 +403,10 @@ static Camera2_5D eval_pose_tracks(const CameraBaseSpec& base,
                       src.rotation.is_time_dependent() ||
                       src.target.is_time_dependent() ||
                       src.zoom.is_time_dependent() ||
-                      src.fov_deg.is_time_dependent();
+                      src.fov_deg.is_time_dependent() ||
+                      src.focus_distance.is_time_dependent() ||
+                      src.aperture.is_time_dependent() ||
+                      src.max_blur.is_time_dependent();
 
     cam.position = src.position.evaluate(ctx.sample_time);
     cam.rotation = src.rotation.evaluate(ctx.sample_time);
@@ -412,9 +418,17 @@ static Camera2_5D eval_pose_tracks(const CameraBaseSpec& base,
     cam.projection_mode = Camera2_5DProjectionMode::Zoom;
 
     cam.lens = base.lens;
-    cam.dof = base.dof;
     cam.motion_blur = base.motion_blur;
     cam.parent_name = base.parent_name;
+
+    // DOF: start from base defaults, then override channels that have keyframes.
+    cam.dof = base.dof;
+    if (src.focus_distance.is_time_dependent())
+        cam.dof.focus_distance = src.focus_distance.evaluate(ctx.sample_time);
+    if (src.aperture.is_time_dependent())
+        cam.dof.aperture = src.aperture.evaluate(ctx.sample_time);
+    if (src.max_blur.is_time_dependent())
+        cam.dof.max_blur = src.max_blur.evaluate(ctx.sample_time);
 
     apply_orientation_spec_free(&orient, ctx, cam);
 
@@ -602,9 +616,12 @@ CameraProgramResult CameraProgram::evaluate(const CameraEvalContext& ctx,
     // Set is_animated flag.
     intermediate.is_animated = time_dependent_;
 
-    // Carry forward lens, DOF, motion blur from descriptor base.
+    // Carry forward lens and motion blur from descriptor base.
+    // DOF is handled by the source evaluator (eval_pose_tracks applies
+    // animated DOF channels; OrbitMotion and TrajectoryMotion copy base
+    // DOF). Do NOT overwrite with descriptor_.base.dof here — that would
+    // erase animated DOF channels from PoseTracksSource.
     intermediate.lens = descriptor_.base.lens;
-    intermediate.dof = descriptor_.base.dof;
     intermediate.motion_blur = descriptor_.base.motion_blur;
 
     // TODO(PR7): evaluate descriptor constraints.

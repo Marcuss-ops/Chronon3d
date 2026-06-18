@@ -152,28 +152,48 @@ struct CameraRig {
 
 } // namespace chronon3d
 
-// Include the camera_v1 motion registrations AFTER namespace camera_rig so that
-// all param types are declared before register_camera_rig_motions.hpp needs them.
-// The inline helper functions below (hero_push_in, etc.) are also after this include.
-#include <chronon3d/scene/camera/camera_v1/register_camera_rig_motions.hpp>
-
 namespace chronon3d::camera_rig {
 
 inline AnimatedCamera2_5D hero_push_in(const HeroPushInParams& p = {}) {
-    chronon3d::camera_v1::register_camera_v1_builtins();
-    chronon3d::camera_v1::HeroPushInMotion motion(p);
-    AnimatedCamera2_5D cam = chronon3d::camera_v1::materialise_acam(
-        motion, p.start_frame, p.duration);
+    AnimatedCamera2_5D cam;
+    cam.position
+        .key(p.start_frame, p.from_position)
+        .key(p.start_frame + p.duration, p.to_position, p.easing);
+    cam.rotation
+        .key(p.start_frame, Vec3{p.from_tilt, p.from_yaw, 0.0f})
+        .key(p.start_frame + p.duration, Vec3{p.to_tilt, p.to_yaw, 0.0f}, p.easing);
     cam.zoom.set(p.zoom);
     cam.point_of_interest_enabled = false;
     return cam;
 }
 
 inline AnimatedCamera2_5D orbit_yaw(const OrbitYawParams& p = {}) {
-    chronon3d::camera_v1::register_camera_v1_builtins();
-    chronon3d::camera_v1::OrbitYawMotion motion(p);
-    AnimatedCamera2_5D cam = chronon3d::camera_v1::materialise_acam(
-        motion, p.start_frame, p.duration);
+    AnimatedCamera2_5D cam;
+    const f32 start_rad = glm::radians(p.start_angle_deg);
+    const f32 end_rad   = glm::radians(p.end_angle_deg);
+    const Frame end_frame = p.start_frame + p.duration;
+
+    constexpr int kSamples = 5;
+    for (int i = 0; i <= kSamples; ++i) {
+        const f32 t = static_cast<f32>(i) / static_cast<f32>(kSamples);
+        const f32 angle = start_rad + (end_rad - start_rad) * p.easing.apply(t);
+        const Frame f = p.start_frame + Frame{static_cast<i32>(std::round(t * static_cast<f32>(p.duration)))};
+
+        const Vec3 pos{
+            p.target.x + p.radius * std::sin(angle),
+            p.target.y + p.height,
+            p.target.z + p.z_offset + p.radius * (std::cos(angle) - 1.0f)
+        };
+        cam.position.key(f, pos);
+        cam.rotation.key(f, Vec3{p.tilt_deg, -glm::degrees(angle), 0.0f});
+    }
+
+    cam.position.key(end_frame, Vec3{
+        p.target.x + p.radius * std::sin(end_rad),
+        p.target.y + p.height,
+        p.target.z + p.z_offset + p.radius * (std::cos(end_rad) - 1.0f)
+    });
+
     cam.zoom.set(p.zoom);
     cam.point_of_interest.set(p.target);
     cam.point_of_interest_enabled = true;
@@ -181,10 +201,10 @@ inline AnimatedCamera2_5D orbit_yaw(const OrbitYawParams& p = {}) {
 }
 
 inline AnimatedCamera2_5D parallax_pan(const ParallaxPanParams& p = {}) {
-    chronon3d::camera_v1::register_camera_v1_builtins();
-    chronon3d::camera_v1::ParallaxPanMotion motion(p);
-    AnimatedCamera2_5D cam = chronon3d::camera_v1::materialise_acam(
-        motion, p.start_frame, p.duration);
+    AnimatedCamera2_5D cam;
+    cam.position
+        .key(p.start_frame, p.from_position)
+        .key(p.start_frame + p.duration, p.to_position, p.easing);
     cam.zoom.set(p.zoom);
     cam.point_of_interest.set(p.target);
     cam.point_of_interest_enabled = true;
@@ -192,21 +212,21 @@ inline AnimatedCamera2_5D parallax_pan(const ParallaxPanParams& p = {}) {
 }
 
 inline AnimatedCamera2_5D dolly_zoom(const DollyZoomParams& p = {}) {
-    chronon3d::camera_v1::register_camera_v1_builtins();
-    chronon3d::camera_v1::DollyZoomMotion motion(p);
-    AnimatedCamera2_5D cam = chronon3d::camera_v1::materialise_acam(
-        motion, p.start_frame, p.duration);
-    cam.zoom.set(p.to_zoom);
+    AnimatedCamera2_5D cam;
+    cam.position
+        .key(p.start_frame, p.from_position)
+        .key(p.start_frame + p.duration, p.to_position, p.easing);
+    cam.zoom
+        .key(p.start_frame, p.from_zoom)
+        .key(p.start_frame + p.duration, p.to_zoom, p.easing);
     cam.point_of_interest.set(p.target);
     cam.point_of_interest_enabled = true;
     return cam;
 }
 
 inline AnimatedCamera2_5D focus_pull(const FocusPullParams& p = {}) {
-    chronon3d::camera_v1::register_camera_v1_builtins();
-    chronon3d::camera_v1::FocusPullMotion motion(p);
-    AnimatedCamera2_5D cam = chronon3d::camera_v1::materialise_acam(
-        motion, p.start_frame, p.duration);
+    AnimatedCamera2_5D cam;
+    cam.position.set(p.position);
     cam.zoom.set(p.zoom);
     cam.focus_z
         .key(p.start_frame, p.from_focus_z)
@@ -218,10 +238,13 @@ inline AnimatedCamera2_5D focus_pull(const FocusPullParams& p = {}) {
 }
 
 inline AnimatedCamera2_5D low_angle_reveal(const LowAngleRevealParams& p = {}) {
-    chronon3d::camera_v1::register_camera_v1_builtins();
-    chronon3d::camera_v1::LowAngleRevealMotion motion(p);
-    AnimatedCamera2_5D cam = chronon3d::camera_v1::materialise_acam(
-        motion, p.start_frame, p.duration);
+    AnimatedCamera2_5D cam;
+    cam.position
+        .key(p.start_frame, p.from_position)
+        .key(p.start_frame + p.duration, p.to_position, p.easing);
+    cam.rotation
+        .key(p.start_frame, Vec3{p.from_tilt, 0.0f, 0.0f})
+        .key(p.start_frame + p.duration, Vec3{p.to_tilt, 0.0f, 0.0f}, p.easing);
     cam.zoom.set(p.zoom);
     cam.point_of_interest.set(p.target);
     cam.point_of_interest_enabled = true;
@@ -229,10 +252,22 @@ inline AnimatedCamera2_5D low_angle_reveal(const LowAngleRevealParams& p = {}) {
 }
 
 inline AnimatedCamera2_5D subtle_float(const SubtleFloatParams& p = {}) {
-    chronon3d::camera_v1::register_camera_v1_builtins();
-    chronon3d::camera_v1::SubtleFloatMotion motion(p);
-    AnimatedCamera2_5D cam = chronon3d::camera_v1::materialise_acam(
-        motion, p.start_frame, p.duration);
+    AnimatedCamera2_5D cam;
+    const Frame end_frame = p.start_frame + p.duration;
+    constexpr int kSamples = 12;
+    const f32 frames_per_sample = static_cast<f32>(p.duration) / static_cast<f32>(kSamples);
+
+    for (int i = 0; i <= kSamples; ++i) {
+        const f32 phase = static_cast<f32>(i) * frames_per_sample;
+        const Frame f = p.start_frame + Frame{static_cast<i32>(std::round(phase))};
+
+        const Vec3 pos{
+            p.base_position.x + p.x_amplitude * std::sin(phase * p.x_frequency),
+            p.base_position.y + p.y_amplitude * std::cos(phase * p.y_frequency),
+            p.base_position.z + p.z_amplitude * std::sin(phase * p.z_frequency + 1.0f)
+        };
+        cam.position.key(f, pos);
+    }
     cam.zoom.set(p.zoom);
     cam.point_of_interest_enabled = false;
     return cam;

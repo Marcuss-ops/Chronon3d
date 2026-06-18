@@ -1,115 +1,162 @@
 // ==============================================================================
 // chronon3d/src/scene/camera/camera_motion_presets.cpp
 //
-// After Phase 1 of the camera subsystem mega-PR, this file becomes a thin
-// delegating façade over the data-driven RegisteredMotion subclasses in
-// src/scene/camera/camera_v1/register_camera_motion_presets.cpp. The 12
-// camera_motion::* functions keep identical signatures so every caller in
-// content/ and tests continues to compile unchanged.
+// Legacy camera_motion::* parametric presets.
+//
+// These are the original hand-written implementations of the 12 preset
+// functions (5 parametric + 7 convenience). They do the arithmetic directly
+// and return a Camera2_5D. Every caller in content/ and tests continues
+// to compile unchanged.
+//
+// New code should use the compiled CameraDescriptor path via
+// builtin_camera_presets() + compile_camera() instead.
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_motion_presets.hpp>
-#include <chronon3d/scene/camera/camera_v1/register_camera_motion_presets.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
+#include <algorithm>
+#include <cmath>
 
 namespace chronon3d::camera_motion {
 
-// ── Easing helpers DEMOTED ─────────────────────────────────────────────────
-//
-// smoothstep01 / lerp01 / clamp01 now live inside the registered motion
-// classes (single source of truth). The free functions exposed in the header
-// remain as inline shims (defined in the V1 implementation header) so legacy
-// callers compile, but new code should not use them.
-inline float smoothstep(float t) {
-    t = std::clamp(t, 0.0f, 1.0f);
-    return t * t * (3.0f - 2.0f * t);
-}
-inline float clamp01(float t) {
+// ── Easing helpers ────────────────────────────────────────────────────────────
+
+float clamp01(float t) {
     return std::clamp(t, 0.0f, 1.0f);
 }
-inline float lerp(float a, float b, float t) {
+
+float smoothstep(float t) {
+    t = clamp01(t);
+    return t * t * (3.0f - 2.0f * t);
+}
+
+float lerp(float a, float b, float t) {
     return a + (b - a) * clamp01(t);
 }
 
-// ── Parametric fns ─────────────────────────────────────────────────────────
+// ── Preset implementations ────────────────────────────────────────────────────
 
 Camera2_5D dolly(float t, const DollyParams& p) {
-    chronon3d::camera_v1::register_camera_v1_builtins();
-    return chronon3d::camera_v1::DollyMotion(p)
-        .evaluate(chronon3d::camera_v1::motion_ctx_from_t(t));
+    t = smoothstep(t);
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {p.position_xy.x, p.position_xy.y, lerp(p.from_z, p.to_z, t)};
+    cam.zoom = p.zoom;
+    cam.point_of_interest = p.target;
+    cam.point_of_interest_enabled = true;
+    return cam;
 }
 
 Camera2_5D pan(float t, const PanParams& p) {
-    chronon3d::camera_v1::register_camera_v1_builtins();
-    return chronon3d::camera_v1::PanMotion(p)
-        .evaluate(chronon3d::camera_v1::motion_ctx_from_t(t));
+    t = smoothstep(t);
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {lerp(p.from_x, p.to_x, t), 0.0f, p.z};
+    cam.zoom = p.zoom;
+    cam.point_of_interest = p.target;
+    cam.point_of_interest_enabled = true;
+    return cam;
 }
 
 Camera2_5D tilt_roll(float /*t*/, const TiltRollParams& p) {
-    chronon3d::camera_v1::register_camera_v1_builtins();
-    return chronon3d::camera_v1::TiltRollMotion(p)
-        .evaluate(chronon3d::camera_v1::motion_ctx_from_t(0.0f));
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = p.position;
+    cam.zoom = p.zoom;
+    cam.rotation = {p.tilt_deg, p.pan_deg, p.roll_deg};
+    cam.point_of_interest = p.target;
+    cam.point_of_interest_enabled = false;
+    return cam;
 }
 
 Camera2_5D orbit(float t, const OrbitParams& p) {
-    chronon3d::camera_v1::register_camera_v1_builtins();
-    return chronon3d::camera_v1::OrbitPresetMotion(p)
-        .evaluate(chronon3d::camera_v1::motion_ctx_from_t(t));
+    t = smoothstep(t);
+    const float angle_rad = (lerp(p.start_angle_deg, p.end_angle_deg, t)) * (3.14159265f / 180.0f);
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {std::sin(angle_rad) * p.radius, p.y, p.z + std::cos(angle_rad) * p.radius};
+    cam.zoom = p.zoom;
+    cam.point_of_interest = p.target;
+    cam.point_of_interest_enabled = true;
+    return cam;
 }
 
 Camera2_5D push_in_tilt(float t, const PushInTiltParams& p) {
-    chronon3d::camera_v1::register_camera_v1_builtins();
-    return chronon3d::camera_v1::PushInTiltMotion(p)
-        .evaluate(chronon3d::camera_v1::motion_ctx_from_t(t));
+    t = smoothstep(t);
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {0.0f, 0.0f, lerp(p.from_z, p.to_z, t)};
+    cam.zoom = p.zoom;
+    cam.rotation = {lerp(p.from_tilt, p.to_tilt, t), 0.0f, 0.0f};
+    cam.point_of_interest = p.target;
+    cam.point_of_interest_enabled = false;
+    return cam;
 }
 
-// ── Convenience one-liners ────────────────────────────────────────────────
+// ── Convenience one-liners ────────────────────────────────────────────────────
 
 Camera2_5D dolly_in(float t, float zoom) {
-    return dolly(t, DollyParams{ .from_z = -1200.0f, .to_z = -800.0f, .zoom = zoom });
+    return dolly(t, {.from_z = -1200.0f, .to_z = -800.0f, .zoom = zoom});
 }
 
 Camera2_5D dolly_out(float t, float zoom) {
-    return dolly(t, DollyParams{ .from_z = -800.0f, .to_z = -1200.0f, .zoom = zoom });
+    return dolly(t, {.from_z = -800.0f, .to_z = -1200.0f, .zoom = zoom});
 }
 
 Camera2_5D parallax_sweep(float t, float amplitude, float z, float zoom) {
-    return pan(t, PanParams{ .from_x = -amplitude, .to_x = amplitude,
-                              .z = z, .zoom = zoom });
+    return pan(t, {.from_x = -amplitude, .to_x = amplitude, .z = z, .zoom = zoom});
 }
 
 Camera2_5D orbit_small(float t, float zoom) {
-    return orbit(t, OrbitParams{
-        .radius = 80.0f, .z = -1000.0f,
-        .start_angle_deg = -15.0f, .end_angle_deg = 15.0f,
-        .zoom = zoom
-    });
+    return orbit(t, {.radius = 80.0f, .z = -1000.0f, .start_angle_deg = -15.0f, .end_angle_deg = 15.0f, .zoom = zoom});
 }
 
 Camera2_5D dramatic_push(float t, float zoom) {
-    return push_in_tilt(t, PushInTiltParams{
-        .from_z = -1300.0f, .to_z = -760.0f,
-        .from_tilt = -5.0f, .to_tilt = 5.0f,
-        .zoom = zoom
-    });
+    return push_in_tilt(t, {.from_z = -1300.0f, .to_z = -760.0f, .from_tilt = -5.0f, .to_tilt = 5.0f, .zoom = zoom});
 }
 
 Camera2_5D dolly_rotate(float t, float zoom) {
-    chronon3d::camera_v1::register_camera_v1_builtins();
-    return chronon3d::camera_v1::DollyRotateMotion(zoom)
-        .evaluate(chronon3d::camera_v1::motion_ctx_from_t(t));
+    t = smoothstep(t);
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {0.0f, 0.0f, lerp(-1280.0f, -820.0f, t)};
+    cam.zoom = zoom;
+    cam.rotation = {lerp(-2.5f, 2.5f, t), lerp(-16.0f, 16.0f, t), lerp(-2.0f, 2.0f, t)};
+    cam.point_of_interest = {0.0f, 0.0f, 0.0f};
+    cam.point_of_interest_enabled = false;
+    return cam;
 }
 
 Camera2_5D roll_reveal(float t, float max_roll_deg, float zoom) {
-    chronon3d::camera_v1::register_camera_v1_builtins();
-    return chronon3d::camera_v1::RollRevealMotion(max_roll_deg, zoom)
-        .evaluate(chronon3d::camera_v1::motion_ctx_from_t(t));
+    t = smoothstep(t);
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {0.0f, 0.0f, -1000.0f};
+    cam.zoom = zoom;
+    cam.rotation = {0.0f, 0.0f, lerp(0.0f, max_roll_deg, t)};
+    cam.point_of_interest_enabled = false;
+    return cam;
 }
 
-// apply_dolly_pitch_sweep was a SceneBuilder side-effecting helper that
-// combined camera + layer animation. With camera motion fully data-driven,
-// callers compose via SceneBuilder directly — kept for one release as a
-// pass-through stub before removal.
-void apply_dolly_pitch_sweep(SceneBuilder& /*s*/, LayerBuilder& /*l*/, int /*duration*/) {
-    // deprecated; will be removed in a follow-up.
+void apply_dolly_pitch_sweep(SceneBuilder& s, LayerBuilder& l, int duration) {
+    // Configure static camera
+    s.camera().enable(true).position({0.0f, 0.0f, -1000.0f}).zoom(1000.0f);
+
+    // Configure layer animations
+    l.enable_3d();
+
+    l.opacity_anim()
+     .key(0, 0.0f)
+     .key(20, 1.0f, Easing::OutCubic)
+     .key(duration - 20, 1.0f)
+     .key(duration - 1, 0.0f, Easing::InCubic);
+
+    l.position_anim()
+     .key(0, Vec3{0.0f, 0.0f, 0.0f});
+
+    l.rotate_anim()
+     .key(0, Vec3{0.0f, -60.0f, 0.0f}, Easing::InOutCubic)
+     .key(duration - 1, Vec3{0.0f, 60.0f, 0.0f});
 }
 
 } // namespace chronon3d::camera_motion

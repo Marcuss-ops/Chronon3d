@@ -8,8 +8,7 @@
 #include <chronon3d/scene/camera/camera_v1/shot_timeline.hpp>
 #include <chronon3d/scene/registry/camera_constraint_registry.hpp>
 #include <chronon3d/scene/registry/camera_motion_registry.hpp>
-#include <chronon3d/scene/camera/camera_v1/register_camera_motion_presets.hpp>
-#include <chronon3d/scene/camera/camera_v1/register_camera_rig_motions.hpp>
+
 
 namespace chronon3d::camera_v1 {
 
@@ -23,11 +22,11 @@ void register_camera_v1_builtins() {
     // Register transitions (5 builtins: Cut, SmoothBlend, Push, WhipPan, FocusHandoff).
     CameraTransitionRegistry::instance().register_defaults();
 
-    // Register the camera_motion::* + camera_rig::* motion presets with default
-    // config. Replaces TODO(P7); see register_camera_motion_presets.cpp +
-    // register_camera_rig_motions.cpp for the data definitions.
-    register_camera_motion_presets();
-    register_camera_rig_motions();
+    // Note: camera_motion::* and camera_rig::* legacy functions do the math
+    // directly (src/scene/camera/camera_motion_presets.cpp, camera_rig.hpp).
+    // The compiled CameraDescriptor path via builtin_camera_presets() +
+    // compile_camera() in camera_program_compiler.cpp is the recommended path
+    // for new code.
 
     // Freeze all registries so they become read-only + concurrent-safe.
     auto& cr = CameraConstraintRegistry::instance();
