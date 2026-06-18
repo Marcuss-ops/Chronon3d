@@ -27,6 +27,7 @@
 // Thread-safety: YES — sharded + per-shard mutex (inherited from LruCache).
 // ---------------------------------------------------------------------------
 
+#include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/render_graph/core/scene_hasher.hpp>
@@ -214,6 +215,8 @@ private:
         graph::SceneStructureKey,
         std::shared_ptr<graph::CompiledSceneProgram>>
         m_cache;
+
+    chronon3d::cache::CacheDiagnostics::Handle m_diag_handle;
 
     /// Cache-side facade atomic counters (so auto_tune doesn't have to
     /// lock the shard to read them).  Kept in sync with m_cache.stats().

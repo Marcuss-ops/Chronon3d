@@ -15,6 +15,7 @@
 //   of a pointer into a stable unordered_map.
 // =============================================================================
 
+#include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/types/types.hpp>
 
@@ -100,6 +101,7 @@ public:
 
 private:
     LruCache<VideoFrameKey, Value, VideoFrameKeyHash> m_cache;
+    CacheDiagnostics::Handle m_diag_handle;
 };
 
 } // namespace chronon3d::cache

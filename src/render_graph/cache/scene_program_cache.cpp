@@ -13,6 +13,7 @@
 // =============================================================================
 
 #include <chronon3d/render_graph/cache/scene_program_cache.hpp>
+#include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/cache/cache_policy.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>
@@ -58,6 +59,16 @@ SceneProgramCache::SceneProgramCache(
     , m_capacity(resolve_max_entries(capacity))
     , m_shard_count(num_shards)
 {
+    m_diag_handle = CacheDiagnostics::instance().register_cache(
+        CacheDomain::ScenePrograms,
+        [this]() -> GenericCacheStats {
+            auto s = stats();
+            return {s.hits, s.misses, s.evictions, s.current_size,
+                    s.current_size /* weight == size in Count mode */};
+        },
+        [this] { clear(); },
+        [this] { return m_cache.capacity_mode(); },
+        m_capacity);
 }
 
 // ── find ────────────────────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 #include <chronon3d/cache/video_frame_cache.hpp>
+#include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/cache/cache_policy.hpp>
 #include <chronon3d/core/hash/hash_builder.hpp>
 
@@ -57,8 +58,20 @@ size_t VideoFrameKeyHash::operator()(const VideoFrameKey& key) const noexcept {
 
 VideoFrameCache::VideoFrameCache(size_t max_entries, size_t num_shards)
     : m_cache(
-          resolve_cache_policy(CacheDomain::VideoFrames,
-                               max_entries > 0 ? std::optional<std::size_t>(max_entries) : std::nullopt).capacity,
+          [&] {
+              auto p = resolve_cache_policy(CacheDomain::VideoFrames,
+                  max_entries > 0 ? std::optional<std::size_t>(max_entries) : std::nullopt);
+              m_diag_handle = CacheDiagnostics::instance().register_cache(
+                  CacheDomain::VideoFrames,
+                  [this]() -> GenericCacheStats {
+                      auto s = m_cache.stats();
+                      return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
+                  },
+                  [this] { m_cache.clear(); },
+                  [this] { return m_cache.capacity_mode(); },
+                  p.capacity);
+              return p;
+          }().capacity,
           num_shards,
           capacity_mode_for(CacheDomain::VideoFrames))
 {}
