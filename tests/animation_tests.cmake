@@ -10,7 +10,10 @@ target_include_directories(chronon3d_animation_tests PRIVATE ${CMAKE_SOURCE_DIR}
 if(CHRONON3D_BUILD_CONTENT)
     target_link_libraries(chronon3d_animation_tests PRIVATE chronon3d_content)
     target_include_directories(chronon3d_animation_tests PRIVATE ${CMAKE_SOURCE_DIR})
-    target_compile_definitions(chronon3d_animation_tests PRIVATE CHRONON3D_HAS_CONTENT_MINIMALIST)
+    target_compile_definitions(chronon3d_animation_tests PRIVATE
+        CHRONON3D_HAS_CONTENT_MINIMALIST
+        CHRONON3D_HAS_CONTENT_BACKGROUNDS
+    )
 endif()
 target_include_directories(chronon3d_animation_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_animation_tests)
