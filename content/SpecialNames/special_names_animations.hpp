@@ -11,6 +11,5 @@ Composition special_name_scale_in();
 Composition special_name_stamp();
 Composition special_name_blur_in();
 Composition special_name_typewriter();
-Composition special_name_split();
 
 } // namespace chronon3d::content::special_names
