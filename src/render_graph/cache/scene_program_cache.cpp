@@ -1,191 +1,174 @@
 // =============================================================================
 // scene_program_cache.cpp — B6: SceneProgramCache implementation
 //
-/// Implements the count-based LRU cache for CompiledSceneProgram objects.
-/// Each shard manages its own lock, entry map, and LRU list.  The find_or_compile
-/// template is defined in the header; this file implements the non-template
-/// member functions (find, contains, erase, clear, stats, set_capacity).
+// Implements the unified compile-program cache.  Storage is delegated to
+// chronon3d::cache::LruCache<…, shared_ptr<…>> in CapacityMode::Count.
+// This file adds:
+//   - capacity resolution (caller-arg > Config/env > kDefaultEntryCap)
+//   - bridges for `erase` → user on_evict (LruCache::erase doesn't fire it)
+//   - bridges for telemetry counters (in the LruCache.on_evict lambda)
+//   - auto-tune loop (reads LruCache::stats())
+//   - capacity resize bridge (LruCache::resize emits per-eviction on_evict
+//     firing, which the bridge lambda translates into counter updates).
 // =============================================================================
 
 #include <chronon3d/render_graph/cache/scene_program_cache.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::cache {
 
-// ── Construction ─────────────────────────────────────────────────────────────
+// ── Capacity resolution ────────────────────────────────────────────────────
 
-SceneProgramCache::SceneProgramCache(size_t capacity, size_t num_shards)
-    : m_capacity(capacity > 0 ? capacity : 1)
-    , m_shards(num_shards)
-{
-    for (auto& shard_ptr : m_shards) {
-        shard_ptr = std::make_unique<Shard>();
-    }
+namespace {
+constexpr std::size_t kSceneProgramCacheDefaultFallback = 8;
+
+std::size_t resolve_scene_program_cache_max_entries(std::size_t caller_value) {
+    if (caller_value > 0) return caller_value;
+    const auto v = chronon3d::Config::get().scene_program_cache_max_entries;
+    return v > 0 ? v : kSceneProgramCacheDefaultFallback;
+}
+} // namespace
+
+std::size_t SceneProgramCache::resolve_max_entries(std::size_t caller_value) {
+    return resolve_scene_program_cache_max_entries(caller_value);
 }
 
-// ── find ─────────────────────────────────────────────────────────────────────
+// ── Construction ───────────────────────────────────────────────────────────
+
+SceneProgramCache::SceneProgramCache(
+    std::size_t capacity,
+    std::size_t num_shards)
+    : m_cache(
+        /*capacity_weight=*/resolve_max_entries(capacity),
+        /*num_shards=*/num_shards,
+        /*mode=*/chronon3d::cache::CapacityMode::Count,
+        /*on_evict=*/[this](
+            const graph::SceneStructureKey& key,
+            const std::shared_ptr<graph::CompiledSceneProgram>& /*value*/) {
+            // LruCache fires on_evict for every UNCONDITIONAL LRU eviction,
+            // AND for every resize-driven eviction.  We translate each into
+            // (a) telemetry counter bump, (b) user callback forwarding.
+            //
+            // NOTE: LruCache::erase() does NOT fire this lambda.  The
+            // erase() path is handled in SceneProgramCache::erase() below.
+            m_evictions.fetch_add(1, std::memory_order_relaxed);
+            if (m_counters) {
+                m_counters->program_cache_evictions.fetch_add(1, std::memory_order_relaxed);
+            }
+            if (m_user_on_evict) {
+                m_user_on_evict(key);
+            }
+        })
+    , m_capacity(resolve_max_entries(capacity))
+    , m_shard_count(num_shards)
+{
+}
+
+// ── find ────────────────────────────────────────────────────────────────────
 
 graph::CompiledSceneProgram* SceneProgramCache::find(
     const graph::SceneStructureKey& key)
 {
-    auto& shard = get_shard(key);
-    std::lock_guard<std::mutex> lock(shard.mutex);
+    auto cache_ptr = m_cache.get(key);
+    if (!cache_ptr) return nullptr;
 
-    auto it = shard.entries.find(key);
-    if (it == shard.entries.end()) {
-        return nullptr;
-    }
-
-    // Promote to MRU head.
-    shard.lru_list.splice(shard.lru_list.begin(), shard.lru_list,
-                          it->second.lru_iterator);
-
-    // Record the cache hit for stats and telemetry.
     m_hits.fetch_add(1, std::memory_order_relaxed);
     if (m_counters) {
         m_counters->program_cache_hits.fetch_add(1, std::memory_order_relaxed);
     }
-
-    return it->second.program.get();
+    return cache_ptr->get();
 }
 
 // ── contains ────────────────────────────────────────────────────────────────
 
 bool SceneProgramCache::contains(const graph::SceneStructureKey& key) const {
-    const auto& shard = get_shard(key);
-    std::lock_guard<std::mutex> lock(shard.mutex);
-    return shard.entries.contains(key);
+    return m_cache.contains(key);
 }
 
-// ── erase ────────────────────────────────────────────────────────────────────
+// ── erase ───────────────────────────────────────────────────────────────────
 
 bool SceneProgramCache::erase(const graph::SceneStructureKey& key) {
-    auto& shard = get_shard(key);
-    std::lock_guard<std::mutex> lock(shard.mutex);
-
-    auto it = shard.entries.find(key);
-    if (it == shard.entries.end()) {
-        return false;
+    const bool existed = m_cache.erase(key);
+    if (existed && m_user_on_evict) {
+        // Preserve the legacy behaviour: explicit erase fires the user
+        // callback but does NOT bump m_evictions / telemetry counter
+        // (the spec says: "eviction callback fires on erase", but
+        // counter bumps are reserved for capacity-driven evictions).
+        m_user_on_evict(key);
     }
-
-    shard.lru_list.erase(it->second.lru_iterator);
-    shard.entries.erase(it);
-
-    // Fire the invalidation callback for precomp consumers.
-    // Note: does NOT increment m_evictions or telemetry counter —
-    // erase is a manual removal, not a capacity-driven eviction.
-    // Telemetry counters only track automatic LRU evictions.
-    if (m_on_evict) {
-        m_on_evict(key);
-    }
-    return true;
+    return existed;
 }
 
-// ── clear ────────────────────────────────────────────────────────────────────
+// ── clear ───────────────────────────────────────────────────────────────────
 
 void SceneProgramCache::clear() {
-    for (auto& shard_ptr : m_shards) {
-        std::lock_guard<std::mutex> lock(shard_ptr->mutex);
-        shard_ptr->entries.clear();
-        shard_ptr->lru_list.clear();
-    }
+    m_cache.clear();  // LruCache::clear resets its own hits/misses/evictions.
     m_hits.store(0, std::memory_order_relaxed);
     m_misses.store(0, std::memory_order_relaxed);
     m_evictions.store(0, std::memory_order_relaxed);
 }
 
-// ── stats ────────────────────────────────────────────────────────────────────
+// ── stats ───────────────────────────────────────────────────────────────────
 
-SceneProgramCache::Stats SceneProgramCache::stats() const {
+SceneProgramCache::Stats SceneProgramCache::stats() const noexcept {
     Stats s;
-    s.hits   = m_hits.load(std::memory_order_relaxed);
-    s.misses = m_misses.load(std::memory_order_relaxed);
-    s.evictions = m_evictions.load(std::memory_order_relaxed);
-
-    size_t total_size = 0;
-    for (const auto& shard_ptr : m_shards) {
-        std::lock_guard<std::mutex> lock(shard_ptr->mutex);
-        total_size += shard_ptr->entries.size();
-    }
-    s.current_size = total_size;
+    s.hits         = m_hits.load(std::memory_order_relaxed);
+    s.misses       = m_misses.load(std::memory_order_relaxed);
+    s.evictions    = m_evictions.load(std::memory_order_relaxed);
+    s.current_size = m_cache.stats().current_size;
     return s;
 }
 
-// ── size ─────────────────────────────────────────────────────────────────────
+// ── set_capacity ────────────────────────────────────────────────────────────
 
-size_t SceneProgramCache::size() const {
-    size_t total = 0;
-    for (const auto& shard_ptr : m_shards) {
-        std::lock_guard<std::mutex> lock(shard_ptr->mutex);
-        total += shard_ptr->entries.size();
-    }
-    return total;
-}
-
-// ── set_capacity ─────────────────────────────────────────────────────────────
-
-void SceneProgramCache::set_capacity(size_t new_capacity) {
+void SceneProgramCache::set_capacity(std::size_t new_capacity) {
     if (new_capacity == 0) new_capacity = 1;
     m_capacity = new_capacity;
+    // LruCache::resize evicts LRU-tail entries until the per-shard
+    // capacity_weight fits, firing on_evict for each.  Our bridge lambda
+    // updates m_evictions + telemetry + m_user_on_evict.
+    m_cache.resize(new_capacity);
 
-    // Evict excess entries from each shard if the new capacity is tighter.
-    const size_t per_shard = new_capacity / m_shards.size();
-    for (auto& shard_ptr : m_shards) {
-        std::lock_guard<std::mutex> lock(shard_ptr->mutex);
-        while (shard_ptr->entries.size() > per_shard &&
-               !shard_ptr->lru_list.empty()) {
-            auto evicted_key = shard_ptr->lru_list.back();
-            shard_ptr->entries.erase(evicted_key);
-            shard_ptr->lru_list.pop_back();
-            m_evictions.fetch_add(1, std::memory_order_relaxed);
-            if (m_counters) {
-                m_counters->program_cache_evictions.fetch_add(1, std::memory_order_relaxed);
-            }
-            if (m_on_evict) {
-                m_on_evict(evicted_key);
-            }
-        }
+    if (m_counters) {
+        m_counters->program_cache_capacity.store(new_capacity, std::memory_order_relaxed);
     }
 }
 
-// ── auto_tune ────────────────────────────────────────────────────────────────
+// ── auto_tune ──────────────────────────────────────────────────────────────
 //
-/// Evaluates internal stats and adjusts capacity if auto-tuning is enabled.
-///
-/// Algorithm (applied every `m_tune_config.interval` executions):
-///   1. Compute hit rate = hits / (hits + misses).
-///   2. If evictions > 0 and hit rate < 80% → capacity too small: double it.
-///   3. If zero evictions and hit rate > 95% and capacity > min → over-provisioned: halve it.
-///   4. Reset counters so the next interval measures fresh stats.
-///
-/// The decision uses total (all-shards) counters, not per-shard, so it sees
-/// a holistic view of the cache pressure.
+// Tuning algorithm (preserved from B6 implementation, against the new
+// LruCache::stats() read):
+//   1. Compute hit rate = hits / (hits + misses).
+//   2. If evictions > 0 AND hit_rate < 80%   → capacity too small: double it.
+//   3. Else if evictions > 0 AND miss_ratio > 30% → expand by 50%.
+//   4. Else if no evictions AND hit_rate >= 95% AND cap > min → halve it.
+//   5. Reset counters so the next interval measures fresh data.
+//
+// Threshold values match B6 spec for backward compatibility with
+// tests/render_graph/nodes/test_precomp_node_cache.cpp.
 
 void SceneProgramCache::auto_tune() {
-    if (m_tune_mode != TuneMode::Auto) {
-        return;
-    }
+    if (m_tune_mode != TuneMode::Auto) return;
 
-    const uint64_t total_hits   = m_hits.load(std::memory_order_relaxed);
-    const uint64_t total_misses = m_misses.load(std::memory_order_relaxed);
-    const uint64_t total_evicts = m_evictions.load(std::memory_order_relaxed);
-    const uint64_t total_ops    = total_hits + total_misses;
-    size_t new_cap = m_capacity;
+    const std::size_t total_hits   = m_hits.load(std::memory_order_relaxed);
+    const std::size_t total_misses = m_misses.load(std::memory_order_relaxed);
+    const std::size_t total_evicts = m_evictions.load(std::memory_order_relaxed);
+    const std::size_t total_ops    = total_hits + total_misses;
+    std::size_t new_cap = m_capacity;
 
     if (total_ops == 0) {
-        // No data yet — nothing to tune.
-        return;
+        return;  // no data yet — nothing to tune.
     }
 
-    const double hit_rate = static_cast<double>(total_hits) / static_cast<double>(total_ops);
+    const double hit_rate =
+        static_cast<double>(total_hits) / static_cast<double>(total_ops);
 
-    // Condition 1: evictions present and hit rate low → expand (capacity too small).
+    // Condition 1: evictions present and hit rate low → expand.
     if (total_evicts > 0 && hit_rate < 0.80) {
         new_cap = std::min(m_capacity * 2, m_tune_config.max_capacity);
     }
-    // Condition 2: evictions present AND high miss rate → expand more aggressively.
-    // Only fire when evictions > 0 (proven capacity pressure).  Without evictions
-    // the cache has never been full — expanding would not reduce structural misses.
+    // Condition 2: evictions present AND high miss rate → expand less aggressively.
     else if (total_evicts > 0 && total_misses > 0 &&
              static_cast<double>(total_misses) / static_cast<double>(total_ops) > 0.30) {
         new_cap = std::min(m_capacity + m_capacity / 2, m_tune_config.max_capacity);
@@ -195,12 +178,10 @@ void SceneProgramCache::auto_tune() {
         new_cap = std::max(m_capacity / 2, m_tune_config.min_capacity);
     }
 
-    // Only call set_capacity if we actually changed the target.
     if (new_cap != m_capacity) {
-        const size_t old_cap = m_capacity;
+        const std::size_t old_cap = m_capacity;
         set_capacity(new_cap);
 
-        // Log the tuning decision so users see live feedback in the terminal.
         const double hit_rate_pct = hit_rate * 100.0;
         if (!m_log_label.empty()) {
             spdlog::info(
@@ -211,47 +192,15 @@ void SceneProgramCache::auto_tune() {
                 "SceneProgramCache auto-tuned: {}→{} (evictions={} hit_rate={:.0f}%)",
                 old_cap, new_cap, total_evicts, hit_rate_pct);
         }
-
-        // Update telemetry counter so per-frame FrameTelemetryRecord captures
-        // the evolving capacity (used in the dashboard capacity-trend chart).
-        if (m_counters) {
-            m_counters->program_cache_capacity.store(new_cap, std::memory_order_relaxed);
-        }
     }
 
-    // Reset counters for the next measurement interval.
+    // Reset facade counters for the next measurement interval.  Reset the
+    // LruCache-side counters via clear()?  No — that drops cached entries.
+    // The LruCache's hits/misses/evictions are internal hit/miss/evict
+    // counters that we don't read directly (we use the facade ones).
     m_hits.store(0, std::memory_order_relaxed);
     m_misses.store(0, std::memory_order_relaxed);
     m_evictions.store(0, std::memory_order_relaxed);
-}
-
-// ── evict_one_if_needed ──────────────────────────────────────────────────────
-//
-/// Evicts the single LRU entry if the shard has reached its per-shard capacity.
-/// Called from find_or_compile (template, defined in header) before insertion.
-
-void SceneProgramCache::evict_one_if_needed(Shard& shard) {
-    // Ceil division so that capacity 3 with 2 shards gives per_shard=2.
-    const size_t denom = m_shards.size();
-    const size_t per_shard_cap = std::max(size_t(1),
-        (m_capacity + denom - 1) / denom);
-
-    while (shard.entries.size() >= per_shard_cap &&
-           !shard.lru_list.empty()) {
-        auto evicted_key = shard.lru_list.back();
-        shard.entries.erase(evicted_key);
-        shard.lru_list.pop_back();
-        m_evictions.fetch_add(1, std::memory_order_relaxed);
-
-        // Notify telemetry counters
-        if (m_counters) {
-            m_counters->program_cache_evictions.fetch_add(1, std::memory_order_relaxed);
-        }
-        // Notify precomp invalidation callback
-        if (m_on_evict) {
-            m_on_evict(evicted_key);
-        }
-    }
 }
 
 } // namespace chronon3d::cache
