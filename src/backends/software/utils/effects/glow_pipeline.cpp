@@ -33,22 +33,13 @@ namespace chronon3d::renderer {
 // to keep every TBB worker busy on the typical SpecialName ROI.
 static constexpr int kGlowTbbGrain = 32;
 
-// Falloff LUT.  The single `inline constexpr int kFalloffLutSize = 257;`
-// definition lives in include/chronon3d/effects/glow_pipeline.hpp:180
-// (included above). build_glow_accumulator populates one per call (the
-// falloff exponent is parameter-dependent) and passes its address into
-// accumulate_glow_pass / accumulate_scaled_glow_pass.  256+1 entries
-// give full 8-bit quantization of the trigger alpha (indices 0..255),
-// plus the endpoint 256 used when we accidentally look at the top bit.
-// (Removed redundant cpp-side definition; see commit message for ODR fix.)
-
 // Build the per-call falloff LUT.  `falloff = 1.0f` is an identity map
 // (the trigger is unchanged), and `falloff != 1.0f` produces the shaped
 // alpha lookup we use inside the per-pixel accumulation loop.
 //
 // Exposed at namespace `chronon3d::renderer` scope (NOT anon) so benchmarks
 // and golden tests can call it directly.  Do not use from production code.
-inline void build_falloff_lut(float falloff, float (&lut)[kFalloffLutSize]) noexcept {
+void build_falloff_lut(float falloff, float (&lut)[kFalloffLutSize]) noexcept {
     const float safe_falloff = std::max(0.01f, falloff);
     for (int i = 0; i < kFalloffLutSize; ++i) {
         // Index 256 stays at 1.0 regardless, so a strict >255.0 packed alpha
@@ -56,6 +47,8 @@ inline void build_falloff_lut(float falloff, float (&lut)[kFalloffLutSize]) noex
         lut[i] = std::pow(static_cast<float>(i) / 255.0f, safe_falloff);
     }
 }
+
+
 
 namespace {
 
@@ -472,6 +465,95 @@ void run_bloom_mode(Framebuffer& fb, const GlowPipeline& p,
 }
 
 } // anonymous namespace
+// ── Public per-pass accumulate helpers (renderer-ns scope) ────────────────
+//
+// These are exposed at `chronon3d::renderer` scope so external callers
+// (Google Benchmarks in `tests/bench/micro_benchmarks.cpp`, golden tests)
+// can call them directly.  The shadow copies inside the anonymous namespace
+// below remain for internal callers (run_layer_mode / build_glow_accumulator
+// / run_bloom_mode) so they retain internal linkage and don't pollute global
+// symbol tables.  Do not use from production code — call
+// `GlowPipeline::render` or `renderer::run_glow_pipeline` instead.
+
+void accumulate_glow_pass(Framebuffer& dst, const Framebuffer& src,
+                          const GlowPipeline& p, const float* falloff_lut) {
+    const float falloff = std::max(0.01f, p.falloff);
+    const int w = dst.width();
+    const int h = dst.height();
+    const bool use_lut = (falloff != 1.0f) && (falloff_lut != nullptr);
+    tbb::parallel_for(tbb::blocked_range<int>(0, h, kGlowTbbGrain),
+                      [&](const tbb::blocked_range<int>& range) {
+        for (int y = range.begin(); y < range.end(); ++y) {
+            Color* dst_row = dst.pixels_row(y);
+            const Color* src_row = src.pixels_row(y);
+            for (int x = 0; x < w; ++x) {
+                Color g = src_row[x];
+                if (g.a <= 0.0f) continue;
+
+                float shaped;
+                if (use_lut) {
+                    shaped = lookup_shaped(g.a, falloff_lut);
+                } else {
+                    shaped = g.a;  // falloff == 1.0f → identity
+                }
+                if (g.a > 0.0f) {
+                    const float ratio = shaped / g.a;
+                    g.r *= ratio;
+                    g.g *= ratio;
+                    g.b *= ratio;
+                }
+                g.a = shaped;
+
+                Color& acc = dst_row[x];
+                acc.r += g.r;
+                acc.g += g.g;
+                acc.b += g.b;
+                acc.a = std::max(acc.a, g.a);
+            }
+        }
+    });
+}
+
+void accumulate_scaled_glow_pass(Framebuffer& dst, const Framebuffer& src,
+                                 const GlowPipeline& p, float scale,
+                                 const float* falloff_lut) {
+    const float falloff = std::max(0.01f, p.falloff);
+    const int w = dst.width();
+    const int h = dst.height();
+    const bool use_lut = (falloff != 1.0f) && (falloff_lut != nullptr);
+    tbb::parallel_for(tbb::blocked_range<int>(0, h, kGlowTbbGrain),
+                      [&](const tbb::blocked_range<int>& range) {
+        for (int y = range.begin(); y < range.end(); ++y) {
+            Color* dst_row = dst.pixels_row(y);
+            const float sy = (static_cast<float>(y) + 0.5f) * scale;
+            for (int x = 0; x < w; ++x) {
+                const float sx = (static_cast<float>(x) + 0.5f) * scale;
+                Color g = src.sample(sx, sy, SamplingMode::Bilinear);
+                if (g.a <= 0.0f) continue;
+
+                float shaped;
+                if (use_lut) {
+                    shaped = lookup_shaped(g.a, falloff_lut);
+                } else {
+                    shaped = g.a;  // falloff == 1.0f → identity
+                }
+                if (g.a > 0.0f) {
+                    const float ratio = shaped / g.a;
+                    g.r *= ratio;
+                    g.g *= ratio;
+                    g.b *= ratio;
+                }
+                g.a = shaped;
+
+                Color& acc = dst_row[x];
+                acc.r += g.r;
+                acc.g += g.g;
+                acc.b += g.b;
+                acc.a = std::max(acc.a, g.a);
+            }
+        }
+    });
+}
 
 } // namespace chronon3d::renderer
 
