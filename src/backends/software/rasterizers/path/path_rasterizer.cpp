@@ -19,26 +19,32 @@
 namespace chronon3d::renderer {
 
 raster::BBox compute_path_bbox(const PathShape& path, const Mat4& model, f32 spread) {
-    const auto contours = flatten_path_cached(path);
-    if (contours.empty()) return {0, 0, 0, 0};
+    // PR2: source-of-truth now lives in path_geometry.hpp but stroke
+    // rendering needs the legacy affine-only bbox with `+1.0f` slack,
+    // so we keep the affine-specific loop here and pull the contours
+    // through the unified SharedContours cache (no copy on hit).
+    auto contours = flatten_path_geometry_cached(path);
+    if (!contours || contours->empty()) return {0, 0, 0, 0};
 
     f32 min_x = 1e10f;
     f32 min_y = 1e10f;
     f32 max_x = -1e10f;
     f32 max_y = -1e10f;
     const f32 radius = std::max(0.0f, path.stroke.width * 0.5f) + spread + 1.0f;
+    bool empty = true;
 
-    for (const auto& contour : contours) {
+    for (const auto& contour : *contours) {
         for (const auto& p : contour.points) {
             const Vec2 s = transform_point(model, p);
             min_x = std::min(min_x, s.x - radius);
             min_y = std::min(min_y, s.y - radius);
             max_x = std::max(max_x, s.x + radius);
             max_y = std::max(max_y, s.y + radius);
+            empty = false;
         }
     }
 
-    if (min_x > max_x || min_y > max_y) return {0, 0, 0, 0};
+    if (empty) return {0, 0, 0, 0};
 
     return {
         static_cast<i32>(std::floor(min_x)),
@@ -50,12 +56,15 @@ raster::BBox compute_path_bbox(const PathShape& path, const Mat4& model, f32 spr
 
 void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const Color& stroke_color,
                const RenderState* state) {
-    const auto contours = flatten_path_cached(path);
-    if (contours.empty()) return;
+    // PR2: pull flattened contours from the unified SharedContours
+    // cache (no copy on cache hit).  The local screen_contours vector
+    // below is the affine projection that the pixel loop iterates.
+    auto contours = flatten_path_geometry_cached(path);
+    if (!contours || contours->empty()) return;
 
     std::vector<PathContour> screen_contours;
-    screen_contours.reserve(contours.size());
-    for (const auto& contour : contours) {
+    screen_contours.reserve(contours->size());
+    for (const auto& contour : *contours) {
         PathContour projected;
         projected.closed = contour.closed;
         projected.points.reserve(contour.points.size());
@@ -83,6 +92,14 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
     const f32 radius = std::max(0.0f, path.stroke.width * 0.5f);
     const f32 opacity = stroke_color.a;
     const bool fill_enabled = path.fill.enabled;
+
+    // PR1: prepare trim + dash once outside the per-pixel loop.
+    // Legacy code recomputed trim_polyline_points / dash_polyline_points
+    // for every (x, y, contour) — O(W·H·N) wasted allocations.
+    std::vector<detail::PreparedStrokeContour> prepared_strokes;
+    if (path.stroke.enabled) {
+        prepared_strokes = prepare_stroke_contours(screen_contours, path.stroke);
+    }
 
     for (i32 y = bbox.y0; y < bbox.y1; ++y) {
         Color* row = fb.pixels_row(y);
@@ -141,32 +158,19 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                     stroke_color.b * base_color.b,
                     stroke_color.a * base_color.a
                 };
-                for (const auto& contour : screen_contours) {
-                    if (contour.points.size() < 2) continue;
+                // PR1: iterate over pre-prepared stroke contours; trim + dash
+                // already applied once during prepare_stroke_contours().
+                for (const auto& stroke_contour : prepared_strokes) {
+                    if (stroke_contour.visible_subpaths.empty()) continue;
 
-                    const auto trimmed = trim_polyline_points(
-                        contour.points,
-                        contour.closed,
-                        path.stroke.trim_start,
-                        path.stroke.trim_end);
-                    const auto& pts = trimmed.empty() ? contour.points : trimmed;
-                    if (pts.size() < 2) continue;
-
-                    std::vector<std::vector<Vec2>> sub_polylines;
-                    if (path.stroke.dash_array.empty()) {
-                        sub_polylines.push_back(pts);
-                    } else {
-                        sub_polylines = dash_polyline_points(pts, false, path.stroke.dash_array, path.stroke.dash_offset);
-                    }
-
-                    for (const auto& pts_sub : sub_polylines) {
+                    for (const auto& sub : stroke_contour.visible_subpaths) {
+                        const auto& pts_sub = sub.points;
                         if (pts_sub.size() < 2) continue;
 
-                        const bool closed = path.stroke.dash_array.empty() ? contour.closed : false;
+                        const bool closed = path.stroke.dash_array.empty() ? stroke_contour.source_closed : false;
                         const bool open = !closed;
-                        const bool repeated_start = closed && pts_sub.size() > 2 &&
-                            glm::length(pts_sub.front() - pts_sub.back()) < 1e-4f;
-                        const usize unique_count = repeated_start ? pts_sub.size() - 1 : pts_sub.size();
+                        const bool repeated_start = sub.repeated_start;
+                        const usize unique_count = sub.unique_count;
 
                         for (usize i = 0; i + 1 < pts_sub.size(); ++i) {
                             Vec2 a = pts_sub[i];
@@ -223,6 +227,9 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                             }
                         }
 
+                        // Once any cap/join hit on this sub-path, exit
+                        // the sub-path loop so subsequent sub-paths don't
+                        // double-count pixel coverage.
                         if (hit) {
                             break;
                         }
