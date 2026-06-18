@@ -36,11 +36,12 @@ constexpr PolicyDefaults kDefaults[] = {
     { CacheDomain::Glow,            CacheCapacityUnit::Bytes,     64ULL * 1024ULL * 1024ULL, 2 },  // 64 MiB
 
     // ── Count-limited domains ───────────────────────────────────────────
-    // These use CapacityMode::Count in their LruCache; every entry weighs 1.
-    { CacheDomain::RenderedFrames,  CacheCapacityUnit::Entries,  256, 2 },
-    { CacheDomain::VideoFrames,     CacheCapacityUnit::Entries,   64, 2 },
-    { CacheDomain::ConvertedFrames, CacheCapacityUnit::Entries,    8, 2 },
-    { CacheDomain::ScenePrograms,   CacheCapacityUnit::Entries,    8, 2 },
+    // SceneProgramCache stays count-limited; the others moved to byte-weighted
+    // in PR 3 (byte budgets).
+    { CacheDomain::RenderedFrames,  CacheCapacityUnit::Bytes,   512ULL * 1024ULL * 1024ULL, 2 },  // 512 MiB
+    { CacheDomain::VideoFrames,     CacheCapacityUnit::Bytes,   256ULL * 1024ULL * 1024ULL, 2 },  // 256 MiB
+    { CacheDomain::ConvertedFrames, CacheCapacityUnit::Bytes,   128ULL * 1024ULL * 1024ULL, 2 },  // 128 MiB
+    { CacheDomain::ScenePrograms,   CacheCapacityUnit::Entries,   8,                             2 },
 };
 
 /// Look up the hardcoded default for a domain.

@@ -6,8 +6,8 @@
 //
 // Commit 2 of the cache refactor: previously this was an `unordered_map` with
 // NO eviction (unbounded growth).  After the collapse it is backed by LruCache
-// in CapacityMode::Count with a configurable entry cap resolved centrally by
-// resolve_cache_policy(CacheDomain::RenderedFrames).
+// in CapacityMode::Weight (byte-weighted via Framebuffer::size_bytes()) with
+// capacity resolved centrally by resolve_cache_policy(CacheDomain::RenderedFrames).
 //
 // Breaking API change (zero prod callers currently):
 //   find() now returns std::shared_ptr<Framebuffer> (nullptr on miss) instead

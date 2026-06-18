@@ -54,8 +54,8 @@ std::shared_ptr<Framebuffer> FrameCache::find(const FrameCacheKey& key) {
 }
 
 void FrameCache::store(FrameCacheKey key, Value value) {
-    // Count mode overrides put's weight to 1; we pass 1 explicitly for clarity.
-    m_cache.put(std::move(key), std::move(value), /*weight=*/1);
+    const auto weight = value ? value->size_bytes() : 0;
+    m_cache.put(std::move(key), std::move(value), weight);
 }
 
 bool FrameCache::erase(const FrameCacheKey& key) {

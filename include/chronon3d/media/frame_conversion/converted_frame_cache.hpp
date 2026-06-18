@@ -11,9 +11,10 @@
 // Eviction   = LRU inside a sharded LruCache (Count mode, 2 shards by default).
 //
 // Backed by chronon3d::cache::LruCache<…, std::shared_ptr<Entry>> with
-// CapacityMode::Count.  lookup() returns shared_ptr<const Entry>; a null
-// shared_ptr means miss.  When the cache evicts or is cleared an entry can
-// still outlive eviction if the caller holds its shared_ptr.
+// CapacityMode::Weight (byte-weighted via entry->data_size).  lookup()
+// returns shared_ptr<const Entry>; a null shared_ptr means miss.  When the
+// cache evicts or is cleared an entry can still outlive eviction if the
+// caller holds its shared_ptr.
 //
 // Thread-safety: YES — sharded LRU with per-shard mutex.  Safe to access
 // from multiple encoder threads (one shard per thread typically).
@@ -73,9 +74,10 @@ struct ConvertedFrameCacheEntry {
 ///
 /// Backed by LruCache<ConvertedFrameCacheKey,
 ///                   std::shared_ptr<ConvertedFrameCacheEntry>> in
-/// CapacityMode::Count.  lookup() returns a shared_ptr<const Entry>;
-/// a null shared_ptr means "miss".  Returned shared_ptrs keep the entry
-/// alive even if a subsequent insert would have evicted it.
+/// CapacityMode::Weight (byte-weighted).  lookup() returns a
+/// shared_ptr<const Entry>; a null shared_ptr means "miss".  Returned
+/// shared_ptrs keep the entry alive even if a subsequent insert would
+/// have evicted it.
 ///
 /// Thread-safety: YES — sharded LRU with per-shard mutex.  Multiple
 /// encoder threads can call lookup/insert concurrently.
