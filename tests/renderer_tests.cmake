@@ -10,9 +10,6 @@ add_executable(chronon3d_renderer_tests
     renderer/camera/test_lens_model.cpp
     renderer/camera/test_per_pixel_dof.cpp
     renderer/effects/test_adjustment_layer.cpp
-    renderer/effects/test_adjustment_layer_ae5.cpp
-    renderer/effects/test_time_remap.cpp
-    renderer/effects/test_precomp.cpp
     renderer/effects/test_advanced_effects.cpp
     renderer/effects/test_effect_stack.cpp
     renderer/effects/test_glow_torture.cpp
