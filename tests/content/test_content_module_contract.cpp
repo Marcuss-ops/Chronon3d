@@ -38,6 +38,7 @@ TEST_CASE("2D5 content: core 2.5D scenes are available") {
     CHECK(registry.contains("DofShowcase"));
 }
 
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
 TEST_CASE("2D5 module: camera test compositions are available") {
     register_content_modules();
     CompositionRegistry registry;
@@ -57,6 +58,7 @@ TEST_CASE("2D5 module: camera test compositions are available") {
     CHECK(registry.contains("CameraMultiTargetBoundingBoxFitTest"));
     CHECK(registry.contains("CameraDepthPerspectiveScaleDiagnosticTest"));
 }
+#endif // CHRONON3D_BUILD_DIAGNOSTICS
 
 #endif // CHRONON3D_HAS_CONTENT_2D5
 

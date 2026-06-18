@@ -15,8 +15,10 @@
 namespace chronon3d::content::minimalist   { void register_minimalist_compositions(); }
 namespace chronon3d::content::special_names { void register_special_name_compositions(); }
 namespace chronon3d::content::important_words { void register_important_word_compositions(); }
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
 namespace chronon3d::content::shapes       { void register_shape_compositions(); }
 namespace chronon3d::content::images       { void register_image_compositions(); }
+#endif
 namespace chronon3d::content::anims        { void register_anim_compositions(); }
 namespace chronon3d::content::effects      { void register_effect_compositions(); }
 namespace chronon3d::content::grid         { void register_grid_compositions(); }
@@ -28,8 +30,10 @@ void register_content_modules() {
     content::minimalist::register_minimalist_compositions();
     content::special_names::register_special_name_compositions();
     content::important_words::register_important_word_compositions();
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
     content::shapes::register_shape_compositions();
     content::images::register_image_compositions();
+#endif
     content::anims::register_anim_compositions();
     content::effects::register_effect_compositions();
     content::grid::register_grid_compositions();
