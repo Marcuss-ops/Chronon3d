@@ -16,7 +16,6 @@
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
-#include <chronon3d/scene/registry/camera_motion_registry.hpp>
 
 #include <cmath>
 #include <utility>
@@ -32,9 +31,7 @@ bool compile_camera(const CameraDescriptor& descriptor,
 
     // ── 2. Resolve source ────────────────────────────────────────────────
     if (auto* ref = std::get_if<RegisteredMotionRef>(&descriptor.source)) {
-        // Try the catalog first.
-        std::shared_ptr<const CameraMotion> resolved;
-
+        // Try to resolve via the catalog (CameraMotionRegistry is removed).
         if (catalog) {
             auto* preset_desc = catalog->find_descriptor(ref->id);
             if (preset_desc) {
@@ -63,15 +60,12 @@ bool compile_camera(const CameraDescriptor& descriptor,
             }
         }
 
-        // Fallback to CameraMotionRegistry (backward compat during migration).
-        auto found = CameraMotionRegistry::instance().find(ref->id);
-        if (found) {
-            out_program.resolved_motion_ = found;
-        } else if (!ref->id.empty()) {
+        // CameraMotionRegistry is removed — only the catalog is used.
+        if (!ref->id.empty()) {
             if (out_error) {
                 *out_error = CameraCompileError{
                     CameraCompileError::Kind::MotionNotFound,
-                    "motion '" + ref->id + "' not found in catalog or registry"
+                    "motion '" + ref->id + "' not found in catalog"
                 };
             }
             return false;
@@ -120,10 +114,7 @@ bool compile_camera(const CameraDescriptor& descriptor,
 // builtin_camera_presets() — all 19 legacy presets as CameraDescriptors.
 //
 // These CameraDescriptors use PoseTracksSource or OrbitMotion directly as
-// their source, so compile_camera() can evaluate them without the
-// CameraMotionRegistry. The legacy CameraMotion classes are still registered
-// via register_camera_motion_presets() / register_camera_rig_motions() for
-// backward compat with callers that use CameraMotionRegistry::find().
+// their source, so compile_camera() can evaluate them without any registry.
 // =============================================================================
 
 namespace {
