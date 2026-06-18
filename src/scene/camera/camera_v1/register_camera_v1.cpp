@@ -7,8 +7,6 @@
 #include <chronon3d/scene/camera/camera_v1/register_camera_v1.hpp>
 #include <chronon3d/scene/camera/camera_v1/shot_timeline.hpp>
 #include <chronon3d/scene/registry/camera_constraint_registry.hpp>
-#include <chronon3d/scene/registry/camera_motion_registry.hpp>
-
 
 namespace chronon3d::camera_v1 {
 
@@ -28,18 +26,12 @@ void register_camera_v1_builtins() {
     // compile_camera() in camera_program_compiler.cpp is the recommended path
     // for new code.
 
-    // Freeze all registries so they become read-only + concurrent-safe.
+    // Freeze registries so they become read-only + concurrent-safe.
     auto& cr = CameraConstraintRegistry::instance();
     if (!cr.is_frozen()) cr.freeze();
 
     auto& tr = CameraTransitionRegistry::instance();
     if (!tr.is_frozen()) tr.freeze();
-
-    // Motion registry is freeze-gated on ids().empty() so a fresh registration
-    // survives; once any preset registers (above), this becomes an unconditional
-    // freeze on subsequent calls.
-    auto& mr = CameraMotionRegistry::instance();
-    if (!mr.is_frozen() && !mr.ids().empty()) mr.freeze();
 }
 
 } // namespace chronon3d::camera_v1

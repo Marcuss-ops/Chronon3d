@@ -12,7 +12,7 @@
 //   6. Keep-horizon removes roll but preserves yaw/pitch
 //   7. Banking respects max_roll
 //   8. Program evaluation is deterministic
-//   9. Program has no allocations after compile (compile->evaluate pattern)
+//   9. Program evaluation is deterministic across evaluations
 // ==============================================================================
 #define DOCTEST_CONFIG_SUPER_FAST_ASSERTS
 #include <doctest/doctest.h>
@@ -21,7 +21,6 @@
 #include <chronon3d/scene/camera/camera_v1/camera_trajectory.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_constraint.hpp>
 #include <chronon3d/scene/camera/camera_v1/register_camera_v1.hpp>
-#include <chronon3d/scene/registry/camera_motion_registry.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 
@@ -35,28 +34,6 @@ using namespace chronon3d::camera_v1;
 
 inline bool fuzzy_eq(float a, float b, float tol = 1e-4f) {
     return std::abs(a - b) <= tol;
-}
-
-// Minimal concrete CameraMotion for testing.
-class ProgramDummyMotion final : public CameraMotion {
-    CameraMotionDescriptor desc_;
-public:
-    explicit ProgramDummyMotion(std::string id)
-        : desc_{std::move(id), "test", "dummy", false} {}
-    CameraMotionDescriptor descriptor() const override { return desc_; }
-    Camera2_5D evaluate(const CameraMotionContext&) const override {
-        Camera2_5D cam;
-        cam.position = {42, 42, -42};
-        return cam;
-    }
-};
-
-// Ensure a test motion is registered in the singleton, unless already frozen.
-static void ensure_test_motion_registered() {
-    auto& reg = CameraMotionRegistry::instance();
-    if (!reg.is_frozen() && !reg.has("test.dummy")) {
-        reg.register_motion(std::make_shared<ProgramDummyMotion>("test.dummy"));
-    }
 }
 
 // Minimal static constraint for testing.
@@ -116,41 +93,31 @@ TEST_CASE("trajectory is selected when explicitly set") {
 }
 
 // ==============================================================================
-// 3 — Motion ID is tracked by has_motion() and evaluate works with registered
-//     motions.
+// 3 — Motion ID is tracked by has_motion().
 // ==============================================================================
-TEST_CASE("registered motion evaluates correctly") {
-    // Register test motion BEFORE freeze so it's discoverable.
-    ensure_test_motion_registered();
+TEST_CASE("motion id is tracked by has_motion") {
     register_camera_v1_builtins();
 
-    // Non-existent motion: has_motion() returns false.
-    {
-        CameraProgram prog;
-        prog.motion("camera.does.not.exist");
-        CHECK_FALSE(prog.has_motion());
-    }
+    // Builder path stores id but doesn't resolve (registry removed).
+    CameraProgram prog;
+    prog.motion("camera.hero_push_in");
+    CHECK(prog.has_motion());
 
-    // If our test motion was registered, verify has_motion() + evaluate.
-    auto& reg = CameraMotionRegistry::instance();
-    if (reg.has("test.dummy")) {
-        CameraProgram prog;
-        prog.motion("test.dummy");
-        CHECK(prog.has_motion());
+    // Non-empty id but no registry: evaluate produces diagnostic.
+    Camera2_5D base;
+    base.position = {0, 0, -1000};
+    prog.base(base);
 
-        Camera2_5D base;
-        base.position = {0, 0, -1000};
-        prog.base(base);
-
-        ConstraintSession session;
-        auto result = prog.evaluate(CameraMotionContext::at(0), session);
-        CHECK(result.ok);
-        // DummyMotion returns cam with position (42, 42, -42).
-        CHECK(fuzzy_eq(result.camera.position.x, 42.0f));
-        CHECK(fuzzy_eq(result.camera.position.y, 42.0f));
-        CHECK(fuzzy_eq(result.camera.position.z, -42.0f));
-    }
+    ConstraintSession session;
+    auto result = prog.evaluate(CameraMotionContext::at(0), session);
+    // The old builder path issues a deprecation warning but doesn't crash.
+    CHECK(result.ok);
+    CHECK(fuzzy_eq(result.camera.position.x, 0.0f));
+    CHECK(fuzzy_eq(result.camera.position.z, -1000.0f));
 }
+
+// ==============================================================================
+// 4 — Constraint failure is not swallowed.
 // ==============================================================================
 TEST_CASE("constraint failure is not swallowed") {
     CameraProgram prog;
@@ -283,7 +250,7 @@ TEST_CASE("banking respects max_roll") {
 }
 
 // ==============================================================================
-// 8 — Program evaluation is deterministic (same inputs → same output).
+// 8 — Program evaluation is deterministic (same inputs -> same output).
 // ==============================================================================
 TEST_CASE("program evaluation is deterministic") {
     CameraTrajectoryBuilder b;
@@ -311,10 +278,9 @@ TEST_CASE("program evaluation is deterministic") {
 }
 
 // ==============================================================================
-// 9 — Program evaluation is deterministic across repeated evaluations.
+// 9 — Program evaluation is deterministic across evaluations.
 // ==============================================================================
 TEST_CASE("program evaluation is deterministic across evaluations") {
-    // "Compile" = build the program once.
     CameraProgram prog;
     prog.motion("camera.does.not.exist");  // triggers diagnostic, not throw
     prog.add_constraint(std::make_shared<AlwaysPassConstraint>());
