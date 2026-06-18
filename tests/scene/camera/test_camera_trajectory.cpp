@@ -135,7 +135,22 @@ TEST_CASE("CameraTrajectory Bezier derivative matches finite difference") {
 
 // ==============================================================================
 // 3 — Handle contract uses local offsets.
-// ==============================================================================
+//
+// Convention (locked in by this test, do not change without rewriting the
+// waypoint-based spline spec at src/scene/camera/camera_v1/camera_trajectory.hpp):
+//   bezier_to(in_handle, out_handle, end_pos)
+//   - in_handle is a RELATIVE OFFSET added to end_pos  → CP2 = end_pos + in_handle
+//   - out_handle is a RELATIVE OFFSET attached to end_pos that *will* become
+//     CP1 of the NEXT segment. The current segment's CP1 defaults to the
+//     preceding waypoint's out_handle (zero here, since move_to has no out).
+//
+// For P0=(0,0,-1000).handle_out=(0,0,0) (default after move_to),
+// bezier_to(in=(-100,0,0), out=(100,0,0), P1=(200,0,-1000)):
+//   CP1 = P0 + P0.handle_out  = (0, 0, -1000)
+//   CP2 = P1 + P1.handle_in   = (200-100, 0, -1000) = (100, 0, -1000)
+// Midpoint at t=0.5 of a cubic Bézier is 12.5%·P0 + 37.5%·CP1 + 37.5%·CP2 + 12.5%·P1:
+//   x = 0.125·0 + 0.375·0 + 0.375·100 + 0.125·200 = 62.5
+//=================================================================
 TEST_CASE("CameraTrajectory handle contract uses local offsets") {
     CameraTrajectoryBuilder b;
     b.move_to(make_vec(0,    0, -1000))
@@ -147,16 +162,24 @@ TEST_CASE("CameraTrajectory handle contract uses local offsets") {
     ctx.sample_time = SampleTime::from_frame(15.0, kFps30);
     auto s = tr->sample(ctx);
 
-    // The contract this test enforces: at the midpoint of the segment the
-    // sampled position is strictly between P0 (x=0) and P1 (x=200), the Y
-    // plane is preserved (both endpoints have y=0), and Z is constant along
-    // the segment (all control points have z=-1000). The exact X depends on
-    // the cubic-bezier sampling convention; pinning it to 100.0f turned out
-    // to assert an implementation detail, not the handle-carrying contract.
-    CHECK(s.position.x > 0.0f);
-    CHECK(s.position.x < 200.0f);
+    // Per the convention documented above, the midpoint evaluates to x=62.5.
+    // A wider tolerance accommodates the documented arithmetic; this assertion
+    // pins the contract — any deviation indicates a real source-side change
+    // to the handle-offset semantics and must be reflected in this test header.
+    CHECK(approx(s.position.x, 62.5f, 0.5f));
     CHECK(approx(s.position.y, 0.0f));
     CHECK(approx(s.position.z, -1000.0f));
+
+    // Endpoint parity: handles must not perturb the start/end positions.
+    auto ctx0 = CameraMotionContext::at(Frame{0});
+    ctx0.sample_time = SampleTime::from_frame(0.0, kFps30);
+    auto s0 = tr->sample(ctx0);
+    CHECK(approx_vec(s0.position, make_vec(0, 0, -1000)));
+
+    auto ctx30 = CameraMotionContext::at(Frame{0});
+    ctx30.sample_time = SampleTime::from_frame(30.0, kFps30);
+    auto s30 = tr->sample(ctx30);
+    CHECK(approx_vec(s30.position, make_vec(200, 0, -1000)));
 }
 
 // ==============================================================================

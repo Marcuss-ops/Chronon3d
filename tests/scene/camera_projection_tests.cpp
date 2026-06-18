@@ -24,6 +24,22 @@ TEST_CASE("Camera Projection logic check") {
         CHECK(sp.behind_camera);
     }
 
+    SUBCASE("Coincident point returns finite, behind_camera=true") {
+        // Guard: when the queried world point is numerically coincident with the
+        // camera position, downstream projection can divide by zero and emit
+        // +-Inf / NaN. The guard short-circuits before the divide and emits a
+        // safe ScreenPoint{position=(0,0), depth=0, behind_camera=true}.
+        // Locks in the contract added in src/scene/camera/camera_projection.cpp.
+        ScreenPoint sp = project_world_to_screen(camera.position, camera, viewport);
+        CHECK(sp.behind_camera);
+        CHECK(std::isfinite(sp.position.x));
+        CHECK(std::isfinite(sp.position.y));
+        CHECK(std::isfinite(sp.depth));
+        CHECK_FALSE(std::isnan(sp.position.x));
+        CHECK_FALSE(std::isnan(sp.position.y));
+        CHECK_FALSE(std::isnan(sp.depth));
+    }
+
     SUBCASE("FOV updates projection scaling") {
         camera.projection_mode = Camera2_5DProjectionMode::Fov;
         camera.fov_deg = 90.0f; // wider FOV -> projects to smaller screen space offset
