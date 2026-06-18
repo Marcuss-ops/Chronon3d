@@ -1,3 +1,4 @@
+#include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
@@ -339,6 +340,55 @@ Composition minimalist_text_tilt_out() {
             .key(Frame{115}, Vec3{0.0f, 0.0f, 0.0f}, EasingCurve{Easing::Linear})
             .key(Frame{140}, Vec3{0.0f, 0.0f, 3.0f}, EasingCurve{Easing::InCubic});
     });
+}
+
+// ── Per-domain registration ──────────────────────────────────────────────────
+// Forward-declare image presets from the companion file.
+Composition minimalist_image_fade_in();
+Composition minimalist_image_focus_in();
+Composition minimalist_image_scale_drop();
+Composition minimalist_image_fade_shift_vertical();
+Composition minimalist_image_center_split();
+Composition minimalist_image_reveal_from_bottom();
+Composition minimalist_image_framing_bracket();
+Composition minimalist_image_tracking_breathing();
+Composition minimalist_image_elegant_exit();
+Composition minimalist_image_elastic_slide();
+
+void register_minimalist_compositions() {
+    static bool done = false;
+    if (done) return;
+    done = true;
+    detail::add_builtin_composition("MinimalistTextFadeUp",              minimalist_text_fade_up);
+    detail::add_builtin_composition("MinimalistTextTrackingReveal",     minimalist_text_tracking_reveal);
+    detail::add_builtin_composition("MinimalistTextClipReveal",         minimalist_text_clip_reveal);
+    detail::add_builtin_composition("MinimalistTextFadeDown",           minimalist_text_fade_down);
+    detail::add_builtin_composition("MinimalistTextSoftScale",          minimalist_text_soft_scale);
+    detail::add_builtin_composition("MinimalistTextBlurFocus",          minimalist_text_blur_focus);
+    detail::add_builtin_composition("MinimalistTextSlideLeft",          minimalist_text_slide_left);
+    detail::add_builtin_composition("MinimalistTextSlideRight",         minimalist_text_slide_right);
+    detail::add_builtin_composition("MinimalistTextScalePop",           minimalist_text_scale_pop);
+    detail::add_builtin_composition("MinimalistTextFloatIn",            minimalist_text_float_in);
+    detail::add_builtin_composition("MinimalistTextLetterRise",         minimalist_text_letter_rise);
+    detail::add_builtin_composition("MinimalistTextDriftIn",            minimalist_text_drift_in);
+    detail::add_builtin_composition("MinimalistTextTiltIn",             minimalist_text_tilt_in);
+    detail::add_builtin_composition("MinimalistTextMaskReveal",         minimalist_text_mask_reveal);
+    detail::add_builtin_composition("MinimalistTextSnapPop",            minimalist_text_snap_pop);
+    detail::add_builtin_composition("MinimalistTextFadeAway",           minimalist_text_fade_away);
+    detail::add_builtin_composition("MinimalistTextScaleOut",           minimalist_text_scale_out);
+    detail::add_builtin_composition("MinimalistTextSlideUpOut",         minimalist_text_slide_up_out);
+    detail::add_builtin_composition("MinimalistTextBlurAway",           minimalist_text_blur_away);
+    detail::add_builtin_composition("MinimalistTextTiltOut",            minimalist_text_tilt_out);
+    detail::add_builtin_composition("MinimalistImageFadeIn",            minimalist_image_fade_in);
+    detail::add_builtin_composition("MinimalistImageFocusIn",           minimalist_image_focus_in);
+    detail::add_builtin_composition("MinimalistImageScaleDrop",         minimalist_image_scale_drop);
+    detail::add_builtin_composition("MinimalistImageFadeShiftVertical", minimalist_image_fade_shift_vertical);
+    detail::add_builtin_composition("MinimalistImageCenterSplit",       minimalist_image_center_split);
+    detail::add_builtin_composition("MinimalistImageRevealFromBottom",  minimalist_image_reveal_from_bottom);
+    detail::add_builtin_composition("MinimalistImageFramingBracket",    minimalist_image_framing_bracket);
+    detail::add_builtin_composition("MinimalistImageTrackingBreathing", minimalist_image_tracking_breathing);
+    detail::add_builtin_composition("MinimalistImageElegantExit",       minimalist_image_elegant_exit);
+    detail::add_builtin_composition("MinimalistImageElasticSlide",      minimalist_image_elastic_slide);
 }
 
 } // namespace chronon3d::content::minimalist

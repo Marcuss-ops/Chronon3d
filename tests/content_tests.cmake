@@ -8,7 +8,6 @@ add_executable(chronon3d_content_tests
 target_link_libraries(chronon3d_content_tests
     PRIVATE
         chronon3d_pipeline
-        chronon3d_extension
         chronon3d_scene
         chronon3d_backend_software
         doctest::doctest
@@ -16,7 +15,7 @@ target_link_libraries(chronon3d_content_tests
 target_include_directories(chronon3d_content_tests PRIVATE ${CMAKE_SOURCE_DIR})
 # WHOLE_ARCHIVE removed — content uses explicit ExtensionRegistry registration
 if(CHRONON3D_BUILD_CONTENT)
-    target_link_libraries(chronon3d_content_tests PRIVATE chronon3d_content_registry)
+    target_link_libraries(chronon3d_content_tests PRIVATE chronon3d_content)
     target_include_directories(chronon3d_content_tests PRIVATE ${CMAKE_SOURCE_DIR})
     target_compile_definitions(chronon3d_content_tests PRIVATE CHRONON3D_HAS_CONTENT_MINIMALIST CHRONON3D_HAS_CONTENT_2D5)
 endif()

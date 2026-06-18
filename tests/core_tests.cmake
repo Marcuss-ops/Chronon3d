@@ -64,7 +64,7 @@ add_executable(chronon3d_core_tests
     render_graph/executor/test_framebuffer_lifetime.cpp
     render_graph/builder/test_graph_build_pass_order.cpp
 )
-target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline chronon3d_extension doctest::doctest)
+target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
 
 # Make CMAKE_CURRENT_BINARY_DIR available for ExtensionLoader plugin tests (finds .so files)
 target_compile_definitions(chronon3d_core_tests PRIVATE

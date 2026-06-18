@@ -26,6 +26,9 @@ target_link_libraries(chronon3d_backend_software
         xxHash::xxhash
         tomlplusplus::tomlplusplus
         TBB::tbb
+        # text_run_processor.cpp calls compute_text_run_world_bbox() which
+        # now lives in chronon3d_text_core (text_run_geometry.cpp).
+        chronon3d_text_core
 )
 if(CHRONON3D_USE_BLEND2D)
     target_link_libraries(chronon3d_backend_software PUBLIC blend2d::blend2d)

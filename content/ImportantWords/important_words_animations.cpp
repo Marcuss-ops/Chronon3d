@@ -1,3 +1,4 @@
+#include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
@@ -151,6 +152,17 @@ Composition important_word_trio() {
         build_important_word(s, WORD_WRITER,   PALETTE_COOL,  Frame{84}, Frame{104}, Frame{112}, "writer");
         return s.build();
     });
+}
+
+// ── Per-domain registration ──────────────────────────────────────────────────
+void register_important_word_compositions() {
+    static bool done = false;
+    if (done) return;
+    done = true;
+    detail::add_builtin_composition("ImportantWordDirectorLight", important_word_director_light);
+    detail::add_builtin_composition("ImportantWordActorWarm",     important_word_actor_warm);
+    detail::add_builtin_composition("ImportantWordWriterCool",    important_word_writer_cool);
+    detail::add_builtin_composition("ImportantWordTrio",           important_word_trio);
 }
 
 } // namespace chronon3d::content::important_words
