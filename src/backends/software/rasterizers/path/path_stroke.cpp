@@ -7,6 +7,20 @@
 
 namespace chronon3d::renderer {
 
+// ── PR1: prepare_stroke_contours ────────────────────────────────────
+// Apply trim + dash once for the whole draw_path call, so the per-pixel
+// hot loop can iterate flat prepared data without re-allocating or
+// re-running any geometry preprocessing.  This MUST keep observable
+// behaviour identical to the legacy code that called trim/dash inside
+// the per-pixel loop:
+//   1. if `pts.size() < 2` the contour contributes an empty entry,
+//   2. when trim returns empty we fall back to the original points
+//      (legacy `pts = trimmed.empty() ? contour.points : trimmed`),
+//   3. only subpaths with `size() >= 2` survive into visible_subpaths,
+//   4. repeated_start / unique_count are pre-computed per subpath
+//      using the same closed gate as the legacy pixel loop
+//      (`no_dash && contour.closed`).
+
 f32 segment_coverage(Vec2 p, Vec2 a, Vec2 b, f32 radius) {
     const Vec2 ab = b - a;
     const f32 len_sq = glm::dot(ab, ab);
@@ -156,6 +170,73 @@ std::vector<std::vector<Vec2>> dash_polyline_points(const std::vector<Vec2>& poi
         pattern_idx = (pattern_idx + 1) % pattern.size();
     }
     return result;
+}
+
+std::vector<detail::PreparedStrokeContour> prepare_stroke_contours(
+    const std::vector<PathContour>& screen_contours,
+    const PathStroke& stroke) {
+    std::vector<detail::PreparedStrokeContour> out;
+    out.reserve(screen_contours.size());
+
+    const bool no_dash = stroke.dash_array.empty();
+
+    for (const auto& contour : screen_contours) {
+        detail::PreparedStrokeContour prep;
+        prep.source_closed = contour.closed;
+
+        // Mirror the legacy pixel-loop early-out: contours with fewer
+        // than 2 vertices contribute an empty PreparedStrokeContour that
+        // the rasteriser skips with one cheap emptiness check.
+        if (contour.points.size() < 2) {
+            out.push_back(std::move(prep));
+            continue;
+        }
+
+        // 1. trim (preserving the legacy fallback: empty trimmed vector
+        //    falls back to the original contour points).
+        auto trimmed = trim_polyline_points(
+            contour.points,
+            contour.closed,
+            stroke.trim_start,
+            stroke.trim_end);
+        const auto& pts = trimmed.empty() ? contour.points : trimmed;
+        if (pts.size() < 2) {
+            out.push_back(std::move(prep));
+            continue;
+        }
+
+        // 2. dash (only when configured).  When not dashed the legacy
+        //    produced a single subpath equal to `pts`.
+        std::vector<std::vector<Vec2>> sub_polylines;
+        if (no_dash) {
+            sub_polylines.push_back(pts);
+        } else {
+            sub_polylines = dash_polyline_points(
+                pts, false, stroke.dash_array, stroke.dash_offset);
+        }
+
+        // 3. closed gate for repeated_start / unique_count — identical
+        //    to the per-pixel computation but evaluated once per subpath.
+        const bool sub_closed = no_dash && contour.closed;
+
+        for (auto& sub_pts : sub_polylines) {
+            if (sub_pts.size() < 2) continue;
+
+            const std::vector<Vec2> sub_points = std::move(sub_pts);
+            const bool repeated_start =
+                sub_closed && sub_points.size() > 2 &&
+                glm::length(sub_points.front() - sub_points.back()) < 1e-4f;
+            const std::size_t unique_count =
+                repeated_start ? sub_points.size() - 1 : sub_points.size();
+
+            prep.visible_subpaths.push_back(
+                detail::PreparedSubPath{std::move(sub_points), repeated_start, unique_count});
+        }
+
+        out.push_back(std::move(prep));
+    }
+
+    return out;
 }
 
 } // namespace chronon3d::renderer

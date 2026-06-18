@@ -1,66 +1,39 @@
 #pragma once
 
-#include <chronon3d/cache/lru_cache.hpp>
-#include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/scene/model/shape/shape.hpp>
-#include <cstdint>
-#include <memory>
-#include <vector>
+// PR2: path_cache is now a thin back-compat shim.
+// The actual source-of-truth lives in path_geometry.hpp /
+// path_geometry.cpp (single LRU cache, single world bbox, single
+// hit_test).  This header re-exports the legacy names so existing
+// callers do not need a churn commit.
+
+#include "path_geometry.hpp"
 
 namespace chronon3d::renderer {
 
-using CacheKey = uint64_t;
+// Legacy alias: was `CacheKey` in old path_cache.hpp.
+using CacheKey = PathCacheKey;
 
-struct PathContour {
-    std::vector<Vec2> points;
-    bool closed{false};
-};
-
-CacheKey path_cache_hash_combine(CacheKey seed, CacheKey value);
-CacheKey path_cache_hash_path(const PathShape& path);
-
-template <typename T>
-CacheKey path_cache_hash_value(const T& value) {
-    return static_cast<CacheKey>(std::hash<T>{}(value));
-}
-
-std::vector<PathContour> flatten_to_contours(const PathShape& path);
-
-// ---------------------------------------------------------------------------
-// PathFlattenCache — LRU cache for flattened path contours
-// Speeds up repeated path flattening for paths that don't change between
-// frames (e.g. static shapes, grid backgrounds).
-// ---------------------------------------------------------------------------
-inline cache::LruCache<CacheKey, std::shared_ptr<const std::vector<PathContour>>>&
-path_flatten_cache() {
-    // 16 shards, 64 MB budget, weight = total points * sizeof(Vec2)
-    static cache::LruCache<CacheKey, std::shared_ptr<const std::vector<PathContour>>>
-        cache(64ULL * 1024 * 1024, 16);
-    return cache;
-}
-
-/// Cached version of flatten_to_contours — checks the LRU cache first.
+// Legacy callers may still call flatten_path_cached expecting a copy.
+// The function is preserved as a thin wrapper that dereferences the
+// shared_ptr.  New code should use flatten_path_geometry_cached() and
+// keep the SharedContours to avoid copying the vector.
 inline std::vector<PathContour> flatten_path_cached(const PathShape& path) {
-    const CacheKey hash = path_cache_hash_path(path);
-    auto& cache = path_flatten_cache();
-
-    // Check cache
-    if (auto cached = cache.get(hash)) {
-        return **cached;
-    }
-
-    // Flatten and cache
-    auto contours = std::make_shared<const std::vector<PathContour>>(flatten_to_contours(path));
-
-    // Weight = total points * sizeof(Vec2) + overhead per contour
-    size_t weight = 0;
-    for (const auto& c : *contours) {
-        weight += c.points.size() * sizeof(Vec2) + sizeof(bool);
-    }
-    weight += sizeof(std::vector<PathContour>);
-
-    cache.put(hash, contours, weight);
-    return *contours;
+    auto shared = flatten_path_geometry_cached(path);
+    if (!shared) return {};
+    return *shared;
 }
 
 } // namespace chronon3d::renderer
+
+// ── NOTE ─────────────────────────────────────────────────────────────
+// The following legacy declarations have been REMOVED from this header
+// and now live exclusively in path_geometry.hpp:
+//
+//   * struct PathContour                  → path_geometry.hpp
+//   * using PathCacheKey / CacheKey       → path_geometry.hpp
+//   * path_cache_hash_*  functions        → path_geometry.hpp
+//
+// The legacy `path_flatten_cache()` function-local static LRU and the
+// `g_flatten_cache` global in path_cache.cpp were duplicate cache
+// instances; both have been removed in favour of the single LRU in
+// path_geometry.cpp.
