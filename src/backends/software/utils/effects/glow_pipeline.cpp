@@ -27,8 +27,6 @@
 
 namespace chronon3d::renderer {
 
-namespace {
-
 // TBB grain size for the per-pass loops inside the glow pipeline.
 // Smaller than effect_blur.cpp because the per-row work here is
 // cheaper (one induction step per pixel) and we want enough tasks
@@ -40,12 +38,15 @@ static constexpr int kGlowTbbGrain = 32;
 // accumulate_glow_pass / accumulate_scaled_glow_pass.  256+1 entries
 // give full 8-bit quantization of the trigger alpha (indices 0..255),
 // plus the endpoint 256 used when we accidentally look at the top bit.
-static constexpr int kFalloffLutSize = 257;
+inline constexpr int kFalloffLutSize = 257;
 
 // Build the per-call falloff LUT.  `falloff = 1.0f` is an identity map
 // (the trigger is unchanged), and `falloff != 1.0f` produces the shaped
 // alpha lookup we use inside the per-pixel accumulation loop.
-static inline void build_falloff_lut(float falloff, float (&lut)[kFalloffLutSize]) noexcept {
+//
+// Exposed at namespace `chronon3d::renderer` scope (NOT anon) so benchmarks
+// and golden tests can call it directly.  Do not use from production code.
+inline void build_falloff_lut(float falloff, float (&lut)[kFalloffLutSize]) noexcept {
     const float safe_falloff = std::max(0.01f, falloff);
     for (int i = 0; i < kFalloffLutSize; ++i) {
         // Index 256 stays at 1.0 regardless, so a strict >255.0 packed alpha
@@ -53,6 +54,8 @@ static inline void build_falloff_lut(float falloff, float (&lut)[kFalloffLutSize
         lut[i] = std::pow(static_cast<float>(i) / 255.0f, safe_falloff);
     }
 }
+
+namespace {
 
 [[nodiscard]] inline float lookup_shaped(float alpha, const float* lut) noexcept {
     if (alpha >= 1.0f) return 1.0f;
@@ -101,6 +104,9 @@ static inline void build_falloff_lut(float falloff, float (&lut)[kFalloffLutSize
 // row of `dst`, so the std::max read-modify-write on `acc.a` is safe to run
 // in parallel across rows.  falloff_lut is a per-call, stack-allocated
 // 257-entry array of `pow(i/255, falloff)`; passed by [TBB-friendly] pointer.
+//
+// Exposed at namespace `chronon3d::renderer` scope (NOT anon) so benchmarks
+// and golden tests can call it directly.  Do not use from production code.
 void accumulate_glow_pass(Framebuffer& dst, const Framebuffer& src,
                           const GlowPipeline& p, const float* falloff_lut) {
     const float falloff = std::max(0.01f, p.falloff);

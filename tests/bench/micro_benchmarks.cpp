@@ -4,6 +4,8 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/simd/kernels.hpp>
+#include <chronon3d/cache/framebuffer_pool.hpp>
+#include <chronon3d/effects/glow_pipeline.hpp>
 #include <chronon3d/media/frame_conversion/converted_frame_cache.hpp>
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
 
@@ -546,6 +548,132 @@ void BM_CountersThreadLocalMerge(benchmark::State& state) {
     state.SetComplexityN(state.threads);
 }
 
+// -------------------------------------------------------------------------------------------------------
+// Glow accumulate-pass microbenchmarks
+//
+// Exercises `chronon3d::renderer::accumulate_glow_pass` (the post-blur per-pass
+// accumulator) over a 340×220 ROI that matches the SpecialName composition's
+// typical glow-extended text bbox.  Uses `cache::FramebufferPool` warmup so
+// the cached-path ms is what we measure, not pool-internal allocation cost.
+//
+// Two variants via BENCHMARK_CAPTURE:
+//   /Falloff085  — falloff = 0.85f (default in SpecialName); exercises the
+//                  257-entry falloff LUT path
+//   /Falloff100  — falloff = 1.0f (identity); exercises the LUT fast-skip
+//                  branch (used when falloff == 1.0)
+//
+// Source_fb is populated with a stylized "text-y" alpha mask (radial falloff
+// from the centre, noise in the periphery) so that:
+//   • ~30% of pixels carry non-zero alpha (typical for text bboxes)
+//   • alpha spans 0..255 so the LUT exercises all 256 entries
+// -------------------------------------------------------------------------------------------------------
+
+namespace glow_bench {
+
+constexpr int kBenchRoiW = 340;
+constexpr int kBenchRoiH = 220;
+constexpr int kBenchPxCount = kBenchRoiW * kBenchRoiH;
+
+void populate_text_shaped_alpha_mask(Framebuffer& fb) {
+    fb.clear(Color::transparent());
+    // Two stacked radial gradients at the centre plus a thin top/bottom band
+    // to imitate the ink distribution of a single-line caption rasterised at
+    // ~110px Georgia/Inter Bold.
+    const float cx = static_cast<float>(kBenchRoiW) * 0.5f;
+    const float cy = static_cast<float>(kBenchRoiH) * 0.5f;
+    const float r_outer = std::min(cx, cy) * 0.95f;
+    for (int y = 0; y < kBenchRoiH; ++y) {
+        for (int x = 0; x < kBenchRoiW; ++x) {
+            const float dx = static_cast<float>(x) - cx;
+            const float dy = static_cast<float>(y) - cy;
+            const float r = std::sqrt(dx * dx + std::pow(dy * 2.0f, 2.0f));
+            const float a = std::clamp(1.0f - r / r_outer, 0.0f, 1.0f);
+            if (a > 0.0f) {
+                fb.set_pixel(x, y, Color{1.0f, 1.0f, 1.0f, a});
+            }
+        }
+    }
+    // Sprinkle in some sparse periphery "anti-aliased edge" pixels at low alpha
+    // to exercise the LUT at the bottom entries as well.
+    for (int i = 0; i < kBenchRoiW * 4; ++i) {
+        const int x = (i * 7) % kBenchRoiW;
+        const int y = (i * 11) % kBenchRoiH;
+        const float existing = fb.get_pixel(x, y).a;
+        if (existing == 0.0f) {
+            fb.set_pixel(x, y, Color{1.0f, 1.0f, 1.0f, 12.0f / 255.0f});
+        }
+    }
+}
+
+// Acquire a framebuffer through the pool, falling back to a heap alloc if no
+// pool is currently installed on the profiling thread-local.
+std::shared_ptr<Framebuffer> acquire_pooled(int w, int h) {
+    if (profiling::g_current_framebuffer_pool) {
+        return profiling::g_current_framebuffer_pool->acquire_pooled(
+            w, h,
+            profiling::g_current_framebuffer_pool->shared_from_this(),
+            /*cleared=*/true
+        );
+    }
+    auto fb = std::make_shared<Framebuffer>(w, h);
+    fb->clear(Color::transparent());
+    return fb;
+}
+
+} // namespace glow_bench
+
+// BENCHMARK_CAPTURE picks the falloff value at registration time so we can
+// compare LUT-path vs identity-skip-path on the same machine.
+static void BM_GlowLayerPass(benchmark::State& state, float falloff) {
+    using namespace chronon3d::renderer;
+    using namespace glow_bench;
+
+    // ── Pool warmup: 4 buffers recycled through the pool, then attached as
+    // the profiling thread-local so acquire_temp_framebuffer routes here.
+    auto pool = std::make_shared<cache::FramebufferPool>(/*capacity=*/16);
+    profiling::g_current_framebuffer_pool = pool.get();
+    auto warmup = acquire_pooled(kBenchRoiW, kBenchRoiH);
+    auto src_fb  = acquire_pooled(kBenchRoiW, kBenchRoiH);
+    auto dst_fb  = acquire_pooled(kBenchRoiW, kBenchRoiH);
+    populate_text_shaped_alpha_mask(*src_fb);
+
+    // ── Build the falloff LUT once per benchmark instance (per the patched
+    // glow pipeline: build_falloff_lut is called inside build_glow_accumulator).
+    float falloff_lut[kGlowFalloffLutSize];
+    build_falloff_lut(falloff, falloff_lut);
+
+    // ── GlowPipeline params matching the SpecialName default (radius=18,
+    // color=white-blue, intensity=0.25).  We don't need the blur stage —
+    // accumulate_glow_pass is the inner hot loop we're benching.
+    GlowPipeline p{};
+    p.color = {0.80f, 0.85f, 1.0f, 1.0f};
+    p.radius = 18.0f;
+    p.intensity = 0.25f;
+    p.falloff = falloff;
+    p.softness = 1.0f;
+    p.core_strength = 0.70f;
+    p.aura_strength = 0.35f;
+    p.bloom_strength = 0.18f;
+
+    // Discard warmup result (first TBB partition may pre-allocate worker
+    // structures; we don't want that cost in the timed loop).
+    (void)warmup;
+
+    for (auto _ : state) {
+        dst_fb->clear(Color::transparent());
+        accumulate_glow_pass(*dst_fb, *src_fb, p, falloff_lut);
+        benchmark::DoNotOptimize(dst_fb->get_pixel(0, 0));
+    }
+
+    state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * kBenchPxCount);
+    state.counters["roi_w"] = kBenchRoiW;
+    state.counters["roi_h"] = kBenchRoiH;
+    state.counters["falloff"] = falloff;
+    state.counters["pool_capacity"] = static_cast<double>(pool->capacity());
+
+    profiling::g_current_framebuffer_pool = nullptr;
+}
+
 } // namespace
 
 BENCHMARK(BM_FramebufferClear)->Unit(benchmark::kMillisecond);
@@ -576,3 +704,12 @@ BENCHMARK(BM_CountersThreadLocalMerge)
     ->ThreadRange(1, benchmark::CPUInfo::GetNumPhysicalCores())
     ->Unit(benchmark::kMillisecond)
     ->UseRealTime();
+
+// Glow accumulate-pass microbenchmarks — measure ms/iter for the post-blur
+// accumulator that the glow_pipeline parallelization+LUT patch optimises.
+// /Falloff085 exercises the 257-entry LUT lookup path (default SpecialName).
+// /Falloff100 exercises the fast-skip path (falloff == 1.0 → identity).
+BENCHMARK_CAPTURE(BM_GlowLayerPass, Falloff085, 0.85f)
+    ->Unit(benchmark::kMillisecond);
+BENCHMARK_CAPTURE(BM_GlowLayerPass, Falloff100, 1.0f)
+    ->Unit(benchmark::kMillisecond);
