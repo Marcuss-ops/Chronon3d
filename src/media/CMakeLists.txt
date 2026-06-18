@@ -10,6 +10,8 @@ target_link_libraries(chronon3d_media_interface INTERFACE chronon3d)
 if(CHRONON3D_ENABLE_VIDEO)
     add_library(chronon3d_backend_video STATIC
         frame_conversion/frame_converter.cpp
+        frame_conversion/backends/packed_backend.cpp
+        frame_conversion/backends/swscale_backend.cpp
         frame_conversion/converted_frame_cache.cpp
         frame_conversion/frame_conversion_service.cpp
     )
