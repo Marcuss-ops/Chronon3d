@@ -1,7 +1,7 @@
 // ==============================================================================
 // tests/scene/camera/test_camera_constraints_p5.cpp
 //
-// CameraConstraint P5 tests — migrated to current API (June 2026).
+// CameraConstraint P5 tests — migrated to use factory functions directly.
 //
 // Tests:
 //   1. LookAt produces valid quaternion rotation
@@ -12,7 +12,7 @@
 //   6. Distance fails on coincident camera+target
 //   7. RotationLimit clamps angles
 //   8. Factory creates DampedFollow with custom damping
-//   9. register_default includes all 5 builtins
+//   9. make_*_constraint functions produce non-null constraints
 // ==============================================================================
 #define DOCTEST_CONFIG_SUPER_FAST_ASSERTS
 #include <doctest/doctest.h>
@@ -20,7 +20,6 @@
 #include <tests/helpers/test_math.hpp>
 
 #include <chronon3d/scene/camera/camera_v1/camera_constraint.hpp>
-#include <chronon3d/scene/registry/camera_constraint_registry.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 
@@ -36,9 +35,7 @@ using chronon3d::test::approx;
 // 1 — LookAt produces valid quaternion rotation.
 // ==============================================================================
 TEST_CASE("PR4: LookAt produces valid quaternion rotation") {
-    register_default_camera_constraints();
-    auto& reg = CameraConstraintRegistry::instance();
-    auto c = reg.create("camera.look_at");
+    auto c = make_look_at_constraint();
     REQUIRE(c != nullptr);
 
     Camera2_5D cam;
@@ -60,9 +57,7 @@ TEST_CASE("PR4: LookAt produces valid quaternion rotation") {
 // 2 — LookAt fails on coincident target.
 // ==============================================================================
 TEST_CASE("PR4: LookAt fails on coincident target") {
-    register_default_camera_constraints();
-    auto& reg = CameraConstraintRegistry::instance();
-    auto c = reg.create("camera.look_at");
+    auto c = make_look_at_constraint();
     REQUIRE(c != nullptr);
 
     Camera2_5D cam;
@@ -82,9 +77,7 @@ TEST_CASE("PR4: LookAt fails on coincident target") {
 // 3 — KeepHorizon zeros roll, preserves yaw.
 // ==============================================================================
 TEST_CASE("PR4: KeepHorizon zeros roll") {
-    register_default_camera_constraints();
-    auto& reg = CameraConstraintRegistry::instance();
-    auto c = reg.create("camera.keep_horizon");
+    auto c = make_keep_horizon_constraint();
     REQUIRE(c != nullptr);
 
     Camera2_5D cam;
@@ -102,10 +95,8 @@ TEST_CASE("PR4: KeepHorizon zeros roll") {
 // 4 — DampedFollow uses per-constraint state independently.
 // ==============================================================================
 TEST_CASE("PR4: DampedFollow uses per-constraint state independently") {
-    register_default_camera_constraints();
-    auto& reg = CameraConstraintRegistry::instance();
-    auto c1 = reg.create("camera.damped_follow", DampedFollowParams{0.1f});
-    auto c2 = reg.create("camera.damped_follow", DampedFollowParams{0.9f});
+    auto c1 = make_damped_follow_constraint(DampedFollowParams{0.1f});
+    auto c2 = make_damped_follow_constraint(DampedFollowParams{0.9f});
     REQUIRE(c1 != nullptr);
     REQUIRE(c2 != nullptr);
 
@@ -131,12 +122,10 @@ TEST_CASE("PR4: DampedFollow uses per-constraint state independently") {
 // 5 — Distance constraint clamps camera distance.
 // ==============================================================================
 TEST_CASE("PR4: Distance constraint clamps camera distance") {
-    register_default_camera_constraints();
-    auto& reg = CameraConstraintRegistry::instance();
-    auto c = reg.create("camera.distance", DistanceParams{50.0f, 500.0f});
+    auto c = make_distance_constraint(DistanceParams{50.0f, 500.0f});
     REQUIRE(c != nullptr);
 
-    // Camera at distance 10 → should be pushed to min 50.
+    // Camera at distance 10 -> should be pushed to min 50.
     {
         Camera2_5D cam;
         cam.position = {0, 0, -10};
@@ -148,7 +137,7 @@ TEST_CASE("PR4: Distance constraint clamps camera distance") {
         CHECK(approx(result.camera.position.z, -50.0f, 1.0f));
     }
 
-    // Camera at distance 1000 → should be pulled to max 500.
+    // Camera at distance 1000 -> should be pulled to max 500.
     {
         Camera2_5D cam;
         cam.position = {0, 0, -1000};
@@ -165,9 +154,7 @@ TEST_CASE("PR4: Distance constraint clamps camera distance") {
 // 6 — Distance constraint fails on coincident camera+target.
 // ==============================================================================
 TEST_CASE("PR4: Distance fails on coincident camera+target") {
-    register_default_camera_constraints();
-    auto& reg = CameraConstraintRegistry::instance();
-    auto c = reg.create("camera.distance");
+    auto c = make_distance_constraint();
     REQUIRE(c != nullptr);
 
     Camera2_5D cam;
@@ -186,9 +173,7 @@ TEST_CASE("PR4: Distance fails on coincident camera+target") {
 // 7 — RotationLimit clamps angles.
 // ==============================================================================
 TEST_CASE("PR4: RotationLimit clamps angles") {
-    register_default_camera_constraints();
-    auto& reg = CameraConstraintRegistry::instance();
-    auto c = reg.create("camera.rotation_limit",
+    auto c = make_rotation_limit_constraint(
         RotationLimitParams{30.0f, 90.0f, 10.0f});
     REQUIRE(c != nullptr);
 
@@ -209,11 +194,8 @@ TEST_CASE("PR4: RotationLimit clamps angles") {
 // 8 — Factory creates DampedFollow with custom damping.
 // ==============================================================================
 TEST_CASE("PR4: factory creates DampedFollow with custom damping") {
-    register_default_camera_constraints();
-    auto& reg = CameraConstraintRegistry::instance();
-
-    auto high = reg.create("camera.damped_follow", DampedFollowParams{0.9f});
-    auto low  = reg.create("camera.damped_follow", DampedFollowParams{0.1f});
+    auto high = make_damped_follow_constraint(DampedFollowParams{0.9f});
+    auto low  = make_damped_follow_constraint(DampedFollowParams{0.1f});
     REQUIRE(high != nullptr);
     REQUIRE(low != nullptr);
 
@@ -241,20 +223,14 @@ TEST_CASE("PR4: factory creates DampedFollow with custom damping") {
 }
 
 // ==============================================================================
-// 9 — register_default includes all 5 builtins.
+// 9 — All make_*_constraint functions produce non-null constraints.
 // ==============================================================================
-TEST_CASE("PR4: register_default includes all 5 builtins") {
-    register_default_camera_constraints();
-    auto& reg = CameraConstraintRegistry::instance();
-
-    CHECK(reg.has("camera.look_at"));
-    CHECK(reg.has("camera.keep_horizon"));
-    CHECK(reg.has("camera.damped_follow"));
-    CHECK(reg.has("camera.distance"));
-    CHECK(reg.has("camera.rotation_limit"));
-
-    auto ids = reg.ids();
-    CHECK(ids.size() >= 5);
+TEST_CASE("PR4: all factory functions produce non-null constraints") {
+    CHECK(make_look_at_constraint() != nullptr);
+    CHECK(make_keep_horizon_constraint() != nullptr);
+    CHECK(make_damped_follow_constraint() != nullptr);
+    CHECK(make_distance_constraint() != nullptr);
+    CHECK(make_rotation_limit_constraint() != nullptr);
 }
 
 } // namespace
