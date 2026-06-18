@@ -3,6 +3,9 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/text/text_run.hpp>
+// compute_text_run_world_bbox() lives in the text core so the render graph
+// can compute bounding boxes without linking the software backend.
+#include <chronon3d/text/text_run_geometry.hpp>
 
 namespace chronon3d {
 
@@ -37,14 +40,6 @@ struct TextRunDrawParams {
 [[nodiscard]] bool draw_text_run(
     SoftwareRenderer& renderer,
     TextRunDrawParams& params
-);
-
-/// Compute the world-space bounding box of a text run.
-/// Uses glyph positions, blur, and shadow spread to compute a conservative box.
-[[nodiscard]] raster::BBox compute_text_run_world_bbox(
-    const TextRunShape& shape,
-    const Mat4& model,
-    f32 spread
 );
 
 // ═══════════════════════════════════════════════════════════════════════════

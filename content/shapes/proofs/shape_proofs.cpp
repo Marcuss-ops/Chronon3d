@@ -650,4 +650,16 @@ Composition shape_proofs() {
     });
 }
 
+// Forward-declare from companion file
+Composition shape_motion_proofs();
+
+// ── Per-domain registration ──────────────────────────────────────────────────
+void register_shape_compositions() {
+    static bool done = false;
+    if (done) return;
+    done = true;
+    detail::add_builtin_composition("ShapeProofs",       shape_proofs);
+    detail::add_builtin_composition("ShapeMotionProofs", shape_motion_proofs);
+}
+
 } // namespace chronon3d::content::shapes

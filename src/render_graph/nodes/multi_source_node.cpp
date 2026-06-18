@@ -1,7 +1,7 @@
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
-#include <chronon3d/backends/software/text_run_processor.hpp>
+#include <chronon3d/text/text_run_geometry.hpp>
 #include <chronon3d/text/text_run.hpp>
 #include <spdlog/spdlog.h>
 #include <chronon3d/core/profiling/profiling.hpp>

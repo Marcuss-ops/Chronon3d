@@ -77,7 +77,7 @@ endif()
 add_subdirectory(backends/assets)   # chronon3d_backend_assets
 add_subdirectory(render_graph)      # chronon3d_graph
 add_subdirectory(runtime)           # chronon3d_runtime
-add_subdirectory(extension)         # chronon3d_extension
+# extension removed (PR 7) — ExtensionRegistry was a dead facade
 add_subdirectory(backends/software) # chronon3d_backend_software
 add_subdirectory(scene)             # chronon3d_scene
 add_subdirectory(animations)        # chronon3d_animations
@@ -89,7 +89,6 @@ add_subdirectory(text)              # chronon3d_text_core
 
 add_library(chronon3d_core INTERFACE)
 target_link_libraries(chronon3d_core INTERFACE
-    chronon3d_extension
     chronon3d_assets
     chronon3d_registry
     chronon3d_scene

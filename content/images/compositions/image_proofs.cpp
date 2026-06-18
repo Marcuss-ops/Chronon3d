@@ -244,9 +244,28 @@ Composition image_proofs() {
     });
 }
 
-} // namespace chronon3d::content::images
+// Forward-declare factories from companion files
+Composition img_gradient();
+Composition img_checker();
+Composition img_grid_test();
+Composition img_test_pattern();
+Composition img_shake_zoom();
+Composition img_reference_shake_reveal();
+Composition img_corner_smoothing();
 
-// Compositions are now registered via ImagesModule in images_module.cpp
-// (ExtensionRegistry pattern).  Do NOT also CHRONON_REGISTER_COMPOSITION
-// here or we get duplicate-registration runtime errors from
-// `ExtensionRegistry::register_composition` ("Duplicate composition: ...").
+// ── Per-domain registration ──────────────────────────────────────────────────
+void register_image_compositions() {
+    static bool done = false;
+    if (done) return;
+    done = true;
+    detail::add_builtin_composition("ImgGradient",    img_gradient);
+    detail::add_builtin_composition("ImgChecker",     img_checker);
+    detail::add_builtin_composition("ImgGridTest",    img_grid_test);
+    detail::add_builtin_composition("ImgTestPattern", img_test_pattern);
+    detail::add_builtin_composition("ImgShakeZoom",             img_shake_zoom);
+    detail::add_builtin_composition("ImgReferenceShakeReveal",  img_reference_shake_reveal);
+    detail::add_builtin_composition("ImgCornerSmoothing",       img_corner_smoothing);
+    detail::add_builtin_composition("ImageProofs",    image_proofs);
+}
+
+} // namespace chronon3d::content::images

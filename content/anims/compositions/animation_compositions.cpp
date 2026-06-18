@@ -1,3 +1,4 @@
+#include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
@@ -91,6 +92,49 @@ Composition anim_typewriter() {
         }, ctx.frame);
         return s.build();
     });
+}
+
+// Forward-declare factories from companion files
+Composition anim_slide_up();
+Composition anim_scale_pop();
+Composition anim_blur_focus();
+Composition anim_slide_left();
+Composition anim_bounce_drop();
+Composition anim_typewriter_simple();
+Composition anim_typewriter_cursor();
+Composition anim_typewriter_slide();
+Composition anim_typewriter_glow();
+Composition anim_typewriter_stagger();
+Composition catmull_rom_showcase();
+Composition dolly_zoom_showcase();
+Composition camera_spline_comparison();
+Composition tilt_sweep_title();
+Composition tilt_sweep_title_v2();
+
+// ── Per-domain registration ──────────────────────────────────────────────────
+void register_anim_compositions() {
+    static bool done = false;
+    if (done) return;
+    done = true;
+    detail::add_builtin_composition("AnimFadeInText",          anim_fade_in_text);
+    detail::add_builtin_composition("AnimSlideText",           anim_slide_text);
+    detail::add_builtin_composition("AnimScaleText",           anim_scale_text);
+    detail::add_builtin_composition("AnimTypewriter",          anim_typewriter);
+    detail::add_builtin_composition("AnimSlideUp",             anim_slide_up);
+    detail::add_builtin_composition("AnimScalePop",            anim_scale_pop);
+    detail::add_builtin_composition("AnimBlurFocus",           anim_blur_focus);
+    detail::add_builtin_composition("AnimSlideLeft",           anim_slide_left);
+    detail::add_builtin_composition("AnimBounceDrop",          anim_bounce_drop);
+    detail::add_builtin_composition("AnimTypewriterSimple",    anim_typewriter_simple);
+    detail::add_builtin_composition("AnimTypewriterCursor",    anim_typewriter_cursor);
+    detail::add_builtin_composition("AnimTypewriterSlide",     anim_typewriter_slide);
+    detail::add_builtin_composition("AnimTypewriterGlow",      anim_typewriter_glow);
+    detail::add_builtin_composition("AnimTypewriterStagger",   anim_typewriter_stagger);
+    detail::add_builtin_composition("CatmullRomShowcase",      catmull_rom_showcase);
+    detail::add_builtin_composition("DollyZoomShowcase",       dolly_zoom_showcase);
+    detail::add_builtin_composition("CameraSplineComparison",  camera_spline_comparison);
+    detail::add_builtin_composition("TiltSweepTitle",          tilt_sweep_title);
+    detail::add_builtin_composition("TiltSweepTitleV2",        tilt_sweep_title_v2);
 }
 
 } // namespace chronon3d::content::anims
