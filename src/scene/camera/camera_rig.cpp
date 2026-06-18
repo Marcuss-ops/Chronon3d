@@ -95,11 +95,16 @@ Camera2_5D CameraRig::evaluate(
             }
         }
         // Camera-space distance — correct for orbiting/rotated cameras.
+        // (Preserved here; the ManualDistance path with use_target_z=false
+        // below is the one that consults dof.focus_distance.)
         const f32 focus_dist = glm::length(focus_target_world - pos);
         cam.dof.focus_distance = focus_dist;
         cam.dof.focus_z = focus_target_world.z;
     } else {
         cam.dof.focus_z = dof.focus_z.evaluate(time);
+        // Manual-distance mode: read from the animated focus_distance track,
+        // NOT from any resolved target_distance.
+        cam.dof.focus_distance = dof.focus_distance.evaluate(time);
     }
 
     cam.dof.aperture = dof.aperture.evaluate(time);
@@ -117,7 +122,12 @@ Camera2_5D CameraRig::evaluate(
     cam.dof.focus_distance      = dof.focus_distance.evaluate(time);
     cam.dof.use_physical_model  = dof.use_physical_model;
 
-    // ── Mark camera as animated if any property has keyframes/expressions ────
+    // ── Mark camera as animated if any property has keyframes/expressions OR
+    //    if any external binding (target_name / parent_name / focus_target_name)
+    //    forces the camera to track a moving ancestor layer downstream. ─────
+    //    Without these external-binding checks the camera would falsely report
+    //    is_animated=false even when it follows an animated parent layer,
+    //    breaking cache invalidation and dirty-rect safety. ─────────────────
     cam.is_animated =
         target.is_time_dependent() || orbit_yaw.is_time_dependent() ||
         orbit_pitch.is_time_dependent() || orbit_radius.is_time_dependent() ||
@@ -127,7 +137,10 @@ Camera2_5D CameraRig::evaluate(
         dof.focus_z.is_time_dependent() || dof.aperture.is_time_dependent() || dof.max_blur.is_time_dependent() ||
         dof.focal_length.is_time_dependent() || dof.sensor_width.is_time_dependent() ||
         dof.sensor_height.is_time_dependent() || dof.f_stop.is_time_dependent() ||
-        dof.close_focus.is_time_dependent() || dof.focus_distance.is_time_dependent();
+        dof.close_focus.is_time_dependent() || dof.focus_distance.is_time_dependent() ||
+        !target_name.empty() ||
+        !parent_name.empty() ||
+        (dof.enabled && !dof.focus_target_name.empty());
 
     // ── Propagate motion blur from rig to camera ────────────────────────────
     cam.motion_blur.enabled          = motion_blur.enabled;
