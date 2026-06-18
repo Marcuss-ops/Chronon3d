@@ -34,8 +34,7 @@ Composition make_special_name_comp(const char* name, AnimSetup setup) {
             s.layer("name", [&](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
                 setup(l);
-                // ── Subtle white-blue glow — soft halo around the name ──
-                // ── Subtle white-blue glow — soft halo around the name ──
+                // ── Subtle white-blue glow — bloom-only (skip core+aura for perf) ──
                 l.glow({
                     .enabled = true,
                     .radius = 18.0f,
@@ -43,6 +42,9 @@ Composition make_special_name_comp(const char* name, AnimSetup setup) {
                     .color = {0.80f, 0.85f, 1.0f, 1.0f},
                     .softness = 1.0f,
                     .falloff = 0.85f,
+                    .core_strength = 0.0f,   // skip core pass
+                    .aura_strength = 0.0f,   // skip aura pass
+                    .bloom_strength = 0.80f, // compensate for skipped core+aura
                 });
                 l.text("name", text::centered_text({.text = DEMO_NAME, .font_size = 110.0f, .tracking = 14.0f}));
             });
@@ -141,6 +143,9 @@ Composition special_name_typewriter() {
                 .color = {0.80f, 0.85f, 1.0f, 1.0f},
                 .softness = 1.0f,
                 .falloff = 0.85f,
+                .core_strength = 0.0f,   // skip core pass
+                .aura_strength = 0.0f,   // skip aura pass
+                .bloom_strength = 0.80f, // compensate for skipped core+aura
             });
             chronon3d::content::text::CenterTextOptions opts;
             opts.text      = DEMO_NAME;
