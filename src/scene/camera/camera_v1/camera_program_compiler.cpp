@@ -71,8 +71,8 @@ bool compile_camera(const CameraDescriptor& descriptor,
             return false;
         }
 
-        // For non-empty refs, source is now resolved. For empty refs, use base.
-        out_program.source_ = RefResolvedSource{};
+        // source_ member removed in PR12 — the descriptor source is used
+        // directly by evaluate_compiled_source() without a separate member.
     } else if (auto* traj = std::get_if<TrajectoryMotion>(&descriptor.source)) {
         if (traj->trajectory && traj->trajectory->size() == 0) {
             if (out_error) {
@@ -83,16 +83,7 @@ bool compile_camera(const CameraDescriptor& descriptor,
             }
             return false;
         }
-        // Store the trajectory directly (no registry lookup needed).
-        out_program.source_ = TrajectorySource{traj->trajectory};
-    } else if (std::holds_alternative<StaticCameraSource>(descriptor.source)) {
-        out_program.source_ = StaticCameraSource{};
-    } else if (std::holds_alternative<PoseTracksSource>(descriptor.source)) {
-        // PoseTracksSource is evaluated directly — no registry needed.
-        out_program.source_ = RefResolvedSource{};
-    } else if (std::holds_alternative<OrbitMotion>(descriptor.source)) {
-        // OrbitMotion is evaluated directly — no registry needed.
-        out_program.source_ = RefResolvedSource{};
+        // Trajectory is evaluated directly via evaluate_compiled_source().
     }
 
     // ── 3. Set failure policy ────────────────────────────────────────────
