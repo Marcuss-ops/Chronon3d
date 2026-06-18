@@ -77,8 +77,8 @@ std::shared_ptr<VideoFrame> VideoFrameCache::find(const VideoFrameKey& key) {
 }
 
 void VideoFrameCache::store(VideoFrameKey key, Value value) {
-    // Count mode overrides weight to 1; pass 1 for clarity.
-    m_cache.put(std::move(key), std::move(value), /*weight=*/1);
+    const auto weight = value ? value->size() : 0;
+    m_cache.put(std::move(key), std::move(value), weight);
 }
 
 bool VideoFrameCache::erase(const VideoFrameKey& key) {

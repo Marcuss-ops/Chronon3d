@@ -87,7 +87,8 @@ void ConvertedFrameCache::insert(
         std::memcpy(entry->data.data(), data, data_size);
         entry->data_size = data_size;
     }
-    m_cache.put(key, std::move(entry));
+    const auto weight = entry->data_size;
+    m_cache.put(key, std::move(entry), weight);
 }
 
 std::shared_ptr<const ConvertedFrameCacheEntry>
@@ -99,9 +100,10 @@ ConvertedFrameCache::put_entry(
     entry->key        = std::move(key);
     entry->data       = std::move(data);
     entry->data_size  = entry->data.size();
+    const auto weight = entry->data_size;
     std::shared_ptr<const ConvertedFrameCacheEntry> shared_entry =
         std::static_pointer_cast<const ConvertedFrameCacheEntry>(entry);
-    m_cache.put(entry->key, std::move(entry));
+    m_cache.put(entry->key, std::move(entry), weight);
     return shared_entry;
 }
 

@@ -13,8 +13,8 @@ using namespace chronon3d::video;
 //  LruCache-backed semantics (Commit 3)
 // ---------------------------------------------------------------------------
 
-TEST_CASE("ConvertedFrameCache: defaulted ctor uses policy default (8)") {
-    ConvertedFrameCache cache;  // 0 → resolve_cache_policy(ConvertedFrames) → 8
+TEST_CASE("ConvertedFrameCache: defaulted ctor uses policy default (128 MiB)") {
+    ConvertedFrameCache cache;  // 0 → resolve_cache_policy(ConvertedFrames) → 128 MiB
     CHECK(cache.size() == 0);
     CHECK(cache.hits() == 0);
     CHECK(cache.misses() == 0);
@@ -44,7 +44,7 @@ TEST_CASE("ConvertedFrameCache: explicit cap=5 with num_shards=1 keeps total=5")
     CHECK(cache.stats().evictions == 1);         // and we observed exactly 1
 }
 
-TEST_CASE("ConvertedFrameCache: LRU promotion on hit (count-mode)") {
+TEST_CASE("ConvertedFrameCache: LRU promotion on hit (weight-mode)") {
     ConvertedFrameCache cache(3, /*num_shards=*/1);
 
     const std::vector<uint8_t> payload{0x01};
@@ -99,7 +99,7 @@ TEST_CASE("ConvertedFrameCache: stats() reflects hits/misses/evictions") {
     CHECK(cache.hits() == 2);
     CHECK(cache.size() == 2);
     CHECK(cache.stats().current_size == 2);
-    CHECK(cache.stats().current_weight == 2);  // Count mode → weight == entries
+    CHECK(cache.stats().current_weight == 2);  // Weight mode: 2 entries × 1 byte each = 2
 }
 
 TEST_CASE("ConvertedFrameCache: clear() resets hits/misses/size") {
