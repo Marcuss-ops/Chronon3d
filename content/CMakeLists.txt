@@ -59,4 +59,73 @@ target_link_libraries(chronon3d_content
     PUBLIC chronon3d
 )
 
+# ==============================================================================
+# Diagnostics — separate static target, linked into chronon3d_content ONLY when
+# CHRONON3D_BUILD_DIAGNOSTICS=ON.
+#
+# These .cpp files define the per-domain register_*_compositions() functions
+# that register_content_modules.cpp forward-declares and calls under
+# #ifdef CHRONON3D_BUILD_DIAGNOSTICS.  Keeping them in a separate target means:
+#   - WITH diagnostics:    diagnostics symbols resolve at final link; no
+#                          undefined-reference errors.
+#   - WITHOUT diagnostics: the diagnostics TU simply doesn't exist; the
+#                          orchestrator's #ifdef block is empty so no
+#                          dangling extern symbols either.
+#
+# Sources:
+#   shapes/proofs/shape_proofs.cpp            → register_shape_compositions()
+#   shapes/motion/shape_motion_proofs.cpp     → factory called by the above
+#   images/compositions/image_proofs.cpp      → register_image_compositions()
+#   images/compositions/image_test_patterns.cpp → factories called by the above
+# ==============================================================================
+if(CHRONON3D_BUILD_DIAGNOSTICS)
+    add_library(chronon3d_diagnostics STATIC
+        # ── Shape + motion proofs (called by register_shape_compositions) ──
+        shapes/proofs/shape_proofs.cpp
+        shapes/motion/shape_motion_proofs.cpp
+
+        # ── Image proofs + test patterns (called by register_image_compositions) ──
+        images/compositions/image_proofs.cpp
+        images/compositions/image_test_patterns.cpp
+
+        # ── 2.5D camera diagnostic suite (called by register_2d5_compositions
+        # under #ifdef CHRONON3D_BUILD_DIAGNOSTICS) ──
+        2d5/compositions/camera_calibration_scene.cpp
+        2d5/compositions/camera_test_orchestrator.cpp
+        2d5/compositions/camera_advanced_tests_rig.cpp
+        2d5/compositions/camera_advanced_tests_scene.cpp
+        2d5/compositions/camera_advanced_tests_diag.cpp
+        2d5/compositions/camera_near_plane_test.cpp
+        2d5/compositions/camera_pitch_tests.cpp
+        2d5/compositions/camera_floor_grid_test.cpp
+
+        # ── 2.5D reference suite (called by register_effect_compositions
+        # under #ifdef CHRONON3D_BUILD_DIAGNOSTICS) ──
+        effects/ref_2_5d/reference_2_5d_suite_scenes.cpp
+        effects/ref_2_5d/reference_2_5d_suite_cards.cpp
+
+        # ── Glow V2 A/B tests (called by register_effect_compositions
+        # under #ifdef CHRONON3D_BUILD_DIAGNOSTICS) ──
+        effects/glow/glow_v2_ab_tests.cpp
+
+        # ── Camera spline comparison (called by register_anim_compositions
+        # under #ifdef CHRONON3D_BUILD_DIAGNOSTICS) ──
+        anims/compositions/camera_spline_comparison.cpp
+    )
+
+    target_include_directories(chronon3d_diagnostics PRIVATE ${CMAKE_SOURCE_DIR})
+    target_link_libraries(chronon3d_diagnostics
+        PUBLIC chronon3d
+    )
+
+    # PRIVATE: the diagnostic Composition factories (camera_*_test, etc.)
+    # are only consumed internally by the orchestrator TUs in chronon3d_content
+    # (two_point_five_d_compositions.cpp, glow_02_orb_galaxy.cpp,
+    # animation_compositions.cpp, register_content_modules.cpp) which call them
+    # under #ifdef CHRONON3D_BUILD_DIAGNOSTICS guards.
+    # Downstream consumers of chronon3d::content never see these symbols
+    # because the orchestrator TUs in the content library are the only callers.
+    target_link_libraries(chronon3d_content PRIVATE chronon3d_diagnostics)
+endif()
+
 add_library(chronon3d::content ALIAS chronon3d_content)
