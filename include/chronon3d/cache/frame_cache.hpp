@@ -6,8 +6,8 @@
 //
 // Commit 2 of the cache refactor: previously this was an `unordered_map` with
 // NO eviction (unbounded growth).  After the collapse it is backed by LruCache
-// in CapacityMode::Count with a configurable entry cap (default 256, tunable
-// via Config::frame_cache_max_entries / CHRONON3D_FRAME_CACHE_MAX_ENTRIES).
+// in CapacityMode::Count with a configurable entry cap resolved centrally by
+// resolve_cache_policy(CacheDomain::RenderedFrames).
 //
 // Breaking API change (zero prod callers currently):
 //   find() now returns std::shared_ptr<Framebuffer> (nullptr on miss) instead
@@ -51,9 +51,8 @@ public:
     using Value = std::shared_ptr<Framebuffer>;
 
     /// Construct a cache with up to `max_entries` entries split across
-    /// `num_shards` shards.  When `max_entries == 0` the cap is read from
-    /// Config::get().frame_cache_max_entries; if that is also 0, a hardcoded
-    /// fallback (256 entries) is used.
+    /// `num_shards` shards.  When `max_entries == 0` the cap is resolved
+    /// centrally via resolve_cache_policy(CacheDomain::RenderedFrames).
     explicit FrameCache(size_t max_entries = 0, size_t num_shards = 2);
     FrameCache(FrameCache&&) noexcept = default;
     FrameCache& operator=(FrameCache&&) noexcept = default;

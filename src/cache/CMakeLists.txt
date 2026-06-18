@@ -3,6 +3,7 @@
 # ==============================================================================
 
 add_library(chronon3d_cache STATIC
+    cache_policy.cpp
     frame_cache.cpp
     node_cache.cpp
     framebuffer_pool.cpp

@@ -1,6 +1,6 @@
 #include <chronon3d/media/frame_conversion/converted_frame_cache.hpp>
+#include <chronon3d/cache/cache_policy.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
-#include <chronon3d/core/config.hpp>
 #include <cstring>
 
 namespace chronon3d::video {
@@ -36,24 +36,11 @@ std::size_t ConvertedFrameCacheKeyHash::operator()(
 //  Helpers
 // ---------------------------------------------------------------------------
 
-namespace {
-
-/// Hardcoded fallback when both the caller's argument and Config are zero.
-/// Matches the pre-LruCache default — 8 entries covers ±4 frame seek
-/// without recomputing.  Kept as a TU-private symbol so it does not
-/// collide with sibling caches under Unity Build.
-constexpr std::size_t kConvertedFrameCacheDefaultFallback = 8;
-
-std::size_t resolve_converted_frame_cache_max_entries(std::size_t caller_value) {
-    if (caller_value > 0) return caller_value;
-    const auto v = chronon3d::Config::get().converted_frame_cache_max_entries;
-    return v > 0 ? v : kConvertedFrameCacheDefaultFallback;
-}
-
-} // namespace
-
 std::size_t ConvertedFrameCache::resolve_max_entries(std::size_t caller_value) {
-    return resolve_converted_frame_cache_max_entries(caller_value);
+    return resolve_cache_policy(
+        cache::CacheDomain::ConvertedFrames,
+        caller_value > 0 ? std::optional<std::size_t>(caller_value) : std::nullopt
+    ).capacity;
 }
 
 // ---------------------------------------------------------------------------
@@ -66,7 +53,7 @@ ConvertedFrameCache::ConvertedFrameCache(
     : m_cache(
         /*capacity_weight=*/resolve_max_entries(max_entries),
         /*num_shards=*/num_shards,
-        /*mode=*/chronon3d::cache::CapacityMode::Count,
+        /*mode=*/cache::capacity_mode_for(cache::CacheDomain::ConvertedFrames),
         /*on_evict=*/{})
 {
 }

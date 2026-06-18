@@ -85,9 +85,8 @@ public:
         std::size_t current_size{0};
     };
 
-    /// Hardcoded fallback used when neither the ctor argument nor
-    /// Config::get().scene_program_cache_max_entries supply a value.
-    static constexpr std::size_t kDefaultEntryCap = 8;
+    /// Capacity is resolved centrally by
+    /// resolve_cache_policy(CacheDomain::ScenePrograms).
 
     /// Construct with an explicit cap.  Pass 0 to defer to Config+env.
     /// `num_shards` defaults to 2 (preserves pre-Commit-4 behaviour).
@@ -203,10 +202,8 @@ public:
     }
 
 private:
-    /// Compute the effective entry cap: caller arg > 0 → that;
-    /// otherwise Config::get().scene_program_cache_max_entries > 0 → that;
-    /// otherwise kDefaultEntryCap.  Mirrors the helpers in FrameCache /
-    /// VideoFrameCache / ConvertedFrameCache from Commits 1-3.
+    /// Capacity resolution (caller-arg > Config/env > policy default).
+    /// Delegates to the centralized resolve_cache_policy(CacheDomain::ScenePrograms).
     static std::size_t resolve_max_entries(std::size_t caller_value);
 
     /// The actual storage.  Backed by LruCache in Count mode (every entry
