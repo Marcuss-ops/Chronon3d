@@ -1,8 +1,5 @@
 #include "sqlite_telemetry_store_impl.hpp"
 
-#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
-#include <sqlite3.h>
-
 namespace chronon3d::telemetry {
 
 SqliteTelemetryStore::SqliteTelemetryStore()
@@ -537,4 +534,3 @@ bool SqliteTelemetryStore::write_image_events(const std::string& run_id, const s
 }
 
 } // namespace chronon3d::telemetry
-#endif

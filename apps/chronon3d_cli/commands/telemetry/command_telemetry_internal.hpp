@@ -10,7 +10,6 @@ std::string format_bytes(uint64_t bytes);
 std::string format_ms(double value);
 } // namespace chronon3d::cli
 
-#if defined(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 #include <sqlite3.h>
 #include <sstream>
@@ -32,4 +31,3 @@ RunSummary query_run_summary(sqlite3* db, const std::string& run_id);
 void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::string& run_id, const RunSummary& run);
 
 } // namespace chronon3d::cli
-#endif

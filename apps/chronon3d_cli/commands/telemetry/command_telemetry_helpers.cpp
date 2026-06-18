@@ -21,7 +21,6 @@ std::string format_ms(double value) {
 
 } // namespace chronon3d::cli
 
-#if defined(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
 #include <sqlite3.h>
 
 namespace chronon3d::cli {
@@ -119,4 +118,3 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
 }
 
 } // namespace chronon3d::cli
-#endif
