@@ -80,29 +80,18 @@ struct ConvertedFrameCacheEntry {
 /// Thread-safety: YES — sharded LRU with per-shard mutex.  Multiple
 /// encoder threads can call lookup/insert concurrently.
 ///
-/// Capacity resolution (priority: explicit ctor arg > config > hardcoded
-/// fallback of 8 entries, which covers ±4 frame seek without recomputing).
+/// Capacity resolution: explicit ctor arg > Config/env > hardcoded
+/// default (centralized in resolve_cache_policy for ConvertedFrames).
 class ConvertedFrameCache {
 public:
-    /// Hardcoded fallback used when neither the caller's ctor argument nor
-    /// Config::get().converted_frame_cache_max_entries supply a value.
-    /// 8 entries covers ±4 frame seek without recomputing.
-    static constexpr std::size_t kDefaultEntryCap = 8;
-
-    /// Hardcoded fallback shard count.
-    /// 2 shards strike a balance between per-thread parallelism and
-    /// bookkeeping overhead; tests that need strict "evict at N" semantics
-    /// can pass num_shards=1 to keep the total cap equal to N.
-    static constexpr std::size_t kDefaultNumShards = 2;
 
     /// Construct with an explicit max-entries cap.  Pass 0 to defer to
-    /// Config::get().converted_frame_cache_max_entries (env override
-    /// CHRONON3D_CONVERTED_FRAME_CACHE_MAX_ENTRIES) or the hardcoded
-    /// fallback.  `num_shards` defaults to 2; tests may pass 1 when
-    /// the per-shard split would otherwise hide the expected eviction.
+    /// resolve_cache_policy(CacheDomain::ConvertedFrames).
+    /// `num_shards` defaults to 2; tests may pass 1 when the per-shard
+    /// split would otherwise hide the expected eviction.
     explicit ConvertedFrameCache(
         std::size_t max_entries = 0,
-        std::size_t num_shards  = kDefaultNumShards);
+        std::size_t num_shards  = 2);
 
     /// Look up a key.  Returns nullptr-shared_ptr on miss.
     /// On hit returns a shared_ptr<const Entry> that keeps the entry
@@ -143,7 +132,8 @@ public:
 
 private:
     /// Resolve the max entries: max_entries > 0 ? max_entries :
-    /// Config::get().converted_frame_cache_max_entries > 0 ? that : kDefaultEntryCap.
+    /// Config::get().converted_frame_cache_max_entries > 0 ? that : policy default.
+    /// Delegates to the centralized resolve_cache_policy(CacheDomain::ConvertedFrames).
     static std::size_t resolve_max_entries(std::size_t caller_value);
 
     chronon3d::cache::LruCache<

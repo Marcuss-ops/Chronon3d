@@ -7,8 +7,8 @@
 //
 // Commit 2 of the cache refactor: previously this was an `unordered_map` with
 // NO eviction (unbounded growth).  After the collapse it is backed by LruCache
-// in CapacityMode::Count with a configurable entry cap (default 64, tunable
-// via Config::video_frame_max_entries / CHRONON3D_VIDEO_FRAME_MAX_ENTRIES).
+// in CapacityMode::Count with a configurable entry cap resolved centrally by
+// resolve_cache_policy(CacheDomain::VideoFrames).
 //
 // Breaking API change (zero prod callers currently):
 //   find() now returns std::shared_ptr<VideoFrame> (nullptr on miss) instead
@@ -81,7 +81,9 @@ class VideoFrameCache {
 public:
     using Value = std::shared_ptr<VideoFrame>;
 
-    /// See FileCache ctor for Config-driven fallback semantics.
+    /// See FrameCache ctor for Config-driven fallback semantics.
+    /// When `max_entries == 0` the cap is resolved centrally via
+    /// resolve_cache_policy(CacheDomain::VideoFrames).
     explicit VideoFrameCache(size_t max_entries = 0, size_t num_shards = 2);
     VideoFrameCache(VideoFrameCache&&) noexcept = default;
     VideoFrameCache& operator=(VideoFrameCache&&) noexcept = default;

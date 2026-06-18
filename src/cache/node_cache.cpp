@@ -1,5 +1,5 @@
 #include <chronon3d/cache/node_cache.hpp>
-#include <chronon3d/core/config.hpp>
+#include <chronon3d/cache/cache_policy.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <spdlog/spdlog.h>
 #include <cstdlib>
@@ -18,15 +18,6 @@ template <typename T>
 }
 
 } // namespace node_cache_detail
-
-namespace {
-
-size_t resolve_default_capacity(size_t fallback) {
-    auto max_bytes = Config::get().node_cache_max_bytes;
-    return max_bytes > 0 ? max_bytes : fallback;
-}
-
-} // namespace
 
 u64 NodeCacheKey::digest() const {
     u64 seed = node_cache_detail::hash_string(scope);
@@ -47,7 +38,11 @@ u64 NodeCacheKey::digest() const {
 }
 
 NodeCache::NodeCache(size_t capacity_bytes)
-    : m_cache(capacity_bytes > 0 ? capacity_bytes : resolve_default_capacity(2048ULL * 1024ULL * 1024ULL), 2) {}
+    : m_cache(
+          resolve_cache_policy(CacheDomain::Nodes,
+                               capacity_bytes > 0 ? std::optional<std::size_t>(capacity_bytes) : std::nullopt).capacity,
+          2,
+          capacity_mode_for(CacheDomain::Nodes)) {}
 
 std::shared_ptr<Framebuffer> NodeCache::get(const NodeCacheKey& key) {
     auto val = m_cache.get(key);
