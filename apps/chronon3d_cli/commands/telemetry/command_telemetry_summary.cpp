@@ -1,6 +1,5 @@
 #include "command_telemetry_internal.hpp"
 
-#if defined(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
 #include <sqlite3.h>
 #include <string>
 #include <unordered_map>
@@ -175,4 +174,3 @@ RunSummary query_run_summary(sqlite3* db, const std::string& run_id) {
 }
 
 } // namespace chronon3d::cli
-#endif
