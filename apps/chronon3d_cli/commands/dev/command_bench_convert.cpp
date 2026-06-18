@@ -122,10 +122,7 @@ static BenchResult run_swscale_bench(
             .range = video::ColorRange::Limited,
             .apply_gamma = apply_gamma,
         };
-        if (fmt_name == "yuv420p")
-            video::convert_rgba_to_yuv420p_swscale(creq);
-        else
-            video::convert_rgba_to_nv12_swscale(creq);
+        video::convert_frame(creq);
 
         total_ns += now_ns() - t0;
     }
