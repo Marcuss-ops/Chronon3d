@@ -1,7 +1,10 @@
 #include "../../command_registry.hpp"
 #include "../../commands.hpp"
 #include "../../utils/common/cli_utils.hpp"
+#include <chronon3d/cache/cache_diagnostics.hpp>
+#include <fmt/format.h>
 #include <memory>
+#include <string>
 
 namespace chronon3d::cli {
 
@@ -69,11 +72,20 @@ void register_bench_convert(CLI::App& app, CliContext& ctx) {
 // each helper adds its subcommand directly to the provided `app`.  Must live
 // OUTSIDE the anonymous namespace above so it has external linkage and the
 // linker can resolve calls from group_dev.cpp / command_registry.cpp.
+void register_cache_stats(CLI::App& app, CliContext& ctx) {
+    auto* cmd = app.add_subcommand("cache-stats", "Print live cache diagnostics snapshot");
+    cmd->callback([&ctx]() {
+        fmt::print("{}", chronon3d::cache::format_cache_snapshot());
+        ctx.exit_code = 0;
+    });
+}
+
 void register_dev_commands(CLI::App& app, CliContext& ctx) {
     register_watch(app, ctx);
     register_render_all(app, ctx);
     register_batch(app, ctx);
     register_bench_convert(app, ctx);
+    register_cache_stats(app, ctx);
 }
 
 }  // namespace chronon3d::cli

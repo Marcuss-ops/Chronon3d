@@ -2,6 +2,7 @@
 #include "../telemetry/telemetry_run.hpp"
 #include "report/render_job_report.hpp"
 
+#include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/telemetry/telemetry_bundle.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -41,6 +42,9 @@ bool finalize_render_job(
     profiling::Clock::time_point loop_t1)
 {
     spdlog::info("Render complete.");
+
+    // ── Cache diagnostics snapshot ──────────────────────────────────
+    spdlog::info("\n{}", chronon3d::cache::format_cache_snapshot());
 
     const auto wall_t1 = profiling::now();
     const double wall_time_ms = profiling::duration_ms(setup.wall_t0, wall_t1);
