@@ -208,4 +208,3 @@ static void BM_Matte_Luma_Small(benchmark::State& state) {
 }
 BENCHMARK(BM_Matte_Luma_Small)->Unit(benchmark::kMicrosecond);
 
-BENCHMARK_MAIN();

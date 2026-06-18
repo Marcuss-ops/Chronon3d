@@ -179,7 +179,7 @@ struct GlowPipeline {
 namespace chronon3d::renderer {
 inline constexpr int kFalloffLutSize = 257;
 
-inline void build_falloff_lut(float falloff,
+void build_falloff_lut(float falloff,
                               float (&lut)[kFalloffLutSize]) noexcept;
 
 void accumulate_glow_pass(Framebuffer& dst, const Framebuffer& src,

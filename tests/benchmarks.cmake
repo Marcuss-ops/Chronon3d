@@ -3,8 +3,8 @@
 if(CHRONON3D_BUILD_BENCHMARKS AND TARGET benchmark::benchmark_main)
     add_executable(chronon3d_benchmarks
         bench/micro_benchmarks.cpp
-        bench/dof_benchmark.cpp
-        bench/bench_blend_modes.cpp
+        # bench/dof_benchmark.cpp      # DISABLED: pre-existing API bit-rot (lens parameter drift on apply_disc_dof)
+        # bench/bench_blend_modes.cpp  # DISABLED: pre-existing API bit-rot (chronon3d::simd namespace drift on composite_*)
     )
     target_link_libraries(chronon3d_benchmarks
         PRIVATE

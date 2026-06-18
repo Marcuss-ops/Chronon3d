@@ -260,4 +260,3 @@ BENCHMARK(BM_DofSeparable)
     ->Args({1920, 1080, 20})->Args({1920, 1080, 40})
     ->Unit(benchmark::kMillisecond)->Name("DofSeparable_1920x1080");
 
-BENCHMARK_MAIN();
