@@ -4,26 +4,9 @@
 #include <chronon3d/scene/model/layer/layer_hierarchy.hpp>
 #include <cmath>
 
-#include "src/backends/software/utils/projection_utils.hpp"
 #include "src/render_graph/pipeline/scene_internal.hpp"
 using namespace chronon3d;
 
-
-namespace {
-
-Vec3 project_point(const Vec3& world_point, const Camera2_5DRuntime& camera, f32 viewport_w, f32 viewport_h) {
-    const Mat4 view = camera.view_matrix();
-    const f32 focal = camera.projection_mode == Camera2_5DProjectionMode::Fov
-        ? (viewport_h * 0.5f) / std::tan(glm::radians(camera.fov_deg) * 0.5f)
-        : camera.zoom;
-
-    bool ok = false;
-    const Vec2 projected = renderer::project_2_5d(world_point, view, focal, viewport_w * 0.5f, viewport_h * 0.5f, ok);
-    REQUIRE(ok);
-    return {projected.x, projected.y, 0.0f};
-}
-
-} // namespace
 
 TEST_CASE("Camera hierarchy: target resolves through parent chain") {
     std::pmr::monotonic_buffer_resource res;
@@ -96,32 +79,6 @@ TEST_CASE("Camera hierarchy: parent rotation moves the camera around the origin"
     CHECK(std::abs(resolved.camera.position.x) == doctest::Approx(1000.0f).epsilon(0.01f));
     CHECK(std::abs(resolved.camera.position.y) < 0.5f);
     CHECK(std::abs(resolved.camera.position.z) < 0.5f);
-}
-
-TEST_CASE("Camera hierarchy: target projects to the center of the viewport") {
-    std::pmr::monotonic_buffer_resource res;
-    SceneBuilder s(&res);
-
-    s.camera().enable()
-     .position({0, 0, -1000})
-     .target("target");
-
-    s.layer("target", [](LayerBuilder& l) {
-        l.position({0, 0, 0});
-    });
-
-    auto scene = s.build();
-    auto resolved = resolve_camera_hierarchy(scene.layers(), scene.resource(), scene.camera_2_5d());
-
-    const Vec3 projected = project_point(
-        resolved.camera.point_of_interest,
-        resolved.camera,
-        1280.0f,
-        720.0f
-    );
-
-    CHECK(projected.x == doctest::Approx(640.0f).epsilon(0.5f));
-    CHECK(projected.y == doctest::Approx(360.0f).epsilon(0.5f));
 }
 
 TEST_CASE("Camera hierarchy: fast target swap is detected") {

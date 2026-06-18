@@ -28,6 +28,7 @@ add_executable(chronon3d_renderer_tests
     render_graph/features/test_unified_transform_path.cpp
     backends/software/sampling/test_sampler2d.cpp
     backends/software/text_run_processor_tests.cpp
+    backends/software/utils/test_projection_utils.cpp
     render_graph/features/test_transition.cpp
     registry/test_registries.cpp
     cache/test_cache_sharding.cpp
