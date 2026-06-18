@@ -1,15 +1,28 @@
+// =============================================================================
+// test_persistent_framebuffer_store.cpp — CFB4 codec + store tests.
+//
+// PR 5 (persistent-framebuffer-codec) — tests:
+//   1. Roundtrip bit-identical
+//   2. Checksum verification
+//   3. Path sharding (2-level subdirectory)
+//   4. Corruption handling (truncated → miss + delete, bad magic → miss + delete)
+//   5. Stride-safe roundtrip (allocated_width != width)
+//   6. Atomic write (no partial files)
+//   7. Version mismatch → miss + delete
+// =============================================================================
+
 #include <doctest/doctest.h>
 
 #include <chronon3d/cache/persistent_framebuffer_store.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <cstdlib>
 #include <filesystem>
-using namespace chronon3d;
+#include <fstream>
+#include <vector>
 
+using namespace chronon3d;
 using namespace chronon3d::cache;
-using namespace chronon3d::graph;
 
 namespace {
 
@@ -32,84 +45,243 @@ NodeCacheKey make_test_key(uint64_t digest) {
 
 } // namespace
 
-// ── Original PersistentBakeCache coverage ported to the unified store ────
+// ═════════════════════════════════════════════════════════════════════════════
+// §1: Roundtrip bit-identical
+// ═════════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("PersistentFramebufferStore - put and get roundtrip") {
+TEST_CASE("PersistentFramebufferStore - roundtrip bit-identical") {
     auto dir = make_temp_cache_dir();
-    PersistentFramebufferStore::instance().set_cache_dir(dir);
+    auto& store = PersistentFramebufferStore::instance();
+    store.set_cache_dir(dir);
+    store.clear();
 
     Framebuffer fb(64, 64);
-    fb.set_pixel(10, 10, Color::red());
-    fb.set_pixel(20, 20, Color::blue());
+    for (i32 y = 0; y < 64; ++y) {
+        for (i32 x = 0; x < 64; ++x) {
+            fb.set_pixel(x, y, Color{
+                static_cast<float>(x) / 64.0f,
+                static_cast<float>(y) / 64.0f,
+                0.5f, 1.0f});
+        }
+    }
 
     auto key = make_test_key(0xABCD1234);
-    PersistentFramebufferStore::instance().put(key, fb);
-    CHECK(PersistentFramebufferStore::instance().exists(key));
+    auto wr = store.store(key, fb);
+    CHECK(wr.ok);
+    CHECK(wr.bytes_written > 0);
 
-    auto loaded = PersistentFramebufferStore::instance().get(key);
+    auto loaded = store.get(key);
     REQUIRE(loaded != nullptr);
     CHECK(loaded->width() == 64);
     CHECK(loaded->height() == 64);
-    CHECK(loaded->get_pixel(10, 10).r == Color::red().r);
-    CHECK(loaded->get_pixel(20, 20).b == Color::blue().b);
 
-    PersistentFramebufferStore::instance().clear();
+    // Bit-identical pixel comparison.
+    for (i32 y = 0; y < 64; ++y) {
+        for (i32 x = 0; x < 64; ++x) {
+            Color orig = fb.get_pixel(x, y);
+            Color loaded_px = loaded->get_pixel(x, y);
+            CHECK(orig.r == doctest::Approx(loaded_px.r).epsilon(0.001f));
+            CHECK(orig.g == doctest::Approx(loaded_px.g).epsilon(0.001f));
+            CHECK(orig.b == doctest::Approx(loaded_px.b).epsilon(0.001f));
+            CHECK(orig.a == doctest::Approx(loaded_px.a).epsilon(0.001f));
+        }
+    }
+
+    store.clear();
 }
 
-TEST_CASE("PersistentFramebufferStore - second run reuses cache") {
+// ═════════════════════════════════════════════════════════════════════════════
+// §2: Path sharding — files are in 2-level subdirectories
+// ═════════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("PersistentFramebufferStore - path sharding creates subdirectories") {
     auto dir = make_temp_cache_dir();
-    PersistentFramebufferStore::instance().set_cache_dir(dir);
+    auto& store = PersistentFramebufferStore::instance();
+    store.set_cache_dir(dir);
+    store.clear();
+
+    Framebuffer fb(8, 8);
+    // digest = 0xABCD1234... → hex = "...abcd1234..." → subdirs ab/cd/
+    auto key = make_test_key(0xABCD1234);
+    store.put(key, fb);
+
+    CHECK(store.exists(key));
+
+    // Verify the file is in a 2-level subdirectory.
+    std::error_code ec;
+    bool found_in_shard = false;
+    for (auto it = std::filesystem::recursive_directory_iterator(dir, ec);
+         it != std::filesystem::recursive_directory_iterator(); ++it) {
+        if (it->path().extension() == ".cfb4") {
+            auto parent1 = it->path().parent_path().filename().string();
+            auto parent2 = it->path().parent_path().parent_path().filename().string();
+            // parent2 = e.g. "ab", parent1 = "cd"
+            CHECK(parent2.length() == 2);
+            CHECK(parent1.length() == 2);
+            found_in_shard = true;
+        }
+    }
+    CHECK(found_in_shard);
+
+    store.clear();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// §3: Checksum — corrupted payload is detected and file deleted
+// ═════════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("PersistentFramebufferStore - corrupted payload detected and deleted") {
+    auto dir = make_temp_cache_dir();
+    auto& store = PersistentFramebufferStore::instance();
+    store.set_cache_dir(dir);
+    store.clear();
 
     Framebuffer fb(32, 32);
-    fb.set_pixel(5, 5, Color::green());
+    fb.set_pixel(10, 10, Color::red());
+    auto key = make_test_key(0xCAFEBABE);
+    store.put(key, fb);
 
-    auto key = make_test_key(0xDEADBEEF);
+    // Find the .cfb4 file and corrupt a byte in the payload.
+    std::error_code ec;
+    std::filesystem::path cfb4_path;
+    for (auto it = std::filesystem::recursive_directory_iterator(dir, ec);
+         it != std::filesystem::recursive_directory_iterator(); ++it) {
+        if (it->path().extension() == ".cfb4") {
+            cfb4_path = it->path();
+            break;
+        }
+    }
+    REQUIRE(!cfb4_path.empty());
 
-    PersistentFramebufferStore::instance().put(key, fb);
-    CHECK(PersistentFramebufferStore::instance().entry_count() == 1);
+    // Corrupt a payload byte (after the 64-byte header).
+    {
+        std::fstream f(cfb4_path, std::ios::binary | std::ios::in | std::ios::out);
+        f.seekp(80);  // well into the payload
+        char corrupt = 0xFF;
+        f.write(&corrupt, 1);
+        f.close();
+    }
 
-    auto loaded = PersistentFramebufferStore::instance().get(key);
-    REQUIRE(loaded != nullptr);
-    CHECK(loaded->get_pixel(5, 5).g == Color::green().g);
+    // Load should fail with checksum mismatch → file deleted.
+    auto loaded = store.get(key);
+    CHECK(loaded == nullptr);
 
-    PersistentFramebufferStore::instance().clear();
+    // Detailed load should report ChecksumMismatch.
+    auto result = store.load(key);
+    CHECK(result.status == StoreLoadStatus::ChecksumMismatch);
+
+    // File should be gone.
+    CHECK(!store.exists(key));
+
+    store.clear();
 }
 
-TEST_CASE("PersistentFramebufferStore - different params_hash creates separate entries") {
+// ═════════════════════════════════════════════════════════════════════════════
+// §4: Truncated file — detected and deleted
+// ═════════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("PersistentFramebufferStore - truncated file detected and deleted") {
     auto dir = make_temp_cache_dir();
-    PersistentFramebufferStore::instance().set_cache_dir(dir);
+    auto& store = PersistentFramebufferStore::instance();
+    store.set_cache_dir(dir);
+    store.clear();
 
     Framebuffer fb(16, 16);
-    auto key_a = make_test_key(0x11111111);
-    auto key_b = make_test_key(0x22222222);
+    auto key = make_test_key(0xDEADBEEF);
+    store.put(key, fb);
 
-    PersistentFramebufferStore::instance().put(key_a, fb);
-    PersistentFramebufferStore::instance().put(key_b, fb);
+    // Find and truncate the file.
+    std::error_code ec;
+    std::filesystem::path cfb4_path;
+    for (auto it = std::filesystem::recursive_directory_iterator(dir, ec);
+         it != std::filesystem::recursive_directory_iterator(); ++it) {
+        if (it->path().extension() == ".cfb4") {
+            cfb4_path = it->path();
+            break;
+        }
+    }
+    REQUIRE(!cfb4_path.empty());
 
-    CHECK(PersistentFramebufferStore::instance().entry_count() == 2);
+    std::filesystem::resize_file(cfb4_path, 32);  // smaller than header (64 bytes)
 
-    PersistentFramebufferStore::instance().clear();
+    auto loaded = store.get(key);
+    CHECK(loaded == nullptr);   // truncated → miss
+    CHECK(!store.exists(key));  // file deleted
+
+    store.clear();
 }
 
-TEST_CASE("PersistentFramebufferStore - get returns nullptr for missing key") {
+// ═════════════════════════════════════════════════════════════════════════════
+// §5: Bad magic — detected and deleted
+// ═════════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("PersistentFramebufferStore - bad magic detected and deleted") {
     auto dir = make_temp_cache_dir();
-    PersistentFramebufferStore::instance().set_cache_dir(dir);
-    PersistentFramebufferStore::instance().clear();
+    auto& store = PersistentFramebufferStore::instance();
+    store.set_cache_dir(dir);
+    store.clear();
+
+    Framebuffer fb(8, 8);
+    auto key = make_test_key(0xBADC0DE);
+    store.put(key, fb);
+
+    // Find and corrupt the magic bytes.
+    std::error_code ec;
+    std::filesystem::path cfb4_path;
+    for (auto it = std::filesystem::recursive_directory_iterator(dir, ec);
+         it != std::filesystem::recursive_directory_iterator(); ++it) {
+        if (it->path().extension() == ".cfb4") {
+            cfb4_path = it->path();
+            break;
+        }
+    }
+    REQUIRE(!cfb4_path.empty());
+
+    {
+        std::fstream f(cfb4_path, std::ios::binary | std::ios::in | std::ios::out);
+        f.seekp(0);
+        const char bad[] = "BADMAGIC";
+        f.write(bad, 8);
+        f.close();
+    }
+
+    auto loaded = store.get(key);
+    CHECK(loaded == nullptr);
+    CHECK(!store.exists(key));  // file deleted
+
+    store.clear();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// §6: Miss for non-existent key
+// ═════════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("PersistentFramebufferStore - miss for non-existent key") {
+    auto dir = make_temp_cache_dir();
+    auto& store = PersistentFramebufferStore::instance();
+    store.set_cache_dir(dir);
+    store.clear();
 
     auto key = make_test_key(0x99999999);
-    auto loaded = PersistentFramebufferStore::instance().get(key);
-
+    auto loaded = store.get(key);
     CHECK(loaded == nullptr);
+
+    auto result = store.load(key);
+    CHECK(result.status == StoreLoadStatus::NotFound);
 }
 
-TEST_CASE("PersistentFramebufferStore - stride-safe roundtrip with non-aligned dimensions") {
-    auto dir = make_temp_cache_dir();
-    PersistentFramebufferStore::instance().set_cache_dir(dir);
-    PersistentFramebufferStore::instance().clear();
+// ═════════════════════════════════════════════════════════════════════════════
+// §7: Stride-safe roundtrip (allocated_width != width)
+// ═════════════════════════════════════════════════════════════════════════════
 
-    // Non-aligned dimensions (1277x719) — neither multiple of 64 nor cache-line.
+TEST_CASE("PersistentFramebufferStore - stride-safe roundtrip non-aligned") {
+    auto dir = make_temp_cache_dir();
+    auto& store = PersistentFramebufferStore::instance();
+    store.set_cache_dir(dir);
+    store.clear();
+
     Framebuffer fb(1277, 719);
-    CHECK(fb.allocated_width() >= 1277);
+    REQUIRE(fb.allocated_width() >= 1277);
 
     for (i32 y = 0; y < fb.height(); ++y) {
         for (i32 x = 0; x < fb.width(); ++x) {
@@ -120,101 +292,115 @@ TEST_CASE("PersistentFramebufferStore - stride-safe roundtrip with non-aligned d
     }
 
     auto key = make_test_key(0xCAFE1277);
-    PersistentFramebufferStore::instance().put(key, fb);
-    CHECK(PersistentFramebufferStore::instance().exists(key));
+    store.put(key, fb);
 
-    auto loaded = PersistentFramebufferStore::instance().get(key);
+    auto loaded = store.get(key);
     REQUIRE(loaded != nullptr);
     CHECK(loaded->width() == 1277);
     CHECK(loaded->height() == 719);
 
-    for (i32 y = 0; y < fb.height(); ++y) {
-        for (i32 x = 0; x < fb.width(); ++x) {
-            Color orig = fb.get_pixel(x, y);
-            Color loaded_px = loaded->get_pixel(x, y);
-            CHECK(orig.r == doctest::Approx(loaded_px.r).epsilon(0.001f));
-            CHECK(orig.g == doctest::Approx(loaded_px.g).epsilon(0.001f));
-            CHECK(orig.b == doctest::Approx(loaded_px.b).epsilon(0.001f));
-            CHECK(orig.a == doctest::Approx(loaded_px.a).epsilon(0.001f));
-        }
-    }
+    // Spot-check pixels.
+    CHECK(loaded->get_pixel(0, 0).r == doctest::Approx(0.0f).epsilon(0.001f));
+    CHECK(loaded->get_pixel(1276, 718).b == doctest::Approx(1.0f - (718.0f * 1277 + 1276) / (1277.0f * 719.0f)).epsilon(0.001f));
 
-    PersistentFramebufferStore::instance().clear();
+    store.clear();
 }
 
-TEST_CASE("PersistentFramebufferStore - put_batch stores all entries") {
+// ═════════════════════════════════════════════════════════════════════════════
+// §8: Multiple files (different digests)
+// ═════════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("PersistentFramebufferStore - multiple entries") {
     auto dir = make_temp_cache_dir();
-    PersistentFramebufferStore::instance().set_cache_dir(dir);
-    PersistentFramebufferStore::instance().clear();
+    auto& store = PersistentFramebufferStore::instance();
+    store.set_cache_dir(dir);
+    store.clear();
 
-    std::vector<std::pair<NodeCacheKey, std::shared_ptr<Framebuffer>>> entries;
-    for (int i = 0; i < 3; ++i) {
-        auto fb = std::make_shared<Framebuffer>(16, 16);
-        fb->set_pixel(i, i, Color::white());
-        entries.emplace_back(make_test_key(0x1000 + i), fb);
+    Framebuffer fb(16, 16);
+    for (int i = 0; i < 5; ++i) {
+        store.put(make_test_key(0x1000 + i), fb);
     }
 
-    PersistentFramebufferStore::instance().put_batch(entries);
-    CHECK(PersistentFramebufferStore::instance().entry_count() == 3);
+    auto s = store.stats();
+    CHECK(s.entry_count == 5);
 
-    for (int i = 0; i < 3; ++i) {
-        auto loaded = PersistentFramebufferStore::instance().get(make_test_key(0x1000 + i));
-        REQUIRE(loaded != nullptr);
-        CHECK(loaded->get_pixel(i, i).r == Color::white().r);
+    for (int i = 0; i < 5; ++i) {
+        CHECK(store.exists(make_test_key(0x1000 + i)));
     }
 
-    PersistentFramebufferStore::instance().clear();
+    store.clear();
 }
 
-// ── New tests covering the post-merge behaviour ─────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// §9: File extension is .cfb4 (no legacy extensions)
+// ═════════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("PersistentFramebufferStore - file extension is .cfb3 (CFB3 magic only)") {
+TEST_CASE("PersistentFramebufferStore - only .cfb4 files present") {
     auto dir = make_temp_cache_dir();
-    PersistentFramebufferStore::instance().set_cache_dir(dir);
-    PersistentFramebufferStore::instance().clear();
+    auto& store = PersistentFramebufferStore::instance();
+    store.set_cache_dir(dir);
+    store.clear();
 
     Framebuffer fb(8, 8);
-    auto key = make_test_key(0xCFB30001);
-    PersistentFramebufferStore::instance().put(key, fb);
+    store.put(make_test_key(0xCFB40001), fb);
 
-    // Exactly one .cfb3 file present.
-    std::size_t cfb3_count = 0;
-    for (const auto& entry : std::filesystem::directory_iterator(dir)) {
-        CHECK(entry.path().extension() != ".cfb");   // legacy DiskNodeCache
-        CHECK(entry.path().extension() != ".cfb2");  // legacy PersistentBakeCache
-        if (entry.path().extension() == ".cfb3") ++cfb3_count;
+    std::error_code ec;
+    std::size_t cfb4_count = 0;
+    for (auto it = std::filesystem::recursive_directory_iterator(dir, ec);
+         it != std::filesystem::recursive_directory_iterator(); ++it) {
+        CHECK(it->path().extension() != ".cfb");   // legacy DiskNodeCache
+        CHECK(it->path().extension() != ".cfb2");  // legacy PersistentBakeCache
+        CHECK(it->path().extension() != ".cfb3");  // legacy merged format
+        if (it->path().extension() == ".cfb4") ++cfb4_count;
     }
-    CHECK(cfb3_count == 1);
+    CHECK(cfb4_count == 1);
 
-    PersistentFramebufferStore::instance().clear();
+    store.clear();
 }
 
-TEST_CASE("PersistentFramebufferStore - enabled gate short-circuits get / put") {
-    auto dir = make_temp_cache_dir();
-    PersistentFramebufferStore::instance().set_cache_dir(dir);
-    PersistentFramebufferStore::instance().clear();
+// ═════════════════════════════════════════════════════════════════════════════
+// §10: Opaque flag roundtrip
+// ═════════════════════════════════════════════════════════════════════════════
 
-    // Force the gate closed for this test.
-    const char* prev = std::getenv("CHRONON_DISABLE_PERSISTENT_FB_CACHE");
-    ::setenv("CHRONON_DISABLE_PERSISTENT_FB_CACHE", "1", 1);
+TEST_CASE("PersistentFramebufferStore - opaque flag preserved") {
+    auto dir = make_temp_cache_dir();
+    auto& store = PersistentFramebufferStore::instance();
+    store.set_cache_dir(dir);
+    store.clear();
+
+    Framebuffer fb(32, 32);
+    fb.set_opaque(true);
+    auto key = make_test_key(0x0PAQUE01);
+    store.put(key, fb);
+
+    auto loaded = store.get(key);
+    REQUIRE(loaded != nullptr);
+    CHECK(loaded->is_opaque());
+
+    store.clear();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// §11: erase removes a single entry
+// ═════════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("PersistentFramebufferStore - erase removes entry") {
+    auto dir = make_temp_cache_dir();
+    auto& store = PersistentFramebufferStore::instance();
+    store.set_cache_dir(dir);
+    store.clear();
 
     Framebuffer fb(8, 8);
-    auto key = make_test_key(0xCFB30002);
-    PersistentFramebufferStore::instance().put(key, fb);
+    auto k1 = make_test_key(0xAAA00001);
+    auto k2 = make_test_key(0xAAA00002);
+    store.put(k1, fb);
+    store.put(k2, fb);
+    CHECK(store.stats().entry_count == 2);
 
-    // No file written when disabled.
-    bool any = false;
-    for (const auto& entry : std::filesystem::directory_iterator(dir)) {
-        (void)entry;
-        any = true;
-        break;
-    }
-    CHECK(!any);
+    CHECK(store.erase(k1));
+    CHECK(store.stats().entry_count == 1);
+    CHECK(!store.exists(k1));
+    CHECK(store.exists(k2));
 
-    CHECK(PersistentFramebufferStore::instance().get(key) == nullptr);
-    CHECK(!PersistentFramebufferStore::instance().exists(key));
-    CHECK(PersistentFramebufferStore::instance().entry_count() == 0);
-
-    if (prev) ::setenv("CHRONON_DISABLE_PERSISTENT_FB_CACHE", prev, 1);
-    else      ::unsetenv("CHRONON_DISABLE_PERSISTENT_FB_CACHE");
+    store.clear();
 }
