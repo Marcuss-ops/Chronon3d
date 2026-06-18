@@ -36,8 +36,12 @@
 #include <chronon3d/text/font_engine.hpp>
 
 #include "content/anims/compositions/cinematic_showcase_helpers.hpp"
-#include "content/common/text_helpers.hpp"
+#include "content/text/text_helpers.hpp"
 #include "content/text/text_theme.hpp"
+
+#include <cmath>
+#include <string>
+#include <vector>
 
 #include <cmath>
 #include <string>
@@ -58,11 +62,57 @@ using chronon3d::content::text::FRESH_GLOW_GOLD;
 using chronon3d::content::text::FRESH_GLOW_BLUE;
 using chronon3d::content::text::FRESH_TEXT_WHITE;
 using chronon3d::content::text::FRESH_TEXT_MUTED;
-using chronon3d::content::text_helpers::centered_text::make_centered_text;
-using chronon3d::content::text_helpers::glow::apply_ae_glow;
+// centered_text + apply_ae_glow replaced by their canonical local helpers:
+//   chronon3d::content::text::centered_text({...})  (struct-aggregate init)
+//   apply_ae_glow(l, CinematicGlowOpts{...})        (defined just below)
 // add_bloom_reveal_layer is omitted intentionally — it currently uses a
 // brace-init pattern that doesn't convert to TextParams; we replicate its
 // behaviour inline in OrbitHandheldGlow.
+
+// ── CinematicGlowOpts + apply_ae_glow helper ───────────────────────────────
+// The legacy text_helpers::glow::apply_ae_glow was removed in the refactor.
+// We replicate it locally so cinematic compositions can pass the same
+// options-struct it used to take.  The drop_shadow fields are preserved
+// with safe defaults (off); they were unused at the migrated call sites
+// but kept here for symmetry with the old GlowTextOpts.
+//
+// Note: chronon3d::content::text::centered_text() hardcodes wrap = Word.
+// Pre-refactor centred text defaulted to wrap = None, so single-line strings
+// are unaffected but any caller passing a multi-line string here will now
+// wrap where it previously wouldn't.
+struct CinematicGlowOpts {
+    f32   inner_radius    {4.0f};
+    f32   mid_radius      {14.0f};
+    f32   bloom_radius    {34.0f};
+    f32   inner_intensity {0.55f};
+    f32   mid_intensity   {0.22f};
+    f32   bloom_intensity {0.08f};
+    bool  micro_shadow    {true};
+    Vec2  shadow_offset   {0.0f, 4.0f};
+    Color shadow_color    {0.0f, 0.02f, 0.12f, 0.15f};
+    f32   shadow_blur     {10.0f};
+    bool  drop_shadow     {false};
+    Vec2  drop_offset     {0.0f, 8.0f};
+    Color drop_color      {0.0f, 0.0f, 0.0f, 0.20f};
+    f32   drop_blur       {18.0f};
+};
+
+inline void apply_ae_glow(LayerBuilder& l, const CinematicGlowOpts& opts = {}) {
+    auto glow = TextGlowPresets::ae_cinematic_white();
+    glow.inner_radius    = opts.inner_radius;
+    glow.mid_radius      = opts.mid_radius;
+    glow.bloom_radius    = opts.bloom_radius;
+    glow.inner_intensity = opts.inner_intensity;
+    glow.mid_intensity   = opts.mid_intensity;
+    glow.bloom_intensity = opts.bloom_intensity;
+    l.glow(glow.to_glow_params());
+    if (opts.micro_shadow && glow.micro_shadow) {
+        l.drop_shadow(opts.shadow_offset, opts.shadow_color, opts.shadow_blur);
+    }
+    if (opts.drop_shadow) {
+        l.drop_shadow(opts.drop_offset, opts.drop_color, opts.drop_blur);
+    }
+}
 
 constexpr const char* FONT_BOLD = "assets/fonts/Poppins-Bold.ttf";
 
@@ -70,11 +120,13 @@ constexpr const char* FONT_BOLD = "assets/fonts/Poppins-Bold.ttf";
 TextParams title_text(const std::string& s, f32 fs,
                       Color color = FRESH_TEXT_WHITE,
                       f32 tracking = 6.0f) {
-    return make_centered_text(s, fs, {
-        .size        = {1500.0f, 220.0f},
-        .line_height = 1.10f,
+    return chronon3d::content::text::centered_text({
+        .text        = s,
+        .box         = {1500.0f, 220.0f},
+        .font_size   = fs,
         .tracking    = tracking,
         .color       = color,
+        .line_height = 1.10f,
     });
 }
 
@@ -227,11 +279,13 @@ Composition deep_parallax_cascade() {
                     .key(Frame{0},                                blur_peak, EasingCurve{Easing::Linear})
                     .key(Frame{static_cast<Frame>(130 - 30.0f * i)}, 0.0f,   EasingCurve{Easing::OutCubic})
                     .key(Frame{180},                              0.0f,       EasingCurve{Easing::Linear});
-            TextParams tp = make_centered_text(L.text, L.size, {
-                .size        = {1500.0f, 320.0f},
-                .line_height = 1.10f,
+            TextParams tp = chronon3d::content::text::centered_text({
+                .text        = L.text,
+                .box         = {1500.0f, 320.0f},
+                .font_size   = L.size,
                 .tracking    = 8.0f,
                 .color       = L.color,
+                .line_height = 1.10f,
             });
                 l.text("label", tp);
             });
@@ -334,11 +388,13 @@ Composition whip_pan_hero_reveal() {
                 pos.key(Frame{55}, Vec3{ 0.0f, 230.0f, 0.0f}, EasingCurve{Easing::OutCubic});
                 pos.key(Frame{68}, Vec3{ 0.0f, 200.0f, 0.0f}, EasingCurve{Easing::Linear});
             }
-            TextParams tp = make_centered_text("MOTION BY CAMERA", 38.0f, {
-                .size        = {1100.0f, 80.0f},
-                .line_height = 1.10f,
+            TextParams tp = chronon3d::content::text::centered_text({
+                .text        = "MOTION BY CAMERA",
+                .box         = {1100.0f, 80.0f},
+                .font_size   = 38.0f,
                 .tracking    = 12.0f,
                 .color       = {1.0f, 0.55f, 0.75f, 1.0f},
+                .line_height = 1.10f,
             });
             l.text("subtitle_label", tp);
         });
@@ -426,11 +482,13 @@ Composition orbit_handheld_glow() {
                 .key(Frame{30},  Vec3{1.05f, 1.05f, 1.0f}, EasingCurve{Easing::OutCubic})
                 .key(Frame{60},  Vec3{1.00f, 1.00f, 1.0f}, EasingCurve{Easing::InOutCubic});
 
-            TextParams tp = make_centered_text("AURORA", 220.0f, {
-                .size        = {1200.0f, 320.0f},
-                .line_height = 1.10f,
+            TextParams tp = chronon3d::content::text::centered_text({
+                .text        = "AURORA",
+                .box         = {1200.0f, 320.0f},
+                .font_size   = 220.0f,
                 .tracking    = 12.0f,
                 .color       = Color{1.00f, 0.96f, 0.84f, 1.0f},
+                .line_height = 1.10f,
             });
             l.text("title_label", tp);
         });
@@ -502,8 +560,7 @@ Composition rack_focus_title_swap() {
         // ── FRONT title at Z=0 — sharp then blurred out ──────────────
         s.layer("title_front", [](LayerBuilder& l) {
             l.position({0.0f, -180.0f, 0.0f});
-            apply_ae_glow(l, {
-                .font_size        = 120.0f,
+            apply_ae_glow(l, CinematicGlowOpts{
                 .inner_radius     = 5.0f,
                 .mid_radius       = 18.0f,
                 .bloom_radius     = 36.0f,
@@ -525,11 +582,13 @@ Composition rack_focus_title_swap() {
                 .key(Frame{30}, 1.0f, EasingCurve{Easing::Linear})
                 .key(Frame{150}, 1.0f, EasingCurve{Easing::Linear})
                 .key(Frame{180}, 0.7f, EasingCurve{Easing::InCubic});
-            TextParams tp = make_centered_text("FOCUS NEAR", 130.0f, {
-                .size        = {1500.0f, 240.0f},
-                .line_height = 1.10f,
+            TextParams tp = chronon3d::content::text::centered_text({
+                .text        = "FOCUS NEAR",
+                .box         = {1500.0f, 240.0f},
+                .font_size   = 130.0f,
                 .tracking    = 8.0f,
                 .color       = FRESH_TEXT_WHITE,
+                .line_height = 1.10f,
             });
             l.text("label", tp);
         });
@@ -537,8 +596,7 @@ Composition rack_focus_title_swap() {
         // ── BACK title at Z=+800 — blurred then sharpens in ──────────
         s.layer("title_back", [](LayerBuilder& l) {
             l.position({0.0f, 160.0f, 800.0f});
-            apply_ae_glow(l, {
-                .font_size        = 110.0f,
+            apply_ae_glow(l, CinematicGlowOpts{
                 .inner_radius     = 4.0f,
                 .mid_radius       = 16.0f,
                 .bloom_radius     = 32.0f,
@@ -560,11 +618,13 @@ Composition rack_focus_title_swap() {
                 .key(Frame{120}, 0.55f, EasingCurve{Easing::Linear})
                 .key(Frame{150}, 1.0f, EasingCurve{Easing::OutCubic})
                 .key(Frame{180}, 1.0f, EasingCurve{Easing::Linear});
-            TextParams tp = make_centered_text("FAR AWAY", 120.0f, {
-                .size        = {1500.0f, 220.0f},
-                .line_height = 1.10f,
+            TextParams tp = chronon3d::content::text::centered_text({
+                .text        = "FAR AWAY",
+                .box         = {1500.0f, 220.0f},
+                .font_size   = 120.0f,
                 .tracking    = 10.0f,
                 .color       = FRESH_TEXT_MUTED,
+                .line_height = 1.10f,
             });
             l.text("label", tp);
         });
@@ -670,11 +730,13 @@ Composition abyss_freefall_stagger() {
                 {
                     Color base{0.65f, 0.85f, 1.0f, 1.0f};
                     if (i % 2 == 0) base = Color{0.85f, 0.95f, 1.0f, 1.0f};
-                    TextParams tp = make_centered_text(ch, fs, {
-                        .size        = {fs * 1.5f, fs * 1.8f},
-                        .line_height = 1.10f,
+                    TextParams tp = chronon3d::content::text::centered_text({
+                        .text        = ch,
+                        .box         = {fs * 1.5f, fs * 1.8f},
+                        .font_size   = fs,
                         .tracking    = 0.0f,
                         .color       = base,
+                        .line_height = 1.10f,
                     });
                     l.glow(GlowParams{
                         .radius          = 30.0f,
