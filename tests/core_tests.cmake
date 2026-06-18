@@ -10,7 +10,7 @@ add_executable(chronon3d_core_tests
     cache/test_lru_cache.cpp
     cache/test_framebuffer_pool.cpp
     cache/test_video_frame_cache.cpp
-    cache/test_persistent_bake_cache.cpp
+    cache/test_persistent_framebuffer_store.cpp
     core/test_sharded_telemetry_store.cpp
     core/test_render_counters.cpp
     core/test_cache_eval_dirty_counters.cpp

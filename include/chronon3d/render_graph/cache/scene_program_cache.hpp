@@ -14,12 +14,11 @@
 //   - find_or_compile / find return raw `CompiledSceneProgram*` so callers
 //     observe pointer identity on cache hits (preserved by returning
 //     `.get()` of the internally-held shared_ptr).
-//   - erase() fires the user on_evict callback so PrecompNode::invalidate
-//     cascades correctly (LruCache::erase does not fire on_evict, so we
-//     wrap it).
-//   - set_capacity(evict-excess) bridges to LruCache::resize() and the
-//     on_evict callback bridges the per-eviction telemetry hook (so the
-//     external counters {program_cache_evictions, …} stay accurate).
+//   - LruCache fires RemovalCallback for erase/clear/replace/eviction,
+//     so the facade lambda filters by reason (bumping counters only for
+//     Capacity/Resize) and always forwards to m_user_on_evict.
+//   - set_capacity(evict-excess) bridges to LruCache::resize(); the
+//     removal callback with Resize reason updates telemetry counters.
 //   - auto_tune reads LruCache::stats() and the facade holds its own
 //     atomic counters so the tuning algorithm doesn't need to lock shards.
 //
@@ -160,11 +159,9 @@ public:
     [[nodiscard]] bool contains(const graph::SceneStructureKey& key) const;
 
     /// Erase a specific entry.  Returns whether the entry existed.
-    /// Fires the user-supplied `m_on_evict` callback for backward
-    /// compat with the B6 spec ("eviction callback fires on erase") —
-    /// note that LruCache::erase does NOT fire on_evict by design, so
-    /// we bridge manually here.  Does NOT bump eviction counters
-    /// (matches legacy behaviour).
+    /// Fires the user-supplied `m_user_on_evict` callback via the
+    /// LruCache RemovalCallback (reason=ExplicitErase).  Does NOT bump
+    /// eviction counters (matches legacy behaviour).
     bool erase(const graph::SceneStructureKey& key);
 
     void clear();

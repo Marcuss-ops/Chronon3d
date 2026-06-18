@@ -32,11 +32,11 @@ public:
     bool debug_text_bbox         = false;
 
     // ── Feature flags ────────────────────────────────────────────
-    bool pingpong_framebuffer    = true;
-    bool prefetch_enabled        = true;
-    bool pip_mode                = false;
-    bool disable_disk_node_cache = false;
-    bool pin_main_thread         = false;
+    bool pingpong_framebuffer                       = true;
+    bool prefetch_enabled                           = true;
+    bool pip_mode                                   = false;
+    bool disable_persistent_framebuffer_cache       = false;
+    bool pin_main_thread                            = false;
 
     // ── Cache limits (bytes) ─────────────────────────────────────
     std::size_t fb_pool_max_bytes     = 0;
@@ -58,8 +58,8 @@ public:
     std::size_t scene_program_cache_max_entries    = 0;   // CHRONON3D_SCENE_PROGRAM_CACHE_MAX_ENTRIES
 
     // ── Paths ────────────────────────────────────────────────────
-    std::string bake_cache_dir;
-    std::string disk_cache_dir;
+    // Default: output/cache/framebuffers (override with CHRONON_PERSISTENT_FB_CACHE_DIR).
+    std::string persistent_framebuffer_cache_dir;
 
     // ── Utility ──────────────────────────────────────────────────
 

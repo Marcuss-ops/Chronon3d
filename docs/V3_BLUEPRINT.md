@@ -98,15 +98,15 @@ struct TileGrid {
 
 **Problema:** La cache è per-nodo, non per-tile. Un nodo statico viene ricacheggiato interamente.
 
-**Soluzione:** Static tile cache, pre-render per frame_invariant=true, disk cache per tile.
+**Soluzione:** Static tile cache, pre-render per frame_invariant=true, persiste nel `PersistentFramebufferStore` per tile.
 
 **Classificazione automatica:**
 1. Ogni tile tiene un `frame_last_modified`
 2. Se non modificato per 3 frame consecutivi → `is_static = true`
 3. Se la camera si muove, tutti i tile diventano `is_static = false`
-4. I tile statici salvati su disco con `DiskNodeCache::put_tile()`
+4. I tile statici salvati via `PersistentFramebufferStore::put()` (CFB3 magic, `.cfb3` files)
 
-**Dove:** `src/cache/disk_node_cache.cpp` — estendere per tile-level caching
+**Dove:** `src/cache/persistent_framebuffer_store.cpp` — estendere per tile-level caching
 
 **Guadagno stimato:** Per scene con background statico → solo i tile dell'UI vengono renderizzati.
 

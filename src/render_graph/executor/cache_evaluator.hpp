@@ -7,7 +7,7 @@
 namespace chronon3d::graph {
 
 /// Shared helper for disk node cache feature-flag (used by multiple executor files).
-bool disk_node_cache_enabled_for_current_run();
+bool persistent_framebuffer_cache_enabled_for_current_run();
 
 CacheEvalResult evaluate_cache(
     const RenderGraphNode& node,

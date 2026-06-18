@@ -284,7 +284,7 @@ size_t prune_branches(RenderGraph& graph, const RenderGraphContext& ctx) {
 
 // ── Pass: count static bake eligible nodes ───────────────────────────────
 // The actual baking/persistence happens lazily during first execution via
-// the node cache + PersistentBakeCache.
+// the node cache + PersistentFramebufferStore.
 size_t count_bake_eligible_nodes(
     RenderGraph&           graph,
     const RenderGraphContext& ctx)
