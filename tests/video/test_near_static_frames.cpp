@@ -44,7 +44,7 @@ TEST_CASE("Near-static frames: small color variations produce mostly cache hits"
             .apply_gamma = true,
         };
 
-        auto* entry = cache.lookup(key);
+        const auto entry = cache.lookup(key);
         if (entry) {
             ++cache_hits;
         } else {
@@ -92,7 +92,7 @@ TEST_CASE("Near-static frames: single repeated frame hits cache 100%") {
 
     int hits = 0, misses = 0;
     for (int i = 0; i < kFrames; ++i) {
-        auto* entry = cache.lookup(key);
+        const auto entry = cache.lookup(key);
         if (entry) {
             ++hits;
         } else {

@@ -4,6 +4,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
 #include <cmath>
+#include <cstddef>
 #include <vector>
 using namespace chronon3d;
 
@@ -249,6 +250,27 @@ TEST_CASE("ConvertedFrameCache: miss on first lookup") {
     CHECK(cache.hits()   == 0);
 }
 
+TEST_CASE("ConvertedFrameCache: sharded split does not lose capacity (4 entries across 2 shards)") {
+    // num_shards=2 with cap=4 yields 2 per shard → 4 total entries.
+    ConvertedFrameCache cache(4);
+    CHECK(cache.size() == 0);
+
+    std::vector<uint8_t> payload{1, 2, 3, 4};
+    for (uint64_t d = 1; d <= 4; ++d) {
+        ConvertedFrameCacheKey k{.framebuffer_digest=d, .width=4, .height=4,
+                                 .format=EncoderPixelFormat::YUV420P, .color_matrix=0, .apply_gamma=true};
+        cache.insert(k, payload.data(), payload.size());
+    }
+    CHECK(cache.size() == 4);
+
+    // Insert a 5th distinct key: at least one entry must be evicted.
+    ConvertedFrameCacheKey k5{.framebuffer_digest=5, .width=4, .height=4,
+                              .format=EncoderPixelFormat::YUV420P, .color_matrix=0, .apply_gamma=true};
+    cache.insert(k5, payload.data(), payload.size());
+    CHECK(cache.size() == 4);
+    CHECK(cache.stats().evictions >= 1);
+}
+
 TEST_CASE("ConvertedFrameCache: hit after insert") {
     ConvertedFrameCache cache(4);
     ConvertedFrameCacheKey key{.framebuffer_digest=100, .width=4, .height=4,
@@ -256,7 +278,7 @@ TEST_CASE("ConvertedFrameCache: hit after insert") {
     const std::vector<uint8_t> data = {10, 20, 30, 40};
     cache.insert(key, data.data(), data.size());
 
-    const auto* entry = cache.lookup(key);
+    const auto entry = cache.lookup(key);
     REQUIRE(entry != nullptr);
     CHECK(entry->data_size == 4);
     CHECK(entry->data[0] == 10);
@@ -288,8 +310,10 @@ TEST_CASE("ConvertedFrameCache: different format is a miss") {
 }
 
 TEST_CASE("ConvertedFrameCache: LRU eviction at capacity") {
-    constexpr size_t N = 3;
-    ConvertedFrameCache cache(N);
+    constexpr std::size_t N = 3;
+    // num_shards=1 so the total cap exactly equals N (avoids the +4 of
+    // per-shard split that 2-shard default applies for total < 4 entries).
+    ConvertedFrameCache cache(N, /*num_shards=*/1);
 
     // Fill to capacity with digests 1,2,3
     for (uint64_t i = 1; i <= N; ++i) {

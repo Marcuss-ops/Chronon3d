@@ -16,8 +16,12 @@
 //  - Owns a ConvertedFrameCache internally — callers don't manage it
 //  - Reuses a staging buffer across calls (avoids per-frame heap churn)
 //  - Tracks aggregate stats (total conversions, wall time, hit rate)
-//  - Thread-safe? Same as ConvertedFrameCache: NOT thread-safe.
-//    One service per encoder thread.
+//  - Thread-safe? SAME as the underlying ConvertedFrameCache: YES after
+//    Commit 3 (sharded LruCache with per-shard mutex).  Multiple encoder
+//    threads can share a single FrameConversionService.  Aggregate
+//    counters themselves are NOT atomically incremented across threads
+//    (the cache_hits/cache_misses delegates are), so to read consistent
+//    stats, callers should still serialise before calling stats().
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
