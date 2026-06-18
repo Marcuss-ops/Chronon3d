@@ -7,13 +7,9 @@
 //
 // Tests included:
 //   1. GlowSharpnessTest       — short text, focus on glyph sharpness
-//   2. GlowParagraphTest       — long paragraph
-//   3. GlowRadiusCompareTest   — 4 panels side-by-side, A/B/C/D radii
-//   4. GlowTypewriterRevealTest — typewriter reveal animation with bloom-settle
-//   5. GlowShadowBalanceTest   — 3 panels: no shadow / shadow 10 / shadow 18
-//
-// Render each at frame 30:
-//   chronon3d_cli render GlowParagraphTest --frame 30 -o out.png
+//   2. GlowRadiusCompareTest   — 4 panels side-by-side, A/B/C/D radii
+//   3. GlowTypewriterRevealTest — typewriter reveal animation with bloom-settle
+//   4. GlowShadowBalanceTest   — 3 panels: no shadow / shadow 10 / shadow 18
 //
 #include "../common/glow_test_common.hpp"
 #include <chronon3d/text/text_glow_spec.hpp>
@@ -83,50 +79,11 @@ Composition glow_sharpness_test() {
 }
 
 // =============================================================================
-// TEST 2 — Long paragraph (USER PRIORITY: "il test più importante")
-// =============================================================================
-namespace {
-constexpr const char* kParagraphText =
-    "A GLOWING TYPEWRITER LINE BLOOMS ON SCREEN\n"
-    "with a soft halo effect that makes each character pulse\n"
-    "gently as it appears — perfect for dramatic and\n"
-    "atmospheric typography motion.";
-}
-Composition glow_paragraph_test() {
-    return composition({.name = "GlowParagraphTest", .width = kW, .height = kH, .duration = 60},
-    [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        test_bg(s);
-
-        s.layer("para", [](LayerBuilder& l) {
-            l.pin_to(Anchor::Center);
-            auto glow = TextGlowPresets::ae_cinematic_white();
-            glow.inner_radius    = 4.0f;
-            glow.mid_radius      = 14.0f;
-            glow.bloom_radius    = 34.0f;
-            glow.inner_intensity = 0.55f;
-            glow.mid_intensity   = 0.22f;
-            glow.bloom_intensity = 0.08f;
-            l.glow(glow.to_glow_params());
-            if (glow.micro_shadow) l.drop_shadow(glow.micro_shadow_offset, glow.micro_shadow_color, glow.micro_shadow_radius);
-            l.text("t", make_test_text(kParagraphText, 0.0f, {
-                .font_size = 36.0f,
-                .color = {0.92f, 0.94f, 1.0f, 1.0f},
-                .size = {1300.0f, 360.0f}
-            }));
-        });
-
-        bottom_label(s, "TEST 2 — TextGlowSpec V2 on long paragraph (recommended recipe)");
-        return s.build();
-    });
-}
-
-// =============================================================================
-// TEST 3 — Multi-radius comparison: 4 panels A/B/C/D
+// TEST 2 — Multi-radius comparison: 4 panels A/B/C/D
 // =============================================================================
 //
 // A: inner 3,  outer 10, bloom 24  (tight)
-// B: inner 4,  outer 14, bloom 34  (recommended)  ← user said "B o C"
+// B: inner 4,  outer 14, bloom 34  (recommended)
 // C: inner 6,  outer 20, bloom 46  (medium)
 // D: inner 8,  outer 28, bloom 60  (wide)
 //
@@ -185,13 +142,13 @@ Composition glow_radius_compare_test() {
             });
         }
 
-        bottom_label(s, "TEST 3 — Radius compare: 4 panels (A:tight, B:recommended ★, C:medium, D:wide)");
+        bottom_label(s, "TEST 2 — Radius compare: 4 panels (A:tight, B:recommended, C:medium, D:wide)");
         return s.build();
     });
 }
 
 // =============================================================================
-// TEST 4 — Typewriter reveal with bloom-settle
+// TEST 3 — Typewriter reveal with bloom-settle
 // =============================================================================
 namespace {
 constexpr const char* kRevealText = "EACH LETTER APPEARS WITH A SOFT GLOW FLASH";
@@ -220,13 +177,13 @@ Composition glow_typewriter_reveal_test() {
             l.text("t", make_test_text(kRevealText, 0.0f, {.font_size = 42.0f}));
         });
 
-        bottom_label(s, "TEST 4 — V2 glow with bloom-settle: starts big, shrinks to recommended radii");
+        bottom_label(s, "TEST 3 — V2 glow with bloom-settle: starts big, shrinks to recommended radii");
         return s.build();
     });
 }
 
 // =============================================================================
-// TEST 5 — Shadow balance: 3 panels side-by-side
+// TEST 4 — Shadow balance: 3 panels side-by-side
 // =============================================================================
 Composition glow_shadow_balance_test() {
     return composition({.name = "GlowShadowBalanceTest", .width = kW, .height = kH, .duration = 60},
@@ -286,7 +243,7 @@ Composition glow_shadow_balance_test() {
             });
         }
 
-        bottom_label(s, "TEST 5 — Shadow balance: A (none) / B (subtle) / C (heavy) with V2 glow");
+        bottom_label(s, "TEST 4 — Shadow balance: A (none) / B (subtle) / C (heavy) with V2 glow");
         return s.build();
     });
 }

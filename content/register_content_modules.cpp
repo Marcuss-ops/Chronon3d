@@ -122,7 +122,6 @@ Composition premium_thumbnail_saas_blue();
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 namespace chronon3d::content::effects {
 Composition glow_sharpness_test();
-Composition glow_paragraph_test();
 Composition glow_radius_compare_test();
 Composition glow_typewriter_reveal_test();
 Composition glow_shadow_balance_test();
@@ -291,7 +290,6 @@ void register_content_modules() {
     {
         using namespace content::effects;
         reg.register_composition("GlowSharpnessTest",          glow_sharpness_test);
-        reg.register_composition("GlowParagraphTest",          glow_paragraph_test);
         reg.register_composition("GlowRadiusCompareTest",      glow_radius_compare_test);
         reg.register_composition("GlowTypewriterRevealTest",   glow_typewriter_reveal_test);
         reg.register_composition("GlowShadowBalanceTest",      glow_shadow_balance_test);

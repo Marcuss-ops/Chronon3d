@@ -11,14 +11,13 @@
 // distinct from the other roles in the Trio (coral / vermillion / magenta).
 //
 // Visual recipe (per user feedback, latest pass):
-//   • Backdrop = VERY SATURATED RED shade, fully opaque so the rectangle
-//     reads against the fully-black canvas.
-//   • Text     = WHITE, Inter-Bold (more "modern" geometric sans than the
-//     previous Poppins).
-//   • Shadow   = BLACK, 16 px blur, 6 px down — wider / SOFTER falloff so
-//     the shadow reads as a diffuse contact shadow rather than a hard
-//     drop shadow.  Alpha dropped to 0.55 so the shadow recedes instead
-//     of dominating.
+//   • Backdrop = Gradient-filled rounded rect (modern material look).
+//     Corner radius 14 px — soft modern pill shape.
+//     Subtle vertical gradient (lighter top, darker bottom) + thin white stroke.
+//   • Text     = WHITE, Poppins-Bold (geometric sans, cleaner than Inter
+//     at display sizes — wider apertures, more distinctive letterforms).
+//   • Shadow   = BLACK, 12 px blur, 8 px down — visible contact shadow
+//     that lifts the label off the black canvas.
 //   • No accent line — by design.
 //
 // Adding a new palette: declare an extra inline constexpr below and pick
@@ -49,19 +48,19 @@ struct WordPalette {
 inline constexpr WordPalette PALETTE_LIGHT = {
     .backdrop = { 0.98f, 0.45f, 0.30f, 1.0f },
     .text     = { 1.00f, 1.00f, 1.00f, 1.0f },
-    .shadow   = { 0.00f, 0.00f, 0.00f, 0.55f },
+    .shadow   = { 0.00f, 0.00f, 0.00f, 0.65f },
 };
 // PALETTE_WARM — vermillion red (pure red, balanced)
 inline constexpr WordPalette PALETTE_WARM = {
     .backdrop = { 0.95f, 0.18f, 0.12f, 1.0f },
     .text     = { 1.00f, 1.00f, 1.00f, 1.0f },
-    .shadow   = { 0.00f, 0.00f, 0.00f, 0.55f },
+    .shadow   = { 0.00f, 0.00f, 0.00f, 0.65f },
 };
 // PALETTE_COOL — magenta-red (R→B rotates toward magenta/red-violet)
 inline constexpr WordPalette PALETTE_COOL = {
     .backdrop = { 0.85f, 0.10f, 0.34f, 1.0f },
     .text     = { 1.00f, 1.00f, 1.00f, 1.0f },
-    .shadow   = { 0.00f, 0.00f, 0.00f, 0.60f },
+    .shadow   = { 0.00f, 0.00f, 0.00f, 0.70f },
 };
 
 // ── WordPreset: a single uppercase word + its sized backdrop ───────────────
@@ -80,36 +79,35 @@ struct WordPreset {
 };
 
 // ── Three canonical presets (lower-third important words) ──────────────────
-// Heigh bumped 110 → 140 so the backdrop reads as a more elongated /
-// rectangular label (vs. previous squircle chip).  Corner radius dropped
-// from 10 → 4 to remove the "soft chip" feel and keep a cleaner rect look.
-// Widths preserved at the previously-tuned 480/320/380 px.
+// Heights bumped 140 → 160 for a more elongated rectangular label.
+// Widths: DIRECTOR 640, ACTOR 460, WRITER 520.
+// Corner radius 14 px — modern pill/capsule aesthetic.
 inline constexpr WordPreset WORD_DIRECTOR = {
     .label = "DIRECTOR",
-    .rect_outer_size = { 480.0f, 140.0f },
+    .rect_outer_size = { 640.0f, 160.0f },
     .font_size = 80.0f,
     .tracking  = 10.0f,
     .pad_x     = 36.0f,
     .pad_y     = 32.0f,
-    .corner_radius = 4.0f,
+    .corner_radius = 14.0f,
 };
 inline constexpr WordPreset WORD_ACTOR = {
     .label = "ACTOR",
-    .rect_outer_size = { 320.0f, 140.0f },
+    .rect_outer_size = { 460.0f, 160.0f },
     .font_size = 80.0f,
     .tracking  = 10.0f,
     .pad_x     = 36.0f,
     .pad_y     = 32.0f,
-    .corner_radius = 4.0f,
+    .corner_radius = 14.0f,
 };
 inline constexpr WordPreset WORD_WRITER = {
     .label = "WRITER",
-    .rect_outer_size = { 380.0f, 140.0f },
+    .rect_outer_size = { 520.0f, 160.0f },
     .font_size = 80.0f,
     .tracking  = 10.0f,
     .pad_x     = 36.0f,
     .pad_y     = 32.0f,
-    .corner_radius = 4.0f,
+    .corner_radius = 14.0f,
 };
 
 // Lower-third y offset (canvas is 1920×1080).  +360 sits at the 67% line.
@@ -123,13 +121,11 @@ inline constexpr f32 WORD_LOWER_Y = 360.0f;
 //
 // These are exposed as named constants so a renderer can reuse the same
 // look across all 3 palettes.
-inline constexpr Vec2  WORD_SHADOW_OFFSET = { 0.0f, 6.0f };
-inline constexpr f32   WORD_SHADOW_RADIUS = 16.0f;
+inline constexpr Vec2  WORD_SHADOW_OFFSET = { 0.0f, 8.0f };
+inline constexpr f32   WORD_SHADOW_RADIUS = 12.0f;
 
-// ── Font face (modern: Inter-Bold replaces Poppins-Bold) ───────────────────
-// Inter is the codebase-wide default (`assets/fonts/Inter-Bold.ttf`); we
-// expose the path + family here so all callsites use the same face.
-inline constexpr const char* WORD_FONT_PATH   = "assets/fonts/Inter-Bold.ttf";
-inline constexpr const char* WORD_FONT_FAMILY = "Inter";
+// ── Font face (Poppins-Bold — geometric sans, wider apertures) ────
+inline constexpr const char* WORD_FONT_PATH   = "assets/fonts/Poppins-Bold.ttf";
+inline constexpr const char* WORD_FONT_FAMILY = "Poppins";
 
 } // namespace chronon3d::content::important_words

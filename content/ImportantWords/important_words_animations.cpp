@@ -2,6 +2,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
+#include <chronon3d/graphics/shape_style/fill_style.hpp>
 
 #include "content/common/animation_helpers.hpp"
 #include "content/text/text_helpers.hpp"
@@ -14,52 +15,81 @@ using namespace chronon3d::content;
 
 // Helper for the word compositions.  Builds a single layer with the
 // palette-tinted rounded-rect backdrop + WHITE text word on top + layer
-// drop-shadow (SOFT black) for the "diffuse / lifted-off" look. No
-// accent line, share-or-fail design.
+// drop-shadow (SOFT black) for the "diffuse / lifted-off" look +
+// per-glyph text shadow for readability. No accent line.
 //
 // `visible_in_out` is (fade_in_frame, hold_until_frame, fade_out_frame).
 // All three must be in [0, duration].
+// `layer_suffix` disambiguates layer names in multi-word compositions (Trio).
 static void build_important_word(SceneBuilder& s,
                                 const WordPreset& word,
                                 const WordPalette& palette,
-                                Frame fade_in, Frame hold_until, Frame fade_out) {
-    s.layer("word", [word, palette, fade_in, hold_until, fade_out](LayerBuilder& l) {
+                                Frame fade_in, Frame hold_until, Frame fade_out,
+                                std::string_view layer_suffix = {}) {
+    const std::string lname = layer_suffix.empty()
+        ? std::string("word")
+        : std::string("word_") + std::string(layer_suffix);
+    s.layer(lname, [word, palette, fade_in, hold_until, fade_out](LayerBuilder& l) {
         l.pin_to(Anchor::Center);
+        // ── Opacity: hold at 0 until 4f before fade_in, then quick transition ──
+        // This prevents layers from slowly fading in from frame 0 in the Trio.
+        const Frame kPreFade = std::max(Frame{0}, fade_in - Frame{4});
         l.opacity_anim()
-            .key(Frame{0},           0.0f,  EasingCurve{Easing::OutCubic})
-            .key(Frame{fade_in},     1.0f,  EasingCurve{Easing::Linear})
+            .key(Frame{0},           0.0f,  EasingCurve{Easing::Linear})
+            .key(kPreFade,           0.0f,  EasingCurve{Easing::Linear})
+            .key(Frame{fade_in},     1.0f,  EasingCurve{Easing::OutCubic})
             .key(Frame{hold_until},  1.0f,  EasingCurve{Easing::Linear})
             .key(Frame{fade_out},    0.0f,  EasingCurve{Easing::InCubic});
         l.position_anim()
-            .key(Frame{0},           Vec3{0.0f, WORD_LOWER_Y + 30.0f, 0.0f}, EasingCurve{Easing::OutCubic})
+            .key(Frame{0},           Vec3{0.0f, WORD_LOWER_Y + 30.0f, 0.0f}, EasingCurve{Easing::Linear})
+            .key(kPreFade,           Vec3{0.0f, WORD_LOWER_Y + 30.0f, 0.0f}, EasingCurve{Easing::Linear})
             .key(Frame{fade_in},     Vec3{0.0f, WORD_LOWER_Y,        0.0f}, EasingCurve{Easing::OutCubic})
             .key(Frame{fade_out},    Vec3{0.0f, WORD_LOWER_Y + 12.0f, 0.0f}, EasingCurve{Easing::InCubic});
-        // ── RED backdrop rect (opaque, behind text in painter's order) ──
-        // corner_radius dropped 10→4 so the backdrop reads as a proper
-        // RECTANGLE rather than a soft chip/squircle.
-        l.rounded_rect("bg", {
-            .size   = word.rect_outer_size,
-            .radius = word.corner_radius,
-            .color  = palette.backdrop,
-            .pos    = {0.0f, 0.0f, 0.0f},
-        });
-        // ── WHITE word on top — Inter-Bold (modern geometric sans) ──────
-        // text::centered_text() carries the font_path + font_family designators
-        // so the rendered text uses Inter-Bold instead of the previous Poppins.
-        //
-        // ⚠ C++20 [dcl.init.aggr] designated-initializer-order footgun:
-        // designators MUST be in struct-declaration order, otherwise the
-        // compiler rejects the call as malformed.  Field order in
-        // CenterTextOptions is: text, box, pos, font_path, font_family,
-        // font_weight, font_style, font_size, tracking, color, …
-        l.text("name", text::centered_text({
-            .text        = word.label,
-            .font_path   = WORD_FONT_PATH,
-            .font_family = WORD_FONT_FAMILY,
-            .font_size   = word.font_size,
-            .tracking    = word.tracking,
-            .color       = palette.text,
-        }));
+        // ── Gradient backdrop — modern material pill shape ──────────
+        // Subtle vertical gradient: lighter at top, darker at bottom.
+        // Thin white stroke (0.12 alpha) for a clean modern edge.
+        {
+            Color top_c = palette.backdrop;
+            top_c.r = std::min(1.0f, top_c.r * 1.12f);
+            top_c.g = std::min(1.0f, top_c.g * 1.12f);
+            top_c.b = std::min(1.0f, top_c.b * 1.12f);
+            Color bot_c = palette.backdrop;
+            bot_c.r *= 0.88f;
+            bot_c.g *= 0.88f;
+            bot_c.b *= 0.88f;
+            l.rounded_rect("bg", {
+                .size   = word.rect_outer_size,
+                .radius = word.corner_radius,
+                .color  = palette.backdrop,
+                .pos    = {0.0f, 0.0f, 0.0f},
+                .fill   = graphics::FillStyle::linear(
+                    {0.0f, -word.rect_outer_size.y * 0.5f},
+                    {0.0f,  word.rect_outer_size.y * 0.5f},
+                    {{0.0f, top_c}, {1.0f, bot_c}}),
+                .stroke = {true, {1.0f, 1.0f, 1.0f, 0.12f}, 1.5f},
+            });
+        }
+        // ── WHITE word on top — DMSans-Bold (modern geometric sans) ──
+        // Per-letter text shadow for readability against the red backdrop.
+        {
+            auto tp = text::centered_text({
+                .text        = word.label,
+                .font_path   = WORD_FONT_PATH,
+                .font_family = WORD_FONT_FAMILY,
+                .font_weight = 700,
+                .font_size   = word.font_size,
+                .tracking    = word.tracking,
+                .color       = palette.text,
+            });
+            tp.shadows.push_back(TextShadow{
+                .enabled = true,
+                .offset  = {0.0f, 4.0f},
+                .blur    = 6.0f,
+                .opacity = 0.50f,
+                .color   = {0.0f, 0.0f, 0.0f, 1.0f},
+            });
+            l.text("name", tp);
+        }
         // ── SOFT black drop shadow (radius 16, 0.55 alpha) ───────────────
         // The wider blur + low alpha gives a diffuse contact-shadow look
         // rather than a hard drop shadow. Geometry shared via theme.hpp.
@@ -114,11 +144,11 @@ Composition important_word_trio() {
         SceneBuilder s(ctx);
         add_black_background(s);
         // Director window: 0-40
-        build_important_word(s, WORD_DIRECTOR, PALETTE_LIGHT, Frame{8},  Frame{32}, Frame{40});
-        // Actor window:    40-80
-        build_important_word(s, WORD_ACTOR,    PALETTE_WARM,  Frame{48}, Frame{72}, Frame{80});
-        // Writer window:   80-120
-        build_important_word(s, WORD_WRITER,   PALETTE_COOL,  Frame{88}, Frame{112}, Frame{120});
+        build_important_word(s, WORD_DIRECTOR, PALETTE_LIGHT, Frame{8},  Frame{32}, Frame{40},  "director");
+        // Actor window:    44-76 (4f gap after Director fades out)
+        build_important_word(s, WORD_ACTOR,    PALETTE_WARM,  Frame{48}, Frame{68}, Frame{76},  "actor");
+        // Writer window:   80-112 (4f gap after Actor fades out)
+        build_important_word(s, WORD_WRITER,   PALETTE_COOL,  Frame{84}, Frame{104}, Frame{112}, "writer");
         return s.build();
     });
 }
