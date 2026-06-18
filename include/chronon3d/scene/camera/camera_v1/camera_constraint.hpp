@@ -2,48 +2,19 @@
 // ==============================================================================
 // chronon3d/scene/camera/camera_v1/camera_constraint.hpp
 //
-// CameraConstraint is the v1 contract for any constraint that modifies a
-// Camera2_5D after motion has been applied. Constraints are evaluated in
-// stack order (insertion order, NOT auto-reordered).
+// ConstraintSession — per-constraint state slots for stateful constraints
+// (DampedFollow). Used by the compiled camera evaluation path.
 //
-// Stateful constraints read ConstraintSession::states[i] (per-constraint
-// slot, aligned to the constraint stack index). The session is owned by
-// the caller and must be reset between unrelated renders.
+// CameraConstraint class hierarchy and factory functions removed in PR12.
+// The compiled path uses CameraConstraintSpec variants directly
+// (defined in camera_descriptor.hpp).
 // ==============================================================================
 #include <chronon3d/math/camera_2_5d_projection.hpp>  // Camera2_5D
-#include <chronon3d/scene/camera/camera_v1/camera_motion_context.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 
-#include <functional>
-#include <memory>
-#include <string>
-#include <variant>
 #include <vector>
 
 namespace chronon3d::camera_v1 {
-
-/// Result of evaluating a constraint (immutable camera snapshot).
-struct ConstraintResult {
-    Camera2_5D camera;
-    bool       ok{true};
-    std::string reason;
-};
-
-// =========================================================================
-// CameraConstraintParams — typed parameters for factory creation.
-// =========================================================================
-
-struct LookAtParams       { Vec3 target{0,0,0}; };
-struct KeepHorizonParams  {};
-struct DampedFollowParams { float damping{0.15f}; };
-struct DistanceParams     { float min_distance{10.0f}; float max_distance{10000.0f}; };
-struct RotationLimitParams{ float max_pitch_deg{90.0f}; float max_yaw_deg{180.0f}; float max_roll_deg{45.0f}; };
-
-using CameraConstraintParams = std::variant<
-    LookAtParams,
-    KeepHorizonParams,
-    DampedFollowParams,
-    DistanceParams,
-    RotationLimitParams>;
 
 // =========================================================================
 // ConstraintSession — per-constraint slots for stateful constraints.
@@ -57,10 +28,8 @@ struct ConstraintState {
     bool       has_previous{false};
 };
 
-/// Session passed to every constraint evaluate() call. Contains one slot
-/// per constraint (aligned to the stack index). The caller sets
-/// active_index = i before calling constraint[i].evaluate() so that
-/// stateful constraints can read/write session.states[active_index].
+/// Session passed to constraint evaluation functions (compiled path).
+/// Contains one slot per constraint (aligned to the stack index).
 struct ConstraintSession {
     std::vector<ConstraintState> states;
     std::size_t                  active_index{0};
@@ -79,37 +48,5 @@ struct ConstraintSession {
         banking_roll = 0.0f;
     }
 };
-
-// =========================================================================
-// CameraConstraint interface
-// =========================================================================
-
-class CameraConstraint {
-public:
-    virtual ~CameraConstraint() = default;
-    virtual std::string id() const = 0;
-    virtual ConstraintResult evaluate(const Camera2_5D& in,
-                                      const CameraMotionContext& ctx,
-                                      ConstraintSession& session) const = 0;
-};
-
-// =========================================================================
-// Factory functions — create built-in constraints directly (no registry).
-// =========================================================================
-
-/// Create a LookAt constraint with optional target override.
-std::shared_ptr<CameraConstraint> make_look_at_constraint(const LookAtParams& p = {});
-
-/// Create a KeepHorizon constraint (zeros roll).
-std::shared_ptr<CameraConstraint> make_keep_horizon_constraint(const KeepHorizonParams& p = {});
-
-/// Create a DampedFollow constraint with per-constraint state (EMA smoothing).
-std::shared_ptr<CameraConstraint> make_damped_follow_constraint(const DampedFollowParams& p = {});
-
-/// Create a Distance constraint that clamps camera→target distance.
-std::shared_ptr<CameraConstraint> make_distance_constraint(const DistanceParams& p = {});
-
-/// Create a RotationLimit constraint that clamps pitch/yaw/roll angles.
-std::shared_ptr<CameraConstraint> make_rotation_limit_constraint(const RotationLimitParams& p = {});
 
 } // namespace chronon3d::camera_v1

@@ -18,6 +18,7 @@
 // ==============================================================================
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_session.hpp>
 
 #include <cstdint>
 #include <functional>
@@ -113,8 +114,8 @@ private:
 // =========================================================================
 struct ShotTimelineSession {
     // Reuse the same sessions across frames keyed by shot index.
-    std::unordered_map<int, ConstraintSession> shot_sessions;
-    ConstraintSession& session_for(int shot_idx) { return shot_sessions[shot_idx]; }
+    std::unordered_map<int, CameraSession> shot_sessions;
+    CameraSession& session_for(int shot_idx) { return shot_sessions[shot_idx]; }
     void reset() { shot_sessions.clear(); }
 };
 
