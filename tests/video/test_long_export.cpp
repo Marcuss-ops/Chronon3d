@@ -39,10 +39,11 @@ TEST_CASE("Long export: 1000 varying frames via frame converter + cache") {
             .framebuffer_digest = digest,
             .width = w,
             .height = h,
-            .format = EncoderPixelFormat::YUV420P,
-            .color_matrix = 0,
-            .apply_gamma = true,
-        };
+        .format = EncoderPixelFormat::YUV420P,
+        .matrix = YuvMatrix::BT709,
+        .range  = ColorRange::Limited,
+        .apply_gamma = true,
+    };
 
         const auto entry = cache.lookup(key);
         if (entry) {
@@ -50,8 +51,10 @@ TEST_CASE("Long export: 1000 varying frames via frame converter + cache") {
         } else {
             ++cache_misses;
             std::vector<uint8_t> y(y_sz), u(uv_sz), v(uv_sz);
-            auto res = convert_frame_tight(*fb, y.data(), u.data(), v.data(), nullptr,
-                                           w, h, EncoderPixelFormat::YUV420P, true);
+            auto res = convert_frame_tight(*fb,
+                FramePlanes{.y = y.data(), .u = u.data(), .v = v.data()},
+                w, h, EncoderPixelFormat::YUV420P,
+                YuvMatrix::BT709, ColorRange::Limited, true);
             REQUIRE(res.success);
 
             std::vector<uint8_t> packed(y_sz + uv_sz * 2);
@@ -161,10 +164,11 @@ TEST_CASE("Long export: near-duplicate frames hit converted frame cache") {
             .framebuffer_digest = digest,
             .width = w,
             .height = h,
-            .format = EncoderPixelFormat::NV12,
-            .color_matrix = 0,
-            .apply_gamma = true,
-        };
+        .format = EncoderPixelFormat::NV12,
+        .matrix = YuvMatrix::BT709,
+        .range  = ColorRange::Limited,
+        .apply_gamma = true,
+    };
 
         const auto entry = cache.lookup(key);
         if (entry) {
@@ -172,8 +176,10 @@ TEST_CASE("Long export: near-duplicate frames hit converted frame cache") {
         } else {
             ++total_misses;
             std::vector<uint8_t> y(y_sz), uv(y_sz / 2);
-            auto res = convert_frame_tight(*fb, y.data(), nullptr, nullptr, uv.data(),
-                                           w, h, EncoderPixelFormat::NV12, true);
+            auto res = convert_frame_tight(*fb,
+                FramePlanes{.y = y.data(), .uv = uv.data()},
+                w, h, EncoderPixelFormat::NV12,
+                YuvMatrix::BT709, ColorRange::Limited, true);
             REQUIRE(res.success);
             std::vector<uint8_t> packed(y_sz + y_sz / 2);
             std::memcpy(packed.data(), y.data(), y_sz);

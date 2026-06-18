@@ -51,17 +51,17 @@ DirectYuvResult convert_to_yuv420p_parallel(const DirectYuvRequest& req) {
     const int h = req.height;
     if (w % 2 != 0 || h % 2 != 0)
         return DirectYuvResult{};
-    if (!req.dst_y || !req.dst_u || !req.dst_v)
+    if (!req.planes.y || !req.planes.u || !req.planes.v)
         return DirectYuvResult{};
 
     const Framebuffer& src = req.src;
     const int src_stride = src.allocated_width();
     const Color* src_data = src.data();
-    const auto& coeffs = get_coeffs(req.color_matrix);
+    const auto& coeffs = get_coeffs(req.matrix);
 
-    const int stride_y = req.dst_stride_y ? req.dst_stride_y : w;
-    const int stride_u = req.dst_stride_u ? req.dst_stride_u : (w / 2);
-    const int stride_v = req.dst_stride_v ? req.dst_stride_v : (w / 2);
+    const int stride_y = req.planes.stride_y ? req.planes.stride_y : w;
+    const int stride_u = req.planes.stride_u ? req.planes.stride_u : (w / 2);
+    const int stride_v = req.planes.stride_v ? req.planes.stride_v : (w / 2);
     const bool apply_gamma = req.apply_gamma;
 
     // Each iteration processes a 2-row block: [y_block*2 .. y_block*2+1]
@@ -75,10 +75,10 @@ DirectYuvResult convert_to_yuv420p_parallel(const DirectYuvRequest& req) {
             const Color* src_row0 = src_data + static_cast<size_t>(y) * src_stride;
             const Color* src_row1 = src_data + static_cast<size_t>(y + 1) * src_stride;
 
-            uint8_t* y0 = req.dst_y + static_cast<size_t>(y) * stride_y;
-            uint8_t* y1 = req.dst_y + static_cast<size_t>(y + 1) * stride_y;
-            uint8_t* u_row = req.dst_u + static_cast<size_t>(block) * stride_u;
-            uint8_t* v_row = req.dst_v + static_cast<size_t>(block) * stride_v;
+            uint8_t* y0 = req.planes.y + static_cast<size_t>(y) * stride_y;
+            uint8_t* y1 = req.planes.y + static_cast<size_t>(y + 1) * stride_y;
+            uint8_t* u_row = req.planes.u + static_cast<size_t>(block) * stride_u;
+            uint8_t* v_row = req.planes.v + static_cast<size_t>(block) * stride_v;
 
             for (int x = 0; x < w; x += 2) {
                 const Color& c00 = src_row0[x];
@@ -128,14 +128,16 @@ DirectYuvResult convert_to_yuv420p_parallel(const DirectYuvRequest& req) {
     const uint64_t t1 = profiling::timestamp_ns();
     return DirectYuvResult{
         .success       = true,
-        .used_simd     = false,
+        .backend       = FrameConversionBackend::HighwayDirect,
+        .error         = ConversionError::None,
         .conversion_ns = t1 - t0,
     };
+
 }
 
-// ============================================================================
-//  NV12 converter — parallel over 2-row blocks via tbb::parallel_for
-// ============================================================================
+// ────────────────────────────────────────────────────────────────
+//  NV12 converter — TBB scalar fallback (test-only after PR3).
+// ────────────────────────────────────────────────────────────────
 
 DirectYuvResult convert_to_nv12_parallel(const DirectYuvRequest& req) {
     const uint64_t t0 = profiling::timestamp_ns();
@@ -143,17 +145,23 @@ DirectYuvResult convert_to_nv12_parallel(const DirectYuvRequest& req) {
     const int w = req.width;
     const int h = req.height;
     if (w % 2 != 0 || h % 2 != 0)
-        return DirectYuvResult{};
-    if (!req.dst_y || !req.dst_uv)
-        return DirectYuvResult{};
+        return DirectYuvResult{
+            .success = false, .backend = FrameConversionBackend::Unavailable,
+            .error = ConversionError::OddDims,
+        };
+    if (!req.planes.y || !req.planes.uv)
+        return DirectYuvResult{
+            .success = false, .backend = FrameConversionBackend::Unavailable,
+            .error = ConversionError::NullPointer,
+        };
 
     const Framebuffer& src = req.src;
     const int src_stride = src.allocated_width();
     const Color* src_data = src.data();
-    const auto& coeffs = get_coeffs(req.color_matrix);
+    const auto& coeffs = get_coeffs(req.matrix);
 
-    const int stride_y  = req.dst_stride_y  ? req.dst_stride_y  : w;
-    const int stride_uv = req.dst_stride_uv ? req.dst_stride_uv : w;
+    const int stride_y  = req.planes.stride_y  ? req.planes.stride_y  : w;
+    const int stride_uv = req.planes.stride_uv ? req.planes.stride_uv : w;
     const bool apply_gamma = req.apply_gamma;
 
     const int num_blocks = h / 2;
@@ -166,9 +174,9 @@ DirectYuvResult convert_to_nv12_parallel(const DirectYuvRequest& req) {
             const Color* src_row0 = src_data + static_cast<size_t>(y) * src_stride;
             const Color* src_row1 = src_data + static_cast<size_t>(y + 1) * src_stride;
 
-            uint8_t* y0 = req.dst_y + static_cast<size_t>(y) * stride_y;
-            uint8_t* y1 = req.dst_y + static_cast<size_t>(y + 1) * stride_y;
-            uint8_t* uv_row = req.dst_uv + static_cast<size_t>(block) * stride_uv;
+            uint8_t* y0 = req.planes.y + static_cast<size_t>(y) * stride_y;
+            uint8_t* y1 = req.planes.y + static_cast<size_t>(y + 1) * stride_y;
+            uint8_t* uv_row = req.planes.uv + static_cast<size_t>(block) * stride_uv;
 
             for (int x = 0; x < w; x += 2) {
                 const Color& c00 = src_row0[x];
@@ -210,25 +218,32 @@ DirectYuvResult convert_to_nv12_parallel(const DirectYuvRequest& req) {
     const uint64_t t1 = profiling::timestamp_ns();
     return DirectYuvResult{
         .success       = true,
-        .used_simd     = false,
+        .backend       = FrameConversionBackend::HighwayDirect,
+        .error         = ConversionError::None,
         .conversion_ns = t1 - t0,
     };
+
 }
 
 // ============================================================================
-//  Public API — dispatch: try HWY SIMD first, fall back to scalar TBB
+//  Public API — dispatch: try HWY SIMD first, fall back to scalar TBB.
 // ============================================================================
 
 DirectYuvResult convert_framebuffer_to_yuv_direct(const DirectYuvRequest& req) {
     if (req.width <= 0 || req.height <= 0) return DirectYuvResult{};
     if (req.width % 2 != 0 || req.height % 2 != 0) return DirectYuvResult{};
 
-    // Try HWY SIMD first; fall back to scalar TBB if HWY is unavailable.
-    // Both the HWY SIMD and scalar TBB paths were fixed to use the correct
-    // Cr B coefficient (cr_b = -(cr_r + cr_g)) instead of the wrong formula
-    // (0.5 - cr_r - cr_g) / omitting the B term entirely.  The old scalar
-    // rgb8_to_yuv() omitted cr_b*bf, and the old HWY path used (+0.454153)
-    // instead of (-0.045847).  Both now produce V=128 for white pixels.
+    // BT.2020 is rejected — direct codepath does not SIMD-vectorize the
+    // wide BT.2020 matrix + range offsets.  Caller (convert_frame) is
+    // expected to have routed BT.2020 to swscale via select_backend.
+    if (req.matrix == YuvMatrix::BT2020) {
+        return DirectYuvResult{
+            .success = false,
+            .backend = FrameConversionBackend::Unavailable,
+            .error   = ConversionError::UnsupportedMatrix,
+        };
+    }
+
     switch (req.format) {
         case EncoderPixelFormat::YUV420P: {
             auto r = convert_to_yuv420p_hwy(req);
@@ -241,7 +256,11 @@ DirectYuvResult convert_framebuffer_to_yuv_direct(const DirectYuvRequest& req) {
             return convert_to_nv12_parallel(req);
         }
         default:
-            return DirectYuvResult{};
+            return DirectYuvResult{
+                .success = false,
+                .backend = FrameConversionBackend::Unavailable,
+                .error   = ConversionError::UnsupportedFormat,
+            };
     }
 }
 

@@ -79,17 +79,21 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
 
         video::ConvertFrameRequest req{
             .src           = fb,
-            .dst_y         = frame_->data[0],
-            .dst_u         = frame_->data[1],
-            .dst_v         = frame_->data[2],
-            .dst_uv        = nullptr,
-            .dst_stride_y  = frame_->linesize[0],
-            .dst_stride_u  = frame_->linesize[1],
-            .dst_stride_v  = frame_->linesize[2],
-            .color_matrix  = color_matrix,
+            .planes        = video::FramePlanes{
+                .y         = frame_->data[0],
+                .u         = frame_->data[1],
+                .v         = frame_->data[2],
+                .uv        = nullptr,
+                .stride_y  = frame_->linesize[0],
+                .stride_u  = frame_->linesize[1],
+                .stride_v  = frame_->linesize[2],
+                .stride_uv = 0,
+            },
             .width         = options_.width,
             .height        = options_.height,
             .format        = video::EncoderPixelFormat::YUV420P,
+            .matrix        = static_cast<video::YuvMatrix>(color_matrix),
+            .range         = video::ColorRange::Limited,
             .apply_gamma   = options_.color_transform.apply_gamma,
         };
 

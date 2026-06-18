@@ -1,0 +1,345 @@
+[16/270] Building CXX object src/media/CMakeFiles/chronon3d_backend_video.dir/frame_conversion/converted_frame_cache.cpp.o
+[17/270] Building CXX object src/media/CMakeFiles/chronon3d_backend_video.dir/frame_conversion/direct_yuv_converter.cpp.o
+[18/270] Building CXX object src/media/CMakeFiles/chronon3d_backend_video.dir/frame_conversion/frame_conversion_service.cpp.o
+[19/270] Building CXX object src/backends/image/CMakeFiles/chronon3d_backend_image.dir/cmake_pch.hxx.gch
+[20/270] Building CXX object src/media/CMakeFiles/chronon3d_media_video.dir/Unity/unity_0_cxx.cxx.o
+[21/270] Linking CXX static library src/media/libchronon3d_media_video.a
+[22/270] Building CXX object src/backends/image/CMakeFiles/chronon3d_backend_image.dir/Unity/unity_0_cxx.cxx.o
+[23/270] Linking CXX static library src/backends/image/libchronon3d_backend_image.a
+[24/270] Building CXX object src/media/CMakeFiles/chronon3d_backend_video.dir/frame_conversion/direct_yuv_converter_hwy.cpp.o
+[25/270] Linking CXX static library src/media/libchronon3d_backend_video.a
+[26/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_core.dir/cmake_pch.hxx.gch
+[27/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_core.dir/render_graph.cpp.o
+[28/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_nodes.dir/cmake_pch.hxx.gch
+[29/270] Building CXX object src/backends/text/CMakeFiles/chronon3d_backend_text.dir/Unity/unity_0_cxx.cxx.o
+[30/270] Linking CXX static library src/backends/text/libchronon3d_backend_text.a
+[31/270] Building CXX object src/backends/assets/CMakeFiles/chronon3d_backend_assets.dir/Unity/unity_0_cxx.cxx.o
+[32/270] Linking CXX static library src/backends/assets/libchronon3d_backend_assets.a
+[33/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_core.dir/graph_profiler.cpp.o
+[34/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_core.dir/registry/graph_node_registry.cpp.o
+[35/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_core.dir/framebuffer_acquire.cpp.o
+[36/270] Linking CXX static library src/render_graph/libchronon3d_graph_core.a
+[37/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_nodes.dir/nodes/transform_kernels.cpp.o
+[38/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_nodes.dir/nodes/transform_node.cpp.o
+[39/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_nodes.dir/nodes/multi_source_node.cpp.o
+[40/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_nodes.dir/nodes/transition_node.cpp.o
+[41/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_nodes.dir/nodes/source_node.cpp.o
+[42/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_nodes.dir/nodes/track_matte_node.cpp.o
+[43/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_nodes.dir/nodes/transition/transition_node_math.cpp.o
+[44/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_nodes.dir/nodes/effect_stack_node.cpp.o
+[45/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_nodes.dir/nodes/clear_node.cpp.o
+[46/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_nodes.dir/nodes/composite_node.cpp.o
+[47/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/cmake_pch.hxx.gch
+[48/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_compiler.dir/compiler/scene_binding_compiler.cpp.o
+[49/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_compiler.dir/compiler/frame_graph_compiler.cpp.o
+[50/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_nodes.dir/nodes/TextRunNode.cpp.o
+[51/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/builder/graph_builder_internal.cpp.o
+[52/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/builder/graph_builder_pipeline.cpp.o
+[53/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/builder/graph_builder_static_analysis.cpp.o
+[54/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/builder/graph_builder_matte.cpp.o
+[55/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/builder/graph_builder_bbox.cpp.o
+[56/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/builder/graph_build_pipeline.cpp.o
+[57/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/builder/graph_builder_layer_pipeline.cpp.o
+[58/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/builder/passes/graph_builder_layer_passes.cpp.o
+[59/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/builder/passes/graph_builder_resolve_pass.cpp.o
+[60/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/builder/passes/graph_builder_lighting_passes.cpp.o
+[61/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/builder/passes/graph_builder_root_sources_pass.cpp.o
+[62/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/builder/passes/graph_builder_source_pass.cpp.o
+[63/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/builder/passes/graph_builder_layer_pipeline_pass.cpp.o
+[64/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/builder/builder_layer_id.cpp.o
+[65/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/builder/graph_build_registry.cpp.o
+[66/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/builder/passes/graph_builder_validation_pass.cpp.o
+[67/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_executor.dir/cmake_pch.hxx.gch
+[68/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/builder/passes/graph_builder_output_pass.cpp.o
+[69/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_compiler.dir/optimizer/graph_optimizer.cpp.o
+[70/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_executor.dir/executor/input_resolver.cpp.o
+[71/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_executor.dir/executor/executor.cpp.o
+[72/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_executor.dir/executor/tile_pruning.cpp.o
+[73/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_preflight.dir/preflight/preflight.cpp.o
+[74/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_executor.dir/executor/cache_evaluator.cpp.o
+[75/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_executor.dir/executor/executor_levels.cpp.o
+[76/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_executor.dir/executor/framebuffer_lifetime.cpp.o
+[77/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_executor.dir/executor/telemetry_emitter.cpp.o
+[78/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_executor.dir/executor/node_runner.cpp.o
+[79/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_executor.dir/executor/executor_plan.cpp.o
+[80/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_preflight.dir/preflight/analysis.cpp.o
+[81/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_preflight.dir/preflight/analysis_graph.cpp.o
+[82/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/cmake_pch.hxx.gch
+[83/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_preflight.dir/preflight/analysis_diagnostics.cpp.o
+[84/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_cache.dir/cache/scene_program_cache.cpp.o
+[85/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/scene_dirty.cpp.o
+[86/270] Building CXX object src/runtime/CMakeFiles/chronon3d_runtime.dir/cmake_pch.hxx.gch
+[87/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/dirty/scroll_optimization.cpp.o
+[88/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/scene.cpp.o
+[89/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/dirty/layer_bbox_collector.cpp.o
+[90/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/dirty/root_bbox_collector.cpp.o
+[91/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/camera_change_policy.cpp.o
+[92/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/scene_tile_execution.cpp.o
+[93/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/dirty_safety_policy.cpp.o
+[94/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/tile_execution_policy.cpp.o
+[95/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/scene_fingerprint.cpp.o
+[96/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/dirty_telemetry_reporter.cpp.o
+[97/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/frame_timing_recorder.cpp.o
+[98/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/tile_execution_coordinator.cpp.o
+[99/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/pool_preallocation.cpp.o
+[100/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/frame_reuse_policy.cpp.o
+[101/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/frame_state_commit.cpp.o
+[102/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/graph_cache_coordinator.cpp.o
+[103/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/scene_refresh.cpp.o
+[104/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/refresh/layer_item.cpp.o
+[105/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/refresh/source.cpp.o
+[106/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/refresh/multi_source.cpp.o
+[107/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/refresh/effect_stack.cpp.o
+[108/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/refresh/transform.cpp.o
+[109/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/precomp_node_execute.cpp.o
+[110/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/debug.cpp.o
+[111/270] Building CXX object src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline/composition.cpp.o
+[112/270] Building CXX object src/runtime/CMakeFiles/chronon3d_runtime.dir/Unity/unity_0_cxx.cxx.o
+[113/270] Building CXX object src/extension/CMakeFiles/chronon3d_extension.dir/cmake_pch.hxx.gch
+[114/270] Building CXX object src/backends/software/CMakeFiles/chronon3d_backend_software.dir/cmake_pch.hxx.gch
+[115/270] Building CXX object src/animations/CMakeFiles/chronon3d_animations.dir/Unity/unity_0_cxx.cxx.o
+[116/270] Building CXX object src/scene/CMakeFiles/chronon3d_scene.dir/cmake_pch.hxx.gch
+[117/270] Building CXX object src/backends/software/CMakeFiles/chronon3d_backend_software.dir/software_compositor.cpp.o
+[118/270] Building CXX object src/extension/CMakeFiles/chronon3d_extension.dir/Unity/unity_0_cxx.cxx.o
+[119/270] Building CXX object src/backends/software/CMakeFiles/chronon3d_backend_software.dir/software_renderer.cpp.o
+FAILED: src/backends/software/CMakeFiles/chronon3d_backend_software.dir/software_renderer.cpp.o 
+/usr/bin/ccache /usr/bin/c++ -DCHRONON3D_ENABLE_LIBYUV -DCHRONON3D_ENABLE_MESH -DCHRONON3D_ENABLE_TEXT -DCHRONON3D_ENABLE_VIDEO -DCHRONON3D_GIT_COMMIT=\"8838ec08\" -DCHRONON3D_USE_BLEND2D -DCHRONON_BUILD_TESTS -DHWY_STATIC_DEFINE -DSPDLOG_FMT_EXTERNAL -DSPDLOG_FWRITE_UNLOCKED -DTBB_USE_DEBUG -DTOOLCHAIN_MISS_ASM_HWCAP_H -I/home/pierone/Pyt/Chronon3d -I/home/pierone/Pyt/Chronon3d/include -isystem /home/pierone/Pyt/Chronon3d/vcpkg_installed/x64-linux/include -isystem /home/pierone/Pyt/Chronon3d/vcpkg_installed/x64-linux/include/harfbuzz -fdiagnostics-color=always -pipe -g -fPIC -ffp-contract=off -DTOML_HEADER_ONLY=0 -DBL_STATIC -std=c++20 -Winvalid-pch -include /home/pierone/Pyt/Chronon3d/build-disk/src/backends/software/CMakeFiles/chronon3d_backend_software.dir/cmake_pch.hxx -MD -MT src/backends/software/CMakeFiles/chronon3d_backend_software.dir/software_renderer.cpp.o -MF src/backends/software/CMakeFiles/chronon3d_backend_software.dir/software_renderer.cpp.o.d -o src/backends/software/CMakeFiles/chronon3d_backend_software.dir/software_renderer.cpp.o -c /home/pierone/Pyt/Chronon3d/src/backends/software/software_renderer.cpp
+/home/pierone/Pyt/Chronon3d/src/backends/software/software_renderer.cpp: In constructor ‘chronon3d::SoftwareRenderer::SoftwareRenderer()’:
+/home/pierone/Pyt/Chronon3d/src/backends/software/software_renderer.cpp:71:7: error: converting to ‘chronon3d::cache::NodeCache’ from initializer list would use explicit constructor ‘chronon3d::cache::NodeCache::NodeCache(size_t)’
+   71 |     , m_cache_state{
+      |       ^~~~~~~~~~~~~~
+   72 |         .node_cache{0},  // 0 = use Config::get().node_cache_max_bytes (env CHRONON_NODE_CACHE_MAX_MB)
+      |         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   73 |         .framebuffer_pool = std::make_shared<cache::FramebufferPool>()
+      |         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   74 |     } {
+      |     ~  
+[120/270] Building CXX object src/backends/software/CMakeFiles/chronon3d_backend_software.dir/buffer_ring.cpp.o
+[121/270] Building CXX object src/backends/software/CMakeFiles/chronon3d_backend_software.dir/scratch_buffer.cpp.o
+[122/270] Building CXX object src/backends/software/CMakeFiles/chronon3d_backend_software.dir/graph_cache.cpp.o
+ninja: build stopped: subcommand failed.
+---BUILD END EXIT=0
+---ARTIFACTS---
+build-disk
+build-disk/tests
+build-disk/tests/CMakeFiles
+build-disk/tests/CMakeFiles/chronon3d_camera_visual_tests.dir
+build-disk/tests/CMakeFiles/chronon3d_camera_visual_tests.dir/visual
+build-disk/tests/CMakeFiles/chronon3d_camera_visual_tests.dir/visual/camera
+build-disk/tests/CMakeFiles/chronon3d_tbb_workers_test.dir
+build-disk/tests/CMakeFiles/chronon3d_tbb_workers_test.dir/golden
+build-disk/tests/CMakeFiles/chronon3d_optimizer_tests.dir
+build-disk/tests/CMakeFiles/chronon3d_optimizer_tests.dir/Unity
+build-disk/tests/CMakeFiles/chronon3d_visual_test_support.dir
+build-disk/tests/CMakeFiles/chronon3d_visual_test_support.dir/Unity
+build-disk/tests/CMakeFiles/chronon3d_scene_tests.dir
+build-disk/tests/CMakeFiles/chronon3d_scene_tests.dir/Unity
+build-disk/tests/CMakeFiles/chronon3d_cache_tests.dir
+build-disk/tests/CMakeFiles/chronon3d_cache_tests.dir/Unity
+build-disk/tests/CMakeFiles/chronon3d_cli_tests.dir
+build-disk/tests/CMakeFiles/chronon3d_cli_tests.dir/Unity
+build-disk/tests/CMakeFiles/chronon3d_gradient_visual_tests.dir
+build-disk/tests/CMakeFiles/chronon3d_gradient_visual_tests.dir/visual
+build-disk/tests/CMakeFiles/chronon3d_breathing_golden_tests.dir
+build-disk/tests/CMakeFiles/chronon3d_breathing_golden_tests.dir/golden
+build-disk/tests/CMakeFiles/chronon3d_graphics_tests.dir
+build-disk/tests/CMakeFiles/chronon3d_graphics_tests.dir/Unity
+build-disk/tests/CMakeFiles/chronon3d_media_video_tests.dir
+build-disk/tests/CMakeFiles/chronon3d_media_video_tests.dir/cli
+build-disk/tests/CMakeFiles/chronon3d_media_video_tests.dir/video
+build-disk/tests/CMakeFiles/chronon3d_media_video_tests.dir/__
+build-disk/tests/CMakeFiles/chronon3d_media_video_tests.dir/__/apps
+build-disk/tests/CMakeFiles/chronon3d_core_tests.dir
+build-disk/tests/CMakeFiles/chronon3d_core_tests.dir/Unity
+build-disk/tests/CMakeFiles/chronon3d_cinematic_motion_visual_tests.dir
+build-disk/tests/CMakeFiles/chronon3d_cinematic_motion_visual_tests.dir/visual
+build-disk/tests/CMakeFiles/chronon3d_cinematic_motion_visual_tests.dir/visual/cinematic_motion
+build-disk/tests/CMakeFiles/chronon3d_visual_test_support_tests.dir
+build-disk/tests/CMakeFiles/chronon3d_visual_test_support_tests.dir/visual
+build-disk/tests/CMakeFiles/chronon3d_visual_test_support_tests.dir/visual/support
+build-disk/tests/CMakeFiles/chronon3d_animation_tests.dir
+build-disk/tests/CMakeFiles/chronon3d_animation_tests.dir/Unity
+build-disk/tests/CMakeFiles/chronon3d_compositor_tests.dir
+build-disk/tests/CMakeFiles/chronon3d_compositor_tests.dir/render_graph
+build-disk/tests/CMakeFiles/chronon3d_compositor_tests.dir/render_graph/pipeline
+build-disk/tests/CMakeFiles/chronon3d_compositor_tests.dir/compositor
+build-disk/tests/CMakeFiles/chronon3d_io_tests.dir
+build-disk/tests/CMakeFiles/chronon3d_io_tests.dir/Unity
+build-disk/tests/CMakeFiles/chronon3d_content_tests.dir
+build-disk/tests/CMakeFiles/chronon3d_content_tests.dir/Unity
+build-disk/tests/CMakeFiles/chronon3d_determinism_test.dir
+build-disk/tests/CMakeFiles/chronon3d_determinism_test.dir/golden
+build-disk/tests/CMakeFiles/chronon3d_deterministic_tests.dir
+build-disk/tests/CMakeFiles/chronon3d_deterministic_tests.dir/deterministic
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/render_graph
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/render_graph/pipeline
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/render_graph/compiler
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/render_graph/nodes
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/render_graph/optimizer
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/render_graph/features
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/scene
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/scene/camera
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/scene/shapes
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/registry
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/deterministic
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/renderer
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/renderer/camera
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/renderer/lighting
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/renderer/2d5
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/renderer/perf
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/renderer/helpers
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/renderer/media
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/renderer/effects
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/stabilization
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/golden
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/cache
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/runtime
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/effects
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/backends
+build-disk/tests/CMakeFiles/chronon3d_renderer_tests.dir/backends/software
+build-disk/content
+build-disk/content/CMakeFiles
+build-disk/content/CMakeFiles/chronon3d_content_gallery.dir
+build-disk/content/CMakeFiles/chronon3d_content_gallery.dir/Unity
+build-disk/content/CMakeFiles/chronon3d_content_registry.dir
+build-disk/content/CMakeFiles/chronon3d_content_registry.dir/Unity
+build-disk/src
+build-disk/src/render_graph
+build-disk/src/render_graph/CMakeFiles
+build-disk/src/render_graph/CMakeFiles/chronon3d_graph_preflight.dir
+build-disk/src/render_graph/CMakeFiles/chronon3d_graph_preflight.dir/preflight
+build-disk/src/render_graph/CMakeFiles/chronon3d_graph_core.dir
+build-disk/src/render_graph/CMakeFiles/chronon3d_graph_core.dir/registry
+build-disk/src/render_graph/CMakeFiles/chronon3d_graph_builder.dir
+build-disk/src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/builder
+build-disk/src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir
+build-disk/src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/pipeline
+build-disk/src/render_graph/CMakeFiles/chronon3d_graph_executor.dir
+build-disk/src/render_graph/CMakeFiles/chronon3d_graph_executor.dir/executor
+build-disk/src/render_graph/CMakeFiles/chronon3d_graph_cache.dir
+build-disk/src/render_graph/CMakeFiles/chronon3d_graph_cache.dir/cache
+build-disk/src/render_graph/CMakeFiles/chronon3d_graph_compiler.dir
+build-disk/src/render_graph/CMakeFiles/chronon3d_graph_compiler.dir/compiler
+build-disk/src/render_graph/CMakeFiles/chronon3d_graph_compiler.dir/optimizer
+build-disk/src/render_graph/CMakeFiles/chronon3d_graph_nodes.dir
+build-disk/src/render_graph/CMakeFiles/chronon3d_graph_nodes.dir/nodes
+build-disk/src/scene
+build-disk/src/scene/model
+build-disk/src/scene/model/CMakeFiles
+build-disk/src/scene/camera
+build-disk/src/scene/camera/CMakeFiles
+build-disk/src/scene/camera/camera_v1
+build-disk/src/scene/camera/camera_v1/CMakeFiles
+build-disk/src/scene/registry
+build-disk/src/scene/registry/CMakeFiles
+build-disk/src/scene/builders
+build-disk/src/scene/builders/CMakeFiles
+build-disk/src/scene/CMakeFiles
+build-disk/src/scene/CMakeFiles/chronon3d_scene.dir
+build-disk/src/scene/CMakeFiles/chronon3d_scene.dir/Unity
+build-disk/src/scene/validation
+build-disk/src/scene/validation/CMakeFiles
+build-disk/src/text
+build-disk/src/text/CMakeFiles
+build-disk/src/text/CMakeFiles/chronon3d_text_core.dir
+build-disk/src/text/CMakeFiles/chronon3d_text_core.dir/Unity
+build-disk/src/registry
+build-disk/src/registry/CMakeFiles
+build-disk/src/registry/CMakeFiles/chronon3d_registry.dir
+build-disk/src/core
+build-disk/src/core/CMakeFiles
+build-disk/src/core/CMakeFiles/chronon3d_core_impl.dir
+build-disk/src/core/CMakeFiles/chronon3d_core_impl.dir/Unity
+build-disk/src/animations
+build-disk/src/animations/CMakeFiles
+build-disk/src/animations/CMakeFiles/chronon3d_animations.dir
+build-disk/src/animations/CMakeFiles/chronon3d_animations.dir/Unity
+build-disk/src/media
+build-disk/src/media/CMakeFiles
+build-disk/src/media/CMakeFiles/chronon3d_backend_video.dir
+build-disk/src/media/CMakeFiles/chronon3d_backend_video.dir/frame_conversion
+build-disk/src/media/CMakeFiles/chronon3d_media_video.dir
+build-disk/src/media/CMakeFiles/chronon3d_media_video.dir/Unity
+build-disk/src/cache
+build-disk/src/cache/CMakeFiles
+build-disk/src/cache/CMakeFiles/chronon3d_cache.dir
+build-disk/src/cache/CMakeFiles/chronon3d_cache.dir/Unity
+build-disk/src/assets
+build-disk/src/assets/CMakeFiles
+build-disk/src/assets/CMakeFiles/chronon3d_assets.dir
+build-disk/src/assets/CMakeFiles/chronon3d_assets.dir/Unity
+build-disk/src/runtime
+build-disk/src/runtime/CMakeFiles
+build-disk/src/runtime/CMakeFiles/chronon3d_runtime.dir
+build-disk/src/runtime/CMakeFiles/chronon3d_runtime.dir/Unity
+build-disk/src/CMakeFiles
+build-disk/src/extension
+build-disk/src/extension/CMakeFiles
+build-disk/src/extension/CMakeFiles/chronon3d_extension.dir
+build-disk/src/extension/CMakeFiles/chronon3d_extension.dir/Unity
+build-disk/src/effects
+build-disk/src/effects/CMakeFiles
+build-disk/src/effects/CMakeFiles/chronon3d_effects.dir
+build-disk/src/effects/CMakeFiles/chronon3d_effects.dir/Unity
+build-disk/src/backends
+build-disk/src/backends/text
+build-disk/src/backends/text/CMakeFiles
+build-disk/src/backends/text/CMakeFiles/chronon3d_backend_text.dir
+build-disk/src/backends/software
+build-disk/src/backends/software/diagnostics
+build-disk/src/backends/software/diagnostics/CMakeFiles
+build-disk/src/backends/software/simd
+build-disk/src/backends/software/simd/CMakeFiles
+build-disk/src/backends/software/utils
+build-disk/src/backends/software/utils/CMakeFiles
+build-disk/src/backends/software/kernels
+build-disk/src/backends/software/kernels/CMakeFiles
+build-disk/src/backends/software/sampling
+build-disk/src/backends/software/sampling/CMakeFiles
+build-disk/src/backends/software/specialized
+build-disk/src/backends/software/specialized/CMakeFiles
+build-disk/src/backends/software/CMakeFiles
+build-disk/src/backends/software/CMakeFiles/chronon3d_backend_software.dir
+build-disk/src/backends/software/processors
+build-disk/src/backends/software/processors/text
+build-disk/src/backends/software/processors/image
+build-disk/src/backends/software/processors/text_run
+build-disk/src/backends/software/processors/CMakeFiles
+build-disk/src/backends/software/processors/effects
+build-disk/src/backends/software/rasterizers
+build-disk/src/backends/software/rasterizers/CMakeFiles
+build-disk/src/backends/image
+build-disk/src/backends/image/CMakeFiles
+build-disk/src/backends/image/CMakeFiles/chronon3d_backend_image.dir
+build-disk/src/backends/assets
+build-disk/src/backends/assets/CMakeFiles
+build-disk/src/backends/assets/CMakeFiles/chronon3d_backend_assets.dir
+build-disk/CMakeFiles
+build-disk/CMakeFiles/pkgRedirects
+build-disk/CMakeFiles/CMakeScratch
+build-disk/CMakeFiles/3.25.1
+build-disk/CMakeFiles/3.25.1/CompilerIdC
+build-disk/CMakeFiles/3.25.1/CompilerIdC/tmp
+build-disk/CMakeFiles/3.25.1/CompilerIdCXX
+build-disk/CMakeFiles/3.25.1/CompilerIdCXX/tmp
+build-disk/apps
+build-disk/apps/chronon3d_cli
+build-disk/apps/chronon3d_cli/CMakeFiles
+build-disk/apps/chronon3d_cli/CMakeFiles/chronon3d_cli_dev.dir
+build-disk/apps/chronon3d_cli/CMakeFiles/chronon3d_cli_dev.dir/utils
+build-disk/apps/chronon3d_cli/CMakeFiles/chronon3d_cli_dev.dir/commands
+build-disk/apps/chronon3d_cli/CMakeFiles/chronon3d_cli_render.dir
+build-disk/apps/chronon3d_cli/CMakeFiles/chronon3d_cli_render.dir/utils
+build-disk/apps/chronon3d_cli/CMakeFiles/chronon3d_cli_render.dir/commands
+build-disk/apps/chronon3d_cli/CMakeFiles/chronon3d_cli_video.dir
+build-disk/apps/chronon3d_cli/CMakeFiles/chronon3d_cli_video.dir/utils
+build-disk/apps/chronon3d_cli/CMakeFiles/chronon3d_cli_video.dir/commands
+build-disk/apps/chronon3d_cli/CMakeFiles/chronon3d_cli_telemetry.dir
+build-disk/apps/chronon3d_cli/CMakeFiles/chronon3d_cli_telemetry.dir/commands
+build-disk/apps/chronon3d_cli/CMakeFiles/chronon3d_cli.dir
+build-disk/apps/chronon3d_cli/CMakeFiles/chronon3d_cli_core.dir
+build-disk/apps/chronon3d_cli/CMakeFiles/chronon3d_cli_core.dir/utils
+build-disk/apps/chronon3d_cli/CMakeFiles/chronon3d_cli_core.dir/commands
+build-disk/apps/chronon3d_cli/CMakeFiles/chronon3d_cli_bench.dir
+build-disk/apps/chronon3d_cli/CMakeFiles/chronon3d_cli_bench.dir/commands

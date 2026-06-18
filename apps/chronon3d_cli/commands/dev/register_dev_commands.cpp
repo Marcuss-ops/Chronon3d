@@ -45,6 +45,22 @@ void register_batch(CLI::App& app, CliContext& ctx) {
     });
 }
 
+void register_bench_convert(CLI::App& app, CliContext& ctx) {
+    auto args = std::make_shared<BenchConvertArgs>();
+    auto* cmd = app.add_subcommand("benchconvert",
+        "Benchmark YUV frame conversion backends (Highway SIMD, TBB scalar, libyuv, swscale)");
+    cmd->add_option("comp_id", args->comp_id, "Composition ID to render and convert")->required();
+    cmd->add_option("-f,--frame",     args->frame,       "Frame index to render")->default_val(0);
+    cmd->add_option("-i,--iterations",args->iterations,  "Timing iterations per backend")->default_val(10);
+    cmd->add_option("--format",       args->format,
+                    "Output YUV format: nv12 | yuv420p")->default_val("yuv420p");
+    cmd->add_flag("--gamma,!--no-gamma", args->apply_gamma,
+                  "Apply sRGB gamma when quantising linear RGB")->default_val(true);
+    cmd->callback([args, &ctx]() {
+        ctx.exit_code = command_bench_convert(ctx.registry, *args);
+    });
+}
+
 }  // namespace (closes anonymous namespace)
 
 // Top-level dispatcher — declared in command_registry.hpp:11 and called from
@@ -57,6 +73,7 @@ void register_dev_commands(CLI::App& app, CliContext& ctx) {
     register_watch(app, ctx);
     register_render_all(app, ctx);
     register_batch(app, ctx);
+    register_bench_convert(app, ctx);
 }
 
 }  // namespace chronon3d::cli

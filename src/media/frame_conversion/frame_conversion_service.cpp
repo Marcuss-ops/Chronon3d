@@ -34,7 +34,8 @@ ConvertedFrameCacheKey FrameConversionService::make_cache_key(
         .width              = opts.width,
         .height             = opts.height,
         .format             = opts.format,
-        .color_matrix       = opts.color_matrix,
+        .matrix             = opts.matrix,
+        .range              = opts.range,
         .apply_gamma        = opts.apply_gamma,
     };
 }
@@ -69,7 +70,7 @@ ConvertedFrame FrameConversionService::convert(
             result.data.assign(hit->data.data(), hit->data.data() + hit->data_size);
             result.data_size = hit->data_size;
             result.from_cache = true;
-            result.used_simd = true;
+            result.backend = FrameConversionBackend::Unavailable;  // kernel didn't run on a hit
             result.conversion_ns = 0;
             return result;
         }
@@ -114,9 +115,19 @@ ConvertedFrame FrameConversionService::convert(
     // Use convert_frame_tight for simplicity (tight strides = no padding).
     const auto conv_result = convert_frame_tight(
         fb,
-        dst_y, dst_u, dst_v, dst_uv,
+        FramePlanes{
+            .y         = dst_y,
+            .u         = dst_u,
+            .v         = dst_v,
+            .uv        = dst_uv,
+            .stride_y  = opts.width,
+            .stride_u  = opts.width / 2,
+            .stride_v  = opts.width / 2,
+            .stride_uv = opts.width,
+        },
         opts.width, opts.height,
         opts.format,
+        opts.matrix, opts.range,
         opts.apply_gamma);
 
     if (!conv_result.success) {
@@ -125,7 +136,7 @@ ConvertedFrame FrameConversionService::convert(
         return result;
     }
 
-    result.used_simd = conv_result.used_simd;
+    result.backend = conv_result.backend;
     result.conversion_ns = conv_result.conversion_ns;
     ++stats_.conversions;
     stats_.total_conversion_ns += conv_result.conversion_ns;
@@ -190,9 +201,19 @@ bool FrameConversionService::convert_to_buffer(
 
     const auto conv_result = convert_frame_tight(
         fb,
-        dst_y, dst_u, dst_v, dst_uv,
+        FramePlanes{
+            .y         = dst_y,
+            .u         = dst_u,
+            .v         = dst_v,
+            .uv        = dst_uv,
+            .stride_y  = opts.width,
+            .stride_u  = opts.width / 2,
+            .stride_v  = opts.width / 2,
+            .stride_uv = opts.width,
+        },
         opts.width, opts.height,
         opts.format,
+        opts.matrix, opts.range,
         opts.apply_gamma);
 
     if (!conv_result.success) {

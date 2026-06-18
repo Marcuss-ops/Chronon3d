@@ -25,12 +25,20 @@ size_t convert_to_selected_format(
             const size_t uv_size = y_size / 4u;
             const auto res = video::convert_frame_tight(
                 fb,
-                dst,                  // Y plane
-                dst + y_size,         // U plane
-                dst + y_size + uv_size, // V plane
-                nullptr,              // UV interleaved (not used)
+                video::FramePlanes{
+                    .y         = dst,
+                    .u         = dst + y_size,
+                    .v         = dst + y_size + uv_size,
+                    .uv        = nullptr,
+                    .stride_y  = width,
+                    .stride_u  = width / 2,
+                    .stride_v  = width / 2,
+                    .stride_uv = 0,
+                },
                 width, height,
                 video::EncoderPixelFormat::YUV420P,
+                video::YuvMatrix::BT709,
+                video::ColorRange::Limited,
                 color_transform.apply_gamma);
             return res.success ? y_size + uv_size * 2 : 0;
         }
@@ -38,12 +46,20 @@ size_t convert_to_selected_format(
             const size_t y_size = static_cast<size_t>(width) * height;
             const auto res = video::convert_frame_tight(
                 fb,
-                dst,                  // Y plane
-                nullptr,              // U (not used for NV12)
-                nullptr,              // V (not used for NV12)
-                dst + y_size,         // UV interleaved
+                video::FramePlanes{
+                    .y         = dst,
+                    .u         = nullptr,
+                    .v         = nullptr,
+                    .uv        = dst + y_size,
+                    .stride_y  = width,
+                    .stride_u  = 0,
+                    .stride_v  = 0,
+                    .stride_uv = width,
+                },
                 width, height,
                 video::EncoderPixelFormat::NV12,
+                video::YuvMatrix::BT709,
+                video::ColorRange::Limited,
                 color_transform.apply_gamma);
             return res.success ? y_size + y_size / 2u : 0;
         }
@@ -54,10 +70,20 @@ size_t convert_to_selected_format(
             // but we track the actual converted byte count.
             const auto res = video::convert_frame_tight(
                 fb,
-                dst,                  // packed RGB output
-                nullptr, nullptr, nullptr,
+                video::FramePlanes{
+                    .y         = dst,
+                    .u         = nullptr,
+                    .v         = nullptr,
+                    .uv        = nullptr,
+                    .stride_y  = width * 3,
+                    .stride_u  = 0,
+                    .stride_v  = 0,
+                    .stride_uv = 0,
+                },
                 width, height,
                 video::EncoderPixelFormat::RGB24,
+                video::YuvMatrix::BT709,
+                video::ColorRange::Limited,
                 color_transform.apply_gamma);
             return res.success ? static_cast<size_t>(width) * height * 3u : 0;
         }

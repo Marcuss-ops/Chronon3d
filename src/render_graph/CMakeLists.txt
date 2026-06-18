@@ -87,6 +87,15 @@ set_target_properties(chronon3d_graph_builder PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_builder PUBLIC
     chronon3d_graph_core
     chronon3d_graph_nodes
+    # Back-edge: graph_builder_source_pass.cpp makes std::make_unique<PrecompNode>
+    # (defined in chronon3d_graph_pipeline), and graph_builder_output_pass.cpp
+    # makes std::make_unique<PerPixelDofNode> (whose inline execute() calls
+    # chronon3d_backend_software/simd/highway_dof_kernels.o's dof_*_gather_simd).
+    # Without these links the executable fails to resolve the symbols once any
+    # TU in the link chain activates these two .o files. Closes the cycle via
+    # --start-group/--end-group on modern linkers (mold/lld).
+    chronon3d_graph_pipeline
+    chronon3d_backend_software
 )
 target_precompile_headers(chronon3d_graph_builder PRIVATE
     <glm/glm.hpp>
@@ -191,6 +200,11 @@ target_link_libraries(chronon3d_graph_pipeline PUBLIC
     chronon3d_graph_compiler
     chronon3d_graph_preflight
     chronon3d_graph_cache
+    # graph_cache_coordinator.cpp calls CompiledGraphCache::try_take/has/store,
+    # defined in chronon3d_backend_software/graph_cache.cpp. Without this link,
+    # the executable fails to resolve them once an active TU pulls coordinator.o
+    # into the link chain. Closes the static-lib cycle via --start-group/--end-group.
+    chronon3d_backend_software
 )
 target_precompile_headers(chronon3d_graph_pipeline PRIVATE
     <glm/glm.hpp>

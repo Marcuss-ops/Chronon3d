@@ -271,7 +271,8 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
         .height      = height_,
         .format      = enc_fmt,
         .apply_gamma = options_.color_transform.apply_gamma,
-        .color_matrix = 0,
+        .matrix      = video::YuvMatrix::BT709,
+        .range       = video::ColorRange::Limited,
         .use_cache   = false,  // caching across frames is encoder-level, not per-submit
     };
 
