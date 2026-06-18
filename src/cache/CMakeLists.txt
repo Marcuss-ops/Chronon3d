@@ -4,6 +4,7 @@
 
 add_library(chronon3d_cache STATIC
     cache_diagnostics.cpp
+    cache_diagnostics_format.cpp
     cache_policy.cpp
     frame_cache.cpp
     node_cache.cpp
