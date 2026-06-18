@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
-#include <chronon3d/backends/software/renderer_types.hpp>
+#include <chronon3d/math/renderer_state.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
 #include <chronon3d/core/tile_grid.hpp>
 #include <chronon3d/core/dirty_tile_mask.hpp>

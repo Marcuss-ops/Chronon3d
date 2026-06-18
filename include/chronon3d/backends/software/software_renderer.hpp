@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/backends/software/renderer.hpp>
-#include <chronon3d/backends/software/renderer_types.hpp>
+#include <chronon3d/math/renderer_state.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/compositor/composite_operator.hpp>
 #include <chronon3d/backends/assets/image_renderer.hpp>

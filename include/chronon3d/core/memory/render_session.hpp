@@ -30,7 +30,7 @@
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/backends/software/buffer_ring.hpp>
 #include <chronon3d/backends/software/scratch_buffer.hpp>
-#include <chronon3d/backends/software/renderer_types.hpp>
+#include <chronon3d/math/renderer_state.hpp>
 #include <chronon3d/render_graph/core/scene_hasher.hpp>
 
 namespace chronon3d {
