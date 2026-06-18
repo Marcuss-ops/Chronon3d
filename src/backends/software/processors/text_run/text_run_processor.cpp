@@ -17,6 +17,7 @@
 #include <mutex>
 
 #include "../../utils/blend2d_bridge.hpp"
+#include "../../utils/blend2d_paint.hpp"  // PR3: canonical to_bl_rgba + build_bl_gradient
 
 #ifdef CHRONON3D_ENABLE_TEXT
 #include <ft2build.h>
@@ -30,18 +31,16 @@ namespace chronon3d::renderer {
 // Forward-declared in detail:: header; brought into scope for this TU.
 using detail::bucket_radius_for_tier;
 
+// PR3: adopt the canonical `to_bl_rgba` from `blend2d_bridge::paint`.
+// Placed inside `namespace chronon3d::renderer` so unqualified callers
+// from `draw_text_run` (and the lambdas it hosts) find it through
+// normal lookup.  We do NOT place this inside the anonymous namespace
+// below — anonymous namespaces do not propagate names to surrounding
+// scope, so calls from code in `chronon3d::renderer` would not
+// otherwise resolve.
+using chronon3d::blend2d_bridge::paint::to_bl_rgba;
+
 namespace {
-
-// ── Helper: Blend2D color conversion (inline, local to this TU) ───────
-
-static inline BLRgba32 to_bl_rgba(const Color& c) {
-    return BLRgba32(
-        static_cast<uint8_t>(std::clamp(c.r * 255.0f, 0.0f, 255.0f)),
-        static_cast<uint8_t>(std::clamp(c.g * 255.0f, 0.0f, 255.0f)),
-        static_cast<uint8_t>(std::clamp(c.b * 255.0f, 0.0f, 255.0f)),
-        static_cast<uint8_t>(std::clamp(c.a * 255.0f, 0.0f, 255.0f))
-    );
-}
 
 // ── Blend2D resource cache (shared across text runs) ──────────────────
 // NOTE: This duplicates blend2d_resources() from text_rasterizer_render.cpp

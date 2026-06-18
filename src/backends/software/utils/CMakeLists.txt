@@ -8,6 +8,7 @@ target_sources(chronon3d_backend_software PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/blend2d_bridge_core.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/blend2d_bridge_transforms.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/blend2d_bridge_transforms_fb.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/blend2d_paint.cpp
 )
 
 # Effects implementations

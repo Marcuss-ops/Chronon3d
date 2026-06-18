@@ -5,6 +5,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include "../../utils/blend2d_bridge.hpp"
+#include "../../utils/blend2d_paint.hpp"
 
 #include <blend2d.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -14,21 +15,21 @@
 #include <memory>
 #include <mutex>
 
+// PR3: adopt the canonical `to_bl_rgba` from `blend2d_bridge::paint`.
+
 namespace chronon3d::renderer {
+
+// PR3: `to_bl_rgba` and friends are now imported from
+// `blend2d_bridge::paint`.  Place the using-declaration inside the
+// namespace so unqualified callers in this TU find them through the
+// standard `chronon3d::renderer::` lookup chain.
+using chronon3d::blend2d_bridge::paint::to_bl_rgba;
 
 using CacheKey = u64;
 using ShadowCache = cache::LruCache<CacheKey, std::shared_ptr<BLImage>>;
 
 namespace {
 
-BLRgba32 to_bl_rgba(const Color& c) {
-    return BLRgba32(
-        static_cast<uint8_t>(std::clamp(c.r * 255.0f, 0.0f, 255.0f)),
-        static_cast<uint8_t>(std::clamp(c.g * 255.0f, 0.0f, 255.0f)),
-        static_cast<uint8_t>(std::clamp(c.b * 255.0f, 0.0f, 255.0f)),
-        static_cast<uint8_t>(std::clamp(c.a * 255.0f, 0.0f, 255.0f))
-    );
-}
 
 bool is_affine_transform(const Mat4& m) {
     return
