@@ -34,6 +34,16 @@ Composition make_special_name_comp(const char* name, AnimSetup setup) {
             s.layer("name", [&](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
                 setup(l);
+                // ── Subtle white-blue glow — soft halo around the name ──
+                // ── Subtle white-blue glow — soft halo around the name ──
+                l.glow({
+                    .enabled = true,
+                    .radius = 18.0f,
+                    .intensity = 0.25f,
+                    .color = {0.80f, 0.85f, 1.0f, 1.0f},
+                    .softness = 1.0f,
+                    .falloff = 0.85f,
+                });
                 l.text("name", text::centered_text({.text = DEMO_NAME, .font_size = 110.0f, .tracking = 14.0f}));
             });
             return s.build();
@@ -124,6 +134,14 @@ Composition special_name_typewriter() {
         add_black_background(s);
         s.layer("tw", [&ctx](LayerBuilder& l) {
             l.pin_to(Anchor::Center);
+            l.glow({
+                .enabled = true,
+                .radius = 18.0f,
+                .intensity = 0.25f,
+                .color = {0.80f, 0.85f, 1.0f, 1.0f},
+                .softness = 1.0f,
+                .falloff = 0.85f,
+            });
             chronon3d::content::text::CenterTextOptions opts;
             opts.text      = DEMO_NAME;
             opts.font_size = 110.0f;
@@ -140,37 +158,7 @@ Composition special_name_typewriter() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// 8. Split — two halves slide toward centre (manually coded — dual layer).
-// ═════════════════════════════════════════════════════════════════════════════
-Composition special_name_split() {
-    return composition({.name="SpecialNameSplit", .width=1920, .height=1080, .duration=60}, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        add_black_background(s);
-        s.layer("left", [](LayerBuilder& l) {
-            l.pin_to(Anchor::Center);
-            l.opacity_anim()
-                .key(Frame{0}, 0.0f, EasingCurve{Easing::OutCubic})
-                .key(Frame{kIntro}, 1.0f, EasingCurve{Easing::Linear});
-            l.position_anim()
-                .key(Frame{0}, Vec3{-300.0f, 0.0f, 0.0f}, EasingCurve{Easing::OutCubic})
-                .key(Frame{kIntro}, Vec3{0.0f, 0.0f, 0.0f}, EasingCurve{Easing::OutCubic});
-            l.text("name", text::centered_text({.text = DEMO_NAME_LEFT, .font_size = 110.0f, .tracking = 14.0f}));
-        });
-        s.layer("right", [](LayerBuilder& l) {
-            l.pin_to(Anchor::Center);
-            l.opacity_anim()
-                .key(Frame{0}, 0.0f, EasingCurve{Easing::OutCubic})
-                .key(Frame{kIntro}, 1.0f, EasingCurve{Easing::Linear});
-            l.position_anim()
-                .key(Frame{0}, Vec3{ 300.0f, 0.0f, 0.0f}, EasingCurve{Easing::OutCubic})
-                .key(Frame{kIntro}, Vec3{0.0f, 0.0f, 0.0f}, EasingCurve{Easing::OutCubic});
-            l.text("name", text::centered_text({.text = DEMO_NAME_RIGHT, .font_size = 110.0f, .tracking = 14.0f}));
-        });
-        return s.build();
-    });
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
+// (Note: SpecialNameSplit removed — replaced by glow on all compositions.)
 // (Note: the previous SpecialNameRole* / RolePreset family has been moved
 // to a dedicated content/ImportantWords/ category — palettes + presets live
 // in important_words_theme.hpp there.)
