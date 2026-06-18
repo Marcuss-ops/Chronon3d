@@ -65,7 +65,9 @@ option(CHRONON3D_ENABLE_EXR "Enable OpenEXR image format support" ON)
 option(CHRONON3D_ENABLE_LIBYUV "Enable libyuv SIMD-accelerated YUV conversion" ON)
 option(CHRONON3D_ENABLE_VIDEO "Enable video/media pipeline (frame conversion, video sinks)" ON)
 option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
-option(CHRONON3D_ENABLE_SQLITE_TELEMETRY "Enable SQLite telemetry store" OFF)
+# SQLite telemetry is always on (runtime/telemetry): the stub-mode impl was
+# dropped during the June 2026 lean cleanup.  SQLite3 is a hard dep of the
+# project anyway (see find_package below), so there is no opt-out path.
 option(CHRONON3D_ENABLE_MESH "Enable mesh processing support" ON)
 
 # ── Optional heavy dependency: Blend2D ──────────────────────────────────
@@ -98,9 +100,7 @@ if(CHRONON3D_BUILD_DIAGNOSTICS)
     add_compile_definitions(CHRONON3D_BUILD_DIAGNOSTICS)
 endif()
 
-if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
-    add_compile_definitions(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
-endif()
+add_compile_definitions(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
 
 if(CHRONON3D_UNITY_BUILD)
     set(CMAKE_UNITY_BUILD ON)
@@ -146,9 +146,7 @@ if(CHRONON3D_ENABLE_LIBYUV)
     find_package(libyuv CONFIG REQUIRED)
 endif()
 
-if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
-    find_package(unofficial-sqlite3 CONFIG REQUIRED)
-endif()
+find_package(unofficial-sqlite3 CONFIG REQUIRED)
 
 if(CHRONON3D_BUILD_BENCHMARKS)
     find_package(benchmark CONFIG REQUIRED)

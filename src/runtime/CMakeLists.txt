@@ -1,21 +1,18 @@
 # ==============================================================================
 # src/runtime/CMakeLists.txt — chronon3d_runtime
 # ==============================================================================
+#
+# SQLite telemetry is always-on (June 2026 lean cleanup): stub-mode impl was
+# dropped, so we always compile the real sources and always link sqlite3.
+# `CHRONON3D_ENABLE_SQLITE_TELEMETRY` is defined unconditionally at the
+# project root.
 
 set(CHRONON3D_RUNTIME_SOURCES
     telemetry/telemetry_manager.cpp
+    telemetry/sqlite/sqlite_telemetry_store.cpp
+    telemetry/sqlite/sqlite_telemetry_store_schema.cpp
     renderer_warmup.cpp
 )
-if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
-    list(APPEND CHRONON3D_RUNTIME_SOURCES
-        telemetry/sqlite/sqlite_telemetry_store.cpp
-        telemetry/sqlite/sqlite_telemetry_store_schema.cpp
-    )
-else()
-    list(APPEND CHRONON3D_RUNTIME_SOURCES
-        telemetry/sqlite/sqlite_telemetry_store_stub.cpp
-    )
-endif()
 
 add_library(chronon3d_runtime STATIC ${CHRONON3D_RUNTIME_SOURCES})
 target_link_libraries(chronon3d_runtime PUBLIC
@@ -37,7 +34,5 @@ configure_file(
 )
 target_include_directories(chronon3d_runtime PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
-if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
-    target_link_libraries(chronon3d_runtime PUBLIC unofficial::sqlite3::sqlite3)
-    target_compile_definitions(chronon3d_runtime PUBLIC CHRONON3D_ENABLE_SQLITE_TELEMETRY)
-endif()
+target_link_libraries(chronon3d_runtime PUBLIC unofficial::sqlite3::sqlite3)
+target_compile_definitions(chronon3d_runtime PUBLIC CHRONON3D_ENABLE_SQLITE_TELEMETRY)
