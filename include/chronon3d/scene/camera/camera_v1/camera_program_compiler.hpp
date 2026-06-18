@@ -57,8 +57,7 @@ struct CameraCompileError {
 /// @param out_program [out] Receives the compiled CameraProgram on success.
 /// @param out_error   [out] Receives the error info on failure (optional).
 /// @param catalog     Optional catalog for resolving RegisteredMotionRef.
-///                    If null / empty, lookups fall back to
-///                    CameraMotionRegistry for backward compatibility.
+///                    If null / empty, a RegisteredMotionRef will fail to compile.
 ///
 /// @return true on success, false on failure (with *out_error populated).
 ///

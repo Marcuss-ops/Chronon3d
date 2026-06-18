@@ -37,7 +37,6 @@
 // camera_descriptor.hpp provides CameraDescriptor, CameraFailurePolicy,
 // StaticCameraSource, CameraSourceSpec, OrientationSpec, etc.
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_motion_descriptor.hpp>  // CameraMotion
 
 #include <chronon3d/math/camera_2_5d_projection.hpp>  // Camera2_5D
 
@@ -199,7 +198,7 @@ private:
     bool                                    compiled_{false};
     bool                                    time_dependent_{false};
     CameraDescriptor                        descriptor_{};
-    std::shared_ptr<const CameraMotion>     resolved_motion_{nullptr};
+
 
     // ── Existing evaluation helpers ─────────────────────────────────────
     Camera2_5D sample_trajectory_cam(const CameraMotionContext& ctx,

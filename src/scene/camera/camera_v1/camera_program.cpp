@@ -13,8 +13,6 @@
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_session.hpp>
 #include <chronon3d/scene/model/core/transform_resolver.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_motion_descriptor.hpp>
-#include <chronon3d/scene/registry/camera_motion_registry.hpp>
 #include <chronon3d/scene/registry/camera_constraint_registry.hpp>
 #include <chronon3d/animation/path/spatial_bezier_path.hpp>  // quat_look_along, quat_to_camera_euler
 
@@ -62,8 +60,10 @@ static bool source_is_time_dependent(const CameraSourceSpec& source) {
 // =========================================================================
 
 CameraProgram& CameraProgram::motion(const std::string& id) {
-    bool found = CameraMotionRegistry::instance().has(id);
-    source_ = RegisteredMotionSource{id, found};
+    // Without CameraMotionRegistry, motion() just stores the id for backward
+    // compat. The compiled path via compile_camera() + catalog is the
+    // recommended path for all camera evaluation.
+    source_ = RegisteredMotionSource{id, true};
     return *this;
 }
 
@@ -271,19 +271,12 @@ CameraProgramResult CameraProgram::evaluate(const CameraMotionContext& ctx,
     if (has_trajectory()) {
         intermediate = sample_trajectory_cam(ctx, ctx.base_target, session, result);
     } else if (has_motion()) {
-        auto& motion_src = std::get<RegisteredMotionSource>(source_);
-        intermediate = CameraMotionRegistry::instance().build(
-            motion_src.id, ctx, base_);
-        if (intermediate.position.x == base_.position.x
-         && intermediate.position.y == base_.position.y
-         && intermediate.position.z == base_.position.z
-         && motion_src.id != "") {
-            // build() returns base_ unchanged when the motion id is missing.
-            result.diagnostics.push_back({
-                CameraProgramDiagnostic::Severity::Warning,
-                "motion '" + motion_src.id + "' not found — using base camera"
-            });
-        }
+        // CameraMotionRegistry is removed — the old builder path no longer
+        // resolves registered motions. Use compile_camera() + catalog instead.
+        result.diagnostics.push_back({
+            CameraProgramDiagnostic::Severity::Warning,
+            "builder motion path deprecated — use compile_camera() instead"
+        });
     }
 
     if (constraints_.empty()) {
@@ -489,24 +482,6 @@ static Camera2_5D eval_orbit_motion(const CameraBaseSpec& base,
 Camera2_5D CameraProgram::evaluate_compiled_source(const CameraEvalContext& ctx) const {
     const auto& source = descriptor_.source;
     const auto& base = descriptor_.base;
-
-    // PR3: if compile_camera() resolved a RegisteredMotionRef via
-    // CameraMotionRegistry fallback, call it directly instead of
-    // dispatching on the descriptor source.
-    if (resolved_motion_) {
-        CameraMotionContext motion_ctx;
-        motion_ctx.frame = ctx.frame;
-        motion_ctx.sample_time = ctx.sample_time;
-        motion_ctx.base_position = base.position;
-        motion_ctx.base_target = base.point_of_interest;
-        if (auto* zp = std::get_if<ZoomProjection>(&base.projection)) {
-            motion_ctx.base_zoom = zp->zoom.evaluate(ctx.sample_time);
-        } else if (auto* fp = std::get_if<FovProjection>(&base.projection)) {
-            motion_ctx.base_fov_deg = fp->fov_deg.evaluate(ctx.sample_time);
-        }
-        motion_ctx.base_focus_distance = base.dof.focus_distance;
-        return resolved_motion_->evaluate(motion_ctx);
-    }
 
     if (auto* pts = std::get_if<PoseTracksSource>(&source)) {
         return eval_pose_tracks(base, descriptor_.orientation, *pts, ctx);
