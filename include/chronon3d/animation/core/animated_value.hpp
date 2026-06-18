@@ -101,6 +101,16 @@ public:
     AnimatedValue() = default;
     explicit AnimatedValue(T default_value) : m_default_value(default_value) {}
 
+    /// Construct from an initializer list of Keyframes.
+    /// Enables `keyframes<T>({{0, v0}, {60, v1}})` factory syntax.
+    AnimatedValue(std::initializer_list<Keyframe<T>> kfs)
+        : m_keyframes(kfs) {
+        std::sort(m_keyframes.begin(), m_keyframes.end());
+        for (const auto& kf : m_keyframes) {
+            if (kf.roving) { m_roving_dirty = true; break; }
+        }
+    }
+
     AnimatedValue& loop_mode(LoopMode mode) {
         m_loop_mode = mode;
         return *this;
@@ -345,6 +355,19 @@ public:
     [[nodiscard]] const std::string& expression() const { return m_expression; }
     [[nodiscard]] bool has_expression() const { return !m_expression.empty(); }
 
+    // ── Backward-compatible methods (KeyframeTrack API surface) ─────────────
+    [[nodiscard]] T sample_at(f32 current) const {
+        return evaluate_base_double(static_cast<double>(current));
+    }
+    [[nodiscard]] T sample(Frame current) const { return evaluate(current); }
+    [[nodiscard]] T value(Frame current) const { return evaluate(current); }
+    [[nodiscard]] T value_at_time(f32 current) const {
+        return evaluate_base_double(static_cast<double>(current));
+    }
+    [[nodiscard]] T operator()(Frame current) const { return evaluate(current); }
+    [[nodiscard]] bool empty() const { return m_keyframes.empty(); }
+    [[nodiscard]] std::size_t size() const { return m_keyframes.size(); }
+
     // ── Frame evaluation (backward compatible + forward) ────────────────────
     [[nodiscard]] T value_at(Frame frame) const { return evaluate(frame); }
 
@@ -513,10 +536,11 @@ private:
             if (frame >= end_f)   return m_keyframes.back().value;
         }
 
-        // Binary search keyframe segment with double precision
+        // Linear scan for keyframe segment (uses > to correctly handle
+        // duplicate frames — matches upper_bound behavior).
         size_t idx = 0;
         for (size_t i = 0; i + 1 < m_keyframes.size(); ++i) {
-            if (static_cast<double>(m_keyframes[i + 1].frame) >= eval_frame) {
+            if (static_cast<double>(m_keyframes[i + 1].frame) > eval_frame) {
                 idx = i;
                 break;
             }
@@ -654,5 +678,25 @@ private:
     mutable bool m_roving_dirty{false};
     mutable bool m_auto_bezier_dirty{false};
 };
+
+// ── KeyframeTrack<T> — backward-compatible alias for AnimatedValue<T> ───
+// All KeyframeTrack usage (keyframes<T>(), .sample(), .sample_at(), .value(), etc.)
+// now operates on AnimatedValue<T> with the full engine (expressions, loops, roving).
+template<typename T> using KeyframeTrack = AnimatedValue<T>;
+
+// keyframes<T>() — factory for creating AnimatedValue<T> from a keyframe list.
+// Usage:
+//   auto x = keyframes<f32>({ {0, 0.0f}, {60, 100.0f, Easing::OutCubic} }).sample(frame);
+//   auto x = keyframes<f32>({}).key(0, -300.0f, Easing::OutCubic).key(40, 0.0f);
+//
+template <typename T>
+inline AnimatedValue<T> keyframes(std::initializer_list<Keyframe<T>> kfs) {
+    return AnimatedValue<T>(kfs);
+}
+
+// Legacy support: keyframes(frame, {KF, KF, ...})
+inline f32 keyframes(Frame current, std::initializer_list<KF> kfs) {
+    return keyframes<f32>(kfs).sample(current);
+}
 
 } // namespace chronon3d
