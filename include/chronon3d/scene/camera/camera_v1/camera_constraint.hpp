@@ -94,10 +94,22 @@ public:
 };
 
 // =========================================================================
-// Factory: creates a constraint from typed parameters.
+// Factory functions — create built-in constraints directly (no registry).
 // =========================================================================
 
-using ConstraintFactory = std::function<
-    std::shared_ptr<CameraConstraint>(const CameraConstraintParams&)>;
+/// Create a LookAt constraint with optional target override.
+std::shared_ptr<CameraConstraint> make_look_at_constraint(const LookAtParams& p = {});
+
+/// Create a KeepHorizon constraint (zeros roll).
+std::shared_ptr<CameraConstraint> make_keep_horizon_constraint(const KeepHorizonParams& p = {});
+
+/// Create a DampedFollow constraint with per-constraint state (EMA smoothing).
+std::shared_ptr<CameraConstraint> make_damped_follow_constraint(const DampedFollowParams& p = {});
+
+/// Create a Distance constraint that clamps camera→target distance.
+std::shared_ptr<CameraConstraint> make_distance_constraint(const DistanceParams& p = {});
+
+/// Create a RotationLimit constraint that clamps pitch/yaw/roll angles.
+std::shared_ptr<CameraConstraint> make_rotation_limit_constraint(const RotationLimitParams& p = {});
 
 } // namespace chronon3d::camera_v1

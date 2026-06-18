@@ -19,7 +19,7 @@
 //   2. motion lookup   -> CameraMotionRegistry
 //   3. trajectory sampling -> CameraTrajectory (optional)
 //   4. orientation + banking -> tangent-based auto-orient + curvature roll
-//   5. constraint stack     -> CameraConstraintRegistry
+//   5. constraint stack     -> CameraConstraintStack (via add_constraint)
 //   6. validation           -> CameraShotValidator (existing)
 //
 // COMPILED PATH (PR1+):
@@ -139,7 +139,6 @@ public:
 
     /// Constraints (registered in the order added).
     CameraProgram& add_constraint(std::shared_ptr<CameraConstraint> c);
-    CameraProgram& add_constraint_named(const std::string& registry_id);
 
     /// Orientation policy applied AFTER trajectory sampling, BEFORE constraints.
     CameraProgram& orient(OrientationPolicy p) { orient_ = p; return *this; }

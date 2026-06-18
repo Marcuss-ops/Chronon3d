@@ -14,7 +14,7 @@
 //   - CameraMotionParams          → PoseTracksSource + IdleOscillation
 //   - camera_motion::dolly/pan    → preset descriptor
 //   - OrientationPolicy enum      → OrientationSpec variant
-//   - CameraConstraintRegistry    → CameraConstraintSpec variant (PR7)
+//   - CameraConstraintSpec (PR6+) → replaces CameraConstraintRegistry
 //
 // Layout:
 //   CameraDescriptor
@@ -219,7 +219,7 @@ using OrientationSpec = std::variant<
 // =============================================================================
 // CameraConstraintSpec — typed constraint parameters (PR7).
 // For PR1 the variant is declared but the compiler defers to the existing
-// CameraConstraintRegistry until the migration in PR7.
+// CameraConstraintSpec (compiled path, PR6+).
 // =============================================================================
 
 // Forward declare constraint parameter structs (defined in camera_constraint.hpp).

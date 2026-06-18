@@ -13,7 +13,6 @@
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_session.hpp>
 #include <chronon3d/scene/model/core/transform_resolver.hpp>
-#include <chronon3d/scene/registry/camera_constraint_registry.hpp>
 #include <chronon3d/animation/path/spatial_bezier_path.hpp>  // quat_look_along, quat_to_camera_euler
 
 #include <cmath>
@@ -74,12 +73,6 @@ CameraProgram& CameraProgram::trajectory(std::shared_ptr<CameraTrajectory> t) {
 
 CameraProgram& CameraProgram::add_constraint(std::shared_ptr<CameraConstraint> c) {
     constraints_.add(std::move(c));
-    return *this;
-}
-
-CameraProgram& CameraProgram::add_constraint_named(const std::string& registry_id) {
-    auto c = CameraConstraintRegistry::instance().create(registry_id);
-    if (c) constraints_.add(std::move(c));
     return *this;
 }
 
