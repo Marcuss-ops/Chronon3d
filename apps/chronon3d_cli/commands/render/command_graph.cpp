@@ -1,5 +1,6 @@
 #include "../../commands.hpp"
 #include "../../utils/job/cli_render_utils.hpp"
+#include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/scene/model/render/resolved_types.hpp>
@@ -45,15 +46,8 @@ std::string format_summary(const std::string& comp_id, Frame frame,
     out += fmt::format("  cacheable:     {}\n", s.cacheable_nodes);
 
     if (s.execute_ms > 0.0) {
-        const size_t hits    = s.cache_after.hits      - s.cache_before.hits;
-        const size_t misses  = s.cache_after.misses    - s.cache_before.misses;
-        const size_t evicted = s.cache_after.evictions - s.cache_before.evictions;
-        const double mem_mb  = static_cast<double>(s.cache_after.current_weight) / (1024.0 * 1024.0);
-        out += "\nCache:\n";
-        out += fmt::format("  hits:          {}\n", hits);
-        out += fmt::format("  misses:        {}\n", misses);
-        out += fmt::format("  evictions:     {}\n", evicted);
-        out += fmt::format("  memory:        {:.1f} MB\n", mem_mb);
+        out += "\nCache (all domains):\n";
+        out += chronon3d::cache::format_cache_snapshot();
     }
 
     out += "\nTiming:\n";
