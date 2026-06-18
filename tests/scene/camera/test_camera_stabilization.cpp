@@ -100,18 +100,27 @@ TEST_CASE("P1-B: integer-frame SampleTime factories agree at same fps") {
 // --- Section C: project_world_to_screen geometry ---
 
 TEST_CASE("P1-C: target-behind camera — project_world_to_screen flags behind_camera") {
+    // Camera coordinate convention: with point_of_interest_enabled, the camera
+    // forward axis points TOWARD the POI. A target placed on the OPPOSITE side
+    // from the POI direction lies behind the camera. With camera at origin
+    // and POI at -Z (forward), the target at +Z is *behind* the camera.
     Viewport viewport;
     viewport.width  = 1920.0f;
     viewport.height = 1080.0f;
     Camera2_5D cam;
     cam.position = {0.0f, 0.0f, 0.0f};
-    cam.point_of_interest = {0.0f, 0.0f, -100.0f};
+    cam.point_of_interest = {0.0f, 0.0f, -100.0f};  // forward: -Z
     cam.point_of_interest_enabled = true;
-    auto sp = project_world_to_screen(cam.point_of_interest, cam, viewport);
+    // Query a point placed at +Z, which is behind the camera (POI looks at -Z).
+    Vec3 behind_target = {0.0f, 0.0f, +100.0f};
+    auto sp = project_world_to_screen(behind_target, cam, viewport);
     CHECK(sp.behind_camera);
 }
 
 TEST_CASE("P1-C: coincident camera+target is non-NaN") {
+    // When camera and target are coincident, the projection direction is
+    // undefined. The source must guard against dividing by zero and emit a
+    // finite, non-NaN result. This test verifies that defensive guard.
     Viewport viewport;
     viewport.width  = 1920.0f;
     viewport.height = 1080.0f;
