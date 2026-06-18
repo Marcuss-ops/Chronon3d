@@ -15,21 +15,17 @@
 
 namespace chronon3d {
 
-/// Register DarkGridBackground (src/scene/utils/dark_grid_background.cpp).
-void register_dark_grid_background();
+/// Register DarkGridBackground + GridCleanBackground (src/scene/utils/dark_grid_background.cpp).
+void register_scene_backgrounds();
 
-/// Register GridCleanBackground (src/animations/background_presets.cpp).
-void register_background_presets_composition();
-
-/// Register CameraImageClip (src/animations/camera/camera_tilt_clips.cpp).
+/// Register CameraImageClip (src/scene/camera_tilt_clips.cpp).
 void register_camera_tilt_clip();
 
 /// Register all non-content built-in compositions.
 /// Safe to call multiple times — add_builtin_composition checks are
 /// handled by the caller (CompositionRegistry rejects duplicates).
 inline void register_builtin_compositions() {
-    register_dark_grid_background();
-    register_background_presets_composition();
+    register_scene_backgrounds();
     register_camera_tilt_clip();
 }
 

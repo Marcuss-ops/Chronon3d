@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/extension/extension_registry.hpp>
+#include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 
 #include <algorithm>

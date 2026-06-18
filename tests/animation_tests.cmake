@@ -8,11 +8,7 @@ target_link_libraries(chronon3d_animation_tests PRIVATE chronon3d_pipeline docte
 target_include_directories(chronon3d_animation_tests PRIVATE ${CMAKE_SOURCE_DIR})
 # WHOLE_ARCHIVE removed: content targets are now small and explicitly registered
 if(CHRONON3D_BUILD_CONTENT)
-    # chronon3d_content_registry transitively PUBLIC-links the gallery,
-    # so a single link covers both `register_content_modules()` AND the
-    # composition symbols.  Adding register_content_modules.cpp via
-    # target_sources would create a duplicate symbol conflict.
-    target_link_libraries(chronon3d_animation_tests PRIVATE chronon3d_content_registry)
+    target_link_libraries(chronon3d_animation_tests PRIVATE chronon3d_content)
     target_include_directories(chronon3d_animation_tests PRIVATE ${CMAKE_SOURCE_DIR})
     target_compile_definitions(chronon3d_animation_tests PRIVATE CHRONON3D_HAS_CONTENT_MINIMALIST)
 endif()

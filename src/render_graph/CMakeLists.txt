@@ -54,11 +54,8 @@ target_link_libraries(chronon3d_graph_nodes
         # the type-erased shared_ptr deleter instantiation on consumers).
         chronon3d_text_core
     PRIVATE
-        # PR 3: TextRunNode.cpp dynamically casts RenderBackend to
-        # SoftwareRenderer and calls `renderer::draw_text_run` from
-        # chronon3d_backend_software (PRIVATE so consumers don't pull
-        # software-specific deps transitively).
-        chronon3d_backend_software
+        fmt::fmt
+        spdlog::spdlog_header_only
 )
 target_precompile_headers(chronon3d_graph_nodes PRIVATE
     <glm/glm.hpp>

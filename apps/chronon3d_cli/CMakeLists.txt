@@ -148,8 +148,8 @@ endif()
 
 # Optional content linking (proofs/demos) — single registry target
 if(CHRONON3D_BUILD_CONTENT)
-    if(TARGET chronon3d_content_registry)
-        target_link_libraries(chronon3d_cli PRIVATE chronon3d_content_registry)
+    if(TARGET chronon3d_content)
+        target_link_libraries(chronon3d_cli PRIVATE chronon3d_content)
     endif()
     target_compile_definitions(chronon3d_cli PRIVATE CHRONON3D_BUILD_CONTENT)
 endif()

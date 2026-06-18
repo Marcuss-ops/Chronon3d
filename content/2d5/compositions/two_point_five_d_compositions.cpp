@@ -1,3 +1,4 @@
+#include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
@@ -298,6 +299,57 @@ Composition dof_showcase() {
 
         return s.build();
     });
+}
+
+// ── Per-domain registration ──────────────────────────────────────────────────
+// Forward-declare camera test factories from companion files
+Composition camera_orbit_target_lock_test();
+Composition camera_dolly_perspective_scale_test();
+Composition camera_parent_null_rig_test();
+Composition camera_roll_pan_tilt_grid_test();
+Composition camera_safe_framing_aspect_ratio_16_9();
+Composition camera_safe_framing_aspect_ratio_1_1();
+Composition camera_safe_framing_aspect_ratio_9_16();
+Composition camera_safe_framing_aspect_ratio_4_5();
+Composition camera_frustum_culling_precision_test();
+Composition camera_kinematic_jerk_interpolation_test();
+Composition camera_depth_sorting_stress_test();
+Composition camera_subpixel_jitter_validation_test();
+Composition camera_multi_target_bounding_box_fit_test();
+Composition camera_depth_perspective_scale_diagnostic_test();
+Composition camera_coordinate_contract_test();
+Composition camera_binding_anchor_test();
+Composition camera_front_baseline_test();
+Composition camera_yaw_positive_test();
+Composition camera_yaw_negative_test();
+
+void register_2d5_compositions() {
+    static bool done = false;
+    if (done) return;
+    done = true;
+    detail::add_builtin_composition("ParallaxSimple",  parallax_simple);
+    detail::add_builtin_composition("DepthScene",      depth_scene);
+    detail::add_builtin_composition("CardFlip",        card_flip);
+    detail::add_builtin_composition("DofShowcase",     dof_showcase);
+    detail::add_builtin_composition("CameraOrbitTargetLockTest",                camera_orbit_target_lock_test);
+    detail::add_builtin_composition("CameraDollyPerspectiveScaleTest",          camera_dolly_perspective_scale_test);
+    detail::add_builtin_composition("CameraParentNullRigTest",                  camera_parent_null_rig_test);
+    detail::add_builtin_composition("CameraRollPanTiltGridTest",                camera_roll_pan_tilt_grid_test);
+    detail::add_builtin_composition("CameraSafeFramingAspectRatioTest_16_9",    camera_safe_framing_aspect_ratio_16_9);
+    detail::add_builtin_composition("CameraSafeFramingAspectRatioTest_1_1",     camera_safe_framing_aspect_ratio_1_1);
+    detail::add_builtin_composition("CameraSafeFramingAspectRatioTest_9_16",    camera_safe_framing_aspect_ratio_9_16);
+    detail::add_builtin_composition("CameraSafeFramingAspectRatioTest_4_5",     camera_safe_framing_aspect_ratio_4_5);
+    detail::add_builtin_composition("CameraFrustumCullingPrecisionTest",        camera_frustum_culling_precision_test);
+    detail::add_builtin_composition("CameraKinematicJerkAndInterpolationTest",  camera_kinematic_jerk_interpolation_test);
+    detail::add_builtin_composition("CameraDepthSortingStressTest",             camera_depth_sorting_stress_test);
+    detail::add_builtin_composition("CameraSubpixelJitterValidationTest",       camera_subpixel_jitter_validation_test);
+    detail::add_builtin_composition("CameraMultiTargetBoundingBoxFitTest",      camera_multi_target_bounding_box_fit_test);
+    detail::add_builtin_composition("CameraDepthPerspectiveScaleDiagnosticTest",camera_depth_perspective_scale_diagnostic_test);
+    detail::add_builtin_composition("CameraCoordinateContractTest",             camera_coordinate_contract_test);
+    detail::add_builtin_composition("CameraBindingAnchorTest",                  camera_binding_anchor_test);
+    detail::add_builtin_composition("CameraFrontBaselineTest",                  camera_front_baseline_test);
+    detail::add_builtin_composition("CameraYawPositiveTest",                    camera_yaw_positive_test);
+    detail::add_builtin_composition("CameraYawNegativeTest",                    camera_yaw_negative_test);
 }
 
 } // namespace chronon3d::content::two_point_five_d
