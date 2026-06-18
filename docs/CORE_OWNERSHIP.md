@@ -243,8 +243,7 @@ src/cache/framebuffer_pool.cpp
 src/cache/node_cache.cpp
 src/cache/frame_cache.cpp
 src/cache/video_frame_cache.cpp
-src/cache/persistent_bake_cache.cpp
-src/cache/disk_node_cache.cpp
+src/cache/persistent_framebuffer_store.cpp
 ```
 
 ---

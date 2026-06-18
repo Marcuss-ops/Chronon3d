@@ -49,7 +49,7 @@ TEST_CASE("LruCache EvictCallback — fires for every LRU eviction under shard l
         /*capacity_weight=*/3,
         /*num_shards=*/1,
         CapacityMode::Weight,
-        [&](const int& key, const int& /*value*/) {
+        [&](const int& key, const int& /*value*/, CacheRemovalReason /*reason*/) {
             evicted_keys.push_back(key);
         });
 
@@ -78,7 +78,7 @@ TEST_CASE("LruCache EvictCallback — fires during resize (LRU-tail-first evicti
         /*capacity_weight=*/10,
         /*num_shards=*/1,
         CapacityMode::Weight,
-        [&](const int& key, const int&) {
+        [&](const int& key, const int&, CacheRemovalReason) {
             evicted_keys.push_back(key);
         });
 
@@ -124,7 +124,7 @@ TEST_CASE("LruCache EvictCallback — reused callback on repeated eviction emits
         /*capacity_weight=*/2,
         /*num_shards=*/2,    // multi-shard: verify ordering is per-shard tail-first
         CapacityMode::Weight,
-        [&](const int& key, const std::string& value) {
+        [&](const int& key, const std::string& value, CacheRemovalReason) {
             evicted.emplace_back(key, std::stoi(value));
         });
 

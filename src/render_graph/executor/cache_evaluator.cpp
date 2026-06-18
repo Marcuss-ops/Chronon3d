@@ -1,6 +1,5 @@
 #include "execution_state.hpp"
-#include <chronon3d/cache/disk_node_cache.hpp>
-#include <chronon3d/cache/persistent_bake_cache.hpp>
+#include <chronon3d/cache/persistent_framebuffer_store.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -10,12 +9,8 @@
 
 namespace chronon3d::graph {
 
-bool disk_node_cache_enabled_for_current_run() {
-#ifdef CHRONON_BUILD_TESTS
-    return false;
-#else
-    return !Config::get().disable_disk_node_cache;
-#endif
+bool persistent_framebuffer_cache_enabled_for_current_run() {
+    return cache::PersistentFramebufferStore::enabled_for_current_run();
 }
 
 CacheEvalResult evaluate_cache(
@@ -67,11 +62,8 @@ CacheEvalResult evaluate_cache(
     if (cr.use_cache) {
         cr.result = ctx.resources.node_cache->get(cr.key);
         
-        if (!cr.result && policy.disk_cacheable && disk_node_cache_enabled_for_current_run()) {
-            cr.result = cache::PersistentBakeCache::instance().load(cr.key);
-            if (!cr.result) {
-                cr.result = cache::DiskNodeCache::instance().get(cr.key);
-            }
+        if (!cr.result && policy.disk_cacheable && persistent_framebuffer_cache_enabled_for_current_run()) {
+            cr.result = cache::PersistentFramebufferStore::instance().get(cr.key);
             if (cr.result) {
                 ctx.resources.node_cache->store(cr.key, cr.result);
             }
