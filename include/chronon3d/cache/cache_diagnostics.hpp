@@ -23,6 +23,12 @@
 
 namespace chronon3d::cache {
 
+// ── Free function: human-readable cache snapshot dump ──────────────────
+
+/// Query CacheDiagnostics and format a multi-line cache snapshot.
+/// Suitable for spdlog::info or CLI output.
+[[nodiscard]] std::string format_cache_snapshot();
+
 // ── GenericCacheStats — type-erased LruCache::Stats mirror ────────────────
 //
 // Because each LruCache<Key,Value,Hash> has its own nested ::Stats type, we
