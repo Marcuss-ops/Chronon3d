@@ -14,6 +14,7 @@ function(chronon3d_enable_test_pch target_name)
 endfunction()
 
 # ── Per-area test definitions ───────────────────────────────────────
+if(BUILD_TESTING)
 include(${CMAKE_CURRENT_SOURCE_DIR}/core_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/animation_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/scene_tests.cmake)
@@ -85,3 +86,4 @@ add_custom_target(chronon3d_tests
 )
 
 add_dependencies(chronon3d_tests chronon3d_media_video_tests)
+endif()
