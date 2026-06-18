@@ -41,7 +41,8 @@ struct ConvertedFrameCacheKey {
     int      width{0};
     int      height{0};
     EncoderPixelFormat format{EncoderPixelFormat::YUV420P};
-    int      color_matrix{0};
+    YuvMatrix matrix{YuvMatrix::BT709};
+    ColorRange range{ColorRange::Limited};
     bool     apply_gamma{true};
 
     [[nodiscard]] bool operator==(const ConvertedFrameCacheKey& o) const noexcept {
@@ -49,7 +50,8 @@ struct ConvertedFrameCacheKey {
             && width  == o.width
             && height == o.height
             && format == o.format
-            && color_matrix == o.color_matrix
+            && matrix == o.matrix
+            && range  == o.range
             && apply_gamma == o.apply_gamma;
     }
 };

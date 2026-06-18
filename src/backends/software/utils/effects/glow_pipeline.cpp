@@ -33,6 +33,15 @@ namespace chronon3d::renderer {
 // to keep every TBB worker busy on the typical SpecialName ROI.
 static constexpr int kGlowTbbGrain = 32;
 
+// Falloff LUT.  The single `inline constexpr int kFalloffLutSize = 257;`
+// definition lives in include/chronon3d/effects/glow_pipeline.hpp
+// (included above). build_glow_accumulator populates one per call (the
+// falloff exponent is parameter-dependent) and passes its address into
+// accumulate_glow_pass / accumulate_scaled_glow_pass.  256+1 entries
+// give full 8-bit quantization of the trigger alpha (indices 0..255),
+// plus the endpoint 256 used when we accidentally look at the top bit.
+// (Redundant cpp-side definition removed — fc5db7e7 + PR1 824652a4 both
+// dropped it as part of separate ODR-purpose refactors.)
 // Build the per-call falloff LUT.  `falloff = 1.0f` is an identity map
 // (the trigger is unchanged), and `falloff != 1.0f` produces the shaped
 // alpha lookup we use inside the per-pixel accumulation loop.

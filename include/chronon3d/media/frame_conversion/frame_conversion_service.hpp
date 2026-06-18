@@ -46,8 +46,12 @@ struct ConversionOptions {
     /// Apply sRGB gamma curve.  Set false for already-gamma-encoded data.
     bool apply_gamma{true};
 
-    /// Color matrix: 0 = BT.709, 1 = BT.601, 2 = BT.2020.
-    int color_matrix{0};
+    /// Color matrix.  Default BT.709 (modern SDR).  Use BT.601 for SD content
+    /// or BT.2020 for HDR / UHDTV.
+    YuvMatrix matrix{YuvMatrix::BT709};
+
+    /// Color range of the output samples.
+    ColorRange range{ColorRange::Limited};
 
     /// Enable LRU cache: identical framebuffer digests will reuse
     /// the previously converted bytes without re-running conversion.
@@ -69,8 +73,9 @@ struct ConvertedFrame {
     /// True if the result came from the cache (no conversion ran).
     bool from_cache{false};
 
-    /// True if the conversion used a SIMD fast path.
-    bool used_simd{true};
+    /// Concrete backend that produced the cached bytes.  Populated on
+    /// conversion; remains Unavailable for cache hits (kernel did not run).
+    FrameConversionBackend backend{FrameConversionBackend::Unavailable};
 
     /// Wall-clock time spent inside the conversion kernel (nanoseconds).
     uint64_t conversion_ns{0};

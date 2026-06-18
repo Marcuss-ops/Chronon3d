@@ -62,8 +62,10 @@ void BM_FrameConversionYUV420P(benchmark::State& state) {
     std::vector<uint8_t> y(y_sz, 0), u(uv_sz, 0), v(uv_sz, 0);
 
     for (auto _ : state) {
-        auto res = convert_frame_tight(*fb, y.data(), u.data(), v.data(), nullptr,
-                                       w, h, EncoderPixelFormat::YUV420P, true);
+        auto res = convert_frame_tight(*fb,
+            FramePlanes{.y = y.data(), .u = u.data(), .v = v.data()},
+            w, h, EncoderPixelFormat::YUV420P,
+            YuvMatrix::BT709, ColorRange::Limited, true);
         if (!res.success) {
             state.SkipWithError("YUV420P conversion failed");
             return;
@@ -88,8 +90,10 @@ void BM_FrameConversionNV12(benchmark::State& state) {
     std::vector<uint8_t> y(y_sz, 0), uv(uv_sz, 0);
 
     for (auto _ : state) {
-        auto res = convert_frame_tight(*fb, y.data(), nullptr, nullptr, uv.data(),
-                                       w, h, EncoderPixelFormat::NV12, true);
+        auto res = convert_frame_tight(*fb,
+            FramePlanes{.y = y.data(), .uv = uv.data()},
+            w, h, EncoderPixelFormat::NV12,
+            YuvMatrix::BT709, ColorRange::Limited, true);
         if (!res.success) {
             state.SkipWithError("NV12 conversion failed");
             return;
@@ -118,13 +122,16 @@ void BM_ConvertedFrameCacheHit(benchmark::State& state) {
         .width = w,
         .height = h,
         .format = EncoderPixelFormat::YUV420P,
-        .color_matrix = 0,
+        .matrix = YuvMatrix::BT709,
+        .range = ColorRange::Limited,
         .apply_gamma = true,
     };
 
     std::vector<uint8_t> y(y_sz), u(uv_sz), v(uv_sz);
-    auto result = convert_frame_tight(*fb, y.data(), u.data(), v.data(), nullptr,
-                                      w, h, EncoderPixelFormat::YUV420P, true);
+    auto result = convert_frame_tight(*fb,
+        FramePlanes{.y = y.data(), .u = u.data(), .v = v.data()},
+        w, h, EncoderPixelFormat::YUV420P,
+        YuvMatrix::BT709, ColorRange::Limited, true);
     if (!result.success) {
         state.SkipWithError("cache warmup conversion failed");
         return;

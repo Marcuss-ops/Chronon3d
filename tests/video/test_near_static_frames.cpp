@@ -40,7 +40,8 @@ TEST_CASE("Near-static frames: small color variations produce mostly cache hits"
             .width = w,
             .height = h,
             .format = EncoderPixelFormat::YUV420P,
-            .color_matrix = 0,
+            .matrix = YuvMatrix::BT709,
+            .range  = ColorRange::Limited,
             .apply_gamma = true,
         };
 
@@ -50,8 +51,10 @@ TEST_CASE("Near-static frames: small color variations produce mostly cache hits"
         } else {
             ++cache_misses;
             std::vector<uint8_t> y(y_sz), u(uv_sz), v(uv_sz);
-            auto res = convert_frame_tight(*fb, y.data(), u.data(), v.data(), nullptr,
-                                           w, h, EncoderPixelFormat::YUV420P, true);
+            auto res = convert_frame_tight(*fb,
+                FramePlanes{.y = y.data(), .u = u.data(), .v = v.data()},
+                w, h, EncoderPixelFormat::YUV420P,
+                YuvMatrix::BT709, ColorRange::Limited, true);
             REQUIRE(res.success);
 
             std::vector<uint8_t> packed(y_sz + uv_sz * 2);
@@ -98,8 +101,10 @@ TEST_CASE("Near-static frames: single repeated frame hits cache 100%") {
         } else {
             ++misses;
             std::vector<uint8_t> y(y_sz), u(uv_sz), v(uv_sz);
-            auto res = convert_frame_tight(*fb, y.data(), u.data(), v.data(), nullptr,
-                                           w, h, EncoderPixelFormat::YUV420P, true);
+            auto res = convert_frame_tight(*fb,
+                FramePlanes{.y = y.data(), .u = u.data(), .v = v.data()},
+                w, h, EncoderPixelFormat::YUV420P,
+                YuvMatrix::BT709, ColorRange::Limited, true);
             REQUIRE(res.success);
 
             std::vector<uint8_t> packed(y_sz + uv_sz * 2);
@@ -131,18 +136,21 @@ TEST_CASE("Near-static frames: format change between YUV420P and NV12 causes mis
         .framebuffer_digest = digest,
         .width = w, .height = h,
         .format = EncoderPixelFormat::YUV420P,
-        .color_matrix = 0, .apply_gamma = true,
+        .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true,
     };
     ConvertedFrameCacheKey key_nv{
         .framebuffer_digest = digest,
-        .width = w, .height = h,
-        .format = EncoderPixelFormat::NV12,
-        .color_matrix = 0, .apply_gamma = true,
-    };
+        .width = w, .height = h,            .format = EncoderPixelFormat::NV12,
+            .matrix = YuvMatrix::BT709,
+            .range  = ColorRange::Limited,
+            .apply_gamma = true,
+        };
 
     std::vector<uint8_t> y_yuv(y_sz), u(uv_sz_yuv), v(uv_sz_yuv);
-    auto r1 = convert_frame_tight(*fb, y_yuv.data(), u.data(), v.data(), nullptr,
-                                  w, h, EncoderPixelFormat::YUV420P, true);
+    auto r1 = convert_frame_tight(*fb,
+        FramePlanes{.y = y_yuv.data(), .u = u.data(), .v = v.data()},
+        w, h, EncoderPixelFormat::YUV420P,
+        YuvMatrix::BT709, ColorRange::Limited, true);
     REQUIRE(r1.success);
 
     std::vector<uint8_t> packed_yuv(y_sz + uv_sz_yuv * 2);
@@ -152,8 +160,10 @@ TEST_CASE("Near-static frames: format change between YUV420P and NV12 causes mis
     cache.insert(key_yuv, packed_yuv.data(), packed_yuv.size());
 
     std::vector<uint8_t> y_nv(y_sz), uv(uv_sz_nv);
-    auto r2 = convert_frame_tight(*fb, y_nv.data(), nullptr, nullptr, uv.data(),
-                                  w, h, EncoderPixelFormat::NV12, true);
+    auto r2 = convert_frame_tight(*fb,
+        FramePlanes{.y = y_nv.data(), .uv = uv.data()},
+        w, h, EncoderPixelFormat::NV12,
+        YuvMatrix::BT709, ColorRange::Limited, true);
     REQUIRE(r2.success);
 
     std::vector<uint8_t> packed_nv(y_sz + uv_sz_nv);

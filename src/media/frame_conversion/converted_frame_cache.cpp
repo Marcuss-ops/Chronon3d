@@ -24,7 +24,7 @@ std::size_t ConvertedFrameCacheKeyHash::operator()(
          + (h << 6) + (h >> 2);
     h ^= static_cast<std::size_t>(k.format) * 0x94D049BB133111EBULL
          + (h << 6) + (h >> 2);
-    h ^= static_cast<std::size_t>(k.color_matrix) * 0xC6A4A7935BD1E995ULL
+    h ^= static_cast<std::size_t>(k.matrix) * 0xC6A4A7935BD1E995ULL
          + (h << 6) + (h >> 2);
     if (k.apply_gamma) {
         h ^= 0xDEADBEEFCAFE5EEDULL;

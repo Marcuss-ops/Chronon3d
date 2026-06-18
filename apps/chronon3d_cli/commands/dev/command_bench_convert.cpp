@@ -17,19 +17,6 @@
 #include <sstream>
 #include <vector>
 
-// Forward declarations for libyuv — C linkage, no header conflicts.
-extern "C" {
-int ABGRToI420(const uint8_t* src_abgr, int src_stride_abgr,
-               uint8_t* dst_y, int dst_stride_y,
-               uint8_t* dst_u, int dst_stride_u,
-               uint8_t* dst_v, int dst_stride_v,
-               int width, int height);
-int ABGRToNV12(const uint8_t* src_abgr, int src_stride_abgr,
-               uint8_t* dst_y, int dst_stride_y,
-               uint8_t* dst_uv, int dst_stride_uv,
-               int width, int height);
-}
-
 namespace chronon3d::cli {
 
 using namespace video;
@@ -98,7 +85,7 @@ struct BenchResult {
     double gb_s{0};
     uint64_t bytes_mismatch{0};
     double max_channel_diff{0};
-    bool used_simd{false};
+    bool used_simd{false};  // legacy column (set when backend == HighwayDirect for backwards compatibility)
 };
 
 static BenchResult run_bench_path(
@@ -119,21 +106,27 @@ static BenchResult run_bench_path(
         const uint64_t t0 = now_ns();
 
         // Dispatch to the named path
+        const bool is_yuv = (fmt_name == "yuv420p");
+        const auto fmt = is_yuv ? video::EncoderPixelFormat::YUV420P
+                                : video::EncoderPixelFormat::NV12;
+        // FramePlanes uses non-const uint8_t*; work_buf is non-const.
+        // The pointers below are scratch output destinations for the conversion.
+        uint8_t* y_ptr  = work_buf.data();
+        uint8_t* u_ptr  = is_yuv ? work_buf.data() + static_cast<size_t>(w) * h : nullptr;
+        uint8_t* v_ptr  = is_yuv ? work_buf.data() + static_cast<size_t>(w) * h * 5 / 4 : nullptr;
+        uint8_t* uv_ptr = is_yuv ? nullptr : work_buf.data() + static_cast<size_t>(w) * h;
         if (name == "direct_hwy_yuv") {
             DirectYuvRequest dreq{
                 .src = fb,
-                .dst_y = work_buf.data(),
-                .dst_u = (fmt_name == "yuv420p") ? work_buf.data() + static_cast<size_t>(w) * h : nullptr,
-                .dst_v = (fmt_name == "yuv420p") ? work_buf.data() + static_cast<size_t>(w) * h * 5 / 4 : nullptr,
-                .dst_uv = (fmt_name == "nv12") ? work_buf.data() + static_cast<size_t>(w) * h : nullptr,
-                .dst_stride_y = w,
-                .dst_stride_u = w / 2,
-                .dst_stride_v = w / 2,
-                .dst_stride_uv = w,
+                .planes = video::FramePlanes{
+                    .y = y_ptr, .u = u_ptr, .v = v_ptr, .uv = uv_ptr,
+                    .stride_y = w, .stride_u = w/2, .stride_v = w/2, .stride_uv = w,
+                },
                 .width = w,
                 .height = h,
-                .format = (fmt_name == "nv12") ? video::EncoderPixelFormat::NV12
-                                                : video::EncoderPixelFormat::YUV420P,
+                .format = fmt,
+                .matrix = video::YuvMatrix::BT709,
+                .range = video::ColorRange::Limited,
                 .apply_gamma = apply_gamma,
             };
             if (fmt_name == "yuv420p")
@@ -144,18 +137,15 @@ static BenchResult run_bench_path(
         } else if (name == "direct_tbb_yuv") {
             DirectYuvRequest dreq{
                 .src = fb,
-                .dst_y = work_buf.data(),
-                .dst_u = (fmt_name == "yuv420p") ? work_buf.data() + static_cast<size_t>(w) * h : nullptr,
-                .dst_v = (fmt_name == "yuv420p") ? work_buf.data() + static_cast<size_t>(w) * h * 5 / 4 : nullptr,
-                .dst_uv = (fmt_name == "nv12") ? work_buf.data() + static_cast<size_t>(w) * h : nullptr,
-                .dst_stride_y = w,
-                .dst_stride_u = w / 2,
-                .dst_stride_v = w / 2,
-                .dst_stride_uv = w,
+                .planes = video::FramePlanes{
+                    .y = y_ptr, .u = u_ptr, .v = v_ptr, .uv = uv_ptr,
+                    .stride_y = w, .stride_u = w/2, .stride_v = w/2, .stride_uv = w,
+                },
                 .width = w,
                 .height = h,
-                .format = (fmt_name == "nv12") ? video::EncoderPixelFormat::NV12
-                                                : video::EncoderPixelFormat::YUV420P,
+                .format = fmt,
+                .matrix = video::YuvMatrix::BT709,
+                .range = video::ColorRange::Limited,
                 .apply_gamma = apply_gamma,
             };
             if (fmt_name == "yuv420p")
@@ -166,19 +156,15 @@ static BenchResult run_bench_path(
         } else if (name == "sws_scale") {
             video::ConvertFrameRequest creq{
                 .src = fb,
-                .dst_y = work_buf.data(),
-                .dst_u = (fmt_name == "yuv420p") ? work_buf.data() + static_cast<size_t>(w) * h : nullptr,
-                .dst_v = (fmt_name == "yuv420p") ? work_buf.data() + static_cast<size_t>(w) * h * 5 / 4 : nullptr,
-                .dst_uv = (fmt_name == "nv12") ? work_buf.data() + static_cast<size_t>(w) * h : nullptr,
-                .dst_stride_y = w,
-                .dst_stride_uv = w,
-                .dst_stride_u = w / 2,
-                .dst_stride_v = w / 2,
-                .color_matrix = 0,
+                .planes = video::FramePlanes{
+                    .y = y_ptr, .u = u_ptr, .v = v_ptr, .uv = uv_ptr,
+                    .stride_y = w, .stride_u = w/2, .stride_v = w/2, .stride_uv = w,
+                },
                 .width = w,
                 .height = h,
-                .format = (fmt_name == "nv12") ? video::EncoderPixelFormat::NV12
-                                                : video::EncoderPixelFormat::YUV420P,
+                .format = fmt,
+                .matrix = video::YuvMatrix::BT709,
+                .range = video::ColorRange::Limited,
                 .apply_gamma = apply_gamma,
             };
             if (fmt_name == "yuv420p")
@@ -186,59 +172,6 @@ static BenchResult run_bench_path(
             else
                 video::convert_rgba_to_nv12_swscale(creq);
 
-        } else if (name == "libyuv") {
-            // Float framebuffer → RGBA8 staging → libyuv ABGRToI420/NV12.
-            // (Our byte order R,G,B,A = libyuv ABGR).
-            const size_t rgba_bytes = static_cast<size_t>(w) * h * 4;
-            thread_local std::vector<uint8_t> rgba_buf;
-            if (rgba_buf.size() < rgba_bytes) rgba_buf.resize(rgba_bytes);
-
-            // Serial float→RGBA8 conversion (no parallel_for needed for benchmark)
-            const Color* src_data = fb.data();
-            const int src_stride = fb.allocated_width();
-            for (int y = 0; y < h; ++y) {
-                const Color* src_row = src_data + static_cast<size_t>(y) * src_stride;
-                uint8_t* dst_row = rgba_buf.data() + static_cast<size_t>(y) * w * 4;
-                for (int x = 0; x < w; ++x) {
-                    const Color& c = src_row[x];
-                    if (apply_gamma) {
-                        dst_row[x * 4 + 0] = Color::linear_to_srgb8(c.r);
-                        dst_row[x * 4 + 1] = Color::linear_to_srgb8(c.g);
-                        dst_row[x * 4 + 2] = Color::linear_to_srgb8(c.b);
-                    } else {
-                        auto to8 = [](float v) -> uint8_t {
-                            return static_cast<uint8_t>(
-                                std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f);
-                        };
-                        dst_row[x * 4 + 0] = to8(c.r);
-                        dst_row[x * 4 + 1] = to8(c.g);
-                        dst_row[x * 4 + 2] = to8(c.b);
-                    }
-                    dst_row[x * 4 + 3] = static_cast<uint8_t>(
-                        std::clamp(c.a, 0.0f, 1.0f) * 255.0f + 0.5f);
-                }
-            }
-
-            // RGBA8 → YUV via libyuv
-            const int src_stride_rgba = w * 4;
-            const int dst_stride_y = w;
-            if (fmt_name == "yuv420p") {
-                uint8_t* dst_u = work_buf.data() + static_cast<size_t>(w) * h;
-                uint8_t* dst_v = work_buf.data() + static_cast<size_t>(w) * h * 5 / 4;
-                ABGRToI420(
-                    rgba_buf.data(), src_stride_rgba,
-                    work_buf.data(), dst_stride_y,
-                    dst_u, w / 2,
-                    dst_v, w / 2,
-                    w, h);
-            } else {
-                uint8_t* dst_uv = work_buf.data() + static_cast<size_t>(w) * h;
-                ABGRToNV12(
-                    rgba_buf.data(), src_stride_rgba,
-                    work_buf.data(), dst_stride_y,
-                    dst_uv, w,
-                    w, h);
-            }
         }
 
         total_ns += now_ns() - t0;
@@ -254,7 +187,7 @@ static BenchResult run_bench_path(
     result.name      = name;
     result.mean_ns   = mean_ns;
     result.gb_s      = gb_s;
-    result.used_simd = (name == "direct_hwy_yuv" || name == "libyuv");
+    result.used_simd = (name == "direct_hwy_yuv");  // post-PR1 only the HWY path uses HWY SIMD
     if (name != "direct_hwy_yuv" && !ref_buf.empty()) {
         result.bytes_mismatch   = count_mismatched_bytes(ref_buf.data(), work_buf.data(), total_bytes);
         result.max_channel_diff = max_abs_diff(ref_buf.data(), work_buf.data(), total_bytes);
@@ -338,11 +271,6 @@ int command_bench_convert(const CompositionRegistry& registry, const BenchConver
                               args.apply_gamma, args.iterations,
                               ref_buf, work_buf);
 
-    // ── Phase 4: libyuv (RGBA8 staging + libyuv ABGRToI420/NV12) ───────
-    auto libyuv_res = run_bench_path("libyuv", *fb, w, h, fmt,
-                                     args.apply_gamma, args.iterations,
-                                     ref_buf, work_buf);
-
     // ── Print results table ────────────────────────────────────────────
     const auto col_name = std::setw(17);
     const auto col_val  = std::setw(12);
@@ -389,7 +317,6 @@ int command_bench_convert(const CompositionRegistry& registry, const BenchConver
     print_row(hwy);
     print_row(tbb);
     print_row(sws);
-    print_row(libyuv_res);
 
     // ── Speedup ratios ─────────────────────────────────────────────────
     if (hwy.mean_ns > 0 && tbb.mean_ns > 0) {
@@ -407,20 +334,6 @@ int command_bench_convert(const CompositionRegistry& registry, const BenchConver
         if (sws.bytes_mismatch > 0) {
             const double mismatch_pct = yuv_total > 0
                 ? (static_cast<double>(sws.bytes_mismatch) / static_cast<double>(yuv_total)) * 100.0
-                : 0.0;
-            out << "  (" << fmt::format("{:.2f}%", mismatch_pct) << " bytes differ)";
-        }
-        out << "\n";
-    }
-    if (hwy.mean_ns > 0 && libyuv_res.mean_ns > 0) {
-        const double speedup = libyuv_res.mean_ns / hwy.mean_ns;
-        out << "  HWY SIMD vs libyuv:      "
-            << fmt::format("{:.2f}× faster", speedup);
-        if (libyuv_res.bytes_mismatch == 0) {
-            out << "  (pixel-identical)";
-        } else {
-            const double mismatch_pct = yuv_total > 0
-                ? (static_cast<double>(libyuv_res.bytes_mismatch) / static_cast<double>(yuv_total)) * 100.0
                 : 0.0;
             out << "  (" << fmt::format("{:.2f}%", mismatch_pct) << " bytes differ)";
         }
