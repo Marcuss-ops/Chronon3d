@@ -7,8 +7,8 @@
 // Call once at engine startup, BEFORE any CameraProgram evaluation:
 //   register_camera_v1_builtins();
 //
-// After this call, both CameraMotionRegistry and CameraConstraintRegistry
-// are frozen — reads are concurrent-safe, writes are rejected.
+// After this call, the CameraTransitionRegistry is frozen — reads are
+// concurrent-safe, writes are rejected.
 //
 // Idempotent: calling multiple times is safe (subsequent calls are no-ops
 // because each ID is checked individually before registration).

@@ -1,7 +1,9 @@
 // ==============================================================================
-// chronon3d/src/scene/registry/camera_constraint_registry.cpp
+// src/scene/registry/camera_constraint_registry.cpp
 //
-// CameraConstraintRegistry — singleton + 5 built-in constraints (P5 complete).
+// Built-in constraint implementations + factory functions.
+// CameraConstraintRegistry singleton removed (PR9).
+// Use free factory functions directly: make_look_at_constraint(), etc.
 //
 // Built-ins:
 //   camera.look_at         — quaternion-stable look-at (not placeholder)
@@ -10,72 +12,16 @@
 //   camera.distance        — clamp camera→target distance
 //   camera.rotation_limit  — clamp pitch/yaw/roll angles
 //
-// All factories accept CameraConstraintParams (variant).
 // Stateful constraints use session.active_state() (per-constraint slot).
 // ==============================================================================
-#include <chronon3d/scene/registry/camera_constraint_registry.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_constraint.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_constraint_resolver.hpp>
 #include <chronon3d/animation/path/spatial_bezier_path.hpp>  // quat_look_along, quat_to_camera_euler
 
-#include <map>
-#include <mutex>
-#include <stdexcept>
 #include <cmath>
 #include <glm/glm.hpp>
 
 namespace chronon3d::camera_v1 {
-
-// =========================================================================
-// CameraConstraintRegistry — singleton + registration.
-// =========================================================================
-
-CameraConstraintRegistry& CameraConstraintRegistry::instance() {
-    static CameraConstraintRegistry r;
-    return r;
-}
-
-void CameraConstraintRegistry::register_factory(std::string id, Factory f) {
-    if (!f) throw std::invalid_argument("CameraConstraintRegistry: null factory");
-    if (id.empty()) throw std::invalid_argument("CameraConstraintRegistry: empty id");
-    std::lock_guard<std::mutex> lk(mu_);
-    if (frozen_) throw std::logic_error("CameraConstraintRegistry: frozen — cannot register '" + id + "'");
-    if (factories_.count(id)) {
-        throw std::invalid_argument("CameraConstraintRegistry: duplicate id '" + id + "'");
-    }
-    factories_.emplace(std::move(id), f);
-}
-
-std::shared_ptr<CameraConstraint> CameraConstraintRegistry::create(const std::string& id) const {
-    // Default params: use DampedFollowParams as a neutral default.
-    DampedFollowParams defaults;
-    return create(id, defaults);
-}
-
-std::shared_ptr<CameraConstraint> CameraConstraintRegistry::create(
-        const std::string& id, const CameraConstraintParams& params) const {
-    std::lock_guard<std::mutex> lk(mu_);
-    auto it = factories_.find(id);
-    if (it == factories_.end()) return nullptr;
-    return it->second(params);
-}
-
-std::vector<std::string> CameraConstraintRegistry::ids() const {
-    std::lock_guard<std::mutex> lk(mu_);
-    std::vector<std::string> out;
-    out.reserve(factories_.size());
-    for (auto& kv : factories_) out.push_back(kv.first);
-    return out;
-}
-
-bool CameraConstraintRegistry::has(const std::string& id) const {
-    std::lock_guard<std::mutex> lk(mu_);
-    return factories_.count(id) > 0;
-}
-
-void CameraConstraintRegistry::freeze() {
-    std::lock_guard<std::mutex> lk(mu_);
-    frozen_ = true;
-}
 
 // =========================================================================
 // CameraConstraintStack
@@ -99,14 +45,9 @@ ConstraintResult CameraConstraintStack::resolve(const Camera2_5D& start,
                                                 ConstraintSession& session) const {
     ConstraintResult r;
     r.camera = start;
-    // Bug 1 fix: ensure session.states has a slot for every constraint. Without
-    // this, stateful constraints (DampedFollow) crash on session.active_state()
-    // when the caller never called ensure_states() themselves. CameraProgram was
-    // protected because it called ensure_states() internally; the public stack
-    // resolve() API is not.
     session.ensure_states(stack_.size());
     for (std::size_t i = 0; i < stack_.size(); ++i) {
-        session.active_index = i;  // per-constraint state slot
+        session.active_index = i;
         r = stack_[i]->evaluate(r.camera, ctx, session);
         if (!r.ok) break;
     }
@@ -133,7 +74,6 @@ inline void rotate_toward_target(Camera2_5D& cam, Vec3 target) {
 
 // =========================================================================
 // Built-in constraint: camera.look_at
-// P5 complete — uses quaternion-stable look-at.
 // =========================================================================
 class LookAtConstraint final : public CameraConstraint {
 public:
@@ -143,10 +83,6 @@ public:
                               const CameraMotionContext& ctx,
                               ConstraintSession& /*session*/) const override {
         ConstraintResult r;
-        // Bug 2 fix: honor params.target when non-zero, else fall back to ctx.
-        // Contract picked: explicit override (LookAtParams.target) wins over the
-        // implicit context base_target. Default-constructed LookAtParams{} has
-        // target == (0,0,0), which is treated as "unset" via the length sentinel.
         const Vec3 target = (glm::length(target_override_) > 1e-3f)
             ? target_override_
             : ctx.base_target;
@@ -164,7 +100,7 @@ public:
         return r;
     }
 private:
-    Vec3 target_override_{0, 0, 0};  // zero = "unset" → use ctx.base_target
+    Vec3 target_override_{0, 0, 0};
 };
 
 // =========================================================================
@@ -186,7 +122,7 @@ public:
 };
 
 // =========================================================================
-// Built-in constraint: camera.damped_follow (P5 — per-constraint state)
+// Built-in constraint: camera.damped_follow (per-constraint state)
 // =========================================================================
 class DampedFollowConstraint final : public CameraConstraint {
 public:
@@ -196,7 +132,7 @@ public:
                               const CameraMotionContext& ctx,
                               ConstraintSession& session) const override {
         ConstraintResult r;
-        auto& state = session.active_state();  // per-constraint slot
+        auto& state = session.active_state();
 
         if (!state.has_previous) {
             r.camera = in;
@@ -234,7 +170,6 @@ private:
 
 // =========================================================================
 // Built-in constraint: camera.distance
-// Clamps camera→target distance to [min_distance, max_distance].
 // =========================================================================
 class DistanceConstraint final : public CameraConstraint {
 public:
@@ -273,7 +208,6 @@ private:
 
 // =========================================================================
 // Built-in constraint: camera.rotation_limit
-// Clamps pitch/yaw/roll to [-max, +max] per axis.
 // =========================================================================
 class RotationLimitConstraint final : public CameraConstraint {
 public:
@@ -298,53 +232,27 @@ private:
 };
 
 // =========================================================================
-// Factory functions — extract params from variant, dispatch to constructor.
+// Factory functions — declared in camera_constraint.hpp.
 // =========================================================================
-namespace {
 
-template <typename T, typename Impl>
-std::shared_ptr<CameraConstraint> make_from_params(const CameraConstraintParams& params) {
-    if (auto* p = std::get_if<T>(&params)) {
-        return std::make_shared<Impl>(*p);
-    }
-    // Fallback: use default-constructed params.
-    return std::make_shared<Impl>(T{});
+std::shared_ptr<CameraConstraint> make_look_at_constraint(const LookAtParams& p) {
+    return std::make_shared<LookAtConstraint>(p);
 }
 
-} // namespace
-
-static std::shared_ptr<CameraConstraint> make_look_at(const CameraConstraintParams& p) {
-    return make_from_params<LookAtParams, LookAtConstraint>(p);
-}
-static std::shared_ptr<CameraConstraint> make_keep_horizon(const CameraConstraintParams& p) {
-    return make_from_params<KeepHorizonParams, KeepHorizonConstraint>(p);
-}
-static std::shared_ptr<CameraConstraint> make_damped_follow(const CameraConstraintParams& p) {
-    return make_from_params<DampedFollowParams, DampedFollowConstraint>(p);
-}
-static std::shared_ptr<CameraConstraint> make_distance(const CameraConstraintParams& p) {
-    return make_from_params<DistanceParams, DistanceConstraint>(p);
-}
-static std::shared_ptr<CameraConstraint> make_rotation_limit(const CameraConstraintParams& p) {
-    return make_from_params<RotationLimitParams, RotationLimitConstraint>(p);
+std::shared_ptr<CameraConstraint> make_keep_horizon_constraint(const KeepHorizonParams& p) {
+    return std::make_shared<KeepHorizonConstraint>(p);
 }
 
-// =========================================================================
-// register_default_camera_constraints — called once at startup.
-// Checks each ID individually for idempotent registration.
-// =========================================================================
-void register_default_camera_constraints() {
-    auto& r = CameraConstraintRegistry::instance();
-    if (!r.has("camera.look_at"))
-        r.register_factory("camera.look_at", &make_look_at);
-    if (!r.has("camera.keep_horizon"))
-        r.register_factory("camera.keep_horizon", &make_keep_horizon);
-    if (!r.has("camera.damped_follow"))
-        r.register_factory("camera.damped_follow", &make_damped_follow);
-    if (!r.has("camera.distance"))
-        r.register_factory("camera.distance", &make_distance);
-    if (!r.has("camera.rotation_limit"))
-        r.register_factory("camera.rotation_limit", &make_rotation_limit);
+std::shared_ptr<CameraConstraint> make_damped_follow_constraint(const DampedFollowParams& p) {
+    return std::make_shared<DampedFollowConstraint>(p);
+}
+
+std::shared_ptr<CameraConstraint> make_distance_constraint(const DistanceParams& p) {
+    return std::make_shared<DistanceConstraint>(p);
+}
+
+std::shared_ptr<CameraConstraint> make_rotation_limit_constraint(const RotationLimitParams& p) {
+    return std::make_shared<RotationLimitConstraint>(p);
 }
 
 } // namespace chronon3d::camera_v1
