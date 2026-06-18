@@ -207,7 +207,7 @@ void build_typewriter_line(SceneBuilder& s, const std::string& text,
             // Pattern:
             //   0..delay  → invisible (Hold)
             //   delay..end → fade in (OutCubic)
-            //   end+ → fully visible (KeyframeTrack holds last value)
+            //   end+ → fully visible (AnimatedValue holds last value)
             {
                 auto& op = l.opacity_anim();
                 op.key(Frame{0}, 0.0f, EasingCurve{Easing::Hold});

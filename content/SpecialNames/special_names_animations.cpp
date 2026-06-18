@@ -176,7 +176,6 @@ void register_special_name_compositions() {
     detail::add_builtin_composition("SpecialNameStamp",     special_name_stamp);
     detail::add_builtin_composition("SpecialNameBlurIn",    special_name_blur_in);
     detail::add_builtin_composition("SpecialNameTypewriter", special_name_typewriter);
-    detail::add_builtin_composition("SpecialNameSplit",     special_name_split);
 }
 
 } // namespace chronon3d::content::special_names
