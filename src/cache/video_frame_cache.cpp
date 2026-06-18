@@ -1,4 +1,5 @@
 #include <chronon3d/cache/video_frame_cache.hpp>
+#include <chronon3d/core/config.hpp>
 
 #include <algorithm>
 #include <utility>
@@ -26,6 +27,16 @@ constexpr size_t align_up(size_t value, size_t alignment) {
 
 [[nodiscard]] u64 hash_combine(u64 seed, u64 value) {
     return seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6U) + (seed >> 2U));
+}
+
+// Hardcoded fallback for VideoFrameCache: a single 1080p YUV420P frame is
+// ~3.1 MB; 64 frames ≈ 200 MB ceiling — fits the typical encoder-window use
+// case (look-back 4 frames × nearest-neighbor seek + prefetch ring).
+constexpr size_t kVideoFrameCacheDefaultEntryCap = 64;
+
+size_t resolve_video_frame_cache_default_capacity() {
+    auto v = Config::get().video_frame_max_entries;
+    return v > 0 ? v : kVideoFrameCacheDefaultEntryCap;
 }
 
 } // namespace
@@ -60,28 +71,44 @@ size_t VideoFrameKeyHash::operator()(const VideoFrameKey& key) const noexcept {
     return static_cast<size_t>(key.digest());
 }
 
+VideoFrameCache::VideoFrameCache(size_t max_entries, size_t num_shards)
+    : m_cache(
+          max_entries > 0 ? max_entries : resolve_video_frame_cache_default_capacity(),
+          num_shards,
+          CapacityMode::Count)
+{}
+
 bool VideoFrameCache::contains(const VideoFrameKey& key) const {
-    return m_entries.contains(key);
+    return m_cache.contains(key);
 }
 
-const VideoFrameCache::Value* VideoFrameCache::find(const VideoFrameKey& key) const {
-    auto it = m_entries.find(key);
-    if (it == m_entries.end()) {
-        return nullptr;
-    }
-    return &it->second;
+std::shared_ptr<VideoFrame> VideoFrameCache::find(const VideoFrameKey& key) {
+    auto opt = m_cache.get(key);
+    if (!opt) return nullptr;
+    return *std::move(opt);
 }
 
 void VideoFrameCache::store(VideoFrameKey key, Value value) {
-    m_entries.insert_or_assign(std::move(key), std::move(value));
+    // Count mode overrides weight to 1; pass 1 for clarity.
+    m_cache.put(std::move(key), std::move(value), /*weight=*/1);
 }
 
 bool VideoFrameCache::erase(const VideoFrameKey& key) {
-    return m_entries.erase(key) > 0;
+    return m_cache.erase(key);
 }
 
 void VideoFrameCache::clear() {
-    m_entries.clear();
+    m_cache.clear();
+}
+
+size_t VideoFrameCache::size() const {
+    return m_cache.stats().current_size;
+}
+
+LruCache<VideoFrameKey,
+         std::shared_ptr<VideoFrame>,
+         VideoFrameKeyHash>::Stats VideoFrameCache::stats() const {
+    return m_cache.stats();
 }
 
 } // namespace chronon3d::cache

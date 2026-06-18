@@ -30,6 +30,28 @@ std::size_t Config::resolve_env_mb(const char* env_name, std::size_t default_mb)
     return mb * 1024ULL * 1024ULL;
 }
 
+std::size_t Config::resolve_env_int(const char* env_name, std::size_t default_int) {
+    const char* env = std::getenv(env_name);
+    if (!env || !*env) return default_int;
+
+    std::string_view sv(env);
+    std::size_t value = 0;
+
+    const auto* begin = sv.data();
+    const auto* end = sv.data() + sv.size();
+    auto [ptr, ec] = std::from_chars(begin, end, value);
+
+    if (ec != std::errc{} || ptr != end || value == 0) {
+        spdlog::warn(
+            "Invalid environment value {}='{}'; using default {}",
+            env_name, env, default_int
+        );
+        return default_int;
+    }
+
+    return value;
+}
+
 static bool env_bool(const char* name) {
     const char* v = std::getenv(name);
     if (!v || !*v) return false;
@@ -70,6 +92,10 @@ Config::Config() {
     text_cache_max_bytes   = resolve_env_mb("CHRONON_TEXT_CACHE_MAX_MB", 128);
     shadow_cache_max_bytes = resolve_env_mb("CHRONON_SHADOW_CACHE_MAX_MB", 64);
     glow_cache_max_bytes   = resolve_env_mb("CHRONON_GLOW_CACHE_MAX_MB", 64);
+
+    // Per-cache entry-count caps for LruBackedCache instances.
+    frame_cache_max_entries = resolve_env_int("CHRONON3D_FRAME_CACHE_MAX_ENTRIES", 0);
+    video_frame_max_entries = resolve_env_int("CHRONON3D_VIDEO_FRAME_MAX_ENTRIES", 0);
 
     // Paths
     bake_cache_dir = env_string("CHRONON_BAKE_CACHE_DIR");
