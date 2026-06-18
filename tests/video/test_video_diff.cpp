@@ -24,10 +24,14 @@ TEST_CASE("frame_converter: successive YUV420P conversions of identical input pr
     std::vector<uint8_t> y1(y_sz), u1(uv_sz), v1(uv_sz);
     std::vector<uint8_t> y2(y_sz), u2(uv_sz), v2(uv_sz);
 
-    auto r1 = convert_frame_tight(fb, y1.data(), u1.data(), v1.data(), nullptr,
-                                  w, h, EncoderPixelFormat::YUV420P, true);
-    auto r2 = convert_frame_tight(fb, y2.data(), u2.data(), v2.data(), nullptr,
-                                  w, h, EncoderPixelFormat::YUV420P, true);
+    auto r1 = convert_frame_tight(fb,
+        FramePlanes{.y = y1.data(), .u = u1.data(), .v = v1.data()},
+        w, h, EncoderPixelFormat::YUV420P,
+        YuvMatrix::BT709, ColorRange::Limited, true);
+    auto r2 = convert_frame_tight(fb,
+        FramePlanes{.y = y2.data(), .u = u2.data(), .v = v2.data()},
+        w, h, EncoderPixelFormat::YUV420P,
+        YuvMatrix::BT709, ColorRange::Limited, true);
 
     REQUIRE(r1.success);
     REQUIRE(r2.success);
@@ -62,10 +66,14 @@ TEST_CASE("frame_converter: YUV420P Y plane matches NV12 Y plane for various col
         std::vector<uint8_t> y_yuv(y_sz), u(uv_sz), v(uv_sz);
         std::vector<uint8_t> y_nv(y_sz), uv(uv_sz);
 
-        auto r_yuv = convert_frame_tight(fb, y_yuv.data(), u.data(), v.data(), nullptr,
-                                         w, h, EncoderPixelFormat::YUV420P, true);
-        auto r_nv  = convert_frame_tight(fb, y_nv.data(), nullptr, nullptr, uv.data(),
-                                         w, h, EncoderPixelFormat::NV12, true);
+        auto r_yuv = convert_frame_tight(fb,
+            FramePlanes{.y = y_yuv.data(), .u = u.data(), .v = v.data()},
+            w, h, EncoderPixelFormat::YUV420P,
+            YuvMatrix::BT709, ColorRange::Limited, true);
+        auto r_nv  = convert_frame_tight(fb,
+            FramePlanes{.y = y_nv.data(), .uv = uv.data()},
+            w, h, EncoderPixelFormat::NV12,
+            YuvMatrix::BT709, ColorRange::Limited, true);
 
         REQUIRE(r_yuv.success);
         REQUIRE(r_nv.success);
@@ -85,10 +93,14 @@ TEST_CASE("frame_converter: YUV420P with gamma=on vs gamma=off differ") {
     std::vector<uint8_t> yg(y_sz), ug(uv_sz), vg(uv_sz);
     std::vector<uint8_t> yl(y_sz), ul(uv_sz), vl(uv_sz);
 
-    auto r_gamma = convert_frame_tight(fb, yg.data(), ug.data(), vg.data(), nullptr,
-                                       w, h, EncoderPixelFormat::YUV420P, true);
-    auto r_linear = convert_frame_tight(fb, yl.data(), ul.data(), vl.data(), nullptr,
-                                        w, h, EncoderPixelFormat::YUV420P, false);
+    auto r_gamma = convert_frame_tight(fb,
+        FramePlanes{.y = yg.data(), .u = ug.data(), .v = vg.data()},
+        w, h, EncoderPixelFormat::YUV420P,
+        YuvMatrix::BT709, ColorRange::Limited, true);
+    auto r_linear = convert_frame_tight(fb,
+        FramePlanes{.y = yl.data(), .u = ul.data(), .v = vl.data()},
+        w, h, EncoderPixelFormat::YUV420P,
+        YuvMatrix::BT709, ColorRange::Limited, false);
 
     REQUIRE(r_gamma.success);
     REQUIRE(r_linear.success);

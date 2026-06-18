@@ -52,8 +52,10 @@ TEST_CASE("frame_converter: YUV420p correct Y plane for solid red") {
     const size_t uv_sz = (w/2) * (h/2);
     std::vector<uint8_t> y(std::max<size_t>(y_sz, 256), 0), u(std::max<size_t>(uv_sz, 256), 0), v(std::max<size_t>(uv_sz, 256), 0);
 
-    const auto res = convert_frame_tight(fb, y.data(), u.data(), v.data(), nullptr,
-                                         w, h, EncoderPixelFormat::YUV420P, true);
+    const auto res = convert_frame_tight(fb,
+        FramePlanes{.y = y.data(), .u = u.data(), .v = v.data()},
+        w, h, EncoderPixelFormat::YUV420P,
+        YuvMatrix::BT709, ColorRange::Limited, true);
     REQUIRE(res.success);
 
     const uint8_t exp_y = expected_y(1.0f, 0.0f, 0.0f, true);
@@ -74,8 +76,10 @@ TEST_CASE("frame_converter: YUV420p correct Y/U/V for white") {
     const size_t uv_sz = (w/2) * (h/2);
     std::vector<uint8_t> y(std::max<size_t>(y_sz, 256), 0), u(std::max<size_t>(uv_sz, 256), 0), v(std::max<size_t>(uv_sz, 256), 0);
 
-    REQUIRE(convert_frame_tight(fb, y.data(), u.data(), v.data(), nullptr,
-                                 w, h, EncoderPixelFormat::YUV420P, true).success);
+    REQUIRE(convert_frame_tight(fb,
+        FramePlanes{.y = y.data(), .u = u.data(), .v = v.data()},
+        w, h, EncoderPixelFormat::YUV420P,
+        YuvMatrix::BT709, ColorRange::Limited, true).success);
 
     // White: Y ≈ 235 (BT.709 limited range peak luma)
     for (int i = 0; i < w*h; ++i)
@@ -95,8 +99,10 @@ TEST_CASE("frame_converter: YUV420p correct Y for black") {
     const size_t uv_sz = (w/2) * (h/2);
     std::vector<uint8_t> y(std::max<size_t>(y_sz, 256), 0), u(std::max<size_t>(uv_sz, 256), 0), v(std::max<size_t>(uv_sz, 256), 0);
 
-    REQUIRE(convert_frame_tight(fb, y.data(), u.data(), v.data(), nullptr,
-                                 w, h, EncoderPixelFormat::YUV420P, true).success);
+    REQUIRE(convert_frame_tight(fb,
+        FramePlanes{.y = y.data(), .u = u.data(), .v = v.data()},
+        w, h, EncoderPixelFormat::YUV420P,
+        YuvMatrix::BT709, ColorRange::Limited, true).success);
 
     // Black: Y ≈ 16 (BT.709 limited range floor)
     for (int i = 0; i < w*h; ++i)
@@ -151,12 +157,12 @@ TEST_CASE("frame_converter: odd dimensions are rejected cleanly for YUV420P") {
     std::vector<uint8_t> y(256, 0), u(256, 0), v(256, 0);
     ConvertFrameRequest req{
         .src        = fb,
-        .dst_y      = y.data(),
-        .dst_u      = u.data(),
-        .dst_v      = v.data(),
+        .planes     = FramePlanes{.y = y.data(), .u = u.data(), .v = v.data()},
         .width      = w,
         .height     = h,
         .format     = EncoderPixelFormat::YUV420P,
+        .matrix     = YuvMatrix::BT709,
+        .range      = ColorRange::Limited,
         .apply_gamma= true,
     };
     const auto res = convert_frame(req);
@@ -176,10 +182,14 @@ TEST_CASE("frame_converter: NV12 Y plane matches YUV420P for same input") {
     std::vector<uint8_t> y_yuv(std::max<size_t>(y_sz, 256)), u(std::max<size_t>(y_sz/4, 256)), v(std::max<size_t>(y_sz/4, 256));
     std::vector<uint8_t> y_nv(std::max<size_t>(y_sz, 256)), uv(std::max<size_t>(uv_sz, 256));
 
-    REQUIRE(convert_frame_tight(fb, y_yuv.data(), u.data(), v.data(), nullptr,
-                                 w, h, EncoderPixelFormat::YUV420P, true).success);
-    REQUIRE(convert_frame_tight(fb, y_nv.data(), nullptr, nullptr, uv.data(),
-                                 w, h, EncoderPixelFormat::NV12, true).success);
+    REQUIRE(convert_frame_tight(fb,
+        FramePlanes{.y = y_yuv.data(), .u = u.data(), .v = v.data()},
+        w, h, EncoderPixelFormat::YUV420P,
+        YuvMatrix::BT709, ColorRange::Limited, true).success);
+    REQUIRE(convert_frame_tight(fb,
+        FramePlanes{.y = y_nv.data(), .uv = uv.data()},
+        w, h, EncoderPixelFormat::NV12,
+        YuvMatrix::BT709, ColorRange::Limited, true).success);
 
     // Luma planes must match
     for (int i = 0; i < w*h; ++i)
@@ -194,8 +204,10 @@ TEST_CASE("frame_converter: NV12 UV interleaved has correct size semantics") {
     const size_t uv_sz = y_sz / 2;   // interleaved pairs: w/2 * h/2 * 2
     std::vector<uint8_t> y(std::max<size_t>(y_sz, 256), 0), uv(std::max<size_t>(uv_sz, 256), 0);
 
-    REQUIRE(convert_frame_tight(fb, y.data(), nullptr, nullptr, uv.data(),
-                                 w, h, EncoderPixelFormat::NV12, true).success);
+    REQUIRE(convert_frame_tight(fb,
+        FramePlanes{.y = y.data(), .uv = uv.data()},
+        w, h, EncoderPixelFormat::NV12,
+        YuvMatrix::BT709, ColorRange::Limited, true).success);
     // UV must be non-zero for coloured input
     bool has_nonzero = false;
     for (auto b : uv) if (b != 0 && b != 128) { has_nonzero = true; break; }
@@ -213,8 +225,10 @@ TEST_CASE("frame_converter: direct YUV path reports conversion time") {
     std::vector<uint8_t> y(w * h), u(w * h / 4), v(w * h / 4);
 
     const auto res = convert_frame_tight(
-        fb, y.data(), u.data(), v.data(), nullptr,
-        w, h, EncoderPixelFormat::YUV420P, true);
+        fb,
+        FramePlanes{.y = y.data(), .u = u.data(), .v = v.data()},
+        w, h, EncoderPixelFormat::YUV420P,
+        YuvMatrix::BT709, ColorRange::Limited, true);
 
     REQUIRE(res.success);
     CHECK(res.conversion_ns > 0);
@@ -230,8 +244,10 @@ TEST_CASE("frame_converter: direct NV12 path reports conversion time") {
     std::vector<uint8_t> y(w * h), uv(w * h / 2);
 
     const auto res = convert_frame_tight(
-        fb, y.data(), nullptr, nullptr, uv.data(),
-        w, h, EncoderPixelFormat::NV12, true);
+        fb,
+        FramePlanes{.y = y.data(), .uv = uv.data()},
+        w, h, EncoderPixelFormat::NV12,
+        YuvMatrix::BT709, ColorRange::Limited, true);
 
     REQUIRE(res.success);
     CHECK(res.conversion_ns > 0);
@@ -244,7 +260,7 @@ TEST_CASE("frame_converter: direct NV12 path reports conversion time") {
 TEST_CASE("ConvertedFrameCache: miss on first lookup") {
     ConvertedFrameCache cache(4);
     ConvertedFrameCacheKey key{.framebuffer_digest=42, .width=4, .height=4,
-                               .format=EncoderPixelFormat::YUV420P, .color_matrix=0, .apply_gamma=true};
+                               .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited, .apply_gamma=true};
     CHECK(cache.lookup(key) == nullptr);
     CHECK(cache.misses() == 1);
     CHECK(cache.hits()   == 0);
@@ -274,7 +290,7 @@ TEST_CASE("ConvertedFrameCache: sharded split does not lose capacity (4 entries 
 TEST_CASE("ConvertedFrameCache: hit after insert") {
     ConvertedFrameCache cache(4);
     ConvertedFrameCacheKey key{.framebuffer_digest=100, .width=4, .height=4,
-                               .format=EncoderPixelFormat::YUV420P, .color_matrix=0, .apply_gamma=true};
+                               .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited, .apply_gamma=true};
     const std::vector<uint8_t> data = {10, 20, 30, 40};
     cache.insert(key, data.data(), data.size());
 
@@ -301,9 +317,8 @@ TEST_CASE("ConvertedFrameCache: different digest is a miss") {
 TEST_CASE("ConvertedFrameCache: different format is a miss") {
     ConvertedFrameCache cache(4);
     ConvertedFrameCacheKey k_yuv{.framebuffer_digest=7, .width=4, .height=4,
-                                 .format=EncoderPixelFormat::YUV420P, .color_matrix=0, .apply_gamma=true};
-    ConvertedFrameCacheKey k_nv {.framebuffer_digest=7, .width=4, .height=4,
-                                 .format=EncoderPixelFormat::NV12,    .color_matrix=0, .apply_gamma=true};
+                                 .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited, .apply_gamma=true};
+    ConvertedFrameCacheKey k_nv {.framebuffer_digest=7, .width=4, .height=4,                                  .format=EncoderPixelFormat::NV12,    .matrix=YuvMatrix::BT709, .range=ColorRange::Limited, .apply_gamma=true};
     const std::vector<uint8_t> d = {0,0,0};
     cache.insert(k_yuv, d.data(), d.size());
     CHECK(cache.lookup(k_nv) == nullptr);
@@ -318,7 +333,7 @@ TEST_CASE("ConvertedFrameCache: LRU eviction at capacity") {
     // Fill to capacity with digests 1,2,3
     for (uint64_t i = 1; i <= N; ++i) {
         ConvertedFrameCacheKey k{.framebuffer_digest=i, .width=4, .height=4,
-                                 .format=EncoderPixelFormat::YUV420P, .color_matrix=0};
+                                 .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited};
         const uint8_t val = static_cast<uint8_t>(i);
         cache.insert(k, &val, 1);
     }
@@ -344,8 +359,7 @@ TEST_CASE("ConvertedFrameCache: LRU eviction at capacity") {
 
 TEST_CASE("ConvertedFrameCache: clear resets all state") {
     ConvertedFrameCache cache(4);
-    ConvertedFrameCacheKey k{.framebuffer_digest=99, .width=2, .height=2,
-                              .format=EncoderPixelFormat::NV12, .color_matrix=0};
+    ConvertedFrameCacheKey k{.framebuffer_digest=99, .width=2, .height=2,                                  .format=EncoderPixelFormat::NV12, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited};
     const uint8_t v = 1;
     cache.insert(k, &v, 1);
     REQUIRE(cache.lookup(k) != nullptr);

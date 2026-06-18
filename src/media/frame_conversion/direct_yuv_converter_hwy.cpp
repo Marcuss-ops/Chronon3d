@@ -134,9 +134,9 @@ static void process_block_hwy(const DirectYuvRequest& req,
     const Color*       src_data    = src.data();
     const bool         apply_gamma = req.apply_gamma;
 
-    const int stride_y = req.dst_stride_y ? req.dst_stride_y : w;
-    const int stride_u = req.dst_stride_u ? req.dst_stride_u : (w / 2);
-    const int stride_v = req.dst_stride_v ? req.dst_stride_v : (w / 2);
+    const int stride_y = req.planes.stride_y ? req.planes.stride_y : w;
+    const int stride_u = req.planes.stride_u ? req.planes.stride_u : (w / 2);
+    const int stride_v = req.planes.stride_v ? req.planes.stride_v : (w / 2);
 
     // ── Matrix coefficients ────────────────────────────────────────────
     const float y_kr = coeffs.kr * 219.0f / 255.0f;
@@ -166,10 +166,10 @@ static void process_block_hwy(const DirectYuvRequest& req,
     const Color* src_row0 = src_data + static_cast<size_t>(y) * src_stride;
     const Color* src_row1 = src_data + static_cast<size_t>(y + 1) * src_stride;
 
-    uint8_t* dst_y0 = req.dst_y + static_cast<size_t>(y) * stride_y;
-    uint8_t* dst_y1 = req.dst_y + static_cast<size_t>(y + 1) * stride_y;
-    uint8_t* dst_u  = req.dst_u + static_cast<size_t>(y / 2) * stride_u;
-    uint8_t* dst_v  = req.dst_v + static_cast<size_t>(y / 2) * stride_v;
+    uint8_t* dst_y0 = req.planes.y + static_cast<size_t>(y) * stride_y;
+    uint8_t* dst_y1 = req.planes.y + static_cast<size_t>(y + 1) * stride_y;
+    uint8_t* dst_u  = req.planes.u + static_cast<size_t>(y / 2) * stride_u;
+    uint8_t* dst_v  = req.planes.v + static_cast<size_t>(y / 2) * stride_v;
 
     HWY_ALIGN uint8_t r0[16], g0[16], b0[16];
     HWY_ALIGN uint8_t r1[16], g1[16], b1[16];
@@ -268,10 +268,16 @@ static void process_block_hwy(const DirectYuvRequest& req,
 
 HWY_ATTR DirectYuvResult convert_to_yuv420p_hwy_impl(const DirectYuvRequest& req) {
     const uint64_t t0 = profiling::timestamp_ns();
-    if (req.width % 2 != 0 || req.height % 2 != 0) return DirectYuvResult{};
-    if (!req.dst_y || !req.dst_u || !req.dst_v)    return DirectYuvResult{};
+    if (req.width % 2 != 0 || req.height % 2 != 0) return DirectYuvResult{
+        .success = false, .backend = FrameConversionBackend::Unavailable,
+        .error = ConversionError::OddDims,
+    };
+    if (!req.planes.y || !req.planes.u || !req.planes.v) return DirectYuvResult{
+        .success = false, .backend = FrameConversionBackend::Unavailable,
+        .error = ConversionError::NullPointer,
+    };
 
-    const auto& coeffs = get_coeffs(req.color_matrix);
+    const auto& coeffs = get_coeffs(req.matrix);
     const int nb = req.height / 2;
     const int grain = std::max(16, nb / 16);
 
@@ -281,7 +287,7 @@ HWY_ATTR DirectYuvResult convert_to_yuv420p_hwy_impl(const DirectYuvRequest& req
     });
 
     const uint64_t t1 = profiling::timestamp_ns();
-    return DirectYuvResult{.success = true, .used_simd = true, .conversion_ns = t1 - t0};
+    return DirectYuvResult{.success = true, .backend = FrameConversionBackend::HighwayDirect, .conversion_ns = t1 - t0};
 }
 
 // ============================================================================
@@ -290,15 +296,21 @@ HWY_ATTR DirectYuvResult convert_to_yuv420p_hwy_impl(const DirectYuvRequest& req
 
 HWY_ATTR DirectYuvResult convert_to_nv12_hwy_impl(const DirectYuvRequest& req) {
     const uint64_t t0 = profiling::timestamp_ns();
-    if (req.width % 2 != 0 || req.height % 2 != 0) return DirectYuvResult{};
-    if (!req.dst_y || !req.dst_uv)                  return DirectYuvResult{};
+    if (req.width % 2 != 0 || req.height % 2 != 0) return DirectYuvResult{
+        .success = false, .backend = FrameConversionBackend::Unavailable,
+        .error = ConversionError::OddDims,
+    };
+    if (!req.planes.y || !req.planes.uv) return DirectYuvResult{
+        .success = false, .backend = FrameConversionBackend::Unavailable,
+        .error = ConversionError::NullPointer,
+    };
 
-    const auto& coeffs = get_coeffs(req.color_matrix);
+    const auto& coeffs = get_coeffs(req.matrix);
     const int src_stride = req.src.allocated_width();
     const Color* src_data = req.src.data();
     const bool apply_gamma = req.apply_gamma;
-    const int stride_y  = req.dst_stride_y  ? req.dst_stride_y  : req.width;
-    const int stride_uv = req.dst_stride_uv ? req.dst_stride_uv : req.width;
+    const int stride_y  = req.planes.stride_y  ? req.planes.stride_y  : req.width;
+    const int stride_uv = req.planes.stride_uv ? req.planes.stride_uv : req.width;
     const int nb = req.height / 2;
     const int grain = std::max(16, nb / 16);
 
@@ -338,9 +350,9 @@ HWY_ATTR DirectYuvResult convert_to_nv12_hwy_impl(const DirectYuvRequest& req) {
             const int y = b * 2;
             const Color* s0 = src_data + static_cast<size_t>(y) * src_stride;
             const Color* s1 = src_data + static_cast<size_t>(y+1) * src_stride;
-            uint8_t* dy0 = req.dst_y + static_cast<size_t>(y) * stride_y;
-            uint8_t* dy1 = req.dst_y + static_cast<size_t>(y+1) * stride_y;
-            uint8_t* duv = req.dst_uv + static_cast<size_t>(y/2) * stride_uv;
+            uint8_t* dy0 = req.planes.y + static_cast<size_t>(y) * stride_y;
+            uint8_t* dy1 = req.planes.y + static_cast<size_t>(y+1) * stride_y;
+            uint8_t* duv = req.planes.uv + static_cast<size_t>(y/2) * stride_uv;
 
             int x = 0;
             while (x < req.width) {
@@ -399,7 +411,7 @@ HWY_ATTR DirectYuvResult convert_to_nv12_hwy_impl(const DirectYuvRequest& req) {
     });
 
     const uint64_t t1 = profiling::timestamp_ns();
-    return DirectYuvResult{.success = true, .used_simd = true, .conversion_ns = t1 - t0};
+    return DirectYuvResult{.success = true, .backend = FrameConversionBackend::HighwayDirect, .conversion_ns = t1 - t0};
 }
 
 }  // namespace HWY_NAMESPACE

@@ -3,19 +3,10 @@
 // ---------------------------------------------------------------------------
 // direct_yuv_converter.hpp — Direct float framebuffer → YUV/NV12 converter.
 //
-// Bypasses the two-pass pipeline (float → RGBA8 staging → sws_scale → YUV)
-// by computing YUV pixels directly from the linear float framebuffer using
-// a gamma LUT, BT.709/601 matrix, and 4:2:0 chroma subsampling.
-//
-// Design:
-//  - Tries Highway SIMD fast-path first (direct_yuv_converter_hwy.cpp).
-//  - Falls back to scalar TBB baseline (pixel-identical reference).
-//  - Callers must ensure width/height are even (4:2:0 requirement).
-//
-// NOTE: All float→YUV logic must live in src/media/frame_conversion/direct_yuv_converter*.cpp
-// and include/chronon3d/media/frame_conversion/direct_yuv_*.hpp.  Do not duplicate conversion
-// logic in the CLI layer (e.g., ffmpeg_pipe_yuv.cpp).  The CLI uses
-// video::convert_frame_tight as a thin forwarding wrapper.
+// PR1: DirectYuvRequest now accepts YuvMatrix / ColorRange directly
+// instead of an integer color_matrix.  DirectYuvResult reports the
+// concrete FrameConversionBackend (HighwayDirect or — after PR3 — Libyuv)
+// and a ConversionError code on failure.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/core/memory/framebuffer.hpp>
@@ -24,39 +15,36 @@
 
 namespace chronon3d::video {
 
-/// Parameters for a direct float-to-YUV conversion request.
-/// All output pointers must be non-null for the target format.
+/// Parameters for the direct float→YUV conversion path.  Mirrors the
+/// subset of ConvertFrameRequest needed by the float-direct kernels.
 struct DirectYuvRequest {
     const Framebuffer& src;
+    FramePlanes planes;
 
-    // Output planes (format-dependent):
-    //   YUV420P: dst_y, dst_u, dst_v
-    //   NV12:    dst_y, dst_uv
-    uint8_t* dst_y{nullptr};
-    uint8_t* dst_u{nullptr};    // YUV420P only
-    uint8_t* dst_v{nullptr};    // YUV420P only
-    uint8_t* dst_uv{nullptr};   // NV12 only
-
-    int dst_stride_y{0};
-    int dst_stride_u{0};
-    int dst_stride_v{0};
-    int dst_stride_uv{0};
-
-    int         width{0};
-    int         height{0};
+    int width{0};
+    int height{0};
     EncoderPixelFormat format{EncoderPixelFormat::YUV420P};
-    bool        apply_gamma{true};
-    int         color_matrix{0};  // 0=BT.709, 1=BT.601
+
+    YuvMatrix matrix{YuvMatrix::BT709};
+    ColorRange range{ColorRange::Limited};
+    bool apply_gamma{true};
 };
 
 struct DirectYuvResult {
-    bool        success{false};
-    bool        used_simd{false};
-    uint64_t    conversion_ns{0};
+    bool success{false};
+    FrameConversionBackend backend{FrameConversionBackend::Unavailable};
+    ConversionError error{ConversionError::None};
+    uint64_t conversion_ns{0};
 };
 
-/// Convert a float framebuffer directly to YUV420P or NV12.
-/// Returns false if dimensions are odd or pointers are null.
+/// Convert a float framebuffer directly to YUV420P or NV12.  Reports the
+/// concrete backend via the result.  BT.2020 is rejected with
+/// `error = UnsupportedMatrix`; callers should fall back to swscale.
 DirectYuvResult convert_framebuffer_to_yuv_direct(const DirectYuvRequest& req);
+
+DirectYuvResult convert_to_yuv420p_hwy(const DirectYuvRequest& req);
+DirectYuvResult convert_to_nv12_hwy(const DirectYuvRequest& req);
+DirectYuvResult convert_to_yuv420p_parallel(const DirectYuvRequest& req);
+DirectYuvResult convert_to_nv12_parallel(const DirectYuvRequest& req);
 
 } // namespace chronon3d::video
