@@ -4,6 +4,7 @@ add_executable(chronon3d_cache_tests
     ${TEST_MAIN}
     cache/test_persistent_bake_cache.cpp
     cache/test_lru_cache.cpp
+    cache/test_lru_extensions.cpp
     cache/test_framebuffer_pool.cpp
     render_graph/cache/test_scene_program_cache.cpp
 )
