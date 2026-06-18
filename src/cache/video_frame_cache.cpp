@@ -1,5 +1,6 @@
 #include <chronon3d/cache/video_frame_cache.hpp>
 #include <chronon3d/cache/cache_policy.hpp>
+#include <chronon3d/core/hash/hash_builder.hpp>
 
 #include <algorithm>
 #include <utility>
@@ -21,11 +22,6 @@ namespace {
     return 0;
 }
 
-[[nodiscard]] u64 hash_combine(u64 seed, u64 value) {
-    return seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6U) + (seed >> 2U));
-}
-
-
 } // namespace
 
 VideoFrame::VideoFrame(i32 width, i32 height, VideoPixelFormat format) {
@@ -44,14 +40,15 @@ void VideoFrame::resize(i32 width, i32 height, VideoPixelFormat format) {
 }
 
 u64 VideoFrameKey::digest() const {
-    u64 seed = std::hash<std::string>{}(composition_id);
-    seed = hash_combine(seed, frame_index);
-    seed = hash_combine(seed, static_cast<u64>(width));
-    seed = hash_combine(seed, static_cast<u64>(height));
-    seed = hash_combine(seed, static_cast<u64>(format));
-    seed = hash_combine(seed, scene_hash);
-    seed = hash_combine(seed, render_hash);
-    return seed;
+    return core::hash::HashBuilder{}
+        .add(composition_id)
+        .add(frame_index)
+        .add(width)
+        .add(height)
+        .add_enum(format)
+        .add(scene_hash)
+        .add(render_hash)
+        .finish();
 }
 
 size_t VideoFrameKeyHash::operator()(const VideoFrameKey& key) const noexcept {

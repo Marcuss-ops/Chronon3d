@@ -2,6 +2,7 @@
 
 add_executable(chronon3d_cache_tests
     ${TEST_MAIN}
+    cache/test_hash_builder.cpp
     cache/test_cache_policy.cpp
     cache/test_persistent_framebuffer_store.cpp
     cache/test_lru_cache.cpp
