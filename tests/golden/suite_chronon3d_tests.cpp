@@ -15,7 +15,7 @@
 
 using namespace chronon3d::test;
 
-#ifdef CHRONON3D_HAS_CONTENT_2D5
+#if defined(CHRONON3D_HAS_CONTENT_2D5) && defined(CHRONON3D_BUILD_DIAGNOSTICS)
 #include "content/images/compositions/image_proofs.hpp"
 namespace chronon3d::content::shapes {
     Composition shape_proofs();
@@ -661,7 +661,7 @@ TEST_CASE("Chronon3d Suite: Animation Tests") {
 }
 
 // ── 9b. IMAGEPROOFS GOLDEN REFERENCE ───────────────────────────────────────────
-#ifdef CHRONON3D_HAS_CONTENT_2D5
+#if defined(CHRONON3D_HAS_CONTENT_2D5) && defined(CHRONON3D_BUILD_DIAGNOSTICS)
 TEST_CASE("Chronon3d Suite: ImageProofs Golden Reference") {
     Composition comp = chronon3d::content::images::image_proofs();
 
@@ -720,7 +720,7 @@ TEST_CASE("Chronon3d Suite: ShapeProofs Golden Reference") {
         }
     }
 }
-#endif
+#endif // CHRONON3D_HAS_CONTENT_2D5 && CHRONON3D_BUILD_DIAGNOSTICS
 
 // ── 10. SSAA 2× QUALITY VERIFICATION ───────────────────────────────────────────
 TEST_CASE("Chronon3d Suite: SSAA 2x Quality Verification") {
