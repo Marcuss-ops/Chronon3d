@@ -37,7 +37,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--motion-blur-filter", args.pipeline.quality.motion_blur_filter, "Reconstruction filter: 0=Box, 1=Triangle, 2=Gaussian")->default_val(0);
     cmd->add_option("--ssaa", args.pipeline.quality.ssaa, "Super Sampling factor (default 1.0)");
     cmd->add_option("-v,--log-level", args.log_level, "Log level: trace | debug | info | warn | error");
-    cmd->add_flag("--benchmark_all", args.benchmark_all,
+    cmd->add_flag("--benchmark-all", args.benchmark_all,
         "Write detailed phase durations for all graph nodes");
 
     cmd->add_flag("--report", args.report,
