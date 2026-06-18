@@ -29,6 +29,11 @@ add_executable(chronon3d_scene_tests
     scene/camera/test_camera_stabilization.cpp
     scene/camera/test_camera_projection_contract.cpp
     scene/camera/test_camera_near_plane_clip.cpp
+    scene/camera/camera_25d_tests.cpp
+    scene/camera/test_camera_hierarchy.cpp
+    scene/camera/test_camera_motion_blur.cpp
+    scene/camera/test_camera_motion_path.cpp
+    scene/camera/test_catmull_rom_path.cpp
     scene/test_scene_validator.cpp
     scene/test_layer_order_contract.cpp
     render_graph/builder/test_graph_snapshot.cpp
