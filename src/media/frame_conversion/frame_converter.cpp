@@ -368,8 +368,9 @@ ConvertFrameResult convert_frame(const ConvertFrameRequest& req) {
             };
         }
         case FrameConversionBackend::HighwayDirect: {
-            // Direct YUV420P/NV12 path via Highway/TBB float→YUV.
-            // map ConvertFrameRequest → DirectYuvRequest subset.
+            // PR3: Highway-only float→YUV; scalar/TBB fallback removed.
+            // On failure, fall through to swscale (below in this switch —
+            // handled by the caller logic after this case returns).
             const bool is_yuv = (req.format == EncoderPixelFormat::YUV420P ||
                                  req.format == EncoderPixelFormat::NV12);
             if (!is_yuv) {
@@ -390,12 +391,22 @@ ConvertFrameResult convert_frame(const ConvertFrameRequest& req) {
                 .apply_gamma = req.apply_gamma,
             };
             auto direct = convert_framebuffer_to_yuv_direct(dreq);
+            if (direct.success) {
+                return ConvertFrameResult{
+                    .success = true,
+                    .backend = FrameConversionBackend::HighwayDirect,
+                    .error = ConversionError::None,
+                    .conversion_ns = direct.conversion_ns,
+                };
+            }
+            // Highway failed — fall back to swscale (same YUV paths as
+            // the Swscale case below).
+            if (req.format == EncoderPixelFormat::YUV420P) return convert_rgba_to_yuv420p_swscale(req);
+            if (req.format == EncoderPixelFormat::NV12)    return convert_rgba_to_nv12_swscale(req);
             return ConvertFrameResult{
-                .success = direct.success,
-                .backend = direct.success ? FrameConversionBackend::HighwayDirect
-                                          : FrameConversionBackend::Unavailable,
-                .error = direct.error,
-                .conversion_ns = direct.conversion_ns,
+                .success = false,
+                .backend = FrameConversionBackend::Unavailable,
+                .error = ConversionError::BackendError,
             };
         }
         case FrameConversionBackend::Swscale: {

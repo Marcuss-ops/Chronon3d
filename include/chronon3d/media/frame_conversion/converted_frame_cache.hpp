@@ -122,17 +122,6 @@ public:
 
     void clear();
 
-    // ── Diagnostics ────────────────────────────────────────────────────
-    [[nodiscard]] std::size_t hits()   const noexcept;
-    [[nodiscard]] std::size_t misses() const noexcept;
-    [[nodiscard]] std::size_t size()   const noexcept;
-    /// Aggregated stats.  Return type deduced from the LruCache's Stats
-    /// struct so changes to the LruCache's Stats layout propagate here.
-    /// Implementation in .cpp uses plain `auto` (trailing return type would
-    /// need `m_cache` to be visible from outside the class scope, which it
-    /// is not when the return-type computation runs).
-    [[nodiscard]] auto stats() const noexcept;
-
 private:
     /// Resolve the max entries: max_entries > 0 ? max_entries :
     /// Config::get().converted_frame_cache_max_entries > 0 ? that : policy default.
@@ -146,6 +135,13 @@ private:
         m_cache;
 
     chronon3d::cache::CacheDiagnostics::Handle m_diag_handle;
+
+public:
+    // ── Diagnostics ────────────────────────────────────────────────────
+    [[nodiscard]] std::size_t hits()   const noexcept;
+    [[nodiscard]] std::size_t misses() const noexcept;
+    [[nodiscard]] std::size_t size()   const noexcept;
+    [[nodiscard]] auto stats() const noexcept -> decltype(m_cache.stats());
 };
 
 // Hash for ConvertedFrameCacheKey — used as the shard-routing hash by

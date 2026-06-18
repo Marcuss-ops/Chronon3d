@@ -2,12 +2,7 @@
 #include <chronon3d/media/frame_conversion/direct_yuv_lut.hpp>
 #include "internal/yuv_conversion_internal.hpp"
 
-#include <chronon3d/core/profiling/profiling.hpp>
-#include <algorithm>
 #include <cstdint>
-
-#include <chronon3d/core/parallel_tracked.hpp>
-#include <tbb/blocked_range.h>
 
 namespace chronon3d::video {
 
@@ -37,205 +32,22 @@ struct SrgbLutInit {
 static SrgbLutInit s_lut_init;
 } // anonymous namespace
 
-// Coefficients and helpers (YuvCoeffs, get_coeffs, YuvPixel, rgb8_to_yuv)
-// are defined in the shared header direct_yuv_lut.hpp.
+// ============================================================================
+//  LUT is populated once at static init — still used by the Highway path.
+//  The scalar/TBB fallback functions (convert_to_yuv420p_parallel,
+//  convert_to_nv12_parallel) are removed in PR3.
+// ============================================================================
 
 // ============================================================================
-//  YUV420P converter — parallel over 2-row blocks via tbb::parallel_for
-// ============================================================================
-
-DirectYuvResult convert_to_yuv420p_parallel(const DirectYuvRequest& req) {
-    const uint64_t t0 = profiling::timestamp_ns();
-
-    const int w = req.width;
-    const int h = req.height;
-    if (w % 2 != 0 || h % 2 != 0)
-        return DirectYuvResult{};
-    if (!req.planes.y || !req.planes.u || !req.planes.v)
-        return DirectYuvResult{};
-
-    const Framebuffer& src = req.src;
-    const int src_stride = src.allocated_width();
-    const Color* src_data = src.data();
-    const auto& coeffs = get_coeffs(req.matrix);
-
-    const int stride_y = req.planes.stride_y ? req.planes.stride_y : w;
-    const int stride_u = req.planes.stride_u ? req.planes.stride_u : (w / 2);
-    const int stride_v = req.planes.stride_v ? req.planes.stride_v : (w / 2);
-    const bool apply_gamma = req.apply_gamma;
-
-    // Each iteration processes a 2-row block: [y_block*2 .. y_block*2+1]
-    const int num_blocks = h / 2;
-    const int grain = std::max(16, num_blocks / 16);
-
-    parallel_for_tracked(tbb::blocked_range<int>(0, num_blocks, grain), [&](const tbb::blocked_range<int>& r) {
-        for (int block = r.begin(); block < r.end(); ++block) {
-            const int y = block * 2;
-
-            const Color* src_row0 = src_data + static_cast<size_t>(y) * src_stride;
-            const Color* src_row1 = src_data + static_cast<size_t>(y + 1) * src_stride;
-
-            uint8_t* y0 = req.planes.y + static_cast<size_t>(y) * stride_y;
-            uint8_t* y1 = req.planes.y + static_cast<size_t>(y + 1) * stride_y;
-            uint8_t* u_row = req.planes.u + static_cast<size_t>(block) * stride_u;
-            uint8_t* v_row = req.planes.v + static_cast<size_t>(block) * stride_v;
-
-            for (int x = 0; x < w; x += 2) {
-                const Color& c00 = src_row0[x];
-                const Color& c01 = src_row0[x + 1];
-                const Color& c10 = src_row1[x];
-                const Color& c11 = src_row1[x + 1];
-
-                uint8_t r00, g00, b00;
-                uint8_t r01, g01, b01;
-                uint8_t r10, g10, b10;
-                uint8_t r11, g11, b11;
-
-                if (apply_gamma) {
-                    r00 = linear_to_srgb8_fast(c00.r); g00 = linear_to_srgb8_fast(c00.g); b00 = linear_to_srgb8_fast(c00.b);
-                    r01 = linear_to_srgb8_fast(c01.r); g01 = linear_to_srgb8_fast(c01.g); b01 = linear_to_srgb8_fast(c01.b);
-                    r10 = linear_to_srgb8_fast(c10.r); g10 = linear_to_srgb8_fast(c10.g); b10 = linear_to_srgb8_fast(c10.b);
-                    r11 = linear_to_srgb8_fast(c11.r); g11 = linear_to_srgb8_fast(c11.g); b11 = linear_to_srgb8_fast(c11.b);
-                } else {
-                    auto to8 = [](float v) -> uint8_t {
-                        return static_cast<uint8_t>(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f);
-                    };
-                    r00 = to8(c00.r); g00 = to8(c00.g); b00 = to8(c00.b);
-                    r01 = to8(c01.r); g01 = to8(c01.g); b01 = to8(c01.b);
-                    r10 = to8(c10.r); g10 = to8(c10.g); b10 = to8(c10.b);
-                    r11 = to8(c11.r); g11 = to8(c11.g); b11 = to8(c11.b);
-                }
-
-                YuvPixel yuv00 = rgb8_to_yuv(r00, g00, b00, coeffs);
-                YuvPixel yuv01 = rgb8_to_yuv(r01, g01, b01, coeffs);
-                YuvPixel yuv10 = rgb8_to_yuv(r10, g10, b10, coeffs);
-                YuvPixel yuv11 = rgb8_to_yuv(r11, g11, b11, coeffs);
-
-                y0[x]     = yuv00.y;
-                y0[x + 1] = yuv01.y;
-                y1[x]     = yuv10.y;
-                y1[x + 1] = yuv11.y;
-
-                const int ux = x / 2;
-                u_row[ux] = static_cast<uint8_t>(
-                    (static_cast<unsigned>(yuv00.u) + yuv01.u + yuv10.u + yuv11.u + 2) / 4);
-                v_row[ux] = static_cast<uint8_t>(
-                    (static_cast<unsigned>(yuv00.v) + yuv01.v + yuv10.v + yuv11.v + 2) / 4);
-            }
-        }
-    });
-
-    const uint64_t t1 = profiling::timestamp_ns();
-    return DirectYuvResult{
-        .success       = true,
-        .backend       = FrameConversionBackend::HighwayDirect,
-        .error         = ConversionError::None,
-        .conversion_ns = t1 - t0,
-    };
-
-}
-
-// ────────────────────────────────────────────────────────────────
-//  NV12 converter — TBB scalar fallback (test-only after PR3).
-// ────────────────────────────────────────────────────────────────
-
-DirectYuvResult convert_to_nv12_parallel(const DirectYuvRequest& req) {
-    const uint64_t t0 = profiling::timestamp_ns();
-
-    const int w = req.width;
-    const int h = req.height;
-    if (w % 2 != 0 || h % 2 != 0)
-        return DirectYuvResult{
-            .success = false, .backend = FrameConversionBackend::Unavailable,
-            .error = ConversionError::OddDims,
-        };
-    if (!req.planes.y || !req.planes.uv)
-        return DirectYuvResult{
-            .success = false, .backend = FrameConversionBackend::Unavailable,
-            .error = ConversionError::NullPointer,
-        };
-
-    const Framebuffer& src = req.src;
-    const int src_stride = src.allocated_width();
-    const Color* src_data = src.data();
-    const auto& coeffs = get_coeffs(req.matrix);
-
-    const int stride_y  = req.planes.stride_y  ? req.planes.stride_y  : w;
-    const int stride_uv = req.planes.stride_uv ? req.planes.stride_uv : w;
-    const bool apply_gamma = req.apply_gamma;
-
-    const int num_blocks = h / 2;
-    const int grain = std::max(16, num_blocks / 16);
-
-    parallel_for_tracked(tbb::blocked_range<int>(0, num_blocks, grain), [&](const tbb::blocked_range<int>& r) {
-        for (int block = r.begin(); block < r.end(); ++block) {
-            const int y = block * 2;
-
-            const Color* src_row0 = src_data + static_cast<size_t>(y) * src_stride;
-            const Color* src_row1 = src_data + static_cast<size_t>(y + 1) * src_stride;
-
-            uint8_t* y0 = req.planes.y + static_cast<size_t>(y) * stride_y;
-            uint8_t* y1 = req.planes.y + static_cast<size_t>(y + 1) * stride_y;
-            uint8_t* uv_row = req.planes.uv + static_cast<size_t>(block) * stride_uv;
-
-            for (int x = 0; x < w; x += 2) {
-                const Color& c00 = src_row0[x];
-                const Color& c01 = src_row0[x + 1];
-                const Color& c10 = src_row1[x];
-                const Color& c11 = src_row1[x + 1];
-
-                auto to8 = [&](float v) -> uint8_t {
-                    return apply_gamma
-                        ? linear_to_srgb8_fast(v)
-                        : static_cast<uint8_t>(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f);
-                };
-
-                uint8_t r00 = to8(c00.r), g00 = to8(c00.g), b00 = to8(c00.b);
-                uint8_t r01 = to8(c01.r), g01 = to8(c01.g), b01 = to8(c01.b);
-                uint8_t r10 = to8(c10.r), g10 = to8(c10.g), b10 = to8(c10.b);
-                uint8_t r11 = to8(c11.r), g11 = to8(c11.g), b11 = to8(c11.b);
-
-                YuvPixel yuv00 = rgb8_to_yuv(r00, g00, b00, coeffs);
-                YuvPixel yuv01 = rgb8_to_yuv(r01, g01, b01, coeffs);
-                YuvPixel yuv10 = rgb8_to_yuv(r10, g10, b10, coeffs);
-                YuvPixel yuv11 = rgb8_to_yuv(r11, g11, b11, coeffs);
-
-                y0[x]     = yuv00.y;
-                y0[x + 1] = yuv01.y;
-                y1[x]     = yuv10.y;
-                y1[x + 1] = yuv11.y;
-
-                // NV12: interleaved UV pair at each chroma position
-                const int uvx = x;
-                uv_row[uvx]     = static_cast<uint8_t>(
-                    (static_cast<unsigned>(yuv00.u) + yuv01.u + yuv10.u + yuv11.u + 2) / 4);
-                uv_row[uvx + 1] = static_cast<uint8_t>(
-                    (static_cast<unsigned>(yuv00.v) + yuv01.v + yuv10.v + yuv11.v + 2) / 4);
-            }
-        }
-    });
-
-    const uint64_t t1 = profiling::timestamp_ns();
-    return DirectYuvResult{
-        .success       = true,
-        .backend       = FrameConversionBackend::HighwayDirect,
-        .error         = ConversionError::None,
-        .conversion_ns = t1 - t0,
-    };
-
-}
-
-// ============================================================================
-//  Public API — dispatch: try HWY SIMD first, fall back to scalar TBB.
+//  Public API — dispatch: try HWY SIMD first, no scalar fallback.
+//  (Highway failure is handled by the caller — convert_frame falls back
+//   to swscale when convert_framebuffer_to_yuv_direct returns !success.)
 // ============================================================================
 
 DirectYuvResult convert_framebuffer_to_yuv_direct(const DirectYuvRequest& req) {
     if (req.width <= 0 || req.height <= 0) return DirectYuvResult{};
     if (req.width % 2 != 0 || req.height % 2 != 0) return DirectYuvResult{};
 
-    // BT.2020 is rejected — direct codepath does not SIMD-vectorize the
-    // wide BT.2020 matrix + range offsets.  Caller (convert_frame) is
-    // expected to have routed BT.2020 to swscale via select_backend.
     if (req.matrix == YuvMatrix::BT2020) {
         return DirectYuvResult{
             .success = false,
@@ -245,16 +57,10 @@ DirectYuvResult convert_framebuffer_to_yuv_direct(const DirectYuvRequest& req) {
     }
 
     switch (req.format) {
-        case EncoderPixelFormat::YUV420P: {
-            auto r = convert_to_yuv420p_hwy(req);
-            if (r.success) return r;
-            return convert_to_yuv420p_parallel(req);
-        }
-        case EncoderPixelFormat::NV12: {
-            auto r = convert_to_nv12_hwy(req);
-            if (r.success) return r;
-            return convert_to_nv12_parallel(req);
-        }
+        case EncoderPixelFormat::YUV420P:
+            return convert_to_yuv420p_hwy(req);
+        case EncoderPixelFormat::NV12:
+            return convert_to_nv12_hwy(req);
         default:
             return DirectYuvResult{
                 .success = false,

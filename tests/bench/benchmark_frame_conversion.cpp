@@ -23,9 +23,10 @@
 
 #include <benchmark/benchmark.h>
 
-// Internal header: exposes Highway, scalar, and swscale backends directly
-// so every benchmark can call exactly one path.
+// Internal header: exposes Highway and swscale backends directly.
+// PR3: Scalar reference now lives in tests/video/reference_yuv_converter.hpp.
 #include "src/media/frame_conversion/internal/yuv_conversion_internal.hpp"
+#include "../video/reference_yuv_converter.hpp"
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
 #include <chronon3d/media/frame_conversion/direct_yuv_converter.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
@@ -339,7 +340,7 @@ static void BM_YuvConvert_Swscale(benchmark::State& state) {
 }
 
 // ============================================================================
-//  BM_YuvConvert_ScalarRef — TBB scalar float→YUV (correctness reference)
+//  BM_YuvConvert_ScalarRef — single-thread scalar reference (test-only oracle)
 // ============================================================================
 
 static void BM_YuvConvert_ScalarRef(benchmark::State& state) {
@@ -362,22 +363,25 @@ static void BM_YuvConvert_ScalarRef(benchmark::State& state) {
 
     // Warmup
     if (p.format == EncoderPixelFormat::YUV420P)
-        convert_to_yuv420p_parallel(dreq);
+        reference_convert_to_yuv420p(dreq);
     else
-        convert_to_nv12_parallel(dreq);
+        reference_convert_to_nv12(dreq);
 
     for (auto _ : state) {
         std::memset(out_buf.data(), 0, out_buf.size());
+        // Reference oracle doesn't self-time; measure wall clock here.
+        const uint64_t t0 = profiling::timestamp_ns();
         const auto res = (p.format == EncoderPixelFormat::YUV420P)
-            ? convert_to_yuv420p_parallel(dreq)
-            : convert_to_nv12_parallel(dreq);
+            ? reference_convert_to_yuv420p(dreq)
+            : reference_convert_to_nv12(dreq);
+        const uint64_t t1 = profiling::timestamp_ns();
 
         if (!res.success) {
             state.SkipWithError("Scalar conversion failed");
             return;
         }
         state.SetIterationTime(
-            static_cast<double>(res.conversion_ns) / 1e9);
+            static_cast<double>(t1 - t0) / 1e9);
     }
 
     const int64_t px = static_cast<int64_t>(state.iterations()) * p.width * p.height;

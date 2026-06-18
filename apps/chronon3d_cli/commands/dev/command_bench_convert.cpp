@@ -134,25 +134,6 @@ static BenchResult run_bench_path(
             else
                 video::convert_to_nv12_hwy(dreq);
 
-        } else if (name == "direct_tbb_yuv") {
-            DirectYuvRequest dreq{
-                .src = fb,
-                .planes = video::FramePlanes{
-                    .y = y_ptr, .u = u_ptr, .v = v_ptr, .uv = uv_ptr,
-                    .stride_y = w, .stride_u = w/2, .stride_v = w/2, .stride_uv = w,
-                },
-                .width = w,
-                .height = h,
-                .format = fmt,
-                .matrix = video::YuvMatrix::BT709,
-                .range = video::ColorRange::Limited,
-                .apply_gamma = apply_gamma,
-            };
-            if (fmt_name == "yuv420p")
-                video::convert_to_yuv420p_parallel(dreq);
-            else
-                video::convert_to_nv12_parallel(dreq);
-
         } else if (name == "sws_scale") {
             video::ConvertFrameRequest creq{
                 .src = fb,
@@ -261,12 +242,7 @@ int command_bench_convert(const CompositionRegistry& registry, const BenchConver
         hwy.used_simd = true;
     }
 
-    // ── Phase 2: TBB scalar ────────────────────────────────────────────
-    auto tbb = run_bench_path("direct_tbb_yuv", *fb, w, h, fmt,
-                              args.apply_gamma, args.iterations,
-                              ref_buf, work_buf);
-
-    // ── Phase 3: sws_scale (RGBA8 staging) ─────────────────────────────
+    // ── Phase 2: sws_scale (RGBA8 staging) ─────────────────────────────
     auto sws = run_bench_path("sws_scale", *fb, w, h, fmt,
                               args.apply_gamma, args.iterations,
                               ref_buf, work_buf);
@@ -315,18 +291,9 @@ int command_bench_convert(const CompositionRegistry& registry, const BenchConver
     };
 
     print_row(hwy);
-    print_row(tbb);
     print_row(sws);
 
     // ── Speedup ratios ─────────────────────────────────────────────────
-    if (hwy.mean_ns > 0 && tbb.mean_ns > 0) {
-        const double speedup = tbb.mean_ns / hwy.mean_ns;
-        out << "\n  HWY SIMD vs TBB scalar:  "
-            << fmt::format("{:.2f}× faster", speedup);
-        if (tbb.bytes_mismatch == 0)
-            out << "  (pixel-identical)";
-        out << "\n";
-    }
     if (hwy.mean_ns > 0 && sws.mean_ns > 0) {
         const double speedup = sws.mean_ns / hwy.mean_ns;
         out << "  HWY SIMD vs sws_scale:   "

@@ -89,7 +89,8 @@ TEST_CASE("Near-static frames: single repeated frame hits cache 100%") {
         .width = w,
         .height = h,
         .format = EncoderPixelFormat::YUV420P,
-        .color_matrix = 0,
+        .matrix = YuvMatrix::BT709,
+        .range  = ColorRange::Limited,
         .apply_gamma = true,
     };
 
