@@ -82,12 +82,8 @@ add_library(chronon3d_cli_telemetry STATIC
     commands/telemetry/command_telemetry_summary.cpp
 )
 target_include_directories(chronon3d_cli_telemetry PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)
-target_link_libraries(chronon3d_cli_telemetry PRIVATE chronon3d_cli_core chronon3d_pipeline CLI11::CLI11 spdlog::spdlog_header_only fmt::fmt)
-
-if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
-    target_link_libraries(chronon3d_cli_telemetry PRIVATE unofficial::sqlite3::sqlite3)
-    target_compile_definitions(chronon3d_cli_telemetry PUBLIC CHRONON3D_ENABLE_SQLITE_TELEMETRY)
-endif()
+target_link_libraries(chronon3d_cli_telemetry PRIVATE chronon3d_cli_core chronon3d_pipeline CLI11::CLI11 spdlog::spdlog_header_only fmt::fmt unofficial::sqlite3::sqlite3)
+target_compile_definitions(chronon3d_cli_telemetry PUBLIC CHRONON3D_ENABLE_SQLITE_TELEMETRY)
 
 # Group: Dev (batch, studio, inspect)
 add_library(chronon3d_cli_dev STATIC
@@ -169,10 +165,8 @@ target_precompile_headers(chronon3d_cli PRIVATE
     <spdlog/spdlog.h> <CLI/CLI.hpp>
 )
 
-# SQLite for telemetry group
-if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
-    target_link_libraries(chronon3d_cli PRIVATE unofficial::sqlite3::sqlite3)
-endif()
+# SQLite for telemetry group (CHRONON3D_ENABLE_SQLITE_TELEMETRY is always-on, see root CMakeLists.txt)
+target_link_libraries(chronon3d_cli PRIVATE unofficial::sqlite3::sqlite3)
 
 # FIX: GCC 14 + Unity-build + third-party transitive include cascade.
 # <chrono> and <fmt/format.h> are pulled in transitively via <CLI/CLI.hpp>
