@@ -11,7 +11,7 @@
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
-#include <chronon3d/backends/software/renderer_types.hpp>
+#include <chronon3d/math/renderer_state.hpp>
 #include "scene_internal.hpp"
 #include "scene_fingerprint.hpp"
 #include <memory>

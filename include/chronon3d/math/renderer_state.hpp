@@ -1,24 +1,26 @@
 #pragma once
 
 // ---------------------------------------------------------------------------
-// renderer_types.hpp
+// math/renderer_state.hpp
 //
-/// @file    renderer_types.hpp
-/// @brief   Lightweight type definitions extracted from SoftwareRenderer.
-///
-/// These types were originally nested inside SoftwareRenderer.  Extracting
-/// them to their own header allows pipeline files to use `LayerBBoxState`,
-/// `RendererFrameHistory`, etc. without including the full
-/// `software_renderer.hpp` (which brings in ~40 transitive headers).
-///
-/// SoftwareRenderer still composes from these types via inclusion — the
-/// public accessor methods are unchanged.
+// Lightweight state / history / telemetry structs for the renderer pipeline.
+//
+// Originally lived at <chronon3d/backends/software/renderer_types.hpp> as
+// "type definitions extracted from SoftwareRenderer".  Promoted to `math/` so
+// the render-graph pipeline (dirty-rect, frame_state_commit, scene_dirty),
+// the core render_session, and tests can include these types without pulling
+// in the ~40 transitive headers behind `software_renderer.hpp` (blend2d,
+// effect processor, sampling, etc.).
+//
+// SoftwareRenderer still composes from these types via inclusion — its
+// public accessor methods are unchanged.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/core/types/frame.hpp>
+
 #include <cstdint>
 #include <optional>
 #include <string>
