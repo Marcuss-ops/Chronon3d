@@ -3,32 +3,41 @@
 // ---------------------------------------------------------------------------
 // reference_yuv_converter.hpp — Single-threaded scalar YUV conversion oracle.
 //
-// PR3: This is the ONLY scalar YUV implementation that survives after the
-// production TBB fallback is removed.  It is:
-//   - single-thread (no TBB / parallel_for)
-//   - intentionally simple (readable, no staging tricks)
-//   - NOT compiled into production targets (lives under tests/)
-//   - used as a correctness oracle for frame sizes ≤ 256×256
+// PR4B: DirectYuvRequest / DirectYuvResult types are defined locally since
+// the production direct_yuv_converter.hpp was removed.  The gamma function
+// uses Color::linear_to_srgb8() instead of the deleted LUT.
 //
-// Callers:
-//   tests/video/test_frame_converter_correctness.cpp
-//   tests/bench/benchmark_frame_conversion.cpp (ScalarRef benchmark)
+// Single-thread (no TBB / parallel_for), intentionally simple, NOT compiled
+// into production targets (lives under tests/).
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
-#include <chronon3d/media/frame_conversion/direct_yuv_converter.hpp>
-#include <chronon3d/media/frame_conversion/direct_yuv_lut.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <algorithm>
 #include <cstdint>
 
 namespace chronon3d::video {
 
+// ── Local subset types (no longer from direct_yuv_converter.hpp) ────────
+
+struct ReferenceYuvRequest {
+    const Framebuffer& src;
+    FramePlanes planes;
+    int width{0};
+    int height{0};
+    EncoderPixelFormat format{EncoderPixelFormat::YUV420P};
+    YuvMatrix matrix{YuvMatrix::BT709};
+    bool apply_gamma{true};
+};
+
+struct ReferenceYuvResult {
+    bool success{false};
+    ConversionError error{ConversionError::None};
+};
+
 /// Single-threaded scalar reference: YUV420P.
-/// Used only as correctness oracle — no SIMD, no parallelism.
-DirectYuvResult reference_convert_to_yuv420p(const DirectYuvRequest& req);
+ReferenceYuvResult reference_convert_to_yuv420p(const ReferenceYuvRequest& req);
 
 /// Single-threaded scalar reference: NV12.
-DirectYuvResult reference_convert_to_nv12(const DirectYuvRequest& req);
+ReferenceYuvResult reference_convert_to_nv12(const ReferenceYuvRequest& req);
 
 } // namespace chronon3d::video
