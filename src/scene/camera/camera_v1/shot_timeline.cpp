@@ -328,15 +328,14 @@ Camera2_5D ShotTimelineResolver::evaluate(int frame,
         float t = static_cast<float>(local_idx) / static_cast<float>(denom);
         t = std::clamp(t, 0.0f, 1.0f);
 
-        // Local context per shot.
-        auto ctx_from = CameraMotionContext::at(local_frame);
-        ctx_from.base_target = shot.program.base_cam().point_of_interest;
+        // Use persistent sessions so DampedFollow survives across frames.
+        // CameraEvalContext has no base_target — the compiled path reads
+        // base state from the descriptor (CameraBaseSpec) directly.
+        auto ctx_from = CameraEvalContext::at(local_frame);
 
         int next_local = frame - pair.next->start_frame;
-        auto ctx_to = CameraMotionContext::at(std::max(0, next_local));
-        ctx_to.base_target = pair.next->program.base_cam().point_of_interest;
+        auto ctx_to = CameraEvalContext::at(std::max(0, next_local));
 
-        // Use persistent sessions so DampedFollow/banking survive across frames.
         auto& s_from = timeline_session.session_for(pair.idx);
         auto& s_to   = timeline_session.session_for(pair.idx + 1);
 
@@ -348,8 +347,9 @@ Camera2_5D ShotTimelineResolver::evaluate(int frame,
     }
 
     // No transition — evaluate the current shot directly with local time.
-    auto ctx = CameraMotionContext::at(local_frame);
-    ctx.base_target = shot.program.base_cam().point_of_interest;
+    // CameraEvalContext has no base_target; the compiled path uses the
+    // descriptor's CameraBaseSpec directly for base state.
+    auto ctx = CameraEvalContext::at(local_frame);
 
     auto& shot_session = timeline_session.session_for(pair.idx);
     return shot.program.evaluate(ctx, shot_session).camera;

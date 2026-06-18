@@ -1,12 +1,9 @@
 # ==============================================================================
 # src/scene/registry/CMakeLists.txt
 #
-# Camera System V1 registries (P7+):
-#   - CameraConstraintRegistry   — constraint factory registration
-#
-# Aggregated into chronon3d_scene. No new public deps required.
+# Camera System V1 registries — all removed as of PR12.
+# CameraMotionRegistry (PR7), CameraConstraintRegistry (PR9),
+# CameraConstraintStack (PR11), CameraConstraint classes (PR12).
+# All constraint evaluation uses CameraConstraintSpec variants in the
+# compiled path via CameraDescriptor::constraints.
 # ==============================================================================
-
-target_sources(chronon3d_scene PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/camera_constraint_registry.cpp
-)
