@@ -104,7 +104,6 @@ SceneGraphStats analyze_scene_graph(
     stats.build_ms = profiling::duration_ms(t_build0, t_build1);
 
     if (execute && graph.has_output()) {
-        stats.cache_before = node_cache.stats();
     const auto t_exec0 = profiling::now();
     GraphExecutor executor;
     RenderSession session;
@@ -114,7 +113,6 @@ SceneGraphStats analyze_scene_graph(
         fb_shared = executor.execute(graph, graph.output(), ctx, session);
     }
     const auto t_exec1 = profiling::now();
-        stats.cache_after  = node_cache.stats();
         stats.execute_ms   = profiling::duration_ms(t_exec0, t_exec1);
     }
 
