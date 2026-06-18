@@ -606,10 +606,10 @@ namespace detail {
 
 } // namespace chronon3d::graphics
 
-// ── KeyframeTrack<FillStyle> / KeyframeTrack<StrokeStyle> specializations ─
+// ── interpolate_values<FillStyle> / interpolate_values<StrokeStyle> ──────
 // Wire FillStyle and StrokeStyle into the generic keyframe animation system.
-// Without these, KeyframeTrack<T> would try to use operator+ and operator*
-// on T, which are not defined for these types.
+// Without these, AnimatedValue<T> (aliased as KeyframeTrack<T>) would try to
+// use operator+ and operator* on T, which are not defined for these types.
 
 #include <chronon3d/animation/core/keyframe.hpp>
 

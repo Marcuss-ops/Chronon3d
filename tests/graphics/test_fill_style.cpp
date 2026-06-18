@@ -9,6 +9,7 @@
 
 #include <doctest/doctest.h>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
+#include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/graphics/gradient.hpp>
 #include <chronon3d/scene/model/shape/fill.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
@@ -542,10 +543,9 @@ TEST_CASE("KeyframeTrack<FillStyle> — solid to gradient") {
     track.key(0,  solid)
          .key(60, grad);
 
-    // t=0 → solid
+    // t=0 → first keyframe value (solid) — AnimatedValue returns raw value at boundary
     const auto t0 = track.sample_at(0.0f);
-    // Solid is converted to 1-stop gradient internally, so result is gradient
-    CHECK(t0.is_gradient());
+    CHECK(t0.is_solid());
 
     // t=1.0 → gradient
     const auto t1 = track.sample_at(60.0f);
@@ -810,9 +810,9 @@ TEST_CASE("KeyframeTrack<StrokeStyle> — solid to gradient") {
     track.key(0,  solid)
          .key(60, grad);
 
-    // t=0 → solid (converted to 1-stop gradient internally)
+    // t=0 → first keyframe value (solid) — AnimatedValue returns raw value at boundary
     const auto t0 = track.sample_at(0.0f);
-    CHECK(t0.is_gradient());
+    CHECK(t0.is_solid());
     CHECK(t0.width == doctest::Approx(3.0f));
 
     // t=1 → gradient
