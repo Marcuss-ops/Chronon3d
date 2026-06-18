@@ -121,8 +121,10 @@ TEST_CASE("frame_converter: YUV420p plane sizes correct for 4x4") {
     const size_t uv_sz = (w/2) * (h/2);
     std::vector<uint8_t> y(std::max<size_t>(y_sz, 256), 0), u(std::max<size_t>(uv_sz, 256), 0), v(std::max<size_t>(uv_sz, 256), 0);
 
-    auto res = convert_frame_tight(fb, y.data(), u.data(), v.data(), nullptr,
-                                    w, h, EncoderPixelFormat::YUV420P, true);
+    auto res = convert_frame_tight(fb,
+        FramePlanes{.y = y.data(), .u = u.data(), .v = v.data()},
+        w, h, EncoderPixelFormat::YUV420P,
+        YuvMatrix::BT709, ColorRange::Limited, true);
     CHECK(res.success);
     CHECK(res.conversion_ns > 0);
     // All planes written
@@ -274,14 +276,14 @@ TEST_CASE("ConvertedFrameCache: sharded split does not lose capacity (4 entries 
     std::vector<uint8_t> payload{1, 2, 3, 4};
     for (uint64_t d = 1; d <= 4; ++d) {
         ConvertedFrameCacheKey k{.framebuffer_digest=d, .width=4, .height=4,
-                                 .format=EncoderPixelFormat::YUV420P, .color_matrix=0, .apply_gamma=true};
+                                 .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited, .apply_gamma=true};
         cache.insert(k, payload.data(), payload.size());
     }
     CHECK(cache.size() == 4);
 
     // Insert a 5th distinct key: at least one entry must be evicted.
     ConvertedFrameCacheKey k5{.framebuffer_digest=5, .width=4, .height=4,
-                              .format=EncoderPixelFormat::YUV420P, .color_matrix=0, .apply_gamma=true};
+                              .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited, .apply_gamma=true};
     cache.insert(k5, payload.data(), payload.size());
     CHECK(cache.size() == 4);
     CHECK(cache.stats().evictions >= 1);
@@ -304,9 +306,9 @@ TEST_CASE("ConvertedFrameCache: hit after insert") {
 TEST_CASE("ConvertedFrameCache: different digest is a miss") {
     ConvertedFrameCache cache(4);
     ConvertedFrameCacheKey k1{.framebuffer_digest=1, .width=4, .height=4,
-                              .format=EncoderPixelFormat::YUV420P, .color_matrix=0, .apply_gamma=true};
+                              .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited, .apply_gamma=true};
     ConvertedFrameCacheKey k2{.framebuffer_digest=2, .width=4, .height=4,
-                              .format=EncoderPixelFormat::YUV420P, .color_matrix=0, .apply_gamma=true};
+                              .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited, .apply_gamma=true};
     const std::vector<uint8_t> d = {1};
     cache.insert(k1, d.data(), d.size());
 
@@ -340,18 +342,18 @@ TEST_CASE("ConvertedFrameCache: LRU eviction at capacity") {
 
     // Access digest 2 to make it recently used (digest 1 becomes LRU)
     ConvertedFrameCacheKey k2{.framebuffer_digest=2, .width=4, .height=4,
-                               .format=EncoderPixelFormat::YUV420P, .color_matrix=0};
+                               .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited};
     REQUIRE(cache.lookup(k2) != nullptr);
 
     // Insert digest 4 — should evict digest 1 (the actual LRU after the lookup)
     ConvertedFrameCacheKey k4{.framebuffer_digest=4, .width=4, .height=4,
-                               .format=EncoderPixelFormat::YUV420P, .color_matrix=0};
+                               .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited};
     const uint8_t val4 = 4;
     cache.insert(k4, &val4, 1);
 
     // digest 1 evicted, 2 and 3 still present
     ConvertedFrameCacheKey k1{.framebuffer_digest=1, .width=4, .height=4,
-                               .format=EncoderPixelFormat::YUV420P, .color_matrix=0};
+                               .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited};
     CHECK(cache.lookup(k1) == nullptr);
     CHECK(cache.lookup(k4) != nullptr);
     CHECK(cache.size() == N);

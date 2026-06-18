@@ -37,14 +37,12 @@ struct DirectYuvResult {
     uint64_t conversion_ns{0};
 };
 
-/// Convert a float framebuffer directly to YUV420P or NV12.  Reports the
-/// concrete backend via the result.  BT.2020 is rejected with
-/// `error = UnsupportedMatrix`; callers should fall back to swscale.
+/// Convert a float framebuffer directly to YUV420P or NV12 via Highway SIMD.
+/// BT.2020 is rejected with `error = UnsupportedMatrix`.  No scalar/TBB
+/// fallback — caller (convert_frame) falls back to swscale on failure.
 DirectYuvResult convert_framebuffer_to_yuv_direct(const DirectYuvRequest& req);
 
 DirectYuvResult convert_to_yuv420p_hwy(const DirectYuvRequest& req);
 DirectYuvResult convert_to_nv12_hwy(const DirectYuvRequest& req);
-DirectYuvResult convert_to_yuv420p_parallel(const DirectYuvRequest& req);
-DirectYuvResult convert_to_nv12_parallel(const DirectYuvRequest& req);
 
 } // namespace chronon3d::video
