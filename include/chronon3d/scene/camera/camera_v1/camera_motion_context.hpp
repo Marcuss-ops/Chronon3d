@@ -2,8 +2,12 @@
 // ==============================================================================
 // chronon3d/scene/camera/camera_v1/camera_motion_context.hpp
 //
-// The evaluation context for any CameraMotion, Constraint, or Trajectory
-// sampler. All inputs are immutable; the plugin owns no hidden state.
+// Evaluation contexts for camera evaluation.
+//
+// CameraMotionContext   — legacy context with duplicated base state (kept for
+//                         backward compatibility with existing evaluators).
+// CameraEvalContext     — slim context without base state duplication.
+//                         The base state lives in the compiled CameraProgram.
 //
 // `t_seconds` is the sub-frame normalized time in seconds (NOT frames).
 // `frame` is the canonical integer frame index (handy for beat lookups).
@@ -12,6 +16,13 @@
 #include <chronon3d/core/types/frame_context.hpp>  // Frame
 
 #include <chronon3d/math/glm_types.hpp>  // Vec2/Vec3 if present in engine
+
+#include <cstdint>
+
+namespace chronon3d {
+// Forward declaration of TransformResolverResult (defined in transform_resolver.hpp).
+struct TransformResolverResult;
+} // namespace chronon3d
 
 namespace chronon3d::camera_v1 {
 
@@ -29,6 +40,43 @@ struct CameraMotionContext {
     /// Factory: a deterministic context at integer frame `f`, no sub-frame.
     static CameraMotionContext at(Frame f) {
         CameraMotionContext c;
+        c.frame = f;
+        c.sample_time = SampleTime::from_frame_int(f, FrameRate{30, 1});
+        return c;
+    }
+};
+
+// =============================================================================
+// CameraEvalContext — slimmed-down evaluation context for the compiled path.
+//
+// Unlike CameraMotionContext, this struct does NOT carry base_* fields.
+// The base state (position, target, zoom, FOV, focus distance) lives in the
+// compiled CameraBaseSpec inside the CameraProgram, eliminating the
+// duplication described in the camera architecture document.
+//
+// Fields:
+//   frame         — integer frame index.
+//   sample_time   — continuous sub-frame position.
+//   viewport_*    — output dimensions (for gate-fit, FOV conversion).
+//   transforms    — optional snapshot of resolved layer transforms
+//                   (for LookAtLayer and hierarchy binding).
+// =============================================================================
+
+struct CameraEvalContext {
+    Frame      frame{0};
+    SampleTime sample_time;
+
+    std::int32_t viewport_width{1920};
+    std::int32_t viewport_height{1080};
+
+    /// Optional transform snapshot for hierarchy / LookAtLayer resolution.
+    /// nullptr means transforms are not available (LookAtLayer falls back
+    /// to a diagnostic warning in the compiled path).
+    const TransformResolverResult* transforms{nullptr};
+
+    /// Factory: a deterministic context at integer frame `f`, no sub-frame.
+    static CameraEvalContext at(Frame f) {
+        CameraEvalContext c;
         c.frame = f;
         c.sample_time = SampleTime::from_frame_int(f, FrameRate{30, 1});
         return c;
