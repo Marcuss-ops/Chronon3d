@@ -21,7 +21,8 @@
     "nlohmann-json",
     "openexr",
     "libyuv",
-    "magic-enum"
+    "magic-enum",
+    "sqlite3"
   ],
   "features": {
     "tests": {
@@ -31,10 +32,8 @@
     "benchmarks": {
       "description": "Build benchmarks (requires Google Benchmark)",
       "dependencies": ["benchmark"]
-    },
-    "telemetry": {
-      "description": "Enable SQLite telemetry store",
-      "dependencies": ["sqlite3"]
+    },    "telemetry": {
+      "description": "Marker feature. sqlite3 is unconditionally installed as a top-level dependency."
     },
     "profiling": {
       "description": "Enable Tracy profiling",
