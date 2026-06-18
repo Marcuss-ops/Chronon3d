@@ -18,4 +18,10 @@ target_sources(chronon3d_scene PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_framing_solver.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/shot_timeline.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_motion_blur.cpp
+    # Phase 1 — data-driven camera_motion:: preset registrations.
+    ${CMAKE_CURRENT_SOURCE_DIR}/register_camera_motion_presets.cpp
+    # Phase 2 — data-driven camera_rig::* preset registrations.
+    ${CMAKE_CURRENT_SOURCE_DIR}/register_camera_rig_motions.cpp
+    # PR1 — CameraDescriptor → compiled CameraProgram compiler.
+    ${CMAKE_CURRENT_SOURCE_DIR}/camera_program_compiler.cpp
 )

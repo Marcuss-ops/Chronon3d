@@ -21,10 +21,23 @@
 //   4. orientation + banking -> tangent-based auto-orient + curvature roll
 //   5. constraint stack     -> CameraConstraintRegistry
 //   6. validation           -> CameraShotValidator (existing)
+//
+// COMPILED PATH (PR1+):
+//   CameraProgram can be compiled via compile_camera() from a
+//   CameraDescriptor.  After compilation, evaluate() takes a slim
+//   CameraEvalContext (no duplicated base state) and a CameraSession,
+//   and performs zero registry lookups.
+//
+// Both paths (builder-style + compiled) coexist during migration.
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_motion_context.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_constraint_resolver.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_trajectory.hpp>
+
+// camera_descriptor.hpp provides CameraDescriptor, CameraFailurePolicy,
+// StaticCameraSource, CameraSourceSpec, OrientationSpec, etc.
+#include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_motion_descriptor.hpp>  // CameraMotion
 
 #include <chronon3d/math/camera_2_5d_projection.hpp>  // Camera2_5D
 
@@ -34,6 +47,13 @@
 #include <vector>
 
 namespace chronon3d::camera_v1 {
+
+// Forward declarations for types defined in camera_session.hpp
+// which cannot be included here to avoid circular deps.
+struct CameraSession;
+struct CameraEvalContext;
+struct CameraCompileError;
+class CameraCatalog;
 
 // =========================================================================
 // Diagnostic / result types
@@ -53,25 +73,28 @@ struct CameraProgramResult {
     std::vector<CameraProgramDiagnostic>    diagnostics;
 };
 
-/// Controls how the program reacts to a failing constraint.
-enum class CameraFailurePolicy : std::uint8_t {
-    Stop = 0,                 // bail out on first constraint failure (default)
-    SkipFailedConstraint = 1, // skip the failing constraint, continue the stack
-    KeepLastValidCamera = 2,  // return last camera that passed all constraints
-};
-
 // =========================================================================
 // Source variant — prevents ambiguous states (motion + trajectory together).
 // =========================================================================
 
-struct StaticCameraSource {};
+/// Static source: no motion, camera stays at its base state.
+// (Defined in camera_descriptor.hpp; re-declared here for backward compat.)
+// using StaticCameraSource = chronon3d::camera_v1::StaticCameraSource; // same type
+
+/// Registered motion reference (builder path).
 struct RegisteredMotionSource { std::string id; bool valid{false}; };
+
+/// Trajectory source (shared_ptr for compatibility).
 struct TrajectorySource { std::shared_ptr<CameraTrajectory> trajectory; };
+
+/// Sentinel for the compiled path: source was already resolved.
+struct RefResolvedSource {};
 
 using CameraProgramSource = std::variant<
     StaticCameraSource,
     RegisteredMotionSource,
-    TrajectorySource>;
+    TrajectorySource,
+    RefResolvedSource>;
 
 // =========================================================================
 // Orientation + banking
@@ -103,6 +126,8 @@ class CameraProgram {
 public:
     CameraProgram() = default;
 
+    // ── Builder API (existing, unchanged) ───────────────────────────────
+
     /// Source-of-truth: the camera after motion / trajectory before constraints.
     CameraProgram& base(const Camera2_5D& cam) { base_ = cam; return *this; }
     const Camera2_5D& base_cam() const { return base_; }
@@ -126,17 +151,43 @@ public:
     /// Failure policy for constraint evaluation.
     CameraProgram& failure_policy(CameraFailurePolicy p) { failure_policy_ = p; return *this; }
 
-    // Source queries.
+    // ── Source queries ──────────────────────────────────────────────────
     bool has_motion() const;
     bool has_trajectory() const;
     bool has_constraints() const { return !constraints_.empty(); }
     CameraProgramSource source() const { return source_; }
 
+    // ── Legacy evaluate (unchanged) ─────────────────────────────────────
     /// One-shot evaluator. Returns structured result with diagnostics.
     CameraProgramResult evaluate(const CameraMotionContext& ctx,
                                  ConstraintSession& session) const;
 
+    // ── NEW: Compiled evaluate (no registry lookup) ─────────────────────
+    /// Evaluate the compiled program using a slim context (no base state
+    /// duplication).  The base state is read from the internal descriptor.
+    /// Only valid after compile_camera(); calls without compilation will
+    /// produce an error diagnostic.
+    CameraProgramResult evaluate(const CameraEvalContext& ctx,
+                                 CameraSession& session) const;
+
+    // ── NEW: Compiled state queries ─────────────────────────────────────
+    /// True after compile_camera() has populated this program.
+    bool is_compiled() const { return compiled_; }
+
+    /// Access the compiled descriptor (for inspection / serialisation).
+    /// Returns nullptr if not compiled.
+    const CameraDescriptor* descriptor() const {
+        return compiled_ ? &descriptor_ : nullptr;
+    }
+
+    /// True if the camera is time-dependent (for caching).
+    bool is_time_dependent() const { return time_dependent_; }
+
 private:
+    friend bool compile_camera(const CameraDescriptor&, CameraProgram&,
+                                CameraCompileError*, const CameraCatalog*);
+
+    // ── Existing builder state ──────────────────────────────────────────
     Camera2_5D                 base_{};
     CameraProgramSource        source_{StaticCameraSource{}};
     CameraConstraintStack      constraints_;
@@ -144,20 +195,38 @@ private:
     BankingSettings            banking_{};
     CameraFailurePolicy        failure_policy_{CameraFailurePolicy::Stop};
 
-    /// Sample trajectory into a Camera2_5D, applying orientation + banking.
+    // ── NEW: Compiled state (populated by compile_camera()) ─────────────
+    bool                                    compiled_{false};
+    bool                                    time_dependent_{false};
+    CameraDescriptor                        descriptor_{};
+    std::shared_ptr<const CameraMotion>     resolved_motion_{nullptr};
+
+    // ── Existing evaluation helpers ─────────────────────────────────────
     Camera2_5D sample_trajectory_cam(const CameraMotionContext& ctx,
                                      Vec3 fallback_target,
                                      ConstraintSession& session,
                                      CameraProgramResult& result) const;
 
-    /// Apply orientation policy to a camera given a trajectory sample.
     void apply_orientation(const CameraTrajectorySample& s,
                            const CameraMotionContext& ctx,
                            Camera2_5D& cam) const;
 
-    /// Apply banking (curvature-derived roll) with EMA smoothing.
     float apply_banking(float roll_deg, const CameraMotionContext& ctx,
                         ConstraintSession& session) const;
+
+    // ── NEW: Compiled evaluation helpers ────────────────────────────────
+    // Private helpers for the compiled path use opaque void* parameters
+    // because the concrete types (PoseTracksSource, OrbitMotion, CameraSourceSpec,
+    // OrientationSpec) are defined in camera_descriptor.hpp, which includes us.
+    // The implementations in camera_program.cpp reinterpret_cast them back.
+
+    /// Evaluate a source variant directly (no registry lookup).
+    Camera2_5D evaluate_compiled_source(const CameraEvalContext& ctx) const;
+
+    /// Apply orientation from an OrientationSpec variant (passed as opaque ptr).
+    void apply_orientation_spec(const void* orient_variant,
+                                const CameraEvalContext& ctx,
+                                Camera2_5D& cam) const;
 };
 
 } // namespace chronon3d::camera_v1
