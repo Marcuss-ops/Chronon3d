@@ -1,34 +1,23 @@
 #include <chronon3d/cache/frame_cache.hpp>
 #include <chronon3d/cache/cache_policy.hpp>
-#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/core/hash/hash_builder.hpp>
 #include <string_view>
 #include <utility>
 
 namespace chronon3d::cache {
 
-namespace frame_cache_detail {
-
-using chronon3d::graph::hash_string;
-using chronon3d::graph::hash_combine;
-
-template <typename T>
-[[nodiscard]] u64 hash_value(const T& value) {
-    return chronon3d::graph::hash_value(value);
-}
-
-} // namespace frame_cache_detail
-
 u64 FrameCacheKey::digest() const {
-    u64 seed = frame_cache_detail::hash_string(composition_id);
-    seed = frame_cache_detail::hash_combine(seed, frame_cache_detail::hash_value(frame));
-    seed = frame_cache_detail::hash_combine(seed, frame_cache_detail::hash_value(temporal_key.frame));
-    seed = frame_cache_detail::hash_combine(seed, frame_cache_detail::hash_value(temporal_key.subframe_tick));
-    seed = frame_cache_detail::hash_combine(seed, frame_cache_detail::hash_value(temporal_key.version));
-    seed = frame_cache_detail::hash_combine(seed, frame_cache_detail::hash_value(width));
-    seed = frame_cache_detail::hash_combine(seed, frame_cache_detail::hash_value(height));
-    seed = frame_cache_detail::hash_combine(seed, scene_hash);
-    seed = frame_cache_detail::hash_combine(seed, render_hash);
-    return seed;
+    return core::hash::HashBuilder{}
+        .add(composition_id)
+        .add(frame)
+        .add(temporal_key.frame)
+        .add(temporal_key.subframe_tick)
+        .add(temporal_key.version)
+        .add(width)
+        .add(height)
+        .add(scene_hash)
+        .add(render_hash)
+        .finish();
 }
 
 size_t FrameCacheKeyHash::operator()(const FrameCacheKey& key) const noexcept {

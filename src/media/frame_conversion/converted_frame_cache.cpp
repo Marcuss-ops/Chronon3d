@@ -1,6 +1,7 @@
 #include <chronon3d/media/frame_conversion/converted_frame_cache.hpp>
 #include <chronon3d/cache/cache_policy.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
+#include <chronon3d/core/hash/hash_builder.hpp>
 #include <cstring>
 
 namespace chronon3d::video {
@@ -12,24 +13,16 @@ namespace chronon3d::video {
 std::size_t ConvertedFrameCacheKeyHash::operator()(
     const ConvertedFrameCacheKey& k) const noexcept
 {
-    // Knuth multiplicative hash for the digest, then mix width/height
-    // and the boolean flags.  The format enum and color_matrix are
-    // mixed last so changing only the format still produces distinct
-    // shards (helps pin the format-change-but-same-digest scenario to
-    // a single shard).
-    std::size_t h = static_cast<std::size_t>(k.framebuffer_digest);
-    h ^= static_cast<std::size_t>(k.width)  * 0x9E3779B97F4A7C15ULL
-         + (h << 6) + (h >> 2);
-    h ^= static_cast<std::size_t>(k.height) * 0xBF58476D1CE4E5B9ULL
-         + (h << 6) + (h >> 2);
-    h ^= static_cast<std::size_t>(k.format) * 0x94D049BB133111EBULL
-         + (h << 6) + (h >> 2);
-    h ^= static_cast<std::size_t>(k.matrix) * 0xC6A4A7935BD1E995ULL
-         + (h << 6) + (h >> 2);
-    if (k.apply_gamma) {
-        h ^= 0xDEADBEEFCAFE5EEDULL;
-    }
-    return h;
+    return static_cast<std::size_t>(
+        chronon3d::core::hash::HashBuilder{}
+            .add(k.framebuffer_digest)
+            .add(k.width)
+            .add(k.height)
+            .add_enum(k.format)
+            .add_enum(k.matrix)
+            .add_enum(k.range)
+            .add(k.apply_gamma ? 1ULL : 0ULL)
+            .finish());
 }
 
 // ---------------------------------------------------------------------------

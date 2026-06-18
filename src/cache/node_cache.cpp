@@ -1,40 +1,29 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/cache/cache_policy.hpp>
-#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/core/hash/hash_builder.hpp>
 #include <spdlog/spdlog.h>
 #include <cstdlib>
 #include <string_view>
 
 namespace chronon3d::cache {
 
-namespace node_cache_detail {
-
-using chronon3d::graph::hash_string;
-using chronon3d::graph::hash_combine;
-
-template <typename T>
-[[nodiscard]] u64 hash_value(const T& value) {
-    return chronon3d::graph::hash_value(value);
-}
-
-} // namespace node_cache_detail
-
 u64 NodeCacheKey::digest() const {
-    u64 seed = node_cache_detail::hash_string(scope);
-    seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(frame));
-    seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(temporal_key.frame));
-    seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(temporal_key.subframe_tick));
-    seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(temporal_key.version));
-    seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(width));
-    seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(height));
-    seed = node_cache_detail::hash_combine(seed, params_hash);
-    seed = node_cache_detail::hash_combine(seed, source_hash);
-    seed = node_cache_detail::hash_combine(seed, input_hash);
-    seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(tile_x));
-    seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(tile_y));
-    seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(tile_size));
-    seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(tile_hash));
-    return seed;
+    return core::hash::HashBuilder{}
+        .add(scope)
+        .add(frame)
+        .add(temporal_key.frame)
+        .add(temporal_key.subframe_tick)
+        .add(temporal_key.version)
+        .add(width)
+        .add(height)
+        .add(params_hash)
+        .add(source_hash)
+        .add(input_hash)
+        .add(tile_x)
+        .add(tile_y)
+        .add(tile_size)
+        .add(tile_hash)
+        .finish();
 }
 
 NodeCache::NodeCache(size_t capacity_bytes)
