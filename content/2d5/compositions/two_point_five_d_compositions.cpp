@@ -4,8 +4,10 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/camera/camera_motion_presets.hpp>
 #include <chronon3d/math/color.hpp>
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
 #include "camera_test_orchestrator.hpp"
 #include "camera_advanced_tests.hpp"
+#endif
 
 namespace chronon3d::content::two_point_five_d {
 
@@ -302,6 +304,7 @@ Composition dof_showcase() {
 }
 
 // ── Per-domain registration ──────────────────────────────────────────────────
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
 // Forward-declare camera test factories from companion files
 Composition camera_orbit_target_lock_test();
 Composition camera_dolly_perspective_scale_test();
@@ -322,15 +325,19 @@ Composition camera_binding_anchor_test();
 Composition camera_front_baseline_test();
 Composition camera_yaw_positive_test();
 Composition camera_yaw_negative_test();
+#endif
 
 void register_2d5_compositions() {
     static bool done = false;
     if (done) return;
     done = true;
+    // Product compositions
     detail::add_builtin_composition("ParallaxSimple",  parallax_simple);
     detail::add_builtin_composition("DepthScene",      depth_scene);
     detail::add_builtin_composition("CardFlip",        card_flip);
     detail::add_builtin_composition("DofShowcase",     dof_showcase);
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
+    // Diagnostic camera test compositions
     detail::add_builtin_composition("CameraOrbitTargetLockTest",                camera_orbit_target_lock_test);
     detail::add_builtin_composition("CameraDollyPerspectiveScaleTest",          camera_dolly_perspective_scale_test);
     detail::add_builtin_composition("CameraParentNullRigTest",                  camera_parent_null_rig_test);
@@ -350,6 +357,7 @@ void register_2d5_compositions() {
     detail::add_builtin_composition("CameraFrontBaselineTest",                  camera_front_baseline_test);
     detail::add_builtin_composition("CameraYawPositiveTest",                    camera_yaw_positive_test);
     detail::add_builtin_composition("CameraYawNegativeTest",                    camera_yaw_negative_test);
+#endif
 }
 
 } // namespace chronon3d::content::two_point_five_d

@@ -32,6 +32,7 @@ TEST_CASE("2D5: core 2.5D scenes evaluate frame 0") {
     }
 }
 
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
 TEST_CASE("2D5: camera test compositions evaluate frame 0") {
     register_content_modules();
     CompositionRegistry registry;
@@ -48,6 +49,7 @@ TEST_CASE("2D5: camera test compositions evaluate frame 0") {
         CHECK(scene.layers().size() >= 1);
     }
 }
+#endif // CHRONON3D_BUILD_DIAGNOSTICS
 
 #endif // CHRONON3D_HAS_CONTENT_2D5
 
