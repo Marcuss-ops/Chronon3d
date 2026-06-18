@@ -639,7 +639,7 @@ static void BM_GlowLayerPass(benchmark::State& state, float falloff) {
 
     // ── Build the falloff LUT once per benchmark instance (per the patched
     // glow pipeline: build_falloff_lut is called inside build_glow_accumulator).
-    float falloff_lut[kGlowFalloffLutSize];
+    float falloff_lut[kFalloffLutSize];
     build_falloff_lut(falloff, falloff_lut);
 
     // ── GlowPipeline params matching the SpecialName default (radius=18,
