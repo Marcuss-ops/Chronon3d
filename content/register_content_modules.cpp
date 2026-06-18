@@ -23,6 +23,7 @@ namespace chronon3d::content::anims        { void register_anim_compositions(); 
 namespace chronon3d::content::effects      { void register_effect_compositions(); }
 namespace chronon3d::content::grid         { void register_grid_compositions(); }
 namespace chronon3d::content::two_point_five_d { void register_2d5_compositions(); }
+namespace chronon3d::content::backgrounds  { void register_grid_clean_background(); }
 
 namespace chronon3d {
 
@@ -38,6 +39,7 @@ void register_content_modules() {
     content::effects::register_effect_compositions();
     content::grid::register_grid_compositions();
     content::two_point_five_d::register_2d5_compositions();
+    content::backgrounds::register_grid_clean_background();
 }
 
 } // namespace chronon3d
