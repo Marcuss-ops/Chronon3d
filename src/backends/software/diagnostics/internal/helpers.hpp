@@ -4,7 +4,9 @@
 // diagnostics/internal/helpers.hpp
 //
 // Shared private helpers used by the bbox / layout / nulls overlays.
-// Not part of the public diagnostics API — implementation details.
+// NOT part of the public diagnostics API; lives inside the
+// `chronon3d_backend_software_diagnostics` static target and is only
+// visible to the three overlay translation units that include this header.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/core/memory/framebuffer.hpp>

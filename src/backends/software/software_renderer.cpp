@@ -11,9 +11,11 @@
 #include <chronon3d/core/enum_utils.hpp>
 #include <optional>
 #include <chronon3d/core/profiling/profiling.hpp>
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
 #include "diagnostics/bbox_overlay.hpp"
 #include "diagnostics/layout_preview_overlay.hpp"
 #include "diagnostics/nulls_overlay.hpp"
+#endif
 #include <algorithm>
 
 namespace chronon3d {
@@ -139,9 +141,11 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
         m_registry,
         m_video_decoder.get()
     );
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
     if (res && m_settings.diagnostics.enabled) {
         renderer::diagnostics::draw_null_overlay(*res, effective_scene, effective_scene.camera_2_5d());
     }
+#endif
     return res;
 }
 
@@ -200,9 +204,11 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
         return;
     }
     processor->draw(*this, fb, node, state, camera, width, height);
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
     if (m_settings.diagnostics.enabled) {
         renderer::diagnostics::draw_layout_preview(fb, node, state, *processor);
     }
+#endif
 }
 
 void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip, CompositeOperator op) {
