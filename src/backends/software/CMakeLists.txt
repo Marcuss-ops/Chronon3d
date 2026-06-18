@@ -36,7 +36,14 @@ endif()
 if(TARGET chronon3d_backend_text)
     target_link_libraries(chronon3d_backend_software PUBLIC chronon3d_backend_text)
 endif()
+
+# Conditional private link for diagnostics target.
+# (See src/backends/software/diagnostics/CMakeLists.txt for the target itself.)
+
 target_include_directories(chronon3d_backend_software PRIVATE ${Stb_INCLUDE_DIR} ${CMAKE_SOURCE_DIR})
+if(CHRONON3D_BUILD_DIAGNOSTICS)
+    target_link_libraries(chronon3d_backend_software PRIVATE chronon3d_backend_software_diagnostics)
+endif()
 target_include_directories(chronon3d_backend_software PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_precompile_headers(chronon3d_backend_software PRIVATE
     <chronon3d/detail/pch.hpp>
