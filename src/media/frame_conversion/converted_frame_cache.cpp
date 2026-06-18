@@ -138,7 +138,7 @@ std::size_t ConvertedFrameCache::size() const noexcept {
     return m_cache.stats().current_size;
 }
 
-auto ConvertedFrameCache::stats() const noexcept {
+auto ConvertedFrameCache::stats() const noexcept -> decltype(m_cache.stats()) {
     return m_cache.stats();
 }
 

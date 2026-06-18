@@ -28,7 +28,7 @@ TEST_CASE("ConvertedFrameCache: explicit cap=5 with num_shards=1 keeps total=5")
     for (uint64_t d = 1; d <= 5; ++d) {
         ConvertedFrameCacheKey k{.framebuffer_digest = d, .width = 4, .height = 4,
                                  .format = EncoderPixelFormat::YUV420P,
-                                 .color_matrix = 0, .apply_gamma = true};
+                                 .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
         cache.insert(k, payload.data(), payload.size());
     }
     CHECK(cache.size() == 5);
@@ -37,7 +37,7 @@ TEST_CASE("ConvertedFrameCache: explicit cap=5 with num_shards=1 keeps total=5")
     ConvertedFrameCacheKey k_insert_6{
         .framebuffer_digest = 6, .width = 4, .height = 4,
         .format = EncoderPixelFormat::YUV420P,
-        .color_matrix = 0, .apply_gamma = true,
+        .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true,
     };
     cache.insert(k_insert_6, payload.data(), payload.size());
     CHECK(cache.size() == 5);                    // LRU evicted, remained at cap
@@ -51,25 +51,25 @@ TEST_CASE("ConvertedFrameCache: LRU promotion on hit (weight-mode)") {
     for (uint64_t d = 1; d <= 3; ++d) {
         ConvertedFrameCacheKey k{.framebuffer_digest = d, .width = 4, .height = 4,
                                  .format = EncoderPixelFormat::YUV420P,
-                                 .color_matrix = 0, .apply_gamma = true};
+                                 .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
         cache.insert(k, payload.data(), payload.size());
     }
     // Hit on d=1 promotes it. LRU becomes d=2.
     ConvertedFrameCacheKey k_promote{.framebuffer_digest = 1, .width = 4, .height = 4,
                                      .format = EncoderPixelFormat::YUV420P,
-                                     .color_matrix = 0, .apply_gamma = true};
+                                     .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
     REQUIRE(cache.lookup(k_promote) != nullptr);
     CHECK(cache.hits() == 1);
 
     // Inserting d=4 should evict d=2 (the actual LRU tail after the promotion).
     ConvertedFrameCacheKey k_new{.framebuffer_digest = 4, .width = 4, .height = 4,
                                  .format = EncoderPixelFormat::YUV420P,
-                                 .color_matrix = 0, .apply_gamma = true};
+                                 .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
     cache.insert(k_new, payload.data(), payload.size());
 
     ConvertedFrameCacheKey k2_check{.framebuffer_digest = 2, .width = 4, .height = 4,
                                     .format = EncoderPixelFormat::YUV420P,
-                                    .color_matrix = 0, .apply_gamma = true};
+                                    .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
     CHECK(cache.lookup(k2_check) == nullptr);
     CHECK(cache.lookup(k_new) != nullptr);          // still resident
     CHECK(cache.lookup(k_promote) != nullptr);      // d=1 also resident (promoted)
@@ -81,10 +81,10 @@ TEST_CASE("ConvertedFrameCache: stats() reflects hits/misses/evictions") {
     const std::vector<uint8_t> payload{0xAB};
     ConvertedFrameCacheKey k1{.framebuffer_digest = 10, .width = 4, .height = 4,
                               .format = EncoderPixelFormat::YUV420P,
-                              .color_matrix = 0, .apply_gamma = true};
+                              .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
     ConvertedFrameCacheKey k2{.framebuffer_digest = 20, .width = 4, .height = 4,
                               .format = EncoderPixelFormat::YUV420P,
-                              .color_matrix = 0, .apply_gamma = true};
+                              .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
 
     cache.insert(k1, payload.data(), payload.size());
     cache.insert(k2, payload.data(), payload.size());
@@ -106,7 +106,7 @@ TEST_CASE("ConvertedFrameCache: clear() resets hits/misses/size") {
     ConvertedFrameCache cache(4);
     ConvertedFrameCacheKey k{.framebuffer_digest = 99, .width = 2, .height = 2,
                              .format = EncoderPixelFormat::NV12,
-                             .color_matrix = 0, .apply_gamma = true};
+                             .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
     const std::vector<uint8_t> v{0x42};
     cache.insert(k, v.data(), v.size());
     REQUIRE(cache.lookup(k) != nullptr);
@@ -128,7 +128,7 @@ TEST_CASE("ConvertedFrameCache: shared_ptr lookup survives eviction") {
     const std::vector<uint8_t> payload{0xA0, 0xB0, 0xC0};
     ConvertedFrameCacheKey k1{.framebuffer_digest = 1, .width = 4, .height = 4,
                               .format = EncoderPixelFormat::YUV420P,
-                              .color_matrix = 0, .apply_gamma = true};
+                              .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
     cache.insert(k1, payload.data(), payload.size());
     (void)payload;
 
@@ -142,7 +142,7 @@ TEST_CASE("ConvertedFrameCache: shared_ptr lookup survives eviction") {
     for (uint64_t d : {2ULL, 3ULL, 4ULL}) {
         ConvertedFrameCacheKey k{.framebuffer_digest = d, .width = 4, .height = 4,
                                  .format = EncoderPixelFormat::YUV420P,
-                                 .color_matrix = 0, .apply_gamma = true};
+                                 .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
         const std::vector<uint8_t> p{0xFF};
         cache.insert(k, p.data(), p.size());
     }
@@ -163,7 +163,7 @@ TEST_CASE("ConvertedFrameCache: concurrent lookup on same key does not crash") {
     const std::vector<uint8_t> payload{0xFD};
     ConvertedFrameCacheKey k{.framebuffer_digest = 777, .width = 4, .height = 4,
                              .format = EncoderPixelFormat::YUV420P,
-                             .color_matrix = 0, .apply_gamma = true};
+                             .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
     cache.insert(k, payload.data(), payload.size());
 
     constexpr int kThreads = 4;
@@ -197,7 +197,7 @@ TEST_CASE("ConvertedFrameCache: concurrent lookup on distinct keys hits multiple
         ConvertedFrameCacheKey k{.framebuffer_digest = static_cast<uint64_t>(i + 1),
                                  .width = 4, .height = 4,
                                  .format = EncoderPixelFormat::YUV420P,
-                                 .color_matrix = 0, .apply_gamma = true};
+                                 .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
         cache.insert(k, payload.data(), payload.size());
         keys.push_back(k);
     }
