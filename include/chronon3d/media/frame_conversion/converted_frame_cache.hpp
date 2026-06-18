@@ -20,6 +20,7 @@
 // from multiple encoder threads (one shard per thread typically).
 // ---------------------------------------------------------------------------
 
+#include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
 #include <cstddef>
@@ -143,6 +144,8 @@ private:
         std::shared_ptr<ConvertedFrameCacheEntry>,
         ConvertedFrameCacheKeyHash>
         m_cache;
+
+    chronon3d::cache::CacheDiagnostics::Handle m_diag_handle;
 };
 
 // Hash for ConvertedFrameCacheKey — used as the shard-routing hash by

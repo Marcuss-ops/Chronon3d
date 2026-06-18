@@ -1,4 +1,5 @@
 #include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/cache/cache_policy.hpp>
 #include <chronon3d/core/hash/hash_builder.hpp>
 #include <spdlog/spdlog.h>
@@ -28,10 +29,23 @@ u64 NodeCacheKey::digest() const {
 
 NodeCache::NodeCache(size_t capacity_bytes)
     : m_cache(
-          resolve_cache_policy(CacheDomain::Nodes,
-                               capacity_bytes > 0 ? std::optional<std::size_t>(capacity_bytes) : std::nullopt).capacity,
+          [&] {
+              auto p = resolve_cache_policy(CacheDomain::Nodes,
+                  capacity_bytes > 0 ? std::optional<std::size_t>(capacity_bytes) : std::nullopt);
+              m_diag_handle = CacheDiagnostics::instance().register_cache(
+                  CacheDomain::Nodes,
+                  [this]() -> GenericCacheStats {
+                      auto s = m_cache.stats();
+                      return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
+                  },
+                  [this] { m_cache.clear(); },
+                  [this] { return m_cache.capacity_mode(); },
+                  p.capacity);
+              return p;
+          }().capacity,
           2,
-          capacity_mode_for(CacheDomain::Nodes)) {}
+          capacity_mode_for(CacheDomain::Nodes))
+{}
 
 std::shared_ptr<Framebuffer> NodeCache::get(const NodeCacheKey& key) {
     auto val = m_cache.get(key);
