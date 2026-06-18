@@ -1,0 +1,21 @@
+2026-06-18T17:18:12+00:00
+Running build/chronon/linux-fast-dev/tests/chronon3d_benchmarks
+Run on (8 X 2295.69 MHz CPU s)
+CPU Caches:
+  L1 Data 32 KiB (x8)
+  L1 Instruction 32 KiB (x8)
+  L2 Unified 512 KiB (x8)
+  L3 Unified 32768 KiB (x8)
+Load Average: 1.39, 1.16, 1.43
+***WARNING*** Library was built as DEBUG. Timings may be affected.
+---------------------------------------------------------------------------------------------
+Benchmark                                   Time             CPU   Iterations UserCounters...
+---------------------------------------------------------------------------------------------
+BM_GlowLayerPass/Falloff085_mean        0.227 ms        0.223 ms            3 falloff=0.85 items_per_second=336.173M/s pool_capacity=1 roi_h=220 roi_w=340
+BM_GlowLayerPass/Falloff085_median      0.226 ms        0.219 ms            3 falloff=0.85 items_per_second=340.956M/s pool_capacity=1 roi_h=220 roi_w=340
+BM_GlowLayerPass/Falloff085_stddev      0.005 ms        0.007 ms            3 falloff=0 items_per_second=9.80526M/s pool_capacity=0 roi_h=0 roi_w=0
+BM_GlowLayerPass/Falloff085_cv           2.36 %          2.97 %             3 falloff=0.00% items_per_second=2.92% pool_capacity=0.00% roi_h=0.00% roi_w=0.00%
+BM_GlowLayerPass/Falloff100_mean        0.192 ms        0.187 ms            3 falloff=1 items_per_second=399.847M/s pool_capacity=1 roi_h=220 roi_w=340
+BM_GlowLayerPass/Falloff100_median      0.191 ms        0.187 ms            3 falloff=1 items_per_second=399.339M/s pool_capacity=1 roi_h=220 roi_w=340
+BM_GlowLayerPass/Falloff100_stddev      0.001 ms        0.001 ms            3 falloff=0 items_per_second=1.51584M/s pool_capacity=0 roi_h=0 roi_w=0
+BM_GlowLayerPass/Falloff100_cv           0.77 %          0.38 %             3 falloff=0.00% items_per_second=0.38% pool_capacity=0.00% roi_h=0.00% roi_w=0.00%

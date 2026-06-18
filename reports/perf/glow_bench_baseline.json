@@ -1,0 +1,73 @@
+{
+  "captured_at": "2026-06-18T17:18:22.401733Z",
+  "binary": "chronon3d_benchmarks",
+  "filter": "BM_GlowLayerPass",
+  "min_time_s": 0.5,
+  "repetitions": 3,
+  "results": [
+    {
+      "name": "BM_GlowLayerPass/Falloff085_mean",
+      "iterations": 3,
+      "cpu_time_ms_per_iter_mean": 0.21489207329255863,
+      "real_time_ms_per_iter_mean": 0.22095569734912315,
+      "time_unit": "ms",
+      "repetitions": 3
+    },
+    {
+      "name": "BM_GlowLayerPass/Falloff085_median",
+      "iterations": 3,
+      "cpu_time_ms_per_iter_mean": 0.2155632012232416,
+      "real_time_ms_per_iter_mean": 0.22229901223019086,
+      "time_unit": "ms",
+      "repetitions": 3
+    },
+    {
+      "name": "BM_GlowLayerPass/Falloff085_stddev",
+      "iterations": 3,
+      "cpu_time_ms_per_iter_mean": 0.0029190335779140913,
+      "real_time_ms_per_iter_mean": 0.005267918459626017,
+      "time_unit": "ms",
+      "repetitions": 3
+    },
+    {
+      "name": "BM_GlowLayerPass/Falloff085_cv",
+      "iterations": 3,
+      "cpu_time_ms_per_iter_mean": 0.013583719181396033,
+      "real_time_ms_per_iter_mean": 0.023841514488320215,
+      "time_unit": "ms",
+      "repetitions": 3
+    },
+    {
+      "name": "BM_GlowLayerPass/Falloff100_mean",
+      "iterations": 3,
+      "cpu_time_ms_per_iter_mean": 0.18453796991165924,
+      "real_time_ms_per_iter_mean": 0.18982888174630486,
+      "time_unit": "ms",
+      "repetitions": 3
+    },
+    {
+      "name": "BM_GlowLayerPass/Falloff100_median",
+      "iterations": 3,
+      "cpu_time_ms_per_iter_mean": 0.18243313775911837,
+      "real_time_ms_per_iter_mean": 0.18647614694300652,
+      "time_unit": "ms",
+      "repetitions": 3
+    },
+    {
+      "name": "BM_GlowLayerPass/Falloff100_stddev",
+      "iterations": 3,
+      "cpu_time_ms_per_iter_mean": 0.003739180810523719,
+      "real_time_ms_per_iter_mean": 0.00681683759680251,
+      "time_unit": "ms",
+      "repetitions": 3
+    },
+    {
+      "name": "BM_GlowLayerPass/Falloff100_cv",
+      "iterations": 3,
+      "cpu_time_ms_per_iter_mean": 0.020262392678936016,
+      "real_time_ms_per_iter_mean": 0.03591043435588907,
+      "time_unit": "ms",
+      "repetitions": 3
+    }
+  ]
+}
