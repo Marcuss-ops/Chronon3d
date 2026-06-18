@@ -113,6 +113,13 @@ struct PoseTracksSource {
     AnimatedValue<float> zoom{AnimatedValue<float>{1000.0f}};
     AnimatedValue<float> fov_deg{AnimatedValue<float>{50.0f}};
 
+    // DOF channels — animated depth of field.
+    // When a channel has no keyframes, eval_pose_tracks() falls back to
+    // the static values in CameraBaseSpec::dof.
+    AnimatedValue<float> focus_distance{AnimatedValue<float>{1000.0f}};
+    AnimatedValue<float> aperture{AnimatedValue<float>{0.015f}};
+    AnimatedValue<float> max_blur{AnimatedValue<float>{24.0f}};
+
     bool use_target{false};
 };
 
