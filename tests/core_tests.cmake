@@ -32,6 +32,7 @@ add_executable(chronon3d_core_tests
     core/animation/test_cubic_bezier.cpp
     core/animation/test_stagger.cpp
     core/animation/test_animation_curve.cpp
+    core/animation/test_animation_track.cpp
     core/animation/test_wiggle.cpp
     core/animation/test_sample_time.cpp
     core/animation/test_temporal_spatial_curve.cpp
