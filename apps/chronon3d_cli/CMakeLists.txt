@@ -86,6 +86,7 @@ target_link_libraries(chronon3d_cli_telemetry PRIVATE chronon3d_cli_core chronon
 
 if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
     target_link_libraries(chronon3d_cli_telemetry PRIVATE unofficial::sqlite3::sqlite3)
+    target_compile_definitions(chronon3d_cli_telemetry PUBLIC CHRONON3D_ENABLE_SQLITE_TELEMETRY)
 endif()
 
 # Group: Dev (batch, studio, inspect)
@@ -103,7 +104,7 @@ add_library(chronon3d_cli_dev STATIC
     utils/batch/batch_runner.cpp
 )
 target_include_directories(chronon3d_cli_dev PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)
-target_link_libraries(chronon3d_cli_dev PRIVATE chronon3d_cli_core chronon3d_cli_render chronon3d_pipeline CLI11::CLI11 spdlog::spdlog_header_only fmt::fmt)
+target_link_libraries(chronon3d_cli_dev PRIVATE chronon3d_cli_core chronon3d_cli_render chronon3d_cli_video chronon3d_pipeline CLI11::CLI11 spdlog::spdlog_header_only fmt::fmt)
 
 # Group: Bench (benchmark commands)
 add_library(chronon3d_cli_bench STATIC

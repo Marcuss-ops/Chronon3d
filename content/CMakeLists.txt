@@ -38,9 +38,6 @@ add_library(chronon3d_content_gallery STATIC
 
     # Grid
     grid/compositions/grid_showcase.cpp
-
-    # Text
-    text/text_basic_glow.cpp
 )
 
 target_include_directories(chronon3d_content_gallery PRIVATE ${CMAKE_SOURCE_DIR})
