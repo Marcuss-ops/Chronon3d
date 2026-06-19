@@ -840,4 +840,35 @@ inline TextParams glow_text(CenterTextOptions o,
     };
 }
 
+// ── compute_single_line_glyph_layout ─────────────────────────────────
+//
+// Convenience wrapper: calls compute_typewriter_layout with a huge box
+// so wrapping never triggers.  Returns a stable, grapheme-cluster-safe
+// per-character layout suitable for staggered typewriter animations.
+//
+// Example:
+//   FontSpec spec{FONT_BOLD, "Poppins", 700};
+//   auto layout = compute_single_line_glyph_layout(
+//       phrase, font_size, tracking, spec);
+//   for (auto& cp : layout.chars) {
+//       std::string glyph = phrase.substr(cp.byte_offset, cp.byte_len);
+//       f32 center_x = cp.x;
+//   }
+//
+inline TypewriterLayout compute_single_line_glyph_layout(
+    const std::string& text,
+    f32 font_size,
+    f32 tracking,
+    const FontSpec& font)
+{
+    return compute_typewriter_layout(
+        text,
+        font_size,
+        tracking,
+        Vec2{100000.0f, font_size * 2.0f},
+        1.0f,
+        font
+    );
+}
+
 } // namespace chronon3d::content::text
