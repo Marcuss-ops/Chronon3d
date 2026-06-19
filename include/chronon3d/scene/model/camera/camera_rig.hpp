@@ -17,14 +17,40 @@ enum class CameraRigMode {
     TwoNode
 };
 
+// ── CameraFocusMode — who owns the focus distance ──────────────────────────
+//
+// Public contract for the focus distance resolution.  The previous
+// implementation in CameraRig::evaluate() always evaluated the manual
+// AnimatedValue last, which silently overwrote the target-derived distance
+// even when the target binding was selected.  This enum makes the ownership
+// explicit and unifies the resolution in a single switch.
+//
+//   ManualDistance:        focus_distance.evaluate(time) wins; target is ignored.
+//   PointOfInterest:       focus_distance is set to the rig target's camera-space distance.
+//   TargetLayer:           focus_distance is set to focus_target_name's camera-space distance.
+//                          Falls back to PointOfInterest if the named layer is missing.
+//   LockToZoom:            focus_distance == zoom (rack focus follows the camera focal length).
+enum class CameraFocusMode {
+    ManualDistance,    // default — honour the user-supplied focus_distance.
+    PointOfInterest,   // distance to the rig target.
+    TargetLayer,       // distance to the focus_target_name layer (POI fallback).
+    LockToZoom,        // distance == camera zoom (used by dolly zoom).
+};
+
 struct CameraRigDOF {
     bool enabled{false};
     std::string focus_target_name;
+
+    // Canonical focus ownership selector.  Defaults to ManualDistance for
+    // backward compatibility with the legacy use_target_z == false path.
+    CameraFocusMode focus_mode{CameraFocusMode::ManualDistance};
 
     // Legacy model.
     AnimatedValue<f32> focus_z{0.0f};
     AnimatedValue<f32> aperture{0.015f};
     AnimatedValue<f32> max_blur{24.0f};
+    // use_target_z is now deprecated: it is mapped onto CameraFocusMode
+    // by CameraRig::evaluate() so existing code keeps compiling.
     bool use_target_z{false};
 
     // Physical lens model.
@@ -68,7 +94,16 @@ struct CameraRig {
 
     AnimatedValue<f32> zoom{1000.0f};
     AnimatedValue<f32> fov_deg{50.0f};
+
+    // Legacy projection selector kept for backward compatibility (composers
+    // that drive Camera2_5D directly).  The canonical optics contract lives
+    // on `optics_mode` and is what the projection pipeline reads.
     Camera2_5DProjectionMode projection_mode{Camera2_5DProjectionMode::Zoom};
+
+    // CameraOpticsMode — decoupled from DoF so a physical lens can be active
+    // without enabling depth of field.  Mirrored to the evaluated Camera2_5D
+    // by CameraRig::evaluate().
+    CameraOpticsMode optics_mode{CameraOpticsMode::Zoom};
 
     CameraRigDOF dof{};
     CameraRigMotionBlur motion_blur{};
@@ -85,6 +120,14 @@ struct CameraRig {
         SampleTime time,
         const TransformResolverResult* resolved = nullptr
     ) const;
+
+    /// Returns true iff the rig depends on external state (parent_name,
+    /// target_name, focus_target_name) whose world position may move even
+    /// when no local AnimatedValue is time-dependent.  Used by the caching
+    /// pipeline to invalidate the camera cache/fingerprint.
+    [[nodiscard]] bool has_external_dependencies() const noexcept {
+        return !parent_name.empty() || !target_name.empty() || !dof.focus_target_name.empty();
+    }
 };
 
 } // namespace chronon3d
@@ -130,7 +173,7 @@ struct CameraRig {
     // ── Canonical optics contract (mirrors the modern CameraRig) ───────────
     // CameraOpticsMode is decoupled from DoF: a physical lens can be active
     // (PhysicalLens) while DepthOfFieldSettings::use_physical_model is false.
-    // Mirrored to the evaluated Camera2_5D by bake() and read by the
+    // It is mirrored to the evaluated Camera2_5D by bake() and read by the
     // projection pipeline (focal_from_camera with discrete switch).
     CameraOpticsMode optics_mode{CameraOpticsMode::Zoom};
 
@@ -140,13 +183,38 @@ struct CameraRig {
     // single switch on focus_mode in bake() is responsible for assigning
     // cam.dof.focus_distance exactly once.
     //
-    //   ManualDistance:  focus_distance == dof.focus_distance (legacy default).
-    //   PointOfInterest: focus_distance == |cam.point_of_interest - cam.position|.
-    //   TargetLayer:     focus_distance == rig target (legacy has one target_name).
-    //   LockToZoom:      focus_distance == cam.zoom (rack / dolly zoom).
+    //   ManualDistance:    focus_distance == dof.focus_distance (legacy default).
+    //   PointOfInterest:   focus_distance == |cam.point_of_interest - cam.position|.
+    //   TargetLayer:       focus_distance == |world(t) - cam.position|
+    //                      (legacy has one target_name, so it maps to the
+    //                      rig target's world position — same as POI).
+    //   LockToZoom:        focus_distance == cam.zoom (rack / dolly zoom).
     CameraFocusMode focus_mode{CameraFocusMode::ManualDistance};
 
-    // ── bake() — canonical chain + single-switch focus (mirrors modern rig)
+    // ── Conservative invalidation helpers (mirror the modern CameraRig) ───
+    // True iff the rig depends on external state (controller_name, target_name)
+    // whose world position may move even when no local AnimatedValue is
+    // time-dependent.  Used by the caching pipeline to invalidate the
+    // camera fingerprint.
+    [[nodiscard]] bool has_external_dependencies() const noexcept {
+        return !controller_name.empty() || !target_name.empty();
+    }
+
+    // True iff any local AnimatedValue on the rig is time-dependent.
+    [[nodiscard]] bool is_time_dependent_any() const noexcept {
+        return controller_position.is_time_dependent() ||
+               controller_rotation.is_time_dependent() ||
+               controller_anchor.is_time_dependent() ||
+               target_position.is_time_dependent() ||
+               target_rotation.is_time_dependent() ||
+               target_anchor.is_time_dependent() ||
+               camera_position.is_time_dependent() ||
+               camera_rotation.is_time_dependent() ||
+               zoom.is_time_dependent() ||
+               fov_deg.is_time_dependent();
+    }
+
+    // ── bake() — canonical chain + single-switch focus (mirrors modern rig) ─
     //
     // TwoNode path:
     //   q = qLookAt * qLocal * qX(tilt) * qY(pan) * qZ(roll)
@@ -161,10 +229,12 @@ struct CameraRig {
     // permitted by this function.
     //
     // NOTE: cam.point_of_interest and cam.is_animated are deliberately
-    // left to downstream consumers (hierarchy resolver, cache pipeline)
-    // to preserve the existing legacy golden-render contract.  When the
-    // caller supplies a non-null `resolved` and opt-in flags warrrant
-    // POI pre-population, the modern rig's stricter version can be used.
+    // left under the responsibility of downstream consumers (hierarchy resolver,
+    // cache pipeline) — the legacy bake() returns a "minimal wiring" Camera2_5D
+    // and lets them promote values to world space to preserve existing legacy
+    // golden-render contracts.  When the caller supplies a non-null `resolved`
+    // and opt-in flags warrant POI pre-population, the modern rig's stricter
+    // version can be used.
     [[nodiscard]] Camera2_5D bake(
         Frame frame,
         std::pmr::memory_resource* res = std::pmr::get_default_resource(),
@@ -179,17 +249,18 @@ struct CameraRig {
         cam.projection_mode           = use_fov
                                             ? Camera2_5DProjectionMode::Fov
                                             : Camera2_5DProjectionMode::Zoom;
-        cam.optics_mode               = optics_mode; // canonical optics_mode mirror
+        cam.optics_mode               = optics_mode; // mirror canonical optics_mode to evaluated cam
         cam.parent_name               = std::pmr::string{controller_name, res};
 
         if (mode == RigMode::TwoNode) {
             // Canonical chain guard: target_name drives the world-space
-            // POI resolved by resolve_look_at_orientation().  Hierarchy
+            // POI resolved by resolve_look_at_orientation().  The hierarchy
             // resolver is the source of truth for cam.point_of_interest;
-            // bake() leaves it unpopulated to preserve the legacy golden
-            // contract (target_position.evaluate == (0,0,0) for default).
+            // bake() leaves it to be filled downstream.  We don't pre-fill
+            // here so the legacy golden render contract is preserved
+            // (target_position.evaluate == (0,0,0) for default rigs).
             cam.point_of_interest_enabled = true;
-            cam.target_name = std::pmr::string{target_name, res};
+            cam.target_name               = std::pmr::string{target_name, res};
         } else {
             // OneNode: POI is disabled and target_name is empty so the
             // canonical chain collapses to qLocal * qX * qY * qZ in
@@ -202,8 +273,10 @@ struct CameraRig {
         // One and only one path assigns cam.dof.focus_distance here.
         // Do NOT append another assignment below this switch.
         cam.dof = dof;
-        // use_physical_model is honored from dof (do not silently override).
-
+        // use_physical_model is honored from the user's choice (do not
+        // silently override).  The legacy DoF has no LensModel, so a user
+        // setting use_physical_model=true will get a runtime warning from
+        // the projection pipeline rather than a silent fallback.
         const Vec3 focus_po = cam.point_of_interest_enabled
                                   ? cam.point_of_interest
                                   : cam.position;
@@ -237,9 +310,11 @@ struct CameraRig {
             }
         }
 
-        // cam.is_animated is left at default (false) to match the legacy
-        // golden-render contract; for stricter cache invalidation, switch
-        // to the modern CameraRig namespace.
+        // cam.is_animated is left to its default (false); the legacy rig
+        // is treated as static by the cache, which matches the existing
+        // golden-render contracts.  Use the modern CameraRig (which has
+        // stricter is_animated wiring via has_external_dependencies) when
+        // cache invalidation from external bindings is required.
 
         return cam;
     }

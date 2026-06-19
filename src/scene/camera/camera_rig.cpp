@@ -22,6 +22,7 @@ Camera2_5D CameraRig::evaluate(
     Camera2_5D cam;
     cam.enabled = true;
     cam.projection_mode = projection_mode;
+    cam.optics_mode     = optics_mode;
 
     Vec3 resolved_target = target.evaluate(time);
     bool target_from_hierarchy = false;
@@ -69,7 +70,16 @@ Camera2_5D CameraRig::evaluate(
     if (mode == CameraRigMode::TwoNode) {
         cam.point_of_interest = resolved_target;
         cam.point_of_interest_enabled = true;
-        cam.rotation.z = roll.evaluate(time);
+        // Canonical TwoNode factorization at the Camera2_5D level:
+        //   q = qLookAt * qLocal * qX(tilt) * qY(pan) * qZ(roll).
+        // All three Euler factors are forwarded so the rig matches the AE
+        // TwoNode + Pan/Tilt/Roll contract.  The lookAt quaternion is then
+        // composed by Camera2_5D::resolve_look_at_orientation().
+        cam.rotation = Vec3{
+            tilt.evaluate(time),
+            pan.evaluate(time),
+            roll.evaluate(time)
+        };
     } else {
         cam.point_of_interest_enabled = false;
         cam.rotation = Vec3{
@@ -81,31 +91,68 @@ Camera2_5D CameraRig::evaluate(
 
     cam.dof.enabled = dof.enabled;
 
-    // Focus: resolve focus_target_name if set (can differ from rig target).
-    // Compute camera-space focus distance for the physical model.
+    // ── Focus: single switch is responsible for focus_distance ────────────
+    //
+    // The previous implementation always evaluated focus_distance last,
+    // silently overwriting the target-derived distance.  The canonical
+    // contract routes the assignment through one and only one path.
+    auto focusMode = dof.focus_mode;
     if (dof.use_target_z) {
-        Vec3 focus_target_world = resolved_target;
-        if (resolved && !dof.focus_target_name.empty()) {
-            if (auto ft_world = resolved->world_position(dof.focus_target_name)) {
-                focus_target_world = *ft_world;
-            } else {
-                spdlog::warn("CameraRig '{}': focus_target '{}' not found in resolver, "
-                             "falling back to rig target",
-                             name, dof.focus_target_name);
-            }
-        }
-        // Camera-space distance — correct for orbiting/rotated cameras.
-        // (Preserved here; the ManualDistance path with use_target_z=false
-        // below is the one that consults dof.focus_distance.)
-        const f32 focus_dist = glm::length(focus_target_world - pos);
-        cam.dof.focus_distance = focus_dist;
-        cam.dof.focus_z = focus_target_world.z;
-    } else {
-        cam.dof.focus_z = dof.focus_z.evaluate(time);
-        // Manual-distance mode: read from the animated focus_distance track,
-        // NOT from any resolved target_distance.
-        cam.dof.focus_distance = dof.focus_distance.evaluate(time);
+        // Backward-compat: legacy boolean now maps onto FocusMode.
+        focusMode = !dof.focus_target_name.empty()
+            ? CameraFocusMode::TargetLayer
+            : CameraFocusMode::PointOfInterest;
     }
+
+    // Compute the candidate POI world position (camera-space distance).
+    Vec3 po_for_focus = resolved_target;
+    bool po_resolved_from_layer = false;
+    if (focusMode == CameraFocusMode::TargetLayer &&
+        resolved && !dof.focus_target_name.empty())
+    {
+        if (auto ft_world = resolved->world_position(dof.focus_target_name)) {
+            po_for_focus = *ft_world;
+            po_resolved_from_layer = true;
+        } else {
+            spdlog::warn("CameraRig '{}': focus_target '{}' not found in resolver, "
+                         "falling back to PointOfInterest",
+                         name, dof.focus_target_name);
+        }
+    }
+
+    switch (focusMode) {
+        case CameraFocusMode::ManualDistance: {
+            // Explicit value; explicit owner wins, target is ignored.
+            cam.dof.focus_distance = dof.focus_distance.evaluate(time);
+            cam.dof.focus_z        = dof.focus_z.evaluate(time);
+            break;
+        }
+        case CameraFocusMode::PointOfInterest: {
+            cam.dof.focus_distance = glm::length(po_for_focus - pos);
+            cam.dof.focus_z        = po_for_focus.z;
+            break;
+        }
+        case CameraFocusMode::TargetLayer: {
+            if (po_resolved_from_layer) {
+                cam.dof.focus_distance = glm::length(po_for_focus - pos);
+                cam.dof.focus_z        = po_for_focus.z;
+            } else {
+                // Fallback to POI distance for missing layer.
+                cam.dof.focus_distance = glm::length(resolved_target - pos);
+                cam.dof.focus_z        = resolved_target.z;
+            }
+            break;
+        }
+        case CameraFocusMode::LockToZoom: {
+            // Dolly-zoom / rack: pin focus to current zoom.
+            cam.dof.focus_distance = cam.zoom;
+            cam.dof.focus_z        = po_for_focus.z;
+            break;
+        }
+    }
+    // NOTE: do NOT re-assign cam.dof.focus_distance below this switch.
+    // Any sample that re-evaluates the manual AnimatedValue here would
+    // silently overwrite the focused values: that is the bug being fixed.
 
     cam.dof.aperture = dof.aperture.evaluate(time);
     cam.dof.max_blur = dof.max_blur.evaluate(time);
@@ -118,17 +165,18 @@ Camera2_5D CameraRig::evaluate(
     cam.lens.close_focus    = dof.close_focus.evaluate(time);
     cam.lens.gate_fit       = dof.gate_fit;
 
-    // Focus distance (runtime-evaluated, stays in dof).
-    cam.dof.focus_distance      = dof.focus_distance.evaluate(time);
+    // Optics mode is mirrored from the rig; DoF physical-model flag is
+    // independent (optics != DoF, AE-style).
     cam.dof.use_physical_model  = dof.use_physical_model;
 
-    // ── Mark camera as animated if any property has keyframes/expressions OR
-    //    if any external binding (target_name / parent_name / focus_target_name)
-    //    forces the camera to track a moving ancestor layer downstream. ─────
-    //    Without these external-binding checks the camera would falsely report
-    //    is_animated=false even when it follows an animated parent layer,
-    //    breaking cache invalidation and dirty-rect safety. ─────────────────
-    cam.is_animated =
+    // ── Mark camera as animated ───────────────────────────────────────────
+    // The previous implementation only considered local AnimatedValues.
+    // External references (parent_name, target_name, focus_target_name)
+    // must also invalidate caches, since the world transform they pull
+    // from may move even when the rig itself has no keyframes.  We use a
+    // conservative fallback: if any external reference is bound, the
+    // rig is considered time-dependent.
+    const bool local_animated =
         target.is_time_dependent() || orbit_yaw.is_time_dependent() ||
         orbit_pitch.is_time_dependent() || orbit_radius.is_time_dependent() ||
         track.is_time_dependent() || dolly.is_time_dependent() ||
@@ -137,10 +185,9 @@ Camera2_5D CameraRig::evaluate(
         dof.focus_z.is_time_dependent() || dof.aperture.is_time_dependent() || dof.max_blur.is_time_dependent() ||
         dof.focal_length.is_time_dependent() || dof.sensor_width.is_time_dependent() ||
         dof.sensor_height.is_time_dependent() || dof.f_stop.is_time_dependent() ||
-        dof.close_focus.is_time_dependent() || dof.focus_distance.is_time_dependent() ||
-        !target_name.empty() ||
-        !parent_name.empty() ||
-        (dof.enabled && !dof.focus_target_name.empty());
+        dof.close_focus.is_time_dependent() || dof.focus_distance.is_time_dependent();
+    const bool external_dep = has_external_dependencies();
+    cam.is_animated = local_animated || external_dep;
 
     // ── Propagate motion blur from rig to camera ────────────────────────────
     cam.motion_blur.enabled          = motion_blur.enabled;
