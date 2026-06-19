@@ -111,11 +111,7 @@ void PersistentFramebufferStore::set_store_config(bool disabled, std::string cac
 }
 
 bool PersistentFramebufferStore::enabled_for_current_run() {
-#ifdef CHRONON_BUILD_TESTS
-    return false;
-#else
     return !s_disabled;
-#endif
 }
 
 PersistentFramebufferStore::PersistentFramebufferStore() {
