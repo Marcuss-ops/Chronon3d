@@ -15,7 +15,7 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     auto& args = *state->args;
 
     auto* cmd = app.add_subcommand("video", "Render a composition to MP4 via ffmpeg");
-    cmd->add_option("id", args.comp_id, "Composition name or .specscene path")->required();
+    cmd->add_option("id", args.comp_id, "Composition name")->required();
     cmd->add_option("-o,--output", args.output, "Output .mp4 path");
     cmd->add_option("--start", args.start, "Start frame (inclusive, default 0)");
     cmd->add_option("--end", args.end, "End frame exclusive (default: composition duration)");

@@ -24,7 +24,6 @@ target_link_libraries(chronon3d_backend_software
         hwy::hwy
         fmt::fmt
         xxHash::xxhash
-        tomlplusplus::tomlplusplus
         TBB::tbb
         # text_run_processor.cpp calls compute_text_run_world_bbox() which
         # now lives in chronon3d_text_core (text_run_geometry.cpp).

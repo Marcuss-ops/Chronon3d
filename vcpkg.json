@@ -18,7 +18,6 @@
     "xxhash",
     "highway",
     "cli11",
-    "tomlplusplus",
     "blend2d",
     "freetype",
     "harfbuzz",
