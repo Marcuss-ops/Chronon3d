@@ -4,13 +4,11 @@
 // function that calls detail::add_builtin_composition() directly.  This file
 // is the single call-site that orchestrates all domains.
 //
-// ExtensionRegistry has been removed — composition registration uses the
-// canonical detail::add_builtin_composition() API.
 #include "register_content_modules.hpp"
 
 #include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/extension/extension_module.hpp>
-#include <chronon3d/extension/extension_registry.hpp>
+#include <chronon3d/extension/extension_catalog.hpp>
 
 // ── Per-domain registration headers ──────────────────────────────────────────
 // Each domain file exports one register_*_compositions() function.
@@ -54,12 +52,11 @@ public:
 
 } // namespace
 
-void register_content_modules() {
-    auto& reg = ExtensionRegistry::instance();
-    if (!reg.contains("content")) {
-        reg.register_module(std::make_unique<ContentExtension>());
+void register_content_modules(ExtensionCatalog& catalog) {
+    if (!catalog.contains("content")) {
+        catalog.register_module(std::make_unique<ContentExtension>());
     }
-    reg.register_all();
+    catalog.register_all();
 }
 
 } // namespace chronon3d

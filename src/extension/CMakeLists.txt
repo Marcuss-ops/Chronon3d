@@ -6,7 +6,7 @@
 # ==============================================================================
 
 add_library(chronon3d_extension STATIC
-    extension_registry.cpp
+    extension_catalog.cpp
 )
 target_link_libraries(chronon3d_extension PRIVATE chronon3d)
 target_include_directories(chronon3d_extension PRIVATE ${CMAKE_SOURCE_DIR})

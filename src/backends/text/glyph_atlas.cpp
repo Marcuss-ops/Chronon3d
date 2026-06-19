@@ -46,6 +46,7 @@ namespace {
     size_t         s_glyph_atlas_capacity = 0;
     std::once_flag s_glyph_atlas_capacity_flag;
 } // namespace
+} // anonymous namespace
 
 void set_glyph_atlas_capacity(size_t max_bytes) {
     std::call_once(s_glyph_atlas_capacity_flag, [&] {
@@ -53,6 +54,7 @@ void set_glyph_atlas_capacity(size_t max_bytes) {
     });
 }
 
+namespace {
 static size_t resolve_atlas_max_bytes() {
     constexpr size_t kFallback = 32ULL * 1024ULL * 1024ULL;
     return s_glyph_atlas_capacity > 0 ? s_glyph_atlas_capacity : kFallback;

@@ -10,6 +10,7 @@ using namespace chronon3d;
 
 #if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_2D5)
 #include <content/register_content_modules.hpp>
+#include <chronon3d/extension/extension_catalog.hpp>
 #endif
 
 
@@ -18,9 +19,10 @@ using namespace chronon3d;
 #ifdef CHRONON3D_HAS_CONTENT_2D5
 
 TEST_CASE("2D5 content: idempotent registration") {
-    register_content_modules();
-    register_content_modules();
-    register_content_modules();
+    static ExtensionCatalog cat;
+    register_content_modules(cat);
+    register_content_modules(cat);
+    register_content_modules(cat);
     CompositionRegistry registry;
     auto ids = registry.available();
     // Repeated calls to register_content_modules() must not produce duplicates.
@@ -29,7 +31,8 @@ TEST_CASE("2D5 content: idempotent registration") {
 }
 
 TEST_CASE("2D5 content: core 2.5D scenes are available") {
-    register_content_modules();
+    static ExtensionCatalog cat;
+    register_content_modules(cat);
     CompositionRegistry registry;
 
     CHECK(registry.contains("ParallaxSimple"));
@@ -40,7 +43,8 @@ TEST_CASE("2D5 content: core 2.5D scenes are available") {
 
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 TEST_CASE("2D5 module: camera test compositions are available") {
-    register_content_modules();
+    static ExtensionCatalog cat;
+    register_content_modules(cat);
     CompositionRegistry registry;
 
     CHECK(registry.contains("CameraOrbitTargetLockTest"));

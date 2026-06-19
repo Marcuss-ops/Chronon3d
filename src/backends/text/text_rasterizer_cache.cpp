@@ -18,6 +18,7 @@ namespace {
     size_t         s_text_cache_capacity = 0;
     std::once_flag s_text_cache_capacity_flag;
 } // namespace
+} // anonymous namespace
 
 void set_text_cache_capacity(size_t max_bytes) {
     std::call_once(s_text_cache_capacity_flag, [&] {
@@ -25,6 +26,7 @@ void set_text_cache_capacity(size_t max_bytes) {
     });
 }
 
+namespace {
 static size_t resolve_text_cache_capacity() {
     constexpr size_t kFallback = 32ULL * 1024ULL * 1024ULL;
     return s_text_cache_capacity > 0 ? s_text_cache_capacity : kFallback;

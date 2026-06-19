@@ -10,6 +10,7 @@
 
 #ifdef CHRONON3D_BUILD_CONTENT
 #include <content/register_content_modules.hpp>
+#include <chronon3d/extension/extension_catalog.hpp>
 #endif
 #include <chronon3d/core/composition/register_builtin_compositions.hpp>
 
@@ -21,7 +22,8 @@ namespace chronon3d::cli {
 /// Safe to call multiple times.
 inline void init_content_modules() {
 #ifdef CHRONON3D_BUILD_CONTENT
-    chronon3d::register_content_modules();
+    static ExtensionCatalog content_catalog;
+    chronon3d::register_content_modules(content_catalog);
 #endif
     // Register non-content built-in compositions (DarkGridBackground,
     // GridCleanBackground, CameraImageClip).
