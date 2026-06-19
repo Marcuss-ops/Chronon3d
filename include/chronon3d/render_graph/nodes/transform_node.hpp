@@ -30,15 +30,15 @@ public:
     explicit TransformNode(Mat4 matrix, f32 opacity, Frame cache_frame, SamplingMode mode = SamplingMode::Bilinear)
         : m_matrix(matrix), m_opacity(opacity), m_mode(mode), m_use_matrix(true), m_cache_frame(cache_frame) {}
 
-    [[nodiscard]] RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Transform; }
-    [[nodiscard]] std::string name() const override { return "Transform"; }
+    [[nodiscard]] RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Transform; }
+    [[nodiscard]] std::string_view name() const noexcept override { return "Transform"; }
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,
         std::span<const std::optional<raster::BBox>> input_bboxes = {}
     ) const override;
 
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
         return CacheFramePolicy::FrameInvariant;
     }
 

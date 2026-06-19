@@ -1,5 +1,5 @@
 // =============================================================================
-// precomp_node_execute.cpp — B8: Cached PrecompNode execution
+// precomp_node_execute.cpp — Cached PrecompNode execution
 //
 /// Implements PrecompNode::execute() with SceneProgramCache integration.
 ///
@@ -35,6 +35,7 @@ PrecompNode::PrecompNode(std::string comp_name, Frame start_frame, Frame duratio
                          cache::TuneMode tune_mode, size_t tune_interval,
                          size_t tune_min_cap, size_t tune_max_cap)
     : m_comp_name(std::move(comp_name))
+    , m_full_name("Precomp:" + m_comp_name)
     , m_start_frame(start_frame)
     , m_duration(duration)
     , m_cache_frame(cache_frame)

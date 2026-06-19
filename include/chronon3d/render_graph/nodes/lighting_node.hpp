@@ -17,10 +17,10 @@ public:
         , m_world_matrix(world_matrix)
         , m_material(material) {}
 
-    RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Effect; }
-    std::string name() const override { return "Lighting"; }
+    RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
+    std::string_view name() const noexcept override { return "Lighting"; }
 
-    [[nodiscard]] bool cacheable() const override { return true; }
+    [[nodiscard]] bool cacheable() const noexcept override { return true; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         const u64 light_hash = rendering::hash_light_context(ctx.camera.light_context);

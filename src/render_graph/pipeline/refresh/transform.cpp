@@ -13,7 +13,7 @@ void refresh_transform_node(
     const std::unordered_map<std::string, const ResolvedLayer*>& resolved_by_name,
     RenderGraphContext& ctx)
 {
-    const std::string layer_id = node.layer_id();
+    const std::string layer_id{node.layer_id()};
     if (layer_id.empty()) return;
 
     const auto layer_it = resolved_by_name.find(layer_id);

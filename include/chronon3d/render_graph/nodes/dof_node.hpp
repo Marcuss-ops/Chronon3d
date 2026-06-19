@@ -19,10 +19,10 @@ public:
     DofEffectNode(Camera2_5DRuntime camera, float layer_world_z)
         : m_camera(std::move(camera)), m_layer_world_z(layer_world_z) {}
 
-    RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Effect; }
-    std::string name() const override { return "DOF"; }
+    RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
+    std::string_view name() const noexcept override { return "DOF"; }
 
-    [[nodiscard]] bool cacheable() const override { return true; }
+    [[nodiscard]] bool cacheable() const noexcept override { return true; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         const float blur = compute_dof_blur_radius(m_camera.dof, m_camera.lens, m_layer_world_z,

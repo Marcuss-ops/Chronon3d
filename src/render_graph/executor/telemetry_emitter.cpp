@@ -21,9 +21,9 @@ void emit_node_records(
     // Previously the "need_strings" optimization skipped calling
     // node.name() entirely for such nodes, leaving an empty entry.
     const bool do_lazy_strings = is_cacheable && ctx.resources.node_cache;
-    const std::string node_name = node.name();
-    const std::string node_kind_str = std::string(to_string(node.kind()));
-    const std::string node_layer_id = node.layer_id();
+    const std::string node_name{node.name()};
+    const std::string node_kind_str{to_string(node.kind())};
+    const std::string node_layer_id{node.layer_id()};
     const bool has_layer = !node_layer_id.empty();
 
     // Cache telemetry record — uses node_name for identification; the

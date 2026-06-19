@@ -1,27 +1,19 @@
 #pragma once
 
-// -----------------------------------------------------------------------------
-// text_run_node.hpp — PR 3 (TextAnimator V2 integration)
-//
 // First-class render-graph node for batched text with After Effects-style
 // per-glyph animation (GlyphSelector + TextAnimatorProperty stack).
 //
-// Distinct from `source_node.hpp` because:
-//   1. The shape is a `TextRunShape` (immutable layout + animated glyph
-//      states), not a `Shape` from `shape.hpp`.
-//   2. The rendering backend is `renderer::draw_text_run` from
-//      `text_run_processor.hpp`, not the shape-rasterizer pipeline.
+// Distinct from source_node.hpp because:
+//   1. The shape is a TextRunShape (immutable layout + animated glyph states),
+//      not a Shape from shape.hpp.
+//   2. The rendering backend is renderer::draw_text_run from
+//      text_run_processor.hpp, not the shape-rasterizer pipeline.
 //   3. Predicted bbox uses the 2.5D-aware
-//      `renderer::compute_text_run_world_bbox` (which incorporates per-glyph
-//      rotation.x/y shear and scale.z expansion — added in PR 2).
+//      renderer::compute_text_run_world_bbox.
 //
-// Source-pass (graph_builder_source_pass.cpp) emits a `TextRunNode` instead
-// of a `SourceNode` whenever the source `RenderNode` is flagged with
-// `is_text_run_shape = true` and `text_run_shape != nullptr`.  This holds
-// for single-node layers only; multi-node aggregation into MultiSourceNode
-// remains PR 5 (the multi-path aggregator does not currently understand
-// TextRunShape).
-// -----------------------------------------------------------------------------
+// Source-pass (graph_builder_source_pass.cpp) emits a TextRunNode instead
+// of a SourceNode whenever the source RenderNode is flagged with
+// is_text_run_shape = true and text_run_shape != nullptr.
 
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <chronon3d/text/text_run.hpp>
@@ -62,17 +54,17 @@ public:
     );
 
     // ── RenderGraphNode overrides ────────────────────────────────────────
-    RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::TextRun; }
-    std::string name() const override { return m_name; }
+    RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::TextRun; }
+    std::string_view name() const noexcept override { return m_name; }
 
     /// TextRuns are NOT full-frame seeds (the run shape itself is constrained).
-    [[nodiscard]] bool can_seed_full_frame(const RenderGraphContext&) const override {
+    [[nodiscard]] bool can_seed_full_frame(const RenderGraphContext&) const noexcept override {
         return false;
     }
 
     /// Default cacheable-and-frame-dependent semantics.  cache_static
     /// flips to FrameInvariant (persistent disk bake candidate).
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
         return m_cache_static
             ? CacheFramePolicy::FrameInvariant
             : CacheFramePolicy::FrameDependent;
@@ -138,11 +130,9 @@ private:
     std::optional<f32> m_opacity_override;
     bool m_cache_static{false};
 
-    // ── Log throttle (PR 3 polish) ───────────────────────────────────────
-    // The backend-mismatch diagnostic is loud by design (error level) but
-    // firing every frame would flood production logs.  Once we've emitted
-    // the error for this node, fall back to debug to keep telemetry flow
-    // quiet without losing the diagnostic signal entirely.
+    // ── Log throttle ───────────────────────────────────────────────────
+    // Backend-mismatch diagnostic fires once per node lifetime at error
+    // level, then falls back to debug to keep telemetry quiet at 60 fps.
     mutable bool m_backend_warned{false};
 };
 
