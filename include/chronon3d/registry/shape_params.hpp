@@ -14,7 +14,7 @@ using ShapeParams = std::variant<
     ImageParams,
     GridBackgroundParams,
     TextSpec,
-    TextRunParams
+    TextRunSpec
 >;
 
 } // namespace chronon3d::registry

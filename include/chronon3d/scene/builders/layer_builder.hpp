@@ -209,7 +209,7 @@ public:
     /// `return *this` chain.  The returned `TextRunBuilder&` is the
     /// next layer in the chain; calling `.commit()` explicitly hands
     /// control back to the layer-level builder.
-    [[nodiscard]] TextRunBuilder& text_run(std::string name, TextRunParams params);
+    [[nodiscard]] TextRunBuilder& text_run(std::string name, TextRunSpec spec);
 
     LayerBuilder& shape(std::string_view id, std::string name, registry::ShapeParams params);
 

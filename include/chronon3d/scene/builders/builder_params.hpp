@@ -173,8 +173,10 @@ struct TextSpec {
 // like `TextParams tp; tp.text = "x";` will NOT compile — `TextSpec` has
 // no `.text` field (use `.content.value`).  The deprecation attribute
 // surfaces this at the type level so callers see migration guidance.
-// TextParams kept as alias for external backward compat. Use TextSpec directly.
-using TextParams = TextSpec;
+// Per the C++ grammar, an attribute-specifier-seq on an alias-declaration
+// follows the identifier and precedes the `=`.  GCC strictly rejects the
+// pre-keyword placement; Clang tolerates it as an extension.
+using TextParams [[deprecated("TextParams is deprecated; use TextSpec directly. Construct via TextSpec{...} designated initializers or read/write through .content.value / .font.* / .layout.* / .appearance.* / .position.")]] = TextSpec;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TextRunSpec — composable text-run descriptor (replaces flat TextRunParams).
@@ -205,126 +207,10 @@ struct TextRunSpec {
 //
 // All fields use defaults that produce a sensible empty run.
 // ---------------------------------------------------------------------------
-struct TextRunParams {
-    std::string text;
-    std::string font_path{"assets/fonts/Inter-Bold.ttf"};
-    std::string font_family{"Inter"};
-    int font_weight{800};
-    std::string font_style{"normal"};
-    f32 font_size{72.0f};
-    Color color{1.0f, 1.0f, 1.0f, 1.0f};
-
-    Vec3 pos{0.0f, 0.0f, 0.0f};        // also drives position.z (2.5D depth)
-    Vec2 size{0.0f, 0.0f};             // 0 = intrinsic text wrapping disabled
-
-    TextAnchor anchor{TextAnchor::Center};
-    TextAlign align{TextAlign::Center};
-    VerticalAlign vertical_align{VerticalAlign::Middle};
-    TextWrap wrap{TextWrap::None};
-    TextDirection direction{TextDirection::Auto};
-    std::string language;              // BCP-47 language tag (auto = empty)
-
-    f32 line_height{1.2f};
-    f32 tracking{0.0f};
-
-    TextPaint paint{};
-    std::vector<TextShadow> shadows{};
-    TextMaterial material{};
-
-    // Ordered animator stack evaluated after text layout.
-    // Selectors reference animator-local glyph ranges.
-    std::vector<TextAnimatorSpec> animators;
-    std::vector<GlyphSelectorSpec> selectors;  // optional top-level selectors (renamed from TextSelectorSpec after TextAnimator V2 refactor)
-
-    // Optional pre-shaped glyph run (typewriter-style, contextual scripts).
-    std::shared_ptr<PlacedGlyphRun> pre_shaped;
-
-    // Source text cache hint — when a re-evaluation would produce an
-    // identical TextRunLayout, the layout cache can skip re-shaping.
-    bool cache_layout{true};
-
-    // ── Conversion from TextRunSpec (forward-compat bridge) ──────────
-    TextRunParams() = default;
-    explicit TextRunParams(const TextRunSpec& rs)
-        : text(rs.text.content.value)
-        , font_path(rs.text.font.font_path)
-        , font_family(rs.text.font.font_family)
-        , font_weight(rs.text.font.font_weight)
-        , font_style(rs.text.font.font_style)
-        , font_size(rs.text.font.font_size)
-        , color(rs.text.appearance.color)
-        , pos(rs.text.position)
-        , size(rs.text.layout.box)
-        , anchor(rs.text.layout.anchor)
-        , align(rs.text.layout.align)
-        , vertical_align(rs.text.layout.vertical_align)
-        , wrap(rs.text.layout.wrap)
-        , direction(rs.direction)
-        , language(rs.language)
-        , line_height(rs.text.layout.line_height)
-        , tracking(rs.text.layout.tracking)
-        , paint(rs.text.appearance.paint)
-        , shadows(rs.text.appearance.shadows)
-        , material(rs.text.appearance.material)
-        , animators(rs.animators)
-        , selectors(rs.selectors)
-        , pre_shaped(rs.text.content.pre_shaped)
-        , cache_layout(rs.cache_layout)
-    {}
-
-    [[nodiscard]] TextRunSpec to_spec() const & {
-        return TextRunSpec{
-            .text         = TextSpec{
-                .content    = { text, pre_shaped },
-                .font       = { font_path, font_family, font_weight, font_style, font_size },
-                // Designated-init keeps this robust against future TextLayoutSpec
-                // field additions and makes field mapping explicit / self-documenting.
-                .layout     = {
-                    .box           = size,
-                    .anchor        = anchor,
-                    .align         = align,
-                    .vertical_align = vertical_align,
-                    .wrap          = wrap,
-                    .line_height   = line_height,
-                    .tracking      = tracking,
-                },
-                .appearance = { color, paint, shadows, material },
-                .position   = pos,
-            },
-            .direction    = direction,
-            .language     = language,
-            .animators    = animators,
-            .selectors    = selectors,
-            .cache_layout = cache_layout,
-        };
-    }
-    [[nodiscard]] TextRunSpec to_spec() && {
-        return TextRunSpec{
-            .text         = TextSpec{
-                .content    = { std::move(text), std::move(pre_shaped) },
-                .font       = { std::move(font_path), std::move(font_family),
-                                font_weight, std::move(font_style), font_size },
-                .layout     = {
-                    .box           = size,
-                    .anchor        = anchor,
-                    .align         = align,
-                    .vertical_align = vertical_align,
-                    .wrap          = wrap,
-                    .line_height   = line_height,
-                    .tracking      = tracking,
-                },
-                .appearance = { color, std::move(paint), std::move(shadows),
-                                std::move(material) },
-                .position   = pos,
-            },
-            .direction    = direction,
-            .language     = std::move(language),
-            .animators    = std::move(animators),
-            .selectors    = std::move(selectors),
-            .cache_layout = cache_layout,
-        };
-    }
-};
+// Same `[[deprecated]]` placement grammar as the `TextParams` alias above:
+// the attribute-specifier-seq goes BETWEEN the alias identifier and `=`.
+// (GCC strictly rejects the pre-keyword placement; Clang tolerates it.)
+using TextRunParams [[deprecated("TextRunParams is deprecated; use TextRunSpec directly. Construct via TextRunSpec{...} designated initializers or read/write through .text.content.value, .text.font.*, .text.layout.*, .text.appearance.*, .text.position, .direction, .language, .animators, .selectors, .cache_layout.")]] = TextRunSpec;
 
 struct ShadowStyle {
     TextShadow contact{
