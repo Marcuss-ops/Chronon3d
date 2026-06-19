@@ -206,7 +206,7 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                     if (path.stroke.gradient.has_value()) {
                         Fill gradient_fill;
                         gradient_fill.enabled  = true;
-                        gradient_fill.set_type(path.stroke.gradient->type;
+                        gradient_fill.type = path.stroke.gradient->type;
                         gradient_fill.gradient = *path.stroke.gradient;
                         return resolve_fill_color(gradient_fill, p, bbox, 1.0f);
                     }

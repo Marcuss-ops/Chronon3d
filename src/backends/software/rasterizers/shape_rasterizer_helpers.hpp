@@ -186,7 +186,7 @@ namespace chronon3d::renderer {
         return Color{0.0f, 0.0f, 0.0f, 0.0f};
     }
     Fill fake_fill;
-    fake_fill.set_type(g->value().type;
+    fake_fill.type = g->value().type;
     fake_fill.gradient = g->value();
     return resolve_gradient_color(fake_fill, lp, sz, 1.0f);
 }

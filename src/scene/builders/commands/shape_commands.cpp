@@ -16,7 +16,7 @@ void Layer3DDelegate::add_fake_box3d(Layer& layer, std::string name, FakeBox3DPa
     auto* res = layer.nodes.get_allocator().resource();
     RenderNode node(res);
     node.name = std::pmr::string{name, res};
-    node.shape.set_type(ShapeType::FakeBox3D;
+    node.shape.set_type(ShapeType::FakeBox3D);
     node.shape.fake_box3d().world_pos  = p.pos;
     node.shape.fake_box3d().size       = p.size;
     node.shape.fake_box3d().depth      = p.depth;
@@ -34,7 +34,7 @@ void Layer3DDelegate::add_grid_plane(Layer& layer, std::string name, GridPlanePa
     auto* res = layer.nodes.get_allocator().resource();
     RenderNode node(res);
     node.name = std::pmr::string{name, res};
-    node.shape.set_type(ShapeType::GridPlane;
+    node.shape.set_type(ShapeType::GridPlane);
     node.shape.grid_plane().world_pos      = p.pos;
     node.shape.grid_plane().axis           = p.axis;
     node.shape.grid_plane().extent         = p.extent;

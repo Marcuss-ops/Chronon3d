@@ -139,10 +139,15 @@ target_link_libraries(chronon3d_cli PRIVATE
     chronon3d_cli_dev
     chronon3d_cli_bench
     chronon3d_backend_image
-    chronon3d_backend_text
     spdlog::spdlog_header_only
     fmt::fmt
 )
+# chronon3d_backend_text is gated by CHRONON3D_ENABLE_TEXT && CHRONON3D_USE_BLEND2D
+# upstream — only link it when the target exists (otherwise the CLI breaks
+# builds configured without text/blend2d).
+if(TARGET chronon3d_backend_text)
+    target_link_libraries(chronon3d_cli PRIVATE chronon3d_backend_text)
+endif()
 if(TARGET chronon3d_cli_video)
     target_link_libraries(chronon3d_cli PRIVATE chronon3d_cli_video)
 endif()

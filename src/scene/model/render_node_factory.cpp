@@ -16,7 +16,7 @@ RenderNode RenderNodeFactory::base(std::pmr::memory_resource* res, std::string n
 
 RenderNode RenderNodeFactory::rect(std::pmr::memory_resource* res, std::string name, const RectParams& p) {
     auto node = base(res, std::move(name));
-    node.shape.set_type(ShapeType::Rect;
+    node.shape.set_type(ShapeType::Rect);
     node.shape.rect().size = p.size;
     node.shape.rect().stroke = p.stroke.to_shape_stroke();
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
@@ -28,7 +28,7 @@ RenderNode RenderNodeFactory::rect(std::pmr::memory_resource* res, std::string n
 
 RenderNode RenderNodeFactory::rounded_rect(std::pmr::memory_resource* res, std::string name, const RoundedRectParams& p) {
     auto node = base(res, std::move(name));
-    node.shape.set_type(ShapeType::RoundedRect;
+    node.shape.set_type(ShapeType::RoundedRect);
     node.shape.rounded_rect().size = p.size;
     node.shape.rounded_rect().radius = p.radius;
     node.shape.rounded_rect().stroke = p.stroke.to_shape_stroke();
@@ -42,7 +42,7 @@ RenderNode RenderNodeFactory::rounded_rect(std::pmr::memory_resource* res, std::
 
 RenderNode RenderNodeFactory::circle(std::pmr::memory_resource* res, std::string name, const CircleParams& p) {
     auto node = base(res, std::move(name));
-    node.shape.set_type(ShapeType::Circle;
+    node.shape.set_type(ShapeType::Circle);
     node.shape.circle().radius = p.radius;
     node.shape.circle().stroke = p.stroke.to_shape_stroke();
     node.world_transform.anchor = {p.radius, p.radius, 0.0f};
@@ -54,7 +54,7 @@ RenderNode RenderNodeFactory::circle(std::pmr::memory_resource* res, std::string
 
 RenderNode RenderNodeFactory::line(std::pmr::memory_resource* res, std::string name, const LineParams& p) {
     auto node = base(res, std::move(name));
-    node.shape.set_type(ShapeType::Line;
+    node.shape.set_type(ShapeType::Line);
     node.shape.line().to = p.to - p.from;
     node.shape.line().thickness = p.thickness;
     node.shape.line().stroke.trim_start = p.stroke.trim_start;
@@ -72,7 +72,7 @@ RenderNode RenderNodeFactory::line(std::pmr::memory_resource* res, std::string n
 
 RenderNode RenderNodeFactory::path(std::pmr::memory_resource* res, std::string name, PathParams p) {
     auto node = base(res, std::move(name));
-    node.shape.set_type(ShapeType::Path;
+    node.shape.set_type(ShapeType::Path);
     node.shape.path().commands = std::move(p.commands);
     node.shape.path().stroke = p.stroke;
     node.shape.path().fill = p.fill;
@@ -85,7 +85,7 @@ RenderNode RenderNodeFactory::path(std::pmr::memory_resource* res, std::string n
 
 RenderNode RenderNodeFactory::image(std::pmr::memory_resource* res, std::string name, ImageParams p) {
     auto node = base(res, std::move(name));
-    node.shape.set_type(ShapeType::Image;
+    node.shape.set_type(ShapeType::Image);
     node.shape.image().path = std::move(p.path);
     node.shape.image().size = p.size;
     node.shape.image().fit = p.fit;
@@ -102,7 +102,7 @@ RenderNode RenderNodeFactory::image(std::pmr::memory_resource* res, std::string 
 
 RenderNode RenderNodeFactory::tiled_image(std::pmr::memory_resource* res, std::string name, ImageParams p) {
     auto node = base(res, std::move(name));
-    node.shape.set_type(ShapeType::TiledImage;
+    node.shape.set_type(ShapeType::TiledImage);
     node.shape.image().path = std::move(p.path);
     node.shape.image().size = p.size;
     node.shape.image().opacity = p.opacity;
@@ -116,7 +116,7 @@ RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, st
     auto node = base(res, std::move(name));
     node.shape.set_type(ShapeType::GridBackground;
     node.surface_policy = SurfacePolicy::ViewportSize;
-    node.transform_policy = TransformPolicy::RasterizeAfter;
+    node.transform_policy = TransformPolicy::RasterizeAfter);
     node.shape.grid_background().size = p.size;
     node.shape.grid_background().offset = p.offset;
     node.shape.grid_background().bg_color = p.bg_color;
@@ -148,7 +148,7 @@ static Vec3 resolve_text_anchor(TextAnchor anchor, Vec2 box) {
 
 RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string name, TextSpec p) {
     auto node = base(res, std::move(name));
-    node.shape.set_type(ShapeType::Text;
+    node.shape.set_type(ShapeType::Text);
     node.shape.text().text = std::move(p.content.value);
     // Fallback: if the caller left font_path empty, use the project default
     // (Inter-Bold). Without this, rasterize_text_to_bl_image() returns
@@ -208,7 +208,7 @@ RenderNode RenderNodeFactory::text_run(
     auto node = base(res, std::move(name));
     node.shape.set_type(ShapeType::TextRun;
     node.is_text_run_shape = true;
-    node.font_engine = engine;
+    node.font_engine = engine);
 
     // World transform from TextRunSpec (deep-nested field paths).
     node.world_transform.position = p.text().position;

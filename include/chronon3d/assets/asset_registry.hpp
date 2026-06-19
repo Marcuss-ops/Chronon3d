@@ -217,7 +217,7 @@ private:
         if (m_by_id.contains(id)) return id;  // deduplicate
 
         AssetMetadata meta;
-        meta.set_type(type;
+        meta.type = type;
         meta.path        = path;
         meta.color_space = cs;
         meta.alpha_mode  = am;

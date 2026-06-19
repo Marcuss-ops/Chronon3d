@@ -169,7 +169,7 @@ TEST_CASE("GradientDefinition — opacity stops") {
 
 TEST_CASE("GradientDefinition — empty stops fallback") {
     GradientDefinition def;
-    def.set_type(GradientType::Linear;
+    def.type = GradientType::Linear;
 
     Color c = sample_gradient(def, 0.5f);
     // Should return opaque white (fallback)
