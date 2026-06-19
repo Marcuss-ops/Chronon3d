@@ -196,8 +196,8 @@ src/specscene/specscene_parsers.hpp
 ### 1.7 Registries (Core)
 
 ```
-include/chronon3d/effects/effect_registry.hpp
-src/effects/effect_registry.cpp
+include/chronon3d/effects/effect_catalog.hpp
+src/effects/effect_catalog.cpp
 include/chronon3d/assets/asset_registry.hpp
 src/registry/shape_registry.cpp
 src/registry/sampler_registry.cpp
@@ -210,8 +210,8 @@ _Creato in Fase 5. Permette ai moduli di registrare features senza toccare il co
 
 ```
 include/chronon3d/extension/extension_module.hpp
-include/chronon3d/extension/extension_registry.hpp
-src/extension/extension_registry.cpp
+include/chronon3d/extension/extension_catalog.hpp
+src/extension/extension_catalog.cpp
 include/chronon3d/render_graph/registry/graph_node_registry.hpp
 src/render_graph/registry/graph_node_registry.cpp
 ```
