@@ -229,7 +229,7 @@ public:
     }
 
     [[nodiscard]] std::string get_path(AssetId id) const {
-        return metadata(id).path().string();
+        return metadata(id).path.string();
     }
 
 private:

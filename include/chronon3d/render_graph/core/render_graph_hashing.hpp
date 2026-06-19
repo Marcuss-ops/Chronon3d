@@ -232,8 +232,8 @@ template <typename T>
     const Mat4* transform);
 
 [[nodiscard]] inline u64 hash_shape(const Shape& s) {
-    u64 seed = hash_value(static_cast<int>(s.type));
-    switch (s.type) {
+    u64 seed = hash_value(static_cast<int>(s.type()));
+    switch (s.type()) {
         case ShapeType::Rect:
             seed = hash_combine(seed, hash_vec2(s.rect().size));
             seed = hash_combine(seed, hash_value(s.rect().stroke.enabled));
@@ -287,7 +287,7 @@ template <typename T>
             }
             return seed;
         case ShapeType::Image:
-            seed = hash_combine(seed, hash_bytes(s.image().path().data(), s.image().path().size()));
+            seed = hash_combine(seed, hash_bytes(s.image().path.data(), s.image().path.size()));
             seed = hash_combine(seed, hash_vec2(s.image().size));
             return hash_combine(seed, hash_bytes(&s.image().opacity, sizeof(f32)));
         case ShapeType::GridBackground:
@@ -304,7 +304,7 @@ template <typename T>
             // Delegate to the canonical text hash used by the raster cache.
             // This ensures text nodes with different materials, gradients,
             // shaping params, shadows, etc. get different content hashes.
-            return hash_text_style_full(s.text, s.text().style.size, 0, nullptr);
+            return hash_text_style_full(s.text(), s.text().style.size, 0, nullptr);
         case ShapeType::FakeBox3D:
             seed = hash_combine(seed, hash_vec3(s.fake_box3d().world_pos));
             seed = hash_combine(seed, hash_vec2(s.fake_box3d().size));
