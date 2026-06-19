@@ -16,12 +16,16 @@ class CompilerTestNode final : public RenderGraphNode {
 public:
     explicit CompilerTestNode(std::string n, bool cache = true, bool frame_dep = false)
         : m_name(std::move(n)), m_cacheable(cache) {
-        set_frame_dependent(frame_dep);
+        RenderNodeCachePolicy p = frame_dep
+            ? frame_variant_cache("test_animated")
+            : static_memory_cache("test_static");
+        p.cacheable = cache;
+        set_cache_policy(std::move(p));
     }
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
     [[nodiscard]] std::string_view name() const noexcept override { return m_name; }
-    [[nodiscard]] bool cacheable() const noexcept override { return m_cacheable; }
+    [[nodiscard]] bool cacheable() const noexcept override { return cache_policy().cacheable; }
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,

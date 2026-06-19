@@ -36,11 +36,6 @@ class RenderBackend;
 class RenderProfiler;
 using GraphNodeId = uint32_t;
 
-enum class CacheFramePolicy {
-    FrameDependent,
-    FrameInvariant
-};
-
 enum class RenderGraphNodeKind {
     Source,
     Mask,
@@ -65,6 +60,14 @@ enum class RenderGraphNodeKind {
 
 class RenderGraphNode {
 public:
+    /// Default cache policy: frame_variant_cache (per-frame, frame-dependent).
+    /// Subclasses and builder passes can override via `set_cache_policy()`
+    /// before the node is observed by the executor.  Policy is immutable
+    /// once the node enters the executor — `set_cache_policy()` is only
+    /// legal in the build phase.
+    RenderGraphNode()
+        : m_cache_policy(frame_variant_cache()) {}
+
     virtual ~RenderGraphNode() = default;
 
     [[nodiscard]]    virtual std::optional<raster::BBox> predicted_bbox(const RenderGraphContext& ctx) const {
@@ -93,31 +96,18 @@ public:
         return false;
     }
 
-    [[nodiscard]] virtual CacheFramePolicy cache_frame_policy() const noexcept {
-        return CacheFramePolicy::FrameDependent;
+    /// Canonical cache descriptor.  The GraphExecutor reads ONLY this method.
+    [[nodiscard]] const RenderNodeCachePolicy& cache_policy() const noexcept {
+        return m_cache_policy;
     }
 
-    /// Rich cache policy descriptor.  Default implementation wraps the legacy
-    /// cacheable() / cache_frame_policy() / frame_dependent() API.
-    [[nodiscard]] virtual RenderNodeCachePolicy cache_policy() const {
-        const bool invariant = cache_frame_policy() == CacheFramePolicy::FrameInvariant;
-        return RenderNodeCachePolicy{
-            .cacheable = cacheable(),
-            .frame_dependent = frame_dependent() || cache_frame_policy() == CacheFramePolicy::FrameDependent,
-            .frame_invariant = invariant,
-            .disk_cacheable = invariant,
-            .lifetime = invariant
-                ? CacheLifetime::PersistentDisk
-                : CacheLifetime::PerFrame,
-            .invalidation = invariant
-                ? CacheInvalidation::WhenParamsChange
-                : CacheInvalidation::WhenInputsChange,
-            .debug_reason = "legacy_policy"
-        };
+    /// Mutator used by builder passes to declare the static/animated nature
+    /// of a node immediately after graph construction.  Only legal during
+    /// the build phase — once the node has been observed by the executor,
+    /// the policy is treated as immutable.
+    void set_cache_policy(RenderNodeCachePolicy policy) noexcept {
+        m_cache_policy = std::move(policy);
     }
-
-    [[nodiscard]] bool frame_dependent() const noexcept { return m_frame_dependent; }
-    void set_frame_dependent(bool value) { m_frame_dependent = value; }
 
     [[nodiscard]] virtual cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const = 0;
 
@@ -129,7 +119,7 @@ public:
 
 private:
     std::string m_layer_id;
-    bool m_frame_dependent{true};
+    RenderNodeCachePolicy m_cache_policy;
 };
 
 } // namespace chronon3d::graph

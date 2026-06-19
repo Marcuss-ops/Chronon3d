@@ -20,12 +20,16 @@ class TestNode final : public RenderGraphNode {
 public:
     explicit TestNode(std::string n, bool cache = true, bool frame_dep = false)
         : m_name(std::move(n)), m_cacheable(cache) {
-        set_frame_dependent(frame_dep);
+        RenderNodeCachePolicy p = frame_dep
+            ? frame_variant_cache("test_animated")
+            : static_memory_cache("test_static");
+        p.cacheable = cache;
+        set_cache_policy(std::move(p));
     }
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
     [[nodiscard]] std::string_view name() const noexcept override { return m_name; }
-    [[nodiscard]] bool cacheable() const noexcept override { return m_cacheable; }
+    [[nodiscard]] bool cacheable() const noexcept override { return cache_policy().cacheable; }
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,
@@ -89,13 +93,17 @@ static EffectStack make_tint_stack() {
 
 static std::unique_ptr<EffectStackNode> make_effect_node(bool frame_dep = true) {
     auto node = std::make_unique<EffectStackNode>(make_blur_stack(8.0f));
-    node->set_frame_dependent(frame_dep);
+    node->set_cache_policy(frame_dep
+        ? frame_variant_cache("test_animated")
+        : static_memory_cache("test_static"));
     return node;
 }
 
 static std::unique_ptr<AdjustmentNode> make_adjustment_node(bool frame_dep = true) {
     auto node = std::make_unique<AdjustmentNode>(make_tint_stack());
-    node->set_frame_dependent(frame_dep);
+    node->set_cache_policy(frame_dep
+        ? frame_variant_cache("test_animated")
+        : static_memory_cache("test_static"));
     return node;
 }
 
@@ -180,7 +188,7 @@ TEST_CASE("Static bake - frame-independent nodes are counted") {
 
     // root is frame-invariant but not cacheable (cacheable()=false).
     // TransformNode defaults to frame_dependent=true; mark it false.
-    graph.node(tx).set_frame_dependent(false);
+    graph.node(tx).set_cache_policy(static_memory_cache("test_static"));
 
     size_t eligible = count_bake_eligible_nodes(graph, ctx);
     CHECK(eligible == 1); // Only TransformNode is eligible
@@ -198,8 +206,8 @@ TEST_CASE("Static bake - frame-dependent nodes are excluded") {
     ctx.resources.node_cache = &node_cache;
 
     // Both nodes frame-dependent → nothing eligible
-    graph.node(root).set_frame_dependent(true);
-    graph.node(tx).set_frame_dependent(true);
+    graph.node(root).set_cache_policy(frame_variant_cache("test_animated"));
+    graph.node(tx).set_cache_policy(frame_variant_cache("test_animated"));
 
     size_t eligible = count_bake_eligible_nodes(graph, ctx);
     CHECK(eligible == 0);
@@ -331,8 +339,8 @@ TEST_CASE("No unsafe optimization - frame-dependent vs frame-invariant not fused
     graph.connect(tx_static, tx_dynamic);
     graph.set_output(tx_dynamic);
 
-    graph.node(tx_static).set_frame_dependent(false);
-    graph.node(tx_dynamic).set_frame_dependent(true);
+    graph.node(tx_static).set_cache_policy(static_memory_cache("test_static"));
+    graph.node(tx_dynamic).set_cache_policy(frame_variant_cache("test_animated"));
 
     size_t fused = fuse_nodes(graph);
 

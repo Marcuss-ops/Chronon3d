@@ -101,7 +101,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                         ctx.options.modular_coordinates ? std::optional<f32>(run_opacity) : std::nullopt,
                         source_is_static
                     ));
-                    graph.node(source).set_frame_dependent(!source_is_static);
+                    graph.node(source).set_cache_policy(source_is_static
+                        ? static_persistent_cache()
+                        : frame_variant_cache());
 
                     if (ctx.options.diagnostics_enabled) {
                         spdlog::info(
@@ -145,7 +147,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     ctx.options.modular_coordinates ? std::optional<f32>(text_opacity) : std::nullopt,
                     source_is_static
                 ));
-                graph.node(source).set_frame_dependent(!source_is_static);
+                graph.node(source).set_cache_policy(source_is_static
+                    ? static_persistent_cache()
+                    : frame_variant_cache());
             } else {
                 cache::NodeCacheKey source_key{
                     .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
@@ -171,7 +175,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     ctx.options.modular_coordinates ? std::optional<f32>(shape_opacity) : std::nullopt,
                     source_is_static
                 ));
-                graph.node(source).set_frame_dependent(!source_is_static);
+                graph.node(source).set_cache_policy(source_is_static
+                    ? static_persistent_cache()
+                    : frame_variant_cache());
             }
             return source;
         }
@@ -259,7 +265,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             item.projected,
             source_is_static
         ));
-        graph.node(multi_source).set_frame_dependent(!source_is_static);
+        graph.node(multi_source).set_cache_policy(source_is_static
+            ? static_persistent_cache()
+            : frame_variant_cache());
         return multi_source;
     }
 
@@ -304,7 +312,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         }
 
         auto precomp_id = graph.add_node(std::move(node));
-        graph.node(precomp_id).set_frame_dependent(!is_static);
+        graph.node(precomp_id).set_cache_policy(is_static
+            ? static_persistent_cache("precomp_static")
+            : frame_variant_cache("precomp_animated"));
         return precomp_id;
     }
 
@@ -312,7 +322,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         auto video_id = graph.add_node(std::make_unique<VideoNode>(
             *layer.video_source, ctx.resources.video_decoder, layer.from
         ));
-        graph.node(video_id).set_frame_dependent(true);
+        // VideoNode ctor already sets no_cache("video"); builder override redundant.
         return video_id;
     }
 

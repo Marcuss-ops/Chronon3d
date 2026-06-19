@@ -13,6 +13,7 @@ add_executable(chronon3d_cache_tests
     cache/test_framebuffer_pool.cpp
     render_graph/cache/test_scene_program_cache.cpp
     render_graph/cache/test_compiled_graph_cache.cpp
+    render_graph/executor/test_cache_policy_contract.cpp
 )
 target_link_libraries(chronon3d_cache_tests PRIVATE chronon3d_pipeline chronon3d_graph_cache doctest::doctest)
 target_include_directories(chronon3d_cache_tests PRIVATE ${CMAKE_SOURCE_DIR})

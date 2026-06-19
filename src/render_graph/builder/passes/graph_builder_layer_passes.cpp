@@ -35,7 +35,9 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
         is_static ? Frame{0} : Frame{-1},
         world_z
     ));
-    graph.node(composite).set_frame_dependent(!is_static);
+    graph.node(composite).set_cache_policy(is_static
+        ? static_persistent_cache()
+        : frame_variant_cache());
     graph.connect(current, composite);
     graph.connect(layer_output, composite);
     current = composite;
@@ -52,10 +54,12 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
     // Layer effects - now modularly created via registry
     for (const auto& effect : layer.effects) {
         if (!effect.enabled) continue;
-        
+
         const auto* ec = ctx.resources.effect_catalog;
         auto node_id = graph.add_node(ec->create_node(effect));
-        graph.node(node_id).set_frame_dependent(!is_static);
+        graph.node(node_id).set_cache_policy(is_static
+            ? static_persistent_cache()
+            : frame_variant_cache());
         graph.connect(layer_output, node_id);
         layer_output = node_id;
     }
@@ -69,7 +73,9 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
         // double-blurring.
         if (!ctx.options.track_dof_depth) {
             auto dof_node = graph.add_node(DofEffectNode::create(cam25d, item.world_z));
-            graph.node(dof_node).set_frame_dependent(!is_static);
+            graph.node(dof_node).set_cache_policy(is_static
+                ? static_persistent_cache()
+                : frame_variant_cache());
             graph.connect(layer_output, dof_node);
             layer_output = dof_node;
         }
@@ -86,7 +92,9 @@ void append_mask_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
 
     const bool is_static = layer.cache_static || item.is_static;
     auto masked = graph.add_node(std::make_unique<MaskNode>(layer.mask, is_static ? Frame{0} : Frame{-1}));
-    graph.node(masked).set_frame_dependent(!is_static);
+    graph.node(masked).set_cache_policy(is_static
+        ? static_persistent_cache()
+        : frame_variant_cache());
     graph.connect(layer_output, masked);
     layer_output = masked;
 }
@@ -131,7 +139,9 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
     }
 
     auto transform = graph.add_node(std::move(transform_node));
-    graph.node(transform).set_frame_dependent(!is_static);
+    graph.node(transform).set_cache_policy(is_static
+        ? static_persistent_cache()
+        : frame_variant_cache());
     graph.connect(layer_output, transform);
     layer_output = transform;
 }

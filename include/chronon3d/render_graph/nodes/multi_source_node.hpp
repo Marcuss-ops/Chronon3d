@@ -18,7 +18,7 @@ public:
     MultiSourceNode(std::string name, std::vector<MultiSourceItem> items, const cache::NodeCacheKey& key,
                     bool centered = false, bool uses_2_5d_projection = false, bool cache_static = false);
 
-    bool cacheable() const noexcept override { return m_cache_static; }
+    bool cacheable() const noexcept override { return cache_policy().cacheable; }
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
     std::string_view name() const noexcept override { return m_name; }
 
@@ -26,9 +26,6 @@ public:
         const RenderGraphContext& ctx,
         std::span<const std::optional<raster::BBox>> = {}
     ) const override;
-
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override;
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const override;
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override;
 
@@ -57,6 +54,9 @@ public:
         m_centered = centered;
         m_uses_2_5d_projection = uses_2_5d_projection;
         m_cache_static = cache_static;
+        set_cache_policy(m_cache_static
+            ? static_persistent_cache("multi_source_static")
+            : frame_variant_cache("multi_source_animated"));
     }
 
     /// Returns true if this node represents a single full-frame image source.

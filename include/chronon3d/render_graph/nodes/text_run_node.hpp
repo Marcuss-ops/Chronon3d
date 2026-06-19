@@ -62,29 +62,6 @@ public:
         return false;
     }
 
-    /// Default cacheable-and-frame-dependent semantics.  cache_static
-    /// flips to FrameInvariant (persistent disk bake candidate).
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
-        return m_cache_static
-            ? CacheFramePolicy::FrameInvariant
-            : CacheFramePolicy::FrameDependent;
-    }
-
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const override {
-        if (m_cache_static) {
-            return static_memory_cache("text_run_static");
-        }
-        return RenderNodeCachePolicy{
-            .cacheable = true,
-            .frame_dependent = true,
-            .frame_invariant = false,
-            .disk_cacheable = false,
-            .lifetime = CacheLifetime::PerFrame,
-            .invalidation = CacheInvalidation::WhenParamsChange,
-            .debug_reason = "text_run_animated"
-        };
-    }
-
     /// 2.5D-aware predicted bbox using `compute_text_run_world_bbox`.
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,

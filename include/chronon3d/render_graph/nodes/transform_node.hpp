@@ -19,16 +19,24 @@ namespace chronon3d::graph {
 class TransformNode final : public RenderGraphNode {
 public:
     explicit TransformNode(Transform transform, SamplingMode mode = SamplingMode::Bilinear) 
-        : m_transform(std::move(transform)), m_mode(mode), m_use_matrix(false) {}
+        : m_transform(std::move(transform)), m_mode(mode), m_use_matrix(false) {
+        set_cache_policy(frame_variant_cache("transform"));
+    }
 
     explicit TransformNode(Mat4 matrix, f32 opacity = 1.0f, SamplingMode mode = SamplingMode::Bilinear)
-        : m_matrix(matrix), m_opacity(opacity), m_mode(mode), m_use_matrix(true) {}
+        : m_matrix(matrix), m_opacity(opacity), m_mode(mode), m_use_matrix(true) {
+        set_cache_policy(frame_variant_cache("transform"));
+    }
 
     explicit TransformNode(Transform transform, Frame cache_frame, SamplingMode mode = SamplingMode::Bilinear)
-        : m_transform(std::move(transform)), m_mode(mode), m_use_matrix(false), m_cache_frame(cache_frame) {}
+        : m_transform(std::move(transform)), m_mode(mode), m_use_matrix(false), m_cache_frame(cache_frame) {
+        set_cache_policy(frame_variant_cache("transform"));
+    }
 
     explicit TransformNode(Mat4 matrix, f32 opacity, Frame cache_frame, SamplingMode mode = SamplingMode::Bilinear)
-        : m_matrix(matrix), m_opacity(opacity), m_mode(mode), m_use_matrix(true), m_cache_frame(cache_frame) {}
+        : m_matrix(matrix), m_opacity(opacity), m_mode(mode), m_use_matrix(true), m_cache_frame(cache_frame) {
+        set_cache_policy(frame_variant_cache("transform"));
+    }
 
     [[nodiscard]] RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Transform; }
     [[nodiscard]] std::string_view name() const noexcept override { return "Transform"; }
@@ -37,10 +45,6 @@ public:
         const RenderGraphContext& ctx,
         std::span<const std::optional<raster::BBox>> input_bboxes = {}
     ) const override;
-
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
-        return CacheFramePolicy::FrameInvariant;
-    }
 
     [[nodiscard]] cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         u64 params_hash = hash_combine(

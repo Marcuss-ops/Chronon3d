@@ -22,7 +22,9 @@ public:
     TrackMatteNode(TrackMatteType type,
                    std::string    target_name,
                    cache::NodeCacheKey key)
-        : m_type(type), m_name("matte:" + target_name), m_key(std::move(key)) {}
+        : m_type(type), m_name("matte:" + target_name), m_key(std::move(key)) {
+        set_cache_policy(frame_variant_cache("track_matte"));
+    }
 
     RenderGraphNodeKind kind()   const noexcept override { return RenderGraphNodeKind::TrackMatte; }
     std::string_view     name()   const noexcept override { return m_name; }
@@ -53,11 +55,9 @@ public:
         };
     }
 
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
-        return CacheFramePolicy::FrameInvariant;
+    cache::NodeCacheKey cache_key(const RenderGraphContext&) const override {
+        return m_key;
     }
-
-    cache::NodeCacheKey cache_key(const RenderGraphContext&) const override { return m_key; }
 
     OwnedFB execute(
         RenderGraphContext& ctx,

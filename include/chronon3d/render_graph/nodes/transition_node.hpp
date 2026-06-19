@@ -13,14 +13,12 @@ public:
                    Frame layer_from, Frame layer_duration)
         : m_layer_name(std::move(layer_name)), m_spec(std::move(spec)), m_is_out(is_out),
           m_layer_from(layer_from), m_layer_duration(layer_duration),
-          m_full_name("Transition (" + m_spec.transition_id + ")") {}
+          m_full_name("Transition (" + m_spec.transition_id + ")") {
+        set_cache_policy(frame_variant_cache("transition"));
+    }
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Transition; }
     std::string_view name() const noexcept override { return m_full_name; }
-
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
-        return CacheFramePolicy::FrameDependent;
-    }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         cache::NodeCacheKey key{

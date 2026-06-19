@@ -14,7 +14,9 @@ public:
                   Frame cache_frame = Frame{-1},
                   float world_z = 0.0f,
                   ::chronon3d::CompositeOperator op = ::chronon3d::CompositeOperator::SourceOver)
-        : m_mode(mode), m_cache_frame(cache_frame), m_world_z(world_z), m_operator(op) {}
+        : m_mode(mode), m_cache_frame(cache_frame), m_world_z(world_z), m_operator(op) {
+        set_cache_policy(frame_variant_cache("composite"));
+    }
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Composite; }
     std::string_view name() const noexcept override { return "Composite"; }
@@ -65,10 +67,6 @@ public:
 
         // SilhouetteAlpha / SilhouetteLuma → bottom only
         return *bottom;
-    }
-
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
-        return CacheFramePolicy::FrameInvariant;
     }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {

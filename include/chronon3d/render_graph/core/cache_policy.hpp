@@ -11,7 +11,9 @@ namespace chronon3d::graph {
 enum class CacheLifetime {
     /// Cache lives only for the current frame's execution (default for animated nodes).
     PerFrame,
-    /// Cache persists for the entire composition duration (static/invariant nodes).
+    /// Cache may persist across frames in the composition duration.
+    /// When `disk_cacheable` is also true, the policy is eligible for the
+    /// persistent disk bake (PersistentFramebufferStore).
     PersistentDisk
 };
 
@@ -30,22 +32,31 @@ enum class CacheInvalidation {
 // ---------------------------------------------------------------------------
 // RenderNodeCachePolicy
 // ---------------------------------------------------------------------------
-/// Describes the caching behaviour of a single RenderGraphNode.
-/// Replaces the simpler CacheFramePolicy with a richer, more expressive policy
-/// that the GraphExecutor can use to make smarter caching decisions.
+/// Canonical cache descriptor for a single RenderGraphNode.
+///
+/// The GraphExecutor reads ONLY `node.cache_policy()` and dispatches on:
+///   - `cacheable()` / `enabled()` to decide whether to skip lookup
+///   - `frame_dependent()` to decide whether the frame number belongs in the
+///     cache key
+///   - `persistent()` to decide whether the PersistentFramebufferStore may be
+///     queried
+///
+/// Builder passes set this at construction via `RenderGraphNode::set_cache_policy()`
+/// before the node is observed by the executor.
 struct RenderNodeCachePolicy {
     /// Whether the node's output can be cached at all.
     bool cacheable{true};
 
-    /// If false, the frame number is NOT part of the cache key.
-    /// Equivalent to CacheFramePolicy::FrameInvariant.
+    /// If `true`, the frame number is part of the cache key (frame-variant).
+    /// If `false`, the frame number is NOT part of the cache key (frame-invariant).
     bool frame_dependent{true};
 
-    /// If true, the output is invariant across frames (frame number not needed
-    /// as a cache dimension).  Implies frame_dependent == false.
+    /// Reserved inverse of `frame_dependent`; kept for forward compatibility.
+    /// Treat `frame_dependent` as the source of truth.
     bool frame_invariant{false};
 
-    /// Whether the cache entry can be serialized to disk (future).
+    /// Whether the cache entry is eligible for the persistent disk bake
+    /// (PersistentFramebufferStore).
     bool disk_cacheable{false};
 
     /// How long the cache entry should live.
@@ -56,43 +67,35 @@ struct RenderNodeCachePolicy {
 
     /// Human-readable reason for this policy (used in telemetry/debug).
     std::string debug_reason{"default"};
+
+    /// Combined accessor matching the spec pseudocode `policy.persistent()`:
+    /// the policy enables persistent (disk) lookup.
+    [[nodiscard]] constexpr bool persistent() const noexcept {
+        return disk_cacheable && lifetime == CacheLifetime::PersistentDisk;
+    }
+
+    /// Convenience: equivalent to `!cacheable`.  Used by GraphExecutor to take
+    /// the "no cache" path (still executes the node, but skips all lookup).
+    [[nodiscard]] constexpr bool enabled() const noexcept {
+        return cacheable;
+    }
 };
 
 // ---------------------------------------------------------------------------
-// Policy helpers
+// Policy factories (1:1 with the spec policies)
 // ---------------------------------------------------------------------------
-
-/// A fully static node whose output never changes once computed
-/// (e.g. grid background, static image source, static shape).
-inline RenderNodeCachePolicy static_memory_cache(std::string reason = {}) {
-    return RenderNodeCachePolicy{
-        .cacheable = true,
-        .frame_dependent = false,
-        .frame_invariant = true,
-        .disk_cacheable = true,
-        .lifetime = CacheLifetime::PersistentDisk,
-        .invalidation = CacheInvalidation::WhenParamsChange,
-        .debug_reason = reason.empty() ? "static_memory_cache" : std::move(reason)
-    };
-}
-
-/// An animated node whose output changes per-frame and must be re-evaluated
-/// each time, but is still cacheable within the same frame
-/// (e.g. animated transform, per-frame effect).
-inline RenderNodeCachePolicy animated_cache(std::string reason = {}) {
-    return RenderNodeCachePolicy{
-        .cacheable = true,
-        .frame_dependent = true,
-        .frame_invariant = false,
-        .disk_cacheable = false,
-        .lifetime = CacheLifetime::PerFrame,
-        .invalidation = CacheInvalidation::WhenInputsChange,
-        .debug_reason = reason.empty() ? "animated_cache" : std::move(reason)
-    };
-}
-
-/// A node that should never be cached under any circumstances
-/// (e.g. video source, motion blur, output node).
+//
+//   - `no_cache`              : never cache (Video, motion-blur, Output)
+//   - `frame_variant_cache`   : animated, cacheable within the same frame
+//   - `static_memory_cache`   : fully static, in-memory only
+//   - `static_persistent_cache`: fully static, eligible for disk bake
+//
+// The structure is intentionally small: every factory produces a struct the
+// executor reads, so adding a new factory never requires touching the
+// executor.
+//
+// `frame_variant_cache` is the safe default (most fresh node kinds fall under
+// "per-frame").
 inline RenderNodeCachePolicy no_cache(std::string reason = {}) {
     return RenderNodeCachePolicy{
         .cacheable = false,
@@ -102,6 +105,42 @@ inline RenderNodeCachePolicy no_cache(std::string reason = {}) {
         .lifetime = CacheLifetime::PerFrame,
         .invalidation = CacheInvalidation::Always,
         .debug_reason = reason.empty() ? "no_cache" : std::move(reason)
+    };
+}
+
+inline RenderNodeCachePolicy frame_variant_cache(std::string reason = {}) {
+    return RenderNodeCachePolicy{
+        .cacheable = true,
+        .frame_dependent = true,
+        .frame_invariant = false,
+        .disk_cacheable = false,
+        .lifetime = CacheLifetime::PerFrame,
+        .invalidation = CacheInvalidation::WhenInputsChange,
+        .debug_reason = reason.empty() ? "frame_variant_cache" : std::move(reason)
+    };
+}
+
+inline RenderNodeCachePolicy static_memory_cache(std::string reason = {}) {
+    return RenderNodeCachePolicy{
+        .cacheable = true,
+        .frame_dependent = false,
+        .frame_invariant = true,
+        .disk_cacheable = false,
+        .lifetime = CacheLifetime::PerFrame,
+        .invalidation = CacheInvalidation::WhenParamsChange,
+        .debug_reason = reason.empty() ? "static_memory_cache" : std::move(reason)
+    };
+}
+
+inline RenderNodeCachePolicy static_persistent_cache(std::string reason = {}) {
+    return RenderNodeCachePolicy{
+        .cacheable = true,
+        .frame_dependent = false,
+        .frame_invariant = true,
+        .disk_cacheable = true,
+        .lifetime = CacheLifetime::PersistentDisk,
+        .invalidation = CacheInvalidation::WhenParamsChange,
+        .debug_reason = reason.empty() ? "static_persistent_cache" : std::move(reason)
     };
 }
 

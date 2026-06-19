@@ -14,7 +14,9 @@ public:
         : m_source(std::move(source)),
           m_decoder(decoder),
           m_layer_start(layer_start),
-          m_full_name("Video:" + m_source.path) {}
+          m_full_name("Video:" + m_source.path) {
+        set_cache_policy(no_cache("video"));
+    }
 
     [[nodiscard]] RenderGraphNodeKind kind() const noexcept override {
         return RenderGraphNodeKind::Video;

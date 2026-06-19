@@ -90,7 +90,10 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
             stack.push_back(eff);
             auto node = std::make_unique<AdjustmentNode>(std::move(stack));
             GraphNodeId adj_id = graph.add_node(std::move(node));
-            graph.node(adj_id).set_frame_dependent(!(layer.cache_static || item.is_static));
+            const bool adj_static = layer.cache_static || item.is_static;
+            graph.node(adj_id).set_cache_policy(adj_static
+                ? static_persistent_cache()
+                : frame_variant_cache());
             graph.connect(current, adj_id);
             current = adj_id;
         }
@@ -134,7 +137,10 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
         auto matte_node = graph.add_node(
             std::make_unique<TrackMatteNode>(layer.track_matte.type,
                                               std::string(layer.name), matte_key));
-        graph.node(matte_node).set_frame_dependent(!(layer.cache_static || item.is_static));
+        const bool matte_static = layer.cache_static || item.is_static;
+        graph.node(matte_node).set_cache_policy(matte_static
+            ? static_persistent_cache()
+            : frame_variant_cache());
         graph.connect(layer_output, matte_node);
         graph.connect(item.matte_node, matte_node);
         layer_output = matte_node;
@@ -162,7 +168,8 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
             auto trans_node = graph.add_node(std::make_unique<TransitionNode>(
                 std::string(layer.name), active_spec, is_out, layer.from, layer.duration
             ));
-            graph.node(trans_node).set_frame_dependent(true);
+            // TransitionNode ctor already sets frame_variant_cache("transition");
+            // builder override is redundant because transitions are inherently per-frame.
             graph.connect(layer_output, trans_node);
             layer_output = trans_node;
         }

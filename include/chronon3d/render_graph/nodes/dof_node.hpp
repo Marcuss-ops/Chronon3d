@@ -17,12 +17,14 @@ namespace chronon3d::graph {
 class DofEffectNode final : public RenderGraphNode {
 public:
     DofEffectNode(Camera2_5DRuntime camera, float layer_world_z)
-        : m_camera(std::move(camera)), m_layer_world_z(layer_world_z) {}
+        : m_camera(std::move(camera)), m_layer_world_z(layer_world_z) {
+        set_cache_policy(frame_variant_cache("dof"));
+    }
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
     std::string_view name() const noexcept override { return "DOF"; }
 
-    [[nodiscard]] bool cacheable() const noexcept override { return true; }
+    [[nodiscard]] bool cacheable() const noexcept override { return cache_policy().cacheable; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         const float blur = compute_dof_blur_radius(m_camera.dof, m_camera.lens, m_layer_world_z,
@@ -30,7 +32,7 @@ public:
 
         return cache::NodeCacheKey{
             .scope = "dof",
-            .frame = frame_dependent() ? ctx.frame.frame : Frame{0},
+            .frame = cache_policy().frame_dependent ? ctx.frame.frame : Frame{0},
             .width = ctx.frame.width,
             .height = ctx.frame.height,
             .params_hash = hash_combine(
