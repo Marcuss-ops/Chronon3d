@@ -40,7 +40,7 @@ public:
     /// Called exactly once at engine startup to register this module's
     /// factories into the appropriate registries.  Must be idempotent
     /// (safe to call multiple times).
-    virtual void register_all() {}
+    virtual void register_all() = 0;
 };
 
 } // namespace chronon3d
