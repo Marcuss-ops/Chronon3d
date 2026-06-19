@@ -12,12 +12,10 @@
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
-// PR3: include the shared paint module via a path-relative form so the
-// build picks it up regardless of the public include/ root.  The new
-// header lives at src/backends/software/utils/ and is mirrored only
-// locally for sibling TUs in src/backends/software/processors/text/.
+#ifdef CHRONON3D_USE_BLEND2D
 #include "../../utils/blend2d_paint.hpp"
 #include <blend2d.h>
+#endif
 #include <cstdlib>
 #include <memory>
 #include <mutex>
@@ -25,6 +23,7 @@
 
 namespace chronon3d::renderer {
 
+#ifdef CHRONON3D_USE_BLEND2D
 // ── Blend2D color conversion ───────────────────────────────────────
 //
 // PR3: re-export the canonical `to_bl_rgba` from `blend2d_bridge::paint`
@@ -34,6 +33,7 @@ namespace chronon3d::renderer {
 // imports that previously resolved to the legacy local definition.
 
 using chronon3d::blend2d_bridge::paint::to_bl_rgba;
+#endif
 
 // ── Transform utilities ────────────────────────────────────────────
 
@@ -59,7 +59,10 @@ using chronon3d::blend2d_bridge::paint::to_bl_rgba;
 // ── Cache management ───────────────────────────────────────────────
 
 using CacheKey = u64;
+
+#ifdef CHRONON3D_USE_BLEND2D
 using ShadowCache = cache::LruCache<CacheKey, std::shared_ptr<BLImage>>;
+#endif
 
 // Injected capacities — set once at startup by SoftwareRenderer.
 // Static state in anonymous namespace (ODR-safe via `inline`).
@@ -81,6 +84,7 @@ inline void set_glow_cache_capacity(size_t max_bytes) {
     glow_cache_capacity_bytes() = max_bytes;
 }
 
+#ifdef CHRONON3D_USE_BLEND2D
 // Note: cache and mutex functions are `inline` (not `static inline`) to
 // guarantee a single shared instance across translation units.
 [[nodiscard]] inline ShadowCache& get_shadow_cache() {
@@ -96,6 +100,7 @@ inline void set_glow_cache_capacity(size_t max_bytes) {
         4);
     return cache;
 }
+#endif
 
 inline std::mutex& text_glow_cache_mutex() {
     static std::mutex m;

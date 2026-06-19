@@ -38,8 +38,12 @@ namespace group_bench {
 inline void register_all_groups(CLI::App& app, CliContext& ctx) {
     group_core::register_commands(app, ctx);
     group_render::register_commands(app, ctx);
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
     group_telemetry::register_commands(app, ctx);
+#endif
+#ifdef CHRONON3D_ENABLE_VIDEO
     group_video::register_commands(app, ctx);
+#endif
     group_dev::register_commands(app, ctx);
 #ifdef CHRONON3D_BUILD_BENCHMARKS
     group_bench::register_commands(app, ctx);

@@ -237,6 +237,8 @@ LayerBuilder& TextRunBuilder::commit() {
 // builder_params.hpp).
 // ═══════════════════════════════════════════════════════════════════════════
 
+#ifdef CHRONON3D_USE_BLEND2D
+
 namespace text_run_materialize_detail {
 
 /// Resolve the engine to use (caller-supplied preferred, falling back
@@ -356,5 +358,7 @@ std::shared_ptr<TextRunShape> materialize_text_run_shape(
     shape->shadows  = appearance.shadows;
     return shape;
 }
+
+#endif // CHRONON3D_USE_BLEND2D
 
 } // namespace chronon3d

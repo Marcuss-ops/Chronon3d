@@ -24,23 +24,38 @@ endfunction()
 # custom target as a missing rule).
 if(CHRONON3D_BUILD_TESTS)
 include(${CMAKE_CURRENT_SOURCE_DIR}/core_tests.cmake)
-include(${CMAKE_CURRENT_SOURCE_DIR}/animation_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/scene_tests.cmake)
-include(${CMAKE_CURRENT_SOURCE_DIR}/renderer_tests.cmake)
-include(${CMAKE_CURRENT_SOURCE_DIR}/io_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cli_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/optimizer_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cache_tests.cmake)
-include(${CMAKE_CURRENT_SOURCE_DIR}/content_tests.cmake)
-include(${CMAKE_CURRENT_SOURCE_DIR}/video_tests.cmake)
-include(${CMAKE_CURRENT_SOURCE_DIR}/media_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/compositor_tests.cmake)
-include(${CMAKE_CURRENT_SOURCE_DIR}/breathing_golden_tests.cmake)
-include(${CMAKE_CURRENT_SOURCE_DIR}/visual_tests.cmake)
-include(${CMAKE_CURRENT_SOURCE_DIR}/graphics_tests.cmake)
-include(${CMAKE_CURRENT_SOURCE_DIR}/gradient_visual_tests.cmake)
-include(${CMAKE_CURRENT_SOURCE_DIR}/deterministic_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/benchmarks.cmake)
+
+# Tests requiring Blend2D + text
+if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/animation_tests.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/renderer_tests.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/io_tests.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/breathing_golden_tests.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/visual_tests.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/graphics_tests.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/gradient_visual_tests.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/deterministic_tests.cmake)
+endif()
+
+# Tests requiring content
+if(CHRONON3D_BUILD_CONTENT)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/content_tests.cmake)
+endif()
+
+# Tests requiring video
+if(CHRONON3D_ENABLE_VIDEO)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/video_tests.cmake)
+endif()
+
+if(CHRONON3D_ENABLE_VIDEO)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/media_tests.cmake)
+endif()
 
 # ── Aggregate targets: build test executables grouped by cost/speed ──
 # Note: benchmarks are conditional; included only when TARGET chronon3d_benchmarks exists
@@ -59,9 +74,11 @@ set(CHRONON3D_FAST_TEST_DEPS
     chronon3d_optimizer_tests
     chronon3d_cache_tests
     chronon3d_compositor_tests
-    chronon3d_deterministic_tests
 )
-if(CHRONON3D_BUILD_CLI)
+if(CHRONON3D_USE_BLEND2D)
+    list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_deterministic_tests)
+endif()
+if(TARGET chronon3d_cli_tests)
     list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_cli_tests)
 endif()
 add_custom_target(chronon3d_tests_fast
@@ -69,24 +86,47 @@ add_custom_target(chronon3d_tests_fast
 )
 
 # Render tests: scene + renderer + golden + content (heavy, needs software backend + content)
+set(CHRONON3D_RENDER_TEST_DEPS "")
+if(TARGET chronon3d_renderer_tests)
+    list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_renderer_tests)
+endif()
+if(TARGET chronon3d_io_tests)
+    list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_io_tests)
+endif()
+if(TARGET chronon3d_animation_tests)
+    list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_animation_tests)
+endif()
+if(TARGET chronon3d_content_tests)
+    list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_content_tests)
+endif()
+if(TARGET chronon3d_breathing_golden_tests)
+    list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_breathing_golden_tests)
+endif()
+if(TARGET chronon3d_visual_test_support_tests)
+    list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_visual_test_support_tests)
+endif()
+if(TARGET chronon3d_camera_visual_tests)
+    list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_camera_visual_tests)
+endif()
+if(TARGET chronon3d_cinematic_motion_visual_tests)
+    list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_cinematic_motion_visual_tests)
+endif()
+if(TARGET chronon3d_gradient_visual_tests)
+    list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_gradient_visual_tests)
+endif()
 add_custom_target(chronon3d_tests_render
-    DEPENDS
-        chronon3d_renderer_tests
-        chronon3d_io_tests
-        chronon3d_animation_tests
-        chronon3d_content_tests
-        chronon3d_breathing_golden_tests
-        chronon3d_visual_test_support_tests
-        chronon3d_camera_visual_tests
-        chronon3d_cinematic_motion_visual_tests
-        chronon3d_gradient_visual_tests
+    DEPENDS ${CHRONON3D_RENDER_TEST_DEPS}
 )
 
 # Video tests: video pipeline tests (isolated, no pipeline dependency)
-add_custom_target(chronon3d_tests_video
-    DEPENDS
-        chronon3d_media_video_tests
-)
+if(TARGET chronon3d_media_video_tests)
+    add_custom_target(chronon3d_tests_video
+        DEPENDS
+            chronon3d_media_video_tests
+    )
+else()
+    add_custom_target(chronon3d_tests_video)
+endif()
 
 # All tests: everything
 add_custom_target(chronon3d_tests
@@ -97,5 +137,7 @@ add_custom_target(chronon3d_tests
         ${CHRONON3D_BENCHMARK_DEP}
 )
 
-add_dependencies(chronon3d_tests chronon3d_media_video_tests)
+if(TARGET chronon3d_media_video_tests)
+    add_dependencies(chronon3d_tests chronon3d_media_video_tests)
+endif()
 endif()

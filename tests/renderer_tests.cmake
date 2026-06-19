@@ -1,11 +1,19 @@
 # ── Renderer & Graph Tests ──
 
+# Blend2D-dependent test sources (only compiled when Blend2D is available)
+set(RENDERER_BLEND2D_TESTS "")
+if(CHRONON3D_USE_BLEND2D)
+    list(APPEND RENDERER_BLEND2D_TESTS
+        renderer/test_blend_pixel_nan.cpp
+    )
+endif()
+
 add_executable(chronon3d_renderer_tests
     ${TEST_MAIN}
     renderer/camera/test_camera_motion.cpp
     renderer/camera/test_animated_camera.cpp
     renderer/camera/test_camera_rig.cpp
-    renderer/test_blend_pixel_nan.cpp
+    ${RENDERER_BLEND2D_TESTS}
     renderer/camera/test_dof.cpp
     renderer/camera/test_lens_model.cpp
     renderer/camera/test_per_pixel_dof.cpp

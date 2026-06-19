@@ -290,7 +290,7 @@ Scene camera_test_orchestrator(
 
         std::string path = comp_name + "_report.json";
         if (ctx.frame != 90 && ctx.frame != 119) {
-            std::string frame_str = std::to_string(ctx.frame);
+            std::string frame_str = std::to_string(static_cast<int>(ctx.frame));
             while (frame_str.length() < 4) frame_str = "0" + frame_str;
             path = comp_name + "_report_" + frame_str + ".json";
         }

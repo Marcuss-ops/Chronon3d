@@ -4,7 +4,9 @@
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/telemetry/telemetry_bundle.hpp>
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
+#endif
 #include <chronon3d/cache/framebuffer_pool.hpp>
 
 #include <spdlog/spdlog.h>
@@ -136,6 +138,7 @@ void record_pipe_telemetry(
     const int encoded_frames = pipe_encoded_frame_count(loop_result.status);
     const auto& counters = session.renderer->counters();
 
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
     cli::telemetry::record_output_run(
         composition_id, session.opts.output.output, loop_result.status.success,
         static_cast<int>(session.total_frames), encoded_frames,
@@ -144,6 +147,7 @@ void record_pipe_telemetry(
         telemetry.node_events, counters, mutable_frames,
         telemetry.layer_events, telemetry.cache_events, telemetry.culling_events,
         telemetry.text_events, telemetry.image_events, telemetry.tile_events);
+#endif
 }
 
 } // namespace chronon3d::cli

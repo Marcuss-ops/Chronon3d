@@ -47,6 +47,7 @@ int command_verify(const CompositionRegistry& registry, const std::string& outpu
         }
     }
 
+#ifdef CHRONON3D_HAS_CLI_VIDEO
     {
         VideoCameraArgs camera_args;
         camera_args.axis = "Pan";
@@ -55,6 +56,7 @@ int command_verify(const CompositionRegistry& registry, const std::string& outpu
             exit_code = 1;
         }
     }
+#endif
 
     return exit_code;
 }

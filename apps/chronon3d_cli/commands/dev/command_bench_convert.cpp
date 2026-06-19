@@ -21,6 +21,8 @@ using namespace video;
 
 // ── BenchConvertArgs is defined in commands.hpp ──
 
+#ifdef CHRONON3D_HAS_CLI_VIDEO
+
 static uint64_t now_ns() {
     return profiling::timestamp_ns();
 }
@@ -139,12 +141,14 @@ static BenchResult run_swscale_bench(
         .gb_s = gb_s,
     };
 }
+#endif // CHRONON3D_HAS_CLI_VIDEO
 
 // ==========================================================================
 //  Public entry point: command_bench_convert
 // ==========================================================================
 
 int command_bench_convert(const CompositionRegistry& registry, const BenchConvertArgs& args) {
+#ifdef CHRONON3D_HAS_CLI_VIDEO
     const std::string fmt = normalize_output_format(args.format);
     if (fmt != "yuv420p" && fmt != "nv12") {
         spdlog::error(
@@ -208,6 +212,10 @@ int command_bench_convert(const CompositionRegistry& registry, const BenchConver
     spdlog::info("{}", out.str());
 
     return 0;
+#else
+    spdlog::error("benchconvert requires video support (CHRONON3D_ENABLE_VIDEO). Rebuild with video enabled to use this command.");
+    return 1;
+#endif
 }
 
 } // namespace chronon3d::cli

@@ -48,7 +48,12 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     spdlog::info("[video] Rendering {} frames [{}, {}) at {} fps in {} chunks → {}",
                  total, start, end, opts.output.fps, chunks, opts.output.output);
 
-    const auto started_at_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
+    const auto started_at_iso =
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
+        chronon3d::telemetry::TelemetryManager::get_current_iso_time();
+#else
+        std::string{};
+#endif
     const auto wall_t0 = profiling::now();
     const auto setup_t0 = wall_t0;
     chronon3d::RenderCounters aggregate_counters{};
@@ -287,6 +292,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     // On failure, report 0 written frames to avoid misleading telemetry
     // where frames_written=total but the video encode (ffmpeg) failed.
     const int encoded_frames = success ? frames_written : 0;
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
     cli::telemetry::record_output_run(
         /*composition_id=*/composition_id,
         /*output_path=*/opts.output.output,
@@ -308,6 +314,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
         /*text_events=*/text_events,
         /*image_events=*/image_events,
         /*tile_events=*/tile_events);
+#endif
 
     if (!success) {
         return result;

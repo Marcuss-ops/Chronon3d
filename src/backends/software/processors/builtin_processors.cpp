@@ -12,7 +12,9 @@ std::unique_ptr<ShapeProcessor> create_tiled_image_processor();
 std::unique_ptr<ShapeProcessor> create_grid_background_processor();
 std::unique_ptr<ShapeProcessor> create_mesh_processor();
 std::unique_ptr<ShapeProcessor> create_line_processor();
+#ifdef CHRONON3D_USE_BLEND2D
 std::unique_ptr<ShapeProcessor> create_path_processor();
+#endif
 std::unique_ptr<ShapeProcessor> create_fake_box3d_processor();
 std::unique_ptr<ShapeProcessor> create_grid_plane_processor();
 #ifdef CHRONON3D_ENABLE_TEXT
@@ -42,7 +44,9 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     registry.register_shape(ShapeType::RoundedRect, create_shape_processor());
 
     registry.register_shape(ShapeType::Line, create_line_processor());
+#ifdef CHRONON3D_USE_BLEND2D
     registry.register_shape(ShapeType::Path, create_path_processor());
+#endif
     registry.register_shape(ShapeType::Image, create_image_processor());
     registry.register_shape(ShapeType::TiledImage, create_tiled_image_processor());
     registry.register_shape(ShapeType::GridBackground, create_grid_background_processor());

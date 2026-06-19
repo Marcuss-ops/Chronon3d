@@ -37,6 +37,7 @@ target_include_directories(chronon3d_cli_render PRIVATE ${CMAKE_SOURCE_DIR} ${CM
 target_link_libraries(chronon3d_cli_render PRIVATE chronon3d_cli_core chronon3d_pipeline chronon3d_backend_image CLI11::CLI11 spdlog::spdlog_header_only fmt::fmt)
 
 # Group: Video (video, ffmpeg_pipe)
+if(CHRONON3D_ENABLE_VIDEO)
 add_library(chronon3d_cli_video STATIC
     commands/group_video.cpp
     commands/video/register_video_commands.cpp
@@ -72,8 +73,10 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_link_libraries(chronon3d_cli_video PRIVATE chronon3d_ffmpeg_full)
     target_compile_definitions(chronon3d_cli_video PRIVATE CHRONON3D_ENABLE_NATIVE_FFMPEG)
 endif()
+endif() # CHRONON3D_ENABLE_VIDEO
 
 # Group: Telemetry (telemetry summary/report)
+if(CHRONON3D_ENABLE_TELEMETRY)
 add_library(chronon3d_cli_telemetry STATIC
     commands/group_telemetry.cpp
     commands/telemetry/register_telemetry_commands.cpp
@@ -82,10 +85,8 @@ add_library(chronon3d_cli_telemetry STATIC
     commands/telemetry/command_telemetry_summary.cpp
 )
 target_include_directories(chronon3d_cli_telemetry PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)
-target_link_libraries(chronon3d_cli_telemetry PRIVATE chronon3d_cli_core chronon3d_pipeline CLI11::CLI11 spdlog::spdlog_header_only fmt::fmt)
-if(CHRONON3D_ENABLE_TELEMETRY)
-    target_link_libraries(chronon3d_cli_telemetry PRIVATE unofficial::sqlite3::sqlite3)
-    target_compile_definitions(chronon3d_cli_telemetry PUBLIC CHRONON3D_ENABLE_SQLITE_TELEMETRY)
+target_link_libraries(chronon3d_cli_telemetry PRIVATE chronon3d_cli_core chronon3d_pipeline CLI11::CLI11 spdlog::spdlog_header_only fmt::fmt unofficial::sqlite3::sqlite3)
+target_compile_definitions(chronon3d_cli_telemetry PUBLIC CHRONON3D_ENABLE_SQLITE_TELEMETRY)
 endif()
 
 # Group: Dev (batch, studio, inspect)
@@ -103,7 +104,11 @@ add_library(chronon3d_cli_dev STATIC
     utils/batch/batch_runner.cpp
 )
 target_include_directories(chronon3d_cli_dev PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)
-target_link_libraries(chronon3d_cli_dev PRIVATE chronon3d_cli_core chronon3d_cli_render chronon3d_cli_video chronon3d_pipeline CLI11::CLI11 spdlog::spdlog_header_only fmt::fmt)
+target_link_libraries(chronon3d_cli_dev PRIVATE chronon3d_cli_core chronon3d_cli_render chronon3d_pipeline CLI11::CLI11 spdlog::spdlog_header_only fmt::fmt)
+if(TARGET chronon3d_cli_video)
+    target_link_libraries(chronon3d_cli_dev PRIVATE chronon3d_cli_video)
+    target_compile_definitions(chronon3d_cli_dev PRIVATE CHRONON3D_HAS_CLI_VIDEO)
+endif()
 
 # Group: Bench (benchmark commands)
 add_library(chronon3d_cli_bench STATIC
@@ -131,8 +136,6 @@ get_target_property(CLI11_INCLUDE_DIRS CLI11::CLI11 INTERFACE_INCLUDE_DIRECTORIE
 target_link_libraries(chronon3d_cli PRIVATE
     chronon3d_cli_core
     chronon3d_cli_render
-    chronon3d_cli_telemetry
-    chronon3d_cli_video
     chronon3d_cli_dev
     chronon3d_cli_bench
     chronon3d_backend_image
@@ -140,6 +143,12 @@ target_link_libraries(chronon3d_cli PRIVATE
     spdlog::spdlog_header_only
     fmt::fmt
 )
+if(TARGET chronon3d_cli_video)
+    target_link_libraries(chronon3d_cli PRIVATE chronon3d_cli_video)
+endif()
+if(TARGET chronon3d_cli_telemetry)
+    target_link_libraries(chronon3d_cli PRIVATE chronon3d_cli_telemetry)
+endif()
 
 if(CLI11_INCLUDE_DIRS)
     target_include_directories(chronon3d_cli PRIVATE ${CLI11_INCLUDE_DIRS})
@@ -168,7 +177,6 @@ target_precompile_headers(chronon3d_cli PRIVATE
     <spdlog/spdlog.h> <CLI/CLI.hpp>
 )
 
-# SQLite for telemetry group (only when CHRONON3D_ENABLE_TELEMETRY=ON)
 if(CHRONON3D_ENABLE_TELEMETRY)
     target_link_libraries(chronon3d_cli PRIVATE unofficial::sqlite3::sqlite3)
 endif()
@@ -185,10 +193,14 @@ endif()
 set_target_properties(
     chronon3d_cli_core
     chronon3d_cli_render
-    chronon3d_cli_video
-    chronon3d_cli_telemetry
     chronon3d_cli_dev
     chronon3d_cli_bench
     chronon3d_cli
     PROPERTIES UNITY_BUILD OFF
 )
+if(TARGET chronon3d_cli_video)
+    set_target_properties(chronon3d_cli_video PROPERTIES UNITY_BUILD OFF)
+endif()
+if(TARGET chronon3d_cli_telemetry)
+    set_target_properties(chronon3d_cli_telemetry PROPERTIES UNITY_BUILD OFF)
+endif()
