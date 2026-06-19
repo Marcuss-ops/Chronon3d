@@ -193,8 +193,10 @@ target_link_libraries(chronon3d_graph_pipeline
         chronon3d_graph_cache
     PRIVATE
         chronon3d_extension
-        chronon3d_content   # <-- register_content_modules() impl
 )
+if(CHRONON3D_BUILD_CONTENT)
+    target_link_libraries(chronon3d_graph_pipeline PRIVATE chronon3d_content)   # <-- register_content_modules() impl
+endif()
 target_precompile_headers(chronon3d_graph_pipeline PRIVATE
     <glm/glm.hpp>
     <glm/gtc/matrix_transform.hpp>

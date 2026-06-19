@@ -11,7 +11,9 @@ void register_all_commands(CLI::App& app, CliContext& ctx) {
     register_bench_commands(app, ctx);
 #endif
     register_dev_commands(app, ctx);
+#ifdef CHRONON3D_ENABLE_TELEMETRY
     register_telemetry_commands(app, ctx);
+#endif
     register_bake_layer_commands(app, ctx);
 }
 
