@@ -41,9 +41,6 @@ if(CHRONON3D_ENABLE_VIDEO)
         target_link_libraries(chronon3d_backend_video PUBLIC chronon3d_ffmpeg_light)
     endif()
 
-    if(CHRONON3D_ENABLE_LIBYUV)
-        target_link_libraries(chronon3d_backend_video PRIVATE yuv)
-    endif()
     target_include_directories(chronon3d_backend_video PRIVATE ${CMAKE_SOURCE_DIR})
 endif()
 
