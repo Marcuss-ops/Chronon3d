@@ -39,8 +39,9 @@ public:
     ///   - `centered`         : canvas centroid (matches SourceNode).
     ///   - `uses_2_5d_projection` : 2.5D camera pipeline branch.
     ///   - `matrix_override`  / `opacity_override` : modular-coordinates plumbing.
-    ///   - `cache_static`     : when true the node is FrameInvariant and
-    ///                          eligible for persistent disk bake.
+    /// Cache policy is decided at construction time — pass a
+    /// `frame_variant_cache("text_run")` for animated text,
+    /// `static_memory_cache("text_run")` (default) for static.
     TextRunNode(
         std::string name,
         std::shared_ptr<TextRunShape> shape,
@@ -50,7 +51,6 @@ public:
         bool uses_2_5d_projection = false,
         std::optional<Mat4> matrix_override = std::nullopt,
         std::optional<f32> opacity_override = std::nullopt,
-        bool cache_static = false,
         RenderNodeCachePolicy policy = static_memory_cache("text_run")
     );
 
@@ -100,7 +100,6 @@ public:
     const ::chronon3d::RenderNode& render_node() const { return m_render_ref; }
     const std::shared_ptr<TextRunShape>& shape() const { return m_shape; }
     bool uses_2_5d_projection() const { return m_uses_2_5d_projection; }
-    bool cache_static() const { return m_cache_static; }
 
 private:
     std::string m_name;

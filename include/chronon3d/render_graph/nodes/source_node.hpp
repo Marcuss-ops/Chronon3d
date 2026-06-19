@@ -10,12 +10,10 @@ class SourceNode final : public RenderGraphNode {
 public:
     SourceNode(std::string name, const ::chronon3d::RenderNode& node, const cache::NodeCacheKey& key,
                bool centered = false, bool uses_2_5d_projection = false, std::optional<Mat4> matrix_override = std::nullopt,
-               std::optional<f32> opacity_override = std::nullopt, bool cache_static = false,
+               std::optional<f32> opacity_override = std::nullopt,
                RenderNodeCachePolicy policy = static_memory_cache("source"))
         : m_name(std::move(name)), m_node(node), m_key(key), m_centered(centered), m_uses_2_5d_projection(uses_2_5d_projection),
-          m_matrix_override(matrix_override), m_opacity_override(opacity_override), m_cache_policy(policy) {
-        (void)cache_static;
-    }
+          m_matrix_override(matrix_override), m_opacity_override(opacity_override), m_cache_policy(policy) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
     std::string_view name() const noexcept override { return m_name; }

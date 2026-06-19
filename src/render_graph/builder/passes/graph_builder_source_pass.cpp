@@ -99,9 +99,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                         item.projected,
                         ctx.options.modular_coordinates ? std::optional<Mat4>(run_matrix) : std::nullopt,
                         ctx.options.modular_coordinates ? std::optional<f32>(run_opacity) : std::nullopt,
-                        source_is_static
+                        source_is_static ? static_memory_cache("text_run") : frame_variant_cache("text_run")
                     ));
-                    graph.node(source)/* pr2-disable: set_frame_dependent(!source_is_static); */
 
                     if (ctx.options.diagnostics_enabled) {
                         spdlog::info(
@@ -143,9 +142,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     item.projected,
                     ctx.options.modular_coordinates ? std::optional<Mat4>(text_matrix) : std::nullopt,
                     ctx.options.modular_coordinates ? std::optional<f32>(text_opacity) : std::nullopt,
-                    source_is_static
+                    source_is_static ? static_memory_cache("source") : frame_variant_cache("source")
                 ));
-                graph.node(source).set_frame_dependent(!source_is_static);
             } else {
                 cache::NodeCacheKey source_key{
                     .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
@@ -169,9 +167,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     item.projected,
                     ctx.options.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::nullopt,
                     ctx.options.modular_coordinates ? std::optional<f32>(shape_opacity) : std::nullopt,
-                    source_is_static
+                    source_is_static ? static_memory_cache("source") : frame_variant_cache("source")
                 ));
-                graph.node(source).set_frame_dependent(!source_is_static);
             }
             return source;
         }
@@ -257,9 +254,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             source_key,
             should_use_centered_rendering(item, ctx),
             item.projected,
-            source_is_static
+            source_is_static ? static_memory_cache("multi_source") : frame_variant_cache("multi_source")
         ));
-        graph.node(multi_source).set_frame_dependent(!source_is_static);
         return multi_source;
     }
 
@@ -303,17 +299,17 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 "source.precomp factory is not registered");
         }
 
-        auto precomp_id = graph.add_node(std::move(node));
-        graph.node(precomp_id).set_frame_dependent(!is_static);
-        return precomp_id;
+        // PR2-cleanup: precomp cache policy is fixed at the catalog factory
+        // (PrecompNode is catalog-constructed, no in-place mutation path).
+        return graph.add_node(std::move(node));
     }
 
     if (layer.kind == LayerKind::Video && layer.video_source) {
-        auto video_id = graph.add_node(std::make_unique<VideoNode>(
+        // PR2-cleanup: VideoNode is intrinsically frame-variant per its ctor;
+        // the cache policy is baked in by the factory.
+        return graph.add_node(std::make_unique<VideoNode>(
             *layer.video_source, ctx.resources.video_decoder, layer.from
         ));
-        graph.node(video_id).set_frame_dependent(true);
-        return video_id;
     }
 
     return graph.add_node(std::make_unique<ClearNode>());

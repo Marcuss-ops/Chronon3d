@@ -16,8 +16,8 @@ struct MultiSourceItem {
 class MultiSourceNode final : public RenderGraphNode {
 public:
     MultiSourceNode(std::string name, std::vector<MultiSourceItem> items, const cache::NodeCacheKey& key,
-                    bool centered = false, bool uses_2_5d_projection = false, bool cache_static = false,
-               RenderNodeCachePolicy policy = static_memory_cache("multi_source"));
+                    bool centered = false, bool uses_2_5d_projection = false,
+                    RenderNodeCachePolicy policy = static_memory_cache("multi_source"));
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
     std::string_view name() const noexcept override { return m_name; }
@@ -48,7 +48,7 @@ public:
         const cache::NodeCacheKey& key,
         bool centered = false,
         bool uses_2_5d_projection = false,
-        bool cache_static = false
+        RenderNodeCachePolicy policy = static_memory_cache("multi_source")
     ) {
         m_name = std::move(name);
         m_items = std::move(items);

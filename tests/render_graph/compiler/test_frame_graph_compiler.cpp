@@ -14,13 +14,18 @@ namespace {
 
 class CompilerTestNode final : public RenderGraphNode {
 public:
-    explicit CompilerTestNode(std::string n, bool cache = true, bool frame_dep = false)
-        : m_name(std::move(n)), m_cacheable(cache) {
-        set_frame_dependent(frame_dep);
-    }
+    // PR2-cleanup: cache policy is decided at construction; legacy
+    // `bool cache` / `bool frame_dep` ctor args and `m_cacheable` member were dropped.
+    explicit CompilerTestNode(std::string n,
+                               RenderNodeCachePolicy policy = static_memory_cache("test"))
+        : m_name(std::move(n)), m_cache_policy(policy) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
     [[nodiscard]] std::string_view name() const noexcept override { return m_name; }
+
+    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
+        return m_cache_policy;
+    }
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,
@@ -43,7 +48,7 @@ public:
 
 private:
     std::string m_name;
-    bool m_cacheable;
+    RenderNodeCachePolicy m_cache_policy;
 };
 
 } // namespace

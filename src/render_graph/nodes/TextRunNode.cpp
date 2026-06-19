@@ -22,7 +22,7 @@ TextRunNode::TextRunNode(
     bool uses_2_5d_projection,
     std::optional<Mat4> matrix_override,
     std::optional<f32> opacity_override,
-    bool cache_static
+    RenderNodeCachePolicy policy
 )
     : m_name(std::move(name)),
       m_shape(std::move(shape)),
@@ -32,7 +32,7 @@ TextRunNode::TextRunNode(
       m_uses_2_5d_projection(uses_2_5d_projection),
       m_matrix_override(std::move(matrix_override)),
       m_opacity_override(std::move(opacity_override)),
-      m_cache_static(cache_static)
+      m_cache_policy(policy)
 {}
 
 // =============================================================================
