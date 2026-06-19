@@ -15,6 +15,7 @@
 #include <string>
 #include <cmath>
 #include <tbb/global_control.h>
+#include <tbb/task_arena.h>
 using namespace chronon3d;
 
 using namespace chronon3d::test;
@@ -73,6 +74,53 @@ static void log_first_divergent_pixel(const chronon3d::Framebuffer& a,
             }
         }
     }
+}
+
+// ── Experiment: tbb::task_arena-wrapped rendering ────────────────────────
+//
+// Hypothesis (TICKET-001 followup): forcing a fresh `tbb::task_arena` per
+// render frame may restore cross-thread-count equivalence in the
+// deterministic tests, because the renderer's internal `tbb::parallel_for`
+// calls inherit the *current explicit arena's* slot count when invoked
+// from inside `arena.execute(lambda)`, and each arena is wound down
+// (releasing its worker thread-local caches) before the next arena is
+// constructed.
+//
+// `slots <= 0` selects the default-slot arena (= max_allowed_parallelism
+// from the surrounding `tbb::global_control`).  Positive slots force
+// that exact parallelism regardless of global_control, so tests 3-4
+// replace their existing `tbb::global_control gc(max, N)` blocks with a
+// direct `render_in_arena(N, renderer, comp, 0)` call — the arena
+// pinpoints the slot count without relying on global state.
+//
+// If the experiment restores determinism, the root cause was TBB
+// scheduler-state leakage between `parallel_for` invocations.  If it
+// does NOT restore determinism, the root cause is presumably
+// algorithmic (e.g. SIMD intermediate-register state, float-reduction
+// order) which task_arena cannot address.
+struct ArenaRenderResult {
+    std::shared_ptr<Framebuffer> fb;
+    u64 hash = 0;
+};
+
+template <typename Renderer>
+static ArenaRenderResult render_in_arena(int slots, Renderer& r,
+                                          const Composition& comp, Frame frame) {
+    ArenaRenderResult out;
+    auto body = [&] {
+        auto fb = r.render_frame(comp, frame);
+        if (!fb) return;
+        out.fb = std::move(fb);
+        out.hash = framebuffer_hash(*out.fb);
+    };
+    if (slots > 0) {
+        tbb::task_arena arena(slots);
+        arena.execute(body);
+    } else {
+        tbb::task_arena arena;
+        arena.execute(body);
+    }
+    return out;
 }
 
 namespace {
@@ -249,25 +297,28 @@ TEST_CASE("Gradient determinism: cold cache vs warm cache — identical pixels")
     CHECK(hash_cold == hash_warm);
 }
 
-TEST_CASE("Gradient determinism: cache invalidated → rebuilt — identical pixels") {
+TEST_CASE("Gradient determinism: cache invalidated → rebuilt — identical pixels (arena-reset)") {
     auto comp = make_gradient_static_comp();
     auto renderer = make_renderer();
 
-    auto fb_cached = renderer.render_frame(comp, 0);
-    REQUIRE(fb_cached != nullptr);
-    const u64 hash_cached = framebuffer_hash(*fb_cached);
+    auto res_cached = render_in_arena(/*slots=*/0, renderer, comp, Frame{0});
+    REQUIRE(res_cached.fb != nullptr);
+    const u64 hash_cached = res_cached.hash;
 
-    // Invalidate all caches, force rebuild
+    // Invalidate all caches, force rebuild — fresh arena isolates the
+    // rebuild path's TBB scheduler state from the cached path's.
     renderer.clear_caches();
-    auto fb_rebuilt = renderer.render_frame(comp, 0);
-    REQUIRE(fb_rebuilt != nullptr);
-    const u64 hash_rebuilt = framebuffer_hash(*fb_rebuilt);
+    auto res_rebuilt = render_in_arena(/*slots=*/0, renderer, comp, Frame{0});
+    REQUIRE(res_rebuilt.fb != nullptr);
+    const u64 hash_rebuilt = res_rebuilt.hash;
 
     INFO("Cached hash: " << hash_cached << ", Rebuilt hash: " << hash_rebuilt);
+    if (hash_cached != hash_rebuilt) {
+        log_first_divergent_pixel(*res_cached.fb, *res_rebuilt.fb, "cached", "rebuilt");
+    }
     CHECK(hash_cached == hash_rebuilt);
 
-    // Verify pixel-level semantic equality too
-    auto diff = compare_framebuffers_semantic(*fb_cached, *fb_rebuilt);
+    auto diff = compare_framebuffers_semantic(*res_cached.fb, *res_rebuilt.fb);
     CHECK(diff.mismatched_pixels == 0);
     CHECK(diff.max_channel_error == 0.0f);
 }
@@ -276,95 +327,73 @@ TEST_CASE("Gradient determinism: cache invalidated → rebuilt — identical pix
 //  DoD Determinism Test 3: New renderer vs reused renderer
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST_CASE("Gradient determinism: new renderer vs same renderer — identical pixels") {
+TEST_CASE("Gradient determinism: new renderer vs reused renderer — identical pixels (arena-reset)") {
     auto comp = make_gradient_static_comp();
 
-    // Fresh renderer A
+    // Fresh renderer A — first two renders share the same renderer so the
+    // "reuse" determinism is exercised; each frame is isolated by a fresh arena.
     auto renderer_a = make_renderer();
-    auto fb_a1 = renderer_a.render_frame(comp, 0);
-    REQUIRE(fb_a1 != nullptr);
+    auto res_a1 = render_in_arena(/*slots=*/0, renderer_a, comp, Frame{0});
+    REQUIRE(res_a1.fb != nullptr);
+    auto res_a2 = render_in_arena(/*slots=*/0, renderer_a, comp, Frame{0});
+    REQUIRE(res_a2.fb != nullptr);
 
-    // Second render on same renderer (reused)
-    auto fb_a2 = renderer_a.render_frame(comp, 0);
-    REQUIRE(fb_a2 != nullptr);
-
-    // Fresh renderer B (completely new instance)
+    // Fresh renderer B — completely new instance, isolated by a 3rd arena.
     auto renderer_b = make_renderer();
-    auto fb_b = renderer_b.render_frame(comp, 0);
-    REQUIRE(fb_b != nullptr);
+    auto res_b  = render_in_arena(/*slots=*/0, renderer_b, comp, Frame{0});
+    REQUIRE(res_b.fb != nullptr);
 
-    const u64 hash_a1 = framebuffer_hash(*fb_a1);
-    const u64 hash_a2 = framebuffer_hash(*fb_a2);
-    const u64 hash_b  = framebuffer_hash(*fb_b);
-
-    CHECK(hash_a1 == hash_a2);
-    CHECK(hash_a1 == hash_b);
+    INFO("Hashes — a1=" << res_a1.hash
+         << ", a2=" << res_a2.hash
+         << ", b="  << res_b.hash);
+    if (res_a1.hash != res_a2.hash) {
+        log_first_divergent_pixel(*res_a1.fb, *res_a2.fb, "A1", "A2");
+    }
+    if (res_a1.hash != res_b.hash) {
+        log_first_divergent_pixel(*res_a1.fb, *res_b.fb, "A1", "B");
+    }
+    CHECK(res_a1.hash == res_a2.hash);
+    CHECK(res_a1.hash == res_b.hash);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 //  DoD Determinism Test 4: Single-thread vs multi-thread
 // ═══════════════════════════════════════════════════════════════════════
 
-TEST_CASE("Gradient determinism: 1 thread vs 4 threads — identical pixels") {
+TEST_CASE("Gradient determinism: 1 thread vs 4 threads — identical pixels (arena-reset)") {
     auto comp = make_gradient_static_comp();
 
-    std::shared_ptr<Framebuffer> fb_1t;
-    std::shared_ptr<Framebuffer> fb_4t;
-    u64 hash_1t = 0;
-    u64 hash_4t = 0;
-    {
-        tbb::global_control gc(tbb::global_control::max_allowed_parallelism, 1);
-        auto renderer = make_renderer();
-        auto fb = renderer.render_frame(comp, 0);
-        REQUIRE(fb != nullptr);
-        fb_1t = fb;
-        hash_1t = framebuffer_hash(*fb);
-    }
-    {
-        tbb::global_control gc(tbb::global_control::max_allowed_parallelism, 4);
-        auto renderer = make_renderer();
-        auto fb = renderer.render_frame(comp, 0);
-        REQUIRE(fb != nullptr);
-        fb_4t = fb;
-        hash_4t = framebuffer_hash(*fb);
-    }
+    auto renderer_1t = make_renderer();
+    auto res_1t = render_in_arena(/*slots=*/1, renderer_1t, comp, Frame{0});
+    REQUIRE(res_1t.fb != nullptr);
 
-    INFO("1-thread hash: " << hash_1t << ", 4-thread hash: " << hash_4t);
-    if (hash_1t != hash_4t) {
-        log_first_divergent_pixel(*fb_1t, *fb_4t, "1T", "4T");
+    auto renderer_4t = make_renderer();
+    auto res_4t = render_in_arena(/*slots=*/4, renderer_4t, comp, Frame{0});
+    REQUIRE(res_4t.fb != nullptr);
+
+    INFO("1-thread hash: " << res_1t.hash << ", 4-thread hash: " << res_4t.hash);
+    if (res_1t.hash != res_4t.hash) {
+        log_first_divergent_pixel(*res_1t.fb, *res_4t.fb, "1T", "4T");
     }
-    CHECK(hash_1t == hash_4t);
+    CHECK(res_1t.hash == res_4t.hash);
 }
 
-TEST_CASE("Gradient determinism: 1 thread vs 8 threads — identical pixels") {
+TEST_CASE("Gradient determinism: 1 thread vs 8 threads — identical pixels (arena-reset)") {
     auto comp = make_gradient_static_comp();
 
-    std::shared_ptr<Framebuffer> fb_1t;
-    std::shared_ptr<Framebuffer> fb_8t;
-    u64 hash_1t = 0;
-    u64 hash_8t = 0;
-    {
-        tbb::global_control gc(tbb::global_control::max_allowed_parallelism, 1);
-        auto renderer = make_renderer();
-        auto fb = renderer.render_frame(comp, 0);
-        REQUIRE(fb != nullptr);
-        fb_1t = fb;
-        hash_1t = framebuffer_hash(*fb);
-    }
-    {
-        tbb::global_control gc(tbb::global_control::max_allowed_parallelism, 8);
-        auto renderer = make_renderer();
-        auto fb = renderer.render_frame(comp, 0);
-        REQUIRE(fb != nullptr);
-        fb_8t = fb;
-        hash_8t = framebuffer_hash(*fb);
-    }
+    auto renderer_1t = make_renderer();
+    auto res_1t = render_in_arena(/*slots=*/1, renderer_1t, comp, Frame{0});
+    REQUIRE(res_1t.fb != nullptr);
 
-    INFO("1-thread hash: " << hash_1t << ", 8-thread hash: " << hash_8t);
-    if (hash_1t != hash_8t) {
-        log_first_divergent_pixel(*fb_1t, *fb_8t, "1T", "8T");
+    auto renderer_8t = make_renderer();
+    auto res_8t = render_in_arena(/*slots=*/8, renderer_8t, comp, Frame{0});
+    REQUIRE(res_8t.fb != nullptr);
+
+    INFO("1-thread hash: " << res_1t.hash << ", 8-thread hash: " << res_8t.hash);
+    if (res_1t.hash != res_8t.hash) {
+        log_first_divergent_pixel(*res_1t.fb, *res_8t.fb, "1T", "8T");
     }
-    CHECK(hash_1t == hash_8t);
+    CHECK(res_1t.hash == res_8t.hash);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
