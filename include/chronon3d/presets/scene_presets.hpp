@@ -52,9 +52,9 @@ inline FillStyle linear_gradient_h(Color left, Color right) {
     });
 }
 
-// Helper: create TextParams with minimal boilerplate.
+// Helper: create TextSpec with minimal boilerplate.
 // Uses named fields in declaration order to satisfy C++20 designated initializers.
-inline TextParams text_preset(
+inline TextSpec text_preset(
     std::string text,
     f32 font_size,
     int font_weight,
@@ -66,18 +66,18 @@ inline TextParams text_preset(
     std::string font_family = "Inter",
     std::string font_style = "normal"
 ) {
-    TextParams tp;
-    tp.text = std::move(text);
-    tp.size = size;
-    tp.pos = pos;
-    tp.font_path = std::move(font_path);
-    tp.font_family = std::move(font_family);
-    tp.font_weight = font_weight;
-    tp.font_style = std::move(font_style);
-    tp.font_size = font_size;
-    tp.color = color;
-    tp.align = align;
-    tp.vertical_align = VerticalAlign::Middle;
+    TextSpec tp;
+    tp.content.value = std::move(text);
+    tp.layout.box = size;
+    tp.position = pos;
+    tp.font.font_path = std::move(font_path);
+    tp.font.font_family = std::move(font_family);
+    tp.font.font_weight = font_weight;
+    tp.font.font_style = std::move(font_style);
+    tp.font.font_size = font_size;
+    tp.appearance.color = color;
+    tp.layout.align = align;
+    tp.layout.vertical_align = VerticalAlign::Middle;
     return tp;
 }
 

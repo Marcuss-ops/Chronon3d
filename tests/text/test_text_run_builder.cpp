@@ -24,18 +24,18 @@ namespace {
 /// Tiny helper: build a TextRun with `count` glyphs.
 TextRunParams make_text_run_params(std::string text, f32 font_size = 72.0f) {
     TextRunParams p;
-    p.text = std::move(text);
-    p.font_size = font_size;
-    p.font_path = "assets/fonts/Inter-Bold.ttf";
-    p.font_family = "Inter";
-    p.font_weight = 800;
-    p.font_style = "normal";
-    p.color = {1.0f, 1.0f, 1.0f, 1.0f};
-    p.pos = {0.0f, 0.0f, 0.0f};
-    p.anchor = TextAnchor::Center;
-    p.align = TextAlign::Center;
-    p.vertical_align = VerticalAlign::Middle;
-    p.wrap = TextWrap::None;
+    p.content.value = std::move(text);
+    p.font.font_size = font_size;
+    p.font.font_path = "assets/fonts/Inter-Bold.ttf";
+    p.font.font_family = "Inter";
+    p.font.font_weight = 800;
+    p.font.font_style = "normal";
+    p.appearance.color = {1.0f, 1.0f, 1.0f, 1.0f};
+    p.position = {0.0f, 0.0f, 0.0f};
+    p.layout.anchor = TextAnchor::Center;
+    p.layout.align = TextAlign::Center;
+    p.layout.vertical_align = VerticalAlign::Middle;
+    p.layout.wrap = TextWrap::None;
     p.direction = TextDirection::Auto;
     return p;
 }

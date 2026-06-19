@@ -82,7 +82,7 @@ static void build_important_word(SceneBuilder& s,
                 .tracking    = word.tracking,
                 .color       = palette.text,
             });
-            tp.shadows.push_back(TextShadow{
+            tp.appearance.shadows.push_back(TextShadow{
                 .enabled = true,
                 .offset  = {0.0f, 4.0f},
                 .blur    = 6.0f,

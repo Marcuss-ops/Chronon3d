@@ -156,106 +156,25 @@ struct TextSpec {
     Vec3               position{};
 };
 
-// ── Backward-compatible TextParams (thin wrapper delegating to TextSpec) ─
-// After all call sites migrate, TextParams will become a using alias.
-struct TextParams {
-    std::string text;
-    Vec2 size{900.0f, 160.0f};
-    Vec3 pos{0.0f, 0.0f, 0.0f};
-    std::string font_path{"assets/fonts/Inter-Bold.ttf"};
-    std::string font_family{"Inter"};
-    int font_weight{800};
-    std::string font_style{"normal"};
-    f32 font_size{72.0f};
-    Color color{1.0f, 1.0f, 1.0f, 1.0f};
-    // ── TextAnchor — how the box is anchored to pos ──────────────
-    TextAnchor anchor{TextAnchor::Center};
-
-    // ── Centering mode (LayoutBox = default, PixelInk = opt-in) ────
-    TextCenteringMode centering_mode{TextCenteringMode::LayoutBox};
-
-    TextAlign align{TextAlign::Center};
-    VerticalAlign vertical_align{VerticalAlign::Middle};
-    f32 line_height{1.2f};
-    f32 tracking{0.0f};
-    TextBoxStyle box_style{};
-
-    TextPaint paint{};
-    std::vector<TextShadow> shadows{};
-    TextMaterial material{};
-
-    bool auto_fit{false};
-    int max_lines{0};
-    bool ellipsis{false};
-    f32 min_font_size{12.0f};
-    f32 max_font_size{160.0f};
-    TextOverflow overflow{TextOverflow::Clip};
-    TextWrap wrap{TextWrap::Word};
-
-    // ── Optional pre-shaped glyph run ───────────────────────────────
-    // When set, the rasterizer uses these pre-shaped glyphs directly
-    // instead of re-shaping the text with HarfBuzz.  Used by
-    // typewriter_build() to preserve contextual Arabic/Indic shaping.
-    std::shared_ptr<PlacedGlyphRun> pre_shaped;
-
-    // ── Conversion from TextSpec (forward-compat bridge) ──────────
-    TextParams() = default;
-    /*implicit*/ TextParams(const TextSpec& ts)
-        : text(ts.content.value)
-        , size(ts.layout.box)
-        , pos(ts.position)
-        , font_path(ts.font.font_path)
-        , font_family(ts.font.font_family)
-        , font_weight(ts.font.font_weight)
-        , font_style(ts.font.font_style)
-        , font_size(ts.font.font_size)
-        , color(ts.appearance.color)
-        , anchor(ts.layout.anchor)
-        , centering_mode(ts.layout.centering_mode)
-        , align(ts.layout.align)
-        , vertical_align(ts.layout.vertical_align)
-        , line_height(ts.layout.line_height)
-        , tracking(ts.layout.tracking)
-        , box_style(ts.appearance.box_style)
-        , paint(ts.appearance.paint)
-        , shadows(ts.appearance.shadows)
-        , material(ts.appearance.material)
-        , auto_fit(ts.layout.auto_fit)
-        , max_lines(ts.layout.max_lines)
-        , ellipsis(ts.layout.ellipsis)
-        , min_font_size(ts.layout.min_font_size)
-        , max_font_size(ts.layout.max_font_size)
-        , overflow(ts.layout.overflow)
-        , wrap(ts.layout.wrap)
-        , pre_shaped(ts.content.pre_shaped)
-    {}
-
-    /// Convert to TextSpec (zero-copy for shared_ptr fields, moves strings).
-    [[nodiscard]] TextSpec to_spec() const & {
-        return TextSpec{
-            .content    = {text, pre_shaped},
-            .font       = {font_path, font_family, font_weight, font_style, font_size},
-            .layout     = {size, anchor, centering_mode, align, vertical_align,
-                           wrap, overflow, line_height, tracking, auto_fit,
-                           min_font_size, max_font_size, max_lines, ellipsis},
-            .appearance = {color, paint, shadows, material, box_style},
-            .position   = pos,
-        };
-    }
-    [[nodiscard]] TextSpec to_spec() && {
-        return TextSpec{
-            .content    = {std::move(text), std::move(pre_shaped)},
-            .font       = {std::move(font_path), std::move(font_family), font_weight,
-                           std::move(font_style), font_size},
-            .layout     = {size, anchor, centering_mode, align, vertical_align,
-                           wrap, overflow, line_height, tracking, auto_fit,
-                           min_font_size, max_font_size, max_lines, ellipsis},
-            .appearance = {color, std::move(paint), std::move(shadows),
-                           std::move(material), std::move(box_style)},
-            .position   = pos,
-        };
-    }
-};
+// ── TextParams: deprecated type-alias for TextSpec ─────────────────────
+//
+// The 30-field TextParams monolith has been retired in favour of the
+// composable TextSpec (TextContent + FontSpec + TextLayoutSpec +
+// TextAppearanceSpec + position).  `TextParams` is kept as a deprecated
+// alias so any external code that still references the name continues to
+// compile.  To migrate:
+//   1. Construct via TextSpec{...} nested designated initializers, or
+//   2. Read/write through TextSpec's sub-structs (.content.value, .font.*,
+//      .layout.*, .appearance.*, .position).
+// Internally the project uses TextSpec directly at all call sites; the
+// alias exists only as a transition aid for external integrations.
+//
+// Note: because the two names are now identical, any field-set pattern
+// like `TextParams tp; tp.text = "x";` will NOT compile — `TextSpec` has
+// no `.text` field (use `.content.value`).  The deprecation attribute
+// surfaces this at the type level so callers see migration guidance.
+[[deprecated("TextParams is deprecated; use TextSpec directly. Construct via TextSpec{...} designated initializers or read/write through .content.value / .font.* / .layout.* / .appearance.* / .position.")]]
+using TextParams = TextSpec;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TextRunSpec — composable text-run descriptor (replaces flat TextRunParams).
@@ -360,28 +279,24 @@ struct TextRunParams {
     {}
 
     [[nodiscard]] TextRunSpec to_spec() const & {
-        TextParams tp;
-        tp.text        = text;
-        tp.size        = size;
-        tp.pos         = pos;
-        tp.font_path   = font_path;
-        tp.font_family = font_family;
-        tp.font_weight = font_weight;
-        tp.font_style  = font_style;
-        tp.font_size   = font_size;
-        tp.color       = color;
-        tp.anchor      = anchor;
-        tp.align       = align;
-        tp.vertical_align = vertical_align;
-        tp.wrap        = wrap;
-        tp.line_height = line_height;
-        tp.tracking    = tracking;
-        tp.paint       = paint;
-        tp.shadows     = shadows;
-        tp.material    = material;
-        tp.pre_shaped  = pre_shaped;
         return TextRunSpec{
-            .text         = tp.to_spec(),
+            .text         = TextSpec{
+                .content    = { text, pre_shaped },
+                .font       = { font_path, font_family, font_weight, font_style, font_size },
+                // Designated-init keeps this robust against future TextLayoutSpec
+                // field additions and makes field mapping explicit / self-documenting.
+                .layout     = {
+                    .box           = size,
+                    .anchor        = anchor,
+                    .align         = align,
+                    .vertical_align = vertical_align,
+                    .wrap          = wrap,
+                    .line_height   = line_height,
+                    .tracking      = tracking,
+                },
+                .appearance = { color, paint, shadows, material },
+                .position   = pos,
+            },
             .direction    = direction,
             .language     = language,
             .animators    = animators,
@@ -390,28 +305,24 @@ struct TextRunParams {
         };
     }
     [[nodiscard]] TextRunSpec to_spec() && {
-        TextParams tp;
-        tp.text        = std::move(text);
-        tp.size        = size;
-        tp.pos         = pos;
-        tp.font_path   = std::move(font_path);
-        tp.font_family = std::move(font_family);
-        tp.font_weight = font_weight;
-        tp.font_style  = std::move(font_style);
-        tp.font_size   = font_size;
-        tp.color       = color;
-        tp.anchor      = anchor;
-        tp.align       = align;
-        tp.vertical_align = vertical_align;
-        tp.wrap        = wrap;
-        tp.line_height = line_height;
-        tp.tracking    = tracking;
-        tp.paint       = std::move(paint);
-        tp.shadows     = std::move(shadows);
-        tp.material    = std::move(material);
-        tp.pre_shaped  = std::move(pre_shaped);
         return TextRunSpec{
-            .text         = std::move(tp).to_spec(),
+            .text         = TextSpec{
+                .content    = { std::move(text), std::move(pre_shaped) },
+                .font       = { std::move(font_path), std::move(font_family),
+                                font_weight, std::move(font_style), font_size },
+                .layout     = {
+                    .box           = size,
+                    .anchor        = anchor,
+                    .align         = align,
+                    .vertical_align = vertical_align,
+                    .wrap          = wrap,
+                    .line_height   = line_height,
+                    .tracking      = tracking,
+                },
+                .appearance = { color, std::move(paint), std::move(shadows),
+                                std::move(material) },
+                .position   = pos,
+            },
             .direction    = direction,
             .language     = std::move(language),
             .animators    = std::move(animators),

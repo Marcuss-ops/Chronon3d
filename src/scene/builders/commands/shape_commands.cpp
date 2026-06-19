@@ -157,7 +157,7 @@ LayerBuilder& LayerBuilder::grid_background(std::string name, GridBackgroundPara
     return shape(registry::shape_ids::GridBackground, std::move(name), std::move(p));
 }
 
-LayerBuilder& LayerBuilder::text(std::string name, TextParams p) {
+LayerBuilder& LayerBuilder::text(std::string name, TextSpec p) {
     return shape(registry::shape_ids::Text, std::move(name), std::move(p));
 }
 
