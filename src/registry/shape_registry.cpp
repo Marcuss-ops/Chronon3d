@@ -121,8 +121,8 @@ void register_builtin_shapes(ShapeRegistry& registry) {
         .kind = ShapeKind::Primitive,
         .description = "Text run with per-glyph AE-style animations; routed to a TextRunNode in the render graph",
         .builtin = true,
-        .factory = make_factory<TextRunParams>([](auto* res, std::string name, TextRunParams p) {
-            return RenderNodeFactory::text_run(res, std::move(name), std::move(p));
+        .factory = make_factory<TextRunSpec>([](auto* res, std::string name, TextRunSpec spec) {
+            return RenderNodeFactory::text_run(res, std::move(name), std::move(spec));
         }),
     });
     registry.register_shape(ShapeDescriptor{
