@@ -9,7 +9,7 @@ namespace chronon3d {
 
 // ── Private ctor ────────────────────────────────────────────────────────
 
-TextRunBuilder::TextRunBuilder(LayerBuilder* parent, TextRunSpec* spec)
+TextRunBuilder::TextRunBuilder(LayerBuilder* parent, PendingTextRun* spec)
     : m_parent(parent), m_spec(spec) {}
 
 // ── Internal helpers ────────────────────────────────────────────────────

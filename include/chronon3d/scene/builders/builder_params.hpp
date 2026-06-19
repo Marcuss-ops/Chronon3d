@@ -173,7 +173,8 @@ struct TextSpec {
 // like `TextParams tp; tp.text = "x";` will NOT compile — `TextSpec` has
 // no `.text` field (use `.content.value`).  The deprecation attribute
 // surfaces this at the type level so callers see migration guidance.
-[[deprecated("TextParams is deprecated; use TextSpec directly. Construct via TextSpec{...} designated initializers or read/write through .content.value / .font.* / .layout.* / .appearance.* / .position.")]]
+// TextParams kept as type alias for backward compatibility.
+// TODO: remove after all external callers migrate to TextSpec.
 using TextParams = TextSpec;
 
 // ═══════════════════════════════════════════════════════════════════════════

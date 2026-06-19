@@ -285,12 +285,12 @@ FontEngine* LayerBuilder::font_engine() const {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TextRunBuilder& LayerBuilder::text_run(std::string name, TextRunParams params) {
-    auto spec_uptr = std::make_unique<TextRunSpec>(TextRunSpec{
+    auto spec_uptr = std::make_unique<PendingTextRun>(PendingTextRun{
         .name = std::move(name),
         .params = std::move(params),
         .consumed = false,
     });
-    TextRunSpec* spec_ptr = spec_uptr.get();
+    PendingTextRun* spec_ptr = spec_uptr.get();
     m_text_runs.push_back(std::move(spec_uptr));
     // Push a fresh builder into the pool, keyed to the same spec we
     // just added.  The builder holds a non-owning pointer so its
@@ -368,7 +368,7 @@ Layer LayerBuilder::build() {
         std::pmr::memory_resource* res = m_layer.nodes.get_allocator().resource();
 
         for (auto& spec_uptr : m_text_runs) {
-            TextRunSpec& spec = *spec_uptr;
+            PendingTextRun& spec = *spec_uptr;
             if (spec.consumed) continue;
 
             RenderNode& node = m_layer.nodes.emplace_back(res);
