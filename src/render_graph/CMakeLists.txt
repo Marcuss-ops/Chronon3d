@@ -40,6 +40,8 @@ add_library(chronon3d_graph_nodes STATIC
     nodes/clear_node.cpp
     nodes/composite_node.cpp
     nodes/track_matte_node.cpp
+    nodes/per_pixel_dof_node.cpp
+    nodes/precomp_node_execute.cpp
     nodes/transition/transition_node_math.cpp
     nodes/TextRunNode.cpp   # PR 3 (TextAnimator V2 batched text node)
 )
@@ -47,13 +49,15 @@ set_target_properties(chronon3d_graph_nodes PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_nodes
     PUBLIC
         chronon3d_graph_core
-        # PR 3: TextRunNode.hpp publicly references TextRunShape from
-        # chronon3d_text_core (forward-declared but requires the lib for
-        # the type-erased shared_ptr deleter instantiation on consumers).
         chronon3d_text_core
     PRIVATE
         fmt::fmt
         spdlog::spdlog_header_only
+        chronon3d_graph_builder
+        chronon3d_graph_compiler
+        chronon3d_graph_cache
+        chronon3d_graph_executor
+        chronon3d_graph_pipeline
 )
 target_precompile_headers(chronon3d_graph_nodes PRIVATE
     <glm/glm.hpp>
@@ -85,15 +89,6 @@ set_target_properties(chronon3d_graph_builder PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_builder PUBLIC
     chronon3d_graph_core
     chronon3d_graph_nodes
-    # Back-edge: graph_builder_source_pass.cpp makes std::make_unique<PrecompNode>
-    # (defined in chronon3d_graph_pipeline), and graph_builder_output_pass.cpp
-    # makes std::make_unique<PerPixelDofNode> (whose inline execute() calls
-    # chronon3d_backend_software/simd/highway_dof_kernels.o's dof_*_gather_simd).
-    # Without these links the executable fails to resolve the symbols once any
-    # TU in the link chain activates these two .o files. Closes the cycle via
-    # --start-group/--end-group on modern linkers (mold/lld).
-    chronon3d_graph_pipeline
-    chronon3d_backend_software
 )
 target_precompile_headers(chronon3d_graph_builder PRIVATE
     <glm/glm.hpp>
@@ -151,9 +146,10 @@ target_link_libraries(chronon3d_graph_preflight PUBLIC
     chronon3d_graph_compiler
 )
 
-# ── Cache: scene program cache ──────────────────────────────────────────────
+# ── Cache: scene program cache + compiled graph cache ───────────────────────
 add_library(chronon3d_graph_cache STATIC
     cache/scene_program_cache.cpp
+    cache/compiled_graph_cache.cpp
 )
 set_target_properties(chronon3d_graph_cache PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_cache PUBLIC
@@ -188,7 +184,7 @@ add_library(chronon3d_graph_pipeline STATIC
     pipeline/refresh/transform.cpp
     pipeline/debug.cpp
     pipeline/composition.cpp
-    pipeline/precomp_node_execute.cpp
+    pipeline/register_pipeline_nodes.cpp
 )
 set_target_properties(chronon3d_graph_pipeline PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_pipeline PUBLIC
@@ -198,11 +194,6 @@ target_link_libraries(chronon3d_graph_pipeline PUBLIC
     chronon3d_graph_compiler
     chronon3d_graph_preflight
     chronon3d_graph_cache
-    # graph_cache_coordinator.cpp calls CompiledGraphCache::try_take/has/store,
-    # defined in chronon3d_backend_software/graph_cache.cpp. Without this link,
-    # the executable fails to resolve them once an active TU pulls coordinator.o
-    # into the link chain. Closes the static-lib cycle via --start-group/--end-group.
-    chronon3d_backend_software
 )
 target_precompile_headers(chronon3d_graph_pipeline PRIVATE
     <glm/glm.hpp>

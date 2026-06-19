@@ -30,7 +30,7 @@
 
 #include "helpers.hpp"
 #include "scene_internal.hpp"
-#include "scene_refresh.hpp"
+#include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
 #include "scene_fingerprint.hpp"
 #include "frame_reuse_policy.hpp"
 #include "graph_cache_coordinator.hpp"
@@ -104,6 +104,12 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         ctx.telemetry.counters, ctx.resources.framebuffer_pool.get());
 
     SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
+
+    // Wire compiled_graph_cache into the render graph context so that
+    // graph_cache_coordinator can access it without a SoftwareRenderer dependency.
+    if (sw_renderer) {
+        ctx.resources.compiled_graph_cache = &sw_renderer->graph_cache();
+    }
 
     // ── 1. Fast-path: Resolved-scene reuse (consecutive / same frame) ───
     // Must come BEFORE resolve_layers() and compute_dirty_rect() so that
@@ -265,7 +271,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // ── 8. Build or reuse compiled graph ─────────────────────────────────
     const auto t_graph0 = profiling::now();
     auto graph_result = build_or_reuse_graph(
-        ctx, scene, resolved, sw_renderer, width, height,
+        ctx, scene, resolved, width, height,
         ctx.options.graph_structure_unchanged,
         ctx.options.diagnostics_enabled);
     ctx.options.skip_initial_clear = graph_result.skip_initial_clear;
