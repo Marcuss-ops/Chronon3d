@@ -6,6 +6,7 @@
 #include <chronon3d/scene/model/camera/lens_model.hpp>
 #include <string>
 #include <memory_resource>
+#include <glm/gtx/quaternion.hpp>  // glm::quatLookAtLH stable path
 
 namespace chronon3d {
 
@@ -69,6 +70,26 @@ enum class Camera2_5DProjectionMode {
     Fov   // derive focal from fov_deg (true FOV-based projection)
 };
 
+// ── CameraOpticsMode — independent lens/projection selector ────────────────
+//
+// After this contract is adopted, the optics mode is the SINGLE switch that
+// decides how the focal length is computed for the projection pipeline.
+// It is INDEPENDENT of the depth-of-field model: a physical lens can be
+// active with DoF fully disabled, and a simple Zoom lens can be active with
+// DoF fully enabled.  This matches the After Effects mental model where
+// Focal Length / Film Size / Angle of View are projection properties, not
+// DoF properties.
+//
+//   Zoom:        focal == camera.zoom (legacy Zoom mode)
+//   FieldOfView: focal derived from camera.fov_deg and viewport (legacy Fov mode)
+//   PhysicalLens: focal derived from LensModel with gate-fit (independent
+//                 of DepthOfFieldSettings::use_physical_model).
+enum class CameraOpticsMode {
+    Zoom,         // default — focal length == camera.zoom
+    FieldOfView,  // derive focal from fov_deg (true FOV-based projection)
+    PhysicalLens  // derive focal from LensModel with gate-fit
+};
+
 struct Camera2_5D {
     bool enabled{false};
 
@@ -88,11 +109,19 @@ struct Camera2_5D {
     bool point_of_interest_enabled{false};
     bool hierarchy_baked{false};
 
-    // Projection mode: Zoom (default) or Fov.
+    // Projection mode: Zoom (default) or Fov.  Legacy selector kept for
+    // backward compatibility (composers that still want Camera2_5D level
+    // control over the projection).  See CameraOpticsMode on the rig for
+    // the canonical optics contract used by the projection pipeline.
     Camera2_5DProjectionMode projection_mode{Camera2_5DProjectionMode::Zoom};
 
+    // Optics mode — the canonical contract used by CameraRig and the
+    // projection pipeline.  Decoupled from DoF: a physical lens can be
+    // active (PhysicalLens) while DoF.enabled is false.
+    CameraOpticsMode optics_mode{CameraOpticsMode::Zoom};
+
     // Perspective strength. At depth == zoom, perspective_scale == 1.
-    // Used when projection_mode == Zoom.
+    // Used when projection_mode == Zoom or optics_mode == Zoom.
     f32 zoom{1000.0f};
 
     // Field of view in degrees. Used when projection_mode == Fov.
@@ -129,6 +158,98 @@ struct Camera2_5D {
         return rotation;
     }
 
+    // ── Canonical orientation helpers ─────────────────────────────────────
+    //
+    // resolve_look_at_orientation() returns the canonical orientation
+    // quaternion for this camera.  The matrix is built as the product of
+    // distinct factors in a fixed order so the result is consistent across
+    // rig presets, animation, and rigging code:
+    //
+    //   TwoNode:
+    //     q = qLookAt * qLocal * qX(tilt) * qY(pan) * qZ(roll)
+    //   OneNode:
+    //     q = qLocal * qX(tilt) * qY(pan) * qZ(roll)
+    //
+    // The TwoNode c2w rotation is constructed directly from an explicit
+    // orthonormal basis (right, up, fwd_w) with a deterministic 2nd-axis
+    // swap when fwd_w is near-axial to world-Y (to break the parallel-
+    // vector degeneracy in the cross product).  This avoids the
+    // glm::lookAtLH → inverse → quat_cast chain which can produce non-
+    // unit quaternions when the lookAt matrix has det = -1 for certain
+    // camera/target/up alignments (e.g. fwd_w ≈ (0,±1,0) or ≈ (0,0,1)
+    // with the standard worldUp = (0,1,0)).
+    [[nodiscard]] Quat resolve_look_at_orientation() const {
+        // Euler rotations in degrees applied in the order X → Y → Z.
+        // Quaternions multiply right-to-left, so the right-most factor is
+        // applied first to a column vector.
+        const f32 rx = glm::radians(rotation.x);  // tilt  (X)
+        const f32 ry = glm::radians(rotation.y);  // pan   (Y)
+        const f32 rz = glm::radians(rotation.z);  // roll  (Z)
+        const Quat qX = glm::angleAxis(rx, Vec3{1.0f, 0.0f, 0.0f});
+        const Quat qY = glm::angleAxis(ry, Vec3{0.0f, 1.0f, 0.0f});
+        const Quat qZ = glm::angleAxis(rz, Vec3{0.0f, 0.0f, 1.0f});
+        // qLocal = identity rotor. Constructed via angleAxis(0) instead
+        // of Quat{} so the result is guaranteed unit-identity across GLM
+        // 0.9.9 and 1.x regardless of GLM_CONFIG_DEFAULTED_DEFAULT_CTOR.
+        const Quat qLocal = glm::angleAxis(0.0f, Vec3{1.0f, 0.0f, 0.0f});
+
+        if (point_of_interest_enabled &&
+            glm::length(point_of_interest - position) > 0.001f) {
+            // TwoNode: build the c2w basis explicitly. This is bit-exact,
+            // det = +1 by construction, and produces a valid rotation
+            // matrix whose quat_cast result is a unit quat for any
+            // non-degenerate fwd_w (including axial targets like (0,0,1)
+            // where the matrix collapses to identity).
+            //
+            // Cross-product order (`right = cross(refUp, fwd_w)`,
+            // `up = cross(fwd_w, right)`) is the canonical RH-style
+            // c2w construction: for fwd_w = (0,0,1) and refUp = (0,1,0),
+            // right = (1,0,0) and up = (0,1,0) — identity basis —
+            // det = +1, quat_cast = identity quat, qnorm = 1 bit-exact.
+            const Vec3 fwd_w = glm::normalize(point_of_interest - position);
+            const Vec3 refUp = select_ref_up(fwd_w);
+            const Vec3 right = glm::normalize(glm::cross(refUp, fwd_w));
+            const Vec3 up    = glm::normalize(glm::cross(fwd_w, right));
+            // Explicit column assignment (vs glm::mat3(right,up,fwd_w)
+            // constructor) — more readable and version-independent.
+            glm::mat3 c2w_basis;
+            c2w_basis[0] = right;
+            c2w_basis[1] = up;
+            c2w_basis[2] = fwd_w;
+            const Quat qLookAt = glm::quat_cast(c2w_basis);
+            // Compose: qLookAt * qLocal * qX(tilt) * qY(pan) * qZ(roll).
+            return qLookAt * qLocal * qX * qY * qZ;
+        }
+
+        // OneNode: orientation * X * Y * Z (matches the legacy Euler
+        // composition used by Camera2_5D::rotation_quaternion()).
+        return qLocal * qX * qY * qZ;
+    }
+
+    // ── 2nd-axis swap helper (canonical lookAt pattern) ───────────────────
+    //
+    // Returns the world-frame "reference up" vector used to break the
+    // forward-axle-of-lookAt degeneracy.  When forward is near-axial to the
+    // primary up axis (world-Y), the cross product refUp × fwd_w → 0 and
+    // the canonical lookAt chain collapses.  The canonical fix is to pick
+    // a different perpendicular reference axis — world-Z if forward is
+    // near Y, else world-X as a last resort.  This freezes the spec
+    // invariant in code (independent of GLM's internal handling which
+    // differs across GLM 0.9.9 and 1.0.x).
+    [[nodiscard]] static Vec3 select_ref_up(const Vec3& fwd_w) {
+        // Threshold widened to ~5.7° so smooth target slides across y=0 / z=0
+        // stay on world-Y (no discontinuous refUp flip on a single-step
+        // crossing past the boundary).
+        constexpr f32 kAxialEps = 1e-2f;
+        if (std::abs(fwd_w.y) < 1.0f - kAxialEps) {
+            return Vec3{0.0f, 1.0f, 0.0f};   // world Y — primary refUp
+        }
+        if (std::abs(fwd_w.z) < 1.0f - kAxialEps) {
+            return Vec3{0.0f, 0.0f, 1.0f};   // world Z — secondary refUp
+        }
+        return Vec3{1.0f, 0.0f, 0.0f};       // world X — last-resort refUp
+    }
+
     void set_rotation_euler(Vec3 euler_deg) {
         rotation = euler_deg;
     }
@@ -158,17 +279,32 @@ struct Camera2_5D {
     }
 
     [[nodiscard]] Mat4 view_matrix() const {
-        if (point_of_interest_enabled && glm::length(point_of_interest - position) > 0.001f) {
-            Mat4 view = glm::lookAtLH(position, point_of_interest, Vec3{0.0f, 1.0f, 0.0f});
-            if (std::abs(rotation.z) > 0.0001f) {
-                const f32 r = glm::radians(rotation.z);
-                Mat4 roll_m = glm::rotate(Mat4{1.0f}, r, Vec3{0.0f, 0.0f, 1.0f});
-                view = roll_m * view;
-            }
+        // Canonical view matrix — numerically stable.
+        //
+        //   TwoNode: glm::lookAtLH produces the view matrix; the local
+        //            X/Y/Z rotations are composed as a world-space
+        //            pre-multiplication (rotation applied first, then
+        //            look-at) so the spec order qLookAt * qX * qY * qZ
+        //            matches the matrix form.
+        //   OneNode: rotation drives the view directly.
+        if (point_of_interest_enabled &&
+            glm::length(point_of_interest - position) > 0.001f) {
+            Mat4 view = glm::lookAtLH(position, point_of_interest,
+                                       Vec3{0.0f, 1.0f, 0.0f});
+            // Apply local X/Y/Z rotations as a world-space post-multiplication
+            // (world → rotate → look-at) using the canonical quaternion
+            // composition qX * qY * qZ.  Identity quaternion gives identity
+            // matrix and is a no-op when rotation is exactly zero.
+            const f32 rx = glm::radians(rotation.x);
+            const f32 ry = glm::radians(rotation.y);
+            const f32 rz = glm::radians(rotation.z);
+            const Quat qLocal = glm::angleAxis(rx, Vec3{1.0f, 0.0f, 0.0f}) *
+                                glm::angleAxis(ry, Vec3{0.0f, 1.0f, 0.0f}) *
+                                glm::angleAxis(rz, Vec3{0.0f, 0.0f, 1.0f});
+            view = view * glm::toMat4(qLocal);
             return view;
         }
-        const Quat rot = rotation_quaternion();
-        return math::camera_view_matrix(position, rot);
+        return math::camera_view_matrix(position, rotation_quaternion());
     }
 };
 

@@ -58,19 +58,38 @@ struct ProjectedPoint {
 // Returns the focal length in pixels for a given camera and viewport dimensions.
 //
 // Rules:
-//   - Fov mode: focal = (viewport_height / 2) / tan(fov_deg / 2)
-//   - Zoom mode: focal = camera.zoom
-//   - Lens mode (physical): uses LensModel::focal_pixels() with gate-fit,
-//     falling back to Fov/Zoom when use_physical_model is false.
+//   - PhysicalLens mode (canonical):  derived from Camera2_5D::lens with
+//     gate-fit.  Independent of DoF — a 24mm or 135mm lens changes the
+//     perspective even when camera.dof.enabled is false (AE contract).
+//   - FieldOfView mode (canonical):   focal = (viewport_height/2) / tan(fov/2).
+//   - Zoom mode (canonical):          focal = camera.zoom.
+//   - Legacy DoF fallback:            if optics_mode is the default Zoom but
+//     camera.dof.use_physical_model is true, the legacy path is still honoured.
 //
 // At depth == focal the perspective scale is exactly 1.0.
 inline f32 focal_from_camera(const Camera2_5D& camera, f32 viewport_width, f32 viewport_height) {
-    // Physical lens path: use lens model with gate-fit.
-    // Only applies when the camera has a physical lens configured.
+    // Canon: switch purely on optics_mode — optics != DoF.
+    switch (camera.optics_mode) {
+        case CameraOpticsMode::PhysicalLens: {
+            if (camera.lens.focal_length > 0.0f) {
+                return camera.lens.focal_pixels(viewport_width, viewport_height);
+            }
+            return camera.zoom;  // degenerate lens → fall back to zoom
+        }
+        case CameraOpticsMode::FieldOfView: {
+            const f32 fov_rad = glm::radians(camera.fov_deg);
+            return (viewport_height * 0.5f) / std::tan(fov_rad * 0.5f);
+        }
+        case CameraOpticsMode::Zoom:
+            break;
+    }
+    if (camera.zoom > 0.0f) {
+        return camera.zoom;
+    }
+    // Legacy DoF-driven fallback for callers that pre-date CameraOpticsMode.
     if (camera.lens.focal_length > 0.0f && camera.dof.use_physical_model) {
         return camera.lens.focal_pixels(viewport_width, viewport_height);
     }
-    // Legacy paths (backward compatible).
     if (camera.projection_mode == Camera2_5DProjectionMode::Fov) {
         const f32 fov_rad = glm::radians(camera.fov_deg);
         return (viewport_height * 0.5f) / std::tan(fov_rad * 0.5f);

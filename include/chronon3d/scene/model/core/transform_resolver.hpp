@@ -35,6 +35,36 @@ struct TransformResolverResult {
         }
         return std::nullopt;
     }
+
+    /// Conservative: returns true if `name` could resolve to a layer whose
+    /// world transform changes across frames (animated parent or self).
+    /// Conservative fallback is acceptable when the resolver snapshot does
+    /// not track per-layer animation metadata.
+    [[nodiscard]] bool is_time_dependent(const std::string& name) const noexcept {
+        return resolved.find(name) != resolved.end();
+    }
+
+    /// Returns a stable fingerprint of the layer's world transform that
+    /// callers can include in a cache key.  Uses the upper-left 3x3 (basis)
+    /// and the translation column; equivalent transforms (translation + 90°
+    /// rotation) produce distinct fingerprints so consumers can detect
+    /// changes between snapshots.
+    [[nodiscard]] std::uint64_t world_transform_fingerprint(const std::string& name) const noexcept {
+        auto it = resolved.find(name);
+        if (it == resolved.end()) return 0;
+        const Mat4& m = it->second.world_matrix;
+        // Mix the 4x4 entries into a 64-bit hash.  Bad-quality but
+        // deterministic and adequate for cache invalidation.
+        std::uint64_t fp = 0x9E3779B97F4A7C15ULL;
+        for (int col = 0; col < 4; ++col) {
+            for (int row = 0; row < 4; ++row) {
+                const std::uint32_t bits = static_cast<std::uint32_t>(
+                    std::bit_cast<std::uint32_t>(m[col][row]));
+                fp ^= bits + (fp << 6) + (fp >> 2);
+            }
+        }
+        return fp;
+    }
 };
 
 /// Resolves a hierarchy of 3D transforms.
