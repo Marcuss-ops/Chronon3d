@@ -5,6 +5,7 @@
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/media/media_placement.hpp>
+#include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
 #include <memory>
 #include <optional>
@@ -90,6 +91,73 @@ struct GridBackgroundParams {
     bool centered{true};
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Text composition structs — split the old 30-field TextParams monolith into
+// four composable sub-structs (FontSpec already lives in font_engine.hpp).
+//
+//   TextSpec = TextContent + FontSpec + TextLayoutSpec + TextAppearanceSpec + position
+//
+// Callers can now:
+//   - Build reusable font/layout/appearance presets
+//   - Modify only one section without traversing 30 fields
+//   - Pass shared sub-structs across compositions
+// ═══════════════════════════════════════════════════════════════════════════
+
+struct TextLayoutSpec {
+    Vec2          box{900.0f, 160.0f};
+    TextAnchor    anchor{TextAnchor::Center};
+    TextCenteringMode centering_mode{TextCenteringMode::LayoutBox};
+    TextAlign     align{TextAlign::Center};
+    VerticalAlign vertical_align{VerticalAlign::Middle};
+    TextWrap      wrap{TextWrap::Word};
+    TextOverflow  overflow{TextOverflow::Clip};
+    f32           line_height{1.2f};
+    f32           tracking{0.0f};
+    bool          auto_fit{false};
+    f32           min_font_size{12.0f};
+    f32           max_font_size{160.0f};
+    int           max_lines{0};
+    bool          ellipsis{false};
+};
+
+struct TextAppearanceSpec {
+    Color                   color{1.0f, 1.0f, 1.0f, 1.0f};
+    TextPaint               paint{};
+    std::vector<TextShadow> shadows{};
+    TextMaterial            material{};
+    TextBoxStyle            box_style{};
+};
+
+struct TextContent {
+    std::string                      value;
+    std::shared_ptr<PlacedGlyphRun>  pre_shaped;
+};
+
+/// TextSpec — composable text descriptor (replaces flat TextParams).
+///
+/// Usage with designated initializers:
+///   TextSpec ts{
+///     .content    = {.value = "Hello"},
+///     .font       = {.font_path = "...", .font_family = "Poppins",
+///                    .font_weight = 700, .font_size = 72.0f},
+///     .layout     = {.box = {900, 160}},
+///     .appearance = {.color = Color::white()},
+///   };
+///
+/// Usage with presets:
+///   const FontSpec kHeroFont{.font_path="...", .font_family="Poppins",
+///                             .font_weight=700, .font_size=96.0f};
+///   TextSpec title{.content={.value="CHRONON"}, .font=kHeroFont};
+struct TextSpec {
+    TextContent        content;
+    FontSpec           font;
+    TextLayoutSpec     layout;
+    TextAppearanceSpec appearance;
+    Vec3               position{};
+};
+
+// ── Backward-compatible TextParams (thin wrapper delegating to TextSpec) ─
+// After all call sites migrate, TextParams will become a using alias.
 struct TextParams {
     std::string text;
     Vec2 size{900.0f, 160.0f};
@@ -129,6 +197,78 @@ struct TextParams {
     // instead of re-shaping the text with HarfBuzz.  Used by
     // typewriter_build() to preserve contextual Arabic/Indic shaping.
     std::shared_ptr<PlacedGlyphRun> pre_shaped;
+
+    // ── Conversion from TextSpec (forward-compat bridge) ──────────
+    TextParams() = default;
+    /*implicit*/ TextParams(const TextSpec& ts)
+        : text(ts.content.value)
+        , size(ts.layout.box)
+        , pos(ts.position)
+        , font_path(ts.font.font_path)
+        , font_family(ts.font.font_family)
+        , font_weight(ts.font.font_weight)
+        , font_style(ts.font.font_style)
+        , font_size(ts.font.font_size)
+        , color(ts.appearance.color)
+        , anchor(ts.layout.anchor)
+        , centering_mode(ts.layout.centering_mode)
+        , align(ts.layout.align)
+        , vertical_align(ts.layout.vertical_align)
+        , line_height(ts.layout.line_height)
+        , tracking(ts.layout.tracking)
+        , box_style(ts.appearance.box_style)
+        , paint(ts.appearance.paint)
+        , shadows(ts.appearance.shadows)
+        , material(ts.appearance.material)
+        , auto_fit(ts.layout.auto_fit)
+        , max_lines(ts.layout.max_lines)
+        , ellipsis(ts.layout.ellipsis)
+        , min_font_size(ts.layout.min_font_size)
+        , max_font_size(ts.layout.max_font_size)
+        , overflow(ts.layout.overflow)
+        , wrap(ts.layout.wrap)
+        , pre_shaped(ts.content.pre_shaped)
+    {}
+
+    /// Convert to TextSpec (zero-copy for shared_ptr fields, moves strings).
+    [[nodiscard]] TextSpec to_spec() const & {
+        return TextSpec{
+            .content    = {text, pre_shaped},
+            .font       = {font_path, font_family, font_weight, font_style, font_size},
+            .layout     = {size, anchor, centering_mode, align, vertical_align,
+                           wrap, overflow, line_height, tracking, auto_fit,
+                           min_font_size, max_font_size, max_lines, ellipsis},
+            .appearance = {color, paint, shadows, material, box_style},
+            .position   = pos,
+        };
+    }
+    [[nodiscard]] TextSpec to_spec() && {
+        return TextSpec{
+            .content    = {std::move(text), std::move(pre_shaped)},
+            .font       = {std::move(font_path), std::move(font_family), font_weight,
+                           std::move(font_style), font_size},
+            .layout     = {size, anchor, centering_mode, align, vertical_align,
+                           wrap, overflow, line_height, tracking, auto_fit,
+                           min_font_size, max_font_size, max_lines, ellipsis},
+            .appearance = {color, std::move(paint), std::move(shadows),
+                           std::move(material), std::move(box_style)},
+            .position   = pos,
+        };
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TextRunSpec — composable text-run descriptor (replaces flat TextRunParams).
+//
+// Composes TextSpec for all text rendering + adds animators / script / cache.
+// ═══════════════════════════════════════════════════════════════════════════
+struct TextRunSpec {
+    TextSpec                       text;
+    TextDirection                  direction{TextDirection::Auto};
+    std::string                    language;              // BCP-47 tag (empty = auto)
+    std::vector<TextAnimatorSpec>  animators;
+    std::vector<GlyphSelectorSpec> selectors;  // top-level convenience selectors
+    bool                           cache_layout{true};
 };
 
 // ---------------------------------------------------------------------------
@@ -189,6 +329,96 @@ struct TextRunParams {
     // Source text cache hint — when a re-evaluation would produce an
     // identical TextRunLayout, the layout cache can skip re-shaping.
     bool cache_layout{true};
+
+    // ── Conversion from TextRunSpec (forward-compat bridge) ──────────
+    TextRunParams() = default;
+    explicit TextRunParams(const TextRunSpec& rs)
+        : text(rs.text.content.value)
+        , font_path(rs.text.font.font_path)
+        , font_family(rs.text.font.font_family)
+        , font_weight(rs.text.font.font_weight)
+        , font_style(rs.text.font.font_style)
+        , font_size(rs.text.font.font_size)
+        , color(rs.text.appearance.color)
+        , pos(rs.text.position)
+        , size(rs.text.layout.box)
+        , anchor(rs.text.layout.anchor)
+        , align(rs.text.layout.align)
+        , vertical_align(rs.text.layout.vertical_align)
+        , wrap(rs.text.layout.wrap)
+        , direction(rs.direction)
+        , language(rs.language)
+        , line_height(rs.text.layout.line_height)
+        , tracking(rs.text.layout.tracking)
+        , paint(rs.text.appearance.paint)
+        , shadows(rs.text.appearance.shadows)
+        , material(rs.text.appearance.material)
+        , animators(rs.animators)
+        , selectors(rs.selectors)
+        , pre_shaped(rs.text.content.pre_shaped)
+        , cache_layout(rs.cache_layout)
+    {}
+
+    [[nodiscard]] TextRunSpec to_spec() const & {
+        TextParams tp;
+        tp.text        = text;
+        tp.size        = size;
+        tp.pos         = pos;
+        tp.font_path   = font_path;
+        tp.font_family = font_family;
+        tp.font_weight = font_weight;
+        tp.font_style  = font_style;
+        tp.font_size   = font_size;
+        tp.color       = color;
+        tp.anchor      = anchor;
+        tp.align       = align;
+        tp.vertical_align = vertical_align;
+        tp.wrap        = wrap;
+        tp.line_height = line_height;
+        tp.tracking    = tracking;
+        tp.paint       = paint;
+        tp.shadows     = shadows;
+        tp.material    = material;
+        tp.pre_shaped  = pre_shaped;
+        return TextRunSpec{
+            .text         = tp.to_spec(),
+            .direction    = direction,
+            .language     = language,
+            .animators    = animators,
+            .selectors    = selectors,
+            .cache_layout = cache_layout,
+        };
+    }
+    [[nodiscard]] TextRunSpec to_spec() && {
+        TextParams tp;
+        tp.text        = std::move(text);
+        tp.size        = size;
+        tp.pos         = pos;
+        tp.font_path   = std::move(font_path);
+        tp.font_family = std::move(font_family);
+        tp.font_weight = font_weight;
+        tp.font_style  = std::move(font_style);
+        tp.font_size   = font_size;
+        tp.color       = color;
+        tp.anchor      = anchor;
+        tp.align       = align;
+        tp.vertical_align = vertical_align;
+        tp.wrap        = wrap;
+        tp.line_height = line_height;
+        tp.tracking    = tracking;
+        tp.paint       = std::move(paint);
+        tp.shadows     = std::move(shadows);
+        tp.material    = std::move(material);
+        tp.pre_shaped  = std::move(pre_shaped);
+        return TextRunSpec{
+            .text         = std::move(tp).to_spec(),
+            .direction    = direction,
+            .language     = std::move(language),
+            .animators    = std::move(animators),
+            .selectors    = std::move(selectors),
+            .cache_layout = cache_layout,
+        };
+    }
 };
 
 struct ShadowStyle {

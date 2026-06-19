@@ -59,6 +59,7 @@ struct FontSpec {
     std::string font_family;     // family name (for fallback / diagnostics)
     int         font_weight{400}; // CSS-style weight: 100–900
     std::string font_style{"normal"}; // "normal", "italic", "oblique"
+    f32         font_size{72.0f}; // target pixel size (carried for TextSpec composition)
 
     bool operator==(const FontSpec& other) const noexcept {
         return font_path == other.font_path &&

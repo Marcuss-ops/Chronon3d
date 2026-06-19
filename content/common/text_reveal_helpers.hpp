@@ -253,22 +253,22 @@ inline void build_text_reveal_line(SceneBuilder& s,
 
             // Text layer box sized to contain the glyph + glow padding
             const f32 pad = d.glow_intensity > 0.01f ? 40.0f : 12.0f;
-            TextParams tp;
-            tp.text           = ch;
-            tp.size           = {ch_w + pad, d.font_size * 1.8f};
-            tp.pos            = {0.0f, 0.0f, 0.0f};
-            tp.font_path      = d.font_spec.font_path;
-            tp.font_family    = d.font_spec.font_family;
-            tp.font_weight    = d.font_spec.font_weight;
-            tp.font_size      = d.font_size;
-            tp.color          = d.color;
-            tp.anchor         = TextAnchor::Center;
-            tp.align          = TextAlign::Center;
-            tp.vertical_align = VerticalAlign::Middle;
-            tp.line_height    = 1.10f;
-            tp.tracking       = 0.0f;
+            TextSpec ts{
+                .content    = {.value = ch},
+                .font       = {.font_path   = d.font_spec.font_path,
+                               .font_family = d.font_spec.font_family,
+                               .font_weight = d.font_spec.font_weight,
+                               .font_size   = d.font_size},
+                .layout     = {.box            = {ch_w + pad, d.font_size * 1.8f},
+                               .anchor         = TextAnchor::Center,
+                               .align          = TextAlign::Center,
+                               .vertical_align = VerticalAlign::Middle,
+                               .line_height    = 1.10f,
+                               .tracking       = 0.0f},
+                .appearance = {.color = d.color},
+            };
 
-            l.text("label", tp);
+            l.text("label", ts);
         });
     }
 }
