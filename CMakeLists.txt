@@ -62,7 +62,6 @@ option(CHRONON3D_BUILD_DIAGNOSTICS "Build diagnostic/debug compositions (tests, 
 option(CHRONON3D_ENABLE_NATIVE_FFMPEG "Enable native FFmpeg/libav encoder support" OFF)
 option(CHRONON3D_ENABLE_TEXT "Enable text rendering support (freetype + harfbuzz)" ON)
 option(CHRONON3D_ENABLE_EXR "Enable OpenEXR image format support" ON)
-option(CHRONON3D_ENABLE_LIBYUV "Enable libyuv SIMD-accelerated YUV conversion" ON)
 option(CHRONON3D_ENABLE_VIDEO "Enable video/media pipeline (frame conversion, video sinks)" ON)
 option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
 # SQLite telemetry is always on (runtime/telemetry): the stub-mode impl was
@@ -90,9 +89,7 @@ endif()
 if(CHRONON3D_ENABLE_EXR)
     add_compile_definitions(CHRONON3D_ENABLE_EXR)
 endif()
-if(CHRONON3D_ENABLE_LIBYUV)
-    add_compile_definitions(CHRONON3D_ENABLE_LIBYUV)
-endif()
+
 if(CHRONON3D_ENABLE_VIDEO)
     add_compile_definitions(CHRONON3D_ENABLE_VIDEO)
 endif()
@@ -142,9 +139,7 @@ if(CHRONON3D_ENABLE_EXR)
     find_package(OpenEXR CONFIG REQUIRED)
 endif()
 
-if(CHRONON3D_ENABLE_LIBYUV)
-    find_package(libyuv CONFIG REQUIRED)
-endif()
+
 
 find_package(unofficial-sqlite3 CONFIG REQUIRED)
 

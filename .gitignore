@@ -40,6 +40,14 @@ Thumbs.db
 __pycache__/
 *.pyc
 
+# Virtual environments
+.venv/
+**/.venv/
+
+# Build logs (accidentally committed local artifacts)
+build_output.txt
+*.build.log
+
 
 
 

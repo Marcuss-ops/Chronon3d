@@ -51,7 +51,7 @@ void register_batch(CLI::App& app, CliContext& ctx) {
 void register_bench_convert(CLI::App& app, CliContext& ctx) {
     auto args = std::make_shared<BenchConvertArgs>();
     auto* cmd = app.add_subcommand("benchconvert",
-        "Benchmark YUV frame conversion backends (Highway SIMD, TBB scalar, libyuv, swscale)");
+        "Benchmark YUV frame conversion backends (Packed, Swscale)");
     cmd->add_option("comp_id", args->comp_id, "Composition ID to render and convert")->required();
     cmd->add_option("-f,--frame",     args->frame,       "Frame index to render")->default_val(0);
     cmd->add_option("-i,--iterations",args->iterations,  "Timing iterations per backend")->default_val(10);
