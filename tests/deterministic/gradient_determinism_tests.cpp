@@ -24,6 +24,57 @@ static bool approx(f32 a, f32 b, f32 eps = 1e-5f) {
     return std::abs(a - b) < eps;
 }
 
+// ---------------------------------------------------------------------------
+// Diagnostic helper: walks two framebuffers row-major and emits the FIRST
+// pixel (x, y) whose RGBA channels differ.  Only fires when the surrounding
+// test detects a hash mismatch, and never fails the test (print-only via
+// doctest CAPTURE / MESSAGE).  Intended to localize the SIMD/SSE path
+// responsible for the divergence:
+//   * mismatch on a TBB chunk boundary (e.g. y = H/8) => row-stitch in
+//     software_compositor.cpp
+//   * mismatch inside a gradient fade area             => simd::composite_*
+//     float reducer
+//   * mismatch exactly on a PIP even-odd crossing     => pip.cpp AVX2 path
+// ---------------------------------------------------------------------------
+static void log_first_divergent_pixel(const chronon3d::Framebuffer& a,
+                                       const chronon3d::Framebuffer& b,
+                                       const char* a_label = "A",
+                                       const char* b_label = "B") {
+    int W = a.width();
+    int H = a.height();
+    if (b.width() != W || b.height() != H) {
+        MESSAGE("log_first_divergent_pixel: size mismatch "
+                << W << "x" << H << " vs " << b.width() << "x" << b.height());
+        return;
+    }
+    for (int y = 0; y < H; ++y) {
+        for (int x = 0; x < W; ++x) {
+            chronon3d::Color ca = a.get_pixel(x, y);
+            chronon3d::Color cb = b.get_pixel(x, y);
+            const bool differs =
+                ca.r != cb.r || ca.g != cb.g ||
+                ca.b != cb.b || ca.a != cb.a;
+            if (differs) {
+                CAPTURE(a_label);
+                CAPTURE(b_label);
+                CAPTURE(x);
+                CAPTURE(y);
+                CAPTURE(W);
+                CAPTURE(H);
+                CAPTURE(ca.r); CAPTURE(ca.g); CAPTURE(ca.b); CAPTURE(ca.a);
+                CAPTURE(cb.r); CAPTURE(cb.g); CAPTURE(cb.b); CAPTURE(cb.a);
+                MESSAGE("first divergent pixel @ (" << x << ", " << y << ") in "
+                        << W << "x" << H << " fb — "
+                        << a_label << "=(" << ca.r << "," << ca.g << ","
+                        << ca.b << "," << ca.a << ")  "
+                        << b_label << "=(" << cb.r << "," << cb.g << ","
+                        << cb.b << "," << cb.a << ")");
+                return;
+            }
+        }
+    }
+}
+
 namespace {
 
 // ── Gradient test scenes ───────────────────────────────────────────────
@@ -257,50 +308,62 @@ TEST_CASE("Gradient determinism: new renderer vs same renderer — identical pix
 TEST_CASE("Gradient determinism: 1 thread vs 4 threads — identical pixels") {
     auto comp = make_gradient_static_comp();
 
+    std::shared_ptr<Framebuffer> fb_1t;
+    std::shared_ptr<Framebuffer> fb_4t;
     u64 hash_1t = 0;
+    u64 hash_4t = 0;
     {
         tbb::global_control gc(tbb::global_control::max_allowed_parallelism, 1);
         auto renderer = make_renderer();
         auto fb = renderer.render_frame(comp, 0);
         REQUIRE(fb != nullptr);
+        fb_1t = fb;
         hash_1t = framebuffer_hash(*fb);
     }
-
-    u64 hash_4t = 0;
     {
         tbb::global_control gc(tbb::global_control::max_allowed_parallelism, 4);
         auto renderer = make_renderer();
         auto fb = renderer.render_frame(comp, 0);
         REQUIRE(fb != nullptr);
+        fb_4t = fb;
         hash_4t = framebuffer_hash(*fb);
     }
 
     INFO("1-thread hash: " << hash_1t << ", 4-thread hash: " << hash_4t);
+    if (hash_1t != hash_4t) {
+        log_first_divergent_pixel(*fb_1t, *fb_4t, "1T", "4T");
+    }
     CHECK(hash_1t == hash_4t);
 }
 
 TEST_CASE("Gradient determinism: 1 thread vs 8 threads — identical pixels") {
     auto comp = make_gradient_static_comp();
 
+    std::shared_ptr<Framebuffer> fb_1t;
+    std::shared_ptr<Framebuffer> fb_8t;
     u64 hash_1t = 0;
+    u64 hash_8t = 0;
     {
         tbb::global_control gc(tbb::global_control::max_allowed_parallelism, 1);
         auto renderer = make_renderer();
         auto fb = renderer.render_frame(comp, 0);
         REQUIRE(fb != nullptr);
+        fb_1t = fb;
         hash_1t = framebuffer_hash(*fb);
     }
-
-    u64 hash_8t = 0;
     {
         tbb::global_control gc(tbb::global_control::max_allowed_parallelism, 8);
         auto renderer = make_renderer();
         auto fb = renderer.render_frame(comp, 0);
         REQUIRE(fb != nullptr);
+        fb_8t = fb;
         hash_8t = framebuffer_hash(*fb);
     }
 
     INFO("1-thread hash: " << hash_1t << ", 8-thread hash: " << hash_8t);
+    if (hash_1t != hash_8t) {
+        log_first_divergent_pixel(*fb_1t, *fb_8t, "1T", "8T");
+    }
     CHECK(hash_1t == hash_8t);
 }
 
