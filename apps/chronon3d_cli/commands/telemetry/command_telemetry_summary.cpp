@@ -1,11 +1,14 @@
 #include "command_telemetry_internal.hpp"
 
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
 #include <sqlite3.h>
+#endif
 #include <string>
 #include <unordered_map>
 
 namespace chronon3d::cli {
 
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
 RunSummary query_run_summary(sqlite3* db, const std::string& run_id) {
     RunSummary run;
     const char* run_sql = "SELECT * FROM render_runs WHERE run_id = ?;";
@@ -172,5 +175,6 @@ RunSummary query_run_summary(sqlite3* db, const std::string& run_id) {
 
     return run;
 }
+#endif // CHRONON3D_ENABLE_SQLITE_TELEMETRY
 
 } // namespace chronon3d::cli

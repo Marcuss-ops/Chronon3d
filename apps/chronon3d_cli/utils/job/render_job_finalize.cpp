@@ -100,6 +100,9 @@ bool finalize_render_job(
     // ── Write telemetry (only when --report is set) ───────────────────
     const bool write_telemetry = plan.report;
     if (write_telemetry) {
+#ifndef CHRONON3D_ENABLE_SQLITE_TELEMETRY
+        spdlog::info("[report] Telemetry support is disabled in this build.");
+#endif
         chronon3d::telemetry::TelemetryManager::instance().record_run(
             run, telemetry_frames, phases, counters_list,
             telemetry.node_events, telemetry.layer_events,

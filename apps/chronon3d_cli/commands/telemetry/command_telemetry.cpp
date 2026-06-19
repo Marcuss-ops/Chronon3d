@@ -2,7 +2,9 @@
 #include "../../commands.hpp"
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
 #include <sqlite3.h>
+#endif
 #include <spdlog/spdlog.h>
 #include <cstdint>
 #include <fstream>
@@ -12,6 +14,7 @@
 namespace chronon3d::cli {
 
 int command_telemetry(const TelemetryArgs& args) {
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
     const std::string db_path = chronon3d::telemetry::TelemetryManager::resolve_sqlite_telemetry_path().string();
     sqlite3* db = nullptr;
     if (sqlite3_open(db_path.c_str(), &db) != SQLITE_OK) {
@@ -42,7 +45,7 @@ int command_telemetry(const TelemetryArgs& args) {
     auto run = query_run_summary(db, run_id);
 
     std::stringstream out;
-    generate_telemetry_report(out, db, run_id, run);
+    generate_telemetry_report(out, run);
 
     const std::string output_path = args.output_file.empty() ? "output/telemetry_report.md" : args.output_file;
     std::ofstream f(output_path);
@@ -51,6 +54,11 @@ int command_telemetry(const TelemetryArgs& args) {
 
     sqlite3_close(db);
     return 0;
+#else
+    (void)args;
+    spdlog::info("Telemetry support is disabled in this build.");
+    return 0;
+#endif
 }
 
 } // namespace chronon3d::cli
