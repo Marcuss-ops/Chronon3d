@@ -28,7 +28,7 @@ SceneBuilder& SceneBuilder::directional_light(Vec3 direction, Color color, f32 i
 }
 
 SceneBuilder& SceneBuilder::shape(std::string_view id, std::string name, registry::ShapeParams params) {
-    scene_.add_node(registry::ShapeRegistry::instance().create_node(
+    scene_.add_node(m_shape_registry->create_node(
         id,
         scene_.resource(),
         std::move(name),

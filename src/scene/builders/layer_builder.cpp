@@ -16,18 +16,27 @@ namespace chronon3d {
 
 // ── Primary constructor (SampleTime) ────────────────────────────────────────
 
-LayerBuilder::LayerBuilder(std::string name, SampleTime current_time, std::pmr::memory_resource* res)
+LayerBuilder::LayerBuilder(std::string name, SampleTime current_time, std::pmr::memory_resource* res,
+                           registry::ShapeRegistry* shape_registry)
     : m_layer(res), m_current_time(current_time) {
     m_layer.name = std::pmr::string{name, res};
+    if (shape_registry) {
+        m_shape_registry = shape_registry;
+    } else {
+        m_own_shape_registry.emplace(registry::make_default_shape_registry());
+        m_shape_registry = &*m_own_shape_registry;
+    }
 }
 
 // ── Backward-compatible constructor (Frame → SampleTime) ────────────────────
 
-LayerBuilder::LayerBuilder(std::string name, Frame current_frame, std::pmr::memory_resource* res)
-    : LayerBuilder(std::move(name), SampleTime::from_frame_int(current_frame, FrameRate{30, 1}), res) {}
+LayerBuilder::LayerBuilder(std::string name, Frame current_frame, std::pmr::memory_resource* res,
+                           registry::ShapeRegistry* shape_registry)
+    : LayerBuilder(std::move(name), SampleTime::from_frame_int(current_frame, FrameRate{30, 1}), res, shape_registry) {}
 
-LayerBuilder::LayerBuilder(std::string name, std::pmr::memory_resource* res)
-    : LayerBuilder(std::move(name), SampleTime::from_frame_int(0, FrameRate{30, 1}), res) {}
+LayerBuilder::LayerBuilder(std::string name, std::pmr::memory_resource* res,
+                           registry::ShapeRegistry* shape_registry)
+    : LayerBuilder(std::move(name), SampleTime::from_frame_int(0, FrameRate{30, 1}), res, shape_registry) {}
 
 LayerBuilder& LayerBuilder::parent(std::string name) {
     m_layer.parent_name = std::pmr::string{name, m_layer.name.get_allocator()};

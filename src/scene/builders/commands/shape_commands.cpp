@@ -162,7 +162,7 @@ LayerBuilder& LayerBuilder::text(std::string name, TextSpec p) {
 }
 
 LayerBuilder& LayerBuilder::shape(std::string_view id, std::string name, registry::ShapeParams params) {
-    m_layer.nodes.push_back(registry::ShapeRegistry::instance().create_node(
+    m_layer.nodes.push_back(m_shape_registry->create_node(
         id,
         m_layer.nodes.get_allocator().resource(),
         std::move(name),

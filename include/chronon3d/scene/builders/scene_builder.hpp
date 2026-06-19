@@ -20,6 +20,7 @@
 #include <chronon3d/animation/effects/stagger.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <glm/glm.hpp>
+#include <optional>
 #include <type_traits>
 #include <functional>
 #include <string>
@@ -31,27 +32,49 @@ namespace chronon3d {
 
     class SceneBuilder {
       public:
-        explicit SceneBuilder(std::pmr::memory_resource *res = std::pmr::get_default_resource())
+        explicit SceneBuilder(std::pmr::memory_resource *res = std::pmr::get_default_resource(),
+                              registry::ShapeRegistry* shape_registry = nullptr)
             : scene_(res), current_time_(SampleTime::from_frame_int(0, FrameRate{30, 1})) {
             m_ctx.resource = res;
             m_ctx.width = m_width;
             m_ctx.height = m_height;
+            if (shape_registry) {
+                m_shape_registry = shape_registry;
+            } else {
+                m_own_shape_registry.emplace(registry::make_default_shape_registry());
+                m_shape_registry = &*m_own_shape_registry;
+            }
         }
 
-        explicit SceneBuilder(i32 width, i32 height, std::pmr::memory_resource *res = std::pmr::get_default_resource())
+        explicit SceneBuilder(i32 width, i32 height, std::pmr::memory_resource *res = std::pmr::get_default_resource(),
+                              registry::ShapeRegistry* shape_registry = nullptr)
             : scene_(res), current_time_(SampleTime::from_frame_int(0, FrameRate{30, 1})), m_width(width), m_height(height) {
             m_ctx.resource = res;
             m_ctx.width = width;
             m_ctx.height = height;
+            if (shape_registry) {
+                m_shape_registry = shape_registry;
+            } else {
+                m_own_shape_registry.emplace(registry::make_default_shape_registry());
+                m_shape_registry = &*m_own_shape_registry;
+            }
         }
 
         // Convenience constructor for compositions — preserves sub-frame time.
-        explicit SceneBuilder(const FrameContext &ctx)
+        explicit SceneBuilder(const FrameContext &ctx,
+                              registry::ShapeRegistry* shape_registry = nullptr)
             : scene_(ctx.resource),
               current_time_(SampleTime::from_frame(
                   static_cast<double>(ctx.frame) + static_cast<double>(ctx.frame_time),
                   ctx.frame_rate)),
-              m_ctx(ctx), m_width(ctx.width), m_height(ctx.height) {}
+              m_ctx(ctx), m_width(ctx.width), m_height(ctx.height) {
+            if (shape_registry) {
+                m_shape_registry = shape_registry;
+            } else {
+                m_own_shape_registry.emplace(registry::make_default_shape_registry());
+                m_shape_registry = &*m_own_shape_registry;
+            }
+        }
 
         [[nodiscard]] CameraApi camera() { return CameraApi(*this); }
 
@@ -105,7 +128,7 @@ namespace chronon3d {
             // Preserve sub-frame fraction from the parent time.
             local_ctx.frame_time = m_ctx.frame_time;
 
-            SceneBuilder sub_builder(local_ctx);
+            SceneBuilder sub_builder(local_ctx, m_shape_registry);
             std::forward<Fn>(fn)(sub_builder);
 
             Scene sub_scene = sub_builder.build();
@@ -130,7 +153,7 @@ namespace chronon3d {
         // Standard Layers
         template <typename Fn>
         SceneBuilder &layer(std::string name, Fn &&fn) {
-            LayerBuilder builder(std::move(name), current_time_, scene_.resource());
+            LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
             builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
             std::forward<Fn>(fn)(builder);
 
@@ -143,7 +166,7 @@ namespace chronon3d {
 
         template <typename Fn>
         SceneBuilder &screen_layer(std::string name, Fn &&fn) {
-            LayerBuilder builder(std::move(name), current_time_, scene_.resource());
+            LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
             builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
             std::forward<Fn>(fn)(builder);
 
@@ -158,7 +181,7 @@ namespace chronon3d {
         // The lambda receives a LayerBuilder but any visuals added are ignored.
         template <typename Fn>
         SceneBuilder &adjustment_layer(std::string name, Fn &&fn) {
-            LayerBuilder builder(std::move(name), current_time_, scene_.resource());
+            LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
             builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
             std::forward<Fn>(fn)(builder);
 
@@ -172,7 +195,7 @@ namespace chronon3d {
 
         template <typename Fn>
         SceneBuilder &precomp_layer(std::string name, std::string comp_name, Fn &&fn) {
-            LayerBuilder builder(std::move(name), current_time_, scene_.resource());
+            LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
@@ -186,7 +209,7 @@ namespace chronon3d {
 
         template <typename Fn>
         SceneBuilder &video_layer(std::string name, video::VideoSource source, Fn &&fn) {
-            LayerBuilder builder(std::move(name), current_time_, scene_.resource());
+            LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
@@ -228,7 +251,7 @@ namespace chronon3d {
                 }
                 return *this;
             } else {
-                LayerBuilder builder(std::move(name), current_time_, scene_.resource());
+                LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
                 std::forward<Fn>(fn)(builder);
 
                 Layer l = builder.build();
@@ -329,6 +352,8 @@ namespace chronon3d {
         FrameContext m_ctx{};
         i32 m_width{1920};
         i32 m_height{1080};
+        registry::ShapeRegistry* m_shape_registry{nullptr};
+        std::optional<registry::ShapeRegistry> m_own_shape_registry;
     };
 
 } // namespace chronon3d

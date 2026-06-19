@@ -136,15 +136,6 @@ void register_builtin_shapes(ShapeRegistry& registry) {
 
 } // namespace
 
-ShapeRegistry& ShapeRegistry::instance() {
-    static ShapeRegistry registry;
-    return registry;
-}
-
-ShapeRegistry::ShapeRegistry() {
-    register_builtin_shapes(*this);
-}
-
 void ShapeRegistry::register_shape(ShapeDescriptor descriptor) {
     if (descriptor.id.empty()) {
         throw std::runtime_error("Shape id cannot be empty");
@@ -204,6 +195,12 @@ void ShapeRegistry::clear() {
 void ShapeRegistry::reset() {
     clear();
     register_builtin_shapes(*this);
+}
+
+ShapeRegistry make_default_shape_registry() {
+    ShapeRegistry registry;
+    register_builtin_shapes(registry);
+    return registry;
 }
 
 } // namespace chronon3d::registry

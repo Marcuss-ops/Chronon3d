@@ -61,13 +61,16 @@ public:
     /// Primary constructor: accepts sub-frame SampleTime for continuous animation evaluation.
     explicit LayerBuilder(std::string name,
                           SampleTime current_time,
-                          std::pmr::memory_resource* res = std::pmr::get_default_resource());
+                          std::pmr::memory_resource* res = std::pmr::get_default_resource(),
+                          registry::ShapeRegistry* shape_registry = nullptr);
     /// Backward-compatible constructor: accepts integer Frame, delegates to SampleTime.
     explicit LayerBuilder(std::string name,
                           Frame current_frame = 0,
-                          std::pmr::memory_resource* res = std::pmr::get_default_resource());
+                          std::pmr::memory_resource* res = std::pmr::get_default_resource(),
+                          registry::ShapeRegistry* shape_registry = nullptr);
     explicit LayerBuilder(std::string name,
-                          std::pmr::memory_resource* res);
+                          std::pmr::memory_resource* res,
+                          registry::ShapeRegistry* shape_registry = nullptr);
 
     // ── Timing ──
     LayerBuilder& parent(std::string name);
@@ -259,6 +262,8 @@ private:
     f32 m_screen_width{1920.0f};
     f32 m_screen_height{1080.0f};
     FontEngine* m_font_engine{nullptr};
+    registry::ShapeRegistry* m_shape_registry{nullptr};
+    std::optional<registry::ShapeRegistry> m_own_shape_registry;
 
     // ── PR 4 — pending text-run specs + builder pool ──────────────────
     //
