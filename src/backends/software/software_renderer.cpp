@@ -100,8 +100,10 @@ SoftwareRenderer::SoftwareRenderer()
         cfg.paths().persistent_framebuffer_cache_dir());
     ImageCache::set_capacity_bytes(cache_cfg.image_cache_max_bytes());
     cache::set_global_cache_config(cache_cfg);
+#ifdef CHRONON3D_HAS_BACKEND_TEXT
     set_glyph_atlas_capacity(cache_cfg.glyph_atlas_max_bytes());
     set_text_cache_capacity(cache_cfg.text_cache_max_bytes());
+#endif
     renderer::set_shadow_cache_capacity(cache_cfg.shadow_cache_max_bytes());
     renderer::set_glow_cache_capacity(cache_cfg.glow_cache_max_bytes());
     renderer::set_pip_mode(sched_cfg.pip_mode());

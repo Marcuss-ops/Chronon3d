@@ -23,9 +23,9 @@ public:
         set_frame_dependent(frame_dep);
     }
 
-    RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Source; }
-    std::string name() const override { return m_name; }
-    bool cacheable() const override { return m_cacheable; }
+    RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
+    [[nodiscard]] std::string_view name() const noexcept override { return m_name; }
+    [[nodiscard]] bool cacheable() const noexcept override { return m_cacheable; }
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,

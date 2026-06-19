@@ -132,15 +132,15 @@ Composition make_neon_card() {
             l.position({0.0f, 170.0f, 0.0f})
              .glow(GlowPresets::neon_blue(44.0f));
             l.text("title", {
-                .text = "NEON CARD",
-                .size = {700.0f, 120.0f},
-                .pos = {0.0f, 0.0f, 0.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
-                .font_family = "Inter",
-                .font_size = 72.0f,
-                .color = Color{0.98f, 0.99f, 1.0f, 1.0f},
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle
+                .content = {.value = "NEON CARD"},
+                .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                         .font_family = "Inter",
+                         .font_size = 72.0f},
+                .layout = {.box = {700.0f, 120.0f},
+                           .align = TextAlign::Center,
+                           .vertical_align = VerticalAlign::Middle},
+                .appearance = {.color = Color{0.98f, 0.99f, 1.0f, 1.0f}},
+                .position = {0.0f, 0.0f, 0.0f}
             });
         });
 
@@ -148,15 +148,15 @@ Composition make_neon_card() {
             l.position({0.0f, 245.0f, 0.0f})
              .glow(GlowPresets::cinematic_gold(24.0f));
             l.text("caption", {
-                .text = "radius ladder + halo balance",
-                .size = {680.0f, 48.0f},
-                .pos = {0.0f, 0.0f, 0.0f},
-                .font_path = "assets/fonts/Inter-Regular.ttf",
-                .font_family = "Inter",
-                .font_size = 22.0f,
-                .color = Color{0.82f, 0.86f, 0.94f, 1.0f},
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle
+                .content = {.value = "radius ladder + halo balance"},
+                .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
+                         .font_family = "Inter",
+                         .font_size = 22.0f},
+                .layout = {.box = {680.0f, 48.0f},
+                           .align = TextAlign::Center,
+                           .vertical_align = VerticalAlign::Middle},
+                .appearance = {.color = Color{0.82f, 0.86f, 0.94f, 1.0f}},
+                .position = {0.0f, 0.0f, 0.0f}
             });
         });
 
@@ -175,15 +175,15 @@ Composition make_text_glow_scene() {
             l.position({0.0f, -10.0f, 0.0f})
              .glow(GlowPresets::cinematic_gold(52.0f));
             l.text("hero", {
-                .text = "GLOW ENGINE",
-                .size = {820.0f, 160.0f},
-                .pos = {0.0f, 0.0f, 0.0f},
-                .font_path = "assets/fonts/Georgia_Bold.ttf",
-                .font_family = "Georgia",
-                .font_size = 78.0f,
-                .color = Color{1.0f, 0.97f, 0.88f, 1.0f},
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle
+                .content = {.value = "GLOW ENGINE"},
+                .font = {.font_path = "assets/fonts/Georgia_Bold.ttf",
+                         .font_family = "Georgia",
+                         .font_size = 78.0f},
+                .layout = {.box = {820.0f, 160.0f},
+                           .align = TextAlign::Center,
+                           .vertical_align = VerticalAlign::Middle},
+                .appearance = {.color = Color{1.0f, 0.97f, 0.88f, 1.0f}},
+                .position = {0.0f, 0.0f, 0.0f}
             });
         });
 
@@ -191,15 +191,15 @@ Composition make_text_glow_scene() {
             l.position({0.0f, 128.0f, 0.0f})
              .glow(GlowPresets::soft_cyan(28.0f));
             l.text("sub", {
-                .text = "text, image and shape coverage",
-                .size = {760.0f, 52.0f},
-                .pos = {0.0f, 0.0f, 0.0f},
-                .font_path = "assets/fonts/Inter-Regular.ttf",
-                .font_family = "Inter",
-                .font_size = 24.0f,
-                .color = Color{0.76f, 0.92f, 1.0f, 1.0f},
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle
+                .content = {.value = "text, image and shape coverage"},
+                .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
+                         .font_family = "Inter",
+                         .font_size = 24.0f},
+                .layout = {.box = {760.0f, 52.0f},
+                           .align = TextAlign::Center,
+                           .vertical_align = VerticalAlign::Middle},
+                .appearance = {.color = Color{0.76f, 0.92f, 1.0f, 1.0f}},
+                .position = {0.0f, 0.0f, 0.0f}
             });
         });
 
@@ -231,15 +231,15 @@ Composition make_image_glow_scene() {
             l.position({0.0f, 190.0f, 0.0f})
              .glow(GlowPresets::neon_blue(20.0f));
             l.text("label", {
-                .text = "image glow alpha coverage",
-                .size = {760.0f, 48.0f},
-                .pos = {0.0f, 0.0f, 0.0f},
-                .font_path = "assets/fonts/Inter-Regular.ttf",
-                .font_family = "Inter",
-                .font_size = 22.0f,
-                .color = Color{0.86f, 0.90f, 0.98f, 1.0f},
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle
+                .content = {.value = "image glow alpha coverage"},
+                .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
+                         .font_family = "Inter",
+                         .font_size = 22.0f},
+                .layout = {.box = {760.0f, 48.0f},
+                           .align = TextAlign::Center,
+                           .vertical_align = VerticalAlign::Middle},
+                .appearance = {.color = Color{0.86f, 0.90f, 0.98f, 1.0f}},
+                .position = {0.0f, 0.0f, 0.0f}
             });
         });
 
@@ -313,15 +313,15 @@ Composition make_pulse_scene() {
             l.position({0.0f, 180.0f, 0.0f})
              .glow(GlowPresets::soft_cyan(22.0f + pulse * 4.0f));
             l.text("title", {
-                .text = "PULSE",
-                .size = {520.0f, 84.0f},
-                .pos = {0.0f, 0.0f, 0.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
-                .font_family = "Inter",
-                .font_size = 56.0f,
-                .color = Color{0.78f, 0.94f, 1.0f, 1.0f},
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle
+                .content = {.value = "PULSE"},
+                .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                         .font_family = "Inter",
+                         .font_size = 56.0f},
+                .layout = {.box = {520.0f, 84.0f},
+                           .align = TextAlign::Center,
+                           .vertical_align = VerticalAlign::Middle},
+                .appearance = {.color = Color{0.78f, 0.94f, 1.0f, 1.0f}},
+                .position = {0.0f, 0.0f, 0.0f}
             });
         });
 

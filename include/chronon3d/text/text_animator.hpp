@@ -268,8 +268,14 @@ inline Frame TextAnimator::unit_delay(size_t index, size_t total) const {
     // Distribute delays evenly across units
     f32 t = static_cast<f32>(index) / static_cast<f32>(total - 1);
     f32 eased = m_config.easing.apply(t);
-    f32 max_delay = static_cast<f32>(static_cast<Frame>(total - 1) * m_config.delay_per_unit);
-    return Frame{static_cast<Frame>(static_cast<f32>(eased * max_delay))};
+    // Cast the unit count to i64 first so we use the existing
+    // `i64 * Frame` operator overload.  Frame * Frame is intentionally
+    // undefined (Frame is a strong type for time-points, not a scalar).
+    f32 max_delay = static_cast<f32>(
+        static_cast<i64>(total - 1) * m_config.delay_per_unit);
+    return Frame{
+        static_cast<Frame>(static_cast<f32>(eased * max_delay))
+    };
 }
 
 inline std::vector<TextAnimator::GlyphUnit> TextAnimator::split_glyphs() const {

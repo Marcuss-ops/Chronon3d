@@ -185,11 +185,9 @@ void FrameGraphCompiler::build_node_metadata(
                 node_info.reachable = true;
                 node_info.consumers = children[id];
                 
-                auto policy = node.cache_policy();
-                node_info.cache_policy = policy;
-                node_info.frame_dependent = policy.frame_dependent;
-                node_info.cacheable = policy.cacheable;
-                node_info.disk_cacheable = policy.disk_cacheable;
+                // Canonical cache surface — derived views (frame_dependent / cacheable /
+                // disk_cacheable) on CompiledNodeInfo were removed; read this directly.
+                node_info.cache_policy = node.cache_policy();
 
                 if (id < ctx.tile.early_exit_skip.size() && ctx.tile.early_exit_skip[id]) {
                     node_info.early_exit_skip = true;

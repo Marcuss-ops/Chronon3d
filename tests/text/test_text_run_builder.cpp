@@ -109,14 +109,14 @@ TEST_CASE("TextRunBuilder: chain via LayerBuilder accumulates all entries") {
     trb_b.opacity(0.5f).rotate({0.0f, 30.0f, 0.0f});
 
     // Verify the first reference is still alive.
-    CHECK_FALSE(trb_a.spec().text.empty());
-    CHECK(trb_a.spec().text == "Hello");
+    CHECK_FALSE(trb_a.spec().text.content.value.empty());
+    CHECK(trb_a.spec().text.content.value == "Hello");
 
     // Both runs landed.
     const auto& runs_a_after = trb_a.spec();
     const auto& runs_b_after = trb_b.spec();
-    CHECK(runs_a_after.text == "Hello");
-    CHECK(runs_b_after.text == "World");
+    CHECK(runs_a_after.text.content.value == "Hello");
+    CHECK(runs_b_after.text.content.value == "World");
 
     // PR 3 — .selector(user_stagger_sel) AFTER .animator(user_a)
     // now attaches the selector to user_a (the LAST animator) instead of
@@ -300,7 +300,7 @@ TEST_CASE("TextRunBuilder: chained references stay valid across push_back") {
     }
     // First reference should still be alive and read correctly.
     REQUIRE(first_ref != nullptr);
-    CHECK(first_ref->spec().text == "frame_0");
+    CHECK(first_ref->spec().text.content.value == "frame_0");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
