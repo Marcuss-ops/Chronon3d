@@ -7,18 +7,27 @@
 #include <string>
 #include <memory>
 #include <shared_mutex>
-
+#ifdef CHRONON3D_USE_BLEND2D
 #include <blend2d.h>
+#endif
 
 namespace chronon3d {
 
 struct CachedImage {
     int width{0};
     int height{0};
+#ifdef CHRONON3D_USE_BLEND2D
     BLImage bl_img;
+#endif
     std::shared_ptr<Framebuffer> fb_img;
 
-    [[nodiscard]] bool valid() const { return !bl_img.empty() && fb_img && width > 0 && height > 0; }
+    [[nodiscard]] bool valid() const {
+#ifdef CHRONON3D_USE_BLEND2D
+        return !bl_img.empty() && fb_img && width > 0 && height > 0;
+#else
+        return fb_img && width > 0 && height > 0;
+#endif
+    }
 };
 
 class ImageCache {

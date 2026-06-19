@@ -218,6 +218,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     int img_h = 0;
     bool using_placeholder = false;
 
+#ifdef CHRONON3D_USE_BLEND2D
     if (!cached || cached->bl_img.empty()) {
         int pw = static_cast<int>(std::round(image.size.x));
         int ph = static_cast<int>(std::round(image.size.y));
@@ -238,11 +239,22 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
         img_w = pw;
         img_h = ph;
         using_placeholder = true;
-    } else {
+    }
+    else {
         render_img = cached->bl_img;
         img_w = cached->width;
         img_h = cached->height;
     }
+#else
+    // Blend2D disabled: use framebuffer-only path
+    if (!cached || !cached->fb_img) {
+        // No valid cached image — can't render
+        return false;
+    }
+    img_w = cached->width;
+    img_h = cached->height;
+    using_placeholder = false;
+#endif
 
     const f32 final_opacity = image.opacity * state.opacity;
     if (final_opacity <= 0.001f) return true;
@@ -329,6 +341,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
 
     const auto composite_start = profiling::now();
 
+#ifdef CHRONON3D_USE_BLEND2D
     if (use_cached_fb && image.radius <= 0.0f) {
         blend2d_bridge::composite_framebuffer_transformed(fb, *cached->fb_img, scaled_model, final_opacity, BlendMode::Normal, &state);
     } else if (use_cached_fb && image.radius > 0.0f) {
@@ -364,6 +377,30 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
         ctx.end();
         blend2d_bridge::composite_bl_image_transformed(fb, sub_img, scaled_model, final_opacity, BlendMode::Normal, &state, scaled_radius);
     }
+#else
+    // Blend2D disabled: framebuffer-only compositing path
+    if (use_cached_fb && image.radius <= 0.0f) {
+        blend2d_bridge::composite_framebuffer_transformed(fb, *cached->fb_img, scaled_model, final_opacity, BlendMode::Normal, &state);
+    } else if (use_cached_fb && image.radius > 0.0f) {
+        if (auto rounded = rounded_framebuffer(image.path, *cached, scaled_radius)) {
+            blend2d_bridge::composite_framebuffer_transformed(fb, *rounded, scaled_model, final_opacity, BlendMode::Normal, &state);
+        }
+    } else if (cached && cached->fb_img && !using_placeholder) {
+        Framebuffer cropped(src_w, src_h);
+        cropped.set_opaque(false);
+        tbb::parallel_for(tbb::blocked_range<int>(0, src_h, 16), [&](const tbb::blocked_range<int>& range) {
+            for (int y = range.begin(); y < range.end(); ++y) {
+                std::memcpy(cropped.pixels_row(y),
+                            cached->fb_img->pixels_row(src_y + y) + src_x,
+                            static_cast<size_t>(src_w) * sizeof(Color));
+            }
+        });
+        if (scaled_radius > 0.0f) {
+            apply_rounded_coverage(cropped, scaled_radius);
+        }
+        blend2d_bridge::composite_framebuffer_transformed(fb, cropped, scaled_model, final_opacity, BlendMode::Normal, &state);
+    }
+#endif
 
     const auto t_sample1 = profiling::now();
     const double sample_ms = profiling::duration_ms(composite_start, t_sample1);
@@ -399,7 +436,11 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
         );
     }
 
-    if (!cached || cached->bl_img.empty()) {
+    if (!cached
+#ifdef CHRONON3D_USE_BLEND2D
+        || cached->bl_img.empty()
+#endif
+    ) {
         record_image_telemetry(
             state,
             image.path,
@@ -448,7 +489,9 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
 
     const auto composite_start = profiling::now();
 
+#ifdef CHRONON3D_USE_BLEND2D
     blend2d_bridge::composite_bl_image_tiled(fb, cached->bl_img, scaled_model, final_opacity, BlendMode::Normal, &state);
+#endif
 
     const auto t_sample1 = profiling::now();
     const double sample_ms = profiling::duration_ms(composite_start, t_sample1);

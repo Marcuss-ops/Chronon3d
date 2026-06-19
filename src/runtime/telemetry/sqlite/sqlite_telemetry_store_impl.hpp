@@ -2,7 +2,9 @@
 
 #include <chronon3d/runtime/telemetry/sqlite_telemetry_store.hpp>
 
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
 #include <sqlite3.h>
+#endif
 #include <mutex>
 #include <string_view>
 #include <type_traits>

@@ -53,15 +53,19 @@ else()
 endif()
 
 # Fast tests: core + scene + CLI + deterministic (no rendering, no video, no content)
+set(CHRONON3D_FAST_TEST_DEPS
+    chronon3d_core_tests
+    chronon3d_scene_tests
+    chronon3d_optimizer_tests
+    chronon3d_cache_tests
+    chronon3d_compositor_tests
+    chronon3d_deterministic_tests
+)
+if(CHRONON3D_BUILD_CLI)
+    list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_cli_tests)
+endif()
 add_custom_target(chronon3d_tests_fast
-    DEPENDS
-        chronon3d_core_tests
-        chronon3d_scene_tests
-        chronon3d_cli_tests
-        chronon3d_optimizer_tests
-        chronon3d_cache_tests
-        chronon3d_compositor_tests
-        chronon3d_deterministic_tests
+    DEPENDS ${CHRONON3D_FAST_TEST_DEPS}
 )
 
 # Render tests: scene + renderer + golden + content (heavy, needs software backend + content)
