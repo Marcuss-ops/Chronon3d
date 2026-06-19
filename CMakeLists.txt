@@ -89,7 +89,6 @@ endif()
 if(CHRONON3D_ENABLE_EXR)
     add_compile_definitions(CHRONON3D_ENABLE_EXR)
 endif()
-
 if(CHRONON3D_ENABLE_VIDEO)
     add_compile_definitions(CHRONON3D_ENABLE_VIDEO)
 endif()
@@ -138,8 +137,6 @@ find_package(magic_enum CONFIG REQUIRED)
 if(CHRONON3D_ENABLE_EXR)
     find_package(OpenEXR CONFIG REQUIRED)
 endif()
-
-
 
 find_package(unofficial-sqlite3 CONFIG REQUIRED)
 
