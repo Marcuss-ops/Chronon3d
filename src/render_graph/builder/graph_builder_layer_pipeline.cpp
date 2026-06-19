@@ -85,12 +85,12 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
     }
 
     if (layer.kind == LayerKind::Adjustment) {
+        const bool is_static = layer.cache_static || item.is_static;
+        const auto policy = is_static ? static_memory_cache("adjustment") : frame_variant_cache("adjustment");
         for (const auto& eff : layer.effects) {
             chronon3d::EffectStack stack;
             stack.push_back(eff);
-            auto node = std::make_unique<AdjustmentNode>(std::move(stack));
-            GraphNodeId adj_id = graph.add_node(std::move(node));
-            graph.node(adj_id)/* pr2-disable: set_frame_dependent(!(layer.cache_static || item.is_static)); */
+            GraphNodeId adj_id = graph.add_node(std::make_unique<AdjustmentNode>(std::move(stack), policy));
             graph.connect(current, adj_id);
             current = adj_id;
         }
@@ -131,13 +131,14 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
             matte_key.params_hash,
             static_cast<u64>(layer.track_matte.type));
 
-        auto matte_node = graph.add_node(
-            std::make_unique<TrackMatteNode>(layer.track_matte.type,
-                                              std::string(layer.name), matte_key));
-        graph.node(matte_node).set_frame_dependent(!(layer.cache_static || item.is_static));
-        graph.connect(layer_output, matte_node);
-        graph.connect(item.matte_node, matte_node);
-        layer_output = matte_node;
+        // PR2-cleanup: TrackMatteNode carries its policy in `m_cache_policy` (ctor-time).
+        {
+            GraphNodeId matte_node = graph.add_node(std::make_unique<TrackMatteNode>(
+                layer.track_matte.type, std::string(layer.name), matte_key));
+            graph.connect(layer_output, matte_node);
+            graph.connect(item.matte_node, matte_node);
+            layer_output = matte_node;
+        }
     }
 
     const bool has_in_trans = !layer.transition_in.transition_id.empty() && layer.transition_in.transition_id != "none";
@@ -159,12 +160,13 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
         }
 
         if (trans_id != "none") {
-            auto trans_node = graph.add_node(std::make_unique<TransitionNode>(
-                std::string(layer.name), active_spec, is_out, layer.from, layer.duration
-            ));
-            graph.node(trans_node).set_frame_dependent(true);
-            graph.connect(layer_output, trans_node);
-            layer_output = trans_node;
+            // PR2-cleanup: TransitionNode is intrinsically frame-variant via its ctor.
+            {
+                GraphNodeId trans_node = graph.add_node(std::make_unique<TransitionNode>(
+                    std::string(layer.name), active_spec, is_out, layer.from, layer.duration));
+                graph.connect(layer_output, trans_node);
+                layer_output = trans_node;
+            }
         }
     }
 
