@@ -311,37 +311,37 @@ inline RichTextLineMetrics draw_rich_text(LayerBuilder& l,
                 .material = run.style.material,
             }, &font_engine);
 
-            TextParams p;
-            p.text = run.text;
-            p.size = {
+            TextSpec p;
+            p.content.value = run.text;
+            p.layout.box = {
                 std::max(0.0f, run.width + options.glyph_padding),
                 std::max(0.0f, (layout_line.ascent + layout_line.descent) + options.glyph_padding)
             };
-            p.pos = {
+            p.position = {
                 run_x - options.glyph_padding * 0.5f,
                 baseline_y - run_metrics.ascent - options.glyph_padding * 0.5f,
                 base_origin.z
             };
             if (options.snap_to_pixels) {
-                p.pos.x = std::round(p.pos.x);
-                p.pos.y = std::round(p.pos.y);
+                p.position.x = std::round(p.position.x);
+                p.position.y = std::round(p.position.y);
             }
-            p.font_path = run.style.font_path;
-            p.font_family = run.style.font_family;
-            p.font_weight = run.style.font_weight;
-            p.font_style = run.style.font_style;
-            p.font_size = run.style.size;
-            p.color = run.style.color;
-            p.align = TextAlign::Left;
-            p.vertical_align = VerticalAlign::Top;
-            p.tracking = run.style.tracking;
-            p.wrap = TextWrap::None;
-            p.box_style.enabled = false;
-            p.paint = run.style.paint;
-            if (p.paint.fill == Color{1.0f, 1.0f, 1.0f, 1.0f} && !(run.style.color == Color{1.0f, 1.0f, 1.0f, 1.0f})) {
-                p.paint.fill = run.style.color;
+            p.font.font_path = run.style.font_path;
+            p.font.font_family = run.style.font_family;
+            p.font.font_weight = run.style.font_weight;
+            p.font.font_style = run.style.font_style;
+            p.font.font_size = run.style.size;
+            p.appearance.color = run.style.color;
+            p.layout.align = TextAlign::Left;
+            p.layout.vertical_align = VerticalAlign::Top;
+            p.layout.tracking = run.style.tracking;
+            p.layout.wrap = TextWrap::None;
+            p.appearance.box_style.enabled = false;
+            p.appearance.paint = run.style.paint;
+            if (p.appearance.paint.fill == Color{1.0f, 1.0f, 1.0f, 1.0f} && !(run.style.color == Color{1.0f, 1.0f, 1.0f, 1.0f})) {
+                p.appearance.paint.fill = run.style.color;
             }
-            p.material = run.style.material;
+            p.appearance.material = run.style.material;
             l.text(std::move(node_name), p);
         }
     }

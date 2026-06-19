@@ -417,16 +417,16 @@ inline void TextAnimator::build(SceneBuilder& scene, std::string_view layer_name
 
                 lb.position({center_x, 0.0f, 0.0f});
 
-                TextParams tp;
-                tp.text = gu.text;
-                tp.font_size = m_font_size;
-                tp.font_path = m_font_path;
-                tp.font_weight = m_font_weight;
-                tp.color = m_color;
-                tp.align = m_align;
-                tp.line_height = m_line_height;
-                tp.tracking = m_tracking;  // no effect on single-cluster layers (kept for API consistency)
-                tp.size = {gu.advance_x + 10.0f, m_font_size * 1.4f};
+                TextSpec tp;
+                tp.content.value = gu.text;
+                tp.font.font_size = m_font_size;
+                tp.font.font_path = m_font_path;
+                tp.font.font_weight = m_font_weight;
+                tp.appearance.color = m_color;
+                tp.layout.align = m_align;
+                tp.layout.line_height = m_line_height;
+                tp.layout.tracking = m_tracking;  // no effect on single-cluster layers (kept for API consistency)
+                tp.layout.box = {gu.advance_x + 10.0f, m_font_size * 1.4f};
                 lb.text("text_node", tp);
 
                 apply_animation(lb, i, center_x, delay);
@@ -473,16 +473,16 @@ inline void TextAnimator::build(SceneBuilder& scene, std::string_view layer_name
 
             lb.position({center_x, 0.0f, 0.0f});
 
-            TextParams tp;
-            tp.text = unit;
-            tp.font_size = m_font_size;
-            tp.font_path = m_font_path;
-            tp.font_weight = m_font_weight;
-            tp.color = m_color;
-            tp.align = m_align;
-            tp.line_height = m_line_height;
-            tp.tracking = m_tracking;
-            tp.size = {unit_w + 10.0f, m_font_size * 1.4f};
+            TextSpec tp;
+            tp.content.value = unit;
+            tp.font.font_size = m_font_size;
+            tp.font.font_path = m_font_path;
+            tp.font.font_weight = m_font_weight;
+            tp.appearance.color = m_color;
+            tp.layout.align = m_align;
+            tp.layout.line_height = m_line_height;
+            tp.layout.tracking = m_tracking;
+            tp.layout.box = {unit_w + 10.0f, m_font_size * 1.4f};
             lb.text("text_node", tp);
 
             apply_animation(lb, i, center_x, delay);

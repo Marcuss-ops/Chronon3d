@@ -139,7 +139,7 @@ Composition deep_parallax_cascade() {
                     .key(Frame{0},                                blur_peak, EasingCurve{Easing::Linear})
                     .key(Frame{static_cast<Frame>(130 - 30.0f * i)}, 0.0f,   EasingCurve{Easing::OutCubic})
                     .key(Frame{180},                              0.0f,       EasingCurve{Easing::Linear});
-            TextParams tp = chronon3d::content::text::centered_text({
+            TextSpec tp = chronon3d::content::text::centered_text({
                 .text        = L.text,
                 .box         = {1500.0f, 320.0f},
                 .font_size   = L.size,
@@ -253,7 +253,7 @@ Composition whip_pan_hero_reveal() {
                 pos.key(Frame{55}, Vec3{ 0.0f, 230.0f, 0.0f}, EasingCurve{Easing::OutCubic});
                 pos.key(Frame{68}, Vec3{ 0.0f, 200.0f, 0.0f}, EasingCurve{Easing::Linear});
             }
-            TextParams tp = chronon3d::content::text::centered_text({
+            TextSpec tp = chronon3d::content::text::centered_text({
                 .text        = "MOTION BY CAMERA",
                 .box         = {1100.0f, 80.0f},
                 .font_size   = 38.0f,
@@ -347,7 +347,7 @@ Composition orbit_handheld_glow() {
                 .key(Frame{30},  Vec3{1.05f, 1.05f, 1.0f}, EasingCurve{Easing::OutCubic})
                 .key(Frame{60},  Vec3{1.00f, 1.00f, 1.0f}, EasingCurve{Easing::InOutCubic});
 
-            TextParams tp = chronon3d::content::text::centered_text({
+            TextSpec tp = chronon3d::content::text::centered_text({
                 .text        = "AURORA",
                 .box         = {1200.0f, 320.0f},
                 .font_size   = 220.0f,
@@ -447,7 +447,7 @@ Composition rack_focus_title_swap() {
                 .key(Frame{30}, 1.0f, EasingCurve{Easing::Linear})
                 .key(Frame{150}, 1.0f, EasingCurve{Easing::Linear})
                 .key(Frame{180}, 0.7f, EasingCurve{Easing::InCubic});
-            TextParams tp = chronon3d::content::text::centered_text({
+            TextSpec tp = chronon3d::content::text::centered_text({
                 .text        = "FOCUS NEAR",
                 .box         = {1500.0f, 240.0f},
                 .font_size   = 130.0f,
@@ -483,7 +483,7 @@ Composition rack_focus_title_swap() {
                 .key(Frame{120}, 0.55f, EasingCurve{Easing::Linear})
                 .key(Frame{150}, 1.0f, EasingCurve{Easing::OutCubic})
                 .key(Frame{180}, 1.0f, EasingCurve{Easing::Linear});
-            TextParams tp = chronon3d::content::text::centered_text({
+            TextSpec tp = chronon3d::content::text::centered_text({
                 .text        = "FAR AWAY",
                 .box         = {1500.0f, 220.0f},
                 .font_size   = 120.0f,
@@ -596,7 +596,7 @@ Composition abyss_freefall_stagger() {
                 {
                     Color base{0.65f, 0.85f, 1.0f, 1.0f};
                     if (i % 2 == 0) base = Color{0.85f, 0.95f, 1.0f, 1.0f};
-                    TextParams tp = chronon3d::content::text::centered_text({
+                    TextSpec tp = chronon3d::content::text::centered_text({
                         .text        = ch,
                         .box         = {fs * 1.5f, fs * 1.8f},
                         .font_size   = fs,

@@ -194,7 +194,7 @@ public:
     LayerBuilder& image(std::string name, ImageParams p);
     LayerBuilder& tiled_image(std::string name, ImageParams p);
     LayerBuilder& grid_background(std::string name, GridBackgroundParams p);
-    LayerBuilder& text(std::string name, TextParams p);
+    LayerBuilder& text(std::string name, TextSpec p);
 
     // ── TextRunBuilder (PR 4 — TextAnimator V2) ──────────────────────────
     /// Push a new text-run entry into the layer's pending specs and

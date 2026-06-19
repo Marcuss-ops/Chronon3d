@@ -677,7 +677,7 @@ static void BM_GlowLayerPass(benchmark::State& state, float falloff) {
     // color=white-blue, intensity=0.25).  We don't need the blur stage —
     // accumulate_glow_pass is the inner hot loop we're benching.
     GlowPipeline p{};
-    p.color = {0.80f, 0.85f, 1.0f, 1.0f};
+    p.appearance.color = {0.80f, 0.85f, 1.0f, 1.0f};
     p.radius = 18.0f;
     p.intensity = 0.25f;
     p.falloff = falloff;
