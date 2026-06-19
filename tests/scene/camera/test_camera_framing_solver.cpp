@@ -216,18 +216,33 @@ TEST_CASE("PR6: RuleOfThirds places aim off-center") {
 TEST_CASE("PR6: dead zone prevents micro-jitter") {
     CameraFramingSolver solver;
     CameraFramingRequest req;
-    // Target sits at +Z (1528 units in front of base.position.z = -500) so
-    // project_bbox succeeds and the solver's overflow / inside branches
-    // run over real projected screen-space coordinates. With a small
-    // centered bbox (lateral extents 0..100) inside the safe-area envelope
-    // at depth 1528, inside_l/r/t/b are all negative relative to the
-    // safe-margin threshold and the INSIDE-branch `min_inside > 10.0f` gate
-    // does NOT fire — so compute_dolly returns 0.0 cleanly, the camera
-    // stays at base, and the dead-zone branch preserves x,y of base.
-    // (The dead_zone.threshold=0.5 branch is exercised trivially here;
-    // a future change in apply_dead_zone to compare componentwise deltas
-    // would let this test also verify suppression of a small nonzero dolly.)
-    req.targets = {{{0, 0, 1000}, {100, 100, 1000}}};
+    // Target sits at +Z=1000 so the depth from camera (base.position.z=-500)
+    // is 1500 — at which viewport 1920×1080 / FOV 50° maps world→screen with
+    // factor 1.296 world/px. We deliberately size the bbox to BTW-extend past
+    // the 30 px safe-margin but stay inside the safe-area envelope, so that:
+    //   * overflow = max({-15, -15, -15, -15, 0}) = 0  → overflow-branch
+    //     dolly-out does NOT fire
+    //   * min_inside = min({-15, -15, -15, -15}) = -15 < 10  → INSIDE-branch
+    //     `min_inside > 10.0f` gate does NOT fire
+    // Result: compute_dolly returns 0.0 cleanly. The solver's iteration loop
+    // converges in 1 step (`abs(dolly) < 1e-2`), so apply_dead_zone sees
+    // `target.position == base.position`. The length-normalized comparison
+    // `dolly_norm = 0 < 0.5` fires, `result.position = base.position` is
+    // preserved, and assertions on x,y confirm the dead-zone branch ran.
+    //
+    // Sizing worked example: sm.x_min = 960 - extent_half_x / 1.296. For
+    // extent_half_x = 1100, sm.x_min = 960 - 848.7 = 111.2 → safe_l -
+    // sm.x_min = -15.2 (clamped to 0 by `max(..., 0)`); sm.x_min -
+    // (safe_l + 30) = -14.8 (negative ⇒ inside-branch gate fails).
+    // Vertical dimension uses extent_half_y = 577 → sm.y_min = 94.4, same
+    // pattern; aspect does not have to match the viewport for this branch.
+    //
+    // (The dead_zone.threshold=0.5 branch is exercised trivially with
+    // dolly=0. A future change in apply_dead_zone to compare componentwise
+    // per-axis max-deltas would let this test also verify suppression of a
+    // small nonzero dolly by widening the bbox back to `±50±50,depth=1500`
+    // with adjusted bbox depth so compute_dolly returns a small positive.)
+    req.targets = {{{-1100, -577, 1000}, {1100, 577, 1000}}};
     req.dead_zone.dolly_dead_zone = 0.5f;
     req.viewport = {1920, 1080};
 
