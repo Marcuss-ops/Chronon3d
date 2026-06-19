@@ -33,8 +33,8 @@ add_executable(chronon3d_renderer_tests
     registry/test_registries.cpp
     cache/test_cache_sharding.cpp
     cache/test_tile_cache.cpp
-    effects/test_effect_registry.cpp
     effects/test_effect_catalog.cpp
+    effects/test_effect_catalog_data.cpp
     effects/test_exposure_levels.cpp
     effects/test_levels.cpp
     effects/test_fill_noise_offset.cpp
