@@ -9,7 +9,7 @@ add_library(chronon3d_graph_core STATIC
     render_graph.cpp
     framebuffer_acquire.cpp
     graph_profiler.cpp
-    registry/graph_node_registry.cpp
+    registry/graph_node_catalog.cpp
     layer_resolver.cpp
 )
 set_target_properties(chronon3d_graph_core PROPERTIES UNITY_BUILD OFF)
