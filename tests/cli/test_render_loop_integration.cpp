@@ -59,7 +59,7 @@ static std::shared_ptr<SoftwareRenderer> make_integration_renderer() {
 /// Background consumer that drains the queue and releases arena buffers.
 /// Prevents the render loop from blocking on TripleBufferArena::acquire().
 static void drain_queue_consumer(
-    moodycamel::ConcurrentQueue<RenderFramePackage>& queue,
+    RenderFrameQueue<RenderFramePackage>& queue,
     TripleBufferArena& arena,
     std::atomic<bool>& stop,
     std::atomic<int>& consumed_count)
@@ -91,7 +91,7 @@ static RenderLoopContext make_loop_context(
     Frame start,
     Frame end,
     const FfmpegExportOptions& opts,
-    moodycamel::ConcurrentQueue<RenderFramePackage>& queue,
+    RenderFrameQueue<RenderFramePackage>& queue,
     std::atomic<bool>& writer_failed,
     TripleBufferArena& triple_arena,
     std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames)
@@ -127,7 +127,7 @@ TEST_CASE("RenderLoop Integration: multi-frame render produces all frames") {
     Composition comp = make_integration_comp(W, H, FRAMES);
 
     FfmpegExportOptions opts;
-    moodycamel::ConcurrentQueue<RenderFramePackage> queue;
+    RenderFrameQueue<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
     std::atomic<bool> stop_consumer{false};
     std::atomic<int> consumed{0};
@@ -171,7 +171,7 @@ TEST_CASE("RenderLoop Integration: single frame renders correctly") {
     Composition comp = make_integration_comp(W, H, 1);
 
     FfmpegExportOptions opts;
-    moodycamel::ConcurrentQueue<RenderFramePackage> queue;
+    RenderFrameQueue<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
     // 4 arenas for 1 frame — no consumer needed
     TripleBufferArena triple_arena(4, static_cast<size_t>(W) * H * sizeof(Color) * 8);
@@ -215,7 +215,7 @@ TEST_CASE("RenderLoop Integration: cancellation stops render loop early") {
     // Pre-cancel: the loop checks the token before rendering and exits immediately.
     token.cancel();
 
-    moodycamel::ConcurrentQueue<RenderFramePackage> queue;
+    RenderFrameQueue<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
     TripleBufferArena triple_arena(2, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 
@@ -247,7 +247,7 @@ TEST_CASE("RenderLoop Integration: pre-set writer failure stops loop") {
     Composition comp = make_integration_comp(W, H, FRAMES);
 
     FfmpegExportOptions opts;
-    moodycamel::ConcurrentQueue<RenderFramePackage> queue;
+    RenderFrameQueue<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{true}; // Pre-set failure
     TripleBufferArena triple_arena(2, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 
@@ -277,7 +277,7 @@ TEST_CASE("RenderLoop Integration: telemetry frames are in display order") {
     Composition comp = make_integration_comp(W, H, FRAMES);
 
     FfmpegExportOptions opts;
-    moodycamel::ConcurrentQueue<RenderFramePackage> queue;
+    RenderFrameQueue<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
     std::atomic<bool> stop_consumer{false};
     std::atomic<int> consumed{0};
@@ -321,7 +321,7 @@ TEST_CASE("RenderLoop Integration: partial frame range [3, 7)") {
     Composition comp = make_integration_comp(W, H, 10);
 
     FfmpegExportOptions opts;
-    moodycamel::ConcurrentQueue<RenderFramePackage> queue;
+    RenderFrameQueue<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
     std::atomic<bool> stop_consumer{false};
     std::atomic<int> consumed{0};
@@ -364,7 +364,7 @@ TEST_CASE("RenderLoop Integration: writer failure during render stops loop") {
     Composition comp = make_integration_comp(W, H, FRAMES);
 
     FfmpegExportOptions opts;
-    moodycamel::ConcurrentQueue<RenderFramePackage> queue;
+    RenderFrameQueue<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
     std::atomic<bool> writer_done_signal{false};
     std::atomic<int> consumed{0};
@@ -432,7 +432,7 @@ TEST_CASE("RenderLoop Integration: empty frame range produces no frames") {
     Composition comp = make_integration_comp(W, H, 5);
 
     FfmpegExportOptions opts;
-    moodycamel::ConcurrentQueue<RenderFramePackage> queue;
+    RenderFrameQueue<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
     TripleBufferArena triple_arena(2, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 

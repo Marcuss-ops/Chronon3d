@@ -6,17 +6,51 @@
 #include <chronon3d/core/triple_buffer_arena.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
-#include <concurrentqueue/moodycamel/concurrentqueue.h>
 
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <mutex>
+#include <queue>
 #include <vector>
 
 namespace chronon3d::cli {
 
 /// Maximum queue depth before back-pressure yields the render thread.
 inline constexpr size_t kMaxRenderQueueDepth = 128;
+
+// ── RenderFrameQueue — thread-safe queue replacing moodycamel::ConcurrentQueue ─
+// Wraps std::queue + std::mutex.  Exposes try_dequeue / enqueue / size_approx
+// so existing callers (run_render_loop, drain_queue_consumer, tests) require
+// zero logic changes beyond the type name.
+
+template <typename T>
+class RenderFrameQueue {
+public:
+    RenderFrameQueue() = default;
+
+    bool try_dequeue(T& item) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (queue_.empty()) return false;
+        item = std::move(queue_.front());
+        queue_.pop();
+        return true;
+    }
+
+    void enqueue(T item) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        queue_.push(std::move(item));
+    }
+
+    size_t size_approx() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return queue_.size();
+    }
+
+private:
+    std::queue<T> queue_;
+    mutable std::mutex mutex_;
+};
 
 // ── Shared frame package ────────────────────────────────────────────────────
 
@@ -70,7 +104,7 @@ struct PipeExportTelemetry {
 // ── Writer thread ───────────────────────────────────────────────────────────
 
 struct WriterThreadContext {
-    moodycamel::ConcurrentQueue<RenderFramePackage>& queue;
+    RenderFrameQueue<RenderFramePackage>& queue;
     std::atomic<bool>& writer_failed;
     std::atomic<bool>& writer_done;
     TripleBufferArena& triple_arena;
@@ -97,7 +131,7 @@ struct RenderLoopContext {
     Frame end;
     const FfmpegExportOptions& opts;
     SoftwareRenderer* sw_renderer;
-    moodycamel::ConcurrentQueue<RenderFramePackage>& queue;
+    RenderFrameQueue<RenderFramePackage>& queue;
     std::atomic<bool>& writer_failed;
     TripleBufferArena& triple_arena;
     RenderCounters* counters;
@@ -135,7 +169,7 @@ struct PipeExportSession {
     int canvas_height{0};
 
     // Queue + async writer
-    moodycamel::ConcurrentQueue<RenderFramePackage> queue;
+    RenderFrameQueue<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
     std::atomic<bool> writer_done{false};
     std::unique_ptr<TripleBufferArena> triple_arena;

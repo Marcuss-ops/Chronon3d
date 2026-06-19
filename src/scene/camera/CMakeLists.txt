@@ -17,6 +17,6 @@ target_sources(chronon3d_scene PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/overlay_diagnostic_panels.cpp
 )
 
-# Camera System V1 (P2–P5) subdirectory: motion registry, constraint registry,
-# trajectory, program. See src/scene/camera/camera_v1/CMakeLists.txt for files.
+# Camera System V1 subdirectory: trajectory, program, constraints, compiler.
+# See src/scene/camera/camera_v1/CMakeLists.txt for files.
 add_subdirectory(camera_v1)

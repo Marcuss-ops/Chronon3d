@@ -14,7 +14,6 @@
     "glm",
     "tbb",
     "stb",
-    "concurrentqueue",
     "meshoptimizer",
     "xxhash",
     "highway",

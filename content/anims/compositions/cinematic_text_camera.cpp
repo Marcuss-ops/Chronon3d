@@ -36,9 +36,13 @@
 #include <chronon3d/text/font_engine.hpp>
 
 #include "content/anims/compositions/cinematic_showcase_helpers.hpp"
+#include "content/common/text_reveal_helpers.hpp"
 #include "content/text/text_helpers.hpp"
-#include "content/text/text_glow_helpers.hpp"
 #include "content/text/text_theme.hpp"
+
+#include <cmath>
+#include <string>
+#include <vector>
 
 namespace chronon3d::content::anims {
 
@@ -55,10 +59,13 @@ using chronon3d::content::text::FRESH_GLOW_GOLD;
 using chronon3d::content::text::FRESH_GLOW_BLUE;
 using chronon3d::content::text::FRESH_TEXT_WHITE;
 using chronon3d::content::text::FRESH_TEXT_MUTED;
-// glow helpers are now canonical in content/text/text_glow_helpers.hpp
-// as text::glow::AeGlowOptions + text::glow::apply_ae_glow().
-
-constexpr const char* FONT_BOLD = "assets/fonts/Poppins-Bold.ttf";
+using chronon3d::content::text_reveal::CinematicGlowPreset;
+using chronon3d::content::text_reveal::apply_cinematic_glow;
+using chronon3d::content::text_reveal::TextRevealDescriptor;
+using chronon3d::content::text_reveal::build_text_reveal_line;
+using chronon3d::content::text_reveal::font_bold;
+using chronon3d::content::text_reveal::measure_text_width;
+using chronon3d::content::text_reveal::layout_glyphs;
 
 // Returns centred text params for a given string + font size.
 TextParams title_text(const std::string& s, f32 fs,
@@ -72,51 +79,6 @@ TextParams title_text(const std::string& s, f32 fs,
         .color       = color,
         .line_height = 1.10f,
     });
-}
-
-void build_stagger_line(SceneBuilder& s,
-                        const std::string& text,
-                        f32 font_size,
-                        Vec3 base_pos,
-                        f32 start_delay,
-                        f32 duration = 6.0f,
-                        f32 stagger = 1.5f,
-                        f32 slide_up_px = 30.0f,
-                        Color color = FRESH_TEXT_WHITE) {
-    FontSpec spec{FONT_BOLD, "Poppins", 700};
-    auto layout = chronon3d::content::text::compute_single_line_glyph_layout(
-        text, font_size, 6.0f, spec);
-    for (size_t i = 0; i < layout.chars.size(); ++i) {
-        auto& cp = layout.chars[i];
-        std::string glyph = text.substr(cp.byte_offset, cp.byte_len);
-        if (glyph == " ") continue;
-        const f32 delay = start_delay + i * stagger;
-        const f32 end_f = delay + duration;
-        const f32 cx = cp.x;
-
-        s.layer("ch_" + std::to_string(i),
-                [cx, base_pos, delay, end_f, slide_up_px,
-                 fs = font_size, glyph = std::move(glyph), color]
-                (LayerBuilder& l) {
-            l.position({cx, base_pos.y, base_pos.z});
-            {
-                auto& op = l.opacity_anim();
-                op.key(Frame{0},                                  0.0f, EasingCurve{Easing::Hold});
-                op.key(Frame{static_cast<Frame>(delay)},          0.0f, EasingCurve{Easing::OutCubic});
-                op.key(Frame{static_cast<Frame>(end_f)},          1.0f, EasingCurve{Easing::Hold});
-            }
-            {
-                auto& pos = l.position_anim();
-                pos.key(Frame{0},                                 Vec3{cx, base_pos.y + slide_up_px, base_pos.z}, EasingCurve{Easing::Hold});
-                pos.key(Frame{static_cast<Frame>(delay)},         Vec3{cx, base_pos.y + slide_up_px, base_pos.z}, EasingCurve{Easing::OutBack});
-                pos.key(Frame{static_cast<Frame>(end_f)},         Vec3{cx, base_pos.y, base_pos.z},             EasingCurve{Easing::Linear});
-            }
-            TextParams tp = title_text(glyph, fs, color, 0.0f);
-            // Widen the text layer box enough to contain the glyph safely.
-            tp.size = {fs * 1.4f, fs * 1.8f};
-            l.text("label", tp);
-        });
-    }
 }
 
 } // anonymous namespace
@@ -265,11 +227,16 @@ Composition whip_pan_hero_reveal() {
         // so a single source of truth drives the whip-pan motion.
 
         // The whip pan punchline — CHRONON3D staggered from frame 22.
-        build_stagger_line(s, "CHRONON3D", 168.0f,
-                           {0.0f, 0.0f, 0.0f}, 22.0f,
-                           /*duration=*/8.0f, /*stagger=*/1.5f,
-                           /*slide_up=*/40.0f,
-                           Color{1.0f, 1.0f, 1.0f, 1.0f});
+        build_text_reveal_line(s, TextRevealDescriptor{
+            .text = "CHRONON3D", .font_size = 168.0f, .font_spec = font_bold(),
+            .tracking = 6.0f, .base_pos = {0.0f, 0.0f, 0.0f},
+            .start_delay = 22.0f, .duration = 8.0f, .stagger = 1.5f,
+            .slide_up = true, .slide_up_px = 40.0f,
+            .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
+            .opacity_easing = EasingCurve{Easing::OutCubic},
+            .position_easing = EasingCurve{Easing::OutBack},
+            .add_shadow = false, .layer_prefix = "ch"
+        });
 
         // ── Subtitle line snaps in last ────────────────────────────────
         s.layer("subtitle", [](LayerBuilder& l) {
@@ -459,7 +426,7 @@ Composition rack_focus_title_swap() {
         // ── FRONT title at Z=0 — sharp then blurred out ──────────────
         s.layer("title_front", [](LayerBuilder& l) {
             l.position({0.0f, -180.0f, 0.0f});
-            text::glow::apply_ae_glow(l, text::glow::AeGlowOptions{
+            apply_cinematic_glow(l, CinematicGlowPreset{
                 .inner_radius     = 5.0f,
                 .mid_radius       = 18.0f,
                 .bloom_radius     = 36.0f,
@@ -495,7 +462,7 @@ Composition rack_focus_title_swap() {
         // ── BACK title at Z=+800 — blurred then sharpens in ──────────
         s.layer("title_back", [](LayerBuilder& l) {
             l.position({0.0f, 160.0f, 800.0f});
-            text::glow::apply_ae_glow(l, text::glow::AeGlowOptions{
+            apply_cinematic_glow(l, CinematicGlowPreset{
                 .inner_radius     = 4.0f,
                 .mid_radius       = 16.0f,
                 .bloom_radius     = 32.0f,
@@ -592,18 +559,17 @@ Composition abyss_freefall_stagger() {
         // fade-out at the tail.
         const std::string phrase = "LET  FALL";
         const f32 fs = 220.0f;
-        FontSpec spec{FONT_BOLD, "Poppins", 700};
-        auto layout = chronon3d::content::text::compute_single_line_glyph_layout(
-            phrase, fs, 4.0f, spec);
-        for (size_t i = 0; i < layout.chars.size(); ++i) {
-            auto& cp = layout.chars[i];
-            std::string glyph = phrase.substr(cp.byte_offset, cp.byte_len);
-            if (glyph == " ") continue;
+        auto spec = font_bold();
+        f32 w = measure_text_width(phrase, fs, spec, 4.0f);
+        f32 ref_x = -w * 0.5f;
+        auto chars = layout_glyphs(phrase, fs, spec, 4.0f, ref_x);
+        for (size_t i = 0; i < chars.size(); ++i) {
+            if (chars[i].ch == " ") continue;
             const f32 delay = 8.0f + static_cast<f32>(i) * 6.0f;
             const f32 end_f = delay + 60.0f;
-            const f32 cx = cp.x;
+            const f32 cx = chars[i].center_x;
             s.layer("drop_" + std::to_string(i),
-                    [cx, delay, end_f, fs, glyph = std::move(glyph), i]
+                    [cx, delay, end_f, fs, ch = chars[i].ch, i]
                     (LayerBuilder& l) {
                 l.position({cx, 0.0f, -150.0f});
                 {
@@ -632,7 +598,7 @@ Composition abyss_freefall_stagger() {
                     Color base{0.65f, 0.85f, 1.0f, 1.0f};
                     if (i % 2 == 0) base = Color{0.85f, 0.95f, 1.0f, 1.0f};
                     TextParams tp = chronon3d::content::text::centered_text({
-                        .text        = glyph,
+                        .text        = ch,
                         .box         = {fs * 1.5f, fs * 1.8f},
                         .font_size   = fs,
                         .tracking    = 0.0f,
