@@ -105,10 +105,14 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
     SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
 
-    // Wire compiled_graph_cache into the render graph context so that
-    // graph_cache_coordinator can access it without a SoftwareRenderer dependency.
+    // Wire compiled_graph_cache + node_catalog + effect_catalog into
+    // the render graph context so that graph_cache_coordinator,
+    // PrecompNode creation, and dirty/tile policies can access them
+    // without a SoftwareRenderer dependency.
     if (sw_renderer) {
         ctx.resources.compiled_graph_cache = &sw_renderer->graph_cache();
+        ctx.resources.node_catalog = &sw_renderer->graph_node_registry();
+        ctx.resources.effect_catalog = &sw_renderer->effect_catalog();
     }
 
     // ── 1. Fast-path: Resolved-scene reuse (consecutive / same frame) ───

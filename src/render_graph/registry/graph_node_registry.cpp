@@ -82,9 +82,4 @@ std::unique_ptr<RenderGraphNode> GraphNodeCatalog::create(
     return it->second.factory(request);
 }
 
-void GraphNodeCatalog::clear() {
-    m_nodes.clear();
-    // Preserve frozen state — unfreeze must be explicit.
-}
-
 } // namespace chronon3d::graph

@@ -152,6 +152,12 @@ public:
     [[nodiscard]] renderer::SoftwareRegistry& software_registry() { return *m_runtime_resources.software_registry; }
     [[nodiscard]] const renderer::SoftwareRegistry& software_registry() const { return *m_runtime_resources.software_registry; }
 
+    [[nodiscard]] graph::GraphNodeRegistry& graph_node_registry() { return *m_runtime_resources.graph_node_registry; }
+    [[nodiscard]] const graph::GraphNodeRegistry& graph_node_registry() const { return *m_runtime_resources.graph_node_registry; }
+
+    [[nodiscard]] effects::EffectCatalog& effect_catalog() { return *m_runtime_resources.effect_catalog; }
+    [[nodiscard]] const effects::EffectCatalog& effect_catalog() const { return *m_runtime_resources.effect_catalog; }
+
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool() override { return m_cache_state.framebuffer_pool; }
     [[nodiscard]] cache::FramebufferPool& software_framebuffer_pool() { return *m_cache_state.framebuffer_pool; }
     [[nodiscard]] const cache::FramebufferPool& software_framebuffer_pool() const { return *m_cache_state.framebuffer_pool; }
