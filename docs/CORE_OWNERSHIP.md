@@ -19,19 +19,19 @@ La Core Zone contiene esclusivamente contratti, interfacce pubbliche e invariant
 
 | Contratto | Header / Directory |
 |---|---|
-| **Composition** | `include/chronon3d/render_graph/pipeline/composition.hpp` |
-| **FrameContext** | `include/chronon3d/render_graph/render_graph_context.hpp` |
-| **Scene** | `include/chronon3d/scene/scene.hpp` |
-| **Layer** | `include/chronon3d/scene/layer/layer.hpp` |
-| **TransformResolver** | `include/chronon3d/scene/transform/transform_resolver.hpp` |
-| **Camera base** | `include/chronon3d/scene/camera/camera.hpp` |
+| **Scene** | `include/chronon3d/scene/model/core/scene.hpp` |
+| **Layer** | `include/chronon3d/scene/model/layer/layer.hpp` |
+| **Camera base** | `include/chronon3d/scene/model/camera/camera.hpp` |
 | **CameraProjection** | `include/chronon3d/scene/camera/camera_projection.hpp` |
-| **CameraRig** | `include/chronon3d/scene/camera/camera_rig.hpp` |
+| **CameraRig** | `include/chronon3d/scene/model/camera/camera_rig.hpp` |
+| **TransformResolver** | `include/chronon3d/scene/model/core/transform_resolver.hpp` |
 | **RenderGraph** | `include/chronon3d/render_graph/render_graph.hpp` |
 | **RenderGraphNode** | `include/chronon3d/render_graph/nodes/render_graph_node.hpp` |
 | **GraphExecutor public contract** | `include/chronon3d/render_graph/executor/graph_executor.hpp` |
-| **Framebuffer** | `include/chronon3d/render_graph/core/framebuffer.hpp` |
+| **FrameContext** | `include/chronon3d/render_graph/render_graph_context.hpp` |
 | **CachePolicy** | `include/chronon3d/render_graph/core/cache_policy.hpp` |
+| **Framebuffer** | `include/chronon3d/core/memory/framebuffer.hpp` |
+| **Composition** | `include/chronon3d/api/composition.hpp` → `include/chronon3d/timeline/composition.hpp` |
 | **Registri canonici** | `include/chronon3d/effects/effect_catalog.hpp`, `include/chronon3d/assets/asset_registry.hpp`, `src/registry/shape_registry.cpp`, `src/registry/sampler_registry.cpp`, `src/registry/source_registry.cpp` |
 
 **Regola:** Modificare un contratto Core solo con motivazione esplicita, test dedicati e review. Ogni modifica deve preservare la retrocompatibilità o documentare il breaking change.
@@ -43,10 +43,22 @@ La Core Zone contiene esclusivamente contratti, interfacce pubbliche e invariant
 - debug overlay (`camera_debug_overlay.hpp`)
 - validator (`scene_validator.hpp`, `camera_shot_validator.hpp`)
 - effect specifici (`effect_stack.hpp`, `layer_effect.hpp`, `card3d_material.hpp`, `material_2_5d.hpp`)
+- camera_2_5d e animated_camera_2_5d
 - render node specifici (tutti i nodi in `include/chronon3d/render_graph/nodes/*` eccetto `render_graph_node.hpp`)
 - content modules (`content/**`)
 - builder pass interni (`src/render_graph/builder/passes/*`)
 - executor interni (file in `src/render_graph/executor/` eccetto il public contract)
+
+**⚠️ Gap policy/codice:** Alcuni contratti Core attualmente includono file che la policy dichiara non-core:
+
+| Contratto Core | Dipende da | Tipo dipendenza |
+|---|---|---|
+| `scene.hpp` | `camera_2_5d.hpp` | `Camera2_5DRuntime` come membro di `Scene` |
+| `layer.hpp` | `effect_stack.hpp`, `material_2_5d.hpp`, `card3d_material.hpp` | `EffectStack`, `Material2_5D`, `Card3DMaterial` come membri di `Layer` |
+| `camera_rig.hpp` | `camera_2_5d.hpp`, `animated_camera_2_5d.hpp` | Metodo `evaluate()` restituisce `Camera2_5D` |
+| `camera_projection.hpp` | `camera_2_5d.hpp` | `project_world_to_screen()` prende `Camera2_5D` come parametro |
+
+Queste dipendenze sono **da risolvere** con refactor futuri (es. estrarre un'interfaccia `CameraProjectionSource` nel core, spostare `EffectStack` in Integration Zone tramite type-erasure o forward declaration). La policy è attiva: nessuna **nuova** dipendenza di questo tipo può essere aggiunta.
 
 ### B. Feature Zone — Lavoro di default
 
