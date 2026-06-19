@@ -34,6 +34,7 @@
 // Corruption: magic/version mismatch or checksum fail → delete file → return miss.
 
 #include <array>
+#include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <cstdint>
