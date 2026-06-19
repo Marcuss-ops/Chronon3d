@@ -94,9 +94,15 @@ class FontEngine;  // forward decl
 
 struct TextRunPendingSpec {
     std::string name;
-    TextRunParams params;
+    TextRunSpec pending;     // canonical composable spec; renamed from `spec` to `pending` to disambiguate from the TextRunBuilder class accessor `spec()` and member `m_spec`.
+    FontEngine* font_engine{nullptr};  // per-spec engine override; falls back to LayerBuilder::m_font_engine at build() (PR 2 — was previously only on the TextRunBuilder member, never propagated).
     bool consumed{false};
 };
+
+// Backwards-compatible alias for callers that still use the original name.
+// `TextRunBuildSpec` was the pre-PR-2 name; `TextRunPendingSpec` is the
+// canonical name post-PR-2.  All in-tree code uses `TextRunPendingSpec`.
+using TextRunBuildSpec = TextRunPendingSpec;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Text-run materialization helper (free function, shared by
@@ -123,7 +129,7 @@ struct SampleTime;
 class FontEngine;
 struct TextRunLayout;
 struct TextRunShape;
-struct TextRunParams;
+struct TextRunSpec;  // TextRunParams was the prior 30-field struct; merged into composable TextRunSpec via PR.
 
 
 class TextRunBuilder {
@@ -151,9 +157,16 @@ public:
     TextRunBuilder& animator(TextAnimatorSpec spec);
 
     /// Append a GlyphSelectorSpec to the LAST animator's selector list.
-    /// If no animator has been added yet, implicitly creates one with
-    /// an empty property list (so the selector remains attachable to
-    /// a follow-up `.animator()` call).
+    /// PR 3 — if NO animator exists yet (chained from `.text_run(...)`
+    /// directly), the selector is queued in `m_pending_selectors` and
+    /// will be PREPENDED to the next explicit `.animator(...)` call's
+    /// selector list.  This unifies both patterns:
+    ///
+    ///   `.selector(s).animator(a)`  → s queues, drains onto a.selectors.
+    ///   `.animator(a).selector(s)`  → s is appended to a.selectors
+    ///                                  (no phantom animator created).
+    ///   `.position(p).selector(s)`  → s attaches to position's implicit
+    ///                                  animator (the last/current one).
     TextRunBuilder& selector(GlyphSelectorSpec spec);
 
     // ── Meta ──
@@ -168,8 +181,11 @@ public:
     LayerBuilder& commit();
 
     // ── Read-only accessors ──
-    [[nodiscard]] const TextRunParams& spec() const noexcept { return m_spec->params; }
+    [[nodiscard]] const TextRunSpec& spec() const noexcept { return m_spec->pending; }
     [[nodiscard]] LayerBuilder& parent() const noexcept { return *m_parent; }
+    /// Full wrapper access — exposes `name`, `pending.*`, `font_engine` (PR 2), `consumed`.
+    /// Used to observe per-spec FontEngine overrides from tests and introspection.
+    [[nodiscard]] const TextRunPendingSpec& build_spec() const noexcept { return *m_spec; }
 
 private:
     // `friend class LayerBuilder;` was REMOVED — the declaration now
@@ -190,10 +206,13 @@ private:
     /// other than `.animator()` / `.selector()`.
     [[nodiscard]] static GlyphSelectorSpec make_global_glyph_selector(std::string id);
 
-    LayerBuilder* m_parent;
-    TextRunPendingSpec*  m_spec;             // non-owning pointer into LayerBuilder::m_text_runs
-    FontEngine*   m_font_engine{nullptr};
-    bool          m_cache_layout{true};
+    LayerBuilder*    m_parent;
+    TextRunBuildSpec* m_spec;        // non-owning pointer into LayerBuilder::m_text_runs
+    // NB: per-PR-2, `m_font_engine` and `m_cache_layout` have been REMOVED
+    // from this class.  Builder mutators now write directly into
+    // `m_spec->font_engine` and `m_spec->pending.cache_layout` so that
+    // state stays correct even when `LayerBuilder::build()` auto-commits
+    // without a prior explicit `.commit()` call.
     // Counter to give each implicit animator a unique diagnostics id.
     int m_implicit_id_seq{0};
     // Pending selectors accumulated via `.selector()` before the next
@@ -202,7 +221,8 @@ private:
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Public free function: materialize a TextRunShape from TextRunParams.
+// Public free function: materialize a TextRunShape from TextRunSpec
+// (`TextRunParams` was the prior deprecated alias of `TextRunSpec`).
 //
 // Both `LayerBuilder::build()` and `RenderNodeFactory::text_run()`
 // consume this same core routine.
