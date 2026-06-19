@@ -1,5 +1,9 @@
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
 #include <chronon3d/runtime/telemetry/sqlite_telemetry_store.hpp>
+#else
+#include <chronon3d/runtime/telemetry/null_telemetry_store.hpp>
+#endif
 #include <spdlog/spdlog.h>
 #include <filesystem>
 #include <thread>
@@ -65,6 +69,7 @@ void TelemetryManager::clear_stores() {
 void TelemetryManager::initialize_default_stores() {
     clear_stores();
 
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
     std::string base_dir = get_telemetry_directory();
     spdlog::info("[telemetry] Initializing default stores in base directory: {}", base_dir);
     
@@ -72,7 +77,7 @@ void TelemetryManager::initialize_default_stores() {
     std::error_code ec;
     std::filesystem::create_directories(base_dir, ec);
 
-    // 2. SQLite Store (Uses fallback stub internally if disabled in compile options)
+    // 2. SQLite Store
     // Preference: local output/telemetry.db if we are in a workspace
     const std::filesystem::path sqlite_path = resolve_sqlite_telemetry_path();
     spdlog::info("[telemetry] Resolving SQLite path to: {}", sqlite_path.string());
@@ -94,6 +99,10 @@ void TelemetryManager::initialize_default_stores() {
             spdlog::warn("[telemetry] Failed to initialize fallback SQLite store at {}", fallback_path.string());
         }
     }
+#else
+    spdlog::info("[telemetry] Telemetry support is disabled in this build.");
+    add_store(std::make_shared<NullTelemetryStore>());
+#endif
 }
 
 std::filesystem::path TelemetryManager::resolve_sqlite_telemetry_path() {

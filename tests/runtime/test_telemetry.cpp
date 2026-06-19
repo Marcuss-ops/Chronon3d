@@ -2,6 +2,7 @@
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 
 #include <chronon3d/runtime/telemetry/sqlite_telemetry_store.hpp>
+#include <chronon3d/runtime/telemetry/null_telemetry_store.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <nlohmann/json.hpp>
 #include <filesystem>
@@ -240,4 +241,91 @@ TEST_CASE("Telemetry: image sampling metrics survive run storage") {
     CHECK(mock->last_run.image_decode_ms == doctest::Approx(1.25));
     CHECK(mock->last_run.image_sample_ms == doctest::Approx(3.5));
     CHECK(mock->last_run.image_sampled_pixels == 480000);
+}
+
+// ── NullTelemetryStore tests (telemetry OFF path) ────────────────────────
+
+TEST_CASE("NullTelemetryStore: all writes succeed without SQLite") {
+    NullTelemetryStore null_store;
+
+    CHECK(null_store.initialize("any/path.db"));
+
+    RenderTelemetryRecord run;
+    run.composition_id = "null_test";
+    CHECK(null_store.write_render_run(run));
+
+    std::vector<FrameTelemetryRecord> frames = {{0, 16.6, true, 0.1}};
+    CHECK(null_store.write_frames("run_1", frames));
+
+    std::vector<PhaseTelemetryRecord> phases = {{"render", 10.0}};
+    CHECK(null_store.write_phases("run_1", phases));
+
+    std::vector<CounterTelemetryRecord> counters = {{"test", 42}};
+    CHECK(null_store.write_counters("run_1", counters));
+
+    std::vector<NodeTelemetryRecord> node_events;
+    node_events.push_back({.node_name="n", .duration_ms=1.0});
+    CHECK(null_store.write_node_events("run_1", node_events));
+
+    std::vector<LayerTelemetryRecord> layer_events;
+    layer_events.push_back({.layer_id="l", .layer_name="L"});
+    CHECK(null_store.write_layer_events("run_1", layer_events));
+
+    std::vector<CacheTelemetryRecord> cache_events;
+    cache_events.push_back({.node_name="c"});
+    CHECK(null_store.write_cache_events("run_1", cache_events));
+
+    std::vector<CullingTelemetryRecord> culling_events;
+    culling_events.push_back({.layer_id="cull"});
+    CHECK(null_store.write_culling_events("run_1", culling_events));
+
+    std::vector<TextTelemetryRecord> text_events;
+    text_events.push_back({.font_path="f"});
+    CHECK(null_store.write_text_events("run_1", text_events));
+
+    std::vector<ImageTelemetryRecord> image_events;
+    image_events.push_back({.image_path="img"});
+    CHECK(null_store.write_image_events("run_1", image_events));
+
+    std::vector<TileTelemetryRecord> tile_events;
+    tile_events.push_back({.layer_id="t"});
+    CHECK(null_store.write_tile_events("run_1", tile_events));
+
+    // begin/end_transaction are no-ops (base class defaults)
+    null_store.begin_transaction();
+    null_store.end_transaction(true);
+}
+
+TEST_CASE("NullTelemetryStore: TelemetryManager with null store does not fail") {
+    TelemetryManager manager;
+    manager.add_store(std::make_shared<NullTelemetryStore>());
+
+    RenderTelemetryRecord run;
+    run.composition_id = "null_mgr";
+    run.success = true;
+
+    std::vector<FrameTelemetryRecord> frames = {{0, 10.0, true, 0.5}};
+    std::vector<PhaseTelemetryRecord> phases = {{"setup", 5.0}};
+    std::vector<CounterTelemetryRecord> counters = {{"cache_hits", 1}};
+
+    bool ok = manager.record_run(run, frames, phases, counters);
+    CHECK(ok);
+    // run_id should be auto-generated
+    CHECK(!run.run_id.empty());
+    // os/cpu should be auto-populated
+    CHECK(!run.os.empty());
+    CHECK(!run.cpu_model.empty());
+}
+
+TEST_CASE("NullTelemetryStore: TelemetryManager record_run with empty stores succeeds") {
+    TelemetryManager manager;
+    manager.clear_stores();
+
+    RenderTelemetryRecord run;
+    run.composition_id = "empty_stores";
+    run.success = false;
+
+    // record_run should succeed even with zero stores registered
+    bool ok = manager.record_run(run);
+    CHECK(ok);
 }
