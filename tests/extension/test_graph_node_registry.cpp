@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/render_graph/registry/graph_node_registry.hpp>
+#include <chronon3d/render_graph/registry/graph_node_create_request.hpp>
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 using namespace chronon3d;
 
@@ -138,7 +139,7 @@ TEST_CASE("GraphNodeRegistry: create returns node when factory is provided") {
         .display_name = "With Factory",
         .description = "",
         .category = "test",
-        .factory = []() -> std::unique_ptr<RenderGraphNode> {
+        .factory = [](const GraphNodeCreateRequest&) -> std::unique_ptr<RenderGraphNode> {
             return nullptr; // We just verify the factory is called
         },
     });
