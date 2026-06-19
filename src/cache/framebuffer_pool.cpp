@@ -229,15 +229,6 @@ OwnedFB FramebufferPool::acquire_owned(int width, int height, bool clear) {
     return OwnedFB(fb.release(), PoolFbDeleter{weak_from_this()});
 }
 
-OwnedFB FramebufferPool::acquire_owned_raw(int width, int height, bool clear) {
-    bool fresh_alloc = false;
-    auto fb = acquire_unique(width, height, &fresh_alloc);
-    if (clear && fb && !fresh_alloc && !fb->is_content_cleared()) {
-        fb->clear(Color::transparent());
-    }
-    return OwnedFB(fb.release(), PoolFbDeleter{weak_from_this()});
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Eviction helpers
 // ─────────────────────────────────────────────────────────────────────────────

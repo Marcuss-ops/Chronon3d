@@ -5,6 +5,7 @@
 #include <optional>
 #include <memory>
 #include <cstddef>
+#include <variant>
 
 namespace chronon3d::cache {
     class FramebufferPool;
@@ -39,6 +40,25 @@ public:
 private:
     Framebuffer* m_ptr{nullptr};
 };
+
+// ---------------------------------------------------------------------------
+// FramebufferReturnPolicy — explicit variant replacing the implicit priority
+// chain of PoolFbDeleter (pool_weak / scratch_slot / owned_by_renderer / scratch_cleanup).
+// Full PoolFbDeleter → variant migration deferred to PR-9 (SoftwareRenderer split).
+// ---------------------------------------------------------------------------
+struct DeleteFramebuffer {};
+struct ReturnToPool { std::weak_ptr<cache::FramebufferPool> pool; };
+struct ReturnToScratch { Framebuffer** slot{nullptr}; };
+struct RestoreScratchHandle { std::function<void()> cleanup; };
+struct RendererOwned {};
+
+using FramebufferReturnPolicy = std::variant<
+    DeleteFramebuffer,
+    ReturnToPool,
+    ReturnToScratch,
+    RestoreScratchHandle,
+    RendererOwned
+>;
 
 // ---------------------------------------------------------------------------
 // PoolFbDeleter — custom deleter that returns a Framebuffer to its pool.
