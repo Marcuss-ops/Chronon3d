@@ -6,6 +6,7 @@
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/compiler/scene_binding.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/effects/effect_registry.hpp>
 #include <chronon3d/extension/extension_module.hpp>
 #include <chronon3d/extension/extension_registry.hpp>
 #include <stdexcept>
@@ -30,9 +31,14 @@ public:
 } // namespace
 
 static GraphNodeCatalog s_pipeline_node_catalog;
+static effects::EffectCatalog s_effect_catalog;
 
 const GraphNodeCatalog& get_pipeline_node_catalog() {
     return s_pipeline_node_catalog;
+}
+
+const effects::EffectCatalog& get_pipeline_effect_catalog() {
+    return s_effect_catalog;
 }
 
 void register_pipeline_graph_nodes_impl() {
@@ -72,6 +78,7 @@ void register_pipeline_graph_nodes_impl() {
     });
 
     s_pipeline_node_catalog.freeze();
+    s_effect_catalog.freeze();
 }
 
 void register_pipeline_graph_nodes() {
@@ -84,6 +91,7 @@ void register_pipeline_graph_nodes() {
 
 void wire_precomp_build_factory(RenderGraphContext& ctx) {
     ctx.resources.node_catalog = &s_pipeline_node_catalog;
+    ctx.resources.effect_catalog = &s_effect_catalog;
     ctx.resources.precomp_build = [](const Scene& scene, RenderGraphContext& nested_ctx)
         -> std::unique_ptr<CompiledSceneProgram>
     {

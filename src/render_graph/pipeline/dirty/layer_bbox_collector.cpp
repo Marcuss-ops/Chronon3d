@@ -78,7 +78,8 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                 if (rl.layer && rl.layer->active_at(frame)) {
                     raster::BBox bbox = compute_bbox_for_resolved(rl);
 
-                    if (!is_safe_for_dirty_rects(*rl.layer, settings.motion_blur.enabled)) {
+                    if (!is_safe_for_dirty_rects(*rl.layer, settings.motion_blur.enabled,
+                                                   ctx.resources.effect_catalog)) {
                         bbox = raster::BBox{0, 0, width, height};
                         if (ctx.telemetry.counters) {
                             ctx.telemetry.counters->increment_dirty_full_fallback_reason(

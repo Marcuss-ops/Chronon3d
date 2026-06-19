@@ -8,7 +8,8 @@ TileDecision TileExecutionPolicy::decide(
     const detail::DirtyRectOutput& dirty_out,
     double dirty_ratio,
     const SoftwareRenderer* sw_renderer,
-    Frame frame
+    Frame frame,
+    const effects::EffectCatalog* effect_catalog
 ) {
     // Tile execution is incompatible with spatial effects (glow, bloom, drop shadow,
     // blur, distort, temporal).  When tile execution re-executes the full graph per
@@ -16,7 +17,7 @@ TileDecision TileExecutionPolicy::decide(
     // these effects reads pixels outside the tile boundary — those pixels are zero
     // or garbage (from the fresh per-tile framebuffer), producing visible seams at
     // tile edges.  Disable tile execution when ANY active layer has spatial effects.
-    if (detail::has_layer_with_spatial_effects(resolved, frame)) {
+    if (detail::has_layer_with_spatial_effects(resolved, frame, effect_catalog)) {
         return {false, "spatial_effect_detected"};
     }
 

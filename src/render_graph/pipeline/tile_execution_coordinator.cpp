@@ -26,7 +26,8 @@ TileExecutionResult execute_tile_or_fallback(
     TileExecutionResult result;
 
     const TileDecision tile_decision = TileExecutionPolicy::decide(
-        resolved, settings, dirty_out, dirty_ratio, sw_renderer, frame);
+        resolved, settings, dirty_out, dirty_ratio, sw_renderer, frame,
+        ctx.resources.effect_catalog);
     result.use_tile_execution = tile_decision.enabled;
 
     if (ctx.options.diagnostics_enabled && !result.use_tile_execution) {

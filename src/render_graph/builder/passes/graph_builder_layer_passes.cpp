@@ -53,7 +53,8 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
     for (const auto& effect : layer.effects) {
         if (!effect.enabled) continue;
         
-        auto node_id = graph.add_node(effects::EffectRegistry::instance().create_node(effect));
+        const auto* ec = ctx.resources.effect_catalog;
+        auto node_id = graph.add_node(ec->create_node(effect));
         graph.node(node_id).set_frame_dependent(!is_static);
         graph.connect(layer_output, node_id);
         layer_output = node_id;
