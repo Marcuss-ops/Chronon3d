@@ -1,7 +1,6 @@
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/framebuffer_arena.hpp>
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
-#include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>
@@ -38,11 +37,6 @@ namespace chronon3d::cache {
 
 namespace {
 
-size_t resolve_default_max_bytes(size_t fallback) {
-    auto max_bytes = Config::get().fb_pool_max_bytes;
-    return max_bytes > 0 ? max_bytes : fallback;
-}
-
 int round_up_bucket(int val) {
     if (val <= 0) return 0;
     if (val <= 64) {
@@ -59,10 +53,10 @@ int round_up_bucket(int val) {
 } // namespace
 
 FramebufferPool::FramebufferPool(size_t max_bytes) {
-    // Single source of truth: the constructor parameter (or env override)
-    // sets the retention budget.  All limits derive from m_config.
-    const size_t resolved = resolve_default_max_bytes(max_bytes);
-    m_config.max_retained_bytes = resolved;
+    // 0 = use kDefaultBudgetBytes (384 MB).
+    // The caller (SoftwareRenderer) pre-resolves Config/env overrides
+    // and passes the resolved value.
+    m_config.max_retained_bytes = (max_bytes > 0) ? max_bytes : kDefaultBudgetBytes;
 }
 
 FramebufferPool::FramebufferPool(const FramebufferPoolConfig& config)

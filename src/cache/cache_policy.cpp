@@ -56,18 +56,18 @@ const PolicyDefaults* find_defaults(CacheDomain domain) {
 /// Return the Config field value for a domain, or 0 if the domain is
 /// not configured via Config (uses the hardcoded default).
 std::size_t config_value(CacheDomain domain) {
-    const auto& cfg = chronon3d::Config::get();
+    const auto& cache_cfg = chronon3d::Config::get().cache();
     switch (domain) {
-        case CacheDomain::Nodes:           return cfg.node_cache_max_bytes;
-        case CacheDomain::RenderedFrames:  return cfg.frame_cache_max_entries;
-        case CacheDomain::VideoFrames:     return cfg.video_frame_max_entries;
-        case CacheDomain::ConvertedFrames: return cfg.converted_frame_cache_max_entries;
-        case CacheDomain::ScenePrograms:   return cfg.scene_program_cache_max_entries;
-        case CacheDomain::Images:          return cfg.image_cache_max_bytes;
-        case CacheDomain::GlyphAtlas:      return cfg.glyph_atlas_max_bytes;
-        case CacheDomain::Text:            return cfg.text_cache_max_bytes;
-        case CacheDomain::Shadows:         return cfg.shadow_cache_max_bytes;
-        case CacheDomain::Glow:            return cfg.glow_cache_max_bytes;
+        case CacheDomain::Nodes:           return cache_cfg.node_cache_max_bytes();
+        case CacheDomain::RenderedFrames:  return cache_cfg.frame_cache_max_entries();
+        case CacheDomain::VideoFrames:     return cache_cfg.video_frame_max_entries();
+        case CacheDomain::ConvertedFrames: return cache_cfg.converted_frame_cache_max_entries();
+        case CacheDomain::ScenePrograms:   return cache_cfg.scene_program_cache_max_entries();
+        case CacheDomain::Images:          return cache_cfg.image_cache_max_bytes();
+        case CacheDomain::GlyphAtlas:      return cache_cfg.glyph_atlas_max_bytes();
+        case CacheDomain::Text:            return cache_cfg.text_cache_max_bytes();
+        case CacheDomain::Shadows:         return cache_cfg.shadow_cache_max_bytes();
+        case CacheDomain::Glow:            return cache_cfg.glow_cache_max_bytes();
         // No default case — compiler warns if an enum value is missing.
     }
     return 0;

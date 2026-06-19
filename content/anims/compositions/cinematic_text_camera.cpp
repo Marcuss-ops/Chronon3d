@@ -231,9 +231,9 @@ Composition whip_pan_hero_reveal() {
             .tracking = 6.0f, .base_pos = {0.0f, 0.0f, 0.0f},
             .start_delay = 22.0f, .duration = 8.0f, .stagger = 1.5f,
             .slide_up = true, .slide_up_px = 40.0f,
-            .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
             .opacity_easing = EasingCurve{Easing::OutCubic},
             .position_easing = EasingCurve{Easing::OutBack},
+            .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
             .add_shadow = false, .layer_prefix = "ch"
         });
 

@@ -12,6 +12,7 @@
     "spdlog",
     "fmt",
     "glm",
+    "taskflow",
     "tbb",
     "stb",
     "meshoptimizer",
