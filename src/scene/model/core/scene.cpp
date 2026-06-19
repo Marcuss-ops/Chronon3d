@@ -8,6 +8,7 @@
 // ============================================================================
 
 #include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/scene/model/core/hierarchy_resolver.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -54,71 +55,64 @@ CameraProjectionSource Scene::camera_projection_source() const {
     return CameraProjectionSource(*m_camera_2_5d);
 }
 
-// ── Hierarchy resolution ────────────────────────────────────────────────────
+// ── Hierarchy resolution (uses unified HierarchyResolver) ───────────────────
 
 void Scene::resolve_hierarchy(Frame frame) {
     if (m_hierarchy_baked) return;
 
-    // 1. Build SceneTransformRegistry
-    SceneTransformRegistry registry;
-    
-    // Add all layers (both normal and null)
-    for (const auto& layer : m_layers) {
-        Transform3D t3d;
-        t3d.position = layer.transform.position;
-        t3d.rotation = glm::degrees(glm::eulerAngles(layer.transform.rotation));
-        t3d.scale = layer.transform.scale;
-        t3d.anchor = layer.transform.anchor;
-        t3d.parent_name = std::string(layer.parent_name);
-        t3d.inherits_position = true;
-        t3d.inherits_rotation = true;
-        t3d.inherits_scale = true;
+    // 1. Build name→index map
+    auto name_to_index = build_name_index(m_layers);
 
-        bool renderable = (layer.kind != LayerKind::Null);
-        registry.add_node(std::string(layer.name), t3d, renderable);
-    }
+    // 2. Build HierarchyNodeView from layers
+    std::vector<HierarchyNodeView> nodes;
+    nodes.reserve(m_layers.size());
 
-    // Resolve transforms
-    auto results = registry.resolve_all();
+    for (std::size_t i = 0; i < m_layers.size(); ++i) {
+        const auto& layer = m_layers[i];
+        HierarchyNodeView view;
+        view.id = i;
+        view.local_matrix = layer.transform.to_mat4();
+        view.local_opacity = layer.transform.opacity;
+        view.inherits_position = true;
+        view.inherits_rotation = true;
+        view.inherits_scale = true;
 
-    // 2. Update layers with resolved world transforms
-    for (size_t i = 0; i < m_layers.size(); ++i) {
-        auto& layer = m_layers[i];
-        auto world_mat_opt = results.world_matrix(std::string(layer.name));
-        if (world_mat_opt) {
-            f32 opacity = layer.transform.opacity;
-            constexpr int kMaxParentDepth = 64;
-            std::string current_parent = std::string(layer.parent_name);
-            int safety = 0;
-            while (!current_parent.empty() && safety < kMaxParentDepth) {
-                bool found = false;
-                for (const auto& p_layer : m_layers) {
-                    if (std::string_view(p_layer.name) == current_parent) {
-                        opacity *= p_layer.transform.opacity;
-                        current_parent = std::string(p_layer.parent_name);
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) break;
-                ++safety;
+        if (!layer.parent_name.empty()) {
+            auto it = name_to_index.find(std::string_view(layer.parent_name));
+            if (it != name_to_index.end()) {
+                view.parent = it->second;
             }
-            
-            Vec3 original_anchor = layer.transform.anchor;
-            layer.transform = from_mat4(*world_mat_opt, opacity);
-            layer.transform.anchor = original_anchor;
-            layer.hierarchy_resolved = true;
         }
+
+        nodes.push_back(std::move(view));
     }
 
-    // 3. Resolve camera
+    // 3. Resolve hierarchy
+    HierarchyResolver resolver(std::move(nodes));
+    auto results = resolver.resolve();
+
+    // 4. Apply results back to layers
+    for (std::size_t i = 0; i < m_layers.size(); ++i) {
+        auto& layer = m_layers[i];
+        const auto& resolved = results[i];
+
+        Vec3 original_anchor = layer.transform.anchor;
+        layer.transform = from_mat4(resolved.world_matrix, resolved.world_opacity);
+        layer.transform.anchor = original_anchor;
+        layer.hierarchy_resolved = true;
+    }
+
+    // 5. Resolve camera hierarchy
     if (m_camera_2_5d->enabled) {
         if (!m_camera_2_5d->parent_name.empty()) {
-            auto parent_world_opt = results.world_matrix(std::string(m_camera_2_5d->parent_name));
-            if (parent_world_opt) {
+            auto it = name_to_index.find(std::string_view(m_camera_2_5d->parent_name));
+            if (it != name_to_index.end()) {
+                std::size_t parent_idx = it->second;
+                const Mat4& parent_world = results.at(parent_idx).world_matrix;
+
                 Mat4 local_cam_mat = glm::translate(Mat4(1.0f), m_camera_2_5d->position) *
                                      glm::toMat4(math::camera_rotation_quat(m_camera_2_5d->rotation));
-                Mat4 world_cam_mat = (*parent_world_opt) * local_cam_mat;
+                Mat4 world_cam_mat = parent_world * local_cam_mat;
                 Transform world_cam_trans = from_mat4(world_cam_mat);
                 m_camera_2_5d->position = world_cam_trans.position;
                 m_camera_2_5d->rotation = math::camera_rotation_euler(world_cam_trans.rotation);
@@ -126,9 +120,10 @@ void Scene::resolve_hierarchy(Frame frame) {
         }
 
         if (!m_camera_2_5d->target_name.empty()) {
-            auto target_world_opt = results.world_matrix(std::string(m_camera_2_5d->target_name));
-            if (target_world_opt) {
-                m_camera_2_5d->point_of_interest = Vec3((*target_world_opt)[3]);
+            auto it = name_to_index.find(std::string_view(m_camera_2_5d->target_name));
+            if (it != name_to_index.end()) {
+                std::size_t target_idx = it->second;
+                m_camera_2_5d->point_of_interest = Vec3(results.at(target_idx).world_matrix[3]);
                 m_camera_2_5d->point_of_interest_enabled = true;
             }
         }

@@ -19,9 +19,9 @@ TEST_CASE("Shape model and SceneBuilder") {
         auto scene = comp.evaluate(0);
         const auto& nodes = scene.nodes();
         REQUIRE(nodes.size() == 1);
-        CHECK(nodes[0].shape.type == ShapeType::Rect);
-        CHECK(nodes[0].shape.rect.size.x == 20.0f);
-        CHECK(nodes[0].shape.rect.size.y == 20.0f);
+        CHECK(nodes[0].shape.type() == ShapeType::Rect);
+        CHECK(nodes[0].shape.rect().size.x == 20.0f);
+        CHECK(nodes[0].shape.rect().size.y == 20.0f);
     }
 
     SUBCASE("Circle node has ShapeType::Circle") {
@@ -33,8 +33,8 @@ TEST_CASE("Shape model and SceneBuilder") {
         auto scene = comp.evaluate(0);
         const auto& nodes = scene.nodes();
         REQUIRE(nodes.size() == 1);
-        CHECK(nodes[0].shape.type == ShapeType::Circle);
-        CHECK(nodes[0].shape.circle.radius == 15.0f);
+        CHECK(nodes[0].shape.type() == ShapeType::Circle);
+        CHECK(nodes[0].shape.circle().radius == 15.0f);
     }
 
     SUBCASE("Line node has ShapeType::Line") {
@@ -46,8 +46,8 @@ TEST_CASE("Shape model and SceneBuilder") {
         auto scene = comp.evaluate(0);
         const auto& nodes = scene.nodes();
         REQUIRE(nodes.size() == 1);
-        CHECK(nodes[0].shape.type == ShapeType::Line);
-        CHECK(nodes[0].shape.line.to.x == 10.0f);
+        CHECK(nodes[0].shape.type() == ShapeType::Line);
+        CHECK(nodes[0].shape.line().to.x == 10.0f);
     }
 
     SUBCASE("Text node has ShapeType::Text and maps TextSpec fields") {
@@ -81,14 +81,14 @@ TEST_CASE("Shape model and SceneBuilder") {
         REQUIRE(layers.size() == 1);
         const auto& nodes = layers[0].nodes;
         REQUIRE(nodes.size() == 1);
-        CHECK(nodes[0].shape.type == ShapeType::Text);
-        CHECK(nodes[0].shape.text.style.auto_fit == true);
-        CHECK(nodes[0].shape.text.style.auto_scale == true);
-        CHECK(nodes[0].shape.text.style.max_lines == 4);
-        CHECK(nodes[0].shape.text.style.ellipsis == true);
-        CHECK(nodes[0].shape.text.style.min_size == doctest::Approx(14.0f));
-        CHECK(nodes[0].shape.text.style.max_size == doctest::Approx(120.0f));
-        CHECK(nodes[0].shape.text.style.overflow == TextOverflow::Ellipsis);
-        CHECK(nodes[0].shape.text.style.wrap == TextWrap::Character);
+        CHECK(nodes[0].shape.type() == ShapeType::Text);
+        CHECK(nodes[0].shape.text().style.auto_fit == true);
+        CHECK(nodes[0].shape.text().style.auto_scale == true);
+        CHECK(nodes[0].shape.text().style.max_lines == 4);
+        CHECK(nodes[0].shape.text().style.ellipsis == true);
+        CHECK(nodes[0].shape.text().style.min_size == doctest::Approx(14.0f));
+        CHECK(nodes[0].shape.text().style.max_size == doctest::Approx(120.0f));
+        CHECK(nodes[0].shape.text().style.overflow == TextOverflow::Ellipsis);
+        CHECK(nodes[0].shape.text().style.wrap == TextWrap::Character);
     }
 }

@@ -169,3 +169,92 @@ TEST_CASE("LruCache::compute_if_absent: oversized value is returned but not cach
     CHECK(!cache.contains(1));
     CHECK(cache.stats().current_size == 0);
 }
+
+TEST_CASE("LruCache::compute_if_absent: slow loader does not block other keys in same shard") {
+    // Single shard — if the loader held the mutex, the second key would
+    // be blocked.  With in-flight futures, the slow loader runs outside
+    // the lock and the second key can proceed immediately.
+    LruCache<int, int> cache(/*capacity_weight=*/100, /*num_shards=*/1);
+
+    std::atomic<bool> slow_loader_started{false};
+    std::atomic<bool> slow_loader_done{false};
+    std::atomic<int> fast_loader_calls{0};
+
+    // Launch a slow load for key 1 on a background thread.
+    std::thread slow_thread([&]() {
+        cache.compute_if_absent(1, [&]() -> std::pair<int, std::size_t> {
+            slow_loader_started.store(true, std::memory_order_release);
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            slow_loader_done.store(true, std::memory_order_release);
+            return {111, 1};
+        });
+    });
+
+    // Wait until the slow loader has started (and released the mutex).
+    while (!slow_loader_started.load(std::memory_order_acquire))
+        std::this_thread::yield();
+
+    // Now load a DIFFERENT key (2) that hashes to the SAME shard.
+    // With the old design (loader under mutex), this would block for ~200ms.
+    // With in-flight futures, the slow loader released the lock and this
+    // should complete almost instantly.
+    auto t0 = std::chrono::steady_clock::now();
+    auto v = cache.compute_if_absent(2, [&]() -> std::pair<int, std::size_t> {
+        fast_loader_calls.fetch_add(1, std::memory_order_relaxed);
+        return {222, 1};
+    });
+    auto t1 = std::chrono::steady_clock::now();
+
+    CHECK(v == 222);
+    CHECK(fast_loader_calls.load() == 1);
+
+    // The fast load must have completed well before the slow loader finished.
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+    CHECK(elapsed < 100);
+
+    slow_thread.join();
+    CHECK(slow_loader_done.load());
+    CHECK(cache.contains(1));
+    CHECK(cache.contains(2));
+}
+
+TEST_CASE("LruCache::compute_if_absent: loader exception propagates to all waiters") {
+    // Single shard, two threads.  One loads and throws; the other waits
+    // on the future and must also receive the exception.
+    LruCache<int, int> cache(/*capacity_weight=*/100, /*num_shards=*/1);
+
+    std::atomic<bool> loader_started{false};
+    std::atomic<int> exceptions_seen{0};
+
+    std::thread t1([&]() {
+        try {
+            cache.compute_if_absent(99, [&]() -> std::pair<int, std::size_t> {
+                loader_started.store(true, std::memory_order_release);
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                throw std::runtime_error("boom");
+            });
+        } catch (const std::runtime_error&) {
+            exceptions_seen.fetch_add(1, std::memory_order_relaxed);
+        }
+    });
+
+    std::thread t2([&]() {
+        // Wait until t1 has started loading.
+        while (!loader_started.load(std::memory_order_acquire))
+            std::this_thread::yield();
+        try {
+            cache.compute_if_absent(99, [&]() -> std::pair<int, std::size_t> {
+                return {0, 1}; // should never be called
+            });
+        } catch (const std::runtime_error&) {
+            exceptions_seen.fetch_add(1, std::memory_order_relaxed);
+        }
+    });
+
+    t1.join();
+    t2.join();
+
+    CHECK(exceptions_seen.load() == 2);
+    CHECK(!cache.contains(99));
+    CHECK(cache.stats().current_size == 0);
+}

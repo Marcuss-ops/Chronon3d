@@ -155,7 +155,7 @@ using chronon3d::graph::hash_text_style_full;
 [[nodiscard]] static inline CacheKey hash_shadow_params(const RenderNode& node, float effective_size, size_t index) {
     CacheKey seed = hash_text_shape(node.shape.text, effective_size);
     seed = hash_combine(seed, hash_value(index));
-    const auto& shadow = node.shape.text.style.shadows[index];
+    const auto& shadow = node.shape.text().style.shadows[index];
     seed = hash_combine(seed, hash_value(shadow.blur));
     seed = hash_combine(seed, hash_value(shadow.opacity));
     seed = hash_combine(seed, hash_value(shadow.color.r));

@@ -8,13 +8,13 @@ class SoftwareLineProcessor final : public ShapeProcessor {
 public:
     void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
-        const auto& stroke = node.shape.line.stroke;
+        const auto& stroke = node.shape.line().stroke;
         const f32 ts = std::clamp(stroke.trim_start, 0.0f, 1.0f);
         const f32 te = std::clamp(stroke.trim_end,   0.0f, 1.0f);
         if (ts >= te) return;  // nothing to draw
 
         // Compute trimmed endpoints in local space then project.
-        const Vec3 full = node.shape.line.to;
+        const Vec3 full = node.shape.line().to;
         const Vec3 local_start = full * ts;
         const Vec3 local_end   = full * te;
 
@@ -26,14 +26,14 @@ public:
         } else {
             col.a *= state.opacity;
         }
-        const f32 thickness = stroke.enabled ? std::max(0.0f, stroke.width) : node.shape.line.thickness;
+        const f32 thickness = stroke.enabled ? std::max(0.0f, stroke.width) : node.shape.line().thickness;
         bline(fb, Vec2(p0.x, p0.y), Vec2(p1.x, p1.y), col, thickness, state.clip_rect);
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
         Vec4 p0 = model * Vec4(0, 0, 0, 1);
-        Vec4 p1 = model * Vec4(shape.line.to, 1);
-        const f32 thickness = shape.line.stroke.enabled ? std::max(shape.line.stroke.width, shape.line.thickness) : shape.line.thickness;
+        Vec4 p1 = model * Vec4(shape.line().to, 1);
+        const f32 thickness = shape.line().stroke.enabled ? std::max(shape.line().stroke.width, shape.line().thickness) : shape.line().thickness;
         const f32 pad = spread + std::max(kBBoxSafetyPadding, thickness * 0.5f);
         return {
             static_cast<i32>(std::floor(std::min(p0.x, p1.x) - pad)),

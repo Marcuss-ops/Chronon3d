@@ -8,7 +8,6 @@
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/rendering/lighting_rig.hpp>
 #include <chronon3d/rendering/depth_grade.hpp>
-#include <chronon3d/scene/model/core/transform_resolver.hpp>
 #include <vector>
 #include <memory_resource>
 #include <memory>

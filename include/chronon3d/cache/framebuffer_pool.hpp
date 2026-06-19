@@ -119,8 +119,11 @@ public:
     /// Dynamically update the retention budget (0 = unlimited).
     void set_budget_bytes(size_t max_retained_bytes);
 
-    /// Get the current config.
-    [[nodiscard]] const FramebufferPoolConfig& config() const { return m_config; }
+    /// Get the current config (thread-safe copy under lock).
+    [[nodiscard]] FramebufferPoolConfig config() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_config;
+    }
 
     /// Acquire a framebuffer of the requested size.
     /// Clearing is optional and only happens when requested by the caller.

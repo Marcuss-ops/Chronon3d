@@ -40,7 +40,7 @@ const CameraShotValidator& CameraShotValidator::require_frame_visibility(float m
 
 CameraShotReport CameraShotValidator::validate(
     const Camera2_5D& camera,
-    const TransformResolverResult& transforms,
+    const ResolvedSceneTransforms& transforms,
     Viewport viewport
 ) const {
     CameraShotReport report;

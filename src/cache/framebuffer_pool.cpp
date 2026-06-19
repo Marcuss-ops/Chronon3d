@@ -440,7 +440,7 @@ size_t do_preallocate_into_bucket(
         }
 
         const size_t weight = fb->size_bytes();
-        if (current_bytes + weight > max_bytes) {
+        if (max_bytes > 0 && current_bytes + weight > max_bytes) {
             break;
         }
 

@@ -86,7 +86,7 @@ TEST_CASE("BidiSegmenter: Hebrew + English produces correct runs") {
     CHECK(runs[0].direction == TextDirection::RTL);
     CHECK(runs[1].direction == TextDirection::LTR);
     CHECK(runs[0].byte_offset == 0);
-    CHECK(runs[1].byte_offset + runs[1].text.size() == mixed.size());
+    CHECK(runs[1].byte_offset + runs[1].text().size() == mixed.size());
 }
 
 TEST_CASE("BidiSegmenter: mixed Arabic+Hebrew+English") {

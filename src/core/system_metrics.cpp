@@ -83,7 +83,7 @@ SystemMetricsCollector::~SystemMetricsCollector() {
 bool SystemMetricsCollector::open_llc_counters() {
     struct perf_event_attr pe{};
     std::memset(&pe, 0, sizeof(pe));
-    pe.type = PERF_TYPE_HARDWARE;
+    pe.set_type(PERF_TYPE_HARDWARE;
     pe.size = sizeof(struct perf_event_attr);
     pe.exclude_kernel = 0;
     pe.exclude_hv = 1;

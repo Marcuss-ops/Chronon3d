@@ -42,9 +42,9 @@ TEST_CASE("RenderNodeFactory preserves native stroke on rounded rect and circle"
     rounded.stroke.alignment = StrokeAlignment::Center;
 
     auto pill = RenderNodeFactory::rounded_rect(res, "pill", rounded);
-    CHECK(pill.shape.rounded_rect.stroke.enabled);
-    CHECK(pill.shape.rounded_rect.stroke.width == doctest::Approx(1.0f));
-    CHECK(pill.shape.rounded_rect.stroke.color.a == doctest::Approx(0.28f));
+    CHECK(pill.shape.rounded_rect().stroke.enabled);
+    CHECK(pill.shape.rounded_rect().stroke.width == doctest::Approx(1.0f));
+    CHECK(pill.shape.rounded_rect().stroke.color.a == doctest::Approx(0.28f));
 
     CircleParams circle;
     circle.radius = 48.0f;
@@ -55,8 +55,8 @@ TEST_CASE("RenderNodeFactory preserves native stroke on rounded rect and circle"
     circle.stroke.alignment = StrokeAlignment::Outside;
 
     auto badge = RenderNodeFactory::circle(res, "badge", circle);
-    CHECK(badge.shape.circle.stroke.enabled);
-    CHECK(badge.shape.circle.stroke.alignment == StrokeAlignment::Outside);
+    CHECK(badge.shape.circle().stroke.enabled);
+    CHECK(badge.shape.circle().stroke.alignment == StrokeAlignment::Outside);
 }
 
 TEST_CASE("Box model helpers fit content with padding and bounds") {
@@ -73,14 +73,14 @@ TEST_CASE("Box model helpers fit content with padding and bounds") {
 
 TEST_CASE("Shape hash changes when stroke changes") {
     Shape a;
-    a.type = ShapeType::RoundedRect;
-    a.rounded_rect.size = {930.0f, 120.0f};
-    a.rounded_rect.radius = 60.0f;
-    a.rounded_rect.stroke.enabled = true;
-    a.rounded_rect.stroke.width = 1.0f;
+    a.set_type(ShapeType::RoundedRect;
+    a.rounded_rect().size = {930.0f, 120.0f};
+    a.rounded_rect().radius = 60.0f;
+    a.rounded_rect().stroke.enabled = true;
+    a.rounded_rect().stroke.width = 1.0f;
 
     Shape b = a;
-    b.rounded_rect.stroke.width = 2.0f;
+    b.rounded_rect().stroke.width = 2.0f;
 
     CHECK(chronon3d::graph::hash_shape(a) != chronon3d::graph::hash_shape(b));
 }

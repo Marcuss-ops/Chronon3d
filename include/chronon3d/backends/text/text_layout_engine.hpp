@@ -203,7 +203,7 @@ private:
         std::string current_token;
         bool in_space = false;
 
-        for (size_t i = 0; i < input.text.size();) {
+        for (size_t i = 0; i < input.text().size();) {
             size_t len = detail::utf8_seq_len(static_cast<unsigned char>(input.text[i]));
             if (len == 1) {
                 const char c = input.text[i];
@@ -500,7 +500,7 @@ private:
             TextLayoutRun piece = source;
             piece.text = std::move(text_piece);
             if (piece.is_decorative_star) {
-                piece.text.clear();
+                piece.text().clear();
             }
             if (!piece.style.font_path.empty()) {
             } else {
@@ -738,15 +738,15 @@ private:
                     std::vector<float> cluster_widths;
                     {
                         size_t off = 0;
-                        while (off < run.text.size()) {
+                        while (off < run.text().size()) {
                             cluster_offsets.push_back(off);
                             const size_t next = detail::grapheme_byte_offset_at(
-                                std::string_view(run.text.data() + off,
-                                                 run.text.size() - off), 1);
+                                std::string_view(run.text().data() + off,
+                                                 run.text().size() - off), 1);
                             cluster_ends.push_back(off + next);
                             const float cw = (next > 0)
                                 ? measure_string(input, run.style,
-                                    std::string_view(run.text.data() + off, next), run_size)
+                                    std::string_view(run.text().data() + off, next), run_size)
                                 : 0.0f;
                             cluster_widths.push_back(cw);
                             off += next;
@@ -772,9 +772,9 @@ private:
                     line.width -= (run.width - new_width);
                     run.width = new_width;
                     if (trim_to_clusters == 0) {
-                        run.text.clear();
+                        run.text().clear();
                     } else {
-                        run.text.resize(cluster_ends[trim_to_clusters - 1]);
+                        run.text().resize(cluster_ends[trim_to_clusters - 1]);
                     }
                     run.text += "...";
                     run.width = measure_string(input, run.style, run.text, run_size);
@@ -794,7 +794,7 @@ private:
             line.descent = std::max(line_state.descent, font_size_hint * 0.22f);
             line.baseline = line.ascent;
             line.position.y = static_cast<float>(i) * line_height;
-            line.text.clear();
+            line.text().clear();
             for (const auto& run : line_state.runs) {
                 line.text += run.text;
             }

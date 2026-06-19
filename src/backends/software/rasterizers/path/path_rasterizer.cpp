@@ -206,7 +206,7 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                     if (path.stroke.gradient.has_value()) {
                         Fill gradient_fill;
                         gradient_fill.enabled  = true;
-                        gradient_fill.type     = path.stroke.gradient->type;
+                        gradient_fill.set_type(path.stroke.gradient->type;
                         gradient_fill.gradient = *path.stroke.gradient;
                         return resolve_fill_color(gradient_fill, p, bbox, 1.0f);
                     }
@@ -314,7 +314,7 @@ void PathRasterizer::draw_path(Framebuffer& fb, const RenderNode& node, const Re
 }
 
 Color resolve_fill_color(const Fill& fill, Vec2 p, const raster::BBox& bbox, f32 opacity) {
-    if (fill.type == FillType::Solid) {
+    if (fill.type() == FillType::Solid) {
         Color c = fill.solid.to_linear();
         c.a *= opacity;
         return c;
@@ -328,14 +328,14 @@ Color resolve_fill_color(const Fill& fill, Vec2 p, const raster::BBox& bbox, f32
     };
 
     f32 t = 0.0f;
-    if (fill.type == FillType::LinearGradient) {
+    if (fill.type() == FillType::LinearGradient) {
         const Vec2 dir = fill.gradient.to - fill.gradient.from;
         const f32 len2 = glm::dot(dir, dir);
         if (len2 > kPathEpsilon) {
             const Vec2 d = local - fill.gradient.from;
             t = glm::dot(d, dir) / len2;
         }
-    } else if (fill.type == FillType::ConicGradient) {
+    } else if (fill.type() == FillType::ConicGradient) {
         const Vec2 d = local - fill.gradient.from;
         float angle = std::atan2(d.y, d.x);
         if (angle < 0.0f) {

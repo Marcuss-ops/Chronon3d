@@ -25,7 +25,7 @@ TEST_CASE("CameraMotionPath: empty path returns disabled camera") {
 
 TEST_CASE("CameraMotionPath: evaluate with frame range") {
     CameraMotionPath motion;
-    motion.path.add_waypoint({0.0f, 0.0f, -1200.0f})
+    motion.path().add_waypoint({0.0f, 0.0f, -1200.0f})
                .add_waypoint({200.0f, 0.0f, -800.0f});
 
     Camera2_5D cam_start = motion.evaluate(Frame{0}, Frame{0}, Frame{90});
@@ -39,7 +39,7 @@ TEST_CASE("CameraMotionPath: evaluate with frame range") {
 
 TEST_CASE("CameraMotionPath: easing affects position") {
     CameraMotionPath motion;
-    motion.path.add_waypoint({0.0f, 0.0f, -1000.0f})
+    motion.path().add_waypoint({0.0f, 0.0f, -1000.0f})
                .add_waypoint({100.0f, 0.0f, -1000.0f});
     motion.easing = EasingCurve{Easing::OutCubic};
 
@@ -49,7 +49,7 @@ TEST_CASE("CameraMotionPath: easing affects position") {
 
 TEST_CASE("CameraMotionPath: auto-orient TowardsPOI") {
     CameraMotionPath motion;
-    motion.path.add_waypoint({0.0f, 0.0f, -1000.0f})
+    motion.path().add_waypoint({0.0f, 0.0f, -1000.0f})
                .add_waypoint({200.0f, 0.0f, -1000.0f});
     motion.auto_orient = AutoOrientMode::TowardsPOI;
     motion.point_of_interest = Vec3{100.0f, 0.0f, 0.0f};
@@ -61,7 +61,7 @@ TEST_CASE("CameraMotionPath: auto-orient TowardsPOI") {
 
 TEST_CASE("CameraMotionPath: auto-orient AlongPath") {
     CameraMotionPath motion;
-    motion.path.add_waypoint({0.0f, 0.0f, -1000.0f})
+    motion.path().add_waypoint({0.0f, 0.0f, -1000.0f})
                .add_waypoint({200.0f, 0.0f, -1000.0f});
     motion.auto_orient = AutoOrientMode::AlongPath;
 
@@ -72,7 +72,7 @@ TEST_CASE("CameraMotionPath: auto-orient AlongPath") {
 
 TEST_CASE("CameraMotionPath: roll_deg applied") {
     CameraMotionPath motion;
-    motion.path.add_waypoint({0.0f, 0.0f, -1000.0f})
+    motion.path().add_waypoint({0.0f, 0.0f, -1000.0f})
                .add_waypoint({0.0f, 0.0f, -800.0f});
     motion.auto_orient = AutoOrientMode::AlongPath;
     motion.roll_deg = 5.0f;
@@ -83,7 +83,7 @@ TEST_CASE("CameraMotionPath: roll_deg applied") {
 
 TEST_CASE("CameraMotionPath: arc-length mode") {
     CameraMotionPath motion;
-    motion.path.add_waypoint({0.0f, 0.0f, -1000.0f}, {100.0f, 0.0f, 0.0f}, {})
+    motion.path().add_waypoint({0.0f, 0.0f, -1000.0f}, {100.0f, 0.0f, 0.0f}, {})
                .add_waypoint({300.0f, 0.0f, -1000.0f}, {}, {-100.0f, 0.0f, 0.0f});
     motion.use_arc_length = true;
 
@@ -94,7 +94,7 @@ TEST_CASE("CameraMotionPath: arc-length mode") {
 
 TEST_CASE("CameraMotionPath: zoom and fov settings") {
     CameraMotionPath motion;
-    motion.path.add_waypoint({0.0f, 0.0f, -1000.0f})
+    motion.path().add_waypoint({0.0f, 0.0f, -1000.0f})
                .add_waypoint({100.0f, 0.0f, -1000.0f});
     motion.zoom = 800.0f;
     motion.fov_deg = 35.0f;
@@ -111,7 +111,7 @@ TEST_CASE("CameraMotionPath: zoom and fov settings") {
 TEST_CASE("CameraMotionPath: fluent chaining") {
     CameraMotionPath motion;
     auto& ref = motion;
-    ref.path.add_waypoint({0.0f, 0.0f, -1000.0f}, {50.0f, 0.0f, 0.0f}, {})
+    ref.path().add_waypoint({0.0f, 0.0f, -1000.0f}, {50.0f, 0.0f, 0.0f}, {})
             .add_waypoint({100.0f, 50.0f, -800.0f}, {}, {-50.0f, 0.0f, 0.0f});
 
     ref.auto_orient = AutoOrientMode::AlongPath;

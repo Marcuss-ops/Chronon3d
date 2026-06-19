@@ -91,7 +91,7 @@ struct GradientDefinition {
                 return a.position < b.position;
             });
         GradientDefinition def;
-        def.type        = GradientType::Linear;
+        def.set_type(GradientType::Linear;
         def.start       = s;
         def.end         = e;
         def.color_stops = std::move(stops);
@@ -111,7 +111,7 @@ struct GradientDefinition {
                 return a.position < b.position;
             });
         GradientDefinition def;
-        def.type        = GradientType::Radial;
+        def.set_type(GradientType::Radial;
         def.center      = c;
         def.radius      = r;
         def.color_stops = std::move(stops);
@@ -131,7 +131,7 @@ struct GradientDefinition {
                 return a.position < b.position;
             });
         GradientDefinition def;
-        def.type        = GradientType::Conic;
+        def.set_type(GradientType::Conic;
         def.center      = c;
         def.angle       = a;
         def.color_stops = std::move(stops);

@@ -107,7 +107,7 @@ bool rasterize_path_stroke_blend2d(
     Fill gradient_fill{};
     if (has_gradient) {
         gradient_fill.enabled  = true;
-        gradient_fill.type     = path.stroke.gradient->type;
+        gradient_fill.set_type(path.stroke.gradient->type;
         gradient_fill.gradient = *path.stroke.gradient;
     }
 

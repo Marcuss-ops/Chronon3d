@@ -24,7 +24,7 @@ TEST_CASE("CatmullRomCameraMotion: empty path returns disabled camera") {
 
 TEST_CASE("CatmullRomCameraMotion: passes through each waypoint exactly") {
     CatmullRomCameraMotion motion;
-    motion.path.add_waypoint({0.0f, 0.0f, -1200.0f})
+    motion.path().add_waypoint({0.0f, 0.0f, -1200.0f})
               .add_waypoint({200.0f, 0.0f, -800.0f})
               .add_waypoint({400.0f, 0.0f, -1000.0f});
 
@@ -36,7 +36,7 @@ TEST_CASE("CatmullRomCameraMotion: passes through each waypoint exactly") {
 
 TEST_CASE("CatmullRomCameraMotion: evaluates by frame range with easing") {
     CatmullRomCameraMotion motion;
-    motion.path.add_waypoint({0.0f, 0.0f, -1000.0f})
+    motion.path().add_waypoint({0.0f, 0.0f, -1000.0f})
               .add_waypoint({100.0f, 0.0f, -1000.0f});
     motion.easing = EasingCurve{Easing::OutCubic};
 
@@ -47,7 +47,7 @@ TEST_CASE("CatmullRomCameraMotion: evaluates by frame range with easing") {
 
 TEST_CASE("CatmullRomCameraMotion: auto-orient AlongPath") {
     CatmullRomCameraMotion motion;
-    motion.path.add_waypoint({0.0f, 0.0f, -1000.0f})
+    motion.path().add_waypoint({0.0f, 0.0f, -1000.0f})
               .add_waypoint({200.0f, 0.0f, -1000.0f});
     motion.auto_orient = AutoOrientMode::AlongPath;
 
@@ -58,7 +58,7 @@ TEST_CASE("CatmullRomCameraMotion: auto-orient AlongPath") {
 
 TEST_CASE("CatmullRomCameraMotion: auto-orient TowardsPOI") {
     CatmullRomCameraMotion motion;
-    motion.path.add_waypoint({0.0f, 0.0f, -1000.0f})
+    motion.path().add_waypoint({0.0f, 0.0f, -1000.0f})
               .add_waypoint({200.0f, 0.0f, -1000.0f});
     motion.auto_orient = AutoOrientMode::TowardsPOI;
     motion.point_of_interest = Vec3{150.0f, 50.0f, 0.0f};
@@ -70,7 +70,7 @@ TEST_CASE("CatmullRomCameraMotion: auto-orient TowardsPOI") {
 
 TEST_CASE("CatmullRomCameraMotion: roll_deg applied") {
     CatmullRomCameraMotion motion;
-    motion.path.add_waypoint({0.0f, 0.0f, -1000.0f})
+    motion.path().add_waypoint({0.0f, 0.0f, -1000.0f})
               .add_waypoint({200.0f, 0.0f, -1000.0f});
     motion.auto_orient = AutoOrientMode::AlongPath;
     motion.roll_deg = 12.0f;
@@ -81,7 +81,7 @@ TEST_CASE("CatmullRomCameraMotion: roll_deg applied") {
 
 TEST_CASE("CatmullRomCameraMotion: arc-length mode works") {
     CatmullRomCameraMotion motion;
-    motion.path.add_waypoint({0.0f, 0.0f, 0.0f})
+    motion.path().add_waypoint({0.0f, 0.0f, 0.0f})
               .add_waypoint({100.0f, 100.0f, 0.0f})
               .add_waypoint({200.0f, 0.0f, 0.0f});
     motion.use_arc_length = true;
@@ -93,7 +93,7 @@ TEST_CASE("CatmullRomCameraMotion: arc-length mode works") {
 
 TEST_CASE("CatmullRomCameraMotion: zoom and fov settings") {
     CatmullRomCameraMotion motion;
-    motion.path.add_waypoint({0.0f, 0.0f, 0.0f})
+    motion.path().add_waypoint({0.0f, 0.0f, 0.0f})
               .add_waypoint({100.0f, 0.0f, 0.0f});
     motion.zoom = 800.0f;
     motion.fov_deg = 35.0f;
@@ -108,7 +108,7 @@ TEST_CASE("CatmullRomCameraMotion: zoom and fov settings") {
 TEST_CASE("CatmullRomCameraMotion: fluent chaining") {
     CatmullRomCameraMotion motion;
     auto& ref = motion;
-    ref.path.set_boundary(CatmullRomBoundary::Clamped)
+    ref.path().set_boundary(CatmullRomBoundary::Clamped)
             .set_alpha(CatmullRomAlpha::Centripetal)
             .add_waypoint({0.0f, 0.0f, -1000.0f})
             .add_waypoint({100.0f, 50.0f, -800.0f})

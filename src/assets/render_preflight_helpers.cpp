@@ -28,7 +28,7 @@ std::string format_preflight_issues_text(const std::vector<PreflightIssue>& issu
 
     for (const auto& issue : issues) {
         ss << "[" << severity_label(issue.severity) << "] " << issue.code << "\n";
-        if (!issue.path.empty()) {
+        if (!issue.path().empty()) {
             ss << "  Path:       " << issue.path << "\n";
         }
         if (!issue.resolved_path.empty() && issue.resolved_path != issue.path) {

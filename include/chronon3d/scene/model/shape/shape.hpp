@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 #include <chronon3d/text/text_material.hpp>
 #include <chronon3d/media/media_placement.hpp>
@@ -24,13 +25,13 @@ enum class ShapeType {
     Path,
     Text,
     Image,
-    TiledImage,
+    TiledImage,       // reuses ImageShape payload (index 7)
     GridBackground,
-    Mesh,
+    Mesh,             // no dedicated payload (treated as None)
     FakeBox3D,
     GridPlane,
     FakeExtrudedText,
-    TextRun,
+    TextRun,          // deferred to item #8 (uses is_text_run_shape flag)
 };
 
 enum class PlaneAxis { XZ, XY };
@@ -302,19 +303,144 @@ struct FakeExtrudedTextShape {
     Vec3  light_dir{-0.577f, 0.577f, -0.577f};
 };
 
+// ── ShapePayload variant ───────────────────────────────────────────────────
+// Replaces the old "all payloads together" layout with a discriminated union.
+// Variant index → ShapeType mapping:
+//   0 = None (std::monostate)
+//   1 = Rect
+//   2 = RoundedRect
+//   3 = Circle
+//   4 = Line
+//   5 = Path
+//   6 = Text
+//   7 = Image (also used for TiledImage)
+//   8 = GridBackground
+//   9 = FakeBox3D
+//  10 = GridPlane
+//  11 = FakeExtrudedText
+//
+// Mesh and TextRun are kept in ShapeType for API compatibility but map to
+// monostate (Mesh) or use the separate is_text_run_shape flag (TextRun).
+
+using ShapePayload = std::variant<
+    std::monostate,          // 0: None / Mesh
+    RectShape,               // 1: Rect
+    RoundedRectShape,        // 2: RoundedRect
+    CircleShape,             // 3: Circle
+    LineShape,               // 4: Line
+    PathShape,               // 5: Path
+    TextShape,               // 6: Text
+    ImageShape,              // 7: Image / TiledImage
+    GridBackgroundShape,     // 8: GridBackground
+    FakeBox3DShape,          // 9: FakeBox3D
+    GridPlaneShape,          // 10: GridPlane
+    FakeExtrudedTextShape    // 11: FakeExtrudedText
+>;
+
+// ── ShapeType ↔ variant index conversion ────────────────────────────────────
+
+inline ShapeType shape_type_from_payload(const ShapePayload& p) {
+    switch (p.index()) {
+        case 0:  return ShapeType::None;
+        case 1:  return ShapeType::Rect;
+        case 2:  return ShapeType::RoundedRect;
+        case 3:  return ShapeType::Circle;
+        case 4:  return ShapeType::Line;
+        case 5:  return ShapeType::Path;
+        case 6:  return ShapeType::Text;
+        case 7:  return ShapeType::Image;
+        case 8:  return ShapeType::GridBackground;
+        case 9:  return ShapeType::FakeBox3D;
+        case 10: return ShapeType::GridPlane;
+        case 11: return ShapeType::FakeExtrudedText;
+        default: return ShapeType::None;
+    }
+}
+
+inline size_t payload_index_for_type(ShapeType t) {
+    switch (t) {
+        case ShapeType::None:             return 0;
+        case ShapeType::Rect:             return 1;
+        case ShapeType::RoundedRect:      return 2;
+        case ShapeType::Circle:           return 3;
+        case ShapeType::Line:             return 4;
+        case ShapeType::Path:             return 5;
+        case ShapeType::Text:             return 6;
+        case ShapeType::Image:            return 7;
+        case ShapeType::TiledImage:       return 7;  // reuse ImageShape
+        case ShapeType::GridBackground:   return 8;
+        case ShapeType::FakeBox3D:        return 9;
+        case ShapeType::GridPlane:        return 10;
+        case ShapeType::FakeExtrudedText: return 11;
+        case ShapeType::Mesh:             return 0;  // no dedicated payload
+        case ShapeType::TextRun:          return 0;  // handled by is_text_run_shape
+        default:                          return 0;
+    }
+}
+
+// ── Shape ──────────────────────────────────────────────────────────────────
+
 struct Shape {
-    ShapeType type{ShapeType::None};
-    RectShape rect;
-    RoundedRectShape rounded_rect;
-    CircleShape circle;
-    LineShape line;
-    PathShape path;
-    TextShape text;
-    ImageShape image;
-    GridBackgroundShape grid_background;
-    FakeBox3DShape fake_box3d;
-    GridPlaneShape grid_plane;
-    FakeExtrudedTextShape fake_extruded_text;
+    using Payload = ShapePayload;
+
+    Payload payload;
+
+    Shape() = default;
+
+    /// Construct with a specific payload type.
+    template <typename T>
+    explicit Shape(T&& val) : payload(std::forward<T>(val)) {}
+
+    /// Derive the ShapeType from the variant index.
+    [[nodiscard]] ShapeType type() const { return shape_type_from_payload(payload); }
+
+    /// Set the type (discriminant) and default-construct the matching payload.
+    void set_type(ShapeType t) {
+        switch (payload_index_for_type(t)) {
+            case 0:  payload.emplace<0>();  break;
+            case 1:  payload.emplace<1>();  break;
+            case 2:  payload.emplace<2>();  break;
+            case 3:  payload.emplace<3>();  break;
+            case 4:  payload.emplace<4>();  break;
+            case 5:  payload.emplace<5>();  break;
+            case 6:  payload.emplace<6>();  break;
+            case 7:  payload.emplace<7>();  break;
+            case 8:  payload.emplace<8>();  break;
+            case 9:  payload.emplace<9>();  break;
+            case 10: payload.emplace<10>(); break;
+            case 11: payload.emplace<11>(); break;
+            default: payload.emplace<0>();  break;
+        }
+    }
+
+    // ── Named accessors ─────────────────────────────────────────────────
+    // Each returns a reference to the variant member, asserting the correct
+    // type via std::get.  Use these instead of the old shape.rect / shape.text
+    // fields.  They behave exactly like the old fields but with an added
+    // debug-mode assertion that the shape type matches.
+
+    [[nodiscard]] RectShape&               rect()                { return std::get<1>(payload); }
+    [[nodiscard]] const RectShape&         rect()          const { return std::get<1>(payload); }
+    [[nodiscard]] RoundedRectShape&        rounded_rect()        { return std::get<2>(payload); }
+    [[nodiscard]] const RoundedRectShape&  rounded_rect()  const { return std::get<2>(payload); }
+    [[nodiscard]] CircleShape&             circle()              { return std::get<3>(payload); }
+    [[nodiscard]] const CircleShape&       circle()        const { return std::get<3>(payload); }
+    [[nodiscard]] LineShape&               line()                { return std::get<4>(payload); }
+    [[nodiscard]] const LineShape&         line()          const { return std::get<4>(payload); }
+    [[nodiscard]] PathShape&               path()                { return std::get<5>(payload); }
+    [[nodiscard]] const PathShape&         path()          const { return std::get<5>(payload); }
+    [[nodiscard]] TextShape&               text()                { return std::get<6>(payload); }
+    [[nodiscard]] const TextShape&         text()          const { return std::get<6>(payload); }
+    [[nodiscard]] ImageShape&              image()               { return std::get<7>(payload); }
+    [[nodiscard]] const ImageShape&        image()         const { return std::get<7>(payload); }
+    [[nodiscard]] GridBackgroundShape&     grid_background()     { return std::get<8>(payload); }
+    [[nodiscard]] const GridBackgroundShape& grid_background() const { return std::get<8>(payload); }
+    [[nodiscard]] FakeBox3DShape&          fake_box3d()          { return std::get<9>(payload); }
+    [[nodiscard]] const FakeBox3DShape&    fake_box3d()    const { return std::get<9>(payload); }
+    [[nodiscard]] GridPlaneShape&          grid_plane()          { return std::get<10>(payload); }
+    [[nodiscard]] const GridPlaneShape&    grid_plane()    const { return std::get<10>(payload); }
+    [[nodiscard]] FakeExtrudedTextShape&   fake_extruded_text()  { return std::get<11>(payload); }
+    [[nodiscard]] const FakeExtrudedTextShape& fake_extruded_text() const { return std::get<11>(payload); }
 };
 
 } // namespace chronon3d

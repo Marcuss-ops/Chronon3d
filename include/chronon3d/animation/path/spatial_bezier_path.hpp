@@ -307,8 +307,8 @@ enum class AutoOrientMode {
 //
 // Usage:
 //   CameraMotionPath motion;
-//   motion.path.add_waypoint({0,0,-1200}, {200,0,0}, {-100,50,0});
-//   motion.path.add_waypoint({200,50,-800}, {0,0,0}, {0,0,0});
+//   motion.path().add_waypoint({0,0,-1200}, {200,0,0}, {-100,50,0});
+//   motion.path().add_waypoint({200,50,-800}, {0,0,0}, {0,0,0});
 //   motion.auto_orient = AutoOrientMode::AlongPath;
 //   motion.easing = EasingCurve{Easing::InOutCubic};
 //

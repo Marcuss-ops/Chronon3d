@@ -25,12 +25,12 @@ public:
     // outside the ABI surface; the public-facing `ShapeProcessor`
     // -> dispatcher is the only public witness of this code.
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
-        if (shape.type != ShapeType::Path) return {0, 0, 0, 0};
+        if (shape.type() != ShapeType::Path) return {0, 0, 0, 0};
         return detail::compute_path_world_bbox(shape.path, model, spread);
     }
 
     bool hit_test(const Shape& shape, Vec2 local_point, f32 spread) override {
-        if (shape.type != ShapeType::Path) return false;
+        if (shape.type() != ShapeType::Path) return false;
         return detail::hit_test_path(shape.path, local_point, spread);
     }
 };

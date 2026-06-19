@@ -197,17 +197,17 @@ struct TextRunSpec {
 // The former flat `struct TextRunParams` (with separate `pos` / `color` /
 // `font_path` / ... fields) has been removed.  Production code now reads
 // and writes the composable nested fields:
-//   spec.text.content.value    (was spec.text)
-//   spec.text.font.font_path   (was spec.font_path)
-//   spec.text.font.font_size   (was spec.font_size)
-//   spec.text.font.font_weight (was spec.font_weight)
-//   spec.text.appearance.color (was spec.color)
-//   spec.text.position         (was spec.pos)
-//   spec.text.layout.box       (was spec.size)
-//   spec.text.layout.tracking  (was spec.tracking)
-//   spec.text.layout.{anchor|align|vertical_align|wrap|line_height}
-//   spec.text.appearance.{paint|shadows|material}
-//   spec.text.content.pre_shaped (was spec.pre_shaped)
+//   spec.text().content.value    (was spec.text)
+//   spec.text().font.font_path   (was spec.font_path)
+//   spec.text().font.font_size   (was spec.font_size)
+//   spec.text().font.font_weight (was spec.font_weight)
+//   spec.text().appearance.color (was spec.color)
+//   spec.text().position         (was spec.pos)
+//   spec.text().layout.box       (was spec.size)
+//   spec.text().layout.tracking  (was spec.tracking)
+//   spec.text().layout.{anchor|align|vertical_align|wrap|line_height}
+//   spec.text().appearance.{paint|shadows|material}
+//   spec.text().content.pre_shaped (was spec.pre_shaped)
 //   spec.{direction|language|animators|selectors|cache_layout} (top-level)
 //
 // The alias exists to keep external integrations that still reference the

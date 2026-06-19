@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstdio>
 #include <functional>
+#include <future>
 #include <list>
 #include <memory>
 #include <mutex>
@@ -105,6 +106,9 @@ public:
         , m_on_remove(std::move(on_remove))
         , m_shards(num_shards)
     {
+        if (num_shards == 0) {
+            throw std::invalid_argument("LruCache requires at least one shard");
+        }
         size_t shard_capacity = capacity_weight / num_shards;
         if (shard_capacity == 0) shard_capacity = 1;
         for (auto& shard : m_shards) {
@@ -157,27 +161,32 @@ public:
         fire_removed(removed);
     }
 
-    /// Atomically compute a value on cache miss while holding the per-shard lock.
-    /// This avoids the classic double-checked-locking pattern and eliminates
-    /// the need for an external mutex in callers (e.g. ImageCache).
+    /// Atomically compute a value on cache miss, releasing the shard lock
+    /// before calling the loader so that slow loaders (disk I/O, image
+    /// decoding, network) do not block other keys in the same shard.
     ///
-    /// Semantics:
+    /// Uses a `std::shared_future` "in-flight entry" pattern:
     ///   - If the key is present in the cache, the cached value is returned
-    ///     and the loader is NOT called. The entry is moved to the front of
-    ///     the LRU list.
-    ///   - If the key is absent, the loader is invoked WHILE HOLDING the
-    ///     shard's mutex. This guarantees that only one thread per shard
-    ///     computes a given key at a time (preventing duplicate loads).
-    ///     Other shards proceed in parallel.
+    ///     immediately (lock held only long enough to move the entry to the
+    ///     front of the LRU list).
+    ///   - If ANOTHER thread is already loading this key, the caller waits
+    ///     on the shared future (lock released during the wait) and receives
+    ///     the result once the loading thread finishes.
+    ///   - If the key is absent and no in-flight load exists, the caller
+    ///     creates a promise, stores its shared_future in the shard,
+    ///     RELEASES THE LOCK, invokes the loader, then re-acquires the lock
+    ///     to store the result.  Other threads requesting the same key
+    ///     while the loader runs will wait on the future instead of
+    ///     duplicating the load or blocking on the mutex.
+    ///
+    /// Semantics (unchanged from the locking version):
     ///   - The loader must return std::pair<Value, size_t> (value, weight).
     ///   - In `CapacityMode::Count` the returned weight field is silently
-    ///     ignored; every entry contributes exactly 1 unit to shard capacity
-    ///     regardless of what the loader returns.  Callers should pass
-    ///     `weight=1` in Count mode to document intent.
-    ///   - If the returned (or effective) weight exceeds the shard capacity,
-    ///     the value is returned but NOT cached (a warning is logged).
-    ///   - If the loader throws, no entry is inserted and the exception
-    ///     propagates to the caller.
+    ///     ignored; every entry contributes exactly 1 unit.
+    ///   - If the effective weight exceeds the shard capacity, the value is
+    ///     returned but NOT cached (a warning is logged).
+    ///   - If the loader throws, the exception is stored in the promise
+    ///     so all waiting threads see it; no entry is inserted.
     ///   - Eviction callbacks fire OUTSIDE the shard lock (deferred).
     template <typename Func>
     Value compute_if_absent(const Key& key, Func&& loader) {
@@ -186,10 +195,13 @@ public:
             "LruCache::compute_if_absent loader must return std::pair<Value, size_t>"
         );
         auto& shard = get_shard(key);
-        std::vector<RemovedEntry> evicted;
-        Value result;
+        std::shared_future<std::pair<Value, size_t>> waiting_future;
+        std::shared_ptr<std::promise<std::pair<Value, size_t>>> promise_ptr;
+
         {
             std::lock_guard lock(shard.mutex);
+
+            // ── Cache hit ──────────────────────────────────────────
             auto it = shard.entries.find(key);
             if (it != shard.entries.end()) {
                 shard.lru_list.splice(shard.lru_list.begin(), shard.lru_list,
@@ -197,28 +209,69 @@ public:
                 m_hits.fetch_add(1, std::memory_order_relaxed);
                 return it->second.value;
             }
-            m_misses.fetch_add(1, std::memory_order_relaxed);
 
-            auto [loaded, weight] = loader();
+            // ── In-flight hit: another thread is already loading ───
+            auto inflight_it = shard.inflight.find(key);
+            if (inflight_it != shard.inflight.end()) {
+                waiting_future = inflight_it->second;
+                // fall through to wait outside the lock
+            } else {
+                // ── True miss: we are the loading thread ───────────
+                m_misses.fetch_add(1, std::memory_order_relaxed);
+                promise_ptr = std::make_shared<std::promise<std::pair<Value, size_t>>>();
+                waiting_future = promise_ptr->get_future().share();
+                shard.inflight[key] = waiting_future;
+            }
+        }  // lock released
 
-            const size_t effective_weight =
-                (m_mode == CapacityMode::Count) ? size_t{1} : weight;
+        // ── Wait for in-flight load (other thread is the loader) ──────
+        if (!promise_ptr) {
+            // future.get() will throw if the loader threw.
+            auto result = waiting_future.get().first;
+            // Count as a hit: the caller got the value without starting a
+            // new load, and the loading thread already counted the miss.
+            m_hits.fetch_add(1, std::memory_order_relaxed);
+            return result;
+        }
+
+        // ── We are the loader — call outside the lock ─────────────────
+        std::pair<Value, size_t> loaded_result;
+        try {
+            loaded_result = loader();
+            promise_ptr->set_value(loaded_result);
+        } catch (...) {
+            // Store the exception so waiting threads see it, then rethrow.
+            promise_ptr->set_exception(std::current_exception());
+            std::lock_guard lock(shard.mutex);
+            shard.inflight.erase(key);
+            throw;
+        }
+
+        const size_t effective_weight =
+            (m_mode == CapacityMode::Count) ? size_t{1} : loaded_result.second;
+
+        std::vector<RemovedEntry> evicted;
+        {
+            std::lock_guard lock(shard.mutex);
+
+            // Clean up the in-flight entry.
+            shard.inflight.erase(key);
+
             if (effective_weight > shard.capacity_weight) {
                 detail::log_item_too_large(effective_weight, shard.capacity_weight,
                                            "compute_if_absent");
-                return loaded;
+            } else {
+                evicted = shard.evict_if_needed(effective_weight, CacheRemovalReason::Capacity);
+                shard.lru_list.push_front(key);
+                shard.entries[key] = Entry{loaded_result.first, effective_weight,
+                                           shard.lru_list.begin()};
+                shard.current_weight += effective_weight;
             }
-
-            evicted = shard.evict_if_needed(effective_weight, CacheRemovalReason::Capacity);
-            shard.lru_list.push_front(key);
-            shard.entries[key] = Entry{std::move(loaded), effective_weight,
-                                       shard.lru_list.begin()};
-            shard.current_weight += effective_weight;
-            result = shard.entries[key].value;
         }
-        // Fire callbacks after lock is released.
+
+        // Fire eviction callbacks outside the lock.
         fire_removed(evicted);
-        return result;
+        return loaded_result.first;
     }
 
     bool contains(const Key& key) const {
@@ -340,6 +393,9 @@ private:
             return it->second.value;
         }
 
+        // ── In-flight tracking for compute_if_absent ───────────────────
+        std::unordered_map<Key, std::shared_future<std::pair<Value, size_t>>, Hash> inflight;
+
         /// Insert or replace an entry.  Returns a vector of removed entries
         /// (replace + capacity evictions) for deferred callback notification.
         /// The caller MUST fire callbacks outside the mutex.
@@ -414,6 +470,7 @@ private:
             }
             entries.clear();
             lru_list.clear();
+            inflight.clear();
             current_weight = 0;
             return removed;
         }
