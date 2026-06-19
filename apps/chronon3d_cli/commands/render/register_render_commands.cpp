@@ -66,7 +66,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->callback([state, &ctx]() {
         state->args->command_line = ctx.command_line;
         if (state->args->pipeline.fb_pool_budget_mb > 0) {
-            Config::get().fb_pool_budget_bytes = state->args->pipeline.fb_pool_budget_mb * 1024ULL * 1024ULL;
+            Config::set_fb_pool_budget_override(state->args->pipeline.fb_pool_budget_mb * 1024ULL * 1024ULL);
         }
         if (state->args->output.empty()) {
             state->args->output = chronon_artifact_path("renders", "render_####.png").string();

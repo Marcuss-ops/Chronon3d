@@ -39,7 +39,7 @@ struct GlyphAtlasKeyHash {
 
 // ── LRU cache with 8 shards, 32 MB default ────────────────────────────
 size_t resolve_atlas_max_mb() {
-    auto max_bytes = Config::get().glyph_atlas_max_bytes;
+    auto max_bytes = Config::get().cache().glyph_atlas_max_bytes();
     return max_bytes > 0 ? max_bytes : 32ULL * 1024ULL * 1024ULL;
 }
 

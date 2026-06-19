@@ -3,11 +3,7 @@
 #include <stdint.h>
 
 #ifdef _WIN32
-  #ifdef CHRONON3D_BUILD_SHARED
-    #define CHRONON3D_API __declspec(dllexport)
-  #else
-    #define CHRONON3D_API __declspec(dllimport)
-  #endif
+  #define CHRONON3D_API __declspec(dllimport)
 #else
   #define CHRONON3D_API __attribute__((visibility("default")))
 #endif

@@ -22,12 +22,13 @@
 
 namespace chronon3d::camera_v1 {
 
-bool compile_camera(const CameraDescriptor& descriptor,
-                    CameraProgram& out_program,
-                    CameraCompileError* out_error,
-                    const CameraCatalog* catalog) {
+Result<CameraProgram, CameraCompileError>
+compile_camera(const CameraDescriptor& descriptor,
+               const CameraCatalog* catalog) {
+    CameraProgram program;
+
     // ── 1. Store the descriptor ─────────────────────────────────────────
-    out_program.descriptor_ = descriptor;
+    program.descriptor_ = descriptor;
 
     // ── 2. Resolve source ────────────────────────────────────────────────
     if (auto* ref = std::get_if<RegisteredMotionRef>(&descriptor.source)) {
@@ -37,68 +38,58 @@ bool compile_camera(const CameraDescriptor& descriptor,
             if (preset_desc) {
                 // Recursively compile the referenced descriptor.
                 // This handles preset -> preset chains.
-                CameraProgram recursive;
-                CameraCompileError recursive_err;
-                if (!compile_camera(*preset_desc, recursive,
-                                    &recursive_err, catalog)) {
-                    if (out_error) {
-                        *out_error = CameraCompileError{
-                            CameraCompileError::Kind::MotionNotFound,
-                            "motion '" + ref->id + "' catalog entry failed to compile"
-                        };
-                    }
-                    return false;
+                auto recursive_result = compile_camera(*preset_desc, catalog);
+                if (!recursive_result) {
+                    return CameraCompileError{
+                        CameraCompileError::Kind::MotionNotFound,
+                        "motion '" + ref->id + "' catalog entry failed to compile"
+                    };
                 }
+                auto recursive = std::move(recursive_result).value();
                 // Preserve the resolved source from the recursive compile
                 // while keeping the top-level descriptor (id, failure_policy, etc.).
                 auto resolved_source = recursive.descriptor_.source;
-                out_program = std::move(recursive);
-                out_program.descriptor_ = descriptor;
-                out_program.descriptor_.source = resolved_source;
-                out_program.compiled_ = true;
-                return true;
+                program = std::move(recursive);
+                program.descriptor_ = descriptor;
+                program.descriptor_.source = resolved_source;
+                program.compiled_ = true;
+                return program;
             }
         }
 
         // CameraMotionRegistry is removed — only the catalog is used.
         if (!ref->id.empty()) {
-            if (out_error) {
-                *out_error = CameraCompileError{
-                    CameraCompileError::Kind::MotionNotFound,
-                    "motion '" + ref->id + "' not found in catalog"
-                };
-            }
-            return false;
+            return CameraCompileError{
+                CameraCompileError::Kind::MotionNotFound,
+                "motion '" + ref->id + "' not found in catalog"
+            };
         }
 
         // source_ member removed in PR12 — the descriptor source is used
         // directly by evaluate_compiled_source() without a separate member.
     } else if (auto* traj = std::get_if<TrajectoryMotion>(&descriptor.source)) {
         if (traj->trajectory && traj->trajectory->size() == 0) {
-            if (out_error) {
-                *out_error = CameraCompileError{
-                    CameraCompileError::Kind::TrajectoryEmpty,
-                    "trajectory has zero segments"
-                };
-            }
-            return false;
+            return CameraCompileError{
+                CameraCompileError::Kind::TrajectoryEmpty,
+                "trajectory has zero segments"
+            };
         }
         // Trajectory is evaluated directly via evaluate_compiled_source().
     }
 
     // ── 3. Set failure policy ────────────────────────────────────────────
-    out_program.failure_policy_ = descriptor.failure_policy;
+    program.failure_policy_ = descriptor.failure_policy;
 
     // ── 4. Compute time_dependent flag ───────────────────────────────────
     // Conservative: any non-static source is assumed time-dependent.
     // Any modifier also makes the camera time-dependent (e.g. IdleOscillation).
     bool source_is_static = std::holds_alternative<StaticCameraSource>(descriptor.source);
     bool has_modifiers = !descriptor.modifiers.empty();
-    out_program.time_dependent_ = !source_is_static || has_modifiers;
+    program.time_dependent_ = !source_is_static || has_modifiers;
 
     // ── 5. Mark as compiled and return ───────────────────────────────────
-    out_program.compiled_ = true;
-    return true;
+    program.compiled_ = true;
+    return program;
 }
 
 // =============================================================================

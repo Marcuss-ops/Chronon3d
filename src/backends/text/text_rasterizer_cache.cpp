@@ -14,7 +14,7 @@ using CacheKey = u64;
 using TextCache = cache::LruCache<CacheKey, std::shared_ptr<TextRasterization>>;
 
 TextCache& get_text_cache() {
-    static TextCache cache(Config::get().text_cache_max_bytes, 8);
+    static TextCache cache(Config::get().cache().text_cache_max_bytes(), 8);
     return cache;
 }
 
