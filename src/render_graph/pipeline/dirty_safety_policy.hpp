@@ -12,6 +12,10 @@
 #include <chronon3d/scene/model/layer/layer.hpp>
 #include <chronon3d/core/types/frame.hpp>
 
+namespace chronon3d::effects {
+    class EffectCatalog;
+}
+
 namespace chronon3d::graph::detail {
 
 // Forward declaration (full definition in builder/graph_builder_internal.hpp)
@@ -26,7 +30,8 @@ struct LayerResolutionResult;
 /// their spatial extent is predictable, so the caller dilates the layer's
 /// geometric bbox via `compute_layer_spatial_spread()` instead of falling
 /// back to full-frame.
-[[nodiscard]] bool is_safe_for_dirty_rects(const Layer& layer, bool motion_blur_enabled);
+[[nodiscard]] bool is_safe_for_dirty_rects(const Layer& layer, bool motion_blur_enabled,
+                                              const effects::EffectCatalog* catalog);
 
 /// Returns the maximum spatial spread (in pixels) of any Blur or Light
 /// effect in the layer's effect stack.  Used to dilate dirty-rect
@@ -43,7 +48,8 @@ struct LayerResolutionResult;
 /// seams at tile boundaries during tile execution.
 [[nodiscard]] bool has_layer_with_spatial_effects(
     const LayerResolutionResult& resolved,
-    Frame frame
+    Frame frame,
+    const effects::EffectCatalog* catalog
 );
 
 } // namespace chronon3d::graph::detail

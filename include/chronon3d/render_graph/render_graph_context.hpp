@@ -66,6 +66,10 @@ namespace chronon3d::cache {
     class FramebufferPool;
 }
 
+namespace chronon3d::effects {
+    class EffectCatalog;
+}
+
 namespace chronon3d::graph {
 
 class RenderBackend;
@@ -115,6 +119,10 @@ struct RenderResourceContext {
     /// Node catalog for creating graph nodes by id (e.g. source.precomp).
     /// Populated by register_pipeline_nodes, consumed by graph builder.
     const class GraphNodeCatalog* node_catalog{nullptr};
+
+    /// Effect catalog for creating effect nodes by type.
+    /// Populated at pipeline init, consumed by graph builder + dirty safety.
+    const class effects::EffectCatalog* effect_catalog{nullptr};
 };
 
 // ── Optimization flags + structure-unchanged hints ───────────────────────

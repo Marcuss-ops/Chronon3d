@@ -7,7 +7,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/effects/effect_category.hpp>
 #include <chronon3d/effects/effect_params.hpp>
-#include <chronon3d/effects/effect_registry.hpp>
+#include <chronon3d/effects/effect_registry.hpp>  // EffectCatalog + backward-compat EffectRegistry
 #include <chronon3d/effects/effect_type.hpp>
 #include <chronon3d/effects/glow_pipeline.hpp>
 #include <cmath>
@@ -67,18 +67,18 @@ namespace chronon3d::graph::detail {
     return max_spread > 0.0f ? max_spread + 2.0f : 0.0f;
 }
 
-bool is_safe_for_dirty_rects(const Layer& layer, bool motion_blur_enabled) {
+bool is_safe_for_dirty_rects(const Layer& layer, bool motion_blur_enabled,
+                              const effects::EffectCatalog* catalog) {
     if (motion_blur_enabled) return false;
     if (layer.blend_mode != BlendMode::Normal) return false;
     if (layer.mask.enabled()) return false;
 
-    const auto& registry = effects::EffectRegistry::instance();
     for (const auto& eff : layer.effects) {
         if (!eff.enabled) continue;
 
         effects::EffectCategory category = eff.descriptor.category;
-        if (registry.contains(eff.descriptor.id)) {
-            category = registry.get(eff.descriptor.id).category;
+        if (catalog && catalog->contains(eff.descriptor.id)) {
+            category = catalog->get(eff.descriptor.id).category;
         }
 
         // Distort + Temporal: geometry warp / time evolution cannot be
@@ -94,16 +94,16 @@ bool is_safe_for_dirty_rects(const Layer& layer, bool motion_blur_enabled) {
 
 bool has_layer_with_spatial_effects(
     const detail::LayerResolutionResult& resolved,
-    Frame frame
+    Frame frame,
+    const effects::EffectCatalog* catalog
 ) {
-    const auto& registry = effects::EffectRegistry::instance();
     for (const auto& rl : resolved.layers) {
         if (!rl.layer || !rl.layer->active_at(frame)) continue;
         for (const auto& eff : rl.layer->effects) {
             if (!eff.enabled) continue;
             effects::EffectCategory category = eff.descriptor.category;
-            if (registry.contains(eff.descriptor.id)) {
-                category = registry.get(eff.descriptor.id).category;
+            if (catalog && catalog->contains(eff.descriptor.id)) {
+                category = catalog->get(eff.descriptor.id).category;
             }
             if (category == effects::EffectCategory::Blur)     return true;
             if (category == effects::EffectCategory::Distort)  return true;

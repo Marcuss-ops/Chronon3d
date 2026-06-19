@@ -16,26 +16,28 @@ std::unique_ptr<graph::RenderGraphNode> generic_effect_factory(const EffectInsta
     return std::make_unique<graph::EffectStackNode>(std::move(stack));
 }
 
-void register_builtin_effects(EffectRegistry& registry) {
+void register_builtin_effects(EffectCatalog& catalog) {
     for (const auto& entry : builtin_effect_catalog()) {
         EffectDescriptor desc = entry.to_descriptor();
         desc.factory = generic_effect_factory;
-        registry.register_effect(std::move(desc));
+        catalog.register_effect(std::move(desc));
     }
 }
 
 } // namespace
 
-EffectRegistry& EffectRegistry::instance() {
-    static EffectRegistry registry;
-    return registry;
-}
-
-EffectRegistry::EffectRegistry() {
+EffectCatalog::EffectCatalog() {
     register_builtin_effects(*this);
 }
 
-void EffectRegistry::register_effect(EffectDescriptor descriptor) {
+void EffectCatalog::freeze() {
+    m_frozen = true;
+}
+
+void EffectCatalog::register_effect(EffectDescriptor descriptor) {
+    if (m_frozen) {
+        throw std::runtime_error("EffectCatalog is frozen — cannot register new effects");
+    }
     if (descriptor.id.empty()) {
         throw std::runtime_error("Effect id cannot be empty");
     }
@@ -49,11 +51,16 @@ void EffectRegistry::register_effect(EffectDescriptor descriptor) {
     m_effects.emplace(id, std::move(descriptor));
 }
 
-bool EffectRegistry::contains(std::string_view id) const {
+bool EffectCatalog::contains(std::string_view id) const {
     return m_effects.find(id) != m_effects.end();
 }
 
-const EffectDescriptor& EffectRegistry::get(std::string_view id) const {
+const EffectDescriptor* EffectCatalog::find(std::string_view id) const {
+    auto it = m_effects.find(id);
+    return (it != m_effects.end()) ? &it->second : nullptr;
+}
+
+const EffectDescriptor& EffectCatalog::get(std::string_view id) const {
     auto it = m_effects.find(id);
     if (it == m_effects.end()) {
         throw std::runtime_error("Unknown effect: " + std::string{id});
@@ -61,21 +68,21 @@ const EffectDescriptor& EffectRegistry::get(std::string_view id) const {
     return it->second;
 }
 
-std::vector<std::string> EffectRegistry::available() const {
+std::vector<std::string> EffectCatalog::available() const {
     std::vector<std::string> ids;
     ids.reserve(m_effects.size());
     std::ranges::copy(m_effects | std::views::keys, std::back_inserter(ids));
     return ids;
 }
 
-std::vector<EffectDescriptor> EffectRegistry::list() const {
+std::vector<EffectDescriptor> EffectCatalog::list() const {
     std::vector<EffectDescriptor> descriptors;
     descriptors.reserve(m_effects.size());
     std::ranges::copy(m_effects | std::views::values, std::back_inserter(descriptors));
     return descriptors;
 }
 
-std::unique_ptr<graph::RenderGraphNode> EffectRegistry::create_node(const EffectInstance& effect) const {
+std::unique_ptr<graph::RenderGraphNode> EffectCatalog::create_node(const EffectInstance& effect) const {
     const auto& desc = get(effect.descriptor.id);
     if (desc.factory) {
         return desc.factory(effect);
@@ -83,8 +90,9 @@ std::unique_ptr<graph::RenderGraphNode> EffectRegistry::create_node(const Effect
     return nullptr;
 }
 
-void EffectRegistry::clear() {
+void EffectCatalog::clear() {
     m_effects.clear();
+    m_frozen = false;
 }
 
 } // namespace chronon3d::effects
