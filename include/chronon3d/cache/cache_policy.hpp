@@ -14,6 +14,8 @@
 #include <cstddef>
 #include <optional>
 
+namespace chronon3d { class CacheConfig; }
+
 namespace chronon3d::cache {
 
 /// Each cache instance belongs to exactly one domain.
@@ -67,6 +69,16 @@ struct CachePolicy {
 ///
 /// When `override_capacity` is provided it silently ignores Config and the
 /// hardcoded default; the caller is responsible for correctness.
+///
+/// This overload accepts an explicit CacheConfig for dependency injection.
+/// Prefer this in testable / decoupled contexts.
+[[nodiscard]] CachePolicy resolve_cache_policy(
+    CacheDomain                    domain,
+    std::optional<std::size_t>     override_capacity,
+    const chronon3d::CacheConfig&  cache_config);
+
+/// Convenience overload that reads from Config::get().cache() internally.
+/// Kept for gradual migration.
 [[nodiscard]] CachePolicy resolve_cache_policy(
     CacheDomain                    domain,
     std::optional<std::size_t>     override_capacity = std::nullopt);
