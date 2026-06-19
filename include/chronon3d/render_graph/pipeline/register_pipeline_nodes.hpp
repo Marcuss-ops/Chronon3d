@@ -4,7 +4,12 @@ namespace chronon3d::graph {
 
 struct RenderGraphContext;
 
-/// Register pipeline-specific graph node factories in the GraphNodeRegistry.
+class GraphNodeCatalog;
+
+/// Get the pipeline-level node catalog (populated by register_pipeline_graph_nodes).
+const GraphNodeCatalog& get_pipeline_node_catalog();
+
+/// Register pipeline-specific graph node factories in the pipeline catalog.
 ///
 /// Called once before building any graph.  Idempotent — subsequent calls
 /// are no-ops.  Must be called from graph_pipeline (not graph_builder)

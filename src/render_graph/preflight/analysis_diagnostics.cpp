@@ -60,7 +60,7 @@ void check_topological_warnings(
             if (inputs.size() == 1 && graph.has_node(inputs[0])) {
                 const auto& parent = graph.node(inputs[0]);
                 if (parent.kind() == RenderGraphNodeKind::Transform) {
-                    std::string red_warn = "REDUNDANT_TRANSFORM: TransformNode '" + rec.name + "' has another TransformNode '" + parent.name() + "' as its direct input. Consider fusing or eliminating redundant transforms.";
+                    std::string red_warn = "REDUNDANT_TRANSFORM: TransformNode '" + std::string{rec.name} + "' has another TransformNode '" + std::string{parent.name()} + "' as its direct input. Consider fusing or eliminating redundant transforms.";
                     if (rec.warning.empty()) rec.warning = red_warn;
                     report.warnings.push_back(red_warn);
                 }

@@ -6,28 +6,34 @@ using namespace chronon3d;
 
 using namespace chronon3d::graph;
 
-// ── GraphNodeRegistry Contract ──────────────────────────────────────────────
+// ── GraphNodeCatalog Contract ───────────────────────────────────────────────
 //
-// The registry MUST:
-//   - Reject / overwrite duplicate ids with a warning
-//   - Return registered nodes by id
-//   - List all available nodes
-//   - Create node instances via factory
+// The catalog MUST:
+//   - Accept unique ids via register_node()
+//   - Return registered nodes by id (contains, find, get)
+//   - List all available nodes (available, list)
+//   - Filter by category (list_by_category)
+//   - Create node instances via factory (create)
+//   - Reject registrations after freeze()
+//   - Reject duplicate ids
 
-TEST_CASE("GraphNodeRegistry: starts empty") {
-    auto& reg = GraphNodeRegistry::instance();
-    // Just check the API doesn't crash
-    CHECK(reg.available().size() >= 0);
+static GraphNodeCatalog make_catalog() {
+    GraphNodeCatalog catalog;
+    return catalog;
 }
 
-TEST_CASE("GraphNodeRegistry: register_node makes node available") {
-    auto& reg = GraphNodeRegistry::instance();
+TEST_CASE("GraphNodeCatalog: starts empty") {
+    auto catalog = make_catalog();
+    CHECK(catalog.available().empty());
+}
 
-    // Use a unique id to avoid collisions with other tests
+TEST_CASE("GraphNodeCatalog: register_node makes node available") {
+    auto catalog = make_catalog();
+
     static int counter = 0;
     std::string id = "test_node_factory_" + std::to_string(++counter);
 
-    reg.register_node({
+    catalog.register_node({
         .id = id,
         .display_name = "Test Node",
         .description = "A test node for unit testing",
@@ -35,29 +41,49 @@ TEST_CASE("GraphNodeRegistry: register_node makes node available") {
         .builtin = false,
     });
 
-    CHECK(reg.contains(id));
-    CHECK(reg.available().size() >= 1);
+    CHECK(catalog.contains(id));
+    CHECK(catalog.available().size() == 1);
 }
 
-TEST_CASE("GraphNodeRegistry: contains returns false for unknown id") {
-    auto& reg = GraphNodeRegistry::instance();
-    CHECK_FALSE(reg.contains("nonexistent_node_type_xyz"));
+TEST_CASE("GraphNodeCatalog: contains returns false for unknown id") {
+    auto catalog = make_catalog();
+    CHECK_FALSE(catalog.contains("nonexistent_node_type_xyz"));
 }
 
-TEST_CASE("GraphNodeRegistry: list returns expected descriptors") {
-    auto& reg = GraphNodeRegistry::instance();
+TEST_CASE("GraphNodeCatalog: find returns pointer for known, nullptr for unknown") {
+    auto catalog = make_catalog();
+
+    static int counter = 0;
+    std::string id = "find_test_" + std::to_string(++counter);
+
+    catalog.register_node({
+        .id = id,
+        .display_name = "Find Test",
+        .description = "",
+        .category = "test",
+    });
+
+    const auto* found = catalog.find(id);
+    REQUIRE(found != nullptr);
+    CHECK(found->display_name == "Find Test");
+
+    CHECK(catalog.find("nonexistent") == nullptr);
+}
+
+TEST_CASE("GraphNodeCatalog: list returns expected descriptors") {
+    auto catalog = make_catalog();
 
     static int counter = 0;
     std::string id = "list_test_" + std::to_string(++counter);
 
-    reg.register_node({
+    catalog.register_node({
         .id = id,
         .display_name = "List Test",
         .description = "Testing list functionality",
         .category = "test",
     });
 
-    auto descriptors = reg.list();
+    auto descriptors = catalog.list();
     bool found = false;
     for (const auto& d : descriptors) {
         if (d.id == id) {
@@ -69,26 +95,26 @@ TEST_CASE("GraphNodeRegistry: list returns expected descriptors") {
     CHECK(found);
 }
 
-TEST_CASE("GraphNodeRegistry: available() ids contain registered node") {
-    auto& reg = GraphNodeRegistry::instance();
+TEST_CASE("GraphNodeCatalog: available() ids contain registered node") {
+    auto catalog = make_catalog();
 
     static int counter = 0;
     std::string id = "avail_test_" + std::to_string(++counter);
 
-    reg.register_node({
+    catalog.register_node({
         .id = id,
         .display_name = "Avail Test",
         .description = "",
         .category = "test",
     });
 
-    auto ids = reg.available();
+    auto ids = catalog.available();
     bool found = std::find(ids.begin(), ids.end(), id) != ids.end();
     CHECK(found);
 }
 
-TEST_CASE("GraphNodeRegistry: list_by_category filters correctly") {
-    auto& reg = GraphNodeRegistry::instance();
+TEST_CASE("GraphNodeCatalog: list_by_category filters correctly") {
+    auto catalog = make_catalog();
 
     static int counter = 0;
     int suffix = ++counter;
@@ -96,10 +122,10 @@ TEST_CASE("GraphNodeRegistry: list_by_category filters correctly") {
     std::string id_in = "filter_in_" + std::to_string(suffix);
     std::string id_out = "filter_out_" + std::to_string(suffix);
 
-    reg.register_node({.id = id_in, .display_name = "In", .description = "", .category = cat});
-    reg.register_node({.id = id_out, .display_name = "Out", .description = "", .category = "other_" + std::to_string(suffix)});
+    catalog.register_node({.id = id_in, .display_name = "In", .description = "", .category = cat});
+    catalog.register_node({.id = id_out, .display_name = "Out", .description = "", .category = "other_" + std::to_string(suffix)});
 
-    auto cat_nodes = reg.list_by_category(cat);
+    auto cat_nodes = catalog.list_by_category(cat);
     bool found_in = false;
     bool found_out = false;
     for (const auto& d : cat_nodes) {
@@ -110,47 +136,83 @@ TEST_CASE("GraphNodeRegistry: list_by_category filters correctly") {
     CHECK_FALSE(found_out);
 }
 
-TEST_CASE("GraphNodeRegistry: create returns nullptr for nodes without factory") {
-    auto& reg = GraphNodeRegistry::instance();
+TEST_CASE("GraphNodeCatalog: create returns nullptr for nodes without factory") {
+    auto catalog = make_catalog();
 
     static int counter = 0;
     std::string id = "no_factory_" + std::to_string(++counter);
 
-    reg.register_node({
+    catalog.register_node({
         .id = id,
         .display_name = "No Factory",
         .description = "",
         .category = "test",
-        // No factory set
     });
 
-    auto node = reg.create(id);
+    auto node = catalog.create(id);
     CHECK(node == nullptr);
 }
 
-TEST_CASE("GraphNodeRegistry: create returns node when factory is provided") {
-    auto& reg = GraphNodeRegistry::instance();
+TEST_CASE("GraphNodeCatalog: create returns node when factory is provided") {
+    auto catalog = make_catalog();
 
     static int counter = 0;
     std::string id = "with_factory_" + std::to_string(++counter);
 
-    reg.register_node({
+    catalog.register_node({
         .id = id,
         .display_name = "With Factory",
         .description = "",
         .category = "test",
         .factory = [](const GraphNodeCreateRequest&) -> std::unique_ptr<RenderGraphNode> {
-            return nullptr; // We just verify the factory is called
+            return nullptr;
         },
     });
 
-    // Factory returns nullptr, but create should still call it
-    auto node = reg.create(id);
-    CHECK(node == nullptr); // Our factory returns nullptr
+    auto node = catalog.create(id);
+    CHECK(node == nullptr);
 }
 
-TEST_CASE("GraphNodeRegistry: create for unknown id returns nullptr") {
-    auto& reg = GraphNodeRegistry::instance();
-    auto node = reg.create("completely_unknown_id_12345");
+TEST_CASE("GraphNodeCatalog: create for unknown id returns nullptr") {
+    auto catalog = make_catalog();
+    auto node = catalog.create("completely_unknown_id_12345");
     CHECK(node == nullptr);
+}
+
+TEST_CASE("GraphNodeCatalog: freeze prevents further registrations") {
+    auto catalog = make_catalog();
+
+    catalog.register_node({
+        .id = "pre_freeze",
+        .display_name = "Before Freeze",
+        .description = "",
+        .category = "test",
+    });
+    catalog.freeze();
+
+    CHECK_THROWS_AS(
+        catalog.register_node({
+            .id = "post_freeze",
+            .display_name = "After Freeze",
+            .description = "",
+            .category = "test",
+        }),
+        std::logic_error
+    );
+    CHECK(catalog.contains("pre_freeze"));
+    CHECK_FALSE(catalog.contains("post_freeze"));
+}
+
+TEST_CASE("GraphNodeCatalog: clear resets frozen state") {
+    auto catalog = make_catalog();
+    catalog.freeze();
+    catalog.clear();
+    // After clear, we can register again
+    catalog.register_node({
+        .id = "after_clear",
+        .display_name = "After Clear",
+        .description = "",
+        .category = "test",
+    });
+    CHECK(catalog.contains("after_clear"));
 }
