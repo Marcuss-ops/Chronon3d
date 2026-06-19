@@ -1,5 +1,5 @@
 // =============================================================================
-// test_scene_program_cache.cpp — B6: SceneProgramCache + FrameParameterBlock
+// test_scene_program_cache.cpp — SceneProgramCache + FrameParameterBlock
 //
 // Tests from the spec (§B6):
 //
@@ -66,7 +66,7 @@ struct TestCompiler {
 } // namespace
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B6 §1: Cache hit — same key returns same pointer, compile_count=1
+// §1: Cache hit — same key returns same pointer, compile_count=1
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("scene_program_cache: cache hit returns same pointer") {
@@ -112,7 +112,7 @@ TEST_CASE("scene_program_cache: multiple cache hits from same key") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B6 §2: Invalidation — different key → compile_count=2
+// §2: Invalidation — different key → compile_count=2
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("scene_program_cache: different key triggers recompilation") {
@@ -174,7 +174,7 @@ TEST_CASE("scene_program_cache: invalid program is not cached") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B6 §3: Parameter block without residuals
+// §3: Parameter block without residuals
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("frame_parameter_block: no residual values after refresh") {
@@ -254,7 +254,7 @@ TEST_CASE("frame_parameter_block: opacity refresh without residuals") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B6 §4: Capacity stable — after warm-up, capacity doesn't grow
+// §4: Capacity stable — after warm-up, capacity doesn't grow
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("frame_parameter_block: capacity stable after warm-up") {
@@ -329,7 +329,7 @@ TEST_CASE("frame_parameter_block: warm-up with same count is no-op") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B6 §5: LRU eviction — capacity 3
+// §5: LRU eviction — capacity 3
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("scene_program_cache: LRU eviction with capacity 3 (spec)") {

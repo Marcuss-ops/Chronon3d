@@ -3,7 +3,8 @@
 // ---------------------------------------------------------------------------
 // scene_program_cache.hpp — Non-destructive LRU cache for CompiledSceneProgram.
 //
-// B6 in the architecture.  Backed by chronon3d::cache::LruCache<…,
+// This cache sits between PrecompNode and the render graph compiler.
+// Backed by chronon3d::cache::LruCache<…,
 // std::shared_ptr<CompiledSceneProgram>> in CapacityMode::Count, with the
 // sharded + per-shard mutex impl that the rest of the codebase uses.
 //
@@ -116,7 +117,7 @@ public:
     /// returned.
     ///
     /// If `program->valid == false`, the entry is NOT cached (this
-    /// preserves the B6 spec: invalid compilations don't poison the
+    /// Preserves the spec: invalid compilations don't poison the
     /// cache).
     template <typename Compiler>
     [[nodiscard]] graph::CompiledSceneProgram* find_or_compile(
