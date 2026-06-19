@@ -188,7 +188,7 @@ if (!active_mask.is_tile_affected(tx, ty)) continue;  // zero lavoro
 
 **Problema:** Conversione YUV nel path di rendering bloccante — il render thread aspetta che la conversione finisca.
 
-**Soluzione:** Output pipeline asincrona. Coda tile lock-free (`moodycamel::ConcurrentQueue<TileEncodeJob>`). Il render thread fa `push()`, l'encoder thread fa `pop()`.
+**Soluzione:** Output pipeline asincrona. Coda thread-safe (`RenderFrameQueue<TileEncodeJob>`, std::queue + std::mutex). Il render thread fa `enqueue()`, l'encoder thread fa `try_dequeue()`.
 
 **Dove:**
 - `include/chronon3d/cli/video/output_pipeline.hpp` (nuovo) — `OutputPipeline`
