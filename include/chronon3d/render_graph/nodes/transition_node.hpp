@@ -60,6 +60,7 @@ private:
     bool m_is_out{false};
     Frame m_layer_from{0};
     Frame m_layer_duration{-1};
+    RenderNodeCachePolicy m_cache_policy{frame_variant_cache("transition")};
 };
 
 
