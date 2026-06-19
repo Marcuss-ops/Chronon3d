@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// test_text_run_builder.cpp — PR 4 smoke tests
+// test_text_run_builder.cpp — TextRunBuilder smoke tests
 //
 // Covers:
 //   1. TextRunBuilder accumulates .position / .opacity / .animator / .selector

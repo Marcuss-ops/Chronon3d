@@ -30,7 +30,7 @@ public:
     /// Builds a TextRunNode from:
     ///   - `shape`            : the TextRunShape holding immutable layout +
     ///                          per-glyph animated state.  Mutated per-frame
-    ///                          by PR 4 (`evaluate_animator_stack` writes
+    ///                          by `evaluate_animator_stack` (writes
     ///                          into `shape->glyphs`).
     ///   - `render_ref`       : the underlying RenderNode carrying position,
     ///                          opacity, transform override plumbing.

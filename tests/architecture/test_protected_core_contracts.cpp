@@ -23,7 +23,7 @@ TEST_CASE("CoreContract: RenderGraphNode base interface is stable") {
     CHECK(to_string(RenderGraphNodeKind::Effect) == "Effect");
     CHECK(to_string(RenderGraphNodeKind::Mask) == "Mask");
     CHECK(to_string(RenderGraphNodeKind::Precomp) == "Precomp");
-    CHECK(to_string(RenderGraphNodeKind::TextRun) == "TextRun"); // PR 3
+    CHECK(to_string(RenderGraphNodeKind::TextRun) == "TextRun");
 }
 
 // ── Contract: RenderGraph move semantics are safe ────────────────────────────
@@ -97,10 +97,10 @@ TEST_CASE("CoreContract: RenderGraphNode declares cache_key pure virtual") {
 }
 
 // ---------------------------------------------------------------------------
-// PR 3 — TextRunNode contract tests.
+// TextRunNode contract tests.
 // ---------------------------------------------------------------------------
 //
-// These tests cover the three behavioral guarantees the PR 3 scaffolding
+// These tests cover three behavioral guarantees the scaffolding
 // relies on without spinning up a full SoftwareRenderer + RenderGraph:
 //
 //   1. cache_key is deterministic for the same TextRunShape (two calls
@@ -167,7 +167,7 @@ std::shared_ptr<TextRunShape> make_test_text_run_shape_pr3(size_t glyph_count) {
 
 } // anonymous namespace
 
-TEST_CASE("CoreContract: TextRunNode cache_key is deterministic (PR 3)") {
+TEST_CASE("CoreContract: TextRunNode cache_key is deterministic") {
     auto shape = make_test_text_run_shape_pr3(3);
     RenderNode rnode;
     rnode.world_transform.position = Vec3(50.0f, 50.0f, 0.0f);
@@ -192,7 +192,7 @@ TEST_CASE("CoreContract: TextRunNode cache_key is deterministic (PR 3)") {
     CHECK(k1.source_hash != 0);
 }
 
-TEST_CASE("CoreContract: TextRunNode cache_key invalidates on per-glyph state change (PR 3)") {
+TEST_CASE("CoreContract: TextRunNode cache_key invalidates on per-glyph state change") {
     auto shape = make_test_text_run_shape_pr3(3);
     RenderNode rnode;
     rnode.world_transform.position = Vec3(50.0f, 50.0f, 0.0f);
@@ -226,7 +226,7 @@ TEST_CASE("CoreContract: TextRunNode cache_key invalidates on per-glyph state ch
     CHECK(k_baseline != k_rotated);
 }
 
-TEST_CASE("CoreContract: TextRunNode predicted_bbox is non-empty (PR 3)") {
+TEST_CASE("CoreContract: TextRunNode predicted_bbox is non-empty") {
     auto shape = make_test_text_run_shape_pr3(3);
     RenderNode rnode;
     rnode.world_transform.position = Vec3(50.0f, 50.0f, 0.0f);
@@ -259,8 +259,8 @@ TEST_CASE("CoreContract: TextRunNode predicted_bbox is non-empty (PR 3)") {
     CHECK(bbox->x1 - bbox->x0 >= 30);  // at least the 3-glyph advance span
 }
 
-TEST_CASE("CoreContract: TextRunNode predicted_bbox widens under 2.5D rotation.y (PR 3/PR 2)") {
-    // PR 2 added 2.5D-aware bbox expansion: rotation.y on a glyph
+TEST_CASE("CoreContract: TextRunNode predicted_bbox widens under 2.5D rotation.y") {
+    // 2.5D-aware bbox expansion: rotation.y on a glyph
     // contributes a horizontal shear equal to |tan(angle)| * layout_y.
     // With layout_y = 0 (the default for our horizontal text run), the
     // contribution is exactly zero, so set layout_position.y > 0 to
@@ -300,7 +300,7 @@ TEST_CASE("CoreContract: TextRunNode predicted_bbox widens under 2.5D rotation.y
     CHECK(width_b > width_a);
 }
 
-TEST_CASE("CoreContract: TextRunNode kind/enum/string-mapping is consistent (PR 3)") {
+TEST_CASE("CoreContract: TextRunNode kind/enum/string-mapping is consistent") {
     auto shape = make_test_text_run_shape_pr3(1);
     RenderNode rnode;
     rnode.name = std::pmr::string{"k"};

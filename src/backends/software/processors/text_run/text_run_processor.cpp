@@ -806,7 +806,7 @@ bool draw_text_run(
 // can compute bounding boxes without linking the software backend.
 
 // ═══════════════════════════════════════════════════════════════════════════
-// create_text_run_processor — PR 4 ShapeFactory entry
+// create_text_run_processor — ShapeFactory entry
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // The software-registry back-mapping for `ShapeType::TextRun`.  Because

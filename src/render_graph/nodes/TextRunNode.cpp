@@ -41,7 +41,7 @@ TextRunNode::TextRunNode(
 //
 // Mirrors SourceNode::predicted_bbox exactly except the world bbox is computed
 // by `renderer::compute_text_run_world_bbox` (2.5D-aware — per-glyph rotation.x/y
-// shears and scale.z expansion from PR 2).  Returns nullopt when the shape is
+// shears and scale.z expansion).  Returns nullopt when the shape is
 // missing (defensive; source-pass only emits a TextRunNode when shape is set).
 
 std::optional<raster::BBox> TextRunNode::predicted_bbox(
@@ -205,7 +205,7 @@ OwnedFB TextRunNode::execute(
 
     // Build the world-space transform that mirrors SourceNode's state.matrix.
     // draw_text_run only consumes model[3][0..1] for translation today
-    // (PR 5 will extend it to full model-matrix transform); we still pass
+    // (future: extend to full model-matrix transform); we still pass
     // the full matrix so the future path has the data.
     Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(
         ctx.options.ssaa_factor, ctx.options.ssaa_factor, 1.0f));

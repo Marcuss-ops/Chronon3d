@@ -1,7 +1,7 @@
 // =============================================================================
 // test_persistent_framebuffer_store.cpp — CFB4 codec + store tests.
 //
-// PR 5 (persistent-framebuffer-codec) — tests:
+// Tests:
 //   1. Roundtrip bit-identical
 //   2. Checksum verification
 //   3. Path sharding (2-level subdirectory)
@@ -370,7 +370,6 @@ TEST_CASE("PersistentFramebufferStore - opaque flag preserved") {
 
     Framebuffer fb(32, 32);
     fb.set_opaque(true);
-<<<<<<< HEAD
     auto key = make_test_key(0x0AE00001);
     store.put(key, fb);
 
