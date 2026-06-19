@@ -70,6 +70,7 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <limits>
 
 namespace chronon3d {
 
@@ -209,6 +210,14 @@ private:
     // Pending selectors accumulated via `.selector()` before the next
     // `.animator()` call.  Preprended to the animator's selector list on append.
     std::vector<GlyphSelectorSpec> m_pending_selectors;
+    // PR-3 selector-after-animator anchor: index (in `m_spec->params.animators`)
+    // of the most recent explicit `.animator(spec)` entry.  Valid only when
+    // `m_has_explicit_animator == true`.  Captured AFTER the `push_back` so a
+    // future vector reallocation cannot dangle — subsequent pushes (from
+    // `.animator()` re-captures or implicit mutators that don't write the
+    // anchor) cannot leave the selector logic observing a stale index.
+    std::size_t m_last_explicit_animator_idx{std::numeric_limits<std::size_t>::max()};
+    bool        m_has_explicit_animator{false};
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
