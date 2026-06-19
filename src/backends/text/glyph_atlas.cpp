@@ -1,13 +1,13 @@
 #include <chronon3d/text/glyph_atlas.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
-#include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <blend2d.h>
 #include <spdlog/spdlog.h>
 
 #include <cstdlib>
+#include <mutex>
 #include <shared_mutex>
 #include <string>
 
@@ -37,17 +37,29 @@ struct GlyphAtlasKeyHash {
     }
 };
 
-// ── LRU cache with 8 shards, 32 MB default ────────────────────────────
-size_t resolve_atlas_max_mb() {
-    auto max_bytes = Config::get().cache().glyph_atlas_max_bytes();
-    return max_bytes > 0 ? max_bytes : 32ULL * 1024ULL * 1024ULL;
-}
-
+// ── LRU cache with 8 shards ──────────────────────────────────────────
 using GlyphAtlasCache = cache::LruCache<GlyphAtlasKey, std::shared_ptr<BLImage>,
                                          GlyphAtlasKeyHash>;
 
+// Injected capacity — set once at startup by SoftwareRenderer.
+namespace {
+    size_t         s_glyph_atlas_capacity = 0;
+    std::once_flag s_glyph_atlas_capacity_flag;
+} // namespace
+
+void set_glyph_atlas_capacity(size_t max_bytes) {
+    std::call_once(s_glyph_atlas_capacity_flag, [&] {
+        s_glyph_atlas_capacity = max_bytes;
+    });
+}
+
+static size_t resolve_atlas_max_bytes() {
+    constexpr size_t kFallback = 32ULL * 1024ULL * 1024ULL;
+    return s_glyph_atlas_capacity > 0 ? s_glyph_atlas_capacity : kFallback;
+}
+
 GlyphAtlasCache& get_glyph_atlas() {
-    static GlyphAtlasCache atlas(resolve_atlas_max_mb(), 8);
+    static GlyphAtlasCache atlas(resolve_atlas_max_bytes(), 8);
     return atlas;
 }
 
