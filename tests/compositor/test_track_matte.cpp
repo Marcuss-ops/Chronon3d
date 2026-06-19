@@ -1,7 +1,7 @@
 // =============================================================================
 // test_track_matte.cpp — Unit tests for TrackMatteNode and CompositeOperator
 //
-// All numerical values are taken from the B4 spec and verified by hand.
+// All numerical values are taken from the track matte spec and verified by hand.
 //
 // Key fixes verified here:
 //   1. Canvas-relative coordinate mapping (origin-aware)
@@ -26,7 +26,7 @@ using namespace chronon3d;
 using namespace chronon3d::test;
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B4: Alpha Matte — exact spec values
+// Alpha Matte — exact spec values
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("matte: alpha coverage — exact spec values") {
@@ -54,7 +54,7 @@ TEST_CASE("matte: alpha inverted coverage — exact spec values") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B4: Luma Matte — exact spec values (no alpha² bug)
+// Luma Matte — exact spec values (no alpha² bug)
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("matte: luma coverage — no alpha² bug") {
@@ -111,7 +111,7 @@ TEST_CASE("matte: luma inverted coverage") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B4: Stencil and Silhouette — exact spec values
+// Stencil and Silhouette — exact spec values
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("matte: StencilAlpha — exact spec values") {
@@ -177,7 +177,7 @@ TEST_CASE("matte: StencilLuma coverage") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B4: Origin mapping — canvas-relative coordinate correction
+// Origin mapping — canvas-relative coordinate correction
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("matte: origin mapping — different origins") {
