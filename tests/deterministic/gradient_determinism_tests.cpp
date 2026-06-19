@@ -29,8 +29,8 @@ namespace {
 // ── Gradient test scenes ───────────────────────────────────────────────
 //
 // These use the existing Fill API (Fill::linear / Fill::radial) which is
-// wired into the path rasterizer.  The GradientDefinition from PR 1 is not
-// wired yet — it will be tested once FillStyle integration lands in PR 2.
+// wired into the path rasterizer.  GradientDefinition will be tested once
+// FillStyle integration lands.
 
 Composition make_gradient_static_comp() {
     return composition(

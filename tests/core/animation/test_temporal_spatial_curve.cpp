@@ -93,7 +93,7 @@ TEST_CASE("CubicBezier3D: straight line produces constant derivative") {
     CHECK(d0.x == doctest::Approx(90.0f));
 }
 
-// ── PR 4: from_tangents ────────────────────────────────────────────────────
+// ── from_tangents ────────────────────────────────────────────────────────
 
 TEST_CASE("CubicBezier3D: from_tangents with equal magnitudes") {
     auto curve = CubicBezier3D::from_tangents(
@@ -135,7 +135,7 @@ TEST_CASE("CubicBezier3D: from_tangents with tilted tangents") {
     CHECK(mid.y > 0.0f);
 }
 
-// ── PR 4: make_auto_smooth ─────────────────────────────────────────────────
+// ── make_auto_smooth ─────────────────────────────────────────────────────
 
 TEST_CASE("CubicBezier3D: make_auto_smooth on straight line yields flat handles") {
     const FrameRate rate{30, 1};
@@ -195,7 +195,7 @@ TEST_CASE("CubicBezier3D: make_auto_smooth with custom tension") {
     CHECK(high_dev > low_dev);
 }
 
-// ── PR 4: continuity checks ────────────────────────────────────────────────
+// ── continuity checks ────────────────────────────────────────────────────
 
 TEST_CASE("CubicBezier3D: C0 continuous when endpoints match") {
     CubicBezier3D seg1{
@@ -291,7 +291,7 @@ TEST_CASE("CubicBezier3D: G1 continuous at sharp corner with symmetric handles")
     CHECK_FALSE(seg1.is_geometric_c1_with(seg2, 0.1f));
 }
 
-// ── PR 4: tangent_at edge cases ────────────────────────────────────────────
+// ── tangent_at edge cases ────────────────────────────────────────────────
 
 TEST_CASE("CubicBezier3D: tangent_at degenerate derivative falls back to P0→P1") {
     // All control points identical → derivative is zero everywhere.

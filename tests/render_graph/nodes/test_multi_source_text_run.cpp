@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// test_multi_source_text_run.cpp — PR 6 smoke tests
+// test_multi_source_text_run.cpp — MultiSourceNode text_run smoke tests
 //
-// Covers the four PR 6 wiring guarantees that MultiSourceNode aggregation
+// Covers four wiring guarantees that MultiSourceNode aggregation
 // now handles text_run-flagged items alongside regular shapes:
 //
 //   1. predicted_bbox dispatches to `compute_text_run_world_bbox` for

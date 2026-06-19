@@ -7,7 +7,7 @@
 ///          we can shift the previous framebuffer and only re-render the
 ///          newly exposed strip.
 ///
-/// Extracted from scene_dirty_helpers.hpp during PR 4 split.
+/// Extracted from scene_dirty_helpers.hpp.
 
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>

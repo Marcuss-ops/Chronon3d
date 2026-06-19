@@ -1,7 +1,7 @@
 // =============================================================================
 // cache_diagnostics_format.cpp — Human-readable cache snapshot dump.
 //
-// PR 9 (cache-stats-benchmark) — format_cache_snapshot() queries the
+// cache_diagnostics_format.cpp — format_cache_snapshot() queries the
 // CacheDiagnostics singleton and returns a multi-line string suitable for
 // spdlog or CLI output.
 // =============================================================================

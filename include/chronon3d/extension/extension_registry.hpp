@@ -7,7 +7,7 @@
 // Tracks loaded extension modules and provides a single `register_all()`
 // entry-point that calls each module's `register_all()` in registration order.
 //
-// Replaces the old ExtensionRegistry (removed in PR 7) which was a dead
+// Replaces the old ExtensionRegistry which was dead code —
 // facade.  This version is a simple owning registry with no domain
 // indirection.
 // ============================================================================

@@ -242,7 +242,7 @@ TEST_CASE("FramebufferPool reuse - allocations stable after warmup") {
     CHECK(stats2.hit_rate > 0.0);
 }
 
-// ── PR 2: Pool budget tests ─────────────────────────────────────────────
+// ── Pool budget tests ────────────────────────────────────────────────────
 
 TEST_CASE("FramebufferPool budget respected — eviction on release") {
     // 64x64 framebuffer = 64*64*16 = 65536 bytes ≈ 64KB

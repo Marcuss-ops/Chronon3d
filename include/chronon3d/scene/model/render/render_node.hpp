@@ -78,7 +78,7 @@ struct RenderNode {
     // Set by LayerBuilder when the layer has a configured FontEngine.
     FontEngine* font_engine{nullptr};
 
-    // ── TextRunShape slot (PR 3 — TextAnimator V2 integration) ──────────────
+    // ── TextRunShape slot (TextAnimator V2 integration) ──────────────
     // When `is_text_run_shape` is true AND `text_run_shape` is non-null, the
     // graph-builder source-pass routes this RenderNode to a TextRunNode
     // instead of a SourceNode.  The `m_shape` is mutated per-frame (per-glyph
@@ -86,7 +86,7 @@ struct RenderNode {
     //
     // When `is_text_run_shape` is false, this RenderNode behaves exactly as
     // before (shape-driven, SourceNode-backed).  This dual-mode flag keeps
-    // PR 3 backwards-compatible with all existing shapes without forcing a
+    // Backwards-compatible with all existing shapes without forcing a
     // new ShapeType or LayerKind discriminator.
     bool is_text_run_shape{false};
     std::shared_ptr<TextRunShape> text_run_shape;

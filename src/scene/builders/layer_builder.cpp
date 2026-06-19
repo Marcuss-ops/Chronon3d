@@ -281,7 +281,7 @@ FontEngine* LayerBuilder::font_engine() const {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TextRunBuilder — PR 4 (TextAnimator V2)
+// TextRunBuilder (TextAnimator V2)
 // ═══════════════════════════════════════════════════════════════════════════
 
 TextRunBuilder& LayerBuilder::text_run(std::string name, TextRunParams params) {
@@ -351,13 +351,13 @@ Layer LayerBuilder::build() {
         }
     }
 
-    // ── PR 4 — Materialize pending text-run specs ───────────────────
+    // ── Materialize pending text-run specs ───────────────────
     //
     // For each TextRunPendingSpec pushed via `LayerBuilder::text_run(name,
     // TextRunParams)`, evaluate the animator stack at the layer's
     // current local time and append a corresponding RenderNode
     // flagged with `is_text_run_shape=true`.  The graph-builder
-    // source-pass (PR 3) auto-routes these to a TextRunNode.
+    // source-pass auto-routes these to a TextRunNode.
     //
     // Each entry uses the layer's FontEngine if one was set, falling
     // back to the process-wide shared FontEngine.  Shaping failures

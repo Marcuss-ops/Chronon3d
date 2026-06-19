@@ -171,7 +171,7 @@ inline Composition dark_grid_background_scene(
         s.layer("nbg_bg", [W, H, p](LayerBuilder& l) {
             l.cache_static();
             l.pin_to(Anchor::Center);
-            // PR 3: Use native grid_background shape instead of PNG/image.
+            // Use native grid_background shape instead of PNG/image.
             // This uses the render pipeline's procedural grid kernel instead
             // of loading a pre-rasterized PNG from disk.
             l.grid_background("grid_bg", GridBackgroundParams{

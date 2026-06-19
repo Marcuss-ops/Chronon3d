@@ -16,7 +16,7 @@ std::string RenderGraph::to_dot() const {
         std::string color = "white";
         switch (node.kind()) {
             case RenderGraphNodeKind::Source:    color = "lightblue"; break;
-            case RenderGraphNodeKind::TextRun:   color = "lightcyan"; break; // PR 3
+            case RenderGraphNodeKind::TextRun:   color = "lightcyan"; break;
             case RenderGraphNodeKind::Transform: color = "lightgrey"; break;
             case RenderGraphNodeKind::Effect:    color = "lightyellow"; break;
             case RenderGraphNodeKind::Composite: color = "lightgreen"; break;

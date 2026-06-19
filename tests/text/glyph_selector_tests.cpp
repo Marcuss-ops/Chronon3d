@@ -707,7 +707,7 @@ TEST_CASE("Combine: Max mode") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PR 2 — Animated keyframe tests (AnimatedValue with real keyframes)
+// Animated keyframe tests (AnimatedValue with real keyframes)
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Animated: start sweeps across glyphs over time") {
@@ -903,7 +903,7 @@ TEST_CASE("Animated: motion-blur sub-frame stability") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PR 2 — Multi-selector composition with animated keyframes
+// Multi-selector composition with animated keyframes
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Multi-sel: two selectors with different easings over time") {
