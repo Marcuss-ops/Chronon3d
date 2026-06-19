@@ -87,7 +87,7 @@ class FontEngine;  // forward decl
 // Read by `LayerBuilder::build()` to materialize a `RenderNode` with
 // `is_text_run_shape = true`.
 //
-// `params.animators` accumulates both implicit mutator-driven animators
+// `pending.animators` accumulates both implicit mutator-driven animators
 // (added by TextRunBuilder per setter) and explicit user-supplied
 // `.animator(...)` / `.selector(...)` calls.
 //
@@ -98,7 +98,7 @@ class FontEngine;  // forward decl
 
 struct TextRunBuildSpec {
     std::string name;
-    TextRunSpec spec;     // canonical composable spec (TextSpec + direction + language + animators + selectors + cache_layout)
+    TextRunSpec pending;     // canonical composable spec; renamed from `spec` to `pending` to disambiguate from the TextRunBuilder class accessor `spec()` and member `m_spec`.
     bool consumed{false};
 };
 
@@ -175,7 +175,7 @@ public:
     LayerBuilder& commit();
 
     // ── Read-only accessors ──
-    [[nodiscard]] const TextRunSpec& spec() const noexcept { return m_spec->spec; }
+    [[nodiscard]] const TextRunSpec& spec() const noexcept { return m_spec->pending; }
     [[nodiscard]] LayerBuilder& parent() const noexcept { return *m_parent; }
 
 private:

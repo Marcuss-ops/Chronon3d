@@ -3,7 +3,7 @@
 //
 // Covers:
 //   1. TextRunBuilder accumulates .position / .opacity / .animator / .selector
-//      into the underlying TextRunBuildSpec.spec.animators vector uniformly.
+//      into the underlying TextRunBuildSpec.pending.animators vector uniformly.
 //   2. LayerBuilder::text_run produces a stable reference that survives
 //      multiple successive calls.
 //   3. TextRunBuilder fluent chain (after commit()) can re-enter the
@@ -65,7 +65,7 @@ TEST_CASE("TextRunBuilder: position/opacity injects implicit animators") {
     TextRunSpec params = make_text_run_params("Hi");
     TextRunBuildSpec spec{
         .name = "test_run",
-        .spec = std::move(params),
+        .pending = std::move(params),
         .consumed = false,
     };
     // We can't construct TextRunBuilder directly (private ctor); build via
