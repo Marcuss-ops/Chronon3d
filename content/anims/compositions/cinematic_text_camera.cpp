@@ -37,15 +37,8 @@
 
 #include "content/anims/compositions/cinematic_showcase_helpers.hpp"
 #include "content/text/text_helpers.hpp"
+#include "content/text/text_glow_helpers.hpp"
 #include "content/text/text_theme.hpp"
-
-#include <cmath>
-#include <string>
-#include <vector>
-
-#include <cmath>
-#include <string>
-#include <vector>
 
 namespace chronon3d::content::anims {
 
@@ -62,57 +55,8 @@ using chronon3d::content::text::FRESH_GLOW_GOLD;
 using chronon3d::content::text::FRESH_GLOW_BLUE;
 using chronon3d::content::text::FRESH_TEXT_WHITE;
 using chronon3d::content::text::FRESH_TEXT_MUTED;
-// centered_text + apply_ae_glow replaced by their canonical local helpers:
-//   chronon3d::content::text::centered_text({...})  (struct-aggregate init)
-//   apply_ae_glow(l, CinematicGlowOpts{...})        (defined just below)
-// add_bloom_reveal_layer is omitted intentionally — it currently uses a
-// brace-init pattern that doesn't convert to TextParams; we replicate its
-// behaviour inline in OrbitHandheldGlow.
-
-// ── CinematicGlowOpts + apply_ae_glow helper ───────────────────────────────
-// The legacy text_helpers::glow::apply_ae_glow was removed in the refactor.
-// We replicate it locally so cinematic compositions can pass the same
-// options-struct it used to take.  The drop_shadow fields are preserved
-// with safe defaults (off); they were unused at the migrated call sites
-// but kept here for symmetry with the old GlowTextOpts.
-//
-// Note: chronon3d::content::text::centered_text() hardcodes wrap = Word.
-// Pre-refactor centred text defaulted to wrap = None, so single-line strings
-// are unaffected but any caller passing a multi-line string here will now
-// wrap where it previously wouldn't.
-struct CinematicGlowOpts {
-    f32   inner_radius    {4.0f};
-    f32   mid_radius      {14.0f};
-    f32   bloom_radius    {34.0f};
-    f32   inner_intensity {0.55f};
-    f32   mid_intensity   {0.22f};
-    f32   bloom_intensity {0.08f};
-    bool  micro_shadow    {true};
-    Vec2  shadow_offset   {0.0f, 4.0f};
-    Color shadow_color    {0.0f, 0.02f, 0.12f, 0.15f};
-    f32   shadow_blur     {10.0f};
-    bool  drop_shadow     {false};
-    Vec2  drop_offset     {0.0f, 8.0f};
-    Color drop_color      {0.0f, 0.0f, 0.0f, 0.20f};
-    f32   drop_blur       {18.0f};
-};
-
-inline void apply_ae_glow(LayerBuilder& l, const CinematicGlowOpts& opts = {}) {
-    auto glow = TextGlowPresets::ae_cinematic_white();
-    glow.inner_radius    = opts.inner_radius;
-    glow.mid_radius      = opts.mid_radius;
-    glow.bloom_radius    = opts.bloom_radius;
-    glow.inner_intensity = opts.inner_intensity;
-    glow.mid_intensity   = opts.mid_intensity;
-    glow.bloom_intensity = opts.bloom_intensity;
-    l.glow(glow.to_glow_params());
-    if (opts.micro_shadow && glow.micro_shadow) {
-        l.drop_shadow(opts.shadow_offset, opts.shadow_color, opts.shadow_blur);
-    }
-    if (opts.drop_shadow) {
-        l.drop_shadow(opts.drop_offset, opts.drop_color, opts.drop_blur);
-    }
-}
+// glow helpers are now canonical in content/text/text_glow_helpers.hpp
+// as text::glow::AeGlowOptions + text::glow::apply_ae_glow().
 
 constexpr const char* FONT_BOLD = "assets/fonts/Poppins-Bold.ttf";
 
@@ -130,53 +74,6 @@ TextParams title_text(const std::string& s, f32 fs,
     });
 }
 
-// Local shared font engine (matches the pattern in text_animations.cpp).
-FontEngine& cinematic_font_engine() {
-    static FontEngine engine;
-    return engine;
-}
-
-// Measure total width of a string at the given font_size using
-// the local shaper (kerning-accurate).
-f32 measure_total_width(const std::string& text, f32 font_size, f32 tracking = 6.0f) {
-    FontEngine& eng = cinematic_font_engine();
-    FontSpec spec{FONT_BOLD, "Poppins", 700};
-    auto run = eng.shape_text(text, spec, font_size);
-    if (!run) return 0.0f;
-    const size_t n = run->glyphs.size();
-    return run->width + tracking * (n > 1 ? static_cast<f32>(n - 1) : 0.0f);
-}
-
-// Per-glyph typewriter line. Same stable-position approach as
-// text_animations.cpp: each char is pre-positioned at its final
-// location, only opacity/position animate over time.
-struct GlyphPos { std::string ch; f32 center_x; };
-
-std::vector<GlyphPos> layout_glyphs(const std::string& text, f32 font_size,
-                                    f32 ref_offset_x, f32 tracking = 6.0f) {
-    std::vector<GlyphPos> out;
-    FontEngine& eng = cinematic_font_engine();
-    FontSpec spec{FONT_BOLD, "Poppins", 700};
-    auto run = eng.shape_text(text, spec, font_size);
-    if (!run || run->glyphs.empty()) return out;
-
-    f32 cursor = ref_offset_x;
-    for (size_t gi = 0; gi < run->glyphs.size(); ++gi) {
-        const auto& g = run->glyphs[gi];
-        size_t start = g.cluster;
-        size_t end = text.size();
-        for (size_t i = 0; i < run->glyphs.size(); ++i) {
-            const auto& o = run->glyphs[i];
-            if (o.cluster > start) { end = o.cluster; break; }
-        }
-        std::string ch = text.substr(start, end - start);
-        if (ch.empty()) continue;
-        out.push_back({ch, cursor + g.advance_x * 0.5f});
-        cursor += g.advance_x + tracking;
-    }
-    return out;
-}
-
 void build_stagger_line(SceneBuilder& s,
                         const std::string& text,
                         f32 font_size,
@@ -186,18 +83,20 @@ void build_stagger_line(SceneBuilder& s,
                         f32 stagger = 1.5f,
                         f32 slide_up_px = 30.0f,
                         Color color = FRESH_TEXT_WHITE) {
-    f32 w = measure_total_width(text, font_size);
-    f32 ref_x = -w * 0.5f;
-    auto chars = layout_glyphs(text, font_size, ref_x);
-    for (size_t i = 0; i < chars.size(); ++i) {
-        if (chars[i].ch == " ") continue;
+    FontSpec spec{FONT_BOLD, "Poppins", 700};
+    auto layout = chronon3d::content::text::compute_single_line_glyph_layout(
+        text, font_size, 6.0f, spec);
+    for (size_t i = 0; i < layout.chars.size(); ++i) {
+        auto& cp = layout.chars[i];
+        std::string glyph = text.substr(cp.byte_offset, cp.byte_len);
+        if (glyph == " ") continue;
         const f32 delay = start_delay + i * stagger;
         const f32 end_f = delay + duration;
-        const f32 cx = chars[i].center_x;
+        const f32 cx = cp.x;
 
         s.layer("ch_" + std::to_string(i),
                 [cx, base_pos, delay, end_f, slide_up_px,
-                 fs = font_size, ch = chars[i].ch, color]
+                 fs = font_size, glyph = std::move(glyph), color]
                 (LayerBuilder& l) {
             l.position({cx, base_pos.y, base_pos.z});
             {
@@ -212,7 +111,7 @@ void build_stagger_line(SceneBuilder& s,
                 pos.key(Frame{static_cast<Frame>(delay)},         Vec3{cx, base_pos.y + slide_up_px, base_pos.z}, EasingCurve{Easing::OutBack});
                 pos.key(Frame{static_cast<Frame>(end_f)},         Vec3{cx, base_pos.y, base_pos.z},             EasingCurve{Easing::Linear});
             }
-            TextParams tp = title_text(ch, fs, color, 0.0f);
+            TextParams tp = title_text(glyph, fs, color, 0.0f);
             // Widen the text layer box enough to contain the glyph safely.
             tp.size = {fs * 1.4f, fs * 1.8f};
             l.text("label", tp);
@@ -560,7 +459,7 @@ Composition rack_focus_title_swap() {
         // ── FRONT title at Z=0 — sharp then blurred out ──────────────
         s.layer("title_front", [](LayerBuilder& l) {
             l.position({0.0f, -180.0f, 0.0f});
-            apply_ae_glow(l, CinematicGlowOpts{
+            text::glow::apply_ae_glow(l, text::glow::AeGlowOptions{
                 .inner_radius     = 5.0f,
                 .mid_radius       = 18.0f,
                 .bloom_radius     = 36.0f,
@@ -596,7 +495,7 @@ Composition rack_focus_title_swap() {
         // ── BACK title at Z=+800 — blurred then sharpens in ──────────
         s.layer("title_back", [](LayerBuilder& l) {
             l.position({0.0f, 160.0f, 800.0f});
-            apply_ae_glow(l, CinematicGlowOpts{
+            text::glow::apply_ae_glow(l, text::glow::AeGlowOptions{
                 .inner_radius     = 4.0f,
                 .mid_radius       = 16.0f,
                 .bloom_radius     = 32.0f,
@@ -693,16 +592,18 @@ Composition abyss_freefall_stagger() {
         // fade-out at the tail.
         const std::string phrase = "LET  FALL";
         const f32 fs = 220.0f;
-        f32 w = measure_total_width(phrase, fs, 4.0f);
-        f32 ref_x = -w * 0.5f;
-        auto chars = layout_glyphs(phrase, fs, ref_x, 4.0f);
-        for (size_t i = 0; i < chars.size(); ++i) {
-            if (chars[i].ch == " ") continue;
+        FontSpec spec{FONT_BOLD, "Poppins", 700};
+        auto layout = chronon3d::content::text::compute_single_line_glyph_layout(
+            phrase, fs, 4.0f, spec);
+        for (size_t i = 0; i < layout.chars.size(); ++i) {
+            auto& cp = layout.chars[i];
+            std::string glyph = phrase.substr(cp.byte_offset, cp.byte_len);
+            if (glyph == " ") continue;
             const f32 delay = 8.0f + static_cast<f32>(i) * 6.0f;
             const f32 end_f = delay + 60.0f;
-            const f32 cx = chars[i].center_x;
+            const f32 cx = cp.x;
             s.layer("drop_" + std::to_string(i),
-                    [cx, delay, end_f, fs, ch = chars[i].ch, i]
+                    [cx, delay, end_f, fs, glyph = std::move(glyph), i]
                     (LayerBuilder& l) {
                 l.position({cx, 0.0f, -150.0f});
                 {
@@ -731,7 +632,7 @@ Composition abyss_freefall_stagger() {
                     Color base{0.65f, 0.85f, 1.0f, 1.0f};
                     if (i % 2 == 0) base = Color{0.85f, 0.95f, 1.0f, 1.0f};
                     TextParams tp = chronon3d::content::text::centered_text({
-                        .text        = ch,
+                        .text        = glyph,
                         .box         = {fs * 1.5f, fs * 1.8f},
                         .font_size   = fs,
                         .tracking    = 0.0f,
