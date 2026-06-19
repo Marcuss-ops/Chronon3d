@@ -2,8 +2,7 @@
 // Call register_content_modules() once at startup before any
 // CompositionRegistry is constructed.  Safe to call multiple times.
 //
-// PR 7: ExtensionRegistry removed — each domain registers via
-// detail::add_builtin_composition() directly.
+// Fase 5: Now delegates to ExtensionRegistry + ContentExtension module.
 #pragma once
 
 namespace chronon3d {

@@ -6,11 +6,30 @@
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/compiler/scene_binding.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/extension/extension_module.hpp>
+#include <chronon3d/extension/extension_registry.hpp>
 #include <stdexcept>
 
 namespace chronon3d::graph {
 
-void register_pipeline_graph_nodes() {
+// Forward-declared: defined below, called from PipelineExtension::register_all().
+void register_pipeline_graph_nodes_impl();
+
+namespace {
+
+/// ExtensionModule wrapping pipeline graph node registration.
+class PipelineExtension final : public ExtensionModule {
+public:
+    [[nodiscard]] std::string_view name() const override { return "pipeline"; }
+
+    void register_all() override {
+        register_pipeline_graph_nodes_impl();
+    }
+};
+
+} // namespace
+
+void register_pipeline_graph_nodes_impl() {
     auto& registry = GraphNodeRegistry::instance();
 
     if (registry.contains("source.precomp")) {
@@ -47,6 +66,14 @@ void register_pipeline_graph_nodes() {
             );
         }
     });
+}
+
+void register_pipeline_graph_nodes() {
+    auto& reg = ExtensionRegistry::instance();
+    if (!reg.contains("pipeline")) {
+        reg.register_module(std::make_unique<PipelineExtension>());
+    }
+    reg.register_all();
 }
 
 void wire_precomp_build_factory(RenderGraphContext& ctx) {
