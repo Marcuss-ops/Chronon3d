@@ -1,9 +1,9 @@
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
-#include <chronon3d/core/config.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 
 #include <memory>
+#include <mutex>
 #include <shared_mutex>
 
 namespace chronon3d {
@@ -13,8 +13,26 @@ namespace {
 using CacheKey = u64;
 using TextCache = cache::LruCache<CacheKey, std::shared_ptr<TextRasterization>>;
 
+namespace {
+    size_t         s_text_cache_capacity = 0;
+    std::once_flag s_text_cache_capacity_flag;
+} // namespace
+} // anonymous namespace
+
+void set_text_cache_capacity(size_t max_bytes) {
+    std::call_once(s_text_cache_capacity_flag, [&] {
+        s_text_cache_capacity = max_bytes;
+    });
+}
+
+namespace {
+static size_t resolve_text_cache_capacity() {
+    constexpr size_t kFallback = 32ULL * 1024ULL * 1024ULL;
+    return s_text_cache_capacity > 0 ? s_text_cache_capacity : kFallback;
+}
+
 TextCache& get_text_cache() {
-    static TextCache cache(Config::get().cache().text_cache_max_bytes(), 8);
+    static TextCache cache(resolve_text_cache_capacity(), 8);
     return cache;
 }
 

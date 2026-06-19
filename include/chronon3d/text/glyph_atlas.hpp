@@ -47,6 +47,10 @@ void glyph_atlas_store(
     const GlyphAtlasEntry& entry
 );
 
+/// Inject the glyph atlas capacity at startup (called once by
+/// SoftwareRenderer).  Must be called before first glyph_atlas_lookup().
+void set_glyph_atlas_capacity(size_t max_bytes);
+
 // Clears the glyph atlas.
 void glyph_atlas_clear();
 

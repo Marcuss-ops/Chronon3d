@@ -9,6 +9,7 @@
 #include <chronon3d/cache/cache_policy.hpp>
 #include <chronon3d/core/config.hpp>
 #include <cstddef>
+#include <mutex>
 
 namespace chronon3d::cache {
 
@@ -37,7 +38,7 @@ constexpr PolicyDefaults kDefaults[] = {
 
     // ── Count-limited domains ───────────────────────────────────────────
     // SceneProgramCache stays count-limited; the others moved to byte-weighted
-    // in a future byte-budget system.
+    // in PR 3 (byte budgets).
     { CacheDomain::RenderedFrames,  CacheCapacityUnit::Bytes,   512ULL * 1024ULL * 1024ULL, 2 },  // 512 MiB
     { CacheDomain::VideoFrames,     CacheCapacityUnit::Bytes,   256ULL * 1024ULL * 1024ULL, 2 },  // 256 MiB
     { CacheDomain::ConvertedFrames, CacheCapacityUnit::Bytes,   128ULL * 1024ULL * 1024ULL, 2 },  // 128 MiB
@@ -72,10 +73,6 @@ static std::size_t config_value_from(CacheDomain domain,
     return 0;
 }
 
-static std::size_t config_value(CacheDomain domain) {
-    return config_value_from(domain, chronon3d::Config::get().cache());
-}
-
 } // namespace
 
 // ── Public resolver ────────────────────────────────────────────────────────
@@ -105,10 +102,27 @@ CachePolicy resolve_cache_policy(
     return policy;
 }
 
+// ── Globally-injected CacheConfig (set once by SoftwareRenderer) ─────────
+
+namespace {
+    const chronon3d::CacheConfig* s_global_cache_config = nullptr;
+    std::once_flag                 s_global_cache_config_flag;
+} // namespace
+
+void set_global_cache_config(const chronon3d::CacheConfig& cache_config) {
+    std::call_once(s_global_cache_config_flag, [&] {
+        s_global_cache_config = &cache_config;
+    });
+}
+
 CachePolicy resolve_cache_policy(
     CacheDomain                domain,
     std::optional<std::size_t> override_capacity)
 {
+    if (s_global_cache_config) {
+        return resolve_cache_policy(domain, override_capacity,
+                                    *s_global_cache_config);
+    }
     return resolve_cache_policy(domain, override_capacity,
                                 chronon3d::Config::get().cache());
 }

@@ -10,17 +10,10 @@ namespace chronon3d {
 
 namespace {
 
-    // Injected capacity — set once at startup by SoftwareRenderer.
-    size_t      s_image_cache_capacity = 0;
+    size_t         s_image_cache_capacity = 0;
     std::once_flag s_image_cache_capacity_flag;
 
 } // namespace
-
-void ImageCache::preload_async(const std::string& path) {
-    std::thread([path]() {
-        instance().get_or_load(path);
-    }).detach();
-}
 
 void ImageCache::set_capacity_bytes(size_t capacity_bytes) {
     std::call_once(s_image_cache_capacity_flag, [&] {
@@ -29,10 +22,14 @@ void ImageCache::set_capacity_bytes(size_t capacity_bytes) {
 }
 
 static size_t resolve_injected_capacity() {
-    // Hardcoded fallback (512 MiB) when no capacity has been injected and
-    // set_capacity_bytes() hasn't been called yet.
     constexpr size_t kFallback = 512ULL * 1024ULL * 1024ULL;
     return s_image_cache_capacity > 0 ? s_image_cache_capacity : kFallback;
+}
+
+void ImageCache::preload_async(const std::string& path) {
+    std::thread([path]() {
+        instance().get_or_load(path);
+    }).detach();
 }
 
 ImageCache::ImageCache()
