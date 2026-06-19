@@ -170,7 +170,7 @@ TEST_CASE("TileParallel: Determinism — same renderer twice produces identical 
 
         int mism = 0;
         INFO("frame=", static_cast<int>(f));
-        CHECK(pix_match(*run1[f], *fb2, mism));
+        CHECK(pix_match(*run1[static_cast<size_t>(f.as_i64())], *fb2, mism));
         CHECK(mism == 0);
     }
 }

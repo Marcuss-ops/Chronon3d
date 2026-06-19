@@ -36,6 +36,10 @@ if(CHRONON3D_USE_BLEND2D)
 endif()
 if(TARGET chronon3d_backend_text)
     target_link_libraries(chronon3d_backend_software PUBLIC chronon3d_backend_text)
+    # Expose to the compiler so callers (e.g. software_renderer.cpp) can guard
+    # text-backend-only initializers.  Prevents link errors when Blend2D /
+    # text backend are disabled.
+    target_compile_definitions(chronon3d_backend_software PRIVATE CHRONON3D_HAS_BACKEND_TEXT)
 endif()
 
 # Conditional private link for diagnostics target.

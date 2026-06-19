@@ -50,19 +50,28 @@ TEST_CASE("Shape model and SceneBuilder") {
         CHECK(nodes[0].shape.line.to.x == 10.0f);
     }
 
-    SUBCASE("Text node has ShapeType::Text and maps TextParams fields") {
+    SUBCASE("Text node has ShapeType::Text and maps TextSpec fields") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
             s.layer("text-layer", [](LayerBuilder& l) {
+                // PR3→PR4 migration: TextSpec is composable.  Top-level
+                // `text` flat field replaced by `.content.value`; remaining
+                // text-layout knobs live inside `.layout`.
                 l.text("test-text", {
-                    .text = "Hello",
-                    .auto_fit = true,
-                    .max_lines = 4,
-                    .ellipsis = true,
-                    .min_font_size = 14.0f,
-                    .max_font_size = 120.0f,
-                    .overflow = TextOverflow::Ellipsis,
-                    .wrap = TextWrap::Character
+                    .content = {.value = "Hello"},
+                    // Designators MUST appear in TextLayoutSpec declaration
+                    // order: box, anchor, centering_mode, align, vertical_align,
+                    // wrap, overflow, line_height, tracking, auto_fit,
+                    // min_font_size, max_font_size, max_lines, ellipsis.
+                    .layout  = {
+                        .wrap          = TextWrap::Character,
+                        .overflow      = TextOverflow::Ellipsis,
+                        .auto_fit      = true,
+                        .min_font_size = 14.0f,
+                        .max_font_size = 120.0f,
+                        .max_lines     = 4,
+                        .ellipsis      = true,
+                    },
                 });
             });
             return s.build();

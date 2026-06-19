@@ -114,15 +114,24 @@ TEST_CASE("GlowTorture: neon text preserves a sharp core and creates a cyan halo
                     g.additive = false;
                     l.glow(g);
                 }
+                // PR3→PR4 migration: TextSpec is composable.  Flat fields
+                // `.text/.size/.font_path/.font_family/.font_size/.color/.align/.vertical_align`
+                // become nested under `.content/.font/.layout/.appearance`.
+                // Field order inside each brace-init matches the declaration
+                // order of the corresponding sub-struct (C++ designated-init rule).
                 l.text("word", {
-                    .text = "CHRONON3D",
-                    .size = {300.0f, 90.0f},
-                    .font_path = "assets/fonts/Inter-Bold.ttf",
-                    .font_family = "Inter",
-                    .font_size = 54.0f,
-                    .color = Color{0.96f, 0.99f, 1.0f, 1.0f},
-                    .align = TextAlign::Center,
-                    .vertical_align = VerticalAlign::Middle
+                    .content    = {.value = "CHRONON3D"},
+                    .font       = {
+                        .font_path  = "assets/fonts/Inter-Bold.ttf",
+                        .font_family = "Inter",
+                        .font_size  = 54.0f,
+                    },
+                    .layout     = {
+                        .box            = {300.0f, 90.0f},
+                        .align         = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle,
+                    },
+                    .appearance = {.color = Color{0.96f, 0.99f, 1.0f, 1.0f}},
                 });
             });
             return s.build();
@@ -155,14 +164,18 @@ TEST_CASE("GlowTorture: tiny bright text stays readable") {
                     l.glow(g);
                 }
                 l.text("tiny_text", {
-                    .text = "small readable glow",
-                    .size = {220.0f, 34.0f},
-                    .font_path = "assets/fonts/Inter-Bold.ttf",
-                    .font_family = "Inter",
-                    .font_size = 20.0f,
-                    .color = Color::white(),
-                    .align = TextAlign::Center,
-                    .vertical_align = VerticalAlign::Middle
+                    .content    = {.value = "small readable glow"},
+                    .font       = {
+                        .font_path  = "assets/fonts/Inter-Bold.ttf",
+                        .font_family = "Inter",
+                        .font_size  = 20.0f,
+                    },
+                    .layout     = {
+                        .box           = {220.0f, 34.0f},
+                        .align         = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle,
+                    },
+                    .appearance = {.color = Color::white()},
                 });
             });
             return s.build();
