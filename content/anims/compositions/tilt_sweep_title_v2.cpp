@@ -23,9 +23,12 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
-#include <chronon3d/text/text_glow_spec.hpp>
+#include "content/text/text_glow_helpers.hpp"
 
 namespace chronon3d::content::anims {
+
+using text::glow::AeGlowOptions;
+using text::glow::apply_ae_glow;
 
 Composition tilt_sweep_title_v2() {
     // ─────────────────────────────────────────────────────────────────────
@@ -191,17 +194,17 @@ Composition tilt_sweep_title_v2() {
 
             // Glow with intensities HALVED — preserves cinematic look
             // without bloom bleeding into the foreground text.
-            TextGlowSpec glow = TextGlowPresets::ae_cinematic_white();
-            glow.inner_radius    = 6.0f;
-            glow.mid_radius      = 18.0f;
-            glow.bloom_radius    = 30.0f;
-            glow.inner_intensity = 0.32f;
-            glow.mid_intensity   = 0.14f;
-            glow.bloom_intensity = 0.05f;
-            glow.softness        = 1.05f;
-            glow.falloff         = 0.94f;
-            glow.outer_downscale = 0.25f;
-            l.glow(glow.to_glow_params());
+            apply_ae_glow(l, AeGlowOptions{
+                .inner_radius    = 6.0f,
+                .mid_radius      = 18.0f,
+                .bloom_radius    = 30.0f,
+                .inner_intensity = 0.32f,
+                .mid_intensity   = 0.14f,
+                .bloom_intensity = 0.05f,
+                .falloff         = 0.94f,
+                .micro_shadow    = false,
+                // softness/outer_downscale use AeGlowOptions defaults (1.05 / 0.25)
+            });
 
             l.text("artist_name", TextParams{
                 .text            = "LIL DIRK",

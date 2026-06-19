@@ -47,6 +47,11 @@ struct AeGlowOptions {
     Vec2  drop_offset{0.0f, 8.0f};
     Color drop_color{0.0f, 0.0f, 0.0f, 0.20f};
     f32   drop_blur{18.0f};
+
+    // ── Advanced glow tuning (matching ae_cinematic_white defaults) ──
+    f32 softness{1.05f};
+    f32 falloff{0.92f};
+    f32 outer_downscale{0.25f};
 };
 
 inline void apply_ae_glow(LayerBuilder& l, const AeGlowOptions& options = {}) {
@@ -59,6 +64,10 @@ inline void apply_ae_glow(LayerBuilder& l, const AeGlowOptions& options = {}) {
     glow.inner_intensity = options.inner_intensity;
     glow.mid_intensity   = options.mid_intensity;
     glow.bloom_intensity = options.bloom_intensity;
+
+    glow.softness        = options.softness;
+    glow.falloff         = options.falloff;
+    glow.outer_downscale = options.outer_downscale;
 
     l.glow(glow.to_glow_params());
 

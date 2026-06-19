@@ -16,31 +16,17 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
-#include <chronon3d/text/text_glow_spec.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 
 #include "cinematic_title_helpers.hpp"
+#include "content/text/text_glow_helpers.hpp"
 
 namespace chronon3d::content::anims {
 
-namespace {
+using text::glow::AeGlowOptions;
+using text::glow::apply_ae_glow;
 
-// ── apply_tilt_sweep_glow ──────────────────────────────────────────────
-// Glow: cinematic white bloom (3-layer: inner/mid/bloom).
-// Uses TextGlowPresets::ae_cinematic_white() as base with custom tweaks.
-void apply_tilt_sweep_glow(LayerBuilder& l) {
-    TextGlowSpec glow = TextGlowPresets::ae_cinematic_white();
-    glow.inner_radius    = 6.0f;
-    glow.mid_radius      = 20.0f;
-    glow.bloom_radius    = 40.0f;
-    glow.inner_intensity = 0.55f;
-    glow.mid_intensity   = 0.28f;
-    glow.bloom_intensity = 0.12f;
-    glow.softness        = 1.05f;
-    glow.falloff         = 0.92f;
-    glow.outer_downscale = 0.25f;
-    l.glow(glow.to_glow_params());
-}
+namespace {
 
 // ── apply_tilt_sweep_anim ──────────────────────────────────────────────
 // Keyframe animation: position drift, scale push-in, opacity fade, blur.
@@ -90,7 +76,14 @@ Composition tilt_sweep_title() {
 
         s.layer("title", [](LayerBuilder& l) {
             apply_tilt_sweep_anim(l);
-            apply_tilt_sweep_glow(l);
+            apply_ae_glow(l, AeGlowOptions{
+                .inner_radius    = 6.0f,
+                .mid_radius      = 20.0f,
+                .bloom_radius    = 40.0f,
+                .mid_intensity   = 0.28f,
+                .bloom_intensity = 0.12f,
+                .micro_shadow = false,
+            });
             l.text("artist_name", make_artist_name_text(
                 "LIL DIRK", Color{0.94f, 0.94f, 0.92f, 1.0f}));
         });
