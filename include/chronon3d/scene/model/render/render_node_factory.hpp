@@ -22,7 +22,8 @@ public:
 
     // ── PR 4: text-run factory ──
     //
-    // Materializes a TextRunParams into a `RenderNode` flagged with
+    // Materializes a TextRunSpec (canonical composable; TextRunParams was
+    // the prior alias) into a `RenderNode` flagged with
     // `is_text_run_shape=true`.  Shares its core with
     // `LayerBuilder::text_run(...)` via the helper
     // `materialize_text_run_shape(...)`.
@@ -34,7 +35,7 @@ public:
     static RenderNode text_run(
         std::pmr::memory_resource* res,
         std::string name,
-        TextRunParams p,
+        TextRunSpec p,
         FontEngine* engine = nullptr,
         SampleTime sample_time = {});
 
