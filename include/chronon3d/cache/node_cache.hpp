@@ -67,8 +67,8 @@ public:
     bool erase(const NodeCacheKey& key);
 
 private:
-    FramebufferCache m_cache;
     CacheDiagnostics::Handle m_diag_handle;
+    FramebufferCache m_cache;
 };
 
 } // namespace chronon3d::cache
