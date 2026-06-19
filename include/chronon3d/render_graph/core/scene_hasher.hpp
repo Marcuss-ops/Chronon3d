@@ -119,13 +119,26 @@ private:
     static uint64_t hash_layer(const Layer& layer) {
         uint64_t h = 0;
         h = hash_combine(h, hash_string(layer.name));
+        h = hash_combine(h, hash_string(layer.parent_name));
         h = hash_combine(h, static_cast<u64>(layer.kind));
         h = hash_combine(h, layer.visible ? 1 : 0);
         h = hash_combine(h, layer.uses_2_5d_projection ? 1 : 0);
         h = hash_combine(h, layer.cache_static ? 1 : 0);
         h = hash_combine(h, static_cast<u64>(layer.blend_mode));
+        h = hash_combine(h, static_cast<u64>(layer.composite_operator));
         h = hash_combine(h, hash_transform(layer.transform));
         h = hash_combine(h, hash_mask(layer.mask));
+        // Track-matte type changes the rendered output (alpha/luma mask
+        // channel selection).  Without this, two layers differing only by
+        // matte mode hash to the same value and the cache serves stale pixels.
+        h = hash_combine(h, static_cast<u64>(layer.track_matte.type));
+        // The EffectStack is the dominant source of pixel-level mutations
+        // (blur, glow, color correction, …).  Missing it was a silent cache
+        // correctness bug — two layers with the same mask but different
+        // effects would collide.
+        if (layer.m_effects) {
+            h = hash_combine(h, hash_effect_stack(*layer.m_effects));
+        }
 
         for (const auto& node : layer.nodes) {
             h = hash_combine(h, hash_render_node(node));

@@ -15,42 +15,42 @@ bool tool_exists_in_path(const std::string& tool) {
 
 void RenderPreflight::require_image(const std::string& path) {
     PreflightRequirement req;
-    req.set_type(PreflightAssetType::Image);
+    req.type = PreflightAssetType::Image;
     req.path = path;
     m_requirements.push_back(req);
 }
 
 void RenderPreflight::require_video(const std::string& path) {
     PreflightRequirement req;
-    req.set_type(PreflightAssetType::Video);
+    req.type = PreflightAssetType::Video;
     req.path = path;
     m_requirements.push_back(req);
 }
 
 void RenderPreflight::require_font(const std::string& path) {
     PreflightRequirement req;
-    req.set_type(PreflightAssetType::Font);
+    req.type = PreflightAssetType::Font;
     req.path = path;
     m_requirements.push_back(req);
 }
 
 void RenderPreflight::require_audio(const std::string& path) {
     PreflightRequirement req;
-    req.set_type(PreflightAssetType::Audio);
+    req.type = PreflightAssetType::Audio;
     req.path = path;
     m_requirements.push_back(req);
 }
 
 void RenderPreflight::require_output_path(const std::string& path) {
     PreflightRequirement req;
-    req.set_type(PreflightAssetType::OutputPath);
+    req.type = PreflightAssetType::OutputPath;
     req.path = path;
     m_requirements.push_back(req);
 }
 
 void RenderPreflight::require_external_tool(const std::string& name) {
     PreflightRequirement req;
-    req.set_type(PreflightAssetType::ExternalTool);
+    req.type = PreflightAssetType::ExternalTool;
     req.path = name;
     m_requirements.push_back(req);
 }

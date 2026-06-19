@@ -171,7 +171,7 @@ struct MotionObject {
     static MotionObject text(std::string id, std::string value) {
         MotionObject o;
         o.id = std::move(id);
-        o.set_type(MotionObjectType::Text;
+        o.type = MotionObjectType::Text;
         o.text_value = std::move(value);
         o.size_value = {900.0f, 160.0f};
         // Explicit default font: ensures typewriter compositions never reach
@@ -187,7 +187,7 @@ struct MotionObject {
     static MotionObject image(std::string id, std::string path) {
         MotionObject o;
         o.id = std::move(id);
-        o.set_type(MotionObjectType::Image;
+        o.type = MotionObjectType::Image;
         o.image_path_value = std::move(path);
         return o;
     }
@@ -195,7 +195,7 @@ struct MotionObject {
     static MotionObject video(std::string id, video::VideoSource source) {
         MotionObject o;
         o.id = std::move(id);
-        o.set_type(MotionObjectType::Video;
+        o.type = MotionObjectType::Video;
         o.video_source_value = std::move(source);
         o.size_value = o.video_source_value.size;
         return o;
@@ -204,7 +204,7 @@ struct MotionObject {
     static MotionObject video(std::string id, std::string path) {
         MotionObject o;
         o.id = std::move(id);
-        o.set_type(MotionObjectType::Video;
+        o.type = MotionObjectType::Video;
         o.video_source_value.path = std::move(path);
         return o;
     }
@@ -212,7 +212,7 @@ struct MotionObject {
     static MotionObject stock(std::string id, std::string tag) {
         MotionObject o;
         o.id = std::move(id);
-        o.set_type(MotionObjectType::Stock;
+        o.type = MotionObjectType::Stock;
         o.stock_tag_value = std::move(tag);
         return o;
     }
@@ -220,35 +220,35 @@ struct MotionObject {
     static MotionObject rect(std::string id) {
         MotionObject o;
         o.id = std::move(id);
-        o.set_type(MotionObjectType::Rect;
+        o.type = MotionObjectType::Rect;
         return o;
     }
 
     static MotionObject rounded_rect(std::string id) {
         MotionObject o;
         o.id = std::move(id);
-        o.set_type(MotionObjectType::RoundedRect;
+        o.type = MotionObjectType::RoundedRect;
         return o;
     }
 
     static MotionObject circle(std::string id) {
         MotionObject o;
         o.id = std::move(id);
-        o.set_type(MotionObjectType::Circle;
+        o.type = MotionObjectType::Circle;
         return o;
     }
 
     static MotionObject line(std::string id) {
         MotionObject o;
         o.id = std::move(id);
-        o.set_type(MotionObjectType::Line;
+        o.type = MotionObjectType::Line;
         return o;
     }
 
     static MotionObject group(std::string id, std::vector<MotionObject> items) {
         MotionObject o;
         o.id = std::move(id);
-        o.set_type(MotionObjectType::Group;
+        o.type = MotionObjectType::Group;
         o.children = std::move(items);
         return o;
     }

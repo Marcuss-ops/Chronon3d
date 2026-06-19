@@ -19,7 +19,7 @@ void validate_file_exists(const PreflightRequirement& req,
     if (!fs::exists(resolved)) {
         PreflightIssue issue;
         issue.severity       = PreflightSeverity::Error;
-        issue.set_type(type;
+        issue.type = type;
         issue.code           = code;
         issue.path           = req.path;
         issue.resolved_path  = resolved;
@@ -61,7 +61,7 @@ void validate_output_writable(const PreflightRequirement& req,
         }
 
         PreflightIssue issue;
-        issue.set_type(PreflightAssetType::OutputPath;
+        issue.type = PreflightAssetType::OutputPath;
         issue.path           = req.path;
         issue.composition_id = req.composition_id;
         issue.layer_id       = req.layer_id;
@@ -87,7 +87,7 @@ void validate_output_writable(const PreflightRequirement& req,
         if (!test.is_open()) {
             PreflightIssue issue;
             issue.severity       = PreflightSeverity::Error;
-            issue.set_type(PreflightAssetType::OutputPath;
+            issue.type = PreflightAssetType::OutputPath;
             issue.code           = "OUTPUT_NOT_WRITABLE";
             issue.path           = req.path;
             issue.composition_id = req.composition_id;
@@ -104,7 +104,7 @@ void validate_output_writable(const PreflightRequirement& req,
     if (fs::exists(output_path)) {
         PreflightIssue issue;
         issue.severity       = PreflightSeverity::Warning;
-        issue.set_type(PreflightAssetType::OutputPath;
+        issue.type = PreflightAssetType::OutputPath;
         issue.code           = "OUTPUT_EXISTS";
         issue.path           = req.path;
         issue.composition_id = req.composition_id;
@@ -120,7 +120,7 @@ void validate_external_tool(const PreflightRequirement& req,
     if (!tool_exists_in_path(req.path)) {
         PreflightIssue issue;
         issue.severity       = PreflightSeverity::Error;
-        issue.set_type(PreflightAssetType::ExternalTool;
+        issue.type = PreflightAssetType::ExternalTool;
         issue.code           = "MISSING_EXTERNAL_TOOL";
         issue.path           = req.path;
         issue.composition_id = req.composition_id;
@@ -164,7 +164,7 @@ std::vector<PreflightIssue> RenderPreflight::validate() const {
         if (!std::filesystem::exists(asset.path)) {
             PreflightIssue issue;
             issue.severity = PreflightSeverity::Error;
-            issue.set_type(PreflightAssetType::RegisteredAsset;
+            issue.type = PreflightAssetType::RegisteredAsset;
             issue.code     = "MISSING_REGISTERED_ASSET";
             issue.path     = asset.path().string();
             issue.message  = "Missing registered asset: '" + asset.path().string() + "'";

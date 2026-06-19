@@ -183,9 +183,11 @@ public:
     // ── Validation ──────────────────────────────────────────────────────
 
     /// Validates that `id` refers to an existing, non-removed node.
-    /// Throws std::out_of_range on invalid id.
+    /// Throws std::out_of_range on invalid id (including the k_invalid_node
+    /// sentinel, which would otherwise pass the size check via integer
+    /// conversion on signed GraphNodeId types).
     void validate_node_id(GraphNodeId id) const {
-        if (id >= m_nodes.size() || !m_nodes[id]) {
+        if (id == k_invalid_node || id >= m_nodes.size() || !m_nodes[id]) {
             throw std::out_of_range(
                 "RenderGraph: node " + std::to_string(id) + " not found or removed");
         }

@@ -157,7 +157,7 @@ TEST_CASE("SceneValidator: track_matte_missing_source detects missing source lay
     Layer matte_layer;
     matte_layer.name = "matte";
     matte_layer.duration = 60;
-    matte_layer.track_matte.set_type(TrackMatteType::Alpha;
+    matte_layer.track_matte.type = TrackMatteType::Alpha;
     matte_layer.track_matte.source_layer = "nonexistent_source";
     scene.add_layer(std::move(matte_layer));
 
@@ -183,7 +183,7 @@ TEST_CASE("SceneValidator: track_matte_missing_source passes when source exists"
     Layer matte_layer;
     matte_layer.name = "matte";
     matte_layer.duration = 60;
-    matte_layer.track_matte.set_type(TrackMatteType::Alpha;
+    matte_layer.track_matte.type = TrackMatteType::Alpha;
     matte_layer.track_matte.source_layer = "alpha_source";
     scene.add_layer(std::move(matte_layer));
 
