@@ -216,7 +216,7 @@ OwnedFB SourceNode::execute(
             spdlog::info(
                 "[source-debug] node='{}' shape={} nonzero_pixels={} opacity={:.3f} matrix_tx={:.3f} matrix_ty={:.3f} det2d={:.6f}",
                 m_name,
-                static_cast<int>(m_node.shape.type),
+                static_cast<int>(m_node.shape.type()),
                 nonzero_pixels,
                 state.opacity,
                 state.matrix[3][0],
@@ -242,7 +242,7 @@ bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const noexce
         return false;
     }
 
-    const auto& img = m_node.shape.image;
+    const auto& img = m_node.shape.image();
     const auto& tr = m_node.world_transform;
     const f32 opacity = m_opacity_override.value_or(tr.opacity);
 

@@ -63,9 +63,9 @@ template <size_t N>
         return value + spread;
     };
 
-    switch (node.shape.type) {
+    switch (node.shape.type()) {
         case ShapeType::FakeBox3D: {
-            const auto& s = node.shape.fake_box3d;
+            const auto& s = node.shape.fake_box3d();
             const Vec3 center = s.world_pos;
             const f32 hw = expand(s.size.x * 0.5f);
             const f32 hh = expand(s.size.y * 0.5f);
@@ -96,23 +96,19 @@ template <size_t N>
         }
 
         case ShapeType::GridPlane: {
-            const auto& s = node.shape.grid_plane;
+            const auto& s = node.shape.grid_plane();
             const f32 extent = expand(s.extent);
             std::array<Vec3, 4> corners{};
             if (s.axis == PlaneAxis::XZ) {
-                corners = {{
-                    {s.world_pos.x - extent, s.world_pos.y, s.world_pos.z - extent},
-                    {s.world_pos.x + extent, s.world_pos.y, s.world_pos.z - extent},
-                    {s.world_pos.x + extent, s.world_pos.y, s.world_pos.z + extent},
-                    {s.world_pos.x - extent, s.world_pos.y, s.world_pos.z + extent},
-                }};
+                corners[0] = Vec3{s.world_pos.x - extent, s.world_pos.y, s.world_pos.z - extent};
+                corners[1] = Vec3{s.world_pos.x + extent, s.world_pos.y, s.world_pos.z - extent};
+                corners[2] = Vec3{s.world_pos.x + extent, s.world_pos.y, s.world_pos.z + extent};
+                corners[3] = Vec3{s.world_pos.x - extent, s.world_pos.y, s.world_pos.z + extent};
             } else {
-                corners = {{
-                    {s.world_pos.x - extent, s.world_pos.y - extent, s.world_pos.z},
-                    {s.world_pos.x + extent, s.world_pos.y - extent, s.world_pos.z},
-                    {s.world_pos.x + extent, s.world_pos.y + extent, s.world_pos.z},
-                    {s.world_pos.x - extent, s.world_pos.y + extent, s.world_pos.z},
-                }};
+                corners[0] = Vec3{s.world_pos.x - extent, s.world_pos.y - extent, s.world_pos.z};
+                corners[1] = Vec3{s.world_pos.x + extent, s.world_pos.y - extent, s.world_pos.z};
+                corners[2] = Vec3{s.world_pos.x + extent, s.world_pos.y + extent, s.world_pos.z};
+                corners[3] = Vec3{s.world_pos.x - extent, s.world_pos.y + extent, s.world_pos.z};
             }
 
             std::array<Vec3, 4> transformed{};

@@ -113,7 +113,7 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
             }
         }
 
-        auto* processor = renderer->software_registry().get_shape(node.shape.type);
+        auto* processor = renderer->software_registry().get_shape(node.shape.type());
         if (!processor) {
             return raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
         }
