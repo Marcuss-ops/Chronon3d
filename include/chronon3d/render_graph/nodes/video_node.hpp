@@ -24,6 +24,10 @@ public:
         return m_full_name;
     }
 
+    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
+        return m_cache_policy;
+    }
+
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,
         std::span<const std::optional<raster::BBox>> = {}
@@ -89,6 +93,7 @@ private:
     std::string m_full_name;  // "Video:" + path, stored for string_view
     media::MediaFrameProvider* m_decoder{};
     Frame m_layer_start{0};
+    RenderNodeCachePolicy m_cache_policy{no_cache("video")};
 };
 
 } // namespace chronon3d::graph
