@@ -106,7 +106,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
         // Collect projected casters from this bin for shadow projection
         std::vector<ShadowCasterInfo> bin_casters;
         for (const auto& item : current_3d_bin) {
-            if (item.layer->material.casts_shadows
+            if (item.layer->material().casts_shadows
                 && item.projected && !item.native_3d) {
                 bin_casters.push_back({
                     .layer             = item.layer,

@@ -163,7 +163,7 @@ TEST_CASE("Test 10.7 — Disabled effects do not affect hash or rendering") {
 
         Layer l = builder.build();
         // Mutate effects to disable
-        l.effects[0].enabled = false;
+        l.effects()[0].enabled = false;
 
         Scene scene(ctx.resource);
         scene.add_layer(std::move(l));

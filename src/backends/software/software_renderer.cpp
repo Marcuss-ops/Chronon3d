@@ -165,7 +165,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
     const Scene& scene, const std::optional<Camera2_5D>& camera, i32 width, i32 height) {
     profiling::ProfilingGuard scope(&m_counters, m_cache_state.framebuffer_pool.get());
 
-    Scene effective_scene = scene;
+    Scene effective_scene = scene.clone();
     if (camera.has_value()) {
         effective_scene.set_camera_2_5d(*camera);
     }

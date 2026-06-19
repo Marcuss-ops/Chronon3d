@@ -190,9 +190,9 @@ TEST_CASE("TextAnimator blur reveal keyframes") {
     CHECK(layer0.anim_transform.blur.is_animated());
     // At frame 0 the baked blur radius should be 18 (hold before start)
     // The effect stack should contain a blur effect with the baked radius
-    REQUIRE(!layer0.effects.empty());
+    REQUIRE(!layer0.effects().empty());
     bool has_blur = false;
-    for (const auto& e : layer0.effects) {
+    for (const auto& e : layer0.effects()) {
         if (auto* bp = std::get_if<BlurParams>(&e.params)) {
             has_blur = true;
             CHECK(bp->radius == doctest::Approx(18.0f));
@@ -204,7 +204,7 @@ TEST_CASE("TextAnimator blur reveal keyframes") {
     const auto& layer1 = result.layers()[1];
     CHECK(layer1.anim_transform.blur.is_animated());
     bool has_blur1 = false;
-    for (const auto& e : layer1.effects) {
+    for (const auto& e : layer1.effects()) {
         if (auto* bp = std::get_if<BlurParams>(&e.params)) {
             has_blur1 = true;
             CHECK(bp->radius == doctest::Approx(18.0f));
