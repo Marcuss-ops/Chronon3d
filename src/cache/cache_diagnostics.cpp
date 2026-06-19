@@ -1,5 +1,5 @@
 // =============================================================================
-// cache_diagnostics.cpp — Runtime cache diagnostics registry (PR 7).
+// cache_diagnostics.cpp — Runtime cache diagnostics registry.
 // =============================================================================
 
 #include <chronon3d/cache/cache_diagnostics.hpp>

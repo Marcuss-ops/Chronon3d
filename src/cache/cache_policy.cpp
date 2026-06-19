@@ -37,7 +37,7 @@ constexpr PolicyDefaults kDefaults[] = {
 
     // ── Count-limited domains ───────────────────────────────────────────
     // SceneProgramCache stays count-limited; the others moved to byte-weighted
-    // in PR 3 (byte budgets).
+    // in a future byte-budget system.
     { CacheDomain::RenderedFrames,  CacheCapacityUnit::Bytes,   512ULL * 1024ULL * 1024ULL, 2 },  // 512 MiB
     { CacheDomain::VideoFrames,     CacheCapacityUnit::Bytes,   256ULL * 1024ULL * 1024ULL, 2 },  // 256 MiB
     { CacheDomain::ConvertedFrames, CacheCapacityUnit::Bytes,   128ULL * 1024ULL * 1024ULL, 2 },  // 128 MiB

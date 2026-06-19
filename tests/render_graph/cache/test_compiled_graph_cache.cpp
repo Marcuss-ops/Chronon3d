@@ -7,7 +7,7 @@
 using namespace chronon3d::graph;
 
 // ---------------------------------------------------------------------------
-// PR 6: CompiledGraphCache unit tests
+// CompiledGraphCache unit tests
 // ---------------------------------------------------------------------------
 
 TEST_CASE("compiled graph cache starts empty") {
@@ -80,7 +80,7 @@ TEST_CASE("reset clears dimensions and payload") {
 }
 
 // ---------------------------------------------------------------------------
-// PR 7: Graph cache coordinator decoupling tests
+// Graph cache coordinator decoupling tests
 // ---------------------------------------------------------------------------
 
 TEST_CASE("null cache → build fresh") {

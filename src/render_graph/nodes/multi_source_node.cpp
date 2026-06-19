@@ -48,7 +48,7 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
 
         raster::BBox bbox;
         if (item.node->is_text_run_shape && item.node->text_run_shape) {
-            // PR 6: text_run items use the 2.5D-aware
+            // text_run items use the 2.5D-aware
             // `compute_text_run_world_bbox` instead of the regular
             // shape-driven `compute_world_bbox`.  The helper accounts for
             // per-glyph rotation.x/y shears and scale.z expansion,
@@ -125,7 +125,7 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
     for (const auto& item : m_items) {
         key.params_hash = hash_combine(key.params_hash, hash_value(item.matrix));
         key.params_hash = hash_combine(key.params_hash, hash_value(item.opacity));
-        // PR 6: text_run items also fold the per-glyph animated state of
+        // text_run items also fold the per-glyph animated state of
         // the underlying TextRunShape so the cache key invalidates when
         // `evaluate_animator_stack` mutates glyph state.  Without this
         // fold two animated frames with identical geometry would hit a
@@ -166,7 +166,7 @@ OwnedFB MultiSourceNode::execute(
         const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.options.ssaa_factor, ctx.options.ssaa_factor, 1.0f));
         const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
 
-        // PR 6: text_run items are dispatched to `RenderBackend::draw_text_run`
+        // text_run items are dispatched to `RenderBackend::draw_text_run`
         // instead of the generic `RenderBackend::draw_node` because the
         // former routes through the dedicated text-run processor with the
         // per-glyph transform stack.  The text is rasterized directly onto
@@ -176,7 +176,7 @@ OwnedFB MultiSourceNode::execute(
         for (const auto& item : m_items) {
             if (!item.node) continue;
 
-            // ── PR 6 text_run branch ─────────────────────────────────────
+            // ── text_run branch ─────────────────────────────────────
             // Dispatch via the virtual RenderBackend::draw_text_run when
             // the item carries `is_text_run_shape = true`.  Falls through
             // to the generic `draw_node` path when the backend doesn't
@@ -185,7 +185,7 @@ OwnedFB MultiSourceNode::execute(
             if (item.node->is_text_run_shape) {
                 if (!item.node->text_run_shape) {
                     // Orphan text_run: an upstream source-pass already
-                    // logs this once per layer (PR 6 one-shot guard);
+                    // logs this once per layer (one-shot guard);
                     // here we silently skip so the layer still produces
                     // partial output for any non-text siblings on the
                     // shared framebuffer.
@@ -230,7 +230,7 @@ OwnedFB MultiSourceNode::execute(
                 continue;  // text_run item is rendered; advance to next.
             }
 
-            // ── regular (non-text-run) item — unchanged from PR 5 ───────
+            // ── regular (non-text-run) item ───────────────────────
             RenderState state;
             state.frame_number = static_cast<int>(ctx.frame.frame);
             state.ssaa_factor = ctx.options.ssaa_factor;

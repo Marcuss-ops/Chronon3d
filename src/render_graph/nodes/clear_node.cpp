@@ -141,7 +141,7 @@ OwnedFB ClearNode::execute(
                             ctx.telemetry.counters->framebuffer_clear_ms.fetch_add(restore_elapsed, std::memory_order_relaxed);
                             ctx.telemetry.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
                             ctx.telemetry.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
-                            // ── New restore telemetry (PR 1: dirty-region restore) ──
+                            // ── Restore telemetry (dirty-region restore) ──
                             ctx.telemetry.counters->clearnode_restore_dirty_rect_count.fetch_add(1, std::memory_order_relaxed);
                             ctx.telemetry.counters->clearnode_restore_rect_count.fetch_add(1, std::memory_order_relaxed);
                             // Pixels restored = total frame minus clip area
@@ -253,7 +253,7 @@ OwnedFB ClearNode::execute(
                     fb = std::shared_ptr<Framebuffer>(raw);
                 }
             } else {
-                // ── PR 1: dirty-region-aware restore for shared framebuffers ──
+                // ── Dirty-region-aware restore for shared framebuffers ──
                 // Instead of full memcpy, copy only pixels outside the clip
                 // rect and zero the clip area in a single parallel_for pass.
                 // This mirrors the ping_write path's combined restore+clear

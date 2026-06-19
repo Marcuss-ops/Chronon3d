@@ -22,7 +22,7 @@ namespace chronon3d::graph {
 static SceneBindingKind node_kind_to_binding_kind(RenderGraphNodeKind kind) {
     switch (kind) {
         case RenderGraphNodeKind::Source:      return SceneBindingKind::Source;
-        case RenderGraphNodeKind::TextRun:     return SceneBindingKind::Source; // PR 3: TextRun is source-shaped
+        case RenderGraphNodeKind::TextRun:     return SceneBindingKind::Source;
         case RenderGraphNodeKind::Transform:   return SceneBindingKind::Transform;
         case RenderGraphNodeKind::Effect:      return SceneBindingKind::EffectStack;
         case RenderGraphNodeKind::TrackMatte:  return SceneBindingKind::TrackMatte;

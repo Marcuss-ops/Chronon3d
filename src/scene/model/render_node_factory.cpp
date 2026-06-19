@@ -195,7 +195,7 @@ RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string n
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PR 4 — text_run factory
+// text_run factory
 // ═══════════════════════════════════════════════════════════════════════════
 
 RenderNode RenderNodeFactory::text_run(

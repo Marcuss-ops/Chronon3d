@@ -1,7 +1,7 @@
 // =============================================================================
 // persistent_framebuffer_store.cpp — CFB4 binary codec + persistent I/O.
 //
-// PR 5 (persistent-framebuffer-codec) — unified binary format with:
+// persistent_framebuffer_store.cpp — Unified binary format with:
 //   - Little-endian field-by-field serialization (no raw struct writes)
 //   - XXH64 checksum of payload
 //   - Path sharding (first 4 hex chars → 2-level subdirectory)

@@ -57,21 +57,21 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             const u64 placement_hash = hash_render_node_placement_only(node);
             GraphNodeId source;
 
-            // ── PR 3 TextRun branch ─────────────────────────────────────────
-            // If the source RenderNode was flagged as a TextRun shape (PR 4 sets
-            // this when LayerBuilder::text_run() emits the node), route to a
-            // TextRunNode instead of a SourceNode.  Only single-node layers
-            // are supported here — multi-node aggregation into MultiSourceNode
-            // does not currently know about TextRunShape and is left for PR 5.
+            // ── TextRun branch ─────────────────────────────────────────
+            // If the source RenderNode was flagged as a TextRun shape
+            // (set by LayerBuilder::text_run()), route to a TextRunNode
+            // instead of a SourceNode.  Only single-node layers are
+            // supported here — multi-node aggregation into MultiSourceNode
+            // does not currently understand TextRunShape.
             if (node.is_text_run_shape) {
                 // Defensive: a flagged text_run node with a null shape is a
-                // programmer error (PR 4 wiring forgot to attach the shape).
+                // programmer error (wiring failed to attach the shape).
                 // Surface loudly so the user fixes the binding rather than
                 // wondering why their text silently vanished.
                 if (!node.text_run_shape) {
                     spdlog::error(
                         "[source-pass] layer='{}' node='{}' is_text_run_shape=true "
-                        "but text_run_shape is null — PR 4 wiring forgot to attach "
+                        "but text_run_shape is null — wiring failed to attach "
                         "the shape; falling through to SourceNode path.",
                         layer.name.c_str(), std::string(node.name));
                 } else {
@@ -178,7 +178,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
         // Build an aggregated cache key.
         //
-        // PR 6: MultiSourceNode now understands text_run-flagged nodes —
+        // MultiSourceNode understands text_run-flagged nodes —
         // it dispatches them to `renderer::draw_text_run` (via
         // SoftwareRenderer dynamic_cast) inside `execute()`.  No warning
         // is emitted: text and shapes coexist in the same layer, in
@@ -212,7 +212,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             spdlog::error(
                 "[source-pass] layer='{}' contains a text_run-flagged node "
                 "with null text_run_shape in a multi-node layer — the text "
-                "will be skipped at execute time.  PR 4 wiring forgot to "
+                "will be skipped at execute time.  Wiring failed to "
                 "attach the shape; check LayerBuilder::text_run + "
                 "materialize_text_run_shape.",
                 layer.name.c_str());
@@ -232,7 +232,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
         // Items are pushed unconditionally — even text_run-flagged nodes —
         // because MultiSourceNode::execute() dispatches on
-        // `item.node->is_text_run_shape` per item (PR 6).  Order is the
+        // `item.node->is_text_run_shape` per item.  Order is the
         // layer.nodes vector order, so later items composite SRC_OVER
         // earlier ones on the shared framebuffer (matches pre-PR-6
         // behaviour for non-text items).

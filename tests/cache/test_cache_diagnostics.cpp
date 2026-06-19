@@ -1,5 +1,5 @@
 // =============================================================================
-// test_cache_diagnostics.cpp — CacheDiagnostics registry tests (PR 7).
+// test_cache_diagnostics.cpp — CacheDiagnostics registry tests.
 // =============================================================================
 
 #include <doctest/doctest.h>

@@ -216,7 +216,7 @@ TEST_CASE("TextRunBBox: glyph with blur has larger bbox") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PR 5: TextRunProcessor completion tests
+// TextRunProcessor completion tests
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/core/memory/framebuffer.hpp>
@@ -231,7 +231,7 @@ using namespace chronon3d;
     return chronon3d::renderer::detail::bucket_radius_for_tier(r);
 }
 
-TEST_CASE("TextRun processor: 4-tier bucket sigma mapping (PR 5)") {
+TEST_CASE("TextRun processor: 4-tier bucket sigma mapping") {
     CHECK(expected_bucket_radius(0.0f)  == 0);   // no blur
     CHECK(expected_bucket_radius(0.5f)  == 2);   // tier 1
     CHECK(expected_bucket_radius(4.0f)  == 2);
@@ -243,10 +243,10 @@ TEST_CASE("TextRun processor: 4-tier bucket sigma mapping (PR 5)") {
     CHECK(expected_bucket_radius(60.0f) == 20);
 }
 
-TEST_CASE("TextRunBBox: world bbox safely disjoint from framebuffer (PR 5 safe-clip)") {
+TEST_CASE("TextRunBBox: world bbox safely disjoint from framebuffer (safe-clip)") {
     // Glyph deliberately translated FAR off the framebuffer so the
     // safe-clip intersection is empty.  This is the case draw_text_run
-    // now guards against in PR 5 (silent early return).
+    // now guards against (silent early return).
     auto shape = make_test_shape("A");
     Mat4 translated_off_canvas = glm::translate(
         Mat4{1.0f}, Vec3{100000.0f, 100000.0f, 0.0f});
@@ -274,7 +274,7 @@ TEST_CASE("TextRunBBox: world bbox safely disjoint from framebuffer (PR 5 safe-c
 TEST_CASE("TextRunBBox: 180°-rotated extreme transform still leaves intersecting region (sanity)") {
     // Rotation by 180° flips the bbox but the EXTENT stays positive
     // and the world bbox still intersects the framebuffer if the
-    // model translation is on-canvas.  PR 5 safe-clip should NOT
+    // model translation is on-canvas.  Safe-clip should NOT
     // accidentally skip this case.
     auto shape = make_test_shape("Hi");
     Mat4 rotated_180 = glm::translate(Mat4{1.0f}, Vec3{500.0f, 500.0f, 0.0f});
@@ -290,7 +290,7 @@ TEST_CASE("TextRunBBox: 180°-rotated extreme transform still leaves intersectin
 }
 
 #if 0 // Disabled: pre-existing semantic bugs (PlacedGlyphRun const-binding + AnimatedValue explicit ctor) revealed by umbrella namespace addition. Restore when ready.
-TEST_CASE("TextRunGlyph: baseline_shift transports the glyph along Y (PR 5)") {
+TEST_CASE("TextRunGlyph: baseline_shift transports the glyph along Y") {
     // baseline_shift is on GlyphInstanceState and is wired into
     // build_glyph_matrix as `m.translate(0, baseline_shift)` between
     // the layout translate (step 1) and the position translate (step 2).
