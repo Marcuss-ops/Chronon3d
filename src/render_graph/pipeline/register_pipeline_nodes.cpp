@@ -1,13 +1,13 @@
 #include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
 #include <chronon3d/render_graph/pipeline/pipeline_catalogs.hpp>
-#include <chronon3d/render_graph/registry/graph_node_registry.hpp>
+#include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/render_graph/registry/graph_node_create_request.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/compiler/scene_binding.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
-#include <chronon3d/effects/effect_registry.hpp>
+#include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/extension/extension_module.hpp>
 #include <chronon3d/extension/extension_catalog.hpp>
 #include <stdexcept>

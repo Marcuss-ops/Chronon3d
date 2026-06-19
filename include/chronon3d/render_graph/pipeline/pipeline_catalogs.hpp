@@ -11,8 +11,8 @@
 // No static mutable state — the catalogs are owned by the caller.
 // ═══════════════════════════════════════════════════════════════════════════
 
-#include <chronon3d/render_graph/registry/graph_node_registry.hpp>
-#include <chronon3d/effects/effect_registry.hpp>
+#include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
+#include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/extension/extension_catalog.hpp>
 
 namespace chronon3d::graph {
