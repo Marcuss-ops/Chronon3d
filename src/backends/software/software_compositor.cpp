@@ -157,14 +157,13 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
         }
         if (row_count >= 8) {
             if (cnt) cnt->used_parallel_composite.fetch_add(1, std::memory_order_relaxed);
-            parallel_for_tracked(
-                tbb::blocked_range<i32>(y0, y1),
-                [&](const tbb::blocked_range<i32>& range) {
-                    process_rows(range.begin(), range.end());
-                },
-                cnt,
-                tbb::simple_partitioner{}
-            );
+    parallel_for_tracked(
+        tbb::blocked_range<i32>(y0, y1),
+        [&](const tbb::blocked_range<i32>& range) {
+            process_rows(range.begin(), range.end());
+        },
+        cnt
+    );
         } else {
             if (cnt) cnt->skipped_composite_small.fetch_add(1, std::memory_order_relaxed);
             process_rows(y0, y1);
@@ -227,14 +226,13 @@ bool SoftwareCompositor::composite_layer_normal_optimized(
         }
     };        if (use_tbb) {
             if (cnt) cnt->used_parallel_composite.fetch_add(1, std::memory_order_relaxed);
-            parallel_for_tracked(
-                tbb::blocked_range<i32>(y0, y1),
-                [&](const tbb::blocked_range<i32>& range) {
-                    process_rows(range.begin(), range.end());
-                },
-                cnt,
-                tbb::simple_partitioner{}
-            );
+    parallel_for_tracked(
+        tbb::blocked_range<i32>(y0, y1),
+        [&](const tbb::blocked_range<i32>& range) {
+            process_rows(range.begin(), range.end());
+        },
+        cnt
+    );
     } else {
         if (cnt) cnt->skipped_composite_small.fetch_add(1, std::memory_order_relaxed);
         process_rows(y0, y1);
@@ -325,14 +323,13 @@ bool SoftwareCompositor::composite_layer_non_normal_optimized(
         }
     };        if (height_to_process >= 8) {
             if (cnt) cnt->used_parallel_composite.fetch_add(1, std::memory_order_relaxed);
-            parallel_for_tracked(
-                tbb::blocked_range<i32>(y0, y1),
-                [&](const tbb::blocked_range<i32>& range) {
-                    process_rows(range.begin(), range.end());
-                },
-                cnt,
-                tbb::simple_partitioner{}
-            );
+    parallel_for_tracked(
+        tbb::blocked_range<i32>(y0, y1),
+        [&](const tbb::blocked_range<i32>& range) {
+            process_rows(range.begin(), range.end());
+        },
+        cnt
+    );
     } else {
         if (cnt) cnt->skipped_composite_small.fetch_add(1, std::memory_order_relaxed);
         process_rows(y0, y1);
