@@ -11,11 +11,9 @@ namespace chronon3d::graph {
 
 MultiSourceNode::MultiSourceNode(
     std::string name, std::vector<MultiSourceItem> items, const cache::NodeCacheKey& key,
-    bool centered, bool uses_2_5d_projection, bool cache_static
+    bool centered, bool uses_2_5d_projection, RenderNodeCachePolicy policy
 ) : m_name(std::move(name)), m_items(std::move(items)), m_key(key),
-    m_centered(centered), m_uses_2_5d_projection(uses_2_5d_projection), m_cache_policy(policy) {
-    (void)cache_static;
-}
+    m_centered(centered), m_uses_2_5d_projection(uses_2_5d_projection), m_cache_policy(policy) {}
 
 std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
     const RenderGraphContext& ctx,

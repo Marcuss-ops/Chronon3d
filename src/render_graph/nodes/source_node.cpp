@@ -233,7 +233,8 @@ OwnedFB SourceNode::execute(
 }
 
 bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const noexcept {
-    if (!m_cache_static || m_uses_2_5d_projection) {
+    // Frame-invariant + reusable across frames = eligible to skip the clear.
+    if (!m_cache_policy.reusable_across_frames() || m_uses_2_5d_projection) {
         return false;
     }
 

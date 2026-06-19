@@ -33,9 +33,10 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
     auto composite = graph.add_node(std::make_unique<CompositeNode>(
         layer.blend_mode,
         is_static ? Frame{0} : Frame{-1},
-        world_z
+        world_z,
+        ::chronon3d::CompositeOperator::SourceOver,
+        is_static ? static_memory_cache("composite") : frame_variant_cache("composite")
     ));
-    graph.node(composite)/* pr2-disable: set_frame_dependent(!is_static); */
     graph.connect(current, composite);
     graph.connect(layer_output, composite);
     current = composite;
@@ -49,15 +50,14 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
                                   const RenderGraphContext& ctx) {
     const bool is_static = layer.cache_static || item.is_static;
 
-    // Layer effects - now modularly created via registry
+    // Layer effects — the EffectCatalog factory bakes cache policy into
+    // the constructed node; in-place mutation was removed. Single id.
     for (const auto& effect : layer.effects) {
         if (!effect.enabled) continue;
-        
         const auto* ec = ctx.resources.effect_catalog;
-        auto node_id = graph.add_node(ec->create_node(effect));
-        graph.node(node_id).set_frame_dependent(!is_static);
-        graph.connect(layer_output, node_id);
-        layer_output = node_id;
+        GraphNodeId effect_id = graph.add_node(ec->create_node(effect));
+        graph.connect(layer_output, effect_id);
+        layer_output = effect_id;
     }
 
     // DOF blur (only for projected 2.5D layers)
@@ -68,10 +68,14 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
         // When active, the per-layer DofEffectNode is skipped to avoid
         // double-blurring.
         if (!ctx.options.track_dof_depth) {
-            auto dof_node = graph.add_node(DofEffectNode::create(cam25d, item.world_z));
-            graph.node(dof_node).set_frame_dependent(!is_static);
-            graph.connect(layer_output, dof_node);
-            layer_output = dof_node;
+            // PR2-cleanup: DofEffectNode is intrinsically frame-dependent via its
+            // built-in `static_memory_cache` default; the legacy `!is_static`
+            // distinction was removed. Single node, taken as id.
+            {
+                GraphNodeId dof_node = graph.add_node(DofEffectNode::create(cam25d, item.world_z));
+                graph.connect(layer_output, dof_node);
+                layer_output = dof_node;
+            }
         }
     }
 }
@@ -85,10 +89,13 @@ void append_mask_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
     if (!layer.mask.enabled()) return;
 
     const bool is_static = layer.cache_static || item.is_static;
-    auto masked = graph.add_node(std::make_unique<MaskNode>(layer.mask, is_static ? Frame{0} : Frame{-1}));
-    graph.node(masked).set_frame_dependent(!is_static);
-    graph.connect(layer_output, masked);
-    layer_output = masked;
+    // PR2-cleanup: MaskNode defaults to `static_memory_cache`; the legacy
+    // `!is_static` A/B distinction was removed. Single node, taken as id.
+    {
+        GraphNodeId masked = graph.add_node(std::make_unique<MaskNode>(layer.mask, is_static ? Frame{0} : Frame{-1}));
+        graph.connect(layer_output, masked);
+        layer_output = masked;
+    }
 }
 
 // ── transform pass ────────────────────────────────────────────────
@@ -107,7 +114,9 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
     if (item.projected) {
         transform_node = std::make_unique<TransformNode>(item.projection_matrix,
                                                          layer.transform.opacity,
-                                                         cache_frame);
+                                                         cache_frame,
+                                                         SamplingMode::Bilinear,
+                                                         is_static ? static_memory_cache("transform") : frame_variant_cache("transform"));
     } else {
         Mat4 effective_matrix = item.world_matrix;
         if (should_use_centered_rendering(item, ctx)) {
@@ -127,13 +136,17 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
         }
         transform_node = std::make_unique<TransformNode>(effective_matrix,
                                                          item.transform.opacity,
-                                                         cache_frame);
+                                                         cache_frame,
+                                                         SamplingMode::Bilinear,
+                                                         is_static ? static_memory_cache("transform") : frame_variant_cache("transform"));
     }
 
-    auto transform = graph.add_node(std::move(transform_node));
-    graph.node(transform).set_frame_dependent(!is_static);
-    graph.connect(layer_output, transform);
-    layer_output = transform;
+    // PR2-cleanup: TransformNode carries its policy in `m_cache_policy` (ctor-time).
+    {
+        GraphNodeId transform = graph.add_node(std::move(transform_node));
+        graph.connect(layer_output, transform);
+        layer_output = transform;
+    }
 }
 
 } // namespace chronon3d::graph::detail

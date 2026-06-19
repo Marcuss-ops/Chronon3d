@@ -94,10 +94,9 @@ void OutputPass::run(GraphBuildContext& ctx) {
             static_cast<size_t>(rctx.frame.width) * rctx.frame.height,
             1e18f  // sentinel: no layer contributed
         );
-        auto dof_node = graph.add_node(PerPixelDofNode::create(cam25d));
-        graph.node(dof_node)/* pr2-disable: set_frame_dependent(true); */
-        graph.connect(current, dof_node);
-        current = dof_node;
+        // PR2-cleanup: PerPixelDofNode builds its policy at ctor-time.
+        graph.connect(current, graph.add_node(PerPixelDofNode::create(cam25d)));
+        current = graph.add_node(PerPixelDofNode::create(cam25d));
     }
 
     graph.set_output(current);
