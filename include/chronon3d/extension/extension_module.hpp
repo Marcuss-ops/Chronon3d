@@ -24,7 +24,7 @@ namespace chronon3d {
 ///
 /// Each content domain or feature set inherits from this class and
 /// implements `register_all()` to wire its factories into the
-/// appropriate registries (GraphNodeRegistry, CompositionRegistry, etc.).
+/// appropriate registries (GraphNodeCatalog, CompositionRegistry, etc.).
 ///
 /// Thread-safety: `register_all()` is called during engine startup
 /// (single-threaded phase).  Subsequent access to registries is

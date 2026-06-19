@@ -10,7 +10,7 @@ struct RenderGraphContext;
 ///
 /// Called once before building any graph — typically from the renderer
 /// constructor.  Idempotent — subsequent calls are no-ops.
-void register_pipeline_graph_nodes(GraphNodeRegistry& registry);
+void register_pipeline_graph_nodes(GraphNodeCatalog& registry);
 
 /// Wire the precomp_build factory (and effect catalog pointer) into
 /// the RenderGraphContext so that PrecompNode (in graph_nodes) can build +

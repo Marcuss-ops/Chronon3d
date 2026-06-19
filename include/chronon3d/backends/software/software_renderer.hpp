@@ -152,8 +152,8 @@ public:
     [[nodiscard]] renderer::SoftwareRegistry& software_registry() { return *m_runtime_resources.software_registry; }
     [[nodiscard]] const renderer::SoftwareRegistry& software_registry() const { return *m_runtime_resources.software_registry; }
 
-    [[nodiscard]] graph::GraphNodeRegistry& graph_node_registry() { return *m_runtime_resources.graph_node_registry; }
-    [[nodiscard]] const graph::GraphNodeRegistry& graph_node_registry() const { return *m_runtime_resources.graph_node_registry; }
+    [[nodiscard]] graph::GraphNodeCatalog& graph_node_registry() { return *m_runtime_resources.graph_node_registry; }
+    [[nodiscard]] const graph::GraphNodeCatalog& graph_node_registry() const { return *m_runtime_resources.graph_node_registry; }
 
     [[nodiscard]] effects::EffectCatalog& effect_catalog() { return *m_runtime_resources.effect_catalog; }
     [[nodiscard]] const effects::EffectCatalog& effect_catalog() const { return *m_runtime_resources.effect_catalog; }

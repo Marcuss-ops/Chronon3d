@@ -81,7 +81,7 @@ SoftwareRenderer::SoftwareRenderer()
         .software_registry = std::make_unique<renderer::SoftwareRegistry>(),
         .executor = std::make_unique<graph::GraphExecutor>(
             Config::get().scheduler().pin_main_thread()),
-        .graph_node_registry = std::make_unique<graph::GraphNodeRegistry>(),
+        .graph_node_registry = std::make_unique<graph::GraphNodeCatalog>(),
         .effect_catalog = std::make_unique<effects::EffectCatalog>()
     }
     , m_cache_state{
