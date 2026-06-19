@@ -41,28 +41,25 @@ inline AssetId asset_id_from_path(const std::filesystem::path& path) {
 // ---------------------------------------------------------------------------
 class AssetRegistry {
 public:
-    // ── Thread-local pointer (replaces instance()) ──────────────────────
-    // Set by the host before any rendering or asset resolution.  resolve()
-    // and assets() read from this pointer.  If null, resolve() returns the
-    // path as-is and assets() returns an empty vector.
+    // ── Thread-local pointer (DEPRECATED — use RenderContext::assets instead) ──
 
+    // Internal; deprecated public wrappers below call this.
     static AssetRegistry*& tls_registry_ptr() {
         thread_local AssetRegistry* ptr = nullptr;
         return ptr;
     }
 
-    /// Set the registry for the current thread.  Called by the host
-    /// at startup and before each render job.
+    [[deprecated("Use RenderContext::assets or explicit AssetRegistry reference")]]
     static void set_thread_local(AssetRegistry& reg) {
         tls_registry_ptr() = &reg;
     }
 
-    /// Clear the thread-local registry pointer.
+    [[deprecated("Use RenderContext::assets or explicit AssetRegistry reference")]]
     static void clear_thread_local() {
         tls_registry_ptr() = nullptr;
     }
 
-    /// Return the thread-local registry, or nullptr if none set.
+    [[deprecated("Use RenderContext::assets or explicit AssetRegistry reference")]]
     static AssetRegistry* get_thread_local() {
         return tls_registry_ptr();
     }
@@ -90,25 +87,23 @@ public:
         m_root_path.clear();
     }
 
-    // ── Per-thread assets root (static, unchanged) ─────────────────────
+    // ── Per-thread assets root (DEPRECATED) ────────────────────────────
 
-    /// Set the per-thread assets root for the current render job.
-    /// When set, resolve() prefers this root over the registry's global root.
+    [[deprecated("Use RenderContext::assets or explicit AssetRegistry reference")]]
     static void set_thread_local_root(const std::filesystem::path& root) {
         tls_current_root() = root;
     }
 
-    /// Clear the per-thread assets root.
+    [[deprecated("Use RenderContext::assets or explicit AssetRegistry reference")]]
     static void clear_thread_local_root() {
         tls_current_root().clear();
     }
 
-    // ── Resolve (static — reads from thread-local pointer + root) ──────
+    // ── Resolve (static — deprecated; prefer instance resolve()) ───────
 
+    [[deprecated("Use the non-static AssetRegistry::resolve_path() instead")]]
     static std::string resolve(const std::filesystem::path& relative_path) {
         // Per-render-job thread-local root takes priority.
-        // Read TLS before acquiring the mutex — thread-local is inherently
-        // thread-safe (only the owning thread can read/write its own copy).
         const auto& tls_root = tls_current_root();
         if (relative_path.is_absolute()) {
             return relative_path.lexically_normal().string();
@@ -126,7 +121,36 @@ public:
         return relative_path.lexically_normal().string();
     }
 
+    // ── Non-static resolve (preferred — use this from RenderContext) ───
+
+    [[nodiscard]] std::string resolve_path(const std::filesystem::path& relative_path) const {
+        if (relative_path.is_absolute()) {
+            return relative_path.lexically_normal().string();
+        }
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_root_path.empty()) {
+            return (m_root_path / relative_path).lexically_normal().string();
+        }
+        return relative_path.lexically_normal().string();
+    }
+
     // ── Import (non-static) ────────────────────────────────────────────
+
+    /// Auto-detect type from extension and import (non-static, preferred).
+    /// Returns std::nullopt for unrecognized extensions.
+    std::optional<AssetId> import_by_extension(const std::filesystem::path& resolved) {
+        std::string ext = resolved.extension().string();
+        for (char& c : ext) c = static_cast<char>(std::tolower(c));
+        if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp")
+            return import_image(resolved);
+        if (ext == ".ttf" || ext == ".otf")
+            return import_font(resolved);
+        if (ext == ".mp4" || ext == ".mov" || ext == ".avi" || ext == ".mkv")
+            return import_video(resolved);
+        if (ext == ".wav" || ext == ".mp3" || ext == ".ogg")
+            return import_audio(resolved);
+        return std::nullopt;
+    }
 
     AssetId import_image(const std::filesystem::path& path) {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -196,6 +220,7 @@ public:
     /// Static accessor for deep code that can't receive a reference.
     /// Reads from the thread-local registry pointer.  Returns empty
     /// vector if no registry is set on the current thread.
+    [[deprecated("Use explicit AssetRegistry reference instead")]]
     [[nodiscard]] static std::vector<AssetMetadata> current_assets() {
         AssetRegistry* reg = tls_registry_ptr();
         if (!reg) return {};
@@ -259,7 +284,9 @@ private:
 //   // ... render ...
 //   AssetRegistry::clear_thread_local_root();
 
-// Free function asset() helper — uses thread-local registry
+// Free function asset() helper — DEPRECATED, uses TLS registry.
+// Prefer AssetRegistry::import_by_extension() with an explicit registry.
+[[deprecated("Use AssetRegistry::import_by_extension() with explicit reference")]]
 inline std::string asset(const std::string& path) {
     std::string resolved = AssetRegistry::resolve(path);
     std::filesystem::path p(resolved);
