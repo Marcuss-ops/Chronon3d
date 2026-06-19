@@ -16,7 +16,7 @@ target_link_libraries(chronon3d_backend_text PUBLIC
     chronon3d_cache
     spdlog::spdlog_header_only
     blend2d::blend2d
-
+    chronon3d_blend2d_paint
 )
 
 if(CHRONON3D_ENABLE_TEXT)
