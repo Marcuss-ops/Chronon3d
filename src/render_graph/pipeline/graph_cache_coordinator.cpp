@@ -8,7 +8,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/trace_categories.hpp>
-#include "scene_refresh.hpp"
+#include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
 #include "../builder/graph_builder_internal.hpp"
 #include "../builder/graph_builder_pipeline.hpp"
 #include <spdlog/spdlog.h>
