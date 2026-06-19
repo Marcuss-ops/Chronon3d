@@ -22,6 +22,10 @@
 #include "scene_internal.hpp"
 #include <string>
 
+namespace chronon3d::effects {
+    class EffectCatalog;
+}
+
 namespace chronon3d::graph {
 
 /// Result of a tile-execution policy decision.  When `enabled` is false,
@@ -51,7 +55,8 @@ public:
         const detail::DirtyRectOutput& dirty_out,
         double dirty_ratio,
         const SoftwareRenderer* sw_renderer,
-        Frame frame
+        Frame frame,
+        const effects::EffectCatalog* effect_catalog = nullptr
     );
 };
 
