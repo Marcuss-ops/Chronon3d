@@ -20,7 +20,10 @@ struct TextRunDrawParams {
     const TextRunShape& shape;                     // batched text run with glyph states
     const Mat4& model_matrix;                      // world-space transform
     f32 opacity{1.0f};                            // overall layer opacity
-    bool diagnostic_mode{false};                   // enable timing logs
+    // PR2: removed `bool diagnostic_mode{}`.  Diagnostic logging is
+    // controlled by the caller (e.g. graph-node `ctx.options.diagnostics_enabled`)
+    // and propagated into `spdlog::*` calls at the caller side, not as a
+    // flag buried inside the processor's params struct.
 };
 
 /// Draw a batched text run with per-glyph transforms.
@@ -36,7 +39,15 @@ struct TextRunDrawParams {
 ///
 /// @param renderer  The software renderer (for font resources, diagnostics).
 /// @param params    Draw parameters (target fb, shape, matrix, opacity).
-/// @return RenderOpOutcome on success, or an error code on failure.
+/// PR2: returns `graph::RenderOpResult` (a typed result wrapping either
+/// `RenderOpOutcome{items_drawn}` on success or `err{RenderBackendError}`
+/// on failure).  Distinct failure modes:
+///   - `InvalidInput`        — empty layout, no glyphs, missing font path,
+///                             zero-dim framebuffer.
+///   - `ExecutionFailure`    — font face failed to load.
+///   - `UnsupportedCapability` — only at the (unsupported) backend
+///                                override boundary; normally callers gate
+///                                on `backend->capabilities().text_run`.
 [[nodiscard]] graph::RenderOpResult draw_text_run(
     SoftwareRenderer& renderer,
     TextRunDrawParams& params

@@ -85,7 +85,7 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
     return raster::BBox{x0, y0, x1, y1};
 }
 
-CacheFramePolicy MultiSourceNode::cache_frame_policy() const {
+CacheFramePolicy MultiSourceNode::cache_frame_policy() const noexcept {
     return CacheFramePolicy::FrameInvariant;
 }
 
@@ -199,18 +199,31 @@ OwnedFB MultiSourceNode::execute(
                     world_matrix = ssaa_scale * item.matrix;
                 }
 
-                const auto result = ctx.resources.backend->draw_text_run(
+                // PR2 — gate on capabilities().text_run first.  When the
+                // active backend does not support text runs, emit a one-shot
+                // warning and skip the per-item dispatch (avoids a
+                // per-frame failed-virtual call).
+                if (!ctx.resources.backend->capabilities().text_run) {
+                    if (!m_backend_warned) {
+                        spdlog::error(
+                            "[multi-source] node='{}' contains text run items "
+                            "but active backend does not support draw_text_run; "
+                            "skipping text render.", m_name);
+                        m_backend_warned = true;
+                    }
+                    continue;
+                }
+
+                auto result = ctx.resources.backend->draw_text_run(
                     *fb, *item.node->text_run_shape, world_matrix,
-                    item.opacity, ctx.options.diagnostics_enabled);
+                    item.opacity);
 
-                const bool drew = result.ok();
-
-                if (!drew && !m_backend_warned) {
+                if (!result) {
                     spdlog::error(
-                        "[multi-source] node='{}' contains text run items "
-                        "but active backend does not support draw_text_run; "
-                        "skipping text render.", m_name);
-                    m_backend_warned = true;
+                        "[multi-source] node='{}' text_run failed: [{}] {}",
+                        m_name,
+                        chronon3d::graph::render_backend_error_code_name(result.error().code),
+                        result.error().message);
                 }
 
                 // NOTE: draw_text_run() already increments text_glyphs_rasterized
@@ -221,7 +234,7 @@ OwnedFB MultiSourceNode::execute(
                         "[multi-source] node='{}' text_run drew={} glyphs={} "
                         "hash=0x{:016x} opacity={:.3f} tx={:.1f} ty={:.1f}",
                         m_name,
-                        drew,
+                        result ? result.value().items_drawn : 0u,
                         item.node->text_run_shape->glyphs.size(),
                         chronon3d::hash_text_run_shape(*item.node->text_run_shape),
                         item.opacity,

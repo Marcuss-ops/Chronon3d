@@ -263,16 +263,17 @@ graph::RenderOpResult SoftwareRenderer::draw_text_run(
     Framebuffer& fb,
     const TextRunShape& shape,
     const Mat4& model_matrix,
-    float opacity,
-    bool diagnostic_mode
+    float opacity
 ) {
     CHRONON_ZONE_C("draw_text_run", trace_category::kText);
+    // PR2: `bool diagnostic_mode` removed — caller (TextRunNode / multi_source_node)
+    // controls timing logs via `ctx.options.diagnostics_enabled` and emits them
+    // at the graph-node level, not via the TextRunDrawParams struct.
     renderer::TextRunDrawParams params{
         .fb = fb,
         .shape = shape,
         .model_matrix = model_matrix,
         .opacity = opacity,
-        .diagnostic_mode = diagnostic_mode,
     };
     return renderer::draw_text_run(*this, params);
 }
