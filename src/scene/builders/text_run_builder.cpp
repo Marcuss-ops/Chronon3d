@@ -27,9 +27,9 @@ GlyphSelectorSpec TextRunBuilder::make_global_glyph_selector(std::string id) {
 }
 
 void TextRunBuilder::append_animator(TextAnimatorSpec spec) {
-    // `m_spec->spec` is the canonical composable TextRunSpec (formerly
-    // `TextRunParams`).  `animators` lives at the top level of that spec.
-    m_spec->spec.animators.push_back(std::move(spec));
+    // `m_spec->pending` is the canonical composable TextRunSpec (formerly
+    // `TextRunParams`).  `pending.animators` lives at the top level of that spec.
+    m_spec->pending.animators.push_back(std::move(spec));
 }
 
 // ── Per-glyph mutators (inject implicit animator) ───────────────────────
@@ -95,7 +95,7 @@ TextRunBuilder& TextRunBuilder::font_size(f32 v) {
     // shaping), not a per-frame animated glyph property.  Mutating it
     // here does NOT animate; it updates the base parameter and will
     // invalidate the layout cache on the next commit.
-    m_spec->spec.text.font.font_size = v;
+    m_spec->pending.text.font.font_size = v;
     m_cache_layout = false;  // force re-shape next commit
     return *this;
 }
@@ -204,7 +204,7 @@ LayerBuilder& TextRunBuilder::commit() {
     // a re-shape even if the layout cache already contains an entry
     // for the spec's TextRunSpec (because user edits may have
     // changed shaping inputs).
-    m_spec->spec.cache_layout = m_cache_layout;
+    m_spec->pending.cache_layout = m_cache_layout;
     if (m_font_engine != nullptr) {
         // Forward font_engine override onto the spec via a side channel
         // (LayerBuilder reads m_font_engine for shaping during commit).

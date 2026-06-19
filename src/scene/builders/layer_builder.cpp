@@ -291,7 +291,7 @@ TextRunBuilder& LayerBuilder::text_run(std::string name, TextRunSpec params) {
     // composable struct in builder_params.hpp.
     auto spec_uptr = std::make_unique<TextRunBuildSpec>(TextRunBuildSpec{
         .name = std::move(name),
-        .spec = std::move(params),
+        .pending = std::move(params),
         .consumed = false,
     });
     TextRunBuildSpec* spec_ptr = spec_uptr.get();
@@ -380,19 +380,19 @@ Layer LayerBuilder::build() {
             node.name = std::pmr::string{spec.name, res};
             node.is_text_run_shape = true;     // always flagged
             node.font_engine = m_font_engine;
-            // `spec.spec` is the canonical composable TextRunSpec
-            // (the wrapper field name was renamed from `params` to
-            // `spec` to reflect the type change and avoid confusion
-            // with the deprecated `TextRunParams` alias name).
-            node.world_transform.position = spec.spec.text.position;
+            // `spec.pending` is the canonical composable TextRunSpec
+            // (the wrapper field name was renamed from `params` -> `spec`
+            // -> `pending` to disambiguate from the TextRunBuilder
+            // class's `m_spec` (member ptr) and `spec()` (accessor)).
+            node.world_transform.position = spec.pending.text.position;
             node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
             node.world_transform.scale = Vec3{1.0f, 1.0f, 1.0f};
             node.world_transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-            node.color = spec.spec.text.appearance.color;
-            node.fill = Fill::solid_color(spec.spec.text.appearance.color);
+            node.color = spec.pending.text.appearance.color;
+            node.fill = Fill::solid_color(spec.pending.text.appearance.color);
 
             auto shape = materialize_text_run_shape(
-                spec.spec, m_font_engine, local_time);
+                spec.pending, m_font_engine, local_time);
             if (shape) {
                 node.text_run_shape = std::move(shape);
             }
