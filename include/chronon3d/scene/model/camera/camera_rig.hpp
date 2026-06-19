@@ -127,20 +127,120 @@ struct CameraRig {
     DepthOfFieldSettings dof{};
     bool use_fov{false};
 
-    [[nodiscard]] Camera2_5D bake(Frame frame, std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
+    // ── Canonical optics contract (mirrors the modern CameraRig) ───────────
+    // CameraOpticsMode is decoupled from DoF: a physical lens can be active
+    // (PhysicalLens) while DepthOfFieldSettings::use_physical_model is false.
+    // Mirrored to the evaluated Camera2_5D by bake() and read by the
+    // projection pipeline (focal_from_camera with discrete switch).
+    CameraOpticsMode optics_mode{CameraOpticsMode::Zoom};
+
+    // ── Single-switch focus contract (mirrors the modern CameraRig) ────────
+    // Canonical focus ownership selector.  Defaults to ManualDistance for
+    // backward compatibility with the legacy direct-distance path.  The
+    // single switch on focus_mode in bake() is responsible for assigning
+    // cam.dof.focus_distance exactly once.
+    //
+    //   ManualDistance:  focus_distance == dof.focus_distance (legacy default).
+    //   PointOfInterest: focus_distance == |cam.point_of_interest - cam.position|.
+    //   TargetLayer:     focus_distance == rig target (legacy has one target_name).
+    //   LockToZoom:      focus_distance == cam.zoom (rack / dolly zoom).
+    CameraFocusMode focus_mode{CameraFocusMode::ManualDistance};
+
+    // ── bake() — canonical chain + single-switch focus (mirrors modern rig)
+    //
+    // TwoNode path:
+    //   q = qLookAt * qLocal * qX(tilt) * qY(pan) * qZ(roll)
+    //   (composed by Camera2_5D::resolve_look_at_orientation())
+    //
+    // OneNode path:
+    //   q = qLocal * qX(tilt) * qY(pan) * qZ(roll)
+    //   (POI is disabled; user-supplied camera_rotation drives the view)
+    //
+    // Focus: a single switch on focus_mode is responsible for focal
+    // distance — no later re-assignment of cam.dof.focus_distance is
+    // permitted by this function.
+    //
+    // NOTE: cam.point_of_interest and cam.is_animated are deliberately
+    // left to downstream consumers (hierarchy resolver, cache pipeline)
+    // to preserve the existing legacy golden-render contract.  When the
+    // caller supplies a non-null `resolved` and opt-in flags warrrant
+    // POI pre-population, the modern rig's stricter version can be used.
+    [[nodiscard]] Camera2_5D bake(
+        Frame frame,
+        std::pmr::memory_resource* res = std::pmr::get_default_resource(),
+        [[maybe_unused]] const TransformResolverResult* resolved = nullptr
+    ) const {
         Camera2_5D cam;
-        cam.enabled = enabled;
-        cam.position = camera_position.evaluate(frame);
-        cam.rotation = camera_rotation.evaluate(frame);
-        cam.zoom = zoom.evaluate(frame);
-        cam.fov_deg = fov_deg.evaluate(frame);
-        cam.projection_mode = use_fov ? Camera2_5DProjectionMode::Fov : Camera2_5DProjectionMode::Zoom;
-        cam.dof = dof;
-        cam.parent_name = std::pmr::string{controller_name, res};
-        cam.point_of_interest_enabled = (mode == RigMode::TwoNode);
+        cam.enabled                   = enabled;
+        cam.position                  = camera_position.evaluate(frame);
+        cam.rotation                  = camera_rotation.evaluate(frame);
+        cam.zoom                      = zoom.evaluate(frame);
+        cam.fov_deg                   = fov_deg.evaluate(frame);
+        cam.projection_mode           = use_fov
+                                            ? Camera2_5DProjectionMode::Fov
+                                            : Camera2_5DProjectionMode::Zoom;
+        cam.optics_mode               = optics_mode; // canonical optics_mode mirror
+        cam.parent_name               = std::pmr::string{controller_name, res};
+
         if (mode == RigMode::TwoNode) {
+            // Canonical chain guard: target_name drives the world-space
+            // POI resolved by resolve_look_at_orientation().  Hierarchy
+            // resolver is the source of truth for cam.point_of_interest;
+            // bake() leaves it unpopulated to preserve the legacy golden
+            // contract (target_position.evaluate == (0,0,0) for default).
+            cam.point_of_interest_enabled = true;
             cam.target_name = std::pmr::string{target_name, res};
+        } else {
+            // OneNode: POI is disabled and target_name is empty so the
+            // canonical chain collapses to qLocal * qX * qY * qZ in
+            // resolve_look_at_orientation().
+            cam.point_of_interest_enabled = false;
+            cam.target_name.clear();
         }
+
+        // ── Single-switch focus distance ──────────────────────────────
+        // One and only one path assigns cam.dof.focus_distance here.
+        // Do NOT append another assignment below this switch.
+        cam.dof = dof;
+        // use_physical_model is honored from dof (do not silently override).
+
+        const Vec3 focus_po = cam.point_of_interest_enabled
+                                  ? cam.point_of_interest
+                                  : cam.position;
+
+        switch (focus_mode) {
+            case CameraFocusMode::ManualDistance: {
+                // Explicit value; explicit owner wins, target is ignored.
+                // For default rig this matches the legacy cam.dof = dof copy.
+                cam.dof.focus_distance = dof.focus_distance;
+                cam.dof.focus_z        = dof.focus_z;
+                break;
+            }
+            case CameraFocusMode::PointOfInterest: {
+                cam.dof.focus_distance = glm::length(focus_po - cam.position);
+                cam.dof.focus_z        = focus_po.z;
+                break;
+            }
+            case CameraFocusMode::TargetLayer: {
+                // Legacy rig has a single target_name; TargetLayer maps to
+                // the rig target's world position (same as POI for namespace
+                // compatibility).
+                cam.dof.focus_distance = glm::length(focus_po - cam.position);
+                cam.dof.focus_z        = focus_po.z;
+                break;
+            }
+            case CameraFocusMode::LockToZoom: {
+                // Dolly-zoom / rack: pin focus to current zoom.
+                cam.dof.focus_distance = cam.zoom;
+                cam.dof.focus_z        = focus_po.z;
+                break;
+            }
+        }
+
+        // cam.is_animated is left at default (false) to match the legacy
+        // golden-render contract; for stricter cache invalidation, switch
+        // to the modern CameraRig namespace.
+
         return cam;
     }
 
