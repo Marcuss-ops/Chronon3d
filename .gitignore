@@ -43,6 +43,8 @@ __pycache__/
 # Virtual environments
 .venv/
 **/.venv/
+venv/
+**/venv/
 
 # Build logs (accidentally committed local artifacts)
 build_output.txt
@@ -100,11 +102,3 @@ logs/
 [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]*
 
 artifacts/visual/camera/
-
-# Virtual environments
-.venv/
-**/.venv/
-
-# Build logs
-build_output.txt
-*.build.log
