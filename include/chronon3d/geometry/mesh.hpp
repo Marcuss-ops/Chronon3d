@@ -4,7 +4,9 @@
 #include <chronon3d/geometry/bounds.hpp>
 #include <vector>
 #include <string>
+#ifdef CHRONON3D_ENABLE_MESH
 #include <meshoptimizer.h>
+#endif
 
 namespace chronon3d {
 
@@ -34,6 +36,7 @@ public:
     }
 
     void optimize() {
+#ifdef CHRONON3D_ENABLE_MESH
         if (m_indices.empty()) return;
         
         // Optimize vertex cache
@@ -48,6 +51,9 @@ public:
             positions.push_back(v.position.z);
         }
         meshopt_optimizeOverdraw(m_indices.data(), m_indices.data(), m_indices.size(), positions.data(), m_vertices.size(), sizeof(float) * 3, 1.05f);
+#else
+        (void)this; // suppress unused warning when mesh is disabled
+#endif
     }
 
 private:

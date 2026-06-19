@@ -73,6 +73,7 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load_shared(const std::str
             entry->height = buffer->height;
 
             // Create BLImage and premultiply alpha for Blend2D (PRGB32)
+#ifdef CHRONON3D_USE_BLEND2D
             entry->bl_img.create(entry->width, entry->height, BL_FORMAT_PRGB32);
             BLImageData bl_data;
             if (entry->bl_img.getData(&bl_data) == BL_SUCCESS) {
@@ -88,6 +89,7 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load_shared(const std::str
                     }
                 }
             }
+#endif
 
             // Keep a float framebuffer copy for the software raster path. This avoids
             // re-sampling the BLImage path for scaled images, which is where we observed
