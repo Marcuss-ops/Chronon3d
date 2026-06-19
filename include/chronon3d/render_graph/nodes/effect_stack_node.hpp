@@ -9,6 +9,10 @@ namespace chronon3d::graph {
 class EffectStackNode final : public RenderGraphNode {
 public:
     explicit EffectStackNode(EffectStack effects,
+                             RenderNodeCachePolicy policy)
+        : EffectStackNode(std::move(effects), Frame{-1}, policy) {}
+
+    explicit EffectStackNode(EffectStack effects,
                              Frame cache_frame = Frame{-1},
                              RenderNodeCachePolicy policy = static_memory_cache("effect_stack"))
         : m_effects(std::move(effects)), m_cache_frame(cache_frame), m_cache_policy(policy) {}

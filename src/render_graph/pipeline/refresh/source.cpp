@@ -86,7 +86,7 @@ void refresh_source_node(
         item.projected,
         ctx.options.modular_coordinates ? std::optional<Mat4>(render_matrix) : std::nullopt,
         ctx.options.modular_coordinates ? std::optional<f32>(render_opacity) : std::nullopt,
-        source_is_static
+        source_is_static ? static_memory_cache("source") : frame_variant_cache("source")
     );
 }
 
