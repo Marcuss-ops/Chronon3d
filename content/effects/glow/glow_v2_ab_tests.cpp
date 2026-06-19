@@ -12,9 +12,12 @@
 //   4. GlowShadowBalanceTest   — 3 panels: no shadow / shadow 10 / shadow 18
 //
 #include "../common/glow_test_common.hpp"
-#include <chronon3d/text/text_glow_spec.hpp>
+#include "content/text/text_glow_helpers.hpp"
 
 namespace chronon3d::content::effects {
+
+using text::glow::AeGlowOptions;
+using text::glow::apply_ae_glow;
 
 // ── shared helpers ──────────────────────────────────────────────────────────
 
@@ -61,19 +64,11 @@ Composition glow_sharpness_test() {
 
         s.layer("hero", [](LayerBuilder& l) {
             l.pin_to(Anchor::Center);
-            auto glow = TextGlowPresets::ae_cinematic_white();
-            glow.inner_radius    = 4.0f;
-            glow.mid_radius      = 14.0f;
-            glow.bloom_radius    = 34.0f;
-            glow.inner_intensity = 0.55f;
-            glow.mid_intensity   = 0.22f;
-            glow.bloom_intensity = 0.08f;
-            l.glow(glow.to_glow_params());
-            if (glow.micro_shadow) l.drop_shadow(glow.micro_shadow_offset, glow.micro_shadow_color, glow.micro_shadow_radius);
+            apply_ae_glow(l);  // default AE cinematic glow (inner 4 / mid 14 / bloom 34)
             l.text("t", make_test_text("CHRONON3D GLOW TEST", 0.0f, {.font_size = 72.0f}));
         });
 
-        bottom_label(s, "TEST 1 — TextGlowSpec V2: inner 4 / mid 14 / bloom 34 + micro shadow");
+        bottom_label(s, "TEST 1 — AeGlowOptions default: inner 4 / mid 14 / bloom 34 + micro shadow");
         return s.build();
     });
 }
@@ -107,14 +102,9 @@ Composition glow_radius_compare_test() {
             s.layer("txt_" + std::string{p.label}, [p](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
                 l.position(p.pos);
-                auto glow = TextGlowPresets::ae_cinematic_white();
-                glow.inner_radius    = p.inner;
-                glow.mid_radius      = p.mid;
-                glow.bloom_radius    = p.bloom;
-                glow.inner_intensity = 0.55f;
-                glow.mid_intensity   = 0.22f;
-                glow.bloom_intensity = 0.08f;
-                l.glow(glow.to_glow_params());
+                apply_ae_glow(l, AeGlowOptions{
+                    .inner_radius = p.inner, .mid_radius = p.mid, .bloom_radius = p.bloom
+                });
                 l.text("t", {
                     .text = "GLOW",
                     .size = {420.0f, 110.0f},
@@ -165,15 +155,14 @@ Composition glow_typewriter_reveal_test() {
             l.opacity(p);
             // Bloom starts BIG and shrinks to the recommended V2 radii
             const f32 settle = 1.0f - std::max(0.0f, p - 0.5f) * 2.0f;  // 1→0 over second half
-            auto glow = TextGlowPresets::ae_cinematic_white();
-            glow.inner_radius    = 4.0f + settle * 8.0f;   // overshoots 4 → 12
-            glow.mid_radius      = 14.0f + settle * 16.0f;  // overshoots 14 → 30
-            glow.bloom_radius    = 34.0f + settle * 30.0f;  // overshoots 34 → 64
-            glow.inner_intensity = 0.55f + settle * 0.20f; // brighter during flash
-            glow.mid_intensity   = 0.22f + settle * 0.15f;
-            glow.bloom_intensity = 0.08f + settle * 0.10f;
-            l.glow(glow.to_glow_params());
-            if (glow.micro_shadow) l.drop_shadow(glow.micro_shadow_offset, glow.micro_shadow_color, glow.micro_shadow_radius);
+            apply_ae_glow(l, AeGlowOptions{
+                .inner_radius    = 4.0f + settle * 8.0f,
+                .mid_radius      = 14.0f + settle * 16.0f,
+                .bloom_radius    = 34.0f + settle * 30.0f,
+                .inner_intensity = 0.55f + settle * 0.20f,
+                .mid_intensity   = 0.22f + settle * 0.15f,
+                .bloom_intensity = 0.08f + settle * 0.10f,
+            });
             l.text("t", make_test_text(kRevealText, 0.0f, {.font_size = 42.0f}));
         });
 
@@ -203,14 +192,7 @@ Composition glow_shadow_balance_test() {
             s.layer("txt_" + std::string{p.label}, [p](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
                 l.position(p.pos);
-                auto glow = TextGlowPresets::ae_cinematic_white();
-                glow.inner_radius    = 4.0f;
-                glow.mid_radius      = 14.0f;
-                glow.bloom_radius    = 34.0f;
-                glow.inner_intensity = 0.55f;
-                glow.mid_intensity   = 0.22f;
-                glow.bloom_intensity = 0.08f;
-                l.glow(glow.to_glow_params());
+                apply_ae_glow(l, AeGlowOptions{.micro_shadow = false});
                 // Varied shadow per panel
                 if (p.blur > 0.0f) {
                     l.drop_shadow({0.0f, 4.0f},
