@@ -21,10 +21,8 @@ target_link_libraries(chronon3d_graph_core
         TBB::tbb       # tbb::task_arena in graph_executor.hpp
     # PRIVATE: only used in .cpp files, not exposed in public API
     PRIVATE
-        fmt::fmt
-        hwy::hwy
-        tomlplusplus::tomlplusplus
-)
+        fmt::fmt        hwy::hwy
+    )
 target_precompile_headers(chronon3d_graph_core PRIVATE
     <glm/glm.hpp>
     <glm/gtc/matrix_transform.hpp>

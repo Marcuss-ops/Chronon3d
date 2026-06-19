@@ -15,7 +15,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     auto state = std::make_shared<RenderState>();
     auto& args = *state->args;
 
-    auto* cmd = app.add_subcommand("render", "Render a composition id or .specscene file to image(s)");
+    auto* cmd = app.add_subcommand("render", "Render a composition id to image(s)");
     cmd->add_option("input", args.comp_id, "Composition name or .specscene path")->required();
     cmd->add_option("--frames", args.frames, "Frame range: 0 | 0-90 | 0-90x5");
     cmd->add_option("--frame", args.frames, "Single frame number (alias for --frames)");

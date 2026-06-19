@@ -48,9 +48,7 @@ target_link_libraries(chronon3d_scene
         chronon3d_effects
         chronon3d_backend_image
     PRIVATE
-        spdlog::spdlog_header_only
-        fmt::fmt
-        tomlplusplus::tomlplusplus
-)
+        spdlog::spdlog_header_only        fmt::fmt
+    )
 target_include_directories(chronon3d_scene PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_precompile_headers(chronon3d_scene PRIVATE <chronon3d/detail/pch.hpp>)
