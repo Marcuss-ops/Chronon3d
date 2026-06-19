@@ -125,7 +125,7 @@ struct ShotTimelineSession {
 class ShotTimelineResolver {
 public:
     explicit ShotTimelineResolver(std::shared_ptr<ShotTimeline> timeline,
-                                   const CameraTransitionCatalog* catalog = nullptr);
+                                   const class CameraTransitionCatalog* catalog = nullptr);
 
     /// Evaluate the camera at `frame` using the timeline + transitions.
     /// Uses local frame time (frame - shot.start_frame) for each shot's program.
