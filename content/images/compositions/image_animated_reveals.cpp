@@ -1,4 +1,3 @@
-#include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
@@ -144,5 +143,5 @@ Composition img_corner_smoothing() {
 
 } // namespace chronon3d::content::images
 
-// Compositions are registered via ImagesModule in images_module.cpp.
-// Do NOT also CHRONON_REGISTER_COMPOSITION here.
+// Compositions are registered via content::images::register_image_compositions()
+// (called by ContentExtension in content/register_content_modules.cpp).

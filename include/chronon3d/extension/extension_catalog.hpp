@@ -4,7 +4,7 @@
 // extension_catalog.hpp — Value-type catalog for ExtensionModules.
 //
 // Replaces the old singleton ExtensionRegistry.  Create an instance,
-// register modules, call register_all(), and hand ownership to the
+// register modules, call register_all(ctx), and hand ownership to the
 // caller (e.g. PipelineCatalogs).
 //
 // Thread-safety: register_module() and register_all() are intended
@@ -19,6 +19,8 @@
 
 namespace chronon3d {
 
+struct ExtensionContext;
+
 /// Owns and orchestrates all extension modules.
 ///
 /// Plain value type — create one, populate it, freeze it (via
@@ -26,7 +28,7 @@ namespace chronon3d {
 ///
 ///     ExtensionCatalog catalog;
 ///     catalog.register_module(...);
-///     catalog.register_all();
+///     catalog.register_all(ctx);
 ///
 class ExtensionCatalog {
 public:
@@ -40,10 +42,10 @@ public:
     /// Register a module (takes ownership).
     void register_module(std::unique_ptr<ExtensionModule> module);
 
-    /// Call register_all() on every registered module, in registration
+    /// Call register_all(ctx) on every registered module, in registration
     /// order.  Idempotent — subsequent calls only process modules
     /// registered since the last call.
-    void register_all();
+    void register_all(ExtensionContext& ctx);
 
     /// Read-only access to registered modules (for diagnostics).
     [[nodiscard]] const std::vector<std::unique_ptr<ExtensionModule>>&

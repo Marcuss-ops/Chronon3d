@@ -10,6 +10,36 @@ using namespace chronon3d;
 #if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_2D5)
 #include <content/register_content_modules.hpp>
 #include <chronon3d/extension/extension_catalog.hpp>
+#include <chronon3d/extension/extension_context.hpp>
+#include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
+#include <chronon3d/effects/effect_catalog.hpp>
+#include <chronon3d/assets/asset_registry.hpp>
+#endif
+
+// ── Helper: register content into the given registry ─────────────────────────
+#if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_2D5)
+static void ensure_content_registered(CompositionRegistry& registry) {
+    static bool s_registered = false;
+    if (s_registered) return;
+    static ExtensionCatalog cat;
+    static graph::GraphNodeCatalog nodes;
+    static effects::EffectCatalog effects;
+    static AssetRegistry assets;
+    AssetRegistry::set_thread_local(assets);
+    ExtensionContext ctx{registry, nodes, effects, assets};
+    register_content_modules(cat, ctx);
+    s_registered = true;
+}
+#else
+// Stub when content modules are not compiled.
+// The cross-module smoke tests need at least built-in compositions.
+#include <chronon3d/core/composition/register_builtin_compositions.hpp>
+static void ensure_content_registered(CompositionRegistry& registry) {
+    static bool s_registered = false;
+    if (s_registered) return;
+    chronon3d::register_builtin_compositions(registry);
+    s_registered = true;
+}
 #endif
 
 
@@ -18,9 +48,8 @@ using namespace chronon3d;
 #ifdef CHRONON3D_HAS_CONTENT_2D5
 
 TEST_CASE("2D5: core 2.5D scenes evaluate frame 0") {
-    static ExtensionCatalog cat;
-    register_content_modules(cat);
     CompositionRegistry registry;
+    ensure_content_registered(registry);
 
     const std::vector<std::string> names = {
         "ParallaxSimple", "DepthScene", "CardFlip", "DofShowcase"
@@ -36,9 +65,8 @@ TEST_CASE("2D5: core 2.5D scenes evaluate frame 0") {
 
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 TEST_CASE("2D5: camera test compositions evaluate frame 0") {
-    static ExtensionCatalog cat;
-    register_content_modules(cat);
     CompositionRegistry registry;
+    ensure_content_registered(registry);
 
     const std::vector<std::string> names = {
         "CameraOrbitTargetLockTest", "CameraDollyPerspectiveScaleTest",
@@ -60,6 +88,7 @@ TEST_CASE("2D5: camera test compositions evaluate frame 0") {
 
 TEST_CASE("All registered compositions: every available composition evaluates frame 0") {
     CompositionRegistry registry;
+    ensure_content_registered(registry);
     auto ids = registry.available();
 
     REQUIRE(ids.size() > 0);
@@ -76,6 +105,7 @@ TEST_CASE("All registered compositions: every available composition evaluates fr
 
 TEST_CASE("All registered compositions: evaluate at mid-duration frame") {
     CompositionRegistry registry;
+    ensure_content_registered(registry);
     auto ids = registry.available();
 
     for (const auto& name : ids) {

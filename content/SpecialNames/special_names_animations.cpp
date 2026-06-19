@@ -1,4 +1,4 @@
-#include <chronon3d/core/composition/composition_registration.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
@@ -170,17 +170,17 @@ Composition special_name_typewriter() {
 // ═════════════════════════════════════════════════════════════════════════════
 
 // ── Per-domain registration ──────────────────────────────────────────────────
-void register_special_name_compositions() {
+void register_special_name_compositions(CompositionRegistry& registry) {
     static bool done = false;
     if (done) return;
     done = true;
-    detail::add_builtin_composition("SpecialNameFadeUp",    special_name_fade_up);
-    detail::add_builtin_composition("SpecialNameSlideLeft", special_name_slide_left);
-    detail::add_builtin_composition("SpecialNameSlideRight",special_name_slide_right);
-    detail::add_builtin_composition("SpecialNameScaleIn",   special_name_scale_in);
-    detail::add_builtin_composition("SpecialNameStamp",     special_name_stamp);
-    detail::add_builtin_composition("SpecialNameBlurIn",    special_name_blur_in);
-    detail::add_builtin_composition("SpecialNameTypewriter", special_name_typewriter);
+    registry.add("SpecialNameFadeUp", [](const CompositionProps&) { return special_name_fade_up(); });
+    registry.add("SpecialNameSlideLeft", [](const CompositionProps&) { return special_name_slide_left(); });
+    registry.add("SpecialNameSlideRight", [](const CompositionProps&) { return special_name_slide_right(); });
+    registry.add("SpecialNameScaleIn", [](const CompositionProps&) { return special_name_scale_in(); });
+    registry.add("SpecialNameStamp", [](const CompositionProps&) { return special_name_stamp(); });
+    registry.add("SpecialNameBlurIn", [](const CompositionProps&) { return special_name_blur_in(); });
+    registry.add("SpecialNameTypewriter", [](const CompositionProps&) { return special_name_typewriter(); });
 }
 
 } // namespace chronon3d::content::special_names

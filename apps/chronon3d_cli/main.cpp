@@ -33,13 +33,11 @@ int main(int argc, char** argv) {
     CLI::App app{"Chronon3d CLI - Motion Graphics Engine"};
     app.require_subcommand(1);
 
-    // Initialize content compositions via the init hook
-    // (Must happen before CompositionRegistry construction so
-    //  compositions are in the static builtin_composition_entries()
-    //  when populate() is called.)
-    chronon3d::cli::init_content_modules();
-
+    // Register content and built-in compositions into the registry.
+    // (CompositionRegistry now starts empty — compositions are added
+    //  explicitly via init_compositions()).
     chronon3d::CompositionRegistry registry;
+    chronon3d::cli::init_compositions(registry);
     int exit_code = 0;
     chronon3d::cli::CliContext ctx{registry, exit_code, std::move(cmd_line)};
 

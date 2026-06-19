@@ -1,7 +1,7 @@
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/vector/path_factories.hpp>
-#include <chronon3d/core/composition/composition_registration.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 
 
 namespace chronon3d::content::shapes {
@@ -676,12 +676,12 @@ Composition shape_proofs() {
 Composition shape_motion_proofs();
 
 // ── Per-domain registration ──────────────────────────────────────────────────
-void register_shape_compositions() {
+void register_shape_compositions(CompositionRegistry& registry) {
     static bool done = false;
     if (done) return;
     done = true;
-    detail::add_builtin_composition("ShapeProofs",       shape_proofs);
-    detail::add_builtin_composition("ShapeMotionProofs", shape_motion_proofs);
+    registry.add("ShapeProofs", [](const CompositionProps&) { return shape_proofs(); });
+    registry.add("ShapeMotionProofs", [](const CompositionProps&) { return shape_motion_proofs(); });
 }
 
 } // namespace chronon3d::content::shapes

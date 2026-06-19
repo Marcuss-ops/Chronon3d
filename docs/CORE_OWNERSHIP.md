@@ -4,6 +4,8 @@ Questo documento definisce le zone architetturali, i contratti fondamentali e le
 
 Fare riferimento a `docs/ARCHITECTURE_EVOLUTION_PLAN.md` per il contesto architetturale completo.
 
+**Regole anti-duplicazione vincolanti:** [`docs/ANTI_DUPLICATION_RULES.md`](ANTI_DUPLICATION_RULES.md) — 20 regole, source-of-truth table, gate obbligatorio, checklist PR.
+
 ---
 
 ## 1. Zone Architetturali
@@ -343,10 +345,30 @@ ctest --test-dir build/chronon/linux-debug --output-on-failure -R "render_graph|
 - [ ] Test mirati passano (`ctest -R "render_graph|scene|specscene|cache"`)
 - [ ] Nessuna modifica non correlata nello stesso commit
 - [ ] Refactor e feature separati in commit distinti
+- [ ] Checklist anti-duplicazione completata (vedi [`ANTI_DUPLICATION_RULES.md`](ANTI_DUPLICATION_RULES.md))
 
 ---
 
-## 6. File Storicamente Caldi
+## 6. Singleton Pre-Esistenti — Da Migrare
+
+⚠️ I seguenti singleton violano la Regola 3 di `ANTI_DUPLICATION_RULES.md`.
+Sono tollerati come legacy ma **nessun nuovo singleton può essere aggiunto**.
+
+| Singleton | File | Piano migrazione |
+|---|---|---|
+| `AssetRegistry::instance()` | `include/chronon3d/assets/asset_registry.hpp` | PR 3 — `AssetResolver` passato via `ExtensionContext` |
+| `ShapeRegistry::instance()` | `include/chronon3d/registry/shape_registry.hpp` | Da passare via `ExtensionContext` o `PipelineCatalogs` |
+| `GraphBuildRegistry::instance()` | `include/chronon3d/render_graph/builder/graph_build_registry.hpp` | Da passare via `RenderGraphContext` |
+| `LayerCommandRegistry::instance()` | `include/chronon3d/scene/builders/layer_command_registry.hpp` | Da passare via `SceneBuilder` context |
+| `SceneValidationRegistry::instance()` | `include/chronon3d/scene/validation/scene_validation_registry.hpp` | Da passare via `ExtensionContext` |
+| `MotionPresetRegistry::instance()` | `include/chronon3d/presets/motion_preset_registry.hpp` | Da passare via `ExtensionContext` |
+| `ChartRegistry::instance()` | `include/chronon3d/motion_studio/chart/chart_registry.hpp` | Feature Zone — da valutare se necessario |
+
+**Regola:** Ogni nuovo PR che tocca uno di questi file deve includere il piano di de-singletonizzazione o giustificare perché non è ancora possibile.
+
+---
+
+## 7. File Storicamente Caldi
 
 Monitorare questi file — se continuano a salire in `git log`, estrarre un extension point:
 

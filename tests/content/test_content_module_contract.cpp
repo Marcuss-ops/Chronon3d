@@ -1,5 +1,4 @@
 #include <doctest/doctest.h>
-#include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 
 #include <algorithm>
@@ -11,6 +10,34 @@ using namespace chronon3d;
 #if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_2D5)
 #include <content/register_content_modules.hpp>
 #include <chronon3d/extension/extension_catalog.hpp>
+#include <chronon3d/extension/extension_context.hpp>
+#include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
+#include <chronon3d/effects/effect_catalog.hpp>
+#include <chronon3d/assets/asset_registry.hpp>
+#endif
+
+// ── Helper: register content into the given registry ─────────────────────────
+#if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_2D5)
+static void ensure_content_registered(CompositionRegistry& registry) {
+    static bool s_registered = false;
+    if (s_registered) return;
+    static ExtensionCatalog cat;
+    static graph::GraphNodeCatalog nodes;
+    static effects::EffectCatalog effects;
+    static AssetRegistry assets;
+    AssetRegistry::set_thread_local(assets);
+    ExtensionContext ctx{registry, nodes, effects, assets};
+    register_content_modules(cat, ctx);
+    s_registered = true;
+}
+
+// Return the shared catalog for idempotency tests
+static ExtensionCatalog& shared_content_catalog() {
+    static ExtensionCatalog cat;
+    static graph::GraphNodeCatalog nodes;
+    static effects::EffectCatalog effects;
+    return cat;
+}
 #endif
 
 
@@ -19,11 +46,19 @@ using namespace chronon3d;
 #ifdef CHRONON3D_HAS_CONTENT_2D5
 
 TEST_CASE("2D5 content: idempotent registration") {
-    static ExtensionCatalog cat;
-    register_content_modules(cat);
-    register_content_modules(cat);
-    register_content_modules(cat);
     CompositionRegistry registry;
+    auto& cat = shared_content_catalog();
+    static graph::GraphNodeCatalog nodes;
+    static effects::EffectCatalog effects;
+    static AssetRegistry assets;
+    AssetRegistry::set_thread_local(assets);
+    ExtensionContext ctx{registry, nodes, effects, assets};
+    // register_content_modules is idempotent — subsequent calls are no-ops
+    // because the catalog contains the module after the first call.
+    register_content_modules(cat, ctx);
+    register_content_modules(cat, ctx);
+    register_content_modules(cat, ctx);
+    // Duplicate entries in the registry throw, so we test the catalog guards.
     auto ids = registry.available();
     // Repeated calls to register_content_modules() must not produce duplicates.
     std::set<std::string> unique(ids.begin(), ids.end());
@@ -31,9 +66,8 @@ TEST_CASE("2D5 content: idempotent registration") {
 }
 
 TEST_CASE("2D5 content: core 2.5D scenes are available") {
-    static ExtensionCatalog cat;
-    register_content_modules(cat);
     CompositionRegistry registry;
+    ensure_content_registered(registry);
 
     CHECK(registry.contains("ParallaxSimple"));
     CHECK(registry.contains("DepthScene"));
@@ -43,9 +77,8 @@ TEST_CASE("2D5 content: core 2.5D scenes are available") {
 
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 TEST_CASE("2D5 module: camera test compositions are available") {
-    static ExtensionCatalog cat;
-    register_content_modules(cat);
     CompositionRegistry registry;
+    ensure_content_registered(registry);
 
     CHECK(registry.contains("CameraOrbitTargetLockTest"));
     CHECK(registry.contains("CameraDollyPerspectiveScaleTest"));
@@ -70,6 +103,7 @@ TEST_CASE("2D5 module: camera test compositions are available") {
 
 TEST_CASE("All content modules: CompositionRegistry contains no duplicates after registration") {
     CompositionRegistry registry;
+    ensure_content_registered(registry);
     auto ids = registry.available();
 
     std::set<std::string> unique(ids.begin(), ids.end());
@@ -78,6 +112,7 @@ TEST_CASE("All content modules: CompositionRegistry contains no duplicates after
 
 TEST_CASE("All content modules: available list is sorted (std::map guarantee)") {
     CompositionRegistry registry;
+    ensure_content_registered(registry);
     auto ids = registry.available();
 
     for (size_t i = 1; i < ids.size(); ++i) {

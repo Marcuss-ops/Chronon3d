@@ -17,7 +17,6 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 
 #include <chronon3d/core/composition/composition_registry.hpp>
-#include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/core/types/frame_context.hpp>

@@ -1,4 +1,4 @@
-#include <chronon3d/core/composition/composition_registration.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
@@ -292,36 +292,36 @@ Composition camera_yaw_positive_test();
 Composition camera_yaw_negative_test();
 #endif
 
-void register_2d5_compositions() {
+void register_2d5_compositions(CompositionRegistry& registry) {
     static bool done = false;
     if (done) return;
     done = true;
     // Product compositions
-    detail::add_builtin_composition("ParallaxSimple",  parallax_simple);
-    detail::add_builtin_composition("DepthScene",      depth_scene);
-    detail::add_builtin_composition("CardFlip",        card_flip);
-    detail::add_builtin_composition("DofShowcase",     dof_showcase);
+    registry.add("ParallaxSimple", [](const CompositionProps&) { return parallax_simple(); });
+    registry.add("DepthScene", [](const CompositionProps&) { return depth_scene(); });
+    registry.add("CardFlip", [](const CompositionProps&) { return card_flip(); });
+    registry.add("DofShowcase", [](const CompositionProps&) { return dof_showcase(); });
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
     // Diagnostic camera test compositions
-    detail::add_builtin_composition("CameraOrbitTargetLockTest",                camera_orbit_target_lock_test);
-    detail::add_builtin_composition("CameraDollyPerspectiveScaleTest",          camera_dolly_perspective_scale_test);
-    detail::add_builtin_composition("CameraParentNullRigTest",                  camera_parent_null_rig_test);
-    detail::add_builtin_composition("CameraRollPanTiltGridTest",                camera_roll_pan_tilt_grid_test);
-    detail::add_builtin_composition("CameraSafeFramingAspectRatioTest_16_9",    camera_safe_framing_aspect_ratio_16_9);
-    detail::add_builtin_composition("CameraSafeFramingAspectRatioTest_1_1",     camera_safe_framing_aspect_ratio_1_1);
-    detail::add_builtin_composition("CameraSafeFramingAspectRatioTest_9_16",    camera_safe_framing_aspect_ratio_9_16);
-    detail::add_builtin_composition("CameraSafeFramingAspectRatioTest_4_5",     camera_safe_framing_aspect_ratio_4_5);
-    detail::add_builtin_composition("CameraFrustumCullingPrecisionTest",        camera_frustum_culling_precision_test);
-    detail::add_builtin_composition("CameraKinematicJerkAndInterpolationTest",  camera_kinematic_jerk_interpolation_test);
-    detail::add_builtin_composition("CameraDepthSortingStressTest",             camera_depth_sorting_stress_test);
-    detail::add_builtin_composition("CameraSubpixelJitterValidationTest",       camera_subpixel_jitter_validation_test);
-    detail::add_builtin_composition("CameraMultiTargetBoundingBoxFitTest",      camera_multi_target_bounding_box_fit_test);
-    detail::add_builtin_composition("CameraDepthPerspectiveScaleDiagnosticTest",camera_depth_perspective_scale_diagnostic_test);
-    detail::add_builtin_composition("CameraCoordinateContractTest",             camera_coordinate_contract_test);
-    detail::add_builtin_composition("CameraBindingAnchorTest",                  camera_binding_anchor_test);
-    detail::add_builtin_composition("CameraFrontBaselineTest",                  camera_front_baseline_test);
-    detail::add_builtin_composition("CameraYawPositiveTest",                    camera_yaw_positive_test);
-    detail::add_builtin_composition("CameraYawNegativeTest",                    camera_yaw_negative_test);
+    registry.add("CameraOrbitTargetLockTest", [](const CompositionProps&) { return camera_orbit_target_lock_test(); });
+    registry.add("CameraDollyPerspectiveScaleTest", [](const CompositionProps&) { return camera_dolly_perspective_scale_test(); });
+    registry.add("CameraParentNullRigTest", [](const CompositionProps&) { return camera_parent_null_rig_test(); });
+    registry.add("CameraRollPanTiltGridTest", [](const CompositionProps&) { return camera_roll_pan_tilt_grid_test(); });
+    registry.add("CameraSafeFramingAspectRatioTest_16_9", [](const CompositionProps&) { return camera_safe_framing_aspect_ratio_16_9(); });
+    registry.add("CameraSafeFramingAspectRatioTest_1_1", [](const CompositionProps&) { return camera_safe_framing_aspect_ratio_1_1(); });
+    registry.add("CameraSafeFramingAspectRatioTest_9_16", [](const CompositionProps&) { return camera_safe_framing_aspect_ratio_9_16(); });
+    registry.add("CameraSafeFramingAspectRatioTest_4_5", [](const CompositionProps&) { return camera_safe_framing_aspect_ratio_4_5(); });
+    registry.add("CameraFrustumCullingPrecisionTest", [](const CompositionProps&) { return camera_frustum_culling_precision_test(); });
+    registry.add("CameraKinematicJerkAndInterpolationTest", [](const CompositionProps&) { return camera_kinematic_jerk_interpolation_test(); });
+    registry.add("CameraDepthSortingStressTest", [](const CompositionProps&) { return camera_depth_sorting_stress_test(); });
+    registry.add("CameraSubpixelJitterValidationTest", [](const CompositionProps&) { return camera_subpixel_jitter_validation_test(); });
+    registry.add("CameraMultiTargetBoundingBoxFitTest", [](const CompositionProps&) { return camera_multi_target_bounding_box_fit_test(); });
+    registry.add("CameraDepthPerspectiveScaleDiagnosticTest", [](const CompositionProps&) { return camera_depth_perspective_scale_diagnostic_test(); });
+    registry.add("CameraCoordinateContractTest", [](const CompositionProps&) { return camera_coordinate_contract_test(); });
+    registry.add("CameraBindingAnchorTest", [](const CompositionProps&) { return camera_binding_anchor_test(); });
+    registry.add("CameraFrontBaselineTest", [](const CompositionProps&) { return camera_front_baseline_test(); });
+    registry.add("CameraYawPositiveTest", [](const CompositionProps&) { return camera_yaw_positive_test(); });
+    registry.add("CameraYawNegativeTest", [](const CompositionProps&) { return camera_yaw_negative_test(); });
 #endif
 }
 

@@ -1,5 +1,5 @@
 #include <chronon3d/animations/camera_motion.hpp>
-#include <chronon3d/core/composition/composition_registration.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/composition/register_builtin_compositions.hpp>
 #include <chronon3d/presets/camera_motion_clip.hpp>
 #include <chronon3d/scene/utils/dark_grid_background.hpp>
@@ -43,8 +43,8 @@ void build_reference_image_content(SceneBuilder& s, const FrameContext& ctx, con
 
 namespace chronon3d {
 
-void register_camera_tilt_clip() {
-    detail::add_builtin_composition("CameraImageClip", []() {
+void register_camera_tilt_clip(CompositionRegistry& registry) {
+    registry.add("CameraImageClip", [](const CompositionProps&) {
         CameraMotionParams params;
         params.axis = animation::MotionAxis::Tilt;
         params.duration = 60;

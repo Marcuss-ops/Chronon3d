@@ -10,12 +10,14 @@
 #include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/extension/extension_module.hpp>
 #include <chronon3d/extension/extension_catalog.hpp>
+#include <chronon3d/extension/extension_context.hpp>
 #include <stdexcept>
 
 #ifdef CHRONON3D_BUILD_CONTENT
 // Forward declaration from content/register_content_modules.hpp.
 namespace chronon3d {
-    void register_content_modules(ExtensionCatalog& catalog);
+    void register_content_modules(ExtensionCatalog& catalog,
+                                   ExtensionContext& ctx);
 }
 #endif
 
@@ -24,21 +26,14 @@ namespace chronon3d::graph {
 namespace {
 
 /// ExtensionModule wrapping pipeline graph node registration.
-/// Takes the node catalog by reference so it can register factories
-/// without reaching into static globals.
+/// Receives ExtensionContext with all domain registries.
 class PipelineExtension final : public ExtensionModule {
 public:
-    explicit PipelineExtension(GraphNodeCatalog& node_catalog)
-        : m_node_catalog(&node_catalog) {}
-
     [[nodiscard]] std::string_view name() const override { return "pipeline"; }
 
-    void register_all() override {
-        register_pipeline_graph_nodes(*m_node_catalog);
+    void register_all(ExtensionContext& ctx) override {
+        register_pipeline_graph_nodes(ctx.graph_nodes);
     }
-
-private:
-    GraphNodeCatalog* m_node_catalog;
 };
 
 } // namespace
@@ -80,26 +75,42 @@ void register_pipeline_graph_nodes(GraphNodeCatalog& node_catalog) {
     });
 }
 
-PipelineCatalogs make_builtin_pipeline_catalogs() {
-    PipelineCatalogs catalogs;
-
+void populate_builtin_pipeline_catalogs(PipelineCatalogs& catalogs,
+                                         ExtensionContext& ctx) {
     // ── Pipeline graph-node extension ────────────────────────────
     catalogs.extensions.register_module(
-        std::make_unique<PipelineExtension>(catalogs.graph_nodes));
+        std::make_unique<PipelineExtension>());
 
     // ── Content extensions ───────────────────────────────────────
 #ifdef CHRONON3D_BUILD_CONTENT
-    register_content_modules(catalogs.extensions);
+    register_content_modules(catalogs.extensions, ctx);
 #endif
 
     // ── Run all extension modules ────────────────────────────────
-    catalogs.extensions.register_all();
+    catalogs.extensions.register_all(ctx);
 
     // ── Freeze domain catalogs ───────────────────────────────────
     catalogs.graph_nodes.freeze();
     catalogs.effects.freeze();
+}
 
-    return catalogs;
+void init_graph_pipeline_catalogs(PipelineCatalogs& catalogs) {
+    // ── Pipeline graph-node extension ────────────────────────────
+    catalogs.extensions.register_module(
+        std::make_unique<PipelineExtension>());
+
+    // ── Register pipeline graph nodes (no content/compositions) ──
+    // The ExtensionContext here is minimal — only graph_nodes is used.
+    // We create a temporary context; the PipelineExtension only
+    // uses ctx.graph_nodes.
+    // ── No content modules — graph coordinator doesn't need compositions ─
+
+    // ── Run pipeline extension (only graph node registration) ────
+    register_pipeline_graph_nodes(catalogs.graph_nodes);
+
+    // ── Freeze domain catalogs ───────────────────────────────────
+    catalogs.graph_nodes.freeze();
+    catalogs.effects.freeze();
 }
 
 void wire_precomp_build_factory(RenderGraphContext& ctx, const PipelineCatalogs& catalogs) {
