@@ -42,18 +42,18 @@ TEST_CASE("cache_policy: zero override falls through to default") {
     // Passing 0 means "use default" (matches constructor semantics).
     auto policy = resolve_cache_policy(CacheDomain::ConvertedFrames,
                                         std::optional<std::size_t>(0));
-    // Default for ConvertedFrames is 8 entries.
-    CHECK(policy.capacity == 8);
-    CHECK(policy.unit == CacheCapacityUnit::Entries);
+    // Default for ConvertedFrames is 128 MiB (byte-weighted, PR3).
+    CHECK(policy.capacity == 128ULL * 1024ULL * 1024ULL);
+    CHECK(policy.unit == CacheCapacityUnit::Bytes);
 }
 
 TEST_CASE("cache_policy: capacity_mode_for maps Bytes → Weight, Entries → Count") {
     // NodeCache uses Bytes → Weight.
     CHECK(capacity_mode_for(CacheDomain::Nodes) == CapacityMode::Weight);
+    // RenderedFrames moved to Bytes → Weight (PR3 byte budgets).
+    CHECK(capacity_mode_for(CacheDomain::RenderedFrames) == CapacityMode::Weight);
     // SceneProgramCache uses Entries → Count.
     CHECK(capacity_mode_for(CacheDomain::ScenePrograms) == CapacityMode::Count);
-    // FrameCache uses Entries → Count.
-    CHECK(capacity_mode_for(CacheDomain::RenderedFrames) == CapacityMode::Count);
 }
 
 TEST_CASE("cache_policy: each domain has a consistent unit") {
@@ -61,9 +61,11 @@ TEST_CASE("cache_policy: each domain has a consistent unit") {
     CHECK(resolve_cache_policy(CacheDomain::Nodes).unit == CacheCapacityUnit::Bytes);
     CHECK(resolve_cache_policy(CacheDomain::Images).unit == CacheCapacityUnit::Bytes);
     CHECK(resolve_cache_policy(CacheDomain::Glow).unit == CacheCapacityUnit::Bytes);
+    // RenderedFrames, VideoFrames, ConvertedFrames moved to Bytes (PR3).
+    CHECK(resolve_cache_policy(CacheDomain::RenderedFrames).unit == CacheCapacityUnit::Bytes);
+    CHECK(resolve_cache_policy(CacheDomain::VideoFrames).unit == CacheCapacityUnit::Bytes);
+    CHECK(resolve_cache_policy(CacheDomain::ConvertedFrames).unit == CacheCapacityUnit::Bytes);
 
     // Count-limited domains.
-    CHECK(resolve_cache_policy(CacheDomain::RenderedFrames).unit == CacheCapacityUnit::Entries);
-    CHECK(resolve_cache_policy(CacheDomain::VideoFrames).unit == CacheCapacityUnit::Entries);
     CHECK(resolve_cache_policy(CacheDomain::ScenePrograms).unit == CacheCapacityUnit::Entries);
 }

@@ -62,6 +62,7 @@ add_executable(chronon3d_core_tests
     text/test_text_bidi.cpp
     text/glyph_selector_tests.cpp
     media/test_media_placement.cpp
+    core/test_result.cpp
     core/test_scene_hasher_camera.cpp
     render_graph/executor/test_cache_key_contract.cpp
     render_graph/executor/test_framebuffer_lifetime.cpp

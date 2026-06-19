@@ -99,6 +99,14 @@ public:
     void set_composition_registry(const CompositionRegistry* registry) { m_registry = registry; }
     [[nodiscard]] const CompositionRegistry* composition_registry() const { return m_registry; }
 
+    /// Apply per-pixel depth-of-field blur (RenderBackend contract).
+    void apply_per_pixel_dof(
+        Framebuffer& framebuffer,
+        std::span<const float> depth,
+        const DepthOfFieldSettings& dof,
+        const LensModel& lens,
+        const std::optional<raster::BBox>& clip) override;
+
     [[nodiscard]] ImageRenderer& image_renderer() { return m_image_renderer; }
     [[nodiscard]] cache::NodeCache& node_cache() { return m_cache_state.node_cache; }
     [[nodiscard]] const RenderSettings& render_settings() const { return m_settings; }
@@ -232,8 +240,8 @@ public:
     [[nodiscard]] const RendererBufferRing& buffer_ring() const { return m_session.buffer_ring; }
     [[nodiscard]] TransformScratchBuffer& scratch_buffer() { return m_session.scratch_buffer; }
     [[nodiscard]] const TransformScratchBuffer& scratch_buffer() const { return m_session.scratch_buffer; }
-    [[nodiscard]] CompiledGraphCache& graph_cache() { return m_cache_state.graph_cache; }
-    [[nodiscard]] const CompiledGraphCache& graph_cache() const { return m_cache_state.graph_cache; }
+    [[nodiscard]] graph::CompiledGraphCache& graph_cache() { return m_cache_state.graph_cache; }
+    [[nodiscard]] const graph::CompiledGraphCache& graph_cache() const { return m_cache_state.graph_cache; }
 
 private:
     ImageRenderer     m_image_renderer;

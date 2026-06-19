@@ -121,5 +121,4 @@ add_library(chronon3d_pipeline INTERFACE)
 target_link_libraries(chronon3d_pipeline INTERFACE
     chronon3d_core
     chronon3d_software
-    Taskflow::Taskflow
 )

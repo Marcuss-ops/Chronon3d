@@ -4,7 +4,7 @@
 #include <memory>
 #include <optional>
 
-namespace chronon3d {
+namespace chronon3d::graph {
 
 /**
  * CompiledGraphCache — RAII owner of the cached compiled render graph.
@@ -24,10 +24,10 @@ public:
 
     /// Try to take the cached graph if dimensions match.
     /// On success, the internal cache is cleared (single-use).
-    [[nodiscard]] std::optional<graph::CompiledFrameGraph> try_take(int width, int height);
+    [[nodiscard]] std::optional<CompiledFrameGraph> try_take(int width, int height);
 
     /// Store a new compiled graph for next-frame reuse.
-    void store(graph::CompiledFrameGraph&& compiled, int width, int height);
+    void store(CompiledFrameGraph&& compiled, int width, int height);
 
     /// Check whether a cached graph exists for the given dimensions.
     [[nodiscard]] bool has(int width, int height) const noexcept;
@@ -36,9 +36,9 @@ public:
     void reset();
 
 private:
-    std::unique_ptr<graph::CompiledFrameGraph> m_cached;
+    std::unique_ptr<CompiledFrameGraph> m_cached;
     int m_cached_width{0};
     int m_cached_height{0};
 };
 
-} // namespace chronon3d
+} // namespace chronon3d::graph

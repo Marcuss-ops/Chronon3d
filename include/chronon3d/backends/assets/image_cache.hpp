@@ -38,6 +38,10 @@ public:
         return instance().get_or_load_shared(path);
     }
 
+    /// Inject capacity at startup (called once by SoftwareRenderer).
+    /// Must be called before first use of the cache.
+    static void set_capacity_bytes(size_t capacity_bytes);
+
     void set_backend(std::shared_ptr<image::ImageBackend> backend) {
         // unique_lock because we mutate the backend pointer
         std::unique_lock<std::shared_mutex> lock(m_backend_mutex);

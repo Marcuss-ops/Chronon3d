@@ -197,7 +197,7 @@ int command_camera_path(const CompositionRegistry& registry,
 
         const auto& cam = scene.camera_2_5d();
         PathSample s;
-        s.frame      = f;
+        s.frame      = static_cast<int>(f);
         s.position   = cam.position;
         s.rotation   = cam.rotation;
         s.zoom       = cam.zoom;
@@ -219,7 +219,7 @@ int command_camera_path(const CompositionRegistry& registry,
     compute_metrics(samples, metrics);
 
     // ── Print terminal summary ──────────────────────────────────────────────
-    print_summary(args.comp_id, metrics, start, end, step);
+    print_summary(args.comp_id, metrics, static_cast<int>(start), static_cast<int>(end), step);
 
     // ── Export if output path specified ──────────────────────────────────────
     if (!args.output.empty()) {
@@ -233,7 +233,7 @@ int command_camera_path(const CompositionRegistry& registry,
         if (fmt_str == "csv") {
             ok = write_csv(args.output, samples);
         } else {
-            ok = write_json(args.output, args.comp_id, start, end, step, samples, metrics);
+            ok = write_json(args.output, args.comp_id, static_cast<int>(start), static_cast<int>(end), step, samples, metrics);
         }
 
         if (ok) {

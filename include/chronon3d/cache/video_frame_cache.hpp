@@ -100,8 +100,8 @@ public:
     [[nodiscard]] LruCache<VideoFrameKey, Value, VideoFrameKeyHash>::Stats stats() const;
 
 private:
-    LruCache<VideoFrameKey, Value, VideoFrameKeyHash> m_cache;
     CacheDiagnostics::Handle m_diag_handle;
+    LruCache<VideoFrameKey, Value, VideoFrameKeyHash> m_cache;
 };
 
 } // namespace chronon3d::cache

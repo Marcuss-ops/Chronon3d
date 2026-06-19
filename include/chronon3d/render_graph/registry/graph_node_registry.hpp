@@ -10,6 +10,7 @@
 namespace chronon3d::graph {
 
 class RenderGraphNode;
+struct GraphNodeCreateRequest;
 
 /// Descriptor for a render graph node type that can be registered.
 struct GraphNodeDescriptor {
@@ -19,7 +20,10 @@ struct GraphNodeDescriptor {
     std::string category;      // grouping (e.g. "transform", "effect", "source", "composite")
     bool        builtin{false};
 
-    using NodeFactory = std::function<std::unique_ptr<RenderGraphNode>()>;
+    /// Parameterized factory — receives the creation request.
+    using NodeFactory = std::function<
+        std::unique_ptr<RenderGraphNode>(const GraphNodeCreateRequest&)
+    >;
     NodeFactory factory{};
 };
 
@@ -55,8 +59,14 @@ public:
     /// Get all registered descriptors in a given category.
     [[nodiscard]] std::vector<GraphNodeDescriptor> list_by_category(std::string_view category) const;
 
-    /// Create a node instance by id (returns nullptr if not found or no factory).
+    /// Create a node instance by id with an empty request.
+    /// Backward-compatible with existing parameterless factories.
     [[nodiscard]] std::unique_ptr<RenderGraphNode> create(std::string_view id) const;
+
+    /// Create a node instance by id with a parameterized request.
+    /// Returns nullptr if not found or no factory.
+    [[nodiscard]] std::unique_ptr<RenderGraphNode> create(
+        std::string_view id, const GraphNodeCreateRequest& request) const;
 
     /// Clear all registered nodes (used in tests for clean reset).
     void clear();

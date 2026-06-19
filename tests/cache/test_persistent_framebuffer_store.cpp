@@ -370,6 +370,7 @@ TEST_CASE("PersistentFramebufferStore - opaque flag preserved") {
 
     Framebuffer fb(32, 32);
     fb.set_opaque(true);
+<<<<<<< HEAD
     auto key = make_test_key(0x0AE00001);
     store.put(key, fb);
 

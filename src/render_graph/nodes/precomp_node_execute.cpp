@@ -26,7 +26,7 @@
 #include <chronon3d/render_graph/compiler/scene_binding.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 
-#include "scene_refresh.hpp"
+#include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
 #include "../builder/graph_builder_internal.hpp"
 
 namespace chronon3d::graph {

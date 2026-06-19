@@ -8,7 +8,6 @@ add_library(chronon3d_backend_software STATIC
     software_renderer.cpp
     buffer_ring.cpp
     scratch_buffer.cpp
-    graph_cache.cpp
 )
 set_target_properties(chronon3d_backend_software PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_backend_software
@@ -28,6 +27,9 @@ target_link_libraries(chronon3d_backend_software
         # text_run_processor.cpp calls compute_text_run_world_bbox() which
         # now lives in chronon3d_text_core (text_run_geometry.cpp).
         chronon3d_text_core
+        # blend2d_paint.cpp extracted to shared target (used by both backend_software
+        # and backend_text via text_run_processor.cpp and text_rasterizer_render.cpp)
+        chronon3d_blend2d_paint
 )
 if(CHRONON3D_USE_BLEND2D)
     target_link_libraries(chronon3d_backend_software PUBLIC blend2d::blend2d)
