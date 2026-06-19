@@ -24,8 +24,8 @@ public:
                    cache::NodeCacheKey key)
         : m_type(type), m_name("matte:" + target_name), m_key(std::move(key)) {}
 
-    RenderGraphNodeKind kind()   const override { return RenderGraphNodeKind::TrackMatte; }
-    std::string         name()   const override { return m_name; }
+    RenderGraphNodeKind kind()   const noexcept override { return RenderGraphNodeKind::TrackMatte; }
+    std::string_view     name()   const noexcept override { return m_name; }
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext&,
@@ -53,7 +53,7 @@ public:
         };
     }
 
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
         return CacheFramePolicy::FrameInvariant;
     }
 

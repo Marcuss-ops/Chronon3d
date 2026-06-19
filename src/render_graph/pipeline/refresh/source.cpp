@@ -14,11 +14,11 @@ void refresh_source_node(
     const std::unordered_map<std::string, bool>& is_static_cache,
     RenderGraphContext& ctx)
 {
-    const std::string layer_id = node.layer_id();
+    const std::string layer_id{node.layer_id()};
 
     // ── Case 1: Root-level source (no layer) ──────────────────────────
     if (layer_id.empty()) {
-        const auto it = root_nodes_by_name.find(node.name());
+        const auto it = root_nodes_by_name.find(std::string{node.name()});
         if (it == root_nodes_by_name.end()) return;
         const RenderNode& src_node = *it->second;
         cache::NodeCacheKey key{

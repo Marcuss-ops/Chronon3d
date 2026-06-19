@@ -2,7 +2,8 @@
 
 // ── cache_diagnostics.hpp — Runtime cache diagnostics service ────────────
 //
-// PR 7 (cache-diagnostics) — non-owning registry that cache facades register
+// cache_diagnostics.hpp — Non-owning runtime registry for cache diagnostics.
+// Cache facades register themselves to enable snapshot and clear-by-domain.
 // with at construction time.  Provides:
 //   - snapshot()          — aggregate stats for all registered caches
 //   - snapshot_by_domain()— stats for a single CacheDomain

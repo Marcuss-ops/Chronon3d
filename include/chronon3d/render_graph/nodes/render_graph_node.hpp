@@ -55,20 +55,6 @@ enum class RenderGraphNodeKind {
     TrackMatte,
     Output,
     Transition,
-    // ── PR 3 (TextAnimator V2 integration) ────────────────────────
-    // After Effects-style batched text node.  Owns a TextRunShape
-    // (immutable layout + per-glyph animated state) and is rendered
-    // by the SoftwareTextRunProcessor (text_run_processor.cpp::draw_text_run).
-    //
-    // Distinct from SourceNode because:
-    //   1. The geometry is computed per-glyph (not per-quote shape).
-    //   2. The processor is dedicated (`renderer::draw_text_run`).
-    //   3. Predicted bbox uses the 2.5D-aware
-    //      `renderer::compute_text_run_world_bbox`.
-    //
-    // Mirrors SourceNode for cache_key / execute / predicted_bbox
-    // ownership semantics; the difference is the storage of the run-
-    // shape and the rendering backend route.  See text_run_node.hpp.
     TextRun
 };
 
@@ -92,22 +78,22 @@ public:
         return predicted_bbox(ctx);
     }
     
-    virtual RenderGraphNodeKind kind() const = 0;
-    [[nodiscard]] virtual std::string name() const = 0;
+    virtual RenderGraphNodeKind kind() const noexcept = 0;
+    [[nodiscard]] virtual std::string_view name() const noexcept = 0;
 
-    [[nodiscard]] std::string layer_id() const { return m_layer_id; }
+    [[nodiscard]] std::string_view layer_id() const noexcept { return m_layer_id; }
     void set_layer_id(std::string id) { m_layer_id = std::move(id); }
 
-    [[nodiscard]] virtual bool cacheable() const { return true; }
+    [[nodiscard]] virtual bool cacheable() const noexcept { return true; }
 
     /// Returns true when the node can serve as a fully opaque full-frame seed
     /// for the first layer in a composition. This lets the builder skip the
     /// initial clear/composite pass for static full-frame backgrounds.
-    [[nodiscard]] virtual bool can_seed_full_frame(const RenderGraphContext&) const {
+    [[nodiscard]] virtual bool can_seed_full_frame(const RenderGraphContext&) const noexcept {
         return false;
     }
 
-    [[nodiscard]] virtual CacheFramePolicy cache_frame_policy() const {
+    [[nodiscard]] virtual CacheFramePolicy cache_frame_policy() const noexcept {
         return CacheFramePolicy::FrameDependent;
     }
 
@@ -130,7 +116,7 @@ public:
         };
     }
 
-    [[nodiscard]] bool frame_dependent() const { return m_frame_dependent; }
+    [[nodiscard]] bool frame_dependent() const noexcept { return m_frame_dependent; }
     void set_frame_dependent(bool value) { m_frame_dependent = value; }
 
     [[nodiscard]] virtual cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const = 0;

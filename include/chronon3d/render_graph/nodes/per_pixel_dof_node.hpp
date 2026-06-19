@@ -28,10 +28,10 @@ public:
     explicit PerPixelDofNode(Camera2_5DRuntime camera)
         : m_camera(std::move(camera)) {}
 
-    RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Effect; }
-    std::string name() const override { return "PerPixelDOF"; }
+    RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
+    std::string_view name() const noexcept override { return "PerPixelDOF"; }
 
-    [[nodiscard]] bool cacheable() const override { return true; }
+    [[nodiscard]] bool cacheable() const noexcept override { return true; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{

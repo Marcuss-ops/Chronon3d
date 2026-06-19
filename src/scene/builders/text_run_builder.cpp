@@ -9,7 +9,7 @@ namespace chronon3d {
 
 // ── Private ctor ────────────────────────────────────────────────────────
 
-TextRunBuilder::TextRunBuilder(LayerBuilder* parent, TextRunBuildSpec* spec)
+TextRunBuilder::TextRunBuilder(LayerBuilder* parent, TextRunPendingSpec* spec)
     : m_parent(parent), m_spec(spec) {}
 
 // ── Internal helpers ────────────────────────────────────────────────────
@@ -27,9 +27,7 @@ GlyphSelectorSpec TextRunBuilder::make_global_glyph_selector(std::string id) {
 }
 
 void TextRunBuilder::append_animator(TextAnimatorSpec spec) {
-    // `m_spec->pending` is the canonical composable TextRunSpec (formerly
-    // `TextRunParams`).  `pending.animators` lives at the top level of that spec.
-    m_spec->pending.animators.push_back(std::move(spec));
+    m_spec->params.animators.push_back(std::move(spec));
 }
 
 // ── Per-glyph mutators (inject implicit animator) ───────────────────────
@@ -91,11 +89,11 @@ TextRunBuilder& TextRunBuilder::scale(Vec3 s) {
 }
 
 TextRunBuilder& TextRunBuilder::font_size(f32 v) {
-    // Font size is a deep-text-spec field (it affects HarfBuzz
+    // Font size is a TextRunParams-level field (it affects HarfBuzz
     // shaping), not a per-frame animated glyph property.  Mutating it
     // here does NOT animate; it updates the base parameter and will
     // invalidate the layout cache on the next commit.
-    m_spec->pending.text.font.font_size = v;
+    m_spec->params.font_size = v;
     m_cache_layout = false;  // force re-shape next commit
     return *this;
 }
@@ -202,9 +200,9 @@ LayerBuilder& TextRunBuilder::commit() {
     // LayerBuilder::build() reads m_text_runs directly; the spec is
     // already up-to-date.  Touching m_cache_layout=false here forces
     // a re-shape even if the layout cache already contains an entry
-    // for the spec's TextRunSpec (because user edits may have
+    // for the spec's TextRunParams (because user edits may have
     // changed shaping inputs).
-    m_spec->pending.cache_layout = m_cache_layout;
+    m_spec->params.cache_layout = m_cache_layout;
     if (m_font_engine != nullptr) {
         // Forward font_engine override onto the spec via a side channel
         // (LayerBuilder reads m_font_engine for shaping during commit).
@@ -231,13 +229,13 @@ namespace text_run_materialize_detail {
 } // namespace text_run_materialize_detail
 
 std::shared_ptr<TextRunShape> materialize_text_run_shape(
-    const TextRunSpec& params,    // canonical composable (formerly TextRunParams)
+    const TextRunParams& params,
     FontEngine* engine,
     SampleTime sample_time
 ) {
     using namespace text_run_materialize_detail;
 
-    if (params.text.content.value.empty()) {
+    if (params.text.empty()) {
         spdlog::warn(
             "materialize_text_run_shape: empty text — skipping.");
         return nullptr;
@@ -248,28 +246,28 @@ std::shared_ptr<TextRunShape> materialize_text_run_shape(
         spdlog::error(
             "materialize_text_run_shape: no FontEngine available — "
             "text_run '{}' will render blank.",
-            params.text.content.value
+            params.text
         );
         return nullptr;
     }
 
     const FontSpec font_spec{
-        params.text.font.font_path,
-        params.text.font.font_family,
-        params.text.font.font_weight,
-        params.text.font.font_style,
+        params.font_path,
+        params.font_family,
+        params.font_weight,
+        params.font_style,
     };
 
     // ── Cache lookup ────────────────────────────────────────────────
     TextLayoutCacheKey cache_key{
-        .text = params.text.content.value,
-        .font_path = params.text.font.font_path,
-        .font_weight = params.text.font.font_weight,
-        .font_style = params.text.font.font_style,
-        .font_size = params.text.font.font_size,
-        .tracking = params.text.layout.tracking,
-        .box_width = params.text.layout.box.x,
-        .wrap = params.text.layout.wrap,
+        .text = params.text,
+        .font_path = params.font_path,
+        .font_weight = params.font_weight,
+        .font_style = params.font_style,
+        .font_size = params.font_size,
+        .tracking = params.tracking,
+        .box_width = params.size.x,
+        .wrap = params.wrap,
         .direction = params.direction,
         .language = params.language,
     };
@@ -288,31 +286,31 @@ std::shared_ptr<TextRunShape> materialize_text_run_shape(
         shaping.direction = params.direction;
         shaping.language  = params.language;
         auto hb_run = use_engine->shape_text(
-            params.text.content.value, font_spec, params.text.font.font_size, shaping);
+            params.text, font_spec, params.font_size, shaping);
         if (!hb_run) {
             spdlog::warn(
                 "materialize_text_run_shape: shape_text failed for "
                 "'{}' (font='{}', size={}) — text_run skipped.",
-                params.text.content.value, params.text.font.font_path, params.text.font.font_size
+                params.text, params.font_path, params.font_size
             );
             return nullptr;
         }
 
         auto placed = resolve_placed_glyph_run(
-            *hb_run, params.text.layout.tracking, params.text.content.value);
+            *hb_run, params.tracking, params.text);
 
         layout = std::make_shared<TextRunLayout>();
-        layout->source_text = params.text.content.value;
+        layout->source_text = params.text;
         layout->font = font_spec;
-        layout->font_size = params.text.font.font_size;
+        layout->font_size = params.font_size;
         layout->placed = placed;
-        layout->units = build_text_unit_map(placed, params.text.content.value);
+        layout->units = build_text_unit_map(placed, params.text);
         layout->bounds = { placed.total_width, placed.total_height };
-        layout->tracking = params.text.layout.tracking;
-        layout->wrap = params.text.layout.wrap;
+        layout->tracking = params.tracking;
+        layout->wrap = params.wrap;
         layout->direction = params.direction;
         layout->language = params.language;
-        layout->line_height = params.text.layout.line_height;
+        layout->line_height = params.line_height;
 
         if (params.cache_layout) {
             cache.store(std::move(cache_key), layout);
@@ -321,15 +319,15 @@ std::shared_ptr<TextRunShape> materialize_text_run_shape(
 
     // ── Evaluate animators at sample_time ───────────────────────────
     auto glyph_states = evaluate_animator_stack(
-        params.animators, layout->placed, params.text.content.value, sample_time);
+        params.animators, layout->placed, params.text, sample_time);
 
     // ── Materialize TextRunShape ────────────────────────────────────
     auto shape = std::make_shared<TextRunShape>();
     shape->layout   = layout;
     shape->glyphs   = std::move(glyph_states);
-    shape->paint    = params.text.appearance.paint;
-    shape->material = params.text.appearance.material;
-    shape->shadows  = params.text.appearance.shadows;
+    shape->paint    = params.paint;
+    shape->material = params.material;
+    shape->shadows  = params.shadows;
     return shape;
 }
 

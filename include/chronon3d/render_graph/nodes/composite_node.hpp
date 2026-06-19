@@ -8,7 +8,7 @@ namespace chronon3d::graph {
 
 class CompositeNode final : public RenderGraphNode {
 public:
-    bool cacheable() const override { return m_cache_frame >= 0; }
+    bool cacheable() const noexcept override { return m_cache_frame >= 0; }
 
     CompositeNode(::chronon3d::BlendMode mode,
                   Frame cache_frame = Frame{-1},
@@ -16,8 +16,8 @@ public:
                   ::chronon3d::CompositeOperator op = ::chronon3d::CompositeOperator::SourceOver)
         : m_mode(mode), m_cache_frame(cache_frame), m_world_z(world_z), m_operator(op) {}
 
-    RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Composite; }
-    std::string name() const override { return "Composite"; }
+    RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Composite; }
+    std::string_view name() const noexcept override { return "Composite"; }
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext&,
@@ -67,7 +67,7 @@ public:
         return *bottom;
     }
 
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
         return CacheFramePolicy::FrameInvariant;
     }
 

@@ -11,10 +11,10 @@ public:
     explicit EffectStackNode(EffectStack effects, Frame cache_frame = Frame{-1})
         : m_effects(std::move(effects)), m_cache_frame(cache_frame) {}
 
-    RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Effect; }
-    std::string name() const override { return "EffectStack"; }
+    RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
+    std::string_view name() const noexcept override { return "EffectStack"; }
 
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
         return CacheFramePolicy::FrameInvariant;
     }
 

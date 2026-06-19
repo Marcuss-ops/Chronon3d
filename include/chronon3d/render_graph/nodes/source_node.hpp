@@ -14,9 +14,9 @@ public:
         : m_name(std::move(name)), m_node(node), m_key(key), m_centered(centered), m_uses_2_5d_projection(uses_2_5d_projection),
           m_matrix_override(matrix_override), m_opacity_override(opacity_override), m_cache_static(cache_static) {}
 
-    bool cacheable() const override { return m_cache_static; }
-    RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Source; }
-    std::string name() const override { return m_name; }
+    bool cacheable() const noexcept override { return m_cache_static; }
+    RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
+    std::string_view name() const noexcept override { return m_name; }
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,
@@ -24,7 +24,7 @@ public:
     ) const override;
 
 
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
         return CacheFramePolicy::FrameInvariant;
     }
 
@@ -51,7 +51,7 @@ public:
         std::span<const std::optional<raster::BBox>>
     ) override;
 
-    [[nodiscard]] bool can_seed_full_frame(const RenderGraphContext& ctx) const override;
+    [[nodiscard]] bool can_seed_full_frame(const RenderGraphContext& ctx) const noexcept override;
 
     const ::chronon3d::RenderNode& render_node() const { return m_node; }
     bool uses_2_5d_projection() const { return m_uses_2_5d_projection; }
