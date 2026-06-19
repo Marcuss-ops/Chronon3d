@@ -96,7 +96,7 @@ SceneGraphStats analyze_scene_graph(
             case RenderGraphNodeKind::MotionBlur: ++stats.motion_blur_nodes; break;
             default:                              ++stats.other_nodes;       break;
         }
-        if (n.cacheable()) ++stats.cacheable_nodes;
+        if (n.cache_policy().enabled()) ++stats.cacheable_nodes;
     }
 
     if (include_dot) stats.dot = graph.to_dot();

@@ -13,7 +13,9 @@ MultiSourceNode::MultiSourceNode(
     std::string name, std::vector<MultiSourceItem> items, const cache::NodeCacheKey& key,
     bool centered, bool uses_2_5d_projection, bool cache_static
 ) : m_name(std::move(name)), m_items(std::move(items)), m_key(key),
-    m_centered(centered), m_uses_2_5d_projection(uses_2_5d_projection), m_cache_static(cache_static) {}
+    m_centered(centered), m_uses_2_5d_projection(uses_2_5d_projection), m_cache_policy(policy) {
+    (void)cache_static;
+}
 
 std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
     const RenderGraphContext& ctx,
@@ -85,28 +87,8 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
     return raster::BBox{x0, y0, x1, y1};
 }
 
-CacheFramePolicy MultiSourceNode::cache_frame_policy() const noexcept {
-    return CacheFramePolicy::FrameInvariant;
-}
-
-RenderNodeCachePolicy MultiSourceNode::cache_policy() const {
-    if (m_cache_static) {
-        return static_memory_cache("source_static");
-    }
-    // Hybrid policy for animated multi-source: the cache key is frame-
-    // independent — cache_key() always sets frame = Frame{0} and embeds
-    // the items' matrices in the params_hash.  Entries persist via the
-    // node cache's LRU eviction policy; unique transforms accumulate
-    // entries up to the cache capacity, then oldest are evicted.
-    return RenderNodeCachePolicy{
-        .cacheable = true,
-        .frame_dependent = false,     // frame number NOT in the key dimension
-        .frame_invariant = false,
-        .disk_cacheable = false,
-        .lifetime = CacheLifetime::PersistentDisk,  // kept until LRU evicts
-        .invalidation = CacheInvalidation::WhenParamsChange,
-        .debug_reason = "multi_source_hybrid"
-    };
+RenderNodeCachePolicy MultiSourceNode::cache_policy() const noexcept {
+    return m_cache_policy;
 }
 
 cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) const {

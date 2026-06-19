@@ -22,7 +22,6 @@ public:
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
     std::string_view name() const noexcept override { return "DOF"; }
 
-    [[nodiscard]] bool cacheable() const noexcept override { return true; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         const float blur = compute_dof_blur_radius(m_camera.dof, m_camera.lens, m_layer_world_z,
@@ -30,7 +29,7 @@ public:
 
         return cache::NodeCacheKey{
             .scope = "dof",
-            .frame = frame_dependent() ? ctx.frame.frame : Frame{0},
+            .frame = ctx.frame.frame,
             .width = ctx.frame.width,
             .height = ctx.frame.height,
             .params_hash = hash_combine(
@@ -123,6 +122,10 @@ public:
             }
         }
         return result;
+    }
+
+    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
+        return frame_variant_cache("dof");
     }
 
     static std::unique_ptr<DofEffectNode> create(const Camera2_5DRuntime& cam, float layer_world_z) {

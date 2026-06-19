@@ -42,16 +42,14 @@ public:
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Precomp; }
     std::string_view name() const noexcept override { return m_full_name; }
 
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
-        return CacheFramePolicy::FrameInvariant;
+    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
+        return static_memory_cache("precomp");
     }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "precomp",
-            .frame = m_cache_frame >= 0
-                ? m_cache_frame
-                : (frame_dependent() ? (ctx.frame.frame - m_start_frame) : Frame{0}),
+            .frame = m_cache_frame >= 0 ? m_cache_frame : Frame{0},
             .width  = ctx.frame.width,
             .height = ctx.frame.height,
             .params_hash = hash_string(m_comp_name)

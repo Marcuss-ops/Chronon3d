@@ -101,7 +101,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                         ctx.options.modular_coordinates ? std::optional<f32>(run_opacity) : std::nullopt,
                         source_is_static
                     ));
-                    graph.node(source).set_frame_dependent(!source_is_static);
+                    graph.node(source)/* pr2-disable: set_frame_dependent(!source_is_static); */
 
                     if (ctx.options.diagnostics_enabled) {
                         spdlog::info(

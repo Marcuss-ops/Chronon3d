@@ -95,7 +95,7 @@ void OutputPass::run(GraphBuildContext& ctx) {
             1e18f  // sentinel: no layer contributed
         );
         auto dof_node = graph.add_node(PerPixelDofNode::create(cam25d));
-        graph.node(dof_node).set_frame_dependent(true);
+        graph.node(dof_node)/* pr2-disable: set_frame_dependent(true); */
         graph.connect(current, dof_node);
         current = dof_node;
     }

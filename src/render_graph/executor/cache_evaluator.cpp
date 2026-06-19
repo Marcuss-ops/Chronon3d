@@ -24,12 +24,12 @@ CacheEvalResult evaluate_cache(
 ) {
     CacheEvalResult cr;
     const auto policy = node.cache_policy();
-    bool is_cacheable = policy.cacheable;
+    bool is_cacheable = policy.enabled();
 
     const auto t_cache0 = profiling::now();
 
     cr.node_frame_dependent =
-        policy.frame_dependent ||
+        policy.frame_dependent() ||
         (has_cacheable_inputs && inputs_frame_dependent);
 
     if (node.kind() == RenderGraphNodeKind::Composite && inputs_all_cache_hits) {
@@ -62,7 +62,7 @@ CacheEvalResult evaluate_cache(
     if (cr.use_cache) {
         cr.result = ctx.resources.node_cache->get(cr.key);
         
-        if (!cr.result && policy.disk_cacheable && persistent_framebuffer_cache_enabled_for_current_run()) {
+        if (!cr.result && policy.persistent() && persistent_framebuffer_cache_enabled_for_current_run()) {
             cr.result = cache::PersistentFramebufferStore::instance().get(cr.key);
             if (cr.result) {
                 ctx.resources.node_cache->store(cr.key, cr.result);

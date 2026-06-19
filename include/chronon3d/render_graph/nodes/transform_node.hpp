@@ -27,8 +27,10 @@ public:
     explicit TransformNode(Transform transform, Frame cache_frame, SamplingMode mode = SamplingMode::Bilinear)
         : m_transform(std::move(transform)), m_mode(mode), m_use_matrix(false), m_cache_frame(cache_frame) {}
 
-    explicit TransformNode(Mat4 matrix, f32 opacity, Frame cache_frame, SamplingMode mode = SamplingMode::Bilinear)
-        : m_matrix(matrix), m_opacity(opacity), m_mode(mode), m_use_matrix(true), m_cache_frame(cache_frame) {}
+    explicit TransformNode(Mat4 matrix, f32 opacity, Frame cache_frame,
+                          SamplingMode mode = SamplingMode::Bilinear,
+                          RenderNodeCachePolicy policy = static_memory_cache("transform"))
+        : m_matrix(matrix), m_opacity(opacity), m_mode(mode), m_use_matrix(true), m_cache_frame(cache_frame), m_cache_policy(policy) {}
 
     [[nodiscard]] RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Transform; }
     [[nodiscard]] std::string_view name() const noexcept override { return "Transform"; }
@@ -38,8 +40,8 @@ public:
         std::span<const std::optional<raster::BBox>> input_bboxes = {}
     ) const override;
 
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
-        return CacheFramePolicy::FrameInvariant;
+    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
+        return m_cache_policy;
     }
 
     [[nodiscard]] cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
@@ -151,6 +153,7 @@ private:
     SamplingMode m_mode{SamplingMode::Bilinear};
     bool      m_use_matrix{false};
     Frame     m_cache_frame{-1};
+    RenderNodeCachePolicy m_cache_policy{static_memory_cache("transform")};
 };
 
 } // namespace chronon3d::graph

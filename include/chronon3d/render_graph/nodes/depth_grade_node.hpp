@@ -29,7 +29,6 @@ public:
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
     std::string_view name() const noexcept override { return "DepthGrade"; }
 
-    [[nodiscard]] bool cacheable() const noexcept override { return true; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         u64 h = hash_value(m_grade.enabled);
@@ -43,7 +42,7 @@ public:
         h = hash_combine(h, hash_value(m_layer_world_z));
         return cache::NodeCacheKey{
             .scope = "depth_grade",
-            .frame = frame_dependent() ? ctx.frame.frame : Frame{0},
+            .frame = ctx.frame.frame,
             .width = ctx.frame.width,
             .height = ctx.frame.height,
             .params_hash = h
@@ -89,6 +88,10 @@ public:
         }
 
         return result;
+    }
+
+    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
+        return static_memory_cache("depth_grade");
     }
 
     static std::unique_ptr<DepthGradeNode> create(
