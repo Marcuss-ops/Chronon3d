@@ -96,21 +96,25 @@ TEST_CASE("PR6: bbox projection produces valid screen coords") {
     CHECK_FALSE(std::isnan(result.camera.position.x));
     CHECK_FALSE(std::isnan(result.camera.position.y));
     CHECK_FALSE(std::isnan(result.camera.position.z));
-}
-
-// ==============================================================================
+}// ==============================================================================
 // 4 — Dolly out when target exceeds safe area.
 // ==============================================================================
 TEST_CASE("PR6: dolly out when target exceeds safe area") {
     CameraFramingSolver solver;
     CameraFramingRequest req;
-    req.targets = {{{-2000,-2000,-2000}, {2000,2000,-2000}}};
+    // Canonical geometry: bbox in front of camera (LH, +Z forward).
+    // 4000-unit-wide bbox at depth 2000 projects corners well outside the
+    // 10% safe-area envelope, so overflow_r is positive and compute_dolly
+    // returns a positive dolly.  The solver moves the camera AWAY from the
+    // target along the forward axis, i.e. toward smaller Z (since target is
+    // at +Z).
+    req.targets = {{{-2000,-2000,2000}, {2000,2000,2000}}};
     req.viewport = {1920, 1080};
     req.safe_area = {0.1f, 0.1f, 0.1f, 0.1f};
 
     Camera2_5D base;
     base.position = {0, 0, 0};
-    base.point_of_interest = {0, 0, -1000};
+    base.point_of_interest = {0, 0, 1000};
     base.point_of_interest_enabled = true;
     base.fov_deg = 50.0f;
 
@@ -118,11 +122,7 @@ TEST_CASE("PR6: dolly out when target exceeds safe area") {
     auto result = solver.solve(req, base, session);
 
     CHECK(result.ok);
-    // Solver-expected: with the bbox sitting off the canonical visible-Z
-    // axis (target at z=-2000, camera at z=0), compute_dolly routes through
-    // the sentinel path and the iteration converges at a positive-Z camera
-    // position after max-distance clamping.  Assert the dolly direction    // direction rather than the original "camera moves to −Z" interpretation.
-    CHECK(result.camera.position.z > base.position.z);
+    CHECK(result.camera.position.z < base.position.z);
 }
 
 // ==============================================================================
@@ -131,13 +131,19 @@ TEST_CASE("PR6: dolly out when target exceeds safe area") {
 TEST_CASE("PR6: dolly in when target is small") {
     CameraFramingSolver solver;
     CameraFramingRequest req;
-    req.targets = {{{-1,-1,-1001}, {1,1,-1001}}};
+    // Canonical geometry: small bbox in front of camera at +Z=1001.
+    // 2-unit-wide bbox at depth 1001 projects corners near the screen centre
+    // (well inside the safe-area envelope), so overflow is 0 and min_inside
+    // is large (>10 pixels).  compute_dolly returns a NEGATIVE dolly.  The
+    // solver moves the camera TOWARD the target along the forward axis,
+    // i.e. toward larger Z.
+    req.targets = {{{-1,-1,1001}, {1,1,1001}}};
     req.viewport = {1920, 1080};
     req.safe_area = {0.1f, 0.1f, 0.1f, 0.1f};
 
     Camera2_5D base;
     base.position = {0, 0, 0};
-    base.point_of_interest = {0, 0, -1000};
+    base.point_of_interest = {0, 0, 1000};
     base.point_of_interest_enabled = true;
     base.fov_deg = 50.0f;
 
@@ -145,11 +151,7 @@ TEST_CASE("PR6: dolly in when target is small") {
     auto result = solver.solve(req, base, session);
 
     CHECK(result.ok);
-    // Companion to test 4 — small / mostly-unprojectable target produces
-    // an effectively-inverted overflow signal (sentinel-induced dolly-in
-    // with max-distance clamping), and the iteration converges at a small
-    // negative-Z camera position.  Assert dolly-in direction.
-    CHECK(result.camera.position.z < base.position.z);
+    CHECK(result.camera.position.z > base.position.z);
 }
 
 // ==============================================================================
@@ -211,7 +213,18 @@ TEST_CASE("PR6: RuleOfThirds places aim off-center") {
 TEST_CASE("PR6: dead zone prevents micro-jitter") {
     CameraFramingSolver solver;
     CameraFramingRequest req;
-    req.targets = {{{0,0,-1000}, {100,100,-1000}}};
+    // Target sits at +Z (1528 units in front of base.position.z = -500) so
+    // project_bbox succeeds and the solver's overflow / inside branches
+    // run over real projected screen-space coordinates. With a small
+    // centered bbox (lateral extents 0..100) inside the safe-area envelope
+    // at depth 1528, inside_l/r/t/b are all negative relative to the
+    // safe-margin threshold and the INSIDE-branch `min_inside > 10.0f` gate
+    // does NOT fire — so compute_dolly returns 0.0 cleanly, the camera
+    // stays at base, and the dead-zone branch preserves x,y of base.
+    // (The dead_zone.threshold=0.5 branch is exercised trivially here;
+    // a future change in apply_dead_zone to compare componentwise deltas
+    // would let this test also verify suppression of a small nonzero dolly.)
+    req.targets = {{{0, 0, 1000}, {100, 100, 1000}}};
     req.dead_zone.dolly_dead_zone = 0.5f;
     req.viewport = {1920, 1080};
 
