@@ -67,9 +67,9 @@ using chronon3d::content::text_reveal::measure_text_width;
 using chronon3d::content::text_reveal::layout_glyphs;
 
 // Returns centred text params for a given string + font size.
-TextParams title_text(const std::string& s, f32 fs,
-                      Color color = FRESH_TEXT_WHITE,
-                      f32 tracking = 6.0f) {
+TextSpec title_text(const std::string& s, f32 fs,
+                    Color color = FRESH_TEXT_WHITE,
+                    f32 tracking = 6.0f) {
     return chronon3d::content::text::centered_text({
         .text        = s,
         .box         = {1500.0f, 220.0f},
