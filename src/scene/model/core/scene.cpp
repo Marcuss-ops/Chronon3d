@@ -23,6 +23,23 @@ Scene::Scene(std::pmr::memory_resource* res)
 
 Scene::~Scene() = default;
 
+// ── Clone ───────────────────────────────────────────────────────────────────
+
+Scene Scene::clone() const {
+    Scene s(m_nodes.get_allocator().resource());
+    s.m_nodes = m_nodes;
+    s.m_layers = m_layers;
+    s.m_lights = m_lights;
+    s.m_rim = m_rim;
+    s.m_depth_grade = m_depth_grade;
+    s.m_hierarchy_baked = m_hierarchy_baked;
+    s.m_assets_root = m_assets_root;
+    if (m_camera_2_5d) {
+        s.m_camera_2_5d = std::make_unique<Camera2_5DRuntime>(*m_camera_2_5d);
+    }
+    return s;
+}
+
 // ── Camera accessors ────────────────────────────────────────────────────────
 
 void Scene::set_camera_2_5d(Camera2_5DRuntime camera) {

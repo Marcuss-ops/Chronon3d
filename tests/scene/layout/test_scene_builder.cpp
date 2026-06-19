@@ -79,8 +79,8 @@ TEST_CASE("LayerBuilder accepts_lights toggles material") {
         .build();
 
     REQUIRE(scene.layers().size() == 1);
-    CHECK(scene.layers()[0].material.accepts_lights == false);
-    CHECK(scene.layers()[0].material.ambient_multiplier == doctest::Approx(0.5f));
+    CHECK(scene.layers()[0].material().accepts_lights == false);
+    CHECK(scene.layers()[0].material().ambient_multiplier == doctest::Approx(0.5f));
 }
 
 TEST_CASE("SceneBuilder generic shape API creates rect") {

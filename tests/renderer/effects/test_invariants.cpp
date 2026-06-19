@@ -271,8 +271,8 @@ TEST_CASE("Invariants: effect_order_changes_hash") {
     lb2.tint(Color::red(), 1.0f).blur(10.0f);
     auto l2 = lb2.build();
 
-    u64 hash1 = hash_effect_stack(l1.effects);
-    u64 hash2 = hash_effect_stack(l2.effects);
+    u64 hash1 = hash_effect_stack(l1.effects());
+    u64 hash2 = hash_effect_stack(l2.effects());
 
     CHECK(hash1 != hash2);
 }
@@ -284,22 +284,22 @@ TEST_CASE("Invariants: cache_key_changes_when_glow_params_change") {
     // Base glow params
     LayerBuilder lb_base("l", std::pmr::get_default_resource());
     lb_base.glow(GlowParams{.radius = 10.0f, .intensity = 0.8f, .color = Color::white()});
-    u64 hash_base = hash_effect_stack(lb_base.build().effects);
+    u64 hash_base = hash_effect_stack(lb_base.build().effects());
 
     // Different radius
     LayerBuilder lb_radius("l", std::pmr::get_default_resource());
     lb_radius.glow(GlowParams{.radius = 15.0f, .intensity = 0.8f, .color = Color::white()});
-    u64 hash_radius = hash_effect_stack(lb_radius.build().effects);
+    u64 hash_radius = hash_effect_stack(lb_radius.build().effects());
 
     // Different intensity
     LayerBuilder lb_intensity("l", std::pmr::get_default_resource());
     lb_intensity.glow(GlowParams{.radius = 10.0f, .intensity = 0.5f, .color = Color::white()});
-    u64 hash_intensity = hash_effect_stack(lb_intensity.build().effects);
+    u64 hash_intensity = hash_effect_stack(lb_intensity.build().effects());
 
     // Different color
     LayerBuilder lb_color("l", std::pmr::get_default_resource());
     lb_color.glow(GlowParams{.radius = 10.0f, .intensity = 0.8f, .color = Color::red()});
-    u64 hash_color = hash_effect_stack(lb_color.build().effects);
+    u64 hash_color = hash_effect_stack(lb_color.build().effects());
 
     CHECK(hash_base != hash_radius);
     CHECK(hash_base != hash_intensity);
@@ -312,25 +312,25 @@ TEST_CASE("Invariants: cache_key_changes_when_glow_quality_params_change") {
 
     LayerBuilder lb_base("l", std::pmr::get_default_resource());
     lb_base.glow(GlowPresets::neon_blue(40.0f));
-    u64 hash_base = hash_effect_stack(lb_base.build().effects);
+    u64 hash_base = hash_effect_stack(lb_base.build().effects());
 
     LayerBuilder lb_falloff("l", std::pmr::get_default_resource());
     GlowParams falloff = GlowPresets::neon_blue(40.0f);
     falloff.falloff = 1.20f;
     lb_falloff.glow(falloff);
-    u64 hash_falloff = hash_effect_stack(lb_falloff.build().effects);
+    u64 hash_falloff = hash_effect_stack(lb_falloff.build().effects());
 
     LayerBuilder lb_core("l", std::pmr::get_default_resource());
     GlowParams core = GlowPresets::neon_blue(40.0f);
     core.core_strength = 0.95f;
     lb_core.glow(core);
-    u64 hash_core = hash_effect_stack(lb_core.build().effects);
+    u64 hash_core = hash_effect_stack(lb_core.build().effects());
 
     LayerBuilder lb_screen("l", std::pmr::get_default_resource());
     GlowParams screen = GlowPresets::neon_blue(40.0f);
     screen.additive = false;
     lb_screen.glow(screen);
-    u64 hash_screen = hash_effect_stack(lb_screen.build().effects);
+    u64 hash_screen = hash_effect_stack(lb_screen.build().effects());
 
     CHECK(hash_base != hash_falloff);
     CHECK(hash_base != hash_core);
@@ -353,7 +353,7 @@ TEST_CASE("Invariants: dirty_rect_contains_glow_spread") {
     lb.glow(GlowParams{.radius = 30.0f, .intensity = 0.8f, .color = Color::white()});
     auto layer = lb.build();
 
-    EffectStackNode node(layer.effects);
+    EffectStackNode node(layer.effects());
     auto bbox = node.predicted_bbox(ctx, inputs);
 
     REQUIRE(bbox.has_value());

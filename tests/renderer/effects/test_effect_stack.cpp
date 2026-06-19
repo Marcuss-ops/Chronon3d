@@ -56,27 +56,27 @@ TEST_CASE("EffectStack: blur() adds BlurParams to stack") {
     LayerBuilder lb("test", std::pmr::get_default_resource());
     lb.blur(8.0f);
     auto layer = lb.build();
-    REQUIRE(layer.effects.size() == 1);
-    REQUIRE(holds_effect<BlurParams>(layer.effects[0]));
-    CHECK(get_effect<BlurParams>(layer.effects[0]).radius == doctest::Approx(8.0f));
+    REQUIRE(layer.effects().size() == 1);
+    REQUIRE(holds_effect<BlurParams>(layer.effects()[0]));
+    CHECK(get_effect<BlurParams>(layer.effects()[0]).radius == doctest::Approx(8.0f));
 }
 
 TEST_CASE("EffectStack: tint() adds TintParams to stack") {
     LayerBuilder lb("test", std::pmr::get_default_resource());
     lb.tint(Color::red(), 0.5f);
     auto layer = lb.build();
-    REQUIRE(layer.effects.size() == 1);
-    REQUIRE(holds_effect<TintParams>(layer.effects[0]));
+    REQUIRE(layer.effects().size() == 1);
+    REQUIRE(holds_effect<TintParams>(layer.effects()[0]));
 }
 
 TEST_CASE("EffectStack: chained effects preserve order") {
     LayerBuilder lb("test", std::pmr::get_default_resource());
     lb.blur(4.0f).tint(Color::blue(), 1.0f).brightness(0.1f);
     auto layer = lb.build();
-    REQUIRE(layer.effects.size() == 3);
-    CHECK(holds_effect<BlurParams>(layer.effects[0]));
-    CHECK(holds_effect<TintParams>(layer.effects[1]));
-    CHECK(holds_effect<BrightnessParams>(layer.effects[2]));
+    REQUIRE(layer.effects().size() == 3);
+    CHECK(holds_effect<BlurParams>(layer.effects()[0]));
+    CHECK(holds_effect<TintParams>(layer.effects()[1]));
+    CHECK(holds_effect<BrightnessParams>(layer.effects()[2]));
 }
 
 TEST_CASE("EffectStack: drop_shadow and glow added to stack") {
@@ -84,9 +84,9 @@ TEST_CASE("EffectStack: drop_shadow and glow added to stack") {
     lb.drop_shadow({4,4}, Color::black(), 8.0f)
       .glow(GlowParams{.radius = 12.0f, .intensity = 0.9f, .color = Color::white()});
     auto layer = lb.build();
-    CHECK(layer.effects.size() == 2);
-    CHECK(holds_effect<DropShadowParams>(layer.effects[0]));
-    CHECK(holds_effect<GlowParams>(layer.effects[1]));
+    CHECK(layer.effects().size() == 2);
+    CHECK(holds_effect<DropShadowParams>(layer.effects()[0]));
+    CHECK(holds_effect<GlowParams>(layer.effects()[1]));
 }
 
 TEST_CASE("EffectStack: glow preset overload stores full GlowParams") {
@@ -94,10 +94,10 @@ TEST_CASE("EffectStack: glow preset overload stores full GlowParams") {
     lb.glow(GlowPresets::neon_blue(55.0f));
 
     auto layer = lb.build();
-    REQUIRE(layer.effects.size() == 1);
-    REQUIRE(holds_effect<GlowParams>(layer.effects[0]));
+    REQUIRE(layer.effects().size() == 1);
+    REQUIRE(holds_effect<GlowParams>(layer.effects()[0]));
 
-    const auto& glow = get_effect<GlowParams>(layer.effects[0]);
+    const auto& glow = get_effect<GlowParams>(layer.effects()[0]);
     CHECK(glow.radius == doctest::Approx(55.0f));
     CHECK(glow.intensity == doctest::Approx(1.25f));
     CHECK(glow.additive);
@@ -124,9 +124,9 @@ TEST_CASE("EffectStack: fake_3d_wave adds Fake3DWaveParams to stack") {
         .expand_bounds = true,
     });
     auto layer = lb.build();
-    CHECK(layer.effects.size() == 1);
-    REQUIRE(holds_effect<Fake3DWaveParams>(layer.effects[0]));
-    CHECK(get_effect<Fake3DWaveParams>(layer.effects[0]).slices == 16);
+    CHECK(layer.effects().size() == 1);
+    REQUIRE(holds_effect<Fake3DWaveParams>(layer.effects()[0]));
+    CHECK(get_effect<Fake3DWaveParams>(layer.effects()[0]).slices == 16);
 }
 
 // ---------------------------------------------------------------------------

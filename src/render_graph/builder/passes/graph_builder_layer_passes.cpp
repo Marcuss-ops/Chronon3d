@@ -52,7 +52,7 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
 
     // Layer effects — the EffectCatalog factory bakes cache policy into
     // the constructed node; in-place mutation was removed. Single id.
-    for (const auto& effect : layer.effects) {
+    for (const auto& effect : layer.effects()) {
         if (!effect.enabled) continue;
         const auto* ec = ctx.resources.effect_catalog;
         GraphNodeId effect_id = graph.add_node(ec->create_node(effect));

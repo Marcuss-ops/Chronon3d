@@ -7,12 +7,13 @@
 #include <chronon3d/animation/effects/animated_transform.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/scene/model/layer/mask.hpp>
-#include <chronon3d/scene/model/core/effect_stack.hpp>
+// effect_stack.hpp, material_2_5d.hpp, card3d_material.hpp are NOT included.
+// Forward-declared below so layer.hpp stays decoupled from feature headers.
 #include <chronon3d/scene/model/core/depth_role.hpp>
 #include <chronon3d/scene/model/layer/track_matte.hpp>
 #include <chronon3d/scene/model/core/transition.hpp>
-#include <chronon3d/scene/model/shape/material_2_5d.hpp>
-#include <chronon3d/scene/model/core/card3d_material.hpp>
+// material_2_5d.hpp  — forward-declared
+// card3d_material.hpp — forward-declared
 #include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/compositor/composite_operator.hpp>
@@ -22,6 +23,10 @@
 #include <memory_resource>
 
 namespace chronon3d {
+
+struct EffectStack;
+struct Material2_5D;
+struct Card3DMaterial;
 
 namespace video { struct VideoSource; }
 
@@ -64,15 +69,15 @@ struct Layer {
     bool      hierarchy_resolved{false};
     bool      cache_static{false};
     Mask      mask{};
-    EffectStack effects;     // ordered effect stack
+    std::unique_ptr<EffectStack> m_effects;     // ordered effect stack
     BlendMode blend_mode{BlendMode::Normal};
     CompositeOperator composite_operator{CompositeOperator::SourceOver};
     DepthRole   depth_role{DepthRole::None};
     f32         depth_offset{0.0f};
     LayoutRules layout{};
     TrackMatte  track_matte{};
-    Material2_5D material{};
-    Card3DMaterial card3d_material{};
+    std::unique_ptr<Material2_5D> m_material{};
+    std::unique_ptr<Card3DMaterial> m_card3d_material{};
     LayerTransitionSpec transition_in{};
     LayerTransitionSpec transition_out{};
     std::pmr::vector<RenderNode> nodes;
@@ -90,6 +95,14 @@ struct Layer {
     mutable bool m_static_hash_computed{false};
 
     [[nodiscard]] uint64_t get_static_hash() const;
+
+    // ── accessors for pimpl'd members ──────────────────────────────────
+    EffectStack&       effects()           { return *m_effects; }
+    const EffectStack& effects()     const { return *m_effects; }
+    Material2_5D&      material()          { return *m_material; }
+    const Material2_5D& material()   const { return *m_material; }
+    Card3DMaterial&    card3d_material()   { return *m_card3d_material; }
+    const Card3DMaterial& card3d_material() const { return *m_card3d_material; }
 
     explicit Layer(std::pmr::memory_resource* res = std::pmr::get_default_resource());
     ~Layer();
