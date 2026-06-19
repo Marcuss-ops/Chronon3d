@@ -904,7 +904,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     }
 
     // ── Debug: draw bounding box overlays (env-gated) ──────────────
-    if (chronon3d::Config::get().debug_text_bbox && !t.text.empty()) {
+    if (chronon3d::Config::get().debug().text_bbox() && !t.text.empty()) {
         BLContext dbg(img);
         dbg.setCompOp(BL_COMP_OP_SRC_OVER);
 

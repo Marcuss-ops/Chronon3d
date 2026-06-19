@@ -18,7 +18,7 @@ inline Vec2 transform_point(const Mat4& model, Vec2 p) {
 }
 
 inline bool is_prefetch_enabled() {
-    return Config::get().prefetch_enabled;
+    return Config::get().scheduler().prefetch_enabled();
 }
 
 inline void chrono_prefetch(const void* addr) {

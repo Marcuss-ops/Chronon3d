@@ -275,7 +275,7 @@ struct GlowAccumResult {
     build_falloff_lut(p.falloff, falloff_lut);
 
     // ── Debug: save source framebuffer ─────────────────────────────────
-    if (chronon3d::Config::get().debug_glow) {
+    if (chronon3d::Config::get().debug().glow()) {
         save_png(*source_fb, "output/debug_glow_source.png");
     }
 
@@ -327,7 +327,7 @@ struct GlowAccumResult {
             accumulate_glow_pass(*glow_acc_fb, *pass_fb, p, falloff_lut);
 
             // Debug: save each glow pass before accumulation
-            if (chronon3d::Config::get().debug_glow) {
+            if (chronon3d::Config::get().debug().glow()) {
                 static thread_local int pass_counter = 0;
                 save_png(*pass_fb, "output/debug_glow_pass_" + std::to_string(pass_counter++) + ".png");
             }
@@ -362,7 +362,7 @@ struct GlowAccumResult {
     }
 
     // ── Debug: save accumulated glow before compositing ────────────────
-    if (chronon3d::Config::get().debug_glow) {
+    if (chronon3d::Config::get().debug().glow()) {
         save_png(*glow_acc_fb, "output/debug_glow_accumulated.png");
     }
 
