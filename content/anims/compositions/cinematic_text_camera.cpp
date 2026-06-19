@@ -7,9 +7,8 @@
 //     distinct text reveal style.
 //   * All keyframes use the existing primitives: motion::timeline(),
 //     AnimationCurve via key().key(...), CatmullRomCameraMotion, wiggle3D().
-//   * Text uses text_helpers::centered_text::make_centered_text +
-//     text_helpers::glow::apply_ae_glow + add_bloom_reveal_layer for the
-//     neon reveal in OrbitHandheldGlow.
+//   * Text uses centered_text() from content/text/text_helpers.hpp +
+//     text::glow::apply_ae_glow() from content/text/text_glow_helpers.hpp.
 //   * Handheld shake (OrbitHandheldGlow) is added on top of the Catmull-Rom
 //     camera position so the path stays clean while the lens feels organic.
 //   * No raw hardcoded colour values where the theme already provides
