@@ -281,17 +281,16 @@ FontEngine* LayerBuilder::font_engine() const {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TextRunBuilder (TextAnimator V2)
+// TextRunBuilder — PR 4 (TextAnimator V2)
 // ═══════════════════════════════════════════════════════════════════════════
 
 TextRunBuilder& LayerBuilder::text_run(std::string name, TextRunParams params) {
-    auto spec_uptr = std::make_unique<TextRunPendingSpec>(TextRunPendingSpec{
+    auto spec_uptr = std::make_unique<PendingTextRun>(PendingTextRun{
         .name = std::move(name),
-        .pending = std::move(params),
-        .font_engine = nullptr,    // per-spec override (PR 2); falls back to LayerBuilder::m_font_engine at build() if left null
+        .params = std::move(params),
         .consumed = false,
     });
-    TextRunPendingSpec* spec_ptr = spec_uptr.get();
+    PendingTextRun* spec_ptr = spec_uptr.get();
     m_text_runs.push_back(std::move(spec_uptr));
     // Push a fresh builder into the pool, keyed to the same spec we
     // just added.  The builder holds a non-owning pointer so its
@@ -352,13 +351,13 @@ Layer LayerBuilder::build() {
         }
     }
 
-    // ── Materialize pending text-run specs ───────────────────
+    // ── PR 4 — Materialize pending text-run specs ───────────────────
     //
-    // For each TextRunPendingSpec pushed via `LayerBuilder::text_run(name,
+    // For each PendingTextRun pushed via `LayerBuilder::text_run(name,
     // TextRunParams)`, evaluate the animator stack at the layer's
     // current local time and append a corresponding RenderNode
     // flagged with `is_text_run_shape=true`.  The graph-builder
-    // source-pass auto-routes these to a TextRunNode.
+    // source-pass (PR 3) auto-routes these to a TextRunNode.
     //
     // Each entry uses the layer's FontEngine if one was set, falling
     // back to the process-wide shared FontEngine.  Shaping failures
@@ -369,32 +368,22 @@ Layer LayerBuilder::build() {
         std::pmr::memory_resource* res = m_layer.nodes.get_allocator().resource();
 
         for (auto& spec_uptr : m_text_runs) {
-            TextRunPendingSpec& spec = *spec_uptr;
+            PendingTextRun& spec = *spec_uptr;
             if (spec.consumed) continue;
-
-            // PR 2: per-spec FontEngine override takes priority over the
-            // layer-level engine; both can be null — the materializer
-            // falls back to `shared_font_engine()` after this point.
-            FontEngine* engine =
-                spec.font_engine ? spec.font_engine : m_font_engine;
 
             RenderNode& node = m_layer.nodes.emplace_back(res);
             node.name = std::pmr::string{spec.name, res};
             node.is_text_run_shape = true;     // always flagged
-            node.font_engine = engine;
-            // `spec.pending` is the canonical composable TextRunSpec
-            // (the wrapper field name was renamed from `params` -> `spec`
-            // -> `pending` to disambiguate from the TextRunBuilder
-            // class's `m_spec` (member ptr) and `spec()` (accessor)).
-            node.world_transform.position = spec.pending.text.position;
+            node.font_engine = m_font_engine;
+            node.world_transform.position = spec.params.pos;
             node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
             node.world_transform.scale = Vec3{1.0f, 1.0f, 1.0f};
             node.world_transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-            node.color = spec.pending.text.appearance.color;
-            node.fill = Fill::solid_color(spec.pending.text.appearance.color);
+            node.color = spec.params.color;
+            node.fill = Fill::solid_color(spec.params.color);
 
             auto shape = materialize_text_run_shape(
-                spec.pending, engine, local_time);
+                spec.params, m_font_engine, local_time);
             if (shape) {
                 node.text_run_shape = std::move(shape);
             }

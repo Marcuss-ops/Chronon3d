@@ -2,6 +2,7 @@
 #include "path_utils.hpp"
 #include <bit>
 #include <cstdlib>
+#include <mutex>
 #include <string>
 #include <string_view>
 
@@ -11,8 +12,19 @@
 
 namespace chronon3d::renderer {
 
+namespace {
+    bool           s_use_simd     = false;
+    std::once_flag s_pip_mode_flag;
+} // namespace
+
+void set_pip_mode(bool use_simd) {
+    std::call_once(s_pip_mode_flag, [&] {
+        s_use_simd = use_simd;
+    });
+}
+
 PipMode get_pip_mode() {
-    return Config::get().scheduler().pip_mode() ? PipMode::Simd : PipMode::Scalar;
+    return s_use_simd ? PipMode::Simd : PipMode::Scalar;
 }
 
 bool point_in_polygon_even_odd(Vec2 p, const std::vector<Vec2>& poly) {

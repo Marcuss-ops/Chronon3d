@@ -12,7 +12,6 @@
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
-#include <chronon3d/core/config.hpp>
 // PR3: include the shared paint module via a path-relative form so the
 // build picks it up regardless of the public include/ root.  The new
 // header lives at src/backends/software/utils/ and is mirrored only
@@ -62,15 +61,36 @@ using chronon3d::blend2d_bridge::paint::to_bl_rgba;
 using CacheKey = u64;
 using ShadowCache = cache::LruCache<CacheKey, std::shared_ptr<BLImage>>;
 
+// Injected capacities — set once at startup by SoftwareRenderer.
+inline size_t& shadow_cache_capacity_bytes() {
+    static size_t cap = 0;
+    return cap;
+}
+inline size_t& glow_cache_capacity_bytes() {
+    static size_t cap = 0;
+    return cap;
+}
+
+inline void set_shadow_cache_capacity(size_t max_bytes) {
+    shadow_cache_capacity_bytes() = max_bytes;
+}
+inline void set_glow_cache_capacity(size_t max_bytes) {
+    glow_cache_capacity_bytes() = max_bytes;
+}
+
 // Note: cache and mutex functions are `inline` (not `static inline`) to
 // guarantee a single shared instance across translation units.
 [[nodiscard]] inline ShadowCache& get_shadow_cache() {
-    static ShadowCache cache(Config::get().cache().shadow_cache_max_bytes(), 4);
+    static ShadowCache cache(
+        shadow_cache_capacity_bytes() > 0 ? shadow_cache_capacity_bytes() : 64ULL * 1024ULL * 1024ULL,
+        4);
     return cache;
 }
 
 [[nodiscard]] inline ShadowCache& get_glow_cache() {
-    static ShadowCache cache(Config::get().cache().glow_cache_max_bytes(), 4);
+    static ShadowCache cache(
+        glow_cache_capacity_bytes() > 0 ? glow_cache_capacity_bytes() : 64ULL * 1024ULL * 1024ULL,
+        4);
     return cache;
 }
 

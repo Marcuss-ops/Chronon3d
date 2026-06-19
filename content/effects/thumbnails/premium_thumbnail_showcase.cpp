@@ -167,17 +167,12 @@ Composition premium_thumbnail_buttery_smooth() {
                 l.font_engine(),
                 "hero_phrase"
             );
-            l.text("hero_phrase_accent", {
-                .text = "*",
-                .size = {60.0f, 60.0f},
-                .pos = {610.0f, -16.0f, 0.0f},
-                .font_path = "assets/fonts/Poppins-Bold.ttf",
-                .font_family = "Inter",
-                .font_weight = 800,
-                .font_size = 52.0f,
-                .color = Color{1.0f, 0.0f, 0.78f, 1.0f},
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle,
+            l.text("hero_phrase_accent", TextSpec{
+                .content = {.value = "*"},
+                .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 800, .font_size = 52.0f},
+                .layout = {.box = {60.0f, 60.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle},
+                .appearance = {.color = Color{1.0f, 0.0f, 0.78f, 1.0f}},
+                .position = {610.0f, -16.0f, 0.0f}
             });
         });
 
@@ -259,16 +254,12 @@ Composition premium_thumbnail_saas_blue() {
                 )
             });
             
-            l.text("ae_text", {
-                .text = "Ae",
-                .size = {120.0f, 120.0f},
-                .font_path = "assets/fonts/Poppins-Bold.ttf",
-                .font_family = "Inter",
-                .font_weight = 800,
-                .font_size = 48.0f,
-                .color = Color{0.0f, 0.85f, 1.0f, 1.0f},
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle
+            l.text("ae_text", TextSpec{
+                .content = {.value = "Ae"},
+                .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 800, .font_size = 48.0f},
+                .layout = {.box = {120.0f, 120.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle},
+                .appearance = {.color = Color{0.0f, 0.85f, 1.0f, 1.0f}},
+                .position = {0.0f, 0.0f, 0.0f}
             });
         });
 
@@ -319,18 +310,12 @@ Composition premium_thumbnail_saas_blue() {
             mat.shadow_opacity          = 0.85f;
             mat.shadow_color            = {0.0f, 0.02f, 0.12f, 0.95f};
 
-            l.text("saas_title", {
-                .text = "SAAS",
-                .size = {960.0f, 260.0f},
-                .pos = {0.0f, 0.0f, 0.0f},
-                .font_path = "assets/fonts/Poppins-Bold.ttf",
-                .font_family = "Inter",
-                .font_weight = 800,
-                .font_size = 110.0f,
-                .color = Color{0.98f, 1.0f, 1.0f, 1.0f},
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle,
-                .wrap = TextWrap::None,
+            l.text("saas_title", TextSpec{
+                .content = {.value = "SAAS"},
+                .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 800, .font_size = 110.0f},
+                .layout = {.box = {960.0f, 260.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .wrap = TextWrap::None},
+                .appearance = {.color = Color{0.98f, 1.0f, 1.0f, 1.0f}},
+                .position = {0.0f, 0.0f, 0.0f}
             });
             
             auto sub_style = presets::text::premium_subtitle();
