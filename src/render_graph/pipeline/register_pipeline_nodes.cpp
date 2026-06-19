@@ -1,5 +1,5 @@
 #include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
-#include <chronon3d/render_graph/registry/graph_node_registry.hpp>
+#include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/render_graph/registry/graph_node_create_request.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>

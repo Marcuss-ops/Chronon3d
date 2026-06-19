@@ -3,7 +3,7 @@
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/effects/effect_registry.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
-#include <chronon3d/render_graph/registry/graph_node_registry.hpp>
+#include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 
 #include <memory>
 
