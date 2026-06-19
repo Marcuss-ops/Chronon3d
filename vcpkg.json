@@ -25,7 +25,8 @@
     "nlohmann-json",
     "openexr",
     "magic-enum",
-    "sqlite3"
+    "sqlite3",
+    "fribidi"
   ],
   "features": {
     "tests": {

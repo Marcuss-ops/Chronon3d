@@ -279,13 +279,17 @@ TEST_CASE("AnimatedValue: fluent chaining") {
     auto& ref = val
         .key(Frame{0}, 0.0f)
         .key(Frame{60}, 100.0f)
-        .key(Frame{120}, 0.0f)
-        .set(50.0f);
+        .key(Frame{120}, 0.0f);
 
-    // set() changes default but doesn't affect keyframes
+    // Fluent chaining adds keyframes correctly.
     CHECK(ref.is_animated());
     CHECK(ref.keyframes().size() == 3);
     CHECK(ref.keyframes()[1].value == doctest::Approx(100.0f));
+
+    // set() clears keyframes and sets the default value (by design).
+    ref.set(50.0f);
+    CHECK(!ref.is_animated());
+    CHECK(ref.evaluate(Frame{0}) == doctest::Approx(50.0f));
 }
 
 TEST_CASE("AnimatedValue: shift offsets all keyframes") {
