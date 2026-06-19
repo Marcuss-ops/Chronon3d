@@ -74,7 +74,7 @@ inline void apply_text_style(
         return;
     }
     const Fill& fill = *style_opt;
-    if (fill.type() == FillType::Solid) {
+    if (fill.type == FillType::Solid) {
         set(to_bl_rgba(fill.solid));
         return;
     }

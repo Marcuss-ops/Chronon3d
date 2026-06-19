@@ -7,7 +7,7 @@
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/builders/camera_api.hpp>
-#include <chronon3d/scene/builders/camera_rig_builder.hpp>
+#include <chronon3d/scene/camera/camera_rig_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/null_builder.hpp>
 #include <chronon3d/registry/shape_registry.hpp>
