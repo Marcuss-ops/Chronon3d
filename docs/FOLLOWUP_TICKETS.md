@@ -135,8 +135,84 @@ Implemented in commit `df1566da` (`df1566da5656cc96adff44c189c83429865ce690`).
 ### Cross-references
 
 - PR2-cleanup chain (still-green state established by): `c8e6a7ea` → `4f39da93` → `e173f224` → `c3681a8f` → `709a8998`
-- Foundational PR1 refactor: `785739ed` (camera-transition registry → catalog; predates render-backend rot but shares the same chrono3d scope)
-- Documented in commit message:
+- Foundational PR1 refactor: `785739ed` (camera-transition registry → catalog; predates render-backend rot but shares the same chrono3d scope)- Documented in commit message:
   - See commit `709a8998` ("fix(camera): forward-declare CameraTransitionCatalog in shot_timeline.hpp") — its chore-tail paragraph already references this ticket.
 
 ---
+
+## TICKET-002 — Pre-existing API rot in the `chronon3d_diagnostics` target
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `content/shapes/proofs/shape_proofs.cpp` · `content/shapes/motion/shape_motion_proofs.cpp` · `content/image_proofs.cpp` · `content/image_test_patterns.cpp` · `content/camera/camera_advanced_tests_diag.cpp` · `content/camera/camera_calibration_scene.cpp` · `content/camera/camera_test_orchestrator.cpp` |
+| **Affected target** | `chronon3d_diagnostics` (built only when `CHRONON3D_BUILD_CONTENT` is on) |
+| **Discovered during** | Full project build via `linux-full-validation` CMake preset on `main`, after TICKET-001 fix landed at commit `df1566da`. |
+| **Discovered date** | 2026-06-19 |
+| **Error count** | 102+ in `content/` subtree (the earlier "27" figure tallied only a subset during a partial full-build; subsequent re-runs reveal the wider rot) |
+
+### Symptom
+
+Multiple compile errors inside `chronon3d_diagnostics`. Three observed categories (verbatim from `cmake --build` log):
+
+- **`'.layout' designator used multiple times in the same initializer list`** — C++ rule: each subobject of a designated-initializer-list may be designated at most once.
+- **`'chronon3d::TextSpec' has no non-static data member named 'text'`** — the callsite `l.text("…", {…})` invokes a struct shape (`TextSpec::text`) that no longer exists.
+- **`cannot convert '<brace-enclosed initializer list>' to 'chronon3d::TextSpec'`** — callsites use a brace-init pattern for a `TextSpec` shape whose field enumeration has changed.
+
+Additionally, in earlier triage notes (chronon3d diagnostics API drift) the following symbols were called out as missing or stubbed-out:
+
+- `make_rounded_rect_commands` — vector-graphics command factory
+- `BadgeParams` — geometry/hierarchy parameter struct
+- `ProgressBarParams` — companion parameter struct
+
+These have since consolidated into the same root cause (factory + spec API rotation).
+
+### Root cause analysis
+
+Classic post-refactor rot: a recent `text/` refactor (likely tied to the same lineage that introduced `TextRunSpec`) rotated `TextSpec` away from the previous `{text = ..., layout = ...}` shape toward a new field set. The call sites in `content/` — especially the lambda initializers like
+
+```cpp
+l.text("…", { .text = "...", .layout = {…}, .layout = {…} });   // .layout duplicated → init error
+l.text("…", { /* old brace-init shape */ });                     // shape changed → conversion error
+```
+
+— were never migrated. The C++ designated-init-list rule (one designator per subobject) makes the second-`.layout` redundancy a hard error. Combined with the struct shape change, every callsite that uses the previous lambda idiom blows up.
+
+The diagnostic `content/` targets were not re-validated after the `TextSpec` rotation; this rot has been latent for at least one full-build cycle, masked only by the fact that the diagnostics target was previously never reached because earlier rot blocked the build earlier in the dependency graph. With TICKET-001 + the camera-transition forward-decl fix in place, this is the next obstruction to a fully-green full build.
+
+### Out-of-scope rationale for the PR2-cleanup chain
+
+- **PR2-cleanup focus**: cache-contract unification across render-graph nodes (`RenderNodeCachePolicy` single immutable axis).
+- **`TextSpec` API state**: owned by an earlier refactor in the `text/` subsystem (sibling to the PR2-cleanup chain, but with a different abstraction).
+- **`content/` diagnostic targets** (`chronon3d_diagnostics`, `chronon3d_content`): owned by `content/` and `tests/`; separate accountability from PR2-cleanup.
+- The PR2-cleanup chain did NOT touch any of the 7 affected files (`git diff --stat <PR2-cleanup-base>..df1566da -- content/` shows zero churn across `content/`).
+
+### Suggested fix approach
+
+1. **Audit the current `TextSpec` shape** — open `include/chronon3d/text/text_spec.hpp` (or equivalent) and identify the actual exposed fields/methods. Confirm whether `.text` / `layout` is now a method-only API, a field, or a nested struct.
+2. **Mechanical migration of the diagnostic callsites**:
+   - In each of the 7 affected files, replace `.layout = X, .layout = Y` with explicit per-field initializer layout that respects single-designator-per-subobject.
+   - Replace `l.text("…", {old-brace-init})` with the new constructor invocation pattern that the current `TextSpec` ctor accepts.
+3. **Factory fix-up** — for `make_rounded_rect_commands`, `BadgeParams`, `ProgressBarParams`: verify the factories still exist in the `content/shapes/` headers. Either re-shim the includes, rebuild the factories, or migrate the diagnostic callsites to the replacement symbols (if the factories were renamed rather than removed).
+4. **Emergency mitigation** (parallel to the fix): the diagnostics target can be temporarily disabled via `-DCHRONON3D_BUILD_CONTENT=OFF` (or analogous) to unblock other PRs / full-build CI. This is acceptable because the core rendering surface does not depend on diagnostics.
+5. **Validation**:
+   - Re-run `cmake --preset linux-full-validation` and verify the diagnostics target compiles clean.
+   - Re-run `cmake --build <build-dir> --target chronon3d_diagnostics --parallel` explicitly.
+   - Run `ctest -R diagnostics` to confirm runtime behaviour of surviving tests (mostly pre-existing golden/visual tests).
+
+### Acceptance criteria
+
+- `cmake --build <build-dir> --target chronon3d_diagnostics` returns `RC=0` with **0 errors** in any of the 7 affected `content/` files.
+- All `.layout` / `.text` references in the diagnostic files compile clean against the current `TextSpec` shape.
+- All `make_rounded_rect_commands`, `BadgeParams`, `ProgressBarParams` callsites either resolve to the renamed factories or are correctly stubbed.
+- The 6 other TEST_CASE bodies in the same files still pass under `ctest`.
+- Full-build gate moves from 27→0 in `content/` errors and reaches 402/402 targets.
+
+### Cross-references
+
+- TICKET-001 fix that exposed TICKET-002 (full build progressed past `test_render_backend` for the first time, fell over inside diagnostics): `df1566da`.
+- Pre-existing rot confirmed independent from PR2-cleanup: `git diff --stat <PR2-cleanup-base>..df1566da -- content/` is empty.
+- Camera-transition forward-decl fix that unblocked the build earlier in the dependency graph: `709a8998`.
+
+---
+
