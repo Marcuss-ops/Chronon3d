@@ -37,6 +37,7 @@
 
 #include "content/common/animation_helpers.hpp"
 #include "content/common/background_helpers.hpp"
+#include "content/common/text_reveal_helpers.hpp"
 
 #include <functional>
 #include <string>
@@ -49,6 +50,10 @@ namespace chronon3d::content::anims {
 using chronon3d::content::animation_helpers::TEXT_COLOR;
 using chronon3d::content::animation_helpers::SHADOW_COLOR;
 using chronon3d::content::animation_helpers::FONT_REGULAR;
+using chronon3d::content::text_reveal::TextRevealDescriptor;
+using chronon3d::content::text_reveal::build_text_reveal_line;
+using chronon3d::content::text_reveal::measure_text_width;
+using chronon3d::content::text_reveal::font_regular;
 
 namespace {
 
@@ -107,157 +112,8 @@ Composition make_easy_anim(const char* name, const char* text,
         });
 }
 
-// ── Local FontEngine (file-scoped singleton, avoids shared_font_engine issues) ─
-static FontEngine& anim_font_engine() {
-    static FontEngine engine;
-    return engine;
-}
-
-// ── Measure full text width (FontEngine-accurate) ──────────────────────
-// Returns total advance width INCLUDING tracking, matching layout_text's output.
+// ── Tracking constant (kept local for easy-anim TextParams below) ────
 constexpr f32 TRACKING = 4.0f;
-
-f32 measure_text_width(const std::string& text, f32 font_size) {
-    FontEngine& engine = anim_font_engine();
-    FontSpec spec{FONT_REGULAR, "", 400};
-    auto run = engine.shape_text(text, spec, font_size);
-    if (!run) return 0.0f;
-    // Add tracking per glyph (excluding last) to match layout_text cursor logic
-    const size_t n = run->glyphs.size();
-    return run->width + TRACKING * static_cast<f32>(n > 1 ? n - 1 : 0);
-}
-
-// ── Per-glyph typewriter line builder ────────────────────────────────────
-//
-// Lays out the FULL text once using TextAnimator metrics, then creates one
-// layer per character at its FINAL position. Only opacity changes per frame.
-// This eliminates all layout instability from substring-based approaches.
-//
-// ref_offset_x: shared starting X for ALL lines in a multi-line block.
-//   Pass -max_width/2 so all lines align to the same left edge.
-
-struct TypeChar {
-    std::string ch;
-    f32         center_x{0.0f};
-    f32         width{0.0f};
-};
-
-std::vector<TypeChar> layout_text(const std::string& text, f32 font_size,
-                                  f32 ref_offset_x = 0.0f)
-{
-    FontEngine& engine = anim_font_engine();
-    FontSpec spec{FONT_REGULAR, "", 400};
-    auto run = engine.shape_text(text, spec, font_size);
-    if (!run || run->glyphs.empty()) return {};
-
-    const f32 tracking = TRACKING;
-
-    std::vector<TypeChar> result;
-    result.reserve(run->glyphs.size());
-
-    f32 cursor = ref_offset_x;
-    for (const auto& gp : run->glyphs) {
-        // Map glyph cluster back to the source text substring
-        size_t start_byte = gp.cluster;
-        size_t end_byte = text.size();
-        for (const auto& other : run->glyphs) {
-            if (other.cluster > start_byte) {
-                end_byte = other.cluster;
-                break;
-            }
-        }
-        std::string ch = text.substr(start_byte, end_byte - start_byte);
-
-        f32 ch_w = gp.advance_x;
-        f32 cx = cursor + ch_w * 0.5f;
-        result.push_back({ch, cx, ch_w});
-        cursor += ch_w + tracking;
-    }
-
-    return result;
-}
-
-void build_typewriter_line(SceneBuilder& s, const std::string& text,
-                           f32 font_size, f32 y_pos, f32 start_delay,
-                           f32 duration = 8.0f, f32 stagger = 2.0f,
-                           bool add_shadow = true, bool slide_up = false,
-                           f32 glow_intensity = 0.0f,
-                           int line_index = 0,
-                           f32 ref_offset_x = 0.0f)
-{
-    auto chars = layout_text(text, font_size, ref_offset_x);
-    if (chars.empty()) return;
-
-    for (size_t i = 0; i < chars.size(); ++i) {
-        const auto& tc = chars[i];
-        if (tc.ch.empty() || tc.ch == " ") continue;
-
-        const f32 delay = start_delay + static_cast<f32>(i) * stagger;
-        const f32 end_frame = delay + duration;
-        const f32 cx = tc.center_x;
-
-        s.layer(std::string("ch_") + std::to_string(line_index) + "_" + std::to_string(i),
-                [cx, y_pos, fs = font_size, ch = tc.ch, delay, end_frame,
-                 add_shadow, slide_up, glow_intensity, tc_w = tc.width](LayerBuilder& l)
-        {
-            l.pin_to(Anchor::Center)
-             .position({cx, y_pos, 0.0f});
-
-            // Opacity animation: invisible → visible → held visible.
-            // Pattern:
-            //   0..delay  → invisible (Hold)
-            //   delay..end → fade in (OutCubic)
-            //   end+ → fully visible (AnimatedValue holds last value)
-            {
-                auto& op = l.opacity_anim();
-                op.key(Frame{0}, 0.0f, EasingCurve{Easing::Hold});
-                op.key(Frame{static_cast<Frame>(delay)}, 0.0f, EasingCurve{Easing::OutCubic});
-                op.key(Frame{static_cast<Frame>(end_frame)}, 1.0f, EasingCurve{Easing::Hold});
-            }
-
-            // Optional slide-up
-            if (slide_up) {
-                auto& pos = l.position_anim();
-                pos.key(Frame{0}, Vec3{cx, y_pos + 24.0f, 0.0f}, EasingCurve{Easing::Hold});
-                pos.key(Frame{static_cast<Frame>(delay)}, Vec3{cx, y_pos + 24.0f, 0.0f}, EasingCurve{Easing::OutCubic});
-                pos.key(Frame{static_cast<Frame>(end_frame)}, Vec3{cx, y_pos, 0.0f}, EasingCurve{Easing::Linear});
-            }
-
-            // Micro drop shadow
-            if (add_shadow) {
-                l.drop_shadow(Vec2{0.0f, 3.0f}, SHADOW_COLOR, 6.0f);
-            }
-
-            // Optional glow — radius scales with font size
-            if (glow_intensity > 0.01f) {
-                const f32 glow_radius = std::max(5.0f, fs * 0.10f);
-                l.glow(GlowParams{
-                    .enabled = true,
-                    .radius = glow_radius,
-                    .intensity = glow_intensity,
-                    .color = {0.87f, 0.92f, 1.0f, 1.0f},
-                    .preserve_source = true,
-                    .additive = true,
-                });
-            }
-
-            // Single character text at pre-calculated position
-            TextParams tp;
-            tp.text = ch;
-            tp.size = {tc_w + (glow_intensity > 0.01f ? 40.0f : 12.0f), BOX_H};
-            tp.pos = {0.0f, 0.0f, 0.0f};
-            tp.font_path = FONT_REGULAR;
-            tp.font_size = fs;
-            tp.color = TEXT_COLOR;
-            tp.align = TextAlign::Center;
-            tp.vertical_align = VerticalAlign::Middle;
-            tp.line_height = 1.22f;
-            tp.tracking = TRACKING;
-
-            l.text("label", tp);
-        });
-    }
-}
 
 // Build a 2-line typewriter block — all lines share the SAME left edge
 void build_2line_typewriter(SceneBuilder& s,
@@ -268,16 +124,32 @@ void build_2line_typewriter(SceneBuilder& s,
                             bool slide_up = false,
                             f32 glow_intensity = 0.0f)
 {
-    // Find the widest line to use as alignment reference
-    f32 w1 = measure_text_width(line1, size1);
-    f32 w2 = measure_text_width(line2, size2);
+    auto spec = font_regular();
+    f32 w1 = measure_text_width(line1, size1, spec, TRACKING);
+    f32 w2 = measure_text_width(line2, size2, spec, TRACKING);
     f32 max_w = std::max(w1, w2);
     f32 ref_x = -max_w * 0.5f;
 
-    build_typewriter_line(s, line1, size1, BASE_Y - line_spacing * 0.5f,
-                          0.0f, 8.0f, 2.0f, true, slide_up, glow_intensity, 0, ref_x);
-    build_typewriter_line(s, line2, size2, BASE_Y + line_spacing * 0.5f,
-                          start_delay_2, 8.0f, 2.0f, true, slide_up, glow_intensity, 1, ref_x);
+    auto d1 = TextRevealDescriptor{
+        .text = line1, .font_size = size1, .font_spec = spec,
+        .tracking = TRACKING, .ref_offset_x = ref_x,
+        .base_pos = {0.0f, BASE_Y - line_spacing * 0.5f, 0.0f},
+        .start_delay = 0.0f, .duration = 8.0f, .stagger = 2.0f,
+        .slide_up = slide_up, .pin_to_center = true,
+        .add_shadow = true, .shadow_color = SHADOW_COLOR,
+        .glow_intensity = glow_intensity,
+        .color = TEXT_COLOR,
+        .layer_prefix = "ch_0"
+    };
+    build_text_reveal_line(s, d1);
+
+    auto d2 = d1;
+    d2.text = line2;
+    d2.font_size = size2;
+    d2.base_pos = {0.0f, BASE_Y + line_spacing * 0.5f, 0.0f};
+    d2.start_delay = start_delay_2;
+    d2.layer_prefix = "ch_1";
+    build_text_reveal_line(s, d2);
 }
 
 } // anonymous namespace
@@ -356,17 +228,31 @@ Composition anim_typewriter_simple() {
         SceneBuilder s(ctx);
         add_bg(s);
 
-        // Precompute widths FIRST, then use inline build_typewriter_line calls
-        // (avoiding FontEngine calls nested inside build_2line_typewriter)
-        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f);
-        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f);
+        // Precompute widths FIRST, then use inline build_text_reveal_line calls
+        auto spec = font_regular();
+        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TRACKING);
+        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f, spec, TRACKING);
         f32 max_w = std::max(w1, w2);
         f32 ref_x = -max_w * 0.5f;
 
-        build_typewriter_line(s, "THIS TEXT APPEARS", 64.0f, BASE_Y - 42.5f,
-                              0.0f, 8.0f, 2.0f, true, false, 0.0f, 0, ref_x);
-        build_typewriter_line(s, "ONE LETTER AT A TIME", 76.0f, BASE_Y + 42.5f,
-                              36.0f, 8.0f, 2.0f, true, false, 0.0f, 1, ref_x);
+        build_text_reveal_line(s, TextRevealDescriptor{
+            .text = "THIS TEXT APPEARS", .font_size = 64.0f, .font_spec = spec,
+            .tracking = TRACKING, .ref_offset_x = ref_x,
+            .base_pos = {0.0f, BASE_Y - 42.5f, 0.0f},
+            .start_delay = 0.0f, .duration = 8.0f, .stagger = 2.0f,
+            .pin_to_center = true, .add_shadow = true,
+            .color = TEXT_COLOR, .shadow_color = SHADOW_COLOR,
+            .layer_prefix = "ch_0"
+        });
+        build_text_reveal_line(s, TextRevealDescriptor{
+            .text = "ONE LETTER AT A TIME", .font_size = 76.0f, .font_spec = spec,
+            .tracking = TRACKING, .ref_offset_x = ref_x,
+            .base_pos = {0.0f, BASE_Y + 42.5f, 0.0f},
+            .start_delay = 36.0f, .duration = 8.0f, .stagger = 2.0f,
+            .pin_to_center = true, .add_shadow = true,
+            .color = TEXT_COLOR, .shadow_color = SHADOW_COLOR,
+            .layer_prefix = "ch_1"
+        });
 
         return s.build();
     });
@@ -380,9 +266,9 @@ Composition anim_typewriter_cursor() {
         add_bg(s);
 
         // Precompute needed values BEFORE build_2line_typewriter
-        // to avoid any FontEngine-interaction issues.
-        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f);
-        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f);
+        auto spec = font_regular();
+        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TRACKING);
+        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f, spec, TRACKING);
         f32 max_w = std::max(w1, w2);
         f32 ref_x = -max_w * 0.5f;
         f32 cursor_x = ref_x + w2 + 6.0f;
@@ -435,15 +321,30 @@ Composition anim_typewriter_slide() {
         SceneBuilder s(ctx);
         add_bg(s);
 
-        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f);
-        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f);
+        auto spec = font_regular();
+        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TRACKING);
+        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f, spec, TRACKING);
         f32 max_w = std::max(w1, w2);
         f32 ref_x = -max_w * 0.5f;
 
-        build_typewriter_line(s, "THIS TEXT APPEARS", 64.0f, BASE_Y - 42.5f,
-                              0.0f, 8.0f, 2.0f, true, true, 0.0f, 0, ref_x);
-        build_typewriter_line(s, "ONE LETTER AT A TIME", 76.0f, BASE_Y + 42.5f,
-                              36.0f, 8.0f, 2.0f, true, true, 0.0f, 1, ref_x);
+        build_text_reveal_line(s, TextRevealDescriptor{
+            .text = "THIS TEXT APPEARS", .font_size = 64.0f, .font_spec = spec,
+            .tracking = TRACKING, .ref_offset_x = ref_x,
+            .base_pos = {0.0f, BASE_Y - 42.5f, 0.0f},
+            .start_delay = 0.0f, .duration = 8.0f, .stagger = 2.0f,
+            .slide_up = true, .pin_to_center = true, .add_shadow = true,
+            .color = TEXT_COLOR, .shadow_color = SHADOW_COLOR,
+            .layer_prefix = "ch_0"
+        });
+        build_text_reveal_line(s, TextRevealDescriptor{
+            .text = "ONE LETTER AT A TIME", .font_size = 76.0f, .font_spec = spec,
+            .tracking = TRACKING, .ref_offset_x = ref_x,
+            .base_pos = {0.0f, BASE_Y + 42.5f, 0.0f},
+            .start_delay = 36.0f, .duration = 8.0f, .stagger = 2.0f,
+            .slide_up = true, .pin_to_center = true, .add_shadow = true,
+            .color = TEXT_COLOR, .shadow_color = SHADOW_COLOR,
+            .layer_prefix = "ch_1"
+        });
 
         return s.build();
     });
@@ -489,9 +390,10 @@ Composition anim_typewriter_stagger() {
         };
 
         // Find the widest line to use as shared left-edge alignment
+        auto spec = font_regular();
         f32 max_w = 0.0f;
         for (int i = 0; i < 4; ++i) {
-            f32 w = measure_text_width(lines[i].text, lines[i].size);
+            f32 w = measure_text_width(lines[i].text, lines[i].size, spec, TRACKING);
             if (w > max_w) max_w = w;
         }
         f32 ref_x = -max_w * 0.5f;
@@ -500,10 +402,15 @@ Composition anim_typewriter_stagger() {
         const f32 step_y = 72.0f;
 
         for (int i = 0; i < 4; ++i) {
-            build_typewriter_line(s, lines[i].text, lines[i].size,
-                                  start_y + static_cast<f32>(i) * step_y,
-                                  lines[i].delay,
-                                  8.0f, 3.0f, true, false, 0.0f, i, ref_x);
+            build_text_reveal_line(s, TextRevealDescriptor{
+                .text = lines[i].text, .font_size = lines[i].size, .font_spec = spec,
+                .tracking = TRACKING, .ref_offset_x = ref_x,
+                .base_pos = {0.0f, start_y + static_cast<f32>(i) * step_y, 0.0f},
+                .start_delay = lines[i].delay, .duration = 8.0f, .stagger = 3.0f,
+                .pin_to_center = true, .add_shadow = true,
+                .color = TEXT_COLOR, .shadow_color = SHADOW_COLOR,
+                .layer_prefix = "ch_" + std::to_string(i)
+            });
         }
 
         return s.build();
