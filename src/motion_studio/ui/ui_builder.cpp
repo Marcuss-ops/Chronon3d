@@ -207,18 +207,18 @@ void UiBuilder::emit(chronon3d::SceneBuilder& s) {
                         .pos     = {0.0f, 0.0f, 0.0f},
                     });
                     if (!n.text_value.empty()) {
-                        chronon3d::TextParams tp;
-                        tp.text      = n.text_value;
-                        tp.size      = {n.resolved_size.x, n.resolved_size.y};
-                        tp.pos       = {0.0f, 0.0f, 0.0f};
-                        tp.font_size = std::min(20.0f, n.resolved_size.y * 0.55f);
-                        tp.color     = n.fg_color;
-                        tp.align     = chronon3d::TextAlign::Center;
-                        tp.vertical_align = chronon3d::VerticalAlign::Middle;
-                        tp.font_path  = "assets/fonts/Inter-Bold.ttf";
-                        tp.font_family = "Inter";
-                        tp.font_weight = 700;
-                        tp.anchor = chronon3d::TextAnchor::Center; // may need enum verification
+                        chronon3d::TextSpec tp;
+                        tp.content.value      = n.text_value;
+                        tp.layout.box      = {n.resolved_size.x, n.resolved_size.y};
+                        tp.position       = {0.0f, 0.0f, 0.0f};
+                        tp.font.font_size = std::min(20.0f, n.resolved_size.y * 0.55f);
+                        tp.appearance.color     = n.fg_color;
+                        tp.layout.align     = chronon3d::TextAlign::Center;
+                        tp.layout.vertical_align = chronon3d::VerticalAlign::Middle;
+                        tp.font.font_path  = "assets/fonts/Inter-Bold.ttf";
+                        tp.font.font_family = "Inter";
+                        tp.font.font_weight = 700;
+                        tp.layout.anchor = chronon3d::TextAnchor::Center; // may need enum verification
                         l.text("label", tp);
                     }
                     (void)layer_id;
@@ -240,53 +240,53 @@ void UiBuilder::emit(chronon3d::SceneBuilder& s) {
                         .pos    = {0.0f, -n.resolved_size.y * 0.5f + 14.0f, 0.0f},
                     });
                     // Title label (top-left of card).
-                    chronon3d::TextParams title;
-                    title.text      = n.text_value;
-                    title.size      = {n.resolved_size.x - 24.0f, 28.0f};
-                    title.pos       = {-n.resolved_size.x * 0.5f + 12.0f,
+                    chronon3d::TextSpec title;
+                    title.content.value      = n.text_value;
+                    title.layout.box      = {n.resolved_size.x - 24.0f, 28.0f};
+                    title.position       = {-n.resolved_size.x * 0.5f + 12.0f,
                                         -n.resolved_size.y * 0.5f + 32.0f, 0.0f};
-                    title.font_size = 14.0f;
-                    title.color     = {0.65f, 0.69f, 0.78f, 1.0f};
-                    title.align     = chronon3d::TextAlign::Left;
-                    title.vertical_align = chronon3d::VerticalAlign::Middle;
-                    title.font_path  = "assets/fonts/Inter-Bold.ttf";
-                    title.font_family = "Inter";
-                    title.font_weight = 600;
-                    title.anchor = chronon3d::TextAnchor::TopLeft;
+                    title.font.font_size = 14.0f;
+                    title.appearance.color     = {0.65f, 0.69f, 0.78f, 1.0f};
+                    title.layout.align     = chronon3d::TextAlign::Left;
+                    title.layout.vertical_align = chronon3d::VerticalAlign::Middle;
+                    title.font.font_path  = "assets/fonts/Inter-Bold.ttf";
+                    title.font.font_family = "Inter";
+                    title.font.font_weight = 600;
+                    title.layout.anchor = chronon3d::TextAnchor::TopLeft;
                     l.text("title", title);
 
                     // Value (big number, centred).
-                    chronon3d::TextParams value;
-                    value.text      = n.subtext_value;
-                    value.size      = {n.resolved_size.x - 24.0f, 48.0f};
-                    value.pos       = {0.0f, 4.0f, 0.0f};
-                    value.font_size = 32.0f;
-                    value.color     = n.fg_color;
-                    value.align     = chronon3d::TextAlign::Center;
-                    value.vertical_align = chronon3d::VerticalAlign::Middle;
-                    value.font_path  = "assets/fonts/Inter-Bold.ttf";
-                    value.font_family = "Inter";
-                    value.font_weight = 800;
-                    value.anchor = chronon3d::TextAnchor::Center;
+                    chronon3d::TextSpec value;
+                    value.content.value      = n.subtext_value;
+                    value.layout.box      = {n.resolved_size.x - 24.0f, 48.0f};
+                    value.position       = {0.0f, 4.0f, 0.0f};
+                    value.font.font_size = 32.0f;
+                    value.appearance.color     = n.fg_color;
+                    value.layout.align     = chronon3d::TextAlign::Center;
+                    value.layout.vertical_align = chronon3d::VerticalAlign::Middle;
+                    value.font.font_path  = "assets/fonts/Inter-Bold.ttf";
+                    value.font.font_family = "Inter";
+                    value.font.font_weight = 800;
+                    value.layout.anchor = chronon3d::TextAnchor::Center;
                     l.text("value", value);
 
                     // Trend (bottom-left of card).
                     std::string arrow = n.trend_positive ? "▲ " : "▼ ";
-                    chronon3d::TextParams trend;
-                    trend.text      = arrow + std::to_string(static_cast<int>(std::abs(n.trend_value))) + "%";
-                    trend.size      = {n.resolved_size.x - 24.0f, 24.0f};
-                    trend.pos       = {-n.resolved_size.x * 0.5f + 12.0f,
+                    chronon3d::TextSpec trend;
+                    trend.content.value      = arrow + std::to_string(static_cast<int>(std::abs(n.trend_value))) + "%";
+                    trend.layout.box      = {n.resolved_size.x - 24.0f, 24.0f};
+                    trend.position       = {-n.resolved_size.x * 0.5f + 12.0f,
                                        n.resolved_size.y * 0.5f - 24.0f, 0.0f};
-                    trend.font_size = 13.0f;
-                    trend.color     = n.trend_positive
+                    trend.font.font_size = 13.0f;
+                    trend.appearance.color     = n.trend_positive
                         ? chronon3d::Color{0.30f, 0.85f, 0.50f, 1.0f}
                         : chronon3d::Color{0.95f, 0.40f, 0.40f, 1.0f};
-                    trend.align     = chronon3d::TextAlign::Left;
-                    trend.vertical_align = chronon3d::VerticalAlign::Middle;
-                    trend.font_path  = "assets/fonts/Inter-Bold.ttf";
-                    trend.font_family = "Inter";
-                    trend.font_weight = 700;
-                    trend.anchor = chronon3d::TextAnchor::BottomLeft;
+                    trend.layout.align     = chronon3d::TextAlign::Left;
+                    trend.layout.vertical_align = chronon3d::VerticalAlign::Middle;
+                    trend.font.font_path  = "assets/fonts/Inter-Bold.ttf";
+                    trend.font.font_family = "Inter";
+                    trend.font.font_weight = 700;
+                    trend.layout.anchor = chronon3d::TextAnchor::BottomLeft;
                     l.text("trend", trend);
                     (void)layer_id;
                 });
@@ -312,18 +312,18 @@ void UiBuilder::emit(chronon3d::SceneBuilder& s) {
                     const chronon3d::Color shown_color = n.typed_value.empty()
                         ? chronon3d::Color{0.55f, 0.60f, 0.70f, 1.0f}
                         : n.fg_color;
-                    chronon3d::TextParams tp;
-                    tp.text      = shown;
-                    tp.size      = {n.resolved_size.x - 24.0f, n.resolved_size.y};
-                    tp.pos       = {-n.resolved_size.x * 0.5f + 14.0f, 0.0f, 0.0f};
-                    tp.font_size = 16.0f;
-                    tp.color     = shown_color;
-                    tp.align     = chronon3d::TextAlign::Left;
-                    tp.vertical_align = chronon3d::VerticalAlign::Middle;
-                    tp.font_path  = "assets/fonts/Inter-Bold.ttf";
-                    tp.font_family = "Inter";
-                    tp.font_weight = 500;
-                    tp.anchor = chronon3d::TextAnchor::Center;
+                    chronon3d::TextSpec tp;
+                    tp.content.value      = shown;
+                    tp.layout.box      = {n.resolved_size.x - 24.0f, n.resolved_size.y};
+                    tp.position       = {-n.resolved_size.x * 0.5f + 14.0f, 0.0f, 0.0f};
+                    tp.font.font_size = 16.0f;
+                    tp.appearance.color     = shown_color;
+                    tp.layout.align     = chronon3d::TextAlign::Left;
+                    tp.layout.vertical_align = chronon3d::VerticalAlign::Middle;
+                    tp.font.font_path  = "assets/fonts/Inter-Bold.ttf";
+                    tp.font.font_family = "Inter";
+                    tp.font.font_weight = 500;
+                    tp.layout.anchor = chronon3d::TextAnchor::Center;
                     l.text("text", tp);
                     (void)layer_id;
                 });

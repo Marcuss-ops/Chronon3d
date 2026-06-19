@@ -146,51 +146,51 @@ static Vec3 resolve_text_anchor(TextAnchor anchor, Vec2 box) {
     return {box.x * 0.5f, box.y * 0.5f, 0.0f}; // fallback = Center
 }
 
-RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string name, TextParams p) {
+RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string name, TextSpec p) {
     auto node = base(res, std::move(name));
     node.shape.type = ShapeType::Text;
-    node.shape.text.text = std::move(p.text);
+    node.shape.text.text = std::move(p.content.value);
     // Fallback: if the caller left font_path empty, use the project default
     // (Inter-Bold). Without this, rasterize_text_to_bl_image() returns
     // std::nullopt and the text is silently dropped from the render.
-    if (p.font_path.empty()) {
-        p.font_path = "assets/fonts/Inter-Bold.ttf";
+    if (p.font.font_path.empty()) {
+        p.font.font_path = "assets/fonts/Inter-Bold.ttf";
     }
-    node.shape.text.style.font_path = std::move(p.font_path);
-    node.shape.text.style.font_family = std::move(p.font_family);
-    node.shape.text.style.font_weight = p.font_weight;
-    node.shape.text.style.font_style = std::move(p.font_style);
-    node.shape.text.style.size = p.font_size;
-    node.shape.text.style.color = p.color;
+    node.shape.text.style.font_path = std::move(p.font.font_path);
+    node.shape.text.style.font_family = std::move(p.font.font_family);
+    node.shape.text.style.font_weight = p.font.font_weight;
+    node.shape.text.style.font_style = std::move(p.font.font_style);
+    node.shape.text.style.size = p.font.font_size;
+    node.shape.text.style.color = p.appearance.color;
     // ── TextAnchor: anchor determines the box attachment point ──
-    node.shape.text.style.anchor    = p.anchor;
+    node.shape.text.style.anchor    = p.layout.anchor;
     // ── Intra-box alignment: separate from box anchoring ──
-    node.shape.text.style.align         = p.align;
-    node.shape.text.style.vertical_align = p.vertical_align;
-    node.shape.text.style.line_height = p.line_height;
-    node.shape.text.style.tracking = p.tracking;
-    node.shape.text.style.centering_mode = p.centering_mode;
-    node.shape.text.style.box_style = p.box_style;
-    node.shape.text.style.paint = p.paint;
-    node.shape.text.style.shadows = std::move(p.shadows);
-    node.shape.text.style.material = std::move(p.material);
+    node.shape.text.style.align         = p.layout.align;
+    node.shape.text.style.vertical_align = p.layout.vertical_align;
+    node.shape.text.style.line_height = p.layout.line_height;
+    node.shape.text.style.tracking = p.layout.tracking;
+    node.shape.text.style.centering_mode = p.layout.centering_mode;
+    node.shape.text.style.box_style = p.appearance.box_style;
+    node.shape.text.style.paint = p.appearance.paint;
+    node.shape.text.style.shadows = std::move(p.appearance.shadows);
+    node.shape.text.style.material = std::move(p.appearance.material);
 
-    node.shape.text.style.auto_fit = p.auto_fit;
-    node.shape.text.style.auto_scale = p.auto_fit;
-    node.shape.text.style.max_lines = p.max_lines;
-    node.shape.text.style.ellipsis = p.ellipsis;
-    node.shape.text.style.min_size = p.min_font_size;
-    node.shape.text.style.max_size = p.max_font_size;
-    node.shape.text.style.overflow = p.overflow;
-    node.shape.text.style.wrap = p.wrap;
-    node.shape.text.style.pre_shaped = std::move(p.pre_shaped);
+    node.shape.text.style.auto_fit = p.layout.auto_fit;
+    node.shape.text.style.auto_scale = p.layout.auto_fit;
+    node.shape.text.style.max_lines = p.layout.max_lines;
+    node.shape.text.style.ellipsis = p.layout.ellipsis;
+    node.shape.text.style.min_size = p.layout.min_font_size;
+    node.shape.text.style.max_size = p.layout.max_font_size;
+    node.shape.text.style.overflow = p.layout.overflow;
+    node.shape.text.style.wrap = p.layout.wrap;
+    node.shape.text.style.pre_shaped = std::move(p.content.pre_shaped);
 
     node.shape.text.box.enabled = true;
-    node.shape.text.box.size = p.size;
-    node.world_transform.anchor = resolve_text_anchor(p.anchor, p.size);
-    node.world_transform.position = p.pos;
-    node.color = p.color;
-    node.fill = Fill::solid_color(p.color);
+    node.shape.text.box.size = p.layout.box;
+    node.world_transform.anchor = resolve_text_anchor(p.layout.anchor, p.layout.box);
+    node.world_transform.position = p.position;
+    node.color = p.appearance.color;
+    node.fill = Fill::solid_color(p.appearance.color);
     return node;
 }
 

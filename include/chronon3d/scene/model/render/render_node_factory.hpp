@@ -18,7 +18,7 @@ public:
     static RenderNode image(std::pmr::memory_resource* res, std::string name, ImageParams p);
     static RenderNode tiled_image(std::pmr::memory_resource* res, std::string name, ImageParams p);
     static RenderNode grid_background(std::pmr::memory_resource* res, std::string name, const GridBackgroundParams& p);
-    static RenderNode text(std::pmr::memory_resource* res, std::string name, TextParams p);
+    static RenderNode text(std::pmr::memory_resource* res, std::string name, TextSpec p);
 
     // ── PR 4: text-run factory ──
     //

@@ -111,7 +111,7 @@ void register_builtin_shapes(ShapeRegistry& registry) {
         .kind = ShapeKind::Primitive,
         .description = "Rasterized text",
         .builtin = true,
-        .factory = make_factory<TextParams>([](auto* res, std::string name, TextParams p) {
+        .factory = make_factory<TextSpec>([](auto* res, std::string name, TextSpec p) {
             return RenderNodeFactory::text(res, std::move(name), std::move(p));
         }),
     });

@@ -137,17 +137,17 @@ void CursorBuilder::emit() {
             : moves_.back().to_pos;
         s_.layer(overlay_id, [t, final_pos](chronon3d::LayerBuilder& l) {
             l.position({final_pos.x, final_pos.y - 60.0f, 0.0f});
-            chronon3d::TextParams tp;
-            tp.text      = t.text;
-            tp.size      = {320.0f, 28.0f};
-            tp.pos       = {0.0f, 0.0f, 0.0f};
-            tp.font_size = 16.0f;
-            tp.color     = {1.0f, 1.0f, 1.0f, 1.0f};
-            tp.align     = chronon3d::TextAlign::Center;
-            tp.vertical_align = chronon3d::VerticalAlign::Middle;
-            tp.font_path = "assets/fonts/Inter-Bold.ttf";
-            tp.font_family = "Inter";
-            tp.font_weight = 600;
+            chronon3d::TextSpec tp;
+            tp.content.value = t.text;
+            tp.layout.box      = {320.0f, 28.0f};
+            tp.position       = {0.0f, 0.0f, 0.0f};
+            tp.font.font_size = 16.0f;
+            tp.appearance.color     = {1.0f, 1.0f, 1.0f, 1.0f};
+            tp.layout.align     = chronon3d::TextAlign::Center;
+            tp.layout.vertical_align = chronon3d::VerticalAlign::Middle;
+            tp.font.font_path = "assets/fonts/Inter-Bold.ttf";
+            tp.font.font_family = "Inter";
+            tp.font.font_weight = 600;
             l.text("typed", tp);
             l.opacity_anim()
                 .key(t.start_frame, 0.0f,
