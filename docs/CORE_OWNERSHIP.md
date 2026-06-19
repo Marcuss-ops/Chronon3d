@@ -57,7 +57,7 @@ La Core Zone contiene esclusivamente contratti, interfacce pubbliche e invariant
 |---|---|---|
 | ~~`scene.hpp`~~ | ~~`camera_2_5d.hpp`~~ | ✅ **Risolto** — ora usa `std::unique_ptr<Camera2_5DRuntime>` con forward declaration + `CameraProjectionSource` |
 | ~~`layer.hpp`~~ | ~~`effect_stack.hpp`, `material_2_5d.hpp`, `card3d_material.hpp`~~ | ✅ **Risolto** — ora usa `std::unique_ptr` + forward declaration + getter `effects()`/`material()`/`card3d_material()` |
-| `camera_rig.hpp` | `camera_2_5d.hpp`, `animated_camera_2_5d.hpp` | Metodo `evaluate()` restituisce `Camera2_5D` |
+| ~~`camera_rig.hpp`~~ | ~~`camera_2_5d.hpp`, `animated_camera_2_5d.hpp`~~ | ✅ **Risolto** — ora include `camera_projection_source.hpp` + `camera_common_types.hpp`; `evaluate()`/`bake()` out-of-line in .cpp; presets estrapolati in `camera_rig_animated_presets.hpp` |
 | ~~`camera_projection.hpp`~~ | ~~`camera_2_5d.hpp`~~ | ✅ **Risolto** — ora usa `CameraProjectionSource` (interfaccia non-owning) |
 
 Queste dipendenze sono **da risolvere** con refactor futuri (es. estrarre un'interfaccia `CameraProjectionSource` nel core, spostare `EffectStack` in Integration Zone tramite type-erasure o forward declaration). La policy è attiva: nessuna **nuova** dipendenza di questo tipo può essere aggiunta.

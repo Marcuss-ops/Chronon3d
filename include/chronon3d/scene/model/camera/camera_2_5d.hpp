@@ -5,28 +5,14 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/model/camera/lens_model.hpp>
 #include <chronon3d/scene/model/camera/camera_projection_source.hpp>
+#include <chronon3d/scene/model/camera/camera_common_types.hpp>
 #include <string>
 #include <memory_resource>
 #include <glm/gtx/quaternion.hpp>  // glm::quatLookAtLH stable path
 
 namespace chronon3d {
 
-// ── Temporal sample pattern for motion blur ──────────────────────────────
-// Controls how sub-frame samples are distributed across the shutter window.
-// All patterns produce deterministic results for the same seed.
-enum class TemporalSamplePattern {
-    Uniform,     // evenly spaced samples (no jitter)
-    Stratified,  // one random point per equal-sized stratum
-    Halton       // low-discrepancy Halton sequence (2,3)
-};
-
-// ── Temporal reconstruction filter ───────────────────────────────────────
-// Weight function applied across the shutter window.
-enum class TemporalFilter {
-    Box,         // equal weight for all samples (1/N)
-    Triangle,    // linear ramp: highest weight at center, zero at edges
-    Gaussian     // Gaussian bell curve (sigma = exposure_duration / 4)
-};
+// TemporalSamplePattern and TemporalFilter are now in camera_common_types.hpp
 
 struct MotionBlurSettings {
     bool enabled{false};
@@ -42,26 +28,7 @@ struct MotionBlurSettings {
     u64  jitter_seed{0x3A5C9F1E};
 };
 
-struct DepthOfFieldSettings {
-    bool  enabled{false};
-
-    // Legacy simple model (backward compatible):
-    //   blur = |layer_z - focus_z| * aperture, clamped to max_blur.
-    f32   focus_z{0.0f};      // world-space Z at which blur = 0
-    f32   aperture{0.015f};   // blur per unit of Z distance from focus
-    f32   max_blur{24.0f};    // clamp: pixels of blur at extreme depths
-
-    // Physical lens model: camera-space distance to focus plane (scene units).
-    // Used by compute_physical_coc() when use_physical_model is true.
-    // Evaluated per-frame from camera_rig / animated_camera.
-    f32   focus_distance{1000.0f};
-    bool  use_physical_model{false};
-
-    // Near / far bokeh separation (for future iris shape rendering).
-    // Set to 0 to disable per-side bokeh control (uses uniform blur radius).
-    f32   near_bokeh_radius{0.0f};  // max blur radius for objects closer than focus
-    f32   far_bokeh_radius{0.0f};   // max blur radius for objects farther than focus
-};
+// DepthOfFieldSettings is now in camera_common_types.hpp
 
 // ── Camera2_5DProjectionMode and CameraOpticsMode are now defined in ────────
 // camera_projection_source.hpp so that the projection pipeline can depend on
