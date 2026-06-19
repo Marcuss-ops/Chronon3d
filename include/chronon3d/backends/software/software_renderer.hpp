@@ -146,8 +146,14 @@ public:
         return graph::RenderCapabilities{.text_run = true};
     }
 
+    // PR2 — declare text rendering support; downstream callers MUST gate on
+    // `backend->capabilities().text_run` before invoking draw_text_run.
+    // Also PR2 — `bool diagnostic_mode` was removed from this override:
+    // diagnostic logging is now driven by the caller (e.g.
+    // `ctx.options.diagnostics_enabled`) at the graph-node level, not as
+    // a flag buried inside the processor's params.
     graph::RenderOpResult draw_text_run(Framebuffer& fb, const TextRunShape& shape, const Mat4& model_matrix,
-                                        float opacity, bool diagnostic_mode) override;
+                                        float opacity) override;
 
     [[nodiscard]] renderer::SoftwareRegistry& software_registry() { return *m_runtime_resources.software_registry; }
     [[nodiscard]] const renderer::SoftwareRegistry& software_registry() const { return *m_runtime_resources.software_registry; }

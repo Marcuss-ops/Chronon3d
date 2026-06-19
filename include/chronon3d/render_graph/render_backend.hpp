@@ -9,9 +9,11 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
 #include <glm/glm.hpp>
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <span>
+#include <string>
 #include <variant>
 
 namespace chronon3d {
@@ -43,8 +45,30 @@ enum class RenderBackendErrorCode {
     ExecutionFailure,       // operation failed at runtime (shaping, raster, etc.)
 };
 
-/// Empty outcome payload signalling a successful backend operation.
-struct RenderOpOutcome {};
+/// PR2 — stable, human-readable name for each error code.  Used by log
+/// messages (`spdlog::error("[backend] draw_text_run failed: [{}] {}",
+/// render_backend_error_code_name(code), message)`).  Centralising this
+/// mapping prevents log strings from drifting across callers.
+inline const char* render_backend_error_code_name(RenderBackendErrorCode code) noexcept {
+    switch (code) {
+        case RenderBackendErrorCode::UnsupportedCapability: return "UnsupportedCapability";
+        case RenderBackendErrorCode::InvalidInput:         return "InvalidInput";
+        case RenderBackendErrorCode::ExecutionFailure:     return "ExecutionFailure";
+    }
+    return "Unknown";  // unreachable in well-formed enum usage
+}
+
+struct RenderBackendError {
+    RenderBackendErrorCode code{RenderBackendErrorCode::ExecutionFailure};
+    std::string message{};
+};
+
+struct RenderOpOutcome {
+    /// Number of items successfully processed (e.g. glyphs rasterized,
+    /// shapes drawn).  Zero is a valid outcome when there is nothing to do
+    /// (e.g. layout is empty, safe-bbox clip rejects the layer).
+    std::size_t items_drawn{0};
+};
 
 /// Minimal Result type for backend operations.
 template <typename T, typename E>
@@ -63,7 +87,7 @@ private:
     std::variant<T, E> m_storage;
 };
 
-using RenderOpResult = Result<RenderOpOutcome, RenderBackendErrorCode>;
+using RenderOpResult = Result<RenderOpOutcome, RenderBackendError>;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RenderBackend
@@ -123,17 +147,24 @@ public:
     ) = 0;
 
     /// Draw a batched text run with per-glyph animation state.
-    /// Returns RenderOpOutcome on success, or an error code on failure.
+    /// Returns RenderOpOutcome on success, or a RenderBackendError on failure.
     /// Backends that do not support text-run rendering return
     /// RenderBackendErrorCode::UnsupportedCapability.
+    /// PR2: the `diagnostic_mode` parameter was removed — diagnostic logging
+    /// is now controlled by the caller (e.g. graph-node
+    /// `ctx.options.diagnostics_enabled`) and propagated into `spdlog::*`
+    /// calls at the caller side, not as a flag buried inside the processor's
+    /// params struct.
     virtual RenderOpResult draw_text_run(
         Framebuffer& /*fb*/,
         const chronon3d::TextRunShape& /*shape*/,
         const glm::mat4& /*model_matrix*/,
-        float /*opacity*/,
-        bool /*diagnostic_mode*/
+        float /*opacity*/
     ) {
-        return RenderBackendErrorCode::UnsupportedCapability;
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::draw_text_run: not supported by this backend (capabilities().text_run == false)"
+        });
     }
 };
 
