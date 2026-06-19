@@ -3,8 +3,8 @@
 # ==============================================================================
 
 add_library(chronon3d_effects STATIC
-    effect_registry.cpp
     effect_catalog.cpp
+    effect_catalog_data.cpp
     curves.cpp
     color_pipeline.cpp
 )
