@@ -14,7 +14,15 @@ function(chronon3d_enable_test_pch target_name)
 endfunction()
 
 # ── Per-area test definitions ───────────────────────────────────────
-if(BUILD_TESTING)
+# Guarded by CHRONON3D_BUILD_TESTS (the project's own flag) rather than
+# BUILD_TESTING, because BUILD_TESTING is only set by `include(CTest)`
+# whereas `enable_testing()` (used at the top level) does NOT define it.
+# Without this alignment, the per-area test executables and the
+# chronon3d_tests_fast / chronon3d_tests_render / chronon3d_tests_video
+# aggregate custom targets are silently dropped, which makes the
+# chronon3d_dev_fast aggregate target unbuildable (ninja reports the
+# custom target as a missing rule).
+if(CHRONON3D_BUILD_TESTS)
 include(${CMAKE_CURRENT_SOURCE_DIR}/core_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/animation_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/scene_tests.cmake)
