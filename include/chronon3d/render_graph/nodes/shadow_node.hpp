@@ -15,7 +15,6 @@
 #include <string>
 #include <utility>
 #include <span>
-#include <spdlog/spdlog.h>
 
 namespace chronon3d::graph {
 
@@ -28,8 +27,10 @@ public:
                f32 caster_world_z,
                f32 receiver_world_z,
                Vec3 light_direction,
-               rendering::ShadowSettings settings)
-        : m_caster_name(std::move(caster_name))
+               rendering::ShadowSettings settings,
+               RenderNodeCachePolicy cache_policy = frame_variant_cache("shadow"))
+        : RenderGraphNode(std::move(cache_policy)),
+          m_caster_name(std::move(caster_name))
         , m_caster_world_z(caster_world_z)
         , m_receiver_world_z(receiver_world_z)
         , m_light_dir(light_direction)
@@ -37,7 +38,6 @@ public:
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
     std::string_view name() const noexcept override { return "Shadow"; }
-    [[nodiscard]] bool cacheable() const noexcept override { return true; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         u64 h = hash_string(m_caster_name);
@@ -58,7 +58,7 @@ public:
         h = hash_combine(h, hash_color(m_settings.tint));
         return cache::NodeCacheKey{
             .scope = "shadow:" + m_caster_name,
-            .frame = frame_dependent() ? ctx.frame.frame : Frame{0},
+            .frame = cache_policy().is_frame_variant() ? ctx.frame.frame : Frame{0},
             .width = ctx.frame.width,
             .height = ctx.frame.height,
             .params_hash = h
@@ -204,14 +204,15 @@ public:
     }
 
     static std::unique_ptr<ShadowNode> create(std::string caster_name,
-                                               f32 caster_world_z,
-                                               f32 receiver_world_z,
-                                               Vec3 light_direction,
-                                               rendering::ShadowSettings settings)
+                                              f32 caster_world_z,
+                                              f32 receiver_world_z,
+                                              Vec3 light_direction,
+                                              rendering::ShadowSettings settings,
+                                              RenderNodeCachePolicy cache_policy = frame_variant_cache("shadow"))
     {
         return std::make_unique<ShadowNode>(
             std::move(caster_name), caster_world_z, receiver_world_z,
-            light_direction, settings);
+            light_direction, settings, std::move(cache_policy));
     }
 
 private:

@@ -60,13 +60,13 @@ enum class RenderGraphNodeKind {
 
 class RenderGraphNode {
 public:
-    /// Default cache policy: frame_variant_cache (per-frame, frame-dependent).
-    /// Subclasses and builder passes can override via `set_cache_policy()`
-    /// before the node is observed by the executor.  Policy is immutable
-    /// once the node enters the executor — `set_cache_policy()` is only
-    /// legal in the build phase.
-    RenderGraphNode()
-        : m_cache_policy(frame_variant_cache()) {}
+    /// Cache policy MUST be supplied at construction.  No setter exists; the
+    /// only way to change a node's policy is to construct a new node (or use
+    /// a derived ctor + explicit base-ctor chain).  Builder passes compute
+    /// the policy from layer/source flags and pass it as the first base
+    /// argument.
+    explicit RenderGraphNode(RenderNodeCachePolicy cache_policy = frame_variant_cache())
+        : m_cache_policy(std::move(cache_policy)) {}
 
     virtual ~RenderGraphNode() = default;
 
@@ -87,8 +87,6 @@ public:
     [[nodiscard]] std::string_view layer_id() const noexcept { return m_layer_id; }
     void set_layer_id(std::string id) { m_layer_id = std::move(id); }
 
-    [[nodiscard]] virtual bool cacheable() const noexcept { return true; }
-
     /// Returns true when the node can serve as a fully opaque full-frame seed
     /// for the first layer in a composition. This lets the builder skip the
     /// initial clear/composite pass for static full-frame backgrounds.
@@ -96,17 +94,12 @@ public:
         return false;
     }
 
-    /// Canonical cache descriptor.  The GraphExecutor reads ONLY this method.
+    /// Canonical cache descriptor.  The GraphExecutor reads ONLY this method
+    /// and the policy accessors (`enabled()`, `is_frame_variant()`,
+    /// `persistent()`, `reusable_across_frames()`).  No cacheable-look virtual
+    /// or mutation setter exists — the policy is fixed at construction.
     [[nodiscard]] const RenderNodeCachePolicy& cache_policy() const noexcept {
         return m_cache_policy;
-    }
-
-    /// Mutator used by builder passes to declare the static/animated nature
-    /// of a node immediately after graph construction.  Only legal during
-    /// the build phase — once the node has been observed by the executor,
-    /// the policy is treated as immutable.
-    void set_cache_policy(RenderNodeCachePolicy policy) noexcept {
-        m_cache_policy = std::move(policy);
     }
 
     [[nodiscard]] virtual cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const = 0;

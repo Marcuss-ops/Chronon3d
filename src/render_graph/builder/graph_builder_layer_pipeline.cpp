@@ -88,12 +88,11 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
         for (const auto& eff : layer.effects) {
             chronon3d::EffectStack stack;
             stack.push_back(eff);
-            auto node = std::make_unique<AdjustmentNode>(std::move(stack));
-            GraphNodeId adj_id = graph.add_node(std::move(node));
             const bool adj_static = layer.cache_static || item.is_static;
-            graph.node(adj_id).set_cache_policy(adj_static
-                ? static_persistent_cache()
-                : frame_variant_cache());
+            auto node = std::make_unique<AdjustmentNode>(std::move(stack),
+                adj_static ? static_persistent_cache("adjustment_static")
+                           : frame_variant_cache("adjustment_animated"));
+            GraphNodeId adj_id = graph.add_node(std::move(node));
             graph.connect(current, adj_id);
             current = adj_id;
         }
@@ -134,13 +133,12 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
             matte_key.params_hash,
             static_cast<u64>(layer.track_matte.type));
 
+        const bool matte_static = layer.cache_static || item.is_static;
         auto matte_node = graph.add_node(
             std::make_unique<TrackMatteNode>(layer.track_matte.type,
-                                              std::string(layer.name), matte_key));
-        const bool matte_static = layer.cache_static || item.is_static;
-        graph.node(matte_node).set_cache_policy(matte_static
-            ? static_persistent_cache()
-            : frame_variant_cache());
+                                              std::string(layer.name), matte_key,
+                                              matte_static ? static_persistent_cache("track_matte_static")
+                                                           : frame_variant_cache("track_matte_animated")));
         graph.connect(layer_output, matte_node);
         graph.connect(item.matte_node, matte_node);
         layer_output = matte_node;
@@ -167,9 +165,8 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
         if (trans_id != "none") {
             auto trans_node = graph.add_node(std::make_unique<TransitionNode>(
                 std::string(layer.name), active_spec, is_out, layer.from, layer.duration
+                // TransitionNode ctor already sets frame_variant_cache("transition").
             ));
-            // TransitionNode ctor already sets frame_variant_cache("transition");
-            // builder override is redundant because transitions are inherently per-frame.
             graph.connect(layer_output, trans_node);
             layer_output = trans_node;
         }

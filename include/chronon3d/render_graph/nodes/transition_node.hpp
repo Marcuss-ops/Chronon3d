@@ -11,11 +11,10 @@ class TransitionNode final : public RenderGraphNode {
 public:
     TransitionNode(std::string layer_name, LayerTransitionSpec spec, bool is_out,
                    Frame layer_from, Frame layer_duration)
-        : m_layer_name(std::move(layer_name)), m_spec(std::move(spec)), m_is_out(is_out),
+        : RenderGraphNode(frame_variant_cache("transition")),
+          m_layer_name(std::move(layer_name)), m_spec(std::move(spec)), m_is_out(is_out),
           m_layer_from(layer_from), m_layer_duration(layer_duration),
-          m_full_name("Transition (" + m_spec.transition_id + ")") {
-        set_cache_policy(frame_variant_cache("transition"));
-    }
+          m_full_name("Transition (" + m_spec.transition_id + ")") {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Transition; }
     std::string_view name() const noexcept override { return m_full_name; }

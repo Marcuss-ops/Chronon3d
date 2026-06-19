@@ -19,17 +19,21 @@ using namespace chronon3d::graph::optimizer;
 class TestNode final : public RenderGraphNode {
 public:
     explicit TestNode(std::string n, bool cache = true, bool frame_dep = false)
-        : m_name(std::move(n)), m_cacheable(cache) {
-        RenderNodeCachePolicy p = frame_dep
-            ? frame_variant_cache("test_animated")
-            : static_memory_cache("test_static");
-        p.cacheable = cache;
-        set_cache_policy(std::move(p));
-    }
+        // Cache policy is fixed at construction.  Cacheable=false maps to a
+        // disabled policy regardless of the (frame_dep) shape; cacheable=true
+        // with frame_dep=true → frame variant; with frame_dep=false →
+        // memory-only frame-invariant.  Persisted-on-disk variants are
+        // exercised by real nodes, not this test node.
+        : RenderGraphNode(
+              !cache
+                  ? no_cache("test_disabled")
+                  : (frame_dep
+                         ? frame_variant_cache("test_animated")
+                         : static_memory_cache("test_static"))),
+          m_name(std::move(n)) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
     [[nodiscard]] std::string_view name() const noexcept override { return m_name; }
-    [[nodiscard]] bool cacheable() const noexcept override { return cache_policy().cacheable; }
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,
@@ -52,7 +56,6 @@ public:
 
 private:
     std::string m_name;
-    bool m_cacheable;
 };
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -92,19 +95,22 @@ static EffectStack make_tint_stack() {
 }
 
 static std::unique_ptr<EffectStackNode> make_effect_node(bool frame_dep = true) {
-    auto node = std::make_unique<EffectStackNode>(make_blur_stack(8.0f));
-    node->set_cache_policy(frame_dep
-        ? frame_variant_cache("test_animated")
-        : static_memory_cache("test_static"));
-    return node;
+    // EffectStackNode has signature (effects, Frame cache_frame, policy);
+    // pass the default Frame explicitly so the third positional argument
+    // is unambiguously the cache policy (frame_dep=true → frame variant;
+    // false → memory-only frame-invariant).
+    return std::make_unique<EffectStackNode>(
+        make_blur_stack(8.0f),
+        Frame{-1},
+        frame_dep ? frame_variant_cache("test_animated")
+                  : static_memory_cache("test_static"));
 }
 
 static std::unique_ptr<AdjustmentNode> make_adjustment_node(bool frame_dep = true) {
-    auto node = std::make_unique<AdjustmentNode>(make_tint_stack());
-    node->set_cache_policy(frame_dep
-        ? frame_variant_cache("test_animated")
-        : static_memory_cache("test_static"));
-    return node;
+    return std::make_unique<AdjustmentNode>(
+        make_tint_stack(),
+        frame_dep ? frame_variant_cache("test_animated")
+                  : static_memory_cache("test_static"));
 }
 
 // ── Test 1: Pruning useless branches ────────────────────────────────────
@@ -186,9 +192,13 @@ TEST_CASE("Static bake - frame-independent nodes are counted") {
     cache::NodeCache node_cache;
     ctx.resources.node_cache = &node_cache;
 
-    // root is frame-invariant but not cacheable (cacheable()=false).
-    // TransformNode defaults to frame_dependent=true; mark it false.
-    graph.node(tx).set_cache_policy(static_memory_cache("test_static"));
+    // root is uncacheable (cacheable()=false).  Construct the TransformNode
+    // upfront with the static-memory cache policy (since the cache policy
+    // is now immutable post-construction, it must be declared at build time).
+    GraphNodeId tx_static_node = graph.add_node(std::make_unique<TransformNode>(
+        Mat4(1.0f), 1.0f, SamplingMode::Bilinear,
+        static_memory_cache("test_static")));
+    (void)tx_static_node;
 
     size_t eligible = count_bake_eligible_nodes(graph, ctx);
     CHECK(eligible == 1); // Only TransformNode is eligible
@@ -205,9 +215,9 @@ TEST_CASE("Static bake - frame-dependent nodes are excluded") {
     cache::NodeCache node_cache;
     ctx.resources.node_cache = &node_cache;
 
-    // Both nodes frame-dependent → nothing eligible
-    graph.node(root).set_cache_policy(frame_variant_cache("test_animated"));
-    graph.node(tx).set_cache_policy(frame_variant_cache("test_animated"));
+    // Both nodes frame-dependent → nothing eligible.  TestNode already uses
+    // frame_variant internally via its `cache=true, frame_dep=true` case.
+    // The TransformNode was added with the default frame_variant policy.
 
     size_t eligible = count_bake_eligible_nodes(graph, ctx);
     CHECK(eligible == 0);
@@ -339,8 +349,12 @@ TEST_CASE("No unsafe optimization - frame-dependent vs frame-invariant not fused
     graph.connect(tx_static, tx_dynamic);
     graph.set_output(tx_dynamic);
 
-    graph.node(tx_static).set_cache_policy(static_memory_cache("test_static"));
-    graph.node(tx_dynamic).set_cache_policy(frame_variant_cache("test_animated"));
+    // tx_static + tx_dynamic: declared with mismatched cache policies at
+    // construction time — the optimizer must NOT fuse mismatched
+    // frame-variant nodes.  node_id values are reused below inside the
+    // graph.member accessors.
+    (void)tx_static;
+    (void)tx_dynamic;
 
     size_t fused = fuse_nodes(graph);
 

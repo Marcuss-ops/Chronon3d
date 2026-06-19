@@ -95,8 +95,7 @@ void OutputPass::run(GraphBuildContext& ctx) {
             1e18f  // sentinel: no layer contributed
         );
         auto dof_node = graph.add_node(PerPixelDofNode::create(cam25d));
-        // PerPixelDofNode ctor already sets frame_variant_cache("per_pixel_dof");
-        // builder override is redundant because DOF is inherently per-frame.
+        // PerPixelDofNode ctor already sets frame_variant_cache("per_pixel_dof").
         graph.connect(current, dof_node);
         current = dof_node;
     }

@@ -54,10 +54,10 @@ void populate_node_basics(
         rec.kind     = std::string(to_string(node.kind()));
         rec.layer_id = node.layer_id();
 
-        rec.cacheable       = node.cacheable();
-        rec.frame_dependent = node.frame_dependent();
-        rec.dirty           = node.frame_dependent();
-        rec.cached          = node.cacheable() && !node.frame_dependent();
+        rec.cache_enabled   = node.cache_policy().enabled();
+        rec.is_frame_variant = node.cache_policy().is_frame_variant();
+        rec.dirty           = rec.is_frame_variant;
+        rec.cached          = rec.cache_enabled && !rec.is_frame_variant;
 
         rec.input_count  = static_cast<int>(graph.inputs(i).size());
         rec.output_count = output_degree[i];

@@ -65,7 +65,7 @@ static bool can_fuse_transforms(const RenderGraph& graph, GraphNodeId child_id) 
 
     if (parent.kind() != RenderGraphNodeKind::Transform) return false;
     if (child.kind()  != RenderGraphNodeKind::Transform) return false;
-    if (parent.frame_dependent() != child.frame_dependent()) return false;
+    if (parent.cache_policy().is_frame_variant() != child.cache_policy().is_frame_variant()) return false;
     return true;
 }
 
@@ -152,8 +152,8 @@ size_t fuse_effect_stacks(RenderGraph& graph) {
         auto* parent_effect = effect_stack_mut(parent_node);
         if (!parent_effect) continue;
 
-        // Must share the same frame_dependent policy
-        if (parent_node.frame_dependent() != child_node.frame_dependent()) continue;
+        // Must share the same frame-variant policy (canonical cache contract).
+        if (parent_node.cache_policy().is_frame_variant() != child_node.cache_policy().is_frame_variant()) continue;
 
         // Only safe to absorb if parent has exactly 1 consumer
         if (consumers[parent_id] != 1) continue;
@@ -298,14 +298,14 @@ size_t count_bake_eligible_nodes(
         if (!graph.has_node(id)) continue;
         const auto& node = graph.node(id);
 
-        if (node.frame_dependent()) continue;
-        auto policy = node.cache_policy();
-        if (!policy.cacheable) continue;
+        if (node.cache_policy().is_frame_variant()) continue;
+        const auto policy = node.cache_policy();
+        if (!policy.enabled()) continue;
 
         bool all_inputs_static = true;
         for (GraphNodeId in : graph.inputs(id)) {
             if (in >= node_count || !graph.has_node(in)) continue;
-            if (graph.node(in).frame_dependent()) {
+            if (graph.node(in).cache_policy().is_frame_variant()) {
                 all_inputs_static = false;
                 break;
             }

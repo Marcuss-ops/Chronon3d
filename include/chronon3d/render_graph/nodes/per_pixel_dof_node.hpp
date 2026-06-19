@@ -25,20 +25,18 @@ namespace chronon3d::graph {
 
 class PerPixelDofNode final : public RenderGraphNode {
 public:
-    explicit PerPixelDofNode(Camera2_5DRuntime camera)
-        : m_camera(std::move(camera)) {
-        set_cache_policy(frame_variant_cache("per_pixel_dof"));
-    }
+    explicit PerPixelDofNode(Camera2_5DRuntime camera,
+                             RenderNodeCachePolicy cache_policy = frame_variant_cache("per_pixel_dof"))
+        : RenderGraphNode(std::move(cache_policy)),
+          m_camera(std::move(camera)) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
     std::string_view name() const noexcept override { return "PerPixelDOF"; }
 
-    [[nodiscard]] bool cacheable() const noexcept override { return cache_policy().cacheable; }
-
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "per_pixel_dof",
-            .frame = cache_policy().frame_dependent ? ctx.frame.frame : Frame{0},
+            .frame = cache_policy().is_frame_variant() ? ctx.frame.frame : Frame{0},
             .width = ctx.frame.width,
             .height = ctx.frame.height,
             .params_hash = hash_combine(

@@ -73,7 +73,7 @@ double run_node(
 
         if (use_cache && ctx.resources.node_cache && !is_scratch) {
             ctx.resources.node_cache->store(key, result);
-            if (node.cache_policy().disk_cacheable && persistent_framebuffer_cache_enabled_for_current_run()) {
+            if (node.cache_policy().persistent() && persistent_framebuffer_cache_enabled_for_current_run()) {
                 cache::PersistentFramebufferStore::instance().put(key, *result);
             }
         }

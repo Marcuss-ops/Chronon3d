@@ -36,7 +36,8 @@ public:
                 cache::TuneMode tune_mode = cache::TuneMode::Fixed,
                 size_t tune_interval = 30,
                 size_t tune_min_cap = 2,
-                size_t tune_max_cap = 128);
+                size_t tune_max_cap = 128,
+                RenderNodeCachePolicy cache_policy = frame_variant_cache("precomp_animated"));
     ~PrecompNode() override;
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Precomp; }
@@ -47,7 +48,7 @@ public:
             .scope = "precomp",
             .frame = m_cache_frame >= 0
                 ? m_cache_frame
-                : (cache_policy().frame_dependent ? (ctx.frame.frame - m_start_frame) : Frame{0}),
+                : (cache_policy().is_frame_variant() ? (ctx.frame.frame - m_start_frame) : Frame{0}),
             .width  = ctx.frame.width,
             .height = ctx.frame.height,
             .params_hash = hash_string(m_comp_name)

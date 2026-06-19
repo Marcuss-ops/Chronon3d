@@ -8,9 +8,8 @@ namespace chronon3d::graph {
 class MaskNode final : public RenderGraphNode {
 public:
     MaskNode(Mask mask, Frame cache_frame = Frame{-1})
-        : m_mask(std::move(mask)), m_cache_frame(cache_frame) {
-        set_cache_policy(frame_variant_cache("mask"));
-    }
+        : RenderGraphNode(frame_variant_cache("mask")),
+          m_mask(std::move(mask)), m_cache_frame(cache_frame) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Mask; }
     std::string_view name() const noexcept override { return "Mask"; }

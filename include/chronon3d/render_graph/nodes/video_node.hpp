@@ -11,12 +11,11 @@ namespace chronon3d::graph {
 class VideoNode final : public RenderGraphNode {
 public:
     VideoNode(video::VideoSource source, media::MediaFrameProvider* decoder, Frame layer_start)
-        : m_source(std::move(source)),
+        : RenderGraphNode(no_cache("video")),
+          m_source(std::move(source)),
           m_decoder(decoder),
           m_layer_start(layer_start),
-          m_full_name("Video:" + m_source.path) {
-        set_cache_policy(no_cache("video"));
-    }
+          m_full_name("Video:" + m_source.path) {}
 
     [[nodiscard]] RenderGraphNodeKind kind() const noexcept override {
         return RenderGraphNodeKind::Video;

@@ -15,17 +15,20 @@ namespace {
 class CompilerTestNode final : public RenderGraphNode {
 public:
     explicit CompilerTestNode(std::string n, bool cache = true, bool frame_dep = false)
-        : m_name(std::move(n)), m_cacheable(cache) {
-        RenderNodeCachePolicy p = frame_dep
-            ? frame_variant_cache("test_animated")
-            : static_memory_cache("test_static");
-        p.cacheable = cache;
-        set_cache_policy(std::move(p));
-    }
+        // Cache policy is fixed at construction.  `cache=false` is mapped
+        // to a disabled policy regardless of the frame_dep shape, mirroring
+        // the canonical factory contract for arbitrary user-defined shapes
+        // in the compiler test fixture.
+        : RenderGraphNode(
+              !cache
+                  ? no_cache("test_disabled")
+                  : (frame_dep
+                         ? frame_variant_cache("test_animated")
+                         : static_memory_cache("test_static"))),
+          m_name(std::move(n)) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
     [[nodiscard]] std::string_view name() const noexcept override { return m_name; }
-    [[nodiscard]] bool cacheable() const noexcept override { return cache_policy().cacheable; }
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,
@@ -48,7 +51,6 @@ public:
 
 private:
     std::string m_name;
-    bool m_cacheable;
 };
 
 } // namespace

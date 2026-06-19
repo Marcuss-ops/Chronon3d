@@ -69,11 +69,11 @@ struct GraphPreflightNode {
 
     VisibilityStatus visibility{VisibilityStatus::Unknown};
 
-    // Cache / dirty state
-    bool cacheable{false};        ///< node.cacheable()
-    bool frame_dependent{false};  ///< node.frame_dependent()
-    bool dirty{false};            ///< alias: frame_dependent (node will be re-evaluated)
-    bool cached{false};           ///< alias: cacheable && !frame_dependent
+    // Cache / dirty state — read via the canonical cache_policy() API.
+    bool cache_enabled{false};        ///< node.cache_policy().enabled()
+    bool is_frame_variant{false};     ///< node.cache_policy().is_frame_variant()
+    bool dirty{false};                ///< alias: is_frame_variant (node will be re-evaluated)
+    bool cached{false};               ///< alias: cache_enabled && !is_frame_variant
 
     // Topology
     int input_count{0};   ///< number of edges coming into this node

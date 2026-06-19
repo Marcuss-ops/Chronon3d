@@ -11,14 +11,12 @@ public:
     SourceNode(std::string name, const ::chronon3d::RenderNode& node, const cache::NodeCacheKey& key,
                bool centered = false, bool uses_2_5d_projection = false, std::optional<Mat4> matrix_override = std::nullopt,
                std::optional<f32> opacity_override = std::nullopt, bool cache_static = false)
-        : m_name(std::move(name)), m_node(node), m_key(key), m_centered(centered), m_uses_2_5d_projection(uses_2_5d_projection),
-          m_matrix_override(matrix_override), m_opacity_override(opacity_override), m_cache_static(cache_static) {
-        set_cache_policy(m_cache_static
-            ? static_persistent_cache("source_static")
-            : frame_variant_cache("source_animated"));
-    }
+        : RenderGraphNode(cache_static
+              ? static_persistent_cache("source_static")
+              : frame_variant_cache("source_animated")),
+          m_name(std::move(name)), m_node(node), m_key(key), m_centered(centered), m_uses_2_5d_projection(uses_2_5d_projection),
+          m_matrix_override(matrix_override), m_opacity_override(opacity_override), m_cache_static(cache_static) {}
 
-    bool cacheable() const noexcept override { return cache_policy().cacheable; }
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
     std::string_view name() const noexcept override { return m_name; }
 
@@ -58,10 +56,10 @@ public:
         m_uses_2_5d_projection = uses_2_5d_projection;
         m_matrix_override = std::move(matrix_override);
         m_opacity_override = std::move(opacity_override);
+        // Note: m_cache_static is updated but the cache policy passed at
+        // construction is fixed.  Callers wishing to flip static/animated
+        // policy must construct a fresh node.
         m_cache_static = cache_static;
-        set_cache_policy(m_cache_static
-            ? static_persistent_cache("source_static")
-            : frame_variant_cache("source_animated"));
     }
 
 

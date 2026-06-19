@@ -167,9 +167,9 @@ void propagate_dirty_chain(
 ) {
     for (GraphNodeId u : topo_order) {
         auto& rec = report.nodes[u];
-        if (rec.frame_dependent) {
+        if (rec.is_frame_variant) {
             rec.dirty = true;
-            rec.dirty_reasons.push_back("Node is frame-dependent (animated parameters or time-varying input)");
+            rec.dirty_reasons.push_back("Node is frame-variant (animated parameters or time-varying input)");
         }
         for (GraphNodeId v : graph.inputs(u)) {
             if (!graph.has_node(v)) continue;
@@ -185,7 +185,7 @@ void propagate_dirty_chain(
                 }
             }
         }
-        rec.cached = rec.cacheable && !rec.dirty;
+        rec.cached = rec.cache_enabled && !rec.dirty;
     }
 }
 

@@ -185,8 +185,8 @@ void FrameGraphCompiler::build_node_metadata(
                 node_info.reachable = true;
                 node_info.consumers = children[id];
                 
-                // Canonical cache surface — derived views (frame_dependent / cacheable /
-                // disk_cacheable) on CompiledNodeInfo were removed; read this directly.
+                // Canonical cache surface — read directly via the policy
+                // descriptor (the per-mode accessor methods on cache_policy).
                 node_info.cache_policy = node.cache_policy();
 
                 if (id < ctx.tile.early_exit_skip.size() && ctx.tile.early_exit_skip[id]) {

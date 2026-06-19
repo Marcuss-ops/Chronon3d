@@ -21,15 +21,15 @@ namespace chronon3d::graph {
 class DepthGradeNode final : public RenderGraphNode {
 public:
     DepthGradeNode(rendering::DepthGrade grade, float layer_world_z,
-                   bool layer_accepts_lights)
-        : m_grade(std::move(grade))
+                   bool layer_accepts_lights,
+                   RenderNodeCachePolicy cache_policy = frame_variant_cache("depth_grade"))
+        : RenderGraphNode(std::move(cache_policy)),
+          m_grade(std::move(grade))
         , m_layer_world_z(layer_world_z)
         , m_accepts_lights(layer_accepts_lights) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
     std::string_view name() const noexcept override { return "DepthGrade"; }
-
-    [[nodiscard]] bool cacheable() const noexcept override { return true; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         u64 h = hash_value(m_grade.enabled);
@@ -43,7 +43,7 @@ public:
         h = hash_combine(h, hash_value(m_layer_world_z));
         return cache::NodeCacheKey{
             .scope = "depth_grade",
-            .frame = frame_dependent() ? ctx.frame.frame : Frame{0},
+            .frame = cache_policy().is_frame_variant() ? ctx.frame.frame : Frame{0},
             .width = ctx.frame.width,
             .height = ctx.frame.height,
             .params_hash = h
@@ -94,9 +94,10 @@ public:
     static std::unique_ptr<DepthGradeNode> create(
         const rendering::DepthGrade& grade,
         float layer_world_z,
-        bool layer_accepts_lights = true)
+        bool layer_accepts_lights = true,
+        RenderNodeCachePolicy cache_policy = frame_variant_cache("depth_grade"))
     {
-        return std::make_unique<DepthGradeNode>(grade, layer_world_z, layer_accepts_lights);
+        return std::make_unique<DepthGradeNode>(grade, layer_world_z, layer_accepts_lights, std::move(cache_policy));
     }
 
 private:

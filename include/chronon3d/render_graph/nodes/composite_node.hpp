@@ -8,15 +8,13 @@ namespace chronon3d::graph {
 
 class CompositeNode final : public RenderGraphNode {
 public:
-    bool cacheable() const noexcept override { return m_cache_frame >= 0; }
-
     CompositeNode(::chronon3d::BlendMode mode,
                   Frame cache_frame = Frame{-1},
                   float world_z = 0.0f,
-                  ::chronon3d::CompositeOperator op = ::chronon3d::CompositeOperator::SourceOver)
-        : m_mode(mode), m_cache_frame(cache_frame), m_world_z(world_z), m_operator(op) {
-        set_cache_policy(frame_variant_cache("composite"));
-    }
+                  ::chronon3d::CompositeOperator op = ::chronon3d::CompositeOperator::SourceOver,
+                  RenderNodeCachePolicy cache_policy = frame_variant_cache("composite"))
+        : RenderGraphNode(std::move(cache_policy)),
+          m_mode(mode), m_cache_frame(cache_frame), m_world_z(world_z), m_operator(op) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Composite; }
     std::string_view name() const noexcept override { return "Composite"; }

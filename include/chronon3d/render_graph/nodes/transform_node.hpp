@@ -18,25 +18,25 @@ namespace chronon3d::graph {
  */
 class TransformNode final : public RenderGraphNode {
 public:
-    explicit TransformNode(Transform transform, SamplingMode mode = SamplingMode::Bilinear) 
-        : m_transform(std::move(transform)), m_mode(mode), m_use_matrix(false) {
-        set_cache_policy(frame_variant_cache("transform"));
-    }
+    explicit TransformNode(Transform transform, SamplingMode mode = SamplingMode::Bilinear,
+                           RenderNodeCachePolicy cache_policy = frame_variant_cache("transform"))
+        : RenderGraphNode(std::move(cache_policy)),
+          m_transform(std::move(transform)), m_mode(mode), m_use_matrix(false) {}
 
-    explicit TransformNode(Mat4 matrix, f32 opacity = 1.0f, SamplingMode mode = SamplingMode::Bilinear)
-        : m_matrix(matrix), m_opacity(opacity), m_mode(mode), m_use_matrix(true) {
-        set_cache_policy(frame_variant_cache("transform"));
-    }
+    explicit TransformNode(Mat4 matrix, f32 opacity = 1.0f, SamplingMode mode = SamplingMode::Bilinear,
+                           RenderNodeCachePolicy cache_policy = frame_variant_cache("transform"))
+        : RenderGraphNode(std::move(cache_policy)),
+          m_matrix(matrix), m_opacity(opacity), m_mode(mode), m_use_matrix(true) {}
 
-    explicit TransformNode(Transform transform, Frame cache_frame, SamplingMode mode = SamplingMode::Bilinear)
-        : m_transform(std::move(transform)), m_mode(mode), m_use_matrix(false), m_cache_frame(cache_frame) {
-        set_cache_policy(frame_variant_cache("transform"));
-    }
+    explicit TransformNode(Transform transform, Frame cache_frame, SamplingMode mode = SamplingMode::Bilinear,
+                           RenderNodeCachePolicy cache_policy = frame_variant_cache("transform"))
+        : RenderGraphNode(std::move(cache_policy)),
+          m_transform(std::move(transform)), m_mode(mode), m_use_matrix(false), m_cache_frame(cache_frame) {}
 
-    explicit TransformNode(Mat4 matrix, f32 opacity, Frame cache_frame, SamplingMode mode = SamplingMode::Bilinear)
-        : m_matrix(matrix), m_opacity(opacity), m_mode(mode), m_use_matrix(true), m_cache_frame(cache_frame) {
-        set_cache_policy(frame_variant_cache("transform"));
-    }
+    explicit TransformNode(Mat4 matrix, f32 opacity, Frame cache_frame, SamplingMode mode = SamplingMode::Bilinear,
+                           RenderNodeCachePolicy cache_policy = frame_variant_cache("transform"))
+        : RenderGraphNode(std::move(cache_policy)),
+          m_matrix(matrix), m_opacity(opacity), m_mode(mode), m_use_matrix(true), m_cache_frame(cache_frame) {}
 
     [[nodiscard]] RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Transform; }
     [[nodiscard]] std::string_view name() const noexcept override { return "Transform"; }

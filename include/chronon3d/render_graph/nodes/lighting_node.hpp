@@ -12,15 +12,15 @@ namespace chronon3d::graph {
 
 class LightingNode final : public RenderGraphNode {
 public:
-    LightingNode(std::string layer_name, Mat4 world_matrix, Material2_5D material)
-        : m_layer_name(std::move(layer_name))
+    LightingNode(std::string layer_name, Mat4 world_matrix, Material2_5D material,
+                 RenderNodeCachePolicy cache_policy = frame_variant_cache("lighting"))
+        : RenderGraphNode(std::move(cache_policy)),
+          m_layer_name(std::move(layer_name))
         , m_world_matrix(world_matrix)
         , m_material(material) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
     std::string_view name() const noexcept override { return "Lighting"; }
-
-    [[nodiscard]] bool cacheable() const noexcept override { return true; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         const u64 light_hash = rendering::hash_light_context(ctx.camera.light_context);
@@ -29,7 +29,7 @@ public:
 
         return cache::NodeCacheKey{
             .scope = "lighting:" + m_layer_name,
-            .frame = frame_dependent() ? ctx.frame.frame : Frame{0},
+            .frame = cache_policy().is_frame_variant() ? ctx.frame.frame : Frame{0},
             .width = ctx.frame.width,
             .height = ctx.frame.height,
             .params_hash = hash_combine(hash_combine(light_hash, material_hash), world_hash)
@@ -76,8 +76,9 @@ public:
     }
 
     static std::unique_ptr<LightingNode> create(std::string layer_name, const Mat4& world_matrix,
-                                                 const Material2_5D& material) {
-        return std::make_unique<LightingNode>(std::move(layer_name), world_matrix, material);
+                                                const Material2_5D& material,
+                                                RenderNodeCachePolicy cache_policy = frame_variant_cache("lighting")) {
+        return std::make_unique<LightingNode>(std::move(layer_name), world_matrix, material, std::move(cache_policy));
     }
 
 private:

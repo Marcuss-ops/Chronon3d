@@ -7,14 +7,12 @@ namespace chronon3d::graph {
 
 class ClearNode final : public RenderGraphNode {
 public:
-    ClearNode() {
-        set_cache_policy(no_cache("output"));
-    }
+    ClearNode()
+        : RenderGraphNode(no_cache("output"))
+    {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Output; }
     std::string_view name() const noexcept override { return "Clear"; }
-
-    [[nodiscard]] bool cacheable() const noexcept override { return cache_policy().cacheable; }
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,

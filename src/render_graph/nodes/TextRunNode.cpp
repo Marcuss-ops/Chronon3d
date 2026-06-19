@@ -24,7 +24,10 @@ TextRunNode::TextRunNode(
     std::optional<f32> opacity_override,
     bool cache_static
 )
-    : m_name(std::move(name)),
+    : RenderGraphNode(cache_static
+            ? static_persistent_cache("text_run_static")
+            : frame_variant_cache("text_run_animated")),
+      m_name(std::move(name)),
       m_shape(std::move(shape)),
       m_render_ref(render_ref),
       m_key(key),

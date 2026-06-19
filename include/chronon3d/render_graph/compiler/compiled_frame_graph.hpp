@@ -35,8 +35,8 @@ struct CompiledNodeInfo {
     std::vector<GraphNodeId> consumers;
 
     cache::NodeCacheKey static_key{};
-    /// Canonical cache contract (replaces the deleted `frame_dependent` /
-    /// `cacheable` / `disk_cacheable` derived bools — do not re-introduce).
+    /// Canonical cache contract.  Access via the per-node descriptor's
+    /// accessor methods; do not cache derived boolean projections here.
     RenderNodeCachePolicy cache_policy{};
 
     SceneBindingMetadata binding_meta{};  // binding table metadata

@@ -8,10 +8,10 @@ namespace chronon3d::graph {
 
 class EffectStackNode final : public RenderGraphNode {
 public:
-    explicit EffectStackNode(EffectStack effects, Frame cache_frame = Frame{-1})
-        : m_effects(std::move(effects)), m_cache_frame(cache_frame) {
-        set_cache_policy(frame_variant_cache("effect_stack"));
-    }
+    explicit EffectStackNode(EffectStack effects, Frame cache_frame = Frame{-1},
+                             RenderNodeCachePolicy cache_policy = frame_variant_cache("effect_stack"))
+        : RenderGraphNode(std::move(cache_policy)),
+          m_effects(std::move(effects)), m_cache_frame(cache_frame) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
     std::string_view name() const noexcept override { return "EffectStack"; }
@@ -19,7 +19,7 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "effect_stack",
-            .frame = m_cache_frame >= 0 ? m_cache_frame : (cache_policy().frame_dependent ? ctx.frame.frame : Frame{0}),
+            .frame = m_cache_frame >= 0 ? m_cache_frame : (cache_policy().is_frame_variant() ? ctx.frame.frame : Frame{0}),
             .width = ctx.frame.width,
             .height = ctx.frame.height,
             .params_hash = hash_effect_stack(m_effects)

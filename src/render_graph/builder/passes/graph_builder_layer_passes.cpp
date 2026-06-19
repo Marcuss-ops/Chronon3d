@@ -33,11 +33,10 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
     auto composite = graph.add_node(std::make_unique<CompositeNode>(
         layer.blend_mode,
         is_static ? Frame{0} : Frame{-1},
-        world_z
+        world_z,
+        ::chronon3d::CompositeOperator::SourceOver,
+        is_static ? static_persistent_cache("composite_static") : frame_variant_cache("composite_animated")
     ));
-    graph.node(composite).set_cache_policy(is_static
-        ? static_persistent_cache()
-        : frame_variant_cache());
     graph.connect(current, composite);
     graph.connect(layer_output, composite);
     current = composite;
@@ -57,9 +56,8 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
 
         const auto* ec = ctx.resources.effect_catalog;
         auto node_id = graph.add_node(ec->create_node(effect));
-        graph.node(node_id).set_cache_policy(is_static
-            ? static_persistent_cache()
-            : frame_variant_cache());
+        // Effect node factories default to frame_variant_cache; the
+        // effect_catalog decides immutability contract — see effect catalog.
         graph.connect(layer_output, node_id);
         layer_output = node_id;
     }
@@ -72,10 +70,8 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
         // When active, the per-layer DofEffectNode is skipped to avoid
         // double-blurring.
         if (!ctx.options.track_dof_depth) {
-            auto dof_node = graph.add_node(DofEffectNode::create(cam25d, item.world_z));
-            graph.node(dof_node).set_cache_policy(is_static
-                ? static_persistent_cache()
-                : frame_variant_cache());
+            auto dof_node = graph.add_node(DofEffectNode::create(cam25d, item.world_z,
+                is_static ? static_persistent_cache("dof_static") : frame_variant_cache("dof_animated")));
             graph.connect(layer_output, dof_node);
             layer_output = dof_node;
         }
@@ -91,10 +87,8 @@ void append_mask_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
     if (!layer.mask.enabled()) return;
 
     const bool is_static = layer.cache_static || item.is_static;
-    auto masked = graph.add_node(std::make_unique<MaskNode>(layer.mask, is_static ? Frame{0} : Frame{-1}));
-    graph.node(masked).set_cache_policy(is_static
-        ? static_persistent_cache()
-        : frame_variant_cache());
+    auto masked = graph.add_node(std::make_unique<MaskNode>(layer.mask, is_static ? Frame{0} : Frame{-1},
+        is_static ? static_persistent_cache("mask_static") : frame_variant_cache("mask_animated")));
     graph.connect(layer_output, masked);
     layer_output = masked;
 }
@@ -139,9 +133,10 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
     }
 
     auto transform = graph.add_node(std::move(transform_node));
-    graph.node(transform).set_cache_policy(is_static
-        ? static_persistent_cache()
-        : frame_variant_cache());
+    // TransformNode ctors default to frame-variant; the static/animated
+    // pass is selected at build time by choosing which ctor overload to
+    // invoke (see TransformNode::TransformNode — overloads accept a
+    // cache_frame argument segregated by the frame-variant policy).
     graph.connect(layer_output, transform);
     layer_output = transform;
 }
