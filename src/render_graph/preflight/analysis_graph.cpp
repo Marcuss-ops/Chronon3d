@@ -156,12 +156,12 @@ void populate_node_basics(
         // Complexity score
         int base_complexity = 1;
         if (auto* src = dynamic_cast<const SourceNode*>(&node)) {
-            base_complexity = get_shape_complexity(src->render_node().shape.type);
+            base_complexity = get_shape_complexity(src->render_node().shape.type());
         } else if (auto* msrc = dynamic_cast<const MultiSourceNode*>(&node)) {
             base_complexity = 0;
             for (const auto& item : msrc->items()) {
                 if (item.node) {
-                    base_complexity += get_shape_complexity(item.node->shape.type);
+                    base_complexity += get_shape_complexity(item.node->shape.type());
                 }
             }
             if (base_complexity == 0) base_complexity = 1;
