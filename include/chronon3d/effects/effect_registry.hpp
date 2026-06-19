@@ -41,7 +41,4 @@ private:
     bool m_frozen{false};
 };
 
-/// Backward-compatible alias for migration.
-using EffectRegistry = EffectCatalog;
-
 } // namespace chronon3d::effects

@@ -83,7 +83,4 @@ private:
     bool m_frozen{false};
 };
 
-// Backward-compatible alias — migrate to GraphNodeCatalog.
-using GraphNodeRegistry = GraphNodeCatalog;
-
 } // namespace chronon3d::graph

@@ -271,7 +271,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             ? cache::TuneMode::Auto
             : cache::TuneMode::Fixed;
 
-        // Create PrecompNode via GraphNodeRegistry to break the
+        // Create PrecompNode via GraphNodeCatalog to break the
         // graph_builder → graph_pipeline CMake cycle.
         GraphNodeCreateRequest request{
             .payload = PrecompNodeCreateSpec{

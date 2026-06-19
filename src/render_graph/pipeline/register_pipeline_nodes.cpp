@@ -10,7 +10,7 @@
 
 namespace chronon3d::graph {
 
-void register_pipeline_graph_nodes(GraphNodeRegistry& registry) {
+void register_pipeline_graph_nodes(GraphNodeCatalog& registry) {
     if (registry.contains("source.precomp")) {
         return;  // already registered
     }
