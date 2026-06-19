@@ -53,8 +53,8 @@ public:
         };
     }
 
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
-        return CacheFramePolicy::FrameInvariant;
+    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
+        return static_memory_cache("track_matte");
     }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext&) const override { return m_key; }

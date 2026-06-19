@@ -18,8 +18,8 @@ public:
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Transition; }
     std::string_view name() const noexcept override { return m_full_name; }
 
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
-        return CacheFramePolicy::FrameDependent;
+    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
+        return frame_variant_cache("transition");
     }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {

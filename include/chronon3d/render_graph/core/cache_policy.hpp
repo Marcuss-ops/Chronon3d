@@ -1,107 +1,105 @@
 #pragma once
 
-#include <string>
+#include <cstdint>
 #include <string_view>
 
 namespace chronon3d::graph {
 
 // ---------------------------------------------------------------------------
-// CacheLifetime
+// CacheMode — single canonical axis for the cache contract
 // ---------------------------------------------------------------------------
-enum class CacheLifetime {
-    /// Cache lives only for the current frame's execution (default for animated nodes).
-    PerFrame,
-    /// Cache persists for the entire composition duration (static/invariant nodes).
-    PersistentDisk
+//
+// fields. Every node now describes its cache behaviour *exclusively* via this
+// enum, exposed through `RenderNodeCachePolicy::mode`. The combinations below
+// are exhaustive: by collapsing onto one enum, callers cannot construct
+// contradictory states (e.g. "disabled but reusable across frames") that the
+// old 4-flag struct permitted.
+// ---------------------------------------------------------------------------
+enum class CacheMode : std::uint8_t {
+    /// Caching is disabled — node re-executes for every consumer call.
+    /// `reusable_across_frames` and `persistent` are both false and undefined.
+    Disabled,
+
+    /// Output changes per frame; cache key must include the frame number.
+    /// Multiple consumers within the same render frame may still dedupe.
+    FrameVariant,
+
+    /// Output is invariant across frames; entries live in memory only.
+    /// Survives across frames within a single composition run.
+    FrameInvariantMemory,
+
+    /// Output is invariant across frames AND persisted to durable storage.
+    /// Survives across process restarts (designed for precomputed bakes).
+    FrameInvariantPersistent,
 };
 
 // ---------------------------------------------------------------------------
-// CacheInvalidation
+// CacheInvalidation — orthogonal axis for invalidation triggers
 // ---------------------------------------------------------------------------
 enum class CacheInvalidation {
-    /// Always re-execute the node (no caching).
-    Always,
-    /// Re-execute only when this node's parameters change.
-    WhenParamsChange,
-    /// Re-execute when this node's input data changes.
-    WhenInputsChange
+    Always,              ///< re-execute unconditionally (used with Disabled)
+    WhenParamsChange,    ///< re-execute when node parameters change
+    WhenInputsChange,    ///< re-execute when any input node produces a new output
 };
 
 // ---------------------------------------------------------------------------
-// RenderNodeCachePolicy
+// RenderNodeCachePolicy — immutable single-axis descriptor
 // ---------------------------------------------------------------------------
-/// Describes the caching behaviour of a single RenderGraphNode.
-/// Replaces the simpler CacheFramePolicy with a richer, more expressive policy
-/// that the GraphExecutor can use to make smarter caching decisions.
 struct RenderNodeCachePolicy {
-    /// Whether the node's output can be cached at all.
-    bool cacheable{true};
-
-    /// If false, the frame number is NOT part of the cache key.
-    /// Equivalent to CacheFramePolicy::FrameInvariant.
-    bool frame_dependent{true};
-
-    /// If true, the output is invariant across frames (frame number not needed
-    /// as a cache dimension).  Implies frame_dependent == false.
-    bool frame_invariant{false};
-
-    /// Whether the cache entry can be serialized to disk (future).
-    bool disk_cacheable{false};
-
-    /// How long the cache entry should live.
-    CacheLifetime lifetime{CacheLifetime::PerFrame};
-
-    /// What triggers cache invalidation.
+    CacheMode mode{CacheMode::FrameVariant};
     CacheInvalidation invalidation{CacheInvalidation::WhenInputsChange};
+    std::string_view reason{"default"};
 
-    /// Human-readable reason for this policy (used in telemetry/debug).
-    std::string debug_reason{"default"};
+    [[nodiscard]] constexpr bool enabled() const noexcept {
+        return mode != CacheMode::Disabled;
+    }
+
+    [[nodiscard]] constexpr bool frame_dependent() const noexcept {
+        return mode == CacheMode::FrameVariant;
+    }
+
+    [[nodiscard]] constexpr bool reusable_across_frames() const noexcept {
+        return mode == CacheMode::FrameInvariantMemory
+            || mode == CacheMode::FrameInvariantPersistent;
+    }
+
+    [[nodiscard]] constexpr bool persistent() const noexcept {
+        return mode == CacheMode::FrameInvariantPersistent;
+    }
 };
 
 // ---------------------------------------------------------------------------
-// Policy helpers
+// Canonical factory helpers (constexpr noexcept, string_view reason)
 // ---------------------------------------------------------------------------
-
-/// A fully static node whose output never changes once computed
-/// (e.g. grid background, static image source, static shape).
-inline RenderNodeCachePolicy static_memory_cache(std::string reason = {}) {
+constexpr RenderNodeCachePolicy no_cache(std::string_view reason) noexcept {
     return RenderNodeCachePolicy{
-        .cacheable = true,
-        .frame_dependent = false,
-        .frame_invariant = true,
-        .disk_cacheable = true,
-        .lifetime = CacheLifetime::PersistentDisk,
-        .invalidation = CacheInvalidation::WhenParamsChange,
-        .debug_reason = reason.empty() ? "static_memory_cache" : std::move(reason)
-    };
-}
-
-/// An animated node whose output changes per-frame and must be re-evaluated
-/// each time, but is still cacheable within the same frame
-/// (e.g. animated transform, per-frame effect).
-inline RenderNodeCachePolicy animated_cache(std::string reason = {}) {
-    return RenderNodeCachePolicy{
-        .cacheable = true,
-        .frame_dependent = true,
-        .frame_invariant = false,
-        .disk_cacheable = false,
-        .lifetime = CacheLifetime::PerFrame,
-        .invalidation = CacheInvalidation::WhenInputsChange,
-        .debug_reason = reason.empty() ? "animated_cache" : std::move(reason)
-    };
-}
-
-/// A node that should never be cached under any circumstances
-/// (e.g. video source, motion blur, output node).
-inline RenderNodeCachePolicy no_cache(std::string reason = {}) {
-    return RenderNodeCachePolicy{
-        .cacheable = false,
-        .frame_dependent = true,
-        .frame_invariant = false,
-        .disk_cacheable = false,
-        .lifetime = CacheLifetime::PerFrame,
+        .mode = CacheMode::Disabled,
         .invalidation = CacheInvalidation::Always,
-        .debug_reason = reason.empty() ? "no_cache" : std::move(reason)
+        .reason = reason,
+    };
+}
+
+constexpr RenderNodeCachePolicy frame_variant_cache(std::string_view reason) noexcept {
+    return RenderNodeCachePolicy{
+        .mode = CacheMode::FrameVariant,
+        .invalidation = CacheInvalidation::WhenInputsChange,
+        .reason = reason,
+    };
+}
+
+constexpr RenderNodeCachePolicy static_memory_cache(std::string_view reason) noexcept {
+    return RenderNodeCachePolicy{
+        .mode = CacheMode::FrameInvariantMemory,
+        .invalidation = CacheInvalidation::WhenParamsChange,
+        .reason = reason,
+    };
+}
+
+constexpr RenderNodeCachePolicy static_persistent_cache(std::string_view reason) noexcept {
+    return RenderNodeCachePolicy{
+        .mode = CacheMode::FrameInvariantPersistent,
+        .invalidation = CacheInvalidation::WhenParamsChange,
+        .reason = reason,
     };
 }
 

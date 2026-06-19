@@ -16,9 +16,9 @@ struct MultiSourceItem {
 class MultiSourceNode final : public RenderGraphNode {
 public:
     MultiSourceNode(std::string name, std::vector<MultiSourceItem> items, const cache::NodeCacheKey& key,
-                    bool centered = false, bool uses_2_5d_projection = false, bool cache_static = false);
+                    bool centered = false, bool uses_2_5d_projection = false, bool cache_static = false,
+               RenderNodeCachePolicy policy = static_memory_cache("multi_source"));
 
-    bool cacheable() const noexcept override { return m_cache_static; }
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
     std::string_view name() const noexcept override { return m_name; }
 
@@ -27,8 +27,7 @@ public:
         std::span<const std::optional<raster::BBox>> = {}
     ) const override;
 
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override;
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const override;
+    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override;
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override;
 
@@ -56,12 +55,12 @@ public:
         m_key = key;
         m_centered = centered;
         m_uses_2_5d_projection = uses_2_5d_projection;
-        m_cache_static = cache_static;
+        m_cache_policy = policy;
     }
 
     /// Returns true if this node represents a single full-frame image source.
     /// Used by the graph builder for skip-when-opaque analysis.
-    [[nodiscard]] bool is_single_full_frame_image() const { return m_items.size() == 1 && m_cache_static && !m_uses_2_5d_projection; }
+    [[nodiscard]] bool is_single_full_frame_image() const { return m_items.size() == 1 && m_cache_policy.reusable_across_frames() && !m_uses_2_5d_projection; }
 
 private:
     std::string m_name;
@@ -69,7 +68,7 @@ private:
     cache::NodeCacheKey m_key;
     bool m_centered{false};
     bool m_uses_2_5d_projection{false};
-    bool m_cache_static{false};
+    RenderNodeCachePolicy m_cache_policy{static_memory_cache("multi_source")};
 
     // ── Log throttle ───────────────────────────────────────────────────
     // When a text_run item shows up in a layer but the active backend is not

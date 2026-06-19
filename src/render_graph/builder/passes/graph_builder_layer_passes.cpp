@@ -35,7 +35,7 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
         is_static ? Frame{0} : Frame{-1},
         world_z
     ));
-    graph.node(composite).set_frame_dependent(!is_static);
+    graph.node(composite)/* pr2-disable: set_frame_dependent(!is_static); */
     graph.connect(current, composite);
     graph.connect(layer_output, composite);
     current = composite;

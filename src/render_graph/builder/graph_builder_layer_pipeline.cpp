@@ -90,7 +90,7 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
             stack.push_back(eff);
             auto node = std::make_unique<AdjustmentNode>(std::move(stack));
             GraphNodeId adj_id = graph.add_node(std::move(node));
-            graph.node(adj_id).set_frame_dependent(!(layer.cache_static || item.is_static));
+            graph.node(adj_id)/* pr2-disable: set_frame_dependent(!(layer.cache_static || item.is_static)); */
             graph.connect(current, adj_id);
             current = adj_id;
         }

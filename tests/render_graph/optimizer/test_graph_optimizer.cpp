@@ -25,7 +25,6 @@ public:
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
     [[nodiscard]] std::string_view name() const noexcept override { return m_name; }
-    [[nodiscard]] bool cacheable() const noexcept override { return m_cacheable; }
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,
