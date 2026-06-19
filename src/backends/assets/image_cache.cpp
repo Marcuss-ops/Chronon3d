@@ -11,7 +11,7 @@ namespace chronon3d {
 namespace {
 
 size_t resolve_image_cache_capacity(size_t fallback) {
-    auto max_bytes = Config::get().image_cache_max_bytes;
+    auto max_bytes = Config::get().cache().image_cache_max_bytes();
     return max_bytes > 0 ? max_bytes : fallback;
 }
 

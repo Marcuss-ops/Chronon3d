@@ -8,6 +8,7 @@
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/core/enum_utils.hpp>
 #include <optional>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -68,11 +69,14 @@ uint64_t clipped_area(int32_t width, int32_t height, const std::optional<raster:
 SoftwareRenderer::SoftwareRenderer()
     : m_runtime_resources{
         .software_registry = std::make_unique<renderer::SoftwareRegistry>(),
-        .executor = std::make_unique<graph::GraphExecutor>()
+        .executor = std::make_unique<graph::GraphExecutor>(
+            Config::get().scheduler().pin_main_thread())
     }
     , m_cache_state{
-        .node_cache = cache::NodeCache{0},  // 0 = use Config::get().node_cache_max_bytes (env CHRONON_NODE_CACHE_MAX_MB)
-        .framebuffer_pool = std::make_shared<cache::FramebufferPool>()
+        .node_cache = cache::NodeCache{
+            Config::get().cache().node_cache_max_bytes()},
+        .framebuffer_pool = std::make_shared<cache::FramebufferPool>(
+            Config::get().cache().fb_pool_max_bytes())
     } {
     renderer::register_builtin_processors(*m_runtime_resources.software_registry);
 }

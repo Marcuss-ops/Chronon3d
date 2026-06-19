@@ -13,7 +13,6 @@
 #include "executor_levels.hpp"
 #include "framebuffer_lifetime.hpp"
 #include <chronon3d/render_graph/core/graph_profiler.hpp>
-#include <chronon3d/core/config.hpp>
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
@@ -46,22 +45,15 @@ void pin_thread_to_core(int core_id) {
 #endif
 }
 
-bool should_pin_executor_thread() {
-    return Config::get().pin_main_thread;
-}
 } // namespace
 
 // ──────────────────────────────────────────────────────────────────────
 // GraphExecutor public API
 // ──────────────────────────────────────────────────────────────────────
 
-GraphExecutor::GraphExecutor()
+GraphExecutor::GraphExecutor(bool pin_main_thread)
     : m_arena(std::max(1u, std::thread::hardware_concurrency())) {
-    // Pinning the caller here would be inherited by worker threads on Linux
-    // when they are created later, effectively collapsing TBB back to one core.
-    // Keep it opt-in for the rare case where someone wants deterministic
-    // single-core benchmarking.
-    if (should_pin_executor_thread()) {
+    if (pin_main_thread) {
         pin_thread_to_core(0);
     }
 }

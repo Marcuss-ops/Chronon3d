@@ -13,7 +13,10 @@ namespace chronon3d::graph {
 
 class GraphExecutor {
 public:
-    GraphExecutor();
+    /// @param pin_main_thread  When true, pins the calling thread to core 0
+    ///                         on executor construction (for deterministic
+    ///                         single-core benchmarking).
+    explicit GraphExecutor(bool pin_main_thread = false);
 
     /// Execute a render graph.
     /// @param session  The RenderSession providing the frame arena and per-frame state.

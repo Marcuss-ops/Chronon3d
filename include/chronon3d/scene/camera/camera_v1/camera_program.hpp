@@ -6,7 +6,7 @@
 //
 // The RECOMMENDED usage path is:
 //   1. Build a CameraDescriptor
-//   2. Call compile_camera(descriptor, program, ...)
+//   2. auto program = compile_camera(descriptor, &catalog).value();
 //   3. Call program.evaluate(ctx, session) each frame
 //
 // The builder API (motion(), trajectory(), orient(), banking(), etc.) and
@@ -20,6 +20,7 @@
 //   4. Orientation + modifiers + constraint spec evaluation
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
+#include <chronon3d/core/types/result.hpp>
 
 #include <chronon3d/math/camera_2_5d_projection.hpp>  // Camera2_5D
 
@@ -87,8 +88,8 @@ public:
     bool is_time_dependent() const { return time_dependent_; }
 
 private:
-    friend bool compile_camera(const CameraDescriptor&, CameraProgram&,
-                                CameraCompileError*, const CameraCatalog*);
+    friend chronon3d::Result<CameraProgram, CameraCompileError>
+    compile_camera(const CameraDescriptor&, const CameraCatalog*);
 
     // ── Runtime state ───────────────────────────────────────────────────
     CameraFailurePolicy        failure_policy_{CameraFailurePolicy::Stop};
