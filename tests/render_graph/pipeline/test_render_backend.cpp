@@ -138,13 +138,21 @@ TEST_CASE("RenderBackend - CompositeNode execution calls composite_layer on back
 // ── PR2 — RenderBackend capabilities contract ──────────────────────
 
 TEST_CASE("RenderBackend - PR2: non-copyable contract (compile-time)") {
-    static_assert(!std::is_copy_constructible_v<chronon3d::graph::RenderBackend>,
-                  "PR2: RenderBackend must be non-copyable");
-    static_assert(!std::is_copy_assignable_v<chronon3d::graph::RenderBackend>,
-                  "PR2: RenderBackend must be non-copy-assignable");
-    static_assert(std::is_move_constructible_v<chronon3d::graph::RenderBackend>,
-                  "PR2: RenderBackend must remain movable");
-    SUCCEED("static_asserts above enforce the PR2 contract");
+    // RenderBackend is an abstract base class (pure virtuals), so type traits
+    // evaluated on the base itself return false even when its move ops are
+    // explicitly =default'd. Verify the PR2 contract on the concrete
+    // FakeBackend subclass — which inherits the contract from RenderBackend
+    // and is the canary for any user-implemented backend.
+    static_assert(!std::is_copy_constructible_v<FakeBackend>,
+                  "PR2: RenderBackend contract — concrete subclasses must be non-copyable");
+    static_assert(!std::is_copy_assignable_v<FakeBackend>,
+                  "PR2: RenderBackend contract — concrete subclasses must be non-copy-assignable");
+    static_assert(std::is_move_constructible_v<FakeBackend>,
+                  "PR2: RenderBackend contract — concrete subclasses must remain movable");
+    // doctest does not define a SUCCEED macro (that is a Catch2/GTest idiom).
+    // Use MESSAGE + CHECK(true) to record a passing assertion with annotation.
+    MESSAGE("static_asserts above enforce the PR2 contract");
+    CHECK(true);
 }
 
 TEST_CASE("RenderBackend - PR2: default capabilities are empty") {
