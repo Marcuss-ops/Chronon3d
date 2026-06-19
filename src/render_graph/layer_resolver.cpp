@@ -15,17 +15,17 @@
 namespace chronon3d::graph::detail {
 
 LayerResolutionResult resolve_layers(const Scene& scene, const RenderGraphContext& ctx) {
-    chronon3d::detail::LayerHierarchyResolver resolver(scene.layers(), scene.resource());
+    std::pmr::memory_resource* res = scene.resource();
 
     LayerResolutionResult result;
     tbb::task_group tg;
 
     tg.run([&]() {
-        result.camera = resolver.resolve_camera(scene.camera_2_5d());
+        result.camera = resolve_camera_hierarchy(scene.layers(), res, scene.camera_2_5d());
     });
 
     tg.run([&]() {
-        result.layers = resolver.resolve_layers(ctx.frame.frame);
+        result.layers = resolve_layer_hierarchy(scene.layers(), ctx.frame.frame, res);
     });
 
     tg.wait();
