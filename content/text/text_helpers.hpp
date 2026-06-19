@@ -84,29 +84,29 @@ struct CenterTextOptions {
 // Example:
 //   l.text("t", centered_text({.text = "TITLE", .font_size = 96, .tracking = 6}));
 //
-inline TextParams centered_text(CenterTextOptions o) {
-    return TextParams{
-        .text            = std::move(o.text),
-        .size            = o.box,
-        .pos             = o.pos,
-        .font_path       = std::move(o.font_path),
-        .font_family     = std::move(o.font_family),
-        .font_weight     = o.font_weight,
-        .font_style      = std::move(o.font_style),
-        .font_size       = o.font_size,
-        .color           = o.color,
-        .anchor          = TextAnchor::Center,
-        .centering_mode  = TextCenteringMode::PixelInk,
-        .align           = TextAlign::Center,
-        .vertical_align  = VerticalAlign::Middle,
-        .line_height     = o.line_height,
-        .tracking        = o.tracking,
-        .auto_fit        = o.auto_fit,
-        .max_lines       = o.max_lines,
-        .min_font_size   = o.min_font_size,
-        .max_font_size   = o.max_font_size,
-        .overflow        = TextOverflow::Clip,
-        .wrap            = TextWrap::Word,
+inline TextSpec centered_text(CenterTextOptions o) {
+    return TextSpec{
+        .content    = {.value = std::move(o.text)},
+        .font       = {.font_path   = std::move(o.font_path),
+                       .font_family = std::move(o.font_family),
+                       .font_weight = o.font_weight,
+                       .font_style  = std::move(o.font_style),
+                       .font_size   = o.font_size},
+        .layout     = {.box            = o.box,
+                       .anchor         = TextAnchor::Center,
+                       .centering_mode = TextCenteringMode::PixelInk,
+                       .align          = TextAlign::Center,
+                       .vertical_align = VerticalAlign::Middle,
+                       .wrap           = TextWrap::Word,
+                       .overflow       = TextOverflow::Clip,
+                       .line_height    = o.line_height,
+                       .tracking       = o.tracking,
+                       .auto_fit       = o.auto_fit,
+                       .max_lines      = o.max_lines,
+                       .min_font_size  = o.min_font_size,
+                       .max_font_size  = o.max_font_size},
+        .appearance = {.color = o.color},
+        .position   = o.pos,
     };
 }
 
@@ -196,30 +196,45 @@ struct TypewriterOptions {
     f32         fade_chars{1.0f};
 };
 
-inline TextParams typewriter_text(CenterTextOptions o,
+inline TextSpec typewriter_text(CenterTextOptions o,
                                   Frame frame,
                                   f32 chars_per_frame = 1.5f,
                                   TypewriterOptions tw = {}) {
     const f32 raw_frame = static_cast<f32>(frame) - static_cast<f32>(tw.start_delay);
     const f32 total_chars_f = static_cast<f32>(grapheme_cluster_count(o.text));
 
+    // Shared layout + font + appearance (reused across all branches)
+    auto make_base = [&](std::string value, Color c) -> TextSpec {
+        return TextSpec{
+            .content    = {.value = std::move(value)},
+            .font       = {.font_path   = std::move(o.font_path),
+                           .font_family = std::move(o.font_family),
+                           .font_weight = o.font_weight,
+                           .font_style  = std::move(o.font_style),
+                           .font_size   = o.font_size},
+            .layout     = {.box            = o.box,
+                           .anchor         = TextAnchor::Center,
+                           .centering_mode = TextCenteringMode::PixelInk,
+                           .align          = TextAlign::Center,
+                           .vertical_align = VerticalAlign::Middle,
+                           .wrap           = TextWrap::Word,
+                           .overflow       = TextOverflow::Clip,
+                           .line_height    = o.line_height,
+                           .tracking       = o.tracking,
+                           .auto_fit       = o.auto_fit,
+                           .max_lines      = o.max_lines,
+                           .min_font_size  = o.min_font_size,
+                           .max_font_size  = o.max_font_size},
+            .appearance = {.color = c},
+            .position   = o.pos,
+        };
+    };
+
     // Nothing visible yet (before delay or at frame 0)
     if (raw_frame < 0.0f || total_chars_f <= 0.0f) {
-        std::string space(" ");
         Color c = o.color;
         c.a = 0.0f;
-        return TextParams{
-            .text = std::move(space), .size = o.box, .pos = o.pos,
-            .font_path = std::move(o.font_path), .font_family = std::move(o.font_family),
-            .font_weight = o.font_weight, .font_style = std::move(o.font_style),
-            .font_size = o.font_size, .color = c,
-            .anchor = TextAnchor::Center, .centering_mode = TextCenteringMode::PixelInk,
-            .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle,
-            .line_height = o.line_height, .tracking = o.tracking,
-            .auto_fit = o.auto_fit, .max_lines = o.max_lines,
-            .min_font_size = o.min_font_size, .max_font_size = o.max_font_size,
-            .overflow = TextOverflow::Clip, .wrap = TextWrap::Word,
-        };
+        return make_base(std::string(" "), c);
     }
 
     // Linear progress → apply easing
@@ -229,18 +244,7 @@ inline TextParams typewriter_text(CenterTextOptions o,
 
     // Fully revealed → return complete text at full color
     if (eased_t >= 1.0f) {
-        return TextParams{
-            .text = std::move(o.text), .size = o.box, .pos = o.pos,
-            .font_path = std::move(o.font_path), .font_family = std::move(o.font_family),
-            .font_weight = o.font_weight, .font_style = std::move(o.font_style),
-            .font_size = o.font_size, .color = o.color,
-            .anchor = TextAnchor::Center, .centering_mode = TextCenteringMode::PixelInk,
-            .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle,
-            .line_height = o.line_height, .tracking = o.tracking,
-            .auto_fit = o.auto_fit, .max_lines = o.max_lines,
-            .min_font_size = o.min_font_size, .max_font_size = o.max_font_size,
-            .overflow = TextOverflow::Clip, .wrap = TextWrap::Word,
-        };
+        return make_base(std::move(o.text), o.color);
     }
 
     const size_t revealed = static_cast<size_t>(eased_t * total_chars_f);
@@ -260,29 +264,7 @@ inline TextParams typewriter_text(CenterTextOptions o,
         c.a *= fade_t;
     }
 
-    return TextParams{
-        .text            = std::move(visible),
-        .size            = o.box,
-        .pos             = o.pos,
-        .font_path       = std::move(o.font_path),
-        .font_family     = std::move(o.font_family),
-        .font_weight     = o.font_weight,
-        .font_style      = std::move(o.font_style),
-        .font_size       = o.font_size,
-        .color           = c,
-        .anchor          = TextAnchor::Center,
-        .centering_mode  = TextCenteringMode::PixelInk,
-        .align           = TextAlign::Center,
-        .vertical_align  = VerticalAlign::Middle,
-        .line_height     = o.line_height,
-        .tracking        = o.tracking,
-        .auto_fit        = o.auto_fit,
-        .max_lines       = o.max_lines,
-        .min_font_size   = o.min_font_size,
-        .max_font_size   = o.max_font_size,
-        .overflow        = TextOverflow::Clip,
-        .wrap            = TextWrap::Word,
-    };
+    return make_base(std::move(visible), c);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -769,26 +751,24 @@ inline void typewriter_build(
             l.pin_to(Anchor::Center);
             l.opacity(opacity);
 
-            TextParams tp;
-            tp.text = glyph;
-            tp.size = {fs * 2.0f, fs * 2.0f};
-            tp.pos = {cp.x, cp.y, 0.0f};
-            tp.font_path = fp;
-            tp.font_family = ff;
-            tp.font_weight = fw;
-            tp.font_size = fs;
-            tp.color = col;
-            tp.anchor = TextAnchor::Center;
-            tp.centering_mode = TextCenteringMode::PixelInk;
-            tp.align = TextAlign::Center;
-            tp.vertical_align = VerticalAlign::Middle;
-            tp.line_height = lh;
-            tp.tracking = 0.0f;
-            tp.wrap = TextWrap::None;
-            tp.overflow = TextOverflow::Clip;
-            tp.pre_shaped = char_placed;  // passes pre-shaped glyphs
+            TextSpec ts{
+                .content    = {.value = glyph, .pre_shaped = char_placed},
+                .font       = {.font_path = fp, .font_family = ff,
+                               .font_weight = fw, .font_size = fs},
+                .layout     = {.box = {fs * 2.0f, fs * 2.0f},
+                               .anchor = TextAnchor::Center,
+                               .centering_mode = TextCenteringMode::PixelInk,
+                               .align = TextAlign::Center,
+                               .vertical_align = VerticalAlign::Middle,
+                               .wrap = TextWrap::None,
+                               .overflow = TextOverflow::Clip,
+                               .line_height = lh,
+                               .tracking = 0.0f},
+                .appearance = {.color = col},
+                .position   = {cp.x, cp.y, 0.0f},
+            };
 
-            l.text("glyph", tp);
+            l.text("glyph", ts);
         });
     }
 }
@@ -808,35 +788,35 @@ inline void typewriter_build(
 //   glow::apply_ae_glow(l);
 //   l.text("t", glow_text({.text = "GLOW", .font_size = 80, .tracking = 4}));
 //
-inline TextParams glow_text(CenterTextOptions o,
+inline TextSpec glow_text(CenterTextOptions o,
                             Color /*glow_color*/ = {1.0f, 1.0f, 1.0f, 1.0f},
                             f32 /*radius*/ = 24.0f,
                             f32 /*intensity*/ = 0.6f) {
     // glow_color / radius / intensity are reserved for future use when
-    // TextParams carries glow metadata.  For now, glow is applied via
+    // TextSpec carries glow metadata.  For now, glow is applied via
     // the layer builder API.
-    return TextParams{
-        .text            = std::move(o.text),
-        .size            = o.box,
-        .pos             = o.pos,
-        .font_path       = std::move(o.font_path),
-        .font_family     = std::move(o.font_family),
-        .font_weight     = o.font_weight,
-        .font_style      = std::move(o.font_style),
-        .font_size       = o.font_size,
-        .color           = o.color,
-        .anchor          = TextAnchor::Center,
-        .centering_mode  = TextCenteringMode::PixelInk,
-        .align           = TextAlign::Center,
-        .vertical_align  = VerticalAlign::Middle,
-        .line_height     = o.line_height,
-        .tracking        = o.tracking,
-        .auto_fit        = o.auto_fit,
-        .max_lines       = o.max_lines,
-        .min_font_size   = o.min_font_size,
-        .max_font_size   = o.max_font_size,
-        .overflow        = TextOverflow::Clip,
-        .wrap            = TextWrap::Word,
+    return TextSpec{
+        .content    = {.value = std::move(o.text)},
+        .font       = {.font_path   = std::move(o.font_path),
+                       .font_family = std::move(o.font_family),
+                       .font_weight = o.font_weight,
+                       .font_style  = std::move(o.font_style),
+                       .font_size   = o.font_size},
+        .layout     = {.box            = o.box,
+                       .anchor         = TextAnchor::Center,
+                       .centering_mode = TextCenteringMode::PixelInk,
+                       .align          = TextAlign::Center,
+                       .vertical_align = VerticalAlign::Middle,
+                       .wrap           = TextWrap::Word,
+                       .overflow       = TextOverflow::Clip,
+                       .line_height    = o.line_height,
+                       .tracking       = o.tracking,
+                       .auto_fit       = o.auto_fit,
+                       .max_lines      = o.max_lines,
+                       .min_font_size  = o.min_font_size,
+                       .max_font_size  = o.max_font_size},
+        .appearance = {.color = o.color},
+        .position   = o.pos,
     };
 }
 

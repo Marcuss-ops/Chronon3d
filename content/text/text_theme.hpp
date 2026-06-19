@@ -76,16 +76,16 @@ inline void add_image_card(LayerBuilder& l, const char* path, Vec2 size, f32 rad
 inline void add_badge(LayerBuilder& l, const std::string& badge_text, Vec2 size,
                       f32 radius, Color bg_color, f32 font_size) {
     l.rounded_rect("bg", {.size = size, .radius = radius, .color = bg_color});
-    l.text("label", {
-        .text            = badge_text,
-        .size            = size,
-        .font_path       = TEXT_FONT_PATH,
-        .font_size       = font_size,
-        .color           = BADGE_TEXT_COLOR,
-        .anchor          = TextAnchor::Center,
-        .align           = TextAlign::Center,
-        .vertical_align  = VerticalAlign::Middle,
-        .tracking        = 8.0f,
+    l.text("label", TextSpec{
+        .content    = {.value = badge_text},        .font       = {.font_path = TEXT_FONT_PATH,
+                       .font_family = "Poppins",
+                       .font_weight = 700,
+                       .font_size = font_size},
+        .layout     = {.box = size, .anchor = TextAnchor::Center,
+                       .align = TextAlign::Center,
+                       .vertical_align = VerticalAlign::Middle,
+                       .tracking = 8.0f},
+        .appearance = {.color = BADGE_TEXT_COLOR},
     });
 }
 
