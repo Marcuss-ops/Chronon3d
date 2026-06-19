@@ -37,13 +37,9 @@ namespace chronon3d::graph {
     pre_resolved.layers = resolved.layers;
     pre_resolved.camera = resolved.camera;
 
-    // Register pipeline graph node factories before building.
-    // This must happen in graph_pipeline, not graph_builder, to avoid
-    // reintroducing the CMake dependency cycle.
-    register_pipeline_graph_nodes();
-
     // Wire the precomp build factory so PrecompNode (in graph_nodes)
     // can build + compile nested scenes without linking graph_builder.
+    // node_catalog is already set via ctx.resources.node_catalog by the caller.
     wire_precomp_build_factory(mutable_ctx);
 
     RenderGraph graph = pipeline.build_with_resolved(scene, mutable_ctx, pre_resolved);

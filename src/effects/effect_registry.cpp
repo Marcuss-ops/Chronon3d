@@ -90,9 +90,4 @@ std::unique_ptr<graph::RenderGraphNode> EffectCatalog::create_node(const EffectI
     return nullptr;
 }
 
-void EffectCatalog::clear() {
-    m_effects.clear();
-    m_frozen = false;
-}
-
 } // namespace chronon3d::effects

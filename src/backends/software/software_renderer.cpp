@@ -1,6 +1,7 @@
 #include "utils/render_effects_processor.hpp"
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
 #include <chronon3d/backends/software/text_run_processor.hpp>
@@ -79,7 +80,9 @@ SoftwareRenderer::SoftwareRenderer()
     : m_runtime_resources{
         .software_registry = std::make_unique<renderer::SoftwareRegistry>(),
         .executor = std::make_unique<graph::GraphExecutor>(
-            Config::get().scheduler().pin_main_thread())
+            Config::get().scheduler().pin_main_thread()),
+        .graph_node_registry = std::make_unique<graph::GraphNodeRegistry>(),
+        .effect_catalog = std::make_unique<effects::EffectCatalog>()
     }
     , m_cache_state{
         .node_cache = cache::NodeCache{
@@ -105,6 +108,12 @@ SoftwareRenderer::SoftwareRenderer()
     renderer::set_prefetch_enabled(sched_cfg.prefetch_enabled());
 
     renderer::register_builtin_processors(*m_runtime_resources.software_registry);
+
+    graph::register_pipeline_graph_nodes(*m_runtime_resources.graph_node_registry);
+
+    // Built-in effects are registered via EffectCatalog's constructor;
+    // freeze to prevent further registrations.
+    m_runtime_resources.effect_catalog->freeze();
 }
 
 SoftwareRenderer::~SoftwareRenderer() = default;

@@ -203,16 +203,16 @@ TEST_CASE("GraphNodeCatalog: freeze prevents further registrations") {
     CHECK_FALSE(catalog.contains("post_freeze"));
 }
 
-TEST_CASE("GraphNodeCatalog: clear resets frozen state") {
-    auto catalog = make_catalog();
-    catalog.freeze();
-    catalog.clear();
-    // After clear, we can register again
-    catalog.register_node({
-        .id = "after_clear",
-        .display_name = "After Clear",
+TEST_CASE("GraphNodeCatalog: two independent catalogs do not share registrations") {
+    auto catalog_a = make_catalog();
+    catalog_a.register_node({
+        .id = "cat_a_node",
+        .display_name = "Catalog A Node",
         .description = "",
         .category = "test",
     });
-    CHECK(catalog.contains("after_clear"));
+
+    auto catalog_b = make_catalog();
+    CHECK_FALSE(catalog_b.contains("cat_a_node"));
+    CHECK(catalog_a.contains("cat_a_node"));
 }
