@@ -10,10 +10,11 @@
 // =============================================================================
 
 #include <chronon3d/cache/persistent_framebuffer_store.hpp>
-#include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 #include <xxhash.h>
+
+#include <mutex>
 
 #include <algorithm>
 #include <cstring>
@@ -86,6 +87,14 @@ std::filesystem::path PersistentFramebufferStore::file_path(
     return m_cache_dir / sub1 / sub2 / filename;
 }
 
+// ── Static config state (injected by SoftwareRenderer at startup) ────────
+
+namespace {
+    bool              s_disabled  = false;
+    std::string       s_cache_dir;
+    std::once_flag    s_config_flag;
+} // namespace
+
 // ── Singleton / config ────────────────────────────────────────────────────
 
 PersistentFramebufferStore& PersistentFramebufferStore::instance() {
@@ -93,18 +102,24 @@ PersistentFramebufferStore& PersistentFramebufferStore::instance() {
     return s_instance;
 }
 
+void PersistentFramebufferStore::set_store_config(bool disabled, std::string cache_dir) {
+    std::call_once(s_config_flag, [&] {
+        s_disabled  = disabled;
+        s_cache_dir = std::move(cache_dir);
+    });
+}
+
 bool PersistentFramebufferStore::enabled_for_current_run() {
 #ifdef CHRONON_BUILD_TESTS
     return false;
 #else
-    return !Config::get().cache().disable_persistent_framebuffer_cache();
+    return !s_disabled;
 #endif
 }
 
 PersistentFramebufferStore::PersistentFramebufferStore() {
-    const auto& dir = Config::get().paths().persistent_framebuffer_cache_dir();
-    if (!dir.empty()) {
-        m_cache_dir = dir;
+    if (!s_cache_dir.empty()) {
+        m_cache_dir = s_cache_dir;
     } else {
         m_cache_dir = std::filesystem::path("output") / "cache" / "framebuffers";
     }

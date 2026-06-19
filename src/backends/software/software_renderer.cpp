@@ -5,8 +5,10 @@
 #include <chronon3d/backends/software/software_compositor.hpp>
 #include <chronon3d/backends/software/text_run_processor.hpp>
 
+#include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/builtin_processors.hpp>
+#include <chronon3d/cache/persistent_framebuffer_store.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/enum_utils.hpp>
@@ -78,6 +80,16 @@ SoftwareRenderer::SoftwareRenderer()
         .framebuffer_pool = std::make_shared<cache::FramebufferPool>(
             Config::get().cache().fb_pool_max_bytes())
     } {
+    // ── Thread sub-configs to singleton / static-state components ────
+    const auto& cfg = Config::get();
+    const auto& cache_cfg = cfg.cache();
+
+    cache::PersistentFramebufferStore::set_store_config(
+        cache_cfg.disable_persistent_framebuffer_cache(),
+        cfg.paths().persistent_framebuffer_cache_dir());
+
+    ImageCache::set_capacity_bytes(cache_cfg.image_cache_max_bytes());
+
     renderer::register_builtin_processors(*m_runtime_resources.software_registry);
 }
 
