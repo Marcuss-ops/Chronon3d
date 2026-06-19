@@ -78,9 +78,6 @@ public:
     [[nodiscard]] std::unique_ptr<RenderGraphNode> create(
         std::string_view id, const GraphNodeCreateRequest& request) const;
 
-    /// Clear all registered nodes (resets frozen state).
-    void clear();
-
 private:
     std::map<std::string, GraphNodeDescriptor, std::less<>> m_nodes;
     bool m_frozen{false};
