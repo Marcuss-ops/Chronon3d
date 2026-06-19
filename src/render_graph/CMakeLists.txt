@@ -51,6 +51,7 @@ target_link_libraries(chronon3d_graph_nodes
     PUBLIC
         chronon3d_graph_core
         chronon3d_text_core
+        chronon3d_graph_cache   # circular dep: nodes ↔ cache (cache→compiler→nodes already transitively pulls nodes in; without this direct edge, ld drops SceneProgramCache symbols before re-linking nodes)
     PRIVATE
         fmt::fmt
         spdlog::spdlog_header_only
@@ -192,16 +193,7 @@ target_link_libraries(chronon3d_graph_pipeline
         chronon3d_graph_cache
     PRIVATE
         chronon3d_extension
-        # chronon3d_content provides chronon3d::register_content_modules(),
-        # which register_pipeline_nodes.cpp uses internally when building
-        # the canonical pipeline catalogs (PipelineCatalogs.extensions).
-        # PRIVATE keeps chronon3d_content from rebroadcasting to downstream
-        # consumers (chronon3d_cli, chronon3d_tests_*) on every content touch.
-        # Fragility note: any future TU that calls make_builtin_pipeline_catalogs()
-        # from a target NOT in this PRIVATE link chain must independently link
-        # chronon3d_content, or its link will fail with an undefined
-        # register_content_modules reference.
-        chronon3d_content
+        chronon3d_content   # <-- register_content_modules() impl
 )
 target_precompile_headers(chronon3d_graph_pipeline PRIVATE
     <glm/glm.hpp>
