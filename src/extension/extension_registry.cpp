@@ -26,11 +26,13 @@ void ExtensionRegistry::register_module(
 }
 
 void ExtensionRegistry::register_all() {
-    if (m_registered) return;
-    for (auto& mod : m_modules) {
-        mod->register_all();
+    // Incremental: only register modules added since the last call.
+    // This allows modules to be registered after previous register_all()
+    // calls without losing idempotency.
+    for (std::size_t i = m_registered_count; i < m_modules.size(); ++i) {
+        m_modules[i]->register_all();
     }
-    m_registered = true;
+    m_registered_count = m_modules.size();
 }
 
 bool ExtensionRegistry::contains(std::string_view name) const {

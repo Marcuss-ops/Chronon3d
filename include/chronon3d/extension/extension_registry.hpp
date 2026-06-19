@@ -38,7 +38,8 @@ public:
     void register_module(std::unique_ptr<ExtensionModule> module);
 
     /// Call `register_all()` on every registered module, in registration
-    /// order.  Idempotent — subsequent calls are no-ops.
+    /// order.  Idempotent — subsequent calls only process modules
+    /// registered since the last call.
     void register_all();
 
     /// Read-only access to registered modules (for diagnostics).
@@ -52,7 +53,7 @@ private:
     ExtensionRegistry() = default;
 
     std::vector<std::unique_ptr<ExtensionModule>> m_modules;
-    bool m_registered{false};
+    std::size_t m_registered_count{0};  // modules [0..count) have been register_all()'d
 };
 
 } // namespace chronon3d

@@ -9,6 +9,8 @@
 #include "register_content_modules.hpp"
 
 #include <chronon3d/core/composition/composition_registration.hpp>
+#include <chronon3d/extension/extension_module.hpp>
+#include <chronon3d/extension/extension_registry.hpp>
 
 // ── Per-domain registration headers ──────────────────────────────────────────
 // Each domain file exports one register_*_compositions() function.
@@ -27,19 +29,37 @@ namespace chronon3d::content::backgrounds  { void register_grid_clean_background
 
 namespace chronon3d {
 
-void register_content_modules() {
-    content::minimalist::register_minimalist_compositions();
-    content::special_names::register_special_name_compositions();
-    content::important_words::register_important_word_compositions();
+namespace {
+
+/// ExtensionModule wrapping all content-domain registration.
+class ContentExtension final : public ExtensionModule {
+public:
+    [[nodiscard]] std::string_view name() const override { return "content"; }
+
+    void register_all() override {
+        content::minimalist::register_minimalist_compositions();
+        content::special_names::register_special_name_compositions();
+        content::important_words::register_important_word_compositions();
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
-    content::shapes::register_shape_compositions();
-    content::images::register_image_compositions();
+        content::shapes::register_shape_compositions();
+        content::images::register_image_compositions();
 #endif
-    content::anims::register_anim_compositions();
-    content::effects::register_effect_compositions();
-    content::grid::register_grid_compositions();
-    content::two_point_five_d::register_2d5_compositions();
-    content::backgrounds::register_grid_clean_background();
+        content::anims::register_anim_compositions();
+        content::effects::register_effect_compositions();
+        content::grid::register_grid_compositions();
+        content::two_point_five_d::register_2d5_compositions();
+        content::backgrounds::register_grid_clean_background();
+    }
+};
+
+} // namespace
+
+void register_content_modules() {
+    auto& reg = ExtensionRegistry::instance();
+    if (!reg.contains("content")) {
+        reg.register_module(std::make_unique<ContentExtension>());
+    }
+    reg.register_all();
 }
 
 } // namespace chronon3d
