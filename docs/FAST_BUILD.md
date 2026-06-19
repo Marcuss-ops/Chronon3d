@@ -101,7 +101,7 @@ no populated build directory — the first `./build-fast.sh` will compile
 A **vcpkg‑cold** row, for a contributor on a truly fresh machine where even
 the dependency manifest is not yet installed, sits *above* the table — vcpkg
 assembles the whole dependency chain from sources (spdlog, fmt, glm, tbb,
-blend2d, freetype+harfbuzz, openexr, libyuv, …) on the first cmake configure:
+blend2d, freetype+harfbuzz, openexr, …) on the first cmake configure:
 
 | Host profile (vcpkg cold + ccache cold + tmpfs) | Approx. wall‑clock (cold) |
 |---|---|
@@ -129,7 +129,7 @@ Measured on this 8‑core / 22 GB host with tmpfs enabled: **5 m 27 s** from a
 What dominates the cold build, in order of impact:
 
 1. **vcpkg manifest install** — one‑time fetch + compile of dependencies
-   (spdlog, fmt, glm, tbb, blend2d, freetype+harfbuzz, openexr, libyuv, …).
+   (spdlog, fmt, glm, tbb, blend2d, freetype+harfbuzz, openexr, …).
    Dominates fresh machines; cached in `vcpkg_installed/` thereafter.
 2. **CMake configure** — fast (single‑digit seconds) once vcpkg is warm.
 3. **Ninja invocation** — single `cmake --build` against the `linux-fast-dev`
