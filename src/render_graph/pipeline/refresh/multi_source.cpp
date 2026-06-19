@@ -78,7 +78,7 @@ void refresh_multi_source_node(
         key,
         should_use_centered_rendering(item, ctx),
         item.projected,
-        source_is_static
+        source_is_static ? static_memory_cache("multi_source") : frame_variant_cache("multi_source")
     );
 }
 
