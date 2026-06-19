@@ -425,7 +425,7 @@ public:
         // Compute local normalised time ∈ [0, 1] within the segment.
         const double duration = seg.duration_frames();
         if (duration <= 0.0) {
-            return seg.path.sample(0.0);
+            return seg.path().sample(0.0);
         }
 
         double local = (time.frame - seg.start_time.frame) / duration;
@@ -440,7 +440,7 @@ public:
         // (requires ArcLengthLUT integration).
         const double u = static_cast<double>(progress);
 
-        return seg.path.sample(u);
+        return seg.path().sample(u);
     }
 };
 

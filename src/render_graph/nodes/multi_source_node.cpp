@@ -57,7 +57,7 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
             bbox = renderer::compute_text_run_world_bbox(
                 *item.node->text_run_shape, matrix, spread);
         } else if (ctx.camera.has_camera_2_5d &&
-            (item.node->shape.type == ShapeType::FakeBox3D || item.node->shape.type == ShapeType::GridPlane)) {
+            (item.node->shape.type() == ShapeType::FakeBox3D || item.node->shape.type() == ShapeType::GridPlane)) {
             if (auto proj_bbox = detail::projected_native_3d_bbox(ctx, *item.node, item.matrix, spread)) {
                 bbox = *proj_bbox;
             } else {

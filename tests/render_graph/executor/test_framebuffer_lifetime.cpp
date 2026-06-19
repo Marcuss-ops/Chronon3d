@@ -12,6 +12,20 @@
 #include "src/render_graph/executor/execution_state.hpp"
 
 #include <memory>
+
+namespace {
+struct MockNode : RenderGraphNode {
+    std::string m_name;
+    explicit MockNode(std::string n) : m_name(std::move(n)) {}
+    [[nodiscard]] std::string_view name() const override { return m_name; }
+    [[nodiscard]] RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Source; }
+    void execute(RenderGraphContext&) override {}
+    [[nodiscard]] cache::NodeCacheKey cache_key(const RenderGraphContext&) const override { return {}; }
+    [[nodiscard]] std::optional<raster::BBox> predicted_bbox(const RenderGraphContext&) const override { return std::nullopt; }
+    [[nodiscard]] bool cache_static() const override { return false; }
+};
+} // namespace
+
 using namespace chronon3d;
 
 using namespace chronon3d::cache;
@@ -266,8 +280,8 @@ TEST_CASE("InputLifetime: single consumer releases on last use") {
     // When processing level [1]: n1's input n0 has count 1 → released
 
     RenderGraph graph;
-    auto n0 = graph.add_node(nullptr);
-    auto n1 = graph.add_node(nullptr);
+    auto n0 = graph.add_node(std::make_unique<MockNode>("n"));
+    auto n1 = graph.add_node(std::make_unique<MockNode>("n"));
     graph.connect(n0, n1);
 
     FrameArena arena;
@@ -303,9 +317,9 @@ TEST_CASE("InputLifetime: multiple consumers only release on last consumer") {
     //   - n2 consumes n0 → last consumer → released
 
     RenderGraph graph;
-    auto n0 = graph.add_node(nullptr);
-    auto n1 = graph.add_node(nullptr);
-    auto n2 = graph.add_node(nullptr);
+    auto n0 = graph.add_node(std::make_unique<MockNode>("n"));
+    auto n1 = graph.add_node(std::make_unique<MockNode>("n"));
+    auto n2 = graph.add_node(std::make_unique<MockNode>("n"));
     graph.connect(n0, n1);  // n1 consumes n0
     graph.connect(n0, n2);  // n2 consumes n0
 
@@ -340,9 +354,9 @@ TEST_CASE("InputLifetime: framebuffer held while consumers remain") {
     // After processing level [2]: n0's count goes from 1 to 0, released
 
     RenderGraph graph;
-    auto n0 = graph.add_node(nullptr);
-    auto n1 = graph.add_node(nullptr);
-    auto n2 = graph.add_node(nullptr);
+    auto n0 = graph.add_node(std::make_unique<MockNode>("n"));
+    auto n1 = graph.add_node(std::make_unique<MockNode>("n"));
+    auto n2 = graph.add_node(std::make_unique<MockNode>("n"));
     graph.connect(n0, n1);
     graph.connect(n0, n2);
 
@@ -382,7 +396,7 @@ TEST_CASE("InputLifetime: node with no consumers is never released") {
     // fetch_sub(1) on 0 returns 0 (unsigned underflow to max), 0 != 1 → NOT released
 
     RenderGraph graph;
-    auto n0 = graph.add_node(nullptr);
+    auto n0 = graph.add_node(std::make_unique<MockNode>("n"));
 
     FrameArena arena;
     std::array<size_t, 1> counts = {0}; // n0 has 0 consumers
@@ -407,7 +421,7 @@ TEST_CASE("InputLifetime: unknown inputs are safely ignored") {
     // release_consumed_framebuffers should handle empty input lists gracefully
 
     RenderGraph graph;
-    auto n0 = graph.add_node(nullptr);
+    auto n0 = graph.add_node(std::make_unique<MockNode>("n"));
     // No connections → n0 has no inputs
 
     FrameArena arena;
@@ -439,8 +453,8 @@ TEST_CASE("InputLifetime: state metadata is reset on release") {
     // must be reset to prevent stale state from being reused.
 
     RenderGraph graph;
-    auto n0 = graph.add_node(nullptr);
-    auto n1 = graph.add_node(nullptr);
+    auto n0 = graph.add_node(std::make_unique<MockNode>("n"));
+    auto n1 = graph.add_node(std::make_unique<MockNode>("n"));
     graph.connect(n0, n1);
 
     FrameArena arena;

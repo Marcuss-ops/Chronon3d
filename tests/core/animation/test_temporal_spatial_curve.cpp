@@ -447,8 +447,8 @@ TEST_CASE("MotionSegment3D: from_keyframes builds correct segment") {
     CHECK(seg.start_time.frame == doctest::Approx(0.0));
     CHECK(seg.end_time.frame == doctest::Approx(60.0));
     // Path p0 and p3 should match the keyframe values.
-    CHECK(glm::length(seg.path.p0 - a.value) < 1e-4f);
-    CHECK(glm::length(seg.path.p3 - b.value) < 1e-4f);
+    CHECK(glm::length(seg.path().p0 - a.value) < 1e-4f);
+    CHECK(glm::length(seg.path().p3 - b.value) < 1e-4f);
 }
 
 TEST_CASE("MotionSegment3D: zero-duration segment") {
@@ -533,8 +533,8 @@ TEST_CASE("MotionPath3D: continuity between segments") {
     path.build_segments_uniform();
 
     // Segment 0 at t=1.0 should equal segment 1 at t=0.0.
-    auto seg0_end = path.segments()[0].path.position(1.0);
-    auto seg1_start = path.segments()[1].path.position(0.0);
+    auto seg0_end = path.segments()[0].path().position(1.0);
+    auto seg1_start = path.segments()[1].path().position(0.0);
     CHECK(glm::length(seg0_end - seg1_start) < 1e-4f);
 }
 

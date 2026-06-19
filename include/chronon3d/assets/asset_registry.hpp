@@ -204,7 +204,7 @@ public:
     }
 
     [[nodiscard]] std::string get_path(AssetId id) const {
-        return metadata(id).path.string();
+        return metadata(id).path().string();
     }
 
 private:
@@ -217,7 +217,7 @@ private:
         if (m_by_id.contains(id)) return id;  // deduplicate
 
         AssetMetadata meta;
-        meta.type        = type;
+        meta.set_type(type;
         meta.path        = path;
         meta.color_space = cs;
         meta.alpha_mode  = am;

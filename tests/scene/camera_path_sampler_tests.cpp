@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/scene/camera/camera_path_sampler.hpp>
+#include <chronon3d/scene/model/core/hierarchy_resolver.hpp>  // ResolvedSceneTransforms
 using namespace chronon3d;
 
 
@@ -9,11 +10,11 @@ TEST_CASE("Camera Path Sampler test suite") {
     rig.orbit_radius.set(1000.0f);
     rig.orbit_yaw.set(0.0f);
 
-    TransformResolverResult resolved;
+    ResolvedSceneTransforms resolved;
     Viewport viewport{1920.0f, 1080.0f};
 
     CameraPathReport report = sample_camera_path(rig, resolved, viewport, 0, 30, 10);
-    
+
     CHECK(report.samples.size() == 4);
     CHECK(report.passed);
 }

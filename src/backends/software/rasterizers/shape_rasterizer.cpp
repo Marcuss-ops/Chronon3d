@@ -33,10 +33,10 @@ bool pixel_passes_mask(const RenderState& state, i32 x, i32 y) {
 }
 
 raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) {
-    if (shape.type == ShapeType::Line) {
+    if (shape.type() == ShapeType::Line) {
         Vec4 p0 = model * Vec4(0, 0, 0, 1);
-        Vec4 p1 = model * Vec4(shape.line.to, 1);
-        const f32 pad = spread + std::max(kBBoxSafetyPadding, shape.line.thickness * 0.5f);
+        Vec4 p1 = model * Vec4(shape.line().to, 1);
+        const f32 pad = spread + std::max(kBBoxSafetyPadding, shape.line().thickness * 0.5f);
         return {
             static_cast<i32>(std::floor(std::min(p0.x, p1.x) - pad)),
             static_cast<i32>(std::floor(std::min(p0.y, p1.y) - pad)),
@@ -47,13 +47,13 @@ raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 sprea
 
     Vec2 size{0, 0};
     switch (shape.type) {
-        case ShapeType::Rect:        size = shape.rect.size; break;
-        case ShapeType::RoundedRect: size = shape.rounded_rect.size; break;
-        case ShapeType::Circle:      size = {shape.circle.radius * 2, shape.circle.radius * 2}; break;
-        case ShapeType::Image:       size = shape.image.size; break;
-        case ShapeType::GridBackground: size = shape.grid_background.size; break;
+        case ShapeType::Rect:        size = shape.rect().size; break;
+        case ShapeType::RoundedRect: size = shape.rounded_rect().size; break;
+        case ShapeType::Circle:      size = {shape.circle().radius * 2, shape.circle().radius * 2}; break;
+        case ShapeType::Image:       size = shape.image().size; break;
+        case ShapeType::GridBackground: size = shape.grid_background().size; break;
         case ShapeType::Text:
-            size = shape.text.box.enabled ? shape.text.box.size : Vec2{1000, 1000};
+            size = shape.text().box.enabled ? shape.text().box.size : Vec2{1000, 1000};
             // The text rasterizer pads the image by 32px on each side and may
             // shift it by x_offset/y_offset (ink-centering alignment) which
             // can be up to ~96px.  Expand the bbox by 32px + 96px = 128px
@@ -63,14 +63,14 @@ raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 sprea
             size.x += kTextBBoxPadding;
             size.y += kTextBBoxPadding;
             break;
-        case ShapeType::FakeBox3D:   size = shape.fake_box3d.size; break;
+        case ShapeType::FakeBox3D:   size = shape.fake_box3d().size; break;
         default: break;
     }
 
     const f32 stroke_pad = stroke_width_for_shape(shape);
     const f32 pad = spread + kBBoxSafetyPadding + stroke_pad;
 
-    const Mat4 effective_model = (shape.type == ShapeType::GridBackground) ? Mat4(1.0f) : model;
+    const Mat4 effective_model = (shape.type() == ShapeType::GridBackground) ? Mat4(1.0f) : model;
 
     const Vec4 corners[4] = {
         effective_model * Vec4{-pad, -pad, 0, 1},
@@ -100,8 +100,8 @@ bool hit_test(const Shape& s, Vec2 p, f32 spread, f32 corner_radius) {
     switch (s.type) {
         case ShapeType::Rect: {
             if (corner_radius > 0.0f) {
-                const f32 w = s.rect.size.x;
-                const f32 h = s.rect.size.y;
+                const f32 w = s.rect().size.x;
+                const f32 h = s.rect().size.y;
                 const f32 r = std::max(0.0f, std::min({corner_radius, w * 0.5f, h * 0.5f}));
                 
                 if (p.x < -spread || p.x > w + spread || p.y < -spread || p.y > h + spread) return false;
@@ -129,14 +129,14 @@ bool hit_test(const Shape& s, Vec2 p, f32 spread, f32 corner_radius) {
                 }
                 return true;
             }
-            return p.x >= -spread && p.x < s.rect.size.x + spread &&
-                   p.y >= -spread && p.y < s.rect.size.y + spread;
+            return p.x >= -spread && p.x < s.rect().size.x + spread &&
+                   p.y >= -spread && p.y < s.rect().size.y + spread;
         }
 
         case ShapeType::RoundedRect: {
-            const f32 w = s.rounded_rect.size.x;
-            const f32 h = s.rounded_rect.size.y;
-            const f32 r = std::max(0.0f, std::min({s.rounded_rect.radius, w * 0.5f, h * 0.5f}));
+            const f32 w = s.rounded_rect().size.x;
+            const f32 h = s.rounded_rect().size.y;
+            const f32 r = std::max(0.0f, std::min({s.rounded_rect().radius, w * 0.5f, h * 0.5f}));
             
             if (p.x < -spread || p.x > w + spread || p.y < -spread || p.y > h + spread) return false;
 
@@ -165,9 +165,9 @@ bool hit_test(const Shape& s, Vec2 p, f32 spread, f32 corner_radius) {
         }
 
         case ShapeType::Circle: {
-            const f32 r = s.circle.radius + spread;
-            const f32 dx = p.x - s.circle.radius;
-            const f32 dy = p.y - s.circle.radius;
+            const f32 r = s.circle().radius + spread;
+            const f32 dx = p.x - s.circle().radius;
+            const f32 dy = p.y - s.circle().radius;
             return (dx * dx + dy * dy) <= r * r;
         }
 
@@ -180,7 +180,7 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
                              f32 spread, const RenderState* state, const Fill* fill, f32 corner_radius) {
     if (color.a <= 0.0f) return;
 
-    if (shape.type == ShapeType::Path) {
+    if (shape.type() == ShapeType::Path) {
 #ifdef CHRONON3D_USE_BLEND2D
         (void)fill;
         draw_path(fb, shape.path, model, color, state);
@@ -205,10 +205,10 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
     }
 
 #ifdef CHRONON_DEBUG_VERBOSE
-    if (shape.type == ShapeType::Rect) {
+    if (shape.type() == ShapeType::Rect) {
         spdlog::info("DEBUG DRAW SHAPE: bbox=[{}, {}, {}, {}] model_trans=[{}, {}] size=[{}, {}] fb=[{}, {}]",
                      bbox.x0, bbox.y0, bbox.x1, bbox.y1, model[3][0], model[3][1],
-                     shape.rect.size.x, shape.rect.size.y, fb.width(), fb.height());
+                     shape.rect().size.x, shape.rect().size.y, fb.width(), fb.height());
     }
 #endif
 
@@ -239,12 +239,12 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
 
         i32 x = bbox.x0;
         
-        if (can_use_simd && shape.type == ShapeType::Rect) {
+        if (can_use_simd && shape.type() == ShapeType::Rect) {
             const i32 count = bbox.x1 - x;
             const i32 simd_count = count & ~3;
             if (simd_count > 0) {
                 simd::rasterize_rect_simd(row + x, &lp_h.x, &col0.x, simd_count, 
-                                          shape.rect.size.x, shape.rect.size.y, spread, color);
+                                          shape.rect().size.x, shape.rect().size.y, spread, color);
                 x += simd_count;
                 lp_h += col0 * static_cast<f32>(simd_count);
             }

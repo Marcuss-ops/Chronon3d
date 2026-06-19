@@ -20,8 +20,8 @@
 #include <cstdint>
 
 namespace chronon3d {
-// Forward declaration of TransformResolverResult (defined in transform_resolver.hpp).
-struct TransformResolverResult;
+// Forward declaration of ResolvedSceneTransforms (defined in hierarchy_resolver.hpp).
+struct ResolvedSceneTransforms;
 } // namespace chronon3d
 
 namespace chronon3d::camera_v1 {
@@ -72,7 +72,7 @@ struct CameraEvalContext {
     /// Optional transform snapshot for hierarchy / LookAtLayer resolution.
     /// nullptr means transforms are not available (LookAtLayer falls back
     /// to a diagnostic warning in the compiled path).
-    const TransformResolverResult* transforms{nullptr};
+    const ResolvedSceneTransforms* transforms{nullptr};
 
     /// Factory: a deterministic context at integer frame `f`, no sub-frame.
     static CameraEvalContext at(Frame f) {

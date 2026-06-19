@@ -26,7 +26,7 @@ std::optional<BLGradient> build_bl_gradient(
     float width,
     float height
 ) {
-    if (fill.type == chronon3d::FillType::Solid) return std::nullopt;
+    if (fill.type() == chronon3d::FillType::Solid) return std::nullopt;
     if (fill.gradient.stops.empty()) return std::nullopt;
 
     const float safe_w = std::max(1.0f, width);

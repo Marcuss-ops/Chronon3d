@@ -7,7 +7,7 @@ namespace chronon3d {
 Camera2_5D fit_camera_to_layers(
     Camera2_5D camera,
     const std::vector<std::string>& layer_names,
-    const TransformResolverResult& transforms,
+    const ResolvedSceneTransforms& transforms,
     Viewport viewport,
     CameraFramingOptions options
 ) {

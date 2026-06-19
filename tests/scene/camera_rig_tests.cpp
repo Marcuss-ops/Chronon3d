@@ -2,10 +2,31 @@
 #include <chronon3d/scene/model/camera/camera_rig.hpp>
 #include <chronon3d/scene/camera/camera_rig_builder.hpp>
 #include <chronon3d/scene/camera/camera_rig_presets.hpp>
-#include <chronon3d/scene/model/core/transform_resolver.hpp>
+#include <chronon3d/scene/model/core/hierarchy_resolver.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <cmath>
 using namespace chronon3d;
+
+// ── Migration helper ───────────────────────────────────────────────────────
+//
+// Test bodies construct a flat list of named Transform3D rows and run them
+// through `resolve_scene_transforms()` (the canonical service) to produce
+// a `ResolvedSceneTransforms` that the camera rig consumes.
+
+namespace {
+
+ResolvedSceneTransforms build_resolver(
+    std::vector<std::pair<std::string, Transform3D>> entries
+) {
+    std::vector<SceneTransformInput> inputs;
+    inputs.reserve(entries.size());
+    for (auto& e : entries) {
+        inputs.push_back(SceneTransformInput{std::move(e.first), std::move(e.second), false, false});
+    }
+    return resolve_scene_transforms(inputs);
+}
+
+} // anonymous namespace
 
 
 TEST_CASE("CameraRig orbit keeps constant radius") {
@@ -52,12 +73,9 @@ TEST_CASE("CameraRig dolly moves along forward vector") {
 }
 
 TEST_CASE("CameraRig resolves target null") {
-    SceneTransformRegistry reg;
     Transform3D target_node;
     target_node.position = {100.0f, 50.0f, 0.0f};
-    reg.add_node("target_null", target_node, false);
-    
-    auto resolved = reg.resolve_all();
+    ResolvedSceneTransforms resolved = build_resolver({{"target_null", target_node}});
 
     CameraRig rig;
     rig.mode = CameraRigMode::TwoNode;
@@ -75,29 +93,23 @@ TEST_CASE("CameraRig resolves target null") {
 
 namespace {
 
-/// Set up a TransformResolver with three layers at different Z depths
+/// Set up a ResolvedSceneTransforms with three layers at different Z depths
 /// matching the test plan: near(600), subject(1000), far(1400).
 struct FocusTestScene {
-    SceneTransformRegistry registry;
-    TransformResolverResult resolved;
+    ResolvedSceneTransforms resolved;
 
     FocusTestScene() {
-        // Camera is at origin looking down -Z (default camera position).
-        // Layer Z values: negative Z = farther from camera.
-        // Camera-space distance = |layer_z - camera_z| with camera at z=0.
         Transform3D near_node;
         near_node.position = {0.0f, 0.0f, -600.0f};
-        registry.add_node("near", near_node, false);
-
         Transform3D subject_node;
         subject_node.position = {0.0f, 0.0f, -1000.0f};
-        registry.add_node("subject", subject_node, false);
-
         Transform3D far_node;
         far_node.position = {0.0f, 0.0f, -1400.0f};
-        registry.add_node("far", far_node, false);
-
-        resolved = registry.resolve_all();
+        resolved = build_resolver({
+            {"near",    near_node},
+            {"subject", subject_node},
+            {"far",     far_node},
+        });
     }
 };
 
@@ -216,27 +228,25 @@ TEST_CASE("T7: rig with external target is marked animated and follows target") 
     // ── Build two resolver states simulating an animated parent ─────────
     // Frame 0: parent at (0,0,0), child offset at (100,0,0) → child at (100,0,0)
     // Frame 30: parent at (200,0,0), child same offset → child at (300,0,0)
-    SceneTransformRegistry reg0;
     Transform3D parent;
     parent.position = {0.0f, 0.0f, 0.0f};
-    reg0.add_node("target_parent", parent, false);
-
     Transform3D child;
     child.position   = {100.0f, 0.0f, 0.0f};
     child.parent_name = "target_parent";
-    reg0.add_node("target_child", child, false);
-    auto resolved0 = reg0.resolve_all();
+    ResolvedSceneTransforms resolved0 = build_resolver({
+        {"target_parent", parent},
+        {"target_child",  child},
+    });
 
-    SceneTransformRegistry reg30;
     Transform3D parent30;
     parent30.position = {200.0f, 0.0f, 0.0f};
-    reg30.add_node("target_parent", parent30, false);
-
     Transform3D child30;
     child30.position   = {100.0f, 0.0f, 0.0f};
     child30.parent_name = "target_parent";
-    reg30.add_node("target_child", child30, false);
-    auto resolved30 = reg30.resolve_all();
+    ResolvedSceneTransforms resolved30 = build_resolver({
+        {"target_parent", parent30},
+        {"target_child",  child30},
+    });
 
     // ── CameraRig with NO local animation ──────────────────────────────
     CameraRig rig;
@@ -280,11 +290,9 @@ TEST_CASE("T7: rig with external target is marked animated and follows target") 
 }
 
 TEST_CASE("T7: rig with external parent is marked animated") {
-    SceneTransformRegistry reg;
     Transform3D parent;
     parent.position = {42.0f, 0.0f, 0.0f};
-    reg.add_node("camera_parent", parent, false);
-    auto resolved = reg.resolve_all();
+    ResolvedSceneTransforms resolved = build_resolver({{"camera_parent", parent}});
 
     CameraRig rig;
     rig.mode = CameraRigMode::OneNode;
@@ -317,8 +325,6 @@ TEST_CASE("T7: rig with NO external dependencies is NOT marked animated") {
 // ─────────────────────────────────────────────────────────────────────────
 // T1 — CameraEulerRotationConsistency
 // ─────────────────────────────────────────────────────────────────────────
-// Verifies that set_rotation_euler / rotation_euler / rotation_quaternion
-// are consistent with each other.
 
 TEST_CASE("T1: Euler rotation set/roundtrip consistency") {
     const Vec3 test_euler{-12.0f, 35.0f, 7.0f};
@@ -382,8 +388,6 @@ TEST_CASE("T1: AnimatedCamera2_5D rotation consistency") {
 // ─────────────────────────────────────────────────────────────────────────
 // T2 — TwoNodeTargetLockOrbit
 // ─────────────────────────────────────────────────────────────────────────
-// CameraRig TwoNode with orbit yaw/pitch animation: verifies the target
-// stays locked at the point of interest throughout the motion.
 
 TEST_CASE("T3: TwoNode target stays locked during orbit animation") {
     CameraRig rig;
@@ -428,11 +432,9 @@ TEST_CASE("T3: TwoNode target stays locked during orbit animation") {
 }
 
 TEST_CASE("T3: TwoNode target stays locked with resolver (external target)") {
-    SceneTransformRegistry reg;
     Transform3D target_node;
     target_node.position = {-80.0f, 30.0f, 0.0f};
-    reg.add_node("camera_target", target_node, false);
-    auto resolved = reg.resolve_all();
+    ResolvedSceneTransforms resolved = build_resolver({{"camera_target", target_node}});
 
     CameraRig rig;
     rig.mode = CameraRigMode::TwoNode;
@@ -450,5 +452,3 @@ TEST_CASE("T3: TwoNode target stays locked with resolver (external target)") {
         CHECK(error < 1e-4f);
     }
 }
-
-

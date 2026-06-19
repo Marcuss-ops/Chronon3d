@@ -7,18 +7,19 @@
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/builders/camera_api.hpp>
+#include <chronon3d/scene/builders/camera_rig_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/builders/null_builder.hpp>
 #include <chronon3d/registry/shape_registry.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
-#include <chronon3d/scene/camera/camera_rig_builder.hpp>
+#include <chronon3d/scene/model/core/hierarchy_resolver.hpp>  // ResolvedSceneTransforms
+#include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/rendering/lighting_rig.hpp>
-#include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/animation/effects/stagger.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <glm/glm.hpp>
-#include <chronon3d/scene/builders/null_builder.hpp>
 #include <type_traits>
 #include <functional>
 #include <string>
@@ -257,9 +258,12 @@ namespace chronon3d {
             rig.name = std::move(name);
             CameraRigBuilder builder(rig);
             std::forward<Fn>(fn)(builder);
-            
-            // Build SceneTransformRegistry to resolve parent/target nulls
-            SceneTransformRegistry registry;
+
+            // Resolve parent/target nulls through the canonical HierarchyResolver
+            // pipeline.  ResolvedSceneTransforms is the value type consumed by
+            // CameraRig::evaluate(); no legacy bridge required.
+            std::vector<SceneTransformInput> inputs;
+            inputs.reserve(scene_.layers().size());
             for (const auto& layer : scene_.layers()) {
                 Transform3D t3d;
                 t3d.position = layer.transform.position;
@@ -270,11 +274,16 @@ namespace chronon3d {
                 t3d.inherits_position = true;
                 t3d.inherits_rotation = true;
                 t3d.inherits_scale = true;
-                registry.add_node(std::string(layer.name), t3d, layer.kind != LayerKind::Null);
+                inputs.push_back(SceneTransformInput{
+                    std::string(layer.name),
+                    t3d,
+                    layer.kind != LayerKind::Null,
+                    false
+                });
             }
-            auto results = registry.resolve_all();
-            
-            Camera2_5D camera_baked = rig.evaluate(current_time_, &results);
+            ResolvedSceneTransforms resolved = resolve_scene_transforms(inputs);
+
+            Camera2_5D camera_baked = rig.evaluate(current_time_, &resolved);
             scene_.set_camera_2_5d(camera_baked);
             return *this;
         }

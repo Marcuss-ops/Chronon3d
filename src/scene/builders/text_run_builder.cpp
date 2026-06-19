@@ -90,15 +90,19 @@ TextRunBuilder& TextRunBuilder::scale(Vec3 s) {
 
 TextRunBuilder& TextRunBuilder::font_size(f32 v) {
     // Font size lives inside the composable TextSpec under
-    // .text.font.font_size — it affects HarfBuzz shaping upstream of
+    // .text().font.font_size — it affects HarfBuzz shaping upstream of
     // any glyph-level animation, so this mutator updates the BASE
     // parameter (no animator injection).  Setting the size also
     // invalidates the layout cache so the next commit re-shapes.
-    m_spec->params.text.font.font_size = v;
+    m_spec->params.text().font.font_size = v;
     m_cache_layout = false;
     // PR 2: sync immediately so observers reading `spec().cache_layout`
     // (without calling `.commit()`) see the invalidated state.
     m_spec->params.cache_layout = false;
+    return *this;
+}
+
+TextRunBuilder& TextRunBuilder::blur(f32 radius) {
     return *this;
 }
 
@@ -259,10 +263,10 @@ std::shared_ptr<TextRunShape> materialize_text_run_shape(
     using namespace text_run_materialize_detail;
 
     // ── Composable nested field paths (PR4 canonical form) ──────────
-    const std::string& text      = params.text.content.value;
-    const FontSpec&     font_spec = params.text.font;
-    const TextLayoutSpec& layout = params.text.layout;
-    const TextAppearanceSpec& appearance = params.text.appearance;
+    const std::string& text      = params.text().content.value;
+    const FontSpec&     font_spec = params.text().font;
+    const TextLayoutSpec& layout = params.text().layout;
+    const TextAppearanceSpec& appearance = params.text().appearance;
 
     if (text.empty()) {
         spdlog::warn("materialize_text_run_shape: empty text — skipping.");

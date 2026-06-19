@@ -54,9 +54,9 @@ Composition camera_spline_comparison() {
 
         // The camera uses a Catmull-Rom path through 4 corners of the scene.
         CatmullRomCameraMotion motion;
-        motion.path.set_alpha(CatmullRomAlpha::Centripetal)
+        motion.path().set_alpha(CatmullRomAlpha::Centripetal)
                    .set_boundary(CatmullRomBoundary::Clamped);
-        motion.path.add_waypoint({-300.0f, -200.0f, -1100.0f})
+        motion.path().add_waypoint({-300.0f, -200.0f, -1100.0f})
                    .add_waypoint({ 300.0f, -100.0f,  -900.0f})
                    .add_waypoint({ 300.0f,  200.0f, -1100.0f})
                    .add_waypoint({-300.0f,  100.0f,  -900.0f});

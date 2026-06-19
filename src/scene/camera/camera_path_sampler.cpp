@@ -24,7 +24,7 @@ namespace chronon3d {
 
 CameraPathReport analyze_camera_path(
     const CameraRig& rig,
-    const TransformResolverResult& transforms,
+    const ResolvedSceneTransforms& transforms,
     Viewport viewport,
     SampleRange range,
     CameraPathValidationOptions opts)
@@ -171,7 +171,7 @@ CameraPathReport analyze_camera_path(
 
 CameraPathReport sample_camera_path(
     const CameraRig& rig,
-    const TransformResolverResult& transforms,
+    const ResolvedSceneTransforms& transforms,
     Viewport viewport,
     int start_frame,
     int end_frame,
@@ -184,7 +184,7 @@ CameraPathReport sample_camera_path(
 
 CameraPathReport sample_camera_path(
     const CameraRig& rig,
-    const TransformResolverResult& transforms,
+    const ResolvedSceneTransforms& transforms,
     Viewport viewport,
     int start_frame,
     int end_frame,

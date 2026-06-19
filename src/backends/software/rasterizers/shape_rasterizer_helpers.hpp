@@ -20,14 +20,14 @@ namespace chronon3d::renderer {
 // ── Gradient / fill helpers ────────────────────────────────────────
 
 [[nodiscard]] static inline Color resolve_gradient_color(const Fill& fill, Vec2 lp, Vec2 sz, f32 opacity) {
-    if (fill.type == FillType::Solid) {
+    if (fill.type() == FillType::Solid) {
         Color c = fill.solid.to_linear();
         c.a *= opacity;
         return c;
     }
 
     f32 t = 0.0f;
-    if (fill.type == FillType::LinearGradient) {
+    if (fill.type() == FillType::LinearGradient) {
         const Vec2 norm = { (lp.x / sz.x), (lp.y / sz.y) };
         const Vec2 dir = fill.gradient.to - fill.gradient.from;
         const f32 len_sq = dir.x * dir.x + dir.y * dir.y;
@@ -35,13 +35,13 @@ namespace chronon3d::renderer {
             const Vec2 rel = norm - fill.gradient.from;
             t = (rel.x * dir.x + rel.y * dir.y) / len_sq;
         }
-    } else if (fill.type == FillType::RadialGradient) {
+    } else if (fill.type() == FillType::RadialGradient) {
         const Vec2 norm = { (lp.x / sz.x), (lp.y / sz.y) };
         const Vec2 d = norm - fill.gradient.from;
         const Vec2 rv = fill.gradient.to - fill.gradient.from;
         const f32 r = glm::length(rv);
         t = (r > 1e-6f) ? glm::length(d) / r : 0.0f;
-    } else if (fill.type == FillType::ConicGradient) {
+    } else if (fill.type() == FillType::ConicGradient) {
         const Vec2 norm = { (lp.x / sz.x), (lp.y / sz.y) };
         const Vec2 d = norm - fill.gradient.from;
         float angle = std::atan2(d.y, d.x);
@@ -100,11 +100,11 @@ namespace chronon3d::renderer {
 
 [[nodiscard]] static inline Vec2 shape_size_for_fill(const Shape& shape) {
     switch (shape.type) {
-        case ShapeType::Rect:        return shape.rect.size;
-        case ShapeType::RoundedRect: return shape.rounded_rect.size;
-        case ShapeType::Circle:      return {shape.circle.radius * 2, shape.circle.radius * 2};
-        case ShapeType::Image:       return shape.image.size;
-        case ShapeType::Text:        return shape.text.box.enabled ? shape.text.box.size : Vec2{0.0f, 0.0f};
+        case ShapeType::Rect:        return shape.rect().size;
+        case ShapeType::RoundedRect: return shape.rounded_rect().size;
+        case ShapeType::Circle:      return {shape.circle().radius * 2, shape.circle().radius * 2};
+        case ShapeType::Image:       return shape.image().size;
+        case ShapeType::Text:        return shape.text().box.enabled ? shape.text().box.size : Vec2{0.0f, 0.0f};
         default:                     return {0, 0};
     }
 }
@@ -112,11 +112,11 @@ namespace chronon3d::renderer {
 [[nodiscard]] static inline f32 stroke_width_for_shape(const Shape& shape) {
     switch (shape.type) {
         case ShapeType::Rect:
-            return shape.rect.stroke.enabled ? std::max(0.0f, shape.rect.stroke.width) : 0.0f;
+            return shape.rect().stroke.enabled ? std::max(0.0f, shape.rect().stroke.width) : 0.0f;
         case ShapeType::RoundedRect:
-            return shape.rounded_rect.stroke.enabled ? std::max(0.0f, shape.rounded_rect.stroke.width) : 0.0f;
+            return shape.rounded_rect().stroke.enabled ? std::max(0.0f, shape.rounded_rect().stroke.width) : 0.0f;
         case ShapeType::Circle:
-            return shape.circle.stroke.enabled ? std::max(0.0f, shape.circle.stroke.width) : 0.0f;
+            return shape.circle().stroke.enabled ? std::max(0.0f, shape.circle().stroke.width) : 0.0f;
         default:
             return 0.0f;
     }
@@ -125,11 +125,11 @@ namespace chronon3d::renderer {
 [[nodiscard]] static inline StrokeAlignment stroke_alignment_for_shape(const Shape& shape) {
     switch (shape.type) {
         case ShapeType::Rect:
-            return shape.rect.stroke.alignment;
+            return shape.rect().stroke.alignment;
         case ShapeType::RoundedRect:
-            return shape.rounded_rect.stroke.alignment;
+            return shape.rounded_rect().stroke.alignment;
         case ShapeType::Circle:
-            return shape.circle.stroke.alignment;
+            return shape.circle().stroke.alignment;
         default:
             return StrokeAlignment::Center;
     }
@@ -138,11 +138,11 @@ namespace chronon3d::renderer {
 [[nodiscard]] static inline Color stroke_color_for_shape(const Shape& shape) {
     switch (shape.type) {
         case ShapeType::Rect:
-            return shape.rect.stroke.color.to_linear();
+            return shape.rect().stroke.color.to_linear();
         case ShapeType::RoundedRect:
-            return shape.rounded_rect.stroke.color.to_linear();
+            return shape.rounded_rect().stroke.color.to_linear();
         case ShapeType::Circle:
-            return shape.circle.stroke.color.to_linear();
+            return shape.circle().stroke.color.to_linear();
         default:
             return Color{0.0f, 0.0f, 0.0f, 1.0f};
     }
@@ -152,11 +152,11 @@ namespace chronon3d::renderer {
 [[nodiscard]] static inline bool stroke_has_gradient(const Shape& shape) {
     switch (shape.type) {
         case ShapeType::Rect:
-            return shape.rect.stroke.gradient.has_value();
+            return shape.rect().stroke.gradient.has_value();
         case ShapeType::RoundedRect:
-            return shape.rounded_rect.stroke.gradient.has_value();
+            return shape.rounded_rect().stroke.gradient.has_value();
         case ShapeType::Circle:
-            return shape.circle.stroke.gradient.has_value();
+            return shape.circle().stroke.gradient.has_value();
         default:
             return false;
     }
@@ -171,13 +171,13 @@ namespace chronon3d::renderer {
     const std::optional<GradientFill>* g = nullptr;
     switch (shape.type) {
         case ShapeType::Rect:
-            g = &shape.rect.stroke.gradient;
+            g = &shape.rect().stroke.gradient;
             break;
         case ShapeType::RoundedRect:
-            g = &shape.rounded_rect.stroke.gradient;
+            g = &shape.rounded_rect().stroke.gradient;
             break;
         case ShapeType::Circle:
-            g = &shape.circle.stroke.gradient;
+            g = &shape.circle().stroke.gradient;
             break;
         default:
             return Color{0.0f, 0.0f, 0.0f, 0.0f};
@@ -186,7 +186,7 @@ namespace chronon3d::renderer {
         return Color{0.0f, 0.0f, 0.0f, 0.0f};
     }
     Fill fake_fill;
-    fake_fill.type     = g->value().type;
+    fake_fill.set_type(g->value().type;
     fake_fill.gradient = g->value();
     return resolve_gradient_color(fake_fill, lp, sz, 1.0f);
 }
@@ -232,13 +232,13 @@ namespace chronon3d::renderer {
 [[nodiscard]] static inline bool hit_test_shape_fill(const Shape& shape, Vec2 p, f32 spread, f32 corner_radius) {
     switch (shape.type) {
         case ShapeType::Rect:
-            return hit_test_rect_like(p, shape.rect.size, corner_radius, spread);
+            return hit_test_rect_like(p, shape.rect().size, corner_radius, spread);
         case ShapeType::RoundedRect:
-            return hit_test_rect_like(p, shape.rounded_rect.size, shape.rounded_rect.radius, spread);
+            return hit_test_rect_like(p, shape.rounded_rect().size, shape.rounded_rect().radius, spread);
         case ShapeType::Circle: {
-            const f32 r = shape.circle.radius + spread;
-            const f32 dx = p.x - shape.circle.radius;
-            const f32 dy = p.y - shape.circle.radius;
+            const f32 r = shape.circle().radius + spread;
+            const f32 dx = p.x - shape.circle().radius;
+            const f32 dy = p.y - shape.circle().radius;
             return (dx * dx + dy * dy) <= r * r;
         }
         default:
@@ -283,28 +283,28 @@ namespace chronon3d::renderer {
 
     switch (shape.type) {
         case ShapeType::Rect: {
-            const Vec2 outer_size = alignment == StrokeAlignment::Inside ? shape.rect.size : shape.rect.size + Vec2{stroke, stroke};
-            const Vec2 inner_size = alignment == StrokeAlignment::Outside ? shape.rect.size : Vec2{std::max(0.0f, shape.rect.size.x - stroke), std::max(0.0f, shape.rect.size.y - stroke)};
+            const Vec2 outer_size = alignment == StrokeAlignment::Inside ? shape.rect().size : shape.rect().size + Vec2{stroke, stroke};
+            const Vec2 inner_size = alignment == StrokeAlignment::Outside ? shape.rect().size : Vec2{std::max(0.0f, shape.rect().size.x - stroke), std::max(0.0f, shape.rect().size.y - stroke)};
             const f32 outer_radius = alignment == StrokeAlignment::Inside ? corner_radius : std::max(0.0f, corner_radius + half);
             const f32 inner_radius = alignment == StrokeAlignment::Outside ? corner_radius : std::max(0.0f, corner_radius - half);
             return hit_test_rect_like(p - outer_origin, outer_size, outer_radius, outer_spread) &&
                    !hit_test_rect_like(p - inner_origin, inner_size, inner_radius, inner_spread);
         }
         case ShapeType::RoundedRect: {
-            const Vec2 outer_size = alignment == StrokeAlignment::Inside ? shape.rounded_rect.size : shape.rounded_rect.size + Vec2{stroke, stroke};
-            const Vec2 inner_size = alignment == StrokeAlignment::Outside ? shape.rounded_rect.size : Vec2{std::max(0.0f, shape.rounded_rect.size.x - stroke), std::max(0.0f, shape.rounded_rect.size.y - stroke)};
-            const f32 outer_radius = alignment == StrokeAlignment::Inside ? shape.rounded_rect.radius : shape.rounded_rect.radius + half;
-            const f32 inner_radius = alignment == StrokeAlignment::Outside ? shape.rounded_rect.radius : std::max(0.0f, shape.rounded_rect.radius - half);
+            const Vec2 outer_size = alignment == StrokeAlignment::Inside ? shape.rounded_rect().size : shape.rounded_rect().size + Vec2{stroke, stroke};
+            const Vec2 inner_size = alignment == StrokeAlignment::Outside ? shape.rounded_rect().size : Vec2{std::max(0.0f, shape.rounded_rect().size.x - stroke), std::max(0.0f, shape.rounded_rect().size.y - stroke)};
+            const f32 outer_radius = alignment == StrokeAlignment::Inside ? shape.rounded_rect().radius : shape.rounded_rect().radius + half;
+            const f32 inner_radius = alignment == StrokeAlignment::Outside ? shape.rounded_rect().radius : std::max(0.0f, shape.rounded_rect().radius - half);
             return hit_test_rect_like(p - outer_origin, outer_size, outer_radius, outer_spread) &&
                    !hit_test_rect_like(p - inner_origin, inner_size, inner_radius, inner_spread);
         }
         case ShapeType::Circle: {
-            const f32 outer_radius = alignment == StrokeAlignment::Inside ? shape.circle.radius : shape.circle.radius + half;
-            const f32 inner_radius = alignment == StrokeAlignment::Outside ? shape.circle.radius : std::max(0.0f, shape.circle.radius - half);
+            const f32 outer_radius = alignment == StrokeAlignment::Inside ? shape.circle().radius : shape.circle().radius + half;
+            const f32 inner_radius = alignment == StrokeAlignment::Outside ? shape.circle().radius : std::max(0.0f, shape.circle().radius - half);
             const f32 outer_r = outer_radius + outer_spread;
             const f32 inner_r = inner_radius + inner_spread;
-            const f32 dx = p.x - shape.circle.radius;
-            const f32 dy = p.y - shape.circle.radius;
+            const f32 dx = p.x - shape.circle().radius;
+            const f32 dy = p.y - shape.circle().radius;
             const f32 dist2 = dx * dx + dy * dy;
             return dist2 <= outer_r * outer_r && dist2 >= inner_r * inner_r;
         }

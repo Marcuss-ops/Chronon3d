@@ -119,7 +119,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 // signal; the resulting SourceNode will render a blank layer.
             }
 
-            if (node.shape.type == ShapeType::Text) {
+            if (node.shape.type() == ShapeType::Text) {
                 cache::NodeCacheKey source_key{
                     .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
                     .frame = source_is_static ? Frame{0} : ctx.frame.frame,

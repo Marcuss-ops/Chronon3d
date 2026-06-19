@@ -109,8 +109,8 @@ TEST_CASE("MultiSourceNode: predicted_bbox handles text_run item via text_run he
 
     RenderNode rect_node;
     rect_node.name = std::pmr::string{"rect_item"};
-    rect_node.shape.type = ShapeType::Rect;
-    rect_node.shape.rect.size = Vec2(100.0f, 100.0f);
+    rect_node.shape.set_type(ShapeType::Rect;
+    rect_node.shape.rect().size = Vec2(100.0f, 100.0f);
     rect_node.world_transform.position = Vec3(200.0f, 30.0f, 0.0f);
 
     std::vector<MultiSourceItem> items;
@@ -199,8 +199,8 @@ TEST_CASE("MultiSourceNode: execute tolerant of text_run item with null shape") 
 
     RenderNode rect_node;
     rect_node.name = std::pmr::string{"rect"};
-    rect_node.shape.type = ShapeType::Rect;
-    rect_node.shape.rect.size = Vec2(50.0f, 50.0f);
+    rect_node.shape.set_type(ShapeType::Rect;
+    rect_node.shape.rect().size = Vec2(50.0f, 50.0f);
     rect_node.world_transform.position = Vec3(10.0f, 10.0f, 0.0f);
 
     std::vector<MultiSourceItem> items;
@@ -246,8 +246,8 @@ TEST_CASE("MultiSourceNode: execute with mixed rect + text_run returns valid fb"
 
     RenderNode rect_node;
     rect_node.name = std::pmr::string{"mixed_rect"};
-    rect_node.shape.type = ShapeType::Rect;
-    rect_node.shape.rect.size = Vec2(60.0f, 60.0f);
+    rect_node.shape.set_type(ShapeType::Rect;
+    rect_node.shape.rect().size = Vec2(60.0f, 60.0f);
     rect_node.color = Color::blue();
     rect_node.fill.solid = Color::blue();
     rect_node.world_transform.position = Vec3(300.0f, 100.0f, 0.0f);

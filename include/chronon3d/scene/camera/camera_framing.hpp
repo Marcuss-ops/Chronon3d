@@ -2,7 +2,7 @@
 
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/camera/camera_projection.hpp>
-#include <chronon3d/scene/model/core/transform_resolver.hpp>
+#include <chronon3d/scene/model/core/hierarchy_resolver.hpp>  // ResolvedSceneTransforms replaces the legacy TransformResolverResult.
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -20,7 +20,7 @@ struct CameraFramingOptions {
 Camera2_5D fit_camera_to_layers(
     Camera2_5D camera,
     const std::vector<std::string>& layer_names,
-    const TransformResolverResult& transforms,
+    const ResolvedSceneTransforms& transforms,
     Viewport viewport,
     CameraFramingOptions options = {}
 );

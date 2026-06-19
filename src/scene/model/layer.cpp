@@ -26,12 +26,15 @@ Layer::Layer(const Layer& other)
       from(other.from),
       duration(other.duration),
       time_offset(other.time_offset),
+      time_remap(other.time_remap),
       visible(other.visible),
       uses_2_5d_projection(other.uses_2_5d_projection),
       hierarchy_resolved(other.hierarchy_resolved),
+      cache_static(other.cache_static),
       mask(other.mask),
       m_effects(std::make_unique<EffectStack>(*other.m_effects)),
       blend_mode(other.blend_mode),
+      composite_operator(other.composite_operator),
       depth_role(other.depth_role),
       depth_offset(other.depth_offset),
       layout(other.layout),
@@ -42,6 +45,7 @@ Layer::Layer(const Layer& other)
       transition_out(other.transition_out),
       nodes(other.nodes),
       precomp_composition_name(other.precomp_composition_name),
+      font_engine(other.font_engine),
       m_static_hash(other.m_static_hash),
       m_static_hash_computed(other.m_static_hash_computed) {
     
@@ -62,12 +66,15 @@ Layer& Layer::operator=(const Layer& other) {
     from = other.from;
     duration = other.duration;
     time_offset = other.time_offset;
+    time_remap = other.time_remap;
     visible = other.visible;
     uses_2_5d_projection = other.uses_2_5d_projection;
     hierarchy_resolved = other.hierarchy_resolved;
+    cache_static = other.cache_static;
     mask = other.mask;
     *m_effects = *other.m_effects;
     blend_mode = other.blend_mode;
+    composite_operator = other.composite_operator;
     depth_role = other.depth_role;
     depth_offset = other.depth_offset;
     layout = other.layout;
@@ -78,6 +85,7 @@ Layer& Layer::operator=(const Layer& other) {
     transition_out = other.transition_out;
     nodes = other.nodes;
     precomp_composition_name = other.precomp_composition_name;
+    font_engine = other.font_engine;
     m_static_hash = other.m_static_hash;
     m_static_hash_computed = other.m_static_hash_computed;
     
@@ -94,27 +102,29 @@ Layer::Layer(Layer&& other) noexcept = default;
 Layer& Layer::operator=(Layer&& other) noexcept = default;
 
 uint64_t Layer::get_static_hash() const {
-    if (!m_static_hash_computed) {
-        using namespace chronon3d::graph;
-        uint64_t h = 0;
-        h = hash_combine(h, hash_string(name));
-        h = hash_combine(h, static_cast<u64>(kind));
-        h = hash_combine(h, visible ? 1 : 0);
-        h = hash_combine(h, uses_2_5d_projection ? 1 : 0);
-        h = hash_combine(h, cache_static ? 1 : 0);
-        h = hash_combine(h, static_cast<u64>(blend_mode));
-        h = hash_combine(h, hash_mask(mask));
-        h = hash_combine(h, hash_effect_stack(*m_effects));
-        for (const auto& node : nodes) {
-            h = hash_combine(h, hash_render_node(node));
-        }
-        if (kind == LayerKind::Precomp) {
-            h = hash_combine(h, hash_string(precomp_composition_name));
-        }
-        m_static_hash = h;
-        m_static_hash_computed = true;
+    // Always compute fresh — memoization was removed because it could become
+    // stale after field mutations (Layer fields are public).  The cost is
+    // acceptable: get_static_hash() is called at most once per layer per
+    // frame during scene fingerprinting, not per pixel.  If profiling shows
+    // this to be a bottleneck, re-add memoization with a LayerVersion counter
+    // that is incremented by every mutating accessor.
+    using namespace chronon3d::graph;
+    uint64_t h = 0;
+    h = hash_combine(h, hash_string(name));
+    h = hash_combine(h, static_cast<u64>(kind));
+    h = hash_combine(h, visible ? 1 : 0);
+    h = hash_combine(h, uses_2_5d_projection ? 1 : 0);
+    h = hash_combine(h, cache_static ? 1 : 0);
+    h = hash_combine(h, static_cast<u64>(blend_mode));
+    h = hash_combine(h, hash_mask(mask));
+    h = hash_combine(h, hash_effect_stack(*m_effects));
+    for (const auto& node : nodes) {
+        h = hash_combine(h, hash_render_node(node));
     }
-    return m_static_hash;
+    if (kind == LayerKind::Precomp) {
+        h = hash_combine(h, hash_string(precomp_composition_name));
+    }
+    return h;
 }
 
 } // namespace chronon3d

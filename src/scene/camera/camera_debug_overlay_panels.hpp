@@ -17,7 +17,7 @@ struct OverlayContext {
     LayerBuilder& layer;
     const CameraShotReport& report;
     const Camera2_5D& camera;
-    const TransformResolverResult& resolved;
+    const ResolvedSceneTransforms& resolved;
     Viewport viewport;
     CameraDebugOverlayOptions options;
     const CameraPathVisualization* path;

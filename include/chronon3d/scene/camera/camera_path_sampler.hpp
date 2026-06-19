@@ -3,7 +3,7 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/model/camera/camera_rig.hpp>
 #include <chronon3d/scene/camera/camera_projection.hpp>
-#include <chronon3d/scene/model/core/transform_resolver.hpp>
+#include <chronon3d/scene/model/core/hierarchy_resolver.hpp>  // ResolvedSceneTransforms replaces the legacy TransformResolverResult.
 #include <vector>
 #include <string>
 
@@ -36,7 +36,7 @@ struct CameraPathValidationOptions;
 /// Validates a camera path with configurable thresholds (Camera V1 — P1).
 CameraPathReport sample_camera_path(
     const CameraRig& rig,
-    const TransformResolverResult& transforms,
+    const ResolvedSceneTransforms& transforms,
     Viewport viewport,
     int start_frame,
     int end_frame,
@@ -47,7 +47,7 @@ CameraPathReport sample_camera_path(
 /// Legacy ABI-preserving overload (default opts = hardcoded 5.0f / 15.0f).
 CameraPathReport sample_camera_path(
     const CameraRig& rig,
-    const TransformResolverResult& transforms,
+    const ResolvedSceneTransforms& transforms,
     Viewport viewport,
     int start_frame,
     int end_frame,
@@ -66,7 +66,7 @@ struct SampleRange {
 /// with velocity/acceleration/jerk stats and configurable validation.
 CameraPathReport analyze_camera_path(
     const CameraRig& rig,
-    const TransformResolverResult& transforms,
+    const ResolvedSceneTransforms& transforms,
     Viewport viewport,
     SampleRange range,
     CameraPathValidationOptions options);
