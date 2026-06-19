@@ -1,11 +1,11 @@
 # ==============================================================================
 # src/scene/camera/camera_v1/CMakeLists.txt
 #
-# Camera System V1 sources (P2–P5):
-#   - CameraMotionRegistry, CameraConstraintRegistry (P2)
-#   - CameraTrajectory (P3)
-#   - CameraConstraint + Stack + Resolver (P5)
-#   - CameraProgram (P4)
+# Camera System V1 sources:
+#   - CameraTrajectory
+#   - CameraConstraint + factory functions
+#   - CameraProgram
+#   - CameraProgramCompiler (compiled path)
 #
 # These are added directly to chronon3d_scene via target_sources. They use
 # only public types from chronon3d::core so no new private deps are needed.
