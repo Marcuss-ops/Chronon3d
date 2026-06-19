@@ -123,7 +123,7 @@ Composition tilt_sweep_title_v2() {
             l.text("artist_name_shadow", TextSpec{
                 .content = {.value = "LIL DIRK"},
                 .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Poppins", .font_weight = 700, .font_size = 132.0f},
-                .layout = {.box = {1280.0f, 180.0f}, .anchor = TextAnchor::Center, .centering_mode = TextCenteringMode::PixelInk, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .tracking = 1.15f, .wrap = TextWrap::None},
+                .layout = {.box = {1280.0f, 180.0f}, .anchor = TextAnchor::Center, .centering_mode = TextCenteringMode::PixelInk, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .wrap = TextWrap::None, .tracking = 1.15f},
                 .appearance = {.color = Color{0.0f, 0.0f, 0.0f, 1.0f}},
                 .position = {0.0f, 0.0f, 0.0f}
             });
@@ -185,7 +185,6 @@ Composition tilt_sweep_title_v2() {
 
             // Glow with intensities HALVED — preserves cinematic look
             // without bloom bleeding into the foreground text.
-            // NOTE: .micro_shadow before .falloff — matches AeGlowOptions declaration order.
             apply_ae_glow(l, AeGlowOptions{
                 .inner_radius    = 6.0f,
                 .mid_radius      = 18.0f,
@@ -195,13 +194,12 @@ Composition tilt_sweep_title_v2() {
                 .bloom_intensity = 0.05f,
                 .micro_shadow    = false,
                 .falloff         = 0.94f,
-                // softness/outer_downscale use AeGlowOptions defaults (1.05 / 0.25)
             });
 
             l.text("artist_name", TextSpec{
                 .content = {.value = "LIL DIRK"},
                 .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Poppins", .font_weight = 700, .font_size = 132.0f},
-                .layout = {.box = {1280.0f, 180.0f}, .anchor = TextAnchor::Center, .centering_mode = TextCenteringMode::PixelInk, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .tracking = 1.15f, .wrap = TextWrap::None},
+                .layout = {.box = {1280.0f, 180.0f}, .anchor = TextAnchor::Center, .centering_mode = TextCenteringMode::PixelInk, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .wrap = TextWrap::None, .tracking = 1.15f},
                 .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}},
                 .position = {0.0f, 0.0f, 0.0f}
             });
