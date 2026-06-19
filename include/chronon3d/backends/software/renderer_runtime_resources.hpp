@@ -16,7 +16,7 @@ namespace chronon3d {
 struct RendererRuntimeResources {
     std::unique_ptr<renderer::SoftwareRegistry> software_registry;
     std::unique_ptr<graph::GraphExecutor>       executor;
-    std::unique_ptr<graph::GraphNodeRegistry>   graph_node_registry;
+    std::unique_ptr<graph::GraphNodeCatalog>    graph_node_registry;
     std::unique_ptr<effects::EffectCatalog>     effect_catalog;
 };
 

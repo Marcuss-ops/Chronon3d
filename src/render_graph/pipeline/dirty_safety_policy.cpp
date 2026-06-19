@@ -7,7 +7,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/effects/effect_category.hpp>
 #include <chronon3d/effects/effect_params.hpp>
-#include <chronon3d/effects/effect_registry.hpp>  // EffectCatalog + backward-compat EffectRegistry
+#include <chronon3d/effects/effect_registry.hpp>  // EffectCatalog
 #include <chronon3d/effects/effect_type.hpp>
 #include <chronon3d/effects/glow_pipeline.hpp>
 #include <cmath>
