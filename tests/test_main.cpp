@@ -6,6 +6,7 @@
 
 #if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_2D5)
 #include "content/register_content_modules.hpp"
+#include <chronon3d/extension/extension_catalog.hpp>
 #endif
 
 int main(int argc, char** argv) {
@@ -14,8 +15,9 @@ int main(int argc, char** argv) {
 
 #if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_2D5)
     // register_content_modules() registers the ContentExtension module
-    // in ExtensionRegistry and calls register_all() to activate it.
-    chronon3d::register_content_modules();
+    // in the given ExtensionCatalog and calls register_all().
+    static chronon3d::ExtensionCatalog test_catalog;
+    chronon3d::register_content_modules(test_catalog);
 #endif
 
     // Mount AssetRegistry to current path so that relative paths work correctly
