@@ -358,16 +358,16 @@ struct TextRunPathBuilder {
 // draw_text_run
 // ═══════════════════════════════════════════════════════════════════════════
 
-bool draw_text_run(
+graph::RenderOpResult draw_text_run(
     SoftwareRenderer& renderer,
     TextRunDrawParams& params
 ) {
     const auto& shape = params.shape;
-    if (!shape.layout || shape.glyphs.empty()) return false;
+    if (!shape.layout || shape.glyphs.empty()) return graph::RenderBackendErrorCode::InvalidInput;
 
     const auto& layout = *shape.layout;
     const std::string& font_path = layout.font.font_path;
-    if (font_path.empty()) return false;
+    if (font_path.empty()) return graph::RenderBackendErrorCode::InvalidInput;
 
     CHRONON_ZONE_C("text_run_draw", trace_category::kText);
     const auto draw_start = params.diagnostic_mode
@@ -393,7 +393,7 @@ bool draw_text_run(
         const i32 y_lo = std::max(world_bbox.y0, fb_bbox.y0);
         const i32 y_hi = std::min(world_bbox.y1, fb_bbox.y1);
         if (x_hi <= x_lo || y_hi <= y_lo) {
-            return false;  // world bbox does not intersect framebuffer at all
+            return graph::RenderBackendErrorCode::InvalidInput;  // world bbox does not intersect framebuffer at all
         }
     }
 
@@ -402,12 +402,12 @@ bool draw_text_run(
     // (or divide by zero when scaling).  Bail with the same silent-fail
     // semantics as the safe-clip step above.
     if (params.fb.width() == 0 || params.fb.height() == 0) {
-        return false;
+        return graph::RenderBackendErrorCode::InvalidInput;
     }
 
     // Load font face
     BLFontFace face = text_run_bl_resources().get_face(font_path);
-    if (face.empty()) return false;
+    if (face.empty()) return graph::RenderBackendErrorCode::ExecutionFailure;
 
     BLFont font;
     font.createFromFace(face, layout.font_size);
@@ -765,7 +765,7 @@ bool draw_text_run(
         }
     }
 
-    if (glyphs_drawn == 0) return false;
+    if (glyphs_drawn == 0) return graph::RenderBackendErrorCode::ExecutionFailure;
 
     // ── Apply TextMaterial (gradient, bevel, etc.) ───────────────────
     if (shape.material.enabled) {
@@ -798,7 +798,7 @@ bool draw_text_run(
         );
     }
 
-    return true;
+    return graph::RenderOpOutcome{};
 }
 
 // NOTE: compute_text_run_world_bbox() has been moved to
