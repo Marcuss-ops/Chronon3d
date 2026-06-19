@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/scene/model/camera/camera_rig.hpp>
+#include <chronon3d/scene/camera/camera_rig_animated_presets.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/backends/software/rasterizers/projected_card_rasterizer.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>

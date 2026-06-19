@@ -2,8 +2,13 @@
 
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
-#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
-#include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
+#include <chronon3d/scene/model/camera/camera_projection_source.hpp>
+#include <chronon3d/scene/model/camera/camera_common_types.hpp>
+// Camera2_5D is forward-declared by camera_projection_source.hpp.
+// Complete type needed only in camera_rig.cpp.
+// AnimatedCamera2_5D is not needed by the struct definitions — only by the
+// presets header (camera_rig_animated_presets.hpp).
+#include <memory_resource>
 #include <chronon3d/scene/model/core/transform_resolver.hpp>
 #include <string>
 #include <utility>
@@ -111,9 +116,7 @@ struct CameraRig {
     [[nodiscard]] Camera2_5D evaluate(
         Frame frame,
         const TransformResolverResult* resolved = nullptr
-    ) const {
-        return evaluate(SampleTime::from_frame_int(frame, FrameRate{30, 1}), resolved);
-    }
+    ) const;
 
     /// Sub-frame evaluation — enables true multi-sample motion blur.
     [[nodiscard]] Camera2_5D evaluate(
@@ -239,85 +242,7 @@ struct CameraRig {
         Frame frame,
         std::pmr::memory_resource* res = std::pmr::get_default_resource(),
         [[maybe_unused]] const TransformResolverResult* resolved = nullptr
-    ) const {
-        Camera2_5D cam;
-        cam.enabled                   = enabled;
-        cam.position                  = camera_position.evaluate(frame);
-        cam.rotation                  = camera_rotation.evaluate(frame);
-        cam.zoom                      = zoom.evaluate(frame);
-        cam.fov_deg                   = fov_deg.evaluate(frame);
-        cam.projection_mode           = use_fov
-                                            ? Camera2_5DProjectionMode::Fov
-                                            : Camera2_5DProjectionMode::Zoom;
-        cam.optics_mode               = optics_mode; // mirror canonical optics_mode to evaluated cam
-        cam.parent_name               = std::pmr::string{controller_name, res};
-
-        if (mode == RigMode::TwoNode) {
-            // Canonical chain guard: target_name drives the world-space
-            // POI resolved by resolve_look_at_orientation().  The hierarchy
-            // resolver is the source of truth for cam.point_of_interest;
-            // bake() leaves it to be filled downstream.  We don't pre-fill
-            // here so the legacy golden render contract is preserved
-            // (target_position.evaluate == (0,0,0) for default rigs).
-            cam.point_of_interest_enabled = true;
-            cam.target_name               = std::pmr::string{target_name, res};
-        } else {
-            // OneNode: POI is disabled and target_name is empty so the
-            // canonical chain collapses to qLocal * qX * qY * qZ in
-            // resolve_look_at_orientation().
-            cam.point_of_interest_enabled = false;
-            cam.target_name.clear();
-        }
-
-        // ── Single-switch focus distance ──────────────────────────────
-        // One and only one path assigns cam.dof.focus_distance here.
-        // Do NOT append another assignment below this switch.
-        cam.dof = dof;
-        // use_physical_model is honored from the user's choice (do not
-        // silently override).  The legacy DoF has no LensModel, so a user
-        // setting use_physical_model=true will get a runtime warning from
-        // the projection pipeline rather than a silent fallback.
-        const Vec3 focus_po = cam.point_of_interest_enabled
-                                  ? cam.point_of_interest
-                                  : cam.position;
-
-        switch (focus_mode) {
-            case CameraFocusMode::ManualDistance: {
-                // Explicit value; explicit owner wins, target is ignored.
-                // For default rig this matches the legacy cam.dof = dof copy.
-                cam.dof.focus_distance = dof.focus_distance;
-                cam.dof.focus_z        = dof.focus_z;
-                break;
-            }
-            case CameraFocusMode::PointOfInterest: {
-                cam.dof.focus_distance = glm::length(focus_po - cam.position);
-                cam.dof.focus_z        = focus_po.z;
-                break;
-            }
-            case CameraFocusMode::TargetLayer: {
-                // Legacy rig has a single target_name; TargetLayer maps to
-                // the rig target's world position (same as POI for namespace
-                // compatibility).
-                cam.dof.focus_distance = glm::length(focus_po - cam.position);
-                cam.dof.focus_z        = focus_po.z;
-                break;
-            }
-            case CameraFocusMode::LockToZoom: {
-                // Dolly-zoom / rack: pin focus to current zoom.
-                cam.dof.focus_distance = cam.zoom;
-                cam.dof.focus_z        = focus_po.z;
-                break;
-            }
-        }
-
-        // cam.is_animated is left to its default (false); the legacy rig
-        // is treated as static by the cache, which matches the existing
-        // golden-render contracts.  Use the modern CameraRig (which has
-        // stricter is_animated wiring via has_external_dependencies) when
-        // cache invalidation from external bindings is required.
-
-        return cam;
-    }
+    ) const;
 
     void apply(SceneBuilder& s, Frame frame, std::function<void(SceneBuilder&)> add_target_content) const;
     void apply(SceneBuilder& s, Frame frame) const;
@@ -327,125 +252,11 @@ struct CameraRig {
 
 } // namespace chronon3d
 
-namespace chronon3d::camera_rig {
+// ── Animated presets moved to camera_rig_animated_presets.hpp ───────────────
+// The inline preset helpers (hero_push_in, orbit_yaw, etc.) that return
+// AnimatedCamera2_5D are now in their own header so that camera_rig.hpp
+// doesn't need to include animated_camera_2_5d.hpp.
+//
+// #include <chronon3d/scene/camera/camera_rig_animated_presets.hpp>
 
-inline AnimatedCamera2_5D hero_push_in(const HeroPushInParams& p = {}) {
-    AnimatedCamera2_5D cam;
-    cam.position
-        .key(p.start_frame, p.from_position)
-        .key(p.start_frame + p.duration, p.to_position, p.easing);
-    cam.rotation
-        .key(p.start_frame, Vec3{p.from_tilt, p.from_yaw, 0.0f})
-        .key(p.start_frame + p.duration, Vec3{p.to_tilt, p.to_yaw, 0.0f}, p.easing);
-    cam.zoom.set(p.zoom);
-    cam.point_of_interest_enabled = false;
-    return cam;
-}
-
-inline AnimatedCamera2_5D orbit_yaw(const OrbitYawParams& p = {}) {
-    AnimatedCamera2_5D cam;
-    const f32 start_rad = glm::radians(p.start_angle_deg);
-    const f32 end_rad   = glm::radians(p.end_angle_deg);
-    const Frame end_frame = p.start_frame + p.duration;
-
-    constexpr int kSamples = 5;
-    for (int i = 0; i <= kSamples; ++i) {
-        const f32 t = static_cast<f32>(i) / static_cast<f32>(kSamples);
-        const f32 angle = start_rad + (end_rad - start_rad) * p.easing.apply(t);
-        const Frame f = p.start_frame + Frame{static_cast<i32>(std::round(t * static_cast<f32>(p.duration)))};
-
-        const Vec3 pos{
-            p.target.x + p.radius * std::sin(angle),
-            p.target.y + p.height,
-            p.target.z + p.z_offset + p.radius * (std::cos(angle) - 1.0f)
-        };
-        cam.position.key(f, pos);
-        cam.rotation.key(f, Vec3{p.tilt_deg, -glm::degrees(angle), 0.0f});
-    }
-
-    cam.position.key(end_frame, Vec3{
-        p.target.x + p.radius * std::sin(end_rad),
-        p.target.y + p.height,
-        p.target.z + p.z_offset + p.radius * (std::cos(end_rad) - 1.0f)
-    });
-
-    cam.zoom.set(p.zoom);
-    cam.point_of_interest.set(p.target);
-    cam.point_of_interest_enabled = true;
-    return cam;
-}
-
-inline AnimatedCamera2_5D parallax_pan(const ParallaxPanParams& p = {}) {
-    AnimatedCamera2_5D cam;
-    cam.position
-        .key(p.start_frame, p.from_position)
-        .key(p.start_frame + p.duration, p.to_position, p.easing);
-    cam.zoom.set(p.zoom);
-    cam.point_of_interest.set(p.target);
-    cam.point_of_interest_enabled = true;
-    return cam;
-}
-
-inline AnimatedCamera2_5D dolly_zoom(const DollyZoomParams& p = {}) {
-    AnimatedCamera2_5D cam;
-    cam.position
-        .key(p.start_frame, p.from_position)
-        .key(p.start_frame + p.duration, p.to_position, p.easing);
-    cam.zoom
-        .key(p.start_frame, p.from_zoom)
-        .key(p.start_frame + p.duration, p.to_zoom, p.easing);
-    cam.point_of_interest.set(p.target);
-    cam.point_of_interest_enabled = true;
-    return cam;
-}
-
-inline AnimatedCamera2_5D focus_pull(const FocusPullParams& p = {}) {
-    AnimatedCamera2_5D cam;
-    cam.position.set(p.position);
-    cam.zoom.set(p.zoom);
-    cam.focus_z
-        .key(p.start_frame, p.from_focus_z)
-        .key(p.start_frame + p.duration, p.to_focus_z, p.easing);
-    cam.aperture.set(p.aperture);
-    cam.max_blur.set(p.max_blur);
-    cam.point_of_interest_enabled = false;
-    return cam;
-}
-
-inline AnimatedCamera2_5D low_angle_reveal(const LowAngleRevealParams& p = {}) {
-    AnimatedCamera2_5D cam;
-    cam.position
-        .key(p.start_frame, p.from_position)
-        .key(p.start_frame + p.duration, p.to_position, p.easing);
-    cam.rotation
-        .key(p.start_frame, Vec3{p.from_tilt, 0.0f, 0.0f})
-        .key(p.start_frame + p.duration, Vec3{p.to_tilt, 0.0f, 0.0f}, p.easing);
-    cam.zoom.set(p.zoom);
-    cam.point_of_interest.set(p.target);
-    cam.point_of_interest_enabled = true;
-    return cam;
-}
-
-inline AnimatedCamera2_5D subtle_float(const SubtleFloatParams& p = {}) {
-    AnimatedCamera2_5D cam;
-    const Frame end_frame = p.start_frame + p.duration;
-    constexpr int kSamples = 12;
-    const f32 frames_per_sample = static_cast<f32>(p.duration) / static_cast<f32>(kSamples);
-
-    for (int i = 0; i <= kSamples; ++i) {
-        const f32 phase = static_cast<f32>(i) * frames_per_sample;
-        const Frame f = p.start_frame + Frame{static_cast<i32>(std::round(phase))};
-
-        const Vec3 pos{
-            p.base_position.x + p.x_amplitude * std::sin(phase * p.x_frequency),
-            p.base_position.y + p.y_amplitude * std::cos(phase * p.y_frequency),
-            p.base_position.z + p.z_amplitude * std::sin(phase * p.z_frequency + 1.0f)
-        };
-        cam.position.key(f, pos);
-    }
-    cam.zoom.set(p.zoom);
-    cam.point_of_interest_enabled = false;
-    return cam;
-}
-
-} // namespace chronon3d::camera_rig
+// (end of camera_rig.hpp)
