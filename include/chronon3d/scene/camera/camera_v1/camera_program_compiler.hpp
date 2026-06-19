@@ -13,11 +13,12 @@
 //   5. Flags whether the camera is time-dependent (for caching)
 //   6. Produces a compiled CameraProgram with zero registry lookup in evaluate()
 //
-// Returns failure info via CameraCompileError (output-parameter pattern).
+// Returns Result<CameraProgram, CameraCompileError>.
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_catalog.hpp>
+#include <chronon3d/core/types/result.hpp>
 
 #include <string>
 #include <vector>
@@ -46,29 +47,25 @@ struct CameraCompileError {
 // =============================================================================
 // compile_camera() — compile a CameraDescriptor into a CameraProgram.
 //
-// Returns true on success.  On failure sets *out_error (if non-null) and
-// returns false.  Uses output-parameter pattern because std::expected is
-// not available in C++20.
-// =============================================================================
-
-/// Compile a CameraDescriptor into a ready-to-evaluate CameraProgram.
-///
-/// @param descriptor  The authoring-time camera description.
-/// @param out_program [out] Receives the compiled CameraProgram on success.
-/// @param out_error   [out] Receives the error info on failure (optional).
-/// @param catalog     Optional catalog for resolving RegisteredMotionRef.
-///                    If null / empty, a RegisteredMotionRef will fail to compile.
-///
-/// @return true on success, false on failure (with *out_error populated).
-///
-/// The returned program is immutable and thread-safe:
-///   - No registry lookups in evaluate()
-///   - No mutex acquisitions
-///   - No heap allocations (except for trajectory sampling)
-///   - No string construction (except for diagnostics)
-bool compile_camera(const CameraDescriptor& descriptor,
-                    CameraProgram& out_program,
-                    CameraCompileError* out_error = nullptr,
-                    const CameraCatalog* catalog = nullptr);
+// Returns Result<CameraProgram, CameraCompileError>:
+//   - On success: the compiled CameraProgram (implicitly from CameraProgram&&).
+//   - On failure: a CameraCompileError (implicitly from CameraCompileError&&).
+//
+// Usage:
+//   auto result = compile_camera(descriptor, &catalog);
+//   if (!result) { return result.error(); }
+//   auto program = std::move(result).value();
+//
+//   // Or with TRY:
+//   auto program = CHRONON_TRY(compile_camera(descriptor, &catalog));
+//
+// The returned program is immutable and thread-safe:
+//   - No registry lookups in evaluate()
+//   - No mutex acquisitions
+//   - No heap allocations (except for trajectory sampling)
+//   - No string construction (except for diagnostics)
+[[nodiscard]] chronon3d::Result<CameraProgram, CameraCompileError>
+compile_camera(const CameraDescriptor& descriptor,
+               const CameraCatalog* catalog = nullptr);
 
 } // namespace chronon3d::camera_v1

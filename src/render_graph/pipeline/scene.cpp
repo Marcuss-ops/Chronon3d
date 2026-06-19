@@ -255,7 +255,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // ── 7. Wire up ping-pong framebuffers + scratch ─────────────────────
     // Both must be set before graph build/reuse for ALL code paths.
     if (sw_renderer) {
-        if (chronon3d::Config::get().pingpong_framebuffer) {
+        if (chronon3d::Config::get().scheduler().pingpong_framebuffer()) {
             setup_pingpong_buffers(sw_renderer, width, height);
             ctx.scratch.ping_write = sw_renderer->buffer_ring().write_slot_view();
         }

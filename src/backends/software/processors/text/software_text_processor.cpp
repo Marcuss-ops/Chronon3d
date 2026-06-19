@@ -66,7 +66,7 @@ public:
             return;
         }
 
-        if (chronon3d::Config::get().debug_dump_text_raster) {
+        if (chronon3d::Config::get().debug().dump_text_raster()) {
             BLImageData debug_data;
             if (raster->image.getData(&debug_data) == BL_SUCCESS) {
                 const int sw = debug_data.size.w;

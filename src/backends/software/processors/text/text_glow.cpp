@@ -93,7 +93,7 @@ struct PaddedMask {
     }
 
     // ── Debug save ───────────────────────────────────────────────────
-    if (chronon3d::Config::get().debug_dump_alpha_mask) {
+    if (chronon3d::Config::get().debug().dump_alpha_mask()) {
         BLImageData md;
         if (mask.getData(&md) == BL_SUCCESS && md.pixelData) {
             const int stride = static_cast<int>(md.stride / sizeof(uint32_t));
