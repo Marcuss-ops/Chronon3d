@@ -132,12 +132,15 @@ TEST_CASE("PR6: dolly in when target is small") {
     CameraFramingSolver solver;
     CameraFramingRequest req;
     // Canonical geometry: small bbox in front of camera at +Z=1001.
-    // 2-unit-wide bbox at depth 1001 projects corners near the screen centre
-    // (well inside the safe-area envelope), so overflow is 0 and min_inside
-    // is large (>10 pixels).  compute_dolly returns a NEGATIVE dolly.  The
-    // solver moves the camera TOWARD the target along the forward axis,
+    // 20-unit-wide bbox (was 2-unit-wide per earlier convention) at depth 1001
+    // projects corners within the safe-area envelope plus margin from screen
+    // centre.  Wide enough to be resilient against sub-pixel-anti-aliasing
+    // rounding in project_world_to_screen (a ±1-unit bbox can flip to ±2
+    // under future FOV / projection-contract changes).  overflow is 0 and
+    // min_inside is still large.  compute_dolly returns a NEGATIVE dolly.
+    // Solver moves the camera TOWARD the target along the forward axis,
     // i.e. toward larger Z.
-    req.targets = {{{-1,-1,1001}, {1,1,1001}}};
+    req.targets = {{{-10,-10,1001}, {10,10,1001}}};
     req.viewport = {1920, 1080};
     req.safe_area = {0.1f, 0.1f, 0.1f, 0.1f};
 
