@@ -142,11 +142,6 @@ public:
     /// Zero atomic overhead vs shared_ptr — use in the hot execution path.
     OwnedFB acquire_owned(int width, int height, bool clear = true);
 
-    /// Acquire an OwnedFB without attaching a deleter to a shared pool handle.
-    /// The framebuffer is immediately owned by the returned OwnedFB and will be
-    /// returned to this pool on destruction.
-    OwnedFB acquire_owned_raw(int width, int height, bool clear = true);
-
     void release(Framebuffer* fb);
 
     /// Create a shared_ptr-managed pool.  Use this instead of raw construction
