@@ -26,7 +26,6 @@
     "harfbuzz",
     "nlohmann-json",
     "openexr",
-    "libyuv",
     "magic-enum",
     "sqlite3"
   ],

@@ -278,7 +278,7 @@ static void write_bottleneck_diagnosis(
         out << "Recommendation: Increase encoder queue depth or use native encoder path.\n";
     } else if (conv_share >= 20.0) {
         out << "Primary bottleneck: Frame conversion (RGBA->YUV).\n";
-        out << "Recommendation: Benchmark Highway SIMD vs libyuv; consider direct YUV path.\n";
+        out << "Recommendation: Benchmark Swscale vs Packed; consider direct YUV path.\n";
     } else if (cpu_util < 40.0) {
         out << "Primary bottleneck: CPU underutilization.\n";
         out << "Recommendation: Increase parallelism thresholds or enable frame-level parallelism.\n";
