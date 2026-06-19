@@ -3,7 +3,7 @@
 //
 // Covers:
 //   1. TextRunBuilder accumulates .position / .opacity / .animator / .selector
-//      into the underlying TextRunBuildSpec.pending.animators vector uniformly.
+//      into the underlying TextRunSpec.params.animators vector uniformly.
 //   2. LayerBuilder::text_run produces a stable reference that survives
 //      multiple successive calls.
 //   3. TextRunBuilder fluent chain (after commit()) can re-enter the
@@ -16,7 +16,6 @@
 #include <chronon3d/text/text_animator_property.hpp>
 #include <chronon3d/text/glyph_selector.hpp>
 #include <doctest/doctest.h>
-#include <type_traits>    // for std::is_same_v (alias identity static_assert)
 
 using namespace chronon3d;
 
@@ -62,10 +61,10 @@ GlyphSelectorSpec make_selector(std::string id, int n = 1) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextRunBuilder: position/opacity injects implicit animators") {
-    TextRunSpec params = make_text_run_params("Hi");
-    TextRunBuildSpec spec{
+    TextRunParams params = make_text_run_params("Hi");
+    TextRunPendingSpec spec{
         .name = "test_run",
-        .pending = std::move(params),
+        .params = std::move(params),
         .consumed = false,
     };
     // We can't construct TextRunBuilder directly (private ctor); build via
@@ -75,7 +74,7 @@ TEST_CASE("TextRunBuilder: position/opacity injects implicit animators") {
 TEST_CASE("TextRunBuilder: chain via LayerBuilder accumulates all entries") {
     LayerBuilder lb("test_layer", Frame{0});
 
-    TextRunSpec params = make_text_run_params("Hello", 64.0f);
+    TextRunParams params = make_text_run_params("Hello", 64.0f);
 
     // First text_run.
     TextRunBuilder& trb_a = lb.text_run("run_a", params);
@@ -90,19 +89,19 @@ TEST_CASE("TextRunBuilder: chain via LayerBuilder accumulates all entries") {
          .selector(make_selector("user_stagger_sel"));
 
     // Second text_run — must NOT invalidate the first reference.
-    TextRunSpec params_b = make_text_run_params("World", 64.0f);
+    TextRunParams params_b = make_text_run_params("World", 64.0f);
     TextRunBuilder& trb_b = lb.text_run("run_b", params_b);
     trb_b.opacity(0.5f).rotate({0.0f, 30.0f, 0.0f});
 
     // Verify the first reference is still alive.
-    CHECK_FALSE(trb_a.spec().text.content.value.empty());
-    CHECK(trb_a.spec().text.content.value == "Hello");
+    CHECK_FALSE(trb_a.spec().text.empty());
+    CHECK(trb_a.spec().text == "Hello");
 
     // Both runs landed.
     const auto& runs_a_after = trb_a.spec();
     const auto& runs_b_after = trb_b.spec();
-    CHECK(runs_a_after.text.content.value == "Hello");
-    CHECK(runs_b_after.text.content.value == "World");
+    CHECK(runs_a_after.text == "Hello");
+    CHECK(runs_b_after.text == "World");
 
     // 3 implicit animators from run_a (.position/.opacity/.animator)
     // + .selector attached to the LAST one
@@ -124,7 +123,7 @@ TEST_CASE("TextRunBuilder: chained references stay valid across push_back") {
 
     TextRunBuilder* first_ref = nullptr;
     for (int i = 0; i < 5; ++i) {
-        TextRunSpec params = make_text_run_params(
+        TextRunParams params = make_text_run_params(
             "frame_" + std::to_string(i), 32.0f);
         TextRunBuilder& trb = lb.text_run(
             "name_" + std::to_string(i), std::move(params));
@@ -140,7 +139,7 @@ TEST_CASE("TextRunBuilder: chained references stay valid across push_back") {
     }
     // First reference should still be alive and read correctly.
     REQUIRE(first_ref != nullptr);
-    CHECK(first_ref->spec().text.content.value == "frame_0");
+    CHECK(first_ref->spec().text == "frame_0");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -150,7 +149,7 @@ TEST_CASE("TextRunBuilder: chained references stay valid across push_back") {
 TEST_CASE("TextRunBuilder: commit hands control back to parent") {
     LayerBuilder lb("test_layer", Frame{0});
 
-    TextRunSpec params = make_text_run_params("Commit");
+    TextRunParams params = make_text_run_params("Commit");
     TextRunBuilder& trb = lb.text_run("commit_run", std::move(params));
     LayerBuilder& back = trb.opacity(0.3f).commit();
     // Set a layer-level field; verify the returned reference is
@@ -177,14 +176,10 @@ TEST_CASE("TextRun registry: shape_ids::TextRun exposed + factory wires RenderNo
     auto& reg = chronon3d::registry::ShapeRegistry::instance();
     CHECK(reg.contains(chronon3d::registry::shape_ids::TextRun));
 
-    // Variant rejects unrecognized payloads, so verify TextRunSpec
-    // (canonical composable; TextRunParams is the deprecated alias)
-    // is a valid alternative.
+    // Variant rejects unrecognized payloads, so verify TextRunParams is
+    // a valid alternative.
     chronon3d::registry::ShapeParams p = make_text_run_params("Hello");
     CHECK(std::holds_alternative<chronon3d::TextRunParams>(p));
-    // The alias holds the exact same type identity as TextRunSpec.
-    static_assert(std::is_same_v<chronon3d::TextRunParams, chronon3d::TextRunSpec>,
-                  "TextRunParams must be an alias of TextRunSpec");
 }
 
 TEST_CASE("TextRun registry: RenderNodeFactory::text_run produces flagged RenderNode") {

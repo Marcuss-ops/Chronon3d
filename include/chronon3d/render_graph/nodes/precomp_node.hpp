@@ -1,7 +1,7 @@
 #pragma once
 
 // ──────────────────────────────────────────────────────────────────────────────
-// precomp_node.hpp — B8: PrecompNode with SceneProgramCache integration
+// precomp_node.hpp — PrecompNode with SceneProgramCache integration
 //
 // Renders a nested composition (Precomp layer) by building/compiling a
 // render graph for the inner scene and caching the compiled program via
@@ -39,10 +39,10 @@ public:
                 size_t tune_max_cap = 128);
     ~PrecompNode() override;
 
-    RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Precomp; }
-    std::string name() const override { return "Precomp:" + m_comp_name; }
+    RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Precomp; }
+    std::string_view name() const noexcept override { return m_full_name; }
 
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
         return CacheFramePolicy::FrameInvariant;
     }
 
@@ -71,7 +71,7 @@ public:
                     std::span<const FramebufferRef>,
                     std::span<const std::optional<raster::BBox>>) override;
 
-    // ── Cache integration (B8) ────────────────────────────────────────────
+    // ── Cache integration ────────────────────────────────────────────
 
     /// Register an eviction callback forwarded from the inner
     /// SceneProgramCache.  Invoked whenever the inner cache evicts an entry
@@ -92,11 +92,12 @@ public:
 
 private:
     std::string m_comp_name;
+    std::string m_full_name;  // "Precomp:" + m_comp_name, stored for string_view
     Frame m_start_frame{0};
     Frame m_duration{-1};
     Frame m_cache_frame{-1};
 
-    // ── B8 caching members ────────────────────────────────────────────
+    // ── Caching members ────────────────────────────────────────────
     std::unique_ptr<cache::SceneProgramCache> m_cache;
     FrameParameterBlock m_param_block;
     std::unique_ptr<GraphExecutor> m_executor;

@@ -13,14 +13,15 @@ public:
     VideoNode(video::VideoSource source, media::MediaFrameProvider* decoder, Frame layer_start)
         : m_source(std::move(source)),
           m_decoder(decoder),
-          m_layer_start(layer_start) {}
+          m_layer_start(layer_start),
+          m_full_name("Video:" + m_source.path) {}
 
-    [[nodiscard]] RenderGraphNodeKind kind() const override {
+    [[nodiscard]] RenderGraphNodeKind kind() const noexcept override {
         return RenderGraphNodeKind::Video;
     }
 
-    [[nodiscard]] std::string name() const override {
-        return "Video:" + m_source.path;
+    [[nodiscard]] std::string_view name() const noexcept override {
+        return m_full_name;
     }
 
     std::optional<raster::BBox> predicted_bbox(
@@ -85,6 +86,7 @@ public:
 
 private:
     video::VideoSource m_source;
+    std::string m_full_name;  // "Video:" + path, stored for string_view
     media::MediaFrameProvider* m_decoder{};
     Frame m_layer_start{0};
 };

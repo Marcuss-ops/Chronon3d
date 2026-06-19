@@ -11,10 +11,10 @@ public:
         set_frame_dependent(false);
     }
 
-    RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Output; }
-    std::string name() const override { return "Clear"; }
+    RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Output; }
+    std::string_view name() const noexcept override { return "Clear"; }
 
-    bool cacheable() const override { return false; }
+    bool cacheable() const noexcept override { return false; }
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,
@@ -26,7 +26,7 @@ public:
         return raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
     }
 
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
         return CacheFramePolicy::FrameInvariant;
     }
 

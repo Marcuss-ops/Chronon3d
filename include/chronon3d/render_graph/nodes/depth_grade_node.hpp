@@ -26,10 +26,10 @@ public:
         , m_layer_world_z(layer_world_z)
         , m_accepts_lights(layer_accepts_lights) {}
 
-    RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Effect; }
-    std::string name() const override { return "DepthGrade"; }
+    RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
+    std::string_view name() const noexcept override { return "DepthGrade"; }
 
-    [[nodiscard]] bool cacheable() const override { return true; }
+    [[nodiscard]] bool cacheable() const noexcept override { return true; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         u64 h = hash_value(m_grade.enabled);

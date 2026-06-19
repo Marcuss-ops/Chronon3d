@@ -18,16 +18,16 @@ public:
     MultiSourceNode(std::string name, std::vector<MultiSourceItem> items, const cache::NodeCacheKey& key,
                     bool centered = false, bool uses_2_5d_projection = false, bool cache_static = false);
 
-    bool cacheable() const override { return m_cache_static; }
-    RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Source; }
-    std::string name() const override { return m_name; }
+    bool cacheable() const noexcept override { return m_cache_static; }
+    RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
+    std::string_view name() const noexcept override { return m_name; }
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,
         std::span<const std::optional<raster::BBox>> = {}
     ) const override;
 
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override;
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override;
     [[nodiscard]] RenderNodeCachePolicy cache_policy() const override;
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override;
@@ -38,7 +38,7 @@ public:
         std::span<const std::optional<raster::BBox>>
     ) override;
 
-    [[nodiscard]] bool can_seed_full_frame(const RenderGraphContext& ctx) const override { return false; }
+    [[nodiscard]] bool can_seed_full_frame(const RenderGraphContext& ctx) const noexcept override { return false; }
 
     const std::vector<MultiSourceItem>& items() const { return m_items; }
     bool uses_2_5d_projection() const { return m_uses_2_5d_projection; }
@@ -71,11 +71,10 @@ private:
     bool m_uses_2_5d_projection{false};
     bool m_cache_static{false};
 
-    // ── Log throttle (PR 6 polish) ───────────────────────────────────────
+    // ── Log throttle ───────────────────────────────────────────────────
     // When a text_run item shows up in a layer but the active backend is not
-    // the SoftwareRenderer (e.g. a future GPU backend), we cannot rasterize
-    // the text.  Surface the mismatch ONCE at error level per node lifetime,
-    // then fall back to debug so production logs survive at 60 fps.
+    // the SoftwareRenderer, surface the mismatch once at error level per node
+    // lifetime, then fall back to debug so production logs survive at 60 fps.
     mutable bool m_backend_warned{false};
 };
 

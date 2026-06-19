@@ -35,9 +35,9 @@ public:
         , m_light_dir(light_direction)
         , m_settings(settings) {}
 
-    RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Effect; }
-    std::string name() const override { return "Shadow"; }
-    [[nodiscard]] bool cacheable() const override { return true; }
+    RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
+    std::string_view name() const noexcept override { return "Shadow"; }
+    [[nodiscard]] bool cacheable() const noexcept override { return true; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         u64 h = hash_string(m_caster_name);

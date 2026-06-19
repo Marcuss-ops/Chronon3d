@@ -10,8 +10,8 @@ public:
     MaskNode(Mask mask, Frame cache_frame = Frame{-1})
         : m_mask(std::move(mask)), m_cache_frame(cache_frame) {}
 
-    RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Mask; }
-    std::string name() const override { return "Mask"; }
+    RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Mask; }
+    std::string_view name() const noexcept override { return "Mask"; }
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext&,
@@ -21,7 +21,7 @@ public:
         return input_bboxes[0];
     }
 
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
         return CacheFramePolicy::FrameInvariant;
     }
 

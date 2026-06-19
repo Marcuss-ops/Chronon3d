@@ -3,14 +3,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // TextRunBuilder — fluent chainable builder for `LayerBuilder::text_run(...)`.
 //
-// Returned by reference from `LayerBuilder::text_run(name, TextRunSpec)`.
-// (`TextRunParams` is a deprecated alias of `TextRunSpec` retained for
-// migration of legacy call sites — see builder_params.hpp for the
-// deprecation message.)
+// Returned by reference from `LayerBuilder::text_run(name, TextRunParams)`.
 // Each mutator returns `TextRunBuilder&` so multiple setters can be
 // chained:
 //
-//     layer.text_run("hello", TextRunSpec{...})
+//     layer.text_run("hello", TextRunParams{...})
 //          .position({10, 20, 0})
 //          .opacity(0.8f)
 //          .animator(slide_in_animator)
@@ -49,7 +46,7 @@
 // with `transform_mode = Replace` to fully take over a property.
 //
 // `.commit()` resolves the implicit animator stack into the pending
-// `TextRunSpec` (composable form) and returns the parent `LayerBuilder&` so layer-level
+// `TextRunPendingSpec` and returns the parent `LayerBuilder&` so layer-level
 // methods can be chained again.  `commit()` MUST be called explicitly
 // OR the spec will be auto-committed by `LayerBuilder::build()`.
 //
@@ -80,25 +77,24 @@ class LayerBuilder;
 class FontEngine;  // forward decl
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TextRunSpec — a single pending `LayerBuilder::text_run(...)` entry.
+// TextRunPendingSpec — a single pending `LayerBuilder::text_run(...)` entry.
 //
 // Stored by `LayerBuilder::m_text_runs` (a vector of unique_ptr so the
 // references TextRunBuilder hands back stay stable across push_backs).
 // Read by `LayerBuilder::build()` to materialize a `RenderNode` with
 // `is_text_run_shape = true`.
 //
-// `pending.animators` accumulates both implicit mutator-driven animators
+// `params.animators` accumulates both implicit mutator-driven animators
 // (added by TextRunBuilder per setter) and explicit user-supplied
 // `.animator(...)` / `.selector(...)` calls.
 //
 // `consumed` is reserved for explicit-commit semantics — at present the
-// build path treats every entry as ready, so consumption tracking is a
-// no-op but preserved so PR 5+ can add deferred-commit semantics.
+// build path treats every entry as ready.
 // ═══════════════════════════════════════════════════════════════════════════
 
-struct TextRunBuildSpec {
+struct TextRunPendingSpec {
     std::string name;
-    TextRunSpec pending;     // canonical composable spec; renamed from `spec` to `pending` to disambiguate from the TextRunBuilder class accessor `spec()` and member `m_spec`.
+    TextRunParams params;
     bool consumed{false};
 };
 
@@ -106,7 +102,7 @@ struct TextRunBuildSpec {
 // Text-run materialization helper (free function, shared by
 // LayerBuilder::build() and RenderNodeFactory::text_run).
 //
-// Resolves a TextRunSpec into a TextRunShape by:
+// Resolves a TextRunParams into a TextRunShape by:
 //   1. Shape via FontEngine (cached when cache_layout=true)
 //   2. Resolve glyph positions via resolve_placed_glyph_run()
 //   3. Build unit map
@@ -121,16 +117,13 @@ class RenderNode;
 struct TextRunBindingsContext;  // forward to avoid circle
 
 /// Pure materializer — produces a TextRunShape (layout + resolved
-/// glyph states) for a given TextRunSpec (formerly TextRunParams) +
-/// SampleTime + FontEngine.
+/// glyph states) for a given TextRunParams + SampleTime + FontEngine.
 /// No RenderNode involvement; safe to use from any backend.
 struct SampleTime;
 class FontEngine;
 struct TextRunLayout;
 struct TextRunShape;
-// `TextRunParams` is now a deprecated alias of `TextRunSpec` declared in
-// <chronon3d/scene/builders/builder_params.hpp> (already included above).
-// No forward declaration needed — the alias is the canonical name.
+struct TextRunParams;
 
 
 class TextRunBuilder {
@@ -140,7 +133,7 @@ public:
     /// non-owning pointer to `spec` (owned by LayerBuilder::m_text_runs).
     /// Public constructor (was private + friend) to avoid unity-build
     /// friend-graph resolution issues.
-    TextRunBuilder(LayerBuilder* parent, TextRunBuildSpec* spec);
+    TextRunBuilder(LayerBuilder* parent, TextRunPendingSpec* spec);
 
     // ── Per-glyph transform mutators (inject implicit TextAnimatorSpec) ──
     TextRunBuilder& position(Vec3 v);
@@ -170,12 +163,12 @@ public:
 
     // ── Commit ──
     /// Resolve the implicit + explicit animators into the pending
-    /// `TextRunBuildSpec` and return the parent `LayerBuilder&`.  Implicit
+    /// `TextRunPendingSpec` and return the parent `LayerBuilder&`.  Implicit
     /// auto-commit on `LayerBuilder::build()` does the same thing.
     LayerBuilder& commit();
 
     // ── Read-only accessors ──
-    [[nodiscard]] const TextRunSpec& spec() const noexcept { return m_spec->pending; }
+    [[nodiscard]] const TextRunParams& spec() const noexcept { return m_spec->params; }
     [[nodiscard]] LayerBuilder& parent() const noexcept { return *m_parent; }
 
 private:
@@ -197,9 +190,9 @@ private:
     /// other than `.animator()` / `.selector()`.
     [[nodiscard]] static GlyphSelectorSpec make_global_glyph_selector(std::string id);
 
-    LayerBuilder*    m_parent;
-    TextRunBuildSpec* m_spec;        // non-owning pointer into LayerBuilder::m_text_runs
-    FontEngine*      m_font_engine{nullptr};
+    LayerBuilder* m_parent;
+    TextRunPendingSpec*  m_spec;             // non-owning pointer into LayerBuilder::m_text_runs
+    FontEngine*   m_font_engine{nullptr};
     bool          m_cache_layout{true};
     // Counter to give each implicit animator a unique diagnostics id.
     int m_implicit_id_seq{0};
@@ -211,11 +204,8 @@ private:
 // ═══════════════════════════════════════════════════════════════════════════
 // Public free function: materialize a TextRunShape from TextRunParams.
 //
-// Both `LayerBuilder::build()` (PR 4 commit step) and
-// `RenderNodeFactory::text_run()` (PR 4 shape-registry route) consume
-// this same core routine.  Keeping it in one place ensures the
-// text_run registry is identical to text_run builder output (modulo
-// sample time).
+// Both `LayerBuilder::build()` and `RenderNodeFactory::text_run()`
+// consume this same core routine.
 //
 //   1. Resolve FontEngine (preferred: caller-supplied; fallback:
 //      `&shared_font_engine()`).
@@ -230,7 +220,7 @@ private:
 // ═══════════════════════════════════════════════════════════════════════════
 
 [[nodiscard]] std::shared_ptr<TextRunShape> materialize_text_run_shape(
-    const TextRunSpec& params,    // canonical composable (TextRunParams was the prior alias)
+    const TextRunParams& params,
     FontEngine* engine,
     SampleTime sample_time
 );
