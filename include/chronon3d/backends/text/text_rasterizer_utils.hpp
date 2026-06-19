@@ -27,6 +27,10 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     FontEngine* font_engine = nullptr
 );
 
+/// Inject the text raster cache capacity at startup (called once by
+/// SoftwareRenderer).  Must be called before first rasterize_text_to_bl_image().
+void set_text_cache_capacity(size_t max_bytes);
+
 void clear_text_raster_cache();
 
 uint64_t hash_text_style(

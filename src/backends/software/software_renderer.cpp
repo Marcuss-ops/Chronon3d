@@ -5,13 +5,21 @@
 #include <chronon3d/backends/software/software_compositor.hpp>
 #include <chronon3d/backends/software/text_run_processor.hpp>
 
+#include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/builtin_processors.hpp>
+#include <chronon3d/backends/text/text_rasterizer_utils.hpp>
+#include <chronon3d/cache/cache_policy.hpp>
+#include <chronon3d/cache/persistent_framebuffer_store.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/enum_utils.hpp>
+#include <chronon3d/text/glyph_atlas.hpp>
 #include <optional>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include "../../backends/software/processors/text/text_processor_helpers.hpp"
+#include "../../backends/software/rasterizers/path/pip.hpp"
+#include "../../backends/software/rasterizers/path/path_utils.hpp"
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 #include "diagnostics/bbox_overlay.hpp"
 #include "diagnostics/layout_preview_overlay.hpp"
@@ -78,6 +86,30 @@ SoftwareRenderer::SoftwareRenderer()
         .framebuffer_pool = std::make_shared<cache::FramebufferPool>(
             Config::get().cache().fb_pool_max_bytes())
     } {
+    // ── Thread sub-configs to singleton / static-state components ────
+    const auto& cfg = Config::get();
+    const auto& cache_cfg = cfg.cache();
+    const auto& sched_cfg = cfg.scheduler();
+
+    // Persistence + image cache (Phase 4)
+    cache::PersistentFramebufferStore::set_store_config(
+        cache_cfg.disable_persistent_framebuffer_cache(),
+        cfg.paths().persistent_framebuffer_cache_dir());
+    ImageCache::set_capacity_bytes(cache_cfg.image_cache_max_bytes());
+
+    // Global cache policy (replaces Config::get() in resolve_cache_policy)
+    cache::set_global_cache_config(cache_cfg);
+
+    // Text / glyph / shadow / glow caches (Phase 5)
+    set_glyph_atlas_capacity(cache_cfg.glyph_atlas_max_bytes());
+    set_text_cache_capacity(cache_cfg.text_cache_max_bytes());
+    renderer::set_shadow_cache_capacity(cache_cfg.shadow_cache_max_bytes());
+    renderer::set_glow_cache_capacity(cache_cfg.glow_cache_max_bytes());
+
+    // Scheduler-derived flags (Phase 5)
+    renderer::set_pip_mode(sched_cfg.pip_mode());
+    renderer::set_prefetch_enabled(sched_cfg.prefetch_enabled());
+
     renderer::register_builtin_processors(*m_runtime_resources.software_registry);
 }
 

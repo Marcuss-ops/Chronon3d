@@ -53,10 +53,10 @@ const PolicyDefaults* find_defaults(CacheDomain domain) {
     return nullptr;
 }
 
-/// Return the Config field value for a domain, or 0 if the domain is
-/// not configured via Config (uses the hardcoded default).
-std::size_t config_value(CacheDomain domain) {
-    const auto& cache_cfg = chronon3d::Config::get().cache();
+/// Return the CacheConfig field value for a domain, or 0 if the domain is
+/// not configured via CacheConfig (uses the hardcoded default).
+static std::size_t config_value_from(CacheDomain domain,
+                                      const chronon3d::CacheConfig& cache_cfg) {
     switch (domain) {
         case CacheDomain::Nodes:           return cache_cfg.node_cache_max_bytes();
         case CacheDomain::RenderedFrames:  return cache_cfg.frame_cache_max_entries();
@@ -68,7 +68,6 @@ std::size_t config_value(CacheDomain domain) {
         case CacheDomain::Text:            return cache_cfg.text_cache_max_bytes();
         case CacheDomain::Shadows:         return cache_cfg.shadow_cache_max_bytes();
         case CacheDomain::Glow:            return cache_cfg.glow_cache_max_bytes();
-        // No default case — compiler warns if an enum value is missing.
     }
     return 0;
 }
@@ -78,8 +77,9 @@ std::size_t config_value(CacheDomain domain) {
 // ── Public resolver ────────────────────────────────────────────────────────
 
 CachePolicy resolve_cache_policy(
-    CacheDomain                domain,
-    std::optional<std::size_t> override_capacity)
+    CacheDomain                    domain,
+    std::optional<std::size_t>     override_capacity,
+    const chronon3d::CacheConfig&  cache_config)
 {
     const auto* def = find_defaults(domain);
 
@@ -89,16 +89,44 @@ CachePolicy resolve_cache_policy(
     policy.shards   = def ? def->shards   : 2;
     policy.enabled  = true;
 
-    // Precedence: 1. explicit override  2. Config  3. hardcoded default
+    // Precedence: 1. explicit override  2. CacheConfig  3. hardcoded default
     if (override_capacity.has_value() && *override_capacity > 0) {
         policy.capacity = *override_capacity;
     } else {
-        const std::size_t cfg_val = config_value(domain);
+        const std::size_t cfg_val = config_value_from(domain, cache_config);
         policy.capacity = (cfg_val > 0) ? cfg_val
                                         : (def ? def->capacity : 0);
     }
 
     return policy;
+}
+
+// ── Globally-injected CacheConfig (set once by SoftwareRenderer) ─────────
+
+namespace {
+    const chronon3d::CacheConfig* s_global_cache_config = nullptr;
+    std::once_flag                 s_global_cache_config_flag;
+} // namespace
+
+void set_global_cache_config(const chronon3d::CacheConfig& cache_config) {
+    std::call_once(s_global_cache_config_flag, [&] {
+        s_global_cache_config = &cache_config;
+    });
+}
+
+CachePolicy resolve_cache_policy(
+    CacheDomain                domain,
+    std::optional<std::size_t> override_capacity)
+{
+    // Use the globally-injected config when available; fall back to
+    // Config::get() only when set_global_cache_config() hasn't been called
+    // yet (e.g. in tests that don't spin up a full SoftwareRenderer).
+    if (s_global_cache_config) {
+        return resolve_cache_policy(domain, override_capacity,
+                                    *s_global_cache_config);
+    }
+    return resolve_cache_policy(domain, override_capacity,
+                                chronon3d::Config::get().cache());
 }
 
 } // namespace chronon3d::cache

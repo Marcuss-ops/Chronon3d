@@ -272,7 +272,7 @@ private:
     // is what ends the builder's lifetime.  This is the only way the
     // compiler accepts `layer.text_run(...).position(...).opacity(...)`
     // when chained on multiple statements.
-    std::vector<std::unique_ptr<TextRunSpec>> m_text_runs;
+    std::vector<std::unique_ptr<PendingTextRun>> m_text_runs;
     std::vector<std::unique_ptr<TextRunBuilder>> m_text_run_builders;
 };
 
