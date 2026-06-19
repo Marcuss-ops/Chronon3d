@@ -128,8 +128,8 @@ TEST_CASE("LruCache EvictCallback — reused callback on repeated eviction emits
             evicted.emplace_back(key, std::stoi(value));
         });
 
-    cache.put(10, "100");
-    cache.put(20, "200");
+    cache.put(10, "11");   // value = 1 + key (matches assertion v == k + 1)
+    cache.put(20, "21");   // value = 1 + key (matches assertion v == k + 1)
 
     // Push enough inserts across two shards to force several evictions.
     // With num_shards=2 the capacity splits: shard_cap = 2/2 = 1, so the
