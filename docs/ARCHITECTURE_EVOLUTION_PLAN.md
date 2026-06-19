@@ -72,9 +72,12 @@ P0 (CI obbligatoria, path documentali corretti, confine V2↔V3 formale).
 
 La struttura di ownership è documentata in **[CORE_OWNERSHIP.md](CORE_OWNERSHIP.md)**:
 
-- **Core Zone** — file protetti (render graph, scene model, executor)
-- **Feature Zone** — lavoro di default (content, effects, nodes, CLI)
-- **Integration Zone** — extension points (extension system, registries, validation)
+- **Core Zone** — contratti e invarianti fondamentali (Composition, FrameContext, Scene, Layer, TransformResolver, Camera base, CameraProjection, RenderGraph, RenderGraphNode, GraphExecutor public contract, Framebuffer, CachePolicy, registri canonici)
+- **Feature Zone** — lavoro di default (content, effects, render nodes, preset, exporter, media feature, camera preset)
+- **Integration Zone** — extension points (extension system, registries, resolvers, samplers, validation)
+- **Diagnostics Zone** — telemetria, debug overlay, validator, benchmark, profiling, visual test, calibration e dump
+- **Experimental Zone** — V3 tile-first (`experimental/**` o feature branch dedicato)
+- **Regole anti-crescita** — anti-duplicazione, regole V3, regole Content, budget di crescita per nuovi moduli
 - **Regole per agenti** — come toccare il core, checklist PR
 
 ---
@@ -88,20 +91,26 @@ Priorità suggerite dall'analisi architetturale:
 ### P0 — Stabilizzazione
 1. ✅ CI su `main` — GitHub Actions: fast tests on PR, full suite on push
 2. ✅ Path documentali sincronizzati
-3. Confine formale fra V2 e V3
+3. 🔵 Confine formale fra V2 e V3 — policy documentata in CORE_OWNERSHIP.md, da attuare nel codice
 4. Benchmark baseline per 1080p e 4K
 5. Conclusione migrazione `VideoSink`
+6. 🔵 Core Zone reduction — completata a livello documentale; da verificare nel codice
+7. 🔵 Diagnostics isolation — feature flag `CHRONON3D_ENABLE_DIAGNOSTICS` documentato; da implementare nel build system
 
 ### P1 — Pulizia architetturale
 1. `RenderSession` obbligatoria per frame isolation
 2. `GraphExecutor` stateless / session-based
 3. Ridurre `SoftwareRenderer` a facciata sottile
 4. Dipendenze opzionali (`CHRONON3D_ENABLE_TEXT`, `ENABLE_EXR`, `ENABLE_VIDEO`)
+5. 🔵 Cache primitive unification — usare `LruCache` comune per tutte le cache
+6. 🔵 Content growth policy — attuare budget di crescita per ogni nuovo modulo
 
 ### P2 — Evoluzione tile-first
 Migrazione incrementale: `TileLayout + TileMask → Tile-aware pool → 
 CompositeNode tile-aware → SourceNode tile-aware → effetti tile-aware → 
 per-tile cache → rimozione LegacyNodeAdapter`
+
+**V3 Deletion Map** — ogni componente V3 deve dichiarare il componente V2 che sostituisce, con criterio e milestone di eliminazione (vedi CORE_OWNERSHIP.md §2.2). Nessuna duplicazione V2/V3 permanente.
 
 ---
 

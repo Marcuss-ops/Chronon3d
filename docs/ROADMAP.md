@@ -5,7 +5,7 @@
 > - 🔵 **Planned** — non ancora implementato.
 >
 > Gli item completati (✅ Verified) sono in [`CHANGELOG.md`](CHANGELOG.md).
-> Ultimo aggiornamento: 2026-06-17
+> Ultimo aggiornamento: 2026-06-19
 
 ---
 
@@ -94,6 +94,23 @@
 | L8 | Parallel Tile Rendering (Bucket-Based) | 🔴 Alto | 🔵 Planned |
 | L5 | Render Farm Distribuito (Multi-Host) | 🔴 Alto | 🔵 Planned |
 | L9 | CI Multi-Platform (Windows + macOS) | 🟡 Medio | 🔵 Planned |
+
+---
+
+## 🏗️ Lean Architecture Gates
+
+Gate architetturali per mantenere il motore snello e prevenire la crescita incontrollata.
+Vedi [`CORE_OWNERSHIP.md`](CORE_OWNERSHIP.md) per le regole complete.
+
+| Gate | Descrizione | Stato |
+|---|---|---|
+| **Telemetry opzionale** | Diagnostics/Tracking compilabili solo con `CHRONON3D_ENABLE_DIAGNOSTICS` e `CHRONON3D_ENABLE_TELEMETRY` | 🔵 Planned — policy documentata; feature flag da implementare nel build system |
+| **vcpkg feature parity** | Tutte le dipendenze opzionali dietro vcpkg feature flags | 🔵 Planned |
+| **Core Zone reduction** | Core ridotto ai contratti fondamentali (vedi CORE_OWNERSHIP.md §1A) | 🟡 Partial — completato a livello documentale; da verificare nel codice |
+| **Diagnostics isolation** | Diagnostics Zone separata, non linkata nel core per default | 🟡 Partial — zone definite; isolamento CMake da implementare |
+| **V3 deletion map** | Ogni componente V3 dichiara il V2 sostituito con criterio e milestone di eliminazione | 🟡 Partial — mappa documentata in V3_BLUEPRINT.md; da popolare durante l'implementazione |
+| **Cache primitive unification** | Tutte le cache usano la primitiva `LruCache` comune; nessuna cache ad-hoc per nuovo modulo | 🔵 Planned |
+| **Content growth policy** | Ogni nuovo modulo rispetta il budget di crescita (una responsabilità, un target CMake, un registry, test, nessun singleton) | 🟡 Partial — policy documentata; enforcement da attuare |
 
 ---
 
