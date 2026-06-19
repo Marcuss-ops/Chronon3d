@@ -39,7 +39,7 @@ public:
         const auto draw_start = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
         const Mat4& model = state.matrix;
         const f32 opacity = state.opacity;
-        const float effective_size = node.shape.text.style.size * state.ssaa_factor;
+        const float effective_size = node.shape.text().style.size * state.ssaa_factor;
 
         const bool use_geo_transform = !state.projection.ready &&
                                        is_affine_transform(model) &&
@@ -95,14 +95,14 @@ public:
 
         if (!raster_cache_hit) {
             renderer.counters()->text_glyphs_rasterized.fetch_add(
-                static_cast<uint64_t>(node.shape.text.text.length()),
+                static_cast<uint64_t>(node.shape.text().text.length()),
                 std::memory_order_relaxed
             );
         }
 
         // ── Apply TextMaterial (gradient, bevel, highlight, shade) ─────
-        if (node.shape.text.style.material.enabled) {
-            apply_text_material(raster->image, node.shape.text.style.material);
+        if (node.shape.text().style.material.enabled) {
+            apply_text_material(raster->image, node.shape.text().style.material);
         }
 
         double shadow_ms = 0.0;
@@ -110,8 +110,8 @@ public:
         double composite_ms = 0.0;
 
         // 1. Drop Shadows (behind)
-        for (size_t i = 0; i < node.shape.text.style.shadows.size(); ++i) {
-            const auto& shadow = node.shape.text.style.shadows[i];
+        for (size_t i = 0; i < node.shape.text().style.shadows.size(); ++i) {
+            const auto& shadow = node.shape.text().style.shadows[i];
             if (shadow.enabled && shadow.opacity > 0.0f && shadow.color.a > 0.0f) {
                 const auto shadow_start = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
                 draw_text_shadow(renderer, fb, node, state, *raster, shadow, i, effective_size);
@@ -164,7 +164,7 @@ public:
         if (txt.box.enabled && txt.box.size.x > 0.0f && txt.box.size.y > 0.0f) {
             w = txt.box.size.x;
             h = txt.box.size.y;
-        } else if (!txt.text.empty()) {
+        } else if (!txt.text().empty()) {
             const float font_size = std::max(1.0f, txt.style.size);
             const float line_height = font_size * std::max(1.0f, txt.style.line_height);
 

@@ -37,9 +37,9 @@ TEST_CASE("SceneBuilder path API") {
     REQUIRE(scene.nodes().size() == 1);
     const auto& node = scene.nodes()[0];
     CHECK(node.name == "my-path");
-    CHECK(node.shape.type == ShapeType::Path);
-    CHECK(node.shape.path.commands.size() == 2);
-    CHECK(node.shape.path.stroke.width == doctest::Approx(5.0f));
+    CHECK(node.shape.type() == ShapeType::Path);
+    CHECK(node.shape.path().commands.size() == 2);
+    CHECK(node.shape.path().stroke.width == doctest::Approx(5.0f));
     CHECK(node.world_transform.position.x == doctest::Approx(10.0f));
 }
 
@@ -94,7 +94,7 @@ TEST_CASE("SceneBuilder generic shape API creates rect") {
 
     REQUIRE(scene.nodes().size() == 1);
     CHECK(scene.nodes()[0].name == "box");
-    CHECK(scene.nodes()[0].shape.type == ShapeType::Rect);
+    CHECK(scene.nodes()[0].shape.type() == ShapeType::Rect);
     CHECK(scene.nodes()[0].world_transform.position.z == doctest::Approx(3.0f));
 }
 
@@ -106,8 +106,8 @@ TEST_CASE("SceneBuilder circle primitive") {
     REQUIRE(scene.nodes().size() == 1);
     const auto& node = scene.nodes()[0];
     CHECK(node.name == "c");
-    CHECK(node.shape.type == ShapeType::Circle);
-    CHECK(node.shape.circle.radius == 45.0f);
+    CHECK(node.shape.type() == ShapeType::Circle);
+    CHECK(node.shape.circle().radius == 45.0f);
     CHECK(node.color == Color::green());
 }
 
@@ -118,8 +118,8 @@ TEST_CASE("SceneBuilder rounded rect primitive") {
 
     REQUIRE(scene.nodes().size() == 1);
     const auto& node = scene.nodes()[0];
-    CHECK(node.shape.type == ShapeType::RoundedRect);
-    CHECK(node.shape.rounded_rect.radius == 12.0f);
+    CHECK(node.shape.type() == ShapeType::RoundedRect);
+    CHECK(node.shape.rounded_rect().radius == 12.0f);
 }
 
 TEST_CASE("SceneBuilder line primitive") {
@@ -129,9 +129,9 @@ TEST_CASE("SceneBuilder line primitive") {
 
     REQUIRE(scene.nodes().size() == 1);
     const auto& node = scene.nodes()[0];
-    CHECK(node.shape.type == ShapeType::Line);
-    CHECK(node.shape.line.to.x == 100.0f);
-    CHECK(node.shape.line.thickness == 3.0f);
+    CHECK(node.shape.type() == ShapeType::Line);
+    CHECK(node.shape.line().to.x == 100.0f);
+    CHECK(node.shape.line().thickness == 3.0f);
 }
 
 TEST_CASE("SceneBuilder image primitive") {
@@ -141,8 +141,8 @@ TEST_CASE("SceneBuilder image primitive") {
 
     REQUIRE(scene.nodes().size() == 1);
     const auto& node = scene.nodes()[0];
-    CHECK(node.shape.type == ShapeType::Image);
-    CHECK(node.shape.image.path == "photo.png");
+    CHECK(node.shape.type() == ShapeType::Image);
+    CHECK(node.shape.image().path == "photo.png");
 }
 
 TEST_CASE("SceneBuilder active/inactive layer lifecycle filters") {

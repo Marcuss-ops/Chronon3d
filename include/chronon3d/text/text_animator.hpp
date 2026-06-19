@@ -401,7 +401,7 @@ inline void TextAnimator::build(SceneBuilder& scene, std::string_view layer_name
         f32 cumulative_tracking = 0.0f;
         for (size_t i = 0; i < glyphs.size(); ++i) {
             const auto& gu = glyphs[i];
-            if (gu.text.empty()) continue;
+            if (gu.text().empty()) continue;
 
             // Adjust the glyph's position by cumulative tracking so far.
             // gu.x comes from the resolver (tracking=0), so we add the

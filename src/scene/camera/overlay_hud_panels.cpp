@@ -96,10 +96,10 @@ void draw_camera_to_target_line(const OverlayContext& ctx, const ScreenPoint& sp
 
 void draw_null_parent_markers(const OverlayContext& ctx) {
     auto& l = ctx.layer;
-    for (const auto& pair : ctx.resolved.resolved) {
-        const std::string& name = pair.first;
+    for (std::size_t i = 0; i < ctx.resolved.size(); ++i) {
+        const std::string& name = ctx.resolved.name_at(i);
         if (name.find("_null") != std::string::npos || name.find("_parent") != std::string::npos) {
-            Vec3 null_pos = Vec3(pair.second.world_matrix[3]);
+            Vec3 null_pos = Vec3(ctx.resolved.resolved(i).world_matrix[3]);
             ScreenPoint n_sp = project_world_to_screen(null_pos, ctx.camera, ctx.viewport);
             if (!n_sp.behind_camera) {
                 l.rect("null_parent_rect_" + name, RectParams{
@@ -130,17 +130,17 @@ void draw_null_parent_markers(const OverlayContext& ctx) {
 
 void draw_parent_child_links(const OverlayContext& ctx) {
     auto& l = ctx.layer;
-    for (const auto& pair : ctx.resolved.resolved) {
-        const std::string& child_name = pair.first;
-        const ResolvedTransform3D& r3d = pair.second;
-        if (!r3d.local.parent_name.empty()) {
-            auto parent_pos_opt = ctx.resolved.world_position(r3d.local.parent_name);
+    for (std::size_t i = 0; i < ctx.resolved.size(); ++i) {
+        const std::string& child_name = ctx.resolved.name_at(i);
+        const std::string& parent_name_str = ctx.resolved.parent_name_at(i);
+        if (!parent_name_str.empty()) {
+            auto parent_pos_opt = ctx.resolved.world_position(parent_name_str);
             auto child_pos_opt = ctx.resolved.world_position(child_name);
             if (parent_pos_opt && child_pos_opt) {
                 ScreenPoint parent_sp = project_world_to_screen(*parent_pos_opt, ctx.camera, ctx.viewport);
                 ScreenPoint child_sp = project_world_to_screen(*child_pos_opt, ctx.camera, ctx.viewport);
                 if (!parent_sp.behind_camera && !child_sp.behind_camera) {
-                    l.line("link_" + r3d.local.parent_name + "_" + child_name, LineParams{
+                    l.line("link_" + parent_name_str + "_" + child_name, LineParams{
                         .from = {parent_sp.position.x, parent_sp.position.y, 0.0f},
                         .to = {child_sp.position.x, child_sp.position.y, 0.0f},
                         .thickness = 1.0f, .color = Color{0.0f, 0.7f, 1.0f, 0.4f}

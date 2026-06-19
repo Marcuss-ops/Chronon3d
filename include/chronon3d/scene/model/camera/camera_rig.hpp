@@ -9,7 +9,7 @@
 // AnimatedCamera2_5D is not needed by the struct definitions — only by the
 // presets header (camera_rig_animated_presets.hpp).
 #include <memory_resource>
-#include <chronon3d/scene/model/core/transform_resolver.hpp>
+#include <chronon3d/scene/model/core/hierarchy_resolver.hpp>  // ResolvedSceneTransforms replaces the legacy TransformResolverResult.
 #include <string>
 #include <utility>
 #include <functional>
@@ -115,13 +115,13 @@ struct CameraRig {
 
     [[nodiscard]] Camera2_5D evaluate(
         Frame frame,
-        const TransformResolverResult* resolved = nullptr
+        const ResolvedSceneTransforms* resolved = nullptr
     ) const;
 
     /// Sub-frame evaluation — enables true multi-sample motion blur.
     [[nodiscard]] Camera2_5D evaluate(
         SampleTime time,
-        const TransformResolverResult* resolved = nullptr
+        const ResolvedSceneTransforms* resolved = nullptr
     ) const;
 
     /// Returns true iff the rig depends on external state (parent_name,
@@ -241,7 +241,7 @@ struct CameraRig {
     [[nodiscard]] Camera2_5D bake(
         Frame frame,
         std::pmr::memory_resource* res = std::pmr::get_default_resource(),
-        [[maybe_unused]] const TransformResolverResult* resolved = nullptr
+        [[maybe_unused]] const ResolvedSceneTransforms* resolved = nullptr
     ) const;
 
     void apply(SceneBuilder& s, Frame frame, std::function<void(SceneBuilder&)> add_target_content) const;

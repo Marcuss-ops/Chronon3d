@@ -13,7 +13,7 @@ namespace chronon3d {
 // ── Mask ──────────────────────────────────────────────────────────────
 
 LayerBuilder& LayerBuilder::mask_rect(RectMaskParams p) {
-    m_layer.mask.type = MaskType::Rect;
+    m_layer.mask.set_type(MaskType::Rect;
     m_layer.mask.size = p.size;
     m_layer.mask.pos = p.pos;
     m_layer.mask.inverted = p.inverted;
@@ -21,7 +21,7 @@ LayerBuilder& LayerBuilder::mask_rect(RectMaskParams p) {
 }
 
 LayerBuilder& LayerBuilder::mask_rounded_rect(RoundedRectMaskParams p) {
-    m_layer.mask.type = MaskType::RoundedRect;
+    m_layer.mask.set_type(MaskType::RoundedRect;
     m_layer.mask.size = p.size;
     m_layer.mask.radius = p.radius;
     m_layer.mask.pos = p.pos;
@@ -30,7 +30,7 @@ LayerBuilder& LayerBuilder::mask_rounded_rect(RoundedRectMaskParams p) {
 }
 
 LayerBuilder& LayerBuilder::mask_circle(CircleMaskParams p) {
-    m_layer.mask.type = MaskType::Circle;
+    m_layer.mask.set_type(MaskType::Circle;
     m_layer.mask.size = {p.radius * 2.0f, p.radius * 2.0f};
     m_layer.mask.radius = p.radius;
     m_layer.mask.pos = p.pos;
@@ -41,25 +41,25 @@ LayerBuilder& LayerBuilder::mask_circle(CircleMaskParams p) {
 // ── Track Matte ───────────────────────────────────────────────────────
 
 LayerBuilder& LayerBuilder::track_matte_alpha(std::string src) {
-    m_layer.track_matte.type = TrackMatteType::Alpha;
+    m_layer.track_matte.set_type(TrackMatteType::Alpha;
     m_layer.track_matte.source_layer = std::pmr::string{src, m_layer.track_matte.source_layer.get_allocator().resource()};
     return *this;
 }
 
 LayerBuilder& LayerBuilder::track_matte_alpha_inverted(std::string src) {
-    m_layer.track_matte.type = TrackMatteType::AlphaInverted;
+    m_layer.track_matte.set_type(TrackMatteType::AlphaInverted;
     m_layer.track_matte.source_layer = std::pmr::string{src, m_layer.track_matte.source_layer.get_allocator().resource()};
     return *this;
 }
 
 LayerBuilder& LayerBuilder::track_matte_luma(std::string src) {
-    m_layer.track_matte.type = TrackMatteType::Luma;
+    m_layer.track_matte.set_type(TrackMatteType::Luma;
     m_layer.track_matte.source_layer = std::pmr::string{src, m_layer.track_matte.source_layer.get_allocator().resource()};
     return *this;
 }
 
 LayerBuilder& LayerBuilder::track_matte_luma_inverted(std::string src) {
-    m_layer.track_matte.type = TrackMatteType::LumaInverted;
+    m_layer.track_matte.set_type(TrackMatteType::LumaInverted;
     m_layer.track_matte.source_layer = std::pmr::string{src, m_layer.track_matte.source_layer.get_allocator().resource()};
     return *this;
 }

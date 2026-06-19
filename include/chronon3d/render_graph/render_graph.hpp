@@ -2,6 +2,7 @@
 
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <algorithm>
+#include <cassert>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -19,22 +20,36 @@ static constexpr GraphNodeId k_invalid_node = static_cast<GraphNodeId>(-1);
 
 extern thread_local std::string g_current_builder_layer_id;
 
+// ── RenderGraph lifecycle ─────────────────────────────────────────────────
+//
+//   Building  – single-threaded mutation (add_node, connect, …)
+//   Frozen    – validated, compacted, ready for concurrent reads
+//
+// After freeze() is called, the graph becomes immutable and all read
+// methods are safe for concurrent access without internal locking.
+// Mutating methods assert-fail if called after freeze().
+enum class GraphPhase : u8 {
+    Building,
+    Frozen,
+};
+
 class RenderGraph {
 public:
     RenderGraph() = default;
-    
-    RenderGraph(RenderGraph&& other) noexcept {
-        std::lock_guard<std::mutex> lock(other.m_mutex);
-        m_nodes = std::move(other.m_nodes);
-        m_inputs = std::move(other.m_inputs);
-        m_output = other.m_output;
+
+    RenderGraph(RenderGraph&& other) noexcept
+        : m_phase(other.m_phase)
+        , m_nodes(std::move(other.m_nodes))
+        , m_inputs(std::move(other.m_inputs))
+        , m_output(other.m_output)
+    {
         other.m_output = k_invalid_node;
     }
 
     RenderGraph& operator=(RenderGraph&& other) noexcept {
         if (this != &other) {
-            std::scoped_lock lock(m_mutex, other.m_mutex);
-            m_nodes = std::move(other.m_nodes);
+            m_phase  = other.m_phase;
+            m_nodes  = std::move(other.m_nodes);
             m_inputs = std::move(other.m_inputs);
             m_output = other.m_output;
             other.m_output = k_invalid_node;
@@ -42,45 +57,50 @@ public:
         return *this;
     }
 
+    // ── Mutation (Building phase only) ──────────────────────────────────
+
     GraphNodeId add_node(std::unique_ptr<RenderGraphNode> node) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        GraphNodeId id = static_cast<GraphNodeId>(m_nodes.size());
-        if (node) {
-            node->set_layer_id(g_current_builder_layer_id);
+        assert(m_phase == GraphPhase::Building && "add_node after freeze()");
+        if (!node) {
+            throw std::invalid_argument("RenderGraph::add_node: node must not be null");
         }
+        node->set_layer_id(g_current_builder_layer_id);
+        GraphNodeId id = static_cast<GraphNodeId>(m_nodes.size());
         m_nodes.push_back(std::move(node));
         m_inputs.emplace_back();
         return id;
     }
 
     void connect(GraphNodeId from, GraphNodeId to) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        assert(m_phase == GraphPhase::Building && "connect after freeze()");
+        validate_node_id(from);
+        validate_node_id(to);
         m_inputs[to].push_back(from);
     }
 
-    // ── Mutation support for graph optimization ─────────────────────
     void disconnect(GraphNodeId from, GraphNodeId to) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        assert(m_phase == GraphPhase::Building && "disconnect after freeze()");
+        validate_node_id(from);
+        validate_node_id(to);
         auto& vec = m_inputs[to];
         vec.erase(std::remove(vec.begin(), vec.end(), from), vec.end());
     }
 
     void remove_node(GraphNodeId id) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        if (id >= m_nodes.size()) return;
-        // Remove this node from all consumers' input lists
+        assert(m_phase == GraphPhase::Building && "remove_node after freeze()");
+        validate_node_id(id);
         for (auto& inputs : m_inputs) {
             inputs.erase(std::remove(inputs.begin(), inputs.end(), id), inputs.end());
         }
-        // Clear this node's inputs
         m_inputs[id].clear();
-        // Null out the node (unique_ptr manages lifetime, we keep the slot for ID stability)
         m_nodes[id].reset();
     }
 
     void replace_input(GraphNodeId node_id, GraphNodeId old_input, GraphNodeId new_input) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        if (node_id >= m_inputs.size()) return;
+        assert(m_phase == GraphPhase::Building && "replace_input after freeze()");
+        validate_node_id(node_id);
+        validate_node_id(old_input);
+        validate_node_id(new_input);
         auto& vec = m_inputs[node_id];
         for (auto& in : vec) {
             if (in == old_input) {
@@ -89,17 +109,35 @@ public:
         }
     }
 
+    void set_output(GraphNodeId id) {
+        assert(m_phase == GraphPhase::Building && "set_output after freeze()");
+        validate_node_id(id);
+        m_output = id;
+    }
+
+    // ── Freeze ──────────────────────────────────────────────────────────
+
+    /// Transition from Building → Frozen.  After this call the graph is
+    /// immutable and all read methods become safe for concurrent access.
+    void freeze() {
+        assert(m_phase == GraphPhase::Building && "freeze() called twice");
+        // Compact the nodes vector: swap-remove nullptr slots left by
+        // remove_node(), then patch all input lists to point to the new
+        // indices.  This is a one-time cost paid at freeze time, making
+        // subsequent reads cheaper because there are no null checks.
+        compact();
+        m_phase = GraphPhase::Frozen;
+    }
+
+    // ── Read (safe after freeze) ────────────────────────────────────────
+
     [[nodiscard]] const RenderGraphNode& node(GraphNodeId id) const {
-        if (id >= m_nodes.size() || !m_nodes[id]) {
-            throw std::out_of_range("RenderGraph: node " + std::to_string(id) + " not found or removed");
-        }
+        validate_node_id(id);
         return *m_nodes[id];
     }
 
     [[nodiscard]] RenderGraphNode& node(GraphNodeId id) {
-        if (id >= m_nodes.size() || !m_nodes[id]) {
-            throw std::out_of_range("RenderGraph: node " + std::to_string(id) + " not found or removed");
-        }
+        validate_node_id(id);
         return *m_nodes[id];
     }
 
@@ -108,27 +146,26 @@ public:
     }
 
     [[nodiscard]] const std::vector<GraphNodeId>& inputs(GraphNodeId id) const {
+        validate_node_id(id);
+        return m_inputs[id];
+    }
+
+    [[nodiscard]] std::vector<GraphNodeId>& inputs(GraphNodeId id) {
+        validate_node_id(id);
         return m_inputs[id];
     }
 
     [[nodiscard]] size_t size() const {
-        std::lock_guard<std::mutex> lock(m_mutex);
         return m_nodes.size();
     }
 
-    /// Returns the number of non-null (live) nodes after removals.
+    /// Returns the number of non-null (live) nodes.
     [[nodiscard]] size_t live_count() const {
-        std::lock_guard<std::mutex> lock(m_mutex);
         size_t count = 0;
         for (const auto& n : m_nodes) {
             if (n) ++count;
         }
         return count;
-    }
-
-    void set_output(GraphNodeId id) { 
-        std::lock_guard<std::mutex> lock(m_mutex);
-        m_output = id; 
     }
 
     [[nodiscard]] GraphNodeId output() const {
@@ -139,10 +176,26 @@ public:
 
     [[nodiscard]] bool has_output() const { return m_output != k_invalid_node; }
 
+    [[nodiscard]] GraphPhase phase() const { return m_phase; }
+
     [[nodiscard]] std::string to_dot() const;
 
+    // ── Validation ──────────────────────────────────────────────────────
+
+    /// Validates that `id` refers to an existing, non-removed node.
+    /// Throws std::out_of_range on invalid id.
+    void validate_node_id(GraphNodeId id) const {
+        if (id >= m_nodes.size() || !m_nodes[id]) {
+            throw std::out_of_range(
+                "RenderGraph: node " + std::to_string(id) + " not found or removed");
+        }
+    }
+
 private:
-    mutable std::mutex m_mutex;
+    /// Compact the node vector after removals, remapping all input references.
+    void compact();
+
+    GraphPhase m_phase{GraphPhase::Building};
     std::vector<std::unique_ptr<RenderGraphNode>> m_nodes;
     std::vector<std::vector<GraphNodeId>> m_inputs;
     GraphNodeId m_output{k_invalid_node};

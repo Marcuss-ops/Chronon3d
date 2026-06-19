@@ -19,7 +19,7 @@ public:
         Color fill_color = linear_color;
         fill_color.a *= state.opacity;
 
-        const Fill* fill_ptr = (node.fill.type != FillType::Solid) ? &node.fill : nullptr;
+        const Fill* fill_ptr = (node.fill.type() != FillType::Solid) ? &node.fill : nullptr;
         draw_transformed_shape(fb, node.shape, state.matrix, fill_color, 0.0f, &state, fill_ptr, node.corner_radius);
     }
 

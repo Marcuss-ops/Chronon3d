@@ -109,7 +109,7 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     spread += 8.0f;
 
     if (ctx.camera.has_camera_2_5d &&
-        (m_node.shape.type == ShapeType::FakeBox3D || m_node.shape.type == ShapeType::GridPlane)) {
+        (m_node.shape.type() == ShapeType::FakeBox3D || m_node.shape.type() == ShapeType::GridPlane)) {
         const Mat4 world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
         if (auto bbox = detail::projected_native_3d_bbox(ctx, m_node, world_matrix, spread)) {
             return bbox;
@@ -238,7 +238,7 @@ bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const noexce
         return false;
     }
 
-    if (m_node.shape.type != ShapeType::Image) {
+    if (m_node.shape.type() != ShapeType::Image) {
         return false;
     }
 

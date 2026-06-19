@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/scene/camera/camera_projection.hpp>
 #include <chronon3d/scene/camera/camera_shot_validator.hpp>
-#include <chronon3d/scene/model/core/transform_resolver.hpp>
+#include <chronon3d/scene/model/core/hierarchy_resolver.hpp>
 #include <cmath>
 using namespace chronon3d;
 
@@ -14,21 +14,19 @@ TEST_CASE("Camera Shot Validator logic check") {
 
     Viewport viewport{1920.0f, 1080.0f};
 
-    TransformResolverResult resolved;
-    ResolvedTransform3D t_target;
-    t_target.local.position = {0.0f, 0.0f, 0.0f};
-    t_target.world_matrix = t_target.local.to_mat4();
-    resolved.resolved["camera_target"] = t_target;
+    ResolvedSceneTransforms resolved;
 
-    ResolvedTransform3D t_front;
-    t_front.local.position = {0.0f, 0.0f, -100.0f};
-    t_front.world_matrix = t_front.local.to_mat4();
-    resolved.resolved["front_card"] = t_front;
+    Transform3D t_target;
+    t_target.position = {0.0f, 0.0f, 0.0f};
+    resolved.insert("camera_target", t_target.to_mat4());
 
-    ResolvedTransform3D t_back;
-    t_back.local.position = {0.0f, 0.0f, 100.0f};
-    t_back.world_matrix = t_back.local.to_mat4();
-    resolved.resolved["back_card"] = t_back;
+    Transform3D t_front;
+    t_front.position = {0.0f, 0.0f, -100.0f};
+    resolved.insert("front_card", t_front.to_mat4());
+
+    Transform3D t_back;
+    t_back.position = {0.0f, 0.0f, 100.0f};
+    resolved.insert("back_card", t_back.to_mat4());
 
     CameraShotValidator validator;
     validator.register_layer_size("front_card", {300.0f, 190.0f})

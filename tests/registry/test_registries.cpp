@@ -47,8 +47,8 @@ TEST_CASE("ShapeRegistry creates built-in shape nodes") {
     );
 
     CHECK(node.name == "box");
-    CHECK(node.shape.type == ShapeType::Rect);
-    CHECK(node.shape.rect.size.x == doctest::Approx(120.0f));
+    CHECK(node.shape.type() == ShapeType::Rect);
+    CHECK(node.shape.rect().size.x == doctest::Approx(120.0f));
     CHECK(node.world_transform.position.z == doctest::Approx(30.0f));
     CHECK(node.world_transform.anchor.x == doctest::Approx(60.0f));
     CHECK(node.world_transform.anchor.y == doctest::Approx(40.0f));
@@ -74,9 +74,9 @@ TEST_CASE("ShapeRegistry creates built-in grid background nodes") {
         }
     );
 
-    CHECK(node.shape.type == ShapeType::GridBackground);
-    CHECK(node.shape.grid_background.size.x == doctest::Approx(1280.0f));
-    CHECK(node.shape.grid_background.offset.x == doctest::Approx(12.0f));
+    CHECK(node.shape.type() == ShapeType::GridBackground);
+    CHECK(node.shape.grid_background().size.x == doctest::Approx(1280.0f));
+    CHECK(node.shape.grid_background().offset.x == doctest::Approx(12.0f));
 }
 
 TEST_CASE("ShapeRegistry rejects shapes without factories") {

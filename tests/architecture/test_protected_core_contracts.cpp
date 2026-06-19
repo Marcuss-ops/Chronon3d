@@ -30,7 +30,7 @@ TEST_CASE("CoreContract: RenderGraphNode base interface is stable") {
 
 TEST_CASE("CoreContract: RenderGraph move does not crash") {
     RenderGraph g1;
-    auto id = g1.add_node(nullptr); // null node placeholder
+    auto id = g1.add_node(std::make_unique<MockNode>("mock"));
     g1.set_output(id);
 
     RenderGraph g2 = std::move(g1);
@@ -112,6 +112,18 @@ TEST_CASE("CoreContract: RenderGraphNode declares cache_key pure virtual") {
 //      extents (proves the wiring reaches renderer::compute_text_run_world_bbox).
 
 namespace {
+
+// Minimal concrete RenderGraphNode for testing graph wiring without real nodes.
+struct MockNode : RenderGraphNode {
+    std::string m_name;
+    explicit MockNode(std::string name) : m_name(std::move(name)) {}
+    [[nodiscard]] std::string_view name() const override { return m_name; }
+    [[nodiscard]] RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Source; }
+    void execute(RenderGraphContext&) override {}
+    [[nodiscard]] cache::NodeCacheKey cache_key(const RenderGraphContext&) const override { return {}; }
+    [[nodiscard]] std::optional<raster::BBox> predicted_bbox(const RenderGraphContext&) const override { return std::nullopt; }
+    [[nodiscard]] bool cache_static() const override { return false; }
+};
 
 // Build a minimal TextRunShape with N glyphs at integer x-positions.
 std::shared_ptr<TextRunShape> make_test_text_run_shape_pr3(size_t glyph_count) {

@@ -230,8 +230,8 @@ bool find_tag(Cursor& c, const std::string& tag, Attrs& out_attrs, bool& self_cl
     if (to_lower(name) != tag) {
         // We only handle explicit tag-name requests; nothing useful to do at top-level
         // until we hit a known tag.  Skip ahead to next '<'.
-        std::size_t next_lt = c.text.find('<', c.i);
-        c.i = (next_lt == std::string::npos) ? c.text.size() : next_lt;
+        std::size_t next_lt = c.text().find('<', c.i);
+        c.i = (next_lt == std::string::npos) ? c.text().size() : next_lt;
         return false;
     }
     c.skip_ws();
@@ -239,7 +239,7 @@ bool find_tag(Cursor& c, const std::string& tag, Attrs& out_attrs, bool& self_cl
     // Read attribute string up to '>'.
     std::size_t start = c.i;
     while (!c.eof() && c.peek() != '>') ++c.i;
-    std::string attr_block(start, c.text.data() + c.i, c.i - start);
+    std::string attr_block(start, c.text().data() + c.i, c.i - start);
     out_attrs = parse_attrs(attr_block);
     if (!c.eof() && c.peek() == '>') {
         // check if self-closing
@@ -252,7 +252,7 @@ bool find_tag(Cursor& c, const std::string& tag, Attrs& out_attrs, bool& self_cl
 // Find a closing tag </tag> in the remaining text; returns position just after '>'.
 std::size_t find_close(Cursor& c, const std::string& tag) {
     std::string needle = "</" + tag + ">";
-    auto it = c.text.find(needle, c.i);
+    auto it = c.text().find(needle, c.i);
     return it == std::string::npos ? std::string::npos : it + needle.size();
 }
 
@@ -281,7 +281,7 @@ void walk_children(std::string_view body,
         // Read the rest of the tag into attr string.
         std::size_t a_start = c.i;
         while (!c.eof() && c.peek() != '>') ++c.i;
-        std::string attr_block(a_start, c.text.data() + c.i, c.i - a_start);
+        std::string attr_block(a_start, c.text().data() + c.i, c.i - a_start);
         bool self_close = false;
         if (!c.eof() && c.peek() == '>') {
             self_close = (c.i > 0 && c.text[c.i - 1] == '/');
@@ -302,10 +302,10 @@ void walk_children(std::string_view body,
             std::size_t close = find_close(c, "g");
             std::string_view inner;
             if (close != std::string::npos) {
-                inner = std::string_view(c.text.data() + c.i, close - 2 - c.i);
+                inner = std::string_view(c.text().data() + c.i, close - 2 - c.i);
             } else {
                 errors.push_back({"<g> never closed", start_pos});
-                inner = std::string_view(c.text.data() + c.i);
+                inner = std::string_view(c.text().data() + c.i);
             }
             walk_children(inner, m, out, errors);
             if (close != std::string::npos) c.i = close;
@@ -322,9 +322,9 @@ void walk_children(std::string_view body,
             } else {
                 auto res = chronon3d::assets::parse_svg_path_data(el.path_d);
                 if (res.ok) {
-                    el.bbox_min = apply_point(current_matrix, res.path.commands.front().p0);
+                    el.bbox_min = apply_point(current_matrix, res.path().commands.front().p0);
                     el.bbox_max = el.bbox_min;
-                    for (const auto& cmd : res.path.commands) {
+                    for (const auto& cmd : res.path().commands) {
                         Vec2 p = apply_point(current_matrix, cmd.p0);
                         el.bbox_min.x = std::min(el.bbox_min.x, p.x);
                         el.bbox_min.y = std::min(el.bbox_min.y, p.y);
@@ -421,10 +421,10 @@ SvgImportResult SvgSceneImporter::parse_text(std::string_view svg) const {
     std::size_t close = find_close(c, "svg");
     std::string_view body;
     if (close != std::string::npos) {
-        body = std::string_view(c.text.data() + c.i, close - 2 - c.i);
+        body = std::string_view(c.text().data() + c.i, close - 2 - c.i);
     } else {
         res.errors.push_back({"<svg> never closed", c.i});
-        body = std::string_view(c.text.data() + c.i);
+        body = std::string_view(c.text().data() + c.i);
     }
 
     walk_children(body, Mat2D{}, scene->elements, res.errors);
@@ -497,8 +497,8 @@ void SvgSceneImporter::apply(const SvgScene& scene,
             std::vector<chronon3d::PathCommand> cmds;
             auto res = chronon3d::assets::parse_svg_path_data(el.path_d);
             if (res.ok) {
-                cmds.reserve(res.path.commands.size());
-                for (const auto& c : res.path.commands) {
+                cmds.reserve(res.path().commands.size());
+                for (const auto& c : res.path().commands) {
                     chronon3d::PathCommand cmd = c;
                     cmd.p0 = {
                         cmd.p0.x * scale,

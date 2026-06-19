@@ -193,6 +193,11 @@ target_link_libraries(chronon3d_graph_pipeline
         chronon3d_graph_cache
     PRIVATE
         chronon3d_extension
+        # chronon3d_content removed — the host application (CLI, tests) is
+        # responsible for linking chronon3d_content and calling
+        # register_content_modules().  The graph pipeline calls
+        # register_content_modules() via a forward declaration; the symbol
+        # is resolved at final link time by the host executable.
 )
 if(CHRONON3D_BUILD_CONTENT)
     target_link_libraries(chronon3d_graph_pipeline PRIVATE chronon3d_content)   # <-- register_content_modules() impl

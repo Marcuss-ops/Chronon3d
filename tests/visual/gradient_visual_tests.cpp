@@ -47,7 +47,7 @@ Framebuffer render_gradient_definition_to_fb(
             f32 gy = static_cast<f32>(y) / static_cast<f32>(h);
 
             Color linear;
-            if (def.type == graphics::GradientType::Radial) {
+            if (def.type() == graphics::GradientType::Radial) {
                 linear = graphics::sample_gradient_radial(def, {gx, gy});
             } else {
                 // Linear: compute t from geometry

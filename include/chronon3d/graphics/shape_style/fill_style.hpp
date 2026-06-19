@@ -255,17 +255,17 @@ inline PathStroke StrokeStyle::to_path_stroke() const {
         // For Conic: center→from, to encodes angle direction.
         switch (g.type) {
             case GradientType::Linear:
-                gf.type = FillType::LinearGradient;
+                gf.set_type(FillType::LinearGradient;
                 gf.from = g.start;
                 gf.to   = g.end;
                 break;
             case GradientType::Radial:
-                gf.type = FillType::RadialGradient;
+                gf.set_type(FillType::RadialGradient;
                 gf.from = g.center;
                 gf.to   = {g.center.x + g.radius, g.center.y};
                 break;
             case GradientType::Conic:
-                gf.type = FillType::ConicGradient;
+                gf.set_type(FillType::ConicGradient;
                 gf.from = g.center;
                 gf.to   = {g.center.x + std::cos(g.angle),
                            g.center.y + std::sin(g.angle)};
@@ -302,17 +302,17 @@ inline ShapeStroke StrokeStyle::to_shape_stroke() const {
         }
         switch (g.type) {
             case GradientType::Linear:
-                gf.type = FillType::LinearGradient;
+                gf.set_type(FillType::LinearGradient;
                 gf.from = g.start;
                 gf.to   = g.end;
                 break;
             case GradientType::Radial:
-                gf.type = FillType::RadialGradient;
+                gf.set_type(FillType::RadialGradient;
                 gf.from = g.center;
                 gf.to   = {g.center.x + g.radius, g.center.y};
                 break;
             case GradientType::Conic:
-                gf.type = FillType::ConicGradient;
+                gf.set_type(FillType::ConicGradient;
                 gf.from = g.center;
                 gf.to   = {g.center.x + std::cos(g.angle),
                            g.center.y + std::sin(g.angle)};
@@ -441,7 +441,7 @@ namespace detail {
         a.opacity_stops, b.opacity_stops, t);
 
     GradientDefinition result;
-    result.type        = result_type;
+    result.set_type(result_type;
     result.color_stops = std::move(lerped_stops);
     result.opacity_stops = std::move(lerped_op);
     result.spread      = (t < 0.5f) ? a.spread : b.spread;
@@ -515,7 +515,7 @@ namespace detail {
         if (fs.gradient.has_value()) return *fs.gradient;
         // Solid colour → 1-stop gradient (same colour at both ends)
         GradientDefinition g;
-        g.type = GradientType::Linear;
+        g.set_type(GradientType::Linear;
         g.start = {0.0f, 0.5f};
         g.end   = {1.0f, 0.5f};
         g.color_stops = {
@@ -586,7 +586,7 @@ namespace detail {
         const auto to_gdef = [](const StrokeStyle& s) -> GradientDefinition {
             if (s.gradient.has_value()) return *s.gradient;
             GradientDefinition g;
-            g.type = GradientType::Linear;
+            g.set_type(GradientType::Linear;
             g.start = {0.0f, 0.5f};
             g.end   = {1.0f, 0.5f};
             g.color_stops = {

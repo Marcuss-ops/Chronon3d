@@ -11,9 +11,9 @@ TEST_CASE("RenderNodeFactory creates rect nodes with centered anchors") {
         .pos   = {10.0f, 20.0f, 30.0f},
     });
     CHECK(node.name == "box");
-    CHECK(node.shape.type == ShapeType::Rect);
-    CHECK(node.shape.rect.size.x == doctest::Approx(120.0f));
-    CHECK(node.shape.rect.size.y == doctest::Approx(80.0f));
+    CHECK(node.shape.type() == ShapeType::Rect);
+    CHECK(node.shape.rect().size.x == doctest::Approx(120.0f));
+    CHECK(node.shape.rect().size.y == doctest::Approx(80.0f));
     CHECK(node.world_transform.position.x == doctest::Approx(10.0f));
     CHECK(node.world_transform.position.y == doctest::Approx(20.0f));
     CHECK(node.world_transform.position.z == doctest::Approx(30.0f));
@@ -37,9 +37,9 @@ TEST_CASE("RenderNodeFactory creates grid background nodes") {
         .major_every     = 4,
         .centered        = true,
     });
-    CHECK(node.shape.type == ShapeType::GridBackground);
-    CHECK(node.shape.grid_background.size.x == doctest::Approx(1920.0f));
-    CHECK(node.shape.grid_background.offset.x == doctest::Approx(24.0f));
+    CHECK(node.shape.type() == ShapeType::GridBackground);
+    CHECK(node.shape.grid_background().size.x == doctest::Approx(1920.0f));
+    CHECK(node.shape.grid_background().offset.x == doctest::Approx(24.0f));
     CHECK(node.world_transform.position.x == doctest::Approx(0.0f));
     CHECK(node.world_transform.anchor.x == doctest::Approx(0.0f));
     CHECK(node.surface_policy == SurfacePolicy::ViewportSize);
@@ -61,16 +61,16 @@ TEST_CASE("RenderNodeFactory creates image nodes and maps advanced fields") {
     p.radius       = 24.0f;
     auto node = RenderNodeFactory::image(res, "img", p);
     CHECK(node.name == "img");
-    CHECK(node.shape.type == ShapeType::Image);
-    CHECK(node.shape.image.path == "assets/images/camera_reference.jpg");
-    CHECK(node.shape.image.size.x == doctest::Approx(640.0f));
-    CHECK(node.shape.image.opacity == doctest::Approx(0.5f));
-    CHECK(node.shape.image.radius == doctest::Approx(24.0f));
-    CHECK(node.shape.image.fit == FitMode::Cover);
-    CHECK(node.shape.image.focal_point.y == doctest::Approx(0.2f));
-    CHECK(node.shape.image.crop.enabled == true);
-    CHECK(node.shape.image.crop.origin.x == doctest::Approx(0.1f));
-    CHECK(node.shape.image.crop.size.x == doctest::Approx(0.8f));
+    CHECK(node.shape.type() == ShapeType::Image);
+    CHECK(node.shape.image().path == "assets/images/camera_reference.jpg");
+    CHECK(node.shape.image().size.x == doctest::Approx(640.0f));
+    CHECK(node.shape.image().opacity == doctest::Approx(0.5f));
+    CHECK(node.shape.image().radius == doctest::Approx(24.0f));
+    CHECK(node.shape.image().fit == FitMode::Cover);
+    CHECK(node.shape.image().focal_point.y == doctest::Approx(0.2f));
+    CHECK(node.shape.image().crop.enabled == true);
+    CHECK(node.shape.image().crop.origin.x == doctest::Approx(0.1f));
+    CHECK(node.shape.image().crop.size.x == doctest::Approx(0.8f));
     CHECK(node.surface_policy == SurfacePolicy::IntrinsicSize);
     CHECK(node.transform_policy == TransformPolicy::MatrixOnly);
 }
@@ -102,10 +102,10 @@ TEST_CASE("RenderNodeFactory preserves gradient text paint") {
     );
 
     auto node = RenderNodeFactory::text(res, "title", p);
-    REQUIRE(node.shape.type == ShapeType::Text);
-    REQUIRE(node.shape.text.style.paint.fill_style.has_value());
-    CHECK(node.shape.text.style.paint.fill_style->type == FillType::LinearGradient);
-    CHECK(node.shape.text.style.paint.fill_style->gradient.stops.size() == 2);
+    REQUIRE(node.shape.type() == ShapeType::Text);
+    REQUIRE(node.shape.text().style.paint.fill_style.has_value());
+    CHECK(node.shape.text().style.paint.fill_style->type == FillType::LinearGradient);
+    CHECK(node.shape.text().style.paint.fill_style->gradient.stops.size() == 2);
     CHECK(node.surface_policy == SurfacePolicy::IntrinsicSize);
     CHECK(node.transform_policy == TransformPolicy::MatrixOnly);
 }

@@ -41,7 +41,7 @@ TEST_CASE("FillStyle -> solid color bridge") {
 
     const Fill f = fs.to_fill();
     CHECK(f.enabled);
-    CHECK(f.type == FillType::Solid);
+    CHECK(f.type() == FillType::Solid);
     CHECK(f.solid.r == doctest::Approx(0.2f));
     CHECK(f.solid.g == doctest::Approx(0.4f));
     CHECK(f.solid.b == doctest::Approx(0.6f));
@@ -52,7 +52,7 @@ TEST_CASE("FillStyle disabled -> solid color bridge") {
     const auto fs = chronon3d::graphics::FillStyle{false, {0.5f, 0.5f, 0.5f, 1.0f}, std::nullopt};
     const Fill f = fs.to_fill();
     CHECK(f.enabled == false);   // to_fill passes enabled through
-    CHECK(f.type == FillType::Solid);
+    CHECK(f.type() == FillType::Solid);
 }
 
 TEST_CASE("FillStyle -> linear gradient bridge") {
@@ -66,7 +66,7 @@ TEST_CASE("FillStyle -> linear gradient bridge") {
 
     const Fill f = fs.to_fill();
     CHECK(f.enabled);
-    CHECK(f.type == FillType::LinearGradient);
+    CHECK(f.type() == FillType::LinearGradient);
     CHECK(f.gradient.stops.size() == 2);
     CHECK(f.gradient.stops[0].offset == doctest::Approx(0.0f));
     CHECK(f.gradient.stops[0].color.r == doctest::Approx(1.0f));
@@ -87,7 +87,7 @@ TEST_CASE("FillStyle -> radial gradient bridge") {
 
     const Fill f = fs.to_fill();
     CHECK(f.enabled);
-    CHECK(f.type == FillType::RadialGradient);
+    CHECK(f.type() == FillType::RadialGradient);
     CHECK(f.gradient.stops.size() == 2);
     CHECK(f.gradient.from.x == doctest::Approx(0.5f));
     CHECK(f.gradient.from.y == doctest::Approx(0.5f));
@@ -97,13 +97,13 @@ TEST_CASE("FillStyle -> radial gradient bridge") {
 TEST_CASE("FillStyle solid -> gradient via to_fill distinction") {
     namespace gfx = chronon3d::graphics;
     const auto solid_fs = gfx::FillStyle::solid({1.0f, 1.0f, 1.0f, 1.0f});
-    CHECK(solid_fs.to_fill().type == FillType::Solid);
+    CHECK(solid_fs.to_fill().type() == FillType::Solid);
 
     std::vector<gfx::GradientStop> stops = {
         gs(0.0f, {0,0,0,1}), gs(1.0f, {1,1,1,1})
     };
     const auto grad_fs = gfx::FillStyle::linear({0,0}, {1,0}, std::move(stops));
-    CHECK(grad_fs.to_fill().type == FillType::LinearGradient);
+    CHECK(grad_fs.to_fill().type() == FillType::LinearGradient);
 }
 
 TEST_CASE("FillStyle -> conic gradient bridge") {
@@ -118,7 +118,7 @@ TEST_CASE("FillStyle -> conic gradient bridge") {
 
     const Fill f = fs.to_fill();
     CHECK(f.enabled);
-    CHECK(f.type == FillType::ConicGradient);
+    CHECK(f.type() == FillType::ConicGradient);
     CHECK(f.gradient.stops.size() == 3);
     CHECK(f.gradient.from.x == doctest::Approx(0.5f));
     CHECK(f.gradient.from.y == doctest::Approx(0.5f));
@@ -267,7 +267,7 @@ TEST_CASE("ShapeStyle with FillStyle") {
     CHECK(style.fill.is_gradient());
 
     const Fill f = style.fill.to_fill();
-    CHECK(f.type == FillType::LinearGradient);
+    CHECK(f.type() == FillType::LinearGradient);
 }
 
 TEST_CASE("ShapeStyle stroke bridge via path_factories pattern") {

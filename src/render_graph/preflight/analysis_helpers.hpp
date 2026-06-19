@@ -65,24 +65,24 @@ namespace chronon3d::graph {
 // ── Asset existence checks ─────────────────────────────────────────
 
 static inline void check_shape_assets(const Shape& shape, const std::string& node_name, std::vector<std::string>& warnings) {
-    if (shape.type == ShapeType::Image) {
-        const std::string path = shape.image.path;
+    if (shape.type() == ShapeType::Image) {
+        const std::string path = shape.image().path;
         if (!path.empty()) {
             std::string resolved = AssetRegistry::resolve(path);
             if (!std::filesystem::exists(resolved)) {
                 warnings.push_back("MISSING_ASSET: Image file does not exist: \"" + path + "\"");
             }
         }
-    } else if (shape.type == ShapeType::Text) {
-        const std::string font_path = shape.text.style.font_path;
+    } else if (shape.type() == ShapeType::Text) {
+        const std::string font_path = shape.text().style.font_path;
         if (!font_path.empty()) {
             std::string resolved = AssetRegistry::resolve(font_path);
             if (!std::filesystem::exists(resolved)) {
                 warnings.push_back("MISSING_ASSET: Font file does not exist: \"" + font_path + "\"");
             }
         }
-    } else if (shape.type == ShapeType::FakeExtrudedText) {
-        const std::string font_path = shape.fake_extruded_text.font_path;
+    } else if (shape.type() == ShapeType::FakeExtrudedText) {
+        const std::string font_path = shape.fake_extruded_text().font_path;
         if (!font_path.empty()) {
             std::string resolved = AssetRegistry::resolve(font_path);
             if (!std::filesystem::exists(resolved)) {

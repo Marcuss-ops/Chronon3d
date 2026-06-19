@@ -8,17 +8,6 @@
 //   2. project_world_to_screen            (Path 1)
 //   3. project_layer_2_5d                 (Path 2)
 //   4. renderer::make_projection_context  (Path 3)
-//
-// Tests:
-//   Center point projects to viewport centre
-//   Y sign is inverted (screen Y down)
-//   X sign is correct
-//   Points behind camera are invisible
-//   Depth increases with distance
-//   Perspective scale varies with depth
-//   FOV and zoom focal equivalence
-//   Sentinel values for invisible points
-//   All 4 paths agree for the same input
 // ============================================================================
 #define DOCTEST_CONFIG_SUPER_FAST_ASSERTS
 #include <doctest/doctest.h>
@@ -26,9 +15,28 @@
 #include <chronon3d/scene/camera/camera_projection.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
+#include <chronon3d/scene/model/core/hierarchy_resolver.hpp>
 #include <cmath>
 using namespace chronon3d;
 
+// ── Migration helper ───────────────────────────────────────────────────────
+//
+// CameraRig et al. consume a `const ResolvedSceneTransforms&`.  Build a
+// named Transform3D list via `resolve_scene_transforms()` (the canonical
+// service) for each pair of test cases that previously used SceneTransformRegistry.
+
+namespace {
+ResolvedSceneTransforms build_resolver(
+    std::vector<std::pair<std::string, Transform3D>> entries
+) {
+    std::vector<SceneTransformInput> inputs;
+    inputs.reserve(entries.size());
+    for (auto& e : entries) {
+        inputs.push_back(SceneTransformInput{std::move(e.first), std::move(e.second), false, false});
+    }
+    return resolve_scene_transforms(inputs);
+}
+} // anonymous namespace
 
 TEST_CASE("Camera projection contract: center point projects to viewport centre") {
     Camera2_5D cam;
@@ -176,16 +184,9 @@ TEST_CASE("Camera projection contract: focal_from_camera matches legacy focal_le
 
 // ============================================================================
 // AE-CameraContract acceptance tests
-// ----------------------------------------------------------------------------
-// These cases gate the `feat(camera): establish AE-compatible camera contract`
-// block.  Each case corresponds to one Definition-of-Done in the spec.
 // ============================================================================
 
 TEST_CASE("AE-CameraContract: PhysicalLens mode changes perspective even with DoF disabled") {
-    // AE rule: lens (focal length + film size) drives Zoom/FOV independently
-    // of the DoF toggle.  A wide-angle 24mm lens must give a wider FOV than
-    // a 135mm telephoto even when dof.enabled is false and
-    // use_physical_model is also false.
     Camera2_5D wide;
     wide.enabled     = true;
     wide.optics_mode = CameraOpticsMode::PhysicalLens;
@@ -204,15 +205,12 @@ TEST_CASE("AE-CameraContract: PhysicalLens mode changes perspective even with Do
 
     const f32 wide_focal = camera_math::focal_from_camera(wide, 1920.0f, 1080.0f);
     const f32 tele_focal = camera_math::focal_from_camera(tele, 1920.0f, 1080.0f);
-    CHECK(wide_focal < tele_focal);  // wide-angle => smaller pixel-focal
+    CHECK(wide_focal < tele_focal);
 
-    // And the same wide lens with DoF fully disabled must NOT collapse
-    // back to camera.zoom — the lens is the source of truth.
     CHECK(wide_focal != doctest::Approx(wide.zoom).epsilon(0.01f));
 }
 
 TEST_CASE("AE-CameraContract: LockToZoom pins focus_distance to zoom") {
-    TransformResolverResult empty_resolver;  // no external deps needed
     CameraRig rig;
     rig.mode = CameraRigMode::TwoNode;
     rig.target.set(Vec3{0, 0, -1000});
@@ -222,21 +220,16 @@ TEST_CASE("AE-CameraContract: LockToZoom pins focus_distance to zoom") {
     rig.dof.focus_mode     = CameraFocusMode::LockToZoom;
     rig.dof.focus_distance.set(5000.0f);  // must be ignored
 
-    Camera2_5D cam = rig.evaluate(Frame{0}, &empty_resolver);
+    Camera2_5D cam = rig.evaluate(Frame{0});
     CHECK(cam.dof.focus_distance == doctest::Approx(750.0f).epsilon(1e-4f));
 }
 
 TEST_CASE("AE-CameraContract: OneNode ignores target_name and stays static when no animation") {
-    // Sanity: a OneNode rig with NO target_name and NO local animation
-    // must NOT be marked animated even if target_name is later added;
-    // however if target_name is set we DO treat the rig as time-
-    // dependent (conservative fallback) because the resolver resolution
-    // could change between frames.
     CameraRig rig;
     rig.mode = CameraRigMode::OneNode;
     rig.target.set(Vec3{0, 0, -1000});
     rig.orbit_radius.set(1000.0f);
-    rig.target_name = "";   // explicit: no external target reference
+    rig.target_name = "";
 
     Camera2_5D cam = rig.evaluate(Frame{0});
     CHECK_FALSE(cam.is_animated);
@@ -244,11 +237,9 @@ TEST_CASE("AE-CameraContract: OneNode ignores target_name and stays static when 
 }
 
 TEST_CASE("AE-CameraContract: OneNode with external parent is animated (conservative fallback)") {
-    SceneTransformRegistry reg;
     Transform3D parent;
     parent.position = {0, 0, 100};
-    reg.add_node("p", parent, false);
-    auto resolved = reg.resolve_all();
+    ResolvedSceneTransforms resolved = build_resolver({{"p", parent}});
 
     CameraRig rig;
     rig.mode = CameraRigMode::OneNode;
@@ -257,24 +248,16 @@ TEST_CASE("AE-CameraContract: OneNode with external parent is animated (conserva
     rig.orbit_radius.set(1000.0f);
 
     Camera2_5D cam = rig.evaluate(Frame{0}, &resolved);
-    CHECK(cam.is_animated);  // conservative: external dep forces cache invalidation
+    CHECK(cam.is_animated);
 }
 
 TEST_CASE("AE-CameraContract: resolve_look_at_orientation is stable across vertical traversal") {
-    // Move the target from y=-50 to y=+50 across the camera's optical axis
-    // (camera at z=-1000, target oscillates along the line perpendicular to
-    // the optical axis).  The quaternion must remain unit-norm and the
-    // forward direction must always point at the target (no 180° flip).
     const Vec3 camera_pos{0, 0, -1000};
     Camera2_5D cam;
     cam.position = camera_pos;
     cam.point_of_interest_enabled = true;
 
     auto forward_at = [](const Camera2_5D& cam) -> Vec3 {
-        // GLM view matrix from lookAtLH: column 2 is the camera-forward axis
-        // expressed in world coordinates (it equals normalize(target - eye)).
-        // We re-derive it directly from the camera state to test that the
-        // canonical quaternion path never inverts this direction.
         const Mat4 vm = cam.view_matrix();
         return glm::normalize(Vec3{vm[0][2], vm[1][2], vm[2][2]});
     };
@@ -283,16 +266,11 @@ TEST_CASE("AE-CameraContract: resolve_look_at_orientation is stable across verti
         cam.point_of_interest = Vec3{0, target_y, 0};
         const Quat q     = cam.resolve_look_at_orientation();
         const f32  qnorm = std::sqrt(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w);
-        // Contract: canonical chain must produce a unit quaternion for
-        // every near-axial target.  No zero quat, no 180° flip, no NaN.
         CHECK(qnorm == doctest::Approx(1.0f).epsilon(1e-4f));
 
         const Vec3 fwd = forward_at(cam);
         const Vec3 to_target = glm::normalize(cam.point_of_interest - cam.position);
         const float dot = glm::dot(fwd, to_target);
-        // Camera-forward must always be aligned with (target - position).
-        // Bit-exact at 1.0 within 1e-3 because the basis construction
-        // is deterministic (no GLM internal cross products).
         CHECK(dot == doctest::Approx(1.0f).epsilon(1e-3f));
         CHECK_FALSE(std::isnan(fwd.x));
         CHECK_FALSE(std::isnan(fwd.y));
@@ -302,16 +280,14 @@ TEST_CASE("AE-CameraContract: resolve_look_at_orientation is stable across verti
 }
 
 TEST_CASE("AE-CameraContract: evaluate() is deterministic in pose and pixels") {
-    // Same inputs -> same outputs.  No wall-clock jitter; deterministic
-    // bit pattern.
-    SceneTransformRegistry reg;
     Transform3D subject;
     subject.position = {100.0f, 50.0f, -1500.0f};
-    reg.add_node("subject", subject, false);
     Transform3D parent;
     parent.position = {0.0f, 0.0f, 0.0f};
-    reg.add_node("parent", parent, false);
-    auto resolved = reg.resolve_all();
+    ResolvedSceneTransforms resolved = build_resolver({
+        {"subject", subject},
+        {"parent",  parent},
+    });
 
     CameraRig rig;
     rig.mode = CameraRigMode::TwoNode;
@@ -329,8 +305,6 @@ TEST_CASE("AE-CameraContract: evaluate() is deterministic in pose and pixels") {
     CHECK(a.position == b.position);
     CHECK(a.point_of_interest == b.point_of_interest);
     CHECK(a.zoom == doctest::Approx(b.zoom));
-    // TargetLayer mode: focus_distance should be camera -> subject distance
-    // (~1200 from orbit_radius) — NOT 99999 from the manual field.
     CHECK(a.dof.focus_distance == doctest::Approx(1200.0f).epsilon(1e-3f));
     CHECK(a.dof.focus_distance != doctest::Approx(99999.0f).epsilon(1e-3f));
 

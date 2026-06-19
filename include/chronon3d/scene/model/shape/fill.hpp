@@ -37,8 +37,8 @@ struct Fill {
 
     static Fill linear(Vec2 from, Vec2 to, std::vector<GradientStop> stops) {
         Fill f;
-        f.type = FillType::LinearGradient;
-        f.gradient.type  = FillType::LinearGradient;
+        f.set_type(FillType::LinearGradient;
+        f.gradient.set_type(FillType::LinearGradient;
         f.gradient.from  = from;
         f.gradient.to    = to;
         f.gradient.stops = std::move(stops);
@@ -47,8 +47,8 @@ struct Fill {
 
     static Fill radial(Vec2 center, f32 radius_norm, std::vector<GradientStop> stops) {
         Fill f;
-        f.type = FillType::RadialGradient;
-        f.gradient.type  = FillType::RadialGradient;
+        f.set_type(FillType::RadialGradient;
+        f.gradient.set_type(FillType::RadialGradient;
         f.gradient.from  = center;
         f.gradient.to    = {center.x + radius_norm, center.y};
         f.gradient.stops = std::move(stops);
@@ -57,8 +57,8 @@ struct Fill {
 
     static Fill conic(Vec2 center, f32 angle_rad, std::vector<GradientStop> stops) {
         Fill f;
-        f.type = FillType::ConicGradient;
-        f.gradient.type  = FillType::ConicGradient;
+        f.set_type(FillType::ConicGradient;
+        f.gradient.set_type(FillType::ConicGradient;
         f.gradient.from  = center;
         f.gradient.to    = {center.x + std::cos(angle_rad), center.y + std::sin(angle_rad)};
         f.gradient.stops = std::move(stops);

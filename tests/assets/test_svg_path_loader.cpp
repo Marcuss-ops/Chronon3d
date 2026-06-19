@@ -9,45 +9,45 @@ TEST_CASE("SVG path parser supports M L Z") {
     auto res = parse_svg_path_data("M 0 0 L 100 0 L 100 100 Z");
 
     REQUIRE(res.ok);
-    REQUIRE(res.path.commands.size() == 4);
-    CHECK(res.path.commands[0].type == PathCommandType::MoveTo);
-    CHECK(res.path.commands[1].type == PathCommandType::LineTo);
-    CHECK(res.path.commands[2].type == PathCommandType::LineTo);
-    CHECK(res.path.commands[3].type == PathCommandType::Close);
-    CHECK(res.path.closed);
+    REQUIRE(res.path().commands.size() == 4);
+    CHECK(res.path().commands[0].type() == PathCommandType::MoveTo);
+    CHECK(res.path().commands[1].type() == PathCommandType::LineTo);
+    CHECK(res.path().commands[2].type() == PathCommandType::LineTo);
+    CHECK(res.path().commands[3].type() == PathCommandType::Close);
+    CHECK(res.path().closed);
 }
 
 TEST_CASE("SVG path parser supports H and V") {
     auto res = parse_svg_path_data("M 10 20 H 50 V 80");
 
     REQUIRE(res.ok);
-    REQUIRE(res.path.commands.size() == 3);
-    CHECK(res.path.commands[1].p0.x == doctest::Approx(50.0f));
-    CHECK(res.path.commands[1].p0.y == doctest::Approx(20.0f));
-    CHECK(res.path.commands[2].p0.x == doctest::Approx(50.0f));
-    CHECK(res.path.commands[2].p0.y == doctest::Approx(80.0f));
+    REQUIRE(res.path().commands.size() == 3);
+    CHECK(res.path().commands[1].p0.x == doctest::Approx(50.0f));
+    CHECK(res.path().commands[1].p0.y == doctest::Approx(20.0f));
+    CHECK(res.path().commands[2].p0.x == doctest::Approx(50.0f));
+    CHECK(res.path().commands[2].p0.y == doctest::Approx(80.0f));
 }
 
 TEST_CASE("SVG path parser supports cubic and quadratic curves") {
     auto res = parse_svg_path_data("M 0 0 C 10 0 20 10 30 30 Q 40 40 50 50");
 
     REQUIRE(res.ok);
-    REQUIRE(res.path.commands.size() == 3);
-    CHECK(res.path.commands[1].type == PathCommandType::CubicTo);
-    CHECK(res.path.commands[2].type == PathCommandType::QuadraticTo);
+    REQUIRE(res.path().commands.size() == 3);
+    CHECK(res.path().commands[1].type() == PathCommandType::CubicTo);
+    CHECK(res.path().commands[2].type() == PathCommandType::QuadraticTo);
 }
 
 TEST_CASE("SVG path parser supports relative commands") {
     auto res = parse_svg_path_data("M 10 10 l 5 0 v 5 h -5 z");
 
     REQUIRE(res.ok);
-    REQUIRE(res.path.commands.size() == 5);
-    CHECK(res.path.commands[1].p0.x == doctest::Approx(15.0f));
-    CHECK(res.path.commands[1].p0.y == doctest::Approx(10.0f));
-    CHECK(res.path.commands[2].p0.x == doctest::Approx(15.0f));
-    CHECK(res.path.commands[2].p0.y == doctest::Approx(15.0f));
-    CHECK(res.path.commands[3].p0.x == doctest::Approx(10.0f));
-    CHECK(res.path.commands[3].p0.y == doctest::Approx(15.0f));
+    REQUIRE(res.path().commands.size() == 5);
+    CHECK(res.path().commands[1].p0.x == doctest::Approx(15.0f));
+    CHECK(res.path().commands[1].p0.y == doctest::Approx(10.0f));
+    CHECK(res.path().commands[2].p0.x == doctest::Approx(15.0f));
+    CHECK(res.path().commands[2].p0.y == doctest::Approx(15.0f));
+    CHECK(res.path().commands[3].p0.x == doctest::Approx(10.0f));
+    CHECK(res.path().commands[3].p0.y == doctest::Approx(15.0f));
 }
 
 TEST_CASE("SVG path parser rejects unsupported commands") {
@@ -72,8 +72,8 @@ TEST_CASE("SVG path loader parses a minimal SVG file") {
     std::remove(filename.c_str());
 
     REQUIRE(res.ok);
-    REQUIRE(res.path.commands.size() == 3);
-    CHECK(res.path.commands[0].type == PathCommandType::MoveTo);
-    CHECK(res.path.commands[1].type == PathCommandType::LineTo);
-    CHECK(res.path.commands[2].type == PathCommandType::Close);
+    REQUIRE(res.path().commands.size() == 3);
+    CHECK(res.path().commands[0].type() == PathCommandType::MoveTo);
+    CHECK(res.path().commands[1].type() == PathCommandType::LineTo);
+    CHECK(res.path().commands[2].type() == PathCommandType::Close);
 }

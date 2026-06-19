@@ -4,6 +4,7 @@
 #include <chronon3d/scene/camera/camera_projection.hpp>
 #include <chronon3d/scene/camera/camera_framing.hpp>
 #include <chronon3d/scene/camera/camera_path_sampler.hpp>
+#include <chronon3d/scene/model/core/hierarchy_resolver.hpp>  // ResolvedSceneTransforms
 #include <chronon3d/math/color.hpp>
 #include <fstream>
 #include <nlohmann/json.hpp>
@@ -35,17 +36,19 @@ Scene camera_test_orchestrator(
     Scene scene = s.build();
     scene.resolve_hierarchy(ctx.frame);
 
-    // Build transform resolver result directly from the already-resolved scene layer world transforms to avoid double parenting
-    TransformResolverResult resolved;
+    // Build ResolvedSceneTransforms directly from the already-resolved scene layer
+    // world transforms to avoid double parenting.  ResolvedSceneTransforms is the
+    // canonical name-keyed value type produced by HierarchyResolver.
+    ResolvedSceneTransforms resolved;
     for (const auto& layer : scene.layers()) {
-        ResolvedTransform3D r3d;
-        r3d.world_matrix = layer.transform.to_mat4();
-        r3d.local.position = layer.transform.position;
-        r3d.local.rotation = glm::degrees(glm::eulerAngles(layer.transform.rotation));
-        r3d.local.scale = layer.transform.scale;
-        r3d.local.anchor = layer.transform.anchor;
-        resolved.resolved[std::string(layer.name)] = r3d;
+        resolved.insert(std::string(layer.name), layer.transform.to_mat4());
     }
+    // Helper: lookup world position by name (returns origin if missing).
+    auto look_up = [&](const std::string& n) -> Vec3 {
+        auto m = resolved.world_matrix(n);
+        if (!m) return Vec3{0.0f, 0.0f, 0.0f};
+        return Vec3((*m)[3]);
+    };
 
     // Evaluate camera rig from profile
     Camera2_5D cam = shot.rig.evaluate(ctx.frame, &resolved);
@@ -98,12 +101,13 @@ Scene camera_test_orchestrator(
         auto compute_dolly_fov_error = [&](float f_a, float b_a) -> float {
             Mat4 v = get_camera_view_matrix(cam);
             float d_front = 0.0f, d_back = 0.0f;
-            for (const auto& pair : resolved.resolved) {
-                Vec3 wp(pair.second.world_matrix[3]);
+            for (std::size_t i = 0; i < resolved.size(); ++i) {
+                Vec3 wp = look_up(resolved.name_at(i));
                 Vec4 vp = v * Vec4(wp, 1.0f);
                 float d = std::abs(vp.z);
-                if (pair.first == "card_front") d_front = d;
-                else if (pair.first == "card_back") d_back = d;
+                const std::string& nm = resolved.name_at(i);
+                if (nm == "card_front") d_front = d;
+                else if (nm == "card_back") d_back = d;
             }
             if (d_front > 1.0f && d_back > 1.0f && f_a > 1.0f && b_a > 1.0f) {
                 float orig_front = 300.0f * 190.0f;
@@ -338,13 +342,14 @@ Scene camera_test_orchestrator(
 
             Mat4 view = get_camera_view_matrix(cam);
             float depth_front = 0.0f, depth_mid = 0.0f, depth_back = 0.0f;
-            for (const auto& pair : resolved.resolved) {
-                Vec3 world_pos(pair.second.world_matrix[3]);
+            for (std::size_t i = 0; i < resolved.size(); ++i) {
+                Vec3 world_pos = look_up(resolved.name_at(i));
                 Vec4 view_pos = view * Vec4(world_pos, 1.0f);
                 float d = std::abs(view_pos.z);
-                if (pair.first == "card_front") depth_front = d;
-                else if (pair.first == "card_mid") depth_mid = d;
-                else if (pair.first == "card_back") depth_back = d;
+                const std::string& nm = resolved.name_at(i);
+                if (nm == "card_front") depth_front = d;
+                else if (nm == "card_mid") depth_mid = d;
+                else if (nm == "card_back") depth_back = d;
             }
 
             float fov_rad = glm::radians(cam.fov_deg);
@@ -556,15 +561,16 @@ Scene camera_test_orchestrator(
             // More accurate than dot-product with forward vector for orbit cameras
             Mat4 view = get_camera_view_matrix(cam);
             float z_near = 0.0f, z_far = 0.0f, z_center = 0.0f, z_fg = 0.0f, z_midfar = 0.0f;
-            for (const auto& pair : resolved.resolved) {
-                Vec3 world_pos(pair.second.world_matrix[3]);
+            for (std::size_t i = 0; i < resolved.size(); ++i) {
+                Vec3 world_pos = look_up(resolved.name_at(i));
                 Vec4 view_pos = view * Vec4(world_pos, 1.0f);
                 float depth = std::abs(view_pos.z);
-                if (pair.first == "depth_near") z_near = depth;
-                else if (pair.first == "depth_far") z_far = depth;
-                else if (pair.first == "depth_center") z_center = depth;
-                else if (pair.first == "depth_foreground") z_fg = depth;
-                else if (pair.first == "depth_mid_far") z_midfar = depth;
+                const std::string& nm = resolved.name_at(i);
+                if (nm == "depth_near") z_near = depth;
+                else if (nm == "depth_far") z_far = depth;
+                else if (nm == "depth_center") z_center = depth;
+                else if (nm == "depth_foreground") z_fg = depth;
+                else if (nm == "depth_mid_far") z_midfar = depth;
             }
 
             metrics["camera_z"] = static_cast<double>(cam.position.z);
@@ -657,9 +663,9 @@ Scene camera_test_orchestrator(
             for (const auto& lr : report.layers) {
                 if (lr.name.rfind("depth_", 0) == 0) {
                     float z_depth = 0.0f;
-                    for (const auto& pair : resolved.resolved) {
-                        if (pair.first == lr.name) {
-                            z_depth = pair.second.world_matrix[3][2];
+                    for (std::size_t i = 0; i < resolved.size(); ++i) {
+                        if (resolved.name_at(i) == lr.name) {
+                            z_depth = resolved.resolved(i).world_matrix[3][2];
                             break;
                         }
                     }

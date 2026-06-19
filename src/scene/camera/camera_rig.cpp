@@ -8,7 +8,7 @@ namespace chronon3d {
 // ── evaluate(Frame) wrapper (was inline in header) ───────────────────────
 Camera2_5D CameraRig::evaluate(
     Frame frame,
-    const TransformResolverResult* resolved
+    const ResolvedSceneTransforms* resolved
 ) const {
     return evaluate(SampleTime::from_frame_int(frame, FrameRate{30, 1}), resolved);
 }
@@ -27,7 +27,7 @@ static Vec3 orbit_offset(f32 yaw_deg, f32 pitch_deg, f32 radius) {
 // ── Sub-frame evaluation (primary implementation) ────────────────────────
 Camera2_5D CameraRig::evaluate(
     SampleTime time,
-    const TransformResolverResult* resolved
+    const ResolvedSceneTransforms* resolved
 ) const {
     Camera2_5D cam;
     cam.enabled = true;
@@ -216,7 +216,7 @@ namespace camera_rig {
 Camera2_5D CameraRig::bake(
     Frame frame,
     std::pmr::memory_resource* res,
-    [[maybe_unused]] const TransformResolverResult* resolved
+    [[maybe_unused]] const ResolvedSceneTransforms* resolved
 ) const {
     Camera2_5D cam;
     cam.enabled                   = enabled;

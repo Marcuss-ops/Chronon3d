@@ -188,7 +188,7 @@ void draw_motion_object_impl(
         return;
     }
 
-    if (obj.type == MotionObjectType::Group) {
+    if (obj.type() == MotionObjectType::Group) {
         const std::string child_prefix = prefix_name(prefix, obj.id);
         for (const auto& child : obj.children) {
             draw_motion_object_impl(s, ctx, child, st, enable_3d, child_prefix);
