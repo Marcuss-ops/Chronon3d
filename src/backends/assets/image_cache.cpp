@@ -1,19 +1,18 @@
 #include <chronon3d/backends/assets/image_cache.hpp>
-#include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/simd/kernels.hpp>
 #include <spdlog/spdlog.h>
 #include <cstdlib>
+#include <mutex>
 #include <thread>
 
 namespace chronon3d {
 
 namespace {
 
-size_t resolve_image_cache_capacity(size_t fallback) {
-    auto max_bytes = Config::get().cache().image_cache_max_bytes();
-    return max_bytes > 0 ? max_bytes : fallback;
-}
+    // Injected capacity — set once at startup by SoftwareRenderer.
+    size_t      s_image_cache_capacity = 0;
+    std::once_flag s_image_cache_capacity_flag;
 
 } // namespace
 
@@ -23,8 +22,21 @@ void ImageCache::preload_async(const std::string& path) {
     }).detach();
 }
 
+void ImageCache::set_capacity_bytes(size_t capacity_bytes) {
+    std::call_once(s_image_cache_capacity_flag, [&] {
+        s_image_cache_capacity = capacity_bytes;
+    });
+}
+
+static size_t resolve_injected_capacity() {
+    // Hardcoded fallback (512 MiB) when no capacity has been injected and
+    // set_capacity_bytes() hasn't been called yet.
+    constexpr size_t kFallback = 512ULL * 1024ULL * 1024ULL;
+    return s_image_cache_capacity > 0 ? s_image_cache_capacity : kFallback;
+}
+
 ImageCache::ImageCache()
-    : m_cache(resolve_image_cache_capacity(512ULL * 1024ULL * 1024ULL)) {}
+    : m_cache(resolve_injected_capacity()) {}
 
 const CachedImage* ImageCache::get_or_load(const std::string& path) {
     auto shared = get_or_load_shared(path);

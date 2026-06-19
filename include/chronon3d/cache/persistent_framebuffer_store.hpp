@@ -109,6 +109,11 @@ public:
     [[nodiscard]] static bool enabled_for_current_run();
 
     // ── Configuration ─────────────────────────────────────────────────
+
+    /// Set the persistent store configuration (called once at startup by
+    /// SoftwareRenderer).  Must be called before first use.
+    static void set_store_config(bool disabled, std::string cache_dir);
+
     void set_cache_dir(const std::filesystem::path& path);
     [[nodiscard]] std::filesystem::path cache_dir() const;
 
