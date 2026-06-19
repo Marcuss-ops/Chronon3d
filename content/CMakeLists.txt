@@ -57,6 +57,7 @@ add_library(chronon3d_content STATIC
 target_include_directories(chronon3d_content PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(chronon3d_content
     PUBLIC chronon3d
+    PRIVATE chronon3d_extension
 )
 
 # ==============================================================================

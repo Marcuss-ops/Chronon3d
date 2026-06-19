@@ -5,8 +5,7 @@
 #include <spdlog/spdlog.h>
 
 #if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_2D5)
-#include <content/register_content_modules.hpp>
-using namespace chronon3d;
+#include "content/register_content_modules.hpp"
 #endif
 
 int main(int argc, char** argv) {
@@ -14,6 +13,8 @@ int main(int argc, char** argv) {
     context.applyCommandLine(argc, argv);
 
 #if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_2D5)
+    // register_content_modules() registers the ContentExtension module
+    // in ExtensionRegistry and calls register_all() to activate it.
     chronon3d::register_content_modules();
 #endif
 

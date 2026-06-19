@@ -182,13 +182,16 @@ add_library(chronon3d_graph_pipeline STATIC
     pipeline/register_pipeline_nodes.cpp
 )
 set_target_properties(chronon3d_graph_pipeline PROPERTIES UNITY_BUILD OFF)
-target_link_libraries(chronon3d_graph_pipeline PUBLIC
-    chronon3d_graph_core
-    chronon3d_graph_builder
-    chronon3d_graph_executor
-    chronon3d_graph_compiler
-    chronon3d_graph_preflight
-    chronon3d_graph_cache
+target_link_libraries(chronon3d_graph_pipeline
+    PUBLIC
+        chronon3d_graph_core
+        chronon3d_graph_builder
+        chronon3d_graph_executor
+        chronon3d_graph_compiler
+        chronon3d_graph_preflight
+        chronon3d_graph_cache
+    PRIVATE
+        chronon3d_extension
 )
 target_precompile_headers(chronon3d_graph_pipeline PRIVATE
     <glm/glm.hpp>
