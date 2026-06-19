@@ -18,6 +18,10 @@ using namespace chronon3d::cache;
 
 namespace {
 
+// One 1920×1080 RGBA framebuffer: 1920*1080*sizeof(Color=16 bytes) = 33,177,600 bytes.
+// (m_allocated_width ≡ width because 1920*16 = 30720 is cache-line aligned).
+constexpr size_t kFrameWeight = 1920 * 1080 * sizeof(Color);
+
 FrameCacheKey make_test_key(std::string composition_id, i32 frame) {
     FrameCacheKey k;
     k.composition_id = std::move(composition_id);
@@ -46,7 +50,7 @@ TEST_CASE("FrameCache default constructor uses Config-driven cap") {
 }
 
 TEST_CASE("FrameCache find() returns nullptr on miss and shared_ptr on hit") {
-    FrameCache cache(8, /*num_shards=*/1);
+    FrameCache cache(8 * kFrameWeight, /*num_shards=*/1);
     auto key = make_test_key("Composition_A", 0);
 
     CHECK(cache.find(key) == nullptr);
@@ -63,7 +67,7 @@ TEST_CASE("FrameCache find() returns nullptr on miss and shared_ptr on hit") {
 }
 
 TEST_CASE("FrameCache erase() removes only the specified entry") {
-    FrameCache cache(/*cap=*/8, /*num_shards=*/1);
+    FrameCache cache(/*cap=*/8 * kFrameWeight, /*num_shards=*/1);
     auto k0 = make_test_key("Composition_A", 0);
     auto k1 = make_test_key("Composition_A", 1);
 
@@ -78,9 +82,9 @@ TEST_CASE("FrameCache erase() removes only the specified entry") {
     CHECK(!cache.erase(k0));
 }
 
-TEST_CASE("FrameCache count-mode LRU evicts oldest entries when over capacity") {
+TEST_CASE("FrameCache byte-weighted LRU evicts oldest entries when over capacity") {
     constexpr size_t kCap = 4;
-    FrameCache cache(kCap, /*num_shards=*/1);
+    FrameCache cache(kCap * kFrameWeight, /*num_shards=*/1);
 
     // Fill to capacity.
     for (int i = 0; i < static_cast<int>(kCap); ++i) {
@@ -99,7 +103,7 @@ TEST_CASE("FrameCache count-mode LRU evicts oldest entries when over capacity") 
 }
 
 TEST_CASE("FrameCache clear() empties the cache and resets the lock-on-miss plumbing") {
-    FrameCache cache(8, /*num_shards=*/1);
+    FrameCache cache(8 * kFrameWeight, /*num_shards=*/1);
     cache.store(make_test_key("Composition_A", 0), make_synthetic_fb());
     cache.store(make_test_key("Composition_A", 1), make_synthetic_fb());
     REQUIRE(cache.size() == 2);
@@ -111,7 +115,7 @@ TEST_CASE("FrameCache clear() empties the cache and resets the lock-on-miss plum
 
 TEST_CASE("FrameCache find() promotes the entry to MRU so eviction skips it") {
     constexpr size_t kCap = 3;
-    FrameCache cache(kCap, 1);
+    FrameCache cache(kCap * kFrameWeight, 1);
 
     auto k0 = make_test_key("A", 0);
     auto k1 = make_test_key("A", 1);
