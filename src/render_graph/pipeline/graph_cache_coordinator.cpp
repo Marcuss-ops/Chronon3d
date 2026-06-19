@@ -39,8 +39,12 @@ namespace chronon3d::graph {
     pre_resolved.camera = resolved.camera;
 
     // Build pipeline catalogs once (function-local static — thread-safe
-    // in C++11).  Freezes graph_nodes, effects, and extensions.
-    static PipelineCatalogs s_catalogs = make_builtin_pipeline_catalogs();
+    // in C++11).  Populates graph_nodes + effects only (no compositions).
+    static PipelineCatalogs s_catalogs = []() {
+        PipelineCatalogs c;
+        init_graph_pipeline_catalogs(c);
+        return c;
+    }();
 
     // Wire catalog pointers + precomp build factory into context.
     wire_precomp_build_factory(mutable_ctx, s_catalogs);

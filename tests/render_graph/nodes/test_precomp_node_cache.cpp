@@ -377,7 +377,7 @@ TEST_CASE("precomp_cache: end-to-end via SoftwareRenderer does not crash") {
     // Verify that the cached PrecompNode works correctly within the full
     // render pipeline (SoftwareRenderer::render_frame).
     CompositionRegistry registry;
-    registry.add("inner", []() {
+    registry.add("inner", [](const CompositionProps&) {
         return Composition(
             CompositionSpec{.name="inner", .width=80, .height=80, .duration=Frame{60}},
             [](const FrameContext& ctx) -> Scene {

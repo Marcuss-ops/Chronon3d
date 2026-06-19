@@ -1,4 +1,4 @@
-#include <chronon3d/core/composition/composition_registration.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
@@ -122,38 +122,38 @@ Composition rack_focus_title_swap();
 Composition abyss_freefall_stagger();
 
 // ── Per-domain registration ──────────────────────────────────────────────────
-void register_anim_compositions() {
+void register_anim_compositions(CompositionRegistry& registry) {
     static bool done = false;
     if (done) return;
     done = true;
-    detail::add_builtin_composition("AnimFadeInText",          anim_fade_in_text);
-    detail::add_builtin_composition("AnimSlideText",           anim_slide_text);
-    detail::add_builtin_composition("AnimScaleText",           anim_scale_text);
-    detail::add_builtin_composition("AnimTypewriter",          anim_typewriter);
-    detail::add_builtin_composition("AnimSlideUp",             anim_slide_up);
-    detail::add_builtin_composition("AnimScalePop",            anim_scale_pop);
-    detail::add_builtin_composition("AnimBlurFocus",           anim_blur_focus);
-    detail::add_builtin_composition("AnimSlideLeft",           anim_slide_left);
-    detail::add_builtin_composition("AnimBounceDrop",          anim_bounce_drop);
-    detail::add_builtin_composition("AnimTypewriterSimple",    anim_typewriter_simple);
-    detail::add_builtin_composition("AnimTypewriterCursor",    anim_typewriter_cursor);
-    detail::add_builtin_composition("AnimTypewriterSlide",     anim_typewriter_slide);
-    detail::add_builtin_composition("AnimTypewriterGlow",      anim_typewriter_glow);
-    detail::add_builtin_composition("AnimTypewriterStagger",   anim_typewriter_stagger);
-    detail::add_builtin_composition("CatmullRomShowcase",      catmull_rom_showcase);
-    detail::add_builtin_composition("DollyZoomShowcase",       dolly_zoom_showcase);
+    registry.add("AnimFadeInText", [](const CompositionProps&) { return anim_fade_in_text(); });
+    registry.add("AnimSlideText", [](const CompositionProps&) { return anim_slide_text(); });
+    registry.add("AnimScaleText", [](const CompositionProps&) { return anim_scale_text(); });
+    registry.add("AnimTypewriter", [](const CompositionProps&) { return anim_typewriter(); });
+    registry.add("AnimSlideUp", [](const CompositionProps&) { return anim_slide_up(); });
+    registry.add("AnimScalePop", [](const CompositionProps&) { return anim_scale_pop(); });
+    registry.add("AnimBlurFocus", [](const CompositionProps&) { return anim_blur_focus(); });
+    registry.add("AnimSlideLeft", [](const CompositionProps&) { return anim_slide_left(); });
+    registry.add("AnimBounceDrop", [](const CompositionProps&) { return anim_bounce_drop(); });
+    registry.add("AnimTypewriterSimple", [](const CompositionProps&) { return anim_typewriter_simple(); });
+    registry.add("AnimTypewriterCursor", [](const CompositionProps&) { return anim_typewriter_cursor(); });
+    registry.add("AnimTypewriterSlide", [](const CompositionProps&) { return anim_typewriter_slide(); });
+    registry.add("AnimTypewriterGlow", [](const CompositionProps&) { return anim_typewriter_glow(); });
+    registry.add("AnimTypewriterStagger", [](const CompositionProps&) { return anim_typewriter_stagger(); });
+    registry.add("CatmullRomShowcase", [](const CompositionProps&) { return catmull_rom_showcase(); });
+    registry.add("DollyZoomShowcase", [](const CompositionProps&) { return dolly_zoom_showcase(); });
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
-    detail::add_builtin_composition("CameraSplineComparison",  camera_spline_comparison);
+    registry.add("CameraSplineComparison", [](const CompositionProps&) { return camera_spline_comparison(); });
 #endif
-    detail::add_builtin_composition("TiltSweepTitle",          tilt_sweep_title);
-    detail::add_builtin_composition("TiltSweepTitleV2",        tilt_sweep_title_v2);
+    registry.add("TiltSweepTitle", [](const CompositionProps&) { return tilt_sweep_title(); });
+    registry.add("TiltSweepTitleV2", [](const CompositionProps&) { return tilt_sweep_title_v2(); });
 
     // Cinematic text + camera compositions (5 new, see cinematic_text_camera.cpp).
-    detail::add_builtin_composition("DeepParallaxCascade",     deep_parallax_cascade);
-    detail::add_builtin_composition("WhipPanHeroReveal",       whip_pan_hero_reveal);
-    detail::add_builtin_composition("OrbitHandheldGlow",       orbit_handheld_glow);
-    detail::add_builtin_composition("RackFocusTitleSwap",      rack_focus_title_swap);
-    detail::add_builtin_composition("AbyssFreefallStagger",    abyss_freefall_stagger);
+    registry.add("DeepParallaxCascade", [](const CompositionProps&) { return deep_parallax_cascade(); });
+    registry.add("WhipPanHeroReveal", [](const CompositionProps&) { return whip_pan_hero_reveal(); });
+    registry.add("OrbitHandheldGlow", [](const CompositionProps&) { return orbit_handheld_glow(); });
+    registry.add("RackFocusTitleSwap", [](const CompositionProps&) { return rack_focus_title_swap(); });
+    registry.add("AbyssFreefallStagger", [](const CompositionProps&) { return abyss_freefall_stagger(); });
 }
 
 } // namespace chronon3d::content::anims

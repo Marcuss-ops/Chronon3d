@@ -160,7 +160,7 @@ std::vector<PreflightIssue> RenderPreflight::validate() const {
         }
     }
 
-    for (const auto& asset : AssetRegistry::instance().assets()) {
+    for (const auto& asset : AssetRegistry::current_assets()) {
         if (!std::filesystem::exists(asset.path)) {
             PreflightIssue issue;
             issue.severity = PreflightSeverity::Error;

@@ -3,31 +3,56 @@
 // ---------------------------------------------------------------------------
 // CLI Initialisation Hooks
 //
-// Clean separation between main.cpp entry point and library initialisation.
-// Each hook lives in its own header so main.cpp only includes what it needs
-// without dragging in internal content headers or other libraries.
+// PR 2: Explicit registration — compositions are added directly to the
+// CompositionRegistry via register_content_modules() and
+// register_builtin_compositions() which now take a registry reference.
+//
+// PR 4: AssetRegistry de-singletonized — thread-local pointer set
+// unconditionally so asset resolution works with or without content modules.
 // ---------------------------------------------------------------------------
+
+#include <chronon3d/assets/asset_registry.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/core/composition/register_builtin_compositions.hpp>
 
 #ifdef CHRONON3D_BUILD_CONTENT
 #include <content/register_content_modules.hpp>
 #include <chronon3d/extension/extension_catalog.hpp>
+#include <chronon3d/extension/extension_context.hpp>
+#include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
+#include <chronon3d/effects/effect_catalog.hpp>
 #endif
-#include <chronon3d/core/composition/register_builtin_compositions.hpp>
 
 namespace chronon3d::cli {
 
-/// Register built-in content compositions and scene/animation compositions.
-/// Must be called *before* CompositionRegistry is constructed so that
-/// compositions are available when populate() runs.
-/// Safe to call multiple times.
-inline void init_content_modules() {
+/// Returns the CLI-wide static AssetRegistry.  Created once, shared
+/// between init_compositions() and render_job_setup().
+inline AssetRegistry& cli_asset_registry() {
+    static AssetRegistry reg;
+    return reg;
+}
+
+/// Register built-in content compositions and built-in compositions
+/// into the given registry.  Safe to call multiple times.
+inline void init_compositions(CompositionRegistry& registry) {
+    // Set the thread-local registry so AssetRegistry::resolve()
+    // works for the entire CLI process lifetime — even when
+    // CHRONON3D_BUILD_CONTENT is not defined.
+    auto& assets = cli_asset_registry();
+    AssetRegistry::set_thread_local(assets);
+
 #ifdef CHRONON3D_BUILD_CONTENT
     static ExtensionCatalog content_catalog;
-    chronon3d::register_content_modules(content_catalog);
+    // Build a minimal ExtensionContext — only compositions is used here.
+    // graph_nodes, effects, assets are not needed for composition registration.
+    static graph::GraphNodeCatalog dummy_nodes;
+    static effects::EffectCatalog dummy_effects;
+    ExtensionContext ctx{registry, dummy_nodes, dummy_effects, assets};
+    chronon3d::register_content_modules(content_catalog, ctx);
 #endif
     // Register non-content built-in compositions (DarkGridBackground,
-    // GridCleanBackground, CameraImageClip).
-    chronon3d::register_builtin_compositions();
+    // CameraImageClip).
+    chronon3d::register_builtin_compositions(registry);
 }
 
 } // namespace chronon3d::cli

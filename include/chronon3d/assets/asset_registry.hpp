@@ -26,65 +26,107 @@ inline AssetId asset_id_from_path(const std::filesystem::path& path) {
 
 // ---------------------------------------------------------------------------
 // AssetRegistry -- central store for asset paths and metadata.
-// No file I/O here: the renderer/loader resolves assets on first use.
-// Calling import_image twice with the same path returns the same AssetId.
+//
+// PR 4 (de-singletonization):
+//   Removed `static AssetRegistry& instance()`.  The host (CLI, test runner)
+//   creates an AssetRegistry and sets it as the thread-local pointer via
+//   `AssetRegistry::set_thread_local(registry)` before any rendering.
+//
+//   `resolve()` remains a static method and reads from the thread-local
+//   pointer — this keeps the deep rendering code (text rasterizers, font
+//   engines) unchanged while respecting Rule 3 (no static global singletons).
+//
+//   Thread-local root (set_thread_local_root / clear_thread_local_root)
+//   is unchanged — per-composition asset roots still use this mechanism.
 // ---------------------------------------------------------------------------
 class AssetRegistry {
 public:
-    static AssetRegistry& instance() {
-        static AssetRegistry inst;
-        return inst;
+    // ── Thread-local pointer (replaces instance()) ──────────────────────
+    // Set by the host before any rendering or asset resolution.  resolve()
+    // and assets() read from this pointer.  If null, resolve() returns the
+    // path as-is and assets() returns an empty vector.
+
+    static AssetRegistry*& tls_registry_ptr() {
+        thread_local AssetRegistry* ptr = nullptr;
+        return ptr;
     }
+
+    /// Set the registry for the current thread.  Called by the host
+    /// at startup and before each render job.
+    static void set_thread_local(AssetRegistry& reg) {
+        tls_registry_ptr() = &reg;
+    }
+
+    /// Clear the thread-local registry pointer.
+    static void clear_thread_local() {
+        tls_registry_ptr() = nullptr;
+    }
+
+    /// Return the thread-local registry, or nullptr if none set.
+    static AssetRegistry* get_thread_local() {
+        return tls_registry_ptr();
+    }
+
+    // ── Construction ───────────────────────────────────────────────────
+
+    AssetRegistry() = default;
+    ~AssetRegistry() = default;
+    AssetRegistry(const AssetRegistry&) = delete;
+    AssetRegistry& operator=(const AssetRegistry&) = delete;
+
+    // ── Mount / clear (non-static) ─────────────────────────────────────
 
     /// Mount the global (default) assets root.  Used as a fallback when no
-    /// per-render-job AssetContext is active on the current thread.
-    static void mount(const std::filesystem::path& root_path) {
-        auto& inst = instance();
-        std::lock_guard<std::mutex> lock(inst.m_mutex);
-        inst.m_root_path = root_path;
+    /// per-render-job thread-local root is active.
+    void mount(const std::filesystem::path& root_path) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_root_path = root_path;
     }
 
+    void clear() {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_assets.clear();
+        m_by_id.clear();
+        m_root_path.clear();
+    }
+
+    // ── Per-thread assets root (static, unchanged) ─────────────────────
+
     /// Set the per-thread assets root for the current render job.
-    /// When set, resolve() prefers this root over the global singleton.
-    /// Call clear_thread_local_root() when the render job finishes.
+    /// When set, resolve() prefers this root over the registry's global root.
     static void set_thread_local_root(const std::filesystem::path& root) {
         tls_current_root() = root;
     }
 
-    /// Clear the per-thread assets root so future resolve() calls
-    /// fall back to the global singleton.
+    /// Clear the per-thread assets root.
     static void clear_thread_local_root() {
         tls_current_root().clear();
     }
 
-    static void clear() {
-        auto& inst = instance();
-        std::lock_guard<std::mutex> lock(inst.m_mutex);
-        inst.m_assets.clear();
-        inst.m_by_id.clear();
-        inst.m_root_path.clear();
-    }
+    // ── Resolve (static — reads from thread-local pointer + root) ──────
 
     static std::string resolve(const std::filesystem::path& relative_path) {
-        // Per-render-job thread-local root takes priority over global singleton.
+        // Per-render-job thread-local root takes priority.
         // Read TLS before acquiring the mutex — thread-local is inherently
         // thread-safe (only the owning thread can read/write its own copy).
         const auto& tls_root = tls_current_root();
-        auto& inst = instance();
-        std::lock_guard<std::mutex> lock(inst.m_mutex);
         if (relative_path.is_absolute()) {
             return relative_path.lexically_normal().string();
         }
         if (!tls_root.empty()) {
             return (tls_root / relative_path).lexically_normal().string();
         }
-        if (inst.m_root_path.empty()) {
-            return relative_path.lexically_normal().string();
+        AssetRegistry* reg = tls_registry_ptr();
+        if (reg) {
+            std::lock_guard<std::mutex> lock(reg->m_mutex);
+            if (!reg->m_root_path.empty()) {
+                return (reg->m_root_path / relative_path).lexically_normal().string();
+            }
         }
-        return (inst.m_root_path / relative_path).lexically_normal().string();
+        return relative_path.lexically_normal().string();
     }
 
-    // --- New API -----------------------------------------------------------
+    // ── Import (non-static) ────────────────────────────────────────────
 
     AssetId import_image(const std::filesystem::path& path) {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -106,8 +148,8 @@ public:
         return register_asset_unlocked(path, AssetType::Audio, ColorSpace::LinearSRGB, AlphaMode::None);
     }
 
-    /// Non-throwing metadata lookup.  Returns std::nullopt when the asset
-    /// is not registered — no exception, no crash.
+    // ── Metadata accessors (non-static) ────────────────────────────────
+
     [[nodiscard]] std::optional<AssetMetadata> try_metadata(AssetId id) const {
         std::lock_guard<std::mutex> lock(m_mutex);
         const auto it = m_by_id.find(id);
@@ -116,7 +158,6 @@ public:
         return m_assets[it->second];
     }
 
-    /// Explicit throwing accessor — use when the caller expects the id to exist.
     [[nodiscard]] AssetMetadata metadata_or_throw(AssetId id) const {
         auto meta = try_metadata(id);
         if (!meta)
@@ -124,9 +165,6 @@ public:
         return *meta;
     }
 
-    /// Throws std::out_of_range if the asset is unknown.
-    /// Prefer try_metadata() for non-throwing access, or metadata_or_throw()
-    /// when you explicitly want an exception on failure.
     [[nodiscard]] AssetMetadata metadata(AssetId id) const {
         return metadata_or_throw(id);
     }
@@ -148,19 +186,26 @@ public:
         return m_assets.size();
     }
 
+    // ── assets() — also available as static (reads thread-local) ───────
+
     [[nodiscard]] std::vector<AssetMetadata> assets() const {
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_assets;
     }
 
+    /// Static accessor for deep code that can't receive a reference.
+    /// Reads from the thread-local registry pointer.  Returns empty
+    /// vector if no registry is set on the current thread.
+    [[nodiscard]] static std::vector<AssetMetadata> current_assets() {
+        AssetRegistry* reg = tls_registry_ptr();
+        if (!reg) return {};
+        std::lock_guard<std::mutex> lock(reg->m_mutex);
+        return reg->m_assets;
+    }
+
     [[nodiscard]] std::string get_path(AssetId id) const {
         return metadata(id).path.string();
     }
-
-    AssetRegistry() = default;
-    ~AssetRegistry() = default;
-    AssetRegistry(const AssetRegistry&) = delete;
-    AssetRegistry& operator=(const AssetRegistry&) = delete;
 
 private:
 
@@ -214,21 +259,24 @@ private:
 //   // ... render ...
 //   AssetRegistry::clear_thread_local_root();
 
-// Free function asset() helper
+// Free function asset() helper — uses thread-local registry
 inline std::string asset(const std::string& path) {
     std::string resolved = AssetRegistry::resolve(path);
     std::filesystem::path p(resolved);
     std::string ext = p.extension().string();
     for (char& c : ext) c = static_cast<char>(std::tolower(c));
 
-    if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp") {
-        AssetRegistry::instance().import_image(resolved);
-    } else if (ext == ".ttf" || ext == ".otf") {
-        AssetRegistry::instance().import_font(resolved);
-    } else if (ext == ".mp4" || ext == ".mov" || ext == ".avi" || ext == ".mkv") {
-        AssetRegistry::instance().import_video(resolved);
-    } else if (ext == ".wav" || ext == ".mp3" || ext == ".ogg") {
-        AssetRegistry::instance().import_audio(resolved);
+    AssetRegistry* reg = AssetRegistry::get_thread_local();
+    if (reg) {
+        if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp") {
+            reg->import_image(resolved);
+        } else if (ext == ".ttf" || ext == ".otf") {
+            reg->import_font(resolved);
+        } else if (ext == ".mp4" || ext == ".mov" || ext == ".avi" || ext == ".mkv") {
+            reg->import_video(resolved);
+        } else if (ext == ".wav" || ext == ".mp3" || ext == ".ogg") {
+            reg->import_audio(resolved);
+        }
     }
     return resolved;
 }

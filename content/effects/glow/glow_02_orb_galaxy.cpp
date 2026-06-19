@@ -1,7 +1,7 @@
 // content/effects/glow_02_orb_galaxy.cpp
 // TEST 2 — Orb Galaxy: 7 colored orbs with different radii on starfield
 #include "../common/glow_test_common.hpp"
-#include <chronon3d/core/composition/composition_registration.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 
 namespace chronon3d::content::effects {
 
@@ -86,28 +86,28 @@ Composition y_rotation_text_test();
 #endif
 
 // ── Per-domain registration ──────────────────────────────────────────────────
-void register_effect_compositions() {
+void register_effect_compositions(CompositionRegistry& registry) {
     static bool done = false;
     if (done) return;
     done = true;
     // Product compositions
-    detail::add_builtin_composition("GlowOrbGalaxy",              glow_02_orb_galaxy);
-    detail::add_builtin_composition("GlowBasicWord",              glow_basic_word);
-    detail::add_builtin_composition("PremiumThumbnailButterySmooth", premium_thumbnail_buttery_smooth);
-    detail::add_builtin_composition("PremiumThumbnailSaaSBlue",   premium_thumbnail_saas_blue);
+    registry.add("GlowOrbGalaxy", [](const CompositionProps&) { return glow_02_orb_galaxy(); });
+    registry.add("GlowBasicWord", [](const CompositionProps&) { return glow_basic_word(); });
+    registry.add("PremiumThumbnailButterySmooth", [](const CompositionProps&) { return premium_thumbnail_buttery_smooth(); });
+    registry.add("PremiumThumbnailSaaSBlue", [](const CompositionProps&) { return premium_thumbnail_saas_blue(); });
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
     // Diagnostic compositions (A/B tests + 2.5D reference suite)
-    detail::add_builtin_composition("GlowSharpnessTest",          glow_sharpness_test);
-    detail::add_builtin_composition("GlowRadiusCompareTest",      glow_radius_compare_test);
-    detail::add_builtin_composition("GlowTypewriterRevealTest",   glow_typewriter_reveal_test);
-    detail::add_builtin_composition("GlowShadowBalanceTest",      glow_shadow_balance_test);
-    detail::add_builtin_composition("FloatingCardsTest",          floating_cards_test);
-    detail::add_builtin_composition("OrbitCameraTest",            orbit_camera_test);
-    detail::add_builtin_composition("DepthFogTest",               depth_fog_test);
-    detail::add_builtin_composition("ZStackParallaxTest",         z_stack_parallax_test);
-    detail::add_builtin_composition("ShadowGlowConsistencyTest",  shadow_glow_consistency_test);
-    detail::add_builtin_composition("ExtremePerspectiveTest",     extreme_perspective_test);
-    detail::add_builtin_composition("YRotationTextTest",          y_rotation_text_test);
+    registry.add("GlowSharpnessTest", [](const CompositionProps&) { return glow_sharpness_test(); });
+    registry.add("GlowRadiusCompareTest", [](const CompositionProps&) { return glow_radius_compare_test(); });
+    registry.add("GlowTypewriterRevealTest", [](const CompositionProps&) { return glow_typewriter_reveal_test(); });
+    registry.add("GlowShadowBalanceTest", [](const CompositionProps&) { return glow_shadow_balance_test(); });
+    registry.add("FloatingCardsTest", [](const CompositionProps&) { return floating_cards_test(); });
+    registry.add("OrbitCameraTest", [](const CompositionProps&) { return orbit_camera_test(); });
+    registry.add("DepthFogTest", [](const CompositionProps&) { return depth_fog_test(); });
+    registry.add("ZStackParallaxTest", [](const CompositionProps&) { return z_stack_parallax_test(); });
+    registry.add("ShadowGlowConsistencyTest", [](const CompositionProps&) { return shadow_glow_consistency_test(); });
+    registry.add("ExtremePerspectiveTest", [](const CompositionProps&) { return extreme_perspective_test(); });
+    registry.add("YRotationTextTest", [](const CompositionProps&) { return y_rotation_text_test(); });
 #endif
 }
 
