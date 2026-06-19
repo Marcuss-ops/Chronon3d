@@ -41,6 +41,7 @@ add_library(chronon3d_graph_nodes STATIC
     nodes/composite_node.cpp
     nodes/track_matte_node.cpp
     nodes/per_pixel_dof_node.cpp
+    nodes/precomp_node_execute.cpp
     nodes/transition/transition_node_math.cpp
     nodes/TextRunNode.cpp   # PR 3 (TextAnimator V2 batched text node)
 )
@@ -48,13 +49,15 @@ set_target_properties(chronon3d_graph_nodes PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_nodes
     PUBLIC
         chronon3d_graph_core
-        # PR 3: TextRunNode.hpp publicly references TextRunShape from
-        # chronon3d_text_core (forward-declared but requires the lib for
-        # the type-erased shared_ptr deleter instantiation on consumers).
         chronon3d_text_core
     PRIVATE
         fmt::fmt
         spdlog::spdlog_header_only
+        chronon3d_graph_builder
+        chronon3d_graph_compiler
+        chronon3d_graph_cache
+        chronon3d_graph_executor
+        chronon3d_graph_pipeline
 )
 target_precompile_headers(chronon3d_graph_nodes PRIVATE
     <glm/glm.hpp>
@@ -181,7 +184,6 @@ add_library(chronon3d_graph_pipeline STATIC
     pipeline/refresh/transform.cpp
     pipeline/debug.cpp
     pipeline/composition.cpp
-    pipeline/precomp_node_execute.cpp
     pipeline/register_pipeline_nodes.cpp
 )
 set_target_properties(chronon3d_graph_pipeline PROPERTIES UNITY_BUILD OFF)
