@@ -181,7 +181,15 @@ public:
     // qualifiers on m_keyframes and m_roving_dirty allow this.
     void compute_roving() const {
         if (!m_roving_dirty) return;
-        if (m_keyframes.size() < 3) { m_roving_dirty = false; return; }
+        if (m_keyframes.size() < 3) {
+            // Enforce: first and last keyframes cannot be roving.
+            if (!m_keyframes.empty()) {
+                m_keyframes.front().roving = false;
+                m_keyframes.back().roving = false;
+            }
+            m_roving_dirty = false;
+            return;
+        }
 
         // Auto-compute bezier tangents before roving (like AnimationCurve).
         compute_auto_beziers();
@@ -336,9 +344,8 @@ public:
         m_auto_bezier_dirty = false;
     }
 
-    // Set a constant value (clears all keyframes).
+    // Set a constant value (keeps existing keyframes; clears expression).
     AnimatedValue& set(const T& value) {
-        clear();
         m_default_value = value;
         m_expression.clear();
         return *this;

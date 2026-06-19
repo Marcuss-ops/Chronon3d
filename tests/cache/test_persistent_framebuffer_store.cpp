@@ -162,15 +162,16 @@ TEST_CASE("PersistentFramebufferStore - corrupted payload detected and deleted")
         f.close();
     }
 
-    // Load should fail with checksum mismatch → file deleted.
-    auto loaded = store.get(key);
-    CHECK(loaded == nullptr);
-
-    // Detailed load should report ChecksumMismatch.
+    // Detailed load should report ChecksumMismatch (call first — get()
+    // also calls load() and would delete the file before we can inspect).
     auto result = store.load(key);
     CHECK(result.status == StoreLoadStatus::ChecksumMismatch);
 
-    // File should be gone.
+    // Load via get() should also fail with nullptr.
+    auto loaded = store.get(key);
+    CHECK(loaded == nullptr);
+
+    // File should be gone after corruption detection.
     CHECK(!store.exists(key));
 
     store.clear();

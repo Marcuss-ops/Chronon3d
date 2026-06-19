@@ -30,7 +30,10 @@ TEST_CASE("VideoFrameCache default constructor uses Config-driven cap") {
 }
 
 TEST_CASE("VideoFrameCache stores and finds frames by digest (shared_ptr return)") {
-    VideoFrameCache cache(/*cap=*/32, /*num_shards=*/1);
+    // Cache operates in byte-weighted mode — use a byte-scale capacity.
+    // 1920×1080 YUV420P ≈ 3.1 MiB per frame.
+    constexpr size_t kCapBytes = 8ULL * 1024 * 1024;  // 8 MiB
+    VideoFrameCache cache(/*max_capacity_bytes=*/kCapBytes, /*num_shards=*/1);
     auto frame = std::make_shared<VideoFrame>(1920, 1080, VideoPixelFormat::YUV420P);
 
     VideoFrameKey key{
@@ -58,10 +61,14 @@ TEST_CASE("VideoFrameCache stores and finds frames by digest (shared_ptr return)
 }
 
 TEST_CASE("VideoFrameCache count-mode LRU eviction at capacity") {
-    constexpr size_t kCap = 3;
-    VideoFrameCache cache(kCap, 1);
+    // Cache operates in byte-weighted mode.  64×64 RGBA8 ≈ 16 KiB per frame.
+    // Use a small byte budget that fits 3 frames but evicts on the 4th.
+    constexpr size_t kCapFrames = 3;
+    constexpr size_t kFrameBytes = 64 * 64 * 4;  // 16 KiB
+    constexpr size_t kCapBytes = kCapFrames * kFrameBytes;
+    VideoFrameCache cache(/*max_capacity_bytes=*/kCapBytes, /*num_shards=*/1);
 
-    for (u64 i = 0; i < kCap; ++i) {
+    for (u64 i = 0; i < kCapFrames; ++i) {
         VideoFrameKey k{
             .composition_id = "Comp",
             .frame_index = i,
@@ -73,13 +80,13 @@ TEST_CASE("VideoFrameCache count-mode LRU eviction at capacity") {
         };
         cache.store(k, std::make_shared<VideoFrame>(64, 64, VideoPixelFormat::RGBA8));
     }
-    REQUIRE(cache.size() == kCap);
+    REQUIRE(cache.size() == kCapFrames);
     CHECK(cache.stats().evictions == 0);
 
     // 4th insert evicts frame_index 0 (LRU tail).
     VideoFrameKey evict_k{
         .composition_id = "Comp",
-        .frame_index = static_cast<u64>(kCap),
+        .frame_index = static_cast<u64>(kCapFrames),
         .width = 64,
         .height = 64,
         .format = VideoPixelFormat::RGBA8,
@@ -88,7 +95,7 @@ TEST_CASE("VideoFrameCache count-mode LRU eviction at capacity") {
     };
     cache.store(evict_k, std::make_shared<VideoFrame>(64, 64, VideoPixelFormat::RGBA8));
 
-    CHECK(cache.size() == kCap);
+    CHECK(cache.size() == kCapFrames);
     CHECK(cache.stats().evictions == 1);
 
     VideoFrameKey tail_k{
