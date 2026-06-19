@@ -211,7 +211,7 @@ struct TextRunSpec {
 // attribute surfaces this at the type level so callers see migration
 // guidance at every external use site.
 // ---------------------------------------------------------------------------
-[[deprecated("TextRunParams is deprecated; use TextRunSpec directly. Construct via TextRunSpec{...} designated initializers or read/write through .text.{content.value|font.*|layout.*|appearance.*|.position} / .direction / .language / .animators / .selectors / .cache_layout.")]]
+[[deprecated("TextRunParams is deprecated; use TextRunSpec directly. Construct via TextRunSpec{...} designated initializers or read/write through .text.content.value, .text.font.*, .text.layout.*, .text.appearance.*, .text.position, .direction, .language, .animators, .selectors, .cache_layout.")]
 using TextRunParams = TextRunSpec;
 
 struct ShadowStyle {

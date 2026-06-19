@@ -392,7 +392,7 @@ Layer LayerBuilder::build() {
             node.fill = Fill::solid_color(spec.spec.text.appearance.color);
 
             auto shape = materialize_text_run_shape(
-                spec.params, m_font_engine, local_time);
+                spec.spec, m_font_engine, local_time);
             if (shape) {
                 node.text_run_shape = std::move(shape);
             }
