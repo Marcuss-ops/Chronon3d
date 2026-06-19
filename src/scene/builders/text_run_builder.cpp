@@ -95,7 +95,10 @@ TextRunBuilder& TextRunBuilder::font_size(f32 v) {
     // parameter (no animator injection).  Setting the size also
     // invalidates the layout cache so the next commit re-shapes.
     m_spec->params.text.font.font_size = v;
-    m_cache_layout = false;  // force re-shape next commit
+    m_cache_layout = false;
+    // PR 2: sync immediately so observers reading `spec().cache_layout`
+    // (without calling `.commit()`) see the invalidated state.
+    m_spec->params.cache_layout = false;
     return *this;
 }
 
@@ -143,31 +146,42 @@ TextRunBuilder& TextRunBuilder::animator(TextAnimatorSpec spec) {
         m_pending_selectors.clear();
     }
     append_animator(std::move(spec));
+    // PR 3 — record anchor for selector-after-animator binding.
+    // Captured AFTER the push_back so the index is correct (push_back may
+    // reallocate; indexing into the up-to-date size is safe in the very
+    // next selector() call because nothing else mutates the vector size
+    // in between).
+    m_last_explicit_animator_idx = m_spec->params.animators.size() - 1;
+    m_has_explicit_animator = true;
     return *this;
 }
 
 TextRunBuilder& TextRunBuilder::selector(GlyphSelectorSpec spec) {
-    // Two valid chain patterns:
-    //
-    //  1. `.selector(s).animator(a)` — selector should bind to the upcoming
-    //     animator.  Queue to `m_pending_selectors`; consume on next
-    //     `.animator()`.
-    //
-    //  2. `.animator(a).selector(s)` or `.selector(s)` standalone — selector
-    //     stands alone.  Append its own (no-property) animator entry so the
-    //     chain length stays consistent with test-time expectations
-    //     (animators.size() matches the chain cardinality for stable
-    //     downstream assertions).
-    if (!m_pending_selectors.empty()) {
-        // Pattern #1 — still waiting to bind to the next `.animator()`.
+    // PR 3 selector binding rules (two-way dichotomy):
+    //  A. Selector-after-explicit-animator: if `.selector(s)` follows an
+    //     explicit `.animator(a)` (pending drained OR never filled) → append
+    //     `s` directly to that anchor animator's selector list.  No phantom
+    //     animator entry is created.  Covers `.animator(a).selector(s)` and
+    //     `.selector(s).animator(a).selector(t).animator(b)` (the second
+    //     selector binds to b).
+    //  B. Selector-first / standalone: otherwise (no recent explicit
+    //     `.animator(...)`) → queue into `m_pending_selectors` so the
+    //     upcoming `.animator(a)` can drain it and prepend to `a.selectors`.
+    //     Covers `.selector(s).animator(a)` (selector-first) and standalone
+    //     `.selector(s)` (waits forever if no `.animator(...)` follows;
+    //     pending selectors are silently dropped at materialization time
+    //     when the chain ends without an explicit animator, which is the
+    //     documented "no animator, no binding" outcome).
+    if (m_pending_selectors.empty() && m_has_explicit_animator) {
+        // Case A: append to the most recent explicit animator's selector list.
+        // `splitors[i]` never grows beyond what's inserted (selectors are the
+        // new ones from `.selector(...)` calls); safe to push_back here.
+        m_spec->params.animators[m_last_explicit_animator_idx]
+            .selectors.push_back(std::move(spec));
+    } else {
+        // Case B: queue for an upcoming `.animator(...)`.
         m_pending_selectors.push_back(std::move(spec));
-        return *this;
     }
-    TextAnimatorSpec entry;
-    entry.id = "__trb_selector_" + std::to_string(m_implicit_id_seq++);
-    entry.enabled = true;
-    entry.selectors = { std::move(spec) };
-    append_animator(std::move(entry));
     return *this;
 }
 
@@ -185,6 +199,9 @@ TextRunBuilder& TextRunBuilder::font_engine(FontEngine* engine) {
 
 TextRunBuilder& TextRunBuilder::cache_layout(bool value) {
     m_cache_layout = value;
+    // PR 2: sync to spec immediately so observers / auto-build can read
+    // the value without an explicit `.commit()` call.
+    m_spec->params.cache_layout = value;
     return *this;
 }
 
