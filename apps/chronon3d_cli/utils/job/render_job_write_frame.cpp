@@ -69,7 +69,7 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
     }
 
     const bool is_range = (range.start != range.end);
-    const std::string path = format_path(output_pattern, frame, is_range);
+    const std::string path = format_path(output_pattern, frame.as_i64(), is_range);
     const std::filesystem::path p(path);
     if (p.has_parent_path()) {
         std::filesystem::create_directories(p.parent_path());

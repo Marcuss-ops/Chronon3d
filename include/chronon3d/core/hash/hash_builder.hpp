@@ -19,6 +19,8 @@
 #include <type_traits>
 #include <xxhash.h>
 
+#include <chronon3d/core/types/frame.hpp>
+
 namespace chronon3d::core::hash {
 
 /// Fluent hash builder for cache-key digests.
@@ -40,11 +42,17 @@ public:
         return *this;
     }
 
-    /// Hash any integral type (int, i32, u64, size_t, Frame, etc.).
+    /// Hash any integral type (int, i32, u64, size_t, etc.).
     /// Enabled only for integral types to avoid accidental enum decay.
     template <std::integral T>
     HashBuilder& add(T value) {
         mix(static_cast<uint64_t>(value));
+        return *this;
+    }
+
+    /// Hash a Frame (strong type, not integral).
+    HashBuilder& add(Frame f) {
+        mix(static_cast<uint64_t>(f.value));
         return *this;
     }
 
