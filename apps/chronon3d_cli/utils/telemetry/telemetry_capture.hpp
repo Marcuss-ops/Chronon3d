@@ -2,7 +2,7 @@
 
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
-#include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
+#include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 
 #include <string>
 #include <vector>

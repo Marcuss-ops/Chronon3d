@@ -363,6 +363,7 @@ Layer LayerBuilder::build() {
     // back to the process-wide shared FontEngine.  Shaping failures
     // log warn-level and skip the entry (the layer otherwise renders
     // as a normal Layer — explicit empty-place behavior).
+#ifdef CHRONON3D_USE_BLEND2D
     if (!m_text_runs.empty()) {
         const SampleTime local_time = m_layer.local_time(m_current_time);
         std::pmr::memory_resource* res = m_layer.nodes.get_allocator().resource();
@@ -400,6 +401,7 @@ Layer LayerBuilder::build() {
             spec.consumed = true;
         }
     }
+#endif
 
     return std::move(m_layer);
 }

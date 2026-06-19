@@ -1,9 +1,17 @@
 # ── Cache Tests ──
 
+# Video-dependent test sources (require CHRONON3D_ENABLE_VIDEO)
+set(CACHE_VIDEO_TESTS "")
+if(CHRONON3D_ENABLE_VIDEO)
+    list(APPEND CACHE_VIDEO_TESTS
+        cache/test_hash_builder.cpp
+    )
+endif()
+
 add_executable(chronon3d_cache_tests
     ${TEST_MAIN}
     cache/test_cache_diagnostics.cpp
-    cache/test_hash_builder.cpp
+    ${CACHE_VIDEO_TESTS}
     cache/test_cache_policy.cpp
     cache/test_persistent_framebuffer_store.cpp
     cache/test_lru_cache.cpp

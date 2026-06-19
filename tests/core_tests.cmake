@@ -1,5 +1,22 @@
 # ── Core Tests (Math, Geometry, Animation, Timeline, Cache, SIMD, Assets, Text, Media, Extension, Architecture) ──
 
+# Blend2D/Text-dependent test sources (only compiled when both are available)
+set(CORE_BLEND2D_TESTS "")
+if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
+    list(APPEND CORE_BLEND2D_TESTS
+        text/test_text_layout.cpp
+        text/test_text_bounds.cpp
+        text/test_text_cache_key.cpp
+        text/test_text_animator.cpp
+        text/test_text_material.cpp
+        text/test_text_style_presets.cpp
+        text/test_font_engine.cpp
+        text/test_text_quality_suite.cpp
+        text/test_text_bidi.cpp
+        text/glyph_selector_tests.cpp
+    )
+endif()
+
 add_executable(chronon3d_core_tests
     ${TEST_MAIN}
     core/test_frame_context.cpp
@@ -51,16 +68,7 @@ add_executable(chronon3d_core_tests
     core/test_system_metrics_parse.cpp
     core/math/test_expression.cpp
     core/math/test_expression_extended.cpp
-    text/test_text_layout.cpp
-    text/test_text_bounds.cpp
-    text/test_text_cache_key.cpp
-    text/test_text_animator.cpp
-    text/test_text_material.cpp
-    text/test_text_style_presets.cpp
-    text/test_font_engine.cpp
-    text/test_text_quality_suite.cpp
-    text/test_text_bidi.cpp
-    text/glyph_selector_tests.cpp
+    ${CORE_BLEND2D_TESTS}
     media/test_media_placement.cpp
     core/test_result.cpp
     core/test_scene_hasher_camera.cpp

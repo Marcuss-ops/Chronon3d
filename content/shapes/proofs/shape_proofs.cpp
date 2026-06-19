@@ -85,12 +85,11 @@ Composition shape_proofs() {
 
             // Draw label text
             l.text("lbl", TextSpec{
-                .text = text,
-                .layout = {.box = {card_w - 20.0f, 20.0f}},
-                .pos = get_label_pos(col, row) - get_cell_pos(col, row),
+                .content = {.value = text},
                 .font = {.font_size = 11.0f},
+                .layout = {.box = {card_w - 20.0f, 20.0f}, .align = TextAlign::Center},
                 .appearance = {.color = {0.55f, 0.65f, 0.8f, 0.85f}},
-                .layout = {.align = TextAlign::Center},
+                .position = get_label_pos(col, row) - get_cell_pos(col, row),
             });
         };
 
@@ -99,10 +98,9 @@ Composition shape_proofs() {
             l.pin_to(Anchor::TopCenter, 48.0f);
             l.text("t", TextSpec{
                 .content = {.value = "SHAPE / VECTOR SYSTEM PROOFS"},
-                .layout = {.box = {800.0f, 40.0f}},
                 .font = {.font_size = 28.0f},
+                .layout = {.box = {800.0f, 40.0f}, .align = TextAlign::Center},
                 .appearance = {.color = {0.9f, 0.95f, 1.0f, 1.0f}},
-                .layout = {.align = TextAlign::Center},
             });
         });
 
@@ -372,7 +370,13 @@ Composition shape_proofs() {
             p.stroke = PathStroke{.enabled = true, .color = {1, 1, 1, 1}, .width = 2.0f};
             l.path("shape", p);
             
-            l.text("t", {.text = "NEWS", .size = {120.0f, 20.0f}, .pos = {0.0f, -14.0f, 0.0f}, .font_size = 13.0f, .color = {1,1,1,1}, .align = TextAlign::Center});
+            l.text("t", TextSpec{
+                .content = {.value = "NEWS"},
+                .font = {.font_size = 13.0f},
+                .layout = {.box = {120.0f, 20.0f}, .align = TextAlign::Center},
+                .appearance = {.color = {1,1,1,1}},
+                .position = {0.0f, -14.0f, 0.0f},
+            });
         });
 
         // 4,1: Warning Badge
@@ -388,7 +392,13 @@ Composition shape_proofs() {
             p.stroke = PathStroke{.enabled = true, .color = {0.1f, 0.1f, 0.1f, 1.0f}, .width = 3.5f, .join = LineJoin::Round};
             l.path("shape", p);
 
-            l.text("t", {.text = "!", .size = {30.0f, 30.0f}, .pos = {0.0f, -22.0f, 0.0f}, .font_size = 18.0f, .color = {0,0,0,1}, .align = TextAlign::Center});
+            l.text("t", TextSpec{
+                .content = {.value = "!"},
+                .font = {.font_size = 18.0f},
+                .layout = {.box = {30.0f, 30.0f}, .align = TextAlign::Center},
+                .appearance = {.color = {0,0,0,1}},
+                .position = {0.0f, -22.0f, 0.0f},
+            });
         });
 
         // 4,2: Number Badge
@@ -401,7 +411,13 @@ Composition shape_proofs() {
             p.stroke = PathStroke{.enabled = true, .color = {0.95f, 0.35f, 0.1f, 1.0f}, .width = 3.0f};
             l.path("shape", p);
 
-            l.text("t", {.text = "10", .size = {48.0f, 24.0f}, .pos = {0.0f, -14.0f, 0.0f}, .font_size = 14.0f, .color = {1,1,1,1}, .align = TextAlign::Center});
+            l.text("t", TextSpec{
+                .content = {.value = "10"},
+                .font = {.font_size = 14.0f},
+                .layout = {.box = {48.0f, 24.0f}, .align = TextAlign::Center},
+                .appearance = {.color = {1,1,1,1}},
+                .position = {0.0f, -14.0f, 0.0f},
+            });
         });
 
         // 4,3: Star Badge
@@ -428,7 +444,13 @@ Composition shape_proofs() {
             p.stroke = PathStroke{.enabled = true, .color = {1, 1, 1, 1}, .width = 2.0f};
             l.path("shape", p);
 
-            l.text("t", {.text = "SUBSCRIBE", .size = {110.0f, 20.0f}, .pos = {0.0f, -13.0f, 0.0f}, .font_size = 10.0f, .color = {1,1,1,1}, .align = TextAlign::Center});
+            l.text("t", TextSpec{
+                .content = {.value = "SUBSCRIBE"},
+                .font = {.font_size = 10.0f},
+                .layout = {.box = {110.0f, 20.0f}, .align = TextAlign::Center},
+                .appearance = {.color = {1,1,1,1}},
+                .position = {0.0f, -13.0f, 0.0f},
+            });
         });
 
         // ── RIGA 6: Progress / Timeline ──

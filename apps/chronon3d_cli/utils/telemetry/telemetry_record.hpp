@@ -2,7 +2,9 @@
 
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
+#endif
 
 #include "telemetry_capture.hpp"
 
@@ -142,6 +144,7 @@ inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& ru
 
 /// Records a complete output run to the telemetry database.
 /// This overload accepts all event types.
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
 inline void record_output_run(const std::string& composition_id,
                               const std::string& output_path,
                               bool success,
@@ -243,5 +246,6 @@ inline void record_output_run(const std::string& composition_id,
                       frames,
                       {}, {}, {}, {}, {}, {});
 }
+#endif // CHRONON3D_ENABLE_SQLITE_TELEMETRY
 
 } // namespace chronon3d::cli::telemetry

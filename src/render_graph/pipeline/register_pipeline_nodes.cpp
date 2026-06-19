@@ -12,10 +12,12 @@
 #include <chronon3d/extension/extension_catalog.hpp>
 #include <stdexcept>
 
+#ifdef CHRONON3D_BUILD_CONTENT
 // Forward declaration from content/register_content_modules.hpp.
 namespace chronon3d {
     void register_content_modules(ExtensionCatalog& catalog);
 }
+#endif
 
 namespace chronon3d::graph {
 
@@ -86,7 +88,9 @@ PipelineCatalogs make_builtin_pipeline_catalogs() {
         std::make_unique<PipelineExtension>(catalogs.graph_nodes));
 
     // ── Content extensions ───────────────────────────────────────
+#ifdef CHRONON3D_BUILD_CONTENT
     register_content_modules(catalogs.extensions);
+#endif
 
     // ── Run all extension modules ────────────────────────────────
     catalogs.extensions.register_all();

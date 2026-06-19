@@ -84,7 +84,9 @@ void register_dev_commands(CLI::App& app, CliContext& ctx) {
     register_watch(app, ctx);
     register_render_all(app, ctx);
     register_batch(app, ctx);
+#ifdef CHRONON3D_HAS_CLI_VIDEO
     register_bench_convert(app, ctx);
+#endif
     register_cache_stats(app, ctx);
 }
 

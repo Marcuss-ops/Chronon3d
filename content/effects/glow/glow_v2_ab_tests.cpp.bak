@@ -30,17 +30,23 @@ inline void test_bg(SceneBuilder& s) {
 struct TestTextSpec {
     f32 font_size{64.0f};
     Color color{0.95f, 0.96f, 1.0f, 1.0f};
-    Vec2 box{1400.0f, 220.0f};
+    Vec2 size{1400.0f, 220.0f};
+    // ⚠️ DEPRECATED: use anchor
     TextAlign align{TextAlign::Center};
 };
 
-inline TextSpec make_test_text(const std::string& s, f32 y_offset, const TestTextSpec& p = {}) {
+inline TextSpec make_test_text(const std::string& s, f32 y_offset, const TestTextParams& p = {}) {
     return TextSpec{
-        .content = {.value = s},
-        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_size = p.font_size},
-        .layout = {.box = p.box, .align = p.align, .line_height = 1.15f, .tracking = 1.0f},
-        .appearance = {.color = p.color},
+        .text = s,
+        .size = p.size,
         .position = {0.0f, y_offset, 0.0f},
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf"},
+        .font_size = p.font_size,
+        .color = p.color,
+        .align = p.align,
+        .layout = {
+        .layout = {.line_height = 1.15f},
+        .layout = {.tracking = 1.0f},
     };
 }
 
@@ -99,24 +105,30 @@ Composition glow_radius_compare_test() {
                 apply_ae_glow(l, AeGlowOptions{
                     .inner_radius = p.inner, .mid_radius = p.mid, .bloom_radius = p.bloom
                 });
-                l.text("t", TextSpec{
-                                .content = {.value = "GLOW"},
-                                .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_size = 56.0f},
-                                .layout = {.box = {420.0f, 110.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .tracking = 4.0f},
-                                .appearance = {.color = {0.95f, 0.96f, 1.0f, 1.0f}},
-                                .position = {0.0f, 0.0f, 0.0f}
-                            });
+                l.text("t", {
+                    .text = "GLOW",
+                    .size = {420.0f, 110.0f},
+                    .pos  = {0.0f, 0.0f, 0.0f},
+                    .font_path = "assets/fonts/Poppins-Bold.ttf",
+                    .font_size = 56.0f,
+                    .color = {0.95f, 0.96f, 1.0f, 1.0f},
+                    .align = TextAlign::Center,
+                    .vertical_align = VerticalAlign::Middle,
+                    .tracking = 4.0f,
+                });
             });
             // Label below text
             s.layer("lbl_" + std::string{p.label}, [p](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
                 l.position({p.pos.x, p.pos.y - 80.0f, 0.0f});
-                l.text("t", TextSpec{
-                                .content = {.value = p.label},
-                                .font = {.font_size = 16.0f},
-                                .layout = {.box = {420.0f, 30.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle},
-                                .appearance = {.color = {0.55f, 0.72f, 0.90f, 1.0f}}
-                            });
+                l.text("t", {
+                    .text = p.label,
+                    .size = {420.0f, 30.0f},
+                    .font_size = 16.0f,
+                    .color = {0.55f, 0.72f, 0.90f, 1.0f},
+                    .align = TextAlign::Center,
+                    .vertical_align = VerticalAlign::Middle,
+                });
             });
         }
 
@@ -187,23 +199,29 @@ Composition glow_shadow_balance_test() {
                                   Color{0.0f, 0.02f, 0.12f, p.opacity},
                                   p.blur);
                 }
-                l.text("t", TextSpec{
-                                .content = {.value = "GLOW"},
-                                .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_size = 56.0f},
-                                .layout = {.box = {420.0f, 110.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .tracking = 4.0f},
-                                .appearance = {.color = {0.95f, 0.96f, 1.0f, 1.0f}},
-                                .position = {0.0f, 0.0f, 0.0f}
-                            });
+                l.text("t", {
+                    .text = "GLOW",
+                    .size = {420.0f, 110.0f},
+                    .pos  = {0.0f, 0.0f, 0.0f},
+                    .font_path = "assets/fonts/Poppins-Bold.ttf",
+                    .font_size = 56.0f,
+                    .color = {0.95f, 0.96f, 1.0f, 1.0f},
+                    .align = TextAlign::Center,
+                    .vertical_align = VerticalAlign::Middle,
+                    .tracking = 4.0f,
+                });
             });
             s.layer("lbl_" + std::string{p.label}, [p](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
                 l.position({p.pos.x, p.pos.y - 80.0f, 0.0f});
-                l.text("t", TextSpec{
-                                .content = {.value = p.label},
-                                .font = {.font_size = 16.0f},
-                                .layout = {.box = {440.0f, 30.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle},
-                                .appearance = {.color = {0.55f, 0.72f, 0.90f, 1.0f}}
-                            });
+                l.text("t", {
+                    .text = p.label,
+                    .size = {440.0f, 30.0f},
+                    .font_size = 16.0f,
+                    .color = {0.55f, 0.72f, 0.90f, 1.0f},
+                    .align = TextAlign::Center,
+                    .vertical_align = VerticalAlign::Middle,
+                });
             });
         }
 

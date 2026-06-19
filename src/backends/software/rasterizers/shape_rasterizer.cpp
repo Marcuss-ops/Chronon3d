@@ -13,7 +13,9 @@
 #include <chronon3d/scene/model/shape/fill.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/simd/kernels.hpp>
+#ifdef CHRONON3D_USE_BLEND2D
 #include "path/path_rasterizer.hpp"
+#endif
 #include <glm/gtc/matrix_inverse.hpp>
 #include <algorithm>
 #include <cmath>
@@ -179,8 +181,10 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
     if (color.a <= 0.0f) return;
 
     if (shape.type == ShapeType::Path) {
+#ifdef CHRONON3D_USE_BLEND2D
         (void)fill;
         draw_path(fb, shape.path, model, color, state);
+#endif
         return;
     }
 

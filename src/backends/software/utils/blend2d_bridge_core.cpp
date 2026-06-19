@@ -100,6 +100,7 @@ void sample_bilinear_float(const Color* base, int stride, int sw, int sh, float 
 
 // ── basic compositing ──────────────────────────────────────────────
 
+#ifdef CHRONON3D_USE_BLEND2D
 void composite_bl_image(Framebuffer& fb, const BLImage& img, int x, int y, float opacity, BlendMode mode, const RenderState* state) {
     BLImageData data;
     if (img.getData(&data) != BL_SUCCESS) return;
@@ -200,6 +201,7 @@ void composite_bl_image(Framebuffer& fb, const BLImage& img, int x, int y, float
     }
 
 }
+#endif // CHRONON3D_USE_BLEND2D
 
 void composite_framebuffer(Framebuffer& dst_fb, const Framebuffer& src_fb, int x, int y, float opacity, BlendMode mode, const RenderState* state) {
     const int sw = src_fb.width();

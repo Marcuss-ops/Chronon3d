@@ -6,7 +6,9 @@
 #include <chronon3d/core/telemetry/telemetry_bundle.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
+#endif
 #include <chronon3d/assets/asset_registry.hpp>
 
 #include <spdlog/spdlog.h>
@@ -26,7 +28,12 @@ void setup_render_job(const CompositionRegistry& registry,
     profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
     profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
 
-    out.job_started_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
+    out.job_started_iso =
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
+        chronon3d::telemetry::TelemetryManager::get_current_iso_time();
+#else
+        "";
+#endif
     out.wall_t0 = profiling::now();
 
     // ── Renderer creation ──────────────────────────────────────────────

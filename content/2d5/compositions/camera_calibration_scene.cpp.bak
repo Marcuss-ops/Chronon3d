@@ -77,13 +77,14 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
             .thickness = 3.0f,
             .color = {1.0f, 0.2f, 0.2f, 0.85f}
         });
-        l.text("x_lbl", TextSpec{
-                            .content = {.value = "X"},
-                            .font = {.font_size = 18.0f},
-                            .layout = {.anchor = TextAnchor::TopLeft, .align = TextAlign::Left},
-                            .appearance = {.color = {1.0f, 0.2f, 0.2f, 0.85f}},
-                            .position = {208.0f, 0.0f, 0.1f}
-                        });
+        l.text("x_lbl", {
+            .text = "X",
+            .pos = {208.0f, 0.0f, 0.1f},
+            .font_size = 18.0f,
+            .color = {1.0f, 0.2f, 0.2f, 0.85f},
+            .anchor = TextAnchor::TopLeft,
+            .align = TextAlign::Left
+        });
     });
 
     s.layer("axis_y", [](LayerBuilder& l) {
@@ -94,13 +95,14 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
             .thickness = 3.0f,
             .color = {0.2f, 1.0f, 0.2f, 0.85f}
         });
-        l.text("y_lbl", TextSpec{
-                            .content = {.value = "Y"},
-                            .font = {.font_size = 18.0f},
-                            .layout = {.anchor = TextAnchor::BottomCenter, .align = TextAlign::Center},
-                            .appearance = {.color = {0.2f, 1.0f, 0.2f, 0.85f}},
-                            .position = {0.0f, 208.0f, 0.1f}
-                        });
+        l.text("y_lbl", {
+            .text = "Y",
+            .pos = {0.0f, 208.0f, 0.1f},
+            .font_size = 18.0f,
+            .color = {0.2f, 1.0f, 0.2f, 0.85f},
+            .anchor = TextAnchor::BottomCenter,
+            .align = TextAlign::Center
+        });
     });
 
     s.layer("axis_z", [](LayerBuilder& l) {
@@ -111,13 +113,14 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
             .thickness = 3.0f,
             .color = {0.2f, 0.2f, 1.0f, 0.85f}
         });
-        l.text("z_lbl", TextSpec{
-                            .content = {.value = "Z"},
-                            .font = {.font_size = 18.0f},
-                            .layout = {.anchor = TextAnchor::Center, .align = TextAlign::Center},
-                            .appearance = {.color = {0.2f, 0.2f, 1.0f, 0.85f}},
-                            .position = {0.0f, 0.0f, -210.0f}
-                        });
+        l.text("z_lbl", {
+            .text = "Z",
+            .pos = {0.0f, 0.0f, -210.0f},
+            .font_size = 18.0f,
+            .color = {0.2f, 0.2f, 1.0f, 0.85f},
+            .anchor = TextAnchor::Center,
+            .align = TextAlign::Center
+        });
     });
 
     // ── 7. World-space target cross at origin ───────────────────────────
@@ -141,13 +144,14 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
             .pos = {0.0f, 0.0f, 0.15f},
             .stroke = {.enabled = true, .color = {1.0f, 0.35f, 0.35f, 0.5f}, .width = 2.0f}
         });
-        l.text("lbl", TextSpec{
-                          .content = {.value = "TARGET"},
-                          .font = {.font_size = 11.0f},
-                          .layout = {.anchor = TextAnchor::TopLeft, .align = TextAlign::Left},
-                          .appearance = {.color = {1.0f, 0.45f, 0.45f, 0.75f}},
-                          .position = {30.0f, -6.0f, 0.2f}
-                      });
+        l.text("lbl", {
+            .text = "TARGET",
+            .pos = {30.0f, -6.0f, 0.2f},
+            .font_size = 11.0f,
+            .color = {1.0f, 0.45f, 0.45f, 0.75f},
+            .anchor = TextAnchor::TopLeft,
+            .align = TextAlign::Left
+        });
     });
 
     // ── 8. Three pillars at different Z depths ──────────────────────────
@@ -245,45 +249,50 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
 
         // Text labels — Y-down convention (positive Y = down on screen).
         // TOP is at NEGATIVE Y (above center), BOTTOM at POSITIVE Y (below center).
-        l.text("label_top", TextSpec{
-                                .content = {.value = "TOP"},
-                                .font = {.font_size = 20.0f},
-                                .layout = {.anchor = TextAnchor::Center, .align = TextAlign::Center},
-                                .appearance = {.color = {0.75f, 0.85f, 1.0f, 0.85f}},
-                                .position = {0.0f, -kCardHalfH + 18.0f, 0.15f}
-                            });
+        l.text("label_top", {
+            .text = "TOP",
+            .pos = {0.0f, -kCardHalfH + 18.0f, 0.15f},
+            .font_size = 20.0f,
+            .color = {0.75f, 0.85f, 1.0f, 0.85f},
+            .anchor = TextAnchor::Center,
+            .align = TextAlign::Center
+        });
 
-        l.text("label_left", TextSpec{
-                                 .content = {.value = "LEFT"},
-                                 .font = {.font_size = 18.0f},
-                                 .layout = {.anchor = TextAnchor::Center, .align = TextAlign::Center},
-                                 .appearance = {.color = {0.75f, 0.85f, 1.0f, 0.75f}},
-                                 .position = {-kCardHalfW + 20.0f, 0.0f, 0.15f}
-                             });
+        l.text("label_left", {
+            .text = "LEFT",
+            .pos = {-kCardHalfW + 20.0f, 0.0f, 0.15f},
+            .font_size = 18.0f,
+            .color = {0.75f, 0.85f, 1.0f, 0.75f},
+            .anchor = TextAnchor::Center,
+            .align = TextAlign::Center
+        });
 
-        l.text("label_front", TextSpec{
-                                  .content = {.value = "FRONT →"},
-                                  .font = {.font_size = 28.0f},
-                                  .layout = {.anchor = TextAnchor::Center, .align = TextAlign::Center},
-                                  .appearance = {.color = {0.90f, 0.95f, 1.0f, 1.0f}},
-                                  .position = {0.0f, -4.0f, 0.15f}
-                              });
+        l.text("label_front", {
+            .text = "FRONT →",
+            .pos = {0.0f, -4.0f, 0.15f},
+            .font_size = 28.0f,
+            .color = {0.90f, 0.95f, 1.0f, 1.0f},
+            .anchor = TextAnchor::Center,
+            .align = TextAlign::Center
+        });
 
-        l.text("label_right", TextSpec{
-                                  .content = {.value = "RIGHT"},
-                                  .font = {.font_size = 18.0f},
-                                  .layout = {.anchor = TextAnchor::Center, .align = TextAlign::Center},
-                                  .appearance = {.color = {0.75f, 0.85f, 1.0f, 0.75f}},
-                                  .position = {kCardHalfW - 22.0f, 0.0f, 0.15f}
-                              });
+        l.text("label_right", {
+            .text = "RIGHT",
+            .pos = {kCardHalfW - 22.0f, 0.0f, 0.15f},
+            .font_size = 18.0f,
+            .color = {0.75f, 0.85f, 1.0f, 0.75f},
+            .anchor = TextAnchor::Center,
+            .align = TextAlign::Center
+        });
 
-        l.text("label_bottom", TextSpec{
-                                   .content = {.value = "BOTTOM"},
-                                   .font = {.font_size = 20.0f},
-                                   .layout = {.anchor = TextAnchor::Center, .align = TextAlign::Center},
-                                   .appearance = {.color = {0.75f, 0.85f, 1.0f, 0.85f}},
-                                   .position = {0.0f, kCardHalfH - 18.0f, 0.15f}
-                               });
+        l.text("label_bottom", {
+            .text = "BOTTOM",
+            .pos = {0.0f, kCardHalfH - 18.0f, 0.15f},
+            .font_size = 20.0f,
+            .color = {0.75f, 0.85f, 1.0f, 0.85f},
+            .anchor = TextAnchor::Center,
+            .align = TextAlign::Center
+        });
     });
 }
 
