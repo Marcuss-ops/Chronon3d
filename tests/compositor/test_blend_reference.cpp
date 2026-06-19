@@ -1,7 +1,7 @@
 // =============================================================================
 // test_blend_reference.cpp — Scalar blend reference tests with exact numbers
 //
-// All numerical values are taken from the B2/B3 spec and verified by hand.
+// All numerical values are taken from the blend spec and verified by hand.
 //
 // Common inputs (from spec):
 //   Source straight:  Cs = (0.8, 0.2, 0.4),  As = 0.5
@@ -61,10 +61,7 @@ TEST_CASE("premultiply and unpremultiply roundtrip") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B2: Exact reference values (spec §B2)
-//
-// These test the canonical blend_reference_premul() function directly
-// with the known Cs/Cb values from the spec.
+// Basic and advanced blend exact values — spec reference
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("blend_ref: Normal — exact spec values") {
@@ -163,7 +160,7 @@ TEST_CASE("blend_ref: Add — HDR, no clamp") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B3: Advanced blend exact values
+// Advanced blend exact values
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("blend_ref_b3: HardLight — exact spec values") {

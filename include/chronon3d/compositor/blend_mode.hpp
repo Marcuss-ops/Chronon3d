@@ -13,13 +13,13 @@ enum class BlendMode : uint8_t {
     Screen     = 3,
     Overlay    = 4,
 
-    // B2: basic blend modes (Darken, Lighten, Difference, Exclusion)
+    // Basic blend modes (Darken, Lighten, Difference, Exclusion)
     Darken     = 5,
     Lighten    = 6,
     Difference = 7,
     Exclusion  = 8,
 
-    // B3: advanced blend modes (SoftLight, HardLight, ColorDodge, ColorBurn)
+    // Advanced blend modes (SoftLight, HardLight, ColorDodge, ColorBurn)
     SoftLight  = 9,
     HardLight  = 10,
     ColorDodge = 11,

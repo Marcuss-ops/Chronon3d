@@ -11,7 +11,7 @@
 
 namespace chronon3d::graph {
 
-// ── Binding metadata (B5) ────────────────────────────────────────────────
+// ── Binding metadata ───────────────────────────────────────────────────
 // Attached to CompiledNodeInfo during graph build/compilation.
 // The binding compiler reads this to build the binding table.
 struct SceneBindingMetadata {
@@ -37,7 +37,7 @@ struct CompiledNodeInfo {
     cache::NodeCacheKey static_key{};
     RenderNodeCachePolicy cache_policy{};
 
-    SceneBindingMetadata binding_meta{};  // B5: binding table metadata
+    SceneBindingMetadata binding_meta{};  // binding table metadata
 
     bool reachable{false};
     bool frame_dependent{true};

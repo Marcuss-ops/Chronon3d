@@ -1,5 +1,5 @@
 // =============================================================================
-// test_precomp_node_cache.cpp — B8: PrecompNode + SceneProgramCache integration
+// test_precomp_node_cache.cpp — PrecompNode + SceneProgramCache integration
 //
 // Tests that PrecompNode::execute() uses the inner SceneProgramCache to avoid
 // redundant graph rebuilding when the nested composition's structure is
@@ -87,7 +87,7 @@ struct TestContext {
 } // namespace
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B8 §1: Cache hit on repeated execution — same pointer, compile_count=1
+// §1: Cache hit on repeated execution — same pointer, compile_count=1
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("precomp_cache: cache hit returns same program on repeated execute") {
@@ -143,7 +143,7 @@ TEST_CASE("precomp_cache: different frame with same structure → cache hit") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B8 §2: Cache miss on different composition → recompilation
+// §2: Cache miss on different composition → recompilation
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("precomp_cache: different composition name triggers recompile") {
@@ -181,7 +181,7 @@ TEST_CASE("precomp_cache: nonexistent composition returns empty fb") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B8 §3: Eviction callback forwarding
+// §3: Eviction callback forwarding
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("precomp_cache: eviction callback fires on inner cache evict") {
@@ -245,7 +245,7 @@ TEST_CASE("precomp_cache: no crash when eviction callback not set") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B8 §4: Parameter block warm-up
+// §4: Parameter block warm-up
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("precomp_cache: parameter block sized after execution") {
@@ -268,7 +268,7 @@ TEST_CASE("precomp_cache: parameter block sized after execution") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B8 §5: Multi-frame stability — 10 frames, 1 compile
+// §5: Multi-frame stability — 10 frames, 1 compile
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("precomp_cache: 10 frames with same structure → 1 compile") {
@@ -289,7 +289,7 @@ TEST_CASE("precomp_cache: 10 frames with same structure → 1 compile") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B8 §6: Duration boundary
+// §6: Duration boundary
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("precomp_cache: nested_frame past duration returns empty") {
@@ -338,7 +338,7 @@ TEST_CASE("precomp_cache: negative nested_frame returns empty") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B8 §7: Invalidate entry clears inner cache
+// §7: Invalidate entry clears inner cache
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("precomp_cache: invalidate entry clears cached program") {
@@ -370,7 +370,7 @@ TEST_CASE("precomp_cache: invalidate entry clears cached program") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B8: End-to-end via SoftwareRenderer (integration smoke test)
+// End-to-end via SoftwareRenderer (integration smoke test)
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("precomp_cache: end-to-end via SoftwareRenderer does not crash") {
@@ -416,7 +416,7 @@ TEST_CASE("precomp_cache: end-to-end via SoftwareRenderer does not crash") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B8 §8: Auto-tuning — SceneProgramCache capacity auto-adjustment
+// §8: Auto-tuning — SceneProgramCache capacity auto-adjustment
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("auto_tune: many misses with evictions double capacity") {

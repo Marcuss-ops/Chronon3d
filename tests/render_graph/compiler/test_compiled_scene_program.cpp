@@ -1,5 +1,5 @@
 // =============================================================================
-// test_compiled_scene_program.cpp — B5: CompiledSceneProgram + binding table
+// test_compiled_scene_program.cpp — CompiledSceneProgram + binding table
 //
 // Tests from the spec (§B5):
 //
@@ -86,7 +86,7 @@ SceneStructureKey make_key(const Scene& scene, int width = 100, int height = 100
 } // namespace
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B5 §1: Hash invariants — structure key unchanged for dynamic params
+// §1: Hash invariants — structure key unchanged for dynamic params
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("scene_program: same structure for different transform values") {
@@ -137,7 +137,7 @@ TEST_CASE("scene_program: same structure for different text content") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B5 §2: Hash changes when structure changes
+// §2: Hash changes when structure changes
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("scene_program: different structure when layer added") {
@@ -250,7 +250,7 @@ TEST_CASE("scene_program: different structure when resolution changed") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B5 §3–4: Binding count and validity
+// §3–4: Binding count and validity
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("scene_program: binding table construction") {
@@ -434,7 +434,7 @@ TEST_CASE("scene_program: empty program") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B5 §5: Fresh vs refreshed output equivalence — 100 frames
+// §5: Fresh vs refreshed output equivalence — 100 frames
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("scene_program: same pointer stable across 100 frames "
@@ -487,7 +487,7 @@ TEST_CASE("scene_program: same pointer stable across 100 frames "
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// B5 §6: Compile count — 1 compile for animated transforms over 100 frames
+// §6: Compile count — 1 compile for animated transforms over 100 frames
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("scene_program: animated transforms preserve structure hash "

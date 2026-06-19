@@ -60,7 +60,7 @@ inline float blend_exclusion(float cb, float cs) {
     return cb + cs - 2.0f * cb * cs;
 }
 
-// ── B3: Advanced blend functions ────────────────────────────────────────────
+// ── Advanced blend functions ────────────────────────────────────────────
 
 inline float blend_hard_light(float cb, float cs) {
     if (cs <= 0.5f) return 2.0f * cb * cs;
@@ -182,7 +182,7 @@ inline Color blend_reference_premul(
             bb = blend_exclusion(cb_b, cs_b);
             break;
 
-        // B3: Advanced modes — clamp to [0,1] per HDR contract
+        // Advanced modes — clamp to [0,1] per HDR contract
         // (matches SIMD clamping in highway_color_kernels.cpp).
         case BlendMode::SoftLight:
             br = blend_soft_light(std::clamp(cb_r, 0.0f, 1.0f), std::clamp(cs_r, 0.0f, 1.0f));
