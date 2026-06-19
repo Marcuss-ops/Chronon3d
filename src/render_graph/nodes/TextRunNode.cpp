@@ -224,16 +224,18 @@ OwnedFB TextRunNode::execute(
 
     const f32 opacity = m_opacity_override.value_or(m_render_ref.world_transform.opacity);
 
-    const bool drew = backend->draw_text_run(
+    const auto result = backend->draw_text_run(
         *fb, *m_shape, world_matrix, opacity,
         ctx.options.diagnostics_enabled);
 
-    if (!drew && !m_backend_warned) {
+    if (!result && !m_backend_warned) {
         spdlog::error(
             "[text-run] node='{}' backend does not support "
             "draw_text_run; returning cleared fb.", m_name);
         m_backend_warned = true;
     }
+
+    const bool drew = result.ok();
 
     if (ctx.options.diagnostics_enabled) {
         // DEBUG (not INFO): this fires every frame.  The diagnostic-mode

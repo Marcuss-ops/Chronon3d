@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/text/text_run.hpp>
 // compute_text_run_world_bbox() lives in the text core so the render graph
@@ -36,8 +36,8 @@ struct TextRunDrawParams {
 ///
 /// @param renderer  The software renderer (for font resources, diagnostics).
 /// @param params    Draw parameters (target fb, shape, matrix, opacity).
-/// @return true if at least one glyph was drawn, false on failure.
-[[nodiscard]] bool draw_text_run(
+/// @return RenderOpOutcome on success, or an error code on failure.
+[[nodiscard]] graph::RenderOpResult draw_text_run(
     SoftwareRenderer& renderer,
     TextRunDrawParams& params
 );
