@@ -73,7 +73,7 @@ static RenderGraphContext make_test_context(int w, int h) {
 
 static RenderGraph make_chain_of_transforms(int count, bool identity = false) {
     RenderGraph graph;
-    GraphNodeId prev = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId prev = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
 
     for (int i = 0; i < count; ++i) {
         Mat4 m = identity ? Mat4(1.0f) : glm::translate(Mat4(1.0f), Vec3(static_cast<f32>(i), 0.0f, 0.0f));
@@ -127,7 +127,7 @@ TEST_CASE("Pruning - identity transform with single consumer is removed") {
 
 TEST_CASE("Pruning - non-identity transform is kept") {
     RenderGraph graph;
-    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
     GraphNodeId tx = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(10.0f, 0.0f, 0.0f)), 1.0f));
     graph.connect(root, tx);
     graph.set_output(tx);
@@ -159,7 +159,7 @@ TEST_CASE("TransformNode pure translation keeps a stable bbox size across subpix
 
 TEST_CASE("Pruning - identity transform with multiple consumers is kept") {
     RenderGraph graph;
-    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
     GraphNodeId id_tx = graph.add_node(std::make_unique<TransformNode>(Mat4(1.0f), 1.0f));
     GraphNodeId tx_a = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(5.0f, 0.0f, 0.0f)), 1.0f));
     GraphNodeId tx_b = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(0.0f, 5.0f, 0.0f)), 1.0f));
@@ -180,7 +180,7 @@ TEST_CASE("Pruning - identity transform with multiple consumers is kept") {
 
 TEST_CASE("Static bake - frame-independent nodes are counted") {
     RenderGraph graph;
-    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
     GraphNodeId tx = graph.add_node(std::make_unique<TransformNode>(Mat4(1.0f), 1.0f));
     graph.connect(root, tx);
     graph.set_output(tx);
@@ -198,7 +198,7 @@ TEST_CASE("Static bake - frame-independent nodes are counted") {
 
 TEST_CASE("Static bake - frame-dependent nodes are excluded") {
     RenderGraph graph;
-    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
     GraphNodeId tx = graph.add_node(std::make_unique<TransformNode>(Mat4(1.0f), 1.0f));
     graph.connect(root, tx);
     graph.set_output(tx);
@@ -229,7 +229,7 @@ TEST_CASE("Fusion - adjacent transform nodes are fused") {
 
 TEST_CASE("Fusion - no fusion when parent has multiple consumers") {
     RenderGraph graph;
-    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
     GraphNodeId parent = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(1.0f, 0.0f, 0.0f)), 1.0f));
     GraphNodeId child_a = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(0.0f, 1.0f, 0.0f)), 1.0f));
     GraphNodeId child_b = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(0.0f, 2.0f, 0.0f)), 1.0f));
@@ -247,8 +247,8 @@ TEST_CASE("Fusion - no fusion when parent has multiple consumers") {
 
 TEST_CASE("Fusion - no fusion for non-transform nodes") {
     RenderGraph graph;
-    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", false, false));
-    GraphNodeId source = graph.add_node(std::make_unique<TestNode>("source", false, false)); // Not a TransformNode
+    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
+    GraphNodeId source = graph.add_node(std::make_unique<TestNode>("source", no_cache("test"))); // Not a TransformNode
     graph.connect(root, source);
     graph.set_output(source);
 
@@ -262,7 +262,7 @@ TEST_CASE("Fusion - no fusion for non-transform nodes") {
 
 TEST_CASE("Explain plan - optimize_graph reports node counts") {
     RenderGraph graph;
-    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
     GraphNodeId tx_a = graph.add_node(std::make_unique<TransformNode>(Mat4(1.0f), 1.0f));
     GraphNodeId tx_b = graph.add_node(std::make_unique<TransformNode>(Mat4(1.0f), 1.0f));
     graph.connect(root, tx_a);
@@ -289,7 +289,7 @@ TEST_CASE("Explain plan - optimize_graph reports node counts") {
 
 TEST_CASE("Explain plan - optimize_graph respects config toggles") {
     RenderGraph graph;
-    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
     GraphNodeId tx = graph.add_node(std::make_unique<TransformNode>(Mat4(1.0f), 1.0f));
     graph.connect(root, tx);
     graph.set_output(tx);
@@ -316,9 +316,9 @@ TEST_CASE("Explain plan - optimize_graph respects config toggles") {
 
 TEST_CASE("No unsafe optimization - mixed node kinds are not fused") {
     RenderGraph graph;
-    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
     GraphNodeId tx = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(5.0f, 0.0f, 0.0f)), 1.0f));
-    GraphNodeId other = graph.add_node(std::make_unique<TestNode>("other", false, false)); // Non-transform
+    GraphNodeId other = graph.add_node(std::make_unique<TestNode>("other", no_cache("test"))); // Non-transform
     graph.connect(root, tx);
     graph.connect(tx, other);
     graph.set_output(other);
@@ -331,7 +331,7 @@ TEST_CASE("No unsafe optimization - mixed node kinds are not fused") {
 
 TEST_CASE("No unsafe optimization - frame-dependent vs frame-invariant not fused") {
     RenderGraph graph;
-    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
     GraphNodeId tx_static = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(1.0f, 0.0f, 0.0f)), 1.0f));
     GraphNodeId tx_dynamic = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(0.0f, 1.0f, 0.0f)), 1.0f));
 
@@ -350,8 +350,8 @@ TEST_CASE("No unsafe optimization - frame-dependent vs frame-invariant not fused
 
 TEST_CASE("Dead node elimination - orphan node is removed") {
     RenderGraph graph;
-    GraphNodeId root    = graph.add_node(std::make_unique<TestNode>("root", false, false));
-    GraphNodeId orphan  = graph.add_node(std::make_unique<TestNode>("orphan", false, false));
+    GraphNodeId root    = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
+    GraphNodeId orphan  = graph.add_node(std::make_unique<TestNode>("orphan", no_cache("test")));
     // orphan is not connected to anything
     graph.set_output(root);
     (void)orphan;
@@ -365,9 +365,9 @@ TEST_CASE("Dead node elimination - orphan node is removed") {
 
 TEST_CASE("Dead node elimination - all reachable nodes are kept") {
     RenderGraph graph;
-    GraphNodeId a = graph.add_node(std::make_unique<TestNode>("a", false, false));
-    GraphNodeId b = graph.add_node(std::make_unique<TestNode>("b", false, false));
-    GraphNodeId c = graph.add_node(std::make_unique<TestNode>("c", false, false));
+    GraphNodeId a = graph.add_node(std::make_unique<TestNode>("a", no_cache("test")));
+    GraphNodeId b = graph.add_node(std::make_unique<TestNode>("b", no_cache("test")));
+    GraphNodeId c = graph.add_node(std::make_unique<TestNode>("c", no_cache("test")));
     graph.connect(a, b);
     graph.connect(b, c);
     graph.set_output(c);
@@ -380,8 +380,8 @@ TEST_CASE("Dead node elimination - all reachable nodes are kept") {
 
 TEST_CASE("Dead node elimination - no output set does nothing") {
     RenderGraph graph;
-    graph.add_node(std::make_unique<TestNode>("a", false, false));
-    graph.add_node(std::make_unique<TestNode>("b", false, false));
+    graph.add_node(std::make_unique<TestNode>("a", no_cache("test")));
+    graph.add_node(std::make_unique<TestNode>("b", no_cache("test")));
     // No set_output call
 
     size_t removed = eliminate_dead_nodes(graph);
@@ -393,7 +393,7 @@ TEST_CASE("Dead node elimination - no output set does nothing") {
 
 TEST_CASE("Effect fusion - two adjacent EffectStackNodes are fused") {
     RenderGraph graph;
-    GraphNodeId root   = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId root   = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
     GraphNodeId eff_a  = graph.add_node(make_effect_node(false));
     GraphNodeId eff_b  = graph.add_node(make_effect_node(false));
     graph.connect(root, eff_a);
@@ -411,7 +411,7 @@ TEST_CASE("Effect fusion - two adjacent EffectStackNodes are fused") {
 
 TEST_CASE("Effect fusion - no fusion when parent has multiple consumers") {
     RenderGraph graph;
-    GraphNodeId root   = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId root   = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
     GraphNodeId eff_a  = graph.add_node(make_effect_node(false));
     GraphNodeId eff_b  = graph.add_node(make_effect_node(false));
     GraphNodeId eff_c  = graph.add_node(make_effect_node(false));
@@ -428,7 +428,7 @@ TEST_CASE("Effect fusion - no fusion when parent has multiple consumers") {
 
 TEST_CASE("Effect fusion - no fusion across mismatched frame_dependent") {
     RenderGraph graph;
-    GraphNodeId root    = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId root    = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
     GraphNodeId eff_sta = graph.add_node(make_effect_node(false)); // frame_dep=false
     GraphNodeId eff_dyn = graph.add_node(make_effect_node(true));  // frame_dep=true
     graph.connect(root, eff_sta);
@@ -443,7 +443,7 @@ TEST_CASE("Effect fusion - no fusion across mismatched frame_dependent") {
 
 TEST_CASE("Effect fusion - chain of three effects fused iteratively") {
     RenderGraph graph;
-    GraphNodeId root   = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId root   = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
     GraphNodeId eff_a  = graph.add_node(make_effect_node(false));
     GraphNodeId eff_b  = graph.add_node(make_adjustment_node(false));
     GraphNodeId eff_c  = graph.add_node(make_effect_node(false));
@@ -465,7 +465,7 @@ TEST_CASE("Effect fusion - chain of three effects fused iteratively") {
 
 TEST_CASE("Effect fusion - mixed EffectStackNode and AdjustmentNode are fused") {
     RenderGraph graph;
-    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
     GraphNodeId adj  = graph.add_node(make_adjustment_node(false));
     GraphNodeId eff  = graph.add_node(make_effect_node(false));
     graph.connect(root, adj);
@@ -484,8 +484,8 @@ TEST_CASE("Effect fusion - mixed EffectStackNode and AdjustmentNode are fused") 
 
 TEST_CASE("Config - effect_fusion and dead_node_elimination flags honored") {
     RenderGraph graph;
-    GraphNodeId root   = graph.add_node(std::make_unique<TestNode>("root", false, false));
-    GraphNodeId orphan = graph.add_node(std::make_unique<TestNode>("orphan", false, false));
+    GraphNodeId root   = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
+    GraphNodeId orphan = graph.add_node(std::make_unique<TestNode>("orphan", no_cache("test")));
     GraphNodeId eff_a  = graph.add_node(make_effect_node(false));
     GraphNodeId eff_b  = graph.add_node(make_effect_node(false));
     graph.connect(root, eff_a);
