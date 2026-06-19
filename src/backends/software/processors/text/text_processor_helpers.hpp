@@ -65,12 +65,12 @@ using ShadowCache = cache::LruCache<CacheKey, std::shared_ptr<BLImage>>;
 // Note: cache and mutex functions are `inline` (not `static inline`) to
 // guarantee a single shared instance across translation units.
 [[nodiscard]] inline ShadowCache& get_shadow_cache() {
-    static ShadowCache cache(Config::get().shadow_cache_max_bytes, 4);
+    static ShadowCache cache(Config::get().cache().shadow_cache_max_bytes(), 4);
     return cache;
 }
 
 [[nodiscard]] inline ShadowCache& get_glow_cache() {
-    static ShadowCache cache(Config::get().glow_cache_max_bytes, 4);
+    static ShadowCache cache(Config::get().cache().glow_cache_max_bytes(), 4);
     return cache;
 }
 

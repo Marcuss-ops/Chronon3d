@@ -97,12 +97,12 @@ bool PersistentFramebufferStore::enabled_for_current_run() {
 #ifdef CHRONON_BUILD_TESTS
     return false;
 #else
-    return !Config::get().disable_persistent_framebuffer_cache;
+    return !Config::get().cache().disable_persistent_framebuffer_cache();
 #endif
 }
 
 PersistentFramebufferStore::PersistentFramebufferStore() {
-    auto& dir = Config::get().persistent_framebuffer_cache_dir;
+    const auto& dir = Config::get().paths().persistent_framebuffer_cache_dir();
     if (!dir.empty()) {
         m_cache_dir = dir;
     } else {
