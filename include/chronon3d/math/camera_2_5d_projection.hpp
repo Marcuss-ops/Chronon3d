@@ -52,14 +52,14 @@ inline f32 focal_length_from_fov(f32 viewport_height, f32 fov_deg) {
 }
 
 /// Delegates to camera_projection_contract.
-inline Mat4 get_camera_view_matrix(const Camera2_5D& camera) {
+inline Mat4 get_camera_view_matrix(const CameraProjectionSource& camera) {
     return camera_math::view_matrix_for_camera(camera);
 }
 
 /// Delegates to camera_projection_contract.
 /// Now delegates to CameraProjectionResolver for unified math.
 inline bool project_world_point_2_5d(
-    const Camera2_5D& camera,
+    const CameraProjectionSource& camera,
     const Mat4& view,
     bool use_view_matrix,
     f32 focal,
@@ -81,9 +81,9 @@ inline bool project_world_point_2_5d(
 
     // Translation-only path (no view matrix)
     Vec4 cam_pos{0.0f, 0.0f, 0.0f, 1.0f};
-    cam_pos.x = world.x - camera.position.x;
-    cam_pos.y = world.y - camera.position.y;
-    cam_pos.z = world.z - camera.position.z;
+    cam_pos.x = world.x - camera.get_position().x;
+    cam_pos.y = world.y - camera.get_position().y;
+    cam_pos.z = world.z - camera.get_position().z;
     depth = cam_pos.z;
     if (depth <= 0.0f) return false;
 

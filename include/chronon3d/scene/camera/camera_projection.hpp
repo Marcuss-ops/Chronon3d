@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/model/camera/camera_projection_source.hpp>
 #include <chronon3d/scene/model/shape/transform_3d.hpp>
 #include <array>
 
@@ -29,20 +29,20 @@ struct ProjectedBounds {
 
 ScreenPoint project_world_to_screen(
     const Vec3& world,
-    const Camera2_5D& camera,
+    const CameraProjectionSource& camera,
     Viewport viewport
 );
 
 ProjectedBounds project_quad_to_screen(
     const std::array<Vec3, 4>& world_corners,
-    const Camera2_5D& camera,
+    const CameraProjectionSource& camera,
     Viewport viewport
 );
 
 ProjectedBounds project_layer_bounds_to_screen(
     const Transform3D& layer_world,
     Vec2 layer_size,
-    const Camera2_5D& camera,
+    const CameraProjectionSource& camera,
     Viewport viewport
 );
 

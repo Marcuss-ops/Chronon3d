@@ -21,9 +21,9 @@ inline ProjectionContext make_projection_context(const Camera& camera, i32 width
     return out;
 }
 
-inline ProjectionContext make_projection_context(const Camera2_5D& camera, i32 width, i32 height) {
+inline ProjectionContext make_projection_context(const CameraProjectionSource& camera, i32 width, i32 height) {
     ProjectionContext out;
-    out.view = camera.view_matrix();
+    out.view = camera.get_view_matrix();
     const f32 fw = static_cast<f32>(width);
     const f32 fh = static_cast<f32>(height);
     // Use the unified focal_from_camera which handles:
@@ -43,7 +43,7 @@ inline void prepare_projection_context(Runtime& rt, const Camera& camera, i32 wi
 }
 
 template <typename Runtime>
-inline void prepare_projection_context(Runtime& rt, const Camera2_5D& camera, i32 width, i32 height) {
+inline void prepare_projection_context(Runtime& rt, const CameraProjectionSource& camera, i32 width, i32 height) {
     rt.projection = make_projection_context(camera, width, height);
     rt.projection.ready = true;
 }
