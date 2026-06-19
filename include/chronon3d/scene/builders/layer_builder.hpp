@@ -3,7 +3,7 @@
 #include <chronon3d/scene/model/layer/layer.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
-#include <chronon3d/scene/builders/text_run_builder.hpp>  // PR 4 — full type required for `std::unique_ptr<TextRunBuilder>` / `std::unique_ptr<TextRunSpec>` members (was forward-declared; caused `sizeof incomplete` + cascaded `private constructor` errors at `std::make_unique` sites and at every TU that destroys a LayerBuilder).
+#include <chronon3d/scene/builders/text_run_builder.hpp>  // PR 4 — full type required for `std::unique_ptr<TextRunBuilder>` / `std::unique_ptr<TextRunBuildSpec>` members (was forward-declared; caused `sizeof incomplete` + cascaded `private constructor` errors at `std::make_unique` sites and at every TU that destroys a LayerBuilder).
 #include <chronon3d/registry/shape_registry.hpp>
 #include <chronon3d/vector/path_factories.hpp>
 #include <chronon3d/scene/model/layer/mask.hpp>
@@ -25,7 +25,8 @@ namespace chronon3d {
 
 class FontEngine;  // forward declaration
 
-// `TextRunBuilder` and `TextRunSpec` are now pulled in fully via
+// `TextRunBuilder` and `TextRunBuildSpec` (formerly TextRunSpec wrapper)
+// are now pulled in fully via
 // `#include <chronon3d/scene/builders/text_run_builder.hpp>` above.
 // Forward declarations of these types here caused the pre-existing
 // build break: any TU that includes this header but not the full
@@ -272,7 +273,7 @@ private:
     // is what ends the builder's lifetime.  This is the only way the
     // compiler accepts `layer.text_run(...).position(...).opacity(...)`
     // when chained on multiple statements.
-    std::vector<std::unique_ptr<TextRunSpec>> m_text_runs;
+    std::vector<std::unique_ptr<TextRunBuildSpec>> m_text_runs;
     std::vector<std::unique_ptr<TextRunBuilder>> m_text_run_builders;
 };
 
