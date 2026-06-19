@@ -95,8 +95,8 @@ std::shared_ptr<Framebuffer> rasterize_mask_alpha(const Mask& mask, const Mat4& 
     }
 
     const Mat4 screen_from_local = glm::inverse(layer_inv_matrix);
-    const f32 hw = (mask.type() == MaskType::Circle) ? mask.radius : mask.size.x * 0.5f;
-    const f32 hh = (mask.type() == MaskType::Circle) ? mask.radius : mask.size.y * 0.5f;
+    const f32 hw = (mask.type == MaskType::Circle) ? mask.radius : mask.size.x * 0.5f;
+    const f32 hh = (mask.type == MaskType::Circle) ? mask.radius : mask.size.y * 0.5f;
 
     const Vec4 corners[4] = {
         screen_from_local * Vec4{-hw + mask.pos.x, -hh + mask.pos.y, 0.0f, 1.0f},

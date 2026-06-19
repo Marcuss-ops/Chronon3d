@@ -20,14 +20,14 @@ namespace chronon3d::renderer {
 // ── Gradient / fill helpers ────────────────────────────────────────
 
 [[nodiscard]] static inline Color resolve_gradient_color(const Fill& fill, Vec2 lp, Vec2 sz, f32 opacity) {
-    if (fill.type() == FillType::Solid) {
+    if (fill.type == FillType::Solid) {
         Color c = fill.solid.to_linear();
         c.a *= opacity;
         return c;
     }
 
     f32 t = 0.0f;
-    if (fill.type() == FillType::LinearGradient) {
+    if (fill.type == FillType::LinearGradient) {
         const Vec2 norm = { (lp.x / sz.x), (lp.y / sz.y) };
         const Vec2 dir = fill.gradient.to - fill.gradient.from;
         const f32 len_sq = dir.x * dir.x + dir.y * dir.y;
@@ -35,13 +35,13 @@ namespace chronon3d::renderer {
             const Vec2 rel = norm - fill.gradient.from;
             t = (rel.x * dir.x + rel.y * dir.y) / len_sq;
         }
-    } else if (fill.type() == FillType::RadialGradient) {
+    } else if (fill.type == FillType::RadialGradient) {
         const Vec2 norm = { (lp.x / sz.x), (lp.y / sz.y) };
         const Vec2 d = norm - fill.gradient.from;
         const Vec2 rv = fill.gradient.to - fill.gradient.from;
         const f32 r = glm::length(rv);
         t = (r > 1e-6f) ? glm::length(d) / r : 0.0f;
-    } else if (fill.type() == FillType::ConicGradient) {
+    } else if (fill.type == FillType::ConicGradient) {
         const Vec2 norm = { (lp.x / sz.x), (lp.y / sz.y) };
         const Vec2 d = norm - fill.gradient.from;
         float angle = std::atan2(d.y, d.x);
