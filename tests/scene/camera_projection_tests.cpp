@@ -41,7 +41,7 @@ TEST_CASE("Camera Projection logic check") {
     }
 
     SUBCASE("FOV updates projection scaling") {
-        camera.projection_mode = Camera2_5DProjectionMode::Fov;
+        camera.optics_mode = CameraOpticsMode::FieldOfView;
         camera.fov_deg = 90.0f; // wider FOV -> projects to smaller screen space offset
 
         ScreenPoint sp1 = project_world_to_screen(Vec3{100.0f, 0, 0}, camera, viewport);
