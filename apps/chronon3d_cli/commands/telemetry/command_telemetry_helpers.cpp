@@ -21,6 +21,7 @@ std::string format_ms(double value) {
 
 } // namespace chronon3d::cli
 
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
 #include <sqlite3.h>
 
 namespace chronon3d::cli {
@@ -46,13 +47,12 @@ bool prepare_with_run_id(sqlite3* db, sqlite3_stmt** stmt, const char* sql, cons
     return true;
 }
 
-// Minimal stub: emit a Markdown summary from `run` only.
-// `query_run_summary` already aggregates everything needed; this stub intentionally
-// avoids re-querying SQLite so it works even when the upstream implementation is
-// missing. The reference is to `RunSummary` fields and helpers already provided by
-// this translation unit.
-void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::string& run_id, const RunSummary& run) {
-    (void)db; // intentionally unused in this stub
+} // namespace chronon3d::cli
+#endif // CHRONON3D_ENABLE_SQLITE_TELEMETRY
+
+namespace chronon3d::cli {
+
+void generate_telemetry_report(std::stringstream& out, const RunSummary& run) {
     out << "# Telemetry Report\n\n";
     out << "- **Run ID:** `" << run.run_id << "`\n";
     out << "- **Composition:** `" << run.composition_id << "`\n";
@@ -113,8 +113,6 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
         << run.framebuffer_bytes_allocated << " / " << run.framebuffer_bytes_peak << "\n";
     out << "- Tiles hit / miss / partial: " << run.tiles_hit << " / " << run.tiles_miss << " / " << run.tiles_partial << "\n";
     out << "- Peak memory: " << run.bytes_allocated_peak << " bytes\n\n";
-
-    (void)run_id; // referenced for future expansions
 }
 
 } // namespace chronon3d::cli
