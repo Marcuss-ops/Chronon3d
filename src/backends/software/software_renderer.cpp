@@ -8,6 +8,7 @@
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/builtin_processors.hpp>
+#include <chronon3d/backends/software/utils/effects/per_pixel_dof.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/cache/cache_policy.hpp>
 #include <chronon3d/cache/persistent_framebuffer_store.hpp>
@@ -245,6 +246,17 @@ void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src,
     CHRONON_ZONE_C("composite_layer", trace_category::kComposite);
     m_counters.pixels_touched.fetch_add(clipped_area(dst.width(), dst.height(), to_local_clip(dst, clip)), std::memory_order_relaxed);
     SoftwareCompositor::composite_layer(dst, src, mode, clip, op, m_settings.force_scalar_normal_blend);
+}
+
+void SoftwareRenderer::apply_per_pixel_dof(
+    Framebuffer& framebuffer,
+    std::span<const float> depth,
+    const DepthOfFieldSettings& dof,
+    const LensModel& lens,
+    const std::optional<raster::BBox>& clip)
+{
+    std::vector<float> depth_vec(depth.begin(), depth.end());
+    renderer::apply_per_pixel_dof(framebuffer, depth_vec, dof, lens, clip);
 }
 
 bool SoftwareRenderer::draw_text_run(
