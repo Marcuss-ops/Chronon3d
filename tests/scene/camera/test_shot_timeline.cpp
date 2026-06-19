@@ -13,7 +13,7 @@
 //   7. WhipPan transition interpolates rotation via quaternion
 //   8. FocusHandoff transitions focus distance
 //   9. Overlap boundary produces non-NaN camera
-//  10. TransitionRegistry register + create + freeze
+//  10. TransitionCatalog register + create + freeze
 //  11. Endpoint parity: t=0==from, t=1==to
 //  12. Validation catches negative duration
 // ==============================================================================
@@ -186,20 +186,20 @@ TEST_CASE("overlap boundary produces non-NaN camera") {
 }
 
 // ==============================================================================
-// 10 — TransitionRegistry register + create + freeze.
+// 10 — TransitionCatalog register + create + freeze.
 // ==============================================================================
-TEST_CASE("transition registry register, create, and freeze") {
-    auto& reg = CameraTransitionRegistry::instance();
+TEST_CASE("transition catalog register, create, and freeze") {
+    CameraTransitionCatalog catalog;
 
-    reg.register_transition(CameraTransitionKind::Cut,
+    catalog.register_transition(CameraTransitionKind::Cut,
         ShotTimelineResolver::default_cut);
 
-    CHECK(reg.has(CameraTransitionKind::Cut));
-    auto t = reg.create(CameraTransitionKind::Cut);
+    CHECK(catalog.has(CameraTransitionKind::Cut));
+    auto t = catalog.create(CameraTransitionKind::Cut);
     CHECK(t != nullptr);
 
-    reg.freeze();
-    CHECK(reg.is_frozen());
+    catalog.freeze();
+    CHECK(catalog.is_frozen());
 }
 
 // ==============================================================================

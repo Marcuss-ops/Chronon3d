@@ -272,18 +272,17 @@ std::shared_ptr<CameraTransition> ShotTimelineResolver::default_focus_handoff() 
 // ShotTimelineResolver
 // =========================================================================
 
-ShotTimelineResolver::ShotTimelineResolver(std::shared_ptr<ShotTimeline> timeline)
+ShotTimelineResolver::ShotTimelineResolver(std::shared_ptr<ShotTimeline> timeline,
+                                           const CameraTransitionCatalog* catalog)
     : timeline_(std::move(timeline)) {
-    // Bug 5 fix: pull transitions from CameraTransitionRegistry instead of
-    // building a parallel local map. The registry is the single source of truth
-    // (populated by register_camera_v1_builtins() via register_defaults()).
-    // We still fall back to the local defaults so tests that bypassed the
-    // bootstrap can construct a resolver without crashing.
-    auto& reg = CameraTransitionRegistry::instance();
+    // Pull transitions from the catalog (single source of truth, populated by
+    // register_camera_v1_builtins()). Fall back to local defaults when catalog
+    // is null (e.g. tests that bypassed the bootstrap).
+    const auto* ctlg = catalog;
     auto fetch = [&](CameraTransitionKind k,
                      std::shared_ptr<CameraTransition> fallback)
         -> std::shared_ptr<CameraTransition> {
-        auto t = reg.create(k);
+        auto t = ctlg ? ctlg->create(k) : nullptr;
         return t ? t : fallback;
     };
     transitions_[CameraTransitionKind::Cut]          = fetch(CameraTransitionKind::Cut,          default_cut());
@@ -356,39 +355,34 @@ Camera2_5D ShotTimelineResolver::evaluate(int frame,
 }
 
 // =========================================================================
-// CameraTransitionRegistry
+// CameraTransitionCatalog
 // =========================================================================
 
-CameraTransitionRegistry& CameraTransitionRegistry::instance() {
-    static CameraTransitionRegistry r;
-    return r;
-}
-
-void CameraTransitionRegistry::register_transition(CameraTransitionKind kind, Factory f) {
-    if (!f) throw std::invalid_argument("CameraTransitionRegistry: null factory");
+void CameraTransitionCatalog::register_transition(CameraTransitionKind kind, Factory f) {
+    if (!f) throw std::invalid_argument("CameraTransitionCatalog: null factory");
     std::lock_guard<std::mutex> lk(mu_);
-    if (frozen_) throw std::logic_error("CameraTransitionRegistry: frozen");
+    if (frozen_) throw std::logic_error("CameraTransitionCatalog: frozen");
     factories_[kind] = std::move(f);
 }
 
-std::shared_ptr<CameraTransition> CameraTransitionRegistry::create(
+std::shared_ptr<CameraTransition> CameraTransitionCatalog::create(
         CameraTransitionKind kind) const {
     std::lock_guard<std::mutex> lk(mu_);
     auto it = factories_.find(kind);
     return (it != factories_.end()) ? it->second() : nullptr;
 }
 
-bool CameraTransitionRegistry::has(CameraTransitionKind kind) const {
+bool CameraTransitionCatalog::has(CameraTransitionKind kind) const {
     std::lock_guard<std::mutex> lk(mu_);
     return factories_.count(kind) > 0;
 }
 
-void CameraTransitionRegistry::freeze() {
+void CameraTransitionCatalog::freeze() {
     std::lock_guard<std::mutex> lk(mu_);
     frozen_ = true;
 }
 
-void CameraTransitionRegistry::register_defaults() {
+void CameraTransitionCatalog::register_defaults() {
     if (!has(CameraTransitionKind::Cut))
         register_transition(CameraTransitionKind::Cut, ShotTimelineResolver::default_cut);
     if (!has(CameraTransitionKind::SmoothBlend))

@@ -9,12 +9,17 @@
 
 namespace chronon3d::camera_v1 {
 
+static CameraTransitionCatalog s_transition_catalog;
+
+const CameraTransitionCatalog& get_transition_catalog() {
+    return s_transition_catalog;
+}
+
 void register_camera_v1_builtins() {
     // Register transitions (5 builtins: Cut, SmoothBlend, Push, WhipPan, FocusHandoff).
-    CameraTransitionRegistry::instance().register_defaults();
+    s_transition_catalog.register_defaults();
 
-    auto& tr = CameraTransitionRegistry::instance();
-    if (!tr.is_frozen()) tr.freeze();
+    if (!s_transition_catalog.is_frozen()) s_transition_catalog.freeze();
 }
 
 } // namespace chronon3d::camera_v1
