@@ -50,7 +50,8 @@ public:
         bool uses_2_5d_projection = false,
         std::optional<Mat4> matrix_override = std::nullopt,
         std::optional<f32> opacity_override = std::nullopt,
-        bool cache_static = false
+        bool cache_static = false,
+        RenderNodeCachePolicy policy = static_memory_cache("text_run")
     );
 
     // ── RenderGraphNode overrides ────────────────────────────────────────
@@ -62,27 +63,9 @@ public:
         return false;
     }
 
-    /// Default cacheable-and-frame-dependent semantics.  cache_static
-    /// flips to FrameInvariant (persistent disk bake candidate).
-    [[nodiscard]] CacheFramePolicy cache_frame_policy() const noexcept override {
-        return m_cache_static
-            ? CacheFramePolicy::FrameInvariant
-            : CacheFramePolicy::FrameDependent;
-    }
 
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const override {
-        if (m_cache_static) {
-            return static_memory_cache("text_run_static");
-        }
-        return RenderNodeCachePolicy{
-            .cacheable = true,
-            .frame_dependent = true,
-            .frame_invariant = false,
-            .disk_cacheable = false,
-            .lifetime = CacheLifetime::PerFrame,
-            .invalidation = CacheInvalidation::WhenParamsChange,
-            .debug_reason = "text_run_animated"
-        };
+    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
+        return m_cache_policy;
     }
 
     /// 2.5D-aware predicted bbox using `compute_text_run_world_bbox`.
@@ -128,7 +111,7 @@ private:
     bool m_uses_2_5d_projection{false};
     std::optional<Mat4> m_matrix_override;
     std::optional<f32> m_opacity_override;
-    bool m_cache_static{false};
+    RenderNodeCachePolicy m_cache_policy{static_memory_cache("text_run")};
 
     // ── Log throttle ───────────────────────────────────────────────────
     // Backend-mismatch diagnostic fires once per node lifetime at error

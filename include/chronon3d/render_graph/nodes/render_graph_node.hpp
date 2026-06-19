@@ -36,11 +36,6 @@ class RenderBackend;
 class RenderProfiler;
 using GraphNodeId = uint32_t;
 
-enum class CacheFramePolicy {
-    FrameDependent,
-    FrameInvariant
-};
-
 enum class RenderGraphNodeKind {
     Source,
     Mask,
@@ -77,47 +72,29 @@ public:
         (void)input_bboxes;
         return predicted_bbox(ctx);
     }
-    
+
     virtual RenderGraphNodeKind kind() const noexcept = 0;
     [[nodiscard]] virtual std::string_view name() const noexcept = 0;
 
     [[nodiscard]] std::string_view layer_id() const noexcept { return m_layer_id; }
     void set_layer_id(std::string id) { m_layer_id = std::move(id); }
 
-    [[nodiscard]] virtual bool cacheable() const noexcept { return true; }
-
     /// Returns true when the node can serve as a fully opaque full-frame seed
-    /// for the first layer in a composition. This lets the builder skip the
+    /// for the first layer in a composition.  Lets the builder skip the
     /// initial clear/composite pass for static full-frame backgrounds.
     [[nodiscard]] virtual bool can_seed_full_frame(const RenderGraphContext&) const noexcept {
         return false;
     }
 
-    [[nodiscard]] virtual CacheFramePolicy cache_frame_policy() const noexcept {
-        return CacheFramePolicy::FrameDependent;
+    /// Canonical, immutable cache descriptor.  Subclasses that can vary their
+    /// caching policy at construction time must store the policy passed in
+    /// their constructor and return it from this method.  Subclasses with a
+    /// fixed policy (most of them) can simply override this method directly
+    /// with the appropriate factory helper (e.g. `frame_variant_cache`,
+    /// `static_memory_cache`, `no_cache`).
+    [[nodiscard]] virtual RenderNodeCachePolicy cache_policy() const noexcept {
+        return frame_variant_cache("default");
     }
-
-    /// Rich cache policy descriptor.  Default implementation wraps the legacy
-    /// cacheable() / cache_frame_policy() / frame_dependent() API.
-    [[nodiscard]] virtual RenderNodeCachePolicy cache_policy() const {
-        const bool invariant = cache_frame_policy() == CacheFramePolicy::FrameInvariant;
-        return RenderNodeCachePolicy{
-            .cacheable = cacheable(),
-            .frame_dependent = frame_dependent() || cache_frame_policy() == CacheFramePolicy::FrameDependent,
-            .frame_invariant = invariant,
-            .disk_cacheable = invariant,
-            .lifetime = invariant
-                ? CacheLifetime::PersistentDisk
-                : CacheLifetime::PerFrame,
-            .invalidation = invariant
-                ? CacheInvalidation::WhenParamsChange
-                : CacheInvalidation::WhenInputsChange,
-            .debug_reason = "legacy_policy"
-        };
-    }
-
-    [[nodiscard]] bool frame_dependent() const noexcept { return m_frame_dependent; }
-    void set_frame_dependent(bool value) { m_frame_dependent = value; }
 
     [[nodiscard]] virtual cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const = 0;
 
@@ -129,7 +106,6 @@ public:
 
 private:
     std::string m_layer_id;
-    bool m_frame_dependent{true};
 };
 
 } // namespace chronon3d::graph

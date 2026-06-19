@@ -20,7 +20,6 @@ public:
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
     std::string_view name() const noexcept override { return "Lighting"; }
 
-    [[nodiscard]] bool cacheable() const noexcept override { return true; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         const u64 light_hash = rendering::hash_light_context(ctx.camera.light_context);
@@ -29,7 +28,7 @@ public:
 
         return cache::NodeCacheKey{
             .scope = "lighting:" + m_layer_name,
-            .frame = frame_dependent() ? ctx.frame.frame : Frame{0},
+            .frame = ctx.frame.frame,
             .width = ctx.frame.width,
             .height = ctx.frame.height,
             .params_hash = hash_combine(hash_combine(light_hash, material_hash), world_hash)
@@ -73,6 +72,10 @@ public:
         }
 
         return result;
+    }
+
+    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
+        return frame_variant_cache("lighting");
     }
 
     static std::unique_ptr<LightingNode> create(std::string layer_name, const Mat4& world_matrix,

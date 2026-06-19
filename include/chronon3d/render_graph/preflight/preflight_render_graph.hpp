@@ -70,8 +70,8 @@ struct GraphPreflightNode {
     VisibilityStatus visibility{VisibilityStatus::Unknown};
 
     // Cache / dirty state
-    bool cacheable{false};        ///< node.cacheable()
-    bool frame_dependent{false};  ///< node.frame_dependent()
+    bool cacheable{false};        ///< node.cache_policy().enabled()
+    bool frame_dependent{false};  ///< node.cache_policy().frame_dependent()
     bool dirty{false};            ///< alias: frame_dependent (node will be re-evaluated)
     bool cached{false};           ///< alias: cacheable && !frame_dependent
 

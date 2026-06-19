@@ -31,12 +31,11 @@ public:
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
     std::string_view name() const noexcept override { return "PerPixelDOF"; }
 
-    [[nodiscard]] bool cacheable() const noexcept override { return true; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "per_pixel_dof",
-            .frame = frame_dependent() ? ctx.frame.frame : Frame{0},
+            .frame = ctx.frame.frame,
             .width = ctx.frame.width,
             .height = ctx.frame.height,
             .params_hash = hash_combine(
@@ -73,6 +72,10 @@ public:
         std::span<const FramebufferRef> inputs,
         std::span<const std::optional<raster::BBox>> input_bboxes
     ) override;
+
+    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
+        return frame_variant_cache("per_pixel_dof");
+    }
 
     static std::unique_ptr<PerPixelDofNode> create(const Camera2_5DRuntime& cam) {
         return std::make_unique<PerPixelDofNode>(cam);
