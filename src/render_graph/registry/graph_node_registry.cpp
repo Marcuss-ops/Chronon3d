@@ -1,4 +1,5 @@
 #include <chronon3d/render_graph/registry/graph_node_registry.hpp>
+#include <chronon3d/render_graph/registry/graph_node_create_request.hpp>
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 
 #include <ranges>
@@ -63,11 +64,17 @@ std::vector<GraphNodeDescriptor> GraphNodeRegistry::list_by_category(std::string
 }
 
 std::unique_ptr<RenderGraphNode> GraphNodeRegistry::create(std::string_view id) const {
+    return create(id, GraphNodeCreateRequest{});
+}
+
+std::unique_ptr<RenderGraphNode> GraphNodeRegistry::create(
+    std::string_view id, const GraphNodeCreateRequest& request) const
+{
     auto it = m_nodes.find(id);
     if (it == m_nodes.end() || !it->second.factory) {
         return nullptr;
     }
-    return it->second.factory();
+    return it->second.factory(request);
 }
 
 void GraphNodeRegistry::clear() {

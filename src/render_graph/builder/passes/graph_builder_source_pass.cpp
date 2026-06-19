@@ -2,10 +2,11 @@
 #include "../graph_builder_coordinates.hpp"
 
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
-#include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/nodes/video_node.hpp>
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/render_graph/registry/graph_node_registry.hpp>
+#include <chronon3d/render_graph/registry/graph_node_create_request.hpp>
 #include <memory>
 #include <spdlog/spdlog.h>
 
@@ -269,15 +270,36 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         const auto tune_mode     = ctx.options.program_cache_tune
             ? cache::TuneMode::Auto
             : cache::TuneMode::Fixed;
-        auto precomp_id = graph.add_node(std::make_unique<PrecompNode>(
-            std::string(layer.precomp_composition_name), layer.from, layer.duration,
-            is_static ? Frame{0} : Frame{-1},
-            cache_cap,
-            tune_mode,
-            ctx.options.program_cache_tune_interval,
-            ctx.options.program_cache_tune_min_capacity,
-            ctx.options.program_cache_tune_max_capacity
-        ));
+
+        // Create PrecompNode via GraphNodeRegistry to break the
+        // graph_builder → graph_pipeline CMake cycle.
+        GraphNodeCreateRequest request{
+            .payload = PrecompNodeCreateSpec{
+                .composition_name =
+                    std::string(layer.precomp_composition_name),
+                .start_frame = layer.from,
+                .duration = layer.duration,
+                .cache_frame = is_static ? Frame{0} : Frame{-1},
+                .cache_capacity = cache_cap,
+                .tune_mode = tune_mode,
+                .tune_interval =
+                    ctx.options.program_cache_tune_interval,
+                .tune_min_capacity =
+                    ctx.options.program_cache_tune_min_capacity,
+                .tune_max_capacity =
+                    ctx.options.program_cache_tune_max_capacity,
+            }
+        };
+
+        auto node = GraphNodeRegistry::instance().create(
+            "source.precomp", request);
+
+        if (!node) {
+            throw std::logic_error(
+                "source.precomp factory is not registered");
+        }
+
+        auto precomp_id = graph.add_node(std::move(node));
         graph.node(precomp_id).set_frame_dependent(!is_static);
         return precomp_id;
     }

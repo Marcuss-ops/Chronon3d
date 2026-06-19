@@ -39,6 +39,12 @@ public:
                     const std::optional<raster::BBox>& = std::nullopt) override {
         apply_blur_called++;
     }
+
+    void apply_per_pixel_dof(Framebuffer&, std::span<const float>,
+                              const DepthOfFieldSettings&, const LensModel&,
+                              const std::optional<raster::BBox>&) override {
+        // FakeBackend: no-op, just count calls
+    }
 };
 
 TEST_CASE("RenderBackend - RenderGraphContext accepts and executes RenderBackend") {

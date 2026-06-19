@@ -3,6 +3,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
+#include <chronon3d/scene/model/camera/dof.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/compositor/composite_operator.hpp>
 #include <chronon3d/math/raster_utils.hpp>
@@ -10,6 +11,7 @@
 #include <glm/glm.hpp>
 #include <memory>
 #include <optional>
+#include <span>
 
 namespace chronon3d {
     struct RenderNode;
@@ -35,6 +37,14 @@ public:
 
     virtual RenderCounters* counters() { return nullptr; }
     virtual std::shared_ptr<cache::FramebufferPool> framebuffer_pool() { return nullptr; }
+
+    /// Per-pixel depth-of-field blur.  Backends must implement.
+    virtual void apply_per_pixel_dof(
+        Framebuffer& framebuffer,
+        std::span<const float> depth,
+        const DepthOfFieldSettings& dof,
+        const LensModel& lens,
+        const std::optional<raster::BBox>& clip) = 0;
 
     virtual void draw_node(
         Framebuffer& fb,

@@ -40,7 +40,6 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 
-#include <functional>
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -69,6 +68,8 @@ namespace chronon3d::graph {
 
 class RenderBackend;
 class RenderProfiler;
+class CompiledGraphCache;
+class RenderGraphNode;
 
 // ── Per-frame immutable-ish info: frame number, time, dimensions ───────────
 struct RenderFrameInfo {
@@ -96,6 +97,7 @@ struct RenderResourceContext {
     RenderBackend* backend{nullptr};
     cache::NodeCache* node_cache{nullptr};
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool;
+    CompiledGraphCache* compiled_graph_cache{nullptr};
     const CompositionRegistry* registry{nullptr};
     media::MediaFrameProvider* video_decoder{nullptr};
 };
