@@ -5,14 +5,13 @@
   "overrides": [
     {
       "name": "sqlite3",
-      "version": "3.53.1"
+      "version": "3.52.0"
     }
   ],
   "dependencies": [
     "spdlog",
     "fmt",
     "glm",
-    "taskflow",
     "tbb",
     "stb",
     "concurrentqueue",

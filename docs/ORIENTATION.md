@@ -579,7 +579,6 @@ chronon3d_cli graph <Comp>     # print frame DAG
 | stb_image | PNG/JPG loading |
 | spdlog + fmt | Logging |
 | Google Highway | SIMD blending |
-| Taskflow | Parallel frame pipeline |
 | CLI11 | CLI argument parsing |
 | doctest | Tests |
 | FreeType + HarfBuzz | Text shaping |
