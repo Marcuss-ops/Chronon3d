@@ -12,6 +12,14 @@ namespace chronon3d::renderer {
 
 namespace {
 
+// TBB grain size for the row-wise parallel scan. Matches the convention used
+// in src/backends/software/utils/effects/effect_blur.cpp (kTbbGrain = 16) and
+// src/backends/software/utils/effects/glow_pipeline.cpp (kGlowTbbGrain = 32).
+// 16 rows per chunk keeps 4-8 workers active over a typical ~180-row
+// viewport, large enough to avoid simple_partitioner{}'s 1-row micro-chunk
+// determinism artifacts, small enough to balance sparse/dense row workload.
+static constexpr i32 kGridTbbGrain = 16;
+
 // ── Helpers (inlined for performance) ──────────────────────────────────────
 
 inline f32 line_weight(f32 distance, f32 thickness) noexcept {
@@ -129,12 +137,11 @@ void render_grid_background_kernel(
     const bool has_active_cols = !active_x.empty();
     const i32 active_count = static_cast<i32>(active_x.size());
 
-    // simple_partitioner forces TBB to split the range into chunks (one per
-    // worker) instead of relying on auto_partitioner's adaptive coarse default,
-    // which empirically leaves parallel_for serialised on sparse grid rows
-    // and caps peak workers at 1. The extra scheduling overhead is negligible
-    // for the per-row body weight here.
-    tbb::parallel_for(tbb::blocked_range<i32>(y0, y1),
+    // Explicit grain size (kGridTbbGrain) with default auto_partitioner
+    // prevents sparse-row serialisation while avoiding simple_partitioner{}'s
+    // 1-row micro-chunk determinism artifacts (see b7d5f9e8 for the parallel
+    // compositor precedent). Matches codebase convention.
+    tbb::parallel_for(tbb::blocked_range<i32>(y0, y1, kGridTbbGrain),
         [&](const tbb::blocked_range<i32>& range) {
             for (i32 y = range.begin(); y != range.end(); ++y) {
                 Color* row = fb.pixels_row(y);
@@ -189,8 +196,7 @@ void render_grid_background_kernel(
                 }
                 // else: no grid lines in this row or column → nothing to blend
             }
-        },
-        tbb::simple_partitioner{}
+        }
     );
 }
 
