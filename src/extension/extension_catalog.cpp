@@ -3,6 +3,7 @@
 // ============================================================================
 
 #include <chronon3d/extension/extension_catalog.hpp>
+#include <chronon3d/extension/extension_context.hpp>
 #include <algorithm>
 #include <stdexcept>
 
@@ -20,9 +21,9 @@ void ExtensionCatalog::register_module(
     m_modules.push_back(std::move(module));
 }
 
-void ExtensionCatalog::register_all() {
+void ExtensionCatalog::register_all(ExtensionContext& ctx) {
     for (std::size_t i = m_registered_count; i < m_modules.size(); ++i) {
-        m_modules[i]->register_all();
+        m_modules[i]->register_all(ctx);
     }
     m_registered_count = m_modules.size();
 }

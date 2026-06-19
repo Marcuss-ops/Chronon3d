@@ -6,7 +6,7 @@
 # function; register_content_modules.cpp orchestrates them all.
 #
 # PR 7: ExtensionRegistry removed — composition registration uses
-# detail::add_builtin_composition() directly.
+# CompositionRegistry::add() directly via ExtensionContext.
 # ==============================================================================
 
 add_library(chronon3d_content STATIC

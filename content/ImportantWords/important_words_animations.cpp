@@ -1,4 +1,4 @@
-#include <chronon3d/core/composition/composition_registration.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
@@ -155,14 +155,14 @@ Composition important_word_trio() {
 }
 
 // ── Per-domain registration ──────────────────────────────────────────────────
-void register_important_word_compositions() {
+void register_important_word_compositions(CompositionRegistry& registry) {
     static bool done = false;
     if (done) return;
     done = true;
-    detail::add_builtin_composition("ImportantWordDirectorLight", important_word_director_light);
-    detail::add_builtin_composition("ImportantWordActorWarm",     important_word_actor_warm);
-    detail::add_builtin_composition("ImportantWordWriterCool",    important_word_writer_cool);
-    detail::add_builtin_composition("ImportantWordTrio",           important_word_trio);
+    registry.add("ImportantWordDirectorLight", [](const CompositionProps&) { return important_word_director_light(); });
+    registry.add("ImportantWordActorWarm", [](const CompositionProps&) { return important_word_actor_warm(); });
+    registry.add("ImportantWordWriterCool", [](const CompositionProps&) { return important_word_writer_cool(); });
+    registry.add("ImportantWordTrio", [](const CompositionProps&) { return important_word_trio(); });
 }
 
 } // namespace chronon3d::content::important_words

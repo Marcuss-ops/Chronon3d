@@ -1,4 +1,4 @@
-#include <chronon3d/core/composition/composition_registration.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
@@ -252,18 +252,18 @@ Composition img_reference_shake_reveal();
 Composition img_corner_smoothing();
 
 // ── Per-domain registration ──────────────────────────────────────────────────
-void register_image_compositions() {
+void register_image_compositions(CompositionRegistry& registry) {
     static bool done = false;
     if (done) return;
     done = true;
-    detail::add_builtin_composition("ImgGradient",    img_gradient);
-    detail::add_builtin_composition("ImgChecker",     img_checker);
-    detail::add_builtin_composition("ImgGridTest",    img_grid_test);
-    detail::add_builtin_composition("ImgTestPattern", img_test_pattern);
-    detail::add_builtin_composition("ImgShakeZoom",             img_shake_zoom);
-    detail::add_builtin_composition("ImgReferenceShakeReveal",  img_reference_shake_reveal);
-    detail::add_builtin_composition("ImgCornerSmoothing",       img_corner_smoothing);
-    detail::add_builtin_composition("ImageProofs",    image_proofs);
+    registry.add("ImgGradient", [](const CompositionProps&) { return img_gradient(); });
+    registry.add("ImgChecker", [](const CompositionProps&) { return img_checker(); });
+    registry.add("ImgGridTest", [](const CompositionProps&) { return img_grid_test(); });
+    registry.add("ImgTestPattern", [](const CompositionProps&) { return img_test_pattern(); });
+    registry.add("ImgShakeZoom", [](const CompositionProps&) { return img_shake_zoom(); });
+    registry.add("ImgReferenceShakeReveal", [](const CompositionProps&) { return img_reference_shake_reveal(); });
+    registry.add("ImgCornerSmoothing", [](const CompositionProps&) { return img_corner_smoothing(); });
+    registry.add("ImageProofs", [](const CompositionProps&) { return image_proofs(); });
 }
 
 } // namespace chronon3d::content::images

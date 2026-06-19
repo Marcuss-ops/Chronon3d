@@ -11,7 +11,7 @@
 // is opinionated product behaviour.
 // -----------------------------------------------------------------------
 
-#include <chronon3d/core/composition/composition_registration.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
@@ -20,8 +20,8 @@
 
 namespace chronon3d::content::backgrounds {
 
-void register_grid_clean_background() {
-    detail::add_builtin_composition("GridCleanBackground", []() {
+void register_grid_clean_background(CompositionRegistry& registry) {
+    registry.add("GridCleanBackground", [](const CompositionProps&) {
         return composition({.name = "GridCleanBackground", .duration = 90},
             [](const FrameContext& ctx) {
                 SceneBuilder s(ctx);

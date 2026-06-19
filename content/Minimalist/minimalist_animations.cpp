@@ -1,4 +1,4 @@
-#include <chronon3d/core/composition/composition_registration.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
@@ -355,40 +355,40 @@ Composition minimalist_image_tracking_breathing();
 Composition minimalist_image_elegant_exit();
 Composition minimalist_image_elastic_slide();
 
-void register_minimalist_compositions() {
+void register_minimalist_compositions(CompositionRegistry& registry) {
     static bool done = false;
     if (done) return;
     done = true;
-    detail::add_builtin_composition("MinimalistTextFadeUp",              minimalist_text_fade_up);
-    detail::add_builtin_composition("MinimalistTextTrackingReveal",     minimalist_text_tracking_reveal);
-    detail::add_builtin_composition("MinimalistTextClipReveal",         minimalist_text_clip_reveal);
-    detail::add_builtin_composition("MinimalistTextFadeDown",           minimalist_text_fade_down);
-    detail::add_builtin_composition("MinimalistTextSoftScale",          minimalist_text_soft_scale);
-    detail::add_builtin_composition("MinimalistTextBlurFocus",          minimalist_text_blur_focus);
-    detail::add_builtin_composition("MinimalistTextSlideLeft",          minimalist_text_slide_left);
-    detail::add_builtin_composition("MinimalistTextSlideRight",         minimalist_text_slide_right);
-    detail::add_builtin_composition("MinimalistTextScalePop",           minimalist_text_scale_pop);
-    detail::add_builtin_composition("MinimalistTextFloatIn",            minimalist_text_float_in);
-    detail::add_builtin_composition("MinimalistTextLetterRise",         minimalist_text_letter_rise);
-    detail::add_builtin_composition("MinimalistTextDriftIn",            minimalist_text_drift_in);
-    detail::add_builtin_composition("MinimalistTextTiltIn",             minimalist_text_tilt_in);
-    detail::add_builtin_composition("MinimalistTextMaskReveal",         minimalist_text_mask_reveal);
-    detail::add_builtin_composition("MinimalistTextSnapPop",            minimalist_text_snap_pop);
-    detail::add_builtin_composition("MinimalistTextFadeAway",           minimalist_text_fade_away);
-    detail::add_builtin_composition("MinimalistTextScaleOut",           minimalist_text_scale_out);
-    detail::add_builtin_composition("MinimalistTextSlideUpOut",         minimalist_text_slide_up_out);
-    detail::add_builtin_composition("MinimalistTextBlurAway",           minimalist_text_blur_away);
-    detail::add_builtin_composition("MinimalistTextTiltOut",            minimalist_text_tilt_out);
-    detail::add_builtin_composition("MinimalistImageFadeIn",            minimalist_image_fade_in);
-    detail::add_builtin_composition("MinimalistImageFocusIn",           minimalist_image_focus_in);
-    detail::add_builtin_composition("MinimalistImageScaleDrop",         minimalist_image_scale_drop);
-    detail::add_builtin_composition("MinimalistImageFadeShiftVertical", minimalist_image_fade_shift_vertical);
-    detail::add_builtin_composition("MinimalistImageCenterSplit",       minimalist_image_center_split);
-    detail::add_builtin_composition("MinimalistImageRevealFromBottom",  minimalist_image_reveal_from_bottom);
-    detail::add_builtin_composition("MinimalistImageFramingBracket",    minimalist_image_framing_bracket);
-    detail::add_builtin_composition("MinimalistImageTrackingBreathing", minimalist_image_tracking_breathing);
-    detail::add_builtin_composition("MinimalistImageElegantExit",       minimalist_image_elegant_exit);
-    detail::add_builtin_composition("MinimalistImageElasticSlide",      minimalist_image_elastic_slide);
+    registry.add("MinimalistTextFadeUp", [](const CompositionProps&) { return minimalist_text_fade_up(); });
+    registry.add("MinimalistTextTrackingReveal", [](const CompositionProps&) { return minimalist_text_tracking_reveal(); });
+    registry.add("MinimalistTextClipReveal", [](const CompositionProps&) { return minimalist_text_clip_reveal(); });
+    registry.add("MinimalistTextFadeDown", [](const CompositionProps&) { return minimalist_text_fade_down(); });
+    registry.add("MinimalistTextSoftScale", [](const CompositionProps&) { return minimalist_text_soft_scale(); });
+    registry.add("MinimalistTextBlurFocus", [](const CompositionProps&) { return minimalist_text_blur_focus(); });
+    registry.add("MinimalistTextSlideLeft", [](const CompositionProps&) { return minimalist_text_slide_left(); });
+    registry.add("MinimalistTextSlideRight", [](const CompositionProps&) { return minimalist_text_slide_right(); });
+    registry.add("MinimalistTextScalePop", [](const CompositionProps&) { return minimalist_text_scale_pop(); });
+    registry.add("MinimalistTextFloatIn", [](const CompositionProps&) { return minimalist_text_float_in(); });
+    registry.add("MinimalistTextLetterRise", [](const CompositionProps&) { return minimalist_text_letter_rise(); });
+    registry.add("MinimalistTextDriftIn", [](const CompositionProps&) { return minimalist_text_drift_in(); });
+    registry.add("MinimalistTextTiltIn", [](const CompositionProps&) { return minimalist_text_tilt_in(); });
+    registry.add("MinimalistTextMaskReveal", [](const CompositionProps&) { return minimalist_text_mask_reveal(); });
+    registry.add("MinimalistTextSnapPop", [](const CompositionProps&) { return minimalist_text_snap_pop(); });
+    registry.add("MinimalistTextFadeAway", [](const CompositionProps&) { return minimalist_text_fade_away(); });
+    registry.add("MinimalistTextScaleOut", [](const CompositionProps&) { return minimalist_text_scale_out(); });
+    registry.add("MinimalistTextSlideUpOut", [](const CompositionProps&) { return minimalist_text_slide_up_out(); });
+    registry.add("MinimalistTextBlurAway", [](const CompositionProps&) { return minimalist_text_blur_away(); });
+    registry.add("MinimalistTextTiltOut", [](const CompositionProps&) { return minimalist_text_tilt_out(); });
+    registry.add("MinimalistImageFadeIn", [](const CompositionProps&) { return minimalist_image_fade_in(); });
+    registry.add("MinimalistImageFocusIn", [](const CompositionProps&) { return minimalist_image_focus_in(); });
+    registry.add("MinimalistImageScaleDrop", [](const CompositionProps&) { return minimalist_image_scale_drop(); });
+    registry.add("MinimalistImageFadeShiftVertical", [](const CompositionProps&) { return minimalist_image_fade_shift_vertical(); });
+    registry.add("MinimalistImageCenterSplit", [](const CompositionProps&) { return minimalist_image_center_split(); });
+    registry.add("MinimalistImageRevealFromBottom", [](const CompositionProps&) { return minimalist_image_reveal_from_bottom(); });
+    registry.add("MinimalistImageFramingBracket", [](const CompositionProps&) { return minimalist_image_framing_bracket(); });
+    registry.add("MinimalistImageTrackingBreathing", [](const CompositionProps&) { return minimalist_image_tracking_breathing(); });
+    registry.add("MinimalistImageElegantExit", [](const CompositionProps&) { return minimalist_image_elegant_exit(); });
+    registry.add("MinimalistImageElasticSlide", [](const CompositionProps&) { return minimalist_image_elastic_slide(); });
 }
 
 } // namespace chronon3d::content::minimalist

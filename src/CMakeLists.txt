@@ -122,3 +122,8 @@ target_link_libraries(chronon3d_pipeline INTERFACE
     chronon3d_core
     chronon3d_software
 )
+
+# ==============================================================================
+# Consumer SDK alias — external programs link against Chronon3D::SDK
+# ==============================================================================
+add_library(Chronon3D_SDK ALIAS chronon3d_pipeline)

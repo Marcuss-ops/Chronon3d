@@ -17,16 +17,17 @@ using namespace chronon3d;
 // CHRONON3D_BUILD_CONTENT and is registered via
 // content::backgrounds::register_grid_clean_background() when the
 // CHRONON3D_HAS_CONTENT_BACKGROUNDS define is set (CMake-gated).
-static bool _bg_registered = (
-    chronon3d::register_builtin_compositions(),
+static CompositionRegistry s_bg_registry;
+static bool _bg_registered = ([]() -> bool {
+    chronon3d::register_builtin_compositions(s_bg_registry);
 #if defined(CHRONON3D_HAS_CONTENT_BACKGROUNDS)
-    chronon3d::content::backgrounds::register_grid_clean_background(),
+    chronon3d::content::backgrounds::register_grid_clean_background(s_bg_registry);
 #endif
-    true
-);
+    return true;
+})();
 
 TEST_CASE("Builtin background compositions are registered") {
-    chronon3d::CompositionRegistry registry;
+    chronon3d::CompositionRegistry registry = s_bg_registry;
     CHECK(registry.create("GridCleanBackground").name() == "GridCleanBackground");
 }
 
@@ -37,7 +38,7 @@ TEST_CASE("Analytical verification of GridCleanBackground render") {
     renderer.set_settings(settings);
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
 
-    chronon3d::CompositionRegistry registry;
+    chronon3d::CompositionRegistry registry = s_bg_registry;
     auto comp = registry.create("GridCleanBackground");
     REQUIRE(comp.name() == "GridCleanBackground");
     

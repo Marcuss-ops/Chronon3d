@@ -10,8 +10,8 @@
 // Usage:
 //   class MyModule final : public ExtensionModule {
 //       std::string_view name() const override { return "my_module"; }
-//       void register_all() override {
-//           // Register graph nodes, compositions, etc.
+//       void register_all(ExtensionContext& ctx) override {
+//           ctx.compositions.add("MyComp", [] { return make_my_comp(); });
 //       }
 //   };
 // ============================================================================
@@ -20,11 +20,14 @@
 
 namespace chronon3d {
 
+struct ExtensionContext;
+
 /// Abstract base class for an extension module.
 ///
 /// Each content domain or feature set inherits from this class and
-/// implements `register_all()` to wire its factories into the
-/// appropriate registries (GraphNodeCatalog, CompositionRegistry, etc.).
+/// implements `register_all(ExtensionContext&)` to wire its factories
+/// into the appropriate registries (GraphNodeCatalog, CompositionRegistry,
+/// etc.).
 ///
 /// Thread-safety: `register_all()` is called during engine startup
 /// (single-threaded phase).  Subsequent access to registries is
@@ -38,9 +41,10 @@ public:
     [[nodiscard]] virtual std::string_view name() const = 0;
 
     /// Called exactly once at engine startup to register this module's
-    /// factories into the appropriate registries.  Must be idempotent
-    /// (safe to call multiple times).
-    virtual void register_all() = 0;
+    /// factories into the appropriate registries.  Receives an
+    /// ExtensionContext with references to all domain registries.
+    /// Must be idempotent (safe to call multiple times).
+    virtual void register_all(ExtensionContext& context) = 0;
 };
 
 } // namespace chronon3d

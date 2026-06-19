@@ -23,7 +23,8 @@ void setup_render_job(const CompositionRegistry& registry,
     // Mount current working directory as asset root so relative asset paths
     // (fonts, images, etc.) resolve correctly for all engines (Blend2D,
     // FreeType, image loaders).
-    AssetRegistry::mount(std::filesystem::current_path());
+    auto* assets = AssetRegistry::get_thread_local();
+    if (assets) assets->mount(std::filesystem::current_path());
 
     profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
     profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
