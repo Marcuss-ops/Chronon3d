@@ -5,6 +5,7 @@
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
 #include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
 #include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
+#include <chronon3d/render_graph/pipeline/pipeline_catalogs.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/trace_categories.hpp>
@@ -37,10 +38,12 @@ namespace chronon3d::graph {
     pre_resolved.layers = resolved.layers;
     pre_resolved.camera = resolved.camera;
 
-    // Wire the precomp build factory so PrecompNode (in graph_nodes)
-    // can build + compile nested scenes without linking graph_builder.
-    // node_catalog is already set via ctx.resources.node_catalog by the caller.
-    wire_precomp_build_factory(mutable_ctx);
+    // Build pipeline catalogs once (function-local static — thread-safe
+    // in C++11).  Freezes graph_nodes, effects, and extensions.
+    static PipelineCatalogs s_catalogs = make_builtin_pipeline_catalogs();
+
+    // Wire catalog pointers + precomp build factory into context.
+    wire_precomp_build_factory(mutable_ctx, s_catalogs);
 
     RenderGraph graph = pipeline.build_with_resolved(scene, mutable_ctx, pre_resolved);
 
