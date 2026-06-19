@@ -1,10 +1,9 @@
 #pragma once
 
+#include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/types.hpp>
 
 namespace chronon3d {
-
-using Frame = i64;
 using TimeSeconds = f64;
 
 struct FrameRate {
