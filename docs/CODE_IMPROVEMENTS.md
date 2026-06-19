@@ -38,7 +38,7 @@ void foo(std::string_view path);                     // nessuna allocazione
 - `include/chronon3d/assets/asset_registry.hpp`
 - `include/chronon3d/scene/builders/scene_builder.hpp`
 - `include/chronon3d/scene/builders/layer_builder.hpp`
-- Tutti i registry (`effect_registry`, `shape_registry`, `sampler_registry`, `source_registry`, `graph_node_registry`)
+- Tutti i catalog (`effect_catalog`, `shape_registry`, `sampler_registry`, `source_registry`, `graph_node_registry`)
 - `include/chronon3d/api/backgrounds.hpp`
 - `include/chronon3d/api/animations.hpp`
 
