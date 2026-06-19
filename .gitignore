@@ -95,6 +95,9 @@ camera_shot_report*.json
 # Local dev artifacts
 logs/
 
+# Build output log (captured from build failures)
+build_output.txt
+
 # ISO timestamp temp files (e.g. 2026-06-09T16:00) — accidentally created
 # by heredocs / SQL dumps / ad-hoc scripts.  Matches any filename starting
 # with YYYY-MM-DDT and a digit.
