@@ -393,7 +393,7 @@ TEST_CASE("TextRunParams: deprecated alias preserves type identity with TextRunS
 #include <chronon3d/scene/model/render/render_node_factory.hpp>
 
 TEST_CASE("TextRun registry: shape_ids::TextRun exposed + variant accepts TextRunSpec") {
-    auto& reg = chronon3d::registry::ShapeRegistry::instance();
+    auto reg = chronon3d::registry::make_default_shape_registry();
     CHECK(reg.contains(chronon3d::registry::shape_ids::TextRun));
 
     // Variant rejects unrecognized payloads, so verify TextRunSpec
@@ -414,7 +414,7 @@ TEST_CASE("TextRun registry: RenderNodeFactory::text_run produces flagged Render
 }
 
 TEST_CASE("TextRun registry: ShapeRegistry::create_node(\"shape.text_run\", ...) routes to factory") {
-    auto& reg = chronon3d::registry::ShapeRegistry::instance();
+    auto reg = chronon3d::registry::make_default_shape_registry();
     std::pmr::monotonic_buffer_resource pool;
     chronon3d::registry::ShapeParams params = make_text_run_spec("FromRegistry");
     auto node = reg.create_node(

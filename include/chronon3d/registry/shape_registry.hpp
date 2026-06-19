@@ -39,9 +39,7 @@ struct ShapeDescriptor {
 
 class ShapeRegistry {
 public:
-    static ShapeRegistry& instance();
-
-    ShapeRegistry();
+    ShapeRegistry() = default;
 
     void register_shape(ShapeDescriptor descriptor);
 
@@ -64,5 +62,10 @@ public:
 private:
     std::map<std::string, ShapeDescriptor, std::less<>> m_shapes;
 };
+
+/// Create a ShapeRegistry pre-loaded with all built-in shapes.
+/// The constructor is empty; callers must either use this helper
+/// or call `register_builtin_shapes()` explicitly.
+ShapeRegistry make_default_shape_registry();
 
 } // namespace chronon3d::registry
