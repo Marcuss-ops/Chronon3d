@@ -30,7 +30,7 @@
 
 #include "helpers.hpp"
 #include "scene_internal.hpp"
-#include "scene_refresh.hpp"
+#include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
 #include "scene_fingerprint.hpp"
 #include "frame_reuse_policy.hpp"
 #include "graph_cache_coordinator.hpp"
