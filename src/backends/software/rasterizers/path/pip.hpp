@@ -12,6 +12,10 @@ enum class PipMode {
 
 PipMode get_pip_mode();
 
+/// Inject the PIP mode at startup (called once by SoftwareRenderer).
+/// true = SIMD, false = Scalar.
+void set_pip_mode(bool use_simd);
+
 bool point_in_polygon_even_odd(Vec2 p, const std::vector<Vec2>& poly);
 
 #if defined(__AVX2__)

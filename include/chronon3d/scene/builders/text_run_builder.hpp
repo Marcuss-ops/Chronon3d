@@ -77,7 +77,7 @@ class LayerBuilder;
 class FontEngine;  // forward decl
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TextRunSpec — a single pending `LayerBuilder::text_run(...)` entry.
+// PendingTextRun — a single pending `LayerBuilder::text_run(...)` entry.
 //
 // Stored by `LayerBuilder::m_text_runs` (a vector of unique_ptr so the
 // references TextRunBuilder hands back stay stable across push_backs).
@@ -93,7 +93,7 @@ class FontEngine;  // forward decl
 // no-op but preserved so PR 5+ can add deferred-commit semantics.
 // ═══════════════════════════════════════════════════════════════════════════
 
-struct TextRunSpec {
+struct PendingTextRun {
     std::string name;
     TextRunParams params;
     bool consumed{false};
@@ -134,7 +134,7 @@ public:
     /// non-owning pointer to `spec` (owned by LayerBuilder::m_text_runs).
     /// Public constructor (was private + friend) to avoid unity-build
     /// friend-graph resolution issues.
-    TextRunBuilder(LayerBuilder* parent, TextRunSpec* spec);
+    TextRunBuilder(LayerBuilder* parent, PendingTextRun* spec);
 
     // ── Per-glyph transform mutators (inject implicit TextAnimatorSpec) ──
     TextRunBuilder& position(Vec3 v);
@@ -192,7 +192,7 @@ private:
     [[nodiscard]] static GlyphSelectorSpec make_global_glyph_selector(std::string id);
 
     LayerBuilder* m_parent;
-    TextRunSpec*  m_spec;             // non-owning pointer into LayerBuilder::m_text_runs
+    PendingTextRun*  m_spec;             // non-owning pointer into LayerBuilder::m_text_runs
     FontEngine*   m_font_engine{nullptr};
     bool          m_cache_layout{true};
     // Counter to give each implicit animator a unique diagnostics id.
