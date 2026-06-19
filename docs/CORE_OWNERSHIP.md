@@ -1,268 +1,66 @@
 # Core Ownership — Chronon3d
 
-Questo documento elenca i file protetti del motore, le regole per toccarli e i test minimi richiesti.
+Questo documento definisce le zone architetturali, i contratti fondamentali e le regole operative per prevenire la crescita incontrollata del motore.
 
 Fare riferimento a `docs/ARCHITECTURE_EVOLUTION_PLAN.md` per il contesto architetturale completo.
 
 ---
 
-## 1. File Protetti
+## 1. Zone Architetturali
 
-Modificare questi file solo con motivazione esplicita, test dedicata e review.
+Il motore è suddiviso in quattro zone operative, più una zona sperimentale isolata.
 
-### 1.1 Render Graph Core
+### A. Core Zone — Contratti e invarianti fondamentali
 
-```
-include/chronon3d/render_graph/render_graph.hpp
-include/chronon3d/render_graph/nodes/render_graph_node.hpp
-include/chronon3d/render_graph/core/render_graph_hashing.hpp
-include/chronon3d/render_graph/executor/graph_executor.hpp
-include/chronon3d/render_graph/pipeline/render_pipeline.hpp
-include/chronon3d/render_graph/core/cache_policy.hpp
-include/chronon3d/render_graph/core/scene_hasher.hpp
-include/chronon3d/render_graph/render_graph_context.hpp    # Fase 1 — ancora in assestamento
-include/chronon3d/render_graph/compiler/frame_graph_compiler.hpp
-include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp
-include/chronon3d/render_graph/compiler/frame_graph_compile_options.hpp
-include/chronon3d/render_graph/optimizer/graph_optimizer.hpp
+La Core Zone contiene esclusivamente contratti, interfacce pubbliche e invarianti architetturali.
+**Non** contiene implementazioni di feature, preset o contenuti specifici.
 
-src/render_graph/render_graph.cpp
-src/render_graph/framebuffer_acquire.cpp
-src/render_graph/graph_profiler.cpp
-src/render_graph/compiler/frame_graph_compiler.cpp
-src/render_graph/optimizer/graph_optimizer.cpp
-```
+**Directory e contratti fondamentali:**
 
-### 1.2 Builder — GraphBuildPass Pipeline
+| Contratto | Header / Directory |
+|---|---|
+| **Composition** | `include/chronon3d/render_graph/pipeline/composition.hpp` |
+| **FrameContext** | `include/chronon3d/render_graph/render_graph_context.hpp` |
+| **Scene** | `include/chronon3d/scene/scene.hpp` |
+| **Layer** | `include/chronon3d/scene/layer/layer.hpp` |
+| **TransformResolver** | `include/chronon3d/scene/transform/transform_resolver.hpp` |
+| **Camera base** | `include/chronon3d/scene/camera/camera.hpp` |
+| **CameraProjection** | `include/chronon3d/scene/camera/camera_projection.hpp` |
+| **CameraRig** | `include/chronon3d/scene/camera/camera_rig.hpp` |
+| **RenderGraph** | `include/chronon3d/render_graph/render_graph.hpp` |
+| **RenderGraphNode** | `include/chronon3d/render_graph/nodes/render_graph_node.hpp` |
+| **GraphExecutor public contract** | `include/chronon3d/render_graph/executor/graph_executor.hpp` |
+| **Framebuffer** | `include/chronon3d/render_graph/core/framebuffer.hpp` |
+| **CachePolicy** | `include/chronon3d/render_graph/core/cache_policy.hpp` |
+| **Registri canonici** | `include/chronon3d/effects/effect_catalog.hpp`, `include/chronon3d/assets/asset_registry.hpp`, `src/registry/shape_registry.cpp`, `src/registry/sampler_registry.cpp`, `src/registry/source_registry.cpp` |
 
-_Ristrutturato in Fasi 3-4. La pipeline orchestra pass indipendenti._
+**Regola:** Modificare un contratto Core solo con motivazione esplicita, test dedicati e review. Ogni modifica deve preservare la retrocompatibilità o documentare il breaking change.
 
-```
-include/chronon3d/render_graph/builder/graph_builder.hpp
-include/chronon3d/render_graph/builder/graph_build_pass.hpp
-include/chronon3d/render_graph/builder/graph_build_context.hpp
-include/chronon3d/render_graph/builder/graph_build_pipeline.hpp
-include/chronon3d/render_graph/builder/graph_build_registry.hpp
-src/render_graph/builder/graph_build_pipeline.cpp
-src/render_graph/builder/graph_build_registry.cpp
-src/render_graph/builder/graph_builder_pipeline.cpp          # orchestratore minimo
-src/render_graph/builder/graph_builder_layer_pipeline.cpp    # layer pipeline helpers
-src/render_graph/builder/graph_builder_bbox.cpp              # bbox helpers
-src/render_graph/builder/graph_builder_matte.cpp             # track matte helpers
-src/render_graph/builder/graph_builder_static_analysis.cpp   # static layer analysis
-src/render_graph/builder/passes/graph_builder_passes.hpp
-src/render_graph/builder/passes/graph_builder_resolve_pass.cpp
-src/render_graph/builder/passes/graph_builder_source_pass.cpp
-src/render_graph/builder/passes/graph_builder_source_pass.hpp
-src/render_graph/builder/passes/graph_builder_root_sources_pass.cpp
-src/render_graph/builder/passes/graph_builder_layer_passes.cpp
-src/render_graph/builder/passes/graph_builder_layer_passes.hpp
-src/render_graph/builder/passes/graph_builder_layer_pipeline_pass.cpp
-src/render_graph/builder/passes/graph_builder_lighting_passes.cpp
-src/render_graph/builder/passes/graph_builder_lighting_passes.hpp
-src/render_graph/builder/passes/graph_builder_output_pass.cpp
-src/render_graph/builder/passes/graph_builder_validation_pass.cpp      # Fase 7
-src/render_graph/builder/passes/graph_builder_validation_pass.hpp      # Fase 7
-```
+**Non sono automaticamente Core:**
+- camera presets (`camera_motion_presets.hpp`, `camera_rig_presets.hpp`, `camera_shot_profile.hpp`)
+- camera shake (`camera_shake.hpp`)
+- DoF (`dof.hpp`)
+- debug overlay (`camera_debug_overlay.hpp`)
+- validator (`scene_validator.hpp`, `camera_shot_validator.hpp`)
+- effect specifici (`effect_stack.hpp`, `layer_effect.hpp`, `card3d_material.hpp`, `material_2_5d.hpp`)
+- render node specifici (tutti i nodi in `include/chronon3d/render_graph/nodes/*` eccetto `render_graph_node.hpp`)
+- content modules (`content/**`)
+- builder pass interni (`src/render_graph/builder/passes/*`)
+- executor interni (file in `src/render_graph/executor/` eccetto il public contract)
 
-### 1.3 Executor
+### B. Feature Zone — Lavoro di default
 
-```
-src/render_graph/executor/executor.cpp
-src/render_graph/executor/internal.cpp
-src/render_graph/executor/execution_state.hpp
-src/render_graph/executor/cache_evaluator.cpp
-src/render_graph/executor/executor_levels.cpp
-src/render_graph/executor/executor_levels.hpp
-src/render_graph/executor/framebuffer_lifetime.cpp
-src/render_graph/executor/framebuffer_lifetime.hpp
-src/render_graph/executor/input_resolver.cpp
-src/render_graph/executor/input_resolver.hpp
-src/render_graph/executor/node_runner.cpp
-src/render_graph/executor/node_runner.hpp
-src/render_graph/executor/telemetry_emitter.cpp
-src/render_graph/executor/telemetry_emitter.hpp
-src/render_graph/executor/tile_pruning.cpp
-src/render_graph/executor/tile_pruning.hpp
-```
+Effetti, render node, preset, exporter, media feature, camera preset, contenuti.
 
-### 1.4 Render Graph Pipeline
-
-_Ristrutturato in Fasi 3-4. `scene.cpp` ora usa `GraphBuildPipeline::build_with_resolved()`._
-
-```
-src/render_graph/pipeline/scene.cpp
-src/render_graph/pipeline/composition.cpp
-src/render_graph/pipeline/scene_dirty.cpp
-src/render_graph/pipeline/debug.cpp
-src/render_graph/pipeline/scene_internal.hpp
-src/render_graph/pipeline/helpers.hpp
-```
-
-### 1.5 Scene & Layer
-
-```
-include/chronon3d/scene/scene.hpp
-include/chronon3d/scene/layer/layer.hpp
-include/chronon3d/scene/layer/layer_hierarchy.hpp
-include/chronon3d/scene/layer/resolved_types.hpp
-include/chronon3d/scene/layer/render_node.hpp
-include/chronon3d/scene/layer/depth_role.hpp
-include/chronon3d/scene/layer/transition.hpp
-include/chronon3d/scene/layer/track_matte.hpp
-include/chronon3d/scene/camera/camera.hpp
-include/chronon3d/scene/camera/camera_projection.hpp
-include/chronon3d/scene/camera/camera_rig.hpp
-include/chronon3d/scene/camera/camera_motion_presets.hpp
-include/chronon3d/scene/camera/camera_framing.hpp
-include/chronon3d/scene/camera/camera_path_sampler.hpp
-include/chronon3d/scene/camera/camera_rig_builder.hpp
-include/chronon3d/scene/camera/camera_rig_presets.hpp
-include/chronon3d/scene/camera/camera_shot_profile.hpp
-include/chronon3d/scene/camera/camera_shot_validator.hpp
-include/chronon3d/scene/camera/camera_2_5d.hpp
-include/chronon3d/scene/camera/animated_camera_2_5d.hpp
-include/chronon3d/scene/camera/camera_debug_overlay.hpp
-include/chronon3d/scene/camera/camera_shake.hpp
-include/chronon3d/scene/camera/dof.hpp
-include/chronon3d/scene/builders/scene_builder.hpp
-include/chronon3d/scene/builders/layer_builder.hpp
-include/chronon3d/scene/mask/mask.hpp
-include/chronon3d/scene/mask/mask_utils.hpp
-include/chronon3d/scene/transform/transform_resolver.hpp
-include/chronon3d/scene/transform/transform_3d.hpp
-include/chronon3d/scene/transform/path.hpp
-include/chronon3d/scene/shape.hpp
-include/chronon3d/scene/fill.hpp
-include/chronon3d/scene/material_2_5d.hpp
-include/chronon3d/scene/card3d_material.hpp
-include/chronon3d/scene/card3d_params.hpp
-include/chronon3d/scene/effects/effect_stack.hpp
-include/chronon3d/scene/effects/layer_effect.hpp
-include/chronon3d/scene/render_node_factory.hpp
-include/chronon3d/scene/render_runtime.hpp
-
-src/scene/layer_builder.cpp
-src/scene/scene_builder.cpp
-src/scene/layer.cpp
-src/scene/layer_builder_effects.cpp
-src/scene/render_node_factory.cpp
-src/scene/camera_api.cpp
-src/scene/dark_grid_background.cpp
-src/scene/mask/mask_utils.cpp
-src/scene/camera/camera_rig.cpp
-src/scene/camera/camera_projection.cpp
-src/scene/camera/camera_shot_validator.cpp
-src/scene/camera/camera_motion_presets.cpp
-src/scene/camera/camera_framing.cpp
-src/scene/camera/camera_path_sampler.cpp
-src/scene/camera/camera_rig_presets.cpp
-src/scene/camera/camera_debug_overlay.cpp
-src/scene/transform/transform_resolver.cpp
-```
-
-### 1.5a Scene Builders — LayerCommand System
-
-_Creato in Fase 6. Modificare solo con motivazione esplicita._
-
-```
-include/chronon3d/scene/builders/layer_command.hpp
-include/chronon3d/scene/builders/layer_command_registry.hpp
-include/chronon3d/scene/builders/commands/motion_preset_commands.hpp
-src/scene/builders/layer_command_registry.cpp
-src/scene/builders/commands/motion_preset_commands.cpp
-src/scene/builders/commands/motion_preset_methods.cpp
-```
-
-### 1.5b Scene Validation
-
-_Creato in Fase 7. Modificare solo con motivazione esplicita._
-
-```
-include/chronon3d/scene/validation/scene_validator.hpp
-include/chronon3d/scene/validation/scene_validation_registry.hpp
-src/scene/validation/scene_validator.cpp
-src/scene/validation/scene_validation_registry.cpp
-```
-
-### 1.6 SpecScene
-
-```
-src/specscene/specscene.cpp
-src/specscene/specscene_parsers.cpp
-src/specscene/specscene_parsers.hpp
-```
-
-### 1.7 Registries (Core)
-
-```
-include/chronon3d/effects/effect_catalog.hpp
-src/effects/effect_catalog.cpp
-include/chronon3d/assets/asset_registry.hpp
-src/registry/shape_registry.cpp
-src/registry/sampler_registry.cpp
-src/registry/source_registry.cpp
-```
-
-### 1.8 Extension System
-
-_Creato in Fase 5. Permette ai moduli di registrare features senza toccare il core._
-
-```
-include/chronon3d/extension/extension_module.hpp
-include/chronon3d/extension/extension_catalog.hpp
-src/extension/extension_catalog.cpp
-include/chronon3d/render_graph/registry/graph_node_registry.hpp
-src/render_graph/registry/graph_node_registry.cpp
-```
-
-### 1.8a Content Module Registration
-
-_Creato in Fase 8. Wiring per i content ExtensionModules (Minimalist, Text, 2D5)._ Modificare solo con motivazione esplicita — questi file controllano l'ordine di inizializzazione a runtime.
-
-```
-content/register_content_modules.hpp
-content/register_content_modules.cpp
-content/register_minimalist_content.cpp
-content/register_text_content.cpp
-content/register_2d5_content.cpp
-```
-
-**Regola:** Ogni file di registrazione per-modulo reference solo la factory della propria libreria content. Non aggiungere riferimenti cross-module qui.
-
-```
-register_minimalist_content()  →  content_anims
-register_text_content()        →  content_text
-register_two_point_five_d_content()  →  content_2d5
-```
-
-### 1.9 Cache & Resources
-
-```
-src/cache/framebuffer_pool.cpp
-src/cache/node_cache.cpp
-src/cache/frame_cache.cpp
-src/cache/video_frame_cache.cpp
-src/cache/persistent_framebuffer_store.cpp
-```
-
----
-
-## 2. Zone Di Lavoro
-
-### Core Protetto (sopra)
-Modificare solo con motivazione esplicita. Nessuna feature diretta.
-
-### Feature Zone (lavorare qui di default)
 ```
 content/*
 examples/*
 apps/chronon3d_cli/commands/*
 apps/chronon3d_cli/utils/*
-include/chronon3d/render_graph/nodes/*
+include/chronon3d/render_graph/nodes/*        (eccetto render_graph_node.hpp)
 src/render_graph/nodes/*
-include/chronon3d/effects/*
-src/effects/*
+include/chronon3d/effects/*                    (eccetto effect_catalog.hpp)
+src/effects/*                                  (eccetto effect_catalog.cpp)
 src/backends/software/processors/*
 src/backends/software/rasterizers/*
 src/backends/assets/*
@@ -274,40 +72,173 @@ tests/assets/*
 tests/cli/*
 tests/golden/*
 tests/content/*
+include/chronon3d/scene/camera/camera_motion_presets.hpp
+include/chronon3d/scene/camera/camera_rig_presets.hpp
+include/chronon3d/scene/camera/camera_shake.hpp
+include/chronon3d/scene/camera/dof.hpp
+include/chronon3d/scene/camera/camera_debug_overlay.hpp
+include/chronon3d/scene/camera/camera_framing.hpp
+include/chronon3d/scene/camera/camera_path_sampler.hpp
+include/chronon3d/scene/camera/camera_2_5d.hpp
+include/chronon3d/scene/camera/animated_camera_2_5d.hpp
+include/chronon3d/scene/effects/*
+include/chronon3d/scene/card3d_material.hpp
+include/chronon3d/scene/card3d_params.hpp
+include/chronon3d/scene/material_2_5d.hpp
 ```
 
-### Integration Zone (extension point)
+### C. Integration Zone — Extension point e composizione tra moduli
+
+Registry, resolver, sampler, extension point e composizione tra moduli.
+
 ```
 include/chronon3d/extension/*
 src/extension/*
-include/chronon3d/render_graph/builder/passes/*
-src/render_graph/builder/passes/*
 include/chronon3d/render_graph/registry/*
 src/render_graph/registry/*
 include/chronon3d/scene/registry/*
 src/scene/registry/*
 include/chronon3d/scene/builders/commands/*
 src/scene/builders/commands/*
+include/chronon3d/scene/builders/layer_command.hpp
+include/chronon3d/scene/builders/layer_command_registry.hpp
 include/chronon3d/scene/validation/*
 src/scene/validation/*
+include/chronon3d/scene/builders/scene_builder.hpp
+include/chronon3d/scene/builders/layer_builder.hpp
+src/scene/builders/*
+src/scene/camera/camera_rig_builder.hpp
 content/register_content_modules.*
 content/register_*_content.cpp
 ```
+
+### D. Diagnostics Zone — Telemetria, debug e profiling
+
+Telemetry, debug overlay, validator, benchmark, profiling, visual test, calibration e dump.
+
+```
+src/runtime/telemetry/*
+include/chronon3d/runtime/telemetry/*
+src/core/profiling.cpp
+src/core/benchmark_report.cpp
+src/render_graph/graph_profiler.cpp
+src/render_graph/executor/telemetry_emitter.cpp
+src/render_graph/executor/telemetry_emitter.hpp
+src/cache/cache_diagnostics.cpp
+src/cache/cache_diagnostics_format.cpp
+src/cache/lru_log.cpp
+src/render_graph/pipeline/debug.cpp
+tests/visual/*
+tests/renderer_tests.cmake
+tests/visual_tests.cmake
+tests/gradient_visual_tests.cmake
+tests/breathing_golden_tests.cmake
+tests/deterministic_tests.cmake
+tools/telemetry_dashboard/*
+tools/perf/*
+tools/compare_benchmarks.py
+tools/compare_pngs.py
+tools/visual_quality_suite.py
+```
+
+**Regola:** Diagnostics non deve essere linkato nel core per default. Deve essere compilabile e attivabile tramite feature flag (`CHRONON3D_ENABLE_DIAGNOSTICS`, `CHRONON3D_ENABLE_TELEMETRY`).
+
+### E. Experimental Zone — V3 tile-first
+
+```
+experimental/**                   (directory dedicata, da creare)
+oppure feature branch V3 isolato
+```
+
+**Regola assoluta:** Nessun componente sperimentale può diventare dipendenza del core stabile. Il codice sperimentale vive nel proprio perimetro e viene promosso solo dopo:
+1. Test di equivalenza completi
+2. Review architetturale
+3. Approvazione esplicita della migrazione
+4. Rimozione del percorso legacy sostituito
+
+---
+
+## 2. Regole Anti-Crescita
+
+### 2.1 Regola Anti-Duplicazione
+
+Ogni nuova feature deve entrare attraverso un registry, resolver o sampler comune.
+Non può replicare la stessa logica in più moduli.
+
+**Esempio corretto:**
+```
+Nuovo effetto "Vignette" → registrato in effect_catalog
+                         → usa sampler_registry esistente
+                         → nessuna duplicazione di blend/transform
+```
+
+**Esempio da evitare:**
+```
+Modulo A: implementa blend mode "overlay" internamente
+Modulo B: reimplementa blend mode "overlay" con piccole varianti
+Modulo C: terza implementazione per esportazione video
+```
+
+### 2.2 Regola V3 — Dichiarazione obbligatoria
+
+Ogni nuovo componente V3 deve dichiarare esplicitamente:
+
+1. **Componente V2 sostituito** — file/percorso esatto
+2. **Adapter temporaneo necessario** — wrapper che permette la coesistenza
+3. **Criterio di rimozione** — condizione oggettiva per eliminare il legacy
+4. **Test di equivalenza** — test che garantisce output identico V2 ↔ V3
+5. **Data o milestone di eliminazione** — scadenza per rimuovere il percorso legacy
+
+**Nessuna duplicazione V2/V3 permanente.** Ogni componente V3 deve avere un piano di eliminazione del corrispondente V2.
+
+**Template:**
+```markdown
+### Componente V3: <nome>
+- **Sostituisce:** <percorso V2>
+- **Adapter:** <percorso adapter temporaneo>
+- **Criterio rimozione:** <es. "quando tutti i nodi usano il nuovo percorso">
+- **Test equivalenza:** <percorso test>
+- **Deadline eliminazione:** <milestone o data>
+```
+
+### 2.3 Regola Content
+
+Content e Diagnostics:
+- Non devono essere linkati nel core per default
+- Non devono introdurre dipendenze nel core
+- Non devono modificare executor o scene model per una singola composizione
+- Devono usare extension point esistenti (ExtensionModule, GraphNodeRegistry) per registrarsi
+
+### 2.4 Regola Content Module Registration
+
+La registrazione dei content module (`content/register_content_modules.cpp`) reference solo factory della propria libreria. Non aggiungere riferimenti cross-module. Ogni modulo espone la propria factory e il registry centrale le orchestra.
+
+### 2.5 Budget di Crescita — Per ogni nuovo modulo
+
+Ogni nuovo modulo deve soddisfare TUTTI i requisiti:
+
+- [ ] **Una responsabilità** — singolo scopo chiaro e documentato
+- [ ] **Un target CMake** — compilazione isolata e testabile
+- [ ] **Un registry/extension point esistente** — nessun nuovo meccanismo di plug-in ad-hoc
+- [ ] **Test mirati** — copertura della responsabilità primaria
+- [ ] **Nessuna dipendenza pesante senza feature flag** — dipendenze opzionali dietro `#ifdef` o CMake option
+- [ ] **Nessun nuovo singleton globale** — stato confinato al modulo o passato esplicitamente
+- [ ] **Nessuna nuova cache** se può usare la primitiva `LruCache` comune (`src/cache/`)
 
 ---
 
 ## 3. Regole Per Agenti
 
-### 3.1 Prima Scelta: File Locali
+### 3.1 Prima Scelta: Feature Zone
 
 Se il task riguarda preset, contenuto, asset, exporter, effetto, render node specifico, test o CLI, lavorare in **Feature Zone**.
 
 ### 3.2 Core Solo Con Permesso
 
-Prima di modificare un file protetto, scrivere:
+Prima di modificare un contratto Core, scrivere:
 
 ```
-Voglio modificare: <file>
+Voglio modificare: <contratto>
 Motivo: <perche' serve>
 Alternativa locale provata: <perche' non basta>
 Rischi: <cache/layer/order/dirty rect/frame dependency/etc>
@@ -350,6 +281,7 @@ Separare sempre:
 | **Feature** | content, presets, effects, assets, CLI, render nodes specifici | core graph, scene core |
 | **Performance** | backend software, framebuffer pool, SIMD, video path | scene, content, graph contracts |
 | **Test** | test ovunque (solo aggiunta, no modifica core behavior) | core behavior |
+| **Diagnostics** | telemetry, profiling, benchmark, debug overlay, validator | core graph, scene model |
 
 Un agente non deve invadere l'area di un altro senza dichiararlo.
 
@@ -391,7 +323,7 @@ ctest --test-dir build/chronon/linux-debug --output-on-failure -R "render_graph|
 
 ---
 
-## 5. Checklist PR Per File Protetti
+## 5. Checklist PR Per Contratti Core
 
 - [ ] Motivazione scritta nel commit message
 - [ ] Alternativa locale valutata e documentata
