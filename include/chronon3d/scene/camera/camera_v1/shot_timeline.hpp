@@ -14,7 +14,7 @@
 //   ShotTimeline         → ordered list, find active shot, validate structure
 //   ShotTimelineResolver → evaluate camera at frame, apply transitions
 //   ShotTimelineSession  → per-shot persistent constraint state
-//   CameraTransitionRegistry → singleton registry of transition factories
+//   CameraTransitionCatalog → registry of transition factories (DI, not singleton)
 // ==============================================================================
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
@@ -124,7 +124,8 @@ struct ShotTimelineSession {
 // =========================================================================
 class ShotTimelineResolver {
 public:
-    explicit ShotTimelineResolver(std::shared_ptr<ShotTimeline> timeline);
+    explicit ShotTimelineResolver(std::shared_ptr<ShotTimeline> timeline,
+                                   const CameraTransitionCatalog* catalog = nullptr);
 
     /// Evaluate the camera at `frame` using the timeline + transitions.
     /// Uses local frame time (frame - shot.start_frame) for each shot's program.
@@ -149,12 +150,10 @@ private:
 };
 
 // =========================================================================
-// CameraTransitionRegistry — singleton registry of transition factories.
+// CameraTransitionCatalog — registry of transition factories.
 // =========================================================================
-class CameraTransitionRegistry {
+class CameraTransitionCatalog {
 public:
-    static CameraTransitionRegistry& instance();
-
     using Factory = std::function<std::shared_ptr<CameraTransition>()>;
 
     void register_transition(CameraTransitionKind kind, Factory f);
@@ -167,10 +166,12 @@ public:
     void register_defaults();
 
 private:
-    CameraTransitionRegistry() = default;
     mutable std::mutex mu_;
     std::map<CameraTransitionKind, Factory> factories_;
     bool frozen_{false};
 };
+
+/// Backward-compatible alias for migration.
+using CameraTransitionRegistry = CameraTransitionCatalog;
 
 } // namespace chronon3d::camera_v1

@@ -7,7 +7,7 @@
 // Call once at engine startup, BEFORE any CameraProgram evaluation:
 //   register_camera_v1_builtins();
 //
-// After this call, the CameraTransitionRegistry is frozen — reads are
+// After this call, the CameraTransitionCatalog is frozen — reads are
 // concurrent-safe, writes are rejected.
 //
 // Idempotent: calling multiple times is safe (subsequent calls are no-ops
@@ -15,6 +15,11 @@
 // ==============================================================================
 
 namespace chronon3d::camera_v1 {
+
+class CameraTransitionCatalog;
+
+/// Get the static transition catalog (populated by register_camera_v1_builtins).
+const CameraTransitionCatalog& get_transition_catalog();
 
 /// Register all built-in camera constraints and freeze both registries.
 /// Idempotent — safe to call multiple times.
