@@ -136,15 +136,15 @@ TEST_CASE("Test 17.4 — Text layout alignment Center/Middle") {
         SceneBuilder s(ctx);
         s.layer("text_layer", [](LayerBuilder& l) {
             l.text("t1", {
-                .text = "Centered Middle",
-                .size = {240.0f, 100.0f},
-                .pos = {128.0f, 128.0f, 0.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
-                .font_family = "Inter",
-                .font_size = 24.0f,
-                .color = Color::white(),
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle
+                .content = {.value = "Centered Middle"},
+                .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                         .font_family = "Inter",
+                         .font_size = 24.0f},
+                .layout = {.box = {240.0f, 100.0f},
+                           .align = TextAlign::Center,
+                           .vertical_align = VerticalAlign::Middle},
+                .appearance = {.color = Color::white()},
+                .position = {128.0f, 128.0f, 0.0f}
             });
         });
         return s.build();
@@ -184,18 +184,18 @@ TEST_CASE("Test 17.5 — Text auto-fit automatic sizing") {
         SceneBuilder s(ctx);
         s.layer("text_layer", [](LayerBuilder& l) {
             l.text("t2", {
-                .text = "This is a very long title that needs to fit inside a small box automatically without overflowing",
-                .size = {240.0f, 100.0f},
-                .pos = {128.0f, 64.0f, 0.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
-                .font_family = "Inter",
-                .font_size = 48.0f,
-                .color = Color::white(),
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle,
-                .auto_fit = true,
-                .min_font_size = 8.0f,
-                .max_font_size = 48.0f
+                .content = {.value = "This is a very long title that needs to fit inside a small box automatically without overflowing"},
+                .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                         .font_family = "Inter",
+                         .font_size = 48.0f},
+                .layout = {.box = {240.0f, 100.0f},
+                           .align = TextAlign::Center,
+                           .vertical_align = VerticalAlign::Middle,
+                           .auto_fit = true,
+                           .min_font_size = 8.0f,
+                           .max_font_size = 48.0f},
+                .appearance = {.color = Color::white()},
+                .position = {128.0f, 64.0f, 0.0f}
             });
         });
         return s.build();
@@ -233,17 +233,17 @@ TEST_CASE("Test 17.6 — Text max-lines and ellipsis truncation") {
         SceneBuilder s(ctx);
         s.layer("text_layer", [](LayerBuilder& l) {
             l.text("t3", {
-                .text = "Line One Wordy\nLine Two Wordy\nLine Three Wordy\nLine Four Wordy",
-                .size = {240.0f, 100.0f},
-                .pos = {128.0f, 64.0f, 0.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
-                .font_family = "Inter",
-                .font_size = 20.0f,
-                .color = Color::white(),
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle,
-                .max_lines = 2,
-                .ellipsis = true
+                .content = {.value = "Line One Wordy\nLine Two Wordy\nLine Three Wordy\nLine Four Wordy"},
+                .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                         .font_family = "Inter",
+                         .font_size = 20.0f},
+                .layout = {.box = {240.0f, 100.0f},
+                           .align = TextAlign::Center,
+                           .vertical_align = VerticalAlign::Middle,
+                           .max_lines = 2,
+                           .ellipsis = true},
+                .appearance = {.color = Color::white()},
+                .position = {128.0f, 64.0f, 0.0f}
             });
         });
         return s.build();
@@ -281,15 +281,15 @@ TEST_CASE("Test 17.7 — Text style (Cyan neon-like coloring)") {
         SceneBuilder s(ctx);
         s.layer("text_layer", [](LayerBuilder& l) {
             l.text("t4", {
-                .text = "CYAN NEON",
-                .size = {240.0f, 100.0f},
-                .pos = {128.0f, 64.0f, 0.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
-                .font_family = "Inter",
-                .font_size = 28.0f,
-                .color = Color{0.0f, 1.0f, 0.8f, 1.0f}, // Cyan
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle
+                .content = {.value = "CYAN NEON"},
+                .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                         .font_family = "Inter",
+                         .font_size = 28.0f},
+                .layout = {.box = {240.0f, 100.0f},
+                           .align = TextAlign::Center,
+                           .vertical_align = VerticalAlign::Middle},
+                .appearance = {.color = Color{0.0f, 1.0f, 0.8f, 1.0f}}, // Cyan
+                .position = {128.0f, 64.0f, 0.0f}
             });
         });
         return s.build();
@@ -327,21 +327,19 @@ TEST_CASE("Test 17.8 — Subtitle backing box rendering") {
         SceneBuilder s(ctx);
         s.layer("text_layer", [](LayerBuilder& l) {
             l.text("t5", {
-                .text = "Subtitle Box",
-                .size = {240.0f, 80.0f},
-                .pos = {128.0f, 64.0f, 0.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
-                .font_family = "Inter",
-                .font_size = 22.0f,
-                .color = Color{0.9f, 0.9f, 0.9f, 1.0f},
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle,
-                .box_style = {
-                    .enabled = true,
-                    .padding = {16.0f, 8.0f},
-                    .radius = 8.0f,
-                    .background = Color{0.0f, 0.0f, 0.0f, 0.65f}
-                }
+                .content = {.value = "Subtitle Box"},
+                .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                         .font_family = "Inter",
+                         .font_size = 22.0f},
+                .layout = {.box = {240.0f, 80.0f},
+                           .align = TextAlign::Center,
+                           .vertical_align = VerticalAlign::Middle},
+                .appearance = {.color = Color{0.9f, 0.9f, 0.9f, 1.0f},
+                               .box_style = {.enabled = true,
+                                             .padding = {16.0f, 8.0f},
+                                             .radius = 8.0f,
+                                             .background = Color{0.0f, 0.0f, 0.0f, 0.65f}}},
+                .position = {128.0f, 64.0f, 0.0f}
             });
         });
         return s.build();

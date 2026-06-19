@@ -77,7 +77,7 @@ class LayerBuilder;
 class FontEngine;  // forward decl
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TextRunSpec — a single pending `LayerBuilder::text_run(...)` entry.
+// PendingTextRun — a single pending `LayerBuilder::text_run(...)` entry.
 //
 // Stored by `LayerBuilder::m_text_runs` (a vector of unique_ptr so the
 // references TextRunBuilder hands back stay stable across push_backs).
@@ -88,15 +88,20 @@ class FontEngine;  // forward decl
 // (added by TextRunBuilder per setter) and explicit user-supplied
 // `.animator(...)` / `.selector(...)` calls.
 //
+// `font_engine` is the per-spec override applied on top of the
+// LayerBuilder's default font_engine.  If null, the layer's FontEngine
+// (or shared fallback) is used.
+//
 // `consumed` is reserved for explicit-commit semantics — at present the
 // build path treats every entry as ready, so consumption tracking is a
 // no-op but preserved so PR 5+ can add deferred-commit semantics.
 // ═══════════════════════════════════════════════════════════════════════════
 
 struct PendingTextRun {
-    std::string name;
+    std::string   name;
     TextRunParams params;
-    bool consumed{false};
+    FontEngine*   font_engine{nullptr};  // per-spec override (null = use layer default)
+    bool          consumed{false};
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -118,13 +123,13 @@ class RenderNode;
 struct TextRunBindingsContext;  // forward to avoid circle
 
 /// Pure materializer — produces a TextRunShape (layout + resolved
-/// glyph states) for a given TextRunParams + SampleTime + FontEngine.
-/// No RenderNode involvement; safe to use from any backend.
+/// glyph states) for a given TextRunSpec (alias `TextRunParams`) +
+/// SampleTime + FontEngine.  No RenderNode involvement; safe to use
+/// from any backend.
 struct SampleTime;
 class FontEngine;
 struct TextRunLayout;
 struct TextRunShape;
-struct TextRunParams;
 
 
 class TextRunBuilder {
@@ -169,8 +174,12 @@ public:
     LayerBuilder& commit();
 
     // ── Read-only accessors ──
-    [[nodiscard]] const TextRunParams& spec() const noexcept { return m_spec->params; }
-    [[nodiscard]] LayerBuilder& parent() const noexcept { return *m_parent; }
+    [[nodiscard]] const TextRunParams&   spec()       const noexcept { return m_spec->params; }
+    /// Returns the full PendingTextRun (incl. name, font_engine override,
+    /// consumed flag).  Use for tests and tooling that need to read the
+    /// builder-side state; for the canonical composable spec use `spec()`.
+    [[nodiscard]] const PendingTextRun&  build_spec() const noexcept { return *m_spec; }
+    [[nodiscard]] LayerBuilder&          parent()     const noexcept { return *m_parent; }
 
 private:
     // `friend class LayerBuilder;` was REMOVED — the declaration now

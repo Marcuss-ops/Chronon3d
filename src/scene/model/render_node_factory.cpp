@@ -214,26 +214,14 @@ RenderNode RenderNodeFactory::text_run(
     node.world_transform.position = p.text.position;
     node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
 
-    // ── Build flat TextRunParams from nested TextRunSpec for materialize ──
-    TextRunParams flat_params;
-    flat_params.text        = p.text.content.value;
-    flat_params.font_path   = p.text.font.font_path;
-    flat_params.font_family = p.text.font.font_family;
-    flat_params.font_weight = p.text.font.font_weight;
-    flat_params.font_style  = p.text.font.font_style;
-    flat_params.font_size   = p.text.font.font_size;
-    flat_params.tracking    = p.text.layout.tracking;
-    flat_params.size        = p.text.layout.box;
-    flat_params.wrap        = p.text.layout.wrap;
-    flat_params.direction   = p.direction;
-    flat_params.language    = p.language;
-    flat_params.line_height = p.text.layout.line_height;
-    flat_params.animators   = p.animators;
-    flat_params.paint       = p.text.appearance.paint;
-    flat_params.material    = p.text.appearance.material;
-    flat_params.shadows     = p.text.appearance.shadows;
-
-    auto shape = materialize_text_run_shape(flat_params, engine, sample_time);
+    // ── Pass canonical composite TextRunSpec directly ───────────────
+    // After the PR3→PR4 migration, TextRunParams is `using`-aliased to
+    // TextRunSpec — so materialize_text_run_shape accepts `p` as-is and
+    // reads the nested fields directly.  The legacy flat-field bridge
+    // (with `flat_params.text/font_path/...`) was removed because it
+    // would now assign strings etc. into TextSpec sub-structs which
+    // no longer match.
+    auto shape = materialize_text_run_shape(p, engine, sample_time);
     if (!shape) {
         // Materialization failed (shaping / empty text).  Leave
         // text_run_shape null and `is_text_run_shape=true` so the

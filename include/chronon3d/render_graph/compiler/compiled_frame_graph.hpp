@@ -35,14 +35,13 @@ struct CompiledNodeInfo {
     std::vector<GraphNodeId> consumers;
 
     cache::NodeCacheKey static_key{};
+    /// Canonical cache contract (replaces the deleted `frame_dependent` /
+    /// `cacheable` / `disk_cacheable` derived bools — do not re-introduce).
     RenderNodeCachePolicy cache_policy{};
 
     SceneBindingMetadata binding_meta{};  // binding table metadata
 
     bool reachable{false};
-    bool frame_dependent{true};
-    bool cacheable{false};
-    bool disk_cacheable{false};
     bool early_exit_skip{false};
 
     std::optional<raster::BBox> predicted_bbox;

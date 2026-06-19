@@ -137,12 +137,17 @@ TEST_CASE("Universal Glow: works on Text layers") {
         SceneBuilder s(ctx);
         s.layer("l", [](LayerBuilder& l) {
             l.position({0, 0, 0});
+            // PR3→PR4 migration: TextSpec is composable.  Reorder
+            // designators inside `.layout` to match TextLayoutSpec's
+            // declaration order (C++ designated-init rule).
             l.text("t", {
-                .text = "GLOW",
-                .size = {30, 20},
-                .font_size = 14.0f,
-                .color = Color::white(),
-                .align = TextAlign::Center
+                .content    = {.value = "GLOW"},
+                .font       = {.font_size = 14.0f},
+                .layout     = {
+                    .box   = {30.0f, 20.0f},
+                    .align = TextAlign::Center,
+                },
+                .appearance = {.color = Color::white()},
             });
             l.glow(GlowParams{.radius = 8.0f, .intensity = 1.0f, .color = Color::green()});
         });

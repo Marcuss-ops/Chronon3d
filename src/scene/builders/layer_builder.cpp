@@ -375,15 +375,18 @@ Layer LayerBuilder::build() {
             node.name = std::pmr::string{spec.name, res};
             node.is_text_run_shape = true;     // always flagged
             node.font_engine = m_font_engine;
-            node.world_transform.position = spec.params.pos;
+            node.world_transform.position = spec.params.text.position;
             node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
             node.world_transform.scale = Vec3{1.0f, 1.0f, 1.0f};
             node.world_transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-            node.color = spec.params.color;
-            node.fill = Fill::solid_color(spec.params.color);
+            node.color = spec.params.text.appearance.color;
+            node.fill = Fill::solid_color(spec.params.text.appearance.color);
 
+            // Per-spec FontEngine override (set via trb.font_engine(...))
+            // wins over the layer's default font_engine when present.
+            FontEngine* engine_for_shape = spec.font_engine ? spec.font_engine : m_font_engine;
             auto shape = materialize_text_run_shape(
-                spec.params, m_font_engine, local_time);
+                spec.params, engine_for_shape, local_time);
             if (shape) {
                 node.text_run_shape = std::move(shape);
             }
