@@ -201,7 +201,7 @@ RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string n
 RenderNode RenderNodeFactory::text_run(
     std::pmr::memory_resource* res,
     std::string name,
-    TextRunParams p,
+    TextRunSpec p,    // canonical composable (TextRunParams was the prior alias)
     FontEngine* engine,
     SampleTime sample_time
 ) {
@@ -210,8 +210,8 @@ RenderNode RenderNodeFactory::text_run(
     node.is_text_run_shape = true;
     node.font_engine = engine;
 
-    // World transform from TextRunParams.
-    node.world_transform.position = p.pos;
+    // World transform from TextRunSpec (deep-nested field paths).
+    node.world_transform.position = p.text.position;
     node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
 
     auto shape = materialize_text_run_shape(p, engine, sample_time);
@@ -225,8 +225,8 @@ RenderNode RenderNodeFactory::text_run(
         node.text_run_shape = std::move(shape);
     }
 
-    node.color = p.color;
-    node.fill = Fill::solid_color(p.color);
+    node.color = p.text.appearance.color;
+    node.fill = Fill::solid_color(p.text.appearance.color);
     return node;
 }
 
