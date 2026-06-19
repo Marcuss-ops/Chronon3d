@@ -14,6 +14,7 @@
 #include <chronon3d/scene/camera/camera_v1/register_camera_v1.hpp>
 
 using namespace chronon3d;
+using namespace chronon3d::camera_v1;
 
 namespace {
 
