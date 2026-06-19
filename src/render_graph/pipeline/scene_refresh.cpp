@@ -1,11 +1,10 @@
-#include "scene_refresh.hpp"
+#include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
 
 #include "refresh/source.hpp"
 #include "refresh/multi_source.hpp"
 #include "refresh/effect_stack.hpp"
 #include "refresh/transform.hpp"
 
-#include "../builder/graph_builder_internal.hpp"
 #include "../builder/graph_builder_pipeline.hpp"
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <string>
