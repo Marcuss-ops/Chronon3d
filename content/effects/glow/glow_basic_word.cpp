@@ -15,17 +15,12 @@ Composition glow_basic_word() {
             l.opacity(1.0f);
             l.position({0.0f, 0.0f, 0.0f});
 
-            l.text("t", {
-                .text = "GLOW",
-                .size = {620.0f, 160.0f},
-                .pos = {0.0f, 0.0f, 0.0f},
-                .font_path = "assets/fonts/Poppins-Bold.ttf",
-                .font_size = 118.0f,
-                .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
-                .anchor = TextAnchor::Center,
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle,
-                .tracking = 12.0f,
+            l.text("t", TextSpec{
+                .content = {.value = "GLOW"},
+                .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_size = 118.0f},
+                .layout = {.box = {620.0f, 160.0f}, .anchor = TextAnchor::Center, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .tracking = 12.0f},
+                .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}},
+                .position = {0.0f, 0.0f, 0.0f}
             });
         });
         return s.build();

@@ -68,8 +68,8 @@ using chronon3d::content::text_reveal::layout_glyphs;
 
 // Returns centred text params for a given string + font size.
 TextSpec title_text(const std::string& s, f32 fs,
-                    Color color = FRESH_TEXT_WHITE,
-                    f32 tracking = 6.0f) {
+                      Color color = FRESH_TEXT_WHITE,
+                      f32 tracking = 6.0f) {
     return chronon3d::content::text::centered_text({
         .text        = s,
         .box         = {1500.0f, 220.0f},
@@ -322,7 +322,7 @@ Composition orbit_handheld_glow() {
         });
 
         // Bloom-settle title (inlined because add_bloom_reveal_layer has a
-        // brace-init pattern that the current TextParams doesn't accept; this
+        // brace-init pattern that the current TextSpec doesn't accept; this
         // gives the same visual effect with explicit field order).
         s.layer("title", [](LayerBuilder& l) {
             l.pin_to(Anchor::Center);

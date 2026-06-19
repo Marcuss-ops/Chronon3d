@@ -70,18 +70,13 @@ void add_bg(SceneBuilder& s) {
 }
 
 // Centered text params (for easy animations)
-TextParams txt_center(std::string text, f32 font_size = 72.0f) {
-    return TextParams{
-        .text = std::move(text),
-        .size = {BOX_W, BOX_H},
-        .pos = {0.0f, 0.0f, 0.0f},
-        .font_path = FONT_REGULAR,
-        .font_size = font_size,
-        .color = TEXT_COLOR,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .line_height = 1.22f,
-        .tracking = 4.0f,
+TextSpec txt_center(std::string text, f32 font_size = 72.0f) {
+    return TextSpec{
+        .content = {.value = std::move(text)},
+        .font = {.font_path = FONT_REGULAR, .font_size = font_size},
+        .layout = {.box = {BOX_W, BOX_H}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .line_height = 1.22f, .tracking = 4.0f},
+        .appearance = {.color = TEXT_COLOR},
+        .position = {0.0f, 0.0f, 0.0f},
     };
 }
 
@@ -135,9 +130,8 @@ void build_2line_typewriter(SceneBuilder& s,
         .tracking = TRACKING, .ref_offset_x = ref_x,
         .base_pos = {0.0f, BASE_Y - line_spacing * 0.5f, 0.0f},
         .start_delay = 0.0f, .duration = 8.0f, .stagger = 2.0f,
-        .slide_up = slide_up,
-        .pin_to_center = true, .color = TEXT_COLOR,
-        .add_shadow = true, .shadow_color = SHADOW_COLOR,
+        .slide_up = slide_up, .pin_to_center = true,
+        .color = TEXT_COLOR, .add_shadow = true, .shadow_color = SHADOW_COLOR,
         .glow_intensity = glow_intensity,
         .layer_prefix = "ch_0"
     };
@@ -240,8 +234,8 @@ Composition anim_typewriter_simple() {
             .tracking = TRACKING, .ref_offset_x = ref_x,
             .base_pos = {0.0f, BASE_Y - 42.5f, 0.0f},
             .start_delay = 0.0f, .duration = 8.0f, .stagger = 2.0f,
-            .pin_to_center = true, .color = TEXT_COLOR,
-            .add_shadow = true, .shadow_color = SHADOW_COLOR,
+            .pin_to_center = true,
+            .color = TEXT_COLOR, .add_shadow = true, .shadow_color = SHADOW_COLOR,
             .layer_prefix = "ch_0"
         });
         build_text_reveal_line(s, TextRevealDescriptor{
@@ -249,8 +243,8 @@ Composition anim_typewriter_simple() {
             .tracking = TRACKING, .ref_offset_x = ref_x,
             .base_pos = {0.0f, BASE_Y + 42.5f, 0.0f},
             .start_delay = 36.0f, .duration = 8.0f, .stagger = 2.0f,
-            .pin_to_center = true, .color = TEXT_COLOR,
-            .add_shadow = true, .shadow_color = SHADOW_COLOR,
+            .pin_to_center = true,
+            .color = TEXT_COLOR, .add_shadow = true, .shadow_color = SHADOW_COLOR,
             .layer_prefix = "ch_1"
         });
 
@@ -296,18 +290,18 @@ Composition anim_typewriter_cursor() {
                 op.key(Frame{static_cast<Frame>(t + 6.0f)}, 1.0f, EasingCurve{Easing::Linear});
             }
 
-            TextParams tp;
-            tp.text = "|";
-            tp.size = {20.0f, BOX_H};
-            tp.pos = {0.0f, 0.0f, 0.0f};
-            tp.font_path = FONT_REGULAR;
-            tp.font_size = 76.0f;
-            tp.color = TEXT_COLOR;
-            tp.align = TextAlign::Center;
-            tp.vertical_align = VerticalAlign::Middle;
-            tp.line_height = 1.22f;
+            TextSpec ts;
+            ts.content.value = "|";
+            ts.layout.box = {20.0f, BOX_H};
+            ts.position = {0.0f, 0.0f, 0.0f};
+            ts.font.font_path = FONT_REGULAR;
+            ts.font.font_size = 76.0f;
+            ts.appearance.color = TEXT_COLOR;
+            ts.layout.align = TextAlign::Center;
+            ts.layout.vertical_align = VerticalAlign::Middle;
+            ts.layout.line_height = 1.22f;
 
-            l.text("cursor_label", tp);
+            l.text("cursor_label", ts);
         });
 
         return s.build();
@@ -332,9 +326,8 @@ Composition anim_typewriter_slide() {
             .tracking = TRACKING, .ref_offset_x = ref_x,
             .base_pos = {0.0f, BASE_Y - 42.5f, 0.0f},
             .start_delay = 0.0f, .duration = 8.0f, .stagger = 2.0f,
-            .slide_up = true,
-            .pin_to_center = true, .color = TEXT_COLOR,
-            .add_shadow = true, .shadow_color = SHADOW_COLOR,
+            .slide_up = true, .pin_to_center = true,
+            .color = TEXT_COLOR, .add_shadow = true, .shadow_color = SHADOW_COLOR,
             .layer_prefix = "ch_0"
         });
         build_text_reveal_line(s, TextRevealDescriptor{
@@ -342,9 +335,8 @@ Composition anim_typewriter_slide() {
             .tracking = TRACKING, .ref_offset_x = ref_x,
             .base_pos = {0.0f, BASE_Y + 42.5f, 0.0f},
             .start_delay = 36.0f, .duration = 8.0f, .stagger = 2.0f,
-            .slide_up = true,
-            .pin_to_center = true, .color = TEXT_COLOR,
-            .add_shadow = true, .shadow_color = SHADOW_COLOR,
+            .slide_up = true, .pin_to_center = true,
+            .color = TEXT_COLOR, .add_shadow = true, .shadow_color = SHADOW_COLOR,
             .layer_prefix = "ch_1"
         });
 
@@ -409,8 +401,8 @@ Composition anim_typewriter_stagger() {
                 .tracking = TRACKING, .ref_offset_x = ref_x,
                 .base_pos = {0.0f, start_y + static_cast<f32>(i) * step_y, 0.0f},
                 .start_delay = lines[i].delay, .duration = 8.0f, .stagger = 3.0f,
-                .pin_to_center = true, .color = TEXT_COLOR,
-                .add_shadow = true, .shadow_color = SHADOW_COLOR,
+                .pin_to_center = true,
+                .color = TEXT_COLOR, .add_shadow = true, .shadow_color = SHADOW_COLOR,
                 .layer_prefix = "ch_" + std::to_string(i)
             });
         }
