@@ -232,7 +232,7 @@ OwnedFB SourceNode::execute(
     return fb;
 }
 
-bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const {
+bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const noexcept {
     if (!m_cache_static || m_uses_2_5d_projection) {
         return false;
     }

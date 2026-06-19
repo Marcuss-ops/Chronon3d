@@ -363,15 +363,23 @@ graph::RenderOpResult draw_text_run(
     TextRunDrawParams& params
 ) {
     const auto& shape = params.shape;
-    if (!shape.layout || shape.glyphs.empty()) return graph::RenderBackendErrorCode::InvalidInput;
+    if (!shape.layout || shape.glyphs.empty()) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::InvalidInput,
+            "draw_text_run: empty layout or empty glyph set"
+        });
+    }
 
     const auto& layout = *shape.layout;
     const std::string& font_path = layout.font.font_path;
-    if (font_path.empty()) return graph::RenderBackendErrorCode::InvalidInput;
+    if (font_path.empty()) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::InvalidInput,
+            "draw_text_run: empty layout.font.font_path"
+        });
+    }
 
     CHRONON_ZONE_C("text_run_draw", trace_category::kText);
-    const auto draw_start = params.diagnostic_mode
-        ? profiling::now() : profiling::Clock::time_point{};
 
     // ── Safe Bbox Clipping ───────────────────────────────────────────
     // Pre-compute the world-space bbox of every glyph (2.5D-aware via
@@ -393,21 +401,31 @@ graph::RenderOpResult draw_text_run(
         const i32 y_lo = std::max(world_bbox.y0, fb_bbox.y0);
         const i32 y_hi = std::min(world_bbox.y1, fb_bbox.y1);
         if (x_hi <= x_lo || y_hi <= y_lo) {
-            return graph::RenderBackendErrorCode::InvalidInput;  // world bbox does not intersect framebuffer at all
+            // world bbox does not intersect framebuffer at all — silent
+            // success with zero items drawn (PR2: explicit outcome).
+            return graph::RenderOpResult(graph::RenderOpOutcome{0});
         }
     }
 
     // ── Empty-framebuffer guard ────────────────────────────────────────────
     // A 0×0 or zero-dim framebuffer would let the BL bridge loop forever
-    // (or divide by zero when scaling).  Bail with the same silent-fail
-    // semantics as the safe-clip step above.
+    // (or divide by zero when scaling).  Treat as InvalidInput (the
+    // caller's fb was malformed).
     if (params.fb.width() == 0 || params.fb.height() == 0) {
-        return graph::RenderBackendErrorCode::InvalidInput;
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::InvalidInput,
+            "draw_text_run: zero-dimension framebuffer"
+        });
     }
 
     // Load font face
     BLFontFace face = text_run_bl_resources().get_face(font_path);
-    if (face.empty()) return graph::RenderBackendErrorCode::ExecutionFailure;
+    if (face.empty()) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::ExecutionFailure,
+            "draw_text_run: failed to load font face for " + font_path
+        });
+    }
 
     BLFont font;
     font.createFromFace(face, layout.font_size);
@@ -765,7 +783,11 @@ graph::RenderOpResult draw_text_run(
         }
     }
 
-    if (glyphs_drawn == 0) return graph::RenderBackendErrorCode::ExecutionFailure;
+    if (glyphs_drawn == 0) {
+        // Nothing visible underneath (e.g. all glyphs had opacity=0 or
+        // fell into empty tiers); PR2: explicit outcome with 0 items.
+        return graph::RenderOpResult(graph::RenderOpOutcome{0});
+    }
 
     // ── Apply TextMaterial (gradient, bevel, etc.) ───────────────────
     if (shape.material.enabled) {
@@ -790,15 +812,8 @@ graph::RenderOpResult draw_text_run(
         );
     }
 
-    if (params.diagnostic_mode) {
-        const double total_ms = profiling::elapsed_ms(draw_start);
-        spdlog::info(
-            "[TextRun] glyphs={} img={}x{} total={:.2f}ms",
-            glyphs_drawn, img_w, img_h, total_ms
-        );
-    }
-
-    return graph::RenderOpOutcome{};
+    // PR2: no diagnostic_mode here — caller (TextRunNode / multi_source_node) owns diagnostics via ctx.options.diagnostics_enabled.
+    return graph::RenderOpResult(graph::RenderOpOutcome{glyphs_drawn});
 }
 
 // NOTE: compute_text_run_world_bbox() has been moved to

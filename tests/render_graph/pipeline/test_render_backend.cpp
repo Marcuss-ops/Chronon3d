@@ -1,4 +1,6 @@
 #include <doctest/doctest.h>
+#include <cstring>
+#include <type_traits>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/compositor/composite_operator.hpp>
 #include <chronon3d/render_graph/render_graph.hpp>
@@ -131,4 +133,33 @@ TEST_CASE("RenderBackend - CompositeNode execution calls composite_layer on back
     REQUIRE(out != nullptr);
     // There are 2 layer composite nodes
     CHECK(backend.composite_layer_called >= 1);
+}
+
+// ── PR2 — RenderBackend capabilities contract ──────────────────────
+
+TEST_CASE("RenderBackend - PR2: non-copyable contract (compile-time)") {
+    static_assert(!std::is_copy_constructible_v<chronon3d::graph::RenderBackend>,
+                  "PR2: RenderBackend must be non-copyable");
+    static_assert(!std::is_copy_assignable_v<chronon3d::graph::RenderBackend>,
+                  "PR2: RenderBackend must be non-copy-assignable");
+    static_assert(std::is_move_constructible_v<chronon3d::graph::RenderBackend>,
+                  "PR2: RenderBackend must remain movable");
+    SUCCEED("static_asserts above enforce the PR2 contract");
+}
+
+TEST_CASE("RenderBackend - PR2: default capabilities are empty") {
+    FakeBackend backend;
+    const auto caps = backend.capabilities();
+    CHECK_FALSE(caps.text_run);
+}
+
+TEST_CASE("RenderBackend - PR2: error_code_name round-trip") {
+    using chronon3d::graph::RenderBackendErrorCode;
+    using chronon3d::graph::render_backend_error_code_name;
+    CHECK(std::strcmp(render_backend_error_code_name(RenderBackendErrorCode::UnsupportedCapability),
+                      "UnsupportedCapability") == 0);
+    CHECK(std::strcmp(render_backend_error_code_name(RenderBackendErrorCode::InvalidInput),
+                      "InvalidInput") == 0);
+    CHECK(std::strcmp(render_backend_error_code_name(RenderBackendErrorCode::ExecutionFailure),
+                      "ExecutionFailure") == 0);
 }
