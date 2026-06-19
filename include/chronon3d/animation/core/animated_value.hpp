@@ -344,8 +344,9 @@ public:
         m_auto_bezier_dirty = false;
     }
 
-    // Set a constant value (keeps existing keyframes; clears expression).
+    // Set a constant value (clears all keyframes and expressions).
     AnimatedValue& set(const T& value) {
+        clear();
         m_default_value = value;
         m_expression.clear();
         return *this;
