@@ -55,7 +55,7 @@ La Core Zone contiene esclusivamente contratti, interfacce pubbliche e invariant
 
 | Contratto Core | Dipende da | Tipo dipendenza |
 |---|---|---|
-| `scene.hpp` | `camera_2_5d.hpp` | `Camera2_5DRuntime` come membro di `Scene` |
+| ~~`scene.hpp`~~ | ~~`camera_2_5d.hpp`~~ | ✅ **Risolto** — ora usa `std::unique_ptr<Camera2_5DRuntime>` con forward declaration + `CameraProjectionSource` |
 | `layer.hpp` | `effect_stack.hpp`, `material_2_5d.hpp`, `card3d_material.hpp` | `EffectStack`, `Material2_5D`, `Card3DMaterial` come membri di `Layer` |
 | `camera_rig.hpp` | `camera_2_5d.hpp`, `animated_camera_2_5d.hpp` | Metodo `evaluate()` restituisce `Camera2_5D` |
 | ~~`camera_projection.hpp`~~ | ~~`camera_2_5d.hpp`~~ | ✅ **Risolto** — ora usa `CameraProjectionSource` (interfaccia non-owning) |
