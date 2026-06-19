@@ -1,6 +1,8 @@
 # ── Determinism Tests ──
 # Tests for pixel-perfect determinism, semantic comparison, and cache state effects.
+# Requires Blend2D for software backend path rendering.
 
+if(CHRONON3D_USE_BLEND2D)
 add_executable(chronon3d_deterministic_tests
     ${TEST_MAIN}
     deterministic/test_deterministic.cpp
@@ -20,3 +22,4 @@ target_include_directories(chronon3d_deterministic_tests PRIVATE ${CMAKE_SOURCE_
 set_target_properties(chronon3d_deterministic_tests PROPERTIES UNITY_BUILD OFF)
 chronon3d_enable_test_pch(chronon3d_deterministic_tests)
 add_test(NAME chronon3d_deterministic_tests COMMAND chronon3d_deterministic_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+endif()

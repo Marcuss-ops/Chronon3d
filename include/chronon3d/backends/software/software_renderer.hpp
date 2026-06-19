@@ -79,8 +79,10 @@ public:
     /// Useful between unrelated render sessions.
     void clear_caches() {
         m_image_renderer.clear_cache();
+#ifdef CHRONON3D_HAS_BACKEND_TEXT
         renderer::clear_text_glow_cache();
         renderer::clear_text_shadow_cache();
+#endif
         clear_node_cache();
         if (m_cache_state.framebuffer_pool) m_cache_state.framebuffer_pool->clear();
         m_cache_state.graph_cache.reset();
@@ -143,7 +145,13 @@ public:
     void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip = std::nullopt, CompositeOperator op = CompositeOperator::SourceOver) override;
 
     [[nodiscard]] graph::RenderCapabilities capabilities() const noexcept override {
-        return graph::RenderCapabilities{.text_run = true};
+        return graph::RenderCapabilities{
+#ifdef CHRONON3D_USE_BLEND2D
+            .text_run = true
+#else
+            .text_run = false
+#endif
+        };
     }
 
     // PR2 — declare text rendering support; downstream callers MUST gate on

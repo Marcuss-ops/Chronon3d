@@ -213,12 +213,13 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
         );
     }
 
-    BLImage render_img;
     int img_w = 0;
     int img_h = 0;
     bool using_placeholder = false;
 
 #ifdef CHRONON3D_USE_BLEND2D
+    BLImage render_img;
+
     if (!cached || cached->bl_img.empty()) {
         int pw = static_cast<int>(std::round(image.size.x));
         int ph = static_cast<int>(std::round(image.size.y));

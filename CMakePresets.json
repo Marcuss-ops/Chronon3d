@@ -13,7 +13,7 @@
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg_bootstrap/scripts/buildsystems/vcpkg.cmake",
         "VCPKG_MANIFEST_MODE": "ON",
-        "VCPKG_INSTALLED_DIR": "${sourceDir}/vcpkg_installed",
+        "VCPKG_INSTALLED_DIR": "${sourceDir}/vcpkg_installed/${presetName}",
         "VCPKG_MANIFEST_FEATURES": ""
       }
     },

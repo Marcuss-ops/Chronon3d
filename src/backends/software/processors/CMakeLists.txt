@@ -7,7 +7,13 @@
 # add_subdirectory(text) below.
 target_sources(chronon3d_backend_software PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/builtin_processors.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/path_processor.cpp
+)
+if(CHRONON3D_USE_BLEND2D)
+    target_sources(chronon3d_backend_software PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/path_processor.cpp
+    )
+endif()
+target_sources(chronon3d_backend_software PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/software_effect_processors.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/software_grid_background_processor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/software_mesh_processor.cpp

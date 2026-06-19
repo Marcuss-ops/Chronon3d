@@ -10,7 +10,9 @@
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/backends/software/utils/effects/per_pixel_dof.hpp>
+#ifdef CHRONON3D_HAS_BACKEND_TEXT
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
+#endif
 #include <chronon3d/cache/cache_policy.hpp>
 #include <chronon3d/cache/persistent_framebuffer_store.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
@@ -276,6 +278,7 @@ graph::RenderOpResult SoftwareRenderer::draw_text_run(
     const Mat4& model_matrix,
     float opacity
 ) {
+#ifdef CHRONON3D_USE_BLEND2D
     CHRONON_ZONE_C("draw_text_run", trace_category::kText);
     // PR2: `bool diagnostic_mode` removed — caller (TextRunNode / multi_source_node)
     // controls timing logs via `ctx.options.diagnostics_enabled` and emits them
@@ -287,6 +290,13 @@ graph::RenderOpResult SoftwareRenderer::draw_text_run(
         .opacity = opacity,
     };
     return renderer::draw_text_run(*this, params);
+#else
+    (void)fb; (void)shape; (void)model_matrix; (void)opacity;
+    return graph::RenderOpResult(graph::RenderBackendError{
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "draw_text_run: Blend2D not available (CHRONON3D_USE_BLEND2D=OFF)"
+    });
+#endif
 }
 
 } // namespace chronon3d

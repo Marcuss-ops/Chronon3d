@@ -214,13 +214,8 @@ RenderNode RenderNodeFactory::text_run(
     node.world_transform.position = p.text.position;
     node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
 
+#ifdef CHRONON3D_USE_BLEND2D
     // ── Pass canonical composite TextRunSpec directly ───────────────
-    // After the PR3→PR4 migration, TextRunParams is `using`-aliased to
-    // TextRunSpec — so materialize_text_run_shape accepts `p` as-is and
-    // reads the nested fields directly.  The legacy flat-field bridge
-    // (with `flat_params.text/font_path/...`) was removed because it
-    // would now assign strings etc. into TextSpec sub-structs which
-    // no longer match.
     auto shape = materialize_text_run_shape(p, engine, sample_time);
     if (!shape) {
         // Materialization failed (shaping / empty text).  Leave
@@ -231,6 +226,7 @@ RenderNode RenderNodeFactory::text_run(
     } else {
         node.text_run_shape = std::move(shape);
     }
+#endif
 
     node.color = p.text.appearance.color;
     node.fill = Fill::solid_color(p.text.appearance.color);

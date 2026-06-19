@@ -28,7 +28,12 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     session->canvas_width = comp.width();
     session->canvas_height = comp.height();
     session->total_frames = static_cast<int64_t>(end - start);
-    session->started_at_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
+    session->started_at_iso =
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
+        chronon3d::telemetry::TelemetryManager::get_current_iso_time();
+#else
+        "";
+#endif
 
     profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
     profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);

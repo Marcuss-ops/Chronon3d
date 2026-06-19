@@ -1,14 +1,23 @@
 # ── Scene Tests ──
 
+# Text/Blend2D-dependent test sources
+set(SCENE_TEXT_TESTS "")
+if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
+    list(APPEND SCENE_TEXT_TESTS
+        scene/layout/test_layer_builder_animated.cpp
+        layout/test_design_kit.cpp
+        text/test_text_run_builder.cpp
+    )
+endif()
+
 add_executable(chronon3d_scene_tests
     ${TEST_MAIN}
     scene/layout/test_scene_builder.cpp
     scene/shapes/test_path_utils.cpp
     scene/shapes/test_shape_model.cpp
     scene/layout/test_layer_hierarchy.cpp
-    scene/layout/test_layer_builder_animated.cpp
+    ${SCENE_TEXT_TESTS}
     scene/rendering/test_render_node_factory.cpp
-    layout/test_design_kit.cpp
     scene/rendering/test_depth_role.cpp
     scene/layout/test_layout_solver.cpp
     presets/test_presets.cpp
@@ -38,7 +47,6 @@ add_executable(chronon3d_scene_tests
     scene/test_scene_validator.cpp
     scene/test_layer_order_contract.cpp
     render_graph/builder/test_graph_snapshot.cpp
-    text/test_text_run_builder.cpp
 )
 target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline chronon3d_scene chronon3d_backend_software doctest::doctest)
 target_include_directories(chronon3d_scene_tests PRIVATE ${CMAKE_SOURCE_DIR})

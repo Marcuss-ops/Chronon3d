@@ -6,7 +6,9 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/telemetry/telemetry_bundle.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
+#endif
 
 #include <spdlog/spdlog.h>
 
@@ -55,7 +57,12 @@ bool finalize_render_job(
 
     // ── Build the top-level run record ────────────────────────────────
     chronon3d::telemetry::RenderTelemetryRecord run;
-    run.run_id = chronon3d::telemetry::TelemetryManager::generate_uuid();
+    run.run_id =
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
+        chronon3d::telemetry::TelemetryManager::generate_uuid();
+#else
+        "";
+#endif
     run.composition_id = plan.comp_id;
     run.output_path = resolve_output_path_for_telemetry(plan.output);
     run.success = ok;
@@ -66,7 +73,12 @@ bool finalize_render_job(
     run.encode_ms = total_encode_ms;
     run.effective_fps = wall_time_ms > 0.0 ? (run.frames_total * 1000.0 / wall_time_ms) : 0.0;
     run.started_at_iso = setup.job_started_iso;
-    run.finished_at_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
+    run.finished_at_iso =
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
+        chronon3d::telemetry::TelemetryManager::get_current_iso_time();
+#else
+        "";
+#endif
 
     if (counters) {
         cli::telemetry::populate_run_metrics(run, *counters);
@@ -99,6 +111,7 @@ bool finalize_render_job(
 
     // ── Write telemetry (only when --report is set) ───────────────────
     const bool write_telemetry = plan.report;
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
     if (write_telemetry) {
 #ifndef CHRONON3D_ENABLE_SQLITE_TELEMETRY
         spdlog::info("[report] Telemetry support is disabled in this build.");
@@ -110,6 +123,7 @@ bool finalize_render_job(
             telemetry.text_events, telemetry.image_events,
             telemetry.tile_events);
     }
+#endif
 
     // ── Generate execution report ─────────────────────────────────────
     if (plan.report) {

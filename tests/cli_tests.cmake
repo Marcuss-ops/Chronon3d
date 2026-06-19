@@ -1,5 +1,5 @@
 # -- CLI Tests --
-if(CHRONON3D_BUILD_CLI)
+if(CHRONON3D_BUILD_CLI AND CHRONON3D_ENABLE_VIDEO)
 
 add_executable(chronon3d_cli_tests
     ${TEST_MAIN}
