@@ -67,7 +67,7 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
         const bool simple_opaque_full_frame_layer =
             layer.kind == LayerKind::Normal &&
             layer.nodes.size() == 1 &&
-            layer.mask.type() == MaskType::None &&
+            layer.mask.type == MaskType::None &&
             layer.effects().empty() &&
             layer.blend_mode == BlendMode::Normal &&
             !layer.track_matte.active() &&
