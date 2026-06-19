@@ -6,6 +6,7 @@
 #include <string>
 
 namespace chronon3d {
+class AssetRegistry;  // forward declaration for migration path
 
 struct FrameContext {
     Frame frame{0};
@@ -16,6 +17,7 @@ struct FrameContext {
     i32 width{1920};
     i32 height{1080};
     std::string assets_root;
+    AssetRegistry* assets{nullptr};  // PR 2 — migration path: prefer this over TLS AssetRegistry API
     std::pmr::memory_resource* resource{std::pmr::get_default_resource()};
 
     [[nodiscard]] double fps() const { return frame_rate.fps(); }
