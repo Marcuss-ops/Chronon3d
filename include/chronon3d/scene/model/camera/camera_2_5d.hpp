@@ -4,6 +4,7 @@
 #include <chronon3d/math/camera_pose.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/model/camera/lens_model.hpp>
+#include <chronon3d/scene/model/camera/camera_projection_source.hpp>
 #include <string>
 #include <memory_resource>
 #include <glm/gtx/quaternion.hpp>  // glm::quatLookAtLH stable path
@@ -62,33 +63,9 @@ struct DepthOfFieldSettings {
     f32   far_bokeh_radius{0.0f};   // max blur radius for objects farther than focus
 };
 
-// How perspective strength is specified for Camera2_5D.
-// Zoom: use camera.zoom directly (focal_length = zoom).
-// Fov:  derive focal length from camera.fov_deg and viewport height.
-enum class Camera2_5DProjectionMode {
-    Zoom, // default — focal length == camera.zoom
-    Fov   // derive focal from fov_deg (true FOV-based projection)
-};
-
-// ── CameraOpticsMode — independent lens/projection selector ────────────────
-//
-// After this contract is adopted, the optics mode is the SINGLE switch that
-// decides how the focal length is computed for the projection pipeline.
-// It is INDEPENDENT of the depth-of-field model: a physical lens can be
-// active with DoF fully disabled, and a simple Zoom lens can be active with
-// DoF fully enabled.  This matches the After Effects mental model where
-// Focal Length / Film Size / Angle of View are projection properties, not
-// DoF properties.
-//
-//   Zoom:        focal == camera.zoom (legacy Zoom mode)
-//   FieldOfView: focal derived from camera.fov_deg and viewport (legacy Fov mode)
-//   PhysicalLens: focal derived from LensModel with gate-fit (independent
-//                 of DepthOfFieldSettings::use_physical_model).
-enum class CameraOpticsMode {
-    Zoom,         // default — focal length == camera.zoom
-    FieldOfView,  // derive focal from fov_deg (true FOV-based projection)
-    PhysicalLens  // derive focal from LensModel with gate-fit
-};
+// ── Camera2_5DProjectionMode and CameraOpticsMode are now defined in ────────
+// camera_projection_source.hpp so that the projection pipeline can depend on
+// the interface without pulling in the full camera_2_5d.hpp header.
 
 struct Camera2_5D {
     bool enabled{false};

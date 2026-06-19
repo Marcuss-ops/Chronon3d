@@ -58,7 +58,7 @@ La Core Zone contiene esclusivamente contratti, interfacce pubbliche e invariant
 | `scene.hpp` | `camera_2_5d.hpp` | `Camera2_5DRuntime` come membro di `Scene` |
 | `layer.hpp` | `effect_stack.hpp`, `material_2_5d.hpp`, `card3d_material.hpp` | `EffectStack`, `Material2_5D`, `Card3DMaterial` come membri di `Layer` |
 | `camera_rig.hpp` | `camera_2_5d.hpp`, `animated_camera_2_5d.hpp` | Metodo `evaluate()` restituisce `Camera2_5D` |
-| `camera_projection.hpp` | `camera_2_5d.hpp` | `project_world_to_screen()` prende `Camera2_5D` come parametro |
+| ~~`camera_projection.hpp`~~ | ~~`camera_2_5d.hpp`~~ | ✅ **Risolto** — ora usa `CameraProjectionSource` (interfaccia non-owning) |
 
 Queste dipendenze sono **da risolvere** con refactor futuri (es. estrarre un'interfaccia `CameraProjectionSource` nel core, spostare `EffectStack` in Integration Zone tramite type-erasure o forward declaration). La policy è attiva: nessuna **nuova** dipendenza di questo tipo può essere aggiunta.
 

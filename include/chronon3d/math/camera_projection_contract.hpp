@@ -23,7 +23,7 @@
 // ============================================================================
 
 #include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/model/camera/camera_projection_source.hpp>
 #include <cmath>
 #include <limits>
 
@@ -62,45 +62,45 @@ struct ProjectedPoint {
 //     gate-fit.  Independent of DoF — a 24mm or 135mm lens changes the
 //     perspective even when camera.dof.enabled is false (AE contract).
 //   - FieldOfView mode (canonical):   focal = (viewport_height/2) / tan(fov/2).
-//   - Zoom mode (canonical):          focal = camera.zoom.
+//   - Zoom mode (canonical):          focal = camera.get_zoom().
 //   - Legacy DoF fallback:            if optics_mode is the default Zoom but
-//     camera.dof.use_physical_model is true, the legacy path is still honoured.
+//     camera.get_dof_use_physical_model() is true, the legacy path is still honoured.
 //
 // At depth == focal the perspective scale is exactly 1.0.
-inline f32 focal_from_camera(const Camera2_5D& camera, f32 viewport_width, f32 viewport_height) {
+inline f32 focal_from_camera(const CameraProjectionSource& camera, f32 viewport_width, f32 viewport_height) {
     // Canon: switch purely on optics_mode — optics != DoF.
-    switch (camera.optics_mode) {
+    switch (camera.get_optics_mode()) {
         case CameraOpticsMode::PhysicalLens: {
-            if (camera.lens.focal_length > 0.0f) {
-                return camera.lens.focal_pixels(viewport_width, viewport_height);
+            if (camera.get_lens().focal_length > 0.0f) {
+                return camera.get_lens().focal_pixels(viewport_width, viewport_height);
             }
-            return camera.zoom;  // degenerate lens → fall back to zoom
+            return camera.get_zoom();  // degenerate lens → fall back to zoom
         }
         case CameraOpticsMode::FieldOfView: {
-            const f32 fov_rad = glm::radians(camera.fov_deg);
+            const f32 fov_rad = glm::radians(camera.get_fov_deg());
             return (viewport_height * 0.5f) / std::tan(fov_rad * 0.5f);
         }
         case CameraOpticsMode::Zoom:
             break;
     }
-    if (camera.zoom > 0.0f) {
-        return camera.zoom;
+    if (camera.get_zoom() > 0.0f) {
+        return camera.get_zoom();
     }
     // Legacy DoF-driven fallback for callers that pre-date CameraOpticsMode.
-    if (camera.lens.focal_length > 0.0f && camera.dof.use_physical_model) {
-        return camera.lens.focal_pixels(viewport_width, viewport_height);
+    if (camera.get_lens().focal_length > 0.0f && camera.get_dof_use_physical_model()) {
+        return camera.get_lens().focal_pixels(viewport_width, viewport_height);
     }
-    if (camera.projection_mode == Camera2_5DProjectionMode::Fov) {
-        const f32 fov_rad = glm::radians(camera.fov_deg);
+    if (camera.get_projection_mode() == Camera2_5DProjectionMode::Fov) {
+        const f32 fov_rad = glm::radians(camera.get_fov_deg());
         return (viewport_height * 0.5f) / std::tan(fov_rad * 0.5f);
     }
-    return camera.zoom;
+    return camera.get_zoom();
 }
 
 // Single-arg overload for backward compat with callers that don't yet pass viewport_width.
 // Legacy code paths use only viewport_height (Fov/Zoom modes ignore viewport_width).
 // For lens mode, this is a fallback — prefer the 2-arg overload with real viewport dims.
-inline f32 focal_from_camera(const Camera2_5D& camera, f32 viewport_height) {
+inline f32 focal_from_camera(const CameraProjectionSource& camera, f32 viewport_height) {
     return focal_from_camera(camera, viewport_height, viewport_height);
 }
 
@@ -109,8 +109,8 @@ inline f32 focal_from_camera(const Camera2_5D& camera, f32 viewport_height) {
 // Delegates to Camera2_5D::view_matrix() which handles both POI/lookAt mode
 // and rotation-quaternion mode.  This indirection ensures that any future
 // changes to the view matrix logic are automatically picked up by all paths.
-inline Mat4 view_matrix_for_camera(const Camera2_5D& camera) {
-    return camera.view_matrix();
+inline Mat4 view_matrix_for_camera(const CameraProjectionSource& camera) {
+    return camera.get_view_matrix();
 }
 
 // ── Contract: world → camera space ──────────────────────────────────────────
@@ -123,7 +123,7 @@ inline Mat4 view_matrix_for_camera(const Camera2_5D& camera) {
 //   - depth == cam.z    (always positive when visible)
 //   - near_epsilon      default 1e-4f (matches existing Path 1 convention)
 inline CameraSpacePoint world_to_camera_space(
-    const Camera2_5D& camera,
+    const CameraProjectionSource& camera,
     const Vec3& world,
     f32 near_epsilon = 1e-4f
 ) {
@@ -157,7 +157,7 @@ inline CameraSpacePoint world_to_camera_space(
 //   │ 4. perspective_scale = focal / depth                            │
 //   └─────────────────────────────────────────────────────────────────┘
 inline ProjectedPoint project_world_point(
-    const Camera2_5D& camera,
+    const CameraProjectionSource& camera,
     const Vec3& world,
     Viewport2D viewport,
     f32 near_epsilon = 1e-4f

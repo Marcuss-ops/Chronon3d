@@ -523,7 +523,7 @@ struct CameraProjectionResolver {
 
     // -- Build complete proj * view * model matrix (backward compat) -----------
     static Mat4 build_projection_matrix(
-        const Camera2_5D& camera, const Mat4& world_transform,
+        const CameraProjectionSource& camera, const Mat4& world_transform,
         f32 viewport_width, f32 viewport_height)
     {
         const f32 focal = camera_math::focal_from_camera(
