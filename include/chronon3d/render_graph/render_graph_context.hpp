@@ -41,6 +41,7 @@
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 
 #include <algorithm>
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -53,6 +54,7 @@ namespace chronon3d {
     class CompositionRegistry;
     struct RenderCounters;
     class TransformScratchBuffer;
+    class Scene;
 }
 
 namespace chronon3d::media {
@@ -92,6 +94,9 @@ struct RenderCameraContext {
     rendering::LightContext light_context{};
 };
 
+// Forward-declared for use in RenderResourceContext callback signatures.
+struct RenderGraphContext;
+
 // ── External resources (backend, caches, pools, registries) ───────────────
 struct RenderResourceContext {
     RenderBackend* backend{nullptr};
@@ -100,6 +105,12 @@ struct RenderResourceContext {
     CompiledGraphCache* compiled_graph_cache{nullptr};
     const CompositionRegistry* registry{nullptr};
     media::MediaFrameProvider* video_decoder{nullptr};
+
+    /// Factory: builds + compiles a nested scene program on cache miss.
+    /// Populated by graph_pipeline (register_pipeline_nodes).
+    /// Signature: (scene, ctx) -> unique_ptr<CompiledSceneProgram>
+    std::function<std::unique_ptr<class CompiledSceneProgram>(
+        const chronon3d::Scene&, RenderGraphContext&)> precomp_build;
 };
 
 // ── Optimization flags + structure-unchanged hints ───────────────────────

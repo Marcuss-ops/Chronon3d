@@ -1,29 +1,35 @@
-#include "graph_builder_internal.hpp"
+// =============================================================================
+// layer_resolver.cpp — Public implementation of resolve_layers()
+//
+// Moved from graph_builder to graph_core so that graph_nodes can call it
+// without creating a graph_nodes → graph_builder cycle.
+// =============================================================================
 
+#include <chronon3d/render_graph/layer/layer_resolver.hpp>
+#include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/scene/model/layer/layer_hierarchy.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <tbb/task_group.h>
+#include <unordered_map>
 
 namespace chronon3d::graph::detail {
 
-using namespace chronon3d::graph;
-
 LayerResolutionResult resolve_layers(const Scene& scene, const RenderGraphContext& ctx) {
     chronon3d::detail::LayerHierarchyResolver resolver(scene.layers(), scene.resource());
-    
+
     LayerResolutionResult result;
     tbb::task_group tg;
-    
+
     tg.run([&]() {
         result.camera = resolver.resolve_camera(scene.camera_2_5d());
     });
-    
+
     tg.run([&]() {
         result.layers = resolver.resolve_layers(ctx.frame.frame);
     });
-    
+
     tg.wait();
-    
+
     if (ctx.options.modular_coordinates) {
         // Build a map from layer name to its ResolvedLayer
         std::unordered_map<std::string_view, ResolvedLayer*> name_to_resolved;
