@@ -259,7 +259,7 @@ void SoftwareRenderer::apply_per_pixel_dof(
     renderer::apply_per_pixel_dof(framebuffer, depth_vec, dof, lens, clip);
 }
 
-bool SoftwareRenderer::draw_text_run(
+graph::RenderOpResult SoftwareRenderer::draw_text_run(
     Framebuffer& fb,
     const TextRunShape& shape,
     const Mat4& model_matrix,

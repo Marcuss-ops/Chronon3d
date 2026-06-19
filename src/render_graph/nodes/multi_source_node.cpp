@@ -199,9 +199,11 @@ OwnedFB MultiSourceNode::execute(
                     world_matrix = ssaa_scale * item.matrix;
                 }
 
-                const bool drew = ctx.resources.backend->draw_text_run(
+                const auto result = ctx.resources.backend->draw_text_run(
                     *fb, *item.node->text_run_shape, world_matrix,
                     item.opacity, ctx.options.diagnostics_enabled);
+
+                const bool drew = result.ok();
 
                 if (!drew && !m_backend_warned) {
                     spdlog::error(
