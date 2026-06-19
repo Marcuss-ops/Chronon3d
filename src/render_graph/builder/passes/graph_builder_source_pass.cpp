@@ -291,7 +291,11 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             }
         };
 
-        auto node = GraphNodeRegistry::instance().create(
+        if (!ctx.resources.node_catalog) {
+            throw std::logic_error(
+                "source.precomp: node_catalog not wired (call wire_precomp_build_factory)");
+        }
+        auto node = ctx.resources.node_catalog->create(
             "source.precomp", request);
 
         if (!node) {

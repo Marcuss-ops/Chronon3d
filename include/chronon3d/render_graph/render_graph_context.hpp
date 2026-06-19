@@ -111,6 +111,10 @@ struct RenderResourceContext {
     /// Signature: (scene, ctx) -> unique_ptr<CompiledSceneProgram>
     std::function<std::unique_ptr<class CompiledSceneProgram>(
         const chronon3d::Scene&, RenderGraphContext&)> precomp_build;
+
+    /// Node catalog for creating graph nodes by id (e.g. source.precomp).
+    /// Populated by register_pipeline_nodes, consumed by graph builder.
+    const class GraphNodeCatalog* node_catalog{nullptr};
 };
 
 // ── Optimization flags + structure-unchanged hints ───────────────────────

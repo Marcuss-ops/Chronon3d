@@ -29,14 +29,18 @@ public:
 
 } // namespace
 
-void register_pipeline_graph_nodes_impl() {
-    auto& registry = GraphNodeRegistry::instance();
+static GraphNodeCatalog s_pipeline_node_catalog;
 
-    if (registry.contains("source.precomp")) {
+const GraphNodeCatalog& get_pipeline_node_catalog() {
+    return s_pipeline_node_catalog;
+}
+
+void register_pipeline_graph_nodes_impl() {
+    if (s_pipeline_node_catalog.contains("source.precomp")) {
         return;  // already registered
     }
 
-    registry.register_node(GraphNodeDescriptor{
+    s_pipeline_node_catalog.register_node(GraphNodeDescriptor{
         .id = "source.precomp",
         .display_name = "Precomposition",
         .description = "Renders a nested composition",
@@ -66,6 +70,8 @@ void register_pipeline_graph_nodes_impl() {
             );
         }
     });
+
+    s_pipeline_node_catalog.freeze();
 }
 
 void register_pipeline_graph_nodes() {
@@ -77,6 +83,7 @@ void register_pipeline_graph_nodes() {
 }
 
 void wire_precomp_build_factory(RenderGraphContext& ctx) {
+    ctx.resources.node_catalog = &s_pipeline_node_catalog;
     ctx.resources.precomp_build = [](const Scene& scene, RenderGraphContext& nested_ctx)
         -> std::unique_ptr<CompiledSceneProgram>
     {
