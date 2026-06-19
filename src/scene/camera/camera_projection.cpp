@@ -19,7 +19,7 @@ namespace chronon3d {
 
 ScreenPoint project_world_to_screen(
     const Vec3& world,
-    const Camera2_5D& camera,
+    const CameraProjectionSource& camera,
     Viewport viewport
 ) {
     // Stability guard: when camera position and the queried world point are
@@ -27,7 +27,7 @@ ScreenPoint project_world_to_screen(
     // lookAtLH) can divide by zero and emit ±Inf or NaN. Emit a safe default
     // so callers don't have to chase NaN explosions downstream.
     constexpr float kMinSeparation = 1e-4f;
-    const float separation = glm::length(world - camera.position);
+    const float separation = glm::length(world - camera.get_position());
     if (separation < kMinSeparation) {
         ScreenPoint sp;
         sp.position = Vec2{0.0f, 0.0f};
@@ -55,7 +55,7 @@ ScreenPoint project_world_to_screen(
 
 ProjectedBounds project_quad_to_screen(
     const std::array<Vec3, 4>& world_corners,
-    const Camera2_5D& camera,
+    const CameraProjectionSource& camera,
     Viewport viewport
 ) {
     ProjectedBounds pb;
@@ -116,7 +116,7 @@ ProjectedBounds project_quad_to_screen(
 ProjectedBounds project_layer_bounds_to_screen(
     const Transform3D& layer_world,
     Vec2 layer_size,
-    const Camera2_5D& camera,
+    const CameraProjectionSource& camera,
     Viewport viewport
 ) {
     Mat4 world_m = layer_world.to_mat4();
