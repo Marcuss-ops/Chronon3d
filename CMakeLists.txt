@@ -108,7 +108,6 @@ endif()
 # --- Ricerca Dipendenze ---
 find_package(spdlog CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
-find_package(Taskflow CONFIG REQUIRED)
 find_package(TBB CONFIG REQUIRED)
 find_package(concurrentqueue CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)

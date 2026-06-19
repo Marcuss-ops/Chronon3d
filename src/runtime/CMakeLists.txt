@@ -20,7 +20,6 @@ target_link_libraries(chronon3d_runtime PUBLIC
     chronon3d_graph
     chronon3d_effects
     chronon3d_cache
-    Taskflow::Taskflow
 )
 target_include_directories(chronon3d_runtime PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_precompile_headers(chronon3d_runtime PRIVATE <chronon3d/detail/pch.hpp>)
