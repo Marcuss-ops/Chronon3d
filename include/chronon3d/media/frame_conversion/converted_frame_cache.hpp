@@ -128,13 +128,13 @@ private:
     /// Delegates to the centralized resolve_cache_policy(CacheDomain::ConvertedFrames).
     static std::size_t resolve_max_entries(std::size_t caller_value);
 
+    chronon3d::cache::CacheDiagnostics::Handle m_diag_handle;
+
     chronon3d::cache::LruCache<
         ConvertedFrameCacheKey,
         std::shared_ptr<ConvertedFrameCacheEntry>,
         ConvertedFrameCacheKeyHash>
         m_cache;
-
-    chronon3d::cache::CacheDiagnostics::Handle m_diag_handle;
 
 public:
     // ── Diagnostics ────────────────────────────────────────────────────

@@ -76,8 +76,8 @@ public:
     [[nodiscard]] LruCache<FrameCacheKey, Value, FrameCacheKeyHash>::Stats stats() const;
 
 private:
-    LruCache<FrameCacheKey, Value, FrameCacheKeyHash> m_cache;
     CacheDiagnostics::Handle m_diag_handle;
+    LruCache<FrameCacheKey, Value, FrameCacheKeyHash> m_cache;
 };
 
 } // namespace chronon3d::cache
