@@ -372,6 +372,13 @@ public:
     // ── Frame evaluation (backward compatible + forward) ────────────────────
     [[nodiscard]] T value_at(Frame frame) const { return evaluate(frame); }
 
+    /// Integer-literal disambiguation: delegates to evaluate(Frame).
+    /// Resolves ambiguity between evaluate(double) and evaluate(Frame)
+    /// when passing integer literals (e.g. evaluate(30)).
+    [[nodiscard]] T evaluate(int frame) const {
+        return evaluate(Frame{frame});
+    }
+
     /// Double-precision evaluation (for TemporalCurve1D compatibility).
     [[nodiscard]] T evaluate(double frame) const {
         return evaluate_base_double(frame);
