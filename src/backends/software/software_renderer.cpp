@@ -4,6 +4,7 @@
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
 #include <chronon3d/backends/software/text_run_processor.hpp>
+#include <chronon3d/backends/software/utils/effects/per_pixel_dof.hpp>
 
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
@@ -101,6 +102,17 @@ graph::GraphExecutor* SoftwareRenderer::executor() {
 
 const graph::GraphExecutor* SoftwareRenderer::executor() const {
     return m_runtime_resources.executor.get();
+}
+
+void SoftwareRenderer::apply_per_pixel_dof(
+    Framebuffer& framebuffer,
+    std::span<const float> depth,
+    const DepthOfFieldSettings& dof,
+    const LensModel& lens,
+    const std::optional<raster::BBox>& clip)
+{
+    std::vector<float> depth_vec(depth.begin(), depth.end());
+    renderer::apply_per_pixel_dof(framebuffer, depth_vec, dof, lens, clip);
 }
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp,

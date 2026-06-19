@@ -11,7 +11,7 @@
 
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
 #include "scene_internal.hpp"
 #include "scene_fingerprint.hpp"
 #include <memory>
@@ -35,12 +35,13 @@ struct GraphBuildResult {
 /// for the current resolution, the graph structure is identical to the
 /// previous frame — only payloads need refreshing.
 ///
+/// The compiled graph cache is accessed via ctx.resources.compiled_graph_cache.
+///
 /// Otherwise, performs a full build via GraphBuildPipeline + FrameGraphCompiler.
 [[nodiscard]] GraphBuildResult build_or_reuse_graph(
     RenderGraphContext& ctx,
     const Scene& scene,
     const detail::LayerResolutionResult& resolved,
-    SoftwareRenderer* sw_renderer,
     int width,
     int height,
     bool scene_structure_unchanged,

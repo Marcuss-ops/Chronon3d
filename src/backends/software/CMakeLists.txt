@@ -8,7 +8,6 @@ add_library(chronon3d_backend_software STATIC
     software_renderer.cpp
     buffer_ring.cpp
     scratch_buffer.cpp
-    graph_cache.cpp
 )
 set_target_properties(chronon3d_backend_software PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_backend_software
