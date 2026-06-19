@@ -3,7 +3,7 @@
 #include <chronon3d/scene/model/layer/layer.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
-#include <chronon3d/scene/builders/text_run_builder.hpp>  // full type required for std::unique_ptr<TextRunBuilder> / std::unique_ptr<TextRunPendingSpec> members
+#include <chronon3d/scene/builders/text_run_builder.hpp>  // PR 4 — full type required for `std::unique_ptr<TextRunBuilder>` / `std::unique_ptr<TextRunSpec>` members (was forward-declared; caused `sizeof incomplete` + cascaded `private constructor` errors at `std::make_unique` sites and at every TU that destroys a LayerBuilder).
 #include <chronon3d/registry/shape_registry.hpp>
 #include <chronon3d/vector/path_factories.hpp>
 #include <chronon3d/scene/model/layer/mask.hpp>
@@ -25,7 +25,7 @@ namespace chronon3d {
 
 class FontEngine;  // forward declaration
 
-// `TextRunBuilder` and `TextRunPendingSpec` are now pulled in fully via
+// `TextRunBuilder` and `TextRunSpec` are now pulled in fully via
 // `#include <chronon3d/scene/builders/text_run_builder.hpp>` above.
 // Forward declarations of these types here caused the pre-existing
 // build break: any TU that includes this header but not the full
@@ -196,7 +196,7 @@ public:
     LayerBuilder& grid_background(std::string name, GridBackgroundParams p);
     LayerBuilder& text(std::string name, TextSpec p);
 
-    // ── TextRunBuilder (TextAnimator V2) ──────────────────────────
+    // ── TextRunBuilder (PR 4 — TextAnimator V2) ──────────────────────────
     /// Push a new text-run entry into the layer's pending specs and
     /// return a `TextRunBuilder&` for fluent chaining.  The text-run
     /// entry is committed to a `RenderNode` (with `is_text_run_shape
@@ -209,7 +209,7 @@ public:
     /// `return *this` chain.  The returned `TextRunBuilder&` is the
     /// next layer in the chain; calling `.commit()` explicitly hands
     /// control back to the layer-level builder.
-    [[nodiscard]] TextRunBuilder& text_run(std::string name, TextRunSpec spec);
+    [[nodiscard]] TextRunBuilder& text_run(std::string name, TextRunParams params);
 
     LayerBuilder& shape(std::string_view id, std::string name, registry::ShapeParams params);
 
@@ -260,7 +260,7 @@ private:
     f32 m_screen_height{1080.0f};
     FontEngine* m_font_engine{nullptr};
 
-    // ── Pending text-run specs + builder pool ──────────────────
+    // ── PR 4 — pending text-run specs + builder pool ──────────────────
     //
     // `m_text_runs` holds the spec data the builder writes into; stored
     // via `unique_ptr` so push_back doesn't invalidate references.
@@ -272,7 +272,7 @@ private:
     // is what ends the builder's lifetime.  This is the only way the
     // compiler accepts `layer.text_run(...).position(...).opacity(...)`
     // when chained on multiple statements.
-    std::vector<std::unique_ptr<TextRunPendingSpec>> m_text_runs;
+    std::vector<std::unique_ptr<PendingTextRun>> m_text_runs;
     std::vector<std::unique_ptr<TextRunBuilder>> m_text_run_builders;
 };
 

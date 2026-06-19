@@ -26,17 +26,11 @@ inline void add_black_background(SceneBuilder& s) {
 // drop-shadow-ready color.  Designed for AnimFadeIn, AnimSlide, AnimScale.
 inline TextSpec make_text(const std::string& text, f32 font_size = 64.0f) {
     return TextSpec{
-        .content    = {.value = text},
-        .font       = {.font_path = "assets/fonts/Poppins-Bold.ttf",
-                       .font_family = "Poppins",
-                       .font_weight = 700,
-                       .font_size = font_size},
-        .layout     = {.box = {BOX_W, BOX_H},
-                       .align = TextAlign::Center,
-                       .vertical_align = VerticalAlign::Middle,
-                       .line_height = 0.95f,
-                       .tracking = 3.0f},
+        .content = {.value = text},
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_size = font_size},
+        .layout = {.box = {BOX_W, BOX_H}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .line_height = 0.95f, .tracking = 3.0f},
         .appearance = {.color = TEXT_COLOR},
+        .position = {0.0f, 0.0f, 0.0f},
     };
 }
 

@@ -53,10 +53,8 @@ Composition glow_02_orb_galaxy() {
             const int idx = i;
             s.layer("lbl"+std::to_string(idx), [orbs,labels,idx](LayerBuilder& l) {
                 l.position({orbs[idx].x, orbs[idx].y + orbs[idx].r + 40.f, 0});
-                l.text("t", {
-                    .text=labels[idx], .size={140,32}, .pos={0,0,0},
-                    .font_size=14.f, .color=Color{0.65f,0.72f,0.85f,1},
-                    .anchor=TextAnchor::Center, .align=TextAlign::Center, .vertical_align=VerticalAlign::Middle
+                l.text("t", TextSpec{
+                    .content={.value=labels[idx]}, .font={.font_size=14.f}, .layout={.box={140,32}, .anchor=TextAnchor::Center, .align=TextAlign::Center, .vertical_align=VerticalAlign::Middle}, .appearance={.color=Color{0.65f,0.72f,0.85f,1}}, .position={0,0,0}
                 });
             });
         }
