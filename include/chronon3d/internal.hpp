@@ -19,7 +19,7 @@
 #include <chronon3d/effects/effect_descriptor.hpp>
 #include <chronon3d/effects/effect_instance.hpp>
 #include <chronon3d/effects/effect_ids.hpp>
-#include <chronon3d/effects/effect_registry.hpp>
+#include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/effects/effect_stage.hpp>
 
 #include <chronon3d/registry/source_registry.hpp>

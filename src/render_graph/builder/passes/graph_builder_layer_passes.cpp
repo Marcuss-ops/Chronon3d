@@ -1,7 +1,7 @@
 #include "graph_builder_layer_passes.hpp"
 #include "../graph_builder_coordinates.hpp"
 
-#include <chronon3d/effects/effect_registry.hpp>
+#include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <chronon3d/render_graph/nodes/dof_node.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>

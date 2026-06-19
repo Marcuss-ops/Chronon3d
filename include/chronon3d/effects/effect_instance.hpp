@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/effects/effect_catalog.hpp>
+#include <chronon3d/effects/effect_catalog_data.hpp>
 #include <chronon3d/effects/effect_descriptor.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/effects/effect_type.hpp>
@@ -12,7 +12,7 @@
 namespace chronon3d::effects {
 
 // ── effect_type_for<T> primary template ────────────────────────────────────
-// (defined in effect_type.hpp, specializations generated in effect_catalog.hpp)
+// (defined in effect_type.hpp, specializations generated in effect_catalog_data.hpp)
 // Primary template returns Unknown.
 
 // ── EffectInstance ──────────────────────────────────────────────────────────
@@ -51,8 +51,8 @@ struct EffectInstance {
     }
 };
 
-// ── Runtime detection via std::visit (defined in effect_catalog.hpp) ──────
+// ── Runtime detection via std::visit (defined in effect_catalog_data.hpp) ──────
 // detect_effect_type() uses std::visit instead of params.index() — see
-// effect_catalog.hpp for the implementation.
+// effect_catalog_data.hpp for the implementation.
 
 } // namespace chronon3d::effects

@@ -7,7 +7,7 @@
 // type are now in <chronon3d/effects/effect_params.hpp>.
 //
 // effect_type_for<T> specialisations are generated automatically by the
-// X-macro catalog in <chronon3d/effects/effect_catalog.hpp>.
+// X-macro catalog in <chronon3d/effects/effect_catalog_data.hpp>.
 
 #include <chronon3d/effects/effect_instance.hpp>
 #include <chronon3d/effects/effect_params.hpp>
@@ -25,9 +25,9 @@ using EffectStack = std::vector<EffectInstance>;
 
 // ── effect_type_for specialisations ─────────────────────────────────────────
 // REMOVED: These are now generated automatically by the X-macro catalog in
-// effect_catalog.hpp via #include "effect_catalog.def"
+// effect_catalog_data.hpp via #include "effect_catalog.def"
 //
-// See include/chronon3d/effects/effect_catalog.hpp for the auto-generated
+// See include/chronon3d/effects/effect_catalog_data.hpp for the auto-generated
 // specialisations of effect_type_for<T> for all known param types.
 
 // GlowStyle and GlowPresets are now in <chronon3d/effects/presets/glow_presets.hpp>
