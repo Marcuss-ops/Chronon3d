@@ -22,12 +22,9 @@
 #include <chronon3d/core/memory/render_session.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/core/scene_hasher.hpp>
-#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
-#include <chronon3d/render_graph/compiler/scene_binding.hpp>
-#include <chronon3d/core/composition/composition_registry.hpp>
-
+#include <chronon3d/render_graph/layer/layer_resolver.hpp>
 #include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
-#include "../builder/graph_builder_internal.hpp"
+#include <chronon3d/core/composition/composition_registry.hpp>
 
 namespace chronon3d::graph {
 
@@ -109,18 +106,11 @@ OwnedFB PrecompNode::execute(
 
     // ── 5. Find or compile the nested program ────────────────────────────
     auto* program = m_cache->find_or_compile(key, [&]() -> std::unique_ptr<CompiledSceneProgram> {
-        // Cache miss — full build + compile + optimize.
-        RenderGraph nested_graph = GraphBuilder::build(nested_scene, nested_ctx);
-
-        FrameGraphCompiler compiler;
-        FrameGraphCompileOptions compile_opts;
-        compile_opts.run_optimizer    = true;
-        compile_opts.compute_lifetimes = true;
-        compile_opts.compute_bboxes   = true;
-
-        auto compiled = compiler.compile(std::move(nested_graph), nested_ctx, compile_opts);
-        return std::make_unique<CompiledSceneProgram>(
-            compile_scene_program(std::move(compiled)));
+        // Cache miss — delegate to the precomp_build factory (wired by graph_pipeline).
+        if (!ctx.resources.precomp_build) {
+            return nullptr;
+        }
+        return ctx.resources.precomp_build(nested_scene, nested_ctx);
     });
 
     if (!program || program->empty()) {
