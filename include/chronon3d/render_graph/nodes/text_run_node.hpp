@@ -105,7 +105,7 @@ public:
     ///   2. Resolve the SoftwareRenderer via dynamic_cast on the RenderBackend
     ///      (matches the pattern used by graph_builder_layer_pipeline_pass.cpp
     ///      for the matte sub-pipeline).
-    ///   3. Build a TextRunDrawParams (model_matrix, opacity, diagnostic_mode).
+    ///   3. Build a TextRunDrawParams (model_matrix, opacity).
     ///   4. Call `renderer::draw_text_run` for the batched rasterization.
     OwnedFB execute(
         RenderGraphContext& ctx,

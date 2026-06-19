@@ -224,18 +224,29 @@ OwnedFB TextRunNode::execute(
 
     const f32 opacity = m_opacity_override.value_or(m_render_ref.world_transform.opacity);
 
-    const auto result = backend->draw_text_run(
-        *fb, *m_shape, world_matrix, opacity,
-        ctx.options.diagnostics_enabled);
-
-    if (!result && !m_backend_warned) {
-        spdlog::error(
-            "[text-run] node='{}' backend does not support "
-            "draw_text_run; returning cleared fb.", m_name);
-        m_backend_warned = true;
+    // PR2 — gate on capabilities first so the fast path (text features
+    // present) is a single bool check and only the slow path logs a
+    //    startup-leak-style warning via m_backend_warned.
+    if (!backend->capabilities().text_run) {
+        if (!m_backend_warned) {
+            spdlog::error(
+                "[text-run] node='{}' backend does not support "
+                "draw_text_run; returning cleared fb.", m_name);
+            m_backend_warned = true;
+        }
+        return fb;
     }
 
-    const bool drew = result.ok();
+    auto result = backend->draw_text_run(
+        *fb, *m_shape, world_matrix, opacity);
+
+    if (!result) {
+        spdlog::error(
+            "[text-run] node='{}' draw_text_run failed: [{}] {}",
+            m_name,
+            chronon3d::graph::render_backend_error_code_name(result.error().code),
+            result.error().message);
+    }
 
     if (ctx.options.diagnostics_enabled) {
         // DEBUG (not INFO): this fires every frame.  The diagnostic-mode
@@ -247,7 +258,7 @@ OwnedFB TextRunNode::execute(
             m_name,
             chronon3d::hash_text_run_shape(*m_shape),
             m_shape->glyphs.size(),
-            drew,
+            result ? result.value().items_drawn : 0u,
             opacity,
             world_matrix[3][0],
             world_matrix[3][1]
