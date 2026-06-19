@@ -87,9 +87,34 @@ content/             — Composition definitions
 Before making changes to core engine files, read:
 
 - [`docs/ARCHITECTURE_EVOLUTION_PLAN.md`](docs/ARCHITECTURE_EVOLUTION_PLAN.md) — the roadmap for modularizing the engine
-- [`docs/CORE_OWNERSHIP.md`](docs/CORE_OWNERSHIP.md) — protected files, agent rules, minimum tests, and PR checklist
+- [`docs/CORE_OWNERSHIP.md`](docs/CORE_OWNERSHIP.md) — zone definitions, protected contracts, growth rules, V3 migration rules, agent rules, and PR checklist
+- [`docs/V3_BLUEPRINT.md`](docs/V3_BLUEPRINT.md) — V3 tile-first architecture and deletion map
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — active roadmap and Lean Architecture Gates
 
-Key rule: **work in Feature Zone by default** (`content/`, `effects/`, `nodes/`, `assets/`, `video/`, `CLI/`). Touch core files only with explicit justification.
+### Zone System
+
+The engine is divided into five zones (see `CORE_OWNERSHIP.md` for details):
+
+| Zone | Purpose | Default for |
+|---|---|---|
+| **Core Zone** | Fundamental contracts and invariants | Graph executor, scene model, framebuffer, cache policy |
+| **Feature Zone** | Effects, render nodes, presets, exporters, content | Most new work |
+| **Integration Zone** | Extension points, registries, resolvers, samplers | Wiring between modules |
+| **Diagnostics Zone** | Telemetry, profiling, benchmarks, debug overlay | Observability (feature-flagged) |
+| **Experimental Zone** | V3 tile-first prototypes | V3 development (isolated) |
+
+Key rule: **work in Feature Zone by default** (`content/`, `effects/`, `nodes/`, `assets/`, `video/`, `CLI/`). Touch core contracts only with explicit justification.
+
+### Growth Constraints
+
+Every new module must satisfy all items in the **growth budget** checklist (see `CORE_OWNERSHIP.md` §2.5):
+- One responsibility, one CMake target, one existing registry/extension point
+- Targeted tests, no heavy dependency without feature flag, no new global singleton
+- No new cache if the common `LruCache` primitive can be used
+
+### V3 Migration
+
+Every new V3 component must declare its V2 replacement, temporary adapter, removal criterion, equivalence test, and removal deadline. No permanent V2/V3 duplication. See `CORE_OWNERSHIP.md` §2.2 and `V3_BLUEPRINT.md`.
 
 ## Questions?
 

@@ -6,6 +6,40 @@
 
 ---
 
+## Regola Fondamentale V3 — Nessuna Duplicazione Permanente
+
+**Policy:** Ogni componente V3 deve essere una **sostituzione**, non un'alternativa. La coesistenza V2/V3 è tollerata solo durante la migrazione, con un piano di eliminazione esplicito.
+
+Ogni nuovo componente V3 deve dichiarare obbligatoriamente:
+
+1. **Componente V2 sostituito** — file/percorso esatto del codice legacy
+2. **Adapter temporaneo necessario** — wrapper che permette la coesistenza durante la transizione
+3. **Criterio di rimozione** — condizione oggettiva e misurabile per eliminare il percorso legacy
+4. **Test di equivalenza** — test che garantisce output identico V2 ↔ V3
+5. **Milestone di eliminazione** — data o milestone entro cui il percorso legacy viene rimosso
+
+**Template dichiarazione:**
+```markdown
+### Componente V3: <nome>
+- **Sostituisce:** <percorso V2>
+- **Adapter:** <percorso adapter temporaneo>
+- **Criterio rimozione:** <es. "tutti i nodi usano il nuovo percorso">
+- **Test equivalenza:** <percorso test>
+- **Deadline eliminazione:** <milestone>
+```
+
+**Esempio — TileGrid (P1):**
+```markdown
+### Componente V3: TileGrid
+- **Sostituisce:** `shared_ptr<Framebuffer>` full-frame in `RenderGraphNode::execute()`
+- **Adapter:** `LegacyNodeAdapter` — wrapper che estrae un framebuffer da TileGrid per nodi legacy
+- **Criterio rimozione:** tutti i nodi (`SourceNode`, `CompositeNode`, `EffectNode`, ...) sono tile-aware
+- **Test equivalenza:** `tests/render_graph/test_tile_equivalence.cpp`
+- **Deadline eliminazione:** Milestone P6 (Compositing per tile)
+```
+
+---
+
 > **Grafico dipendenze tra pillar:**
 > ```
 > P1 (TileGrid) ─┬─→ P6 (Compositing per tile)
@@ -256,3 +290,22 @@ struct TileCacheKey {
 ```
 
 **Guadagno stimato:** Hit rate da ~60% (node-level) a ~95% (tile-level). Tile invariato copiato dalla cache in ~5μs vs 500μs per renderizzarlo.
+
+---
+
+## V3 Deletion Map — Tracciamento eliminazione legacy
+
+Questa sezione traccia lo stato di ogni componente V3 e il corrispondente percorso legacy da eliminare.
+
+| Componente V3 | Sostituisce V2 | Adapter | Criterio rimozione | Test equivalenza | Deadline | Stato |
+|---|---|---|---|---|---|---|
+| TileGrid (P1) | FB full-frame in execute() | LegacyNodeAdapter | Tutti i nodi tile-aware | `test_tile_equivalence.cpp` | P6 | 🔵 Planned |
+| DisplayList (P2) | Compilazione per-frame | Scene→RenderGraph translator | Ricompilazione solo su structure change | `test_display_list_equivalence.cpp` | P6 | 🔵 Planned |
+| TileMask (P3) | DirtyRect bbox singola | DirtyRectMask wrapper | Tutti i nodi propagano TileMask | `test_tile_mask_equivalence.cpp` | P6 | 🔵 Planned |
+| StaticSeparation (P4) | Cache per-nodo | NodeCache wrapper | Classificazione automatica attiva | `test_static_tile_equivalence.cpp` | P10 | 🔵 Planned |
+| ProceduralKernels (P5) | Sampling bilineare blend2D | ProceduralSourceNode | Tutti i pattern semplici usano kernel dedicati | `test_procedural_equivalence.cpp` | P6 | 🔵 Planned |
+| TileCompositing (P6) | Compositing full-frame | CompositeNode tile-aware | Merge per tile attivo | `test_tile_composite_equivalence.cpp` | P6 | 🔵 Planned |
+| TileSurfaceCache (P7) | FramebufferPool dinamico | Pool wrapper | Tile statici condivisi via copy-on-write | `test_tile_surface_equivalence.cpp` | P10 | 🔵 Planned |
+| OutputPipeline (P8) | Encoding bloccante | Async encoder queue | Render thread non aspetta encoding | `test_output_pipeline_equivalence.cpp` | P8 | 🔵 Planned |
+| TileScheduler (P9) | Parallelismo per-livello | TBB parallel_for nidificato | Work-stealing per tile | `test_tile_scheduler_equivalence.cpp` | P10 | 🔵 Planned |
+| TileCache (P10) | Cache per-nodo | NodeCache wrapper | Hit rate ≥ 90% in benchmark | `test_tile_cache_equivalence.cpp` | P10 | 🔵 Planned |
