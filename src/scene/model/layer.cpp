@@ -1,11 +1,19 @@
 #include <chronon3d/scene/model/layer/layer.hpp>
+#include <chronon3d/scene/model/core/effect_stack.hpp>
+#include <chronon3d/scene/model/shape/material_2_5d.hpp>
+#include <chronon3d/scene/model/core/card3d_material.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 
 namespace chronon3d {
 
 Layer::Layer(std::pmr::memory_resource* res)
-    : name(res), nodes(res), precomp_composition_name(res) {}
+    : name(res),
+      m_effects(std::make_unique<EffectStack>()),
+      m_material(std::make_unique<Material2_5D>()),
+      m_card3d_material(std::make_unique<Card3DMaterial>()),
+      nodes(res),
+      precomp_composition_name(res) {}
 
 Layer::~Layer() = default;
 
@@ -22,13 +30,14 @@ Layer::Layer(const Layer& other)
       uses_2_5d_projection(other.uses_2_5d_projection),
       hierarchy_resolved(other.hierarchy_resolved),
       mask(other.mask),
-      effects(other.effects),
+      m_effects(std::make_unique<EffectStack>(*other.m_effects)),
       blend_mode(other.blend_mode),
       depth_role(other.depth_role),
       depth_offset(other.depth_offset),
       layout(other.layout),
       track_matte(other.track_matte),
-      material(other.material),
+      m_material(std::make_unique<Material2_5D>(*other.m_material)),
+      m_card3d_material(std::make_unique<Card3DMaterial>(*other.m_card3d_material)),
       transition_in(other.transition_in),
       transition_out(other.transition_out),
       nodes(other.nodes),
@@ -57,13 +66,14 @@ Layer& Layer::operator=(const Layer& other) {
     uses_2_5d_projection = other.uses_2_5d_projection;
     hierarchy_resolved = other.hierarchy_resolved;
     mask = other.mask;
-    effects = other.effects;
+    *m_effects = *other.m_effects;
     blend_mode = other.blend_mode;
     depth_role = other.depth_role;
     depth_offset = other.depth_offset;
     layout = other.layout;
     track_matte = other.track_matte;
-    material = other.material;
+    *m_material = *other.m_material;
+    *m_card3d_material = *other.m_card3d_material;
     transition_in = other.transition_in;
     transition_out = other.transition_out;
     nodes = other.nodes;
@@ -94,7 +104,7 @@ uint64_t Layer::get_static_hash() const {
         h = hash_combine(h, cache_static ? 1 : 0);
         h = hash_combine(h, static_cast<u64>(blend_mode));
         h = hash_combine(h, hash_mask(mask));
-        h = hash_combine(h, hash_effect_stack(effects));
+        h = hash_combine(h, hash_effect_stack(*m_effects));
         for (const auto& node : nodes) {
             h = hash_combine(h, hash_render_node(node));
         }

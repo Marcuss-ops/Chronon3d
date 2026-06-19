@@ -8,6 +8,7 @@
 #include <chronon3d/effects/effect_category.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/effects/effect_catalog.hpp>
+#include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/effects/effect_type.hpp>
 #include <chronon3d/effects/glow_pipeline.hpp>
 #include <cmath>
@@ -21,7 +22,7 @@ namespace chronon3d::graph::detail {
 // the dirty-rect pipeline doesn't need a graph node to consult safety.
 [[nodiscard]] f32 compute_layer_spatial_spread(const Layer& layer) {
     f32 max_spread = 0.0f;
-    for (const auto& inst : layer.effects) {
+    for (const auto& inst : layer.effects()) {
         if (!inst.enabled) continue;
 
         using enum effects::EffectType;
@@ -73,7 +74,7 @@ bool is_safe_for_dirty_rects(const Layer& layer, bool motion_blur_enabled,
     if (layer.blend_mode != BlendMode::Normal) return false;
     if (layer.mask.enabled()) return false;
 
-    for (const auto& eff : layer.effects) {
+    for (const auto& eff : layer.effects()) {
         if (!eff.enabled) continue;
 
         effects::EffectCategory category = eff.descriptor.category;
@@ -99,7 +100,7 @@ bool has_layer_with_spatial_effects(
 ) {
     for (const auto& rl : resolved.layers) {
         if (!rl.layer || !rl.layer->active_at(frame)) continue;
-        for (const auto& eff : rl.layer->effects) {
+        for (const auto& eff : rl.layer->effects()) {
             if (!eff.enabled) continue;
             effects::EffectCategory category = eff.descriptor.category;
             if (catalog && catalog->contains(eff.descriptor.id)) {

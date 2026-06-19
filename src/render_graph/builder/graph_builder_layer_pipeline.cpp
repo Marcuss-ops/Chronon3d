@@ -68,7 +68,7 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
             layer.kind == LayerKind::Normal &&
             layer.nodes.size() == 1 &&
             layer.mask.type == MaskType::None &&
-            layer.effects.empty() &&
+            layer.effects().empty() &&
             layer.blend_mode == BlendMode::Normal &&
             !layer.track_matte.active() &&
             (layer.transition_in.transition_id.empty() || layer.transition_in.transition_id == "none") &&
@@ -87,7 +87,7 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
     if (layer.kind == LayerKind::Adjustment) {
         const bool is_static = layer.cache_static || item.is_static;
         const auto policy = is_static ? static_memory_cache("adjustment") : frame_variant_cache("adjustment");
-        for (const auto& eff : layer.effects) {
+        for (const auto& eff : layer.effects()) {
             chronon3d::EffectStack stack;
             stack.push_back(eff);
             GraphNodeId adj_id = graph.add_node(std::make_unique<AdjustmentNode>(std::move(stack), policy));

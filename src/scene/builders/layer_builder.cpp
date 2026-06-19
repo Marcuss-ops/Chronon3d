@@ -336,7 +336,7 @@ Layer LayerBuilder::build() {
         const SampleTime local_time = m_layer.local_time(m_current_time);
         f32 blur_radius = m_layer.anim_transform.blur.evaluate(local_time);
         bool found = false;
-        for (auto& effect : m_layer.effects) {
+        for (auto& effect : m_layer.effects()) {
             if (auto* blur = std::get_if<BlurParams>(&effect.params)) {
                 blur->radius = blur_radius;
                 found = true;
@@ -344,7 +344,7 @@ Layer LayerBuilder::build() {
             }
         }
         if (!found) {
-            m_layer.effects.push_back(EffectInstance{
+            m_layer.effects().push_back(EffectInstance{
                 effects::EffectDescriptor{.id = std::string{effects::ids::BlurGaussian}},
                 BlurParams{blur_radius}
             });

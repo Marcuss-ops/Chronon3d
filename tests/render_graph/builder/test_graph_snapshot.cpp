@@ -140,7 +140,7 @@ TEST_CASE("GraphContract: same scene produces identical DOT across renders") {
     // Render twice and collect DOT from debug output
     auto fb1 = render_composition_frame(renderer, node_cache, {}, nullptr, nullptr,
         Composition(CompositionSpec{.name = "snap1", .width = W, .height = H, .duration = 1},
-                    [&](const FrameContext&) { return scene; }), 0);
+                    [&](const FrameContext&) { return scene.clone(); }), 0);
     auto dot1 = debug_scene_graph(renderer, node_cache, scene, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
 
     // Reset and render again
@@ -148,7 +148,7 @@ TEST_CASE("GraphContract: same scene produces identical DOT across renders") {
     cache::NodeCache node_cache2;
     auto fb2 = render_composition_frame(renderer2, node_cache2, {}, nullptr, nullptr,
         Composition(CompositionSpec{.name = "snap2", .width = W, .height = H, .duration = 1},
-                    [&](const FrameContext&) { return scene; }), 0);
+                    [&](const FrameContext&) { return scene.clone(); }), 0);
     auto dot2 = debug_scene_graph(renderer2, node_cache2, scene, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
 
     CHECK(dot1 == dot2);

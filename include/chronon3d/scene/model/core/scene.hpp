@@ -29,6 +29,9 @@ public:
     Scene(Scene&&) noexcept = default;
     Scene& operator=(Scene&&) noexcept = default;
 
+    /// Deep-clone — defined in scene.cpp (requires complete Camera2_5DRuntime).
+    [[nodiscard]] Scene clone() const;
+
     void add_node(RenderNode node) {
         m_nodes.push_back(std::move(node));
     }
