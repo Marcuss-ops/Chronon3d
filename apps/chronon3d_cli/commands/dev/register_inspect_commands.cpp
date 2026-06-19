@@ -17,7 +17,7 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
         auto state = std::make_shared<GraphState>();
         auto& args = *state->args;
         auto* cmd = app.add_subcommand("graph", "Inspect the render graph: summary stats or DOT export");
-        cmd->add_option("id", args.comp_id, "Composition name or .specscene path")->required();
+        cmd->add_option("id", args.comp_id, "Composition name")->required();
         cmd->add_option("--frame", args.frame, "Frame to inspect")->default_val(0);
         cmd->add_option("-o,--output", args.output, "Output .dot file path");
         cmd->add_flag("--summary", args.summary, "Print node counts, cache stats, and timing");
@@ -36,7 +36,7 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
         auto state = std::make_shared<CameraPathState>();
         auto& args = *state->args;
         auto* cmd = app.add_subcommand("camera-path", "Export camera path as JSON/CSV for debug and validation");
-        cmd->add_option("id", args.comp_id, "Composition name or .specscene path")->required();
+        cmd->add_option("id", args.comp_id, "Composition name")->required();
         cmd->add_option("--start", args.start, "Start frame (inclusive)")->default_val(0);
         cmd->add_option("--end", args.end, "End frame (inclusive, 0 = composition duration)")->default_val(0);
         cmd->add_option("--step", args.step, "Sample every N frames")->default_val(1);
