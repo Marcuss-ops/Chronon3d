@@ -2,6 +2,10 @@
 #include <chronon3d/render_graph/registry/graph_node_registry.hpp>
 #include <chronon3d/render_graph/registry/graph_node_create_request.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
+#include <chronon3d/render_graph/builder/graph_builder.hpp>
+#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
+#include <chronon3d/render_graph/compiler/scene_binding.hpp>
+#include <chronon3d/render_graph/render_graph_context.hpp>
 #include <stdexcept>
 
 namespace chronon3d::graph {
@@ -43,6 +47,24 @@ void register_pipeline_graph_nodes() {
             );
         }
     });
+}
+
+void wire_precomp_build_factory(RenderGraphContext& ctx) {
+    ctx.resources.precomp_build = [](const Scene& scene, RenderGraphContext& nested_ctx)
+        -> std::unique_ptr<CompiledSceneProgram>
+    {
+        RenderGraph nested_graph = GraphBuilder::build(scene, nested_ctx);
+
+        FrameGraphCompiler compiler;
+        FrameGraphCompileOptions compile_opts;
+        compile_opts.run_optimizer    = true;
+        compile_opts.compute_lifetimes = true;
+        compile_opts.compute_bboxes   = true;
+
+        auto compiled = compiler.compile(std::move(nested_graph), nested_ctx, compile_opts);
+        return std::make_unique<CompiledSceneProgram>(
+            compile_scene_program(std::move(compiled)));
+    };
 }
 
 } // namespace chronon3d::graph

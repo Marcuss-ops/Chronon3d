@@ -10,6 +10,7 @@ add_library(chronon3d_graph_core STATIC
     framebuffer_acquire.cpp
     graph_profiler.cpp
     registry/graph_node_registry.cpp
+    layer_resolver.cpp
 )
 set_target_properties(chronon3d_graph_core PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_core
@@ -53,11 +54,6 @@ target_link_libraries(chronon3d_graph_nodes
     PRIVATE
         fmt::fmt
         spdlog::spdlog_header_only
-        chronon3d_graph_builder
-        chronon3d_graph_compiler
-        chronon3d_graph_cache
-        chronon3d_graph_executor
-        chronon3d_graph_pipeline
 )
 target_precompile_headers(chronon3d_graph_nodes PRIVATE
     <glm/glm.hpp>
@@ -67,7 +63,6 @@ target_precompile_headers(chronon3d_graph_nodes PRIVATE
 
 # ── Builder: graph construction ─────────────────────────────────────────────
 add_library(chronon3d_graph_builder STATIC
-    builder/graph_builder_internal.cpp
     builder/graph_builder_pipeline.cpp
     builder/graph_builder_static_analysis.cpp
     builder/graph_builder_bbox.cpp
