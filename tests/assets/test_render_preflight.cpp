@@ -219,12 +219,12 @@ TEST_CASE("RenderPreflight: add_requirements works") {
 
     std::vector<PreflightRequirement> reqs;
     PreflightRequirement r1;
-    r1.set_type(PreflightAssetType::Image;
+    r1.type = PreflightAssetType::Image;
     r1.path = "test_1.png";
     reqs.push_back(r1);
 
     PreflightRequirement r2;
-    r2.set_type(PreflightAssetType::Font;
+    r2.type = PreflightAssetType::Font;
     r2.path = "test_2.ttf";
     r2.composition_id = "TestComp";
     r2.layer_id = "title";

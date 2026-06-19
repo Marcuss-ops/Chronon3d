@@ -5,6 +5,7 @@
 #include <iostream>
 #include <limits>
 #include <new>
+#include <type_traits>
 #include <utility>
 
 #ifdef __linux__
@@ -112,17 +113,30 @@ inline MemoryBlock allocate_memory_block(std::size_t size) {
     if (size == 0) return {};
 
 #ifdef __linux__
+    // MAP_HUGETLB requires the requested length to be a multiple of the
+    // huge-page size (default 2 MiB on Linux/x86_64).  Round up; the
+    // unused tail is acceptable since huge pages only come in fixed sizes.
+    constexpr std::size_t huge_page_size = static_cast<std::size_t>(2) * 1024 * 1024;
+    const std::size_t aligned_size =
+        (size + huge_page_size - 1) & ~(huge_page_size - 1);
     {
-        void* ptr = ::mmap(nullptr, size, PROT_READ | PROT_WRITE,
+        void* ptr = ::mmap(nullptr, aligned_size, PROT_READ | PROT_WRITE,
                            MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
         if (ptr != MAP_FAILED) {
-            return MemoryBlock(ptr, size, AllocationBackend::MmapHuge);
+            // Hint the kernel that THP is acceptable too — leftover coarse
+            // hints when explicit huge-tables are exhausted, fall back to
+            // standard pages when both fail.
+            (void)::madvise(ptr, aligned_size, MADV_HUGEPAGE);
+            return MemoryBlock(ptr, aligned_size, AllocationBackend::MmapHuge);
         }
     }
     {
         void* ptr = ::mmap(nullptr, size, PROT_READ | PROT_WRITE,
                            MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         if (ptr != MAP_FAILED) {
+            // Ask the kernel to coalesce into a transparent huge page so the
+            // standard-page path still benefits from large-page TLB entries.
+            (void)::madvise(ptr, size, MADV_HUGEPAGE);
             return MemoryBlock(ptr, size, AllocationBackend::MmapStandard);
         }
     }
@@ -207,6 +221,13 @@ inline void free_huge_pages(void* ptr, size_t size) {
 template <typename T>
 struct HugePageAllocator {
     using value_type = T;
+    // Stateless allocator: declare the STL traits so containers can swap
+    // / move-assign in O(1) (pointer swap) instead of paying the O(N)
+    // element-by-element copy a stateful default would force.
+    using is_always_equal = std::true_type;
+    using propagate_on_container_move_assignment = std::true_type;
+    using propagate_on_container_swap = std::true_type;
+    using propagate_on_container_copy_assignment = std::false_type;
 
     HugePageAllocator() = default;
     template <class U> constexpr HugePageAllocator(const HugePageAllocator<U>&) noexcept {}

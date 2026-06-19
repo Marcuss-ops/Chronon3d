@@ -216,7 +216,7 @@ TEST_CASE("Test 9.8 — Camera 2.5D: Native 3D shapes do not undergo double proj
 
     RenderNode rn(l.nodes.get_allocator().resource());
     rn.name = std::pmr::string{"native_mesh", l.nodes.get_allocator().resource()};
-    rn.shape.set_type(ShapeType::Mesh;
+    rn.shape.set_type(ShapeType::Mesh);
     l.nodes.push_back(std::move(rn));
 
     Scene scene;

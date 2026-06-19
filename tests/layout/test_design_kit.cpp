@@ -73,7 +73,7 @@ TEST_CASE("Box model helpers fit content with padding and bounds") {
 
 TEST_CASE("Shape hash changes when stroke changes") {
     Shape a;
-    a.set_type(ShapeType::RoundedRect;
+    a.type = ShapeType::RoundedRect;
     a.rounded_rect().size = {930.0f, 120.0f};
     a.rounded_rect().radius = 60.0f;
     a.rounded_rect().stroke.enabled = true;

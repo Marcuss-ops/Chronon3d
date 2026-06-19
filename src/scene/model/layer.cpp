@@ -9,6 +9,7 @@ namespace chronon3d {
 
 Layer::Layer(std::pmr::memory_resource* res)
     : name(res),
+      parent_name(res),
       m_effects(std::make_unique<EffectStack>()),
       m_material(std::make_unique<Material2_5D>()),
       m_card3d_material(std::make_unique<Card3DMaterial>()),
@@ -19,7 +20,7 @@ Layer::~Layer() = default;
 
 Layer::Layer(const Layer& other)
     : name(other.name.get_allocator()),
-      parent_name(other.parent_name),
+      parent_name(other.parent_name.get_allocator()),
       kind(other.kind),
       transform(other.transform),
       anim_transform(other.anim_transform),
@@ -48,8 +49,9 @@ Layer::Layer(const Layer& other)
       font_engine(other.font_engine),
       m_static_hash(other.m_static_hash),
       m_static_hash_computed(other.m_static_hash_computed) {
-    
+
     name = other.name;
+    parent_name = other.parent_name;
     if (other.video_source) {
         video_source = std::make_unique<video::VideoSource>(*other.video_source);
     }

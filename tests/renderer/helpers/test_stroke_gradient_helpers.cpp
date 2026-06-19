@@ -22,7 +22,7 @@ using namespace chronon3d::renderer;
 /// Build a simple red→blue linear gradient fill for a shape stroke.
 static GradientFill make_linear_rb_gradient() {
     GradientFill g;
-    g.set_type(FillType::LinearGradient;
+    g.type = FillType::LinearGradient;
     g.from  = {0.0f, 0.5f};
     g.to    = {1.0f, 0.5f};
     g.stops = {
@@ -35,7 +35,7 @@ static GradientFill make_linear_rb_gradient() {
 /// Build a white→black radial gradient fill for a shape stroke.
 static GradientFill make_radial_wb_gradient() {
     GradientFill g;
-    g.set_type(FillType::RadialGradient;
+    g.type = FillType::RadialGradient;
     g.from  = {0.5f, 0.5f};
     g.to    = {1.0f, 0.5f}; // radius = 0.5
     g.stops = {
@@ -49,7 +49,7 @@ static GradientFill make_radial_wb_gradient() {
 static Shape make_shape(ShapeType type, const std::optional<GradientFill>& grad = std::nullopt,
                         f32 stroke_w = 10.0f) {
     Shape s;
-    s.set_type(type;
+    s.type = type;
     ShapeStroke stroke;
     stroke.enabled  = true;
     stroke.width    = stroke_w;
@@ -116,7 +116,7 @@ TEST_CASE("stroke_has_gradient: Circle without gradient returns false") {
 
 TEST_CASE("stroke_has_gradient: None type returns false") {
     Shape s;
-    s.set_type(ShapeType::None;
+    s.type = ShapeType::None;
     CHECK_FALSE(stroke_has_gradient(s));
 }
 
@@ -130,13 +130,13 @@ TEST_CASE("stroke_has_gradient: disabled stroke with gradient still returns true
 
 TEST_CASE("stroke_has_gradient: Line type returns false") {
     Shape s;
-    s.set_type(ShapeType::Line;
+    s.type = ShapeType::Line;
     CHECK_FALSE(stroke_has_gradient(s));
 }
 
 TEST_CASE("stroke_has_gradient: Text type returns false") {
     Shape s;
-    s.set_type(ShapeType::Text;
+    s.type = ShapeType::Text;
     CHECK_FALSE(stroke_has_gradient(s));
 }
 
@@ -244,7 +244,7 @@ TEST_CASE("resolve_stroke_gradient_color: no gradient returns transparent") {
 
 TEST_CASE("resolve_stroke_gradient_color: None type returns transparent") {
     Shape s;
-    s.set_type(ShapeType::None;
+    s.type = ShapeType::None;
     Color c = resolve_stroke_gradient_color(s, {100.0f, 100.0f}, {200.0f, 200.0f});
     CHECK(c.r == doctest::Approx(0.0f));
     CHECK(c.g == doctest::Approx(0.0f));
@@ -254,7 +254,7 @@ TEST_CASE("resolve_stroke_gradient_color: None type returns transparent") {
 
 TEST_CASE("resolve_stroke_gradient_color: Line type returns transparent") {
     Shape s;
-    s.set_type(ShapeType::Line;
+    s.type = ShapeType::Line;
     Color c = resolve_stroke_gradient_color(s, {100.0f, 100.0f}, {200.0f, 200.0f});
     CHECK(c.r == doctest::Approx(0.0f));
     CHECK(c.g == doctest::Approx(0.0f));
@@ -264,7 +264,7 @@ TEST_CASE("resolve_stroke_gradient_color: Line type returns transparent") {
 
 TEST_CASE("resolve_stroke_gradient_color: Text type returns transparent") {
     Shape s;
-    s.set_type(ShapeType::Text;
+    s.type = ShapeType::Text;
     Color c = resolve_stroke_gradient_color(s, {100.0f, 100.0f}, {200.0f, 200.0f});
     CHECK(c.r == doctest::Approx(0.0f));
     CHECK(c.g == doctest::Approx(0.0f));
@@ -274,7 +274,7 @@ TEST_CASE("resolve_stroke_gradient_color: Text type returns transparent") {
 
 TEST_CASE("resolve_stroke_gradient_color: gradient with single stop uses that color") {
     GradientFill g;
-    g.set_type(FillType::LinearGradient;
+    g.type = FillType::LinearGradient;
     g.from  = {0.0f, 0.5f};
     g.to    = {1.0f, 0.5f};
     g.stops = {{0.0f, {0.2f, 0.4f, 0.6f, 1.0f}}};
@@ -290,7 +290,7 @@ TEST_CASE("resolve_stroke_gradient_color: gradient with single stop uses that co
 TEST_CASE("resolve_stroke_gradient_color: zero-length gradient direction returns first stop") {
     // When from == to, the direction length is 0, and t stays 0.
     GradientFill g;
-    g.set_type(FillType::LinearGradient;
+    g.type = FillType::LinearGradient;
     g.from  = {0.5f, 0.5f};
     g.to    = {0.5f, 0.5f};  // zero-length
     g.stops = {
