@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/render_graph/registry/graph_node_registry.hpp>
+#include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 
 namespace chronon3d::graph {
 

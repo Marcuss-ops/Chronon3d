@@ -5,7 +5,7 @@
 #include <chronon3d/render_graph/nodes/video_node.hpp>
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
-#include <chronon3d/render_graph/registry/graph_node_registry.hpp>
+#include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/render_graph/registry/graph_node_create_request.hpp>
 #include <memory>
 #include <spdlog/spdlog.h>
