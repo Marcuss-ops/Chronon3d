@@ -8,4 +8,4 @@ add_library(chronon3d_effects STATIC
     curves.cpp
     color_pipeline.cpp
 )
-target_link_libraries(chronon3d_effects PUBLIC chronon3d ${CHRONON3D_MESHOPTIMIZER_LINK})
+target_link_libraries(chronon3d_effects PUBLIC chronon3d chronon3d_graph_nodes ${CHRONON3D_MESHOPTIMIZER_LINK})

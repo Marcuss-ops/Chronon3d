@@ -247,10 +247,15 @@ TEST_CASE("RadialBlur: same sample count = same result") {
 // because FullFrame means the entire image is affected.
 
 TEST_CASE("RadialBlur: FullFrame — clip does not preserve outside pixels") {
+    // A strictly-constant image is a fixed point of any linear blur, so a
+    // pure `fill_constant` setup can never observe `any_different`. Blend in
+    // an off-centre impulse so the blur actually has spatially varying
+    // content to spread.
     Framebuffer fb(8, 8);
     fill_constant(fb, Color{0.2f, 0.3f, 0.4f, 1.0f});
-    Framebuffer original(8, 8);
-    fill_constant(original, Color{0.2f, 0.3f, 0.4f, 1.0f});
+    fb.set_pixel(3, 3, Color{1.0f, 1.0f, 1.0f, 1.0f});
+
+    Framebuffer original(fb);
 
     // Clip applied to a small region
     apply_radial_blur(fb, 0.5f, 0.5f, 5.0f, 8);

@@ -72,7 +72,26 @@ struct TestContext {
         ctx.resources.node_cache      = &node_cache;
         ctx.resources.framebuffer_pool = pool;
         ctx.resources.registry        = &registry;
-        ctx.frame                     = {Frame{0}, 0.0f, 30, w, h};
+        // NOTE: RenderFrameInfo has 8 fields (frame, sample_time,
+        // temporal_key, time_seconds, fps, width, height, assets_root).
+        // The previous positional aggregate init {Frame{0}, 0.0f, 30, w, h}
+        // silently bound `w`/`h` to time_seconds/fps and value-initialised
+        // width and height to 0, causing every early-return in
+        // PrecompNode::execute() — which falls back to
+        // `ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height)` —
+        // to construct a Framebuffer(0, 0) and throw
+        // "Framebuffer dimensions must be positive".
+        // Designated initialisers pin width/height explicitly.
+        ctx.frame = {
+            .frame        = Frame{0},
+            .sample_time  = {},
+            .temporal_key = {},
+            .time_seconds = 0.0f,
+            .fps          = 30.0f,
+            .width        = w,
+            .height       = h,
+            .assets_root  = {}
+        };
     }
 
     void add_comp(const char* name, int w, int h, Color color) {
