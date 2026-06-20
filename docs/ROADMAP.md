@@ -123,3 +123,22 @@ Vedi [`CORE_OWNERSHIP.md`](CORE_OWNERSHIP.md) per le regole complete.
 | N8 | Temp FB aliasing shared_ptr | `effects_internal.hpp` | 🟡 Partial |
 | N9 | Trace lock-free queue | `trace.hpp` / `trace.cpp` | 🔵 Planned |
 | N10 | RAII guard thread_local ptrs | `software_renderer.cpp` | 🔵 Planned |
+
+---
+
+## 🟢 Recently Completed — cross-reference (lifecycle events)
+
+These items landed recently and are recorded here so they appear in roadmap
+scans; for full detail follow the cross-reference. (The "rec" prefix below is
+a new convention introduced in 2026-06-20 for lifecycle events that did not
+previously live under the N*/M*/L*/I* numbering scheme.)
+
+| Prefix | Item | State | Cross-reference |
+|---|---|---|---|
+| rec-1 | `expressions/v2` engine merged on `main` via PR #23 (Experimental Zone) | ✅ Merged | `CHANGELOG.md` → "Expression System v2 — Lifecycle" |
+| rec-2 | CMake guard `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` retired (deprecated option() retained) | ✅ Done | `CMakeLists.txt:200-237` |
+| rec-3 | TICKET-005 Gap C — doc sweep recording that `expressions/v2` is now on `main` | ✅ Done | `FEATURES.md` + `CHANGELOG.md` + `ARCHITECTURE_EVOLUTION_PLAN.md` (this file's cross-reference) |
+
+> Open follow-ups that block full promotion from the Experimental Zone:
+> TICKET-003 (lexer.hpp typo), TICKET-004 (cmake `PUBLIC` include path bug).
+> Both are tracked in `docs/FOLLOWUP_TICKETS.md`.
