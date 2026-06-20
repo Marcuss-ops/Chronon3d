@@ -59,6 +59,11 @@ target_link_libraries(chronon3d INTERFACE
     xxHash::xxhash
     magic_enum::magic_enum
     chronon3d_core_impl
+    # PR1 — transitively expose `chronon3d_animations` so that anything
+    # linking chronon3d (scene, render_graph, ...) automatically sees the
+    # implementations of motion::Timeline, AnimatedValue, and the new
+    # chronon3d::temporal::generate_temporal_samples symbol.
+    chronon3d_animations
 )
 
 # ==============================================================================

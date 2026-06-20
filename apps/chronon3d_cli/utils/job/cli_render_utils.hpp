@@ -25,6 +25,7 @@ concept PipelinableArgs = requires(const Args& a) {
     a.pipeline.no_dirty_rects;
     a.pipeline.tile_size;
     a.pipeline.quality.motion_blur;
+    a.pipeline.quality.motion_blur_mode;     // PR1
     a.pipeline.quality.motion_blur_samples;
     a.pipeline.quality.shutter_angle_deg;
     a.pipeline.quality.shutter_phase_deg;
@@ -58,7 +59,32 @@ RenderSettings settings_from_args(const Args& args,
         s.dirty.use_tiles = false;
     }
     s.dirty.tile_size           = args.pipeline.tile_size;
-    s.motion_blur.enabled          = motion_blur_allowed && args.pipeline.quality.motion_blur;
+    // PR1 — Map the CLI's motion-blur trinary onto MotionBlurMode.
+    //   * `--motion-blur-mode 1` (TemporalAccumulation)
+    //   * `--motion-blur-mode 2` (VelocityApproximation)
+    //   * `--motion-blur-mode 0` (Off)
+    //   * legacy `--motion-blur` boolean (TemporalAccumulation if set)
+    // Out-of-range ints (incl. negative CLI bugs) are mapped to Off so the
+    // renderer never sees an undefined enum value.
+    if (motion_blur_allowed && args.pipeline.quality.motion_blur_mode != 0) {
+        switch (args.pipeline.quality.motion_blur_mode) {
+            case 1:
+                s.motion_blur.mode = MotionBlurMode::TemporalAccumulation;
+                break;
+            case 2:
+                s.motion_blur.mode = MotionBlurMode::VelocityApproximation;
+                break;
+            default:
+                s.motion_blur.mode = MotionBlurMode::Off;
+                break;
+        }
+    } else if (motion_blur_allowed && args.pipeline.quality.motion_blur) {
+        s.motion_blur.mode = MotionBlurMode::TemporalAccumulation;
+    } else {
+        s.motion_blur.mode = MotionBlurMode::Off;
+    }
+    // Keep the legacy boolean field in sync for callers that still read it.
+    s.motion_blur.enabled          = (s.motion_blur.mode != MotionBlurMode::Off);
     s.motion_blur.samples          = args.pipeline.quality.motion_blur_samples;
     s.motion_blur.shutter_angle_deg = args.pipeline.quality.shutter_angle_deg;
     s.motion_blur.shutter_phase_deg = args.pipeline.quality.shutter_phase_deg;
