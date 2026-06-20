@@ -32,6 +32,14 @@ struct CompileError {
 struct CompileResult {
     Program                program;
     std::vector<CompileError> errors;
+    // The parsed AST rooted at the source's top-level expression. Default-
+    // constructed (variant alt 0 = double 0.0) when the source failed to
+    // lex or parse.  Tests use this to verify the *parse tree shape*
+    // directly, independent of VM/bytecode behaviour, so a parse-stage
+    // regression (e.g. left-associativity creeping back into the ternary)
+    // fails at the assertion level with a clear std::get<...> diagnostic
+    // rather than via a downstream VM error.
+    AstNode                ast;
 
     [[nodiscard]] bool ok() const noexcept { return errors.empty(); }
 };
