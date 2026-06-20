@@ -12,7 +12,6 @@
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/text/font_engine.hpp>
-#include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include "text_processor_helpers.hpp"
@@ -66,7 +65,7 @@ public:
             return;
         }
 
-        if (chronon3d::Config::get().debug().dump_text_raster()) {
+        if (renderer.config().debug().dump_text_raster()) {
             BLImageData debug_data;
             if (raster->image.getData(&debug_data) == BL_SUCCESS) {
                 const int sw = debug_data.size.w;
