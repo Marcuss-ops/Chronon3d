@@ -30,6 +30,10 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/optimizer_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cache_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/compositor_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/benchmarks.cmake)
+# ── Path B expression engine tests (feature/expressions-v2 only) ────────
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/expressions/CMakeLists.txt")
+    include(${CMAKE_CURRENT_LIST_DIR}/expressions/CMakeLists.txt)
+endif()
 
 # Tests requiring Blend2D + text
 if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
