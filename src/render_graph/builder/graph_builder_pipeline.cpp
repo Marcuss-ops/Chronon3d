@@ -24,12 +24,11 @@ RenderGraph GraphBuilder::build(const Scene& scene, const RenderGraphContext& ct
     auto mutable_ctx = ctx;
     const auto& catalogs = builtin_pipeline_catalogs();
 
-    if (!mutable_ctx.resources.node_catalog) {
-        mutable_ctx.resources.node_catalog = &catalogs.graph_nodes;
-    }
-    if (!mutable_ctx.resources.effect_catalog) {
-        mutable_ctx.resources.effect_catalog = &catalogs.effects;
-    }
+    // TICKET-010 — wire catalog pointers + typed PrecompBuilderService
+    // via the canonical helper (keeps `graph_cache_coordinator.cpp` and
+    // `graph_builder_pipeline.cpp` in lock-step).  The helper preserves
+    // any pre-set `ctx.services.precomp_builder` for custom compilers.
+    wire_catalog_pointers(mutable_ctx, catalogs);
 
     GraphBuildPipeline pipeline;
     pipeline.add_default_passes();

@@ -6,7 +6,19 @@
 // Internal helpers extracted from render_pipeline.cpp to keep that file
 // focused on pipeline orchestration logic only.
 //
-// All functions are in namespace chronon3d::graph — same as render_pipeline.cpp.
+// TICKET-010 — `make_graph_context` now initialises the 4 canonical sub-
+// context fields on `RenderGraphContext`:
+//
+//   - frame_input (frame id, dimensions, camera, projection, lighting)
+//   - policy      (cache/diagnostics/ssaa/modular/dirty-rect/skip-clear/
+//                  tile size, program-cache tuning)
+//   - services    (backend, caches, pool, registry, video_decoder)
+//   - node_exec   (counters; tile + scratch are populated by graph_node
+//                  executors downstream, not here)
+//
+// The old 7-substruct shape (`.frame`, `.camera`, `.resources`, `.options`,
+// `.telemetry`, `.tile`, `.scratch`) is gone; field-by-field migration of
+// downstream consumers is carried out as follow-up commits.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
@@ -22,7 +34,7 @@
 
 namespace chronon3d::graph {
 
-// ── Scene fingerprinting ─────────────────────────────────────────────────────
+// ── Scene fingerprinting ───────────────────────────────────────
 //
 // Hashes the visible scene state at a given frame into a 64-bit digest.
 // Used by the dirty-rect fast path to skip full re-renders when nothing changed.
@@ -35,7 +47,7 @@ namespace chronon3d::graph {
 
         const u64 static_hash = layer.get_static_hash();
         XXH3_64bits_update(&state, &static_hash, sizeof(static_hash));
-        
+
         const u64 transform_hash = hash_transform(layer.transform);
         XXH3_64bits_update(&state, &transform_hash, sizeof(transform_hash));
     }
@@ -48,7 +60,7 @@ namespace chronon3d::graph {
 
 
 
-// ── Framebuffer downsampling ─────────────────────────────────────────────────
+// ── Framebuffer downsampling ────────────────────────────────────
 //
 // Box-filter downsample used by the SSAA path in render_composition_frame().
 [[nodiscard]] inline std::unique_ptr<Framebuffer> downsample_fb(
@@ -82,7 +94,7 @@ namespace chronon3d::graph {
                 }
             }
             if (count > 0) {
-                const float inv = 1.0f / count;
+                const float inv = 1.0f / static_cast<float>(count);
                 dst_data[static_cast<size_t>(y) * dst_stride + x] = Color{r * inv, g * inv, b * inv, a * inv};
             }
         }
@@ -90,7 +102,7 @@ namespace chronon3d::graph {
     return dst;
 }
 
-// ── RenderGraphContext factory ───────────────────────────────────────────────
+// ── RenderGraphContext factory (TICKET-010 — 4 sub-context shape) ──────────
 [[nodiscard]] inline RenderGraphContext make_graph_context(
     RenderBackend& backend,
     cache::NodeCache& node_cache,
@@ -109,48 +121,44 @@ namespace chronon3d::graph {
     const SampleTime st = SampleTime::from_frame(
         static_cast<double>(frame) + static_cast<double>(frame_time), frm);
     return RenderGraphContext{
-        .frame = RenderFrameInfo{
-            .frame = frame,
-            .sample_time = st,
+        .frame_input = FrameInput{
+            .frame        = frame,
+            .sample_time  = st,
             .temporal_key = make_temporal_key(st, 0),
             .time_seconds = fps > 0.0f
                 ? (static_cast<float>(frame) + frame_time) / fps
                 : 0.0f,
-            .fps = fps,
-            .width = width,
-            .height = height,
-            .assets_root = {},
+            .fps          = fps,
+            .width        = width,
+            .height       = height,
+            .assets_root  = {},
+            .camera       = camera,
         },
-        .camera = RenderCameraContext{
-            .camera = camera,
-        },
-        .resources = RenderResourceContext{
-            .backend = &backend,
-            .node_cache = &node_cache,
-            .framebuffer_pool = backend.framebuffer_pool(),
-            .registry = registry,
-            .video_decoder = video_decoder,
-        },
-        .options = RenderOptimizationContext{
+        .policy = RenderPolicy{
+            // Keep node clipping in sync with framebuffer reuse.
             .diagnostics_enabled = settings.diagnostics.enabled,
-            .ssaa_factor = settings.ssaa_factor,
+            .ssaa_factor         = settings.ssaa_factor,
             .modular_coordinates = settings.use_modular_graph,
             .optimize_compositing = settings.compositing.optimize_compositing,
-            // Keep node clipping in sync with framebuffer reuse.
             // Without this, the Clear node can erase an entire reused buffer,
             // which wipes cached full-frame backgrounds on the next frame.
-            .dirty_rects_enabled = settings.dirty.is_active(),
+            .dirty_rects_enabled  = settings.dirty.is_active(),
             .program_cache_capacity = settings.program_cache_capacity,
-            .program_cache_tune = settings.program_cache_tune,
+            .program_cache_tune   = settings.program_cache_tune,
             .program_cache_tune_interval = settings.program_cache_tune_interval,
             .program_cache_tune_min_capacity = settings.program_cache_tune_min_capacity,
             .program_cache_tune_max_capacity = settings.program_cache_tune_max_capacity,
+            .tile_size            = settings.dirty.tile_size,
         },
-        .telemetry = RenderTelemetryContext{
+        .services = RenderServices{
+            .backend           = &backend,
+            .node_cache        = &node_cache,
+            .framebuffer_pool  = backend.framebuffer_pool(),
+            .registry          = registry,
+            .video_decoder     = video_decoder,
+        },
+        .node_exec = NodeExecutionContext{
             .counters = backend.counters(),
-        },
-        .tile = RenderTileContext{
-            .tile_size = settings.dirty.tile_size,
         },
     };
 }

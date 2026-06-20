@@ -82,9 +82,11 @@ namespace chronon3d::graph::detail {
     tile_ctx.tile.early_exit_skip.clear();
 
     FrameArena tile_arena;
+    // TICKET-009 — pass the renderer-owned plan cache and the local
+    // scratch arena override.  The executor is now stateless.
     auto tile_fb = sw_renderer->executor()->execute(
         compiled, tile_ctx, sw_renderer->session(),
-        sw_renderer->scheduler(), &tile_arena);
+        sw_renderer->plan_cache(), &tile_arena);
 
     if (tile_fb) {
         for (i32 y = region_bbox.y0; y < region_bbox.y1; ++y) {
