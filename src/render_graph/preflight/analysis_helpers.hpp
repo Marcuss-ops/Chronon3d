@@ -68,7 +68,7 @@ static inline void check_shape_assets(const Shape& shape, const std::string& nod
     if (shape.type() == ShapeType::Image) {
         const std::string path = shape.image().path;
         if (!path.empty()) {
-            std::string resolved = AssetRegistry::resolve(path);
+            std::string resolved = resolve_asset_path(path);
             if (!std::filesystem::exists(resolved)) {
                 warnings.push_back("MISSING_ASSET: Image file does not exist: \"" + path + "\"");
             }
@@ -76,7 +76,7 @@ static inline void check_shape_assets(const Shape& shape, const std::string& nod
     } else if (shape.type() == ShapeType::Text) {
         const std::string font_path = shape.text().style.font_path;
         if (!font_path.empty()) {
-            std::string resolved = AssetRegistry::resolve(font_path);
+            std::string resolved = resolve_asset_path(font_path);
             if (!std::filesystem::exists(resolved)) {
                 warnings.push_back("MISSING_ASSET: Font file does not exist: \"" + font_path + "\"");
             }
@@ -84,7 +84,7 @@ static inline void check_shape_assets(const Shape& shape, const std::string& nod
     } else if (shape.type() == ShapeType::FakeExtrudedText) {
         const std::string font_path = shape.fake_extruded_text().font_path;
         if (!font_path.empty()) {
-            std::string resolved = AssetRegistry::resolve(font_path);
+            std::string resolved = resolve_asset_path(font_path);
             if (!std::filesystem::exists(resolved)) {
                 warnings.push_back("MISSING_ASSET: Font file does not exist: \"" + font_path + "\"");
             }

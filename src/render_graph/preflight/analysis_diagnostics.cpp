@@ -93,7 +93,7 @@ void check_asset_integrity(
         } else if (auto* vid = dynamic_cast<const VideoNode*>(&node)) {
             const std::string path = vid->source().path;
             if (!path.empty()) {
-                std::string resolved = AssetRegistry::resolve(path);
+                std::string resolved = resolve_asset_path(path);
                 if (!std::filesystem::exists(resolved)) {
                     asset_warnings.push_back("MISSING_ASSET: Video file does not exist: \"" + path + "\"");
                 }

@@ -25,7 +25,13 @@ void setup_render_job(const CompositionRegistry& registry,
     // set at CLI init time (deprecated — will be replaced by per-context
     // AssetRegistry in PR-7 follow-up).
     auto* assets = AssetRegistry::get_thread_local();
-    if (assets) assets->mount(std::filesystem::current_path());
+    if (assets) {
+        assets->mount(std::filesystem::current_path());
+        // Also set the default assets root for deep rendering code that
+        // uses resolve_asset_path() without explicit context.
+        detail::set_default_assets_root(
+            std::filesystem::current_path().string());
+    }
 
     profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
     profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);

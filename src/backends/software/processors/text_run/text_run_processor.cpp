@@ -53,7 +53,7 @@ struct TextRunBlResources {
 
     BLFontFace get_face(const std::string& path) {
         std::lock_guard<std::mutex> lock(mutex);
-        const std::string resolved = AssetRegistry::resolve(path);
+        const std::string resolved = resolve_asset_path(path);
         auto it = faces.find(resolved);
         if (it == faces.end()) {
             BLFontFace face;
@@ -260,7 +260,7 @@ struct TextRunPathBuilder {
 
     bool load(const std::string& font_path, float font_size) {
         std::lock_guard<std::mutex> lock(mutex);
-        const std::string resolved = AssetRegistry::resolve(font_path);
+        const std::string resolved = resolve_asset_path(font_path);
         if (ft_face && resolved == loaded_path) {
             FT_Set_Pixel_Sizes(ft_face, 0, static_cast<FT_UInt>(std::ceil(font_size)));
             return true;
