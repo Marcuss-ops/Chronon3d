@@ -61,6 +61,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/scene/builders/builder_params.hpp>
+#include <chronon3d/text/animated_text_document.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
 #include <chronon3d/text/glyph_selector.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
@@ -103,6 +104,24 @@ struct PendingTextRun {
     TextRunParams params;
     FontEngine*   font_engine{nullptr};  // per-spec override (null = use layer default)
     bool          consumed{false};
+
+    // ── PR 9: optional AnimatedTextDocument feeding this text run ────────
+    //
+    // When set, `materialize_text_run_shape` calls
+    // `animated_doc->sample_at(layer.current_time.integral_frame())` and
+    // forwards the resulting ActiveTextState through
+    // `apply_active_state_to_text_run_shape` so transitions (Hold / Cut /
+    // CrossfadeLayouts / Scramble / Morph) drive the visible text
+    // automatically.  Multiple `text_run(...)` entries on the same layer
+    // each carry their own `animated_doc` — they do not interfere and
+    // can be authored as independent mini-document timelines.
+    //
+    // shared_ptr<const> because AnimatedTextDocument owns TextDocument
+    // snapshots and keyframe vectors; copying is wasteful.  Lifetime
+    // matches the scene: caller keeps the document alive while the
+    // scene holds PendingTextRun, the materializer, and the resulting
+    // TextRunShape.
+    std::shared_ptr<const AnimatedTextDocument> animated_doc{};
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -168,6 +187,24 @@ public:
     TextRunBuilder& cache_layout(bool value);
     TextRunBuilder& name(std::string n); // re-name the entry post-hoc
 
+    // ── PR 9: AnimatedTextDocument attachment ────────────────────────
+    /// Bind the entry's text to an AnimatedTextDocument.  When set,
+    /// `materialize_text_run_shape` calls
+    /// `doc->sample_at(layer.current_time.integral_frame())` and
+    /// forwards the resulting ActiveTextState through
+    /// `apply_active_state_to_text_run_shape`, so transitions (Hold /
+    /// Cut / CrossfadeLayouts / Scramble / Morph) drive layout swaps
+    /// automatically.  Multiple `text_run()` entries on the same layer
+    /// each carry their own `animated_doc`, so crossfading two
+    /// parallel timed documents is just two adjacent calls.
+    ///
+    /// The `spec.text.content.value` field remains the initial literal
+    /// used for font fallback (when `animated_doc` is absent or before
+    /// the first keyframe); once the doc has a keyframe at the current
+    /// time, the active document's text overrides it via
+    /// `apply_active_state_to_text_run_shape`.
+    TextRunBuilder& from_animated_document(std::shared_ptr<const AnimatedTextDocument> doc);
+
     // ── Commit ──
     /// Resolve the implicit + explicit animators into the pending
     /// `TextRunSpec` and return the parent `LayerBuilder&`.  Implicit
@@ -177,8 +214,9 @@ public:
     // ── Read-only accessors ──
     [[nodiscard]] const TextRunParams&   spec()       const noexcept { return m_spec->params; }
     /// Returns the full PendingTextRun (incl. name, font_engine override,
-    /// consumed flag).  Use for tests and tooling that need to read the
-    /// builder-side state; for the canonical composable spec use `spec()`.
+    /// consumed flag, animated_doc binding).  Use for tests and tooling
+    /// that need to read the builder-side state; for the canonical
+    /// composable spec use `spec()`.
     [[nodiscard]] const PendingTextRun&  build_spec() const noexcept { return *m_spec; }
     [[nodiscard]] LayerBuilder&          parent()     const noexcept { return *m_parent; }
 
@@ -236,15 +274,23 @@ private:
 //   3. Resolve glyph placements via `resolve_placed_glyph_run()`.
 //   4. Build unit map.
 //   5. Evaluate `params.animators` at `sample_time`.
-//   6. Materialize `std::shared_ptr<TextRunShape>` with paint,
+//   6. If `animated_doc` is set (PR 9): sample the AnimatedTextDocument
+//      at `sample_time.integral_frame()` and apply the resulting
+//      ActiveTextState via `apply_active_state_to_text_run_shape` —
+//      re-shapes the layout when the transition's `transition_text`
+//      differs from the current `shape->layout->source_text`.  Reads
+//      mutate `shape->layout` and `shape->glyphs`; paint / material /
+//      shadows / animators are preserved.
+//   7. Materialize `std::shared_ptr<TextRunShape>` with paint,
 //      material, shadows populated.
-// 7. Returns nullptr (with spdlog::warn) on shaping failure.
+// 8. Returns nullptr (with spdlog::warn) on shaping failure.
 // ═══════════════════════════════════════════════════════════════════════════
 
 [[nodiscard]] std::shared_ptr<TextRunShape> materialize_text_run_shape(
     const TextRunParams& params,
     FontEngine* engine,
-    SampleTime sample_time
+    SampleTime sample_time,
+    std::shared_ptr<const AnimatedTextDocument> animated_doc = nullptr
 );
 
 } // namespace chronon3d
