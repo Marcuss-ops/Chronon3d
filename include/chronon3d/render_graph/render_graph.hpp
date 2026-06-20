@@ -2,7 +2,6 @@
 
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <algorithm>
-#include <cassert>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -60,7 +59,7 @@ public:
     // ── Mutation (Building phase only) ──────────────────────────────────
 
     GraphNodeId add_node(std::unique_ptr<RenderGraphNode> node) {
-        assert(m_phase == GraphPhase::Building && "add_node after freeze()");
+        require_building("add_node");
         if (!node) {
             throw std::invalid_argument("RenderGraph::add_node: node must not be null");
         }
@@ -72,14 +71,14 @@ public:
     }
 
     void connect(GraphNodeId from, GraphNodeId to) {
-        assert(m_phase == GraphPhase::Building && "connect after freeze()");
+        require_building("connect");
         validate_node_id(from);
         validate_node_id(to);
         m_inputs[to].push_back(from);
     }
 
     void disconnect(GraphNodeId from, GraphNodeId to) {
-        assert(m_phase == GraphPhase::Building && "disconnect after freeze()");
+        require_building("disconnect");
         validate_node_id(from);
         validate_node_id(to);
         auto& vec = m_inputs[to];
@@ -87,7 +86,7 @@ public:
     }
 
     void remove_node(GraphNodeId id) {
-        assert(m_phase == GraphPhase::Building && "remove_node after freeze()");
+        require_building("remove_node");
         validate_node_id(id);
         for (auto& inputs : m_inputs) {
             inputs.erase(std::remove(inputs.begin(), inputs.end(), id), inputs.end());
@@ -97,7 +96,7 @@ public:
     }
 
     void replace_input(GraphNodeId node_id, GraphNodeId old_input, GraphNodeId new_input) {
-        assert(m_phase == GraphPhase::Building && "replace_input after freeze()");
+        require_building("replace_input");
         validate_node_id(node_id);
         validate_node_id(old_input);
         validate_node_id(new_input);
@@ -110,7 +109,7 @@ public:
     }
 
     void set_output(GraphNodeId id) {
-        assert(m_phase == GraphPhase::Building && "set_output after freeze()");
+        require_building("set_output");
         validate_node_id(id);
         m_output = id;
     }
@@ -119,12 +118,11 @@ public:
 
     /// Transition from Building → Frozen.  After this call the graph is
     /// immutable and all read methods become safe for concurrent access.
+    /// Validates: output present, no duplicate inputs, no self-loops,
+    /// no references to removed nodes.
     void freeze() {
-        assert(m_phase == GraphPhase::Building && "freeze() called twice");
-        // Compact the nodes vector: swap-remove nullptr slots left by
-        // remove_node(), then patch all input lists to point to the new
-        // indices.  This is a one-time cost paid at freeze time, making
-        // subsequent reads cheaper because there are no null checks.
+        require_building("freeze");
+        validate_pre_freeze();
         compact();
         m_phase = GraphPhase::Frozen;
     }
@@ -137,6 +135,7 @@ public:
     }
 
     [[nodiscard]] RenderGraphNode& node(GraphNodeId id) {
+        require_building("node(mutable)");
         validate_node_id(id);
         return *m_nodes[id];
     }
@@ -151,6 +150,7 @@ public:
     }
 
     [[nodiscard]] std::vector<GraphNodeId>& inputs(GraphNodeId id) {
+        require_building("inputs(mutable)");
         validate_node_id(id);
         return m_inputs[id];
     }
@@ -181,6 +181,19 @@ public:
     [[nodiscard]] std::string to_dot() const;
 
     // ── Validation ──────────────────────────────────────────────────────
+
+    /// Throws std::logic_error if the graph is not in Building phase.
+    void require_building(const char* operation) const {
+        if (m_phase != GraphPhase::Building) {
+            throw std::logic_error(
+                std::string("RenderGraph::") + operation
+                + " called after freeze() — graph is immutable");
+        }
+    }
+
+    /// Pre-freeze validation: checks output, self-loops, duplicate inputs,
+    /// unreachable nodes.
+    void validate_pre_freeze() const;
 
     /// Validates that `id` refers to an existing, non-removed node.
     /// Throws std::out_of_range on invalid id (including the k_invalid_node
