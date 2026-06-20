@@ -29,8 +29,8 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/animation/easing/interpolate.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
+#include <chronon3d/animation/motion/timeline.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
@@ -50,6 +50,9 @@ namespace chronon3d::content::anims {
 using chronon3d::content::animation_helpers::TEXT_COLOR;
 using chronon3d::content::animation_helpers::SHADOW_COLOR;
 using chronon3d::content::animation_helpers::FONT_REGULAR;
+using chronon3d::content::animation_helpers::TextAnimBg;
+using chronon3d::content::animation_helpers::make_text_anim;
+using chronon3d::content::animation_helpers::text_anim_opacity;
 using chronon3d::content::text_reveal::TextRevealDescriptor;
 using chronon3d::content::text_reveal::build_text_reveal_line;
 using chronon3d::content::text_reveal::measure_text_width;
@@ -87,27 +90,9 @@ TextSpec txt_center(std::string text, f32 font_size = 72.0f) {
 //
 // Previously each composition duplicated ~15 lines of identical boilerplate;
 // now they are 5–10 lines of pure animation logic.
-using EasyAnimSetup = std::function<void(LayerBuilder& l, const FrameContext& ctx)>;
 
-Composition make_easy_anim(const char* name, const char* text,
-                           f32 duration, EasyAnimSetup setup) {
-    return composition(
-        {.name = name, .width = 1920, .height = 1080,
-         .duration = static_cast<Frame>(duration)},
-        [text, setup = std::move(setup)](const FrameContext& ctx) {
-            SceneBuilder s(ctx);
-            add_bg(s);
-            s.layer("text", [&](LayerBuilder& l) {
-                l.pin_to(Anchor::Center);
-                setup(l, ctx);
-                l.drop_shadow(Vec2{0.0f, 4.0f}, SHADOW_COLOR, 8.0f)
-                 .text("label", txt_center(text, 80.0f));
-            });
-            return s.build();
-        });
-}
 
-// ── Tracking constant (kept local for easy-anim TextParams below) ────
+// ── Tracking constant (kept local for typewriter section below) ────
 constexpr f32 TRACKING = 4.0f;
 
 // Build a 2-line typewriter block — all lines share the SAME left edge
@@ -154,56 +139,67 @@ void build_2line_typewriter(SceneBuilder& s,
 
 // 1. AnimSlideUp — slides up from below with fade
 Composition anim_slide_up() {
-    return make_easy_anim("AnimSlideUp", "Slide Up", 60.0f,
-        [](LayerBuilder& l, const FrameContext& ctx) {
-            const f32 p = std::min(1.0f, static_cast<f32>(ctx.progress()) * 3.0f);
-            const f32 eased = interpolate(p, 0.0f, 0.30f, 0.0f, 1.0f, Easing::OutCubic);
-            l.position({0.0f, BASE_Y + (1.0f - eased) * 80.0f, 0.0f})
-             .opacity(p);
+    // Original used p=min(progress*3,1)+interpolate(p,0,0.30,...): completes at frame 6.
+    return make_text_anim("AnimSlideUp", txt_center("Slide Up", 80.0f),
+                          Frame{60}, TextAnimBg::MinimalistGrid,
+        [](LayerBuilder& l) {
+            motion::timeline(Vec3{0.0f, BASE_Y + 80.0f, 0.0f})
+                .to(Frame{6}, Vec3{0.0f, BASE_Y, 0.0f}, Easing::OutCubic)
+                .apply_to(l.position_anim());
+            text_anim_opacity().apply_to(l.opacity_anim());
         });
 }
 
 // 2. AnimScalePop — scales from small with overshoot
 Composition anim_scale_pop() {
-    return make_easy_anim("AnimScalePop", "Scale Pop", 60.0f,
-        [](LayerBuilder& l, const FrameContext& ctx) {
-            const f32 p = std::min(1.0f, static_cast<f32>(ctx.progress()) * 3.0f);
-            const f32 sv = interpolate(p, 0.0f, 0.30f, 0.6f, 1.0f, Easing::OutBack);
-            l.position({0.0f, BASE_Y, 0.0f})
-             .opacity(p)
-             .scale({sv, sv, 1.0f});
+    return make_text_anim("AnimScalePop", txt_center("Scale Pop", 80.0f),
+                          Frame{60}, TextAnimBg::MinimalistGrid,
+        [](LayerBuilder& l) {
+            motion::timeline(Vec3{0.6f, 0.6f, 1.0f})
+                .to(Frame{6}, Vec3{1.0f, 1.0f, 1.0f}, Easing::OutBack)
+                .apply_to(l.scale_anim());
+            text_anim_opacity().apply_to(l.opacity_anim());
         });
 }
 
 // 3. AnimBlurFocus — blurry → sharp via focus_in
 Composition anim_blur_focus() {
-    return make_easy_anim("AnimBlurFocus", "Blur Focus", 60.0f,
-        [](LayerBuilder& l, const FrameContext& /*ctx*/) {
-            l.position({0.0f, BASE_Y, 0.0f})
-             .opacity(1.0f)
-             .focus_in(24.0f, Frame{20});
+    // Declarative blur Timeline (24px → 0px) replaces the focus_in preset.
+    return make_text_anim("AnimBlurFocus", txt_center("Blur Focus", 80.0f),
+                          Frame{60}, TextAnimBg::MinimalistGrid,
+        [](LayerBuilder& l) {
+            l.opacity(1.0f);
+            motion::timeline(24.0f)
+                .to(Frame{20}, 0.0f, Easing::OutCubic)
+                .apply_to(l.blur_anim());
         });
 }
 
 // 4. AnimSlideLeft — slides in from the left
 Composition anim_slide_left() {
-    return make_easy_anim("AnimSlideLeft", "Slide Left", 60.0f,
-        [](LayerBuilder& l, const FrameContext& ctx) {
-            const f32 p = std::min(1.0f, static_cast<f32>(ctx.progress()) * 3.0f);
-            const f32 eased = interpolate(p, 0.0f, 0.30f, 0.0f, 1.0f, Easing::OutCubic);
-            l.position({(1.0f - eased) * -120.0f, BASE_Y, 0.0f})
-             .opacity(p);
+    return make_text_anim("AnimSlideLeft", txt_center("Slide Left", 80.0f),
+                          Frame{60}, TextAnimBg::MinimalistGrid,
+        [](LayerBuilder& l) {
+            motion::timeline(Vec3{-120.0f, BASE_Y, 0.0f})
+                .to(Frame{6}, Vec3{0.0f, BASE_Y, 0.0f}, Easing::OutCubic)
+                .apply_to(l.position_anim());
+            text_anim_opacity().apply_to(l.opacity_anim());
         });
 }
 
 // 5. AnimBounceDrop — drops from above with bounce
 Composition anim_bounce_drop() {
-    return make_easy_anim("AnimBounceDrop", "Bounce Drop", 80.0f,
-        [](LayerBuilder& l, const FrameContext& ctx) {
-            const f32 p = std::min(1.0f, static_cast<f32>(ctx.progress()) * 2.5f);
-            const f32 y_offset = interpolate(p, 0.0f, 0.30f, -230.0f, BASE_Y, Easing::OutBounce);
-            l.opacity(std::min(1.0f, p * 2.0f))
-             .position({0.0f, y_offset, 0.0f});
+    // K=2.5: 0.30/K * 80 ≈ frame 9.6 (rounded to 10 for OutBounce),
+    // opacity finishes at 0.5/K * 80 = frame 16.
+    return make_text_anim("AnimBounceDrop", txt_center("Bounce Drop", 80.0f),
+                          Frame{80}, TextAnimBg::MinimalistGrid,
+        [](LayerBuilder& l) {
+            motion::timeline(Vec3{0.0f, -230.0f, 0.0f})
+                .to(Frame{10}, Vec3{0.0f, BASE_Y, 0.0f}, Easing::OutBounce)
+                .apply_to(l.position_anim());
+            motion::timeline(0.0f)
+                .to(Frame{16}, 1.0f, Easing::OutCubic)
+                .apply_to(l.opacity_anim());
         });
 }
 

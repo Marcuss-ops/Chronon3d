@@ -11,12 +11,22 @@ namespace chronon3d {
 namespace cli {
 
 struct RenderQualityArgs {
-    bool   motion_blur{false};
+    // PR1 — motion blur is now a tri-state (Off | TemporalAccumulation |
+    // VelocityApproximation).  The legacy `motion_blur` boolean is kept as a
+    // backward-compat shortcut: when set to true, mode is inferred to
+    // TemporalAccumulation so callers that used `--motion-blur` pre-PR1 behave
+    // identically.  New code should set `motion_blur_mode` explicitly.
+    //   motion_blur_mode:  0=Off, 1=TemporalAccumulation, 2=VelocityApproximation
+    //
+    // Out-of-range ints are mapped to Off in cli_render_utils.hpp so the
+    // renderer never sees an undefined enum value.
+    bool   motion_blur{false};              // legacy shortcut
+    int    motion_blur_mode{0};             // PR1: 0=Off,1=Temporal,2=Velocity
     int    motion_blur_samples{8};
     float  shutter_angle_deg{180.0f};
     float  shutter_phase_deg{-90.0f};
-    int    motion_blur_pattern{1};  // 0=Uniform, 1=Stratified, 2=Halton
-    int    motion_blur_filter{0};   // 0=Box, 1=Triangle, 2=Gaussian
+    int    motion_blur_pattern{1};          // 0=Uniform, 1=Stratified, 2=Halton
+    int    motion_blur_filter{0};           // 0=Box, 1=Triangle, 2=Gaussian
     float  ssaa{1.0f};
 };
 

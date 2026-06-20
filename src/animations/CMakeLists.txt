@@ -7,6 +7,7 @@
 
 add_library(chronon3d_animations STATIC
     animated_value.cpp
+    temporal/temporal_samples.cpp
 )
 target_link_libraries(chronon3d_animations PUBLIC
     chronon3d

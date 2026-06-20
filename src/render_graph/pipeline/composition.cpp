@@ -5,6 +5,7 @@
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/animation/temporal/temporal_samples.hpp>     // PR1: single source of truth
 #include "../builder/graph_builder_pipeline.hpp"
 #include "../builder/graph_builder_internal.hpp"
 #include "helpers.hpp"
@@ -16,61 +17,22 @@
 
 namespace chronon3d::graph {
 
-// ── Deterministic jitter for motion blur sub-samples ───────────────────────
-// Produces a value in [-0.5, 0.5) based on seed, frame, sample index.
-// Same inputs always produce the same output (deterministic).
-[[nodiscard]] static double motion_blur_jitter(
-    TemporalSamplePattern pattern, u64 seed, int frame, int sample_idx, int total_samples)
-{
-    switch (pattern) {
-        case TemporalSamplePattern::Uniform:
-            return 0.0;
-        case TemporalSamplePattern::Stratified: {
-            // Hash-based deterministic jitter: map to [0, 1) then shift to [-0.5, 0.5)
-            uint64_t h = seed;
-            h ^= static_cast<uint64_t>(frame) * 0x9E3779B97F4A7C15ULL;
-            h ^= static_cast<uint64_t>(sample_idx) * 0xBF58476D1CE4E5B9ULL;
-            h ^= static_cast<uint64_t>(total_samples) * 0x94D049BB133111EBULL;
-            h = (h ^ (h >> 30)) * 0xBF58476D1CE4E5B9ULL;
-            h = (h ^ (h >> 27)) * 0x94D049BB133111EBULL;
-            h = h ^ (h >> 31);
-            const double u = static_cast<double>(h & 0x7FFFFFFFFFFFFFFFULL)
-                           / static_cast<double>(0x8000000000000000ULL);
-            return u - 0.5;  // centre in [-0.5, 0.5)
-        }
-        case TemporalSamplePattern::Halton: {
-            // Halton sequence (base 2) for low-discrepancy sampling
-            double h_val = 0.0;
-            double f = 0.5;
-            int n = sample_idx + 1;
-            while (n > 0) {
-                h_val += f * static_cast<double>(n & 1);
-                n >>= 1;
-                f *= 0.5;
-            }
-            return h_val - 0.5;  // centre in [-0.5, 0.5)
-        }
-    }
-    return 0.0;
-}
-
-// ── Reconstruction filter weight ──────────────────────────────────────────
-// Returns the filter weight at normalised time t ∈ [0, 1].
-// Weights are normalised later by the caller.
-[[nodiscard]] static double motion_blur_filter_weight(TemporalFilter filter, double t) {
-    switch (filter) {
-        case TemporalFilter::Box:
-            return 1.0;
-        case TemporalFilter::Triangle:
-            return 1.0 - std::abs(2.0 * t - 1.0);
-        case TemporalFilter::Gaussian: {
-            constexpr double kSigma = 0.25;  // exposure_duration / 4
-            const double z = (t - 0.5) / kSigma;
-            return std::exp(-0.5 * z * z);
-        }
-    }
-    return 1.0;
-}
+// PR1 — Sub-sample generation has been centralised in
+//   chronon3d::temporal::generate_temporal_samples(...)
+// (include/chronon3d/animation/temporal/temporal_samples.hpp).
+//
+// The previous local helpers `motion_blur_jitter()`, `motion_blur_filter_weight()`,
+// and the inline Halton sequence were deleted in this revision because they
+// were byte-equivalent duplicates of the same logic in
+// src/scene/camera/camera_v1/internal/shutter_pose_sampler.cpp.  Both
+// consumers (this compositor AND ShutterPoseSampler) now produce IDENTICAL
+// sample times and weights for identical (params, frame) inputs.
+//
+// The shutter-window geometry:
+//   exposure_norm   = shutter_angle_deg / 360.0          ∈ (0, 1+]
+//   window_start    = phase_deg / 360.0
+//   sub_frame_u     = (s + 0.5 + jitter) / num_samples    ∈ [0, 1]
+// sum_i w_i = 1.0 (premultiplied-RGBA-correct accumulation).
 
 std::shared_ptr<Framebuffer> render_composition_frame(
     RenderBackend& backend,
@@ -106,7 +68,44 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         );
     };
 
-    if (!settings.motion_blur.enabled || settings.motion_blur.samples <= 1) {
+    // PR1 — Mutually-exclusive motion-blur modes.  See MotionBlurMode.
+    //
+    //   * Off                  → single-frame render with no shutter
+    //   * TemporalAccumulation → N sub-frame accumulator below
+    //   * VelocityApproximation→ single-frame render; PostProcessingSystem
+    //                            applies velocity-buffer blur in the post
+    //                            pass.  This branch is also entered if
+    //                            mode == TemporalAccumulation but the user
+    //                            erroneously requested samples <= 1 (we log
+    //                            a warning).
+    const bool want_temporal_accumulation =
+        (settings.motion_blur.mode == MotionBlurMode::TemporalAccumulation) &&
+        (settings.motion_blur.samples > 1);
+
+    if (!want_temporal_accumulation) {
+        if (settings.motion_blur.mode == MotionBlurMode::TemporalAccumulation &&
+            settings.motion_blur.samples <= 1) {
+            // Misconfiguration: caller asked for Temporal mode with 0 or 1 samples.
+            // We fall back to the no-blur single-frame path; the velocity-buffer
+            // path is NOT auto-selected (that would be silent mode-flipping).
+            spdlog::warn(
+                "[motion-blur] mode=TemporalAccumulation requires samples >= 2 "
+                "(got {}). Falling back to single-frame render; no motion blur "
+                "will be produced. To use velocity-buffer blur, switch "
+                "mode=VelocityApproximation instead.",
+                settings.motion_blur.samples);
+        } else if (settings.motion_blur.mode == MotionBlurMode::VelocityApproximation &&
+                   settings.motion_blur.samples > 1) {
+            // Informational only: samples count is irrelevant for Velocity mode
+            // (the velocity-buffer pass computes its own sample count from
+            // `VelocityBufferMotionBlur::settings().samples`).
+            spdlog::info(
+                "[motion-blur] mode=VelocityApproximation: samples={} ignored "
+                "(velocity-buffer path uses its own sample count); shutter_angle "
+                "ignored in this mode.",
+                settings.motion_blur.samples);
+        }
+
         const auto t_eval0 = profiling::now();
         Scene scene;
         {
@@ -124,40 +123,35 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         scene_ms = profiling::duration_ms(t_scene0, profiling::now());
     } else {
         const int N = std::max(2, settings.motion_blur.samples);
-        const double exposure_frames = static_cast<double>(settings.motion_blur.shutter_angle_deg) / 360.0;
-        const double opening_offset   = static_cast<double>(settings.motion_blur.shutter_phase_deg) / 360.0;
-        const u64   jitter_seed       = settings.motion_blur.jitter_seed;
-        const TemporalSamplePattern pattern = settings.motion_blur.pattern;
-        const TemporalFilter        filter  = settings.motion_blur.filter;
 
-        // ── Pre-compute sample times and normalised filter weights ──────
-        std::vector<double> sample_times(static_cast<size_t>(N));
-        std::vector<float>  sample_weights(static_cast<size_t>(N));
+        // PR1 — use the canonical temporal-sample generator.  Identical
+        // (params, frame) yields identical output as `ShutterPoseSampler::evaluate()`.
+        chronon3d::temporal::TemporalSampleParams mb_params;
+        mb_params.shutter_angle_deg = settings.motion_blur.shutter_angle_deg;
+        mb_params.shutter_phase_deg = settings.motion_blur.shutter_phase_deg;
+        mb_params.pattern           = settings.motion_blur.pattern;
+        mb_params.filter            = settings.motion_blur.filter;
+        mb_params.jitter_seed       = settings.motion_blur.jitter_seed;
+
+        const chronon3d::temporal::TemporalSampleSet samples =
+            chronon3d::temporal::generate_temporal_samples(
+                mb_params, N, frame);
+
+        std::vector<float> sample_times(static_cast<size_t>(N));
+
         {
-            double weight_sum = 0.0;
+            // PR1 — Use the canonical geometric info from the new module.
+            // `samples.exposure_normalized`     = shutter_angle_deg / 360
+            // `samples.window_start_normalized` = shutter_phase_deg   / 360
+            // (Identical numerically to the previous inlined formula, but
+            //  reads from a single source of truth — which is exactly what
+            //  PR1 promised.  If generate_temporal_samples ever clamps /
+            //  validates inputs, the two callers will agree by construction.)
+            const double opening_offset = samples.window_start_normalized;
+            const double exposure_norm  = samples.exposure_normalized;
             for (int s = 0; s < N; ++s) {
-                const double j = motion_blur_jitter(pattern, jitter_seed,
-                    static_cast<int>(frame), s, N);
-                // Centred sampling: (s + 0.5 + jitter) / N so that samples
-                // are distributed *within* their intervals, not on the edges.
-                // Without +0.5 the first sample lands at t=0 and the
-                // distribution bias is -1/(2N) instead of zero.
-                const double u = std::clamp(
-                    (static_cast<double>(s) + 0.5 + j) / static_cast<double>(N),
-                    0.0, 1.0);
-
-                sample_times[s] = opening_offset + u * exposure_frames;
-
-                const double raw_w = std::max(
-                    0.0, motion_blur_filter_weight(filter, u));
-                sample_weights[s] = static_cast<float>(raw_w);
-                weight_sum += raw_w;
-            }
-            // Normalise so weights sum to 1.0 (correct alpha accumulation)
-            const float inv_sum = (weight_sum > 0.0)
-                ? static_cast<float>(1.0 / weight_sum) : 1.0f;
-            for (int s = 0; s < N; ++s) {
-                sample_weights[s] *= inv_sum;
+                sample_times[s] = static_cast<float>(
+                    opening_offset + samples.sample_times[s] * exposure_norm);
             }
         }
 
@@ -167,8 +161,8 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         {
             CHRONON_ZONE_C("motion_blur_accumulation", trace_category::kEffect);
             for (int s = 0; s < N; ++s) {
-                const float t = static_cast<float>(sample_times[s]);
-                const float w = sample_weights[s];
+                const float t = sample_times[s];
+                const float w = samples.normalized_weights[s];
                 Scene sub = comp.evaluate(frame, t);
                 if (s == 0) layer_count = static_cast<int>(sub.layers().size());
                 const Framebuffer& sub_fb = *call_graph(sub, frame, t);

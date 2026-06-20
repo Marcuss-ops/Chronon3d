@@ -43,6 +43,8 @@ add_executable(chronon3d_scene_tests
     scene/camera/camera_25d_tests.cpp
     scene/camera/test_camera_hierarchy.cpp
     scene/camera/test_camera_motion_blur.cpp
+    scene/camera/test_temporal_samples_pr1.cpp   # PR1 unit: temporal_samples API contract
+    scene/camera/test_motion_blur_torture_pr1.cpp   # PR1 torture: 5 mandatory end-to-end tests
     scene/camera/test_camera_motion_path.cpp
     scene/camera/test_catmull_rom_path.cpp
     scene/test_scene_validator.cpp
