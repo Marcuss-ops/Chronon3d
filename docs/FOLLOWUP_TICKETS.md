@@ -216,3 +216,119 @@ The diagnostic `content/` targets were not re-validated after the `TextSpec` rot
 
 ---
 
+## TICKET-003 — `<chrono3d/...>` typo in `expressions/v2` `lexer.hpp`
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `include/chronon3d/expressions/v2/lexer.hpp` |
+| **Discovered during** | cmake configure post-rebase with PR #23 (commits `1871eb77` + `76d547a6`) on `main`, after retiring the CMake guard in commit `aae68561`. |
+| **Discovered date** | 2026-06-20 |
+| **Latency** | Typo is latent — `tests/expressions/test_expressions_v2.cpp` never `#include`s `lexer.hpp` directly; will surface the moment a downstream consumer links the header. |
+
+### Symptom
+
+`include/chronon3d/expressions/v2/lexer.hpp` line 9 contains:
+
+```cpp
+#include <chrono3d/expressions/v2/expression_value.hpp>
+```
+
+Note the typo: `chrono3d` is missing the `n` (correct spelling: `chronon3d`). The right spelling was the original target of the now-retired CMake guard's `<chrono3d/expressions/v2/` forbidden pattern.
+
+### Root cause analysis
+
+PR #23 was integrated via the override `-DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON` (or a bypassed local configure); the typo from the originally-abandoned branch survived the merge. PR23's `76d547a6` "fix commit" evidently did not catch the include directive typo.
+
+The typo is currently latent because the test executable's call graph does not actually `#include` `lexer.hpp` — only references its symbols through a transitive link. Once any future consumer (e.g., another node type that consumes `lex()`/`token_kind_name()`) actually pulls the header, the build will fail with `fatal error: 'chrono3d/expressions/v2/expression_value.hpp' file not found`.
+
+### Out-of-scope rationale for the cmake-guard retirement commit
+
+- The retirement commit's scope is the guard itself + retirement comment + cache-key compat for forks.
+- Source-level typo fixes belong in a PR that explicitly addresses v2 expressions cleanup; mixing them here would dilute the commit's auditability.
+- The fix is a 1-line edit but is better landed with PR23's other surviving-defect cleanups in a focused follow-up PR.
+
+### Suggested fix approach
+
+1. Open `include/chronon3d/expressions/v2/lexer.hpp`.
+2. Line 9: change `#include <chrono3d/expressions/v2/expression_value.hpp>` to `#include <chronon3d/expressions/v2/expression_value.hpp>`.
+3. `grep -rn 'chrono3d/expressions' include/ src/ tests/` to find any other latent instances of the typo across the merged tree.
+4. Re-run `cmake --preset linux-ci` and `cmake --build build/chronon/linux-ci --target chronon3d_tests_fast` to confirm zero new regressions.
+5. Add at least one `TEST_CASE` in `tests/expressions/test_expressions_v2.cpp` that calls `lex(std::string_view)` — validates the include path is real AND establishes a canary for future regressions.
+
+### Acceptance criteria
+
+- Line 9 of `lexer.hpp` reads `<chronon3d/expressions/v2/expression_value.hpp>`.
+- `grep -rn 'chrono3d/expressions' include/ src/ tests/` returns zero hits.
+- A `TEST_CASE` in the test executable successfully calls `lex(std::string_view)` and confirms output (acts as a compile-time canary for the include path).
+- The build remains GREEN under `cmake --preset linux-ci`.
+
+### Cross-references
+
+- CMake guard retirement commit: `aae68561`.
+- PR #23 merge: `1871eb77`. PR23 fix commit: `76d547a6`.
+- TICKET-004 — companion ticket for the source-level `PUBLIC ${CMAKE_SOURCE_DIR}` defect in `src/expressions/v2/CMakeLists.txt`.
+
+---
+
+## TICKET-004 — `PUBLIC ${CMAKE_SOURCE_DIR}` include bug on `chronon3d_expressions_v2` target
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `src/expressions/v2/CMakeLists.txt` |
+| **Discovered during** | cmake configure post-rebase with PR #23 (commits `1871eb77` + `76d547a6`) on `main`, after retiring the CMake guard in commit `aae68561`. |
+| **Discovered date** | 2026-06-20 |
+
+### Symptom
+
+`src/expressions/v2/CMakeLists.txt` declares:
+
+```cmake
+target_include_directories(chronon3d_expressions_v2
+    PUBLIC ${CMAKE_SOURCE_DIR}
+)
+```
+
+This is the same defect the now-retired CMake guard's comment specifically called out:
+
+> "target_include_directories set PUBLIC ${CMAKE_SOURCE_DIR} instead of ${CMAKE_SOURCE_DIR}/include"
+
+The canonical pattern (used by every other STATIC library target in this tree) is:
+
+```cmake
+target_include_directories(chronon3d_expressions_v2
+    PUBLIC ${CMAKE_SOURCE_DIR}/include
+)
+```
+
+### Root cause analysis
+
+The defect is harmless in practice because every source file in `src/expressions/v2/*.cpp` includes via the `<chronon3d/expressions/v2/...>` style, and `<chronon3d/...>` resolves correctly via transitive `PUBLIC` propagation. The build DOES succeed with the wider `${CMAKE_SOURCE_DIR}` exposed — but the layout diverges from every other STATIC target in the project and the v2 engine's include-graph is opaque to downstream tooling.
+
+### Out-of-scope rationale for the cmake-guard retirement commit
+
+- Same as TICKET-003: a 1-line fix deserves its own focused PR rather than being mixed into the guard-retirement commit.
+- Keeping the retirement commit narrowly about the guard lets a future bisect cleanly attribute behaviour changes (a guard retirement should only affect configure-time pattern checks).
+
+### Suggested fix approach
+
+1. Open `src/expressions/v2/CMakeLists.txt`.
+2. Replace `PUBLIC ${CMAKE_SOURCE_DIR}` with `PUBLIC ${CMAKE_SOURCE_DIR}/include`.
+3. Confirm `cmake --preset linux-ci` reconfigures cleanly and `cmake --build build/chronon/linux-ci --target chronon3d_expressions_v2` succeeds.
+4. Run the test executable to confirm `chronon3d_expressions_v2_tests` continues to link and pass.
+
+### Acceptance criteria
+
+- The line `PUBLIC ${CMAKE_SOURCE_DIR}` does not appear in `src/expressions/v2/CMakeLists.txt`.
+- The include-graph of `chronon3d_expressions_v2` uses `${CMAKE_SOURCE_DIR}/include` exclusively (matches other STATIC targets).
+- The v2 engine compiles, links, and its tests pass.
+
+### Cross-references
+
+- CMake guard retirement commit: `aae68561`.
+- TICKET-003 — companion ticket for the `chrono3d` source-level typo in `lexer.hpp`.
+- PR #23 merge: `1871eb77`. PR23 fix commit: `76d547a6`.
+
+---
+
