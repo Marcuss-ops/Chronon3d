@@ -1,5 +1,7 @@
 #include <chronon3d/core/memory/render_session.hpp>
+#include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
+#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
@@ -107,10 +109,23 @@ SceneGraphStats analyze_scene_graph(
     const auto t_exec0 = profiling::now();
     GraphExecutor executor;
     RenderSession session;
+    // ── PR-B: instantiate a local scheduler for diagnostic execute ───
+    // (the diagnostic path doesn't have a software renderer scope.)
+    ExecutionScheduler scheduler{};
     std::shared_ptr<Framebuffer> fb_shared;
     {
         CHRONON_ZONE_C("execute_graph", trace_category::kGraph);
-        fb_shared = executor.execute(graph, graph.output(), ctx, session);
+        // PR-A + PR-B: `executor.execute` only accepts CompiledFrameGraph.
+        // The graph used by the stats walk above (size()/node()/to_dot())
+        // is finally consumed here via std::move into FrameGraphCompiler.
+        // No need for a unique_ptr wrapper — compile() returns the
+        // CompiledFrameGraph by value, the executor borrows it for the
+        // call duration and the stack slot is freed immediately after.
+        FrameGraphCompiler compiler;
+        auto compiled = compiler.compile(std::move(graph), ctx);
+        if (!compiled.empty()) {
+            fb_shared = executor.execute(compiled, ctx, session, scheduler);
+        }
     }
     const auto t_exec1 = profiling::now();
         stats.execute_ms   = profiling::duration_ms(t_exec0, t_exec1);

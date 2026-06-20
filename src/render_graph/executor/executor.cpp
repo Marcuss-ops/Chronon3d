@@ -1,6 +1,11 @@
-// executor.cpp
-// Render graph DAG executor with level-scheduling, cache evaluation,
-// dirty-rect clipping, and parallel TBB execution.
+// ---------------------------------------------------------------------------
+// executor.cpp — Compiled-frame-graph executor
+//
+// PR-A + PR-B refactor — stateless executor with no mutable members and no
+// tbb::task_arena.  Schedule authority is delegated to the ExecutionScheduler
+// passed in by the caller (SoftwareRenderer keeps the singleton scheduler
+// alive in m_runtime_resources for the lifetime of the renderer).
+//
 // Internal helpers live in dedicated files under executor/:
 //   input_resolver.cpp   — resolve_inputs
 //   cache_evaluator.cpp  — evaluate_cache
@@ -8,155 +13,28 @@
 //   telemetry_emitter.cpp— emit_node_records
 //   tile_pruning.cpp     — compute_dirty_clip
 //   framebuffer_lifetime — init / release FB resources
+// ---------------------------------------------------------------------------
 
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
+#include <chronon3d/core/scheduler/execution_scheduler.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
+
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+
 #include "executor_levels.hpp"
 #include "framebuffer_lifetime.hpp"
 #include <chronon3d/render_graph/core/graph_profiler.hpp>
-#include <chronon3d/core/memory/arena.hpp>
-#include <chronon3d/core/profiling/profiling.hpp>
-#include <chronon3d/core/profiling/counters.hpp>
-#include <algorithm>
-#include <atomic>
-#include <cmath>
-#include <cstdlib>
-#include <string_view>
-#include <thread>
-
-#if defined(__linux__)
-#include <pthread.h>
-#include <sched.h>
-#elif defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif
 
 namespace chronon3d::graph {
-
-namespace {
-void pin_thread_to_core(int core_id) {
-#if defined(__linux__)
-    cpu_set_t cpuset;
-    CPU_ZERO(&cpuset);
-    CPU_SET(core_id, &cpuset);
-    pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
-#elif defined(_WIN32)
-    SetThreadAffinityMask(GetCurrentThread(), static_cast<DWORD_PTR>(1) << core_id);
-#endif
-}
-
-} // namespace
-
-// ──────────────────────────────────────────────────────────────────────
-// GraphExecutor public API
-// ──────────────────────────────────────────────────────────────────────
-
-GraphExecutor::GraphExecutor(bool pin_main_thread)
-    : m_arena(std::max(1u, std::thread::hardware_concurrency())) {
-    if (pin_main_thread) {
-        pin_thread_to_core(0);
-    }
-}
-
-std::shared_ptr<Framebuffer> GraphExecutor::execute(
-    RenderGraph& graph,
-    GraphNodeId output,
-    RenderGraphContext& ctx,
-    RenderSession& session,
-    FrameArena* arena_override
-) {
-    // ── Cached execution plan ───────────────────────────────────────
-    // Avoid the topological sort + reachability analysis every frame
-    // when the graph structure hasn't changed.
-    // m_plan_mutex protects m_cached_plan so that concurrent execute()
-    // calls (each with their own arena_override) do not race on the
-    // shared cache.  The lock is held only for the cache lookup/update;
-    // the actual execution runs outside the lock.
-    // The plan is immutable once built and shared via shared_ptr so that
-    // per-frame copies are O(1) pointer copies instead of deep vector copies.
-    std::shared_ptr<const ExecutionPlan> plan;
-    {
-        std::lock_guard<std::mutex> lock(m_plan_mutex);
-        bool plan_cached = false;
-        if (ctx.options.graph_structure_unchanged && m_cached_plan.valid && m_cached_plan.output == output) {
-            plan_cached = true;
-            if (ctx.telemetry.counters && ctx.options.diagnostics_enabled) {
-                ctx.telemetry.counters->execution_plan_cache_hits.fetch_add(1, std::memory_order_relaxed);
-            }
-        } else {
-            const uint64_t sig = compute_structure_signature(graph, output);
-            if (m_cached_plan.valid &&
-                m_cached_plan.structure_hash == sig &&
-                m_cached_plan.output == output)
-            {
-                plan_cached = true;
-                if (ctx.telemetry.counters && ctx.options.diagnostics_enabled) {
-                    ctx.telemetry.counters->execution_plan_cache_hits.fetch_add(1, std::memory_order_relaxed);
-                }
-            } else {
-                m_cached_plan.plan = build_execution_plan(graph, output);
-                m_cached_plan.structure_hash = sig;
-                m_cached_plan.output = output;
-                m_cached_plan.valid = true;
-            }
-        }
-        plan = m_cached_plan.plan;
-    } // lock released — execution runs outside the critical section
-
-    if (!plan || plan->levels.empty()) {
-        return nullptr;
-    }
-
-    FrameArena& active_arena = arena_override ? *arena_override : session.arena();
-    auto* res = active_arena.resource();
-    struct ArenaGuard { 
-        FrameArena& arena;
-        ~ArenaGuard() { arena.reset(); }
-    } guard{active_arena};
-
-    return m_arena.execute([&]() -> std::shared_ptr<Framebuffer> {
-        const size_t node_count = graph.size();
-        ExecutionState state(res);
-        state.temp.resize(node_count);
-        state.resolved_key_digest.assign(node_count, 0);
-        state.resolved_frame_dependent.assign(node_count, 0);
-        state.resolved_cache_hit.assign(node_count, 0);
-        state.resolved_bboxes.resize(node_count);
-
-        // ── Pre-allocate shared transparent framebuffer for tile pruning ──
-        const auto t_fb0 = profiling::now();
-        init_shared_transparent_fb(state, ctx, res);
-
-        auto consumer_remaining = init_consumer_remaining(
-            node_count, plan->consumer_counts, res
-        );
-        const auto t_fb1 = profiling::now();
-        if (ctx.telemetry.counters) {
-            ctx.telemetry.counters->framebuffer_lifetime_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(profiling::duration_ms(t_fb0, t_fb1))),
-                std::memory_order_relaxed);
-        }
-
-        auto* parent_counters = ctx.telemetry.counters;
-        auto* parent_pool = ctx.resources.framebuffer_pool.get();
-
-        // Populate TBB arena max concurrency once per graph execution
-        if (parent_counters) {
-            parent_counters->tbb_arena_max_concurrency.store(
-                static_cast<uint64_t>(std::thread::hardware_concurrency()),
-                std::memory_order_relaxed);
-        }
-
-        execute_levels(graph, ctx, state, plan->levels, consumer_remaining, parent_counters, parent_pool, res);
-
-        return state.temp[output];
-    });
-}
 
 std::shared_ptr<Framebuffer> GraphExecutor::execute(
     CompiledFrameGraph& compiled,
     RenderGraphContext& ctx,
     RenderSession& session,
+    ExecutionScheduler& scheduler,
     FrameArena* arena_override
 ) {
     auto& graph = compiled.graph;
@@ -170,12 +48,12 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
 
     FrameArena& active_arena = arena_override ? *arena_override : session.arena();
     auto* res = active_arena.resource();
-    struct ArenaGuard { 
+    struct ArenaGuard {
         FrameArena& arena;
         ~ArenaGuard() { arena.reset(); }
     } guard{active_arena};
 
-    return m_arena.execute([&]() -> std::shared_ptr<Framebuffer> {
+    return scheduler.run([&]() -> std::shared_ptr<Framebuffer> {
         const size_t node_count = graph.size();
         ExecutionState state(res);
         state.temp.resize(node_count);
@@ -201,14 +79,18 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         auto* parent_counters = ctx.telemetry.counters;
         auto* parent_pool = ctx.resources.framebuffer_pool.get();
 
-        // Populate TBB arena max concurrency once per graph execution
+        // ── PR-B: telemetry reads scheduler.concurrency() ──────────────
+        // Replaces the legacy `std::thread::hardware_concurrency()`
+        // snapshot so that Sequential mode reports 1, TbbFixed reports N,
+        // TbbAutomatic reports whatever the runtime arena resolves to.
         if (parent_counters) {
             parent_counters->tbb_arena_max_concurrency.store(
-                static_cast<uint64_t>(std::thread::hardware_concurrency()),
+                static_cast<uint64_t>(scheduler.concurrency()),
                 std::memory_order_relaxed);
         }
 
-        execute_levels(graph, ctx, state, levels, consumer_remaining, parent_counters, parent_pool, res);
+        execute_levels(graph, ctx, state, scheduler, levels, consumer_remaining,
+                       parent_counters, parent_pool, res);
 
         return state.temp[output];
     });

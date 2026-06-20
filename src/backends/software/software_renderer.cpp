@@ -78,10 +78,15 @@ uint64_t clipped_area(int32_t width, int32_t height, const std::optional<raster:
 SoftwareRenderer::SoftwareRenderer()
     : m_runtime_resources{
         .software_registry = std::make_unique<renderer::SoftwareRegistry>(),
-        .executor = std::make_unique<graph::GraphExecutor>(
-            m_config.scheduler().pin_main_thread()),
+        .executor = std::make_unique<graph::GraphExecutor>(),
         .graph_node_registry = std::make_unique<graph::GraphNodeCatalog>(),
-        .effect_catalog = std::make_unique<effects::EffectCatalog>()
+        .effect_catalog = std::make_unique<effects::EffectCatalog>(),
+        // ── PR-B: scheduler held next to the executor ────────────────────
+        // Built from Config::SchedulerConfig (mode, worker_count,
+        // pin_calling_thread).  Same instance is used by every render
+        // path through the lifetime of the renderer.
+        .scheduler = std::make_unique<ExecutionScheduler>(
+            make_execution_scheduler(m_config.scheduler()))
     }
     , m_cache_state{
         .node_cache = cache::NodeCache{
@@ -126,10 +131,12 @@ SoftwareRenderer::SoftwareRenderer(Config config)
     : m_config(std::move(config))
     , m_runtime_resources{
         .software_registry = std::make_unique<renderer::SoftwareRegistry>(),
-        .executor = std::make_unique<graph::GraphExecutor>(
-            m_config.scheduler().pin_main_thread()),
+        .executor = std::make_unique<graph::GraphExecutor>(),
         .graph_node_registry = std::make_unique<graph::GraphNodeCatalog>(),
-        .effect_catalog = std::make_unique<effects::EffectCatalog>()
+        .effect_catalog = std::make_unique<effects::EffectCatalog>(),
+        // ── PR-B: scheduler held next to the executor ────────────────────
+        .scheduler = std::make_unique<ExecutionScheduler>(
+            make_execution_scheduler(m_config.scheduler()))
     }
     , m_cache_state{
         .node_cache = cache::NodeCache{
@@ -173,6 +180,14 @@ graph::GraphExecutor* SoftwareRenderer::executor() {
 
 const graph::GraphExecutor* SoftwareRenderer::executor() const {
     return m_runtime_resources.executor.get();
+}
+
+ExecutionScheduler* SoftwareRenderer::scheduler() {
+    return m_runtime_resources.scheduler.get();
+}
+
+const ExecutionScheduler* SoftwareRenderer::scheduler() const {
+    return m_runtime_resources.scheduler.get();
 }
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp,

@@ -1,5 +1,7 @@
 #include <chronon3d/core/config.hpp>
+#include <chronon3d/core/scheduler/scheduler_mode.hpp>
 #include <cstdlib>
+#include <cstring>
 #include <charconv>
 #include <string_view>
 #include <spdlog/spdlog.h>
@@ -104,7 +106,41 @@ Config::Config() {
     }
     scheduler_.prefetch_enabled_ = env_bool("CHRONON_PREFETCH");
     scheduler_.pip_mode_         = env_bool("CHRONON_PIP_MODE");
-    scheduler_.pin_main_thread_  = env_bool("CHRONON3D_PIN_MAIN_THREAD");
+    scheduler_.pin_calling_thread_ = env_bool("CHRONON3D_PIN_MAIN_THREAD");
+
+    // ── PR-B: scheduler mode + worker count (audit §9.3) ──────────────
+    {
+        const char* mode_env = std::getenv("CHRONON3D_SCHEDULER_MODE");
+        if (mode_env && *mode_env) {
+            SchedulerMode parsed;
+            if (parse_scheduler_mode(mode_env, parsed)) {
+                scheduler_.mode_ = parsed;
+            } else {
+                spdlog::warn(
+                    "Invalid CHRONON3D_SCHEDULER_MODE='{}'; defaulting to {}",
+                    mode_env, scheduler_mode_name(scheduler_.mode_));
+            }
+        }
+    }
+    {
+        const char* workers_env = std::getenv("CHRONON3D_SCHEDULER_WORKERS");
+        if (workers_env && *workers_env) {
+            const std::size_t len = std::strlen(workers_env);
+            int n = 0;
+            const auto [ptr, ec] =
+                std::from_chars(workers_env, workers_env + len, n);
+            // PR-B review (round 3): negative workers are rejected with a
+            // warning rather than silently falling through to 0 (which
+            // would mask an operator misconfiguration).
+            if (ec == std::errc{} && ptr == workers_env + len && n > 0) {
+                scheduler_.worker_count_ = n;
+            } else {
+                spdlog::warn(
+                    "Invalid CHRONON3D_SCHEDULER_WORKERS='{}'; defaulting to 0",
+                    workers_env);
+            }
+        }
+    }
 
     // ═══════════════════════════════════════════════════════════════════
     //  CacheConfig — byte budgets

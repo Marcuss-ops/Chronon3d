@@ -1,83 +1,65 @@
 #pragma once
 
+// ---------------------------------------------------------------------------
+// graph_executor.hpp — Stateless, thread-pool–independent graph executor.
+//
+// PR-A removed the legacy `execute(RenderGraph&)` overload and the
+// `ExecutionPlan`/`CachedExecutionPlan` cache.  PR-B removed the
+// `tbb::task_arena m_arena` member and the `pin_main_thread` constructor
+// knob.  The executor is now pure compute: input = CompiledFrameGraph &
+// RenderGraphContext & RenderSession & ExecutionScheduler & optional
+// `FrameArena` override, output = shared_ptr<Framebuffer>.  All mutable
+// state lives on either the caller-owned RenderSession (frame arena,
+// frame history) or the caller-owned ExecutionScheduler (thread pool).
+//
+// Construction is cheap (defaulted).  execute() may be called re-entrantly
+// from nested graphs (PrecompNode) without coordinating with the parent.
+// ---------------------------------------------------------------------------
+
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/core/memory/render_session.hpp>
-#include <tbb/task_arena.h>
-#include <cstdint>
+#include <chronon3d/core/memory/arena.hpp>
+
 #include <memory>
-#include <mutex>
-#include <vector>
 
-namespace chronon3d::graph {
+namespace chronon3d {
 
+class ExecutionScheduler;  // PR-B: thread-pool authority for the entire engine.
+
+namespace graph {
+
+/// Compiled graph executor (formerly in two flavors — RenderGraph and
+/// CompiledFrameGraph — now unified on the compiled path).
+///
+/// Thread-pool–independent:  The executor holds no
+/// `tbb::task_arena` and no mutable member.  All parallelism is delegated
+/// to the `ExecutionScheduler&` passed at every `execute()` call.
 class GraphExecutor {
 public:
-    /// @param pin_main_thread  When true, pins the calling thread to core 0
-    ///                         on executor construction (for deterministic
-    ///                         single-core benchmarking).
-    explicit GraphExecutor(bool pin_main_thread = false);
+    /// Default-constructible.  The executor owns no per-instance state; the
+    /// `pin_main_thread` knob moved into `ExecutionScheduler`.
+    GraphExecutor() = default;
 
-    /// Execute a render graph.
-    /// @param session  The RenderSession providing the frame arena and per-frame state.
-    /// @param arena_override  Optional external arena override for temporary allocations.
-    ///        When provided, the executor uses this arena instead of session.arena,
-    ///        allowing tile-execution paths to supply a short-lived local arena.
-    std::shared_ptr<Framebuffer> execute(
-        RenderGraph& graph,
-        GraphNodeId output,
-        RenderGraphContext& ctx,
-        RenderSession& session,
-        FrameArena* arena_override = nullptr
-    );
-
-    std::shared_ptr<Framebuffer> execute(
-        RenderGraph& graph,
-        RenderGraphContext& ctx,
-        RenderSession& session
-    ) {
-        return execute(graph, graph.output(), ctx, session);
-    }
-
+    /// Execute a compiled frame graph.
+    ///
+    /// @param compiled        Compiled DAG (levels + consumer counts + output id).
+    /// @param ctx             Per-frame context (counters, resources, options).
+    /// @param session         RenderSession owning the frame arena + frame history.
+    /// @param scheduler       Single authority on thread-pool parallelism for the
+    ///                        entire render process (PR-B).  Must outlive this call.
+    /// @param arena_override  Optional external arena for short-lived tile-region
+    ///                        allocations.  When non-null, the executor uses it
+    ///                        instead of `session.arena()`.  Scheduled for removal
+    ///                        in PR-E (audit §9.7 — ExecutionScope).
     std::shared_ptr<Framebuffer> execute(
         CompiledFrameGraph& compiled,
         RenderGraphContext& ctx,
         RenderSession& session,
+        ExecutionScheduler& scheduler,
         FrameArena* arena_override = nullptr
     );
-
-    /// Invalidate the cached execution plan — call this after the graph topology
-    /// changes (nodes added/removed/reconnected) between execute() calls.
-    void invalidate_plan_cache() {
-        std::lock_guard<std::mutex> lock(m_plan_mutex);
-        m_cached_plan.valid = false;
-        m_cached_plan.plan.reset();
-    }
-
-private:
-    struct ExecutionPlan {
-        std::vector<std::vector<GraphNodeId>> levels;
-        std::vector<size_t> consumer_counts;
-    };
-
-    struct CachedExecutionPlan {
-        std::shared_ptr<const ExecutionPlan> plan;
-        std::uint64_t structure_hash{0};
-        GraphNodeId output{k_invalid_node};
-        bool valid{false};
-    };
-
-    tbb::task_arena m_arena;
-    // m_frame_arena removed — moved to RenderSession
-    mutable std::mutex m_plan_mutex;
-    CachedExecutionPlan m_cached_plan;
-
-    [[nodiscard]] std::shared_ptr<const ExecutionPlan> build_execution_plan(RenderGraph& graph, GraphNodeId output) const;
-
-    /// Compute a hash that uniquely identifies the graph topology:
-    /// node kinds, input connectivity, and output node ID.
-    [[nodiscard]] static std::uint64_t compute_structure_signature(
-        const RenderGraph& graph, GraphNodeId output);
 };
 
-} // namespace chronon3d::graph
+} // namespace graph
+} // namespace chronon3d

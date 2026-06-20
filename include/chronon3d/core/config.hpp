@@ -27,6 +27,8 @@
 #include <cstdint>
 #include <string>
 
+#include <chronon3d/core/scheduler/scheduler_mode.hpp>
+
 namespace chronon3d {
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -109,14 +111,29 @@ public:
     [[nodiscard]] bool pingpong_framebuffer()  const noexcept { return pingpong_framebuffer_; }
     [[nodiscard]] bool prefetch_enabled()      const noexcept { return prefetch_enabled_; }
     [[nodiscard]] bool pip_mode()              const noexcept { return pip_mode_; }
-    [[nodiscard]] bool pin_main_thread()       const noexcept { return pin_main_thread_; }
+
+    // ── PR-B: scheduler mode / worker pool tuning (audit §9.3) ───────
+    // Default behaviour is preserved: TbbFixed with worker_count = 0
+    // (resolved at ExecutionScheduler construction as hardware_concurrency).
+    [[nodiscard]] SchedulerMode mode()         const noexcept { return mode_; }
+    [[nodiscard]] int worker_count()           const noexcept { return worker_count_; }
+    [[nodiscard]] bool pin_calling_thread()    const noexcept { return pin_calling_thread_; }
+
+    /// Backwards-compat alias for `pin_calling_thread`.  The legacy name
+    /// `pin_main_thread` survives as a getter to keep any third-party
+    /// caller that referenced the field name before the rename compiling.
+    [[nodiscard]] bool pin_main_thread()       const noexcept { return pin_calling_thread_; }
 
 private:
     friend class Config;
     bool pingpong_framebuffer_ = true;
     bool prefetch_enabled_     = true;
     bool pip_mode_             = false;
-    bool pin_main_thread_      = false;
+
+    // ── PR-B state ─────────────────────────────────────────────────────
+    SchedulerMode mode_               {SchedulerMode::TbbFixed};
+    int           worker_count_       {0};
+    bool          pin_calling_thread_ {false};
 };
 
 // ═════════════════════════════════════════════════════════════════════════
