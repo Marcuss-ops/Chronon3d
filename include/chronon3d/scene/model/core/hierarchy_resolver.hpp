@@ -23,7 +23,8 @@ class Layer;
 
 struct HierarchyNodeView {
     std::size_t id{0};                   // index in the input array
-    std::optional<std::size_t> parent;   // parent index (nullopt = root)
+    std::optional<std::size_t> parent;   // parent index (nullopt = root or not found)
+    bool parent_declared{false};         // true when a parent name was specified
     Mat4 local_matrix{1.0f};             // local-space transform
 
     // Selective inheritance (default: inherit all)
@@ -85,6 +86,8 @@ private:
 
 /// Build a name→index map from a layer vector.
 /// Used to convert string-based parent references to index-based ones.
+/// Build a name→index map, detecting and throwing on duplicate names.
+/// Returns throws std::runtime_error when two layers share the same name.
 [[nodiscard]] std::unordered_map<std::string_view, std::size_t> build_name_index(
     const std::pmr::vector<Layer>& layers
 );
