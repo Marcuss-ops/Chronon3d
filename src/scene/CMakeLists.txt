@@ -27,6 +27,8 @@ add_library(chronon3d_scene STATIC
     presets/motion_presets_impact.cpp
     presets/phrase_presets.cpp
     presets/phrase_group_builder.cpp
+    # ── P2 joints API (Layer <-> Layer attachment) ───────────────────────
+    joints/joints_api.cpp
 )
 
 # ==============================================================================

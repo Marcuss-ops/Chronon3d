@@ -11,6 +11,8 @@ set(CHRONON3D_RUNTIME_SOURCES
     telemetry/telemetry_manager.cpp
     renderer_warmup.cpp
     render_engine.cpp
+    # ── P2 motion-graph pre-warm orchestrator (public facade) ──────────────
+    motion_graph_prewarm.cpp
 )
 
 if(CHRONON3D_ENABLE_TELEMETRY)

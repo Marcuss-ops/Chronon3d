@@ -51,7 +51,12 @@ enum class LayerKind {
     Null,         // no rendering at all; useful as a parent for transform hierarchy
     Precomp,      // references a nested composition by name
     Video,        // plays a video file via VideoNode
-    Glass         // frosted glass: blurs background within shapes, then draws content
+    Glass,        // frosted glass: blurs background within shapes, then draws content
+    // ── P2 primitives (typed kind axis; additive) ───────────────────
+    Shape,        // raster / vector shape primitive (formerly implicit via Normal)
+    Text,         // text-run / animated-text primitive
+    Camera,       // dedicated camera rig layer (drivers apply to the render graph)
+    Audio         // audio-only layer (no visual; pre-warm hooks audio implicitly)
 };
 
 struct Layer {
@@ -59,6 +64,14 @@ struct Layer {
     std::pmr::string parent_name;
     LayerKind kind{LayerKind::Normal};
     Transform transform{};
+
+    // ── P2: typed-kind predicates (delegate to `kind`) ──────────────
+    // Additive-only: each is a pure inline bool based on the enum.
+    // Use these instead of downstream string/structural checks.
+    [[nodiscard]] constexpr bool is_shape()  const noexcept { return kind == LayerKind::Shape;  }
+    [[nodiscard]] constexpr bool is_text()   const noexcept { return kind == LayerKind::Text;   }
+    [[nodiscard]] constexpr bool is_camera() const noexcept { return kind == LayerKind::Camera; }
+    [[nodiscard]] constexpr bool is_audio()  const noexcept { return kind == LayerKind::Audio;  }
     AnimatedTransform anim_transform{};
     Frame from{0};
     Frame duration{-1};
