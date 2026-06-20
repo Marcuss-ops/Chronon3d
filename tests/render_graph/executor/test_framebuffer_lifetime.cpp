@@ -21,14 +21,18 @@ using namespace chronon3d::graph;
 namespace {
 struct MockNode : RenderGraphNode {
     std::string m_name;
-    explicit MockNode(std::string n) : m_name(std::move(n)) {}
+    explicit MockNode(std::string n)
+        : RenderGraphNode(graph::no_cache("mock"))
+        , m_name(std::move(n)) {}
     [[nodiscard]] std::string_view name() const noexcept override { return m_name; }
     [[nodiscard]] RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
-    OwnedFB execute(RenderGraphContext&,
-                    std::span<const FramebufferRef>,
-                    std::span<const std::optional<raster::BBox>>) override { return {}; }
+    OwnedFB execute(RenderGraphContext& ctx,
+                    std::span<const FramebufferRef> inputs,
+                    std::span<const std::optional<raster::BBox>> input_bboxes) override {
+        (void)ctx; (void)inputs; (void)input_bboxes;
+        return {};
+    }
     [[nodiscard]] cache::NodeCacheKey cache_key(const RenderGraphContext&) const override { return {}; }
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override { return no_cache("mock"); }
     [[nodiscard]] std::optional<raster::BBox> predicted_bbox(const RenderGraphContext&) const override { return std::nullopt; }
 };
 } // namespace

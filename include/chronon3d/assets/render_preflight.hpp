@@ -8,6 +8,8 @@
 
 namespace chronon3d {
 
+class AssetRegistry;  // forward declaration — used by validate/ok signatures
+
 class ChrononAssetError : public std::runtime_error {
 public:
     explicit ChrononAssetError(const std::string& message) : std::runtime_error(message) {}

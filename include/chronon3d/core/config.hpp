@@ -169,9 +169,6 @@ public:
     Config(const Config&) = default;
     Config& operator=(const Config&) = default;
 
-    Config(Config&&) = default;
-    Config& operator=(Config&&) = default;
-
 private:
     DebugConfig     debug_;
     CacheConfig     cache_;
