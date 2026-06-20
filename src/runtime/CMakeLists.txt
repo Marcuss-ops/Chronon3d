@@ -10,6 +10,7 @@
 set(CHRONON3D_RUNTIME_SOURCES
     telemetry/telemetry_manager.cpp
     renderer_warmup.cpp
+    render_engine.cpp
 )
 
 if(CHRONON3D_ENABLE_TELEMETRY)
@@ -29,6 +30,8 @@ target_link_libraries(chronon3d_runtime PUBLIC
     chronon3d_graph
     chronon3d_effects
     chronon3d_cache
+    chronon3d_backend_software
+    chronon3d_backend_image
 )
 target_include_directories(chronon3d_runtime PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_precompile_headers(chronon3d_runtime PRIVATE <chronon3d/detail/pch.hpp>)
