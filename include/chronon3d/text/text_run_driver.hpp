@@ -152,12 +152,16 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time);
 /// singleton, which is internally thread-safe.  Concurrent callers
 /// may race but the cache is idempotent on the same key.
 ///
-/// TODO(PR11+): add a CI font fixture so the success path can be
-/// exercised by tests.  The current PR 10 tests cover only the no-op
-/// guard rails (no animated_doc, no engine) because the cache-write
-/// path requires HarfBuzz to actually run.  A DejaVu Sans fixture in
-/// `tests/fixtures/` plus a `test_prewarm_text_layout_cache.cpp`
-/// would close this gap.
+/// Success-path coverage: tests/text/test_prewarm_text_layout_cache.cpp
+/// (PR 11) exercises the cache-write path with tests/fixtures/Inter-Bold.ttf
+/// loaded via explicit FontSpec — no system-font dependency, fully
+/// deterministic across CI environments.  Covers static (Hold) prewarm,
+/// Scramble prewarm, idempotency, per-frame distinctness, and settled
+/// tail caching.
+///
+/// Prerequisite for the test: tests/fixtures/Inter-Bold.ttf must be present
+/// (a copy of assets/fonts/Inter-Bold.ttf, tracked by git).  The test bails
+/// with REQUIRE(engine.can_load(...)) if the fixture is missing.
 [[nodiscard]] bool prewarm_text_run_layout_for_frame(
     const TextRunShape& shape,
     Frame frame
