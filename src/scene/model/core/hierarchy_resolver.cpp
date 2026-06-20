@@ -169,6 +169,9 @@ void HierarchyResolver::resolve_one(std::size_t index) {
             // Accumulate opacity up the chain
             opacity = parent_result.world_opacity * node.local_opacity;
         }
+    } else if (node.parent_declared) {
+        // Parent name was specified but not found during name→index lookup.
+        m_results[index].parent_missing = true;
     }
 
     m_results[index].world_matrix = world;
@@ -184,7 +187,14 @@ std::unordered_map<std::string_view, std::size_t> build_name_index(
     std::unordered_map<std::string_view, std::size_t> map;
     map.reserve(layers.size());
     for (std::size_t i = 0; i < layers.size(); ++i) {
-        map.emplace(std::string_view(layers[i].name), i);
+        std::string_view name(layers[i].name);
+        auto [it, inserted] = map.emplace(name, i);
+        if (!inserted) {
+            throw std::runtime_error(
+                "Duplicate layer name '" + std::string(name)
+                + "' at index " + std::to_string(i)
+                + " (previously at index " + std::to_string(it->second) + ")");
+        }
     }
     return map;
 }
@@ -330,11 +340,13 @@ ResolvedSceneTransforms resolve_scene_transforms(
         HierarchyNodeView v;
         v.id = i;
         if (!in.local.parent_name.empty()) {
+            v.parent_declared = true;
             auto pit = name_to_idx.find(in.local.parent_name);
             if (pit != name_to_idx.end()) {
                 v.parent = pit->second;
             }
-            // Missing parent → HierarchyResolver marks `parent_missing` later.
+            // Missing parent (parent_declared=true, parent=nullopt)
+            // → HierarchyResolver marks `parent_missing` in resolve_one().
         }
         v.local_matrix = in.local.to_mat4();
         v.inherits_position = in.local.inherits_position;
