@@ -23,6 +23,7 @@
 #pragma once
 
 #include <chronon3d/core/types/types.hpp>
+#include <chronon3d/core/types/frame.hpp>
 #include <string>
 
 namespace chronon3d {

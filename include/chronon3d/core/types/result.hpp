@@ -23,6 +23,7 @@
 // ==============================================================================
 
 #include <cassert>
+#include <cstddef>
 #include <new>
 #include <type_traits>
 #include <utility>
@@ -183,8 +184,8 @@ private:
     }
 
     // Storage: large enough for the larger type, suitably aligned.
-    static constexpr size_t kSize  = sizeof(T) > sizeof(E) ? sizeof(T) : sizeof(E);
-    static constexpr size_t kAlign = alignof(T) > alignof(E) ? alignof(T) : alignof(E);
+    static constexpr std::size_t kSize  = sizeof(T) > sizeof(E) ? sizeof(T) : sizeof(E);
+    static constexpr std::size_t kAlign = alignof(T) > alignof(E) ? alignof(T) : alignof(E);
 
     alignas(kAlign) unsigned char storage_[kSize];
     bool has_value_;

@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/scene/camera/camera_projection.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <cmath>
 using namespace chronon3d;
 

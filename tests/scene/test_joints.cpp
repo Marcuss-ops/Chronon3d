@@ -12,10 +12,13 @@
 #include <chronon3d/scene/joints/joints_api.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
+// `f32`, `f64`, `i64`, etc. aliases are defined here.
+#include <chronon3d/core/types/types.hpp>
 
 #include <cmath>
 #include <string>
 
+using chronon3d::f32;
 using chronon3d::Scene;
 using chronon3d::Layer;
 using chronon3d::LayerKind;
