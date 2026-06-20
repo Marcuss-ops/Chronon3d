@@ -433,20 +433,45 @@ graph::RenderOpResult draw_text_run(
     // ── Compute glyph bbox (the run's local image-local extent) ─────
     // Conservative padding accounts for blur, stroke, and 2.5D shears
     // before we know how aggressive the model_matrix will be.
+    //
+    // PR 11 — CrossfadeLayouts: extend the bbox to ALSO cover the
+    // outgoing glyph positions from `shape.crossfade_glyphs` (if the
+    // gap is active via `shape.crossfade_layout`).  A BLImage with
+    // a too-tight bbox would clip the outgoing glyphs at the
+    // edges of the canvas.  Shadow padding stays on the active
+    // side only (shadows are tied to the active document's
+    // paint/material).
     float min_x = 1e10f, min_y = 1e10f;
     float max_x = -1e10f, max_y = -1e10f;
 
+    // Per-glyph bbox accumulator.  Walks a glyph vector against its
+    // placed run and widens the running local-space min/max.  Used
+    // for both the active side and the crossfade side below.
+    auto expand_per_glyph = [&](const std::vector<GlyphInstanceState>& glyphs,
+                                const PlacedGlyphRun& placed) {
+        for (const auto& g : glyphs) {
+            const float gx = g.layout_position.x + g.position.x;
+            const float gy = g.layout_position.y + g.position.y;
+            const float pad = g.blur + g.stroke_width + 8.0f;
+            min_x = std::min(min_x, gx - pad);
+            min_y = std::min(min_y, gy - pad);
+            max_x = std::max(max_x, gx + placed.total_width /
+                static_cast<float>(std::max(size_t(1), placed.glyphs.size())) + pad);
+            max_y = std::max(max_y, gy + placed.total_height + pad);
+        }
+    };
+
+    expand_per_glyph(shape.glyphs, layout.placed);
+    if (shape.crossfade_layout && !shape.crossfade_glyphs.empty()) {
+        expand_per_glyph(shape.crossfade_glyphs, shape.crossfade_layout->placed);
+    }
+
+    // Shadow padding stays on the active side only — shadows track
+    // the active paint, not the crossfade paint.  Iterate shape.glyphs
+    // again to fold shadow-blur / shadow-offset into the bbox.
     for (const auto& g : shape.glyphs) {
         const float gx = g.layout_position.x + g.position.x;
         const float gy = g.layout_position.y + g.position.y;
-        const float pad = g.blur + g.stroke_width + 8.0f;
-        min_x = std::min(min_x, gx - pad);
-        min_y = std::min(min_y, gy - pad);
-        max_x = std::max(max_x, gx + layout.placed.total_width /
-            static_cast<float>(std::max(size_t(1), layout.placed.glyphs.size())) + pad);
-        max_y = std::max(max_y, gy + layout.placed.total_height + pad);
-        // Shadow offset extends the world bbox on its own; account for
-        // it here so the run-local canvas has room when blur spreads.
         for (const auto& sh : shape.shadows) {
             if (!sh.enabled) continue;
             const float sh_pad = sh.blur + std::abs(sh.offset.x) + std::abs(sh.offset.y) + 8.0f;
@@ -625,6 +650,8 @@ graph::RenderOpResult draw_text_run(
         BLImage& target,
         std::optional<Color> override_color,
         int blur_radius,
+        const std::vector<GlyphInstanceState>& source_glyphs,
+        const PlacedGlyphRun& source_placed,
         std::optional<int> only_tier = std::nullopt
     ) -> size_t {
         size_t drawn = 0;
@@ -634,8 +661,8 @@ graph::RenderOpResult draw_text_run(
         ctx.fillAll();
         ctx.setCompOp(BL_COMP_OP_SRC_OVER);
 
-        for (size_t gi = 0; gi < shape.glyphs.size(); ++gi) {
-            const auto& g = shape.glyphs[gi];
+        for (size_t gi = 0; gi < source_glyphs.size(); ++gi) {
+            const auto& g = source_glyphs[gi];
 
             // ── Per-glyph blur tier filter ──────────────────────────
             // When `only_tier` is set, skip glyphs whose blur value
@@ -704,7 +731,7 @@ graph::RenderOpResult draw_text_run(
                 }
                 ctx.setFillStyle(to_bl_rgba(final_fill));
 
-                auto sgr = SingleGlyphRun::from(layout.placed.glyphs[gi]);
+                auto sgr = SingleGlyphRun::from(source_placed.glyphs[gi]);
                 ctx.fillGlyphRun(BLPoint(0.0, 0.0), font, sgr.bl_run);
             }
 
@@ -733,7 +760,8 @@ graph::RenderOpResult draw_text_run(
             shadow.color.a * shadow.opacity
         };
         const size_t sh_drawn = draw_run_layer(
-            shadow_img, shadow_color, detail::bucket_radius_for_tier(shadow.blur));
+            shadow_img, shadow_color, detail::bucket_radius_for_tier(shadow.blur),
+            shape.glyphs, layout.placed);
         if (sh_drawn == 0) continue;
 
         // Shadow translation: model + image-local offset + shadow offset.
@@ -770,7 +798,8 @@ graph::RenderOpResult draw_text_run(
     for (int tier = 0; tier < kNumBlurTiers; ++tier) {
         BLImage tier_img(img_w, img_h, BL_FORMAT_PRGB32);
         const size_t drawn = draw_run_layer(
-            tier_img, std::nullopt, kBlurTierRadii[tier], tier);
+            tier_img, std::nullopt, kBlurTierRadii[tier],
+            shape.glyphs, layout.placed, tier);
         if (drawn == 0) continue;
         glyphs_drawn += drawn;
 
@@ -780,6 +809,47 @@ graph::RenderOpResult draw_text_run(
             ctx.setCompOp(BL_COMP_OP_SRC_OVER);
             ctx.blitImage(BLPoint(0, 0), tier_img);
             ctx.end();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PR 11 — CrossfadeLayouts: render the outgoing side too
+    // ═══════════════════════════════════════════════════════════════════════════
+    //
+    // Walk the same 5 blur tiers on shape.crossfade_glyphs, then
+    // composite each tier SRC_OVER onto the final `img` with
+    // `setGlobalAlpha(1 - shape.crossfade_mix)` so the outgoing
+    // contribution fades against the active side.  Matches
+    // ActiveTextState::mix semantics: mix=0 ⇒ all-outgoing /
+    // no-active, mix=1 ⇒ all-active / no-outgoing.
+    //
+    // No-op when the crossfade slot is empty (we're out of the gap):
+    // `shape.crossfade_layout` is nullptr and
+    // `shape.crossfade_glyphs` is empty by lifecycle contract on
+    // apply_active_state_to_text_run_shape (PR 11).  Skipping that
+    // frame keeps the settled-tail path a no-op.
+    if (shape.crossfade_layout && !shape.crossfade_glyphs.empty()) {
+        const f32 cf_fade = std::clamp(
+            1.0f - shape.crossfade_mix, 0.0f, 1.0f);
+        for (int tier = 0; tier < kNumBlurTiers; ++tier) {
+            BLImage tier_img(img_w, img_h, BL_FORMAT_PRGB32);
+            const size_t drawn = draw_run_layer(
+                tier_img, std::nullopt, kBlurTierRadii[tier],
+                shape.crossfade_glyphs, shape.crossfade_layout->placed, tier);
+            if (drawn == 0) continue;
+            glyphs_drawn += drawn;
+
+            // Composite the crossfade tier onto the final image with
+            // the (1-mix) global alpha fold.  Material application
+            // (gradient / bevel) is performed once at the end over
+            // both sides' contributions.
+            {
+                BLContext ctx(img);
+                ctx.setCompOp(BL_COMP_OP_SRC_OVER);
+                ctx.setGlobalAlpha(static_cast<double>(cf_fade));
+                ctx.blitImage(BLPoint(0, 0), tier_img);
+                ctx.end();
+            }
         }
     }
 

@@ -341,3 +341,190 @@ TEST_CASE("Prewarm PR11: post-boundary prewarm caches active->utf8 (not transiti
     REQUIRE(found != nullptr);
     CHECK(found->source_text == dst_text);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PR 11 — CrossfadeLayouts per-glyph blend path tests
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// These tests exercise the per-glyph blend path that landed with PR 11.
+// They verify:
+//   7. Cache prewarm populates TWO entries during the gap (active side
+//      AND crossfade_from side) so both layouts are cache-hot before
+//      draw.
+//   8. apply_active_state_to_text_run_shape populates shape.crossfade_*
+//      slots when inside the gap (mix strictly in (0, 1)), and clears
+//      them when outside (mix at the boundary, crossfade_from null,
+//      transition != CrossfadeLayouts).
+//   9. Fallback path: when crossfade_from == nullptr, the crossfade
+//      slots stay empty regardless of transition type so the compositor
+//      short-circuits the secondary tier loop.
+
+/// Build a 2-keyframe AnimatedTextDocument that crossfades from
+/// "PR11CFSrc" to "PR11CFDst" between frames 0 and 60, with the
+/// CrossfadeLayouts transition type set on the outgoing keyframe.
+static std::shared_ptr<AnimatedTextDocument> make_crossfade_doc() {
+    auto doc = std::make_shared<AnimatedTextDocument>();
+    SourceTextKeyframe kf0;
+    kf0.frame = Frame{0};
+    kf0.document.utf8 = "PR11CFSrc";
+    kf0.transition = SourceTextTransition::CrossfadeLayouts;
+    doc->add_keyframe(kf0);
+    SourceTextKeyframe kf60;
+    kf60.frame = Frame{60};
+    kf60.document.utf8 = "PR11CFDst";
+    doc->add_keyframe(kf60);
+    return doc;
+}
+
+TEST_CASE("Prewarm PR11 CF: CrossfadeLayouts prewarm populates BOTH active and crossfade_from caches") {
+    FontEngine engine;
+    TextLayoutSpec layout;
+    layout.box = {800.0f, 200.0f};
+    const FontSpec font = inter_bold();
+
+    auto shape = make_real_shape("PR11CFSrc", engine, layout, font);
+    REQUIRE(shape != nullptr);
+
+    shape->animated_doc = make_crossfade_doc();
+    shape->animated_doc->keyframes()[0].document.defaults.font = font;
+    shape->animated_doc->keyframes()[1].document.defaults.font = font;
+
+    // Frame 30 is in-gap: mix must be in (0, 1) and crossfade_from
+    // non-null.  Prewarm must succeed AND populate cache for BOTH
+    // the active side and the crossfade_from side.
+    const auto state = shape->animated_doc->sample_at(Frame{30});
+    REQUIRE(state.transition == SourceTextTransition::CrossfadeLayouts);
+    REQUIRE(state.active != nullptr);
+    REQUIRE(state.crossfade_from != nullptr);
+    REQUIRE(state.mix > 0.0f);
+    REQUIRE(state.mix < 1.0f);
+
+    CHECK(prewarm_text_run_layout_for_frame(*shape, Frame{30}));
+
+    auto& cache = shared_text_layout_cache();
+    const auto key_active =
+        build_expected_cache_key(state.active->utf8, font, layout);
+    const auto key_from =
+        build_expected_cache_key(state.crossfade_from->utf8, font, layout);
+
+    CHECK(cache.contains(key_active));
+    CHECK(cache.contains(key_from));
+    // Distinct cache entries (different source_text + likely different
+    // font).
+    CHECK(key_active.digest() != key_from.digest());
+
+    auto found_active = cache.find(key_active);
+    auto found_from = cache.find(key_from);
+    REQUIRE(found_active != nullptr);
+    REQUIRE(found_from != nullptr);
+    CHECK(found_active->source_text == state.active->utf8);
+    CHECK(found_from->source_text == state.crossfade_from->utf8);
+}
+
+TEST_CASE("Prewarm PR11 CF: apply_active_state populates crossfade_* slots inside the gap, clears outside") {
+    FontEngine engine;
+    TextLayoutSpec layout;
+    layout.box = {800.0f, 200.0f};
+    const FontSpec font = inter_bold();
+
+    // Pre-boundary frame 0: state.transition is Hold (we're at the
+    // outgoing keyframe's frame but BEFORE the gap opens).  Actually,
+    // the gap is opened by the OUTGOING keyframe's transition field.
+    // Per spec, frame 0 is the start of the gap (post-boundary for the
+    // previous key, opening of gap for the outgoing keyframe).
+    //
+    // Sample at the middle (frame 30) and at the very start of the gap
+    // (frame 0) to verify:
+    //   - frame 30 (midgap, mix in (0,1)) — crossfade slots populated
+    //   - frame 60 (post-gap)            — crossfade slots cleared
+    auto shape = make_real_shape("PR11CFSrc", engine, layout, font);
+    REQUIRE(shape != nullptr);
+    shape->animated_doc = make_crossfade_doc();
+    shape->animated_doc->keyframes()[0].document.defaults.font = font;
+    shape->animated_doc->keyframes()[1].document.defaults.font = font;
+
+    // ── Mid-gap — slots populated ────────────────────────────────────
+    {
+        const auto mid_state = shape->animated_doc->sample_at(Frame{30});
+        REQUIRE(mid_state.transition == SourceTextTransition::CrossfadeLayouts);
+        REQUIRE(mid_state.crossfade_from != nullptr);
+        REQUIRE(mid_state.mix > 0.0f);
+        REQUIRE(mid_state.mix < 1.0f);
+
+        CHECK(apply_active_state_to_text_run_shape(
+            *shape, mid_state, engine, layout));
+
+        REQUIRE(shape->crossfade_layout != nullptr);
+        REQUIRE_FALSE(shape->crossfade_glyphs.empty());
+        CHECK(shape->crossfade_layout->source_text == mid_state.crossfade_from->utf8);
+        CHECK(shape->crossfade_mix > 0.0f);
+        CHECK(shape->crossfade_mix < 1.0f);
+    }
+
+    // ── Post-gap — slots cleared ─────────────────────────────────────
+    {
+        const auto post_state = shape->animated_doc->sample_at(Frame{61});
+        REQUIRE(post_state.transition == SourceTextTransition::Hold
+                || post_state.active->utf8 == "PR11CFDst");
+
+        CHECK(apply_active_state_to_text_run_shape(
+            *shape, post_state, engine, layout));
+
+        CHECK(shape->crossfade_layout == nullptr);
+        CHECK(shape->crossfade_glyphs.empty());
+        CHECK(shape->crossfade_mix == 0.0f);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 9. CrossfadeLayouts fallback — Hold→Hold doc never populates crossfade slot
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// When the source keyframe's transition != CrossfadeLayouts (or
+// crossfade_from is null for any other reason), apply_active must NOT
+// populate the crossfade slot.  The compositor's `if
+// (shape.crossfade_layout && !shape.crossfade_glyphs.empty())`
+// short-circuit then makes the second tier loop a no-op.  We verify
+// the inverse: a 2-keyframe Hold→Hold doc never produces a
+// crossfade_from, and apply populates only the active side.  This
+// guarantees the fallback path doesn't regress when future transition
+// modes route through this code.
+
+TEST_CASE("Prewarm PR11 CF: fallback — Hold→Hold doc never populates crossfade slot") {
+    FontEngine engine;
+    TextLayoutSpec layout;
+    layout.box = {800.0f, 200.0f};
+    const FontSpec font = inter_bold();
+
+    auto doc = std::make_shared<AnimatedTextDocument>();
+    SourceTextKeyframe kf0;
+    kf0.frame = Frame{0};
+    kf0.document.utf8 = "PR11CFFallback_Src";
+    kf0.transition = SourceTextTransition::Hold;
+    doc->add_keyframe(kf0);
+    SourceTextKeyframe kf60;
+    kf60.frame = Frame{60};
+    kf60.document.utf8 = "PR11CFFallback_Dst";
+    kf60.transition = SourceTextTransition::Hold;
+    doc->add_keyframe(kf60);
+
+    auto shape = make_real_shape("PR11CFFallback_Src", engine, layout, font);
+    REQUIRE(shape != nullptr);
+    shape->animated_doc = doc;
+    shape->animated_doc->keyframes()[0].document.defaults.font = font;
+    shape->animated_doc->keyframes()[1].document.defaults.font = font;
+
+    // Sample at frame 30 — should be mid-Hold with crossfade_from null.
+    const auto state = shape->animated_doc->sample_at(Frame{30});
+    REQUIRE(state.transition == SourceTextTransition::Hold);
+    REQUIRE(state.crossfade_from == nullptr);
+
+    apply_active_state_to_text_run_shape(*shape, state, engine, layout);
+
+    // Crossfade slots stay empty regardless of active-side updates.
+    CHECK(shape->crossfade_layout == nullptr);
+    CHECK(shape->crossfade_glyphs.empty());
+    CHECK(shape->crossfade_mix == 0.0f);
+}
+
+} // namespace
