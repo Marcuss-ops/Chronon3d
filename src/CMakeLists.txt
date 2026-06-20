@@ -126,4 +126,16 @@ target_link_libraries(chronon3d_pipeline INTERFACE
 # ==============================================================================
 # Consumer SDK alias — external programs link against Chronon3D::SDK
 # ==============================================================================
-add_library(Chronon3D_SDK ALIAS chronon3d_pipeline)
+add_library(chronon3d_sdk INTERFACE)
+target_include_directories(chronon3d_sdk INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(chronon3d_sdk INTERFACE
+    $<BUILD_INTERFACE:chronon3d_pipeline>
+)
+set_target_properties(chronon3d_sdk PROPERTIES EXPORT_NAME SDK)
+add_library(Chronon3D::SDK ALIAS chronon3d_sdk)
+
+# Keep the old alias for backward compatibility during migration.
+add_library(Chronon3D_SDK ALIAS chronon3d_sdk)

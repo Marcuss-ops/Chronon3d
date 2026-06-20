@@ -186,6 +186,31 @@ if(CHRONON3D_BUILD_CLI)
     add_subdirectory(apps/chronon3d_cli)
 endif()
 
+# ── SDK Install / Export ───────────────────────────────────────────────────
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
+install(TARGETS chronon3d_sdk
+    EXPORT Chronon3DTargets
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(EXPORT Chronon3DTargets
+    FILE Chronon3DTargets.cmake
+    NAMESPACE Chronon3D::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Chronon3D
+)
+
+configure_package_config_file(
+    ${CMAKE_SOURCE_DIR}/cmake/Chronon3DConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/Chronon3DConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Chronon3D
+)
+
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/Chronon3DConfig.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Chronon3D
+)
+
 # ── Aggregate developer target (CLI + fast tests) ──────────────────────────────
 # Convenience target for daily development: builds the CLI and the fast test suite
 # in a single invocation. Only created when both CLI and tests are enabled.
