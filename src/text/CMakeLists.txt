@@ -12,6 +12,7 @@ add_library(chronon3d_text_core STATIC
     text_path_composer.cpp
     text_resolver.cpp
     text_run.cpp
+    text_run_builder.cpp
     text_run_geometry.cpp
 )
 

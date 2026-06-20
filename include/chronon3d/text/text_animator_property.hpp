@@ -80,6 +80,16 @@ struct BaselineShiftProperty {
     f32 pixels{0.0f};                 // vertical shift from baseline in pixels
 };
 
+/// After Effects-style Character Offset: shifts the character value
+/// (code point) by a fixed amount.  Wraps within the alphanumeric range.
+/// Example: offset=1 turns 'A' into 'B', 'Z' into 'A'.
+/// When enabled, the per-glyph character values are offset before shaping.
+/// The active text content is modified, so this must be applied BEFORE
+/// the TextRunLayout is built (layout depends on the offset characters).
+struct CharacterOffsetProperty {
+    i32 offset{0};                     // number of codepoints to shift
+};
+
 // ── Variant: any supported text animator property ─────────────────────────
 
 using TextAnimatorProperty = std::variant<
@@ -94,7 +104,8 @@ using TextAnimatorProperty = std::variant<
     StrokeColorProperty,
     StrokeWidthProperty,
     TrackingProperty,
-    BaselineShiftProperty
+    BaselineShiftProperty,
+    CharacterOffsetProperty
 >;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -133,6 +144,7 @@ struct GlyphInstanceState {
     f32 opacity{1.0f};                // final opacity
     f32 blur{0.0f};                   // blur radius
     f32 baseline_shift{0.0f};         // vertical shift from baseline
+    i32 character_offset{0};          // code-point offset (CharacterOffsetProperty)
 
     Color fill{1.0f, 1.0f, 1.0f, 1.0f};   // final fill color
     Color stroke{0.0f, 0.0f, 0.0f, 0.0f};  // stroke color (alpha=0 → disabled)

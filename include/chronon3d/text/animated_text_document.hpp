@@ -23,9 +23,12 @@
 
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/text/text_document.hpp>
+#include <chronon3d/animation/easing/easing.hpp>
 
 #include <cstddef>
 #include <optional>
+#include <string>
+#include <utility>
 #include <vector>
 
 namespace chronon3d {
@@ -52,13 +55,62 @@ namespace chronon3d {
 ///                      smooth layout transition.  The active state carries
 ///                      a `mix` factor from 0 (fully previous) to 1 (fully
 ///                      next).
+///
+/// Scramble:           During the gap, characters are randomly substituted
+///                      using a deterministic seed.  At mix=0 the text is
+///                      the previous document; at mix=1 it settles into the
+///                      next document.  Intermediate frames contain pseudo-
+///                      random substitutions from a configurable character
+///                      pool (alphanumeric by default).  The active state
+///                      carries `scrambled_text` with the per-frame output.
+///
+/// Morph:              Characters common to both documents persist at their
+///                      positions; new characters enter from the sides;
+///                      removed characters exit.  The `morphed_text` in
+///                      ActiveTextState contains the per-frame interpolated
+///                      text, and `morph_map` maps positions from the
+///                      previous layout to the next.
 enum class SourceTextTransition : u8 {
     Hold,
     Cut,
     CrossfadeLayouts,
+    Scramble,
+    Morph,
 };
 
 // ── SourceTextKeyframe — a TextDocument snapshot at a specific frame ────
+
+/// Parameters for Scramble transition.
+struct ScrambleParams {
+    /// Deterministic seed for the pseudo-random substitution.
+    /// Same seed + same frame + same glyph index = same substitution.
+    u64 seed{12345};
+
+    /// Character pool used for random substitution (default: alphanumeric).
+    /// Characters are drawn from this pool uniformly.  Must not be empty.
+    std::string char_pool{"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"};
+
+    /// How fast characters scramble (higher = more substitutions per frame).
+    /// A value of 1.0 means each character has a 100% chance of substitution
+    /// at the midpoint of the transition.  Values > 1.0 saturate faster.
+    f32 intensity{1.5f};
+};
+
+/// Parameters for Morph transition.
+struct MorphParams {
+    /// Characters enter from the left, right, or both sides depending
+    /// on alignment relative to the text layout.
+    enum class EnterDirection : u8 {
+        FromRight,   // new chars slide in from the right (LTR default)
+        FromLeft,    // new chars slide in from the left (RTL default)
+        FromCenter,  // new chars expand outward from the center
+    };
+
+    EnterDirection direction{EnterDirection::FromRight};
+
+    /// Easing curve applied to per-character entry/exit timing.
+    EasingCurve easing{EasingCurve{Easing::OutCubic}};
+};
 
 struct SourceTextKeyframe {
     /// Frame index when this document becomes active.
@@ -71,6 +123,14 @@ struct SourceTextKeyframe {
     /// How to transition FROM this keyframe TO the next one.
     /// Default is Hold (step function).
     SourceTextTransition transition{SourceTextTransition::Hold};
+
+    /// Parameters for Scramble transition (only meaningful when
+    /// transition == Scramble).
+    ScrambleParams scramble_params{};
+
+    /// Parameters for Morph transition (only meaningful when
+    /// transition == Morph).
+    MorphParams morph_params{};
 
     /// For std::sort / std::lower_bound.
     bool operator<(const SourceTextKeyframe& other) const {
@@ -92,11 +152,30 @@ struct ActiveTextState {
     const TextDocument* crossfade_from{nullptr};
 
     /// 0.0 = fully crossfade_from, 1.0 = fully active.
-    /// Only meaningful when transition == CrossfadeLayouts; zero otherwise.
+    /// Only meaningful when transition == CrossfadeLayouts, Scramble, or Morph;
+    /// zero otherwise.
     float mix{0.0f};
 
     /// The transition type in effect at this frame.
     SourceTextTransition transition{SourceTextTransition::Hold};
+
+    /// ── Scramble / Morph: per-frame generated text ────────────────────
+    /// During a Scramble transition, contains the pseudo-randomly
+    /// substituted text for this frame (character-by-character replacement
+    /// from prev toward next).  Empty when not in Scramble mode.
+    ///
+    /// During a Morph transition, contains the per-frame interpolated
+    /// text (common characters persist, new ones enter, removed ones exit).
+    /// Empty when not in Morph mode.
+    std::string transition_text;
+
+    /// ── Morph: character position map ─────────────────────────────────
+    /// Maps character positions from the previous layout to the next.
+    /// Each entry is (prev_index, next_index) where the character at
+    /// prev_index in crossfade_from maps to next_index in active.
+    /// -1 means the position has no counterpart (new or removed char).
+    /// Only populated when transition == Morph.
+    std::vector<std::pair<int, int>> morph_map;
 };
 
 // ── AnimatedTextDocument — keyframe-driven text document animation ─────

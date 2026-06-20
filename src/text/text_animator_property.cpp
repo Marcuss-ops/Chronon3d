@@ -27,6 +27,7 @@ std::vector<GlyphInstanceState> make_initial_glyph_states(
         gs.opacity = 1.0f;
         gs.blur = 0.0f;
         gs.baseline_shift = 0.0f;
+        gs.character_offset = 0;
         gs.fill = {1.0f, 1.0f, 1.0f, 1.0f};
         gs.stroke = {0.0f, 0.0f, 0.0f, 0.0f};
         gs.stroke_width = 0.0f;
@@ -176,6 +177,15 @@ void apply_property_to_glyph(
                 gs.baseline_shift = p.pixels * weight;
             } else {
                 gs.baseline_shift += p.pixels * weight;
+            }
+        }
+        else if constexpr (std::is_same_v<T, CharacterOffsetProperty>) {
+            // Character offset (code-point shift) uses a dedicated field
+            // to avoid collision with PositionProperty's position.x.
+            if (blend == TextPropertyBlendMode::Replace) {
+                gs.character_offset = static_cast<i32>(static_cast<f32>(p.offset) * weight);
+            } else {
+                gs.character_offset += static_cast<i32>(static_cast<f32>(p.offset) * weight);
             }
         }
     }, prop);
