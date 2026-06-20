@@ -149,3 +149,11 @@ add_library(Chronon3D::SDK ALIAS chronon3d_sdk)
 
 # Keep the old alias for backward compatibility during migration.
 add_library(Chronon3D_SDK ALIAS chronon3d_sdk)
+
+# ── P3 Path B expression engine (feature/expressions-v2 only) ──────────
+# Lives on the dedicated branch until merge post-freeze; main stays on
+# Path A (the scalar AnimatedValue parser). The new submodule is gated by
+# EXISTS so when the branch isn't checked out we don't pull it in.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/expressions/CMakeLists.txt")
+    add_subdirectory(expressions)
+endif()
