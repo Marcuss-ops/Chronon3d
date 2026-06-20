@@ -94,6 +94,7 @@ u64 TextLayoutCacheKey::digest() const {
     seed = hash_combine(seed, hash_value(paragraph.minimum_suffix));
     seed = hash_combine(seed, hash_value(paragraph.widow_lines));
     seed = hash_combine(seed, hash_value(paragraph.orphan_lines));
+    seed = hash_combine(seed, hash_value(static_cast<u8>(paragraph.direction)));
     seed = hash_combine(seed, hash_value(static_cast<u8>(paragraph.spacing_collapse)));
 
     return seed;

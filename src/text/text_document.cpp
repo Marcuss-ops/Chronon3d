@@ -342,6 +342,9 @@ u64 hash_paragraph_style(const ParagraphStyle& ps) {
     seed = hcombine(seed, hval(ps.widow_lines));
     seed = hcombine(seed, hval(ps.orphan_lines));
 
+    // Direction
+    seed = hcombine(seed, hval(static_cast<u8>(ps.direction)));
+
     // Spacing collapse policy
     seed = hcombine(seed, hval(static_cast<u8>(ps.spacing_collapse)));
 

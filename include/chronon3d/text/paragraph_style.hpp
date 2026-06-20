@@ -13,6 +13,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/core/types/types.hpp>
+#include <chronon3d/text/text_direction.hpp>  // TextDirection
 
 namespace chronon3d {
 
@@ -59,6 +60,8 @@ struct ParagraphSpacing {
     f32 glyph_scale_min{0.97f};     // minimum horizontal glyph scale
     f32 glyph_scale_desired{1.0f};  // desired scale (natural)
     f32 glyph_scale_max{1.03f};     // maximum horizontal glyph scale
+
+    bool operator==(const ParagraphSpacing&) const noexcept = default;
 };
 
 // ── ParagraphSpacingCollapse — how adjacent space_before/space_after merge ──
@@ -89,6 +92,13 @@ struct ParagraphStyle {
     ParagraphComposer composer{ParagraphComposer::SingleLine};
     TextJustification justification{TextJustification::Left};
     ParagraphSpacing spacing{};
+
+    // ── Direction ───────────────────────────────────────────────────────
+    /// Explicit paragraph base direction.  When set to LTR or RTL, all
+    /// text runs within this paragraph use the specified direction
+    /// regardless of their content (overrides bidi auto-detection).
+    /// Default: Auto (bidi-detect from text content).
+    TextDirection direction{TextDirection::Auto};
 
     // ── Hanging punctuation ─────────────────────────────────────────────
     /// When enabled, quotation marks and certain punctuation may extend

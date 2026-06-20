@@ -3,6 +3,8 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/core/types/types.hpp>
+#include <chronon3d/text/text_direction.hpp>
+
 #include <string>
 #include <string_view>
 #include <vector>
@@ -14,9 +16,7 @@
 #include <cstddef>
 
 namespace chronon3d {
-
-// ── GlyphPosition ─────────────────────────────────────────────────────
-// Precise placement of a single shaped glyph within a text run.
+// ── GlyphPosition
 // Coordinates are in logical (unscaled) font units; multiply by
 // (font_size / face_units_per_em) to get pixel values.
 
@@ -72,11 +72,7 @@ struct FontSpec {
 /// Shaping direction for non-Latin / complex-script text.
 /// When Auto, the shaping engine detects RTL from the first
 /// strongly-directional character (Arabic, Hebrew, etc.).
-enum class TextDirection {
-    Auto,
-    LTR,
-    RTL,
-};
+/// Defined in text_direction.hpp.
 
 /// Wrapping mode for text layout.
 ///   None      — text extends beyond box bounds (no wrapping).

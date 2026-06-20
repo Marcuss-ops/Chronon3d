@@ -10,10 +10,11 @@
 //
 // Pipeline:
 //   TextDocument
-//       ↓  split_paragraphs()         ← already in text_document.cpp
-//       ↓  resolve_fallback_fonts()    ← font substitution when primary missing
-//       ↓  resolve_text_run_tree()     ← spans → bidi → resolved runs
-//       ↓  ParagraphComposer + HarfBuzz (PR 7+)
+//       ↓  split_paragraphs()          ← already in text_document.cpp
+//       ↓  resolve_fallback_fonts()     ← font substitution
+//       ↓  resolve_text_run_tree()      ← spans → bidi → resolved runs
+//       ↓  resolve_and_shape()          ← HarfBuzz shaping → PlacedGlyphRun
+//       ↓  concatenate + ParagraphComposer → TextRunLayout (text_run_builder)
 //
 // Usage:
 //   FontEngine engine;
@@ -97,6 +98,35 @@ struct ResolvedTextTree {
     }
 };
 
+// ── ShapedParagraph — one paragraph with HarfBuzz-shaped runs ─────────
+
+/// Holds the PlacedGlyphRun outputs after shaping all ResolvedTextRuns
+/// of a paragraph.  Ready for concatenation + composition.
+struct ShapedParagraph {
+    /// One PlacedGlyphRun per ResolvedTextRun in the original paragraph.
+    /// Order matches ResolvedParagraph::runs.
+    std::vector<PlacedGlyphRun> shaped_runs;
+
+    /// The paragraph style from the source paragraph.
+    ParagraphStyle style{};
+};
+
+// ── ShapedTextTree — resolved + shaped document tree ──────────────────
+
+/// The output of resolve_and_shape().  Contains one ShapedParagraph per
+/// paragraph, each with HarfBuzz-shaped PlacedGlyphRun entries.
+struct ShapedTextTree {
+    std::vector<ShapedParagraph> paragraphs;
+
+    [[nodiscard]] size_t total_runs() const {
+        size_t n = 0;
+        for (const auto& p : paragraphs) {
+            n += p.shaped_runs.size();
+        }
+        return n;
+    }
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // resolve_fallback_fonts
 // ═══════════════════════════════════════════════════════════════════════════
@@ -146,6 +176,43 @@ struct ResolvedTextTree {
 [[nodiscard]] ResolvedTextTree resolve_text_run_tree(
     const TextDocument& doc,
     FontEngine& engine
+);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// shape_resolved_run
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Shape a single ResolvedTextRun through HarfBuzz and resolve glyph
+/// placements with tracking.
+///
+/// @param run      The resolved text run (font + direction + text).
+/// @param engine   FontEngine for HarfBuzz shaping.
+/// @param tracking Per-cluster tracking spacing in pixels.
+/// @return A PlacedGlyphRun with positioned glyphs and cluster info.
+///         Returns an empty run (no glyphs) if the font fails to load.
+[[nodiscard]] PlacedGlyphRun shape_resolved_run(
+    const ResolvedTextRun& run,
+    FontEngine& engine,
+    float tracking = 0.0f
+);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// resolve_and_shape
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Resolve a TextDocument AND shape every run through HarfBuzz.
+/// Convenience wrapper that calls resolve_text_run_tree() then
+/// shape_resolved_run() on every ResolvedTextRun.
+///
+/// @param doc      The TextDocument (paragraphs must be pre-split).
+/// @param engine   FontEngine for fallback + shaping.
+/// @param tracking Per-cluster tracking in pixels.
+/// @return A ShapedTextTree with one ShapedParagraph per paragraph,
+///         each containing PlacedGlyphRun entries ready for the compositor.
+[[nodiscard]] ShapedTextTree resolve_and_shape(
+    const TextDocument& doc,
+    FontEngine& engine,
+    float tracking = 0.0f
 );
 
 } // namespace chronon3d
