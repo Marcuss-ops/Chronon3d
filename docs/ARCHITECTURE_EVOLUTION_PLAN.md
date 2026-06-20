@@ -123,3 +123,32 @@ per-tile cache → rimozione LegacyNodeAdapter`
 | **[ROADMAP.md](ROADMAP.md)** | Roadmap attiva: item prioritari |
 | **[ORIENTATION.md](ORIENTATION.md)** | Panoramica architettura, build guide, API reference |
 | **[CHANGELOG.md](CHANGELOG.md)** | Cronologia item completati |
+
+---
+
+## Experimental Zone — Promozioni recenti (2026-06-20)
+
+Componenti entrate nella **Experimental Zone** (vedi `CORE_OWNERSHIP.md` §1D)
+con la corrispondente traccia di lifecycle, registrata qui il 2026-06-20
+per evitare che i reviewer perdano tempo riaprendo TICKET già documentati.
+
+### `expressions/v2` — attualmente su `main`
+
+| Campo | Valore |
+|---|---|
+| **Stato** | 🧪 Sperimentale — merged su `main`, non ancora promosso a feature stabile |
+| **Dove su main** | `include/chronon3d/expressions/v2/` (header pubblici) + `src/expressions/v2/` (sorgenti + target `chronon3d_expressions_v2`) + `tests/expressions/` (fixture di test, alcune disabilitate) |
+| **Perché su main nonostante Experimental** | Merged via PR #23 come pull-request sperimentale; non ancora passato al vaglio della fase di promozione |
+| **Provenance** | `CHANGELOG.md` → "Expression System v2 — Lifecycle" |
+| **Promotion blockers** | TICKET-003 (typo `<chrono3d/...>` nel lexer v2), TICKET-004 (regression `PUBLIC ${CMAKE_SOURCE_DIR}` sul target `chronon3d_expressions_v2`) |
+| **Storia del flag CMake** | `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` ritirato in questa sessione; `option(... OFF)` mantenuto a `CMakeLists.txt:233-237` come no-op deprecato per compatibilità della cache-key |
+
+La promozione alla **Feature Zone** richiede i quattro gate elencati in
+[`FEATURES.md` → "Expression System v2 — Experimental" → Promotion gates](FEATURES.md#expression-system-v2--experimental).
+
+> Audit di copertura (2026-06-20): nessun riferimento stale al flag in CI,
+> preset, script, `.cfg`, `.ini`, `.env`, `Dockerfile*`, `.github/workflows`,
+> `vcpkg.json`, `tools/*.sh`, o documenti MD. Uniche menzioni residue del
+> flag sono: (a) il blocco di retirement comment in `CMakeLists.txt`,
+> intenzionale, e (b) i riferimenti storici in `docs/FOLLOWUP_TICKETS.md`
+> (TICKET-003/-004/-005).
