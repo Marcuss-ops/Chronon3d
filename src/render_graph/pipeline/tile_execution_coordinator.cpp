@@ -6,7 +6,7 @@
 #include <chronon3d/core/profiling/trace_categories.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
-#include <chronon3d/core/memory/render_session.hpp>
+#include <chronon3d/runtime/render_session.hpp>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::graph {
