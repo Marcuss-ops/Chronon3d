@@ -65,20 +65,32 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time);
 /// Apply an `AnimatedTextDocument` sample state to a TextRunShape.
 ///
 /// Behaviour by transition type:
-///   * Hold / Cut / CrossfadeLayouts — render the `state.active->utf8`.
-///     `state.transition_text` is empty for these, so the active
-///     document is used as-is.  CrossfadeLayouts blends the per-glyph
-///     state in the renderer layer (NOT here — PR 8 renders the active
-///     side cleanly rather than maintaining two parallel layouts).
+///   * Hold / Cut — render the `state.active->utf8`.  `transition_text`
+///     is empty for these, so the active document is used as-is.  No
+///     crossfade slots touched.
 ///   * Scramble / Morph — render `state.transition_text` if non-empty
 ///     (filled by `AnimatedTextDocument::sample_at` for these modes);
-///     fall back to `state.active->utf8` otherwise.
+///     fall back to `state.active->utf8` otherwise.  No crossfade
+///     slots touched (Scramble/Morph shape their per-frame text into
+///     `shape.layout` directly).
+///   * CrossfadeLayouts (PR 11) — render the `state.active->utf8` into
+///     `shape.layout` AND populate `shape.crossfade_layout` from
+///     `state.crossfade_from` (and `shape.crossfade_glyphs` seeded
+///     from the new placed run) when `state.mix` is strictly inside
+///     (0, 1).  Outside the gap (mix on the boundary, crossfade_from
+///     null, transition != CrossfadeLayouts), the crossfade slots are
+///     reset so the compositor short-circuits.  The blend itself
+///     happens in the compositor (`draw_text_run`'s tiered loop),
+///     which composites the outgoing glyph vector with per-glyph
+///     opacity fold `(1 - shape.crossfade_mix)` against the active
+///     side.  See `compute_text_run_world_bbox` for the bounding-box
+///     union and `draw_text_run` for the per-glyph loop.
 ///
 /// Algorithm:
 ///   1. Decide `target_text` from `state.transition` + `state.transition_text`.
 ///   2. Fast-path: if `shape.layout->source_text == target_text` AND the
 ///      layout's font weight/path/style match the active document's
-///      defaults font, skip rebuild (no-op return).
+///      defaults font, skip rebuild on the active side (no-op return).
 ///   3. Build a single-paragraph `TextDocument` from `target_text` with
 ///      font/style fields copied from the current `shape.layout`.
 ///   4. Call `build_text_run` with the shared `TextLayoutCache` so
@@ -86,11 +98,26 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time);
 ///   5. Swap the parsed `TextRunLayout` into `shape.layout` (preserving
 ///      paint/material/shadows/animators).  Re-seed `shape.glyphs`
 ///      from the new placed run via `make_initial_glyph_states`.
-///   6. Return true (layout changed) so the caller invalidates any
-///      layout-resident cache downstream.
+///   6. PR 11 — CrossfadeLayouts lifecycle on `shape.crossfade_*`:
+///        - Inside the gap: shape `state.crossfade_from` via the
+///          same `build_text_run` pipeline; populate
+///          `shape.crossfade_layout`, `shape.crossfade_glyphs`, and
+///          `shape.crossfade_mix`.  Fast-path: skip rebuild when the
+///          existing `shape.crossfade_layout->source_text` matches
+///          `state.crossfade_from->utf8` AND the mix hasn't changed
+///          (cache lookup would hit anyway and re-seeding glyphs is
+///          wasted work for a no-visual-change frame).
+///        - Outside the gap: clear `shape.crossfade_layout`,
+///          `shape.crossfade_glyphs`, and `shape.crossfade_mix` so
+///          the per-frame driver and compositor both short-circuit
+///          on empty slots.
+///   7. Return true (active layout changed) so the caller invalidates
+///      any layout-resident cache downstream.
 ///
-/// @return true iff `shape->layout` was replaced (caller may want to
-///         invalidate downstream caches); false if a no-op.
+/// @return true iff `shape->layout` (active side) was replaced (caller
+///         may want to invalidate downstream caches); false if a no-op.
+///         The crossfade slot update is informational and does not
+///         gate the return value.
 [[nodiscard]] bool apply_active_state_to_text_run_shape(
     TextRunShape& shape,
     const ActiveTextState& state,

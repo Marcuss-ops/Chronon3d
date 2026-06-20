@@ -98,6 +98,41 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time) {
         shape.layout->source_text,
         time
     );
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PR 11 — CrossfadeLayouts: animate the outgoing side too
+    // ═══════════════════════════════════════════════════════════════════════════
+    //
+    // Mirror the same animator stack against the crossfade_glyphs
+    // vector when we're inside the gap.  This keeps per-glyph animators
+    // (transform / opacity / blur / color / etc.) applied symmetrically
+    // to both sides, so an animator like "blur fade-out" hits both
+    // outgoing and incoming glyphs during the crossfade.  The mix fold
+    // in the compositor handles the (1-mix) / mix fade scaling.
+    //
+    // No-op when:
+    //   - apply didn't populate crossfade_glyphs (we're out of gap)
+    //     — the empty-vector check protects against null
+    //     crossfade_layout (apply clears both together).
+    //   - animators vector is empty — same short-circuit as the active
+    //     side above; the crossfade_glyphs vector stays at the seeded
+    //     layout-aligned size with default styling.
+    if (!shape.crossfade_glyphs.empty() && shape.crossfade_layout) {
+        // Re-seed if the layout size has drifted (e.g. crossfade_from
+        // changed keyframes mid-gap); make_initial_glyph_states is a
+        // cheap O(num_glyphs) operation.
+        if (shape.crossfade_glyphs.size() != shape.crossfade_layout->placed.glyphs.size()) {
+            shape.crossfade_glyphs = make_initial_glyph_states(
+                shape.crossfade_layout->placed);
+        }
+        evaluate_animator_stack_into(
+            shape.crossfade_glyphs,
+            shape.animators,
+            shape.crossfade_layout->placed,
+            shape.crossfade_layout->source_text,
+            time
+        );
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -218,6 +253,95 @@ bool apply_active_state_to_text_run_shape(
     // `T* → const T*` builder conversion — no const_pointer_cast needed.
     shape.layout = result.paragraphs.front();
     shape.glyphs = make_initial_glyph_states(shape.layout->placed);
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PR 11 — CrossfadeLayouts per-glyph blend state
+    // ═══════════════════════════════════════════════════════════════════════════
+    //
+    // Maintain `shape.crossfade_*` slots in lockstep with the active
+    // side above.  Lifecycle:
+    //
+    //   In the gap (state.transition == CrossfadeLayouts,
+    //   state.crossfade_from != nullptr,
+    //   0 < state.mix < 1):
+    //     - Shape `state.crossfade_from` via the same build_text_run
+    //       pipeline; store the result in shape.crossfade_layout.
+    //     - Seed shape.crossfade_glyphs with make_initial_glyph_states
+    //       so the per-frame driver can evaluate the animator stack
+    //       against this slot symmetrically.
+    //     - Set shape.crossfade_mix = state.mix.  The compositor uses
+    //       this to fold per-glyph opacity across both layouts.
+    //
+    //   Out of the gap (transition != CrossfadeLayouts, OR
+    //   crossfade_from == nullptr, OR mix on the boundary):
+    //     - Reset crossfade_layout to nullptr, clear crossfade_glyphs,
+    //       reset crossfade_mix to 0.  Empty slots make crossfade work
+    //       a no-op in the per-frame driver and the compositor.
+    //
+    //   Fast-path (in gap): if shape.crossfade_layout already has the
+    //   correct source_text AND state.mix is the same as the cached
+    //   value, skip the rebuild — the cache lookup would hit anyway
+    //   and re-seeding crossfade_glyphs costs O(num_glyphs) for no
+    //   visual change.  The mix fold in the compositor handles the
+    //   smooth interpolation from there.
+
+    const bool in_crossfade_gap =
+        state.transition == SourceTextTransition::CrossfadeLayouts
+        && state.crossfade_from != nullptr
+        && state.mix > 0.0f
+        && state.mix < 1.0f;
+
+    if (in_crossfade_gap) {
+        const std::string& cf_utf8 = state.crossfade_from->utf8;
+        const bool same_layout =
+            shape.crossfade_layout
+            && shape.crossfade_layout->source_text == cf_utf8
+            && !cf_utf8.empty();
+
+        if (!same_layout || shape.crossfade_mix != state.mix) {
+            if (cf_utf8.empty()) {
+                shape.crossfade_layout.reset();
+                shape.crossfade_glyphs.clear();
+            } else {
+                // Use the crossfade_from document's own defaults.font so
+                // the layout matches the keyframe the document was bound
+                // to.  Unlike the active side, there's no prior layout
+                // to preserve when first entering the gap.
+                TextDocument cf_td;
+                cf_td.utf8 = cf_utf8;
+                cf_td.defaults.font = state.crossfade_from->defaults.font;
+                cf_td.split_paragraphs();
+
+                TextRunBuildResult cf_result =
+                    build_text_run(cf_td, engine, layout_spec, &cache);
+                if (!cf_result.paragraphs.empty() && cf_result.paragraphs.front()) {
+                    shape.crossfade_layout = cf_result.paragraphs.front();
+                    shape.crossfade_glyphs = make_initial_glyph_states(
+                        shape.crossfade_layout->placed);
+                } else {
+                    // Crossfade_from failed to shape (e.g. font load
+                    // failure) — clear slot rather than leave stale state.
+                    shape.crossfade_layout.reset();
+                    shape.crossfade_glyphs.clear();
+                }
+            }
+        }
+        // Always update the mix so the compositor sees the current value
+        // for opacity fold, even on fast-path cache hits.
+        shape.crossfade_mix = state.mix;
+    } else {
+        // Out of the gap — release the second-slot state so the
+        // per-frame driver and the compositor both short-circuit on
+        // empty slots.
+        if (shape.crossfade_layout) {
+            shape.crossfade_layout.reset();
+        }
+        if (!shape.crossfade_glyphs.empty()) {
+            shape.crossfade_glyphs.clear();
+        }
+        shape.crossfade_mix = 0.0f;
+    }
+
     return true;
 }
 
@@ -322,12 +446,43 @@ bool prewarm_text_run_layout_for_frame(
     TextRunBuildResult result =
         build_text_run(td, *shape.engine, shape.layout_spec, &cache);
 
+    // ── PR 11 — prewarm the crossfade_from side too ─────────
+    //
+    // CrossfadeLayouts transitions render BOTH the active document
+    // and the crossfade_from document per-glyph in the compositor.
+    // Both sides pay a HarfBuzz cost the first frame UNLESS we
+    // prewarm the second slot here.  Skip when we're outside the
+    // gap (crossfade_from null or mix at the boundary), so a
+    // prewarm of a settled frame doesn't waste work.
+    const bool in_crossfade_gap =
+        state.transition == SourceTextTransition::CrossfadeLayouts
+        && state.crossfade_from != nullptr
+        && state.mix > 0.0f
+        && state.mix < 1.0f;
+
+    bool cf_ok = true;
+    if (in_crossfade_gap && !state.crossfade_from->utf8.empty()) {
+        TextDocument cf_td;
+        cf_td.utf8 = state.crossfade_from->utf8;
+        cf_td.defaults.font = state.crossfade_from->defaults.font;
+        cf_td.split_paragraphs();
+
+        TextRunBuildResult cf_result =
+            build_text_run(cf_td, *shape.engine, shape.layout_spec, &cache);
+        cf_ok = !cf_result.paragraphs.empty();
+    }
+
     // ── Return true on operation success ─────────────────────────
     //
     // `result.paragraphs.empty()` only happens when build_text_run
     // itself failed (e.g. font load failure, malformed document).
     // Caller can use this to log + skip the anticipator entry.
-    return !result.paragraphs.empty();
+    //
+    // PR 11: also require the crossfade_from side to have shaped
+    // successfully when we're inside the gap.  A half-warmed
+    // CrossfadeLayouts would leave the compositor with one stale
+    // layout and one fresh one, producing a 1-frame pop on entry.
+    return !result.paragraphs.empty() && cf_ok;
 }
 
 } // namespace chronon3d

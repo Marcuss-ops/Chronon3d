@@ -275,7 +275,7 @@ u64 hash_text_run_shape(const TextRunShape& s) {
 // Morph / CrossfadeLayouts frames invalidate the executor's per-frame
 // node cache without false hits.
 //
-// Fold matrix (PR 10):
+// Fold matrix (PR 10 + PR 11):
 //   - transition_type (Y)         — drives the renderer branch.
 //   - active->utf8_bytes (Y)      — Hold / Cut / CrossfadeLayouts have
 //                                    empty transition_text; we need the
@@ -284,17 +284,21 @@ u64 hash_text_run_shape(const TextRunShape& s) {
 //                                    weight swapped) must invalidate.
 //                                    Captures the intent of the next
 //                                    apply_active_state_to_text_run_shape.
+//   - crossfade_from->utf8 + font (Y, PR 11)
+//                                  — CrossfadeLayouts renders BOTH
+//                                    active and crossfade_from per-
+//                                    glyph in the compositor (PR 11
+//                                    implementation).  A change in
+//                                    outgoing text or outgoing font
+//                                    must invalidate the cache key.
 //   - transition_text_bytes (Y)    — random per-frame scramble bytes
 //                                    (folded only when non-empty; XXH3
 //                                    already discriminates empty vs non-
 //                                    empty so we skip the redundant
 //                                    length-prefix fold).
 //   - morph_map_bytes (Y)          — Morph topology (pair<i32,i32>).
-//   - mix_value (Y)                — continuous visual params.
-//   - crossfade_from->utf8_bytes (?)
-//                                  — CrossfadeLayouts renders only the
-//                                    active side in this PR; safe to skip
-//                                    until the per-glyph blend path lands.
+//   - mix_value (Y)                — continuous visual params
+//                                    (CrossfadeLayouts fold included).
 //   - length-prefix (N)            — XXH3 already absorbs sequence length.
 //
 // Cost: O(n_keyframes) binary search inside `sample_at` +
@@ -338,6 +342,25 @@ u64 hash_text_run_shape(const TextRunShape& s, Frame frame) {
     if (state.active != nullptr) {
         const auto& d = state.active->defaults;
         seed = hash_combine(seed, hash_string(state.active->utf8));
+        seed = hash_combine(seed, hash_string(d.font.font_path));
+        seed = hash_combine(seed, hash_string(d.font.font_family));
+        seed = hash_combine(seed, hash_value(d.font.font_weight));
+        seed = hash_combine(seed, hash_string(d.font.font_style));
+        seed = hash_combine(seed, hash_value(d.font.font_size));
+    }
+
+    // Fold the crossfade_from side conditional on whether
+    // sample_at returned a non-null outgoing document.  PR 11:
+    // only CrossfadeLayouts sets this pointer, but we fold
+    // unconditionally when set so any future transition mode that
+    // populates crossfade_from is correctly covered by the cache
+    // key.  Mirrors the active>defaults.font fold field-for-field
+    // so a font-only delta on the outgoing side (the path that
+    // could otherwise produce a stale shape hash across the gap)
+    // invalidates the cache.
+    if (state.crossfade_from != nullptr) {
+        const auto& d = state.crossfade_from->defaults;
+        seed = hash_combine(seed, hash_string(state.crossfade_from->utf8));
         seed = hash_combine(seed, hash_string(d.font.font_path));
         seed = hash_combine(seed, hash_string(d.font.font_family));
         seed = hash_combine(seed, hash_value(d.font.font_weight));
