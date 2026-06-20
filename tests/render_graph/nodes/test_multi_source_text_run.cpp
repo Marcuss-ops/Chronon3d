@@ -104,8 +104,8 @@ TEST_CASE("MultiSourceNode: predicted_bbox handles text_run item via text_run he
     RenderNode text_node;
     text_node.name = std::pmr::string{"text_item"};
     text_node.world_transform.position = Vec3(50.0f, 50.0f, 0.0f);
-    text_node.is_text_run_shape = true;
-    text_node.text_run_shape = shape;
+    text_node.shape.set_type(ShapeType::TextRun);
+    text_node.shape.text_run_shape_handle().value = shape;
 
     RenderNode rect_node;
     rect_node.name = std::pmr::string{"rect_item"};
@@ -157,14 +157,14 @@ TEST_CASE("MultiSourceNode: cache_key invalidates on text_run per-glyph state ch
     RenderNode text_node;
     text_node.name = std::pmr::string{"anim_text"};
     text_node.world_transform.position = Vec3(50.0f, 50.0f, 0.0f);
-    text_node.is_text_run_shape = true;
+    text_node.shape.set_type(ShapeType::TextRun);
 
     RenderGraphContext ctx;
     ctx.frame.width = 1920;
     ctx.frame.height = 1080;
 
     // Two MSNs sharing all fields except the underlying text_run content.
-    text_node.text_run_shape = shape_a;
+    text_node.shape.text_run_shape_handle().value = shape_a;
     std::vector<MultiSourceItem> items_a;
     items_a.push_back({&text_node, Mat4(1.0f), 1.0f});
 
@@ -174,7 +174,7 @@ TEST_CASE("MultiSourceNode: cache_key invalidates on text_run per-glyph state ch
 
     // Mutate middle glyph position (animator-driven slide).
     shape_b->glyphs[1].position.x = 25.0f;
-    text_node.text_run_shape = shape_b;
+    text_node.shape.text_run_shape_handle().value = shape_b;
     std::vector<MultiSourceItem> items_b;
     items_b.push_back({&text_node, Mat4(1.0f), 1.0f});
     MultiSourceNode node_b("anim_b", std::move(items_b), key, false, false);
@@ -193,9 +193,9 @@ TEST_CASE("MultiSourceNode: execute tolerant of text_run item with null shape") 
     RenderNode text_node;
     text_node.name = std::pmr::string{"orphan_text"};
     text_node.world_transform.position = Vec3(50.0f, 50.0f, 0.0f);
-    text_node.is_text_run_shape = true;
+    text_node.shape.set_type(ShapeType::TextRun);
     // text_run_shape is the DEFAULT null shared_ptr — orphan case.
-    REQUIRE(text_node.text_run_shape == nullptr);
+    REQUIRE(text_node.shape.text_run_shape_handle().value == nullptr);
 
     RenderNode rect_node;
     rect_node.name = std::pmr::string{"rect"};
@@ -241,8 +241,8 @@ TEST_CASE("MultiSourceNode: execute with mixed rect + text_run returns valid fb"
     RenderNode text_node;
     text_node.name = std::pmr::string{"mixed_text"};
     text_node.world_transform.position = Vec3(100.0f, 100.0f, 0.0f);
-    text_node.is_text_run_shape = true;
-    text_node.text_run_shape = shape;
+    text_node.shape.set_type(ShapeType::TextRun);
+    text_node.shape.text_run_shape_handle().value = shape;
 
     RenderNode rect_node;
     rect_node.name = std::pmr::string{"mixed_rect"};
@@ -284,8 +284,8 @@ TEST_CASE("MultiSourceNode: cache_key invalidates when 2.5D camera moves under p
     RenderNode text_node;
     text_node.name = std::pmr::string{"proj_text"};
     text_node.world_transform.position = Vec3(50.0f, 50.0f, 0.0f);
-    text_node.is_text_run_shape = true;
-    text_node.text_run_shape = make_test_text_run_shape_pr6(2);
+    text_node.shape.set_type(ShapeType::TextRun);
+    text_node.shape.text_run_shape_handle().value = make_test_text_run_shape_pr6(2);
 
     std::vector<MultiSourceItem> items;
     items.push_back({&text_node, Mat4(1.0f), 1.0f});

@@ -290,6 +290,10 @@ template <typename T>
             seed = hash_combine(seed, hash_bytes(s.image().path.data(), s.image().path.size()));
             seed = hash_combine(seed, hash_vec2(s.image().size));
             return hash_combine(seed, hash_bytes(&s.image().opacity, sizeof(f32)));
+        case ShapeType::TiledImage:
+            seed = hash_combine(seed, hash_bytes(s.tiled_image().image.path.data(), s.tiled_image().image.path.size()));
+            seed = hash_combine(seed, hash_vec2(s.tiled_image().image.size));
+            return hash_combine(seed, hash_bytes(&s.tiled_image().image.opacity, sizeof(f32)));
         case ShapeType::GridBackground:
             seed = hash_combine(seed, hash_vec2(s.grid_background().size));
             seed = hash_combine(seed, hash_vec2(s.grid_background().offset));
