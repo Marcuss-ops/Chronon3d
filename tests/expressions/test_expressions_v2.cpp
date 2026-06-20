@@ -179,6 +179,43 @@ TEST_CASE("Compiler: lex_errored suppresses parse_primary — `@1` produces exac
     CHECK(r.errors.front().message.find("lex:") != std::string::npos);
 }
 
+// Companion to `@1`: lex('@') errors, parse_primary Ident branch (idx 3) -> AstIdentifier,
+// type-check = Top (free-identifier permissive). Regression: errors.size() == 2 means
+// default-case suppression broke.
+TEST_CASE("Compiler: lex_errored suppresses parse_primary — `@x` produces exactly 1 lex error") {
+    auto r = compile("@x");
+    REQUIRE_FALSE(r.ok());
+    CHECK(r.errors.size() == 1);
+    CHECK(r.errors.front().message.find("lex:") != std::string::npos);
+}
+
+// Companion to `@1` / `@x`: exercises parse_primary's BoolTrue branch
+// (TokenKind::BoolTrue). With trailing token `true`, parse_primary returns
+// AstNode{true} cleanly; type-check classifies as Type::Bool with no error.
+// Only the lex error from `@` reaches out.errors.
+TEST_CASE("Compiler: lex_errored suppresses parse_primary — `@true` produces exactly 1 lex error") {
+    auto r = compile("@true");
+    REQUIRE_FALSE(r.ok());
+    CHECK(r.errors.size() == 1);
+    CHECK(r.errors.front().message.find("lex:") != std::string::npos);
+}
+
+// Companion to `@1` / `@x` / `@true`: exercises parse_primary's String branch
+// (TokenKind::String). With trailing token `"foo"`, parse_primary returns
+// AstNode{"foo"} cleanly; type-check classifies as Type::String with no error.
+// Only the lex error from `@` reaches out.errors.
+//
+// Together with `@1` (Number), `@x` (Identifier), `@true` (BoolTrue), and
+// `@"foo"` (String), the suppression is locked across every parse_primary
+// kind that has a dedicated branch.  A future branch addition (or a regression
+// that loosens the default-case suppression) will surface here.
+TEST_CASE("Compiler: lex_errored suppresses parse_primary — `@\"foo\"` produces exactly 1 lex error") {
+    auto r = compile("@\"foo\"");
+    REQUIRE_FALSE(r.ok());
+    CHECK(r.errors.size() == 1);
+    CHECK(r.errors.front().message.find("lex:") != std::string::npos);
+}
+
 // ════════════════════════════════════════════════════════════════════
 //  Type checker (over AST)
 // ════════════════════════════════════════════════════════════════════
@@ -325,6 +362,11 @@ TEST_CASE("VM: Vec3 * scalar produces Vec3") {
 // ════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Path B end-to-end: 1 + 2 * 3 evaluates to 7") {
+    // compile(source).ok() precondition: surfaces parser-stage failure
+    // (lex/parse/type-check) directly under cr.errors rather than letting
+    // Vm::evaluate report it via an opaque VmError message.
+    CompileResult cr = compile("1 + 2 * 3");
+    REQUIRE(cr.ok());
     VmError err;
     ExpressionValue v = Vm::evaluate("1 + 2 * 3", &err);
     REQUIRE(err.message.empty());
@@ -387,6 +429,9 @@ TEST_CASE("Path B end-to-end: thisLayer.position.x is property reference") {
 }
 
 TEST_CASE("Path B end-to-end: conditional (ternary) picks branch") {
+    // compile(source).ok() precondition: see 1 + 2 * 3 test for rationale.
+    CompileResult cr = compile("true ? 42 : 0");
+    REQUIRE(cr.ok());
     VmError err;
     ExpressionValue v = Vm::evaluate("true ? 42 : 0", &err);
     REQUIRE(err.message.empty());
@@ -405,6 +450,57 @@ TEST_CASE("Path B end-to-end: conditional (ternary) picks branch") {
 //   outer: 1 < 2 ? 5 : 7  → 5  (true branch)
 //   final: 5
 TEST_CASE("Path B end-to-end: ternary is right-associative (`1 < 2 ? 3 < 4 ? 5 : 6 : 7` = 5)") {
+    // compile(source).ok() precondition: surfaces any parser-stage failure
+    // (e.g. parse_conditional regression) directly under cr.errors. If the
+    // recursive descent into the inner ternary broke, this REQUIRE fires
+    // before Vm::evaluate gets a chance to mask it as VmError "halt".
+    CompileResult cr = compile("1 < 2 ? 3 < 4 ? 5 : 6 : 7");
+    REQUIRE(cr.ok());
+
+    // === AST shape: lock the parse tree directly ===================
+    // Expected tree:  Conditional(Lt(1,2), Conditional(Lt(3,4), 5, 6), 7)
+    // i.e. right-associative `?:`; the THEN branch is ANOTHER AstConditional
+    // (variant index 9), proving parse_conditional recursed instead of
+    // bailing to parse_expression (which errors on `:`) and stopping at the
+    // first Lt.  If parse_conditional regression made `?:` left-associative,
+    // the top-level would still be AstConditional but the THEN branch would
+    // be a number — this assertion catches that.
+    //
+    // Note: leaf `index()==0` checks are deliberately absent because
+    // std::get<double>(...) below throws std::bad_variant_access on a wrong
+    // index, which doctest will surface as a loud failure.  Top-level and
+    // THEN-branch `index()==9` REQUIREs are kept because they distinguish
+    // *topology errors* (wrong branch shape) from leaf-type errors.
+    REQUIRE(cr.ast.index() == 9);                       // AstConditional
+    const auto& outer = std::get<AstConditional>(cr.ast);
+    REQUIRE(outer.condition);
+    REQUIRE(outer.then_branch);
+    REQUIRE(outer.else_branch);
+    // outer.condition: Lt(1,2)
+    REQUIRE(outer.condition->index() == 7);             // AstBinary
+    const auto& outer_cond = std::get<AstBinary>(*outer.condition);
+    CHECK(outer_cond.op == BinaryOp::Lt);
+    REQUIRE(outer_cond.lhs);
+    REQUIRE(outer_cond.rhs);
+    CHECK(std::get<double>(*outer_cond.lhs) == doctest::Approx(1.0));
+    CHECK(std::get<double>(*outer_cond.rhs) == doctest::Approx(2.0));
+    // outer.then_branch: nested Conditional(Lt(3,4), 5, 6)
+    REQUIRE(outer.then_branch->index() == 9);           // AstConditional
+    const auto& inner = std::get<AstConditional>(*outer.then_branch);
+    REQUIRE(inner.condition);
+    REQUIRE(inner.then_branch);
+    REQUIRE(inner.else_branch);
+    REQUIRE(inner.condition->index() == 7);
+    const auto& inner_cond = std::get<AstBinary>(*inner.condition);
+    CHECK(inner_cond.op == BinaryOp::Lt);
+    CHECK(std::get<double>(*inner_cond.lhs) == doctest::Approx(3.0));
+    CHECK(std::get<double>(*inner_cond.rhs) == doctest::Approx(4.0));
+    CHECK(std::get<double>(*inner.then_branch) == doctest::Approx(5.0));
+    CHECK(std::get<double>(*inner.else_branch) == doctest::Approx(6.0));
+    // outer.else_branch: 7
+    CHECK(std::get<double>(*outer.else_branch) == doctest::Approx(7.0));
+    // === end AST shape ===
+
     VmError err;
     ExpressionValue v = Vm::evaluate("1 < 2 ? 3 < 4 ? 5 : 6 : 7", &err);
     REQUIRE(err.message.empty());
@@ -416,6 +512,39 @@ TEST_CASE("Path B end-to-end: ternary is right-associative — false inner picks
     // Same shape but inner condition is false: `2 < 1 ? ... : 4 : 9` → 9.
     // Confirms the recursion reaches the right BOTH branches, not just the
     // true-then side of the inner ternary.
+    // compile(source).ok() precondition: see true-branch counterpart above.
+    CompileResult cr = compile("1 < 2 ? 2 < 1 ? 5 : 4 : 9");
+    REQUIRE(cr.ok());
+
+    // === AST shape: lock the false-inner branch reaches both sides ===
+    // Expected tree:  Conditional(Lt(1,2), Conditional(Lt(2,1), 5, 4), 9)
+    // Same right-associative shape as the true-branch case; only the
+    // inner-then/inner-else literals differ.
+    REQUIRE(cr.ast.index() == 9);
+    const auto& outer = std::get<AstConditional>(cr.ast);
+    REQUIRE(outer.condition != nullptr);
+    REQUIRE(outer.then_branch != nullptr);
+    REQUIRE(outer.else_branch != nullptr);
+    REQUIRE(outer.condition->index() == 7);
+    const auto& outer_cond = std::get<AstBinary>(*outer.condition);
+    CHECK(outer_cond.op == BinaryOp::Lt);
+    CHECK(std::get<double>(*outer_cond.lhs) == doctest::Approx(1.0));
+    CHECK(std::get<double>(*outer_cond.rhs) == doctest::Approx(2.0));
+    REQUIRE(outer.then_branch->index() == 9);
+    const auto& inner = std::get<AstConditional>(*outer.then_branch);
+    REQUIRE(inner.condition != nullptr);
+    REQUIRE(inner.then_branch != nullptr);
+    REQUIRE(inner.else_branch != nullptr);
+    REQUIRE(inner.condition->index() == 7);
+    const auto& inner_cond = std::get<AstBinary>(*inner.condition);
+    CHECK(inner_cond.op == BinaryOp::Lt);
+    CHECK(std::get<double>(*inner_cond.lhs) == doctest::Approx(2.0));
+    CHECK(std::get<double>(*inner_cond.rhs) == doctest::Approx(1.0));
+    CHECK(std::get<double>(*inner.then_branch) == doctest::Approx(5.0));
+    CHECK(std::get<double>(*inner.else_branch) == doctest::Approx(4.0));
+    CHECK(std::get<double>(*outer.else_branch) == doctest::Approx(9.0));
+    // === end AST shape ===
+
     VmError err;
     ExpressionValue v = Vm::evaluate("1 < 2 ? 2 < 1 ? 5 : 4 : 9", &err);
     REQUIRE(err.message.empty());

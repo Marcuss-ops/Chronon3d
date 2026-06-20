@@ -441,6 +441,9 @@ CompileResult compile(std::string_view source) noexcept {
     Parser p(lexed.tokens);
     p.lex_errored = !lexed.errors.empty();
     AstNode ast = p.parse_expression();
+    // Parsed AST is captured into out.ast only on the *success* path below,
+    // so callers can rely on it being either the parsed tree (when
+    // out.errors is empty) or default-constructed (variant alt 0).
     for (auto& e : p.errors) out.errors.push_back(std::move(e));
     if (!out.errors.empty()) return out;
 
@@ -458,6 +461,11 @@ CompileResult compile(std::string_view source) noexcept {
     emit_ast(ast, emitter);
     emitter.emit(OpKind::RETURN, 0);
     out.program = std::move(emitter.p);
+    // Move the parsed AST into CompileResult so callers (notably tests
+    // asserting on parse-tree shape) can introspect it after a successful
+    // compile.  Earlier early-return paths leave out.ast default-constructed
+    // (variant alt 0 = double 0.0), matching the doc on CompileResult::ast.
+    out.ast = std::move(ast);
     return out;
 }
 
