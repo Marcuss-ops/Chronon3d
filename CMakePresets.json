@@ -169,6 +169,7 @@
         "CHRONON3D_ENABLE_TELEMETRY": "ON",
         "CHRONON3D_ENABLE_PROFILING": "ON",
         "CHRONON3D_UNITY_BUILD": "OFF",
+        "CHRONON3D_BUILD_EXPERIMENTAL": "ON",
         "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;telemetry;tests;benchmarks;profiling"
       }
     },

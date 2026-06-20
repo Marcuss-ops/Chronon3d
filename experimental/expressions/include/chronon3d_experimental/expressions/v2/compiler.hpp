@@ -13,10 +13,10 @@
 
 #pragma once
 
-#include <chronon3d/expressions/v2/ast.hpp>
-#include <chronon3d/expressions/v2/bytecode.hpp>
-#include <chronon3d/expressions/v2/lexer.hpp>
-#include <chronon3d/expressions/v2/type_checker.hpp>
+#include <chronon3d_experimental/expressions/v2/ast.hpp>
+#include <chronon3d_experimental/expressions/v2/bytecode.hpp>
+#include <chronon3d_experimental/expressions/v2/lexer.hpp>
+#include <chronon3d_experimental/expressions/v2/type_checker.hpp>
 
 #include <string>
 #include <string_view>

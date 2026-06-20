@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include <chronon3d/expressions/v2/lexer.hpp>
+#include <chronon3d_experimental/expressions/v2/lexer.hpp>
 
 #include <cstdint>
 #include <memory>

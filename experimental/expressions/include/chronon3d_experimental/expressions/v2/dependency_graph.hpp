@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include <chronon3d/expressions/v2/bytecode.hpp>
+#include <chronon3d_experimental/expressions/v2/bytecode.hpp>
 
 #include <cstdint>
 #include <string>

@@ -1,6 +1,6 @@
 // vm.cpp — Path B VM interpreter (with packed LOAD_CONST slot design).
 
-#include <chronon3d/expressions/v2/vm.hpp>
+#include <chronon3d_experimental/expressions/v2/vm.hpp>
 
 #include <algorithm>
 #include <cmath>
