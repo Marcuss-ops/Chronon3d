@@ -8,7 +8,10 @@
 
 namespace chronon3d {
 
-class AssetRegistry;  // forward declaration — used by validate/ok signatures
+// Forward declaration: function signatures below only take AssetRegistry
+// by const reference, so a full include would over-bloat every TU that
+// pulls render_preflight.hpp.
+class AssetRegistry;
 
 class ChrononAssetError : public std::runtime_error {
 public:
