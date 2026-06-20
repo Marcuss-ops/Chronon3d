@@ -12,8 +12,8 @@ namespace chronon3d::graph {
 MultiSourceNode::MultiSourceNode(
     std::string name, std::vector<MultiSourceItem> items, const cache::NodeCacheKey& key,
     bool centered, bool uses_2_5d_projection, RenderNodeCachePolicy policy
-) : m_name(std::move(name)), m_items(std::move(items)), m_key(key),
-    m_centered(centered), m_uses_2_5d_projection(uses_2_5d_projection), m_cache_policy(policy) {}
+) : RenderGraphNode(policy), m_name(std::move(name)), m_items(std::move(items)), m_key(key),
+    m_centered(centered), m_uses_2_5d_projection(uses_2_5d_projection) {}
 
 std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
     const RenderGraphContext& ctx,
@@ -83,10 +83,6 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
         return raster::BBox{0, 0, 0, 0};
     }
     return raster::BBox{x0, y0, x1, y1};
-}
-
-RenderNodeCachePolicy MultiSourceNode::cache_policy() const noexcept {
-    return m_cache_policy;
 }
 
 cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) const {

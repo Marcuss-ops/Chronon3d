@@ -13,7 +13,8 @@ namespace chronon3d::graph {
 class LightingNode final : public RenderGraphNode {
 public:
     LightingNode(std::string layer_name, Mat4 world_matrix, Material2_5D material)
-        : m_layer_name(std::move(layer_name))
+        : RenderGraphNode(frame_variant_cache("lighting"))
+        , m_layer_name(std::move(layer_name))
         , m_world_matrix(world_matrix)
         , m_material(material) {}
 
@@ -72,10 +73,6 @@ public:
         }
 
         return result;
-    }
-
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
-        return frame_variant_cache("lighting");
     }
 
     static std::unique_ptr<LightingNode> create(std::string layer_name, const Mat4& world_matrix,

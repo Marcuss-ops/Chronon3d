@@ -11,7 +11,8 @@ namespace chronon3d::graph {
 class VideoNode final : public RenderGraphNode {
 public:
     VideoNode(video::VideoSource source, media::MediaFrameProvider* decoder, Frame layer_start)
-        : m_source(std::move(source)),
+        : RenderGraphNode(no_cache("video"))
+        , m_source(std::move(source)),
           m_decoder(decoder),
           m_layer_start(layer_start),
           m_full_name("Video:" + m_source.path) {}
@@ -22,10 +23,6 @@ public:
 
     [[nodiscard]] std::string_view name() const noexcept override {
         return m_full_name;
-    }
-
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
-        return m_cache_policy;
     }
 
     std::optional<raster::BBox> predicted_bbox(
@@ -93,7 +90,6 @@ private:
     std::string m_full_name;  // "Video:" + path, stored for string_view
     media::MediaFrameProvider* m_decoder{};
     Frame m_layer_start{0};
-    RenderNodeCachePolicy m_cache_policy{no_cache("video")};
 };
 
 } // namespace chronon3d::graph

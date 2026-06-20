@@ -24,14 +24,10 @@ public:
     // `bool frame_dep` ctor args and `m_cacheable` member were dropped.
     explicit TestNode(std::string n,
                        RenderNodeCachePolicy policy = static_memory_cache("test"))
-        : m_name(std::move(n)), m_cache_policy(policy) {}
+        : RenderGraphNode(policy), m_name(std::move(n)) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
     [[nodiscard]] std::string_view name() const noexcept override { return m_name; }
-
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
-        return m_cache_policy;
-    }
 
     /// Test-only: swap the cache policy mid-test to simulate per-node
     /// variation when a test wanted to flip a legacy
@@ -59,7 +55,6 @@ public:
 
 private:
     std::string m_name;
-    RenderNodeCachePolicy m_cache_policy;
 };
 
 // ── Helpers ─────────────────────────────────────────────────────────────

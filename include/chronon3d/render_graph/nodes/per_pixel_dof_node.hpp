@@ -26,7 +26,7 @@ namespace chronon3d::graph {
 class PerPixelDofNode final : public RenderGraphNode {
 public:
     explicit PerPixelDofNode(Camera2_5DRuntime camera)
-        : m_camera(std::move(camera)) {}
+        : RenderGraphNode(frame_variant_cache("per_pixel_dof")), m_camera(std::move(camera)) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
     std::string_view name() const noexcept override { return "PerPixelDOF"; }
@@ -72,10 +72,6 @@ public:
         std::span<const FramebufferRef> inputs,
         std::span<const std::optional<raster::BBox>> input_bboxes
     ) override;
-
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
-        return frame_variant_cache("per_pixel_dof");
-    }
 
     static std::unique_ptr<PerPixelDofNode> create(const Camera2_5DRuntime& cam) {
         return std::make_unique<PerPixelDofNode>(cam);

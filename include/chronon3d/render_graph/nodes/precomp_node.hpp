@@ -42,10 +42,6 @@ public:
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Precomp; }
     std::string_view name() const noexcept override { return m_full_name; }
 
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
-        return static_memory_cache("precomp");
-    }
-
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "precomp",

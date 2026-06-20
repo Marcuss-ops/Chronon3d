@@ -30,7 +30,7 @@ public:
     explicit TransformNode(Mat4 matrix, f32 opacity, Frame cache_frame,
                           SamplingMode mode = SamplingMode::Bilinear,
                           RenderNodeCachePolicy policy = static_memory_cache("transform"))
-        : m_matrix(matrix), m_opacity(opacity), m_mode(mode), m_use_matrix(true), m_cache_frame(cache_frame), m_cache_policy(policy) {}
+        : RenderGraphNode(policy), m_matrix(matrix), m_opacity(opacity), m_mode(mode), m_use_matrix(true), m_cache_frame(cache_frame) {}
 
     [[nodiscard]] RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Transform; }
     [[nodiscard]] std::string_view name() const noexcept override { return "Transform"; }
@@ -39,10 +39,6 @@ public:
         const RenderGraphContext& ctx,
         std::span<const std::optional<raster::BBox>> input_bboxes = {}
     ) const override;
-
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
-        return m_cache_policy;
-    }
 
     [[nodiscard]] cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         u64 params_hash = hash_combine(
@@ -153,7 +149,6 @@ private:
     SamplingMode m_mode{SamplingMode::Bilinear};
     bool      m_use_matrix{false};
     Frame     m_cache_frame{-1};
-    RenderNodeCachePolicy m_cache_policy{static_memory_cache("transform")};
 };
 
 } // namespace chronon3d::graph

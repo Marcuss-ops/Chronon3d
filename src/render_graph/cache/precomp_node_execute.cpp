@@ -34,7 +34,8 @@ PrecompNode::PrecompNode(std::string comp_name, Frame start_frame, Frame duratio
                          Frame cache_frame, size_t cache_capacity,
                          cache::TuneMode tune_mode, size_t tune_interval,
                          size_t tune_min_cap, size_t tune_max_cap)
-    : m_comp_name(std::move(comp_name))
+    : RenderGraphNode(static_memory_cache("precomp"))
+    , m_comp_name(std::move(comp_name))
     , m_full_name("Precomp:" + m_comp_name)
     , m_start_frame(start_frame)
     , m_duration(duration)

@@ -10,7 +10,7 @@ public:
     MaskNode(Mask mask,
               Frame cache_frame = Frame{-1},
               RenderNodeCachePolicy policy = static_memory_cache("mask"))
-        : m_mask(std::move(mask)), m_cache_frame(cache_frame), m_cache_policy(policy) {}
+        : RenderGraphNode(policy), m_mask(std::move(mask)), m_cache_frame(cache_frame) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Mask; }
     std::string_view name() const noexcept override { return "Mask"; }
@@ -21,10 +21,6 @@ public:
     ) const override {
         if (input_bboxes.empty()) return std::nullopt;
         return input_bboxes[0];
-    }
-
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
-        return m_cache_policy;
     }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
@@ -152,7 +148,6 @@ private:
 
     Mask m_mask;
     Frame m_cache_frame{-1};
-    RenderNodeCachePolicy m_cache_policy{static_memory_cache("mask")};
     mutable std::shared_ptr<Framebuffer> m_alpha_cache;
     mutable std::uint64_t m_alpha_cache_key{0};
 };
