@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/core/enum_utils.hpp>
 #include <string>
 #include <vector>
