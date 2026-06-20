@@ -431,8 +431,10 @@ CompileResult compile(std::string_view source) noexcept {
         ce.span = te.span;
         ce.message = std::string("type: ") + te.message;
         out.errors.push_back(std::move(ce));
-        return out; // type errors abort pipeline
+        // Surface ALL diagnostics: do not early-return on the first error
+        // (reviewer fix #2 — type-error multi-push).
     }
+    if (!out.errors.empty()) return out;
 
     Emitter emitter;
     emit_ast(ast, emitter);
