@@ -114,6 +114,9 @@ endif()
 if(TARGET chronon3d_gradient_visual_tests)
     list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_gradient_visual_tests)
 endif()
+if(TARGET chronon3d_render_graph_node_visual_tests)
+    list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_render_graph_node_visual_tests)
+endif()
 add_custom_target(chronon3d_tests_render
     DEPENDS ${CHRONON3D_RENDER_TEST_DEPS}
 )
