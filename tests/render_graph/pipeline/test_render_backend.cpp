@@ -4,9 +4,12 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/compositor/composite_operator.hpp>
 #include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
+#include <chronon3d/render_graph/compiler/frame_graph_compile_options.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/core/memory/render_session.hpp>
+#include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
@@ -61,7 +64,7 @@ TEST_CASE("RenderBackend - RenderGraphContext accepts and executes RenderBackend
 TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
     FakeBackend backend;
     cache::NodeCache cache;
-    
+
     // Create simple rect layer scene using modern API
     SceneBuilder builder;
     builder.rect("test_rect", {.size = {50.0f, 50.0f}, .color = Color::red()});
@@ -71,13 +74,25 @@ TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
         .frame = {.width = 64, .height = 64},
         .resources = {.backend = &backend, .node_cache = &cache}
     };
-    
+
     RenderGraph graph = GraphBuilder::build(scene, ctx);
-    
+
+    // ── PR-B: route through compiled graph + ExecutionScheduler ────────
+    // Tests that build their own RenderGraphContext without a
+    // SoftwareRenderer must instantiate an ExecutionScheduler locally
+    // and pass it both explicitly to executor.execute() (required) and
+    // populate ctx.resources.scheduler (for nested PrecompNode dispatch).
+    FrameGraphCompiler compiler;
+    const FrameGraphCompileOptions kTestOptions{ .run_optimizer = false };
+    auto compiled = compiler.compile(std::move(graph), ctx, kTestOptions);
+
     GraphExecutor executor;
     RenderSession session;
-    auto out = executor.execute(graph, ctx, session);
-    
+    ExecutionScheduler scheduler{};   // default: TbbAutomatic
+    ctx.resources.scheduler = &scheduler;
+
+    auto out = executor.execute(compiled, ctx, session, scheduler);
+
     REQUIRE(out != nullptr);
     CHECK(backend.draw_node_called == 1);
 }
@@ -85,7 +100,7 @@ TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
 TEST_CASE("RenderBackend - EffectStackNode execution calls apply_effect_stack on backend") {
     FakeBackend backend;
     cache::NodeCache cache;
-    
+
     // Create layer scene with a blur effect using modern lambda API
     SceneBuilder builder;
     builder.layer("effect_layer", [](LayerBuilder& lb) {
@@ -98,13 +113,20 @@ TEST_CASE("RenderBackend - EffectStackNode execution calls apply_effect_stack on
         .frame = {.width = 64, .height = 64},
         .resources = {.backend = &backend, .node_cache = &cache}
     };
-    
+
     RenderGraph graph = GraphBuilder::build(scene, ctx);
-    
+
+    FrameGraphCompiler compiler;
+    const FrameGraphCompileOptions kTestOptions{ .run_optimizer = false };
+    auto compiled = compiler.compile(std::move(graph), ctx, kTestOptions);
+
     GraphExecutor executor;
     RenderSession session;
-    auto out = executor.execute(graph, ctx, session);
-    
+    ExecutionScheduler scheduler{};
+    ctx.resources.scheduler = &scheduler;
+
+    auto out = executor.execute(compiled, ctx, session, scheduler);
+
     REQUIRE(out != nullptr);
     CHECK(backend.apply_effect_stack_called >= 1);
 }
@@ -112,7 +134,7 @@ TEST_CASE("RenderBackend - EffectStackNode execution calls apply_effect_stack on
 TEST_CASE("RenderBackend - CompositeNode execution calls composite_layer on backend") {
     FakeBackend backend;
     cache::NodeCache cache;
-    
+
     // Create multiple layer scene using modern API
     SceneBuilder builder;
     builder.rect("rect_1", {.size = {50.0f, 50.0f}, .color = Color::red()});
@@ -123,13 +145,20 @@ TEST_CASE("RenderBackend - CompositeNode execution calls composite_layer on back
         .frame = {.width = 64, .height = 64},
         .resources = {.backend = &backend, .node_cache = &cache}
     };
-    
+
     RenderGraph graph = GraphBuilder::build(scene, ctx);
-    
+
+    FrameGraphCompiler compiler;
+    const FrameGraphCompileOptions kTestOptions{ .run_optimizer = false };
+    auto compiled = compiler.compile(std::move(graph), ctx, kTestOptions);
+
     GraphExecutor executor;
     RenderSession session;
-    auto out = executor.execute(graph, ctx, session);
-    
+    ExecutionScheduler scheduler{};
+    ctx.resources.scheduler = &scheduler;
+
+    auto out = executor.execute(compiled, ctx, session, scheduler);
+
     REQUIRE(out != nullptr);
     // There are 2 layer composite nodes
     CHECK(backend.composite_layer_called >= 1);
@@ -170,4 +199,34 @@ TEST_CASE("RenderBackend - PR2: error_code_name round-trip") {
                       "InvalidInput") == 0);
     CHECK(std::strcmp(render_backend_error_code_name(RenderBackendErrorCode::ExecutionFailure),
                       "ExecutionFailure") == 0);
+}
+
+// ── PR-B: ExecutionScheduler determinism scaffold (audit §9.12) ──────
+// Will be promoted to a separate test_scheduler_determinism.cpp in PR-F,
+// once TbbAutomatic default is promoted.  For PR-B we only verify that
+// the constructor + factory + env parsing produce a usable scheduler
+// with the expected concurrency / mode.
+TEST_CASE("ExecutionScheduler - PR-B: TbbFixed(N) returns concurrency()==N") {
+    ExecutionScheduler s{SchedulerMode::TbbFixed, /*worker_count=*/4, /*pin=*/false};
+    CHECK(s.concurrency() == 4);
+    CHECK(s.mode() == SchedulerMode::TbbFixed);
+}
+
+TEST_CASE("ExecutionScheduler - PR-B: Sequential returns concurrency()==1") {
+    ExecutionScheduler s{SchedulerMode::Sequential, /*worker_count=*/0, /*pin=*/false};
+    CHECK(s.concurrency() == 1);
+    CHECK(s.mode() == SchedulerMode::Sequential);
+}
+
+TEST_CASE("ExecutionScheduler - PR-B: parser recognises sane env tokens") {
+    SchedulerMode m{};
+    CHECK(parse_scheduler_mode("sequential", m));
+    CHECK(m == SchedulerMode::Sequential);
+    CHECK(parse_scheduler_mode("auto", m));
+    CHECK(m == SchedulerMode::TbbAutomatic);
+    CHECK(parse_scheduler_mode("fixed", m));
+    CHECK(m == SchedulerMode::TbbFixed);
+    CHECK(parse_scheduler_mode("tbbfixed", m));
+    CHECK(m == SchedulerMode::TbbFixed);
+    CHECK_FALSE(parse_scheduler_mode("garbage", m));
 }

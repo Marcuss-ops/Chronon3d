@@ -192,6 +192,11 @@ public:
     [[nodiscard]] graph::GraphExecutor* executor();
     [[nodiscard]] const graph::GraphExecutor* executor() const;
 
+    /// PR-B: Scheduler accessor.  Lifetime is the renderer's; safe to use
+    /// as the thread-pool authority for every executor.execute() call.
+    [[nodiscard]] ExecutionScheduler* scheduler();
+    [[nodiscard]] const ExecutionScheduler* scheduler() const;
+
     /// Per-instance engine configuration (replaces legacy Config singleton)
     [[nodiscard]] const Config& config() const { return m_config; }
     [[nodiscard]] Config& config() { return m_config; }

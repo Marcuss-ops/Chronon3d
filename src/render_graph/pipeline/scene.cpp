@@ -117,14 +117,18 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         ctx.options.debug_config = &sw_renderer->config().debug();
     }
 
-    // Wire compiled_graph_cache + node_catalog + effect_catalog into
-    // the render graph context so that graph_cache_coordinator,
+    // Wire compiled_graph_cache + node_catalog + effect_catalog + scheduler
+    // into the render graph context so that graph_cache_coordinator,
     // PrecompNode creation, and dirty/tile policies can access them
     // without a SoftwareRenderer dependency.
     if (sw_renderer) {
         ctx.resources.compiled_graph_cache = &sw_renderer->graph_cache();
         ctx.resources.node_catalog = &sw_renderer->graph_node_registry();
         ctx.resources.effect_catalog = &sw_renderer->effect_catalog();
+        // ── PR-B: propagate scheduler to nested graph call sites ──────
+        // PrecompNode dereferences `*ctx.resources.scheduler` to route its
+        // inner execute() through the same arena as the parent graph.
+        ctx.resources.scheduler = &sw_renderer->scheduler();
     }
 
     // ── 1. Fast-path: Resolved-scene reuse (consecutive / same frame) ───
@@ -212,8 +216,12 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     }
 
     // ── 4. Full path: graph structure hint + diagnostics plan ────────────
-    // Inform the executor so it can skip compute_structure_signature()
-    // and reuse the cached execution plan.
+    // Inform downstream phases (graph_cache_coordinator, dirty-paths)
+    // whether the graph topology is unchanged so that full graph rebuild
+    // can be skipped.  PR-A removed the ExecutionPlan cache that used to
+    // gate on this flag inside GraphExecutor; the flag survives for the
+    // downstream coordinator and will be re-paired with a stable fast-path
+    // in a future PR (audit §9.4).
     ctx.options.graph_structure_unchanged = scene_structure_unchanged &&
         !static_cam_changed &&
         frame_fp.active_at_fp != 0 &&
