@@ -369,6 +369,11 @@ TEST_CASE("VideoSinkEncoderAdapter: hardware codec falls back to libx264") {
 //  FFprobe validation -- structural check on generated MP4
 // ==========================================================================
 
+// TICKET-007.y (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; ffprobe CSV parser returning fewer fields than expected.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bug — ffprobe CSV parse returns 4 fields instead of 5.
 // TODO(chronon3d): fix ffprobe output parsing or test expectations and re-enable.
 TEST_CASE("VideoSinkEncoderAdapter: ffprobe validates MP4 structure" * doctest::skip()) {

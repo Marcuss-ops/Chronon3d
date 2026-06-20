@@ -46,6 +46,11 @@ TEST_CASE("TextRunBuilder: empty document returns empty result") {
 // 2. Single paragraph, single run
 // ═══════════════════════════════════════════════════════════════════════════
 
+// TICKET-007.m (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; text run builder wrap-mode / paragraph count bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bug — wrap mode returns != TextWrap::None and
 // multi-paragraph count assertion fails.  TODO(chronon3d): fix and re-enable.
 TEST_CASE("TextRunBuilder: single paragraph produces single layout" * doctest::skip()) {
@@ -74,6 +79,11 @@ TEST_CASE("TextRunBuilder: single paragraph produces single layout" * doctest::s
 // 3. Multi-paragraph
 // ═══════════════════════════════════════════════════════════════════════════
 
+// TICKET-007.n (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; text run builder multi-paragraph routing bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bug — multi-paragraph count assertion fails.
 // TODO(chronon3d): fix text run builder and re-enable.
 TEST_CASE("TextRunBuilder: multiple paragraphs produce multiple layouts" * doctest::skip()) {
@@ -90,6 +100,11 @@ TEST_CASE("TextRunBuilder: multiple paragraphs produce multiple layouts" * docte
     CHECK(result.paragraphs[2]->source_text == "Line three");
 }
 
+// TICKET-007.o (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; text run builder consecutive-newline handling bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bug — empty paragraph count assertion fails.
 // TODO(chronon3d): fix text run builder multi-paragraph handling and re-enable.
 TEST_CASE("TextRunBuilder: empty paragraph produced by consecutive newlines" * doctest::skip()) {

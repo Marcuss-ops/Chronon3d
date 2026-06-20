@@ -104,9 +104,15 @@ std::shared_ptr<Framebuffer> render_with_mb(
 // ==============================================================================
 // 1 — Static framebuffer identical between 1 and 16 sub-samples
 // ==============================================================================
+// TICKET-007.j (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; motion-blur static-framebuffer determinism bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bug — fb_hash mismatch for static framebuffer
 // at 16 samples.  TODO(chronon3d): fix motion-blur TemporalAccumulation
 // sub-frame determinism and re-enable.
+// TICKET-007.j (compliance metadata — see docs/FOLLOWUP_TICKETS.md). Issue: motion-blur static-framebuffer determinism bug. Owner: chronon3d-owners. Motivation: pre-existing rot. Data introduzione: 2026-06-20. Deadline rimozione: 2026-09-30.
 TEST_CASE("PR1-Torture: static framebuffer identical between 1 and 16 samples" * doctest::skip()) {
     auto comp = make_static_composition();
 
@@ -141,9 +147,15 @@ TEST_CASE("PR1-Torture: static framebuffer identical between 1 and 16 samples" *
 // ==============================================================================
 // 2 — Semi-transparent layer: no dark borders after accumulation
 // ==============================================================================
+// TICKET-007.k (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; motion-blur premul-alpha edge handling bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bug — dark border count != 0 for semi-transparent
 // layer accumulation.  TODO(chronon3d): fix premul alpha edge handling
 // in TemporalAccumulation and re-enable.
+// TICKET-007.k (compliance metadata — see docs/FOLLOWUP_TICKETS.md). Issue: motion-blur premul-alpha edge accumulation bug. Owner: chronon3d-owners. Motivation: pre-existing rot. Data introduzione: 2026-06-20. Deadline rimozione: 2026-09-30.
 TEST_CASE("PR1-Torture: semi-transparent layer no dark borders after accumulation" * doctest::skip()) {
     // A 50%-alpha red rect on a black background.  Weighted accumulation with
     // Box + N=8 samples should NOT produce any dark-bordered artefacts at the
@@ -254,9 +266,15 @@ TEST_CASE("PR1-Torture: deterministic motion blur across two consecutive runs") 
 // ==============================================================================
 // 4 — No clipping of fast objects
 // ==============================================================================
+// TICKET-007.l (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; motion-blur sub-frame edge clipping bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bug — dead_zones > 1 in fast-object smear test.
 // TODO(chronon3d): fix sub-frame edge clipping in TemporalAccumulation
 // and re-enable.
+// TICKET-007.l (compliance metadata — see docs/FOLLOWUP_TICKETS.md). Issue: motion-blur sub-frame edge clipping on fast objects. Owner: chronon3d-owners. Motivation: pre-existing rot. Data introduzione: 2026-06-20. Deadline rimozione: 2026-09-30.
 TEST_CASE("PR1-Torture: no clipping of fast objects across shutter window" * doctest::skip()) {
     // A 20×20 rect moving 100 px/frame.  With samples=16 across a 360° shutter
     // (= full-frame exposure window centred on frame), the rect should appear

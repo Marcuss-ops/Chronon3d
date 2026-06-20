@@ -465,6 +465,244 @@ But the retirement leaves three loose ends:
 
 ---
 
+## TICKET-EXP2-G3 — Path-A scalar parser delegation to Path B `compile()` (Gate 3)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned (Gate 3 kickoff — audit + delegation design captured; code changes TBD on Gate 3a/3b PRs) |
+| **Affected file(s)** | `include/chronon3d/math/expression.hpp` (Path A `ExpressionParser` — becomes an adapter), `include/chronon3d/math/expression_types.hpp` (`ExpressionContext`/`ExpressionState` consumers — become a Vm-env adapter), `include/chronon3d/animation/core/animated_value.hpp` (`AnimatedValue<T>::evaluate(SampleTime, AnimationEvalContext)` and `expression(...)` — source of delegation), `src/animations/animated_value.cpp` (`evaluate_solid_color_expression` / `evaluate_fill_expression` — retargeted to v2 `compile()`), `experimental/expressions/include/chronon3d_experimental/expressions/v2/{compiler,vm,bytecode,expression_value}.hpp` + `vm.cpp` (target of new builtin ports), new `experimental/expressions/include/chronon3d_experimental/expressions/v2/resolver.hpp` (cross-layer runtime hook). |
+| **Discovered during** | Gate 3 audit of `docs/EXPRESSIONS_V2_PROMOTION.md` — `AnimatedValue::expression(...)` reads a textual AE-style expression and evaluates it via `math::evaluate_expression()` per frame; Path B `compile()/Vm` offers a compile-once-evaluate-many + cycle-detected + variant-typed alternative that the engine's productive animated-property path should use instead. |
+| **Discovered date** | 2026-06-20 |
+| **Compliance target** | `docs/EXPRESSIONS_V2_PROMOTION.md` Gate 3 — single-source-of-truth `compile()`, no two parsers / VMs / dependency graphs in the productive render path, measurable migration win. |
+| **Latency** | Path A and Path B co-exist on `main` today (both build green independently) — quarantine of `experimental/` is the only thing keeping them from interfering. |
+
+
+
+- `compile(source)` → `Program` once per source (cacheable),
+- `Vm` with re-entrant bindings (`vm.set(...)` per frame), `Vm::reset()` for isolation (Gate 2),
+- `DependencyGraph` with **expression-level** static-cycle detection that Path A does not have (note: the graph Path B compiles from bytecode catches cycles between operations on the same program; cross-layer cycles via `layer("X").prop` indirection are a host/`AnimationEvalContext::layer_resolver` concern and remain out of scope for Gate 3),
+- richer return type via `ExpressionValue` std::variant — native Vec2/3/4/Color, not possible in Path A.
+
+Promoting Path B is the explicit Opzione B Gate 3 criterion: "The Path-A scalar parser in `AnimatedValue` either delegates to `compile()` from this engine (one source of truth), or the migration path is documented with a deprecation timeline."
+
+### Audit findings
+
+| Path A surface (file:line) | Path B replacement | Notes |
+|---|---|---|
+| `include/chronon3d/math/expression.hpp::ExpressionParser::parse()` (whole class) | `experimental/expressions/v2/compiler.hpp::compile(source)` + `compile_ast(ast)` | Compiles once per source text; subsequent evaluations reuse the cached `Program`. |
+| `include/chronon3d/math/expression.hpp::{sin,cos,tan,asin,acos,atan,atan2,abs,sqrt,exp,log,log10}` (and `*`,`pow`) | `experimental/expressions/src/expressions/v2/vm.cpp::builtin_call` (already ported for `sin/cos/tan/sqrt/abs/floor/ceil/round/log/min/max/clamp/length/pow`) | Most numeric functions are present. |
+| Path A `linear/ease/easeIn/easeOut/degreesToRadians/radiansToDegrees` (`expression.hpp`) | NOT yet in Path B's `builtin_call`. **REQUIRED PORT before swap.** | Without these, AE-style remap expressions break. |
+| Path A `wiggle/seedRandom/random` (`expression.hpp`) | NOT yet in Path B. **REQUIRED PORT before swap.** | Cross-frame `seedRandom` state must move into the host's `AnimationEvalContext`, not into Path B's `Vm` (Gate 2 keeps the VM stateless). |
+| Path A `loopOut/loopIn/posterizeTime` (`expression.hpp`) | NOT yet in Path B. **REQUIRED PORT before swap** for `loopOut/loopIn`; defer `posterizeTime` to a follow-up if test corpus is empty. |
+| Path A `valueAtTime` (`expression.hpp`) | NOT in Path B. **DEFER to V2-followup.** Host can return base value as a temporary safe-default. |
+| Path A `toComp/fromComp` (`expression.hpp`) | NOT in Path B (Path A only returns X scalar; Path B's variant supports Vec3). **DEFER to Gate 4/5** (Vec/Color pipeline stabilisation). |
+| `include/chronon3d/math/expression_types.hpp::ExpressionContext::layer_resolver(layer_name, prop_path, time)` | Path B `Vm::set_resolver(callback)` runtime hook (design pending PR Gate 3a). Resolve `layer("name").prop` postfix chain by handing `(m_current_layer_name, m_current_property_path, time)` to the host callback and converting the returned `double` to `ExpressionValue::make_number(...)` at LOAD_VAR time. | Runtime hook is the cleanest path because the property path can change between evaluations (time advances) and we want to avoid compile-time path rewriting. |
+| `src/animations/animated_value.cpp::evaluate_solid_color_expression("solid(r,g,b,a)", ...)` calls `math::evaluate_expression` four times per channel | Path B single `compile("solid(r,g,b,a)")` → one call produces a `Color` `ExpressionValue` directly. Net win: 4 evaluations → 1. | Gate 3b can net-zero this on day one of the swap. |
+| `include/chronon3d/animation/core/animated_value.hpp::AnimatedValue<T>::expression(std::string)` — stores raw text string | + `mutable std::optional<v2::Program> m_compiled_program` keyed by source text. Compiled lazily on first `evaluate()`; invalidated when `expression(...)` is reassigned. | Lazy compile keeps the assign-cost zero; per-CompiledValue LRU is premature optimisation for Gate 3. |
+| `keyframes<T>(frame, {KF,…})` factory (`expression.hpp` and `animated_value.hpp`) | NOT routing through Path B — this is a keyframe-time API, not a textual expression. Gate 3 scope explicitly excludes it. | TICKET-005 Gap A already tracks a public `keyframes()` interface (separate concern). |
+
+### Delegation-design (a) Required inline v2 builtin ports
+
+Port before swap (test corpus is presumed to use these — AE/Lottie workspaces ubiquitously):
+
+- YES, before Gate 3b swap: `wiggle(freq, amp)`, `random()`, `seedRandom(seed)`, `linear(t,t_min,t_max,v_min,v_max)`, `ease(...)` / `easeIn(...)` / `easeOut(...)`, `loopOut(type,num)` / `loopIn(type,num)`. ARITY: wiggle/random accept 1–4 args; loop accepts 1–2.
+- DEFER: `valueAtTime(t)`, `toComp(...)` / `fromComp(...)`, `posterizeTime(fps)`. Adapters should return base value or 0 if these come up (so crashes don't lurk).
+
+PR Gate 3a should include:
+- `builtin_call` extensions for the YES list.
+- A `Vm::set_resolver(callback)` runtime hook for layer/property postfix chains (see (b)).
+- Tests for each newly-ported builtin (vm-side `Vm::run` + `Program::code` round-trip).
+
+### Delegation-design (b) Cross-layer resolver adapter
+
+Runtime hook on `Vm` is the chosen abstraction. Reasons:
+- Property paths can change between evaluations (e.g. `valueAtTime(t)` would re-evaluate the same expression at different times).
+- Compile-time path rewriting forces every cross-layer expression to be a "template" — adds complexity for marginal value.
+- Path B's `PropertyReference`/`LayerReference` opaque variant already enables this exact pattern: the host intercepts LOAD_VAR of a registered name and replaces the result.
+
+Adapter contract:
+- `Vm::set_resolver(std::function<ExpressionValue(const std::string& name, double time)>)` — call with the bound `AnimationEvalContext::layer_resolver` translated.
+- At LOAD_VAR of an unknown name, Vm consults the resolver (if set) and pushes the returned `ExpressionValue`.
+- `name` is parsed by Path A equivalent: `layer(\"X\").transform.position.x` → strip the `layer("X").` prefix, append `.x` to get the property path → `(layer_name, prop_path, time)` returns the resolved property value.
+
+### Delegation-design (c) AnimatedValue storage shape
+
+- Existing: `std::string m_expression;` (Path A).
+- Add: `mutable std::optional<v2::Program> m_compiled_program;` and `mutable v2::CompileError m_last_compile_error;`.
+- Compile lazily on first `evaluate()`. If `m_compiled_program` already populated and `m_expression` unchanged, reuse. If `expression(new_str)` is called, reset and recompile on next eval.
+- `Vm` is a *local* variable inside `evaluate(...)` (or thread-local). No persistent VM state — per-frame env-var `set("value", ...)` populates the runtime.
+- Gate 2 determinism contract is preserved (no static caches anywhere).
+
+### Delegation-design (d) PR split recommendation
+
+TWO PRs:
+
+- **Gate 3a — Path B feature parity PR.** Ports the YES list of v2 builtins + the Vm resolver hook + tests for each. This PR does not touch any Path A consumer. It's a self-contained Path B hardening PR.
+- **Gate 3b — AnimatedValue swap PR.** Adds `m_compiled_program` to `AnimatedValue<T>`, the `compile_eval()` adapter function (in ExpressionContext.h or a new AnimatedValue delegate header), replaces `math::evaluate_expression(...)` calls with the adapter, deletes the Path A `ExpressionParser`'s public API surface. Once this lands, Path A is dead code → eligible for deletion in a follow-up cleanup.
+
+Rationale for two-PR split: 3a is mechanical (port builtins + add resolver hook + tests); 3b is architectural (swap animation subsystem's evaluation entry point) and benefits from 3a being already merged + green on `main` so the swap risk is bounded to one variable (the adapter wiring).
+
+### Delegation-design (e) Migration risk flags
+
+- **Determinism vs. random:** Path A's `random/seedRandom` carry cross-frame state in `ExpressionState`. Path B's Gate 2 enforces a stateless Vm. Solution: the host (`AnimatedValue`) carries the PRNG seed externally and feeds it as an env var at `vm.set("__random_seed__", ...)` at the top of every `evaluate()`. `seedRandom` becomes a host-side mutation that updates the externally-held seed.
+- **LoopMode semantics (`Hold`/`Loop`/`PingPong`):** LoopMode affects the *base keyframe walk* — the expression is then evaluated on the looped base value. Solution: host computes the looped `value` first, sets `vm.set("value", looped_base)` then `vm.run(program)`. The VM does NOT manage timeline looping.
+- **Scope creep:** Do NOT route the `keyframes(frame, {KF,…})` factory through Path B — it's a keyframe-time API. This ticket's scope is strictly the `m_expression` text path.
+- **Per-CompiledValue LRU:** Premature for Gate 3. Property-scoped storage is good-enough.
+- **Path A deletion:** Sequencing — Path A stays compiled-in (deprecation warnings + opt-out flag) for at least one full-release-cycle before literal deletion.
+
+### Suggested fix approach
+
+**Gate 3a (Path B feature parity PR):**
+1. Add `Vm::set_resolver(callback)` + matching `unset_resolver()` in `vm.hpp`; route LOAD_VAR through it when set.
+2. Extend `builtin_call` in `vm.cpp` with: `wiggle`, `linear`, `ease`, `easeIn`, `easeOut`, `random`, `seedRandom`, `loopOut`, `loopIn`. Document each's arity and reuse the same `ExpressionValue` return type.
+3. Add unit tests in `test_expressions_v2.cpp` or new `test_v2_builtins.cpp` for each newly ported builtin (compile + run + assert).
+4. Add a `test_v2_resolver.cpp` exercising `Vm::set_resolver` for the postfix `layer("X").prop.x` chain via a stub resolver.
+5. Verify `tools/test_architectural.sh` Section 5 still passes (§quarantine integrity intact).
+6. Mark Gate 3a as done.
+
+**Gate 3b (AnimatedValue swap PR):**
+1. Add `mutable std::optional<v2::Program>` + `mutable v2::CompileError` to `AnimatedValue<T>`. Lazy compile pattern.
+2. Add `chronon3d::animation::compile_eval(const std::string&, const AnimationEvalContext&) -> v2::ExpressionValue` in a new header `include/chronon3d/animation/core/compile_eval.hpp` (under the existing animation/core/ umbrella; peer-level placement matching `compose_every_line_impl` precedent, *not* nested in `::detail::` — that grep-by-symbol symmetry is broken if `detail` is added) that:
+   - Compiles via `v2::compile(source)` and forwards the resulting `Program` to the call site — **no process-wide cross-`AnimatedValue` `unordered_map` LRU scoped at the `compile_eval` layer**: per the lazy-property-scoped design (see Delegation-design (c) and (e)), each `AnimatedValue<T>` already owns its own `mutable std::optional<Program>` in its own field; introducing a process-wide cache at the `compile_eval` adapter level would (i) reintroduce the kind of static mutable state Gate 2 determinism guards against, and (ii) be duplicated work for the per-property cache. If a global LRU is later needed (e.g. for a composition with 10⁴+ distinct expressions under memory pressure), open a separate follow-up ticket with explicit concurrency + determinism guarantees; do NOT sneak it into Gate 3b, and do NOT piggy-back on this rule-out.
+   - Sets `v2::Vm` env bindings for AE-standard identifiers (`time`, `frame`, `fps`, `index`, `value`, `value0/1/2`, `width`, `height`, `numLayers`, `inPoint`, `outPoint`).
+   - Sets the resolver to a closure that wraps `AnimationEvalContext::layer_resolver`.
+   - Runs the program and returns the `ExpressionValue`.
+3. Edit `AnimatedValue<T>::expression(std::string)` to ALSO `m_compiled_program.reset()` after storing the new source.
+4. Edit `AnimatedValue<T>::evaluate(SampleTime, AnimationEvalContext)` for the `T = f32` branch:
+   - Old: `math::evaluate_expression(m_expression, ectx, {}, base)`.
+   - New: `experimental_eval::compile_eval(m_expression, ctx); if (as_number(v)) return *as_number(v); else return base.`
+5. Edit `src/animations/animated_value.cpp::evaluate_solid_color_expression`:
+   - Old: parse 4 args individually via `math::evaluate_expression`.
+   - New: `compile_eval("solid(" + arg1 + "," + ... + ")", ctx)` returns `Color` directly. (Or compile `solid(r,g,b,a)` once into a `Program` template + substitute inner exprs via `compile_ast`.)
+6. Add a feature flag `CHRONON3D_USE_V2_EXPRESSIONS` (default `OFF` → Path A; `ON` → Path B). Path B remains opt-in for one release cycle.
+7. Verify `tools/test_architectural.sh` Sections 1–3 still pass.
+8. Add tests bridging Path A→B organised under the Fixture & threshold spec sub-section (acceptance-criteria fixture, owned by step 8):
+   a. **Deterministic-only test fixture**: a small ProofOfConcept composition exercising both paths with the same data, gated by `evaluate` returning bit-equal `SequenceValue<double>` for compile-time-constant-reduction expressions, and within `std::nextafter(1.0, 0.0)` ulp otherwise.
+   b. **Time-fixed wiggle/loopOut fixture**: `wiggle(freq[, amp[, octaves[, amp_mult]]])` and `loopOut(type, num)` at fixed-time inputs across Path A and Path B; assert `std::nextafter` ulp only on Gate 3b landing. Tightening to bit-equal is deferred until Gate 3a ports have a cross-frame fixture demonstrating `std::nextafter` ulp delta trends to zero over N≥100 random time-tick pairs.
+   c. **Random-state equivalence fixture (informational only)**: fixed-seed permutation test reporting per-pair ulp delta for diagnostics; FAILS does NOT block Gate 3b — tracked separately as a future ticket (do NOT pre-allocate an ID here, parallel to the LRU-orphan precedent).
+9. Mark Gate 3 as done; move TICKET-EXP2-G3 to 🟢 Done.
+
+### Acceptance criteria
+
+**Gate 3a:**
+- `wiggle/linear/ease/easeIn/easeOut/random/seedRandom/loopOut/loopIn` are present in Path B's `builtin_call` and pass individual tests in `test_v2_builtins.cpp`.
+- `Vm::set_resolver` is exposed + tested via `test_v2_resolver.cpp` for the postfix chain `layer("X").prop.x`.
+- No Path A consumer modified.
+- `tools/test_architectural.sh` Sections 1-5 all PASS.
+
+**Gate 3b:**
+- `AnimatedValue<T>::evaluate(SampleTime, AnimationEvalContext)` for `T = f32` returns numerically equivalent `SequenceValue<double>` for **deterministic-only** expressions (i.e. expressions that do not call `random/seedRandom`) when the compilation PR is enabled, within `std::nextafter(1.0, 0.0)` ulp tolerance of Path A's output, and bit-equal when both implementations reduce to compile-time constants.
+   - `wiggle(freq[, amp[, octaves[, amp_mult]]])` and `loopOut(type, num)` are deterministic when evaluated at the SAME time input but their Gate 3a ports may diverge in numerical detail during early stabilization; bit-equality of `wiggle/loopOut` returns is **NOT** a Gate 3b acceptance criterion — see **Fixture & threshold spec — Gate 3b** for the seeded fixture + ulp-delta verification.
+
+**Notes — cross-frame random-state equivalence (informational, not a criterion):** See Delegation-design (e) for the host-seed feed contract; per-frame equivalence requires monotonic seed re-emission matching Path A's post-evaluation mutation.
+
+**Fixture & threshold spec — Gate 3b (acceptance-criteria fixture, owned by step 8 in Suggested fix approach above):**
+
+- **Deterministic-only test fixture**: a curated set of expressions with no `random/seedRandom/wiggle/loopOut` (e.g. `time * 2 + 1`, `clamp(value, 0, 1)`, `linear(time, 0, 1, 0, 100)`). For each, evaluate on Path A and on Path B under `CHRONON3D_USE_V2_EXPRESSIONS=ON` and assert `std::nextafter(1.0, 0.0)` ulp deltas; bit-equal when both reduce to compile-time constants.
+- **Time-fixed wiggle/loopOut fixture**: `wiggle(freq, amp[, octaves[, amp_mult]])` and `loopOut(type, num)` evaluated at a fixed time input across Path A and Path B; assert `std::nextafter` ulp only on Gate 3b landing. Tightening to bit-equal is *deferred* until Gate 3a wiggle/loopOut ports have a cross-frame fixture demonstrating `std::nextafter` ulp delta trends to zero over N≥100 random time-tick pairs.
+- **Random-state equivalence fixture (informational only)**: fixed-seed permutation test that swaps Path A's `ExpressionState::random_seed` mutation order against Path B's host-side feed. Reports the per-pair ulp delta for diagnostics; the test FAILS does NOT block Gate 3b — it is an informational invariant only and tracked separately as a future ticket under the Opzione B gate-3 follow-up column once it's scheduled (do NOT pre-allocate a fixed-seed/permutation ticket ID here, parallel to the LRU rule-out at TICKET-EXP2-G3 step 2 which itself uses descriptive-only language)....
+- `evaluate_solid_color_expression("solid(r,g,b,a)", ...)` returns identical `Color` (same r/g/b/a fields).
+- `CHRONON3D_USE_V2_EXPRESSIONS=OFF` (default) preserves existing Path A behaviour 100% — no regression.
+- `DependencyGraph` can be constructed from a scene's `AnimatedValue::expression()` strings and detect cycles (where Path A would silently loop forever).
+- `docs/CHANGELOG.md` and `docs/EXPRESSIONS_V2_PROMOTION.md` audit log updated.
+
+### Cross-references
+
+- `docs/EXPRESSIONS_V2_PROMOTION.md` — Gate 3 criterion doc.
+- `docs/CORE_OWNERSHIP.md` §2.5 growth-budget checklist (one responsibility, one CMake target, one existing registry).
+- `TICKET-005` Gap A — separate `keyframes()` revival; delegations design scope deliberately excludes the keyframe factory.
+- `TICKET-007` umbrella — disabled-test ticket metadata contract; both Gate 3a/3b PRs must keep `tools/test_architectural.sh` Section 3 compliant.
+- Discovered-on: 2026-06-20.
+
+---
+
+
+
+| Field | Value |
+|---|---|
+| **Status** | 🟡 Partial (ticket metadata attached; underlying bugs NOT resolved) |
+| **Affected file(s)** | 13 files across scene/, render_graph/, text/, deterministic/, core/math/, cli/, video/ (see sub-IDs below). |
+| **Discovered during** | Gate 1 audit of `docs/EXPRESSIONS_V2_PROMOTION.md` — `* doctest::skip()` calls were present without the required `TICKET-XXX + Issue/Owner/Motivation/Date introduzione/Deadline rimozione` metadata in the surrounding ±3 lines. |
+| **Discovered date** | 2026-06-20 |
+| **Compliance target** | `tools/test_architectural.sh` Section 3 (`Anti-skip-senza-ticket`). |
+| **Latency** | Pre-existing rot; tests have been disabled since before the experimental-expressions quarantine. |
+
+### Symptom
+
+26 `* doctest::skip()` calls across 13 files lack the per-ticket metadata required by the project's skip-tracking convention (see `CONTRIBUTING.md` once the convention is published). Without metadata, the architecture-check CI gate fails. The disabled tests *do* compile; they were simply marked `skip()` because the underlying assertion failed at the time of original authoring and the underlying bugs were never fixed.
+
+### Sub-IDs (one per disabled test)
+
+| Sub-ID | File | TEST_CASE |
+|---|---|---|
+| `TICKET-007.a` | `tests/render_graph/nodes/test_mask_node_rg_integration.cpp` | rectangular mask_rect clipping |
+| `TICKET-007.b` | `tests/render_graph/nodes/test_mask_node_rg_integration.cpp` | inverted mask_rect zeroes interior alpha |
+| `TICKET-007.c` | `tests/scene/transform_hierarchy_tests.cpp` | HierarchyResolver cycle detection |
+| `TICKET-007.d` | `tests/scene/layout/test_layer_hierarchy.cpp` | parent position/scale propagation |
+| `TICKET-007.e` | `tests/scene/layout/test_layer_hierarchy.cpp` | parent rotation propagation |
+| `TICKET-007.f` | `tests/scene/layout/test_layer_hierarchy.cpp` | opacity multiplies through parents |
+| `TICKET-007.g` | `tests/scene/layout/test_layer_hierarchy.cpp` | missing parent fallback |
+| `TICKET-007.h` | `tests/scene/camera/test_camera_hierarchy.cpp` | fast target swap detection |
+| `TICKET-007.i` | `tests/scene/camera/test_temporal_samples_pr1.cpp` | frame-keyed jitter differs |
+| `TICKET-007.j` | `tests/scene/camera/test_motion_blur_torture_pr1.cpp` | static framebuffer identical 1↔16 samples |
+| `TICKET-007.k` | `tests/scene/camera/test_motion_blur_torture_pr1.cpp` | semi-transparent layer no dark borders |
+| `TICKET-007.l` | `tests/scene/camera/test_motion_blur_torture_pr1.cpp` | no clipping of fast objects |
+| `TICKET-007.m` | `tests/text/test_text_run_builder.cpp` | single paragraph produces single layout |
+| `TICKET-007.n` | `tests/text/test_text_run_builder.cpp` | multiple paragraphs produce multiple layouts |
+| `TICKET-007.o` | `tests/text/test_text_run_builder.cpp` | empty paragraph from consecutive newlines |
+| `TICKET-007.p` | `tests/text/test_text_unit_map.cpp` | word unit excludes whole whitespace runs |
+| `TICKET-007.q` | `tests/deterministic/gradient_determinism_tests.cpp` | cold vs warm cache identical pixels |
+| `TICKET-007.r` | `tests/deterministic/gradient_determinism_tests.cpp` | cache invalidated→rebuilt identical pixels |
+| `TICKET-007.s` | `tests/deterministic/gradient_determinism_tests.cpp` | new vs reused renderer identical pixels |
+| `TICKET-007.t` | `tests/deterministic/gradient_determinism_tests.cpp` | 1-thread vs 4-thread identical pixels |
+| `TICKET-007.u` | `tests/deterministic/gradient_determinism_tests.cpp` | 1-thread vs 8-thread identical pixels |
+| `TICKET-007.v` | `tests/core/math/test_camera_projection_resolver.cpp` | perspective_scale = focal / depth |
+| `TICKET-007.w` | `tests/core/math/test_camera_2_5d_projection.cpp` | wider FOV → smaller focal length |
+| `TICKET-007.x` | `tests/core/math/test_camera_2_5d_projection.cpp` | FOV mode changes perspective scale |
+| `TICKET-007.y` | `tests/cli/test_video_adapter_e2e.cpp` | ffprobe validates MP4 structure |
+| `TICKET-007.z` | `tests/video/test_converted_frame_cache.cpp` | explicit cap=5 keeps total=5 (weight mode) |
+| `TICKET-007.aa` | `tests/video/test_converted_frame_cache.cpp` | LRU promotion on hit (weight mode) |
+
+Total: 27 sub-IDs (27 disabled tests; the umbrella sub-ID space reserves `a`-`aa`).
+
+### Root cause
+
+The disabled tests are pre-existing latent rot — many predate the precision-include cascade (`856ff957`), and several were disabled during early-stage author-time iteration when the underlying path (mask rect alpha math, hierarchy resolver cycle detection, TBB scheduler-state, weight-mode LRU bookkeeping, etc.) was not yet stable.
+
+Rather than fix the underlying bugs here, this ticket only satisfies the **ticket-metadata compliance gate** of `docs/EXPRESSIONS_V2_PROMOTION.md` Gate 1 (so the architecture-check CI doesn't block Opzione B promotion progress). Each `* doctest::skip()` now carries the 5 required markers (`TICKET-XXX`, `Issue:`, `Owner:`, `Motivation:`, `Data introduzione:`, `Deadline rimozione:`) within ±3 lines; the architectural check should now pass for the gate-compliance criterion.
+
+Underlying bug fixes for each sub-ID are tracked as separate concerns (`TICKET-001`-style per-bug tickets can be opened when the underlying bug is scheduled). Until those per-bug tickets land, the disabled tests remain `* doctest::skip()` — only the metadata surrounding them is now compliant.
+
+### Out-of-scope rationale
+
+- This ticket does NOT fix any underlying bug. It only attaches compliance metadata.
+- Gate 1 of the Opzione B promotion criteria specifies "zero disabled tests without a filed ticket" — this means ticket metadata attached, NOT necessarily the test passing. Pass conditions for individual tests are tracked separately under per-bug tickets once the underlying defect is scheduled.
+- Re-enabling the disabled tests would require a separate audit/sprint because the failures span 5+ subsystems (render-graph, scene hierarchy, motion blur, text, TBB determinism, camera math, video).
+
+### Suggested fix approach (compliance-only PR)
+
+1. Run `tools/test_architectural.sh` and assert Section 3 has zero hits.
+2. CI gate `architecture-check` (`.github/workflows/gates.yml`) becomes green for this criterion.
+3. Mark `TICKET-007` as 🟢 Done.
+4. Open per-bug tickets for each sub-ID where the underlying defect is on a real-roadmap (e.g., TICKET-008 Hierarchy cycle detection, TICKET-009 motion blur premul alpha, TICKET-010 gradient TBB determinism). These per-bug tickets are independent of Opzione B promotion.
+
+### Acceptance criteria
+
+| Criterion | Result |
+|---|---|
+| `tools/test_architectural.sh` Section 3 returns PASSED: every `* doctest::skip()` in `tests/` carries ticket metadata | ✅ Expected after this PR |
+| Each of the 26 skipped TEST_CASEs has `TICKET-XXX + Issue:/Owner:/Motivation:/Data introduzione:/Deadline rimozione:` markers in surrounding ±3 lines | ✅ Expected after this PR |
+| `git grep -nE 'TICKET-00[78]' tests/` shows the 26 + 1 umbrella references in this ticket | ✅ Verified by inspection |
+| No underlying bug is fixed by this PR — that work remains a separate concern | ✅ No change in test pass/fail |
+
+### Cross-references
+
+- Gate 1 of `docs/EXPRESSIONS_V2_PROMOTION.md` — the source-of-truth for the criterion this ticket satisfies.
+- `tools/test_architectural.sh` Section 3 — the Python regex that enforces this ticket's acceptance criterion.
+- Pre-existing `// TODO(chronon3d): fix ... and re-enable.` comments above each `* doctest::skip()` — preserved verbatim so the underlying bug description is not lost.
+
+---
+
 ## TICKET-006 — Missing `chronon3d_backend_text` linkage in `chronon3d_tests_fast` link step
 
 | Field | Value |

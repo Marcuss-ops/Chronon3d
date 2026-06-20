@@ -20,6 +20,11 @@ TEST_CASE("ConvertedFrameCache: defaulted ctor uses policy default (128 MiB)") {
     CHECK(cache.misses() == 0);
 }
 
+// TICKET-007.z (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; ConvertedFrameCache weight-mode LRU bookkeeping bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bug — weight-mode LRU with single shard miscounts entries.
 // TODO(chronon3d): fix ConvertedFrameCache LRU weight accounting and re-enable.
 TEST_CASE("ConvertedFrameCache: explicit cap=5 with num_shards=1 keeps total=5" * doctest::skip()) {
@@ -46,6 +51,11 @@ TEST_CASE("ConvertedFrameCache: explicit cap=5 with num_shards=1 keeps total=5" 
     CHECK(cache.stats().evictions == 1);         // and we observed exactly 1
 }
 
+// TICKET-007.aa (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; ConvertedFrameCache LRU promotion-on-hit bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bug — LRU promotion miscounts (weight-mode).
 // TODO(chronon3d): fix ConvertedFrameCache LRU and re-enable.
 TEST_CASE("ConvertedFrameCache: LRU promotion on hit (weight-mode)" * doctest::skip()) {

@@ -55,8 +55,15 @@ add_executable(chronon3d_scene_tests
     render_graph/builder/test_graph_snapshot.cpp
 )
 target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline chronon3d_scene chronon3d_backend_software doctest::doctest)
-# TICKET-006: when text is enabled, scene/text tests need symbols from chronon3d_backend_text
-if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
+# TICKET-006: SCENE_TEXT_TESTS (test_layer_builder_animated, layout_design_kit,
+# test_text_run_builder) call into chronon3d_text_core symbols whose definitions
+# live in chronon3d_backend_text. Without this guard the linker errors with:
+#   'undefined symbol: chronon3d::shape_resolved_run(...)'
+#   'undefined symbol: chronon3d::text_run_materialize(...)'
+# Mirrors the same guard in tests/core_tests.cmake. Both targets legitimately
+# need backend_text because CORE_BLEND2D_TESTS and SCENE_TEXT_TESTS exercise
+# different but overlapping text paths.
+if(CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D AND TARGET chronon3d_backend_text)
     target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_backend_text)
 endif()
 target_include_directories(chronon3d_scene_tests PRIVATE ${CMAKE_SOURCE_DIR})

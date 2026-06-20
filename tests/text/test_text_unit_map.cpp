@@ -176,6 +176,11 @@ TEST_CASE("Exclude_spaces: backward compatible -- placed==nullptr -> no-op") {
     }
 }
 
+// TICKET-007.p (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; text unit map word-boundary logic bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bug — word unit width assertion fails (w==0 vs Approx(1)).
 // TODO(chronon3d): fix text unit map word-boundary logic and re-enable.
 TEST_CASE("Exclude_spaces: word unit excludes whole whitespace runs" * doctest::skip()) {
