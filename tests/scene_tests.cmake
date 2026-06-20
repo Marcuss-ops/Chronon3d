@@ -55,6 +55,10 @@ add_executable(chronon3d_scene_tests
     render_graph/builder/test_graph_snapshot.cpp
 )
 target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline chronon3d_scene chronon3d_backend_software doctest::doctest)
+# TICKET-006: when text is enabled, scene/text tests need symbols from chronon3d_backend_text
+if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
+    target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_backend_text)
+endif()
 target_include_directories(chronon3d_scene_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_scene_tests)
 add_test(NAME chronon3d_scene_tests COMMAND chronon3d_scene_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
