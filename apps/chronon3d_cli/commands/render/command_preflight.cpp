@@ -1,4 +1,5 @@
 #include "../../commands.hpp"
+#include "../../cli_init.hpp"
 #include <chronon3d/assets/render_preflight.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
 #include <fmt/format.h>
@@ -42,7 +43,7 @@ int command_preflight(const CompositionRegistry& registry, const PreflightArgs& 
     }
 
     // Run validation
-    auto issues = preflight.validate();
+    auto issues = preflight.validate(cli_asset_registry());
 
     // Format and print terminal output
     if (!issues.empty()) {

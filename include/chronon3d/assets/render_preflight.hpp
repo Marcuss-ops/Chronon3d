@@ -88,14 +88,14 @@ public:
     // --- Validation ---
     /// Collect all issues without throwing. Callers can inspect the list or
     /// produce JSON output before deciding what to do.
-    [[nodiscard]] std::vector<PreflightIssue> validate() const;
+    [[nodiscard]] std::vector<PreflightIssue> validate(const AssetRegistry& registry) const;
 
     /// Behaves exactly like the original: throws ChrononAssetError if any error
     /// is found. Backward-compatible.
-    void validate_or_throw();
+    void validate_or_throw(const AssetRegistry& registry);
 
-    /// Returns true when validate() would return an empty vector.
-    [[nodiscard]] bool ok() const;
+    /// Returns true when validate(registry) would return an empty vector.
+    [[nodiscard]] bool ok(const AssetRegistry& registry) const;
 
     void clear();
 
