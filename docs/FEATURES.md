@@ -80,3 +80,33 @@ Chronon3d has a fully-functional, cache-invalidation-safe Text V1 layout engine 
 - Bidi: FriBidi for RTL segmentation (`segment_bidi_runs()`)
 - Glyph cache: Full-image LRU (`CHRONON_TEXT_CACHE_MAX_MB`) + per-glyph atlas (`CHRONON_GLYPH_ATLAS_MAX_BYTES`)
 - Text centering: Layout-box centering (default) or **pixel-ink centering** (opt-in via `TextCenteringMode::PixelInk`)
+
+---
+
+## Expression System v2 — Experimental
+
+> Status (2026-06-20): 🧪 **Experimental** — merged on `main` via PR #23, but
+> not yet promoted to a stable public-facing feature. See `CHANGELOG.md` →
+> "Expression System v2 — Lifecycle" for the full provenance trail and
+> `docs/FOLLOWUP_TICKETS.md` (TICKET-003 / TICKET-004) for the surviving
+> defects.
+
+### Where to look
+
+| Surface | Path | Notes |
+|---|---|---|
+| Public headers | `include/chronon3d/expressions/v2/` (e.g. `expression_value.hpp`) | Created by PR #23; one of the tracked downstreams for TICKET-003 / TICKET-004 |
+| Library target | `src/expressions/v2/` + `src/expressions/v2/CMakeLists.txt` | Target name `chronon3d_expressions_v2` is unconditional on `main` after the guard retirement |
+| Test fixtures | `tests/expressions/` (CMakeLists.txt + `test_expressions_v2.cpp`) | Includes disabled placeholder tests pending `chronon3d::keyframes()` — see TICKET-005 Gap A |
+| Retirement comment block | `CMakeLists.txt` lines 200-237 | Documents the former `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` flag; `option()` retained as deprecated no-op |
+
+### Promotion gates (for future stable status)
+
+> Until each of the four gates below is satisfied, the `expressions/v2`
+> engine is documented as experimental and is not part of the supported
+> public API surface.
+
+1. **TICKET-003 closed** — `<chrono3d/...>` typo fixed in the v2 lexer header under `include/chronon3d/expressions/v2/`
+2. **TICKET-004 closed** — `PUBLIC ${CMAKE_SOURCE_DIR}` include bug on the `chronon3d_expressions_v2` target replaced with proper `${CMAKE_CURRENT_SOURCE_DIR}/...` (or equivalent bounded path)
+3. **Public API contract documented** — at minimum: entry-point signatures, value types, evaluator semantics, error model
+4. **Disabled tests enabled** — currently disabled placeholders in `tests/expressions/` re-enabled against the public API
