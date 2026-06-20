@@ -56,7 +56,12 @@ public:
         double rasterize_ms = 0.0;
         const auto raster_start = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
         FontEngine* engine = node.font_engine ? node.font_engine : &shared_font_engine();
-        auto raster = rasterize_text_to_bl_image(node.shape.text(), effective_size, 32, &raster_cache_hit, raster_transform, engine);
+        // TICKET-007: per-instance DebugConfig forwarded from the
+        // owning SoftwareRenderer so text-bbox / ink-bounds / baseline
+        // debug overlays honour the engine's debug.text_bbox() flag
+        // and never read a process-wide singleton.
+        const chronon3d::DebugConfig* text_debug_cfg = &renderer.config().debug();
+        auto raster = rasterize_text_to_bl_image(node.shape.text(), effective_size, 32, &raster_cache_hit, raster_transform, engine, text_debug_cfg);
         if (diagnostics_enabled) {
             rasterize_ms = profiling::elapsed_ms(raster_start);
         }

@@ -209,11 +209,15 @@ struct GlowAccumResult {
 /// Build ONLY the accumulated glow light from the source, without compositing
 /// it back.  Caller decides how to composite.
 /// Returns std::nullopt when the ROI is empty.
+/// `debug_cfg` is the per-instance DebugConfig forwarded from RenderGraphContext
+/// (TICKET-007 — replaces the removed process-wide `detail::g_debug_config`).
+/// When nullptr, the per-pass debug PNG artifacts are skipped.
 [[nodiscard]] std::optional<GlowAccumResult> build_glow_accumulator(
     const Framebuffer& fb,
     const GlowPipeline& p,
     const std::optional<raster::BBox>& clip,
-    bool source_is_alpha_mask) {
+    bool source_is_alpha_mask,
+    const chronon3d::DebugConfig* debug_cfg = nullptr) {
     const i32 w = fb.width(), h = fb.height();
     const float extent = glow_effect_extent(p);
     auto effect_clip = expand_effect_clip(clip, w, h, extent);
@@ -274,8 +278,8 @@ struct GlowAccumResult {
     float falloff_lut[kFalloffLutSize];
     build_falloff_lut(p.falloff, falloff_lut);
 
-    // ── Debug: save source framebuffer ─────────────────────────────────
-    if (detail::g_debug_config && detail::g_debug_config->glow()) {
+    // ── Debug: save source framebuffer (per-instance debug_cfg — TICKET-007) ──
+    if (debug_cfg && debug_cfg->glow()) {
         save_png(*source_fb, "output/debug_glow_source.png");
     }
 
@@ -326,8 +330,8 @@ struct GlowAccumResult {
             apply_blur(*pass_fb, r, std::nullopt, 2);
             accumulate_glow_pass(*glow_acc_fb, *pass_fb, p, falloff_lut);
 
-            // Debug: save each glow pass before accumulation
-            if (detail::g_debug_config && detail::g_debug_config->glow()) {
+            // Debug: save each glow pass before accumulation (per-instance debug_cfg — TICKET-007)
+            if (debug_cfg && debug_cfg->glow()) {
                 static thread_local int pass_counter = 0;
                 save_png(*pass_fb, "output/debug_glow_pass_" + std::to_string(pass_counter++) + ".png");
             }
@@ -361,8 +365,8 @@ struct GlowAccumResult {
         }
     }
 
-    // ── Debug: save accumulated glow before compositing ────────────────
-    if (detail::g_debug_config && detail::g_debug_config->glow()) {
+    // ── Debug: save accumulated glow before compositing (per-instance debug_cfg — TICKET-007) ──
+    if (debug_cfg && debug_cfg->glow()) {
         save_png(*glow_acc_fb, "output/debug_glow_accumulated.png");
     }
 
@@ -372,11 +376,15 @@ struct GlowAccumResult {
     };
 }
 
+/// `debug_cfg` is forwarded to `build_glow_accumulator` (TICKET-007 — replaces
+/// the removed process-wide `detail::g_debug_config`).  When nullptr, debug
+/// overlays are skipped.
 void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
                     const std::optional<raster::BBox>& clip,
-                    bool source_is_alpha_mask) {
+                    bool source_is_alpha_mask,
+                    const chronon3d::DebugConfig* debug_cfg = nullptr) {
     const i32 w = fb.width(), h = fb.height();
-    auto acc = build_glow_accumulator(fb, p, clip, source_is_alpha_mask);
+    auto acc = build_glow_accumulator(fb, p, clip, source_is_alpha_mask, debug_cfg);
     if (!acc) return;
 
     // Composite the accumulated glow back into the source framebuffer
@@ -624,7 +632,8 @@ namespace chronon3d::renderer {
     const Framebuffer& source,
     const GlowPipeline& p,
     const std::optional<raster::BBox>& clip,
-    bool source_is_alpha_mask);
+    bool source_is_alpha_mask,
+    const chronon3d::DebugConfig* debug_cfg);  // default = nullptr lives on defn
 }
 
 // ── GlowPipeline::render() — unified entry point (Item 17) ────────────
@@ -635,6 +644,13 @@ GlowPipelineOutput GlowPipeline::render(graph::RenderGraphContext& ctx,
                                         const GlowPipelineInput& input) {
     const i32 w = input.source->width();
     const i32 h = input.source->height();
+
+    // TICKET-007: per-instance DebugConfig propagated through
+    // RenderGraphContext::options::debug_config.  Forwarded into both
+    // run_glow_accumulate (alpha-mask text-glow path) and
+    // run_glow_pipeline (standard compositing path) so the
+    // debug_*_glow_*.png artifacts toggle correctly per engine.
+    const chronon3d::DebugConfig* debug_cfg = ctx.options.debug_config;
 
     // Build internal pipeline config from GlowParams.
     GlowPipeline p = GlowPipeline::from(input.params);
@@ -663,7 +679,7 @@ GlowPipelineOutput GlowPipeline::render(graph::RenderGraphContext& ctx,
         // Glow-only path: return accumulated glow WITHOUT compositing
         // into the source.  Used by text_glow.cpp which composites the
         // glow behind the text.
-        auto glow_only = renderer::run_glow_accumulate(*work_fb, *input.source, p, input.clip, true);
+        auto glow_only = renderer::run_glow_accumulate(*work_fb, *input.source, p, input.clip, true, debug_cfg);
         if (glow_only) {
             bbox = *glow_only;
         }
@@ -674,7 +690,7 @@ GlowPipelineOutput GlowPipeline::render(graph::RenderGraphContext& ctx,
             Color* dst_row = work_fb->pixels_row(y);
             std::copy_n(src_row, w, dst_row);
         }
-        renderer::run_glow_pipeline(*work_fb, p, input.clip, false);
+        renderer::run_glow_pipeline(*work_fb, p, input.clip, false, debug_cfg);
     }
 
     return {std::move(result), bbox};
@@ -688,10 +704,11 @@ namespace chronon3d::renderer {
 
 void run_glow_pipeline(Framebuffer& fb, const GlowPipeline& p,
                        const std::optional<raster::BBox>& clip,
-                       bool source_is_alpha_mask) {
+                       bool source_is_alpha_mask,
+                       const chronon3d::DebugConfig* debug_cfg) {
     switch (p.mode) {
     case GlowPipeline::Mode::Layer:
-        run_layer_mode(fb, p, clip, source_is_alpha_mask);
+        run_layer_mode(fb, p, clip, source_is_alpha_mask, debug_cfg);
         break;
     case GlowPipeline::Mode::Bloom:
         run_bloom_mode(fb, p, clip);
@@ -707,13 +724,15 @@ void run_glow_pipeline(Framebuffer& fb, const GlowPipeline& p,
 /// glow_dst must be cleared to transparent before calling.
 /// Reads source from the provided framebuffer and writes accumulated glow
 /// into glow_dst.  Returns the ROI bounds or std::nullopt on empty ROI.
+/// `debug_cfg` is forwarded to `build_glow_accumulator` (TICKET-007).
 [[nodiscard]] std::optional<raster::BBox> run_glow_accumulate(
     Framebuffer& glow_dst,
     const Framebuffer& source,
     const GlowPipeline& p,
     const std::optional<raster::BBox>& clip,
-    bool source_is_alpha_mask) {
-    auto acc = build_glow_accumulator(source, p, clip, source_is_alpha_mask);
+    bool source_is_alpha_mask,
+    const chronon3d::DebugConfig* debug_cfg = nullptr) {
+    auto acc = build_glow_accumulator(source, p, clip, source_is_alpha_mask, debug_cfg);
     if (!acc) return std::nullopt;
 
     // Copy accumulated glow into glow_dst (same size, positioned at ROI)

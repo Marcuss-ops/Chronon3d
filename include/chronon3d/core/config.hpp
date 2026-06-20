@@ -178,18 +178,12 @@ private:
 
 } // namespace chronon3d
 
-// ── Per-instance debug config pointer (for deep rendering code) ───────
+// ── TICKET-007 — Per-instance debug config propagation ──────────────────
 //
-// Set once by SoftwareRenderer at construction time before any rendering
-// begins.  Deep rendering code (glow_pipeline, text_rasterizer, etc.) reads
-// this instead of the deprecated Config singleton.
-//
-// Thread safety: assumes a single writer during startup (SoftwareRenderer
-// constructor) before any concurrent reads.  Do NOT call set_debug_config()
-// from multiple threads or after rendering has started.
-namespace chronon3d::detail {
-    inline const DebugConfig* g_debug_config{nullptr};
-    inline void set_debug_config(const DebugConfig& cfg) {
-        g_debug_config = &cfg;
-    }
-}
+// The legacy process-wide pointer `detail::g_debug_config` and its
+// setter `detail::set_debug_config()` have been removed.  DebugConfig
+// is now propagated per-instance through
+// `RenderGraphContext::options::debug_config`, populated by the
+// `SoftwareRenderer`-owning code path at the single construction
+// site `src/render_graph/pipeline/scene.cpp`.
+// See `docs/FOLLOWUP_TICKETS.md` TICKET-007 for the full migration.

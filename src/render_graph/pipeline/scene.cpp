@@ -70,6 +70,17 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         settings, registry, video_decoder, fps
     );
 
+    // TICKET-007 — single per-instance seeding point for the DebugConfig
+    // pointer.  Every code path that reads `ctx.options.debug_config`
+    // (GlowPipeline::render, future text-bbox overlay relay, etc.)
+    // now reflects the OWNING engine's debug flags instead of the
+    // previously-removed process-wide `detail::g_debug_config`.
+    // When the backend is a non-SoftwareRenderer render backend,
+    // debug_cfg remains nullptr and overlays are skipped — the
+    // safe default for non-software backends and matches the
+    // pre-existing test contract (e.g. tests/text/test_text_material.cpp).
+
+
     // Thread the per-composition assets root through the render context.
     // Deep code should use ctx.resolve_asset() or ctx.frame.assets_root
     // instead of the deprecated AssetRegistry::resolve() TLS API.
@@ -92,6 +103,19 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         ctx.telemetry.counters, ctx.resources.framebuffer_pool.get());
 
     SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
+
+    // TICKET-007 - single per-instance seeding point for the DebugConfig
+    // pointer.  Every code path that reads `ctx.options.debug_config`
+    // (GlowPipeline::render, future text-bbox overlay relay, etc.)
+    // now reflects the OWNING engine's debug flags instead of the
+    // previously-removed process-wide `detail::g_debug_config`.
+    // When the backend is a non-SoftwareRenderer render backend,
+    // debug_cfg remains nullptr and overlays are skipped -
+    // the safe default for non-software backends and matches the
+    // pre-existing test contract (e.g. tests/text/test_text_material.cpp).
+    if (sw_renderer) {
+        ctx.options.debug_config = &sw_renderer->config().debug();
+    }
 
     // Wire compiled_graph_cache + node_catalog + effect_catalog into
     // the render graph context so that graph_cache_coordinator,
