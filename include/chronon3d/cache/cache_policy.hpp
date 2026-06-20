@@ -77,7 +77,7 @@ struct CachePolicy {
     std::optional<std::size_t>     override_capacity,
     const chronon3d::CacheConfig&  cache_config);
 
-/// Convenience overload that reads from Config::get().cache() internally.
+/// Convenience overload that reads from the instance config cache() internally.
 /// Kept for gradual migration.
 [[nodiscard]] CachePolicy resolve_cache_policy(
     CacheDomain                    domain,

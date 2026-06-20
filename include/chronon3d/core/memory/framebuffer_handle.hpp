@@ -44,7 +44,6 @@ private:
 // ---------------------------------------------------------------------------
 // FramebufferReturnPolicy — explicit variant replacing the implicit priority
 // chain of PoolFbDeleter (pool_weak / scratch_slot / owned_by_renderer / scratch_cleanup).
-// Full PoolFbDeleter → variant migration deferred to PR-9 (SoftwareRenderer split).
 // ---------------------------------------------------------------------------
 struct DeleteFramebuffer {};
 struct ReturnToPool { std::weak_ptr<cache::FramebufferPool> pool; };
@@ -66,25 +65,52 @@ using FramebufferReturnPolicy = std::variant<
 // Uses weak_ptr<FramebufferPool> instead of a raw pointer + alive token.
 // This is safe against concurrent pool destruction: if the pool is gone,
 // the weak_ptr::lock() fails and the framebuffer is simply deleted.
+//
+// The policy variant is the single source of truth.  The legacy fields
+// (pool_weak, scratch_slot, owned_by_renderer, scratch_cleanup) are
+// deprecated accessors that read/write the variant for backward compat.
 // ---------------------------------------------------------------------------
 struct PoolFbDeleter {
-    std::weak_ptr<cache::FramebufferPool> pool_weak;
-    /// When set, the FB is returned to this slot (cleared) instead of
-    /// released to the pool.  Used by the TransformNode scratch buffer
-    /// to keep a persistent buffer across frames without acquire/recycle.
-    Framebuffer** scratch_slot{nullptr};
-    /// When true, the FB is owned permanently by the renderer (e.g., a
-    /// ping-pong buffer).  The deleter does nothing — no pool release,
-    /// no scratch restore, no delete.  The renderer manages lifetime
-    /// explicitly via RendererBufferRing::reset().
-    bool owned_by_renderer{false};
-    /// When set, the FB is borrowed from a TransformScratchBuffer via its
-    /// RAII Handle, captured inside this std::function as a lambda.
-    /// Calling scratch_cleanup() or replacing/clearing it destroys the
-    /// lambda (and with it the Handle), which restores the FB to the
-    /// owner's storage.  Takes precedence over pool_weak / scratch_slot /
-    /// owned_by_renderer when set.
-    std::function<void()> scratch_cleanup{};
+    FramebufferReturnPolicy policy{DeleteFramebuffer{}};
+
+    // ── Backward-compat deprecated accessors ──────────────────────────
+
+    [[deprecated("Use policy = ReturnToPool{pool} instead")]]
+    std::weak_ptr<cache::FramebufferPool>& pool_weak() {
+        if (!std::holds_alternative<ReturnToPool>(policy))
+            policy.emplace<ReturnToPool>();
+        return std::get<ReturnToPool>(policy).pool;
+    }
+    [[deprecated("Use policy = ReturnToScratch{slot} instead")]]
+    Framebuffer**& scratch_slot() {
+        if (!std::holds_alternative<ReturnToScratch>(policy))
+            policy.emplace<ReturnToScratch>();
+        return std::get<ReturnToScratch>(policy).slot;
+    }
+    [[deprecated("Use policy = RendererOwned{} instead")]]
+    bool& owned_by_renderer() {
+        static bool dummy = false;
+        if (std::holds_alternative<RendererOwned>(policy)) return dummy;
+        policy.emplace<RendererOwned>();
+        return dummy;
+    }
+    [[deprecated("Use policy = RestoreScratchHandle{cleanup} instead")]]
+    std::function<void()>& scratch_cleanup() {
+        if (!std::holds_alternative<RestoreScratchHandle>(policy))
+            policy.emplace<RestoreScratchHandle>();
+        return std::get<RestoreScratchHandle>(policy).cleanup;
+    }
+
+    // ── Convenience constructors ─────────────────────────────────────
+
+    PoolFbDeleter() = default;
+
+    /*implicit*/ PoolFbDeleter(std::weak_ptr<cache::FramebufferPool> pool)
+        : policy(ReturnToPool{std::move(pool)}) {}
+
+    /*implicit*/ PoolFbDeleter(FramebufferReturnPolicy p)
+        : policy(std::move(p)) {}
+
     void operator()(Framebuffer* fb) const noexcept;
 };
 

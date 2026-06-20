@@ -62,7 +62,7 @@ OwnedFB RenderGraphContext::acquire_scratch_fb(
         // Mark the scratch as in-use — deleter will restore it.
         scratch.transform_scratch.fb = nullptr;
         PoolFbDeleter deleter;
-        deleter.scratch_slot = scratch.transform_scratch.slot;
+        deleter.policy = ReturnToScratch{scratch.transform_scratch.slot};
         return OwnedFB(sc, std::move(deleter));
     }
     // Fall back to normal pool acquire.
