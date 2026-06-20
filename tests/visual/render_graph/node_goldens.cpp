@@ -13,13 +13,7 @@
 //   GlowPipeline             glow_pipeline_alpha_source
 //
 // Bloom / Gradient golden cases are handled by existing test_glow_torture
-// + tests/visual/gradient_visual_tests so they remain those tests'
-// responsibility.
-//
-// All LayerBuilder method calls verified against the actual API:
-//   - l.mask_rect(RectMaskParams{...})  (not l.mask)
-//   - l.drop_shadow(Vec2 offset, Color, f32 radius)  (not DropShadowParams)
-//   - l.bloom(threshold, radius, intensity)  (not BloomParams{...})
+// + tests/visual/gradient_visual_tests; they remain those tests' responsibility.
 // ==============================================================================
 
 #include <doctest/doctest.h>
@@ -37,6 +31,7 @@
 #include <filesystem>
 #include <memory>
 using namespace chronon3d;
+namespace ctt = chronon3d::test;
 
 namespace {
 
@@ -68,15 +63,6 @@ void verify_node_golden(const Framebuffer& fb, const std::string& name) {
     CHECK(result.passed);
 }
 
-SoftwareRenderer make_renderer(bool modular = false) {
-    SoftwareRenderer r;
-    RenderSettings s;
-    s.use_modular_graph = true;
-    s.modular_coordinates = modular;
-    r.set_settings(s);
-    return r;
-}
-
 }  // namespace
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -103,7 +89,7 @@ TEST_CASE("NodeGolden: shadow_contact_and_ambient") {
             });
             return s.build();
         });
-    auto fb = make_renderer().render_frame(comp, 0);
+    auto fb = ctt::make_renderer().render_frame(comp, 0);
     REQUIRE(fb != nullptr);
     verify_node_golden(*fb, "shadow_contact_and_ambient");
 }
@@ -132,7 +118,7 @@ TEST_CASE("NodeGolden: shadow_depth_aware_scaling") {
             });
             return s.build();
         });
-    auto fb = make_renderer().render_frame(comp, 0);
+    auto fb = ctt::make_renderer().render_frame(comp, 0);
     REQUIRE(fb != nullptr);
     verify_node_golden(*fb, "shadow_depth_aware_scaling");
 }
@@ -159,7 +145,7 @@ TEST_CASE("NodeGolden: dof_per_pixel_variable_depth") {
             }
             return s.build();
         });
-    auto fb = make_renderer().render_frame(comp, 0);
+    auto fb = ctt::make_renderer().render_frame(comp, 0);
     REQUIRE(fb != nullptr);
     verify_node_golden(*fb, "dof_per_pixel_variable_depth");
 }
@@ -189,7 +175,7 @@ TEST_CASE("NodeGolden: mask_hard_clip") {
             });
             return s.build();
         });
-    auto fb = make_renderer().render_frame(comp, 0);
+    auto fb = ctt::make_renderer().render_frame(comp, 0);
     REQUIRE(fb != nullptr);
     verify_node_golden(*fb, "mask_hard_clip");
 }
@@ -219,15 +205,14 @@ TEST_CASE("NodeGolden: mask_modular_coord") {
             });
             return s.build();
         });
-    auto fb = make_renderer(true).render_frame(comp, 0);
+    auto fb = ctt::make_renderer(true).render_frame(comp, 0);
     REQUIRE(fb != nullptr);
     verify_node_golden(*fb, "mask_modular_coord");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 6. GlowPipeline — alpha-source path via l.bloom(threshold, r, intensity)
-// RGB below 1.0 so the bloom pass actually spreads visible energy instead of
-// pre-saturating to white.
+// RGB below 1.0 so the bloom pass actually spreads visible energy.
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("NodeGolden: glow_pipeline_alpha_source") {
@@ -239,18 +224,16 @@ TEST_CASE("NodeGolden: glow_pipeline_alpha_source") {
             });
             s.layer("orb_alpha", [](LayerBuilder& l) {
                 l.position({0.0f, 0.0f, 0.0f});
-                // bloom_path = l.bloom(threshold=0, radius=24, intensity=1)
-                // → bloom kicks in on every non-zero alpha pixel.
                 l.bloom(/*threshold=*/0.0f, /*radius=*/24.0f, /*intensity=*/1.0f);
                 l.circle("c", {
                     .radius = 30.0f,
-                    .color = {0.60f, 0.50f, 0.45f, 1.0f},   // ≤ 1.0 → bloom visible
+                    .color = {0.60f, 0.50f, 0.45f, 1.0f},
                     .pos = {0.0f, 0.0f, 0.0f}
                 });
             });
             return s.build();
         });
-    auto fb = make_renderer().render_frame(comp, 0);
+    auto fb = ctt::make_renderer().render_frame(comp, 0);
     REQUIRE(fb != nullptr);
     verify_node_golden(*fb, "glow_pipeline_alpha_source");
 }

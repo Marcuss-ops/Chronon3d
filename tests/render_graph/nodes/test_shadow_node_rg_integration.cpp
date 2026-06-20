@@ -21,19 +21,12 @@
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <tests/helpers/test_utils.hpp>
 
 #include <cmath>
 #include <memory>
 using namespace chronon3d;
-
-namespace {
-SoftwareRenderer make_renderer() {
-    SoftwareRenderer r;
-    RenderSettings s;
-    s.use_modular_graph = true;
-    r.set_settings(s);
-    return r;
-}
+namespace ctt = chronon3d::test;
 
 Composition make_shadow_scene() {
     return composition({.width = 256, .height = 256, .duration = 1},
@@ -56,10 +49,9 @@ Composition make_shadow_scene() {
             return s.build();
         });
 }
-}  // namespace
 
 TEST_CASE("PR2-RG-Shadow: shadow projects at light direction + offset") {
-    auto renderer = make_renderer();
+    auto renderer = ctt::make_renderer();
     auto fb = renderer.render_frame(make_shadow_scene(), 0);
     REQUIRE(fb != nullptr);
 
@@ -74,7 +66,7 @@ TEST_CASE("PR2-RG-Shadow: shadow projects at light direction + offset") {
 }
 
 TEST_CASE("PR2-RG-Shadow: shadow extends beyond caster silhouette (blur)") {
-    auto renderer = make_renderer();
+    auto renderer = ctt::make_renderer();
     auto fb = renderer.render_frame(make_shadow_scene(), 0);
     REQUIRE(fb != nullptr);
 
@@ -102,7 +94,7 @@ TEST_CASE("PR2-RG-Shadow: render with no drop_shadow completes cleanly") {
             return s.build();
         });
 
-    auto renderer = make_renderer();
+    auto renderer = ctt::make_renderer();
     auto fb = renderer.render_frame(comp, 0);
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 128);
