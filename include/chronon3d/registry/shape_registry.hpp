@@ -39,7 +39,7 @@ struct ShapeDescriptor {
 
 class ShapeRegistry {
 public:
-    ShapeRegistry() = default;
+    ShapeRegistry();
 
     void register_shape(ShapeDescriptor descriptor);
 

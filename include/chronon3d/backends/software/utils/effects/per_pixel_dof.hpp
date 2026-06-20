@@ -179,7 +179,7 @@ inline void apply_per_pixel_dof(
 
                 int fx = 0;
                 for (; fx + static_cast<int>(lanes) <= floats_per_row; fx += static_cast<int>(lanes)) {
-                    Store(Load(df, src + fx), df, dst + fx);
+                    StoreU(LoadU(df, src + fx), df, dst + fx);
                 }
                 for (; fx < floats_per_row; ++fx) {
                     dst[fx] = src[fx];

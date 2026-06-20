@@ -201,6 +201,8 @@ inline CacheDiagnostics::Handle CacheDiagnostics::register_cache(
     return Handle{};
 }
 
+inline void CacheDiagnostics::unregister(Entry*) {}
+
 inline std::vector<CacheSnapshot> CacheDiagnostics::snapshot() const { return {}; }
 inline DomainSnapshot CacheDiagnostics::snapshot_by_domain(CacheDomain domain) const {
     return DomainSnapshot{.domain = domain};

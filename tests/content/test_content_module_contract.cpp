@@ -21,18 +21,15 @@ using namespace chronon3d;
 // ── Helper: register content into the given registry ─────────────────────────
 #if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_2D5)
 static void ensure_content_registered(CompositionRegistry& registry) {
-    static bool s_registered = false;
-    if (s_registered) return;
-    static ExtensionCatalog cat;
-    static graph::GraphNodeCatalog nodes;
-    static effects::EffectCatalog effects;
-    static AssetRegistry assets;
+    ExtensionCatalog cat;
+    graph::GraphNodeCatalog nodes;
+    effects::EffectCatalog effects;
+    AssetRegistry assets;
     assets.mount(std::filesystem::current_path());
     chronon3d::detail::set_default_assets_root(
         std::filesystem::current_path().string());
     ExtensionContext ctx{registry, nodes, effects, assets};
     register_content_modules(cat, ctx);
-    s_registered = true;
 }
 
 // Return the shared catalog for idempotency tests

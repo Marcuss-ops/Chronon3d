@@ -156,9 +156,6 @@ Composition important_word_trio() {
 
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_important_word_compositions(CompositionRegistry& registry) {
-    static bool done = false;
-    if (done) return;
-    done = true;
     registry.add("ImportantWordDirectorLight", [](const CompositionProps&) { return important_word_director_light(); });
     registry.add("ImportantWordActorWarm", [](const CompositionProps&) { return important_word_actor_warm(); });
     registry.add("ImportantWordWriterCool", [](const CompositionProps&) { return important_word_writer_cool(); });

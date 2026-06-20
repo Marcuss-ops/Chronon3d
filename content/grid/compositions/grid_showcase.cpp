@@ -151,9 +151,6 @@ Composition grid_color_showcase() {
 
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_grid_compositions(CompositionRegistry& registry) {
-    static bool done = false;
-    if (done) return;
-    done = true;
     registry.add("GridColorShowcase", [](const CompositionProps&) { return grid_color_showcase(); });
 }
 

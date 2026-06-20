@@ -18,14 +18,10 @@ public:
     // `bool cache` / `bool frame_dep` ctor args and `m_cacheable` member were dropped.
     explicit CompilerTestNode(std::string n,
                                RenderNodeCachePolicy policy = static_memory_cache("test"))
-        : m_name(std::move(n)), m_cache_policy(policy) {}
+        : RenderGraphNode(policy), m_name(std::move(n)) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
     [[nodiscard]] std::string_view name() const noexcept override { return m_name; }
-
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
-        return m_cache_policy;
-    }
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,
@@ -48,7 +44,6 @@ public:
 
 private:
     std::string m_name;
-    RenderNodeCachePolicy m_cache_policy;
 };
 
 } // namespace

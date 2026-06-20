@@ -87,9 +87,6 @@ Composition y_rotation_text_test();
 
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_effect_compositions(CompositionRegistry& registry) {
-    static bool done = false;
-    if (done) return;
-    done = true;
     // Product compositions
     registry.add("GlowOrbGalaxy", [](const CompositionProps&) { return glow_02_orb_galaxy(); });
     registry.add("GlowBasicWord", [](const CompositionProps&) { return glow_basic_word(); });
@@ -112,4 +109,3 @@ void register_effect_compositions(CompositionRegistry& registry) {
 }
 
 } // namespace chronon3d::content::effects
-

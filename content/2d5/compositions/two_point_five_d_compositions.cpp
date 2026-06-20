@@ -293,9 +293,6 @@ Composition camera_yaw_negative_test();
 #endif
 
 void register_2d5_compositions(CompositionRegistry& registry) {
-    static bool done = false;
-    if (done) return;
-    done = true;
     // Product compositions
     registry.add("ParallaxSimple", [](const CompositionProps&) { return parallax_simple(); });
     registry.add("DepthScene", [](const CompositionProps&) { return depth_scene(); });

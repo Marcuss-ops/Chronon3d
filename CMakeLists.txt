@@ -91,6 +91,10 @@ endif()
 if(CHRONON3D_ENABLE_VIDEO)
     add_compile_definitions(CHRONON3D_ENABLE_VIDEO)
 endif()
+if(CHRONON3D_BUILD_TESTS)
+    # Test suites assert against diagnostics snapshots and cache registration.
+    set(CHRONON3D_ENABLE_DIAGNOSTICS ON CACHE BOOL "Enable engine-level diagnostics code" FORCE)
+endif()
 if(CHRONON3D_BUILD_DIAGNOSTICS)
     add_compile_definitions(CHRONON3D_BUILD_DIAGNOSTICS)
     # Content diagnostics require engine-level diagnostics code.
@@ -228,4 +232,3 @@ if(CHRONON3D_BUILD_CLI AND CHRONON3D_BUILD_TESTS)
             chronon3d_tests_fast
     )
 endif()
-

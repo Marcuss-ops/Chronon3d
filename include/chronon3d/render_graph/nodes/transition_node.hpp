@@ -13,8 +13,9 @@ public:
                    Frame layer_from, Frame layer_duration)
         : RenderGraphNode(frame_variant_cache("transition"))
         , m_layer_name(std::move(layer_name)), m_spec(std::move(spec)), m_is_out(is_out),
-          m_layer_from(layer_from), m_layer_duration(layer_duration),
-          m_full_name("Transition (" + m_spec.transition_id + ")") {}
+          m_layer_from(layer_from), m_layer_duration(layer_duration) {
+        m_full_name = "Transition (" + m_spec.transition_id + ")";
+    }
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Transition; }
     std::string_view name() const noexcept override { return m_full_name; }
@@ -52,11 +53,11 @@ public:
 
 private:
     std::string m_layer_name;
-    std::string m_full_name;  // "Transition (" + transition_id + ")"
     LayerTransitionSpec m_spec;
     bool m_is_out{false};
     Frame m_layer_from{0};
     Frame m_layer_duration{-1};
+    std::string m_full_name;  // "Transition (" + transition_id + ")"
 };
 
 
