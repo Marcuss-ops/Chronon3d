@@ -15,7 +15,7 @@
 // This wrapper composes:
 //   - `common`  (`<chronon3d/runtime/render_session.hpp>`) holds the
 //               renderer-agnostic state: FrameArena, frame_history,
-//               dirty_telemetry, layer_history, telemetry.
+//               dirty_history, layer_history, telemetry.
 //   - `software` (`<chronon3d/backends/software/software_session_resources.hpp>`)
 //               holds CPU-specific resources: buffer_ring,
 //               transform_scratch, scene_hasher.
