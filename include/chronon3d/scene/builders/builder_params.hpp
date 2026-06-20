@@ -6,6 +6,7 @@
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/media/media_placement.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/text/paragraph_style.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
 #include <memory>
 #include <optional>
@@ -118,6 +119,11 @@ struct TextLayoutSpec {
     f32           max_font_size{160.0f};
     int           max_lines{0};
     bool          ellipsis{false};
+
+    /// Paragraph-level typography (composer, justification, indentation,
+    /// spacing, hanging punctuation, hyphenation, widow/orphan control).
+    /// Defaults to SingleLine composer with Left justification.
+    ParagraphStyle paragraph{};
 };
 
 struct TextAppearanceSpec {

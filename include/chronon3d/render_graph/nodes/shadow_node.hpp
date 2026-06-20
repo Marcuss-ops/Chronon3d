@@ -29,7 +29,8 @@ public:
                f32 receiver_world_z,
                Vec3 light_direction,
                rendering::ShadowSettings settings)
-        : m_caster_name(std::move(caster_name))
+        : RenderGraphNode(frame_variant_cache("shadow"))
+        , m_caster_name(std::move(caster_name))
         , m_caster_world_z(caster_world_z)
         , m_receiver_world_z(receiver_world_z)
         , m_light_dir(light_direction)
@@ -200,10 +201,6 @@ public:
         }
 
         return result;
-    }
-
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
-        return frame_variant_cache("shadow");
     }
 
     static std::unique_ptr<ShadowNode> create(std::string caster_name,

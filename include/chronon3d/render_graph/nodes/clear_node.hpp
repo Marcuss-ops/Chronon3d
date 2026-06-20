@@ -7,7 +7,7 @@ namespace chronon3d::graph {
 
 class ClearNode final : public RenderGraphNode {
 public:
-    ClearNode() = default;
+    ClearNode() : RenderGraphNode(static_memory_cache("clear")) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Output; }
     std::string_view name() const noexcept override { return "Clear"; }
@@ -21,10 +21,6 @@ public:
             return *ctx.tile.clip_rect;
         }
         return raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
-    }
-
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
-        return static_memory_cache("clear");
     }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {

@@ -61,6 +61,12 @@ enum class RenderGraphNodeKind {
 
 class RenderGraphNode {
 public:
+    /// Every node MUST be constructed with an explicit cache policy.
+    /// The policy is immutable after construction — changing it requires a
+    /// graph rebuild (see SourceNode::refresh() for the warning path).
+    explicit RenderGraphNode(RenderNodeCachePolicy p = frame_variant_cache("default"))
+        : m_cache_policy(p) {}
+
     virtual ~RenderGraphNode() = default;
 
     [[nodiscard]]    virtual std::optional<raster::BBox> predicted_bbox(const RenderGraphContext& ctx) const {
@@ -98,14 +104,11 @@ public:
         return false;
     }
 
-    /// Canonical, immutable cache descriptor.  Subclasses that can vary their
-    /// caching policy at construction time must store the policy passed in
-    /// their constructor and return it from this method.  Subclasses with a
-    /// fixed policy (most of them) can simply override this method directly
-    /// with the appropriate factory helper (e.g. `frame_variant_cache`,
-    /// `static_memory_cache`, `no_cache`).
-    [[nodiscard]] virtual RenderNodeCachePolicy cache_policy() const noexcept {
-        return frame_variant_cache("default");
+    /// Immutable cache descriptor set at construction time.
+    /// Subclasses must NOT override this — pass the policy to the base-class
+    /// constructor instead.  Changing cache policy requires a graph rebuild.
+    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept {
+        return m_cache_policy;
     }
 
     [[nodiscard]] virtual cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const = 0;
@@ -115,6 +118,12 @@ public:
         std::span<const FramebufferRef> inputs,
         std::span<const std::optional<raster::BBox>> input_bboxes
     ) = 0;
+
+protected:
+    /// Cache policy is immutable after construction.  Subclasses may read
+    /// it directly (e.g. cache_key() checks frame_dependent()).
+    /// The base-class cache_policy() accessor is the canonical read path.
+    RenderNodeCachePolicy m_cache_policy{frame_variant_cache("default")};
 
 private:
     std::string m_layer_id;

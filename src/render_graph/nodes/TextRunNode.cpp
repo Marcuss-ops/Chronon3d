@@ -24,7 +24,7 @@ TextRunNode::TextRunNode(
     std::optional<f32> opacity_override,
     RenderNodeCachePolicy policy
 )
-    : // cache_policy decided at construction via `policy` arg → m_cache_policy member
+    : RenderGraphNode(policy)
       m_name(std::move(name)),
       m_shape(std::move(shape)),
       m_render_ref(render_ref),
@@ -32,8 +32,7 @@ TextRunNode::TextRunNode(
       m_centered(centered),
       m_uses_2_5d_projection(uses_2_5d_projection),
       m_matrix_override(std::move(matrix_override)),
-      m_opacity_override(std::move(opacity_override)),
-      m_cache_policy(policy)
+      m_opacity_override(std::move(opacity_override))
 {}
 
 // =============================================================================

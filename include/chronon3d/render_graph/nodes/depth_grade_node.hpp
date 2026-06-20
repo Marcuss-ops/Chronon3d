@@ -22,7 +22,8 @@ class DepthGradeNode final : public RenderGraphNode {
 public:
     DepthGradeNode(rendering::DepthGrade grade, float layer_world_z,
                    bool layer_accepts_lights)
-        : m_grade(std::move(grade))
+        : RenderGraphNode(static_memory_cache("depth_grade"))
+        , m_grade(std::move(grade))
         , m_layer_world_z(layer_world_z)
         , m_accepts_lights(layer_accepts_lights) {}
 
@@ -88,10 +89,6 @@ public:
         }
 
         return result;
-    }
-
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
-        return static_memory_cache("depth_grade");
     }
 
     static std::unique_ptr<DepthGradeNode> create(

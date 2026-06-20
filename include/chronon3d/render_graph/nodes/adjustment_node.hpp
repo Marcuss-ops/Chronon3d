@@ -10,19 +10,15 @@ class AdjustmentNode final : public RenderGraphNode {
 public:
     explicit AdjustmentNode(EffectStack effects,
                             RenderNodeCachePolicy policy = static_memory_cache("adjustment"))
-        : m_effects(std::move(effects)), m_cache_policy(policy) {}
+        : RenderGraphNode(policy), m_effects(std::move(effects)) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Adjustment; }
     std::string_view name() const noexcept override { return "Adjustment"; }
 
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
-        return m_cache_policy;
-    }
-
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "adjustment",
-            .frame = m_cache_policy.frame_dependent() ? ctx.frame.frame : Frame{0},
+            .frame = cache_policy().frame_dependent() ? ctx.frame.frame : Frame{0},
             .width = ctx.frame.width,
             .height = ctx.frame.height,
             .params_hash = hash_effect_stack(m_effects)
@@ -77,7 +73,6 @@ public:
 
 private:
     EffectStack m_effects;
-    RenderNodeCachePolicy m_cache_policy{static_memory_cache("adjustment")};
 };
 
 } // namespace chronon3d::graph

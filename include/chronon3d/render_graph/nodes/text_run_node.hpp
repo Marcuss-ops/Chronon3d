@@ -64,10 +64,6 @@ public:
     }
 
 
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
-        return m_cache_policy;
-    }
-
     /// 2.5D-aware predicted bbox using `compute_text_run_world_bbox`.
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,
@@ -110,7 +106,6 @@ private:
     bool m_uses_2_5d_projection{false};
     std::optional<Mat4> m_matrix_override;
     std::optional<f32> m_opacity_override;
-    RenderNodeCachePolicy m_cache_policy{static_memory_cache("text_run")};
 
     // ── Log throttle ───────────────────────────────────────────────────
     // Backend-mismatch diagnostic fires once per node lifetime at error
