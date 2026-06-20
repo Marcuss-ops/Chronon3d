@@ -88,8 +88,18 @@ void verify_glow_golden_or_create(const Framebuffer& rendered, const std::string
     std::filesystem::create_directories(golden_dir);
     const std::filesystem::path golden_path = golden_dir / filename;
 
-    if (!std::filesystem::exists(golden_path)) {
+    // Honour CHRONON3D_UPDATE_GOLDENS=1 so stale glow PNGs (which were NOT
+    // refreshed by the cinematic-golden regen in d0123cfc) can be regenerated
+    // without manual deletion. When unset, behaviour matches the original
+    // create-only contract.
+    const bool update_mode = (std::getenv("CHRONON3D_UPDATE_GOLDENS") != nullptr);
+
+    if (!std::filesystem::exists(golden_path) || update_mode) {
         REQUIRE(save_png(rendered, golden_path.string()));
+        if (update_mode) {
+            MESSAGE("Updated glow golden: ", golden_path.string());
+            return;
+        }
     }
 
     auto golden = load_png_as_framebuffer(golden_path.string());

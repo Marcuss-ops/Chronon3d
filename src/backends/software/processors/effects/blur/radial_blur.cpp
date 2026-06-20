@@ -151,9 +151,16 @@ void apply_radial_blur(
     }
     if (y0 >= y1 || x0 >= x1) return;
 
-    // Convert normalized centre to pixel coordinates
-    const float cx_px = center_x * static_cast<float>(std::max(0, w - 1));
-    const float cy_px = center_y * static_cast<float>(std::max(0, h - 1));
+    // Convert normalized centre to pixel coordinates. We use the
+    // pixel-centre convention: normalized 0.5 must correspond to the
+    // integer pixel index at the geometric centre of the framebuffer
+    // (e.g. pixel index 4 for an 8-wide buffer, 16 for 32-wide).
+    // Without the +0.5 offset, an 8-wide buffer would resolve its
+    // centre to pixel coordinate 3.5 instead of 4.0, breaking the
+    // "exact-centre invariance" invariant and introducing a sub-pixel
+    // centroid drift that the recentering step below would amplify.
+    const float cx_px = center_x * static_cast<float>(std::max(0, w - 1)) + 0.5f;
+    const float cy_px = center_y * static_cast<float>(std::max(0, h - 1)) + 0.5f;
     const float blur_scale = amount * 0.1f;
 
     const int n = std::max(2, samples);
@@ -203,8 +210,11 @@ void apply_radial_blur(
     }
 
     const AlphaCentroid blurred_centroid = compute_alpha_centroid(fb);
-    const float shift_x = blurred_centroid.sum > 0.0f ? (blurred_centroid.x - source_centroid.x + 0.5f) : 0.0f;
-    const float shift_y = blurred_centroid.sum > 0.0f ? (blurred_centroid.y - source_centroid.y + 0.5f) : 0.0f;
+    // Centroid drift correction: only fire when the blur actually drifted the
+    // mass centre. Symmetric taps (zoom + spin) preserve the centroid, so the
+    // shift must be the literal difference — no implicit half-pixel snap.
+    const float shift_x = blurred_centroid.sum > 0.0f ? (blurred_centroid.x - source_centroid.x) : 0.0f;
+    const float shift_y = blurred_centroid.sum > 0.0f ? (blurred_centroid.y - source_centroid.y) : 0.0f;
     if (std::abs(shift_x) > 1e-3f || std::abs(shift_y) > 1e-3f) {
         auto recentered = std::make_unique<Framebuffer>(w, h);
         sampling::Sampler2D shift_sampler(fb, sampling::EdgeMode::Clamp);
