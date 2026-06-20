@@ -8,12 +8,19 @@
 #include <content/text/text_helpers.hpp>
 
 #include <cmath>
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <vector>
 #include <optional>
 
 namespace test_text_quality {
+
+// `FontSpec`, `FontEngine`, `GlyphRun` all live in `chronon3d::` and the
+// helpers below refer to them unqualified; an explicit using-directive
+// scoped INSIDE this namespace keeps references short while preventing
+// name pollution of any TU that transitively includes this header.
+using namespace chronon3d;
 
 inline FontSpec inter_bold_quality() {
     return FontSpec{

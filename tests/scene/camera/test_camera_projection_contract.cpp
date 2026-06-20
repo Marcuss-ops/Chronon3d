@@ -21,6 +21,9 @@
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/scene/model/core/hierarchy_resolver.hpp>
+#include <chronon3d/scene/model/camera/camera_rig.hpp>
+#include <chronon3d/scene/model/camera/lens_model.hpp>
+#include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/scene/model/shape/transform_3d.hpp>
 #include <cmath>
 using namespace chronon3d;
