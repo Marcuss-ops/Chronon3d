@@ -14,7 +14,32 @@ namespace chronon3d {
 
 // TemporalSamplePattern and TemporalFilter are now in camera_common_types.hpp
 
+// ── Motion blur mode ──────────────────────────────────────────────────────────
+//
+// PR1 — mutually exclusive motion-blur modes, replacing the previous
+// `bool enabled` implicit flag.  The compositor reads this field to decide
+// which blur pipeline to activate:
+//
+//   Off                   — no motion blur (default fast path)
+//   TemporalAccumulation  — render N sub-frames and accumulate framebuffers
+//                            (acceleration costs N× renders; produces correct
+//                            blur from both camera motion AND layer animation)
+//   VelocityApproximation — single-frame render; velocity derived from
+//                            previous-vs-current frame block-matching produces
+//                            the blur (cheaper; loses intra-frame animation)
+//
+// TemporalAccumulation and VelocityApproximation are mutually exclusive:
+// enabling both at once is a configuration error and the renderer reports
+// it as a pre-flight failure.
+enum class MotionBlurMode {
+    Off = 0,
+    TemporalAccumulation = 1,
+    VelocityApproximation = 2,
+};
+
 struct MotionBlurSettings {
+    /// PR1 — replaces the previous `bool enabled` field.  See MotionBlurMode.
+    MotionBlurMode mode{MotionBlurMode::Off};
     bool enabled{false};
     int  samples{8};                    // number of subframes to accumulate
     f32  shutter_angle_deg{180.0f};     // degrees; 180 = half-frame exposure
