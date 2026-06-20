@@ -165,7 +165,7 @@ SoftwareRenderer::SoftwareRenderer(Config config)
 
     m_runtime_resources.effect_catalog->freeze();
 
-    detail::set_thread_debug_config(m_config.debug());
+    detail::set_debug_config(m_config.debug());
 }
 
 SoftwareRenderer::~SoftwareRenderer() = default;

@@ -118,13 +118,16 @@ public:
         const std::optional<raster::BBox>& clip) = 0;
 
     virtual void draw_node(
-        Framebuffer& fb,
-        const RenderNode& node,
-        const RenderState& state,
-        const Camera& camera,
-        int width,
-        int height
-    ) = 0;
+        Framebuffer& /*fb*/,
+        const RenderNode& /*node*/,
+        const RenderState& /*state*/,
+        const Camera& /*camera*/,
+        int /*width*/,
+        int /*height*/
+    ) {
+        // Default no-op: draw_node is implemented on SoftwareRenderer
+        // (which inherits RenderBackend directly), not on SoftwareBackend.
+    }
 
     virtual void apply_effect_stack(
         Framebuffer& fb,
