@@ -28,7 +28,7 @@
 #include <memory>
 #include <optional>
 #include <unordered_map>
-#include <chronon3d/core/memory/render_session.hpp>
+#include <chronon3d/runtime/render_session.hpp>
 #include <chronon3d/backends/software/software_render_session.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/render_graph/render_graph.hpp>
@@ -84,7 +84,7 @@ public:
     /// Phase 5: this now delegates a single `SoftwareRenderSession::
     /// reset_job()` call, which itself composes both halves
     /// (`RenderSession::reset_job()` for frame_history /
-    /// dirty_telemetry / layer_history / telemetry, and
+    /// dirty_history / layer_history / telemetry, and
     /// `SoftwareSessionResources::reset_job()` for buffer_ring /
     /// scratch_buffer / scene_hasher).  The legacy two-call sequence
     /// (`m_session.reset_job() + m_software_resources.reset_job()`)
@@ -141,13 +141,13 @@ public:
     }
 
     // ── Dirty-rect telemetry (populated by render_scene_via_graph) ──────────
-    [[nodiscard]] double last_dirty_area_ratio() const { return m_session.common.dirty_telemetry.last_dirty_area_ratio; }
-    [[nodiscard]] bool last_dirty_rect_enabled() const { return m_session.common.dirty_telemetry.last_dirty_rect_enabled; }
-    [[nodiscard]] std::optional<raster::BBox> last_dirty_rect() const { return m_session.common.dirty_telemetry.last_dirty_rect; }
-    [[nodiscard]] bool last_tile_execution_used() const { return m_session.common.dirty_telemetry.last_tile_execution_used; }
-    [[nodiscard]] bool last_fast_path_reused() const { return m_session.common.dirty_telemetry.last_fast_path_reused; }
-    [[nodiscard]] bool last_graph_reused() const { return m_session.common.dirty_telemetry.last_graph_reused; }
-    [[nodiscard]] int last_layer_count() const { return m_session.common.dirty_telemetry.last_layer_count; }
+    [[nodiscard]] double last_dirty_area_ratio() const { return m_session.common.dirty_history.last_dirty_area_ratio; }
+    [[nodiscard]] bool last_dirty_rect_enabled() const { return m_session.common.dirty_history.last_dirty_rect_enabled; }
+    [[nodiscard]] std::optional<raster::BBox> last_dirty_rect() const { return m_session.common.dirty_history.last_dirty_rect; }
+    [[nodiscard]] bool last_tile_execution_used() const { return m_session.common.dirty_history.last_tile_execution_used; }
+    [[nodiscard]] bool last_fast_path_reused() const { return m_session.common.dirty_history.last_fast_path_reused; }
+    [[nodiscard]] bool last_graph_reused() const { return m_session.common.dirty_history.last_graph_reused; }
+    [[nodiscard]] int last_layer_count() const { return m_session.common.dirty_history.last_layer_count; }
 
     // Public for use by graph nodes via RenderGraphContext.
     void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state,
@@ -218,7 +218,7 @@ public:
     // Phase 5: `m_session` is `SoftwareRenderSession` (the combined
     // wrapper). For external back-compat with code written before
     // phase 5 (which did `sw_renderer->session().frame_history.X`,
-    // `.dirty_telemetry.X`, `.layer_history.X`), `session()` keeps
+    // `.dirty_history.X`, `.layer_history.X`), `session()` keeps
     // returning a `RenderSession&` (forwarded to `m_session.common`).
     //
     // For software-side resources, use the dedicated accessors — they
@@ -239,8 +239,8 @@ public:
 
     [[nodiscard]] RendererFrameHistory& frame_history() { return m_session.common.frame_history; }
     [[nodiscard]] const RendererFrameHistory& frame_history() const { return m_session.common.frame_history; }
-    [[nodiscard]] RendererDirtyTelemetry& dirty_telemetry() { return m_session.common.dirty_telemetry; }
-    [[nodiscard]] const RendererDirtyTelemetry& dirty_telemetry() const { return m_session.common.dirty_telemetry; }
+    [[nodiscard]] RendererDirtyTelemetry& dirty_telemetry() { return m_session.common.dirty_history; }
+    [[nodiscard]] const RendererDirtyTelemetry& dirty_telemetry() const { return m_session.common.dirty_history; }
     [[nodiscard]] RendererLayerHistory& layer_history() { return m_session.common.layer_history; }
     [[nodiscard]] const RendererLayerHistory& layer_history() const { return m_session.common.layer_history; }
     [[nodiscard]] graph::SceneHasher& scene_hasher() { return m_session.software.scene_hasher; }
@@ -248,12 +248,12 @@ public:
 
     // ── Convenience methods for graph pipeline orchestration ────────────
     void mark_fast_path_reused(Frame frame, const Camera2_5D& cam, uint64_t combined_fp) {
-        m_session.common.dirty_telemetry.last_dirty_area_ratio = 0.0;
-        m_session.common.dirty_telemetry.last_dirty_rect_enabled = false;
-        m_session.common.dirty_telemetry.last_dirty_rect = std::nullopt;
-        m_session.common.dirty_telemetry.last_tile_execution_used = false;
-        m_session.common.dirty_telemetry.last_fast_path_reused = true;
-        m_session.common.dirty_telemetry.last_graph_reused = false;
+        m_session.common.dirty_history.last_dirty_area_ratio = 0.0;
+        m_session.common.dirty_history.last_dirty_rect_enabled = false;
+        m_session.common.dirty_history.last_dirty_rect = std::nullopt;
+        m_session.common.dirty_history.last_tile_execution_used = false;
+        m_session.common.dirty_history.last_fast_path_reused = true;
+        m_session.common.dirty_history.last_graph_reused = false;
         m_session.common.frame_history.prev_frame = frame;
         m_session.common.frame_history.prev_scene_fingerprint = combined_fp;
         m_session.common.frame_history.prev_camera = cam;
@@ -286,11 +286,11 @@ public:
     void update_dirty_telemetry(bool rect_enabled, std::optional<raster::BBox> rect,
                                  bool tile_execution_used, bool fast_path_reused,
                                  bool graph_reused) {
-        m_session.common.dirty_telemetry.last_dirty_rect_enabled = rect_enabled;
-        m_session.common.dirty_telemetry.last_dirty_rect = rect;
-        m_session.common.dirty_telemetry.last_tile_execution_used = tile_execution_used;
-        m_session.common.dirty_telemetry.last_fast_path_reused = fast_path_reused;
-        m_session.common.dirty_telemetry.last_graph_reused = graph_reused;
+        m_session.common.dirty_history.last_dirty_rect_enabled = rect_enabled;
+        m_session.common.dirty_history.last_dirty_rect = rect;
+        m_session.common.dirty_history.last_tile_execution_used = tile_execution_used;
+        m_session.common.dirty_history.last_fast_path_reused = fast_path_reused;
+        m_session.common.dirty_history.last_graph_reused = graph_reused;
     }
 
     // ── RAII buffer management ──────────────────────────────────────────

@@ -19,7 +19,7 @@
 ///   7. Execute the cached program via the inner GraphExecutor.
 // =============================================================================
 
-#include <chronon3d/core/memory/render_session.hpp>
+#include <chronon3d/runtime/render_session.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/render_graph/layer/layer_resolver.hpp>
