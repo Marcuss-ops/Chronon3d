@@ -47,17 +47,29 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time) {
     // / cluster map.  Re-evaluating after the swap (lines below) clears
     // that residue.
     //
-    // TODO(PR10+): cache-key invalidation.  `hash_text_run_shape(*shape)`
-    // already folds the per-glyph state, so each new scrambled
-    // transition_text reaches the cache key via the new glyph_count.
-    // Mid-transition frames still hash-stampede a fresh entry every
-    // frame (since transition_text changes per integral frame), so the
-    // layout cache & node cache pre-warm policy needs an extra hook.
+    // PR 10 NOTE: cache-key invalidation for the per-frame loop is now
+    // closed.  `TextRunNode::cache_key(ctx)` and
+    // `MultiSourceNode::cache_key(ctx)` call `hash_text_run_shape(*shape,
+    // ctx.frame.sample_time.integral_frame())`, the frame overload that
+    // folds transition_type + active->utf8 + active->defaults.font +
+    // transition_text bytes + morph_map bytes + mix into the cache key.
+    // This guarantees the post-mutation layout's hash differs from any
+    // other frame's — including font-only Cut transitions (which would
+    // share the legacy per-text hash) and per-frame scramble bytes.
+    // Layout-shaped work is still re-done every Scramble/Morph frame;
+    // `prewarm_text_run_layout_for_frame` is the public hook to
+    // mitigate that cost for anticipator schedulers.
     if (shape.animated_doc && shape.engine != nullptr) {
         const ActiveTextState state =
             shape.animated_doc->sample_at(time.integral_frame());
         if (state.active != nullptr) {
-            apply_active_state_to_text_run_shape(
+            // PR 10 NOTE: the return value (true iff shape->layout was
+            // swapped by the apply) is intentionally discarded here.
+            // The cache-key refresher in `hash_text_run_shape(*shape,
+            // ctx.frame.sample_time.integral_frame())` (called by the
+            // executor) already captures the post-apply layout bytes,
+            // so the per-frame loop doesn't need the boolean feedback.
+            (void)apply_active_state_to_text_run_shape(
                 shape, state, *shape.engine, shape.layout_spec);
         }
     }
@@ -207,6 +219,115 @@ bool apply_active_state_to_text_run_shape(
     shape.layout = result.paragraphs.front();
     shape.glyphs = make_initial_glyph_states(shape.layout->placed);
     return true;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// prewarm_text_run_layout_for_frame — PR 10 public pre-warm hook
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Reads (not mutates) the shape, samples the bound AnimatedTextDocument at
+// `frame`, builds the TextDocument the per-frame driver will need, and
+// stores its layout into shared_text_layout_cache().  Idempotent on the
+// same (text, font, layout) key.
+
+bool prewarm_text_run_layout_for_frame(
+    const TextRunShape& shape,
+    Frame frame
+) {
+    // ── Guard rails — only meaningful for shapes with a binding ──────
+    if (!shape.animated_doc) {
+        return false;  // static shape — nothing transitions; skip.
+    }
+    if (shape.engine == nullptr) {
+        // The per-frame driver logs this on the FIRST actual use of the
+        // shape; the prewarm hook is silent so an anticipator that runs
+        // before the layer is fully wired doesn't spam.
+        return false;
+    }
+
+    const ActiveTextState state = shape.animated_doc->sample_at(frame);
+    if (state.active == nullptr) {
+        return false;
+    }
+
+    // ── Compute the target text the per-frame driver will render ────
+    //
+    // Mirrors the `target_text` selection in
+    // `apply_active_state_to_text_run_shape` exactly so the cache
+    // key we build lines up with the key the driver will hit on its
+    // next `build_text_run` call.  If we diverge, prewarm is wasted.
+    std::string target_text;
+    switch (state.transition) {
+        case SourceTextTransition::Hold:
+        case SourceTextTransition::Cut:
+        case SourceTextTransition::CrossfadeLayouts:
+            target_text = state.active->utf8;
+            break;
+        case SourceTextTransition::Scramble:
+        case SourceTextTransition::Morph:
+            target_text = state.transition_text.empty()
+                ? state.active->utf8
+                : state.transition_text;
+            break;
+    }
+    if (target_text.empty()) {
+        return false;
+    }
+
+    // ── Build a synthetic TextDocument matching apply_active_state_… ──
+    //
+    // Font override rules mirror `apply_active_state_to_text_run_shape`
+    // exactly so the cache key we build here lines up with the key the
+    // driver will hit on its next `build_text_run` call.  Any divergence
+    // here would cause prewarm to silently store under a different key
+    // and the driver's lookup to miss.
+    TextDocument td;
+    td.utf8 = target_text;
+    if (shape.layout) {
+        td.defaults.font = shape.layout->font;
+    }
+    if (!state.active->defaults.font.font_path.empty()) {
+        td.defaults.font.font_path = state.active->defaults.font.font_path;
+        if (!state.active->defaults.font.font_family.empty()) {
+            td.defaults.font.font_family = state.active->defaults.font.font_family;
+        }
+        if (state.active->defaults.font.font_weight != 0) {
+            td.defaults.font.font_weight = state.active->defaults.font.font_weight;
+        }
+        if (!state.active->defaults.font.font_style.empty()) {
+            td.defaults.font.font_style = state.active->defaults.font.font_style;
+        }
+        if (state.active->defaults.font.font_size > 0.0f) {
+            td.defaults.font.font_size = state.active->defaults.font.font_size;
+        }
+    }
+    td.split_paragraphs();
+
+    // ── Build via the canonical pipeline (PR 7). ─────────────────
+    //
+    // `build_text_run` does an internal cache lookup first.  On a hit
+    // it returns the cached layout immediately (skips HarfBuzz).  On
+    // a miss it shapes the text, stores the result, and returns the
+    // freshly-built layout.  Either way the shared cache is left in
+    // a consistent state and the next frame's
+    // `apply_active_state_to_text_run_shape` lookup will hit.
+    //
+    // Do NOT use size-before / size-after deltas to detect a "new"
+    // insert: `LruCache::put` re-promotes on overwrite (size
+    // unchanged), which would falsely report prewarm as a failure
+    // for already-cached layouts.  The semantic we expose to callers
+    // is "operation succeeded" — the cache now contains an entry for
+    // `target_text` regardless of how it got there.
+    auto& cache = shared_text_layout_cache();
+    TextRunBuildResult result =
+        build_text_run(td, *shape.engine, shape.layout_spec, &cache);
+
+    // ── Return true on operation success ─────────────────────────
+    //
+    // `result.paragraphs.empty()` only happens when build_text_run
+    // itself failed (e.g. font load failure, malformed document).
+    // Caller can use this to log + skip the anticipator entry.
+    return !result.paragraphs.empty();
 }
 
 } // namespace chronon3d

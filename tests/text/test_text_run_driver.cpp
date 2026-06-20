@@ -240,6 +240,10 @@ TEST_CASE("TextRunDriver: Hold with different active text rebuilds layout") {
     doc.add_keyframe(kf0);
     SourceTextKeyframe kf_scr;
     kf_scr.frame = Frame{60};
+    // The transition field on a keyframe describes the OUTGOING
+    // transition from this keyframe to its successor.  The Scramble
+    // destination keyframe here is kf_scr — kf0 (origin) defaults
+    // to Hold which is what this test expects at frame 0.
     kf_scr.transition = SourceTextTransition::Scramble;
     kf_scr.document.utf8 = "World";
     doc.add_keyframe(kf_scr);
@@ -267,10 +271,14 @@ TEST_CASE("TextRunDriver: Scramble transition rebuilds layout with transition_te
     SourceTextKeyframe kf0;
     kf0.frame = Frame{0};
     kf0.document.utf8 = "Hello";
+    // The transition field on a keyframe describes the OUTGOING
+    // transition from this keyframe to its successor.  To arm a
+    // Scramble across frames 0–60 we set kf0.transition (the origin),
+    // not kf60.transition (the destination).
+    kf0.transition = SourceTextTransition::Scramble;
     doc.add_keyframe(kf0);
     SourceTextKeyframe kf60;
     kf60.frame = Frame{60};
-    kf60.transition = SourceTextTransition::Scramble;
     kf60.document.utf8 = "World";
     doc.add_keyframe(kf60);
 
@@ -294,10 +302,13 @@ TEST_CASE("TextRunDriver: Morph transition rebuilds layout with transition_text"
     SourceTextKeyframe kf0;
     kf0.frame = Frame{0};
     kf0.document.utf8 = "AB";
+    // The transition field on a keyframe describes the OUTGOING
+    // transition from this keyframe to its successor.  Set
+    // kf0.transition (the origin) so the Morph fires between 0–60.
+    kf0.transition = SourceTextTransition::Morph;
     doc.add_keyframe(kf0);
     SourceTextKeyframe kf60;
     kf60.frame = Frame{60};
-    kf60.transition = SourceTextTransition::Morph;
     kf60.document.utf8 = "CD";
     doc.add_keyframe(kf60);
 

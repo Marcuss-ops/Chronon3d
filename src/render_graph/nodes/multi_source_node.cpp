@@ -106,11 +106,15 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
         // the underlying TextRunShape so the cache key invalidates when
         // `evaluate_animator_stack` mutates glyph state.  Without this
         // fold two animated frames with identical geometry would hit a
-        // stale cache entry.
+        // stale cache entry.  PR 10: use the frame overload so
+        // Scramble / Morph / CrossfadeLayouts / font-swap Cut frames
+        // driven by an AnimatedTextDocument also invalidate correctly.
         if (item.node && item.node->shape.type() == ShapeType::TextRun && item.node->shape.text_run_shape_handle().value) {
             key.params_hash = hash_combine(
                 key.params_hash,
-                chronon3d::hash_text_run_shape(*item.node->shape.text_run_shape_handle().value));
+                chronon3d::hash_text_run_shape(
+                    *item.node->shape.text_run_shape_handle().value,
+                    ctx.frame.sample_time.integral_frame()));
         }
     }
 
@@ -223,7 +227,9 @@ OwnedFB MultiSourceNode::execute(
                         m_name,
                         result ? result.value().items_drawn : 0u,
                         item.node->shape.text_run_shape_handle().value->glyphs.size(),
-                        chronon3d::hash_text_run_shape(*item.node->shape.text_run_shape_handle().value),
+                        chronon3d::hash_text_run_shape(
+                            *item.node->shape.text_run_shape_handle().value,
+                            ctx.frame.sample_time.integral_frame()),
                         item.opacity,
                         world_matrix[3][0],
                         world_matrix[3][1]
