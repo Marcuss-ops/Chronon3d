@@ -22,7 +22,8 @@ public:
     TrackMatteNode(TrackMatteType type,
                    std::string    target_name,
                    cache::NodeCacheKey key)
-        : m_type(type), m_name("matte:" + target_name), m_key(std::move(key)) {}
+        : RenderGraphNode(static_memory_cache("track_matte"))
+        , m_type(type), m_name("matte:" + target_name), m_key(std::move(key)) {}
 
     RenderGraphNodeKind kind()   const noexcept override { return RenderGraphNodeKind::TrackMatte; }
     std::string_view     name()   const noexcept override { return m_name; }
@@ -51,10 +52,6 @@ public:
             .x1 = std::min(target_bb.x1, matte_bb.x1),
             .y1 = std::min(target_bb.y1, matte_bb.y1)
         };
-    }
-
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
-        return static_memory_cache("track_matte");
     }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext&) const override { return m_key; }

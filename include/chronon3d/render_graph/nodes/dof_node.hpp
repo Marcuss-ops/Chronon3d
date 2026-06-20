@@ -17,7 +17,7 @@ namespace chronon3d::graph {
 class DofEffectNode final : public RenderGraphNode {
 public:
     DofEffectNode(Camera2_5DRuntime camera, float layer_world_z)
-        : m_camera(std::move(camera)), m_layer_world_z(layer_world_z) {}
+        : RenderGraphNode(frame_variant_cache("dof")), m_camera(std::move(camera)), m_layer_world_z(layer_world_z) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
     std::string_view name() const noexcept override { return "DOF"; }
@@ -122,10 +122,6 @@ public:
             }
         }
         return result;
-    }
-
-    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override {
-        return frame_variant_cache("dof");
     }
 
     static std::unique_ptr<DofEffectNode> create(const Camera2_5DRuntime& cam, float layer_world_z) {

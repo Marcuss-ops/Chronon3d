@@ -37,7 +37,13 @@ CacheEvalResult evaluate_cache(
         cr.node_frame_dependent = false;
     }
 
-    cr.use_cache = is_cacheable && ctx.resources.node_cache && !cr.node_frame_dependent;
+    // FrameVariant nodes are explicitly documented as cacheable within the same
+    // render frame ("multiple consumers within the same render frame may still
+    // dedupe").  The temporal_key (set below when node_frame_dependent) already
+    // isolates cache entries across frames, so intra-frame dedup is safe.
+    // The cache_hit_fast_path in node_runner.cpp correctly skips frame_dependent
+    // nodes, so they still re-execute each frame.
+    cr.use_cache = is_cacheable && ctx.resources.node_cache;
     cr.is_cacheable = is_cacheable;
 
     // Always compute the key to ensure we have a valid key digest for telemetry,

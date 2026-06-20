@@ -67,6 +67,35 @@ u64 TextLayoutCacheKey::digest() const {
     seed = hash_combine(seed, hash_value(static_cast<int>(wrap)));
     seed = hash_combine(seed, hash_value(static_cast<int>(direction)));
     seed = hash_combine(seed, hash_string(language));
+
+    // Paragraph-level typography — different composer/justification/
+    // indentation/spacing/hanging-punctuation produce different line breaks.
+    seed = hash_combine(seed, hash_value(static_cast<u8>(paragraph.composer)));
+    seed = hash_combine(seed, hash_value(static_cast<u8>(paragraph.justification)));
+    seed = hash_combine(seed, hash_value(paragraph.left_indent));
+    seed = hash_combine(seed, hash_value(paragraph.right_indent));
+    seed = hash_combine(seed, hash_value(paragraph.first_line_indent));
+    seed = hash_combine(seed, hash_value(paragraph.space_before));
+    seed = hash_combine(seed, hash_value(paragraph.space_after));
+    seed = hash_combine(seed, hash_value(paragraph.spacing.word_min));
+    seed = hash_combine(seed, hash_value(paragraph.spacing.word_desired));
+    seed = hash_combine(seed, hash_value(paragraph.spacing.word_max));
+    seed = hash_combine(seed, hash_value(paragraph.spacing.letter_min));
+    seed = hash_combine(seed, hash_value(paragraph.spacing.letter_desired));
+    seed = hash_combine(seed, hash_value(paragraph.spacing.letter_max));
+    seed = hash_combine(seed, hash_value(paragraph.spacing.glyph_scale_min));
+    seed = hash_combine(seed, hash_value(paragraph.spacing.glyph_scale_desired));
+    seed = hash_combine(seed, hash_value(paragraph.spacing.glyph_scale_max));
+    seed = hash_combine(seed, hash_value(paragraph.hanging_punctuation));
+    seed = hash_combine(seed, hash_value(paragraph.hanging_limit));
+    seed = hash_combine(seed, hash_value(paragraph.hyphenation));
+    seed = hash_combine(seed, hash_value(paragraph.minimum_word_length));
+    seed = hash_combine(seed, hash_value(paragraph.minimum_prefix));
+    seed = hash_combine(seed, hash_value(paragraph.minimum_suffix));
+    seed = hash_combine(seed, hash_value(paragraph.widow_lines));
+    seed = hash_combine(seed, hash_value(paragraph.orphan_lines));
+    seed = hash_combine(seed, hash_value(static_cast<u8>(paragraph.spacing_collapse)));
+
     return seed;
 }
 

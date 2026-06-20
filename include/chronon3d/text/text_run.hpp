@@ -2,6 +2,7 @@
 
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/glyph_selector.hpp>
+#include <chronon3d/text/paragraph_style.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
 #include <chronon3d/text/text_material.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>  // TextPaint, TextShadow
@@ -100,6 +101,11 @@ struct TextLayoutCacheKey {
     TextWrap wrap{TextWrap::None};
     TextDirection direction{TextDirection::Auto};
     std::string language;                         // BCP-47 language tag
+
+    /// Paragraph-level typography.  Different composer/justification/
+    /// indentation/spacing/hanging-punctuation settings produce different
+    /// line breaks, so they MUST be part of the cache key.
+    ParagraphStyle paragraph{};
 
     [[nodiscard]] u64 digest() const;
     [[nodiscard]] bool operator==(const TextLayoutCacheKey& other) const = default;
