@@ -3,30 +3,61 @@
 // ---------------------------------------------------------------------------
 // math/renderer_state.hpp
 //
-// Lightweight state / history / telemetry structs for the renderer pipeline.
+// Backward-compatibility header for the renderer-agnostic history /
+// telemetry structs.
 //
-// Originally lived at <chronon3d/backends/software/renderer_types.hpp> as
-// "type definitions extracted from SoftwareRenderer".  Promoted to `math/` so
-// the render-graph pipeline (dirty-rect, frame_state_commit, scene_dirty),
-// the core render_session, and tests can include these types without pulling
-// in the ~40 transitive headers behind `software_renderer.hpp` (blend2d,
-// effect processor, sampling, etc.).
+// Originally this header defined `RendererFrameHistory`,
+// `RendererDirtyTelemetry`, `RendererLayerHistory`, and `LayerBBoxState`
+// directly.  After the RenderSession extraction refactor:
+//   - `FrameHistory` (formerly `RendererFrameHistory`) is defined in
+//     `<chronon3d/runtime/frame_history.hpp>`.
+//   - `DirtyHistory` (formerly `RendererDirtyTelemetry`) is defined in
+//     `<chronon3d/runtime/dirty_history.hpp>`.
+//   - `LayerBBoxState` and `RendererLayerHistory` still live here for
+//     now: the latter is *not yet* merged into `DirtyHistory` (the merge
+//     is the end-state target of the refactor; left for a later phase so
+//     call-sites that read `session.layer_history().prev_layer_bboxes`
+//     continue to work).
+//
+// This file is intentionally kept thin: it includes the canonical
+// headers and re-exposes the legacy type names as `using` aliases, plus
+// the two remaining types that haven't migrated yet.
 //
 // SoftwareRenderer still composes from these types via inclusion — its
-// public accessor methods are unchanged.
+// public accessor methods (frame_history(), dirty_telemetry(),
+// layer_history()) are unchanged.
 // ---------------------------------------------------------------------------
-
-#include <chronon3d/math/raster_utils.hpp>
-#include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
-#include <chronon3d/core/types/frame.hpp>
 
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <unordered_map>
 
+#include <chronon3d/math/raster_utils.hpp>
+#include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
+#include <chronon3d/core/types/frame.hpp>
+
+// Canonical definitions (Phase 2 — live in runtime/).
+#include <chronon3d/runtime/frame_history.hpp>
+#include <chronon3d/runtime/dirty_history.hpp>
+
 namespace chronon3d {
+
+// ── Backward-compatibility aliases ──────────────────────────────────────
+//
+// Existing call-sites that still reference `RendererFrameHistory` or
+// `RendererDirtyTelemetry` continue to work because both names are the
+// same struct as `FrameHistory` / `DirtyHistory` respectively (one struct,
+// two names — `using` alias, not a distinct type).
+//
+// ODR-safe: the canonical struct is defined exactly once, in
+// `runtime/frame_history.hpp` / `runtime/dirty_history.hpp`.
+using RendererFrameHistory = ::chronon3d::FrameHistory;
+using RendererDirtyTelemetry = ::chronon3d::DirtyHistory;
+
+// ── Still defined here for now (Phase 3+: LayerBBoxState stays;
+// RendererLayerHistory is fanned out into DirtyHistory.previous_layers) ──
 
 /// Per-layer bounding box + diff state for dirty-rect tracking.
 ///
@@ -43,39 +74,15 @@ struct LayerBBoxState {
     uint64_t content_hash{0};
 };
 
-/// Per-frame camera + fingerprint history.
-///
-/// Carried forward from the previous frame's render_scene_via_graph() call
-/// for use by fast-path reuse checks and dirty-rect diffing.
-struct RendererFrameHistory {
-    Frame prev_frame{-1};
-    Camera2_5D prev_camera;
-    bool prev_camera_valid{false};
-    uint64_t prev_scene_fingerprint{0};
-    uint64_t prev_static_scene_fingerprint{0};
-    uint64_t prev_graph_structure_fingerprint{0};
-    uint64_t prev_active_at_fingerprint{0};
-};
-
-/// Telemetry counters for dirty-rect / tile-execution decisions.
-///
-/// Populated by render_scene_via_graph() after each frame and queried
-/// by the CLI (e.g. dry-run, telemetry report).
-struct RendererDirtyTelemetry {
-    double last_dirty_area_ratio{1.0};
-    int last_layer_count{0};
-    bool last_dirty_rect_enabled{false};
-    std::optional<raster::BBox> last_dirty_rect;
-    bool last_tile_execution_used{false};
-    bool last_fast_path_reused{false};
-    bool last_graph_reused{false};
-};
-
 /// Per-layer bbox history for dirty-rect frame-to-frame diffing.
 ///
 /// Stores the previous frame's bbox state for every active layer so
 /// the dirty-rect system can detect added, removed, moved, and
 /// content-changed layers.
+///
+/// NOTE: this struct is the LAST unmerged history type.  The end-state
+/// of the RenderSession extraction folds `prev_layer_bboxes` into
+/// `DirtyHistory` under a `previous_layers` (or similarly-named) field.
 struct RendererLayerHistory {
     std::unordered_map<std::string, LayerBBoxState> prev_layer_bboxes;
 };
