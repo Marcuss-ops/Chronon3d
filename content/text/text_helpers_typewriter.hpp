@@ -1,104 +1,32 @@
 #pragma once
 
-// ── Shared Text Helpers ─────────────────────────────────────────────────────
-//
-// Canonical text-building helpers used by ALL composition families.
-// This umbrella header includes:
-//
-//   text_helpers_centered.hpp    — centered_text(), glow_text(), CenterTextOptions
-//   text_helpers_typewriter.hpp  — typewriter_text(), typewriter_build(),
-//                                  compute_typewriter_layout()
-//
-// Namespace: chronon3d::content::text
+// ── Typewriter Text Helpers ────────────────────────────────────────────────
+// Extracted from text_helpers.hpp.
+// typewriter_text(), typewriter_build(), compute_typewriter_layout()
 
-<<<<<<< HEAD
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/text/text_glow_spec.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
+
+// Needed for complete CenterTextOptions type used by-value in typewriter_text()
+#include "text_helpers_centered.hpp"
+
 #include <mutex>
-#include <set>
 #include <string>
-#include <unordered_map>
 #include <vector>
 #include <algorithm>
 #include <utility>
 
 namespace chronon3d::content::text {
 
-// ═════════════════════════════════════════════════════════════════════════════
-// CenterTextOptions — unified options struct for all text helpers
-// ═════════════════════════════════════════════════════════════════════════════
-//
-// Every helper accepts this by value (small, fits in registers) and consumes
-// the `text` member via std::move.
-//
-struct CenterTextOptions {
-    std::string text;                     // text content (consumed)
-    Vec2  box{1200.0f, 240.0f};           // logical text box
-    Vec3  pos{0.0f, 0.0f, 0.0f};          // position (anchor is always Center)
-    std::string font_path{"assets/fonts/Poppins-Bold.ttf"};
-    std::string font_family{"Poppins"};
-    int   font_weight{700};
-    std::string font_style{"normal"};
-    f32   font_size{96.0f};               // target font size
-    f32   tracking{0.0f};                 // extra px per glyph
-    Color color{1.0f, 1.0f, 1.0f, 1.0f};
-    int   max_lines{1};                   // 0 = unlimited
-    bool  auto_fit{false};                 // shrink to fit box (off for predictable sizing)
-    f32   line_height{0.95f};             // multiplier of font-size
-    f32   min_font_size{12.0f};           // floor for auto-fit
-    f32   max_font_size{160.0f};          // ceiling for auto-fit
-};
-
-// ═════════════════════════════════════════════════════════════════════════════
-// 1. centered_text
-// ═════════════════════════════════════════════════════════════════════════════
-//
-// Returns TextParams for centered, middle-aligned text inside `box`.
-// Anchor is always TextAnchor::Center so pos maps to box center.
-// Uses PixelInk centering mode for optical centering (accounts for glyph
-// asymmetries that layout-box centering misses).
-//
-// Example:
-//   l.text("t", centered_text({.text = "TITLE", .font_size = 96, .tracking = 6}));
-//
-inline TextSpec centered_text(CenterTextOptions o) {
-    return TextSpec{
-        .content    = {.value = std::move(o.text)},
-        .font       = {.font_path   = std::move(o.font_path),
-                       .font_family = std::move(o.font_family),
-                       .font_weight = o.font_weight,
-                       .font_style  = std::move(o.font_style),
-                       .font_size   = o.font_size},
-        .layout     = {.box            = o.box,
-                       .anchor         = TextAnchor::Center,
-                       .centering_mode = TextCenteringMode::PixelInk,
-                       .align          = TextAlign::Center,
-                       .vertical_align = VerticalAlign::Middle,
-                       .wrap           = TextWrap::Word,
-                       .overflow       = TextOverflow::Clip,
-                       .line_height    = o.line_height,
-                       .tracking       = o.tracking,
-                       .auto_fit       = o.auto_fit,
-                       .min_font_size  = o.min_font_size,
-                       .max_font_size  = o.max_font_size,
-                       .max_lines      = o.max_lines},
-        .appearance = {.color = o.color},
-        .position   = o.pos,
-    };
-}
+struct CenterTextOptions;
 
 // ── UTF-8 code-point-safe helpers ──────────────────────────────────────
 
-/// Count Unicode code points (not bytes) in a UTF-8 string.
-/// Continuation bytes (10xxxxxx) are skipped.
-/// Prefer grapheme_cluster_count() for user-visible characters —
-/// this function is kept for backward compatibility.
 inline size_t utf8_code_point_count(const std::string& s) {
     size_t count = 0;
     for (size_t i = 0; i < s.size(); ++i) {
@@ -107,14 +35,6 @@ inline size_t utf8_code_point_count(const std::string& s) {
     return count;
 }
 
-/// Find the byte offset after exactly N complete code points.
-/// Returns s.size() if N exceeds the string length.  Safe for use with
-/// std::string::substr() — never splits a multi-byte character.
-///
-/// Walks the entire multi-byte sequence before returning the offset,
-/// so that substr(0, offset) is always valid UTF-8.
-/// Prefer grapheme_byte_offset_at() for user-visible characters —
-/// this function is kept for backward compatibility.
 inline size_t utf8_byte_offset_at(const std::string& s, size_t code_points) {
     size_t offset = 0;
     size_t count  = 0;
@@ -122,13 +42,11 @@ inline size_t utf8_byte_offset_at(const std::string& s, size_t code_points) {
     while (offset < s.size() && count < code_points) {
         const unsigned char lead = static_cast<unsigned char>(s[offset]);
 
-        // Determine sequence length from the leading byte
         size_t len = 1;
         if      ((lead & 0xE0) == 0xC0) len = 2;
         else if ((lead & 0xF0) == 0xE0) len = 3;
         else if ((lead & 0xF8) == 0xF0) len = 4;
 
-        // Safety: clamp if the sequence extends past the end of the string
         if (offset + len > s.size()) len = 1;
 
         offset += len;
@@ -138,41 +56,10 @@ inline size_t utf8_byte_offset_at(const std::string& s, size_t code_points) {
     return offset;
 }
 
-// ── Grapheme-cluster-safe helpers (UAX #29) ──────────────────────────
-//
-// These delegate to the canonical implementation in
-// chronon3d::detail (text_layout_engine.hpp) so there is one
-// source of truth for grapheme cluster boundaries.
-
-using chronon3d::detail::grapheme_cluster_count;
-using chronon3d::detail::grapheme_byte_offset_at;
-using chronon3d::detail::is_grapheme_extend;
-using chronon3d::detail::utf8_decode_cp;
-
 // ═════════════════════════════════════════════════════════════════════════════
 // 2. typewriter_text — simple substr-based reveal
 // ═════════════════════════════════════════════════════════════════════════════
-//
-// Like centered_text but reveals `text` character-by-character based on
-// the current frame.  Returns a single space (" ") for frame 0 so the
-// text layer never collapses to zero size.
-//
-// **Grapheme-cluster safe**: uses UAX #29 grapheme cluster counting, so
-// combining marks, ZWJ emoji sequences, and emoji skin-tone modifiers are
-// never split from their base character during the reveal.
-//
-// TypewriterOptions gives full control over the reveal:
-//   - easing:       curve applied to the linear progress (default Linear)
-//   - start_delay:  frames to wait before the first character appears
-//   - fade_chars:   number of "virtual" characters used for the soft-alpha
-//                   transition at the leading edge.  1.0 = one char fades;
-//                   0.0 = hard reveal (instant per character, same as before).
-//
-// Example:
-//   l.text("t", typewriter_text({.text = "HELLO", .font_size = 72},
-//           ctx.frame(), 2.0f, {.easing = EasingCurve{Easing::OutCubic},
-//                                .start_delay = 10}));
-//
+
 struct TypewriterOptions {
     EasingCurve easing{Easing::Linear};
     Frame       start_delay{0};
@@ -183,10 +70,12 @@ inline TextSpec typewriter_text(CenterTextOptions o,
                                   Frame frame,
                                   f32 chars_per_frame = 1.5f,
                                   TypewriterOptions tw = {}) {
+    using chronon3d::detail::grapheme_cluster_count;
+    using chronon3d::detail::grapheme_byte_offset_at;
+
     const f32 raw_frame = static_cast<f32>(frame) - static_cast<f32>(tw.start_delay);
     const f32 total_chars_f = static_cast<f32>(grapheme_cluster_count(o.text));
 
-    // Shared layout + font + appearance (reused across all branches)
     auto make_base = [&](std::string value, Color c) -> TextSpec {
         return TextSpec{
             .content    = {.value = std::move(value)},
@@ -213,19 +102,16 @@ inline TextSpec typewriter_text(CenterTextOptions o,
         };
     };
 
-    // Nothing visible yet (before delay or at frame 0)
     if (raw_frame < 0.0f || total_chars_f <= 0.0f) {
         Color c = o.color;
         c.a = 0.0f;
         return make_base(std::string(" "), c);
     }
 
-    // Linear progress → apply easing
     const f32 linear_t = std::clamp(raw_frame * chars_per_frame / total_chars_f,
                                     0.0f, 1.0f);
     const f32 eased_t  = tw.easing.apply(linear_t);
 
-    // Fully revealed → return complete text at full color
     if (eased_t >= 1.0f) {
         return make_base(std::move(o.text), o.color);
     }
@@ -237,9 +123,6 @@ inline TextSpec typewriter_text(CenterTextOptions o,
         ? std::string(" ")
         : o.text.substr(0, grapheme_byte_offset_at(o.text, revealed));
 
-    // Fade: during a character transition the layer alpha dips, creating a
-    // soft leading-edge glow.  fade_chars is clamped to [0,1] so the text
-    // never goes fully dark; a floor of 0.25 keeps it readable at all times.
     Color c = o.color;
     if (tw.fade_chars > 0.0f && revealed < static_cast<size_t>(total_chars_f) && revealed > 0) {
         const f32 fade_range = std::clamp(tw.fade_chars, 0.0f, 1.0f);
@@ -253,28 +136,6 @@ inline TextSpec typewriter_text(CenterTextOptions o,
 // ═════════════════════════════════════════════════════════════════════════════
 // 3. typewriter_build — stable per-character typewriter
 // ═════════════════════════════════════════════════════════════════════════════
-//
-// Unlike typewriter_text() which uses substr(0, n) and causes reflow every
-// frame, this function:
-//   1. Computes the FULL layout once via HarfBuzz shaping (cached)
-//   2. Creates one layer per visible character with per-character opacity
-//   3. Already-revealed characters are white, opaque, and NEVER move
-//   4. Only the currently-revealing character has a fade
-//
-// Uses pixel-accurate advances from FontEngine::shape_text(), calibrated via
-// hb_ft_font_changed() in font_engine.cpp.
-//
-// Usage:
-//   text::typewriter_build(s, "tw", {
-//       .text = "The details are not the details.",
-//       .box = {1100.0f, 350.0f},
-//       .font_size = 58.0f,
-//       .tracking = 4.0f,
-//       .chars_per_frame = 0.35f,
-//       .start_delay = Frame{20},
-//       .easing = EasingCurve{Easing::InOutCubic},
-//   }, ctx.frame);
-//
 
 struct TypewriterBuildOptions {
     std::string text;
@@ -293,13 +154,12 @@ struct TypewriterBuildOptions {
     Frame fade_duration{10};
 };
 
-// ── Per-character layout result ──────────────────────────────────────────
 struct TypewriterCharPos {
-    size_t byte_offset;  // offset into the source text (UTF-8)
-    size_t byte_len;     // length in bytes of this character
-    f32 x;               // center-x of this character (relative to text block center)
-    f32 y;               // center-y of this line (relative to text block center)
-    f32 advance;         // pixel advance of this character (including tracking)
+    size_t byte_offset;
+    size_t byte_len;
+    f32 x;
+    f32 y;
+    f32 advance;
 };
 
 struct TypewriterLayout {
@@ -308,20 +168,33 @@ struct TypewriterLayout {
     f32 total_height{0.0f};
 };
 
-// ── Compute the full layout once (stable across all frames) ──────────────
-//
-// Uses FontEngine::shape_text() for pixel-accurate cluster mapping.
-// advance_x values are correct because font_engine.cpp calls
-// hb_ft_font_changed() after FT_Set_Pixel_Sizes.
-//
-/// Optional output parameter: when non-null, the fully resolved
-/// PlacedGlyphRun is written here (avoids double-shaping when caller
-/// also needs the pre-shaped glyphs, e.g. typewriter_build).
+// Forward-declare: full implementation lives in this header.
+TypewriterLayout compute_typewriter_layout(
+    const std::string& text, f32 font_size, f32 tracking,
+    Vec2 box, f32 line_height,
+    const FontSpec& font_spec,
+    PlacedGlyphRun* out_placed = nullptr);
+
+void typewriter_build(
+    SceneBuilder& s, std::string_view layer_prefix,
+    const TypewriterBuildOptions& opts, Frame frame);
+
+} // namespace chronon3d::content::text
+
+// ── Implementation of compute_typewriter_layout ────────────────────────────
+// (must be after all includes and namespace declaration)
+
+#include <chronon3d/text/glyph_atlas.hpp>  // for shared_font_engine etc.
+#include <cmath>
+#include <cstddef>
+
+namespace chronon3d::content::text {
+
 inline TypewriterLayout compute_typewriter_layout(
     const std::string& text, f32 font_size, f32 tracking,
     Vec2 box, f32 line_height,
     const FontSpec& font_spec,
-    PlacedGlyphRun* out_placed = nullptr)
+    PlacedGlyphRun* out_placed)
 {
     TypewriterLayout result;
     if (text.empty()) return result;
@@ -331,14 +204,9 @@ inline TypewriterLayout compute_typewriter_layout(
     auto run = engine.shape_text(text, font_spec, font_size);
     if (!run || run->glyphs.empty()) return result;
 
-    // ── Canonical PlacedGlyphRun: resolves positions and builds
-    // cluster info (byte offsets, advances with tracking). ───────────
     auto placed = resolve_placed_glyph_run(*run, tracking, text);
     if (placed.clusters.empty()) return result;
 
-    // ── Convert PlacedGlyphRun::Cluster → CharAdv for grapheme merge ──
-    // Use raw_advance (without per-HarfBuzz-cluster tracking) so that
-    // tracking is applied cleanly at the grapheme level below.
     struct CharAdv { size_t byte_offset; size_t byte_len; f32 advance; };
     std::vector<CharAdv> char_advances;
     char_advances.reserve(placed.clusters.size());
@@ -346,19 +214,15 @@ inline TypewriterLayout compute_typewriter_layout(
         CharAdv ca;
         ca.byte_offset = cl.byte_offset;
         ca.byte_len = cl.byte_len;
-        ca.advance = cl.raw_advance;  // raw advance — NO per-HB-cluster tracking
+        ca.advance = cl.raw_advance;
         char_advances.push_back(ca);
     }
 
-    // ── Grapheme-cluster merge: group glyphs that form a single
-    //     user-perceived character (e.g. base + combining mark). ───
-    // This is a safety net for cases where HarfBuzz assigns different
-    // cluster values to grapheme extenders (ZWJ sequences, skin tones).
+    // Grapheme-cluster merge
     {
         std::vector<CharAdv> merged;
         merged.reserve(char_advances.size());
 
-        // GB11 state for ZWJ emoji sequences
         enum class GB11State { Normal, ExtPict, ExtPictZWJ };
         GB11State gb11 = GB11State::Normal;
 
@@ -367,19 +231,17 @@ inline TypewriterLayout compute_typewriter_layout(
 
             size_t cp_offset = ca.byte_offset;
             if (cp_offset < text.size()) {
-                const char32_t cp = utf8_decode_cp(std::string_view(text), cp_offset);
-                const bool is_ext = is_grapheme_extend(cp);
+                const char32_t cp = chronon3d::detail::utf8_decode_cp(std::string_view(text), cp_offset);
+                const bool is_ext = chronon3d::detail::is_grapheme_extend(cp);
                 const bool is_ep  = chronon3d::detail::is_extended_pictographic(cp);
                 const bool is_ri  = chronon3d::detail::is_regional_indicator(cp);
                 const bool is_zwj = (cp == 0x200D);
 
-                // RI pair: merge two consecutive Regional Indicators
                 if (!merged.empty() && is_ri) {
                     size_t prev_off = merged.back().byte_offset;
-                    size_t prev_off2 = prev_off;
-                    if (prev_off2 < text.size()) {
-                        const char32_t prev_cp = utf8_decode_cp(
-                            std::string_view(text), prev_off2);
+                    if (prev_off < text.size()) {
+                        const char32_t prev_cp = chronon3d::detail::utf8_decode_cp(
+                            std::string_view(text), prev_off);
                         if (chronon3d::detail::is_regional_indicator(prev_cp)) {
                             auto& prev = merged.back();
                             prev.byte_len = ca.byte_offset + ca.byte_len - prev.byte_offset;
@@ -390,7 +252,6 @@ inline TypewriterLayout compute_typewriter_layout(
                     }
                 }
 
-                // ZWJ after ExtPict: transition state, merge
                 if (is_zwj && gb11 == GB11State::ExtPict) {
                     gb11 = GB11State::ExtPictZWJ;
                     if (!merged.empty()) {
@@ -401,7 +262,6 @@ inline TypewriterLayout compute_typewriter_layout(
                     continue;
                 }
 
-                // ExtPict after ExtPictZWJ: merge (GB11 continuation)
                 if (is_ep && !is_ri && gb11 == GB11State::ExtPictZWJ) {
                     gb11 = GB11State::ExtPict;
                     if (!merged.empty()) {
@@ -412,7 +272,6 @@ inline TypewriterLayout compute_typewriter_layout(
                     continue;
                 }
 
-                // Generic grapheme extender: merge into previous cluster
                 if (is_ext && !merged.empty()) {
                     auto& prev = merged.back();
                     prev.byte_len = ca.byte_offset + ca.byte_len - prev.byte_offset;
@@ -420,7 +279,6 @@ inline TypewriterLayout compute_typewriter_layout(
                     continue;
                 }
 
-                // Update GB11 state for non-extend characters
                 if (!is_ext) {
                     gb11 = is_ep ? GB11State::ExtPict : GB11State::Normal;
                 }
@@ -431,12 +289,6 @@ inline TypewriterLayout compute_typewriter_layout(
 
         char_advances = std::move(merged);
     }
-
-    // ⚠  Tracking is NOT applied before wrapping.  Applying tracking to
-    // the full sequence and then wrapping causes the last character of
-    // each line to retain the gap intended for the first character of the
-    // next line — an error visible at every line break.
-    // Tracking is applied PER LINE after the wrap step below.
 
     // Word-wrap
     struct Line { size_t begin_idx; size_t end_idx; f32 width; };
@@ -488,11 +340,7 @@ inline TypewriterLayout compute_typewriter_layout(
     if (line_start < char_advances.size())
         lines.push_back({line_start, char_advances.size(), line_width});
 
-    // ── Apply tracking PER LINE (after wrapping) ──────────────────
-    // Tracking adds `tracking` pixels between each adjacent pair of
-    // grapheme clusters within a line.  The last character of a line
-    // does NOT receive tracking because the gap to the next line is
-    // handled by the line-step (no gap between lines for tracking).
+    // Apply tracking per line
     for (auto& ln : lines) {
         if (tracking != 0.0f && ln.end_idx > ln.begin_idx) {
             f32 line_tracking = 0.0f;
@@ -536,33 +384,15 @@ inline TypewriterLayout compute_typewriter_layout(
         }
     }
 
-    // ── Populate out_placed (avoids double-shaping for callers who
-    //     also need pre-shaped glyphs, e.g. typewriter_build). ───────
-    // We use tracking=0 so the per-line tracking in the typewriter is
-    // the single source of truth — the pre-shaped glyphs in out_placed
-    // must NOT include resolver-level tracking, or glyph positions
-    // would be inconsistent with the layout's raw_advance + per-line
-    // tracking model.
     if (out_placed) {
-        // run is still alive (captured in outer scope).
         *out_placed = resolve_placed_glyph_run(*run, 0.0f, text);
     }
 
     return result;
 }
 
-// ── typewriter_build — create per-character layers ───────────────────────
-//
-// Creates one layer per visible character.  Already-revealed characters are
-// fully opaque and NEVER move.  Only the currently-revealing character fades.
-// Layout is cached to avoid recomputing HarfBuzz shaping every frame.
-//
-// Uses the EXACT rendering pattern from the original working code:
-// - l.pin_to(Anchor::Center) + l.opacity()
-// - tp.anchor = TextAnchor::Center + PixelInk centering
-// - tp.pos = {cp.x, cp.y, 0.0f} (position on TextParams, not layer)
-// - tp.size = {font_size * 2, font_size * 2} (large box for ink overhang)
-//
+// ── typewriter_build — implementation ─────────────────────────────────────
+
 inline void typewriter_build(
     SceneBuilder& s, std::string_view layer_prefix,
     const TypewriterBuildOptions& opts, Frame frame)
@@ -572,19 +402,9 @@ inline void typewriter_build(
     font_spec.font_family = opts.font_family;
     font_spec.font_weight = opts.font_weight;
 
-    // ── Thread-safe single-entry layout cache (frame-invariant inputs) ─
-    //
-    // A single static cache guarded by a mutex is sufficient because
-    // typewriter_build() is typically called for short titles, not
-    // paragraphs.  If per-composition isolation is ever needed the
-    // cache can be lifted into a caller-supplied structure.
-    //
-    // Also caches the full PlacedGlyphRun so each character layer can
-    // pass pre-shaped glyphs to the rasterizer (P0 fix for Arabic/Indic
-    // contextual shaping).
     static std::mutex s_cache_mutex;
     static TypewriterLayout cached_layout;
-    static PlacedGlyphRun cached_placed;  // full pre-shaped run
+    static PlacedGlyphRun cached_placed;
     static std::string cached_text;
     static f32         cached_font_size{0.0f};
     static f32         cached_tracking{0.0f};
@@ -605,13 +425,11 @@ inline void typewriter_build(
                       cached_font_spec.font_weight == font_spec.font_weight);
 
     if (!cache_hit) {
-        // Recompute layout and get the PlacedGlyphRun via out_placed parameter
-        // (avoids double-shaping: the layout function already shapes the text).
         cached_placed = PlacedGlyphRun{};
         cached_layout = compute_typewriter_layout(
             opts.text, opts.font_size, opts.tracking,
             opts.box, opts.line_height, font_spec,
-            &cached_placed);  // populate cached_placed from the layout pass
+            &cached_placed);
         cached_text = opts.text;
         cached_font_size = opts.font_size;
         cached_tracking = opts.tracking;
@@ -635,10 +453,6 @@ inline void typewriter_build(
     const size_t revealed_count = static_cast<size_t>(revealed_exact);
     const f32 revealed_frac = revealed_exact - static_cast<f32>(revealed_count);
 
-    // Build a pre-shaped mini run once and share it across layers via shared_ptr.
-    // The shared_ptr ensures the data lives until all layers are rendered.
-    // We build one run per revealed character, extracting just that character's
-    // glyphs from the full cached_placed run.
     for (size_t i = 0; i < layout.chars.size(); ++i) {
         auto& cp = layout.chars[i];
 
@@ -656,21 +470,17 @@ inline void typewriter_build(
 
         if (opacity < 0.005f) continue;
 
-        // ── Extract this character's glyphs from the full placed run ──
-        // Find which HarfBuzz clusters overlap this character's byte range.
         std::shared_ptr<PlacedGlyphRun> char_placed;
         if (!cached_placed.clusters.empty() && !cached_placed.glyphs.empty()) {
             const size_t char_start = cp.byte_offset;
             const size_t char_end = cp.byte_offset + cp.byte_len;
 
-            // Find the first and last cluster index that overlap this range.
             size_t first_cl = cached_placed.clusters.size();
             size_t last_cl = 0;
             for (size_t ci = 0; ci < cached_placed.clusters.size(); ++ci) {
                 const auto& cl = cached_placed.clusters[ci];
                 const size_t cl_start = cl.byte_offset;
                 const size_t cl_end = cl.byte_offset + cl.byte_len;
-                // Overlap if ranges intersect
                 if (cl_start < char_end && cl_end > char_start) {
                     if (ci < first_cl) first_cl = ci;
                     if (ci > last_cl) last_cl = ci;
@@ -690,8 +500,6 @@ inline void typewriter_build(
                     mini_run->baseline = cached_placed.baseline;
                     mini_run->font_size = cached_placed.font_size;
 
-                    // Copy the glyphs for this character, adjusting positions
-                    // so the first glyph starts at (0, 0) relative offset.
                     const float base_x = cached_placed.glyphs[start_glyph].x;
                     const float base_y = cached_placed.glyphs[start_glyph].y;
                     for (size_t gi = start_glyph; gi < end_glyph; ++gi) {
@@ -703,7 +511,6 @@ inline void typewriter_build(
                         mini_run->total_width += src.advance_x;
                     }
 
-                    // Build a single cluster for this mini run
                     PlacedGlyphRun::Cluster mini_cl;
                     mini_cl.start_glyph = 0;
                     mini_cl.end_glyph = mini_run->glyphs.size();
@@ -721,9 +528,6 @@ inline void typewriter_build(
             }
         }
 
-        // For the text we still keep the substr — the rasterizer uses
-        // pre_shaped glyphs (bypassing HarfBuzz), but the text is also
-        // used for layout bounds / fallback.
         std::string glyph = opts.text.substr(cp.byte_offset, cp.byte_len);
         std::string lname = std::string(layer_prefix) + "_c" + std::to_string(i);
 
@@ -756,68 +560,8 @@ inline void typewriter_build(
     }
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// 4. glow_text
-// ═════════════════════════════════════════════════════════════════════════════
-//
-// Like centered_text but tuned for use with glow effects.  Currently
-// identical to centered_text — the glow effect itself is applied via
-// LayerBuilder::glow() or glow::apply_ae_glow().  This helper exists as
-// a semantic marker so callers can self-document "this text is meant to
-// work with a glow" and may later set glow-specific defaults (e.g. tighter
-// line-height, different overflow handling, or padding for bloom).
-//
-// Example:
-//   glow::apply_ae_glow(l);
-//   l.text("t", glow_text({.text = "GLOW", .font_size = 80, .tracking = 4}));
-//
-inline TextSpec glow_text(CenterTextOptions o,
-                            Color /*glow_color*/ = {1.0f, 1.0f, 1.0f, 1.0f},
-                            f32 /*radius*/ = 24.0f,
-                            f32 /*intensity*/ = 0.6f) {
-    // glow_color / radius / intensity are reserved for future use when
-    // TextSpec carries glow metadata.  For now, glow is applied via
-    // the layer builder API.
-    return TextSpec{
-        .content    = {.value = std::move(o.text)},
-        .font       = {.font_path   = std::move(o.font_path),
-                       .font_family = std::move(o.font_family),
-                       .font_weight = o.font_weight,
-                       .font_style  = std::move(o.font_style),
-                       .font_size   = o.font_size},
-        .layout     = {.box            = o.box,
-                       .anchor         = TextAnchor::Center,
-                       .centering_mode = TextCenteringMode::PixelInk,
-                       .align          = TextAlign::Center,
-                       .vertical_align = VerticalAlign::Middle,
-                       .wrap           = TextWrap::Word,
-                       .overflow       = TextOverflow::Clip,
-                       .line_height    = o.line_height,
-                       .tracking       = o.tracking,
-                       .auto_fit       = o.auto_fit,
-                       .min_font_size  = o.min_font_size,
-                       .max_font_size  = o.max_font_size,
-                       .max_lines      = o.max_lines},
-        .appearance = {.color = o.color},
-        .position   = o.pos,
-    };
-}
+// ── compute_single_line_glyph_layout ──────────────────────────────────────
 
-// ── compute_single_line_glyph_layout ─────────────────────────────────
-//
-// Convenience wrapper: calls compute_typewriter_layout with a huge box
-// so wrapping never triggers.  Returns a stable, grapheme-cluster-safe
-// per-character layout suitable for staggered typewriter animations.
-//
-// Example:
-//   FontSpec spec{FONT_BOLD, "Poppins", 700};
-//   auto layout = compute_single_line_glyph_layout(
-//       phrase, font_size, tracking, spec);
-//   for (auto& cp : layout.chars) {
-//       std::string glyph = phrase.substr(cp.byte_offset, cp.byte_len);
-//       f32 center_x = cp.x;
-//   }
-//
 inline TypewriterLayout compute_single_line_glyph_layout(
     const std::string& text,
     f32 font_size,
@@ -835,7 +579,3 @@ inline TypewriterLayout compute_single_line_glyph_layout(
 }
 
 } // namespace chronon3d::content::text
-=======
-#include "text_helpers_centered.hpp"
-#include "text_helpers_typewriter.hpp"
->>>>>>> c80196ee (WIP: ongoing refactor (accessor method→field conversions and tests update))

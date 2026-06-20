@@ -26,8 +26,8 @@ void draw_topdown_preview(const OverlayContext& ctx) {
     l.text("topdown_title", TextSpec{.content = {.value = "TOP-DOWN VIEW (XZ)"}, .font = {.font_size = 10.0f}, .appearance = {.color = Color{0.8f, 0.85f, 1.0f, 0.8f}}, .position = {td_x + 10.0f, td_y + 16.0f, 0.0f}});
 
     float w_min_x = 1e9f, w_max_x = -1e9f, w_min_z = 1e9f, w_max_z = -1e9f;
-    for (std::size_t ri = 0; ri < ctx.resolved.size(); ++ri) {
-        Vec3 pos(ctx.resolved.resolved(ri).world_matrix[3]);
+    for (size_t pair_idx = 0; pair_idx < ctx.resolved.size(); ++pair_idx) {
+        Vec3 pos(ctx.resolved.resolved(pair_idx).world_matrix[3]);
         w_min_x = std::min(w_min_x, pos.x); w_max_x = std::max(w_max_x, pos.x);
         w_min_z = std::min(w_min_z, pos.z); w_max_z = std::max(w_max_z, pos.z);
     }
@@ -52,8 +52,9 @@ void draw_topdown_preview(const OverlayContext& ctx) {
     l.text("td_axis_z", TextSpec{.content = {.value = "+Z"}, .font = {.font_size = 7.0f}, .appearance = {.color = Color{0.4f, 0.4f, 0.6f, 0.5f}}, .position = {td_x + draw_margin - 2.0f, draw_y0 - 6.0f, 0.0f}});
 
     int td_idx = 0;
-    for (std::size_t ri = 0; ri < ctx.resolved.size(); ++ri) {
-        Vec3 pos(ctx.resolved.resolved(ri).world_matrix[3]);
+    for (size_t pair_idx = 0; pair_idx < ctx.resolved.size(); ++pair_idx) {
+        Vec3 pos(ctx.resolved.resolved(pair_idx).world_matrix[3]);
+        const std::string& pair_name = ctx.resolved.name_at(pair_idx);
         Vec2 screen = to_td(pos.x, pos.z);
         if (screen.x < td_x + draw_margin || screen.x > td_x + td_w - draw_margin || screen.y < draw_y0 || screen.y > draw_y0 + draw_h) continue;
 
@@ -63,14 +64,12 @@ void draw_topdown_preview(const OverlayContext& ctx) {
         else if (pos.z > 0.0f) { layer_color = Color{0.3f, 0.4f + z_norm * 0.3f, 0.9f - z_norm * 0.3f, 0.75f}; }
         else { layer_color = Color{0.2f, 0.9f, 0.2f, 0.85f}; }
 
-        std::string name = ctx.resolved.name_at(ri);
-        bool is_null = name.find("_null") != std::string::npos || name.find("_parent") != std::string::npos;
-
-        for (const auto& lr : ctx.report.layers) { if (lr.name == name) { layer_color = lr.passed ? Color{0.2f, 0.9f, 0.2f, 0.85f} : Color{1.0f, 0.3f, 0.15f, 0.85f}; break; } }
+        for (const auto& lr : ctx.report.layers) { if (lr.name == pair_name) { layer_color = lr.passed ? Color{0.2f, 0.9f, 0.2f, 0.85f} : Color{1.0f, 0.3f, 0.15f, 0.85f}; break; } }
+        bool is_null = pair_name.find("_null") != std::string::npos || pair_name.find("_parent") != std::string::npos;
         if (is_null) layer_color = Color{0.0f, 0.9f, 1.0f, 0.8f};
 
         l.circle("td_layer_" + std::to_string(td_idx), CircleParams{.radius = is_null ? 4.0f : 3.5f, .color = layer_color, .pos = {screen.x, screen.y, 0.0f}});
-        if (!is_null && td_idx < 8) { l.text("td_lbl_" + std::to_string(td_idx), TextSpec{.content = {.value = name}, .font = {.font_size = 7.0f}, .appearance = {.color = Color{0.7f, 0.75f, 0.9f, 0.55f}}, .position = {screen.x + 5.0f, screen.y - 4.0f, 0.0f}}); }
+        if (!is_null && td_idx < 8) { l.text("td_lbl_" + std::to_string(td_idx), TextSpec{.content = {.value = pair_name}, .font = {.font_size = 7.0f}, .appearance = {.color = Color{0.7f, 0.75f, 0.9f, 0.55f}}, .position = {screen.x + 5.0f, screen.y - 4.0f, 0.0f}}); }
         td_idx++;
     }
 
@@ -112,8 +111,8 @@ void draw_sideview_depth(const OverlayContext& ctx) {
     l.text("sv_title", TextSpec{.content = {.value = "DEPTH SIDE VIEW (X vs Z)"}, .font = {.font_size = 10.0f}, .appearance = {.color = Color{0.8f, 1.0f, 0.85f, 0.8f}}, .position = {sv_x + 10.0f, sv_y + 16.0f, 0.0f}});
 
     float w_min_x = 1e9f, w_max_x = -1e9f, w_min_z = 1e9f, w_max_z = -1e9f;
-    for (std::size_t ri = 0; ri < ctx.resolved.size(); ++ri) {
-        Vec3 pos(ctx.resolved.resolved(ri).world_matrix[3]);
+    for (size_t pair_idx = 0; pair_idx < ctx.resolved.size(); ++pair_idx) {
+        Vec3 pos(ctx.resolved.resolved(pair_idx).world_matrix[3]);
         w_min_x = std::min(w_min_x, pos.x); w_max_x = std::max(w_max_x, pos.x);
         w_min_z = std::min(w_min_z, pos.z); w_max_z = std::max(w_max_z, pos.z);
     }
@@ -145,16 +144,15 @@ void draw_sideview_depth(const OverlayContext& ctx) {
     l.text("sv_axis_z", TextSpec{.content = {.value = "+Z"}, .font = {.font_size = 7.0f}, .appearance = {.color = Color{0.4f, 0.6f, 0.4f, 0.5f}}, .position = {sv_x + d_margin - 2.0f, d_y0 - 6.0f, 0.0f}});
 
     int sv_idx = 0;
-    for (std::size_t ri = 0; ri < ctx.resolved.size(); ++ri) {
-        Vec3 pos(ctx.resolved.resolved(ri).world_matrix[3]);
+    for (size_t pair_idx = 0; pair_idx < ctx.resolved.size(); ++pair_idx) {
+        Vec3 pos(ctx.resolved.resolved(pair_idx).world_matrix[3]);
+        const std::string& pair_name = ctx.resolved.name_at(pair_idx);
         Vec2 screen = to_sv(pos.x, pos.z);
         if (screen.x < sv_x + d_margin || screen.x > sv_x + sv_w - d_margin || screen.y < d_y0 || screen.y > d_y0 + d_h) continue;
 
         bool in_report = false, passed = true;
-        std::string name = ctx.resolved.name_at(ri);
-        bool is_null = name.find("_null") != std::string::npos || name.find("_parent") != std::string::npos;
-
-        for (const auto& lr : ctx.report.layers) { if (lr.name == name) { in_report = true; passed = lr.passed; break; } }
+        for (const auto& lr : ctx.report.layers) { if (lr.name == pair_name) { in_report = true; passed = lr.passed; break; } }
+        bool is_null = pair_name.find("_null") != std::string::npos || pair_name.find("_parent") != std::string::npos;
         Color bar_color;
         if (is_null) { bar_color = Color{0.0f, 0.9f, 1.0f, 0.7f}; }
         else if (in_report) { bar_color = passed ? Color{0.2f, 0.9f, 0.3f, 0.85f} : Color{1.0f, 0.3f, 0.15f, 0.85f}; }
@@ -169,7 +167,7 @@ void draw_sideview_depth(const OverlayContext& ctx) {
             }
         }
 
-        if (!is_null && sv_idx < 6) { l.text("sv_lbl_" + std::to_string(sv_idx), TextSpec{.content = {.value = name}, .font = {.font_size = 7.0f}, .appearance = {.color = Color{0.7f, 0.9f, 0.8f, 0.55f}}, .position = {screen.x + 10.0f, screen.y - 3.0f, 0.0f}}); }
+        if (!is_null && sv_idx < 6) { l.text("sv_lbl_" + std::to_string(sv_idx), TextSpec{.content = {.value = pair_name}, .font = {.font_size = 7.0f}, .appearance = {.color = Color{0.7f, 0.9f, 0.8f, 0.55f}}, .position = {screen.x + 10.0f, screen.y - 3.0f, 0.0f}}); }
         sv_idx++;
     }
 

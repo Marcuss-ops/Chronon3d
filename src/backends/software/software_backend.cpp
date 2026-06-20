@@ -7,6 +7,7 @@
 #include <chronon3d/scene/model/layer/layer_effect.hpp>
 #include <algorithm>
 #include <optional>
+#include <chronon3d/scene/model/layer/layer_effect.hpp>
 
 namespace chronon3d {
     namespace raster { struct BBox; }
@@ -56,6 +57,15 @@ SoftwareBackend::SoftwareBackend(
 {}
 
 SoftwareBackend::~SoftwareBackend() = default;
+
+// ── draw_node (stub — delegated to SoftwareRenderer until ShapeProcessor migration) ──
+
+void SoftwareBackend::draw_node(Framebuffer&, const RenderNode&, const RenderState&,
+                                 const Camera&, int, int) {
+    // Intentionally empty: draw_node lives on SoftwareRenderer because
+    // ShapeProcessor::draw() currently takes SoftwareRenderer& (not RenderBackend&).
+    // This override satisfies the pure-virtual contract from RenderBackend.
+}
 
 // ── capabilities ──────────────────────────────────────────────────────────
 
