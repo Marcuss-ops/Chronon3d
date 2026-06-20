@@ -140,26 +140,11 @@ private:
 
 class Config {
 public:
-    /// Returns the singleton (deprecated — use Config::from_environment())
-    [[deprecated("Use Config::from_environment() and pass instance explicitly")]]
-    [[nodiscard]] static const Config& get() {
-        static Config instance;
-        return instance;
-    }
-
     /// Factory: construct a Config by reading environment variables.
     /// This is the preferred creation path for per-instance configuration.
     [[nodiscard]] static Config from_environment();
 
-    /// CLI pipeline override: sets the framebuffer pool budget in bytes.
-    /// Deprecated — use the non-static set_fb_pool_budget() on a
-    /// Config instance instead.
-    [[deprecated("Use Config::set_fb_pool_budget() on a non-const instance")]]
-    static void set_fb_pool_budget_override(std::size_t bytes);
-
     /// Set the framebuffer pool budget on this instance (non-static).
-    /// Replaces set_fb_pool_budget_override() which used const_cast on
-    /// the singleton.
     void set_fb_pool_budget(std::size_t bytes);
 
     // ── Domain accessors ──────────────────────────────────────────────
@@ -199,7 +184,7 @@ private:
 //
 // Set once by SoftwareRenderer at construction time before any rendering
 // begins.  Deep rendering code (glow_pipeline, text_rasterizer, etc.) reads
-// this instead of the deprecated Config::get().debug() singleton.
+// this instead of the deprecated Config singleton.
 //
 // Thread safety: assumes a single writer during startup (SoftwareRenderer
 // constructor) before any concurrent reads.  Do NOT call set_debug_config()
