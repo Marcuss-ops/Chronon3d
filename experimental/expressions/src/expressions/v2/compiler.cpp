@@ -6,7 +6,7 @@
 // are `std::unique_ptr<AstNode>` so emit_ast now dereferences with `*ptr`
 // before recursing or extracting children.
 
-#include <chronon3d/expressions/v2/compiler.hpp>
+#include <chronon3d_experimental/expressions/v2/compiler.hpp>
 
 #include <cstdint>
 #include <memory>

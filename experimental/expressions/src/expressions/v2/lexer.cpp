@@ -1,6 +1,6 @@
 // lexer.cpp — Path B expression lexer implementation.
 
-#include <chronon3d/expressions/v2/lexer.hpp>
+#include <chronon3d_experimental/expressions/v2/lexer.hpp>
 
 #include <cctype>
 #include <cstdint>
