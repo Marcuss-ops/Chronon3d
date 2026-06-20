@@ -21,8 +21,9 @@ void setup_render_job(const CompositionRegistry& registry,
                       const RenderJobPlan& plan,
                       RenderJobSetupResult& out) {
     // Mount current working directory as asset root so relative asset paths
-    // (fonts, images, etc.) resolve correctly for all engines (Blend2D,
-    // FreeType, image loaders).
+    // (fonts, images, etc.) resolve correctly.  Uses the thread-local registry
+    // set at CLI init time (deprecated — will be replaced by per-context
+    // AssetRegistry in PR-7 follow-up).
     auto* assets = AssetRegistry::get_thread_local();
     if (assets) assets->mount(std::filesystem::current_path());
 

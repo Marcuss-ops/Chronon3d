@@ -5,6 +5,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/assets/asset_registry.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <cstring>
@@ -325,6 +326,10 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     // reusable_inputs starts empty — populated per-node after the clone.
 
     return copy;
+}
+
+std::string RenderGraphContext::resolve_asset(const std::string& relative_path) const {
+    return resolve_asset_path(frame.assets_root, relative_path);
 }
 
 } // namespace chronon3d::graph
