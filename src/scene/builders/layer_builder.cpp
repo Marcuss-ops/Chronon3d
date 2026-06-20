@@ -395,8 +395,20 @@ Layer LayerBuilder::build() {
             // Per-spec FontEngine override (set via trb.font_engine(...))
             // wins over the layer's default font_engine when present.
             FontEngine* engine_for_shape = spec.font_engine ? spec.font_engine : m_font_engine;
+
+            // ── PR 9 — forward the AnimatedTextDocument binding ────
+            // When the scene author attached an AnimatedTextDocument
+            // via `.from_animated_document(doc)`, the materializer
+            // samples it at the layer's local integral frame and
+            // routes the resulting ActiveTextState through
+            // `apply_active_state_to_text_run_shape`, so transitions
+            // (Hold / Cut / CrossfadeLayouts / Scramble / Morph)
+            // drive layout swaps automatically.  nullptr → unchanged
+            // behaviour (initial spec.text.content.value stays as the
+            // static literal).
             auto shape = materialize_text_run_shape(
-                spec.params, engine_for_shape, local_time);
+                spec.params, engine_for_shape, local_time,
+                spec.animated_doc);
             if (shape) {
                 node.shape.text_run_shape_handle().value = std::move(shape);
             }

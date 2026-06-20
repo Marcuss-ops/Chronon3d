@@ -1,6 +1,8 @@
 #include <chronon3d/scene/builders/text_run_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 
+#include <chronon3d/text/text_run_driver.hpp>
+
 #include <cassert>
 #include <iterator>
 #include <utility>
@@ -210,6 +212,21 @@ TextRunBuilder& TextRunBuilder::name(std::string n) {
     return *this;
 }
 
+// ── PR 9 — AnimatedTextDocument attachment ──────────────────────────────
+//
+// The pending entry's `animated_doc` slot is set so the materializer
+// picks it up at LayerBuilder::build() / RenderNodeFactory::text_run()
+// time.  We DON'T sample the document here — sampling needs the layer's
+// current SampleTime, which is only known at materialization (and the
+// compositor may rebuild with a different time later).
+
+TextRunBuilder& TextRunBuilder::from_animated_document(
+    std::shared_ptr<const AnimatedTextDocument> doc
+) {
+    m_spec->animated_doc = std::move(doc);
+    return *this;
+}
+
 // ── Commit ──
 //
 // For now, mutators directly mutate `m_spec.params` so there's nothing
@@ -254,7 +271,8 @@ namespace text_run_materialize_detail {
 std::shared_ptr<TextRunShape> materialize_text_run_shape(
     const TextRunParams& params,
     FontEngine* engine,
-    SampleTime sample_time
+    SampleTime sample_time,
+    std::shared_ptr<const AnimatedTextDocument> animated_doc
 ) {
     using namespace text_run_materialize_detail;
 
@@ -364,6 +382,40 @@ std::shared_ptr<TextRunShape> materialize_text_run_shape(
     // re-materializing the shape.  Empty list = static layout; the
     // driver treats it as no-op.
     shape->animators = params.animators;
+
+    // ── PR 9 wiring — bind animated_doc + helpers onto the shape ──────
+    //
+    // Storing `animated_doc`, the FontEngine, and the TextLayoutSpec
+    // ON THE SHAPE lets the per-frame driver
+    // (`update_text_run_shape_per_frame`) re-sample the doc on every
+    // frame and forward the resulting ActiveTextState through
+    // `apply_active_state_to_text_run_shape`.  Without this, only the
+    // build-time (one-shot) call would resolve the doc — subsequent
+    // frames would render the layout text FROM the first frame, not
+    // the current `transition_text` (Scramble / Morph) or
+    // active-document text.
+    shape->animated_doc = animated_doc;
+    shape->engine      = use_engine;
+    shape->layout_spec = params.text.layout;
+
+    // Also run a single preliminary materialization-time apply so the
+    // shape is already mid-transition-state-correct on the very first
+    // frame the compositor reads (avoids one frame of "initial literal"
+    // ghosting before the per-frame driver kicks in).
+    if (animated_doc && use_engine) {
+        const Frame integral = sample_time.integral_frame();
+        const ActiveTextState state = animated_doc->sample_at(integral);
+        if (state.active != nullptr) {
+            (void)apply_active_state_to_text_run_shape(
+                *shape, state, *use_engine, params.text.layout);
+            // TODO(PR 10+): cache-key invalidation tracking.  When
+            // transition_text drives a layout swap, the executor's
+            // pre-mutation cache key doesn't reflect the new layout
+            // and we end up keying stale entries.  See the matching
+            // TODO in src/text/text_run_driver.cpp update_text_run_shape_per_frame
+            // for the per-frame analogue.
+        }
+    }
 
     return shape;
 }
