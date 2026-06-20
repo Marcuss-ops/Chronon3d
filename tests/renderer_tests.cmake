@@ -84,6 +84,16 @@ add_executable(chronon3d_renderer_tests
     render_graph/test_post_processing_system.cpp
     render_graph/nodes/test_precomp_node_cache.cpp
     render_graph/nodes/test_multi_source_text_run.cpp
+    # PR2 — node coverage (4 categories × 2 levels: ShadowNode, PerPixelDofNode,
+    # MaskNode, GlowPipeline) − 8 sources total below
+    render_graph/nodes/test_shadow_node_unit.cpp
+    render_graph/nodes/test_shadow_node_rg_integration.cpp
+    render_graph/nodes/test_per_pixel_dof_node_unit.cpp
+    render_graph/nodes/test_per_pixel_dof_node_rg_integration.cpp
+    render_graph/nodes/test_mask_node_unit.cpp
+    render_graph/nodes/test_mask_node_rg_integration.cpp
+    renderer/effects/test_glow_pipeline_unit.cpp
+    renderer/effects/test_glow_pipeline_rg_integration.cpp
 )
 target_link_libraries(chronon3d_renderer_tests
     PRIVATE
