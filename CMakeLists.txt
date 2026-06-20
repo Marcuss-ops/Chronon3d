@@ -197,68 +197,46 @@ if(CHRONON3D_BUILD_CLI)
     add_subdirectory(apps/chronon3d_cli)
 endif()
 
-# ── Guard: prevent silent re-introduction of the abandoned expressions/v2
-# Path-B expression engine (feature/expressions-v2 was originally branched
-# from main but never integrated; its branch is still recoverable for
-# reference via `git fetch origin feature/expressions-v2`). The branch's
-# headers and sources caused silent build errors (missing
-# expression_value.hpp + a `chrono3d` typo in lexer.hpp) and its CMake
-# layout did not match the rest of the project (target_include_directories
-# set PUBLIC ${CMAKE_SOURCE_DIR} instead of ${CMAKE_SOURCE_DIR}/include;
-# tests/CMakeLists.txt used a bare relative source path under an
-# `include()` scope). Until the feature is rewritten from scratch and
-# re-landed, this guard refuses configure if anyone tries to bring it
-# back. Override with -DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON.
+# ── Former CMake guard: CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2 ───────────
+# Path-B expression engine (feature/expressions-v2) was abandoned with multiple
+# latent breakages (missing expression_value.hpp, `chrono3d` typo in lexer.hpp,
+# target_include_directories set PUBLIC ${CMAKE_SOURCE_DIR} instead of
+# ${CMAKE_SOURCE_DIR}/include, tests/CMakeLists.txt bare-relative include path).
+#
+# A guard was added in commit aae68561 to refuse configure if those patterns
+# re-appeared in any *.cmake / CMakeLists.txt — the guard fired correctly after
+# rebase with PR #23 (commits 1871eb77 +
+# 76d547a6) merged expressions/v2 into main. PR #23 was integrated ahead of
+# guarded verification; the override -DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON
+# (or a bypassed local configure) was used to land it.
+#
+# Guardian verdict (recorded here for posterity): the protective value was
+# real. The merged tree still carries two defects the guard was hunting for —
+# tracked externally so this comment stays compact:
+#
+#   • include/chronon3d/expressions/v2/lexer.hpp — see TICKET-003
+#   • src/expressions/v2/CMakeLists.txt PUBLIC include dir — see TICKET-004
+#
+# Decision (this commit): retire the guard with this comment rather than
+# maintain a permanent exclusion list. The feature is on main and functional;
+# the surviving defects above remain live and should be filed as separate
+# tickets — see docs/FOLLOWUP_TICKETS.md and the project issue tracker.
+# Re-introduce this guard (option + GLOB_RECURSE + string(FIND) + FATAL_ERROR)
+# if/when another abandoned branch needs the same protective mechanism.
 # ──────────────────────────────────────────────────────────────────────────────
-option(CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2
-    "Allow re-introduction of the abandoned expressions/v2 Path-B engine at your own risk"
-    OFF)
 
-if(NOT CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2)
-    # No CONFIGURE_DEPENDS: the guard's pattern set is fixed and rare to grow.
-    # Adding a new CMakeLists.txt / *.cmake file is already an explicit
-    # re-configure event in this project, so a stale glob in between is fine.
-    file(GLOB_RECURSE _chronon3d_guard_files
-        "${CMAKE_SOURCE_DIR}/*CMakeLists.txt"
-        "${CMAKE_SOURCE_DIR}/*.cmake"
-        "${CMAKE_SOURCE_DIR}/*/*.cmake"
-        "${CMAKE_SOURCE_DIR}/*/*/*.cmake"
-    )
-    set(_chronon3d_forbidden_patterns
-        # Trailing slashes narrow matches to the "expressions/" namespace
-        # only and avoid false positives on legitimate future modules
-        # like `add_subdirectory(expressions_runtime)`.
-        "add_subdirectory(expressions/"
-        "include(tests/expressions/"
-        # Exact lowercase target name preserved — string(FIND) is
-        # case-sensitive so this won't trip on CHRONON3D_ENABLE_* opts.
-        "chronon3d_expressions_v2"
-        "<chrono3d/expressions/v2/"
-    )
-    foreach(_chronon3d_guard_file IN LISTS _chronon3d_guard_files)
-        # Skip the file that contains this guard: it lists the forbidden
-        # patterns verbatim, so without this exclusion the guard would
-        # self-trip on its own source. Trade-off: any reinclusion added
-        # directly to the root CMakeLists.txt won't be caught here — but
-        # that file is intended to be a thin dispatcher only.
-        if(_chronon3d_guard_file STREQUAL "${CMAKE_SOURCE_DIR}/CMakeLists.txt")
-            continue()
-        endif()
-        file(READ "${_chronon3d_guard_file}" _chronon3d_guard_content)
-        foreach(_chronon3d_forbidden IN LISTS _chronon3d_forbidden_patterns)
-            string(FIND "${_chronon3d_guard_content}" "${_chronon3d_forbidden}" _chronon3d_hit)
-            if(NOT _chronon3d_hit EQUAL -1)
-                message(FATAL_ERROR
-                    "Chronon3D guard: forbidden expressions/v2 pattern detected.\n"
-                    "  File:    ${_chronon3d_guard_file}\n"
-                    "  Pattern: ${_chronon3d_forbidden}\n"
-                    "The feature/expressions-v2 Path-B engine was abandoned. To revive\n"
-                    "it intentionally, configure with:\n"
-                    "  -DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON\n"
-                )
-            endif()
-        endforeach()
-    endforeach()
+# Deprecated option kept for cmake-cache-key compat with forks / CI scripts
+# that still pass -DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON. The
+# surrounding if() is an empty touch so cmake does not emit an
+# "unused cache variable" warning; the comment block above carries the
+# full history.
+option(CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2
+    "[OBSOLETE] Retired after PR #23 (commits 1871eb77 + 76d547a6): was a guard for the abandoned expressions/v2 Path-B engine. See the comment block above for history and surviving defects. Configure with no effect; preserved for cmake-cache-key backwards compatibility with existing forks / CI."
+    OFF)
+if(CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2)
+    # OBSOLETE no-op touch: read the option once so cmake does NOT emit
+    # "unused cache variable" warnings when forks / CI pass -D...=ON. The
+    # retirement comment block above carries the full history.
 endif()
 
 # ── SDK Install / Export ───────────────────────────────────────────────────
