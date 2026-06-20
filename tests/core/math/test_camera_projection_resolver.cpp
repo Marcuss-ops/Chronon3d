@@ -405,6 +405,11 @@ TEST_CASE("CameraProjectionResolver: UVs valid after clipping") {
 // =============================================================================
 // Test 13: Perspective scale formula verification
 // =============================================================================
+// TICKET-007.v (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; perspective_scale ≈ focal/depth formula regressed.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bug — perspective_scale diverges by >10% from expected.
 // TODO(chronon3d): fix perspective_scale computation and re-enable.
 TEST_CASE("CameraProjectionResolver: perspective_scale = focal / depth" * doctest::skip()) {

@@ -66,6 +66,11 @@ TEST_CASE("PR1: temporal::generate_temporal_samples — deterministic across two
     CHECK(approx(wsum, 1.0, 1e-5));
 }
 
+// TICKET-007.i (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; Stratified jitter frame-keying bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bug — Stratified jitter doesn't differ across frames.
 // TODO(chronon3d): fix frame-keyed jitter generation and re-enable.
 TEST_CASE("PR1: temporal::generate_temporal_samples — frame-keyed jitter differs" * doctest::skip()) {

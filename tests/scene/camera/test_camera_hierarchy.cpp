@@ -85,6 +85,11 @@ TEST_CASE("Camera hierarchy: parent rotation moves the camera around the origin"
     CHECK(std::abs(resolved.camera.position.z) < 0.5f);
 }
 
+// TICKET-007.h (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; fast-swap camera hierarchy resolution bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bug — target_b POI resolves to (720,30) instead of (520,40).
 // TODO(chronon3d): fix fast target swap resolution and re-enable.
 TEST_CASE("Camera hierarchy: fast target swap is detected" * doctest::skip()) {

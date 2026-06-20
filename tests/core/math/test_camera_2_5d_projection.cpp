@@ -102,9 +102,15 @@ TEST_CASE("Camera2_5D projection: camera pan affects near layer more than far la
     CHECK(near_delta > far_delta);
 }
 
+// TICKET-007.w (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; focal_length_from_fov doesn't differentiate FOV values.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bug — focal35 and focal70 compute to same value (1000).
 // The focal_length_from_fov function may not differentiate 35° vs 70° FOV.
 // TODO(chronon3d): fix focal_length_from_fov and re-enable.
+// TICKET-007.w (compliance metadata — see docs/FOLLOWUP_TICKETS.md). Issue: focal_length_from_fov doesn't differentiate FOV values. Owner: chronon3d-owners. Motivation: pre-existing rot. Data introduzione: 2026-06-20. Deadline rimozione: 2026-09-30.
 TEST_CASE("Camera2_5D projection: wider FOV creates smaller focal length" * doctest::skip()) {
     const f32 h = 720.0f;
 
@@ -114,6 +120,11 @@ TEST_CASE("Camera2_5D projection: wider FOV creates smaller focal length" * doct
     CHECK(focal35 > focal70);
 }
 
+// TICKET-007.x (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; perspective_scale dependency on FOV mode.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bug — perspective_scale comparison fails.
 // TODO(chronon3d): fix perspective_scale computation in project_layer_2_5d.
 TEST_CASE("Camera2_5D projection: FOV mode changes perspective scale" * doctest::skip()) {
