@@ -83,6 +83,10 @@ add_executable(chronon3d_core_tests
     render_graph/builder/test_graph_build_pass_order.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
+# TICKET-006: when text is enabled, text/ tests need symbols from chronon3d_backend_text
+if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
+    target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_backend_text)
+endif()
 
 # Make CMAKE_CURRENT_BINARY_DIR available for ExtensionLoader plugin tests (finds .so files)
 target_compile_definitions(chronon3d_core_tests PRIVATE
