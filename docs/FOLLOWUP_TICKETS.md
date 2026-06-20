@@ -332,3 +332,130 @@ The defect is harmless in practice because every source file in `src/expressions
 
 ---
 
+## TICKET-005 — post-cascade cleanup: revive `keyframes()` and reconcile the expressions/v2 guard vs merged PR #23
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `tests/core/animation/test_keyframes.cpp` (animations); `CMakeLists.txt` (root, deprecated option residue); `CMakePresets.json` (drift check); `docs/CHANGELOG.md`, `docs/ROADMAP.md`, `docs/ARCHITECTURE_EVOLUTION_PLAN.md`, `docs/FEATURES.md` (documentation reconciliation); `*.sh` / `*.yml` / `*.yaml` / CI configs (stale-flag scan). |
+| **Discovered during** | Post-rebase verification flow: cmake-guard retirement commit (`aae68561`-origin cycle, retired this session); cascade of missing-transitive-include fixes in `856ff957`; PR #23 rebase integration. |
+| **Discovered date** | 2026-06-20 |
+
+### Symptom
+
+Three distinct gaps surfaced in the post-cascade codebase state. Each is documented separately so future cleanup work can track them with appropriate granularity.
+
+**Gap A — `keyframes(frame, keyframe_list)` is unimplemented.**
+
+`tests/core/animation/test_keyframes.cpp` was disabled earlier in this session because the file's `TEST_CASE` body called `keyframes(t, {KF{...}, KF{...}})` as a free function in `chronon3d::`, but no such function exists in `src/` or `include/` today (verified: no `keyframes.hpp`, no free-function definition in `src/animation/`). Without the function, the file failed to compile with 13 errors of the form `'keyframes' was not declared in this scope`.
+
+The current placeholder in the file reads:
+
+```cpp
+TEST_CASE("DISABLED_keyframes_v2: placeholder pending keyframes() implementation") {
+    CHECK(true);
+}
+```
+
+Coverage for this test suite is permanently lost until `keyframes()` is implemented.
+
+**Gap B — missing-transitive-include cascade fixed in-place vs upstream's strategy.**
+
+Multiple test/scaffold files surfaced missing transitive headers during this session's compile cascade:
+
+| File | Header(s) added |
+|---|---|
+| `tests/scene/camera/test_camera_projection_contract.cpp` | `camera_rig.hpp`, `lens_model.hpp`, `frame.hpp` |
+| `tests/scene/camera_projection_tests.cpp` | `camera_2_5d.hpp` |
+| `tests/scene/test_joints.cpp` | `types.hpp` (`f32` alias) + scoped `using chronon3d::f32;` |
+| `tests/text/test_text_quality_helpers.hpp` | `<cstddef>` + scoped `using namespace chronon3d;` |
+| `src/scene/camera/camera_path_sampler.cpp` | `camera_2_5d.hpp` |
+| `include/chronon3d/runtime/motion_graph_prewarm.hpp` | `frame.hpp` |
+
+Upstream's fix commit `76d547a6` (closing PR #23) evidently took a different strategy — likely either disabling the affected tests or removing the dependent feature code. We chose to fix the missing-include cascade in place, on the grounds that disabling tests reduces coverage and removing feature code regresses surface area. The risk: if PR #23's eventual strategy lands on a different fix pattern, our in-place include additions may have to be revisited when those branches converge.
+
+**Gap C — CMake guard interaction with merged PR #23 needs reconciliation.**
+
+The `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` guard (added in the prior session cycle as `aae68561`-prefix lineage, retired this session) fired correctly on re-verification after PR #23 merged expressions/v2 into main (commits `1871eb77` + `76d547a6`). The guard's retirement is captured in the cmake comment block + a deprecated `option(... OFF)` + an empty `if(... ) endif()` no-op touch to preserve cache-key compat.
+
+But the retirement leaves three loose ends:
+
+1. **CI / preset drift**: PR #23 evidently integrated successfully via the override escape hatch `-DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON` (or a bypassed local configure). Which CI artifacts / presets / scripts still pass that flag is unverified; they may now be stale entries generating cmake warnings on every configure.
+2. **Documentation drift**: `docs/ARCHITECTURE_EVOLUTION_PLAN.md`, `docs/ROADMAP.md`, `docs/FEATURES.md` may still describe expressions/v2 as disabled / abandoned / quarantined, even though it's now functionally on main.
+3. **CHANGELOG provenance**: The guard's brief lifecycle (created, fired, retired all within the same commit window) is only documented inline in `CMakeLists.txt`. The CHANGELOG entry that should capture this for downstream readers was not added.
+
+### Root cause analysis
+
+**Gap A (`keyframes()`)**: The animation system uses free-function-with-template params internally; the disabled test was authored against a public free-function interface that was never exposed outside `chronon3d::` core::animation internals. Implementing it requires picking a public signature going forward — either expose the internal template as a free function with a stable signature, or re-shape the test cases against the existing internal API. Neither was done in this session because the animation subsystem's v2 public API is still in flux.
+
+**Gap B (cascade fixes)**: A series of header refactors (likely the same lineage that introduced `TextRunSpec`, per TICKET-002) incrementally tightened transitive include requirements across multiple headers (`result.hpp`, `camera_2_5d.hpp`, `camera_rig.hpp`, etc.). Tests in `tests/` and components in `src/` were never updated to track the tightened includes — the refactor only changed exposed surfaces, not internal consumers. PR #23's `76d547a6` likely addressed this by stripping the consumer code rather than re-including the dependents; revisiting that strategy against our in-place include additions will require cross-branch reconciliation.
+
+**Gap C (guard interaction)**: The guard's protection cycle was short — added in `aae68561`, fired on rebase verification, retired in the same session. There was no opportunity for either the override flag to propagate to whatever CI configs / presets were used to land PR #23, OR for those configs to be cleaned up after the guard retirement. The session's retirement leaves a status gap that's invisible at the source level (no `grep`-visible artifact) but real at the operational level (stale CI configurations).
+
+### Out-of-scope rationale for the cmake-guard retirement commit
+
+- The retirement commit's audit scope is the guard itself + cache-key compat + the retirement comment block. Audit trail covers: "I see the guard, I see the retirement, I see the option gone." Clean.
+- Cross-cutting gaps A/B/C expand the audit footprint into: an animation-system feature refactor, an include-discipline convention, CI/preset configuration drift, and documentation reconciliation. Mixing these into the guard retirement commit would dilute the auditability, so they go in a single follow-up ticket for clarity.
+- The cascade of source-level fixes (`856ff957`) is already on main and green; TICKET-005 is meta-coordination, not a re-do of those fixes.
+
+### Suggested fix approach
+
+**For Gap A (`keyframes()` revival)**:
+
+1. Open `tests/core/animation/test_keyframes.cpp`.
+2. Decide on a public interface: either implement `chronon3d::keyframes(Frame t, std::span<Keyframe const> ks)` as a thin wrapper over the existing internal interpolation logic, OR re-shape the disabled test cases against the existing internal API (e.g., a class-based evaluator rather than a free function).
+3. If implementing: ensure the wrapper follows the same animation-graph invariants as the internal call (`lerp`, `ease`, `step`, easing-curve lookup). Add a doc comment explaining the scope of the public interface.
+4. Update the `TEST_CASE("DISABLED_keyframes_v2: ...")` line to active status and remove the embedded `placeholder pending keyframes() implementation` marker.
+5. Re-run `cmake --build build/chronon/linux-ci --target chronon3d_tests_fast` to confirm zero regressions.
+6. Update the file-header comment block from disabled-pending to active-and-tested.
+
+**For Gap B (transitive-include cascade)**:
+
+1. Run `git diff origin/main HEAD` to identify each cascade-fixed file in `856ff957` and document the divergence from upstream's strategy.
+2. Decide: keep our in-place fixes (preferred — preserves coverage), OR substitute upstream's strategy (e.g., delete orphan tests/features). The former is lower risk for downstream consumers.
+3. Add a brief include-discipline note to `CONTRIBUTING.md`: when a header's transitive includes are tightened, the commit should update all known consumers in the same PR rather than relying on subsequent cascade fixes.
+4. Run `cmake --build build/chronon/linux-ci --target chronon3d_tests_fast` under multiple presets (`linux-ci`, `linux-dev`, `linux-lean-dev`) to confirm the cascade is stable across build configurations.
+
+**For Gap C (guard interaction reconciliation)**:
+
+1. Audit stale-flag references:
+   ```bash
+   grep -rn 'CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2' . \
+     --include='*.cmake' --include='CMakeLists.txt' --include='*.sh' \
+     --include='*.yml' --include='*.yaml' --include='*.py' \
+     --exclude-dir='build/' --exclude-dir='vcpkg_*/' 2>/dev/null
+   ```
+   Most hits should be the `option(... OFF)` line in root `CMakeLists.txt` + the retirement comment block. Any CI / script / preset referencing the override flag as a live directive (e.g., `"CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2": "ON"` in `CMakePresets.json`) is stale and should be removed.
+2. Reconcile documentation:
+   - `docs/CHANGELOG.md` — add an entry noting the cmake guard's brief lifecycle (added → fired → retired in the same commit window, with PR #23 as the trigger).
+   - `docs/ROADMAP.md`, `docs/ARCHITECTURE_EVOLUTION_PLAN.md`, `docs/FEATURES.md` — update any references to expressions/v2 as "disabled" / "abandoned" / "quarantined" to reflect that it is now functionally integrated on `main`. References should no longer advise against future use.
+3. Confirm the deprecated `option(... OFF)` line in root `CMakeLists.txt` does not break any preset:
+   ```bash
+   for preset in linux-ci linux-dev linux-lean-dev linux-release linux-asan; do
+     echo "=== $preset ==="
+     cmake --preset "$preset" 2>&1 | grep -E 'warning|error|CHRONON3D_ENABLE_EXPERIMENTAL'
+   done
+   ```
+   Each preset should configure cleanly with zero warnings related to the deprecated option.
+
+### Acceptance criteria
+
+| Criterion | Verification |
+|---|---|
+| `DISABLED_keyframes_v2:` placeholder is removed; the test is either active with a re-shaped body or formally documented as deferred-to-v3 with a new ticket ID. | `grep -nE 'DISABLED_keyframes_v2' tests/core/animation/test_keyframes.cpp` returns zero hits. Active TEST_CASE body compiles + runs green. |
+| All transitive-include fixes from `856ff957` are documented with rationale + cross-reference to the refactor lineage that triggered them. | `docs/FOLLOWUP_TICKETS.md` Gain a sub-section in TICKET-002's "Suggested fix approach" enumerating each transitively-included header. |
+| Documentation (`ARCHITECTURE_EVOLUTION_PLAN.md`, `ROADMAP.md`, `FEATURES.md`, `CHANGELOG.md`) accurately reflects expressions/v2 is on main. | `grep -rn 'expressions/v2.*\(disabled\|abandoned\|quarantined\)' docs/` returns zero hits. `CHANGELOG.md` has an entry for the guard retirement. |
+| `grep -rn 'CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2'` returns only the `option()` declaration + retirement comment. | `grep -rn ... | wc -l` returns 2. |
+| `cmake --build build/chronon/linux-ci --target chronon3d_tests_fast` succeeds rc=0 in a stable environment. | Run the `cmake --preset linux-ci && cmake --build ...` flow once on a clean sandbox. |
+| Each preset (`linux-ci`, `linux-dev`, `linux-lean-dev`, `linux-release`, `linux-asan`) configures with zero warnings related to the deprecated option. | `for preset in ...` loop above reports zero matches. |
+
+### Cross-references
+
+- Cascade-of-fix commits (this session): `856ff957` (cascade); `aae68561` (guard creation); `76d547a6` (upstream's expression/v2 fix).
+- Disabled test reference: the `DISABLED_keyframes_v2:` placeholder in `tests/core/animation/test_keyframes.cpp` with the inline `// TODO` comment block above it.
+- PR #23: `1871eb77` (merge), `76d547a6` (upstream fix).
+- Companion tickets: TICKET-001, TICKET-002, TICKET-003, TICKET-004 (full thread on this project's followup-tracking convention).
+- Discovered-on date: 2026-06-20.
+
+---
+
