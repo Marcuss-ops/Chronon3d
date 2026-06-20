@@ -118,6 +118,10 @@ SoftwareRenderer::SoftwareRenderer()
     // Built-in effects are registered via EffectCatalog's constructor;
     // freeze to prevent further registrations.
     m_runtime_resources.effect_catalog->freeze();
+
+    // Thread the per-instance debug config for deep rendering code
+    // (glow_pipeline, text_rasterizer) that can't receive context directly.
+    detail::set_debug_config(m_config.debug());
 }
 
 SoftwareRenderer::SoftwareRenderer(Config config)
@@ -160,6 +164,8 @@ SoftwareRenderer::SoftwareRenderer(Config config)
     graph::register_pipeline_graph_nodes(*m_runtime_resources.graph_node_registry);
 
     m_runtime_resources.effect_catalog->freeze();
+
+    detail::set_thread_debug_config(m_config.debug());
 }
 
 SoftwareRenderer::~SoftwareRenderer() = default;
