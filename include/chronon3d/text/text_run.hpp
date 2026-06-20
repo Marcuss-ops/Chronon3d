@@ -6,6 +6,7 @@
 #include <chronon3d/text/text_animator_property.hpp>
 #include <chronon3d/text/text_material.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>  // TextPaint, TextShadow
+#include <chronon3d/scene/builders/builder_params.hpp>  // TextLayoutSpec — referenced by TextRunShape::layout_spec
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/core/types/frame.hpp>     // Frame — for the cache-key overload
 
