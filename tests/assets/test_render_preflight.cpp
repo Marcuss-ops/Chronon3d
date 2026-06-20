@@ -24,11 +24,18 @@ static std::string create_temp_dir(const std::string& name) {
     return path;
 }
 
+// Static AssetRegistry for preflight tests (validate() now requires a registry).
+static AssetRegistry& test_registry() {
+    static AssetRegistry reg;
+    return reg;
+}
+
 TEST_CASE("RenderPreflight: require_image and detect missing") {
+    auto& assets = test_registry();
     RenderPreflight::instance().clear();
 
     RenderPreflight::instance().require_image("nonexistent/asset_xyz123.png");
-    auto issues = RenderPreflight::instance().validate();
+    auto issues = RenderPreflight::instance().validate(assets);
 
     REQUIRE(issues.size() >= 1);
     CHECK(issues[0].severity == PreflightSeverity::Error);
@@ -41,10 +48,11 @@ TEST_CASE("RenderPreflight: require_image and detect missing") {
 }
 
 TEST_CASE("RenderPreflight: require_video and detect missing") {
+    auto& assets = test_registry();
     RenderPreflight::instance().clear();
 
     RenderPreflight::instance().require_video("nonexistent/video_xyz123.mp4");
-    auto issues = RenderPreflight::instance().validate();
+    auto issues = RenderPreflight::instance().validate(assets);
 
     REQUIRE(issues.size() >= 1);
     CHECK(issues[0].code == "MISSING_VIDEO");
@@ -54,10 +62,11 @@ TEST_CASE("RenderPreflight: require_video and detect missing") {
 }
 
 TEST_CASE("RenderPreflight: require_font and detect missing") {
+    auto& assets = test_registry();
     RenderPreflight::instance().clear();
 
     RenderPreflight::instance().require_font("nonexistent/font_xyz123.ttf");
-    auto issues = RenderPreflight::instance().validate();
+    auto issues = RenderPreflight::instance().validate(assets);
 
     REQUIRE(issues.size() >= 1);
     CHECK(issues[0].code == "MISSING_FONT");
@@ -67,10 +76,11 @@ TEST_CASE("RenderPreflight: require_font and detect missing") {
 }
 
 TEST_CASE("RenderPreflight: require_audio and detect missing") {
+    auto& assets = test_registry();
     RenderPreflight::instance().clear();
 
     RenderPreflight::instance().require_audio("nonexistent/audio_xyz123.wav");
-    auto issues = RenderPreflight::instance().validate();
+    auto issues = RenderPreflight::instance().validate(assets);
 
     REQUIRE(issues.size() >= 1);
     CHECK(issues[0].code == "MISSING_AUDIO");
@@ -80,10 +90,11 @@ TEST_CASE("RenderPreflight: require_audio and detect missing") {
 }
 
 TEST_CASE("RenderPreflight: require_external_tool missing") {
+    auto& assets = test_registry();
     RenderPreflight::instance().clear();
 
     RenderPreflight::instance().require_external_tool("nonexistent_tool_xyz123");
-    auto issues = RenderPreflight::instance().validate();
+    auto issues = RenderPreflight::instance().validate(assets);
 
     bool found = false;
     for (const auto& i : issues) {
@@ -104,6 +115,7 @@ TEST_CASE("RenderPreflight: require_external_tool missing") {
 }
 
 TEST_CASE("RenderPreflight: require_external_tool existing (echo/where)") {
+    auto& assets = test_registry();
     RenderPreflight::instance().clear();
 
     // These tools should exist on virtually every system
@@ -112,7 +124,7 @@ TEST_CASE("RenderPreflight: require_external_tool existing (echo/where)") {
 #else
     RenderPreflight::instance().require_external_tool("echo");
 #endif
-    auto issues = RenderPreflight::instance().validate();
+    auto issues = RenderPreflight::instance().validate(assets);
 
     bool has_tool_error = false;
     for (const auto& i : issues) {
@@ -127,11 +139,12 @@ TEST_CASE("RenderPreflight: require_external_tool existing (echo/where)") {
 }
 
 TEST_CASE("RenderPreflight: require_output_path nonexistent deep directory") {
+    auto& assets = test_registry();
     RenderPreflight::instance().clear();
 
     // A deeply nested path that is extremely unlikely to exist
     RenderPreflight::instance().require_output_path("/tmp/chronon3d_nonexistent_deep_path_xyz/subdir/output.mp4");
-    auto issues = RenderPreflight::instance().validate();
+    auto issues = RenderPreflight::instance().validate(assets);
 
     // We should get OUTPUT_DIR_MISSING warning (the dir doesn't exist yet)
     bool has_output_warning = false;
@@ -149,6 +162,7 @@ TEST_CASE("RenderPreflight: require_output_path nonexistent deep directory") {
 }
 
 TEST_CASE("RenderPreflight: require_output_path to writable location") {
+    auto& assets = test_registry();
     RenderPreflight::instance().clear();
 
     std::string path = (fs::temp_directory_path() / "chronon3d_test_output.mp4").string();
@@ -156,7 +170,7 @@ TEST_CASE("RenderPreflight: require_output_path to writable location") {
     std::error_code ec;
     fs::remove(path, ec);
     RenderPreflight::instance().require_output_path(path);
-    auto issues = RenderPreflight::instance().validate();
+    auto issues = RenderPreflight::instance().validate(assets);
 
     // Should have at most a warning about OUTPUT_EXISTS, but no errors
     for (const auto& i : issues) {
@@ -167,47 +181,51 @@ TEST_CASE("RenderPreflight: require_output_path to writable location") {
 }
 
 TEST_CASE("RenderPreflight: validate_or_throw with no errors") {
+    auto& assets = test_registry();
     RenderPreflight::instance().clear();
 
     // No requirements → no throw
-    CHECK_NOTHROW(RenderPreflight::instance().validate_or_throw());
+    CHECK_NOTHROW(RenderPreflight::instance().validate_or_throw(assets));
 
     RenderPreflight::instance().clear();
 }
 
 TEST_CASE("RenderPreflight: validate_or_throw with errors") {
+    auto& assets = test_registry();
     RenderPreflight::instance().clear();
 
     RenderPreflight::instance().require_image("nonexistent_asset.png");
-    CHECK_THROWS_AS(RenderPreflight::instance().validate_or_throw(), ChrononAssetError);
+    CHECK_THROWS_AS(RenderPreflight::instance().validate_or_throw(assets), ChrononAssetError);
 
     RenderPreflight::instance().clear();
 }
 
 TEST_CASE("RenderPreflight: ok() returns correct status") {
+    auto& assets = test_registry();
     RenderPreflight::instance().clear();
 
     // Empty should be ok
-    CHECK(RenderPreflight::instance().ok());
+    CHECK(RenderPreflight::instance().ok(assets));
 
     RenderPreflight::instance().require_image("nonexistent_asset.png");
-    CHECK_FALSE(RenderPreflight::instance().ok());
+    CHECK_FALSE(RenderPreflight::instance().ok(assets));
 
     RenderPreflight::instance().clear();
 }
 
 TEST_CASE("RenderPreflight: clear() resets requirements") {
+    auto& assets = test_registry();
     RenderPreflight::instance().clear();
 
     RenderPreflight::instance().require_image("missing.png");
     {
-        auto issues = RenderPreflight::instance().validate();
+        auto issues = RenderPreflight::instance().validate(assets);
         CHECK(issues.size() >= 1);
     }
 
     RenderPreflight::instance().clear();
     {
-        auto issues = RenderPreflight::instance().validate();
+        auto issues = RenderPreflight::instance().validate(assets);
         CHECK(issues.empty());
     }
 
@@ -215,6 +233,7 @@ TEST_CASE("RenderPreflight: clear() resets requirements") {
 }
 
 TEST_CASE("RenderPreflight: add_requirements works") {
+    auto& assets = test_registry();
     RenderPreflight::instance().clear();
 
     std::vector<PreflightRequirement> reqs;
@@ -231,7 +250,7 @@ TEST_CASE("RenderPreflight: add_requirements works") {
     reqs.push_back(r2);
 
     RenderPreflight::instance().add_requirements(reqs);
-    auto issues = RenderPreflight::instance().validate();
+    auto issues = RenderPreflight::instance().validate(assets);
 
     REQUIRE(issues.size() >= 2);
 
@@ -249,10 +268,11 @@ TEST_CASE("RenderPreflight: add_requirements works") {
 }
 
 TEST_CASE("RenderPreflight: preflight_issues_to_json structure") {
+    auto& assets = test_registry();
     RenderPreflight::instance().clear();
 
     RenderPreflight::instance().require_image("missing_img.png");
-    auto issues = RenderPreflight::instance().validate();
+    auto issues = RenderPreflight::instance().validate(assets);
     auto js = preflight_issues_to_json(issues);
 
     CHECK(js["schema"] == "chronon3d.preflight.v1");
@@ -275,10 +295,11 @@ TEST_CASE("RenderPreflight: preflight_issues_to_json structure") {
 }
 
 TEST_CASE("RenderPreflight: format_preflight_issues_text includes issue details") {
+    auto& assets = test_registry();
     RenderPreflight::instance().clear();
 
     RenderPreflight::instance().require_image("my_missing_image.png");
-    auto issues = RenderPreflight::instance().validate();
+    auto issues = RenderPreflight::instance().validate(assets);
     std::string text = format_preflight_issues_text(issues);
 
     CHECK(text.find("CHRONON3D PREFLIGHT FAILED") != std::string::npos);
@@ -289,12 +310,13 @@ TEST_CASE("RenderPreflight: format_preflight_issues_text includes issue details"
 }
 
 TEST_CASE("RenderPreflight: multiple issues are all collected") {
+    auto& assets = test_registry();
     RenderPreflight::instance().clear();
 
     RenderPreflight::instance().require_image("missing_a.png");
     RenderPreflight::instance().require_video("missing_b.mp4");
     RenderPreflight::instance().require_font("missing_c.ttf");
-    auto issues = RenderPreflight::instance().validate();
+    auto issues = RenderPreflight::instance().validate(assets);
 
     // Should have at least 3 issues (plus any registered assets)
     CHECK(issues.size() >= 3);
@@ -313,9 +335,10 @@ TEST_CASE("RenderPreflight: multiple issues are all collected") {
 }
 
 TEST_CASE("RenderPreflight: JSON roundtrip is valid JSON") {
+    auto& assets = test_registry();
     RenderPreflight::instance().clear();
 
-    auto issues = RenderPreflight::instance().validate();
+    auto issues = RenderPreflight::instance().validate(assets);
     auto js = preflight_issues_to_json(issues);
 
     std::string dumped = js.dump();
