@@ -12,8 +12,13 @@ add_executable(chronon3d_media_video_tests
     video/test_video_diff.cpp
     video/test_long_export.cpp
     video/test_near_static_frames.cpp
-    video/test_raw_video_sink.cpp
-    video/test_ffmpeg_pipe_sink.cpp
+    video/test_raw_video_sink_lifecycle.cpp
+    video/test_raw_video_sink_submit.cpp
+    video/test_raw_video_sink_planar.cpp
+    video/test_raw_video_sink_edge.cpp
+    video/test_ffmpeg_pipe_sink_lifecycle.cpp
+    video/test_ffmpeg_pipe_sink_submit.cpp
+    video/test_ffmpeg_pipe_sink_edge.cpp
     video/reference_yuv_converter.cpp
     cli/test_video_adapter_e2e.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/video_sink_adapter.cpp

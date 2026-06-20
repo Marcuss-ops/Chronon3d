@@ -76,7 +76,8 @@ add_test(NAME chronon3d_camera_visual_tests COMMAND chronon3d_camera_visual_test
 
 add_executable(chronon3d_cinematic_motion_visual_tests
     ${TEST_MAIN}
-    visual/cinematic_motion/cinematic_motion_scenes.cpp
+    visual/cinematic_motion/cinematic_motion_scenes_bezier.cpp
+    visual/cinematic_motion/cinematic_motion_scenes_quat.cpp
     visual/cinematic_motion/cinematic_motion_compare.cpp
     visual/cinematic_motion/cinematic_motion_tests.cpp
 )

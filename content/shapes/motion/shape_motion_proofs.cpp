@@ -1,5 +1,6 @@
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/vector/path_factories.hpp>
 #include <cmath>
 #include <algorithm>

@@ -3,32 +3,15 @@
 // ── Shared Text Helpers ─────────────────────────────────────────────────────
 //
 // Canonical text-building helpers used by ALL composition families.
-// Three small functions that cover 95% of content text needs:
+// This umbrella header includes:
 //
-//   1. centered_text()   — one-liner centered text with auto-fit
-//   2. typewriter_text() — character-by-character reveal (simple substr)
-//   3. typewriter_build  — per-character layers with stable layout
-//   4. glow_text()       — text params tuned for glow layers
-//
-// Each returns a plain TextParams that can be passed directly to
-// LayerBuilder::text().  Callers compose with the existing glow / shadow APIs:
-//
-//   #include "content/text/text_helpers.hpp"
-//
-//   SceneBuilder s(ctx);
-//   s.layer("hero", [](LayerBuilder& l) {
-//       l.pin_to(Anchor::Center);
-//       l.text("t", content::text::centered_text({
-//           .text      = "TITLE",
-//           .font_size = 100,
-//           .tracking  = 6,
-//       }));
-//   });
+//   text_helpers_centered.hpp    — centered_text(), glow_text(), CenterTextOptions
+//   text_helpers_typewriter.hpp  — typewriter_text(), typewriter_build(),
+//                                  compute_typewriter_layout()
 //
 // Namespace: chronon3d::content::text
-// Same namespace as content/text/text_theme.hpp — constants are shared.
-//
 
+<<<<<<< HEAD
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
@@ -852,3 +835,7 @@ inline TypewriterLayout compute_single_line_glyph_layout(
 }
 
 } // namespace chronon3d::content::text
+=======
+#include "text_helpers_centered.hpp"
+#include "text_helpers_typewriter.hpp"
+>>>>>>> c80196ee (WIP: ongoing refactor (accessor method→field conversions and tests update))

@@ -24,9 +24,9 @@ ResolvedComposition resolve_composition(const CompositionRegistry& registry,
 std::shared_ptr<SoftwareRenderer> create_renderer(
     const CompositionRegistry& registry,
     const RenderSettings& settings,
-    const std::optional<Config>& config) {
+    std::optional<Config> config) {
     auto renderer = config.has_value()
-        ? std::make_shared<SoftwareRenderer>(*config)
+        ? std::make_shared<SoftwareRenderer>(std::move(*config))
         : std::make_shared<SoftwareRenderer>();
     renderer->set_composition_registry(&registry);
     renderer->set_settings(settings);

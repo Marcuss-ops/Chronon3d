@@ -19,7 +19,7 @@
 namespace chronon3d::cli {
 
 void setup_render_job(const CompositionRegistry& registry,
-                      const RenderJobPlan& plan,
+                      RenderJobPlan& plan,
                       RenderJobSetupResult& out) {
     // Mount current working directory as asset root so relative asset paths
     // (fonts, images, etc.) resolve correctly.
@@ -43,7 +43,7 @@ void setup_render_job(const CompositionRegistry& registry,
 
     // ── Renderer creation ──────────────────────────────────────────────
     out.setup_t0 = profiling::now();
-    out.renderer = create_renderer(registry, plan.settings, plan.config);
+    out.renderer = create_renderer(registry, plan.settings, std::move(plan.config));
     const auto renderer_t1 = profiling::now();
     if (out.renderer->counters()) {
         const auto setup_ms = static_cast<uint64_t>(

@@ -5,6 +5,7 @@
 add_library(chronon3d_backend_text STATIC
     text_rasterizer_cache.cpp
     text_rasterizer_render.cpp
+    text_rasterizer_ink.cpp
     text_material.cpp
     font_engine.cpp
     bidi_segmenter.cpp

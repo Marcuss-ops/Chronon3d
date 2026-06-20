@@ -4,6 +4,7 @@
 
 if(CHRONON3D_ENABLE_TEXT)
     target_sources(chronon3d_backend_software PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/text_run_matrix.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/text_run_processor.cpp
     )
     # `bucket_radius_for_tier` (the 4-tier blur-radius mapping) lives

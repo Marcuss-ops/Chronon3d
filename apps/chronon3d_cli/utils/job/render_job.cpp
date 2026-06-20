@@ -30,7 +30,7 @@ std::optional<RenderJobPlan> plan_render_job(const CompositionRegistry& registry
 
     // Build a per-instance Config when CLI budget override is requested.
     if (args.pipeline.fb_pool_budget_mb > 0) {
-        Config cfg = Config::from_environment();
+        Config cfg;  // default-constructs from environment
         cfg.set_fb_pool_budget(args.pipeline.fb_pool_budget_mb * 1024ULL * 1024ULL);
         plan.config = std::move(cfg);
     }

@@ -14,7 +14,7 @@ namespace chronon3d::effects {
 
 struct EffectInstance;
 
-using EffectNodeFactory = std::function<std::unique_ptr<chronon3d::graph::RenderGraphNode>(const EffectInstance&)>;
+using EffectNodeFactory = std::function<std::unique_ptr<::chronon3d::graph::RenderGraphNode>(const EffectInstance&)>;
 
 struct EffectDescriptor {
     std::string   id;

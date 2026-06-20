@@ -103,11 +103,11 @@ struct Motion3D {
     } sweep_2_5d{};
 };
 
-using chronon3d::TextAlign;
-using chronon3d::BlendMode;
-using chronon3d::GlowParams;
-using chronon3d::DropShadowParams;
-using chronon3d::BloomParams;
+using ::chronon3d::TextAlign;
+using ::chronon3d::BlendMode;
+using ::chronon3d::GlowParams;
+using ::chronon3d::DropShadowParams;
+using ::chronon3d::BloomParams;
 
 // Text style for motion objects. Text objects are mapped to the text shape
 // pipeline so they can render with the same motion data model.
