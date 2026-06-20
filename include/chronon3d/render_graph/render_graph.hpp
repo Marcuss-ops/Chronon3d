@@ -116,6 +116,19 @@ public:
         m_output = id;
     }
 
+    /// Post-freeze output retargeting (PR-A migration helper).
+    /// Unlike `set_output` (which requires the Building phase), this method
+    /// may be called on a Frozen graph to switch the output node without
+    /// requiring a full graph rebuild.  Used by `command_bake_layer.cpp`
+    /// to re-execute the same frozen graph with a different output node
+    /// once a layer has been selected.  Validates the node id (so an
+    /// invalid selection produces a std::out_of_range rather than a
+    /// silent miss — the bake command wants to bail loudly on bad input).
+    void retarget_output(GraphNodeId id) {
+        validate_node_id(id);
+        m_output = id;
+    }
+
     // ── Freeze ──────────────────────────────────────────────────────────
 
     /// Transition from Building → Frozen.  After this call the graph is
