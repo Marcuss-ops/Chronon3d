@@ -128,3 +128,36 @@ add_test(NAME chronon3d_render_graph_node_visual_tests
     COMMAND chronon3d_render_graph_node_visual_tests
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
+
+# ── PR3 End-to-End Composition Visual Regression Tests ──
+# 4 end-to-end compositions (text+gradient+mask, camera+depth+DoF,
+# motion blur+transparencies, video+images+RTL text), each rendered as
+# a none-vs-effect-on golden pair (8 PNGs total) under tests/golden/pr3/.
+
+add_executable(chronon3d_pr3_composition_visual_tests
+    ${TEST_MAIN}
+    visual/PR3/pr3_compositions.cpp
+)
+
+target_link_libraries(chronon3d_pr3_composition_visual_tests
+    PRIVATE
+        chronon3d_visual_test_support
+        chronon3d_backend_software
+        chronon3d_scene
+        doctest::doctest
+)
+
+target_compile_definitions(chronon3d_pr3_composition_visual_tests
+    PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
+
+target_include_directories(chronon3d_pr3_composition_visual_tests
+    PRIVATE ${CMAKE_SOURCE_DIR}
+)
+
+set_target_properties(chronon3d_pr3_composition_visual_tests PROPERTIES UNITY_BUILD OFF)
+chronon3d_enable_test_pch(chronon3d_pr3_composition_visual_tests)
+add_test(NAME chronon3d_pr3_composition_visual_tests
+    COMMAND chronon3d_pr3_composition_visual_tests
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
