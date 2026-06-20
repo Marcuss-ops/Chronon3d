@@ -8,6 +8,12 @@
 #endif
 #include <optional>
 
+// TICKET-007 - per-instance debug gating. Pull in DebugConfig's full
+// definition so `rasterize_text_to_bl_image`'s
+// `const chronon3d::DebugConfig*` parameter is a complete type at every
+// call-site (replaces the previously-removed `detail::g_debug_config`).
+#include <chronon3d/core/config.hpp>
+
 namespace chronon3d {
 
 class FontEngine;  // forward declaration
@@ -22,13 +28,19 @@ struct TextRasterization {
     BLFont font;
 };
 
+/// `debug_cfg` is the per-instance DebugConfig pointer forwarded from
+/// the owning RenderGraphContext / SoftwareRenderer.  When nullptr,
+/// debug overlays are disabled (matches the safe default for test /
+/// diagnostic paths that build a `RenderGraphContext` without
+/// populating `options::debug_config`).  See TICKET-007.
 std::optional<TextRasterization> rasterize_text_to_bl_image(
     const TextShape& text,
     float effective_size,
     int padding = 4,
     bool* cache_hit = nullptr,
     const Mat4* transform = nullptr,
-    FontEngine* font_engine = nullptr
+    FontEngine* font_engine = nullptr,
+    const chronon3d::DebugConfig* debug_cfg = nullptr
 );
 
 /// Apply TextMaterial effects (gradient, bevel, highlight, shade, emissive)

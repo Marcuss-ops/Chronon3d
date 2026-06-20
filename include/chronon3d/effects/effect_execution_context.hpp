@@ -5,6 +5,8 @@
 
 #include <optional>
 
+namespace chronon3d { class DebugConfig; }   // TICKET-007: per-instance debug gating
+
 namespace chronon3d::effects {
 
 enum class RenderQuality : uint8_t {
@@ -20,6 +22,12 @@ struct EffectExecutionContext {
 
     RenderQuality quality{RenderQuality::Final};
     bool diagnostics_enabled{false};
+
+    /// TICKET-007: per-instance DebugConfig forwarded from
+    /// RenderGraphContext::options::debug_config.  Replaces the
+    /// removed process-wide `detail::g_debug_config`.  When
+    /// nullptr, debug overlays / per-pass artifacts are skipped.
+    const chronon3d::DebugConfig* debug_cfg{nullptr};
 };
 
 } // namespace chronon3d::effects

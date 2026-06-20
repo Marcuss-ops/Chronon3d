@@ -11,6 +11,7 @@
 // ---------------------------------------------------------------------------
 
 #include "../render_effects_processor.hpp"
+#include <chronon3d/core/config.hpp>          // TICKET-007
 #include "../../primitive_renderer.hpp"
 #include "effects_internal.hpp"
 #include "effect_helpers.hpp"
@@ -110,7 +111,12 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
             auto* p = std::get_if<GlowParams>(&inst.params);
             if (p && p->intensity > 0.0f) {
                 const auto t0 = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
-                apply_glow_effect(fb, *p, clip);
+                // TICKET-007: thread per-instance DebugConfig from the
+                // EffectExecutionContext (populated from
+                // RenderGraphContext::options.debug_config) so glow
+                // debug artefacts honour the owning engine's debug.glow()
+                // flag, NOT a process-wide singleton.
+                apply_glow_effect(fb, *p, clip, context.debug_cfg);
                 if (diagnostics_enabled) {
                     glow_ms += profiling::duration_ms(t0, profiling::now());
                 }

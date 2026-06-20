@@ -215,6 +215,11 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
         if (profiling::g_current_counters) {
             ctx.telemetry.counters = profiling::g_current_counters;
         }
+        // TICKET-007 — thread per-instance DebugConfig (from owning
+        // SoftwareRenderer) into the locally-built context so that
+        // GlowPipeline::render reads the correct flag and the per-pass
+        // debug artefacts honour the engine's debug.glow() flag.
+        ctx.options.debug_config = &renderer.config().debug();
 
         auto output = GlowPipeline::render(ctx, input);
 

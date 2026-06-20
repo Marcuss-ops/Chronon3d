@@ -17,7 +17,15 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, const effects
 void apply_fake_3d_wave(Framebuffer& fb, const Fake3DWaveParams& params, float time_seconds);
 
 // ── Individual effect implementations (extracted from effect_stack.cpp) ──
-void apply_glow_effect(Framebuffer& fb, const GlowParams& p, const std::optional<raster::BBox>& clip);
+//
+// TICKET-007 — `apply_glow_effect` now accepts a per-instance
+// `DebugConfig*` forwarded from `EffectExecutionContext::debug_cfg`.
+// When nullptr, the per-pass debug PNG artifacts (debug_glow_source.png
+// / debug_glow_pass_*.png / debug_glow_accumulated.png) are skipped —
+// matching the safe default that replaces the removed process-wide
+// `detail::g_debug_config`.  Defaulted so that existing call-sites
+// without context bindings compile unchanged.
+void apply_glow_effect(Framebuffer& fb, const GlowParams& p, const std::optional<raster::BBox>& clip, const chronon3d::DebugConfig* debug_cfg = nullptr);
 void apply_shadow_effect(Framebuffer& fb, const DropShadowParams& p, const std::optional<raster::BBox>& clip, bool diagnostics_enabled = false);
 void apply_bloom_effect(Framebuffer& fb, const BloomParams& p, const std::optional<raster::BBox>& clip, bool diagnostics_enabled = false);
 

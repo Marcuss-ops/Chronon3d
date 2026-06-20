@@ -40,6 +40,15 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 
+// TICKET-007 - render_graph_context.hpp is a public SDK header consumed
+// by graph-node TU families (transform_node, multi_source_node, etc.).
+// We forward-declare DebugConfig so the new member
+// `RenderOptimizationContext::debug_config` is a complete *pointer* type
+// here.  Callers that actually dereference it (e.g. scene.cpp,
+// glow_pipeline.cpp) MUST include <chronon3d/core/config.hpp>
+// themselves.  This keeps the SDK header lightweight.
+namespace chronon3d { class DebugConfig; }
+
 #include <algorithm>
 #include <functional>
 #include <memory>
@@ -55,6 +64,9 @@ namespace chronon3d {
     struct RenderCounters;
     class TransformScratchBuffer;
     class Scene;
+    class DebugConfig;  // TICKET-007: forward-declared above; re-export here so
+                        // that downstream code using chronon3d::DebugConfig via
+                        // this header finds it at the right namespace scope.
 }
 
 namespace chronon3d::media {
@@ -127,6 +139,16 @@ struct RenderResourceContext {
 
 // ── Optimization flags + structure-unchanged hints ───────────────────────
 struct RenderOptimizationContext {
+    /// TICKET-007 — per-instance DebugConfig pointer forwarded from
+    /// the owning SoftwareRenderer (populated in
+    /// `src/render_graph/pipeline/scene.cpp`).  Replaces the removed
+    /// process-wide `detail::g_debug_config`.  When nullptr, debug
+    /// overlays (text-bbox, glow debug artefacts, future ink-bounds
+    /// overlays) are skipped — matching the safe default for
+    /// non-software backends and shared tests that build a context
+    /// without populating it.
+    const chronon3d::DebugConfig* debug_config{nullptr};
+
     bool cache_enabled{true};
     bool diagnostics_enabled{false};
     float ssaa_factor{1.0f};
