@@ -12,7 +12,11 @@
 
 namespace chronon3d::cli {
 
-bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan& plan) {
+bool execute_render_job(const CompositionRegistry& registry, RenderJobPlan& plan) {
+    // setup_render_job consumes (moves-from) the plan's config, so the
+    // caller must pass a mutable plan.  After this call `plan.config`
+    // has been moved into the renderer and is in a moved-from state.
+
     // ═══════════════════════════════════════════════════════════════════
     // PHASE 1 — Setup:  asset mount, renderer creation, warmup,
     //                    counter reset, telemetry-store clear

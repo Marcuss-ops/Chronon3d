@@ -11,10 +11,15 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         text/test_text_material.cpp
         text/test_text_style_presets.cpp
         text/test_font_engine.cpp
-        text/test_text_quality_suite.cpp
+        text/test_text_quality_glyph.cpp
+        text/test_text_quality_shaping.cpp
+        text/test_text_quality_tracking.cpp
+        text/test_text_quality_arabic.cpp
         text/test_text_bidi.cpp
-        text/glyph_selector_tests.cpp
-        text/text_animator_property_tests.cpp
+        text/test_text_unit_map.cpp
+        text/test_selector_shapes.cpp
+        text/test_selector_evaluate.cpp
+        text/test_selector_combine.cpp
     )
 endif()
 
@@ -76,18 +81,6 @@ add_executable(chronon3d_core_tests
     render_graph/executor/test_cache_key_contract.cpp
     render_graph/executor/test_framebuffer_lifetime.cpp
     render_graph/builder/test_graph_build_pass_order.cpp
-    text/test_text_document.cpp
-    text/test_single_line_composer.cpp
-    text/test_every_line_composer.cpp
-    text/test_path_sampler.cpp
-    text/test_text_path_composer.cpp
-    text/test_animated_text_document.cpp
-    text/test_text_resolver.cpp
-    text/test_text_run_builder.cpp
-    text/test_text_run_driver.cpp
-    text/test_text_run_driver_pr10.cpp
-    text/test_prewarm_text_layout_cache.cpp
-    text/test_text_run_builder_animated_doc.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
 

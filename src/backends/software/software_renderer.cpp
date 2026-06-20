@@ -76,8 +76,7 @@ uint64_t clipped_area(int32_t width, int32_t height, const std::optional<raster:
 } // namespace
 
 SoftwareRenderer::SoftwareRenderer()
-    : m_config(Config::from_environment())
-    , m_runtime_resources{
+    : m_runtime_resources{
         .software_registry = std::make_unique<renderer::SoftwareRegistry>(),
         .executor = std::make_unique<graph::GraphExecutor>(
             m_config.scheduler().pin_main_thread()),

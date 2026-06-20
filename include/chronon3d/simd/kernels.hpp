@@ -156,5 +156,30 @@ void apply_luma_matte_premul(
     bool inverted
 );
 
+// ── Internal SIMD dispatch wrappers ─────────────────────────────────────────
+// These non-Highway wrappers route through the HWY_DYNAMIC_DISPATCH table
+// from inside the translation units that own the HWY_EXPORT declarations
+// (the sibling highway_*_kernels.cpp files).  This keeps Highway's
+// foreach_target machinery local to one TU per blend mode family —
+// highway_color_kernels.cpp can call them as ordinary C++ functions.
+void composite_normal_premul_dispatch(float* dst, const float* src, int pixel_count);
+void composite_add_premul_dispatch(float* dst, const float* src, int pixel_count);
+void composite_multiply_premul_dispatch(float* dst, const float* src, int pixel_count);
+void composite_screen_premul_dispatch(float* dst, const float* src, int pixel_count);
+void composite_overlay_premul_dispatch(float* dst, const float* src, int pixel_count);
+void composite_darken_premul_dispatch(float* dst, const float* src, int pixel_count);
+void composite_lighten_premul_dispatch(float* dst, const float* src, int pixel_count);
+void composite_difference_premul_dispatch(float* dst, const float* src, int pixel_count);
+void composite_exclusion_premul_dispatch(float* dst, const float* src, int pixel_count);
+void composite_soft_light_premul_dispatch(float* dst, const float* src, int pixel_count);
+void composite_hard_light_premul_dispatch(float* dst, const float* src, int pixel_count);
+void composite_color_dodge_premul_dispatch(float* dst, const float* src, int pixel_count);
+void composite_color_burn_premul_dispatch(float* dst, const float* src, int pixel_count);
+void premultiply_alpha_rgba8_dispatch(uint32_t* dst, const uint8_t* src, int pixel_count);
+void bl_image_prgb32_to_color_row_dispatch(float* dst, const uint32_t* src, int pixel_count);
+void color_to_prgb32_row_dispatch(uint32_t* dst, const float* src, int pixel_count);
+void apply_alpha_matte_premul_dispatch(float* target, const float* matte, int pixel_count, bool inverted);
+void apply_luma_matte_premul_dispatch(float* target, const float* matte, int pixel_count, bool inverted);
+
 } // namespace simd
 } // namespace chronon3d

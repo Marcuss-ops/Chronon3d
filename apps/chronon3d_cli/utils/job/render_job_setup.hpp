@@ -39,8 +39,9 @@ struct RenderJobSetupResult {
 /// Initialise the asset registry, create the renderer, run optional warmup,
 /// reset atomic counters, and clear per-event telemetry stores.
 /// Populates @p out with the setup result — check renderer via operator bool().
+/// @p plan is consumed (moved-into) by this function; do not access it after the call.
 void setup_render_job(const CompositionRegistry& registry,
-                      const RenderJobPlan& plan,
+                      RenderJobPlan& plan,
                       RenderJobSetupResult& out);
 
 } // namespace chronon3d::cli

@@ -38,6 +38,6 @@ struct RenderJobPlan {
 std::optional<RenderJobPlan> plan_render_job(const CompositionRegistry& registry,
                                              const RenderArgs& args);
 
-bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan& plan);
+bool execute_render_job(const CompositionRegistry& registry, RenderJobPlan& plan);
 
 } // namespace chronon3d::cli

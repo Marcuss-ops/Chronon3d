@@ -99,7 +99,7 @@ ResolvedComposition resolve_composition(const CompositionRegistry& registry,
 std::shared_ptr<SoftwareRenderer> create_renderer(
     const CompositionRegistry& registry,
     const RenderSettings& settings,
-    const std::optional<Config>& config = std::nullopt);
+    std::optional<Config> config = std::nullopt);
 
 } // namespace cli
 } // namespace chronon3d

@@ -72,7 +72,10 @@ public:
                              const LensModel& lens,
                              const std::optional<raster::BBox>& clip) override;
 
-    // draw_node and draw_text_run remain on SoftwareRenderer because
+    void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state,
+                   const Camera& camera, int width, int height) override;
+
+    // draw_text_run remains on SoftwareRenderer because
     // ShapeProcessor::draw() takes SoftwareRenderer& (not RenderBackend&).
     // Once ShapeProcessor is migrated, these can move here.
 
