@@ -2,6 +2,7 @@
 
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/core/types/types.hpp>
+#include <chronon3d/layout/layout_flow_grid.hpp>
 #include <optional>
 
 namespace chronon3d {
@@ -64,6 +65,19 @@ struct LayoutRules {
     // Auto-fit text: reduce font size until the text node fits in its TextBox.
     // (Pairs with TextStyle::auto_scale — this just enables the pass.)
     bool fit_text{false};
+
+    // ★ NEW ★ — Flex-style Flow container (linear row/column with optional wrap).
+    // All layers in `Scene::layers()` whose flow shares the same `group_id`
+    // are laid out by `LayoutSolver` in a separate pass. When set on a layer,
+    // the Pin pass is skipped for that layer (positioning is owned by the
+    // container). Safe-area clamp still applies.
+    std::optional<LayoutFlow> flow;
+
+    // ★ NEW ★ — Uniform Grid container (rows × columns with gap).
+    // Same group_id semantics as `flow`. Mutually exclusive at the level of
+    // a single layer: setting both is a programmer error; the solver will
+    // behave as if neither is set (defensive default).
+    std::optional<LayoutGrid> grid;
 };
 
 } // namespace chronon3d

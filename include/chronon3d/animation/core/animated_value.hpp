@@ -356,6 +356,35 @@ public:
         return set(value);
     }
 
+    // ═════════════════════════════════════════════════════════════════════
+    //  Expressions V1 — honest contract (Path A)
+    //
+    //  Supported in V1:
+    //    • Scalars (`AnimatedValue<f32>`) with full `math::ExpressionParser`
+    //      coverage — arithmetic, trig, `linear`/`ease`/`easeIn`/`easeOut`,
+    //      `wiggle`, `random`, `seedRandom`, `loopIn`/`loopOut`, cross-layer
+    //      `layer("name").property`, `thisComp.*`, `thisLayer.*`,
+    //      `thisProperty.*`.
+    //    • `AnimatedValue<graphics::FillStyle>` and
+    //      `AnimatedValue<graphics::StrokeStyle>` — the dedicated `solid(r,g,b,a)`
+    //      expression. Each argument is itself a numeric expression with the
+    //      same `frame`/`time`/`fps`/`index` variables. Parser errors fall back
+    //      to the base style (silently, per existing test contract).
+    //
+    //  NOT supported in V1 (returns the base value unchanged):
+    //    • `AnimatedValue<Vec2>` / `AnimatedValue<Vec3>` /
+    //      `AnimatedValue<Vec4>` — no `position`/`scale`/`transform`
+    //      expressions yet.
+    //    • `AnimatedValue<Color>` (raw, not via style) — use
+    //      `AnimatedValue<FillStyle>` + `solid(...)`.
+    //    • `AnimatedValue<glm::mat*>` — no matrix expressions.
+    //
+    //  Path B (AE-oriented v1 with `std::variant` + lexer/AST/bytecode/VM
+    //  + cycle detection) is tracked as a roadmap item. Until path B lands,
+    //  the existing recursive-descent scalar parser must remain the only
+    //  evaluation entry point: do not add functions that pretend to support
+    //  Vec/Color/Transform types when the underlying return is `double`.
+    // ═════════════════════════════════════════════════════════════════════
     AnimatedValue& expression(std::string expr) {
         m_expression = std::move(expr);
         return *this;
