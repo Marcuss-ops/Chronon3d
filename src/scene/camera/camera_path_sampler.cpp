@@ -11,6 +11,7 @@
 #include <chronon3d/scene/camera/camera_path_sampler.hpp>
 #include <chronon3d/scene/camera/camera_path_validation.hpp>
 #include <chronon3d/scene/camera/camera_projection.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <glm/glm.hpp>
 #include <algorithm>
 #include <limits>
