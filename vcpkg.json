@@ -15,20 +15,36 @@
     "taskflow",
     "tbb",
     "stb",
-    "meshoptimizer",
     "xxhash",
     "highway",
-    "cli11",
-    "blend2d",
-    "freetype",
-    "harfbuzz",
     "nlohmann-json",
-    "openexr",
-    "magic-enum",
-    "sqlite3",
-    "fribidi"
+    "magic-enum"
   ],
   "features": {
+    "mesh": {
+      "description": "Mesh processing (CHRONON3D_ENABLE_MESH)",
+      "dependencies": ["meshoptimizer"]
+    },
+    "cli": {
+      "description": "CLI application (CHRONON3D_BUILD_CLI)",
+      "dependencies": ["cli11"]
+    },
+    "blend2d": {
+      "description": "Blend2D software rendering backend (CHRONON3D_USE_BLEND2D)",
+      "dependencies": ["blend2d"]
+    },
+    "text": {
+      "description": "Text rendering — FreeType + HarfBuzz + FriBidi (CHRONON3D_ENABLE_TEXT)",
+      "dependencies": ["freetype", "harfbuzz", "fribidi"]
+    },
+    "exr": {
+      "description": "OpenEXR image format support (CHRONON3D_ENABLE_EXR)",
+      "dependencies": ["openexr"]
+    },
+    "telemetry": {
+      "description": "SQLite telemetry persistence (CHRONON3D_ENABLE_TELEMETRY)",
+      "dependencies": ["sqlite3"]
+    },
     "tests": {
       "description": "Build tests (requires doctest)",
       "dependencies": ["doctest"]
@@ -37,13 +53,10 @@
       "description": "Build benchmarks (requires Google Benchmark)",
       "dependencies": ["benchmark"]
     },
-    "telemetry": {
-      "description": "Marker feature. sqlite3 is unconditionally installed as a top-level dependency."
-    },
     "profiling": {
-      "description": "Enable Tracy profiling",
+      "description": "Tracy profiling (CHRONON3D_ENABLE_PROFILING)",
       "dependencies": ["tracy"]
     }
   },
-  "default-features": ["telemetry"]
+  "default-features": ["mesh", "cli", "blend2d", "text", "exr"]
 }
