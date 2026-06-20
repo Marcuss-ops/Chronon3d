@@ -65,6 +65,7 @@ option(CHRONON3D_ENABLE_EXR "Enable OpenEXR image format support" ON)
 option(CHRONON3D_ENABLE_VIDEO "Enable video/media pipeline (frame conversion, video sinks)" ON)
 option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
 option(CHRONON3D_ENABLE_TELEMETRY "Enable SQLite telemetry persistence" OFF)
+option(CHRONON3D_ENABLE_DIAGNOSTICS "Enable engine-level diagnostics code (overlays, analysis, cache introspection)" OFF)
 option(CHRONON3D_ENABLE_MESH "Enable mesh processing support" ON)
 
 # ── Optional heavy dependency: Blend2D ──────────────────────────────────
@@ -92,6 +93,12 @@ if(CHRONON3D_ENABLE_VIDEO)
 endif()
 if(CHRONON3D_BUILD_DIAGNOSTICS)
     add_compile_definitions(CHRONON3D_BUILD_DIAGNOSTICS)
+    # Content diagnostics require engine-level diagnostics code.
+    set(CHRONON3D_ENABLE_DIAGNOSTICS ON CACHE BOOL "Enable engine-level diagnostics code" FORCE)
+endif()
+
+if(CHRONON3D_ENABLE_DIAGNOSTICS)
+    add_compile_definitions(CHRONON3D_ENABLE_DIAGNOSTICS)
 endif()
 
 if(CHRONON3D_ENABLE_TELEMETRY)

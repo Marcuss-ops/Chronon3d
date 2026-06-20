@@ -3,8 +3,6 @@
 # ==============================================================================
 
 add_library(chronon3d_cache STATIC
-    cache_diagnostics.cpp
-    cache_diagnostics_format.cpp
     cache_policy.cpp
     frame_cache.cpp
     node_cache.cpp
@@ -13,5 +11,11 @@ add_library(chronon3d_cache STATIC
     video_frame_cache.cpp
     lru_log.cpp
 )
+if(CHRONON3D_ENABLE_DIAGNOSTICS)
+    target_sources(chronon3d_cache PRIVATE
+        cache_diagnostics.cpp
+        cache_diagnostics_format.cpp
+    )
+endif()
 target_link_libraries(chronon3d_cache PUBLIC chronon3d xxHash::xxhash)
 target_precompile_headers(chronon3d_cache PRIVATE <xxhash.h>)

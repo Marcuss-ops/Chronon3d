@@ -52,4 +52,28 @@ void propagate_dirty_chain(
     const std::vector<GraphNodeId>& topo_order,
     GraphPreflightReport& report);
 
+#ifndef CHRONON3D_ENABLE_DIAGNOSTICS
+
+// ── No-op stubs when engine-level diagnostics are disabled at compile time ──
+
+inline void check_topological_warnings(
+    const RenderGraph& /*graph*/,
+    GraphPreflightReport& /*report*/) {}
+
+inline void check_asset_integrity(
+    const RenderGraph& /*graph*/,
+    GraphPreflightReport& /*report*/) {}
+
+inline void check_coordinate_mismatch(
+    const RenderGraph& /*graph*/,
+    const std::vector<GraphNodeId>& /*topo_order*/,
+    GraphPreflightReport& /*report*/) {}
+
+inline void propagate_dirty_chain(
+    const RenderGraph& /*graph*/,
+    const std::vector<GraphNodeId>& /*topo_order*/,
+    GraphPreflightReport& /*report*/) {}
+
+#endif // CHRONON3D_ENABLE_DIAGNOSTICS
+
 } // namespace chronon3d::graph
