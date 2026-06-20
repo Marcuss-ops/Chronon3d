@@ -7,29 +7,34 @@
 #include <chronon3d/core/triple_buffer_arena.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/render_graph/nodes/render_graph_node.hpp>
+#include <chronon3d/render_graph/render_graph_context.hpp>
 
 #include "src/render_graph/executor/framebuffer_lifetime.hpp"
 #include "src/render_graph/executor/execution_state.hpp"
 
 #include <memory>
 
+using namespace chronon3d;
+using namespace chronon3d::graph;
+
 namespace {
 struct MockNode : RenderGraphNode {
     std::string m_name;
     explicit MockNode(std::string n) : m_name(std::move(n)) {}
-    [[nodiscard]] std::string_view name() const override { return m_name; }
-    [[nodiscard]] RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Source; }
-    void execute(RenderGraphContext&) override {}
+    [[nodiscard]] std::string_view name() const noexcept override { return m_name; }
+    [[nodiscard]] RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
+    OwnedFB execute(RenderGraphContext&,
+                    std::span<const FramebufferRef>,
+                    std::span<const std::optional<raster::BBox>>) override { return {}; }
     [[nodiscard]] cache::NodeCacheKey cache_key(const RenderGraphContext&) const override { return {}; }
+    [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept override { return no_cache("mock"); }
     [[nodiscard]] std::optional<raster::BBox> predicted_bbox(const RenderGraphContext&) const override { return std::nullopt; }
-    [[nodiscard]] bool cache_static() const override { return false; }
 };
 } // namespace
 
 using namespace chronon3d;
-
 using namespace chronon3d::cache;
-using namespace chronon3d::graph;
 
 // =============================================================================
 // Framebuffer Lifetime Contract

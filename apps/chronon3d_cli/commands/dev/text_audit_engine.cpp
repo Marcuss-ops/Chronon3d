@@ -394,8 +394,8 @@ TextAuditFrameResult audit_single_text(
     }
     // Count single-word lines
     for (const auto& li : result.lines) {
-        bool has_space = li.text().find(' ') != std::string::npos;
-        if (!has_space && !li.text().empty()) {
+        bool has_space = li.text.find(' ') != std::string::npos;
+        if (!has_space && !li.text.empty()) {
             result.checks.single_word_lines++;
         }
     }
@@ -486,7 +486,7 @@ std::vector<LayerTextNode> collect_text_from_scene(const Scene& scene) {
         for (const auto& node : layer.nodes) {
             if (node.shape.type() == ShapeType::Text && !node.shape.text().text.empty()) {
                 LayerTextNode info;
-                info.text = node.shape.text;
+                info.text = node.shape.text();
                 info.layer_name = std::string(layer.name);
                 info.layer_opacity = layer.transform.opacity;
                 info.offset_x = node.world_transform.position.x;
@@ -543,7 +543,7 @@ std::vector<TypewriterGroup> detect_typewriter_groups(
         TypewriterGroup group;
         group.prefix = prefix;
         for (auto& [idx, node] : entries) {
-            group.full_text += node.text().text;
+            group.full_text += node.text.text;
             group.chars.push_back(std::move(node));
         }
         result.push_back(std::move(group));
@@ -633,10 +633,10 @@ TextAuditResult audit_composition(
             // font_size * 0.58 as a stand-in for the unknown advance_x.
             for (size_t i = 1; i < chars.size(); ++i) {
                 if (std::abs(chars[i].offset_y - chars[i-1].offset_y) < 1.0f &&
-                    chars[i].text().text.size() == 1 &&
-                    chars[i-1].text().text.size() == 1 &&
-                    chars[i].text().text[0] != ' ' &&
-                    chars[i-1].text().text[0] != ' ') {
+                    chars[i].text.text.size() == 1 &&
+                    chars[i-1].text.text.size() == 1 &&
+                    chars[i].text.text[0] != ' ' &&
+                    chars[i-1].text.text[0] != ' ') {
                     float spacing = chars[i].offset_x - chars[i-1].offset_x;
                     tw_tracking = spacing - fs * 0.58f;
                     break;
@@ -837,7 +837,7 @@ TextAuditResult audit_composition(
             auto nodes = collect_text_from_scene(scene);
             for (const auto& node : nodes) {
                 if (!result.expected_text.empty()) result.expected_text += " | ";
-                result.expected_text += node.text().text;
+                result.expected_text += node.text.text;
             }
         }
 

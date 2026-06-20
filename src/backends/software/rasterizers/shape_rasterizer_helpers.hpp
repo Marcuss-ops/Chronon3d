@@ -99,7 +99,7 @@ namespace chronon3d::renderer {
 // ── Shape property queries ─────────────────────────────────────────
 
 [[nodiscard]] static inline Vec2 shape_size_for_fill(const Shape& shape) {
-    switch (shape.type) {
+    switch (shape.type()) {
         case ShapeType::Rect:        return shape.rect().size;
         case ShapeType::RoundedRect: return shape.rounded_rect().size;
         case ShapeType::Circle:      return {shape.circle().radius * 2, shape.circle().radius * 2};
@@ -110,7 +110,7 @@ namespace chronon3d::renderer {
 }
 
 [[nodiscard]] static inline f32 stroke_width_for_shape(const Shape& shape) {
-    switch (shape.type) {
+    switch (shape.type()) {
         case ShapeType::Rect:
             return shape.rect().stroke.enabled ? std::max(0.0f, shape.rect().stroke.width) : 0.0f;
         case ShapeType::RoundedRect:
@@ -123,7 +123,7 @@ namespace chronon3d::renderer {
 }
 
 [[nodiscard]] static inline StrokeAlignment stroke_alignment_for_shape(const Shape& shape) {
-    switch (shape.type) {
+    switch (shape.type()) {
         case ShapeType::Rect:
             return shape.rect().stroke.alignment;
         case ShapeType::RoundedRect:
@@ -136,7 +136,7 @@ namespace chronon3d::renderer {
 }
 
 [[nodiscard]] static inline Color stroke_color_for_shape(const Shape& shape) {
-    switch (shape.type) {
+    switch (shape.type()) {
         case ShapeType::Rect:
             return shape.rect().stroke.color.to_linear();
         case ShapeType::RoundedRect:
@@ -150,7 +150,7 @@ namespace chronon3d::renderer {
 
 /// Check whether a shape's stroke carries a gradient fill.
 [[nodiscard]] static inline bool stroke_has_gradient(const Shape& shape) {
-    switch (shape.type) {
+    switch (shape.type()) {
         case ShapeType::Rect:
             return shape.rect().stroke.gradient.has_value();
         case ShapeType::RoundedRect:
@@ -169,7 +169,7 @@ namespace chronon3d::renderer {
     const Shape& shape, Vec2 lp, Vec2 sz)
 {
     const std::optional<GradientFill>* g = nullptr;
-    switch (shape.type) {
+    switch (shape.type()) {
         case ShapeType::Rect:
             g = &shape.rect().stroke.gradient;
             break;
@@ -230,7 +230,7 @@ namespace chronon3d::renderer {
 }
 
 [[nodiscard]] static inline bool hit_test_shape_fill(const Shape& shape, Vec2 p, f32 spread, f32 corner_radius) {
-    switch (shape.type) {
+    switch (shape.type()) {
         case ShapeType::Rect:
             return hit_test_rect_like(p, shape.rect().size, corner_radius, spread);
         case ShapeType::RoundedRect:
@@ -281,7 +281,7 @@ namespace chronon3d::renderer {
         inner_origin = {stroke, stroke};
     }
 
-    switch (shape.type) {
+    switch (shape.type()) {
         case ShapeType::Rect: {
             const Vec2 outer_size = alignment == StrokeAlignment::Inside ? shape.rect().size : shape.rect().size + Vec2{stroke, stroke};
             const Vec2 inner_size = alignment == StrokeAlignment::Outside ? shape.rect().size : Vec2{std::max(0.0f, shape.rect().size.x - stroke), std::max(0.0f, shape.rect().size.y - stroke)};

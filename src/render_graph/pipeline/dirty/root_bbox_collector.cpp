@@ -27,7 +27,7 @@ void compute_scene_root_bboxes(
         } else {
             matrix = ssaa_scale * node.world_transform.to_mat4();
         }
-        auto* processor = sw_renderer->software_registry().get_shape(node.shape.type);
+        auto* processor = sw_renderer->software_registry().get_shape(node.shape.type());
         if (!processor) continue;
         f32 spread = 0.0f;
         if (node.shadow.enabled) spread = std::max(spread, node.shadow.radius);

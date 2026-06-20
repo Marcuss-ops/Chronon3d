@@ -2,6 +2,7 @@
 
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
+#include <type_traits>
 #include <vector>
 
 namespace chronon3d {
@@ -28,6 +29,13 @@ struct GradientFill {
 struct Fill {
     bool        enabled{true};
     FillType    type{FillType::Solid};
+
+    // Forward-protection: lock `type` as a public field (not a method).
+    // `Shape::type()` IS a method (variant getter), but `Fill::type` is
+    // a plain field. This static_assert makes a future regression a
+    // compile-time error rather than a silent rot cleanup.
+    static_assert(std::is_member_object_pointer_v<decltype(&Fill::type)>,
+        "Fill::type must remain a public data member (field).");
     Color       solid{1, 1, 1, 1};
     GradientFill gradient;
 

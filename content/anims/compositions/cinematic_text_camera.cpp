@@ -153,7 +153,7 @@ Composition deep_parallax_cascade() {
 
         // ── Camera path: Z axis from +2500 to -400, gentle ease-out ──────
         CatmullRomCameraMotion motion;
-        motion.path().set_alpha(CatmullRomAlpha::Centripetal)
+        motion.path.set_alpha(CatmullRomAlpha::Centripetal)
                    .set_boundary(CatmullRomBoundary::Clamped)
                    .add_waypoint({   0.0f, 0.0f,  2500.0f})
                    .add_waypoint({   0.0f, 0.0f,  1000.0f})
@@ -359,7 +359,7 @@ Composition orbit_handheld_glow() {
         });
         // ── Camera path: Catmull-Rom closed orbit at radius 1300 ─────
         CatmullRomCameraMotion motion;
-        motion.path().set_alpha(CatmullRomAlpha::Centripetal)
+        motion.path.set_alpha(CatmullRomAlpha::Centripetal)
                    .set_boundary(CatmullRomBoundary::Closed)
                    .add_waypoints({
                        { 1300.0f,  220.0f,  -650.0f},

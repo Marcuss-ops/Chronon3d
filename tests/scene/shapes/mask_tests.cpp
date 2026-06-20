@@ -117,7 +117,7 @@ TEST_CASE("Test 12.6 — LayerBuilder sets mask struct fields correctly") {
     REQUIRE(scene.layers().size() == 1);
     const auto& layer = scene.layers()[0];
     REQUIRE(layer.mask.enabled());
-    CHECK(layer.mask.type() == MaskType::Circle);
+    CHECK(layer.mask.type == MaskType::Circle);
     CHECK(layer.mask.radius == 35.0f);
     CHECK(layer.mask.pos.x == 5.0f);
     CHECK(layer.mask.pos.y == 10.0f);

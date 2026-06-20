@@ -43,7 +43,7 @@ void draw_text_shadow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderN
             profiling::g_current_counters->text_shadow_cache_misses.fetch_add(1, std::memory_order_relaxed);
         }
         BLImage shadow_img;
-        shadow_img.create(raster.image().width(), raster.image().height(), BL_FORMAT_PRGB32);
+        shadow_img.create(raster.image.width(), raster.image.height(), BL_FORMAT_PRGB32);
         {
             BLContext ctx(shadow_img);
             ctx.setCompOp(BL_COMP_OP_SRC_COPY);

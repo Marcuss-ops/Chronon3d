@@ -197,7 +197,7 @@ std::shared_ptr<const Framebuffer> ImageRenderer::rounded_framebuffer(
 }
 
 bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state, Framebuffer& fb) {
-    if (image.path().empty() || image.size.x <= 0 || image.size.y <= 0) {
+    if (image.path.empty() || image.size.x <= 0 || image.size.y <= 0) {
         return false;
     }
 
@@ -421,7 +421,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
 }
 
 bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState& state, Framebuffer& fb) {
-    if (image.path().empty() || image.size.x <= 0 || image.size.y <= 0) {
+    if (image.path.empty() || image.size.x <= 0 || image.size.y <= 0) {
         return false;
     }
 

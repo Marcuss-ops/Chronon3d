@@ -2,6 +2,7 @@
 
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/transform.hpp>
+#include <chronon3d/scene/model/shape/transform_3d.hpp>
 #include <vector>
 #include <optional>
 #include <unordered_map>
@@ -96,7 +97,7 @@ private:
 // the camera / framing / validator APIs that accept
 // `const ResolvedSceneTransforms&`.
 
-/// Input row for `resolve_scene_transforms`: a named Transform3D plus a few
+/// Input row for `resolve_scene_transforms`: a named Transform plus a few
 /// diagnostic flags carried for backward compatibility with SceneTransformRegistry.
 struct SceneTransformInput {
     std::string name;

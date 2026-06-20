@@ -26,18 +26,18 @@ namespace {
 /// deprecated `TextRunParams` alias.
 TextRunSpec make_text_run_spec(std::string value, f32 font_size = 72.0f) {
     TextRunSpec spec;
-    spec.text().content.value = std::move(value);
-    spec.text().font.font_size = font_size;
-    spec.text().font.font_path = "assets/fonts/Inter-Bold.ttf";
-    spec.text().font.font_family = "Inter";
-    spec.text().font.font_weight = 800;
-    spec.text().font.font_style = "normal";
-    spec.text().appearance.color = {1.0f, 1.0f, 1.0f, 1.0f};
-    spec.text().position = {0.0f, 0.0f, 0.0f};
-    spec.text().layout.anchor = TextAnchor::Center;
-    spec.text().layout.align = TextAlign::Center;
-    spec.text().layout.vertical_align = VerticalAlign::Middle;
-    spec.text().layout.wrap = TextWrap::None;
+    spec.text.content.value = std::move(value);
+    spec.text.font.font_size = font_size;
+    spec.text.font.font_path = "assets/fonts/Inter-Bold.ttf";
+    spec.text.font.font_family = "Inter";
+    spec.text.font.font_weight = 800;
+    spec.text.font.font_style = "normal";
+    spec.text.appearance.color = {1.0f, 1.0f, 1.0f, 1.0f};
+    spec.text.position = {0.0f, 0.0f, 0.0f};
+    spec.text.layout.anchor = TextAnchor::Center;
+    spec.text.layout.align = TextAlign::Center;
+    spec.text.layout.vertical_align = VerticalAlign::Middle;
+    spec.text.layout.wrap = TextWrap::None;
     spec.direction = TextDirection::Auto;
     return spec;
 }
@@ -109,14 +109,14 @@ TEST_CASE("TextRunBuilder: chain via LayerBuilder accumulates all entries") {
     trb_b.opacity(0.5f).rotate({0.0f, 30.0f, 0.0f});
 
     // Verify the first reference is still alive.
-    CHECK_FALSE(trb_a.spec().text().content.value.empty());
-    CHECK(trb_a.spec().text().content.value == "Hello");
+    CHECK_FALSE(trb_a.spec().text.content.value.empty());
+    CHECK(trb_a.spec().text.content.value == "Hello");
 
     // Both runs landed.
     const auto& runs_a_after = trb_a.spec();
     const auto& runs_b_after = trb_b.spec();
-    CHECK(runs_a_after.text().content.value == "Hello");
-    CHECK(runs_b_after.text().content.value == "World");
+    CHECK(runs_a_after.text.content.value == "Hello");
+    CHECK(runs_b_after.text.content.value == "World");
 
     // PR 3 — .selector(user_stagger_sel) AFTER .animator(user_a)
     // now attaches the selector to user_a (the LAST animator) instead of
@@ -300,7 +300,7 @@ TEST_CASE("TextRunBuilder: chained references stay valid across push_back") {
     }
     // First reference should still be alive and read correctly.
     REQUIRE(first_ref != nullptr);
-    CHECK(first_ref->spec().text().content.value == "frame_0");
+    CHECK(first_ref->spec().text.content.value == "frame_0");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -346,7 +346,7 @@ TEST_CASE("TextRunBuilder: font_size() updates pending.font_size AND invalidates
     LayerBuilder lb("test_layer", Frame{0});
     TextRunBuilder& trb = lb.text_run("font_size_test", make_text_run_spec("C", 64.0f));
     trb.font_size(48.0f);
-    CHECK(trb.spec().text().font.font_size == doctest::Approx(48.0f));
+    CHECK(trb.spec().text.font.font_size == doctest::Approx(48.0f));
     CHECK_FALSE(trb.spec().cache_layout);
 }
 

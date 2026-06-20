@@ -25,9 +25,9 @@ TEST_CASE("AssetRegistry: metadata type is set correctly") {
     const auto font = reg.import_font("f.ttf");
     const auto vid  = reg.import_video("v.mp4");
 
-    CHECK(reg.metadata(img).type() == AssetType::Image);
-    CHECK(reg.metadata(font).type() == AssetType::Font);
-    CHECK(reg.metadata(vid).type() == AssetType::Video);
+    CHECK(reg.metadata(img).type == AssetType::Image);
+    CHECK(reg.metadata(font).type == AssetType::Font);
+    CHECK(reg.metadata(vid).type == AssetType::Video);
 }
 
 TEST_CASE("AssetRegistry: metadata color_space and alpha_mode") {
@@ -77,7 +77,7 @@ TEST_CASE("AssetRegistry: import_image registers the asset") {
     reg.import_image("assets/bg.png");
     const auto found = reg.find_by_path("assets/bg.png");
     REQUIRE(found.has_value());
-    CHECK(reg.metadata(*found).type() == AssetType::Image);
+    CHECK(reg.metadata(*found).type == AssetType::Image);
 }
 
 TEST_CASE("AssetRegistry: get_path returns original string") {
