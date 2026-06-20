@@ -197,40 +197,39 @@ if(CHRONON3D_BUILD_CLI)
     add_subdirectory(apps/chronon3d_cli)
 endif()
 
-# ── Former CMake guard: CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2 ───────────
-# Path-B expression engine (feature/expressions-v2) was abandoned with multiple
-# latent breakages. Two survived until TICKET-003/-004 close-out (2026-06-20):
-# `<chrono3d` typo in lexer.hpp (TICKET-003 — auto-closed by upstream commits
-# c878ba7d/e41ff95a) and target_include_directories PUBLIC ${CMAKE_SOURCE_DIR}/
-# include instead of PRIVATE (TICKET-004 — fixed this session). The guard
-# fired correctly, proving its value; all tracked defects are now resolved.
+# ── Experimental subsystems gate ─────────────────────────────────────────────
+# Experimental work (e.g. expressions/v2) lives under experimental/ and is NOT
+# installed, NOT exported in Chronon3D::SDK, NOT built by default. Opt in with
+# -DCHRONON3D_BUILD_EXPERIMENTAL=ON. Promotion criteria for individual
+# experiments are documented in docs/EXPRESSIONS_V2_PROMOTION.md (and similar
+# files for any future experimental subsystems).
 #
-# A guard was added in commit aae68561 to refuse configure if those patterns
-# re-appeared in any *.cmake / CMakeLists.txt — the guard fired correctly after
-# rebase with PR #23 (commits 1871eb77 +
-# 76d547a6) merged expressions/v2 into main. PR #23 was integrated ahead of
-# guarded verification; the override -DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON
-# (or a bypassed local configure) was used to land it.
-#
-# Guardian verdict (recorded here for posterity): the protective value was
-# real. As of 2026-06-20 both defects the guard was hunting for are closed:
-# TICKET-003 (lexer.hpp typo — auto-closed upstream) and TICKET-004
-# (CMake PUBLIC→PRIVATE — fixed). See docs/FOLLOWUP_TICKETS.md for
-# the status transitions.
-#
-# Decision (this commit): retire the guard with this comment rather than
-# maintain a permanent exclusion list. The feature is on main and functional;
-# all surviving defects from the guard's fire are now tracked-and-closed.
-# Re-introduce this guard (option + GLOB_RECURSE + string(FIND) + FATAL_ERROR)
-# if/when another abandoned branch needs the same protective mechanism.
-# ──────────────────────────────────────────────────────────────────────────────
+# The legacy CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2 flag is now strictly
+# OBSOLETE: we keep the option() declaration as a cmake-cache-key compatibility
+# no-op so existing forks / CI that still pass -DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON
+# do not break their configuration step, but it has NO effect on the build. The
+# actual gate is CHRONON3D_BUILD_EXPERIMENTAL.
+option(CHRONON3D_BUILD_EXPERIMENTAL
+    "Build experimental subsystems (e.g. expressions/v2). OFF by default: experiments are NOT installed, NOT exported in the SDK, NOT tested in CI unless this flag is set. See docs/EXPRESSIONS_V2_PROMOTION.md for promotion criteria."
+    OFF)
 
-# The former `option(CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2 OFF)`
-# and its `if()-endif()` no-op block (retained for cache-key compat in the
-# prior commit) are now removed. All tracked defects (TICKET-003/-004) are
-# closed; zero presets reference the flag; no fork/CI needs the cache-key
-# bridge. The retirement comment above remains as the authoritative
-# historical record.
+# Deprecated option kept for cmake-cache-key compat with forks / CI scripts
+# that still pass -DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON. The
+# if() below is an empty touch so cmake does not emit "unused cache variable"
+# warnings. The OBSOLETE option has NO EFFECT on the build — the actual gate
+# is CHRONON3D_BUILD_EXPERIMENTAL above.
+option(CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2
+    "[OBSOLETE] Retired in favor of CHRONON3D_BUILD_EXPERIMENTAL. Configure with no effect."
+    OFF)
+if(CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2)
+    # OBSOLETE no-op touch: read the option once so cmake does NOT emit
+    # "unused cache variable" warnings when forks / CI pass -D...=ON.
+    # No-op: use CHRONON3D_BUILD_EXPERIMENTAL=ON instead.
+endif()
+
+if(CHRONON3D_BUILD_EXPERIMENTAL AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/experimental/expressions/CMakeLists.txt")
+    add_subdirectory(experimental/expressions)
+endif()
 
 # ── SDK Install / Export ───────────────────────────────────────────────────
 #

@@ -1,6 +1,6 @@
 // dependency_graph.cpp — Path B DependencyGraph implementation.
 
-#include <chronon3d/expressions/v2/dependency_graph.hpp>
+#include <chronon3d_experimental/expressions/v2/dependency_graph.hpp>
 
 #include <algorithm>
 #include <queue>

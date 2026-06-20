@@ -31,7 +31,7 @@
 
 #pragma once
 
-#include <chronon3d/expressions/v2/ast.hpp>
+#include <chronon3d_experimental/expressions/v2/ast.hpp>
 
 #include <cstdint>
 #include <optional>

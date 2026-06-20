@@ -1,6 +1,6 @@
 // bytecode.cpp — Path B bytecode helpers.
 
-#include <chronon3d/expressions/v2/bytecode.hpp>
+#include <chronon3d_experimental/expressions/v2/bytecode.hpp>
 
 namespace chronon3d::expressions::v2 {
 

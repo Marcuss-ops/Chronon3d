@@ -4,7 +4,7 @@
 // dereferences with `*ptr`.  Switch-case variables that may be jumped
 // over are wrapped in brace-blocks.
 
-#include <chronon3d/expressions/v2/type_checker.hpp>
+#include <chronon3d_experimental/expressions/v2/type_checker.hpp>
 
 #include <string>
 #include <string_view>
