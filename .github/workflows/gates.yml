@@ -1,0 +1,212 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# gates.yml — Chronon3D Pre-Merge Gate Pipeline (cheap gates)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Five cheap gates that run on every PR (and on push to main as a safety net).
+# The sixth, `full-validation`, lives in a separate workflow
+# `.github/workflows/gates-full-validation.yml` whose `on: pull_request.paths`
+# filter runs it ONLY when the PR touches include/, src/, CMakeLists.txt,
+# CMakePresets.json, vcpkg.json, or .github/workflows/.
+#
+# Job catalog (this file):
+#   1. core-build           — Text/Video/Content/Diagnostics OFF.
+#   2. sdk-build            — Text+Blend2D ON, no Content/Video.
+#   3. public-header-check  — Every public header compiled standalone.
+#   4. install-consumer-check — cmake --install + external find_package.
+#   5. architecture-check   — Static rules + doctest skip tickets.
+#
+# Why this file exists:
+# The previous CI (ci.yml) only built `chronon3d_tests_fast` on PRs and
+# deferred the rest to post-merge. This file makes the pre-merge surface area
+# explicit and forbids any single failure.
+
+name: Chronon Gates (cheap)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+  VCPKG_BINARY_SOURCES: "clear;nuget,GitHub,readwrite"
+  VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────
+  # 1. Core build — Text OFF, Video OFF, Content OFF, Diagnostics OFF.
+  # ─────────────────────────────────────────────────────────────────────
+  core-build:
+    name: Gate 1 / core-build (no text/video/content/diagnostics)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: ${{ github.event_name == 'push' }}
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+      - name: Configure
+        run: cmake --preset linux-core-dev
+
+      - name: Build (chronon3d_tests_fast)
+        run: cmake --build --preset linux-core-dev
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 2. SDK build — Text ON, Blend2D ON. Validates consumer-side link closure.
+  # ─────────────────────────────────────────────────────────────────────
+  sdk-build:
+    name: Gate 2 / sdk-build (Text+Blend2D, no Content/Video)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: ${{ github.event_name == 'push' }}
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+      - name: Configure
+        run: cmake --preset linux-lean-dev
+
+      - name: Build (chronon3d_cli + chronon3d_tests_fast)
+        run: cmake --build --preset linux-lean-dev
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 3. Public-header check — every header compiled standalone.
+  # ─────────────────────────────────────────────────────────────────────
+  public-header-check:
+    name: Gate 3 / public-header-check (each header compiled alone)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: ${{ github.event_name == 'push' }}
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+      # Configure+build enough to populate compile_commands.json. We then read
+      # that file (1) to learn the exact include + define flags the project
+      # itself uses, and (2) so that per-header checks see spdlog/fmt/glm/etc.
+      # transitively. Without this the gate would false-positive on every
+      # header that depends on a third-party include.
+      - name: Configure (linux-lean-dev, with compile_commands)
+        run: cmake --preset linux-lean-dev -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Build enough to ensure compile_commands is up-to-date
+        run: cmake --build --preset linux-lean-dev --target chronon3d_pipeline
+
+      - name: Enumerate public headers
+        run: |
+          find include/chronon3d -maxdepth 3 -name '*.hpp' | sort > headers.txt
+          wc -l headers.txt
+
+      - name: Compile each header standalone
+        run: |
+          # Invoke tools/check_public_headers.py (a dedicated script) instead of
+          # inlining Python via heredoc. Heredocs embedded inside YAML `|:` run
+          # blocks tangle the YAML block-scalar terminator with the bash
+          # heredoc terminator and confuse the YAML scanner. The Python script
+          # reads project compile_flags from compile_commands.json so the
+          # header checks see spdlog/fmt/glm/etc. transitively.
+          python3 tools/check_public_headers.py \
+            --compile-commands build/chronon/linux-lean-dev/compile_commands.json \
+            --headers-list headers.txt \
+            --out out
+
+          if [ -s out/failures.txt ]; then
+            echo "::error::Public headers that fail to compile standalone:"
+            cat out/failures.txt
+            exit 1
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 4. Install + consumer (find_package external CMake project).
+  # ─────────────────────────────────────────────────────────────────────
+  install-consumer-check:
+    name: Gate 4 / install-consumer-check (cmake --install + external find_package)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: ${{ github.event_name == 'push' }}
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+      - name: Configure (Chronon3D itself)
+        run: cmake --preset linux-ci
+
+      - name: Build Chronon3D
+        run: cmake --build build/chronon/linux-ci
+
+      # Install under a project-local PREFIX (NOT to /usr/local). The consumer
+      # project lives in ./consumer/, links Chronon3D::SDK, runs find_package.
+      - name: Install to local PREFIX
+        run: |
+          mkdir -p consumer-install
+          DESTDIR=$PWD/consumer-install cmake --install build/chronon/linux-ci
+
+      - name: Build external consumer project
+        run: |
+          # NB: same heredoc-vs-YAML caution as in Gate 3 above. We split into
+          # multiple `printf` calls so no `<<EOF` body crosses into YAML.
+          mkdir -p consumer
+          printf 'cmake_minimum_required(VERSION 3.25)\n' > consumer/CMakeLists.txt
+          printf 'project(chronon_consumer LANGUAGES CXX)\n' >> consumer/CMakeLists.txt
+          printf 'set(CMAKE_CXX_STANDARD 20 CACHE STRING "")\n' >> consumer/CMakeLists.txt
+          printf 'set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL "")\n' >> consumer/CMakeLists.txt
+          printf 'find_package(Chronon3D CONFIG REQUIRED PATHS ${CMAKE_SOURCE_DIR}/../consumer-install/usr/local/lib/cmake/Chronon3D NO_DEFAULT_PATH)\n' >> consumer/CMakeLists.txt
+          printf 'add_executable(chronon_consumer main.cpp)\n' >> consumer/CMakeLists.txt
+          printf 'target_link_libraries(chronon_consumer PRIVATE Chronon3D::SDK)\n' >> consumer/CMakeLists.txt
+
+          # main.cpp (consumer sanity check): three public headers + one type.
+          printf '#include <chronon3d/chronon3d.hpp>\n' > consumer/main.cpp
+          printf '#include <chronon3d/runtime.hpp>\n' >> consumer/main.cpp
+          printf '#include <chronon3d/math/color.hpp>\n' >> consumer/main.cpp
+          printf 'int main() { chronon3d::Color c{}; (void)c; return 0; }\n' >> consumer/main.cpp
+
+          cmake -S consumer -B consumer/build -DCMAKE_PREFIX_PATH=$PWD/consumer-install/usr/local
+          cmake --build consumer/build
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 5. Architecture check — static analysis + skip-without-ticket guard.
+  # ─────────────────────────────────────────────────────────────────────
+  architecture-check:
+    name: Gate 5 / architecture-check (static rules + doctest skip tickets)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: |
+          chmod +x tools/test_architectural.sh
+          test -x tools/check_skipped_tests.sh || chmod +x tools/check_skipped_tests.sh
+
+      - name: Run tools/test_architectural.sh
+        run: bash tools/test_architectural.sh
