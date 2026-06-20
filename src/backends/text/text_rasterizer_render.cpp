@@ -323,13 +323,19 @@ CacheKey hash_text_style(const TextShape& t, float effective_size, int padding, 
 bool lookup_text_cache(const CacheKey& key, std::shared_ptr<TextRasterization>& out);
 void store_text_cache(const CacheKey& key, const std::shared_ptr<TextRasterization>& result);
 
+/// `debug_cfg` is the per-instance DebugConfig forwarded from the owning
+/// RenderGraphContext / SoftwareRenderer (TICKET-007 — replaces the removed
+/// process-wide `detail::g_debug_config`).  When nullptr, debug overlays
+/// (text-bbox highlighting, ink bounds, baselines) are skipped.  See
+/// TICKET-007 for the full propagation path.
 std::optional<TextRasterization> rasterize_text_to_bl_image(
     const TextShape& t,
     float effective_size,
     int padding,
     bool* cache_hit,
     const Mat4* transform,
-    FontEngine* font_engine
+    FontEngine* font_engine,
+    const chronon3d::DebugConfig* debug_cfg
 ) {
 #ifdef CHRONON3D_ENABLE_TEXT
     std::string font_path = t.style.font_path;
@@ -903,8 +909,8 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         }
     }
 
-    // ── Debug: draw bounding box overlays (env-gated) ──────────────
-    if (detail::g_debug_config && detail::g_debug_config->text_bbox() && !t.text.empty()) {
+    // ── Debug: draw bounding box overlays (per-instance debug_cfg — TICKET-007) ──
+    if (debug_cfg && debug_cfg->text_bbox() && !t.text.empty()) {
         BLContext dbg(img);
         dbg.setCompOp(BL_COMP_OP_SRC_OVER);
 
@@ -1015,6 +1021,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     (void)cache_hit;
     (void)transform;
     (void)font_engine;
+    (void)debug_cfg;   // TICKET-007: keep the parameter referenced in the disabled-build branch
     return std::nullopt;
 #endif // CHRONON3D_ENABLE_TEXT
 }

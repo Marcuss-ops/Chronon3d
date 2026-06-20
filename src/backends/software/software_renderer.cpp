@@ -120,7 +120,6 @@ SoftwareRenderer::SoftwareRenderer()
 
     // Thread the per-instance debug config for deep rendering code
     // (glow_pipeline, text_rasterizer) that can't receive context directly.
-    detail::set_debug_config(m_config.debug());
 }
 
 SoftwareRenderer::SoftwareRenderer(Config config)
@@ -164,7 +163,6 @@ SoftwareRenderer::SoftwareRenderer(Config config)
 
     m_runtime_resources.effect_catalog->freeze();
 
-    detail::set_debug_config(m_config.debug());
 }
 
 SoftwareRenderer::~SoftwareRenderer() = default;

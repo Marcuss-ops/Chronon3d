@@ -47,6 +47,8 @@ namespace chronon3d::graph {
     struct RenderGraphContext;
 }
 
+namespace chronon3d { class DebugConfig; }   // TICKET-007: per-instance debug gating (replaces detail::g_debug_config)
+
 namespace chronon3d {
 
 // ── Input descriptor for GlowPipeline::render() ──────────────────────
@@ -196,8 +198,15 @@ namespace chronon3d::renderer {
 /// Currently supports Layer and Bloom. Shadow is a no-op placeholder.
 /// When source_is_alpha_mask is true, the trigger is taken directly
 /// from source alpha (used by text glow).
+/// `debug_cfg` is the per-instance DebugConfig forwarded from the
+/// owning RenderEngine / SoftwareRenderer (TICKET-007 — replaces the
+/// removed process-wide `detail::g_debug_config`).  When nullptr,
+/// per-pass debug artifacts (debug_glow_source.png / debug_glow_pass_*.png /
+/// debug_glow_accumulated.png) are skipped.  See TICKET-007 for the
+/// propagation path through RenderGraphContext::options::debug_config.
 void run_glow_pipeline(Framebuffer& fb, const GlowPipeline& p,
                        const std::optional<raster::BBox>& clip,
-                       bool source_is_alpha_mask = false);
+                       bool source_is_alpha_mask = false,
+                       const chronon3d::DebugConfig* debug_cfg = nullptr);
 
 } // namespace chronon3d::renderer
