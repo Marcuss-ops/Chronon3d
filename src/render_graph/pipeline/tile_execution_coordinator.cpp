@@ -91,11 +91,15 @@ TileExecutionResult execute_tile_or_fallback(
         {
             CHRONON_ZONE_C("graph_execute", trace_category::kGraph);
             if (sw_renderer && sw_renderer->executor()) {
+                // TICKET-009 — pass the renderer-owned plan cache to the
+                // executor (the executor is now stateless).
                 result.fb = sw_renderer->executor()->execute(
-                    compiled, ctx, sw_renderer->session());
+                    compiled, ctx, sw_renderer->session(),
+                    sw_renderer->plan_cache());
             } else {
                 RenderSession local_session;
                 GraphExecutor local_executor;
+                // TICKET-009 — ad-hoc fallback path; no shared plan cache.
                 result.fb = local_executor.execute(compiled, ctx, local_session);
             }
         }

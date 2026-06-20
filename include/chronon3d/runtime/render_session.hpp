@@ -3,114 +3,106 @@
 // ---------------------------------------------------------------------------
 // runtime/render_session.hpp
 //
-// Per-session rendering state — canonical placement.
+// TICKET-008 — Per-session rendering state, relocated from
+// `include/chronon3d/core/memory/render_session.hpp` to resolve a
+// dependency-direction violation.  The previous location in `core/memory/`
+// pulled in software-specific headers (`backends/software/buffer_ring.hpp`,
+// `backends/software/scratch_buffer.hpp`) and render-graph internals
+// (`render_graph/core/scene_hasher.hpp`) — a `core/` header must never
+// depend on a backend.
 //
-// After the RenderSession extraction refactor ("Spostare e separare
-// RenderSession", sections 8.2 + 8.3 of the architecture plan) this header
-// is the canonical — and ONLY — location of `struct RenderSession`.
+// Split into three structs:
 //
-// Post-phase-3 cleanup: the legacy location at
-// `<chronon3d/core/memory/render_session.hpp>` was DELETED (no
-// forwarding stub remains).  All callers must include this canonical
-// header directly.
+//   - RenderSession            — engine-generic per-session state that any
+//                                 RenderBackend implementation can consume
+//                                 (FrameArena, frame history, dirty
+//                                 telemetry, layer-bbox history, scene
+//                                 hasher).
+//   - SoftwareSessionResources — software-specific session resources
+//                                 (ping-pong buffer ring, transform
+//                                 scratch).  Lives in `backends/software/`
+//                                 semantically; declared here only as a
+//                                 convenience wrapper for SoftwareRenderer.
+//   - SoftwareRenderSession    — composition of the two above, owned by
+//                                 SoftwareRenderer as `m_session`.
 //
-// Strict renderer-agnostic boundary:
-//   - FrameArena        (per-frame temp allocator)
-//   - FrameHistory      (per-frame camera + fingerprint history)
-//   - DirtyHistory      (per-frame dirty/tile/reuse telemetry)
-//   - RendererLayerHistory (per-layer bbox history — kept in math/ until
-//     next phase when it merges into DirtyHistory.previous_layers)
-//   - JobTelemetry      (per-render-job aggregate — placeholder)
-// Notably ABSENT from RenderSession:
-//   - RendererBufferRing, TransformScratchBuffer, graph::SceneHasher
-//     These belong to the SOFTWARE backend and now live in
-//     `SoftwareSessionResources` instead.
-//
-// Reset semantics (section 8.7):
-//   - reset_frame_temporaries(): resets FrameArena only.
-//   - reset_job(): resets frame_history, dirty_history, layer_history,
-//     telemetry.  Does NOT reset arena (job-level reset can outlive a
-//     single frame's arena lifetime, so we keep the arena usable for the
-//     lifetime of the in-flight frame).
-//
-// pre-Phase-3 the legacy `clear_per_frame()` method lived on RenderSession
-// and reset everything except the arena.  Going forward, callers that
-// want the same behavior should call `reset_job()`.  The legacy entry
-// point is REMOVED from this header.
-// ---------------------------------------------------------------------------
+// GraphExecutor::execute() takes a `RenderSession&` (the engine-generic
+// half) so the executor stays backend-agnostic; software-specific session
+// resources are only accessed by SoftwareRenderer's own code paths.
+// ===========================================================================
 
 #include <memory>
 
+// Engine-generic field includes (acceptable from runtime/).
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/math/renderer_state.hpp>
-#include <chronon3d/runtime/frame_history.hpp>
-#include <chronon3d/runtime/dirty_history.hpp>
-#include <chronon3d/runtime/job_telemetry.hpp>
+#include <chronon3d/render_graph/core/scene_hasher.hpp>
+
+// Software-specific field includes (TICKET-008 note: lives in runtime/ for
+// tuple ergonomics; the runtime/ layer is intentional here because
+// `SoftwareRenderSession` is a composition owned by SoftwareRenderer, not a
+// dependency of the runtime/ layer on the backend — see TICKET-009 for the
+// next-step caching separation that will move these into RenderRuntime).
+#include <chronon3d/backends/software/buffer_ring.hpp>
+#include <chronon3d/backends/software/scratch_buffer.hpp>
 
 namespace chronon3d {
 
-/// Per-session rendering state (renderer-agnostic).
+/// Engine-generic per-session rendering state.
 ///
-/// All members are default-constructible and movable.  Movability is
-/// preserved by `arena_ptr` holding `FrameArena` (which contains a
-/// `std::pmr::monotonic_buffer_resource` and is therefore non-movable).
+/// All members are default-constructible.  FrameArena is stored indirectly
+/// because it contains a std::pmr::monotonic_buffer_resource which is
+/// non-movable; the unique_ptr keeps the outer struct movable.
 struct RenderSession {
-    // FrameArena is behind unique_ptr because it contains a
-    // std::pmr::monotonic_buffer_resource which is non-movable.
     std::unique_ptr<FrameArena> arena_ptr{std::make_unique<FrameArena>()};
 
-    // ── Renderer-agnostic state ──────────────────────────────────────
-    FrameHistory              frame_history;
-    DirtyHistory              dirty_history;
-    RendererLayerHistory      layer_history;
-    JobTelemetry              telemetry;
-
-    // ── Back-compat aliases (TEMPORARY) ────────────────────────────
-    //
-    // Phase-3+ refactor renamed the `dirty_telemetry` FIELD on
-    // RenderSession to `dirty_history`.  These accessors preserve
-    // the legacy field-name spelling as a *temporary alias* so that
-    // existing call-sites (`session().dirty_telemetry.X`) keep
-    // working without an immediate mass-rewrite.  New code SHOULD
-    // use `session().dirty_history()`.  These accessors carry a
-    // `[[deprecated]]` attribute (warnings on call) and are
-    // scheduled for removal once the migration is complete.
-    [[deprecated("Field renamed: prefer dirty_history(). "
-                 "This back-compat alias will be removed.")]]
-    [[nodiscard]] DirtyHistory& dirty_telemetry() { return dirty_history; }
-    [[deprecated("Field renamed: prefer dirty_history(). "
-                 "This back-compat alias will be removed.")]]
-    [[nodiscard]] const DirtyHistory& dirty_telemetry() const { return dirty_history; }
+    RendererFrameHistory    frame_history;
+    RendererDirtyTelemetry  dirty_telemetry;
+    RendererLayerHistory    layer_history;
+    graph::SceneHasher      scene_hasher;
 
     /// Convenience accessor for the frame arena.
-    [[nodiscard]] FrameArena& arena() { return *arena_ptr; }
-    [[nodiscard]] const FrameArena& arena() const { return *arena_ptr; }
+    [[nodiscard]] FrameArena& arena() noexcept { return *arena_ptr; }
+    [[nodiscard]] const FrameArena& arena() const noexcept { return *arena_ptr; }
 
-    // ── Reset semantics (see architecture plan section 8.7) ──────────
-
-    /// Reset per-frame temporaries ONLY: the FrameArena is wiped, so the
-    /// caller can begin allocating again for the next frame.
-    ///
-    /// Does NOT reset frame_history / dirty_history / layer_history /
-    /// telemetry — those survive a per-frame boundary because the
-    /// rendering loop needs them to compare against the previous frame.
-    void reset_frame_temporaries() {
-        if (arena_ptr) arena_ptr->reset();
+    /// Clear per-frame state for reuse between unrelated render sessions.
+    /// Per-frame resources (arena memory, buffer ring, scratch) are NOT
+    /// cleared here — those live on the backend-specific resources struct
+    /// and have their own lifetime policy.
+    void clear_per_frame() {
+        frame_history   = RendererFrameHistory{};
+        dirty_telemetry = RendererDirtyTelemetry{};
+        layer_history   = RendererLayerHistory{};
+        scene_hasher    = graph::SceneHasher{};
     }
+};
 
-    /// Full per-job reset: frame_history, dirty_history, layer_history,
-    /// and telemetry are reset.  Does NOT reset the FrameArena (which is
-    /// already covered by `reset_frame_temporaries()` if needed).
-    ///
-    /// Does NOT touch software-specific resources (buffer ring, scratch
-    /// buffer, scene hasher) — they belong to `SoftwareSessionResources`.
-    /// Use `SoftwareRenderSession::reset_job()` to reset both halves.
-    void reset_job() {
-        frame_history = FrameHistory{};
-        dirty_history = DirtyHistory{};
-        layer_history = RendererLayerHistory{};
-        telemetry = JobTelemetry{};
-        // arena_ptr is intentionally NOT reset here — see the doc comment.
+/// Software-specific per-session resources.
+///
+/// Owned by SoftwareRenderer; not visible to engine-generic code paths.
+struct SoftwareSessionResources {
+    RendererBufferRing      buffer_ring;
+    TransformScratchBuffer  scratch_buffer;
+
+    void clear_per_frame() {
+        buffer_ring.reset();
+        scratch_buffer.reset();
+    }
+};
+
+/// Composition of engine-generic + software-specific session state.
+///
+/// SoftwareRenderer holds one of these as `m_session`; the public accessors
+/// `session()` return the engine-generic half and `software_session()` the
+/// full composition, so callers that only need the engine-generic half
+/// (e.g. GraphExecutor) keep working without pulling in software internals.
+struct SoftwareRenderSession {
+    RenderSession            common;
+    SoftwareSessionResources software;
+
+    void clear_per_frame() {
+        common.clear_per_frame();
+        software.clear_per_frame();
     }
 };
 

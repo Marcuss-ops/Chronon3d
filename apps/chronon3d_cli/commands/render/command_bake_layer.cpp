@@ -3,12 +3,11 @@
 #include "../../utils/job/cli_render_utils.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
-#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/pipeline/graph_filter.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
-#include <chronon3d/core/memory/render_session.hpp>
-#include <chronon3d/core/scheduler/execution_scheduler.hpp>
+#include <chronon3d/runtime/execution_plan_cache.hpp>
+#include <chronon3d/runtime/render_session.hpp>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::cli {
@@ -43,10 +42,6 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
     graph_ctx.resources.framebuffer_pool = renderer->framebuffer_pool();
     graph_ctx.telemetry.counters = renderer->counters();
     graph_ctx.resources.registry = &registry;
-    // ── PR-B: propagate the renderer's scheduler so that any nested
-    // PrecompNode (if the bake target is a precomposition) routes through
-    // the same tbb::task_arena as the parent graph.
-    graph_ctx.resources.scheduler = &renderer->scheduler();
 
     auto graph = graph::GraphBuilder::build(scene, graph_ctx);
 
@@ -64,20 +59,13 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
                      args.layer_id, selection.matching_nodes.size(), frame, args.output);
     }
 
-    // ── PR-A: retarget_output is post-freeze safe ────────────────────────
-    // `GraphBuilder::build` returns a Frozen graph.  `set_output` would
-    // throw std::logic_error; `retarget_output` simply rewrites the
-    // output id and validates it.  Without this, the bake layer command
-    // would need to rebuild the entire graph for every layer.
-    graph.retarget_output(selection.selected_output);
-
-    // ── PR-B: route through FrameGraphCompiler + scheduler ──────────────
-    graph::FrameGraphCompiler compiler;
-    auto compiled = compiler.compile(std::move(graph), graph_ctx);
-
+    // Execute the graph for just the selected layer
     graph::GraphExecutor executor;
     RenderSession session;
-    auto fb = executor.execute(compiled, graph_ctx, session, renderer->scheduler());
+    // TICKET-009 — local plan cache for the one-shot bake path.
+    chronon3d::runtime::ExecutionPlanCache plan_cache;
+    auto fb = executor.execute(
+        graph, selection.selected_output, graph_ctx, session, &plan_cache);
 
     if (!fb) {
         spdlog::error("[bake-layer] Bake failed: layer '{}' produced no framebuffer",

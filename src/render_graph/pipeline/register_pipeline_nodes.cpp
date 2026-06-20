@@ -1,13 +1,24 @@
+// =============================================================================
+// register_pipeline_nodes.cpp — Pipeline catalog population + ctx wiring.
+//
+// TICKET-010 — replaces the legacy std::function callback
+// `wire_precomp_build_factory(ctx, catalogs)` with a typed helper
+// `wire_catalog_pointers(ctx, catalogs)` that copies catalog pointers +
+// a typed `PrecompBuilderService*` into `ctx.services`.  The actual
+// compile/optimise code is no longer here — it lives in
+// `DefaultPrecompBuilder::build()` (precomp_builder_service.cpp).  This
+// separation lets us:
+//   - Unit-test the build pipeline independently of the catalog wiring.
+//   - Substitute a custom builder (e.g. specialised compiler/profiler
+//     instrumentation) without touching the catalog init code.
+// =============================================================================
+
 #include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
 #include <chronon3d/render_graph/pipeline/pipeline_catalogs.hpp>
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/render_graph/registry/graph_node_create_request.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
-#include <chronon3d/render_graph/builder/graph_builder.hpp>
-#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
-#include <chronon3d/render_graph/compiler/scene_binding.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
-#include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/extension/extension_module.hpp>
 #include <chronon3d/extension/extension_catalog.hpp>
 #include <chronon3d/extension/extension_context.hpp>
@@ -92,6 +103,8 @@ void populate_builtin_pipeline_catalogs(PipelineCatalogs& catalogs,
     // ── Freeze domain catalogs ───────────────────────────────────
     catalogs.graph_nodes.freeze();
     catalogs.effects.freeze();
+    // catalogs.precomp_builder is left at its default (DefaultPrecompBuilder)
+    // unless the host has overridden it before this call.
 }
 
 void init_graph_pipeline_catalogs(PipelineCatalogs& catalogs) {
@@ -100,37 +113,24 @@ void init_graph_pipeline_catalogs(PipelineCatalogs& catalogs) {
         std::make_unique<PipelineExtension>());
 
     // ── Register pipeline graph nodes (no content/compositions) ──
-    // The ExtensionContext here is minimal — only graph_nodes is used.
-    // We create a temporary context; the PipelineExtension only
-    // uses ctx.graph_nodes.
-    // ── No content modules — graph coordinator doesn't need compositions ─
-
-    // ── Run pipeline extension (only graph node registration) ────
     register_pipeline_graph_nodes(catalogs.graph_nodes);
 
     // ── Freeze domain catalogs ───────────────────────────────────
     catalogs.graph_nodes.freeze();
     catalogs.effects.freeze();
+    // catalogs.precomp_builder is left at its default (DefaultPrecompBuilder).
 }
 
-void wire_precomp_build_factory(RenderGraphContext& ctx, const PipelineCatalogs& catalogs) {
-    ctx.resources.node_catalog   = &catalogs.graph_nodes;
-    ctx.resources.effect_catalog = &catalogs.effects;
-    ctx.resources.precomp_build = [](const Scene& scene, RenderGraphContext& nested_ctx)
-        -> std::unique_ptr<CompiledSceneProgram>
-    {
-        RenderGraph nested_graph = GraphBuilder::build(scene, nested_ctx);
-
-        FrameGraphCompiler compiler;
-        FrameGraphCompileOptions compile_opts;
-        compile_opts.run_optimizer    = true;
-        compile_opts.compute_lifetimes = true;
-        compile_opts.compute_bboxes   = true;
-
-        auto compiled = compiler.compile(std::move(nested_graph), nested_ctx, compile_opts);
-        return std::make_unique<CompiledSceneProgram>(
-            compile_scene_program(std::move(compiled)));
-    };
+void wire_catalog_pointers(RenderGraphContext& ctx, const PipelineCatalogs& catalogs) {
+    ctx.services.node_catalog      = &catalogs.graph_nodes;
+    ctx.services.effect_catalog    = &catalogs.effects;
+    // Wire the typed builder only when the caller hasn't already installed
+    // a custom service.  Tests / instrumentation can pre-set
+    // `ctx.services.precomp_builder` to a non-null substitute before this
+    // call and the override will be preserved.
+    if (ctx.services.precomp_builder == nullptr && catalogs.precomp_builder) {
+        ctx.services.precomp_builder = catalogs.precomp_builder.get();
+    }
 }
 
 } // namespace chronon3d::graph

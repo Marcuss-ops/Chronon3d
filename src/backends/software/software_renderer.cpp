@@ -78,15 +78,13 @@ uint64_t clipped_area(int32_t width, int32_t height, const std::optional<raster:
 SoftwareRenderer::SoftwareRenderer()
     : m_runtime_resources{
         .software_registry = std::make_unique<renderer::SoftwareRegistry>(),
+        // TICKET-009 — GraphExecutor ctor takes no `pin_main_thread` arg
+        // anymore.  The planner cache is owned by `m_runtime_resources.plan_cache`
+        // (shared_ptr) and passed explicitly to `executor.execute()`.
         .executor = std::make_unique<graph::GraphExecutor>(),
+        .plan_cache = std::make_shared<runtime::ExecutionPlanCache>(),
         .graph_node_registry = std::make_unique<graph::GraphNodeCatalog>(),
-        .effect_catalog = std::make_unique<effects::EffectCatalog>(),
-        // ── PR-B: scheduler held next to the executor ────────────────────
-        // Built from Config::SchedulerConfig (mode, worker_count,
-        // pin_calling_thread).  Same instance is used by every render
-        // path through the lifetime of the renderer.
-        .scheduler = std::make_unique<ExecutionScheduler>(
-            make_execution_scheduler(m_config.scheduler()))
+        .effect_catalog = std::make_unique<effects::EffectCatalog>()
     }
     , m_cache_state{
         .node_cache = cache::NodeCache{
@@ -131,12 +129,11 @@ SoftwareRenderer::SoftwareRenderer(Config config)
     : m_config(std::move(config))
     , m_runtime_resources{
         .software_registry = std::make_unique<renderer::SoftwareRegistry>(),
+        // TICKET-009 — see default ctor; pin + arena gone, plan_cache added.
         .executor = std::make_unique<graph::GraphExecutor>(),
+        .plan_cache = std::make_shared<runtime::ExecutionPlanCache>(),
         .graph_node_registry = std::make_unique<graph::GraphNodeCatalog>(),
-        .effect_catalog = std::make_unique<effects::EffectCatalog>(),
-        // ── PR-B: scheduler held next to the executor ────────────────────
-        .scheduler = std::make_unique<ExecutionScheduler>(
-            make_execution_scheduler(m_config.scheduler()))
+        .effect_catalog = std::make_unique<effects::EffectCatalog>()
     }
     , m_cache_state{
         .node_cache = cache::NodeCache{
@@ -182,12 +179,15 @@ const graph::GraphExecutor* SoftwareRenderer::executor() const {
     return m_runtime_resources.executor.get();
 }
 
-ExecutionScheduler* SoftwareRenderer::scheduler() {
-    return m_runtime_resources.scheduler.get();
+// TICKET-009 — accessor for the shared plan cache.  Callers (tile executor,
+// precomp node) pass this pointer into GraphExecutor::execute() for
+// per-render topology caching.
+runtime::ExecutionPlanCache* SoftwareRenderer::plan_cache() {
+    return m_runtime_resources.plan_cache.get();
 }
 
-const ExecutionScheduler* SoftwareRenderer::scheduler() const {
-    return m_runtime_resources.scheduler.get();
+const runtime::ExecutionPlanCache* SoftwareRenderer::plan_cache() const {
+    return m_runtime_resources.plan_cache.get();
 }
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp,
