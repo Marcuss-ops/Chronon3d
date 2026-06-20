@@ -1,10 +1,17 @@
 # ==============================================================================
 # src/media/CMakeLists.txt — chronon3d_media_interface + chronon3d_backend_video
+#
+# INTERFACE include dirs must use generator expressions so the installed
+# Chronon3DTargets.cmake substitutes the install-time path (`include/`)
+# instead of leaking the source-tree path.
 # ==============================================================================
 
 # Item 19: media interface target (header-only — abstract provider contract)
 add_library(chronon3d_media_interface INTERFACE)
-target_include_directories(chronon3d_media_interface INTERFACE ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(chronon3d_media_interface INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
 target_link_libraries(chronon3d_media_interface INTERFACE chronon3d)
 
 if(CHRONON3D_ENABLE_VIDEO)
@@ -42,4 +49,3 @@ if(CHRONON3D_ENABLE_VIDEO)
     endif()
     target_include_directories(chronon3d_backend_video PRIVATE ${CMAKE_SOURCE_DIR})
 endif()
-

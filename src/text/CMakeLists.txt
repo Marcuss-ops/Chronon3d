@@ -17,7 +17,10 @@ add_library(chronon3d_text_core STATIC
     text_run_geometry.cpp
 )
 
+# NOTE: chronon3d_text_core does NOT declare its own PUBLIC include directory
+# here.  Public header access is already provided transitively through the
+# PUBLIC link to `chronon3d` (which has both $<BUILD_INTERFACE:…> and
+# $<INSTALL_INTERFACE:include>).  Adding a redundant PUBLIC include dir here
+# would leak the source-tree path when consumers try to import this target
+# from the installed Chronon3DTargets.cmake.
 target_link_libraries(chronon3d_text_core PUBLIC chronon3d)
-target_include_directories(chronon3d_text_core PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-)
