@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include <chronon3d/expressions/v2/bytecode.hpp>
-#include <chronon3d/expressions/v2/expression_value.hpp>
+#include <chronon3d_experimental/expressions/v2/bytecode.hpp>
+#include <chronon3d_experimental/expressions/v2/expression_value.hpp>
 
 #include <cstdint>
 #include <optional>
@@ -42,6 +42,27 @@ public:
         if (it == env_.end()) return std::nullopt;
         return it->second;
     }
+
+    /// Clear all variable bindings.
+    ///
+    /// **Owner-invariant (DO NOT REGRESS).** The `Vm` class owns only `env_`
+    /// as observable instance state today. `reset()` therefore leaves the Vm in
+    /// the same observable state as a freshly-constructed Vm.  If a future
+    /// contributor adds a new private field with observable state (e.g. a
+    /// const-pool cache, a stack snapshot for unwinding, a profiling accumulator),
+    /// they MUST update this method to clear every observable field, otherwise
+    /// Gate 2's determinism contract is silently broken.
+    ///
+    /// Required by Opzione B Gate 2 so test runs can isolate runs that share a
+    /// long-lived Vm instance (anim systems often hold one across frames).
+    void reset() noexcept { env_.clear(); }
+
+    /// Whether env_ is empty (true immediately after construction and after
+    /// reset()). Useful as a test-side guard before reusing a Vm.
+    [[nodiscard]] bool empty() const noexcept { return env_.empty(); }
+
+    /// Number of distinct bindings currently held in env_.
+    [[nodiscard]] std::size_t env_size() const noexcept { return env_.size(); }
 
     /// Run the program (no throws). Errors populate `err` (if non-null).
     [[nodiscard]] ExpressionValue run(const Program& program, VmError* err = nullptr);

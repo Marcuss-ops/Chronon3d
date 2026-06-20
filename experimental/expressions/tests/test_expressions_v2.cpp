@@ -13,14 +13,14 @@
 
 #include <doctest/doctest.h>
 
-#include <chronon3d/expressions/v2/ast.hpp>
-#include <chronon3d/expressions/v2/bytecode.hpp>
-#include <chronon3d/expressions/v2/compiler.hpp>
-#include <chronon3d/expressions/v2/dependency_graph.hpp>
-#include <chronon3d/expressions/v2/expression_value.hpp>
-#include <chronon3d/expressions/v2/lexer.hpp>
-#include <chronon3d/expressions/v2/type_checker.hpp>
-#include <chronon3d/expressions/v2/vm.hpp>
+#include <chronon3d_experimental/expressions/v2/ast.hpp>
+#include <chronon3d_experimental/expressions/v2/bytecode.hpp>
+#include <chronon3d_experimental/expressions/v2/compiler.hpp>
+#include <chronon3d_experimental/expressions/v2/dependency_graph.hpp>
+#include <chronon3d_experimental/expressions/v2/expression_value.hpp>
+#include <chronon3d_experimental/expressions/v2/lexer.hpp>
+#include <chronon3d_experimental/expressions/v2/type_checker.hpp>
+#include <chronon3d_experimental/expressions/v2/vm.hpp>
 
 #include <cmath>
 #include <string>
