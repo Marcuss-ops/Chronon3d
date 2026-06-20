@@ -4,6 +4,7 @@
 #include <chronon3d/backends/software/utils/effects/per_pixel_dof.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/trace_categories.hpp>
+#include <chronon3d/scene/model/layer/layer_effect.hpp>
 #include <algorithm>
 #include <optional>
 
@@ -77,7 +78,7 @@ void SoftwareBackend::apply_blur(Framebuffer& fb, f32 radius,
         clipped_area(fb.width(), fb.height(), local_clip),
         std::memory_order_relaxed);
     CHRONON_ZONE_C("apply_blur", trace_category::kEffect);
-    renderer::apply_blur(fb, radius, local_clip);
+    renderer::apply_blur(fb, radius, local_clip, 2);
 }
 
 // ── composite_layer ───────────────────────────────────────────────────────

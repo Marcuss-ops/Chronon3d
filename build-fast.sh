@@ -32,6 +32,7 @@ Commands:
   turbo               Ultra-fast Debug build (CLI only, no tests/content)
   turbo-inc <group>   Incremental rebuild of CLI group + relink
     Groups: dev | render | video | telemetry | bench | core
+  release             RelWithDebInfo build (optimised + debug symbols, 2-5× faster runtime)
 
 Environment:
   JOBS                       Parallel jobs (default: nproc)
@@ -100,6 +101,8 @@ resolve_build_dir
 PRESET="linux-fast-dev"
 TURBO_BUILD_DIR="$ROOT_DIR/build/chronon/linux-turbo"
 TURBO_PRESET="linux-turbo"
+RELEASE_BUILD_DIR="${BUILD_DIR_OVERRIDE:-/tmp/chronon-builds/linux-fast-dev-release}"
+RELEASE_PRESET="linux-fast-dev-release"
 JOBS="${JOBS:-$(nproc)}"
 
 ensure_configured() {
@@ -190,6 +193,23 @@ case "${TARGET}" in
         echo "╚══════════════════════════════════════════╝"
         cmake --build "$TURBO_BUILD_DIR" --target chronon3d_cli -j "$JOBS"
         echo "✅ Turbo build done."
+        ;;
+    release|r)
+        # ./build-fast.sh release  —  RelWithDebInfo (optimised + debug)
+        # Uses its own tmpfs build dir, symlinked to build/chronon/linux-fast-dev-release
+        release_symlink="$ROOT_DIR/build/chronon/linux-fast-dev-release"
+        mkdir -p "$RELEASE_BUILD_DIR"
+        mkdir -p "$(dirname "$release_symlink")"
+        ln -sfnT "$RELEASE_BUILD_DIR" "$release_symlink"
+        if [[ ! -f "$RELEASE_BUILD_DIR/build.ninja" ]]; then
+            cmake --preset "$RELEASE_PRESET" -B "$RELEASE_BUILD_DIR"
+        fi
+        echo "╔══════════════════════════════════════════╗"
+        echo "║  ⚡ RELEASE build: RelWithDebInfo        ║"
+        echo "║  chronon3d_dev_fast (-O2 -g)            ║"
+        echo "╚══════════════════════════════════════════╝"
+        cmake --build "$RELEASE_BUILD_DIR" --target chronon3d_dev_fast -j "$JOBS"
+        echo "✅ Release build done."
         ;;
     turbo-inc)
         # ./build-fast.sh turbo-inc <group>

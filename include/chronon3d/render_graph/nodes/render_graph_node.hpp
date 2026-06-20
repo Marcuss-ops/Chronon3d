@@ -14,6 +14,7 @@
 #include <chronon3d/math/projection_context.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <algorithm>
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -79,6 +80,17 @@ public:
     [[nodiscard]] std::string_view layer_id() const noexcept { return m_layer_id; }
     void set_layer_id(std::string id) { m_layer_id = std::move(id); }
 
+    /// Callback that evaluates the owning layer's animated opacity at a given frame.
+    /// Set by the graph builder via set_opacity_evaluator().  Defaults to an empty
+    /// callable; evaluate_opacity() returns 1.0f when unset.
+    using OpacityEvaluator = std::function<float(const RenderFrameInfo&)>;
+
+    void set_opacity_evaluator(OpacityEvaluator eval) { m_opacity_eval = std::move(eval); }
+
+    [[nodiscard]] float evaluate_opacity(const RenderFrameInfo& info) const {
+        return m_opacity_eval ? m_opacity_eval(info) : 1.0f;
+    }
+
     /// Returns true when the node can serve as a fully opaque full-frame seed
     /// for the first layer in a composition.  Lets the builder skip the
     /// initial clear/composite pass for static full-frame backgrounds.
@@ -106,6 +118,7 @@ public:
 
 private:
     std::string m_layer_id;
+    OpacityEvaluator m_opacity_eval;
 };
 
 } // namespace chronon3d::graph

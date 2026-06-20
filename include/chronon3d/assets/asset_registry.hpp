@@ -223,8 +223,10 @@ private:
 // Thread safety: assumes a single writer during startup before any
 // concurrent reads.  Do NOT call set_default_assets_root() from
 // multiple threads.
-
-namespace chronon3d::detail {
+//
+// Declared before the single-argument resolve_asset_path() overload
+// so it's visible at the point of use.
+namespace detail {
     inline std::string g_default_assets_root;
     inline void set_default_assets_root(std::string root) {
         g_default_assets_root = std::move(root);

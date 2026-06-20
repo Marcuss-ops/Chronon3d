@@ -17,7 +17,7 @@ namespace {
 RenderEngine::RenderEngine()
     : m_config(Config::from_environment())
     , m_assets()
-    , m_renderer(std::make_unique<SoftwareRenderer>(m_config))
+    , m_renderer(std::make_unique<SoftwareRenderer>(std::move(m_config)))
 {
     init_renderer_defaults(*m_renderer);
 }
@@ -25,7 +25,7 @@ RenderEngine::RenderEngine()
 RenderEngine::RenderEngine(Config config)
     : m_config(std::move(config))
     , m_assets()
-    , m_renderer(std::make_unique<SoftwareRenderer>(m_config))
+    , m_renderer(std::make_unique<SoftwareRenderer>(std::move(m_config)))
 {
     init_renderer_defaults(*m_renderer);
 }
@@ -33,7 +33,7 @@ RenderEngine::RenderEngine(Config config)
 RenderEngine::RenderEngine(Config config, std::filesystem::path assets_root)
     : m_config(std::move(config))
     , m_assets()
-    , m_renderer(std::make_unique<SoftwareRenderer>(m_config))
+    , m_renderer(std::make_unique<SoftwareRenderer>(std::move(m_config)))
 {
     init_renderer_defaults(*m_renderer);
     set_assets_root(assets_root);
