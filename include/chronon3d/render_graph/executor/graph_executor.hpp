@@ -1,65 +1,93 @@
 #pragma once
 
 // ---------------------------------------------------------------------------
-// graph_executor.hpp — Stateless, thread-pool–independent graph executor.
+// render_graph/executor/graph_executor.hpp
 //
-// PR-A removed the legacy `execute(RenderGraph&)` overload and the
-// `ExecutionPlan`/`CachedExecutionPlan` cache.  PR-B removed the
-// `tbb::task_arena m_arena` member and the `pin_main_thread` constructor
-// knob.  The executor is now pure compute: input = CompiledFrameGraph &
-// RenderGraphContext & RenderSession & ExecutionScheduler & optional
-// `FrameArena` override, output = shared_ptr<Framebuffer>.  All mutable
-// state lives on either the caller-owned RenderSession (frame arena,
-// frame history) or the caller-owned ExecutionScheduler (thread pool).
+// TICKET-009 — GraphExecutor is now stateless.  All member fields
+// (tbb::task_arena m_arena, mutable std::mutex m_plan_mutex,
+// CachedExecutionPlan m_cached_plan) and the auxiliary `ExecutionPlan`
+// / `CachedExecutionPlan` nested structs have been removed.
 //
-// Construction is cheap (defaulted).  execute() may be called re-entrantly
-// from nested graphs (PrecompNode) without coordinating with the parent.
+// What moved:
+//   - Plan topology-sort + caching → `chronon3d::runtime::ExecutionPlanCache`
+//     (`include/chronon3d/runtime/execution_plan_cache.hpp`).  The executor
+//     accepts an optional `runtime::ExecutionPlanCache*` parameter on
+//     each `execute()` overload (defaulting to `nullptr`).
+//   - `compute_structure_signature`, `build_execution_plan` → also in
+//     ExecutionPlanCache as static helpers.
+//   - Thread pinning (`pin_main_thread` ctor arg, `m_arena.execute([&]()...)`)
+//     → no longer applicable.  Default global TBB thread pool is used
+//     for parallel work.
+//
+// What did NOT move: the executor's runtime orchestration (level
+// scheduling, tile pruning, framebuffer lifetime, profiling wiring)
+// stays here and is unchanged in semantics.  The behaviour of
+// `execute(graph, ctx, session)` returning the same Framebuffer the
+// legacy version returned is preserved.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
-#include <chronon3d/core/memory/render_session.hpp>
-#include <chronon3d/core/memory/arena.hpp>
+#include <chronon3d/runtime/render_session.hpp>
+#include <chronon3d/runtime/execution_plan_cache.hpp>
 
+#include <cstdint>
 #include <memory>
 
-namespace chronon3d {
+namespace chronon3d::graph {
 
-class ExecutionScheduler;  // PR-B: thread-pool authority for the entire engine.
-
-namespace graph {
-
-/// Compiled graph executor (formerly in two flavors — RenderGraph and
-/// CompiledFrameGraph — now unified on the compiled path).
-///
-/// Thread-pool–independent:  The executor holds no
-/// `tbb::task_arena` and no mutable member.  All parallelism is delegated
-/// to the `ExecutionScheduler&` passed at every `execute()` call.
 class GraphExecutor {
 public:
-    /// Default-constructible.  The executor owns no per-instance state; the
-    /// `pin_main_thread` knob moved into `ExecutionScheduler`.
+    /// TICKET-009 — default ctor only.  No pin/arena state owned by the
+    /// executor; lifecycle is the caller's responsibility.
     GraphExecutor() = default;
 
-    /// Execute a compiled frame graph.
-    ///
-    /// @param compiled        Compiled DAG (levels + consumer counts + output id).
-    /// @param ctx             Per-frame context (counters, resources, options).
-    /// @param session         RenderSession owning the frame arena + frame history.
-    /// @param scheduler       Single authority on thread-pool parallelism for the
-    ///                        entire render process (PR-B).  Must outlive this call.
-    /// @param arena_override  Optional external arena for short-lived tile-region
-    ///                        allocations.  When non-null, the executor uses it
-    ///                        instead of `session.arena()`.  Scheduled for removal
-    ///                        in PR-E (audit §9.7 — ExecutionScope).
+    /// Execute a render graph.
+    /// @param session          The RenderSession providing the frame
+    ///                         arena and per-frame state.
+    /// @param plan_cache       Optional thread-safe plan cache.  Pass
+    ///                         `nullptr` to disable plan caching (a
+    ///                         fresh plan is built every call); pass a
+    ///                         shared instance owned by the caller (e.g.
+    ///                         `SoftwareRenderer::plan_cache()` /
+    ///                         future `RenderRuntime::plan_cache()`)
+    ///                         to enable reuse across `execute()` calls.
+    /// @param arena_override   Optional external arena override for
+    ///                         temporary allocations.  When provided
+    ///                         the executor uses this arena instead of
+    ///                         `session.arena()` — used by tile-execution
+    ///                         paths that supply a short-lived local
+    ///                         arena.
+    std::shared_ptr<Framebuffer> execute(
+        RenderGraph& graph,
+        GraphNodeId output,
+        RenderGraphContext& ctx,
+        RenderSession& session,
+        runtime::ExecutionPlanCache* plan_cache = nullptr,
+        FrameArena* arena_override = nullptr
+    );
+
+    std::shared_ptr<Framebuffer> execute(
+        RenderGraph& graph,
+        RenderGraphContext& ctx,
+        RenderSession& session,
+        runtime::ExecutionPlanCache* plan_cache = nullptr
+    ) {
+        return execute(graph, graph.output(), ctx, session, plan_cache);
+    }
+
     std::shared_ptr<Framebuffer> execute(
         CompiledFrameGraph& compiled,
         RenderGraphContext& ctx,
         RenderSession& session,
-        ExecutionScheduler& scheduler,
+        runtime::ExecutionPlanCache* plan_cache = nullptr,
         FrameArena* arena_override = nullptr
     );
+
+    // TICKET-009 — `invalidate_plan_cache()` was removed.  Callers that
+    // want to invalidate the cache call
+    // `runtime::ExecutionPlanCache::invalidate()` directly on the cache
+    // they passed via the parameter list.
 };
 
-} // namespace graph
-} // namespace chronon3d
+} // namespace chronon3d::graph

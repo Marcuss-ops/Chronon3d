@@ -19,6 +19,7 @@
 ///   7. Execute the cached program via the inner GraphExecutor.
 // =============================================================================
 
+#include <chronon3d/runtime/execution_plan_cache.hpp>
 #include <chronon3d/runtime/render_session.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/core/scene_hasher.hpp>
@@ -42,6 +43,10 @@ PrecompNode::PrecompNode(std::string comp_name, Frame start_frame, Frame duratio
     , m_cache_frame(cache_frame)
     , m_cache(std::make_unique<cache::SceneProgramCache>(cache_capacity))
     , m_executor(std::make_unique<GraphExecutor>())
+    // TICKET-009 — per-precomp plan cache.  shared_ptr so it can be
+    // passed to m_executor without lifetime concerns (the executor is
+    // stateless and never owns the cache).
+    , m_plan_cache(std::make_shared<runtime::ExecutionPlanCache>())
     , m_session()  // owns its own RenderSession
     , m_tune_mode(tune_mode)
     , m_tune_interval(tune_interval)
@@ -108,11 +113,12 @@ OwnedFB PrecompNode::execute(
 
     // ── 5. Find or compile the nested program ────────────────────────────
     auto* program = m_cache->find_or_compile(key, [&]() -> std::unique_ptr<CompiledSceneProgram> {
-        // Cache miss — delegate to the precomp_build factory (wired by graph_pipeline).
-        if (!ctx.resources.precomp_build) {
+        // Cache miss — delegate to the typed PrecompBuilderService wired
+        // into ctx.services via wire_catalog_pointers (TICKET-010).
+        if (!ctx.services.precomp_builder) {
             return nullptr;
         }
-        return ctx.resources.precomp_build(nested_scene, nested_ctx);
+        return ctx.services.precomp_builder->build(nested_scene, nested_ctx);
     });
 
     if (!program || program->empty()) {
@@ -128,54 +134,9 @@ OwnedFB PrecompNode::execute(
     detail::refresh_compiled_graph_payloads(program->frame_graph, nested_scene, nested_ctx, resolved);
 
     // ── 8. Execute the cached program ────────────────────────────────────
-    // PR-B: thread-pool authority comes from the parent graph's
-    // ExecutionScheduler, propagated by scene.cpp into
-    // `ctx.resources.scheduler`.  PrecompNode has no direct access to the
-    // owning SoftwareRenderer, so it dereferences the context pointer.
-    //
-    // Auto-tune tick is incremented UNCONDITIONALLY below (matches the
-    // pre-PR-B contract: every execute() call advances the counter, even
-    // when the nested program is empty or the scheduler is missing — so
-    // auto-tune doesn't get stuck on a frame that "did nothing").  We
-    // therefore return early *only* from the missing-scheduler branch
-    // without advancing the tick (a missing scheduler is a configuration
-    // bug, not a frame event, and skipping the tick prevents the auto-tune
-    // scheduler from being driven by phantom frames in a misconfigured
-    // test).  Code-reviewer noted this in round-2 of PR-B review.
-    if (!ctx.resources.scheduler) {
-        // Configuration error — no parent scheduler propagated.  Return
-        // an empty framebuffer; auto-tune tick intentionally NOT advanced.
-        return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
-    }
-
-    // ── Advance tune counter (matches pre-PR-B semantics) ──────────────
-    const bool tune_active = m_tune_mode == cache::TuneMode::Auto;
-    const size_t next_counter = tune_active
-        ? (++m_tune_counter, m_tune_counter)
-        : 0;
-
+    // TICKET-009 — pass the per-precomp plan cache explicitly.
     auto nested_result = m_executor->execute(
-        program->frame_graph, nested_ctx, m_session,
-        *ctx.resources.scheduler);
-
-    // ── 9. Auto-tune: trigger every m_tune_interval executions ──────────
-    if (nested_result) {
-        if (tune_active && next_counter >= m_tune_interval) {
-            m_tune_counter = 0;
-            m_cache->auto_tune();
-        }
-        return ctx.acquire_owned_fb(std::move(nested_result));
-    }
-
-    // Fallback: empty framebuffer (nested graph produced no result).
-    // Counter still incremented above even on this path, so auto-tune
-    // doesn't get stuck on an empty frame.
-    if (tune_active && next_counter >= m_tune_interval) {
-        m_tune_counter = 0;
-        m_cache->auto_tune();
-    }
-    return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
-}
+        program->frame_graph, nested_ctx, m_session, m_plan_cache.get());
 
     // ── 9. Auto-tune check (inside function scope) ───────────────────────
     // Run after every successful execution.  The check is lightweight

@@ -10,6 +10,7 @@
 // caches can invalidate nested state.
 // ──────────────────────────────────────────────────────────────────────────────
 
+#include <chronon3d/runtime/execution_plan_cache.hpp>
 #include <chronon3d/runtime/render_session.hpp>
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
@@ -95,6 +96,9 @@ private:
     std::unique_ptr<cache::SceneProgramCache> m_cache;
     FrameParameterBlock m_param_block;
     std::unique_ptr<GraphExecutor> m_executor;
+    // TICKET-009 — per-precomp plan cache; lives with the precomp node
+    // and is passed explicitly to GraphExecutor::execute().
+    std::shared_ptr<runtime::ExecutionPlanCache> m_plan_cache;
     RenderSession m_session;  // per-session state (arena + frame history)
     cache::ProgramEvictCallback m_on_evict;
 

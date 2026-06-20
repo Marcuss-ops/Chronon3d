@@ -46,8 +46,9 @@ namespace chronon3d::graph {
         return c;
     }();
 
-    // Wire catalog pointers + precomp build factory into context.
-    wire_precomp_build_factory(mutable_ctx, s_catalogs);
+    // Wire catalog pointers + typed PrecompBuilderService into context
+    // (TICKET-010 — replaces wire_precomp_build_factory std::function).
+    wire_catalog_pointers(mutable_ctx, s_catalogs);
 
     RenderGraph graph = pipeline.build_with_resolved(scene, mutable_ctx, pre_resolved);
 

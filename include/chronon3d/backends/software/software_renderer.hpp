@@ -29,7 +29,6 @@
 #include <optional>
 #include <unordered_map>
 #include <chronon3d/runtime/render_session.hpp>
-#include <chronon3d/backends/software/software_render_session.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
@@ -80,16 +79,6 @@ public:
 
     /// Clear all caches (image, font, node, pool, graph, frame state).
     /// Useful between unrelated render sessions.
-    ///
-    /// Phase 5: this now delegates a single `SoftwareRenderSession::
-    /// reset_job()` call, which itself composes both halves
-    /// (`RenderSession::reset_job()` for frame_history /
-    /// dirty_history / layer_history / telemetry, and
-    /// `SoftwareSessionResources::reset_job()` for buffer_ring /
-    /// scratch_buffer / scene_hasher).  The legacy two-call sequence
-    /// (`m_session.reset_job() + m_software_resources.reset_job()`)
-    /// is collapsed because `SoftwareRenderSession` is the canonical
-    /// session type.
     void clear_caches() {
         m_image_renderer.clear_cache();
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
@@ -99,7 +88,8 @@ public:
         clear_node_cache();
         if (m_cache_state.framebuffer_pool) m_cache_state.framebuffer_pool->clear();
         m_cache_state.graph_cache.reset();
-        m_session.reset_job();
+        m_session.common.frame_history.prev_graph_structure_fingerprint = 0;
+        m_session.clear_per_frame();
         // Video cache clearing is now responsibility of the decoder implementation
     }
 
@@ -141,13 +131,13 @@ public:
     }
 
     // ── Dirty-rect telemetry (populated by render_scene_via_graph) ──────────
-    [[nodiscard]] double last_dirty_area_ratio() const { return m_session.common.dirty_history.last_dirty_area_ratio; }
-    [[nodiscard]] bool last_dirty_rect_enabled() const { return m_session.common.dirty_history.last_dirty_rect_enabled; }
-    [[nodiscard]] std::optional<raster::BBox> last_dirty_rect() const { return m_session.common.dirty_history.last_dirty_rect; }
-    [[nodiscard]] bool last_tile_execution_used() const { return m_session.common.dirty_history.last_tile_execution_used; }
-    [[nodiscard]] bool last_fast_path_reused() const { return m_session.common.dirty_history.last_fast_path_reused; }
-    [[nodiscard]] bool last_graph_reused() const { return m_session.common.dirty_history.last_graph_reused; }
-    [[nodiscard]] int last_layer_count() const { return m_session.common.dirty_history.last_layer_count; }
+    [[nodiscard]] double last_dirty_area_ratio() const { return m_session.common.dirty_telemetry.last_dirty_area_ratio; }
+    [[nodiscard]] bool last_dirty_rect_enabled() const { return m_session.common.dirty_telemetry.last_dirty_rect_enabled; }
+    [[nodiscard]] std::optional<raster::BBox> last_dirty_rect() const { return m_session.common.dirty_telemetry.last_dirty_rect; }
+    [[nodiscard]] bool last_tile_execution_used() const { return m_session.common.dirty_telemetry.last_tile_execution_used; }
+    [[nodiscard]] bool last_fast_path_reused() const { return m_session.common.dirty_telemetry.last_fast_path_reused; }
+    [[nodiscard]] bool last_graph_reused() const { return m_session.common.dirty_telemetry.last_graph_reused; }
+    [[nodiscard]] int last_layer_count() const { return m_session.common.dirty_telemetry.last_layer_count; }
 
     // Public for use by graph nodes via RenderGraphContext.
     void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state,
@@ -192,10 +182,12 @@ public:
     [[nodiscard]] graph::GraphExecutor* executor();
     [[nodiscard]] const graph::GraphExecutor* executor() const;
 
-    /// PR-B: Scheduler accessor.  Lifetime is the renderer's; safe to use
-    /// as the thread-pool authority for every executor.execute() call.
-    [[nodiscard]] ExecutionScheduler* scheduler();
-    [[nodiscard]] const ExecutionScheduler* scheduler() const;
+    // TICKET-009 — accessor for the shared topological-plan cache.
+    // Callers (tile executor, precomp node) pass this into
+    // GraphExecutor::execute() for per-render plan reuse.  Pointer must
+    // outlive the executor call.
+    [[nodiscard]] runtime::ExecutionPlanCache* plan_cache();
+    [[nodiscard]] const runtime::ExecutionPlanCache* plan_cache() const;
 
     /// Per-instance engine configuration (replaces legacy Config singleton)
     [[nodiscard]] const Config& config() const { return m_config; }
@@ -209,32 +201,26 @@ public:
 
     ~SoftwareRenderer() override;
 
-    // Non-copyable.  Movable: m_session is `SoftwareRenderSession`
-    // (which contains `RenderSession` whose FrameArena is stored via
-    // unique_ptr; SoftwareSessionResources is non-copyable + movable).
-    // The defaulted move ctor propagates without surprises.
+    // Non-copyable.  Movable: all encapsulated state structs
+    // (RenderSession, RendererCacheState, RendererRuntimeResources)
+    // contain only moveable types (shared_ptr, unique_ptr, plain data).
+    // RenderSession stores FrameArena behind unique_ptr for movability.
+    // Callers may move SoftwareRenderer as long as no outstanding Handle
+    // or dangling pointer references the old location.
     SoftwareRenderer(const SoftwareRenderer&) = delete;
     SoftwareRenderer& operator=(const SoftwareRenderer&) = delete;
     SoftwareRenderer(SoftwareRenderer&&) noexcept = default;
     SoftwareRenderer& operator=(SoftwareRenderer&&) noexcept = default;
 
-    // ── Session access ─────────────────────────────────────────────────
-    //
-    // Phase 5: `m_session` is `SoftwareRenderSession` (the combined
-    // wrapper). For external back-compat with code written before
-    // phase 5 (which did `sw_renderer->session().frame_history.X`,
-    // `.dirty_history.X`, `.layer_history.X`), `session()` keeps
-    // returning a `RenderSession&` (forwarded to `m_session.common`).
-    //
-    // For software-side resources, use the dedicated accessors — they
-    // are the only public path to `m_session.software` and give cleaner
-    // call-sites than digging through the wrapper:
-    //   - buffer_ring()        -> RendererBufferRing
-    //   - scratch_buffer()      -> TransformScratchBuffer
-    //   - scene_hasher()        -> graph::SceneHasher
-    //   - session_resources()   -> SoftwareSessionResources
+    // ── RenderSession access ────────────────────────────────────────────
     [[nodiscard]] RenderSession& session() { return m_session.common; }
     [[nodiscard]] const RenderSession& session() const { return m_session.common; }
+
+    // TICKET-008 — software-side accessor for the full session composition
+    // (engine-generic + software-specific).  Use this only from code that is
+    // intentionally tied to the software backend.
+    [[nodiscard]] SoftwareRenderSession& software_session() { return m_session; }
+    [[nodiscard]] const SoftwareRenderSession& software_session() const { return m_session; }
 
     // ── Convenience accessors (forward to session) ──────────────────────
     using LayerBBoxState          = ::chronon3d::LayerBBoxState;
@@ -244,21 +230,21 @@ public:
 
     [[nodiscard]] RendererFrameHistory& frame_history() { return m_session.common.frame_history; }
     [[nodiscard]] const RendererFrameHistory& frame_history() const { return m_session.common.frame_history; }
-    [[nodiscard]] RendererDirtyTelemetry& dirty_telemetry() { return m_session.common.dirty_history; }
-    [[nodiscard]] const RendererDirtyTelemetry& dirty_telemetry() const { return m_session.common.dirty_history; }
+    [[nodiscard]] RendererDirtyTelemetry& dirty_telemetry() { return m_session.common.dirty_telemetry; }
+    [[nodiscard]] const RendererDirtyTelemetry& dirty_telemetry() const { return m_session.common.dirty_telemetry; }
     [[nodiscard]] RendererLayerHistory& layer_history() { return m_session.common.layer_history; }
     [[nodiscard]] const RendererLayerHistory& layer_history() const { return m_session.common.layer_history; }
-    [[nodiscard]] graph::SceneHasher& scene_hasher() { return m_session.software.scene_hasher; }
-    [[nodiscard]] const graph::SceneHasher& scene_hasher() const { return m_session.software.scene_hasher; }
+    [[nodiscard]] graph::SceneHasher& scene_hasher() { return m_session.common.scene_hasher; }
+    [[nodiscard]] const graph::SceneHasher& scene_hasher() const { return m_session.common.scene_hasher; }
 
     // ── Convenience methods for graph pipeline orchestration ────────────
     void mark_fast_path_reused(Frame frame, const Camera2_5D& cam, uint64_t combined_fp) {
-        m_session.common.dirty_history.last_dirty_area_ratio = 0.0;
-        m_session.common.dirty_history.last_dirty_rect_enabled = false;
-        m_session.common.dirty_history.last_dirty_rect = std::nullopt;
-        m_session.common.dirty_history.last_tile_execution_used = false;
-        m_session.common.dirty_history.last_fast_path_reused = true;
-        m_session.common.dirty_history.last_graph_reused = false;
+        m_session.common.dirty_telemetry.last_dirty_area_ratio = 0.0;
+        m_session.common.dirty_telemetry.last_dirty_rect_enabled = false;
+        m_session.common.dirty_telemetry.last_dirty_rect = std::nullopt;
+        m_session.common.dirty_telemetry.last_tile_execution_used = false;
+        m_session.common.dirty_telemetry.last_fast_path_reused = true;
+        m_session.common.dirty_telemetry.last_graph_reused = false;
         m_session.common.frame_history.prev_frame = frame;
         m_session.common.frame_history.prev_scene_fingerprint = combined_fp;
         m_session.common.frame_history.prev_camera = cam;
@@ -291,30 +277,18 @@ public:
     void update_dirty_telemetry(bool rect_enabled, std::optional<raster::BBox> rect,
                                  bool tile_execution_used, bool fast_path_reused,
                                  bool graph_reused) {
-        m_session.common.dirty_history.last_dirty_rect_enabled = rect_enabled;
-        m_session.common.dirty_history.last_dirty_rect = rect;
-        m_session.common.dirty_history.last_tile_execution_used = tile_execution_used;
-        m_session.common.dirty_history.last_fast_path_reused = fast_path_reused;
-        m_session.common.dirty_history.last_graph_reused = graph_reused;
+        m_session.common.dirty_telemetry.last_dirty_rect_enabled = rect_enabled;
+        m_session.common.dirty_telemetry.last_dirty_rect = rect;
+        m_session.common.dirty_telemetry.last_tile_execution_used = tile_execution_used;
+        m_session.common.dirty_telemetry.last_fast_path_reused = fast_path_reused;
+        m_session.common.dirty_telemetry.last_graph_reused = graph_reused;
     }
 
     // ── RAII buffer management ──────────────────────────────────────────
-    //
-    // Phase 5: software-side resources live in
-    // `m_session.software` (the `SoftwareSessionResources` member of
-    // the new `SoftwareRenderSession` wrapper).  Accessors below
-    // forward through that wrapper. The accessor name on
-    // `SoftwareRenderer` is preserved so existing call-sites
-    // (e.g. scene.cpp, frame_state_commit.cpp,
-    // tile_execution_coordinator.cpp) keep working untouched.
-    [[nodiscard]] SoftwareSessionResources& session_resources() { return m_session.software; }
-    [[nodiscard]] const SoftwareSessionResources& session_resources() const { return m_session.software; }
-
     [[nodiscard]] RendererBufferRing& buffer_ring() { return m_session.software.buffer_ring; }
     [[nodiscard]] const RendererBufferRing& buffer_ring() const { return m_session.software.buffer_ring; }
     [[nodiscard]] TransformScratchBuffer& scratch_buffer() { return m_session.software.scratch_buffer; }
     [[nodiscard]] const TransformScratchBuffer& scratch_buffer() const { return m_session.software.scratch_buffer; }
-
     [[nodiscard]] graph::CompiledGraphCache& graph_cache() { return m_cache_state.graph_cache; }
     [[nodiscard]] const graph::CompiledGraphCache& graph_cache() const { return m_cache_state.graph_cache; }
 
@@ -341,18 +315,6 @@ private:
     // ── Encapsulated runtime resources ─────────────────────────────────
     RendererRuntimeResources m_runtime_resources;
     // ── Encapsulated per-session state ───────────────────────────────────
-    // Phase 5: collapsed `RenderSession` + `SoftwareSessionResources`
-    // into a single `SoftwareRenderSession` wrapper. Reconstruction of
-    // the prior two-field layout would shift `m_backend`'s offset
-    // (the deleted field's sizeof bytes are reabsorbed into padding).
-    //
-    // IMPORTANT — FIELD ORDER IS LOAD-BEARING for ABI stability.
-    // `m_session` must come before `m_backend` so `m_backend`'s
-    // offset is determined entirely by the union of the
-    // cache-state struct, the runtime-resources struct, and
-    // `SoftwareRenderSession`.  Do NOT reorder these fields — any
-    // reorder will silently shift `m_backend`'s offset for every .o
-    // that took the layout at compile time.
     SoftwareRenderSession    m_session;
 
     // ── Extracted RenderBackend implementation (PR-9) ───────────────────
