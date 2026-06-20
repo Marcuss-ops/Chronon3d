@@ -62,6 +62,7 @@ sudo apt-get install -y ffmpeg
   - `SCREAMING_SNAKE_CASE` for constants and macros
 - Use `//` comments — no `/* */` except for long doc blocks.
 - Minimize includes — prefer forward declarations where possible.
+- Include-discipline for public-header refactors — when you change a public header (removing, renaming, or splitting a transitive include; or name-qualifying an unqualified symbol like `size_t`), update its known consumers in the same PR. Enumerate them with `git grep '<header_path>' -- include/ src/ tests/`. Do not ship a public-header refactor alone; the consumer set is otherwise uncompilable until a follow-up pass. See `docs/FOLLOWUP_TICKETS.md` → TICKET-005 Gap B for the prior incident (commit `856ff957`) that produced this rule.
 - No raw `new`/`delete` — use the framebuffer pool or arena allocators.
 
 ## Project Structure
