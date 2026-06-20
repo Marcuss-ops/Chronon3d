@@ -220,7 +220,8 @@ The diagnostic `content/` targets were not re-validated after the `TextSpec` rot
 
 | Field | Value |
 |---|---|
-| **Status** | 🔵 Planned |
+| **Status** | 🟢 Done |
+| **Resolved** | 2026-06-20 — auto-closed by upstream commits `c878ba7d` / `e41ff95a` (Marcuss-ops). The typo `<chrono3d/...>` no longer appears in any `.hpp`, `.cpp`, `.h`, `.cmake`, or `CMakeLists.txt` file in the tree (verified via exhaustive `grep -rn 'chrono3d/'`). The lexer header now correctly reads `#include <chronon3d/expressions/v2/expression_value.hpp>`. The retirement comment in `CMakeLists.txt` has been updated to note the close-out.
 | **Affected file(s)** | `include/chronon3d/expressions/v2/lexer.hpp` |
 | **Discovered during** | cmake configure post-rebase with PR #23 (commits `1871eb77` + `76d547a6`) on `main`, after retiring the CMake guard in commit `aae68561`. |
 | **Discovered date** | 2026-06-20 |
@@ -275,7 +276,8 @@ The typo is currently latent because the test executable's call graph does not a
 
 | Field | Value |
 |---|---|
-| **Status** | 🔵 Planned |
+| **Status** | 🟢 Done |
+| **Resolved** | 2026-06-20 — the `target_include_directories(chronon3d_expressions_v2 PUBLIC ${CMAKE_SOURCE_DIR}/include)` line was changed to `PRIVATE`. The `chronon3d` INTERFACE target (linked PUBLIC below it) already exports `${CMAKE_SOURCE_DIR}/include` transitively, so using PUBLIC here was over-exposing the include dir to every transitive consumer redundantly. Using PRIVATE keeps the include available for the lib's own build without propagating it to unrelated consumers.
 | **Affected file(s)** | `src/expressions/v2/CMakeLists.txt` |
 | **Discovered during** | cmake configure post-rebase with PR #23 (commits `1871eb77` + `76d547a6`) on `main`, after retiring the CMake guard in commit `aae68561`. |
 | **Discovered date** | 2026-06-20 |
@@ -312,6 +314,10 @@ The defect is harmless in practice because every source file in `src/expressions
 - Keeping the retirement commit narrowly about the guard lets a future bisect cleanly attribute behaviour changes (a guard retirement should only affect configure-time pattern checks).
 
 ### Suggested fix approach
+
+> *(Actual resolution: changed PUBLIC → PRIVATE instead of the path substitution
+> described below, since `chronon3d` already exports `${CMAKE_SOURCE_DIR}/include`
+> transitively. See status table above.)*
 
 1. Open `src/expressions/v2/CMakeLists.txt`.
 2. Replace `PUBLIC ${CMAKE_SOURCE_DIR}` with `PUBLIC ${CMAKE_SOURCE_DIR}/include`.
