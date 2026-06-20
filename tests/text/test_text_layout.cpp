@@ -48,7 +48,7 @@ TEST_CASE("TextLayoutEngine layout V2 specifications") {
 
         auto res = TextLayoutEngine::layout(input);
         REQUIRE(res.lines.size() == 2);
-        CHECK(res.lines[1].text().find("...") != std::string::npos);
+        CHECK(res.lines[1].text.find("...") != std::string::npos);
     }
 
     SUBCASE("Respects text alignment center/right") {

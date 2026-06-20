@@ -271,7 +271,7 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
                                  i32 height) {
     CHRONON_ZONE_C("draw_node", trace_category::kRasterize);
     m_counters.pixels_touched.fetch_add(clipped_area(width, height, to_local_clip(fb, state.clip_rect)), std::memory_order_relaxed);
-    auto* processor = software_registry().get_shape(node.shape.type);
+    auto* processor = software_registry().get_shape(node.shape.type());
     if (!processor) {
         spdlog::error("No processor registered for shape type");
         return;

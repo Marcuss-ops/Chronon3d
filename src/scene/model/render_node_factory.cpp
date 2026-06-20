@@ -114,9 +114,9 @@ RenderNode RenderNodeFactory::tiled_image(std::pmr::memory_resource* res, std::s
 
 RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, std::string name, const GridBackgroundParams& p) {
     auto node = base(res, std::move(name));
-    node.shape.set_type(ShapeType::GridBackground;
+    node.shape.set_type(ShapeType::GridBackground);
     node.surface_policy = SurfacePolicy::ViewportSize;
-    node.transform_policy = TransformPolicy::RasterizeAfter);
+    node.transform_policy = TransformPolicy::RasterizeAfter;
     node.shape.grid_background().size = p.size;
     node.shape.grid_background().offset = p.offset;
     node.shape.grid_background().bg_color = p.bg_color;
@@ -206,12 +206,12 @@ RenderNode RenderNodeFactory::text_run(
     SampleTime sample_time
 ) {
     auto node = base(res, std::move(name));
-    node.shape.set_type(ShapeType::TextRun;
+    node.shape.set_type(ShapeType::TextRun);
     node.is_text_run_shape = true;
-    node.font_engine = engine);
+    node.font_engine = engine;
 
     // World transform from TextRunSpec (deep-nested field paths).
-    node.world_transform.position = p.text().position;
+    node.world_transform.position = p.text.position;
     node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
 
 #ifdef CHRONON3D_USE_BLEND2D
@@ -228,8 +228,8 @@ RenderNode RenderNodeFactory::text_run(
     }
 #endif
 
-    node.color = p.text().appearance.color;
-    node.fill = Fill::solid_color(p.text().appearance.color);
+    node.color = p.text.appearance.color;
+    node.fill = Fill::solid_color(p.text.appearance.color);
     return node;
 }
 

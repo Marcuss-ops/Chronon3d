@@ -70,10 +70,10 @@ Composition catmull_rom_showcase() {
 
         // Build the Catmull-Rom camera path.
         CatmullRomCameraMotion motion;
-        motion.path().set_alpha(CatmullRomAlpha::Centripetal)
+        motion.path.set_alpha(CatmullRomAlpha::Centripetal)
                    .set_boundary(CatmullRomBoundary::Clamped);
         for (Vec3 wp : waypoints) {
-            motion.path().add_waypoint(wp);
+            motion.path.add_waypoint(wp);
         }
         motion.auto_orient = AutoOrientMode::TowardsPOI;
         motion.point_of_interest = Vec3{0.0f, 0.0f, 0.0f};

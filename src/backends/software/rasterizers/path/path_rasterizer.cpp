@@ -310,7 +310,7 @@ void PathRasterizer::draw_path(Framebuffer& fb, const RenderNode& node, const Re
     (void)camera;
     (void)width;
     (void)height;
-    ::chronon3d::renderer::draw_path(fb, node.shape.path, state.matrix, node.color, &state);
+    ::chronon3d::renderer::draw_path(fb, node.shape.path(), state.matrix, node.color, &state);
 }
 
 Color resolve_fill_color(const Fill& fill, Vec2 p, const raster::BBox& bbox, f32 opacity) {

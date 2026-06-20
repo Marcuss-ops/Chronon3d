@@ -16,7 +16,7 @@ public:
         (void)width;
         (void)height;
 
-        const auto& g = node.shape.grid_background;
+        const auto& g = node.shape.grid_background();
         if (g.size.x <= 0.0f || g.size.y <= 0.0f) {
             return;
         }
@@ -32,7 +32,7 @@ public:
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
         (void)model;
-        const auto& g = shape.grid_background;
+        const auto& g = shape.grid_background();
         const f32 pad = std::max(0.0f, spread) + kBBoxSafetyPadding;
         return {
             static_cast<i32>(std::floor(-pad)),
