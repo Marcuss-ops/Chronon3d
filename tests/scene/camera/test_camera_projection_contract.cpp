@@ -9,7 +9,12 @@
 //   3. project_layer_2_5d                 (Path 2)
 //   4. renderer::make_projection_context  (Path 3)
 // ============================================================================
+// Enable SUPER_FAST_ASSERTS for this TU if the project build system has not
+// already set it (avoids "macro redefined" warnings when the flag is also
+// passed via -D on the compiler command line).
+#ifndef DOCTEST_CONFIG_SUPER_FAST_ASSERTS
 #define DOCTEST_CONFIG_SUPER_FAST_ASSERTS
+#endif
 #include <doctest/doctest.h>
 #include <chronon3d/math/camera_projection_contract.hpp>
 #include <chronon3d/scene/camera/camera_projection.hpp>
