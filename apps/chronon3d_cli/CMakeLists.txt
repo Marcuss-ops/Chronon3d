@@ -160,7 +160,7 @@ if(CLI11_INCLUDE_DIRS)
 endif()
 
 # Optional content linking (proofs/demos) — single registry target
-if(CHRONON3D_BUILD_CONTENT)
+if(CHRONON3D_BUILD_CONTENT OR CHRONON3D_BUILD_DIAGNOSTICS)
     if(TARGET chronon3d_content)
         target_link_libraries(chronon3d_cli PRIVATE chronon3d_content)
     endif()

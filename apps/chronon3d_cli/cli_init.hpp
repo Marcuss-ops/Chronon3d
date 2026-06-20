@@ -15,7 +15,7 @@
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/composition/register_builtin_compositions.hpp>
 
-#ifdef CHRONON3D_BUILD_CONTENT
+#if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
 #include <content/register_content_modules.hpp>
 #include <chronon3d/extension/extension_catalog.hpp>
 #include <chronon3d/extension/extension_context.hpp>
@@ -41,7 +41,7 @@ inline void init_compositions(CompositionRegistry& registry) {
     auto& assets = cli_asset_registry();
     AssetRegistry::set_thread_local(assets);
 
-#ifdef CHRONON3D_BUILD_CONTENT
+#if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
     static ExtensionCatalog content_catalog;
     // Build a minimal ExtensionContext — only compositions is used here.
     // graph_nodes, effects, assets are not needed for composition registration.
