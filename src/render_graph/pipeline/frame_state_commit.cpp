@@ -39,7 +39,7 @@ void setup_pingpong_buffers(
 {
     if (!sw_renderer) return;
 
-    if (chronon3d::Config::get().scheduler().pingpong_framebuffer()) {
+    if (sw_renderer->config().scheduler().pingpong_framebuffer()) {
         sw_renderer->buffer_ring().ensure_size(width, height,
             sw_renderer->framebuffer_pool().get());
     }

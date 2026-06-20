@@ -79,27 +79,27 @@ uint64_t clipped_area(int32_t width, int32_t height, const std::optional<raster:
 } // namespace
 
 SoftwareRenderer::SoftwareRenderer()
-    : m_runtime_resources{
+    : m_config(Config::from_environment())
+    , m_runtime_resources{
         .software_registry = std::make_unique<renderer::SoftwareRegistry>(),
         .executor = std::make_unique<graph::GraphExecutor>(
-            Config::get().scheduler().pin_main_thread()),
+            m_config.scheduler().pin_main_thread()),
         .graph_node_registry = std::make_unique<graph::GraphNodeCatalog>(),
         .effect_catalog = std::make_unique<effects::EffectCatalog>()
     }
     , m_cache_state{
         .node_cache = cache::NodeCache{
-            Config::get().cache().node_cache_max_bytes()},
+            m_config.cache().node_cache_max_bytes()},
         .framebuffer_pool = std::make_shared<cache::FramebufferPool>(
-            Config::get().cache().fb_pool_max_bytes())
+            m_config.cache().fb_pool_max_bytes())
     } {
     // ── Thread sub-configs to singleton / static-state components ────
-    const auto& cfg = Config::get();
-    const auto& cache_cfg = cfg.cache();
-    const auto& sched_cfg = cfg.scheduler();
+    const auto& cache_cfg = m_config.cache();
+    const auto& sched_cfg = m_config.scheduler();
 
     cache::PersistentFramebufferStore::set_store_config(
         cache_cfg.disable_persistent_framebuffer_cache(),
-        cfg.paths().persistent_framebuffer_cache_dir());
+        m_config.paths().persistent_framebuffer_cache_dir());
     ImageCache::set_capacity_bytes(cache_cfg.image_cache_max_bytes());
     cache::set_global_cache_config(cache_cfg);
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
@@ -117,6 +117,45 @@ SoftwareRenderer::SoftwareRenderer()
 
     // Built-in effects are registered via EffectCatalog's constructor;
     // freeze to prevent further registrations.
+    m_runtime_resources.effect_catalog->freeze();
+}
+
+SoftwareRenderer::SoftwareRenderer(Config config)
+    : m_config(std::move(config))
+    , m_runtime_resources{
+        .software_registry = std::make_unique<renderer::SoftwareRegistry>(),
+        .executor = std::make_unique<graph::GraphExecutor>(
+            m_config.scheduler().pin_main_thread()),
+        .graph_node_registry = std::make_unique<graph::GraphNodeCatalog>(),
+        .effect_catalog = std::make_unique<effects::EffectCatalog>()
+    }
+    , m_cache_state{
+        .node_cache = cache::NodeCache{
+            m_config.cache().node_cache_max_bytes()},
+        .framebuffer_pool = std::make_shared<cache::FramebufferPool>(
+            m_config.cache().fb_pool_max_bytes())
+    } {
+    const auto& cache_cfg = m_config.cache();
+    const auto& sched_cfg = m_config.scheduler();
+
+    cache::PersistentFramebufferStore::set_store_config(
+        cache_cfg.disable_persistent_framebuffer_cache(),
+        m_config.paths().persistent_framebuffer_cache_dir());
+    ImageCache::set_capacity_bytes(cache_cfg.image_cache_max_bytes());
+    cache::set_global_cache_config(cache_cfg);
+#ifdef CHRONON3D_HAS_BACKEND_TEXT
+    set_glyph_atlas_capacity(cache_cfg.glyph_atlas_max_bytes());
+    set_text_cache_capacity(cache_cfg.text_cache_max_bytes());
+#endif
+    renderer::set_shadow_cache_capacity(cache_cfg.shadow_cache_max_bytes());
+    renderer::set_glow_cache_capacity(cache_cfg.glow_cache_max_bytes());
+    renderer::set_pip_mode(sched_cfg.pip_mode());
+    renderer::set_prefetch_enabled(sched_cfg.prefetch_enabled());
+
+    renderer::register_builtin_processors(*m_runtime_resources.software_registry);
+
+    graph::register_pipeline_graph_nodes(*m_runtime_resources.graph_node_registry);
+
     m_runtime_resources.effect_catalog->freeze();
 }
 

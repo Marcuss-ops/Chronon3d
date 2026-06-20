@@ -1,22 +1,27 @@
 #pragma once
 
-// ── Engine configuration — immutable, domain-split ───────────────────
+// ── Engine configuration — domain-split, per-instance ───────────────
 //
-// Config is constructed once from environment variables at first access
-// (Meyer's singleton) and remains immutable thereafter.  Domain-specific
-// sub-configs (DebugConfig, CacheConfig, SchedulerConfig, PathConfig)
-// are exposed via const accessors so callers can consume only the section
-// they need.
+// Config is constructed from environment variables via the factory
+// `Config::from_environment()`.  Domain-specific sub-configs (DebugConfig,
+// CacheConfig, SchedulerConfig, PathConfig) are exposed via const accessors
+// so callers can consume only the section they need.
 //
-// The singleton returns a const reference — the only mutation pathway is
-// set_fb_pool_budget_override() for the CLI pipeline override.
+// The old singleton pattern (`Config::get()`) is deprecated.  Callers should
+// construct a Config instance via `from_environment()` and pass it explicitly
+// (e.g. stored in SoftwareRenderer, threaded through RenderGraphContext).
 //
-// Thread-safe: C++11 guarantees local static initialization is thread-safe.
+// Thread-safe construction: the factory reads env vars once at call time.
 //
 // Usage:
+//   // New (per-instance):
+//   Config cfg = Config::from_environment();
+//   if (cfg.debug().glow()) { ... }
+//   cfg.set_fb_pool_budget(512 * 1024 * 1024);
+//
+//   // Deprecated (singleton — still works, emits warning):
 //   const auto& cfg = chronon3d::Config::get();
 //   if (cfg.debug().glow()) { ... }
-//   size_t max_bytes = cfg.cache().node_cache_max_bytes();
 
 #include <cstddef>
 #include <cstdint>
@@ -135,16 +140,27 @@ private:
 
 class Config {
 public:
-    /// Returns the singleton (immutable — const reference).
+    /// Returns the singleton (deprecated — use Config::from_environment())
+    [[deprecated("Use Config::from_environment() and pass instance explicitly")]]
     [[nodiscard]] static const Config& get() {
         static Config instance;
         return instance;
     }
 
+    /// Factory: construct a Config by reading environment variables.
+    /// This is the preferred creation path for per-instance configuration.
+    [[nodiscard]] static Config from_environment();
+
     /// CLI pipeline override: sets the framebuffer pool budget in bytes.
-    /// This is the single mutation pathway; all other fields are read-only
-    /// after construction.
+    /// Deprecated — use the non-static set_fb_pool_budget() on a
+    /// Config instance instead.
+    [[deprecated("Use Config::set_fb_pool_budget() on a non-const instance")]]
     static void set_fb_pool_budget_override(std::size_t bytes);
+
+    /// Set the framebuffer pool budget on this instance (non-static).
+    /// Replaces set_fb_pool_budget_override() which used const_cast on
+    /// the singleton.
+    void set_fb_pool_budget(std::size_t bytes);
 
     // ── Domain accessors ──────────────────────────────────────────────
 
@@ -162,8 +178,12 @@ public:
     /// on missing / invalid input.
     [[nodiscard]] static std::size_t resolve_env_int(const char* env_name, std::size_t default_int);
 
-private:
+public:
+    /// Construct from environment variables.
+    /// Prefer Config::from_environment() for clarity.
     Config();
+
+private:
     Config(const Config&) = delete;
     Config& operator=(const Config&) = delete;
 
