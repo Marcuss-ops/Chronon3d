@@ -22,7 +22,7 @@
 #include "../../utils/blend2d_bridge.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
-#include <chronon3d/core/config.hpp>
+#include <chronon3d/core/config.hpp>   // for DebugConfig type (used by make_padded_alpha_mask)
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/effects/glow_pipeline.hpp>
@@ -46,7 +46,8 @@ struct PaddedMask {
 
 [[nodiscard]] static inline PaddedMask make_padded_alpha_mask(
     const BLImage& raster_img,
-    int base_padding
+    int base_padding,
+    const DebugConfig& debug
 ) {
     const int rw = raster_img.width();
     const int rh = raster_img.height();
@@ -93,7 +94,7 @@ struct PaddedMask {
     }
 
     // ── Debug save ───────────────────────────────────────────────────
-    if (chronon3d::Config::get().debug().dump_alpha_mask()) {
+    if (debug.dump_alpha_mask()) {
         BLImageData md;
         if (mask.getData(&md) == BL_SUCCESS && md.pixelData) {
             const int stride = static_cast<int>(md.stride / sizeof(uint32_t));
@@ -194,7 +195,7 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
         const int padding = static_cast<int>(std::ceil(base_radius * 4.0f)) + 8;
 
         // ── Step 1: Build padded white alpha mask (text-specific) ────
-        auto [alpha_mask, actual_pad] = make_padded_alpha_mask(raster.image, padding);
+        auto [alpha_mask, actual_pad] = make_padded_alpha_mask(raster.image, padding, renderer.config().debug());
 
         // ── Step 2: Run the unified GlowPipeline ─────────────────────
         // Convert alpha mask to Framebuffer and feed it to the shared
