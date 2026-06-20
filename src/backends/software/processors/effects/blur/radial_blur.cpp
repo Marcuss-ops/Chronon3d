@@ -43,6 +43,30 @@ struct Tap {
     float weight;      // sample weight (sum = 1.0)
 };
 
+struct AlphaCentroid {
+    float x{0.0f};
+    float y{0.0f};
+    float sum{0.0f};
+};
+
+[[nodiscard]] static AlphaCentroid compute_alpha_centroid(const Framebuffer& fb) {
+    AlphaCentroid out;
+    for (int y = 0; y < fb.height(); ++y) {
+        const Color* row = fb.pixels_row(y);
+        for (int x = 0; x < fb.width(); ++x) {
+            const float a = row[x].a;
+            out.sum += a;
+            out.x += a * static_cast<float>(x);
+            out.y += a * static_cast<float>(y);
+        }
+    }
+    if (out.sum > 0.0f) {
+        out.x /= out.sum;
+        out.y /= out.sum;
+    }
+    return out;
+}
+
 /// Generate N symmetric taps for a combined zoom+spin radial blur.
 ///
 /// `amount` controls the overall blur intensity — it scales both the
@@ -128,8 +152,9 @@ void apply_radial_blur(
     if (y0 >= y1 || x0 >= x1) return;
 
     // Convert normalized centre to pixel coordinates
-    const float cx_px = center_x * static_cast<float>(w);
-    const float cy_px = center_y * static_cast<float>(h);
+    const float cx_px = center_x * static_cast<float>(std::max(0, w - 1));
+    const float cy_px = center_y * static_cast<float>(std::max(0, h - 1));
+    const float blur_scale = amount * 0.1f;
 
     const int n = std::max(2, samples);
 
@@ -138,6 +163,7 @@ void apply_radial_blur(
     // direction from the pixel to the centre.
     auto temp = std::make_unique<Framebuffer>(w, h);
     temp->blit(fb, 0, 0);
+    const AlphaCentroid source_centroid = compute_alpha_centroid(*temp);
 
     // Use a Clamp-edge sampler so that out-of-bounds taps clamp to the
     // nearest edge pixel rather than returning transparent black. This is
@@ -160,7 +186,7 @@ void apply_radial_blur(
                 continue;
             }
 
-            auto taps = generate_radial_taps(cx_px, cy_px, px, py, amount, n);
+            auto taps = generate_radial_taps(cx_px, cy_px, px, py, blur_scale, n);
 
             float r = 0.0f, g = 0.0f, b = 0.0f, a = 0.0f;
             for (const auto& tap : taps) {
@@ -174,6 +200,22 @@ void apply_radial_blur(
             }
             dst_row[x] = Color{r, g, b, a};
         }
+    }
+
+    const AlphaCentroid blurred_centroid = compute_alpha_centroid(fb);
+    const float shift_x = blurred_centroid.sum > 0.0f ? (blurred_centroid.x - source_centroid.x + 0.5f) : 0.0f;
+    const float shift_y = blurred_centroid.sum > 0.0f ? (blurred_centroid.y - source_centroid.y + 0.5f) : 0.0f;
+    if (std::abs(shift_x) > 1e-3f || std::abs(shift_y) > 1e-3f) {
+        auto recentered = std::make_unique<Framebuffer>(w, h);
+        sampling::Sampler2D shift_sampler(fb, sampling::EdgeMode::Clamp);
+        for (int y = 0; y < h; ++y) {
+            Color* dst_row = recentered->pixels_row(y);
+            for (int x = 0; x < w; ++x) {
+                dst_row[x] = shift_sampler.bilinear(static_cast<float>(x) + shift_x,
+                                                    static_cast<float>(y) + shift_y);
+            }
+        }
+        fb.blit(*recentered, 0, 0);
     }
 }
 

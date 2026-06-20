@@ -253,9 +253,6 @@ Composition img_corner_smoothing();
 
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_image_compositions(CompositionRegistry& registry) {
-    static bool done = false;
-    if (done) return;
-    done = true;
     registry.add("ImgGradient", [](const CompositionProps&) { return img_gradient(); });
     registry.add("ImgChecker", [](const CompositionProps&) { return img_checker(); });
     registry.add("ImgGridTest", [](const CompositionProps&) { return img_grid_test(); });

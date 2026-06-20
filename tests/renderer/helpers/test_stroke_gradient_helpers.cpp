@@ -49,7 +49,7 @@ static GradientFill make_radial_wb_gradient() {
 static Shape make_shape(ShapeType type, const std::optional<GradientFill>& grad = std::nullopt,
                         f32 stroke_w = 10.0f) {
     Shape s;
-    s.type = type;
+    s.set_type(type);
     ShapeStroke stroke;
     stroke.enabled  = true;
     stroke.width    = stroke_w;
@@ -116,7 +116,7 @@ TEST_CASE("stroke_has_gradient: Circle without gradient returns false") {
 
 TEST_CASE("stroke_has_gradient: None type returns false") {
     Shape s;
-    s.type = ShapeType::None;
+    s.set_type(ShapeType::None);
     CHECK_FALSE(stroke_has_gradient(s));
 }
 
@@ -130,13 +130,13 @@ TEST_CASE("stroke_has_gradient: disabled stroke with gradient still returns true
 
 TEST_CASE("stroke_has_gradient: Line type returns false") {
     Shape s;
-    s.type = ShapeType::Line;
+    s.set_type(ShapeType::Line);
     CHECK_FALSE(stroke_has_gradient(s));
 }
 
 TEST_CASE("stroke_has_gradient: Text type returns false") {
     Shape s;
-    s.type = ShapeType::Text;
+    s.set_type(ShapeType::Text);
     CHECK_FALSE(stroke_has_gradient(s));
 }
 
@@ -244,7 +244,7 @@ TEST_CASE("resolve_stroke_gradient_color: no gradient returns transparent") {
 
 TEST_CASE("resolve_stroke_gradient_color: None type returns transparent") {
     Shape s;
-    s.type = ShapeType::None;
+    s.set_type(ShapeType::None);
     Color c = resolve_stroke_gradient_color(s, {100.0f, 100.0f}, {200.0f, 200.0f});
     CHECK(c.r == doctest::Approx(0.0f));
     CHECK(c.g == doctest::Approx(0.0f));
@@ -254,7 +254,7 @@ TEST_CASE("resolve_stroke_gradient_color: None type returns transparent") {
 
 TEST_CASE("resolve_stroke_gradient_color: Line type returns transparent") {
     Shape s;
-    s.type = ShapeType::Line;
+    s.set_type(ShapeType::Line);
     Color c = resolve_stroke_gradient_color(s, {100.0f, 100.0f}, {200.0f, 200.0f});
     CHECK(c.r == doctest::Approx(0.0f));
     CHECK(c.g == doctest::Approx(0.0f));
@@ -264,7 +264,7 @@ TEST_CASE("resolve_stroke_gradient_color: Line type returns transparent") {
 
 TEST_CASE("resolve_stroke_gradient_color: Text type returns transparent") {
     Shape s;
-    s.type = ShapeType::Text;
+    s.set_type(ShapeType::Text);
     Color c = resolve_stroke_gradient_color(s, {100.0f, 100.0f}, {200.0f, 200.0f});
     CHECK(c.r == doctest::Approx(0.0f));
     CHECK(c.g == doctest::Approx(0.0f));

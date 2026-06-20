@@ -12,6 +12,7 @@
 
 #include <chronon3d/render_graph/preflight/preflight_render_graph.hpp>
 #include "format.hpp"
+#include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
@@ -52,6 +53,12 @@ GraphPreflightReport debug_preflight_render_graph(
         ctx.camera.has_camera_2_5d  = true;
         ctx.camera.projection_ctx   = renderer::make_projection_context(ctx.camera.camera_2_5d, width, height);
         ctx.camera.projection_ctx.ready = true;
+    }
+
+    if (auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend)) {
+        ctx.resources.compiled_graph_cache = &sw_renderer->graph_cache();
+        ctx.resources.node_catalog = &sw_renderer->graph_node_registry();
+        ctx.resources.effect_catalog = &sw_renderer->effect_catalog();
     }
 
     // ── 2. Build graph (no execution) ────────────────────────────────────

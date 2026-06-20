@@ -356,9 +356,6 @@ Composition minimalist_image_elegant_exit();
 Composition minimalist_image_elastic_slide();
 
 void register_minimalist_compositions(CompositionRegistry& registry) {
-    static bool done = false;
-    if (done) return;
-    done = true;
     registry.add("MinimalistTextFadeUp", [](const CompositionProps&) { return minimalist_text_fade_up(); });
     registry.add("MinimalistTextTrackingReveal", [](const CompositionProps&) { return minimalist_text_tracking_reveal(); });
     registry.add("MinimalistTextClipReveal", [](const CompositionProps&) { return minimalist_text_clip_reveal(); });

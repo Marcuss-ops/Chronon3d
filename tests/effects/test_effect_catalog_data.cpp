@@ -163,27 +163,27 @@ TEST_CASE("EffectCatalog: detect_effect_type works via visitor") {
 
 TEST_CASE("EffectCatalog: Exposure/Levels have correct traits") {
     for (const auto& entry : builtin_effect_catalog()) {
-        if (entry.type() == EffectType::Exposure) {
+        if (entry.type == EffectType::Exposure) {
             CHECK(entry.domain == EffectDomain::Color);
             CHECK(entry.alpha_policy == AlphaPolicy::Preserve);
             CHECK(entry.dirty_policy == DirtyPolicy::Preserve);
             CHECK(entry.bounds_policy == BoundsPolicy::Preserve);
             CHECK(entry.fusible_color == true);
         }
-        if (entry.type() == EffectType::Levels) {
+        if (entry.type == EffectType::Levels) {
             CHECK(entry.domain == EffectDomain::Color);
             CHECK(entry.alpha_policy == AlphaPolicy::Preserve);
             CHECK(entry.fusible_color == true);
         }
-        if (entry.type() == EffectType::Fill) {
+        if (entry.type == EffectType::Fill) {
             CHECK(entry.domain == EffectDomain::Color);
             CHECK(entry.alpha_policy == AlphaPolicy::Preserve);
             CHECK(entry.fusible_color == false);
         }
-        if (entry.type() == EffectType::Noise) {
+        if (entry.type == EffectType::Noise) {
             CHECK(entry.alpha_policy == AlphaPolicy::Preserve);
         }
-        if (entry.type() == EffectType::Offset) {
+        if (entry.type == EffectType::Offset) {
             CHECK(entry.domain == EffectDomain::Spatial);
             CHECK(entry.alpha_policy == AlphaPolicy::Preserve);
             CHECK(entry.dirty_policy == DirtyPolicy::Translate);

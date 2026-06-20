@@ -52,6 +52,9 @@ static void dilate_row_horizontal(const float* src, float* dst, int w, int radiu
 static void erode_row_horizontal(const float* src, float* dst, int w, int radius) {
     for (int x = 0; x < w; ++x) {
         float mn = 1.0f;
+        if (x - radius < 0 || x + radius >= w) {
+            mn = 0.0f;
+        }
         const int x0 = std::max(0, x - radius);
         const int x1 = std::min(w - 1, x + radius);
         for (int sx = x0; sx <= x1; ++sx) {
@@ -67,19 +70,21 @@ static void dilate_alpha(Framebuffer& fb, int radius) {
     const int w = fb.width(), h = fb.height();
 
     // Horizontal pass
-    auto row_buf = std::make_unique<float[]>(static_cast<std::size_t>(w));
+    auto row_src = std::make_unique<float[]>(static_cast<std::size_t>(w));
+    auto row_dst = std::make_unique<float[]>(static_cast<std::size_t>(w));
     for (int y = 0; y < h; ++y) {
-        for (int x = 0; x < w; ++x) row_buf[x] = fb.pixels_row(y)[x].a;
-        dilate_row_horizontal(row_buf.get(), row_buf.get(), w, radius);
-        for (int x = 0; x < w; ++x) fb.pixels_row(y)[x].a = row_buf[x];
+        for (int x = 0; x < w; ++x) row_src[x] = fb.pixels_row(y)[x].a;
+        dilate_row_horizontal(row_src.get(), row_dst.get(), w, radius);
+        for (int x = 0; x < w; ++x) fb.pixels_row(y)[x].a = row_dst[x];
     }
 
     // Vertical pass
-    auto col_buf = std::make_unique<float[]>(static_cast<std::size_t>(h));
+    auto col_src = std::make_unique<float[]>(static_cast<std::size_t>(h));
+    auto col_dst = std::make_unique<float[]>(static_cast<std::size_t>(h));
     for (int x = 0; x < w; ++x) {
-        for (int y = 0; y < h; ++y) col_buf[y] = fb.pixels_row(y)[x].a;
-        dilate_row_horizontal(col_buf.get(), col_buf.get(), h, radius);
-        for (int y = 0; y < h; ++y) fb.pixels_row(y)[x].a = col_buf[y];
+        for (int y = 0; y < h; ++y) col_src[y] = fb.pixels_row(y)[x].a;
+        dilate_row_horizontal(col_src.get(), col_dst.get(), h, radius);
+        for (int y = 0; y < h; ++y) fb.pixels_row(y)[x].a = col_dst[y];
     }
 }
 
@@ -88,18 +93,20 @@ static void erode_alpha(Framebuffer& fb, int radius) {
     if (radius <= 0) return;
     const int w = fb.width(), h = fb.height();
 
-    auto row_buf = std::make_unique<float[]>(static_cast<std::size_t>(w));
+    auto row_src = std::make_unique<float[]>(static_cast<std::size_t>(w));
+    auto row_dst = std::make_unique<float[]>(static_cast<std::size_t>(w));
     for (int y = 0; y < h; ++y) {
-        for (int x = 0; x < w; ++x) row_buf[x] = fb.pixels_row(y)[x].a;
-        erode_row_horizontal(row_buf.get(), row_buf.get(), w, radius);
-        for (int x = 0; x < w; ++x) fb.pixels_row(y)[x].a = row_buf[x];
+        for (int x = 0; x < w; ++x) row_src[x] = fb.pixels_row(y)[x].a;
+        erode_row_horizontal(row_src.get(), row_dst.get(), w, radius);
+        for (int x = 0; x < w; ++x) fb.pixels_row(y)[x].a = row_dst[x];
     }
 
-    auto col_buf = std::make_unique<float[]>(static_cast<std::size_t>(h));
+    auto col_src = std::make_unique<float[]>(static_cast<std::size_t>(h));
+    auto col_dst = std::make_unique<float[]>(static_cast<std::size_t>(h));
     for (int x = 0; x < w; ++x) {
-        for (int y = 0; y < h; ++y) col_buf[y] = fb.pixels_row(y)[x].a;
-        erode_row_horizontal(col_buf.get(), col_buf.get(), h, radius);
-        for (int y = 0; y < h; ++y) fb.pixels_row(y)[x].a = col_buf[y];
+        for (int y = 0; y < h; ++y) col_src[y] = fb.pixels_row(y)[x].a;
+        erode_row_horizontal(col_src.get(), col_dst.get(), h, radius);
+        for (int y = 0; y < h; ++y) fb.pixels_row(y)[x].a = col_dst[y];
     }
 }
 
@@ -216,10 +223,14 @@ void apply_stroke(
             // Clamp to [0, 1]
             stroke_a = std::clamp(stroke_a, 0.0f, 1.0f);
 
-            // Blend stroke colour with source
-            if (stroke_a > 0.0f) {
+            if (mode == StrokeMode::Inside) {
+                row[x].r = color.r * stroke_a;
+                row[x].g = color.g * stroke_a;
+                row[x].b = color.b * stroke_a;
+                row[x].a = stroke_a;
+            } else if (stroke_a > 0.0f) {
                 const float t = stroke_a;
-                // Source colour is already premultiplied; stroke colour is straight
+                // Source colour is already premultiplied; stroke colour is straight.
                 row[x].r = row[x].r * (1.0f - t) + color.r * t;
                 row[x].g = row[x].g * (1.0f - t) + color.g * t;
                 row[x].b = row[x].b * (1.0f - t) + color.b * t;
