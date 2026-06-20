@@ -6,6 +6,7 @@ add_library(chronon3d_backend_software STATIC
     # Top-level files only — subsystem sources are in per-directory CMakeLists.txt
     software_compositor.cpp
     software_renderer.cpp
+    software_backend.cpp
     buffer_ring.cpp
     scratch_buffer.cpp
 )
