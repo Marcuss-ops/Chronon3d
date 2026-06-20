@@ -31,12 +31,16 @@ using chronon3d::Vec3;
 
 // ── Test-only helpers ───────────────────────────────────────────────────────
 //
+// Two small helpers that capture the most common "single-error" assertion
+// triplets. Used by 6 test sites in this file.
+
+// ── Compile: lex-error surface ───────────────────────────────────────────────
+//
 // Single-error lex_errored pin (REQUIRE_FALSE(ok) + single-error CHECK +
-// "lex:"-prefix message CHECK).  The four `@<token>` companion tests
-// (Number / Identifier / BoolTrue / String) call this helper with their
-// source + a token_descr string naming which parse_primary switch branch
-// they exercise.  Future parse_primary branches can lock the suppression
-// here with one extra call.
+// "lex:"-prefix message CHECK). Called by the four `@<token>` companion
+// tests (Number / Identifier / BoolTrue / String) AND by the
+// `single lex error reports exactly one entry` test.  Future lex-error
+// diagnostic tests can pin here with one extra call.
 static void assert_lex_errored_single_error(const char* source,
                                             const char* token_descr) {
     INFO("parse_primary's " << token_descr << " branch");
@@ -44,6 +48,21 @@ static void assert_lex_errored_single_error(const char* source,
     REQUIRE_FALSE(r.ok());
     CHECK(r.errors.size() == 1);
     CHECK(r.errors.front().message.find("lex:") != std::string::npos);
+}
+
+// ── Type-check: single-error rejection ──────────────────────────────────────
+//
+// Single-error type_check pin (CHECK_FALSE(ok) + single-error CHECK).
+// Unlike the compile helper it uses CHECK_FALSE (not REQUIRE_FALSE)
+// because we're testing type_check's diagnostic emission rather than a
+// hard parse-stage halt. Called by the `rejects arithmetic on string +
+// number` test; future single-error type-check tests can pin here.
+static void assert_type_check_single_error(const AstNode& ast,
+                                           const char* rejection_descr) {
+    INFO("type_check rejection expected for " << rejection_descr);
+    auto r = type_check(ast);
+    CHECK_FALSE(r.ok());
+    CHECK(r.errors.size() == 1);
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -142,10 +161,7 @@ TEST_CASE("Lexer: errors on unterminated string") {
 // so a regression that drops to a single error fails the test loudly.
 
 TEST_CASE("Compiler: single lex error reports exactly one entry") {
-    auto r = compile("@");
-    REQUIRE_FALSE(r.ok());
-    CHECK(r.errors.size() == 1);
-    CHECK(r.errors.front().message.find("lex:") != std::string::npos);
+    assert_lex_errored_single_error("@", "single char '@'");
 }
 
 TEST_CASE("Compiler: multi-error push — chained lex failures") {
@@ -193,30 +209,14 @@ TEST_CASE("Compiler: lex_errored suppresses parse_primary — `@1` produces exac
     assert_lex_errored_single_error("@1", "Number");
 }
 
-// Companion to `@1`: lex('@') errors, parse_primary Ident branch (idx 3) -> AstIdentifier,
-// type-check = Top (free-identifier permissive). Regression: errors.size() == 2 means
-// default-case suppression broke.
 TEST_CASE("Compiler: lex_errored suppresses parse_primary — `@x` produces exactly 1 lex error") {
     assert_lex_errored_single_error("@x", "Identifier");
 }
 
-// Companion to `@1` / `@x`: exercises parse_primary's BoolTrue branch
-// (TokenKind::BoolTrue). With trailing token `true`, parse_primary returns
-// AstNode{true} cleanly; type-check classifies as Type::Bool with no error.
-// Only the lex error from `@` reaches out.errors.
 TEST_CASE("Compiler: lex_errored suppresses parse_primary — `@true` produces exactly 1 lex error") {
     assert_lex_errored_single_error("@true", "BoolTrue");
 }
 
-// Companion to `@1` / `@x` / `@true`: exercises parse_primary's String branch
-// (TokenKind::String). With trailing token `"foo"`, parse_primary returns
-// AstNode{"foo"} cleanly; type-check classifies as Type::String with no error.
-// Only the lex error from `@` reaches out.errors.
-//
-// Together with `@1` (Number), `@x` (Identifier), `@true` (BoolTrue), and
-// `@"foo"` (String), the suppression is locked across every parse_primary
-// kind that has a dedicated branch.  A future branch addition (or a regression
-// that loosens the default-case suppression) will surface here.
 TEST_CASE("Compiler: lex_errored suppresses parse_primary — `@\"foo\"` produces exactly 1 lex error") {
     assert_lex_errored_single_error("@\"foo\"", "String");
 }
@@ -252,9 +252,7 @@ TEST_CASE("Type checker: thisLayer.position.x is Number") {
 TEST_CASE("Type checker: rejects arithmetic on string + number") {
     AstNode ast = ast::make_binary(BinaryOp::Add,
         ast::make_string("foo"), ast::make_number(1.0), {});
-    auto r = type_check(ast);
-    CHECK_FALSE(r.ok());
-    CHECK(r.errors.size() == 1);
+    assert_type_check_single_error(ast, "string + number");
 }
 
 // ── Top-permissive: free-identifier arithmetic relaxes strictness ───
