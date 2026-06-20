@@ -49,6 +49,9 @@ add_executable(chronon3d_scene_tests
     scene/camera/test_catmull_rom_path.cpp
     scene/test_scene_validator.cpp
     scene/test_layer_order_contract.cpp
+    scene/test_layer_kind.cpp
+    scene/test_joints.cpp
+    scene/test_motion_graph_prewarm.cpp
     render_graph/builder/test_graph_snapshot.cpp
 )
 target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline chronon3d_scene chronon3d_backend_software doctest::doctest)
