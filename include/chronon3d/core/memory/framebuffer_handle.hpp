@@ -66,40 +66,11 @@ using FramebufferReturnPolicy = std::variant<
 // This is safe against concurrent pool destruction: if the pool is gone,
 // the weak_ptr::lock() fails and the framebuffer is simply deleted.
 //
-// The policy variant is the single source of truth.  The legacy fields
-// (pool_weak, scratch_slot, owned_by_renderer, scratch_cleanup) are
-// deprecated accessors that read/write the variant for backward compat.
+// The FramebufferReturnPolicy variant is the single source of truth.
+// All callers use policy assignment directly (e.g. deleter.policy = RendererOwned{}).
 // ---------------------------------------------------------------------------
 struct PoolFbDeleter {
     FramebufferReturnPolicy policy{DeleteFramebuffer{}};
-
-    // ── Backward-compat deprecated accessors ──────────────────────────
-
-    [[deprecated("Use policy = ReturnToPool{pool} instead")]]
-    std::weak_ptr<cache::FramebufferPool>& pool_weak() {
-        if (!std::holds_alternative<ReturnToPool>(policy))
-            policy.emplace<ReturnToPool>();
-        return std::get<ReturnToPool>(policy).pool;
-    }
-    [[deprecated("Use policy = ReturnToScratch{slot} instead")]]
-    Framebuffer**& scratch_slot() {
-        if (!std::holds_alternative<ReturnToScratch>(policy))
-            policy.emplace<ReturnToScratch>();
-        return std::get<ReturnToScratch>(policy).slot;
-    }
-    [[deprecated("Use policy = RendererOwned{} instead")]]
-    bool& owned_by_renderer() {
-        static bool dummy = false;
-        if (std::holds_alternative<RendererOwned>(policy)) return dummy;
-        policy.emplace<RendererOwned>();
-        return dummy;
-    }
-    [[deprecated("Use policy = RestoreScratchHandle{cleanup} instead")]]
-    std::function<void()>& scratch_cleanup() {
-        if (!std::holds_alternative<RestoreScratchHandle>(policy))
-            policy.emplace<RestoreScratchHandle>();
-        return std::get<RestoreScratchHandle>(policy).cleanup;
-    }
 
     // ── Convenience constructors ─────────────────────────────────────
 
