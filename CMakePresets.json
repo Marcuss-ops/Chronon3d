@@ -268,6 +268,15 @@
       }
     },
     {
+      "name": "linux-fast-dev-release",
+      "inherits": "linux-fast-dev",
+      "displayName": "Linux Fast Dev Release (RelWithDebInfo)",
+      "description": "Release-like dev build with optimisations + debug symbols + ccache + tmpfs — 2-5× faster runtime",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
       "name": "linux-lean",
       "inherits": "linux-core-dev",
       "cacheVariables": {
@@ -460,6 +469,15 @@
       "jobs": 16
     },
     {
+      "name": "linux-fast-dev-release",
+      "configurePreset": "linux-fast-dev-release",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests_fast"
+      ],
+      "jobs": 16
+    },
+    {
       "name": "linux-dev-video",
       "configurePreset": "linux-dev-video",
       "targets": [
@@ -587,6 +605,13 @@
     {
       "name": "linux-fast-dev-test",
       "configurePreset": "linux-fast-dev",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-fast-dev-release-test",
+      "configurePreset": "linux-fast-dev-release",
       "output": {
         "outputOnFailure": true
       }

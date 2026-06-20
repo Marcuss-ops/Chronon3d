@@ -163,15 +163,13 @@ public:
     /// on missing / invalid input.
     [[nodiscard]] static std::size_t resolve_env_int(const char* env_name, std::size_t default_int);
 
-public:
-    /// Construct from environment variables.
-    /// Prefer Config::from_environment() for clarity.
     Config();
+    Config(Config&&) noexcept = default;
+    Config& operator=(Config&&) noexcept = default;
+    Config(const Config&) = default;
+    Config& operator=(const Config&) = default;
 
 private:
-    Config(const Config&) = delete;
-    Config& operator=(const Config&) = delete;
-
     DebugConfig     debug_;
     CacheConfig     cache_;
     SchedulerConfig scheduler_;

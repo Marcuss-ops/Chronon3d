@@ -24,5 +24,5 @@
 #include "composite_node.hpp"
 
 namespace chronon3d::renderer {
-    chronon3d::raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread = 0.0f);
+    ::chronon3d::raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread = 0.0f);
 }

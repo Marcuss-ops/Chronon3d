@@ -210,10 +210,10 @@ public:
     [[nodiscard]] const RenderSession& session() const { return m_session; }
 
     // ── Convenience accessors (forward to session) ──────────────────────
-    using LayerBBoxState          = chronon3d::LayerBBoxState;
-    using RendererFrameHistory    = chronon3d::RendererFrameHistory;
-    using RendererDirtyTelemetry  = chronon3d::RendererDirtyTelemetry;
-    using RendererLayerHistory    = chronon3d::RendererLayerHistory;
+    using LayerBBoxState          = ::chronon3d::LayerBBoxState;
+    using RendererFrameHistory    = ::chronon3d::RendererFrameHistory;
+    using RendererDirtyTelemetry  = ::chronon3d::RendererDirtyTelemetry;
+    using RendererLayerHistory    = ::chronon3d::RendererLayerHistory;
 
     [[nodiscard]] RendererFrameHistory& frame_history() { return m_session.frame_history; }
     [[nodiscard]] const RendererFrameHistory& frame_history() const { return m_session.frame_history; }

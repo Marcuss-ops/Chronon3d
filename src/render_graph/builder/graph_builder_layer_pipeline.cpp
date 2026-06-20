@@ -60,6 +60,11 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
     std::string prev_layer = g_current_builder_layer_id;
     g_current_builder_layer_id = std::string(item.layer->name);
 
+    auto prev_eval = std::move(g_current_builder_opacity_evaluator);
+    g_current_builder_opacity_evaluator = [opacity = item.layer->anim_transform.opacity](const RenderFrameInfo& info) -> float {
+        return opacity.evaluate(info.sample_time);
+    };
+
     GraphNodeId layer_output = append_source_pass(graph, item, ctx);
     const Layer& layer = *item.layer;
 
@@ -95,6 +100,7 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
             current = adj_id;
         }
         g_current_builder_layer_id = prev_layer;
+        g_current_builder_opacity_evaluator = std::move(prev_eval);
         return;
     }
 
@@ -172,6 +178,7 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
 
     append_composite_pass(graph, current, layer_output, *item.layer, (layer.cache_static || item.is_static), ctx, item.world_z);
     g_current_builder_layer_id = prev_layer;
+    g_current_builder_opacity_evaluator = std::move(prev_eval);
 }
 
 void sort_camera25d_layers(std::vector<LayerGraphItem>& items) {

@@ -43,6 +43,19 @@ void register_verify(CLI::App& app, CliContext& ctx) {
     cmd->callback([state, &ctx]() { ctx.exit_code = command_verify(ctx.registry, *state->output_dir); });
 }
 
+void register_daemon(CLI::App& app, CliContext& ctx) {
+    auto* cmd = app.add_subcommand("daemon", "Start hot-reload daemon with warm engine state");
+    auto assets_root = std::make_shared<std::string>();
+    auto build_cmd = std::make_shared<std::string>("bash build-fast.sh cli");
+    cmd->add_option("-a,--assets-root", *assets_root,
+                    "Asset root directory (fonts, images)");
+    cmd->add_option("-b,--build-cmd", *build_cmd,
+                    "Build command for reload (default: bash build-fast.sh cli)");
+    cmd->callback([assets_root, build_cmd, &ctx]() {
+        ctx.exit_code = command_daemon(ctx.registry, *assets_root, *build_cmd);
+    });
+}
+
 } // namespace
 
 void register_commands(CLI::App& app, CliContext& ctx) {
@@ -50,6 +63,7 @@ void register_commands(CLI::App& app, CliContext& ctx) {
     register_info(app, ctx);
     register_doctor(app, ctx);
     register_verify(app, ctx);
+    register_daemon(app, ctx);
 }
 
 } // namespace chronon3d::cli::group_core
