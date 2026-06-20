@@ -29,6 +29,23 @@
 using namespace chronon3d::expressions::v2;
 using chronon3d::Vec3;
 
+// ── Test-only helpers ───────────────────────────────────────────────────────
+//
+// Single-error lex_errored pin (REQUIRE_FALSE(ok) + single-error CHECK +
+// "lex:"-prefix message CHECK).  The four `@<token>` companion tests
+// (Number / Identifier / BoolTrue / String) call this helper with their
+// source + a token_descr string naming which parse_primary switch branch
+// they exercise.  Future parse_primary branches can lock the suppression
+// here with one extra call.
+static void assert_lex_errored_single_error(const char* source,
+                                            const char* token_descr) {
+    INFO("parse_primary's " << token_descr << " branch");
+    auto r = compile(source);
+    REQUIRE_FALSE(r.ok());
+    CHECK(r.errors.size() == 1);
+    CHECK(r.errors.front().message.find("lex:") != std::string::npos);
+}
+
 // ════════════════════════════════════════════════════════════════════
 //  ExpressionValue (variant + helpers)
 // ════════════════════════════════════════════════════════════════════
@@ -173,20 +190,14 @@ TEST_CASE("Compiler: multi-error push — lex + parse coexist") {
 //     (no trailing-token error).  Total: EXACTLY ONE lex error surfaces in
 //     out.errors.
 TEST_CASE("Compiler: lex_errored suppresses parse_primary — `@1` produces exactly 1 lex error") {
-    auto r = compile("@1");
-    REQUIRE_FALSE(r.ok());
-    CHECK(r.errors.size() == 1);
-    CHECK(r.errors.front().message.find("lex:") != std::string::npos);
+    assert_lex_errored_single_error("@1", "Number");
 }
 
 // Companion to `@1`: lex('@') errors, parse_primary Ident branch (idx 3) -> AstIdentifier,
 // type-check = Top (free-identifier permissive). Regression: errors.size() == 2 means
 // default-case suppression broke.
 TEST_CASE("Compiler: lex_errored suppresses parse_primary — `@x` produces exactly 1 lex error") {
-    auto r = compile("@x");
-    REQUIRE_FALSE(r.ok());
-    CHECK(r.errors.size() == 1);
-    CHECK(r.errors.front().message.find("lex:") != std::string::npos);
+    assert_lex_errored_single_error("@x", "Identifier");
 }
 
 // Companion to `@1` / `@x`: exercises parse_primary's BoolTrue branch
@@ -194,10 +205,7 @@ TEST_CASE("Compiler: lex_errored suppresses parse_primary — `@x` produces exac
 // AstNode{true} cleanly; type-check classifies as Type::Bool with no error.
 // Only the lex error from `@` reaches out.errors.
 TEST_CASE("Compiler: lex_errored suppresses parse_primary — `@true` produces exactly 1 lex error") {
-    auto r = compile("@true");
-    REQUIRE_FALSE(r.ok());
-    CHECK(r.errors.size() == 1);
-    CHECK(r.errors.front().message.find("lex:") != std::string::npos);
+    assert_lex_errored_single_error("@true", "BoolTrue");
 }
 
 // Companion to `@1` / `@x` / `@true`: exercises parse_primary's String branch
@@ -210,10 +218,7 @@ TEST_CASE("Compiler: lex_errored suppresses parse_primary — `@true` produces e
 // kind that has a dedicated branch.  A future branch addition (or a regression
 // that loosens the default-case suppression) will surface here.
 TEST_CASE("Compiler: lex_errored suppresses parse_primary — `@\"foo\"` produces exactly 1 lex error") {
-    auto r = compile("@\"foo\"");
-    REQUIRE_FALSE(r.ok());
-    CHECK(r.errors.size() == 1);
-    CHECK(r.errors.front().message.find("lex:") != std::string::npos);
+    assert_lex_errored_single_error("@\"foo\"", "String");
 }
 
 // ════════════════════════════════════════════════════════════════════
