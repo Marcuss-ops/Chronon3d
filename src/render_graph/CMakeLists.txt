@@ -133,8 +133,10 @@ add_library(chronon3d_graph_preflight STATIC
     preflight/preflight.cpp
     preflight/analysis.cpp
     preflight/analysis_graph.cpp
-    preflight/analysis_diagnostics.cpp
 )
+if(CHRONON3D_ENABLE_DIAGNOSTICS)
+    target_sources(chronon3d_graph_preflight PRIVATE preflight/analysis_diagnostics.cpp)
+endif()
 set_target_properties(chronon3d_graph_preflight PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_preflight PUBLIC
     chronon3d_graph_core

@@ -179,3 +179,44 @@ private:
 };
 
 } // namespace chronon3d::cache
+
+#ifndef CHRONON3D_ENABLE_DIAGNOSTICS
+
+// ── No-op stubs when engine-level diagnostics are disabled at compile time ──
+
+namespace chronon3d::cache {
+
+inline CacheDiagnostics& CacheDiagnostics::instance() {
+    static CacheDiagnostics s_instance;
+    return s_instance;
+}
+
+inline CacheDiagnostics::Handle CacheDiagnostics::register_cache(
+    CacheDomain /*domain*/,
+    std::function<GenericCacheStats()> /*stats_fn*/,
+    std::function<void()> /*clear_fn*/,
+    std::function<CapacityMode()> /*mode_fn*/,
+    std::size_t /*capacity*/)
+{
+    return Handle{};
+}
+
+inline std::vector<CacheSnapshot> CacheDiagnostics::snapshot() const { return {}; }
+inline DomainSnapshot CacheDiagnostics::snapshot_by_domain(CacheDomain domain) const {
+    return DomainSnapshot{.domain = domain};
+}
+inline std::vector<DomainSnapshot> CacheDiagnostics::snapshot_all_domains() const { return {}; }
+inline std::size_t CacheDiagnostics::clear_by_domain(CacheDomain) { return 0; }
+inline std::size_t CacheDiagnostics::clear_all() { return 0; }
+inline std::size_t CacheDiagnostics::registered_count() const { return 0; }
+inline std::size_t CacheDiagnostics::registered_count(CacheDomain) const { return 0; }
+inline void CacheDiagnostics::set_enabled(bool) noexcept {}
+inline bool CacheDiagnostics::is_enabled() const noexcept { return false; }
+
+inline std::string format_cache_snapshot() {
+    return "[cache] Diagnostics disabled at compile time (CHRONON3D_ENABLE_DIAGNOSTICS=OFF).\n";
+}
+
+} // namespace chronon3d::cache
+
+#endif // CHRONON3D_ENABLE_DIAGNOSTICS

@@ -78,5 +78,26 @@ void draw_diagnostic_overlay(
     const CameraDiagnosticOverlay& diag
 );
 
+#ifndef CHRONON3D_ENABLE_DIAGNOSTICS
+
+// ── No-op stubs when engine-level diagnostics are disabled at compile time ──
+
+inline void add_camera_debug_overlay(
+    SceneBuilder& /*s*/,
+    const CameraShotReport& /*report*/,
+    const Camera2_5D& /*camera*/,
+    const ResolvedSceneTransforms& /*resolved*/,
+    Viewport /*viewport*/,
+    CameraDebugOverlayOptions /*options*/,
+    const CameraPathVisualization* /*path*/
+) {}
+
+inline void draw_diagnostic_overlay(
+    const OverlayContext& /*ctx*/,
+    const CameraDiagnosticOverlay& /*diag*/
+) {}
+
+#endif // CHRONON3D_ENABLE_DIAGNOSTICS
+
 } // namespace chronon3d
 
