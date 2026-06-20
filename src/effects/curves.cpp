@@ -128,18 +128,16 @@ float CompiledCurve::evaluate(float x) const {
 std::shared_ptr<const CompiledCurve> CurveCache::get_or_compile(
     const std::vector<CurvePoint>& points)
 {
-    const uint64_t h = hash_curve_points(points);
+    const uint64_t hash_key = hash_curve_points(points);
 
-    // Linear search through cache (small cache, single-threaded)
-    for (const auto& entry : m_cache) {
-        if (entry.hash == h) {
-            return entry.curve;
-        }
+    // Look up in sharded LRU cache (thread-safe, O(1)).
+    if (auto cached = m_cache.get(hash_key)) {
+        return *cached;
     }
 
-    // Compile new curve
+    // Compile new curve and store.
     auto curve = std::make_shared<const CompiledCurve>(points);
-    m_cache.push_back({h, curve});
+    m_cache.put(hash_key, curve);
     return curve;
 }
 

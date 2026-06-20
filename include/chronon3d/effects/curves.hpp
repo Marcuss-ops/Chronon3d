@@ -8,6 +8,7 @@
 // CompiledCurve: 256-entry LUT pre-computed from a set of control points
 //                for O(1) evaluation with interpolation.
 
+#include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/raster_utils.hpp>
@@ -60,11 +61,14 @@ private:
 };
 
 // ── CurveCache ──────────────────────────────────────────────────────────────
-// Thread-safe cache (or not; single-threaded render as in the existing codebase)
-// that reuses CompiledCurve objects for identical control point sets.
+// Thread-safe LRU cache backed by the common LruCache primitive.
+// Reuses CompiledCurve objects for identical control point sets.
+// Capacity: 256 entries (Count mode).
 
 class CurveCache {
 public:
+    CurveCache() : m_cache(256) {}
+
     /// Get or compile a curve from control points.
     /// Returns a shared pointer to the compiled curve (may be cached).
     [[nodiscard]] std::shared_ptr<const CompiledCurve> get_or_compile(
@@ -74,11 +78,7 @@ public:
     void clear() { m_cache.clear(); }
 
 private:
-    struct CacheEntry {
-        uint64_t hash;
-        std::shared_ptr<const CompiledCurve> curve;
-    };
-    std::vector<CacheEntry> m_cache;
+    cache::LruCache<uint64_t, std::shared_ptr<const CompiledCurve>> m_cache;
 };
 
 // ── Hash helper ─────────────────────────────────────────────────────────────
