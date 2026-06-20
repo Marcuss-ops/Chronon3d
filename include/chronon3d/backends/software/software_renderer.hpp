@@ -22,6 +22,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/backends/software/renderer_cache_state.hpp>
 #include <chronon3d/backends/software/renderer_runtime_resources.hpp>
+#include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/core/config.hpp>
 
 #include <memory>
@@ -278,6 +279,10 @@ public:
     [[nodiscard]] graph::CompiledGraphCache& graph_cache() { return m_cache_state.graph_cache; }
     [[nodiscard]] const graph::CompiledGraphCache& graph_cache() const { return m_cache_state.graph_cache; }
 
+    /// Access the underlying RenderBackend implementation (extracted in PR-9).
+    [[nodiscard]] graph::RenderBackend& backend() { return *m_backend; }
+    [[nodiscard]] const graph::RenderBackend& backend() const { return *m_backend; }
+
 private:
     ImageRenderer     m_image_renderer;
 
@@ -298,6 +303,12 @@ private:
     RendererRuntimeResources m_runtime_resources;
     // ── Encapsulated per-session state ───────────────────────────────────
     RenderSession            m_session;
+
+    // ── Extracted RenderBackend implementation (PR-9) ───────────────────
+    // Pure rendering operations (blur, composite, effects, DoF) live here.
+    // draw_node and draw_text_run remain on SoftwareRenderer pending
+    // ShapeProcessor migration to accept RenderBackend&.
+    std::unique_ptr<SoftwareBackend> m_backend;
 };
 
 } // namespace chronon3d
