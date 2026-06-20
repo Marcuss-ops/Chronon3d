@@ -16,6 +16,8 @@ add_library(chronon3d_core_impl STATIC
     simd_core_kernels.cpp
     camera_2_5d_log.cpp
     memory/framebuffer.cpp
+    scheduler/execution_scheduler.cpp      # PR-B: ExecutionScheduler owns the tbb::task_arena
+    scheduler/scheduler_mode.cpp           # PR-B: SchedulerMode enum + parser, no TBB dep
 )
 target_include_directories(chronon3d_core_impl PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
@@ -26,3 +28,4 @@ target_link_libraries(chronon3d_core_impl PUBLIC
     fmt::fmt
     spdlog::spdlog_header_only
 )
+target_link_libraries(chronon3d_core_impl PUBLIC TBB::tbb)   # tbb::task_arena in execution_scheduler.hpp
