@@ -83,7 +83,7 @@ void RenderGraph::validate_pre_freeze() const {
         if (m_nodes[i] && !reachable.contains(static_cast<GraphNodeId>(i))) {
             throw std::logic_error(
                 "RenderGraph::freeze: unreachable node " + std::to_string(i)
-                + " (" + std::string(m_nodes[i]->name()) + ")");
+                + " (" + std::string{m_nodes[i]->name()} + ")");
         }
     }
 }
