@@ -20,8 +20,11 @@ add_library(chronon3d_expressions_v2 STATIC
 # via PUBLIC link — but for this lib's OWN build we must re-declare the dir so
 # that `#include <chronon3d/expressions/v2/expression_value.hpp>` resolves to
 # `<root>/include/chronon3d/expressions/v2/expression_value.hpp`.
+# TICKET-004: previously PUBLIC (over-exposing ${CMAKE_SOURCE_DIR}/include
+# to all transitive consumers). Changed to PRIVATE — chronon3d is linked
+# PUBLIC below and already exports this include dir transitively.
 target_include_directories(chronon3d_expressions_v2
-    PUBLIC ${CMAKE_SOURCE_DIR}/include
+    PRIVATE ${CMAKE_SOURCE_DIR}/include
 )
 target_link_libraries(chronon3d_expressions_v2
     PUBLIC chronon3d
