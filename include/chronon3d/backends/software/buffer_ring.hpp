@@ -42,7 +42,7 @@ public:
     /// The write ping — exclusive, no COW needed.
     [[nodiscard]] Framebuffer* write_fb() const noexcept { return m_ping_fb[m_ping_write_idx]; }
 
-    /// Address-of the write slot for the PoolFbDeleter restore path.
+    /// Address-of the write slot for the ReturnToScratch restore path.
     [[nodiscard]] Framebuffer** write_slot() noexcept { return &m_ping_fb[m_ping_write_idx]; }
 
     /// Convenience: returns a FramebufferSlotView bundling both write ping

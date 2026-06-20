@@ -198,7 +198,7 @@ OwnedFB ClearNode::execute(
 
             ctx.scratch.ping_write.fb = nullptr;
             PoolFbDeleter deleter;
-            deleter.owned_by_renderer = true;
+            deleter.policy = RendererOwned{};
             return OwnedFB(write_fb, std::move(deleter));
         }
 
