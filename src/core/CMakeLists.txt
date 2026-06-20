@@ -9,6 +9,7 @@ add_library(chronon3d_core_impl STATIC
     system_metrics.cpp
     cancellation_token.cpp
     framebuffer_clear_parallel.cpp
+    simd_core_kernels.cpp
     camera_2_5d_log.cpp
     memory/framebuffer.cpp
 )

@@ -8,7 +8,7 @@
 //                                     alpha/luma matte
 //
 // This file provides: safe scalar fallbacks, NaN/Inf canary checks,
-// public API dispatch wrappers, and framebuffer clear utilities.
+// and public API dispatch wrappers.
 
 #include <hwy/highway.h>
 #include <chronon3d/core/memory_utils.hpp>
@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
-#include <cstring>
 #include <span>
 
 namespace chronon3d::simd {
@@ -479,20 +478,6 @@ void color_to_prgb32_row(uint32_t* __restrict__ dst,
     if (pixel_count <= 0) return;
     color_to_prgb32_row_dispatch(
         dst, reinterpret_cast<const float*>(src), pixel_count);
-}
-
-void clear_framebuffer(std::span<Color> data, const Color& color) {
-    if (data.empty()) return;
-    const int pixel_count = static_cast<int>(data.size());
-    // Zero-fill via memset is ~4-8× faster than std::fill (which writes
-    // one Color at a time) because the CPU's write-combining and ERMSB
-    // rep stosb microcode handles large memset in ~1 cycle per 16 bytes.
-    if (color.r == 0.0f && color.g == 0.0f && color.b == 0.0f && color.a == 0.0f) {
-        std::memset(static_cast<void*>(data.data()), 0,
-                     static_cast<size_t>(pixel_count) * sizeof(Color));
-        return;
-    }
-    std::fill(data.data(), data.data() + pixel_count, color);
 }
 
 }  // namespace chronon3d::simd
