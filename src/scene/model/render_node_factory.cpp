@@ -215,7 +215,14 @@ RenderNode RenderNodeFactory::text_run(
 
 #ifdef CHRONON3D_USE_BLEND2D
     // ── Pass canonical composite TextRunSpec directly ───────────────
-    auto shape = materialize_text_run_shape(p, engine, sample_time);
+    // PR 9: RenderNodeFactory::text_run does not expose an
+    // AnimatedTextDocument binding (its input is a bare TextRunSpec,
+    // not a PendingTextRun).  The AnimatedTextDocument attachment is
+    // a scene-builder feature; the static-shape-registry route stays
+    // animation-free.  Pass nullptr so the materializer's default
+    // parameter takes effect.
+    auto shape = materialize_text_run_shape(
+        p, engine, sample_time, /*animated_doc=*/nullptr);
     if (!shape) {
         // Materialization failed (shaping / empty text).  Leave
         // text_run_shape_handle().value null so the

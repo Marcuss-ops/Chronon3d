@@ -26,17 +26,49 @@ namespace chronon3d {
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // Cheap path.  Re-evaluates animators in-place; no shaping cost.
+// PR 9 extension: when the shape carries an AnimatedTextDocument binding,
+// re-sample it at the integral frame and forward the resulting
+// ActiveTextState through `apply_active_state_to_text_run_shape` so
+// transition_text changes (Scramble / Morph) reach the rendered glyphs
+// every frame — not just at materialization time.
 
 void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time) {
     // ── Guard rails — the compositor (TextRunNode) calls this every frame
     //    so we must be a no-op for static shapes. ────────────────────────
     if (!shape.layout) return;
+
+    // ── PR 9 — re-sample AnimatedTextDocument first, then animators ────
+    //
+    // Order matters: apply_active_state_to_text_run_shape may SWAP the
+    // shape's `layout` slot (when transition_text differs from the
+    // current layout.source_text).  After such a swap the AE-style
+    // animator stack must be evaluated against the NEW layout — otherwise
+    // per-glyph animators would still target the previous glyph count
+    // / cluster map.  Re-evaluating after the swap (lines below) clears
+    // that residue.
+    //
+    // TODO(PR10+): cache-key invalidation.  `hash_text_run_shape(*shape)`
+    // already folds the per-glyph state, so each new scrambled
+    // transition_text reaches the cache key via the new glyph_count.
+    // Mid-transition frames still hash-stampede a fresh entry every
+    // frame (since transition_text changes per integral frame), so the
+    // layout cache & node cache pre-warm policy needs an extra hook.
+    if (shape.animated_doc && shape.engine != nullptr) {
+        const ActiveTextState state =
+            shape.animated_doc->sample_at(time.integral_frame());
+        if (state.active != nullptr) {
+            apply_active_state_to_text_run_shape(
+                shape, state, *shape.engine, shape.layout_spec);
+        }
+    }
+
     if (shape.animators.empty()) {
         // Even with no animators, ensure the glyphs vector is sized for the
         // layout the first time the shape sees the driver.  This handles
         // shapes produced by pipelines that skipped `materialize_text_run_shape`
         // (e.g. tests, custom build paths) where the first frame must still
-        // see initial states.
+        // see initial states.  Note: a doc-driven layout swap above may have
+        // changed the placed-run glyph count, so we always re-size here.
         if (shape.glyphs.size() != shape.layout->placed.glyphs.size()) {
             shape.glyphs = make_initial_glyph_states(shape.layout->placed);
         }

@@ -57,6 +57,15 @@ struct TextRunLayout {
 /// Multiple frames/components can hold the same pointer without copying.
 using SharedTextRunLayout = std::shared_ptr<const TextRunLayout>;
 
+// Forward declaration for AnimatedTextDocument.  TextRunShape holds the
+// doc as a `shared_ptr<const AnimatedTextDocument>`, which only needs a
+// complete type when the template instantiates its deleter; the rest
+// of the class only needs the type to be declared.  Avoids pulling the
+// heavyweight `animated_text_document.hpp` (which transitively pulls
+// `text_document.hpp` and `easing/easing.hpp`) into every TU that
+// includes text_run.hpp.
+class AnimatedTextDocument;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TextRunShape — batched text run with per-glyph animation state
 // ═══════════════════════════════════════════════════════════════════════════
@@ -91,6 +100,25 @@ struct TextRunShape {
     // The animator list is owned by the shape so the compositor
     // doesn't have to chase references back into builder state.
     std::vector<TextAnimatorSpec> animators;
+
+    // ── PR 9 — AnimatedTextDocument + helpers for per-frame resample ─
+    //
+    // When the scene author attached a transition document via
+    // `TextRunBuilder::from_animated_document(...)`, the materializer
+    // stores both the document (shared_ptr, non-owning extension) and
+    // the FontEngine + TextLayoutSpec needed by
+    // `apply_active_state_to_text_run_shape` so the per-frame driver
+    // can re-sample the doc at every frame and apply transition_text
+    // without going back to builder state.  Without these slots the
+    // PR 8 driver would only re-evaluate the AE-style animator stack
+    // and miss the doc's transition_text changes.
+    //
+    // `engine` is a raw pointer consistent with the prior
+    // PendingTextRun::font_engine convention; the layer is responsible
+    // for keeping the engine alive for the shape's lifetime.
+    std::shared_ptr<const AnimatedTextDocument> animated_doc{};
+    FontEngine* engine{nullptr};
+    TextLayoutSpec layout_spec{};
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -85,6 +85,7 @@ add_executable(chronon3d_core_tests
     text/test_text_resolver.cpp
     text/test_text_run_builder.cpp
     text/test_text_run_driver.cpp
+    text/test_text_run_builder_animated_doc.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
 
