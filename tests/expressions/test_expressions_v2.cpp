@@ -3,9 +3,17 @@
 // Coverage spans all 7 pipeline stages (lex -> AST -> type-check -> bytecode
 // -> VM) plus the dependency graph + cycle detector. The headline "compile +
 // run == 7 for `1 + 2 * 3`" happy path is asserted directly.
+//
+// Naming convention in this file:
+//   bare make_*       → value-side factory (returns ExpressionValue)
+//   ast::make_*       → AST-side factory (returns AstNode); the AST-side
+//                       factories live in chronon3d::expressions::v2::ast
+//                       to avoid colliding with the same-named value-side
+//                       factories in expression_value.hpp.
 
 #include <doctest/doctest.h>
 
+#include <chronon3d/expressions/v2/ast.hpp>
 #include <chronon3d/expressions/v2/bytecode.hpp>
 #include <chronon3d/expressions/v2/compiler.hpp>
 #include <chronon3d/expressions/v2/dependency_graph.hpp>
@@ -19,6 +27,7 @@
 #include <vector>
 
 using namespace chronon3d::expressions::v2;
+using chronon3d::Vec3;
 
 // ════════════════════════════════════════════════════════════════════
 //  ExpressionValue (variant + helpers)
@@ -106,40 +115,163 @@ TEST_CASE("Lexer: errors on unterminated string") {
     CHECK(r.errors.size() == 1);
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  Multi-error push (reviewer fix #2 — count-sensitive assertions)
+// ═══════════════════════════════════════════════════════════════════
+//
+// The compiler used to early-return on the first error.  It now continues
+// through lex -> parse -> type-check and surfaces ALL diagnostics.  The
+// three tests below use count assertions (== or >=), not just CHECK_FALSE,
+// so a regression that drops to a single error fails the test loudly.
+
+TEST_CASE("Compiler: single lex error reports exactly one entry") {
+    auto r = compile("@");
+    REQUIRE_FALSE(r.ok());
+    CHECK(r.errors.size() == 1);
+    CHECK(r.errors.front().message.find("lex:") != std::string::npos);
+}
+
+TEST_CASE("Compiler: multi-error push — chained lex failures") {
+    // '@' is invalid in every position; the lexer emits one diagnostic per
+    // token, and the compiler surfaces every one of them.
+    auto r = compile("@@ @");
+    REQUIRE_FALSE(r.ok());
+    CHECK(r.errors.size() >= 2);
+    for (const auto& e : r.errors) {
+        CHECK(e.message.find("lex:") != std::string::npos);
+    }
+}
+
+TEST_CASE("Compiler: multi-error push — lex + parse coexist") {
+    // Leading '@' => a lex diagnostic; trailing extra token after the primary
+    // expression => a parse diagnostic ("unexpected trailing token ...").
+    // Both must surface in out.errors simultaneously.
+    auto r = compile("@ 1 2");
+    REQUIRE_FALSE(r.ok());
+    CHECK(r.errors.size() >= 2);
+    bool saw_lex = false, saw_parse = false;
+    for (const auto& e : r.errors) {
+        if (e.message.find("lex:") != std::string::npos)                  saw_lex  = true;
+        if (e.message.find("unexpected trailing") != std::string::npos)  saw_parse = true;
+    }
+    CHECK(saw_lex);
+    CHECK(saw_parse);
+}
+
+// ── lex_errored flag pinning (parse_primary suppress-on-lex-err) ─────
+//
+// Locks the `lex_errored` boolean specifically for the
+// `lex-error-followed-by-valid-expression-start` case.  Earlier tests covered
+// `@` alone (entire input is a lex error) and `@ 1 2` (lex + trailing parse),
+// but neither explicitly tested "lex error between valid expression start
+// characters".  Here:
+//   - Lex: '@' errored + advanced; '1' scans as Number(1).
+//     tokens:  [Number(1), Eof]
+//     errors:  [`unexpected character '@'`]
+//   - Parse: lex_errored=true → parse_primary suppresses its default-case
+//     error for Eof; Number(1) parses normally; parse_expression sees Eof
+//     (no trailing-token error).  Total: EXACTLY ONE lex error surfaces in
+//     out.errors.
+TEST_CASE("Compiler: lex_errored suppresses parse_primary — `@1` produces exactly 1 lex error") {
+    auto r = compile("@1");
+    REQUIRE_FALSE(r.ok());
+    CHECK(r.errors.size() == 1);
+    CHECK(r.errors.front().message.find("lex:") != std::string::npos);
+}
+
 // ════════════════════════════════════════════════════════════════════
 //  Type checker (over AST)
 // ════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Type checker: vanilla arithmetic is Number") {
-    AstNode ast = make_binary(BinaryOp::Add,
-        make_number(1.0), make_number(2.0), {});
+    AstNode ast = ast::make_binary(BinaryOp::Add,
+        ast::make_number(1.0), ast::make_number(2.0), {});
     auto r = type_check(ast);
     CHECK(r.ok());
     CHECK(r.root_type == Type::Number);
 }
 
 TEST_CASE("Type checker: thisLayer.position is Vec3") {
-    AstNode ast = make_member(
-        make_identifier("thisLayer", {}), "position", {});
+    AstNode ast = ast::make_member(
+        ast::make_identifier("thisLayer", {}), "position", {});
     auto r = type_check(ast);
     CHECK(r.ok());
     CHECK(r.root_type == Type::Vec3);
 }
 
 TEST_CASE("Type checker: thisLayer.position.x is Number") {
-    AstNode ast = make_member(
-        make_member(make_identifier("thisLayer", {}), "position", {}), "x", {});
+    AstNode ast = ast::make_member(
+        ast::make_member(ast::make_identifier("thisLayer", {}), "position", {}), "x", {});
     auto r = type_check(ast);
     CHECK(r.ok());
     CHECK(r.root_type == Type::Number);
 }
 
 TEST_CASE("Type checker: rejects arithmetic on string + number") {
-    AstNode ast = make_binary(BinaryOp::Add,
-        make_string("foo"), make_number(1.0), {});
+    AstNode ast = ast::make_binary(BinaryOp::Add,
+        ast::make_string("foo"), ast::make_number(1.0), {});
     auto r = type_check(ast);
     CHECK_FALSE(r.ok());
     CHECK(r.errors.size() == 1);
+}
+
+// ── Top-permissive: free-identifier arithmetic relaxes strictness ───
+//
+// Trade-off: any binary arithmetic with at least one Type::Top operand
+// returns Top instead of erroring.  See include/.../type_checker.hpp
+// "Trade-off: Type::Top permissiveness" for the full rationale and the
+// list of which expressions are relaxed vs. still rejected.
+
+TEST_CASE("Type checker: Top-permissive — bool + free identifier returns Top") {
+    // Strict ordering: String+String fails (no String operand); Top-or-Top
+    // succeeds and emits Type::Top, NOT Bool.  No diagnostic is added
+    // because the relaxation is silent.
+    AstNode ast = ast::make_binary(BinaryOp::Add,
+        ast::make_bool(true), ast::make_identifier("x", {}), {});
+    auto tc = type_check(ast);
+    CHECK(tc.ok());
+    CHECK(tc.root_type == Type::Top);
+}
+
+TEST_CASE("Type checker: Top-permissive — empty string + free identifier returns Top") {
+    // Empty-string literal ("") classifies as Type::String (variant index 1
+    // always returns String for any string content, including "").  Right
+    // operand is a free identifier → Top.  Order: String+String fails
+    // (right isn't String); Top-or-Top fires → returns Top, NOT String.
+    AstNode ast = ast::make_binary(BinaryOp::Add,
+        ast::make_string(""), ast::make_identifier("x", {}), {});
+    auto tc = type_check(ast);
+    CHECK(tc.ok());
+    CHECK(tc.root_type == Type::Top);
+}
+
+TEST_CASE("Type checker: Top-permissive — non-string + non-string + free identifier returns Top") {
+    // Sanity: both variants `1 + x` (Number + Top) and `false + x` (Bool + Top)
+    // route through the Top-or-Top branch and emit Top.  Pinning both so a
+    // future ordering change in the arithmetic dispatcher cannot regress one
+    // without the other.
+    {
+        AstNode ast = ast::make_binary(BinaryOp::Mul,
+            ast::make_number(2.0), ast::make_identifier("x", {}), {});
+        auto tc = type_check(ast);
+        CHECK(tc.ok());
+        CHECK(tc.root_type == Type::Top);
+    }
+    {
+        AstNode ast = ast::make_binary(BinaryOp::Sub,
+            ast::make_bool(false), ast::make_identifier("x", {}), {});
+        auto tc = type_check(ast);
+        CHECK(tc.ok());
+        CHECK(tc.root_type == Type::Top);
+    }
+}
+
+TEST_CASE("Compiler: Top-permissive — `true + x` and `\"\" + x` both compile") {
+    // End-to-end: the permissiveness must survive the full lex+parse+type
+    // pipeline.  The VM still surfaces a runtime error if `x` is unbound
+    // (no binding in scope); these tests only pin static-time behaviour.
+    CHECK(compile("true + x").ok());
+    CHECK(compile("\"\" + x").ok());
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -154,6 +286,38 @@ TEST_CASE("Bytecode: pack_const_slot round-trips tag and index") {
             CHECK(const_slot_index(packed)  == idx);
         }
     }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  Vec3 arithmetic completeness (reviewer fix #1)
+// ════════════════════════════════════════════════════════════════════
+
+TEST_CASE("VM: Vec3 + scalar produces Vec3") {
+    Vm vm;
+    vm.set("position", make_vec3({1.0f, 2.0f, 3.0f}));
+    CompileResult cr = compile("position + 5");
+    REQUIRE(cr.ok());
+    VmError err;
+    ExpressionValue v = vm.run(cr.program, &err);
+    REQUIRE(err.message.empty());
+    REQUIRE(as_vec3(v) != nullptr);
+    CHECK(as_vec3(v)->x == doctest::Approx(6.0f));
+    CHECK(as_vec3(v)->y == doctest::Approx(7.0f));
+    CHECK(as_vec3(v)->z == doctest::Approx(8.0f));
+}
+
+TEST_CASE("VM: Vec3 * scalar produces Vec3") {
+    Vm vm;
+    vm.set("position", make_vec3({1.0f, 2.0f, 3.0f}));
+    CompileResult cr = compile("position * 2");
+    REQUIRE(cr.ok());
+    VmError err;
+    ExpressionValue v = vm.run(cr.program, &err);
+    REQUIRE(err.message.empty());
+    REQUIRE(as_vec3(v) != nullptr);
+    CHECK(as_vec3(v)->x == doctest::Approx(2.0f));
+    CHECK(as_vec3(v)->y == doctest::Approx(4.0f));
+    CHECK(as_vec3(v)->z == doctest::Approx(6.0f));
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -230,12 +394,62 @@ TEST_CASE("Path B end-to-end: conditional (ternary) picks branch") {
     CHECK(*as_number(v) == doctest::Approx(42.0));
 }
 
+// ── Conditional right-associativity (parse_conditional recursion) ──
+//
+// Locks the recursive descent: `?:` is the LOWEST precedence and is
+// right-associative, so `a ? b ? c : d : e` parses as `a ? (b ? c : d) : e`.
+// A non-recursive implementation (callers using parse_expression, which has
+// an EOF check that errors "unexpected trailing token ':'") would fail
+// to parse the inner ternary. Evaluating step by step:
+//   inner: 3 < 4 ? 5 : 6  → 5  (true branch)
+//   outer: 1 < 2 ? 5 : 7  → 5  (true branch)
+//   final: 5
+TEST_CASE("Path B end-to-end: ternary is right-associative (`1 < 2 ? 3 < 4 ? 5 : 6 : 7` = 5)") {
+    VmError err;
+    ExpressionValue v = Vm::evaluate("1 < 2 ? 3 < 4 ? 5 : 6 : 7", &err);
+    REQUIRE(err.message.empty());
+    REQUIRE(as_number(v) != nullptr);
+    CHECK(*as_number(v) == doctest::Approx(5.0));
+}
+
+TEST_CASE("Path B end-to-end: ternary is right-associative — false inner picks else") {
+    // Same shape but inner condition is false: `2 < 1 ? ... : 4 : 9` → 9.
+    // Confirms the recursion reaches the right BOTH branches, not just the
+    // true-then side of the inner ternary.
+    VmError err;
+    ExpressionValue v = Vm::evaluate("1 < 2 ? 2 < 1 ? 5 : 4 : 9", &err);
+    REQUIRE(err.message.empty());
+    REQUIRE(as_number(v) != nullptr);
+    CHECK(*as_number(v) == doctest::Approx(4.0));
+}
+
 TEST_CASE("Path B end-to-end: unary not flips bool") {
     VmError err;
     ExpressionValue v = Vm::evaluate("!true", &err);
     REQUIRE(err.message.empty());
     REQUIRE(as_bool(v) != nullptr);
     CHECK(*as_bool(v) == false);
+}
+
+TEST_CASE("Path B end-to-end: Vm::evaluate has fresh env per call (statelessness)") {
+    // The static convenience helper compiles+runs and creates a fresh Vm per
+    // call, so bindings from one call do NOT leak into the next.  This is a
+    // foot-gun for shared-state users; the instance API Vm::run() is the
+    // safe path for repeated eval.
+    {
+        VmError err;
+        ExpressionValue v = Vm::evaluate("x * 2", &err);
+        // No binding → error path expected.
+        CHECK_FALSE(err.message.empty());
+        (void)v;
+    }
+    {
+        VmError err;
+        ExpressionValue v = Vm::evaluate("x * 2", &err);
+        // Second call should also NOT find `x` (proves stateless).
+        CHECK_FALSE(err.message.empty());
+        (void)v;
+    }
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -249,10 +463,10 @@ TEST_CASE("DependencyGraph: acyclic ordering respects dependencies") {
     REQUIRE(cr_a.ok());
 
     DependencyGraph g;
-    g.add_program({"a", {}}, cr_a.program);
-    g.add_program({"b", {}}, cr_b.program);
-    g.add_writer({"b", {}}, "b");   // b writes b
-    g.add_writer({"a", {}}, "a");   // a writes a
+    g.add_program({"a"}, cr_a.program);
+    g.add_program({"b"}, cr_b.program);
+    g.add_writer({"b"}, "b");   // b writes b
+    g.add_writer({"a"}, "a");   // a writes a
 
     CycleReport cycle;
     auto order = g.topological_order(cycle);
@@ -270,10 +484,10 @@ TEST_CASE("DependencyGraph: detects length-2 cycle A->B, B->A") {
     REQUIRE(cr_b.ok());
 
     DependencyGraph g;
-    g.add_program({"A", {}}, cr_a.program);
-    g.add_program({"B", {}}, cr_b.program);
-    g.add_writer({"A", {}}, "a");
-    g.add_writer({"B", {}}, "b");
+    g.add_program({"A"}, cr_a.program);
+    g.add_program({"B"}, cr_b.program);
+    g.add_writer({"A"}, "a");
+    g.add_writer({"B"}, "b");
 
     CycleReport cycle;
     auto order = g.topological_order(cycle);
@@ -286,8 +500,8 @@ TEST_CASE("DependencyGraph: handles single isolated node") {
     REQUIRE(cr.ok());
 
     DependencyGraph g;
-    g.add_program({"only", {}}, cr.program);
-    g.add_writer({"only", {}}, "x");
+    g.add_program({"only"}, cr.program);
+    g.add_writer({"only"}, "x");
     CycleReport cycle;
     auto order = g.topological_order(cycle);
     CHECK(cycle.cycle_nodes.empty());

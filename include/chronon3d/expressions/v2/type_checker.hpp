@@ -1,9 +1,33 @@
 // type_checker.hpp — Path B expression type checker.
 //
-// Static type analysis of AST nodes. Permissive on Vec/Color mixing (we do
-// not yet have full Vec-op-Vec or Color+Number); strict on asymmetric
-// arithmetic (e.g. `1 + "foo"`). Returns a `Type` per node + a list of
-// diagnostics for downstream stages (compiler/VM) to surface.
+// Static type analysis of AST nodes. Strict on asymmetric arithmetic between
+// fully-inferred scalar/vector types (e.g. `1 + "foo"` errors). Permissive
+// on the Type::Top family: any binary arithmetic where AT LEAST ONE operand
+// is Top returns Top without erroring.
+//
+// === Trade-off: Type::Top permissiveness ===
+//
+// After Effects expressions routinely reference names whose effective type
+// is only known at runtime (free property bindings, `thisComp` member chains
+// that go through a layer ref, unresolved index lookups, etc.).  These all
+// classify as Type::Top in our static checker.  Rejecting `x + 1` outright
+// would mean every host-authored expression containing a free identifier
+// needs explicit refinement upstream — not viable.  Instead we accept the
+// expression and emit Top; the VM surfaces a runtime diagnostic if the
+// actual value's type is incompatible.
+//
+// Concretely:  `true + x`  → Top  (Bool relaxed by free identifier x)
+//              `"" + x`   → Top  (String relaxed by free identifier x)
+//              `1 + "foo"` → ERROR (no Top involved; both types known)
+//              `x * 2`    → Top  (Top relaxed by Number — happy-path
+//                                 variable-binding test)
+//
+// Vec+Vec widens to Vec via widen()'s same-type clause (so
+// `thisLayer.position + thisLayer.scale` type-checks as Vec3 — NOT Top).
+// Number+Vector (e.g. `position * 2` where position static-type is Top
+// because it is unbound at compile time) lands in the Top-or-Top branch
+// and emits Top.  Returns a `Type` per node + a list of diagnostics for
+// downstream stages (compiler/VM) to surface.
 
 #pragma once
 

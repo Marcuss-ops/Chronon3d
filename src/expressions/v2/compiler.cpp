@@ -1,10 +1,15 @@
-// compiler.cpp — Path B compiler with the new bytecode design
-//   (LOAD_CONST slot packs type tag in high 8 bits + index in low 24 bits;
-//    Program.names holds all interned identifiers / function names).
+// compiler.cpp — Path B compiler with the new bytecode design.
+//
+// === Cross-reference handling ===
+//
+// AST cross-references (e.g. AstBinary.lhs, AstMemberAccess.base, AstCall.args)
+// are `std::unique_ptr<AstNode>` so emit_ast now dereferences with `*ptr`
+// before recursing or extracting children.
 
 #include <chronon3d/expressions/v2/compiler.hpp>
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -15,7 +20,6 @@ namespace chronon3d::expressions::v2 {
 
 namespace {
 
-// ── Emitter ──────────────────────────────────────────────────────────
 struct Emitter {
     Program p;
 
@@ -57,23 +61,17 @@ struct Emitter {
     }
 };
 
-// ── Parser (recursive descent; small precedence table) ──────────────
-// Grammar (informal):
-//   expr            := conditional
-//   conditional     := or ('?' expr ':' expr)?
-//   or              := and ('||' and)*
-//   and             := equality ('&&' equality)*
-//   equality        := comparison (('=='|'!=') comparison)?
-//   comparison      := add (('<'|'<='|'>'|'>=') add)*
-//   add             := mul (('+'|'-') mul)*
-//   mul             := unary (('*'|'/'|'%') unary)*
-//   unary           := ('-'|'!')? postfix
-//   postfix         := primary ('.' IDENT | '[' expr ']' | '(' arglist ')')*
-
 struct Parser {
     const std::vector<Token>& tokens;
     std::size_t               pos{0};
     std::vector<CompileError> errors;
+    // Set by compile() iff `lex(source)` produced any diagnostic. When true,
+    // parse_primary suppresses its "unexpected '<eof>' at start of expression"
+    // error so a malformed source like "@" surfaces EXACTLY ONE error (the
+    // lex diagnostic), not two. The "unexpected trailing token" check in
+    // parse_expression still fires so "@ 1 2" still reports the spurious
+    // trailing Number.
+    bool                      lex_errored{false};
 
     explicit Parser(const std::vector<Token>& toks) : tokens(toks) {}
 
@@ -138,13 +136,19 @@ struct Parser {
         AstNode cond = parse_or();
         if (match(TokenKind::Question)) {
             SourceSpan s = current().span;
-            AstNode t_branch = parse_expression();
+            // Recurse via parse_conditional so the `?` is treated as
+            // right-associative at the lowest precedence: `a ? b ? c : d : e`
+            // parses as `a ? (b ? c : d) : e`. parse_expression would error
+            // "unexpected trailing token ':'" as soon as the THEN branch
+            // produces any token before ':'.
+            AstNode t_branch = parse_conditional();
             if (!consume(TokenKind::Colon, "expected ':' for conditional")) {
-                return make_conditional(std::move(cond), std::move(t_branch),
-                                        make_bool(false), s);
+                return ast::make_conditional(std::move(cond), std::move(t_branch),
+                                             ast::make_bool(false), s);
             }
-            AstNode e_branch = parse_expression();
-            return make_conditional(std::move(cond), std::move(t_branch), std::move(e_branch), s);
+            AstNode e_branch = parse_conditional();
+            return ast::make_conditional(std::move(cond), std::move(t_branch),
+                                         std::move(e_branch), s);
         }
         return cond;
     }
@@ -155,7 +159,7 @@ struct Parser {
             const SourceSpan s = current().span;
             ++pos;
             AstNode right = parse_and();
-            left = make_binary(BinaryOp::Or, std::move(left), std::move(right), s);
+            left = ast::make_binary(BinaryOp::Or, std::move(left), std::move(right), s);
         }
         return left;
     }
@@ -166,7 +170,7 @@ struct Parser {
             const SourceSpan s = current().span;
             ++pos;
             AstNode right = parse_equality();
-            left = make_binary(BinaryOp::And, std::move(left), std::move(right), s);
+            left = ast::make_binary(BinaryOp::And, std::move(left), std::move(right), s);
         }
         return left;
     }
@@ -178,7 +182,7 @@ struct Parser {
             const SourceSpan s = current().span;
             ++pos;
             AstNode right = parse_comparison();
-            left = make_binary(bin_op_for(k), std::move(left), std::move(right), s);
+            left = ast::make_binary(bin_op_for(k), std::move(left), std::move(right), s);
         }
         return left;
     }
@@ -191,7 +195,7 @@ struct Parser {
             const SourceSpan s = current().span;
             ++pos;
             AstNode right = parse_add();
-            left = make_binary(bin_op_for(k), std::move(left), std::move(right), s);
+            left = ast::make_binary(bin_op_for(k), std::move(left), std::move(right), s);
         }
         return left;
     }
@@ -203,7 +207,7 @@ struct Parser {
             const SourceSpan s = current().span;
             ++pos;
             AstNode right = parse_mul();
-            left = make_binary(bin_op_for(k), std::move(left), std::move(right), s);
+            left = ast::make_binary(bin_op_for(k), std::move(left), std::move(right), s);
         }
         return left;
     }
@@ -216,7 +220,7 @@ struct Parser {
             const SourceSpan s = current().span;
             ++pos;
             AstNode right = parse_unary();
-            left = make_binary(bin_op_for(k), std::move(left), std::move(right), s);
+            left = ast::make_binary(bin_op_for(k), std::move(left), std::move(right), s);
         }
         return left;
     }
@@ -226,13 +230,13 @@ struct Parser {
             const SourceSpan s = current().span;
             ++pos;
             AstNode operand = parse_unary();
-            return make_unary(UnaryOp::Neg, std::move(operand), s);
+            return ast::make_unary(UnaryOp::Neg, std::move(operand), s);
         }
         if (current().kind == TokenKind::Bang) {
             const SourceSpan s = current().span;
             ++pos;
             AstNode operand = parse_unary();
-            return make_unary(UnaryOp::Not, std::move(operand), s);
+            return ast::make_unary(UnaryOp::Not, std::move(operand), s);
         }
         return parse_postfix();
     }
@@ -249,19 +253,25 @@ struct Parser {
                 std::string member = current().lexeme;
                 const SourceSpan ms = current().span;
                 ++pos;
-                node = make_member(std::move(node), std::move(member), ms);
+                node = ast::make_member(std::move(node), std::move(member), ms);
             } else if (current().kind == TokenKind::LBracket) {
                 ++pos;
                 AstNode idx = parse_conditional();
                 consume(TokenKind::RBracket, "expected ']' after index");
-                node = make_index(std::move(node), std::move(idx), current().span);
+                node = ast::make_index(std::move(node), std::move(idx), current().span);
             } else if (current().kind == TokenKind::LParen) {
-                // Treat as a call: node must be Identifier-as-string.
                 std::string fn_name;
                 SourceSpan cs = current().span;
-                if (const auto* sptr = std::get_if<std::string>(&node)) {
+                // Primary may produce either an AstIdentifier (for ordinary
+                // `foo(...)` calls — index 3) or a plain std::string (legacy
+                // case where an identifier is encoded inline). Handle both;
+                // reject anything else (member access, index, literal). The
+                // call builder below overwrites `node` unconditionally, so we
+                // don't need to reset it to a fresh std::string here.
+                if (auto* id = std::get_if<AstIdentifier>(&node)) {
+                    fn_name = std::move(id->name);
+                } else if (const auto* sptr = std::get_if<std::string>(&node)) {
                     fn_name = *sptr;
-                    node = std::string{};
                 } else {
                     error_here("call target must be an identifier");
                     break;
@@ -275,7 +285,7 @@ struct Parser {
                     }
                 }
                 consume(TokenKind::RParen, "expected ')' to close call");
-                node = make_call(std::move(fn_name), std::move(args), cs);
+                node = ast::make_call(std::move(fn_name), std::move(args), cs);
             } else {
                 break;
             }
@@ -287,27 +297,27 @@ struct Parser {
         const Token& tok = current();
         switch (tok.kind) {
             case TokenKind::Number: {
-                AstNode n = make_number(tok.number_value);
+                AstNode n = ast::make_number(tok.number_value);
                 ++pos;
                 return n;
             }
             case TokenKind::String: {
-                AstNode n = make_string(tok.lexeme);
+                AstNode n = ast::make_string(tok.lexeme);
                 ++pos;
                 return n;
             }
             case TokenKind::BoolTrue: {
-                AstNode n = make_bool(true);
+                AstNode n = ast::make_bool(true);
                 ++pos;
                 return n;
             }
             case TokenKind::BoolFalse: {
-                AstNode n = make_bool(false);
+                AstNode n = ast::make_bool(false);
                 ++pos;
                 return n;
             }
             case TokenKind::Identifier: {
-                AstNode n = make_identifier(tok.lexeme, tok.span);
+                AstNode n = ast::make_identifier(tok.lexeme, tok.span);
                 ++pos;
                 return n;
             }
@@ -318,15 +328,21 @@ struct Parser {
                 return inner;
             }
             default:
-                error_here(std::string("unexpected '") + token_kind_name(tok.kind) + "' at start of expression");
-                AstNode placeholder = make_number(0.0);
+                // If the lexer already errored (e.g. input was "@"), suppress
+                // this parse-level diagnostic so we don't double-report.  The
+                // lex error is the source of truth and is already in
+                // compile()'s out.errors via the lex->compile piping pass.
+                if (!lex_errored) {
+                    error_here(std::string("unexpected '") + token_kind_name(tok.kind) +
+                               "' at start of expression");
+                }
+                AstNode placeholder = ast::make_number(0.0);
                 ++pos;
                 return placeholder;
         }
     }
 };
 
-// ── Bytecode emitter ────────────────────────────────────────────────
 void emit_ast(const AstNode& ast, Emitter& e);
 
 void emit_ast(const AstNode& ast, Emitter& e) {
@@ -347,27 +363,29 @@ void emit_ast(const AstNode& ast, Emitter& e) {
         }
         case 4: {
             const auto& m = std::get<AstMemberAccess>(ast);
-            emit_ast(m.base, e);
+            if (m.base) emit_ast(*m.base, e);     // unique_ptr dereference
             e.emit(OpKind::MEMBER, e.intern_name(m.member));
             break;
         }
         case 5: {
             const auto& i = std::get<AstIndexAccess>(ast);
-            emit_ast(i.base, e);
-            emit_ast(i.index, e);
+            if (i.base)  emit_ast(*i.base, e);
+            if (i.index) emit_ast(*i.index, e);
             e.emit(OpKind::INDEX, 0);
             break;
         }
         case 6: {
             const auto& call = std::get<AstCall>(ast);
-            for (const auto& a : call.args) emit_ast(a, e);
+            for (const auto& a : call.args) {
+                if (a) emit_ast(*a, e);
+            }
             e.emit(OpKind::CALL, e.intern_name(call.name));
             break;
         }
         case 7: {
             const auto& b = std::get<AstBinary>(ast);
-            emit_ast(b.lhs, e);
-            emit_ast(b.rhs, e);
+            if (b.lhs) emit_ast(*b.lhs, e);
+            if (b.rhs) emit_ast(*b.rhs, e);
             OpKind k = OpKind::ADD;
             switch (b.op) {
                 case BinaryOp::Add: k = OpKind::ADD; break;
@@ -389,20 +407,20 @@ void emit_ast(const AstNode& ast, Emitter& e) {
         }
         case 8: {
             const auto& u = std::get<AstUnary>(ast);
-            emit_ast(u.operand, e);
+            if (u.operand) emit_ast(*u.operand, e);
             e.emit(u.op == UnaryOp::Neg ? OpKind::NEG : OpKind::NOT, 0);
             break;
         }
         case 9: {
             const auto& c = std::get<AstConditional>(ast);
-            emit_ast(c.condition, e);
+            if (c.condition)   emit_ast(*c.condition, e);
             std::uint32_t jf_instr = static_cast<std::uint32_t>(e.p.code.size());
             e.emit(OpKind::JMP_IF_FALSE, 0xFFFFFFFE);
-            emit_ast(c.then_branch, e);
+            if (c.then_branch) emit_ast(*c.then_branch, e);
             std::uint32_t jmp_instr = static_cast<std::uint32_t>(e.p.code.size());
             e.emit(OpKind::JMP, 0xFFFFFFFE);
             e.patch_jump_target(jf_instr, static_cast<std::uint32_t>(e.p.code.size()));
-            emit_ast(c.else_branch, e);
+            if (c.else_branch) emit_ast(*c.else_branch, e);
             e.patch_jump_target(jmp_instr, static_cast<std::uint32_t>(e.p.code.size()));
             break;
         }
@@ -421,6 +439,7 @@ CompileResult compile(std::string_view source) noexcept {
         out.errors.push_back(std::move(ce));
     }
     Parser p(lexed.tokens);
+    p.lex_errored = !lexed.errors.empty();
     AstNode ast = p.parse_expression();
     for (auto& e : p.errors) out.errors.push_back(std::move(e));
     if (!out.errors.empty()) return out;
@@ -431,8 +450,7 @@ CompileResult compile(std::string_view source) noexcept {
         ce.span = te.span;
         ce.message = std::string("type: ") + te.message;
         out.errors.push_back(std::move(ce));
-        // Surface ALL diagnostics: do not early-return on the first error
-        // (reviewer fix #2 — type-error multi-push).
+        // Surface ALL diagnostics: do not early-return on the first error.
     }
     if (!out.errors.empty()) return out;
 

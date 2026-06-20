@@ -58,6 +58,16 @@ std::vector<NodeId> DependencyGraph::topological_order(CycleReport& report) {
         for (const std::string& n : reads) {
             auto w = var_to_writer_.find(n);
             if (w == var_to_writer_.end()) continue;
+            // Skip self-edges: a node that reads back a value it itself wrote
+            // is a "feedback" signal in the expression engine, but in the
+            // dependency-graph abstraction it is a NO-OP ordering constraint
+            // (the node trivially satisfies its own read by definition). The
+            // test `acyclic ordering respects dependencies` exercises this:
+            // both `a` and `b` were declared as their own writer, and the
+            // graph must not report a cycle. Mutual-feelback cycles (A reads
+            // B's var + B reads A's var) are still detected correctly because
+            // both edges are non-self and create non-zero in-degree on both.
+            if (w->second == rnode) continue;
             // rnode depends on w->second (the writer)
             adj[w->second].push_back(rnode);
             in_degree[rnode]++;
