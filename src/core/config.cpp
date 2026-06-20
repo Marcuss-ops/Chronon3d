@@ -66,15 +66,6 @@ void Config::set_fb_pool_budget(std::size_t bytes) {
     cache_.fb_pool_budget_bytes_ = bytes;
 }
 
-// ── Mutation pathway (deprecated) ───────────────────────────────────────────
-
-void Config::set_fb_pool_budget_override(std::size_t bytes) {
-    // const_cast: the singleton is conceptually immutable to callers,
-    // but the CLI pipeline budget is a valid runtime override.
-    auto& instance = const_cast<Config&>(get());
-    instance.cache_.fb_pool_budget_bytes_ = bytes;
-}
-
 // ── Private helpers ────────────────────────────────────────────────────────
 
 static bool env_bool(const char* name) {
