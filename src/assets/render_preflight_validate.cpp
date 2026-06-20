@@ -14,7 +14,7 @@ void validate_file_exists(const PreflightRequirement& req,
                           PreflightAssetType type,
                           std::vector<PreflightIssue>& issues) {
     namespace fs = std::filesystem;
-    std::string resolved = AssetRegistry::resolve(req.path);
+    std::string resolved = resolve_asset_path(req.path);
 
     if (!fs::exists(resolved)) {
         PreflightIssue issue;

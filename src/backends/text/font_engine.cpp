@@ -107,7 +107,7 @@ struct FontEngine::Impl {
     std::optional<FaceEntry> load_face(const FontSpec& spec) {
         if (!ft_library) return std::nullopt;
 
-        std::string resolved = AssetRegistry::resolve(spec.font_path);
+        std::string resolved = resolve_asset_path(spec.font_path);
         if (resolved.empty()) {
             resolved = spec.font_path;
         }

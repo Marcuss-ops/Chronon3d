@@ -296,6 +296,31 @@ private:
         .lexically_normal().string();
 }
 
+// ── Default assets root for deep rendering code ────────────────────
+//
+// Set once at CLI init time (render_job_setup.cpp).  Deep rendering code
+// (font_engine, text_rasterizer, etc.) calls resolve_asset_path() which
+// reads this as a fallback when no explicit assets_root is available.
+//
+// Thread safety: assumes a single writer during startup before any
+// concurrent reads.  Do NOT call set_default_assets_root() from
+// multiple threads.
+//
+// Declared before the single-argument resolve_asset_path() overload
+// so it's visible at the point of use.
+namespace chronon3d::detail {
+    inline std::string g_default_assets_root;
+    inline void set_default_assets_root(std::string root) {
+        g_default_assets_root = std::move(root);
+    }
+}
+
+/// Resolve a relative path using the default assets root (set at startup).
+/// Falls back to returning the path unchanged if no default root is set.
+[[nodiscard]] inline std::string resolve_asset_path(const std::string& relative_path) {
+    return resolve_asset_path(detail::g_default_assets_root, relative_path);
+}
+
 // Free function asset() helper — DEPRECATED, uses TLS registry.
 // Prefer AssetRegistry::import_by_extension() with an explicit registry.
 [[deprecated("Use AssetRegistry::import_by_extension() with explicit reference")]]
