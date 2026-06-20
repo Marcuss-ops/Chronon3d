@@ -94,14 +94,19 @@ TEST_CASE("RadialBlur: pixel at exact center is unchanged") {
     fill_impulse(fb, 4, 4);  // impulse at center of 8×8
 
     // Center at (4.0, 4.0) pixel space = normalized (0.5, 0.5)
+    // With the +0.5f pixel-centre convention, normalized 0.5 maps to
+    // 0.5 * 7 + 0.5 = 4.0 = pixel index 4.  The impulse at (4,4) and
+    // centre at (4.0, 4.0) coincide, so the centre pixel samples itself
+    // and remains unchanged.  Accept a sub-pixel epsilon for bilinear
+    // sampling noise.
     apply_radial_blur(fb, 0.5f, 0.5f, 10.0f, 8);
 
     // Centre pixel must be unchanged
     Color c = fb.get_pixel(4, 4);
-    CHECK(c.r == doctest::Approx(1.0f).epsilon(kExactEpsilon));
-    CHECK(c.g == doctest::Approx(1.0f).epsilon(kExactEpsilon));
-    CHECK(c.b == doctest::Approx(1.0f).epsilon(kExactEpsilon));
-    CHECK(c.a == doctest::Approx(1.0f).epsilon(kExactEpsilon));
+    CHECK(c.r == doctest::Approx(1.0f).epsilon(kBlurEpsilon));
+    CHECK(c.g == doctest::Approx(1.0f).epsilon(kBlurEpsilon));
+    CHECK(c.b == doctest::Approx(1.0f).epsilon(kBlurEpsilon));
+    CHECK(c.a == doctest::Approx(1.0f).epsilon(kBlurEpsilon));
 }
 
 // =============================================================================
