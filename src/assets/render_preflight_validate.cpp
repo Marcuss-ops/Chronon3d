@@ -166,8 +166,8 @@ std::vector<PreflightIssue> RenderPreflight::validate() const {
             issue.severity = PreflightSeverity::Error;
             issue.type = PreflightAssetType::RegisteredAsset;
             issue.code     = "MISSING_REGISTERED_ASSET";
-            issue.path     = asset.path().string();
-            issue.message  = "Missing registered asset: '" + asset.path().string() + "'";
+            issue.path     = asset.path.string();
+            issue.message  = "Missing registered asset: '" + asset.path.string() + "'";
             issue.recommendation = "Verify that the asset exists or that the assets root is mounted correctly.";
             issues.push_back(issue);
         }

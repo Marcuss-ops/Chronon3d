@@ -46,7 +46,7 @@ raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 sprea
     }
 
     Vec2 size{0, 0};
-    switch (shape.type) {
+    switch (shape.type()) {
         case ShapeType::Rect:        size = shape.rect().size; break;
         case ShapeType::RoundedRect: size = shape.rounded_rect().size; break;
         case ShapeType::Circle:      size = {shape.circle().radius * 2, shape.circle().radius * 2}; break;
@@ -97,7 +97,7 @@ raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 sprea
 }
 
 bool hit_test(const Shape& s, Vec2 p, f32 spread, f32 corner_radius) {
-    switch (s.type) {
+    switch (s.type()) {
         case ShapeType::Rect: {
             if (corner_radius > 0.0f) {
                 const f32 w = s.rect().size.x;
@@ -183,7 +183,7 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
     if (shape.type() == ShapeType::Path) {
 #ifdef CHRONON3D_USE_BLEND2D
         (void)fill;
-        draw_path(fb, shape.path, model, color, state);
+        draw_path(fb, shape.path(), model, color, state);
 #endif
         return;
     }

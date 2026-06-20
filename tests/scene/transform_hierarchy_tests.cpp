@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/scene/model/core/hierarchy_resolver.hpp>
+#include <chronon3d/scene/model/shape/transform_3d.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
 #include <cmath>
 using namespace chronon3d;

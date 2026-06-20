@@ -2,6 +2,7 @@
 
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/model/shape/transform_3d.hpp>
 #include <string>
 #include <vector>
 

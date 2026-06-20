@@ -56,7 +56,7 @@ public:
         double rasterize_ms = 0.0;
         const auto raster_start = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
         FontEngine* engine = node.font_engine ? node.font_engine : &shared_font_engine();
-        auto raster = rasterize_text_to_bl_image(node.shape.text, effective_size, 32, &raster_cache_hit, raster_transform, engine);
+        auto raster = rasterize_text_to_bl_image(node.shape.text(), effective_size, 32, &raster_cache_hit, raster_transform, engine);
         if (diagnostics_enabled) {
             rasterize_ms = profiling::elapsed_ms(raster_start);
         }
@@ -157,13 +157,13 @@ public:
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
-        const auto& txt = shape.text;
+        const auto& txt = shape.text();
         f32 w = 400.0f;
         f32 h = 200.0f;
         if (txt.box.enabled && txt.box.size.x > 0.0f && txt.box.size.y > 0.0f) {
             w = txt.box.size.x;
             h = txt.box.size.y;
-        } else if (!txt.text().empty()) {
+        } else if (!txt.text.empty()) {
             const float font_size = std::max(1.0f, txt.style.size);
             const float line_height = font_size * std::max(1.0f, txt.style.line_height);
 

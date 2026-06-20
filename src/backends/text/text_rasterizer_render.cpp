@@ -333,7 +333,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 ) {
 #ifdef CHRONON3D_ENABLE_TEXT
     std::string font_path = t.style.font_path;
-    if (t.text().empty() || font_path.empty()) return std::nullopt;
+    if (t.text.empty() || font_path.empty()) return std::nullopt;
 
     const CacheKey key = hash_text_style(t, effective_size, padding, transform);
     {
@@ -598,7 +598,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     };
 
     auto render_run = [&](const TextLayoutLineRun& run, const TextLayoutLine& line) {
-        if (run.text().empty()) return;
+        if (run.text.empty()) return;
 
         TextStyle run_style = run.style;
         if (run_style.font_path.empty()) run_style.font_path = t.style.font_path;
@@ -670,7 +670,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                 }
             } else {
                 // Fallback when HarfBuzz shaping is unavailable
-                ctx.strokeUtf8Text(BLPoint(lx, baseline_y), run_font, run.text().c_str());
+                ctx.strokeUtf8Text(BLPoint(lx, baseline_y), run_font, run.text.c_str());
             }
         }
 
@@ -704,12 +704,12 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                 ctx.fillGlyphRun(BLPoint(lx, baseline_y), run_font, bl.bl_run);
             }
         } else {
-            ctx.fillUtf8Text(BLPoint(lx, baseline_y), run_font, run.text().c_str());
+            ctx.fillUtf8Text(BLPoint(lx, baseline_y), run_font, run.text.c_str());
         }
     };
 
     for (const auto& line : layout_res.lines) {
-        if (line.text().empty()) continue;
+        if (line.text.empty()) continue;
 
         if (line.runs.size() > 1) {
             for (const auto& run : line.runs) render_run(run, line);
@@ -770,7 +770,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                     }
                 }
             } else {
-                ctx.strokeUtf8Text(BLPoint(lx, ly), font, line.text().c_str());
+                ctx.strokeUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
             }
         }        apply_text_fill_style(
             ctx, t.style, line_fill,
@@ -802,7 +802,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                 ctx.fillGlyphRun(BLPoint(lx, ly), font, bl.bl_run);
             }
         } else {
-            ctx.fillUtf8Text(BLPoint(lx, ly), font, line.text().c_str());
+            ctx.fillUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
         }
     }
 
@@ -904,7 +904,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     }
 
     // ── Debug: draw bounding box overlays (env-gated) ──────────────
-    if (detail::g_debug_config && detail::g_debug_config->text_bbox() && !t.text().empty()) {
+    if (detail::g_debug_config && detail::g_debug_config->text_bbox() && !t.text.empty()) {
         BLContext dbg(img);
         dbg.setCompOp(BL_COMP_OP_SRC_OVER);
 
@@ -955,7 +955,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     }
 
     BLGlyphBuffer gb;
-    gb.setUtf8Text(t.text().c_str(), t.text().size());
+    gb.setUtf8Text(t.text.c_str(), t.text.size());
     font.shape(gb);
     BLTextMetrics metrics;
     font.getTextMetrics(gb, metrics);

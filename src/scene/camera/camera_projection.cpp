@@ -10,6 +10,7 @@
 // ============================================================================
 
 #include <chronon3d/scene/camera/camera_projection.hpp>
+#include <chronon3d/scene/model/shape/transform_3d.hpp>
 #include <chronon3d/math/camera_projection_contract.hpp>
 #include <cmath>
 #include <algorithm>

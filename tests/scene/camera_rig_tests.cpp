@@ -3,6 +3,10 @@
 #include <chronon3d/scene/camera/camera_rig_builder.hpp>
 #include <chronon3d/scene/camera/camera_rig_presets.hpp>
 #include <chronon3d/scene/model/core/hierarchy_resolver.hpp>
+#include <chronon3d/scene/model/shape/transform_3d.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
+#include <chronon3d/math/camera_pose.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <cmath>
 using namespace chronon3d;

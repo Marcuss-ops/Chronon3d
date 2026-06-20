@@ -53,7 +53,7 @@ RichTextRunMetrics RichTextLine::measure_run(const RichTextRun& run, const FontE
         case RichTextRunKind::Text:
         default: {
             const float font_size = std::max(1.0f, run.font_size);
-            const size_t char_count = run.text().size();
+            const size_t char_count = run.text.size();
             if (engine) {
                 const auto font_metrics = engine->get_font_metrics(run.font, font_size);
                 metrics.advance = std::max(0.0f, engine->measure_text(run.text, run.font, font_size));

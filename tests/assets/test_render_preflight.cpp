@@ -33,7 +33,7 @@ TEST_CASE("RenderPreflight: require_image and detect missing") {
     REQUIRE(issues.size() >= 1);
     CHECK(issues[0].severity == PreflightSeverity::Error);
     CHECK(issues[0].code == "MISSING_IMAGE");
-    CHECK(issues[0].type() == PreflightAssetType::Image);
+    CHECK(issues[0].type == PreflightAssetType::Image);
     CHECK(issues[0].path == "nonexistent/asset_xyz123.png");
     CHECK(!issues[0].recommendation.empty());
 
@@ -48,7 +48,7 @@ TEST_CASE("RenderPreflight: require_video and detect missing") {
 
     REQUIRE(issues.size() >= 1);
     CHECK(issues[0].code == "MISSING_VIDEO");
-    CHECK(issues[0].type() == PreflightAssetType::Video);
+    CHECK(issues[0].type == PreflightAssetType::Video);
 
     RenderPreflight::instance().clear();
 }
@@ -61,7 +61,7 @@ TEST_CASE("RenderPreflight: require_font and detect missing") {
 
     REQUIRE(issues.size() >= 1);
     CHECK(issues[0].code == "MISSING_FONT");
-    CHECK(issues[0].type() == PreflightAssetType::Font);
+    CHECK(issues[0].type == PreflightAssetType::Font);
 
     RenderPreflight::instance().clear();
 }
@@ -74,7 +74,7 @@ TEST_CASE("RenderPreflight: require_audio and detect missing") {
 
     REQUIRE(issues.size() >= 1);
     CHECK(issues[0].code == "MISSING_AUDIO");
-    CHECK(issues[0].type() == PreflightAssetType::Audio);
+    CHECK(issues[0].type == PreflightAssetType::Audio);
 
     RenderPreflight::instance().clear();
 }
@@ -90,7 +90,7 @@ TEST_CASE("RenderPreflight: require_external_tool missing") {
         if (i.code == "MISSING_EXTERNAL_TOOL" && i.path == "nonexistent_tool_xyz123") {
             found = true;
             CHECK(i.severity == PreflightSeverity::Error);
-            CHECK(i.type() == PreflightAssetType::ExternalTool);
+            CHECK(i.type == PreflightAssetType::ExternalTool);
             break;
         }
     }
@@ -139,7 +139,7 @@ TEST_CASE("RenderPreflight: require_output_path nonexistent deep directory") {
         if (i.code == "OUTPUT_DIR_MISSING") {
             has_output_warning = true;
             CHECK(i.severity == PreflightSeverity::Warning);
-            CHECK(i.type() == PreflightAssetType::OutputPath);
+            CHECK(i.type == PreflightAssetType::OutputPath);
             break;
         }
     }

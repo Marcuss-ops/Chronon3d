@@ -252,7 +252,7 @@ inline TextSpec typewriter_text(CenterTextOptions o,
 
     std::string visible = (revealed == 0)
         ? std::string(" ")
-        : o.text().substr(0, grapheme_byte_offset_at(o.text, revealed));
+        : o.text.substr(0, grapheme_byte_offset_at(o.text, revealed));
 
     // Fade: during a character transition the layer alpha dips, creating a
     // soft leading-edge glow.  fade_chars is clamped to [0,1] so the text
@@ -741,7 +741,7 @@ inline void typewriter_build(
         // For the text we still keep the substr — the rasterizer uses
         // pre_shaped glyphs (bypassing HarfBuzz), but the text is also
         // used for layout bounds / fallback.
-        std::string glyph = opts.text().substr(cp.byte_offset, cp.byte_len);
+        std::string glyph = opts.text.substr(cp.byte_offset, cp.byte_len);
         std::string lname = std::string(layer_prefix) + "_c" + std::to_string(i);
 
         s.layer(lname, [cp, glyph, opacity, char_placed,

@@ -204,14 +204,14 @@ TEST_CASE("Video and Stock MotionObject + 3D presets resolving") {
     auto v_obj = MotionObject::video("video_test", source)
         .preset(MotionPreset::CinematicPushIn);
 
-    CHECK(v_obj.type() == MotionObjectType::Video);
+    CHECK(v_obj.type == MotionObjectType::Video);
     CHECK(v_obj.video_source_value.path == "test.mp4");
     CHECK(v_obj.size_value.x == doctest::Approx(1920.0f));
 
     auto s_obj = MotionObject::stock("stock_test", "tag_name")
         .preset(MotionPreset::ParallaxFloat);
 
-    CHECK(s_obj.type() == MotionObjectType::Stock);
+    CHECK(s_obj.type == MotionObjectType::Stock);
     CHECK(s_obj.stock_tag_value == "tag_name");
 
     FrameContext ctx;

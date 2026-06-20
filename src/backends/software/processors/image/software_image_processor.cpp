@@ -39,11 +39,11 @@ public:
             );
             draw_glow(fb, node, state);
         }
-        renderer.image_renderer().draw_image(node.shape.image, state, fb);
+        renderer.image_renderer().draw_image(node.shape.image(), state, fb);
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
-        const auto& img = shape.image;
+        const auto& img = shape.image();
         const f32 w = img.size.x;
         const f32 h = img.size.y;
         const f32 pad = spread + kBBoxSafetyPadding;

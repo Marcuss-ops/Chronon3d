@@ -5,6 +5,7 @@
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/transform.hpp>
+#include <chronon3d/scene/model/shape/transform_3d.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/builders/camera_api.hpp>
 #include <chronon3d/scene/camera/camera_rig_builder.hpp>

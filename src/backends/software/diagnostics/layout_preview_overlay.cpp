@@ -38,7 +38,7 @@ void draw_layout_preview(Framebuffer& fb, const RenderNode& node, const RenderSt
     spdlog::info(
         "[layout-preview] node='{}' type={} pos=({:.1f},{:.1f},{:.1f}) anchor=({:.1f},{:.1f},{:.1f}) bbox=[{},{},{},{}] screen_anchor=({:.1f},{:.1f})",
         node.name,
-        internal::shape_type_name(node.shape.type),
+        internal::shape_type_name(node.shape.type()),
         world_pos.x,
         world_pos.y,
         world_pos.z,

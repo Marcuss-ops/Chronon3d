@@ -16,6 +16,7 @@
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/scene/model/core/hierarchy_resolver.hpp>
+#include <chronon3d/scene/model/shape/transform_3d.hpp>
 #include <cmath>
 using namespace chronon3d;
 
@@ -26,7 +27,7 @@ using namespace chronon3d;
 // service) for each pair of test cases that previously used SceneTransformRegistry.
 
 namespace {
-ResolvedSceneTransforms build_resolver(
+ResolvedSceneTransforms build_projection_resolver(
     std::vector<std::pair<std::string, Transform3D>> entries
 ) {
     std::vector<SceneTransformInput> inputs;
@@ -239,7 +240,7 @@ TEST_CASE("AE-CameraContract: OneNode ignores target_name and stays static when 
 TEST_CASE("AE-CameraContract: OneNode with external parent is animated (conservative fallback)") {
     Transform3D parent;
     parent.position = {0, 0, 100};
-    ResolvedSceneTransforms resolved = build_resolver({{"p", parent}});
+    ResolvedSceneTransforms resolved = build_projection_resolver({{"p", parent}});
 
     CameraRig rig;
     rig.mode = CameraRigMode::OneNode;
@@ -284,7 +285,7 @@ TEST_CASE("AE-CameraContract: evaluate() is deterministic in pose and pixels") {
     subject.position = {100.0f, 50.0f, -1500.0f};
     Transform3D parent;
     parent.position = {0.0f, 0.0f, 0.0f};
-    ResolvedSceneTransforms resolved = build_resolver({
+    ResolvedSceneTransforms resolved = build_projection_resolver({
         {"subject", subject},
         {"parent",  parent},
     });
