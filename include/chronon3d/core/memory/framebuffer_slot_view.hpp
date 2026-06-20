@@ -7,8 +7,8 @@
 // (Framebuffer**).  Used by RenderScratchContext so that transform scratch
 // and ping-pong write pointers travel together as a single logical unit.
 //
-// The slot is consumed by PoolFbDeleter to restore the buffer when the
-// borrowing OwnedFB is released.
+// The slot is consumed by the ReturnToScratch policy variant to restore
+// the buffer when the borrowing OwnedFB is released.
 //
 // Extracted from render_graph_context.hpp so that backends
 // (buffer_ring.hpp, scratch_buffer.hpp) don't need to pull in the entire

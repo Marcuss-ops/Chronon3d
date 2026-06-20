@@ -8,13 +8,13 @@
 // transforms vary output size by a few pixels per frame.
 //
 // The class owns the Framebuffer memory outright (via std::unique_ptr) — no
-// raw pointer + PoolFbDeleter dance, no lifetime ambiguity.
+// raw pointer dance, no lifetime ambiguity.
 //
 // ── Usage ────────────────────────────────────────────────────────────────────
 //   TransformScratchBuffer scratch;
 //   scratch.ensure_capacity(width, height);  // called at frame start
 //   Framebuffer* fb = scratch.acquire();      // get pointer, marks "in use"
-//   // The PoolFbDeleter-style ownership transfer is handled by
+//   // The ReturnToScratch policy transfer is handled by
 //   // release_handle() — see RenderGraphContext for the integration point.
 //
 // ── Reset semantics ──────────────────────────────────────────────────────────
@@ -54,8 +54,8 @@ public:
     /// Returns a "handle" — a small RAII wrapper that owns the scratch
     /// pointer while alive.  When the handle is destroyed, the scratch
     /// pointer is restored to the TransformScratchBuffer (i.e. the buffer
-    /// becomes available again).  This mirrors the old PoolFbDeleter
-    /// scratch_slot pattern but with std::unique_ptr semantics.
+    /// becomes available again).  This mirrors the old ReturnToScratch
+    /// policy pattern but with std::unique_ptr semantics.
     class Handle {
     public:
         Handle() = default;
@@ -97,7 +97,7 @@ public:
     [[nodiscard]] Handle acquire_handle();
 
     /// Direct write access to the storage slot pointer.  Used by
-    /// RenderGraphContext's PoolFbDeleter-style restoration path, where
+    /// RenderGraphContext's ReturnToScratch restoration path, where
     /// the deleter needs to write back the FB* into the slot.
     [[nodiscard]] Framebuffer** slot() { return reinterpret_cast<Framebuffer**>(&m_storage); }
 
@@ -113,8 +113,8 @@ public:
 private:
     // Owned storage.  We store a raw pointer + unique_ptr separately so that
     // the scratch_slot can write back the Framebuffer* into m_storage while
-    // ownership stays in m_owner.  This mirrors the old PoolFbDeleter
-    // scratch_slot pattern but is wrapped in a clean RAII type.
+    // ownership stays in m_owner.  This mirrors the old ReturnToScratch
+    // policy pattern but is wrapped in a clean RAII type.
     Framebuffer* m_storage{nullptr};
     std::unique_ptr<Framebuffer> m_owner;
 };

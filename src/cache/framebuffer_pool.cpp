@@ -13,22 +13,25 @@ namespace chronon3d {
 
 void PoolFbDeleter::operator()(Framebuffer* fb) const noexcept {
     if (!fb) return;
-    if (scratch_cleanup) {
-        return;
-    }
-    if (owned_by_renderer) {
-        return;
-    }
-    if (scratch_slot) {
-        fb->clear(Color::transparent());
-        *scratch_slot = fb;
-        return;
-    }
-    if (auto pool = pool_weak.lock()) {
-        pool->release(fb);
-    } else {
-        delete fb;
-    }
+    std::visit([fb](const auto& p) {
+        using T = std::decay_t<decltype(p)>;
+        if constexpr (std::is_same_v<T, RestoreScratchHandle>) {
+            return;  // cleanup lambda handles restoration
+        } else if constexpr (std::is_same_v<T, RendererOwned>) {
+            return;  // renderer manages lifetime
+        } else if constexpr (std::is_same_v<T, ReturnToScratch>) {
+            fb->clear(Color::transparent());
+            if (p.slot) *p.slot = fb;
+        } else if constexpr (std::is_same_v<T, ReturnToPool>) {
+            if (auto pool = p.pool.lock()) {
+                pool->release(fb);
+            } else {
+                delete fb;
+            }
+        } else {
+            delete fb;  // DeleteFramebuffer
+        }
+    }, policy);
 }
 
 } // namespace chronon3d
@@ -226,7 +229,7 @@ OwnedFB FramebufferPool::acquire_owned(int width, int height, bool clear) {
     if (clear && fb && !fresh_alloc && !fb->is_content_cleared()) {
         fb->clear(Color::transparent());
     }
-    return OwnedFB(fb.release(), PoolFbDeleter{weak_from_this()});
+    return OwnedFB(fb.release(), PoolFbDeleter(ReturnToPool{weak_from_this()}));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

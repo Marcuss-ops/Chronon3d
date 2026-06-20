@@ -45,7 +45,7 @@ double run_node(
         //    slot (cleared) when all consumers finish, instead of being
         //    released to the pool.  Also skip caching — caching the scratch
         //    would allow stale content to survive past the frame boundary.
-        const bool is_scratch = owned.get_deleter().scratch_slot != nullptr;
+        const bool is_scratch = std::holds_alternative<ReturnToScratch>(owned.get_deleter().policy);
 
         if (is_scratch) {
             // Preserve the scratch deleter with its scratch_slot pointer.
@@ -54,12 +54,12 @@ double run_node(
             PoolFbDeleter scratch_deleter = std::move(owned.get_deleter());
             Framebuffer* raw = owned.release();
             result = CachedFB(raw, std::move(scratch_deleter));
-        } else if (owned.get_deleter().owned_by_renderer) {
+        } else if (std::holds_alternative<RendererOwned>(owned.get_deleter().policy)) {
             // Renderer-owned FB (e.g., ping-pong buffer): preserve the no-op
             // deleter so the buffer is neither deleted nor returned to the pool.
             // The renderer manages lifetime explicitly via RendererBufferRing.
             PoolFbDeleter noop;
-            noop.owned_by_renderer = true;
+            noop.policy = RendererOwned{};
             Framebuffer* raw = owned.release();
             result = CachedFB(raw, std::move(noop));
         } else {

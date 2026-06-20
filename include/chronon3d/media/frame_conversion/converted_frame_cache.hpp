@@ -124,7 +124,7 @@ public:
 
 private:
     /// Resolve the max entries: max_entries > 0 ? max_entries :
-    /// Config::get().cache().converted_frame_cache_max_entries() > 0 ? that : policy default.
+    /// instance config cache().converted_frame_cache_max_entries() > 0 ? that : policy default.
     /// Delegates to the centralized resolve_cache_policy(CacheDomain::ConvertedFrames).
     static std::size_t resolve_max_entries(std::size_t caller_value);
 
