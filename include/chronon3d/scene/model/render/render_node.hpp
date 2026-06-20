@@ -18,14 +18,6 @@ namespace chronon3d {
 
 class FontEngine;  // forward declaration
 
-// Forward declaration only — full definition in <chronon3d/text/text_run.hpp>.
-// This avoids a header cycle: shape.hpp → text_run.hpp →
-// text_animator_property.hpp → glyph_selector.hpp → animated_value.hpp →
-// fill_style.hpp (circular!).  `std::shared_ptr<TextRunShape>` works with
-// only a forward declaration because the deleter is type-erased at the
-// `make_shared<TextRunShape>(…)` construction site.
-struct TextRunShape;
-
 // Soft drop shadow drawn behind the shape.
 struct DropShadow {
     bool  enabled{false};
@@ -64,7 +56,8 @@ struct RenderNode {
     Shape shape;
     DropShadow shadow;
     GlowParams glow;
-    std::shared_ptr<Mesh> mesh;
+    // Mesh moved to Shape::MeshShape (shape variant index 13).
+    // Access via: node.shape.mesh_shape().mesh
     f32 corner_radius{0.0f};
 
     // Runtime/shape-specific parameters to avoid hardcoding in RenderNode
@@ -78,18 +71,10 @@ struct RenderNode {
     // Set by LayerBuilder when the layer has a configured FontEngine.
     FontEngine* font_engine{nullptr};
 
-    // ── TextRunShape slot (TextAnimator V2 integration) ──────────────
-    // When `is_text_run_shape` is true AND `text_run_shape` is non-null, the
-    // graph-builder source-pass routes this RenderNode to a TextRunNode
-    // instead of a SourceNode.  The `m_shape` is mutated per-frame (per-glyph
-    // animated state) so it is held as a non-const shared_ptr.
-    //
-    // When `is_text_run_shape` is false, this RenderNode behaves exactly as
-    // before (shape-driven, SourceNode-backed).  This dual-mode flag keeps
-    // Backwards-compatible with all existing shapes without forcing a
-    // new ShapeType or LayerKind discriminator.
-    bool is_text_run_shape{false};
-    std::shared_ptr<TextRunShape> text_run_shape;
+    // ── TextRun discrimination now lives in the Shape variant ────────
+    // Check node.shape.type() == ShapeType::TextRun.
+    // The TextRunShape payload is accessed via:
+    //   node.shape.text_run_shape_handle().value
 
     explicit RenderNode(std::pmr::memory_resource* res = std::pmr::get_default_resource())
         : name(res) {}

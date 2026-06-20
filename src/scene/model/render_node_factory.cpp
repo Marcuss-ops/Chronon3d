@@ -103,9 +103,9 @@ RenderNode RenderNodeFactory::image(std::pmr::memory_resource* res, std::string 
 RenderNode RenderNodeFactory::tiled_image(std::pmr::memory_resource* res, std::string name, ImageParams p) {
     auto node = base(res, std::move(name));
     node.shape.set_type(ShapeType::TiledImage);
-    node.shape.image().path = std::move(p.path);
-    node.shape.image().size = p.size;
-    node.shape.image().opacity = p.opacity;
+    node.shape.tiled_image().image.path = std::move(p.path);
+    node.shape.tiled_image().image.size = p.size;
+    node.shape.tiled_image().image.opacity = p.opacity;
     node.world_transform.position = p.pos;
     node.world_transform.anchor = {0, 0, 0};
     node.color = Color{1, 1, 1, p.opacity};
@@ -207,7 +207,6 @@ RenderNode RenderNodeFactory::text_run(
 ) {
     auto node = base(res, std::move(name));
     node.shape.set_type(ShapeType::TextRun);
-    node.is_text_run_shape = true;
     node.font_engine = engine;
 
     // World transform from TextRunSpec (deep-nested field paths).
@@ -219,12 +218,12 @@ RenderNode RenderNodeFactory::text_run(
     auto shape = materialize_text_run_shape(p, engine, sample_time);
     if (!shape) {
         // Materialization failed (shaping / empty text).  Leave
-        // text_run_shape null and `is_text_run_shape=true` so the
+        // text_run_shape_handle().value null so the
         // graph-builder source-pass routes to TextRunNode, which
         // will emit an `spdlog::error` for missing-shape.  Better
         // than silently dropping the entry.
     } else {
-        node.text_run_shape = std::move(shape);
+        node.shape.text_run_shape_handle().value = std::move(shape);
     }
 #endif
 

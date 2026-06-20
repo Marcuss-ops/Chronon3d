@@ -44,6 +44,7 @@ namespace chronon3d::graph {
         case ShapeType::RoundedRect:
         case ShapeType::Image:
             return 1;
+        case ShapeType::TiledImage:
         case ShapeType::GridBackground:
         case ShapeType::Circle:
         case ShapeType::Line:
@@ -71,6 +72,14 @@ static inline void check_shape_assets(const Shape& shape, const std::string& nod
             std::string resolved = resolve_asset_path(path);
             if (!std::filesystem::exists(resolved)) {
                 warnings.push_back("MISSING_ASSET: Image file does not exist: \"" + path + "\"");
+            }
+        }
+    } else if (shape.type() == ShapeType::TiledImage) {
+        const std::string path = shape.tiled_image().image.path;
+        if (!path.empty()) {
+            std::string resolved = resolve_asset_path(path);
+            if (!std::filesystem::exists(resolved)) {
+                warnings.push_back("MISSING_ASSET: TiledImage file does not exist: \"" + path + "\"");
             }
         }
     } else if (shape.type() == ShapeType::Text) {

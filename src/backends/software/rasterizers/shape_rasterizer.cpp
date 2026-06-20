@@ -51,6 +51,7 @@ raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 sprea
         case ShapeType::RoundedRect: size = shape.rounded_rect().size; break;
         case ShapeType::Circle:      size = {shape.circle().radius * 2, shape.circle().radius * 2}; break;
         case ShapeType::Image:       size = shape.image().size; break;
+        case ShapeType::TiledImage:  size = shape.tiled_image().image.size; break;
         case ShapeType::GridBackground: size = shape.grid_background().size; break;
         case ShapeType::Text:
             size = shape.text().box.enabled ? shape.text().box.size : Vec2{1000, 1000};

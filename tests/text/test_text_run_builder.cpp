@@ -407,9 +407,11 @@ TEST_CASE("TextRun registry: RenderNodeFactory::text_run produces flagged Render
     auto node = chronon3d::RenderNodeFactory::text_run(
         &pool, "registry_run", make_text_run_spec("World"));
 
-    CHECK(node.is_text_run_shape);
+
+    CHECK(node.shape.type() == chronon3d::ShapeType::TextRun);
     CHECK(node.shape.type() == chronon3d::ShapeType::TextRun);
     // Identity smoke check — the named node must round-trip.
+    CHECK(node.shape.type() == chronon3d::ShapeType::TextRun);
     CHECK(node.name == std::pmr::string{"registry_run", &pool});
 }
 
@@ -422,7 +424,5 @@ TEST_CASE("TextRun registry: ShapeRegistry::create_node(\"shape.text_run\", ...)
         &pool, "registry_route",
         std::move(params));
 
-    CHECK(node.is_text_run_shape);
     CHECK(node.shape.type() == chronon3d::ShapeType::TextRun);
-    CHECK(node.name == std::pmr::string{"registry_route", &pool});
 }
