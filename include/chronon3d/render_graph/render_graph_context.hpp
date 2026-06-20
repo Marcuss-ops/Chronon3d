@@ -252,6 +252,11 @@ struct RenderGraphContext {
     /// reducing per-node copy overhead from O(n) heap allocations to a
     /// handful of pointer/POD copies.
     RenderGraphContext clone_for_node_execution() const;
+
+    /// Resolve a relative asset path using the per-context assets root.
+    /// Uses ctx.frame.assets_root; returns the relative_path unchanged if
+    /// empty, absolute, or if no assets_root is set.
+    [[nodiscard]] std::string resolve_asset(const std::string& relative_path) const;
 };
 
 } // namespace chronon3d::graph
