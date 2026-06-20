@@ -108,12 +108,14 @@ add_library(chronon3d_graph_executor STATIC
     executor/input_resolver.cpp
     executor/cache_evaluator.cpp
     executor/tile_pruning.cpp
-    executor/telemetry_emitter.cpp
     executor/node_runner.cpp
     executor/executor_levels.cpp
     executor/framebuffer_lifetime.cpp
     executor/executor_plan.cpp
 )
+if(CHRONON3D_ENABLE_TELEMETRY)
+    target_sources(chronon3d_graph_executor PRIVATE executor/telemetry_emitter.cpp)
+endif()
 set_target_properties(chronon3d_graph_executor PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_executor PUBLIC
     chronon3d_graph_core
