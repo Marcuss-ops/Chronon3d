@@ -107,10 +107,14 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
 //
 // Combines:
 //   - skeleton key from source pass (scope, frame, size)
-//   - `hash_text_run_shape(*m_shape)` — covers immutable layout + per-glyph
-//     animated state + material/paint/shadows.  Layout-hash component is
-//     stable across frames of the same text (so the layout cache hits),
-//     while the per-glyph state hash invalidates for animated frames.
+//   - `hash_text_run_shape(*m_shape, ctx.frame.sample_time)` — covers
+//     immutable layout + per-glyph animated state + material/paint/
+//     shadows, AND (PR 10) the AnimatedTextDocument state at the
+//     current sample time (transition type + transition_text +
+//     morph_map + mix).  This guarantees Scramble / Morph /
+//     CrossfadeLayouts frames invalidate the executor's per-frame
+//     node cache correctly — without the sample-time fold a
+//     transitioning shape would share a stale entry across frames.
 //   - placement hash from the RenderNode (name + position)
 //   - matrix/opacity override bytes (modular-coordinates path)
 //   - 2.5D camera transform (when projected) so a moving camera does not
@@ -119,11 +123,20 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
 cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const {
     auto key = m_key;
 
-    // Content: layout (cached) + animated glyph state + material
+    // Content: layout (cached) + animated glyph state + material +
+    // PR 10 AnimatedTextDocument state at the current integral frame.
+    //
+    // The frame overload folds transition_type + active->utf8 +
+    // active->defaults.font + transition_text bytes + morph_map bytes +
+    // mix into the cache key.  This guarantees Scramble / Morph /
+    // CrossfadeLayouts / font-swap Cut frames invalidate the
+    // executor's per-frame node cache correctly.
     if (m_shape) {
         key.params_hash = hash_combine(
             key.params_hash,
-            chronon3d::hash_text_run_shape(*m_shape));
+            chronon3d::hash_text_run_shape(
+                *m_shape,
+                ctx.frame.sample_time.integral_frame()));
     } else {
         key.params_hash = hash_combine(key.params_hash, static_cast<u64>(0xdeadbeef));
     }
@@ -192,20 +205,18 @@ OwnedFB TextRunNode::execute(
     // ── PR 8 wire-up ────────────────────────────────────────────────
     // Re-evaluate the AE-style animator stack per frame, writing per-glyph
     // state back into m_shape->glyphs.  Cheap (no re-shaping); the cache
-    // key below already folds `hash_text_run_shape(*m_shape)` so animated
-    // frames invalidate the stale entry automatically.  No-op when
-    // `shape->animators` is empty (static layout).
+    // key below already folds `hash_text_run_shape(*m_shape,
+    // ctx.frame.sample_time)` so animated frames invalidate the stale
+    // entry automatically.  No-op when `shape->animators` is empty
+    // (static layout).
     //
-    // TODO(PR9+): cache-key/pre-mutation ordering is subtle.  The cache
-    // key for THIS frame is computed by the executor BEFORE execute()
-    // runs, so it captures the pre-mutation glyph state.  Stored FB
-    // bytes reflect post-mutation state.  For partially animated text
-    // (animator missing for a frame, then reappearing) the key mismatch
-    // should still invalidate — but a static pre-mutation key paired
-    // with an animated post-mutation FB can serve stale frames.  Verify
-    // via PR 9 perf runs if this becomes a hot spot.  Workaround in the
-    // meanwhile: animators that completely pause for a frame should
-    // clear `shape.animators` (or rebuild the node).
+    // PR 10 NOTE: cache-key/pre-mutation ordering is closed.  The
+    // transition_text / morph_map fold inside `hash_text_run_shape`'s
+    // sample-time overload ensures Scramble / Morph frames produce
+    // distinct cache keys.  The wire-up is therefore safe to call before
+    // the executor evaluates `cache_key()` — the order is intentionally
+    // mutated-after-cache-key-fetch because the hash overload mirrors
+    // the post-mutation layout contents.
     chronon3d::update_text_run_shape_per_frame(*m_shape, ctx.frame.sample_time);
 
     // Acquire full-canvas framebuffer (no clear-skip — text can't fill a frame).
@@ -272,11 +283,15 @@ OwnedFB TextRunNode::execute(
         // DEBUG (not INFO): this fires every frame.  The diagnostic-mode
         // spammy output is much better at debug level — users who want it
         // explicitly opt in via Chronon log-level configuration.
+        // PR 10: log the frame overload so the diagnostic value matches
+        // the actual cache key the executor used.
         spdlog::debug(
             "[text-run] node='{}' shape_hash=0x{:016x} glyphs={} drew={} "
             "opacity={:.3f} tx={:.1f} ty={:.1f}",
             m_name,
-            chronon3d::hash_text_run_shape(*m_shape),
+            chronon3d::hash_text_run_shape(
+                *m_shape,
+                ctx.frame.sample_time.integral_frame()),
             m_shape->glyphs.size(),
             result ? result.value().items_drawn : 0u,
             opacity,

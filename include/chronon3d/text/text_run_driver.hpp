@@ -98,4 +98,69 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time);
     const TextLayoutSpec& layout_spec
 );
 
+// ──────────────────────────────────────────────────────────────────────────
+// prewarm_text_run_layout_for_frame — PR 10 pre-warm hook
+// ──────────────────────────────────────────────────────────────────────────
+
+/// Eagerly populate `shared_text_layout_cache()` with the layout that
+/// `shape` will produce at `frame` if its attached AnimatedTextDocument
+/// follows a Scramble / Morph / CrossfadeLayouts path.
+///
+/// Purpose
+/// -------
+/// The per-frame driver (`update_text_run_shape_per_frame`) calls
+/// `apply_active_state_to_text_run_shape` on every frame.  For
+/// Scramble / Morph that path runs `build_text_run` (HarfBuzz shaping)
+/// because the transition_text differs every frame.  Without a
+/// prewarm hook, the first frame of a transition always misses the
+/// layout cache and pays the full shaping cost.
+///
+/// When called just before frame `frame`, prewarm puts the upcoming
+/// transition_text's layout into the shared cache so the running
+/// frame's `apply_active_state_to_text_run_shape` finds it on the
+/// first lookup.  The hook is idempotent: storing the same key twice
+/// is a no-op (or, depending on LRU, a fresh LRU promotion).
+///
+/// Pre-conditions
+/// ---------------
+///   * `shape.animated_doc` must be non-null — otherwise no-op.
+///   * `shape.engine`      must be non-null — otherwise no-op (the
+///                          confirm-skip is logged once at debug
+///                          level so production telemetry stays quiet).
+///   * `frame` must be a valid integral frame.
+///
+/// Returns `true` when a new layout was inserted into the shared
+/// cache.  Returns `false` for no-op (static shape, no engine,
+/// empty target_text, or layout already cached).
+///
+/// Caller responsibility: the hook populates the cache but does NOT
+/// invalidate any executor-level per-frame node cache.  When the
+/// executor runs at `frame`, the new transition_text produces a
+/// different `hash_text_run_shape` (the PR 10 sample-time overload
+/// folds transition_text + morph_map), so the NodeCache layer
+/// naturally invalidates via the new key.
+///
+/// Performance
+/// -----------
+/// Cost is bounded by HarfBuzz shaping + paragraph composition for
+/// one TextDocument (the worst case is the first call on a fresh
+/// scene).  After this call, every subsequent frame with the same
+/// transition_text shares the cached layout — the hot path becomes
+/// O(1) cache lookup.
+///
+/// Thread-safety: the helper writes to the shared_text_layout_cache()
+/// singleton, which is internally thread-safe.  Concurrent callers
+/// may race but the cache is idempotent on the same key.
+///
+/// TODO(PR11+): add a CI font fixture so the success path can be
+/// exercised by tests.  The current PR 10 tests cover only the no-op
+/// guard rails (no animated_doc, no engine) because the cache-write
+/// path requires HarfBuzz to actually run.  A DejaVu Sans fixture in
+/// `tests/fixtures/` plus a `test_prewarm_text_layout_cache.cpp`
+/// would close this gap.
+[[nodiscard]] bool prewarm_text_run_layout_for_frame(
+    const TextRunShape& shape,
+    Frame frame
+);
+
 } // namespace chronon3d
