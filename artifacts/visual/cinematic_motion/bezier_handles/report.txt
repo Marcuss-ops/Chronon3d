@@ -1,0 +1,12 @@
+case: bezier_handles
+resolution: 960x540
+mean_abs_error: 0.479275
+max_abs_error: 211.298
+changed_pixel_ratio: 4.82253e-05
+rmse: 1.00449
+psnr: 48.0919
+threshold_mean_abs_error: 0.5
+threshold_max_abs_error: 8
+threshold_changed_pixel_ratio: 0.002
+threshold_rmse: 2
+result: failed

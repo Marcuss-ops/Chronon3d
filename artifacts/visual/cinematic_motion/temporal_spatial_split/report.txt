@@ -1,0 +1,12 @@
+case: temporal_spatial_split
+resolution: 960x540
+mean_abs_error: 0.478756
+max_abs_error: 243
+changed_pixel_ratio: 4.82253e-05
+rmse: 0.946004
+psnr: 48.6129
+threshold_mean_abs_error: 0.5
+threshold_max_abs_error: 8
+threshold_changed_pixel_ratio: 0.002
+threshold_rmse: 2
+result: failed
