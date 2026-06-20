@@ -83,8 +83,18 @@ add_executable(chronon3d_core_tests
     render_graph/builder/test_graph_build_pass_order.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
-# TICKET-006: when text is enabled, text/ tests need symbols from chronon3d_backend_text
-if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
+# TICKET-006: CORE_BLEND2D_TESTS exercise symbols that only resolve when
+# chronon3d_backend_text is linked (bidi_segmenter, font_engine, glyph_atlas,
+# shared_font_engine, rasterize_text_to_bl_image, etc.). Without this guard
+# in non-Blend2D / non-text presets (e.g. linux-core-dev), the build reports:
+#   'undefined symbol: chronon3d::shared_font_engine()'
+#   'undefined symbol: chronon3d::glyph_atlas_lookup(...)'
+#   'undefined symbol: chronon3d::segment_bidi_runs(...)'
+# The duplication with tests/scene_tests.cmake is intentional: core-tests
+# pull in text_layout / text_bounds / text_quality_*, scene-tests pull in
+# layer_design_kit / layer_builder / text_run_builder — both end up calling
+# into chronon3d_backend_text. Linking indiscrimate would be a regression.
+if(CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D AND TARGET chronon3d_backend_text)
     target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_backend_text)
 endif()
 

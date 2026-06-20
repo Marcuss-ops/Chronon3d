@@ -36,6 +36,11 @@ TEST_CASE("Transform: anchor stays fixed when rotating around pivot") {
     CHECK(world_anchor.z == doctest::Approx(0.0f).epsilon(0.0001f));
 }
 
+// TICKET-007.d (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; layer hierarchy position-scale propagation bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bugs — position/opacity/parent_missing assertions fail.
 // TODO(chronon3d): fix layer hierarchy resolution and re-enable.
 TEST_CASE("Layer hierarchy: parent position and scale propagate to child" * doctest::skip()) {
@@ -58,6 +63,11 @@ TEST_CASE("Layer hierarchy: parent position and scale propagate to child" * doct
     CHECK(resolved[1].world_transform.position.z == doctest::Approx(20.0f).epsilon(0.0001f));
 }
 
+// TICKET-007.e (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; parent-rotation propagation to child bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bugs — position/opacity/parent_missing assertions fail.
 // TODO(chronon3d): fix layer hierarchy resolution and re-enable.
 TEST_CASE("Layer hierarchy: parent rotation changes child world position" * doctest::skip()) {
@@ -79,6 +89,11 @@ TEST_CASE("Layer hierarchy: parent rotation changes child world position" * doct
     CHECK(resolved[1].world_transform.position.y == doctest::Approx(100.0f).epsilon(0.01f));
 }
 
+// TICKET-007.f (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; opacity-through-hierarchy accumulation bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bugs — position/opacity/parent_missing assertions fail.
 // TODO(chronon3d): fix layer hierarchy resolution and re-enable.
 TEST_CASE("Layer hierarchy: opacity multiplies through parents" * doctest::skip()) {
@@ -99,6 +114,11 @@ TEST_CASE("Layer hierarchy: opacity multiplies through parents" * doctest::skip(
     CHECK(resolved[1].world_transform.opacity == doctest::Approx(0.25f).epsilon(0.0001f));
 }
 
+// TICKET-007.g (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; missing-parent fallback path bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bugs — position/opacity/parent_missing assertions fail.
 // TODO(chronon3d): fix layer hierarchy resolution and re-enable.
 TEST_CASE("Layer hierarchy: missing parent falls back to local transform" * doctest::skip()) {

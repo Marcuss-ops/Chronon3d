@@ -54,6 +54,11 @@ uint64_t alpha_hash(const Framebuffer& fb) {
 }
 }  // namespace
 
+// TICKET-007.a (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; mask rect alpha clipping math regressed.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bug — alpha threshold assertions fail for mask clipping.
 // TODO(chronon3d): fix mask rect rendering and re-enable.
 TEST_CASE("PR2-RG-Mask: rectangular mask_rect clips a circle into a square" * doctest::skip()) {
@@ -89,6 +94,11 @@ TEST_CASE("PR2-RG-Mask: rectangular mask_rect clips a circle into a square" * do
     CHECK(center.a > 0.85f);
 }
 
+// TICKET-007.b (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; inverted mask alpha scaling bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bug — alpha threshold assertions fail for inverted mask.
 // TODO(chronon3d): fix inverted mask rendering and re-enable.
 TEST_CASE("PR2-RG-Mask: inverted mask_rect zeroes interior alpha" * doctest::skip()) {

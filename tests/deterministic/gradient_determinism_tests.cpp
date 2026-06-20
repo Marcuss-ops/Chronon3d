@@ -279,6 +279,11 @@ TEST_CASE("Gradient determinism: animated scene — same frame repeated 10× ide
 //  DoD Determinism Test 2: Cold cache vs warm cache
 // ═══════════════════════════════════════════════════════════════════════
 
+// TICKET-007.q (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; TBB scheduler-state cold-vs-warm cache divergence.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing TBB non-determinism — cold vs warm cache hashes differ.
 // TODO(chronon3d): fix TBB scheduler-state leakage and re-enable.
 TEST_CASE("Gradient determinism: cold cache vs warm cache — identical pixels" * doctest::skip()) {
@@ -299,6 +304,11 @@ TEST_CASE("Gradient determinism: cold cache vs warm cache — identical pixels" 
     CHECK(hash_cold == hash_warm);
 }
 
+// TICKET-007.r (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; TBB scheduler-state invalidated→rebuilt divergence.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing TBB non-determinism — arena-reset path hashes differ.
 // TODO(chronon3d): fix TBB scheduler-state leakage and re-enable.
 TEST_CASE("Gradient determinism: cache invalidated → rebuilt — identical pixels (arena-reset)" * doctest::skip()) {
@@ -331,6 +341,11 @@ TEST_CASE("Gradient determinism: cache invalidated → rebuilt — identical pix
 //  DoD Determinism Test 3: New renderer vs reused renderer
 // ═══════════════════════════════════════════════════════════════════════
 
+// TICKET-007.s (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; TBB scheduler-state new-vs-reused renderer divergence.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing TBB non-determinism — new vs reused renderer hashes differ.
 // TODO(chronon3d): fix TBB scheduler-state leakage and re-enable.
 TEST_CASE("Gradient determinism: new renderer vs reused renderer — identical pixels (arena-reset)" * doctest::skip()) {
@@ -366,6 +381,11 @@ TEST_CASE("Gradient determinism: new renderer vs reused renderer — identical p
 //  DoD Determinism Test 4: Single-thread vs multi-thread
 // ═══════════════════════════════════════════════════════════════════════
 
+// TICKET-007.t (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; TBB scheduler-state 1t-vs-4t divergence.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing TBB non-determinism — 1t vs 4t hashes differ.
 // TODO(chronon3d): fix TBB scheduler-state leakage and re-enable.
 TEST_CASE("Gradient determinism: 1 thread vs 4 threads — identical pixels (arena-reset)" * doctest::skip()) {
@@ -386,6 +406,11 @@ TEST_CASE("Gradient determinism: 1 thread vs 4 threads — identical pixels (are
     CHECK(res_1t.hash == res_4t.hash);
 }
 
+// TICKET-007.u (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; TBB scheduler-state 1t-vs-8t divergence.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing TBB non-determinism — 1t vs 8t hashes differ.
 // TODO(chronon3d): fix TBB scheduler-state leakage and re-enable.
 TEST_CASE("Gradient determinism: 1 thread vs 8 threads — identical pixels (arena-reset)" * doctest::skip()) {
