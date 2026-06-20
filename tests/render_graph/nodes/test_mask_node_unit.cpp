@@ -7,26 +7,19 @@
 // These unit tests verify the parts that DO NOT require a real framebuffer:
 //   1. predicted_bbox() returns input unchanged (masks do not expand bounds).
 //   2. cache_key changes when Mask geometry changes.
-//   3. Modular coordinates flag participates in cache key (alpha rasterization
-//      algorithm changes between "global"  and "local" coords → cache must).
+//   3. Modular coordinates flag participates in cache key.
 // ==============================================================================
 
 #include <doctest/doctest.h>
 
 #include <chronon3d/render_graph/nodes/mask_node.hpp>
 #include <chronon3d/scene/model/layer/mask.hpp>
+#include <tests/helpers/test_utils.hpp>
 
 #include <cmath>
 #include <memory>
 using namespace chronon3d;
-
-static graph::RenderFrameInfo make_frame(int w, int h) {
-    graph::RenderFrameInfo fi;
-    fi.frame = Frame{0};
-    fi.width = w;
-    fi.height = h;
-    return fi;
-}
+namespace ctt = chronon3d::test;
 
 TEST_CASE("PR2-Unit-Mask: predicted_bbox is identity passthrough") {
     using chronon3d::graph::MaskNode;
@@ -37,7 +30,7 @@ TEST_CASE("PR2-Unit-Mask: predicted_bbox is identity passthrough") {
     m.pos = {10.0f, 20.0f, 0.0f};
 
     graph::RenderGraphContext ctx;
-    ctx.frame = make_frame(200, 200);
+    ctx.frame = ctt::make_render_frame_info(200, 200);
 
     raster::BBox input{12, 18, 88, 92};
     std::array<std::optional<raster::BBox>, 1> inputs = { input };
@@ -64,14 +57,14 @@ TEST_CASE("PR2-Unit-Mask: cache_key varies with mask type + radius") {
 
     Mask rect_big;
     rect_big.type = MaskType::Rect;
-    rect_big.size = {80.0f, 40.0f};   // larger
+    rect_big.size = {80.0f, 40.0f};
 
     auto node_rect = std::make_unique<MaskNode>(Mask{rect});
     auto node_circ = std::make_unique<MaskNode>(Mask{circ});
     auto node_big  = std::make_unique<MaskNode>(Mask{rect_big});
 
     graph::RenderGraphContext ctx;
-    ctx.frame = make_frame(200, 200);
+    ctx.frame = ctt::make_render_frame_info(200, 200);
     ctx.options.modular_coordinates = false;
 
     auto k_rect  = node_rect->cache_key(ctx);
@@ -92,7 +85,8 @@ TEST_CASE("PR2-Unit-Mask: cache_key differs when modular_coordinates flag flips"
     auto node = std::make_unique<MaskNode>(Mask{m});
     graph::RenderGraphContext ctx_a;
     graph::RenderGraphContext ctx_b;
-    ctx_a.frame = ctx_b.frame = make_frame(200, 200);
+    ctx_a.frame = ctt::make_render_frame_info(200, 200);
+    ctx_b.frame = ctt::make_render_frame_info(200, 200);
     ctx_a.options.modular_coordinates = false;
     ctx_b.options.modular_coordinates = true;
 

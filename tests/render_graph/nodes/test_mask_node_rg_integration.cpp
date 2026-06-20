@@ -9,8 +9,7 @@
 //   2. Inverted mask_rect (inverted=true) renders alpha inversely.
 //   3. Modular-coordinates determinism (same scene → byte equal hash).
 //
-// Uses LayerBuilder.mask_rect(RectMaskParams{...}) — the actual API
-// (l.mask(...) doesn't exist on LayerBuilder).
+// Uses LayerBuilder.mask_rect(RectMaskParams{...}) — the actual API.
 // ==============================================================================
 
 #include <doctest/doctest.h>
@@ -21,39 +20,16 @@
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <tests/helpers/test_utils.hpp>
 
 #include <cmath>
 #include <cstdint>
 #include <memory>
 using namespace chronon3d;
-
-namespace {
-SoftwareRenderer make_renderer(bool modular_coords) {
-    SoftwareRenderer r;
-    RenderSettings s;
-    s.use_modular_graph = true;
-    s.modular_coordinates = modular_coords;  // may not exist; best-effort
-    r.set_settings(s);
-    return r;
-}
-
-// Hash of pixel-alpha only — robust to RGB changes (blending jitter safe).
-uint64_t alpha_hash(const Framebuffer& fb) {
-    uint64_t h = 0xcbf29ce484222325ULL;
-    for (int y = 0; y < fb.height(); ++y) {
-        for (int x = 0; x < fb.width(); ++x) {
-            uint32_t bits;
-            std::memcpy(&bits, &fb.get_pixel(x, y).a, 4);
-            h ^= bits;
-            h *= 0x100000001b3ULL;
-        }
-    }
-    return h;
-}
-}  // namespace
+namespace ctt = chronon3d::test;
 
 TEST_CASE("PR2-RG-Mask: rectangular mask_rect clips a circle into a square") {
-    auto r = make_renderer(false);
+    auto r = ctt::make_renderer(false);
     auto comp = composition({.width = 256, .height = 256, .duration = 1},
         [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
@@ -86,7 +62,7 @@ TEST_CASE("PR2-RG-Mask: rectangular mask_rect clips a circle into a square") {
 }
 
 TEST_CASE("PR2-RG-Mask: inverted mask_rect zeroes interior alpha") {
-    auto r = make_renderer(false);
+    auto r = ctt::make_renderer(false);
     auto comp = composition({.width = 256, .height = 256, .duration = 1},
         [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
@@ -119,7 +95,7 @@ TEST_CASE("PR2-RG-Mask: inverted mask_rect zeroes interior alpha") {
 }
 
 TEST_CASE("PR2-RG-Mask: render is deterministic across two calls") {
-    auto r = make_renderer(false);
+    auto r = ctt::make_renderer();
     auto comp = composition({.width = 256, .height = 256, .duration = 1},
         [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
@@ -144,5 +120,5 @@ TEST_CASE("PR2-RG-Mask: render is deterministic across two calls") {
     auto fb2 = r.render_frame(comp, 0);
     REQUIRE(fb1 != nullptr);
     REQUIRE(fb2 != nullptr);
-    CHECK(alpha_hash(*fb1) == alpha_hash(*fb2));
+    CHECK(ctt::framebuffer_alpha_hash(*fb1) == ctt::framebuffer_alpha_hash(*fb2));
 }

@@ -15,25 +15,16 @@
 
 #include <chronon3d/render_graph/nodes/shadow_node.hpp>
 #include <chronon3d/rendering/shadow_settings.hpp>
+#include <tests/helpers/test_utils.hpp>
 
 #include <cmath>
 #include <cstdint>
 using namespace chronon3d;
+namespace ctt = chronon3d::test;   // centralised test helpers
 
-// Build a minimal RenderFrameInfo for cache_key + bbox tests.
-static graph::RenderFrameInfo make_frame(int frame, int w, int h) {
-    graph::RenderFrameInfo fi;
-    fi.frame = Frame{frame};
-    fi.width = w;
-    fi.height = h;
-    fi.fps = 30.0f;
-    fi.time_seconds = static_cast<float>(frame) / 30.0f;
-    return fi;
-}
-
-static graph::RenderGraphContext make_ctx(int w, int h, int frame) {
+static graph::RenderGraphContext make_ctx(int frame, int w, int h) {
     graph::RenderGraphContext ctx;
-    ctx.frame = make_frame(frame, w, h);
+    ctx.frame = ctt::make_render_frame_info(w, h, frame);
     return ctx;
 }
 
@@ -48,8 +39,8 @@ TEST_CASE("PR2-Unit-Shadow: cache_key distinguishes every settings field") {
     mod.opacity = 0.99f;            // differs from base.opacity (0.35)
     auto node_b = ShadowNode::create("caster", 0.0f, -100.0f, light, mod);
 
-    auto k_a = node_a->cache_key(make_ctx(64, 64, 0));
-    auto k_b = node_b->cache_key(make_ctx(64, 64, 0));
+    auto k_a = node_a->cache_key(make_ctx(0, 64, 64));
+    auto k_b = node_b->cache_key(make_ctx(0, 64, 64));
 
     CHECK(k_a.scope == k_b.scope);
     CHECK(k_a.params_hash != k_b.params_hash);  // different opacity → different hash
@@ -66,7 +57,7 @@ TEST_CASE("PR2-Unit-Shadow: predicted_bbox expands with offset + blur") {
     s.px_per_unit   = 1.0f;
 
     auto node = ShadowNode::create("caster", 0.0f, -100.0f, light, s);
-    auto ctx = make_ctx(128, 128, 0);
+    auto ctx = make_ctx(0, 128, 128);
 
     raster::BBox input{20, 20, 50, 50};
     std::array<std::optional<BBox>, 1> inputs = { input };
@@ -92,7 +83,7 @@ TEST_CASE("PR2-Unit-Shadow: predicted_bbox clamps huge projected offset to max_o
     s.px_per_unit = 1.0f;
 
     auto node = ShadowNode::create("c", 0.0f, -10000.0f, light, s);
-    auto ctx = make_ctx(256, 256, 0);
+    auto ctx = make_ctx(0, 256, 256);
 
     raster::BBox input{100, 100, 110, 110};
     std::array<std::optional<BBox>, 1> inputs = { input };

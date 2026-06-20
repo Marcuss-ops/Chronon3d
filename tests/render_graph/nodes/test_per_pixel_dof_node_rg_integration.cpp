@@ -21,20 +21,13 @@
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <tests/helpers/test_utils.hpp>
 
 #include <cmath>
 #include <cstdint>
 #include <memory>
 using namespace chronon3d;
-
-namespace {
-SoftwareRenderer make_renderer() {
-    SoftwareRenderer r;
-    RenderSettings s;
-    s.use_modular_graph = true;
-    r.set_settings(s);
-    return r;
-}
+namespace ctt = chronon3d::test;
 
 Composition make_dof_scene(bool far_bar) {
     return composition({.width = 256, .height = 256, .duration = 1},
@@ -57,26 +50,8 @@ Composition make_dof_scene(bool far_bar) {
         });
 }
 
-uint64_t fb_hash(const Framebuffer& fb) {
-    uint64_t h = 0xcbf29ce484222325ULL;
-    for (int y = 0; y < fb.height(); ++y) {
-        for (int x = 0; x < fb.width(); ++x) {
-            const auto c = fb.get_pixel(x, y);
-            auto fold = [&](float v) {
-                uint32_t bits;
-                std::memcpy(&bits, &v, 4);
-                h ^= bits;
-                h *= 0x100000001b3ULL;
-            };
-            fold(c.r); fold(c.g); fold(c.b); fold(c.a);
-        }
-    }
-    return h;
-}
-}  // namespace
-
 TEST_CASE("PR2-RG-DoF: smoke render produces expected dimensions") {
-    auto r = make_renderer();
+    auto r = ctt::make_renderer();
     auto fb = r.render_frame(make_dof_scene(false), 0);
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 256);
@@ -84,19 +59,19 @@ TEST_CASE("PR2-RG-DoF: smoke render produces expected dimensions") {
 }
 
 TEST_CASE("PR2-RG-DoF: two consecutive renders are byte-equal (determinism)") {
-    auto r = make_renderer();
+    auto r = ctt::make_renderer();
     auto fb1 = r.render_frame(make_dof_scene(false), 0);
     auto fb2 = r.render_frame(make_dof_scene(false), 0);
     REQUIRE(fb1 != nullptr);
     REQUIRE(fb2 != nullptr);
-    CHECK(fb_hash(*fb1) == fb_hash(*fb2));
+    CHECK(ctt::framebuffer_hash(*fb1) == ctt::framebuffer_hash(*fb2));
 }
 
 TEST_CASE("PR2-RG-DoF: per-element z-range variation produces differing hashes") {
-    auto r = make_renderer();
+    auto r = ctt::make_renderer();
     auto fb_near = r.render_frame(make_dof_scene(false), 0);
     auto fb_far  = r.render_frame(make_dof_scene(true),  0);
     REQUIRE(fb_near != nullptr);
     REQUIRE(fb_far  != nullptr);
-    CHECK(fb_hash(*fb_near) != fb_hash(*fb_far));
+    CHECK(ctt::framebuffer_hash(*fb_near) != ctt::framebuffer_hash(*fb_far));
 }

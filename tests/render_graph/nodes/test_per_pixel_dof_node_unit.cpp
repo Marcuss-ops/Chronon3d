@@ -15,9 +15,11 @@
 #include <chronon3d/render_graph/nodes/per_pixel_dof_node.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/camera/dof.hpp>
+#include <tests/helpers/test_utils.hpp>
 
 #include <cmath>
 using namespace chronon3d;
+namespace ctt = chronon3d::test;
 
 // Helper to build a Camera2_5DRuntime with arbitrary DoF settings.
 static Camera2_5DRuntime make_cam2_5d(float focus_z, float aperture, float max_blur) {
@@ -29,19 +31,11 @@ static Camera2_5DRuntime make_cam2_5d(float focus_z, float aperture, float max_b
     return cam;
 }
 
-static graph::RenderFrameInfo make_frame(int w, int h) {
-    graph::RenderFrameInfo fi;
-    fi.frame = Frame{0};
-    fi.width = w;
-    fi.height = h;
-    return fi;
-}
-
 TEST_CASE("PR2-Unit-DoF: cache_key varies with focus_z / aperture / max_blur") {
     using chronon3d::graph::PerPixelDofNode;
 
     auto ctx_a = graph::RenderGraphContext{};
-    ctx_a.frame = make_frame(128, 128);
+    ctx_a.frame = ctt::make_render_frame_info(128, 128);
 
     auto node_a = PerPixelDofNode::create(make_cam2_5d(50.0f,  0.05f,   8.0f));
     auto node_b = PerPixelDofNode::create(make_cam2_5d(150.0f, 0.05f,   8.0f));    // focus_z differs
@@ -64,14 +58,13 @@ TEST_CASE("PR2-Unit-DoF: predicted_bbox expands symmetrically by max_blur") {
 
     auto node = PerPixelDofNode::create(make_cam2_5d(50.0f, 0.05f, 12.0f));
     graph::RenderGraphContext ctx;
-    ctx.frame = make_frame(200, 200);
+    ctx.frame = ctt::make_render_frame_info(200, 200);
 
     raster::BBox input{50, 50, 100, 100};
     std::array<std::optional<raster::BBox>, 1> inputs = { input };
     auto out = node->predicted_bbox(ctx, inputs);
 
     REQUIRE(out.has_value());
-    // bbox symmetric around center=75; each side expanded by max_blur=12.
     CHECK(out->x0 <= 50 - 12);
     CHECK(out->y0 <= 50 - 12);
     CHECK(out->x1 >= 100 + 12);
