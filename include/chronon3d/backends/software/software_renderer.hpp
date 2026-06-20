@@ -221,14 +221,15 @@ public:
     // `.dirty_telemetry.X`, `.layer_history.X`), `session()` keeps
     // returning a `RenderSession&` (forwarded to `m_session.common`).
     //
-    // New code MAY access the full wrapper via
-    // `session_full()` (returns `SoftwareRenderSession&`) when it
-    // needs the software-backend resources component, e.g.:
-    //   sw_renderer->session_full().software.buffer_ring.swap();
+    // For software-side resources, use the dedicated accessors — they
+    // are the only public path to `m_session.software` and give cleaner
+    // call-sites than digging through the wrapper:
+    //   - buffer_ring()        -> RendererBufferRing
+    //   - scratch_buffer()      -> TransformScratchBuffer
+    //   - scene_hasher()        -> graph::SceneHasher
+    //   - session_resources()   -> SoftwareSessionResources
     [[nodiscard]] RenderSession& session() { return m_session.common; }
     [[nodiscard]] const RenderSession& session() const { return m_session.common; }
-    [[nodiscard]] SoftwareRenderSession& session_full() { return m_session; }
-    [[nodiscard]] const SoftwareRenderSession& session_full() const { return m_session; }
 
     // ── Convenience accessors (forward to session) ──────────────────────
     using LayerBBoxState          = ::chronon3d::LayerBBoxState;
