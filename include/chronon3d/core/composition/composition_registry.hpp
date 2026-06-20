@@ -2,7 +2,6 @@
 
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/timeline/composition_props.hpp>
-#include <chronon3d/assets/asset_registry.hpp>
 #include <functional>
 #include <string>
 #include <string_view>
@@ -38,12 +37,8 @@ public:
     }
 
     /// Create a composition with default (empty) props.
-    /// The AssetRegistry pointer is populated automatically from the
-    /// thread-local registry (set by the host via
-    /// AssetRegistry::set_thread_local()).
     [[nodiscard]] Composition create(std::string_view name) const {
         CompositionProps props;
-        props.assets = AssetRegistry::get_thread_local();
         return create(name, props);
     }
 

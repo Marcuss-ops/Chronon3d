@@ -272,17 +272,29 @@ private:
     }
 };
 
-// ── Per-render-job scoped asset resolution ──────────────────────────
+// ── Per-render-job scoped asset resolution (non-TLS) ──────────────────
 //
-// The assets root for the current composition is set via
-// AssetRegistry::set_thread_local_root() before graph execution
-// and cleared afterward.  This prevents races when concurrent
-// render jobs use different assets directories.
+// Prefer RenderGraphContext::resolve_asset() or this free function instead
+// of the deprecated AssetRegistry::resolve() which uses TLS.
 //
 // Usage:
-//   AssetRegistry::set_thread_local_root(comp.assets_root());
-//   // ... render ...
-//   AssetRegistry::clear_thread_local_root();
+//   std::string resolved = resolve_asset_path(ctx.frame.assets_root, path);
+
+/// Resolve a relative path against an assets root directory.
+/// Returns the relative_path unchanged if empty, absolute, or if assets_root is empty.
+[[nodiscard]] inline std::string resolve_asset_path(
+    const std::string& assets_root,
+    const std::string& relative_path)
+{
+    if (relative_path.empty() || std::filesystem::path(relative_path).is_absolute()) {
+        return relative_path;
+    }
+    if (assets_root.empty()) {
+        return relative_path;
+    }
+    return (std::filesystem::path(assets_root) / relative_path)
+        .lexically_normal().string();
+}
 
 // Free function asset() helper — DEPRECATED, uses TLS registry.
 // Prefer AssetRegistry::import_by_extension() with an explicit registry.
