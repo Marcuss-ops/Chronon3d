@@ -35,11 +35,7 @@ inline AssetRegistry& cli_asset_registry() {
 /// Register built-in content compositions and built-in compositions
 /// into the given registry.  Safe to call multiple times.
 inline void init_compositions(CompositionRegistry& registry) {
-    // Set the thread-local registry so AssetRegistry::resolve()
-    // works for the entire CLI process lifetime — even when
-    // CHRONON3D_BUILD_CONTENT is not defined.
     auto& assets = cli_asset_registry();
-    AssetRegistry::set_thread_local(assets);
 
 #if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
     static ExtensionCatalog content_catalog;

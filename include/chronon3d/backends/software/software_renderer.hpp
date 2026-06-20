@@ -182,7 +182,7 @@ public:
     [[nodiscard]] graph::GraphExecutor* executor();
     [[nodiscard]] const graph::GraphExecutor* executor() const;
 
-    /// Per-instance engine configuration (replaces deprecated Config::get())
+    /// Per-instance engine configuration (replaces legacy Config singleton)
     [[nodiscard]] const Config& config() const { return m_config; }
     [[nodiscard]] Config& config() { return m_config; }
 

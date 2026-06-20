@@ -4,6 +4,7 @@
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
+#include <filesystem>
 
 #if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_2D5)
 #include "content/register_content_modules.hpp"
@@ -17,11 +18,13 @@ int main(int argc, char** argv) {
     doctest::Context context;
     context.applyCommandLine(argc, argv);
 
-    // Create a static AssetRegistry and set it as the thread-local
-    // registry for the entire test process.  All asset resolution
-    // (resolve, thread_local_assets) uses this instance.
+    // Create a static AssetRegistry for the entire test process.
     static chronon3d::AssetRegistry test_assets;
-    chronon3d::AssetRegistry::set_thread_local(test_assets);
+
+    // Mount to current path so relative asset paths resolve correctly.
+    test_assets.mount(std::filesystem::current_path());
+    chronon3d::detail::set_default_assets_root(
+        std::filesystem::current_path().string());
 
 #if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_2D5)
     // Register content modules into a test registry via ExtensionContext.

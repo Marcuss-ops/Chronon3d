@@ -10,6 +10,7 @@
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 #endif
 #include <chronon3d/assets/asset_registry.hpp>
+#include "../../cli_init.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -21,17 +22,13 @@ void setup_render_job(const CompositionRegistry& registry,
                       const RenderJobPlan& plan,
                       RenderJobSetupResult& out) {
     // Mount current working directory as asset root so relative asset paths
-    // (fonts, images, etc.) resolve correctly.  Uses the thread-local registry
-    // set at CLI init time (deprecated — will be replaced by per-context
-    // AssetRegistry in PR-7 follow-up).
-    auto* assets = AssetRegistry::get_thread_local();
-    if (assets) {
-        assets->mount(std::filesystem::current_path());
-        // Also set the default assets root for deep rendering code that
-        // uses resolve_asset_path() without explicit context.
-        detail::set_default_assets_root(
-            std::filesystem::current_path().string());
-    }
+    // (fonts, images, etc.) resolve correctly.
+    auto& assets = cli_asset_registry();
+    assets.mount(std::filesystem::current_path());
+    // Also set the default assets root for deep rendering code that
+    // uses resolve_asset_path() without explicit context.
+    detail::set_default_assets_root(
+        std::filesystem::current_path().string());
 
     profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
     profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);

@@ -7,6 +7,8 @@
 
 using namespace chronon3d;
 
+#include <filesystem>
+
 #if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_2D5)
 #include <content/register_content_modules.hpp>
 #include <chronon3d/extension/extension_catalog.hpp>
@@ -25,7 +27,9 @@ static void ensure_content_registered(CompositionRegistry& registry) {
     static graph::GraphNodeCatalog nodes;
     static effects::EffectCatalog effects;
     static AssetRegistry assets;
-    AssetRegistry::set_thread_local(assets);
+    assets.mount(std::filesystem::current_path());
+    chronon3d::detail::set_default_assets_root(
+        std::filesystem::current_path().string());
     ExtensionContext ctx{registry, nodes, effects, assets};
     register_content_modules(cat, ctx);
     s_registered = true;
@@ -51,7 +55,9 @@ TEST_CASE("2D5 content: idempotent registration") {
     static graph::GraphNodeCatalog nodes;
     static effects::EffectCatalog effects;
     static AssetRegistry assets;
-    AssetRegistry::set_thread_local(assets);
+    assets.mount(std::filesystem::current_path());
+    chronon3d::detail::set_default_assets_root(
+        std::filesystem::current_path().string());
     ExtensionContext ctx{registry, nodes, effects, assets};
     // register_content_modules is idempotent — subsequent calls are no-ops
     // because the catalog contains the module after the first call.

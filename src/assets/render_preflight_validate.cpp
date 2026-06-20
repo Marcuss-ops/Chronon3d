@@ -132,7 +132,7 @@ void validate_external_tool(const PreflightRequirement& req,
 
 } // anonymous namespace
 
-std::vector<PreflightIssue> RenderPreflight::validate() const {
+std::vector<PreflightIssue> RenderPreflight::validate(const AssetRegistry& registry) const {
     std::vector<PreflightIssue> issues;
 
     for (const auto& req : m_requirements) {
@@ -160,7 +160,7 @@ std::vector<PreflightIssue> RenderPreflight::validate() const {
         }
     }
 
-    for (const auto& asset : AssetRegistry::current_assets()) {
+    for (const auto& asset : registry.assets()) {
         if (!std::filesystem::exists(asset.path)) {
             PreflightIssue issue;
             issue.severity = PreflightSeverity::Error;
@@ -176,12 +176,12 @@ std::vector<PreflightIssue> RenderPreflight::validate() const {
     return issues;
 }
 
-void RenderPreflight::validate_or_throw() {
-    throw_if_preflight_errors(validate());
+void RenderPreflight::validate_or_throw(const AssetRegistry& registry) {
+    throw_if_preflight_errors(validate(registry));
 }
 
-bool RenderPreflight::ok() const {
-    return !has_preflight_errors(validate());
+bool RenderPreflight::ok(const AssetRegistry& registry) const {
+    return !has_preflight_errors(validate(registry));
 }
 
 } // namespace chronon3d
