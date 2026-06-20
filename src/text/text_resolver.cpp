@@ -13,6 +13,68 @@
 namespace chronon3d {
 
 // ═══════════════════════════════════════════════════════════════════════════
+// shape_resolved_run
+// ═══════════════════════════════════════════════════════════════════════════
+
+PlacedGlyphRun shape_resolved_run(
+    const ResolvedTextRun& run,
+    FontEngine& engine,
+    float tracking
+) {
+    TextShaping shaping;
+    shaping.direction = run.direction;
+
+    auto hb_run = engine.shape_text(
+        run.text,
+        run.font,
+        run.font.font_size,
+        shaping
+    );
+
+    if (!hb_run) {
+        return PlacedGlyphRun{};
+    }
+
+    auto placed = resolve_placed_glyph_run(*hb_run, tracking, run.text);
+    placed.ascent       = hb_run->ascent;
+    placed.descent      = hb_run->descent;
+    placed.baseline     = hb_run->baseline;
+    placed.total_height = hb_run->ascent + hb_run->descent;
+    placed.font_size    = hb_run->font_size;
+
+    return placed;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// resolve_and_shape
+// ═══════════════════════════════════════════════════════════════════════════
+
+ShapedTextTree resolve_and_shape(
+    const TextDocument& doc,
+    FontEngine& engine,
+    float tracking
+) {
+    ShapedTextTree result;
+
+    auto tree = resolve_text_run_tree(doc, engine);
+
+    for (const auto& para : tree.paragraphs) {
+        ShapedParagraph shaped_para;
+        shaped_para.style = para.style;
+        shaped_para.shaped_runs.reserve(para.runs.size());
+
+        for (const auto& run : para.runs) {
+            shaped_para.shaped_runs.push_back(
+                shape_resolved_run(run, engine, tracking));
+        }
+
+        result.paragraphs.push_back(std::move(shaped_para));
+    }
+
+    return result;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // resolve_fallback_fonts
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -116,10 +178,7 @@ namespace {
 
 /// Determine the explicit or implicit text direction for a paragraph.
 [[nodiscard]] TextDirection paragraph_direction(const ParagraphRange& pr) {
-    // For now, paragraphs default to Auto (bidi-detect at the run level).
-    // When ParagraphStyle gains a direction field, read it here.
-    (void)pr;
-    return TextDirection::Auto;
+    return pr.style.direction;
 }
 
 /// Split a byte range into font-homogeneous sub-ranges.

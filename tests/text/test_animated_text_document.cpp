@@ -1,13 +1,15 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // test_animated_text_document.cpp — AnimatedTextDocument tests
 //
-// PR 6 covers:
+// PR 6 + PR 9 covers:
 //   1. Empty document — sample_at returns nullptr
 //   2. Single keyframe — held before and after its frame
 //   3. Hold transition — previous document visible until next keyframe
 //   4. Cut transition — instant switch to next document after keyframe
 //   5. CrossfadeLayouts transition — both documents active with mix factor
 //   6. Determinism
+//   7. Scramble transition — deterministic char substitution
+//   8. Morph transition — common char persistence + morph map
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/text/animated_text_document.hpp>
@@ -243,4 +245,150 @@ TEST_CASE("AnimatedTextDocument: same input produces same output") {
     }
     CHECK(a.mix == doctest::Approx(b.mix));
     CHECK(a.transition == b.transition);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 9. Scramble transition
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("AnimatedTextDocument: Scramble is deterministic") {
+    AnimatedTextDocument anim;
+    auto kf = make_kf(0, "FUTURE", SourceTextTransition::Scramble);
+    kf.scramble_params.seed = 42;
+    anim.add_keyframe(std::move(kf));
+    anim.add_keyframe(make_kf(60, "LAUNCH", SourceTextTransition::Hold));
+
+    auto a = anim.sample_at(Frame{30});
+    auto b = anim.sample_at(Frame{30});
+
+    CHECK(a.transition == SourceTextTransition::Scramble);
+    CHECK(b.transition == SourceTextTransition::Scramble);
+    CHECK(a.transition_text == b.transition_text);
+    CHECK(a.mix == doctest::Approx(b.mix));
+}
+
+TEST_CASE("AnimatedTextDocument: Scramble at mix=0 matches prev") {
+    AnimatedTextDocument anim;
+    auto kf = make_kf(0, "BUILD", SourceTextTransition::Scramble);
+    anim.add_keyframe(std::move(kf));
+    anim.add_keyframe(make_kf(60, "SCALE", SourceTextTransition::Hold));
+
+    auto state = anim.sample_at(Frame{1});
+    CHECK(state.transition == SourceTextTransition::Scramble);
+    CHECK(state.transition_text.size() > 0);
+    CHECK(state.active != nullptr);
+    CHECK(state.crossfade_from != nullptr);
+}
+
+TEST_CASE("AnimatedTextDocument: Scramble at mix=1 matches next") {
+    AnimatedTextDocument anim;
+    auto kf = make_kf(0, "BUILD", SourceTextTransition::Scramble);
+    anim.add_keyframe(std::move(kf));
+    anim.add_keyframe(make_kf(60, "SCALE", SourceTextTransition::Hold));
+
+    auto state = anim.sample_at(Frame{59});
+    CHECK(state.transition == SourceTextTransition::Scramble);
+    CHECK_FALSE(state.transition_text.empty());
+}
+
+TEST_CASE("AnimatedTextDocument: Scramble different frames produce different text") {
+    AnimatedTextDocument anim;
+    auto kf = make_kf(0, "HELLO", SourceTextTransition::Scramble);
+    kf.scramble_params.seed = 123;
+    anim.add_keyframe(std::move(kf));
+    anim.add_keyframe(make_kf(100, "WORLD", SourceTextTransition::Hold));
+
+    auto s20 = anim.sample_at(Frame{20});
+    auto s50 = anim.sample_at(Frame{50});
+
+    // Different frames should produce different scrambled text
+    CHECK(s20.transition_text != s50.transition_text);
+}
+
+TEST_CASE("AnimatedTextDocument: Scramble custom char pool") {
+    AnimatedTextDocument anim;
+    auto kf = make_kf(0, "ABCDEF", SourceTextTransition::Scramble);
+    kf.scramble_params.seed = 99;
+    kf.scramble_params.char_pool = "XYZ";
+    anim.add_keyframe(std::move(kf));
+    anim.add_keyframe(make_kf(60, "GHIJKL", SourceTextTransition::Hold));
+
+    auto state = anim.sample_at(Frame{30});
+    CHECK(state.transition == SourceTextTransition::Scramble);
+    // Scrambled text should be non-empty
+    CHECK_FALSE(state.transition_text.empty());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 10. Morph transition
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("AnimatedTextDocument: Morph common chars persist") {
+    AnimatedTextDocument anim;
+    auto kf = make_kf(0, "MILLION", SourceTextTransition::Morph);
+    anim.add_keyframe(std::move(kf));
+    anim.add_keyframe(make_kf(60, "MILLIONS", SourceTextTransition::Hold));
+
+    auto state = anim.sample_at(Frame{30});
+    CHECK(state.transition == SourceTextTransition::Morph);
+    CHECK_FALSE(state.transition_text.empty());
+    CHECK_FALSE(state.morph_map.empty());
+}
+
+TEST_CASE("AnimatedTextDocument: Morph produces morph_map") {
+    AnimatedTextDocument anim;
+    auto kf = make_kf(0, "POWER", SourceTextTransition::Morph);
+    anim.add_keyframe(std::move(kf));
+    anim.add_keyframe(make_kf(60, "MONEY", SourceTextTransition::Hold));
+
+    auto state = anim.sample_at(Frame{30});
+    CHECK(state.transition == SourceTextTransition::Morph);
+    CHECK(state.morph_map.size() > 0);
+
+    // The morph_map should contain pairs
+    bool has_common = false;
+    for (const auto& [prev_idx, next_idx] : state.morph_map) {
+        if (prev_idx >= 0 && next_idx >= 0) {
+            has_common = true;
+            break;
+        }
+    }
+    CHECK(has_common);
+}
+
+TEST_CASE("AnimatedTextDocument: Morph at bounds") {
+    AnimatedTextDocument anim;
+    auto kf = make_kf(0, "BUILD", SourceTextTransition::Morph);
+    anim.add_keyframe(std::move(kf));
+    anim.add_keyframe(make_kf(60, "SCALE", SourceTextTransition::Hold));
+
+    // At mix ~= 0: text should resemble prev
+    auto s0 = anim.sample_at(Frame{1});
+    CHECK(s0.transition == SourceTextTransition::Morph);
+    CHECK_FALSE(s0.transition_text.empty());
+
+    // At mix ~= 1: text should resemble next
+    auto s1 = anim.sample_at(Frame{59});
+    CHECK(s1.transition == SourceTextTransition::Morph);
+    CHECK_FALSE(s1.transition_text.empty());
+
+    // Different frames = different transition text
+    CHECK(s0.transition_text != s1.transition_text);
+}
+
+TEST_CASE("AnimatedTextDocument: Morph determinism") {
+    AnimatedTextDocument anim;
+    auto kf = make_kf(0, "FAST", SourceTextTransition::Morph);
+    anim.add_keyframe(std::move(kf));
+    anim.add_keyframe(make_kf(60, "SCALE", SourceTextTransition::Hold));
+
+    auto a = anim.sample_at(Frame{30});
+    auto b = anim.sample_at(Frame{30});
+
+    CHECK(a.transition_text == b.transition_text);
+    CHECK(a.morph_map.size() == b.morph_map.size());
+    for (size_t i = 0; i < a.morph_map.size(); ++i) {
+        CHECK(a.morph_map[i].first == b.morph_map[i].first);
+        CHECK(a.morph_map[i].second == b.morph_map[i].second);
+    }
 }

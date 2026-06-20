@@ -14,6 +14,7 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         text/test_text_quality_suite.cpp
         text/test_text_bidi.cpp
         text/glyph_selector_tests.cpp
+        text/text_animator_property_tests.cpp
     )
 endif()
 
@@ -82,6 +83,7 @@ add_executable(chronon3d_core_tests
     text/test_text_path_composer.cpp
     text/test_animated_text_document.cpp
     text/test_text_resolver.cpp
+    text/test_text_run_builder.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
 

@@ -169,10 +169,6 @@ public:
     Config(const Config&) = default;
     Config& operator=(const Config&) = default;
 
-    // Config is a value-object: move is allowed, copy is not.
-    Config(Config&&) noexcept = default;
-    Config& operator=(Config&&) noexcept = default;
-
 private:
     DebugConfig     debug_;
     CacheConfig     cache_;
