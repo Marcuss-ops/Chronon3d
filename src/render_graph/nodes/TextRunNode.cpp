@@ -1,6 +1,7 @@
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/text/text_run_geometry.hpp>
+#include <chronon3d/text/text_run_driver.hpp>
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -187,6 +188,25 @@ OwnedFB TextRunNode::execute(
         // but if a future caller constructs an empty one, return a black frame.
         return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height, /*clear=*/true);
     }
+
+    // ── PR 8 wire-up ────────────────────────────────────────────────
+    // Re-evaluate the AE-style animator stack per frame, writing per-glyph
+    // state back into m_shape->glyphs.  Cheap (no re-shaping); the cache
+    // key below already folds `hash_text_run_shape(*m_shape)` so animated
+    // frames invalidate the stale entry automatically.  No-op when
+    // `shape->animators` is empty (static layout).
+    //
+    // TODO(PR9+): cache-key/pre-mutation ordering is subtle.  The cache
+    // key for THIS frame is computed by the executor BEFORE execute()
+    // runs, so it captures the pre-mutation glyph state.  Stored FB
+    // bytes reflect post-mutation state.  For partially animated text
+    // (animator missing for a frame, then reappearing) the key mismatch
+    // should still invalidate — but a static pre-mutation key paired
+    // with an animated post-mutation FB can serve stale frames.  Verify
+    // via PR 9 perf runs if this becomes a hot spot.  Workaround in the
+    // meanwhile: animators that completely pause for a frame should
+    // clear `shape.animators` (or rebuild the node).
+    chronon3d::update_text_run_shape_per_frame(*m_shape, ctx.frame.sample_time);
 
     // Acquire full-canvas framebuffer (no clear-skip — text can't fill a frame).
     auto fb = ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height, /*clear=*/true);
