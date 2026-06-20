@@ -356,6 +356,15 @@ std::shared_ptr<TextRunShape> materialize_text_run_shape(
     shape->paint    = appearance.paint;
     shape->material = appearance.material;
     shape->shadows  = appearance.shadows;
+
+    // ── PR 8 wiring ──────────────────────────────────────────────────
+    // Stash the animator list on the shape so the per-frame driver
+    // (update_text_run_shape_per_frame in text_run_driver.hpp) can
+    // re-evaluate glyph state on each render frame without
+    // re-materializing the shape.  Empty list = static layout; the
+    // driver treats it as no-op.
+    shape->animators = params.animators;
+
     return shape;
 }
 

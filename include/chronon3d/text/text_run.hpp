@@ -80,6 +80,17 @@ struct TextRunShape {
     TextMaterial material;                         // premium material settings
     TextPaint paint;                              // fill/stroke paint settings
     std::vector<TextShadow> shadows;              // per-layer shadow stack
+
+    // ── Animation driver payload (PR 8) ────────────────────────────────
+    // Stored at materialization time so the per-frame driver
+    // (update_text_run_shape_per_frame in text_run_driver.hpp) can
+    // re-evaluate the AE-style animator stack on each render frame
+    // without re-shaping.  Empty vector ⇒ static layout; the renderer
+    // treats it as no-op and skips per-frame work.
+    //
+    // The animator list is owned by the shape so the compositor
+    // doesn't have to chase references back into builder state.
+    std::vector<TextAnimatorSpec> animators;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
