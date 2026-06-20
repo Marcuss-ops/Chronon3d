@@ -3,6 +3,7 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/text/text_run_geometry.hpp>
 #include <chronon3d/text/text_run.hpp>
+#include <chronon3d/text/text_run_driver.hpp>
 #include <spdlog/spdlog.h>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <limits>
@@ -168,6 +169,15 @@ OwnedFB MultiSourceNode::execute(
                     // shared framebuffer.
                     continue;
                 }
+
+                // ── PR 8 wire-up (mirror TextRunNode::execute) ──────
+                // Re-evaluate the AE-style animator stack per frame
+                // BEFORE calling draw_text_run so animated glyphs reach
+                // the rasterizer with the current sample time.  Cheap
+                // (no re-shaping); cache key fold on hash_text_run_shape
+                // invalidates the entry automatically.  No-op when
+                // animators is empty.
+                chronon3d::update_text_run_shape_per_frame(*run_shape, ctx.frame.sample_time);
 
                 Mat4 world_matrix;
                 if (m_uses_2_5d_projection || m_centered) {

@@ -274,14 +274,24 @@ std::vector<GlyphInstanceState> evaluate_animator_stack(
     std::string_view source,
     SampleTime time
 ) {
-    auto states = make_initial_glyph_states(placed);
+    std::vector<GlyphInstanceState> states;
+    evaluate_animator_stack_into(states, animators, placed, source, time);
+    return states;
+}
+
+void evaluate_animator_stack_into(
+    std::vector<GlyphInstanceState>& inout_states,
+    const std::vector<TextAnimatorSpec>& animators,
+    const PlacedGlyphRun& placed,
+    std::string_view source,
+    SampleTime time
+) {
+    inout_states = make_initial_glyph_states(placed);
     auto unit_map = build_text_unit_map(placed, source);
 
     for (const auto& animator : animators) {
-        evaluate_animator(animator, unit_map, states, source, time, &placed);
+        evaluate_animator(animator, unit_map, inout_states, source, time, &placed);
     }
-
-    return states;
 }
 
 } // namespace chronon3d

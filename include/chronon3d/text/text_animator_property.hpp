@@ -189,4 +189,22 @@ void evaluate_animator(
     SampleTime time
 );
 
+/// Re-evaluate the full animator stack, writing per-glyph state back
+/// into the provided `inout_states` vector. Semantically equivalent to
+/// `evaluate_animator_stack` but allocates no return value — used by
+/// the per-frame animation driver (PR 8) so consecutive frames don't
+/// allocate a new vector.
+///
+/// The vector is REPLACED with freshly-initialised states for
+/// `placed.glyphs.size()` glyphs via `make_initial_glyph_states`,
+/// then each animator mutates them in place.  Callers must NOT
+/// preserve the previous contents across calls.
+void evaluate_animator_stack_into(
+    std::vector<GlyphInstanceState>& inout_states,
+    const std::vector<TextAnimatorSpec>& animators,
+    const PlacedGlyphRun& placed,
+    std::string_view source,
+    SampleTime time
+);
+
 } // namespace chronon3d
