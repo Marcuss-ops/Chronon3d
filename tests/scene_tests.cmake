@@ -20,6 +20,7 @@ add_executable(chronon3d_scene_tests
     scene/rendering/test_render_node_factory.cpp
     scene/rendering/test_depth_role.cpp
     scene/layout/test_layout_solver.cpp
+    layout/test_layout_flow_grid.cpp
     presets/test_presets.cpp
     presets/test_layer_motion_presets.cpp
     render_graph/pipeline/test_graph_cache.cpp
