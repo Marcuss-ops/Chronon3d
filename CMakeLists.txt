@@ -198,10 +198,99 @@ if(CHRONON3D_BUILD_CLI)
 endif()
 
 # ── SDK Install / Export ───────────────────────────────────────────────────
+#
+# Single EXPORT set (Chronon3DTargets.cmake) enumerates chronon3d_sdk AND the
+# transitive STATIC / INTERFACE library targets so an external consumer can
+# `target_link_libraries(app PRIVATE Chronon3D::SDK)` and resolve everything
+# (including transitive third-party deps) without inspecting the source tree.
+#
+# Layout produced under `--prefix`:
+#   <prefix>/include/chronon3d/*.hpp                 (public headers)
+#   <prefix>/<libdir>/libchronon3d_*.a             (private static archives)
+#   <prefix>/<libdir>/cmake/Chronon3D/
+#     Chronon3DConfig.cmake        (entry: find_dependency + include targets)
+#     Chronon3DConfigVersion.cmake (version compatibility gate)
+#     Chronon3DTargets.cmake       (all imported Chronon3D::* targets)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-install(TARGETS chronon3d_sdk
+# Public headers — installed verbatim under <prefix>/include/.
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+    FILES_MATCHING PATTERN "*.hpp"
+)
+
+# Aggregate list of chronon3d_* targets to install + export.  Conditional
+# targets (TEXT, VIDEO, NATIVE_FFMPEG) are appended under their respective
+# CHRONON3D_ guards so an install with those features off does not try to
+# install unbuilt targets.
+set(_chronon3d_install_targets
+    # consumer-facing aliases
+    chronon3d_sdk
+    # aggregate INTERFACE libraries
+    chronon3d_pipeline
+    chronon3d_core
+    chronon3d_software
+    chronon3d_graph
+    chronon3d_media_interface
+    # base INTERFACE
+    chronon3d
+    # STATIC / OBJECT libraries — these produce .a files in <libdir>
+    chronon3d_core_impl
+    chronon3d_cache
+    chronon3d_effects
+    chronon3d_registry
+    chronon3d_assets
+    chronon3d_backend_image
+    chronon3d_backend_assets
+    chronon3d_backend_software
+    chronon3d_runtime
+    chronon3d_extension
+    chronon3d_scene
+    chronon3d_animations
+    chronon3d_text_core
+    # render_graph split sub-targets
+    chronon3d_graph_core
+    chronon3d_graph_nodes
+    chronon3d_graph_builder
+    chronon3d_graph_compiler
+    chronon3d_graph_executor
+    chronon3d_graph_preflight
+    chronon3d_graph_cache
+    chronon3d_graph_pipeline
+)
+
+if(CHRONON3D_ENABLE_VIDEO)
+    list(APPEND _chronon3d_install_targets
+        chronon3d_backend_video
+        chronon3d_media_video
+    )
+endif()
+if(CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D)
+    list(APPEND _chronon3d_install_targets chronon3d_backend_text)
+endif()
+if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    list(APPEND _chronon3d_install_targets
+        chronon3d_ffmpeg_light
+        chronon3d_ffmpeg_full
+    )
+endif()
+
+# Blend2D paint utility is a transitive dep of chronon3d_backend_software
+# and chronon3d_backend_text.  Built only when Blend2D is enabled.
+if(CHRONON3D_USE_BLEND2D)
+    list(APPEND _chronon3d_install_targets chronon3d_blend2d_paint)
+endif()
+# chronon3d_graph_pipeline pulls in chronon3d_content at runtime, so
+# install content/diagnostics too when they were part of the build.
+if(CHRONON3D_BUILD_CONTENT OR CHRONON3D_BUILD_DIAGNOSTICS)
+    list(APPEND _chronon3d_install_targets chronon3d_content)
+endif()
+if(CHRONON3D_BUILD_DIAGNOSTICS)
+    list(APPEND _chronon3d_install_targets chronon3d_diagnostics)
+endif()
+
+install(TARGETS ${_chronon3d_install_targets}
     EXPORT Chronon3DTargets
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
@@ -212,13 +301,23 @@ install(EXPORT Chronon3DTargets
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Chronon3D
 )
 
+# Installable config: substitutes @PACKAGE_INIT@ / @OPTIONAL_…@ placeholders.
 configure_package_config_file(
-    ${CMAKE_SOURCE_DIR}/cmake/Chronon3DConfig.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/Chronon3DConfig.cmake
+    "${CMAKE_SOURCE_DIR}/cmake/Chronon3DConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/Chronon3DConfig.cmake"
     INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Chronon3D
 )
 
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/Chronon3DConfig.cmake
+# Version file — consumers gate find_package() calls on COMPATIBILITY.
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/Chronon3DConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/Chronon3DConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/Chronon3DConfigVersion.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Chronon3D
 )
 

@@ -37,8 +37,9 @@ endif()
 # Base Interface (must be defined before any add_subdirectory that uses it)
 # ==============================================================================
 add_library(chronon3d INTERFACE)
-target_include_directories(chronon3d INTERFACE 
+target_include_directories(chronon3d INTERFACE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
 )
 target_compile_definitions(chronon3d INTERFACE 
     CHRONON3D_GIT_COMMIT="${CHRONON3D_GIT_COMMIT}"
@@ -130,15 +131,19 @@ target_link_libraries(chronon3d_pipeline INTERFACE
 
 # ==============================================================================
 # Consumer SDK alias — external programs link against Chronon3D::SDK
+#
+# The link to chronon3d_pipeline must be *unconditional* (no
+# $<BUILD_INTERFACE:…> generator expression) so the same closure is
+# recorded in the installed Chronon3DTargets.cmake.  Otherwise the
+# consumer's find_package() resolution sees an empty link interface and
+# nothing to link against.
 # ==============================================================================
 add_library(chronon3d_sdk INTERFACE)
 target_include_directories(chronon3d_sdk INTERFACE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
-target_link_libraries(chronon3d_sdk INTERFACE
-    $<BUILD_INTERFACE:chronon3d_pipeline>
-)
+target_link_libraries(chronon3d_sdk INTERFACE chronon3d_pipeline)
 set_target_properties(chronon3d_sdk PROPERTIES EXPORT_NAME SDK)
 add_library(Chronon3D::SDK ALIAS chronon3d_sdk)
 

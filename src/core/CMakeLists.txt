@@ -1,5 +1,9 @@
 # ==============================================================================
 # src/core/CMakeLists.txt — chronon3d_core_impl
+#
+# PUBLIC include dirs must use generator expressions so the installed
+# Chronon3DTargets.cmake substitutes the install-time path (`include/`)
+# instead of leaking the source-tree path.
 # ==============================================================================
 
 add_library(chronon3d_core_impl STATIC
@@ -14,7 +18,8 @@ add_library(chronon3d_core_impl STATIC
     memory/framebuffer.cpp
 )
 target_include_directories(chronon3d_core_impl PUBLIC
-    ${CMAKE_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(chronon3d_core_impl PUBLIC
     nlohmann_json::nlohmann_json
