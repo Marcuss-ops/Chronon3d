@@ -6,7 +6,7 @@
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
-#include <chronon3d/core/memory/render_session.hpp>
+#include <chronon3d/runtime/render_session.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>

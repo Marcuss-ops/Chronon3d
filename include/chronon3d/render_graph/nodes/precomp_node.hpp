@@ -10,7 +10,7 @@
 // caches can invalidate nested state.
 // ──────────────────────────────────────────────────────────────────────────────
 
-#include <chronon3d/core/memory/render_session.hpp>
+#include <chronon3d/runtime/render_session.hpp>
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>

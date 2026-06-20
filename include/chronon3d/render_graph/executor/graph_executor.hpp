@@ -2,7 +2,7 @@
 
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
-#include <chronon3d/core/memory/render_session.hpp>
+#include <chronon3d/runtime/render_session.hpp>
 #include <tbb/task_arena.h>
 #include <cstdint>
 #include <memory>

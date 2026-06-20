@@ -7,9 +7,12 @@
 //
 // After the RenderSession extraction refactor ("Spostare e separare
 // RenderSession", sections 8.2 + 8.3 of the architecture plan) this header
-// is the canonical location of `struct RenderSession`.  The legacy
-// location at `<chronon3d/core/memory/render_session.hpp>` is now a
-// forwarding stub.
+// is the canonical — and ONLY — location of `struct RenderSession`.
+//
+// Post-phase-3 cleanup: the legacy location at
+// `<chronon3d/core/memory/render_session.hpp>` was DELETED (no
+// forwarding stub remains).  All callers must include this canonical
+// header directly.
 //
 // Strict renderer-agnostic boundary:
 //   - FrameArena        (per-frame temp allocator)
