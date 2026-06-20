@@ -225,19 +225,12 @@ endif()
 # if/when another abandoned branch needs the same protective mechanism.
 # ──────────────────────────────────────────────────────────────────────────────
 
-# Deprecated option kept for cmake-cache-key compat with forks / CI scripts
-# that still pass -DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON. The
-# surrounding if() is an empty touch so cmake does not emit an
-# "unused cache variable" warning; the comment block above carries the
-# full history.
-option(CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2
-    "[OBSOLETE] Retired after PR #23 (commits 1871eb77 + 76d547a6): was a guard for the abandoned expressions/v2 Path-B engine. See the comment block above for history and surviving defects. Configure with no effect; preserved for cmake-cache-key backwards compatibility with existing forks / CI."
-    OFF)
-if(CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2)
-    # OBSOLETE no-op touch: read the option once so cmake does NOT emit
-    # "unused cache variable" warnings when forks / CI pass -D...=ON. The
-    # retirement comment block above carries the full history.
-endif()
+# The former `option(CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2 OFF)`
+# and its `if()-endif()` no-op block (retained for cache-key compat in the
+# prior commit) are now removed. All tracked defects (TICKET-003/-004) are
+# closed; zero presets reference the flag; no fork/CI needs the cache-key
+# bridge. The retirement comment above remains as the authoritative
+# historical record.
 
 # ── SDK Install / Export ───────────────────────────────────────────────────
 #
