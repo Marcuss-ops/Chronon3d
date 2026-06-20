@@ -111,7 +111,6 @@ add_library(chronon3d_graph_executor STATIC
     executor/node_runner.cpp
     executor/executor_levels.cpp
     executor/framebuffer_lifetime.cpp
-    executor/executor_plan.cpp
 )
 if(CHRONON3D_ENABLE_TELEMETRY)
     target_sources(chronon3d_graph_executor PRIVATE executor/telemetry_emitter.cpp)

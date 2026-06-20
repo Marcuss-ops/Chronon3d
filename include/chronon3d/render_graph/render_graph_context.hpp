@@ -67,6 +67,7 @@ namespace chronon3d {
     class DebugConfig;  // TICKET-007: forward-declared above; re-export here so
                         // that downstream code using chronon3d::DebugConfig via
                         // this header finds it at the right namespace scope.
+    class ExecutionScheduler;  // PR-B: thread-pool authority passed via Resources.
 }
 
 namespace chronon3d::media {
@@ -135,6 +136,16 @@ struct RenderResourceContext {
     /// Effect catalog for creating effect nodes by type.
     /// Populated at pipeline init, consumed by graph builder + dirty safety.
     const class effects::EffectCatalog* effect_catalog{nullptr};
+
+    // ── PR-B: ExecutionScheduler * *scheduler ────────────────────────────
+    /// Non-owning pointer to the lifetime-bound ExecutionScheduler that
+    /// owns the tbb::task_arena for the current render process.  Populated
+    /// by `src/render_graph/pipeline/scene.cpp` from the owning
+    /// SoftwareRenderer so that PrecompNode (which has no direct access to
+    /// the renderer) can route its inner execute() through the same arena.
+    /// Required for nested graph execution (Precomp); null is permitted
+    /// for diagnostic-only graphs that never execute.
+    class chronon3d::ExecutionScheduler* scheduler{nullptr};
 };
 
 // ── Optimization flags + structure-unchanged hints ───────────────────────

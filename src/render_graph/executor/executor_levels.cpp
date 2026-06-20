@@ -6,9 +6,12 @@
 
 #include <chronon3d/core/profiling/profiling.hpp>
 
+#include <algorithm>
+#include <atomic>
 #include <cmath>
-#include <thread>
-#include <tbb/tbb.h>
+#include <cstdint>
+#include <memory_resource>
+#include <vector>
 
 namespace chronon3d::graph {
 
@@ -16,6 +19,7 @@ void execute_levels(
     RenderGraph& graph,
     RenderGraphContext& ctx,
     ExecutionState& state,
+    ExecutionScheduler& scheduler,
     const std::vector<std::vector<GraphNodeId>>& levels,
     std::pmr::vector<std::atomic_size_t>& consumer_remaining,
     RenderCounters* parent_counters,
@@ -50,17 +54,11 @@ void execute_levels(
         std::vector<double> level_clone_ctx_ms(level.size(), 0.0);
         std::vector<double> level_state_ms(level.size(), 0.0);
 
-        // Parallelize node execution for all levels. Even single-node levels
-        // benefit from TBB's internal work-stealing and nested parallelism
-        // (blur, composite, grid kernels use TBB internally).
-        // Nodes within the same level have no data dependencies — they only read
-        // from previously-completed levels (state.temp, state.resolved_*), so
-        // parallel execution is safe.  Each node writes to its own state.temp[id]
-        // slot, and shared data (counters, cache, pool) uses atomics/mutexes.
-        // Always use parallel_for for level execution, even for single-node levels,
-        // to enable TBB work-stealing and nested parallelism in pixel-processing
-        // loops (blur, composite, grid kernels). Grain size of 1 ensures each node
-        // is its own task, letting TBB distribute across all available workers.
+        // ── PR-B: thread-pool authority === scheduler ────────────────────
+        // The previous direct `tbb::parallel_for` call is replaced by
+        // `scheduler.for_each_index`: Sequential mode runs serially inside
+        // arena(1), TbbFixed(N) parallelises over N slots, TbbAutomatic
+        // delegates to TBB's automatic slot allocation.
         const bool use_parallel = level.size() > 0;
 
         if (parent_counters) {
@@ -82,84 +80,76 @@ void execute_levels(
         if (use_parallel) {
             // Tracks how many TBB workers are actively executing nodes
             // at any given moment — used for tbb_active_workers counters.
+            // PR-B: peak count is now bounded by scheduler.concurrency(),
+            // which can be 1 in Sequential mode.
             std::atomic<int> active_parallel_workers{0};
             std::atomic<uint64_t> idle_worker_us{0};
             std::atomic<int> idle_samples{0};
 
-            const int64_t max_workers = static_cast<int64_t>(std::thread::hardware_concurrency());
+            const int64_t max_workers =
+                static_cast<int64_t>(scheduler.concurrency());
 
-            tbb::parallel_for(
-                tbb::blocked_range<size_t>(0, level.size(), 1),
-                [&](const tbb::blocked_range<size_t>& range) {
-                    // ── Track active worker count ──────────────────────────
-                    const int prev = active_parallel_workers.fetch_add(1, std::memory_order_relaxed);
-                    const int current = prev + 1;
+            scheduler.for_each_index(level.size(), [&](std::size_t level_index) {
+                // ── Track active worker count ──────────────────────────────
+                const int prev = active_parallel_workers.fetch_add(1, std::memory_order_relaxed);
+                const int current = prev + 1;
 
-                    if (parent_counters) {
-                        // Atomic max: update peak if current > stored peak
-                        uint64_t peak = parent_counters->tbb_active_workers_peak.load(std::memory_order_relaxed);
-                        const uint64_t current_u64 = static_cast<uint64_t>(current);
-                        while (peak < current_u64 &&
-                               !parent_counters->tbb_active_workers_peak.compare_exchange_weak(
-                                   peak, current_u64, std::memory_order_relaxed)) {}
+                if (parent_counters) {
+                    // Atomic max: update peak if current > stored peak
+                    uint64_t peak = parent_counters->tbb_active_workers_peak.load(std::memory_order_relaxed);
+                    const uint64_t current_u64 = static_cast<uint64_t>(current);
+                    while (peak < current_u64 &&
+                           !parent_counters->tbb_active_workers_peak.compare_exchange_weak(
+                               peak, current_u64, std::memory_order_relaxed)) {}
 
-                        // Accumulate for average: sum active workers seen at entry
-                        parent_counters->tbb_active_workers_avg_sum.fetch_add(
-                            current_u64, std::memory_order_relaxed);
-                        parent_counters->tbb_active_workers_avg_count.fetch_add(
-                            1, std::memory_order_relaxed);
+                    // Accumulate for average: sum active workers seen at entry
+                    parent_counters->tbb_active_workers_avg_sum.fetch_add(
+                        current_u64, std::memory_order_relaxed);
+                    parent_counters->tbb_active_workers_avg_count.fetch_add(
+                        1, std::memory_order_relaxed);
 
-                        // Idle workers = max_workers - current
-                        // Accumulate idle-worker-microseconds for the level.
-                        // Each worker that joins but finds others already busy
-                        // represents underutilized capacity.
-                        const int idle_now = static_cast<int>(max_workers - current);
-                        if (idle_now > 0) {
-                            idle_worker_us.fetch_add(
-                                static_cast<uint64_t>(idle_now),
-                                std::memory_order_relaxed);
-                            idle_samples.fetch_add(1, std::memory_order_relaxed);
-                        }
+                    // Idle workers = max_workers - current
+                    const int idle_now = static_cast<int>(max_workers - current);
+                    if (idle_now > 0) {
+                        idle_worker_us.fetch_add(
+                            static_cast<uint64_t>(idle_now),
+                            std::memory_order_relaxed);
+                        idle_samples.fetch_add(1, std::memory_order_relaxed);
                     }
-
-                    for (size_t level_index = range.begin(); level_index != range.end(); ++level_index) {
-                        execute_single_node(
-                            state,
-                            graph,
-                            ctx,
-                            level_resolved,
-                            level[level_index],
-                            level_index,
-                            parent_counters,
-                            parent_pool,
-                            consumer_remaining,
-                            &level_cache_ms[level_index],
-                            &level_dirty_ms[level_index],
-                            &level_telemetry_ms[level_index],
-                            &level_execute_ms[level_index],
-                            &level_pred_bbox_ms[level_index],
-                            &level_clone_ctx_ms[level_index],
-                            &level_state_ms[level_index]
-                        );
-                    }
-
-                    // Decrement when this range finishes
-                    active_parallel_workers.fetch_sub(1, std::memory_order_relaxed);
                 }
-            );
+
+                execute_single_node(
+                    state,
+                    graph,
+                    ctx,
+                    level_resolved,
+                    level[level_index],
+                    level_index,
+                    parent_counters,
+                    parent_pool,
+                    consumer_remaining,
+                    &level_cache_ms[level_index],
+                    &level_dirty_ms[level_index],
+                    &level_telemetry_ms[level_index],
+                    &level_execute_ms[level_index],
+                    &level_pred_bbox_ms[level_index],
+                    &level_clone_ctx_ms[level_index],
+                    &level_state_ms[level_index]
+                );
+
+                // Decrement when this index finishes
+                active_parallel_workers.fetch_sub(1, std::memory_order_relaxed);
+            });
 
             // Flush idle worker metrics into parent counters
-            // parallel_idle_worker_entry_sum tracks the total number of
-            // idle-worker-observations: each time a TBB worker enters a
-            // parallel_for range, we count (max_concurrency - active_now)
-            // idle workers.  Larger values = more underutilized capacity.
             if (parent_counters) {
                 const uint64_t idle_sum = idle_worker_us.load(std::memory_order_relaxed);
                 if (idle_sum > 0) {
                     parent_counters->parallel_idle_worker_entry_sum.fetch_add(
                         idle_sum, std::memory_order_relaxed);
                     parent_counters->parallel_idle_worker_samples.fetch_add(
-                        idle_samples.load(std::memory_order_relaxed), std::memory_order_relaxed);
+                        idle_samples.load(std::memory_order_relaxed),
+                        std::memory_order_relaxed);
                 }
             }
         } else {
