@@ -459,3 +459,109 @@ But the retirement leaves three loose ends:
 
 ---
 
+## TICKET-006 — Missing `chronon3d_backend_text` linkage in `chronon3d_tests_fast` link step
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | One of `tests/core_tests.cmake`, `tests/scene_tests.cmake`, `tests/text_tests.cmake`, `tests/renderer_tests.cmake` (depends on chronon3d_text_core but does not link chronon3d_backend_text). Exact file TBD by binary search. |
+| **Discovered during** | cmake build re-verification after the post-cascade cleanup chain (`856ff957` → `b7a9358e` → `c2c2efac` → `a10db33c`) on `main`, with PR #23 (commits `1871eb77` + `76d547a6`) merged in. |
+| **Discovered date** | 2026-06-20 |
+| **Error count** | 17 linker errors (mold + collect2) for undefined symbols. Total: ~386 ninja steps; **378 successful compile steps** before the link failure — confirming this is a **link-time defect**, not a source-level compile issue. |
+
+### Symptom
+
+`cmake --build build/chronon/linux-ci --target chronon3d_tests_fast` (after a clean reconfigure: `cmake --preset linux-ci` rc=0) produces 17 linker errors at the chronon3d_tests_fast umbrella target's component executables. Distinct undefined-symbol errors:
+
+```
+mold: error: undefined symbol: chronon3d::segment_bidi_runs(std::basic_string_view<char, std::char_traits<char>>, int)
+mold: error: undefined symbol: chronon3d::shared_font_engine()
+mold: error: undefined symbol: chronon3d::glyph_atlas_lookup(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>> const&, unsigned int, unsigned int)
+```
+
+Plus indirect references to:
+```
+chronon3d::rasterize_text_to_bl_image(chronon3d::TextShape const&, ...)
+chronon3d::shape_resolved_run(...)
+chronon3d::text_run_materialize(...)
+```
+
+Reference sites (per linker output):
+- `src/text/libchronon3d_text_core.a` (text_resolver.cpp, text_run_builder.cpp)
+- `src/backends/text/libchronon3d_backend_text.a` (text_rasterizer_render.cpp)
+- `src/backends/software/libchronon3d_backend_software.a` (software_text_processor.cpp)
+
+### Root cause analysis
+
+The functions ARE declared and defined:
+
+| Function | Declared in | Defined in | Compiled into |
+|---|---|---|---|
+| `segment_bidi_runs` | `include/chronon3d/backends/text/bidi_segmenter.hpp` | `src/backends/text/bidi_segmenter.cpp` | `chronon3d_backend_text` |
+| `shared_font_engine` | `include/chronon3d/text/font_engine.hpp` | `src/backends/text/font_engine.cpp` | `chronon3d_backend_text` |
+| `glyph_atlas_lookup` | `include/chronon3d/text/glyph_atlas.hpp` | `src/backends/text/glyph_atlas.cpp` | `chronon3d_backend_text` |
+| `rasterize_text_to_bl_image` | `include/chronon3d/backends/text/text_rasterizer_render.hpp` | `src/backends/text/text_rasterizer_render.cpp` | `chronon3d_backend_text` |
+| `shape_resolved_run` | `include/chronon3d/text/text_resolver.hpp` | `src/text/text_resolver.cpp` | `chronon3d_text_core` |
+| `text_run_materialize` | `include/chronon3d/text/text_run_builder.hpp` | `src/text/text_run_builder.cpp` | `chronon3d_text_core` |
+
+Source-side is fine. The issue is **linkage**: at least one of chronon3d_tests_fast's component test executables does NOT link `chronon3d_backend_text`, even though it transitively uses symbols from that library through `chronon3d_text_core`.
+
+Possible root causes (binary search needed to nail the actual one):
+
+1. **Test target's `target_link_libraries` is missing `chronon3d_backend_text`** — simplest case. Likely culprit.
+2. **`chronon3d_text_core`'s public interface declares symbols that are only present when the Blend2D backend is linked** — if text_core compiles headers that reference backend symbols without transitively pulling backend, callers link-fail.
+3. **Text subsystem configuration scoped per-preset** — `linux-ci` preset configuration may have a stale combination (text enabled, Blend2D backend not). Need cross-preset verification.
+4. **A test target's CMakeLists uses `include()` (not `add_subdirectory()`) for some subset, similar to the bare-path bug fixed at the merge radar — flag, but unlikely given symptoms.
+
+### Out-of-scope rationale for the cmake-guard retirement / TICKET-005
+
+- The cmake-guard retirement commit (b7a9358e) and TICKET-005 commit (a10db33c) all focused on the broader post-rebase integration. Linkage issues are distinct.
+- Earlier in this session's build cycle, environmental instability (SIGBUS at `ar`, cc1plus internal-compiler-error segfaults at src/scene) **masked this defect** — the env crashes hit before the link step in some runs. Now that the env stabilized, the underlying linkage rot surfaced, exactly as a sensible triage would predict.
+- Source-side compile is clean: 378/386 ninja steps succeed. The defect is binary/loader-specific, not source code rot.
+
+### Suggested fix approach
+
+1. **Locate the failing test executable**:
+   ```bash
+   cmake --build build/chronon/linux-ci --target chronon3d_tests_fast -j 1 -v 2>&1 | \
+     grep -E 'FAILED|undefined symbol|chronon3d_.*\.a|/usr/bin/ld|/usr/bin/mold|chronon3d_.*_tests' | head
+   ```
+   The `-v` flag exposes which binary fails — likely `chronon3d_scene_tests`, `chronon3d_core_tests`, or `chronon3d_text_tests_fast` itself (chronon3d_tests_fast may be a custom target that wraps them; the actual executable failing will pinpoint the file).
+
+2. **Identify its target_link_libraries** in the relevant `tests/*.cmake` file (binary search across core_tests.cmake, scene_tests.cmake, text_tests.cmake, renderer_tests.cmake).
+
+3. **Add `chronon3d_backend_text` to its target_link_libraries**. Guard with `$<BOOL:${CHRONON3D_USE_BLEND2D}>` or `$<TARGET_EXISTS:chronon3d_backend_text>` if the dependency might not exist when the Blend2D backend is disabled, e.g.:
+   ```cmake
+   target_link_libraries(<failing_target>
+       PRIVATE
+           chronon3d_text_core
+           $<$<BOOL:${CHRONON3D_USE_BLEND2D}>:chronon3d_backend_text>   # NEW
+           # ... existing deps ...
+   )
+   ```
+
+4. **Verify**: re-run `cmake --build build/chronon/linux-ci --target chronon3d_tests_fast` — expect rc=0.
+
+5. **Cross-preset validation**: ensure `cmake --build` also succeeds under `linux-lean-dev`, `linux-full-validation`, `linux-asan`, and any other preset that enables text + Blend2D.
+
+6. **Downstream fix-up**: if `chronon3d_backend_text` itself has analog linkage gaps (missing `chronon3d_blend2d_paint`, `freetype`, `harfbuzz`, etc.), address them in the same commit — they share the same root cause.
+
+### Acceptance criteria
+
+- `cmake --build build/chronon/linux-ci --target chronon3d_tests_fast` returns RC=0 in a stable environment.
+- 0 linker errors in the build log; specifically zero `undefined symbol: chronon3d::segment_bidi_runs(...)`, `chronon3d::shared_font_engine()`, `chronon3d::glyph_atlas_lookup(...)`, or analog text-backend symbol errors.
+- 0 errors from `collect2: error: ld returned 1` (final linker failure tail).
+- The `chronon3d_tests_fast` umbrella target links all its component test executables successfully under `linux-ci`, `linux-lean-dev`, `linux-full-validation`, `linux-asan` presets.
+- If a different preset (e.g., a CI preset without text enabled) makes the dependency optional, the build still configures + builds cleanly without spurious warnings.
+
+### Cross-references
+
+- TICKET-005 (`a10db33c`): post-cascade cleanup — Gap C-style linkage audit.
+- b7a9358e: cmake-guard retirement commit (option `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` now deprecated no-op).
+- 856ff957: cascade of missing-include fixes.
+- TICKET-002: TextSpec API rotation may share a partial root cause (text subsystem API drift left linkage gaps when the implementation path changed).
+- PR #23: `1871eb77` (merge), `76d547a6` (upstream fix).
+- Discovered-on date: 2026-06-20.
+
+---
+
