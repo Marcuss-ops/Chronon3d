@@ -22,6 +22,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/backends/software/renderer_cache_state.hpp>
 #include <chronon3d/backends/software/renderer_runtime_resources.hpp>
+#include <chronon3d/core/config.hpp>
 
 #include <memory>
 #include <optional>
@@ -180,7 +181,16 @@ public:
     [[nodiscard]] graph::GraphExecutor* executor();
     [[nodiscard]] const graph::GraphExecutor* executor() const;
 
+    /// Per-instance engine configuration (replaces deprecated Config::get())
+    [[nodiscard]] const Config& config() const { return m_config; }
+    [[nodiscard]] Config& config() { return m_config; }
+
+    /// Default constructor — builds Config from environment variables.
     SoftwareRenderer();
+
+    /// Constructor with an explicit Config instance (e.g. CLI budget override).
+    explicit SoftwareRenderer(Config config);
+
     ~SoftwareRenderer() override;
 
     // Non-copyable.  Movable: all encapsulated state structs
@@ -278,6 +288,9 @@ private:
     const CompositionRegistry* m_registry{nullptr};
 
     RenderCounters    m_counters;
+
+    // ── Per-instance engine configuration ───────────────────────────
+    Config            m_config;
 
     // ── Encapsulated cache state ─────────────────────────────────────
     RendererCacheState       m_cache_state;

@@ -2,9 +2,11 @@
 
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace chronon3d {
@@ -92,9 +94,12 @@ ResolvedComposition resolve_composition(const CompositionRegistry& registry,
                                         const std::string& comp_id);
 
 /// Create and configure a SoftwareRenderer from the given settings.
+/// If `config` is provided, passes it to SoftwareRenderer's Config-accepting
+/// constructor; otherwise uses the default constructor (env-var-based Config).
 std::shared_ptr<SoftwareRenderer> create_renderer(
     const CompositionRegistry& registry,
-    const RenderSettings& settings);
+    const RenderSettings& settings,
+    const std::optional<Config>& config = std::nullopt);
 
 } // namespace cli
 } // namespace chronon3d

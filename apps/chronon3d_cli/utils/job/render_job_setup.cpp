@@ -39,7 +39,7 @@ void setup_render_job(const CompositionRegistry& registry,
 
     // ── Renderer creation ──────────────────────────────────────────────
     out.setup_t0 = profiling::now();
-    out.renderer = create_renderer(registry, plan.settings);
+    out.renderer = create_renderer(registry, plan.settings, plan.config);
     const auto renderer_t1 = profiling::now();
     if (out.renderer->counters()) {
         const auto setup_ms = static_cast<uint64_t>(
