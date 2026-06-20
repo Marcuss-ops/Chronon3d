@@ -197,6 +197,70 @@ if(CHRONON3D_BUILD_CLI)
     add_subdirectory(apps/chronon3d_cli)
 endif()
 
+# ── Guard: prevent silent re-introduction of the abandoned expressions/v2
+# Path-B expression engine (feature/expressions-v2 was originally branched
+# from main but never integrated; its branch is still recoverable for
+# reference via `git fetch origin feature/expressions-v2`). The branch's
+# headers and sources caused silent build errors (missing
+# expression_value.hpp + a `chrono3d` typo in lexer.hpp) and its CMake
+# layout did not match the rest of the project (target_include_directories
+# set PUBLIC ${CMAKE_SOURCE_DIR} instead of ${CMAKE_SOURCE_DIR}/include;
+# tests/CMakeLists.txt used a bare relative source path under an
+# `include()` scope). Until the feature is rewritten from scratch and
+# re-landed, this guard refuses configure if anyone tries to bring it
+# back. Override with -DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON.
+# ──────────────────────────────────────────────────────────────────────────────
+option(CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2
+    "Allow re-introduction of the abandoned expressions/v2 Path-B engine at your own risk"
+    OFF)
+
+if(NOT CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2)
+    # No CONFIGURE_DEPENDS: the guard's pattern set is fixed and rare to grow.
+    # Adding a new CMakeLists.txt / *.cmake file is already an explicit
+    # re-configure event in this project, so a stale glob in between is fine.
+    file(GLOB_RECURSE _chronon3d_guard_files
+        "${CMAKE_SOURCE_DIR}/*CMakeLists.txt"
+        "${CMAKE_SOURCE_DIR}/*.cmake"
+        "${CMAKE_SOURCE_DIR}/*/*.cmake"
+        "${CMAKE_SOURCE_DIR}/*/*/*.cmake"
+    )
+    set(_chronon3d_forbidden_patterns
+        # Trailing slashes narrow matches to the "expressions/" namespace
+        # only and avoid false positives on legitimate future modules
+        # like `add_subdirectory(expressions_runtime)`.
+        "add_subdirectory(expressions/"
+        "include(tests/expressions/"
+        # Exact lowercase target name preserved — string(FIND) is
+        # case-sensitive so this won't trip on CHRONON3D_ENABLE_* opts.
+        "chronon3d_expressions_v2"
+        "<chrono3d/expressions/v2/"
+    )
+    foreach(_chronon3d_guard_file IN LISTS _chronon3d_guard_files)
+        # Skip the file that contains this guard: it lists the forbidden
+        # patterns verbatim, so without this exclusion the guard would
+        # self-trip on its own source. Trade-off: any reinclusion added
+        # directly to the root CMakeLists.txt won't be caught here — but
+        # that file is intended to be a thin dispatcher only.
+        if(_chronon3d_guard_file STREQUAL "${CMAKE_SOURCE_DIR}/CMakeLists.txt")
+            continue()
+        endif()
+        file(READ "${_chronon3d_guard_file}" _chronon3d_guard_content)
+        foreach(_chronon3d_forbidden IN LISTS _chronon3d_forbidden_patterns)
+            string(FIND "${_chronon3d_guard_content}" "${_chronon3d_forbidden}" _chronon3d_hit)
+            if(NOT _chronon3d_hit EQUAL -1)
+                message(FATAL_ERROR
+                    "Chronon3D guard: forbidden expressions/v2 pattern detected.\n"
+                    "  File:    ${_chronon3d_guard_file}\n"
+                    "  Pattern: ${_chronon3d_forbidden}\n"
+                    "The feature/expressions-v2 Path-B engine was abandoned. To revive\n"
+                    "it intentionally, configure with:\n"
+                    "  -DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON\n"
+                )
+            endif()
+        endforeach()
+    endforeach()
+endif()
+
 # ── SDK Install / Export ───────────────────────────────────────────────────
 #
 # Single EXPORT set (Chronon3DTargets.cmake) enumerates chronon3d_sdk AND the
