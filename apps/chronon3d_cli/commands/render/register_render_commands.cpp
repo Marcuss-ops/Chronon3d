@@ -1,7 +1,6 @@
 #include "../../command_registry.hpp"
 #include "../../commands.hpp"
 #include "../../utils/common/cli_utils.hpp"
-#include <chronon3d/core/config.hpp>
 #include <spdlog/spdlog.h>
 #include <memory>
 
@@ -65,9 +64,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->allow_windows_style_options();
     cmd->callback([state, &ctx]() {
         state->args->command_line = ctx.command_line;
-        if (state->args->pipeline.fb_pool_budget_mb > 0) {
-            Config::set_fb_pool_budget_override(state->args->pipeline.fb_pool_budget_mb * 1024ULL * 1024ULL);
-        }
+        // fb_pool_budget_mb is handled in plan_render_job() via Config::set_fb_pool_budget()
         if (state->args->output.empty()) {
             state->args->output = chronon_artifact_path("renders", "render_####.png").string();
             spdlog::warn("No output path specified, defaulting to {}", state->args->output);

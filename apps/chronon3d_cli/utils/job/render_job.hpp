@@ -4,6 +4,7 @@
 #include "cli_render_utils.hpp"
 
 #include <chronon3d/backends/software/render_settings.hpp>
+#include <chronon3d/core/config.hpp>
 
 #include <memory>
 #include <optional>
@@ -28,6 +29,10 @@ struct RenderJobPlan {
     bool   warmup_renderer{false};
     size_t warmup_framebuffers{8};
     bool   warmup_dummy_frame{false};
+
+    /// Optional per-instance engine configuration (e.g. CLI budget override).
+    /// When set, create_renderer() passes it to SoftwareRenderer(Config).
+    std::optional<Config> config;
 };
 
 std::optional<RenderJobPlan> plan_render_job(const CompositionRegistry& registry,

@@ -119,12 +119,19 @@ CachePolicy resolve_cache_policy(
     CacheDomain                domain,
     std::optional<std::size_t> override_capacity)
 {
+    // Fallback: if no global config has been injected (e.g. before
+    // SoftwareRenderer construction), create a Config from environment
+    // variables and extract its cache sub-config.
     if (s_global_cache_config) {
         return resolve_cache_policy(domain, override_capacity,
                                     *s_global_cache_config);
     }
-    return resolve_cache_policy(domain, override_capacity,
-                                chronon3d::Config::get().cache());
+    {
+        static const chronon3d::Config s_fallback_config =
+            chronon3d::Config::from_environment();
+        return resolve_cache_policy(domain, override_capacity,
+                                    s_fallback_config.cache());
+    }
 }
 
 } // namespace chronon3d::cache
