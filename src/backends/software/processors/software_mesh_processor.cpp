@@ -8,13 +8,13 @@ class SoftwareMeshProcessor final : public ShapeProcessor {
 public:
     void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
-        if (!node.mesh) return;
+        if (!node.shape.mesh_shape().mesh) return;
         
         const Color linear_color = node.color.to_linear();
         const f32 aspect = static_cast<f32>(width) / static_cast<f32>(height);
         
         chronon3d::renderer::render_mesh_wireframe(
-            fb, *node.mesh, state.matrix, camera.view_matrix(),
+            fb, *node.shape.mesh_shape().mesh, state.matrix, camera.view_matrix(),
             camera.projection_matrix(aspect), linear_color);
     }
 

@@ -365,7 +365,7 @@ Layer LayerBuilder::build() {
     // For each PendingTextRun pushed via `LayerBuilder::text_run(name,
     // TextRunParams)`, evaluate the animator stack at the layer's
     // current local time and append a corresponding RenderNode
-    // flagged with `is_text_run_shape=true`.  The graph-builder
+    // flagged with ShapeType::TextRun.  The graph-builder
     // source-pass (PR 3) auto-routes these to a TextRunNode.
     //
     // Each entry uses the layer's FontEngine if one was set, falling
@@ -383,7 +383,7 @@ Layer LayerBuilder::build() {
 
             RenderNode& node = m_layer.nodes.emplace_back(res);
             node.name = std::pmr::string{spec.name, res};
-            node.is_text_run_shape = true;     // always flagged
+            node.shape.set_type(ShapeType::TextRun);
             node.font_engine = m_font_engine;
             node.world_transform.position = spec.params.text.position;
             node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
@@ -398,10 +398,10 @@ Layer LayerBuilder::build() {
             auto shape = materialize_text_run_shape(
                 spec.params, engine_for_shape, local_time);
             if (shape) {
-                node.text_run_shape = std::move(shape);
+                node.shape.text_run_shape_handle().value = std::move(shape);
             }
-            // On failure, leave `text_run_shape = nullptr` and rely on
-            // the graph-builder source-pass to emit its existing
+            // On failure, leave text_run_shape_handle().value = nullptr and
+            // rely on the graph-builder source-pass to emit its existing
             // one-shot `spdlog::error` for null-shape fallthrough.
             // We do NOT silently drop the placeholder node, so the
             // user sees the failure at compose time, not just in

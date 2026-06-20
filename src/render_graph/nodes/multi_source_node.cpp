@@ -47,7 +47,7 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
         spread += 8.0f;
 
         raster::BBox bbox;
-        if (item.node->is_text_run_shape && item.node->text_run_shape) {
+        if (item.node->shape.type() == ShapeType::TextRun && item.node->shape.text_run_shape_handle().value) {
             // text_run items use the 2.5D-aware
             // `compute_text_run_world_bbox` instead of the regular
             // shape-driven `compute_world_bbox`.  The helper accounts for
@@ -55,7 +55,7 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
             // per-glyph blur/stroke, and the shadow stack inside the
             // shape itself — the spread arg covers node-level shadow/glow.
             bbox = renderer::compute_text_run_world_bbox(
-                *item.node->text_run_shape, matrix, spread);
+                *item.node->shape.text_run_shape_handle().value, matrix, spread);
         } else if (ctx.camera.has_camera_2_5d &&
             (item.node->shape.type() == ShapeType::FakeBox3D || item.node->shape.type() == ShapeType::GridPlane)) {
             if (auto proj_bbox = detail::projected_native_3d_bbox(ctx, *item.node, item.matrix, spread)) {
@@ -110,10 +110,10 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
         // `evaluate_animator_stack` mutates glyph state.  Without this
         // fold two animated frames with identical geometry would hit a
         // stale cache entry.
-        if (item.node && item.node->is_text_run_shape && item.node->text_run_shape) {
+        if (item.node && item.node->shape.type() == ShapeType::TextRun && item.node->shape.text_run_shape_handle().value) {
             key.params_hash = hash_combine(
                 key.params_hash,
-                chronon3d::hash_text_run_shape(*item.node->text_run_shape));
+                chronon3d::hash_text_run_shape(*item.node->shape.text_run_shape_handle().value));
         }
     }
 
@@ -158,12 +158,13 @@ OwnedFB MultiSourceNode::execute(
 
             // ── text_run branch ─────────────────────────────────────
             // Dispatch via the virtual RenderBackend::draw_text_run when
-            // the item carries `is_text_run_shape = true`.  Falls through
+            // the item carries ShapeType::TextRun.  Falls through
             // to the generic `draw_node` path when the backend doesn't
             // support text (draw_text_run returns false) so the layer still
             // produces partial output (shapes render; text is skipped).
-            if (item.node->is_text_run_shape) {
-                if (!item.node->text_run_shape) {
+            if (item.node->shape.type() == ShapeType::TextRun) {
+                auto run_shape = item.node->shape.text_run_shape_handle().value;
+                if (!run_shape) {
                     // Orphan text_run: an upstream source-pass already
                     // logs this once per layer (one-shot guard);
                     // here we silently skip so the layer still produces
@@ -195,7 +196,7 @@ OwnedFB MultiSourceNode::execute(
                 }
 
                 auto result = ctx.resources.backend->draw_text_run(
-                    *fb, *item.node->text_run_shape, world_matrix,
+                    *fb, *run_shape, world_matrix,
                     item.opacity);
 
                 if (!result) {
@@ -215,8 +216,8 @@ OwnedFB MultiSourceNode::execute(
                         "hash=0x{:016x} opacity={:.3f} tx={:.1f} ty={:.1f}",
                         m_name,
                         result ? result.value().items_drawn : 0u,
-                        item.node->text_run_shape->glyphs.size(),
-                        chronon3d::hash_text_run_shape(*item.node->text_run_shape),
+                        item.node->shape.text_run_shape_handle().value->glyphs.size(),
+                        chronon3d::hash_text_run_shape(*item.node->shape.text_run_shape_handle().value),
                         item.opacity,
                         world_matrix[3][0],
                         world_matrix[3][1]

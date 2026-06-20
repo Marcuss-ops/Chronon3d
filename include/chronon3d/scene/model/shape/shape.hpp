@@ -16,6 +16,13 @@
 
 namespace chronon3d {
 
+// Forward declarations for types owned by other headers.
+// Full definitions live in:
+//   TextRunShape  → <chronon3d/text/text_run.hpp>
+//   Mesh          → <chronon3d/geometry/mesh.hpp>
+struct TextRunShape;
+struct Mesh;
+
 enum class ShapeType {
     None,
     Rect,
@@ -25,13 +32,13 @@ enum class ShapeType {
     Path,
     Text,
     Image,
-    TiledImage,       // reuses ImageShape payload (index 7)
+    TiledImage,       // dedicated TiledImageShape payload (index 12)
     GridBackground,
-    Mesh,             // no dedicated payload (treated as None)
+    Mesh,             // dedicated MeshShape payload (index 13)
     FakeBox3D,
     GridPlane,
     FakeExtrudedText,
-    TextRun,          // deferred to item #8 (uses is_text_run_shape flag)
+    TextRun,          // now has dedicated TextRunShapeHandle payload
 };
 
 enum class PlaneAxis { XZ, XY };
@@ -303,9 +310,30 @@ struct FakeExtrudedTextShape {
     Vec3  light_dir{-0.577f, 0.577f, -0.577f};
 };
 
+// ── New distinct variant payloads (PR: fix ambiguous ShapeType → index mapping) ─
+
+/// Tiled-image payload — wraps an ImageShape so TiledImage has its own variant
+/// index instead of aliasing ImageShape (index 7).
+struct TiledImageShape {
+    ImageShape image;
+};
+
+/// Mesh payload — carries a shared_ptr<Mesh> so Mesh has its own variant
+/// index instead of aliasing std::monostate (index 0).
+struct MeshShape {
+    std::shared_ptr<Mesh> mesh;
+};
+
+/// TextRun payload — carries a shared_ptr<TextRunShape> so TextRun has its
+/// own variant index instead of aliasing std::monostate (index 0) + the
+/// parallel `is_text_run_shape` flag on RenderNode.
+struct TextRunShapeHandle {
+    std::shared_ptr<TextRunShape> value;
+};
+
 // ── ShapePayload variant ───────────────────────────────────────────────────
 // Replaces the old "all payloads together" layout with a discriminated union.
-// Variant index → ShapeType mapping:
+// Variant index → ShapeType mapping (one-to-one, no aliasing):
 //   0 = None (std::monostate)
 //   1 = Rect
 //   2 = RoundedRect
@@ -313,28 +341,31 @@ struct FakeExtrudedTextShape {
 //   4 = Line
 //   5 = Path
 //   6 = Text
-//   7 = Image (also used for TiledImage)
+//   7 = Image
 //   8 = GridBackground
 //   9 = FakeBox3D
 //  10 = GridPlane
 //  11 = FakeExtrudedText
-//
-// Mesh and TextRun are kept in ShapeType for API compatibility but map to
-// monostate (Mesh) or use the separate is_text_run_shape flag (TextRun).
+//  12 = TiledImage
+//  13 = Mesh
+//  14 = TextRun
 
 using ShapePayload = std::variant<
-    std::monostate,          // 0: None / Mesh
-    RectShape,               // 1: Rect
-    RoundedRectShape,        // 2: RoundedRect
-    CircleShape,             // 3: Circle
-    LineShape,               // 4: Line
-    PathShape,               // 5: Path
-    TextShape,               // 6: Text
-    ImageShape,              // 7: Image / TiledImage
-    GridBackgroundShape,     // 8: GridBackground
-    FakeBox3DShape,          // 9: FakeBox3D
+    std::monostate,          //  0: None
+    RectShape,               //  1: Rect
+    RoundedRectShape,        //  2: RoundedRect
+    CircleShape,             //  3: Circle
+    LineShape,               //  4: Line
+    PathShape,               //  5: Path
+    TextShape,               //  6: Text
+    ImageShape,              //  7: Image
+    GridBackgroundShape,     //  8: GridBackground
+    FakeBox3DShape,          //  9: FakeBox3D
     GridPlaneShape,          // 10: GridPlane
-    FakeExtrudedTextShape    // 11: FakeExtrudedText
+    FakeExtrudedTextShape,   // 11: FakeExtrudedText
+    TiledImageShape,         // 12: TiledImage
+    MeshShape,               // 13: Mesh
+    TextRunShapeHandle       // 14: TextRun
 >;
 
 // ── ShapeType ↔ variant index conversion ────────────────────────────────────
@@ -353,6 +384,9 @@ inline ShapeType shape_type_from_payload(const ShapePayload& p) {
         case 9:  return ShapeType::FakeBox3D;
         case 10: return ShapeType::GridPlane;
         case 11: return ShapeType::FakeExtrudedText;
+        case 12: return ShapeType::TiledImage;
+        case 13: return ShapeType::Mesh;
+        case 14: return ShapeType::TextRun;
         default: return ShapeType::None;
     }
 }
@@ -367,13 +401,13 @@ inline size_t payload_index_for_type(ShapeType t) {
         case ShapeType::Path:             return 5;
         case ShapeType::Text:             return 6;
         case ShapeType::Image:            return 7;
-        case ShapeType::TiledImage:       return 7;  // reuse ImageShape
+        case ShapeType::TiledImage:       return 12;
         case ShapeType::GridBackground:   return 8;
         case ShapeType::FakeBox3D:        return 9;
         case ShapeType::GridPlane:        return 10;
         case ShapeType::FakeExtrudedText: return 11;
-        case ShapeType::Mesh:             return 0;  // no dedicated payload
-        case ShapeType::TextRun:          return 0;  // handled by is_text_run_shape
+        case ShapeType::Mesh:             return 13;
+        case ShapeType::TextRun:          return 14;
         default:                          return 0;
     }
 }
@@ -409,6 +443,9 @@ struct Shape {
             case 9:  payload.emplace<9>();  break;
             case 10: payload.emplace<10>(); break;
             case 11: payload.emplace<11>(); break;
+            case 12: payload.emplace<12>(); break;
+            case 13: payload.emplace<13>(); break;
+            case 14: payload.emplace<14>(); break;
             default: payload.emplace<0>();  break;
         }
     }
@@ -441,6 +478,12 @@ struct Shape {
     [[nodiscard]] const GridPlaneShape&    grid_plane()    const { return std::get<10>(payload); }
     [[nodiscard]] FakeExtrudedTextShape&   fake_extruded_text()  { return std::get<11>(payload); }
     [[nodiscard]] const FakeExtrudedTextShape& fake_extruded_text() const { return std::get<11>(payload); }
+    [[nodiscard]] TiledImageShape&         tiled_image()         { return std::get<12>(payload); }
+    [[nodiscard]] const TiledImageShape&   tiled_image()   const { return std::get<12>(payload); }
+    [[nodiscard]] MeshShape&               mesh_shape()          { return std::get<13>(payload); }
+    [[nodiscard]] const MeshShape&         mesh_shape()    const { return std::get<13>(payload); }
+    [[nodiscard]] TextRunShapeHandle&      text_run_shape_handle()       { return std::get<14>(payload); }
+    [[nodiscard]] const TextRunShapeHandle& text_run_shape_handle() const { return std::get<14>(payload); }
 };
 
 } // namespace chronon3d
