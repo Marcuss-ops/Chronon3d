@@ -171,9 +171,6 @@ Composition special_name_typewriter() {
 
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_special_name_compositions(CompositionRegistry& registry) {
-    static bool done = false;
-    if (done) return;
-    done = true;
     registry.add("SpecialNameFadeUp", [](const CompositionProps&) { return special_name_fade_up(); });
     registry.add("SpecialNameSlideLeft", [](const CompositionProps&) { return special_name_slide_left(); });
     registry.add("SpecialNameSlideRight", [](const CompositionProps&) { return special_name_slide_right(); });

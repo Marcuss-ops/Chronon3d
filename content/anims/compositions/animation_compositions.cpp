@@ -123,9 +123,6 @@ Composition abyss_freefall_stagger();
 
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_anim_compositions(CompositionRegistry& registry) {
-    static bool done = false;
-    if (done) return;
-    done = true;
     registry.add("AnimFadeInText", [](const CompositionProps&) { return anim_fade_in_text(); });
     registry.add("AnimSlideText", [](const CompositionProps&) { return anim_slide_text(); });
     registry.add("AnimScaleText", [](const CompositionProps&) { return anim_scale_text(); });

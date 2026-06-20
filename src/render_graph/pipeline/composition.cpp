@@ -190,10 +190,10 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                             // SIMD path: process full lanes
                             int x = 0;
                             for (; x + static_cast<int>(lanes) <= total_floats; x += static_cast<int>(lanes)) {
-                                auto acc = Load(df, dst + x);
-                                auto vals = Load(df, src + x);
+                                auto acc = LoadU(df, dst + x);
+                                auto vals = LoadU(df, src + x);
                                 acc = MulAdd(vals, v_weight, acc);
-                                Store(acc, df, dst + x);
+                                StoreU(acc, df, dst + x);
                             }
                             // Scalar tail for remaining floats
                             for (; x < total_floats; ++x) {
@@ -221,7 +221,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
 
                     int x = 0;
                     for (; x + static_cast<int>(lanes) <= total_floats; x += static_cast<int>(lanes)) {
-                        Store(Load(df, src + x), df, dst + x);
+                        StoreU(LoadU(df, src + x), df, dst + x);
                     }
                     for (; x < total_floats; ++x) {
                         dst[x] = src[x];
