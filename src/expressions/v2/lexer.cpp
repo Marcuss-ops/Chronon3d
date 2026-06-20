@@ -323,7 +323,25 @@ LexResult lex(std::string_view source) noexcept {
 
     while (!s.eof()) {
         const char c = s.peek();
-        if (std::isdigit(static_cast<unsigned char>(c))) {
+        const char c1 = s.peek(1);
+        // Handle '-N' / '-.N' as a single negative-number literal so the
+        // parser sees `42` instead of `Minus` + `Number`. Without this, the
+        // `Tokens.size() == 4 numbers + EOF` invariant tested in
+        // `Lexer: round-trip numbers` would instead emit Minus + Number
+        // (5 tokens + EOF = 6).
+        if (c == '-' && (std::isdigit(static_cast<unsigned char>(c1)) ||
+                         (c1 == '.' && std::isdigit(static_cast<unsigned char>(s.peek(2)))))) {
+            s.advance(); // consume '-'
+            if (!s.scan_number()) {
+                if (!s.eof()) s.advance();
+            } else {
+                // Negate the just-emitted Number token and prefix its lexeme/span.
+                Token& last = s.tokens.back();
+                last.number_value = -last.number_value;
+                last.lexeme = std::string("-") + last.lexeme;
+                --last.span.start; // span now includes the leading '-'
+            }
+        } else if (std::isdigit(static_cast<unsigned char>(c))) {
             if (!s.scan_number()) {
                 // error already pushed; recover by skipping one char
                 s.advance();
