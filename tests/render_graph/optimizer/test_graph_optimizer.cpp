@@ -175,8 +175,14 @@ TEST_CASE("Pruning - identity transform with multiple consumers is kept") {
 
 TEST_CASE("Static bake - frame-independent nodes are counted") {
     RenderGraph graph;
+    // root NOT cacheable → excluded from bake eligibility.
     GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
-    GraphNodeId tx = graph.add_node(std::make_unique<TransformNode>(Mat4(1.0f), 1.0f));
+    // Use the 5-arg ctor to pass an explicit static cache policy — the
+    // 2-arg ctor defaults to frame_dependent=true which excludes the node
+    // from static-bake eligibility.
+    GraphNodeId tx = graph.add_node(std::make_unique<TransformNode>(
+        Mat4(1.0f), 1.0f, Frame{-1}, SamplingMode::Bilinear,
+        static_memory_cache("transform")));
     graph.connect(root, tx);
     graph.set_output(tx);
 
@@ -184,11 +190,8 @@ TEST_CASE("Static bake - frame-independent nodes are counted") {
     cache::NodeCache node_cache;
     ctx.resources.node_cache = &node_cache;
 
-    // root is frame-invariant but not cacheable (cacheable()=false).
-    // TransformNode defaults to frame_dependent=true; mark it false.
-
     size_t eligible = count_bake_eligible_nodes(graph, ctx);
-    CHECK(eligible == 1); // Only TransformNode is eligible
+    CHECK(eligible == 1); // Only TransformNode is eligible (root uses no_cache)
 }
 
 TEST_CASE("Static bake - frame-dependent nodes are excluded") {
@@ -327,13 +330,17 @@ TEST_CASE("No unsafe optimization - mixed node kinds are not fused") {
 TEST_CASE("No unsafe optimization - frame-dependent vs frame-invariant not fused") {
     RenderGraph graph;
     GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
-    GraphNodeId tx_static = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(1.0f, 0.0f, 0.0f)), 1.0f));
-    GraphNodeId tx_dynamic = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(0.0f, 1.0f, 0.0f)), 1.0f));
+    // Use the 5-arg ctor to make tx_static explicitly frame-invariant.
+    GraphNodeId tx_static = graph.add_node(std::make_unique<TransformNode>(
+        glm::translate(Mat4(1.0f), Vec3(1.0f, 0.0f, 0.0f)), 1.0f,
+        Frame{-1}, SamplingMode::Bilinear, static_memory_cache("transform")));
+    // 2-arg ctor → frame_dependent=true (default).
+    GraphNodeId tx_dynamic = graph.add_node(std::make_unique<TransformNode>(
+        glm::translate(Mat4(1.0f), Vec3(0.0f, 1.0f, 0.0f)), 1.0f));
 
     graph.connect(root, tx_static);
     graph.connect(tx_static, tx_dynamic);
     graph.set_output(tx_dynamic);
-
 
     size_t fused = fuse_nodes(graph);
 

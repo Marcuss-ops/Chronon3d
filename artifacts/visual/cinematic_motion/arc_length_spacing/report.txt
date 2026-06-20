@@ -1,0 +1,12 @@
+case: arc_length_spacing
+resolution: 960x540
+mean_abs_error: 0.485748
+max_abs_error: 241.25
+changed_pixel_ratio: 0.000123457
+rmse: 1.48265
+psnr: 44.71
+threshold_mean_abs_error: 0.5
+threshold_max_abs_error: 8
+threshold_changed_pixel_ratio: 0.002
+threshold_rmse: 2
+result: failed
