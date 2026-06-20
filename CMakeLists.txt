@@ -199,9 +199,11 @@ endif()
 
 # ── Former CMake guard: CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2 ───────────
 # Path-B expression engine (feature/expressions-v2) was abandoned with multiple
-# latent breakages (missing expression_value.hpp, `chrono3d` typo in lexer.hpp,
-# target_include_directories set PUBLIC ${CMAKE_SOURCE_DIR} instead of
-# ${CMAKE_SOURCE_DIR}/include, tests/CMakeLists.txt bare-relative include path).
+# latent breakages. Two survived until TICKET-003/-004 close-out (2026-06-20):
+# `<chrono3d` typo in lexer.hpp (TICKET-003 — auto-closed by upstream commits
+# c878ba7d/e41ff95a) and target_include_directories PUBLIC ${CMAKE_SOURCE_DIR}/
+# include instead of PRIVATE (TICKET-004 — fixed this session). The guard
+# fired correctly, proving its value; all tracked defects are now resolved.
 #
 # A guard was added in commit aae68561 to refuse configure if those patterns
 # re-appeared in any *.cmake / CMakeLists.txt — the guard fired correctly after
@@ -211,16 +213,14 @@ endif()
 # (or a bypassed local configure) was used to land it.
 #
 # Guardian verdict (recorded here for posterity): the protective value was
-# real. The merged tree still carries two defects the guard was hunting for —
-# tracked externally so this comment stays compact:
-#
-#   • include/chronon3d/expressions/v2/lexer.hpp — see TICKET-003
-#   • src/expressions/v2/CMakeLists.txt PUBLIC include dir — see TICKET-004
+# real. As of 2026-06-20 both defects the guard was hunting for are closed:
+# TICKET-003 (lexer.hpp typo — auto-closed upstream) and TICKET-004
+# (CMake PUBLIC→PRIVATE — fixed). See docs/FOLLOWUP_TICKETS.md for
+# the status transitions.
 #
 # Decision (this commit): retire the guard with this comment rather than
 # maintain a permanent exclusion list. The feature is on main and functional;
-# the surviving defects above remain live and should be filed as separate
-# tickets — see docs/FOLLOWUP_TICKETS.md and the project issue tracker.
+# all surviving defects from the guard's fire are now tracked-and-closed.
 # Re-introduce this guard (option + GLOB_RECURSE + string(FIND) + FATAL_ERROR)
 # if/when another abandoned branch needs the same protective mechanism.
 # ──────────────────────────────────────────────────────────────────────────────
