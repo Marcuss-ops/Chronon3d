@@ -1,0 +1,22 @@
+test(layer): add P2 test_layer_kind.cpp coverage
+
+Follow-up to P2 commit 3 (LayerKind enum completion). The test file
+was present in the working tree and the unity build picked it up via
+working-tree scan during pre-push regression, so the targeted
+LayerKind tests passed against the binary, but the test file never
+made it into the actual commit (commit 3 staged only the layer.hpp
+change). This commit adds the +tests/scene_tests.cmake wiring +
+test/scene/test_layer_kind.cpp so the coverage lives in version
+control.
+
+== Tests (7 doctest cases)
+  * default construction leaves kind==Normal;
+  * each primitive Kind (Shape/Text/Camera/Audio) toggles its predicate;
+  * legacy Normal/Adjustment/Null/Precomp/Video/Glass do NOT trip the
+    new predicates;
+  * enum distinctness via constexpr static_asserts.
+
+Wiring: tests/scene_tests.cmake adds tests/scene/test_layer_kind.cpp.
+
+No production code changes in this commit. P2 commit 3 stands as
+written; this is a hygiene-only fix-up.
