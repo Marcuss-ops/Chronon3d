@@ -104,10 +104,22 @@ struct RenderSession {
 
     // Convenience accessors that proxy the runtime-owned state via
     // services.  Bodies in src/runtime/render_session.cpp.
-    [[nodiscard]] chronon3d::graph::SceneHasher&       scene_hasher()       noexcept;
-    [[nodiscard]] const chronon3d::graph::SceneHasher& scene_hasher() const noexcept;
-    [[nodiscard]] chronon3d::graph::SceneProgramStore&       program_store()       noexcept;
-    [[nodiscard]] const chronon3d::graph::SceneProgramStore& program_store() const noexcept;
+    //
+    // WP-3 PR 3.0 — the four accessors are intentionally NOT
+    // `noexcept`: their bodies in src/runtime/render_session.cpp
+    // call `throw std::runtime_error(...)` when the session's
+    // `services.scene_hasher` / `services.program_store` pointers
+    // are null (default-constructed sessions, test fixtures).
+    // A `noexcept` annotation here would invoke `std::terminate`
+    // on the unwinding throw; the specifier is now removed so the
+    // exception propagates to the caller.  See the test lattice in
+    // `tests/runtime/test_render_session_reset_and_isolation.cpp`
+    // (`default-constructed scene_hasher() throws instead of
+    // terminating` and the equivalent for `program_store()`).
+    [[nodiscard]] chronon3d::graph::SceneHasher&       scene_hasher();
+    [[nodiscard]] const chronon3d::graph::SceneHasher& scene_hasher() const;
+    [[nodiscard]] chronon3d::graph::SceneProgramStore&       program_store();
+    [[nodiscard]] const chronon3d::graph::SceneProgramStore& program_store() const;
 
     /// Arena accessor (still engine-generic; lives on the session).
     [[nodiscard]] FrameArena&       arena()       noexcept { return *arena_ptr; }

@@ -15,10 +15,14 @@ Files:
 - `src/runtime/render_runtime.cpp`
 
 Actions:
-- [ ] Remove `noexcept` from accessors that throw.
-- [ ] Alternatively make the invariant non-throwing with assertions and guaranteed wiring.
-- [ ] Add tests for default-constructed sessions and unattached backends.
-- [ ] Prevent `std::terminate` from a throw escaping a `noexcept` function.
+- [x] Remove `noexcept` from accessors that throw.  The four `[[nodiscard]]` `noexcept` annotations on `RenderSession::scene_hasher()` (mutable + const overloads) and `program_store()` (mutable + const overloads) were dropped in `include/chronon3d/runtime/render_session.hpp`.  Their bodies in `src/runtime/render_session.cpp` throw `std::runtime_error` when the session's `services.scene_hasher` / `services.program_store` pointers are null; a throw unwinding through a `noexcept` function invokes `std::terminate`.  Removing the specifier lets the throw propagate to the caller.  `arena()` accessors REMAIN `noexcept` because their bodies never throw.
+- [x] Prevent `std::terminate` from a throw escaping a `noexcept` function.  Follows from the noexcept-removal action above; verified by `grep -nE 'noexcept' include/chronon3d/runtime/render_session.hpp` returning only the `arena()` lines (the four `scene_hasher` / `program_store` declarations in question are gone from the noexcept set).
+- [~] Add tests for default-constructed sessions and unattached backends — delivered in PR 3.3 alongside the broader reset / isolation coverage so the diagnostic and the test lattice live in one place.  PR 3.0 keeps the noexcept fix isolated to the header; the test file is registered with the lattice in PR 3.3.
+- [ ] (alternative) Make the invariant non-throwing with assertions and guaranteed wiring — explicitly NOT taken.  See rationale below.
+
+#### PR 3.0 — why we kept the throw instead of switching to assertions / abort
+
+The throw path was kept (vs. an assertion + `std::abort` or a silent null return) so callers receive actionable error information at the call site.  Production routes reach these accessors only via `make_session()`, which wires `services.scene_hasher` and `services.program_store` to runtime-owned pointers; the throw branch exists solely as a defensive guard for default-constructed sessions (test fixtures, future ad-hoc session holders).  An assertion-driven `abort()` would convert a recoverable wiring error into a process kill; a silent null return would convert it into UB at the dereference.  The throw lets the error surface and the caller decide.
 
 ### PR 3.1 — Restore job isolation
 
@@ -55,7 +59,7 @@ Actions:
 
 ## Exit criteria
 
-- [ ] No throwing function is incorrectly marked `noexcept`.
+- [x] No throwing function is incorrectly marked `noexcept`.  (PR 3.0 dropped `noexcept` from the four `RenderSession::scene_hasher` / `program_store` accessor signatures whose bodies throw on default-constructed sessions.)
 - [ ] Mutable job state is isolated per session.
 - [ ] Reset methods cannot affect another render job.
 - [ ] Legacy renderer-prefixed history aliases are removed from production call sites.
