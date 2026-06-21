@@ -27,7 +27,9 @@ add_executable(chronon3d_expressions_v2_tests
 target_link_libraries(chronon3d_expressions_v2_tests
     PRIVATE
         chronon3d_expressions_v2
-        doctest::doctest
+        # PR-A (MIGRATION_TEXT_SPEC.md §5; mirrors TICKET-006's
+        # chronon3d_backend_text gen-exp guard).  See file header for context.
+        $<$<TARGET_EXISTS:doctest::doctest>:doctest::doctest>
 )
 target_include_directories(chronon3d_expressions_v2_tests
     PRIVATE
