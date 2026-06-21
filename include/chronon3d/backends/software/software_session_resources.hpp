@@ -13,24 +13,31 @@
 // Members:
 //   - RendererBufferRing      buffer_ring        ping-pong framebuffers
 //   - TransformScratchBuffer  transform_scratch  transform-node scratch FB
-//   - graph::SceneHasher      scene_hasher       scene fingerprint state
 //
 // Reset semantics:
 //   - reset_frame_temporaries(): resets transform_scratch (so the next
-//     frame starts fresh scratch state) and clears scene_hasher's session
-//     cache.  Does NOT reset the buffer ring (which holds the previous
-//     frame's output and must survive until commit_written_frame()).
-//   - reset_job(): resets buffer_ring, transform_scratch, scene_hasher
-//     in full.  Use at the start of an unrelated render job.
+//     frame starts fresh scratch state).  Does NOT reset the buffer ring
+//     (which holds the previous frame's output and must survive until
+//     commit_written_frame()).
+//   - reset_job(): resets buffer_ring + transform_scratch in full.  Use
+//     at the start of an unrelated render job.
 //
 // Cache persistenti (image cache, node cache, pool) NON vengono toccate
 // da reset_job — le risorse di sessione sono solo ciò che è elencato
 // sopra.
+//
+// WP-3 PR 3.1 — the `graph::SceneHasher scene_hasher` member was
+// REMOVED.  The canonical scene hasher is now a per-session value
+// member on `RenderSession::scene_hasher`.  `SoftwareRenderSession`
+// (which composes `RenderSession common + SoftwareSessionResources
+// software`) reaches the scene hasher through
+// `session.common.scene_hasher()`.  This struct no longer needs an
+// include of `<chronon3d/render_graph/core/scene_hasher.hpp>`
+// (TICKET-013 boundary invariant restored for this header).
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/backends/software/buffer_ring.hpp>
 #include <chronon3d/backends/software/scratch_buffer.hpp>
-#include <chronon3d/render_graph/core/scene_hasher.hpp>
 
 namespace chronon3d {
 
@@ -50,9 +57,6 @@ struct SoftwareSessionResources {
     // because of the design (architecture plan section 8.5).
     TransformScratchBuffer  scratch_buffer;
 
-    // ── Session-scoped per-frame computation ────────────────────────────
-    graph::SceneHasher      scene_hasher;
-
     SoftwareSessionResources() = default;
     SoftwareSessionResources(const SoftwareSessionResources&) = delete;
     SoftwareSessionResources& operator=(const SoftwareSessionResources&) = delete;
@@ -61,24 +65,25 @@ struct SoftwareSessionResources {
 
     /// Reset per-frame temporaries ONLY: the transform scratch buffer is
     /// released (it gets reallocated lazily on the next frame's
-    /// `slot_view(width, height)` call) and the scene hasher's session
-    /// cache is cleared.  The buffer ring is preserved because its
-    /// previous-frame data must remain valid until the next frame's
-    /// commit.
+    /// `slot_view(width, height)` call).  The buffer ring is preserved
+    /// because its previous-frame data must remain valid until the
+    /// next frame's commit.
     void reset_frame_temporaries() {
         scratch_buffer.reset();
-        scene_hasher = graph::SceneHasher{};
         // buffer_ring intentionally preserved: holds previous frame FB.
+        // WP-3 PR 3.1: scene_hasher reset no longer happens here —
+        // canonical scene_hasher is on RenderSession (per-session).
     }
 
-    /// Full job-level reset: release the previous frame buffer ring,
-    /// release the transform scratch, and reset the scene hasher.
-    /// Persistent caches (image cache, node cache, framebuffer pool) are
-    /// NOT touched here — those belong to the runtime, not the session.
+    /// Full job-level reset: release the previous frame buffer ring
+    /// and release the transform scratch.  Persistent caches
+    /// (image cache, node cache, framebuffer pool) are NOT touched
+    /// here — those belong to the runtime, not the session.
+    /// WP-3 PR 3.1: scene_hasher reset no longer happens here
+    /// (canonical scene_hasher is on RenderSession).
     void reset_job() {
         buffer_ring.reset();
         scratch_buffer.reset();
-        scene_hasher = graph::SceneHasher{};
     }
 };
 

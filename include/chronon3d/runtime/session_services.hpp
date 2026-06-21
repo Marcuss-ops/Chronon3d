@@ -15,17 +15,22 @@
 // render_runtime ↔ render_session include cycle.
 //
 // Future code that needs to consult "what services back this session
-// without holding a Session*" can use `chronon3d::runtime::session_session_
-// services(session)` (declared in render_runtime.hpp) instead of
-// reaching directly into the field.
+// without holding a Session*" can use `chronon3d::runtime::session_services(session)`
+// (declared in render_runtime.hpp) instead of reaching directly into
+// the field.
+//
+// WP-3 PR 3.1 — `scene_hasher` and `program_store` pointer fields
+// were REMOVED.  Both state engines are now per-session owned (see
+// `RenderSession::scene_hasher` and `RenderSession::program_store`),
+// so reaching into them via the SessionServices table is no longer
+// the correct approach — callers should now read the session
+// directly (`session.scene_hasher()` / `session.program_store()`).
 // ----------------------------------------------------------------------
 
 namespace chronon3d::cache { class NodeCache; class FramebufferPool; }
 namespace chronon3d::graph {
     class GraphExecutor;
     class CompiledGraphCache;
-    struct SceneHasher;
-    class  SceneProgramStore;
 }
 namespace chronon3d { class AssetRegistry; }
 
@@ -40,14 +45,10 @@ struct SessionServices {
     /// Pointer to the runtime's `default_assets_root`.  Non-owning;
     /// valid for the lifetime of the runtime.
     const std::string*                       default_assets_root{nullptr};
-    /// WP-8 follow-up — pointer to runtime-owned scene hasher
-    /// (was a value member on RenderSession via render_session.hpp's
-    /// scene_hasher.hpp include; relocated to runtime).  Non-owning.
-    chronon3d::graph::SceneHasher*           scene_hasher{nullptr};
-    /// WP-8 follow-up — pointer to runtime-owned program store
-    /// (was a unique_ptr member on RenderSession; relocated to runtime).
-    /// Non-owning.
-    chronon3d::graph::SceneProgramStore*    program_store{nullptr};
+    // WP-3 PR 3.1 — `scene_hasher` and `program_store` pointer fields
+    // were REMOVED here.  Both state engines are per-session owned.
+    // Callers that previously read `services.scene_hasher` /
+    // `services.program_store` must now read the session directly.
 };
 
 } // namespace chronon3d::runtime

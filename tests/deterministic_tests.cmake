@@ -8,6 +8,12 @@ add_executable(chronon3d_deterministic_tests
     deterministic/test_deterministic.cpp
     deterministic/test_determinism_harness.cpp
     deterministic/gradient_determinism_tests.cpp
+    # WP1 PR 1.4 — Scheduler-swap determinism (Sequential vs
+    # TbbFixed/TbbAutomatic across required scenes).  Lives under
+    # tests/render_graph/executor/ because the executor's scheduler
+    # parameter (WP1 PR 1.0+1.1) is the test surface, but it reuses
+    # the determinism harness helpers from this aggregate.
+    render_graph/executor/test_scheduler_determinism.cpp
 )
 
 target_link_libraries(chronon3d_deterministic_tests
