@@ -46,6 +46,15 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
     include(${CMAKE_CURRENT_SOURCE_DIR}/deterministic_tests.cmake)
 endif()
 
+# WP-0 PR 0.2 — focused compile-coherence target for the PrecompNode
+# TU family.  Compiles only `precomp_node_execute.cpp` + the direct
+# test TU `test_precomp_node_cache.cpp` against the public
+# `chronon3d_sdk` alias (no inner OBJECT libraries).  Routed through
+# CTest so it runs in CI before the heavy renderer-test bag.
+# Note: the .cmake file self-guards on CHRONON3D_USE_BLEND2D so the
+# include is unconditional here.
+include(${CMAKE_CURRENT_SOURCE_DIR}/precomp_focus_tests.cmake)
+
 # Tests requiring content
 if(CHRONON3D_BUILD_CONTENT)
     include(${CMAKE_CURRENT_SOURCE_DIR}/content_tests.cmake)
@@ -84,6 +93,12 @@ if(CHRONON3D_USE_BLEND2D)
 endif()
 if(TARGET chronon3d_cli_tests)
     list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_cli_tests)
+endif()
+# WP-0 PR 0.2 — PrecompNode compile-coherence target wired into FAST
+# so it runs on every CI build (matches the WP-0 PR 0.2 requirement
+# that precomp integration is compiled by a required target).
+if(TARGET chronon3d_precomp_focus_tests)
+    list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_precomp_focus_tests)
 endif()
 add_custom_target(chronon3d_tests_fast
     DEPENDS ${CHRONON3D_FAST_TEST_DEPS}
