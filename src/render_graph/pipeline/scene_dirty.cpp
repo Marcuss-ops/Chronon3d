@@ -7,7 +7,10 @@
 
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/math/renderer_state.hpp>
+// WP-3 PR 3.2 — `<chronon3d/math/renderer_state.hpp>` is now a thin
+// shim that forwards canonical includes; no direct dependency needed
+// from this file.  `LayerBBoxState` resolves through `software_renderer.hpp`
+// (transitively to `<chronon3d/runtime/dirty_history.hpp>`).
 #include <chronon3d/core/tile_grid.hpp>
 #include <chronon3d/core/dirty_tile_mask.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -146,17 +149,20 @@ DirtyRectOutput compute_dirty_rect(
         };
 
         // Diff current against previous
+        // WP-3 PR 3.2 — `layer_history().prev_layer_bboxes` was folded
+        // into `dirty_telemetry().previous_layers`.  The dirty-rect
+        // diff reads the canonical home now.
         for (const auto& pair : out.layer_bboxes) {
             const auto& curr = pair.second;
-            auto prev_it = sw_renderer->layer_history().prev_layer_bboxes.find(pair.first);
+            auto prev_it = sw_renderer->dirty_telemetry().previous_layers.find(pair.first);
             add_layer_dirty(
                 curr,
-                prev_it == sw_renderer->layer_history().prev_layer_bboxes.end() ? nullptr : &prev_it->second
+                prev_it == sw_renderer->dirty_telemetry().previous_layers.end() ? nullptr : &prev_it->second
             );
         }
 
         // Layers removed since previous frame
-        for (const auto& pair : sw_renderer->layer_history().prev_layer_bboxes) {
+        for (const auto& pair : sw_renderer->dirty_telemetry().previous_layers) {
             if (out.layer_bboxes.find(pair.first) == out.layer_bboxes.end()) {
                 add_dirty_bbox(pair.second.bbox);
             }
