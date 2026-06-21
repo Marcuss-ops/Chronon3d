@@ -164,6 +164,128 @@ Unificato con S5.
 - `src/c_api/c_api_internal.hpp` — nuovo header interno condiviso (`chronon_context` struct + dichiarazioni helper)
 - `CMakeLists.txt` aggiornato con i 4 file sorgente
 
+### R6 — PR-2 rewire close-out: RenderGraph& execute() overloads + ExecutionPlanCache RETIRED
+
+2026-06-21 — The PR-2 rewire followups that were documented in
+`docs/refactor-roadmap/02-compiled-graph-only.md` (PR 2.3 + PR 2.4)
+landed.  Three classes of public surface were RETIRED in this
+delivery; the frontier is now `RenderGraph → FrameGraphCompiler →
+CompiledFrameGraph → GraphExecutor::execute`.
+
+**RenderGraph& execute() overloads dropped** — the two
+`GraphExecutor::execute(RenderGraph&, ...)` overloads (4-arg and
+5-arg variants with explicit `GraphNodeId output`) were removed.
+Production callers, tests, and the bake CLI all now route through
+`FrameGraphCompiler::compile()` first, then call the surviving 4-arg
+`execute(CompiledFrameGraph&, RenderGraphContext&, RenderSession&,
+ExecutionScheduler&) const` overload.  The two 6-arg overloads that
+took `CompileFrameGraph&, ctx, session, scheduler, plan_cache=...`
+are also gone.
+
+**The `ExecutionPlanCache* plan_cache` parameter retired** — the
+`execute(CompiledFrameGraph&, ...)` overload no longer takes a
+topological-plan cache.  The legacy `(void)plan_cache;` keep-alive
+and the 3-step cache lookup logic in the raw-graph implementation
+are both gone.  Compiled graphs already carry their plan on
+`CompiledFrameGraph::levels`, so the cache layer was redundant.
+
+**The `chronon3d::runtime::ExecutionPlanCache` class itself
+deleted** — with no remaining consumers in production, debug, test,
+or bench paths, the class + header + source were removed.  Plumbing
+on `RenderRuntime` (`m_owned_plan_cache`, `plan_cache()` accessor,
+`RenderServices::plan_cache` field) and on `SoftwareRenderer`
+(`plan_cache()` accessor) was dropped.  `SessionServices::plan_cache`
+field removed.  The `execution_plan_cache_hits` counter macro
+removed from `CHRONON_COUNTERS_GRAPH` (auto-propagates to the
+counters struct, `kCounterNames`, and the merged-into counter
+registry).
+
+**6 caller migrations** — the bake CLI (`command_bake_layer`),
+the debug pipeline (`debug.cpp`), the RenderBackend test cases
+(`test_render_backend.cpp`), and the always-CompiledFrameGraph
+callers (`scene_tile_execution`, `tile_execution_coordinator`,
+`precomp_node_execute`) all migrated to the compiled-graph
+contract.  The bake CLI additionally uses
+`RenderGraph::retarget_output(selection.selected_output)` so the
+selected layer becomes the compiled graph's output without a
+rebuild.
+
+**CI enforcement** — `tools/check_architecture_boundaries.sh` now
+has a 5th grep guard (labels bumped `[N/3]`→`[N/5]` and header
+text "4 total" → "5 total") that flags any reintroduction of
+`plan_cache` references across `include/`, `src/`, `tests/`, and
+`apps/`.  `docs/` is intentionally excluded so that the WP-2 /
+WP-8 audit-trail comments survive.  Exit criterion
+`git grep plan_cache -- include/ src/ apps/ tests/` now returns
+zero hits.
+
+**External SDK migration note (breaking change).**  Three public
+symbols were RETIRED:
+
+1. `chronon3d::runtime::ExecutionPlanCache` (class) and its header
+   `<chronon3d/runtime/execution_plan_cache.hpp>` — file deleted;
+   downstream code that used the type must drop the include and
+   either re-derive plans via `FrameGraphCompiler::compile()` or
+   call `GraphExecutor::execute(CompiledFrameGraph&, ...)` without
+   supplying a plan cache.  Before:
+
+   ```cpp
+   #include <chronon3d/runtime/execution_plan_cache.hpp>
+   chronon3d::runtime::ExecutionPlanCache plan_cache;
+   executor.execute(graph, output, ctx, session, scheduler, &plan_cache);
+   ```
+
+   After:
+
+   ```cpp
+   #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
+   auto compiled = FrameGraphCompiler{}.compile(std::move(graph), ctx);
+   executor.execute(compiled, ctx, session, scheduler);
+   ```
+
+2. `chronon3d::SoftwareRenderer::plan_cache()` accessor — gone;
+   there is NO replacement because topological plans now live
+   exclusively on `CompiledFrameGraph::levels`.  Before:
+
+   ```cpp
+   executor->execute(compiled, ctx, session, scheduler,
+                     sw_renderer->plan_cache());
+   ```
+
+   After:
+
+   ```cpp
+   executor->execute(compiled, ctx, session, scheduler);
+   ```
+
+3. `chronon3d::runtime::SessionServices::plan_cache` field (and
+   the matching literal in `make_session()`) — gone; callers that
+   previously wrote a `plan_cache` line in their
+   `SessionServices{…}` initializer must drop it.  Before:
+
+   ```cpp
+   chronon3d::SoftwareRenderSession session;
+   session.services = SessionServices{
+       .executor            = runtime.services().executor,
+       .plan_cache          = runtime.services().plan_cache,
+       // ...
+   };
+   ```
+
+   After:
+
+   ```cpp
+   chronon3d::SoftwareRenderSession session;
+   session.services = SessionServices{
+       .executor            = runtime.services().executor,
+       // plan_cache line dropped
+       // ...
+   };
+   ```
+
+No semantic replacement API exists — route through
+`FrameGraphCompiler` and let the compiled graph be the plan.
+
 ### R5 — WP-8 close-out: `render_session.hpp` is engine-generic again
 
 2026-06-21 — The three structural cross-layer dependencies that WP-8
