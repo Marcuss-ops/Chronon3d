@@ -211,13 +211,13 @@ selected layer becomes the compiled graph's output without a
 rebuild.
 
 **CI enforcement** — `tools/check_architecture_boundaries.sh` now
-has a 5th grep guard (labels bumped `[N/3]`→`[N/5]` and header
-text "4 total" → "5 total") that flags any reintroduction of
-`plan_cache` references across `include/`, `src/`, `tests/`, and
-`apps/`.  `docs/` is intentionally excluded so that the WP-2 /
-WP-8 audit-trail comments survive.  Exit criterion
-`git grep plan_cache -- include/ src/ apps/ tests/` now returns
-zero hits.
+has a 5th grep guard (header text bumped from "4 total" to "5
+total" and all four pre-existing labels unified to `[N/5]`) that
+flags any reintroduction of `plan_cache` references across
+`include/`, `src/`, `tests/`, and `apps/`.  `docs/` is intentionally
+excluded so that the WP-2 / WP-8 audit-trail comments survive.
+Exit criterion `git grep plan_cache -- include/ src/ apps/ tests/`
+now returns zero hits.
 
 **External SDK migration note (breaking change).**  Three public
 symbols were RETIRED:
@@ -235,13 +235,31 @@ symbols were RETIRED:
    executor.execute(graph, output, ctx, session, scheduler, &plan_cache);
    ```
 
-   After:
+   After (render-the-whole-graph shape):
 
    ```cpp
    #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
    auto compiled = FrameGraphCompiler{}.compile(std::move(graph), ctx);
    executor.execute(compiled, ctx, session, scheduler);
    ```
+
+   After (bake-style layer retarget shape — e.g. the bake CLI):
+
+   ```cpp
+   #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
+   // retarget_output works in either phase (Building or Frozen) so
+   // you can layer-select without rebuilding the whole graph.
+   graph.retarget_output(selection.selected_output);
+   auto compiled = FrameGraphCompiler{}.compile(std::move(graph), ctx);
+   executor.execute(compiled, ctx, session, scheduler);
+   ```
+
+   Note: `FrameGraphCompiler::compile` takes `RenderGraph` **by
+   value** — the `std::move(graph)` call consumes it.  If your
+   caller still needs `graph` afterwards, clone it first (the
+   `RenderGraph` copy ctor is implicitly deleted so use the move +
+   snapshot pattern, or build a fresh graph from the underlying
+   scene).
 
 2. `chronon3d::SoftwareRenderer::plan_cache()` accessor — gone;
    there is NO replacement because topological plans now live
