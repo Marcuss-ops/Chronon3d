@@ -364,7 +364,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     const chronon3d::assets::AssetResolver& resolver,
     bool* cache_hit,
     const Mat4* transform,
-    FontEngine* font_engine,
+    FontEngine& font_engine,
     const chronon3d::DebugConfig* debug_cfg
 ) {
 #ifdef CHRONON3D_ENABLE_TEXT
@@ -400,21 +400,13 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         layout_box.size.y = std::max(0.0f, t.box.size.y - 2.0f * t.style.box_style.padding.y);
     }
 
-    // WP-8 PR 8.0 — local_engine fallback USES the SAME `resolver` parameter
-    // the function already accepted, so this deep cache no longer reads the
-    // process-wide `runtime::typed_resolver_for_deep_code()` bridge.  Production
-    // callers should still supply `font_engine` explicitly via
-    // `sw_renderer->runtime().resolver()`; the local fallback only fires for
-    // legacy code paths that constructed a RenderNode without binding one.
-    //
-    // NOTE(WP-8 PR 8.1): per-call construction is wasteful (FT_Library init
-    // + face cache wipe each call).  Future optimisation: hoist the local
-    // `FontEngine` into a per-renderer member (e.g. `SoftwareRenderer::font_engine_`)
-    // initialised once from `sw_renderer->runtime().resolver()`.  The PER-CALL
-    // crash has not been seen in production — the optimisation is correctness-
-    // neutral and a pure perf win.
-    FontEngine local_engine{resolver};
-    FontEngine* engine = font_engine ? font_engine : &local_engine;
+    // WP-8 PR 8.1 — FontEngine is now ALWAYS supplied via the
+    // per-renderer `SoftwareRenderer::font_engine()` accessor (or a
+    // `node.font_engine` per-RenderNode override).  No more per-call
+    // construction; no more M-3 TODO; no more deep reads of the
+    // process-global `runtime::typed_resolver_for_deep_code()` bridge.
+    // See software_renderer.{hpp,cpp} for the new field + init.
+    FontEngine* engine = &font_engine;
 
     FontSpec font_spec;
     font_spec.font_path     = t.style.font_path;
