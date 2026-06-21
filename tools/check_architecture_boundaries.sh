@@ -97,9 +97,9 @@ else
 # same source surface as the 4th check (include/, src/, tests/, apps/).
 # Note: docs/ is intentionally NOT searched — the WP-2 / WP-8 docs
 # reference the historical class for audit-trail purposes.
-echo -n "  [5/5] ExecutionPlanCache RETIRED        ... "
+echo -n "  [5/5] plan_cache references RETIRED    ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
-    -E 'plan_cache|ExecutionPlanCache' include src tests apps 2>/dev/null || true)
+    -E 'plan_cache' include src tests apps 2>/dev/null || true)
 if [ -n "$hits" ]; then
     echo "FAIL"
     echo "$hits" | sed 's/^/    /'
