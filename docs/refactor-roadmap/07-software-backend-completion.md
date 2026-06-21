@@ -58,3 +58,9 @@ Make `SoftwareBackend` the only software rendering backend and reduce `SoftwareR
 - [ ] Processors use narrow contexts and services.
 - [ ] Graph pipeline contains no renderer cast.
 - [ ] `SoftwareRenderer` is no longer a backend.
+
+## Open follow-ups (this PR documents; WP-8 will resolve)
+
+- [ ] **TICKET-013**: scene_hasher leak in include/chronon3d/runtime/render_session.hpp; move to RenderRuntime (WP-8).
+- [ ] **TICKET-014**: session_resources compositing in include/chronon3d/runtime/render_session.hpp; split engine-generic vs software-only (WP-8).
+- [ ] **TICKET-FOLLOWUP-PLAN-CACHE**: PR-2 rewire: drop execute(RenderGraph&) overloads + plan_cache param once SoftwareRenderer-owned plan_cache paths migrate to RenderRuntime (WP-8).
