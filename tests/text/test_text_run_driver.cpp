@@ -12,6 +12,7 @@
 
 #include <chronon3d/text/text_run_builder.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/text/text_run_driver.hpp>
 #include <chronon3d/text/animated_text_document.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
@@ -90,7 +91,9 @@ TEST_CASE("TextRunDriver: no-op when layout is null") {
 }
 
 TEST_CASE("TextRunDriver: no-op when animators empty, but seeds glyphs") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
 
@@ -110,7 +113,9 @@ TEST_CASE("TextRunDriver: no-op when animators empty, but seeds glyphs") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextRunDriver: Position animator moves glyphs per frame") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
 
@@ -130,7 +135,9 @@ TEST_CASE("TextRunDriver: Position animator moves glyphs per frame") {
 }
 
 TEST_CASE("TextRunDriver: Opacity animator sets per-glyph alpha") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
 
@@ -147,7 +154,9 @@ TEST_CASE("TextRunDriver: Opacity animator sets per-glyph alpha") {
 }
 
 TEST_CASE("TextRunDriver: deterministic between repeated calls") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
 
@@ -177,7 +186,9 @@ TEST_CASE("TextRunDriver: deterministic between repeated calls") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextRunDriver: evaluate_animator_stack_into writes back in place") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
 
@@ -208,7 +219,9 @@ TEST_CASE("TextRunDriver: evaluate_animator_stack_into writes back in place") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextRunDriver: Hold transition renders active document (no-op return)") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
     auto shape = make_shape("Hello", engine, layout);
@@ -229,7 +242,9 @@ TEST_CASE("TextRunDriver: Hold transition renders active document (no-op return)
 }
 
 TEST_CASE("TextRunDriver: Hold with different active text rebuilds layout") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
     auto shape = make_shape("Hello", engine, layout);
@@ -263,7 +278,9 @@ TEST_CASE("TextRunDriver: Hold with different active text rebuilds layout") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextRunDriver: Scramble transition rebuilds layout with transition_text") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
     auto shape = make_shape("Hello", engine, layout);
@@ -294,7 +311,9 @@ TEST_CASE("TextRunDriver: Scramble transition rebuilds layout with transition_te
 }
 
 TEST_CASE("TextRunDriver: Morph transition rebuilds layout with transition_text") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
     auto shape = make_shape("AB", engine, layout);
@@ -328,7 +347,9 @@ TEST_CASE("TextRunDriver: Morph transition rebuilds layout with transition_text"
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextRunDriver: animators preserved across layout swap") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
 

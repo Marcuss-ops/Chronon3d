@@ -104,13 +104,13 @@ struct GlyphPos {
 
 // ── measure_text_width ──────────────────────────────────────────────────
 // Returns total advance width INCLUDING tracking, matching layout_glyphs output.
-// WP-8 PR 8.0 — caller-supplied resolver (default = the PR 8.0
-// bridge for content-layer call sites lacking a runtime reference;
-// deleted in PR 8.1).
+// WP-8 PR 8.1 — caller-supplied resolver (default = the post-bridge
+// process-wide channel for content-layer call sites lacking a runtime
+// reference; the bridge was retired in WP-8 PR 8.1).
 inline f32 measure_text_width(const std::string& text, f32 font_size,
                                const FontSpec& spec, f32 tracking,
                                const chronon3d::assets::AssetResolver& resolver =
-                                   chronon3d::runtime::typed_resolver_for_deep_code()) {
+                                   chronon3d::runtime::process_wide_resolver()) {
     FontEngine& eng = shared_glyph_engine(resolver);
     auto run = eng.shape_text(text, spec, font_size);
     if (!run) return 0.0f;
@@ -123,13 +123,13 @@ inline f32 measure_text_width(const std::string& text, f32 font_size,
 // ref_offset_x: shared starting X (e.g. -max_width/2 to center-align).
 // Returns glyph positions at their FINAL locations — only opacity/position
 // animate per frame so the text block stays perfectly stable.
-// WP-8 PR 8.0 — resolver parameter, see rationale on measure_text_width above.
+// WP-8 PR 8.1 — resolver parameter; default = process-wide channel (see measure_text_width rationale).
 inline std::vector<GlyphPos> layout_glyphs(
     const std::string& text, f32 font_size,
     const FontSpec& spec, f32 tracking,
     f32 ref_offset_x,
     const chronon3d::assets::AssetResolver& resolver =
-        chronon3d::runtime::typed_resolver_for_deep_code()) {
+        chronon3d::runtime::process_wide_resolver()) {
     FontEngine& eng = shared_glyph_engine(resolver);
     auto run = eng.shape_text(text, spec, font_size);
     if (!run || run->glyphs.empty()) return {};

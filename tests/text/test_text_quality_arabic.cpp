@@ -1,5 +1,6 @@
 #include "test_text_quality_helpers.hpp"
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/core/config.hpp>
 using namespace chronon3d;
 using namespace test_text_quality;
 
@@ -8,7 +9,9 @@ using namespace test_text_quality;
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextQuality: Arabic — contextual vs isolated Meem glyph IDs differ") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     if (!require_font(engine, noto_naskh_arabic_quality())) {
         if (!require_font(engine)) return;
         MESSAGE("Using Inter-Bold instead of Noto Naskh Arabic — positional variants may not exist");
@@ -65,7 +68,9 @@ TEST_CASE("TextQuality: Arabic — contextual vs isolated Meem glyph IDs differ"
 }
 
 TEST_CASE("TextQuality: Arabic — pre-shaped extraction preserves contextual forms") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     if (!require_font(engine, noto_naskh_arabic_quality())) {
         if (!require_font(engine)) return;
     }
@@ -155,7 +160,9 @@ TEST_CASE("TextQuality: Arabic — pre-shaped extraction preserves contextual fo
 }
 
 TEST_CASE("TextQuality: Arabic — three positional forms use different glyphs") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     if (!require_font(engine, noto_naskh_arabic_quality())) {
         if (!require_font(engine)) return;
     }

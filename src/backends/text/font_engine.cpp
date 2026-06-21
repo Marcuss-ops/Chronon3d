@@ -423,20 +423,6 @@ size_t FontEngine::glyph_bbox_cache_size() const { return 0; }
 bool FontEngine::can_load(const FontSpec&) { return false; }
 
 #endif // CHRONON3D_ENABLE_TEXT
-
-// ── Global convenience (always available) ─────────────────────────────
-
-// WP-8 PR 8.0 — global `shape_text(...)` free function retained for
-// test/diagnostic convenience.  Internal `static FontEngine` is
-// constructed once against the typed_resolver_for_deep_code PR 8.0
-// bridge; the singleton `shared_font_engine()` accessor has been
-// removed (PR 8.0 + PR 8.1 mandate "no process-wide engine binding").
-std::optional<GlyphRun> shape_text(std::string_view text, const FontSpec& spec, float font_size, const TextShaping& shaping) {
-    static FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
-    return engine.shape_text(text, spec, font_size, shaping);
-}
-
-// WP-8 PR 8.0 — `shared_font_engine()` and `reset_shared_font_engine()`
 // are REMOVED.  Production code paths must hold their own FontEngine
 // instance bound to an explicit `const chronon3d::assets::AssetResolver&`.
 // The free `shape_text(...)` above is the only remaining global entry

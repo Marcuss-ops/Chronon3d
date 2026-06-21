@@ -37,10 +37,6 @@
 //                                                    per-instance state
 //                                                    that lives on
 //                                                    SoftwareRenderer)
-//   - std::string default_assets_root               (engine-local; replaces
-//                                                    the migration bridge
-//                                                    to detail::g_default_
-//                                                    assets_root)
 //
 // WP-3 PR 3.1 — `SceneHasher` and `SceneProgramStore` are no longer
 // runtime-owned.  They were relocated from RenderSession to RenderRuntime
@@ -215,11 +211,6 @@ public:
     // (or `session.common.scene_hasher()` / `program_store()` from a
     // `SoftwareRenderSession`).  See `docs/refactor-roadmap/03-render-session-boundary.md`.
 
-    // ── Default assets root ──────────────────────────────────────────
-    [[nodiscard]] const std::string& default_assets_root() const noexcept { return m_default_assets_root; }
-
-    void set_default_assets_root(std::string root);
-
 private:
     chronon3d::Config                                   m_config;
     chronon3d::graph::PipelineCatalogs                  m_catalogs;
@@ -246,39 +237,8 @@ private:
     // — not a free-floating runtime-owned instance.
 
     std::unique_ptr<chronon3d::graph::RenderBackend>   m_backend;
-    std::string                                       m_default_assets_root;
     bool                                              m_populated{false};
 };
-
-// ── Process-wide "active runtime" pointer ───────────────────────────
-//
-// Deep rendering code that has no direct access to a RenderRuntime
-// (e.g. font_engine, text_rasterizer) reads
-// `default_assets_root_for_deep_code()` to find the engine's default
-// assets root.  This is the migration bridge that replaces
-// `detail::g_default_assets_root`; the bridge is named live in
-// render_runtime.cpp so its definition lives next to the writes it
-// serves.
-
-void set_active_runtime(RenderRuntime* runtime);
-[[nodiscard]] RenderRuntime* active_runtime();
-/// Returns the engine's default assets root for deep rendering code
-/// that has no direct RenderRuntime in its call stack (font_engine,
-/// text_rasterizer, preflight, etc.).  Resolution order:
-///
-///   1. Active RenderRuntime's `default_assets_root()` if a runtime
-///      is `active_runtime()`-reachable.
-///   2. Typed `process_wide_assets_root()` fallback for contexts that
-///      don't construct a RenderRuntime.
-///
-/// Returns an empty string when neither branch is configured
-/// (callers via `typed_resolver_for_deep_code` should treat that as
-/// an unmounted resolver — there's no root to mount relative paths
-/// against).  Returned BY VALUE so both branches copy into the
-/// return slot before this function returns — branch 1's reference
-/// always outlives the call (runtime is active) and branch 2 is
-/// already a `std::string` value.
-[[nodiscard]] std::string default_assets_root_for_deep_code();
 
 /// Vends a fresh per-render-job `SoftwareRenderSession` whose
 /// `common.services` field is populated with the runtime's catalogue
@@ -306,66 +266,16 @@ void set_process_wide_assets_root(std::string root);
 /// underlying module-level string via `set_process_wide_assets_root`.
 [[nodiscard]] std::string process_wide_assets_root();
 
-/// WP-8 PR 8.2 — the legacy single-argument free function
-/// `runtime::resolve_asset_path(relative_path)` has been REMOVED.
-/// Every deep call site has been migrated to the typed resolver path
-/// (see `typed_resolver_for_deep_code()` doc-comment below for the
-/// canonical call shape).  New code MUST use the typed resolver —
-/// there is no backwards-compatibility wrapper and no
-/// "just-construct-the-string" fallback path.
-
-/// WP-8 PR 8.1 — typed engine-local asset resolver for callers that
-/// have no `RenderRuntime` in their call stack (font_engine,
-/// text_rasterizer, preflight analysis, text_run BL/FT caches, etc.).
-///
-/// Resolution order:
-///
-///   1. The active runtime's `AssetResolver` if `active_runtime()`
-///      returns non-null.  This is the per-engine, deterministic
-///      resolver the runtime owns — same resolver instance used by the
-///      runtime itself and surfaced through `runtime.services()`.
-///
-///   2. A lazy-initialised process-wide singleton resolver mounted
-///      against `process_wide_assets_root()`.  Cached in function-local
-///      storage across calls; mounted once on first use.
-///
-///   3. A default-constructed (unmounted) resolver if neither path is
-///      configured.  Callers detect this via the resolver's optional
-///      return value.
-///
-/// Threading: AssetResolver::mount() acquires its own internal
-/// `shared_mutex`/`std::mutex`, so concurrent first-callers that all
-/// pick up the same process-wide root are serialized inside the
-/// resolver and the resulting state is idempotent.  No external
-/// `std::once_flag` is required.
-///
-/// Replaces the legacy `runtime::resolve_asset_path(relative)` usage at
-/// every deep-call-site migration.  Old callers should be rewritten to
-/// the 2-line pattern documented in the call-site migration notes:
-///   ```
-///   const auto& resolver =
-///       chronon3d::runtime::typed_resolver_for_deep_code();
-///   auto resolved_opt = resolver.resolve_lexical(rel_path);
-///   const std::string resolved_path =
-///       resolved_opt ? resolved_opt->string()
-///                    : (rel_path.empty() ? std::string{}
-///                                        : std::string{rel_path});
-///   ```
+/// WP-8 PR 8.1 Final — process-wide typed asset resolver for deep code
+/// that has no RenderRuntime in scope (CLI dev paths, content-layer
+/// ergonomics, etc.).  Lazy-static singleton; first-mount semantics
+/// against `process_wide_assets_root()`; thread-safety delegated to the
+/// resolver's internal `shared_mutex` so the multi-thread first call
+/// is serialised + idempotent without an external `std::once_flag`.
+/// Replaces the legacy `runtime::typed_resolver_for_deep_code()`,
+/// which carried an additional active-runtime branch on the deleted
+/// `runtime::set_active_runtime()` channel.
 [[nodiscard]] const chronon3d::assets::AssetResolver&
-typed_resolver_for_deep_code();
-
-namespace detail {
-
-/// WP-8 PR 8.1 — test-only reset hook.  Unmounts the process-wide
-/// fallback singleton resolver inside `typed_resolver_for_deep_code()`
-/// so each test fixture starts with a clean slate.  Production code
-/// MUST NOT call this — the static cache is first-mount-only by
-/// design (see `typed_resolver_for_deep_code()` doc-comment).  Tests
-/// that exercise the process-wide branch should bracket their
-/// assertions with this reset + a fresh
-/// `set_process_wide_assets_root(...)` + helper call.
-void reset_typed_resolver_for_deep_code_for_testing();
-
-} // namespace detail
+process_wide_resolver();
 
 } // namespace chronon3d::runtime

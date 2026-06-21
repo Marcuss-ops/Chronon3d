@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/text/text_animator.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/text/font_engine.hpp>
@@ -241,7 +242,9 @@ TEST_CASE("TextAnimator layered build staggered keyframes") {
 }
 
 TEST_CASE("TextAnimator measure_unit_width uses FontEngine when available") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextAnimator ta;
     ta.text("ABC")
         .font_size(72.0f)
@@ -260,7 +263,9 @@ TEST_CASE("TextAnimator measure_unit_width uses FontEngine when available") {
 }
 
 TEST_CASE("TextAnimator with FontEngine produces precise layer positions") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     SceneBuilder sb;
 
     TextAnimator ta;
@@ -288,7 +293,9 @@ TEST_CASE("TextAnimator with FontEngine produces precise layer positions") {
 }
 
 TEST_CASE("TextAnimator FontEngine fallback when font unavailable") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextAnimator ta;
     ta.text("X")
         .font_size(48.0f)
@@ -310,7 +317,9 @@ TEST_CASE("TextAnimator FontEngine fallback when font unavailable") {
 }
 
 TEST_CASE("TextAnimator ByGlyph splits into shaped glyphs") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextAnimator ta;
     ta.text("ABC")
         .font_size(64.0f)
@@ -335,7 +344,9 @@ TEST_CASE("TextAnimator ByGlyph splits into shaped glyphs") {
 }
 
 TEST_CASE("TextAnimator ByGlyph builds one layer per glyph") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     SceneBuilder sb;
 
     TextAnimator ta;
@@ -361,7 +372,9 @@ TEST_CASE("TextAnimator ByGlyph builds one layer per glyph") {
 }
 
 TEST_CASE("TextAnimator ByGlyph positions differ from approximate fallback") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     SceneBuilder sb1;
     SceneBuilder sb2;
 
@@ -405,7 +418,9 @@ TEST_CASE("TextAnimator ByGlyph positions differ from approximate fallback") {
 }
 
 TEST_CASE("TextAnimator ByGlyph handles spaces as individual glyphs") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextAnimator ta;
     ta.text("A B")
         .font_size(64.0f)
