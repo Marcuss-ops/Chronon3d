@@ -13,9 +13,6 @@ set(CHRONON3D_RUNTIME_SOURCES
     render_engine.cpp
     # ── P2 motion-graph pre-warm orchestrator (public facade) ──────────────
     motion_graph_prewarm.cpp
-    # ── TICKET-009 — graph topological-plan cache (thread-safe, shared
-    #    between SoftwareRenderer and future RenderRuntime). ───────────────
-    execution_plan_cache.cpp
     render_runtime.cpp
     # ── TICKET-011a follow-up #1 — RenderPipeline typed facade over
     #    graph::render_scene_via_graph / graph::render_composition_frame.
