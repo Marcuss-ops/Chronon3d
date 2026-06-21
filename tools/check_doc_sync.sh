@@ -102,11 +102,13 @@ if has_change '^include/chronon3d/render_graph/'; then
     warnf "R2: include/chronon3d/render_graph/** toccato ma ADR-001 o ADR-002 assenti"
   fi
 fi
-if has_change '^include/chronon3d/(assets|resolver|asset_resolver)'; then
+if has_change '^include/chronon3d/assets/' \
+   || has_change '^include/chronon3d/backends/assets/' \
+   || has_change '^include/chronon3d/.*[Rr]esolver(\.hpp|/)'; then
   if [[ "$adr_ok_for_resolver" -eq 1 ]]; then
     okf "R2: assets/resolver coperto da ADR-005"
   else
-    warnf "R2: include/chronon3d/assets*/** toccato ma ADR-005 assente"
+    warnf "R2: assets* o *resolver* modificato ma ADR-005 assente"
   fi
 fi
 # Catch-all: qualsiasi altro include/chronon3d/** se non gia coperto da R2 sopra.
