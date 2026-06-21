@@ -1,24 +1,33 @@
 #pragma once
 
 // ──────────────────────────────────────────────────────────────────────────────
-// precomp_node.hpp — PrecompNode (PR-5: thin identity-only node)
+// precomp_node.hpp — PrecompNode (WP 5: identity-driven, thin executor)
 //
 // Renders a nested composition (Precomp layer).  All caching is delegated to
-// the centralized SceneProgramStore on the parent RenderSession; the node
-// itself holds only identity (comp_name, frame range, cache frame) +
-// a PrecompCachePolicy + a FrameParameterBlock.
+// the centralized SceneProgramStore on the parent session; the node
+// itself holds only its composition identity (comp_name, frame range,
+// cache frame), a `PrecompCachePolicy`, and a `FrameParameterBlock`.
 //
-// PR-5 removals (now on RenderSession / SceneProgramStore):
-//   - SceneProgramCache   → ctx.services.session->program_store->acquire(...)
-//   - GraphExecutor        → ctx.services.session->services.executor
-//   - RenderSession        → ctx.services.session (borrowed for inner exec)
-//   - Auto-tune counter    → SceneProgramStore handles per-instance auto-tune
+// WP 5 PR-removals (now on RenderSession / SceneProgramStore via ctx):
+//   - SceneProgramCache   → ctx.services.session->program_store().acquire(...)
+//   - GraphExecutor        → borrowed from ctx.services.session->services.executor
+//   - Auto-tune counter    → SceneProgramStore drives record_execution()
+//                            every acquire() and the per-bucket
+//                            cache auto_tunes at policy.tuning.interval.
+//
+// WP 5.1 — `instance_key()` is no longer a cached field; it derives from
+// `ctx.node_exec.current_identity` at execute() time so the key carries
+// the parent compiled graph's `GraphInstanceId` and THIS node's
+// `StableNodeId`.  Two sibling PrecompNode instances running the same
+// composition therefore produce DIFFERENT keys and map to distinct
+// SceneProgramStore buckets (the WP 4.2 + 5.1 sibling-isolation invariant).
 // ──────────────────────────────────────────────────────────────────────────────
 
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <chronon3d/render_graph/cache/scene_program_store.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/render_graph/core/node_identity.hpp>
 #include <chronon3d/render_graph/pipeline/frame_parameter_block.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <span>
@@ -60,23 +69,46 @@ public:
         return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
     }
 
-    /// Execute the nested composition.  Uses ctx.services.session for:
-    ///   - program_store->acquire() for cache lookup
-    ///   - arena() for inner graph PMR allocations
-    ///   - services.executor for inner execution
+    /// Execute the nested composition.  Uses:
+    ///   - ctx.services.session->program_store()    for cache lookup
+    ///   - ctx.services.session->services.executor  for inner execution
+    ///     (BORROWED — no local GraphExecutor instance)
+    ///   - ctx.services.session->arena()            for inner graph PMR allocs
     OwnedFB execute(RenderGraphContext& ctx,
                     std::span<const FramebufferRef>,
                     std::span<const std::optional<raster::BBox>>) override;
 
     // ── Cache integration ────────────────────────────────────────────
 
-    /// Register an eviction callback.  Forwarded to the SceneProgramStore
-    /// for this instance (keyed by instance_key()).
+    /// Register an eviction callback.  The callback is forwarded to the
+    /// SceneProgramStore's per-instance cache lazily on the next
+    /// acquire() (WP 5.3 — store owns mutable callback ownership; the
+    /// node carries a copy only to forward through to the store on each
+    /// call so the wiring survives across `clear()` + acquire() cycles).
     void set_on_evict(cache::ProgramEvictCallback cb);
 
     /// Compute the PrecompInstanceKey that identifies this node in the
-    /// SceneProgramStore.  Stable across frames for the same composition.
-    [[nodiscard]] PrecompInstanceKey instance_key() const;
+    /// SceneProgramStore for the given execution context.
+    ///
+    /// WP 5.1 — derives from the executor-driven `current_identity` when
+    /// the GraphExecutor has populated it (the production path); falls
+    /// back to `kInvalid*Id` sentinel values when a test path drives
+    /// `precomp.execute(...)` directly without going through the full
+    /// executor.  In that fallback case the caller MUST override
+    /// `ctx.node_exec.current_identity` before invoking execute() —
+    /// otherwise the bucket key degenerates and multiple sibling
+    /// precomps alias.
+    [[nodiscard]] PrecompInstanceKey instance_key(
+        const RenderGraphContext& ctx
+    ) const noexcept;
+
+    /// Backwards-compatible accessor used by the precomp_node_cache
+    /// test fixture; returns the "would-be" instance key using the
+    /// DEFAULT (invalid) identity.  Tests MUST pre-set
+    /// `ctx.node_exec.current_identity` before invoking execute().
+    [[nodiscard]] PrecompInstanceKey instance_key_default() const noexcept {
+        return make_precomp_key(kInvalidGraphInstanceId, kInvalidStableNodeId);
+    }
 
     /// Access the FrameParameterBlock (for diagnostics / testing).
     [[nodiscard]] FrameParameterBlock& param_block() { return m_param_block; }
@@ -84,18 +116,24 @@ public:
 
 private:
     std::string m_comp_name;
-    std::string m_full_name;  // "Precomp:" + m_comp_name, stored for string_view
+    std::string m_full_name;  // "Precomp:\" + m_comp_name, stored for string_view
     Frame m_start_frame{0};
     Frame m_duration{-1};
     Frame m_cache_frame{-1};
 
-    // ── PR-5: only identity + policy + param block remain ──────────
+    // ── WP-5: only identity + policy + param block remain ──────────
     PrecompCachePolicy  m_cache_policy;
     FrameParameterBlock m_param_block;
     cache::ProgramEvictCallback m_on_evict;
 
-    // ── Cached instance key (computed once from m_comp_name) ───────
-    PrecompInstanceKey  m_instance_key;
+    // Review #3 — track the per-instance bucket pointer that `m_on_evict`
+    // was last forwarded to.  When the SceneProgramStore drops + recreates
+    // the bucket (e.g. across a `RenderSession::reset_job()`), the next
+    // acquire() yields a fresh `lease.bucket` that differs from this
+    // pointer — the execute() path detects that and re-wires the callback
+    // onto the new bucket.  Without this, a `clear()` would strand the
+    // callback on a stale, dropped bucket.
+    cache::SceneProgramCache* m_on_evict_wired_to{nullptr};
 };
 
 } // namespace chronon3d::graph

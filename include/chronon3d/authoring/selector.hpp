@@ -58,25 +58,45 @@ public:
         spec_.shape = value;
         return *this;
     }
+    Selector&& shape(TextSelectorShape value) && {
+        spec_.shape = value;
+        return std::move(*this);
+    }
     /// Alias for `.shape(TextSelectorShape::Smooth)` — matches After
     /// Effects' "Smooth" selector shape in the UI.
     Selector& smooth() & {
         spec_.shape = TextSelectorShape::Smooth;
         return *this;
     }
+    Selector&& smooth() && {
+        spec_.shape = TextSelectorShape::Smooth;
+        return std::move(*this);
+    }
     Selector& order(TextSelectorOrder value) & {
         spec_.order = value;
         return *this;
     }
+    Selector&& order(TextSelectorOrder value) && {
+        spec_.order = value;
+        return std::move(*this);
+    }
     Selector& combine_mode(SelectorCombineMode value) & {
         spec_.combine = value;
         return *this;
+    }
+    Selector&& combine_mode(SelectorCombineMode value) && {
+        spec_.combine = value;
+        return std::move(*this);
     }
 
     // ── Space exclusion ─────────────────────────────────────────────────
     Selector& exclude_spaces(bool value = true) & {
         spec_.exclude_spaces = value;
         return *this;
+    }
+    Selector&& exclude_spaces(bool value = true) && {
+        spec_.exclude_spaces = value;
+        return std::move(*this);
     }
 
     // ── Keyframes (multiple calls accumulate, like `AnimatedValue::key()`)
@@ -87,33 +107,65 @@ public:
         spec_.start.key(Frame{frame}, value, EasingCurve{easing});
         return *this;
     }
+    Selector&& start(int frame, f32 value, Easing easing = Easing::Linear) && {
+        spec_.start.key(Frame{frame}, value, EasingCurve{easing});
+        return std::move(*this);
+    }
     Selector& start(Frame frame, f32 value, Easing easing = Easing::Linear) & {
         spec_.start.key(frame, value, EasingCurve{easing});
         return *this;
+    }
+    Selector&& start(Frame frame, f32 value, Easing easing = Easing::Linear) && {
+        spec_.start.key(frame, value, EasingCurve{easing});
+        return std::move(*this);
     }
     Selector& end(int frame, f32 value, Easing easing = Easing::Linear) & {
         spec_.end.key(Frame{frame}, value, EasingCurve{easing});
         return *this;
     }
+    Selector&& end(int frame, f32 value, Easing easing = Easing::Linear) && {
+        spec_.end.key(Frame{frame}, value, EasingCurve{easing});
+        return std::move(*this);
+    }
     Selector& end(Frame frame, f32 value, Easing easing = Easing::Linear) & {
         spec_.end.key(frame, value, EasingCurve{easing});
         return *this;
+    }
+    Selector&& end(Frame frame, f32 value, Easing easing = Easing::Linear) && {
+        spec_.end.key(frame, value, EasingCurve{easing});
+        return std::move(*this);
     }
     Selector& offset(int frame, f32 value, Easing easing = Easing::Linear) & {
         spec_.offset.key(Frame{frame}, value, EasingCurve{easing});
         return *this;
     }
+    Selector&& offset(int frame, f32 value, Easing easing = Easing::Linear) && {
+        spec_.offset.key(Frame{frame}, value, EasingCurve{easing});
+        return std::move(*this);
+    }
     Selector& offset(Frame frame, f32 value, Easing easing = Easing::Linear) & {
         spec_.offset.key(frame, value, EasingCurve{easing});
         return *this;
+    }
+    Selector&& offset(Frame frame, f32 value, Easing easing = Easing::Linear) && {
+        spec_.offset.key(frame, value, EasingCurve{easing});
+        return std::move(*this);
     }
     Selector& amount(int frame, f32 value, Easing easing = Easing::Linear) & {
         spec_.amount.key(Frame{frame}, value, EasingCurve{easing});
         return *this;
     }
+    Selector&& amount(int frame, f32 value, Easing easing = Easing::Linear) && {
+        spec_.amount.key(Frame{frame}, value, EasingCurve{easing});
+        return std::move(*this);
+    }
     Selector& amount(Frame frame, f32 value, Easing easing = Easing::Linear) & {
         spec_.amount.key(frame, value, EasingCurve{easing});
         return *this;
+    }
+    Selector&& amount(Frame frame, f32 value, Easing easing = Easing::Linear) && {
+        spec_.amount.key(frame, value, EasingCurve{easing});
+        return std::move(*this);
     }
 
     // ── Ease-in / ease-out break points (0..100 %) ──────────────────────
@@ -121,9 +173,17 @@ public:
         spec_.ease_low = percent;
         return *this;
     }
+    Selector&& ease_low(f32 percent) && {
+        spec_.ease_low = percent;
+        return std::move(*this);
+    }
     Selector& ease_high(f32 percent) & {
         spec_.ease_high = percent;
         return *this;
+    }
+    Selector&& ease_high(f32 percent) && {
+        spec_.ease_high = percent;
+        return std::move(*this);
     }
 
 private:

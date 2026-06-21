@@ -7,6 +7,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <spdlog/spdlog.h>
 #include <cmath>
 #include <cstdlib>
@@ -98,7 +99,8 @@ void execute_single_node(
     double* out_execute_ms,
     double* out_predicted_bbox_ms,
     double* out_clone_context_ms,
-    double* out_state_assign_ms
+    double* out_state_assign_ms,
+    const CompiledFrameGraph& compiled
 ) {
     // Hoist cheap per-node scalar reads (O(1) vector lookups) to the top so
     // both early-out guards below can inspect them. Moving them earlier is
@@ -107,6 +109,21 @@ void execute_single_node(
     auto& node = graph.node(id);
     const auto& input_ids = graph.inputs(id);
     const auto& pr = level_resolved[level_index];
+
+    // ── WP 4.3 — populate per-node identity ────────────────────────────────
+    // Stamp `ctx.node_exec.current_identity` with this node's
+    // `(graph_instance_id, stable_node_id)` BEFORE cloning the per-node
+    // context.  `clone_for_node_execution()` propagates the field through
+    // the per-node copy so the clone that the node sees carries the
+    // identity required by PrecompNode::execute() and downstream
+    // instrumentation.
+    if (id < compiled.nodes.size() && compiled.nodes[id].reachable
+        && compiled.nodes[id].stable_node_id != kInvalidStableNodeId) {
+        ctx.node_exec.current_identity = NodeIdentity{
+            compiled.graph_instance_id,
+            compiled.nodes[id].stable_node_id
+        };
+    }
 
     if (id < ctx.node_exec.early_exit_skip.size() && ctx.node_exec.early_exit_skip[id]) {
         auto owned_fb = ctx.acquire_owned_fb(64, 64, false);

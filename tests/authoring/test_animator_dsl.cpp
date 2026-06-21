@@ -47,9 +47,61 @@ using chronon3d::authoring::Material;
 using chronon3d::authoring::MotionRegistry;
 using chronon3d::authoring::Selector;
 using chronon3d::authoring::StyleRegistry;
+
+using chronon3d::SceneBuilder;
+using chronon3d::FrameRate;
+using chronon3d::OpacityProperty;
+using chronon3d::BlurProperty;
+using chronon3d::TrackingProperty;
+using chronon3d::PositionProperty;
+using chronon3d::ScaleProperty;
+using chronon3d::RotationProperty;
+using chronon3d::AnchorProperty;
+using chronon3d::FillColorProperty;
+using chronon3d::StrokeColorProperty;
+using chronon3d::StrokeWidthProperty;
+using chronon3d::LayerBuilder;
+using chronon3d::PendingTextRun;
+using chronon3d::TextAlign;
+using chronon3d::TextAnchor;
+using chronon3d::TextCenteringMode;
+using chronon3d::TextDirection;
+using chronon3d::TextOverflow;
+using chronon3d::TextStyle;
+using chronon3d::TextWrap;
+using chronon3d::VerticalAlign;
+using chronon3d::f32;
 using chronon3d::authoring::animator;
-using chronon3d::authoring::material;
+namespace material = chronon3d::authoring::material;
 using chronon3d::authoring::selector;
+
+// ── doctest::Approx3D / doctest::Approx2D polyfill ────────────────────────
+// doctest ships `Approx<T>` only for built-in arithmetic types — no
+// `Approx<Vec3>` / `Approx<Vec2>` because Vec3/Vec2 are user types.
+// This fixture uses `doctest::Approx3D(...)` and `doctest::Approx2D(...)`
+// inside `CHECK(LHS == doctest::Approx3D(RHS))`, so we add minimal proxy
+// wrappers + componentwise `operator==` overloads with a 1e-5 tolerance
+// matching the vec3_eq/vec2_eq helpers used elsewhere.
+//
+// NOTE: this polyfill lives AFTER the `#include <chronon3d/math/color.hpp>`
+// above because that header transitively defines `Vec3` / `Vec2`. Placing
+// it before the includes would fail to compile with "Vec3 not declared".
+namespace doctest {
+struct Approx3D { Vec3 v; explicit Approx3D(Vec3 v_) : v(v_) {} };
+struct Approx2D { Vec2 v; explicit Approx2D(Vec2 v_) : v(v_) {} };
+} // namespace doctest
+inline bool operator==(const Vec3& a, const doctest::Approx3D& b) {
+    return a.x == doctest::Approx(b.v.x).epsilon(1e-5)
+        && a.y == doctest::Approx(b.v.y).epsilon(1e-5)
+        && a.z == doctest::Approx(b.v.z).epsilon(1e-5);
+}
+inline bool operator!=(const Vec3& a, const doctest::Approx3D& b) { return !(a == b); }
+inline bool operator==(const Vec2& a, const doctest::Approx2D& b) {
+    return a.x == doctest::Approx(b.v.x).epsilon(1e-5)
+        && a.y == doctest::Approx(b.v.y).epsilon(1e-5);
+}
+inline bool operator!=(const Vec2& a, const doctest::Approx2D& b) { return !(a == b); }
+// ─────────────────────────────────────────────────────────────────────────
 
 // Test-only friend accessor for the private `release()` helper on all
 // builders.  Lives in the `chronon3d::authoring::testing::*` subnamespace
@@ -1784,7 +1836,7 @@ TEST_CASE("Authoring/CompositionBuilder: fields accumulate via fluent setters") 
     CHECK(comp.width()    == 1920);
     CHECK(comp.height()   == 1080);
     CHECK(comp.duration().integral() == 60);
-    CHECK(comp.frame_rate().num == 30);
+    CHECK(comp.frame_rate().numerator == 30);
     CHECK(comp.assets_root() == "assets");
 }
 
