@@ -919,3 +919,178 @@ Implemented in this session. Single seeding point + per-instance parameter forwa
 
 ---
 
+
+## TICKET-008 — Wire `ctx.policy.graph_structure_unchanged` into `FrameGraphCompiler::compile` (close §9.4)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `include/chronon3d/render_graph/compiler/frame_graph_compiler.hpp` (declare new `compile_with_reuse` overload); `src/render_graph/compiler/frame_graph_compiler.cpp` (implement skip predicate + skip semantics + post-conditions); `tests/render_graph/compiler/test_frame_graph_compiler.cpp` (extend existing structure_hash determinism canary at line ~185 with four new reuse-path tests). |
+| **Discovered during** | §9.4 closure-note polish at commit `4a808e46` (origin/main); explicit user follow-up request to file the implementation ticket that will re-attach §9.4 to a live reader inside `FrameGraphCompiler::compile`. |
+| **Discovered date** | 2026-06-21 |
+| **Compliance target** | §9.4 closure-path criterion from `docs/refactor-roadmap/08-global-state-and-sdk.md` lines ~196–204 (the "Status of §9.4" sub-section): a future PR that adds a structural-reuse fast-path to `FrameGraphCompiler::compile` will re-attach §9.4 to a live reader without re-introducing `runtime::ExecutionPlanCache`. |
+
+### Symptom
+
+`RenderPolicy::graph_structure_unchanged` (defined at `include/chronon3d/render_graph/render_graph_context.hpp:158`) is currently a dormant field:
+
+- **Writer** (verified by `git grep`): `src/render_graph/pipeline/scene.cpp` Phase 4 of `render_scene_via_graph` (around line 233) sets the flag based on `structure_fp` equality, camera-change heuristic, and `active_at_fp` match against the prior frame.
+- **Live coordinator-level reader** (verified): `src/render_graph/pipeline/scene.cpp:307` passes the flag as a hint to `build_or_reuse_graph` in `src/render_graph/pipeline/graph_cache_coordinator.cpp` (lines 91–127 of that file: `result.can_reuse = scene_structure_unchanged && graph_cache != nullptr && graph_cache->has(width, height);`).
+- **Dormant in the compiler**: `src/render_graph/compiler/frame_graph_compiler.cpp::FrameGraphCompiler::compile` does NOT consult the flag. Its body (verified at line 1–90) runs `optimize_graph` + `build_execution_levels` + `build_node_metadata` + `compute_resource_lifetimes` + post-pass hash + `validate`, regardless of the flag.
+
+The pre-PR-2 executor's plan-cache fast-path (read by `chronon3d::runtime::ExecutionPlanCache`) was the only consumer that ever consulted `graph_structure_unchanged` from inside the compile-or-execute pipeline. After PR-2 rewire retired the `ExecutionPlanCache` class (commit `9f9af90e` on `origin/main`), that consumer went away. The §9.4 closure-note at commit `4a808e46` accurately summarises the state: **§9.4 is dormant, not closed**.
+
+The `CompiledGraphCache` in `include/chronon3d/render_graph/cache/compiled_graph_cache.hpp` is a coordinator-level reuse path keyed on `(width, height)` only — it does NOT key on `structure_hash`. When the coordinator cache hits, it BYPASSES `FrameGraphCompiler::compile` entirely (the cached `CompiledFrameGraph` is consumed via `try_take` and only `detail::refresh_compiled_graph_payloads(...)` is run on it, which is a scene-content-only refresh — the topology-derived fields are reused as-is). When the coordinator cache misses, `FrameGraphCompiler::compile` is invoked unconditionally with no reuse affordance.
+
+### Root cause analysis
+
+Three concerns were collapsed into the same pre-PR-2 piece of state:
+
+| Concern | Pre-rewire (deprecated) | Post-rewire (today) | Why this ticket matters |
+|---|---|---|---|
+| Where to MAKE the reuse decision | Executor + plan-cache consulted the flag at run-time | Coordinator (`build_or_reuse_graph`) consults the flag at compile-pipeline-planning time | The high-level decision is correctly preserved in `graph_cache_coordinator.cpp`. |
+| Whether `compile()` itself consults the flag | No — executor short-circuited BEFORE `compile()` was called | No — `compile()` is invoked when the coordinator cache misses | The compile()-internal affordance is the GONE piece. This ticket restores it. |
+| Where the prior `structure_hash` lives | Plan-cache (process-wide, retired) | Nowhere consistent; `CompiledGraphCache` keys on `(width, height)` only — not on `structure_hash` | This ticket defines the compile-API contract for a prior `CompiledFrameGraph` and the skip predicate against its `structure_hash`. |
+
+Per the closure-note's Skip-safety constraints + Affordance attribution sub-sections (which this ticket's contract must respect, NOT override):
+
+- **NIT-1 (per-node determinism)** — the skip is only sound when per-node `cache_policy` + `stable_node_id` are deterministically re-derivable from `graph + ctx.policy` alone, without per-call entropy.
+- **NIT-3 (fall-through on hash mismatch)** — when `ctx.policy.graph_structure_unchanged=true` but the freshly recomputed `structure_hash` differs from the cached prior, `compile()` MUST fall through to the full path.
+- **NIT-2 (cache location)** — where the prior `CompiledFrameGraph` lives is this ticket's API-consumer decision (caller-side field, `SessionServices` entry, `CompiledGraphCache` extension). This ticket does NOT pick a storage home; it standardises the COMPILE-TIME affordance.
+- **MINOR (affordance attribution)** — `CompiledFrameGraph::structure_hash` is a candidate affordance reasoned BACKWARDS from §9.4 wording "stable fast-path"; this ticket exercises it but the semantic match is by inference, not verbatim from §9.4 wording.
+
+### Out-of-scope rationale
+
+This ticket is independent of:
+
+- The §9.4 closure-note doc itself (`docs/refactor-roadmap/08-global-state-and-sdk.md` lines 134+, finalised at commit `4a808e46`). That doc captured the dormant state and the affordance attribution; this ticket is the follow-up IMPLEMENTATION.
+- `build_or_reuse_graph` + `CompiledGraphCache` (the coordinator-level reuse). That path is the production fast-path of choice for production traffic; this ticket adds a complementary compile()-internal affordance for callers that BYPASS the coordinator (e.g., unit tests of `compile()` itself, future precomp-node inner executions, ad-hoc CLI invocations).
+- PR-2 exit criteria (boundary test errors=0, `tools/check_architecture_boundaries.sh` 5/5 PASS, `git grep plan_cache -- include/ src/ apps/ tests/` = 0). These remain satisfied throughout; this ticket does NOT re-introduce `runtime::ExecutionPlanCache` (the §9.4 closure-path criterion #1).
+- The exhaustiveness of `compute_structure_hash` itself. The current implementation at `frame_graph_compiler.cpp:89–104` hashes `graph.size + per-node (kind, inputs.size, each input id) + output` — it does NOT hash per-node names + layer_ids. An edge case (renamed-without-topology-change) is documented as a known limitation; widening the hash is OUT OF SCOPE for this ticket. See "Known limitation" below.
+
+### Suggested fix approach
+
+**Step 1 — API design: add a new `compile_with_reuse` overload (do NOT extend `FrameGraphCompileOptions`).**
+
+`FrameGraphCompileOptions` is a struct of 5 bools today; adding `std::optional<std::uint64_t> prior_structure_hash` (or worse, a `const CompiledFrameGraph*` pointer) to it would mix lightweight flags with heavyweight-data affordance. Cleaner shape — new overload:
+
+```cpp
+[[nodiscard]] CompiledFrameGraph compile_with_reuse(
+    RenderGraph graph,
+    RenderGraphContext& ctx,
+    const CompiledFrameGraph& prior_compiled,
+    const FrameGraphCompileOptions& options = {}
+) const;
+```
+
+The function:
+- Takes the prior `CompiledFrameGraph` by `const&` (read-only seed — `compile()` semantics are move-in-graph, move-out-compiled, like the existing overload).
+- Reads `prior_compiled.structure_hash`, `prior_compiled.levels`, `prior_compiled.nodes`, `prior_compiled.consumer_counts` — all by `const&`.
+- Returns a fresh `CompiledFrameGraph` (`compiled.graph = std::move(graph)` semantics preserved).
+- Default `options = {}` matches the existing overload's convention.
+
+**Step 2 — Skip predicate (close to the top of `compile_with_reuse`, BEFORE `build_execution_levels`):**
+
+```cpp
+const std::uint64_t current_hash = compute_structure_hash(graph, compiled.output);
+const bool skip_heavy_phases =
+    options.reuse_if_unchanged_predicate_safe()    // see Step 3
+    && ctx.policy.graph_structure_unchanged
+    && prior_compiled.structure_hash == current_hash;
+```
+
+When `skip_heavy_phases == true`:
+- `compiled.levels = prior_compiled.levels;` (deep copy)
+- `compiled.nodes = prior_compiled.nodes;` (deep copy)
+- `compiled.consumer_counts = prior_compiled.consumer_counts;` (deep copy)
+
+When `skip_heavy_phases == false`, fall through to the standard full path (`optimize_graph`, `build_execution_levels`, `build_node_metadata`, …) — NIT-3 honoured.
+
+**Step 3 — Add a small helper / inline check for "skip is even conceivable on this input":**
+
+```cpp
+// Helper on FrameGraphCompileOptions (inline, header-only).
+[[nodiscard]] bool reuse_if_unchanged_predicate_safe() const noexcept {
+    return !run_optimizer;  // see Step 4
+}
+```
+
+The optimizer is the one transformative force that is NOT skipped by the affordance (the executor's plan-cache fast-path was a pure hash-equality gate; it did not assume the optimizer either ran or didn't on the prior). To keep this PR's scope bounded:
+- The skip predicate requires `options.run_optimizer == false`. If `run_optimizer=true` and the hashes match, FALL THROUGH (don't skip) — the prior's optimization state is unknown to compile()-internal logic, so we can't safely reuse.
+- This constraint is documented in the API doc-comment for `compile_with_reuse`.
+
+Future PRs can extend the predicate to handle the `run_optimizer=true` case (e.g., by hashing the optimizer's identity into `prior_compiled`'s payload), but that is out of scope for TICKET-008.
+
+**Step 4 — Always-run post-conditions (BOTH skip path and full path), in this order:**
+
+1. `compiled.graph = std::move(graph);` — always (consume input graph per existing `compile()` contract).
+2. `compiled.output = graph.output();` — already set above; verify after the move.
+3. If NOT skipping: `build_execution_levels(...)` + `build_node_metadata(...)` (full-path path).
+4. If `options.compute_lifetimes` (default `true`): `compute_resource_lifetimes(compiled);` — always; the prior's lifetimes may not cover the current `early_exit_skip` overlay.
+5. `compiled.structure_hash = compute_structure_hash(compiled.graph, compiled.output);` — always; this is the affordance other consumers key against.
+6. `compiled.skip_initial_clear = ctx.policy.skip_initial_clear;` — always; copied from policy.
+7. `compiled.early_exit_skip.resize(node_count); for (size_t i...) copy from ctx.node_exec.early_exit_skip;` — always; per-node skip mask is policy-/frame-time-dependent.
+8. **Re-derive** the sorted-stable_node-id hash (the `graph_instance_id` post-pass). This is the FNV-1a mix over the SORTED SET of reachable `stable_node_id`s. Even on the skip path, recompute defensively — it costs one std::sort over `compiled.nodes.size()` and protects against the "names changed but topology didn't" edge case (see Known limitation).
+9. If `options.validate_dag` (default `true`): `validate(compiled);` — always; never in the skip list.
+10. `compiled.valid = true;` — always at the end.
+
+**Step 5 — Documentation comments.**
+
+Add a doc-comment block above `compile_with_reuse` in `frame_graph_compiler.hpp` that:
+- States the precondition (`ctx.policy.graph_structure_unchanged == true`).
+- States the skip predicate in plain language + the always-run post-conditions.
+- States the `run_optimizer` constraint (Step 3).
+- References the §9.4 closure-note (the affordance attribution + Skip-safety constraints sub-sections) so a maintainer reconciling against the §9.4 doc walks those sub-sections first.
+
+**Step 6 — Tests (extend `tests/render_graph/compiler/test_frame_graph_compiler.cpp`).**
+
+The existing test at line 185 (`CHECK(compiled1.structure_hash == compiled2.structure_hash)`) is the determinism canary. Extend with FOUR new tests:
+
+- **Test A (skip path, matching hashes)**: Set `ctx.policy.graph_structure_unchanged = true`; create `prior_compiled = compile(graph, ctx, {.run_optimizer = false})`; then call `auto compiled2 = compiler.compile_with_reuse(graph2, ctx, prior_compiled, {.run_optimizer = false, .validate_dag = true})` where `graph2 == graph` to within RNG/order variance; assert `compiled2.levels == prior_compiled.levels` AND `compiled2.nodes[i].stable_node_id == prior_compiled.nodes[i].stable_node_id` for every `i`.
+- **Test B (fall-through, mismatched hashes)**: Same setup as Test A but mutate one node's kind (e.g., SourceNode → EffectStackNode) before `compile_with_reuse`; assert `compiled2.levels != prior_compiled.levels` AND `compiled2.nodes != prior_compiled.nodes`.
+- **Test C (predicate fails on `graph_structure_unchanged=false`)**: Same as Test A but `ctx.policy.graph_structure_unchanged = false`; assert full path runs (fresh derivation, NO bit-equality with prior).
+- **Test D (`run_optimizer=true` falls through)**: Same as Test A but `options.run_optimizer = true`; assert full path runs (the predicate is gated by `!run_optimizer`).
+- **Test E (post-conditions hold)**: Compile two identical graphs via `compile_with_reuse`; assert `compiled2.structure_hash == compute_structure_hash(compiled2.graph, compiled2.output) == computed_at_step_5_value` AND `compiled2.early_exit_skip == ctx.node_exec.early_exit_skip` AND `compiled2.valid == true`.
+
+### Known limitation (documented in API doc-comment + §9.4 closure-note follow-up)
+
+`compute_structure_hash` (`frame_graph_compiler.cpp:89–104`) hashes node kinds + input ids + output — it does NOT hash node names + layer_ids. Two graphs with the same topology but DIFFERENT node names produce the same `structure_hash`. If the prior `CompiledFrameGraph` had stable_node_id A for a given node, and the new graph's same-position node has stable_node_id B (renamed), the SKIP path returns the prior's `nodes[]` array — whose `stable_node_id` field is A, NOT B. The `compiled.structure_hash` and `compiled.graph_instance_id` are re-derived (Step 4 #5 and #8), so the graph-level identity hash still reflects the new names, but the per-node `stable_node_id` field does not.
+
+This is the "names changed but topology didn't" edge case. It is NOT a hard correctness bug — a downstream consumer using `compiled.nodes[id].stable_node_id` for cache lookup will see stale A instead of fresh B and treat the node as unchanged even though the user renamed it. For PRODUCTION traffic the coordinator-level `CompiledGraphCache` path (which keys on `(width, height)` and rebuilds the entire graph when EITHER the topology OR `graph_structure_unchanged` flip) handles this correctly because it falls through to `build_fresh_graph` whenever the producer is uncertain.
+
+The recommended mitigation at the compile()-internal level: either (a) widen `compute_structure_hash` to include `(layer_id, name)` per node in a follow-up PR (this would close the edge case at the hash compare step), OR (b) explicitly document the limitation and require callers to not rename nodes across the reuse boundary.
+
+TICKET-008 chooses (b) — document the limitation + require callers to either keep names stable or fall through. (a) is OUT OF SCOPE because widening the hash affects `compute_structure_hash`'s public output (it's a `[[nodiscard]] static` member) and may invalidate downstream caches that key on the current 64-bit hash space.
+
+### Acceptance criteria
+
+| Criterion | Verification |
+|---|---|
+| `compile_with_reuse(...)` overload compiles + links under the existing test target | `cmake --build build/chronon/linux-ci --target chronon3d_tests_fast` returns RC=0 with zero new errors |
+| Test A (skip path with matching hashes) returns `compiled.levels == prior_compiled.levels` bit-equivalent and `compiled.nodes` bit-equivalent | New `TEST_CASE` in `tests/render_graph/compiler/test_frame_graph_compiler.cpp` |
+| Test B (mismatched hashes) falls through to full path; `compiled.levels != prior_compiled.levels` and `compiled.nodes` re-derived | New `TEST_CASE` |
+| Test C (`graph_structure_unchanged=false`) falls through even with matching hashes | New `TEST_CASE` |
+| Test D (`run_optimizer=true` predicate) falls through even with matching hashes | New `TEST_CASE` |
+| Test E (post-condition invariants hold): `compiled.structure_hash` always freshly derived; `compiled.early_exit_skip` propagated from `ctx.node_exec`; `compiled.valid=true` at end; `compute_resource_lifetimes` called when `options.compute_lifetimes=true` (default); `validate(compiled)` called when `options.validate_dag=true` (default) | New `TEST_CASE` covering each post-condition |
+| The existing `CHECK(compiled1.structure_hash == compiled2.structure_hash)` at line 185 still passes | Existing test untouched |
+| PR-2 exit criteria preserved: `tests/architecture/test_render_session_includes_boundary.py` errors=0; `tools/check_architecture_boundaries.sh` 5/5 PASS; `git grep plan_cache -- include/ src/ apps/ tests/` = 0 hits | One-pass verification post-edit |
+| `compute_structure_hash` is NOT modified — its output profile is preserved (no widening of the hash inputs) | `git diff --stat` on `frame_graph_compiler.cpp` shows only a NEW function added, no edit to `compute_structure_hash` body |
+| `build_or_reuse_graph` + `CompiledGraphCache` (coordinator-level path) are NOT modified | `git diff --stat` on `graph_cache_coordinator.cpp` + `compiled_graph_cache.hpp` shows zero churn |
+| `runtime::ExecutionPlanCache` is NOT re-introduced (§9.4 closure-path criterion #1) | `git grep 'ExecutionPlanCache' -- include/ src/ apps/ tests/` returns zero hits |
+| The §9.4 closure-note in `docs/refactor-roadmap/08-global-state-and-sdk.md` is updated to mark §9.4 as ✅ RESOLVED after this PR lands | Doc-edit following this PR — separate micro-commit for the status flip |
+| API doc-comment on `compile_with_reuse` references the §9.4 closure-note sub-sections (Skip-safety constraints + Affordance attribution) | Manual review of the doc-comment block |
+| The `run_optimizer=true` constraint + the "names changed but topology didn't" edge case are both documented inline (header doc-comment) | Manual review |
+
+### Cross-references
+
+- §9.4 closure-note sub-sections (this is the contract source for the affordance + Skip-safety constraints): `docs/refactor-roadmap/08-global-state-and-sdk.md` lines ~134–300, finalised at commit `4a808e46`.
+- §9.4 closure-note commits chain (polish rounds on the closure-note itself): `dc914423`, `72d07d78`, `4a808e46`.
+- PR-2 close-out that orphaned §9.4: `9f9af90e`.
+- Live writer of the dormant flag: `src/render_graph/pipeline/scene.cpp` Phase 4 of `render_scene_via_graph` (around line 233).
+- Live coordinator-level reader: `src/render_graph/pipeline/graph_cache_coordinator.cpp::build_or_reuse_graph` (lines ~91–127).
+- `RenderPolicy::graph_structure_unchanged` definition: `include/chronon3d/render_graph/render_graph_context.hpp:158`.
+- `CompiledFrameGraph::structure_hash` definition: `include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp:71` (`std::uint64_t structure_hash{0};`).
+- `FrameGraphCompiler::compute_structure_hash` definition: `src/render_graph/compiler/frame_graph_compiler.cpp:89–104`.
+- Existing determinism canary that this PR extends: `tests/render_graph/compiler/test_frame_graph_compiler.cpp:185`.
+- Architectural-spec paste precedent for similar "single-seed-source" patterns: TICKET-007 (debug-config removal — same single-seeding-point architectural pattern); TICKET-010 (RenderGraphContext 7→4-substruct decomposition — same parent-context pattern).
+
