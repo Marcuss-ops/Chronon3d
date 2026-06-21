@@ -65,6 +65,14 @@ public:
         return ids;
     }
 
+    /// Drop every registered factory — restores the registry to its
+    /// freshly-default-constructed state.  Tests use this between cases
+    /// to keep one TEST_CASE's registrations from leaking into the next
+    /// (the registry itself doesn't enforce uniqueness across the
+    /// `Composition` API surface — the unique check is at `add()` time,
+    /// so a leaked prefix would silently shadow later `add()` calls).
+    void clear() noexcept { factories_.clear(); }
+
 private:
     std::map<std::string, Factory, std::less<>> factories_;
 };

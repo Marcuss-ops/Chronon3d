@@ -5,6 +5,7 @@
 #include "node_runner.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 
 #include <algorithm>
 #include <atomic>
@@ -24,7 +25,8 @@ void execute_levels(
     std::pmr::vector<std::atomic_size_t>& consumer_remaining,
     RenderCounters* parent_counters,
     cache::FramebufferPool* parent_pool,
-    std::pmr::memory_resource* res
+    std::pmr::memory_resource* res,
+    const CompiledFrameGraph& compiled
 ) {
     for (const auto& level : levels) {
         CHRONON_ZONE_C("execute_level", trace_category::kGraph);
@@ -134,7 +136,8 @@ void execute_levels(
                     &level_execute_ms[level_index],
                     &level_pred_bbox_ms[level_index],
                     &level_clone_ctx_ms[level_index],
-                    &level_state_ms[level_index]
+                    &level_state_ms[level_index],
+                    compiled
                 );
 
                 // Decrement when this index finishes
@@ -171,7 +174,8 @@ void execute_levels(
                     &level_execute_ms[level_index],
                     &level_pred_bbox_ms[level_index],
                     &level_clone_ctx_ms[level_index],
-                    &level_state_ms[level_index]
+                    &level_state_ms[level_index],
+                    compiled
                 );
             }
             if (parent_counters) {

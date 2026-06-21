@@ -60,9 +60,17 @@ public:
         value_.enabled = true;
         return *this;
     }
+    Material&& enable() && {
+        value_.enabled = true;
+        return std::move(*this);
+    }
     Material& disable() & {
         value_.enabled = false;
         return *this;
+    }
+    Material&& disable() && {
+        value_.enabled = false;
+        return std::move(*this);
     }
 
     // ── Gradient fill (top → bottom by default; rotate via angle) ────────
@@ -73,15 +81,32 @@ public:
         value_.enabled        = true;
         return *this;
     }
+    Material&& gradient(Color top, Color bottom, f32 angle_degrees = 90.0f) && {
+        value_.top_color      = top;
+        value_.bottom_color   = bottom;
+        value_.gradient_angle = angle_degrees;
+        value_.enabled        = true;
+        return std::move(*this);
+    }
     Material& top_color(Color c) & {
         value_.top_color = c;
         value_.enabled    = true;
         return *this;
     }
+    Material&& top_color(Color c) && {
+        value_.top_color = c;
+        value_.enabled    = true;
+        return std::move(*this);
+    }
     Material& bottom_color(Color c) & {
         value_.bottom_color = c;
         value_.enabled       = true;
         return *this;
+    }
+    Material&& bottom_color(Color c) && {
+        value_.bottom_color = c;
+        value_.enabled       = true;
+        return std::move(*this);
     }
 
     // ── Bevel (fake 3D edge thickness) ───────────────────────────────────
@@ -94,10 +119,24 @@ public:
         value_.enabled                 = true;
         return *this;
     }
+    Material&& bevel(f32 px,
+                     f32 highlight_opacity = 0.35f,
+                     f32 shadow_opacity    = 0.25f) && {
+        value_.bevel_px                = px;
+        value_.bevel_highlight_opacity = highlight_opacity;
+        value_.bevel_shadow_opacity    = shadow_opacity;
+        value_.enabled                 = true;
+        return std::move(*this);
+    }
     Material& bevel_highlight_color(Color c) & {
         value_.bevel_highlight_color = c;
         value_.enabled               = true;
         return *this;
+    }
+    Material&& bevel_highlight_color(Color c) && {
+        value_.bevel_highlight_color = c;
+        value_.enabled               = true;
+        return std::move(*this);
     }
 
     // ── Glow override (replaces node-level glow when enabled) ─────────────
@@ -108,15 +147,32 @@ public:
         value_.enabled           = true;
         return *this;
     }
+    Material&& glow(f32 radius, f32 intensity) && {
+        value_.use_material_glow = true;
+        value_.glow_radius       = radius;
+        value_.glow_intensity    = intensity;
+        value_.enabled           = true;
+        return std::move(*this);
+    }
     Material& glow_color(Color c) & {
         value_.glow_color        = c;
         value_.use_material_glow = true;
         value_.enabled           = true;
         return *this;
     }
+    Material&& glow_color(Color c) && {
+        value_.glow_color        = c;
+        value_.use_material_glow = true;
+        value_.enabled           = true;
+        return std::move(*this);
+    }
     Material& no_glow() & {
         value_.use_material_glow = false;
         return *this;
+    }
+    Material&& no_glow() && {
+        value_.use_material_glow = false;
+        return std::move(*this);
     }
 
     // ── Shadow override (replaces node-level shadow when enabled) ─────────
@@ -127,6 +183,13 @@ public:
         value_.enabled             = true;
         return *this;
     }
+    Material&& shadow(Vec2 offset, f32 blur) && {
+        value_.use_material_shadow = true;
+        value_.shadow_offset       = offset;
+        value_.shadow_blur         = blur;
+        value_.enabled             = true;
+        return std::move(*this);
+    }
     Material& shadow(Vec2 offset, f32 blur, f32 opacity) & {
         value_.use_material_shadow = true;
         value_.shadow_offset       = offset;
@@ -134,6 +197,14 @@ public:
         value_.shadow_opacity      = opacity;
         value_.enabled             = true;
         return *this;
+    }
+    Material&& shadow(Vec2 offset, f32 blur, f32 opacity) && {
+        value_.use_material_shadow = true;
+        value_.shadow_offset       = offset;
+        value_.shadow_blur         = blur;
+        value_.shadow_opacity      = opacity;
+        value_.enabled             = true;
+        return std::move(*this);
     }
     Material& shadow(Vec2 offset, f32 blur, f32 opacity, Color color) & {
         value_.use_material_shadow = true;
@@ -144,9 +215,22 @@ public:
         value_.enabled             = true;
         return *this;
     }
+    Material&& shadow(Vec2 offset, f32 blur, f32 opacity, Color color) && {
+        value_.use_material_shadow = true;
+        value_.shadow_offset       = offset;
+        value_.shadow_blur         = blur;
+        value_.shadow_opacity      = opacity;
+        value_.shadow_color        = color;
+        value_.enabled             = true;
+        return std::move(*this);
+    }
     Material& no_shadow() & {
         value_.use_material_shadow = false;
         return *this;
+    }
+    Material&& no_shadow() && {
+        value_.use_material_shadow = false;
+        return std::move(*this);
     }
 
     // ── Inner shadow (AE-style cast inside glyph boundaries) ─────────────
@@ -158,9 +242,21 @@ public:
         value_.enabled              = true;
         return *this;
     }
+    Material&& inner_shadow(Vec2 offset, f32 blur, Color color) && {
+        value_.inner_shadow_enabled = true;
+        value_.inner_shadow_offset  = offset;
+        value_.inner_shadow_blur    = blur;
+        value_.inner_shadow_color   = color;
+        value_.enabled              = true;
+        return std::move(*this);
+    }
     Material& no_inner_shadow() & {
         value_.inner_shadow_enabled = false;
         return *this;
+    }
+    Material&& no_inner_shadow() && {
+        value_.inner_shadow_enabled = false;
+        return std::move(*this);
     }
 
     // ── Top highlight / bottom shade (AE-style bevel embellishment) ──────
@@ -170,17 +266,33 @@ public:
         value_.enabled                 = true;
         return *this;
     }
+    Material&& top_highlight(f32 opacity, f32 fraction = 0.10f) && {
+        value_.top_highlight_opacity   = opacity;
+        value_.top_highlight_fraction  = fraction;
+        value_.enabled                 = true;
+        return std::move(*this);
+    }
     Material& bottom_shade(f32 opacity, f32 fraction = 0.08f) & {
         value_.bottom_shade_opacity   = opacity;
         value_.bottom_shade_fraction  = fraction;
         value_.enabled                = true;
         return *this;
     }
+    Material&& bottom_shade(f32 opacity, f32 fraction = 0.08f) && {
+        value_.bottom_shade_opacity   = opacity;
+        value_.bottom_shade_fraction  = fraction;
+        value_.enabled                = true;
+        return std::move(*this);
+    }
 
     // ── Emissive / brightness boost ──────────────────────────────────────
     Material& emissive(f32 factor) & {
         value_.emissive = factor;
         return *this;
+    }
+    Material&& emissive(f32 factor) && {
+        value_.emissive = factor;
+        return std::move(*this);
     }
 
     // ── Level 3 escape hatch ─────────────────────────────────────────────
@@ -194,10 +306,16 @@ public:
         mutator(value_);
         return *this;
     }
+    template <class Fn>
+    Material&& configure_core(Fn&& mutator) && {
+        mutator(value_);
+        return std::move(*this);
+    }
 
 private:
     friend class Text;                                                    // PR 3
     friend struct chronon3d::authoring::testing::MaterialTestAccess;      // tests
+    friend struct chronon3d::authoring::testing::AnimatorTestAccess;       // tests
 
     [[nodiscard]]
     TextMaterial release() && {

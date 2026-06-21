@@ -75,13 +75,14 @@ TEST_CASE("scene_program_cache: cache hit returns same pointer") {
 
     auto key = make_key(0xABCD);
 
-    auto* first = cache.find_or_compile(key, TestCompiler{compile_count});
+    auto first = cache.find_or_compile(key, TestCompiler{compile_count});
     REQUIRE(first != nullptr);
 
-    auto* second = cache.find_or_compile(key, TestCompiler{compile_count});
+    auto second = cache.find_or_compile(key, TestCompiler{compile_count});
 
-    CHECK(first == second);          // same pointer
-    CHECK(compile_count == 1);        // compiled only once
+    CHECK(first.get() == second.get()); // same pointer (WP 5.2 — cache returns shared_ptr)
+    CHECK(first == second);             // shared_ptr equality compares identity
+    CHECK(compile_count == 1);          // compiled only once
 
     auto s = cache.stats();
     CHECK(s.hits == 1);
@@ -95,13 +96,13 @@ TEST_CASE("scene_program_cache: multiple cache hits from same key") {
     auto key = make_key(42);
 
     // Compile once.
-    auto* first = cache.find_or_compile(key, TestCompiler{compile_count});
+    auto first = cache.find_or_compile(key, TestCompiler{compile_count});
     REQUIRE(first != nullptr);
     CHECK(compile_count == 1);
 
     // Many hits.
     for (int i = 0; i < 10; ++i) {
-        auto* p = cache.find_or_compile(key, TestCompiler{compile_count});
+        auto p = cache.find_or_compile(key, TestCompiler{compile_count});
         CHECK(p == first);
     }
     CHECK(compile_count == 1);   // still only one compile
@@ -122,15 +123,15 @@ TEST_CASE("scene_program_cache: different key triggers recompilation") {
     auto key_a = make_key(0x1111);
     auto key_b = make_key(0x2222);
 
-    auto* first = cache.find_or_compile(key_a, TestCompiler{compile_count});
+    auto first = cache.find_or_compile(key_a, TestCompiler{compile_count});
     REQUIRE(first != nullptr);
     CHECK(compile_count == 1);
 
-    auto* second = cache.find_or_compile(key_b, TestCompiler{compile_count});
+    auto second = cache.find_or_compile(key_b, TestCompiler{compile_count});
     REQUIRE(second != nullptr);
 
-    CHECK(compile_count == 2);     // recompiled for different key
-    CHECK(first != second);        // different programs
+    CHECK(compile_count == 2);          // recompiled for different key
+    CHECK(first.get() != second.get()); // different programs
 
     // Both should now be cached.
     CHECK(cache.find(key_a) == first);
@@ -167,7 +168,7 @@ TEST_CASE("scene_program_cache: invalid program is not cached") {
     };
 
     auto key = make_key(99);
-    auto* result = cache.find_or_compile(key, invalid_compiler);
+    auto result = cache.find_or_compile(key, invalid_compiler);
     CHECK(result == nullptr);     // invalid → not cached
     // Note: the compiler was called but the result wasn't stored.
     // The template in the header checks program->valid before storing.
@@ -351,7 +352,8 @@ TEST_CASE("scene_program_cache: LRU eviction with capacity 3 (spec)") {
     CHECK(cache.size() == 3);
 
     // Access A (promotes it to MRU head).
-    (void)cache.find(key_a);
+    auto access_a = cache.find(key_a);
+    REQUIRE(access_a != nullptr);
     CHECK(cache.stats().hits >= 1);
 
     // Insert D → should evict B (LRU tail).
@@ -410,7 +412,8 @@ TEST_CASE("scene_program_cache: LRU touch promotes to MRU") {
 
     // k1 is LRU (head: k3, then k2, tail: k1).
     // Access k1 → becomes MRU (head: k1, then k3, tail: k2).
-    (void)cache.find(k1);
+    auto touch = cache.find(k1);
+    REQUIRE(touch != nullptr);
 
     // Insert k4 → should evict k2 (now LRU tail), not k1.
     auto k4 = make_key(4);
@@ -568,7 +571,7 @@ TEST_CASE("scene_program_cache: telemetry counters without set_counters") {
     SceneProgramCache cache(8);
     int compile_count = 0;
 
-    auto* p = cache.find_or_compile(make_key(99), TestCompiler{compile_count});
+    auto p = cache.find_or_compile(make_key(99), TestCompiler{compile_count});
     CHECK(p != nullptr);
     CHECK(compile_count == 1);
 }

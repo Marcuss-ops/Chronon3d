@@ -34,8 +34,13 @@ public:
 
     // Domain-specific alias: register_style(id, value).
     // Forwards to the generic `register_value` of BasicRegistry.
+    // Returns `StyleRegistry&` (not the base `BasicRegistry&`) so the
+    // caller can chain domain-specific methods.  The downcast is safe:
+    // `*this` IS-A `StyleRegistry` and `register_value()` returns a
+    // reference to the exact same object, just typed as the base.
     StyleRegistry& register_style(std::string id, chronon3d::TextStyle value) & {
-        return register_value(std::move(id), std::move(value));
+        return static_cast<StyleRegistry&>(
+            register_value(std::move(id), std::move(value)));
     }
 
     // `register_factory`, `resolve`, `has`, `unregister`, `clear`,

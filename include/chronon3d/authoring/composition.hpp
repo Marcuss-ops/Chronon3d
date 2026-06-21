@@ -108,30 +108,54 @@ public:
         spec_.name = std::move(value);
         return *this;
     }
+    CompositionBuilder&& name(std::string value) && {
+        spec_.name = std::move(value);
+        return std::move(*this);
+    }
 
     CompositionBuilder& width(i32 value) & {
         spec_.width = value;
         return *this;
+    }
+    CompositionBuilder&& width(i32 value) && {
+        spec_.width = value;
+        return std::move(*this);
     }
 
     CompositionBuilder& height(i32 value) & {
         spec_.height = value;
         return *this;
     }
+    CompositionBuilder&& height(i32 value) && {
+        spec_.height = value;
+        return std::move(*this);
+    }
 
     CompositionBuilder& duration(Frame value) & {
         spec_.duration = value;
         return *this;
+    }
+    CompositionBuilder&& duration(Frame value) && {
+        spec_.duration = value;
+        return std::move(*this);
     }
 
     CompositionBuilder& frame_rate(FrameRate value) & {
         spec_.frame_rate = value;
         return *this;
     }
+    CompositionBuilder&& frame_rate(FrameRate value) && {
+        spec_.frame_rate = value;
+        return std::move(*this);
+    }
 
     CompositionBuilder& assets_root(std::filesystem::path value) & {
         spec_.assets_root = std::string{value.string()};
         return *this;
+    }
+    CompositionBuilder&& assets_root(std::filesystem::path value) && {
+        spec_.assets_root = std::string{value.string()};
+        return std::move(*this);
     }
 
     /// Custom SceneBuilder factory — let users inject shape_registry,
@@ -146,6 +170,14 @@ public:
             return factory(ctx);
         };
         return *this;
+    }
+    template <class Fn>
+    CompositionBuilder&& custom_builder(Fn&& factory) && {
+        custom_builder_fn_ = [factory = std::forward<Fn>(factory)]
+            (const chronon3d::FrameContext& ctx) -> SceneBuilder {
+            return factory(ctx);
+        };
+        return std::move(*this);
     }
 
     // ── Render function setter ──────────────────────────────────────
@@ -166,7 +198,7 @@ public:
     // is happy with a no-op fn.
     template <class Fn>
     CompositionBuilder& scene(Fn&& fn) & {
-        static_assert(std::is_invocable_v<Fn, Scene&, const FrameContext&>,
+        static_assert(std::is_invocable_v<Fn, Scene&, const chronon3d::FrameContext&>,
                       "CompositionBuilder::scene(fn): fn must be invocable as "
                       "fn(chronon3d::authoring::Scene&, const chronon3d::FrameContext&).");
         // Capture both user_fn and the (optional) custom-builder
@@ -192,6 +224,31 @@ public:
         };
         return *this;
     }
+    template <class Fn>
+    CompositionBuilder&& scene(Fn&& fn) && {
+        static_assert(std::is_invocable_v<Fn, Scene&, const chronon3d::FrameContext&>,
+                      "CompositionBuilder::scene(fn): fn must be invocable as "
+                      "fn(chronon3d::authoring::Scene&, const chronon3d::FrameContext&).");
+        // Review/rvalue overload — supports fluent rvalue chains like
+        // composition().name("a").scene(...).build().  Setters on the
+        // other CompositionBuilder fields STILL use `&` only (the
+        // codebase philosophy for them is "declare-then-mutate"); this
+        // single `&&` overload on scene() unblocks the test fixture's
+        // chain calls without rewriting every user test case.
+        auto custom_snapshot = custom_builder_fn_;
+        render_fn_ = [user_fn = std::forward<Fn>(fn),
+                      custom = std::move(custom_snapshot)]
+            (const chronon3d::FrameContext& ctx) -> chronon3d::Scene {
+            SceneBuilder builder = custom ? custom(ctx) : SceneBuilder(ctx);
+            Scene scene_handle(builder,
+                               FrameContext::from_dimensions(
+                                   static_cast<f32>(ctx.width),
+                                   static_cast<f32>(ctx.height)));
+            user_fn(scene_handle, ctx);
+            return builder.build();
+        };
+        return std::move(*this);
+    }
 
     // ── Terminal: build a chronon3d::Composition ───────────────────
     //
@@ -202,7 +259,7 @@ public:
         if (!render_fn_) {
             // Default empty renderer — produces a zero-layer scene per frame.
             render_fn_ = [](const chronon3d::FrameContext&) -> chronon3d::Scene {
-                SceneBuilder empty_builder(FrameContext{});
+                SceneBuilder empty_builder(chronon3d::FrameContext{});
                 return empty_builder.build();
             };
         }

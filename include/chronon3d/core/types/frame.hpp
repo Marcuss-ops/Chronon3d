@@ -49,6 +49,10 @@ struct Frame {
     [[nodiscard]] i64 as_i64() const { return value; }
     [[nodiscard]] f32 as_f32() const { return static_cast<f32>(value); }
     [[nodiscard]] double as_double() const { return static_cast<double>(value); }
+    /// Alias for `as_i64()` — matches the math convention where
+    /// `integral()` denotes "round-trip to the underlying integer".
+    /// Authoring fixtures and DSL wrappers prefer this name.
+    [[nodiscard]] i64 integral() const noexcept { return value; }
 };
 
 // Free-function arithmetic for symmetry.

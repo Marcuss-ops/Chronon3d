@@ -70,15 +70,27 @@ public:
         spec_.selectors.emplace_back(std::move(selector).release());
         return *this;
     }
+    Animator&& select(Selector selector) && {
+        spec_.selectors.emplace_back(std::move(selector).release());
+        return std::move(*this);
+    }
 
     // ── Transform properties (Spec default blend mode: Add) ─────────────
     Animator& position(Vec3 value) & {
         spec_.properties.emplace_back(PositionProperty{value});
         return *this;
     }
+    Animator&& position(Vec3 value) && {
+        spec_.properties.emplace_back(PositionProperty{value});
+        return std::move(*this);
+    }
     Animator& scale(Vec3 value) & {
         spec_.properties.emplace_back(ScaleProperty{value});
         return *this;
+    }
+    Animator&& scale(Vec3 value) && {
+        spec_.properties.emplace_back(ScaleProperty{value});
+        return std::move(*this);
     }
     /// Uniform scale convenience — produces `Vec3{u, u, 1.0f}` because
     /// most authoring flows animate a uniform word-mark/body, not
@@ -87,29 +99,57 @@ public:
         spec_.properties.emplace_back(ScaleProperty{Vec3{uniform, uniform, 1.0f}});
         return *this;
     }
+    Animator&& scale(f32 uniform) && {
+        spec_.properties.emplace_back(ScaleProperty{Vec3{uniform, uniform, 1.0f}});
+        return std::move(*this);
+    }
     Animator& rotation(Vec3 degrees) & {
         spec_.properties.emplace_back(RotationProperty{degrees});
         return *this;
+    }
+    Animator&& rotation(Vec3 degrees) && {
+        spec_.properties.emplace_back(RotationProperty{degrees});
+        return std::move(*this);
     }
     Animator& skew(f32 angle_degrees, f32 axis_degrees = 0.0f) & {
         spec_.properties.emplace_back(SkewProperty{angle_degrees, axis_degrees});
         return *this;
     }
+    Animator&& skew(f32 angle_degrees, f32 axis_degrees = 0.0f) && {
+        spec_.properties.emplace_back(SkewProperty{angle_degrees, axis_degrees});
+        return std::move(*this);
+    }
     Animator& anchor(Vec3 value) & {
         spec_.properties.emplace_back(AnchorProperty{value});
         return *this;
+    }
+    Animator&& anchor(Vec3 value) && {
+        spec_.properties.emplace_back(AnchorProperty{value});
+        return std::move(*this);
     }
     Animator& tracking(f32 pixels) & {
         spec_.properties.emplace_back(TrackingProperty{pixels});
         return *this;
     }
+    Animator&& tracking(f32 pixels) && {
+        spec_.properties.emplace_back(TrackingProperty{pixels});
+        return std::move(*this);
+    }
     Animator& baseline_shift(f32 pixels) & {
         spec_.properties.emplace_back(BaselineShiftProperty{pixels});
         return *this;
     }
+    Animator&& baseline_shift(f32 pixels) && {
+        spec_.properties.emplace_back(BaselineShiftProperty{pixels});
+        return std::move(*this);
+    }
     Animator& character_offset(i32 offset) & {
         spec_.properties.emplace_back(CharacterOffsetProperty{offset});
         return *this;
+    }
+    Animator&& character_offset(i32 offset) && {
+        spec_.properties.emplace_back(CharacterOffsetProperty{offset});
+        return std::move(*this);
     }
 
     // ── Visual properties (Spec default blend mode: Replace) ────────────
@@ -117,21 +157,41 @@ public:
         spec_.properties.emplace_back(OpacityProperty{value});
         return *this;
     }
+    Animator&& opacity(f32 value) && {
+        spec_.properties.emplace_back(OpacityProperty{value});
+        return std::move(*this);
+    }
     Animator& blur(f32 radius_px) & {
         spec_.properties.emplace_back(BlurProperty{radius_px});
         return *this;
+    }
+    Animator&& blur(f32 radius_px) && {
+        spec_.properties.emplace_back(BlurProperty{radius_px});
+        return std::move(*this);
     }
     Animator& fill_color(Color color) & {
         spec_.properties.emplace_back(FillColorProperty{color});
         return *this;
     }
+    Animator&& fill_color(Color color) && {
+        spec_.properties.emplace_back(FillColorProperty{color});
+        return std::move(*this);
+    }
     Animator& stroke_color(Color color) & {
         spec_.properties.emplace_back(StrokeColorProperty{color});
         return *this;
     }
+    Animator&& stroke_color(Color color) && {
+        spec_.properties.emplace_back(StrokeColorProperty{color});
+        return std::move(*this);
+    }
     Animator& stroke_width(f32 width_px) & {
         spec_.properties.emplace_back(StrokeWidthProperty{width_px});
         return *this;
+    }
+    Animator&& stroke_width(f32 width_px) && {
+        spec_.properties.emplace_back(StrokeWidthProperty{width_px});
+        return std::move(*this);
     }
 
 private:
