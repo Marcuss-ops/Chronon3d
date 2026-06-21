@@ -247,6 +247,7 @@ symbols were RETIRED:
 
    ```cpp
    #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
+   // DELTA: retarget the output node before moving the graph.
    // retarget_output works in either phase (Building or Frozen) so
    // you can layer-select without rebuilding the whole graph.
    graph.retarget_output(selection.selected_output);
@@ -255,11 +256,17 @@ symbols were RETIRED:
    ```
 
    Note: `FrameGraphCompiler::compile` takes `RenderGraph` **by
-   value** — the `std::move(graph)` call consumes it.  If your
-   caller still needs `graph` afterwards, clone it first (the
-   `RenderGraph` copy ctor is implicitly deleted so use the move +
-   snapshot pattern, or build a fresh graph from the underlying
-   scene).
+   value** — the `std::move(graph)` call consumes it.  If you need
+   information from the graph after `compile()`, capture the
+   `CompiledFrameGraph` fields your downstream code reads instead
+   of trying to retain the raw graph: `compiled.structure_hash`,
+   `compiled.levels`, per-node `compiled.nodes[id]` records
+   (including `stable_node_id` and `cache_policy`), and
+   `compiled.graph_instance_id`.  `RenderGraph` has no working
+   copy API — its copy ctor is implicitly deleted because the
+   move ctor is user-declared — so callers that genuinely need the
+   raw graph post-execute must re-derive it from the scene via
+   `GraphBuilder::build(scene, ctx)`.
 
 2. `chronon3d::SoftwareRenderer::plan_cache()` accessor — gone;
    there is NO replacement because topological plans now live
