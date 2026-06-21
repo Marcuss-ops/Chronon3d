@@ -485,14 +485,14 @@ Provenance trail for `expressions/v2` through the repo, 2026-06-20.
 | Event | Where | Status |
 |---|---|---|
 | `expressions/v2` engine landed independently on `main` via PR #23 (disabled test fixtures under `tests/expressions/`) | repo history | ✅ Merged |
-| Surviving PR #23 defects filed | `docs/FOLLOWUP_TICKETS.md` → TICKET-003 (lexer.hpp `<chrono3d/...>` typo) + TICKET-004 (`PUBLIC ${CMAKE_SOURCE_DIR}` include bug on `chronon3d_expressions_v2`) | 🟡 Documented |
+| Surviving PR #23 defects filed | `docs/FOLLOWUP_TICKETS.md` → TICKET-003 (lexer.hpp `<chrono3d/...>` typo) + TICKET-004 (`PUBLIC ${CMAKE_SOURCE_DIR}` include bug on `chronon3d_expressions_v2`) | 🟢 Resolved (both DONE) |
 | CMake guard `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` rolled back (option kept as deprecated no-op for cache-key compatibility) | `CMakeLists.txt:200-237` | ✅ Retired |
 | Stale flag references in CI, presets, scripts, configs | audited broadly (`.cmake`, `CMakeLists.txt`, `.sh`, `.yml`, `.yaml`, `.json`, `.py`, `.toml`, `.cfg`, `.ini`, `.env`, `Dockerfile*`, `.github/workflows`, `vcpkg.json`, `tools/*.sh`, repo-wide MD) | none — clean |
 | Doc sweep recording `expressions/v2` is now on `main` | this file + `FEATURES.md` + `ROADMAP.md` + `ARCHITECTURE_EVOLUTION_PLAN.md` | ✅ Recorded |
 
-> Status (2026-06-20): `expressions/v2` lives in the **Experimental Zone** (see
+> Status (2026-06-21): `expressions/v2` lives in the **Experimental Zone** (see
 > `ARCHITECTURE_EVOLUTION_PLAN.md`). The engine was merged on `main` via PR
-> #23. Promotion to a stable feature (entry beyond the experimental footnote
-> in `FEATURES.md`, fenced `target_link_libraries` for downstream consumers,
-> full test enablement without the guard) is tracked as work to consider
-> after TICKET-003 and TICKET-004 are addressed.
+> #23. TICKET-003 and TICKET-004 (the surviving PR #23 defects) are
+> **🟢 Done**. The next blocker for stable-feature promotion is
+> **TICKET-EXP2-G3** (Gate 3 Path A → Path B migration in
+> `docs/FOLLOWUP_TICKETS.md`).
