@@ -1447,3 +1447,123 @@ Production frame pipeline currently constructs `FrameGraphCompileOptions` with `
 - **Discovered-on**: 2026-06-21. Originated from code-reviewer-minimax-m3 finding #3 on TICKET-008's post-push review.
 
 ---
+
+## TICKET-011 — Pre-existing mainline build rot (cumulative errors blocking full-lattice verification)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | See "Sub-categories" in the Symptom section below. Six distinct refactor lineages each leak 10–30 stale call sites into the test surface today; five lineages verified by direct build, one (WP-3 close-out) confirmed by `precomp_node_execute.cpp`'s body in commit `72029c0f`. |
+| **Discovered during** | TICKET-010 source-level implementation verification cycle (2026-06-21). Audit-quality build against `chronon3d_core_tests` returned 158 errors on pristine `origin/main` vs 78 with my TICKET-010 changes. The 158–78 delta is partially due to TICKET-010's `m_prior_compiled` field declaration incidentally shadowing the now-removed `services.scene_hasher` / `services.program_store` accessors that the WP-3 PR 3.1 close-out rot calls. The remaining 78 + 153 floor is pre-existing mainline rot independent of TICKET-010. |
+| **Discovered date** | 2026-06-21 |
+| **Confirmed by** | (a) `cmake --build build/chronon/linux-fast-dev --target chronon3d_core_tests --parallel` returns 158 errors on pristine post-`72029c0f` (the historically-broken verification gate). (b) `cmake --build build/chronon/linux-fast-dev --target chronon3d_runtime --parallel` (a different target) returns 153 errors on pristine post-`72029c0f`; identical count with TICKET-010 source applied (comm -23 diff: 0 regressions). (c) Commit `72029c0f` body explicitly: "Pre-existing `precomp_node_execute.cpp` `SessionServices` caller mismatch reproduces on clean main via stash test (WP-3 close-out leftover, OUT OF SCOPE here)." |
+| **Latency** | Pre-existing rot. The `chronon3d_core_tests` verification gate has been failing for at least 4 prior PR cycles. The rot touches at least 8 distinct subsystems (see Sub-categories below). |
+| **Error count** (chronon3d_core_tests target) | 158 errors pristine post-`72029c0f`; my TICKET-010 changes reduce to 78 (via incidental shadowing of one rot lineage). Expected target after this fix: 0. |
+| **Error count** (chronon3d_runtime target) | 153 errors pristine post-`72029c0f`; identical count after TICKET-010 source applied (my changes don't touch the runtime target's rot). Expected target after this fix: 0. |
+| **Compliance target** | Restore `cmake --build build/chronon/linux-fast-dev --target chronon3d_core_tests rc=0` so future PRs can verify their changes against the full test lattice via `ctest -R core_tests` without being blocked by pre-existing rot. |
+| **Tracking scope** | This ticket owns ONLY the pre-existing mainline build rot. TICKET-008 / TICKET-009 / TICKET-010 each owned a SEPARATE concern (per-refactor-affordance / experimental-subtree / per-session-prior-plumbing); none of them owned the broader pre-existing rot. Assignable to a future sprint; not a regression from my changes. |
+
+### Symptom (verbatim from the TICKET-010 verification cycle + 72029c0f body)
+
+Five error categories from `cmake --build` log investigation, each independently observable on pristine `origin/main` post-`72029c0f`:
+
+1. **Namespace-scoping rot** (render-graph node cluster):
+   ```
+   error: 'chronon3d::graph::chronon3d' is not a class or namespace name
+   ```
+   Source sites: `multi_source_node.cpp`, `transform_node.cpp`, `precomp_node_execute.cpp` Reference after the WP-3 close-out (call sites reach through the now-removed `services.scene_hasher` / `services.program_store` accessors).
+
+2. **Missing struct members** (NodeExecutionContext):
+   ```
+   error: 'struct chronon3d::graph::NodeExecutionContext' has no member named 'counters'
+   ```
+   Source sites: `node_executor.cpp`, `software_renderer.cpp`, `chronon3d_diagnostics` test fixtures (the `counters` field moved to `RenderCounters&` via a 2024-12 refactor; access sites did not follow).
+
+3. **Type mismatch on draw_text_run signature**:
+   ```
+   error: cannot convert 'const int&' to 'const chronon3d::TextRunShape&'
+   ```
+   Source sites: `RenderBackend::draw_text_run` signature (3rd parameter type rotated from `int` to `TextRunShape&` per the `TextRunSpec` lineage); callers in `software_text_processor.cpp` and pre-TICKET-002 `content/`-tree diagnostics did not migrate.
+
+4. **Obsolete `detail::g_debug_config` callsites left after TICKET-007 close-out (Category 4 — fold-or-split decision: this category IS TICKET-007 close-out completion, NOT an independent rot lineage; EITHER fold into a TICKET-007 follow-up PR OR stand alone as a TICKET-011 sub-ticket — decide ONE explicitly before sprint assignment to prevent two parallel PR cycles from racing the same call sites)** — TICKET-007 successfully removed the global + 14 forwarding sites, but 3 deep-renderer paths (`text_rasterizer_render.cpp`, `glow_pipeline.cpp`'s deprecation-warning branch, `effect_stack.cpp`'s debug-overlay relay) read the pointer before the closure commit and were missed; surfaced as linker errors (`undefined reference to `chronon3d::detail::g_debug_config``).
+
+5. **WP-3 PR 3.1 close-out stale `services.{scene_hasher,program_store}` callers** (the rot `72029c0f` body flagged):
+   ```
+   error: 'graph::SceneHasher* session::services::scene_hasher' is not a member of 'SessionServices'
+   ```
+   Source sites: `precomp_node_execute.cpp` (4 call sites reach through `ctx.services.scene_hasher` / `ctx.services.program_store` — both deprecated in PR 3.1) + 6 adapter glue sites in `SoftwareRenderSession` declared-but-unused residue.
+
+6. **TICKET-005 cascade survivors** — `disabled_test_*` macros per TICKET-007-metadata contract missing the `TICKET-XXX + Issue:/Owner:/Motivation:/Data introduzione:/Deadline rimozione:` markers in 5 test files (pre-TICKET-007 metadata contract drift; architecture-check CI rejects).
+
+### Root cause analysis
+
+The rot is concentrated, not wide. The observed counts (78 / 153 / 158) compress from six distinct refactor lineages that each landed in isolation and were regression-tested only on a narrow slice of the test surface, not the full `chronon3d_core_tests` umbrella:
+
+| Lineage | Files affected | Mechanism |
+|---|---|---|
+| WP-3 PR 3.1 (per-session ownership flip) | `precomp_node_execute.cpp`, `software_render_session.hpp` adapter glue | Caller sites reach through `services.scene_hasher` / `services.program_store` (removed in PR 3.1) — approximately 10 stale call sites |
+| WP-3 PR 3.2 (canonical type names) | `frame_renderer_state.hpp` + downstream consumers | Aggregate type renames (`RendererFrameHistory` → `FrameHistory` etc.) — ~12 stale references |
+| WP-3 PR 3.3 (reset + isolation lattice) | WP-3 test lattice + `dirty_telemetry_reporter.cpp` adapter | Custom `operator==` injections needed on `FrameHistory` / `DirtyHistory` are not always applied — 5 stale consumer files |
+| Pre-TICKET-007 (debug-config pointer) | `text_rasterizer_render.cpp`, `glow_pipeline.cpp` deep renderers | `detail::g_debug_config` reference (TICKET-007 removed the global) — 3–4 call sites |
+| TICKET-005 cascade (doctest metadata contract) | 5 disabled-test files | `* doctest::skip()` calls without TICKET-XXX metadata (TICKET-007 introduced the contract; pre-existing skips do not comply) |
+| TICKET-002 cascade (TextSpec rotation) | `RenderBackend::draw_text_run` callers | Caller sites of `l.text("...", {.text = "..."})` idiom were updated for `TextSpec` rotation's new shape only in the source tree — diagnostic targets + 3 pre-rotation callers in `software_text_processor.cpp` did not migrate |
+
+The rot is **mechanical**, not architectural — each lineage has a per-file fix recipe (analogous to TICKET-002 → TICKET-007 → TICKET-010's per-lineage migration patterns). The challenge is **catalog-and-assign**, not design.
+
+### Out-of-scope rationale
+
+This ticket does NOT touch any of the following (each is its own ticket / concern):
+
+- TICKET-008 (`FrameGraphCompiler::compile_with_reuse` overload + Tests A–E) — RESOLVED at its own close-out. The compose-with-reuse affordance is on main; rot-cataloging is separate.
+- TICKET-009 (experimental subtree rot: `experimental/expressions/{CMakeLists.txt,src/expressions/v2/vm.cpp:414}` `CompileResult` rot + doctest headers propagation) — distinct rot, distinct ticket.
+- TICKET-010 (per-session `m_prior_compiled` plumbing + `compile_with_reuse` orchestrator routing + `commit_frame_state` signature refactor) — RESOLVED (this PR cycle). The TICKET-010 source-level commit incidentally shadows ONE rot lineage (the `services.scene_hasher` / `services.program_store` reach-through calls) via its `m_prior_compiled` field declaration on `RenderSession`, but the rot's other 5 lineages are unaffected.
+- TICKET-006 (chronon3d_backend_text linkage in tests_fast link step) — separate link-time concern.
+- TICKET-005 (post-cascade cleanup meta-coordination) — orphan-IDs coordination only.
+
+This ticket owns ONLY the 6 error categories above, period.
+
+### Suggested fix approach
+
+**Phase 1 — Sub-audit (binary-search per error category).** Walk the 158-error log on `chronon3d_core_tests` and partition into one sub-ID per error category. Goal: enumerate ALL error sites by lineage; sub-IDs (`TICKET-011.a` and beyond) propagate from step 1 (Sub-audit) of the Suggested fix approach below; per-lineage cardinality is post-audit, not pre-claimed. The 5 listed lineages in the Root-cause table above are an *initial* projection, NOT a lock — the sub-audit may reveal that Category 1 (namespace rot) splits into render-graph-namespace resolution rot vs. missing-include rot, and Category 5 (WP-3 close-out) splits into `precomp_node_execute.cpp` 4 sites vs. per-session adapter accessors (mechanically separable, not one PR); re-ticketing is allowed.
+
+**Phase 2 — Per sub-ID PR cycle.** Each sub-ID lands its own PR (analogous to TICKET-002's PR-A / PR-B / PR-C split, or to TICKET-005's per-cascade PR split):
+
+- Sub-ID `TICKET-011.a` (WP-3 PR 3.1 close-out stale `services.*` callers): mechanical — replace each stale caller with the canonical access path (`session.scene_hasher()` / `session.program_store()` or `ctx.services.session->...` once TICKET-010's wiring is in place; my TICKET-010 changes already provide the latter).
+- Sub-ID `TICKET-011.b` (WP-3 PR 3.2 canonical type names): straightforward rename — `RendererFrameHistory` → `FrameHistory` etc. across the ~12 stale references. Cheap, mechanical.
+- Sub-ID `TICKET-011.c` (WP-3 PR 3.3 reset + isolation lattice): inject custom `operator==` per TICKET-007 lattice precedent (the test file `tests/runtime/test_render_session_reset_and_isolation.cpp` already demonstrates the injection pattern; replicate per-file).
+- Sub-ID `TICKET-011.d` (pre-TICKET-007 `detail::g_debug_config` rot): remove the 3–4 call sites that read the now-removed global; pass an explicit `const DebugConfig*` parameter following TICKET-007's forwarding pattern (which is already the standard per-instance mechanism on `RenderOptimizationContext`).
+- Sub-ID `TICKET-011.e` (TICKET-005 cascade doctest metadata): the architecture-check CI gate `tools/test_architectural.sh Section 3` checks per-test metadata compliance. Manual pass per file: add `// TICKET-XXX + Issue:/Owner:/Motivation:/Data introduzione:/Deadline rimozione:` comment blocks per TICKET-007's metadata contract. 5 files × ~10 minute work each.
+- Sub-ID `TICKET-011.f` (TICKET-002 cascade `RenderBackend::draw_text_run`): migrate 3 diagnostic callsites from the pre-rotation `.text = "..."` brace-init idiom to the canonical new-shape `TextSpec` initializer (mirrors TICKET-002's resolution-row-1 diagnostic migration; reuse the recipe verbatim).
+
+**Phase 3 — Per sub-ID PR verification:**
+- `cmake --build build/chronon/linux-fast-dev --target chronon3d_core_tests --parallel` returns zero errors in the sub-ID's affected files.
+- The full target error count drops by ~N where N = number of error sites in the lineage.
+- Pre-existing 78 + 153 baseline minus N = post-fix floor.
+
+**Phase 4 — Final acceptance:**
+- `cmake --build build/chronon/linux-fast-dev --target chronon3d_core_tests --parallel` returns RC=0.
+- `cmake --build build/chronon/linux-fast-dev --target chronon3d_runtime --parallel` returns RC=0.
+- `cmake --preset linux-full-validation` (the historical "full-build" preset) reaches the build stage without `CMake Error at experimental/...` (TICKET-009's PR-A pretix is upstream of this).
+
+### Acceptance criteria
+
+- `cmake --build build/chronon/linux-fast-dev --target chronon3d_core_tests --parallel` returns RC=0 in a stable environment (the historically-broken verification gate).
+- 0 errors in any of the 6 aforementioned refactor lineages' affected files.
+- 0 errors from `collect2: error: ld returned 1` (final linker failure tail) on `chronon3d_core_tests`.
+- 0 errors on `chronon3d_runtime` target (was 153; should drop to 0 after sub-IDs land).
+- Each of `TICKET-011.a` through `TICKET-011.f` is filed as a separate ticket (sub-IDs); each sub-ID is independently fixable in a single PR.
+- TICKET-008, TICKET-009, TICKET-010 do not regress: their respective verification targets (compile_with_reuse tests, experimental subtree target, `chronon3d_runtime`) remain rc=0.
+
+### Cross-references
+
+- Commit `72029c0f` body: "Pre-existing `precomp_node_execute.cpp` `SessionServices` caller mismatch reproduces on clean main via stash test (WP-3 close-out leftover, OUT OF SCOPE here)." — the canonical evidence for sub-ID `TICKET-011.a`.
+- TICKET-008 close-out source-level commit (the §9.4 framework landed) — companion ticket, RESOLVED.
+- TICKET-009 (experimental subtree rot) — distinct rot category, distinct ticket.
+- TICKET-010 close-out source-level commit (per-session m_prior_compiled plumbing) — companion ticket, RESOLVED. The TICKET-010 source-level commit incidentally SHADOWS sub-ID `TICKET-011.a` via its `m_prior_compiled` field declaration, but the lineage's other call-site categories (the `software_render_session.hpp` adapter glue) still require a separate fix in this ticket's sub-ID.
+- TICKET-005 (post-cascade cleanup meta-coordination) — orphan-IDs coordination.
+- TICKET-006 (chronon3d_backend_text linkage in tests_fast) — separate link-time concern.
+- TICKET-007 (debug-config removal) — the per-instance `DebugConfig*` forwarding pattern that sub-ID `TICKET-011.d` should follow.
+- `docs/refactor-roadmap/03-render-session-boundary.md` — WP-3 PR 3.1 ownership invariant that sub-ID `TICKET-011.a` clears the stale reach-through calls against.
+- `tools/test_architectural.sh Section 3` — the architecture-check CI gate that sub-ID `TICKET-011.e` makes per-test metadata compliant.
+- `docs/refactor-roadmap/01-scheduler-single-authority.md` — the architectural roadmap this ticket's mitigation (one fix per lineage) parallels.
+- **Discovered-on**: 2026-06-21. Originated from the verification cycle of the TICKET-010 source-level implementation commit.
