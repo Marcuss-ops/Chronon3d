@@ -2,9 +2,11 @@
 #include "../../cli_init.hpp"
 #include <chronon3d/assets/render_preflight.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <nlohmann/json.hpp>
+#include <filesystem>
 #include <fstream>
 
 namespace chronon3d {
@@ -23,6 +25,14 @@ int command_preflight(const CompositionRegistry& registry, const PreflightArgs& 
         spdlog::error("--sample-step must be >= 1");
         return 1;
     }
+
+    // WP-8 PR 8.0 — explicit typed resolver for preflight.  Mirror the
+    // CLI's AssetRegistry mount (see render_job_setup.cpp) so relative
+    // preflight paths resolve to the same absolute paths render-time
+    // resolution would.  Lifetime: scoped to this command — no global
+    // mutation, no service-locator bridge.
+    static chronon3d::assets::AssetResolver s_cli_resolver;
+    s_cli_resolver.mount(std::filesystem::current_path());
 
     auto& preflight = RenderPreflight::instance();
 
@@ -43,7 +53,7 @@ int command_preflight(const CompositionRegistry& registry, const PreflightArgs& 
     }
 
     // Run validation
-    auto issues = preflight.validate(cli_asset_registry());
+    auto issues = preflight.validate(cli_asset_registry(), s_cli_resolver);
 
     // Format and print terminal output
     if (!issues.empty()) {
