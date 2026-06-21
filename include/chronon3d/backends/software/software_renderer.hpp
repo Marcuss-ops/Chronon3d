@@ -296,25 +296,35 @@ public:
     [[nodiscard]] const SoftwareRenderSession& software_session() const { return m_session; }
 
     // ── Convenience accessors (forward to session) ──────────────────────
-    using LayerBBoxState          = ::chronon3d::LayerBBoxState;
-    using RendererFrameHistory    = ::chronon3d::RendererFrameHistory;
-    using RendererDirtyTelemetry  = ::chronon3d::RendererDirtyTelemetry;
-    using RendererLayerHistory    = ::chronon3d::RendererLayerHistory;
+    // WP-3 PR 3.2 — canonical names now mirror `FrameHistory` /
+    // `DirtyHistory`; the `RendererLayerHistory` wrapper is GONE
+    // (folded into `DirtyHistory::previous_layers`).  The
+    // `layer_history()` accessor is therefore removed — callers reach
+    // `dirty_telemetry().previous_layers` instead.
+    //
+    // `LayerBBoxState` itself does not need an alias here: it's
+    // transitively visible through `software_render_session.hpp` →
+    // `render_session.hpp` → `dirty_history.hpp`.  Callers that want
+    // to spell it inline should write `chronon3d::LayerBBoxState`
+    // directly.
 
-    [[nodiscard]] RendererFrameHistory& frame_history() { return m_session.common.frame_history; }
-    [[nodiscard]] const RendererFrameHistory& frame_history() const { return m_session.common.frame_history; }
-    [[nodiscard]] RendererDirtyTelemetry& dirty_telemetry() { return m_session.common.dirty_telemetry; }
-    [[nodiscard]] const RendererDirtyTelemetry& dirty_telemetry() const { return m_session.common.dirty_telemetry; }
-    [[nodiscard]] RendererLayerHistory& layer_history() { return m_session.common.layer_history; }
-    [[nodiscard]] const RendererLayerHistory& layer_history() const { return m_session.common.layer_history; }
-    // WP-8 follow-up — scene_hasher + program_store ownership moved
-    // off RenderSession onto RenderRuntime.  These convenience
-    // accessors now route through m_runtime (the renderer always has
-    // a valid runtime pointer per the ctor init list guarantees).
-    [[nodiscard]] graph::SceneHasher& scene_hasher() { return m_runtime->scene_hasher(); }
-    [[nodiscard]] const graph::SceneHasher& scene_hasher() const { return m_runtime->scene_hasher(); }
-    [[nodiscard]] graph::SceneProgramStore& program_store() { return m_runtime->program_store(); }
-    [[nodiscard]] const graph::SceneProgramStore& program_store() const { return m_runtime->program_store(); }
+    [[nodiscard]] FrameHistory& frame_history() { return m_session.common.frame_history; }
+    [[nodiscard]] const FrameHistory& frame_history() const { return m_session.common.frame_history; }
+    [[nodiscard]] DirtyHistory& dirty_telemetry() { return m_session.common.dirty_telemetry; }
+    [[nodiscard]] const DirtyHistory& dirty_telemetry() const { return m_session.common.dirty_telemetry; }
+    // WP-3 PR 3.1 + 3.2 — `scene_hasher` / `program_store` proxy
+    // accessors route through `m_session.common` so callers can write
+    // the symmetric pattern (`sw_renderer->scene_hasher()`,
+    // `sw_renderer->frame_history()`, `sw_renderer->dirty_telemetry()`)
+    // for all three per-session mutation engines.  Required for
+    // render-graph code paths (scene.cpp, scene_dirty.cpp) that
+    // previously reached these engines through the runtime-owned
+    // `services.scene_hasher` bundle.
+    [[nodiscard]] chronon3d::graph::SceneHasher& scene_hasher() { return m_session.common.scene_hasher(); }
+    [[nodiscard]] const chronon3d::graph::SceneHasher& scene_hasher() const { return m_session.common.scene_hasher(); }
+    [[nodiscard]] chronon3d::graph::SceneProgramStore& program_store() { return m_session.common.program_store(); }
+    [[nodiscard]] const chronon3d::graph::SceneProgramStore& program_store() const { return m_session.common.program_store(); }
+    // ── Inline forwarders (canonical post-PR-3.2 names) ──────────────
 
     // ── Convenience methods for graph pipeline orchestration ────────────
     void mark_fast_path_reused(Frame frame, const Camera2_5D& cam, uint64_t combined_fp) {
@@ -342,7 +352,9 @@ public:
                                   uint64_t combined_fp, uint64_t static_fp,
                                   uint64_t structure_fp, uint64_t active_at_fp,
                                   std::unordered_map<std::string, LayerBBoxState>&& layer_bboxes) {
-        m_session.common.layer_history.prev_layer_bboxes = std::move(layer_bboxes);
+        // WP-3 PR 3.2 — `RendererLayerHistory::prev_layer_bboxes` is
+        // gone; the canonical home is now `DirtyHistory::previous_layers`.
+        m_session.common.dirty_telemetry.previous_layers = std::move(layer_bboxes);
         m_session.common.frame_history.prev_frame = frame;
         m_session.common.frame_history.prev_scene_fingerprint = combined_fp;
         m_session.common.frame_history.prev_static_scene_fingerprint = static_fp;
