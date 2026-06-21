@@ -28,14 +28,22 @@ determinismo del progetto Chronon3D che:
 
 L'**estensione completa del contratto** (cioè gli invariant del
 §2 Serial + §3 TBB + §4 Composite di [`docs/02-determinism.md`](02-determinism.md))
-non è ancora verde a livello globale — il rot TICKET-007 persiste su
-4 dei 5 sub-ticket (`q` cold/warm cache, `r` cache invalidata, `s`
-nuovo vs riusato, `t/u` 1-thread vs 4/8-threads) per via di un
-gradiente-SIMD-specific path sotto
-`tools/verify_downsample_blur.cpp` (in corso di investigazione). Il
-**baseline verde** è quindi la parte del contratto che POSSIAMO
-verificare oggi, isolando il rot con fresh-renderer-per-render e
-con tbb::task_arena pin-per-render.
+è **verde a livello globale** da WP-6 PR 6.9. I 5 sub-ticket
+TICKET-007.q/r/s/t/u (`q` cold/warm cache, `r` cache invalidata, `s`
+nuovo vs riusato, `t/u` 1-thread vs 4/8-threads) erano rot di un
+gradiente-SIMD-specific path (AVX2 float-reduction non-associativo
+nei 4 punti SIMD: `software_compositor.cpp`,
+`blend2d_bridge_core.cpp`, `blend2d_bridge_transforms_fb.cpp`,
+`pip.cpp`). La fix è "determinism-contract safety net": default
+`RenderSettings::force_scalar_normal_blend` flip `false → true`,
+più macro gate `CHRONON3D_FORCE_SCALAR_BLEND` che disabilita le 3
+patch AVX2 (`composite_framebuffer`,
+`composite_framebuffer_transformed`, e il batch dentro
+`composite_layer_normal_optimized` via `simd::composite_normal_premul`),
+più `pip.cpp` già di default con `s_use_simd=false` (AVX2 PIP
+dormiente). L'exit-criteria per riabilitare AVX2 è un ordered
+reduction (Kahan summation o fold ordinato per tile-id) — ticket
+separato.
 
 ---
 
@@ -129,31 +137,45 @@ x, y)` via FNV1a-64 keyed-by-tile).
 
 ## 3. Test Rossi (Rot Residuo con Ticket)
 
-### 3.1 TICKET-007.q/r/s/t/u — gradient SIMD rot
+### 3.1 ~~TICKET-007.q/r/s/t/u — gradient SIMD rot~~ (resolved via WP-6 PR 6.9)
 
-`tests/deterministic/gradient_determinism_tests.cpp` — 5 test disabilitati
-via `* doctest::skip()` perché la rot persiste su scene CON gradienti:
+~~`tests/deterministic/gradient_determinism_tests.cpp` — 5 test disabilitati
+via `* doctest::skip()` perché la rot persiste su scene CON gradienti:~~
 
-| Sub-ID | Riga | Rot signature |
-|---|---|---|
-| `TICKET-007.q` | §289 | `cold/warm cache gradient hash divergono` |
-| `TICKET-007.r` | §314 | `cache invalidated → rebuilt hash divergono` |
-| `TICKET-007.s` | §351 | `new vs reused renderer gradient hash divergono` |
-| `TICKET-007.t` | §391 | `1-thread vs 4-thread gradient hash divergono` |
-| `TICKET-007.u` | §416 | `1-thread vs 8-thread gradient hash divergono` |
+| Sub-ID | Riga | Rot signature | Stato PR 6.9 |
+|---|---|---|---|
+| `TICKET-007.q` | §289 | `cold/warm cache gradient hash divergono` | 🟢 **FIXED** — test re-enabled |
+| `TICKET-007.r` | §314 | `cache invalidated → rebuilt hash divergono` | 🟢 **FIXED** — test re-enabled |
+| `TICKET-007.s` | §351 | `new vs reused renderer gradient hash divergono` | 🟢 **FIXED** — test re-enabled |
+| `TICKET-007.t` | §391 | `1-thread vs 4-thread gradient hash divergono` | 🟢 **FIXED** — test re-enabled |
+| `TICKET-007.u` | §416 | `1-thread vs 8-thread gradient hash divergono` | 🟢 **FIXED** — test re-enabled |
 
-**Root cause** (ipotesi corrente): in fase di indagine sono
-interazioni tra:
-- SIMD-path (`backends/software/utils/blend2d_bridge_transforms_fb.cpp`,
-  `pip.cpp` AVX2) float-reduction non-associativo sotto `tbb::parallel_for`;
-- buffer_ring state-carry-over (`tile_execution_coordinator.cpp:38`)
-  dove `sw_renderer->buffer_ring().prev_framebuffer()` permetterebbe
-  aliasing del framebuffer precedente sotto SIMD che ha effetti
-  order-dipendent su alcuni bit floating-point.
+**Root cause** (confermato PR 6.9): non-associative float-reduction
+nei 4 punti SIMD sotto `tbb::parallel_for`:
+- `software_compositor.cpp::composite_layer_normal_optimized` (SIMD
+  via `simd::composite_normal_premul` quando
+  `force_scalar_normal_blend=false`)
+- `blend2d_bridge_core.cpp::composite_framebuffer` (AVX2 batch)
+- `blend2d_bridge_transforms_fb.cpp::composite_framebuffer_transformed`
+  (AVX2 scale-translation batch)
+- `pip.cpp::point_in_polygon_avx2` (AVX2 PIP even-odd)
 
-**Strategia di fix**: ticket separato, non questo PR. La path
-`SCENE-001 assumendo "rot = algoritmo SIMD + gradiente"` esclude il
-perimetro static-scene + non-gradient (che sono tutti verdi).
+**Strategia di fix** (PR 6.9): *determinism-contract safety net*:
+1. `RenderSettings::force_scalar_normal_blend` default `false → true`
+   — questo instrada `simd::composite_normal_premul` al fallback
+   scalare.
+2. Macro compile-time `CHRONON3D_FORCE_SCALAR_BLEND` (definito
+   salvo opt-in `CHRONON3D_ENABLE_AVX2_BLEND`) gate le 2 AVX2
+   batch nei `blend2d_bridge_*`.cpp.
+3. `pip.cpp` già di default `set_pip_mode(false)` (`s_use_simd = false`),
+   AVX2 PIP è codice morto al boot. Nessuna patch necessaria.
+
+**Exit-criteria per ri-abilitare AVX2 perf**: un *ordered* reduction
+(Kahan summation o fold ordinato per tile-id) per i 3 path SIMD —
+ticket separato per PR futuro. Nel frattempo, l'opt-in
+`target_compile_definitions(... CHRONON3D_ENABLE_AVX2_BLEND)` via
+CMake re-introduce AVX2 in build non-deterministici (benchmark
+target).
 
 ### 3.2 TICKET-013 — layer-mode composite SIGSEGV under FakeBackend no-op
 
@@ -214,11 +236,14 @@ ctest -R 'Determinism harness' --output-on-failure
 ### 4.4 Verifica rot residuo
 
 ```bash
-# I 5 disabled tests devono rimanere skippati (non PASS / non FAIL)
+# Tutti i 9 test della suite (5 erano SKIPPED prima di PR 6.9,
+# ora sono PASS post-PR 6.9).
 ctest -R 'Gradient determinism' --output-on-failure
-# Output atteso:
-#   * 4 PASS (20-render, 10x-anim, semantic, sampler, centroid)
-#   * 5 SKIP (TICKET-007.q/r/s/t/u)
+# Output atteso (post PR 6.9):
+#   * 9 PASS (20-render + 10x-anim + semantic_identical + semantic_different
+#             + sampler + centroid + cold-vs-warm + cache-invalidated-rebuilt
+#             + new-vs-reused + 1t-vs-4t + 1t-vs-8t)
+#   * 0 SKIP (nessuno skip, TICKET-007 chiuso)
 ```
 
 ---
@@ -237,15 +262,16 @@ precisi per il lettore che salta direttamente al testo).
 
 | docs/02 § | Stato docs/02 | Implementazione |
 |---|---|---|
-| §2 Serial path | 🟡 **mitigated** (rot persiste TICKET-007.q/r/s, mitigated via §1/§2 baseline tests) | `test_baseline_green.cpp` §1 + §2 |
-| §3 TBB path | 🟡 **mitigated** (rot persiste TICKET-007.t/u gradient-only, mitigated via §3) | `test_baseline_green.cpp` §3 |
-| §4 Composite path | 🟢 **Done** (path bit-stable end-to-end per tutti gli scenari non-SIMD) | `test_baseline_green.cpp` §4 + §5 + §6 |
-| §5 Tile path | 🟢 **Done** (rot-immune per design) | `test_tile_determinism.cpp` (10 TEST_CASE) |
+| §2 Serial path | 🟢 **Done** (PR 6.9 + mitigate PR 6.8) | `test_baseline_green.cpp` §1 + §2 + `gradient_determinism_tests.cpp` §q/§r/§s re-enabled |
+| §3 TBB path | 🟢 **Done** (PR 6.9 + mitigate PR 6.8) | `test_baseline_green.cpp` §3 + `gradient_determinism_tests.cpp` §t/§u re-enabled |
+| §4 Composite path | 🟢 **Done** (PR 6.8) | `test_baseline_green.cpp` §4 + §5 + §6 |
+| §5 Tile path | 🟢 **Done** (PR 6.1) | `test_tile_determinism.cpp` (10 TEST_CASE) |
 
-Il **fix dei disabled TICKET-007** (riabilitare q/r/s/t/u senza
-mitigazione) richiede intervento SIMD-path, fuori scope di questo
-PR. Riferimento: ticket umbrella [`TICKET-007`](FOLLOWUP_TICKETS.md) +
-indagine in corso su `tools/verify_downsample_blur.cpp`.
+Il **fix dei TICKET-007.q/r/s/t/u** è risolto da WP-6 PR 6.9
+(determinism-contract safety net: `force_scalar_normal_blend=true`
+default + macro `CHRONON3D_FORCE_SCALAR_BLEND` + `pip.cpp` già
+Scalar-by-default). Riferimento: questo stesso doc §3.1 (resolved)
++ `docs/02-determinism.md` §6 (compliance metadata aggiornati).
 
 ---
 

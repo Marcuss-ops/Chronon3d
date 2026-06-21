@@ -140,11 +140,60 @@ struct RenderSettings {
     CompositingSettings compositing{};
 
     /// Diagnostic overlay and preflight report settings.
-    DiagnosticSettings diagnostics{};    /**
-     * Diagnostic: when true, composite_normal_premul uses the safe scalar fallback
-     * instead of the Highway SIMD path. Helps isolate SIMD-related rendering bugs.
+    DiagnosticSettings diagnostics{};
+
+    /**
+     * WP-6 PR 6.9 — Determinism-contract safety net (default ON).
+     *
+     * When `true`, the non-associative float-reduction batch path in
+     * `SoftwareCompositor::composite_layer_normal_optimized` is routed to
+     * the scalar fallback inside `simd::composite_normal_premul(...,
+     * force_scalar_normal_blend)`.  This single runtime flag controls
+     * ONLY the HighLevel-Highway SIMD path under `software_compositor.cpp`
+     * — it plumbs through the `simd::composite_normal_premul` call.
+     *
+     * The four other SIMD-relevant sites use **independent gating
+     * mechanisms** and are NOT controlled by this flag:
+     *
+     *   * `src/backends/software/utils/blend2d_bridge_core.cpp`
+     *     (composite_framebuffer — Normal-blend AVX2 batch) — gated by
+     *     the COMPILE-TIME macro `CHRONON3D_FORCE_SCALAR_BLEND`, defined
+     *     via `#define CHRONON3D_FORCE_SCALAR_BLEND` near the top of the
+     *     TU unless `CHRONON3D_ENABLE_AVX2_BLEND` is set before include.
+     *     To re-enable AVX2 perf in a benchmark-only build, define
+     *     `CHRONON3D_ENABLE_AVX2_BLEND` via CMake
+     *     `target_compile_definitions(<bench-target> PRIVATE
+     *     CHRONON3D_ENABLE_AVX2_BLEND)`.
+     *   * `src/backends/software/utils/blend2d_bridge_transforms_fb.cpp`
+     *     (composite_framebuffer_transformed — scale-translation AVX2) —
+     *     same `CHRONON3D_FORCE_SCALAR_BLEND` macro gate as above
+     *     (defined inside its own TU).
+     *   * `src/backends/software/rasterizers/path/pip.cpp`
+     *     (point_in_polygon_avx2 — AVX2 PIP even-odd) — has long been
+     *     dormant-by-default: the anonymous-namespace static
+     *     `bool s_use_simd = false;` (line 16, pre-PR-6.9) means
+     *     `set_pip_mode(true)` is the *only* way to enable it, and no
+     *     production caller invokes that function at startup.  PR 6.9
+     *     makes this *explicit* in the determinism contract by
+     *     documenting that without a call to `set_pip_mode(true)` the
+     *     AVX2 path is unreachable at runtime.
+     *
+     * Root-cause for the OFF-by-default switch: the rot signature tracked
+     * by TICKET-007.q/r/s/t/u in
+     * `tests/deterministic/gradient_determinism_tests.cpp` lines 289/314/
+     * 351/391/416 was a non-associative float-reduction in those SIMD
+     * batch paths triggered by `tbb::parallel_for` ordering changes.  A
+     * bit-exact re-enable of those 5 tests is the gating requirement for
+     * flipping the default back to `false`.  See
+     * `docs/01-baseline-green.md` §3.1 ("Test Rossi — TICKET-007 fixed
+     * via WP-6 PR 6.9") for the resolved-state note.
+     *
+     * The intended long-term fix is an *ordered* reduction (Kahan
+     * summation OR sort-by-tile-id then sequential fold) for the AVX2
+     * batch path — this is a separate ticket so the determinism
+     * contract can be met without gating the perf win.
      */
-    bool force_scalar_normal_blend{false};
+    bool force_scalar_normal_blend{true};
 
     /**
      * SceneProgramCache capacity (number of entries).

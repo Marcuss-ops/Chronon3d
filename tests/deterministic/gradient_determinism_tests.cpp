@@ -280,13 +280,12 @@ TEST_CASE("Gradient determinism: animated scene — same frame repeated 10× ide
 // ═══════════════════════════════════════════════════════════════════════
 
 // TICKET-007.q (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
-//   Owner: chronon3d-owners.
-//   Motivation: pre-existing rot; TBB scheduler-state cold-vs-warm cache divergence.
-//
-//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing TBB non-determinism — cold vs warm cache hashes differ.
-// TODO(chronon3d): fix TBB scheduler-state leakage and re-enable.
-TEST_CASE("Gradient determinism: cold cache vs warm cache — identical pixels" * doctest::skip()) {
+//   Status: FIXED via WP-6 PR 6.9 (force_scalar_normal_blend default true
+//   + AVX2 batch path gated behind CHRONON3D_FORCE_SCALAR_BLEND macro
+//   across software_compositor.cpp + blend2d_bridge_*.cpp; pip.cpp
+//   AVX2 already off via set_pip_mode(false) default).  The cold/warm
+//   gradient path now produces identical hash bit-per-bit.
+TEST_CASE("Gradient determinism: cold cache vs warm cache — identical pixels") {
     auto comp = make_gradient_static_comp();
 
     // Cold run: fresh renderer (cache empty)
@@ -305,13 +304,9 @@ TEST_CASE("Gradient determinism: cold cache vs warm cache — identical pixels" 
 }
 
 // TICKET-007.r (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
-//   Owner: chronon3d-owners.
-//   Motivation: pre-existing rot; TBB scheduler-state invalidated→rebuilt divergence.
-//
-//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing TBB non-determinism — arena-reset path hashes differ.
-// TODO(chronon3d): fix TBB scheduler-state leakage and re-enable.
-TEST_CASE("Gradient determinism: cache invalidated → rebuilt — identical pixels (arena-reset)" * doctest::skip()) {
+//   Status: FIXED via WP-6 PR 6.9 — same rationale as TICKET-007.q
+//   above.  The invalidated-rebuilt gradient path is bit-exact.
+TEST_CASE("Gradient determinism: cache invalidated → rebuilt — identical pixels (arena-reset)") {
     auto comp = make_gradient_static_comp();
     auto renderer = make_renderer();
 
@@ -342,13 +337,9 @@ TEST_CASE("Gradient determinism: cache invalidated → rebuilt — identical pix
 // ═══════════════════════════════════════════════════════════════════════
 
 // TICKET-007.s (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
-//   Owner: chronon3d-owners.
-//   Motivation: pre-existing rot; TBB scheduler-state new-vs-reused renderer divergence.
-//
-//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing TBB non-determinism — new vs reused renderer hashes differ.
-// TODO(chronon3d): fix TBB scheduler-state leakage and re-enable.
-TEST_CASE("Gradient determinism: new renderer vs reused renderer — identical pixels (arena-reset)" * doctest::skip()) {
+//   Status: FIXED via WP-6 PR 6.9 — same rationale as TICKET-007.q
+//   above.  New vs reused renderer gradient path is bit-exact.
+TEST_CASE("Gradient determinism: new renderer vs reused renderer — identical pixels (arena-reset)") {
     auto comp = make_gradient_static_comp();
 
     // Fresh renderer A — first two renders share the same renderer so the
@@ -382,13 +373,10 @@ TEST_CASE("Gradient determinism: new renderer vs reused renderer — identical p
 // ═══════════════════════════════════════════════════════════════════════
 
 // TICKET-007.t (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
-//   Owner: chronon3d-owners.
-//   Motivation: pre-existing rot; TBB scheduler-state 1t-vs-4t divergence.
-//
-//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing TBB non-determinism — 1t vs 4t hashes differ.
-// TODO(chronon3d): fix TBB scheduler-state leakage and re-enable.
-TEST_CASE("Gradient determinism: 1 thread vs 4 threads — identical pixels (arena-reset)" * doctest::skip()) {
+//   Status: FIXED via WP-6 PR 6.9 — same rationale as TICKET-007.q
+//   above.  1t vs 4t gradient path is now bit-exact under
+//   `tbb::task_arena(...)` pin + AVX2-gated scalar fallback.
+TEST_CASE("Gradient determinism: 1 thread vs 4 threads — identical pixels (arena-reset)") {
     auto comp = make_gradient_static_comp();
 
     auto renderer_1t = make_renderer();
@@ -407,13 +395,10 @@ TEST_CASE("Gradient determinism: 1 thread vs 4 threads — identical pixels (are
 }
 
 // TICKET-007.u (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
-//   Owner: chronon3d-owners.
-//   Motivation: pre-existing rot; TBB scheduler-state 1t-vs-8t divergence.
-//
-//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing TBB non-determinism — 1t vs 8t hashes differ.
-// TODO(chronon3d): fix TBB scheduler-state leakage and re-enable.
-TEST_CASE("Gradient determinism: 1 thread vs 8 threads — identical pixels (arena-reset)" * doctest::skip()) {
+//   Status: FIXED via WP-6 PR 6.9 — same rationale as TICKET-007.q
+//   above.  1t vs 8t gradient path is now bit-exact under
+//   `tbb::task_arena(...)` pin + AVX2-gated scalar fallback.
+TEST_CASE("Gradient determinism: 1 thread vs 8 threads — identical pixels (arena-reset)") {
     auto comp = make_gradient_static_comp();
 
     auto renderer_1t = make_renderer();

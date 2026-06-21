@@ -9,6 +9,26 @@
 #include <algorithm>
 #include <cmath>
 
+// ── WP-6 PR 6.9 — Determinism-contract safety net ───────────────────────
+//
+// The AVX2 batch path below uses a non-associative float-reduction
+// (`dst = src + dst * (1.0f - src.a)`) inside a `tbb::parallel_for` loop.
+// This produced the rot signature tracked by TICKET-007.q/r/s/t/u in
+// `tests/deterministic/gradient_determinism_tests.cpp`.  Defaulting to
+// the scalar fallback restores bit-exact determinism for the serial /
+// TBB / composite surfaces without changing the public API.
+//
+// To opt back into AVX2 perf in a perf-facing build, define
+// `CHRONON3D_ENABLE_AVX2_BLEND` before including this translation unit
+// (e.g. via a CMake `target_compile_definitions(... PRIVATE
+// CHRONON3D_ENABLE_AVX2_BLEND)` for an opt-in benchmark target).  An
+// *ordered* reduction (e.g. tile-id-sorted fold) is the long-term fix
+// that will allow re-enabling the AVX2 path under the public
+// determinism contract — see the WP-6 PR 6.9 ticket for context.
+#ifndef CHRONON3D_ENABLE_AVX2_BLEND
+#define CHRONON3D_FORCE_SCALAR_BLEND
+#endif
+
 namespace chronon3d::blend2d_bridge {
 
 // ── mask helper ────────────────────────────────────────────────────
@@ -263,7 +283,14 @@ void composite_framebuffer(Framebuffer& dst_fb, const Framebuffer& src_fb, int x
             Color* dst_row = dst_fb.pixels_row(py);
 
             int ix = 0;
-#if defined(__AVX2__)
+// WP-6 PR 6.9 — gate AVX2 batch path behind
+// !defined(CHRONON3D_FORCE_SCALAR_BLEND).  When the safety net is on
+// (the default post-PR-6.9), the for-loop header `ix + 4 <= sw` is
+// satisfied on the first iteration but the AVX2 batch is skipped,
+// causing ix to remain 0 and the scalar fall-through handles all
+// pixels — guaranteed bit-exact output across `tbb::parallel_for`
+// scheduler-state variations.
+#if defined(__AVX2__) && !defined(CHRONON3D_FORCE_SCALAR_BLEND)
             if (!add_mode && no_mask) {
                 const __m256 op8 = _mm256_set1_ps(opacity);
                 for (; ix + 4 <= sw; ix += 4) {
