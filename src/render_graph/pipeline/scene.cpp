@@ -103,7 +103,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     profiling::ProfilingGuard profiling_guard(
         ctx.node_exec.counters, ctx.services.framebuffer_pool.get());
 
-    SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
+    SoftwareRenderer* sw_renderer = sw_sidecar;
 
     // TICKET-007 - single per-instance seeding point for the DebugConfig
     // pointer.  Every code path that reads `ctx.policy.debug_config`

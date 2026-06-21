@@ -104,7 +104,7 @@ void clear_text_shadow_cache();
  * SoftwareRenderSession, MediaFrameProvider, ImageBackend,
  * CompositionRegistry pointer.
  */
-class SoftwareRenderer : public Renderer, public graph::RenderBackend {
+class SoftwareRenderer : public Renderer {
 public:
     std::shared_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame);
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
@@ -191,7 +191,7 @@ public:
         std::span<const float> depth,
         const DepthOfFieldSettings& dof,
         const LensModel& lens,
-        const std::optional<raster::BBox>& clip) override;
+        const std::optional<raster::BBox>& clip);
 
     [[nodiscard]] ImageRenderer& image_renderer() { return m_image_renderer; }
     [[nodiscard]] cache::NodeCache& node_cache() noexcept { return m_runtime->node_cache(); }
@@ -225,10 +225,10 @@ public:
 
     // Public for use by graph nodes via RenderGraphContext.
     void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state,
-                   const Camera& camera, i32 width, i32 height) override;
-    void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip = std::nullopt) override;
-    void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, const effects::EffectExecutionContext& context) override;
-    void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip = std::nullopt, CompositeOperator op = CompositeOperator::SourceOver) override;
+                   const Camera& camera, i32 width, i32 height);
+    void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip = std::nullopt);
+    void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, const effects::EffectExecutionContext& context);
+    void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip = std::nullopt, CompositeOperator op = CompositeOperator::SourceOver);
 
     [[nodiscard]] graph::RenderCapabilities capabilities() const noexcept override {
         return graph::RenderCapabilities{
@@ -241,7 +241,7 @@ public:
     }
 
     graph::RenderOpResult draw_text_run(Framebuffer& fb, const TextRunShape& shape, const Mat4& model_matrix,
-                                        float opacity) override;
+                                        float opacity);
 
     // ── Forwarders to RenderRuntime (TICKET-011) ─────────────────────
     [[nodiscard]] renderer::SoftwareRegistry& software_registry() {
@@ -265,7 +265,7 @@ public:
         return m_runtime->effect_catalog();
     }
 
-    std::shared_ptr<cache::FramebufferPool> framebuffer_pool() override {
+    std::shared_ptr<cache::FramebufferPool> framebuffer_pool() {
         return m_runtime->framebuffer_pool_shared();
     }
     [[nodiscard]] cache::FramebufferPool& software_framebuffer_pool() {
@@ -274,7 +274,7 @@ public:
     [[nodiscard]] const cache::FramebufferPool& software_framebuffer_pool() const {
         return m_runtime->framebuffer_pool();
     }
-    [[nodiscard]] RenderCounters* counters() override { return &m_counters; }
+    [[nodiscard]] RenderCounters* counters() { return &m_counters; }
     [[nodiscard]] const RenderCounters* counters() const { return &m_counters; }
 
     [[nodiscard]] graph::GraphExecutor* executor() {
