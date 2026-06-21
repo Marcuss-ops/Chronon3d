@@ -1319,3 +1319,216 @@ TEST_CASE("Authoring/FrameContext: default_viewport + from_dimensions \u00b7 san
     CHECK(explicit_v.width  == doctest::Approx(640.0f));
     CHECK(explicit_v.height == doctest::Approx(480.0f));
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// Ambient-resolution tests (PR 3.5)
+// ═════════════════════════════════════════════════════════════════════════
+//
+// These tests verify that `.style(id)` / `.motion(id)` (no explicit
+// registry argument) resolve via the registries pinned from the parent
+// LayerBuilder's `ExtensionContext`. The connection is exercised in
+// three layers:
+//   - `LayerBuilder::extension_context(...)` attaches the pointer
+//   - `Layer::text(...)` reads it + pins registry pointers into the
+//     returned `Text` handle's ambient slots
+//   - The handle's `.style(id)` / `.motion(id)` reads those slots
+
+// Local helper used only by the ambient tests below. Mirrors the
+// `cli_asset_registry()` pattern: process-wide static AssetRegistry
+// that the ambient-test ExtensionContext can borrow as a valid ref.
+namespace {
+inline chronon3d::AssetRegistry& cli_fake_asset_registry() {
+    static chronon3d::AssetRegistry reg;
+    return reg;
+}
+}
+
+TEST_CASE("Authoring/Layer + Text: ambient style(id) resolves via LayerBuilder::extension_context") {
+    LayerBuilder lb("ambient_style");
+    StyleRegistry styles;
+    TextStyle hero;
+    hero.font_path   = "fonts/Inter-Bold.ttf";
+    hero.font_family = "Inter";
+    hero.font_weight = 800;
+    hero.size        = 96.0f;
+    hero.color       = Color{1.0f, 0.86f, 0.2f, 1.0f};
+    styles.register_style("hero.premium", hero);
+
+    // Two registries, one for each ambient slot.
+    MotionRegistry motions;
+
+    static chronon3d::CompositionRegistry     comp;
+    static chronon3d::graph::GraphNodeCatalog gnc;
+    static chronon3d::effects::EffectCatalog   eff;
+    chronon3d::ExtensionContext ctx{
+        comp, gnc, eff,
+        cli_fake_asset_registry(),
+        &styles, &motions
+    };
+    lb.extension_context(ctx);
+
+    Layer layer(lb);
+    Text t = layer.text("AMBIENT");
+
+    REQUIRE(t.ambient_style_registry()  == &styles);
+    REQUIRE(t.ambient_motion_registry() == &motions);
+
+    // The ambient-resolution path: no registry argument supplied.
+    t.style("hero.premium");
+
+    const auto& spec = t.mutable_pending().params.text;
+    CHECK(spec.font.font_path   == "fonts/Inter-Bold.ttf");
+    CHECK(spec.font.font_weight == 800);
+    CHECK(spec.font.font_size   == doctest::Approx(96.0f));
+    CHECK(spec.appearance.color == Color{1.0f, 0.86f, 0.2f, 1.0f});
+}
+
+TEST_CASE("Authoring/Layer + Text: ambient motion(id) resolves via LayerBuilder::extension_context") {
+    LayerBuilder lb("ambient_motion");
+    MotionRegistry motions;
+    TextAnimatorSpec preset;
+    preset.id = "text.reveal.soft";
+    preset.enabled = true;
+    preset.properties.emplace_back(OpacityProperty{0.0f});
+    motions.register_motion("text.reveal.soft", preset);
+
+    StyleRegistry styles;
+    static chronon3d::CompositionRegistry     comp;
+    static chronon3d::graph::GraphNodeCatalog gnc;
+    static chronon3d::effects::EffectCatalog   eff;
+    chronon3d::ExtensionContext ctx{
+        comp, gnc, eff,
+        cli_fake_asset_registry(),
+        &styles, &motions
+    };
+    lb.extension_context(ctx);
+
+    Layer layer(lb);
+    Text t = layer.text("MOTION");
+
+    REQUIRE(t.ambient_motion_registry() == &motions);
+
+    t.motion("text.reveal.soft");
+
+    REQUIRE(t.mutable_pending().params.animators.size() == 1);
+    CHECK(t.mutable_pending().params.animators[0].id == "text.reveal.soft");
+}
+
+TEST_CASE("Authoring/Layer + Text: ambient methods no-op when no ExtensionContext attached") {
+    LayerBuilder lb("no_ambient");
+    Layer layer(lb);   // No extension_context(...) call.
+
+    Text t = layer.text("PLAIN").font("X.ttf", 32.0f);
+    REQUIRE(t.ambient_style_registry()  == nullptr);
+    REQUIRE(t.ambient_motion_registry() == nullptr);
+
+    StyleRegistry  external_styles;
+    TextStyle      arbitrary; arbitrary.size = 64.0f;
+    external_styles.register_style("ignored", arbitrary);
+    MotionRegistry external_motions;
+    TextAnimatorSpec arbitrary_motion;
+    arbitrary_motion.id = "ignored";
+    external_motions.register_motion("ignored.motion", arbitrary_motion);
+
+    // Without ambient pointers attached, the ambient-resolution methods
+    // must NO-OP — the explicit external registry is never consulted.
+    t.style("ignored");
+    t.motion("ignored.motion");
+
+    // Font set by the prior .font() call is preserved; the ambient
+    // attempts did not mutate spec.appearance.color or the animators vector.
+    CHECK(t.mutable_pending().params.text.font.font_path == "X.ttf");
+    CHECK(t.mutable_pending().params.animators.empty());
+}
+
+TEST_CASE("Authoring/Layer + Text: ambient method no-op when ExtensionContext.style_registry is null") {
+    LayerBuilder lb("null_style");
+    MotionRegistry motions;
+    static chronon3d::CompositionRegistry     comp;
+    static chronon3d::graph::GraphNodeCatalog gnc;
+    static chronon3d::effects::EffectCatalog   eff;
+    chronon3d::ExtensionContext ctx{
+        comp, gnc, eff,
+        cli_fake_asset_registry(),
+        /*style_registry=*/ nullptr,
+        &motions
+    };
+    lb.extension_context(ctx);
+
+    Layer layer(lb);
+    Text t = layer.text("X").font("Y.ttf", 24.0f);
+
+    REQUIRE(t.ambient_style_registry()  == nullptr);
+    REQUIRE(t.ambient_motion_registry() == &motions);
+
+    // Ambient `.style(id)` should no-op because the pointer is null.
+    t.style("anything");
+    CHECK(t.mutable_pending().params.text.font.font_path == "Y.ttf");
+
+    // Ambient `.motion(id)` no-ops when id is unregistered even though
+    // the pointer is set.
+    t.motion("unregistered.id");
+    CHECK(t.mutable_pending().params.animators.empty());
+}
+
+TEST_CASE("Authoring/Layer + Text: dual-path coexist (explicit + ambient on the same handle)") {
+    LayerBuilder lb("dual");
+    StyleRegistry styles;
+    TextStyle ambient_style;  ambient_style.font_path  = "ambient.ttf";  ambient_style.size  = 48.0f;
+    TextStyle explicit_style; explicit_style.font_path = "explicit.ttf"; explicit_style.size = 64.0f;
+    styles.register_style("ambient_call",  ambient_style);
+    styles.register_style("explicit_call", explicit_style);
+
+    StyleRegistry explicit_separate;
+    explicit_separate.register_style("override", explicit_style);
+
+    static chronon3d::CompositionRegistry     comp;
+    static chronon3d::graph::GraphNodeCatalog gnc;
+    static chronon3d::effects::EffectCatalog   eff;
+    chronon3d::ExtensionContext ctx{
+        comp, gnc, eff,
+        cli_fake_asset_registry(),
+        &styles,
+        nullptr
+    };
+    lb.extension_context(ctx);
+
+    Layer layer(lb);
+    Text t = layer.text("DUAL");
+    REQUIRE(t.ambient_style_registry() == &styles);
+
+    // Ambient call resolves to the ambient style.
+    t.style("ambient_call");
+    CHECK(t.mutable_pending().params.text.font.font_path == "ambient.ttf");
+    CHECK(t.mutable_pending().params.text.font.font_size   == doctest::Approx(48.0f));
+
+    // Explicit call with a different registry overrides the previous
+    // ambient call's mutation entirely.
+    t.style("override", explicit_separate);
+    CHECK(t.mutable_pending().params.text.font.font_path == "explicit.ttf");
+    CHECK(t.mutable_pending().params.text.font.font_size   == doctest::Approx(64.0f));
+}
+
+TEST_CASE("Authoring/Layer + Text: ambient resolves unknown id to no-op (preserves existing state)") {
+    LayerBuilder lb("unknown_id");
+    StyleRegistry      styles;        // empty
+    MotionRegistry     motions;       // empty
+    static chronon3d::CompositionRegistry     comp;
+    static chronon3d::graph::GraphNodeCatalog gnc;
+    static chronon3d::effects::EffectCatalog   eff;
+    chronon3d::ExtensionContext ctx{
+        comp, gnc, eff,
+        cli_fake_asset_registry(),
+        &styles, &motions
+    };
+    lb.extension_context(ctx);
+
+    Layer layer(lb);
+    Text t = layer.text("UNCHANGED").font("K.ttf", 24.0f);
+
+    t.style("never.registered");
+    t.motion("never.registered.either");
+
+    CHECK(t.mutable_pending().params.text.font.font_path == "K.ttf");
+    CHECK(t.mutable_pending().params.animators.empty());
+}
