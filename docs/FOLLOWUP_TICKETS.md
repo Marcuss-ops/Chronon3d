@@ -806,8 +806,8 @@ Possible root causes (binary search needed to nail the actual one):
 | **Affected file(s)** | `include/chronon3d/core/config.hpp` (removal), `include/chronon3d/effects/effect_execution_context.hpp` (forwarding), `include/chronon3d/render_graph/render_graph_context.hpp` (forwarding), `include/chronon3d/backends/text/text_rasterizer_utils.hpp` (parameter), `include/chronon3d/effects/glow_pipeline.hpp` (parameter), `src/backends/software/utils/render_effects_processor.hpp` (parameter), `src/backends/software/utils/effects/effect_glow_impl.cpp` (forwarding), `src/backends/software/utils/effects/effect_stack.cpp` (forwarding + include), `src/backends/software/utils/effects/glow_pipeline.cpp` (forwarding + include), `src/backends/text/text_rasterizer_render.cpp` (reads `debug_cfg`), `src/backends/software/processors/text/software_text_processor.cpp` (forwarding + include), `src/backends/software/processors/text/text_glow.cpp` (forwarding), `src/render_graph/pipeline/scene.cpp` (single seeding site), `src/backends/software/software_renderer.cpp` (removed `detail::set_debug_config` calls). |
 | **Discovered during** | Architecture-evolution-planning review of "ticket #5" (P1 — global state elimination) in the user-supplied architectural-spec paste. |
 | **Discovered date** | 2026-06-20 |
-| **Resolved at** | Commit pending (this session, on `main`). |
-| **Resolver** | Direct main push once env build archive-step unblocked (currently sandbox `ar` failure masks the slice). |
+| **Resolved at** | Commit `6d7306b7` on `main` (2026-06-20/21). |
+| **Resolver** | Direct main push once env build archive-step unblocked. |
 
 ### Symptom
 
@@ -887,7 +887,7 @@ Implemented in this session. Single seeding point + per-instance parameter forwa
 
 **Changes applied** (single logical change set, multiple files):
 
-1. **Removal of the global** in `include/chronon3d/core/config.hpp`. The `namespace chronon3d::detail { … }` block containing `g_debug_config` and `set_debug_config()` is deleted; comment block added explaining TICKET-007.
+1. **Removal of the global** in `include/chronon3d/core/config.hpp` (commit `6d7306b7`). The `namespace chronon3d::detail { … }` block containing `g_debug_config` and `set_debug_config()` is deleted; comment block added explaining TICKET-007. All comment references in the tree (e.g. `glow_pipeline.cpp`, `text_rasterizer_render.cpp`, `test_parallel_render_engines_debug_isolation.cpp`) intentionally remain to document the migration; the regression test on line 118 of the isolation test asserts TICKET-007 at compile time.
 2. **Seeding point** at `src/render_graph/pipeline/scene.cpp` after `dynamic_cast<SoftwareRenderer*>(&backend);` (single location; uses `dynamic_cast` because `backend` is `RenderBackend&` polymorphic).
 3. **Per-function forwarding** for the deep-renderer paths (text raster, glow/bloom/shadow pipeline, effect-stack → effect-glow).
 4. **Test**: `tests/core/renderer/test_parallel_render_engines_isolation.cpp` — *INSERTED in this PR* — verifies two engines with different `Config::debug()`, parallel render, no cross-contamination.
@@ -907,6 +907,7 @@ Implemented in this session. Single seeding point + per-instance parameter forwa
 
 ### Cross-references
 
+- **Resolution commit**: `6d7306b7` — landed on `main` 2026-06-20/21.
 - Architectural-spec paste (this session): tickets #5 (global state), #6 (PImpl `RenderEngine`), #7 (split `SoftwareRenderer`). This slice realizes #5's first sub-step.
 - `docs/CORE_OWNERSHIP.md` §6 anti-singleton/anti-global rule ("no new singleton/process-wide mutable caches").
 - Companion globals NOT addressed in this ticket:
