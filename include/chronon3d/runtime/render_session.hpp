@@ -91,10 +91,54 @@ struct RenderSession {
     [[nodiscard]] FrameArena& arena() noexcept { return *arena_ptr; }
     [[nodiscard]] const FrameArena& arena() const noexcept { return *arena_ptr; }
 
+    // ── Work Package 3 — explicit reset semantics ────────────────────
+    //
+    // `reset_frame_temporaries()` clears ONLY frame-scoped telemetry
+    // tracking (DirtyHistory counters).  This is what callers should
+    // invoke at the start of every new frame for a job that is being
+    // continued across frames; it preserves history (frame scene
+    // fingerprints, layer bbox history, scene-hasher state) so the
+    // next frame's diff logic keeps working.
+    //
+    // `reset_job()` is a FULL reset: telemetry + history + scene
+    // hasher + cache stores that are session-scoped (program_store).
+    // Use this when the session is being reused for an unrelated job
+    // and the previous fingerprints no longer apply.
+    //
+    // The legacy `clear_per_frame()` is kept for backward compatibility
+    // but is now redundant; new call sites should use the two new
+    // methods above for clarity.  See
+    // `docs/refactor-roadmap/03-render-session-boundary.md`.
+
+    /// Per-frame reset (telemetry tracking only).  History preserved.
+    void reset_frame_temporaries() {
+        dirty_telemetry = RendererDirtyTelemetry{};
+    }
+
+    /// Full per-job reset (telemetry + history + scene hasher + caches).
+    void reset_job() {
+        // Telemetry first (frame-scoped).
+        reset_frame_temporaries();
+        // Then history.
+        frame_history   = RendererFrameHistory{};
+        layer_history   = RendererLayerHistory{};
+        // Per-session scene-hasher state.
+        scene_hasher    = graph::SceneHasher{};
+        // Invalidate the per-session program cache so identity-keyed
+        // entries don't carry over across unrelated render jobs.
+        if (program_store) {
+            program_store->clear();
+        }
+    }
+
     /// Clear per-frame state for reuse between unrelated render sessions.
     /// Per-frame resources (arena memory, buffer ring, scratch) are NOT
     /// cleared here — those live on the backend-specific resources struct
     /// and have their own lifetime policy.
+    ///
+    /// @deprecated Prefer `reset_frame_temporaries()` (frame-scoped only)
+    /// or `reset_job()` (full reset); retained for callers that depended
+    /// on the historical "erase everything except arena" semantics.
     void clear_per_frame() {
         frame_history   = RendererFrameHistory{};
         dirty_telemetry = RendererDirtyTelemetry{};
