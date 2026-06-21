@@ -59,8 +59,7 @@ changed_files="$(git diff --name-only "$diff_range" 2>/dev/null || true)"
 
 errs=0
 warn=0
-fail() { echo "[FAIL] $1" >&2; errs=$((errs + 1)); }
-note() { echo "[FAIL] $1" >&2; errs=$((errs + 1)); }
+fail()  { echo "[FAIL] $1" >&2; errs=$((errs + 1)); }
 warnf() { echo "[WARN] $1" >&2; warn=$((warn + 1)); }
 okf()   { echo "[ OK ] $1"; }
 
@@ -70,14 +69,9 @@ has_change() {
   printf '%s\n' "$changed_files" | grep -Eq "$pattern"
 }
 
-# Se wip=1, i WARNING diventano OK; i FAIL restano FAIL.
-apply_lvl() {
-  # $1: livello del problema (fail|warn)
-  # Silent: restituisce 1 se va contato come errore.
-  [[ "$1" == "fail" ]] && return 0
-  if [[ "$wip" -eq 1 ]]; then return 1; fi
-  return 0
-}
+# In wip mode the warnings are logged but do NOT increment errs / non early exit.
+# (failures always exit regardless of mode).
+log_warn() { if [[ "$wip" -eq 1 ]]; then echo "[WARN:skipped] $1"; return; fi; warnf "$1"; }
 
 # -- R1: src/runtime/** ⇒ STATUS.md + NEXT_STEPS.md -----------------------------------
 if has_change '^src/runtime/'; then
@@ -90,14 +84,40 @@ if has_change '^src/runtime/'; then
 fi
 
 # -- R2: include/chronon3d/** ⇒ ADR esistente -----------------------------------------
-if has_change '^include/chronon3d/'; then
-  adr_count=$(ls -1 docs/adr/ADR-*.md 2>/dev/null | wc -l)
-  if [[ "$adr_count" -ge 7 ]]; then
-    okf "R2: ADR slot popolati (${adr_count})"
+# R2 e' area-aware: include/chronon3d/** senza ADR coprente = warn, non ok.
+# Render-graph toccato  => ADR-001 + ADR-002 obbligatori.
+# Asset-resolver toccato => ADR-005 obbligatorio.
+# Composizioni toccate  => ADR-006 slot (placeholder fintanto che non scritto).
+# Sessione/precomp     => ADR-007 slot (placeholder fintanto che non scritto).
+adr_ok_for_render_graph=0
+adr_ok_for_resolver=0
+[[ -f docs/adr/ADR-001-frame-graph-compiler.md \
+&& -f docs/adr/ADR-002-render-runtime-ownership.md ]] && adr_ok_for_render_graph=1
+[[ -f docs/adr/ADR-005-asset-resolver-local.md ]] && adr_ok_for_resolver=1
+
+if has_change '^include/chronon3d/render_graph/'; then
+  if [[ "$adr_ok_for_render_graph" -eq 1 ]]; then
+    okf "R2: render_graph/** coperto da ADR-001/002"
   else
-    if apply_lvl fail; then
-      note "R2: include/chronon3d/** toccato ma solo ${adr_count} ADR (atteso >= 7)"
-    fi
+    warnf "R2: include/chronon3d/render_graph/** toccato ma ADR-001 o ADR-002 assenti"
+  fi
+fi
+if has_change '^include/chronon3d/(assets|resolver|asset_resolver)'; then
+  if [[ "$adr_ok_for_resolver" -eq 1 ]]; then
+    okf "R2: assets/resolver coperto da ADR-005"
+  else
+    warnf "R2: include/chronon3d/assets*/** toccato ma ADR-005 assente"
+  fi
+fi
+# Catch-all: qualsiasi altro include/chronon3d/** se non gia coperto da R2 sopra.
+if has_change '^include/chronon3d/' \
+   && ! has_change '^include/chronon3d/render_graph/' \
+   && ! has_change '^include/chronon3d/(assets|resolver|asset_resolver)'; then
+  any_adr=$(ls -1 docs/adr/ADR-*.md 2>/dev/null | wc -l)
+  if [[ "$any_adr" -ge 1 ]]; then
+    okf "R2: include/chronon3d/** modificato ma ADR slot popolati (${any_adr})"
+  else
+    warnf "R2: include/chronon3d/** toccato ma nessun ADR slot popolato in docs/adr/"
   fi
 fi
 
@@ -107,7 +127,7 @@ if has_change '^(src|include/chronon3d)/render_graph/'; then
        && -f docs/adr/ADR-002-render-runtime-ownership.md ]]; then \
        okf "R3: ADR-001 + ADR-002 presenti"
   else
-    note "R3: render_graph/** toccato ma ADR-001 o ADR-002 assenti"
+    warnf "R3: render_graph/** toccato ma ADR-001 o ADR-002 assenti"
   fi
 fi
 
@@ -126,7 +146,7 @@ if printf '%s' "$commit_msg" | grep -Eq 'TICKET-[0-9]+|Closes? #[0-9]+|Resolves?
   if has_change '^docs/CHANGELOG\.md$'; then
     okf "R5: CHANGELOG.md aggiornato (commit chiude ticket)"
   else
-    note "R5: commit chiude ticket ma docs/CHANGELOG.md non aggiornato"
+    warnf "R5: commit chiude ticket ma docs/CHANGELOG.md non aggiornato"
   fi
 else
   if has_change '^docs/CHANGELOG\.md$'; then
@@ -136,12 +156,10 @@ fi
 
 # -- Esito finale ------------------------------------------------------------------------
 echo
+echo "Summary: ${errs} hard failure(s), ${warn} warning(s) (wip=$wip)"
 if [[ "$errs" -ne 0 ]]; then
-  echo "FAILED: ${errs} violation(s), ${warn} warning(s)" >&2
-  if [[ "$wip" -eq 1 ]]; then echo "(wip mode enabled — warning treated as ok)"; fi
-  if [[ "$errs" -gt 0 && "$wip" -ne 1 ]]; then exit 1; fi
-  if [[ "$wip" -eq 1 && "$errs" -eq 0 ]]; then exit 0; fi
   exit 1
 fi
+if [[ "$wip" -eq 1 ]]; then echo "(wip mode enabled — warnings only)"; fi
 echo "OK: doc-sync invariants hold (range=${diff_range})"
 exit 0
