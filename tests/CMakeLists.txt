@@ -29,6 +29,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cli_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/optimizer_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cache_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/compositor_tests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/authoring_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/benchmarks.cmake)
 # Expressions V2 tests are quarantined under experimental/ and gated by
 # CHRONON3D_BUILD_EXPERIMENTAL. See docs/EXPRESSIONS_V2_PROMOTION.md.
@@ -76,6 +77,7 @@ set(CHRONON3D_FAST_TEST_DEPS
     chronon3d_optimizer_tests
     chronon3d_cache_tests
     chronon3d_compositor_tests
+    chronon3d_authoring_tests
 )
 if(CHRONON3D_USE_BLEND2D)
     list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_deterministic_tests)

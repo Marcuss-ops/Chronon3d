@@ -220,6 +220,18 @@ public:
     [[nodiscard]] const PendingTextRun&  build_spec() const noexcept { return *m_spec; }
     [[nodiscard]] LayerBuilder&          parent()     const noexcept { return *m_parent; }
 
+    // ── PR 3 (authoring layer) mutable accessor ────────────────────────────
+    //
+    // Returns a mutable reference to the PendingTextRun stored by the parent
+    // LayerBuilder.  Used by `chronon3d::authoring::Layer::text(...)` to
+    // hand a stable reference to the `chronon3d::authoring::Text` handle
+    // so the façade can mutate `params` (font / layout / appearance /
+    // animators) without copying out a local TextRunSpec.
+    //
+    // No `friend` declarations are needed on either side — this single
+    // public accessor is the only Core Surface extension PR 3 introduces.
+    [[nodiscard]] PendingTextRun&        mutable_pending()       noexcept { return *m_spec; }
+
 private:
     // `friend class LayerBuilder;` was REMOVED — the declaration now
     // lives one block above as a public ctor.  See the rationale on
