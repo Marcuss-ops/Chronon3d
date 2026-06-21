@@ -145,8 +145,8 @@ public:
     // ── Accessors ─────────────────────────────────────────────────
 
     /// Direct access to the underlying SoftwareRenderer for advanced use.
-    [[nodiscard]] SoftwareRenderer& renderer() noexcept;
-    [[nodiscard]] const SoftwareRenderer& renderer() const noexcept;
+    [[nodiscard]] SoftwareRenderer & renderer() noexcept;
+    [[nodiscard]] const SoftwareRenderer & renderer() const noexcept;
 
     /// Access to the engine-owned RenderRuntime.
     /// Phase A: returns the Impl-owned runtime.

@@ -109,7 +109,7 @@ struct WriterThreadContext {
     std::atomic<bool>& writer_done;
     TripleBufferArena& triple_arena;
     IVideoEncoder& encoder;
-    SoftwareRenderer& renderer;
+    SoftwareRenderer & renderer;
     std::atomic<uint64_t>& writer_encode_us_total;
     std::vector<FrameEncoderTelemetryRecord>& frame_encoder_telemetry;
 };
