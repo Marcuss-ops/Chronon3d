@@ -15,9 +15,18 @@ void validate_file_exists(const PreflightRequirement& req,
                           PreflightAssetType type,
                           std::vector<PreflightIssue>& issues) {
     namespace fs = std::filesystem;
-    // TICKET-011a follow-up #2 — use the runtime-bridged resolver
-    // (active runtime → process-wide fallback → relative path).
-    std::string resolved = chronon3d::runtime::resolve_asset_path(req.path);
+    // WP-8 PR 8.1 — use the typed engine-local resolver via the
+    // service-locator helper.  Preserves legacy semantics on the
+    // fallback branch (relative path returned unchanged when no
+    // mount is configured, so the subsequent fs::exists check
+    // surfaces the same `req.path` it did pre-migration).
+    std::string resolved;
+    const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
+    if (auto opt = resolver.resolve_lexical(req.path)) {
+        resolved = opt->string();
+    } else {
+        resolved = req.path.empty() ? std::string{} : std::string{req.path};
+    }
 
     if (!fs::exists(resolved)) {
         PreflightIssue issue;

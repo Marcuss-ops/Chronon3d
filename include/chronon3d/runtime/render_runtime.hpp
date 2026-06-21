@@ -298,6 +298,14 @@ void set_process_wide_assets_root(std::string root);
 /// absolute, or if neither root is set.  Replaces the legacy
 /// `chronon3d::resolve_asset_path(relative)` overload that read
 /// `detail::g_default_assets_root` directly.
+///
+/// WP-8 PR 8.1 transitional wrapper.  New callers should prefer
+/// `runtime::typed_resolver_for_deep_code().resolve_lexical(path)`
+/// (returns `std::optional<std::filesystem::path>` with the contract
+/// documented on `AssetResolver`).  This overload remains for source
+/// compatibility with the small set of callers still mid-migration;
+/// it is removed in PR 8.3 once every call site uses the typed
+/// resolver.
 [[nodiscard]] inline std::string resolve_asset_path(std::string_view relative_path) {
     if (relative_path.empty()) return {};
     if (std::filesystem::path(relative_path).is_absolute()) {
@@ -308,5 +316,59 @@ void set_process_wide_assets_root(std::string root);
     return (std::filesystem::path(root) / relative_path)
         .lexically_normal().string();
 }
+
+/// WP-8 PR 8.1 — typed engine-local asset resolver for callers that
+/// have no `RenderRuntime` in their call stack (font_engine,
+/// text_rasterizer, preflight analysis, text_run BL/FT caches, etc.).
+///
+/// Resolution order:
+///
+///   1. The active runtime's `AssetResolver` if `active_runtime()`
+///      returns non-null.  This is the per-engine, deterministic
+///      resolver the runtime owns — same resolver instance used by the
+///      runtime itself and surfaced through `runtime.services()`.
+///
+///   2. A lazy-initialised process-wide singleton resolver mounted
+///      against `process_wide_assets_root()`.  Cached in function-local
+///      storage across calls; mounted once on first use.
+///
+///   3. A default-constructed (unmounted) resolver if neither path is
+///      configured.  Callers detect this via the resolver's optional
+///      return value.
+///
+/// Threading: AssetResolver::mount() acquires its own internal
+/// `shared_mutex`/`std::mutex`, so concurrent first-callers that all
+/// pick up the same process-wide root are serialized inside the
+/// resolver and the resulting state is idempotent.  No external
+/// `std::once_flag` is required.
+///
+/// Replaces the legacy `runtime::resolve_asset_path(relative)` usage at
+/// every deep-call-site migration.  Old callers should be rewritten to
+/// the 2-line pattern documented in the call-site migration notes:
+///   ```
+///   const auto& resolver =
+///       chronon3d::runtime::typed_resolver_for_deep_code();
+///   auto resolved_opt = resolver.resolve_lexical(rel_path);
+///   const std::string resolved_path =
+///       resolved_opt ? resolved_opt->string()
+///                    : (rel_path.empty() ? std::string{}
+///                                        : std::string{rel_path});
+///   ```
+[[nodiscard]] const chronon3d::assets::AssetResolver&
+typed_resolver_for_deep_code();
+
+namespace detail {
+
+/// WP-8 PR 8.1 — test-only reset hook.  Unmounts the process-wide
+/// fallback singleton resolver inside `typed_resolver_for_deep_code()`
+/// so each test fixture starts with a clean slate.  Production code
+/// MUST NOT call this — the static cache is first-mount-only by
+/// design (see `typed_resolver_for_deep_code()` doc-comment).  Tests
+/// that exercise the process-wide branch should bracket their
+/// assertions with this reset + a fresh
+/// `set_process_wide_assets_root(...)` + helper call.
+void reset_typed_resolver_for_deep_code_for_testing();
+
+} // namespace detail
 
 } // namespace chronon3d::runtime

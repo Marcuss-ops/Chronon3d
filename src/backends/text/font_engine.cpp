@@ -108,23 +108,20 @@ struct FontEngine::Impl {
     std::optional<FaceEntry> load_face(const FontSpec& spec) {
         if (!ft_library) return std::nullopt;
 
-        // TICKET-011a follow-up #2 — resolve via active runtime,
-        // falling back to the process-wide assets root.
-        //
-        // The previous implementation distinguished "missing root from
-        // a joined path" by string-equality on `resolved == font_path`,
-        // but that comparison is unreliable — `lexically_normal` returns
-        // the same string for an already-normalized absolute input.  We
-        // now ask the runtime directly: if neither an active runtime nor
-        // a typed process-wide root is set, skip resolution entirely and
-        // pass the raw spec.font_path to FT so its failure path surfaces
-        // a clean warn.
-        const bool runtime_or_root_available =
-            chronon3d::runtime::active_runtime() != nullptr ||
-            !chronon3d::runtime::process_wide_assets_root().empty();
+        // WP-8 PR 8.1 — typed engine-local resolution.  Service-locator
+        // helper prefers the active runtime's resolver; falls back to a
+        // process-wide singleton mounted against `process_wide_assets_root`
+        // or (when neither is configured) returns `nullopt` so we pass
+        // `spec.font_path` raw to FT.  The 2-line fallback preserves
+        // legacy `runtime::resolve_asset_path(relative)` semantics for
+        // empty/unmounted-relative inputs.
         std::string resolved;
-        if (runtime_or_root_available) {
-            resolved = chronon3d::runtime::resolve_asset_path(spec.font_path);
+        const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
+        if (auto opt = resolver.resolve_lexical(spec.font_path)) {
+            resolved = opt->string();
+        } else {
+            resolved = spec.font_path.empty() ? std::string{}
+                                              : std::string{spec.font_path};
         }
         if (resolved.empty()) {
             resolved = spec.font_path;

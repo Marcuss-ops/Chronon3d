@@ -124,7 +124,17 @@ struct Blend2DResources {
 
     BLFontFace get_face(const std::string& path) {
         std::lock_guard<std::mutex> lock(mutex);
-        const std::string resolved_path = chronon3d::runtime::resolve_asset_path(path);
+        // WP-8 PR 8.1 — typed engine-local resolution via the
+        // service-locator helper.  Legacy `runtime::resolve_asset_path`
+        // fallback branch (`path` unchanged on nullopt) is preserved
+        // so BL gets the same raw relative it had pre-migration.
+        std::string resolved_path;
+        const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
+        if (auto opt = resolver.resolve_lexical(path)) {
+            resolved_path = opt->string();
+        } else {
+            resolved_path = path.empty() ? std::string{} : std::string{path};
+        }
         auto it = faces.find(resolved_path);
         if (it == faces.end()) {
             BLFontFace face;
@@ -218,7 +228,15 @@ struct FtGlyphPathBuilder {
 
     bool load_face(const std::string& font_path, float font_size) {
         std::lock_guard<std::mutex> lock(mutex);
-        const std::string resolved = chronon3d::runtime::resolve_asset_path(font_path);
+        // WP-8 PR 8.1 — typed engine-local resolution via the
+        // service-locator helper.  Same 2-branch fallback as above.
+        std::string resolved;
+        const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
+        if (auto opt = resolver.resolve_lexical(font_path)) {
+            resolved = opt->string();
+        } else {
+            resolved = font_path.empty() ? std::string{} : std::string{font_path};
+        }
         if (ft_face && resolved == loaded_path) {
             FT_Set_Pixel_Sizes(ft_face, 0, static_cast<FT_UInt>(std::ceil(font_size)));
             return true;
