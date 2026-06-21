@@ -1,77 +1,76 @@
-# Chronon3d refactor roadmap
+# Chronon3d refactor roadmap — remaining work
 
-This directory is the operational source of truth for the runtime and render-graph cleanup.
+This directory now lists only unfinished architectural work. Completed checklist sections have been removed.
 
-`PR` labels are implementation package numbers. They do not require a GitHub pull request. Work may be committed directly according to the repository owner's workflow, but packages must still be completed in order and validated independently.
+`PR` numbers are implementation steps, not GitHub pull requests.
 
-## Execution order
+## Current main
 
-1. [Work Package 0 — Baseline and validation gates](00-baseline-and-gates.md)
-2. [Work Package 1 — One scheduler authority](01-scheduler-single-authority.md)
-3. [Work Package 2 — Compiled graph only](02-compiled-graph-only.md)
-4. [Work Package 3 — Render session boundary](03-render-session-boundary.md)
-5. [Work Package 4 — Stable node identity](04-stable-node-identity.md)
-6. [Work Package 5 — Scene program store](05-scene-program-store.md)
-7. [Work Package 6 — Execution scopes](06-execution-scopes.md)
-8. [Work Package 7 — Complete the software backend](07-software-backend-completion.md)
-9. [Work Package 8 — Remove global state and close the SDK](08-global-state-and-sdk.md)
+Audited at commit `0795453251d4a8a88c188d6b186461a1abe915fa`.
+
+Completed and removed from the active roadmap:
+
+- compiled-graph-only executor contract
+- retirement of raw `RenderGraph` executor overloads
+- retirement of `ExecutionPlanCache`
+- explicit runtime scheduler parameter on graph execution
+- removal of direct TBB orchestration from the tile coordinator
+- split of `SoftwareRenderSession` from the runtime header
+- retirement of `clear_per_frame()`
+
+The completed Work Package 2 document was removed. Its only optional optimization follow-up remains tracked as `TICKET-008` in `docs/FOLLOWUP_TICKETS.md`.
+
+## Active execution order
+
+1. [Work Package 0 — Repair validation gates](00-baseline-and-gates.md)
+2. [Work Package 5 — Make SceneProgramStore correct](05-scene-program-store.md)
+3. [Work Package 6 — Add execution scopes](06-execution-scopes.md)
+4. [Work Package 4 — Complete stable identity](04-stable-node-identity.md)
+5. [Work Package 3 — Finish session isolation](03-render-session-boundary.md)
+6. [Work Package 1 — Finish scheduler determinism](01-scheduler-single-authority.md)
+7. [Work Package 7 — Complete the software backend](07-software-backend-completion.md)
+8. [Work Package 8 — Remove globals and close the SDK](08-global-state-and-sdk.md)
 
 ## Status
 
-| Package | Status | Blocking dependency |
+| Package | Status | Main blocker |
 |---|---|---|
-| 0 — Baseline and gates | TODO | none |
-| 1 — Scheduler authority | TODO | package 0 |
-| 2 — Compiled graph only | TODO | package 1 |
-| 3 — Session boundary | TODO | package 2 |
-| 4 — Stable identity | TODO | package 3 |
-| 5 — Scene program store | TODO | package 4 |
-| 6 — Execution scopes | TODO | package 5 |
-| 7 — Software backend | TODO | package 6 |
-| 8 — Global state and SDK | TODO | package 7 |
+| 0 — Validation gates | IN PROGRESS | boundary script can report PASS after check 5 fails |
+| 1 — Scheduler determinism | IN PROGRESS | bitwise matrix not implemented |
+| 3 — Session isolation | IN PROGRESS | runtime-shared program store and scene hasher |
+| 4 — Stable identity | IN PROGRESS | aliases, missing execution identity, wrong graph-instance semantics |
+| 5 — Scene program store | BLOCKED | unsafe lease, wrong key, stale call sites |
+| 6 — Execution scopes | BLOCKED | child precomp resets parent arena |
+| 7 — Software backend | TODO | `SoftwareRenderer` is still the backend |
+| 8 — Global state and SDK | TODO | active runtime, process asset root, public software types |
 
-Allowed status values:
-- `TODO`
-- `IN PROGRESS`
-- `BLOCKED`
-- `DONE`
+## Immediate P0 repairs
 
-Update this table whenever a package starts or finishes.
-
-## Rules
-
-- Complete packages in order unless the dependency is explicitly documented as independent.
-- Keep one architectural problem per implementation package.
-- Search for existing code before adding a new type or service.
-- Reuse registries, resolvers, samplers, builders, compilers, and caches already present.
-- Do not introduce a second owner for the same state.
-- Do not mix feature work with these packages.
-- Add targeted tests before marking a package done.
-- Run the architecture, no-content, and install-consumer checks after every package.
-- Update the package checklist and completion record in the same commit that finishes the package.
+- Fix `session->program_store` call sites to use the actual accessor or final job-owned store API.
+- Remove `noexcept` from functions that throw, or make them truly non-throwing.
+- Fix `tools/check_architecture_boundaries.sh` so check 5 can fail the script.
+- Introduce child execution memory isolation before trusting nested precomp rendering.
+- Replace the raw-pointer `ProgramLease` with a lifetime and concurrency guard.
 
 ## Permanent target architecture
 
 ```text
-RenderEngine::Impl
-  RenderRuntime
-    backend
-    scheduler
-    catalogs and registries
-    engine-lifetime caches
-    asset resolver
-  RenderPipeline
-  render-session factory
+RenderRuntime
+  backend
+  scheduler
+  catalogs and registries
+  engine-lifetime immutable/shared services
+  asset resolver
 
 RenderSession
   job history
   dirty history
-  telemetry
-  session-owned scene program store
+  job-owned scene program store
+  job/pipeline scene hashing state
 
 ExecutionScope
   active arena
-  graph identity
+  graph and node identity
   root, tile, or precomp lifetime
 
 GraphExecutor
@@ -81,30 +80,12 @@ GraphExecutor
   explicit execution scope
 ```
 
-## Permanent boundary checks
+## Rules
 
-The completed roadmap must enforce these conditions:
-
-- no scheduler construction inside graph executor
-- no production raw-graph executor path
-- no software dependency from runtime session headers
-- no graph dependency from runtime session headers
-- no executor or session owned by `PrecompNode`
-- no free arena override parameter
-- no direct TBB orchestration in tile execution
-- no backend-to-renderer cast in graph pipeline
-- no process-wide active runtime or asset root
-- one documented SDK consumer target: `Chronon3D::SDK`
-
-## Completion protocol
-
-For each package:
-
-1. Mark the package `IN PROGRESS` in this file.
-2. Complete tasks in numeric order.
-3. Add or update targeted tests.
-4. Run validation listed in Work Package 0.
-5. Fill the package completion record.
-6. Mark all exit criteria.
-7. Mark the package `DONE` here.
-8. Start the next package only after the previous package is stable.
+- Complete P0 correctness repairs before backend or SDK cleanup.
+- Keep one owner for every mutable cache and history value.
+- Never key precomp ownership from composition name alone.
+- Never reset a parent arena from nested execution.
+- Keep mutable compiled-program refresh and execution under one lease.
+- Add targeted tests before removing a TODO.
+- Update this status table whenever a package changes state.
