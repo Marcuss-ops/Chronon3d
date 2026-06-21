@@ -82,6 +82,9 @@ add_executable(chronon3d_core_tests
     render_graph/executor/test_cache_key_contract.cpp
     render_graph/executor/test_framebuffer_lifetime.cpp
     render_graph/builder/test_graph_build_pass_order.cpp
+    # WP-3 PR 3.0 + PR 3.3 — render-session noexcept-throw guards and
+    # multi-session isolation tests live in tests/runtime/ alongside the
+    # other session/services tests.
     runtime/test_render_session_reset_and_isolation.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline doctest::doctest)

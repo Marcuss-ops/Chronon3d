@@ -272,13 +272,13 @@ LayerBuilder& LayerBuilder::blur_timeline(const motion::Timeline<f32>& timeline)
 // defined in src/scene/builders/commands/motion_preset_methods.cpp.
 // This reduces layer_builder.cpp from 815 → ~515 lines.
 
-LayerBuilder& LayerBuilder::screen_dimensions(f32 w, f32 h) {
-
-
-    m_screen_width = w;
-    m_screen_height = h;
-    return *this;
-}
+// NOTE — `screen_dimensions(w, h)` body intentionally defined in
+// the header (in-class) so the PR 4 flag-flip
+// (`m_screen_dimensions_explicit = true`) lives next to the readback
+// accessors it gates. A non-inline out-of-class definition here
+// causes a redefinition error (since the in-class body is implicitly
+// inline) and silently drops the flag, breaking the
+// `Layer(LayerBuilder&)` 'was-set' detection.
 
 LayerBuilder& LayerBuilder::font_engine(FontEngine* engine) {
     m_font_engine = engine;

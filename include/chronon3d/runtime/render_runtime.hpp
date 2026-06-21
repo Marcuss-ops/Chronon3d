@@ -42,6 +42,18 @@
 //                                                    to detail::g_default_
 //                                                    assets_root)
 //
+// WP-3 PR 3.1 — `SceneHasher` and `SceneProgramStore` are no longer
+// runtime-owned.  They were relocated from RenderSession to RenderRuntime
+// in WP-8 (see prior revisions of this header) and are now BACK per-
+// session-owned.  Each `RenderSession` carries its own `scene_hasher`
+// (by-value) and `program_store` (unique_ptr).  The runtime therefore
+// no longer populates them in `populate()`, no longer assigns them into
+// the `RenderServices` bundle, and no longer wires them into the
+// `SessionServices` table via `make_session()`.  See
+// `docs/refactor-roadmap/03-render-session-boundary.md` PR 3.1 + the
+// PR 3.0 doc-comment in `<chronon3d/runtime/render_session.hpp>` for
+// the migration rationale and the per-session ownership spec.
+//
 // Construction sequence (RenderEngine::Impl drives this):
 //   1) m_runtime(m_config)         → populate() allocates all slots
 //   2) m_renderer(m_runtime, cfg)  → renderer wires its per-instance
@@ -62,8 +74,6 @@
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
-#include <chronon3d/render_graph/cache/scene_program_store.hpp>
-#include <chronon3d/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/pipeline/pipeline_catalogs.hpp>
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
@@ -77,6 +87,10 @@
 #include <chronon3d/backends/software/software_registry.hpp>
 // WP-3 PR 3.4 — canonical location for the renamed SoftwareRenderSession.
 #include <chronon3d/backends/software/software_render_session.hpp>
+// WP-3 PR 3.1 — scene_program_store.hpp and scene_hasher.hpp are no
+// longer needed by render_runtime.hpp.  The two state engines are now
+// per-session owned (see render_session.hpp), so the runtime doesn't
+// reach into them directly and doesn't need their full types.
 
 #include <filesystem>
 #include <memory>
@@ -120,12 +134,12 @@ struct RenderServices {
     chronon3d::renderer::SoftwareRegistry*    software_registry{nullptr};
     chronon3d::graph::GraphNodeCatalog*       graph_node_registry{nullptr};
     chronon3d::effects::EffectCatalog*        effect_catalog{nullptr};
-    /// WP-8 follow-up — runtime-owned scene hasher (relocated from
-    /// RenderSession).  Lifetime: the runtime's; non-owning pointer.
-    chronon3d::graph::SceneHasher*          scene_hasher{nullptr};
-    /// WP-8 follow-up — runtime-owned scene program store (relocated
-    /// from RenderSession).  Lifetime: the runtime's; non-owning pointer.
-    chronon3d::graph::SceneProgramStore*    program_store{nullptr};
+    // WP-3 PR 3.1 — `scene_hasher` and `program_store` pointer fields
+    // were REMOVED here.  Both state engines are now per-session owned
+    // (see `RenderSession::scene_hasher` / `RenderSession::program_store`).
+    // Callers that previously read `runtime.services().scene_hasher` /
+    // `runtime.services().program_store` must now read the session
+    // directly: `session.scene_hasher()` / `session.program_store()`.
 };
 
 /// RenderRuntime — engine-lifetime container.
@@ -192,16 +206,11 @@ public:
     [[nodiscard]] chronon3d::effects::EffectCatalog&       effect_catalog() noexcept { return *m_owned_effect_catalog; }
     [[nodiscard]] chronon3d::ExecutionScheduler&           scheduler()      noexcept { return *m_scheduler; }
 
-    // ── WP-8 scene-hasher + scene-program-store (relocated from RenderSession) ──
-    // These two engines of session-scoped state used to live on
-    // RenderSession (which leaked the headers into the runtime layer).
-    // Runtime now owns them; RenderSession's `scene_hasher()` /
-    // `program_store()` accessors route through the SessionServices
-    // pointer that `make_session()` populates from these accessors.
-    [[nodiscard]] chronon3d::graph::SceneHasher&       scene_hasher()       noexcept { return m_owned_scene_hasher; }
-    [[nodiscard]] const chronon3d::graph::SceneHasher& scene_hasher() const noexcept { return m_owned_scene_hasher; }
-    [[nodiscard]] chronon3d::graph::SceneProgramStore&       program_store()       noexcept { return *m_owned_program_store; }
-    [[nodiscard]] const chronon3d::graph::SceneProgramStore& program_store() const noexcept { return *m_owned_program_store; }
+    // WP-3 PR 3.1 — `scene_hasher()` + `program_store()` accessors were
+    // REMOVED here.  Both state engines are now per-session owned; reach
+    // them via `session.scene_hasher()` / `session.program_store()`
+    // (or `session.common.scene_hasher()` / `program_store()` from a
+    // `SoftwareRenderSession`).  See `docs/refactor-roadmap/03-render-session-boundary.md`.
 
     // ── Default assets root ──────────────────────────────────────────
     [[nodiscard]] const std::string& default_assets_root() const noexcept { return m_default_assets_root; }
@@ -225,14 +234,13 @@ private:
     std::unique_ptr<chronon3d::graph::GraphNodeCatalog>       m_owned_graph_node_registry;
     std::unique_ptr<chronon3d::effects::EffectCatalog>        m_owned_effect_catalog;
     std::unique_ptr<chronon3d::ExecutionScheduler>            m_scheduler;
-    // WP-8 follow-up: scene_hasher + scene_program_store relocated
-    // from RenderSession so that the runtime/ header is engine-generic
-    // again (TICKET-013 + TICKET-017).  Default-constructed (engine
-    // starts with empty scene fingerprints) and constructed in
-    // populate() respectively; same destruction semantics as every
-    // other m_owned_* slot.
-    chronon3d::graph::SceneHasher                      m_owned_scene_hasher{};
-    std::unique_ptr<chronon3d::graph::SceneProgramStore> m_owned_program_store;
+    // WP-3 PR 3.1 — `m_owned_scene_hasher` and `m_owned_program_store`
+    // were REMOVED.  Both are now per-session owned (see
+    // `RenderSession::scene_hasher` / `RenderSession::program_store`).
+    // The runtime no longer reaches into them; if a future feature
+    // genuinely needs cross-session reach, the right place is via
+    // an `ExecutionScope` abstraction (WP-6 scope) or a service helper
+    // — not a free-floating runtime-owned instance.
 
     std::unique_ptr<chronon3d::graph::RenderBackend>   m_backend;
     std::string                                       m_default_assets_root;
