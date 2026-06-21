@@ -2,64 +2,64 @@
 
 > Code baseline audited on **2026-06-21** at
 > `591f8e1ea0793902684389b97d1e509aae455533`.
+>
+> Piano operativo: [`NEXT_STEPS.md`](NEXT_STEPS.md).
 
-Chronon3D is advanced but **pre-stable**. Do not describe `main` as fully green,
-release-ready, or a stable external SDK until the blockers below are closed and a
-required build/test run is recorded.
+Chronon3D è avanzato ma **pre-stabile**. `main` non va descritto come completamente verde, release-ready o SDK stabile finché i blocker P0 non sono chiusi e verificati.
 
-## Current state
+## Stato reale
 
-| Area | State | Main gap |
+| Area | Stato | Gap principale |
 |---|---|---|
-| Compiled render-graph architecture | 🟡 Partial | Foundation landed; some callers/tests still use retired APIs. |
-| Validation gates | 🔴 Blocked | Boundary check 5 can fail while the script exits 0. |
-| Scheduler determinism | 🔴 Blocked | Test still includes deleted `ExecutionPlanCache` and raw-graph execution. |
-| Nested precomp | 🔴 Blocked | `PrecompNode` header/implementation disagree; implementation creates a local executor. |
-| Session/identity isolation | 🟡 Partial | Shared-context identity and nested execution scopes remain open. |
-| SDK boundary | 🟡 Partial | Install validation and global/runtime bridges remain. |
-| V3 tile-first | 🔵 Planned | P1–P10 are future replacement work. |
-| Expressions V2 | 🧪 Experimental | Quarantined, opt-in, not installed/exported. |
+| Render graph compilato | 🟡 Parziale | Fondazione completata; restano test e chiamanti sulle API eliminate. |
+| Gate architetturali | 🔴 Bloccato | L’ultimo controllo può fallire senza exit code non-zero. |
+| Determinismo scheduler | 🔴 Bloccato | Test ancora legati a `ExecutionPlanCache` e raw graph. |
+| Precomp annidato | 🔴 Bloccato | Header e implementazione non condividono lo stesso contratto. |
+| Identità/sessione | 🟡 Parziale | Race sul contesto condiviso e scope annidati incompleti. |
+| Confine SDK | 🟡 Parziale | Consumer installato e rimozione bridge globali incompleti. |
+| Diagnostics/content | 🔴 Da riparare | Target con API rotte da dividere in fix piccoli e verificabili. |
+| V3 tile-first | 🔵 Pianificato | Non deve partire prima della chiusura P0. |
+| Expressions V2 | 🧪 Sperimentale | In quarantena; non installato né esportato. |
 
-## Completed foundations
+## Fondazioni completate
 
 - `RenderGraph → FrameGraphCompiler → CompiledFrameGraph → GraphExecutor`.
-- Raw `RenderGraph` executor overloads retired.
-- `ExecutionPlanCache` retired.
-- Explicit `ExecutionScheduler&`.
-- Strong graph/node IDs and deterministic hashing.
-- Per-session scene-hasher/program-store work.
-- Typed runtime-owned `AssetResolver`.
-- Explicit registration through `ExtensionModule` and `ExtensionContext`.
+- Overload executor su `RenderGraph` grezzo rimossi.
+- `ExecutionPlanCache` rimosso.
+- Scheduler esplicito.
+- ID forti e hashing deterministico.
+- Lavoro su stato per-sessione e `SceneProgramStore`.
+- `AssetResolver` tipizzato e runtime-owned.
+- Registrazione esplicita tramite `ExtensionModule` e `ExtensionContext`.
 
-## P0 order
+## Priorità immediata
 
-1. Fix `tools/check_architecture_boundaries.sh` final result handling.
-2. Migrate scheduler tests to `CompiledFrameGraph`.
-3. Synchronize `PrecompNode` and borrow the session executor.
-4. Assign node identity only on cloned per-node contexts.
-5. Add root/tile/child execution scopes.
-6. Close installed-consumer and global-state SDK boundaries.
-7. Record clean required CI/build/test evidence.
-
-See [`refactor-roadmap/README.md`](refactor-roadmap/README.md).
+1. Riparare il gate architetturale.
+2. Rifare i test scheduler con il contratto compilato corrente.
+3. Sistemare `PrecompNode`, lease e ownership executor.
+4. Eliminare la race su `current_identity`.
+5. Introdurre `ExecutionScope` root/tile/precomp.
+6. Chiudere install consumer e confine SDK.
+7. Registrare una validazione completa e ripetibile.
 
 ## Expressions V2
 
-Actual location: `experimental/expressions/`.
+Percorso reale: `experimental/expressions/`.
 
 - Build gate: `CHRONON3D_BUILD_EXPERIMENTAL=ON`.
 - Default: `OFF`.
-- Not installed by `cmake --install`.
-- Not linked by `Chronon3D::SDK`.
-- No stable productive render-path dependency.
-- `TICKET-003` and `TICKET-004` are closed historical fixes.
-- Promotion requires all eight gates in
+- Non installato da `cmake --install`.
+- Non collegato da `Chronon3D::SDK`.
+- `TICKET-003` e `TICKET-004` sono fix storici chiusi.
+- La promozione richiede tutti gli otto gate in
   [`EXPRESSIONS_V2_PROMOTION.md`](EXPRESSIONS_V2_PROMOTION.md).
 
-## Document roles
+## Ruolo dei documenti
 
-- `STATUS.md`: current maturity and blockers.
-- `refactor-roadmap/`: unfinished architecture.
-- `ROADMAP.md`: feature/performance backlog.
-- `CHANGELOG.md`: completed historical work.
-- `V3_BLUEPRINT.md`: planned tile-first replacement.
+- `STATUS.md`: stato corrente.
+- `NEXT_STEPS.md`: ordine operativo e criteri di chiusura.
+- `refactor-roadmap/`: dettagli dei work package architetturali.
+- `ROADMAP.md`: backlog ordinato.
+- `FOLLOWUP_TICKETS.md`: difetti e follow-up tracciati.
+- `CHANGELOG.md`: lavoro completato e verificato.
+- `V3_BLUEPRINT.md`: architettura futura, non runtime corrente.
