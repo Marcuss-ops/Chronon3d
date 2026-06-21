@@ -3,25 +3,33 @@
 // ---------------------------------------------------------------------------
 // scene_program_cache.hpp — Non-destructive LRU cache for CompiledSceneProgram.
 //
-// This cache sits between PrecompNode and the render graph compiler.
-// Backed by chronon3d::cache::LruCache<…,
-// std::shared_ptr<CompiledSceneProgram>> in CapacityMode::Count, with the
-// sharded + per-shard mutex impl that the rest of the codebase uses.
+// This cache sits between PrecompNode and the render graph compiler.  Backed
+// by chronon3d::cache::LruCache<…, std::shared_ptr<CompiledSceneProgram>>
+// in CapacityMode::Count, with the sharded + per-shard mutex impl that the
+// rest of the codebase uses.
 //
 // Prior implementation was a hand-rolled sharded LRU.  Commit 4 unifies it
 // onto the LruCache primitive while preserving the public surface required
 // by PrecompNode, render graph, and 16 existing unit tests:
 //
-//   - find_or_compile / find return raw `CompiledSceneProgram*` so callers
-//     observe pointer identity on cache hits (preserved by returning
-//     `.get()` of the internally-held shared_ptr).
-//   - LruCache fires RemovalCallback for erase/clear/replace/eviction,
-//     so the facade lambda filters by reason (bumping counters only for
+//   - find_or_compile / find return `std::shared_ptr<CompiledSceneProgram>`
+//     so an in-flight `SceneProgramStore::ProgramLease` keeps the program
+//     alive across a concurrent clear() / eviction (WP 5.2 lifetime
+//     contract).  Callers that previously dereferenced a raw pointer are
+//     updated to dereference the shared_ptr identically, with `get()` for
+//     the rare case a raw pointer is required.
+//   - LruCache fires RemovalCallback for erase/clear/replace/eviction;
+//     the facade lambda filters by reason (bumping counters only for
 //     Capacity/Resize) and always forwards to m_user_on_evict.
 //   - set_capacity(evict-excess) bridges to LruCache::resize(); the
 //     removal callback with Resize reason updates telemetry counters.
 //   - auto_tune reads LruCache::stats() and the facade holds its own
 //     atomic counters so the tuning algorithm doesn't need to lock shards.
+//
+// WP 5.4 — added record_execution() so the SceneProgramStore can drive
+// per-bucket auto-tune WITHOUT manually calling cache.auto_tune().
+// record_execution() bumps an atomic counter and triggers auto_tune()
+// every `m_tune_config.interval` calls (Fixed mode is a no-op).
 //
 // Default cap = 8 (cap-resolver consults Config + env override).
 //
@@ -102,38 +110,33 @@ public:
     SceneProgramCache(const SceneProgramCache&)            = delete;
     SceneProgramCache& operator=(const SceneProgramCache&) = delete;
 
-    /// Look up the cache.  Returns nullptr on miss, or a stable raw
-    /// pointer to the CompiledSceneProgram on hit.  The pointer is
-    /// guaranteed stable until a subsequent put/erase/clear/eviction
-    /// affects the same shard.
-    [[nodiscard]] graph::CompiledSceneProgram* find(
+    /// Look up the cache.  Returns a (possibly null) shared_ptr; converters
+    /// to a raw pointer via .get() for callers that need one.  On hit the
+    /// shared_ptr bumps the LRU's MRU position so the caller is the most
+    /// recent accessor.
+    [[nodiscard]] std::shared_ptr<graph::CompiledSceneProgram> find(
         const graph::SceneStructureKey& key);
 
     /// Atomic "find + compile-on-miss".  The compiler functor returns a
     /// `std::unique_ptr<CompiledSceneProgram>` (preserves the legacy
-    /// caller signature; no caller migration needed beyond this).  On
-    /// hit, the compiler is NOT invoked.  On miss, the compiler runs
-    /// UNDER the shard mutex; the resulting program is stored and
-    /// returned.
+    /// caller signature).  On hit, the compiler is NOT invoked.  On
+    /// miss, the compiler runs UNDER the shard mutex; the resulting
+    /// program is stored and returned via `std::shared_ptr`.
     ///
-    /// If `program->valid == false`, the entry is NOT cached (this
-    /// Preserves the spec: invalid compilations don't poison the
-    /// cache).
+    /// If `program->valid == false`, the entry is NOT cached.
     template <typename Compiler>
-    [[nodiscard]] graph::CompiledSceneProgram* find_or_compile(
+    [[nodiscard]] std::shared_ptr<graph::CompiledSceneProgram> find_or_compile(
         const graph::SceneStructureKey& key,
         Compiler&&                       compiler)
     {
         // Look up under the shard's per-key lock via LruCache::get.
-        // The shard is selected by `std::hash<SceneStructureKey>{}(key)
-        // % num_shards` inside the LruCache.
-        auto cache_ptr = m_cache.get(key);
+        const auto cache_ptr = m_cache.get(key);
         if (cache_ptr) {
             m_hits.fetch_add(1, std::memory_order_relaxed);
             if (m_counters) {
                 m_counters->program_cache_hits.fetch_add(1, std::memory_order_relaxed);
             }
-            return cache_ptr->get();
+            return *cache_ptr;  // dereference optional<shared_ptr>
         }
 
         m_misses.fetch_add(1, std::memory_order_relaxed);
@@ -152,9 +155,8 @@ public:
         }
         auto shared_entry =
             std::shared_ptr<graph::CompiledSceneProgram>(std::move(compiled_unique));
-        graph::CompiledSceneProgram* raw = shared_entry.get();
         m_cache.put(key, shared_entry);
-        return raw;
+        return shared_entry;
     }
 
     [[nodiscard]] bool contains(const graph::SceneStructureKey& key) const;
@@ -183,6 +185,14 @@ public:
 
     /// Run the auto-tune algorithm.  See the .cpp file for the policy.
     void auto_tune();
+
+    // ── WP 5.4 — record_execution() with interval-driven auto_tune() ────
+    /// Bump the per-cache execution counter and trigger `auto_tune()`
+    /// whenever the counter crosses `m_tune_config.interval`.  The
+    /// SceneProgramStore invokes this from `acquire()` so that auto-tune
+    /// fires automatically without any external caller having to drive
+    /// it.  `Fixed` mode is a no-op (returns immediately).
+    void record_execution();
 
     // ── Tuning mode and config ──────────────────────────────────────────
     void set_tune_mode(TuneMode mode) noexcept { m_tune_mode = mode; }
@@ -224,6 +234,14 @@ private:
     mutable std::atomic<std::size_t> m_hits{0};
     mutable std::atomic<std::size_t> m_misses{0};
     mutable std::atomic<std::size_t> m_evictions{0};
+
+    /// WP 5.4 — atomic per-cache execution counter, bumped by
+    /// record_execution().  When this counter crosses
+    /// `m_tune_config.interval` the cache invokes auto_tune() (Fixed
+    /// mode short-circuits).  Decoupled from the store-level aggregate
+    /// because each SceneProgramStore instance has its own per-bucket
+    /// bucket policy and interval.
+    std::atomic<std::uint64_t> m_recorded_executions{0};
 
     /// Cached cap.  Updated by set_capacity / auto_tune.
     std::size_t m_capacity;

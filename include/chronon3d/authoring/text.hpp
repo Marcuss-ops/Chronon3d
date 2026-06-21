@@ -125,6 +125,10 @@ public:
         pending_->name = std::move(value);
         return *this;
     }
+    Text&& id(std::string value) && {
+        pending_->name = std::move(value);
+        return std::move(*this);
+    }
 
     /// Replace the text *literal*.  Does NOT change `pending_->params.text.content.pre_shaped`;
     /// pair with `pre_shaped(...)` if you need pre-shaped glyphs.
@@ -132,9 +136,17 @@ public:
         pending_->params.text.content.value = std::move(value);
         return *this;
     }
+    Text&& content(std::string value) && {
+        pending_->params.text.content.value = std::move(value);
+        return std::move(*this);
+    }
     Text& pre_shaped(std::shared_ptr<PlacedGlyphRun> shaped) & {
         pending_->params.text.content.pre_shaped = std::move(shaped);
         return *this;
+    }
+    Text&& pre_shaped(std::shared_ptr<PlacedGlyphRun> shaped) && {
+        pending_->params.text.content.pre_shaped = std::move(shaped);
+        return std::move(*this);
     }
 
     // ── Font (mutate spec.text.font directly) ────────────────────────────
@@ -143,22 +155,43 @@ public:
         pending_->params.text.font.font_size = size;
         return *this;
     }
+    Text&& font(std::string font_path, f32 size) && {
+        pending_->params.text.font.font_path = std::move(font_path);
+        pending_->params.text.font.font_size = size;
+        return std::move(*this);
+    }
     Text& font_family(std::string family) & {
         pending_->params.text.font.font_family = std::move(family);
         return *this;
     }
+    Text&& font_family(std::string family) && {
+        pending_->params.text.font.font_family = std::move(family);
+        return std::move(*this);
+    }
     Text& weight(int weight) & {
         pending_->params.text.font.font_weight = weight;
         return *this;
+    }
+    Text&& weight(int weight) && {
+        pending_->params.text.font.font_weight = weight;
+        return std::move(*this);
     }
     /// `true` → font_style = "italic"; `false` → "normal".
     Text& italic(bool value = true) & {
         pending_->params.text.font.font_style = value ? "italic" : "normal";
         return *this;
     }
+    Text&& italic(bool value = true) && {
+        pending_->params.text.font.font_style = value ? "italic" : "normal";
+        return std::move(*this);
+    }
     Text& font_size(f32 size) & {
         pending_->params.text.font.font_size = size;
         return *this;
+    }
+    Text&& font_size(f32 size) && {
+        pending_->params.text.font.font_size = size;
+        return std::move(*this);
     }
 
     // ── Position (mutate spec.text.position directly; NOT per-glyph) ─────
@@ -166,14 +199,26 @@ public:
         pending_->params.text.position = pos;
         return *this;
     }
+    Text&& at(Vec3 pos) && {
+        pending_->params.text.position = pos;
+        return std::move(*this);
+    }
     Text& at(Vec2 pos) & {
         pending_->params.text.position = {pos.x, pos.y, 0.0f};
         return *this;
+    }
+    Text&& at(Vec2 pos) && {
+        pending_->params.text.position = {pos.x, pos.y, 0.0f};
+        return std::move(*this);
     }
     /// f32 x, f32 y convenience — lifts to Vec3{ x, y, 0 }.
     Text& at(f32 x, f32 y) & {
         pending_->params.text.position = {x, y, 0.0f};
         return *this;
+    }
+    Text&& at(f32 x, f32 y) && {
+        pending_->params.text.position = {x, y, 0.0f};
+        return std::move(*this);
     }
 
     /// Place at the viewport center. Implicitly sets the layout's anchor +
@@ -189,55 +234,113 @@ public:
         layout.vertical_align = VerticalAlign::Middle;
         return *this;
     }
+    Text&& center() && {
+        const f32 w = context_ ? context_->width  : 1920.0f;
+        const f32 h = context_ ? context_->height : 1080.0f;
+        pending_->params.text.position = {w * 0.5f, h * 0.5f, 0.0f};
+        auto& layout = pending_->params.text.layout;
+        layout.anchor         = TextAnchor::Center;
+        layout.align          = TextAlign::Center;
+        layout.vertical_align = VerticalAlign::Middle;
+        return std::move(*this);
+    }
 
     // ── Layout (mutate spec.text.layout directly) ───────────────────────
     Text& box(Vec2 size) & {
         pending_->params.text.layout.box = size;
         return *this;
     }
+    Text&& box(Vec2 size) && {
+        pending_->params.text.layout.box = size;
+        return std::move(*this);
+    }
     Text& anchor_point(TextAnchor value) & {
         pending_->params.text.layout.anchor = value;
         return *this;
+    }
+    Text&& anchor_point(TextAnchor value) && {
+        pending_->params.text.layout.anchor = value;
+        return std::move(*this);
     }
     Text& align(TextAlign value) & {
         pending_->params.text.layout.align = value;
         return *this;
     }
+    Text&& align(TextAlign value) && {
+        pending_->params.text.layout.align = value;
+        return std::move(*this);
+    }
     Text& vertical_align(VerticalAlign value) & {
         pending_->params.text.layout.vertical_align = value;
         return *this;
+    }
+    Text&& vertical_align(VerticalAlign value) && {
+        pending_->params.text.layout.vertical_align = value;
+        return std::move(*this);
     }
     Text& pixel_ink_centering() & {
         pending_->params.text.layout.centering_mode = TextCenteringMode::PixelInk;
         return *this;
     }
+    Text&& pixel_ink_centering() && {
+        pending_->params.text.layout.centering_mode = TextCenteringMode::PixelInk;
+        return std::move(*this);
+    }
     Text& layout_box_centering() & {
         pending_->params.text.layout.centering_mode = TextCenteringMode::LayoutBox;
         return *this;
+    }
+    Text&& layout_box_centering() && {
+        pending_->params.text.layout.centering_mode = TextCenteringMode::LayoutBox;
+        return std::move(*this);
     }
     Text& line_height(f32 value) & {
         pending_->params.text.layout.line_height = value;
         return *this;
     }
+    Text&& line_height(f32 value) && {
+        pending_->params.text.layout.line_height = value;
+        return std::move(*this);
+    }
     Text& tracking(f32 pixels) & {
         pending_->params.text.layout.tracking = pixels;
         return *this;
+    }
+    Text&& tracking(f32 pixels) && {
+        pending_->params.text.layout.tracking = pixels;
+        return std::move(*this);
     }
     Text& wrap(TextWrap value) & {
         pending_->params.text.layout.wrap = value;
         return *this;
     }
+    Text&& wrap(TextWrap value) && {
+        pending_->params.text.layout.wrap = value;
+        return std::move(*this);
+    }
     Text& overflow(TextOverflow value) & {
         pending_->params.text.layout.overflow = value;
         return *this;
+    }
+    Text&& overflow(TextOverflow value) && {
+        pending_->params.text.layout.overflow = value;
+        return std::move(*this);
     }
     Text& ellipsis(bool value = true) & {
         pending_->params.text.layout.ellipsis = value;
         return *this;
     }
+    Text&& ellipsis(bool value = true) && {
+        pending_->params.text.layout.ellipsis = value;
+        return std::move(*this);
+    }
     Text& max_lines(int n) & {
         pending_->params.text.layout.max_lines = n;
         return *this;
+    }
+    Text&& max_lines(int n) && {
+        pending_->params.text.layout.max_lines = n;
+        return std::move(*this);
     }
     /// Shrink-to-fit.  Both arguments required so callers cannot confuse
     /// it with `.max_font_size(...)`.
@@ -248,9 +351,20 @@ public:
         layout.max_lines      = maximum_lines;
         return *this;
     }
+    Text&& auto_fit(f32 minimum_size, int maximum_lines) && {
+        auto& layout = pending_->params.text.layout;
+        layout.auto_fit       = true;
+        layout.min_font_size  = minimum_size;
+        layout.max_lines      = maximum_lines;
+        return std::move(*this);
+    }
     Text& max_font_size(f32 v) & {
         pending_->params.text.layout.max_font_size = v;
         return *this;
+    }
+    Text&& max_font_size(f32 v) && {
+        pending_->params.text.layout.max_font_size = v;
+        return std::move(*this);
     }
 
     // ── Appearance (mutate spec.text.appearance directly) ────────────────
@@ -258,17 +372,33 @@ public:
         pending_->params.text.appearance.color = c;
         return *this;
     }
+    Text&& color(Color c) && {
+        pending_->params.text.appearance.color = c;
+        return std::move(*this);
+    }
     Text& paint(TextPaint value) & {
         pending_->params.text.appearance.paint = std::move(value);
         return *this;
+    }
+    Text&& paint(TextPaint value) && {
+        pending_->params.text.appearance.paint = std::move(value);
+        return std::move(*this);
     }
     Text& shadows(std::vector<TextShadow> values) & {
         pending_->params.text.appearance.shadows = std::move(values);
         return *this;
     }
+    Text&& shadows(std::vector<TextShadow> values) && {
+        pending_->params.text.appearance.shadows = std::move(values);
+        return std::move(*this);
+    }
     Text& box_style(TextBoxStyle value) & {
         pending_->params.text.appearance.box_style = std::move(value);
         return *this;
+    }
+    Text&& box_style(TextBoxStyle value) && {
+        pending_->params.text.appearance.box_style = std::move(value);
+        return std::move(*this);
     }
 
     // ── Script / language / direction (mutate top-level TextRunSpec) ─────
@@ -276,9 +406,17 @@ public:
         pending_->params.direction = d;
         return *this;
     }
+    Text&& direction(TextDirection d) && {
+        pending_->params.direction = d;
+        return std::move(*this);
+    }
     Text& language(std::string bcp47) & {
         pending_->params.language = std::move(bcp47);
         return *this;
+    }
+    Text&& language(std::string bcp47) && {
+        pending_->params.language = std::move(bcp47);
+        return std::move(*this);
     }
     /// Explicit 4-byte OpenType script tag (HB_SCRIPT_*).  Reaches
     /// `pending_->params.script` — the field added in PR 4 alongside
@@ -298,17 +436,29 @@ public:
         pending_->params.script = value;
         return *this;
     }
+    Text&& script(std::uint32_t value) && {
+        pending_->params.script = value;
+        return std::move(*this);
+    }
 
     // ── Material (PR 2 hookup): consumes Material::release() ─────────────
     Text& material(Material material_in) & {
         pending_->params.text.appearance.material = std::move(material_in).release();
         return *this;
     }
+    Text&& material(Material material_in) && {
+        pending_->params.text.appearance.material = std::move(material_in).release();
+        return std::move(*this);
+    }
 
     // ── Animator (PR 1 hookup): consumes Animator::release() ─────────────
     Text& animate(Animator animator_in) & {
         pending_->params.animators.emplace_back(std::move(animator_in).release());
         return *this;
+    }
+    Text&& animate(Animator animator_in) && {
+        pending_->params.animators.emplace_back(std::move(animator_in).release());
+        return std::move(*this);
     }
 
     // ── Style registry (PR 5 + PR 3.5): field-map TextStyle → spec.text ──
@@ -339,6 +489,12 @@ public:
         apply_text_style(*resolved);
         return *this;
     }
+    Text&& style(std::string_view id, const StyleRegistry& registry) && {
+        const auto resolved = registry.resolve(id);
+        if (!resolved.has_value()) return *this;
+        apply_text_style(*resolved);
+        return std::move(*this);
+    }
 
     // Ambient-path (PR 3.5): resolves against the registry pinned at handle
     // construction (LayerBuilder → ExtensionContext → StyleRegistry*).
@@ -351,6 +507,13 @@ public:
         apply_text_style(*resolved);
         return *this;
     }
+    Text&& style(std::string_view id) && {
+        if (style_registry_ == nullptr) return *this;
+        const auto resolved = style_registry_->resolve(id);
+        if (!resolved.has_value()) return *this;
+        apply_text_style(*resolved);
+        return std::move(*this);
+    }
 
     // ── Motion registry (PR 5 + PR 3.5) ────────────────────────────────
 
@@ -361,6 +524,12 @@ public:
         pending_->params.animators.push_back(*resolved);
         return *this;
     }
+    Text&& motion(std::string_view id, const MotionRegistry& registry) && {
+        const auto resolved = registry.resolve(id);
+        if (!resolved.has_value()) return *this;
+        pending_->params.animators.push_back(*resolved);
+        return std::move(*this);
+    }
 
     // Ambient-path.
     Text& motion(std::string_view id) & {
@@ -369,6 +538,13 @@ public:
         if (!resolved.has_value()) return *this;
         pending_->params.animators.push_back(*resolved);
         return *this;
+    }
+    Text&& motion(std::string_view id) && {
+        if (motion_registry_ == nullptr) return *this;
+        const auto resolved = motion_registry_->resolve(id);
+        if (!resolved.has_value()) return *this;
+        pending_->params.animators.push_back(*resolved);
+        return std::move(*this);
     }
 
     // ── Level 3 escape hatch ─────────────────────────────────────────────
@@ -391,6 +567,11 @@ public:
     Text& configure_core(Fn&& mutator) & {
         mutator(pending_->params);
         return *this;
+    }
+    template <class Fn>
+    Text&& configure_core(Fn&& mutator) && {
+        mutator(pending_->params);
+        return std::move(*this);
     }
 
     // ── Read-only accessors (for tests and tooling) ──────────────────────

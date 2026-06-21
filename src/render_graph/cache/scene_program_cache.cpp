@@ -73,9 +73,12 @@ SceneProgramCache::SceneProgramCache(
 
 // ── find ────────────────────────────────────────────────────────────────────
 
-graph::CompiledSceneProgram* SceneProgramCache::find(
+std::shared_ptr<graph::CompiledSceneProgram> SceneProgramCache::find(
     const graph::SceneStructureKey& key)
 {
+    // LruCache::get returns std::optional<Value>; Value here is
+    // std::shared_ptr<CompiledSceneProgram>.  Dereference on hit,
+    // nullptr on miss — matching the function's shared_ptr return type.
     auto cache_ptr = m_cache.get(key);
     if (!cache_ptr) return nullptr;
 
@@ -83,7 +86,7 @@ graph::CompiledSceneProgram* SceneProgramCache::find(
     if (m_counters) {
         m_counters->program_cache_hits.fetch_add(1, std::memory_order_relaxed);
     }
-    return cache_ptr->get();
+    return *cache_ptr;
 }
 
 // ── contains ────────────────────────────────────────────────────────────────
@@ -108,6 +111,7 @@ void SceneProgramCache::clear() {
     m_hits.store(0, std::memory_order_relaxed);
     m_misses.store(0, std::memory_order_relaxed);
     m_evictions.store(0, std::memory_order_relaxed);
+    m_recorded_executions.store(0, std::memory_order_relaxed);
 }
 
 // ── stats ───────────────────────────────────────────────────────────────────
@@ -202,6 +206,28 @@ void SceneProgramCache::auto_tune() {
     m_hits.store(0, std::memory_order_relaxed);
     m_misses.store(0, std::memory_order_relaxed);
     m_evictions.store(0, std::memory_order_relaxed);
+}
+
+// ── record_execution ─────────────────────────────────────────────────────
+//
+// WP 5.4 — SceneProgramStore calls this every time acquire() succeeds.
+// The atomic counter is per-cache; when it crosses
+// `m_tune_config.interval`, auto_tune() is invoked synchronously.  In
+// `Fixed` mode the function short-circuits without touching the
+// counter so the cost is one atomic load + a branch on the hot path.
+
+void SceneProgramCache::record_execution() {
+    if (m_tune_mode != TuneMode::Auto) {
+        return;
+    }
+    const std::uint64_t count =
+        m_recorded_executions.fetch_add(1, std::memory_order_relaxed) + 1u;
+    if (m_tune_config.interval == 0) {
+        return;
+    }
+    if (count % m_tune_config.interval == 0) {
+        auto_tune();
+    }
 }
 
 } // namespace chronon3d::cache

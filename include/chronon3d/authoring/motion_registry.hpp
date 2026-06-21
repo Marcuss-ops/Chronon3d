@@ -42,8 +42,13 @@ public:
 
     // Domain-specific alias: register_motion(id, value).
     // Forwards to the generic `register_value` of BasicRegistry.
+    // Returns `MotionRegistry&` (not the base `BasicRegistry&`) so the
+    // caller can chain domain-specific methods.  The downcast is safe:
+    // `*this` IS-A `MotionRegistry` and `register_value()` returns a
+    // reference to the exact same object, just typed as the base.
     MotionRegistry& register_motion(std::string id, chronon3d::TextAnimatorSpec value) & {
-        return register_value(std::move(id), std::move(value));
+        return static_cast<MotionRegistry&>(
+            register_value(std::move(id), std::move(value)));
     }
 
     // `register_factory`, `resolve`, `has`, `unregister`, `clear`,

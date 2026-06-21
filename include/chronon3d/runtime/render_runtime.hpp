@@ -68,6 +68,7 @@
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/runtime/render_session.hpp>
+#include <chronon3d/backends/software/software_render_session.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 
 #include <filesystem>

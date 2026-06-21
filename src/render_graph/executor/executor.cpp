@@ -84,7 +84,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
     auto* parent_counters = ctx.node_exec.counters;
     auto* parent_pool = ctx.services.framebuffer_pool.get();
 
-    execute_levels(graph, ctx, state, scheduler, levels, consumer_remaining, parent_counters, parent_pool, res);
+    execute_levels(graph, ctx, state, scheduler, levels, consumer_remaining, parent_counters, parent_pool, res, compiled);
 
     return state.temp[output];
 }

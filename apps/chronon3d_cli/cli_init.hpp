@@ -39,6 +39,18 @@ inline AssetRegistry& cli_asset_registry() {
 /// Created once, shared between authoring-time text builders. Host code
 /// populates these via dedicated API when ready; the default factories
 /// register nothing so unintended wildcards never resolve.
+///
+/// Conditionally compiled: the inline definitions reference
+/// `authoring::StyleRegistry` / `authoring::MotionRegistry`, which are
+/// only forward-visible when `CHRONON3D_BUILD_CONTENT` or
+/// `CHRONON3D_BUILD_DIAGNOSTICS` is defined (the same #if that pulls in
+/// `style_registry.hpp` / `motion_registry.hpp` / `basic_registry.hpp`
+/// above).  Without the macros the type names are unknown and the
+/// pre-existing inline bodies fail to compile, so the definitions are
+/// guarded by the same #if.  The functions are unused on builds that
+/// don't define either macro (no caller path exists in those TUs), so
+/// the conditional definition is safe.
+#if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
 inline authoring::StyleRegistry&  cli_style_registry() {
     static authoring::StyleRegistry  reg;
     return reg;
@@ -47,6 +59,7 @@ inline authoring::MotionRegistry& cli_motion_registry() {
     static authoring::MotionRegistry reg;
     return reg;
 }
+#endif
 
 /// Register built-in content compositions and built-in compositions
 /// into the given registry.  Safe to call multiple times.

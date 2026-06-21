@@ -53,12 +53,18 @@ CompiledFrameGraph FrameGraphCompiler::compile(
         compiled.early_exit_skip[i] = ctx.node_exec.early_exit_skip[i];
     }
 
-    // ── Work Package 4 — graph instance id ─────────────────────────────
+    // ── Work Package 4 — graph instance id (WP 4.0/4.1) ────────────────
     // Hash the SORTED SET of reachable stable_node_ids (excluding the
     // invalid sentinel) so a re-build of the same source topology
     // yields the same id regardless of which order the compiler
-    // visited nodes in.  Hash is FNV-1a for compactness; the helper
-    // in `node_identity.hpp` reuses a compatible mixing function.
+    // visited nodes in.  Hash is FNV-1a (a single deterministic
+    // mixing function) so the value is bit-stable across compilers.
+    //
+    // WP 4.2 — when a `parent_precomp_node` is supplied via compile
+    // options, its StableNodeId AND the parent's GraphInstanceId are
+    // MIXED INTO the hash so two nested precomp layers using the
+    // same composition get distinct graph_instance_ids (this is
+    // what enables their SceneProgramStore buckets to be distinct).
     std::vector<StableNodeId> sids;
     sids.reserve(compiled.nodes.size());
     for (size_t i = 0; i < compiled.nodes.size(); ++i) {
@@ -68,14 +74,26 @@ CompiledFrameGraph FrameGraphCompiler::compile(
         }
     }
     std::sort(sids.begin(), sids.end());
+    // StableNodeId's spaceship default-compares on .value, so sorting
+    // is content-stable across compilers and link orders.
     constexpr std::uint64_t kOffsetBasis = 0xcbf29ce484222325ULL;
     constexpr std::uint64_t kFnvPrime    = 0x100000001b3ULL;
     std::uint64_t h = kOffsetBasis;
-    for (StableNodeId sid : sids) {
-        h ^= sid;
+    // WP 4.2 — fold parent scope first so two precomps using the same
+    // composition (same sorted SIDs below) collide IF AND ONLY IF
+    // they share the same parent precomp stable node + parent graph.
+    if (options.parent_precomp_node != kInvalidStableNodeId) {
+        h ^= options.parent_graph_instance.value;
+        h *= kFnvPrime;
+        h ^= options.parent_precomp_node.value;
         h *= kFnvPrime;
     }
-    compiled.graph_instance_id = (h == 0 ? 1 : h);
+    for (StableNodeId sid : sids) {
+        h ^= sid.value;
+        h *= kFnvPrime;
+    }
+    compiled.graph_instance_id =
+        GraphInstanceId{h == 0u ? 1u : h};
 
     if (options.validate_dag) {
         validate(compiled);
@@ -223,14 +241,18 @@ void FrameGraphCompiler::build_node_metadata(
                     node_info.predicted_bbox = node.predicted_bbox(ctx);
                 }
 
-                // ── Work Package 4 — derive stable_node_id (PR 4.2/4.3) ────────
+                // ── Work Package 4 — derive stable_node_id (PR 4.1/4.2/4.3) ──
                 // Inputs: deterministic strings (layer_id, name) + a kind enum.
                 // EXCLUDES: raw pointers, timestamps, transient counters.
+                // WP 4.1 — switch from `std::hash<std::string>` (compiler-
+                // dependent) to XXH64 via `hash_string` so identical inputs
+                // produce identical outputs across compilers / libstdc++
+                // versions — required for cache round-trip safety (PR 4.4).
                 const std::uint64_t layer_id_hash =
-                    std::hash<std::string>{}(node_info.layer_id);
+                    hash_string(node_info.layer_id);
                 const std::uint64_t kind_and_name_hash = hash_combine(
                     static_cast<std::uint64_t>(node_info.kind),
-                    std::hash<std::string>{}(node_info.name)
+                    hash_string(node_info.name)
                 );
                 node_info.stable_node_id = hash_stable_node_inputs(
                     layer_id_hash, kind_and_name_hash);

@@ -78,6 +78,7 @@ namespace chronon3d { class DebugConfig; }
 #include <optional>
 #include <span>
 #include <atomic>
+#include <chronon3d/render_graph/core/node_identity.hpp>
 
 namespace chronon3d {
     class CompositionRegistry;
@@ -249,6 +250,20 @@ struct NodeExecutionContext {
     mutable FramebufferSlotView transform_scratch;
     mutable FramebufferSlotView ping_write;
     mutable std::vector<Framebuffer*> reusable_inputs;
+
+    // ── WP 4.3 — current node identity ─────────────────────────────────
+    // Set by `GraphExecutor::execute_single_node` immediately before
+    // delegating to `node->execute(...)`.  Identity is the
+    // `(GraphInstanceId, StableNodeId)` pair the executing node was
+    // compiled with, so production code paths can read a stable
+    // identity from the execution context (instead of reaching back
+    // into the compiled graph's node metadata).
+    //
+    // Default value is `kInvalid*Id` for both halves, which PrecompNode
+    // uses as the "no executor-was-here" fallback (the assertion is
+    // relaxed for test paths that drive a PrecompNode without first
+    // running it through the full GraphExecutor).
+    NodeIdentity current_identity{kInvalidGraphInstanceId, kInvalidStableNodeId};
 };
 
 // Forward-declared for use in RenderServices callback signatures.

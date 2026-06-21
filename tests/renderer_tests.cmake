@@ -83,6 +83,8 @@ add_executable(chronon3d_renderer_tests
     render_graph/test_velocity_buffer_motion_blur.cpp
     render_graph/test_post_processing_system.cpp
     render_graph/nodes/test_precomp_node_cache.cpp
+    render_graph/core/test_node_identity.cpp
+    render_graph/cache/test_scene_program_store.cpp
     render_graph/nodes/test_multi_source_text_run.cpp
     # PR2 — node coverage (4 categories × 2 levels: ShadowNode, PerPixelDofNode,
     # MaskNode, GlowPipeline) − 8 sources total below

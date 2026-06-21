@@ -1,16 +1,26 @@
 #pragma once
 
-#include "execution_state.hpp"
-#include <chronon3d/render_graph/render_graph.hpp>
-#include <chronon3d/cache/node_cache.hpp>
-#include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/core/memory/framebuffer_handle.hpp>
+// ---------------------------------------------------------------------------
+// node_runner.hpp — execute_single_node signature.
+//
+// WP 4.3 — execute_single_node now receives a `const CompiledFrameGraph&`
+// so it can read each compiled node's `NodeIdentity` (the
+// `(compiled.graph_instance_id, compiled.nodes[id].stable_node_id)` pair)
+// and write it into `ctx.node_exec.current_identity` immediately before
+// `node->execute(...)` runs.  This is what lets production code paths
+// (PrecompNode and downstream instruments) read a deterministic identity
+// from the execution state without reaching back to the compiled graph.
+// ---------------------------------------------------------------------------
 
 #include <atomic>
-#include <optional>
-#include <span>
+#include <cstddef>
+#include <memory_resource>
 #include <vector>
-#include <memory>
+
+#include <chronon3d/core/scheduler/execution_scheduler.hpp>
+#include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/render_graph/core/node_identity.hpp>
 
 namespace chronon3d {
     struct RenderCounters;
@@ -19,17 +29,9 @@ namespace chronon3d {
 
 namespace chronon3d::graph {
 
-double run_node(
-    RenderGraphNode& node,
-    RenderGraphContext& node_ctx,
-    std::span<const FramebufferRef> inputs,
-    std::span<const std::optional<raster::BBox>> input_bboxes,
-    bool use_cache,
-    const cache::NodeCacheKey& key,
-    CachedFB& result,
-    const RenderGraphContext& ctx,
-    cache::FramebufferPool* parent_pool
-);
+struct ExecutionState;
+struct PreResolvedNode;
+struct CompiledFrameGraph;
 
 void execute_single_node(
     ExecutionState& state,
@@ -41,13 +43,14 @@ void execute_single_node(
     RenderCounters* parent_counters,
     cache::FramebufferPool* parent_pool,
     std::pmr::vector<std::atomic_size_t>& consumer_remaining,
-    double* out_cache_ms = nullptr,
-    double* out_dirty_ms = nullptr,
-    double* out_telemetry_ms = nullptr,
-    double* out_execute_ms = nullptr,
-    double* out_predicted_bbox_ms = nullptr,
-    double* out_clone_context_ms = nullptr,
-    double* out_state_assign_ms = nullptr
+    double* out_cache_ms,
+    double* out_dirty_ms,
+    double* out_telemetry_ms,
+    double* out_execute_ms,
+    double* out_predicted_bbox_ms,
+    double* out_clone_context_ms,
+    double* out_state_assign_ms,
+    const CompiledFrameGraph& compiled
 );
 
 } // namespace chronon3d::graph
