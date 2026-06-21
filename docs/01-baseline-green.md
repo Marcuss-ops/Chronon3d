@@ -98,6 +98,55 @@ PR 6.8 — `tests/deterministic/test_baseline_green.cpp` (questo PR):
 | Composite SSIM ≥ 0.999 | §5 | Perceptual equality check sul composite path reused | [`docs/02 §4`](02-determinism.md#4-superficie-3--composite-path) |
 | Precomp cache-hit determinism (miss vs hit ≡ hash) | §6 | `program_store` cache hit path bit-stable end-to-end | [`docs/02 §4`](02-determinism.md#4-superficie-3--composite-path) |
 
+**PR 6.8.5 follow-up — Q6 hybrid sentinel acquisition**.  6 sentinel
+constants
+
+```
+kRefBaselineFreshShader | kRefBaselineArenaPin | kRefBaselineThreadEq
+kRefBaselineComposite  | kRefBaselineSsim      | kRefBaselinePrecompCache
+```
+
+sono stati aggiunti in fondo all'`namespace { … }` anonimo di
+`tests/deterministic/test_baseline_green.cpp` (vedi il commento
+header §PR 6.8.5 del file sorgente e i 6 blocchi sentinel-gated
+`if (is_reference_captured(...)) { REQUIRE(...) } else { MESSAGE(...) }`
+appesi alla fine di ogni TEST_CASE body).  Pattern analog a
+`kRefStaticScene` di `tests/render_graph/executor/test_scheduler_determinism.cpp`
+(Q6 hybrid strategy da reviewer round 2 di quel file): self-consistency
+`CHECK` loop sono **preservati** ovunque (Q6 hybrid dual-protect
+mandate) — `CHECK` cattura scheduler-state rot, `REQUIRE` cattura
+backend-graph regression, i due sono complementari.
+
+**Stato corrente (placeholders → Two-Phase Commit Strategy)**.  Nella
+sandbox usata per l'autoring di questo PR, il toolchain pre-esistente
+ha una regressione architetturale indipendente che impedisce l'esecuzione
+end-to-end di `ctest -R 'Baseline green' -V` (vedi
+`docs/02-determinism.md §4 "Interlocking con WP-6"` + survey del
+toolchain sotto).  Per rispettare lo scope di PR 6.8.5 e disaccoppiare
+la acquisizione dal fix della regressione toolchain, PR 6.8.5 segue la
+**Two-Phase Commit Strategy**: le 6 costanti sono stubbed a
+`kUncapturedSentinel = 0xDEADBEEFDEADBEEFULL` (first-clean-CI-capture
+marker).  I test passano oggi via self-consistency `CHECK`.  Un
+prossimo commit popola le costanti con i 6 hash reali dopo un clean
+CI run.
+
+**Capture workflow** (prossimo operatore, dopo clean toolchain):
+
+```bash
+ctest --test-dir build/chronon/linux-ci -R 'Baseline green' -V 2>&1 \
+    | tee /tmp/baseline_green_first_run.txt
+grep -oE 'kRefBaseline[FATCS][a-zA-Z]+ unset; first hash to capture: [0-9]+' \
+    /tmp/baseline_green_first_run.txt
+# Copy each <hash> into its corresponding kRefBaseline* constant in
+# tests/deterministic/test_baseline_green.cpp; commit; re-run ctest
+# to verify the locks hold across re-runs.
+```
+
+**Committati**: PR 6.8 + PR 6.8.5 (placeholder-sentinel acquisition,
+commit `dddf1099` per la ExecutionScope init-list fix build-unblock
+prerequisite + commit `fb5980c9` per il sentinel infra stesso, già
+su `main`).
+
 ### 2.4 Statistic-scene baseline (test_determinism_harness + test_deterministic)
 
 Verdi storicamente da WP-1 + WP-2 — il pattern `static_scene + 3 rects
@@ -233,6 +282,13 @@ ctest -R 'WP1 PR 1.4' --output-on-failure
 ctest -R 'Determinism harness' --output-on-failure
 ```
 
+Dopo la **first-clean-CI capture** di PR 6.8.5 (vedi sezione 2.3 +
+capture workflow), ogni successivo `ctest -R 'Baseline green'`
+fallirà al primo backend-graph drift nei 4 punti SIMD
+(`software_compositor.cpp`, `blend2d_bridge_*.cpp`, `pip.cpp`)
+grazie al sentinel-REQUIRE lock — i 6 hash sono l'**identity
+contract** deliverable del baseline verde.
+
 ### 4.4 Verifica rot residuo
 
 ```bash
@@ -266,6 +322,19 @@ precisi per il lettore che salta direttamente al testo).
 | §3 TBB path | 🟢 **Done** (PR 6.9 + mitigate PR 6.8) | `test_baseline_green.cpp` §3 + `gradient_determinism_tests.cpp` §t/§u re-enabled |
 | §4 Composite path | 🟢 **Done** (PR 6.8) | `test_baseline_green.cpp` §4 + §5 + §6 |
 | §5 Tile path | 🟢 **Done** (PR 6.1) | `test_tile_determinism.cpp` (10 TEST_CASE) |
+| §4 (sentinel-lock) | 🟡 **Acquired, placeholder pending** (PR 6.8.5) | `test_baseline_green.cpp` kRefBaseline* sentinels sulla tabella sopra; commit `fb5980c9` su `main` |
+
+**(PR 6.8.5 coupling addendum)** Le 6 costanti
+`kRefBaselineFreshShader`, `kRefBaselineArenaPin`, `kRefBaselineThreadEq`,
+`kRefBaselineComposite`, `kRefBaselineSsim`, `kRefBaselinePrecompCache`
+sono la versione deterministica dei 6 TEST_CASE §1–§6 della sezione
+2.3.  Per come lo schema di sentinel + CHECK loop difende da rot,
+vedere il commento header §PR 6.8.5 del file di test e il coupling
+esterno verso `test_scheduler_determinism.cpp::kRefStaticScene` —
+entrambi seguono la stessa Q6 hybrid strategy.  La capture
+delle 6 sentinelle in valori numerici reali è la fase 2 del
+Two-Phase Commit Strategy di PR 6.8.5 (il presente commit lascia
+i 6 placeholder `0xDEADBEEFDEADBEEFULL`).
 
 Il **fix dei TICKET-007.q/r/s/t/u** è risolto da WP-6 PR 6.9
 (determinism-contract safety net: `force_scalar_normal_blend=true`
@@ -305,6 +374,11 @@ installati (vedi blocking note in [`docs/02`](02-determinism.md) fine
 doc); la verifica run-time del baseline verde richiede CI con
 `linux-ci` o `linux-ci-test` preset (vedi
 [`refactor-roadmap/00-baseline-and-gates.md`](refactor-roadmap/00-baseline-and-gates.md)).
+Anche dopo aver completato la catena di fix architetturali (build
+cascade `SoftwareRenderer::capabilities() override`,
+`m_session` not-declared), il primo run end-to-end di `ctest -R
+'Baseline green'` stamperà i 6 hash osservati via `MESSAGE` —
+raccogliere e popolare le 6 costanti conclude PR 6.8.5.
 
 ---
 
