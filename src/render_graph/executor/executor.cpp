@@ -39,8 +39,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
     RenderGraphContext& ctx,
     RenderSession& session,
     ExecutionScheduler& scheduler,
-    runtime::ExecutionPlanCache* plan_cache,
-    FrameArena* arena_override
+    runtime::ExecutionPlanCache* plan_cache
 ) const {
     // ── Cached execution plan ───────────────────────────────────────
     // TICKET-009 — the executor is stateless; the cache is supplied via
@@ -92,7 +91,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         return nullptr;
     }
 
-    FrameArena& active_arena = arena_override ? *arena_override : session.arena();
+    FrameArena& active_arena = session.arena();
     auto* res = active_arena.resource();
     struct ArenaGuard {
         FrameArena& arena;
@@ -139,8 +138,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
     RenderGraphContext& ctx,
     RenderSession& session,
     ExecutionScheduler& scheduler,
-    runtime::ExecutionPlanCache* plan_cache,
-    FrameArena* arena_override
+    runtime::ExecutionPlanCache* plan_cache
 ) const {
     auto& graph = compiled.graph;
     const auto& levels = compiled.levels;
@@ -157,7 +155,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
     // compiled graph's plan is the source of truth).
     (void)plan_cache;
 
-    FrameArena& active_arena = arena_override ? *arena_override : session.arena();
+    FrameArena& active_arena = session.arena();
     auto* res = active_arena.resource();
     struct ArenaGuard {
         FrameArena& arena;
