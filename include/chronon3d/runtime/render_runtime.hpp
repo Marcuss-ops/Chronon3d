@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/assets/asset_registry.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/core/config.hpp>
 
 // ----------------------------------------------------------------------
@@ -68,6 +69,11 @@
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/runtime/render_session.hpp>
+// WP-8 PR 8.0 stop-gap — `SoftwareRenderSession` is needed for `make_session`
+// and `session_services` (render-side software types).  WP-8 PR 8.4
+// moves those APIs to a software-internal header; revert this include
+// at that point.
+#include <chronon3d/backends/software/software_render_session.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 
 #include <filesystem>
@@ -101,6 +107,9 @@ namespace chronon3d::runtime {
 /// engine).
 struct RenderServices {
     chronon3d::AssetRegistry*                asset_registry{nullptr};
+    /// WP-8 PR 8.0 — typed engine-local asset path resolver.  Sibling
+    /// of asset_registry; PR 8.1 routes deep asset consumers here.
+    chronon3d::assets::AssetResolver*        asset_resolver{nullptr};
     chronon3d::cache::NodeCache*              node_cache{nullptr};
     chronon3d::cache::FramebufferPool*        framebuffer_pool{nullptr};
     chronon3d::graph::CompiledGraphCache*     graph_cache{nullptr};
@@ -166,6 +175,9 @@ public:
     // ── Direct accessors used by SoftwareRenderer (forwarders for
     //    caller convenience; primary access is via services()) ───────
     [[nodiscard]] chronon3d::AssetRegistry&               assets()         noexcept { return m_assets; }
+    // ── WP-8 PR 8.0 typed asset resolver (sibling of m_assets) ───────
+    [[nodiscard]] chronon3d::assets::AssetResolver&       resolver()       noexcept { return m_resolver; }
+    [[nodiscard]] const chronon3d::assets::AssetResolver& resolver() const noexcept { return m_resolver; }
     [[nodiscard]] chronon3d::cache::NodeCache&             node_cache()     noexcept { return m_owned_node_cache; }
     [[nodiscard]] chronon3d::graph::CompiledGraphCache&    graph_cache()    noexcept { return m_owned_graph_cache; }
     [[nodiscard]] std::shared_ptr<chronon3d::cache::FramebufferPool> framebuffer_pool_shared() noexcept { return m_owned_framebuffer_pool; }
@@ -198,6 +210,9 @@ private:
     chronon3d::Config                                   m_config;
     chronon3d::graph::PipelineCatalogs                  m_catalogs;
     chronon3d::AssetRegistry                            m_assets;
+    /// WP-8 PR 8.0 — typed asset resolver, sibling of m_assets; value
+    /// member so lifetime is the runtime's, deterministic per engine.
+    chronon3d::assets::AssetResolver                    m_resolver;
     RenderServices                                      m_services{{}};
 
     chronon3d::cache::NodeCache                         m_owned_node_cache{};

@@ -3,6 +3,7 @@
 # ==============================================================================
 
 add_library(chronon3d_assets OBJECT
+    asset_resolver.cpp
     render_preflight_req.cpp
     render_preflight_validate.cpp
     render_preflight_helpers.cpp
