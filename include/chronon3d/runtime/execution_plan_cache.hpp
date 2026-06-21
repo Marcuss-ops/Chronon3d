@@ -7,6 +7,21 @@
 // execution plans, split off from `chronon3d::graph::GraphExecutor` so the
 // executor itself can be stateless (no internal mutex, no internal cache).
 //
+// ──────────────────────────────────────────────────────────────────────────
+// Work Package 2 — supplementary status
+// ──────────────────────────────────────────────────────────────────────────
+// `FrameGraphCompiler` (in
+// `<chronon3d/render_graph/compiler/frame_graph_compiler.hpp>`) is the
+// SOLE topology-plan producer for production traffic.  This cache is
+// `supplementary`: it is consumed only by the retained test-only
+// `GraphExecutor::execute(RenderGraph&, ...)` overloads and by the
+// SoftwareBackend debug pipeline (`src/render_graph/pipeline/debug.cpp`).
+// Production callers MUST use the
+// `GraphExecutor::execute(CompiledFrameGraph&, ...)` overload, which
+// reads `compiled.levels` directly and does NOT consult this cache; the
+// `plan_cache` argument there is a no-op kept only for API parity.
+// ──────────────────────────────────────────────────────────────────────────
+//
 // Construction: shared_ptr-mutable, owned by:
 //
 //   - SoftwareRenderer (one per renderer instance)
