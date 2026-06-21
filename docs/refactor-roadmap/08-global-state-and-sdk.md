@@ -232,3 +232,34 @@ documentation so the audit anchor survives.
 - `docs/CHANGELOG.md` R6 entry — External SDK migration note +
   the body bullets for RenderGraph& overloads +
   ExecutionPlanCache retirement.
+
+### Skip-safety constraints (NITs)
+
+- **Per-node determinism (NIT-1)** — the `build_node_metadata`
+  skip is only sound when every `compiled.nodes[id].cache_policy`
+  and `compiled.nodes[id].stable_node_id` is deterministically
+  re-derivable from `graph + ctx.policy` alone (no per-call
+  entropy).  Otherwise compile() MUST re-derive each node's
+  record even when the topology hash matches.
+- **Fall-through on hash mismatch (NIT-3)** — when the caller
+  asserts `ctx.policy.graph_structure_unchanged=true` but the
+  freshly recomputed `structure_hash` differs from the cached
+  prior hash, compile() MUST fall through to the full
+  `build_execution_levels` + `build_node_metadata` path —
+  partial skip would silently drift caller-side invariants.
+- **Cache location (NIT-2)** — where the prior
+  `structure_hash` lives (caller-side field on
+  `SoftwareRenderer`? entry in `SessionServices`? wrapper struct
+  in `render_engine`?) is a design decision for the future PR.
+  This section only standardises the comparison primitive; the
+  storage home is intentionally left to the future implementation.
+
+### Affordance attribution (MINOR)
+
+- The `CompiledFrameGraph::structure_hash` affordance is an
+  inference drawn from the executor's retired plan-cache
+  fast-path branch (archived in commit `9f9af90e`).  Audit §9.4
+  itself only writes `stable fast-path` — no hash primitive is
+  named there.  Future readers reconciling against the audit log
+  should know the keying is reasoned **backwards** from the
+  executor branch, not lifted verbatim from §9.4.
