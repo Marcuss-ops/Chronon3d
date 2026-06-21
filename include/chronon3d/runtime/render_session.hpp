@@ -14,7 +14,8 @@
 // (`render_graph/core/scene_hasher.hpp`) — a `core/` header must never
 // depend on a backend.
 //
-// Split into three structs:
+// Split into TWO structs defined here, plus a third composition owned
+// elsewhere:
 //
 //   - RenderSession            — engine-generic per-session state that any
 //                                 RenderBackend implementation can consume
@@ -26,8 +27,17 @@
 //                                 scratch).  Lives in `backends/software/`
 //                                 semantically; declared here only as a
 //                                 convenience wrapper for SoftwareRenderer.
-//   - SoftwareRenderSession    — composition of the two above, owned by
-//                                 SoftwareRenderer as `m_session`.
+//
+//   Plus a canonical composition outside this header:
+//
+//   - SoftwareRenderSession    — `RenderSession` + `SoftwareSessionResources`.
+//                                 Defined exclusively at
+//                                 `<chronon3d/backends/software/software_render_session.hpp>`
+//                                 since WP-3 PR 3.4 close-out.  Users that
+//                                 need the wrapper struct must include
+//                                 that canonical header (the legacy
+//                                 duplicate that used to live here was
+//                                 removed to eliminate ODR duplication).
 //
 // GraphExecutor::execute() takes a `RenderSession&` (the engine-generic
 // half) so the executor stays backend-agnostic; software-specific session
@@ -54,10 +64,15 @@
 // header (`backends/software/software_session_resources.hpp`).  The
 // previous stale 2-field inline duplicate in this file caused a
 // C++-level struct redefinition error; this include brings the
-// canonical 3-field struct in.  `SoftwareRenderSession` exposes only
-// `reset_frame_temporaries()` and `reset_job()` (which forward to both
-// halves); the legacy `clear_per_frame()` has been retired — callers
-// must migrate to the explicit reset variants.
+// canonical 3-field struct in.  `SoftwareSessionResources::reset_job()`
+// is the canonical full-reset path.
+//
+// `SoftwareRenderSession` (the composition wrapper) is NOT defined in
+// this header — it lives canonically at
+// `<chronon3d/backends/software/software_render_session.hpp>` so there
+// is exactly ONE definition of the struct across the codebase (no ODR
+// risk from re-inclusion; WP-3 close-out removed the legacy duplicate
+// that used to live here).
 #include <chronon3d/backends/software/software_session_resources.hpp>
 
 namespace chronon3d {
@@ -104,10 +119,8 @@ struct RenderSession {
     // `reset_job()` is a FULL reset: telemetry + history + scene
     // hasher + cache stores that are session-scoped (program_store).
     // Use this when the session is being reused for an unrelated job
-    // and the previous fingerprints no longer apply.
-    //
-    // The legacy `clear_per_frame()` has been REMOVED — callers must
-    // use one of the two methods above.  See
+    // and the previous fingerprints no longer apply.  WP-3 close-out
+    // collapsed the legacy full-reset shim into this method.  See
     // `docs/refactor-roadmap/03-render-session-boundary.md`.
 
     /// Per-frame reset (telemetry tracking only).  History preserved.
@@ -131,49 +144,16 @@ struct RenderSession {
         }
     }
 
-    // NOTE: `clear_per_frame()` was retired — the legacy semantics
-    // ("erase everything except arena") is now provided by
-    // `reset_job()`.  Callers that previously relied on the historical
-    // method migrated to `reset_job()` in WP-3 PR 3.4 close-out.
+    // WP-3 PR 3.4 close-out: the legacy full-reset shim was retired.
+    // Callers that previously relied on the historical "erase
+    // everything except arena" semantics now use `reset_job()`.
 };
 
-/// Composition of engine-generic + software-specific session state.
-///
-/// SoftwareRenderer holds one of these as `m_session`; the public accessors
-/// `session()` return the engine-generic half and `software_session()` the
-/// full composition, so callers that only need the engine-generic half
-/// (e.g. GraphExecutor) keep working without pulling in software internals.
-///
-/// Reset semantics mirror the canonical header
-/// `<chronon3d/backends/software/software_render_session.hpp>`:
-/// `reset_frame_temporaries()` forwards to BOTH halves so a per-frame
-/// boundary wipes dirty telemetry AND the transform scratch (the buffer
-/// ring is preserved because it carries the previous frame's output);
-/// `reset_job()` forwards to BOTH halves for a full job reset (telemetry,
-/// history, buffer ring, transform scratch, scene hasher, program store).
-struct SoftwareRenderSession {
-    RenderSession            common;
-    SoftwareSessionResources software;
-
-    /// Per-frame reset (telemetry + transform scratch).  Buffer ring
-    /// preserved.  Mirrors the canonical definition.
-    void reset_frame_temporaries() {
-        common.reset_frame_temporaries();
-        software.reset_frame_temporaries();
-    }
-
-    /// Full per-job reset (telemetry + history + buffer ring + scratch +
-    /// hasher + program store).  Mirrors the canonical definition.
-    void reset_job() {
-        common.reset_job();
-        software.reset_job();
-    }
-
-    // NOTE: `clear_per_frame()` was retired in WP-3 PR 3.4 close-out.
-    // Its semantics (frame_history/dirty_telemetry/layer_history/scene_hasher
-    // reset) were folded into `reset_job()` above.  No callers remain —
-    // `git grep clear_per_frame -- include/ src/ tests/ apps/` must return
-    // zero hits.
-};
+// SoftwareRenderSession is intentionally NOT defined here.
+// Use: #include <chronon3d/backends/software/software_render_session.hpp>
+// for the canonical struct (engine-generic + software-backend composition).
+// This header keeps only `RenderSession` so the runtime/ layer does not
+// have a struct ODR defined twice across two headers.  See PR 3.1 + 3.4
+// in `docs/refactor-roadmap/03-render-session-boundary.md`.
 
 } // namespace chronon3d

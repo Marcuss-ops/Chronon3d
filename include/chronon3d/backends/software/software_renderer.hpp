@@ -28,6 +28,11 @@
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/backends/software/software_session_resources.hpp>
+// WP-3 PR 3.4 close-out: include the canonical SoftwareRenderSession
+// definition directly.  The legacy duplicate struct that used to live
+// in <chronon3d/runtime/render_session.hpp> has been removed to eliminate
+// ODR risk (two struct definitions with identical members).
+#include <chronon3d/backends/software/software_render_session.hpp>
 #include <chronon3d/core/config.hpp>
 
 #include <memory>
@@ -131,10 +136,11 @@ public:
 
     /// Clear all caches (image, font, node, pool, graph, frame state).
     /// Forwards to the runtime's NodeCache/FramebufferPool/CompiledGraphCache.
-    /// WP-3 PR 3.4 close-out: `clear_per_frame()` was retired; the
-    /// session reset below is now `m_session.reset_job()` which performs
-    /// the same full reset (telemetry + history + buffer_ring +
-    /// scratch_buffer + scene_hasher + program_store) on both halves.
+    /// WP-3 PR 3.4 close-out: the session reset invokes
+    /// `SoftwareRenderSession::reset_job()` (the canonical full-reset
+    /// path that collapses the legacy shim into the explicit reset
+    /// APIs; both halves — `RenderSession` and `SoftwareSessionResources`
+    /// — are reset).
     void clear_caches() {
         m_image_renderer.clear_cache();
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
