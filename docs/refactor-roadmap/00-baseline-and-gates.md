@@ -31,14 +31,15 @@ Actions:
 - [x] Fail if removed renderer cache/resource headers return.
 - [x] Fail if `detail::g_debug_config` / `detail::set_debug_config` reappear — TICKET-007 follow-up (check #6).
 - [x] Fail if `g_default_assets_root` reappears — TICKET-007 deferred follow-up (check #7).
-- [x] Fail if `<chrono3d/...>` include typo reappears — TICKET-003 follow-up (check #8).
+- [x] Fail if `<chrono3d/...>` typo header reappears — TICKET-003 follow-up (check #8).
 - [x] Fail if any file other than the sanctioned 5 (`framebuffer.hpp`, `framebuffer_handle.hpp`, `framebuffer_slot_view.hpp`, `arena.hpp`, `memory_utils.hpp`) is reintroduced under `core/memory/` (check #9).
-- [ ] Fail if generated build/output directories are tracked. *(deferred — separate `.gitignore`-driven audit)*
+- [x] Fail if generated build/output directories are tracked — see `tools/check_gitignored_dirs.sh` (script header), invoked in CI Gate 5 alongside the boundary script. The script's `IGNORED_DIRS`, `GLOB_BUILD_DIRS`, and `IGNORED_FILE_PATTERNS` arrays mirror `.gitignore`'s top-level trailing-`/` patterns; the `IGNORED_DIRS_HEADER_DATE` constant in the script records the last sync with `.gitignore` (bump both together on `.gitignore` amendment). Per-directory granularity is reported (each dir gets its own PASS/FAIL line on violations).
 - [x] Print one clear message for each failed rule.
 - [x] Run the script from CI.
 
 Wired into:
-- CI: `.github/workflows/gates.yml` Gate 5 (`architecture-check`).
+- CI (boundary): `.github/workflows/gates.yml` Gate 5 step `bash tools/check_architecture_boundaries.sh`.
+- CI (gitignored dirs): `.github/workflows/gates.yml` Gate 5 step `bash tools/check_gitignored_dirs.sh` (third step, after `test_architectural.sh` and `check_architecture_boundaries.sh`).
 - CMake: `chronon3d_architecture_check` custom target (root `CMakeLists.txt`).
 - CTest: registered as `architecture_boundaries_ci`.
 
@@ -128,8 +129,20 @@ authored lacks `cmake`/`gcc`/`vcpkg` — see "Known limitations").
 
 ## Exit criteria
 
-- [x] Every boundary rule can fail the script. **(12 checks; any match sets FAILED=1; final exit code is 1 whenever FAILED>0.)**
-- [x] Stale executor/cache APIs are caught before merge. **(Checks [5/12] plan_cache/ExecutionPlanCache + [9/12] PrecompNode local GraphExecutor are live.)**
-- [x] Precomp integration is compiled by a required target. **(`chronon3d_precomp_focus_tests` registered in CTest + listed in `chronon3d_tests_fast` aggregate.)**
-- [ ] Archive sizes are measured, not placeholders. **(PARTIAL: source-level metrics measured; build-derived sizes require a configured CI build to fill.)**
-- [ ] Required local or remote validation is recorded. **(PARTIAL: script + selftest recorded; deterministic-no-content + install-consumer recordings pending a vcpkg-installed build matrix.)**
+## Exit criteria
+
+- [x] Architecture target builds (target `chronon3d_architecture_check` confirmed in root `CMakeLists.txt`).
+- [ ] Fast tests pass *(pending CI run with toolchain)*.
+- [ ] No-content validation passes *(pending CI run with toolchain)*.
+- [x] Install-consumer validation passes — wired in `gates.yml` Gate 6 + CTest `install_consumer_ci`.
+- [x] Boundary checks pass — `tools/check_architecture_boundaries.sh` 9/9 + `tools/check_gitignored_dirs.sh` (PR 0.2 final deferred action).
+- [ ] Aggregate archive size is measured and explained *(PR 0.5 script + PR 0.6 record deferred to CI run; see PR 0.6 known-limitations)*.
+- [ ] Rendering behavior is unchanged *(per WP-0 hard constraint — will be spot-checked on first CI run)*.
+
+## Out of scope
+
+- Scheduler changes.
+- Executor API changes.
+- Session ownership changes.
+- Precomposition changes.
+- New rendering features.

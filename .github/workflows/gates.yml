@@ -209,6 +209,7 @@ jobs:
         run: |
           chmod +x tools/test_architectural.sh
           chmod +x tools/check_architecture_boundaries.sh
+          chmod +x tools/check_gitignored_dirs.sh
           test -x tools/check_skipped_tests.sh || chmod +x tools/check_skipped_tests.sh
 
       - name: Run tools/test_architectural.sh
@@ -216,6 +217,9 @@ jobs:
 
       - name: Run tools/check_architecture_boundaries.sh
         run: bash tools/check_architecture_boundaries.sh
+
+      - name: Run tools/check_gitignored_dirs.sh
+        run: bash tools/check_gitignored_dirs.sh
 
   # ─────────────────────────────────────────────────────────────────────
   # 6. Install consumer — end-to-end SDK boundary test (PR-0).
