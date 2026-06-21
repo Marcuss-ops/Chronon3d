@@ -12,6 +12,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/text/text_resolver.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <doctest/doctest.h>
 
 using namespace chronon3d;
@@ -39,7 +40,7 @@ TEST_CASE("TextResolver: empty document returns empty tree") {
     TextDocument doc;
     // Don't call split_paragraphs — the resolver will return empty tree
     // for documents without paragraphs.
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     auto tree = resolve_text_run_tree(doc, engine);
     CHECK(tree.paragraphs.empty());
     CHECK(tree.total_runs() == 0);
@@ -51,8 +52,7 @@ TEST_CASE("TextResolver: empty document returns empty tree") {
 
 TEST_CASE("TextResolver: single paragraph produces single LTR run") {
     auto doc = make_doc("Hello world");
-    FontEngine engine;
-
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     auto tree = resolve_text_run_tree(doc, engine);
     REQUIRE(tree.paragraphs.size() == 1);
     REQUIRE(tree.paragraphs[0].runs.size() == 1);
@@ -85,7 +85,7 @@ TEST_CASE("TextResolver: font-override span creates separate run") {
 
     doc.split_paragraphs();
 
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     auto tree = resolve_text_run_tree(doc, engine);
 
     REQUIRE(tree.paragraphs.size() == 1);
@@ -112,8 +112,7 @@ TEST_CASE("TextResolver: mixed LTR/RTL text produces directional runs") {
     // The Arabic word is U+0633 U+0644 U+0627 U+0645
     std::string mixed = "Hello \xD8\xB3\xD9\x84\xD8\xA7\xD9\x85 World";
     auto doc = make_doc(mixed);
-    FontEngine engine;
-
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     auto tree = resolve_text_run_tree(doc, engine);
     REQUIRE(tree.paragraphs.size() == 1);
 
@@ -147,7 +146,7 @@ TEST_CASE("TextResolver: mixed LTR/RTL text produces directional runs") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextResolver: resolve_fallback_fonts returns primary if loadable") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     FontSpec spec;
     spec.font_family = "DejaVu Sans";
 
@@ -166,8 +165,7 @@ TEST_CASE("TextResolver: resolve_fallback_fonts returns primary if loadable") {
 
 TEST_CASE("TextResolver: newline creates separate paragraphs") {
     auto doc = make_doc("Line one\nLine two\nLine three");
-    FontEngine engine;
-
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     auto tree = resolve_text_run_tree(doc, engine);
     REQUIRE(tree.paragraphs.size() == 3);
 
@@ -178,8 +176,7 @@ TEST_CASE("TextResolver: newline creates separate paragraphs") {
 
 TEST_CASE("TextResolver: consecutive newlines produce empty paragraph") {
     auto doc = make_doc("Para A\n\nPara C");
-    FontEngine engine;
-
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     auto tree = resolve_text_run_tree(doc, engine);
     REQUIRE(tree.paragraphs.size() == 3);
 
@@ -206,7 +203,7 @@ TEST_CASE("TextResolver: paragraph style propagates to runs") {
     pr.style.composer = ParagraphComposer::EveryLine;
     doc.paragraphs.push_back(pr);
 
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     auto tree = resolve_text_run_tree(doc, engine);
     REQUIRE(tree.paragraphs.size() == 1);
     REQUIRE(tree.paragraphs[0].runs.size() == 1);
@@ -223,8 +220,7 @@ TEST_CASE("TextResolver: paragraph style propagates to runs") {
 
 TEST_CASE("TextResolver: same input produces same output") {
     auto doc = make_doc("Hello world\nSecond paragraph");
-    FontEngine engine;
-
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     auto a = resolve_text_run_tree(doc, engine);
     auto b = resolve_text_run_tree(doc, engine);
 

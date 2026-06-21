@@ -1,4 +1,5 @@
 #include "test_text_quality_helpers.hpp"
+#include <chronon3d/runtime/render_runtime.hpp>
 using namespace chronon3d;
 using namespace test_text_quality;
 
@@ -7,7 +8,7 @@ using namespace test_text_quality;
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextQuality: RTL — Arabic text shapes correctly") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     const std::string arabic =
@@ -29,7 +30,7 @@ TEST_CASE("TextQuality: RTL — Arabic text shapes correctly") {
 }
 
 TEST_CASE("TextQuality: RTL — Hebrew text shapes correctly") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     const std::string hebrew =
@@ -50,7 +51,7 @@ TEST_CASE("TextQuality: RTL — Hebrew text shapes correctly") {
 }
 
 TEST_CASE("TextQuality: RTL — LTR text shapes correctly with explicit direction") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     TextShaping ltr_shaping;
@@ -66,7 +67,7 @@ TEST_CASE("TextQuality: RTL — LTR text shapes correctly with explicit directio
 }
 
 TEST_CASE("TextQuality: RTL — multi-glyph cluster (ligature) has correct is_cluster_start") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     const std::string lam_alef =
@@ -90,7 +91,7 @@ TEST_CASE("TextQuality: RTL — multi-glyph cluster (ligature) has correct is_cl
 }
 
 TEST_CASE("TextQuality: RTL — Arabic positions are in visual (right-to-left) order") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     const std::string arabic =
@@ -115,7 +116,7 @@ TEST_CASE("TextQuality: RTL — Arabic positions are in visual (right-to-left) o
 }
 
 TEST_CASE("TextQuality: RTL — LTR and RTL produce different glyph orders") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     const std::string arabic =
@@ -147,7 +148,7 @@ TEST_CASE("TextQuality: RTL — LTR and RTL produce different glyph orders") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextQuality: stroke vs fill — glyph IDs match between fill and stroke") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     auto run = shape(engine, "ABC", 32.0f);
@@ -160,7 +161,7 @@ TEST_CASE("TextQuality: stroke vs fill — glyph IDs match between fill and stro
 }
 
 TEST_CASE("TextQuality: stroke vs fill — advances are consistent per glyph") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     auto run = shape(engine, "AV", 32.0f);
@@ -175,7 +176,7 @@ TEST_CASE("TextQuality: stroke vs fill — advances are consistent per glyph") {
 }
 
 TEST_CASE("TextQuality: stroke vs fill — same shaped text produces same glyph count") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     auto run1 = shape(engine, "Hello", 32.0f);
@@ -188,7 +189,7 @@ TEST_CASE("TextQuality: stroke vs fill — same shaped text produces same glyph 
 }
 
 TEST_CASE("TextQuality: stroke vs fill — text with tracking preserves glyph count") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     auto run = shape(engine, "Test", 24.0f);
@@ -203,7 +204,7 @@ TEST_CASE("TextQuality: stroke vs fill — text with tracking preserves glyph co
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextQuality: conicTo — glyph bboxes scale linearly with font size") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     auto run16 = shape(engine, "O", 16.0f);
@@ -225,7 +226,7 @@ TEST_CASE("TextQuality: conicTo — glyph bboxes scale linearly with font size")
 }
 
 TEST_CASE("TextQuality: conicTo — round glyph 'O' has near-square bbox") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     auto run = shape(engine, "O", 64.0f);
@@ -241,7 +242,7 @@ TEST_CASE("TextQuality: conicTo — round glyph 'O' has near-square bbox") {
 }
 
 TEST_CASE("TextQuality: conicTo — serif glyphs ('S') have correct bbox proportions") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     auto run = shape(engine, "S", 64.0f);
@@ -265,7 +266,7 @@ TEST_CASE("TextQuality: conicTo — serif glyphs ('S') have correct bbox proport
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextQuality: stroke GPOS — kerning pair 'AV' has correct offsets") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     auto run = shape(engine, "AV", 72.0f);
@@ -293,7 +294,7 @@ TEST_CASE("TextQuality: stroke GPOS — kerning pair 'AV' has correct offsets") 
 }
 
 TEST_CASE("TextQuality: stroke GPOS — offsets do not accumulate across 3 glyphs") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     auto run = shape(engine, "AVA", 72.0f);
@@ -310,7 +311,7 @@ TEST_CASE("TextQuality: stroke GPOS — offsets do not accumulate across 3 glyph
 }
 
 TEST_CASE("TextQuality: stroke GPOS — combining accent has y_offset") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     const std::string e_acute = "e\xCC\x81";
@@ -334,7 +335,7 @@ TEST_CASE("TextQuality: stroke GPOS — combining accent has y_offset") {
 }
 
 TEST_CASE("TextQuality: stroke GPOS — offsets small relative to advance") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     const char* test_strings[] = {"AV", "VA", "AT", "TA", "AVATAR", "TO", "WO"};
@@ -358,7 +359,7 @@ TEST_CASE("TextQuality: stroke GPOS — offsets small relative to advance") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextQuality: complex — Arabic 'hello' has consistent glyph IDs") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     const std::string arabic =
@@ -398,7 +399,7 @@ TEST_CASE("TextQuality: complex — Arabic 'hello' has consistent glyph IDs") {
 }
 
 TEST_CASE("TextQuality: complex — same Arabic text shapes identically twice") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     const std::string arabic =
@@ -425,7 +426,7 @@ TEST_CASE("TextQuality: complex — same Arabic text shapes identically twice") 
 }
 
 TEST_CASE("TextQuality: complex — Hebrew has consistent cluster mapping") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     const std::string hebrew =
@@ -455,7 +456,7 @@ TEST_CASE("TextQuality: complex — Hebrew has consistent cluster mapping") {
 }
 
 TEST_CASE("TextQuality: complex — Devanagari does not crash or produce empty glyphs") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     const std::string devanagari =
@@ -497,7 +498,7 @@ TEST_CASE("TextQuality: complex — Devanagari does not crash or produce empty g
 }
 
 TEST_CASE("TextQuality: complex — CJK has valid glyph IDs and advances") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     const std::string cjk = "\xE4\xBD\xA0\xE5\xA5\xBD\xE4\xB8\x96\xE7\x95\x8C";

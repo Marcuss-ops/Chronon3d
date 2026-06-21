@@ -1,4 +1,5 @@
 #include <doctest/doctest.h>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
@@ -74,7 +75,7 @@ TEST_CASE("LayerBuilder: animations resolve in layer-local time") {
 }
 
 TEST_CASE("LayerBuilder: font_engine setter and getter") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     LayerBuilder b("layer");
     CHECK(b.font_engine() == nullptr);
 
