@@ -2,82 +2,111 @@
 
 ## Current state
 
-`SceneProgramStore`, `PrecompCachePolicy`, and a thin `PrecompNode` exist. The remaining work is correctness, ownership, identity, and concurrency.
+Completed:
+
+- `SceneProgramStore` is owned per render session.
+- Per-owner policy conflicts are rejected.
+- Cache entries use `shared_ptr<CompiledSceneProgram>`.
+- In-flight program lifetime survives store `clear()`.
+- Automatic tune counting and interval-triggered tuning exist.
+- Different owner buckets can be looked up independently without a global render lock.
+
+The current blockers are integration correctness and mutable-program synchronization.
 
 ## TODO
 
-### PR 5.0 — Repair current call sites
+### PR 5.0 — Repair `PrecompNode` header/implementation mismatch
 
-- [ ] Replace stale `session->program_store->...` calls with the final accessor or job-owned store API.
-- [ ] Update precomp tests that still access a removed `program_store` field.
-- [ ] Borrow the wired executor service instead of constructing a local executor in `PrecompNode::execute()`.
-- [ ] Add a compile-focused test covering the precomp execution translation unit.
+Files:
+- `include/chronon3d/render_graph/nodes/precomp_node.hpp`
+- `src/render_graph/cache/precomp_node_execute.cpp`
 
-### PR 5.1 — Use the real precomp owner key
+Actions:
 
-Current keying uses composition-name hash plus node zero.
+- [ ] Remove constructor initialization of the deleted `m_instance_key` member.
+- [ ] Implement `instance_key(const RenderGraphContext&) const noexcept` with the exact header signature.
+- [ ] Use a local owner key derived from `ctx.node_exec.current_identity`.
+- [ ] Replace `auto* program = lease.program` with `lease.get()` or an owning local `shared_ptr`.
+- [ ] Borrow `session->services.executor`; do not construct `GraphExecutor local_executor`.
+- [ ] Validate `ctx.services.scheduler` and executor wiring before nested execution.
+- [ ] Update comments that still claim composition-name keying is correct.
+- [ ] Add a required compile target/test for this translation unit.
 
-- [ ] Build `PrecompInstanceKey` from parent `GraphInstanceId` and current `StableNodeId`.
-- [ ] Obtain identity from node execution state, not from `comp_name` alone.
-- [ ] Remove the cached composition-name-only key from `PrecompNode`.
-- [ ] Test two sibling nodes using the same composition and verify separate buckets.
+### PR 5.1 — Add a real per-owner execution lease
 
-### PR 5.2 — Implement a real `ProgramLease`
+The current lease protects object lifetime, but not mutable payload refresh and execution.
 
-The lease must own lifetime and synchronization, not only a raw pointer.
+Required design:
 
-- [ ] Hold a `shared_ptr` to the selected program or another stable owning handle.
-- [ ] Hold a per-instance execution lock across lookup, compile, payload refresh, nested execute, and accounting.
-- [ ] Keep `clear()` from invalidating an in-flight program.
-- [ ] Allow different precomp instance buckets to execute concurrently.
-- [ ] Avoid a global store lock during compilation or rendering.
+```text
+InstanceEntry
+  cache
+  immutable policy
+  execution mutex
 
-### PR 5.3 — Make policy immutable per owner
+ProgramLease
+  shared owner entry
+  unique execution lock
+  shared program
+```
 
-- [ ] Reject conflicting cache policy for an existing owner key.
-- [ ] Do not silently reconfigure one bucket because another caller supplied different policy.
-- [ ] Record composition identity and policy in the bucket for diagnostics.
-- [ ] Forward eviction callbacks without storing mutable callback ownership on the node when avoidable.
+Actions:
 
-### PR 5.4 — Restore automatic tuning
+- [ ] Add one execution mutex per `PrecompInstanceKey` bucket.
+- [ ] Acquire the lock before returning a usable program lease.
+- [ ] Hold it across payload refresh, parameter refresh, nested execute, and execution accounting.
+- [ ] Keep different owner buckets fully concurrent.
+- [ ] Do not hold the global store-map mutex during compile or render.
+- [ ] Ensure `clear()` cannot invalidate either the program or the locked bucket entry.
 
-- [ ] Add an atomic execution counter to the cache or bucket.
-- [ ] Add `record_execution()` and trigger `auto_tune()` at `TuneConfig::interval`.
-- [ ] Count both hits and misses consistently.
-- [ ] Preserve min/max capacity and fixed mode.
-- [ ] Reset tuning counters when the owning render job resets.
-- [ ] Test tuning through `SceneProgramStore`, not by manually calling `cache.auto_tune()`.
+### PR 5.2 — Resolve duplicate compile races
 
-### PR 5.5 — Restore job-scoped ownership
+`find_or_compile()` currently compiles outside the cache lock, so same-key misses may compile twice.
 
-- [ ] Move mutable store ownership from `RenderRuntime` to the render job/session.
-- [ ] Keep runtime-level defaults or policy factories immutable.
-- [ ] Ensure one session reset cannot clear another session's programs.
-- [ ] Preserve a graph-free runtime session header using opaque implementation storage if needed.
+- [ ] Add per-structure-key single-flight behavior or document and test an accepted duplicate-compile policy.
+- [ ] Ensure only one canonical program is inserted for a given owner/structure key.
+- [ ] Keep unrelated structure keys concurrent.
+- [ ] Count hits/misses consistently under races.
 
-### PR 5.6 — Resolve mutable parameter state
+### PR 5.3 — Move mutable parameter state under the same owner
 
-- [ ] Decide whether `FrameParameterBlock` belongs to the node or the per-instance bucket.
-- [ ] Move it into the bucket if it is refreshed together with the cached compiled program.
-- [ ] Protect it with the same lease when mutable.
+- [ ] Decide whether `FrameParameterBlock` belongs in the per-owner entry.
+- [ ] Move it out of `PrecompNode` if it is refreshed with cached program payloads.
+- [ ] Protect it with the same execution lease.
+- [ ] Prevent sibling or tile executions from mutating one parameter block concurrently.
 
-### PR 5.7 — Add concurrency and lifetime tests
+### PR 5.4 — Fix eviction callback ownership
+
+- [ ] Stop using a raw bucket pointer as the primary callback-rewire identity.
+- [ ] Store callback state on the owner entry or return a stable owner generation token.
+- [ ] Preserve callback wiring after `clear()` and bucket recreation.
+- [ ] Ensure callbacks do not retain a destroyed `PrecompNode` accidentally.
+
+### PR 5.5 — Complete concurrency and lifetime tests
 
 - [ ] repeated-frame reuse for one owner
 - [ ] same composition, different owner isolation
+- [ ] invalid identity does not alias production buckets
 - [ ] conflicting policy rejection
-- [ ] automatic tuning interval
+- [ ] automatic tuning interval and min/max behavior
 - [ ] reset isolation between sessions
-- [ ] concurrent access to one bucket
-- [ ] parallel access to different buckets
+- [ ] concurrent access to one owner bucket
+- [ ] parallel access to different owner buckets
 - [ ] concurrent `clear()` with an in-flight lease
-- [ ] tile refresh plus nested execute on the same program
+- [ ] same-key compile race
+- [ ] tile refresh plus nested execute on one program
+- [ ] eviction callback after bucket recreation
+
+## Dependencies
+
+- Owner-key correctness depends on Work Package 4.
+- Full tile/precomp race coverage depends on Work Package 6.
 
 ## Exit criteria
 
-- [ ] All call sites use the final store API.
-- [ ] Owner keys come from graph and stable node identity.
+- [ ] `PrecompNode` header and implementation compile against one contract.
+- [ ] Owner keys come from local node identity.
 - [ ] `ProgramLease` protects lifetime and mutable execution.
-- [ ] Auto-tune runs automatically.
-- [ ] Mutable store state is isolated per render job.
+- [ ] Same-key compilation behavior is deterministic and tested.
+- [ ] Mutable parameter state is protected by the owner lease.
 - [ ] Same-composition sibling nodes cannot share a bucket accidentally.
