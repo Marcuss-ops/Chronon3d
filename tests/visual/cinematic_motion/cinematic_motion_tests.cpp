@@ -26,7 +26,7 @@ const std::filesystem::path kArtifactDir = "artifacts/visual/cinematic_motion";
 
 /// Helper: create a fresh SoftwareRenderer with deterministic settings.
 static SoftwareRenderer make_test_renderer() {
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     RenderSettings settings;
     settings.diagnostics.enabled = true;
     renderer.set_settings(settings);

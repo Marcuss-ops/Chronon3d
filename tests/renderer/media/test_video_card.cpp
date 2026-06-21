@@ -95,7 +95,7 @@ TEST_CASE("VideoCard: video_size controls decoder dimensions") {
     };
 
     auto comp = make_video_card_comp(0.0f, {320, 180});
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);

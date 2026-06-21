@@ -10,7 +10,7 @@ if(CHRONON3D_BUILD_BENCHMARKS AND TARGET benchmark::benchmark_main)
     )
     target_link_libraries(chronon3d_benchmarks
         PRIVATE
-            chronon3d_pipeline
+            chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline
             chronon3d_graph_cache
             benchmark::benchmark_main
     )
@@ -23,7 +23,7 @@ if(CHRONON3D_BUILD_BENCHMARKS AND TARGET benchmark::benchmark_main)
     )
     target_link_libraries(chronon3d_scene_program_benchmarks
         PRIVATE
-            chronon3d_pipeline
+            chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline
             chronon3d_graph_cache
             benchmark::benchmark_main
     )

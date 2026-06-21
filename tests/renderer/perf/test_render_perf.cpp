@@ -38,7 +38,7 @@ long long render_ms(SoftwareRenderer& r, Composition& comp, int frames) {
 
 TEST_CASE("perf: 3 frame 480x270 sotto 500ms") {
     auto comp = make_perf_comp(480, 270);
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
 
     auto ms = render_ms(renderer, comp, 3);
@@ -48,7 +48,7 @@ TEST_CASE("perf: 3 frame 480x270 sotto 500ms") {
 
 TEST_CASE("perf: render frame singolo 480x270 sotto 200ms") {
     auto comp = make_perf_comp(480, 270);
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
 
     auto t0 = profiling::now();
@@ -62,7 +62,7 @@ TEST_CASE("perf: render frame singolo 480x270 sotto 200ms") {
 
 TEST_CASE("perf: warm render e' piu' veloce del cold") {
     auto comp = make_perf_comp(480, 270);
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
 
     // Cold

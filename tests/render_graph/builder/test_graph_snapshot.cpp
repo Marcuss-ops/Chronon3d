@@ -134,7 +134,7 @@ TEST_CASE("GraphContract: same scene produces identical DOT across renders") {
 
     Scene scene = make_simple_scene(W, H);
     Camera camera;
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
 
     // Render twice and collect DOT from debug output
@@ -144,7 +144,7 @@ TEST_CASE("GraphContract: same scene produces identical DOT across renders") {
     auto dot1 = debug_scene_graph(renderer, node_cache, scene, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
 
     // Reset and render again
-    SoftwareRenderer renderer2;
+    SoftwareRenderer renderer2(Config{});
     cache::NodeCache node_cache2;
     auto fb2 = render_composition_frame(renderer2, node_cache2, {}, nullptr, nullptr,
         Composition(CompositionSpec{.name = "snap2", .width = W, .height = H, .duration = 1},
@@ -193,7 +193,7 @@ TEST_CASE("GraphContract: layer order change produces different graph and finger
     Scene scene_normal = make_simple_scene(W, H);
     Scene scene_reversed = make_reversed_layer_order_scene(W, H);
     Camera camera;
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
 
     auto dot_normal = debug_scene_graph(renderer, node_cache, scene_normal, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
@@ -222,7 +222,7 @@ TEST_CASE("GraphContract: normalized DOT is deterministic") {
 
     Scene scene = make_simple_scene(W, H);
     Camera camera;
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
 
     auto dot = debug_scene_graph(renderer, node_cache, scene, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
@@ -232,7 +232,7 @@ TEST_CASE("GraphContract: normalized DOT is deterministic") {
     CHECK_FALSE(normalized.empty());
 
     // Render again and verify normalized output matches
-    SoftwareRenderer renderer2;
+    SoftwareRenderer renderer2(Config{});
     cache::NodeCache node_cache2;
     auto dot2 = debug_scene_graph(renderer2, node_cache2, scene, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
     auto normalized2 = normalize_dot(dot2);
@@ -251,7 +251,7 @@ TEST_CASE("GraphContract: different scenes produce different graphs") {
     Scene scene_a = make_simple_scene(W, H);
     Scene scene_b = make_different_scene(W, H);
     Camera camera;
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
 
     auto stats_a = analyze_scene_graph(renderer, node_cache, scene_a, camera, W, H, 0, 0.0f, {}, nullptr, nullptr, false, false);

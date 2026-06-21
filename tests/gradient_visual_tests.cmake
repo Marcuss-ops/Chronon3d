@@ -9,6 +9,7 @@ add_executable(chronon3d_gradient_visual_tests
 
 target_link_libraries(chronon3d_gradient_visual_tests
     PRIVATE
+        chronon3d_sdk
         chronon3d_visual_test_support
         chronon3d_backend_software
         chronon3d_backend_image

@@ -207,6 +207,7 @@ foreach(_chronon3d_impl_obj IN ITEMS
         chronon3d_blend2d_paint
         chronon3d_backend_software_diagnostics
         chronon3d_content
+        chronon3d_content
         chronon3d_diagnostics)
     if(TARGET ${_chronon3d_impl_obj})
         target_link_libraries(chronon3d_sdk_impl PRIVATE ${_chronon3d_impl_obj})
@@ -235,6 +236,52 @@ target_link_libraries(chronon3d_sdk INTERFACE
     $<BUILD_INTERFACE:chronon3d_pipeline>
     $<INSTALL_INTERFACE:chronon3d_sdk_impl>
 )
+# TICKET-011 cmake-boundary (Branch C fix): OBJECT .o propagation.
+# CMake does NOT transitively propagate OBJECT .o files through
+# INTERFACE → STATIC → EXECUTABLE chains.  We must explicitly bind
+# each OBJECT library's compiled objects via $<TARGET_OBJECTS> so
+# they appear as direct inputs on the final executable link line.
+# The $<BUILD_INTERFACE:...> guard ensures these object files only
+# appear during in-tree builds, not in installed consumers.
+target_sources(chronon3d_sdk INTERFACE
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_core_impl>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_animations>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_cache>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_effects>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_registry>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_assets>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_scene>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_runtime>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_extension>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_text_core>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_backend_image>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_backend_software>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_backend_assets>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_core>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_nodes>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_builder>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_executor>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_compiler>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_preflight>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_cache>>
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_pipeline>>
+)
+# Conditional OBJECT libraries — guarded so disabled features don't
+# produce dangling generator-expression references.
+foreach(_chronon3d_obj IN ITEMS
+        chronon3d_backend_video
+        chronon3d_media_video
+        chronon3d_backend_text
+        chronon3d_blend2d_paint
+        chronon3d_backend_software_diagnostics
+        chronon3d_content
+        chronon3d_diagnostics)
+    if(TARGET ${_chronon3d_obj})
+        target_sources(chronon3d_sdk INTERFACE
+            $<BUILD_INTERFACE:$<TARGET_OBJECTS:${_chronon3d_obj}>>
+        )
+    endif()
+endforeach()
 set_target_properties(chronon3d_sdk PROPERTIES EXPORT_NAME SDK)
 add_library(Chronon3D::SDK ALIAS chronon3d_sdk)
 

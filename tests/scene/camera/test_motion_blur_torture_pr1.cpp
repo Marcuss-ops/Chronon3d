@@ -92,7 +92,7 @@ std::shared_ptr<Framebuffer> render_with_mb(
     const MotionBlurSettings& mb,
     Frame frame)
 {
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     RenderSettings s;
     s.motion_blur = mb;
     renderer.set_settings(s);

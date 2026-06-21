@@ -54,7 +54,7 @@ add_executable(chronon3d_scene_tests
     scene/test_motion_graph_prewarm.cpp
     render_graph/builder/test_graph_snapshot.cpp
 )
-target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline chronon3d_scene chronon3d_backend_software doctest::doctest)
+target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline chronon3d_scene chronon3d_backend_software doctest::doctest)
 # TICKET-006: SCENE_TEXT_TESTS (test_layer_builder_animated, layout_design_kit,
 # test_text_run_builder) call into chronon3d_text_core symbols whose definitions
 # live in chronon3d_backend_text. Without this guard the linker errors with:

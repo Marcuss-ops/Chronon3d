@@ -11,7 +11,7 @@ using namespace chronon3d;
 static std::shared_ptr<Framebuffer> render_stack_fn(
     std::function<Scene(const FrameContext&)> fn, int w = 80, int h = 80)
 {
-    SoftwareRenderer rend;
+    SoftwareRenderer rend(Config{});
     Composition comp(CompositionSpec{.width=w,.height=h,.duration=1}, fn);
     return rend.render_frame(comp, 0);
 }

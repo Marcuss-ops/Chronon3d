@@ -32,7 +32,7 @@ TEST_CASE("Builtin background compositions are registered") {
 }
 
 TEST_CASE("Analytical verification of GridCleanBackground render") {
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
