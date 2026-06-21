@@ -6,7 +6,7 @@ This directory now lists only unfinished architectural work. Completed checklist
 
 ## Current main
 
-Audited at commit `0795453251d4a8a88c188d6b186461a1abe915fa`.
+Audited at commit `53de5b2f8ef48f5ebc0f29d2dafe4841a2674f31`.
 
 Completed and removed from the active roadmap:
 
