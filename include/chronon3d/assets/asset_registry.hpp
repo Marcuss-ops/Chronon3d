@@ -63,18 +63,24 @@ public:
         m_root_path.clear();
     }
 
-    // ── Non-static resolve (preferred — use from RenderContext) ────────
-
-    [[nodiscard]] std::string resolve_path(const std::filesystem::path& relative_path) const {
-        if (relative_path.is_absolute()) {
-            return relative_path.lexically_normal().string();
-        }
-        std::lock_guard<std::mutex> lock(m_mutex);
-        if (!m_root_path.empty()) {
-            return (m_root_path / relative_path).lexically_normal().string();
-        }
-        return relative_path.lexically_normal().string();
-    }
+    // ── Non-static resolve (PREFERRED use from RenderContext) ────────
+    //
+    // WP-8 PR 8.2 — `AssetRegistry::resolve_path(relative_path)` has
+    // been REMOVED.  The typed sibling `chronon3d::assets::AssetResolver`
+    // (owned by RenderRuntime as a sibling of AssetRegistry; reachable
+    // via `runtime.resolver()` for direct access, or via
+    // `runtime.services().asset_resolver` when a per-frame ctx is in
+    // scope) is the canonical typed resolution path.  Pre-PR-8.2
+    // callers should migrate to:
+    //
+    //     auto& resolver = runtime.resolver();                 // primary
+    //                  OR chronon3d::runtime::detail::typed_resolver_for_deep_code();
+    //     auto opt = resolver.resolve_lexical(relative);   // optional<filesystem::path>
+    //     const std::string resolved = opt ? opt->string() : std::string{relative};
+    //
+    // For callers that hold an explicit `assets_root`, the two-argument
+    // free function `resolve_asset_path(assets_root, relative_path)`
+    // below is unchanged.
 
     // ── Import (non-static) ────────────────────────────────────────────
 
@@ -221,18 +227,22 @@ private:
 // `chronon3d::detail::g_default_assets_root` + `detail::set_default_assets_root`
 // pair that backed it have been deleted.
 //
-// Migration target for deep rendering code (font_engine,
-// text_rasterizer, preflight, etc.) is the typed bridge in
-// `<chronon3d/runtime/render_runtime.hpp>`:
+// WP-8 PR 8.2 — the single-argument `runtime::resolve_asset_path(relative)`
+// free function has ALSO been deleted (it was the runtime-layer sibling
+// of `AssetRegistry::resolve_path` and has now been replaced wholesale
+// by the typed resolver path, see `asset_resolver.hpp`).
 //
-//     chronon3d::runtime::resolve_asset_path(relative)
-//
-// which reads the active RenderRuntime's default_assets_root first and
-// falls back to `runtime::process_wide_assets_root()` for contexts that
-// don't construct a runtime (CLI init before engine creation, test
-// fixtures, content-module test contracts).
-//
-// Two-argument `resolve_asset_path(root, relative_path)` is unchanged
-// (callers that already hold an explicit assets_root continue to use it).
+// Current canonical resolution paths:
+//   1. `RenderRuntime::resolver()` — direct accessor on the engine
+//      instance; for long-lived callers (SoftwareRenderer, script APIs,
+//      plugins).
+//   2. `runtime.services().asset_resolver` (or
+//      `ctx.services.asset_resolver` in per-frame contexts) — service-
+//      locator where a `RenderServices` is already in scope.
+//   3. `chronon3d::runtime::detail::typed_resolver_for_deep_code()`
+//      — service-locator for callers that have no RenderRuntime in
+//      their call stack (font_engine, text_rasterizer, preflight, etc.).
+//   4. Two-argument `resolve_asset_path(assets_root, relative_path)`
+//      below — UNCHANGED for callers that already hold an explicit root.
 
 } // namespace chronon3d
