@@ -5,7 +5,7 @@
 //
 // WP-6 PR 6.8 — Baseline verde verificabile per docs/02-determinism.md.
 //
-// 4 test che PASSANO OGGI e dimostrano il sottoinsieme bit-exact del
+// 6 test che PASSANO OGGI e dimostrano il sottoinsieme bit-exact del
 // determinismo del renderer.  Ciascuno chiude uno dei blocchi "rimasti"
 // di docs/02 (§2 Serial path, §3 TBB path, §4 Composite path) usando
 // pattern che ISOLANO lo stato del renderer tra render (fresh renderer
@@ -27,7 +27,23 @@
 //     render (helper `render_in_arena(slots, ...)` di
 //     gradient_determinism_tests.cpp è uno standard di fatto).
 //
-// Test lattice: 4 TEST_CASE.  Ciascuno copre un blocco specifico di
+// WP-6 PR 6.8.5 — Q6 hybrid sentinel strategy (analogo a
+// `test_scheduler_determinism.cpp::kRefStaticScene`):
+//   • Self-consistency CHECK esistente rimane — cattura rot
+//     scheduler-state locale (catches `tbb::worker-local closure`
+//     rot che farebbe divergere due render anche su backend stabile).
+//   • Nuovo sentinel-gated REQUIRE: ogni TEST_CASE confronta il primo
+//     hash osservato con `kRefBaseline<Name>`, fallendo al primo
+//     mismatch quando il sentinel è stato popolato.  Sentinella
+//     inizializzata a `kUncapturedSentinel` (`0xDEADBEEFDEADBEEFULL`)
+//     → prima CI run popola via `doctest::MESSAGE` nella
+//     `else { MESSAGE(...) }` branch.
+//   • Strategia ibrida: il CHECK loop protegge da rot runtime; il
+//     REQUIRE sentinel protegge da regression backend-graph
+//     (cambio di backend che sposta bit-pattern).  Insieme coprono
+//     sia rot scheduler-state che rot pipeline.
+//
+// Test lattice: 6 TEST_CASE.  Ciascuno copre un blocco specifico di
 // docs/02-determinism.md.  Lo stato di docs/02 viene aggiornato per
 // riflettere il verdetto REALE (verde dove PASSATO, rosso dove rot
 // persiste).
@@ -135,6 +151,44 @@ ArenaPinnedRenderResult render_in_arena(int slots, SoftwareRenderer& r,
     return out;
 }
 
+// === Q6-hybrid sentinel constants =========================================
+//
+// Patterned after `tests/render_graph/executor/test_scheduler_determinism.cpp`
+// `kRefStaticScene`/`kRefWarmCacheScene`/`kRefColdCacheScene` per
+// reviewer round 2 della Q6 hybrid strategy.  Sentinel
+// `0xDEADBEEFDEADBEEFULL` è distinto dall'FNV1a-64 offset basis
+// `0xCBF29CE484222325` (usato da `fnv1a64` in scheduler test) per
+// evitare collision silenziosa; è un puro "first-run marker".  Quando
+// il sentinel è popolato (`kUncapturedSentinel` → real hash), il
+// confronto `REQUIRE(hash == kRef...)` fallisce sul primo drift di
+// backend roadmap (es. cambio di compositore, ottimizzazione path).
+//
+// To populate: run `ctest -R 'Baseline green' -V` once on a clean
+// linux-ci checkout, copy each of the 6 MESSAGE-printed hashes into
+// its corresponding `kRefBaseline*` constant, and re-build.  All
+// subsequent runs REQUIRE exact match.
+//
+// Mapping (constants ↔ TEST_CASE):
+//   kRefBaselineFreshShader  ↔ §1 "30 fresh renderers produce identical composite hashes"
+//   kRefBaselineArenaPin     ↔ §2 "serial-mode (arena(1)) produces identical hashes over 30 renders"
+//   kRefBaselineThreadEq     ↔ §3 "1t == 4t == 8t bit-exact under per-render tbb arena pin"
+//   kRefBaselineComposite    ↔ §4 "30 consecutive composite-full-frame renders — pixel-identical"
+//   kRefBaselineSsim         ↔ §5 "composite path SSIM ≥ 0.999 across 2 renders"
+//   kRefBaselinePrecompCache ↔ §6 "precomp cache-hit determinism"
+
+constexpr std::uint64_t kUncapturedSentinel = 0xDEADBEEFDEADBEEFULL;
+
+constexpr std::uint64_t kRefBaselineFreshShader  = kUncapturedSentinel;
+constexpr std::uint64_t kRefBaselineArenaPin     = kUncapturedSentinel;
+constexpr std::uint64_t kRefBaselineThreadEq     = kUncapturedSentinel;
+constexpr std::uint64_t kRefBaselineComposite    = kUncapturedSentinel;
+constexpr std::uint64_t kRefBaselineSsim         = kUncapturedSentinel;
+constexpr std::uint64_t kRefBaselinePrecompCache = kUncapturedSentinel;
+
+inline bool is_reference_captured(std::uint64_t r) noexcept {
+    return r != kUncapturedSentinel;
+}
+
 } // anonymous namespace
 
 
@@ -166,6 +220,15 @@ TEST_CASE("Baseline green §1: 30 fresh renderers produce identical composite ha
     for (std::size_t i = 1; i < hashes.size(); ++i) {
         INFO("Render " << i << " differs from render 0");
         CHECK(hashes[i] == hashes[0]);
+    }
+
+    // Q6-hybrid backend-graph regression guard (PR 6.8.5):
+    // populate kRefBaselineFreshShader from this test's MESSAGE branch
+    // on the FIRST clean linux-ci run, then REQUIRE exact match thereafter.
+    if (is_reference_captured(kRefBaselineFreshShader)) {
+        REQUIRE(hashes[0] == kRefBaselineFreshShader);
+    } else {
+        MESSAGE("kRefBaselineFreshShader unset; first hash to capture: " << hashes[0]);
     }
 }
 
@@ -200,6 +263,15 @@ TEST_CASE("Baseline green §2: serial-mode (arena(1)) produces identical hashes 
         INFO("Render " << i << " differs from render 0");
         CHECK(hashes[i] == hashes[0]);
     }
+
+    // Q6-hybrid backend-graph regression guard (PR 6.8.5):
+    // populate kRefBaselineArenaPin from this test's MESSAGE branch on
+    // the FIRST clean linux-ci run, then REQUIRE exact match thereafter.
+    if (is_reference_captured(kRefBaselineArenaPin)) {
+        REQUIRE(hashes[0] == kRefBaselineArenaPin);
+    } else {
+        MESSAGE("kRefBaselineArenaPin unset; first hash to capture: " << hashes[0]);
+    }
 }
 
 
@@ -230,6 +302,17 @@ TEST_CASE("Baseline green §3: 1t == 4t == 8t bit-exact under per-render tbb are
          << " 8t hash=" << res_8t.hash);
     CHECK(res_1t.hash == res_4t.hash);
     CHECK(res_1t.hash == res_8t.hash);
+
+    // Q6-hybrid backend-graph regression guard (PR 6.8.5):
+    // populate kRefBaselineThreadEq from the 1t arm on the FIRST
+    // clean linux-ci run, then REQUIRE exact match thereafter.  The
+    // 4t/8t arms are transitively verified by their CHECK equality
+    // with res_1t.hash above (kRefBaselineThreadEq == res_1t.hash).
+    if (is_reference_captured(kRefBaselineThreadEq)) {
+        REQUIRE(res_1t.hash == kRefBaselineThreadEq);
+    } else {
+        MESSAGE("kRefBaselineThreadEq unset; first hash to capture: " << res_1t.hash);
+    }
 }
 
 
@@ -264,6 +347,15 @@ TEST_CASE("Baseline green §4: 30 consecutive composite-full-frame renders — p
         INFO("Render " << i << " differs from render 0");
         CHECK(hashes[i] == hashes[0]);
     }
+
+    // Q6-hybrid backend-graph regression guard (PR 6.8.5):
+    // populate kRefBaselineComposite from this test's MESSAGE branch
+    // on the FIRST clean linux-ci run, then REQUIRE exact match thereafter.
+    if (is_reference_captured(kRefBaselineComposite)) {
+        REQUIRE(hashes[0] == kRefBaselineComposite);
+    } else {
+        MESSAGE("kRefBaselineComposite unset; first hash to capture: " << hashes[0]);
+    }
 }
 
 
@@ -291,6 +383,18 @@ TEST_CASE("Baseline green §5: composite path SSIM ≥ 0.999 across 2 renders") 
 
     const float ssim = ssim_luminance(*fb1, *fb2);
     CHECK(ssim >= 0.999f);
+
+    // Q6-hybrid backend-graph regression guard (PR 6.8.5):
+    // for §5 we lock the bit-stable framebuffer_hash(*fb1) rather than
+    // the float SSIM value (the SSIM check is already enforced above
+    // as `ssim >= 0.999f`; the hash locks the actual paint path that
+    // produces the pixels — bit-for-bit backend identity contract).
+    const std::uint64_t hash5 = framebuffer_hash(*fb1);
+    if (is_reference_captured(kRefBaselineSsim)) {
+        REQUIRE(hash5 == kRefBaselineSsim);
+    } else {
+        MESSAGE("kRefBaselineSsim unset; first hash to capture: " << hash5);
+    }
 }
 
 
@@ -355,4 +459,14 @@ TEST_CASE("Baseline green §6: precomp cache-hit determinism — two consecutive
 
     INFO("cache-miss hash=" << hash_miss << "  cache-hit hash=" << hash_hit);
     CHECK(hash_miss == hash_hit);
+
+    // Q6-hybrid backend-graph regression guard (PR 6.8.5):
+    // we lock hash_miss; hash_hit is transitively validated by the
+    // CHECK(hash_miss == hash_hit) above.  One sentinel is enough
+    // because the equality check is already in the test body.
+    if (is_reference_captured(kRefBaselinePrecompCache)) {
+        REQUIRE(hash_miss == kRefBaselinePrecompCache);
+    } else {
+        MESSAGE("kRefBaselinePrecompCache unset; first hash to capture: " << hash_miss);
+    }
 }
