@@ -35,6 +35,6 @@ struct RenderLoopResult {
 /// @return         Aggregated result with timing and telemetry.
 RenderLoopResult run_render_job_loop(
     const RenderJobPlan& plan,
-    SoftwareRenderer& renderer);
+    SoftwareRenderer & renderer);
 
 } // namespace chronon3d::cli

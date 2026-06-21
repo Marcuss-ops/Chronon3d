@@ -1,7 +1,7 @@
 // ============================================================================
 // src/backends/software/software_processor_context.cpp
 //
-// 06 R2 — companion definition for `make_processor_context(SoftwareRenderer&)`
+// 06 R2 — companion definition for `make_processor_context(SoftwareRenderer &)`
 // declared in `software_processor_context.hpp`.
 //
 // Pulls the heavy `software_renderer.hpp` here (one .cpp), so the

@@ -17,7 +17,7 @@ namespace chronon3d::cli {
 
 RenderLoopResult run_render_job_loop(
     const RenderJobPlan& plan,
-    SoftwareRenderer& renderer)
+    SoftwareRenderer & renderer)
 {
     RenderLoopResult result;
 

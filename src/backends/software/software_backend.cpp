@@ -63,7 +63,7 @@ SoftwareBackend::~SoftwareBackend() = default;
 void SoftwareBackend::draw_node(Framebuffer&, const RenderNode&, const RenderState&,
                                  const Camera&, int, int) {
     // Intentionally empty: draw_node lives on SoftwareRenderer because
-    // ShapeProcessor::draw() currently takes SoftwareRenderer& (not RenderBackend&).
+    // ShapeProcessor::draw() currently takes SoftwareRenderer & (not RenderBackend&).
     // This override satisfies the pure-virtual contract from RenderBackend.
 }
 

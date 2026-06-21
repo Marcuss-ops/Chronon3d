@@ -64,7 +64,7 @@ fi
 
 # -- I4: nessuna dynamic_cast<SoftwareRenderer*>
 casts=$(grep -RIn 'dynamic_cast<SoftwareRenderer' \
-  src/ include/chronon3d/ apps/ 2>/dev/null | wc -l)
+  src/ include/chronon3d/ apps/ 2>/dev/null | wc -l || true)
 if [[ "$casts" -ne 0 ]]; then
   fail "I4: $casts dynamic_cast<SoftwareRenderer*> ancora presenti"
   grep -RIn 'dynamic_cast<SoftwareRenderer' src/ include/chronon3d/ apps/ 2>/dev/null \
@@ -80,7 +80,7 @@ proc_uses=$(grep -RIn 'SoftwareRenderer&' \
   src/render_graph/ \
   src/runtime/ \
   include/chronon3d/backends/ \
-  2>/dev/null | wc -l)
+  2>/dev/null | wc -l || true)
 if [[ "$proc_uses" -ne 0 ]]; then
   fail "I5: $proc_uses riferimenti SoftwareRenderer& nelle superfici di processo (target R2)"
   grep -RIn 'SoftwareRenderer&' \

@@ -11,7 +11,7 @@
 namespace chronon3d::cli {
 
 bool write_render_frame(const Composition& comp,
-                        SoftwareRenderer& renderer,
+                        SoftwareRenderer & renderer,
                         Frame frame,
                         const FrameRange& range,
                         const std::string& output_pattern,

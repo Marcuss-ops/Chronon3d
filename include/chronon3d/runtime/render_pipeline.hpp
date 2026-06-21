@@ -6,7 +6,7 @@
 // TICKET-011a follow-up #1 — typed facade over the underlying graph
 // orchestration functions.
 //
-// RenderPipeline holds a `(SoftwareRenderer&, RenderRuntime&)` pair
+// RenderPipeline holds a `(SoftwareRenderer &, RenderRuntime&)` pair
 // constructed after the SoftwareBackend is attached in
 // `RenderEngine::Impl`.  Its member methods delegate 1:1 to the
 // existing free functions in `<chronon3d/render_graph/pipeline/
@@ -69,7 +69,7 @@ class RenderPipeline {
 public:
     /// Construct the pipeline with a (renderer, runtime) wired pair.
     /// Both references must outlive the pipeline instance.
-    RenderPipeline(SoftwareRenderer& renderer, RenderRuntime& runtime) noexcept;
+    RenderPipeline(SoftwareRenderer & renderer, RenderRuntime& runtime) noexcept;
 
     // ── Primary rendering entry points ─────────────────────────────
     [[nodiscard]] std::shared_ptr<Framebuffer> render_scene(
@@ -88,7 +88,7 @@ public:
         Frame frame = 0, f32 frame_time = 0.0f);
 
 private:
-    SoftwareRenderer& m_renderer;
+    SoftwareRenderer & m_renderer;
     RenderRuntime&    m_runtime;
 };
 
