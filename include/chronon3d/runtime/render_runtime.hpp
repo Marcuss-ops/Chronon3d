@@ -66,6 +66,8 @@
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
+#include <chronon3d/render_graph/cache/scene_program_store.hpp>
+#include <chronon3d/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/pipeline/pipeline_catalogs.hpp>
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
@@ -114,6 +116,12 @@ struct RenderServices {
     chronon3d::graph::GraphNodeCatalog*       graph_node_registry{nullptr};
     chronon3d::effects::EffectCatalog*        effect_catalog{nullptr};
     chronon3d::runtime::ExecutionPlanCache*  plan_cache{nullptr};
+    /// WP-8 follow-up — runtime-owned scene hasher (relocated from
+    /// RenderSession).  Lifetime: the runtime's; non-owning pointer.
+    chronon3d::graph::SceneHasher*          scene_hasher{nullptr};
+    /// WP-8 follow-up — runtime-owned scene program store (relocated
+    /// from RenderSession).  Lifetime: the runtime's; non-owning pointer.
+    chronon3d::graph::SceneProgramStore*    program_store{nullptr};
 };
 
 /// RenderRuntime — engine-lifetime container.
@@ -178,6 +186,17 @@ public:
     [[nodiscard]] chronon3d::effects::EffectCatalog&       effect_catalog() noexcept { return *m_owned_effect_catalog; }
     [[nodiscard]] chronon3d::ExecutionScheduler&           scheduler()      noexcept { return *m_scheduler; }
 
+    // ── WP-8 scene-hasher + scene-program-store (relocated from RenderSession) ──
+    // These two engines of session-scoped state used to live on
+    // RenderSession (which leaked the headers into the runtime layer).
+    // Runtime now owns them; RenderSession's `scene_hasher()` /
+    // `program_store()` accessors route through the SessionServices
+    // pointer that `make_session()` populates from these accessors.
+    [[nodiscard]] chronon3d::graph::SceneHasher&       scene_hasher()       noexcept { return m_owned_scene_hasher; }
+    [[nodiscard]] const chronon3d::graph::SceneHasher& scene_hasher() const noexcept { return m_owned_scene_hasher; }
+    [[nodiscard]] chronon3d::graph::SceneProgramStore&       program_store()       noexcept { return *m_owned_program_store; }
+    [[nodiscard]] const chronon3d::graph::SceneProgramStore& program_store() const noexcept { return *m_owned_program_store; }
+
     // ── Default assets root ──────────────────────────────────────────
     [[nodiscard]] const std::string& default_assets_root() const noexcept { return m_default_assets_root; }
 
@@ -201,6 +220,14 @@ private:
     std::unique_ptr<chronon3d::graph::GraphNodeCatalog>       m_owned_graph_node_registry;
     std::unique_ptr<chronon3d::effects::EffectCatalog>        m_owned_effect_catalog;
     std::unique_ptr<chronon3d::ExecutionScheduler>            m_scheduler;
+    // WP-8 follow-up: scene_hasher + scene_program_store relocated
+    // from RenderSession so that the runtime/ header is engine-generic
+    // again (TICKET-013 + TICKET-017).  Default-constructed (engine
+    // starts with empty scene fingerprints) and constructed in
+    // populate() respectively; same destruction semantics as every
+    // other m_owned_* slot.
+    chronon3d::graph::SceneHasher                      m_owned_scene_hasher{};
+    std::unique_ptr<chronon3d::graph::SceneProgramStore> m_owned_program_store;
 
     std::unique_ptr<chronon3d::graph::RenderBackend>   m_backend;
     std::string                                       m_default_assets_root;

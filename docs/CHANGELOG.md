@@ -164,6 +164,71 @@ Unificato con S5.
 - `src/c_api/c_api_internal.hpp` — nuovo header interno condiviso (`chronon_context` struct + dichiarazioni helper)
 - `CMakeLists.txt` aggiornato con i 4 file sorgente
 
+### R5 — WP-8 close-out: `render_session.hpp` is engine-generic again
+
+2026-06-21 — The three structural cross-layer dependencies that WP-8
+flags on `include/chronon3d/runtime/render_session.hpp` are
+**resolved**:
+
+**TICKET-013 — scene_hasher relocated**
+- `graph::SceneHasher scene_hasher;` was a value member on
+  `RenderSession`.  It is now `m_owned_scene_hasher{}` on
+  `RenderRuntime` (default-constructible value, `populate()` does
+  not have to reserve it explicitly — runtime owns).
+- `RenderSession` reaches it through `services.scene_hasher`
+  (new pointer in `SessionServices`), populated by
+  `runtime::make_session()`.
+- The header `<chronon3d/runtime/render_session.hpp>` now only
+  forward-declares `graph::SceneHasher`; the include
+  `<chronon3d/render_graph/core/scene_hasher.hpp>` is gone.
+
+**TICKET-014 — software_session_resources include dropped**
+- The legacy use of `SoftwareSessionResources` inside this header
+  was eliminated when WP-3 PR 3.4 closed out the legacy
+  `SoftwareRenderSession` struct from this file.  Post-WP-3 the only
+  remaining reference was a doc-comment block — the include is now
+  gone.
+
+**TICKET-017 — scene_program_store relocated**
+- `std::unique_ptr<graph::SceneProgramStore> program_store{...}`
+  was a member on `RenderSession`.  It is now
+  `m_owned_program_store` on `RenderRuntime` (unique_ptr; runtime
+  constructs it in `populate()`).
+- `RenderSession` reaches it through `services.program_store`
+  (new pointer in `SessionServices`); `reset_job()` now calls
+  `services.program_store->clear()` instead of touching the field
+  directly.
+- The header only forward-declares `graph::SceneProgramStore`; the
+  include `<chronon3d/render_graph/cache/scene_program_store.hpp>`
+  is gone.
+
+**Migration details**
+- New file: `src/runtime/render_session.cpp` holds the bodies for
+  the four accessor methods (`scene_hasher()`, `program_store()`,
+  non-const + const overloads) and the `reset_job()` body.  Pulled
+  out of the runtime/ header so the header stays free of
+  `render_graph/core/scene_hasher.hpp` and
+  `render_graph/cache/scene_program_store.hpp`.
+- `RenderRuntime::RenderServices` extended with two pointer
+  members: `graph::SceneHasher* scene_hasher` and
+  `graph::SceneProgramStore* program_store`.
+- `runtime::SessionServices` extended with the same two pointer
+  members; `runtime::make_session()` populates them.
+- `render_session.hpp`-driven `m_session.scene_hasher()` callers
+  (e.g. `SoftwareRenderer::scene_hasher()`) continue to work
+  because the canonical accessor method on
+  `RenderSession` now proxies through `services`.
+- `SoftwareRenderer::scene_hasher()` and the new
+  `SoftwareRenderer::program_store()` accessors route through
+  `m_runtime->scene_hasher()` /
+  `m_runtime->program_store()`.
+
+**Boundary test** — the dict `KNOWN_VIOLATIONS` in
+`tests/architecture/test_render_session_includes_boundary.py` is
+empty; the test now outputs
+`OK: include-graph boundary invariants satisfied (errors=0).`
+without emitting any `INFO:` lines.
+
 ### R4 — WP-3 PR 3.4 close-out: legacy full-reset shim RETIRED + legacy `SoftwareRenderSession` removed
 
 2026-06-21 — The WP-3 PR 3.4 close-out completed the reset-semantics

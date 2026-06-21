@@ -49,31 +49,20 @@
 // Engine-generic field includes (acceptable from runtime/).
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/math/renderer_state.hpp>
-#include <chronon3d/render_graph/core/scene_hasher.hpp>
-#include <chronon3d/render_graph/cache/scene_program_store.hpp>
 #include <chronon3d/runtime/session_services.hpp>
 
-// Software-specific field includes (TICKET-008 note: lives in runtime/ for
-// tuple ergonomics; the runtime/ layer is intentional here because
-// `SoftwareRenderSession` is a composition owned by SoftwareRenderer, not a
-// dependency of the runtime/ layer on the backend — see TICKET-009 for the
-// next-step caching separation that will move these into RenderRuntime).
-//
-// TICKET-011-final consolidation: the canonical definition of
-// `SoftwareSessionResources` lives in this single, semantically-correct
-// header (`backends/software/software_session_resources.hpp`).  The
-// previous stale 2-field inline duplicate in this file caused a
-// C++-level struct redefinition error; this include brings the
-// canonical 3-field struct in.  `SoftwareSessionResources::reset_job()`
-// is the canonical full-reset path.
-//
-// `SoftwareRenderSession` (the composition wrapper) is NOT defined in
-// this header — it lives canonically at
-// `<chronon3d/backends/software/software_render_session.hpp>` so there
-// is exactly ONE definition of the struct across the codebase (no ODR
-// risk from re-inclusion; WP-3 close-out removed the legacy duplicate
-// that used to live here).
-#include <chronon3d/backends/software/software_session_resources.hpp>
+// WP-8 follow-up — two graph types are forward-declared so the
+// runtime/ header can hold accessor *method declarations* whose
+// return types reference these engine-internal structs.  Full
+// definitions for `graph::SceneHasher` and
+// `graph::SceneProgramStore` live in their canonical headers; this
+// runtime/ header does NOT pull them in (TICKET-013/017 boundary
+// invariant).  Bodies of accessors and of `reset_job()` live in
+// the parallel `src/runtime/render_session.cpp`.
+namespace chronon3d::graph {
+    struct SceneHasher;
+    class  SceneProgramStore;
+}
 
 namespace chronon3d {
 
@@ -98,55 +87,42 @@ struct RenderSession {
     RendererFrameHistory    frame_history;
     RendererDirtyTelemetry  dirty_telemetry;
     RendererLayerHistory    layer_history;
-    graph::SceneHasher      scene_hasher;
     runtime::SessionServices services;
-    std::unique_ptr<graph::SceneProgramStore> program_store{
-        std::make_unique<graph::SceneProgramStore>()};
-
-    /// Convenience accessor for the frame arena.
-    [[nodiscard]] FrameArena& arena() noexcept { return *arena_ptr; }
-    [[nodiscard]] const FrameArena& arena() const noexcept { return *arena_ptr; }
-
-    // ── Work Package 3 — explicit reset semantics ────────────────────
-    //
-    // `reset_frame_temporaries()` clears ONLY frame-scoped telemetry
-    // tracking (DirtyHistory counters).  This is what callers should
-    // invoke at the start of every new frame for a job that is being
-    // continued across frames; it preserves history (frame scene
-    // fingerprints, layer bbox history, scene-hasher state) so the
-    // next frame's diff logic keeps working.
-    //
-    // `reset_job()` is a FULL reset: telemetry + history + scene
-    // hasher + cache stores that are session-scoped (program_store).
-    // Use this when the session is being reused for an unrelated job
-    // and the previous fingerprints no longer apply.  WP-3 close-out
-    // collapsed the legacy full-reset shim into this method.  See
-    // `docs/refactor-roadmap/03-render-session-boundary.md`.
+    // WP-8 follow-up: scene_hasher + program_store relocated to
+    // RenderRuntime.  RenderSession now reaches them through the
+    // SessionServices pointer bundle that runtime::make_session()
+    // populates from runtime.services().  Declared/defined bodies
+    // live in src/runtime/render_session.cpp so this header stays
+    // free of `render_graph/core/scene_hasher.hpp` and
+    // `render_graph/cache/scene_program_store.hpp` includes
+    // (TICKET-013 + TICKET-017 boundary invariant).
 
     /// Per-frame reset (telemetry tracking only).  History preserved.
     void reset_frame_temporaries() {
         dirty_telemetry = RendererDirtyTelemetry{};
     }
 
-    /// Full per-job reset (telemetry + history + scene hasher + caches).
-    void reset_job() {
-        // Telemetry first (frame-scoped).
-        reset_frame_temporaries();
-        // Then history.
-        frame_history   = RendererFrameHistory{};
-        layer_history   = RendererLayerHistory{};
-        // Per-session scene-hasher state.
-        scene_hasher    = graph::SceneHasher{};
-        // Invalidate the per-session program cache so identity-keyed
-        // entries don't carry over across unrelated render jobs.
-        if (program_store) {
-            program_store->clear();
-        }
-    }
+    // Convenience accessors that proxy the runtime-owned state via
+    // services.  Bodies in src/runtime/render_session.cpp.
+    [[nodiscard]] chronon3d::graph::SceneHasher&       scene_hasher()       noexcept;
+    [[nodiscard]] const chronon3d::graph::SceneHasher& scene_hasher() const noexcept;
+    [[nodiscard]] chronon3d::graph::SceneProgramStore&       program_store()       noexcept;
+    [[nodiscard]] const chronon3d::graph::SceneProgramStore& program_store() const noexcept;
 
-    // WP-3 PR 3.4 close-out: the legacy full-reset shim was retired.
-    // Callers that previously relied on the historical "erase
-    // everything except arena" semantics now use `reset_job()`.
+    /// Arena accessor (still engine-generic; lives on the session).
+    [[nodiscard]] FrameArena&       arena()       noexcept { return *arena_ptr; }
+    [[nodiscard]] const FrameArena& arena() const noexcept { return *arena_ptr; }
+
+    /// Convenience alias matching the unchanged access pattern: callers
+    /// that previously did `m_session.common.scene_hasher()` continue
+    /// to work transparently after this WP-8 close-out — the body
+    /// now proxies via `services.scene_hasher` (runtime-owned).
+    ///
+    /// Full per-job reset (telemetry + history + runtime-owned
+    /// scene_hasher + program_store via services).  WP-3 collapsed
+    /// the legacy shim into this method; WP-8 made the proxy
+    /// explicit.  See `docs/refactor-roadmap/03-render-session-boundary.md`.
+    void reset_job();
 };
 
 // SoftwareRenderSession is intentionally NOT defined here.
