@@ -17,6 +17,11 @@ set(CHRONON3D_RUNTIME_SOURCES
     # ── TICKET-011a follow-up #1 — RenderPipeline typed facade over
     #    graph::render_scene_via_graph / graph::render_composition_frame.
     render_pipeline.cpp
+    # ── WP-8 follow-up — RenderSession accessor + reset_job bodies
+    #    moved out of the runtime/render_session.hpp header so the
+    #    header stays free of graph::SceneHasher and SceneProgramStore
+    #    full-type includes (TICKET-013 / TICKET-017 boundary).
+    render_session.cpp
 )
 
 if(CHRONON3D_ENABLE_TELEMETRY)

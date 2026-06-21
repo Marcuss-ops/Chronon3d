@@ -21,7 +21,12 @@
 // ----------------------------------------------------------------------
 
 namespace chronon3d::cache { class NodeCache; class FramebufferPool; }
-namespace chronon3d::graph { class GraphExecutor; class CompiledGraphCache; }
+namespace chronon3d::graph {
+    class GraphExecutor;
+    class CompiledGraphCache;
+    struct SceneHasher;
+    class  SceneProgramStore;
+}
 namespace chronon3d { class AssetRegistry; }
 
 namespace chronon3d::runtime {
@@ -40,6 +45,14 @@ struct SessionServices {
     /// Pointer to the runtime's `default_assets_root`.  Non-owning;
     /// valid for the lifetime of the runtime.
     const std::string*                       default_assets_root{nullptr};
+    /// WP-8 follow-up — pointer to runtime-owned scene hasher
+    /// (was a value member on RenderSession via render_session.hpp's
+    /// scene_hasher.hpp include; relocated to runtime).  Non-owning.
+    chronon3d::graph::SceneHasher*           scene_hasher{nullptr};
+    /// WP-8 follow-up — pointer to runtime-owned program store
+    /// (was a unique_ptr member on RenderSession; relocated to runtime).
+    /// Non-owning.
+    chronon3d::graph::SceneProgramStore*    program_store{nullptr};
 };
 
 } // namespace chronon3d::runtime

@@ -315,8 +315,14 @@ public:
     [[nodiscard]] const RendererDirtyTelemetry& dirty_telemetry() const { return m_session.common.dirty_telemetry; }
     [[nodiscard]] RendererLayerHistory& layer_history() { return m_session.common.layer_history; }
     [[nodiscard]] const RendererLayerHistory& layer_history() const { return m_session.common.layer_history; }
-    [[nodiscard]] graph::SceneHasher& scene_hasher() { return m_session.common.scene_hasher; }
-    [[nodiscard]] const graph::SceneHasher& scene_hasher() const { return m_session.common.scene_hasher; }
+    // WP-8 follow-up — scene_hasher + program_store ownership moved
+    // off RenderSession onto RenderRuntime.  These convenience
+    // accessors now route through m_runtime (the renderer always has
+    // a valid runtime pointer per the ctor init list guarantees).
+    [[nodiscard]] graph::SceneHasher& scene_hasher() { return m_runtime->scene_hasher(); }
+    [[nodiscard]] const graph::SceneHasher& scene_hasher() const { return m_runtime->scene_hasher(); }
+    [[nodiscard]] graph::SceneProgramStore& program_store() { return m_runtime->program_store(); }
+    [[nodiscard]] const graph::SceneProgramStore& program_store() const { return m_runtime->program_store(); }
 
     // ── Convenience methods for graph pipeline orchestration ────────────
     void mark_fast_path_reused(Frame frame, const Camera2_5D& cam, uint64_t combined_fp) {
