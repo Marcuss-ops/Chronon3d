@@ -2,18 +2,20 @@
 # gates.yml — Chronon3D Pre-Merge Gate Pipeline (cheap gates)
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-# Five cheap gates that run on every PR (and on push to main as a safety net).
+# Six cheap gates that run on every PR (and on push to main as a safety net).
 # The sixth, `full-validation`, lives in a separate workflow
 # `.github/workflows/gates-full-validation.yml` whose `on: pull_request.paths`
 # filter runs it ONLY when the PR touches include/, src/, CMakeLists.txt,
 # CMakePresets.json, vcpkg.json, or .github/workflows/.
 #
 # Job catalog (this file):
-#   1. core-build           — Text/Video/Content/Diagnostics OFF.
-#   2. sdk-build            — Text+Blend2D ON, no Content/Video.
-#   3. public-header-check  — Every public header compiled standalone.
-#   4. install-consumer-check — cmake --install + external find_package.
-#   5. architecture-check   — Static rules + doctest skip tickets.
+#   1. core-build               — Text/Video/Content/Diagnostics OFF.
+#   2. sdk-build                — Text+Blend2D ON, no Content/Video.
+#   3. public-header-check      — Every public header compiled standalone.
+#   4. install-consumer-check   — cmake --install + external find_package.
+#   5. architecture-check       — Static rules + doctest skip tickets +
+#                                  architecture boundary grep (PR-0).
+#   6. install-consumer-script  — tools/install_consumer_test.sh (PR-0).
 #
 # Why this file exists:
 # The previous CI (ci.yml) only built `chronon3d_tests_fast` on PRs and
@@ -206,7 +208,34 @@ jobs:
       - name: Make scripts executable
         run: |
           chmod +x tools/test_architectural.sh
+          chmod +x tools/check_architecture_boundaries.sh
           test -x tools/check_skipped_tests.sh || chmod +x tools/check_skipped_tests.sh
 
       - name: Run tools/test_architectural.sh
         run: bash tools/test_architectural.sh
+
+      - name: Run tools/check_architecture_boundaries.sh
+        run: bash tools/check_architecture_boundaries.sh
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 6. Install consumer — end-to-end SDK boundary test (PR-0).
+  # ─────────────────────────────────────────────────────────────────────
+  install-consumer-script:
+    name: Gate 6 / install-consumer (tools/install_consumer_test.sh)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: ${{ github.event_name == 'push' }}
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+      - name: Install consumer
+        if: runner.os == 'Linux'
+        run: bash tools/install_consumer_test.sh
