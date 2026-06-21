@@ -1,5 +1,11 @@
 #include <doctest/doctest.h>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
+// WP-8 PR 8.1 — FontEngine full definition; text_rasterizer_utils.hpp
+// only forward-declares `class FontEngine;` (header-conscious design:
+// keeps the heavy FreeType + HarfBuzz machinery contained).  This
+// test constructs an explicit `FontEngine test_engine{resolver}` so
+// it needs the full type, not just the forward declaration.
+#include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/text/text_material.hpp>
 #include <chronon3d/math/color.hpp>
@@ -26,7 +32,11 @@ static BLImage make_test_text_image(int w, int h, const char* text, float font_s
     // WP-8 PR 8.0 — explicit resolver sourced from the test-lattice
     // typed_resolver bridge (tests don't have a runtime in scope).
     const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
-    auto result = rasterize_text_to_bl_image(shape, effective_size, 16, resolver);
+    // WP-8 PR 8.1 — FontEngine is REQUIRED (no nullable, no per-call
+    // fallback inside the rasterizer).  Tests construct one from the
+    // bridge-sourced resolver and pass by reference.
+    FontEngine test_engine{resolver};
+    auto result = rasterize_text_to_bl_image(shape, effective_size, 16, resolver, nullptr, nullptr, test_engine);
     if (!result) {
         // Return a small empty image as fallback
         BLImage fallback(1, 1, BL_FORMAT_PRGB32);
@@ -262,7 +272,9 @@ TEST_CASE("TextMaterial: golden output comparison") {
     // WP-8 PR 8.0 — explicit resolver sourced from the test-lattice
     // typed_resolver bridge (tests don't have a runtime in scope).
     const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
-    auto base = rasterize_text_to_bl_image(shape, 72.0f, 32, resolver);
+    // WP-8 PR 8.1 — FontEngine is REQUIRED.
+    FontEngine base_engine{resolver};
+    auto base = rasterize_text_to_bl_image(shape, 72.0f, 32, resolver, nullptr, nullptr, base_engine);
     REQUIRE(base.has_value());
 
     // Apply premium material

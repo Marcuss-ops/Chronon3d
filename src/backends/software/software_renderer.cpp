@@ -20,6 +20,12 @@
 #include <chronon3d/backends/software/utils/effects/per_pixel_dof.hpp>
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
+// WP-8 PR 8.1 — the renderer-local FontEngine is constructed from
+// `m_runtime->resolver()` in both ctors below; the .cpp is the SOLE
+// owner of the heavy FreeType + HarfBuzz machinery (header keeps the
+// forward declaration only).  The unique_ptr deleter is also
+// instantiated here at destruction site in ~SoftwareRenderer().
+#include <chronon3d/text/font_engine.hpp>
 #endif
 #include <chronon3d/backends/software/text_run_processor.hpp>
 #include <chronon3d/cache/cache_policy.hpp>
@@ -95,6 +101,13 @@ SoftwareRenderer::SoftwareRenderer(runtime::RenderRuntime& rt, Config config)
     // Per-instance state is default-initialised.  Catalogs/registries
     // were populated by RenderRuntime::populate(); the SoftwareBackend
     // is attached externally by RenderEngine::Impl.
+#ifdef CHRONON3D_HAS_BACKEND_TEXT
+    // WP-8 PR 8.1 — hoist the renderer-local FontEngine here.  One
+    // engine per renderer, lifetime pinned to renderer lifetime.  This
+    // eliminates the M-3 `FontEngine local_engine{resolver}` fallback
+    // that lived inside `rasterize_text_to_bl_image` (PR 8.0 phase 2).
+    m_font_engine = std::make_unique<FontEngine>(m_runtime->resolver());
+#endif
 }
 
 SoftwareRenderer::SoftwareRenderer(Config config)
@@ -107,9 +120,32 @@ SoftwareRenderer::SoftwareRenderer(Config config)
     m_owned_runtime_storage =
         std::make_unique<runtime::RenderRuntime>(m_config);
     m_runtime = m_owned_runtime_storage.get();
+#ifdef CHRONON3D_HAS_BACKEND_TEXT
+    // WP-8 PR 8.1 — see primary ctor.  The asset resolver sourced from
+    // the synthesised runtime is engine-local, so this engine is the
+    // sole owner for the synthesised-runtime case.
+    m_font_engine = std::make_unique<FontEngine>(m_runtime->resolver());
+#endif
 }
 
 SoftwareRenderer::~SoftwareRenderer() = default;
+
+// WP-8 PR 8.1 — per-renderer FontEngine accessor.  The unique_ptr is
+// non-null on text builds (initialised in both ctors) and nullptr on
+// non-text builds.  Callers must be inside a CHRONON3D_HAS_BACKEND_TEXT
+// block before reaching for it (software_text_processor, the rasterizer
+// callsite, etc.).
+#ifdef CHRONON3D_HAS_BACKEND_TEXT
+FontEngine& SoftwareRenderer::font_engine() { return *m_font_engine; }
+const FontEngine& SoftwareRenderer::font_engine() const { return *m_font_engine; }
+#else
+FontEngine& SoftwareRenderer::font_engine() {
+    throw std::logic_error("SoftwareRenderer::font_engine called on a non-text build (CHRONON3D_HAS_BACKEND_TEXT=OFF)");
+}
+const FontEngine& SoftwareRenderer::font_engine() const {
+    throw std::logic_error("SoftwareRenderer::font_engine called on a non-text build (CHRONON3D_HAS_BACKEND_TEXT=OFF)");
+}
+#endif
 
 // ── Rendering ────────────────────────────────────────────────────────────────
 

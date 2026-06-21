@@ -262,7 +262,11 @@ TextAuditFrameResult audit_single_text(
     };
 
     // ── Rasterize for ink bbox ────────────────────────────────────────
-    auto raster = rasterize_text_to_bl_image(text, layout_res.font_size, 4, resolver);
+    // WP-8 PR 8.1 — FontEngine is REQUIRED (no nullable, no per-call
+    // fallback); the CLI constructs the engine once above (paired
+    // with the bridge-sourced resolver) and reuses it for both layout
+    // and rasterize callsites.
+    auto raster = rasterize_text_to_bl_image(text, layout_res.font_size, 4, resolver, nullptr, nullptr, engine);
     if (raster) {
         auto ink = compute_ink_bbox(raster->image, policy.alpha_threshold);
         if (ink.has_ink) {
