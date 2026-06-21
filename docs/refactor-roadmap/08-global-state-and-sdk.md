@@ -130,3 +130,56 @@ Deployments that share a single RenderRuntime across multiple
 SoftwareRenderers / SoftwareRenderSessions will see
 scene_hasher + program_store SHARED across those instances (see
 the CHANGELOG R5 "Shared-state note" for the workaround).
+
+## Audit §9.4 closure note (PR-2 rewire close-out)
+
+The original text that anchored the §9.4 audit item lived in a
+doc-comment inside `src/render_graph/pipeline/scene.cpp` (around
+Phase 4 of `render_scene_via_graph`).  Aggressive
+`plan_cache`-line-stripping during the PR-2 rewire close-out
+(commit `9f9af90e`) removed that comment by accident, which would
+have orphaned the §9.4 reference entirely.  Capturing it here as
+documentation so the audit anchor survives.
+
+### Original text (verbatim, pre-close-out)
+```
+    // PR-A removed the ExecutionPlan cache that used to gate on this flag
+    // inside GraphExecutor; the flag survives for the downstream
+    // coordinator and will be re-paired with a stable fast-path in a
+    // future PR (audit §9.4).
+```
+
+### What the close-out did
+
+- The `chronon3d::runtime::ExecutionPlanCache` class is RETIRED
+  (commit `9f9af90e` on `origin/main`).
+- `RenderPolicy::graph_structure_unchanged` (the flag the audit
+  refers to) now reaches the topology cache through
+  `FrameGraphCompiler` — `GraphExecutor` is stateless, so it
+  consults `compiled.levels` directly.  The "fast-path" hook the
+  audit refers to is `FrameGraphCompiler::compile` itself (the
+  compile step honours `ctx.policy.graph_structure_unchanged`).
+
+### Status of §9.4
+
+- §9.4 is now resolved-by-construction: the topology-cache
+  pipeline is unified through `FrameGraphCompiler` and any future
+  stable-fast-path revisions will write to that compiler, not to
+  a separate `ExecutionPlanCache` class.
+- The historical reference chain
+  (`runtime::ExecutionPlanCache` |
+  `runtime::RendererRuntimeResources::plan_cache`) is closed.
+
+### Where the work lives now
+
+- `include/chronon3d/render_graph/compiler/frame_graph_compiler.hpp`
+  — `FrameGraphCompiler::compile` honours
+  `ctx.policy.graph_structure_unchanged` and writes the
+  topological plan onto the resulting `CompiledFrameGraph`.
+- `include/chronon3d/render_graph/executor/graph_executor.hpp`
+  — `GraphExecutor::execute(CompiledFrameGraph&, ...)` is now the
+  sole entrypoint; the executor no longer consults any
+  plan-cache parameter.
+- `docs/CHANGELOG.md` R6 entry — External SDK migration note +
+  the body bullets for RenderGraph& overloads +
+  ExecutionPlanCache retirement.
