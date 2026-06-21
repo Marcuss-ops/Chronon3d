@@ -238,9 +238,14 @@ documentation so the audit anchor survives.
 - **Per-node determinism (NIT-1)** — the `build_node_metadata`
   skip is only sound when every `compiled.nodes[id].cache_policy`
   and `compiled.nodes[id].stable_node_id` is deterministically
-  re-derivable from `graph + ctx.policy` alone (no per-call
-  entropy).  Otherwise compile() MUST re-derive each node's
-  record even when the topology hash matches.
+  re-derivable from `graph + ctx.policy` alone, without any
+  per-call entropy (e.g. `RenderPolicy::cache_seed`,
+  `request_id`, or a frame-stamp-derived `cache_key` mix-in).
+  This precondition MUST hold at the time of the skip; if a
+  future commit adds a per-call entropy field to the policy or
+  to per-node cache-key computation, the skip predicate breaks
+  and compile() MUST fall back to re-deriving each node's record
+  even when the topology hash matches.
 - **Fall-through on hash mismatch (NIT-3)** — when the caller
   asserts `ctx.policy.graph_structure_unchanged=true` but the
   freshly recomputed `structure_hash` differs from the cached
@@ -248,18 +253,27 @@ documentation so the audit anchor survives.
   `build_execution_levels` + `build_node_metadata` path —
   partial skip would silently drift caller-side invariants.
 - **Cache location (NIT-2)** — where the prior
-  `structure_hash` lives (caller-side field on
-  `SoftwareRenderer`? entry in `SessionServices`? wrapper struct
-  in `render_engine`?) is a design decision for the future PR.
-  This section only standardises the comparison primitive; the
-  storage home is intentionally left to the future implementation.
+  `structure_hash` lives is a design decision for the future PR.
+  Plausible homes: (a) caller-side field on `SoftwareRenderer`,
+  (b) entry in `SessionServices`, (c) wrapper struct in
+  `render_engine`, or (d) alongside the existing
+  `RuntimeNodeCache` / `node_cache.cpp` family — keying on
+  `structure_hash` with the value being the prior compiled
+  structural records (so a structural-reuse fast-path would
+  colocate with the per-node cache it is skipping re-derivation
+  for).  This section only standardises the comparison
+  primitive; the storage home is intentionally left to the
+  future implementation.
 
 ### Affordance attribution (MINOR)
 
-- The `CompiledFrameGraph::structure_hash` affordance is an
-  inference drawn from the executor's retired plan-cache
-  fast-path branch (archived in commit `9f9af90e`).  Audit §9.4
-  itself only writes `stable fast-path` — no hash primitive is
-  named there.  Future readers reconciling against the audit log
-  should know the keying is reasoned **backwards** from the
-  executor branch, not lifted verbatim from §9.4.
+- Before implementing the stability-aware fast-path, a future
+  PR should reconcile `CompiledFrameGraph::structure_hash`
+  against the audit §9.4 text directly — the affordance here
+  is reasoned **backwards** from the executor's retired
+  plan-cache fast-path branch (archived in commit `9f9af90e`),
+  not lifted verbatim from §9.4.  Audit §9.4 itself only writes
+  `stable fast-path` — no hash primitive is named — so a direct
+  audit-log match is the source of truth, and the `structure_hash`
+  keying should be treated as a *candidate* affordance rather than
+  a contract until the audit log is walked end-to-end.
