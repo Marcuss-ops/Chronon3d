@@ -1,288 +1,94 @@
-# Work Package 8 — Global State Removal and SDK Polish
+# Work Package 8 — Remaining global-state and SDK work
 
 ## Goal
 
-Eliminate remaining engine-generic headers' cross-layer dependencies and
-process-wide globals; refine the SDK boundary so that engine-generic and
-backends do not leak transitively.
+Remove process-wide runtime and asset state, then keep software implementation types out of the main SDK facade.
 
-## Scope (continuation from WP-7)
+Resolved render-session include leaks and the retired execution-plan cache are no longer tracked here.
 
-### TICKET-009 follow-up: PR-2 rewire enforcement
-- Drop `execute(RenderGraph&, …)` overloads on `GraphExecutor` (cleanup
-  target — overloads exist on `c51e6472`'s snapshot of `origin/main`
-  pre-cross-cutting-cleanup; to be removed once the call-site migration
-  is complete).
-- Drop `runtime::ExecutionPlanCache* plan_cache` parameter from
-  `GraphExecutor::execute` on the `CompiledFrameGraph` path (the
-  parameter is currently unused on that path and is `(void)`'d out).
-- Migrate the 3 callers (`command_bake_layer`, `debug`,
-  `test_render_backend`) + the 3 advanced callers (`scene_tile_execution`,
-  `tile_execution_coordinator`, `precomp_node_execute`) to drop the
-  legacy arg.
-- Preserve `ExecutionPlanCache` infrastructure owned by `RenderRuntime` /
-  `scene_program_cache` / `precomp_node` (active for those subsystems).
+## TODO
 
-### TICKET-013: scene_hasher leak
-- `include/chronon3d/runtime/render_session.hpp:42` includes
-  `<chronon3d/render_graph/core/scene_hasher.hpp>`.  Symbol `SceneHasher`
-  is used as a field.
-- Resolution: Move `scene_hasher` ownership off `RenderSession` to
-  `RenderRuntime` (matching the TICKET-011 ownership boundary) so
-  `render_session.hpp` becomes engine-generic again.  This is part of the
-  WP-8 deliverable tracked by this doc.
-- ✅ RESOLVED — scene_hasher relocated to RenderRuntime (value member
-  `m_owned_scene_hasher`).  `RenderSession` reaches it via a
-  `services.scene_hasher` back-pointer populated by
-  `runtime::make_session()`.  `RenderRuntime::services()` +
-  `RenderRuntime::scene_hasher()` are the canonical access paths.
-  `render_session.hpp` now forward-declares `graph::SceneHasher`
-  instead of including the full header.  See
-  `src/runtime/render_runtime.cpp` for `populate()` wiring and
-  `src/runtime/render_session.cpp` for the session-side proxy accessors
-  + `reset_job()` body.
+### PR 8.0 — Introduce an engine-local asset resolver
 
-### TICKET-014: session_resources compositing
-- `include/chronon3d/runtime/render_session.hpp:59` includes
-  `<chronon3d/backends/software/software_session_resources.hpp>`.
-- The `SoftwareSessionResources` composition is software-only state;
-  `RenderSession` should not depend on it.
-- Resolution: Move the composition to live only on `SoftwareRenderer`
-  (and via `SoftwareRenderSession` wrapper if needed).  Track in WP-8.
-- ✅ RESOLVED — the legacy use of `SoftwareSessionResources` inside
-  `render_session.hpp` was eliminated when WP-3 PR 3.4 closed-out
-  removed the legacy `SoftwareRenderSession` struct from this header.
-  Post-WP-3 the only remaining reference was inside a doc-comment
-  block, so the include was dropped entirely.  The canonical struct
-  lives at
-  `<chronon3d/backends/software/software_session_resources.hpp>` and
-  is reachable via the canonical
-  `<chronon3d/backends/software/software_render_session.hpp>` that
-  `software_renderer.hpp` includes directly.  Header is now free of
-  any `backends/software/` include.
+- [ ] Add one typed `AssetResolver` owned by `RenderRuntime`.
+- [ ] Define absolute, relative, mounted-root, and missing-asset behavior.
+- [ ] Make resolution deterministic and independent for each engine.
+- [ ] Expose the resolver through narrow render services.
 
-### TICKET-015: legacy aliases cleanup
-- Drop `using RenderFrameInfo = FrameInput;` alias (back-compat shim
-  for legacy callers).
-- Drop `default_assets_root_for_deep_code()` free function; inline the
-  lookup directly in `runtime::resolve_asset_path`.
+### PR 8.1 — Migrate deep asset consumers
 
-### TICKET-016: architecture boundary enforcement
-- Add `tests/architecture/test_render_session_includes_boundary.py` —
-  Python-based include-graph validator.  Landed in this work-package (see
-  `dfccb258` / `e5fd514a` in the local commit log).
-- Wire it as an optional CTest target so CMake runs it on demand.
-- Extend as more checks are added (e.g. asset-locale layer).
+Migrate explicit resolver access into:
 
+- [ ] font loading
+- [ ] text rasterization
+- [ ] image loading
+- [ ] preflight
+- [ ] precomp construction
+- [ ] content helpers
+- [ ] CLI render commands
+- [ ] tests and fixtures
 
+- [ ] Do not replace one global with another service-locator singleton.
 
-### TICKET-017: scene_program_store leak
-- `include/chronon3d/runtime/render_session.hpp:43` includes
-  `<chronon3d/render_graph/cache/scene_program_store.hpp>`.  The
-  `graph::SceneProgramStore` is referenced as a field on `RenderSession`.
-- Resolution: move `program_store` ownership off `RenderSession` to
-  `RenderRuntime` (matching the TICKET-011 ownership boundary and the
-  TICKET-013/014 decoupling pattern).  Tracked in WP-8.
-- ✅ RESOLVED — `program_store` ownership moved to RenderRuntime as
-  `m_owned_program_store` (unique_ptr).  Session reaches it via
-  `services.program_store` back-pointer populated by
-  `runtime::make_session()`.  `render_session.hpp` forward-declares
-  `graph::SceneProgramStore` only; full type lives in
-  `src/runtime/render_runtime.cpp` (populate) and
-  `src/runtime/render_session.cpp` (session-side reset_job forward
-  to `services.program_store->clear()`).
+### PR 8.2 — Remove process-wide runtime state
+
+- [ ] Remove `g_active_runtime`.
+- [ ] Remove `set_active_runtime()` and `active_runtime()`.
+- [ ] Remove `g_process_wide_assets_root`.
+- [ ] Remove process-wide asset-root setters/getters.
+- [ ] Remove `default_assets_root_for_deep_code()`.
+- [ ] Stop `RenderRuntime::set_default_assets_root()` from publishing global state.
+
+### PR 8.3 — Add multi-engine isolation tests
+
+- [ ] Construct two runtimes with different asset roots.
+- [ ] Resolve the same relative path independently.
+- [ ] Render concurrently and verify no cross-engine contamination.
+- [ ] Destroy one runtime and verify the other remains valid.
+- [ ] Verify tests and CLI can operate without an active-runtime fallback.
+
+### PR 8.4 — Close the public SDK facade
+
+File:
+- `include/chronon3d/api/render_engine.hpp`
+
+Actions:
+- [ ] Remove direct include of `software_renderer.hpp`.
+- [ ] Remove direct include of software session implementation headers.
+- [ ] Keep implementation details behind `RenderEngine::Impl`.
+- [ ] Remove `renderer()`, `runtime()`, and software-session access from the standard facade.
+- [ ] Move necessary expert access to an explicitly advanced/internal header.
+- [ ] Keep `Chronon3D::SDK` as the documented consumer target.
+
+### PR 8.5 — Remove remaining compatibility aliases
+
+- [ ] Remove `using RenderFrameInfo = FrameInput` after call-site migration.
+- [ ] Remove public comments and docs that still describe the retired plan cache.
+- [ ] Remove public API text that describes process-wide asset fallback as supported behavior.
+
+### PR 8.6 — Add SDK boundary tests
+
+- [ ] Compile a translation unit that includes only `api/render_engine.hpp`.
+- [ ] Confirm that header does not pull software renderer/session headers transitively.
+- [ ] Build and run the standalone install consumer.
+- [ ] Verify consumers cannot link internal targets through the documented namespace.
+- [ ] Verify advanced/internal headers are not required for ordinary rendering.
+
+### PR 8.7 — Add permanent guards
+
+- [ ] Prevent active-runtime globals from returning.
+- [ ] Prevent process-wide asset-root globals from returning.
+- [ ] Prevent `api/render_engine.hpp` from including software implementation headers.
+- [ ] Prevent standard SDK facade methods from returning software implementation types.
+
+## Separate follow-up
+
+The optional `FrameGraphCompiler` structural-reuse optimization is tracked as `TICKET-008` in `docs/FOLLOWUP_TICKETS.md`. It is not part of global-state removal.
 
 ## Exit criteria
 
-
-- `tests/architecture/test_render_session_includes_boundary.py` reports
-  `errors=0` with NO `KNOWN_VIOLATIONS` entries remaining.
-- Turbo build (`./build-fast.sh turbo`) succeeds.
-- `git grep RenderFrameInfo` returns zero hits in `include/`, `src/`,
-  `tests/`, `apps/`.
-- `git grep 'plan_cache'` returns zero hits in `include/`,
-  `src/render_graph/executor/`, `apps/chronon3d_cli/commands/render/`,
-  and the boundary-test files in `tests/render_graph/`.
-
-## WP-8 close-out snapshot
-
-The three structural dependencies on `render_session.hpp` are now
-resolved:
-
-| TICKET | State | Notes |
-|--------|-------|-------|
-| TICKET-013 (`scene_hasher`)      | RESOLVED | Field on `RenderSession` → `RenderRuntime::m_owned_scene_hasher`; session access via `services.scene_hasher` pointer. |
-| TICKET-014 (`software_session_resources`) | RESOLVED | Include dropped — only doc-comment referenced it post WP-3 PR 3.4. |
-| TICKET-017 (`scene_program_store`) | RESOLVED | Field on `RenderSession` → `RenderRuntime::m_owned_program_store` (unique_ptr); session access via `services.program_store` pointer. |
-
-The boundary test
-(`tests/architecture/test_render_session_includes_boundary.py`) now
-has an empty `KNOWN_VIOLATIONS` dict; the test outputs
-`OK: include-graph boundary invariants satisfied (errors=0).` with
-zero `INFO:` lines.
-
-**Shared-state consequence** — TICKET-013 + TICKET-017 each
-relocate state that was previously per-RenderSession to
-RenderRuntime.  In single-engine-instance deployments (one
-runtime + one renderer + one session) this is semantically
-indistinguishable from the previous per-session isolation.
-Deployments that share a single RenderRuntime across multiple
-SoftwareRenderers / SoftwareRenderSessions will see
-scene_hasher + program_store SHARED across those instances (see
-the CHANGELOG R5 "Shared-state note" for the workaround).
-
-## Audit §9.4 closure note (PR-2 rewire close-out)
-
-The original text that anchored the §9.4 audit item lived in a
-doc-comment inside `src/render_graph/pipeline/scene.cpp` (around
-Phase 4 of `render_scene_via_graph`).  Aggressive
-`plan_cache`-line-stripping during the PR-2 rewire close-out
-(commit `9f9af90e`) removed that comment by accident, which would
-have orphaned the §9.4 reference entirely.  Capturing it here as
-documentation so the audit anchor survives.
-
-### Original text (verbatim, pre-close-out)
-```
-    // PR-A removed the ExecutionPlan cache that used to gate on this flag
-    // inside GraphExecutor; the flag survives for the downstream
-    // coordinator and will be re-paired with a stable fast-path in a
-    // future PR (audit §9.4).
-```
-
-### What the close-out did
-
-- The `chronon3d::runtime::ExecutionPlanCache` class is RETIRED
-  (commit `9f9af90e` on `origin/main`).
-- `RenderPolicy::graph_structure_unchanged` (the flag the audit
-  refers to) is still SET by `render_scene_via_graph` (Phase 4 of
-  `src/render_graph/pipeline/scene.cpp`), but no production
-  consumer currently reads it post-PR-2 rewire.  Its sole pre-rewire
-  consumer was the executor's plan-cache fast-path branch in
-  `execute(RenderGraph&, ...)` — that overload is gone; the
-  surviving `execute(CompiledFrameGraph&, ...)` overload consults
-  `compiled.levels` directly and does not inspect the flag.
-- `FrameGraphCompiler::compile` does NOT yet honour
-  `ctx.policy.graph_structure_unchanged` either — the compiler
-  body consults only `ctx.policy.skip_initial_clear` and
-  `ctx.node_exec.early_exit_skip` from the policy/exec.  The
-  audit §9.4 intent ("stable fast-path") therefore remains a
-  FUTURE FrameGraphCompiler enhancement, not a current behaviour.
-- Practical consequence: the flag is DORMANT for now.  Writers
-  should keep setting it (binary backward-compatibility) but no
-  reader reacts.  A future PR will need to teach
-  `FrameGraphCompiler::compile` to consult the flag and skip
-  `build_execution_levels` + `build_node_metadata` when the
-  caller asserts `graph_structure_unchanged && same(hash)`.
-
-### Status of §9.4
-
-- §9.4 is **dormant**, not closed.  The audit predicate
-  (`graph_structure_unchanged`) is preserved in the policy for
-  backward-compatibility but UNREAD by today's production paths.
-  The executor's plan-cache fast-path branch (which used to
-  consume it) retired in PR-2 rewire; the compiler does not yet
-  honour it either.
-- Closure path: a future PR that adds a structural-reuse
-  fast-path to `FrameGraphCompiler::compile` will re-attach
-  §9.4 to a live reader without re-introducing
-  `runtime::ExecutionPlanCache`.  Until then, the audit item
-  should be tracked as "dormant — awaiting stability-aware
-  fast-path work in FrameGraphCompiler" rather than closed.
-- The historical reference chain
-  (`runtime::ExecutionPlanCache` |
-  `runtime::RendererRuntimeResources::plan_cache`) is fully
-  closed (both classes were retired in PR-2 rewire).  Only §9.4
-  — and §9.4 specifically — remains dormant.
-
-### Where the work lives now
-
-- `include/chronon3d/render_graph/render_graph_context.hpp` —
-  defines the dormant `RenderPolicy::graph_structure_unchanged`
-  field (kept for backward compatibility; future compiler work
-  will start by adding the reader here).
-- `src/render_graph/pipeline/scene.cpp` — the only writer in
-  the codebase today (Phase 4 of `render_scene_via_graph`).
-- `include/chronon3d/render_graph/compiler/frame_graph_compiler.hpp`
-  / `src/render_graph/compiler/frame_graph_compiler.cpp` — the
-  intended CONSUMER for the §9.4 stable-fast-path intent.  Today
-  the compiler does not consult the flag; the predicate is the
-  literal placeholder for the future work item.  The concrete
-  affordance a future PR must key against is
-  `CompiledFrameGraph::structure_hash` (defined in
-  `include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp`)
-  — the compiler should hash the input graph's topology (nodes +
-  inputs + output), compare it against the prior compilation's
-  cached `structure_hash`, and skip `build_execution_levels` +
-  `build_node_metadata` when both hashes match AND the caller
-  asserted `graph_structure_unchanged`.  Today the
-  `FrameGraphCompiler::compute_structure_hash` static helper
-  (called from the legacy `ExecutionPlanCache` path) is itself
-  retired into the compiler's body, so the comparison primitive
-  is already present.
-- `include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp`
-  — defines `CompiledFrameGraph::structure_hash` (the field a
-  future stability-aware fast-path must populate + compare
-  against).  No current consumer reads it; same dormant trajectory
-  as the audit predicate itself until the compiler work lands.
-- `include/chronon3d/render_graph/executor/graph_executor.hpp`
-  / `src/render_graph/executor/executor.cpp` — the old plan-cache
-  reader (now retired); the surviving
-  `execute(CompiledFrameGraph&, ...)` overload does NOT consult
-  the flag.
-- `docs/CHANGELOG.md` R6 entry — External SDK migration note +
-  the body bullets for RenderGraph& overloads +
-  ExecutionPlanCache retirement.
-
-### Skip-safety constraints (NITs)
-
-- **Per-node determinism (NIT-1)** — the `build_node_metadata`
-  skip is only sound when every `compiled.nodes[id].cache_policy`
-  and `compiled.nodes[id].stable_node_id` is deterministically
-  re-derivable from `graph + ctx.policy` alone, without any
-  per-call entropy (e.g. `RenderPolicy::cache_seed`,
-  `request_id`, or a frame-stamp-derived `cache_key` mix-in).
-  This precondition MUST hold at the time of the skip; if a
-  future commit adds a per-call entropy field to the policy or
-  to per-node cache-key computation, the skip predicate breaks
-  and compile() MUST fall back to re-deriving each node's record
-  even when the topology hash matches.
-- **Fall-through on hash mismatch (NIT-3)** — when the caller
-  asserts `ctx.policy.graph_structure_unchanged=true` but the
-  freshly recomputed `structure_hash` differs from the cached
-  prior hash, compile() MUST fall through to the full
-  `build_execution_levels` + `build_node_metadata` path —
-  partial skip would silently drift caller-side invariants.
-- **Cache location (NIT-2)** — where the prior
-  `structure_hash` lives is a design decision for the future PR.
-  Plausible homes: (a) a caller-side field on `SoftwareRenderer`,
-  (b) an entry in `SessionServices`, (c) a wrapper struct in
-  `render_engine`, or (d) coalesced into one of the existing
-  per-node / structural cache families —  `NodeCache` (defined
-  in `include/chronon3d/cache/node_cache.hpp`, currently keyed
-  on `NodeCacheKey` / `NodeCacheKeyHash` over `StableNodeId`)
-  could be extended to a `(StableNodeId, structure_hash)`
-  tuple key, and `CompiledGraphCache` (in
-  `include/chronon3d/render_graph/cache/` — see its header for
-  the concrete key/value contract) already wraps structural
-  compiled records and is the more direct home for a full-graph
-  structural cache.  This section only standardises
-  the comparison primitive; the storage home is intentionally
-  left to the future implementation.
-
-### Affordance attribution (MINOR)
-
-- Before implementing the stability-aware fast-path, a future
-  PR should reconcile `CompiledFrameGraph::structure_hash`
-  against the "Audit §9.4 closure note (PR-2 rewire close-out)"
-  sub-sections further up in **this same file** — "Original
-  text (verbatim, pre-close-out)" (which holds the literal
-  `audit §9.4` doc-comment that the affordance inference was
-  drawn from), "What the close-out did", "Status of §9.4", and
-  the file-location catalogue above — the affordance here is
-  reasoned **backwards** from the executor's retired plan-cache
-  fast-path branch (archived in commit `9f9af90e`), not lifted
-  verbatim from §9.4 wording.  §9.4 itself only states `stable fast-path` — no hash
-  primitive is named — so a direct walk of those sub-sections is
-  the source of truth, and the `structure_hash` keying should be
-  treated as a *candidate* affordance rather than a contract
-  until the §9.4 predicate is fully resolved.
+- [ ] Asset lookup is explicit and engine-local.
+- [ ] Two runtimes cannot contaminate each other.
+- [ ] No active-runtime or process-wide asset-root state remains.
+- [ ] Main SDK headers expose no software implementation types.
+- [ ] Ordinary consumers build and run through `Chronon3D::SDK` only.
