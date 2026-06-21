@@ -8,6 +8,13 @@ add_executable(chronon3d_deterministic_tests
     deterministic/test_deterministic.cpp
     deterministic/test_determinism_harness.cpp
     deterministic/gradient_determinism_tests.cpp
+    # WP-6 PR 6.1 — TileGrid + DirtyTileMask determinism (pure
+    # data structures, no TBB).  Proves the bit-pattern + iteration-
+    # order invariants so any future change that introduces scheduler
+    # state inside the tile data path fails this gate immediately
+    # (the TICKET-007.q/r/s/t/u renderer-level non-determinism is a
+    # separate ticket — see docs/FOLLOWUP_TICKETS.md).
+    deterministic/test_tile_determinism.cpp
     # WP1 PR 1.4 — Scheduler-swap determinism (Sequential vs
     # TbbFixed/TbbAutomatic across required scenes).  Lives under
     # tests/render_graph/executor/ because the executor's scheduler
