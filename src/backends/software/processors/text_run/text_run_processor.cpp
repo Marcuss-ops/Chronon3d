@@ -26,6 +26,8 @@
 #include FT_FREETYPE_H
 #include FT_GLYPH_H
 #include FT_OUTLINE_H
+// R2: function now consumes the slim processor context POD.
+#include <chronon3d/backends/software/software_processor_context.hpp>
 #endif
 
 namespace chronon3d::renderer {
@@ -240,7 +242,7 @@ struct TextRunPathBuilder {
 // ═══════════════════════════════════════════════════════════════════════════
 
 graph::RenderOpResult draw_text_run(
-    SoftwareRenderer& renderer,
+    SoftwareRenderer & renderer,
     TextRunDrawParams& params
 ) {
     // WP-8 PR 8.0 — function-scope resolver sourced from the renderer’s
@@ -807,7 +809,7 @@ std::unique_ptr<ShapeProcessor> create_text_run_processor() {
     struct TextRunProcessor : ShapeProcessor {
         // No-op: the TextRunNode in the render graph handles rasterization.
         // This processor exists only as a registry marker.
-        void draw(SoftwareRenderer&, Framebuffer&, const RenderNode&,
+        void draw(SoftwareRenderer &, Framebuffer&, const RenderNode&,
                   const RenderState&, const Camera&, i32, i32) override {}
 
         raster::BBox compute_world_bbox(const Shape&, const Mat4&, f32) override {

@@ -13,7 +13,7 @@
 
 namespace chronon3d {
 
-SoftwareProcessorContext make_processor_context(SoftwareRenderer& renderer) {
+SoftwareProcessorContext make_processor_context(SoftwareRenderer* renderer) {
     SoftwareProcessorContext ctx;
     ctx.counters        = &renderer.counters();
     ctx.settings        = &renderer.render_settings();

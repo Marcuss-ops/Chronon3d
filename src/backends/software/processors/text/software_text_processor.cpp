@@ -22,6 +22,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <cstdlib>
 #include <memory>
+// R2: draw() now consumes the slim processor context POD.
+#include <chronon3d/backends/software/software_processor_context.hpp>
 
 namespace chronon3d::renderer {
 
@@ -39,7 +41,7 @@ namespace {
 
 class SoftwareTextProcessor final : public ShapeProcessor {
 public:
-    void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
+    void draw(const SoftwareProcessorContext& rctx, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
         CHRONON_ZONE_C("text_render", trace_category::kText);
         const bool diagnostics_enabled = renderer.is_diagnostic_mode();
@@ -195,7 +197,7 @@ public:
             // WP-8 PR 8.1 — per-processor static FontEngine, sourced
             // from the post-bridge process-wide resolver channel.
             // This `compute_world_bbox` virtual doesn't carry a
-            // `SoftwareRenderer&` argument (signature is fixed), so we
+            // `SoftwareRenderer &` argument (signature is fixed), so we
             // can't use the per-renderer `SoftwareRenderer::font_engine()`
             // accessor that PR 8.1 introduced for the `draw()` path.
             //

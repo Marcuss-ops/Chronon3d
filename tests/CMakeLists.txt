@@ -1,8 +1,9 @@
 # tests/CMakeLists.txt — Orchestrator
 #
 # This file includes per-area test definitions from .cmake sub-files.
-# To add a new test target, create a new .cmake file and include it here.
-# This keeps merge conflicts small when multiple developers add tests in parallel.
+# To add a new test target, create a new .cmake file (or a sub-directory)
+# and include it here. This keeps merge conflicts small when multiple
+# developers add tests in parallel.
 
 find_package(doctest CONFIG REQUIRED)
 
@@ -12,6 +13,12 @@ set(TEST_MAIN test_main.cpp)
 function(chronon3d_enable_test_pch target_name)
     # PCH disabled to prevent compiler crashes on resource-constrained environments
 endfunction()
+
+# R2 — SoftwareProcessorContext acceptance test bundle (06 R2 deliverable).
+# No `CHRONON3D_USE_BLEND2D`/`CHRONON3D_BUILD_CONTENT` guard: this test
+# exercises the header-only POD default-state only, so it compiles in
+# every preset that turns on `CHRONON3D_BUILD_TESTS`.
+include(${CMAKE_CURRENT_SOURCE_DIR}/backends_software_tests.cmake)
 
 # ── Per-area test definitions ───────────────────────────────────────
 # Guarded by CHRONON3D_BUILD_TESTS (the project's own flag) rather than

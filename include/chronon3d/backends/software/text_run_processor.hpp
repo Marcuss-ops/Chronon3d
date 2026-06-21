@@ -49,7 +49,7 @@ struct TextRunDrawParams {
 ///                                override boundary; normally callers gate
 ///                                on `backend->capabilities().text_run`.
 [[nodiscard]] graph::RenderOpResult draw_text_run(
-    SoftwareRenderer& renderer,
+    const SoftwareProcessorContext& rctx,
     TextRunDrawParams& params
 );
 

@@ -22,7 +22,7 @@
 
 namespace chronon3d::runtime {
 
-RenderPipeline::RenderPipeline(SoftwareRenderer& renderer, RenderRuntime& runtime) noexcept
+RenderPipeline::RenderPipeline(SoftwareRenderer* renderer, RenderRuntime& runtime) noexcept
     : m_renderer(renderer), m_runtime(runtime) {}
 
 std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
@@ -41,7 +41,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
         m_renderer.composition_registry(),
         m_renderer.video_decoder(),
         30.0f, "scene",
-        &m_renderer  /*R3 sidecar: typed SoftwareRenderer channel*/
+        &(*m_renderer)  /*R3 sidecar: typed SoftwareRenderer channel*/
     );
 }
 
@@ -67,7 +67,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
         m_renderer.composition_registry(),
         m_renderer.video_decoder(),
         30.0f, "scene",
-        &m_renderer  /*R3 sidecar*/
+        &(*m_renderer)  /*R3 sidecar*/
     );
 }
 
@@ -81,7 +81,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_composition(
         m_renderer.composition_registry(),
         m_renderer.video_decoder(),
         comp, frame,
-        &m_renderer  /*R3 sidecar*/
+        &(*m_renderer)  /*R3 sidecar*/
     );
 }
 
@@ -98,7 +98,7 @@ std::string RenderPipeline::debug_graph(
         m_renderer.composition_registry(),
         m_renderer.video_decoder(),
         30.0f,
-        &m_renderer  /*R3 sidecar*/
+        &(*m_renderer)  /*R3 sidecar*/
     );
 }
 

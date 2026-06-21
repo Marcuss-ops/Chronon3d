@@ -4,7 +4,7 @@
 // include/chronon3d/backends/software/software_processor_context.hpp
 //
 // 06 R2 — `SoftwareProcessorContext`: slim POD passed to processor `draw()`
-// methods in place of the previous `SoftwareRenderer&` first parameter.
+// methods in place of the previous `SoftwareRenderer &` first parameter.
 //
 // All fields are NON-OWNING raw pointers. Lifetime invariant:
 //   counters, settings, registry must outlive the dispatch.
@@ -18,7 +18,7 @@
 // every processor TU. The forward-decls are sufficient because all
 // fields are pointers; no member-type instantiation is required.
 //
-// Migration helper: `make_processor_context(SoftwareRenderer&)` in
+// Migration helper: `make_processor_context(SoftwareRenderer*)` in
 // `software_processor_context.cpp` constructs the bundle from a
 // renderer instance. Single source of "pull runtime data through the
 // renderer", so processors can be re-pointed to the runtime once R3
@@ -59,6 +59,6 @@ struct SoftwareProcessorContext {
 /// canonical pre-R3 source). Returns by value; non-owning pointers
 /// only. After R3 (when dual identity is dropped) this helper will
 /// source from the runtime directly.
-[[nodiscard]] SoftwareProcessorContext make_processor_context(class SoftwareRenderer& renderer);
+[[nodiscard]] SoftwareProcessorContext make_processor_context(class SoftwareRenderer* renderer);
 
 } // namespace chronon3d

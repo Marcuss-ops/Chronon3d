@@ -31,6 +31,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <array>
 #include <cmath>
+// R2: function now consumes the slim processor context POD.
+#include <chronon3d/backends/software/software_processor_context.hpp>
 
 namespace chronon3d::renderer {
 
@@ -160,7 +162,7 @@ struct PaddedMask {
 
 // ── Public API ────────────────────────────────────────────────────────
 
-void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node,
+void draw_text_glow(const SoftwareProcessorContext& rctx, Framebuffer& fb, const RenderNode& node,
                     const RenderState& state, const TextRasterization& raster,
                     float effective_size) {
     CHRONON_ZONE_C("text_glow", trace_category::kText);
