@@ -280,6 +280,24 @@ public:
         pending_->params.language = std::move(bcp47);
         return *this;
     }
+    /// Explicit 4-byte OpenType script tag (HB_SCRIPT_*).  Reaches
+    /// `pending_->params.script` — the field added in PR 4 alongside
+    /// `direction` + `language`.  Examples: 0x4C61746E (Latin),
+    /// 0x41726162 (Arabic), 0x48616E20 (Han), 0x44657661 (Devanagari).
+    ///
+    /// Default value `0` preserves the historical Latin-only path:
+    /// HarfBuzz leaves the script as HB_SCRIPT_INVALID and lets
+    /// `hb_buffer_guess_segment_properties()` auto-detect from the
+    /// text content.  Pass a non-zero tag to opt-in to a specific
+    /// script for shaping.
+    ///
+    /// Until PR 4, `Text::style(id, registry)` silently DROPPED the
+    /// `shaping.script` field — see `apply_text_style` docstring below
+    /// for the gap narrative and the new mapping behaviour.
+    Text& script(std::uint32_t value) & {
+        pending_->params.script = value;
+        return *this;
+    }
 
     // ── Material (PR 2 hookup): consumes Material::release() ─────────────
     Text& material(Material material_in) & {
@@ -414,6 +432,17 @@ private:
         spec.appearance.material   = s.material;
         pending_->params.direction = s.shaping.direction;
         pending_->params.language  = s.shaping.language;
+        // ── PR 4 — close the `shaping.script` gap ───────────────────────
+        // Pre-PR-4 this field was silently dropped during `.style(id)`
+        // resolution — the HarfBuzz script tag set inside a `TextStyle`
+        // was lost.  Now we forward `s.shaping.script` to the spec only
+        // when non-zero, so the historical "default = 0 → auto-detect"
+        // behaviour is preserved (hb_buffer_guess_segment_properties
+        // still runs for un-tagged content).  Set `.script(0x...)`
+        // explicitly when you want to override the auto-detect path.
+        if (s.shaping.script != 0) {
+            pending_->params.script = s.shaping.script;
+        }
         if (s.pre_shaped) {
             spec.content.pre_shaped = s.pre_shaped;
         }

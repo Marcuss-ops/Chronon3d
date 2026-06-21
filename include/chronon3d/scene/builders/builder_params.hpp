@@ -192,6 +192,15 @@ struct TextRunSpec {
     TextSpec                       text;
     TextDirection                  direction{TextDirection::Auto};
     std::string                    language;              // BCP-47 tag (empty = auto)
+    std::uint32_t script{0u};             // PR 4 — 4-byte OpenType script tag (HB_SCRIPT_*).
+                                                          // Forwards to hb_buffer_set_script() when non-zero;
+                                                          // when 0 (default) the implementation falls through
+                                                          // to hb_buffer_guess_segment_properties() so the
+                                                          // shaping engine auto-detects Latin / Arabic /
+                                                          // Devanagari / CJK / etc. from the text content.
+                                                          // Common opt-in values: 0x4C61746E (Latin),
+                                                          // 0x41726162 (Arabic), 0x48616E20 (Han),
+                                                          // 0x44657661 (Devanagari), ...
     std::vector<TextAnimatorSpec>  animators;
     std::vector<GlyphSelectorSpec> selectors;  // top-level convenience selectors
     bool                           cache_layout{true};
