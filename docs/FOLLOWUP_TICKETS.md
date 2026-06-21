@@ -144,12 +144,16 @@ Implemented in commit `df1566da` (`df1566da5656cc96adff44c189c83429865ce690`).
 
 | Field | Value |
 |---|---|
-| **Status** | 🔵 Planned |
-| **Affected file(s)** | `content/shapes/proofs/shape_proofs.cpp` · `content/shapes/motion/shape_motion_proofs.cpp` · `content/image_proofs.cpp` · `content/image_test_patterns.cpp` · `content/camera/camera_advanced_tests_diag.cpp` · `content/camera/camera_calibration_scene.cpp` · `content/camera/camera_test_orchestrator.cpp` |
+| **Status** | 🔵 Planned (mechanical migration plan drafted — see `docs/MIGRATION_TEXT_SPEC.md`. Audit re-count 2026-06-21 below.) |
+| **Affected file(s)** *(as originally filed 2026-06-19)* | `content/shapes/proofs/shape_proofs.cpp` · `content/shapes/motion/shape_motion_proofs.cpp` · `content/image_proofs.cpp` · `content/image_test_patterns.cpp` · `content/camera/camera_advanced_tests_diag.cpp` · `content/camera/camera_calibration_scene.cpp` · `content/camera/camera_test_orchestrator.cpp` |
+| **Affected file(s)** *(re-audited 2026-06-21)* | `content/text/text_helpers.hpp` (+ `.cpp` if helper is non-inline — the `centered_text(...)` helper body is the central rot); `content/anims/compositions/cinematic_text_camera.cpp` lines 142, 256, 350, 450, 486, 599 (6 inline `centered_text({…})` callsites that must be re-shaped via the helper rewrite); optional `content/text/text_glow_helpers.hpp:23` (doc-comment update). See `docs/MIGRATION_TEXT_SPEC.md` §2.2 for the 5/7-missing-filed-paths recount (5 of the 7 originally-listed files don't exist at their filed paths anymore — see Re-audit Status below). |
 | **Affected target** | `chronon3d_diagnostics` (built only when `CHRONON3D_BUILD_CONTENT` is on) |
 | **Discovered during** | Full project build via `linux-full-validation` CMake preset on `main`, after TICKET-001 fix landed at commit `df1566da`. |
+| **Re-audited** | 2026-06-21 — documented in `docs/MIGRATION_TEXT_SPEC.md` §2; mechanical migration plan in §3–§5. **The cmake configure on 2026-06-21 died earlier in the dependency chain** (see "Re-audit Status" sub-section below) so the original 102+ figure cannot yet be machine-verified, but a static grep audit confirms the rot is concentrated, not wide. |
 | **Discovered date** | 2026-06-19 |
-| **Error count** | 102+ in `content/` subtree (the earlier "27" figure tallied only a subset during a partial full-build; subsequent re-runs reveal the wider rot) |
+| **Error count** *(original 2026-06-19)* | 102+ in `content/` subtree (the earlier "27" figure tallied only a subset during a partial full-build; subsequent re-runs reveal the wider rot) |
+| **Error count** *(re-audited 2026-06-21)* | Concentrated: 1 helper body rewrite (`centered_text`) + 6 inline callsites in `cinematic_text_camera.cpp` re-routed through the new helper body + 1 optional doc-comment in `text_glow_helpers.hpp`. No new files affected. Mechanical transform recipe in `docs/MIGRATION_TEXT_SPEC.md` §3. |
+| **Mechanical migration plan** | `docs/MIGRATION_TEXT_SPEC.md` (companion doc, dated 2026-06-21). |
 
 ### Symptom
 
@@ -213,6 +217,26 @@ The diagnostic `content/` targets were not re-validated after the `TextSpec` rot
 - TICKET-001 fix that exposed TICKET-002 (full build progressed past `test_render_backend` for the first time, fell over inside diagnostics): `df1566da`.
 - Pre-existing rot confirmed independent from PR2-cleanup: `git diff --stat <PR2-cleanup-base>..df1566da -- content/` is empty.
 - Camera-transition forward-decl fix that unblocked the build earlier in the dependency graph: `709a8998`.
+- **Re-audit on 2026-06-21**: see `docs/MIGRATION_TEXT_SPEC.md` §2–§5 for the mechanical migration plan; companion commit on `main` documents the audit recount + the cmake-side blocker (a separate rot in `experimental/expressions/tests/CMakeLists.txt:27` that PREVENTS the cmake configure from reaching the content/ tree, so the original 102+ figure is unverifiable by machine today).
+- TICKET-006 — precedent for the cmake-side fix pattern (PR-A): `tests/renderer_tests.cmake` uses `$<$<TARGET_EXISTS:chronon3d_backend_text>:chronon3d_backend_text>`; PR-A's gen-exp fix in `experimental/expressions/tests/CMakeLists.txt:27` mirrors this.
+
+### Re-audit Status (2026-06-21)
+
+The original 2026-06-19 symptom described three categories of TextSpec errors broadly distributed across 7 files. **A 2026-06-21 static grep audit shows the rot is concentrated, the surfaced error category is consistent, and the file list is stale.** The audit summary:
+
+1. **5 of the 7 originally-listed files don't exist on their filed paths anymore.** Some have been moved (e.g., `camera_*.cpp` -> `content/2d5/compositions/`), where they use the new shape already. Some (e.g., `image_proofs.cpp`, `image_test_patterns.cpp`, `camera_test_orchestrator.cpp`) appear to have been merged or split under other identifiers.
+2. **The 2 listed files that DO exist (`shape_proofs.cpp`, `shape_motion_proofs.cpp`) already use the new shape correctly.** They are NOT affected and should be removed from any future "affected files" list.
+3. **The actual rot lives in a single helper + its 6 inline callsites**: `chronon3d::content::text::centered_text(...)` helper body in `content/text/text_helpers.hpp` (`.cpp` if non-inline), which 6 callsites in `content/anims/compositions/cinematic_text_camera.cpp` (lines 142, 256, 350, 450, 486, 599) route through.
+4. **The cmake configure flow cannot reach the content/ tree today** because a separate rot at `experimental/expressions/tests/CMakeLists.txt:27` blocks first:
+   ```
+   CMake Error at experimental/expressions/tests/CMakeLists.txt:27 (target_link_libraries):
+     Target "chronon3d_expressions_v2_tests" links to: doctest::doctest
+     but the target was not found.
+   ```
+   This is **NOT** part of TICKET-002. It is a separate, 1-line CMake-glue rot. Fix it first (PR-A in the migration plan, mirroring TICKET-006's gen-exp pattern) before PR-B can be machine-verified via `cmake --build`.
+5. **The "102+" figure was tallied over partial-build output and is no longer accurate.** The actual rot is ~7 source-level edits (mechanical) plus 1 optional doc-comment. After PR-A + PR-B in `docs/MIGRATION_TEXT_SPEC.md` §5 land, the acceptance criterion is `cmake --build build/chronon/linux-full-validation --target chronon3d_content --target chronon3d_diagnostics` returns rc=0 with zero TextSpec errors and the grep canaries in §3.3 return zero hits.
+
+References (full details): `docs/MIGRATION_TEXT_SPEC.md` §2 (recount), §3 (mechanical transform recipe), §4 (helper rewrite), §5 (PR-A / PR-B / PR-C split), §6 (acceptance criteria).
 
 ---
 
