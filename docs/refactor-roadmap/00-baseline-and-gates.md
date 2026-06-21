@@ -74,7 +74,7 @@ human-readable report.  Per-archive and cross-archive analysis.
 
 Status as of 2026-06-21 — script landed; results not yet recorded. The
 end-to-end wiring and the deferred sizes are documented below in
-[PR 0.6 — Complete the validation record](#pr-06--complete-the-validation-record).
+[PR 0.6 — Complete the validation record](#pr-0.6--complete-the-validation-record).
 
 Actions:
 - [x] List archive members — `ar t <archive.a>` per input.
