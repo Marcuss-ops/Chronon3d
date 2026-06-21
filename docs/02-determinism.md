@@ -291,6 +291,40 @@ Tracciamento dettagliato del path composite nel contesto del nuovo
 contratto `ExecutionScope` (root/tile/precomp) è in
 [`docs/03-execution-scope-and-precomp.md`](03-execution-scope-and-precomp.md) §4.
 
+### Lock-down Baseline via Sentinel — PR 6.8.5
+
+I 6 `TEST_CASE` "Baseline green" documentati sopra (Fresh-renderer,
+arena-pin, 1t/4t bit-exact, 30-render composite stability, SSIM ≥
+0.999, precomp cache-hit determinism) sono **lock-down protected**
+contro future regression del backend via la sentinel-infra PR 6.8.5
+in [`docs/01-baseline-green.md`](01-baseline-green.md) §2.3:
+
+- 6 `kRefBaseline{FreshShader,ArenaPin,ThreadEq,Composite,Ssim,
+  PrecompCache}` costanti in `tests/deterministic/test_baseline_green.cpp`
+  confrontano l'`is_reference_captured(...)` guard + `REQUIRE` per
+  ciascun TEST_CASE.
+- `kUncapturedSentinel = 0xDEADBEEFDEADBEEFULL` è il segnaposto
+  pre-cattura hash, popolato on first-clean-CI run (Two-Phase Commit
+  Strategy, Q6 hybrid identico al pattern di `kRefStaticScene` in
+  `tests/render_graph/executor/test_scheduler_determinism.cpp` (1t/4t/8t determinism `TEST_CASE`, dove `kRefStaticScene` è il lock-down reference precedent)).
+- Una volta popolato, ogni futuro backend-change che modifica il
+  bit-pattern di un framebuffer (anche di 1 pixel) farà fallire
+  immediatamente il `REQUIRE` del TEST_CASE associato → il
+  determinismo del path composite è intrinsecamente protetto a
+  livello CI.
+
+### Stato del workflow di cattura
+
+Il **prerequisito** per popolare i 6 sentinel con valori reali è il
+fix del regression `SoftwareRenderer::capabilities() override`
+(`TICKET-018-SR-CAPABILITIES` — placeholder, retrofit to numeric `TICKET-NNN` convention on first filing in `docs/FOLLOWUP_TICKETS.md`; separato da PR 6.8.5 per scope) che
+blocca il `linux-ci` build. Una volta che `chronon3d_tests_fast`
+compila, `ctest -R 'Baseline green' -V` estrae i 6 hash via il
+braccio `MESSAGE` dell'`is_reference_captured(...)` → str_replace
+dei 6 placeholder in `kRefBaseline*` → ri-run ctest per verificare
+il braccio `REQUIRE` bloccato. Il workflow step-by-step è in
+[`docs/01-baseline-green.md`](01-baseline-green.md) §2.3 §5.
+
 ---
 
 ## 5. Superficie 4 — Tile Path (🟢 Done, PR 6.1, commit `020ea8c2`)
