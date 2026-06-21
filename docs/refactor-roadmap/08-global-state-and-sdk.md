@@ -254,26 +254,32 @@ documentation so the audit anchor survives.
   partial skip would silently drift caller-side invariants.
 - **Cache location (NIT-2)** — where the prior
   `structure_hash` lives is a design decision for the future PR.
-  Plausible homes: (a) caller-side field on `SoftwareRenderer`,
-  (b) entry in `SessionServices`, (c) wrapper struct in
-  `render_engine`, or (d) alongside the existing
-  `RuntimeNodeCache` / `node_cache.cpp` family — keying on
-  `structure_hash` with the value being the prior compiled
-  structural records (so a structural-reuse fast-path would
-  colocate with the per-node cache it is skipping re-derivation
-  for).  This section only standardises the comparison
-  primitive; the storage home is intentionally left to the
-  future implementation.
+  Plausible homes: (a) a caller-side field on `SoftwareRenderer`,
+  (b) an entry in `SessionServices`, (c) a wrapper struct in
+  `render_engine`, or (d) coalesced into one of the existing
+  per-node / structural cache families — `NodeCache` (defined
+  in `include/chronon3d/cache/node_cache.hpp`, currently keyed
+  on `NodeCacheKey` / `NodeCacheKeyHash` over `StableNodeId`)
+  could be extended to a `(StableNodeId, structure_hash)`
+  tuple key, and `CompiledGraphCache` (in
+  `include/chronon3d/render_graph/cache/`) already wraps
+  structural compiled records and is the more direct home for
+  a full-graph structural cache.  This section only standardises
+  the comparison primitive; the storage home is intentionally
+  left to the future implementation.
 
 ### Affordance attribution (MINOR)
 
 - Before implementing the stability-aware fast-path, a future
   PR should reconcile `CompiledFrameGraph::structure_hash`
-  against the audit §9.4 text directly — the affordance here
-  is reasoned **backwards** from the executor's retired
-  plan-cache fast-path branch (archived in commit `9f9af90e`),
-  not lifted verbatim from §9.4.  Audit §9.4 itself only writes
-  `stable fast-path` — no hash primitive is named — so a direct
-  audit-log match is the source of truth, and the `structure_hash`
-  keying should be treated as a *candidate* affordance rather than
-  a contract until the audit log is walked end-to-end.
+  against the "Audit §9.4 closure note (PR-2 rewire close-out)"
+  sub-sections further up in **this same file** ("What the
+  close-out did", "Status of §9.4", and the file-location
+  catalogue above) — the affordance here is reasoned **backwards**
+  from the executor's retired plan-cache fast-path branch
+  (archived in commit `9f9af90e`), not lifted verbatim from §9.4
+  wording.  §9.4 itself only states `stable fast-path` — no hash
+  primitive is named — so a direct walk of those sub-sections is
+  the source of truth, and the `structure_hash` keying should be
+  treated as a *candidate* affordance rather than a contract
+  until the §9.4 predicate is fully resolved.
