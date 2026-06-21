@@ -21,6 +21,9 @@
 #include <chronon3d/extension/extension_context.hpp>
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/effects/effect_catalog.hpp>
+#include <chronon3d/authoring/detail/basic_registry.hpp>            // PR 3.5
+#include <chronon3d/authoring/style_registry.hpp>                    // PR 3.5
+#include <chronon3d/authoring/motion_registry.hpp>                    // PR 3.5
 #endif
 
 namespace chronon3d::cli {
@@ -29,6 +32,19 @@ namespace chronon3d::cli {
 /// between init_compositions() and render_job_setup().
 inline AssetRegistry& cli_asset_registry() {
     static AssetRegistry reg;
+    return reg;
+}
+
+/// PR 3.5 — returns the CLI-wide static StyleRegistry + MotionRegistry.
+/// Created once, shared between authoring-time text builders. Host code
+/// populates these via dedicated API when ready; the default factories
+/// register nothing so unintended wildcards never resolve.
+inline authoring::StyleRegistry&  cli_style_registry() {
+    static authoring::StyleRegistry  reg;
+    return reg;
+}
+inline authoring::MotionRegistry& cli_motion_registry() {
+    static authoring::MotionRegistry reg;
     return reg;
 }
 
@@ -41,9 +57,16 @@ inline void init_compositions(CompositionRegistry& registry) {
     static ExtensionCatalog content_catalog;
     // Build a minimal ExtensionContext — only compositions is used here.
     // graph_nodes, effects, assets are not needed for composition registration.
-    static graph::GraphNodeCatalog dummy_nodes;
-    static effects::EffectCatalog dummy_effects;
-    ExtensionContext ctx{registry, dummy_nodes, dummy_effects, assets};
+    // PR 3.5 — populate the ambient authoring registries so the CLI-wide
+    // chronon3d::authoring façades can resolve `.style(id)` / `.motion(id)`
+    // ambient.  Default-empty; composition packs (or test harnesses) can
+    // register their own style/motion ids via the cli_*_registry() handles.
+    static graph::GraphNodeCatalog             dummy_nodes;
+    static effects::EffectCatalog              dummy_effects;
+    static authoring::StyleRegistry&           styles  = cli_style_registry();
+    static authoring::MotionRegistry&          motions = cli_motion_registry();
+    ExtensionContext ctx{registry, dummy_nodes, dummy_effects, assets,
+                          &styles, &motions};
     chronon3d::register_content_modules(content_catalog, ctx);
 #endif
     // Register non-content built-in compositions (DarkGridBackground,

@@ -30,6 +30,18 @@
 //               via `resolve()` lookups; offers `configure_core(Fn)` as a
 //               Level-3 escape hatch).
 //
+// PR 3.5 ships (ambient-resolution round, after PR 3 review feedback):
+//   - `chronon3d::ExtensionContext` extended with optional `StyleRegistry*`
+//     + `MotionRegistry*` pointer fields (default nullptr; existing 12+
+//     construction sites unchanged).
+//   - `LayerBuilder::extension_context(...)` setter + getter.
+//   - `Layer::text(...)` pins the registries from the parent
+//     `LayerBuilder`'s `ExtensionContext` into the returned `Text` handle.
+//   - New ambient-resolution methods on `Text`: `.style(id)` and
+//     `.motion(id)` resolve against the pinned registries, no-op when
+//     the relevant pointer is null.  Existing explicit variants
+//     `.style(id, registry)` and `.motion(id, registry)` unchanged.
+//
 // Future PRs planned in `docs/FOLLOWUP_TICKETS.md`:
 //   - PR 4  `Scene`/`Composition` (factory wrappers)
 //   - PR 6  Migration of two example compositions
@@ -48,7 +60,8 @@
 
 // ─────────────────────────────────────────────────────────────────────────
 // Currently usable — PR 1 (Animator, Selector) + PR 2 (Material)
-// + PR 3 (Layer, Text) + PR 5 (StyleRegistry, MotionRegistry).
+// + PR 3 (Layer, Text) + PR 3.5 (ambient-ExtensionContext resolution) +
+//   PR 5 (StyleRegistry, MotionRegistry).
 // Scene and Composition are NOT YET available (PR 4, 6).
 // This header WILL grow as subsequent PRs land; meanwhile, user
 // code that includes only this umbrella header can use ONLY the

@@ -28,9 +28,19 @@
 // otherwise route via `configure_core()`.  Per-glyph rotation/scale
 // always go through `Animator`.
 //
-// ── Registry hookup (PR 5) ──────────────────────────────────────────────
+// ── Registry hookup (PR 5 + PR 3.5) ─────────────────────────────────
 //
-// `style(std::string_view id, const StyleRegistry&)` resolves to a
+// Two resolution paths:
+//   1. Explicit payload: `.style(id, registry)` / `.motion(id, registry)` —
+//      caller supplies the registry per call. Was PR 3's shipped surface.
+//   2. Ambient payload:   `.style(id)` / `.motion(id)` — resolves against
+//      registries pinned from the parent `LayerBuilder`'s
+//      `ExtensionContext` (when attached). When the ambient pointer is
+//      null, these methods gracefully no-op.
+//
+// The implementation reuses a single private helper for the field-maps
+// (PR 5 logic is the same regardless of where the TextStyle comes from).
+// `style(std::string_view id, const StyleRegistry& registry)` resolves to a
 // `TextStyle` and field-maps it onto `spec.text`.  Fields that exist in
 // `TextStyle` but not in `TextSpec` (e.g. `TextBox`, `TextStyle::min_size`
 // field-name clash, `auto_scale`) deliberately route through `configure_core()`
@@ -93,8 +103,17 @@ struct FrameContext {
 // ── Text ─────────────────────────────────────────────────────────────────
 class Text {
 public:
-    Text(PendingTextRun& pending, const FrameContext* ctx) noexcept
-        : pending_(&pending), context_(ctx) {}
+    /// Primary ctor. `style_registry` and `motion_registry` are pinned
+    /// references used by the ambient-resolution `.style(id)` /
+    /// `.motion(id)` variations (PR 3.5). Default-nullptr preserves
+    /// backward compatibility with callers that don't need ambient
+    /// resolution.
+    Text(PendingTextRun& pending, const FrameContext* ctx,
+         const StyleRegistry*  style_registry  = nullptr,
+         const MotionRegistry* motion_registry = nullptr) noexcept
+        : pending_(&pending), context_(ctx),
+          style_registry_(style_registry),
+          motion_registry_(motion_registry) {}
 
     Text(const Text&)            = delete;
     Text& operator=(const Text&) = delete;
@@ -274,7 +293,10 @@ public:
         return *this;
     }
 
-    // ── Style registry (PR 5 hookup): lose-free field-mapping ────────────
+    // ── Style registry (PR 5 + PR 3.5): field-map TextStyle → spec.text ──
+    //
+    // Both call paths funnel through the same private helper
+    // `apply_text_style(const TextStyle&)` which performs the field-map.
     //
     // Maps a `TextStyle` from the registry onto `spec.text`:
     //   font_path/family/weight/style/size  → spec.text.font.*
@@ -291,45 +313,41 @@ public:
     // explicit `pre_shaped` glyphs) require a follow-up `.configure_core(...)`
     // call.  We do NOT silently drop them — registry lookups that don't
     // resolve return without mutating the spec.
+
+    // Explicit-path (PR 3 surface): caller supplies the registry.
     Text& style(std::string_view id, const StyleRegistry& registry) & {
         const auto resolved = registry.resolve(id);
         if (!resolved.has_value()) return *this;
-        const TextStyle& s = *resolved;
-        auto& spec = pending_->params.text;
-        spec.font.font_path   = s.font_path;
-        spec.font.font_family = s.font_family;
-        spec.font.font_weight = s.font_weight;
-        spec.font.font_style  = s.font_style;
-        spec.font.font_size   = s.size;
-        spec.appearance.color = s.color;
-        spec.layout.anchor         = s.anchor;
-        spec.layout.align          = s.align;
-        spec.layout.vertical_align = s.vertical_align;
-        spec.layout.centering_mode = s.centering_mode;
-        spec.layout.line_height    = s.line_height;
-        spec.layout.tracking       = s.tracking;
-        spec.layout.max_lines      = s.max_lines;
-        spec.layout.ellipsis       = s.ellipsis;
-        spec.layout.auto_fit       = s.auto_fit || s.auto_scale;
-        spec.layout.min_font_size  = s.min_size;
-        spec.layout.max_font_size  = s.max_size;
-        spec.layout.overflow       = s.overflow;
-        spec.layout.wrap           = s.wrap;
-        spec.appearance.paint      = s.paint;
-        spec.appearance.shadows    = s.shadows;
-        spec.appearance.box_style  = s.box_style;
-        spec.appearance.material   = s.material;
-        pending_->params.direction = s.shaping.direction;
-        pending_->params.language  = s.shaping.language;
-        if (s.pre_shaped) {
-            spec.content.pre_shaped = s.pre_shaped;
-        }
+        apply_text_style(*resolved);
         return *this;
     }
 
-    // ── Motion registry (PR 5 hookup): append resolved animator ─────────
+    // Ambient-path (PR 3.5): resolves against the registry pinned at handle
+    // construction (LayerBuilder → ExtensionContext → StyleRegistry*).
+    // When no ambient registry is attached, no-ops gracefully — no warning
+    // log because the chain is a valid authoring choice (use explicit variant).
+    Text& style(std::string_view id) & {
+        if (style_registry_ == nullptr) return *this;
+        const auto resolved = style_registry_->resolve(id);
+        if (!resolved.has_value()) return *this;
+        apply_text_style(*resolved);
+        return *this;
+    }
+
+    // ── Motion registry (PR 5 + PR 3.5) ────────────────────────────────
+
+    // Explicit-path.
     Text& motion(std::string_view id, const MotionRegistry& registry) & {
         const auto resolved = registry.resolve(id);
+        if (!resolved.has_value()) return *this;
+        pending_->params.animators.push_back(*resolved);
+        return *this;
+    }
+
+    // Ambient-path.
+    Text& motion(std::string_view id) & {
+        if (motion_registry_ == nullptr) return *this;
+        const auto resolved = motion_registry_->resolve(id);
         if (!resolved.has_value()) return *this;
         pending_->params.animators.push_back(*resolved);
         return *this;
@@ -360,12 +378,54 @@ public:
     // ── Read-only accessors (for tests and tooling) ──────────────────────
     [[nodiscard]] const PendingTextRun& pending() const noexcept { return *pending_; }
     [[nodiscard]] PendingTextRun&       mutable_pending() noexcept { return *pending_; }
+    // PR 3.5 — exposed for tests that exercise the ambient-resolution path.
+    [[nodiscard]] const StyleRegistry*  ambient_style_registry()  const noexcept { return style_registry_; }
+    [[nodiscard]] const MotionRegistry* ambient_motion_registry() const noexcept { return motion_registry_; }
 
 private:
     friend class Layer;                                               // PR 3 — Layer::text() needs to expose `text(content)` factory returning a Text handle.
 
+    // Single field-map helper shared by explicit + ambient `.style(...)`
+    // paths.  Owns the PR 3-equivalence contract.
+    void apply_text_style(const chronon3d::TextStyle& s) {
+        auto& spec = pending_->params.text;
+        spec.font.font_path   = s.font_path;
+        spec.font.font_family = s.font_family;
+        spec.font.font_weight = s.font_weight;
+        spec.font.font_style  = s.font_style;
+        spec.font.font_size   = s.size;
+        spec.appearance.color = s.color;
+        spec.layout.anchor         = s.anchor;
+        spec.layout.align          = s.align;
+        spec.layout.vertical_align = s.vertical_align;
+        spec.layout.centering_mode = s.centering_mode;
+        spec.layout.line_height    = s.line_height;
+        spec.layout.tracking       = s.tracking;
+        spec.layout.max_lines      = s.max_lines;
+        spec.layout.ellipsis       = s.ellipsis;
+        spec.layout.auto_fit       = s.auto_fit || s.auto_scale;
+        spec.layout.min_font_size  = s.min_size;
+        spec.layout.max_font_size  = s.max_size;
+        spec.layout.overflow       = s.overflow;
+        spec.layout.wrap           = s.wrap;
+        spec.appearance.paint      = s.paint;
+        spec.appearance.shadows    = s.shadows;
+        spec.appearance.box_style  = s.box_style;
+        spec.appearance.material   = s.material;
+        pending_->params.direction = s.shaping.direction;
+        pending_->params.language  = s.shaping.language;
+        if (s.pre_shaped) {
+            spec.content.pre_shaped = s.pre_shaped;
+        }
+    }
+
     PendingTextRun* pending_;
     const FrameContext* context_;
+    // PR 3.5 — ambient registry pointers, pinned at handle construction
+    // by Layer::text(...). Read-only for the handle's lifetime; mutable
+    // via the public accessor only for test introspection.
+    const StyleRegistry*  style_registry_;
+    const MotionRegistry* motion_registry_;
 };
 
 } // namespace chronon3d::authoring

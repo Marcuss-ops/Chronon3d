@@ -24,6 +24,10 @@
 namespace chronon3d {
 
 class FontEngine;  // forward declaration
+struct ExtensionContext;  // PR 3.5 — forward-decl (host-side ambient registries).
+                         // Full definition lives in <chronon3d/extension/extension_context.hpp>.
+                         // Kept as a forward-decl here so layer_builder.hpp stays include-light;
+                         // accessor below returns the pointer verbatim.
 
 // `TextRunBuilder` and `TextRunSpec` are now pulled in fully via
 // `#include <chronon3d/scene/builders/text_run_builder.hpp>` above.
@@ -155,6 +159,28 @@ public:
     LayerBuilder& font_engine(FontEngine* engine);
     [[nodiscard]] FontEngine* font_engine() const;
 
+    // ── PR 3.5 — ExtensionContext attachment (ambient authoring registries) ──
+    //
+    // Attach the host-side ExtensionContext so that downstream
+    // `chronon3d::authoring::Layer::text(...)` and the resulting
+    // Text handle can resolve `.style(id)` / `.motion(id)` ambient
+    // without an explicit registry parameter.
+    //
+    // Pointer semantics: nullable. When no ExtensionContext is attached,
+    // the authoring façade's ambient methods gracefully no-op. The
+    // existing explicit-param variants on Text (`.style(id, registry)`,
+    // `.motion(id, registry)`) keep working regardless of this state.
+    //
+    // Lifetime: the host owns the ExtensionContext — LayerBuilder does
+    // NOT take ownership. The pointer must outlive this LayerBuilder.
+    LayerBuilder&  extension_context(const ExtensionContext& ctx) noexcept {
+        m_extension_context = &ctx;
+        return *this;
+    }
+    [[nodiscard]] const ExtensionContext* extension_context() const noexcept {
+        return m_extension_context;
+    }
+
     // ── Masks ──
     LayerBuilder& mask_rect(RectMaskParams p);
     LayerBuilder& mask_rounded_rect(RoundedRectMaskParams p);
@@ -264,6 +290,11 @@ private:
     FontEngine* m_font_engine{nullptr};
     registry::ShapeRegistry* m_shape_registry{nullptr};
     std::optional<registry::ShapeRegistry> m_own_shape_registry;
+    // PR 3.5 — host-side ambient registries. Non-owning. Nullopt by default;
+    // when set, propagates into every chronon3d::authoring::Text handle this
+    // layer produces so `.style(id)` / `.motion(id)` resolve without an
+    // explicit registry argument.
+    const ExtensionContext* m_extension_context{nullptr};
 
     // ── PR 4 — pending text-run specs + builder pool ──────────────────
     //
