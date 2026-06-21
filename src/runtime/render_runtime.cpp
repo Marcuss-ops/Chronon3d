@@ -8,11 +8,19 @@
 //   - All catalogs (PipelineCatalogs → graph_nodes + effects +
 //     extensions + precomp_builder)
 //   - All registries (SoftwareRegistry, GraphNodeCatalog, EffectCatalog)
-//   - GraphExecutor + ExecutionPlanCache + ExecutionScheduler
+//   - GraphExecutor + ExecutionScheduler
 //
 // The backend slot is attached externally by RenderEngine::Impl because
 // SoftwareBackend's ctor needs RenderCounters & + RenderSettings & that
 // live on SoftwareRenderer.
+//
+// WP-3 PR 3.1 — `SceneHasher` and `SceneProgramStore` are no longer
+// runtime-owned.  They were relocated from RenderSession to RenderRuntime
+// in WP-8 (see prior revisions) and are now back per-session-owned.
+// The runtime therefore no longer populates them, no longer assigns
+// them into the service bundle, and no longer wires them into the
+// SessionServices table via `make_session()`.  The corresponding
+// service-bundle fields in `RenderServices` are gone (see header).
 //
 // ===========================================================================
 
@@ -99,11 +107,9 @@ void RenderRuntime::populate() {
     m_owned_effect_catalog       = std::make_unique<chronon3d::effects::EffectCatalog>();
     m_scheduler                  = std::make_unique<chronon3d::ExecutionScheduler>(
         make_execution_scheduler(m_config));
-    // WP-8 follow-up: scene_hasher is a default-constructible value
-    // member (no explicit construction needed).  program_store uses
-    // unique_ptr because SceneProgramStore carries a std::mutex and
-    // is therefore non-movable; the runtime is the sole owner.
-    m_owned_program_store = std::make_unique<chronon3d::graph::SceneProgramStore>();
+    // WP-3 PR 3.1 — no longer populating m_owned_scene_hasher /
+    // m_owned_program_store here: both are per-session owned in the
+    // WP-3 PR 3.1 architecture.
 
     // ── Service bundle: typed pointer view of long-lived state ───────
     m_services = RenderServices{
@@ -117,8 +123,9 @@ void RenderRuntime::populate() {
         .software_registry   = m_owned_software_registry.get(),
         .graph_node_registry = m_owned_graph_node_registry.get(),
         .effect_catalog      = m_owned_effect_catalog.get(),
-        .scene_hasher        = &m_owned_scene_hasher,
-        .program_store       = m_owned_program_store.get(),
+        // WP-3 PR 3.1 — .scene_hasher and .program_store fields are
+        // gone from RenderServices (per-session ownership).  This is
+        // the canonical PR 3.1 service-bundle table.
     };
 
     // ── Populate builtin processors/effects + freeze the catalogs ───
@@ -149,7 +156,9 @@ void RenderRuntime::populate() {
     m_populated = true;
     spdlog::debug("RenderRuntime::populate(): runtime populated with "
                   "NodeCache({}B), FramebufferPool({}B), GraphExecutor, "
-                  "ExecutionScheduler (mode={}), 3 registries + 3 catalogs",
+                  "ExecutionScheduler (mode={}), 3 registries + 3 catalogs"
+                  " (WP-3 PR 3.1: scene_hasher + program_store are per-session owned,"
+                  " NOT runtime-owned)",
                   cache_cfg.node_cache_max_bytes(),
                   cache_cfg.fb_pool_max_bytes(),
                   static_cast<int>(sched_cfg.mode()));
@@ -244,12 +253,12 @@ std::string default_assets_root_for_deep_code() {
 
 [[nodiscard]] chronon3d::SoftwareRenderSession
 make_session(RenderRuntime& runtime) {
-    // TICKET-011a follow-up #1 — wire back-pointers from the runtime
-    // into the returned session via a SessionServices table.  The
-    // mapping is by-value (one record per session, copy-on-make) so
-    // sessions don't need a global lookup table; the back-pointers
-    // are RAW pointers (non-owning) with lifetime backed by the
-    // runtime itself.
+    // WP-3 PR 3.1 — the SessionServices table no longer wires
+    // scene_hasher / program_store pointers: both state engines are
+    // per-session owned and live on `RenderSession::scene_hasher`
+    // and `RenderSession::program_store` respectively.  Productions
+    // reach them via `session.scene_hasher()` /
+    // `session.program_store()` directly.
     chronon3d::SoftwareRenderSession session;
     session.common.services = SessionServices{
         .executor            = runtime.services().executor,
@@ -258,12 +267,8 @@ make_session(RenderRuntime& runtime) {
         .graph_cache         = runtime.services().graph_cache,
         .asset_registry      = runtime.services().asset_registry,
         .default_assets_root = &runtime.default_assets_root(),
-        // WP-8 follow-up: scope-scoped scene-hasher + program-store
-        // back-pointers into the session so its accessor methods (in
-        // src/runtime/render_session.cpp) can reach the runtime-owned
-        // state through `services` instead of via header include.
-        .scene_hasher        = runtime.services().scene_hasher,
-        .program_store       = runtime.services().program_store,
+        // WP-3 PR 3.1 — .scene_hasher / .program_store fields removed from
+        // SessionServices.  See header for rationale.
     };
     return session;
 }
