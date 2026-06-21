@@ -54,9 +54,10 @@
 // header (`backends/software/software_session_resources.hpp`).  The
 // previous stale 2-field inline duplicate in this file caused a
 // C++-level struct redefinition error; this include brings the
-// canonical 3-field struct in.  `SoftwareRenderSession::clear_per_frame`
-// below now calls `reset_job()` to preserve the old behaviour (resets
-// buffer_ring + scratch_buffer).
+// canonical 3-field struct in.  `SoftwareRenderSession` exposes only
+// `reset_frame_temporaries()` and `reset_job()` (which forward to both
+// halves); the legacy `clear_per_frame()` has been retired — callers
+// must migrate to the explicit reset variants.
 #include <chronon3d/backends/software/software_session_resources.hpp>
 
 namespace chronon3d {
@@ -105,9 +106,8 @@ struct RenderSession {
     // Use this when the session is being reused for an unrelated job
     // and the previous fingerprints no longer apply.
     //
-    // The legacy `clear_per_frame()` is kept for backward compatibility
-    // but is now redundant; new call sites should use the two new
-    // methods above for clarity.  See
+    // The legacy `clear_per_frame()` has been REMOVED — callers must
+    // use one of the two methods above.  See
     // `docs/refactor-roadmap/03-render-session-boundary.md`.
 
     /// Per-frame reset (telemetry tracking only).  History preserved.
@@ -131,20 +131,10 @@ struct RenderSession {
         }
     }
 
-    /// Clear per-frame state for reuse between unrelated render sessions.
-    /// Per-frame resources (arena memory, buffer ring, scratch) are NOT
-    /// cleared here — those live on the backend-specific resources struct
-    /// and have their own lifetime policy.
-    ///
-    /// @deprecated Prefer `reset_frame_temporaries()` (frame-scoped only)
-    /// or `reset_job()` (full reset); retained for callers that depended
-    /// on the historical "erase everything except arena" semantics.
-    void clear_per_frame() {
-        frame_history   = RendererFrameHistory{};
-        dirty_telemetry = RendererDirtyTelemetry{};
-        layer_history   = RendererLayerHistory{};
-        scene_hasher    = graph::SceneHasher{};
-    }
+    // NOTE: `clear_per_frame()` was retired — the legacy semantics
+    // ("erase everything except arena") is now provided by
+    // `reset_job()`.  Callers that previously relied on the historical
+    // method migrated to `reset_job()` in WP-3 PR 3.4 close-out.
 };
 
 /// Composition of engine-generic + software-specific session state.
@@ -153,20 +143,37 @@ struct RenderSession {
 /// `session()` return the engine-generic half and `software_session()` the
 /// full composition, so callers that only need the engine-generic half
 /// (e.g. GraphExecutor) keep working without pulling in software internals.
+///
+/// Reset semantics mirror the canonical header
+/// `<chronon3d/backends/software/software_render_session.hpp>`:
+/// `reset_frame_temporaries()` forwards to BOTH halves so a per-frame
+/// boundary wipes dirty telemetry AND the transform scratch (the buffer
+/// ring is preserved because it carries the previous frame's output);
+/// `reset_job()` forwards to BOTH halves for a full job reset (telemetry,
+/// history, buffer ring, transform scratch, scene hasher, program store).
 struct SoftwareRenderSession {
     RenderSession            common;
     SoftwareSessionResources software;
 
-    void clear_per_frame() {
-        common.clear_per_frame();
-        // TICKET-011-final: `SoftwareSessionResources` (canonical, from
-        // include/chronon3d/backends/software/software_session_resources.hpp)
-        // exposes `reset_job()` and `reset_frame_temporaries()`.  Call the
-        // full-reset variant here because the legacy `clear_per_frame()`
-        // implementation lived on the stale duplicate struct and reset both
-        // buffer_ring + scratch_buffer; `reset_job()` mirrors that exactly.
+    /// Per-frame reset (telemetry + transform scratch).  Buffer ring
+    /// preserved.  Mirrors the canonical definition.
+    void reset_frame_temporaries() {
+        common.reset_frame_temporaries();
+        software.reset_frame_temporaries();
+    }
+
+    /// Full per-job reset (telemetry + history + buffer ring + scratch +
+    /// hasher + program store).  Mirrors the canonical definition.
+    void reset_job() {
+        common.reset_job();
         software.reset_job();
     }
+
+    // NOTE: `clear_per_frame()` was retired in WP-3 PR 3.4 close-out.
+    // Its semantics (frame_history/dirty_telemetry/layer_history/scene_hasher
+    // reset) were folded into `reset_job()` above.  No callers remain —
+    // `git grep clear_per_frame -- include/ src/ tests/ apps/` must return
+    // zero hits.
 };
 
 } // namespace chronon3d
