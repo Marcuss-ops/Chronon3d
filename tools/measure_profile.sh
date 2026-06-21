@@ -111,13 +111,30 @@ fi
 
 # -- 4. binary size ---------------------------------------------------------------------
 declare -A bin_sizes
+# Advisory metric: SDK archive may live under an OBJECT-library subpath
+# rather than flat under $build_dir. We attempt a flat find first and
+# fall back to a recursive search; size = 0 means "binary was not
+# produced in this profile" (e.g., motion profile without CHRONON3D_USE_BLEND2D).
 for tgt in "${bin_targets[@]}"; do
   found=$(find "$build_dir" -name "$tgt" -type f 2>/dev/null | head -n 1)
+  if [[ -z "$found" ]]; then
+    # Recursive fallback (in case target was built into a subdir).
+    found=$(find "$build_dir/../.." -name "$tgt" -type f 2>/dev/null | head -n 1)
+  fi
   if [[ -n "$found" && -f "$found" ]]; then
     sz=$(stat -c '%s' "$found" 2>/dev/null || echo 0)
     bin_sizes[$tgt]=$sz
+    bin_paths[$tgt]="$found"
   else
     bin_sizes[$tgt]=0
+    bin_paths[$tgt]="(not produced)"
+  fi
+done
+
+# Emit advisory on any "not produced" target.
+for tgt in "${bin_targets[@]}"; do
+  if [[ "${bin_sizes[$tgt]}" -eq 0 ]]; then
+    echo "[advisory] $tgt: non prodotto in questo profilo (bin_sizes=0). Verificare se i flag CHRONON3D_* abilitano il target." >&2
   fi
 done
 
@@ -149,7 +166,10 @@ json_path="build/profiles/$profile/profile-measurement.json"
 
 # -- 6. write Markdown ------------------------------------------------------------------
 md_path="build/profiles/$profile/profile-measurement.md"
-[[ -n "$report_md" ]] && md_path="$report_md"
+if [[ -n "$report_md" ]]; then
+  mkdir -p "$(dirname "$report_md")"
+  md_path="$report_md"
+fi
 {
   echo "# Profile measurement — $profile"
   echo
@@ -163,11 +183,13 @@ md_path="build/profiles/$profile/profile-measurement.md"
   echo
   echo "## Binari"
   echo
-  echo "| Target | Bytes |"
-  echo "|---|---:|"
+  echo "| Target | Bytes | Path |"
+  echo "|---|---:|---|"
   for tgt in "${bin_targets[@]}"; do
-    printf '| %s | %s |\n' "$tgt" "${bin_sizes[$tgt]}"
+    printf '| %s | %s | %s |\n' "$tgt" "${bin_sizes[$tgt]}" "${bin_paths[$tgt]}"
   done
+  echo
+  echo "Size=0 indica che il target non era abilitato dai flag del profilo (advisory only)."
   echo
   echo "## Note"
   echo
