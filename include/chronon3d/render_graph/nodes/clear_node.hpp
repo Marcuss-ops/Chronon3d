@@ -17,18 +17,18 @@ public:
         const RenderGraphContext& ctx,
         std::span<const std::optional<raster::BBox>> = {}
     ) const override {
-        if (ctx.tile.clip_rect) {
-            return *ctx.tile.clip_rect;
+        if (ctx.node_exec.clip_rect) {
+            return *ctx.node_exec.clip_rect;
         }
-        return raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
     }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "clear",
             .frame = 0,
-            .width = ctx.frame.width,
-            .height = ctx.frame.height
+            .width = ctx.frame_input.width,
+            .height = ctx.frame_input.height
         };
     }
 

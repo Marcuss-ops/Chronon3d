@@ -5,7 +5,12 @@
 # ==============================================================================
 
 # ── Core: base types, registry, utilities ───────────────────────────────────
-add_library(chronon3d_graph_core STATIC
+# TICKET-011 cmake-boundary (OBJECT lift) — chronon3d_graph_* sub-libs are
+# now OBJECT libraries; their compiled objects are aggregated into
+# chronon3d_sdk_impl.a (see src/CMakeLists.txt).  Exposed through the
+# `chronon3d_graph` INTERFACE umbrella which still re-discloses each
+# sub-target name for CMake link-resolution semantics.
+add_library(chronon3d_graph_core OBJECT
     render_graph.cpp
     framebuffer_acquire.cpp
     graph_profiler.cpp
@@ -31,7 +36,7 @@ target_precompile_headers(chronon3d_graph_core PRIVATE
 )
 
 # ── Nodes: graph node implementations ───────────────────────────────────────
-add_library(chronon3d_graph_nodes STATIC
+add_library(chronon3d_graph_nodes OBJECT
     nodes/source_node.cpp
     nodes/multi_source_node.cpp
     nodes/transform_node.cpp
@@ -61,7 +66,7 @@ target_precompile_headers(chronon3d_graph_nodes PRIVATE
 )
 
 # ── Builder: graph construction ─────────────────────────────────────────────
-add_library(chronon3d_graph_builder STATIC
+add_library(chronon3d_graph_builder OBJECT
     builder/graph_builder_pipeline.cpp
     builder/graph_builder_static_analysis.cpp
     builder/graph_builder_bbox.cpp
@@ -91,7 +96,7 @@ target_precompile_headers(chronon3d_graph_builder PRIVATE
 )
 
 # ── Compiler: graph compilation & optimization ──────────────────────────────
-add_library(chronon3d_graph_compiler STATIC
+add_library(chronon3d_graph_compiler OBJECT
     compiler/frame_graph_compiler.cpp
     compiler/scene_binding_compiler.cpp
     optimizer/graph_optimizer.cpp
@@ -103,7 +108,7 @@ target_link_libraries(chronon3d_graph_compiler PUBLIC
 )
 
 # ── Executor: graph execution ───────────────────────────────────────────────
-add_library(chronon3d_graph_executor STATIC
+add_library(chronon3d_graph_executor OBJECT
     executor/executor.cpp
     executor/input_resolver.cpp
     executor/cache_evaluator.cpp
@@ -128,7 +133,7 @@ target_precompile_headers(chronon3d_graph_executor PRIVATE
 )
 
 # ── Preflight: validation & analysis before render ──────────────────────────
-add_library(chronon3d_graph_preflight STATIC
+add_library(chronon3d_graph_preflight OBJECT
     preflight/preflight.cpp
     preflight/analysis.cpp
     preflight/analysis_graph.cpp
@@ -144,7 +149,7 @@ target_link_libraries(chronon3d_graph_preflight PUBLIC
 )
 
 # ── Cache: scene program cache + compiled graph cache ───────────────────────
-add_library(chronon3d_graph_cache STATIC
+add_library(chronon3d_graph_cache OBJECT
     cache/scene_program_cache.cpp
     cache/compiled_graph_cache.cpp
     cache/precomp_node_execute.cpp
@@ -156,7 +161,7 @@ target_link_libraries(chronon3d_graph_cache PUBLIC
 )
 
 # ── Pipeline: scene orchestration, dirty rects, tile execution ───────────────
-add_library(chronon3d_graph_pipeline STATIC
+add_library(chronon3d_graph_pipeline OBJECT
     pipeline/scene.cpp
     pipeline/scene_dirty.cpp
     pipeline/dirty/scroll_optimization.cpp

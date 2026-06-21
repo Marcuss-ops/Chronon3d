@@ -1,5 +1,6 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <spdlog/spdlog.h>
@@ -107,7 +108,24 @@ struct FontEngine::Impl {
     std::optional<FaceEntry> load_face(const FontSpec& spec) {
         if (!ft_library) return std::nullopt;
 
-        std::string resolved = resolve_asset_path(spec.font_path);
+        // TICKET-011a follow-up #2 — resolve via active runtime,
+        // falling back to the process-wide assets root.
+        //
+        // The previous implementation distinguished "missing root from
+        // a joined path" by string-equality on `resolved == font_path`,
+        // but that comparison is unreliable — `lexically_normal` returns
+        // the same string for an already-normalized absolute input.  We
+        // now ask the runtime directly: if neither an active runtime nor
+        // a typed process-wide root is set, skip resolution entirely and
+        // pass the raw spec.font_path to FT so its failure path surfaces
+        // a clean warn.
+        const bool runtime_or_root_available =
+            chronon3d::runtime::active_runtime() != nullptr ||
+            !chronon3d::runtime::process_wide_assets_root().empty();
+        std::string resolved;
+        if (runtime_or_root_available) {
+            resolved = chronon3d::runtime::resolve_asset_path(spec.font_path);
+        }
         if (resolved.empty()) {
             resolved = spec.font_path;
         }

@@ -9,7 +9,7 @@
 // Every rendering entry point (GraphExecutor::execute, tile path,
 // PrecompNode::execute, future checksum harnesses) either receives an
 // `ExecutionScheduler&` parameter or reads it from
-// `ctx.resources.scheduler`.
+// `ctx.services.scheduler`.
 //
 // Concurrency contract:
 //   * Sequential   → arena(1)  → caps nested tbb::parallel_for
@@ -23,6 +23,8 @@
 
 #include <cstddef>
 #include <tbb/task_arena.h>
+#include <tbb/parallel_for.h>
+#include <tbb/blocked_range.h>
 #include <type_traits>
 #include <utility>
 
@@ -44,7 +46,9 @@ struct ExecutionSchedulerConfig {
 };
 
 // Factory overloads
+class ExecutionScheduler;
 ExecutionScheduler make_execution_scheduler(ExecutionSchedulerConfig cfg);
+class ExecutionScheduler;
 ExecutionScheduler make_execution_scheduler(const Config& cfg);
 
 /// Authoritative thread-pool for the engine.  Owns exactly one
@@ -63,16 +67,18 @@ public:
 
     /// Run the callable inside the scheduler arena.
     /// Signature mirrors tbb::task_arena::execute().
+    /// NOTE: NOT const — `tbb::task_arena::execute()` mutates arena state.
     template <typename Fn>
-    decltype(auto) run(Fn&& fn) const {
+    decltype(auto) run(Fn&& fn) {
         return m_arena.execute(std::forward<Fn>(fn));
     }
 
     /// Parallel index loop, routed through the scheduler arena.
     /// Sequential mode runs serially (still inside arena(1) so nested
     /// tbb::parallel_for calls cannot escape into siblings).
+    /// NOTE: NOT const — `tbb::task_arena::execute()` mutates arena state.
     template <typename Fn>
-    void for_each_index(std::size_t count, Fn&& fn) const;
+    void for_each_index(std::size_t count, Fn&& fn);
 
     /// Maximum concurrency of the underlying task arena (== arena size).
     [[nodiscard]] int concurrency() const noexcept {
@@ -100,7 +106,7 @@ bool parse_scheduler_mode(std::string_view text, SchedulerMode& out) noexcept;
 
 // ── Template out-of-line definitions ───────────────────────────────────
 template <typename Fn>
-inline void ExecutionScheduler::for_each_index(std::size_t count, Fn&& fn) const {
+inline void ExecutionScheduler::for_each_index(std::size_t count, Fn&& fn) {
     // PR-B review (round 3): Sequential branch must ALSO be wrapped in
     // `m_arena.execute(...)`, even though the body is a plain serial
     // loop.  Otherwise nested `tbb::parallel_for` calls inside the per-

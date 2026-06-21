@@ -26,7 +26,7 @@ void refresh_multi_source_node(
     }
 
     const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
-    const bool use_local = ctx.options.modular_coordinates &&
+    const bool use_local = ctx.policy.modular_coordinates &&
         layer_needs_render_transform(item, ctx) &&
         !item.native_3d;
     const std::string layer_name_str(layer.name);
@@ -65,9 +65,9 @@ void refresh_multi_source_node(
 
     cache::NodeCacheKey key{
         .scope = "layer.multisource:" + layer_name_str,
-        .frame = source_is_static ? Frame{0} : ctx.frame.frame,
-        .width = ctx.frame.width,
-        .height = ctx.frame.height,
+        .frame = source_is_static ? Frame{0} : ctx.frame_input.frame,
+        .width = ctx.frame_input.width,
+        .height = ctx.frame_input.height,
         .params_hash = aggregated_params_hash,
         .source_hash = hash_string(layer_name_str + "_multisource")
     };

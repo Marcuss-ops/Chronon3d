@@ -75,8 +75,8 @@ public:
         return cache::NodeCacheKey{
             .scope = "composite",
             .frame = m_cache_frame >= 0 ? m_cache_frame : Frame{0},
-            .width = ctx.frame.width,
-            .height = ctx.frame.height,
+            .width = ctx.frame_input.width,
+            .height = ctx.frame_input.height,
             .params_hash = params_hash
         };
     }

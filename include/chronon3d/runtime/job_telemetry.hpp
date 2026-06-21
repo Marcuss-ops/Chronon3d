@@ -13,7 +13,7 @@
 // At the moment of introduction this struct is intentionally a placeholder:
 //   - fields will be added in a follow-up step
 //   - `RenderSession::telemetry` already references this type so that
-//     downstream code can begin referencing `RenderSession.telemetry.foo`
+//     downstream code can begin referencing `RenderSession.node_exec.foo`
 //     without source churn.
 // ---------------------------------------------------------------------------
 
@@ -30,7 +30,7 @@ namespace chronon3d {
 /// telemetry shape is decided; until then, instances are default-constructed
 /// and serve only as a stable name in the RenderSession member list.
 struct JobTelemetry {
-    // Reserved for future fields.  See RenderSession.telemetry.
+    // Reserved for future fields.  See RenderSession.node_exec.
 };
 
 } // namespace chronon3d

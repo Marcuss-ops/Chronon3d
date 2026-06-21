@@ -25,6 +25,7 @@
 #include <chronon3d/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/render_graph/layer/layer_resolver.hpp>
 #include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
+#include <chronon3d/render_graph/builder/precomp_builder_service.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 
 namespace chronon3d::graph {
@@ -80,24 +81,24 @@ OwnedFB PrecompNode::execute(
     std::span<const std::optional<raster::BBox>>)
 {
     // ── 1. Guard: composition must exist in the registry ─────────────────
-    if (!ctx.resources.registry || !ctx.resources.registry->contains(m_comp_name)) {
-        return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
+    if (!ctx.services.registry || !ctx.services.registry->contains(m_comp_name)) {
+        return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
     }
 
     // ── 2. Calculate nested frame time ───────────────────────────────────
-    const Frame nested_frame = ctx.frame.frame - m_start_frame;
+    const Frame nested_frame = ctx.frame_input.frame - m_start_frame;
     if (nested_frame < 0 || (m_duration > 0 && nested_frame >= m_duration)) {
-        return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
+        return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
     }
 
     // ── 3. Fetch nested composition & build nested context ───────────────
-    const auto comp = ctx.resources.registry->create(m_comp_name);
+    const auto comp = ctx.services.registry->create(m_comp_name);
 
     RenderGraphContext nested_ctx = ctx;
-    nested_ctx.frame.frame   = nested_frame;
-    nested_ctx.frame.width   = comp.width();
-    nested_ctx.frame.height  = comp.height();
-    nested_ctx.camera.camera = comp.camera;
+    nested_ctx.frame_input.frame   = nested_frame;
+    nested_ctx.frame_input.width   = comp.width();
+    nested_ctx.frame_input.height  = comp.height();
+    nested_ctx.frame_input.camera = comp.camera;
 
     const Scene nested_scene = comp.evaluate(nested_frame);
 
@@ -106,10 +107,10 @@ OwnedFB PrecompNode::execute(
     SceneStructureKey key;
     key.topology_hash      = hasher.compute_structure_fingerprint(nested_scene);
     key.active_set_hash    = hasher.compute_active_at_fingerprint(nested_scene, nested_frame);
-    key.render_options_hash = hash_combine(0, static_cast<uint64_t>(nested_ctx.options.ssaa_factor));
-    key.width              = nested_ctx.frame.width;
-    key.height             = nested_ctx.frame.height;
-    key.ssaa_factor        = static_cast<int>(nested_ctx.options.ssaa_factor);
+    key.render_options_hash = hash_combine(0, static_cast<uint64_t>(nested_ctx.policy.ssaa_factor));
+    key.width              = nested_ctx.frame_input.width;
+    key.height             = nested_ctx.frame_input.height;
+    key.ssaa_factor        = static_cast<int>(nested_ctx.policy.ssaa_factor);
 
     // ── 5. Find or compile the nested program ────────────────────────────
     auto* program = m_cache->find_or_compile(key, [&]() -> std::unique_ptr<CompiledSceneProgram> {
@@ -123,7 +124,7 @@ OwnedFB PrecompNode::execute(
 
     if (!program || program->empty()) {
         // Empty / invalid program — return empty framebuffer.
-        return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
+        return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
     }
 
     // ── 6. Warm up parameter block (no-op if size unchanged) ─────────────
@@ -165,7 +166,7 @@ OwnedFB PrecompNode::execute(
             m_cache->auto_tune();
         }
     }
-    return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
+    return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
 }
 
 } // namespace chronon3d::graph

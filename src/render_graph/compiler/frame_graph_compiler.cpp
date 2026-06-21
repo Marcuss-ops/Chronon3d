@@ -43,11 +43,11 @@ CompiledFrameGraph FrameGraphCompiler::compile(
     }
 
     compiled.structure_hash = compute_structure_hash(compiled.graph, compiled.output);
-    compiled.skip_initial_clear = ctx.options.skip_initial_clear;
+    compiled.skip_initial_clear = ctx.policy.skip_initial_clear;
     
     compiled.early_exit_skip.assign(node_count, false);
-    for (size_t i = 0; i < std::min(node_count, ctx.tile.early_exit_skip.size()); ++i) {
-        compiled.early_exit_skip[i] = ctx.tile.early_exit_skip[i];
+    for (size_t i = 0; i < std::min(node_count, ctx.node_exec.early_exit_skip.size()); ++i) {
+        compiled.early_exit_skip[i] = ctx.node_exec.early_exit_skip[i];
     }
 
     if (options.validate_dag) {
@@ -189,7 +189,7 @@ void FrameGraphCompiler::build_node_metadata(
                 // disk_cacheable) on CompiledNodeInfo were removed; read this directly.
                 node_info.cache_policy = node.cache_policy();
 
-                if (id < ctx.tile.early_exit_skip.size() && ctx.tile.early_exit_skip[id]) {
+                if (id < ctx.node_exec.early_exit_skip.size() && ctx.node_exec.early_exit_skip[id]) {
                     node_info.early_exit_skip = true;
                 }
                 if (options.compute_bboxes) {

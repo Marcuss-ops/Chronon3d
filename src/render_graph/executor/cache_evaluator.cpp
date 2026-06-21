@@ -43,7 +43,7 @@ CacheEvalResult evaluate_cache(
     // isolates cache entries across frames, so intra-frame dedup is safe.
     // The cache_hit_fast_path in node_runner.cpp correctly skips frame_dependent
     // nodes, so they still re-execute each frame.
-    cr.use_cache = is_cacheable && ctx.resources.node_cache;
+    cr.use_cache = is_cacheable && ctx.services.node_cache;
     cr.is_cacheable = is_cacheable;
 
     // Always compute the key to ensure we have a valid key digest for telemetry,
@@ -55,59 +55,59 @@ CacheEvalResult evaluate_cache(
     // having to remember to include it themselves.  Static nodes keep tick=0,
     // avoiding cache pollution.
     if (cr.node_frame_dependent) {
-        cr.key.temporal_key = ctx.frame.temporal_key;
+        cr.key.temporal_key = ctx.frame_input.temporal_key;
     }
 
     cr.key.input_hash = input_hash;
-    if (ctx.tile.tile_execution_enabled && ctx.tile.active_tile_clip) {
-        cr.key.tile_x = ctx.tile.active_tile_clip->x0;
-        cr.key.tile_y = ctx.tile.active_tile_clip->y0;
-        cr.key.tile_size = ctx.tile.tile_size > 0 ? ctx.tile.tile_size : 0;
+    if (ctx.policy.tile_execution_enabled && ctx.node_exec.active_tile_clip) {
+        cr.key.tile_x = ctx.node_exec.active_tile_clip->x0;
+        cr.key.tile_y = ctx.node_exec.active_tile_clip->y0;
+        cr.key.tile_size = ctx.policy.tile_size > 0 ? ctx.policy.tile_size : 0;
     }
 
     if (cr.use_cache) {
-        cr.result = ctx.resources.node_cache->get(cr.key);
+        cr.result = ctx.services.node_cache->get(cr.key);
         
         if (!cr.result && policy.persistent() && persistent_framebuffer_cache_enabled_for_current_run()) {
             cr.result = cache::PersistentFramebufferStore::instance().get(cr.key);
             if (cr.result) {
-                ctx.resources.node_cache->store(cr.key, cr.result);
+                ctx.services.node_cache->store(cr.key, cr.result);
             }
         }
 
-        if (ctx.telemetry.counters) {
+        if (ctx.node_exec.counters) {
             if (cr.result) {
-                ctx.telemetry.counters->cache_hits.fetch_add(1, std::memory_order_relaxed);
+                ctx.node_exec.counters->cache_hits.fetch_add(1, std::memory_order_relaxed);
                 cr.cache_status = "hit";
             } else {
-                ctx.telemetry.counters->cache_misses.fetch_add(1, std::memory_order_relaxed);
+                ctx.node_exec.counters->cache_misses.fetch_add(1, std::memory_order_relaxed);
                 cr.cache_status = "miss";
             }
         } else {
             cr.cache_status = cr.result ? "hit" : "miss";
         }
     } else {
-        if (!ctx.resources.node_cache) {
+        if (!ctx.services.node_cache) {
             cr.cache_status = "bypass_no_cache";
         } else if (!is_cacheable) {
             cr.cache_status = "bypass_not_cacheable";
-            if (ctx.telemetry.counters) {
-                ctx.telemetry.counters->bypass_not_cacheable_count.fetch_add(1, std::memory_order_relaxed);
+            if (ctx.node_exec.counters) {
+                ctx.node_exec.counters->bypass_not_cacheable_count.fetch_add(1, std::memory_order_relaxed);
             }
-            if (ctx.options.diagnostics_enabled) {
+            if (ctx.policy.diagnostics_enabled) {
                 spdlog::warn("[cache-bypass] frame={} node='{}' node_id={} kind='{}' reason='not_cacheable'",
-                             static_cast<int>(ctx.frame.frame), node.name(), node_id, to_string(node.kind()));
+                             static_cast<int>(ctx.frame_input.frame), node.name(), node_id, to_string(node.kind()));
             }
         } else {
             cr.cache_status = "bypass_frame_dependent";
-            if (ctx.options.diagnostics_enabled) {
+            if (ctx.policy.diagnostics_enabled) {
                 spdlog::debug("[cache-bypass] frame={} node='{}' node_id={} kind='{}' reason='frame_dependent'",
-                              static_cast<int>(ctx.frame.frame), node.name(), node_id, to_string(node.kind()));
+                              static_cast<int>(ctx.frame_input.frame), node.name(), node_id, to_string(node.kind()));
             }
         }
     }
-    if (ctx.telemetry.counters) {
-        ctx.telemetry.counters->cache_eval_ms.fetch_add(
+    if (ctx.node_exec.counters) {
+        ctx.node_exec.counters->cache_eval_ms.fetch_add(
             static_cast<uint64_t>(profiling::duration_ms(t_cache0, profiling::now())),
             std::memory_order_relaxed);
     }

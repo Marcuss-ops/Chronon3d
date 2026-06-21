@@ -16,6 +16,10 @@ set(CHRONON3D_RUNTIME_SOURCES
     # ── TICKET-009 — graph topological-plan cache (thread-safe, shared
     #    between SoftwareRenderer and future RenderRuntime). ───────────────
     execution_plan_cache.cpp
+    render_runtime.cpp
+    # ── TICKET-011a follow-up #1 — RenderPipeline typed facade over
+    #    graph::render_scene_via_graph / graph::render_composition_frame.
+    render_pipeline.cpp
 )
 
 if(CHRONON3D_ENABLE_TELEMETRY)
@@ -29,7 +33,7 @@ else()
     )
 endif()
 
-add_library(chronon3d_runtime STATIC ${CHRONON3D_RUNTIME_SOURCES})
+add_library(chronon3d_runtime OBJECT ${CHRONON3D_RUNTIME_SOURCES})
 target_link_libraries(chronon3d_runtime PUBLIC
     chronon3d
     chronon3d_graph

@@ -214,29 +214,25 @@ private:
         .lexically_normal().string();
 }
 
-// ── Default assets root for deep rendering code ────────────────────
+// ── Default assets root for deep rendering code removed ────────────
 //
-// Set once at CLI init time (render_job_setup.cpp).  Deep rendering code
-// (font_engine, text_rasterizer, etc.) calls resolve_asset_path() which
-// reads this as a fallback when no explicit assets_root is available.
+// TICKET-011a follow-up #2 — the legacy single-argument
+// `resolve_asset_path(relative_path)` overload and the
+// `chronon3d::detail::g_default_assets_root` + `detail::set_default_assets_root`
+// pair that backed it have been deleted.
 //
-// Thread safety: assumes a single writer during startup before any
-// concurrent reads.  Do NOT call set_default_assets_root() from
-// multiple threads.
+// Migration target for deep rendering code (font_engine,
+// text_rasterizer, preflight, etc.) is the typed bridge in
+// `<chronon3d/runtime/render_runtime.hpp>`:
 //
-// Declared before the single-argument resolve_asset_path() overload
-// so it's visible at the point of use.
-namespace detail {
-    inline std::string g_default_assets_root;
-    inline void set_default_assets_root(std::string root) {
-        g_default_assets_root = std::move(root);
-    }
-}
-
-/// Resolve a relative path using the default assets root (set at startup).
-/// Falls back to returning the path unchanged if no default root is set.
-[[nodiscard]] inline std::string resolve_asset_path(const std::string& relative_path) {
-    return resolve_asset_path(detail::g_default_assets_root, relative_path);
-}
+//     chronon3d::runtime::resolve_asset_path(relative)
+//
+// which reads the active RenderRuntime's default_assets_root first and
+// falls back to `runtime::process_wide_assets_root()` for contexts that
+// don't construct a runtime (CLI init before engine creation, test
+// fixtures, content-module test contracts).
+//
+// Two-argument `resolve_asset_path(root, relative_path)` is unchanged
+// (callers that already hold an explicit assets_root continue to use it).
 
 } // namespace chronon3d

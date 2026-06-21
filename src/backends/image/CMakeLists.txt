@@ -2,7 +2,7 @@
 # src/backends/image/CMakeLists.txt — chronon3d_backend_image
 # ==============================================================================
 
-add_library(chronon3d_backend_image STATIC
+add_library(chronon3d_backend_image OBJECT
     image_loader.cpp
     image_writer.cpp
     stb_image_backend.cpp)

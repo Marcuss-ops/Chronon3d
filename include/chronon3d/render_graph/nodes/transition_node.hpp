@@ -23,9 +23,9 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         cache::NodeCacheKey key{
             .scope = "transition:" + m_layer_name,
-            .frame = ctx.frame.frame,
-            .width = ctx.frame.width,
-            .height = ctx.frame.height,
+            .frame = ctx.frame_input.frame,
+            .width = ctx.frame_input.width,
+            .height = ctx.frame_input.height,
         };
         key.params_hash = hash_string(m_spec.transition_id);
         key.params_hash = hash_combine(key.params_hash, static_cast<u64>(m_is_out));
@@ -42,7 +42,7 @@ public:
         if (!input_bboxes.empty()) {
             return input_bboxes[0];
         }
-        return raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
     }
 
     OwnedFB execute(

@@ -3,15 +3,27 @@
 // ═════════════════════════════════════════════════════════════════════════════
 // Chronon3d — RenderEngine (Public SDK Facade)
 //
-// Single entry point for the rendering SDK.  Composes SoftwareRenderer,
-// Config, and AssetRegistry into one object.  The CLI / host creates a
-// RenderEngine, optionally sets the assets root and composition registry,
-// then calls render_scene() or render_frame().
+// Single entry point for the rendering SDK.  RenderEngine owns the
+// architecture via RenderEngine::Impl:
 //
-//   RenderEngine engine;
-//   engine.set_assets_root("/path/to/assets");
-//   engine.set_composition_registry(&registry);
-//   auto fb = engine.render_scene(scene, camera, 1920, 1080);
+//   RenderEngine
+//     └── RenderEngine::Impl (PIMPL)
+//         ├── runtime::RenderRuntime   (engine-lifetime owner)
+//         │                                of cache/pool/executor/
+//         │                                catalogs + plan cache +
+//         │                                default_assets_root)
+//         ├── SoftwareRenderer         (per-instance orchestrator that
+//         │                                BORROWS services from runtime;
+//         │                                demoted to backend adapter in
+//         │                                Phase B per TICKET-011b)
+//         └── AssetRegistry            (mounts assets_root)
+//
+// The public API surface (this header) is unchanged: existing code
+// that calls `engine.set_assets_root(...)` or
+// `engine.render_scene(...)` keeps working unchanged.  Internal state
+// now lives in `RenderEngine::Impl` so future architectural changes
+// (TICKET-011b–e) can swap out the orchestrator without touching this
+// header.
 //
 // Rule 4 (ANTI_DUPLICATION_RULES): RenderEngine is the single public
 // rendering API.  No other Renderer/RenderService/RenderPipelineRunner
@@ -25,6 +37,7 @@
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/runtime/render_session.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
@@ -38,24 +51,19 @@ namespace chronon3d {
 
 namespace image { class ImageBackend; }
 namespace media { class MediaFrameProvider; }
+namespace runtime { class RenderRuntime; }
 
 /**
  * RenderEngine — thin public facade for the Chronon3d SDK.
  *
- * Owns the SoftwareRenderer, Config, and AssetRegistry.  Provides a
- * minimal, stable API for rendering scenes and frames.  This is the
- * type that external consumers (CLI, Python bindings, servers) should
- * create and interact with.
- *
- * Usage:
- *   RenderEngine engine;
- *   engine.set_assets_root("/assets");
- *   engine.set_composition_registry(&registry);
- *   auto fb = engine.render_scene(scene, camera, 1920, 1080);
+ * Host creates a RenderEngine, optionally sets the assets root and
+ * composition registry, then calls render_scene() or render_frame().
+ * All heavy state (caches, pool, executor, plan cache, catalogs,
+ * assets registry) lives in RenderEngine::Impl / runtime::RenderRuntime.
  */
 class RenderEngine {
 public:
-    // ── Construction ───────────────────────────────────────────────────
+    // ── Construction ───────────────────────────────────────────────
 
     /// Default constructor — reads Config from environment variables.
     RenderEngine();
@@ -72,33 +80,34 @@ public:
     // Non-copyable, movable.
     RenderEngine(const RenderEngine&) = delete;
     RenderEngine& operator=(const RenderEngine&) = delete;
-    RenderEngine(RenderEngine&&) noexcept = default;
-    RenderEngine& operator=(RenderEngine&&) noexcept = default;
+    RenderEngine(RenderEngine&&) noexcept;
+    RenderEngine& operator=(RenderEngine&&) noexcept;
 
-    // ── Asset management ───────────────────────────────────────────────
+    // ── Asset management ─────────────────────────────────────────
 
     /// Set the root directory for asset resolution (fonts, images, etc.).
-    /// Mounts the path into the internal AssetRegistry and sets the
-    /// default assets root for deep rendering code.
-    ///
-    /// The default assets root is set-once-per-process (not cleared on
-    /// destruction).  Creating a new RenderEngine with a different root
-    /// overwrites the previous value.
+    /// In Phase A: writes both (a) the legacy process-wide default so
+    /// deep rendering code keeps working unchanged and (b) the
+    /// owning RenderRuntime's default_assets_root + AssetRegistry mount
+    /// so the engine owns the asset root in its own state.  Phase B
+    /// (follow-up) will drop (a) once all deep rendering callers read
+    /// the engine's runtime instead of the global.
     void set_assets_root(const std::filesystem::path& root);
 
-    /// Access the internal AssetRegistry.
-    [[nodiscard]] AssetRegistry& assets() { return m_assets; }
-    [[nodiscard]] const AssetRegistry& assets() const { return m_assets; }
+    /// Access the internal AssetRegistry owned by Impl.
+    [[nodiscard]] AssetRegistry& assets() noexcept;
+    [[nodiscard]] const AssetRegistry& assets() const noexcept;
 
-    // ── Composition registry ───────────────────────────────────────────
+    /// Read the engine-owned default assets root (empty if unset).
+    [[nodiscard]] const std::string& assets_root() const noexcept;
+
+    // ── Composition registry ────────────────────────────────────
 
     /// Set the composition registry used for preflight validation and
     /// composition-aware rendering.
-    void set_composition_registry(const CompositionRegistry* registry) {
-        m_renderer->set_composition_registry(registry);
-    }
+    void set_composition_registry(const CompositionRegistry* registry);
 
-    // ── Rendering (primary API) ────────────────────────────────────────
+    // ── Rendering (primary API) ──────────────────────────────────
 
     /// Render a scene with a standard Camera.
     [[nodiscard]] std::shared_ptr<Framebuffer> render_scene(
@@ -113,7 +122,7 @@ public:
     [[nodiscard]] std::shared_ptr<Framebuffer> render_frame(
         const Composition& comp, Frame frame);
 
-    // ── Backend injection ──────────────────────────────────────────────
+    // ── Backend injection ────────────────────────────────────────
 
     /// Set the image decoding/encoding backend (default: StbImageBackend).
     void set_image_backend(std::shared_ptr<image::ImageBackend> backend);
@@ -121,37 +130,42 @@ public:
     /// Set the video frame decoder.
     void set_video_decoder(std::shared_ptr<media::MediaFrameProvider> decoder);
 
-    // ── Settings ───────────────────────────────────────────────────────
+    // ── Settings ─────────────────────────────────────────────────
 
     /// Apply render settings (antialiasing, motion blur, dirty rects, etc.).
-    void set_settings(const RenderSettings& settings) {
-        m_renderer->set_settings(settings);
-    }
+    void set_settings(const RenderSettings& settings);
 
     /// Get current render settings.
-    [[nodiscard]] const RenderSettings& settings() const {
-        return m_renderer->settings();
-    }
+    [[nodiscard]] const RenderSettings& settings() const noexcept;
 
-    // ── Accessors ──────────────────────────────────────────────────────
+    // ── Accessors ─────────────────────────────────────────────────
 
     /// Direct access to the underlying SoftwareRenderer for advanced use.
-    [[nodiscard]] SoftwareRenderer& renderer() { return *m_renderer; }
-    [[nodiscard]] const SoftwareRenderer& renderer() const { return *m_renderer; }
+    [[nodiscard]] SoftwareRenderer& renderer() noexcept;
+    [[nodiscard]] const SoftwareRenderer& renderer() const noexcept;
+
+    /// Access to the engine-owned RenderRuntime.
+    /// Phase A: returns the Impl-owned runtime.
+    [[nodiscard]] runtime::RenderRuntime& runtime() noexcept;
+    [[nodiscard]] const runtime::RenderRuntime& runtime() const noexcept;
 
     /// Access the per-instance engine configuration.
-    [[nodiscard]] const Config& config() const { return m_config; }
+    [[nodiscard]] const Config& config() const noexcept;
 
     /// Clear all caches (image, font, node, pool, graph, frame state).
-    void clear_caches() { m_renderer->clear_caches(); }
+    void clear_caches();
 
     /// Reset all profiling counters to zero.
-    void reset_counters() { m_renderer->reset_counters(); }
+    void reset_counters();
+
+    /// Session factory: vends a fresh per-render-job
+    /// SoftwareRenderSession referencing the engine-owned runtime.
+    /// Lifetime invariant: the engine outlives any session it vends.
+    [[nodiscard]] chronon3d::SoftwareRenderSession create_session();
 
 private:
-    Config m_config;
-    AssetRegistry m_assets;
-    std::unique_ptr<SoftwareRenderer> m_renderer;
+    struct Impl;
+    std::unique_ptr<Impl> m_impl;
 };
 
 } // namespace chronon3d

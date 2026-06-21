@@ -6,7 +6,7 @@
 # instead of leaking the source-tree path.
 # ==============================================================================
 
-add_library(chronon3d_core_impl STATIC
+add_library(chronon3d_core_impl OBJECT
     config.cpp
     profiling.cpp
     benchmark_report.cpp

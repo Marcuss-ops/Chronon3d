@@ -2,7 +2,7 @@
 # src/backends/text/CMakeLists.txt — chronon3d_backend_text
 # ==============================================================================
 
-add_library(chronon3d_backend_text STATIC
+add_library(chronon3d_backend_text OBJECT
     text_rasterizer_cache.cpp
     text_rasterizer_render.cpp
     text_rasterizer_ink.cpp

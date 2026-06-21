@@ -10,7 +10,7 @@
 //   2. FrameGraphCompiler::compile(graph,  nested_ctx, compile_opts)
 //
 // The compiler takes the context by reference and may mutate
-// `nested_ctx.telemetry.counters` / `nested_ctx.options.*` to surface
+// `nested_ctx.node_exec.counters` / `nested_ctx.policy.*` to surface
 // timing and compile flags.  We do NOT introduce any new state semantics
 // here — the goal of TICKET-010 is purely to replace the untyped
 // std::function callback with a typed service.

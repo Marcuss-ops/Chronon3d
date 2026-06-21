@@ -5,6 +5,7 @@
 // to #include <spdlog/spdlog.h>.
 // ============================================================================
 
+#include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <spdlog/spdlog.h>
 
@@ -27,10 +28,10 @@ std::optional<raster::BBox> EffectStackNode::predicted_bbox(
     }
     bbox.x0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.x0) - spread)));
     bbox.y0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.y0) - spread)));
-    bbox.x1 = std::min(ctx.frame.width, static_cast<i32>(std::ceil(static_cast<f32>(bbox.x1) + spread)));
-    bbox.y1 = std::min(ctx.frame.height, static_cast<i32>(std::ceil(static_cast<f32>(bbox.y1) + spread)));
+    bbox.x1 = std::min(ctx.frame_input.width, static_cast<i32>(std::ceil(static_cast<f32>(bbox.x1) + spread)));
+    bbox.y1 = std::min(ctx.frame_input.height, static_cast<i32>(std::ceil(static_cast<f32>(bbox.y1) + spread)));
 
-    if (ctx.options.diagnostics_enabled) {
+    if (ctx.policy.diagnostics_enabled) {
         spdlog::info(
             "[EffectStackNode] input_bbox=({}, {})-({}, {}) spread={} output_bbox=({}, {})-({}, {})",
             input_bboxes[0]->x0,
@@ -57,7 +58,7 @@ OwnedFB EffectStackNode::execute(
     std::span<const std::optional<raster::BBox>> input_bboxes
 ) {
     if (inputs.empty() || !inputs[0]) {
-        auto empty = ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
+        auto empty = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
         empty->clear(Color::transparent());
         return empty;
     }
@@ -93,8 +94,8 @@ OwnedFB EffectStackNode::execute(
         result = ctx.acquire_owned_fb(*inputs[0]);
     }
 
-    if (ctx.resources.backend) {
-        std::optional<raster::BBox> local_clip = ctx.tile.clip_rect;
+    if (ctx.services.backend) {
+        std::optional<raster::BBox> local_clip = ctx.node_exec.clip_rect;
         if (pred_bbox) {
             if (local_clip) {
                 local_clip->x0 = std::max(local_clip->x0, pred_bbox->x0);
@@ -106,26 +107,26 @@ OwnedFB EffectStackNode::execute(
             }
         }
         const effects::EffectExecutionContext effect_context{
-            .time_seconds = ctx.frame.time_seconds,
-            .frame = ctx.frame.frame,
+            .time_seconds = ctx.frame_input.time_seconds,
+            .frame = ctx.frame_input.frame,
             .clip = local_clip,
             .quality = effects::RenderQuality::Final,
-            .diagnostics_enabled = ctx.options.diagnostics_enabled
+            .diagnostics_enabled = ctx.policy.diagnostics_enabled
         };
-        ctx.resources.backend->apply_effect_stack(*result, m_effects, effect_context);
-        if (ctx.telemetry.counters) {
-            ctx.telemetry.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
-            uint64_t area = static_cast<uint64_t>(ctx.frame.width * ctx.frame.height);
+        ctx.services.backend->apply_effect_stack(*result, m_effects, effect_context);
+        if (ctx.node_exec.counters) {
+            ctx.node_exec.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
+            uint64_t area = static_cast<uint64_t>(ctx.frame_input.width * ctx.frame_input.height);
             if (local_clip) {
                 raster::BBox clipped = *local_clip;
-                clipped.clip_to(ctx.frame.width, ctx.frame.height);
+                clipped.clip_to(ctx.frame_input.width, ctx.frame_input.height);
                 if (!clipped.is_empty()) {
                     area = static_cast<uint64_t>(clipped.x1 - clipped.x0) * (clipped.y1 - clipped.y0);
                 } else {
                     area = 0;
                 }
             }
-            ctx.telemetry.counters->effect_pixels.fetch_add(area, std::memory_order_relaxed);
+            ctx.node_exec.counters->effect_pixels.fetch_add(area, std::memory_order_relaxed);
         }
     }
     return result;

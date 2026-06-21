@@ -1,7 +1,7 @@
 # src/text/CMakeLists.txt — Core text module (non-backend-specific)
 # Exposes: chronon3d_text_core
 
-add_library(chronon3d_text_core STATIC
+add_library(chronon3d_text_core OBJECT
     animated_text_document.cpp
     every_line_composer.cpp
     glyph_selector.cpp

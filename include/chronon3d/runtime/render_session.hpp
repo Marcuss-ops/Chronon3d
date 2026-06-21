@@ -1,5 +1,8 @@
 #pragma once
 
+#include <chronon3d/core/config.hpp>
+#include <chronon3d/assets/asset_registry.hpp>
+
 // ---------------------------------------------------------------------------
 // runtime/render_session.hpp
 //
@@ -37,14 +40,23 @@
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/math/renderer_state.hpp>
 #include <chronon3d/render_graph/core/scene_hasher.hpp>
+#include <chronon3d/runtime/session_services.hpp>
 
 // Software-specific field includes (TICKET-008 note: lives in runtime/ for
 // tuple ergonomics; the runtime/ layer is intentional here because
 // `SoftwareRenderSession` is a composition owned by SoftwareRenderer, not a
 // dependency of the runtime/ layer on the backend — see TICKET-009 for the
 // next-step caching separation that will move these into RenderRuntime).
-#include <chronon3d/backends/software/buffer_ring.hpp>
-#include <chronon3d/backends/software/scratch_buffer.hpp>
+//
+// TICKET-011-final consolidation: the canonical definition of
+// `SoftwareSessionResources` lives in this single, semantically-correct
+// header (`backends/software/software_session_resources.hpp`).  The
+// previous stale 2-field inline duplicate in this file caused a
+// C++-level struct redefinition error; this include brings the
+// canonical 3-field struct in.  `SoftwareRenderSession::clear_per_frame`
+// below now calls `reset_job()` to preserve the old behaviour (resets
+// buffer_ring + scratch_buffer).
+#include <chronon3d/backends/software/software_session_resources.hpp>
 
 namespace chronon3d {
 
@@ -53,6 +65,12 @@ namespace chronon3d {
 /// All members are default-constructible.  FrameArena is stored indirectly
 /// because it contains a std::pmr::monotonic_buffer_resource which is
 /// non-movable; the unique_ptr keeps the outer struct movable.
+///
+/// TICKET-011a follow-up #1 — the `services` field is a non-owning
+/// back-pointer bundle populated by `runtime::make_session()` so
+/// session-aware contexts (currently GraphExecutor callers) can
+/// read registries / caches / pools / default_assets_root through
+/// the session itself instead of reaching a process-global.
 struct RenderSession {
     std::unique_ptr<FrameArena> arena_ptr{std::make_unique<FrameArena>()};
 
@@ -60,6 +78,7 @@ struct RenderSession {
     RendererDirtyTelemetry  dirty_telemetry;
     RendererLayerHistory    layer_history;
     graph::SceneHasher      scene_hasher;
+    runtime::SessionServices services;
 
     /// Convenience accessor for the frame arena.
     [[nodiscard]] FrameArena& arena() noexcept { return *arena_ptr; }
@@ -77,19 +96,6 @@ struct RenderSession {
     }
 };
 
-/// Software-specific per-session resources.
-///
-/// Owned by SoftwareRenderer; not visible to engine-generic code paths.
-struct SoftwareSessionResources {
-    RendererBufferRing      buffer_ring;
-    TransformScratchBuffer  scratch_buffer;
-
-    void clear_per_frame() {
-        buffer_ring.reset();
-        scratch_buffer.reset();
-    }
-};
-
 /// Composition of engine-generic + software-specific session state.
 ///
 /// SoftwareRenderer holds one of these as `m_session`; the public accessors
@@ -102,7 +108,13 @@ struct SoftwareRenderSession {
 
     void clear_per_frame() {
         common.clear_per_frame();
-        software.clear_per_frame();
+        // TICKET-011-final: `SoftwareSessionResources` (canonical, from
+        // include/chronon3d/backends/software/software_session_resources.hpp)
+        // exposes `reset_job()` and `reset_frame_temporaries()`.  Call the
+        // full-reset variant here because the legacy `clear_per_frame()`
+        // implementation lived on the stale duplicate struct and reset both
+        // buffer_ring + scratch_buffer; `reset_job()` mirrors that exactly.
+        software.reset_job();
     }
 };
 

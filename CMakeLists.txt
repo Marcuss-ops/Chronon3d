@@ -186,11 +186,61 @@ if(CHRONON3D_ENABLE_PROFILING AND Tracy_FOUND)
     target_compile_definitions(chronon3d_pipeline INTERFACE CHRONON_PROFILING TRACY_ON_DEMAND)
 endif()
 
+# ── Test orchestration ───────────────────────────────────────────────────
+# enable_testing() is invoked BEFORE the BUILD_TESTS gate so the
+# standalone install-boundary test (add_test() registered further down)
+# is registered with CTest even when CHRONON3D_BUILD_TESTS=OFF.  When
+# BUILD_TESTS=ON, the per-area test executables still register as before.
+enable_testing()
+
 if(CHRONON3D_BUILD_TESTS)
     set(BUILD_TESTING ON CACHE BOOL "Build the testing tree.")
-    enable_testing()
     target_compile_definitions(chronon3d_core_impl PUBLIC CHRONON_BUILD_TESTS)
     add_subdirectory(tests)
+endif()
+
+# ── Install-boundary CI gate (TICKET-011) ─────────────────────────────────
+# Standalone consumer at `tests/install_consumer/` that uses ONLY the public
+# Chronon3D::SDK target namespaced alias.  The orchestrator script:
+#   1. Reuses the existing build artifact if `libchronon3d_sdk_impl.a` is
+#      already produced (fast path; ~seconds).
+#   2. Otherwise: cold reconfigure + build to an mktemp dir.
+#   3. `cmake --install` to an mktemp prefix.
+#   4. Validates that Chronon3DConfig.cmake + Chronon3DTargets.cmake +
+#      libchronon3d_sdk_impl.a are present under the install prefix.
+#   5. Configures + builds + runs the consumer and asserts the
+#      [BOUNDARY-OK] marker.
+#
+# Wired into CI via the linux-ci preset cache var
+# `CHRONON3D_BUILD_INSTALL_CONSUMER_TEST=ON`.  Exit code 2 is mapped to
+# CTest SKIP so that pre-existing SDK-side TU breakage (e.g.
+# chronon3d::cache::FramebufferPool signature drift from TICKET-011)
+# surfaces as a SKIP, not as a boundary regression.
+option(CHRONON3D_BUILD_INSTALL_CONSUMER_TEST
+    "Run the end-to-end SDK install-boundary check via tools/install_consumer_test.sh. CTest registers install_consumer_ci; orchestrator exit code 2 maps to CTEST SKIP. Enable via the linux-ci preset or -DCHRONON3D_BUILD_INSTALL_CONSUMER_TEST=ON."
+    OFF)
+if(CHRONON3D_BUILD_INSTALL_CONSUMER_TEST AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_test(
+        NAME install_consumer_ci
+        COMMAND "${CMAKE_SOURCE_DIR}/tools/install_consumer_test.sh"
+    )
+    # TIMEOUT 900s: cold path reconfigures + builds the full SDK from
+    # scratch (rare, but covered for legibility).  FAST path reuses the
+    # existing build artifact and completes in seconds.
+    set_tests_properties(install_consumer_ci PROPERTIES
+        SKIP_RETURN_CODE 2
+        TIMEOUT 900
+        LABELS "boundary;ci"
+        # Forward the active toolchain file so the standalone consumer configure
+        # step (running inside ctest) can locate deps that vcpkg has installed
+        # (e.g. spdlog, which is a transitive `find_dependency(spdlog CONFIG)`
+        # declared by Chronon3DConfig.cmake) without polluting the SDK install
+        # prefix.
+        # Also forward the parent's CMAKE_PREFIX_PATH so the consumer's
+        # standalone configure can locate the vcpkg-installed spdlog; the test
+        # script appends (does not overwrite) this on its `cmake` invocation.
+        ENVIRONMENT "CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE};CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}"
+    )
 endif()
 
 if(CHRONON3D_BUILD_CLI)
@@ -233,18 +283,51 @@ endif()
 
 # ── SDK Install / Export ───────────────────────────────────────────────────
 #
-# Single EXPORT set (Chronon3DTargets.cmake) enumerates chronon3d_sdk AND the
-# transitive STATIC / INTERFACE library targets so an external consumer can
-# `target_link_libraries(app PRIVATE Chronon3D::SDK)` and resolve everything
-# (including transitive third-party deps) without inspecting the source tree.
+# PUBLIC SURFACE contract (TICKET-011 cmake-boundary):
+#
+#   The install/export layout below declares a clear public/internal split:
+#
+#   1) Public API (the only thing documented + aliased):
+#        Chronon3D::SDK     — alias added in src/CMakeLists.txt
+#
+#   2) Implementation closures (file-installed for transitive link
+#      resolution; NOT promoted into the Chronon3D:: namespace):
+#        chronon3d_cache, chronon3d_effects, chronon3d_registry,
+#        chronon3d_assets, chronon3d_backend_image,
+#        chronon3d_backend_assets, chronon3d_backend_software,
+#        chronon3d_runtime, chronon3d_extension, chronon3d_scene,
+#        chronon3d_animations, chronon3d_text_core,
+#        chronon3d_graph_* (sub-targets), chronon3d_blend2d_paint,
+#        chronon3d_content, chronon3d_diagnostics, …
+#
+#   The exported targets intentionally DO NOT use
+#   `NAMESPACE Chronon3D::`.  Combined with the single public alias
+#   declared via `add_library(Chronon3D::SDK ALIAS chronon3d_sdk)`,
+#   this means the documented public API surface is exactly:
+#     Chronon3D::SDK
+#   Inner targets remain technically importable (for transitive link
+#   resolution) under their raw names (chronon3d_cache etc.), but
+#   they are not under the Chronon3D:: prefix and should never be
+#   linked directly by consumers.
+#
+#   FOLLOW-UP TICKET (TICKET-011 final stage): the OBJECT-LIB
+#   aggregation pattern can collapse all the inner archives into a
+#   single chronon3d_sdk_impl.a, eliminating the inner archives from
+#   the consumer's link closure entirely.  Take it as a separate
+#   CMake refactor — it touches every per-subsystem CMakeLists.txt
+#   in src/ and benefits from its own validation pass.
 #
 # Layout produced under `--prefix`:
-#   <prefix>/include/chronon3d/*.hpp                 (public headers)
-#   <prefix>/<libdir>/libchronon3d_*.a             (private static archives)
+#   <prefix>/include/chronon3d/*.hpp                    (public headers)
+#   <prefix>/<libdir>/libchronon3d_*.a                 (file-installed; transitively
+#                                                          linked from
+#                                                          Chronon3D::SDK)
 #   <prefix>/<libdir>/cmake/Chronon3D/
 #     Chronon3DConfig.cmake        (entry: find_dependency + include targets)
 #     Chronon3DConfigVersion.cmake (version compatibility gate)
-#     Chronon3DTargets.cmake       (all imported Chronon3D::* targets)
+#     Chronon3DTargets.cmake       (imported targets, raw names — only
+#                                   chronon3d_sdk is publicly aliased as
+#                                   Chronon3D::SDK via src/CMakeLists.txt)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
@@ -254,36 +337,53 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
     FILES_MATCHING PATTERN "*.hpp"
 )
 
-# Aggregate list of chronon3d_* targets to install + export.  Conditional
-# targets (TEXT, VIDEO, NATIVE_FFMPEG) are appended under their respective
-# CHRONON3D_ guards so an install with those features off does not try to
-# install unbuilt targets.
+# Aggregate list of chronon3d_* targets to install + export.  TICKET-011
+# cmake-boundary (OBJECT lift final stage): the OUTPUT of every per-
+# subsystem OBJECT is bundled into `chronon3d_sdk_impl` (the single
+# STATIC archive) at link time — `libchronon3d_sdk_impl.a` is the ONLY
+# `.a` file in `<prefix>/<libdir>`.  The per-subsystem OBJECT targets
+# themselves are still listed here so `install(EXPORT …)` registers
+# them in `Chronon3DTargets.cmake` and CMake's export-walker does not
+# flag them as "not in any export set".  They have no ARCHIVE/LIBRARY
+# output (they are OBJECT), so the install step produces no per-subsystem
+# file — only `libchronon3d_sdk_impl.a` is written to disk.
+#
+# INTERFACE-only aggregates are also included for documentation/exposure.
+# The exported targets are kept under their raw names so the transitive
+# link closure resolves through `Chronon3D::SDK` without exposing
+# per-subsystem IMPORTED targets to consumers.
 set(_chronon3d_install_targets
-    # consumer-facing aliases
+    # Consumer-facing — this is the only target that gets the
+    # `Chronon3D::SDK` namespace alias.
     chronon3d_sdk
-    # aggregate INTERFACE libraries
+    # Single aggregated linkable archive.
+    chronon3d_sdk_impl
+    # Aggregate INTERFACE libraries (logical groupers; propagate OBJECT
+    # deps transitively at build-time via $<BUILD_INTERFACE:…> in
+    # chronon3d_sdk's link closure).
     chronon3d_pipeline
     chronon3d_core
     chronon3d_software
     chronon3d_graph
     chronon3d_media_interface
-    # base INTERFACE
     chronon3d
-    # STATIC / OBJECT libraries — these produce .a files in <libdir>
+    # Per-subsystem OBJECT libraries — included so `install(EXPORT)`
+    # does not flag them as `not in any export set`.  They produce no
+    # installable file; their .o files are bundled into
+    # `libchronon3d_sdk_impl.a` at aggregate-link time.
     chronon3d_core_impl
+    chronon3d_animations
     chronon3d_cache
     chronon3d_effects
     chronon3d_registry
     chronon3d_assets
-    chronon3d_backend_image
-    chronon3d_backend_assets
-    chronon3d_backend_software
+    chronon3d_scene
     chronon3d_runtime
     chronon3d_extension
-    chronon3d_scene
-    chronon3d_animations
     chronon3d_text_core
-    # render_graph split sub-targets
+    chronon3d_backend_image
+    chronon3d_backend_software
+    chronon3d_backend_assets
     chronon3d_graph_core
     chronon3d_graph_nodes
     chronon3d_graph_builder
@@ -294,6 +394,8 @@ set(_chronon3d_install_targets
     chronon3d_graph_pipeline
 )
 
+# Conditional subsystems — included for EXPORT-graph participation when
+# the feature is enabled; skip otherwise.
 if(CHRONON3D_ENABLE_VIDEO)
     list(APPEND _chronon3d_install_targets
         chronon3d_backend_video
@@ -303,20 +405,12 @@ endif()
 if(CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D)
     list(APPEND _chronon3d_install_targets chronon3d_backend_text)
 endif()
-if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
-    list(APPEND _chronon3d_install_targets
-        chronon3d_ffmpeg_light
-        chronon3d_ffmpeg_full
-    )
-endif()
-
-# Blend2D paint utility is a transitive dep of chronon3d_backend_software
-# and chronon3d_backend_text.  Built only when Blend2D is enabled.
 if(CHRONON3D_USE_BLEND2D)
     list(APPEND _chronon3d_install_targets chronon3d_blend2d_paint)
 endif()
-# chronon3d_graph_pipeline pulls in chronon3d_content at runtime, so
-# install content/diagnostics too when they were part of the build.
+if(CHRONON3D_BUILD_DIAGNOSTICS)
+    list(APPEND _chronon3d_install_targets chronon3d_backend_software_diagnostics)
+endif()
 if(CHRONON3D_BUILD_CONTENT OR CHRONON3D_BUILD_DIAGNOSTICS)
     list(APPEND _chronon3d_install_targets chronon3d_content)
 endif()
@@ -324,14 +418,27 @@ if(CHRONON3D_BUILD_DIAGNOSTICS)
     list(APPEND _chronon3d_install_targets chronon3d_diagnostics)
 endif()
 
+if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    list(APPEND _chronon3d_install_targets
+        chronon3d_ffmpeg_light
+        chronon3d_ffmpeg_full
+    )
+endif()
+
 install(TARGETS ${_chronon3d_install_targets}
     EXPORT Chronon3DTargets
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
+# Export internal targets WITHOUT NAMESPACE — they remain importable so
+# the transitive link closure resolves correctly through Chronon3D::SDK,
+# but the public `Chronon3D::` namespace prefix yields ONLY the SDK
+# alias (`add_library(Chronon3D::SDK ALIAS chronon3d_sdk)` in
+# src/CMakeLists.txt).  Consumers who try to link an internal target
+# by its raw name (chronon3d_cache etc.) get a CMake error because
+# there's no Chronon3D::chronon3d_cache alias.
 install(EXPORT Chronon3DTargets
     FILE Chronon3DTargets.cmake
-    NAMESPACE Chronon3D::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Chronon3D
 )
 

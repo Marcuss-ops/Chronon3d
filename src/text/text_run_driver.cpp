@@ -50,7 +50,7 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time) {
     // PR 10 NOTE: cache-key invalidation for the per-frame loop is now
     // closed.  `TextRunNode::cache_key(ctx)` and
     // `MultiSourceNode::cache_key(ctx)` call `hash_text_run_shape(*shape,
-    // ctx.frame.sample_time.integral_frame())`, the frame overload that
+    // ctx.frame_input.sample_time.integral_frame())`, the frame overload that
     // folds transition_type + active->utf8 + active->defaults.font +
     // transition_text bytes + morph_map bytes + mix into the cache key.
     // This guarantees the post-mutation layout's hash differs from any
@@ -66,7 +66,7 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time) {
             // PR 10 NOTE: the return value (true iff shape->layout was
             // swapped by the apply) is intentionally discarded here.
             // The cache-key refresher in `hash_text_run_shape(*shape,
-            // ctx.frame.sample_time.integral_frame())` (called by the
+            // ctx.frame_input.sample_time.integral_frame())` (called by the
             // executor) already captures the post-apply layout bytes,
             // so the per-frame loop doesn't need the boolean feedback.
             (void)apply_active_state_to_text_run_shape(

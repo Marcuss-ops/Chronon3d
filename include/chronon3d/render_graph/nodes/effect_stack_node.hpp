@@ -24,8 +24,8 @@ public:
         return cache::NodeCacheKey{
             .scope = "effect_stack",
             .frame = m_cache_frame >= 0 ? m_cache_frame : Frame{0},
-            .width = ctx.frame.width,
-            .height = ctx.frame.height,
+            .width = ctx.frame_input.width,
+            .height = ctx.frame_input.height,
             .params_hash = hash_effect_stack(m_effects)
         };
     }

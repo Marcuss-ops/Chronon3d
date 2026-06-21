@@ -5,7 +5,7 @@
 # dependency — background presets live in src/scene/utils/.
 # ==============================================================================
 
-add_library(chronon3d_animations STATIC
+add_library(chronon3d_animations OBJECT
     animated_value.cpp
     temporal/temporal_samples.cpp
 )

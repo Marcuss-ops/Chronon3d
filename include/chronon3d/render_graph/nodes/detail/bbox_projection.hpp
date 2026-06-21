@@ -55,7 +55,7 @@ template <size_t N>
     const Mat4& world_matrix,
     f32 spread = 0.0f
 ) {
-    if (!ctx.camera.has_camera_2_5d || !ctx.camera.projection_ctx.ready) {
+    if (!ctx.frame_input.has_camera_2_5d || !ctx.frame_input.projection_ctx.ready) {
         return std::nullopt;
     }
 
@@ -87,10 +87,10 @@ template <size_t N>
                 transformed[i] = {w.x, w.y, w.z};
             }
             return project_points_bbox(
-                ctx.camera.projection_ctx,
+                ctx.frame_input.projection_ctx,
                 transformed,
-                ctx.frame.width,
-                ctx.frame.height,
+                ctx.frame_input.width,
+                ctx.frame_input.height,
                 spread + kProjectedBBoxSafetyPadding
             );
         }
@@ -117,10 +117,10 @@ template <size_t N>
                 transformed[i] = {w.x, w.y, w.z};
             }
             return project_points_bbox(
-                ctx.camera.projection_ctx,
+                ctx.frame_input.projection_ctx,
                 transformed,
-                ctx.frame.width,
-                ctx.frame.height,
+                ctx.frame_input.width,
+                ctx.frame_input.height,
                 spread + kProjectedBBoxSafetyPadding
             );
         }

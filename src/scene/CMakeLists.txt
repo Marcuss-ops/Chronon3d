@@ -5,7 +5,7 @@
 # scene/ are referenced via relative paths (e.g. ../timeline/...).
 # ==============================================================================
 
-add_library(chronon3d_scene STATIC
+add_library(chronon3d_scene OBJECT
     # Local files outside subsystem dirs
     utils/dark_grid_background.cpp
     # Moved into src/scene/ to eliminate ../ cross-directory references

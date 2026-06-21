@@ -16,6 +16,7 @@ using namespace chronon3d;
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #endif
 
 // ── Helper: register content into the given registry ─────────────────────────
@@ -26,7 +27,9 @@ static void ensure_content_registered_smoke(CompositionRegistry& registry) {
     effects::EffectCatalog effects;
     AssetRegistry assets;
     assets.mount(std::filesystem::current_path());
-    chronon3d::detail::set_default_assets_root(
+    // TICKET-011a follow-up #2 — typed process-wide fallback
+    // replaces the legacy detail::g_default_assets_root writer.
+    chronon3d::runtime::set_process_wide_assets_root(
         std::filesystem::current_path().string());
     ExtensionContext ctx{registry, nodes, effects, assets};
     register_content_modules(cat, ctx);
