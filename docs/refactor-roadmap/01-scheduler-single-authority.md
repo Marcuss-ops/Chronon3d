@@ -1,141 +1,86 @@
-# Work Package 1 — One scheduler authority
+# Work Package 1 — Remaining scheduler work
 
-## Goal
+## Current state
 
-Make `RenderRuntime::scheduler()` the only scheduler used by graph execution, tile execution, and nested precompositions.
+Completed:
 
-## Current problem
+- `GraphExecutor` receives `ExecutionScheduler&` explicitly.
+- Executor methods are stateless and `const`.
+- Graph execution no longer creates an internal scheduler.
+- Tile orchestration routes through `ExecutionScheduler::for_each_index`.
+- Graph telemetry reads `scheduler.concurrency()`.
 
-`GraphExecutor::execute()` still creates a new default scheduler internally. The runtime-owned scheduler therefore does not control actual execution.
+The remaining scheduler test is registered, but it still includes removed `ExecutionPlanCache` APIs and calls the retired raw-graph executor overload. It must be repaired before its results are meaningful.
 
 ## TODO
 
-### PR 1.0 — Change the executor contract
-
-Files:
-- `include/chronon3d/render_graph/executor/graph_executor.hpp`
-- `src/render_graph/executor/executor.cpp`
-
-Actions:
-- [ ] Add `ExecutionScheduler& scheduler` to every active executor overload.
-- [ ] Make executor methods `const` after confirming no member state is mutated.
-- [ ] Remove internal `make_execution_scheduler(...)` calls.
-- [ ] Pass the received scheduler to `execute_levels(...)`.
-- [ ] Keep `FrameArena* arena_override` temporarily; Work Package 6 removes it.
-
-Target signature:
-
-```cpp
-std::shared_ptr<Framebuffer> execute(
-    CompiledFrameGraph& compiled,
-    RenderGraphContext& ctx,
-    RenderSession& session,
-    ExecutionScheduler& scheduler,
-    FrameArena* arena_override = nullptr
-) const;
-```
-
-### PR 1.1 — Update production call sites
-
-Search all executor invocations and update them.
-
-Expected sources include:
-- graph pipeline coordinator
-- tile execution coordinator
-- precomposition execution
-- renderer/debug paths
-- tests and fixtures
-
-Actions:
-- [ ] Production code passes `RenderRuntime::scheduler()`.
-- [ ] `SoftwareRenderer` forwards its runtime scheduler by reference.
-- [ ] Precomp temporarily uses `*ctx.services.scheduler`.
-- [ ] A missing scheduler is treated as a wiring error in production.
-- [ ] Isolated tests create an explicit scheduler.
-
-### PR 1.2 — Move tile parallelism behind the scheduler
+### PR 1.0 — Repair the determinism test API
 
 File:
-- `src/render_graph/pipeline/scene_tile_execution.cpp`
+- `tests/render_graph/executor/test_scheduler_determinism.cpp`
 
 Actions:
-- [ ] Replace direct `tbb::parallel_for` with `ExecutionScheduler::for_each_index` or the existing scheduler primitive.
-- [ ] Preserve the current sequential branch.
-- [ ] Preserve coalesced-region accounting and telemetry.
-- [ ] Do not create a fallback scheduler inside the tile path.
-- [ ] When no scheduler exists in a test-only context, run sequentially or fail clearly.
+- [ ] Remove the deleted `runtime/execution_plan_cache.hpp` include.
+- [ ] Remove all `ExecutionPlanCache*` parameters and warm-plan terminology.
+- [ ] Compile test graphs through the real `FrameGraphCompiler`.
+- [ ] Call only `GraphExecutor::execute(CompiledFrameGraph&, RenderGraphContext&, RenderSession&, ExecutionScheduler&)` until WP-6 changes the scope contract.
+- [ ] Keep independent runtime/session/cache state for every scheduler configuration.
+- [ ] Make the fake backend write the complete requested framebuffer or region, not only one pixel per 32×32 block.
 
-### PR 1.3 — Fix telemetry ownership
+### PR 1.1 — Complete the bitwise scheduler matrix
 
-Actions:
-- [ ] Report scheduler concurrency from the scheduler actually used.
-- [ ] Remove `hardware_concurrency()` from graph execution telemetry.
-- [ ] Ensure nested graph telemetry reports the same scheduler mode as its parent.
+Required modes:
 
-**Implementation status (this PR):**
+- [ ] Sequential
+- [ ] TBB fixed 1
+- [ ] TBB fixed 2
+- [ ] TBB fixed 4
+- [ ] TBB automatic
 
-| File | Role | Uses scheduler.concurrency()? | Notes |
-| --- | --- | --- | --- |
-| `src/render_graph/executor/executor_levels.cpp` (max_workers) | graph execution telemetry | YES | `static_cast<int64_t>(scheduler.concurrency())` — already correct. |
-| `src/runtime/telemetry/telemetry_manager.cpp:243` | engine-level telemetry (not graph execution) | NO | reads `std::thread::hardware_concurrency()` for a startup banner value; out of WP1 scope. |
-| `src/core/framebuffer_clear_parallel.cpp:48` | low-level parallel clear kernel | NO | accepted; documented in PR 1.5 as low-level kernel TBB use. |
-| `src/core/scheduler/execution_scheduler.cpp:62` | scheduler factory fallback for TbbFixed with `worker_count == 0` | NO | legitimate — the scheduler is the SOLE owner of this fallback. |
-| `apps/chronon3d_cli/main.cpp:21` | CLI thread-pool sizing for out-of-render workers | NO | accepted; CLI-internal, not graph execution. |
+Required cases before WP-6:
 
-The graph execution telemetry path (`executor_levels.cpp`) already reports
-the scheduler-concurrency-correct value because the WP1 PR 1.0+1.1
-change threaded `ExecutionScheduler&` into `execute_levels(...)`.  The
-other four sites are intentionally NOT under WP1 PR 1.3 because they
-are not graph execution telemetry.  PR 1.3 is COMPLETE for the graph
-execution path; the remaining sites are documented exceptions.
-
-### PR 1.4 — Add scheduler-swap determinism tests
-
-Create a dedicated test file under `tests/render_graph/executor/` or `tests/deterministic/`.
-
-Required comparisons:
-- [ ] Sequential vs TBB fixed 1.
-- [ ] Sequential vs TBB fixed 2.
-- [ ] Sequential vs TBB fixed 4.
-- [ ] Sequential vs TBB automatic.
-
-Required scenes:
 - [ ] clear plus shape
-- [ ] composite
-- [ ] one effect stack
-- [ ] warm cache and cold cache
+- [ ] composite graph
+- [ ] effect stack
+- [ ] cold node cache
+- [ ] warm node cache
+- [ ] consecutive frames
+- [ ] random-access frames
+
+Required cases after WP-6:
+
 - [ ] tile execution
+- [ ] nested precomp
+- [ ] precomp inside tile execution
 
-Comparison rule:
-- [ ] Compare framebuffer dimensions.
-- [ ] Compare every channel bit-for-bit.
-- [ ] Do not use floating-point tolerance for the final framebuffer.
+Comparison rules:
 
-### PR 1.5 — Add architecture checks
+- [ ] Compare dimensions exactly.
+- [ ] Compare every final channel bit-for-bit.
+- [ ] Use stable reference hashes only after a clean baseline run.
+- [ ] Do not use epsilon comparisons for final framebuffer output.
 
-- [ ] Boundary script fails if `make_execution_scheduler` appears under `src/render_graph/executor`.
-- [ ] Boundary script fails if direct `tbb::parallel_for` returns in the tile coordinator.
-- [ ] Document any TBB use that remains inside low-level kernels.
+### PR 1.2 — Verify Sequential constrains nested parallelism
 
-## Tests
+- [ ] Confirm Sequential mode executes graph levels inside a one-thread arena.
+- [ ] Confirm low-level nested TBB kernels cannot escape that arena.
+- [ ] Add a maximum-active-worker test.
+- [ ] Distinguish orchestration TBB from accepted low-level kernel TBB in documentation.
 
-- graph executor tests
-- tile parallel tests
-- deterministic tests
-- fast suite
-- no-content build
+### PR 1.3 — Add permanent scheduler guards
+
+- [ ] Detect scheduler creation inside graph executor code.
+- [ ] Detect direct TBB orchestration in tile execution.
+- [ ] Detect production graph execution without an explicit scheduler.
+- [ ] Keep documented exceptions limited to scheduler factory and low-level kernels.
+
+## Dependency
+
+Tile/precomp determinism depends on Work Package 6 execution scopes and Work Package 5 program locking.
 
 ## Exit criteria
 
-- [ ] Runtime scheduler is passed explicitly to every graph execution.
-- [ ] Executor creates no scheduler.
-- [ ] Tile orchestration does not call TBB directly.
-- [ ] Sequential mode controls the whole graph and tile orchestration.
-- [ ] Scheduler-swap tests are bit-identical.
-
-## Out of scope
-
-- Removing raw `RenderGraph` overloads.
-- Removing `FrameArena* arena_override`.
-- Moving precomp cache ownership.
-- Reworking backend raster kernels.
+- [ ] The registered deterministic test compiles against the current executor API.
+- [ ] All five scheduler modes produce bit-identical output.
+- [ ] Sequential mode limits parent, tile, child, and nested kernels.
+- [ ] Architecture checks prevent scheduler ownership from drifting.
