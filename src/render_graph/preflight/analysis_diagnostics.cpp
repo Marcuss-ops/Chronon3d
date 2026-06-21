@@ -15,7 +15,6 @@
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/nodes/video_node.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
-#include <chronon3d/runtime/render_runtime.hpp>
 #include <algorithm>
 #include <filesystem>
 #include <string>
@@ -76,6 +75,7 @@ void check_topological_warnings(
 
 void check_asset_integrity(
     const RenderGraph& graph,
+    const chronon3d::assets::AssetResolver& resolver,
     GraphPreflightReport& report
 ) {
     for (GraphNodeId i = 0; i < static_cast<GraphNodeId>(graph.size()); ++i) {
@@ -84,22 +84,20 @@ void check_asset_integrity(
         const auto& node = graph.node(i);
         std::vector<std::string> asset_warnings;
         if (auto* src = dynamic_cast<const SourceNode*>(&node)) {
-            check_shape_assets(src->render_node().shape, rec.name, asset_warnings);
+            check_shape_assets(src->render_node().shape, rec.name, resolver, asset_warnings);
         } else if (auto* msrc = dynamic_cast<const MultiSourceNode*>(&node)) {
             for (const auto& item : msrc->items()) {
                 if (item.node) {
-                    check_shape_assets(item.node->shape, rec.name, asset_warnings);
+                    check_shape_assets(item.node->shape, rec.name, resolver, asset_warnings);
                 }
             }
         } else if (auto* vid = dynamic_cast<const VideoNode*>(&node)) {
             const std::string path = vid->source().path;
             if (!path.empty()) {
-                // WP-8 PR 8.1 — typed engine-local resolution via the
-                // service-locator helper.  Same 2-branch fallback as
-                // analysis_helpers.hpp::check_shape_assets.
+                // WP-8 PR 8.0 — explicit typed resolver from the
+                // caller (no service-locator bridge).  Same 2-branch
+                // fallback as check_shape_assets above.
                 std::string resolved;
-                const auto& resolver =
-                    chronon3d::runtime::typed_resolver_for_deep_code();
                 if (auto opt = resolver.resolve_lexical(path)) {
                     resolved = opt->string();
                 } else {
