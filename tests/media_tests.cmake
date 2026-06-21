@@ -1,7 +1,7 @@
-# ── Media/Video Tests (isolated, no chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline) ──
+# ── Media/Video Tests (isolated, no chronon3d_pipeline) ──
 #
 # These tests only exercise chronon3d_media_video and chronon3d_backend_video.
-# They do NOT depend on chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline (no scene graph, no renderer).
+# They do NOT depend on chronon3d_pipeline (no scene graph, no renderer).
 # This keeps build time low and prevents pipeline changes from breaking
 # video-sink / frame-converter tests.
 
