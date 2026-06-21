@@ -111,20 +111,32 @@ public:
     /// the parent).  Caller-owned arena; lifetime tracked by caller.
     /// Passing `parent == nullptr` is silently accepted (depth clamps
     /// to 0); the call is documented as a usage contract violation.
+    ///
+    /// PR 6.5 — depth is CLAMPED to `kMaxScopeDepth` (no exception, no
+    /// abort — consistent with `noexcept` contract).  When the
+    /// constructed depth would have exceeded the bound, `would_overflow()`
+    /// returns true on this scope so callers can detect the situation
+    /// and route to a deterministic fallback (e.g. bail out with empty
+    /// fb per docs/03 §4.4).  The clamp guarantees bounded chain walks
+    /// (is_descendant_of / would_recurse always terminate in at most
+    /// `kMaxScopeDepth` iterations).
     explicit ExecutionScope(
         ExecutionScopeKind                  kind,
         chronon3d::RenderSession&           session,
         FrameArena&                         arena,
         GraphInstanceId                     graph_id,
         const ExecutionScope*               parent
-    ) noexcept
-        : m_kind(kind)
-        , m_session(session)
-        , m_arena(arena)
-        , m_graph_id(graph_id)
-        , m_parent(parent)
-        , m_depth(parent ? parent->m_depth + 1 : 0)
-    {}
+    ) noexcept {
+        const int proposed =
+            parent ? (parent->m_depth + 1) : 0;
+        m_kind      = kind;
+        m_session   = session;
+        m_arena     = arena;
+        m_graph_id  = graph_id;
+        m_parent    = parent;
+        m_overflowed = (proposed > kMaxScopeDepth);
+        m_depth     = m_overflowed ? kMaxScopeDepth : proposed;
+    }
 
     [[nodiscard]] ExecutionScopeKind           kind()      const noexcept { return m_kind; }
     [[nodiscard]] chronon3d::RenderSession&    session()   const noexcept { return m_session; }
@@ -132,6 +144,16 @@ public:
     [[nodiscard]] GraphInstanceId              graph_id()  const noexcept { return m_graph_id; }
     [[nodiscard]] const ExecutionScope*        parent()    const noexcept { return m_parent; }
     [[nodiscard]] int                          depth()     const noexcept { return m_depth; }
+
+    /// PR 6.5 — true iff this scope's depth was CLAMPED by `kMaxScopeDepth`
+    /// (i.e. the chain the scope was constructed against exceeded 16
+    /// nested scopes).  When true, callers SHOULD route to a deterministic
+    /// fallback rather than proceed into the inner executor — the chain
+    /// walk inside `would_recurse`/`is_descendant_of` is still bounded
+    /// (they always terminate in at most `kMaxScopeDepth` steps) but the
+    /// downstream graph execution will diverge from the intended depth
+    /// count and may have hidden aliasing on the parent's caches.
+    [[nodiscard]] bool would_overflow() const noexcept { return m_overflowed; }
 
     /// Owner key — populated by PrecompNode via `set_owner_key(k)`
     /// before executing an inner subgraph.  Consulted by
@@ -179,6 +201,7 @@ private:
     const ExecutionScope*           m_parent{nullptr};
     int                             m_depth{0};
     std::uint64_t                   m_owner_key{0u};
+    bool                            m_overflowed{false};
 };
 
 /// Convenience: a stable string-form name for each kind (for logging /
