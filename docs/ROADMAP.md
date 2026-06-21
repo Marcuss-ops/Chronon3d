@@ -1,144 +1,56 @@
-# Chronon3D — Roadmap Attiva
+# Chronon3D — Active Roadmap
 
-> Ogni voce ha una delle tre categorie:
-> - 🟡 **Partial** — parzialmente implementato; mancano pezzi significativi.
-> - 🔵 **Planned** — non ancora implementato.
->
-> Gli item completati (✅ Verified) sono in [`CHANGELOG.md`](CHANGELOG.md).
-> Ultimo aggiornamento: 2026-06-19
+Current maturity: [`STATUS.md`](STATUS.md). Architecture packages:
+[`refactor-roadmap/README.md`](refactor-roadmap/README.md).
 
----
+## P0 — correctness and validation
 
-## 🟡 Partial — Parzialmente implementato
+| Work | State |
+|---|---|
+| Fix architecture-boundary script final exit handling | 🔴 Blocked |
+| Migrate scheduler tests off `ExecutionPlanCache` and raw graphs | 🔴 Blocked |
+| Synchronize `PrecompNode` and borrow the session executor | 🔴 Blocked |
+| Move node identity assignment to cloned contexts | 🔴 Blocked |
+| Add root/tile/child execution scopes | 🔵 Planned |
+| Close install-consumer and global-state SDK boundaries | 🟡 Partial |
+| Record clean required CI/build/test evidence | 🔴 Blocked |
 
-### N1. Motion Blur Accumulation + SIMD
-**Mancante:** SIMD-izzazione accumulazione con Highway non verificata.
-**Dove:** `include/chronon3d/render_graph/nodes/velocity_buffer_motion_blur.hpp`, `src/render_graph/pipeline/composition.cpp`
-**Test:** `tests/render_graph/test_velocity_buffer_motion_blur.cpp`, `tests/render_graph/test_post_processing_system.cpp`
+P0 must complete before more architecture is added.
 
-### N2. Box Blur 3-Pass Parallelizzato
-**Mancante:** Verifica che 3-pass box blur (horizontal → vertical → separato) sia effettivamente implementato.
-**Dove:** `src/backends/software/utils/effects/effect_blur.cpp`
+## Active feature and performance work
 
-### N6. Blend mode switch → template specialization
-**Stato:** Highway SIMD kernels per blending ma switch-case nel dispatcher.
-**Dove:** `src/backends/software/simd/highway_color_kernels.cpp`
-**Benchmark:** `tests/bench/micro_benchmarks.cpp`
+### Partial
 
-### N8. Temp FB aliasing shared_ptr
-**Stato:** `state.shared_transparent` condiviso tra nodi che non modificano il FB. Pattern parziale.
-**Dove:** `src/render_graph/executor/node_runner.cpp`
+- Motion-blur accumulation SIMD verification.
+- Three-pass box-blur verification and benchmarks.
+- Blend dispatcher specialization where benchmarks justify it.
+- Temporary framebuffer aliasing ownership.
+- `LayoutFlow` and `LayoutGrid`.
+- Zero-copy encoder delivery.
+- Pool miss-reason dashboard.
+- SPSC queue only after correctness and benchmark proof.
+- Dedicated tests for Shadow, Glow, Bloom, Gradient, DoF, and Mask nodes.
 
-### N13. Layout Solver Minimalista
-**Mancante:** `LayoutFlow` (wrap) e `LayoutGrid` (griglia uniforme) non implementati.
-**Dove:** `include/chronon3d/layout/layout_rules.hpp`, `src/scene/layout_solver.cpp`
-**Test:** `tests/layout/test_design_kit.cpp`
+### Planned
 
-### N16. Zero-Copy Frame Delivery all'Encoder
-**Mancante:** Implementazione zero-copy AVFrame creation.
-**Dove:** `apps/chronon3d_cli/commands/video/exporters/`
+- Parallel SIMD SSAA downsample.
+- Adaptive framebuffer-pool preallocation.
+- ISPC blur evaluation against Highway.
+- Speculative multi-frame rendering.
+- NUMA-aware framebuffer allocation.
 
-### N17. Pool Miss Reason Dashboard
-**Mancante:** Dashboard UI per visualizzare distribuzione miss reason.
-**Dove:** `src/runtime/telemetry/sqlite/sqlite_telemetry_store.cpp`
-**Frontend:** `tools/telemetry_dashboard/`
+## V3 tile-first
 
-### M3. SPSC Lock-Free Queue per Pipe FFmpeg
-**Stato:** Mutex + condition variable nel pipe encoder (async slot state machine).
-**Mancante:** Circular buffer SPSC lock-free.
-**Dove:** `apps/chronon3d_cli/commands/video/exporters/`
+All ten pillars in [`V3_BLUEPRINT.md`](V3_BLUEPRINT.md) remain planned.
 
-### M11. Test Coverage Nodi Render Graph Mancanti
-**Mancante:** Test dedicati per ShadowNode, GlowNode, BloomNode, GradientNode, DoFNode, MaskNode.
-**Test esistenti:** `tests/render_graph/pipeline/`, `tests/render_graph/builder/`, `tests/render_graph/compiler/`
+## Expressions V2
 
----
+- Quarantine and default exclusion: complete.
+- TICKET-003 and TICKET-004: closed historical fixes.
+- Stable SDK export/install: not done.
+- `AnimatedValue` integration: not done.
+- Benchmark, replacement map, retirement deadline: not done.
+- Quarantine removal: not done.
 
-## 🔵 Planned — Non ancora implementato
-
-### N3. Downsample SSAA Parallel
-**Soluzione:** Accesso row pointer diretto + TBB + SIMD box filter.
-**Guadagno stimato:** 2-4× con SSAA 2×.
-
-### N15. Framebuffer Pool Adaptive Preallocation
-**Problema:** Contatori telemetry mostrano miss ma pool non si adatta.
-**Soluzione:** `FramebufferPool::adapt_pool()` — se miss > 0 per 3 frame consecutivi, aumenta pool del 50%.
-**Dove:** `src/cache/framebuffer_pool.cpp`
-
-### M2. ISPC per il Blur Gaussiano
-**Problema:** apply_blur è scalar o usa Highway (1-8 pixel per istruzione).
-**Soluzione:** ISPC → 8 pixel per istruzione AVX2.
-**Note:** Highway SIMD già presente come alternativa. Valutare se ISPC aggiunge vantaggio reale.
-
-### M4. Render Speculativo — Multi-Frame Ahead
-**Problema:** Solo frame N renderizzato → core idle.
-**Soluzione:** Worker pool renderizza N+1..N+15 in anticipo.
-**Guadagno stimato:** Fino a 16× throughput teorico.
-
-### I4-EXT. NUMA-Aware FB Pool Allocation
-**Problema:** FB pool allocates indipendentemente dalla topologia NUMA.
-**Soluzione:** Allocare FB pool sul nodo NUMA locale al thread.
-**Prerequisito:** I4 thread pinning è già attivo.
-
----
-
-## 🌀 LONG-TERM — Prossimi mesi
-
-| ID | Descrizione | Impatto | Stato |
-|----|-------------|---------|-------|
-| L1 | GPU Backend per EffectStack (Vulkan Compute) | 🔴 Alto | 🔵 Planned |
-| L2 | ECS Architecture (Entity Component System) | 🟡 Medio | 🔵 Planned |
-| L3 | Frame Graph con Resource Barriers (RDG-style) | 🔴 Alto | 🔵 Planned |
-| L4 | Persistent Daemon Mode (Hot Server) | 🔴 Alto | 🔵 Planned |
-| L7 | MSDF Font Atlas per Text Scalability | 🟡 Medio | 🔵 Planned |
-| L8 | Parallel Tile Rendering (Bucket-Based) | 🔴 Alto | 🔵 Planned |
-| L5 | Render Farm Distribuito (Multi-Host) | 🔴 Alto | 🔵 Planned |
-| L9 | CI Multi-Platform (Windows + macOS) | 🟡 Medio | 🔵 Planned |
-
----
-
-## 🏗️ Lean Architecture Gates
-
-Gate architetturali per mantenere il motore snello e prevenire la crescita incontrollata.
-Vedi [`CORE_OWNERSHIP.md`](CORE_OWNERSHIP.md) per le regole complete.
-
-| Gate | Descrizione | Stato |
-|---|---|---|
-| **Telemetry opzionale** | Diagnostics/Tracking compilabili solo con `CHRONON3D_ENABLE_DIAGNOSTICS` e `CHRONON3D_ENABLE_TELEMETRY` | 🔵 Planned — policy documentata; feature flag da implementare nel build system |
-| **vcpkg feature parity** | Tutte le dipendenze opzionali dietro vcpkg feature flags | 🔵 Planned |
-| **Core Zone reduction** | Core ridotto ai contratti fondamentali (vedi CORE_OWNERSHIP.md §1A) | 🟡 Partial — completato a livello documentale; da verificare nel codice |
-| **Diagnostics isolation** | Diagnostics Zone separata, non linkata nel core per default | 🟡 Partial — zone definite; isolamento CMake da implementare |
-| **V3 deletion map** | Ogni componente V3 dichiara il V2 sostituito con criterio e milestone di eliminazione | 🟡 Partial — mappa documentata in V3_BLUEPRINT.md; da popolare durante l'implementazione |
-| **Cache primitive unification** | Tutte le cache usano la primitiva `LruCache` comune; nessuna cache ad-hoc per nuovo modulo | 🔵 Planned |
-| **Content growth policy** | Ogni nuovo modulo rispetta il budget di crescita (una responsabilità, un target CMake, un registry, test, nessun singleton) | 🟡 Partial — policy documentata; enforcement da attuare |
-
----
-
-## 🔧 Quick Win (1 giorno o meno)
-
-| ID | Descrizione | Dove | Stato |
-|----|-------------|------|-------|
-| N6 | Blend mode switch → template specialization | `blend_mode.hpp` | 🟡 Partial — Highway SIMD ma switch-case |
-| N7 | Shadow/Glow multi-layer fused | `effect_stack.cpp` | 🔵 Planned |
-| N8 | Temp FB aliasing shared_ptr | `effects_internal.hpp` | 🟡 Partial |
-| N9 | Trace lock-free queue | `trace.hpp` / `trace.cpp` | 🔵 Planned |
-| N10 | RAII guard thread_local ptrs | `software_renderer.cpp` | 🔵 Planned |
-
----
-
-## 🟢 Recently Completed — cross-reference (lifecycle events)
-
-These items landed recently and are recorded here so they appear in roadmap
-scans; for full detail follow the cross-reference. (The "rec" prefix below is
-a new convention introduced in 2026-06-20 for lifecycle events that did not
-previously live under the N*/M*/L*/I* numbering scheme.)
-
-| Prefix | Item | State | Cross-reference |
-|---|---|---|---|
-| rec-1 | `expressions/v2` engine merged on `main` via PR #23 (Experimental Zone) | ✅ Merged | `CHANGELOG.md` → "Expression System v2 — Lifecycle" |
-| rec-2 | CMake guard `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` retired (deprecated option() retained) | ✅ Done | `CMakeLists.txt:200-237` |
-| rec-3 | TICKET-005 Gap C — doc sweep recording that `expressions/v2` is now on `main` | ✅ Done | `FEATURES.md` + `CHANGELOG.md` + `ARCHITECTURE_EVOLUTION_PLAN.md` (this file's cross-reference) |
-
-> Open follow-ups that block full promotion from the Experimental Zone:
-> TICKET-003 (lexer.hpp typo), TICKET-004 (cmake `PUBLIC` include path bug).
-> Both are tracked in `docs/FOLLOWUP_TICKETS.md`.
+The authoritative promotion contract is
+[`EXPRESSIONS_V2_PROMOTION.md`](EXPRESSIONS_V2_PROMOTION.md).
