@@ -150,7 +150,12 @@ OwnedFB PrecompNode::execute(
         session->program_store().set_on_evict(instance_key(ctx), m_on_evict);
     }
 
-    auto* program = lease.program.get();   // WP 5.2 — ProgramLease::program is std::shared_ptr<CompiledSceneProgram>; keep the raw-pointer idiom via shared_ptr::get()
+    // WP 5.2 — ProgramLease::program is std::shared_ptr<CompiledSceneProgram>;
+    // we consume it via `.get()` to obtain a non-owning raw pointer for the
+    // duration of this execute() call.  The shared_ptr keeps the program
+    // alive even if a concurrent `clear()` on the store evicts its primary
+    // reference (lifetime invariant documented in scene_program_store.hpp).
+    auto* program = lease.program.get();
     if (!program || program->empty()) {
         return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
     }
