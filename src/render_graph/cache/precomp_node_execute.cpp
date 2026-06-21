@@ -140,13 +140,23 @@ OwnedFB PrecompNode::execute(
     const auto resolved = detail::resolve_layers(nested_scene, nested_ctx);
     detail::refresh_compiled_graph_payloads(program->frame_graph, nested_scene, nested_ctx, resolved);
 
-    // ── 8. Execute the cached program ────────────────────────────────────
-    // PR-5 + PR-2 rewire (WP-8 followup) — GraphExecutor is stateless;
-    // the topology plan lives on `program->frame_graph.levels`, so we
-    // was RETIRED alongside the legacy RenderGraph& overloads).
-    GraphExecutor local_executor;
-
-    auto nested_result = local_executor.execute(
+    // ── 8. Execute the cached program (WP-5 + WP-0 PR 0.1) ──────────────
+    // PR-5 — GraphExecutor is stateless; the topology plan lives on
+    // `program->frame_graph.levels` (no legacy RenderGraph& overloads).
+    // WP-0 PR 0.1 — PrecompNode MUST NOT construct a local GraphExecutor
+    // inline; borrow `session->services().executor` from the parent
+    // SessionServices table.  This eliminates a per-frame
+    // GraphExecutor ctor + dtor pair on every nested precomp execution
+    // and centralises scheduler binding on the runtime-owned executor.
+    // Regression guard: `tools/check_architecture_boundaries.sh` check
+    // [9/12] blocks reintroduction of `GraphExecutor <name>;`
+    // declarations in this TU.
+    const auto* inner_executor = session->services().executor;
+    if (!inner_executor) {
+        return ctx.acquire_owned_fb(
+            ctx.frame_input.width, ctx.frame_input.height);
+    }
+    auto nested_result = inner_executor->execute(
         program->frame_graph, nested_ctx, *session,
         *ctx.services.scheduler);
 
