@@ -126,17 +126,21 @@ public:
         FrameArena&                         arena,
         GraphInstanceId                     graph_id,
         const ExecutionScope*               parent
-    ) noexcept {
-        const int proposed =
-            parent ? (parent->m_depth + 1) : 0;
-        m_kind      = kind;
-        m_session   = session;
-        m_arena     = arena;
-        m_graph_id  = graph_id;
-        m_parent    = parent;
-        m_overflowed = (proposed > kMaxScopeDepth);
-        m_depth     = m_overflowed ? kMaxScopeDepth : proposed;
-    }
+    ) noexcept
+        : m_kind(kind)
+        , m_session(session)
+        , m_arena(arena)
+        , m_graph_id(graph_id)
+        , m_parent(parent)
+        , m_depth(parent
+            ? ((parent->m_depth + 1) > kMaxScopeDepth
+                ? kMaxScopeDepth
+                : (parent->m_depth + 1))
+            : 0)
+        // m_owner_key falls back on its `{0u}` member default below.
+        , m_overflowed(parent != nullptr
+                       && (parent->m_depth + 1) > kMaxScopeDepth)
+    {}
 
     [[nodiscard]] ExecutionScopeKind           kind()      const noexcept { return m_kind; }
     [[nodiscard]] chronon3d::RenderSession&    session()   const noexcept { return m_session; }
