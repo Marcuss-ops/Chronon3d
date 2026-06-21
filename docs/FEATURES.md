@@ -1,52 +1,47 @@
 # Chronon3D — Feature Reference
 
-Current repository maturity is tracked in [`STATUS.md`](STATUS.md).
+Stato del repository: [`STATUS.md`](STATUS.md). Lavori da chiudere:
+[`NEXT_STEPS.md`](NEXT_STEPS.md).
 
-## Stable feature areas
+## Feature stabili presenti
 
-- SVG path import V1: `M/L/H/V/C/Q/Z`, including relative forms.
-- Text: FreeType/HarfBuzz shaping, FriBidi segmentation, layout, auto-fit,
-  overflow control, presets, per-glyph animation, gradients, strokes, and glyph cache.
-- Images, layers, masks, blend modes, 2.5D camera, and software effects.
-- Video output and telemetry are controlled by build options.
+- SVG Path V1: comandi `M/L/H/V/C/Q/Z`, incluse le forme relative.
+- Text: FreeType, HarfBuzz, FriBidi, layout, auto-fit, overflow, preset, animazione per glifo, gradienti, stroke e glyph cache.
+- Immagini, layer, mask, blend mode, camera 2.5D ed effetti software.
+- Output video e telemetria controllati dalle opzioni di build.
 
-Known limits include incomplete ICU-style CJK line breaking, no color-emoji
-table support, and SVG import limited to the first path without full SVG styling.
+Limiti noti:
 
-## Expressions V2 — experimental quarantine
+- line breaking CJK non ancora basato su ICU;
+- color emoji non supportate;
+- import SVG limitato al primo path, senza supporto completo per styling, gruppi, trasformazioni e filtri.
 
-Expressions V2 is present on `main`, but it is **not** a stable public feature.
+La presenza di una feature non implica che l’intero repository sia release-ready. I blocker architetturali e di validazione sono descritti in `STATUS.md`.
 
-| Surface | Actual state |
+## Expressions V2 — quarantena sperimentale
+
+Expressions V2 è presente su `main`, ma non è una feature pubblica stabile.
+
+| Superficie | Stato reale |
 |---|---|
 | Root | `experimental/expressions/` |
-| Headers | `experimental/expressions/include/chronon3d_experimental/expressions/v2/` |
-| Sources/tests | Under `experimental/expressions/` |
+| Header | `experimental/expressions/include/chronon3d_experimental/expressions/v2/` |
+| Sorgenti/test | Dentro `experimental/expressions/` |
 | Build switch | `CHRONON3D_BUILD_EXPERIMENTAL=ON` |
-| Default | Excluded |
-| Installed/exported SDK | No |
-| Productive render-path integration | No |
+| Default | Escluso |
+| Install/export SDK | No |
+| Integrazione produttiva | No |
 
-The old `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` option is only a
-deprecated no-op compatibility key.
+`CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` è soltanto una chiave CMake deprecata senza effetto.
 
-Corrections:
+Stato ticket:
 
-- `TICKET-003` is closed; the `chrono3d/...` include typo was fixed.
-- `TICKET-004` is closed; the CMake include visibility/path issue was fixed.
-- They are historical records, not current promotion blockers.
-- `TICKET-005` still tracks separate follow-up work such as the missing public
-  `keyframes()` test surface.
-- `TICKET-EXP2-G3` tracks real `AnimatedValue` integration.
+- TICKET-003: chiuso.
+- TICKET-004: chiuso.
+- TICKET-005: follow-up separato su `keyframes()` e pulizia documentale.
+- TICKET-EXP2-G3: migrazione reale da Path A a Path B.
 
-Promotion requires **all eight** gates in
-[`EXPRESSIONS_V2_PROMOTION.md`](EXPRESSIONS_V2_PROMOTION.md), including:
+La promozione richiede tutti gli otto gate di
+[`EXPRESSIONS_V2_PROMOTION.md`](EXPRESSIONS_V2_PROMOTION.md): integrazione produttiva singola, determinismo, API documentata, benchmark, replacement map, deadline di rimozione e enforcement di un solo parser/VM/dependency graph.
 
-1. real productive integration with one parser/VM;
-2. benchmark evidence;
-3. a V1→V2 replacement/deletion map;
-4. a concrete retirement deadline;
-5. permanent single-parser/VM/dependency-graph enforcement.
-
-Do not include `chronon3d_experimental/...` from stable production code before
-the approved quarantine-removal change.
+Non includere `chronon3d_experimental/...` nel codice stabile prima della rimozione approvata della quarantena.
