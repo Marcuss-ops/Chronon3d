@@ -1,94 +1,95 @@
-# Work Package 8 — Remaining global-state and SDK work## Current state
+# Work Package 8 — Remaining global-state and SDK work
 
-`g_active_runtime`, `set_active_runtime()`, `active_runtime()`, `g_process_wide_assets_root`, `default_assets_root_for_deep_code()`, and the global publishing from `RenderRuntime::set_default_assets_root()` remain. `api/render_engine.hpp` still includes software-renderer and software-session implementation headers. Resolved and no longer tracked here: render-session include leaks, retired execution-plan cache.
+## Current state
 
-## Goal
+Completed:
 
-Remove process-wide runtime and asset state, then keep software implementation types out of the main SDK facade.
+- `RenderRuntime` owns a typed engine-local `AssetResolver`.
+- Resolver behavior for absolute, relative, missing, mounted, and escaping paths is implemented and tested.
+- Deep font/text/preflight consumers no longer call the removed one-argument string resolver.
+- The legacy `AssetRegistry::resolve_path()` shortcut is removed.
+
+The remaining problem is that deep consumers reach the typed resolver through process-global selection. `g_active_runtime`, `g_process_wide_assets_root`, `typed_resolver_for_deep_code()`, and the resolver mirror still allow one runtime to influence another. The public SDK facade also exposes software implementation types.
 
 ## TODO
 
-### PR 8.0 — Introduce an engine-local asset resolver
+### PR 8.0 — Pass the resolver explicitly
 
-- [ ] Add one typed `AssetResolver` owned by `RenderRuntime`.
-- [ ] Define absolute, relative, mounted-root, and missing-asset behavior.
-- [ ] Make resolution deterministic and independent for each engine.
-- [ ] Expose the resolver through narrow render services.
+- [ ] Add `AssetResolver*` to the narrow render/session/context services that genuinely need path resolution.
+- [ ] Pass the runtime-owned resolver into font loading, text rasterization, image loading, preflight, precomp construction, content helpers, CLI commands, and tests.
+- [ ] Remove deep calls to `typed_resolver_for_deep_code()`.
+- [ ] Do not replace the bridge with another singleton or thread-local active resolver.
+- [ ] Keep the two-argument explicit-root helper only where the caller intentionally owns the root.
 
-### PR 8.1 — Migrate deep asset consumers
+### PR 8.1 — Remove process-wide runtime and asset state
 
-Migrate explicit resolver access into:
+Remove:
 
-- [ ] font loading
-- [ ] text rasterization
-- [ ] image loading
-- [ ] preflight
-- [ ] precomp construction
-- [ ] content helpers
-- [ ] CLI render commands
-- [ ] tests and fixtures
+- [ ] `g_active_runtime`
+- [ ] `set_active_runtime()`
+- [ ] `active_runtime()`
+- [ ] `g_process_wide_assets_root`
+- [ ] `set_process_wide_assets_root()`
+- [ ] `process_wide_assets_root()`
+- [ ] `default_assets_root_for_deep_code()`
+- [ ] `typed_resolver_for_deep_code()`
+- [ ] `g_deep_resolver_mirror`
+- [ ] test-only global resolver reset hooks
 
-- [ ] Do not replace one global with another service-locator singleton.
+Also:
 
-### PR 8.2 — Remove process-wide runtime state
+- [ ] Stop `RenderRuntime::populate()` from publishing itself globally.
+- [ ] Stop `RenderRuntime::set_default_assets_root()` from writing process state.
+- [ ] Keep runtime destruction free from global-pointer cleanup.
 
-- [ ] Remove `g_active_runtime`.
-- [ ] Remove `set_active_runtime()` and `active_runtime()`.
-- [ ] Remove `g_process_wide_assets_root`.
-- [ ] Remove process-wide asset-root setters/getters.
-- [ ] Remove `default_assets_root_for_deep_code()`.
-- [ ] Stop `RenderRuntime::set_default_assets_root()` from publishing global state.
-
-### PR 8.3 — Add multi-engine isolation tests
+### PR 8.2 — Add multi-engine isolation tests
 
 - [ ] Construct two runtimes with different asset roots.
 - [ ] Resolve the same relative path independently.
-- [ ] Render concurrently and verify no cross-engine contamination.
+- [ ] Run font/text/preflight resolution concurrently for both runtimes.
 - [ ] Destroy one runtime and verify the other remains valid.
-- [ ] Verify tests and CLI can operate without an active-runtime fallback.
+- [ ] Verify CLI and tests work through explicit resolver wiring.
+- [ ] Verify no last-created/last-mounted runtime changes another engine's result.
 
-### PR 8.4 — Close the public SDK facade
+### PR 8.3 — Close the standard SDK facade
 
 File:
 - `include/chronon3d/api/render_engine.hpp`
 
 Actions:
-- [ ] Remove direct include of `software_renderer.hpp`.
-- [ ] Remove direct include of software session implementation headers.
-- [ ] Keep implementation details behind `RenderEngine::Impl`.
-- [ ] Remove `renderer()`, `runtime()`, and software-session access from the standard facade.
-- [ ] Move necessary expert access to an explicitly advanced/internal header.
-- [ ] Keep `Chronon3D::SDK` as the documented consumer target.
 
-### PR 8.5 — Remove remaining compatibility aliases
+- [ ] Remove direct include of `software_renderer.hpp`.
+- [ ] Remove direct exposure of software-session implementation types.
+- [ ] Remove or relocate `renderer()`, `runtime()`, and `create_session()` from the standard facade.
+- [ ] Move necessary expert access to an explicitly advanced/internal header.
+- [ ] Keep ordinary render, settings, assets, and cache operations behind PIMPL.
+- [ ] Update comments that still mention retired `ExecutionPlanCache` or process-wide asset fallback.
+
+### PR 8.4 — Remove compatibility and contract leaks
 
 - [ ] Remove `using RenderFrameInfo = FrameInput` after call-site migration.
-- [ ] Remove public comments and docs that still describe the retired plan cache.
-- [ ] Remove public API text that describes process-wide asset fallback as supported behavior.
+- [ ] Replace `default_assets_root` string pointers in session services with explicit resolver access.
+- [ ] Remove stale public comments describing Phase A global mirroring.
+- [ ] Ensure public headers do not require backend implementation headers transitively.
 
-### PR 8.6 — Add SDK boundary tests
+### PR 8.5 — Add SDK and global-state guards
 
-- [ ] Compile a translation unit that includes only `api/render_engine.hpp`.
-- [ ] Confirm that header does not pull software renderer/session headers transitively.
-- [ ] Build and run the standalone install consumer.
-- [ ] Verify consumers cannot link internal targets through the documented namespace.
-- [ ] Verify advanced/internal headers are not required for ordinary rendering.
+- [ ] Compile a consumer translation unit that includes only `api/render_engine.hpp`.
+- [ ] Confirm the header does not include software renderer/session implementation headers.
+- [ ] Build and run the standalone install consumer through `Chronon3D::SDK` only.
+- [ ] Fail architecture checks if active-runtime or process-wide asset globals return.
+- [ ] Fail architecture checks if the standard facade returns software implementation types.
+- [ ] Verify advanced/internal headers are unnecessary for ordinary rendering.
 
-### PR 8.7 — Add permanent guards
+## Dependencies
 
-- [ ] Prevent active-runtime globals from returning.
-- [ ] Prevent process-wide asset-root globals from returning.
-- [ ] Prevent `api/render_engine.hpp` from including software implementation headers.
-- [ ] Prevent standard SDK facade methods from returning software implementation types.
-
-## Separate follow-up
-
-The optional `FrameGraphCompiler` structural-reuse optimization is tracked as `TICKET-008` in `docs/FOLLOWUP_TICKETS.md`. It is not part of global-state removal.
+- Session resolver wiring should align with Work Package 3.
+- Public facade cleanup should follow Work Package 7 backend separation.
 
 ## Exit criteria
 
-- [ ] Asset lookup is explicit and engine-local.
+- [ ] Asset resolution is explicit and engine-local end to end.
+- [ ] No active-runtime, process-wide-root, or global typed-resolver bridge remains.
 - [ ] Two runtimes cannot contaminate each other.
-- [ ] No active-runtime or process-wide asset-root state remains.
-- [ ] Main SDK headers expose no software implementation types.
+- [ ] Standard SDK headers expose no software implementation types.
 - [ ] Ordinary consumers build and run through `Chronon3D::SDK` only.
