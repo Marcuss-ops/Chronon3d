@@ -172,8 +172,13 @@ public:
     [[nodiscard]] const chronon3d::Config& config() const noexcept { return m_config; }
 
     // ── Backend access (populated after attach_backend()) ────────────
-    [[nodiscard]] chronon3d::graph::RenderBackend& backend() noexcept;
-    [[nodiscard]] const chronon3d::graph::RenderBackend& backend() const noexcept;
+    // WP-0 PR 0.1 — `noexcept` was REMOVED from the declaration: the
+    // body throws std::runtime_error on unattached backend, so a
+    // `noexcept` declaration would terminate the process instead of
+    // surfacing the error.  See `tools/check_architecture_boundaries.sh`
+    // check [11/12] for the regression guard.
+    [[nodiscard]] chronon3d::graph::RenderBackend& backend();
+    [[nodiscard]] const chronon3d::graph::RenderBackend& backend() const;
 
     // ── Backend slot predicates ──────────────────────────────────────
     [[nodiscard]] bool backend_attached() const noexcept { return static_cast<bool>(m_backend); }

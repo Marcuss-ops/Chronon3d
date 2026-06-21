@@ -178,7 +178,13 @@ void RenderRuntime::attach_backend(
     m_backend = std::move(backend);
 }
 
-chronon3d::graph::RenderBackend& RenderRuntime::backend() noexcept {
+// WP-0 PR 0.1 — `noexcept` REMOVED from both overloads: the body
+// throws std::runtime_error on an unattached backend.  Previously
+// declared `noexcept`, this would have called std::terminate instead
+// of surfacing the error.  The header mirrors this no-noexcept
+// declaration; see check [11/12] of
+// `tools/check_architecture_boundaries.sh` for the regression guard.
+chronon3d::graph::RenderBackend& RenderRuntime::backend() {
     if (!m_backend) {
         throw std::runtime_error(
             "RenderRuntime::backend() called before attach_backend().");
@@ -186,7 +192,7 @@ chronon3d::graph::RenderBackend& RenderRuntime::backend() noexcept {
     return *m_backend;
 }
 
-const chronon3d::graph::RenderBackend& RenderRuntime::backend() const noexcept {
+const chronon3d::graph::RenderBackend& RenderRuntime::backend() const {
     if (!m_backend) {
         throw std::runtime_error(
             "RenderRuntime::backend() (const) called before attach_backend().");
