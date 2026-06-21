@@ -472,3 +472,21 @@ if(CHRONON3D_BUILD_CLI AND CHRONON3D_BUILD_TESTS)
             chronon3d_tests_fast
     )
 endif()
+
+# ── Architecture verification target (PR-0) ───────────────────────────────────
+# Builds the core runtime + graph + backend + fast-test targets to prove that
+# every architectural boundary compiles cleanly.  Does NOT change behaviour;
+# purely a build-time verification gate.  Wired into CI via
+# `cmake --build --preset <preset> --target chronon3d_architecture_check`.
+# Gated on BUILD_TESTS because chronon3d_tests_fast is only defined when tests
+# are enabled.
+if(CHRONON3D_BUILD_TESTS)
+    add_custom_target(chronon3d_architecture_check
+        DEPENDS
+            chronon3d_runtime
+            chronon3d_graph_executor
+            chronon3d_graph_pipeline
+            chronon3d_backend_software
+            chronon3d_tests_fast
+    )
+endif()
