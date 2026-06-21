@@ -105,17 +105,6 @@ struct TestContext {
     }
 
     void set_frame(Frame f) { ctx.frame_input.frame = f; }
-
-    /// WP 5.1 — drive `ctx.node_exec.current_identity` from the test:
-    /// production paths stamp this inside
-    /// `GraphExecutor::execute_single_node`, but the precomp tests
-    /// drive `PrecompNode::execute(...)` directly so we must set the
-    /// identity explicitly.  Distinct ids per precomp ensure distinct
-    /// `SceneProgramStore` buckets (the WP 4.2 + 5.1 sibling-isolation
-    /// invariant).
-    void set_identity(NodeIdentity id) {
-        ctx.node_exec.current_identity = id;
-    }
 };
 
 } // namespace
@@ -192,23 +181,17 @@ TEST_CASE("precomp_cache: different composition name triggers recompile") {
 
     PrecompCachePolicy policy{.initial_capacity = 8};
 
-    // Execute comp_a → cache miss (own bucket)
+    // Execute comp_a → cache miss
     {
         PrecompNode precomp("comp_a", Frame{0}, Frame{60}, Frame{-1}, policy);
-        // WP 5.1 — distinct identity per precomp so the buckets don't
-        // alias (the old comp_name-based hash provided this for free;
-        // the new execution-context-derived key relies on distinct
-        // `(GraphInstanceId, StableNodeId)` pairs).
-        tc.set_identity(NodeIdentity{GraphInstanceId{0xA1}, StableNodeId{0xA1}});
         precomp.execute(tc.ctx, {}, {});
         auto stats = tc.session.program_store().aggregate_stats();
         CHECK(stats.misses == 1);
     }
 
-    // Execute comp_b → new instance, distinct identity = distinct bucket
+    // Execute comp_b → new instance, different key → separate cache partition
     {
         PrecompNode precomp("comp_b", Frame{0}, Frame{60}, Frame{-1}, policy);
-        tc.set_identity(NodeIdentity{GraphInstanceId{0xB2}, StableNodeId{0xB2}});
         precomp.execute(tc.ctx, {}, {});
         auto stats = tc.session.program_store().aggregate_stats();
         CHECK(stats.misses == 2);  // two instances, two misses
@@ -239,10 +222,6 @@ TEST_CASE("precomp_cache: eviction callback fires on inner cache evict") {
     PrecompCachePolicy policy{.initial_capacity = 2};
     PrecompNode precomp("inner", Frame{0}, Frame{60}, Frame{-1}, policy);
 
-    // WP 5.1 — drive identity before execute() so the bucket key is
-    // well-defined (production sets this from GraphExecutor).
-    tc.set_identity(NodeIdentity{GraphInstanceId{0xA11}, StableNodeId{0xB22}});
-
     int evict_count = 0;
     precomp.set_on_evict([&](const graph::SceneStructureKey&) {
         ++evict_count;
@@ -254,7 +233,7 @@ TEST_CASE("precomp_cache: eviction callback fires on inner cache evict") {
     // Access the store's per-instance cache directly for eviction testing.
     // Use two different keys to fill the capacity-2 cache.
     tc.session.program_store().acquire(
-        precomp.instance_key(tc.ctx),
+        precomp.instance_key_default(),
         SceneStructureKey{1, 0, 0, 80, 80, 1}, policy,
         []() -> std::unique_ptr<CompiledSceneProgram> {
             auto p = std::make_unique<CompiledSceneProgram>();
@@ -263,7 +242,7 @@ TEST_CASE("precomp_cache: eviction callback fires on inner cache evict") {
             return p;
         });
     tc.session.program_store().acquire(
-        precomp.instance_key(tc.ctx),
+        precomp.instance_key_default(),
         SceneStructureKey{2, 0, 0, 80, 80, 1}, policy,
         []() -> std::unique_ptr<CompiledSceneProgram> {
             auto p = std::make_unique<CompiledSceneProgram>();
@@ -275,7 +254,7 @@ TEST_CASE("precomp_cache: eviction callback fires on inner cache evict") {
 
     // Insert 3rd entry → evicts LRU.
     tc.session.program_store().acquire(
-        precomp.instance_key(tc.ctx),
+        precomp.instance_key_default(),
         SceneStructureKey{3, 0, 0, 80, 80, 1}, policy,
         []() -> std::unique_ptr<CompiledSceneProgram> {
             auto p = std::make_unique<CompiledSceneProgram>();
@@ -413,7 +392,8 @@ TEST_CASE("precomp_cache: end-to-end via SoftwareRenderer does not crash") {
         );
     });
 
-    SoftwareRenderer renderer;
+    // WP-3 close-out: SoftwareRenderer() no-arg ctor retired; use Config{}.
+    SoftwareRenderer renderer(Config{});
     renderer.set_composition_registry(&registry);
 
     Composition parent_comp(
