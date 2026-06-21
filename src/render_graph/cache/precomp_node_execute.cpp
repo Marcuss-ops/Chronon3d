@@ -52,8 +52,7 @@ PrecompNode::PrecompNode(std::string comp_name, Frame start_frame, Frame duratio
     // immediately before delegating to `node->execute(...)`) via
     // `instance_key(ctx)`.  This is what makes two sibling PrecompNode
     // instances running the same composition map to DISTINCT cache
-    // buckets (WP 4.2 + WP 5.1 invariant) — a stored member keyed only
-    // on `hash_string(m_comp_name)` would alias siblings.
+    // buckets (WP 4.2 + WP 5.1 invariant).
 }
 
 PrecompNode::~PrecompNode() = default;

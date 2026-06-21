@@ -14,9 +14,9 @@
 //
 // `RendererLayerHistory` is gone.  Its payload (`prev_layer_bboxes`)
 // has been folded into `DirtyHistory::previous_layers`.  `reset_job()`
-// therefore clears `dirty_telemetry.previous_layers` (which the old
-// `clear_per_frame()` reset semantics used to handle for the wrapping
-// `RendererLayerHistory`).
+// therefore clears `dirty_telemetry.previous_layers` so a full job
+// reset wipes the wrapping-history payload as part of the per-session
+// reset sequence.
 //
 // Bodies of the accessors (`scene_hasher()` / `program_store()`) are
 // inline in the header — they return references to the local members;
