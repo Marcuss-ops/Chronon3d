@@ -1,22 +1,25 @@
 #pragma once
 
 // ──────────────────────────────────────────────────────────────────────────────
-// precomp_node.hpp — PrecompNode with SceneProgramCache integration
+// precomp_node.hpp — PrecompNode (PR-5: thin identity-only node)
 //
-// Renders a nested composition (Precomp layer) by building/compiling a
-// render graph for the inner scene and caching the compiled program via
-// SceneProgramCache.  On cache hit, only per-frame payload refresh is
-// needed — no full graph rebuild.  Supports eviction callbacks so outer
-// caches can invalidate nested state.
+// Renders a nested composition (Precomp layer).  All caching is delegated to
+// the centralized SceneProgramStore on the parent RenderSession; the node
+// itself holds only identity (comp_name, frame range, cache frame) +
+// a PrecompCachePolicy + a FrameParameterBlock.
+//
+// PR-5 removals (now on RenderSession / SceneProgramStore):
+//   - SceneProgramCache   → ctx.services.session->program_store->acquire(...)
+//   - GraphExecutor        → ctx.services.session->services.executor
+//   - ExecutionPlanCache   → ctx.services.session->services.plan_cache
+//   - RenderSession        → ctx.services.session (borrowed for inner exec)
+//   - Auto-tune counter    → SceneProgramStore handles per-instance auto-tune
 // ──────────────────────────────────────────────────────────────────────────────
 
-#include <chronon3d/runtime/execution_plan_cache.hpp>
-#include <chronon3d/runtime/render_session.hpp>
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
-#include <chronon3d/render_graph/executor/graph_executor.hpp>
+#include <chronon3d/render_graph/cache/scene_program_store.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
-#include <chronon3d/render_graph/cache/scene_program_cache.hpp>
 #include <chronon3d/render_graph/pipeline/frame_parameter_block.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <span>
@@ -26,18 +29,16 @@ namespace chronon3d::graph {
 class PrecompNode final : public RenderGraphNode {
 public:
     /// Construct a PrecompNode for the named composition.
-    /// @param cache_capacity  Size of the inner SceneProgramCache (default 8).
-    /// @param tune_mode       Auto-tuning mode for the cache (default Fixed).
-    /// @param tune_interval   How many execute() calls between auto-tune checks.
-    /// @param tune_min_cap    Minimum cache capacity when down-tuning.
-    /// @param tune_max_cap    Maximum cache capacity when up-tuning.
+    /// @param comp_name     Name of the composition in the registry.
+    /// @param start_frame   Frame offset where this precomp starts.
+    /// @param duration      Number of frames (0 or negative = unlimited).
+    /// @param cache_frame   Frame used for node-cache key.
+    /// @param cache_policy  Per-instance cache policy forwarded to the
+    ///                      SceneProgramStore on first acquire().
     PrecompNode(std::string comp_name, Frame start_frame, Frame duration,
                 Frame cache_frame = Frame{-1},
-                size_t cache_capacity = 8,
-                cache::TuneMode tune_mode = cache::TuneMode::Fixed,
-                size_t tune_interval = 30,
-                size_t tune_min_cap = 2,
-                size_t tune_max_cap = 128);
+                PrecompCachePolicy cache_policy = {});
+
     ~PrecompNode() override;
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Precomp; }
@@ -60,30 +61,27 @@ public:
         return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
     }
 
-    /// Execute the nested composition, using the inner cache to avoid
-    /// rebuilding the graph when the scene structure hasn't changed.
+    /// Execute the nested composition.  Uses ctx.services.session for:
+    ///   - program_store->acquire() for cache lookup
+    ///   - arena() for inner graph PMR allocations
+    ///   - services.executor / services.plan_cache for inner execution
     OwnedFB execute(RenderGraphContext& ctx,
                     std::span<const FramebufferRef>,
                     std::span<const std::optional<raster::BBox>>) override;
 
     // ── Cache integration ────────────────────────────────────────────
 
-    /// Register an eviction callback forwarded from the inner
-    /// SceneProgramCache.  Invoked whenever the inner cache evicts an entry
-    /// (e.g. due to LRU eviction or explicit erase).
-    void set_on_evict(cache::ProgramEvictCallback cb) { m_on_evict = std::move(cb); }
+    /// Register an eviction callback.  Forwarded to the SceneProgramStore
+    /// for this instance (keyed by instance_key()).
+    void set_on_evict(cache::ProgramEvictCallback cb);
 
-    /// Access the inner SceneProgramCache (for diagnostics / testing).
-    [[nodiscard]] cache::SceneProgramCache& inner_cache() { return *m_cache; }
-    [[nodiscard]] const cache::SceneProgramCache& inner_cache() const { return *m_cache; }
+    /// Compute the PrecompInstanceKey that identifies this node in the
+    /// SceneProgramStore.  Stable across frames for the same composition.
+    [[nodiscard]] PrecompInstanceKey instance_key() const;
 
     /// Access the FrameParameterBlock (for diagnostics / testing).
     [[nodiscard]] FrameParameterBlock& param_block() { return m_param_block; }
     [[nodiscard]] const FrameParameterBlock& param_block() const { return m_param_block; }
-
-    /// Invalidate a cached entry for the given key (called when an outer
-    /// cache evicts this precomp's parent program).
-    void invalidate_entry(const SceneStructureKey& key) { m_cache->erase(key); }
 
 private:
     std::string m_comp_name;
@@ -92,22 +90,13 @@ private:
     Frame m_duration{-1};
     Frame m_cache_frame{-1};
 
-    // ── Caching members ────────────────────────────────────────────
-    std::unique_ptr<cache::SceneProgramCache> m_cache;
+    // ── PR-5: only identity + policy + param block remain ──────────
+    PrecompCachePolicy  m_cache_policy;
     FrameParameterBlock m_param_block;
-    std::unique_ptr<GraphExecutor> m_executor;
-    // TICKET-009 — per-precomp plan cache; lives with the precomp node
-    // and is passed explicitly to GraphExecutor::execute().
-    std::shared_ptr<runtime::ExecutionPlanCache> m_plan_cache;
-    RenderSession m_session;  // per-session state (arena + frame history)
     cache::ProgramEvictCallback m_on_evict;
 
-    // ── Auto-tuning state ─────────────────────────────────────────────
-    cache::TuneMode m_tune_mode{cache::TuneMode::Fixed};
-    size_t m_tune_interval{30};
-    size_t m_tune_counter{0};
-    size_t m_tune_min_cap{2};
-    size_t m_tune_max_cap{128};
+    // ── Cached instance key (computed once from m_comp_name) ───────
+    PrecompInstanceKey  m_instance_key;
 };
 
 } // namespace chronon3d::graph
