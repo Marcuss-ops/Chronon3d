@@ -65,7 +65,6 @@ awk '
 /^(private|protected):/ { p=0; next }
   p && /^[[:space:]]+[A-Za-z_~][A-Za-z0-9_:<>,\*& ]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\(/ {
     sub(/^[[:space:]]+/, "")
-    sub(/[ ].*/, "")
     print
   }
 ' "$HDR" | sort -u > /tmp/sw_public_methods.txt
