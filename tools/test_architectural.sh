@@ -290,6 +290,40 @@ run_test_present "Gitignore covers build/temp.o"                 "build/temp.o"
 run_test_present "Gitignore covers test_renders/foo.png"         "test_renders/foo.png"
 
 # ────────────────────────────────────────────────────────────────────────
+# 6. WP-0 PR 0.1 architecture-boundary gate (child_target_check_arch_boundary)
+# ────────────────────────────────────────────────────────────────────────
+# WP-0 PR 0.1 — the WP-0 close-out added 7 P0 architectural guards (must-be-
+# absent patterns) to tools/check_architecture_boundaries.sh, all of which
+# were caught only by running that script.  Without wiring it into the CI
+# gate pipeline, the next cpp-stale-vs-header incident (e.g. a future refactor
+# reintroducing `GraphExecutor <name>;` inside a PrecompNode TU after a
+# reorganisational move) would not surface on PR review.
+#
+# This block is named `child_target_check_arch_boundary` in the roadmap
+# docs; here it is implemented as Section 6 of the CI-driven architectural
+# script that `.github/workflows/gates.yml` already invokes.  Including it
+# here (rather than as a separate YAML step) keeps the cheap gate bundle
+# idempotent under local `bash tools/test_architectural.sh` reruns.
+echo "--- Section 6: child_target_check_arch_boundary (WP-0 PR 0.1) ---"
+
+SCRIPT_DIR_HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -x "${SCRIPT_DIR_HERE}/check_architecture_boundaries.sh" ]; then
+    # PID-prefixed mktemp so concurrent CI matrix jobs / dev watch loops
+    # never clobber each other's diagnostic log on a FAILED run.
+    BOUNDARY_LOG="$(mktemp -t wp0_boundary.XXXXXX.log 2>/dev/null || mktemp)"
+    if bash "${SCRIPT_DIR_HERE}/check_architecture_boundaries.sh" >"$BOUNDARY_LOG" 2>&1; then
+        echo "PASSED: architecture-boundary child_target_check_arch_boundary (12 checks)"
+        rm -f "$BOUNDARY_LOG"
+    else
+        report_failed "child_target_check_arch_boundary — see $BOUNDARY_LOG"
+        cat "$BOUNDARY_LOG"
+        echo "(boundary log retained at: $BOUNDARY_LOG)"
+    fi
+else
+    report_failed "child_target_check_arch_boundary: tools/check_architecture_boundaries.sh not executable (fix with: chmod +x tools/check_architecture_boundaries.sh)"
+fi
+
+# ────────────────────────────────────────────────────────────────────────
 # Final summary
 # ────────────────────────────────────────────────────────────────────────
 if [ "$FAILED" -ne 0 ]; then

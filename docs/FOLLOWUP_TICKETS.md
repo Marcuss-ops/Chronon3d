@@ -1159,6 +1159,82 @@ TICKET-008 chooses (b) — document the limitation + require callers to either k
 ### Cross-references
 
 - §9.4 closure-note sub-sections (this is the contract source for the affordance + Skip-safety constraints): `docs/refactor-roadmap/08-global-state-and-sdk.md` lines ~134–300, finalised at commit `4a808e46`.
+
+---
+
+## TICKET-009 — Pre-existing compile breaks surfaced by `cmake --build chronon3d_tests_fast`
+
+| Field | Value |
+|---|---|
+| **Status** | 🟡 Partial (WP-5.1 sync PR's inline fix closes break #2 below; break #1 remains for a follow-up sprint) |
+| **Affected file(s)** | `tests/runtime/test_render_session_reset_and_isolation.cpp` · `tests/render_graph/nodes/test_precomp_node_cache.cpp` (default-ctor call site) |
+| **Discovered during** | WP-5.1 sync validation on `chronon3d_tests_fast` aggregate target — `cmake --build build/chronon/linux-ci --target chronon3d_tests_fast --clean-first` (2026-06-21, post-WP-0 close-out rebase). |
+| **Discovered date** | 2026-06-21 |
+| **Pre-existing** | Yes — both errors are independent of the WP-5.1 sync cpp/fixture edits (`git diff --stat origin/main..HEAD -- tests/runtime/ tests/render_graph/nodes/` shows zero churn in these files from the WP-0 PRs). |
+
+### Symptom
+
+Two unrelated compile breaks surface when the WP-5.1 sync PR (CPP + fixture + Section 6 gate) is validated against the full `chronon3d_tests_fast` aggregate target:
+
+1. **`tests/runtime/test_render_session_reset_and_isolation.cpp`**: `'i32' does not name a type` — likely a missing type alias header (LLVM/Clang-style `i32` referencing LLVM's definition that isn't transitively included under gcc). Detected by gcc in the toolchain configured for `linux-ci` preset.
+
+2. **`tests/render_graph/nodes/test_precomp_node_cache.cpp`**: `no matching function for call to 'chronon3d::SoftwareRenderer::SoftwareRenderer()'` — the test fixture's `TestContext` struct has `SoftwareRenderer backend;` (declaration-only, no in-class initializer). In the constructor initializer list `TestContext(...) : backend(renderer_cfg)` explicit init is provided, BUT a downstream code path is invoking the default ctor somewhere (likely a brace-init in a different test case OR an aggregate-init copy pattern introduced in WP-3 close-out).
+
+The WP-5.1 sync PR shipped a fix in `precomp_node_execute.cpp` that compiles cleanly when scoped to the focus target `chronon3d_precomp_focus_tests`. The aggregate `chronon3d_tests_fast` target fails not on the WP-5.1 sync edits but on these TWO pre-existing breaks in unrelated files.
+
+### Root cause analysis (preliminary)
+
+Both errors exist on `origin/main` HEAD independent of any WP-0 or WP-5.1 work — `git log --oneline -- tests/runtime/test_render_session_reset_and_isolation.cpp` and `git log --oneline -- tests/render_graph/nodes/test_precomp_node_cache.cpp` show the affected lines predate the WP-0 close-out chain (`edaccfd7 `… `c1811be8`). They were latent because:
+
+- The CI historically validates `chronon3d_precomp_focus_tests` and `chronon3d_tests_render` separately; `chronon3d_tests_fast` aggregate coverage has been shell-only and not exercised compile-end-to-end since the WP-3 close-out renamed several `RenderSession` and `SoftwareRenderer` members.
+
+- The test fixture's `SoftwareRenderer backend;` default ctor assumption was valid before a constructor signature rotation (likely WP-3 PR-3.x or the `RenderSession::reset_job()` close-out at commit `c1811be8`) that removed the no-arg ctor in favour of `SoftwareRenderer(Config&)`.
+
+- The `i32` typo is similarly pre-existing — the file using `i32` likely did so under the assumption of a typedef being transitively visible, which is not the case for gcc toolchain configurations.
+
+### Out-of-scope rationale for the WP-5.1 sync PR
+
+- **WP-5.1 sync PR scope**: surgical cpp + fixture sync to the new `instance_key(ctx)` contract, plus wiring `tools/check_architecture_boundaries.sh` as a CI gate via `tools/test_architectural.sh` Section 6. The PR's review verified the focused files compile cleanly in isolation.
+- **`SoftwareRenderer` constructor signature and `i32` type visibility**: owned by separate refactor lineages (WP-3 PR-3.x close-out for `SoftwareRenderer`, and the LLVM-typedef visibility drift for `i32`). Mixing them into the WP-5.1 sync commit would have diluted the PR's auditability.
+- **CI gate surface**: this ticket provides the tracking entry point for the next sprint to validate the aggregate `chronon3d_tests_fast` target end-to-end, beyond the focused subset the WP-0 PR chain tested.
+
+### Suggested fix approach
+
+1. **SoftwareRenderer default-ctor removal** (highest impact):
+   - Open `tests/render_graph/nodes/test_precomp_node_cache.cpp` line ~70ish (TestContext struct).
+   - Identify the callsite that invokes `SoftwareRenderer()` with no args (likely inside a `make_inner_comp`-style helper, an aggregate-init site, or a copy-construction pattern that lost its `Config` source).
+   - Replace with `SoftwareRenderer(renderer_cfg)` (the existing ctor already in use elsewhere in the same struct's init list).
+   - If the callsite is a brace-init literal `{SoftwareRenderer backend;}`, change to `SoftwareRenderer backend{renderer_cfg};` (or remove the brace-init and rely on the existing explicit init in the member init list).
+   - Re-run `cmake --build build/chronon/linux-ci --target chronon3d_precomp_focus_tests` to confirm the focused TU compiles clean.
+   - Re-run `cmake --build build/chronon/linux-ci --target chronon3d_tests_fast` to confirm the aggregate target moves past this break.
+
+2. **`i32` typo fix-up** (lower impact but blocks the same target):
+   - Open `tests/runtime/test_render_session_reset_and_isolation.cpp`.
+   - Replace `i32` with the correct type. Most likely candidates: `int32_t` (C++ standard header `<cstdint>`), `int` (if i32 was originally `int`-alias), or a project-specific typedef like `chronon3d::i32`.
+   - Audit: `grep -rn '\bi32\b' tests/runtime/ src/` to find any other latent instances of the same typo.
+   - Confirm `<cstdint>` or equivalent is transitively included; otherwise add the include explicitly to the TU.
+
+3. **Regression gate**:
+   - Add a CI workflow job that runs `cmake --build build/chronon/linux-ci --target chronon3d_tests_fast` end-to-end (not just the focused subset) so these breaks surface on PR review rather than waiting for the next manual aggregate-build verification.
+   - Cross-preset validation: ensure the aggregate target builds clean under `linux-ci`, `linux-dev`, `linux-lean-dev`, and `linux-release`. (Per WP-0 PR 0.3 arch audit, build-derived sizes are TBD pending CI stability — this ticket is conditional on that prerequisite.)
+
+### Acceptance criteria
+
+- `cmake --build build/chronon/linux-ci --target chronon3d_tests_fast` returns rc=0 after both fixes land.
+- The aggregate target's per-component test executables (`chronon3d_core_tests`, `chronon3d_scene_tests`, `chronon3d_precomp_focus_tests`, etc.) all link successfully.
+- `tests/runtime/test_render_session_reset_and_isolation.cpp` has no `i32` references; only `int32_t` (or project-equivalent typedef).
+- `tests/render_graph/nodes/test_precomp_node_cache.cpp` has no callsites invoking `SoftwareRenderer()` with no args; all instantiations pass `Config` or `Config{}` explicitly.
+- The WP-5.1 sync cpp (`src/render_graph/cache/precomp_node_execute.cpp`) and `tools/test_architecture_boundaries.sh` Section 6 remain green (no regression introduced by the fix).
+
+### Cross-references
+
+- WP-5.1 sync PR (this ticket is companion): the focused cpp + fixture + Section 6 gate wiring.
+- WP-0 close-out commits (which surfaced these errors via the new `chronon3d_precomp_focus_tests` validation flow): `7093e56a`, `3343dd99`, `38794d9b`, `8882a67e`, `c1811be8`.
+- TICKET-006 (linker rot in `chronon3d_tests_fast`) is a separate-but-adjacent concern from the post-cascade cleanup lineage; this ticket (TICKET-009) is the SOURCE-LEVEL compile-time counterpart to TICKET-006's link-time failures.
+- Architectural-spec paste precedent for breaking pre-existing rot into its own ticket: TICKET-002 (TextSpec API rot in `content/`).
+
+---
+
 - §9.4 closure-note commits chain (polish rounds on the closure-note itself): `dc914423`, `72d07d78`, `4a808e46`.
 - PR-2 close-out that orphaned §9.4: `9f9af90e`.
 - Live writer of the dormant flag: `src/render_graph/pipeline/scene.cpp` Phase 4 of `render_scene_via_graph` (around line 233).
