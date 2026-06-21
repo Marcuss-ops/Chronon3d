@@ -35,8 +35,10 @@
 #include <chronon3d/extension/extension_context.hpp>  // PR 3.5 — needed to read style_registry/motion_registry pointers from the host-side ExtensionContext.
 #include <chronon3d/authoring/text.hpp>
 
+#include <cassert>
 #include <cstddef>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -50,11 +52,33 @@ public:
     Layer(LayerBuilder& builder, FrameContext context) noexcept
         : builder_(&builder), context_(std::move(context)) {}
 
-    /// Convenience overload — defaults to 1920×1080 viewport context.
-    /// Only use when the composition has no `LayerBuilder::screen_dimensions(...)`
-    /// override; otherwise prefer the explicit overload.
-    explicit Layer(LayerBuilder& builder) noexcept
-        : builder_(&builder), context_(FrameContext::default_viewport()) {}
+    /// Façade-only constructor with viewport auto-detection.
+    ///
+    /// PR 4 — replaces the previous silent-default overload that picked
+    /// 1920×1080 unconditionally.  Now requires the parent `LayerBuilder`
+    /// to have called `screen_dimensions(w, h)` at least once before this
+    /// ctor fires.
+    ///
+    /// ── Failure semantics ──────────────────────────────────────────────────
+    /// Unconditionally throws `std::runtime_error` (no debug-mode assert
+    /// short-circuit) when the parent `LayerBuilder` never called
+    /// `screen_dimensions(w, h)`.  The throw site names the offending layer
+    /// + the two remediation paths so the failure is self-explanatory in
+    /// both interactive debuggers and CI logs.
+    ///
+    /// Throwing — rather than `assert(false)` + SIGABRT — keeps test
+    /// runners alive (REQUIRE_THROWS_AS catches the exception cleanly)
+    /// and ensures release builds see the same error signal as debug.
+    ///
+    /// ── Why this is no longer a silent default ─────────────────────────────
+    /// `Text::center()` reads `context_->width / height` to compute viewport
+    /// math.  Silently picking 1920×1080 was a footgun: a composition
+    /// rendered at 1280×720 would still author text at the 1920×1080
+    /// viewport, producing visually-misaligned frames.  The strict ctor
+    /// surfaces the misuse at construction time instead of at render time.
+    explicit Layer(LayerBuilder& builder) noexcept(false)
+        : builder_(&builder),
+          context_(resolve_viewport_or_throw_(builder)) {}
 
     Layer(const Layer&)            = delete;
     Layer& operator=(const Layer&) = delete;
@@ -119,6 +143,37 @@ public:
     [[nodiscard]] const FrameContext& context()         const noexcept { return context_; }
 
 private:
+    /// Fail-fast viewport resolver for the one-arg `Layer(LayerBuilder&)`
+    /// overload.  Behaviour:
+    ///   1. Inspects `builder.screen_dimensions_were_set()` (set true by
+    ///      `LayerBuilder::screen_dimensions(w, h)`);
+    ///   2. On false → throws `std::runtime_error` naming the offending
+    ///      layer + the two remediation paths (set `screen_dimensions`
+    ///      on the builder, or use the explicit two-arg ctor).
+    ///   3. On true → returns a `FrameContext` whose width/height match
+    ///      the last `screen_dimensions(...)` call.
+    static FrameContext resolve_viewport_or_throw_(LayerBuilder& builder) {
+        if (!builder.screen_dimensions_were_set()) {
+            // Canonical receiver pattern — direct-init into owning std::string
+            // (the std::string(string_view) ctor since C++17 bridges the view).
+            const std::string layer_name{builder.name()};
+            const std::string msg =
+                "chronon3d::authoring::Layer(LayerBuilder&): parent LayerBuilder '" +
+                layer_name + "' was constructed without an explicit "
+                "screen_dimensions(...) call. Use one of:\n"
+                "  1. Call `builder.screen_dimensions(w, h)` before constructing the Layer.\n"
+                "  2. Use the explicit `Layer(LayerBuilder&, FrameContext)` ctor with a viewport.\n"
+                "Silently defaulting to 1920x1080 was a render-time footgun.";
+            // PR 4 (per reviewer feedback): bubble the failure up as a
+            // std::runtime_error unconditionally — keep test runners alive
+            // (REQUIRE_THROWS_AS works), and release builds get the same
+            // signal as debug without an `assert()` SIGABRT short-circuit.
+            throw std::runtime_error(msg);
+        }
+        const Vec2 dims = builder.screen_dimensions();
+        return FrameContext::from_dimensions(dims.x, dims.y);
+    }
+
     LayerBuilder* builder_;
     FrameContext  context_;
     std::size_t   next_text_index_{0};

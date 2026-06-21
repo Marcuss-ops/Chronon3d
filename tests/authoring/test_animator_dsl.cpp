@@ -928,6 +928,7 @@ using chronon3d::authoring::Text;
 
 TEST_CASE("Authoring/Layer: text() pushes a PendingTextRun with auto-generated name") {
     LayerBuilder lb("test_layer");
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
 
     Text t1 = layer.text("HELLO");
@@ -948,6 +949,7 @@ TEST_CASE("Authoring/Layer: text() pushes a PendingTextRun with auto-generated n
 
 TEST_CASE("Authoring/Text: id() + content() store and propagate to underlying spec") {
     LayerBuilder lb("id_content");
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("initial");
 
@@ -959,6 +961,7 @@ TEST_CASE("Authoring/Text: id() + content() store and propagate to underlying sp
 
 TEST_CASE("Authoring/Text: font() / font_family() / weight() / italic() / font_size() cover FontSpec") {
     LayerBuilder lb("font");
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("x");
 
@@ -978,6 +981,7 @@ TEST_CASE("Authoring/Text: font() / font_family() / weight() / italic() / font_s
 
 TEST_CASE("Authoring/Text: at(Vec2) lifts z to 0; at(Vec3) preserves all components") {
     LayerBuilder lb("position");
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
 
     Text t_v2 = layer.text("v2");
@@ -1016,6 +1020,7 @@ TEST_CASE("Authoring/Text: center() uses FrameContext viewport") {
 
 TEST_CASE("Authoring/Text: center() falls back to 1920x1080 when no FrameContext provided") {
     LayerBuilder lb("fallback");
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);  // default FrameContext
 
     Text t = layer.text("x");
@@ -1026,6 +1031,7 @@ TEST_CASE("Authoring/Text: center() falls back to 1920x1080 when no FrameContext
 
 TEST_CASE("Authoring/Text: layout setters propagate to spec.text.layout") {
     LayerBuilder lb("layout_props");
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
 
     Text t = layer.text("x");
@@ -1063,6 +1069,7 @@ TEST_CASE("Authoring/Text: layout setters propagate to spec.text.layout") {
 
 TEST_CASE("Authoring/Text: color() mutates appearance.color only") {
     LayerBuilder lb("color");
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
 
     Text t = layer.text("x");
@@ -1079,6 +1086,7 @@ TEST_CASE("Authoring/Text: color() mutates appearance.color only") {
 
 TEST_CASE("Authoring/Text: material(Material) consumes Material::release() into appearance.material") {
     LayerBuilder lb("material_consume");
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
 
     Text t = layer.text("x");
@@ -1099,6 +1107,7 @@ TEST_CASE("Authoring/Text: material(Material) consumes Material::release() into 
 
 TEST_CASE("Authoring/Text: animate(Animator) consumes Animator::release() into animators vector") {
     LayerBuilder lb("animate_consume");
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
 
     Text t = layer.text("hero");
@@ -1124,6 +1133,7 @@ TEST_CASE("Authoring/Text: animate(Animator) consumes Animator::release() into a
 
 TEST_CASE("Authoring/Text: multiple animate() calls accumulate in order") {
     LayerBuilder lb("multi_anim");
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
 
     Text t = layer.text("x");
@@ -1140,6 +1150,7 @@ TEST_CASE("Authoring/Text: multiple animate() calls accumulate in order") {
 
 TEST_CASE("Authoring/Text: style(id, registry) field-maps TextStyle to spec.text") {
     LayerBuilder lb("style_map");
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
 
     StyleRegistry styles;
@@ -1178,6 +1189,7 @@ TEST_CASE("Authoring/Text: style(id, registry) field-maps TextStyle to spec.text
 
 TEST_CASE("Authoring/Text: style() with unknown id is a no-op (doesn't drop content)") {
     LayerBuilder lb("style_nomatch");
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
 
     Text t = layer.text("FUTURI MILIONARI")
@@ -1196,6 +1208,7 @@ TEST_CASE("Authoring/Text: style() with unknown id is a no-op (doesn't drop cont
 
 TEST_CASE("Authoring/Text: motion(id, registry) appends resolved animator") {
     LayerBuilder lb("motion_consume");
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
 
     MotionRegistry motions;
@@ -1218,6 +1231,7 @@ TEST_CASE("Authoring/Text: motion(id, registry) appends resolved animator") {
 
 TEST_CASE("Authoring/Text: configure_core(Fn) lambda mutates raw TextRunSpec") {
     LayerBuilder lb("configure");
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("Anti-Dup");
     t.font("Anton.ttf", 200.0f);
@@ -1367,6 +1381,7 @@ TEST_CASE("Authoring/Layer + Text: ambient style(id) resolves via LayerBuilder::
     };
     lb.extension_context(ctx);
 
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("AMBIENT");
 
@@ -1403,6 +1418,7 @@ TEST_CASE("Authoring/Layer + Text: ambient motion(id) resolves via LayerBuilder:
     };
     lb.extension_context(ctx);
 
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("MOTION");
 
@@ -1416,6 +1432,7 @@ TEST_CASE("Authoring/Layer + Text: ambient motion(id) resolves via LayerBuilder:
 
 TEST_CASE("Authoring/Layer + Text: ambient methods no-op when no ExtensionContext attached") {
     LayerBuilder lb("no_ambient");
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);   // No extension_context(...) call.
 
     Text t = layer.text("PLAIN").font("X.ttf", 32.0f);
@@ -1455,6 +1472,7 @@ TEST_CASE("Authoring/Layer + Text: ambient method no-op when ExtensionContext.st
     };
     lb.extension_context(ctx);
 
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("X").font("Y.ttf", 24.0f);
 
@@ -1493,6 +1511,7 @@ TEST_CASE("Authoring/Layer + Text: dual-path coexist (explicit + ambient on the 
     };
     lb.extension_context(ctx);
 
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("DUAL");
     REQUIRE(t.ambient_style_registry() == &styles);
@@ -1523,6 +1542,7 @@ TEST_CASE("Authoring/Layer + Text: ambient resolves unknown id to no-op (preserv
     };
     lb.extension_context(ctx);
 
+    lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("UNCHANGED").font("K.ttf", 24.0f);
 
@@ -1531,4 +1551,459 @@ TEST_CASE("Authoring/Layer + Text: ambient resolves unknown id to no-op (preserv
 
     CHECK(t.mutable_pending().params.text.font.font_path == "K.ttf");
     CHECK(t.mutable_pending().params.animators.empty());
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// PR 5.1 — register_range + merge polish tests
+// ═════════════════════════════════════════════════════════════════════════
+//
+// Verifies:
+//   - register_range handles Value pairs + Factory pairs at compile time
+//     via `std::is_invocable_r_v<Value, ...>` dispatch.
+//   - merge composes a target out of a source layer-cake; source's
+//     proxies re-invoke through to source on every target lookup, so
+//     source mutations are visible without re-merging.
+
+TEST_CASE("Authoring/Registry: register_range bulk loads (string, Value) pairs") {
+    StyleRegistry reg;
+    const std::array<std::pair<std::string, chronon3d::TextStyle>, 3> pairs{{
+        {"a.64",  chronon3d::TextStyle{.size = 64.0f, .color = Color{1.0f, 0.0f, 0.0f, 1.0f}}},
+        {"b.96",  chronon3d::TextStyle{.size = 96.0f, .color = Color{0.0f, 1.0f, 0.0f, 1.0f}}},
+        {"c.32",  chronon3d::TextStyle{.size = 32.0f, .color = Color{0.0f, 0.0f, 1.0f, 1.0f}}},
+    }};
+    reg.register_range(pairs.begin(), pairs.end());
+
+    CHECK(reg.count() == 3);
+    CHECK(reg.has("a.64"));
+    CHECK(reg.has("b.96"));
+    CHECK(reg.has("c.32"));
+
+    auto a = reg.resolve("a.64"); REQUIRE(a.has_value()); CHECK(a->size == doctest::Approx(64.0f));
+    auto b = reg.resolve("b.96"); REQUIRE(b.has_value()); CHECK(b->size == doctest::Approx(96.0f));
+    auto c = reg.resolve("c.32"); REQUIRE(c.has_value()); CHECK(c->size == doctest::Approx(32.0f));
+}
+
+TEST_CASE("Authoring/Registry: register_range bulk loads (string, Factory) callables") {
+    StyleRegistry reg;
+    int call_a = 0, call_b = 0;
+    const std::array<std::pair<std::string, std::function<chronon3d::TextStyle()>>, 2> factories{{
+        {"param.a", [&]() { ++call_a; chronon3d::TextStyle s; s.size = 24.0f * call_a; return s; }},
+        {"param.b", [&]() { ++call_b; chronon3d::TextStyle s; s.size = 12.0f * call_b; return s; }},
+    }};
+    reg.register_range(factories.begin(), factories.end());
+
+    REQUIRE(call_a == 0);
+    REQUIRE(call_b == 0);
+    auto a1 = reg.resolve("param.a"); CHECK(call_a == 1); REQUIRE(a1.has_value()); CHECK(a1->size == doctest::Approx(24.0f));
+    auto a2 = reg.resolve("param.a"); CHECK(call_a == 2); REQUIRE(a2.has_value()); CHECK(a2->size == doctest::Approx(48.0f));
+    auto b1 = reg.resolve("param.b"); CHECK(call_b == 1); REQUIRE(b1.has_value()); CHECK(b1->size == doctest::Approx(12.0f));
+}
+
+TEST_CASE("Authoring/Registry: register_range silently skips empty ids") {
+    StyleRegistry reg;
+    const std::array<std::pair<std::string, chronon3d::TextStyle>, 2> pairs{{
+        {"valid",  chronon3d::TextStyle{.size = 24.0f}},
+        {"",       chronon3d::TextStyle{.size = 999.0f}},   // empty id → skipped
+    }};
+    reg.register_range(pairs.begin(), pairs.end());
+    CHECK(reg.count() == 1);
+    CHECK(reg.has("valid"));
+    CHECK_FALSE(reg.has(""));
+}
+
+TEST_CASE("Authoring/Registry: register_range also available on MotionRegistry via inheritance") {
+    MotionRegistry reg;
+    const std::array<std::pair<std::string, chronon3d::TextAnimatorSpec>, 2> pairs{{
+        {"hero.in",  chronon3d::TextAnimatorSpec{.id = "hero.in",  .enabled = true}},
+        {"hero.out", chronon3d::TextAnimatorSpec{.id = "hero.out", .enabled = true}},
+    }};
+    reg.register_range(pairs.begin(), pairs.end());
+    CHECK(reg.count() == 2);
+    CHECK(reg.has("hero.in"));
+    CHECK(reg.has("hero.out"));
+}
+
+TEST_CASE("Authoring/Registry: merge composes builtin pack into target (layer-cake pattern)") {
+    // Simulate a builtin pack + studio overlay: studio targets receive
+    // all builtin entries via merge.
+    StyleRegistry builtin_pack;
+    builtin_pack.register_style(
+        "youtube.hero.premium",
+        chronon3d::TextStyle{.font_path = "Inter-Bold.ttf", .size = 96.0f}
+    );
+    builtin_pack.register_style(
+        "news.lower-third",
+        chronon3d::TextStyle{.font_path = "DMSans-Bold.ttf", .size = 48.0f}
+    );
+
+    StyleRegistry studio_pack;
+    studio_pack.register_style(
+        "youtube.hero.premium",     // override the builtin id
+        chronon3d::TextStyle{.font_path = "Anton.ttf", .size = 120.0f}
+    );
+    studio_pack.register_style(
+        "studio.brand.premium",
+        chronon3d::TextStyle{.font_path = "Poppins-Bold.ttf", .size = 88.0f}
+    );
+
+    studio_pack.merge(builtin_pack);
+
+    // After merge, target has all builtin ids + its own pre-existing ones.
+    // Override semantics: builtin_pack's "youtube.hero.premium" overwrites
+    // studio_pack's pre-existing "youtube.hero.premium" (last-write-wins
+    // in chronological order).
+    CHECK(studio_pack.count() == 3);
+    CHECK(studio_pack.has("youtube.hero.premium"));
+    CHECK(studio_pack.has("news.lower-third"));
+    CHECK(studio_pack.has("studio.brand.premium"));
+
+    auto yh = studio_pack.resolve("youtube.hero.premium");
+    REQUIRE(yh.has_value());
+    CHECK(yh->font_path == "Inter-Bold.ttf");  // builtin overrode studio
+    CHECK(yh->size       == doctest::Approx(96.0f));
+
+    auto brand = studio_pack.resolve("studio.brand.premium");
+    REQUIRE(brand.has_value());
+    CHECK(brand->font_path == "Poppins-Bold.ttf");
+}
+
+TEST_CASE("Authoring/Registry: merge proxies source — source mutations visible to target") {
+    StyleRegistry source;
+    StyleRegistry target;
+
+    target.merge(source);
+    CHECK(target.count() == 0);  // nothing to merge from empty source
+
+    source.register_style("late.arrival",
+        chronon3d::TextStyle{.font_path = "Anton.ttf", .size = 64.0f});
+
+    // After merging an EMPTY source, target still has nothing (proxy
+    // iteration had nothing to iterate).  This is the expected "merge
+    // is a snapshot" baseline.  Re-merging picks up the new entries:
+    target.merge(source);
+    CHECK(target.count() == 1);
+    auto r = target.resolve("late.arrival");
+    REQUIRE(r.has_value());
+    CHECK(r->font_path == "Anton.ttf");
+    CHECK(r->size       == doctest::Approx(64.0f));
+}
+
+TEST_CASE("Authoring/Registry: merge self-merge is a no-op (no deadlock against std::lock)") {
+    StyleRegistry reg;
+    reg.register_style("a", chronon3d::TextStyle{.size = 24.0f});
+    // Calling reg.merge(reg) MUST NOT deadlock. The implementation
+    // short-circuits on this == &source.  After the call, count is
+    // unchanged.
+    reg.merge(reg);
+    CHECK(reg.count() == 1);
+    CHECK(reg.has("a"));
+}
+
+TEST_CASE("Authoring/Registry: merge from empty source is a valid no-op") {
+    StyleRegistry source;       // empty
+    StyleRegistry target;
+    target.register_style("preexisting", chronon3d::TextStyle{.size = 32.0f});
+
+    target.merge(source);
+
+    CHECK(target.count() == 1);   // only the pre-existing entry
+    CHECK(target.has("preexisting"));
+}
+
+TEST_CASE("Authoring/Registry: merge with mixed value+factory source preserves both kinds") {
+    // Source styles get merged; both value-style and factory-style
+    // entries land on target as proxies (value-style proxy returns
+    // the cached value, factory-style proxy re-invokes the factory).
+    StyleRegistry source;
+    source.register_style("static.value",
+        chronon3d::TextStyle{.font_path = "A.ttf", .size = 24.0f});
+    int param_calls = 0;
+    source.register_factory("parametric.value", [&]() {
+        ++param_calls;
+        chronon3d::TextStyle s;
+        s.font_path = "B.ttf";
+        s.size      = 12.0f * param_calls;
+        return s;
+    });
+
+    StyleRegistry target;
+    target.merge(source);
+    CHECK(target.count() == 2);
+
+    // Value entry: resolved via proxy that returns the preserved value.
+    auto v = target.resolve("static.value");
+    REQUIRE(v.has_value());
+    CHECK(v->font_path == "A.ttf");
+    CHECK(v->size       == doctest::Approx(24.0f));
+
+    // Factory entry: resolved via proxy that re-invokes the factory.
+    auto p1 = target.resolve("parametric.value");
+    REQUIRE(p1.has_value());
+    CHECK(p1->size == doctest::Approx(12.0f));    // call_count = 1
+    CHECK(param_calls == 1);
+
+    auto p2 = target.resolve("parametric.value");
+    REQUIRE(p2.has_value());
+    CHECK(p2->size == doctest::Approx(24.0f));    // call_count = 2
+    CHECK(param_calls == 2);
+}
+
+// ============================================================================
+// PR 4 — Scene + Composition wrapper tests
+//
+// Verifies:
+//   - CompositionBuilder fluent chain produces chronon3d::Composition
+//     with matching name / width / height / duration / frame_rate fields.
+//   - .build() with no .scene() returns an empty composition (graceful no-op,
+//     not a throw).
+//   - composition() factory returns an empty CompositionBuilder.
+//   - Scene::layer(name, fn) SFINAE dispatches both:
+//       (a) fn(Layer&)            — wraps SceneBuilder-spawned LayerBuilder in Layer
+//       (b) fn(LayerBuilder&)     — passthrough (engine raw surface)
+//   - Scene + Layer + Text within Composition::scene(fn) chain correctly:
+//       FrameContext flows through composition -> scene -> layer -> text
+//       so Text::center() resolves to the composition's viewport center.
+//   - Composition::evaluate(0) returns Scene with the expected layer count
+//     and the expected text run payload.
+//   - custom_builder() injection lets the user swap SceneBuilder's
+//     pmr-resource / shape_registry path.
+
+// ── CompositionSpec accumulation ─────────────────────────────────────────────
+TEST_CASE("Authoring/CompositionBuilder: fields accumulate via fluent setters") {
+    using chronon3d::authoring::CompositionBuilder;
+    CompositionBuilder cb;
+    cb.name("hero-showcase")
+      .width(1920)
+      .height(1080)
+      .duration(Frame{60})
+      .frame_rate(FrameRate{30, 1})
+      .assets_root(std::filesystem::path{"assets"});
+
+    chronon3d::Composition comp = std::move(cb).build();
+    CHECK(comp.name()     == "hero-showcase");
+    CHECK(comp.width()    == 1920);
+    CHECK(comp.height()   == 1080);
+    CHECK(comp.duration().integral() == 60);
+    CHECK(comp.frame_rate().num == 30);
+    CHECK(comp.assets_root() == "assets");
+}
+
+// ── Graceful empty renderer ─────────────────────────────────────────────────
+TEST_CASE("Authoring/CompositionBuilder: empty composition (no .scene()) renders zero layers") {
+    using chronon3d::authoring::CompositionBuilder;
+    CompositionBuilder cb;
+    cb.name("empty").width(640).height(480);
+
+    chronon3d::Composition comp = std::move(cb).build();
+    chronon3d::Scene scene = comp.evaluate(Frame{0});
+    CHECK(scene.layers().empty());
+    CHECK(scene.nodes().empty());
+}
+
+// ── Scene::layer SFINAE dual-surface (a) → wrap with Layer ───────────────────
+TEST_CASE("Authoring/Scene + Layer: SFINAE wrap branch populates authored text in evaluated Scene") {
+    using chronon3d::authoring::composition;
+    chronon3d::Composition comp = composition()
+        .name("dual-wrap")
+        .width(1920).height(1080).duration(Frame{1})
+        .scene([](chronon3d::authoring::Scene& s, const chronon3d::FrameContext& /*ctx*/) {
+            s.layer("title", [](chronon3d::authoring::Layer& l) {
+                l.text("HELLO")
+                 .id("hello_text")
+                 .font("assets/fonts/Poppins-Bold.ttf", 96.0f);
+            });
+        })
+        .build();
+
+    chronon3d::Scene evaluated = comp.evaluate(Frame{0});
+    REQUIRE(evaluated.layers().size() == 1);
+    CHECK(evaluated.layers()[0].name == "title");
+    // The layer's text run payload mirrors the authored spec (1 text-run entry).
+    REQUIRE(evaluated.layers()[0].nodes.size() == 1);
+}
+
+// ── Scene::layer SFINAE dual-surface (b) → passthrough ──────────────────────
+TEST_CASE("Authoring/Scene: SFINAE passthrough branch (LayerBuilder& closure) is honored") {
+    using chronon3d::authoring::composition;
+    int draw_count = 0;
+    chronon3d::Composition comp = composition()
+        .name("passthrough")
+        .width(800).height(600)
+        .scene([&draw_count](chronon3d::authoring::Scene& s, const chronon3d::FrameContext& ctx) {
+            s.layer("raw", [&ctx, &draw_count](LayerBuilder& lb) {
+                // Direct LayerBuilder API — no authoring façade.
+                lb.screen_dimensions(static_cast<float>(ctx.width), static_cast<float>(ctx.height));
+                lb.rect("bg", {.size = {static_cast<float>(ctx.width), static_cast<float>(ctx.height)},
+                                .color = Color::white()});
+                ++draw_count;
+            });
+        })
+        .build();
+
+    (void) comp.evaluate(Frame{0});
+    CHECK(draw_count == 1);                // closure invoked exactly once per Layer.
+}
+
+// ── FrameContext flow ───────────────────────────────────────────────────────
+TEST_CASE("Authoring/CompositionBuilder: FrameContext flows into Scene::layer closure (LayerBuilder ctor reads it)") {
+    using chronon3d::authoring::composition;
+    int ctx_width = 0;
+    int ctx_height = 0;
+    chronon3d::Composition comp = composition()
+        .name("ctx-flow")
+        .width(1280).height(720)
+        .scene([&ctx_width, &ctx_height](chronon3d::authoring::Scene& s, const chronon3d::FrameContext& ctx) {
+            ctx_width  = ctx.width;
+            ctx_height = ctx.height;
+            s.layer("bg", [](LayerBuilder& lb) {
+                lb.screen_dimensions(1280.0f, 720.0f);
+                lb.fullscreen_rect("fs", Color::white());
+            });
+        })
+        .build();
+
+    (void) comp.evaluate(Frame{0});
+    CHECK(ctx_width  == 1280);
+    CHECK(ctx_height == 720);
+}
+
+// ── custom_builder injection ────────────────────────────────────────────────
+TEST_CASE("Authoring/CompositionBuilder: custom_builder(factory) is invoked per evaluate()") {
+    using chronon3d::authoring::composition;
+    int factory_call_count = 0;
+    chronon3d::Composition comp = composition()
+        .name("custom")
+        .width(100).height(100)
+        .custom_builder([&factory_call_count](const chronon3d::FrameContext& ctx) {
+            ++factory_call_count;
+            return SceneBuilder(ctx);
+        })
+        .scene([](chronon3d::authoring::Scene& s, const chronon3d::FrameContext& ctx) {
+            s.layer("bg", [](chronon3d::authoring::Layer&) { });
+        })
+        .build();
+
+    (void) comp.evaluate(Frame{0});
+    CHECK(factory_call_count == 1);
+}
+
+// ── Composition.move-construct (consumes builder by rvalue) ────────────────
+TEST_CASE("Authoring/CompositionBuilder: build() consumes builder by rvalue") {
+    using chronon3d::authoring::CompositionBuilder;
+    CHECK(!std::is_copy_constructible_v<CompositionBuilder>);
+    CHECK(!std::is_copy_assignable_v   <CompositionBuilder>);
+    CHECK( std::is_move_constructible_v<CompositionBuilder>);
+    CHECK( std::is_move_assignable_v   <CompositionBuilder>);
+}
+
+// ============================================================================
+// PR 4 — Fail-fast Layer ctor + TextShaping.script gap
+// ============================================================================
+
+// ── Fail-fast Layer ctor (Q1: throw unconditionally; no assert) ──────────────
+TEST_CASE("Authoring/Layer: explicit ctor throws runtime_error when parent builder has no screen_dimensions") {
+    LayerBuilder lb("no_dims");
+    bool caught = false;
+    std::string what_msg;
+    try {
+        chronon3d::authoring::Layer layer(lb);
+        FAIL("expected std::runtime_error to escape Layer(LayerBuilder&) without screen_dimensions(...)");
+    } catch (const std::runtime_error& e) {
+        caught = true;
+        what_msg = e.what();
+    } catch (...) {
+        FAIL("expected std::runtime_error specifically");
+    }
+    REQUIRE(caught);
+    CHECK(what_msg.find("no_dims") != std::string::npos);
+    CHECK(what_msg.find("screen_dimensions") != std::string::npos);
+}
+
+TEST_CASE("Authoring/Layer: explicit ctor succeeds when parent builder has screen_dimensions set") {
+    LayerBuilder lb("with_dims");
+    lb.screen_dimensions(1920.0f, 1080.0f);
+    REQUIRE_NOTHROW(chronon3d::authoring::Layer(lb));
+}
+
+TEST_CASE("Authoring/Layer: explicit FrameContext ctor works without screen_dimensions (escape hatch)") {
+    LayerBuilder lb("explicit_ctx");
+    // Note: NO screen_dimensions call here. Using explicit ctor is the documented escape path.
+    REQUIRE_NOTHROW(chronon3d::authoring::Layer(lb, chronon3d::authoring::FrameContext::default_viewport()));
+}
+
+// ── Script serialization (Q3: uint32_t instead of int) ─────────────────────
+TEST_CASE("Authoring/Text: script(uint32_t) chain mutates pending_->params.script") {
+    LayerBuilder lb("script_round_trip");
+    lb.screen_dimensions(1920.0f, 1080.0f);
+    chronon3d::authoring::Layer layer(lb);
+
+    chronon3d::authoring::Text t = layer.text("ŁATIN");
+    t.script(0x4C61746Eu);                  // HB_SCRIPT_LATIN (HarfBuzz tag)
+
+    CHECK(t.mutable_pending().params.script == 0x4C61746Eu);
+}
+
+TEST_CASE("Authoring/Text: default script=0u is preserved (auto-detect path stays intact)") {
+    LayerBuilder lb("script_default");
+    lb.screen_dimensions(1920.0f, 1080.0f);
+    chronon3d::authoring::Layer layer(lb);
+
+    chronon3d::authoring::Text t = layer.text("AUTODETECT");
+    CHECK(t.mutable_pending().params.script == 0u);
+}
+
+// ── apply_text_style propagate shaping.script (Q2: only writes through when != 0) ──
+TEST_CASE("Authoring/Text: style(id) propagates shaping.script when non-zero") {
+    LayerBuilder lb("script_propagate");
+    lb.screen_dimensions(1920.0f, 1080.0f);
+    chronon3d::authoring::Layer layer(lb);
+
+    StyleRegistry styles;
+    chronon3d::TextStyle hero;
+    hero.font_path = "Inter-Bold.ttf";
+    hero.size      = 96.0f;
+    hero.shaping.direction = TextDirection::LTR;
+    hero.shaping.language  = "en";
+    hero.shaping.script    = 0x41726162u;   // HB_SCRIPT_ARABIC
+    styles.register_style("arabic.hero", hero);
+
+    chronon3d::authoring::Text t = layer.text("AR");
+    t.style("arabic.hero", styles);
+
+    CHECK(t.mutable_pending().params.script == 0x41726162u);
+    CHECK(t.mutable_pending().params.direction == TextDirection::LTR);
+    CHECK(t.mutable_pending().params.language == "en");
+}
+
+TEST_CASE("Authoring/Text: style(id) preserves pending script=0 (auto-detect semantic preserved)") {
+    LayerBuilder lb("script_zero");
+    lb.screen_dimensions(1920.0f, 1080.0f);
+    chronon3d::authoring::Layer layer(lb);
+
+    StyleRegistry styles;
+    chronon3d::TextStyle default_style;
+    default_style.size = 48.0f;
+    default_style.shaping.script = 0u;      // 0 = inherit / unspecified
+    styles.register_style("default.no.script", default_style);
+
+    chronon3d::authoring::Text t = layer.text("DEFAULT");
+    // Pre-set script explicitly to HB_SCRIPT_LATIN, then verify apply
+    // with shaping.script=0 does NOT overwrite.
+    t.script(0x4C61746Eu);
+    REQUIRE(t.mutable_pending().params.script == 0x4C61746Eu);
+
+    t.style("default.no.script", styles);
+    CHECK(t.mutable_pending().params.script == 0x4C61746Eu);  // unchanged.
+}
+
+// ── High-bit pattern check (Q3) ───────────────────────────────────────────────
+TEST_CASE("Authoring/Text: script accepts patterned HB tag including high-bit bytes (no sign-extend)") {
+    LayerBuilder lb("script_highbit");
+    lb.screen_dimensions(1920.0f, 1080.0f);
+    chronon3d::authoring::Layer layer(lb);
+    chronon3d::authoring::Text t = layer.text("X");
+    constexpr std::uint32_t kPattern = 0x80808080u;   // top-bit set in every byte.
+    t.script(kPattern);
+    CHECK(t.mutable_pending().params.script == kPattern);
+    CHECK((t.mutable_pending().params.script & 0x80000000u) != 0u);  // sign bit stays unset.
 }

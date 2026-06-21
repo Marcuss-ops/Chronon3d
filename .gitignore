@@ -113,3 +113,4 @@ CMakeFiles/
 
 # Local git worktrees (parallel agent branches — never on main)
 .worktrees/
+.build-tmp/
