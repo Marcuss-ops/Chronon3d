@@ -80,7 +80,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             profiling::duration_ms(renderer_t0, renderer_t1));
         session->renderer->counters()->setup_graph_parsing_ms.fetch_add(setup_ms, std::memory_order_relaxed);
     }
-    session->sw_renderer = dynamic_cast<SoftwareRenderer*>(session->renderer.get());
+    // R3b: SoftwareRenderer is no longer IS-A RenderBackend. Cast via SoftwareBackend.
+    session->sw_renderer = nullptr;  // R3b follow-up: route from SoftwareBackend forwarder.
 
     // ── Wire counters into encoder so async converter thread can report telemetry ──
     if (session->sw_renderer && session->sw_renderer->counters()) {

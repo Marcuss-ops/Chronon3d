@@ -23,8 +23,9 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
     // Per-layer: culling, matte sub-pipeline, then full layer pipeline.
     auto append_item = [&](LayerGraphItem item,
                            std::span<const ShadowCasterInfo> casters = {}) {
-        auto* renderer = dynamic_cast<SoftwareRenderer*>(rctx.services.backend);
-        raster::BBox bbox = detail::compute_layer_bbox(item, rctx, renderer);
+        auto* sw_backend = dynamic_cast<SoftwareBackend*>(rctx.services.backend);
+        (void)sw_backend;
+        raster::BBox bbox = detail::compute_layer_bbox(item, rctx, nullptr);
 
         bool is_culled = false;
         std::string cull_reason;

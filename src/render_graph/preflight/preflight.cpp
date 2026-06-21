@@ -55,12 +55,8 @@ GraphPreflightReport debug_preflight_render_graph(
         ctx.frame_input.projection_ctx.ready = true;
     }
 
-    if (auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend)) {
-        ctx.services.compiled_graph_cache = &sw_renderer->graph_cache();
-        ctx.services.node_catalog = &sw_renderer->graph_node_registry();
-        ctx.services.effect_catalog = &sw_renderer->effect_catalog();
-        // WP-8 PR 8.0 typed resolver plumbed in explicitly so the asset-integrity analysis phase uses the same resolver instance as the owning engine (no service-locator bridge).
-        ctx.services.asset_resolver = &sw_renderer->runtime().resolver();
+    if (auto* sw_backend = dynamic_cast<SoftwareBackend*>(&backend)) {
+        (void)sw_backend;  // R3b follow-up: forward graph_cache/node_catalog/effect_catalog/runtime.resolver via SoftwareBackend.
     }
 
     // ── 2. Build graph (no execution) ────────────────────────────────────

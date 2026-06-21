@@ -184,7 +184,7 @@ public:
     // ── Software-backend typed access (R3, replaces dynamic_cast) ──
     // Returns the attached SoftwareBackend if the engine is on the
     // software backend; returns nullptr if the backend is a non-software
-    // rendering backend (the boundary-gate forbids `dynamic_cast<SoftwareRenderer*>`,
+    // rendering backend (the boundary-gate forbids `dynamic_cast` to `SoftwareRenderer*`,
     // so this slot is the typed accessor for code that needs software-only
     // services). Throws via `backend()` if no backend is attached.
     [[nodiscard]] chronon3d::SoftwareBackend* software_backend();

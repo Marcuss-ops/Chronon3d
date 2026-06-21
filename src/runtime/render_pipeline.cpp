@@ -33,13 +33,15 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
     // Cast to RenderBackend& is valid because SoftwareRenderer
     // public-inherits from RenderBackend (graph::RenderBackend).
     return chronon3d::graph::render_scene_via_graph(
-        static_cast<chronon3d::graph::RenderBackend&>(m_renderer),
+        m_runtime.backend(),
         m_runtime.node_cache(),
         scene, camera, width, height,
         /*frame=*/0, /*frame_time=*/0.0f,
         m_renderer.settings(),
         m_renderer.composition_registry(),
-        m_renderer.video_decoder()
+        m_renderer.video_decoder(),
+        30.0f, "scene",
+        &m_renderer  /*R3 sidecar: typed SoftwareRenderer channel*/
     );
 }
 
@@ -57,13 +59,15 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
     }
     Camera default_camera;
     return chronon3d::graph::render_scene_via_graph(
-        static_cast<chronon3d::graph::RenderBackend&>(m_renderer),
+        m_runtime.backend(),
         m_runtime.node_cache(),
         effective, default_camera, width, height,
         /*frame=*/0, /*frame_time=*/0.0f,
         m_renderer.settings(),
         m_renderer.composition_registry(),
-        m_renderer.video_decoder()
+        m_renderer.video_decoder(),
+        30.0f, "scene",
+        &m_renderer  /*R3 sidecar*/
     );
 }
 
@@ -71,12 +75,13 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_composition(
     const Composition& comp, Frame frame)
 {
     return chronon3d::graph::render_composition_frame(
-        static_cast<chronon3d::graph::RenderBackend&>(m_renderer),
+        m_runtime.backend(),
         m_runtime.node_cache(),
         m_renderer.settings(),
         m_renderer.composition_registry(),
         m_renderer.video_decoder(),
-        comp, frame
+        comp, frame,
+        &m_renderer  /*R3 sidecar*/
     );
 }
 
@@ -85,13 +90,15 @@ std::string RenderPipeline::debug_graph(
     Frame frame, f32 frame_time)
 {
     return chronon3d::graph::debug_scene_graph(
-        static_cast<chronon3d::graph::RenderBackend&>(m_renderer),
+        m_runtime.backend(),
         m_runtime.node_cache(),
         scene, camera, width, height,
         frame, frame_time,
         m_renderer.settings(),
         m_renderer.composition_registry(),
-        m_renderer.video_decoder()
+        m_renderer.video_decoder(),
+        30.0f,
+        &m_renderer  /*R3 sidecar*/
     );
 }
 
