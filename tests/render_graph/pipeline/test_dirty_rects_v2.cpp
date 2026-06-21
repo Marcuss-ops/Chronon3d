@@ -43,7 +43,7 @@ bool fb_pixel_match(const Framebuffer& a, const Framebuffer& b,
 // Render a single frame with dirty rects on/off
 std::shared_ptr<Framebuffer> render_with_dirty(const Composition& comp, Frame f,
                                                 bool dirty_on) {
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     RenderSettings settings;
     settings.use_modular_graph = true;
     settings.dirty.enabled = dirty_on;
@@ -115,7 +115,7 @@ TEST_CASE("Dirty Rects: Bounding box correct for simple shapes") {
     // (We can't directly access the renderer's counters from render_with_dirty,
     //  so we recreate the renderer to inspect counters.)
     {
-        SoftwareRenderer r;
+        SoftwareRenderer r(Config{});
         RenderSettings s;
         s.use_modular_graph = true;
         s.dirty.enabled = true;
@@ -142,7 +142,7 @@ TEST_CASE("Dirty Rects: Bounding box correct for simple shapes") {
     });
 
     {
-        SoftwareRenderer r;
+        SoftwareRenderer r(Config{});
         RenderSettings s;
         s.use_modular_graph = true;
         s.dirty.enabled = true;
@@ -196,7 +196,7 @@ TEST_CASE("Dirty Rects: Inter-frame diff includes old and new position") {
 
     // The dirty pixels count for frame 1 should be less than full frame
     {
-        SoftwareRenderer r;
+        SoftwareRenderer r(Config{});
         RenderSettings s;
         s.use_modular_graph = true;
         s.dirty.enabled = true;
@@ -248,7 +248,7 @@ TEST_CASE("Dirty Rects: Static scene skips redundant clears") {
         return s.build();
     });
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     RenderSettings settings;
     settings.use_modular_graph = true;
     settings.dirty.enabled = true;
@@ -314,14 +314,14 @@ TEST_CASE("Dirty Rects: Near-static scene with small animated element") {
     });
 
     // Reference: render all frames without dirty rects
-    SoftwareRenderer ref_renderer;
+    SoftwareRenderer ref_renderer(Config{});
     RenderSettings ref_settings;
     ref_settings.use_modular_graph = true;
     ref_settings.dirty.enabled = false;
     ref_renderer.set_settings(ref_settings);
 
     // Optimized: render all frames with dirty rects
-    SoftwareRenderer opt_renderer;
+    SoftwareRenderer opt_renderer(Config{});
     RenderSettings opt_settings;
     opt_settings.use_modular_graph = true;
     opt_settings.dirty.enabled = true;
@@ -386,7 +386,7 @@ TEST_CASE("Dirty Rects: Output correct with effects (blur)") {
     });
 
     // Render frame 0 and 1 with dirty rects ON
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     RenderSettings settings;
     settings.use_modular_graph = true;
     settings.dirty.enabled = true;

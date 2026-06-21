@@ -137,6 +137,8 @@ add_executable(chronon3d_cli
 get_target_property(CLI11_INCLUDE_DIRS CLI11::CLI11 INTERFACE_INCLUDE_DIRECTORIES)
 
 target_link_libraries(chronon3d_cli PRIVATE
+    chronon3d_sdk
+    chronon3d_sdk_impl
     chronon3d_cli_core
     chronon3d_cli_render
     chronon3d_cli_dev

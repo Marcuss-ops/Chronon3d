@@ -79,7 +79,7 @@ TEST_CASE("TileParallel: Determinism — three independent renderers produce ide
     Composition comp = make_two_corner_scene(W, H, kFrames);
 
     // Renderer A
-    SoftwareRenderer ra;
+    SoftwareRenderer ra(Config{});
     {
         RenderSettings s;
         s.use_modular_graph = true;
@@ -90,7 +90,7 @@ TEST_CASE("TileParallel: Determinism — three independent renderers produce ide
     }
 
     // Renderer B
-    SoftwareRenderer rb;
+    SoftwareRenderer rb(Config{});
     {
         RenderSettings s;
         s.use_modular_graph = true;
@@ -101,7 +101,7 @@ TEST_CASE("TileParallel: Determinism — three independent renderers produce ide
     }
 
     // Renderer C
-    SoftwareRenderer rc;
+    SoftwareRenderer rc(Config{});
     {
         RenderSettings s;
         s.use_modular_graph = true;
@@ -137,7 +137,7 @@ TEST_CASE("TileParallel: Determinism — same renderer twice produces identical 
     const int kFrames = 6;
     Composition comp = make_two_corner_scene(W, H, kFrames);
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     {
         RenderSettings s;
         s.use_modular_graph = true;
@@ -154,7 +154,7 @@ TEST_CASE("TileParallel: Determinism — same renderer twice produces identical 
     }
 
     // Run 2 — fresh renderer
-    SoftwareRenderer renderer2;
+    SoftwareRenderer renderer2(Config{});
     {
         RenderSettings s;
         s.use_modular_graph = true;
@@ -184,7 +184,7 @@ TEST_CASE("TileParallel: Determinism — parallel tiles match baseline (no tiles
     Composition comp = make_two_corner_scene(W, H, kFrames);
 
     // Baseline: no dirty rects, no tiles
-    SoftwareRenderer baseline;
+    SoftwareRenderer baseline(Config{});
     {
         RenderSettings s;
         s.use_modular_graph = true;
@@ -193,7 +193,7 @@ TEST_CASE("TileParallel: Determinism — parallel tiles match baseline (no tiles
     }
 
     // Parallel tiles
-    SoftwareRenderer opt;
+    SoftwareRenderer opt(Config{});
     {
         RenderSettings s;
         s.use_modular_graph = true;
@@ -272,7 +272,7 @@ TEST_CASE("TileParallel: Stress — medium resolution with multiple tile sizes")
     std::vector<int> tile_sizes = {64, 128};
 
     for (int tsize : tile_sizes) {
-        SoftwareRenderer renderer;
+        SoftwareRenderer renderer(Config{});
         {
             RenderSettings s;
             s.use_modular_graph = true;
@@ -331,7 +331,7 @@ TEST_CASE("TileParallel: Stress — full-screen dirty (all tiles dirty) still co
     });
 
     // Baseline: no tiles
-    SoftwareRenderer baseline;
+    SoftwareRenderer baseline(Config{});
     {
         RenderSettings s;
         s.use_modular_graph = true;
@@ -340,7 +340,7 @@ TEST_CASE("TileParallel: Stress — full-screen dirty (all tiles dirty) still co
     }
 
     // Tiles enabled
-    SoftwareRenderer opt;
+    SoftwareRenderer opt(Config{});
     {
         RenderSettings s;
         s.use_modular_graph = true;
@@ -397,7 +397,7 @@ TEST_CASE("TileParallel: Stress — fine-grained tiles (tile_size=16), many fram
 
     Composition comp = make_two_corner_scene(W, H, kFrames);
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     {
         RenderSettings s;
         s.use_modular_graph = true;

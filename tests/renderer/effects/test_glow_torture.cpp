@@ -27,7 +27,7 @@ std::shared_ptr<Framebuffer> render_glow_comp(
     int frame = 0,
     int duration = 1
 ) {
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);

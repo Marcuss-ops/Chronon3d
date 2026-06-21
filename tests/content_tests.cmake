@@ -7,7 +7,7 @@ add_executable(chronon3d_content_tests
 )
 target_link_libraries(chronon3d_content_tests
     PRIVATE
-        chronon3d_pipeline
+        chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline
         chronon3d_scene
         chronon3d_backend_software
         doctest::doctest

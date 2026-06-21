@@ -41,6 +41,6 @@ set_target_properties(check_install PROPERTIES
     CXX_STANDARD_REQUIRED ON
 )
 
-# Single PUBLIC-API link call.  chronon3d_sdk_impl propagates
+# Single PUBLIC-API link call.  chronon3d_sdk chronon3d_sdk_impl propagates
 # transitively through Chronon3D::SDK at link time.
 target_link_libraries(check_install PRIVATE Chronon3D::SDK)

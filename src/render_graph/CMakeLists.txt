@@ -83,6 +83,7 @@ add_library(chronon3d_graph_builder OBJECT
     builder/passes/graph_builder_validation_pass.cpp
     builder/graph_build_registry.cpp
     builder/builder_layer_id.cpp
+    builder/precomp_builder_service.cpp
 )
 set_target_properties(chronon3d_graph_builder PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_builder PUBLIC
@@ -233,4 +234,19 @@ target_link_libraries(chronon3d_graph INTERFACE
     chronon3d_graph_preflight
     chronon3d_graph_pipeline
     chronon3d_graph_cache
+)
+# TICKET-011 cmake-boundary (Branch C fix): OBJECT → INTERFACE propagation.
+# CMake 3.12+ `target_link_libraries` does NOT transitively propagate .o
+# files through INTERFACE targets.  We must explicitly bind each OBJECT
+# library's compiled objects via `$<TARGET_OBJECTS>` so downstream
+# consumers (CLI, tests) resolve all symbols at link time.
+target_sources(chronon3d_graph INTERFACE
+    $<TARGET_OBJECTS:chronon3d_graph_core>
+    $<TARGET_OBJECTS:chronon3d_graph_nodes>
+    $<TARGET_OBJECTS:chronon3d_graph_builder>
+    $<TARGET_OBJECTS:chronon3d_graph_executor>
+    $<TARGET_OBJECTS:chronon3d_graph_compiler>
+    $<TARGET_OBJECTS:chronon3d_graph_preflight>
+    $<TARGET_OBJECTS:chronon3d_graph_pipeline>
+    $<TARGET_OBJECTS:chronon3d_graph_cache>
 )

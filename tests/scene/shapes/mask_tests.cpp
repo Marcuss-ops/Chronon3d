@@ -14,7 +14,7 @@ namespace {
 std::shared_ptr<Framebuffer> render_masked_layer(
     std::function<void(LayerBuilder&)> mask_fn
 ) {
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);

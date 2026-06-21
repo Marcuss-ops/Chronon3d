@@ -19,7 +19,7 @@ TEST_CASE("Line Thickness - BBox and Raster Verification") {
     });
 
     Scene scene = builder.build();
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     Camera camera;
 
     // Render onto a 400x200 framebuffer

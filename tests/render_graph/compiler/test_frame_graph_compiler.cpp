@@ -27,7 +27,7 @@ public:
         const RenderGraphContext& ctx,
         std::span<const std::optional<raster::BBox>>
     ) const override {
-        return raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
     }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext&) const override {
@@ -70,8 +70,8 @@ TEST_CASE("FrameGraphCompiler - linear graph compilation") {
     graph.set_output(composite_id);
 
     RenderGraphContext ctx;
-    ctx.frame.width = 100;
-    ctx.frame.height = 100;
+    ctx.frame_input.width = 100;
+    ctx.frame_input.height = 100;
     
     FrameGraphCompiler compiler;
     FrameGraphCompileOptions options;

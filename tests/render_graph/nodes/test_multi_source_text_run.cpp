@@ -117,11 +117,11 @@ TEST_CASE("MultiSourceNode: predicted_bbox handles text_run item via text_run he
     items.push_back({&text_node, text_node.world_transform.to_mat4(), 1.0f});
     items.push_back({&rect_node, rect_node.world_transform.to_mat4(), 1.0f});
 
-    SoftwareRenderer backend;
+    SoftwareRenderer backend(Config{});
     RenderGraphContext ctx;
-    ctx.frame.width = 1920;
-    ctx.frame.height = 1080;
-    ctx.resources.backend = &backend;
+    ctx.frame_input.width = 1920;
+    ctx.frame_input.height = 1080;
+    ctx.services.backend = &backend;
 
     cache::NodeCacheKey key{};
     MultiSourceNode node("mixed_multi", std::move(items), key, false, false);
@@ -160,8 +160,8 @@ TEST_CASE("MultiSourceNode: cache_key invalidates on text_run per-glyph state ch
     text_node.shape.set_type(ShapeType::TextRun);
 
     RenderGraphContext ctx;
-    ctx.frame.width = 1920;
-    ctx.frame.height = 1080;
+    ctx.frame_input.width = 1920;
+    ctx.frame_input.height = 1080;
 
     // Two MSNs sharing all fields except the underlying text_run content.
     text_node.shape.text_run_shape_handle().value = shape_a;
@@ -207,16 +207,16 @@ TEST_CASE("MultiSourceNode: execute tolerant of text_run item with null shape") 
     items.push_back({&text_node, text_node.world_transform.to_mat4(), 1.0f});
     items.push_back({&rect_node, rect_node.world_transform.to_mat4(), 1.0f});
 
-    SoftwareRenderer backend;
+    SoftwareRenderer backend(Config{});
     auto pool = std::make_shared<FramebufferPool>(8);
     NodeCache node_cache;
     RenderGraphContext ctx;
-    ctx.frame.width = 1920;
-    ctx.frame.height = 1080;
-    ctx.frame.frame = 0;
-    ctx.resources.backend = &backend;
-    ctx.resources.framebuffer_pool = pool;
-    ctx.resources.node_cache = &node_cache;
+    ctx.frame_input.width = 1920;
+    ctx.frame_input.height = 1080;
+    ctx.frame_input.frame = 0;
+    ctx.services.backend = &backend;
+    ctx.services.framebuffer_pool = pool;
+    ctx.services.node_cache = &node_cache;
 
     cache::NodeCacheKey key{};
     MultiSourceNode node("orphan_run", std::move(items), key, false, false);
@@ -256,16 +256,16 @@ TEST_CASE("MultiSourceNode: execute with mixed rect + text_run returns valid fb"
     items.push_back({&rect_node, rect_node.world_transform.to_mat4(), 1.0f});
     items.push_back({&text_node, text_node.world_transform.to_mat4(), 1.0f});
 
-    SoftwareRenderer backend;
+    SoftwareRenderer backend(Config{});
     auto pool = std::make_shared<FramebufferPool>(8);
     NodeCache node_cache;
     RenderGraphContext ctx;
-    ctx.frame.width = 1920;
-    ctx.frame.height = 1080;
-    ctx.frame.frame = 0;
-    ctx.resources.backend = &backend;
-    ctx.resources.framebuffer_pool = pool;
-    ctx.resources.node_cache = &node_cache;
+    ctx.frame_input.width = 1920;
+    ctx.frame_input.height = 1080;
+    ctx.frame_input.frame = 0;
+    ctx.services.backend = &backend;
+    ctx.services.framebuffer_pool = pool;
+    ctx.services.node_cache = &node_cache;
 
     cache::NodeCacheKey key{};
     MultiSourceNode node("mixed_full", std::move(items), key, false, false);
@@ -294,8 +294,8 @@ TEST_CASE("MultiSourceNode: cache_key invalidates when 2.5D camera moves under p
     MultiSourceNode node("proj_node", std::move(items), key, /*centered=*/false, /*uses_2_5d_projection=*/true);
 
     RenderGraphContext ctx;
-    ctx.frame.width = 1920;
-    ctx.frame.height = 1080;
+    ctx.frame_input.width = 1920;
+    ctx.frame_input.height = 1080;
     ctx.camera.has_camera_2_5d = true;
     ctx.camera.camera_2_5d.position = Vec3(0.0f, 0.0f, 0.0f);
 

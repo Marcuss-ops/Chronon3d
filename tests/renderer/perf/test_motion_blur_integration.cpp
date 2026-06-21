@@ -104,7 +104,7 @@ TEST_CASE("Motion blur: 8 samples smear a fast-moving layer across the frame") {
     mb_settings.motion_blur.pattern          = TemporalSamplePattern::Uniform;
     mb_settings.motion_blur.filter           = TemporalFilter::Box;
 
-    SoftwareRenderer mb_renderer;
+    SoftwareRenderer mb_renderer(Config{});
     mb_renderer.set_settings(mb_settings);
     auto mb_fb = mb_renderer.render_frame(comp, Frame{0});
     REQUIRE(mb_fb != nullptr);
@@ -113,7 +113,7 @@ TEST_CASE("Motion blur: 8 samples smear a fast-moving layer across the frame") {
     RenderSettings no_mb_settings;
     no_mb_settings.motion_blur.enabled = false;
 
-    SoftwareRenderer no_mb_renderer;
+    SoftwareRenderer no_mb_renderer(Config{});
     no_mb_renderer.set_settings(no_mb_settings);
     auto no_mb_fb = no_mb_renderer.render_frame(comp, Frame{0});
     REQUIRE(no_mb_fb != nullptr);
@@ -152,7 +152,7 @@ TEST_CASE("Motion blur: Stratified pattern with Triangle filter produces consist
     mb_settings.motion_blur.filter           = TemporalFilter::Triangle;
     mb_settings.motion_blur.jitter_seed      = 42;
 
-    SoftwareRenderer mb_renderer;
+    SoftwareRenderer mb_renderer(Config{});
     mb_renderer.set_settings(mb_settings);
     auto mb_fb = mb_renderer.render_frame(comp, Frame{0});
     REQUIRE(mb_fb != nullptr);
@@ -179,13 +179,13 @@ TEST_CASE("Motion blur: deterministic — same seed produces identical output") 
     mb_settings.motion_blur.jitter_seed      = 0x3A5C9F1E;
 
     // First render
-    SoftwareRenderer r1;
+    SoftwareRenderer r1(Config{});
     r1.set_settings(mb_settings);
     auto fb1 = r1.render_frame(comp, Frame{0});
     REQUIRE(fb1 != nullptr);
 
     // Second render (same settings, fresh renderer to avoid cache reuse)
-    SoftwareRenderer r2;
+    SoftwareRenderer r2(Config{});
     r2.set_settings(mb_settings);
     auto fb2 = r2.render_frame(comp, Frame{0});
     REQUIRE(fb2 != nullptr);
@@ -225,7 +225,7 @@ TEST_CASE("Motion blur: sub-frame pipeline — 8 samples produce 8 distinct posi
     mb_settings.motion_blur.pattern          = TemporalSamplePattern::Uniform;
     mb_settings.motion_blur.filter           = TemporalFilter::Box;
 
-    SoftwareRenderer r;
+    SoftwareRenderer r(Config{});
     r.set_settings(mb_settings);
     auto mb_fb = r.render_frame(comp, Frame{0});
     REQUIRE(mb_fb != nullptr);
@@ -255,7 +255,7 @@ TEST_CASE("Motion blur: sub-frame pipeline — 8 samples produce 8 distinct posi
     // Verify: without MB, the box is at a single position
     RenderSettings no_mb_settings;
     no_mb_settings.motion_blur.enabled = false;
-    SoftwareRenderer r2;
+    SoftwareRenderer r2(Config{});
     r2.set_settings(no_mb_settings);
     auto no_mb_fb = r2.render_frame(comp, Frame{0});
 

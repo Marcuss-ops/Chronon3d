@@ -82,7 +82,7 @@ add_executable(chronon3d_core_tests
     render_graph/executor/test_framebuffer_lifetime.cpp
     render_graph/builder/test_graph_build_pass_order.cpp
 )
-target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
+target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline doctest::doctest)
 # TICKET-006: CORE_BLEND2D_TESTS exercise symbols that only resolve when
 # chronon3d_backend_text is linked (bidi_segmenter, font_engine, glyph_atlas,
 # shared_font_engine, rasterize_text_to_bl_image, etc.). Without this guard

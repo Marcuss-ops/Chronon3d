@@ -14,7 +14,7 @@ namespace chronon3d::test {
 // ── Renderer factories ────────────────────────────────────────────────────
 
 inline SoftwareRenderer make_renderer() {
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
@@ -23,7 +23,7 @@ inline SoftwareRenderer make_renderer() {
 }
 
 inline SoftwareRenderer make_renderer_ssaa(float factor) {
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     RenderSettings settings;
     settings.use_modular_graph = true;
     settings.ssaa_factor = std::max(1.0f, factor);
@@ -50,7 +50,7 @@ inline SoftwareRenderer make_renderer_ssaa(float factor) {
 /// parameter is kept for ABI/source compatibility and is documented as a
 /// no-op until a downstream knob reappears.
 inline SoftwareRenderer make_renderer(bool /*modular_coordinates_unused*/) {
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     RenderSettings settings;
     settings.use_modular_graph = true;     // preserved invariant
     renderer.set_settings(settings);
@@ -144,7 +144,7 @@ inline std::shared_ptr<Framebuffer> render_fn(
     int width = 200,
     int height = 200
 ) {
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     Composition comp = composition({.width = width, .height = height}, build_fn);
     return renderer.render_frame(comp, 0);
 }

@@ -341,7 +341,7 @@ TEST_CASE("PerPixelDOF: max_r < 0.5 returns early (no visible blur)") {
 // ============================================================================
 
 TEST_CASE("PerPixelDOF: end-to-end render with DOF does not crash") {
-    SoftwareRenderer rend;
+    SoftwareRenderer rend(Config{});
     RenderSettings settings;
     settings.use_modular_graph = true;
     rend.set_settings(settings);

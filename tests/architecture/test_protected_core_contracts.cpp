@@ -194,8 +194,8 @@ TEST_CASE("CoreContract: TextRunNode cache_key is deterministic") {
     TextRunNode node("test_run", shape, rnode, skeleton);
 
     RenderGraphContext ctx;
-    ctx.frame.width = 1920;
-    ctx.frame.height = 1080;
+    ctx.frame_input.width = 1920;
+    ctx.frame_input.height = 1080;
 
     auto k1 = node.cache_key(ctx);
     auto k2 = node.cache_key(ctx);
@@ -219,8 +219,8 @@ TEST_CASE("CoreContract: TextRunNode cache_key invalidates on per-glyph state ch
     TextRunNode node("test_run_state", shape, rnode, skeleton);
 
     RenderGraphContext ctx;
-    ctx.frame.width = 1920;
-    ctx.frame.height = 1080;
+    ctx.frame_input.width = 1920;
+    ctx.frame_input.height = 1080;
 
     auto k_baseline = node.cache_key(ctx);
 
@@ -253,8 +253,8 @@ TEST_CASE("CoreContract: TextRunNode predicted_bbox is non-empty") {
     TextRunNode node("test_run_bbox", shape, rnode, skeleton);
 
     RenderGraphContext ctx;
-    ctx.frame.width = 1920;
-    ctx.frame.height = 1080;
+    ctx.frame_input.width = 1920;
+    ctx.frame_input.height = 1080;
 
     auto bbox = node.predicted_bbox(ctx);
     REQUIRE(bbox.has_value());
@@ -296,8 +296,8 @@ TEST_CASE("CoreContract: TextRunNode predicted_bbox widens under 2.5D rotation.y
     TextRunNode node_b("test_run_25d_b", shape_b, rnode, skeleton);
 
     RenderGraphContext ctx;
-    ctx.frame.width = 1920;
-    ctx.frame.height = 1080;
+    ctx.frame_input.width = 1920;
+    ctx.frame_input.height = 1080;
 
     auto bbox_a = node_a.predicted_bbox(ctx);
     auto bbox_b = node_b.predicted_bbox(ctx);

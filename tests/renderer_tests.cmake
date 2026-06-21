@@ -97,7 +97,7 @@ add_executable(chronon3d_renderer_tests
 )
 target_link_libraries(chronon3d_renderer_tests
     PRIVATE
-        chronon3d_pipeline
+        chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline
         chronon3d_scene
         doctest::doctest
 )
