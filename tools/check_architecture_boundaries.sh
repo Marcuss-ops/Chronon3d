@@ -66,15 +66,15 @@ else
 fi
 
 # ── 4. clear_per_frame() method (WP-3 PR 3.4 close-out) ────────────────
-# `clear_per_frame()` was RETIRED in WP-3 PR 3.4 close-out (commit
-# dc9f1cfa on origin/main).  Callers must migrate to
-# `reset_frame_temporaries()` (frame-scoped) or `reset_job()`
-# (full reset).  This guard prevents silent reintroduction.
-# Allowlist: docs/refactor-roadmap/03- mentions it for context only.
-echo -n "  [4/4] clear_per_frame() method         ... "
+# The legacy full-reset shim on RenderSession was RETIRED in WP-3 PR 3.4
+# close-out.  Callers must migrate to `reset_frame_temporaries()`
+# (frame-scoped) or `reset_job()` (full reset).  This guard prevents
+# silent source-code reintroduction across include/, src/, tests/, apps/.
+# Note: docs/ is intentionally NOT searched (historical references in
+# the WP-3 roadmap doc are allowed).
+echo -n "  [4/4] legacy full-reset shim RETIRED   ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
-    -E 'clear_per_frame' include src tests apps 2>/dev/null | \
-    grep -v '^docs/' | grep -v 'tools/check_architecture_boundaries.sh' || true)
+    -E 'clear_per_frame' include src tests apps 2>/dev/null || true)
 if [ -n "$hits" ]; then
     echo "FAIL"
     echo "$hits" | sed 's/^/    /'
