@@ -51,29 +51,12 @@ namespace chronon3d::runtime {
 
 namespace {
 
-// Process-wide most-recently-attached runtime pointer.  Used by deep
-// rendering code that has no direct link to a RenderRuntime in its
-// call stack to find the engine's default assets root.
-// Single writer (engine init / destruction); concurrent reads allowed.
-std::atomic<RenderRuntime*> g_active_runtime{nullptr};
-
 // Process-wide fallback assets root for contexts that don't construct
 // a RenderRuntime (CLI tests, content-module test fixtures).  Replaces
 // the legacy `chronon3d::detail::g_default_assets_root`.  Writers:
-//   - RenderRuntime::set_default_assets_root (engine init)
-//   - runtime::set_process_wide_assets_root (CLI / tests)
+//   - runtime::set_process_wide_assets_root (CLI / tests + engine init)
 std::mutex g_process_root_mutex;
 std::string g_process_wide_assets_root;
-
-// WP-8 PR 8.1 — TU-local pointer mirror of the function-local static
-// AssetResolver inside `typed_resolver_for_deep_code()` so the
-// test-only reset hook (`namespace detail` below) can reach it
-// without changing the helper's public signature.  Captured on first
-// helper call; lifetime: the static AssetResolver itself, so the
-// pointer is stable for the process lifetime and safe to dereference
-// from `reset_typed_resolver_for_deep_code_for_testing()`.  Initialised
-// inside the helper's static-initialisation block.
-chronon3d::assets::AssetResolver* g_deep_resolver_mirror = nullptr;
 
 } // namespace
 
@@ -83,12 +66,7 @@ RenderRuntime::RenderRuntime(chronon3d::Config config)
     populate();
 }
 
-RenderRuntime::~RenderRuntime() {
-    // Drop the active-runtime pointer if we owned it so deep code
-    // doesn't see a dangling runtime after destruction.
-    RenderRuntime* expected = this;
-    g_active_runtime.compare_exchange_strong(expected, nullptr);
-}
+RenderRuntime::~RenderRuntime() = default;
 
 void RenderRuntime::populate() {
     if (m_populated) {
@@ -150,9 +128,6 @@ void RenderRuntime::populate() {
     m_assets.mount(std::filesystem::path{});
     m_resolver.mount(std::filesystem::path{});
 
-    // ── Publish as "active" so deep code can find us ────────────────
-    set_active_runtime(this);
-
     m_populated = true;
     spdlog::debug("RenderRuntime::populate(): runtime populated with "
                   "NodeCache({}B), FramebufferPool({}B), GraphExecutor, "
@@ -200,32 +175,6 @@ const chronon3d::graph::RenderBackend& RenderRuntime::backend() const {
     return *m_backend;
 }
 
-void RenderRuntime::set_default_assets_root(std::string root) {
-    m_default_assets_root = std::move(root);
-    if (!m_default_assets_root.empty()) {
-        const auto root_path = std::filesystem::path(m_default_assets_root);
-        m_assets.mount(root_path);
-        // PR 8.0 — mirror to the typed resolver sibling so future
-        // PR 8.1 consumers can reach a runtime-owned resolver.  The
-        // mirror is intentional duplication; legacy free functions
-        // (asset_registry::resolve_path, runtime::resolve_asset_path)
-        // continue to work via m_assets until PR 8.1 migrates them.
-        m_resolver.mount(root_path);
-    }
-    // Mirror to the process-wide fallback so deep code that loses
-    // the runtime ref still resolves the same root.
-    set_process_wide_assets_root(m_default_assets_root);
-    set_active_runtime(this);
-}
-
-void set_active_runtime(RenderRuntime* runtime) {
-    g_active_runtime.store(runtime, std::memory_order_release);
-}
-
-RenderRuntime* active_runtime() {
-    return g_active_runtime.load(std::memory_order_acquire);
-}
-
 void set_process_wide_assets_root(std::string root) {
     std::lock_guard<std::mutex> lock(g_process_root_mutex);
     g_process_wide_assets_root = std::move(root);
@@ -245,18 +194,6 @@ std::string process_wide_assets_root() {
     return g_process_wide_assets_root;
 }
 
-std::string default_assets_root_for_deep_code() {
-    // TICKET-011a follow-up #2 — the legacy fallback to
-    // `chronon3d::detail::g_default_assets_root` is gone; the only
-    // out-of-runtime source is the typed `g_process_wide_assets_root`
-    // mirrored on every RenderRuntime::set_default_assets_root call,
-    // and settable by CLI/test init via `set_process_wide_assets_root`.
-    if (auto* rt = active_runtime()) {
-        return rt->default_assets_root();
-    }
-    return process_wide_assets_root();
-}
-
 [[nodiscard]] chronon3d::SoftwareRenderSession
 make_session(RenderRuntime& runtime) {
     // WP-3 PR 3.1 — the SessionServices table no longer wires
@@ -272,7 +209,6 @@ make_session(RenderRuntime& runtime) {
         .framebuffer_pool    = runtime.services().framebuffer_pool,
         .graph_cache         = runtime.services().graph_cache,
         .asset_registry      = runtime.services().asset_registry,
-        .default_assets_root = &runtime.default_assets_root(),
         // WP-3 PR 3.1 — .scene_hasher / .program_store fields removed from
         // SessionServices.  See header for rationale.
     };
@@ -292,93 +228,35 @@ const SessionServices& session_services(const chronon3d::SoftwareRenderSession& 
     return session.common.services;
 }
 
-// ── typed_resolver_for_deep_code — WP-8 PR 8.1 ─────────────────────
+// WP-8 PR 8.1 Final — process-wide typed asset resolver for deep code
+// that has no RenderRuntime in scope (CLI dev paths, content-layer
+// ergonomics, etc.).  Same lazy-static + first-mount semantics as the
+// legacy `typed_resolver_for_deep_code()` minus the active-runtime
+// branch (which lived on the deleted `runtime::set_active_runtime()`
+// channel).
 //
-// Service-locator for callers that have no RenderRuntime in their
-// call stack (font_engine, text_rasterizer, preflight, BL/FT texture
-// caches, etc.).  Prefers the active runtime's resolver; falls back
-// to a lazy-initialised process-wide singleton mounted against
-// `process_wide_assets_root()`.  Thread-safety is delegated to the
-// resolver's internal lock — concurrent first-callers all see the
-// same root and `mount()` serializes + is idempotent.
-//
-// First-mount-only semantics (PR 8.1 contract): the singleton
-// resolver mounts ONCE for the lifetime of the static.  Subsequent
-// `set_process_wide_assets_root(...)` calls after the first mount
-// do NOT propagate to this fallback.  Production paths (CLI
-// `render_job_setup` + `test_main`) all set the root at process
-// start before any deep-code call, so the constraint is benign in
-// practice; tests should call
-// `chronon3d::runtime::detail::reset_typed_resolver_for_deep_code_for_testing()`
-// around each fixture to ensure isolation.
-const chronon3d::assets::AssetResolver& typed_resolver_for_deep_code() {
-    if (auto* rt = active_runtime()) {
-        return rt->resolver();
-    }
-    static chronon3d::assets::AssetResolver g_deep_resolver;
-    // Capture the function-local static's address ONCE so the
-    // detail::reset hook below can reach it.  Function-local statics
-    // are themselves initialised once in C++17+; capturing the address
-    // on every call is idempotent and inexpensive.
-    g_deep_resolver_mirror = &g_deep_resolver;
-    // Single mount attempt guarded by the resolver's own mutex; we
-    // don't need an external once_flag because the resolver's lock
-    // makes the multi-thread first mount + idempotent state trivial.
-    if (!g_deep_resolver.has_mount()) {
+// Resolver serialises concurrent first-callers through its internal
+// shared_mutex; idempotent mount state so the multi-thread first
+// call is safe without an external once_flag.  Lifetime is the
+// process.
+const chronon3d::assets::AssetResolver& process_wide_resolver() {
+    static chronon3d::assets::AssetResolver g_process_wide_resolver;
+    if (!g_process_wide_resolver.has_mount()) {
         const auto root_str = process_wide_assets_root();
         if (!root_str.empty()) {
             const auto root_path = std::filesystem::path(root_str);
-            // Skip non-absolute paths — AssetResolver's contract is
-            // "mount only accepts absolute" and the legacy
-            // process_wide_assets_root may be empty or relative on
-            // misconfigured paths.  Empty / relative root leaves the
-            // resolver unmounted, which the 2-line call-site pattern
-            // turns into "fall back to raw rel_path" — the exact
-            // legacy `resolve_asset_path(relative)` semantics.
+            // AssetResolver::mount contract: only absolute paths.
             if (root_path.is_absolute()) {
                 try {
-                    g_deep_resolver.mount(root_path.lexically_normal());
+                    g_process_wide_resolver.mount(root_path.lexically_normal());
                 } catch (const std::invalid_argument&) {
-                    // Already filtered by `is_absolute()`; leave
-                    // unmounted.  Other exceptions (bad_alloc, etc.)
-                    // intentionally propagate.
+                    // Leave unmounted; call-site 2-line pattern treats
+                    // unmounted as "fall back to raw rel_path".
                 }
             }
         }
     }
-    return g_deep_resolver;
+    return g_process_wide_resolver;
 }
-
-namespace detail {
-
-// WP-8 PR 8.1 — test-only reset hook.  Unmounts the process-wide
-// fallback singleton so each test fixture starts with a clean
-// slate.  All production callers leave this hook unused; it lives
-// in `detail::` to make the test-only nature explicit.
-void reset_typed_resolver_for_deep_code_for_testing() {
-    // Forward-declared via TU-local static cannot be reached from
-    // outside this TU.  Test fixtures reach the singleton indirectly
-    // by calling `set_process_wide_assets_root("")` followed by
-    // setting the desired absolute root, which re-arms the
-    // first-mount branch on the next `typed_resolver_for_deep_code()`
-    // call IF the static still reports `!has_mount()`.  This helper
-    // explicitly unmounts so the first-mount branch always fires
-    // even if a previous test mounted an absolute value.
-    //
-    // Implementation note: we cannot touch the static directly because
-    // its address is local to `typed_resolver_for_deep_code()`.  To
-    // expose it without changing the helper signature, we keep a
-    // mirror pointer here for tests to reach.  See the matching
-    // declaration in the header.
-    //
-    // The mirror is captured by the helper on first-call via a
-    // leaky-but-safe pattern (function-local static + a one-time
-    // assignment in this `detail` namespace on first test access).
-    if (g_deep_resolver_mirror) {
-        g_deep_resolver_mirror->unmount();
-    }
-}
-
-} // namespace detail
 
 } // namespace chronon3d::runtime

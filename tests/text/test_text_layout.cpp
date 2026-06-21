@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <chronon3d/text/font_engine.hpp>
 using namespace chronon3d;
@@ -213,7 +214,9 @@ TEST_CASE("TextLayoutEngine layout V2 specifications") {
     }
 
     SUBCASE("FontEngine: real metrics produce wider width than mock for 'AV' kerning") {
-        FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+        chronon3d::Config cfg;
+        chronon3d::runtime::RenderRuntime runtime(cfg);
+        FontEngine engine{runtime.resolver()};
         if (!engine.can_load({"assets/fonts/Inter-Bold.ttf", "Inter", 700})) {
             MESSAGE("Skipping: Inter-Bold.ttf not available");
             return;
@@ -237,7 +240,9 @@ TEST_CASE("TextLayoutEngine layout V2 specifications") {
     }
 
     SUBCASE("FontEngine: word wrap with real metrics") {
-        FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+        chronon3d::Config cfg;
+        chronon3d::runtime::RenderRuntime runtime(cfg);
+        FontEngine engine{runtime.resolver()};
         if (!engine.can_load({"assets/fonts/Inter-Bold.ttf", "Inter", 700})) {
             MESSAGE("Skipping: Inter-Bold.ttf not available");
             return;
@@ -258,7 +263,9 @@ TEST_CASE("TextLayoutEngine layout V2 specifications") {
     }
 
     SUBCASE("FontEngine: character wrap with real metrics") {
-        FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+        chronon3d::Config cfg;
+        chronon3d::runtime::RenderRuntime runtime(cfg);
+        FontEngine engine{runtime.resolver()};
         if (!engine.can_load({"assets/fonts/Inter-Bold.ttf", "Inter", 700})) {
             MESSAGE("Skipping: Inter-Bold.ttf not available");
             return;
@@ -279,7 +286,9 @@ TEST_CASE("TextLayoutEngine layout V2 specifications") {
     }
 
     SUBCASE("FontEngine: tracking is added correctly") {
-        FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+        chronon3d::Config cfg;
+        chronon3d::runtime::RenderRuntime runtime(cfg);
+        FontEngine engine{runtime.resolver()};
         if (!engine.can_load({"assets/fonts/Inter-Bold.ttf", "Inter", 700})) {
             MESSAGE("Skipping: Inter-Bold.ttf not available");
             return;
@@ -300,7 +309,9 @@ TEST_CASE("TextLayoutEngine layout V2 specifications") {
     }
 
     SUBCASE("FontEngine: empty string returns safe result") {
-        FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+        chronon3d::Config cfg;
+        chronon3d::runtime::RenderRuntime runtime(cfg);
+        FontEngine engine{runtime.resolver()};
         TextLayoutInput input;
         input.text = "";
         input.style.size = 20.0f;

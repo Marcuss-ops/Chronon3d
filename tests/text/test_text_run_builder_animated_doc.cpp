@@ -13,6 +13,7 @@
 
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/scene/builders/text_run_builder.hpp>
 #include <chronon3d/text/animated_text_document.hpp>
 #include <chronon3d/text/text_run.hpp>
@@ -59,7 +60,9 @@ TextRunSpec make_spec(const std::string& literal_text) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextRunBuilder+PendingDoc: static path keeps initial text") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextRunSpec spec = make_spec("Static initial text");
 
     auto shape = materialize_text_run_shape(
@@ -84,7 +87,9 @@ TEST_CASE("TextRunBuilder+PendingDoc: static path keeps initial text") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextRunBuilder+PendingDoc: animated_doc drives layout content + per-frame resample") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     AnimatedTextDocument doc;
     SourceTextKeyframe kf0;
     kf0.frame = Frame{0};

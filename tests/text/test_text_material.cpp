@@ -16,6 +16,16 @@ using namespace chronon3d;
 
 // ── helpers ────────────────────────────────────────────────────────
 
+// WP-8 PR 8.1 — synthesise a single RenderRuntime for the whole TU so
+// every test reads from the same real, engine-owned resolver (no
+// bridge).  The resolver is auto-mounted against the current working
+// directory's `assets/fonts/` folder via the post-bridge
+// `process_wide_assets_root()` channel; tests that need a custom root
+// can re-mount by calling `m_runtime.resolver().mount(path)` after a
+// fresh `s_test_runtime = chronon3d::runtime::RenderRuntime(cfg)` cycle.
+static chronon3d::Config                       s_test_cfg;
+static chronon3d::runtime::RenderRuntime       s_test_runtime(s_test_cfg);
+
 /// Create a simple white-on-transparent text BLImage for testing.
 static BLImage make_test_text_image(int w, int h, const char* text, float font_size = 48.0f) {
     // Use Inter Bold if available, otherwise rely on Blend2D's fallback
@@ -29,12 +39,16 @@ static BLImage make_test_text_image(int w, int h, const char* text, float font_s
     shape.style.color = Color{1.0f, 1.0f, 1.0f, 1.0f};
 
     float effective_size = font_size;
-    // WP-8 PR 8.0 — explicit resolver sourced from the test-lattice
-    // typed_resolver bridge (tests don't have a runtime in scope).
-    const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
+    // WP-8 PR 8.1 — synthesise a per-test-file RenderRuntime so the
+    // test_lattice reads the resolver from a real engine-owned value
+    // member (no bridge).  The runtime's resolver is the same resolver
+    // every test in this TU shares; relative font-path resolution
+    // matches production semantics because the runtime is mounted
+    // identically at file scope above `make_test_text_image`.
+    const auto& resolver = s_test_runtime.resolver();
     // WP-8 PR 8.1 — FontEngine is REQUIRED (no nullable, no per-call
     // fallback inside the rasterizer).  Tests construct one from the
-    // bridge-sourced resolver and pass by reference.
+    // synthesised runtime's resolver and pass by reference.
     FontEngine test_engine{resolver};
     auto result = rasterize_text_to_bl_image(shape, effective_size, 16, resolver, nullptr, nullptr, test_engine);
     if (!result) {
@@ -269,9 +283,10 @@ TEST_CASE("TextMaterial: golden output comparison") {
     shape.style.align = TextAlign::Center;
     shape.style.color = Color{1.0f, 1.0f, 1.0f, 1.0f};
 
-    // WP-8 PR 8.0 — explicit resolver sourced from the test-lattice
-    // typed_resolver bridge (tests don't have a runtime in scope).
-    const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
+    // WP-8 PR 8.1 — use the file-scope synthesised runtime defined
+    // above make_test_text_image() so this test reads the same real
+    // resolver the other tests use.
+    const auto& resolver = s_test_runtime.resolver();
     // WP-8 PR 8.1 — FontEngine is REQUIRED.
     FontEngine base_engine{resolver};
     auto base = rasterize_text_to_bl_image(shape, 72.0f, 32, resolver, nullptr, nullptr, base_engine);

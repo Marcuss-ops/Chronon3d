@@ -18,11 +18,14 @@
 //                                  runtime is the sole owner of the
 //                                  backend slot for the engine lifetime.
 //
-// `set_assets_root` writes the runtime-local default_assets_root + mounts it
-// into the runtime's AssetRegistry.  The legacy process-wide global is
-// NOT mutated from this path; deep rendering helpers consult
-// `runtime::default_assets_root_for_deep_code()` which prefers the
-// active runtime and falls back to the legacy global.
+// WP-8 PR 8.1 Final — `set_assets_root` mounts the root into the
+// runtime's typed AssetResolver sibling + the legacy AssetRegistry,
+// and mirrors it to the process-wide slot via
+// `runtime::set_process_wide_assets_root`.  The retired orphan
+// `RenderRuntime::default_assets_root()` accessor and the retired
+// bridge `runtime::default_assets_root_for_deep_code()` both routed
+// through this slot (the process-wide slot is the single source of
+// truth, surfaced via `runtime::process_wide_assets_root()`).
 // ===========================================================================
 
 #include <chronon3d/api/render_engine.hpp>
@@ -52,7 +55,6 @@ struct RenderEngine::Impl {
     explicit Impl(Config config)
         : m_config(std::move(config))
         , m_runtime(m_config)        // RenderRuntime ctor calls populate()
-                                    // which already set_active_runtime(this)
         , m_renderer(std::make_unique<SoftwareRenderer>(m_runtime, m_config))
     {
         m_renderer->set_image_backend(std::make_shared<image::StbImageBackend>());
@@ -76,7 +78,7 @@ struct RenderEngine::Impl {
 
     Impl(Config config, std::filesystem::path assets_root)
         : m_config(std::move(config))
-        , m_runtime(m_config)        // populate() set_active_runtime(this)
+        , m_runtime(m_config)        // populate() — no longer publishes an active-runtime pointer (WP-8 PR 8.1)
         , m_renderer(std::make_unique<SoftwareRenderer>(m_runtime, m_config))
     {
         m_renderer->set_image_backend(std::make_shared<image::StbImageBackend>());
@@ -89,7 +91,7 @@ struct RenderEngine::Impl {
         // TICKET-011a follow-up #1 — publish the RenderPipeline facade.
         m_pipeline.emplace(*m_renderer, m_runtime);
 
-        set_assets_root(assets_root);   // also wires active_runtime
+        set_assets_root(assets_root);   // mounts root + mirrors to process-wide slot (WP-8 PR 8.1)
         spdlog::debug("RenderEngine::Impl: constructed with assets_root={}",
                       assets_root.string());
     }
@@ -98,8 +100,9 @@ struct RenderEngine::Impl {
 
     void set_assets_root(const std::filesystem::path& root) {
         const std::string root_str = root.string();
-        m_assets.mount(root);
-        m_runtime.set_default_assets_root(root_str);
+        m_assets.mount(root);                                         // legacy AssetRegistry mount (for non-resolver consumers)
+        m_runtime.resolver().mount(root);                             // WP-8 PR 8.0 sibling resolver, mounted inside the runtime
+        runtime::set_process_wide_assets_root(root_str);              // mirror to process-wide slot for deep code without a runtime in scope
     }
 
     chronon3d::SoftwareRenderSession create_session() {
@@ -141,8 +144,13 @@ void RenderEngine::set_assets_root(const std::filesystem::path& root) {
 AssetRegistry& RenderEngine::assets() noexcept { return m_impl->m_assets; }
 const AssetRegistry& RenderEngine::assets() const noexcept { return m_impl->m_assets; }
 
-const std::string& RenderEngine::assets_root() const noexcept {
-    return m_impl->m_runtime.default_assets_root();
+std::string RenderEngine::assets_root() const noexcept {
+    // WP-8 PR 8.1 Final — read from the process-wide slot (the
+    // single source of truth after the orphan `default_assets_root`
+    // field was retired).  Returns by value so callers cannot hold a
+    // reference past a concurrent `set_assets_root()` from another
+    // thread.
+    return runtime::process_wide_assets_root();
 }
 
 // ── Composition registry ───────────────────────────────────────────────────

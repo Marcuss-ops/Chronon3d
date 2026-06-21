@@ -19,6 +19,7 @@
 
 #include <chronon3d/text/animated_text_document.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/text/text_run_builder.hpp>  // build_text_run, make_initial_glyph_states
@@ -141,7 +142,9 @@ std::shared_ptr<AnimatedTextDocument> make_scramble_doc() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Prewarm PR11: tests/fixtures/Inter-Bold.ttf fixture is loadable") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     const FontSpec spec = inter_bold();
     REQUIRE(engine.can_load(spec));
 }
@@ -151,7 +154,9 @@ TEST_CASE("Prewarm PR11: tests/fixtures/Inter-Bold.ttf fixture is loadable") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Prewarm PR11: static (Hold) prewarm populates cache with active->utf8") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
     const FontSpec font = inter_bold();
@@ -185,7 +190,9 @@ TEST_CASE("Prewarm PR11: static (Hold) prewarm populates cache with active->utf8
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Prewarm PR11: Scramble prewarm populates cache with transition_text bytes") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
     const FontSpec font = inter_bold();
@@ -229,7 +236,9 @@ TEST_CASE("Prewarm PR11: Scramble prewarm populates cache with transition_text b
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Prewarm PR11: prewarming the same frame twice is safe (idempotent)") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
     const FontSpec font = inter_bold();
@@ -258,7 +267,9 @@ TEST_CASE("Prewarm PR11: prewarming the same frame twice is safe (idempotent)") 
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Prewarm PR11: Scramble prewarm at different frames writes distinct cache entries") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
     const FontSpec font = inter_bold();
@@ -301,7 +312,9 @@ TEST_CASE("Prewarm PR11: Scramble prewarm at different frames writes distinct ca
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Prewarm PR11: post-boundary prewarm caches active->utf8 (not transition_text)") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
     const FontSpec font = inter_bold();
@@ -378,7 +391,9 @@ static std::shared_ptr<AnimatedTextDocument> make_crossfade_doc() {
 }
 
 TEST_CASE("Prewarm PR11 CF: CrossfadeLayouts prewarm populates BOTH active and crossfade_from caches") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
     const FontSpec font = inter_bold();
@@ -423,7 +438,9 @@ TEST_CASE("Prewarm PR11 CF: CrossfadeLayouts prewarm populates BOTH active and c
 }
 
 TEST_CASE("Prewarm PR11 CF: apply_active_state populates crossfade_* slots inside the gap, clears outside") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
     const FontSpec font = inter_bold();
@@ -492,7 +509,9 @@ TEST_CASE("Prewarm PR11 CF: apply_active_state populates crossfade_* slots insid
 // modes route through this code.
 
 TEST_CASE("Prewarm PR11 CF: fallback — Hold→Hold doc never populates crossfade slot") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
     const FontSpec font = inter_bold();

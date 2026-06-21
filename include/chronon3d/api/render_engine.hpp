@@ -99,7 +99,11 @@ public:
     [[nodiscard]] const AssetRegistry& assets() const noexcept;
 
     /// Read the engine-owned default assets root (empty if unset).
-    [[nodiscard]] const std::string& assets_root() const noexcept;
+    /// WP-8 PR 8.1 Final — returns by value so the call routes through
+    /// the process-wide `runtime::process_wide_assets_root()` mutex-guarded
+    /// slot; callers cannot hold a reference past a concurrent
+    /// `set_assets_root()` from another thread.
+    [[nodiscard]] std::string assets_root() const noexcept;
 
     // ── Composition registry ────────────────────────────────────
 

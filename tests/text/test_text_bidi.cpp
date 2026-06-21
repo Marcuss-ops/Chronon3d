@@ -1,5 +1,6 @@
 #include <chronon3d/backends/text/bidi_segmenter.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 
@@ -125,7 +126,9 @@ TEST_CASE("BidiSegmenter: explicit RTL base direction") {
 // ── Layout Engine Bidi Integration Tests ───────────────────────────────
 
 TEST_CASE("TextLayout: bidi with pure Latin text") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutInput input;
     input.text = "Hello World";
     input.font_engine = &engine;
@@ -141,7 +144,9 @@ TEST_CASE("TextLayout: bidi with pure Latin text") {
 }
 
 TEST_CASE("TextLayout: bidi with pure Arabic text") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutInput input;
     input.text = "\xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7";  // "مرحبا"
     input.font_engine = &engine;
@@ -156,7 +161,9 @@ TEST_CASE("TextLayout: bidi with pure Arabic text") {
 }
 
 TEST_CASE("TextLayout: bidi with mixed Arabic+English") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutInput input;
     input.text = "Hello \xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 World";
     input.font_engine = &engine;
@@ -182,7 +189,9 @@ TEST_CASE("TextLayout: bidi with mixed Arabic+English") {
 }
 
 TEST_CASE("TextLayout: explicit LTR direction skips bidi segmentation") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutInput input;
     input.text = "Hello \xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 World";
     input.font_engine = &engine;
@@ -201,7 +210,9 @@ TEST_CASE("TextLayout: explicit LTR direction skips bidi segmentation") {
 }
 
 TEST_CASE("TextLayout: explicit RTL direction preserves single run") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutInput input;
     input.text = "\xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 English";  // Arabic + English
     input.font_engine = &engine;
@@ -220,7 +231,9 @@ TEST_CASE("TextLayout: explicit RTL direction preserves single run") {
 }
 
 TEST_CASE("TextLayout: bidi run widths are non-zero") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextLayoutInput input;
     input.text = "Hello \xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 World";
     input.font_engine = &engine;
@@ -242,7 +255,9 @@ TEST_CASE("TextLayout: bidi run widths are non-zero") {
 // ── FontEngine shaping with bidi directions ────────────────────────────
 
 TEST_CASE("FontEngine: shaping Arabic with explicit RTL") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextShaping rtl_shaping;
     rtl_shaping.direction = TextDirection::RTL;
     rtl_shaping.language = "ar";
@@ -257,7 +272,9 @@ TEST_CASE("FontEngine: shaping Arabic with explicit RTL") {
 }
 
 TEST_CASE("FontEngine: shaping Arabic+English with Auto") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     TextShaping auto_shaping;
     auto_shaping.direction = TextDirection::Auto;
 
