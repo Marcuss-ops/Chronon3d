@@ -238,15 +238,17 @@ jobs:
         run: bash tools/check_gitignored_dirs.sh
 
   # ────────────────────────────────────────────────────────────────────
-  # 7. Profile measurement matrix — drives tools/measure_profile.sh on
+  # 6. Profile measurement matrix — drives tools/measure_profile.sh on
   # each of the four linux-profile-* presets (08 plan + readme). Outputs
   # JSON+MD are uploaded via actions/upload-artifact@v4 for trend
   # dashboards and changelog attestations. Only `extended` runs `--build`
   # (the heaviest profile); the other three run configure-only so the
   # matrix stays cheap.
+  # Replaces the prior "discretionary check of existing presets" with one
+  # canonical job; see docs/measure_profile_readme.md CI matrix section.
   # ────────────────────────────────────────────────────────────────────
   profile-measurement:
-    name: Gate 7 / profile-measurement (${{ matrix.profile }})
+    name: Gate 6 / profile-measurement (${{ matrix.profile }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -292,10 +294,10 @@ jobs:
           retention-days: 30
 
   # ────────────────────────────────────────────────────────────────────
-  # 6. Install consumer — end-to-end SDK boundary test (PR-0).
+  # 7. Install consumer — end-to-end SDK boundary test (PR-0).
   # ────────────────────────────────────────────────────────────────────
   install-consumer-script:
-    name: Gate 6 / install-consumer (tools/install_consumer_test.sh)
+    name: Gate 7 / install-consumer (tools/install_consumer_test.sh)
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
