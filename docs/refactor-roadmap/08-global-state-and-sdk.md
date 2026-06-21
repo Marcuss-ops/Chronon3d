@@ -1,56 +1,65 @@
-# Work Package 8 — Remove global state and close the SDK surface
+# Work Package 8 — Global State Removal and SDK Polish
 
 ## Goal
 
-Eliminate process-wide runtime and asset lookup, then keep software internals out of the main public facade.
+Eliminate remaining engine-generic headers' cross-layer dependencies and
+process-wide globals; refine the SDK boundary so that engine-generic and
+backends do not leak transitively.
 
-## TODO
+## Scope (continuation from WP-7)
 
-### PR 8.0
-- [ ] Inventory every use of the active runtime pointer and process-wide asset root.
-- [ ] Classify each caller as font, text, image, preflight, content, CLI, test, or other.
+### TICKET-009 follow-up: PR-2 rewire enforcement
+- Drop `execute(RenderGraph&, …)` overloads on `GraphExecutor` (cleanup
+  target — overloads exist on `c51e6472`'s snapshot of `origin/main`
+  pre-cross-cutting-cleanup; to be removed once the call-site migration
+  is complete).
+- Drop `runtime::ExecutionPlanCache* plan_cache` parameter from
+  `GraphExecutor::execute` on the `CompiledFrameGraph` path (the
+  parameter is currently unused on that path and is `(void)`'d out).
+- Migrate the 3 callers (`command_bake_layer`, `debug`,
+  `test_render_backend`) + the 3 advanced callers (`scene_tile_execution`,
+  `tile_execution_coordinator`, `precomp_node_execute`) to drop the
+  legacy arg.
+- Preserve `ExecutionPlanCache` infrastructure owned by `RenderRuntime` /
+  `scene_program_cache` / `precomp_node` (active for those subsystems).
 
-### PR 8.1
-- [ ] Introduce one typed `AssetResolver` owned by `RenderRuntime`.
-- [ ] Define relative, absolute, missing-root, and mounted-root behavior.
-- [ ] Keep path resolution deterministic and engine-local.
+### TICKET-013: scene_hasher leak
+- `include/chronon3d/runtime/render_session.hpp:42` includes
+  `<chronon3d/render_graph/core/scene_hasher.hpp>`.  Symbol `SceneHasher`
+  is used as a field.
+- Resolution: Move `scene_hasher` ownership off `RenderSession` to
+  `RenderRuntime` (matching the TICKET-011 ownership boundary) so
+  `render_session.hpp` becomes engine-generic again.  This is part of the
+  WP-8 deliverable tracked by this doc.
 
-### PR 8.2
-- [ ] Add the resolver to the appropriate runtime/render services.
-- [ ] Pass it to font, text, image, preflight, and precomp code.
-- [ ] Avoid hidden lookups from deep code.
+### TICKET-014: session_resources compositing
+- `include/chronon3d/runtime/render_session.hpp:59` includes
+  `<chronon3d/backends/software/software_session_resources.hpp>`.
+- The `SoftwareSessionResources` composition is software-only state;
+  `RenderSession` should not depend on it.
+- Resolution: Move the composition to live only on `SoftwareRenderer`
+  (and via `SoftwareRenderSession` wrapper if needed).  Track in WP-8.
 
-### PR 8.3
-- [ ] Migrate CLI and tests to construct or receive an explicit resolver/runtime.
-- [ ] Avoid process-level setup helpers for ordinary rendering tests.
+### TICKET-015: legacy aliases cleanup
+- Drop `using RenderFrameInfo = FrameInput;` alias (back-compat shim
+  for legacy callers).
+- Drop `default_assets_root_for_deep_code()` free function; inline the
+  lookup directly in `runtime::resolve_asset_path`.
 
-### PR 8.4
-- [ ] Retire the active runtime pointer.
-- [ ] Retire the process-wide asset-root fallback.
-- [ ] Retire deep-code helper functions that read either global.
-
-### PR 8.5
-- [ ] Reduce `api/render_engine.hpp` to the supported SDK facade.
-- [ ] Keep PIMPL-only internals out of public includes.
-- [ ] Move direct renderer, runtime, and software-session access to an advanced/internal header if still required.
-
-### PR 8.6
-- [ ] Ensure the public header does not include software renderer or software session headers.
-- [ ] Keep `Chronon3D::SDK` as the documented consumer target.
-- [ ] Run the standalone install-consumer test.
-
-### PR 8.7
-- [ ] Add a two-engine isolation test.
-- [ ] Give each engine a different asset root.
-- [ ] Render concurrently and verify no cross-engine path resolution.
-
-### PR 8.8
-- [ ] Add boundary checks preventing global runtime and asset-root helpers from returning.
-- [ ] Add a public-header compile test using only `api/render_engine.hpp`.
+### TICKET-016: architecture boundary enforcement
+- Add `tests/architecture/test_render_session_includes_boundary.py` —
+  Python-based include-graph validator.  Landed in this work-package (see
+  `dfccb258` / `e5fd514a` in the local commit log).
+- Wire it as an optional CTest target so CMake runs it on demand.
+- Extend as more checks are added (e.g. asset-locale layer).
 
 ## Exit criteria
 
-- [ ] Asset lookup is explicit and engine-local.
-- [ ] Two engines cannot contaminate each other.
-- [ ] Main SDK headers expose no software implementation types.
-- [ ] Installed consumer links and runs through `Chronon3D::SDK` only.
+- `tests/architecture/test_render_session_includes_boundary.py` reports
+  `errors=0` with NO `KNOWN_VIOLATIONS` entries remaining.
+- Turbo build (`./build-fast.sh turbo`) succeeds.
+- `git grep RenderFrameInfo` returns zero hits in `include/`, `src/`,
+  `tests/`, `apps/`.
+- `git grep 'plan_cache'` returns zero hits in `include/`,
+  `src/render_graph/executor/`, `apps/chronon3d_cli/commands/render/`,
+  and the boundary-test files in `tests/render_graph/`.
