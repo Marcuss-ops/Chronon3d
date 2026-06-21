@@ -122,6 +122,148 @@ std::uint64_t FrameGraphCompiler::compute_structure_hash(
     return sig;
 }
 
+CompiledFrameGraph FrameGraphCompiler::compile_with_reuse(
+    RenderGraph graph,
+    RenderGraphContext& ctx,
+    const CompiledFrameGraph& prior_compiled,
+    const FrameGraphCompileOptions& options
+) const {
+    CompiledFrameGraph compiled;
+    if (!graph.has_output()) {
+        compiled.valid = false;
+        compiled.graph = std::move(graph);
+        return compiled;
+    }
+
+    compiled.output = graph.output();
+    const size_t node_count = graph.size();
+
+    if (node_count == 0 || compiled.output == k_invalid_node || compiled.output >= node_count) {
+        compiled.valid = false;
+        compiled.graph = std::move(graph);
+        return compiled;
+    }
+
+    // ── TICKET-008 / §9.4 — skip predicate ──────────────────────────────────
+    // The fast-path requires three conditions simultaneously:
+    //   1. options.reuse_if_unchanged_predicate_safe() — today this is
+    //      `!options.run_optimizer`; the optimizer cannot be admitted into
+    //      the skip path because its effects are not part of the hash
+    //      affordance (see FrameGraphCompileOptions).
+    //   2. ctx.policy.graph_structure_unchanged — the runtime must have
+    //      HONESTLY observed that the new frame's topology matches the
+    //      prior frame's topology.  If the application set this flag
+    //      speculatively, the hash-mismatch safety below (NIT-3) will
+    //      still kick us back to the full path.
+    //   3. prior_compiled.structure_hash must equal the freshly
+    //      recomputed hash of the new graph.  If they differ, we fall
+    //      through to the full path (NIT-3).
+    //
+    // IMPORTANT: when `run_optimizer == true`, the predicate is gated to
+    // `false` for cause #1; consequently `skip_heavy_phases` cannot fire
+    // in that mode.  We therefore run the optimizer ONLY inside the
+    // fall-through branch below — saving the wasted optimizer traversal
+    // when the skip path is going to fire (reviewer Q1).
+    const std::uint64_t current_hash =
+        compute_structure_hash(graph, compiled.output);
+    const bool skip_heavy_phases =
+        options.reuse_if_unchanged_predicate_safe()
+        && ctx.policy.graph_structure_unchanged
+        && prior_compiled.structure_hash == current_hash;
+
+    if (skip_heavy_phases) {
+        // Deep-copy topology-derived fields.  These three vectors are
+        // exactly the output of the heavy transformer (build_execution_levels,
+        // build_node_metadata); copying them preserves every per-call
+        // invariant without re-running the topo walk.
+        //
+        // NOTE: `prior_compiled.lifetimes` is intentionally NOT deep-copied
+        // here.  Lifetimes are derived from this-frame's `levels + nodes`
+        // (which the skip path re-uses verbatim — OK) BUT their
+        // `first_level`/`last_level` and per-input consumer_count are
+        // recomputable fall-outs of the topo walk; the always-run
+        // post-condition below calls `compute_resource_lifetimes` when
+        // `options.compute_lifetimes == true`, which is the canonical
+        // recomputation site and the same site used by `compile()`.  The
+        // net effect matches compile()'s behavior.  Reviewer Q6.
+        compiled.levels         = prior_compiled.levels;
+        compiled.nodes          = prior_compiled.nodes;
+        compiled.consumer_counts = prior_compiled.consumer_counts;
+    } else {
+        if (options.run_optimizer) {
+            [[maybe_unused]] const auto optimization_result =
+                optimizer::optimize_graph(graph, ctx);
+        }
+        build_execution_levels(graph, compiled.output, compiled);
+        build_node_metadata(graph, ctx, compiled, options);
+    }
+
+    // ── TICKET-008 / §9.4 — always-run post-conditions (Steps 4 #1–#10) ─────────
+    // Sequence mirrors compile() from this point forward so the
+    // observed invariants are identical whether the fast-path was
+    // taken or the full path ran.
+
+    compiled.graph = std::move(graph);
+
+    if (options.compute_lifetimes) {
+        compute_resource_lifetimes(compiled);
+    }
+
+    // Always re-derive the structure_hash from the new graph (the affordance
+    // other consumers key against).  When the fast-path was taken, this
+    // recovers possible subtle hash drift caused by node-insertion-order
+    // variance; when the full path ran, this matches build_node_metadata's
+    // ordering exactly.
+    compiled.structure_hash = compute_structure_hash(compiled.graph, compiled.output);
+    compiled.skip_initial_clear = ctx.policy.skip_initial_clear;
+
+    compiled.early_exit_skip.assign(node_count, false);
+    for (size_t i = 0; i < std::min(node_count, ctx.node_exec.early_exit_skip.size()); ++i) {
+        compiled.early_exit_skip[i] = ctx.node_exec.early_exit_skip[i];
+    }
+
+    // Re-derive graph_instance_id (sorted-stable_node-id FNV-1a mix).
+    // Always — this is the canary against the "names changed but topology
+    // didn't" edge case (TICKET Known Limitation): even on the skip
+    // path the prior's `.nodes[i].stable_node_id` may be stale relative
+    // to the new graph's name set; the graph-level hash deflates that
+    // staleness at the bucket key level.  Per-node `stable_node_id` is
+    // NOT re-derived (see doc-comment on `compile_with_reuse`).
+    std::vector<StableNodeId> sids;
+    sids.reserve(compiled.nodes.size());
+    for (size_t i = 0; i < compiled.nodes.size(); ++i) {
+        if (compiled.nodes[i].reachable
+            && compiled.nodes[i].stable_node_id != kInvalidStableNodeId) {
+            sids.push_back(compiled.nodes[i].stable_node_id);
+        }
+    }
+    std::sort(sids.begin(), sids.end());
+    constexpr std::uint64_t kOffsetBasis = 0xcbf29ce484222325ULL;
+    constexpr std::uint64_t kFnvPrime    = 0x100000001b3ULL;
+    std::uint64_t h = kOffsetBasis;
+    if (options.parent_precomp_node != kInvalidStableNodeId) {
+        h ^= options.parent_graph_instance.value;
+        h *= kFnvPrime;
+        h ^= options.parent_precomp_node.value;
+        h *= kFnvPrime;
+    }
+    for (StableNodeId sid : sids) {
+        h ^= sid.value;
+        h *= kFnvPrime;
+    }
+    compiled.graph_instance_id =
+        GraphInstanceId{h == 0u ? 1u : h};
+
+    if (options.validate_dag) {
+        validate(compiled);
+    }
+
+    compiled.valid = true;
+
+    return compiled;
+}
+
+
 void FrameGraphCompiler::build_execution_levels(
     RenderGraph& graph,
     GraphNodeId output,

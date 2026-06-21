@@ -28,6 +28,21 @@ struct FrameGraphCompileOptions {
     // graph; tests can leave them default.
     GraphInstanceId parent_graph_instance{kInvalidGraphInstanceId};
     StableNodeId    parent_precomp_node{kInvalidStableNodeId};
+
+    // ── TICKET-008 / §9.4 — `compile_with_reuse` skip predicate ───────────
+    // Returns true iff the call is even eligible for the structural-
+    // reuse fast path.  Today the only transform `compile()` runs that
+    // is NOT part of the skip-payload is the optimizer, so the
+    // predicate is gated on `run_optimizer == false`; if the optimizer
+    // was enabled for `prior_compiled`, this overload cannot prove
+    // whether the optimizer's effects were applied to the prior and
+    // therefore cannot safely reuse it.  Future PRs may extend the
+    // predicate to include the `run_optimizer=true` case by hashing
+    // the optimizer's identity into `prior_compiled`'s payload; that
+    // is OUT OF SCOPE for TICKET-008.
+    [[nodiscard]] bool reuse_if_unchanged_predicate_safe() const noexcept {
+        return !run_optimizer;
+    }
 };
 
 } // namespace chronon3d::graph
