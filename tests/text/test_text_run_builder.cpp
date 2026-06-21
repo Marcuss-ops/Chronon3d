@@ -12,6 +12,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/text/text_run_builder.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <doctest/doctest.h>
 
 using namespace chronon3d;
@@ -35,7 +36,7 @@ TextDocument make_doc(const std::string& utf8) {
 
 TEST_CASE("TextRunBuilder: empty document returns empty result") {
     TextDocument doc;
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     TextLayoutSpec layout;
 
     auto result = build_text_run(doc, engine, layout);
@@ -55,7 +56,7 @@ TEST_CASE("TextRunBuilder: empty document returns empty result") {
 // multi-paragraph count assertion fails.  TODO(chronon3d): fix and re-enable.
 TEST_CASE("TextRunBuilder: single paragraph produces single layout" * doctest::skip()) {
     auto doc = make_doc("Hello world");
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
     layout.tracking = 0.0f;
@@ -88,7 +89,7 @@ TEST_CASE("TextRunBuilder: single paragraph produces single layout" * doctest::s
 // TODO(chronon3d): fix text run builder and re-enable.
 TEST_CASE("TextRunBuilder: multiple paragraphs produce multiple layouts" * doctest::skip()) {
     auto doc = make_doc("Line one\nLine two\nLine three");
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 600.0f};
 
@@ -109,7 +110,7 @@ TEST_CASE("TextRunBuilder: multiple paragraphs produce multiple layouts" * docte
 // TODO(chronon3d): fix text run builder multi-paragraph handling and re-enable.
 TEST_CASE("TextRunBuilder: empty paragraph produced by consecutive newlines" * doctest::skip()) {
     auto doc = make_doc("A\n\nC");
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 400.0f};
 
@@ -146,7 +147,7 @@ TEST_CASE("TextRunBuilder: font-override spans produce concatenated runs") {
 
     doc.split_paragraphs();
 
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
 
@@ -177,7 +178,7 @@ TEST_CASE("TextRunBuilder: paragraph style flows through to cache key") {
     pr.style.composer = ParagraphComposer::EveryLine;
     doc.paragraphs.push_back(pr);
 
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
 
@@ -193,7 +194,7 @@ TEST_CASE("TextRunBuilder: paragraph style flows through to cache key") {
 
 TEST_CASE("TextRunBuilder: cache hit returns same layout pointer") {
     auto doc = make_doc("Cache test");
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
 
@@ -215,7 +216,7 @@ TEST_CASE("TextRunBuilder: cache hit returns same layout pointer") {
 
 TEST_CASE("TextRunBuilder: same input produces same output") {
     auto doc = make_doc("Deterministic");
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
 

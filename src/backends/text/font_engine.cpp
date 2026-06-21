@@ -182,17 +182,7 @@ FontEngine::FontEngine(const chronon3d::assets::AssetResolver& resolver)
     : m_impl(std::make_unique<Impl>(&resolver)) {}
 
 // =====================================================================
-// WP-8 PR 8.0 — TRANSITIONAL default ctor.  See the header doc-comment
-// above for the bridge semantics; this implementation mirrors the
-// rationale.  Scheduled for deletion in PR 8.1 alongside the
-// `runtime::typed_resolver_for_deep_code()` bridge.
-//
-// DO NOT USE IN NEW CODE.  Use `FontEngine{resolver}` with an explicit
-// `chronon3d::assets::AssetResolver&` (typically sourced from
-// `sw_renderer->runtime().resolver()`).
-// =====================================================================
-FontEngine::FontEngine()
-    : FontEngine(chronon3d::runtime::typed_resolver_for_deep_code()) {}
+
 FontEngine::~FontEngine() = default;
 FontEngine::FontEngine(FontEngine&&) noexcept = default;
 FontEngine& FontEngine::operator=(FontEngine&&) noexcept = default;
@@ -403,8 +393,7 @@ struct FontEngine::Impl {
 
 FontEngine::FontEngine(const chronon3d::assets::AssetResolver& resolver)
     : m_impl(std::make_unique<Impl>(&resolver)) {}
-FontEngine::FontEngine()
-    : FontEngine(chronon3d::runtime::typed_resolver_for_deep_code()) {}
+
 FontEngine::~FontEngine() = default;
 FontEngine::FontEngine(FontEngine&&) noexcept = default;
 FontEngine& FontEngine::operator=(FontEngine&&) noexcept = default;
@@ -443,7 +432,7 @@ bool FontEngine::can_load(const FontSpec&) { return false; }
 // bridge; the singleton `shared_font_engine()` accessor has been
 // removed (PR 8.0 + PR 8.1 mandate "no process-wide engine binding").
 std::optional<GlyphRun> shape_text(std::string_view text, const FontSpec& spec, float font_size, const TextShaping& shaping) {
-    static FontEngine engine;
+    static FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     return engine.shape_text(text, spec, font_size, shaping);
 }
 
