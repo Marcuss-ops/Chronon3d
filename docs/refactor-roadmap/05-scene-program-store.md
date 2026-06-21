@@ -23,13 +23,13 @@ Files:
 
 Actions:
 
-- [ ] Remove constructor initialization of the deleted `m_instance_key` member.
-- [ ] Implement `instance_key(const RenderGraphContext&) const noexcept` with the exact header signature.
-- [ ] Use a local owner key derived from `ctx.node_exec.current_identity`.
-- [ ] Replace `auto* program = lease.program` with `lease.get()` or an owning local `shared_ptr`.
+- [x] Remove constructor initialization of the deleted `m_instance_key` member.
+- [x] Implement `instance_key(const RenderGraphContext&) const noexcept` with the exact header signature.
+- [x] Use a local owner key derived from `ctx.node_exec.current_identity`.
+- [x] Replace `auto* program = lease.program` with `lease.get()` or an owning local `shared_ptr`.
 - [ ] Borrow `session->services.executor`; do not construct `GraphExecutor local_executor`.
 - [ ] Validate `ctx.services.scheduler` and executor wiring before nested execution.
-- [ ] Update comments that still claim composition-name keying is correct.
+- [x] Update comments that still claim composition-name keying is correct.
 - [ ] Add a required compile target/test for this translation unit.
 
 ### PR 5.1 — Add a real per-owner execution lease

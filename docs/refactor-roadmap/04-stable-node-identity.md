@@ -39,9 +39,9 @@ node_ctx.node_exec.current_identity = {
 
 ### PR 4.1 — Connect identity to `PrecompNode`
 
-- [ ] Implement `PrecompNode::instance_key(const RenderGraphContext&)` exactly as declared in the header.
-- [ ] Build the owner key from `ctx.node_exec.current_identity` through `make_precomp_key()`.
-- [ ] Remove composition-name hash plus node-zero key generation.
+- [x] Implement `PrecompNode::instance_key(const RenderGraphContext&)` exactly as declared in the header.  *(PR-fix landed)*
+- [x] Build the owner key from `ctx.node_exec.current_identity` through `make_precomp_key()`.  *(PR-fix landed)*
+- [x] Remove composition-name hash plus node-zero key generation.  *(PR-fix landed)*
 - [ ] Reject or clearly isolate direct test calls with invalid identity.
 - [ ] Do not silently place multiple invalid-identity nodes into one bucket.
 
