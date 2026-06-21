@@ -108,12 +108,13 @@ SceneGraphStats analyze_scene_graph(
     const auto t_exec0 = profiling::now();
     GraphExecutor executor;
     RenderSession session;
+    ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
     // TICKET-009 — local plan cache (per-debug-invocation lifetime).
     runtime::ExecutionPlanCache plan_cache;
     std::shared_ptr<Framebuffer> fb_shared;
     {
         CHRONON_ZONE_C("execute_graph", trace_category::kGraph);
-        fb_shared = executor.execute(graph, graph.output(), ctx, session, &plan_cache);
+        fb_shared = executor.execute(graph, graph.output(), ctx, session, scheduler, &plan_cache);
     }
     const auto t_exec1 = profiling::now();
         stats.execute_ms   = profiling::duration_ms(t_exec0, t_exec1);

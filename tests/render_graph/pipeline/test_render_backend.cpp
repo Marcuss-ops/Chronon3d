@@ -77,9 +77,10 @@ TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
     
     GraphExecutor executor;
     RenderSession session;
+    ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
     // TICKET-009 — local per-TEST_CASE plan cache.
     chronon3d::runtime::ExecutionPlanCache plan_cache;
-    auto out = executor.execute(graph, ctx, session, &plan_cache);
+    auto out = executor.execute(graph, ctx, session, scheduler, &plan_cache);
 
     REQUIRE(out != nullptr);
     CHECK(backend.draw_node_called == 1);
@@ -106,8 +107,9 @@ TEST_CASE("RenderBackend - EffectStackNode execution calls apply_effect_stack on
     
     GraphExecutor executor;
     RenderSession session;
-    chronon3d::runtime::ExecutionPlanCache plan_cache;
-    auto out = executor.execute(graph, ctx, session, &plan_cache);
+    ExecutionScheduler scheduler2{SchedulerMode::Sequential, 1, false};
+    chronon3d::runtime::ExecutionPlanCache plan_cache2;
+    auto out = executor.execute(graph, ctx, session, scheduler2, &plan_cache2);
 
     REQUIRE(out != nullptr);
     CHECK(backend.apply_effect_stack_called >= 1);
@@ -132,8 +134,9 @@ TEST_CASE("RenderBackend - CompositeNode execution calls composite_layer on back
     
     GraphExecutor executor;
     RenderSession session;
-    chronon3d::runtime::ExecutionPlanCache plan_cache;
-    auto out = executor.execute(graph, ctx, session, &plan_cache);
+    ExecutionScheduler scheduler3{SchedulerMode::Sequential, 1, false};
+    chronon3d::runtime::ExecutionPlanCache plan_cache3;
+    auto out = executor.execute(graph, ctx, session, scheduler3, &plan_cache3);
 
     REQUIRE(out != nullptr);
     // There are 2 layer composite nodes
