@@ -43,12 +43,18 @@
 //
 // TICKET-011 — SoftwareRenderer NO LONGER OWNS long-lived infrastructure.
 //
-// Previously, SoftwareRenderer held:
-//   - `m_cache_state`    (NodeCache + FramebufferPool + CompiledGraphCache)
-//   - `m_runtime_resources` (SoftwareRegistry + GraphExecutor +
-//                            ExecutionPlanCache + GraphNodeCatalog +
-//                            EffectCatalog)
-//   - `m_backend`        (SoftwareBackend instance)
+// Previously (pre-WP-8), SoftwareRenderer held (in sibling aggregates that
+// all collapsed onto the runtime):
+//   - `m_cache_state`        (NodeCache + FramebufferPool +
+//                             CompiledGraphCache; CompiledGraphCache is
+//                             INTENTIONALLY a sibling field here — the
+//                             runtime's `graph_cache()` accessor fronts it)
+//   - `m_runtime_resources`  (SoftwareRegistry + GraphExecutor +
+//                             GraphNodeCatalog + EffectCatalog;
+//                             pre-WP-8 also held a brief transitional
+//                             plan-cache field that PR-2 rewire / R6
+//                             retired — see docs/CHANGELOG.md R6)
+//   - `m_backend`            (SoftwareBackend instance)
 //
 // All of these now live on `chronon3d::runtime::RenderRuntime`.  The
 // renderer holds a `RenderRuntime*` pointer (set in the ctor init list)

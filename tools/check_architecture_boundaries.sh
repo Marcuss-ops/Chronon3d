@@ -7,17 +7,25 @@
 # Every check runs BEFORE the final decision; the script never prints
 # PASS after FAIL.
 #
-# WP-0 PR 0.1 — Added 7 P0 "must be absent" guards + 3 explicit
+# WP-0 PR 0.1 — Added 7 P0 "must be absent" guards + 2 residual
 # allowlists (with TODO tickets) for known historical references
 # that are not yet migrated:
-#   - tests/render_graph/executor/test_scheduler_determinism.cpp
-#     (legacy ExecutionPlanCache usage; needs WP-2 final-stage
-#     scheduler-determinism migration to retire)
 #   - src/runtime/render_session.cpp (comment-only `clear_per_frame`
 #     reference; needs documentation scrub in WP-3 PR 3.4 close-out)
 #   - src/render_graph/cache/precomp_node_execute.cpp (TODO-WP4
 #     stable-node-identity: ctor m_instance_key still derives from
 #     comp_name until WP-4 lands)
+#
+# WP-2 PR 2.5 — Test file
+# tests/render_graph/executor/test_scheduler_determinism.cpp was
+# migrated off `ExecutionPlanCache*` onto the CompiledFrameGraph path
+# (FrameGraphCompiler + the 4-arg GraphExecutor::execute).  The
+# TODO-WP2-scheduler-det allowlist is RETIRED.  Comment-only
+# historical references in headers + tests are filtered by
+# `strip_comments` on checks 1–11 (check 12 scans `git ls-files`,
+# not source content, so it does not need stripping).  Only CODE
+# reintroductions of `plan_cache` / `ExecutionPlanCache` fire
+# check [5/12].  See `strip_comments()` regex at top of script.
 #
 # Configurable roots (used by selftest to run each guard against a
 # synthetic mktemp tree):
@@ -45,6 +53,19 @@ FAILED=0
 # (`#include`, `#pragma once`, `#define`) are NOT comments and pass
 # through — this preserves the diagnostic file:line on checks 1–3
 # (which expect `#include` hits).
+#
+# IMPORTANT — pipefail-safe usage pattern.
+# With `set -o pipefail` (script top) + the trailing `|| true` below,
+# the pipeline `... | strip_comments` ALWAYS exits 0 once the upstream
+# grep finds anything (because `grep -v` returns 1 when the filtered
+# output is empty — i.e. NO lines survived the comment filter — and
+# `|| true` forces exit 0).  An `if pipeline; then` conditional
+# therefore fires the THEN branch even when the post-filter output is
+# empty — a real false positive.  EVERY check below that pipes through
+# `strip_comments` MUST therefore capture the filtered stream into a
+# variable and test with `[ -n "$hits" ]` (semantic: string length
+# after filter), NOT `if pipeline; then`.  This is critical for
+# checks 1–11 — see WP-2 PR 2.5 closure.
 strip_comments() {
     grep -vE '^[^:]+:[0-9]+:[[:space:]]*(//|/\*)' || true
 }
@@ -63,31 +84,39 @@ fail() { echo "FAIL: $1"; FAILED=1; }
 pass() { echo "PASS: $1"; }
 
 # ── 1. core/memory/render_session.hpp (TICKET-011 split) ───────────────
+# See strip_comments docstring (top of script) for the pipefail-safe
+# `[ -n "$hits" ]` pattern required for any check using strip_comments.
 echo -n "  [ 1/12] core/memory/render_session.hpp ...                "
-if grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
+hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include.*core/memory/render_session\.hpp' "${ROOT_DIRS[@]}" 2>/dev/null \
-    | strip_comments; then
+    | strip_comments || true)
+if [ -n "$hits" ]; then
     fail "core/memory/render_session.hpp is RETIRED (TICKET-011 split)"
+    echo "$hits" | sed 's/^/    /'
 else
     pass "no retired core/memory/render_session.hpp include"
 fi
 
 # ── 2. renderer_runtime_resources.hpp (TICKET-009 / 011) ───────────────
 echo -n "  [ 2/12] renderer_runtime_resources.hpp ...               "
-if grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
+hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include.*renderer_runtime_resources\.hpp' "${ROOT_DIRS[@]}" 2>/dev/null \
-    | strip_comments; then
+    | strip_comments || true)
+if [ -n "$hits" ]; then
     fail "renderer_runtime_resources.hpp is RETIRED (TICKET-009 / 011)"
+    echo "$hits" | sed 's/^/    /'
 else
     pass "no retired renderer_runtime_resources.hpp include"
 fi
 
 # ── 3. renderer_cache_state.hpp (TICKET-011) ───────────────────────────
 echo -n "  [ 3/12] renderer_cache_state.hpp ...                     "
-if grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
+hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include.*renderer_cache_state\.hpp' "${ROOT_DIRS[@]}" 2>/dev/null \
-    | strip_comments; then
+    | strip_comments || true)
+if [ -n "$hits" ]; then
     fail "renderer_cache_state.hpp is RETIRED (TICKET-011)"
+    echo "$hits" | sed 's/^/    /'
 else
     pass "no retired renderer_cache_state.hpp include"
 fi
@@ -112,26 +141,23 @@ else
     pass "no clear_per_frame() call site"
 fi
 
-# ── 5. ExecutionPlanCache / plan_cache (PR-0.0 + PR-0.1 fix) ───────────
-# TODO-WP2-scheduler-det: allowlist
-# tests/render_graph/executor/test_scheduler_determinism.cpp — that
-# file's WP-1 PR 1.4 registration still references the legacy
-# ExecutionPlanCache* type.  The next scheduler-determinism migration
-# must retire those references; remove the allowlist then.
+# ── 5. ExecutionPlanCache / plan_cache (PR-0.0 + PR-0.1 + WP-2 PR 2.5 fix) ─
+# WP-2 PR 2.5 closed: the test file
+# tests/render_graph/executor/test_scheduler_determinism.cpp was migrated
+# off ExecutionPlanCache* (retired per PR-2 rewire / CHANGELOG.md R6) onto
+# the CompiledFrameGraph path (FrameGraphCompiler + the 4-arg
+# GraphExecutor::execute()).  The TODO-WP2-scheduler-det allowlist is gone.
+# See strip_comments docstring (top of script) for the pipefail-safe
+# `[ -n "$hits" ]` pattern required here.
 echo -n "  [ 5/12] ExecutionPlanCache RETIRED ...                   "
-hits_raw=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
+hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E 'plan_cache|ExecutionPlanCache' "${ROOT_DIRS[@]}" 2>/dev/null \
     | strip_comments || true)
-real_hits=$(echo "$hits_raw" | allowlist_filter 'tests/render_graph/executor/test_scheduler_determinism\.cpp')
-allow_hits=$(echo "$hits_raw" | grep -E '^tests/render_graph/executor/test_scheduler_determinism\.cpp:' || true)
-if [ -n "$real_hits" ]; then
+if [ -n "$hits" ]; then
     fail "ExecutionPlanCache / plan_cache is RETIRED (PR-2 rewire)"
-    echo "$real_hits" | sed 's/^/    /'
-elif [ -n "$allow_hits" ]; then
-    echo "PASS (TODO-WP2-scheduler-det): ExecutionPlanCache ALLOWLISTED at:"
-    echo "      $allow_hits"
+    echo "$hits" | sed 's/^/    /'
 else
-    pass "no ExecutionPlanCache / plan_cache reference"
+    pass "no ExecutionPlanCache / plan_cache reference (code only)"
 fi
 
 # ── 6. make_execution_scheduler under graph executor implementation ───
