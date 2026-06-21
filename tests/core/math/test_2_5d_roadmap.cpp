@@ -311,8 +311,8 @@ TEST_CASE("TEST MATH 07 - Shadow Distance Falloff") {
     using graph::ShadowNode;
 
     graph::RenderGraphContext ctx;
-    ctx.frame.width = 640;
-    ctx.frame.height = 360;
+    ctx.frame_input.width = 640;
+    ctx.frame_input.height = 360;
 
     rendering::ShadowSettings settings;
     settings.px_per_unit = 1.0f;
@@ -421,7 +421,7 @@ TEST_CASE("TEST MATH 12 - Temporal Stability") {
     auto scene = make_depth_scene(0.0f);
     auto scene_shifted = make_depth_scene(0.1f);
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);

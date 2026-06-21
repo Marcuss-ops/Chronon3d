@@ -247,7 +247,7 @@ TEST_CASE("TileCache: Integration — render with tiles shows cache activity") {
         return s.build();
     });
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     {
         RenderSettings s;
         s.use_modular_graph = true;
@@ -332,7 +332,7 @@ TEST_CASE("TileCache: Integration — pixel-perfect output with tile cache") {
     });
 
     // Baseline: no tiles
-    SoftwareRenderer baseline;
+    SoftwareRenderer baseline(Config{});
     {
         RenderSettings s;
         s.use_modular_graph = true;
@@ -341,7 +341,7 @@ TEST_CASE("TileCache: Integration — pixel-perfect output with tile cache") {
     }
 
     // Optimized: tiles + cache
-    SoftwareRenderer opt;
+    SoftwareRenderer opt(Config{});
     {
         RenderSettings s;
         s.use_modular_graph = true;

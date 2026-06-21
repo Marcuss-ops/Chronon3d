@@ -11,7 +11,7 @@ using namespace chronon3d;
 static std::shared_ptr<Framebuffer> render_advanced_effect_fn(
     std::function<Scene(const FrameContext&)> fn, int w = 64, int h = 64)
 {
-    SoftwareRenderer rend;
+    SoftwareRenderer rend(Config{});
     Composition comp(CompositionSpec{.width=w,.height=h,.duration=1}, fn);
     return rend.render_frame(comp, 0);
 }

@@ -24,6 +24,7 @@ add_executable(chronon3d_visual_test_support_tests
 
 target_link_libraries(chronon3d_visual_test_support_tests
     PRIVATE
+        chronon3d_sdk
         chronon3d_visual_test_support
         chronon3d_backend_software
         chronon3d_backend_image
@@ -58,6 +59,7 @@ add_executable(chronon3d_camera_visual_tests
 
 target_link_libraries(chronon3d_camera_visual_tests
     PRIVATE
+        chronon3d_sdk
         chronon3d_visual_test_support
         chronon3d_backend_software
         chronon3d_scene
@@ -85,6 +87,7 @@ add_executable(chronon3d_cinematic_motion_visual_tests
 
 target_link_libraries(chronon3d_cinematic_motion_visual_tests
     PRIVATE
+        chronon3d_sdk
         chronon3d_visual_test_support
         chronon3d_backend_software
         chronon3d_scene
@@ -108,6 +111,7 @@ add_executable(chronon3d_render_graph_node_visual_tests
 
 target_link_libraries(chronon3d_render_graph_node_visual_tests
     PRIVATE
+        chronon3d_sdk
         chronon3d_visual_test_support
         chronon3d_backend_software
         chronon3d_scene
@@ -141,6 +145,7 @@ add_executable(chronon3d_pr3_composition_visual_tests
 
 target_link_libraries(chronon3d_pr3_composition_visual_tests
     PRIVATE
+        chronon3d_sdk
         chronon3d_visual_test_support
         chronon3d_backend_software
         chronon3d_scene

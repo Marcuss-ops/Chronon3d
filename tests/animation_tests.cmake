@@ -4,7 +4,7 @@ add_executable(chronon3d_animation_tests
     ${TEST_MAIN}
     animations/test_background_catalog.cpp
 )
-target_link_libraries(chronon3d_animation_tests PRIVATE chronon3d_pipeline doctest::doctest)
+target_link_libraries(chronon3d_animation_tests PRIVATE chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline doctest::doctest)
 target_include_directories(chronon3d_animation_tests PRIVATE ${CMAKE_SOURCE_DIR})
 # WHOLE_ARCHIVE removed: content targets are now small and explicitly registered
 if(CHRONON3D_BUILD_CONTENT)

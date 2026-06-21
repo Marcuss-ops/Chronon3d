@@ -119,7 +119,7 @@ TextSpec make_text(const std::string& utf8,
 
 std::shared_ptr<Framebuffer> render_with(const Composition& comp, int frame,
                                          RenderSettings settings) {
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     settings.use_modular_graph = true;
     if (!settings.motion_blur.mode.has_value()) {
         // Explicit default — caller controls via `settings.motion_blur` already.

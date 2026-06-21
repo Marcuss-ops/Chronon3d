@@ -71,7 +71,7 @@ void verify_node_golden(const Framebuffer& fb, const std::string& name) {
 
 namespace node_goldens_impl {
 SoftwareRenderer make_node_golden_renderer(bool /*modular*/ = false) {
-    SoftwareRenderer r;
+    SoftwareRenderer r(Config{});
     RenderSettings s;
     s.use_modular_graph = true;
     // RenderSettings no longer carries modular_coordinates directly.

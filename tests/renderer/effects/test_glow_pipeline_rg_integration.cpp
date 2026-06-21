@@ -30,7 +30,7 @@ using namespace chronon3d;
 namespace {
 namespace glow_rg_impl {
 SoftwareRenderer make_glow_rg_renderer() {
-    SoftwareRenderer r;
+    SoftwareRenderer r(Config{});
     RenderSettings s;
     s.use_modular_graph = true;
     r.set_settings(s);

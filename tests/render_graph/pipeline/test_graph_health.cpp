@@ -68,7 +68,7 @@ TEST_CASE("GraphHealth: fullscreen background covers all corners and center") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -113,7 +113,7 @@ TEST_CASE("GraphHealth: layer order is preserved") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -142,7 +142,7 @@ TEST_CASE("GraphHealth: custom layer translation is applied exactly once") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -173,7 +173,7 @@ TEST_CASE("GraphHealth: custom layer scale is applied correctly") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -210,7 +210,7 @@ TEST_CASE("GraphHealth: mask remains aligned with transformed layer") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -242,7 +242,7 @@ TEST_CASE("GraphHealth: glow expands visible pixels outside source bbox") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -278,7 +278,7 @@ TEST_CASE("GraphHealth: glow falloff is radial and fades with distance") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -320,7 +320,7 @@ TEST_CASE("GraphHealth: screen blend brightens underlying layer") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -368,13 +368,13 @@ TEST_CASE("GraphHealth: dirty rects on and off render identically") {
         return s.build();
     });
 
-    SoftwareRenderer baseline;
+    SoftwareRenderer baseline(Config{});
     RenderSettings baseline_settings;
     baseline_settings.use_modular_graph = true;
     baseline_settings.dirty.enabled = false;
     baseline.set_settings(baseline_settings);
 
-    SoftwareRenderer dirty;
+    SoftwareRenderer dirty(Config{});
     RenderSettings dirty_settings;
     dirty_settings.use_modular_graph = true;
     dirty_settings.dirty.enabled = true;
@@ -427,14 +427,14 @@ TEST_CASE("GraphHealth: same frame renders deterministically") {
     Scene scene_a = make_scene();
     Scene scene_b = make_scene();
 
-    SoftwareRenderer renderer_a;
+    SoftwareRenderer renderer_a(Config{});
     cache::NodeCache node_cache_a;
     Camera camera;
 
     auto fb_a = render_graph_scene(renderer_a, node_cache_a, scene_a, camera, W, H);
     REQUIRE(fb_a != nullptr);
 
-    SoftwareRenderer renderer_b;
+    SoftwareRenderer renderer_b(Config{});
     cache::NodeCache node_cache_b;
     auto fb_b = render_graph_scene(renderer_b, node_cache_b, scene_b, camera, W, H);
     REQUIRE(fb_b != nullptr);
@@ -471,11 +471,11 @@ TEST_CASE("GraphHealth: graph output matches direct renderer for layered scene")
 
     Scene scene = s.build();
 
-    SoftwareRenderer direct_renderer;
+    SoftwareRenderer direct_renderer(Config{});
     Camera camera;
     auto fb_direct = direct_renderer.render_scene(scene, camera, W, H);
 
-    SoftwareRenderer graph_renderer;
+    SoftwareRenderer graph_renderer(Config{});
     cache::NodeCache node_cache;
     auto fb_graph = render_graph_scene(graph_renderer, node_cache, scene, camera, W, H);
 

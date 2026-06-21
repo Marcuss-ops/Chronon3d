@@ -38,7 +38,7 @@ public:
         const RenderGraphContext& ctx,
         std::span<const std::optional<raster::BBox>>
     ) const override {
-        return raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
     }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext&) const override {
@@ -61,8 +61,8 @@ private:
 
 static RenderGraphContext make_test_context(int w, int h) {
     RenderGraphContext ctx;
-    ctx.frame.width  = w;
-    ctx.frame.height = h;
+    ctx.frame_input.width  = w;
+    ctx.frame_input.height = h;
     return ctx;
 }
 
@@ -188,7 +188,7 @@ TEST_CASE("Static bake - frame-independent nodes are counted") {
 
     auto ctx = make_test_context(100, 100);
     cache::NodeCache node_cache;
-    ctx.resources.node_cache = &node_cache;
+    ctx.services.node_cache = &node_cache;
 
     size_t eligible = count_bake_eligible_nodes(graph, ctx);
     CHECK(eligible == 1); // Only TransformNode is eligible (root uses no_cache)
@@ -203,7 +203,7 @@ TEST_CASE("Static bake - frame-dependent nodes are excluded") {
 
     auto ctx = make_test_context(100, 100);
     cache::NodeCache node_cache;
-    ctx.resources.node_cache = &node_cache;
+    ctx.services.node_cache = &node_cache;
 
     // Both nodes frame-dependent → nothing eligible
 
@@ -269,7 +269,7 @@ TEST_CASE("Explain plan - optimize_graph reports node counts") {
 
     auto ctx = make_test_context(100, 100);
     cache::NodeCache node_cache;
-    ctx.resources.node_cache = &node_cache;
+    ctx.services.node_cache = &node_cache;
 
     OptimizationConfig config;
     config.enable_node_fusion     = true;
@@ -294,7 +294,7 @@ TEST_CASE("Explain plan - optimize_graph respects config toggles") {
 
     auto ctx = make_test_context(100, 100);
     cache::NodeCache node_cache;
-    ctx.resources.node_cache = &node_cache;
+    ctx.services.node_cache = &node_cache;
 
     // All disabled
     OptimizationConfig off;
@@ -497,7 +497,7 @@ TEST_CASE("Config - effect_fusion and dead_node_elimination flags honored") {
 
     auto ctx = make_test_context(100, 100);
     cache::NodeCache node_cache;
-    ctx.resources.node_cache = &node_cache;
+    ctx.services.node_cache = &node_cache;
 
     OptimizationConfig off;
     off.enable_node_fusion          = false;

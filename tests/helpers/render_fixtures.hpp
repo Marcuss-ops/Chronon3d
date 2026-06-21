@@ -10,7 +10,7 @@
 namespace chronon3d::test {
 
 inline std::shared_ptr<Framebuffer> render_modular(const Composition& comp, Frame frame = 0) {
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     RenderSettings settings;
     settings.use_modular_graph = true;
     settings.diagnostics.enabled = true;

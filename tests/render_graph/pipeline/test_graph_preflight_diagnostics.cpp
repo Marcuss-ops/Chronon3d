@@ -74,7 +74,7 @@ TEST_CASE("GraphPreflight: exports DOT topology with node kinds and edges") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -118,7 +118,7 @@ TEST_CASE("GraphPreflight: fullscreen background reports fully visible") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -178,7 +178,7 @@ TEST_CASE("GraphPreflight: offscreen layer is culled and not visible in graph") 
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -228,7 +228,7 @@ TEST_CASE("GraphPreflight: partially clipped layer reports visible ratio") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -265,7 +265,7 @@ TEST_CASE("GraphPreflight: glow expands predicted bbox beyond source bbox") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -306,7 +306,7 @@ TEST_CASE("GraphPreflight: effect layer topology is Source to Effect to Composit
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -353,7 +353,7 @@ TEST_CASE("GraphPreflight: every node exposes cache and dirty state") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -406,7 +406,7 @@ TEST_CASE("GraphPreflight: timeline map — only active layers appear at given f
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -458,7 +458,7 @@ TEST_CASE("GraphPreflight: text dump contains actionable diagnostics") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -509,7 +509,7 @@ TEST_CASE("GraphPreflight: validates advanced diagnostics (memory, complexity, c
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     cache::NodeCache node_cache;
     Camera camera;
 

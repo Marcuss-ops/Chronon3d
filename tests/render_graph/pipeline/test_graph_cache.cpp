@@ -38,7 +38,7 @@ TEST_CASE("GraphCache - cache hit on structurally identical frames") {
     builder.rect("r", {.size={50.0f, 50.0f}, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});
     Scene scene = builder.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     // Disable dirty rects so fast_path_reuse does not trigger.
     RenderSettings settings = renderer.render_settings();
     settings.dirty.enabled = false;
@@ -68,7 +68,7 @@ TEST_CASE("GraphCache - cache miss when dimensions change") {
     builder.rect("r", {.size={50.0f, 50.0f}, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});
     Scene scene = builder.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     RenderSettings settings = renderer.render_settings();
     settings.dirty.enabled = false;
     renderer.set_settings(settings);
@@ -101,7 +101,7 @@ TEST_CASE("GraphCache - cache miss when layer added") {
     builder_b.rect("b", {.size={30.0f, 30.0f}, .color=Color::blue(), .pos={10.0f, 10.0f, 0.0f}});
     Scene scene_b = builder_b.build();
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     RenderSettings settings = renderer.render_settings();
     settings.dirty.enabled = false;
     renderer.set_settings(settings);
@@ -130,7 +130,7 @@ TEST_CASE("GraphCache - pixel output matches non-cached path") {
     Scene scene = builder.build();
 
     // --- Cached path: frame 0 builds, frame 2 reuses cached graph ---
-    SoftwareRenderer renderer_cached;
+    SoftwareRenderer renderer_cached(Config{});
     RenderSettings settings_c = renderer_cached.render_settings();
     settings_c.dirty.enabled = false;
     renderer_cached.set_settings(settings_c);
@@ -143,7 +143,7 @@ TEST_CASE("GraphCache - pixel output matches non-cached path") {
     CHECK(renderer_cached.counters()->graph_cache_hits.load() >= 1);
 
     // --- Non-cached path: clear graph cache before every frame ---
-    SoftwareRenderer renderer_fresh;
+    SoftwareRenderer renderer_fresh(Config{});
     RenderSettings settings_f = renderer_fresh.render_settings();
     settings_f.dirty.enabled = false;
     renderer_fresh.set_settings(settings_f);

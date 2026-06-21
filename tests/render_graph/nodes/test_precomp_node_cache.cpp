@@ -68,17 +68,17 @@ struct TestContext {
     TestContext(int w = 200, int h = 200)
         : pool(std::make_shared<FramebufferPool>(128))
     {
-        ctx.resources.backend         = &backend;
-        ctx.resources.node_cache      = &node_cache;
-        ctx.resources.framebuffer_pool = pool;
-        ctx.resources.registry        = &registry;
+        ctx.services.backend         = &backend;
+        ctx.services.node_cache      = &node_cache;
+        ctx.services.framebuffer_pool = pool;
+        ctx.services.registry        = &registry;
         // NOTE: RenderFrameInfo has 8 fields (frame, sample_time,
         // temporal_key, time_seconds, fps, width, height, assets_root).
         // The previous positional aggregate init {Frame{0}, 0.0f, 30, w, h}
         // silently bound `w`/`h` to time_seconds/fps and value-initialised
         // width and height to 0, causing every early-return in
         // PrecompNode::execute() — which falls back to
-        // `ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height)` —
+        // `ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height)` —
         // to construct a Framebuffer(0, 0) and throw
         // "Framebuffer dimensions must be positive".
         // Designated initialisers pin width/height explicitly.
@@ -100,7 +100,7 @@ struct TestContext {
         });
     }
 
-    void set_frame(Frame f) { ctx.frame.frame = f; }
+    void set_frame(Frame f) { ctx.frame_input.frame = f; }
 };
 
 } // namespace
@@ -407,7 +407,7 @@ TEST_CASE("precomp_cache: end-to-end via SoftwareRenderer does not crash") {
         );
     });
 
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     renderer.set_composition_registry(&registry);
 
     Composition parent_comp(

@@ -85,11 +85,11 @@ TEST_CASE("reset clears dimensions and payload") {
 
 TEST_CASE("null cache → build fresh") {
     RenderGraphContext ctx;
-    // ctx.resources.compiled_graph_cache defaults to nullptr.
+    // ctx.services.compiled_graph_cache defaults to nullptr.
 
     // When cache is null, has() should not be called.
     // We verify that can_reuse is false when cache is null by construction:
-    CHECK(ctx.resources.compiled_graph_cache == nullptr);
+    CHECK(ctx.services.compiled_graph_cache == nullptr);
 }
 
 TEST_CASE("cache present but dimension mismatch → build fresh") {
@@ -100,7 +100,7 @@ TEST_CASE("cache present but dimension mismatch → build fresh") {
     CompiledFrameGraph compiled(std::move(graph));
     cache.store(std::move(compiled), 1920, 1080);
 
-    ctx.resources.compiled_graph_cache = &cache;
+    ctx.services.compiled_graph_cache = &cache;
 
     // Cache has 1920x1080 but we query 1280x720.
     CHECK_FALSE(cache.has(1280, 720));
@@ -115,7 +115,7 @@ TEST_CASE("cache compatible → reuse available") {
     CompiledFrameGraph compiled(std::move(graph));
     cache.store(std::move(compiled), 3840, 2160);
 
-    ctx.resources.compiled_graph_cache = &cache;
+    ctx.services.compiled_graph_cache = &cache;
 
     CHECK(cache.has(3840, 2160));
 }
@@ -128,7 +128,7 @@ TEST_CASE("try_take consumes the value (coordinator path)") {
     CompiledFrameGraph compiled(std::move(graph));
     cache.store(std::move(compiled), 1920, 1080);
 
-    ctx.resources.compiled_graph_cache = &cache;
+    ctx.services.compiled_graph_cache = &cache;
 
     REQUIRE(cache.has(1920, 1080));
 

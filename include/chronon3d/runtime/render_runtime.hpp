@@ -89,7 +89,6 @@ namespace chronon3d {
 namespace chronon3d::cache {
     class NodeCache;
     class FramebufferPool;
-    class CompiledGraphCache;
 }
 
 namespace chronon3d::runtime {

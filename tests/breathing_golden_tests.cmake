@@ -9,6 +9,7 @@ add_executable(chronon3d_breathing_golden_tests
 
 target_link_libraries(chronon3d_breathing_golden_tests
     PRIVATE
+        chronon3d_sdk
         chronon3d_backend_software
         chronon3d_scene
         doctest::doctest
@@ -27,6 +28,7 @@ add_executable(chronon3d_determinism_test
 
 target_link_libraries(chronon3d_determinism_test
     PRIVATE
+        chronon3d_sdk
         chronon3d_backend_software
         chronon3d_scene
 )
@@ -44,6 +46,7 @@ add_executable(chronon3d_tbb_workers_test
 
 target_link_libraries(chronon3d_tbb_workers_test
     PRIVATE
+        chronon3d_sdk
         chronon3d_backend_software
         chronon3d_scene
 )

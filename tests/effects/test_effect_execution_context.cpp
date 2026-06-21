@@ -207,7 +207,7 @@ TEST_CASE("EffectExecutionContext: SoftwareRenderer::apply_effect_stack plumbing
     };
 
     // Use the SoftwareRenderer path — passes context through to renderer::apply_effect_stack
-    SoftwareRenderer renderer;
+    SoftwareRenderer renderer(Config{});
     renderer.apply_effect_stack(fb, stack, context);
 
     // Brightness adjustment should have modified the framebuffer

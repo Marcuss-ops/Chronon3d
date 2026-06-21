@@ -271,7 +271,7 @@ void BM_TileRenderNoTiles(benchmark::State& state) {
     Composition comp = make_tile_bench_scene(W, H, kFrames);
 
     for (auto _ : state) {
-        SoftwareRenderer renderer;
+        SoftwareRenderer renderer(Config{});
         RenderSettings s;
         s.use_modular_graph = true;
         s.dirty.enabled = false;
@@ -295,7 +295,7 @@ void BM_TileRenderSequential(benchmark::State& state) {
     Composition comp = make_tile_bench_scene(W, H, kFrames);
 
     for (auto _ : state) {
-        SoftwareRenderer renderer;
+        SoftwareRenderer renderer(Config{});
         RenderSettings s;
         s.use_modular_graph = true;
         s.dirty.enabled = true;
@@ -322,7 +322,7 @@ void BM_TileRenderParallel(benchmark::State& state) {
     Composition comp = make_tile_bench_scene(W, H, kFrames);
 
     for (auto _ : state) {
-        SoftwareRenderer renderer;
+        SoftwareRenderer renderer(Config{});
         RenderSettings s;
         s.use_modular_graph = true;
         s.dirty.enabled = true;
@@ -369,7 +369,7 @@ static void BM_TileDirtyRatioSweep(benchmark::State& state, bool use_tiles) {
     double per_frame_ms = 0.0;
 
     for (auto _ : state) {
-        SoftwareRenderer renderer;
+        SoftwareRenderer renderer(Config{});
         RenderSettings s;
         s.use_modular_graph = true;
         s.dirty.enabled = true;
