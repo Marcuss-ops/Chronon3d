@@ -229,6 +229,24 @@ empty; the test now outputs
 `OK: include-graph boundary invariants satisfied (errors=0).`
 without emitting any `INFO:` lines.
 
+**Shared-state note (read first)** — `scene_hasher` + `program_store`
+now live on `RenderRuntime` (engine-lifetime), not on `RenderSession`
+(per-render-job).  Therefore `RenderSession::reset_job()` mutates
+runtime-owned SHARED state via the SessionServices back-pointers.
+In a single-engine-instance deployment (the canonical production
+shape — one runtime, one renderer, one session) this matches the
+previous per-session isolation semantics, because there is only one
+instance of each field.  In any deployment that constructs multiple
+`SoftwareRenderers` from a shared `RenderRuntime`, or multiple
+`SoftwareRenderSession`s from one Runtime, scene_hasher +
+program_store state will be SHARED across those instances —
+`reset_job()` will reach across them.  If your code relied on
+per-session isolation for these caches (e.g. concurrent render
+jobs with separate fingerprints), this WP-8 close-out is a
+behavior change for that pattern.  Workaround if per-job
+isolation is required: construct a separate `RenderRuntime` per
+job.
+
 ### R4 — WP-3 PR 3.4 close-out: legacy full-reset shim RETIRED + legacy `SoftwareRenderSession` removed
 
 2026-06-21 — The WP-3 PR 3.4 close-out completed the reset-semantics

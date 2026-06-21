@@ -120,3 +120,13 @@ The boundary test
 has an empty `KNOWN_VIOLATIONS` dict; the test outputs
 `OK: include-graph boundary invariants satisfied (errors=0).` with
 zero `INFO:` lines.
+
+**Shared-state consequence** — TICKET-013 + TICKET-017 each
+relocate state that was previously per-RenderSession to
+RenderRuntime.  In single-engine-instance deployments (one
+runtime + one renderer + one session) this is semantically
+indistinguishable from the previous per-session isolation.
+Deployments that share a single RenderRuntime across multiple
+SoftwareRenderers / SoftwareRenderSessions will see
+scene_hasher + program_store SHARED across those instances (see
+the CHANGELOG R5 "Shared-state note" for the workaround).
