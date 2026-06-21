@@ -4,11 +4,13 @@
 // scene_program_store.hpp — Centralized per-session store for compiled
 // scene programs, replacing per-PrecompNode SceneProgramCache instances.
 //
-// PR-5 — Each RenderSession owns exactly one SceneProgramStore.  PrecompNode
-// instances no longer hold their own SceneProgramCache / GraphExecutor /
-// ExecutionPlanCache / RenderSession / auto-tune counter.  Instead they
-// call `ctx.services.session->program_store().acquire(...)` for cache
-// lookup and borrow the session's executor/plan_cache for inner execution.
+// PR-5 / PR-2-rewire — Each RenderSession owns exactly one SceneProgramStore.
+// PrecompNode instances no longer hold their own SceneProgramCache /
+// GraphExecutor / RenderSession / auto-tune counter.  Instead they call
+// `ctx.services.session->program_store().acquire(...)` for cache lookup
+// and borrow the session's executor for inner execution.  The legacy
+// ExecutionPlanCache helper has been RETIRED — topology plans live
+// exclusively on CompiledFrameGraph::levels.
 //
 // Thread-safety: the store's internal map is protected by a mutex;
 // per-instance SceneProgramCache instances are already shard-thread-safe.

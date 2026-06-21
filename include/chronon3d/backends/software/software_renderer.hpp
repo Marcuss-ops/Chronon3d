@@ -1,6 +1,5 @@
 #pragma once
 
-#include <chronon3d/runtime/execution_plan_cache.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/render_session.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
@@ -275,13 +274,6 @@ public:
         return m_runtime->scheduler();
     }
 
-    // TICKET-011 — accessor for the shared topological-plan cache.
-    // Const overload deliberately omitted: ExecutionPlanCache exposes
-    // non-const mutators (try_acquire locks a mutex; store/invalidate
-    // mutate state), so a const ExecutionPlanCache* would be unusable.
-    [[nodiscard]] runtime::ExecutionPlanCache* plan_cache() {
-        return &m_runtime->plan_cache();
-    }
 
     [[nodiscard]] graph::CompiledGraphCache& graph_cache() { return m_runtime->graph_cache(); }
     [[nodiscard]] const graph::CompiledGraphCache& graph_cache() const { return m_runtime->graph_cache(); }

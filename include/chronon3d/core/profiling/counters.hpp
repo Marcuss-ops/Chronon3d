@@ -147,7 +147,6 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
 #define CHRONON_COUNTERS_GRAPH(X) \
     X(graph_cache_hits) \
     X(graph_cache_misses) \
-    X(execution_plan_cache_hits) \
     X(graph_resolve_layers_ms) \
     X(graph_dirty_rect_ms) \
     X(graph_build_ms) \

@@ -11,7 +11,6 @@
 // PR-5 removals (now on RenderSession / SceneProgramStore):
 //   - SceneProgramCache   → ctx.services.session->program_store->acquire(...)
 //   - GraphExecutor        → ctx.services.session->services.executor
-//   - ExecutionPlanCache   → ctx.services.session->services.plan_cache
 //   - RenderSession        → ctx.services.session (borrowed for inner exec)
 //   - Auto-tune counter    → SceneProgramStore handles per-instance auto-tune
 // ──────────────────────────────────────────────────────────────────────────────
@@ -64,7 +63,7 @@ public:
     /// Execute the nested composition.  Uses ctx.services.session for:
     ///   - program_store->acquire() for cache lookup
     ///   - arena() for inner graph PMR allocations
-    ///   - services.executor / services.plan_cache for inner execution
+    ///   - services.executor for inner execution
     OwnedFB execute(RenderGraphContext& ctx,
                     std::span<const FramebufferRef>,
                     std::span<const std::optional<raster::BBox>>) override;

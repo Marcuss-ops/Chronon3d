@@ -30,14 +30,9 @@ namespace chronon3d::graph {
 namespace chronon3d { class AssetRegistry; }
 
 namespace chronon3d::runtime {
-class ExecutionPlanCache;
-}
-
-namespace chronon3d::runtime {
 
 struct SessionServices {
     chronon3d::graph::GraphExecutor*         executor{nullptr};
-    chronon3d::runtime::ExecutionPlanCache*  plan_cache{nullptr};
     chronon3d::cache::NodeCache*             node_cache{nullptr};
     chronon3d::cache::FramebufferPool*       framebuffer_pool{nullptr};
     chronon3d::graph::CompiledGraphCache*    graph_cache{nullptr};
