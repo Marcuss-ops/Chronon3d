@@ -7,6 +7,8 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/runtime/render_session.hpp>
+#include <chronon3d/core/scope/execution_scope.hpp>     // PR 6.4 — typed scope plumbing
+#include <chronon3d/core/memory/arena.hpp>              // PR 6.4 — explicit child FrameArena
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::graph {
@@ -95,16 +97,33 @@ TileExecutionResult execute_tile_or_fallback(
                 // is now cache-less (topology plans live on
                 // CompiledFrameGraph::levels).
                 // PR-1 — route through the authoritative scheduler.
-                result.fb = sw_renderer->executor()->execute(
-                    compiled, ctx, sw_renderer->session(),
+                // PR 6.4 — wrap the renderer-owned `sw_renderer->session()`
+                // in a typed ExecutionScope (Root) so the executor reads
+                // `scope.session()` / `scope.arena()` symmetrically with
+                // the tile-fallback path below.  PR 6.5 will migrate
+                // production callers (precomp_node_execute.cpp,
+                // single-pass execution) to this overload exclusively.
+                RenderSession& root_session = sw_renderer->session();
+                ExecutionScope root_scope(ExecutionScopeKind::Root, root_session,
+                                          compiled.graph_instance_id);
+                result.fb = sw_renderer->executor()->execute_with_scope(
+                    compiled, ctx, root_scope,
                     sw_renderer->scheduler());
             } else {
+                // TICKET-009 — ad-hoc fallback path; no shared plan cache.
+                // PR 6.4 — wrap the local `RenderSession local_session`
+                // in a typed ExecutionScope (Root) so the fallback
+                // path becomes consistent with the renderer-owned path
+                // above.  Child arenas are NOT allocated here (this is
+                // single-pass, not tile-orchestrated); the Root scope's
+                // arena is `session.arena()`.
                 RenderSession local_session;
+                ExecutionScope root_scope(ExecutionScopeKind::Root, local_session,
+                                          compiled.graph_instance_id);
                 GraphExecutor local_executor;
                 ExecutionScheduler local_scheduler{SchedulerMode::Sequential, 1, false};
-                // TICKET-009 — ad-hoc fallback path; no shared plan cache.
-                result.fb = local_executor.execute(
-                    compiled, ctx, local_session, local_scheduler);
+                result.fb = local_executor.execute_with_scope(
+                    compiled, ctx, root_scope, local_scheduler);
             }
         }
         // Track tile fallbacks when tile system requested but couldn't execute

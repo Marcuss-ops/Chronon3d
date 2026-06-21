@@ -33,6 +33,7 @@
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/runtime/render_session.hpp>
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
+#include <chronon3d/core/scope/execution_scope.hpp>  // PR 6.1 — reference parameter for execute_with_scope(...)
 
 #include <cstdint>
 #include <memory>
@@ -45,18 +46,48 @@ public:
     /// executor; lifecycle is the caller's responsibility.
     GraphExecutor() = default;
 
-    /// Production entrypoint.  Execute a compiled frame graph:
+    /// Legacy entrypoint (PR 6.0 / pre-PR-6.1 contract).  Execute a
+    /// compiled frame graph using `session.arena()` as the allocation
+    /// surface.  Kept ADDITIVE alongside `execute_with_scope(...)` so
+    /// existing test lattice + tile fallback paths continue to compile
+    /// unmodified — WP-7 will retire this overload once all production
+    /// call sites are migrated to `execute_with_scope(...)`.
+    ///
     /// - `compiled.levels` is the source of truth for the topology plan.
     /// - `compiled.output` is the node whose framebuffer is returned.
-    ///
-    /// Called by tile / single-pass execution paths (production),
-    /// the precomp inner executor, the bake CLI (`bake-layer`), and
-    /// the test suite (all routed through `FrameGraphCompiler::compile`
-    /// before they reach this method).
     [[nodiscard]] std::shared_ptr<Framebuffer> execute(
         CompiledFrameGraph& compiled,
         RenderGraphContext& ctx,
         RenderSession& session,
+        ExecutionScheduler& scheduler
+    ) const;
+
+    /// PR 6.1 — new production entrypoint, takes an `ExecutionScope&`
+    /// instead of `RenderSession&`.  The scope owns the identity + arena
+    /// + parent chain; the executor reads `scope.session()` and
+    /// `scope.arena()` directly.  PrecompNode inner execution + tile
+    /// orchestration + the bake CLI will route through this method once
+    /// those call sites are migrated (PR 6.2 / 6.3 / 6.4).
+    ///
+    /// For non-root scopes (Tile / Precomp), `scope.arena()` is typically
+    /// a CHILD arena distinct from the parent's — the
+    /// `ArenaGuard reset()` only releases the child arena, leaving
+    /// per-job state on the parent session untouched.  This is the PR 6.4
+    /// isolation contract in code form.
+    ///
+    /// For root scopes, `scope.arena()` is the per-job primary arena
+    /// (≡ `session.arena()`) and the behaviour is bit-equal to the
+    /// legacy `execute(RenderSession&, ...)` overload.
+    ///
+    /// If `scope.would_overflow()` returns true, the executor logs the
+    /// overflow deterministically via spdlog and returns `nullptr` —
+    /// downstream callers (`tile_execution_coordinator.cpp`,
+    /// `precomp_node_execute.cpp`) interpret null as the documented
+    /// "engine error / fall back to empty fb" per docs/03-§4.4.
+    [[nodiscard]] std::shared_ptr<Framebuffer> execute_with_scope(
+        CompiledFrameGraph& compiled,
+        RenderGraphContext& ctx,
+        ExecutionScope& scope,
         ExecutionScheduler& scheduler
     ) const;
 };
