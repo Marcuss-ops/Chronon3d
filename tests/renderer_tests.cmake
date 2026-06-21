@@ -102,6 +102,24 @@ target_link_libraries(chronon3d_renderer_tests
         chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline
         chronon3d_scene
         doctest::doctest
+        # TICKET-006: two of the test sources below call chronon3d_text_core
+        # symbols whose definitions live in chronon3d_backend_text:
+        #   - backends/software/text_run_processor_tests.cpp
+        #     (uses shape_resolved_run, text_run_materialize)
+        #   - render_graph/nodes/test_multi_source_text_run.cpp
+        #     (multi-source text fan-out, transitively touches the same path)
+        # Without this link the linker errors with:
+        #   'undefined symbol: chronon3d::shape_resolved_run(...)'
+        #   'undefined symbol: chronon3d::text_run_materialize(...)'
+        #
+        # Gen-exp form (per task brief) — implicit coupling: this guard
+        # relies on `chronon3d_backend_text` only being defined when both
+        # CHRONON3D_ENABLE_TEXT=ON and CHRONON3D_USE_BLEND2D=ON (see
+        # src/backends/text/CMakeLists.txt). If those target-defining
+        # conditions ever diverge, the if-endif form in tests/core_tests.cmake
+        # / tests/scene_tests.cmake remains the more defensive pattern; a
+        # follow-up cleanup should pick one style cluster-wide.
+        $<$<TARGET_EXISTS:chronon3d_backend_text>:chronon3d_backend_text>
 )
 if(CHRONON3D_BUILD_CONTENT)
     target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_content)
