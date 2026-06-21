@@ -18,9 +18,9 @@ Make `runtime/render_session.hpp` backend-agnostic and free from render-graph im
 > | `frame_history`                | runtime      | `runtime/frame_history.hpp` (alias `RendererFrameHistory` in `math/renderer_state.hpp`) |
 > | `dirty_telemetry`              | runtime      | `runtime/dirty_history.hpp` (alias `RendererDirtyTelemetry`) |
 > | `layer_history`                | runtime      | `math/renderer_state.hpp` (`RendererLayerHistory`) |
-> | `scene_hasher`                 | graph-pipeline | `render_graph/core/scene_hasher.hpp` (exposed via `runtime/scene_hasher_session.hpp`) |
+> | `scene_hasher`                 | runtime        | moved to `RenderRuntime::m_owned_scene_hasher` (WP-8); session reach via `SessionServices::scene_hasher` (post-`make_session()`); see R5 in CHANGELOG. |
 > | `services`                     | runtime      | `runtime/session_services.hpp` |
-> | `program_store`                | graph-pipeline | `render_graph/cache/scene_program_store.hpp` |
+> | `program_store`                | runtime        | moved to `RenderRuntime::m_owned_program_store` (WP-8); session reach via `SessionServices::program_store` (post-`make_session()`); see R5 in CHANGELOG. |
 >
 > The `SoftwareSessionResources` software-side fields (buffer_ring,
 > scratch_buffer, plus software's scene_hasher copy) live in

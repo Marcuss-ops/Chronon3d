@@ -4,6 +4,23 @@
 // WP-8 close-out — bodies of the `RenderSession` accessor + reset_job methods
 // that were previously defined inline in `<chronon3d/runtime/render_session.hpp>`.
 //
+// SHARED-STATE NOTE (WP-8 follow-up):
+// scene_hasher + program_store are no longer per-RenderSession; they are
+// engine-lifetime fields on `RenderRuntime::m_owned_scene_hasher` /
+// `m_owned_program_store`.  Therefore `reset_job()` below mutates
+// RUNTIME-level shared state via the SessionServices back-pointers
+// (populated by `runtime::make_session()`), not per-session copies.
+// In a single-runtime / single-renderer / single-session engine
+// (the canonical production deployment), this matches the previous
+// per-session semantics because there is only ever one instance of
+// each field.  In any deployment that constructs multiple
+// SoftwareRenderers from a shared RenderRuntime, or multiple
+// SoftwareRenderSessions from one Runtime, scene_hasher +
+// program_store state becomes genuinely shared across those
+// instances; reset_job() will reach across them.  See CHANGELOG
+// R5 and `docs/refactor-roadmap/03-render-session-boundary.md` PR
+// 3.0 field-ownership table for the relocation.
+//
 // Why these live in a .cpp and not the header:
 //
 //   - `render_session.hpp` no longer includes
