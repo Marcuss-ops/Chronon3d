@@ -183,32 +183,6 @@ python3 tools/telemetry_dashboard/server.py
 
 Nota: la galleria `/output` mostra solo i file PNG nella cartella `output/`, indipendentemente dal flag `--report`.
 
-### Render presets nuovi, senza attrito
-
-Per i preset premium e i test camera usa lo script unico:
-
-```bash
-bash tools/render_premium_artifacts.sh
-```
-
-Lo script renderizza:
-
-```bash
-PremiumThumbnailSaaSBlue
-PremiumThumbnailButterySmooth
-TextPremiumHeroSaaSBlue
-```
-
-e passa già `--report`, quindi i run finiscono nel DB telemetria e compaiono nella dashboard.
-
-Se vuoi fare un singolo render manuale, ricorda sempre:
-
-```bash
-./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli render PremiumThumbnailSaaSBlue --frame 0 --report -o output/premium_thumbnail_saas_blue.png
-```
-
-Senza `--report` il file PNG viene creato ma il run non entra nella telemetry SQLite.
-
 ### Render camere, senza attrito
 
 Per i shot camera già registrati usa:
@@ -222,7 +196,6 @@ Lo script renderizza e valida:
 ```bash
 OrbitCameraTest
 ExtremePerspectiveTest
-HeroTextFrontTest
 ZStackParallaxTest
 ```
 
@@ -248,7 +221,7 @@ Per controllare clipping, safe area e integrità del testo:
 python3 tools/visual_quality_suite.py \
   --executable ./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli \
   --skip-pipeline \
-  --camera-template OrbitCameraTest ExtremePerspectiveTest HeroTextFrontTest ZStackParallaxTest \
+  --camera-template OrbitCameraTest ExtremePerspectiveTest ZStackParallaxTest \
   --camera-output-dir output/camera_smoke \
   --camera-overlay-dir output/camera_smoke_overlay
 ```
@@ -267,7 +240,7 @@ Il validator produce:
 python3 tools/telemetry_dashboard/server.py
 
 # 2. Render con report
-./build/.../chronon3d_cli render GlowPremiumSuite -o output/glow.png --frames 0 --report
+./build/.../chronon3d_cli render OrbitCameraTest -o output/test.png --frame 0 --report
 
 # 3. Apri nel browser
 #    http://localhost:8000/        → dashboard
@@ -490,8 +463,7 @@ bash tools/render_camera_artifacts.sh
 # Safe-area + clipping + integrità testo:
 python3 tools/visual_quality_suite.py \
   --executable ./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli \
-  --camera-template OrbitCameraTest ExtremePerspectiveTest \
-                    HeroTextFrontTest ZStackParallaxTest \
+  --camera-template OrbitCameraTest ExtremePerspectiveTest ZStackParallaxTest \
   --camera-output-dir output/camera_smoke
 ```
 
