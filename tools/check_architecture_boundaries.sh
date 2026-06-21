@@ -1,29 +1,24 @@
 #!/usr/bin/env bash
 # tools/check_architecture_boundaries.sh
 # ─────────────────────────────────────────────────────────────────────
-# WP-0 PR 0.0 — Fixed critical bug: check [5/5] was nested INSIDE the
-# final PASS/FAIL else-branch, so a real `plan_cache` /
-# `ExecutionPlanCache` hit set FAILED=1 but the script still exited 0.
-# Every check runs BEFORE the final decision; the script never prints
-# PASS after FAIL.
+# Architectural invariants grep-guard.  Twelve P0 "must-be-absent"
+# patterns catch the recurring regression classes the compiler alone
+# can't see — stale include resurrection, retired symbol revival,
+# false noexcept contracts, the borrowed-vs-constructed discipline
+# (no local executor / no arena parameter returns), scheduler-
+# boundary violations (factory leaks under the executor + raw TBB
+# dispatchers in tile coordinators), identity-vs-composition-name
+# key aliasing, and tracked build artefacts.  Every P0 check follows
+# the pipefail-safe `[ -n "$hits" ]` shape documented on
+# `strip_comments()` below.
 #
-# WP-0 PR 0.1 — Added 7 P0 "must be absent" guards.  All historical
-# reference comments have been scrubbed (WP-3 PR 3.4 + WP-5 + WP-8
-# close-outs); no residual allowlists remain.
+# Wired into CI by tools/test_architectural.sh Section 6
+# (`child_target_check_arch_boundary`) which `.github/workflows/gates.yml`
+# invokes in its `architecture-check` job.  Any P0 violation exits the
+# script non-zero; CI surfaces the file:line and the failing pattern
+# verbatim in the build log.
 #
-# WP-2 PR 2.5 — Test file
-# tests/render_graph/executor/test_scheduler_determinism.cpp was
-# migrated off `ExecutionPlanCache*` onto the CompiledFrameGraph path
-# (FrameGraphCompiler + the 4-arg GraphExecutor::execute).  The
-# TODO-WP2-scheduler-det allowlist is RETIRED.  Comment-only
-# historical references in headers + tests are filtered by
-# `strip_comments` on checks 1–11 (check 12 scans `git ls-files`,
-# not source content, so it does not need stripping).  Only CODE
-# reintroductions of `plan_cache` / `ExecutionPlanCache` fire
-# check [5/12].  See `strip_comments()` regex at top of script.
-#
-# Configurable roots (used by selftest to run each guard against a
-# synthetic mktemp tree):
+# Selftest hooks (used to run each guard against a synthetic mktemp tree):
 #   BOUNDARY_CHECK_ROOT  replaces the default include/src/tests/apps scan
 #   EXECUTOR_SCOPED_DIR  replaces the default src/render_graph/executor scope
 # ─────────────────────────────────────────────────────────────────────
@@ -42,14 +37,16 @@ EXECUTOR_SCOPED_DIR="${EXECUTOR_SCOPED_DIR:-src/render_graph/executor}"
 FAILED=0
 
 # strip_comments < stdin → stdout
-# Filter grep-hit lines whose content is a pure C++ comment, so that
+# Filter grep-hit lines whose content is a pure C++ comment, so
 # legitimate historical references (e.g. `// arena_override removed`)
 # do not fire as false-positive violations.  Preprocessor directives
 # (`#include`, `#pragma once`, `#define`) are NOT comments and pass
 # through — this preserves the diagnostic file:line on checks 1–3
 # (which expect `#include` hits).
 #
-# IMPORTANT — pipefail-safe usage pattern.
+# ----------------------------------------------------------------------
+# IMPORTANT — pipefail-safe usage pattern (canonical "how to add a check")
+# ----------------------------------------------------------------------
 # With `set -o pipefail` (script top) + the trailing `|| true` below,
 # the pipeline `... | strip_comments` ALWAYS exits 0 once the upstream
 # grep finds anything (because `grep -v` returns 1 when the filtered
@@ -59,8 +56,11 @@ FAILED=0
 # empty — a real false positive.  EVERY check below that pipes through
 # `strip_comments` MUST therefore capture the filtered stream into a
 # variable and test with `[ -n "$hits" ]` (semantic: string length
-# after filter), NOT `if pipeline; then`.  This is critical for
-# checks 1–11 — see WP-2 PR 2.5 closure.
+# after filter), NOT `if pipeline; then`.
+#
+# Check 12 alone uses `git ls-files` (not source grep) and therefore
+# omits the `strip_comments` pipe — the `[ -n "$hits" ]` check on its
+# output still applies.
 strip_comments() {
     grep -vE '^[^:]+:[0-9]+:[[:space:]]*(//|/\*)' || true
 }
@@ -70,9 +70,7 @@ echo "=== Architecture boundary grep checks ==="
 fail() { echo "FAIL: $1"; FAILED=1; }
 pass() { echo "PASS: $1"; }
 
-# ── 1. core/memory/render_session.hpp (TICKET-011 split) ───────────────
-# See strip_comments docstring (top of script) for the pipefail-safe
-# `[ -n "$hits" ]` pattern required for any check using strip_comments.
+# ── 1. core/memory/render_session.hpp must not be re-included
 echo -n "  [ 1/12] core/memory/render_session.hpp ...                "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include.*core/memory/render_session\.hpp' "${ROOT_DIRS[@]}" 2>/dev/null \
@@ -84,7 +82,7 @@ else
     pass "no retired core/memory/render_session.hpp include"
 fi
 
-# ── 2. renderer_runtime_resources.hpp (TICKET-009 / 011) ───────────────
+# ── 2. renderer_runtime_resources.hpp must not be re-included
 echo -n "  [ 2/12] renderer_runtime_resources.hpp ...               "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include.*renderer_runtime_resources\.hpp' "${ROOT_DIRS[@]}" 2>/dev/null \
@@ -96,7 +94,7 @@ else
     pass "no retired renderer_runtime_resources.hpp include"
 fi
 
-# ── 3. renderer_cache_state.hpp (TICKET-011) ───────────────────────────
+# ── 3. renderer_cache_state.hpp must not be re-included
 echo -n "  [ 3/12] renderer_cache_state.hpp ...                     "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include.*renderer_cache_state\.hpp' "${ROOT_DIRS[@]}" 2>/dev/null \
@@ -108,10 +106,7 @@ else
     pass "no retired renderer_cache_state.hpp include"
 fi
 
-# ── 4. clear_per_frame() method (WP-3 PR 3.4 close-out) ────────────────
-# Historical comment in `src/runtime/render_session.cpp` was scrubbed in
-# WP-3 PR 3.4 close-out (TODO-WP3-3.4-doc-scrub retired).  Any reintroduction
-# of `clear_per_frame` in the codebase fires this check.
+# ── 4. clear_per_frame() method retired
 echo -n "  [ 4/12] legacy full-reset shim RETIRED ...               "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E 'clear_per_frame' "${ROOT_DIRS[@]}" 2>/dev/null \
@@ -123,14 +118,7 @@ else
     pass "no clear_per_frame() call site"
 fi
 
-# ── 5. ExecutionPlanCache / plan_cache (PR-0.0 + PR-0.1 + WP-2 PR 2.5 fix) ─
-# WP-2 PR 2.5 closed: the test file
-# tests/render_graph/executor/test_scheduler_determinism.cpp was migrated
-# off ExecutionPlanCache* (retired per PR-2 rewire / CHANGELOG.md R6) onto
-# the CompiledFrameGraph path (FrameGraphCompiler + the 4-arg
-# GraphExecutor::execute()).  The TODO-WP2-scheduler-det allowlist is gone.
-# See strip_comments docstring (top of script) for the pipefail-safe
-# `[ -n "$hits" ]` pattern required here.
+# ── 5. ExecutionPlanCache / plan_cache retired
 echo -n "  [ 5/12] ExecutionPlanCache RETIRED ...                   "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E 'plan_cache|ExecutionPlanCache' "${ROOT_DIRS[@]}" 2>/dev/null \
@@ -142,9 +130,8 @@ else
     pass "no ExecutionPlanCache / plan_cache reference (code only)"
 fi
 
-# ── 6. make_execution_scheduler under graph executor implementation ───
-# Scope is configurable via EXECUTOR_SCOPED_DIR so the selftest can
-# target a mktemp tree.
+# ── 6. make_execution_scheduler under graph executor implementation
+#      (scope configurable via EXECUTOR_SCOPED_DIR for selftest runs)
 echo -n "  [ 6/12] graph executor MAKE scheduler ...                "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E 'make_execution_scheduler' "$EXECUTOR_SCOPED_DIR" 2>/dev/null \
@@ -156,7 +143,7 @@ else
     pass "no make_execution_scheduler under graph executor"
 fi
 
-# ── 7. tbb::parallel_for in tile coordinator files ──────────────────────
+# ── 7. tbb::parallel_for in tile coordinator files
 echo -n "  [ 7/12] tile coordinator raw tbb::parallel_for ...        "
 TILE_COORD_FILES=(
     src/render_graph/pipeline/tile_execution_coordinator.cpp
@@ -176,7 +163,7 @@ else
     pass "tile coordinator routes through ExecutionScheduler"
 fi
 
-# ── 8. arena_override parameter returning to GraphExecutor ────────────
+# ── 8. arena_override parameter returning to GraphExecutor
 echo -n "  [ 8/12] arena_override returned to executor ...           "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E 'arena_override' include src tests 2>/dev/null \
@@ -188,7 +175,7 @@ else
     pass "no arena_override parameter"
 fi
 
-# ── 9. PrecompNode constructs GraphExecutor locally ───────────────────
+# ── 9. PrecompNode constructs GraphExecutor locally
 echo -n "  [ 9/12] PrecompNode local GraphExecutor ...               "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E 'GraphExecutor[[:space:]]+[a-zA-Z_][a-zA-Z0-9_]*[[:space:]]*;' \
@@ -201,13 +188,7 @@ else
     pass "PrecompNode borrows session executor"
 fi
 
-# ── 10. PrecompNode stores composition-name-only owner key ─────────────
-# WP-5 close-out dropped the cached `m_instance_key` member field; the
-# owner key is now derived per-call via `instance_key(ctx)` from the
-# executing node's `current_identity`.  Historical contrast references
-# to the legacy one-key-per-composition pattern were scrubbed from
-# `precomp_node_execute.cpp` (TODO-WP4-stable-node-identity retired).
-# Any reintroduction of `.graph = hash_string(m_comp_name)` fires this check.
+# ── 10. PrecompNode stores composition-name-only owner key
 echo -n "  [10/12] PrecompNode composition-name-only key ...         "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\.graph[[:space:]]*=[[:space:]]*hash_string\([^)]*m_comp_name' \
@@ -222,7 +203,7 @@ else
     pass "PrecompNode owner key is identity-driven (WP-4 invariant)"
 fi
 
-# ── 11. RenderRuntime::backend() declared noexcept (would throw) ──────
+# ── 11. RenderRuntime::backend() declared noexcept (would throw)
 echo -n "  [11/12] RenderRuntime::backend() noexcept ...             "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' \
     -E 'backend\(\)[[:space:]]+noexcept' \
@@ -235,7 +216,8 @@ else
     pass "RenderRuntime::backend() does not lie about noexcept"
 fi
 
-# ── 12. Generated build/output dirs or *.tsbuildinfo tracked ──────────
+# ── 12. Generated build/output dirs or *.tsbuildinfo tracked
+#       (git ls-files — see strip_comments() docstring for special case)
 echo -n "  [12/12] generated build/output/tsbuildinfo tracked ...   "
 if command -v git >/dev/null 2>&1; then
     hits=$(git ls-files 2>/dev/null \
