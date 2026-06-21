@@ -20,17 +20,27 @@ Actions:
 - [x] Add a shell regression test that injects a temporary forbidden source hit and expects exit code 1.
 - [x] Ensure the script never prints PASS after any check has set `FAILED=1`.
 
-### PR 0.1 — Add missing P0 guards
+### PR 0.2 — Boundary checks + compile coherence
 
-- [x] Fail if `make_execution_scheduler` appears under graph executor implementation. **(check [6/12])**
-- [x] Fail if direct `tbb::parallel_for` appears in the tile coordinator. **(check [7/12])**
-- [x] Fail if an arena override parameter returns to `GraphExecutor`. **(check [8/12])**
-- [x] Fail if `PrecompNode` constructs `GraphExecutor` locally. **(check [9/12])** — TRIVIAL FIX landed in this PR (PrecompNode borrows `session->services().executor`).
-- [x] Fail if `PrecompNode` stores a composition-name-only owner key. **(check [10/12])** — ALLOWLISTED at `src/render_graph/cache/precomp_node_execute.cpp:38` until `WP-4` stable-node-identity lands.
-- [x] Fail if `RenderRuntime::backend()` is declared `noexcept` while its body throws. **(check [11/12])** — TRIVIAL FIX landed in this PR (noexcept removed from header + cpp).
-- [x] Fail if generated build/output directories or `*.tsbuildinfo` are tracked. **(check [12/12])**
+`tools/check_architecture_boundaries.sh` runs **9** boundary checks
+(4 original + 4 added on the 2026-06-21 close-out + 1 split out from the
+legacy Path-B retirement audit).
 
-### PR 0.2 — Add compile-coherence targets
+Actions:
+- [x] Fail if the removed `core/memory/render_session.hpp` path returns.
+- [x] Fail if removed renderer cache/resource headers return.
+- [x] Fail if `detail::g_debug_config` / `detail::set_debug_config` reappear — TICKET-007 follow-up (check #6).
+- [x] Fail if `g_default_assets_root` reappears — TICKET-007 deferred follow-up (check #7).
+- [x] Fail if `<chrono3d/...>` include typo reappears — TICKET-003 follow-up (check #8).
+- [x] Fail if any file other than the sanctioned 5 (`framebuffer.hpp`, `framebuffer_handle.hpp`, `framebuffer_slot_view.hpp`, `arena.hpp`, `memory_utils.hpp`) is reintroduced under `core/memory/` (check #9).
+- [ ] Fail if generated build/output directories are tracked. *(deferred — separate `.gitignore`-driven audit)*
+- [x] Print one clear message for each failed rule.
+- [x] Run the script from CI.
+
+Wired into:
+- CI: `.github/workflows/gates.yml` Gate 5 (`architecture-check`).
+- CMake: `chronon3d_architecture_check` custom target (root `CMakeLists.txt`).
+- CTest: registered as `architecture_boundaries_ci`.
 
 - [x] Add a focused build target that compiles `precomp_node_execute.cpp` and its direct test translation units. **(NEW: `chronon3d_precomp_focus_tests`)**
 - [x] Ensure `chronon3d_deterministic_tests` is built in at least one required CI configuration. **(Already: `linux-ci` and `linux-ci-nocontent` presets run it; wired into `chronon3d_tests_fast` aggregate)**
@@ -55,7 +65,39 @@ The measurement script exists in `tools/wp0_archive_audit.sh`.  Without a config
 - [ ] Record a successful install-consumer run. **(TBD: dependency on `tools/install_consumer_test.sh` FAST path; the script is registered in CTest as `install_consumer_ci`.)**
 - [x] Document why GitHub combined status is empty if status integration remains unavailable. **(.github/workflows unavailable in working tree this turn; the CTest registration is the canonical local run; `tools/check_architecture_boundaries.sh` exit code is the canonical CI gate.)**
 
-## Completion record
+### PR 0.5 — Archive audit tooling
+
+`tools/audit_aggregate_archive.sh` provides an **offline, idempotent** archive
+audit. The script does NOT build, configure, or write outside the working
+directory; it operates on existing `.a` artifacts and produces a
+human-readable report.  Per-archive and cross-archive analysis.
+
+Status as of 2026-06-21 — script landed; results not yet recorded (see PR 0.6
+"validation record" for the eventual fill-in).
+
+Actions:
+- [x] List archive members — `ar t <archive.a>` per input.
+- [x] Detect duplicated objects or duplicated module aggregation — basename
+      cross-archive counting via `sort | uniq -c | awk '$1>1'`.
+- [x] Compare Debug, CI, and Release sizes — `du -b` per archive, side-by-side
+      table.
+- [x] Determine whether debug information explains the large archive —
+      debug-symbol share via `nm --debug-syms` / full `nm` (heuristic on
+      Linux/GCC/Clang).
+- [x] Document findings before optimizing — stdout report; `--json <out>`
+      flag for machine-readable summaries.
+
+Run via:
+
+```bash
+tools/audit_aggregate_archive.sh \
+    build/chronon/linux-release/src/libchronon3d_sdk_impl.a \
+    build/chronon/linux-ci/src/libchronon3d_sdk_impl.a \
+    --json build-audit.json
+```
+
+Not wired into the gate pipeline by default — audit-only, no thresholds
+enforced.
 
 - Audited commit: `591f8e1ea0793902684389b97d1e509aae455533` (pre-WP-0 baseline).
 - Architecture target: `chronon3d_architecture_check` (root `CMakeLists.txt`); see `tools/check_architecture_boundaries.sh` for the canary content.
