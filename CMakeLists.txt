@@ -473,20 +473,48 @@ if(CHRONON3D_BUILD_CLI AND CHRONON3D_BUILD_TESTS)
     )
 endif()
 
-# ── Architecture verification target (PR-0) ───────────────────────────────────
-# Builds the core runtime + graph + backend + fast-test targets to prove that
-# every architectural boundary compiles cleanly.  Does NOT change behaviour;
-# purely a build-time verification gate.  Wired into CI via
-# `cmake --build --preset <preset> --target chronon3d_architecture_check`.
-# Gated on BUILD_TESTS because chronon3d_tests_fast is only defined when tests
-# are enabled.
-if(CHRONON3D_BUILD_TESTS)
-    add_custom_target(chronon3d_architecture_check
-        DEPENDS
-            chronon3d_runtime
-            chronon3d_graph_executor
-            chronon3d_graph_pipeline
-            chronon3d_backend_software
-            chronon3d_tests_fast
-    )
+# ── WP0 PR 0.1 — chronon3d_architecture_check aggregate target ────────────
+# The architecture-check target compiles (or verifies the previous build of)
+# every architectural boundary layer the project uses:
+#
+#   • chronon3d_runtime          ─ engine-lifetime state owner (TICKET-011)
+#   • chronon3d_graph_executor   ─ stateless graph executor (TICKET-009)
+#   • chronon3d_graph_pipeline   ─ scene orchestration + tile dispatch
+#   • chronon3d_backend_software ─ software backend core
+#   • chronon3d_tests_fast       ─ guard tests that no boundary regresses
+#   • chronon3d_sdk_impl         ─ single aggregated SDK archive (boundary proof)
+#
+# NO disjoint compile targets are introduced — every dependency listed above
+# either already exists in src/CMakeLists.txt or src/<sub>/CMakeLists.txt.
+# The custom_target is registered UNCONDITIONALLY so CI / `cmake --build
+# --target chronon3d_architecture_check` works without the BUILD_TESTS gate.
+# If a CONDITIONAL target is not present in the current configuration
+# (e.g. CHRONON3D_BUILD_TESTS=OFF), `if(TARGET …)` guards drop it silently.
+#
+# The companion `tools/check_architecture_boundaries.sh` script (WP0 PR 0.2)
+# is the RUNTIME boundary verifier — it is invoked by CI and the
+# `chronon3d_dev_fast` aggregate does NOT wrap it (the script is fast and
+# idempotent; running it directly is preferable to nesting it into a custom
+# target).
+add_custom_target(chronon3d_architecture_check)
+if(TARGET chronon3d_runtime)
+    add_dependencies(chronon3d_architecture_check chronon3d_runtime)
+endif()
+if(TARGET chronon3d_graph_executor)
+    add_dependencies(chronon3d_architecture_check chronon3d_graph_executor)
+endif()
+if(TARGET chronon3d_graph_pipeline)
+    add_dependencies(chronon3d_architecture_check chronon3d_graph_pipeline)
+endif()
+if(TARGET chronon3d_backend_software)
+    add_dependencies(chronon3d_architecture_check chronon3d_backend_software)
+endif()
+if(TARGET chronon3d_sdk_impl)
+    add_dependencies(chronon3d_architecture_check chronon3d_sdk_impl)
+endif()
+# Fast tests are gate here only when actually enabled — gated on BUILD_TESTS
+# to avoid `add_dependencies` against a non-existent target in stripped
+# configurations (e.g. the install_consumer sandbox).
+if(CHRONON3D_BUILD_TESTS AND TARGET chronon3d_tests_fast)
+    add_dependencies(chronon3d_architecture_check chronon3d_tests_fast)
 endif()
