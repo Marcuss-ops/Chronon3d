@@ -5,7 +5,7 @@
 namespace chronon3d::runtime {
 
 RendererWarmupResult warmup_renderer(
-    SoftwareRenderer& renderer,
+    SoftwareRenderer & renderer,
     const Composition& composition,
     const RendererWarmupOptions& options)
 {

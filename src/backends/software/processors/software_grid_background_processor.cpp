@@ -4,14 +4,16 @@
 #include <chronon3d/math/raster_utils.hpp>
 
 #include "src/backends/software/kernels/grid_background_kernel.hpp"
+// R2: draw() now consumes the slim processor context POD.
+#include <chronon3d/backends/software/software_processor_context.hpp>
 
 namespace chronon3d::renderer {
 
 class SoftwareGridBackgroundProcessor final : public ShapeProcessor {
 public:
-    void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
+    void draw(const SoftwareProcessorContext& rctx, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
-        (void)renderer;
+        (void)rctx;
         (void)camera;
         (void)width;
         (void)height;

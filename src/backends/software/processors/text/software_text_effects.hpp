@@ -6,7 +6,7 @@
 namespace chronon3d::renderer {
 
 void draw_text_glow(
-    SoftwareRenderer& renderer,
+    const SoftwareProcessorContext& rctx,
     Framebuffer& fb,
     const RenderNode& node,
     const RenderState& state,
@@ -15,7 +15,7 @@ void draw_text_glow(
 );
 
 void draw_text_shadow(
-    SoftwareRenderer& renderer,
+    const SoftwareProcessorContext& rctx,
     Framebuffer& fb,
     const RenderNode& node,
     const RenderState& state,

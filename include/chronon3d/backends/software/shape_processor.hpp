@@ -32,7 +32,7 @@ class ShapeProcessor {
 public:
     virtual ~ShapeProcessor() = default;
 
-    virtual void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state, 
+    virtual void draw(const SoftwareProcessorContext& rctx, Framebuffer& fb, const RenderNode& node, const RenderState& state, 
                       const Camera& camera, i32 width, i32 height) = 0;
     
     virtual raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) = 0;

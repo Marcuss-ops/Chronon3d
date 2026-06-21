@@ -4,12 +4,14 @@
 #include <chronon3d/scene/model/render/render_runtime.hpp>
 #include "../rasterizers/shape_rasterizer.hpp"
 #include "../primitive_renderer.hpp"
+// R2: draw() now consumes the slim processor context POD.
+#include <chronon3d/backends/software/software_processor_context.hpp>
 
 namespace chronon3d::renderer {
 
 class SoftwareFakeBox3DProcessor final : public ShapeProcessor {
 public:
-    void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
+    void draw(const SoftwareProcessorContext& rctx, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
         FakeBox3DRenderState s;
         if (auto* ptr = std::get_if<FakeBox3DRenderState>(&node.params)) {
@@ -36,7 +38,7 @@ public:
 
 class SoftwareGridPlaneProcessor final : public ShapeProcessor {
 public:
-    void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
+    void draw(const SoftwareProcessorContext& rctx, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
         GridPlaneRenderState s;
         if (auto* ptr = std::get_if<GridPlaneRenderState>(&node.params)) {

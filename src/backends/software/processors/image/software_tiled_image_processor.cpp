@@ -3,18 +3,20 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include "../../utils/render_effects_processor.hpp"
+// R2: draw() now consumes the slim processor context POD.
+#include <chronon3d/backends/software/software_processor_context.hpp>
 
 namespace chronon3d::renderer {
 
 class SoftwareTiledImageProcessor final : public ShapeProcessor {
 public:
-    void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
+    void draw(const SoftwareProcessorContext& rctx, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
         CHRONON_ZONE_C("tiled_image_render", trace_category::kImage);
         renderer.counters()->images_sampled.fetch_add(1, std::memory_order_relaxed);
 
         draw_shadow(fb, node, state);
-        renderer.image_renderer().draw_image_tiled(node.shape.image(), state, fb);
+        rctx.image_renderer.draw_image_tiled(node.shape.image(), state, fb);
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {

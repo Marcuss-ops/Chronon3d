@@ -13,11 +13,11 @@
 
 namespace chronon3d::renderer {
 
-void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node,
+void draw_text_glow(const SoftwareProcessorContext& rctx, Framebuffer& fb, const RenderNode& node,
                     const RenderState& state, const TextRasterization& raster,
                     float effective_size);
 
-void draw_text_shadow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node,
+void draw_text_shadow(const SoftwareProcessorContext& rctx, Framebuffer& fb, const RenderNode& node,
                       const RenderState& state, const TextRasterization& raster,
                       const TextShadow& shadow, size_t index, float effective_size);
 
