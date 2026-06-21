@@ -42,20 +42,34 @@ namespace chronon3d::graph {
 /// stability so existing call sites of `PrecompInstanceKey` keep
 /// compiling; the alias types in `<chronon3d/render_graph/core/node_identity.hpp>`
 /// are exposed for new code that wants the strongly-typed surface.
+///
+/// NOTE: this struct deliberately stays an AGGREGATE — no user-defined
+/// constructor — so that existing designated-initialiser call sites
+/// (see `src/render_graph/cache/precomp_node_execute.cpp`) keep
+/// compiling.  New producers that want the strong-type surface should
+/// call the `make_precomp_key()` helper below.
 struct PrecompInstanceKey {
     uint64_t graph{0};
     uint64_t node{0};
 
-    PrecompInstanceKey() = default;
-    // Implicit conversions from the strong types keep the existing
-    // precomp_node_execute.cpp + bench code building.  New producers
-    // SHOULD pass `GraphInstanceId`/`StableNodeId` directly.
-    PrecompInstanceKey(GraphInstanceId g, StableNodeId n) noexcept
-        : graph(static_cast<uint64_t>(g))
-        , node(static_cast<uint64_t>(n)) {}
-
     auto operator<=>(const PrecompInstanceKey&) const = default;
 };
+
+/// Type-safe factory: build a `PrecompInstanceKey` from the strong
+/// types in `<chronon3d/render_graph/core/node_identity.hpp>`.  Call
+/// sites that don't pass designated initialisers SHOULD use this
+/// helper so the compile-time check catches mismatched-type bugs
+/// (`make_precomp_key(StableNodeId, GraphInstanceId)` fails to
+/// compile because the strong types refuse to swap positionally).
+[[nodiscard]] inline PrecompInstanceKey make_precomp_key(
+    GraphInstanceId graph,
+    StableNodeId    node
+) noexcept {
+    return PrecompInstanceKey{
+        static_cast<uint64_t>(graph),
+        static_cast<uint64_t>(node)
+    };
+}
 
 } // namespace chronon3d::graph
 
