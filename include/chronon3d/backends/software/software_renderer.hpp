@@ -33,6 +33,12 @@
 // ODR risk (two struct definitions with identical members).
 #include <chronon3d/backends/software/software_render_session.hpp>
 #include <chronon3d/core/config.hpp>
+// WP-8 PR 8.1 — FONT_ENGINE_HPP_STAYS_OUT_OF_HERE.  The header sees only
+// a forward declaration of FontEngine (added below alongside
+// CompositionRegistry).  Full FontEngine definition lives in
+// <chronon3d/text/font_engine.hpp> and is pulled in ONLY by
+// software_renderer.cpp (the unique_ptr's deleter is instantiated at
+// destruction site in the .cpp, where FontEngine is complete).
 
 #include <memory>
 #include <optional>
@@ -72,6 +78,16 @@
 namespace chronon3d {
 
 class SoftwareRenderer;
+// WP-8 PR 8.1 — software_renderer.hpp only FORWARD DECLARES FontEngine;
+// the full definition is pulled only by software_renderer.cpp (keeps the
+// heavy FreeType + HarfBuzz machinery out of every TU that includes
+// this header).  The `std::unique_ptr<FontEngine>` member field works
+// with the forward declaration because the unique_ptr's default deleter
+// is only instantiated at destruction site in the .cpp where FontEngine
+// is complete.  `[[nodiscard]] FontEngine&` return types in accessor
+// declarations are also fine with forward-declared types (refs to
+// incomplete types are valid in declarations).
+class FontEngine;
 class CompositionRegistry;
 
 namespace renderer {
@@ -297,6 +313,18 @@ public:
         return *m_runtime;
     }
 
+    /// WP-8 PR 8.1 — per-renderer FontEngine hoisted from the
+    /// `FontEngine local_engine{resolver}` M-3 fallback that lived
+    /// inside `rasterize_text_to_bl_image`.  Built once at construction
+    /// from `runtime().resolver()`; lifetime is pinned to the renderer.
+    /// `node.font_engine` overrides per-RenderNode when bound (PR
+    /// 8.2 isolation contract); this default is the renderer-local
+    /// fallback.  When CHRONON3D_HAS_BACKEND_TEXT is OFF the unique_ptr
+    /// is null and the accessor throws — callers should not reach for
+    /// font rendering on non-text builds.
+    [[nodiscard]] FontEngine& font_engine();
+    [[nodiscard]] const FontEngine& font_engine() const;
+
     [[nodiscard]] graph::CompiledGraphCache& graph_cache() { return m_runtime->graph_cache(); }
     [[nodiscard]] const graph::CompiledGraphCache& graph_cache() const { return m_runtime->graph_cache(); }
 
@@ -419,6 +447,19 @@ private:
     // m_runtime->X() everywhere; never m_runtime.X().
     runtime::RenderRuntime* m_runtime{nullptr};
     std::unique_ptr<runtime::RenderRuntime> m_owned_runtime_storage;  // transitional ctor only
+
+    /// WP-8 PR 8.1 — the renderer-local FontEngine (default constructed
+    /// from `m_runtime->resolver()` in both ctors).  Stored as a
+    /// `std::unique_ptr<FontEngine>` (not `std::optional<FontEngine>`)
+    /// so the header only needs the forward declaration of FontEngine;
+    /// the full FontEngine definition is pulled ONLY by
+    /// software_renderer.cpp where the unique_ptr is constructed
+    /// (`make_unique<FontEngine>(resolver)`) and destroyed
+    /// (`~SoftwareRenderer()` runs in the .cpp with the complete type
+    /// in scope).  This decoupling keeps the heavy FreeType + HarfBuzz
+    /// machinery in `<chronon3d/text/font_engine.hpp>` out of every TU
+    /// that includes software_renderer.hpp.
+    std::unique_ptr<FontEngine> m_font_engine;
 
     SoftwareRenderSession    m_session;
 };

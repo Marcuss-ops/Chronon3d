@@ -29,22 +29,13 @@ namespace chronon3d::renderer {
 
 namespace {
 
-// WP-8 PR 8.0 — resolver-keyed FontEngine cache.  Process-wide map that
-// hands back a lazily-allocated `FontEngine{resolver}` keyed by the
-// resolver's address.  Lifetime: same as `runtime::render_runtime`, i.e.
-// processes the runtime for as long as it's attached.  We use a
-// pointer-identity key (AssetResolver is engine-local, so each runtime
-// has a unique resolver address) plus a mutex so concurrent first-use
-// from two renderers is safe.
-struct ResolverEngineCache {
-    std::mutex                                                       mu;
-    std::unordered_map<const chronon3d::assets::AssetResolver*,
-                       std::unique_ptr<FontEngine>>                   map;
-};
-static ResolverEngineCache& resolver_engine_cache() {
-    static ResolverEngineCache c;
-    return c;
-}
+// WP-8 PR 8.1 — ResolverEngineCache (the resolver-keyed FontEngine
+// cache from PR 8.0) is RETIRED.  Each SoftwareRenderer now owns its
+// own `FontEngine` (initialised from `runtime().resolver()` at
+// construction) so the cache-by-resolver-pointer indirection is no
+// longer needed.  Per-RenderNode override is preserved via the
+// `node.font_engine` field on the render node (PR 8.2 isolation).
+// See software_renderer.cpp for the field + init.
 
 class SoftwareTextProcessor final : public ShapeProcessor {
 public:
@@ -72,33 +63,19 @@ public:
         bool raster_cache_hit = false;
         double rasterize_ms = 0.0;
         const auto raster_start = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
-        // WP-8 PR 8.0 — font_engine is REQUIRED on the render node; if
-        // not supplied, derive one from the renderer's runtime-owned
-        // resolver (avoids the process-wide `runtime::shared_font_engine()`
-        // bridge that was REMOVED in PR 8.0).  We resolve from a
-        // resolver-keyed static cache so concurrent first-use from
-        // multiple renderers (one runtime each) hands back per-engine
-        // FontEngine instances, preserving the PR 8.2 isolation contract.
-        // WP-8 PR 8.0 — function-scope resolver so `rasterize_text_to_bl_image`
-        // receives it explicitly below (replaces the deep read of
-        // `runtime::typed_resolver_for_deep_code()` that the rasterizer used to
-        // do internally).  `AssetResolver` is a value-member of `RenderRuntime`,
-        // so the reference is stable for the renderer's lifetime.
+        // WP-8 PR 8.1 — FontEngine is sourced from the per-renderer
+        // `SoftwareRenderer::font_engine()` accessor (the PR 8.0/8.1
+        // hoist).  `node.font_engine` overrides per-RenderNode when bound
+        // (PR 8.2 isolation contract); otherwise the renderer-local
+        // engine is the canonical source.  No more resolver-keyed static
+        // cache; no more per-call construction.
+        //
+        // The function-scope resolver stays so `rasterize_text_to_bl_image`
+        // receives it explicitly below.  `AssetResolver` is a value-member
+        // of `RenderRuntime`, so the reference is stable for the
+        // renderer's lifetime.
         const auto& resolver = renderer.runtime().resolver();
-        FontEngine* engine = node.font_engine;
-        if (!engine) {
-            auto& cache = resolver_engine_cache();
-            std::lock_guard<std::mutex> lock(cache.mu);
-            auto it = cache.map.find(&resolver);
-            if (it == cache.map.end()) {
-                auto inserted = cache.map.emplace(
-                    &resolver,
-                    std::make_unique<FontEngine>(resolver));
-                engine = inserted.first->second.get();
-            } else {
-                engine = it->second.get();
-            }
-        }
+        FontEngine* engine = node.font_engine ? node.font_engine : &renderer.font_engine();
         // TICKET-007: per-instance DebugConfig forwarded from the
         // owning SoftwareRenderer so text-bbox / ink-bounds / baseline
         // debug overlays honour the engine's debug.text_bbox() flag

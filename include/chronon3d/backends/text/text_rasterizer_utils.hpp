@@ -38,6 +38,12 @@ struct TextRasterization {
 /// `runtime::typed_resolver_for_deep_code()` directly, but per PR 8.0
 /// they now each receive the resolver as an argument.
 ///
+/// `font_engine` is REQUIRED (WP-8 PR 8.1 — no nullable, no
+/// process-global fallback, no per-call construction).  Production
+/// source is `sw_renderer->font_engine()` (the per-renderer hoist);
+/// CLI/dev/test sources construct their own `FontEngine{resolver}` on
+/// the localised resolver.
+///
 /// `debug_cfg` is the per-instance DebugConfig pointer forwarded from
 /// the owning RenderGraphContext / SoftwareRenderer.  When nullptr,
 /// debug overlays are disabled (matches the safe default for test /
@@ -48,9 +54,9 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     float effective_size,
     int padding,
     const chronon3d::assets::AssetResolver& resolver,
-    bool* cache_hit = nullptr,
-    const Mat4* transform = nullptr,
-    FontEngine* font_engine = nullptr,
+    bool* cache_hit,
+    const Mat4* transform,
+    FontEngine& font_engine,
     const chronon3d::DebugConfig* debug_cfg = nullptr
 );
 
