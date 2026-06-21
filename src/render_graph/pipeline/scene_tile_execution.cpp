@@ -1,7 +1,6 @@
 #include "scene_tile_execution.hpp"
 
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
-#include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <algorithm>
 
@@ -84,14 +83,11 @@ namespace chronon3d::graph::detail {
     // runs, but we mirror the same `if (sw_renderer && executor) /
     // else { local_fallback }` shape here so a future caller that
     // reaches this function directly cannot crash on a null pointer.
-    // The local fallback uses the 3-argument `execute` form (matching
-    // `tile_execution_coordinator.cpp::execute_tile_or_fallback`)
-    // because that overload takes no plan_cache pointer and no scratch
-    // arena; we keep `tile_arena` construction scoped to the
-    // sw_renderer branch so the fallback path doesn't pay for it.
     // PR-1 — route through the authoritative scheduler (via
     // ctx.services.scheduler for the sw_renderer path, or a local
     // Sequential scheduler for the fallback).
+    // PR-6 — arena_override removed; tile regions each get a local
+    // RenderSession with their own FrameArena (parallel-safe).
     std::shared_ptr<Framebuffer> tile_fb;
     if (!sw_renderer || !sw_renderer->executor()) {
         RenderSession local_session;
@@ -100,17 +96,14 @@ namespace chronon3d::graph::detail {
         tile_fb = local_executor.execute(
             compiled, tile_ctx, local_session, local_scheduler);
     } else {
-        FrameArena tile_arena;
-        // TICKET-009 — pass the renderer-owned plan cache and the
-        // local scratch arena override.  The executor is now stateless.
-        // PR-1 — use the authoritative scheduler from ctx.services.
+        RenderSession local_session;
         auto& tile_scheduler = ctx.services.scheduler
             ? *ctx.services.scheduler
             : sw_renderer->scheduler();
         tile_fb = sw_renderer->executor()->execute(
-            compiled, tile_ctx, sw_renderer->session(),
+            compiled, tile_ctx, local_session,
             tile_scheduler,
-            sw_renderer->plan_cache(), &tile_arena);
+            sw_renderer->plan_cache());
     }
 
     if (tile_fb) {
