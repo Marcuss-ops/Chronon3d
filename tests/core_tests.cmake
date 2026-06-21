@@ -73,6 +73,10 @@ add_executable(chronon3d_core_tests
     core/math/test_color_space.cpp
     core/math/test_nan_guard.cpp
     core/test_system_metrics_parse.cpp
+    # WP-6 PR 6.0 — ExecutionScope (root/tile/precomp) construction
+    # invariants + parent chain + recursion guard + child-arena
+    # independence.  Header-only type under test: no .cpp pairing.
+    core/test_execution_scope.cpp
     core/math/test_expression.cpp
     core/math/test_expression_extended.cpp
     ${CORE_BLEND2D_TESTS}
