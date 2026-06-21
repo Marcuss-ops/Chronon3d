@@ -71,7 +71,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     );
 
     // TICKET-007 — single per-instance seeding point for the DebugConfig
-    // pointer.  Every code path that reads `ctx.options.debug_config`
+    // pointer.  Every code path that reads `ctx.policy.debug_config`
     // (GlowPipeline::render, future text-bbox overlay relay, etc.)
     // now reflects the OWNING engine's debug flags instead of the
     // previously-removed process-wide `detail::g_debug_config`.
@@ -82,30 +82,30 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
 
     // Thread the per-composition assets root through the render context.
-    // Deep code should use ctx.resolve_asset() or ctx.frame.assets_root
+    // Deep code should use ctx.resolve_asset() or ctx.frame_input.assets_root
     // instead of the deprecated AssetRegistry::resolve() TLS API.
     if (const auto& root = scene.assets_root(); !root.empty()) {
-        ctx.frame.assets_root = root.string();
+        ctx.frame_input.assets_root = root.string();
     }
 
-    ctx.camera.light_context = scene.light_context();
+    ctx.frame_input.light_context = scene.light_context();
     const auto resolved_camera = resolve_scene_camera(scene);
     if (resolved_camera.camera.enabled) {
-        ctx.camera.camera_2_5d = resolved_camera.camera;
-        ctx.camera.has_camera_2_5d = true;
-        ctx.camera.projection_ctx = renderer::make_projection_context(
-            ctx.camera.camera_2_5d, ctx.frame.width, ctx.frame.height);
-        ctx.camera.projection_ctx.ready = true;
+        ctx.frame_input.camera_2_5d = resolved_camera.camera;
+        ctx.frame_input.has_camera_2_5d = true;
+        ctx.frame_input.projection_ctx = renderer::make_projection_context(
+            ctx.frame_input.camera_2_5d, ctx.frame_input.width, ctx.frame_input.height);
+        ctx.frame_input.projection_ctx.ready = true;
     }
 
     // RAII guard: sets profiling thread-locals and restores on any exit path
     profiling::ProfilingGuard profiling_guard(
-        ctx.telemetry.counters, ctx.resources.framebuffer_pool.get());
+        ctx.node_exec.counters, ctx.services.framebuffer_pool.get());
 
     SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
 
     // TICKET-007 - single per-instance seeding point for the DebugConfig
-    // pointer.  Every code path that reads `ctx.options.debug_config`
+    // pointer.  Every code path that reads `ctx.policy.debug_config`
     // (GlowPipeline::render, future text-bbox overlay relay, etc.)
     // now reflects the OWNING engine's debug flags instead of the
     // previously-removed process-wide `detail::g_debug_config`.
@@ -114,7 +114,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // the safe default for non-software backends and matches the
     // pre-existing test contract (e.g. tests/text/test_text_material.cpp).
     if (sw_renderer) {
-        ctx.options.debug_config = &sw_renderer->config().debug();
+        ctx.policy.debug_config = &sw_renderer->config().debug();
     }
 
     // Wire compiled_graph_cache + node_catalog + effect_catalog + scheduler
@@ -122,13 +122,13 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // PrecompNode creation, and dirty/tile policies can access them
     // without a SoftwareRenderer dependency.
     if (sw_renderer) {
-        ctx.resources.compiled_graph_cache = &sw_renderer->graph_cache();
-        ctx.resources.node_catalog = &sw_renderer->graph_node_registry();
-        ctx.resources.effect_catalog = &sw_renderer->effect_catalog();
+        ctx.services.compiled_graph_cache = &sw_renderer->graph_cache();
+        ctx.services.node_catalog = &sw_renderer->graph_node_registry();
+        ctx.services.effect_catalog = &sw_renderer->effect_catalog();
         // ── PR-B: propagate scheduler to nested graph call sites ──────
-        // PrecompNode dereferences `*ctx.resources.scheduler` to route its
+        // PrecompNode dereferences `*ctx.services.scheduler` to route its
         // inner execute() through the same arena as the parent graph.
-        ctx.resources.scheduler = &sw_renderer->scheduler();
+        ctx.services.scheduler = &sw_renderer->scheduler();
     }
 
     // ── 1. Fast-path: Resolved-scene reuse (consecutive / same frame) ───
@@ -141,7 +141,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // static_fp matches since structure is the same).
     {
         CHRONON_ZONE_C("resolved_scene_reuse", trace_category::kFrame);
-        const Camera2_5D& cam = ctx.camera.camera_2_5d;
+        const Camera2_5D& cam = ctx.frame_input.camera_2_5d;
         FrameFingerprints reuse_fps;
         if (sw_renderer) {
             reuse_fps = compute_frame_fingerprints(
@@ -150,7 +150,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
         auto reuse = evaluate_resolved_scene_reuse(
             sw_renderer, scene, frame, cam, reuse_fps,
-            width, height, ctx.options.diagnostics_enabled);
+            width, height, ctx.policy.diagnostics_enabled);
 
         if (reuse.can_reuse) {
             return reuse.framebuffer;
@@ -187,7 +187,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             scene_structure_unchanged =
                 (frame_fp.structure_fp == sw_renderer->frame_history().prev_graph_structure_fingerprint);
 
-            const Camera2_5D& cam = ctx.camera.camera_2_5d;
+            const Camera2_5D& cam = ctx.frame_input.camera_2_5d;
             static_cam_changed = detail::camera_changed(
                 cam, &sw_renderer->frame_history().prev_camera,
                 sw_renderer->frame_history().prev_camera_valid);
@@ -203,12 +203,12 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // ── 3. Fast-path: Static scene (no dirty rects required) ─────────────
     {
         CHRONON_ZONE_C("static_scene_fast_check", trace_category::kFrame);
-        const Camera2_5D& cam = ctx.camera.camera_2_5d;
+        const Camera2_5D& cam = ctx.frame_input.camera_2_5d;
 
         auto reuse = evaluate_static_scene_fastpath(
             sw_renderer, scene, frame, cam, frame_fp,
             scene_structure_unchanged, scene_is_static, static_cam_changed,
-            prev_fp, width, height, ctx.options.diagnostics_enabled);
+            prev_fp, width, height, ctx.policy.diagnostics_enabled);
 
         if (reuse.can_reuse) {
             return reuse.framebuffer;
@@ -222,7 +222,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // gate on this flag inside GraphExecutor; the flag survives for the
     // downstream coordinator and will be re-paired with a stable fast-path
     // in a future PR (audit §9.4).
-    ctx.options.graph_structure_unchanged = scene_structure_unchanged &&
+    ctx.policy.graph_structure_unchanged = scene_structure_unchanged &&
         !static_cam_changed &&
         frame_fp.active_at_fp != 0 &&
         frame_fp.active_at_fp == (sw_renderer ? sw_renderer->frame_history().prev_active_at_fingerprint : 0);
@@ -256,19 +256,19 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
     // ── Dirty metrics ───────────────────────────────────────────────────
     const double dirty_ratio = compute_and_apply_dirty_metrics(
-        dirty_out, width, height, ctx.telemetry.counters, sw_renderer);
-    log_dirty_debug(sw_renderer, ctx.options.diagnostics_enabled, dirty_out, frame);
-    ctx.tile.dirty_rect = dirty_out.dirty_rect;
-    ctx.options.reuse_prev_framebuffer = dirty_out.use_dirty_rects;
+        dirty_out, width, height, ctx.node_exec.counters, sw_renderer);
+    log_dirty_debug(sw_renderer, ctx.policy.diagnostics_enabled, dirty_out, frame);
+    ctx.node_exec.dirty_rect = dirty_out.dirty_rect;
+    ctx.policy.reuse_prev_framebuffer = dirty_out.use_dirty_rects;
 
     // ── 6. Fast-path: Empty dirty-rect reuse ─────────────────────────────
     {
         CHRONON_ZONE_C("dirty_fast_path_reuse", trace_category::kFrame);
-        const Camera2_5D& cam = ctx.camera.camera_2_5d;
+        const Camera2_5D& cam = ctx.frame_input.camera_2_5d;
         auto reuse = evaluate_empty_dirty_reuse(
             sw_renderer, scene, frame, cam, frame_fp,
             dirty_out, settings, width, height,
-            ctx.options.diagnostics_enabled);
+            ctx.policy.diagnostics_enabled);
 
         if (reuse.can_reuse) {
             sw_renderer->commit_prev_frame_state(
@@ -287,18 +287,18 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     if (sw_renderer) {
         if (sw_renderer->config().scheduler().pingpong_framebuffer()) {
             setup_pingpong_buffers(sw_renderer, width, height);
-            ctx.scratch.ping_write = sw_renderer->buffer_ring().write_slot_view();
+            ctx.node_exec.ping_write = sw_renderer->buffer_ring().write_slot_view();
         }
-        ctx.scratch.transform_scratch = sw_renderer->scratch_buffer().slot_view(width, height);
+        ctx.node_exec.transform_scratch = sw_renderer->scratch_buffer().slot_view(width, height);
     }
 
     // ── 8. Build or reuse compiled graph ─────────────────────────────────
     const auto t_graph0 = profiling::now();
     auto graph_result = build_or_reuse_graph(
         ctx, scene, resolved, width, height,
-        ctx.options.graph_structure_unchanged,
-        ctx.options.diagnostics_enabled);
-    ctx.options.skip_initial_clear = graph_result.skip_initial_clear;
+        ctx.policy.graph_structure_unchanged,
+        ctx.policy.diagnostics_enabled);
+    ctx.policy.skip_initial_clear = graph_result.skip_initial_clear;
     const auto t_graph1 = profiling::now();
 
     // ── 9. Pre-frame pool preallocation ──────────────────────────────────
@@ -308,8 +308,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             *sw_renderer->framebuffer_pool(),
             graph_result.compiled,
             width, height,
-            ctx.telemetry.counters,
-            ctx.options.diagnostics_enabled);
+            ctx.node_exec.counters,
+            ctx.policy.diagnostics_enabled);
         (void)prealloc_count;
     }
     const auto t_prealloc1 = profiling::now();
@@ -325,7 +325,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     compute_and_record_timings(
         t_resolve0, t_resolve1, t_dirty0, t_dirty1,
         t_graph0, t_graph1, t_exec0, t_exec1,
-        ctx.telemetry.counters, ctx.options.diagnostics_enabled,
+        ctx.node_exec.counters, ctx.policy.diagnostics_enabled,
         frame, graph_result.graph_reused);
 
     // ── Record per-frame dirty-rect telemetry ────────────────────────────
@@ -335,7 +335,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // ── 12. Save state for next frame ─────────────────────────────────────
     if (sw_renderer) {
         commit_frame_state(
-            sw_renderer, frame, ctx.camera.camera_2_5d,
+            sw_renderer, frame, ctx.frame_input.camera_2_5d,
             std::move(graph_result.compiled), exec_result.fb,
             resolved, frame_fp, dirty_out, width, height);
     }

@@ -1,74 +1,89 @@
 #pragma once
 
-// ---------------------------------------------------------------------------
+#include <chronon3d/assets/asset_registry.hpp>
+#include <chronon3d/core/config.hpp>
+
+// ----------------------------------------------------------------------
 // runtime/render_runtime.hpp
 //
-// TICKET-011a — declare `chronon3d::runtime::RenderRuntime`, the
-// engine-lifetime owner of long-lived render infrastructure.  This
-// header is INTENTIONALLY HEADER-ONLY in this commit:
+// TICKET-011 — RenderRuntime is now the SOLE engine-lifetime owner of
+// long-lived render infrastructure.  `SoftwareRenderer` no longer
+// holds any of these fields; it borrows everything via `RenderRuntime&`.
 //
-//   - No new behaviour is introduced (no .cpp yet).
-//   - No existing consumer is touched.
-//   - All pointer-bearing fields default-initialised to nullptr so
-//     downstream consumers of `RenderRuntime&` can be wired in
-//     sub-commits 011b–011e (BackendExecutionContext integration,
-//     ShapeDrawContext migration, TextRasterService, draw_node /
-//     draw_text_run migration).
+// Owned slots:
+//   - Config                                       (engine config copy)
+//   - AssetRegistry                                (mounts paths)
+//   - cache::NodeCache                             (per-job node cache)
+//   - cache::FramebufferPool (shared_ptr)          (transitively held by
+//                                                    the SoftwareBackend)
+//   - graph::CompiledGraphCache                    (graph reuse across
+//                                                    frames)
+//   - graph::PipelineCatalogs                      (graph_nodes + effects
+//                                                    + extensions +
+//                                                    precomp_builder)
+//   - runtime::ExecutionPlanCache (unique_ptr)     (topological-plan
+//                                                    reuse; was
+//                                                    RendererRuntimeResources
+//                                                    ::plan_cache shared_ptr
+//                                                    per TICKET-009)
+//   - graph::ExecutionScheduler                     (tbb::task_arena owner)
+//   - graph::GraphExecutor                          (stateless executor)
+//   - renderer::SoftwareRegistry                    (shape processor reg.)
+//   - graph::GraphNodeCatalog                       (graph node registry)
+//   - effects::EffectCatalog                        (effect registry)
+//   - unique_ptr<RenderBackend>                     (attached externally
+//                                                    via attach_backend()
+//                                                    because SoftwareBackend
+//                                                    ctor needs the
+//                                                    renderer's
+//                                                    RenderCounters & +
+//                                                    RenderSettings & —
+//                                                    per-instance state
+//                                                    that lives on
+//                                                    SoftwareRenderer)
+//   - std::string default_assets_root               (engine-local; replaces
+//                                                    the migration bridge
+//                                                    to detail::g_default_
+//                                                    assets_root)
 //
-// What this replaces (to be wired in subsequent sub-commits):
-//   - `chronon3d::RendererRuntimeResources` (currently owned by
-//     SoftwareRenderer; will fold into RenderRuntime in 011b).
-//   - `chronon3d::RendererCacheState` (currently owned by
-//     SoftwareRenderer; will fold into RenderRuntime in 011b).
-//   - The std::unique_ptr<SoftwareBackend> m_backend held inside
-//     SoftwareRenderer (will move under RenderRuntime in 011e).
-//
-// ── Lifetime model (TICKET-011 design) ──────────────────────────────────
-//
-//   Engine lifetime           ─┐
-//     RenderRuntime           │  ← this file
-//       ├── PipelineCatalogs   │  ← was inside SoftwareRenderer
-//       ├── AssetRegistry*     │  ← from m_image_renderer + media/frame_source_provider
-//       ├── NodeCache          │  ← was inside RendererCacheState
-//       ├── CompiledGraphCache │  ← was inside RendererCacheState
-//       ├── FramebufferPool    │  ← was inside RendererCacheState
-//       ├── ExecutionScheduler │  ← new slot (was render_pipeline glue)
-//       ├── MediaFrameProvider*│  ← was in SoftwareRenderer::m_video_decoder
-//       ├── ExecutionPlanCache │  ← was m_runtime_resources.plan_cache
-//       └── unique_ptr<RenderBackend>
-//                              ─┘
-//
-// ── Migration stages ────────────────────────────────────────────────────
-//   - 011a (this): declare RenderRuntime + RenderServices (engine) — pure
-//     surface; no behaviour.
-//   - 011b:   introduce SoftwareBackendServices; SoftwareBackend ctor
-//             accepts services.  Adapter populates from RenderRuntime.
-//   - 011c:   introduce ShapeDrawContext; ShapeProcessor::draw() migrated
-//             to consume it (closes the service-locator on
-//             SoftwareRenderer&).
-//   - 011d:   introduce TextRasterService; replaces BOTH static anon
-//             BLFontFace caches in text_run_processor.cpp + text_rasterizer_render.cpp.
-//   - 011e:   migrate SoftwareRenderer::draw_node + ::draw_text_run to
-//             SoftwareBackend; SoftwareRenderer stops inheriting from
-//             RenderBackend (closes dual backend identity).  The 8 callers
-//             that dynamic_cast<SoftwareRenderer*> today become plain
-//             polymorphic dispatch via `ctx.services.backend`.
-// ---------------------------------------------------------------------------
+// Construction sequence (RenderEngine::Impl drives this):
+//   1) m_runtime(m_config)         → populate() allocates all slots
+//   2) m_renderer(m_runtime, cfg)  → renderer wires its per-instance
+//                                    state (counters, settings, image
+//                                    backend, video decoder, session)
+//   3) m_runtime.attach_backend(   → render_engine constructs
+//        make_unique<SoftwareBackend>  SoftwareBackend with
+//        (m_renderer->counters(),     (renderer-owned counters + settings
+//         m_renderer->settings(),     + runtime-owned pool) and
+//         m_runtime.framebuffer_pool_ attaches it to the runtime
+//         shared()));
+// ----------------------------------------------------------------------
 
 #include <cassert>
+#include <chrono>
+#include <chronon3d/cache/framebuffer_pool.hpp>
+#include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/core/scheduler/execution_scheduler.hpp>
+#include <chronon3d/effects/effect_catalog.hpp>
+#include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
+#include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/pipeline/pipeline_catalogs.hpp>
+#include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/runtime/execution_plan_cache.hpp>
+#include <chronon3d/runtime/render_session.hpp>
+#include <chronon3d/backends/software/software_registry.hpp>
 
+#include <filesystem>
 #include <memory>
+#include <string>
+#include <string_view>
 
 namespace chronon3d {
     struct Config;
     struct RenderSettings;
     class DebugConfig;
-}
-
-namespace chronon3d::assets {
-    class AssetRegistry;
+    class RenderBackend;
 }
 
 namespace chronon3d::cache {
@@ -77,119 +92,192 @@ namespace chronon3d::cache {
     class CompiledGraphCache;
 }
 
-namespace chronon3d::media {
-    class MediaFrameProvider;
-}
-
-namespace chronon3d::graph {
-    class RenderBackend;
-    class ExecutionScheduler;
-}
-
 namespace chronon3d::runtime {
 
-/// RenderServices — flat pointer bundle owned by RenderRuntime for
-/// the engine lifetime.  Sessions and per-call contexts reach into it
-/// via `RenderRuntime::services()` (typed) rather than accessing the
-/// SoftwareRenderer directly.  Pointers are non-owning; lifetime is
-/// the runtime's responsibility.
+/// Engine-generic service-locator bundle owned by RenderRuntime.
 ///
-/// NOTE — distinct from `chronon3d::graph::RenderServices` introduced
-/// by TICKET-010 (which is the per-`RenderGraphContext` service
-/// locator; per-frame rather than per-engine).  Renamed suggestion
-/// raised by the TICKET-011a review will land in 011b alongside the
-/// SoftwareBackendServices wiring.
+/// HUD: flat pointer bundle so that sessions / per-call contexts
+/// can read registries and caches via `runtime.services()` rather than
+/// reaching into SoftwareRenderer's private members.  Pointers are
+/// non-owning; lifetime is the runtime's responsibility.
+///
+/// NOTE: distinct from `chronon3d::graph::RenderServices` (per-
+/// `RenderGraphContext` service locator; per-frame rather than per-
+/// engine).
 struct RenderServices {
-    chronon3d::cache::NodeCache*           node_cache{nullptr};
-    chronon3d::cache::FramebufferPool*     framebuffer_pool{nullptr};
-    chronon3d::graph::CompiledGraphCache*  graph_cache{nullptr};
-    chronon3d::assets::AssetRegistry*      asset_registry{nullptr};
-    chronon3d::media::MediaFrameProvider*  video_decoder{nullptr};
-    chronon3d::graph::ExecutionScheduler*  scheduler{nullptr};
+    chronon3d::AssetRegistry*                asset_registry{nullptr};
+    chronon3d::cache::NodeCache*              node_cache{nullptr};
+    chronon3d::cache::FramebufferPool*        framebuffer_pool{nullptr};
+    chronon3d::graph::CompiledGraphCache*     graph_cache{nullptr};
+    chronon3d::ExecutionScheduler*            scheduler{nullptr};
+    chronon3d::graph::GraphExecutor*          executor{nullptr};
+    chronon3d::renderer::SoftwareRegistry*    software_registry{nullptr};
+    chronon3d::graph::GraphNodeCatalog*       graph_node_registry{nullptr};
+    chronon3d::effects::EffectCatalog*        effect_catalog{nullptr};
+    chronon3d::runtime::ExecutionPlanCache*  plan_cache{nullptr};
 };
 
-/// RenderRuntime — engine-lifetime container.  Owns pipeline catalogs +
-/// asset/media/scheduler services + caches + framebuffer pool +
-/// execution plan cache + the unique RenderBackend implementation.
-///
-/// Constructed once at engine init.  Every RenderSession holds a
-/// `RenderRuntime&` for the duration of every frame; the lifetime
-/// invariant is "RenderRuntime outlives any session that references it".
-///
-/// IMPORTANT — TICKET-011a NOTE: the inline accessors on lazy-initialised
-/// members (`backend()`, `plan_cache()`) assert on null dereference.
-/// This is intentional and SAFE in 011a: nothing instantiates
-/// `RenderRuntime` yet, so the asserts are dormant.  Sub-commit 011b
-/// will populate the unique_ptr members on construction so the asserts
-/// succeed at the first access.
+/// RenderRuntime — engine-lifetime container.
 class RenderRuntime {
 public:
-    // ── Construction ─────────────────────────────────────────────────
     RenderRuntime() = default;
+    explicit RenderRuntime(chronon3d::Config config);
+    ~RenderRuntime();
 
-    explicit RenderRuntime(chronon3d::Config config)
-        : m_config(std::move(config)) {}
-
-    ~RenderRuntime() = default;
-
-    // Non-copyable, movable.  All members are movable types so default
-    // special members suffice; explicit declarations here document the
-    // intent (no copy; move OK) without changing semantics.
+    // Non-copyable, movable.
     RenderRuntime(const RenderRuntime&) = delete;
     RenderRuntime& operator=(const RenderRuntime&) = delete;
     RenderRuntime(RenderRuntime&&) noexcept = default;
     RenderRuntime& operator=(RenderRuntime&&) noexcept = default;
 
+    /// Initialise the long-lived infrastructure from the engine Config.
+    /// Idempotent: calling populate() on a populated runtime is a no-op.
+    /// After populate() the service-locator bundle is populated, the
+    /// pipeline catalogs are wired, and the asset registry is initialised.
+    /// The backend is NOT allocated here — see attach_backend().
+    void populate();
+
+    /// Attach the engine's `RenderBackend` implementation.  Called by
+    /// RenderEngine::Impl after SoftwareRenderer is constructed (the
+    /// backend ctor needs the renderer's per-instance counters +
+    /// settings, which live on the renderer, not on the runtime).
+    /// After attach_backend() the runtime is the sole owner of the
+    /// backend for the rest of the engine lifetime.
+    void attach_backend(std::unique_ptr<chronon3d::graph::RenderBackend> backend);
+
     // ── Configuration ────────────────────────────────────────────────
     [[nodiscard]] const chronon3d::Config& config() const noexcept { return m_config; }
 
-    // ── Backend access (will be populated in TICKET-011b by the
-    //    backend factory; in 011a the pointer stays nullptr because
-    //    no factory is wired yet, hence the `assert`.) ─────────────
-    [[nodiscard]] chronon3d::graph::RenderBackend& backend() noexcept {
-        assert(m_backend != nullptr &&
-               "RenderRuntime::backend() requires m_backend to be populated "
-               "(populated by sub-commit 011b's backend factory).");
-        return *m_backend;
-    }
-    [[nodiscard]] const chronon3d::graph::RenderBackend& backend() const noexcept {
-        assert(m_backend != nullptr &&
-               "RenderRuntime::backend() requires m_backend to be populated "
-               "(populated by sub-commit 011b's backend factory).");
-        return *m_backend;
-    }
+    // ── Backend access (populated after attach_backend()) ────────────
+    [[nodiscard]] chronon3d::graph::RenderBackend& backend() noexcept;
+    [[nodiscard]] const chronon3d::graph::RenderBackend& backend() const noexcept;
 
-    // ── Pipeline catalogs (read-only after `populate_builtin_pipeline_catalogs` /
-    //    `init_graph_pipeline_catalogs` freeze) ───────────────────────
+    // ── Backend slot predicates ──────────────────────────────────────
+    [[nodiscard]] bool backend_attached() const noexcept { return static_cast<bool>(m_backend); }
+
+    // ── Pipeline catalogs ────────────────────────────────────────────
     [[nodiscard]] chronon3d::graph::PipelineCatalogs& catalogs() noexcept { return m_catalogs; }
     [[nodiscard]] const chronon3d::graph::PipelineCatalogs& catalogs() const noexcept { return m_catalogs; }
 
-    // ── Service-locator bundle (engine-lifetime view; populated
-    //    lazily during engine-init; mutable to allow lazy populate) ──
+    // ── Service-locator bundle ───────────────────────────────────────
     [[nodiscard]] RenderServices& services() noexcept { return m_services; }
     [[nodiscard]] const RenderServices& services() const noexcept { return m_services; }
 
-    // ── Topological-plan cache (allocated lazily in 011b; assertion
-    //    protects 011a's intentionally unpopulated state) ────────────
-    [[nodiscard]] chronon3d::runtime::ExecutionPlanCache& plan_cache() noexcept {
-        assert(m_plan_cache != nullptr &&
-               "RenderRuntime::plan_cache() requires m_plan_cache to be "
-               "populated (allocated by sub-commit 011b).");
-        return *m_plan_cache;
+    // ── Direct accessors used by SoftwareRenderer (forwarders for
+    //    caller convenience; primary access is via services()) ───────
+    [[nodiscard]] chronon3d::AssetRegistry&               assets()         noexcept { return m_assets; }
+    [[nodiscard]] chronon3d::cache::NodeCache&             node_cache()     noexcept { return m_owned_node_cache; }
+    [[nodiscard]] chronon3d::graph::CompiledGraphCache&    graph_cache()    noexcept { return m_owned_graph_cache; }
+    [[nodiscard]] std::shared_ptr<chronon3d::cache::FramebufferPool> framebuffer_pool_shared() noexcept { return m_owned_framebuffer_pool; }
+    [[nodiscard]] chronon3d::cache::FramebufferPool&       framebuffer_pool() noexcept {
+        return *m_owned_framebuffer_pool;
     }
-    [[nodiscard]] const chronon3d::runtime::ExecutionPlanCache& plan_cache() const noexcept {
-        assert(m_plan_cache != nullptr &&
-               "RenderRuntime::plan_cache() requires m_plan_cache to be "
-               "populated (allocated by sub-commit 011b).");
-        return *m_plan_cache;
-    }
+    [[nodiscard]] chronon3d::graph::GraphExecutor&         executor()       noexcept { return *m_owned_executor; }
+    [[nodiscard]] chronon3d::runtime::ExecutionPlanCache&  plan_cache()     noexcept { return *m_owned_plan_cache; }
+    [[nodiscard]] chronon3d::renderer::SoftwareRegistry&   software_registry() noexcept { return *m_owned_software_registry; }
+    [[nodiscard]] chronon3d::graph::GraphNodeCatalog&      graph_node_registry() noexcept { return *m_owned_graph_node_registry; }
+    [[nodiscard]] chronon3d::effects::EffectCatalog&       effect_catalog() noexcept { return *m_owned_effect_catalog; }
+    [[nodiscard]] chronon3d::ExecutionScheduler&           scheduler()      noexcept { return *m_scheduler; }
+
+    // ── Default assets root ──────────────────────────────────────────
+    [[nodiscard]] const std::string& default_assets_root() const noexcept { return m_default_assets_root; }
+
+    void set_default_assets_root(std::string root);
 
 private:
-    chronon3d::Config                       m_config;
-    chronon3d::graph::PipelineCatalogs      m_catalogs;
-    RenderServices                          m_services;
-    std::unique_ptr<chronon3d::runtime::ExecutionPlanCache> m_plan_cache;
-    std::unique_ptr<chronon3d::graph::RenderBackend>       m_backend;
+    chronon3d::Config                                   m_config;
+    chronon3d::graph::PipelineCatalogs                  m_catalogs;
+    chronon3d::AssetRegistry                            m_assets;
+    RenderServices                                      m_services{{}};
+
+    chronon3d::cache::NodeCache                         m_owned_node_cache{};
+    std::shared_ptr<chronon3d::cache::FramebufferPool> m_owned_framebuffer_pool;
+    chronon3d::graph::CompiledGraphCache                m_owned_graph_cache{};
+    std::unique_ptr<chronon3d::graph::GraphExecutor>         m_owned_executor;
+    // TICKET-009 — was `RendererRuntimeResources::plan_cache`
+    // (shared_ptr); promoted to unique_ptr because runtime is the
+    // sole owner under TICKET-011.
+    std::unique_ptr<chronon3d::runtime::ExecutionPlanCache>  m_owned_plan_cache;
+    std::unique_ptr<chronon3d::renderer::SoftwareRegistry>   m_owned_software_registry;
+    std::unique_ptr<chronon3d::graph::GraphNodeCatalog>       m_owned_graph_node_registry;
+    std::unique_ptr<chronon3d::effects::EffectCatalog>        m_owned_effect_catalog;
+    std::unique_ptr<chronon3d::ExecutionScheduler>            m_scheduler;
+
+    std::unique_ptr<chronon3d::graph::RenderBackend>   m_backend;
+    std::string                                       m_default_assets_root;
+    bool                                              m_populated{false};
 };
+
+// ── Process-wide "active runtime" pointer ───────────────────────────
+//
+// Deep rendering code that has no direct access to a RenderRuntime
+// (e.g. font_engine, text_rasterizer) reads
+// `default_assets_root_for_deep_code()` to find the engine's default
+// assets root.  This is the migration bridge that replaces
+// `detail::g_default_assets_root`; the bridge is named live in
+// render_runtime.cpp so its definition lives next to the writes it
+// serves.
+
+void set_active_runtime(RenderRuntime* runtime);
+[[nodiscard]] RenderRuntime* active_runtime();
+/// Returns the engine's default assets root for deep rendering code
+/// that has no direct RenderRuntime in its call stack (font_engine,
+/// text_rasterizer, preflight, etc.).  Resolution order:
+///
+///   1. Active RenderRuntime's `default_assets_root()` if a runtime
+///      is `active_runtime()`-reachable.
+///   2. Typed `process_wide_assets_root()` fallback for contexts that
+///      don't construct a RenderRuntime.
+///
+/// Returns an empty string when neither branch is configured
+/// (`runtime::resolve_asset_path` inlines that case to "leave the
+/// relative path unchanged").  Returned BY VALUE so both branches
+/// copy into the return slot before this function returns —
+/// branch 1's reference always outlives the call (runtime is
+/// active) and branch 2 is already a `std::string` value.
+[[nodiscard]] std::string default_assets_root_for_deep_code();
+
+/// Vends a fresh per-render-job `SoftwareRenderSession` whose
+/// `common.services` field is populated with the runtime's catalogue
+/// back-pointers.  Lifetime invariant: `runtime` must outlive every
+/// session it vends.
+[[nodiscard]] chronon3d::SoftwareRenderSession make_session(RenderRuntime& runtime);
+
+/// Read the back-pointers currently bound to a session.  Returns an
+/// empty record if the session was not produced by `make_session()`
+/// (e.g. default-constructed by a test fixture).
+[[nodiscard]] const SessionServices& session_services(const chronon3d::SoftwareRenderSession& session);
+
+// ── Process-wide assets root (TICKET-011a follow-up #2) ────────────
+//
+// Set by CLI/test init paths that don't construct a RenderRuntime.  Read
+// by `default_assets_root_for_deep_code()` as a fallback when no
+// RenderRuntime is active.  RenderRuntime::set_default_assets_root also
+// writes here so engine init propagates to deep code across the same
+// process without a separate signal.
+void set_process_wide_assets_root(std::string root);
+/// Return the process-wide assets-root fallback by value.  Empty if
+/// nothing has been configured.  Returning by value (not by reference)
+/// keeps the per-function-call mutex guard honest: a returned
+/// reference would dangle if another thread concurrently moved the
+/// underlying module-level string via `set_process_wide_assets_root`.
+[[nodiscard]] std::string process_wide_assets_root();
+
+/// Resolve a relative path against the active runtime's default assets
+/// root (preferred) or the process-wide fallback (when no runtime has
+/// been attached).  Returns the relative path unchanged if empty,
+/// absolute, or if neither root is set.  Replaces the legacy
+/// `chronon3d::resolve_asset_path(relative)` overload that read
+/// `detail::g_default_assets_root` directly.
+[[nodiscard]] inline std::string resolve_asset_path(std::string_view relative_path) {
+    if (relative_path.empty()) return {};
+    if (std::filesystem::path(relative_path).is_absolute()) {
+        return std::filesystem::path(relative_path).lexically_normal().string();
+    }
+    const std::string root = default_assets_root_for_deep_code();
+    if (root.empty()) return std::string{relative_path};
+    return (std::filesystem::path(root) / relative_path)
+        .lexically_normal().string();
+}
 
 } // namespace chronon3d::runtime

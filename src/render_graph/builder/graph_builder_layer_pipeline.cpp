@@ -23,22 +23,22 @@ GraphNodeId append_root_sources(RenderGraph& graph, const Scene& scene,
     for (const auto& node : scene.nodes()) {
         cache::NodeCacheKey source_key{
             .scope = "root.source:" + std::string(node.name),
-            .frame = ctx.frame.frame,
-            .width = ctx.frame.width,
-            .height = ctx.frame.height,
+            .frame = ctx.frame_input.frame,
+            .width = ctx.frame_input.width,
+            .height = ctx.frame_input.height,
             .params_hash = hash_render_node(node),
             .source_hash = hash_bytes(node.name.data(), node.name.size())
         };
 
         auto source = graph.add_node(std::make_unique<SourceNode>(
             std::string(node.name), node, source_key,
-            ctx.options.modular_coordinates
+            ctx.policy.modular_coordinates
         ));
 
         if (first_root_source) {
             if (const auto* source_node = dynamic_cast<const SourceNode*>(&graph.node(source));
                 source_node && source_node->can_seed_full_frame(ctx)) {
-                ctx.options.skip_initial_clear = true;
+                ctx.policy.skip_initial_clear = true;
             }
             first_root_source = false;
         }
@@ -68,7 +68,7 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
     GraphNodeId layer_output = append_source_pass(graph, item, ctx);
     const Layer& layer = *item.layer;
 
-    if (!ctx.options.skip_initial_clear && layer_output != k_invalid_node) {
+    if (!ctx.policy.skip_initial_clear && layer_output != k_invalid_node) {
         const bool simple_opaque_full_frame_layer =
             layer.kind == LayerKind::Normal &&
             layer.nodes.size() == 1 &&
@@ -85,7 +85,7 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
         const bool can_seed = source_node && source_node->can_seed_full_frame(ctx);
 
         if (simple_opaque_full_frame_layer && can_seed) {
-            ctx.options.skip_initial_clear = true;
+            ctx.policy.skip_initial_clear = true;
         }
     }
 
@@ -127,9 +127,9 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
     if (layer.track_matte.active() && item.matte_node != k_invalid_node) {
         cache::NodeCacheKey matte_key{
             .scope       = "matte:" + std::string(layer.name),
-            .frame       = (layer.cache_static || item.is_static) ? Frame{0} : ctx.frame.frame,
-            .width       = ctx.frame.width,
-            .height      = ctx.frame.height,
+            .frame       = (layer.cache_static || item.is_static) ? Frame{0} : ctx.frame_input.frame,
+            .width       = ctx.frame_input.width,
+            .height      = ctx.frame_input.height,
             .params_hash = hash_bytes(layer.track_matte.source_layer.data(),
                                       layer.track_matte.source_layer.size()),
         };

@@ -100,6 +100,18 @@ using OwnedFB = std::unique_ptr<Framebuffer, PoolFbDeleter>;
 // ---------------------------------------------------------------------------
 using CachedFB = std::shared_ptr<Framebuffer>;
 
+// ── TICKET-011-final ──────────────────────────────────────────────────────────
+// make_owned_fb_from_shared — free helper replacing the missing
+// `OwnedFB::from_shared_no_pool` static factory.  OwnedFB is a
+// unique_ptr<T, PoolFbDeleter> type alias; static methods cannot be
+// added to type aliases, so we expose this factory inline.
+inline OwnedFB make_owned_fb_from_shared(std::shared_ptr<Framebuffer>&& src) noexcept {
+    if (!src) return OwnedFB{};
+    // std::shared_ptr has no .release(); copy-construct a fresh OwnedFB
+    // that is decoupled from the source's lifetime.
+    return OwnedFB(new Framebuffer(*src), PoolFbDeleter(DeleteFramebuffer{}));
+}
+
 // ---------------------------------------------------------------------------
 // Helper: borrow a CachedFB as a FramebufferRef + keep the shared_ptr alive.
 // ---------------------------------------------------------------------------

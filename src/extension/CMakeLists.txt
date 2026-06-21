@@ -5,7 +5,7 @@
 # Minimal owning registry for extension modules.
 # ==============================================================================
 
-add_library(chronon3d_extension STATIC
+add_library(chronon3d_extension OBJECT
     extension_catalog.cpp
 )
 target_link_libraries(chronon3d_extension PRIVATE chronon3d)

@@ -2,7 +2,7 @@
 # src/assets/CMakeLists.txt — chronon3d_assets
 # ==============================================================================
 
-add_library(chronon3d_assets STATIC
+add_library(chronon3d_assets OBJECT
     render_preflight_req.cpp
     render_preflight_validate.cpp
     render_preflight_helpers.cpp

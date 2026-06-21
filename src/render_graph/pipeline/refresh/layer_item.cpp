@@ -8,16 +8,16 @@ LayerGraphItem make_layer_graph_item_for_refresh(
 {
     const Layer& layer = *resolved_layer.layer;
 
-    if (ctx.camera.camera_2_5d.enabled && layer.uses_2_5d_projection) {
+    if (ctx.frame_input.camera_2_5d.enabled && layer.uses_2_5d_projection) {
         Transform effective_transform = resolved_layer.world_transform;
         const Mat4 projection_world_matrix = effective_transform.to_mat4();
         auto proj = project_layer_2_5d(
             effective_transform,
             projection_world_matrix,
-            ctx.camera.camera_2_5d,
-            static_cast<f32>(ctx.frame.width),
-            static_cast<f32>(ctx.frame.height),
-            ctx.options.diagnostics_enabled
+            ctx.frame_input.camera_2_5d,
+            static_cast<f32>(ctx.frame_input.width),
+            static_cast<f32>(ctx.frame_input.height),
+            ctx.policy.diagnostics_enabled
         );
         if (proj.visible) {
             const Mat4 eff_proj = is_native_3d_layer(layer)

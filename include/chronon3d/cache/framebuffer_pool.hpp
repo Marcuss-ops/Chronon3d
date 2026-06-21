@@ -142,6 +142,24 @@ public:
     /// Zero atomic overhead vs shared_ptr — use in the hot execution path.
     OwnedFB acquire_owned(int width, int height, bool clear = true);
 
+    // ── TICKET-011-final — adapter methods re-introduced for callers
+    // that retain the post-PoolFbDeleter-migration API expectations.
+
+    /// Acquire an OwnedFB by copying the pixel contents of `other`.
+    OwnedFB acquire_from(const Framebuffer& other);
+
+    /// Adopt a shared_ptr Framebuffer into single-ownership OwnedFB without copying pixels.
+    OwnedFB adopt_owned(std::shared_ptr<Framebuffer>&& src);
+
+    /// Convert OwnedFB to CachedFB (shared_ptr) for cache storage.
+    CachedFB cache_adopt(OwnedFB owned);
+
+    /// Acquire a framebuffer surfaced as a shared_ptr (cross-API interop).
+    std::shared_ptr<Framebuffer> acquire_shared(int width, int height, bool clear = true);
+
+    /// Release a shared_ptr FB back to the pool.
+    /// (release_shared removed: zero callers; canonical path is release(Framebuffer*))
+
     void release(Framebuffer* fb);
 
     /// Create a shared_ptr-managed pool.  Use this instead of raw construction

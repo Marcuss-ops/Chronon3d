@@ -34,8 +34,8 @@ double run_node(
         CHRONON_ZONE_C("node_execute", trace_category::kGraph);
         owned = node.execute(node_ctx, inputs, input_bboxes);
     }
-    if (ctx.telemetry.counters) {
-        ctx.telemetry.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
+    if (ctx.node_exec.counters) {
+        ctx.node_exec.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
     }
     if (owned) {
         owned->set_key_digest(key.digest());
@@ -71,8 +71,8 @@ double run_node(
             result = CachedFB(raw, std::move(deleter));
         }
 
-        if (use_cache && ctx.resources.node_cache && !is_scratch) {
-            ctx.resources.node_cache->store(key, result);
+        if (use_cache && ctx.services.node_cache && !is_scratch) {
+            ctx.services.node_cache->store(key, result);
             if (node.cache_policy().persistent() && persistent_framebuffer_cache_enabled_for_current_run()) {
                 cache::PersistentFramebufferStore::instance().put(key, *result);
             }
@@ -108,7 +108,7 @@ void execute_single_node(
     const auto& input_ids = graph.inputs(id);
     const auto& pr = level_resolved[level_index];
 
-    if (id < ctx.tile.early_exit_skip.size() && ctx.tile.early_exit_skip[id]) {
+    if (id < ctx.node_exec.early_exit_skip.size() && ctx.node_exec.early_exit_skip[id]) {
         auto owned_fb = ctx.acquire_owned_fb(64, 64, false);
         owned_fb->clear(Color::transparent());
         Framebuffer* raw = owned_fb.release();
@@ -121,12 +121,12 @@ void execute_single_node(
         state.resolved_frame_dependent[id] = 0;
         state.resolved_cache_hit[id] = 0;
         state.resolved_bboxes[id] = raster::BBox{0, 0, 0, 0};
-        if (ctx.telemetry.counters) {
-            ctx.telemetry.counters->layers_culled.fetch_add(1, std::memory_order_relaxed);
+        if (ctx.node_exec.counters) {
+            ctx.node_exec.counters->layers_culled.fetch_add(1, std::memory_order_relaxed);
             if (graph.node(id).name() == "Clear") {
-                ctx.telemetry.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
-                const uint64_t clear_pixels = static_cast<uint64_t>(ctx.frame.width) * static_cast<uint64_t>(ctx.frame.height);
-                ctx.telemetry.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                ctx.node_exec.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
+                const uint64_t clear_pixels = static_cast<uint64_t>(ctx.frame_input.width) * static_cast<uint64_t>(ctx.frame_input.height);
+                ctx.node_exec.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
             }
         }
         return;
@@ -163,8 +163,8 @@ void execute_single_node(
         state.resolved_frame_dependent[id] = 0;
         state.resolved_cache_hit[id] = 0;
         state.resolved_bboxes[id] = raster::BBox{0, 0, 0, 0};
-        if (ctx.telemetry.counters) {
-            ctx.telemetry.counters->layers_culled.fetch_add(1, std::memory_order_relaxed);
+        if (ctx.node_exec.counters) {
+            ctx.node_exec.counters->layers_culled.fetch_add(1, std::memory_order_relaxed);
         }
         return;
     }
@@ -188,9 +188,9 @@ void execute_single_node(
         *out_cache_ms = profiling::duration_ms(t_cache0, t_cache1);
     }
 
-    if (ctx.options.diagnostics_enabled) {
+    if (ctx.policy.diagnostics_enabled) {
         spdlog::debug("[DIAG-exec] frame={} node='{}' id={} kind='{}' cache='{}' frame_dep={} use_cache={} result_ptr={}",
-            static_cast<int>(ctx.frame.frame), node.name(), id, to_string(node.kind()),
+            static_cast<int>(ctx.frame_input.frame), node.name(), id, to_string(node.kind()),
             cache_eval.cache_status, cache_eval.node_frame_dependent ? 1 : 0,
             cache_eval.use_cache ? 1 : 0,
             cache_eval.result ? fmt::ptr(cache_eval.result.get()) : "null");
@@ -207,7 +207,7 @@ void execute_single_node(
         cache_eval.result &&
         cache_eval.cache_status == "hit" &&
         !cache_eval.node_frame_dependent &&
-        !ctx.tile.tile_execution_enabled;
+        !ctx.policy.tile_execution_enabled;
 
     if (cache_hit_fast_path) {
         const auto t_fast0 = profiling::now();
@@ -233,8 +233,8 @@ void execute_single_node(
             fast_duration_ms
         );
         const auto t_telemetry1 = profiling::now();
-        if (ctx.telemetry.counters) {
-            ctx.telemetry.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
+        if (ctx.node_exec.counters) {
+            ctx.node_exec.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
         }
         if (out_telemetry_ms) {
             *out_telemetry_ms = profiling::duration_ms(t_telemetry0, t_telemetry1);
@@ -257,10 +257,10 @@ void execute_single_node(
         return;
     }
 
-    if (ctx.tile.tile_execution_enabled && ctx.tile.active_tile_clip &&
+    if (ctx.policy.tile_execution_enabled && ctx.node_exec.active_tile_clip &&
         predicted_bbox && !predicted_bbox->is_empty())
     {
-        const auto& tile = *ctx.tile.active_tile_clip;
+        const auto& tile = *ctx.node_exec.active_tile_clip;
         const auto& bbox = *predicted_bbox;
         const bool bbox_intersects_tile =
             bbox.x0 < tile.x1 && bbox.x1 > tile.x0 &&
@@ -272,8 +272,8 @@ void execute_single_node(
             state.resolved_cache_hit[id] = 0;
             state.resolved_bboxes[id] = predicted_bbox;
 
-            if (ctx.telemetry.counters) {
-                ctx.telemetry.counters->nodes_skipped.fetch_add(1, std::memory_order_relaxed);
+            if (ctx.node_exec.counters) {
+                ctx.node_exec.counters->nodes_skipped.fetch_add(1, std::memory_order_relaxed);
             }
             return;
         }
@@ -291,23 +291,23 @@ void execute_single_node(
     }
 
     const auto t_dirty0 = profiling::now();
-    if (ctx.options.dirty_rects_enabled) {
-        node_ctx.tile.clip_rect = compute_dirty_clip(ctx, node, predicted_bbox);
+    if (ctx.policy.dirty_rects_enabled) {
+        node_ctx.node_exec.clip_rect = compute_dirty_clip(ctx, node, predicted_bbox);
     } else {
-        node_ctx.tile.clip_rect = predicted_bbox;
+        node_ctx.node_exec.clip_rect = predicted_bbox;
     }
     const auto t_dirty1 = profiling::now();
     if (out_dirty_ms) {
         *out_dirty_ms = profiling::duration_ms(t_dirty0, t_dirty1);
     }
 
-    node_ctx.scratch.reusable_inputs.clear();
+    node_ctx.node_exec.reusable_inputs.clear();
     for (size_t j = 0; j < input_ids.size(); ++j) {
         const GraphNodeId input_id = input_ids[j];
         if (contains_index(state.temp, input_id) && state.temp[input_id]) {
             if (consumer_remaining[input_id].load(std::memory_order_relaxed) == 1 &&
                 state.temp[input_id].use_count() == 1) {
-                node_ctx.scratch.reusable_inputs.push_back(state.temp[input_id].get());
+                node_ctx.node_exec.reusable_inputs.push_back(state.temp[input_id].get());
             }
         }
     }
@@ -330,7 +330,7 @@ void execute_single_node(
         ctx, node,
         cache_eval.key,
         cache_eval.result,
-        node_ctx.tile.clip_rect,
+        node_ctx.node_exec.clip_rect,
         cache_eval.cache_status,
         cache_eval.is_cacheable,
         static_cast<int>(input_ids.size()),

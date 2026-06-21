@@ -57,13 +57,13 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
     std::shared_ptr<const runtime::ExecutionPlanCache::Plan> plan;
     bool plan_resolved = false;
 
-    if (plan_cache && ctx.options.graph_structure_unchanged) {
+    if (plan_cache && ctx.policy.graph_structure_unchanged) {
         const auto peek = plan_cache->snapshot();
         if (peek.valid && peek.output == output && peek.plan) {
             plan = peek.plan;
             plan_resolved = true;
-            if (ctx.telemetry.counters && ctx.options.diagnostics_enabled) {
-                ctx.telemetry.counters->execution_plan_cache_hits.fetch_add(1, std::memory_order_relaxed);
+            if (ctx.node_exec.counters && ctx.policy.diagnostics_enabled) {
+                ctx.node_exec.counters->execution_plan_cache_hits.fetch_add(1, std::memory_order_relaxed);
             }
         }
     }
@@ -74,8 +74,8 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
             plan = plan_cache->try_acquire(sig, output);
             if (plan) {
                 plan_resolved = true;
-                if (ctx.telemetry.counters && ctx.options.diagnostics_enabled) {
-                    ctx.telemetry.counters->execution_plan_cache_hits.fetch_add(1, std::memory_order_relaxed);
+                if (ctx.node_exec.counters && ctx.policy.diagnostics_enabled) {
+                    ctx.node_exec.counters->execution_plan_cache_hits.fetch_add(1, std::memory_order_relaxed);
                 }
             }
         }
@@ -119,16 +119,17 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         node_count, plan->consumer_counts, res
     );
     const auto t_fb1 = profiling::now();
-    if (ctx.telemetry.counters) {
-        ctx.telemetry.counters->framebuffer_lifetime_ms.fetch_add(
+    if (ctx.node_exec.counters) {
+        ctx.node_exec.counters->framebuffer_lifetime_ms.fetch_add(
             static_cast<uint64_t>(std::llround(profiling::duration_ms(t_fb0, t_fb1))),
             std::memory_order_relaxed);
     }
 
-    auto* parent_counters = ctx.telemetry.counters;
-    auto* parent_pool = ctx.resources.framebuffer_pool.get();
+    auto* parent_counters = ctx.node_exec.counters;
+    auto* parent_pool = ctx.services.framebuffer_pool.get();
 
-    execute_levels(graph, ctx, state, plan->levels, consumer_remaining, parent_counters, parent_pool, res);
+    auto scheduler = make_execution_scheduler(ExecutionSchedulerConfig{});
+    execute_levels(graph, ctx, state, scheduler, plan->levels, consumer_remaining, parent_counters, parent_pool, res);
 
     return state.temp[output];
 }
@@ -177,16 +178,17 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         node_count, consumer_counts, res
     );
     const auto t_fb1 = profiling::now();
-    if (ctx.telemetry.counters) {
-        ctx.telemetry.counters->framebuffer_lifetime_ms.fetch_add(
+    if (ctx.node_exec.counters) {
+        ctx.node_exec.counters->framebuffer_lifetime_ms.fetch_add(
             static_cast<uint64_t>(std::llround(profiling::duration_ms(t_fb0, t_fb1))),
             std::memory_order_relaxed);
     }
 
-    auto* parent_counters = ctx.telemetry.counters;
-    auto* parent_pool = ctx.resources.framebuffer_pool.get();
+    auto* parent_counters = ctx.node_exec.counters;
+    auto* parent_pool = ctx.services.framebuffer_pool.get();
 
-    execute_levels(graph, ctx, state, levels, consumer_remaining, parent_counters, parent_pool, res);
+    auto scheduler = make_execution_scheduler(ExecutionSchedulerConfig{});
+    execute_levels(graph, ctx, state, scheduler, levels, consumer_remaining, parent_counters, parent_pool, res);
 
     return state.temp[output];
 }

@@ -19,7 +19,7 @@ void refresh_effect_stack_node(
 
     const Layer& layer = *layer_it->second->layer;
     if (layer.anim_transform.blur.is_time_dependent()) {
-        const Frame local_frame = layer.local_frame(ctx.frame.frame);
+        const Frame local_frame = layer.local_frame(ctx.frame_input.frame);
         const f32 blur_radius = layer.anim_transform.blur.evaluate(local_frame);
         for (auto& effect : node.effects()) {
             if (auto* blur = std::get_if<BlurParams>(&effect.params)) {

@@ -49,7 +49,7 @@ static Composition make_integration_comp(int width, int height, int duration) {
 
 /// Set up a renderer suitable for render loop integration tests.
 static std::shared_ptr<SoftwareRenderer> make_integration_renderer() {
-    auto renderer = std::make_shared<SoftwareRenderer>();
+    auto renderer = std::make_shared<SoftwareRenderer>(Config{});
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer->set_settings(settings);

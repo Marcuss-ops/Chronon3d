@@ -35,7 +35,7 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
             Transform effective_transform = rl.world_transform;
             auto proj = project_layer_2_5d(
                 effective_transform, effective_transform.to_mat4(), cam25d,
-                static_cast<f32>(width), static_cast<f32>(height), ctx.options.diagnostics_enabled);
+                static_cast<f32>(width), static_cast<f32>(height), ctx.policy.diagnostics_enabled);
             if (proj.visible) {
                 const Mat4 eff_proj = detail::is_native_3d_layer(*rl.layer) ? Mat4(1.0f) : proj.projection_matrix;
                 item = LayerGraphItem{
@@ -79,10 +79,10 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                     raster::BBox bbox = compute_bbox_for_resolved(rl);
 
                     if (!is_safe_for_dirty_rects(*rl.layer, settings.motion_blur.enabled,
-                                                   ctx.resources.effect_catalog)) {
+                                                   ctx.services.effect_catalog)) {
                         bbox = raster::BBox{0, 0, width, height};
-                        if (ctx.telemetry.counters) {
-                            ctx.telemetry.counters->increment_dirty_full_fallback_reason(
+                        if (ctx.node_exec.counters) {
+                            ctx.node_exec.counters->increment_dirty_full_fallback_reason(
                                 DirtyFallbackReason::EffectBoundsUnknown);
                         }
                     } else {

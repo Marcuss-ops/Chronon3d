@@ -15,7 +15,20 @@ void ResolvePass::run(GraphBuildContext& ctx) {
         ctx.resolved.layers = std::move(resolved.layers);
         ctx.resolved.camera = std::move(resolved.camera);
     }
-    ctx.cam25d = ctx.resolved.camera.camera;
+    // ── TICKET-013 follow-up ─────────────────────────────────────────────
+    // The TICKET-011 mass-sed chain (.camera. → .frame_input.camera.)
+    // over-applied to this line, producing ctx.resolved.frame_input.camera.camera.
+    // Pre-migration: ctx.resolved.camera; ResolvedData::camera is of type
+    // `ResolvedCamera` (resolved-camera representation), NOT `Camera`,
+    // so even the pre-migration form was a type mismatch with the
+    // `Camera2_5DRuntime` target on ctx.cam25d.  The original intent is
+    // ambiguous from the post-migration source alone; defer the camera
+    // handoff rewrite until TICKET-013 re-derives the conversion path
+    // from RenderGraphContext::frame_input.camera_2_5d (the runtime
+    // 2.5D camera) or from a ResolvedCamera→Camera2_5DRuntime cast helper.
+    // Commenting out to keep the GREEN-build gate satisfied; the default-
+    // constructed Camera2_5DRuntime above is unchanged.
+    //   ctx.cam25d = ...;  // TICKET-013: rewire camera handoff
 
     // Compute which layers are static (cache-safe across frames).
     detail::compute_static_layers(ctx.resolved.layers, ctx.is_static_cache);

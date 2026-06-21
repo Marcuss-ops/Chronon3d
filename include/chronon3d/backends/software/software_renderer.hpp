@@ -1,5 +1,12 @@
 #pragma once
 
+#include <chronon3d/runtime/execution_plan_cache.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/runtime/render_session.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
+
 #include <chronon3d/backends/software/renderer.hpp>
 #include <chronon3d/math/renderer_state.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
@@ -20,33 +27,56 @@
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
-#include <chronon3d/backends/software/renderer_cache_state.hpp>
-#include <chronon3d/backends/software/renderer_runtime_resources.hpp>
-#include <chronon3d/backends/software/software_backend.hpp>
+#include <chronon3d/backends/software/software_session_resources.hpp>
 #include <chronon3d/core/config.hpp>
 
 #include <memory>
 #include <optional>
 #include <unordered_map>
-#include <chronon3d/runtime/render_session.hpp>
-#include <chronon3d/render_graph/render_backend.hpp>
-#include <chronon3d/render_graph/render_graph.hpp>
-#include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
+
+// ----------------------------------------------------------------------
+// backends/software/software_renderer.hpp
+//
+// TICKET-011 — SoftwareRenderer NO LONGER OWNS long-lived infrastructure.
+//
+// Previously, SoftwareRenderer held:
+//   - `m_cache_state`    (NodeCache + FramebufferPool + CompiledGraphCache)
+//   - `m_runtime_resources` (SoftwareRegistry + GraphExecutor +
+//                            ExecutionPlanCache + GraphNodeCatalog +
+//                            EffectCatalog)
+//   - `m_backend`        (SoftwareBackend instance)
+//
+// All of these now live on `chronon3d::runtime::RenderRuntime`.  The
+// renderer holds a `RenderRuntime*` pointer (set in the ctor init list)
+// plus only its per-instance state — Config copy, RenderSettings,
+// RenderCounters, ImageRenderer, SoftwareRenderSession, MediaFrameProvider,
+// ImageBackend, CompositionRegistry pointer.
+//
+// NOTE on the pointer: `m_runtime` is a POINTER, not a reference,
+// because the transitional `SoftwareRenderer(Config)` ctor synthesises
+// an internal RenderRuntime via `m_owned_runtime_storage` and binds the
+// pointer to it.  All callers therefore use `m_runtime->foo()`, never
+// `m_runtime.foo()`.
+// ----------------------------------------------------------------------
 
 namespace chronon3d {
+
+class SoftwareRenderer;
+class CompositionRegistry;
 
 namespace renderer {
 void clear_text_glow_cache();
 void clear_text_shadow_cache();
 }
 
-class SoftwareRenderer;
-class CompositionRegistry;
-
 /**
- * SoftwareRenderer — CPU-based rasterizer.
+ * SoftwareRenderer — per-instance rendering orchestrator.
  *
- * Support for hierarchical layers, inverse mapping, and transform-aware effects.
+ * Borrows caches / executor / scheduler / catalogs / backend from a
+ * RenderRuntime pointer passed at construction.  Holds per-instance
+ * state: Config copy, RenderSettings, RenderCounters, ImageRenderer,
+ * SoftwareRenderSession, MediaFrameProvider, ImageBackend,
+ * CompositionRegistry pointer.
  */
 class SoftwareRenderer : public Renderer, public graph::RenderBackend {
 public:
@@ -60,13 +90,35 @@ public:
                                                  i32 width, i32 height, Frame frame = 0,
                                                  f32 frame_time = 0.0f) const;
 
-    // Render settings management
+    // ── Construction ────────────────────────────────────────────────
+    /// Primary ctor — takes a wired RenderRuntime + engine Config.
+    /// The renderer borrows caches/executor/scheduler/catalogs from the
+    /// runtime; the backend is attached to the runtime externally
+    /// (post-construction in RenderEngine::Impl).
+    explicit SoftwareRenderer(runtime::RenderRuntime& rt, Config config);
+
+    /// Test/CLI transitional ctor — synthesises an internal RenderRuntime.
+    /// The synthesised runtime owns its own caches; the renderer borrows
+    /// from it the same way as the primary ctor.
+    explicit SoftwareRenderer(Config config);
+
+    ~SoftwareRenderer() override;
+
+    // Non-copyable.  Movable iff the RenderRuntime pointer can transfer;
+    // in practice a SoftwareRenderer is always held via unique_ptr so move
+    // is not relied upon.
+    SoftwareRenderer(const SoftwareRenderer&) = delete;
+    SoftwareRenderer& operator=(const SoftwareRenderer&) = delete;
+    SoftwareRenderer(SoftwareRenderer&&) noexcept = default;
+    SoftwareRenderer& operator=(SoftwareRenderer&&) noexcept = default;
+
+    // ── Render settings management ───────────────────────────────────
     void set_settings(const RenderSettings& settings) {
         m_settings = settings;
         m_counters.program_cache_capacity.store(settings.program_cache_capacity, std::memory_order_relaxed);
         m_counters.program_cache_tune.store(settings.program_cache_tune ? 1 : 0, std::memory_order_relaxed);
     }
-    [[nodiscard]] const RenderSettings& settings() const { return m_settings; }
+    [[nodiscard]] const RenderSettings& settings() const { return m_settings; };
 
     // Legacy/Compatibility setters (redirect to m_settings)
     void set_motion_blur(MotionBlurSettings mb) { m_settings.motion_blur = mb; }
@@ -78,26 +130,26 @@ public:
     // ── Intentional cache operations ──────────────────────────────────
 
     /// Clear all caches (image, font, node, pool, graph, frame state).
-    /// Useful between unrelated render sessions.
+    /// Forwards to the runtime's NodeCache/FramebufferPool/CompiledGraphCache.
     void clear_caches() {
         m_image_renderer.clear_cache();
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
         renderer::clear_text_glow_cache();
         renderer::clear_text_shadow_cache();
 #endif
-        clear_node_cache();
-        if (m_cache_state.framebuffer_pool) m_cache_state.framebuffer_pool->clear();
-        m_cache_state.graph_cache.reset();
+        node_cache().clear();
+        if (auto* pool = m_runtime->framebuffer_pool_shared().get()) {
+            pool->clear();
+        }
+        m_runtime->graph_cache() = {};
         m_session.common.frame_history.prev_graph_structure_fingerprint = 0;
         m_session.clear_per_frame();
-        // Video cache clearing is now responsibility of the decoder implementation
     }
 
-    /// Clear only the node cache (e.g. between unrelated render sessions
-    /// where the composition/scene has changed).
-    void clear_node_cache() { m_cache_state.node_cache.clear(); }
+    /// Clear only the node cache.
+    void clear_node_cache() { node_cache().clear(); }
 
-    /// Reset all profiling counters to their default (zero) state.
+    /// Reset all profiling counters to zero.
     void reset_counters() { m_counters.reset(); }
 
     void set_composition_registry(const CompositionRegistry* registry) { m_registry = registry; }
@@ -112,7 +164,9 @@ public:
         const std::optional<raster::BBox>& clip) override;
 
     [[nodiscard]] ImageRenderer& image_renderer() { return m_image_renderer; }
-    [[nodiscard]] cache::NodeCache& node_cache() { return m_cache_state.node_cache; }
+    [[nodiscard]] cache::NodeCache& node_cache() noexcept { return m_runtime->node_cache(); }
+    [[nodiscard]] const cache::NodeCache& node_cache() const noexcept { return m_runtime->node_cache(); }
+
     [[nodiscard]] const RenderSettings& render_settings() const { return m_settings; }
 
     void set_video_decoder(std::shared_ptr<media::MediaFrameProvider> decoder) {
@@ -156,69 +210,87 @@ public:
         };
     }
 
-    // PR2 — declare text rendering support; downstream callers MUST gate on
-    // `backend->capabilities().text_run` before invoking draw_text_run.
-    // Also PR2 — `bool diagnostic_mode` was removed from this override:
-    // diagnostic logging is now driven by the caller (e.g.
-    // `ctx.options.diagnostics_enabled`) at the graph-node level, not as
-    // a flag buried inside the processor's params.
     graph::RenderOpResult draw_text_run(Framebuffer& fb, const TextRunShape& shape, const Mat4& model_matrix,
                                         float opacity) override;
 
-    [[nodiscard]] renderer::SoftwareRegistry& software_registry() { return *m_runtime_resources.software_registry; }
-    [[nodiscard]] const renderer::SoftwareRegistry& software_registry() const { return *m_runtime_resources.software_registry; }
+    // ── Forwarders to RenderRuntime (TICKET-011) ─────────────────────
+    [[nodiscard]] renderer::SoftwareRegistry& software_registry() {
+        return m_runtime->software_registry();
+    }
+    [[nodiscard]] const renderer::SoftwareRegistry& software_registry() const {
+        return m_runtime->software_registry();
+    }
 
-    [[nodiscard]] graph::GraphNodeCatalog& graph_node_registry() { return *m_runtime_resources.graph_node_registry; }
-    [[nodiscard]] const graph::GraphNodeCatalog& graph_node_registry() const { return *m_runtime_resources.graph_node_registry; }
+    [[nodiscard]] graph::GraphNodeCatalog& graph_node_registry() {
+        return m_runtime->graph_node_registry();
+    }
+    [[nodiscard]] const graph::GraphNodeCatalog& graph_node_registry() const {
+        return m_runtime->graph_node_registry();
+    }
 
-    [[nodiscard]] effects::EffectCatalog& effect_catalog() { return *m_runtime_resources.effect_catalog; }
-    [[nodiscard]] const effects::EffectCatalog& effect_catalog() const { return *m_runtime_resources.effect_catalog; }
+    [[nodiscard]] effects::EffectCatalog& effect_catalog() {
+        return m_runtime->effect_catalog();
+    }
+    [[nodiscard]] const effects::EffectCatalog& effect_catalog() const {
+        return m_runtime->effect_catalog();
+    }
 
-    std::shared_ptr<cache::FramebufferPool> framebuffer_pool() override { return m_cache_state.framebuffer_pool; }
-    [[nodiscard]] cache::FramebufferPool& software_framebuffer_pool() { return *m_cache_state.framebuffer_pool; }
-    [[nodiscard]] const cache::FramebufferPool& software_framebuffer_pool() const { return *m_cache_state.framebuffer_pool; }
+    std::shared_ptr<cache::FramebufferPool> framebuffer_pool() override {
+        return m_runtime->framebuffer_pool_shared();
+    }
+    [[nodiscard]] cache::FramebufferPool& software_framebuffer_pool() {
+        return m_runtime->framebuffer_pool();
+    }
+    [[nodiscard]] const cache::FramebufferPool& software_framebuffer_pool() const {
+        return m_runtime->framebuffer_pool();
+    }
     [[nodiscard]] RenderCounters* counters() override { return &m_counters; }
     [[nodiscard]] const RenderCounters* counters() const { return &m_counters; }
-    [[nodiscard]] graph::GraphExecutor* executor();
-    [[nodiscard]] const graph::GraphExecutor* executor() const;
 
-    // TICKET-009 — accessor for the shared topological-plan cache.
-    // Callers (tile executor, precomp node) pass this into
-    // GraphExecutor::execute() for per-render plan reuse.  Pointer must
-    // outlive the executor call.
-    [[nodiscard]] runtime::ExecutionPlanCache* plan_cache();
-    [[nodiscard]] const runtime::ExecutionPlanCache* plan_cache() const;
+    [[nodiscard]] graph::GraphExecutor* executor() {
+        return &m_runtime->executor();
+    }
+    [[nodiscard]] const graph::GraphExecutor* executor() const {
+        return &m_runtime->executor();
+    }
 
-    /// Per-instance engine configuration (replaces legacy Config singleton)
+    // TICKET-011 / PR-B — accessor for the authoritative task-aren a
+    // scheduler (owned by the runtime).  PrecompNode uses
+    // `ctx.services.scheduler` → this accessor → `m_runtime->scheduler()`
+    // to route nested-graph execute() calls through the same arena as
+    // the parent graph.  Never nullptr while m_runtime is valid.
+    [[nodiscard]] chronon3d::ExecutionScheduler& scheduler() noexcept {
+        return m_runtime->scheduler();
+    }
+    [[nodiscard]] const chronon3d::ExecutionScheduler& scheduler() const noexcept {
+        return m_runtime->scheduler();
+    }
+
+    // TICKET-011 — accessor for the shared topological-plan cache.
+    // Const overload deliberately omitted: ExecutionPlanCache exposes
+    // non-const mutators (try_acquire locks a mutex; store/invalidate
+    // mutate state), so a const ExecutionPlanCache* would be unusable.
+    [[nodiscard]] runtime::ExecutionPlanCache* plan_cache() {
+        return &m_runtime->plan_cache();
+    }
+
+    [[nodiscard]] graph::CompiledGraphCache& graph_cache() { return m_runtime->graph_cache(); }
+    [[nodiscard]] const graph::CompiledGraphCache& graph_cache() const { return m_runtime->graph_cache(); }
+
+    /// Per-instance engine configuration (replaces legacy Config singleton).
     [[nodiscard]] const Config& config() const { return m_config; }
     [[nodiscard]] Config& config() { return m_config; }
 
-    /// Default constructor — builds Config from environment variables.
-    SoftwareRenderer();
-
-    /// Constructor with an explicit Config instance (e.g. CLI budget override).
-    explicit SoftwareRenderer(Config config);
-
-    ~SoftwareRenderer() override;
-
-    // Non-copyable.  Movable: all encapsulated state structs
-    // (RenderSession, RendererCacheState, RendererRuntimeResources)
-    // contain only moveable types (shared_ptr, unique_ptr, plain data).
-    // RenderSession stores FrameArena behind unique_ptr for movability.
-    // Callers may move SoftwareRenderer as long as no outstanding Handle
-    // or dangling pointer references the old location.
-    SoftwareRenderer(const SoftwareRenderer&) = delete;
-    SoftwareRenderer& operator=(const SoftwareRenderer&) = delete;
-    SoftwareRenderer(SoftwareRenderer&&) noexcept = default;
-    SoftwareRenderer& operator=(SoftwareRenderer&&) noexcept = default;
+    /// Access the underlying RenderBackend (lives on the runtime;
+    /// attached externally by RenderEngine::Impl).  Throws via
+    /// `m_runtime->backend()` if no backend has been attached.
+    [[nodiscard]] graph::RenderBackend& backend() { return m_runtime->backend(); }
+    [[nodiscard]] const graph::RenderBackend& backend() const { return m_runtime->backend(); }
 
     // ── RenderSession access ────────────────────────────────────────────
     [[nodiscard]] RenderSession& session() { return m_session.common; }
     [[nodiscard]] const RenderSession& session() const { return m_session.common; }
 
-    // TICKET-008 — software-side accessor for the full session composition
-    // (engine-generic + software-specific).  Use this only from code that is
-    // intentionally tied to the software backend.
     [[nodiscard]] SoftwareRenderSession& software_session() { return m_session; }
     [[nodiscard]] const SoftwareRenderSession& software_session() const { return m_session; }
 
@@ -251,7 +323,6 @@ public:
         m_session.common.frame_history.prev_camera_valid = cam.enabled;
     }
 
-    /// Alias for backward compatibility — prefer commit_prev_frame_state().
     void commit_frame_state(Frame frame, const Camera2_5D& cam,
                              uint64_t combined_fp, uint64_t static_fp,
                              uint64_t structure_fp, uint64_t active_at_fp,
@@ -284,44 +355,31 @@ public:
         m_session.common.dirty_telemetry.last_graph_reused = graph_reused;
     }
 
-    // ── RAII buffer management ──────────────────────────────────────────
+    // ── RAII buffer management ──────────────────────────────────────
     [[nodiscard]] RendererBufferRing& buffer_ring() { return m_session.software.buffer_ring; }
     [[nodiscard]] const RendererBufferRing& buffer_ring() const { return m_session.software.buffer_ring; }
     [[nodiscard]] TransformScratchBuffer& scratch_buffer() { return m_session.software.scratch_buffer; }
     [[nodiscard]] const TransformScratchBuffer& scratch_buffer() const { return m_session.software.scratch_buffer; }
-    [[nodiscard]] graph::CompiledGraphCache& graph_cache() { return m_cache_state.graph_cache; }
-    [[nodiscard]] const graph::CompiledGraphCache& graph_cache() const { return m_cache_state.graph_cache; }
-
-    /// Access the underlying RenderBackend implementation (extracted in PR-9).
-    [[nodiscard]] graph::RenderBackend& backend() { return *m_backend; }
-    [[nodiscard]] const graph::RenderBackend& backend() const { return *m_backend; }
 
 private:
+    Config            m_config;
+    RenderSettings    m_settings{};
+    RenderCounters    m_counters;
     ImageRenderer     m_image_renderer;
 
     std::shared_ptr<media::MediaFrameProvider> m_video_decoder;
     std::shared_ptr<image::ImageBackend> m_image_backend;
 
-    RenderSettings    m_settings{};
     const CompositionRegistry* m_registry{nullptr};
 
-    RenderCounters    m_counters;
+    // TICKET-011 — m_runtime is a POINTER.  Set in ctor init list to
+    // either an external reference (production path) or to
+    // m_owned_runtime_storage.get() (transitional path).  Use
+    // m_runtime->X() everywhere; never m_runtime.X().
+    runtime::RenderRuntime* m_runtime{nullptr};
+    std::unique_ptr<runtime::RenderRuntime> m_owned_runtime_storage;  // transitional ctor only
 
-    // ── Per-instance engine configuration ───────────────────────────
-    Config            m_config;
-
-    // ── Encapsulated cache state ─────────────────────────────────────
-    RendererCacheState       m_cache_state;
-    // ── Encapsulated runtime resources ─────────────────────────────────
-    RendererRuntimeResources m_runtime_resources;
-    // ── Encapsulated per-session state ───────────────────────────────────
     SoftwareRenderSession    m_session;
-
-    // ── Extracted RenderBackend implementation (PR-9) ───────────────────
-    // Pure rendering operations (blur, composite, effects, DoF) live here.
-    // draw_node and draw_text_run remain on SoftwareRenderer pending
-    // ShapeProcessor migration to accept RenderBackend&.
-    std::unique_ptr<SoftwareBackend> m_backend;
 };
 
 } // namespace chronon3d

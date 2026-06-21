@@ -10,10 +10,10 @@ namespace chronon3d::graph {
 // Math helpers live in transition/transition_node_math.cpp
 
 float TransitionNode::compute_progress(const RenderGraphContext& ctx) const {
-    if (ctx.frame.fps <= 0.0f) return 0.0f;
+    if (ctx.frame_input.fps <= 0.0f) return 0.0f;
 
-    const double fps = static_cast<double>(ctx.frame.fps);
-    double global_time_s = static_cast<double>(ctx.frame.time_seconds);
+    const double fps = static_cast<double>(ctx.frame_input.fps);
+    double global_time_s = static_cast<double>(ctx.frame_input.time_seconds);
     double layer_start_s = static_cast<double>(m_layer_from) / fps;
     double layer_time_s = global_time_s - layer_start_s;
 
@@ -52,7 +52,7 @@ OwnedFB TransitionNode::execute(
     std::span<const std::optional<raster::BBox>>
 ) {
     if (inputs.empty() || !inputs[0]) {
-        return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height, true);
+        return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true);
     }
 
     const FramebufferRef& src = inputs[0];

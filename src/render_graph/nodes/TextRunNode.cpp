@@ -56,9 +56,9 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
     // SSAA + canvas-centre transforms — identical to SourceNode so the bbox
     // sits in the same canvas coordinate space downstream.
     const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(
-        ctx.options.ssaa_factor, ctx.options.ssaa_factor, 1.0f));
+        ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
     const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(
-        ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
+        ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
 
     Mat4 matrix;
     if (m_uses_2_5d_projection || m_centered) {
@@ -92,8 +92,8 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
     //   - blur + stroke_width + spread padding
     auto bbox = renderer::compute_text_run_world_bbox(*m_shape, matrix, spread);
 
-    if (!ctx.options.diagnostics_enabled) {
-        bbox.clip_to(ctx.frame.width, ctx.frame.height);
+    if (!ctx.policy.diagnostics_enabled) {
+        bbox.clip_to(ctx.frame_input.width, ctx.frame_input.height);
     }
     if (bbox.is_empty()) {
         return raster::BBox{0, 0, 0, 0};
@@ -107,7 +107,7 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
 //
 // Combines:
 //   - skeleton key from source pass (scope, frame, size)
-//   - `hash_text_run_shape(*m_shape, ctx.frame.sample_time)` — covers
+//   - `hash_text_run_shape(*m_shape, ctx.frame_input.sample_time)` — covers
 //     immutable layout + per-glyph animated state + material/paint/
 //     shadows, AND (PR 10) the AnimatedTextDocument state at the
 //     current sample time (transition type + transition_text +
@@ -136,7 +136,7 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
             key.params_hash,
             chronon3d::hash_text_run_shape(
                 *m_shape,
-                ctx.frame.sample_time.integral_frame()));
+                ctx.frame_input.sample_time.integral_frame()));
     } else {
         key.params_hash = hash_combine(key.params_hash, static_cast<u64>(0xdeadbeef));
     }
@@ -152,7 +152,7 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
     // Modular-coordinate overrides
     key.params_hash = hash_combine(
         key.params_hash,
-        static_cast<u64>(ctx.options.modular_coordinates));
+        static_cast<u64>(ctx.policy.modular_coordinates));
     if (m_matrix_override) {
         key.params_hash = hash_combine(
             key.params_hash,
@@ -166,8 +166,8 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
 
     // 2.5D camera transform — invalidate when the camera moves so the bg
     // matrix inside compute_text_run_world_bbox is up-to-date.
-    if (m_uses_2_5d_projection && ctx.camera.has_camera_2_5d) {
-        const auto& cam = ctx.camera.camera_2_5d;
+    if (m_uses_2_5d_projection && ctx.frame_input.has_camera_2_5d) {
+        const auto& cam = ctx.frame_input.camera_2_5d;
         key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.position, sizeof(Vec3)));
         key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.rotation, sizeof(Vec3)));
         key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.zoom, sizeof(f32)));
@@ -199,14 +199,14 @@ OwnedFB TextRunNode::execute(
     if (!m_shape) {
         // Defensive: source pass only emits a TextRunNode when shape is set,
         // but if a future caller constructs an empty one, return a black frame.
-        return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height, /*clear=*/true);
+        return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true);
     }
 
     // ── PR 8 wire-up ────────────────────────────────────────────────
     // Re-evaluate the AE-style animator stack per frame, writing per-glyph
     // state back into m_shape->glyphs.  Cheap (no re-shaping); the cache
     // key below already folds `hash_text_run_shape(*m_shape,
-    // ctx.frame.sample_time)` so animated frames invalidate the stale
+    // ctx.frame_input.sample_time)` so animated frames invalidate the stale
     // entry automatically.  No-op when `shape->animators` is empty
     // (static layout).
     //
@@ -217,13 +217,13 @@ OwnedFB TextRunNode::execute(
     // the executor evaluates `cache_key()` — the order is intentionally
     // mutated-after-cache-key-fetch because the hash overload mirrors
     // the post-mutation layout contents.
-    chronon3d::update_text_run_shape_per_frame(*m_shape, ctx.frame.sample_time);
+    chronon3d::update_text_run_shape_per_frame(*m_shape, ctx.frame_input.sample_time);
 
     // Acquire full-canvas framebuffer (no clear-skip — text can't fill a frame).
-    auto fb = ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height, /*clear=*/true);
+    auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true);
 
     // Resolve backend and dispatch through the virtual draw_text_run.
-    auto* backend = ctx.resources.backend;
+    auto* backend = ctx.services.backend;
     if (!backend) {
         if (!m_backend_warned) {
             spdlog::error(
@@ -239,9 +239,9 @@ OwnedFB TextRunNode::execute(
     // (future: extend to full model-matrix transform); we still pass
     // the full matrix so the future path has the data.
     Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(
-        ctx.options.ssaa_factor, ctx.options.ssaa_factor, 1.0f));
+        ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
     Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(
-        ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
+        ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
 
     Mat4 world_matrix;
     if (m_uses_2_5d_projection || m_centered) {
@@ -279,7 +279,7 @@ OwnedFB TextRunNode::execute(
             result.error().message);
     }
 
-    if (ctx.options.diagnostics_enabled) {
+    if (ctx.policy.diagnostics_enabled) {
         // DEBUG (not INFO): this fires every frame.  The diagnostic-mode
         // spammy output is much better at debug level — users who want it
         // explicitly opt in via Chronon log-level configuration.
@@ -291,7 +291,7 @@ OwnedFB TextRunNode::execute(
             m_name,
             chronon3d::hash_text_run_shape(
                 *m_shape,
-                ctx.frame.sample_time.integral_frame()),
+                ctx.frame_input.sample_time.integral_frame()),
             m_shape->glyphs.size(),
             result ? result.value().items_drawn : 0u,
             opacity,

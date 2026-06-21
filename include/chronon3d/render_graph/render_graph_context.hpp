@@ -84,6 +84,7 @@ namespace chronon3d {
     struct RenderCounters;
     class Scene;
     class DebugConfig;  // re-exported; see forward-declare above
+    class ExecutionScheduler;  // TICKET-011 / PR-B — typed scheduler ptr on RenderServices
 }
 
 namespace chronon3d::media {
@@ -194,6 +195,14 @@ struct RenderServices {
     /// from `catalogs.precomp_builder.get()`.  When nullptr, callers
     /// MUST treat the build as unavailable and return empty output.
     const class PrecompBuilderService* precomp_builder{nullptr};
+
+    /// TICKET-010 / TICKET-011 — PR-B scheduler accessor.  PrecompNode
+    /// dereferences `*ctx.services.scheduler` to route its inner execute()
+    /// through the same arena as the parent graph.  Set by
+    /// `wire_catalog_pointers` from `SoftwareRenderer::scheduler()`
+    /// (which forwards to `RenderRuntime::scheduler()`).  Lifetime is
+    /// pinned to the owning runtime; never dereference past shutdown.
+    chronon3d::ExecutionScheduler* scheduler{nullptr};
 };
 
 // ── Per-frame / per-node mutable workspace ──────────────────────────────────

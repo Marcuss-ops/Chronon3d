@@ -2,7 +2,7 @@
 # src/effects/CMakeLists.txt — chronon3d_effects
 # ==============================================================================
 
-add_library(chronon3d_effects STATIC
+add_library(chronon3d_effects OBJECT
     effect_catalog.cpp
     effect_catalog_data.cpp
     curves.cpp

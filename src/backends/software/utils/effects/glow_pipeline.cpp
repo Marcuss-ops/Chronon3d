@@ -650,15 +650,15 @@ GlowPipelineOutput GlowPipeline::render(graph::RenderGraphContext& ctx,
     // run_glow_accumulate (alpha-mask text-glow path) and
     // run_glow_pipeline (standard compositing path) so the
     // debug_*_glow_*.png artifacts toggle correctly per engine.
-    const chronon3d::DebugConfig* debug_cfg = ctx.options.debug_config;
+    const chronon3d::DebugConfig* debug_cfg = ctx.policy.debug_config;
 
     // Build internal pipeline config from GlowParams.
     GlowPipeline p = GlowPipeline::from(input.params);
 
     // Acquire from pool or allocate fresh.
     OwnedFB result;
-    if (ctx.resources.framebuffer_pool) {
-        result = ctx.resources.framebuffer_pool->acquire_owned(w, h, false);
+    if (ctx.services.framebuffer_pool) {
+        result = ctx.services.framebuffer_pool->acquire_owned(w, h, false);
     } else {
         result = OwnedFB(new Framebuffer(w, h), PoolFbDeleter{});
     }

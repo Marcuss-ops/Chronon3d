@@ -15,6 +15,7 @@
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/nodes/video_node.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <algorithm>
 #include <filesystem>
 #include <string>
@@ -93,7 +94,7 @@ void check_asset_integrity(
         } else if (auto* vid = dynamic_cast<const VideoNode*>(&node)) {
             const std::string path = vid->source().path;
             if (!path.empty()) {
-                std::string resolved = resolve_asset_path(path);
+                std::string resolved = chronon3d::runtime::resolve_asset_path(path);
                 if (!std::filesystem::exists(resolved)) {
                     asset_warnings.push_back("MISSING_ASSET: Video file does not exist: \"" + path + "\"");
                 }

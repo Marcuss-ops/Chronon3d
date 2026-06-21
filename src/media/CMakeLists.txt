@@ -15,7 +15,8 @@ target_include_directories(chronon3d_media_interface INTERFACE
 target_link_libraries(chronon3d_media_interface INTERFACE chronon3d)
 
 if(CHRONON3D_ENABLE_VIDEO)
-    add_library(chronon3d_backend_video STATIC
+    # TICKET-011 cmake-boundary (OBJECT lift) — see chronon3d_backend_software comment.
+    add_library(chronon3d_backend_video OBJECT
         frame_conversion/frame_converter.cpp
         frame_conversion/backends/packed_backend.cpp
         frame_conversion/backends/swscale_backend.cpp
@@ -32,7 +33,8 @@ if(CHRONON3D_ENABLE_VIDEO)
         TBB::tbb
     )
     # ── chronon3d_media_video — Video sink library ──────────────────
-    add_library(chronon3d_media_video STATIC
+    # TICKET-011 cmake-boundary (OBJECT lift) — see chronon3d_backend_software comment.
+    add_library(chronon3d_media_video OBJECT
         video/raw_video_sink.cpp
         video/ffmpeg_pipe_sink.cpp
         video/process_runner.cpp

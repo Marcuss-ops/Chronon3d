@@ -20,7 +20,7 @@ void emit_node_records(
     // nodes without layer_id (e.g. ClearNode) appear named in Hot Nodes.
     // Previously the "need_strings" optimization skipped calling
     // node.name() entirely for such nodes, leaving an empty entry.
-    const bool do_lazy_strings = is_cacheable && ctx.resources.node_cache;
+    const bool do_lazy_strings = is_cacheable && ctx.services.node_cache;
     const std::string node_name{node.name()};
     const std::string node_kind_str{to_string(node.kind())};
     const std::string node_layer_id{node.layer_id()};
@@ -31,7 +31,7 @@ void emit_node_records(
     // hash components) to avoid computing them for non-cacheable nodes.
     {
         telemetry::CacheTelemetryRecord cache_rec;
-        cache_rec.frame_number = static_cast<int>(ctx.frame.frame);
+        cache_rec.frame_number = static_cast<int>(ctx.frame_input.frame);
         cache_rec.node_name = node_name;
         cache_rec.cacheable = is_cacheable;
         cache_rec.cache_status = cache_status;
@@ -58,7 +58,7 @@ void emit_node_records(
     // Node telemetry record
     {
         telemetry::NodeTelemetryRecord rec;
-        rec.frame_number = static_cast<int>(ctx.frame.frame);
+        rec.frame_number = static_cast<int>(ctx.frame_input.frame);
         rec.node_name = node_name;
         rec.node_type = node_kind_str;
         rec.duration_ms = duration_ms;
@@ -80,7 +80,7 @@ void emit_node_records(
     // Layer telemetry record
     if (has_layer) {
         telemetry::LayerTelemetryRecord layer_rec;
-        layer_rec.frame_number = static_cast<int>(ctx.frame.frame);
+        layer_rec.frame_number = static_cast<int>(ctx.frame_input.frame);
         layer_rec.layer_id = node_layer_id;
         layer_rec.layer_name = node_name;
         layer_rec.layer_type = node_kind_str;
@@ -103,9 +103,9 @@ void emit_node_records(
     }
 
     // Per-node log line
-    if (ctx.options.diagnostics_enabled) {
+    if (ctx.policy.diagnostics_enabled) {
         spdlog::info("[graph-debug] frame={} node='{}' kind='{}' cache_status='{}' dur={:.3f}ms",
-                     static_cast<int>(ctx.frame.frame), node_name, node_kind_str, cache_status, duration_ms);
+                     static_cast<int>(ctx.frame_input.frame), node_name, node_kind_str, cache_status, duration_ms);
     }
 }
 

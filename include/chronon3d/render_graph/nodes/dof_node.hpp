@@ -25,13 +25,13 @@ public:
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         const float blur = compute_dof_blur_radius(m_camera.dof, m_camera.lens, m_layer_world_z,
-                                                  static_cast<f32>(ctx.frame.width));
+                                                  static_cast<f32>(ctx.frame_input.width));
 
         return cache::NodeCacheKey{
             .scope = "dof",
-            .frame = ctx.frame.frame,
-            .width = ctx.frame.width,
-            .height = ctx.frame.height,
+            .frame = ctx.frame_input.frame,
+            .width = ctx.frame_input.width,
+            .height = ctx.frame_input.height,
             .params_hash = hash_combine(
                 hash_combine(
                     hash_combine(
@@ -55,38 +55,38 @@ public:
             return bbox;
         }
         const float blur = compute_dof_blur_radius(m_camera.dof, m_camera.lens, m_layer_world_z,
-                                                  static_cast<f32>(ctx.frame.width));
+                                                  static_cast<f32>(ctx.frame_input.width));
         if (blur <= 0.5f) {
             return bbox;
         }
         bbox.x0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.x0) - blur)));
         bbox.y0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.y0) - blur)));
-        bbox.x1 = std::min(ctx.frame.width, static_cast<i32>(std::ceil(static_cast<f32>(bbox.x1) + blur)));
-        bbox.y1 = std::min(ctx.frame.height, static_cast<i32>(std::ceil(static_cast<f32>(bbox.y1) + blur)));
+        bbox.x1 = std::min(ctx.frame_input.width, static_cast<i32>(std::ceil(static_cast<f32>(bbox.x1) + blur)));
+        bbox.y1 = std::min(ctx.frame_input.height, static_cast<i32>(std::ceil(static_cast<f32>(bbox.y1) + blur)));
         return bbox;
     }
 
     OwnedFB execute(RenderGraphContext& ctx, std::span<const FramebufferRef> inputs, std::span<const std::optional<raster::BBox>> input_bboxes) override {
         if (inputs.empty() || !inputs[0]) {
-            auto empty = ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
+            auto empty = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
             empty->clear(Color::transparent());
             return empty;
         }
 
         const float blur = compute_dof_blur_radius(m_camera.dof, m_camera.lens, m_layer_world_z,
-                                                  static_cast<f32>(ctx.frame.width));
+                                                  static_cast<f32>(ctx.frame_input.width));
         if (blur <= 0.5f) {
             return ctx.acquire_owned_fb(*inputs[0]);
         }
 
         auto result = ctx.acquire_owned_fb(*inputs[0]);
-        if (ctx.resources.backend) {
+        if (ctx.services.backend) {
             EffectStack dof_stack;
             dof_stack.push_back(EffectInstance{
                 effects::EffectDescriptor{.id = std::string{effects::ids::BlurGaussian}},
                 BlurParams{blur}
             });
-            std::optional<raster::BBox> local_clip = ctx.tile.clip_rect;
+            std::optional<raster::BBox> local_clip = ctx.node_exec.clip_rect;
             auto pred_bbox = predicted_bbox(ctx, input_bboxes);
             if (pred_bbox) {
                 if (local_clip) {
@@ -99,26 +99,26 @@ public:
                 }
             }
             const effects::EffectExecutionContext dof_context{
-                .time_seconds = ctx.frame.time_seconds,
-                .frame = ctx.frame.frame,
+                .time_seconds = ctx.frame_input.time_seconds,
+                .frame = ctx.frame_input.frame,
                 .clip = local_clip,
                 .quality = effects::RenderQuality::Final,
-                .diagnostics_enabled = ctx.options.diagnostics_enabled
+                .diagnostics_enabled = ctx.policy.diagnostics_enabled
             };
-            ctx.resources.backend->apply_effect_stack(*result, dof_stack, dof_context);
-            if (ctx.telemetry.counters) {
-                ctx.telemetry.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
-                uint64_t area = static_cast<uint64_t>(ctx.frame.width * ctx.frame.height);
+            ctx.services.backend->apply_effect_stack(*result, dof_stack, dof_context);
+            if (ctx.node_exec.counters) {
+                ctx.node_exec.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
+                uint64_t area = static_cast<uint64_t>(ctx.frame_input.width * ctx.frame_input.height);
                 if (local_clip) {
                     raster::BBox clipped = *local_clip;
-                    clipped.clip_to(ctx.frame.width, ctx.frame.height);
+                    clipped.clip_to(ctx.frame_input.width, ctx.frame_input.height);
                     if (!clipped.is_empty()) {
                         area = static_cast<uint64_t>(clipped.x1 - clipped.x0) * (clipped.y1 - clipped.y0);
                     } else {
                         area = 0;
                     }
                 }
-                ctx.telemetry.counters->effect_pixels.fetch_add(area, std::memory_order_relaxed);
+                ctx.node_exec.counters->effect_pixels.fetch_add(area, std::memory_order_relaxed);
             }
         }
         return result;

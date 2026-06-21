@@ -23,7 +23,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
     // Per-layer: culling, matte sub-pipeline, then full layer pipeline.
     auto append_item = [&](LayerGraphItem item,
                            std::span<const ShadowCasterInfo> casters = {}) {
-        auto* renderer = dynamic_cast<SoftwareRenderer*>(rctx.resources.backend);
+        auto* renderer = dynamic_cast<SoftwareRenderer*>(rctx.services.backend);
         raster::BBox bbox = detail::compute_layer_bbox(item, rctx, renderer);
 
         bool is_culled = false;
@@ -34,8 +34,8 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
             is_culled = true;
             cull_reason = "empty_bbox";
         } else {
-            bool intersects = !(bbox.x1 <= 0 || bbox.x0 >= rctx.frame.width ||
-                                bbox.y1 <= 0 || bbox.y0 >= rctx.frame.height);
+            bool intersects = !(bbox.x1 <= 0 || bbox.x0 >= rctx.frame_input.width ||
+                                bbox.y1 <= 0 || bbox.y0 >= rctx.frame_input.height);
             if (!intersects) {
                 is_culled = true;
                 cull_reason = "frustum_culled";
@@ -44,18 +44,18 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
             }
         }
 
-        if (rctx.telemetry.counters) {
-            rctx.telemetry.counters->layer_culling_tests.fetch_add(1, std::memory_order_relaxed);
+        if (rctx.node_exec.counters) {
+            rctx.node_exec.counters->layer_culling_tests.fetch_add(1, std::memory_order_relaxed);
             if (is_culled) {
-                rctx.telemetry.counters->layers_culled.fetch_add(1, std::memory_order_relaxed);
+                rctx.node_exec.counters->layers_culled.fetch_add(1, std::memory_order_relaxed);
             } else {
-                rctx.telemetry.counters->layers_visible.fetch_add(1, std::memory_order_relaxed);
+                rctx.node_exec.counters->layers_visible.fetch_add(1, std::memory_order_relaxed);
             }
         }
 
         // Record culling telemetry
         telemetry::CullingTelemetryRecord cull_rec;
-        cull_rec.frame_number = static_cast<int>(rctx.frame.frame);
+        cull_rec.frame_number = static_cast<int>(rctx.frame_input.frame);
         cull_rec.layer_id     = std::string(item.layer->name);
         cull_rec.visible      = !is_culled;
         cull_rec.reason       = cull_reason;
@@ -69,7 +69,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
         cull_rec.visible_h    = 0;
         if (!is_culled) {
             raster::BBox visible_bbox = bbox;
-            visible_bbox.clip_to(rctx.frame.width, rctx.frame.height);
+            visible_bbox.clip_to(rctx.frame_input.width, rctx.frame_input.height);
             cull_rec.visible_x = static_cast<float>(visible_bbox.x0);
             cull_rec.visible_y = static_cast<float>(visible_bbox.y0);
             cull_rec.visible_w = static_cast<float>(visible_bbox.x1 - visible_bbox.x0);
@@ -85,7 +85,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
             const std::string src_name(item.layer->track_matte.source_layer);
             auto it = ctx.name_to_resolved.find(src_name);
             if (it != ctx.name_to_resolved.end()
-                && it->second->layer->active_at(rctx.frame.frame)) {
+                && it->second->layer->active_at(rctx.frame_input.frame)) {
                 LayerGraphItem matte_item = detail::make_item_for_matte_source(
                     *it->second, rctx, cam25d, ctx.is_static_cache);
                 item.matte_node = detail::build_matte_sub_pipeline(
@@ -130,7 +130,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
         const bool is_static_val =
             ctx.is_static_cache.at(std::string(layer.name));
 
-        if (!layer.active_at(rctx.frame.frame)) continue;
+        if (!layer.active_at(rctx.frame_input.frame)) continue;
 
         // Matte source layers are consumed exclusively by TrackMatteNode.
         if (ctx.matte_source_names.count(std::string(layer.name))) {
@@ -148,8 +148,8 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
             const Mat4 projection_world_matrix = effective_transform.to_mat4();
             auto proj = project_layer_2_5d(
                 effective_transform, projection_world_matrix, cam25d,
-                static_cast<f32>(rctx.frame.width), static_cast<f32>(rctx.frame.height),
-                rctx.options.diagnostics_enabled);
+                static_cast<f32>(rctx.frame_input.width), static_cast<f32>(rctx.frame_input.height),
+                rctx.policy.diagnostics_enabled);
             if (proj.visible) {
                 const Mat4 eff_proj = is_native_3d_layer(layer)
                     ? Mat4(1.0f) : proj.projection_matrix;

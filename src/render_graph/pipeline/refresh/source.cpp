@@ -23,9 +23,9 @@ void refresh_source_node(
         const RenderNode& src_node = *it->second;
         cache::NodeCacheKey key{
             .scope = "root.source:" + std::string(src_node.name),
-            .frame = ctx.frame.frame,
-            .width = ctx.frame.width,
-            .height = ctx.frame.height,
+            .frame = ctx.frame_input.frame,
+            .width = ctx.frame_input.width,
+            .height = ctx.frame_input.height,
             .params_hash = hash_render_node(src_node),
             .source_hash = hash_bytes(src_node.name.data(), src_node.name.size())
         };
@@ -33,7 +33,7 @@ void refresh_source_node(
             std::string(src_node.name),
             src_node,
             key,
-            ctx.options.modular_coordinates
+            ctx.policy.modular_coordinates
         );
         return;
     }
@@ -52,7 +52,7 @@ void refresh_source_node(
 
     const auto& src_node = layer.nodes[0];
     const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
-    const bool use_local = ctx.options.modular_coordinates &&
+    const bool use_local = ctx.policy.modular_coordinates &&
         layer_needs_render_transform(item, ctx) &&
         !item.native_3d;
     const std::string layer_name_str(layer.name);
@@ -71,9 +71,9 @@ void refresh_source_node(
         : (item.transform.opacity * src_node.world_transform.opacity);
     cache::NodeCacheKey key{
         .scope = "layer.source:" + layer_name_str + ":" + std::string(src_node.name),
-        .frame = source_is_static ? Frame{0} : ctx.frame.frame,
-        .width = ctx.frame.width,
-        .height = ctx.frame.height,
+        .frame = source_is_static ? Frame{0} : ctx.frame_input.frame,
+        .width = ctx.frame_input.width,
+        .height = ctx.frame_input.height,
         .params_hash = hash_render_node(src_node),
         .source_hash = hash_bytes(src_node.name.data(), src_node.name.size())
     };
@@ -84,8 +84,8 @@ void refresh_source_node(
         key,
         should_use_centered_rendering(item, ctx),
         item.projected,
-        ctx.options.modular_coordinates ? std::optional<Mat4>(render_matrix) : std::nullopt,
-        ctx.options.modular_coordinates ? std::optional<f32>(render_opacity) : std::nullopt,
+        ctx.policy.modular_coordinates ? std::optional<Mat4>(render_matrix) : std::nullopt,
+        ctx.policy.modular_coordinates ? std::optional<f32>(render_opacity) : std::nullopt,
         source_is_static ? static_memory_cache("source") : frame_variant_cache("source")
     );
 }

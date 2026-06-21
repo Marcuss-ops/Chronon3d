@@ -2,7 +2,7 @@
 # src/registry/CMakeLists.txt — chronon3d_registry
 # ==============================================================================
 
-add_library(chronon3d_registry STATIC
+add_library(chronon3d_registry OBJECT
     sampler_registry.cpp
     shape_registry.cpp
     source_registry.cpp

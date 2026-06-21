@@ -2,7 +2,7 @@
 # src/cache/CMakeLists.txt — chronon3d_cache
 # ==============================================================================
 
-add_library(chronon3d_cache STATIC
+add_library(chronon3d_cache OBJECT
     cache_policy.cpp
     frame_cache.cpp
     node_cache.cpp
