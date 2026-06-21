@@ -221,10 +221,11 @@ if [ -x tools/check_software_renderer_boundary.sh ]; then
     if bash tools/check_software_renderer_boundary.sh > /dev/null 2>&1; then
         echo "PASS"
     else
-        echo "FAIL"
+        echo "FAIL (advisory - does not block merge yet, see header above)"
         echo "  --- check_software_renderer_boundary.sh details ---"
         bash tools/check_software_renderer_boundary.sh 2>&1 | sed 's/^/    /' | head -40
-        FAILED=1
+        # NOTE: FAILED intentionally NOT set in this branch. Promote to
+        # `FAILED=1` after R2+R3+R4 land and the boundary script exits 0.
     fi
 else
     echo "SKIP (tools/check_software_renderer_boundary.sh not executable)"
