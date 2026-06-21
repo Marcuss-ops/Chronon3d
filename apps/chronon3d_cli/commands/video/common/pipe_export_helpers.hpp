@@ -45,7 +45,7 @@ void track_pipe_encoder_process(
     SystemMetricsCollector& sys_metrics);
 
 void warmup_pipe_renderer(
-    SoftwareRenderer& renderer,
+    SoftwareRenderer & renderer,
     const Composition& comp,
     const FfmpegExportOptions& opts);
 
