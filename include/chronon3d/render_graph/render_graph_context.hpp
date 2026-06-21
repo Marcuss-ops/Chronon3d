@@ -85,6 +85,7 @@ namespace chronon3d {
     class Scene;
     class DebugConfig;  // re-exported; see forward-declare above
     class ExecutionScheduler;  // TICKET-011 / PR-B — typed scheduler ptr on RenderServices
+    struct RenderSession;  // PR-5 — session ptr on RenderServices for PrecompNode inner exec
 }
 
 namespace chronon3d::media {
@@ -203,6 +204,15 @@ struct RenderServices {
     /// (which forwards to `RenderRuntime::scheduler()`).  Lifetime is
     /// pinned to the owning runtime; never dereference past shutdown.
     chronon3d::ExecutionScheduler* scheduler{nullptr};
+
+    /// PR-5 — parent render session pointer.  PrecompNode borrows the
+    /// session's arena (via `session->arena()`) for inner graph execution
+    /// PMR allocations, the session's `services.executor` and
+    /// `services.plan_cache` for inner executor calls, and the session's
+    /// `program_store` for cache lookups.  Set by scene.cpp when a
+    /// SoftwareRenderer is available.  Null in test paths without a
+    /// wired session.
+    chronon3d::RenderSession* session{nullptr};
 };
 
 // ── Per-frame / per-node mutable workspace ──────────────────────────────────

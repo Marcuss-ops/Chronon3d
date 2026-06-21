@@ -1,27 +1,27 @@
 // =============================================================================
-// precomp_node_execute.cpp — Cached PrecompNode execution
+// precomp_node_execute.cpp — PrecompNode::execute() (PR-5: thin-node refactor)
 //
-/// Implements PrecompNode::execute() with SceneProgramCache integration.
-///
-/// The cache eliminates redundant graph rebuilds when the nested composition's
-/// structure is unchanged across frames (only transforms/parameters differ).
-///
-/// Flow:
-///   1. Calculate nested frame time (respecting m_start_frame / m_duration).
-///   2. Evaluate the nested composition at the computed frame → Scene.
-///   3. Compute SceneStructureKey from the scene (structure fingerprint +
-///      active-set hash + render options hash + dimensions).
-///   4. SceneProgramCache::find_or_compile():
-///       - Cache HIT:  reuse the cached CompiledSceneProgram.
-///       - Cache MISS: build the graph, compile, optimize, store.
-///   5. Refresh per-frame payloads via refresh_compiled_graph_payloads().
-///   6. Warm up FrameParameterBlock (sized to binding count).
-///   7. Execute the cached program via the inner GraphExecutor.
+// PR-5 — PrecompNode no longer owns SceneProgramCache, GraphExecutor,
+// ExecutionPlanCache, RenderSession, or auto-tune state.  All of those are
+// now centralised on the parent RenderSession (accessed via
+// `ctx.services.session`).
+//
+// Flow:
+//   1. Calculate nested frame time.
+//   2. Evaluate nested composition → Scene.
+//   3. Compute SceneStructureKey.
+//   4. ctx.services.session->program_store->acquire(instance_key(), ...)
+//      → cache HIT: reuse; cache MISS: compile via PrecompBuilderService.
+//   5. Refresh per-frame payloads, warm up param block.
+//   6. Execute via session's executor + plan_cache + scheduler.
+//
+// The comp_name-based instance key ensures each PrecompNode gets its own
+// partition in the shared SceneProgramStore.
 // =============================================================================
 
-#include <chronon3d/runtime/execution_plan_cache.hpp>
 #include <chronon3d/runtime/render_session.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
+#include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/render_graph/layer/layer_resolver.hpp>
 #include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
@@ -31,55 +31,53 @@
 namespace chronon3d::graph {
 
 // ── Constructor ─────────────────────────────────────────────────────────────
-//
+
 PrecompNode::PrecompNode(std::string comp_name, Frame start_frame, Frame duration,
-                         Frame cache_frame, size_t cache_capacity,
-                         cache::TuneMode tune_mode, size_t tune_interval,
-                         size_t tune_min_cap, size_t tune_max_cap)
+                         Frame cache_frame, PrecompCachePolicy cache_policy)
     : RenderGraphNode(static_memory_cache("precomp"))
     , m_comp_name(std::move(comp_name))
     , m_full_name("Precomp:" + m_comp_name)
     , m_start_frame(start_frame)
     , m_duration(duration)
     , m_cache_frame(cache_frame)
-    , m_cache(std::make_unique<cache::SceneProgramCache>(cache_capacity))
-    , m_executor(std::make_unique<GraphExecutor>())
-    // TICKET-009 — per-precomp plan cache.  shared_ptr so it can be
-    // passed to m_executor without lifetime concerns (the executor is
-    // stateless and never owns the cache).
-    , m_plan_cache(std::make_shared<runtime::ExecutionPlanCache>())
-    , m_session()  // owns its own RenderSession
-    , m_tune_mode(tune_mode)
-    , m_tune_interval(tune_interval)
-    , m_tune_min_cap(tune_min_cap)
-    , m_tune_max_cap(tune_max_cap)
+    , m_cache_policy(std::move(cache_policy))
+    , m_instance_key(PrecompInstanceKey{
+          .graph = hash_string(m_comp_name),
+          .node  = 0})
 {
-    // Forward evictions from the inner cache to the outer callback.
-    m_cache->set_on_evict([this](const SceneStructureKey& key) {
-        if (m_on_evict) m_on_evict(key);
-    });
-
-    // Apply auto-tuning configuration if enabled.
-    if (m_tune_mode == cache::TuneMode::Auto) {
-        cache::TuneConfig cfg;
-        cfg.interval     = m_tune_interval;
-        cfg.min_capacity = m_tune_min_cap;
-        cfg.max_capacity = m_tune_max_cap;
-        m_cache->set_tune_mode(cache::TuneMode::Auto);
-        m_cache->set_tune_config(cfg);
-        m_cache->set_log_label("ProgramCache[Precomp:" + m_comp_name + "]");
-    }
 }
 
 PrecompNode::~PrecompNode() = default;
 
+// ── instance_key() ──────────────────────────────────────────────────────────
+
+PrecompInstanceKey PrecompNode::instance_key() const {
+    return m_instance_key;
+}
+
+// ── set_on_evict() ──────────────────────────────────────────────────────────
+
+void PrecompNode::set_on_evict(cache::ProgramEvictCallback cb) {
+    m_on_evict = std::move(cb);
+    // Note: the callback is forwarded to the store's per-instance cache
+    // lazily on the next acquire().  If the store hasn't created the
+    // instance yet, the callback is queued here and will be registered
+    // when acquire() first creates the per-instance cache.
+}
+
 // ── execute() ───────────────────────────────────────────────────────────────
-//
+
 OwnedFB PrecompNode::execute(
     RenderGraphContext& ctx,
     std::span<const FramebufferRef>,
     std::span<const std::optional<raster::BBox>>)
 {
+    // ── 0. Guard: parent session must be wired ─────────────────────────
+    auto* session = ctx.services.session;
+    if (!session) {
+        return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
+    }
+
     // ── 1. Guard: composition must exist in the registry ─────────────────
     if (!ctx.services.registry || !ctx.services.registry->contains(m_comp_name)) {
         return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
@@ -112,18 +110,25 @@ OwnedFB PrecompNode::execute(
     key.height             = nested_ctx.frame_input.height;
     key.ssaa_factor        = static_cast<int>(nested_ctx.policy.ssaa_factor);
 
-    // ── 5. Find or compile the nested program ────────────────────────────
-    auto* program = m_cache->find_or_compile(key, [&]() -> std::unique_ptr<CompiledSceneProgram> {
-        // Cache miss — delegate to the typed PrecompBuilderService wired
-        // into ctx.services via wire_catalog_pointers (TICKET-010).
-        if (!ctx.services.precomp_builder) {
-            return nullptr;
-        }
-        return ctx.services.precomp_builder->build(nested_scene, nested_ctx);
-    });
+    // ── 5. Acquire program from the centralized store ────────────────────
+    auto lease = session->program_store->acquire(
+        m_instance_key, key, m_cache_policy,
+        [&]() -> std::unique_ptr<CompiledSceneProgram> {
+            // Cache miss — delegate to the typed PrecompBuilderService.
+            if (!ctx.services.precomp_builder) {
+                return nullptr;
+            }
+            return ctx.services.precomp_builder->build(nested_scene, nested_ctx);
+        });
 
+    // Forward eviction callback to the store's per-instance cache if one
+    // is set and the instance was just created (or on first call).
+    if (m_on_evict) {
+        session->program_store->set_on_evict(m_instance_key, m_on_evict);
+    }
+
+    auto* program = lease.program;
     if (!program || program->empty()) {
-        // Empty / invalid program — return empty framebuffer.
         return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
     }
 
@@ -135,40 +140,20 @@ OwnedFB PrecompNode::execute(
     detail::refresh_compiled_graph_payloads(program->frame_graph, nested_scene, nested_ctx, resolved);
 
     // ── 8. Execute the cached program ────────────────────────────────────
-    // TICKET-009 — pass the per-precomp plan cache explicitly.
-    // PR-1 — route through the parent graph's scheduler so nested
-    // execute() calls share the same arena as the parent.
-    auto nested_result = m_executor->execute(
-        program->frame_graph, nested_ctx, m_session,
-        *ctx.services.scheduler, m_plan_cache.get());
+    // PR-5 — GraphExecutor is stateless, so creating it locally per call
+    // is safe and cheap.  The plan_cache is borrowed from the session's
+    // services (populated by runtime::make_session()).
+    GraphExecutor local_executor;
 
-    // ── 9. Auto-tune check (inside function scope) ───────────────────────
-    // Run after every successful execution.  The check is lightweight
-    // (counter increment + compare) and runs every frame.  The actual
-    // auto_tune() call (which happens every m_tune_interval frames) may
-    // call set_capacity() and evict excess entries, so it's better to
-    // run it after the result is returned.
+    auto nested_result = local_executor.execute(
+        program->frame_graph, nested_ctx, *session,
+        *ctx.services.scheduler,
+        session->services.plan_cache);
+
     if (nested_result) {
-        if (m_tune_mode == cache::TuneMode::Auto) {
-            ++m_tune_counter;
-            if (m_tune_counter >= m_tune_interval) {
-                m_tune_counter = 0;
-                m_cache->auto_tune();
-            }
-        }
         return ctx.acquire_owned_fb(std::move(nested_result));
     }
 
-    // Fallback: empty framebuffer.
-    // Also run the auto-tune check on this path to ensure we don't miss
-    // counting frames when the nested program is temporarily empty.
-    if (m_tune_mode == cache::TuneMode::Auto) {
-        ++m_tune_counter;
-        if (m_tune_counter >= m_tune_interval) {
-            m_tune_counter = 0;
-            m_cache->auto_tune();
-        }
-    }
     return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
 }
 

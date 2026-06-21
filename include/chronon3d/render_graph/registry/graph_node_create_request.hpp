@@ -10,24 +10,21 @@
 // ============================================================================
 
 #include <chronon3d/core/types/frame.hpp>
-#include <chronon3d/render_graph/cache/scene_program_cache.hpp>
+#include <chronon3d/render_graph/cache/scene_program_store.hpp>
 #include <string>
 #include <variant>
 
 namespace chronon3d::graph {
 
-/// Specification for creating a PrecompNode.
+/// Specification for creating a PrecompNode (PR-5: uses PrecompCachePolicy).
 struct PrecompNodeCreateSpec {
     std::string composition_name;
     Frame start_frame{0};
     Frame duration{-1};
     Frame cache_frame{-1};
 
-    size_t cache_capacity{8};
-    cache::TuneMode tune_mode{cache::TuneMode::Fixed};
-    size_t tune_interval{30};
-    size_t tune_min_capacity{2};
-    size_t tune_max_capacity{128};
+    /// Per-instance cache policy forwarded to SceneProgramStore.
+    PrecompCachePolicy cache_policy;
 };
 
 /// Variant of all supported node creation payloads.

@@ -40,6 +40,7 @@
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/math/renderer_state.hpp>
 #include <chronon3d/render_graph/core/scene_hasher.hpp>
+#include <chronon3d/render_graph/cache/scene_program_store.hpp>
 #include <chronon3d/runtime/session_services.hpp>
 
 // Software-specific field includes (TICKET-008 note: lives in runtime/ for
@@ -71,6 +72,10 @@ namespace chronon3d {
 /// session-aware contexts (currently GraphExecutor callers) can
 /// read registries / caches / pools / default_assets_root through
 /// the session itself instead of reaching a process-global.
+///
+/// PR-5 — `program_store` is stored indirectly (unique_ptr) because
+/// SceneProgramStore contains a std::mutex (non-movable).  This keeps
+/// RenderSession movable, matching the existing FrameArena pattern.
 struct RenderSession {
     std::unique_ptr<FrameArena> arena_ptr{std::make_unique<FrameArena>()};
 
@@ -79,6 +84,8 @@ struct RenderSession {
     RendererLayerHistory    layer_history;
     graph::SceneHasher      scene_hasher;
     runtime::SessionServices services;
+    std::unique_ptr<graph::SceneProgramStore> program_store{
+        std::make_unique<graph::SceneProgramStore>()};
 
     /// Convenience accessor for the frame arena.
     [[nodiscard]] FrameArena& arena() noexcept { return *arena_ptr; }
