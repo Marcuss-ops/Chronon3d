@@ -3,6 +3,25 @@
 // ---------------------------------------------------------------------------
 // render_graph/executor/graph_executor.hpp
 //
+// ──────────────────────────────────────────────────────────────────────────
+// PRODUCTION CONTRACT (Work Package 2 — Compiled graph only)
+// ──────────────────────────────────────────────────────────────────────────
+// Production callers MUST use the `CompiledFrameGraph&`
+// overload of `execute(...)` defined further down — the two
+// `RenderGraph&` overloads that follow are TEST-ONLY.
+//
+//   FrameGraphCompiler  →  CompiledFrameGraph  →  GraphExecutor::execute
+//
+// `FrameGraphCompiler` (in
+// `<chronon3d/render_graph/compiler/frame_graph_compiler.hpp>`) is the
+// sole topology-plan producer for production traffic.  The legacy
+// `RenderGraph&` overloads are kept solely so the test suite, the bench
+// harness (`tests/bench/bench_scene_program.cpp`) and the bake CLI
+// (`apps/chronon3d_cli/commands/render/command_bake_layer.cpp`) keep
+// building; new production code MUST NOT call them.  See
+// `docs/refactor-roadmap/02-compiled-graph-only.md` for the rationale.
+// ──────────────────────────────────────────────────────────────────────────
+//
 // TICKET-009 — GraphExecutor is now stateless.  All member fields
 // (tbb::task_arena m_arena, mutable std::mutex m_plan_mutex,
 // CachedExecutionPlan m_cached_plan) and the auxiliary `ExecutionPlan`
@@ -43,22 +62,15 @@ public:
     /// executor; lifecycle is the caller's responsibility.
     GraphExecutor() = default;
 
-    /// Execute a render graph.
-    /// @param session          The RenderSession providing the frame
-    ///                         arena and per-frame state.
-    /// @param scheduler        The authoritative ExecutionScheduler for
-    ///                         the engine.  All parallel work (level
-    ///                         dispatch, tile loops) is routed through
-    ///                         this scheduler's arena.  Must outlive the
-    ///                         call.  (PR-1 — was previously a local
-    ///                         make_execution_scheduler() call.)
-    /// @param plan_cache       Optional thread-safe plan cache.  Pass
-    ///                         `nullptr` to disable plan caching (a
-    ///                         fresh plan is built every call); pass a
-    ///                         shared instance owned by the caller (e.g.
-    ///                         `SoftwareRenderer::plan_cache()` /
-    ///                         future `RenderRuntime::plan_cache()`)
-    ///                         to enable reuse across `execute()` calls.
+    // ── TEST-ONLY ENTRYPOINTS (Work Package 2) ──────────────────────────
+    // The two overloads below take a raw `RenderGraph&`.  They exist only
+    // to keep the test suite, the bench harness and the bake CLI compiling
+    // without forcing every caller to install a FrameGraphCompiler
+    // shim.  Production code MUST use the `CompiledFrameGraph&`
+    // overload and MUST NOT use the raw overloads.
+
+    /// Execute a render graph.  TEST-ONLY — production callers use the
+    /// `CompiledFrameGraph&` overload below.
     std::shared_ptr<Framebuffer> execute(
         RenderGraph& graph,
         GraphNodeId output,
@@ -68,6 +80,8 @@ public:
         runtime::ExecutionPlanCache* plan_cache = nullptr
     ) const;
 
+    /// Execute a render graph.  TEST-ONLY — production callers use the
+    /// `CompiledFrameGraph&` overload below.
     std::shared_ptr<Framebuffer> execute(
         RenderGraph& graph,
         RenderGraphContext& ctx,
