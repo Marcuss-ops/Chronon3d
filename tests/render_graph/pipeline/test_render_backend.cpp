@@ -7,6 +7,7 @@
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
+#include <chronon3d/render_graph/compiler/frame_graph_compile_options.hpp>
 #include <chronon3d/runtime/render_session.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
@@ -75,7 +76,8 @@ TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
     
     RenderGraph graph = GraphBuilder::build(scene, ctx);
     // PR-2 rewire — compile through FrameGraphCompiler (sole topical-plan producer).
-    auto compiled = FrameGraphCompiler{}.compile(std::move(graph), ctx);
+    auto compiled = FrameGraphCompiler{}.compile(std::move(graph), ctx,
+        FrameGraphCompileOptions{ .run_optimizer = false });
 
     GraphExecutor executor;
     RenderSession session;
@@ -104,7 +106,8 @@ TEST_CASE("RenderBackend - EffectStackNode execution calls apply_effect_stack on
     };
     
     RenderGraph graph = GraphBuilder::build(scene, ctx);
-    auto compiled = FrameGraphCompiler{}.compile(std::move(graph), ctx);
+    auto compiled = FrameGraphCompiler{}.compile(std::move(graph), ctx,
+        FrameGraphCompileOptions{ .run_optimizer = false });
 
     GraphExecutor executor;
     RenderSession session;
@@ -131,7 +134,8 @@ TEST_CASE("RenderBackend - CompositeNode execution calls composite_layer on back
     };
     
     RenderGraph graph = GraphBuilder::build(scene, ctx);
-    auto compiled = FrameGraphCompiler{}.compile(std::move(graph), ctx);
+    auto compiled = FrameGraphCompiler{}.compile(std::move(graph), ctx,
+        FrameGraphCompileOptions{ .run_optimizer = false });
 
     GraphExecutor executor;
     RenderSession session;
