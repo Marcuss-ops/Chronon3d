@@ -400,18 +400,20 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         layout_box.size.y = std::max(0.0f, t.box.size.y - 2.0f * t.style.box_style.padding.y);
     }
 
-    // WP-8 PR 8.0 — local_engine fallback uses typed_resolver_for_deep_code
-    // (PR 8.0 transition bridge; deleted in PR 8.1).  Production callers
-    // must supply `font_engine` explicitly via the renderer.runtime().resolver()
-    // path; this local fallback handles the legacy code paths that constructed
-    // a RenderNode without binding one at creation time.
+    // WP-8 PR 8.0 — local_engine fallback USES the SAME `resolver` parameter
+    // the function already accepted, so this deep cache no longer reads the
+    // process-wide `runtime::typed_resolver_for_deep_code()` bridge.  Production
+    // callers should still supply `font_engine` explicitly via
+    // `sw_renderer->runtime().resolver()`; the local fallback only fires for
+    // legacy code paths that constructed a RenderNode without binding one.
     //
-    // TODO(WP-8 PR 8.1): hoist the local `FontEngine` into a per-renderer
-    // member (e.g. `SoftwareRenderer::font_engine_`) initialised from
-    // `sw_renderer->runtime().resolver()` so it's not rebuilt each call.
-    // Cost today: each `rasterize_text_to_bl_image` constructs a brand-new
-    // FontEngine (FT_Library init + face cache wipe).  Correct, but wasteful.
-    FontEngine local_engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    // NOTE(WP-8 PR 8.1): per-call construction is wasteful (FT_Library init
+    // + face cache wipe each call).  Future optimisation: hoist the local
+    // `FontEngine` into a per-renderer member (e.g. `SoftwareRenderer::font_engine_`)
+    // initialised once from `sw_renderer->runtime().resolver()`.  The PER-CALL
+    // crash has not been seen in production — the optimisation is correctness-
+    // neutral and a pure perf win.
+    FontEngine local_engine{resolver};
     FontEngine* engine = font_engine ? font_engine : &local_engine;
 
     FontSpec font_spec;
