@@ -257,14 +257,15 @@ documentation so the audit anchor survives.
   Plausible homes: (a) a caller-side field on `SoftwareRenderer`,
   (b) an entry in `SessionServices`, (c) a wrapper struct in
   `render_engine`, or (d) coalesced into one of the existing
-  per-node / structural cache families — `NodeCache` (defined
+  per-node / structural cache families —  `NodeCache` (defined
   in `include/chronon3d/cache/node_cache.hpp`, currently keyed
   on `NodeCacheKey` / `NodeCacheKeyHash` over `StableNodeId`)
   could be extended to a `(StableNodeId, structure_hash)`
   tuple key, and `CompiledGraphCache` (in
-  `include/chronon3d/render_graph/cache/`) already wraps
-  structural compiled records and is the more direct home for
-  a full-graph structural cache.  This section only standardises
+  `include/chronon3d/render_graph/cache/` — see its header for
+  the concrete key/value contract) already wraps structural
+  compiled records and is the more direct home for a full-graph
+  structural cache.  This section only standardises
   the comparison primitive; the storage home is intentionally
   left to the future implementation.
 
@@ -273,12 +274,14 @@ documentation so the audit anchor survives.
 - Before implementing the stability-aware fast-path, a future
   PR should reconcile `CompiledFrameGraph::structure_hash`
   against the "Audit §9.4 closure note (PR-2 rewire close-out)"
-  sub-sections further up in **this same file** ("What the
-  close-out did", "Status of §9.4", and the file-location
-  catalogue above) — the affordance here is reasoned **backwards**
-  from the executor's retired plan-cache fast-path branch
-  (archived in commit `9f9af90e`), not lifted verbatim from §9.4
-  wording.  §9.4 itself only states `stable fast-path` — no hash
+  sub-sections further up in **this same file** — "Original
+  text (verbatim, pre-close-out)" (which holds the literal
+  `audit §9.4` doc-comment that the affordance inference was
+  drawn from), "What the close-out did", "Status of §9.4", and
+  the file-location catalogue above — the affordance here is
+  reasoned **backwards** from the executor's retired plan-cache
+  fast-path branch (archived in commit `9f9af90e`), not lifted
+  verbatim from §9.4 wording.  §9.4 itself only states `stable fast-path` — no hash
   primitive is named — so a direct walk of those sub-sections is
   the source of truth, and the `structure_hash` keying should be
   treated as a *candidate* affordance rather than a contract
