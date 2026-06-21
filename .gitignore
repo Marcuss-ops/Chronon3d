@@ -110,3 +110,6 @@ artifacts/visual/camera/
 # CMake build artifacts (regenerated on every configure)
 CMakeCache.txt
 CMakeFiles/
+
+# Local git worktrees (parallel agent branches — never on main)
+.worktrees/
