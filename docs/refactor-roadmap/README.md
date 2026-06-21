@@ -1,35 +1,47 @@
 # Chronon3D refactor roadmap
 
-Repository status: [`../STATUS.md`](../STATUS.md).
+Stato: [`../STATUS.md`](../STATUS.md). Piano operativo:
+[`../NEXT_STEPS.md`](../NEXT_STEPS.md).
 
-Active order:
+## Ordine attivo
 
-1. WP0 validation gates.
-2. WP5 precomp and SceneProgramStore.
-3. WP4 stable identity.
-4. WP6 execution scopes.
-5. WP1 scheduler determinism.
-6. WP3 session boundary.
-7. WP8 globals and SDK.
-8. WP7 software backend.
+1. WP0 — gate di validazione.
+2. WP1 — determinismo scheduler sul contratto compilato.
+3. WP5 — Precomp e `SceneProgramStore`.
+4. WP4 — identità stabile senza race.
+5. WP6 — `ExecutionScope` root/tile/precomp.
+6. WP3 — chiusura del confine sessione.
+7. WP8 — globali e SDK.
+8. WP7 — separazione finale software backend.
 
-Current blockers:
+## Blocker correnti
 
-- Boundary check 5 can fail without a non-zero result.
-- Scheduler tests use retired plan-cache/raw-graph APIs.
-- `PrecompNode` header and implementation disagree.
-- Shared-context identity can race before cloning.
-- Root, tile, and child execution scopes are not explicit.
-- Installed SDK and global/runtime boundaries remain incomplete.
+| Package | Stato | Criterio di chiusura |
+|---|---|---|
+| WP0 | 🔴 | Ogni regola può far fallire lo script; fixture negativa presente |
+| WP1 | 🔴 | Nessuna API plan-cache/raw graph; test seriale/parallelo/tile verdi |
+| WP5 | 🔴 | Header/impl coerenti, lease bloccata, executor di sessione |
+| WP4 | 🔴 | Identità assegnata solo sul contesto clonato |
+| WP6 | 🔵 | Child scope non resetta arena o stato parent |
+| WP3 | 🟡 | Nessuna dipendenza implementation-only nel contratto pubblico |
+| WP8 | 🟡 | Install consumer verde; bridge globali rimossi |
+| WP7 | 🔵 | Backend separato senza duplicare facade o ownership |
 
-Target:
+## Regole
+
+- Un problema e un set di file per PR.
+- Test mirati obbligatori.
+- Nessun nuovo registry, resolver, sampler o cache parallelo.
+- Nessun executor costruito dentro un nodo.
+- Nessuna nuova architettura prima della chiusura P0.
+- Aggiornare `STATUS.md`, `ROADMAP.md` e ticket nello stesso merge che cambia stato.
+
+## Target
 
 ```text
-RenderRuntime: engine-lifetime services
-RenderSession: job-owned state
-ExecutionScope: root/tile/precomp lifetime and arena
-SceneProgramStore: identity-keyed locked lease
-GraphExecutor: stateless, compiled graphs, explicit scheduler/scope
+RenderRuntime: servizi engine-lifetime
+RenderSession: stato job-owned
+ExecutionScope: root/tile/precomp, parent, arena, identità
+SceneProgramStore: lease identity-keyed e bloccata
+GraphExecutor: stateless, compiled graph, scheduler/scope espliciti
 ```
-
-Update this file together with `../STATUS.md`.
