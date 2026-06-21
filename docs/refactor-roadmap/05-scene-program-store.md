@@ -1,51 +1,83 @@
-# Work Package 5 — Scene program store
+# Work Package 5 — Remaining SceneProgramStore work
 
-## Goal
+## Current state
 
-Move precomposition program caching and auto-tune state out of `PrecompNode` into one session-owned store.
+`SceneProgramStore`, `PrecompCachePolicy`, and a thin `PrecompNode` exist. The remaining work is correctness, ownership, identity, and concurrency.
 
 ## TODO
 
-### PR 5.0
-- [ ] Define `PrecompInstanceKey` from `GraphInstanceId` and `StableNodeId`.
-- [ ] Define immutable `PrecompCachePolicy`.
+### PR 5.0 — Repair current call sites
 
-### PR 5.1
-- [ ] Add `SceneProgramStore` with one bucket per precomp instance.
-- [ ] Keep `SceneStructureKey` as the key inside each bucket.
-- [ ] Make store lifetime match the render job/session.
+- [ ] Replace stale `session->program_store->...` calls with the final accessor or job-owned store API.
+- [ ] Update precomp tests that still access a removed `program_store` field.
+- [ ] Borrow the wired executor service instead of constructing a local executor in `PrecompNode::execute()`.
+- [ ] Add a compile-focused test covering the precomp execution translation unit.
 
-### PR 5.2
-- [ ] Add `ProgramLease`.
-- [ ] Keep the lease alive across lookup, optional compile, payload refresh, nested execution, and execution accounting.
-- [ ] Protect mutable compiled-program payload from concurrent tile refreshes.
+### PR 5.1 — Use the real precomp owner key
 
-### PR 5.3
-- [ ] Move auto-tune counter and policy into the store/cache bucket.
-- [ ] Preserve interval, minimum capacity, maximum capacity, and tune mode.
-- [ ] Reject conflicting policy for the same precomp instance key.
+Current keying uses composition-name hash plus node zero.
 
-### PR 5.4
-- [ ] Reduce `PrecompNode` to composition name, frame range, cache frame, and cache policy.
-- [ ] Retire node-owned program cache, executor, plan cache, session, and tune counter.
-- [ ] Move `FrameParameterBlock` into the store bucket if it is mutable cached-program state.
+- [ ] Build `PrecompInstanceKey` from parent `GraphInstanceId` and current `StableNodeId`.
+- [ ] Obtain identity from node execution state, not from `comp_name` alone.
+- [ ] Remove the cached composition-name-only key from `PrecompNode`.
+- [ ] Test two sibling nodes using the same composition and verify separate buckets.
 
-### PR 5.5
-- [ ] Wire the store through the session or a typed session service.
-- [ ] Avoid a process-global or runtime-global mutable program cache.
-- [ ] Ensure `reset_job()` clears store entries and tune state.
+### PR 5.2 — Implement a real `ProgramLease`
 
-### PR 5.6
-- [ ] Test reuse across frames for one node.
-- [ ] Test isolation between two nodes using the same composition.
-- [ ] Test auto-tune interval and min/max limits.
-- [ ] Test reset behavior.
-- [ ] Test concurrent access to one bucket.
-- [ ] Test parallel access to different buckets.
+The lease must own lifetime and synchronization, not only a raw pointer.
+
+- [ ] Hold a `shared_ptr` to the selected program or another stable owning handle.
+- [ ] Hold a per-instance execution lock across lookup, compile, payload refresh, nested execute, and accounting.
+- [ ] Keep `clear()` from invalidating an in-flight program.
+- [ ] Allow different precomp instance buckets to execute concurrently.
+- [ ] Avoid a global store lock during compilation or rendering.
+
+### PR 5.3 — Make policy immutable per owner
+
+- [ ] Reject conflicting cache policy for an existing owner key.
+- [ ] Do not silently reconfigure one bucket because another caller supplied different policy.
+- [ ] Record composition identity and policy in the bucket for diagnostics.
+- [ ] Forward eviction callbacks without storing mutable callback ownership on the node when avoidable.
+
+### PR 5.4 — Restore automatic tuning
+
+- [ ] Add an atomic execution counter to the cache or bucket.
+- [ ] Add `record_execution()` and trigger `auto_tune()` at `TuneConfig::interval`.
+- [ ] Count both hits and misses consistently.
+- [ ] Preserve min/max capacity and fixed mode.
+- [ ] Reset tuning counters when the owning render job resets.
+- [ ] Test tuning through `SceneProgramStore`, not by manually calling `cache.auto_tune()`.
+
+### PR 5.5 — Restore job-scoped ownership
+
+- [ ] Move mutable store ownership from `RenderRuntime` to the render job/session.
+- [ ] Keep runtime-level defaults or policy factories immutable.
+- [ ] Ensure one session reset cannot clear another session's programs.
+- [ ] Preserve a graph-free runtime session header using opaque implementation storage if needed.
+
+### PR 5.6 — Resolve mutable parameter state
+
+- [ ] Decide whether `FrameParameterBlock` belongs to the node or the per-instance bucket.
+- [ ] Move it into the bucket if it is refreshed together with the cached compiled program.
+- [ ] Protect it with the same lease when mutable.
+
+### PR 5.7 — Add concurrency and lifetime tests
+
+- [ ] repeated-frame reuse for one owner
+- [ ] same composition, different owner isolation
+- [ ] conflicting policy rejection
+- [ ] automatic tuning interval
+- [ ] reset isolation between sessions
+- [ ] concurrent access to one bucket
+- [ ] parallel access to different buckets
+- [ ] concurrent `clear()` with an in-flight lease
+- [ ] tile refresh plus nested execute on the same program
 
 ## Exit criteria
 
-- [ ] `PrecompNode` owns no executor, session, program cache, plan cache, or tune counter.
-- [ ] Cache ownership is keyed by graph and stable node identity.
-- [ ] Auto-tune survives frame changes and resets with the job.
-- [ ] Same-program tile access is race-safe.
+- [ ] All call sites use the final store API.
+- [ ] Owner keys come from graph and stable node identity.
+- [ ] `ProgramLease` protects lifetime and mutable execution.
+- [ ] Auto-tune runs automatically.
+- [ ] Mutable store state is isolated per render job.
+- [ ] Same-composition sibling nodes cannot share a bucket accidentally.
