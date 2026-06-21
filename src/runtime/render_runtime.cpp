@@ -96,6 +96,7 @@ void RenderRuntime::populate() {
     // ── Service bundle: typed pointer view of long-lived state ───────
     m_services = RenderServices{
         .asset_registry      = &m_assets,
+        .asset_resolver      = &m_resolver,
         .node_cache          = &m_owned_node_cache,
         .framebuffer_pool    = m_owned_framebuffer_pool.get(),
         .graph_cache         = &m_owned_graph_cache,
@@ -124,8 +125,11 @@ void RenderRuntime::populate() {
     // construction lives in RenderEngine::Impl after SoftwareRenderer
     // is ready.  See header comment.
 
-    // ── Mount default assets into the runtime's AssetRegistry ───────
+    // ── Mount default assets into the runtime's AssetRegistry + the
+    //    typed AssetResolver (PR 8.0 sibling that PR 8.1 routes
+    //    consumers to) ───────────────────────────────────────────────
     m_assets.mount(std::filesystem::path{});
+    m_resolver.mount(std::filesystem::path{});
 
     // ── Publish as "active" so deep code can find us ────────────────
     set_active_runtime(this);
@@ -172,7 +176,14 @@ const chronon3d::graph::RenderBackend& RenderRuntime::backend() const noexcept {
 void RenderRuntime::set_default_assets_root(std::string root) {
     m_default_assets_root = std::move(root);
     if (!m_default_assets_root.empty()) {
-        m_assets.mount(std::filesystem::path(m_default_assets_root));
+        const auto root_path = std::filesystem::path(m_default_assets_root);
+        m_assets.mount(root_path);
+        // PR 8.0 — mirror to the typed resolver sibling so future
+        // PR 8.1 consumers can reach a runtime-owned resolver.  The
+        // mirror is intentional duplication; legacy free functions
+        // (asset_registry::resolve_path, runtime::resolve_asset_path)
+        // continue to work via m_assets until PR 8.1 migrates them.
+        m_resolver.mount(root_path);
     }
     // Mirror to the process-wide fallback so deep code that loses
     // the runtime ref still resolves the same root.
