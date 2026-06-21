@@ -30,9 +30,9 @@ int dry_run_video_job(const VideoJobPlan& plan) {
     // Try to build the render graph to detect errors early
     try {
         auto renderer = create_renderer(*plan.registry, plan.settings);
-        auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(renderer.get());
-        if (sw_renderer) {
-            spdlog::info("[dry-run]   Backend: SoftwareRenderer");
+        auto* sw_backend = dynamic_cast<SoftwareBackend*>(renderer.get());
+        if (sw_backend) {
+            spdlog::info("[dry-run]   Backend: SoftwareRenderer upstream (SoftwareBackend visible)");
         }
         cache::NodeCache node_cache;
         auto fb = graph::render_composition_frame(

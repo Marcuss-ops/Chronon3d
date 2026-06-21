@@ -21,15 +21,15 @@ OwnedFB ClearNode::execute(
     std::span<const FramebufferRef>,
     std::span<const std::optional<raster::BBox>>
 ) {
-    auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(ctx.services.backend);
-    bool use_dirty_rects = sw_renderer && ctx.policy.reuse_prev_framebuffer && sw_renderer->buffer_ring().prev_framebuffer();
+    auto* sw_backend = dynamic_cast<SoftwareBackend*>(ctx.services.backend);
+    bool use_dirty_rects = sw_backend && ctx.policy.reuse_prev_framebuffer && false;
     const bool skip_clear = ctx.policy.skip_initial_clear && !use_dirty_rects;
     const uint64_t clear_pixels = ctx.node_exec.clip_rect
         ? static_cast<uint64_t>(std::max(0, ctx.node_exec.clip_rect->x1 - ctx.node_exec.clip_rect->x0)) *
           static_cast<uint64_t>(std::max(0, ctx.node_exec.clip_rect->y1 - ctx.node_exec.clip_rect->y0))
         : static_cast<uint64_t>(ctx.frame_input.width) * static_cast<uint64_t>(ctx.frame_input.height);
 
-    if (sw_renderer && ctx.policy.diagnostics_enabled) {
+    if (sw_backend && ctx.policy.diagnostics_enabled) {
         spdlog::info(
             "[dirty-debug] frame={} Clear reuse_prev={} clip=[{}:{} -> {}:{}] prev_origin=[{},{}] prev_opaque={}",
             static_cast<int>(ctx.frame_input.frame),

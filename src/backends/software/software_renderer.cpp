@@ -154,7 +154,8 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& c
     profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());
 
     auto res = graph::render_composition_frame(
-        *this, node_cache(), m_settings, m_registry, m_video_decoder.get(), comp, frame
+        m_runtime->backend(), node_cache(), m_settings, m_registry, m_video_decoder.get(), comp, frame,
+        this /*R3 sidecar: typed SoftwareRenderer channel for software-only state*/
     );
     return res;
 }
@@ -165,7 +166,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
     profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());
 
     auto res = graph::render_scene_via_graph(
-        *this,
+        m_runtime->backend(),
         node_cache(),
         scene,
         camera,
@@ -175,7 +176,10 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
         0.0f,
         m_settings,
         m_registry,
-        m_video_decoder.get()
+        m_video_decoder.get(),
+        30.0f,
+        "scene",
+        this /*R3 sidecar*/
     );
     return res;
 }
@@ -191,7 +195,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
 
     Camera default_camera;
     auto res = graph::render_scene_via_graph(
-        *this,
+        m_runtime->backend(),
         node_cache(),
         effective_scene,
         default_camera,
@@ -201,7 +205,10 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
         0.0f,
         m_settings,
         m_registry,
-        m_video_decoder.get()
+        m_video_decoder.get(),
+        30.0f,
+        "scene",
+        this /*R3 sidecar*/
     );
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
     if (res && m_settings.diagnostics.enabled) {
@@ -215,7 +222,7 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
                                                   i32 width, i32 height, Frame frame,
                                                   f32 frame_time) const {
     return graph::debug_scene_graph(
-        const_cast<SoftwareRenderer&>(*this),
+        m_runtime->backend(),
         const_cast<cache::NodeCache&>(node_cache()),
         scene,
         camera,
@@ -225,7 +232,9 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
         frame_time,
         m_settings,
         m_registry,
-        m_video_decoder.get()
+        m_video_decoder.get(),
+        30.0f,
+        const_cast<SoftwareRenderer*>(this) /*R3 sidecar*/
     );
 }
 

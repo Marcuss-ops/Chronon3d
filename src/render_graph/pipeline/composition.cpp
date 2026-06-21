@@ -41,7 +41,8 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     const CompositionRegistry* registry,
     media::MediaFrameProvider* video_decoder,
     const Composition& comp,
-    Frame frame
+    Frame frame,
+    chronon3d::SoftwareRenderer* sw_sidecar = nullptr
 ) {
     const auto t0 = profiling::now();
     const auto hits_before = node_cache.stats().hits;
@@ -50,7 +51,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     const int h = comp.height();
     const int rw = static_cast<int>(w * ssaa);
     const int rh = static_cast<int>(h * ssaa);
-    SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
+    SoftwareRenderer* sw_renderer = sw_sidecar;
 
     std::shared_ptr<Framebuffer> render_fb = nullptr;
 
