@@ -23,6 +23,8 @@ KNOWN_VIOLATIONS = {
     'include/chronon3d/runtime/render_session.hpp': {
         'scene_hasher.hpp':
             ('TICKET-013', 'scene_hasher leaks into RenderSession; tracks in roadmap WP-8.'),
+        'scene_program_store.hpp':
+            ('TICKET-017', 'render_graph/cache leak in render_session.hpp; roadmap WP-8.'),
         'software_session_resources.hpp':
             ('TICKET-014', 'session_resources compositing in render_session.hpp; roadmap WP-8.'),
     },

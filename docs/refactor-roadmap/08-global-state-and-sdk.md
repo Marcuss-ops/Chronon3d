@@ -53,7 +53,18 @@ backends do not leak transitively.
 - Wire it as an optional CTest target so CMake runs it on demand.
 - Extend as more checks are added (e.g. asset-locale layer).
 
+
+
+### TICKET-017: scene_program_store leak
+- `include/chronon3d/runtime/render_session.hpp:43` includes
+  `<chronon3d/render_graph/cache/scene_program_store.hpp>`.  The
+  `graph::SceneProgramStore` is referenced as a field on `RenderSession`.
+- Resolution: move `program_store` ownership off `RenderSession` to
+  `RenderRuntime` (matching the TICKET-011 ownership boundary and the
+  TICKET-013/014 decoupling pattern).  Tracked in WP-8.
+
 ## Exit criteria
+
 
 - `tests/architecture/test_render_session_includes_boundary.py` reports
   `errors=0` with NO `KNOWN_VIOLATIONS` entries remaining.
