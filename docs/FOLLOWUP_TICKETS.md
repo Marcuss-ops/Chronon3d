@@ -740,7 +740,7 @@ Underlying bug fixes for each sub-ID are tracked as separate concerns (`TICKET-0
 1. Run `tools/test_architectural.sh` and assert Section 3 has zero hits.
 2. CI gate `architecture-check` (`.github/workflows/gates.yml`) becomes green for this criterion.
 3. Mark `TICKET-007` as 🟢 Done.
-4. Open per-bug tickets for each sub-ID where the underlying defect is on a real-roadmap (e.g., TICKET-008 Hierarchy cycle detection, TICKET-009 motion blur premul alpha, TICKET-010 gradient TBB determinism). These per-bug tickets are independent of Opzione B promotion.
+4. Open per-bug tickets for each sub-ID where the underlying defect is on a real-roadmap; specific TICKET-IDs will be assigned when each underlying defect is scheduled (the parenthetical example IDs listed at filing time were re-allocated by TICKET-009 (experimental subtree rot, commit `5e4049fe`) and TICKET-010 (compile_with_reuse caller wiring, this doc-only commit), so no speculative-TICKET-ID reservations remain coherent). These per-bug tickets are independent of Opzione B promotion.
 
 ### Acceptance criteria
 
@@ -1169,3 +1169,205 @@ TICKET-008 chooses (b) — document the limitation + require callers to either k
 - Existing determinism canary that this PR extends: `tests/render_graph/compiler/test_frame_graph_compiler.cpp:185`.
 - Architectural-spec paste precedent for similar "single-seed-source" patterns: TICKET-007 (debug-config removal — same single-seeding-point architectural pattern); TICKET-010 (RenderGraphContext 7→4-substruct decomposition — same parent-context pattern).
 
+---
+---
+
+---
+
+## TICKET-010 — Wire `compile_with_reuse` into the production orchestrator so §9.4 has a live reader (per-session `prior_compiled` storage)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `include/chronon3d/runtime/render_session.hpp` (add `std::optional<CompiledFrameGraph> m_prior_compiled` field + accessor proxies); `include/chronon3d/backends/software/software_render_session.hpp` (proxy accessors mirroring the `scene_hasher()` / `program_store()` pattern); `include/chronon3d/backends/software/software_renderer.hpp` (forwarder accessors on `SoftwareRenderer` for symmetry with downstream callers); `src/runtime/render_session.cpp` (extend `RenderSession::reset_job()` body to clear `m_prior_compiled`); `include/chronon3d/render_graph/pipeline/render_pipeline.hpp` (add `chronon3d::RenderSession& session` parameter to the three orchestrator free functions: `render_scene_via_graph`, `render_composition_frame`, `debug_scene_graph`); `src/render_graph/pipeline/scene.cpp` (the canonical orchestrator — call `compile_with_reuse` when `session.prior_compiled()` is set AND `ctx.policy.graph_structure_unchanged == true`; stash post-compile); `src/render_graph/pipeline/composition.cpp` + `src/render_graph/pipeline/debug.cpp` (same propagation); `src/runtime/render_pipeline.cpp` (the runtime facade forwards the existing `m_renderer.software_session().common` reference to the graph-layer free functions); `tests/runtime/test_render_session_reset_and_isolation.cpp` (extend existing WP-3 PR 3.3 test lattice with a reuse-path test confirming `m_prior_compiled` is empty after `reset_job()`, populated after a successful orchestrator dispatch, and re-used on the next dispatch IF `ctx.policy.graph_structure_unchanged` holds); `docs/CHANGELOG.md` (entry noting `compile_with_reuse` is now reached in production); **deferred to a separate doc-hygiene commit (NOT this PR)**: cleanup of the speculative parenthetical `TICKET-010 (RenderGraphContext 7→4-substruct decomposition — same parent-context pattern)` reference at line ~1170 of `docs/FOLLOWUP_TICKETS.md` — see the Caption / Scope note sub-section below. |
+| **Discovered during** | code-reviewer-minimax-m3 post-push review of TICKET-008 (`f709d668` / `8c09af32` producer commits) — reviewer flagged finding #3 ("the new `compile_with_reuse` overload is an isolated affordance with no production caller; until a caller actually consults it, §9.4 remains RESOLVED-but-no-live-reader"). The §9.4 closure-note's NIT-2 ("cache-location neutrality") deliberately defers the choice of WHERE the prior lives to the API-consumer; this ticket owns that decision. |
+| **Discovered date** | 2026-06-21 |
+| **Compliance target** | §9.4 closure-path criterion from `docs/refactor-roadmap/08-global-state-and-sdk.md` (the "Status of §9.4" sub-section): close the dormant → live-reader cycle for `RenderPolicy::graph_structure_unchanged` so a future PR cannot accidentally re-introduce `runtime::ExecutionPlanCache` (which §9.4's first criterion explicitly outlaws). |
+| **Latency** | Dormant since TICKET-008 landed at `f709d668`; not a regression, just an outstanding implementation step the closure-note explicitly anticipated. |
+| **Affected target** | `chronon3d_runtime_tests` (the WP-3 PR 3.3 + 3.4 close-out lattice that gates this ticket's per-session state contract). |
+
+### Caption / Scope note (2026-06-21)
+
+This ticket is filed doc-only on 2026-06-21 alongside TICKET-009 (which was filed at the same commit window for a distinct rot — see TICKET-009 sub-section in this same file). Three metadata hygiene notes that a future reader might wonder about:
+
+1. **Line ~1170 stale cite is intentionally left in place.** The speculative parenthetical `TICKET-010 (RenderGraphContext 7→4-substruct decomposition — same parent-context pattern)` reference at line ~1170 of TICKET-008's Cross-references is INTENTIONALLY NOT UPDATED in this PR. *Implementation note for future fixers*: prefer to either (a) rewrite the entire Cross-references bullet with `sed -i` over a multi-line range, or (b) use file-level write tools that preserve em-dash unicode byte-equality. Do NOT attempt a `str_replace` against the exact unicode-formatted string at line ~1170 — in this PR's run, the doc-editing tool rejected byte-equal matches on em-dash characters (`—`) even when `md5sum` confirmed the bytes matched. Defer the cleanup to a separate doc-hygiene commit so this filing stays focused on the ticket body.
+
+2. **Line 743 example list was updated.** The TICKET-007 sub-ID bullet list at line ~743 (the "(e.g., TICKET-008 Hierarchy cycle detection, TICKET-009 motion blur premul alpha, TICKET-010 gradient TBB determinism)" parenthetical) IS updated in this PR — those IDs were speculatively reserved and have been reallocated by TICKET-009 (commit `5e4049fe`) and this TICKET-010 (this PR), so the example list is rewritten to drop the speculatively-reserved IDs.
+
+3. **Two-pass review cycle, both within this PR.** The first reviewer's feedback (caption, trade-off table, acceptance-criteria tightening — see the PR commit body) was incorporated into a first improved version of this ticket body. A second reviewer pass then flagged 6 specific refinements (caption em-dash workaround note, Trade-off Row 1/3/4 phrasing, Row 1 awk-syntax bug, Row 4 positional ordering check) — those 6 refinements are incorporated into THIS second-pass body before commit. No third-pass review is intended; the ticket is shippable as-is.
+
+The TICKET-010 below supersedes both speculative cross-references (line 743 example list, line 1170 TICKET-008 cite) with a canonical narrative.
+
+### Symptom
+
+`FrameGraphCompiler::compile_with_reuse(graph, ctx, prior_compiled, options)` (the new overload declared at `include/chronon3d/render_graph/compiler/frame_graph_compiler.hpp:77-82` and implemented at `src/render_graph/compiler/frame_graph_compiler.cpp:125-231`) is exercised by Tests A–E in `tests/render_graph/compiler/test_frame_graph_compiler.cpp:188-352` and well-documented in the header's 9-point post-condition contract. **However, no production caller invokes it.** The orchestrating free functions (the canonical scene orchestrator at `src/render_graph/pipeline/scene.cpp::render_scene_via_graph`, plus `composition.cpp::render_composition_frame` and `debug.cpp::debug_scene_graph`) unconditionally invoke `FrameGraphCompiler::compile(...)` with no `prior_compiled` argument:
+
+```bash
+$ git grep -nE 'compile_with_reuse\(' src/ apps/ include/chronon3d/runtime/ \
+    --include='*.cpp' --include='*.hpp' | grep -v tests/
+src/render_graph/compiler/frame_graph_compiler.cpp:128: ) const {  # definition site only
+src/render_graph/compiler/frame_graph_compiler.hpp:84: ...
+include/chronon3d/render_graph/executor/graph_executor.hpp:54: comment reference
+```
+
+The cache-side elision at the coordinator-level (`graph_cache_coordinator.cpp::build_or_reuse_graph` lines 91–127 + `CompiledGraphCache` keyed on `(width, height)` only) bypasses the compiler entirely rather than consulting the compile-time affordance. So the new overload is dead-on-arrival in production: skip path NIT-1 (deterministic re-derivability), NIT-3 (fall-through on hash mismatch), and `run_optimizer` safety are unit-tested but never entered at runtime.
+
+The §9.4 closure-note's "Affordance attribution" sub-section (`docs/refactor-roadmap/08-global-state-and-sdk.md` lines ~110–113) recognises this gap: *"where the prior `CompiledFrameGraph` lives is the API-consumer's choice; this ticket does NOT pick a storage home. ... `CompiledFrameGraph::structure_hash` is the candidate affordance reasoned backwards from §9.4's 'stable fast-path' wording."* The current ticket owns the storage-home decision that the closure-note deliberately left open.
+
+### Root cause analysis
+
+Three distinct concerns were collapsed into "no production caller":
+
+| Concern | Pre-TICKET-008 | TICKET-008 (today, post-`f709d668`) | Why this ticket matters |
+|---|---|---|---|
+| Affordance exists | Not in compiler | `compile_with_reuse` overload present, no caller in `src/` or `apps/` | The compile-time skip path is enabled by API but unreachable in production. |
+| Prior `CompiledFrameGraph` storage | `runtime::ExecutionPlanCache` (process-wide, retired in commit `9f9af90e` by PR-2 rewire) | Nowhere consistent — `CompiledGraphCache` keys on `(width, height)` only, NOT `structure_hash` | Without a canonical home for the prior, the affordance cannot be invoked. |
+| Skip-predicate gating | Coordinator-only (`graph_cache_coordinator.cpp` lines 91–127) | Same — coordinator elides `compile` when `(w,h)` cache hits; otherwise the compiler gets no advice | The compile()-internal reader went away with `ExecutionPlanCache`. Restore it via this ticket. |
+| Phase-4 producer of `graph_structure_unchanged` | `src/render_graph/pipeline/scene.cpp` Phase 4 (line ~233, verified) sets the flag based on `structure_fp` + camera-change + `active_at_fp` heuristics | Same | Producer is intact; consumer is missing — this ticket completes the round-trip. |
+
+The §9.4 closure-note's sub-sections that constrain this ticket's design (MUST respect, NOT override):
+
+- **NIT-1 (per-node determinism)** — skip is only sound when per-node `cache_policy` + `stable_node_id` are deterministically re-derivable from `graph + ctx.policy` alone, without per-call entropy. The pre-existing `compute_structure_hash` (lines 89–104 of `frame_graph_compiler.cpp`) hashes node kind + input ids + output — the "Known Limitation" in the header doc-comment notes the `stable_node_id` field is not refolded from the NEW graph's node names. This ticket preserves the limitation; the caller remains responsible for keeping node names stable OR leaving `graph_structure_unchanged=false` when names change.
+- **NIT-2 (cache-location neutrality)** — WHERE the prior lives is the API-consumer's choice; the closure-note does NOT pick a home. **THIS TICKET OWNS THAT DECISION** (see Trade-off considered sub-section under Suggested fix approach).
+- **NIT-3 (fall-through on hash mismatch)** — when freshly recomputed `structure_hash` differs from the cached prior, MUST fall through to the standard full path. The header doc-comment codifies this; the orchestrator does not need to add any check (the overload handles it).
+- **Affordance attribution** — `CompiledFrameGraph::structure_hash` is the candidate affordance, exercised at compile time.
+- **MinOR (post-conditions always-run)** — the header's 9-point post-condition list (graph move-in, lifetimes, hash refresh, `early_exit_skip` propagation, `graph_instance_id` re-derivation via FNV-1a, `validate_dag`, `compiled.valid = true`) must be preserved verbatim. This ticket routes the orchestrator through the existing overload and does NOT duplicate any of those post-conditions.
+
+### Out-of-scope rationale for TICKET-008
+
+- TICKET-008's contract was strictly the compile-time affordance + skip semantics + Tests A–E (5 acceptance tests). Storage-home + caller-threading were deliberately deferred so the affordance could land in isolation from the orchestrator refactor.
+- §9.4 closure-note's wording "dormant, not closed" at commit `4a808e46` (origin/main) was accurate then; this ticket closes the gap.
+- PR-A (`09997570`) + TICKET-002 close-out commit addressed the cmake-side blocker and the `content/` rot — distinct concerns this ticket does not touch.
+- TICKET-009 (experimental subtree rot, `5e4049fe`) is unrelated.
+
+### Suggested fix approach
+
+Five-part implementation per the design choices validated at filing time:
+
+**Part 1 — `RenderSession::m_prior_compiled` field + accessors.**
+
+Add to `include/chronon3d/runtime/render_session.hpp` (between the existing `program_store_state` field ~line 96 and the `frame_history` field ~line 102, mirroring the WP-3 PR 3.1 default-constructible + by-value-when-movable pattern):
+
+```cpp
+#include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
+// ... existing includes ...
+
+struct RenderSession {
+    // ... existing WP-3 PR 3.1 - 3.2 fields ...
+
+    // ── TICKET-010 / §9.4 closure — cross-frame CompiledFrameGraph storage ─
+    // Holds the most recent successfully-compiled `CompiledFrameGraph` so the
+    // next frame's `FrameGraphCompiler::compile_with_reuse(...)` call can
+    // consult it for the structural-reuse skip path.  Reset by `reset_job()`
+    // (per-session isolation invariant from WP-3 PR 3.1); preserved across
+    // per-frame boundaries within a single render job so the fast path can
+    // re-use across frames.  `CompiledFrameGraph` is a struct of 7 vectors +
+    // a handful of scalars (lines 67–105 of compiled_frame_graph.hpp), so
+    // `std::optional` by-value is correct — NOT `std::unique_ptr`, since the
+    // payload is movable and the lifetime is bound to `RenderSession`'s.
+    std::optional<chronon3d::graph::CompiledFrameGraph> m_prior_compiled{};
+};
+```
+
+Plus proxy accessors (mirroring `scene_hasher()` / `program_store()` lines 122–126 of the same header):
+
+```cpp
+[[nodiscard]] std::optional<chronon3d::graph::CompiledFrameGraph>&
+    prior_compiled() noexcept { return m_prior_compiled; }
+[[nodiscard]] const std::optional<chronon3d::graph::CompiledFrameGraph>&
+    prior_compiled() const noexcept { return m_prior_compiled; }
+```
+
+**Trade-off considered (per §9.4 NIT-2 "cache-location neutrality").** This ticket commits to `std::optional<CompiledFrameGraph>` on `chronon3d::RenderSession` (engine-generic, per-session). The four candidate storage homes enumerated in the closure-note were evaluated and three were disqualified for the reasons below:
+
+| Candidate | Verdict | Reason |
+|---|---|---|
+| `chronon3d::RenderSession::m_prior_compiled` (chosen) | ✅ | Engine-generic, per-session, movable by-value (struct-of-vectors, no mutex, no PMR); mirrors WP-3 PR 3.1 ownership invariant. Lives one scope above the orchestrator AND below the runtime so any `RenderBackend` implementation that owns a `RenderSession& m_session` field (mirroring the software pattern at `software_renderer.hpp:292-296`) CAN also benefit — the field does not require a software-specific code path. Reset compose-ability is free: fold `m_prior_compiled.reset()` into the existing `reset_job()` body that already disposes of `scene_hasher_state` and `program_store_state`. |
+| `chronon3d::SoftwareRenderSession::m_prior_compiled` (engine-specific alternative) | ❌ | Limits consumers to the `SoftwareRenderSession`-composition path; non-software backends (hypothetical future GPU/HW) would need to opt-in by maintaining their own canonically-mirrored field on their composition type. The canonical home for engine-generic state is `RenderSession` (per `runtime/render_session.hpp`'s leading doc-block: "engine-generic per-session state that any RenderBackend implementation can consume"); `SoftwareRenderSession` is the composition (common + software-specific). Mirroring prior-compiled on the composition is incoherent with the design split. |
+| Orchestrator-transient (`std::optional<CompiledFrameGraph>` on `render_scene_via_graph` free function as `static`) | ❌ | `static` would be a process-wide singleton — violates the §8.5 architectural pattern of splitting per-instance state from process-wide singletons AND specifically violates §9.4 closure-path criterion #1 (the criterion outlaws `ExecutionPlanCache`-style plan-cache layers, which include singleton-posing-as-cache). Function-local stack would be lost between calls (forces a rebuild every frame, defeating the affordance). |
+| `CompiledGraphCache` extension (full-graph cache keyed on `structure_hash` + `(w,h)`) | ❌ | The `CompiledGraphCache::try_take` API is **single-take** — the cache is cleared after one consumption at `compiled_graph_cache.hpp:21` (`"On success, the internal cache is cleared (single-use)."`). Cross-frame-within-job re-use requires the cache to SURVIVE across multiple consumptions within one job, which a single-take API cannot provide regardless of how smart the key is. Adding `structure_hash` as a co-key would NOT fix this — even with a richer keyspace, the single-take semantic remains, so the affordance would still misbehave (the new affordance needs the cache to SURVIVE across frames within a job, not be cleared after the first take). The deeper contract mismatch is the single-take API lifecycle, not just the keyspace. (Architecturally this would also conflate two cache scopes — `CompiledGraphCache` is keyed on `(width, height)` for cross-job reuse; the new affordance is per-frame-within-job — but the API-level mismatch is the binding constraint.) |
+
+The chosen home is the only option consistent with WP-3 PR 3.1 (per-session, isolated) AND §9.4 closure-path criterion #1 (no process-wide cache) AND §8.5 (per-instance state is not a process-wide singleton). It also integrates cleanly with the existing proxy-accessor pattern on `SoftwareRenderSession` + `SoftwareRenderer` — no new idiom is introduced.
+
+**Part 2 — `SoftwareRenderSession` + `SoftwareRenderer` proxy accessors.**
+
+Mirror the existing `scene_hasher()` / `program_store()` proxy pattern (already on `SoftwareRenderSession` lines 64–68 of `software_render_session.hpp` and `SoftwareRenderer` lines 323–324 of `software_renderer.hpp`). Add `prior_compiled()` accessors on both so callers can write either:
+
+- `session.common.prior_compiled()` (engine-generic, direct), OR
+- `sw_renderer->software_session().prior_compiled()` (composition spell).
+
+The symmetric spell matches downstream consumers' existing `sw_renderer->scene_hasher()` invocation pattern — required because §9.4's live-reader is wired through orchestrator call-sites that already sync on this pattern.
+
+**Part 3 — Orchestrator plumbing.**
+
+Three changes to `src/render_graph/pipeline/{scene,composition,debug}.cpp`:
+
+1. Add `chronon3d::RenderSession& session` parameter to the free function signatures in `include/chronon3d/render_graph/pipeline/render_pipeline.hpp:23,42,61` (plus matching definitions).
+2. In each orchestrator, BEFORE the compiler call:
+   ```cpp
+   auto& prior_opt = session.prior_compiled();
+   chronon3d::graph::CompiledFrameGraph compiled =
+       (prior_opt.has_value() && ctx.policy.graph_structure_unchanged)
+           ? compiler.compile_with_reuse(std::move(graph), ctx, *prior_opt, options_with_run_optimizer_off)
+           : compiler.compile(std::move(graph), ctx, options);
+   ```
+   The `run_optimizer=false` flip is REQUIRED for the skip predicate (`reuse_if_unchanged_predicate_safe()` at `frame_graph_compile_options.hpp:43` returns `!run_optimizer`). Open question for the implementation PR: should production callers construct `FrameGraphCompileOptions` with `run_optimizer=false` always (changing default behaviour for the standard `compile` path too — likely NO), or pass an adjusted options struct only on the `compile_with_reuse` branch (the safer answer).
+3. AFTER successful compile (`compiled.valid == true`), stash post-frame:
+   ```cpp
+   session.prior_compiled() = std::move(compiled);  // moves, no copy
+   ```
+
+`src/runtime/render_pipeline.cpp` (the runtime facade) already has access via `m_renderer.software_session()` (verified at line 295). The facade passes `m_renderer.software_session().common` (the engine-generic half, accessed via `m_session.common` after the WP-3 PR 3.1 ownership flip) as the new `RenderSession&` parameter.
+
+**Part 4 — Reset semantics.**
+
+In `src/runtime/render_session.cpp:31-50` (the `RenderSession::reset_job()` body), after the existing `program_store_state->clear();` line (line 50, itself the current last statement of `reset_job()`), add a NEW last statement:
+
+```cpp
+// TICKET-010 / §9.4 closure — drop the prior frame's compiled graph so a
+// fresh job starts with no cache and `compile_with_reuse` is bypassed on
+// frame 1 of the new job (it would fall through anyway via the
+// empty-optional check, but explicit reset keeps the per-session
+// isolation invariant consistent with `scene_hasher_state` and
+// `program_store_state` reset above). This becomes the new last
+// statement of `reset_job()` since `program_store_state->clear();`
+// is the existing last statement.
+m_prior_compiled.reset();
+```
+
+NOT in `reset_frame_temporaries()` (the prior must SURVIVE across per-frame boundaries within one render job — that's literally the point of the storage).
+
+**Part 5 — Production flip (cookbook).**
+
+Until this ticket lands, the affordance is dead. The flip requires (a) callers (the 3 orchestrators) thread `prior_compiled` (per Part 3); (b) `ctx.policy.graph_structure_unchanged` is the runtime signal from `src/render_graph/pipeline/scene.cpp` Phase 4 (producer intact since pre-TICKET-008); (c) the compiler's skip predicate requires `options.reuse_if_unchanged_predicate_safe() == true`, which requires `run_optimizer=false`.
+
+Production frame pipeline currently constructs `FrameGraphCompileOptions` with `run_optimizer=true` (the default at `frame_graph_compile_options.hpp:5`). The fast path requires both `run_optimizer=false` AND `graph_structure_unchanged=true`. The two must be coordinated — if a frame has `graph_structure_unchanged=true` but the orchestrator constructs with `run_optimizer=true` (default), the affordance is silently bypassed. PR resolution: when the orchestrator has a non-empty `prior_compiled` AND `ctx.policy.graph_structure_unchanged == true`, set `options.run_optimizer = false` for the `compile_with_reuse` call. Otherwise leave default. Wire this dispatch via a local adjusted options struct only inside the reuse branch (out of scope for the compile-time contract change in `frame_graph_compile_options.hpp`).
+
+### Acceptance criteria
+
+| Criterion | Verification (explicit commands, verifier-friendly) |
+|---|---|
+| **Field declaration (Row 1)** — Token presence + count. | `awk '/m_prior_compiled\|prior_compiled\(\)/ {n++} END {print n}' include/chronon3d/runtime/render_session.hpp` MUST equal exactly `3` (1 field declaration + 2 accessor declarations: non-const + const). Note: the `\|` in single-quoted bash is treated as `|` in POSIX awk (alternation). If your awk requires the legacy-extension form, use `awk '/m_prior_compiled|prior_compiled\(\)/ {n++} END {print n}' ...` instead. |
+| **Field placement (Row 2)** — Token shape and identifier. | `grep -nE 'std::optional<chronon3d::graph::CompiledFrameGraph>[[:space:]]+m_prior_compiled' include/chronon3d/runtime/render_session.hpp` MUST return exactly 1 line (the field declaration is `std::optional<CompiledFrameGraph>` on `RenderSession`, NOT on `SoftwareRenderSession` or `CompiledGraphCache`); `grep -c <same pattern> include/chronon3d/backends/software/software_render_session.hpp include/chronon3d/render_graph/cache/compiled_graph_cache.hpp` MUST equal `0` for each. |
+| **Proxy accessors (Row 3)** — Six-file enumeration. | For each of `include/chronon3d/runtime/render_session.hpp`, `src/runtime/render_session.cpp`, `include/chronon3d/backends/software/software_render_session.hpp`, `include/chronon3d/backends/software/software_renderer.hpp`, `src/runtime/render_pipeline.cpp`: `grep -q 'prior_compiled' "$f" && echo "$f: PASS"`. The three orchestrator free-function files (`src/render_graph/pipeline/{scene,composition,debug}.cpp`) MUST each have a call to `compile_with_reuse` AND consult `session.prior_compiled()`. The new test introduces a 7th PASS. Total ≥ 7 file-distinct PASSes from production sources + tests. |
+| **Reset semantics (Row 4)** — Body placement + NOT-clause enforcement + positional ordering. | Three checks, all must pass: (a) `awk '/^void RenderSession::reset_job\(\)/,/^}/' src/runtime/render_session.cpp | grep -cE 'm_prior_compiled\.reset\(\)'` MUST equal `≥ 1` (the new line is in the body); (b) `awk '/void reset_frame_temporaries\(\)/,/^}/' include/chronon3d/runtime/render_session.hpp | grep -cE 'm_prior_compiled'` MUST equal `0` (the field is NOT touched in the per-frame reset path); (c) positional ordering: `awk '/^void RenderSession::reset_job\(\)/{f=1; next} f{print NR":"$0; if (/^}/) {f=0; exit}}' src/runtime/render_session.cpp | grep -E 'program_store_state->clear|m_prior_compiled\.reset' | tail -1 | grep -qE 'm_prior_compiled\.reset'` MUST exit `0` (the new `m_prior_compiled.reset()` is the LAST statement of `reset_job()` body, positionally after the existing `program_store_state->clear();` line). |
+| **Compiler contract preserved verbatim (Row 5)** — Orchestrators are thin dispatch, not post-condition duplicators. | `grep -lnE 'compile_with_reuse\(' src/render_graph/pipeline/scene.cpp src/render_graph/pipeline/composition.cpp src/render_graph/pipeline/debug.cpp | wc -l` MUST equal exactly `3` (one compilation per orchestrator .cpp file). Negative canary: `grep -nE 'consumer_counts[[:space:]]*=[[:space:]]*prior' src/render_graph/pipeline/*.cpp` MUST return 0 hits (orchestrators MUST NOT deep-copy skip-payload themselves; that is the compiler's job). |
+| **Build (Row 6)** — Type + link verification. | `cmake --build build/chronon/linux-full-validation --target chronon3d_runtime_tests` returns RC=0. Passes the existing WP-3 PR 3.3 + 3.4 close-out test lattice. |
+| **Per-session isolation (Row 7)** — New test. | `tests/runtime/test_render_session_reset_and_isolation.cpp` extended with a reuse-path test asserting: `m_prior_compiled` is empty after `reset_job()`, populated after a successful orchestrator dispatch through a fake scene, re-used on the next dispatch IF `graph_structure_unchanged=true` is held on `ctx.policy`, and NOT re-used (falls through to full compile) IF `graph_structure_unchanged=false`. New test runs in CI under `ctest -R render_session`. |
+| **Production call sites (Row 8)** — Per-invocation count. | `grep -lnE 'compile_with_reuse\(' src/render_graph/pipeline/scene.cpp src/render_graph/pipeline/composition.cpp src/render_graph/pipeline/debug.cpp | wc -l` MUST equal exactly `3` (3 distinct orchestrator .cpp files, one per orchestrator free function: scene, composition, debug). The compiler's own definition-site is filtered out by the file-glob. |
+| **Architectural integrity (Row 9)** — Phase-4 producer still writes the flag. | `tools/test_architectural.sh` Section 5 still reports Phase 4 (`src/render_graph/pipeline/scene.cpp` lines ~233) writes `ctx.policy.graph_structure_unchanged` correctly (sanity that the producer side is intact end-to-end; this ticket only adds the missing consumer). |
+| **Changelog (Row 10)** — Documentation. | `docs/CHANGELOG.md` gains an entry noting `compile_with_reuse` is now wired into the production orchestrators (companion to TICKET-008's changelog entry). |
+| **Cross-frame smoke canary (Row 11)** — Informational, NOT blocking. | Render 100 frames of a static scene, confirm ≥ 50% of `compile_with_reuse(...)` calls SKIP via telemetry (`dirty_telemetry.last_graph_reused` counter exists per `software_renderer.hpp:201`). Single-run smoke; not a regression gate. |
+
+### Cross-references
+
+- **TICKET-008** (the affordance that this ticket calls into): `docs/FOLLOWUP_TICKETS.md:996`. The `compile_with_reuse` overload + Tests A–E live at `include/chronon3d/render_graph/compiler/frame_graph_compiler.hpp:77-82` and `tests/render_graph/compiler/test_frame_graph_compiler.cpp:188-352` respectively.
+- **TICKET-009** (experimental subtree rot): unrelated. `docs/FOLLOWUP_TICKETS.md:980-995`. Filed at commit `5e4049fe` (2026-06-21).
+- **TICKET-002** close-out: companion doc-only commit (`d4e4601c`) flipped TICKET-002 to 🟢 Done; established the doc-only closure convention this ticket's filing follows.
+- **§9.4 closure-note** — `docs/refactor-roadmap/08-global-state-and-sdk.md` (entire §9.4 block). Finalised at commit `4a808e46`. Sub-sections "Skip-safety constraints", "Cache-location neutrality" (NIT-2 — this ticket's decision point, fully enumerated in Trade-off considered under Suggested fix approach), "Affordance attribution" are the constraint set this ticket's design respects.
+- **WP-3 PR 3.1 — per-session ownership invariant**: `docs/refactor-roadmap/03-render-session-boundary.md`. The `m_prior_compiled` placement on `RenderSession` (engine-generic) follows the same "default-constructible, by-value when movable, by-heap when non-movable" reasoning that PR 3.1 codified for `scene_hasher_state` (`SceneHasher` is by-value) and `program_store_state` (`SceneProgramStore` is unique_ptr). `CompiledFrameGraph` is movable and cheap-to-move (struct of vectors, no mutex, no PMR), so `std::optional` by-value is the natural fit.
+- **TICKET-007** (debug-config removal) — parallel architectural pattern (mirror in shape, opposite in direction): TICKET-007 DELETED a process-wide pointer (`detail::g_debug_config`) and replaced it with a per-instance field (`ctx.options.debug_config`). TICKET-010 ADDS a per-session field that didn't exist before. Both follow the "single-seeding-point" pattern: one canonical reader per instance, no process-wide singleton.
+- **`docs/FOLLOWUP_TICKETS.md` schema** — this ticket follows the project's per-ticket fixed schema (Status, Affected file(s), Discovered during, Symptom, Root cause, Out-of-scope rationale, Suggested fix approach, Acceptance criteria, Cross-references) and adds a Caption / Scope note sub-section not in the schema (reserved for tickets that need to flag deferrable hygiene items out of scope).
+- **Discovered-on**: 2026-06-21. Originated from code-reviewer-minimax-m3 finding #3 on TICKET-008's post-push review.
+
+---
