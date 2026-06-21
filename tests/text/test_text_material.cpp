@@ -23,7 +23,10 @@ static BLImage make_test_text_image(int w, int h, const char* text, float font_s
     shape.style.color = Color{1.0f, 1.0f, 1.0f, 1.0f};
 
     float effective_size = font_size;
-    auto result = rasterize_text_to_bl_image(shape, effective_size, 16);
+    // WP-8 PR 8.0 — explicit resolver sourced from the test-lattice
+    // typed_resolver bridge (tests don't have a runtime in scope).
+    const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
+    auto result = rasterize_text_to_bl_image(shape, effective_size, 16, resolver);
     if (!result) {
         // Return a small empty image as fallback
         BLImage fallback(1, 1, BL_FORMAT_PRGB32);
@@ -256,7 +259,10 @@ TEST_CASE("TextMaterial: golden output comparison") {
     shape.style.align = TextAlign::Center;
     shape.style.color = Color{1.0f, 1.0f, 1.0f, 1.0f};
 
-    auto base = rasterize_text_to_bl_image(shape, 72.0f, 32);
+    // WP-8 PR 8.0 — explicit resolver sourced from the test-lattice
+    // typed_resolver bridge (tests don't have a runtime in scope).
+    const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
+    auto base = rasterize_text_to_bl_image(shape, 72.0f, 32, resolver);
     REQUIRE(base.has_value());
 
     // Apply premium material
