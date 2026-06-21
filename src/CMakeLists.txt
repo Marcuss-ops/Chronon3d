@@ -207,7 +207,6 @@ foreach(_chronon3d_impl_obj IN ITEMS
         chronon3d_blend2d_paint
         chronon3d_backend_software_diagnostics
         chronon3d_content
-        chronon3d_content
         chronon3d_diagnostics)
     if(TARGET ${_chronon3d_impl_obj})
         target_link_libraries(chronon3d_sdk_impl PRIVATE ${_chronon3d_impl_obj})
