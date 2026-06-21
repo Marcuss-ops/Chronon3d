@@ -42,9 +42,27 @@
 //     the relevant pointer is null.  Existing explicit variants
 //     `.style(id, registry)` and `.motion(id, registry)` unchanged.
 //
+// PR 4 ships (top-of-tree composition factory):
+//   - `chronon3d::authoring::Scene`  (thin handle over `SceneBuilder`;
+//     SFINAE-dispatched `.layer(name, fn)` accepts EITHER a closure
+//     taking `Layer&` (PR 3 surface — wraps the SceneBuilder-spawned
+//     LayerBuilder) OR a closure taking `LayerBuilder&` (engine raw
+//     surface — passthrough); other verbs (camera, stagger, sequence,
+//     apply_lighting_rig, shape primitives) reachable via
+//     `.configure_core(Fn)`).
+//   - `chronon3d::authoring::CompositionBuilder`  (fluent spec-builder
+//     with `.name/.width/.height/.duration/.frame_rate/.assets_root`
+//     setters + `.scene(fn)` render-fn setter + `.custom_builder(fn)`
+//     injection point for callers needing non-default SceneBuilder +
+//     `.build()` terminal that returns the engine
+//     `chronon3d::Composition` directly so the registry is unchanged).
+//   - Free `composition()` factory returns an empty CompositionBuilder
+//     — mirrors the engine's `chronon3d::composition(...)` with a
+//     different return type.
+//
 // Future PRs planned in `docs/FOLLOWUP_TICKETS.md`:
-//   - PR 4  `Scene`/`Composition` (factory wrappers)
 //   - PR 6  Migration of two example compositions
+//   - PR 7  Layer shape surface (Layer::rect/path/star/glow/...)
 //
 // ── Anti-duplication contract ───────────────────────────────────────────
 //
@@ -61,11 +79,10 @@
 // ─────────────────────────────────────────────────────────────────────────
 // Currently usable — PR 1 (Animator, Selector) + PR 2 (Material)
 // + PR 3 (Layer, Text) + PR 3.5 (ambient-ExtensionContext resolution) +
-//   PR 5 (StyleRegistry, MotionRegistry).
-// Scene and Composition are NOT YET available (PR 4, 6).
-// This header WILL grow as subsequent PRs land; meanwhile, user
-// code that includes only this umbrella header can use ONLY the
-// builders + registries + handles below.
+//   PR 4 (Scene, Composition) + PR 5 (StyleRegistry, MotionRegistry).
+// Future PRs will add layer shape primitives (PR 7) and migration of
+// example compositions (PR 6); meanwhile, user code that includes only
+// this umbrella header gets the full authoring façade.
 // ─────────────────────────────────────────────────────────────────────────
 
 #include <chronon3d/authoring/selector.hpp>
@@ -75,3 +92,5 @@
 #include <chronon3d/authoring/motion_registry.hpp>
 #include <chronon3d/authoring/text.hpp>
 #include <chronon3d/authoring/layer.hpp>
+#include <chronon3d/authoring/scene.hpp>
+#include <chronon3d/authoring/composition.hpp>

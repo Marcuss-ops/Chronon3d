@@ -18,6 +18,7 @@
 #include <chronon3d/animation/effects/animated_transform.hpp>
 #include <chronon3d/animation/motion/timeline.hpp>
 #include <string>
+#include <string_view>
 #include <memory_resource>
 #include <optional>
 
@@ -151,9 +152,47 @@ public:
     LayerBuilder& transition_out(LayerTransitionSpec spec);
 
     // ── Specialized ──
-    LayerBuilder& screen_dimensions(f32 w, f32 h);
+    LayerBuilder& screen_dimensions(f32 w, f32 h) {
+        m_screen_width = w;
+        m_screen_height = h;
+        m_screen_dimensions_explicit = true;       // PR 4 — flip the flag so Layer(LayerBuilder&) can detect 'was-set'.
+        return *this;
+    }
     LayerBuilder& fullscreen_rect(std::string name, Color color);
     LayerBuilder& fill(Color color);
+
+    // ── PR 4 — screen_dimensions readback (no full type required) ────
+    /// Returns true once `screen_dimensions(w, h)` has been called
+    /// explicitly.  Used by `chronon3d::authoring::Layer::Layer(LayerBuilder&)`
+    /// to decide whether the silent-default overload is safe to use, or
+    /// whether to throw + debug-assert the misuse.
+    [[nodiscard]] bool screen_dimensions_were_set() const noexcept {
+        return m_screen_dimensions_explicit;
+    }
+    /// Read-back accessor: returns (width, height) recorded by the last
+    /// `screen_dimensions(w, h)` call (or the default 1920×1080 if the
+    /// builder was constructed without one).  Pair with
+    /// `screen_dimensions_were_set()` for a guarded read.
+    [[nodiscard]] Vec2 screen_dimensions() const noexcept {
+        return Vec2{m_screen_width, m_screen_height};
+    }
+    /// Read-back accessor for the layer's name (used by error messages
+    /// in `chronon3d::authoring::Layer::Layer(LayerBuilder&)` when the
+    /// builder has no `screen_dimensions(...)` set).
+    ///
+    /// Returns a non-owning `std::string_view` over `m_layer.name`
+    /// (`std::pmr::string`).  `string_view` is allocator-agnostic, so
+    /// callers can assign to either a `std::string` (via the
+    /// `std::string(string_view)` ctor) or a `std::pmr::string` without
+    /// an implicit-conversion error from the underlying
+    /// `std::pmr::polymorphic_allocator`.
+    ///
+    /// Lifetime: tied to this `LayerBuilder`'s lifetime.  Any operation
+    /// that replaces or moves the builder invalidates the view.
+    /// Re-acquire each time you need it, or copy into an owning
+    /// `std::string` via the canonical receiver pattern:
+    /// `std::string{builder.name()}`.
+    [[nodiscard]] std::string_view name() const noexcept { return m_layer.name; }
 
     // ── FontEngine ──
     LayerBuilder& font_engine(FontEngine* engine);
@@ -281,12 +320,25 @@ public:
     [[nodiscard]] Layer build();
 
 private:
+    // ── PR 4 — PMR-string accessor policy ────────────────────────────
+    // Any accessor that exposes a member stored in pmr memory (e.g.
+    // m_layer.name, future m_layer.description / parent_name / tag,
+    // etc.) must return std::string_view — not const std::string& and
+    // not const std::pmr::string&.  std::string_view is allocator-
+    // agnostic and lets callers construct either an owning std::string
+    // (via std::string(string_view)) or a std::pmr::string without
+    // tripping an implicit-conversion error across distinct allocator
+    // types.
     Layer m_layer;
     SampleTime m_current_time{SampleTime::from_frame_int(0, FrameRate{30, 1})};
     std::optional<Frame> m_until_frame{};
     bool m_duration_explicit{false};
     f32 m_screen_width{1920.0f};
     f32 m_screen_height{1080.0f};
+    // PR 4 — flips to true only when an explicit `screen_dimensions(w, h)`
+    // call has occurred.  Defaults to false on construction so LayerBuilder
+    // spawned without screen info can be detected by the authoring facade.
+    bool m_screen_dimensions_explicit{false};
     FontEngine* m_font_engine{nullptr};
     registry::ShapeRegistry* m_shape_registry{nullptr};
     std::optional<registry::ShapeRegistry> m_own_shape_registry;
