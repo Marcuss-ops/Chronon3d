@@ -176,6 +176,15 @@ struct RenderPolicy {
 // `precomp_build` is replaced by a typed `precomp_builder*` pointer to a
 // `PrecompBuilderService` (typically DefaultPrecompBuilder) owned by
 // `PipelineCatalogs`.
+
+// WP-8 PR 8.0 — typed engine-local asset resolver lives on the per-
+// engine RenderRuntime.  Forward-declared here so the per-frame
+// `RenderServices` field below can hold a non-owning pointer; the full
+// definition is in <chronon3d/assets/asset_resolver.hpp>.  Callers
+// that dereference the pointer MUST include that header themselves;
+// the SDK header stays lightweight.
+namespace chronon3d::assets { class AssetResolver; }
+
 struct RenderServices {
     RenderBackend* backend{nullptr};
     cache::NodeCache* node_cache{nullptr};
@@ -213,6 +222,15 @@ struct RenderServices {
     /// cache lookups.  Set by scene.cpp when a SoftwareRenderer is
     /// available.  Null in test paths without a wired session.
     chronon3d::RenderSession* session{nullptr};
+
+    /// WP-8 PR 8.0 — typed engine-local asset path resolver (non-owning
+    /// pointer into the owning RenderRuntime's resolver).  Set by
+    /// `preflight.cpp::debug_preflight_render_graph` (and any future
+    /// graph-building surface that needs to resolve relative asset
+    /// paths through the same instance the renderer uses).  Null when
+    /// no resolver has been wired into the context — callers MUST
+    /// null-check before dereferencing.
+    chronon3d::assets::AssetResolver* asset_resolver{nullptr};
 };
 
 // ── Per-frame / per-node mutable workspace ──────────────────────────────────

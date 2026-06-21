@@ -14,6 +14,13 @@
 #include <cstdint>
 #include <vector>
 
+// WP-8 PR 8.0 — analysis call signatures take a typed AssetResolver
+// reference instead of reading through the runtime service-locator
+// bridge.  Forward-declared here so the header stays lightweight; the
+// full resolver definition is in <chronon3d/assets/asset_resolver.hpp>
+// for callers that need to dereference the reference.
+namespace chronon3d::assets { class AssetResolver; }
+
 namespace chronon3d::graph {
 
 void populate_node_basics(
@@ -40,6 +47,7 @@ void check_topological_warnings(
 
 void check_asset_integrity(
     const RenderGraph& graph,
+    const chronon3d::assets::AssetResolver& resolver,
     GraphPreflightReport& report);
 
 void check_coordinate_mismatch(
@@ -62,6 +70,7 @@ inline void check_topological_warnings(
 
 inline void check_asset_integrity(
     const RenderGraph& /*graph*/,
+    const chronon3d::assets::AssetResolver& /*resolver*/,
     GraphPreflightReport& /*report*/) {}
 
 inline void check_coordinate_mismatch(

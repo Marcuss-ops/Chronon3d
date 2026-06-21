@@ -10,7 +10,7 @@
 
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
-#include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>
 #include <algorithm>
 #include <filesystem>
 #include <string>
@@ -66,13 +66,19 @@ namespace chronon3d::graph {
 
 // ── Asset existence checks ─────────────────────────────────────────
 
-static inline void check_shape_assets(const Shape& shape, const std::string& node_name, std::vector<std::string>& warnings) {
-    // WP-8 PR 8.1 — typed engine-local resolution via the service-
-    // locator helper.  Same 2-branch fallback as the other migrated
-    // call sites: present → opt->string(), absent → raw relative
-    // (or empty for empty input) so subsequent fs::exists walks
-    // the same legacy path it used to.
-    const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
+// WP-8 PR 8.0 — typed engine-local resolution: resolver is now passed
+// in explicitly (no service-locator bridge).  Same 2-branch fallback
+// semantics as the original `runtime::typed_resolver_for_deep_code()`:
+// present → opt->string(), absent → raw relative (or empty for empty
+// input) so subsequent fs::exists walks the same legacy path it used
+// to.  Two runtimes with different resolver roots no longer
+// cross-contaminate asset-integrity results.
+static inline void check_shape_assets(
+    const Shape& shape,
+    const std::string& node_name,
+    const chronon3d::assets::AssetResolver& resolver,
+    std::vector<std::string>& warnings
+) {
     auto resolve_path = [&](const std::string& p) -> std::string {
         if (auto opt = resolver.resolve_lexical(p)) return opt->string();
         return p.empty() ? std::string{} : std::string{p};
