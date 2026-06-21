@@ -7,14 +7,9 @@
 # Every check runs BEFORE the final decision; the script never prints
 # PASS after FAIL.
 #
-# WP-0 PR 0.1 — Added 7 P0 "must be absent" guards + 2 residual
-# allowlists (with TODO tickets) for known historical references
-# that are not yet migrated:
-#   - src/runtime/render_session.cpp (comment-only `clear_per_frame`
-#     reference; needs documentation scrub in WP-3 PR 3.4 close-out)
-#   - src/render_graph/cache/precomp_node_execute.cpp (TODO-WP4
-#     stable-node-identity: ctor m_instance_key still derives from
-#     comp_name until WP-4 lands)
+# WP-0 PR 0.1 — Added 7 P0 "must be absent" guards.  All historical
+# reference comments have been scrubbed (WP-3 PR 3.4 + WP-5 + WP-8
+# close-outs); no residual allowlists remain.
 #
 # WP-2 PR 2.5 — Test file
 # tests/render_graph/executor/test_scheduler_determinism.cpp was
@@ -70,14 +65,6 @@ strip_comments() {
     grep -vE '^[^:]+:[0-9]+:[[:space:]]*(//|/\*)' || true
 }
 
-# allowlist_filter <pattern>
-# stdin:  multi-line `file:line:content` hits from grep
-# stdout: hits whose `file:` part does NOT match the regex
-# Usage:  real_hits=$(echo "$hits_raw" | allowlist_filter 'path/to/file\.cpp')
-allowlist_filter() {
-    grep -vE "$1" || true
-}
-
 echo "=== Architecture boundary grep checks ==="
 
 fail() { echo "FAIL: $1"; FAILED=1; }
@@ -122,21 +109,16 @@ else
 fi
 
 # ── 4. clear_per_frame() method (WP-3 PR 3.4 close-out) ────────────────
-# TODO-WP3-3.4-doc-scrub: allowlist src/runtime/render_session.cpp for
-# the comment-only `clear_per_frame` reference; remove the allowlist
-# once the documentation is updated.
+# Historical comment in `src/runtime/render_session.cpp` was scrubbed in
+# WP-3 PR 3.4 close-out (TODO-WP3-3.4-doc-scrub retired).  Any reintroduction
+# of `clear_per_frame` in the codebase fires this check.
 echo -n "  [ 4/12] legacy full-reset shim RETIRED ...               "
-hits_raw=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
+hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E 'clear_per_frame' "${ROOT_DIRS[@]}" 2>/dev/null \
     | strip_comments || true)
-real_hits=$(echo "$hits_raw" | allowlist_filter 'src/runtime/render_session\.cpp')
-allow_hits=$(echo "$hits_raw" | grep -E '^src/runtime/render_session\.cpp:' || true)
-if [ -n "$real_hits" ]; then
+if [ -n "$hits" ]; then
     fail "clear_per_frame() is RETIRED"
-    echo "$real_hits" | sed 's/^/    /'
-elif [ -n "$allow_hits" ]; then
-    echo "PASS (TODO-WP3-3.4-doc-scrub): clear_per_frame ALLOWLISTED at:"
-    echo "      $allow_hits"
+    echo "$hits" | sed 's/^/    /'
 else
     pass "no clear_per_frame() call site"
 fi
@@ -220,23 +202,22 @@ else
 fi
 
 # ── 10. PrecompNode stores composition-name-only owner key ─────────────
-# TODO-WP4-stable-node-identity: allowlisted at
-# src/render_graph/cache/precomp_node_execute.cpp:38 until WP-4 lands.
+# WP-5 close-out dropped the cached `m_instance_key` member field; the
+# owner key is now derived per-call via `instance_key(ctx)` from the
+# executing node's `current_identity`.  Historical contrast references
+# to the legacy one-key-per-composition pattern were scrubbed from
+# `precomp_node_execute.cpp` (TODO-WP4-stable-node-identity retired).
+# Any reintroduction of `.graph = hash_string(m_comp_name)` fires this check.
 echo -n "  [10/12] PrecompNode composition-name-only key ...         "
-hits_raw=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
+hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\.graph[[:space:]]*=[[:space:]]*hash_string\([^)]*m_comp_name' \
     src/render_graph/nodes/precomp_node.hpp \
     src/render_graph/nodes/precomp_node.cpp \
     src/render_graph/cache/precomp_node_execute.cpp 2>/dev/null \
     | strip_comments || true)
-real_hits=$(echo "$hits_raw" | allowlist_filter 'precomp_node_execute\.cpp')
-allow_hits=$(echo "$hits_raw" | grep -E ':[^:]+:[[:space:]]*\.graph[[:space:]]*=[[:space:]]*hash_string' | grep -E 'precomp_node_execute\.cpp' || true)
-if [ -n "$real_hits" ]; then
+if [ -n "$hits" ]; then
     fail "PrecompNode owner key is composition-name-only (WP-0 P0 guard)"
-    echo "$real_hits" | sed 's/^/    /'
-elif [ -n "$allow_hits" ]; then
-    echo "PASS (TODO-WP4): PrecompNode owner key ALLOWLISTED at:"
-    echo "      $allow_hits"
+    echo "$hits" | sed 's/^/    /'
 else
     pass "PrecompNode owner key is identity-driven (WP-4 invariant)"
 fi
