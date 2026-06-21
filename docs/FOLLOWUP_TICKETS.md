@@ -925,8 +925,10 @@ Implemented in this session. Single seeding point + per-instance parameter forwa
 
 | Field | Value |
 |---|---|
-| **Status** | 🔵 Planned |
-| **Affected file(s)** | `include/chronon3d/render_graph/compiler/frame_graph_compiler.hpp` (declare new `compile_with_reuse` overload); `src/render_graph/compiler/frame_graph_compiler.cpp` (implement skip predicate + skip semantics + post-conditions); `tests/render_graph/compiler/test_frame_graph_compiler.cpp` (extend existing structure_hash determinism canary at line ~185 with four new reuse-path tests). |
+| **Status** | 🟢 Done |
+| **Resolved at** | Commit landing 2026-06-21 (this PR). Resolved-at exact commit hash filled in by the doc-only follow-up commit. |
+| **Resolver** | Direct main push after env build archive-step unblocked; new compile_with_reuse overload lands in chronon3d_render_graph_compiler alongside Tests A–E. |
+| **Affected file(s)** | `include/chronon3d/render_graph/compiler/frame_graph_compiler.hpp` (declare new `compile_with_reuse` overload); `include/chronon3d/render_graph/compiler/frame_graph_compile_options.hpp` (`reuse_if_unchanged_predicate_safe()` helper); `src/render_graph/compiler/frame_graph_compiler.cpp` (implement skip predicate + skip semantics + post-conditions); `tests/render_graph/compiler/test_frame_graph_compiler.cpp` (extend existing structure_hash determinism canary at line ~185 with five new reuse-path tests A–E); `docs/refactor-roadmap/08-global-state-and-sdk.md` ("## §9.4 Status — `graph_structure_unchanged` re-attached ≂ RESOLVED" sub-section added). |
 | **Discovered during** | §9.4 closure-note polish at commit `4a808e46` (origin/main); explicit user follow-up request to file the implementation ticket that will re-attach §9.4 to a live reader inside `FrameGraphCompiler::compile`. |
 | **Discovered date** | 2026-06-21 |
 | **Compliance target** | §9.4 closure-path criterion from `docs/refactor-roadmap/08-global-state-and-sdk.md` lines ~196–204 (the "Status of §9.4" sub-section): a future PR that adds a structural-reuse fast-path to `FrameGraphCompiler::compile` will re-attach §9.4 to a live reader without re-introducing `runtime::ExecutionPlanCache`. |
