@@ -1,5 +1,6 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
@@ -73,11 +74,27 @@ namespace chronon3d {
 
 struct FontEngine::Impl {
     FT_Library ft_library{nullptr};
+    /// WP-8 PR 8.0 — typed asset resolver, non-owning.  Lifetime is the
+    /// owning runtime's responsibility; this pointer is captured at FontEngine
+    /// construction and used by every `load_face()` call for relative font-path
+    /// resolution.  The default FontEngine ctor delegates to the explicit ctor
+    /// with `runtime::typed_resolver_for_deep_code()` (PR 8.0 transitional
+    /// bridge — deleted in PR 8.1).
+    const chronon3d::assets::AssetResolver* m_resolver{nullptr};
     mutable std::unordered_map<FontSpec, FaceEntry, std::hash<FontSpec>> face_cache;
     mutable std::shared_mutex face_cache_mutex;
     mutable cache::LruCache<GlyphBBoxCacheKey, GlyphBBoxCacheEntry, std::hash<GlyphBBoxCacheKey>> glyph_bbox_cache{8192, 2};
 
     Impl() {
+        FT_Error err = FT_Init_FreeType(&ft_library);
+        if (err != 0) {
+            spdlog::error("FontEngine: FT_Init_FreeType failed (error={})", err);
+            ft_library = nullptr;
+        }
+    }
+
+    explicit Impl(const chronon3d::assets::AssetResolver* resolver)
+        : m_resolver(resolver) {
         FT_Error err = FT_Init_FreeType(&ft_library);
         if (err != 0) {
             spdlog::error("FontEngine: FT_Init_FreeType failed (error={})", err);
@@ -108,15 +125,15 @@ struct FontEngine::Impl {
     std::optional<FaceEntry> load_face(const FontSpec& spec) {
         if (!ft_library) return std::nullopt;
 
-        // WP-8 PR 8.1 — typed engine-local resolution.  Service-locator
-        // helper prefers the active runtime's resolver; falls back to a
-        // process-wide singleton mounted against `process_wide_assets_root`
-        // or (when neither is configured) returns `nullopt` so we pass
-        // `spec.font_path` raw to FT.  The 2-line fallback preserves
-        // legacy `runtime::resolve_asset_path(relative)` semantics for
-        // empty/unmounted-relative inputs.
+        // WP-8 PR 8.0 — resolver is owned by the FontEngine (pointer
+        // captured at construction).  `m_resolver` is never null in any
+        // context that reaches load_face: the explicit ctor requires a
+        // resolver; the transitional default ctor populates it with
+        // `runtime::typed_resolver_for_deep_code()`.  The 2-line fallback
+        // preserves legacy `runtime::resolve_asset_path(relative)`
+        // semantics for empty/unmounted-relative inputs.
         std::string resolved;
-        const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
+        const auto& resolver = *m_resolver;
         if (auto opt = resolver.resolve_lexical(spec.font_path)) {
             resolved = opt->string();
         } else {
@@ -160,7 +177,22 @@ struct FontEngine::Impl {
 
 // ── FontEngine public API (full) ─────────────────────────────────────
 
-FontEngine::FontEngine() : m_impl(std::make_unique<Impl>()) {}
+// WP-8 PR 8.0 — explicit-resolver ctor (canonical).
+FontEngine::FontEngine(const chronon3d::assets::AssetResolver& resolver)
+    : m_impl(std::make_unique<Impl>(&resolver)) {}
+
+// =====================================================================
+// WP-8 PR 8.0 — TRANSITIONAL default ctor.  See the header doc-comment
+// above for the bridge semantics; this implementation mirrors the
+// rationale.  Scheduled for deletion in PR 8.1 alongside the
+// `runtime::typed_resolver_for_deep_code()` bridge.
+//
+// DO NOT USE IN NEW CODE.  Use `FontEngine{resolver}` with an explicit
+// `chronon3d::assets::AssetResolver&` (typically sourced from
+// `sw_renderer->runtime().resolver()`).
+// =====================================================================
+FontEngine::FontEngine()
+    : FontEngine(chronon3d::runtime::typed_resolver_for_deep_code()) {}
 FontEngine::~FontEngine() = default;
 FontEngine::FontEngine(FontEngine&&) noexcept = default;
 FontEngine& FontEngine::operator=(FontEngine&&) noexcept = default;
@@ -362,10 +394,17 @@ bool FontEngine::can_load(const FontSpec& spec) {
 #else
 
 struct FontEngine::Impl {
+    const chronon3d::assets::AssetResolver* m_resolver{nullptr};
     ~Impl() = default;
+
+    explicit Impl(const chronon3d::assets::AssetResolver* resolver)
+        : m_resolver(resolver) {}
 };
 
-FontEngine::FontEngine() : m_impl(std::make_unique<Impl>()) {}
+FontEngine::FontEngine(const chronon3d::assets::AssetResolver& resolver)
+    : m_impl(std::make_unique<Impl>(&resolver)) {}
+FontEngine::FontEngine()
+    : FontEngine(chronon3d::runtime::typed_resolver_for_deep_code()) {}
 FontEngine::~FontEngine() = default;
 FontEngine::FontEngine(FontEngine&&) noexcept = default;
 FontEngine& FontEngine::operator=(FontEngine&&) noexcept = default;
@@ -398,20 +437,21 @@ bool FontEngine::can_load(const FontSpec&) { return false; }
 
 // ── Global convenience (always available) ─────────────────────────────
 
+// WP-8 PR 8.0 — global `shape_text(...)` free function retained for
+// test/diagnostic convenience.  Internal `static FontEngine` is
+// constructed once against the typed_resolver_for_deep_code PR 8.0
+// bridge; the singleton `shared_font_engine()` accessor has been
+// removed (PR 8.0 + PR 8.1 mandate "no process-wide engine binding").
 std::optional<GlyphRun> shape_text(std::string_view text, const FontSpec& spec, float font_size, const TextShaping& shaping) {
     static FontEngine engine;
     return engine.shape_text(text, spec, font_size, shaping);
 }
 
-FontEngine& shared_font_engine() {
-    static FontEngine engine;
-    return engine;
-}
-
-void reset_shared_font_engine() {
-    auto& engine = shared_font_engine();
-    engine.clear_cache();
-}
+// WP-8 PR 8.0 — `shared_font_engine()` and `reset_shared_font_engine()`
+// are REMOVED.  Production code paths must hold their own FontEngine
+// instance bound to an explicit `const chronon3d::assets::AssetResolver&`.
+// The free `shape_text(...)` above is the only remaining global entry
+// point and is intended for diagnostics / one-off shaping.
 
 // ── PlacedGlyphRun resolver (no freetype/harfbuzz dependency) ────────
 

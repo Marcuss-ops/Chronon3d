@@ -389,7 +389,18 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         layout_box.size.y = std::max(0.0f, t.box.size.y - 2.0f * t.style.box_style.padding.y);
     }
 
-    FontEngine local_engine;
+    // WP-8 PR 8.0 — local_engine fallback uses typed_resolver_for_deep_code
+    // (PR 8.0 transition bridge; deleted in PR 8.1).  Production callers
+    // must supply `font_engine` explicitly via the renderer.runtime().resolver()
+    // path; this local fallback handles the legacy code paths that constructed
+    // a RenderNode without binding one at creation time.
+    //
+    // TODO(WP-8 PR 8.1): hoist the local `FontEngine` into a per-renderer
+    // member (e.g. `SoftwareRenderer::font_engine_`) initialised from
+    // `sw_renderer->runtime().resolver()` so it's not rebuilt each call.
+    // Cost today: each `rasterize_text_to_bl_image` constructs a brand-new
+    // FontEngine (FT_Library init + face cache wipe).  Correct, but wasteful.
+    FontEngine local_engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     FontEngine* engine = font_engine ? font_engine : &local_engine;
 
     FontSpec font_spec;

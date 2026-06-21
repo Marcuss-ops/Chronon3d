@@ -182,7 +182,16 @@ inline RichTextLineMetrics draw_rich_text(LayerBuilder& l,
                                           const RichTextLayoutOptions& options = {},
                                           FontEngine* engine = nullptr,
                                           std::string_view prefix = "rich") {
-    FontEngine& font_engine = engine ? *engine : shared_font_engine();
+    // WP-8 PR 8.0: callers MUST supply a FontEngine* bound to an AssetResolver.
+    // `shared_font_engine()` was deleted.  We do NOT `assert()` here because
+    // asserts compile out under NDEBUG and would crash the production binary;
+    // we early-return empty metrics so a missing engine produces a no-op draw
+    // (matches the pre-PR-8.0 fall-back behaviour for adapters that haven't
+    // migrated yet — PR 8.1 will tighten this to throw or be removed).
+    if (engine == nullptr) {
+        return RichTextLineMetrics{};
+    }
+    FontEngine& font_engine = *engine;
 
     RichTextLineMetrics base_metrics = line.measure(&font_engine);
     f32 fit_scale = 1.0f;
