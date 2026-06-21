@@ -21,7 +21,7 @@
 //                                 RenderBackend implementation can consume
 //                                 (FrameArena, frame history, dirty
 //                                 telemetry, layer-bbox history, scene
-//                                 hasher).
+//                                 hasher, scene program store).
 //   - SoftwareSessionResources — software-specific session resources
 //                                 (ping-pong buffer ring, transform
 //                                 scratch).  Lives in `backends/software/`
@@ -42,6 +42,17 @@
 // GraphExecutor::execute() takes a `RenderSession&` (the engine-generic
 // half) so the executor stays backend-agnostic; software-specific session
 // resources are only accessed by SoftwareRenderer's own code paths.
+//
+// WP-3 PR 3.1 (this PR) — `SceneHasher` + `SceneProgramStore` were
+// previously runtime-owned (relocated from RenderSession to RenderRuntime
+// in WP-8); they are now back per-session-owned.  The TICKET-013/017
+// boundary invariant that previously required forward-only declarations
+// in this header is intentionally BROKEN here: per-session ownership
+// requires the full type of these two state engines so `RenderSession`
+// can hold them by-value (SceneHasher) or via unique_ptr (SceneProgramStore
+// because it carries a std::mutex and is therefore non-movable).  See
+// `docs/refactor-roadmap/03-render-session-boundary.md` for the
+// migration rationale and the architectural invariant flip.
 // ===========================================================================
 
 #include <memory>
@@ -49,28 +60,22 @@
 // Engine-generic field includes (acceptable from runtime/).
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/math/renderer_state.hpp>
+// WP-3 PR 3.1 — full type includes required by per-session-owned members.
+// The previous WP-8 forward-declaring design (TICKET-013 boundary invariant)
+// is intentionally lifted here because pr 3.1 requires per-session
+// ownership; PIMPL would over-engineer this for a one-struct header.
+#include <chronon3d/render_graph/cache/scene_program_store.hpp>
+#include <chronon3d/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/runtime/session_services.hpp>
-
-// WP-8 follow-up — two graph types are forward-declared so the
-// runtime/ header can hold accessor *method declarations* whose
-// return types reference these engine-internal structs.  Full
-// definitions for `graph::SceneHasher` and
-// `graph::SceneProgramStore` live in their canonical headers; this
-// runtime/ header does NOT pull them in (TICKET-013/017 boundary
-// invariant).  Bodies of accessors and of `reset_job()` live in
-// the parallel `src/runtime/render_session.cpp`.
-namespace chronon3d::graph {
-    struct SceneHasher;
-    class  SceneProgramStore;
-}
 
 namespace chronon3d {
 
 /// Engine-generic per-session rendering state.
 ///
-/// All members are default-constructible.  FrameArena is stored indirectly
-/// because it contains a std::pmr::monotonic_buffer_resource which is
-/// non-movable; the unique_ptr keeps the outer struct movable.
+/// All members are default-constructible.  FrameArena, scene_hasher, and
+/// scene_program_store are stored indirectly (unique_ptr) because they
+/// contain non-movable internals (std::pmr::monotonic_buffer_resource /
+/// std::mutex); the unique_ptrs keep the outer struct movable.
 ///
 /// TICKET-011a follow-up #1 — the `services` field is a non-owning
 /// back-pointer bundle populated by `runtime::make_session()` so
@@ -78,62 +83,66 @@ namespace chronon3d {
 /// read registries / caches / pools / default_assets_root through
 /// the session itself instead of reaching a process-global.
 ///
-/// PR-5 — `program_store` is stored indirectly (unique_ptr) because
-/// SceneProgramStore contains a std::mutex (non-movable).  This keeps
-/// RenderSession movable, matching the existing FrameArena pattern.
+/// WP-3 PR 3.1 (per-session ownership) — `scene_hasher` and `program_store`
+/// are now by-value / unique_ptr state on the session itself.  This breaks
+/// the WP-8 shared-state architecture (where every SoftwareRenderSession
+/// minted from one RenderRuntime shared these two engines via the
+/// SessionServices pointer bundle); the trade-off is that each session
+/// is now genuinely isolated from every other session regardless of
+/// shared-runtime deployment.
 struct RenderSession {
     std::unique_ptr<FrameArena> arena_ptr{std::make_unique<FrameArena>()};
 
-    RendererFrameHistory    frame_history;
-    RendererDirtyTelemetry  dirty_telemetry;
-    RendererLayerHistory    layer_history;
-    runtime::SessionServices services;
-    // WP-8 follow-up: scene_hasher + program_store relocated to
-    // RenderRuntime.  RenderSession now reaches them through the
-    // SessionServices pointer bundle that runtime::make_session()
-    // populates from runtime.services().  Declared/defined bodies
-    // live in src/runtime/render_session.cpp so this header stays
-    // free of `render_graph/core/scene_hasher.hpp` and
-    // `render_graph/cache/scene_program_store.hpp` includes
-    // (TICKET-013 + TICKET-017 boundary invariant).
+    // WP-3 PR 3.1 — per-session mutation state (renamed from
+    // `scene_hasher` / `program_store` to `_state` so they don't
+    // collide with the public accessor methods of the same name;
+    // see the apply-minimal-fix-A migration note in
+    // `docs/refactor-roadmap/03-render-session-boundary.md`).
+    //   * scene_hasher_state: by-value (struct, default-constructible, movable).
+    //   * program_store_state: heap (class with std::mutex, non-movable).
+    chronon3d::graph::SceneHasher scene_hasher_state{};
+    std::unique_ptr<chronon3d::graph::SceneProgramStore>
+        program_store_state{std::make_unique<chronon3d::graph::SceneProgramStore>()};
 
-    /// Per-frame reset (telemetry tracking only).  History preserved.
+    // WP-3 PR 3.2 — `RendererLayerHistory` is gone; its payload lives in
+    // `dirty_telemetry.previous_layers` (folded).  The struct members'
+    // canonical names now mirror the renamed types: `FrameHistory` and
+    // `DirtyHistory`.
+    FrameHistory   frame_history;
+    DirtyHistory   dirty_telemetry;
+    runtime::SessionServices services;
+
+    /// Per-frame reset: telemetry counters zeroed; `previous_layers`
+    /// preserved (the per-layer diff source-of-truth must survive across
+    /// per-frame boundaries for the dirty-rect diff to work).
     void reset_frame_temporaries() {
-        dirty_telemetry = RendererDirtyTelemetry{};
+        dirty_telemetry.reset_telemetry_counters();
     }
 
-    // Convenience accessors that proxy the runtime-owned state via
-    // services.  Bodies in src/runtime/render_session.cpp.
-    //
-    // WP-3 PR 3.0 — the four accessors are intentionally NOT
-    // `noexcept`: their bodies in src/runtime/render_session.cpp
-    // call `throw std::runtime_error(...)` when the session's
-    // `services.scene_hasher` / `services.program_store` pointers
-    // are null (default-constructed sessions, test fixtures).
-    // A `noexcept` annotation here would invoke `std::terminate`
-    // on the unwinding throw; the specifier is now removed so the
-    // exception propagates to the caller.  See the test lattice in
-    // `tests/runtime/test_render_session_reset_and_isolation.cpp`
-    // (`default-constructed scene_hasher() throws instead of
-    // terminating` and the equivalent for `program_store()`).
-    [[nodiscard]] chronon3d::graph::SceneHasher&       scene_hasher();
-    [[nodiscard]] const chronon3d::graph::SceneHasher& scene_hasher() const;
-    [[nodiscard]] chronon3d::graph::SceneProgramStore&       program_store();
-    [[nodiscard]] const chronon3d::graph::SceneProgramStore& program_store() const;
+    // WP-3 PR 3.1 — per-session owned; accessors return local references
+    // (no throw, no reroute through SessionServices).  Production and
+    // default-constructed sessions both have valid scene_hasher +
+    // program_store; the throw path that the WP-8 design required
+    // (services.scene_hasher was null on a default-constructed session)
+    // is gone — the WP-3 PR 3.0 throw tests documented this; post 3.1
+    // the tests assert the inverse: accessors NEVER throw on a freshly
+    // default-constructed session.
+    [[nodiscard]] chronon3d::graph::SceneHasher&       scene_hasher()       noexcept { return scene_hasher_state; }
+    [[nodiscard]] const chronon3d::graph::SceneHasher& scene_hasher() const noexcept { return scene_hasher_state; }
+    [[nodiscard]] chronon3d::graph::SceneProgramStore&       program_store()       noexcept { return *program_store_state; }
+    [[nodiscard]] const chronon3d::graph::SceneProgramStore& program_store() const noexcept { return *program_store_state; }
 
     /// Arena accessor (still engine-generic; lives on the session).
     [[nodiscard]] FrameArena&       arena()       noexcept { return *arena_ptr; }
     [[nodiscard]] const FrameArena& arena() const noexcept { return *arena_ptr; }
 
-    /// Convenience alias matching the unchanged access pattern: callers
-    /// that previously did `m_session.common.scene_hasher()` continue
-    /// to work transparently after this WP-8 close-out — the body
-    /// now proxies via `services.scene_hasher` (runtime-owned).
-    ///
-    /// Full per-job reset (telemetry + history + runtime-owned
-    /// scene_hasher + program_store via services).  WP-3 collapsed
-    /// the legacy shim into this method; WP-8 made the proxy
-    /// explicit.  See `docs/refactor-roadmap/03-render-session-boundary.md`.
+    /// Full per-job reset (telemetry + history + per-session scene_hasher
+    /// + per-session program_store.clear()).  WP-3 collapsed the legacy
+    /// full-reset shim into this method; WP-3 PR 3.1 made the per-session
+    /// ownership explicit so the reset reaches only the current session's
+    /// state — never another session's, even when both were minted from
+    /// the same RenderRuntime.
+    // WP-3 PR 3.2 — rename-friendly; canonical types only.
     void reset_job();
 };
 

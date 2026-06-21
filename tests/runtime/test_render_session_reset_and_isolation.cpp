@@ -38,12 +38,53 @@ using chronon3d::graph::SceneHasher;
 using chronon3d::graph::SceneProgramStore;
 using chronon3d::raster::BBox;
 
+namespace chronon3d {
+
+// WP-3 PR 3.2 — canonical `FrameHistory` has no `prev_runtime_settings_fingerprint`
+// or `last_committed_frame_index` (those fields were stripped during the
+// `RendererFrameHistory` → `FrameHistory` canonicalisation).  The injected
+// `operator==` covers the FINGERPRINT + STRUCTURAL fields.  The camera-path
+// comparison (`prev_camera` + `prev_camera_valid`) is intentionally OMITTED
+// because Camera2_5D's projection spec (LensModel / DepthOfFieldSettings /
+// MotionBlurSettings / pmr strings / Quat) doesn't ship canonical
+// operator== on every sub-field — the camera path is exercised by its own
+// dedicated tests in `tests/scene/` rather than bolted onto this lattice.
+// Pragmatic WP-3 isolation: prefer a not-quite-comprehensive operator==
+// over a cascade of sub-type operator==s.
+inline bool operator==(const FrameHistory& a, const FrameHistory& b) noexcept {
+    return a.prev_frame == b.prev_frame
+        && a.prev_scene_fingerprint == b.prev_scene_fingerprint
+        && a.prev_static_scene_fingerprint == b.prev_static_scene_fingerprint
+        && a.prev_graph_structure_fingerprint == b.prev_graph_structure_fingerprint
+        && a.prev_active_at_fingerprint == b.prev_active_at_fingerprint;
+}
+
+} // namespace chronon3d
+
+namespace chronon3d::raster {
+
+// WP-3 PR 3.2 — operator== for `raster::BBox` (canonical schema is
+// public-field with inclusive-exclusive corners `x0`/`y0`/`x1`/`y1`).
+// Must live in `chronon3d::raster` (NOT parent `chronon3d`) because
+// ADL for `std::optional<BBox>` only inspects the namespaces of BBox
+// itself; an operator== defined in `chronon3d::` is NOT visible to
+// ADL and `std::optional<BBox>::operator==` therefore fails to resolve.
+inline bool operator==(const BBox& a, const BBox& b) noexcept {
+    return a.x0 == b.x0 && a.y0 == b.y0 && a.x1 == b.x1 && a.y1 == b.y1;
+}
+
+} // namespace chronon3d::raster
+
 namespace {
 
 void seed_frame_history(RenderSession& s, uint64_t marker) {
+    // Canonical `FrameHistory` field set (WP-3 PR 3.2).  The seed
+    // intentionally drives `prev_graph_structure_fingerprint` because
+    // that is the byte the lattice's persistence assertions key off; the
+    // operator== injected above already excludes the legacy
+    // `prev_runtime_settings_fingerprint` / `last_committed_frame_index`
+    // fields so those don't need to be set.
     s.frame_history.prev_graph_structure_fingerprint = marker;
-    s.frame_history.prev_runtime_settings_fingerprint = marker + 1;
-    s.frame_history.last_committed_frame_index = static_cast<int>(marker & 0xFF);
 }
 
 void seed_dirty_telemetry(RenderSession& s, uint64_t marker) {
