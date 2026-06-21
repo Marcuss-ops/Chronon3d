@@ -30,6 +30,7 @@
 #include <chronon3d/render_graph/core/node_identity.hpp>
 #include <chronon3d/render_graph/pipeline/frame_parameter_block.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/core/scope/execution_scope.hpp>  // WP-6 PR 6.3 — ExecutionScope parameter for execute_with_scope(...) overload
 #include <span>
 
 namespace chronon3d::graph {
@@ -74,9 +75,46 @@ public:
     ///   - ctx.services.session->services.executor  for inner execution
     ///     (BORROWED — no local GraphExecutor instance)
     ///   - ctx.services.session->arena()            for inner graph PMR allocs
+    ///
+    /// WP-6 PR 6.3 — legacy path delegates to `execute_with_scope(...)`
+    /// after synthesizing a Root parent scope; the lease-held +
+    /// child-scope plumbing lives in the new overload below.  Kept as
+    /// `override` for back-compat with the existing test lattice that
+    /// drives `node->execute(ctx, ...)` directly without an explicit
+    /// parent ExecutionScope in scope.
     OwnedFB execute(RenderGraphContext& ctx,
                     std::span<const FramebufferRef>,
                     std::span<const std::optional<raster::BBox>>) override;
+
+    /// WP-6 PR 6.3 — scope-aware additive overload.  Takes a parent
+    /// `ExecutionScope&` (Root from a single-pass render-job producer;
+    /// Tile when invoked from tile orchestrator's per-region path; a
+    /// Precomp when arriving from another nested level) and constructs:
+    ///   - a distinct `FrameArena child_arena` (PR 6.3 exit criterion
+    ///     #1 — allocate a distinct child arena), lifetime = execute
+    ///     call frame.
+    ///   - a Precomp `ExecutionScope precomp_scope` with
+    ///     `parent = parent`, `arena = child_arena`, and `owner_key`
+    ///     derived from `instance_key(ctx).node` so `would_recurse()`
+    ///     rejects direct + indirect precomp cycles (PR 6.5).
+    /// The `ProgramLease` acquired from `program_store()` is held by
+    /// `shared_ptr<CompiledSceneProgram>` for the entire function
+    /// frame, outliving the inner `execute_with_scope` call.  Bail
+    /// out with empty fb (per docs/03 §4.4 convention) if
+    /// `precomp_scope.would_overflow()` (depth clamped at
+    /// `kMaxScopeDepth`) or if `would_recurse(owner_key)` signals a
+    /// cycle.
+    ///
+    /// Production callers (GraphExecutor::execute_single_node
+    /// post-PR-6.2 wiring, tile orchestrator post-PR-6.4 propagating
+    /// tile_scope as parent, future diagnostic commands) should use
+    /// this overload INSTEAD of the legacy `execute(ctx, ...)` so the
+    /// full scope/lease contract is honored at the call site.
+    [[nodiscard]] OwnedFB execute_with_scope(
+        ExecutionScope& parent,
+        RenderGraphContext& ctx,
+        std::span<const FramebufferRef>,
+        std::span<const std::optional<raster::BBox>>);
 
     // ── Cache integration ────────────────────────────────────────────
 

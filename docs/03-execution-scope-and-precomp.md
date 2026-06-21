@@ -252,22 +252,32 @@ In questo modo la child-arena è distinta per regione (vd. §5 PR 6.4
 exit criteria), la root session è borrowed, e il parent (root)
 resta in scope per tutta la vita del tile scope.
 
-### 4.3 PrecompNode::execute(...) → Hold ProgramLease (PR 6.3)
+### 4.3 PrecompNode::execute(...) → Hold ProgramLease (PR 6.3 — Done)
 
-`include/chronon3d/render_graph/nodes/precomp_node.hpp:77`
-dichiara `OwnedFB execute(RenderGraphContext& ctx, ...)`. Va
-cambiato in:
+`include/chronon3d/render_graph/nodes/precomp_node.hpp` ora
+dichiara:
 
 ```cpp
-OwnedFB execute(ExecutionScope& scope,
-                RenderGraphContext& ctx, ...);
+// Legacy back-compat — synthesizes Root parent internally.
+OwnedFB execute(RenderGraphContext& ctx, ...) override;
+
+// PR 6.3 — scope-aware additive overload.  Takes a parent
+// ExecutionScope&, constructs child FrameArena + Precomp scope.
+[[nodiscard]] OwnedFB execute_with_scope(
+    ExecutionScope& parent,
+    RenderGraphContext& ctx, ...);
 ```
 
 Il ProgramLease (`SceneProgramStore::ProgramLease` da
 `include/chronon3d/render_graph/cache/scene_program_store.hpp`,
-wrapper `std::shared_ptr<CompiledSceneProgram>`) va tenuto vivo
-per tutta la durata dello scope (`shared_ptr` ownership keeps the
-program alive anche se la cache evict during the same scope).
+wrapper `std::shared_ptr<CompiledSceneProgram>`) è tenuto vivo
+per l'intera function-frame di `execute_with_scope(...)` (RAII:
+`lease` dichiarato §5, `child_arena`+`precomp_scope` §8 — la
+`shared_ptr` distrugge ultima, dopo `precomp_scope.parent()` reset
+e `child_arena` release; questo mantiene `program->frame_graph`
+vivo attraverso la `inner_executor->execute_with_scope(...)` call).
+L'owner_key del `precomp_scope` è derivato da
+`instance_key(ctx).node` (PR 6.5 anti-recursion contract).
 
 ### 4.4 SceneProgramStore anti-recursion via owner_key (PR 6.5)
 
@@ -313,15 +323,15 @@ per tracciare lo stato corrente dei PR rimanenti della catena WP-6:
 | Keep root execution memory alive through every child invocation | 🔵 Planned |
 | Reset root memory only after final output ownership is safe | 🔵 Planned |
 
-### PR 6.3 — Add the precomp child scope — 🔵 Planned
+### PR 6.3 — Add the precomp child scope — 🟢 Done (commit pre-PR-6.3-merge)
 
 | Exit criterion | Stato |
 |---|---|
-| Allocate a distinct child arena | 🔵 Planned |
-| Bind the nested compiled graph identity | 🔵 Planned |
-| Preserve the parent session and job-owned program store | 🔵 Planned |
-| Hold the `ProgramLease` for the complete child scope | 🔵 Planned |
-| Ensure child teardown cannot invalidate parent `ExecutionState` | 🔵 Planned |
+| Allocate a distinct child arena | 🟢 Done (this commit: `FrameArena child_arena` stack-local in `execute_with_scope` body, PR 6.3 exit crit. #1) |
+| Bind the nested compiled graph identity | 🟢 Done (this commit: `precomp_scope` carries `graph_id` from `instance_key(ctx).graph`; identity stable) |
+| Preserve the parent session and job-owned program store | 🟢 Done (this commit: `precomp_scope.session()` borrows parent's session; `program_store()` lives on session, so child scopes reuse it transparently) |
+| Hold the `ProgramLease` for the complete child scope | 🟢 Done (this commit: `lease` declared §5, `precomp_scope` declared §8; RAII reverse order means `shared_ptr<CompiledSceneProgram>` outlives the `inner_executor->execute_with_scope()` call) |
+| Ensure child teardown cannot invalidate parent `ExecutionState` | 🟢 Done (this commit: `child_arena` is a separate `FrameArena` value (not aliased to parent); PR 6.4 isolation contract propagated to the precomp path via the constructor's `FrameArena&` ctor taking a child arena reference distinct from `session.arena()`) |
 
 ### PR 6.4 — Replace tile-local sessions with tile scopes — 🟡 Partial
 
@@ -375,9 +385,10 @@ i test di acceptance sono done (PR 6.0); i PR 6.1–6.7 che plumbing
 the type into production paths sono **partially landed** — PR 6.5
 enforcement e PR 6.4 tile plumbing sono codice-effettivo nel working
 tree (vedi seguito), mentre i PR 6.2 (root scope plumbed into
-single-pass), 6.3 (PrecompNode migration a `execute_with_scope` +
-ProgramLease held for scope), e 6.6/6.7 (memory + race + permanent
-guard tests) sono ancora **planned**.
+single-pass) e 6.6/6.7 (memory + race + permanent guard tests) sono
+ancora **planned**. **PR 6.3 (PrecompNode migration a
+`execute_with_scope` + ProgramLease held for scope) è stato chiuso**
+nel commit pre-PR-6.3-merge.
 
 ### PR 6.5 — landing log (this commit)
 
@@ -415,11 +426,53 @@ tile plumbing):
   `local_session` in un Root `ExecutionScope` e usano il nuovo
   overload `execute_with_scope(...)`.
 
-L'**exit criterion rimanente** di PR 6.4 — "rimuovere
+L'exit criterion rimanente** di PR 6.4 — "rimuovere
 `RenderSession local_session;` dai tile fallback paths per riusare
 sw_renderer->session()" — è deferito a un follow-up PR.  L'estrazione
 della scaffolding duplicata (4 linee × 2 branch in
 `scene_tile_execution.cpp`) è deferita a un refactor di WP-7.
+
+### PR 6.3 — landing log (this commit — pre-PR-6.3-merge)
+
+PR 6.3 implementa end-to-end il path precomp isolato sotto
+`ExecutionScope` contract:
+
+- `include/chronon3d/render_graph/nodes/precomp_node.hpp` — aggiunto
+  include `<chronon3d/core/scope/execution_scope.hpp>` + dichiarazione
+  additive `execute_with_scope(ExecutionScope& parent,
+  RenderGraphContext& ctx, ...) -> OwnedFB`.  L'override esistente
+  `execute(ctx, ...)` resta come surface back-compat per il test
+  lattice; internamente sintetizza un Root parent scope + delega al
+  nuovo overload (con `set_owner_key` derivato da
+  `instance_key(ctx).node` e `graph_id` derivato dalla stessa
+  `precomp_key.graph` per consistenza single-source-of-truth).
+- `src/render_graph/cache/precomp_node_execute.cpp`:
+  - **Body consolidation** (reviewer round-3 follow-up): il
+    `execute(ctx, ...)` override è ora una **13-line wrapper**
+    (`session == nullptr` guard + synthesize Root parent +
+    `return execute_with_scope(parent_root, ...)`).  Il SINGLE
+    canonical body che possiede il contract lease-held + scope
+    + child-arena + execute_with_scope dispatch vive in
+    `execute_with_scope(parent, ctx, ...)`.  Niente più duplicazione.
+  - **Hoisted `precomp_key`** (reviewer round-3 nit): una singola
+    `const auto precomp_key = instance_key(ctx);` post §1 guards
+    sostituisce le 3 invocazioni `instance_key(ctx)` ridondanti
+    (§5 lease, §5b set_on_evict, §8 graph_id).
+  - Lease dichiarato §5 (RAII); `precomp_scope` dichiarato §8 →
+    RAII reverse-decl-order mantiene `lease`'s
+    `shared_ptr<CompiledSceneProgram>` vivo oltre la return di
+    `inner_executor->execute_with_scope(precomp_scope, ...)`.
+
+**Production entry-point note**: il producer-side root-scope
+plumbing di WP-6 PR 6.2 ("Add the root scope") è ancora 🔵 Planned.
+Fino al land di PR 6.2, `GraphExecutor::execute_single_node` continua
+ad invocare il back-compat `PrecompNode::execute(ctx, ...)` che POI
+sintetizza il parent_root internamente — production flow quindi
+atterra su `execute_with_scope` via la delegazione, ma il producer
+non ancora la chiama direttamente.  Post-PR-6.2 la produzione
+chiamerà `node->execute_with_scope(root_scope, ...)` direttamente;
+a quel punto il legacy 13-line wrapper esiste solo come back-compat
+path per il test lattice ed è un no-op di forwarding.
 
 ---
 
