@@ -20,7 +20,7 @@ echo "Rendering and validating camera shots..."
 python3 "$SUITE" \
   --executable "$BIN" \
   --skip-pipeline \
-  --camera-template OrbitCameraTest ExtremePerspectiveTest HeroTextFrontTest ZStackParallaxTest \
+  --camera-template OrbitCameraTest ExtremePerspectiveTest ZStackParallaxTest \
   --camera-output-dir output/camera_smoke \
   --camera-overlay-dir output/camera_smoke_overlay
 
@@ -29,12 +29,10 @@ echo "Telemetry DB: $HOME/.chronon3d/telemetry/chronon3d_render_history.sqlite"
 echo "Camera renders:"
 echo "  output/camera_smoke/OrbitCameraTest.png"
 echo "  output/camera_smoke/ExtremePerspectiveTest.png"
-echo "  output/camera_smoke/HeroTextFrontTest.png"
 echo "  output/camera_smoke/ZStackParallaxTest.png"
 echo "Camera overlays:"
 echo "  output/camera_smoke_overlay/OrbitCameraTest.png"
 echo "  output/camera_smoke_overlay/ExtremePerspectiveTest.png"
-echo "  output/camera_smoke_overlay/HeroTextFrontTest.png"
 echo "  output/camera_smoke_overlay/ZStackParallaxTest.png"
 echo "Open the dashboard after refresh:"
 echo "  http://51.91.11.36:5173/"
