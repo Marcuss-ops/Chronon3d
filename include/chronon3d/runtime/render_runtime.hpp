@@ -92,10 +92,8 @@
 // per-session owned (see render_session.hpp), so the runtime doesn't
 // reach into them directly and doesn't need their full types.
 
-#include <filesystem>
 #include <memory>
 #include <string>
-#include <string_view>
 
 namespace chronon3d {
     struct Config;
@@ -269,11 +267,12 @@ void set_active_runtime(RenderRuntime* runtime);
 ///      don't construct a RenderRuntime.
 ///
 /// Returns an empty string when neither branch is configured
-/// (`runtime::resolve_asset_path` inlines that case to "leave the
-/// relative path unchanged").  Returned BY VALUE so both branches
-/// copy into the return slot before this function returns —
-/// branch 1's reference always outlives the call (runtime is
-/// active) and branch 2 is already a `std::string` value.
+/// (callers via `typed_resolver_for_deep_code` should treat that as
+/// an unmounted resolver — there's no root to mount relative paths
+/// against).  Returned BY VALUE so both branches copy into the
+/// return slot before this function returns — branch 1's reference
+/// always outlives the call (runtime is active) and branch 2 is
+/// already a `std::string` value.
 [[nodiscard]] std::string default_assets_root_for_deep_code();
 
 /// Vends a fresh per-render-job `SoftwareRenderSession` whose
@@ -302,30 +301,13 @@ void set_process_wide_assets_root(std::string root);
 /// underlying module-level string via `set_process_wide_assets_root`.
 [[nodiscard]] std::string process_wide_assets_root();
 
-/// Resolve a relative path against the active runtime's default assets
-/// root (preferred) or the process-wide fallback (when no runtime has
-/// been attached).  Returns the relative path unchanged if empty,
-/// absolute, or if neither root is set.  Replaces the legacy
-/// `chronon3d::resolve_asset_path(relative)` overload that read
-/// `detail::g_default_assets_root` directly.
-///
-/// WP-8 PR 8.1 transitional wrapper.  New callers should prefer
-/// `runtime::typed_resolver_for_deep_code().resolve_lexical(path)`
-/// (returns `std::optional<std::filesystem::path>` with the contract
-/// documented on `AssetResolver`).  This overload remains for source
-/// compatibility with the small set of callers still mid-migration;
-/// it is removed in PR 8.3 once every call site uses the typed
-/// resolver.
-[[nodiscard]] inline std::string resolve_asset_path(std::string_view relative_path) {
-    if (relative_path.empty()) return {};
-    if (std::filesystem::path(relative_path).is_absolute()) {
-        return std::filesystem::path(relative_path).lexically_normal().string();
-    }
-    const std::string root = default_assets_root_for_deep_code();
-    if (root.empty()) return std::string{relative_path};
-    return (std::filesystem::path(root) / relative_path)
-        .lexically_normal().string();
-}
+/// WP-8 PR 8.2 — the legacy single-argument free function
+/// `runtime::resolve_asset_path(relative_path)` has been REMOVED.
+/// Every deep call site has been migrated to the typed resolver path
+/// (see `typed_resolver_for_deep_code()` doc-comment below for the
+/// canonical call shape).  New code MUST use the typed resolver —
+/// there is no backwards-compatibility wrapper and no
+/// "just-construct-the-string" fallback path.
 
 /// WP-8 PR 8.1 — typed engine-local asset resolver for callers that
 /// have no `RenderRuntime` in their call stack (font_engine,
