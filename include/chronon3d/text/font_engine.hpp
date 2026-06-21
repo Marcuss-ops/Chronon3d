@@ -15,6 +15,16 @@
 #include <functional>
 #include <cstddef>
 
+// ── WP-8 PR 8.0 — typed asset resolver plumbing ────────────────────────
+//
+// `font_engine.hpp` is a public SDK header consumed by tests, content
+// helpers, scene builders, and the CLI toolchain.  We forward-declare
+// the resolver to keep this header lightweight (matching the identical
+// pattern in `render_graph_context.hpp`).  The full definition lives in
+// `<chronon3d/assets/asset_resolver.hpp>`.  Callers that dereference
+// the resolver pointer MUST include that header themselves.
+namespace chronon3d::assets { class AssetResolver; }
+
 namespace chronon3d {
 // ── GlyphPosition
 // Coordinates are in logical (unscaled) font units; multiply by
@@ -212,7 +222,39 @@ namespace chronon3d {
 
 class FontEngine {
 public:
+    /// WP-8 PR 8.0 — explicit AssetResolver ctor.  Every FontEngine owns a
+    /// non-owning pointer to the runtime-owned resolver; `load_face` and
+    /// the public shaping methods use it for every relative font-path
+    /// resolution.  This is the canonical ctor; the default ctor below is
+    /// a thin transitional wrapper kept for PR 8.0 only and scheduled
+    /// for deletion in PR 8.1.
+    explicit FontEngine(const chronon3d::assets::AssetResolver& resolver);
+
+    // ====================================================================
+    // WP-8 PR 8.0 — TRANSITIONAL default ctor.
+    //
+    //   DO NOT USE IN NEW CODE.
+    //
+    //   This default ctor exists ONLY to bridge the PR 8.0 migration:
+    //   (a) ~150 test sites that called `FontEngine engine;` continue to
+    //       compile under Slice A of the font_engine family, and
+    //   (b) the explicit-resolver ctor above is the canonical API.
+    //
+    //   The default ctor delegates to the explicit ctor using
+    //   `runtime::typed_resolver_for_deep_code()` (which is also
+    //   slated for deletion in PR 8.1).  It will be REMOVED in PR 8.1
+    //   alongside the bridge — until then, call sites that invoke it
+    //   silently pull the process-wide bridge instead of an explicit
+    //   per-engine resolver, defeating per-runtime isolation.
+    //
+    //   Migration path: replace `FontEngine engine;` with
+    //   `FontEngine engine{resolver};` where `resolver` is sourced from
+    //   `sw_renderer->runtime().resolver()` (production), or
+    //   `chronon3d::runtime::typed_resolver_for_deep_code()` (PR 8.0
+    //   transitional alias).
+    // ====================================================================
     FontEngine();
+
     ~FontEngine();
 
     // Non-copyable (holds FT_Library handle)
@@ -273,8 +315,15 @@ private:
 
 // ── Free functions ────────────────────────────────────────────────────
 
-/// Shape text using a default global FontEngine instance.
-/// Convenience for one-off shaping without managing an engine.
+/// WP-8 PR 8.0 — global shaping convenience, reimplemented on top of a
+/// lazy process-local `static FontEngine` constructed once against
+/// `runtime::typed_resolver_for_deep_code`.  The legacy
+/// `shared_font_engine()` singleton has been REMOVED in PR 8.0 — the
+/// shared-font-engine accessor violates the per-engine asset-isolation
+/// contract in PR 8.2.  Production code should construct a
+/// `FontEngine{runtime.resolver()}` (or pass the resolver through) and
+/// keep it on the owning context.  This free function remains for the
+/// leg-up test convenience and for one-off shaping inside diagnostics.
 [[nodiscard]] std::optional<GlyphRun> shape_text(
     std::string_view text,
     const FontSpec& spec,
@@ -282,16 +331,12 @@ private:
     const TextShaping& shaping = TextShaping{}
 );
 
-/// Return a process-wide shared FontEngine singleton.
-/// Useful for pipeline stages that do not have access to a LayerBuilder
-/// but still want to amortise face-loading costs.
-[[nodiscard]] FontEngine& shared_font_engine();
-
-/// Reset the process-wide shared FontEngine singleton.
-/// Clears all cached font faces, glyph bounding boxes, and HarfBuzz
-/// font objects. Useful for font hot-reload: call this after updating
-/// font files on disk, then the next call to shared_font_engine() will
-/// lazily reload faces.
-void reset_shared_font_engine();
+// NOTE: WP-8 PR 8.0 REMOVED from this header:
+//   [[nodiscard]] FontEngine& shared_font_engine();
+//   void reset_shared_font_engine();
+// Both were subscribed to `runtime::typed_resolver_for_deep_code()`
+// internally and depended on a process-wide singleton engine that PR 8.1
+// will not allow.  Production callers must keep their own FontEngine
+// instance bound to an explicit `const AssetResolver&`.
 
 } // namespace chronon3d

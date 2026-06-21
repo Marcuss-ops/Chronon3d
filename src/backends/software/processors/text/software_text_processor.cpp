@@ -29,6 +29,23 @@ namespace chronon3d::renderer {
 
 namespace {
 
+// WP-8 PR 8.0 — resolver-keyed FontEngine cache.  Process-wide map that
+// hands back a lazily-allocated `FontEngine{resolver}` keyed by the
+// resolver's address.  Lifetime: same as `runtime::render_runtime`, i.e.
+// processes the runtime for as long as it's attached.  We use a
+// pointer-identity key (AssetResolver is engine-local, so each runtime
+// has a unique resolver address) plus a mutex so concurrent first-use
+// from two renderers is safe.
+struct ResolverEngineCache {
+    std::mutex                                                       mu;
+    std::unordered_map<const chronon3d::assets::AssetResolver*,
+                       std::unique_ptr<FontEngine>>                   map;
+};
+static ResolverEngineCache& resolver_engine_cache() {
+    static ResolverEngineCache c;
+    return c;
+}
+
 class SoftwareTextProcessor final : public ShapeProcessor {
 public:
     void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
@@ -55,7 +72,28 @@ public:
         bool raster_cache_hit = false;
         double rasterize_ms = 0.0;
         const auto raster_start = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
-        FontEngine* engine = node.font_engine ? node.font_engine : &shared_font_engine();
+        // WP-8 PR 8.0 — font_engine is REQUIRED on the render node; if
+        // not supplied, derive one from the renderer's runtime-owned
+        // resolver (avoids the process-wide `runtime::shared_font_engine()`
+        // bridge that was REMOVED in PR 8.0).  We resolve from a
+        // resolver-keyed static cache so concurrent first-use from
+        // multiple renderers (one runtime each) hands back per-engine
+        // FontEngine instances, preserving the PR 8.2 isolation contract.
+        FontEngine* engine = node.font_engine;
+        if (!engine) {
+            const auto& resolver = renderer.runtime().resolver();
+            auto& cache = resolver_engine_cache();
+            std::lock_guard<std::mutex> lock(cache.mu);
+            auto it = cache.map.find(&resolver);
+            if (it == cache.map.end()) {
+                auto inserted = cache.map.emplace(
+                    &resolver,
+                    std::make_unique<FontEngine>(resolver));
+                engine = inserted.first->second.get();
+            } else {
+                engine = it->second.get();
+            }
+        }
         // TICKET-007: per-instance DebugConfig forwarded from the
         // owning SoftwareRenderer so text-bbox / ink-bounds / baseline
         // debug overlays honour the engine's debug.text_bbox() flag
@@ -172,7 +210,17 @@ public:
             const float font_size = std::max(1.0f, txt.style.size);
             const float line_height = font_size * std::max(1.0f, txt.style.line_height);
 
-            FontEngine& engine = shared_font_engine();
+            // WP-8 PR 8.0 — `compute_world_bbox` is invoked without a
+            // renderer in scope (it's a virtual `ShapeProcessor`
+            // override).  Without software_text_processor plumbing
+            // through a per-processor resolver field, the best
+            // transitional source is the typed_resolver_for_deep_code
+            // bridge (PR 8.0 / PR 8.1 removal target).  When a
+            // renderer is available at the bbox-compute site (future
+            // PR), prefer `renderer.runtime().resolver()`.
+            static FontEngine bbox_engine(
+                chronon3d::runtime::typed_resolver_for_deep_code());
+            FontEngine& engine = bbox_engine;
             FontSpec spec;
             spec.font_path   = txt.style.font_path;
             spec.font_family = txt.style.font_family;
