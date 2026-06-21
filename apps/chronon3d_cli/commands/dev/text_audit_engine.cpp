@@ -212,7 +212,10 @@ TextAuditFrameResult audit_single_text(
     // bridge; deleted in PR 8.1).  Production paths plumb an explicit
     // `sw_renderer->runtime().resolver()` — the CLI dev-command
     // surface has no runtime in scope today, so it's on the bridge.
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    // WP-8 PR 8.0 — explicit resolver source, paired with the engine
+    // ctor and with `rasterize_text_to_bl_image` below.
+    const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
+    FontEngine engine{resolver};
     FontSpec font_spec;
     font_spec.font_path = text.style.font_path;
     font_spec.font_family = text.style.font_family;
@@ -259,7 +262,7 @@ TextAuditFrameResult audit_single_text(
     };
 
     // ── Rasterize for ink bbox ────────────────────────────────────────
-    auto raster = rasterize_text_to_bl_image(text, layout_res.font_size, 4);
+    auto raster = rasterize_text_to_bl_image(text, layout_res.font_size, 4, resolver);
     if (raster) {
         auto ink = compute_ink_bbox(raster->image, policy.alpha_threshold);
         if (ink.has_ink) {

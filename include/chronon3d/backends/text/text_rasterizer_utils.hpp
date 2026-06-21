@@ -3,6 +3,7 @@
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/text/text_material.hpp>
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>  // WP-8 PR 8.0 — explicit-resolver plumbing
 #ifdef CHRONON3D_USE_BLEND2D
 #include <blend2d.h>
 #endif
@@ -28,6 +29,15 @@ struct TextRasterization {
     BLFont font;
 };
 
+/// `resolver` is the explicit AssetResolver sourced by the caller
+/// (typically `sw_renderer->runtime().resolver()` for production paths,
+/// or `runtime::typed_resolver_for_deep_code()` for test/dev-climate
+/// paths that don't have a runtime in scope).  WP-8 PR 8.0 mandates the
+/// explicit pass; the deep cache (`Blend2DResources::get_face`) +
+/// FreeType path-builder (`FtGlyphPathBuilder::load_face`) used to read
+/// `runtime::typed_resolver_for_deep_code()` directly, but per PR 8.0
+/// they now each receive the resolver as an argument.
+///
 /// `debug_cfg` is the per-instance DebugConfig pointer forwarded from
 /// the owning RenderGraphContext / SoftwareRenderer.  When nullptr,
 /// debug overlays are disabled (matches the safe default for test /
@@ -36,7 +46,8 @@ struct TextRasterization {
 std::optional<TextRasterization> rasterize_text_to_bl_image(
     const TextShape& text,
     float effective_size,
-    int padding = 4,
+    int padding,
+    const chronon3d::assets::AssetResolver& resolver,
     bool* cache_hit = nullptr,
     const Mat4* transform = nullptr,
     FontEngine* font_engine = nullptr,
