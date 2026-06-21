@@ -242,6 +242,19 @@ target_link_libraries(chronon3d_sdk INTERFACE
 # they appear as direct inputs on the final executable link line.
 # The $<BUILD_INTERFACE:...> guard ensures these object files only
 # appear during in-tree builds, not in installed consumers.
+#
+# ═══ MAINTENANCE CONTRACT ═══════════════════════════════════════
+# Every OBJECT library created in this project MUST be listed below.
+# When you add a new `add_library(xxx OBJECT ...)` anywhere under
+# src/, add the corresponding $<BUILD_INTERFACE:$<TARGET_OBJECTS:xxx>>
+# entry to the appropriate block:
+#   • Unconditional OBJECT libs  →  block immediately below
+#   • Conditional OBJECT libs    →  foreach loop below (guarded
+#     by `if(TARGET ...)`, so the entry only fires when the
+#     feature that creates the OBJECT is enabled)
+# Failure to list a new OBJECT library here will cause linker
+# errors ("undefined reference") in the CLI and test executables.
+# ════════════════════════════════════════════════════════════════
 target_sources(chronon3d_sdk INTERFACE
     $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_core_impl>>
     $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_animations>>
