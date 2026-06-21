@@ -192,17 +192,35 @@ public:
             const float font_size = std::max(1.0f, txt.style.size);
             const float line_height = font_size * std::max(1.0f, txt.style.line_height);
 
-            // WP-8 PR 8.0 — `compute_world_bbox` is invoked without a
-            // renderer in scope (it's a virtual `ShapeProcessor`
-            // override).  Without software_text_processor plumbing
-            // through a per-processor resolver field, the best
-            // transitional source is the typed_resolver_for_deep_code
-            // bridge (PR 8.0 / PR 8.1 removal target).  When a
-            // renderer is available at the bbox-compute site (future
-            // PR), prefer `renderer.runtime().resolver()`.
-            static FontEngine bbox_engine(
-                chronon3d::runtime::typed_resolver_for_deep_code());
-            FontEngine& engine = bbox_engine;
+            // WP-8 Slice 2 — per-processor static FontEngine, sourced
+            // from `active_runtime()->resolver()` when an active runtime
+            // is reachable, falling back to the bridge otherwise.  This
+            // is the deepest of the WP-8 routing paths: the ShapeProcessor
+            // virtual `compute_world_bbox` interface doesn't carry a
+            // `SoftwareRenderer&` argument (signature is fixed), so we
+            // can't use the per-renderer `SoftwareRenderer::font_engine()`
+            // accessor that PR 8.1 introduced for the `draw()` path.
+            //
+            // Function-local static lifetime: the engine's resolver
+            // pointer is captured on first call.  Subsequent calls
+            // reuse the same engine — per-runtime isolation holds
+            // because `AssetResolver` is a value member of
+            // `RenderRuntime`, so its address is stable for the
+            // runtime's lifetime and the engine stays tied to the
+            // resolver that the active runtime is currently exposing.
+            //
+            // Pre-PR-8.1 baseline constructed the static against
+            // `typed_resolver_for_deep_code()` alone (unconditional
+            // bridge dependency); the Slice 2 ternary prefers the
+            // per-runtime resolver when one is active — the bridge is
+            // only consulted for callers without an active runtime
+            // (CLI audit / preflight diagnostic paths).
+            const chronon3d::assets::AssetResolver& resolver =
+                chronon3d::runtime::active_runtime()
+                    ? chronon3d::runtime::active_runtime()->resolver()
+                    : chronon3d::runtime::typed_resolver_for_deep_code();
+            static const FontEngine bbox_engine{resolver};
+            const FontEngine& engine = bbox_engine;
             FontSpec spec;
             spec.font_path   = txt.style.font_path;
             spec.font_family = txt.style.font_family;
