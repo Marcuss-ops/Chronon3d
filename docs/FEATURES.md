@@ -1,112 +1,52 @@
 # Chronon3D — Feature Reference
 
-> Reference documentation for features that have detailed APIs, limitations, and usage patterns.
-> These were previously in `README.md` and are now collected here for easy reference.
+Current repository maturity is tracked in [`STATUS.md`](STATUS.md).
 
----
+## Stable feature areas
 
-## SVG Path Import V1
+- SVG path import V1: `M/L/H/V/C/Q/Z`, including relative forms.
+- Text: FreeType/HarfBuzz shaping, FriBidi segmentation, layout, auto-fit,
+  overflow control, presets, per-glyph animation, gradients, strokes, and glyph cache.
+- Images, layers, masks, blend modes, 2.5D camera, and software effects.
+- Video output and telemetry are controlled by build options.
 
-Chronon3d supports importing paths directly from SVG path strings or files. This is designed for direct integration with `PathShape`.
+Known limits include incomplete ICU-style CJK line breaking, no color-emoji
+table support, and SVG import limited to the first path without full SVG styling.
 
-### Usage
+## Expressions V2 — experimental quarantine
 
-```cpp
-#include <chronon3d/assets/svg_path_loader.hpp>
+Expressions V2 is present on `main`, but it is **not** a stable public feature.
 
-// 1. Parsing directly from path data:
-auto result = chronon3d::assets::parse_svg_path_data("M 10 10 L 50 50 Z");
-if (result.ok) {
-    PathShape my_path = result.path;
-}
-
-// 2. Loading from a file:
-auto result_file = chronon3d::assets::load_svg_path_file("assets/my_icon.svg");
-```
-
-### V1 Supported Commands
-
-| Command | Description | Relative |
-|---|---|---|
-| `M` / `m` | Move to | ✅ |
-| `L` / `l` | Line to | ✅ |
-| `H` / `h` | Horizontal line to | ✅ |
-| `V` / `v` | Vertical line to | ✅ |
-| `C` / `c` | Cubic bezier | ✅ |
-| `Q` / `q` | Quadratic bezier | ✅ |
-| `Z` / `z` | Close path | N/A |
-
-### Limitations (V1)
-
-- **File Extraction**: Extracts only the first `<path d="...">` attribute inside the SVG file
-- **Not supported**: Gradients, masks, multiple paths, groups, transforms, viewBox dimensions, CSS styling (`fill`, `stroke` width), text, filters
-- Any unsupported commands return `ok = false` with a detailed error message
-
----
-
-## Text V1 — Layout Engine & Presets
-
-Chronon3d has a fully-functional, cache-invalidation-safe Text V1 layout engine with layout presets, automatic fitting (`auto_fit`), wrapping, overflow control, and subtitle/karaoke model support.
-
-### Supported Features
-
-| Feature | Description |
+| Surface | Actual state |
 |---|---|
-| **Wrapping & Overflow** | Word wrap, character wrap, max lines limit, text ellipsis |
-| **Auto-Fit** | Binary-search algorithm to scale text down to fit a target box |
-| **Layout Presets** | Predefined templates: `headline`, `subtitle`, `lower_third`, `quote`, `breaking_news`, `luxury_gold`, `neon` |
-| **Subtitles** | Standard cues, word timings, highlight models |
-| **HarfBuzz Shaping** | Full glyph positioning via `hb_shape()` with auto-detection of script, direction, and language |
-| **Bidi Segmentation** | Right-to-left text support via FriBidi (`bidi_segmenter.cpp`). Auto-detects Arabic, Hebrew, and other RTL scripts |
-| **Text Direction** | `TextDirection::Auto/RTL/LTR` with HarfBuzz auto-detection from Unicode character ranges |
-| **Per-glyph Animation** | `TextAnimMode::ByGlyph` with cluster substring extraction via `PlacedGlyphRun` |
-| **PlacedGlyphRun** | Canonical glyph positioning with tracking-aware advances and cluster info. Single source of truth for fill, stroke, typewriter, and TextAnimator |
-| **Text Gradient Fill** | Linear, radial, and conic gradient fills via `FillStyle` / `apply_text_fill_style()` |
-| **Text Stroke** | Stroke with HarfBuzz-shaped glyphs via `FtGlyphPathBuilder` (consistent GSUB for Arabic, Devanagari, etc.) |
-| **Text Material** | Premium effects: gradient fill, bevel, top highlight, bottom shade, inner shadow, emissive boost. Presets: `premium()`, `neon()`, `glass()`, `flat()` |
-| **Glyph Atlas** | Per-glyph LRU cache (32MB, 8 shards) keyed by `(font_path, glyph_id, font_size, fill_color)`. Wired into render hot-path — solid-color runs use cached bitmaps |
-| **Pre-shaped Bypass** | Typewriter/TextAnimator can pass pre-shaped `PlacedGlyphRun` to skip re-shaping |
+| Root | `experimental/expressions/` |
+| Headers | `experimental/expressions/include/chronon3d_experimental/expressions/v2/` |
+| Sources/tests | Under `experimental/expressions/` |
+| Build switch | `CHRONON3D_BUILD_EXPERIMENTAL=ON` |
+| Default | Excluded |
+| Installed/exported SDK | No |
+| Productive render-path integration | No |
 
-### Limitations
+The old `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` option is only a
+deprecated no-op compatibility key.
 
-> [!IMPORTANT]
-> **CJK Line-Breaking**: CJK text renders correctly via HarfBuzz auto-detection, but word-wrapping uses byte-level logic. Proper CJK line-breaking (ICU-based) is planned.
-> **Emoji**: Emoji rendering depends on the font containing emoji glyphs. Color emoji (COLR/CBDT) is not yet supported.
-> **GlyphAtlas Integration**: ✅ The per-glyph atlas is wired into the main rendering hot-path. Solid-color runs use cached glyph bitmaps (skip `fillGlyphRun`); on miss, glyphs are extracted and stored after `ctx.end()` for future reuse. See `text_rasterizer_render.cpp` → `try_atlas_blit()`.
+Corrections:
 
-### Implementation Details
+- `TICKET-003` is closed; the `chrono3d/...` include typo was fixed.
+- `TICKET-004` is closed; the CMake include visibility/path issue was fixed.
+- They are historical records, not current promotion blockers.
+- `TICKET-005` still tracks separate follow-up work such as the missing public
+  `keyframes()` test surface.
+- `TICKET-EXP2-G3` tracks real `AnimatedValue` integration.
 
-- Font engine: FreeType face loading + HarfBuzz `hb_shape()` with auto-detect (`hb_buffer_guess_segment_properties()`)
-- Bidi: FriBidi for RTL segmentation (`segment_bidi_runs()`)
-- Glyph cache: Full-image LRU (`CHRONON_TEXT_CACHE_MAX_MB`) + per-glyph atlas (`CHRONON_GLYPH_ATLAS_MAX_BYTES`)
-- Text centering: Layout-box centering (default) or **pixel-ink centering** (opt-in via `TextCenteringMode::PixelInk`)
+Promotion requires **all eight** gates in
+[`EXPRESSIONS_V2_PROMOTION.md`](EXPRESSIONS_V2_PROMOTION.md), including:
 
----
+1. real productive integration with one parser/VM;
+2. benchmark evidence;
+3. a V1→V2 replacement/deletion map;
+4. a concrete retirement deadline;
+5. permanent single-parser/VM/dependency-graph enforcement.
 
-## Expression System v2 — Experimental
-
-> Status (2026-06-20): 🧪 **Experimental** — merged on `main` via PR #23, but
-> not yet promoted to a stable public-facing feature. See `CHANGELOG.md` →
-> "Expression System v2 — Lifecycle" for the full provenance trail and
-> `docs/FOLLOWUP_TICKETS.md` (TICKET-003 / TICKET-004) for the surviving
-> defects.
-
-### Where to look
-
-| Surface | Path | Notes |
-|---|---|---|
-| Public headers | `include/chronon3d/expressions/v2/` (e.g. `expression_value.hpp`) | Created by PR #23; one of the tracked downstreams for TICKET-003 / TICKET-004 |
-| Library target | `src/expressions/v2/` + `src/expressions/v2/CMakeLists.txt` | Target name `chronon3d_expressions_v2` is unconditional on `main` after the guard retirement |
-| Test fixtures | `tests/expressions/` (CMakeLists.txt + `test_expressions_v2.cpp`) | Includes disabled placeholder tests pending `chronon3d::keyframes()` — see TICKET-005 Gap A |
-| Retirement comment block | `CMakeLists.txt` lines 200-237 | Documents the former `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` flag; `option()` retained as deprecated no-op |
-
-### Promotion gates (for future stable status)
-
-> Until each of the four gates below is satisfied, the `expressions/v2`
-> engine is documented as experimental and is not part of the supported
-> public API surface.
-
-1. **TICKET-003 closed** — `<chrono3d/...>` typo fixed in the v2 lexer header under `include/chronon3d/expressions/v2/`
-2. **TICKET-004 closed** — `PUBLIC ${CMAKE_SOURCE_DIR}` include bug on the `chronon3d_expressions_v2` target replaced with proper `${CMAKE_CURRENT_SOURCE_DIR}/...` (or equivalent bounded path)
-3. **Public API contract documented** — at minimum: entry-point signatures, value types, evaluator semantics, error model
-4. **Disabled tests enabled** — currently disabled placeholders in `tests/expressions/` re-enabled against the public API
+Do not include `chronon3d_experimental/...` from stable production code before
+the approved quarantine-removal change.
