@@ -1,12 +1,18 @@
 # ==============================================================================
 # src/CMakeLists.txt — Thin dispatcher
 #
-# Each per-subsystem CMakeLists.txt defines its own library target(s).
+# Each per-subsystem CMakeLists.txt defines its own OBJECT library target(s).
 # This file handles:
 #   1) External link flags (FFmpeg)
 #   2) The base chronon3d INTERFACE target
 #   3) add_subdirectory() calls in dependency order
-#   4) Final aggregate targets (chronon3d_core, chronon3d_software, chronon3d_pipeline)
+#   4) Final aggregate INTERFACE targets (chronon3d_core, chronon3d_software,
+#      chronon3d_pipeline, chronon3d_graph) — each propagates a per-subsystem
+#      OBJECT set as a logical grouping
+#   5) chronon3d_sdk_impl — the SINGLE STATIC archive that bundles every
+#      per-subsystem OBJECT into `libchronon3d_sdk_impl.a` at install time.
+#      This is the only RUNTIME/ARCHIVE artifact in `<prefix>/<libdir>`.  Each
+#      per-subsystem OBJECT is build-time-only (no install artifact).
 # ==============================================================================
 
 # ==============================================================================
@@ -130,20 +136,105 @@ target_link_libraries(chronon3d_pipeline INTERFACE
 )
 
 # ==============================================================================
+# chronon3d_sdk_impl — the single aggregated STATIC archive
+#
+# TICKET-011 cmake-boundary (OBJECT lift final stage): bundles every
+# per-subsystem OBJECT library into one STATIC that is the only RUNTIME
+# /ARCHIVE artifact installed under <prefix>/<libdir>.  Each per-subsystem
+# OBJECT is build-time only — it has no install output.  Conditional
+# subsystems are gated with `if(TARGET …)` so disabled features do not
+# produce dangling references.
+#
+# Marker TU (`sdk_impl_marker.cpp`) is the canonical CMake idiom for
+# forcing a `STATIC` archive to be emitted when the target has no
+# own source files.  See commentary at the top of that file.
+# ==============================================================================
+# TICKET-011 cmake-boundary (Branch C — target_link_libraries form):
+# CMake 3.12+ NATIVELY aggregates OBJECT files into the consuming STATIC
+# target's archive when OBJECT libs are linked via `target_link_libraries(
+# chronon3d_sdk_impl PRIVATE objlib)`. The .o files propagate automatically
+# via the OBJECT target's INTERFACE — no `$<TARGET_OBJECTS:...>` generator
+# expressions needed. (Per `cmake(1)` docs §"LIBRARY OUTPUT", §"OBJECT
+# library association" since CMake 3.12.)
+#
+# The marker TU (`sdk_impl_marker.cpp`) is now compiled DIRECTLY into the
+# STATIC target (not via a separate `chronon3d_sdk_impl_marker` OBJECT
+# library), to:
+#   1. Force CMake to deduce `LINKER_LANGUAGE = CXX` from the concrete
+#      source file — guarantees the `ar` rule is emitted even when the
+#      aggregate targets are empty due to conditional subsystem gating.
+#   2. Avoid duplicate-symbol errors that would arise from compiling the
+#      same TU into a separate OBJECT lib AND linking it into the STATIC.
+#
+# This replaces the prior `target_sources(... PRIVATE $<TARGET_OBJECTS:x>)`
+# pattern which silently skipped `ar` on CMake 3.25 even with
+# `set_target_properties(LINKER_LANGUAGE CXX)` (the generator-expression
+# form was emitting nothing at build time).
+add_library(chronon3d_sdk_impl STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/sdk_impl_marker.cpp
+)
+target_link_libraries(chronon3d_sdk_impl PRIVATE
+    chronon3d_core_impl
+    chronon3d_animations
+    chronon3d_cache
+    chronon3d_effects
+    chronon3d_registry
+    chronon3d_assets
+    chronon3d_scene
+    chronon3d_runtime
+    chronon3d_extension
+    chronon3d_text_core
+    chronon3d_backend_image
+    chronon3d_backend_software
+    chronon3d_backend_assets
+    chronon3d_graph_core
+    chronon3d_graph_nodes
+    chronon3d_graph_builder
+    chronon3d_graph_compiler
+    chronon3d_graph_executor
+    chronon3d_graph_preflight
+    chronon3d_graph_cache
+    chronon3d_graph_pipeline
+)
+# Conditional subsystems — guarded so disabled features don't leak
+# into the aggregate.  Same gating logic as the prior `$<TARGET_OBJECTS>`
+# form, but expressed as ordinary `target_link_libraries` (skip silently
+# if the OBJECT lib does not exist for this configuration).
+foreach(_chronon3d_impl_obj IN ITEMS
+        chronon3d_backend_video
+        chronon3d_media_video
+        chronon3d_backend_text
+        chronon3d_blend2d_paint
+        chronon3d_backend_software_diagnostics
+        chronon3d_content
+        chronon3d_diagnostics)
+    if(TARGET ${_chronon3d_impl_obj})
+        target_link_libraries(chronon3d_sdk_impl PRIVATE ${_chronon3d_impl_obj})
+    endif()
+endforeach()
+
+set_target_properties(chronon3d_sdk_impl PROPERTIES EXPORT_NAME SDKImpl)
+
+# ==============================================================================
 # Consumer SDK alias — external programs link against Chronon3D::SDK
 #
-# The link to chronon3d_pipeline must be *unconditional* (no
-# $<BUILD_INTERFACE:…> generator expression) so the same closure is
-# recorded in the installed Chronon3DTargets.cmake.  Otherwise the
-# consumer's find_package() resolution sees an empty link interface and
-# nothing to link against.
+# Two-stage link closure (TICKET-011 cmake-boundary):
+#   * BUILD_INTERFACE: chronon3d_pipeline — resolves raw .o files for in-tree
+#     consumers (CLI, tests) via INTERFACE → OBJECT propagation.  No archive
+#     needed; the linker pulls .o files directly.
+#   * INSTALL_INTERFACE: chronon3d_sdk_impl — resolves the single installed
+#     archive for downstream `find_package(Chronon3D)` consumers.  This is
+#     the only file artifact in `<prefix>/<libdir>`.
 # ==============================================================================
 add_library(chronon3d_sdk INTERFACE)
 target_include_directories(chronon3d_sdk INTERFACE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
-target_link_libraries(chronon3d_sdk INTERFACE chronon3d_pipeline)
+target_link_libraries(chronon3d_sdk INTERFACE
+    $<BUILD_INTERFACE:chronon3d_pipeline>
+    $<INSTALL_INTERFACE:chronon3d_sdk_impl>
+)
 set_target_properties(chronon3d_sdk PROPERTIES EXPORT_NAME SDK)
 add_library(Chronon3D::SDK ALIAS chronon3d_sdk)
 
