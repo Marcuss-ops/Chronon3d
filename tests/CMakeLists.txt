@@ -150,4 +150,5 @@ add_custom_target(chronon3d_tests
 if(TARGET chronon3d_media_video_tests)
     add_dependencies(chronon3d_tests chronon3d_media_video_tests)
 endif()
+include(${CMAKE_CURRENT_SOURCE_DIR}/architecture_tests.cmake)
 endif()
