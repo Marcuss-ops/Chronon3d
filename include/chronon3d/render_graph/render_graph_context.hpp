@@ -102,6 +102,24 @@ namespace chronon3d::effects {
     class EffectCatalog;
 }
 
+// WP-8 PR 8.0 — typed engine-local asset resolver lives on the per-
+// engine RenderRuntime.  Forward-declared at FILE SCOPE here so the
+// `RenderServices::asset_resolver` pointer below can hold a non-owning
+// reference; the full definition is in <chronon3d/assets/asset_resolver.hpp>.
+// Callers that dereference the pointer MUST include that header
+// themselves; the SDK header stays lightweight.
+//
+// IMPORTANT: this declaration MUST stay OUTSIDE `namespace
+// chronon3d::graph { ... }`.  C++17 nested-namespace-declaration syntax
+// (`namespace A::B {}`) is shorthand for `namespace A { namespace B {} }`,
+// so writing `namespace chronon3d::assets {}` inside `chronon3d::graph {}`
+// would create `chronon3d::graph::chronon3d::assets`, opening a new inner
+// `chronon3d` namespace that SHADOWS the global one for the rest of the
+// enclosing block — breaking every subsequent `chronon3d::X` lookup
+// (the 44-error `in namespace chronon3d::graph::chronon3d does not name a
+// type` cascade).
+namespace chronon3d::assets { class AssetResolver; }
+
 namespace chronon3d::graph {
 
 class RenderBackend;
@@ -177,14 +195,6 @@ struct RenderPolicy {
 // `PrecompBuilderService` (typically DefaultPrecompBuilder) owned by
 // `PipelineCatalogs`.
 
-// WP-8 PR 8.0 — typed engine-local asset resolver lives on the per-
-// engine RenderRuntime.  Forward-declared here so the per-frame
-// `RenderServices` field below can hold a non-owning pointer; the full
-// definition is in <chronon3d/assets/asset_resolver.hpp>.  Callers
-// that dereference the pointer MUST include that header themselves;
-// the SDK header stays lightweight.
-namespace chronon3d::assets { class AssetResolver; }
-
 struct RenderServices {
     RenderBackend* backend{nullptr};
     cache::NodeCache* node_cache{nullptr};
@@ -230,6 +240,9 @@ struct RenderServices {
     /// paths through the same instance the renderer uses).  Null when
     /// no resolver has been wired into the context — callers MUST
     /// null-check before dereferencing.
+    /// NOTE: callers that dereference `asset_resolver` MUST
+    /// `#include <chrono3d/assets/asset_resolver.hpp>` themselves;
+    /// the SDK header stays lightweight (forward decl only above).
     chronon3d::assets::AssetResolver* asset_resolver{nullptr};
 };
 
