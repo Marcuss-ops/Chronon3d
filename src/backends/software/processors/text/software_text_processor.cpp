@@ -79,9 +79,14 @@ public:
         // resolver-keyed static cache so concurrent first-use from
         // multiple renderers (one runtime each) hands back per-engine
         // FontEngine instances, preserving the PR 8.2 isolation contract.
+        // WP-8 PR 8.0 — function-scope resolver so `rasterize_text_to_bl_image`
+        // receives it explicitly below (replaces the deep read of
+        // `runtime::typed_resolver_for_deep_code()` that the rasterizer used to
+        // do internally).  `AssetResolver` is a value-member of `RenderRuntime`,
+        // so the reference is stable for the renderer's lifetime.
+        const auto& resolver = renderer.runtime().resolver();
         FontEngine* engine = node.font_engine;
         if (!engine) {
-            const auto& resolver = renderer.runtime().resolver();
             auto& cache = resolver_engine_cache();
             std::lock_guard<std::mutex> lock(cache.mu);
             auto it = cache.map.find(&resolver);
@@ -99,7 +104,7 @@ public:
         // debug overlays honour the engine's debug.text_bbox() flag
         // and never read a process-wide singleton.
         const chronon3d::DebugConfig* text_debug_cfg = &renderer.config().debug();
-        auto raster = rasterize_text_to_bl_image(node.shape.text(), effective_size, 32, &raster_cache_hit, raster_transform, engine, text_debug_cfg);
+        auto raster = rasterize_text_to_bl_image(node.shape.text(), effective_size, 32, resolver, &raster_cache_hit, raster_transform, engine, text_debug_cfg);
         if (diagnostics_enabled) {
             rasterize_ms = profiling::elapsed_ms(raster_start);
         }

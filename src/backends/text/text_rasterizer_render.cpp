@@ -122,14 +122,14 @@ struct Blend2DResources {
     std::unordered_map<std::string, BLFontFace> faces;
     std::mutex mutex;
 
-    BLFontFace get_face(const std::string& path) {
+    // WP-8 PR 8.0 — `resolver` is sourced by the caller
+    // (`rasterize_text_to_bl_image`) per the PR 8.0 contract.  Reads of
+    // `typed_resolver_for_deep_code()` are no longer permitted in this
+    // deep cache.
+    BLFontFace get_face(const std::string& path,
+                        const chronon3d::assets::AssetResolver& resolver) {
         std::lock_guard<std::mutex> lock(mutex);
-        // WP-8 PR 8.1 — typed engine-local resolution via the
-        // service-locator helper.  Legacy `runtime::resolve_asset_path`
-        // fallback branch (`path` unchanged on nullopt) is preserved
-        // so BL gets the same raw relative it had pre-migration.
         std::string resolved_path;
-        const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
         if (auto opt = resolver.resolve_lexical(path)) {
             resolved_path = opt->string();
         } else {
@@ -226,12 +226,15 @@ struct FtGlyphPathBuilder {
         return lib;
     }
 
-    bool load_face(const std::string& font_path, float font_size) {
+    // WP-8 PR 8.0 — `resolver` is sourced by the caller
+    // (`rasterize_text_to_bl_image`) per the PR 8.0 contract.  Reads of
+    // `typed_resolver_for_deep_code()` are no longer permitted in this
+    // deep FreeType path-builder cache.
+    bool load_face(const std::string& font_path,
+                   float font_size,
+                   const chronon3d::assets::AssetResolver& resolver) {
         std::lock_guard<std::mutex> lock(mutex);
-        // WP-8 PR 8.1 — typed engine-local resolution via the
-        // service-locator helper.  Same 2-branch fallback as above.
         std::string resolved;
-        const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
         if (auto opt = resolver.resolve_lexical(font_path)) {
             resolved = opt->string();
         } else {
@@ -342,6 +345,13 @@ CacheKey hash_text_style(const TextShape& t, float effective_size, int padding, 
 bool lookup_text_cache(const CacheKey& key, std::shared_ptr<TextRasterization>& out);
 void store_text_cache(const CacheKey& key, const std::shared_ptr<TextRasterization>& result);
 
+/// `resolver` is the explicit AssetResolver sourced by the caller
+/// (WP-8 PR 8.0).  In production this is `sw_renderer->runtime().resolver()`
+/// for the renderer-driven path; in CLI / test / dev paths it is
+/// `runtime::typed_resolver_for_deep_code()`.  Both internal caches
+/// (`Blend2DResources::get_face` and `FtGlyphPathBuilder::load_face`) read
+/// from this argument — no more process-global reads inside this function.
+///
 /// `debug_cfg` is the per-instance DebugConfig forwarded from the owning
 /// RenderGraphContext / SoftwareRenderer (TICKET-007 — replaces the removed
 /// process-wide `detail::g_debug_config`).  When nullptr, debug overlays
@@ -351,6 +361,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     const TextShape& t,
     float effective_size,
     int padding,
+    const chronon3d::assets::AssetResolver& resolver,
     bool* cache_hit,
     const Mat4* transform,
     FontEngine* font_engine,
@@ -377,7 +388,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         profiling::g_current_counters->text_cache_misses.fetch_add(1, std::memory_order_relaxed);
     }
 
-    BLFontFace face = blend2d_resources().get_face(font_path);
+    BLFontFace face = blend2d_resources().get_face(font_path, resolver);
     if (face.empty()) return std::nullopt;
 
     BLFont font;
@@ -571,7 +582,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 
     auto resolve_font_face = [&](const TextStyle& style) {
         const std::string path = style.font_path.empty() ? t.style.font_path : style.font_path;
-        return blend2d_resources().get_face(path);
+        return blend2d_resources().get_face(path, resolver);
     };
 
     // ── GlyphAtlas: per-glyph cache integration ─────────────────────
@@ -698,7 +709,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             if (placed) {
                 const std::string stroke_font_path = run_style.font_path;
                 FtGlyphPathBuilder ft_path;
-                if (ft_path.load_face(stroke_font_path, run_shape_size)) {
+                if (ft_path.load_face(stroke_font_path, run_shape_size, resolver)) {
                     BLPath stroke_path = ft_path.build_path(*placed, lx, baseline_y);
                     if (!stroke_path.empty()) {
                         ctx.strokePath(stroke_path);
@@ -799,7 +810,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             if (placed) {
                 const std::string stroke_font_path = t.style.font_path;
                 FtGlyphPathBuilder ft_path;
-                if (ft_path.load_face(stroke_font_path, layout_res.font_size)) {
+                if (ft_path.load_face(stroke_font_path, layout_res.font_size, resolver)) {
                     BLPath stroke_path = ft_path.build_path(*placed, lx, ly);
                     if (!stroke_path.empty()) {
                         ctx.strokePath(stroke_path);
