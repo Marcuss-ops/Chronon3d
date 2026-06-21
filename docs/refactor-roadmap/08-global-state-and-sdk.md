@@ -1,10 +1,10 @@
-# Work Package 8 — Remaining global-state and SDK work
+# Work Package 8 — Remaining global-state and SDK work## Current state
+
+`g_active_runtime`, `set_active_runtime()`, `active_runtime()`, `g_process_wide_assets_root`, `default_assets_root_for_deep_code()`, and the global publishing from `RenderRuntime::set_default_assets_root()` remain. `api/render_engine.hpp` still includes software-renderer and software-session implementation headers. Resolved and no longer tracked here: render-session include leaks, retired execution-plan cache.
 
 ## Goal
 
 Remove process-wide runtime and asset state, then keep software implementation types out of the main SDK facade.
-
-Resolved render-session include leaks and the retired execution-plan cache are no longer tracked here.
 
 ## TODO
 

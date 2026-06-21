@@ -8,11 +8,19 @@
 //   - All catalogs (PipelineCatalogs → graph_nodes + effects +
 //     extensions + precomp_builder)
 //   - All registries (SoftwareRegistry, GraphNodeCatalog, EffectCatalog)
-//   - GraphExecutor + ExecutionPlanCache + ExecutionScheduler
+//   - GraphExecutor + ExecutionScheduler
 //
 // The backend slot is attached externally by RenderEngine::Impl because
 // SoftwareBackend's ctor needs RenderCounters & + RenderSettings & that
 // live on SoftwareRenderer.
+//
+// WP-3 PR 3.1 — `SceneHasher` and `SceneProgramStore` are no longer
+// runtime-owned.  They were relocated from RenderSession to RenderRuntime
+// in WP-8 (see prior revisions) and are now back per-session-owned.
+// The runtime therefore no longer populates them, no longer assigns
+// them into the service bundle, and no longer wires them into the
+// SessionServices table via `make_session()`.  The corresponding
+// service-bundle fields in `RenderServices` are gone (see header).
 //
 // ===========================================================================
 
@@ -37,6 +45,8 @@
 #include <stdexcept>
 #include <utility>
 
+#include <filesystem>
+
 namespace chronon3d::runtime {
 
 namespace {
@@ -54,6 +64,16 @@ std::atomic<RenderRuntime*> g_active_runtime{nullptr};
 //   - runtime::set_process_wide_assets_root (CLI / tests)
 std::mutex g_process_root_mutex;
 std::string g_process_wide_assets_root;
+
+// WP-8 PR 8.1 — TU-local pointer mirror of the function-local static
+// AssetResolver inside `typed_resolver_for_deep_code()` so the
+// test-only reset hook (`namespace detail` below) can reach it
+// without changing the helper's public signature.  Captured on first
+// helper call; lifetime: the static AssetResolver itself, so the
+// pointer is stable for the process lifetime and safe to dereference
+// from `reset_typed_resolver_for_deep_code_for_testing()`.  Initialised
+// inside the helper's static-initialisation block.
+chronon3d::assets::AssetResolver* g_deep_resolver_mirror = nullptr;
 
 } // namespace
 
@@ -87,15 +107,14 @@ void RenderRuntime::populate() {
     m_owned_effect_catalog       = std::make_unique<chronon3d::effects::EffectCatalog>();
     m_scheduler                  = std::make_unique<chronon3d::ExecutionScheduler>(
         make_execution_scheduler(m_config));
-    // WP-8 follow-up: scene_hasher is a default-constructible value
-    // member (no explicit construction needed).  program_store uses
-    // unique_ptr because SceneProgramStore carries a std::mutex and
-    // is therefore non-movable; the runtime is the sole owner.
-    m_owned_program_store = std::make_unique<chronon3d::graph::SceneProgramStore>();
+    // WP-3 PR 3.1 — no longer populating m_owned_scene_hasher /
+    // m_owned_program_store here: both are per-session owned in the
+    // WP-3 PR 3.1 architecture.
 
     // ── Service bundle: typed pointer view of long-lived state ───────
     m_services = RenderServices{
         .asset_registry      = &m_assets,
+        .asset_resolver      = &m_resolver,
         .node_cache          = &m_owned_node_cache,
         .framebuffer_pool    = m_owned_framebuffer_pool.get(),
         .graph_cache         = &m_owned_graph_cache,
@@ -104,8 +123,9 @@ void RenderRuntime::populate() {
         .software_registry   = m_owned_software_registry.get(),
         .graph_node_registry = m_owned_graph_node_registry.get(),
         .effect_catalog      = m_owned_effect_catalog.get(),
-        .scene_hasher        = &m_owned_scene_hasher,
-        .program_store       = m_owned_program_store.get(),
+        // WP-3 PR 3.1 — .scene_hasher and .program_store fields are
+        // gone from RenderServices (per-session ownership).  This is
+        // the canonical PR 3.1 service-bundle table.
     };
 
     // ── Populate builtin processors/effects + freeze the catalogs ───
@@ -124,8 +144,11 @@ void RenderRuntime::populate() {
     // construction lives in RenderEngine::Impl after SoftwareRenderer
     // is ready.  See header comment.
 
-    // ── Mount default assets into the runtime's AssetRegistry ───────
+    // ── Mount default assets into the runtime's AssetRegistry + the
+    //    typed AssetResolver (PR 8.0 sibling that PR 8.1 routes
+    //    consumers to) ───────────────────────────────────────────────
     m_assets.mount(std::filesystem::path{});
+    m_resolver.mount(std::filesystem::path{});
 
     // ── Publish as "active" so deep code can find us ────────────────
     set_active_runtime(this);
@@ -133,7 +156,9 @@ void RenderRuntime::populate() {
     m_populated = true;
     spdlog::debug("RenderRuntime::populate(): runtime populated with "
                   "NodeCache({}B), FramebufferPool({}B), GraphExecutor, "
-                  "ExecutionScheduler (mode={}), 3 registries + 3 catalogs",
+                  "ExecutionScheduler (mode={}), 3 registries + 3 catalogs"
+                  " (WP-3 PR 3.1: scene_hasher + program_store are per-session owned,"
+                  " NOT runtime-owned)",
                   cache_cfg.node_cache_max_bytes(),
                   cache_cfg.fb_pool_max_bytes(),
                   static_cast<int>(sched_cfg.mode()));
@@ -172,7 +197,14 @@ const chronon3d::graph::RenderBackend& RenderRuntime::backend() const noexcept {
 void RenderRuntime::set_default_assets_root(std::string root) {
     m_default_assets_root = std::move(root);
     if (!m_default_assets_root.empty()) {
-        m_assets.mount(std::filesystem::path(m_default_assets_root));
+        const auto root_path = std::filesystem::path(m_default_assets_root);
+        m_assets.mount(root_path);
+        // PR 8.0 — mirror to the typed resolver sibling so future
+        // PR 8.1 consumers can reach a runtime-owned resolver.  The
+        // mirror is intentional duplication; legacy free functions
+        // (asset_registry::resolve_path, runtime::resolve_asset_path)
+        // continue to work via m_assets until PR 8.1 migrates them.
+        m_resolver.mount(root_path);
     }
     // Mirror to the process-wide fallback so deep code that loses
     // the runtime ref still resolves the same root.
@@ -221,12 +253,12 @@ std::string default_assets_root_for_deep_code() {
 
 [[nodiscard]] chronon3d::SoftwareRenderSession
 make_session(RenderRuntime& runtime) {
-    // TICKET-011a follow-up #1 — wire back-pointers from the runtime
-    // into the returned session via a SessionServices table.  The
-    // mapping is by-value (one record per session, copy-on-make) so
-    // sessions don't need a global lookup table; the back-pointers
-    // are RAW pointers (non-owning) with lifetime backed by the
-    // runtime itself.
+    // WP-3 PR 3.1 — the SessionServices table no longer wires
+    // scene_hasher / program_store pointers: both state engines are
+    // per-session owned and live on `RenderSession::scene_hasher`
+    // and `RenderSession::program_store` respectively.  Productions
+    // reach them via `session.scene_hasher()` /
+    // `session.program_store()` directly.
     chronon3d::SoftwareRenderSession session;
     session.common.services = SessionServices{
         .executor            = runtime.services().executor,
@@ -235,12 +267,8 @@ make_session(RenderRuntime& runtime) {
         .graph_cache         = runtime.services().graph_cache,
         .asset_registry      = runtime.services().asset_registry,
         .default_assets_root = &runtime.default_assets_root(),
-        // WP-8 follow-up: scope-scoped scene-hasher + program-store
-        // back-pointers into the session so its accessor methods (in
-        // src/runtime/render_session.cpp) can reach the runtime-owned
-        // state through `services` instead of via header include.
-        .scene_hasher        = runtime.services().scene_hasher,
-        .program_store       = runtime.services().program_store,
+        // WP-3 PR 3.1 — .scene_hasher / .program_store fields removed from
+        // SessionServices.  See header for rationale.
     };
     return session;
 }
@@ -257,5 +285,94 @@ const SessionServices& session_services(const chronon3d::SoftwareRenderSession& 
     // partial-population bindings from test fixtures.
     return session.common.services;
 }
+
+// ── typed_resolver_for_deep_code — WP-8 PR 8.1 ─────────────────────
+//
+// Service-locator for callers that have no RenderRuntime in their
+// call stack (font_engine, text_rasterizer, preflight, BL/FT texture
+// caches, etc.).  Prefers the active runtime's resolver; falls back
+// to a lazy-initialised process-wide singleton mounted against
+// `process_wide_assets_root()`.  Thread-safety is delegated to the
+// resolver's internal lock — concurrent first-callers all see the
+// same root and `mount()` serializes + is idempotent.
+//
+// First-mount-only semantics (PR 8.1 contract): the singleton
+// resolver mounts ONCE for the lifetime of the static.  Subsequent
+// `set_process_wide_assets_root(...)` calls after the first mount
+// do NOT propagate to this fallback.  Production paths (CLI
+// `render_job_setup` + `test_main`) all set the root at process
+// start before any deep-code call, so the constraint is benign in
+// practice; tests should call
+// `chronon3d::runtime::detail::reset_typed_resolver_for_deep_code_for_testing()`
+// around each fixture to ensure isolation.
+const chronon3d::assets::AssetResolver& typed_resolver_for_deep_code() {
+    if (auto* rt = active_runtime()) {
+        return rt->resolver();
+    }
+    static chronon3d::assets::AssetResolver g_deep_resolver;
+    // Capture the function-local static's address ONCE so the
+    // detail::reset hook below can reach it.  Function-local statics
+    // are themselves initialised once in C++17+; capturing the address
+    // on every call is idempotent and inexpensive.
+    g_deep_resolver_mirror = &g_deep_resolver;
+    // Single mount attempt guarded by the resolver's own mutex; we
+    // don't need an external once_flag because the resolver's lock
+    // makes the multi-thread first mount + idempotent state trivial.
+    if (!g_deep_resolver.has_mount()) {
+        const auto root_str = process_wide_assets_root();
+        if (!root_str.empty()) {
+            const auto root_path = std::filesystem::path(root_str);
+            // Skip non-absolute paths — AssetResolver's contract is
+            // "mount only accepts absolute" and the legacy
+            // process_wide_assets_root may be empty or relative on
+            // misconfigured paths.  Empty / relative root leaves the
+            // resolver unmounted, which the 2-line call-site pattern
+            // turns into "fall back to raw rel_path" — the exact
+            // legacy `resolve_asset_path(relative)` semantics.
+            if (root_path.is_absolute()) {
+                try {
+                    g_deep_resolver.mount(root_path.lexically_normal());
+                } catch (const std::invalid_argument&) {
+                    // Already filtered by `is_absolute()`; leave
+                    // unmounted.  Other exceptions (bad_alloc, etc.)
+                    // intentionally propagate.
+                }
+            }
+        }
+    }
+    return g_deep_resolver;
+}
+
+namespace detail {
+
+// WP-8 PR 8.1 — test-only reset hook.  Unmounts the process-wide
+// fallback singleton so each test fixture starts with a clean
+// slate.  All production callers leave this hook unused; it lives
+// in `detail::` to make the test-only nature explicit.
+void reset_typed_resolver_for_deep_code_for_testing() {
+    // Forward-declared via TU-local static cannot be reached from
+    // outside this TU.  Test fixtures reach the singleton indirectly
+    // by calling `set_process_wide_assets_root("")` followed by
+    // setting the desired absolute root, which re-arms the
+    // first-mount branch on the next `typed_resolver_for_deep_code()`
+    // call IF the static still reports `!has_mount()`.  This helper
+    // explicitly unmounts so the first-mount branch always fires
+    // even if a previous test mounted an absolute value.
+    //
+    // Implementation note: we cannot touch the static directly because
+    // its address is local to `typed_resolver_for_deep_code()`.  To
+    // expose it without changing the helper signature, we keep a
+    // mirror pointer here for tests to reach.  See the matching
+    // declaration in the header.
+    //
+    // The mirror is captured by the helper on first-call via a
+    // leaky-but-safe pattern (function-local static + a one-time
+    // assignment in this `detail` namespace on first test access).
+    if (g_deep_resolver_mirror) {
+        g_deep_resolver_mirror->unmount();
+    }
+}
+
+} // namespace detail
 
 } // namespace chronon3d::runtime

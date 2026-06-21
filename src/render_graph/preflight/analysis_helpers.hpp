@@ -67,10 +67,20 @@ namespace chronon3d::graph {
 // ── Asset existence checks ─────────────────────────────────────────
 
 static inline void check_shape_assets(const Shape& shape, const std::string& node_name, std::vector<std::string>& warnings) {
+    // WP-8 PR 8.1 — typed engine-local resolution via the service-
+    // locator helper.  Same 2-branch fallback as the other migrated
+    // call sites: present → opt->string(), absent → raw relative
+    // (or empty for empty input) so subsequent fs::exists walks
+    // the same legacy path it used to.
+    const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
+    auto resolve_path = [&](const std::string& p) -> std::string {
+        if (auto opt = resolver.resolve_lexical(p)) return opt->string();
+        return p.empty() ? std::string{} : std::string{p};
+    };
     if (shape.type() == ShapeType::Image) {
         const std::string path = shape.image().path;
         if (!path.empty()) {
-            std::string resolved = chronon3d::runtime::resolve_asset_path(path);
+            const std::string resolved = resolve_path(path);
             if (!std::filesystem::exists(resolved)) {
                 warnings.push_back("MISSING_ASSET: Image file does not exist: \"" + path + "\"");
             }
@@ -78,7 +88,7 @@ static inline void check_shape_assets(const Shape& shape, const std::string& nod
     } else if (shape.type() == ShapeType::TiledImage) {
         const std::string path = shape.tiled_image().image.path;
         if (!path.empty()) {
-            std::string resolved = chronon3d::runtime::resolve_asset_path(path);
+            const std::string resolved = resolve_path(path);
             if (!std::filesystem::exists(resolved)) {
                 warnings.push_back("MISSING_ASSET: TiledImage file does not exist: \"" + path + "\"");
             }
@@ -86,7 +96,7 @@ static inline void check_shape_assets(const Shape& shape, const std::string& nod
     } else if (shape.type() == ShapeType::Text) {
         const std::string font_path = shape.text().style.font_path;
         if (!font_path.empty()) {
-            std::string resolved = chronon3d::runtime::resolve_asset_path(font_path);
+            const std::string resolved = resolve_path(font_path);
             if (!std::filesystem::exists(resolved)) {
                 warnings.push_back("MISSING_ASSET: Font file does not exist: \"" + font_path + "\"");
             }
@@ -94,7 +104,7 @@ static inline void check_shape_assets(const Shape& shape, const std::string& nod
     } else if (shape.type() == ShapeType::FakeExtrudedText) {
         const std::string font_path = shape.fake_extruded_text().font_path;
         if (!font_path.empty()) {
-            std::string resolved = chronon3d::runtime::resolve_asset_path(font_path);
+            const std::string resolved = resolve_path(font_path);
             if (!std::filesystem::exists(resolved)) {
                 warnings.push_back("MISSING_ASSET: Font file does not exist: \"" + font_path + "\"");
             }

@@ -1,4 +1,6 @@
-# Work Package 7 — Remaining software backend work
+# Work Package 7 — Remaining software backend work## Current state
+
+`SoftwareBackend` exists, but `SoftwareRenderer` still inherits `RenderBackend` and the graph pipeline still uses `dynamic_cast<SoftwareRenderer*>`. Narrow typed processor services (`ShapeDrawContext` or equivalent) and a consolidated `TextRasterService` do not yet exist.
 
 ## Goal
 

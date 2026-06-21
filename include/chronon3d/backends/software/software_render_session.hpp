@@ -58,6 +58,21 @@ struct SoftwareRenderSession {
     SoftwareRenderSession(SoftwareRenderSession&&) noexcept = default;
     SoftwareRenderSession& operator=(SoftwareRenderSession&&) noexcept = default;
 
+    // WP-3 PR 3.1 / 3.2 — convenience proxies for the canonical
+    // per-session state engines.  Required because the PR 3.3 test
+    // lattice addresses `sr.scene_hasher()` / `sr.program_store()`
+    // directly on the composition (the duplicate `software.scene_hasher`
+    // that used to live on the backend-specific half is REMOVED; the
+    // canonical home is the common half).  Mirroring these proxies on
+    // the composition also matches downstream callers'
+    // `sw_renderer->scene_hasher()` invocation pattern (the inner
+    // chain `sw_renderer->software_session().scene_hasher()` must
+    // compile without forcing callers to spell `.common`).
+    [[nodiscard]] chronon3d::graph::SceneHasher&       scene_hasher()       { return common.scene_hasher(); }
+    [[nodiscard]] const chronon3d::graph::SceneHasher& scene_hasher() const { return common.scene_hasher(); }
+    [[nodiscard]] chronon3d::graph::SceneProgramStore&       program_store()       { return common.program_store(); }
+    [[nodiscard]] const chronon3d::graph::SceneProgramStore& program_store() const { return common.program_store(); }
+
     /// Per-frame reset: empty the arena (canonical) and the software
     /// scratch (buffer ring NOT touched — it's needed for the previous
     /// frame's content until the next frame's commit).
