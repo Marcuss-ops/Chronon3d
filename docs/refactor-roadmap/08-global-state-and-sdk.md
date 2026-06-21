@@ -154,32 +154,64 @@ documentation so the audit anchor survives.
 - The `chronon3d::runtime::ExecutionPlanCache` class is RETIRED
   (commit `9f9af90e` on `origin/main`).
 - `RenderPolicy::graph_structure_unchanged` (the flag the audit
-  refers to) now reaches the topology cache through
-  `FrameGraphCompiler` — `GraphExecutor` is stateless, so it
-  consults `compiled.levels` directly.  The "fast-path" hook the
-  audit refers to is `FrameGraphCompiler::compile` itself (the
-  compile step honours `ctx.policy.graph_structure_unchanged`).
+  refers to) is still SET by `render_scene_via_graph` (Phase 4 of
+  `src/render_graph/pipeline/scene.cpp`), but no production
+  consumer currently reads it post-PR-2 rewire.  Its sole pre-rewire
+  consumer was the executor's plan-cache fast-path branch in
+  `execute(RenderGraph&, ...)` — that overload is gone; the
+  surviving `execute(CompiledFrameGraph&, ...)` overload consults
+  `compiled.levels` directly and does not inspect the flag.
+- `FrameGraphCompiler::compile` does NOT yet honour
+  `ctx.policy.graph_structure_unchanged` either — the compiler
+  body consults only `ctx.policy.skip_initial_clear` and
+  `ctx.node_exec.early_exit_skip` from the policy/exec.  The
+  audit §9.4 intent ("stable fast-path") therefore remains a
+  FUTURE FrameGraphCompiler enhancement, not a current behaviour.
+- Practical consequence: the flag is DORMANT for now.  Writers
+  should keep setting it (binary backward-compatibility) but no
+  reader reacts.  A future PR will need to teach
+  `FrameGraphCompiler::compile` to consult the flag and skip
+  `build_execution_levels` + `build_node_metadata` when the
+  caller asserts `graph_structure_unchanged && same(hash)`.
 
 ### Status of §9.4
 
-- §9.4 is now resolved-by-construction: the topology-cache
-  pipeline is unified through `FrameGraphCompiler` and any future
-  stable-fast-path revisions will write to that compiler, not to
-  a separate `ExecutionPlanCache` class.
+- §9.4 is **dormant**, not closed.  The audit predicate
+  (`graph_structure_unchanged`) is preserved in the policy for
+  backward-compatibility but UNREAD by today's production paths.
+  The executor's plan-cache fast-path branch (which used to
+  consume it) retired in PR-2 rewire; the compiler does not yet
+  honour it either.
+- Closure path: a future PR that adds a structural-reuse
+  fast-path to `FrameGraphCompiler::compile` will re-attach
+  §9.4 to a live reader without re-introducing
+  `runtime::ExecutionPlanCache`.  Until then, the audit item
+  should be tracked as "dormant — awaiting stability-aware
+  fast-path work in FrameGraphCompiler" rather than closed.
 - The historical reference chain
   (`runtime::ExecutionPlanCache` |
-  `runtime::RendererRuntimeResources::plan_cache`) is closed.
+  `runtime::RendererRuntimeResources::plan_cache`) is fully
+  closed (both classes were retired in PR-2 rewire).  Only §9.4
+  — and §9.4 specifically — remains dormant.
 
 ### Where the work lives now
 
+- `include/chronon3d/render_graph/render_graph_context.hpp` —
+  defines the dormant `RenderPolicy::graph_structure_unchanged`
+  field (kept for backward compatibility; future compiler work
+  will start by adding the reader here).
+- `src/render_graph/pipeline/scene.cpp` — the only writer in
+  the codebase today (Phase 4 of `render_scene_via_graph`).
 - `include/chronon3d/render_graph/compiler/frame_graph_compiler.hpp`
-  — `FrameGraphCompiler::compile` honours
-  `ctx.policy.graph_structure_unchanged` and writes the
-  topological plan onto the resulting `CompiledFrameGraph`.
+  / `src/render_graph/compiler/frame_graph_compiler.cpp` — the
+  intended CONSUMER for the §9.4 stable-fast-path intent.  Today
+  the compiler does not consult the flag; the predicate is the
+  literal placeholder for the future work item.
 - `include/chronon3d/render_graph/executor/graph_executor.hpp`
-  — `GraphExecutor::execute(CompiledFrameGraph&, ...)` is now the
-  sole entrypoint; the executor no longer consults any
-  plan-cache parameter.
+  / `src/render_graph/executor/executor.cpp` — the old plan-cache
+  reader (now retired); the surviving
+  `execute(CompiledFrameGraph&, ...)` overload does NOT consult
+  the flag.
 - `docs/CHANGELOG.md` R6 entry — External SDK migration note +
   the body bullets for RenderGraph& overloads +
   ExecutionPlanCache retirement.
