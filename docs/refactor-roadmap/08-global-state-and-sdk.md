@@ -206,7 +206,24 @@ documentation so the audit anchor survives.
   / `src/render_graph/compiler/frame_graph_compiler.cpp` — the
   intended CONSUMER for the §9.4 stable-fast-path intent.  Today
   the compiler does not consult the flag; the predicate is the
-  literal placeholder for the future work item.
+  literal placeholder for the future work item.  The concrete
+  affordance a future PR must key against is
+  `CompiledFrameGraph::structure_hash` (defined in
+  `include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp`)
+  — the compiler should hash the input graph's topology (nodes +
+  inputs + output), compare it against the prior compilation's
+  cached `structure_hash`, and skip `build_execution_levels` +
+  `build_node_metadata` when both hashes match AND the caller
+  asserted `graph_structure_unchanged`.  Today the
+  `FrameGraphCompiler::compute_structure_hash` static helper
+  (called from the legacy `ExecutionPlanCache` path) is itself
+  retired into the compiler's body, so the comparison primitive
+  is already present.
+- `include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp`
+  — defines `CompiledFrameGraph::structure_hash` (the field a
+  future stability-aware fast-path must populate + compare
+  against).  No current consumer reads it; same dormant trajectory
+  as the audit predicate itself until the compiler work lands.
 - `include/chronon3d/render_graph/executor/graph_executor.hpp`
   / `src/render_graph/executor/executor.cpp` — the old plan-cache
   reader (now retired); the surviving
