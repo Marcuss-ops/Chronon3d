@@ -10,7 +10,7 @@
 //   1. Calculate nested frame time.
 //   2. Evaluate nested composition → Scene.
 //   3. Compute SceneStructureKey.
-//   4. ctx.services.session->program_store()->acquire(instance_key(), ...)
+//   4. ctx.services.session->program_store().acquire(instance_key(), ...)
 //      → cache HIT: reuse; cache MISS: compile via PrecompBuilderService.
 //   5. Refresh per-frame payloads, warm up param block.
 //   6. Execute via session's executor + scheduler (topology plans live
@@ -112,7 +112,7 @@ OwnedFB PrecompNode::execute(
     key.ssaa_factor        = static_cast<int>(nested_ctx.policy.ssaa_factor);
 
     // ── 5. Acquire program from the centralized store ────────────────────
-    auto lease = session->program_store()->acquire(
+    auto lease = session->program_store().acquire(
         m_instance_key, key, m_cache_policy,
         [&]() -> std::unique_ptr<CompiledSceneProgram> {
             // Cache miss — delegate to the typed PrecompBuilderService.
@@ -125,7 +125,7 @@ OwnedFB PrecompNode::execute(
     // Forward eviction callback to the store's per-instance cache if one
     // is set and the instance was just created (or on first call).
     if (m_on_evict) {
-        session->program_store()->set_on_evict(m_instance_key, m_on_evict);
+        session->program_store().set_on_evict(m_instance_key, m_on_evict);
     }
 
     auto* program = lease.program;
