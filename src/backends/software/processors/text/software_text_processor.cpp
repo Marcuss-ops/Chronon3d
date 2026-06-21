@@ -192,33 +192,29 @@ public:
             const float font_size = std::max(1.0f, txt.style.size);
             const float line_height = font_size * std::max(1.0f, txt.style.line_height);
 
-            // WP-8 Slice 2 — per-processor static FontEngine, sourced
-            // from `active_runtime()->resolver()` when an active runtime
-            // is reachable, falling back to the bridge otherwise.  This
-            // is the deepest of the WP-8 routing paths: the ShapeProcessor
-            // virtual `compute_world_bbox` interface doesn't carry a
+            // WP-8 PR 8.1 — per-processor static FontEngine, sourced
+            // from the post-bridge process-wide resolver channel.
+            // This `compute_world_bbox` virtual doesn't carry a
             // `SoftwareRenderer&` argument (signature is fixed), so we
             // can't use the per-renderer `SoftwareRenderer::font_engine()`
             // accessor that PR 8.1 introduced for the `draw()` path.
             //
             // Function-local static lifetime: the engine's resolver
             // pointer is captured on first call.  Subsequent calls
-            // reuse the same engine — per-runtime isolation holds
+            // reuse the same engine — per-engine asset-isolation holds
             // because `AssetResolver` is a value member of
-            // `RenderRuntime`, so its address is stable for the
-            // runtime's lifetime and the engine stays tied to the
-            // resolver that the active runtime is currently exposing.
+            // `RenderRuntime`, and the process-wide resolver is mounted
+            // by `RenderRuntime::attach_assets_root` → `resolver().mount()`
+            // at engine init, so its mount tracks the same root the
+            // runtime is currently exposing.
             //
-            // Pre-PR-8.1 baseline constructed the static against
-            // `typed_resolver_for_deep_code()` alone (unconditional
-            // bridge dependency); the Slice 2 ternary prefers the
-            // per-runtime resolver when one is active — the bridge is
-            // only consulted for callers without an active runtime
-            // (CLI audit / preflight diagnostic paths).
+            // The previous ternary (active_runtime() → bridge) is
+            // RETIRED: WP-8 PR 8.1 deletes both `active_runtime()` and
+            // `runtime::typed_resolver_for_deep_code()`.  Any test/
+            // CLI/context path that needs the resolver WITHOUT an
+            // explicit runtime reference now uses this free function.
             const chronon3d::assets::AssetResolver& resolver =
-                chronon3d::runtime::active_runtime()
-                    ? chronon3d::runtime::active_runtime()->resolver()
-                    : chronon3d::runtime::typed_resolver_for_deep_code();
+                chronon3d::runtime::process_wide_resolver();
             static const FontEngine bbox_engine{resolver};
             const FontEngine& engine = bbox_engine;
             FontSpec spec;

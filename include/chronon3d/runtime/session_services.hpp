@@ -42,9 +42,6 @@ struct SessionServices {
     chronon3d::cache::FramebufferPool*       framebuffer_pool{nullptr};
     chronon3d::graph::CompiledGraphCache*    graph_cache{nullptr};
     chronon3d::AssetRegistry*                asset_registry{nullptr};
-    /// Pointer to the runtime's `default_assets_root`.  Non-owning;
-    /// valid for the lifetime of the runtime.
-    const std::string*                       default_assets_root{nullptr};
     // WP-3 PR 3.1 — `scene_hasher` and `program_store` pointer fields
     // were REMOVED here.  Both state engines are per-session owned.
     // Callers that previously read `services.scene_hasher` /

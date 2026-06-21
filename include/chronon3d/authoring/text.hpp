@@ -70,6 +70,7 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>      // TextAnchor / TextAlign / VerticalAlign / TextCenteringMode / TextOverflow / TextWrap / TextShadow / TextPaint / TextBoxStyle / TextStyle
 #include <chronon3d/scene/builders/text_run_builder.hpp>  // PendingTextRun, TextRunParams
+#include <chronon3d/text/font_engine.hpp>                 // FontEngine — required for `Text::font_engine(FontEngine&)` reference parameter (also pulls in transitively via text_run_builder.hpp, but explicit for hygiene)
 #include <chronon3d/text/text_animator_property.hpp>      // TextAnimatorSpec
 #include <chronon3d/text/text_direction.hpp>              // TextDirection
 
@@ -164,6 +165,28 @@ public:
     }
     Text& font_size(f32 size) {
         pending_->params.text.font.font_size = size;
+        return *this;
+    }
+
+    // ── WP-8 PR 8.2 — per-Text FontEngine isolation contract ─────────
+    // Mutates `pending_->font_engine` (= `PendingTextRun::font_engine`,
+    // ultimately propagated to the corresponding `RenderNode::font_engine`
+    // at materialization; the runtime `software_text_processor::draw()`
+    // conditional `node.font_engine ? node.font_engine : &renderer.font_engine()`
+    // honours the override).  The pointer is non-owning; lifetime
+    // must outlive the layer's materialised RenderNodes.  Setting
+    // nullptr reverts to the parent layer's `LayerBuilder::font_engine`
+    // default at materialization time (the per-spec-per-layer resolution
+    // order documented in `src/scene/builders/text_run_builder.cpp` —
+    // "1. TextRunSpec.font_engine (per-spec override) ... 2.
+    // LayerBuilder.m_font_engine (per-layer default)").
+    //
+    // Pointer-only surface — callers passing a `FontEngine&` can write
+    // `t.font_engine(&engine)` at the call site. Matches the single-
+    // pointer-overload precedent of the underlying `LayerBuilder::
+    // font_engine(FontEngine*)` setter that this delegates to.
+    Text& font_engine(FontEngine* engine) {
+        pending_->font_engine = engine;
         return *this;
     }
 

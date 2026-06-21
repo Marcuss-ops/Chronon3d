@@ -1,5 +1,6 @@
 #include "test_text_quality_helpers.hpp"
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/core/config.hpp>
 using namespace chronon3d;
 using namespace test_text_quality;
 
@@ -8,7 +9,9 @@ using namespace test_text_quality;
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextQuality: glyph placement — relative offsets used") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     if (!require_font(engine)) return;
 
     auto run = shape(engine, "ABC", 32.0f);
@@ -31,7 +34,9 @@ TEST_CASE("TextQuality: glyph placement — relative offsets used") {
 }
 
 TEST_CASE("TextQuality: glyph placement — no double-counting") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     if (!require_font(engine)) return;
 
     auto run = shape(engine, "AV", 32.0f);
@@ -46,7 +51,9 @@ TEST_CASE("TextQuality: glyph placement — no double-counting") {
 }
 
 TEST_CASE("TextQuality: glyph placement — single glyph has correct bbox") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     if (!require_font(engine)) return;
 
     auto run = shape(engine, "M", 100.0f);
@@ -65,7 +72,9 @@ TEST_CASE("TextQuality: glyph placement — single glyph has correct bbox") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextQuality: tracking 0/5/20 — increases width proportionally") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     if (!require_font(engine)) return;
 
     TextLayoutInput li;
@@ -90,7 +99,9 @@ TEST_CASE("TextQuality: tracking 0/5/20 — increases width proportionally") {
 }
 
 TEST_CASE("TextQuality: tracking — single character gets 0 tracking") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     if (!require_font(engine)) return;
 
     TextLayoutInput li;
@@ -110,7 +121,9 @@ TEST_CASE("TextQuality: tracking — single character gets 0 tracking") {
 }
 
 TEST_CASE("TextQuality: tracking — empty string has zero width") {
-    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
     if (!require_font(engine)) return;
 
     TextLayoutInput li;

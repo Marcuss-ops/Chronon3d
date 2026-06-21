@@ -33,6 +33,7 @@
 
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/extension/extension_context.hpp>  // PR 3.5 — needed to read style_registry/motion_registry pointers from the host-side ExtensionContext.
+#include <chronon3d/text/font_engine.hpp>             // FontEngine — transitive via layer_builder.hpp -> text_run_builder.hpp; explicit here so the surface can document `FontEngine` in the doc-comment without an include-graph lookup
 #include <chronon3d/authoring/text.hpp>
 
 #include <cassert>
@@ -133,6 +134,23 @@ public:
     template <class Fn>
     Layer& configure_core(Fn&& mutator) & {
         mutator(*builder_);
+        return *this;
+    }
+
+    // ── WP-8 PR 8.2 — per-layer FontEngine default ────────────────────
+    // Forwards to `LayerBuilder::font_engine(FontEngine*)`, mirroring the
+    // authoring `Text::font_engine(*)` per-spec override (defined upstream
+    // in `include/chronon3d/authoring/text.hpp`).  Resolution order at
+    // materialization (see `src/scene/builders/layer_builder.cpp:397` —
+    // `spec.font_engine ? spec.font_engine : m_font_engine`):
+    //   1. TextRunSpec/PendingTextRun.font_engine bound via Text::font_engine(...)
+    //   2. LayerBuilder.m_font_engine bound here.
+    //   3. The owning SoftwareRenderer's `renderer.font_engine()` (built
+    //      from `runtime().resolver()`) at the draw site.
+    // Setting nullptr here clears the layer default and falls back to the
+    // renderer-level engine for every text node in the layer.
+    Layer& font_engine(FontEngine* engine) {
+        builder_->font_engine(engine);
         return *this;
     }
 

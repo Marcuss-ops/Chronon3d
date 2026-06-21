@@ -207,14 +207,15 @@ TextAuditFrameResult audit_single_text(
     }
 
     // ── Layout computation ────────────────────────────────────────────
-    // WP-8 PR 8.0 — textual CLI tools source the resolver from
-    // `runtime::typed_resolver_for_deep_code` (the PR 8.0 transition
-    // bridge; deleted in PR 8.1).  Production paths plumb an explicit
-    // `sw_renderer->runtime().resolver()` — the CLI dev-command
-    // surface has no runtime in scope today, so it's on the bridge.
-    // WP-8 PR 8.0 — explicit resolver source, paired with the engine
-    // ctor and with `rasterize_text_to_bl_image` below.
-    const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
+    // WP-8 PR 8.1 Final — textual CLI tools source the resolver from
+    // `runtime::process_wide_resolver` (the post-bridge process-wide
+    // channel; `runtime::typed_resolver_for_deep_code` was the PR 8.0
+    // transition bridge, retired in PR 8.1).  Production paths plumb
+    // an explicit `sw_renderer->runtime().resolver()` — the CLI
+    // dev-command surface has no runtime in scope today, so it uses
+    // the process-wide channel.  Paired with `rasterize_text_to_bl_image`
+    // below for the same reason.
+    const auto& resolver = chronon3d::runtime::process_wide_resolver();
     FontEngine engine{resolver};
     FontSpec font_spec;
     font_spec.font_path = text.style.font_path;
