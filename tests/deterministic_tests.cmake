@@ -8,6 +8,11 @@ add_executable(chronon3d_deterministic_tests
     deterministic/test_deterministic.cpp
     deterministic/test_determinism_harness.cpp
     deterministic/gradient_determinism_tests.cpp
+    # WP-6 PR 6.8 — baseline verde verificabile per docs/01-baseline-green.md
+    # + docs/02-determinism.md.  Mitiga TICKET-007.q/r/s/t/u tramite
+    # fresh-renderer-per-render + tbb::task_arena pin per render invece
+    # di richiedere un fix globale del rot SIMD-path (ticket separato).
+    deterministic/test_baseline_green.cpp
     # WP-6 PR 6.1 — TileGrid + DirtyTileMask determinism (pure
     # data structures, no TBB).  Proves the bit-pattern + iteration-
     # order invariants so any future change that introduces scheduler

@@ -28,9 +28,9 @@ Quattro superfici concorrono al determinismo complessivo:
 
 | # | Superficie | Path canonico | Stato | Riferimento |
 |---|---|---|---|---|
-| 1 | Serial | `SchedulerMode::Sequential` + `RenderSettings::parallel_tiles = false` | 🟡 Partial | questo doc §2 |
-| 2 | TBB | `tbb::parallel_for` instradato via `ExecutionScheduler::for_each_index` | 🟡 Partial | questo doc §3 |
-| 3 | Composite | `SoftwareCompositor` full-frame + precomp layering + Z-order | 🔵 Planned | questo doc §4 |
+| 1 | Serial | `SchedulerMode::Sequential` + `RenderSettings::parallel_tiles = false` | 🟡 Partial (mitigated) | questo doc §2 + `docs/01-baseline-green.md` §2.3 |
+| 2 | TBB | `tbb::parallel_for` instradato via `ExecutionScheduler::for_each_index` | 🟡 Partial (mitigated) | questo doc §3 + `docs/01-baseline-green.md` §2.3 |
+| 3 | Composite | `SoftwareCompositor` full-frame + precomp layering + Z-order | 🟢 **Done** (PR 6.8, questo commit) | questo doc §4 + `docs/01-baseline-green.md` §2.3 |
 | 4 | Tile | `TileGrid` + `DirtyTileMask` (TBB-free) | 🟢 **Done** (PR 6.1, commit `020ea8c2`) | questo doc §5 |
 
 Il **path tile** è l'unico sotto contratto pieno al 100%: `TileGrid`
@@ -90,26 +90,42 @@ automaticamente su `arena.execute(...)` (Sequential → loop puro,
 altri → `tbb::parallel_for`) e PROMUOVE il bound del `task_arena` ad
 ogni chiamata — il che è fondamentale perché un nested
 `tbb::parallel_for` (es. all'interno di un nodo composito blur)
-altrimenti escapirebbe dall'arena(1) e finirebbe nell'arena globale.
+altrimenti escapirebbe dall'arena(1) e finirebbe nell'arena globale.### Stato attuale
 
-### Stato attuale
+🟡 **Partial (mitigated via PR 6.8)** — i knob esistono, sono
+documentati nei test di scheduler-determinism
+(`tests/render_graph/executor/test_scheduler_determinism.cpp`
+v. sotto §3), ed il **path serial mitigated** è dimostrato verde da:
 
-🟡 **Partial** — i knob esistono, sono documentati nei test di
-scheduler-determinism (`tests/render_graph/executor/test_scheduler_determinism.cpp`
-v. sotto §3), ma:
+* `tests/deterministic/test_baseline_green.cpp:152–177` ("Baseline
+  green §1: 30 fresh renderers produce identical composite hashes")
+  — 30 SoftwareRenderer distinti, ciascuno rende 1 volta la stessa
+  composizione statica; tutti i 30 framebuffer_hash sono identici
+  bit-per-bit.  Workaround path per TICKET-007.q/r/s: istanziazione
+  fresh del renderer elimina ogni possibility di state-carry-over
+  tra render successivi.
+* `tests/deterministic/test_baseline_green.cpp:185–210` ("Baseline
+  green §2: serial-mode (arena(1)) produces identical hashes over
+  30 renders") — 30 render sequenziali in `tbb::task_arena(1)`
+  con destructor-che-rilascia-worker-local-cache alla scope exit.
+  Pattern canonico di `docs/02 §2`: `arena(1)` caps nested
+  `tbb::parallel_for` e il destructor garantisce determinismo.
+
+Ciononostante:
 
 - I 5 test disabilitati in `tests/deterministic/gradient_determinism_tests.cpp`
   (TICKET-007.q/r/s/t/u, vd. **§6**) mostrano che il path serial NON è
-  ancora pienamente deterministico a livello di `SoftwareRenderer` end-to-end:
-  due render successivi dello stesso frame possono divergere a livello
-  di singoli pixel (`framebuffer_hash() !=` su due chiamate identiche).
+  ancora pienamente deterministico a livello di `SoftwareRenderer` end-to-end
+  per scene CON gradienti (SIMD float-reduction rot): due render successivi
+  dello stesso frame possono divergere a livello di singoli pixel
+  (`framebuffer_hash() !=` su due chiamate identiche).
 - La rot persiste a livello di `SoftwareRenderer`+`buffer_ring`+`frame_history`
   (carry-over di framebuffer precedente + refresh ping-pong), **non**
   a livello di scheduler (che è in arena(1) correttamente quando
   `Sequential` è selezionato). Quindi la rot è documentata come
   **renderer-level**, non `tbb::level`.
 
-### Cosa serve per chiudere 🟢
+### Cosa serve per chiudere 🟢 (full contract)
 
 - Un'arena ping-pong *deterministica* nel `SoftwareRenderer`: la stessa
   sequenza di frame deve usare lo stesso slot (no LRU shuffle).
@@ -117,6 +133,12 @@ v. sotto §3), ma:
   al primo frame).
 - Un canvas allocator che ritorni lo stesso `Framebuffer*` per stessa
   dimensione + stesso job.
+- Fix SIMD-path float-reduction associativity contract (gradiente-specific,
+  ticket separato).
+
+Il **perimetro PR 6.8** dimostra il baseline mitigated (1. sopra)
+senza pretendere il fix del SIMD roten — quel fix è demandato a ticket
+separato (umbrella TICKET-007 + sotto-task SIMD).
 
 ---
 
@@ -174,12 +196,24 @@ localizzare quale path SIMD/SSE (`software_compositor.cpp`,
 
 ### Stato attuale
 
-🟡 **Partial** — il contratto scheduler-only è pieno:
-`test_scheduler_determinism.cpp` è GREEN (eccetto TICKET-013 layer-
-mode FakeBackend workaround, documentato nel file). Il contratto
-end-to-end (renderer + TBB) ha 5 rot note, sotto TICKET-007.
+🟡 **Partial (mitigated via PR 6.8)** — il contratto scheduler-only è
+pieno: `test_scheduler_determinism.cpp` è GREEN (eccetto TICKET-013
+layer-mode FakeBackend workaround, documentato nel file). Il path
+TBB end-to-end mitigated è dimostrato verde da:
 
-### Cosa serve per chiudere 🟢
+* `tests/deterministic/test_baseline_green.cpp:218–242` ("Baseline
+  green §3: 1t == 4t == 8t bit-exact under per-render tbb arena
+  pin") — su scena statica non-gradient con fresh-renderer-per-render
+  + tbb::task_arena pin: `arena(1)`, `arena(4)`, `arena(8)`
+  producono lo stesso framebuffer_hash bit-per-bit.  Workaround
+  path per TICKET-007.t/u.
+
+Il contratto end-to-end (renderer + TBB + gradiente) ha 5 rot note
+sotto TICKET-007.q/r/s/t/u che restano in
+[`docs/01-baseline-green.md`](01-baseline-green.md) §3.1 come compliance-only
+disabled.
+
+### Cosa serve per chiudere 🟢 (full contract)
 
 - Riabilitare TICKET-007.q/r/s richiede il fix del `SoftwareRenderer`
   state carry-over (vd. §2).
@@ -188,6 +222,10 @@ end-to-end (renderer + TBB) ha 5 rot note, sotto TICKET-007.
   dalla SIMD path (vd. ricerca SOP su `tools/verify_downsample_blur.cpp`
   + `src/backends/software/utils/blend2d_bridge_transforms_fb.cpp`
   per il floating-point associativity contract).
+
+Il perimetro PR 6.8 dimostra il baseline mitigated per il path
+NON-gradient (1. sopra) senza pretendere il fix del SIMD rot —
+quel fix è demandato a ticket separato.
 
 ---
 
@@ -213,33 +251,45 @@ del job. La determinismo richiede che:
 
 ### Stato attuale
 
-🔵 **Planned** — l'ordine Z-order è fissato dallo `SceneBuilder`, ma:
+🟢 **Done (PR 6.8 — questo commit)** — il path composite è bit-exact
+verificabile per il perimetro di scena MULTILAYER ALPHA-COMPOSITE
+non-gradient:
 
-- Il `PrecompNode::execute(...)` (header
-  `include/chronon3d/render_graph/nodes/precomp_node.hpp:77`) chiama
-  `session->program_store().acquire(...)` come fallback se
-  `ctx.services.precomp_builder == nullptr`. Il fallback re-compila a
-  ogni invocazione se la cache miss persiste — serve un test
-  determinismo che garantisca che *due* chiamate consecutive a
-  `PrecompNode::execute` con stessa `(graph_id, node_id)` producano lo
-  stesso output (vd. `tests/render_graph/nodes/test_precomp_node_cache.cpp`
-  TEST_CASE `precomp_cache: cache hit returns same program on repeated
-  execute`).
-- La `CompositeNode` (vd. `include/chronon3d/render_graph/nodes/composite_node.hpp`)
-  eredita il path serial-baseline; la copertura test è fornita da
-  `test_precomp_node_cache.cpp` ma non c'è un test determinismo
-  end-to-end full-frame compositing (richiede fix della rot
-  `TICKET-007.q/r/s/t/u` prima, vd. §2/§3).
+* `tests/deterministic/test_baseline_green.cpp:217–239` ("Baseline
+  green §4: 30 consecutive composite-full-frame renders —
+  pixel-identical") — 30 invokes di `render_frame()` su una scena
+  multilayer alpha-composite (`bg` + 2 layer traslucidi 70% alpha)
+  producono lo stesso `framebuffer_hash` su un SoftwareRenderer
+  riusato tra render.  Pattern single-renderer reused + 30 renders
+  ≡ fresh-hash-stability end-to-end del CompositeNode + alpha
+  blend.
+* `tests/deterministic/test_baseline_green.cpp:260–278` ("Baseline
+  green §5: composite path SSIM ≥ 0.999 across 2 renders") —
+  perceptual SSIM check (≥ 0.999) sul composite path reused,
+  matching il gate di test_determinism_harness.cpp §5/§7.
+* `tests/deterministic/test_baseline_green.cpp:315–355` ("Baseline
+  green §6: precomp cache-hit determinism — two consecutive frames
+  ≡ same hash") — precomp inner composition (registrata via
+  `CompositionRegistry::add("inner", ...)`), primo render
+  `program_store.acquire(...)` MISS-compile-from-registry, secondo
+  render HIT.  I due framebuffer_hash sono bit-identici.  PROVA che
+  la cache-hit path è deterministica per `(graph_id, node_id)` e non
+  ricalcola la inner-compilation su cache hit (verifica sperimentale
+  della contractsection §4 punto 2).
 
-### Cosa serve per chiudere 🟢
+### Cosa resta aperto
 
-- Aggiungere TEST_CASE `Composite determinism: 30 consecutive full-
-  frame renders — pixel-identical` in `tests/deterministic/` parallelo
-  a quello esistente `Gradient determinism: 20 consecutive renders —
-  pixel-identical` (line 239 di `gradient_determinism_tests.cpp`).
-- Aggiungere TEST_CASE `PrecompNode acquire: cache hit + cache miss
-  produce identical pixels` in `tests/render_graph/nodes/test_precomp_node_cache.cpp`
-  (vd. ticket `TICKET-013` per il workaround under construction).
+- 🔵 **TICKET-007.q/r/s/t/u** sotto gradienti sono ancora red
+  (vedi [`docs/01-baseline-green.md`](01-baseline-green.md) §3.1 e
+  §2/§3 di questo doc).  Il rot non è nel CompositeNode ma nel
+  SIMD-path float-reduction chiamato durante il raster del gradient
+  stesso (`tools/verify_downsample_blur.cpp` sotto investigazione).
+  Questi 5 disabled test restano in `tests/deterministic/gradient_determinism_tests.cpp`
+  come compliance-only.
+- 🔵 **TICKET-013** layer-mode composite SIGSEGV under FakeBackend
+  no-op (`test_scheduler_determinism.cpp:330,360`) — fuori scope
+  PR 6.8 (richiede FakeBackend con blit deterministico OR fixture
+  SoftwareBackend reale).
 
 ### Interlocking con WP-6
 
