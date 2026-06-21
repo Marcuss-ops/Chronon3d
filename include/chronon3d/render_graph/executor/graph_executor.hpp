@@ -22,11 +22,11 @@
 //
 // TICKET-009 — GraphExecutor is stateless.  No internal arena, no
 // internal mutex, no internal plan cache.  Plan topology-sort +
-// caching was extracted into `FrameGraphCompiler` (the sole owner of
-// topological plans).  A brief supplementary `runtime::ExecutionPlanCache`
-// was retained during the PR 2.3 transitional phase but has now been
-// RETIRED alongside the raw-graph overloads; all callers derive plans
-// from the compiled graph's `levels` directly.
+// caching lives in `FrameGraphCompiler` (the sole owner of topological
+// plans); the supplementary `runtime::ExecutionPlanCache` layer that
+// was retained during PR 2.3's transitional phase was retired in the
+// PR-2 rewire close-out (see docs/CHANGELOG.md R6).  All callers now
+// derive plans from the compiled graph's `levels` directly.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/render_graph/render_graph.hpp>

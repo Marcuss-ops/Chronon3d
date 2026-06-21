@@ -58,7 +58,9 @@
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <chronon3d/core/scheduler/scheduler_mode.hpp>
-#include <chronon3d/runtime/execution_plan_cache.hpp>
+// PR-2 rewire (CHANGELOG.md R6): tests now compile via FrameGraphCompiler.
+// ExecutionPlanCache was RETIRED by the PR-2 rewire (see CHANGELOG.md R6).
+#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/runtime/render_session.hpp>
 #include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
@@ -216,7 +218,14 @@ struct TestFixture {
 
     RenderGraphContext                                ctx;
     Scene                                             scene;
-    RenderGraph                                       graph;
+    // PR-2 rewire (CHANGELOG.md R6): the fixture now owns a CompiledFrameGraph
+    // instead of a raw RenderGraph.  GraphExecutor::execute() takes
+    // CompiledFrameGraph& as the only public overload post-retirement;
+    // see docs/CHANGELOG.md R6.  Compilation happens ONCE in the ctor;
+    // the 5-mode render_all_modes() passes the same compiled plan to the
+    // executor with different schedulers (the topological plan lives on
+    // CompiledFrameGraph::levels).
+    CompiledFrameGraph                                compiled;
 
     explicit TestFixture(Scene s)
         : fb_pool(std::make_shared<cache::FramebufferPool>())
@@ -234,29 +243,30 @@ struct TestFixture {
         ctx.frame_input.time_seconds  = 0.0f;
         // node_exec.counters stays null — FakeBackend doesn't tickle counters.
 
-        // ── THEN build the graph against the fully-wired ctx ───────────
-        graph = GraphBuilder::build(scene, ctx);
+        // ── Build the raw graph against the fully-wired ctx, ─────────
+        // ── then compile it to CompiledFrameGraph for the executor.   ─
+        auto raw = GraphBuilder::build(scene, ctx);
+        compiled = FrameGraphCompiler{}.compile(std::move(raw), ctx);
     }
 };
 
-// ── render_with_mode(graph, ctx, session, mode, workers, plan_cache*) ──────
+// ── render_with_mode(fix, mode, workers) ─────────────────────────────────────
 //
 // Single entry-point that calls the WP1 PR 1.0 executor with the chosen
-// scheduler and optional ExecutionPlanCache pointer.  Warm-cache test
-// reuses a non-null plan_cache pointer; cold-cache passes nullptr (the
-// executor builds a fresh plan on every call).
+// scheduler.  PR-2 rewire (CHANGELOG.md R6): the legacy ExecutionPlanCache*
+// parameter retired; the test fixture now owns a CompiledFrameGraph built
+// ONCE in the ctor, so render_with_mode reuses it for every scheduler mode.
+// The topological plan lives on CompiledFrameGraph::levels — no per-call
+// (re-)plan work, no separate cache instance to thread through.
 inline std::shared_ptr<Framebuffer> render_with_mode(
-    RenderGraph&                  graph,
-    RenderGraphContext&           ctx,
-    RenderSession&                session,
+    TestFixture&                  fix,
     SchedulerMode                 mode,
-    int                           worker_count,
-    ExecutionPlanCache*           plan_cache)
+    int                           worker_count)
 {
     auto scheduler = build_scheduler(mode, worker_count);
     GraphExecutor executor;
     return executor.execute(
-        graph, graph.output(), ctx, session, scheduler, plan_cache);
+        fix.compiled, fix.ctx, fix.session, scheduler);
 }
 
 // ── ModeHashes + render_all_modes helpers ─────────────────────────────────
@@ -273,13 +283,13 @@ struct ModeHashes {
     u64 auto_{0};
 };
 
-ModeHashes render_all_modes(TestFixture& fix, ExecutionPlanCache* plan_cache) {
+ModeHashes render_all_modes(TestFixture& fix) {
     ModeHashes m;
-    auto fb_seq  = render_with_mode(fix.graph, fix.ctx, fix.session, SchedulerMode::Sequential,    0, plan_cache);
-    auto fb_t1   = render_with_mode(fix.graph, fix.ctx, fix.session, SchedulerMode::TbbFixed,      1, plan_cache);
-    auto fb_t2   = render_with_mode(fix.graph, fix.ctx, fix.session, SchedulerMode::TbbFixed,      2, plan_cache);
-    auto fb_t4   = render_with_mode(fix.graph, fix.ctx, fix.session, SchedulerMode::TbbFixed,      4, plan_cache);
-    auto fb_auto = render_with_mode(fix.graph, fix.ctx, fix.session, SchedulerMode::TbbAutomatic, 0, plan_cache);
+    auto fb_seq  = render_with_mode(fix, SchedulerMode::Sequential,    0);
+    auto fb_t1   = render_with_mode(fix, SchedulerMode::TbbFixed,      1);
+    auto fb_t2   = render_with_mode(fix, SchedulerMode::TbbFixed,      2);
+    auto fb_t4   = render_with_mode(fix, SchedulerMode::TbbFixed,      4);
+    auto fb_auto = render_with_mode(fix, SchedulerMode::TbbAutomatic, 0);
 
     REQUIRE(fb_seq  != nullptr);
     REQUIRE(fb_t1   != nullptr);
@@ -350,9 +360,7 @@ inline bool is_reference_captured(std::uint64_t r) noexcept {
 TEST_CASE("WP1 PR 1.4 — smoke: a single render with a custom scheduler succeeds") {
     TestFixture fix(make_static_scene());
 
-    ExecutionPlanCache plan_cache;
-    auto fb = render_with_mode(fix.graph, fix.ctx, fix.session,
-                                SchedulerMode::Sequential, 0, &plan_cache);
+    auto fb = render_with_mode(fix, SchedulerMode::Sequential, 0);
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == fix.ctx.frame_input.width);
     REQUIRE(fb->height() == fix.ctx.frame_input.height);
@@ -373,8 +381,7 @@ TEST_CASE(
     "Sequential == TbbFixed(1) == TbbFixed(2) == TbbFixed(4) == TbbAutomatic (bit-for-bit)"
 ) {
     TestFixture fix(make_static_scene());
-    ExecutionPlanCache plan_cache_warm;
-    auto m = render_all_modes(fix, &plan_cache_warm);
+    auto m = render_all_modes(fix);
 
     INFO("seq=" << m.seq << " t1=" << m.t1 << " t2=" << m.t2
          << " t4=" << m.t4 << " auto=" << m.auto_);
@@ -437,28 +444,30 @@ TEST_CASE(
 // WP1 PR 1.4 — warm cache (plan cache shared across modes)
 // ===========================================================================
 TEST_CASE(
-    "WP1 PR 1.4 — warm cache (plan cache shared): "
+    "WP1 PR 1.4 — warmup + 5 modes (scheduler determinism under repeated renders): "
     "Sequential == TbbFixed(1) == TbbFixed(2) == TbbFixed(4) == TbbAutomatic (bit-for-bit)"
 ) {
     TestFixture fix(make_static_scene());
-    ExecutionPlanCache shared_cache;
-    // Warm up the plan cache with one pre-render (cheap; fills the cache).
-    auto fb_warmup = render_with_mode(fix.graph, fix.ctx, fix.session,
-                                       SchedulerMode::TbbAutomatic, 0, &shared_cache);
+    // PR-2 rewire (CHANGELOG.md R6): ExecutionPlanCache was RETIRED.  The
+    // pre-warmup render no longer fills a plan cache; it primes the
+    // executor path + session/arena so the subsequent 5-mode matrix sees
+    // the same "warm" state a production caller would.  The cache-shared
+    // vs cache-nullptr distinction collapsed post-retirement; this test
+    // exercises scheduler determinism under repeated renders.
+    auto fb_warmup = render_with_mode(fix, SchedulerMode::TbbAutomatic, 0);
     REQUIRE(fb_warmup != nullptr);
 
-    auto m = render_all_modes(fix, &shared_cache);
+    auto m = render_all_modes(fix);
 
-    INFO("warm seq=" << m.seq << " t1=" << m.t1 << " t2=" << m.t2
+    INFO("seq=" << m.seq << " t1=" << m.t1 << " t2=" << m.t2
          << " t4=" << m.t4 << " auto=" << m.auto_);
     CHECK(m.seq    == m.t1);
     CHECK(m.seq    == m.t2);
     CHECK(m.seq    == m.t4);
     CHECK(m.seq    == m.auto_);
 
-    // Sanity: warm and cold paths produce the same hash for the same scene.
-    auto fb_fresh = render_with_mode(fix.graph, fix.ctx, fix.session,
-                                     SchedulerMode::Sequential, 0, /*cold*/ nullptr);
+    // Sanity: a fresh executor state produces the same hash for the same scene.
+    auto fb_fresh = render_with_mode(fix, SchedulerMode::Sequential, 0);
     REQUIRE(fb_fresh != nullptr);
     CHECK(framebuffer_hash(*fb_fresh) == m.seq);
 
@@ -473,13 +482,13 @@ TEST_CASE(
 // WP1 PR 1.4 — cold cache (plan cache nullptr → fresh plan each call)
 // ===========================================================================
 TEST_CASE(
-    "WP1 PR 1.4 — cold cache (plan cache nullptr): "
+    "WP1 PR 1.4 — fresh render + 5 modes: "
     "Sequential == TbbFixed(1) == TbbFixed(2) == TbbFixed(4) == TbbAutomatic (bit-for-bit)"
 ) {
     TestFixture fix(make_static_scene());
-    auto m = render_all_modes(fix, /*cold*/ nullptr);
+    auto m = render_all_modes(fix);
 
-    INFO("cold seq=" << m.seq << " t1=" << m.t1 << " t2=" << m.t2
+    INFO("seq=" << m.seq << " t1=" << m.t1 << " t2=" << m.t2
          << " t4=" << m.t4 << " auto=" << m.auto_);
     CHECK(m.seq    == m.t1);
     CHECK(m.seq    == m.t2);

@@ -2,9 +2,11 @@
 // precomp_node_execute.cpp — PrecompNode::execute() (PR-5: thin-node refactor)
 //
 // PR-5 — PrecompNode no longer owns SceneProgramCache, GraphExecutor,
-// ExecutionPlanCache, RenderSession, or auto-tune state.  All of those are
-// now centralised on the parent RenderSession (accessed via
-// `ctx.services.session`).
+// topological-plan cache (retired as `runtime::ExecutionPlanCache` in
+// docs/CHANGELOG.md R6), RenderSession, or auto-tune state.  All of those
+// are now centralised on the parent RenderSession / CompiledFrameGraph
+// (accessed via `ctx.services.session` for the program_store, and via
+// `session->services().executor` for the borrowed GraphExecutor).
 //
 // Flow:
 //   1. Calculate nested frame time.
