@@ -42,18 +42,29 @@ PrecompNode::PrecompNode(std::string comp_name, Frame start_frame, Frame duratio
     , m_duration(duration)
     , m_cache_frame(cache_frame)
     , m_cache_policy(std::move(cache_policy))
-    , m_instance_key(PrecompInstanceKey{
-          .graph = hash_string(m_comp_name),
-          .node  = 0})
 {
+    // WP 5.1 — see `instance_key(ctx)` for how the bucket identity
+    // is derived per-execute().
 }
 
 PrecompNode::~PrecompNode() = default;
 
 // ── instance_key() ──────────────────────────────────────────────────────────
-
-PrecompInstanceKey PrecompNode::instance_key() const {
-    return m_instance_key;
+//
+// WP 5.1 — derive the bucket key from the executor-populated
+// `ctx.node_exec.current_identity`.  The header ensures this is
+// pre-populated by `GraphExecutor::execute_single_node` in production;
+// test paths that drive `PrecompNode::execute(...)` directly MUST
+// pre-set `ctx.node_exec.current_identity` (see
+// `instance_key_default()` for the "no executor-was-here" sentinel
+// fallback used by lower-level tests).
+PrecompInstanceKey PrecompNode::instance_key(
+    const RenderGraphContext& ctx
+) const noexcept {
+    return make_precomp_key(
+        ctx.node_exec.current_identity.graph,
+        ctx.node_exec.current_identity.node
+    );
 }
 
 // ── set_on_evict() ──────────────────────────────────────────────────────────
@@ -112,8 +123,12 @@ OwnedFB PrecompNode::execute(
     key.ssaa_factor        = static_cast<int>(nested_ctx.policy.ssaa_factor);
 
     // ── 5. Acquire program from the centralized store ────────────────────
+    // WP 5.1 — instance key is derived per-execute() from the
+    // executor-populated `ctx.node_exec.current_identity`, so two
+    // sibling precomps in the same graph get distinct buckets even when
+    // their `m_comp_name` is identical.
     auto lease = session->program_store().acquire(
-        m_instance_key, key, m_cache_policy,
+        instance_key(ctx), key, m_cache_policy,
         [&]() -> std::unique_ptr<CompiledSceneProgram> {
             // Cache miss — delegate to the typed PrecompBuilderService.
             if (!ctx.services.precomp_builder) {
@@ -125,10 +140,16 @@ OwnedFB PrecompNode::execute(
     // Forward eviction callback to the store's per-instance cache if one
     // is set and the instance was just created (or on first call).
     if (m_on_evict) {
-        session->program_store().set_on_evict(m_instance_key, m_on_evict);
+        session->program_store().set_on_evict(instance_key(ctx), m_on_evict);
     }
 
-    auto* program = lease.program;
+    // WP 5.2 — `lease.program` is `std::shared_ptr<CompiledSceneProgram>`
+    // (in-flight lifetime independent of the store's LRU).  `auto*`
+    // deduction can't resolve a smart pointer, so bind the raw pointer
+    // through `.get()`.  The lease's shared_ptr keeps `*program` alive
+    // for the duration of this function regardless of any concurrent
+    // `store.clear()`.
+    auto* program = lease.program.get();
     if (!program || program->empty()) {
         return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
     }
