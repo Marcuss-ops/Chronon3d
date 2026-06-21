@@ -1,98 +1,70 @@
 # Chronon3D — Active Roadmap
 
-Current maturity: [`STATUS.md`](STATUS.md). Architecture packages:
+Stato corrente: [`STATUS.md`](STATUS.md). Piano operativo:
+[`NEXT_STEPS.md`](NEXT_STEPS.md). Work package:
 [`refactor-roadmap/README.md`](refactor-roadmap/README.md).
 
-> Ogni voce ha una delle tre categorie:
-> - 🟡 **Partial** — parzialmente implementato; mancano pezzi significativi.
-> - 🔵 **Planned** — non ancora implementato.
->
-> Gli item completati (✅ Verified) sono in [`CHANGELOG.md`](CHANGELOG.md).
-> Ultimo aggiornamento: 2026-06-21
+> ✅ Completato = presente in `CHANGELOG.md` con prova.
+> 🟡 Parziale = implementazione esistente ma criteri non chiusi.
+> 🔵 Pianificato = non implementato.
+> 🔴 Bloccato = impedisce una validazione affidabile.
 
-## P0 — correctness and validation
+## P0 — da chiudere prima di nuova architettura
 
-| Work | State |
-|---|---|
-| Fix architecture-boundary script final exit handling | 🔴 Blocked |
-| Migrate scheduler tests off `ExecutionPlanCache` and raw graphs | 🔴 Blocked |
-| Synchronize `PrecompNode` and borrow the session executor | 🔴 Blocked |
-| Move node identity assignment to cloned contexts | 🔴 Blocked |
-| Add root/tile/child execution scopes | 🔵 Planned |
-| Close install-consumer and global-state SDK boundaries | 🟡 Partial |
-| Record clean required CI/build/test evidence | 🔴 Blocked |
+| Ordine | Lavoro | Stato | Chiusura richiesta |
+|---|---|---|---|
+| 1 | Gate architetturale finale | 🔴 Bloccato | Fixture positiva verde e negativa rossa |
+| 2 | Test scheduler sul contratto compilato | 🔴 Bloccato | Nessun riferimento a plan cache/raw graph; test ripetuti verdi |
+| 3 | `PrecompNode` e `SceneProgramStore` | 🔴 Bloccato | Header/impl coerenti, lease bloccata, executor di sessione |
+| 4 | Identità per-node senza race | 🔴 Bloccato | Scrittura solo sul contesto clonato |
+| 5 | `ExecutionScope` root/tile/precomp | 🔵 Pianificato | Child non resetta arena/stato parent |
+| 6 | SDK/install consumer | 🟡 Parziale | Progetto esterno installato, compilato ed eseguito |
+| 7 | Validazione completa | 🔴 Bloccato | Build/test/CI registrati sul commit di chiusura |
 
-P0 must complete before more architecture is added.
+## Riparazioni subito dopo P0
 
-## Active feature and performance work
+| Ticket | Lavoro reale | Strategia |
+|---|---|---|
+| TICKET-002 | Diagnostics/content con API rotte | PR piccole per include, API, registry, link e test; conteggio errori residui |
+| TICKET-006 | Linkage text backend nei test fast | Collegare il target canonico, non duplicare sorgenti |
+| TICKET-005 | `keyframes()` e documentazione expression | Decidere restore o rimozione; aggiornare API/test senza promuovere V2 |
+| TICKET-008 | Fast path `graph_structure_unchanged` | Hint verificato da hash/topologia, fallback e benchmark |
+| TICKET-EXP2-G3 | Path A → Path B | Un solo parser/VM produttivo, senza convivenza permanente |
 
-### Partial
+## Performance e feature non bloccanti
 
-- Motion-blur accumulation SIMD verification.
-- Three-pass box-blur verification and benchmarks.
-- Blend dispatcher specialization where benchmarks justify it.
-- Temporary framebuffer aliasing ownership.
-- `LayoutFlow` and `LayoutGrid`.
-- Zero-copy encoder delivery.
-- Pool miss-reason dashboard.
-- SPSC queue only after correctness and benchmark proof.
-- Dedicated tests for Shadow, Glow, Bloom, Gradient, DoF, and Mask nodes.
+Questi lavori restano sospesi finché il P0 non è verde:
 
-### Planned
-
-- Parallel SIMD SSAA downsample.
-- Adaptive framebuffer-pool preallocation.
-- ISPC blur evaluation against Highway.
-- Speculative multi-frame rendering.
-- NUMA-aware framebuffer allocation.
+- motion blur SIMD e benchmark box blur;
+- specializzazione blend dispatcher;
+- ownership dei framebuffer temporanei;
+- `LayoutFlow` e `LayoutGrid`;
+- zero-copy encoder;
+- metriche miss del framebuffer pool;
+- valutazione SPSC, ISPC e NUMA;
+- test dedicati per Shadow, Glow, Bloom, Gradient, DoF e Mask.
 
 ## V3 tile-first
 
-All ten pillars in [`V3_BLUEPRINT.md`](V3_BLUEPRINT.md) remain planned.
+I dieci pillar di [`V3_BLUEPRINT.md`](V3_BLUEPRINT.md) restano pianificati.
+Non iniziare implementazione V3 finché P0, SDK boundary e test deterministici non sono chiusi.
+Ogni pillar deve dichiarare il percorso V2 sostituito e il criterio di eliminazione.
 
 ## Expressions V2
 
-- Quarantine and default exclusion: complete.
-- TICKET-003 and TICKET-004: closed historical fixes.
-- Stable SDK export/install: not done.
-- `AnimatedValue` integration: not done.
-- Benchmark, replacement map, retirement deadline: not done.
-- Quarantine removal: not done.
+- Quarantena e default OFF: completati.
+- TICKET-003 e TICKET-004: chiusi.
+- Gate 3 `AnimatedValue`/Path A → Path B: aperto.
+- Benchmark, replacement map, deadline e single-engine enforcement: aperti.
+- Install/export stabile e rimozione quarantena: non consentiti prima degli otto gate.
 
-The authoritative promotion contract is
+Contratto autorevole:
 [`EXPRESSIONS_V2_PROMOTION.md`](EXPRESSIONS_V2_PROMOTION.md).
 
----
+## Cosa non deve tornare
 
-## 🟢 Recently Completed — cross-reference (lifecycle events)
-
-These items landed recently and are recorded here so they appear in roadmap
-scans; for full detail follow the cross-reference. (The "rec" prefix below is
-a new convention introduced in 2026-06-20 for lifecycle events that did not
-previously live under the N*/M*/L*/I* numbering scheme.)
-
-| Prefix | Item | State | Cross-reference |
-|---|---|---|---|
-| rec-1 | `expressions/v2` engine merged on `main` via PR #23 (Experimental Zone) | ✅ Merged | `CHANGELOG.md` → "Expression System v2 — Lifecycle" |
-| rec-2 | CMake guard `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` retired (deprecated option() retained) | ✅ Done | `CMakeLists.txt:200-237` |
-| rec-3 | TICKET-005 Gap C — doc sweep recording that `expressions/v2` is now on `main` | ✅ Done | `FEATURES.md` + `CHANGELOG.md` + `ARCHITECTURE_EVOLUTION_PLAN.md` (this file's cross-reference) |
-| rec-4 | WP-3 PR 3.4 close-out — legacy full-reset shim retired, `SoftwareRenderSession` consolidated to canonical header | ✅ Done | `CHANGELOG.md` → **R4 — WP-3 PR 3.4 close-out** |
-| rec-5 | WP-8 close-out — `render_session.hpp` engine-generic again (scene_hasher + program_store relocated to `RenderRuntime`) | ✅ Done | `CHANGELOG.md` → **R5 — WP-8 close-out** |
-| rec-6 | PR-2 rewire close-out — `ExecutionPlanCache` class deleted, `RenderGraph& execute()` overloads + `plan_cache` parameter retired | ✅ Done | `CHANGELOG.md` → **R6 — PR-2 rewire close-out** |
-| rec-7 | TICKET-007 — process-wide `detail::g_debug_config` removed; per-instance `RenderGraphContext::debug_config` + `EffectExecutionContext::debug_cfg` forwarded | ✅ Done | commit `6d7306b7`; resolved in `FOLLOWUP_TICKETS.md` |
-
-> **Open follow-ups (planned, tracked in `docs/FOLLOWUP_TICKETS.md`):**
->
-> | Ticket | Title | Status | Compliance target |
-> |---|---|---|---|
-> | TICKET-002 | Pre-existing API rot in `chronon3d_diagnostics` target (~102 errors in `content/`) | 🔵 Planned | Full-build gate (402/402 targets) |
-> | TICKET-005 | Post-cascade cleanup — revive `keyframes()` + discrepancy `expressions/v2` reconciliation | 🔵 Planned | Include-discipline + animation API |
-> | TICKET-006 | Missing `chronon3d_backend_text` linkage in `chronon3d_tests_fast` (17 linker errors) | 🔵 Planned | `linux-ci` build rc=0 |
-> | TICKET-008 | Wire `ctx.policy.graph_structure_unchanged` into `FrameGraphCompiler::compile` | 🔵 Planned | Refactor-roadmap §9.4 closure |
-> | TICKET-EXP2-G3 | Path-A scalar parser delegation to Path B `compile()` (Gate 3 expressions/v2 promotion) | 🔵 Planned | `EXPRESSIONS_V2_PROMOTION.md` Gate 3 |
-
-> The previously-listed TICKET-003 (`<chrono3d/...>` typo in `lexer.hpp`) and
-> TICKET-004 (`PUBLIC ${CMAKE_SOURCE_DIR}` include bug on
-> `chronon3d_expressions_v2`) are **🟢 Done** and no longer block the
-> Experimental-Zone promotion path. The remaining blocker is TICKET-EXP2-G3
-> (Gate 3 Path B migration).
+- `ExecutionPlanCache`.
+- Overload executor su `RenderGraph` grezzo.
+- Registry/resolver/sampler/cache duplicati.
+- `GraphExecutor` costruiti dentro i nodi.
+- Globali process-wide per stato di rendering.
