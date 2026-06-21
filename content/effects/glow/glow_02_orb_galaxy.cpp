@@ -1,116 +1,64 @@
-// content/effects/glow_02_orb_galaxy.cpp
-// TEST 2 — Orb Galaxy: 7 colored orbs with different radii on starfield
-#include "../common/glow_test_common.hpp"
+// content/effects/glow/glow_02_orb_galaxy.cpp
+//
+// Cleanup pass (formerly the "TEST 2 — Orb Galaxy" gateway).  The orb galaxy
+// composition, the SaaS premium thumbnails (`PremiumThumbnailButterySmooth`,
+// `PremiumThumbnailSaaSBlue`, `PremiumThumbnailSaaSBlueAuthored`), the trivial
+// `GlowBasicWord`, and the entire glow V2 A/B test suite
+// (`glow_v2_ab_tests.cpp`) have all been REMOVED from the product surface.
+//
+// What remains here:
+//   * `register_effect_compositions(CompositionRegistry&)` — the per-domain
+//     registration gateway called by `register_content_modules.cpp`.  It still
+//     owns the **engine diagnostic** compositions (camera reference suite)
+//     under `#ifdef CHRONON3D_BUILD_DIAGNOSTICS`.  All these compositions are
+//     defined in `content/effects/ref_2_5d/reference_2_5d_suite_*` (the
+//     `chronon3d_diagnostics` OBJECT library when CHRONON3D_BUILD_DIAGNOSTICS=ON).
+//     This gateway file is the ONLY TU in `chronon3d_content` that needs to
+//     stay linked (the rest of the cleanup pass removed every other product
+//     composition + the glow V2 A/B tests).
+//
+// The `glow_test_common.hpp` include was dropped: nothing in this file (after
+// the gut) needs `kW/kH/deep_bg/bottom_label`; consumers that still want
+// those helpers (`reference_2_5d_suite_helpers.hpp`) include the header
+// themselves.
+
 #include <chronon3d/core/composition/composition_registry.hpp>
 
 namespace chronon3d::content::effects {
 
-Composition glow_02_orb_galaxy() {
-    return composition({.name="GlowOrbGalaxy",.width=kW,.height=kH,.duration=120},
-    [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        deep_bg(s, Color{0.02f,0.01f,0.06f,1}, Color{0.01f,0.01f,0.02f,1});
-
-        // Star field
-        s.layer("stars", [](LayerBuilder& l) {
-            const float sx[]={-840,-680,-520,-360,-200,-40,120,280,440,600,760,
-                              -720,-400,-80,240,560,880,-560,160,480,-320};
-            const float sy[]={-380,-260,-420,-300,-440,-360,-380,-280,-420,-340,
-                              -260,-390,-150,-200,-180,-160,-140,-440,-460,-480,-300};
-            for (int i = 0; i < 21; ++i)
-                l.circle("s"+std::to_string(i), {
-                    .radius=1.5f+0.8f*(i%4),
-                    .color=Color{1,1,1,0.25f+0.15f*(i%4)},
-                    .pos={sx[i],sy[i],0}
-                });
-        });
-
-        // 7 orbs — varied colors, sizes, radii, intensities
-        struct OrbDef { float x,y,r,rad,inten; Color col; };
-        const OrbDef orbs[]={
-            {-700,-80,  40, 65, 1.5f, Color{0.20f,0.60f,1.0f,1}},  // blue
-            {-350, 60,  30, 42, 1.1f, Color{0.90f,0.28f,1.0f,1}},  // purple
-            {   0,-200, 50, 80, 1.8f, Color{0.22f,0.95f,0.72f,1}}, // green
-            { 280, 100, 24, 34, 0.9f, Color{1.0f, 0.56f,0.18f,1}}, // orange
-            { 560,-80,  36, 56, 1.3f, Color{1.0f, 0.24f,0.52f,1}}, // pink
-            {-560, 200, 20, 28, 0.8f, Color{0.60f,0.88f,1.0f,1}},  // light blue
-            { 180, 260, 28, 40, 1.0f, Color{1.0f, 0.82f,0.20f,1}}, // gold
-        };
-
-        for (int i = 0; i < 7; ++i) {
-            const int idx = i;
-            s.layer("orb"+std::to_string(idx), [orbs,idx](LayerBuilder& l) {
-                const auto& o = orbs[idx];
-                l.position({o.x, o.y, 0})
-                 .glow(GlowParams{.radius = o.rad, .intensity = o.inten, .color = o.col});
-                l.circle("c", {.radius=o.r,.color=Color{1,1,1,0.95f},.pos={0,0,0}});
-            });
-        }
-
-        // Labels under each orb
-        const char* labels[]={"R65 I1.5","R42 I1.1","R80 I1.8","R34 I0.9","R56 I1.3","R28 I0.8","R40 I1.0"};
-        for (int i = 0; i < 7; ++i) {
-            const int idx = i;
-            s.layer("lbl"+std::to_string(idx), [orbs,labels,idx](LayerBuilder& l) {
-                l.position({orbs[idx].x, orbs[idx].y + orbs[idx].r + 40.f, 0});
-                l.text("t", TextSpec{
-                    .content={.value=labels[idx]}, .font={.font_size=14.f}, .layout={.box={140,32}, .anchor=TextAnchor::Center, .align=TextAlign::Center, .vertical_align=VerticalAlign::Middle}, .appearance={.color=Color{0.65f,0.72f,0.85f,1}}, .position={0,0,0}
-                });
-            });
-        }
-
-        bottom_label(s, "TEST 2 — Orb Galaxy: 7 colored glowing orbs, varied radius & intensity");
-        return s.build();
-    });
-}
-
-// Forward-declare factories from companion files
-Composition glow_basic_word();
-Composition premium_thumbnail_buttery_smooth();
-Composition premium_thumbnail_saas_blue();
-Composition premium_thumbnail_saas_blue_authored();  // PR 6 — authoring-DSL migration validator
+// ── Camera-test forward declarations (defined in ref_2_5d/) ──────────────
+//
+// All camera reference compositions are defined inside
+// `content/effects/ref_2_5d/reference_2_5d_suite_*` and live in the
+// `chronon3d_diagnostics` OBJECT library when `CHRONON3D_BUILD_DIAGNOSTICS=ON`.
+// The forward declarations here + the `registry.add(...)` calls below are the
+// gateway between `register_content_modules.cpp` (which calls this function)
+// and those TUs.
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
-Composition glow_sharpness_test();
-Composition glow_radius_compare_test();
-Composition glow_typewriter_reveal_test();
-Composition glow_shadow_balance_test();
-Composition floating_cards_test();
-Composition orbit_camera_test();
-Composition depth_fog_test();
-Composition z_stack_parallax_test();
-Composition shadow_glow_consistency_test();
-Composition extreme_perspective_test();
-Composition y_rotation_text_test();
-// NOTE: `glow_paragraph_test` was removed when the V1 glow API was retired
-// (see comment at top of glow_v2_ab_tests.cpp); its registration entry was
-// also removed below to avoid undefined-symbol link errors.
+Composition floating_cards_test();        // ref_2_5d_suite_cards.cpp
+Composition orbit_camera_test();          // ref_2_5d_suite_cards.cpp
+Composition depth_fog_test();             // ref_2_5d_suite_scenes.cpp
+Composition z_stack_parallax_test();      // ref_2_5d_suite_cards.cpp
+Composition shadow_glow_consistency_test();  // ref_2_5d_suite_cards.cpp
+Composition extreme_perspective_test();   // ref_2_5d_suite_scenes.cpp
+Composition y_rotation_text_test();       // ref_2_5d_suite_scenes.cpp
 #endif
 
 // ── Per-domain registration ──────────────────────────────────────────────────
+//
+// Cleanup pass: orb galaxy + SaaS thumbnail + glow V2 A/B registrations are
+// gone.  This gateway now only publishes engine diagnostic compositions
+// (camera reference suite) so that `register_content_modules.cpp` keeps
+// resolving them when `CHRONON3D_BUILD_DIAGNOSTICS` is on.
 void register_effect_compositions(CompositionRegistry& registry) {
-    // Product compositions
-    registry.add("GlowOrbGalaxy", [](const CompositionProps&) { return glow_02_orb_galaxy(); });
-    registry.add("GlowBasicWord", [](const CompositionProps&) { return glow_basic_word(); });
-    registry.add("PremiumThumbnailButterySmooth", [](const CompositionProps&) { return premium_thumbnail_buttery_smooth(); });
-    registry.add("PremiumThumbnailSaaSBlue", [](const CompositionProps&) { return premium_thumbnail_saas_blue(); });
-    // PR 6 — authoring-DSL migration validator.  Rendered alongside the
-    // brace-init version by tools/render_premium_artifacts.sh (extended
-    // version), then compared by tools/compare_pngs.py.  Should be
-    // byte-identical at frame 0.
-    registry.add("PremiumThumbnailSaaSBlueAuthored", [](const CompositionProps&) { return premium_thumbnail_saas_blue_authored(); });
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
-    // Diagnostic compositions (A/B tests + 2.5D reference suite)
-    registry.add("GlowSharpnessTest", [](const CompositionProps&) { return glow_sharpness_test(); });
-    registry.add("GlowRadiusCompareTest", [](const CompositionProps&) { return glow_radius_compare_test(); });
-    registry.add("GlowTypewriterRevealTest", [](const CompositionProps&) { return glow_typewriter_reveal_test(); });
-    registry.add("GlowShadowBalanceTest", [](const CompositionProps&) { return glow_shadow_balance_test(); });
-    registry.add("FloatingCardsTest", [](const CompositionProps&) { return floating_cards_test(); });
-    registry.add("OrbitCameraTest", [](const CompositionProps&) { return orbit_camera_test(); });
-    registry.add("DepthFogTest", [](const CompositionProps&) { return depth_fog_test(); });
-    registry.add("ZStackParallaxTest", [](const CompositionProps&) { return z_stack_parallax_test(); });
-    registry.add("ShadowGlowConsistencyTest", [](const CompositionProps&) { return shadow_glow_consistency_test(); });
-    registry.add("ExtremePerspectiveTest", [](const CompositionProps&) { return extreme_perspective_test(); });
-    registry.add("YRotationTextTest", [](const CompositionProps&) { return y_rotation_text_test(); });
+    registry.add("FloatingCardsTest",          [](const CompositionProps&) { return floating_cards_test();          });
+    registry.add("OrbitCameraTest",            [](const CompositionProps&) { return orbit_camera_test();            });
+    registry.add("DepthFogTest",               [](const CompositionProps&) { return depth_fog_test();               });
+    registry.add("ZStackParallaxTest",         [](const CompositionProps&) { return z_stack_parallax_test();        });
+    registry.add("ShadowGlowConsistencyTest",  [](const CompositionProps&) { return shadow_glow_consistency_test(); });
+    registry.add("ExtremePerspectiveTest",     [](const CompositionProps&) { return extreme_perspective_test();     });
+    registry.add("YRotationTextTest",          [](const CompositionProps&) { return y_rotation_text_test();         });
 #endif
 }
 

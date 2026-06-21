@@ -46,11 +46,10 @@ add_library(chronon3d_content OBJECT
     # Important words
     ImportantWords/important_words_animations.cpp
 
-    # Effects (product: glow demos + thumbnails; A/B tests → diagnostics)
+    # Effects (gateway-only after the cleanup pass: orb-galaxy + SaaS
+    # thumbnails + glow V2 A/B tests were removed; this TU now only registers
+    # camera diagnostic compositions under #ifdef CHRONON3D_BUILD_DIAGNOSTICS).
     effects/glow/glow_02_orb_galaxy.cpp
-    effects/glow/glow_basic_word.cpp
-    effects/thumbnails/premium_thumbnail_showcase.cpp
-    effects/thumbnails/premium_thumbnail_saas_blue_authored.cpp  # PR 6 — authoring-DSL migration validator
 
     # Grid
     grid/compositions/grid_showcase.cpp
@@ -110,10 +109,6 @@ if(CHRONON3D_BUILD_DIAGNOSTICS)
         # under #ifdef CHRONON3D_BUILD_DIAGNOSTICS) ──
         effects/ref_2_5d/reference_2_5d_suite_scenes.cpp
         effects/ref_2_5d/reference_2_5d_suite_cards.cpp
-
-        # ── Glow V2 A/B tests (called by register_effect_compositions
-        # under #ifdef CHRONON3D_BUILD_DIAGNOSTICS) ──
-        effects/glow/glow_v2_ab_tests.cpp
 
         # ── Camera spline comparison (called by register_anim_compositions
         # under #ifdef CHRONON3D_BUILD_DIAGNOSTICS) ──
