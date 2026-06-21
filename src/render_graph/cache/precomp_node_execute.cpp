@@ -136,8 +136,11 @@ OwnedFB PrecompNode::execute(
 
     // ── 8. Execute the cached program ────────────────────────────────────
     // TICKET-009 — pass the per-precomp plan cache explicitly.
+    // PR-1 — route through the parent graph's scheduler so nested
+    // execute() calls share the same arena as the parent.
     auto nested_result = m_executor->execute(
-        program->frame_graph, nested_ctx, m_session, m_plan_cache.get());
+        program->frame_graph, nested_ctx, m_session,
+        *ctx.services.scheduler, m_plan_cache.get());
 
     // ── 9. Auto-tune check (inside function scope) ───────────────────────
     // Run after every successful execution.  The check is lightweight

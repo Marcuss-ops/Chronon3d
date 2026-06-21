@@ -93,14 +93,18 @@ TileExecutionResult execute_tile_or_fallback(
             if (sw_renderer && sw_renderer->executor()) {
                 // TICKET-009 — pass the renderer-owned plan cache to the
                 // executor (the executor is now stateless).
+                // PR-1 — route through the authoritative scheduler.
                 result.fb = sw_renderer->executor()->execute(
                     compiled, ctx, sw_renderer->session(),
+                    sw_renderer->scheduler(),
                     sw_renderer->plan_cache());
             } else {
                 RenderSession local_session;
                 GraphExecutor local_executor;
+                ExecutionScheduler local_scheduler{SchedulerMode::Sequential, 1, false};
                 // TICKET-009 — ad-hoc fallback path; no shared plan cache.
-                result.fb = local_executor.execute(compiled, ctx, local_session);
+                result.fb = local_executor.execute(
+                    compiled, ctx, local_session, local_scheduler);
             }
         }
         // Track tile fallbacks when tile system requested but couldn't execute

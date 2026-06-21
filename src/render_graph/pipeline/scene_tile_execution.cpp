@@ -2,10 +2,8 @@
 
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/core/memory/arena.hpp>
+#include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <algorithm>
-#include <tbb/parallel_for.h>
-#include <tbb/blocked_range.h>
-#include <tbb/enumerable_thread_specific.h>
 
 namespace chronon3d::graph::detail {
 
@@ -91,17 +89,27 @@ namespace chronon3d::graph::detail {
     // because that overload takes no plan_cache pointer and no scratch
     // arena; we keep `tile_arena` construction scoped to the
     // sw_renderer branch so the fallback path doesn't pay for it.
+    // PR-1 — route through the authoritative scheduler (via
+    // ctx.services.scheduler for the sw_renderer path, or a local
+    // Sequential scheduler for the fallback).
     std::shared_ptr<Framebuffer> tile_fb;
     if (!sw_renderer || !sw_renderer->executor()) {
         RenderSession local_session;
         GraphExecutor local_executor;
-        tile_fb = local_executor.execute(compiled, tile_ctx, local_session);
+        ExecutionScheduler local_scheduler{SchedulerMode::Sequential, 1, false};
+        tile_fb = local_executor.execute(
+            compiled, tile_ctx, local_session, local_scheduler);
     } else {
         FrameArena tile_arena;
         // TICKET-009 — pass the renderer-owned plan cache and the
         // local scratch arena override.  The executor is now stateless.
+        // PR-1 — use the authoritative scheduler from ctx.services.
+        auto& tile_scheduler = ctx.services.scheduler
+            ? *ctx.services.scheduler
+            : sw_renderer->scheduler();
         tile_fb = sw_renderer->executor()->execute(
             compiled, tile_ctx, sw_renderer->session(),
+            tile_scheduler,
             sw_renderer->plan_cache(), &tile_arena);
     }
 
@@ -146,28 +154,21 @@ TileExecutionResult execute_dirty_tiles(
 
     TileExecutionResult result;
 
-    if (parallel && coalesced_count > 1) {
-        struct RegionAccum {
-            uint64_t pixels_rendered{0};
-        };
-        tbb::enumerable_thread_specific<RegionAccum> accums;
-
-        tbb::parallel_for(
-            tbb::blocked_range<size_t>(0, regions.size()),
-            [&](const tbb::blocked_range<size_t>& range) {
-                auto& local = accums.local();
-                for (size_t i = range.begin(); i < range.end(); ++i) {
-                    const auto& region = regions[i];
-                    if (region.is_empty()) continue;
-                    auto region_result = execute_single_dirty_region(
-                        compiled, ctx, sw_renderer, region, output_fb);
-                    local.pixels_rendered += region_result.pixels_rendered;
-                }
-            }
-        );
-
-        for (const auto& acc : accums) {
-            result.pixels_rendered += acc.pixels_rendered;
+    // PR-1 — use the authoritative scheduler's for_each_index() instead
+    // of the raw tbb parallel_for.  The scheduler handles Sequential/TbbFixed/
+    // TbbAutomatic modes internally.  When scheduler is null (test paths
+    // without a wired scheduler), fall back to sequential execution.
+    if (ctx.services.scheduler && parallel && coalesced_count > 1) {
+        std::vector<uint64_t> per_region(regions.size(), 0);
+        ctx.services.scheduler->for_each_index(
+            regions.size(), [&](std::size_t i) {
+                if (regions[i].is_empty()) return;
+                auto region_result = execute_single_dirty_region(
+                    compiled, ctx, sw_renderer, regions[i], output_fb);
+                per_region[i] = region_result.pixels_rendered;
+            });
+        for (auto px : per_region) {
+            result.pixels_rendered += px;
         }
     } else {
         for (const auto& region : regions) {

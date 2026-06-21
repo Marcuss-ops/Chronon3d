@@ -30,6 +30,7 @@
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/runtime/render_session.hpp>
 #include <chronon3d/runtime/execution_plan_cache.hpp>
+#include <chronon3d/core/scheduler/execution_scheduler.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -45,6 +46,12 @@ public:
     /// Execute a render graph.
     /// @param session          The RenderSession providing the frame
     ///                         arena and per-frame state.
+    /// @param scheduler        The authoritative ExecutionScheduler for
+    ///                         the engine.  All parallel work (level
+    ///                         dispatch, tile loops) is routed through
+    ///                         this scheduler's arena.  Must outlive the
+    ///                         call.  (PR-1 — was previously a local
+    ///                         make_execution_scheduler() call.)
     /// @param plan_cache       Optional thread-safe plan cache.  Pass
     ///                         `nullptr` to disable plan caching (a
     ///                         fresh plan is built every call); pass a
@@ -57,32 +64,36 @@ public:
     ///                         the executor uses this arena instead of
     ///                         `session.arena()` — used by tile-execution
     ///                         paths that supply a short-lived local
-    ///                         arena.
+    ///                         arena.  (Retained temporarily — will be
+    ///                         removed in PR-6.)
     std::shared_ptr<Framebuffer> execute(
         RenderGraph& graph,
         GraphNodeId output,
         RenderGraphContext& ctx,
         RenderSession& session,
+        ExecutionScheduler& scheduler,
         runtime::ExecutionPlanCache* plan_cache = nullptr,
         FrameArena* arena_override = nullptr
-    );
+    ) const;
 
     std::shared_ptr<Framebuffer> execute(
         RenderGraph& graph,
         RenderGraphContext& ctx,
         RenderSession& session,
+        ExecutionScheduler& scheduler,
         runtime::ExecutionPlanCache* plan_cache = nullptr
-    ) {
-        return execute(graph, graph.output(), ctx, session, plan_cache);
+    ) const {
+        return execute(graph, graph.output(), ctx, session, scheduler, plan_cache);
     }
 
     std::shared_ptr<Framebuffer> execute(
         CompiledFrameGraph& compiled,
         RenderGraphContext& ctx,
         RenderSession& session,
+        ExecutionScheduler& scheduler,
         runtime::ExecutionPlanCache* plan_cache = nullptr,
         FrameArena* arena_override = nullptr
-    );
+    ) const;
 
     // TICKET-009 — `invalidate_plan_cache()` was removed.  Callers that
     // want to invalidate the cache call
