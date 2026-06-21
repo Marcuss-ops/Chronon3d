@@ -1,90 +1,71 @@
 # Architecture Evolution Plan — Chronon3D
 
-Current status: [`STATUS.md`](STATUS.md). Active work:
-[`refactor-roadmap/README.md`](refactor-roadmap/README.md).
+Stato corrente: [`STATUS.md`](STATUS.md). Piano operativo:
+[`NEXT_STEPS.md`](NEXT_STEPS.md).
 
-## Current frontier
+## Frontiera corrente
 
 `Composition → Scene → RenderGraph → FrameGraphCompiler → CompiledFrameGraph → GraphExecutor → RenderBackend → output`
 
-Landed foundations:
+Fondazioni completate:
 
-- compiled-graph-only execution;
-- raw-graph overloads and `ExecutionPlanCache` retired;
-- explicit scheduler;
-- strong graph/node IDs and deterministic hashing;
-- per-session scene/program-store work;
-- typed runtime-owned asset resolution;
-- explicit extension registration through host-owned registries.
+- esecuzione solo su grafo compilato;
+- rimozione overload raw graph e `ExecutionPlanCache`;
+- scheduler esplicito;
+- ID forti e hashing deterministico;
+- stato per-sessione;
+- `AssetResolver` tipizzato;
+- registrazione esplicita tramite registry host-owned.
 
-Open work includes the validation gate, stale scheduler tests, `PrecompNode`
-mismatch, identity race, nested execution scopes, backend separation, and SDK
-install closure.
+Restano aperti gate non affidabili, test scheduler obsoleti, `PrecompNode`, race sull’identità, scope annidati e confine SDK.
 
-## Ownership
+## Ownership canonica
 
-- Core: contracts and invariants.
-- Feature: effects, nodes, exporters, media, presets.
-- Integration: registries, catalogs, resolvers, samplers, extension points.
-- Diagnostics: telemetry, profiling, debug and visual validation.
-- Experimental: isolated opt-in work not exported by the stable SDK.
+- Core: contratti e invarianti.
+- Feature: effetti, nodi, exporter, media e preset.
+- Integration: registry, catalog, resolver, sampler ed extension point.
+- Diagnostics: telemetria, profiling, debug e visual validation.
+- Experimental: lavoro opt-in non esportato dallo SDK stabile.
 
-Every capability must extend a canonical registry, resolver, sampler, cache, or
-execution contract. Parallel systems are forbidden by
-[`ANTI_DUPLICATION_RULES.md`](ANTI_DUPLICATION_RULES.md).
+Non creare registry, resolver, sampler, cache o execution path paralleli. Vedi [`ANTI_DUPLICATION_RULES.md`](ANTI_DUPLICATION_RULES.md).
 
-## Registration
-
-Canonical path:
+## Registrazione
 
 `ExtensionModule → ExtensionContext → CompositionRegistry / GraphNodeCatalog / EffectCatalog / AssetRegistry`
 
-Static global composition registration is retired. Consumer compositions belong
-in external packs.
+La registrazione statica globale è ritirata. Le composizioni cliente devono vivere in pack esterni.
+
+## Target
+
+```text
+RenderRuntime: servizi engine-lifetime
+RenderSession: stato job-owned
+ExecutionScope: root/tile/precomp, parent, arena, identità
+GraphExecutor: stateless, compiled graph, scheduler/scope espliciti
+```
+
+## Sequenza
+
+1. Riparare gate e test.
+2. Sistemare Precomp e lease.
+3. Eliminare race e introdurre `ExecutionScope`.
+4. Chiudere SDK/install consumer.
+5. Riparare diagnostics/content e test fast.
+6. Solo dopo riaprire performance avanzata e V3.
 
 ## Expressions V2
 
-Expressions V2 lives under `experimental/expressions/`, is gated by
-`CHRONON3D_BUILD_EXPERIMENTAL`, defaults to OFF, and is not installed or linked
-by `Chronon3D::SDK`. TICKET-003 and TICKET-004 are closed. Promotion still
-requires all eight gates in `EXPRESSIONS_V2_PROMOTION.md`.
+Percorso reale: `experimental/expressions/`.
+Header: `experimental/expressions/include/chronon3d_experimental/expressions/v2/`.
+Build gate: `CHRONON3D_BUILD_EXPERIMENTAL`, default OFF.
+Non è installato, esportato o usato dal percorso produttivo.
+
+TICKET-003 e TICKET-004 sono chiusi. Il prossimo lavoro è TICKET-EXP2-G3: migrare Path A verso Path B senza due parser/VM produttivi. La promozione richiede tutti gli otto gate di [`EXPRESSIONS_V2_PROMOTION.md`](EXPRESSIONS_V2_PROMOTION.md).
 
 ## V3 tile-first
 
-V3 is future replacement work, not the current runtime. P1–P10 remain planned.
-Each component must name the V2 path it replaces, equivalence tests, objective
-removal criteria, and a deletion milestone. Permanent dual paths are forbidden.
+V3 è futuro lavoro di sostituzione. P1–P10 restano pianificati. Ogni componente deve dichiarare il percorso V2 sostituito, test di equivalenza, criterio di rimozione e milestone di eliminazione.
 
-## Stable consumer boundary
+## Confine consumer
 
-Consumers should include public headers only, link only `Chronon3D::SDK`, avoid
-`src/` and experimental headers, and use shared extension/resolver contracts.
-
----
-
-## Experimental Zone — Promozioni recenti (2026-06-20)
-
-Componenti entrate nella **Experimental Zone** (vedi `CORE_OWNERSHIP.md` §1D)
-con la corrispondente traccia di lifecycle, registrata qui il 2026-06-20
-per evitare che i reviewer perdano tempo riaprendo TICKET già documentati.
-
-### `expressions/v2` — attualmente su `main`
-
-| Campo | Valore |
-|---|---|
-| **Stato** | 🧪 Sperimentale — merged su `main`, non ancora promosso a feature stabile |
-| **Dove su main** | `include/chronon3d/expressions/v2/` (header pubblici) + `src/expressions/v2/` (sorgenti + target `chronon3d_expressions_v2`) + `tests/expressions/` (fixture di test, alcune disabilitate) |
-| **Perché su main nonostante Experimental** | Merged via PR #23 come pull-request sperimentale; non ancora passato al vaglio della fase di promozione |
-| **Provenance** | `CHANGELOG.md` → "Expression System v2 — Lifecycle" |
-| **Promotion blockers** | TICKET-EXP2-G3 (Path A scalar parser delegation to Path B `compile()` — Gate 3 di `EXPRESSIONS_V2_PROMOTION.md`). TICKET-003 (typo `<chrono3d/...>`) e TICKET-004 (regression `PUBLIC ${CMAKE_SOURCE_DIR}`) sono **🟢 Done** dal 2026-06-20. |
-| **Storia del flag CMake** | `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` ritirato in questa sessione; `option(... OFF)` mantenuto a `CMakeLists.txt:233-237` come no-op deprecato per compatibilità della cache-key |
-
-La promozione alla **Feature Zone** richiede i quattro gate elencati in
-[`FEATURES.md` → "Expression System v2 — Experimental" → Promotion gates](FEATURES.md#expression-system-v2--experimental).
-
-> Audit di copertura (2026-06-20): nessun riferimento stale al flag in CI,
-> preset, script, `.cfg`, `.ini`, `.env`, `Dockerfile*`, `.github/workflows`,
-> `vcpkg.json`, `tools/*.sh`, o documenti MD. Uniche menzioni residue del
-> flag sono: (a) il blocco di retirement comment in `CMakeLists.txt`,
-> intenzionale, e (b) i riferimenti storici in `docs/FOLLOWUP_TICKETS.md`
-> (TICKET-003/-004/-005).
+Un consumer esterno deve includere solo header pubblici, collegare solo `Chronon3D::SDK`, evitare `src/` e `chronon3d_experimental/`, e ricevere servizi tramite contratti espliciti.
