@@ -9,10 +9,11 @@
 
 namespace chronon3d {
 
-// Forward declaration: function signatures below only take AssetRegistry
-// by const reference, so a full include would over-bloat every TU that
-// pulls render_preflight.hpp.
+// Forward declarations: function signatures below take AssetRegistry +
+// chronon3d::assets::AssetResolver by const reference, so a full include
+// would over-bloat every TU that pulls render_preflight.hpp.
 class AssetRegistry;
+namespace assets { class AssetResolver; }
 
 class ChrononAssetError : public std::runtime_error {
 public:
@@ -92,16 +93,31 @@ public:
     void add_requirements(const std::vector<PreflightRequirement>& reqs);
 
     // --- Validation ---
-    /// Collect all issues without throwing. Callers can inspect the list or
-    /// produce JSON output before deciding what to do.
-    [[nodiscard]] std::vector<PreflightIssue> validate(const AssetRegistry& registry) const;
+    // WP-8 PR 8.0 — `validate()` / friends now take an explicit
+    // `chronon3d::assets::AssetResolver&` so deep validation paths no
+    // longer depend on the `runtime::typed_resolver_for_deep_code()`
+    // service-locator bridge (which is REMOVED in PR 8.1 — this slice
+    // is the required plumbing precursor).  Callers that hold a
+    // RenderRuntime pull `rt.resolver()`; standalone callers (CLI,
+    // tests) instantiate a local resolver and mount it at the project
+    // root.
+    [[nodiscard]] std::vector<PreflightIssue> validate(
+        const AssetRegistry& registry,
+        const chronon3d::assets::AssetResolver& resolver
+    ) const;
 
     /// Behaves exactly like the original: throws ChrononAssetError if any error
     /// is found. Backward-compatible.
-    void validate_or_throw(const AssetRegistry& registry);
+    void validate_or_throw(
+        const AssetRegistry& registry,
+        const chronon3d::assets::AssetResolver& resolver
+    );
 
     /// Returns true when validate(registry) would return an empty vector.
-    [[nodiscard]] bool ok(const AssetRegistry& registry) const;
+    [[nodiscard]] bool ok(
+        const AssetRegistry& registry,
+        const chronon3d::assets::AssetResolver& resolver
+    ) const;
 
     void clear();
 
