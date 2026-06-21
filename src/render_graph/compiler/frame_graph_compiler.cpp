@@ -1,8 +1,11 @@
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/render_graph/core/node_identity.hpp>
 #include <algorithm>
+#include <functional>
 #include <stdexcept>
+#include <unordered_map>
 
 namespace chronon3d::graph {
 
@@ -44,11 +47,35 @@ CompiledFrameGraph FrameGraphCompiler::compile(
 
     compiled.structure_hash = compute_structure_hash(compiled.graph, compiled.output);
     compiled.skip_initial_clear = ctx.policy.skip_initial_clear;
-    
+
     compiled.early_exit_skip.assign(node_count, false);
     for (size_t i = 0; i < std::min(node_count, ctx.node_exec.early_exit_skip.size()); ++i) {
         compiled.early_exit_skip[i] = ctx.node_exec.early_exit_skip[i];
     }
+
+    // ── Work Package 4 — graph instance id ─────────────────────────────
+    // Hash the SORTED SET of reachable stable_node_ids (excluding the
+    // invalid sentinel) so a re-build of the same source topology
+    // yields the same id regardless of which order the compiler
+    // visited nodes in.  Hash is FNV-1a for compactness; the helper
+    // in `node_identity.hpp` reuses a compatible mixing function.
+    std::vector<StableNodeId> sids;
+    sids.reserve(compiled.nodes.size());
+    for (size_t i = 0; i < compiled.nodes.size(); ++i) {
+        if (compiled.nodes[i].reachable
+            && compiled.nodes[i].stable_node_id != kInvalidStableNodeId) {
+            sids.push_back(compiled.nodes[i].stable_node_id);
+        }
+    }
+    std::sort(sids.begin(), sids.end());
+    constexpr std::uint64_t kOffsetBasis = 0xcbf29ce484222325ULL;
+    constexpr std::uint64_t kFnvPrime    = 0x100000001b3ULL;
+    std::uint64_t h = kOffsetBasis;
+    for (StableNodeId sid : sids) {
+        h ^= sid;
+        h *= kFnvPrime;
+    }
+    compiled.graph_instance_id = (h == 0 ? 1 : h);
 
     if (options.validate_dag) {
         validate(compiled);
@@ -184,7 +211,7 @@ void FrameGraphCompiler::build_node_metadata(
             if (reachable[id]) {
                 node_info.reachable = true;
                 node_info.consumers = children[id];
-                
+
                 // Canonical cache surface — derived views (frame_dependent / cacheable /
                 // disk_cacheable) on CompiledNodeInfo were removed; read this directly.
                 node_info.cache_policy = node.cache_policy();
@@ -195,6 +222,38 @@ void FrameGraphCompiler::build_node_metadata(
                 if (options.compute_bboxes) {
                     node_info.predicted_bbox = node.predicted_bbox(ctx);
                 }
+
+                // ── Work Package 4 — derive stable_node_id (PR 4.2/4.3) ────────
+                // Inputs: deterministic strings (layer_id, name) + a kind enum.
+                // EXCLUDES: raw pointers, timestamps, transient counters.
+                const std::uint64_t layer_id_hash =
+                    std::hash<std::string>{}(node_info.layer_id);
+                const std::uint64_t kind_and_name_hash = hash_combine(
+                    static_cast<std::uint64_t>(node_info.kind),
+                    std::hash<std::string>{}(node_info.name)
+                );
+                node_info.stable_node_id = hash_stable_node_inputs(
+                    layer_id_hash, kind_and_name_hash);
+            }
+        }
+    }
+
+    // ── Work Package 4 — collision detection (PR 4.3) ────────────────────────
+    // Two distinct reachable nodes in the same graph MUST NOT produce
+    // identical stable_node_ids.  Detect this and throw so the bug is
+    // surfaced at compile time (an unconstrained collision would later
+    // produce a catastrophic cache aliasing in `SceneProgramStore`).
+    {
+        std::unordered_map<StableNodeId, GraphNodeId> seen;
+        for (size_t i = 0; i < compiled.nodes.size(); ++i) {
+            if (!compiled.nodes[i].reachable) continue;
+            const auto sid = compiled.nodes[i].stable_node_id;
+            if (sid == kInvalidStableNodeId) continue;
+            auto [it, inserted] = seen.emplace(sid, static_cast<GraphNodeId>(i));
+            if (!inserted) {
+                throw std::runtime_error(
+                    "FrameGraphCompiler: stable_node_id collision between nodes "
+                    + std::to_string(it->second) + " and " + std::to_string(i));
             }
         }
     }

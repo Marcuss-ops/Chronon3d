@@ -16,6 +16,7 @@
 
 #include <chronon3d/render_graph/cache/scene_program_cache.hpp>
 #include <chronon3d/render_graph/compiler/compiled_scene_program.hpp>
+#include <chronon3d/render_graph/core/node_identity.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -32,9 +33,26 @@ namespace chronon3d::graph {
 /// Unique identifier for a single PrecompNode instance within a render
 /// session.  Two instances with the same key share the same per-instance
 /// cache partition inside the SceneProgramStore.
+///
+/// Work Package 4 alignment — `graph` is a `GraphInstanceId` (content-
+/// derived from the surrounding CompiledFrameGraph's reachable stable
+/// node set; FNV-1a over sorted `stable_node_id`s) and `node` is a
+/// `StableNodeId` (derived from the precomp node's `layer_id`, `kind`,
+/// composition name).  Both fields are kept as `uint64_t` for ABI
+/// stability so existing call sites of `PrecompInstanceKey` keep
+/// compiling; the alias types in `<chronon3d/render_graph/core/node_identity.hpp>`
+/// are exposed for new code that wants the strongly-typed surface.
 struct PrecompInstanceKey {
     uint64_t graph{0};
     uint64_t node{0};
+
+    PrecompInstanceKey() = default;
+    // Implicit conversions from the strong types keep the existing
+    // precomp_node_execute.cpp + bench code building.  New producers
+    // SHOULD pass `GraphInstanceId`/`StableNodeId` directly.
+    PrecompInstanceKey(GraphInstanceId g, StableNodeId n) noexcept
+        : graph(static_cast<uint64_t>(g))
+        , node(static_cast<uint64_t>(n)) {}
 
     auto operator<=>(const PrecompInstanceKey&) const = default;
 };
