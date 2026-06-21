@@ -23,6 +23,7 @@
 #include <chronon3d/runtime/render_session.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
+#include <chronon3d/render_graph/compiler/compiled_scene_program.hpp>  // WP 5.2 — ProgramLease holds shared_ptr<CompiledSceneProgram>; member access (`.empty()`, `.bindings`, `.frame_graph`) requires complete type
 #include <chronon3d/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/render_graph/layer/layer_resolver.hpp>
 #include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
@@ -43,28 +44,37 @@ PrecompNode::PrecompNode(std::string comp_name, Frame start_frame, Frame duratio
     , m_cache_frame(cache_frame)
     , m_cache_policy(std::move(cache_policy))
 {
-    // WP 5.1 — see `instance_key(ctx)` for how the bucket identity
-    // is derived per-execute().
+    // WP 5.1 — the per-instance `PrecompInstanceKey` is no longer a
+    // cached member field.  It is derived per-call from the executing
+    // node's `current_identity` (set by `GraphExecutor::execute_single_node`
+    // immediately before delegating to `node->execute(...)`) via
+    // `instance_key(ctx)`.  This is what makes two sibling PrecompNode
+    // instances running the same composition map to DISTINCT cache
+    // buckets (WP 4.2 + WP 5.1 invariant) — a stored member keyed only
+    // on `hash_string(m_comp_name)` would alias siblings.
 }
 
 PrecompNode::~PrecompNode() = default;
 
 // ── instance_key() ──────────────────────────────────────────────────────────
-//
-// WP 5.1 — derive the bucket key from the executor-populated
-// `ctx.node_exec.current_identity`.  The header ensures this is
-// pre-populated by `GraphExecutor::execute_single_node` in production;
-// test paths that drive `PrecompNode::execute(...)` directly MUST
-// pre-set `ctx.node_exec.current_identity` (see
-// `instance_key_default()` for the "no executor-was-here" sentinel
-// fallback used by lower-level tests).
-PrecompInstanceKey PrecompNode::instance_key(
-    const RenderGraphContext& ctx
-) const noexcept {
-    return make_precomp_key(
-        ctx.node_exec.current_identity.graph,
-        ctx.node_exec.current_identity.node
-    );
+
+PrecompInstanceKey PrecompNode::instance_key(const RenderGraphContext& ctx) const noexcept {
+    // WP 5.1 — derive the owner key from the executor-driven
+    // `current_identity` on the executing node's context when the
+    // GraphExecutor has populated it (production path).  When a test
+    // path drives `precomp.execute(...)` directly without going through
+    // the full executor, `current_identity` stays at its default
+    // (invalid sentinel) and we fall back to `instance_key_default()`
+    // so per-instance buckets still partition correctly.  In that
+    // fallback case the caller MAY override `ctx.node_exec.current_identity`
+    // before invoking execute() — sibling PrecompNodes driving the
+    // fixture without an explicit override WILL alias on the invalid
+    // key (acceptable for tests that don't assert sibling-isolation).
+    const auto& ident = ctx.node_exec.current_identity;
+    if (ident.valid()) {
+        return make_precomp_key(ident.graph, ident.node);
+    }
+    return instance_key_default();
 }
 
 // ── set_on_evict() ──────────────────────────────────────────────────────────
@@ -123,10 +133,6 @@ OwnedFB PrecompNode::execute(
     key.ssaa_factor        = static_cast<int>(nested_ctx.policy.ssaa_factor);
 
     // ── 5. Acquire program from the centralized store ────────────────────
-    // WP 5.1 — instance key is derived per-execute() from the
-    // executor-populated `ctx.node_exec.current_identity`, so two
-    // sibling precomps in the same graph get distinct buckets even when
-    // their `m_comp_name` is identical.
     auto lease = session->program_store().acquire(
         instance_key(ctx), key, m_cache_policy,
         [&]() -> std::unique_ptr<CompiledSceneProgram> {
@@ -143,13 +149,7 @@ OwnedFB PrecompNode::execute(
         session->program_store().set_on_evict(instance_key(ctx), m_on_evict);
     }
 
-    // WP 5.2 — `lease.program` is `std::shared_ptr<CompiledSceneProgram>`
-    // (in-flight lifetime independent of the store's LRU).  `auto*`
-    // deduction can't resolve a smart pointer, so bind the raw pointer
-    // through `.get()`.  The lease's shared_ptr keeps `*program` alive
-    // for the duration of this function regardless of any concurrent
-    // `store.clear()`.
-    auto* program = lease.program.get();
+    auto* program = lease.program.get();   // WP 5.2 — ProgramLease::program is std::shared_ptr<CompiledSceneProgram>; keep the raw-pointer idiom via shared_ptr::get()
     if (!program || program->empty()) {
         return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
     }
@@ -165,14 +165,14 @@ OwnedFB PrecompNode::execute(
     // PR-5 — GraphExecutor is stateless; the topology plan lives on
     // `program->frame_graph.levels` (no legacy RenderGraph& overloads).
     // WP-0 PR 0.1 — PrecompNode MUST NOT construct a local GraphExecutor
-    // inline; borrow `session->services().executor` from the parent
+    // inline; borrow `session->services.executor` from the parent
     // SessionServices table.  This eliminates a per-frame
     // GraphExecutor ctor + dtor pair on every nested precomp execution
     // and centralises scheduler binding on the runtime-owned executor.
     // Regression guard: `tools/check_architecture_boundaries.sh` check
     // [9/12] blocks reintroduction of `GraphExecutor <name>;`
     // declarations in this TU.
-    const auto* inner_executor = session->services().executor;
+    const auto* inner_executor = session->services.executor;
     if (!inner_executor) {
         return ctx.acquire_owned_fb(
             ctx.frame_input.width, ctx.frame_input.height);
