@@ -258,12 +258,16 @@ LayerBuilder& TextRunBuilder::commit() {
 
 namespace text_run_materialize_detail {
 
-/// Resolve the engine to use (caller-supplied preferred, falling back
-/// to the process-wide shared FontEngine).  Returns nullptr if no
-/// engine is available.
+/// WP-8 PR 8.0 — resolver is now REQUIRED at the per-spec override
+/// (`PendingTextRun.font_engine`) or per-layer default
+/// (`LayerBuilder.m_font_engine`).  Returns `preferred` if non-null and
+/// nullptr otherwise; the legacy `&shared_font_engine()` fallback has
+/// been REMOVED in PR 8.0 — production code paths must supply a
+/// `FontEngine*` bound to an explicit `AssetResolver&` either at the
+/// per-spec override (PendingTextRun.font_engine) or at the per-layer
+/// default (LayerBuilder::m_font_engine).
 [[nodiscard]] FontEngine* resolve_engine(FontEngine* preferred) {
-    if (preferred) return preferred;
-    return &shared_font_engine();
+    return preferred;
 }
 
 } // namespace text_run_materialize_detail
@@ -291,7 +295,10 @@ std::shared_ptr<TextRunShape> materialize_text_run_shape(
     if (!use_engine) {
         spdlog::error(
             "materialize_text_run_shape: no FontEngine available — "
-            "text_run '{}' will render blank.",
+            "text_run '{}' (no resolver bound) will render blank.  "
+            "WP-8 PR 8.0: caller must supply a FontEngine* bound to an "
+            "explicit AssetResolver via PendingTextRun.font_engine or "
+            "LayerBuilder.m_font_engine.",
             text
         );
         return nullptr;

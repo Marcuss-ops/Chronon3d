@@ -207,7 +207,12 @@ TextAuditFrameResult audit_single_text(
     }
 
     // ── Layout computation ────────────────────────────────────────────
-    FontEngine engine;
+    // WP-8 PR 8.0 — textual CLI tools source the resolver from
+    // `runtime::typed_resolver_for_deep_code` (the PR 8.0 transition
+    // bridge; deleted in PR 8.1).  Production paths plumb an explicit
+    // `sw_renderer->runtime().resolver()` — the CLI dev-command
+    // surface has no runtime in scope today, so it's on the bridge.
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     FontSpec font_spec;
     font_spec.font_path = text.style.font_path;
     font_spec.font_family = text.style.font_family;

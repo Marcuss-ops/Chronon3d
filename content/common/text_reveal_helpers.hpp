@@ -79,9 +79,20 @@ inline void apply_cinematic_glow(LayerBuilder& l, const CinematicGlowPreset& opt
 //
 
 // ── Shared font engine accessor ─────────────────────────────────────────
-inline FontEngine& shared_glyph_engine() {
-    static FontEngine engine;
-    return engine;
+// WP-8 PR 8.0 — takes the AssetResolver explicitly; caller-supplied.
+// Process-global fallbacks REMOVED in PR 8.0.  Function-local static
+// re-creates the engine when the resolver pointer changes; safe because
+// AssetResolver is engine-local so the pointer identity is stable for
+// the runtime lifetime.
+inline FontEngine& shared_glyph_engine(
+    const chronon3d::assets::AssetResolver& resolver) {
+    static const chronon3d::assets::AssetResolver* s_resolver{nullptr};
+    static std::unique_ptr<FontEngine>           s_engine;
+    if (s_resolver != &resolver) {
+        s_engine = std::make_unique<FontEngine>(resolver);
+        s_resolver = &resolver;
+    }
+    return *s_engine;
 }
 
 // ── Per-glyph position result ───────────────────────────────────────────
@@ -93,9 +104,14 @@ struct GlyphPos {
 
 // ── measure_text_width ──────────────────────────────────────────────────
 // Returns total advance width INCLUDING tracking, matching layout_glyphs output.
+// WP-8 PR 8.0 — caller-supplied resolver (default = the PR 8.0
+// bridge for content-layer call sites lacking a runtime reference;
+// deleted in PR 8.1).
 inline f32 measure_text_width(const std::string& text, f32 font_size,
-                               const FontSpec& spec, f32 tracking) {
-    FontEngine& eng = shared_glyph_engine();
+                               const FontSpec& spec, f32 tracking,
+                               const chronon3d::assets::AssetResolver& resolver =
+                                   chronon3d::runtime::typed_resolver_for_deep_code()) {
+    FontEngine& eng = shared_glyph_engine(resolver);
     auto run = eng.shape_text(text, spec, font_size);
     if (!run) return 0.0f;
     const size_t n = run->glyphs.size();
@@ -107,10 +123,14 @@ inline f32 measure_text_width(const std::string& text, f32 font_size,
 // ref_offset_x: shared starting X (e.g. -max_width/2 to center-align).
 // Returns glyph positions at their FINAL locations — only opacity/position
 // animate per frame so the text block stays perfectly stable.
-inline std::vector<GlyphPos> layout_glyphs(const std::string& text, f32 font_size,
-                                            const FontSpec& spec, f32 tracking,
-                                            f32 ref_offset_x) {
-    FontEngine& eng = shared_glyph_engine();
+// WP-8 PR 8.0 — resolver parameter, see rationale on measure_text_width above.
+inline std::vector<GlyphPos> layout_glyphs(
+    const std::string& text, f32 font_size,
+    const FontSpec& spec, f32 tracking,
+    f32 ref_offset_x,
+    const chronon3d::assets::AssetResolver& resolver =
+        chronon3d::runtime::typed_resolver_for_deep_code()) {
+    FontEngine& eng = shared_glyph_engine(resolver);
     auto run = eng.shape_text(text, spec, font_size);
     if (!run || run->glyphs.empty()) return {};
 
