@@ -159,6 +159,7 @@ target_link_libraries(chronon3d_graph_preflight PUBLIC
 # ── Cache: scene program cache + compiled graph cache ───────────────────────
 add_library(chronon3d_graph_cache OBJECT
     cache/scene_program_cache.cpp
+    cache/scene_program_store.cpp
     cache/compiled_graph_cache.cpp
     cache/precomp_node_execute.cpp
 )

@@ -76,11 +76,7 @@ void register_pipeline_graph_nodes(GraphNodeCatalog& node_catalog) {
                 spec->start_frame,
                 spec->duration,
                 spec->cache_frame,
-                spec->cache_capacity,
-                spec->tune_mode,
-                spec->tune_interval,
-                spec->tune_min_capacity,
-                spec->tune_max_capacity
+                spec->cache_policy
             );
         }
     });
