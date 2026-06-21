@@ -52,9 +52,15 @@
 //
 // ── C++20 ref-qualifier note ────────────────────────────────────────────
 //
-// Single `&` ref-qualifier per setter, identical user-facing syntax to
-// `Animator` / `Material` / `Selector`.  See `selector.hpp` for the
-// rationale on not duplicating `&`/`&&` pairs.
+// NO ref-qualifier on Text setters. `&` (lvalue-only) would force
+// callers to bind the temporary returned by `Layer::text(content)` to a
+// named lvalue before chaining; `&&` (rvalue-only) would block legitimate
+// long-lived Text handles.  Dropping the qualifier means a single
+// implementation serves BOTH `l.text("Ae").id(...).font(...)` (where
+// `.text()` returns a temporary Text) and `auto t = l.text("Ae"); t.id(...);`
+// (where `t` is a stable lvalue) — no `&`/`&&` pair duplication, matching
+// the rationale documented in `selector.hpp` ("we do NOT duplicate
+// `&`/`&&` overload pairs because they always do the same thing").
 //
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -121,57 +127,57 @@ public:
     Text& operator=(Text&&)      = default;
 
     // ── Identity ────────────────────────────────────────────────────────
-    Text& id(std::string value) & {
+    Text& id(std::string value) {
         pending_->name = std::move(value);
         return *this;
     }
 
     /// Replace the text *literal*.  Does NOT change `pending_->params.text.content.pre_shaped`;
     /// pair with `pre_shaped(...)` if you need pre-shaped glyphs.
-    Text& content(std::string value) & {
+    Text& content(std::string value) {
         pending_->params.text.content.value = std::move(value);
         return *this;
     }
-    Text& pre_shaped(std::shared_ptr<PlacedGlyphRun> shaped) & {
+    Text& pre_shaped(std::shared_ptr<PlacedGlyphRun> shaped) {
         pending_->params.text.content.pre_shaped = std::move(shaped);
         return *this;
     }
 
     // ── Font (mutate spec.text.font directly) ────────────────────────────
-    Text& font(std::string font_path, f32 size) & {
+    Text& font(std::string font_path, f32 size) {
         pending_->params.text.font.font_path = std::move(font_path);
         pending_->params.text.font.font_size = size;
         return *this;
     }
-    Text& font_family(std::string family) & {
+    Text& font_family(std::string family) {
         pending_->params.text.font.font_family = std::move(family);
         return *this;
     }
-    Text& weight(int weight) & {
+    Text& weight(int weight) {
         pending_->params.text.font.font_weight = weight;
         return *this;
     }
     /// `true` → font_style = "italic"; `false` → "normal".
-    Text& italic(bool value = true) & {
+    Text& italic(bool value = true) {
         pending_->params.text.font.font_style = value ? "italic" : "normal";
         return *this;
     }
-    Text& font_size(f32 size) & {
+    Text& font_size(f32 size) {
         pending_->params.text.font.font_size = size;
         return *this;
     }
 
     // ── Position (mutate spec.text.position directly; NOT per-glyph) ─────
-    Text& at(Vec3 pos) & {
+    Text& at(Vec3 pos) {
         pending_->params.text.position = pos;
         return *this;
     }
-    Text& at(Vec2 pos) & {
+    Text& at(Vec2 pos) {
         pending_->params.text.position = {pos.x, pos.y, 0.0f};
         return *this;
     }
     /// f32 x, f32 y convenience — lifts to Vec3{ x, y, 0 }.
-    Text& at(f32 x, f32 y) & {
+    Text& at(f32 x, f32 y) {
         pending_->params.text.position = {x, y, 0.0f};
         return *this;
     }
@@ -179,7 +185,7 @@ public:
     /// Place at the viewport center. Implicitly sets the layout's anchor +
     /// alignment + vertical-alignment so the visible glyphs are centred
     /// even when the box is wider than the ink.
-    Text& center() & {
+    Text& center() {
         const f32 w = context_ ? context_->width  : 1920.0f;
         const f32 h = context_ ? context_->height : 1080.0f;
         pending_->params.text.position = {w * 0.5f, h * 0.5f, 0.0f};
@@ -191,92 +197,92 @@ public:
     }
 
     // ── Layout (mutate spec.text.layout directly) ───────────────────────
-    Text& box(Vec2 size) & {
+    Text& box(Vec2 size) {
         pending_->params.text.layout.box = size;
         return *this;
     }
-    Text& anchor_point(TextAnchor value) & {
+    Text& anchor_point(TextAnchor value) {
         pending_->params.text.layout.anchor = value;
         return *this;
     }
-    Text& align(TextAlign value) & {
+    Text& align(TextAlign value) {
         pending_->params.text.layout.align = value;
         return *this;
     }
-    Text& vertical_align(VerticalAlign value) & {
+    Text& vertical_align(VerticalAlign value) {
         pending_->params.text.layout.vertical_align = value;
         return *this;
     }
-    Text& pixel_ink_centering() & {
+    Text& pixel_ink_centering() {
         pending_->params.text.layout.centering_mode = TextCenteringMode::PixelInk;
         return *this;
     }
-    Text& layout_box_centering() & {
+    Text& layout_box_centering() {
         pending_->params.text.layout.centering_mode = TextCenteringMode::LayoutBox;
         return *this;
     }
-    Text& line_height(f32 value) & {
+    Text& line_height(f32 value) {
         pending_->params.text.layout.line_height = value;
         return *this;
     }
-    Text& tracking(f32 pixels) & {
+    Text& tracking(f32 pixels) {
         pending_->params.text.layout.tracking = pixels;
         return *this;
     }
-    Text& wrap(TextWrap value) & {
+    Text& wrap(TextWrap value) {
         pending_->params.text.layout.wrap = value;
         return *this;
     }
-    Text& overflow(TextOverflow value) & {
+    Text& overflow(TextOverflow value) {
         pending_->params.text.layout.overflow = value;
         return *this;
     }
-    Text& ellipsis(bool value = true) & {
+    Text& ellipsis(bool value = true) {
         pending_->params.text.layout.ellipsis = value;
         return *this;
     }
-    Text& max_lines(int n) & {
+    Text& max_lines(int n) {
         pending_->params.text.layout.max_lines = n;
         return *this;
     }
     /// Shrink-to-fit.  Both arguments required so callers cannot confuse
     /// it with `.max_font_size(...)`.
-    Text& auto_fit(f32 minimum_size, int maximum_lines) & {
+    Text& auto_fit(f32 minimum_size, int maximum_lines) {
         auto& layout = pending_->params.text.layout;
         layout.auto_fit       = true;
         layout.min_font_size  = minimum_size;
         layout.max_lines      = maximum_lines;
         return *this;
     }
-    Text& max_font_size(f32 v) & {
+    Text& max_font_size(f32 v) {
         pending_->params.text.layout.max_font_size = v;
         return *this;
     }
 
     // ── Appearance (mutate spec.text.appearance directly) ────────────────
-    Text& color(Color c) & {
+    Text& color(Color c) {
         pending_->params.text.appearance.color = c;
         return *this;
     }
-    Text& paint(TextPaint value) & {
+    Text& paint(TextPaint value) {
         pending_->params.text.appearance.paint = std::move(value);
         return *this;
     }
-    Text& shadows(std::vector<TextShadow> values) & {
+    Text& shadows(std::vector<TextShadow> values) {
         pending_->params.text.appearance.shadows = std::move(values);
         return *this;
     }
-    Text& box_style(TextBoxStyle value) & {
+    Text& box_style(TextBoxStyle value) {
         pending_->params.text.appearance.box_style = std::move(value);
         return *this;
     }
 
     // ── Script / language / direction (mutate top-level TextRunSpec) ─────
-    Text& direction(TextDirection d) & {
+    Text& direction(TextDirection d) {
         pending_->params.direction = d;
         return *this;
     }
-    Text& language(std::string bcp47) & {
+    Text& language(std::string bcp47) {
         pending_->params.language = std::move(bcp47);
         return *this;
     }
@@ -300,13 +306,13 @@ public:
     }
 
     // ── Material (PR 2 hookup): consumes Material::release() ─────────────
-    Text& material(Material material_in) & {
+    Text& material(Material material_in) {
         pending_->params.text.appearance.material = std::move(material_in).release();
         return *this;
     }
 
     // ── Animator (PR 1 hookup): consumes Animator::release() ─────────────
-    Text& animate(Animator animator_in) & {
+    Text& animate(Animator animator_in) {
         pending_->params.animators.emplace_back(std::move(animator_in).release());
         return *this;
     }
@@ -333,7 +339,7 @@ public:
     // resolve return without mutating the spec.
 
     // Explicit-path (PR 3 surface): caller supplies the registry.
-    Text& style(std::string_view id, const StyleRegistry& registry) & {
+    Text& style(std::string_view id, const StyleRegistry& registry) {
         const auto resolved = registry.resolve(id);
         if (!resolved.has_value()) return *this;
         apply_text_style(*resolved);
@@ -344,7 +350,7 @@ public:
     // construction (LayerBuilder → ExtensionContext → StyleRegistry*).
     // When no ambient registry is attached, no-ops gracefully — no warning
     // log because the chain is a valid authoring choice (use explicit variant).
-    Text& style(std::string_view id) & {
+    Text& style(std::string_view id) {
         if (style_registry_ == nullptr) return *this;
         const auto resolved = style_registry_->resolve(id);
         if (!resolved.has_value()) return *this;
@@ -355,7 +361,7 @@ public:
     // ── Motion registry (PR 5 + PR 3.5) ────────────────────────────────
 
     // Explicit-path.
-    Text& motion(std::string_view id, const MotionRegistry& registry) & {
+    Text& motion(std::string_view id, const MotionRegistry& registry) {
         const auto resolved = registry.resolve(id);
         if (!resolved.has_value()) return *this;
         pending_->params.animators.push_back(*resolved);
@@ -363,7 +369,7 @@ public:
     }
 
     // Ambient-path.
-    Text& motion(std::string_view id) & {
+    Text& motion(std::string_view id) {
         if (motion_registry_ == nullptr) return *this;
         const auto resolved = motion_registry_->resolve(id);
         if (!resolved.has_value()) return *this;
@@ -377,9 +383,10 @@ public:
     /// above is intentionally comprehensive).  Inlined by the compiler,
     /// no `std::function` overhead.
     ///
-    /// Single `&` ref-qualifier matches the convention used by Animator /
-    /// Material / Layer in PR 1+2+3 — the codebase deliberately does NOT
-    /// duplicate `&` / `&&` overload pairs.
+    /// NO ref-qualifier — matches the rationale documented at the top of
+    /// this file (single implementation serves both rvalue chain-temporary
+    /// and lvalue named-handle call patterns; we deliberately do NOT
+    /// duplicate `&` / `&&` overload pairs).
     ///
     /// Example:
     /// ```cpp
@@ -388,7 +395,7 @@ public:
     /// });
     /// ```
     template <class Fn>
-    Text& configure_core(Fn&& mutator) & {
+    Text& configure_core(Fn&& mutator) {
         mutator(pending_->params);
         return *this;
     }

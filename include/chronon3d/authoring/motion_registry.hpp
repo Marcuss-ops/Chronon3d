@@ -41,9 +41,16 @@ public:
     using detail::BasicRegistry<chronon3d::TextAnimatorSpec>::BasicRegistry;
 
     // Domain-specific alias: register_motion(id, value).
-    // Forwards to the generic `register_value` of BasicRegistry.
+    // Forwards to the generic `register_value` of BasicRegistry and
+    // returns *this so chaining returns the derived ref. We can't
+    // `return register_value(...)` directly: BasicRegistry::register_value
+    // returns a base ref (BasicRegistry<TextAnimatorSpec>&) and
+    // `register_value` is NOT virtual, so covariant downcast from
+    // base&→derived& is not allowed. Forwarding via side-effect +
+    // `return *this` is the canonical workaround.
     MotionRegistry& register_motion(std::string id, chronon3d::TextAnimatorSpec value) & {
-        return register_value(std::move(id), std::move(value));
+        this->register_value(std::move(id), std::move(value));
+        return *this;
     }
 
     // `register_factory`, `resolve`, `has`, `unregister`, `clear`,
