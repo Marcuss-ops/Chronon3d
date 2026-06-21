@@ -59,12 +59,19 @@ Composition make_inner_comp(const char* name, int w, int h, Color color) {
 // ── Helper: minimal RenderGraphContext + RenderSession for PrecompNode tests ──
 // PR-5 — the TestContext now owns a RenderSession with a SceneProgramStore,
 // and wires session + scheduler into ctx.services.
+// WP-0 PR 0.1 — the TestContext now ALSO wires `session.services.executor`
+// to a local GraphExecutor instance, matching the new PrecompNode contract
+// (`session->services().executor` is borrowed for inner execution).  The
+// default-constructed session has `services.executor = nullptr`; without
+// this wiring, the PrecompNode::execute() fallback path would return an
+// empty framebuffer instead of the cached one the test expects.
 struct TestContext {
     Config                      renderer_cfg;
     SoftwareRenderer            backend;
     std::shared_ptr<FramebufferPool> pool;
     NodeCache                   node_cache;
     CompositionRegistry         registry;
+    GraphExecutor               local_executor;
     RenderSession               session;
     ExecutionScheduler          scheduler;
     RenderGraphContext          ctx;
@@ -74,6 +81,11 @@ struct TestContext {
         , pool(std::make_shared<FramebufferPool>(128))
         , scheduler(SchedulerMode::Sequential, 1, false)
     {
+        // WP-0 PR 0.1 — wire the local GraphExecutor into the session
+        // service bundle so the new PrecompNode::execute() borrow path
+        // reaches a real executor instead of nullptr.
+        session.services.executor   = &local_executor;
+
         ctx.services.backend         = &backend;
         ctx.services.node_cache      = &node_cache;
         ctx.services.framebuffer_pool = pool;
