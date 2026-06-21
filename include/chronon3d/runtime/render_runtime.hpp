@@ -75,6 +75,8 @@
 // at that point.
 #include <chronon3d/backends/software/software_render_session.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
+// WP-3 PR 3.4 — canonical location for the renamed SoftwareRenderSession.
+#include <chronon3d/backends/software/software_render_session.hpp>
 
 #include <filesystem>
 #include <memory>
