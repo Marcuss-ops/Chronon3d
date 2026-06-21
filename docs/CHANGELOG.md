@@ -164,6 +164,34 @@ Unificato con S5.
 - `src/c_api/c_api_internal.hpp` — nuovo header interno condiviso (`chronon_context` struct + dichiarazioni helper)
 - `CMakeLists.txt` aggiornato con i 4 file sorgente
 
+### R4 — WP-3 PR 3.4 close-out: legacy full-reset shim RETIRED + legacy `SoftwareRenderSession` removed
+
+2026-06-21 — The WP-3 PR 3.4 close-out completed the reset-semantics
+consolidation that PR 3.4 introduced.  Three changes landed across
+two commits (dc9f1cfa + the follow-up ODR consolidation):
+
+**Reset-API retirement** — The legacy full-reset shim on
+`RenderSession` (and the corresponding wrapper on the historical
+duplicate `SoftwareRenderSession`) was removed entirely.  Callers
+migrated to the explicit reset APIs: `reset_frame_temporaries()`
+(frame-scoped telemetry reset) or `reset_job()` (full session reset).
+The only live caller, `SoftwareRenderer::clear_caches()`, was
+migrated in the same delivery.
+
+**Struct ODR consolidation** — `SoftwareRenderSession` was hoisted
+out of the legacy duplicate location at
+`<chronon3d/runtime/render_session.hpp>` and now lives exclusively at
+its canonical location
+`<chronon3d/backends/software/software_render_session.hpp>`.  This
+eliminates an ODR risk (two struct definitions with identical members
+across two headers).  `software_renderer.hpp` was updated to include
+the canonical header directly.
+
+**New CI enforcement** — `tools/check_architecture_boundaries.sh`
+now has a 4th grep check (the renumbering was `[N/3]`→`[N/4]`) that
+flags any reintroduction of the retired reset shim across
+`include/`, `src/`, `tests/`, and `apps/`.
+
 ### R3 — Renderer State Refactoring
 
 2026-06-13 — `SoftwareRenderer` state decomposed into dedicated aggregates:

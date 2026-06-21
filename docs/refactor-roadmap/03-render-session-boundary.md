@@ -30,16 +30,20 @@ Make `runtime/render_session.hpp` backend-agnostic and free from render-graph im
 - [x] Move `SoftwareRenderSession` to `backends/software/software_render_session.hpp`.
 - [x] Keep `SoftwareSessionResources` under the software backend.
 - [x] Update includes and call sites.
+- [x] Remove legacy `SoftwareRenderSession` duplicate from `render_session.hpp` (WP-3 PR 3.4 close-out — eliminates ODR).
 
-> Both `SoftwareRenderSession` and `SoftwareSessionResources` already live
-> under `backends/software/`; the canonical headers are
-> `<chronon3d/backends/software/software_render_session.hpp>` and
-> `<chronon3d/backends/software/software_session_resources.hpp>`.  The
-> legacy inline duplicate definitions in
-> `<chronon3d/runtime/render_session.hpp>` are kept for backward
-> compatibility but `SoftwareRenderer::m_session` already lives on
-> `SoftwareRenderSession`.  Migration is complete for production callers
-> (see Sentinel-003 in `docs/migrations/2026-06-renderer-state.md`).
+> `SoftwareRenderSession` lives EXCLUSIVELY at
+> `<chronon3d/backends/software/software_render_session.hpp>`; the
+> legacy inline duplicate that used to live in
+> `<chronon3d/runtime/render_session.hpp>` has been REMOVED in the
+> WP-3 PR 3.4 close-out.  `SoftwareSessionResources` likewise lives
+> canonically at `<chronon3d/backends/software/software_session_resources.hpp>`.
+> The legacy duplicate contained a stale 2-field struct that caused
+> a C++-level redefinition error before TICKET-011-final consolidation;
+> the canonical 3-field struct is now the single source of truth.
+> `SoftwareRenderer::m_session` already stores `SoftwareRenderSession`
+> (acceptance criterion for PR 3.1).  Migration is complete for
+> production callers (see Sentinel-003 in `docs/migrations/2026-06-renderer-state.md`).
 
 ### PR 3.2 — Move graph-pipeline state
 - [~] Move `SceneHasher` out of `RenderSession`.
@@ -102,13 +106,15 @@ Make `runtime/render_session.hpp` backend-agnostic and free from render-graph im
 > and `reset_job()` (also drops buffer_ring) — kept as-is.
 >
 > **SoftwareRenderSession** now exposes both reset methods
-> (`reset_frame_temporaries()` and `reset_job()`) on BOTH the legacy
-> duplicate at `<chronon3d/runtime/render_session.hpp>` AND the
-> canonical wrapper at
-> `<chronon3d/backends/software/software_render_session.hpp>`.  The
-> `clear_per_frame()` method (which previously forwarded to
+> (`reset_frame_temporaries()` and `reset_job()`) at its canonical
+> location `<chronon3d/backends/software/software_render_session.hpp>`
+> (the legacy duplicate that previously lived in
+> `<chronon3d/runtime/render_session.hpp>` has been eliminated in
+> the WP-3 close-out — see PR 3.1 above).  The `clear_per_frame()`
+> method (which previously forwarded to
 > `common.clear_per_frame() + software.reset_job()`) has been
-> **REMOVED** from both locations.
+> **REMOVED** from the canonical struct and never existed on the
+> legacy duplicate after removal.
 >
 > **Caller migration:** the only caller in production code,
 > `SoftwareRenderer::clear_caches()` in
@@ -213,18 +219,28 @@ PipelineSessionState
 - Added `RenderSession::reset_frame_temporaries()` and
   `RenderSession::reset_job()` to
   `<chronon3d/runtime/render_session.hpp>`.  Both are now the only
-  reset APIs; `clear_per_frame()` has been **RETIRED** in the WP-3
-  close-out delivery — the method body and `@deprecated` doxygen
-  annotation were removed from `RenderSession` and from both
-  `SoftwareRenderSession` definitions.
+  reset APIs available on `RenderSession`; `clear_per_frame()` has
+  been **RETIRED** in the WP-3 close-out delivery — the method body
+  and `@deprecated` doxygen annotation were removed from
+  `RenderSession`.
+- The legacy `SoftwareRenderSession` struct that previously lived in
+  `<chronon3d/runtime/render_session.hpp>` has been **eliminated**
+  in the same delivery.  The canonical struct at
+  `<chronon3d/backends/software/software_render_session.hpp>` is now
+  the single source of truth (no ODR risk from re-inclusion).
 - The single live caller, `SoftwareRenderer::clear_caches()` in
   `include/chronon3d/backends/software/software_renderer.hpp`, was
   migrated from `m_session.clear_per_frame()` to
   `m_session.reset_job()`.  The redundant manual
   `prev_graph_structure_fingerprint = 0` line immediately above
   was dropped because `reset_job()` zeroes `frame_history`.
+- `software_renderer.hpp` now includes the canonical
+  `software_render_session.hpp` directly (the include is what makes
+  `m_session`'s type visible after the legacy struct removal).
 - Field ownership is documented in the PR 3.0 box above.
-- Boundary scripts already enforce PR 3.7 (CI grep +
+- Boundary scripts enforce PR 3.7 (CI grep +
+  `tools/check_architecture_boundaries.sh` augmented with a
+  `clear_per_frame` substring guard +
   `tests/architecture/test_render_session_includes_boundary.py`).
 - Tests for `reset_*` semantics are the next concrete deliverable —
   see `docs/FOLLOWUP_TICKETS.md` (planned).
