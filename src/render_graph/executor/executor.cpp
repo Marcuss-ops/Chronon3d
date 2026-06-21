@@ -38,9 +38,10 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
     GraphNodeId output,
     RenderGraphContext& ctx,
     RenderSession& session,
+    ExecutionScheduler& scheduler,
     runtime::ExecutionPlanCache* plan_cache,
     FrameArena* arena_override
-) {
+) const {
     // ── Cached execution plan ───────────────────────────────────────
     // TICKET-009 — the executor is stateless; the cache is supplied via
     // the `plan_cache` parameter.  Three-step lookup:
@@ -128,7 +129,6 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
     auto* parent_counters = ctx.node_exec.counters;
     auto* parent_pool = ctx.services.framebuffer_pool.get();
 
-    auto scheduler = make_execution_scheduler(ExecutionSchedulerConfig{});
     execute_levels(graph, ctx, state, scheduler, plan->levels, consumer_remaining, parent_counters, parent_pool, res);
 
     return state.temp[output];
@@ -138,9 +138,10 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
     CompiledFrameGraph& compiled,
     RenderGraphContext& ctx,
     RenderSession& session,
+    ExecutionScheduler& scheduler,
     runtime::ExecutionPlanCache* plan_cache,
     FrameArena* arena_override
-) {
+) const {
     auto& graph = compiled.graph;
     const auto& levels = compiled.levels;
     const auto& consumer_counts = compiled.consumer_counts;
@@ -187,7 +188,6 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
     auto* parent_counters = ctx.node_exec.counters;
     auto* parent_pool = ctx.services.framebuffer_pool.get();
 
-    auto scheduler = make_execution_scheduler(ExecutionSchedulerConfig{});
     execute_levels(graph, ctx, state, scheduler, levels, consumer_remaining, parent_counters, parent_pool, res);
 
     return state.temp[output];

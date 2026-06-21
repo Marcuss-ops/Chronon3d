@@ -42,6 +42,7 @@
 #include "frame_timing_recorder.hpp"
 
 #include <spdlog/spdlog.h>
+#include <cassert>
 
 namespace chronon3d::graph {
 
@@ -129,6 +130,10 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         // PrecompNode dereferences `*ctx.services.scheduler` to route its
         // inner execute() through the same arena as the parent graph.
         ctx.services.scheduler = &sw_renderer->scheduler();
+        // PR-1 — production paths must have a wired scheduler after
+        // pipeline wiring.  Test paths (no SoftwareRenderer) create
+        // a local Sequential(1) scheduler.
+        assert(ctx.services.scheduler != nullptr);
     }
 
     // ── 1. Fast-path: Resolved-scene reuse (consecutive / same frame) ───

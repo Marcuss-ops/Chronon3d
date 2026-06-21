@@ -62,10 +62,11 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
     // Execute the graph for just the selected layer
     graph::GraphExecutor executor;
     RenderSession session;
+    ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
     // TICKET-009 — local plan cache for the one-shot bake path.
     chronon3d::runtime::ExecutionPlanCache plan_cache;
     auto fb = executor.execute(
-        graph, selection.selected_output, graph_ctx, session, &plan_cache);
+        graph, selection.selected_output, graph_ctx, session, scheduler, &plan_cache);
 
     if (!fb) {
         spdlog::error("[bake-layer] Bake failed: layer '{}' produced no framebuffer",
