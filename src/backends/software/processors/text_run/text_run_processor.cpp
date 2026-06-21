@@ -3,6 +3,7 @@
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>  // apply_text_material
 #include <chronon3d/assets/asset_registry.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>  // WP-8 PR 8.0 — explicit-resolver plumbing
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -55,13 +56,13 @@ struct TextRunBlResources {
     std::unordered_map<std::string, BLFontFace> faces;
     std::mutex mutex;
 
-    BLFontFace get_face(const std::string& path) {
+    // WP-8 PR 8.0 — `resolver` is sourced by the caller (`draw_text_run`)
+    // per the PR 8.0 contract.  Reads of `typed_resolver_for_deep_code()`
+    // are no longer permitted in this deep cache.
+    BLFontFace get_face(const std::string& path,
+                        const chronon3d::assets::AssetResolver& resolver) {
         std::lock_guard<std::mutex> lock(mutex);
-        // WP-8 PR 8.1 — typed engine-local resolution via the
-        // service-locator helper.  Same 2-branch fallback as the
-        // sibling caches in text_rasterizer_render.cpp.
         std::string resolved;
-        const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
         if (auto opt = resolver.resolve_lexical(path)) {
             resolved = opt->string();
         } else {
@@ -128,12 +129,14 @@ struct TextRunPathBuilder {
         return lib;
     }
 
-    bool load(const std::string& font_path, float font_size) {
+    // WP-8 PR 8.0 — `resolver` is sourced by the caller (`draw_text_run`)
+    // per the PR 8.0 contract.  Reads of `typed_resolver_for_deep_code()`
+    // are no longer permitted in this deep FreeType path-builder cache.
+    bool load(const std::string& font_path,
+              float font_size,
+              const chronon3d::assets::AssetResolver& resolver) {
         std::lock_guard<std::mutex> lock(mutex);
-        // WP-8 PR 8.1 — typed engine-local resolution via the
-        // service-locator helper, matching get_face() above.
         std::string resolved;
-        const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
         if (auto opt = resolver.resolve_lexical(font_path)) {
             resolved = opt->string();
         } else {
@@ -240,6 +243,15 @@ graph::RenderOpResult draw_text_run(
     SoftwareRenderer& renderer,
     TextRunDrawParams& params
 ) {
+    // WP-8 PR 8.0 — function-scope resolver sourced from the renderer’s
+    // own runtime, threaded into both caches used below (`get_face` for
+    // the BLFontFace lookup and `TextRunPathBuilder::load` for the
+    // FreeType stroke-path loading).  Replaces deep reads of
+    // `runtime::typed_resolver_for_deep_code()` inside both caches.
+    // `AssetResolver` is a value-member of `RenderRuntime`, so this
+    // reference is stable for the renderer’s lifetime.
+    const auto& resolver = renderer.runtime().resolver();
+
     const auto& shape = params.shape;
     if (!shape.layout || shape.glyphs.empty()) {
         return graph::RenderOpResult(graph::RenderBackendError{
@@ -297,7 +309,7 @@ graph::RenderOpResult draw_text_run(
     }
 
     // Load font face
-    BLFontFace face = text_run_bl_resources().get_face(font_path);
+    BLFontFace face = text_run_bl_resources().get_face(font_path, resolver);
     if (face.empty()) {
         return graph::RenderOpResult(graph::RenderBackendError{
             graph::RenderBackendErrorCode::ExecutionFailure,
@@ -507,9 +519,10 @@ graph::RenderOpResult draw_text_run(
 
 #ifdef CHRONON3D_ENABLE_TEXT
     // Hoist the FreeType path builder so the font face is loaded once
-    // for the entire batch, not per glyph.
+    // for the entire batch, not per glyph.  Resolver threaded in
+    // explicitly (WP-8 PR 8.0).
     TextRunPathBuilder ft_builder;
-    bool ft_loaded = ft_builder.load(font_path, layout.font_size);
+    bool ft_loaded = ft_builder.load(font_path, layout.font_size, resolver);
 #else
     bool ft_loaded = false;
 #endif
