@@ -218,6 +218,9 @@ jobs:
       - name: Run tools/check_architecture_boundaries.sh
         run: bash tools/check_architecture_boundaries.sh
 
+      - name: Run tools/check_software_renderer_boundary.sh (06 R5)
+        run: bash tools/check_software_renderer_boundary.sh
+
       - name: Run tools/check_gitignored_dirs.sh
         run: bash tools/check_gitignored_dirs.sh
 

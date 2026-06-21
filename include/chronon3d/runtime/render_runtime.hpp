@@ -96,6 +96,11 @@ namespace chronon3d {
     struct RenderSettings;
     class DebugConfig;
     class RenderBackend;
+    // R3 forward decl — typed accessor to the software backend.
+    // Avoid pulling software_backend.hpp (heavy) in this header. The
+    // full definition is required only in render_runtime.cpp where
+    // `software_backend()` is defined.
+    class SoftwareBackend;
 }
 
 namespace chronon3d::cache {
@@ -175,6 +180,15 @@ public:
     // check [11/12] for the regression guard.
     [[nodiscard]] chronon3d::graph::RenderBackend& backend();
     [[nodiscard]] const chronon3d::graph::RenderBackend& backend() const;
+
+    // ── Software-backend typed access (R3, replaces dynamic_cast) ──
+    // Returns the attached SoftwareBackend if the engine is on the
+    // software backend; returns nullptr if the backend is a non-software
+    // rendering backend (the boundary-gate forbids `dynamic_cast<SoftwareRenderer*>`,
+    // so this slot is the typed accessor for code that needs software-only
+    // services). Throws via `backend()` if no backend is attached.
+    [[nodiscard]] chronon3d::SoftwareBackend* software_backend();
+    [[nodiscard]] const chronon3d::SoftwareBackend* software_backend() const;
 
     // ── Backend slot predicates ──────────────────────────────────────
     [[nodiscard]] bool backend_attached() const noexcept { return static_cast<bool>(m_backend); }

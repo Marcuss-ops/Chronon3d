@@ -211,6 +211,25 @@ if [ -n "$hits" ]; then
     echo "FAIL"; echo "$hits" | sed 's/^/    /'; FAILED=1
 else echo "PASS"; fi
 
+# ── 10. SoftwareRenderer boundary (06 R5) ─────────────────────────────────────
+# Gate blocks merge until `check_software_renderer_boundary.sh` is also
+# green: 06 R2..R5 invariants on SoftwareRenderer (single-backend identity,
+# header LOC <=200, non-local includes <=6, no `dynamic_cast<SoftwareRenderer*>`,
+# no `SoftwareRenderer&` in processor surfaces).
+echo -n "  [10/10] SoftwareRenderer boundaries  ... "
+if [ -x tools/check_software_renderer_boundary.sh ]; then
+    if bash tools/check_software_renderer_boundary.sh > /dev/null 2>&1; then
+        echo "PASS"
+    else
+        echo "FAIL"
+        echo "  --- check_software_renderer_boundary.sh details ---"
+        bash tools/check_software_renderer_boundary.sh 2>&1 | sed 's/^/    /' | head -40
+        FAILED=1
+    fi
+else
+    echo "SKIP (tools/check_software_renderer_boundary.sh not executable)"
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────
 echo ""
 if [ "$FAILED" -ne 0 ]; then
