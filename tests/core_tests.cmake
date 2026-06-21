@@ -82,6 +82,7 @@ add_executable(chronon3d_core_tests
     render_graph/executor/test_cache_key_contract.cpp
     render_graph/executor/test_framebuffer_lifetime.cpp
     render_graph/builder/test_graph_build_pass_order.cpp
+    runtime/test_render_session_reset_and_isolation.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline doctest::doctest)
 # TICKET-006: CORE_BLEND2D_TESTS exercise symbols that only resolve when
