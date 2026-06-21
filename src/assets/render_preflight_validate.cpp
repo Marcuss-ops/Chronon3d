@@ -1,6 +1,6 @@
 #include <chronon3d/assets/render_preflight.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
-#include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>
 #include "render_preflight_helpers.hpp"
 
 #include <filesystem>
@@ -13,15 +13,15 @@ namespace {
 void validate_file_exists(const PreflightRequirement& req,
                           const std::string& code,
                           PreflightAssetType type,
-                          std::vector<PreflightIssue>& issues) {
+                          std::vector<PreflightIssue>& issues,
+                          const chronon3d::assets::AssetResolver& resolver) {
     namespace fs = std::filesystem;
-    // WP-8 PR 8.1 — use the typed engine-local resolver via the
-    // service-locator helper.  Preserves legacy semantics on the
-    // fallback branch (relative path returned unchanged when no
-    // mount is configured, so the subsequent fs::exists check
-    // surfaces the same `req.path` it did pre-migration).
+    // WP-8 PR 8.0 — resolver passed in explicitly (no service-locator
+    // bridge).  Preserves the legacy semantics on the fallback branch
+    // (relative path returned unchanged when no mount is configured, so
+    // the subsequent fs::exists check surfaces the same `req.path` it
+    // did pre-migration).
     std::string resolved;
-    const auto& resolver = chronon3d::runtime::typed_resolver_for_deep_code();
     if (auto opt = resolver.resolve_lexical(req.path)) {
         resolved = opt->string();
     } else {
@@ -144,22 +144,25 @@ void validate_external_tool(const PreflightRequirement& req,
 
 } // anonymous namespace
 
-std::vector<PreflightIssue> RenderPreflight::validate(const AssetRegistry& registry) const {
+std::vector<PreflightIssue> RenderPreflight::validate(
+    const AssetRegistry& registry,
+    const chronon3d::assets::AssetResolver& resolver
+) const {
     std::vector<PreflightIssue> issues;
 
     for (const auto& req : m_requirements) {
         switch (req.type) {
             case PreflightAssetType::Image:
-                validate_file_exists(req, "MISSING_IMAGE", PreflightAssetType::Image, issues);
+                validate_file_exists(req, "MISSING_IMAGE", PreflightAssetType::Image, issues, resolver);
                 break;
             case PreflightAssetType::Video:
-                validate_file_exists(req, "MISSING_VIDEO", PreflightAssetType::Video, issues);
+                validate_file_exists(req, "MISSING_VIDEO", PreflightAssetType::Video, issues, resolver);
                 break;
             case PreflightAssetType::Font:
-                validate_file_exists(req, "MISSING_FONT", PreflightAssetType::Font, issues);
+                validate_file_exists(req, "MISSING_FONT", PreflightAssetType::Font, issues, resolver);
                 break;
             case PreflightAssetType::Audio:
-                validate_file_exists(req, "MISSING_AUDIO", PreflightAssetType::Audio, issues);
+                validate_file_exists(req, "MISSING_AUDIO", PreflightAssetType::Audio, issues, resolver);
                 break;
             case PreflightAssetType::OutputPath:
                 validate_output_writable(req, issues);
@@ -188,12 +191,18 @@ std::vector<PreflightIssue> RenderPreflight::validate(const AssetRegistry& regis
     return issues;
 }
 
-void RenderPreflight::validate_or_throw(const AssetRegistry& registry) {
-    throw_if_preflight_errors(validate(registry));
+void RenderPreflight::validate_or_throw(
+    const AssetRegistry& registry,
+    const chronon3d::assets::AssetResolver& resolver
+) {
+    throw_if_preflight_errors(validate(registry, resolver));
 }
 
-bool RenderPreflight::ok(const AssetRegistry& registry) const {
-    return !has_preflight_errors(validate(registry));
+bool RenderPreflight::ok(
+    const AssetRegistry& registry,
+    const chronon3d::assets::AssetResolver& resolver
+) const {
+    return !has_preflight_errors(validate(registry, resolver));
 }
 
 } // namespace chronon3d
