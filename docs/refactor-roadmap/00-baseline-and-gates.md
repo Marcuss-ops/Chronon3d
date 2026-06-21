@@ -1,4 +1,6 @@
-# Work Package 0 — Remaining validation work
+# Work Package 0 — Remaining validation work## Current state
+
+`tools/check_architecture_boundaries.sh` can still report PASS after check 5 fails. The aggregate SDK archive audit is unstarted. The full validation record is incomplete.
 
 ## Goal
 

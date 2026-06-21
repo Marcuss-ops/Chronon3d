@@ -1,6 +1,6 @@
 # Work Package 6 — Remaining execution-scope work
 
-## Current problem
+## Current state
 
 Nested precomp execution currently reuses the parent `RenderSession` arena. `GraphExecutor` resets that arena when the child call returns, which can invalidate parent execution state.
 

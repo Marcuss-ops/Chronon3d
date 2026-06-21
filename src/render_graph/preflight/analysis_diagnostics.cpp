@@ -94,7 +94,17 @@ void check_asset_integrity(
         } else if (auto* vid = dynamic_cast<const VideoNode*>(&node)) {
             const std::string path = vid->source().path;
             if (!path.empty()) {
-                std::string resolved = chronon3d::runtime::resolve_asset_path(path);
+                // WP-8 PR 8.1 — typed engine-local resolution via the
+                // service-locator helper.  Same 2-branch fallback as
+                // analysis_helpers.hpp::check_shape_assets.
+                std::string resolved;
+                const auto& resolver =
+                    chronon3d::runtime::typed_resolver_for_deep_code();
+                if (auto opt = resolver.resolve_lexical(path)) {
+                    resolved = opt->string();
+                } else {
+                    resolved = path.empty() ? std::string{} : std::string{path};
+                }
                 if (!std::filesystem::exists(resolved)) {
                     asset_warnings.push_back("MISSING_ASSET: Video file does not exist: \"" + path + "\"");
                 }
