@@ -72,8 +72,9 @@ audit. The script does NOT build, configure, or write outside the working
 directory; it operates on existing `.a` artifacts and produces a
 human-readable report.  Per-archive and cross-archive analysis.
 
-Status as of 2026-06-21 — script landed; results not yet recorded (see PR 0.6
-"validation record" for the eventual fill-in).
+Status as of 2026-06-21 — script landed; results not yet recorded. The
+end-to-end wiring and the deferred sizes are documented below in
+[PR 0.6 — Complete the validation record](#pr-06--complete-the-validation-record).
 
 Actions:
 - [x] List archive members — `ar t <archive.a>` per input.
@@ -99,17 +100,31 @@ tools/audit_aggregate_archive.sh \
 Not wired into the gate pipeline by default — audit-only, no thresholds
 enforced.
 
-- Audited commit: `591f8e1ea0793902684389b97d1e509aae455533` (pre-WP-0 baseline).
-- Architecture target: `chronon3d_architecture_check` (root `CMakeLists.txt`); see `tools/check_architecture_boundaries.sh` for the canary content.
-- Boundary regression test: `tools/check_architecture_boundaries_selftest.sh` (5 assertions: empty-tree exit 0, header include hit exit 1, plan_cache hit exit 1, ExecutionPlanCache hit exit 1, executor-scope make_execution_scheduler hit exit 1).
-- Deterministic test build: TBD — pending vcpkg-installed CI build of `linux-ci` preset.
-- No-content validation: TBD — pending vcpkg-installed CI build of `linux-ci-nocontent` preset.
-- Install consumer: TBD — pending successful local `tools/install_consumer_test.sh` run. CTest registration: `install_consumer_ci`.
-- Debug archive size: TBD — see `tools/wp0_archive_audit.sh`.
-- Release archive size: TBD.
-- No-content archive size: TBD.
-- Duplicate aggregation result: PASS — no `chronon3d_*` OBJECT library is declared more than once across `src/**/CMakeLists.txt`.
-- Remote workflow/run reference: not run in this PR; the canonical local gate is CTest registration of `tools/check_architecture_boundaries.sh` + `tools/check_architecture_boundaries_selftest.sh`.
+### PR 0.6 — Complete the validation record
+
+Status on 2026-06-21: scripting + CI wiring locked; **runtime samples
+deferred** to first CI pipeline run (sandbox where this record was
+authored lacks `cmake`/`gcc`/`vcpkg` — see "Known limitations").
+
+- Commit: baseline `bdc554c0` (`chore: tidy working tree - PR-4-shipped-cycle carry-over`, pre-WP-0); final WP-0 `d3d71e10` (`chore(refactor-roadmap): WP-0 close-out — fix boundary script + 4 new guards + add audit_aggregate_archive.sh`, also the HEAD at time of this fill-in).
+- Build preset: `linux-ci` for the full pre-merge path; `linux-core-dev` and `linux-lean-dev` for the cheap gates (see `.github/workflows/gates.yml` jobs 1–2); `linux-ci-nocontent` and `linux-asan` cover the no-content and sanitizer variants.
+- Test preset: `linux-ci-test` (paired with `linux-ci`); `linux-ci-nocontent-test` (paired with `linux-ci-nocontent`).
+- Architecture target: `chronon3d_architecture_check` — custom CMake target in root `CMakeLists.txt` (~line 484) that depends on the runtime, graph executor, graph pipeline, software backend, fast tests, and SDK aggregate targets.
+- Fast tests: `chronon3d_tests_fast` (built by the cheap gates; full `chronon3d_tests` run on push-to-main only).
+- No-content build: `linux-ci-nocontent` preset configures with `CHRONON3D_BUILD_CONTENT=OFF`; gate 4 (`install-consumer-check`) consumes that build artifact.
+- Install consumer: `tools/install_consumer_test.sh` invoked by:
+  - CI Gate 6 (`install-consumer-script`) in `.github/workflows/gates.yml` (~line 241);
+  - CTest `install_consumer_ci` (registered in root `CMakeLists.txt` ~line 225).
+  The fast path reuses `build/chronon/$PRESET/src/libchronon3d_sdk_impl.a` when present; the cold path configures + builds + installs into a temp prefix.
+- Release archive size: **(DEFERRED — runtime samples blocked on toolchain; populated on the next CI pipeline run that produces a clean build artifact)**.
+- CI archive size: **(DEFERRED — runtime samples blocked on toolchain; populated on the next CI pipeline run)**.
+- Known limitations (decreasing severity):
+  1. The sandbox that authored this record lacks `cmake`, `gcc`/`g++`/`clang`, and `vcpkg`, so a clean full-build cannot be reproduced locally. Runtime-precise archive sizes are deferred until the first CI pipeline run on a fresh PR produces them.
+  2. The `/tmp/install-test-notext/libchronon3d_*.a` files that exist in the sandbox are install-consumer stubs (`nm` reports 0 `chronon3d::*` symbols; member count 1–65 per file). They are NOT representative of the feature builds and were deliberately NOT used as baseline numbers here — using them would mislead future size comparisons.
+  3. Audit-script `--json` output is produced per-run into a local file but is NOT committed by this PR; reproducibility is via re-running `tools/audit_aggregate_archive.sh … --json <out>` rather than via checked-in numbers.
+  4. The script's `nm --debug-syms` share metric is a Linux/GCC/Clang heuristic — accurate on the project's actual toolchain but not portable to MSVC builds.
+  5. The "names changed but topology didn't" hash-collision edge case from WP-0 §9.4 still applies to this gate (inherited from the broader WP-0 close-out, not specific to PR 0.5).
+  6. Re-population trigger: on the next CI pipeline run, the gates-full-validation job can be extended to pipe `tools/audit_aggregate_archive.sh build/chronon/linux-release/src/libchronon3d_sdk_impl.a build/chronon/linux-ci/src/libchronon3d_sdk_impl.a --json <tmp>` to a `cucumber-featured.json` step; the JSON is then re-anchored into this record with `git checkout` after the run.
 
 ## Exit criteria
 
