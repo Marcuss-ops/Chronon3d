@@ -2,6 +2,8 @@
 
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
+#include <chronon3d/core/scope/execution_scope.hpp>     // PR 6.4 — typed scope plumbing
+#include <chronon3d/core/memory/arena.hpp>              // PR 6.4 — explicit child FrameArena
 #include <algorithm>
 
 namespace chronon3d::graph::detail {
@@ -88,20 +90,54 @@ namespace chronon3d::graph::detail {
     // Sequential scheduler for the fallback).
     // PR-6 — arena_override removed; tile regions each get a local
     // RenderSession with their own FrameArena (parallel-safe).
+    //
+    // PR 6.4 — wrap the per-region `RenderSession local_session` in a
+    // typed `ExecutionScope` chain.  Each tile region now carries:
+    //   1. Its own `FrameArena child_arena` (the per-region temporary
+    //      memory surface, distinct from the parent session's arena).
+    //   2. A Root `ExecutionScope root_fence` (logical parent so the
+    //      Tile scope's parent chain is non-null per docs/03 §4).
+    //   3. A Tile `ExecutionScope tile_scope` whose parent is the root
+    //      fence and whose arena is `child_arena`.
+    // The executor reads `scope.arena()` for allocation + `scope.session()`
+    // for resource access; the resulting `ArenaGuard` only resets the
+    // child's arena on return, never touching the parent session's
+    // arena pointer (PR 6.4 isolation contract — a child teardown cannot
+    // invalidate parent's `ExecutionState`).
+    //
+    // NOTE: the 4-line scope scaffolding is duplicated between the two
+    // branches below.  Code reviewer (Nit Pick Nick, 1st pass) flagged
+    // this as latent copy-paste drift risk; full extraction deferred
+    // to a follow-up PR because the lambda-capture pattern (returning
+    // refs to stack scopes) was messier than the inlined version.  WP-7
+    // follow-up will refactor this into a private helper without
+    // touching the public API.
     std::shared_ptr<Framebuffer> tile_fb;
     if (!sw_renderer || !sw_renderer->executor()) {
         RenderSession local_session;
+        FrameArena child_arena;                                     // PR 6.4 — distinct child arena per region
+        ExecutionScope root_fence(ExecutionScopeKind::Root, local_session,
+                                  compiled.graph_instance_id);
+        ExecutionScope tile_scope(ExecutionScopeKind::Tile, local_session,
+                                  child_arena, compiled.graph_instance_id,
+                                  &root_fence);
         GraphExecutor local_executor;
         ExecutionScheduler local_scheduler{SchedulerMode::Sequential, 1, false};
-        tile_fb = local_executor.execute(
-            compiled, tile_ctx, local_session, local_scheduler);
+        tile_fb = local_executor.execute_with_scope(
+            compiled, tile_ctx, tile_scope, local_scheduler);
     } else {
         RenderSession local_session;
+        FrameArena child_arena;                                     // PR 6.4 — distinct child arena per region
+        ExecutionScope root_fence(ExecutionScopeKind::Root, local_session,
+                                  compiled.graph_instance_id);
+        ExecutionScope tile_scope(ExecutionScopeKind::Tile, local_session,
+                                  child_arena, compiled.graph_instance_id,
+                                  &root_fence);
         auto& tile_scheduler = ctx.services.scheduler
             ? *ctx.services.scheduler
             : sw_renderer->scheduler();
-        tile_fb = sw_renderer->executor()->execute(
-            compiled, tile_ctx, local_session,
+        tile_fb = sw_renderer->executor()->execute_with_scope(
+            compiled, tile_ctx, tile_scope,
             tile_scheduler);
     }
 

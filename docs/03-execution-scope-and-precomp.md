@@ -296,11 +296,13 @@ per tracciare lo stato corrente dei PR rimanenti della catena WP-6:
 
 | Exit criterion | Stato |
 |---|---|
-| Remove direct arena selection from `RenderSession` inside executor code | 🟡 Partial (planned, not landed) |
-| Allocate all execution state from `scope.arena` | 🟡 Partial |
-| Reset only the arena owned by that scope | 🟡 Partial |
+| Add `execute_with_scope(ExecutionScope&, scheduler)` additive overload | 🟢 Done (this commit: overload dichiarato in `graph_executor.hpp` + implementato in `executor.cpp` via `execute_internal` helper) |
+| Read arena from `scope.arena()` instead of `session.arena()` | 🟢 Done (new overload routes arena via `scope.arena()`; legacy overload kept for backward compat) |
+| Reset only the arena owned by that scope | 🟢 Done (ArenaGuard resetta l'arena passata, che è esattamente `scope.arena()` nel new path) |
+| Trigger deterministic fallback when scope overflowed | 🟢 Done (new overload returns `nullptr` + spdlog warn gated) |
 | Keep `GraphExecutor` stateless | ✅ Done (già stateless post PR-2 rewire) |
-| Update all production and test call sites | 🔵 Planned |
+| Update all production call sites to the new overload | 🟡 Partial (tile paths migrated; precomp_node_execute.cpp:139 e altri production site ancora su legacy) |
+| Update all test call sites to the new overload | 🔵 Planned (test lattice continua a usare legacy) |
 
 ### PR 6.2 — Add the root scope — 🔵 Planned
 
@@ -321,25 +323,27 @@ per tracciare lo stato corrente dei PR rimanenti della catena WP-6:
 | Hold the `ProgramLease` for the complete child scope | 🔵 Planned |
 | Ensure child teardown cannot invalidate parent `ExecutionState` | 🔵 Planned |
 
-### PR 6.4 — Replace tile-local sessions with tile scopes — 🔵 Planned
+### PR 6.4 — Replace tile-local sessions with tile scopes — 🟡 Partial
 
 | Exit criterion | Stato |
 |---|---|
-| Create one tile arena/scope per coalesced region | 🔵 Planned (tocco punto 4.2 sopra) |
-| Reuse the parent render job session and caches | 🔵 Planned |
-| Preserve independent temporary memory | 🔵 Planned |
-| Keep tile clipping and cache-key isolation | 🔵 Planned |
-| Remove ad-hoc logical session construction from tile orchestration | 🔵 Planned |
+| Create one tile arena/scope per coalesced region | 🟢 Done (this commit: `FrameArena child_arena` per regione + `ExecutionScope Tile`) |
+| Reuse the parent render job session | 🟡 Partial (sw_renderer-path riusa `sw_renderer->session()`; fallback path mantiene `local_session`; full reuse deferred) |
+| Reuse the parent render job caches | 🟡 Partial (session-borne `scene_hasher` / `program_store` reusable via `scope.session()` accessors; read-side non ancora migrato in profondità) |
+| Preserve independent temporary memory | 🟢 Done (child_arena distinta per regione; ArenaGuard resetta SOLO la child) |
+| Keep tile clipping and cache-key isolation | 🟢 Done (tile_ctx setup invariato + scope isolation) |
+| Remove ad-hoc logical session construction from tile orchestration | 🟡 Partial (single-pass path riusa sw_renderer->session(); tile fallback mantiene local_session + fence; follow-up PR) |
 
-### PR 6.5 — Add recursion protection — 🟡 Partial
+### PR 6.5 — Add recursion protection — 🟢 Done
 
 | Exit criterion | Stato |
 |---|---|
 | Track active precomp owner keys in the scope chain | 🟢 Done (`set_owner_key` / `owner_key` accessor) |
 | Reject direct recursion | 🟢 Done (`would_recurse` copre direct; test #5 in §3) |
 | Reject indirect recursion | 🟢 Done (`would_recurse` copre indirect; test #6 in §3) |
-| Return a deterministic engine error or empty result according to policy | 🟡 Partial (`would_recurse` returns bool, call-site policy is owner-side) |
+| Return a deterministic engine error or empty result according to policy | 🟢 Done (`execute_with_scope` returns `nullptr` when scope.would_overflow(); spdlog warn gated behind `should_log`; convention = empty fb / engine error per §4.4) |
 | Do not use a recursive mutex as recursion handling | 🟢 Done (catena camminata, no recursive_mutex) |
+| Enforce `kMaxScopeDepth` at ctor (no unbounded recursion) | 🟢 Done (clamp at kMaxScopeDepth + `would_overflow()` accessor + test #12) |
 
 ### PR 6.6 — Add memory and race tests — 🔵 Planned
 
@@ -368,7 +372,54 @@ per tracciare lo stato corrente dei PR rimanenti della catena WP-6:
 
 🟡 **Partial** globale: la **fondazione** del tipo `ExecutionScope` e
 i test di acceptance sono done (PR 6.0); i PR 6.1–6.7 che plumbing
-the type into production paths sono ancora **planned**.
+the type into production paths sono **partially landed** — PR 6.5
+enforcement e PR 6.4 tile plumbing sono codice-effettivo nel working
+tree (vedi seguito), mentre i PR 6.2 (root scope plumbed into
+single-pass), 6.3 (PrecompNode migration a `execute_with_scope` +
+ProgramLease held for scope), e 6.6/6.7 (memory + race + permanent
+guard tests) sono ancora **planned**.
+
+### PR 6.5 — landing log (this commit)
+
+PR 6.5 è stato **implementato** end-to-end nel commit che ha portato
+anche questo status-bump di docs:
+
+- `include/chronon3d/core/scope/execution_scope.hpp:97–115`
+  (`explicit-arena ctor`) — clamp `m_depth` a `kMaxScopeDepth` quando
+  `parent->m_depth + 1 > kMaxScopeDepth`.  Nessuna eccezione, nessun
+  abort, nessun longjmp — coerente con `noexcept`.  L'overhead è un
+  singolo predicato in ctor.
+- `include/chronon3d/core/scope/execution_scope.hpp:151–156`
+  (`would_overflow()`) — accessor che espone lo stato latched.
+  `noexcept`, `[[nodiscard]]`, bool.
+- `tests/core/test_execution_scope.cpp` — TEST_CASE #12 (`"kMaxScopeDepth
+  clamps depth + would_overflow() reports it"`) costruisce una catena
+  di `kMaxScopeDepth` chain + un livello extra, verifica che la
+  profondità rimane clampata, che `would_overflow()` ritorna `true`
+  sullo scope overflow-child, e che `would_recurse`/`is_descendant_of`
+  restano bounded.
+
+### PR 6.4 — landing log (this commit)
+
+PR 6.4 è stato **parzialmente implementato** (esci criterion 4.2 —
+tile plumbing):
+
+- `src/render_graph/pipeline/scene_tile_execution.cpp:81–130` —
+  i due `RenderSession local_session;` site sono stati wrappati in
+  una catena `Root → Tile` `ExecutionScope` con `FrameArena child_arena`
+  distinta per regione.  L'`ArenaGuard` dell'executor resetta solo
+  l'arena figlia, lasciando intatto il puntatore all'arena del
+  parent session (PR 6.4 isolation contract).
+- `src/render_graph/pipeline/tile_execution_coordinator.cpp:64–106` —
+  i due single-pass fallback path wrappano `sw_renderer->session()` o
+  `local_session` in un Root `ExecutionScope` e usano il nuovo
+  overload `execute_with_scope(...)`.
+
+L'**exit criterion rimanente** di PR 6.4 — "rimuovere
+`RenderSession local_session;` dai tile fallback paths per riusare
+sw_renderer->session()" — è deferito a un follow-up PR.  L'estrazione
+della scaffolding duplicata (4 linee × 2 branch in
+`scene_tile_execution.cpp`) è deferita a un refactor di WP-7.
 
 ---
 
