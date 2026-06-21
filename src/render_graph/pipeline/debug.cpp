@@ -1,9 +1,9 @@
-#include <chronon3d/runtime/execution_plan_cache.hpp>
 #include <chronon3d/runtime/render_session.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
+#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include "../builder/graph_builder_pipeline.hpp"
@@ -109,12 +109,14 @@ SceneGraphStats analyze_scene_graph(
     GraphExecutor executor;
     RenderSession session;
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
-    // TICKET-009 — local plan cache (per-debug-invocation lifetime).
-    runtime::ExecutionPlanCache plan_cache;
+    // PR-2 rewire — compile the raw graph through FrameGraphCompiler first
+    // (single source of truth for topological plans after WP-8 close-out).
+    FrameGraphCompiler compiler;
+    auto compiled = compiler.compile(std::move(graph), ctx);
     std::shared_ptr<Framebuffer> fb_shared;
     {
         CHRONON_ZONE_C("execute_graph", trace_category::kGraph);
-        fb_shared = executor.execute(graph, graph.output(), ctx, session, scheduler, &plan_cache);
+        fb_shared = executor.execute(compiled, ctx, session, scheduler);
     }
     const auto t_exec1 = profiling::now();
         stats.execute_ms   = profiling::duration_ms(t_exec0, t_exec1);

@@ -28,7 +28,6 @@
 #include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
-#include <chronon3d/runtime/execution_plan_cache.hpp>
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <spdlog/spdlog.h>
@@ -83,10 +82,6 @@ void RenderRuntime::populate() {
     m_owned_framebuffer_pool =
         std::make_shared<cache::FramebufferPool>(cache_cfg.fb_pool_max_bytes());
     m_owned_executor    = std::make_unique<chronon3d::graph::GraphExecutor>();
-    // TICKET-009 — was `RendererRuntimeResources::plan_cache`
-    // (shared_ptr); promoted to unique_ptr because runtime is sole
-    // owner under TICKET-011.
-    m_owned_plan_cache  = std::make_unique<chronon3d::runtime::ExecutionPlanCache>();
     m_owned_software_registry     = std::make_unique<chronon3d::renderer::SoftwareRegistry>();
     m_owned_graph_node_registry  = std::make_unique<chronon3d::graph::GraphNodeCatalog>();
     m_owned_effect_catalog       = std::make_unique<chronon3d::effects::EffectCatalog>();
@@ -109,7 +104,6 @@ void RenderRuntime::populate() {
         .software_registry   = m_owned_software_registry.get(),
         .graph_node_registry = m_owned_graph_node_registry.get(),
         .effect_catalog      = m_owned_effect_catalog.get(),
-        .plan_cache          = m_owned_plan_cache.get(),
         .scene_hasher        = &m_owned_scene_hasher,
         .program_store       = m_owned_program_store.get(),
     };
@@ -236,7 +230,6 @@ make_session(RenderRuntime& runtime) {
     chronon3d::SoftwareRenderSession session;
     session.common.services = SessionServices{
         .executor            = runtime.services().executor,
-        .plan_cache          = runtime.services().plan_cache,
         .node_cache          = runtime.services().node_cache,
         .framebuffer_pool    = runtime.services().framebuffer_pool,
         .graph_cache         = runtime.services().graph_cache,

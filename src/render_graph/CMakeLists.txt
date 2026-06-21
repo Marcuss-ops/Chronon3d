@@ -122,8 +122,6 @@ add_library(chronon3d_graph_executor OBJECT
     # SoftwareRenderer and RenderRuntime).  Compiled directly into the
     # executor sub-target to avoid a graph_executor → runtime → graph
     # link chain.  Public surface still lives at
-    # include/chronon3d/runtime/execution_plan_cache.hpp.
-    ${CMAKE_SOURCE_DIR}/src/runtime/execution_plan_cache.cpp
 )
 if(CHRONON3D_ENABLE_TELEMETRY)
     target_sources(chronon3d_graph_executor PRIVATE executor/telemetry_emitter.cpp)
