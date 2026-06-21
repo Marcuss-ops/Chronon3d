@@ -7,6 +7,7 @@
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/render_graph/registry/graph_node_create_request.hpp>
+#include <chronon3d/render_graph/cache/scene_program_store.hpp>
 #include <memory>
 #include <spdlog/spdlog.h>
 
@@ -271,6 +272,16 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
         // Create PrecompNode via GraphNodeCatalog to break the
         // graph_builder → graph_pipeline CMake cycle.
+        // PR-5 — cache config is now a PrecompCachePolicy.
+        PrecompCachePolicy cache_policy{
+            .initial_capacity = cache_cap,
+            .mode = tune_mode,
+            .tuning = cache::TuneConfig{
+                .interval     = ctx.policy.program_cache_tune_interval,
+                .min_capacity = ctx.policy.program_cache_tune_min_capacity,
+                .max_capacity = ctx.policy.program_cache_tune_max_capacity,
+            }
+        };
         GraphNodeCreateRequest request{
             .payload = PrecompNodeCreateSpec{
                 .composition_name =
@@ -278,14 +289,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 .start_frame = layer.from,
                 .duration = layer.duration,
                 .cache_frame = is_static ? Frame{0} : Frame{-1},
-                .cache_capacity = cache_cap,
-                .tune_mode = tune_mode,
-                .tune_interval =
-                    ctx.policy.program_cache_tune_interval,
-                .tune_min_capacity =
-                    ctx.policy.program_cache_tune_min_capacity,
-                .tune_max_capacity =
-                    ctx.policy.program_cache_tune_max_capacity,
+                .cache_policy = cache_policy,
             }
         };
 

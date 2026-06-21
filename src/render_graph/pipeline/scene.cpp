@@ -130,6 +130,10 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         // PrecompNode dereferences `*ctx.services.scheduler` to route its
         // inner execute() through the same arena as the parent graph.
         ctx.services.scheduler = &sw_renderer->scheduler();
+        // PR-5 — propagate session pointer so PrecompNode can borrow the
+        // session's arena (PMR pooling), executor, plan_cache, and
+        // program_store for cache lookups.
+        ctx.services.session = &sw_renderer->session();
         // PR-1 — production paths must have a wired scheduler after
         // pipeline wiring.  Test paths (no SoftwareRenderer) create
         // a local Sequential(1) scheduler.
