@@ -192,6 +192,24 @@ now has a 4th grep check (the renumbering was `[N/3]`→`[N/4]`) that
 flags any reintroduction of the retired reset shim across
 `include/`, `src/`, `tests/`, and `apps/`.
 
+**External SDK migration note** — if your code previously did
+
+```cpp
+#include <chronon3d/runtime/render_session.hpp>
+// uses chronon3d::SoftwareRenderSession
+```
+
+you must now also include the canonical struct:
+
+```cpp
+#include <chronon3d/runtime/render_session.hpp>
+#include <chronon3d/backends/software/software_render_session.hpp>
+// uses chronon3d::SoftwareRenderSession
+```
+
+Downstream consumers using only `RenderSession` (not the
+`SoftwareRenderSession` wrapper) need no changes.
+
 ### R3 — Renderer State Refactoring
 
 2026-06-13 — `SoftwareRenderer` state decomposed into dedicated aggregates:
