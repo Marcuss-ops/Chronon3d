@@ -237,9 +237,63 @@ jobs:
       - name: Run tools/check_gitignored_dirs.sh
         run: bash tools/check_gitignored_dirs.sh
 
-  # ─────────────────────────────────────────────────────────────────────
+  # ────────────────────────────────────────────────────────────────────
+  # 7. Profile measurement matrix — drives tools/measure_profile.sh on
+  # each of the four linux-profile-* presets (08 plan + readme). Outputs
+  # JSON+MD are uploaded via actions/upload-artifact@v4 for trend
+  # dashboards and changelog attestations. Only `extended` runs `--build`
+  # (the heaviest profile); the other three run configure-only so the
+  # matrix stays cheap.
+  # ────────────────────────────────────────────────────────────────────
+  profile-measurement:
+    name: Gate 7 / profile-measurement (${{ matrix.profile }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: core
+          - profile: motion
+          - profile: video
+          - profile: extended
+            build_args: "--build --parallel 16"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: ${{ github.event_name == 'push' }}
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+      - name: Make measure_profile.sh executable
+        run: chmod +x tools/measure_profile.sh
+
+      # matrix.build_args is empty for core/motion/video; only extended
+      # carries `--build --parallel 16`. The `${{ }}` expansion collapses
+      # to "" without leaving stray whitespace at script argv boundaries.
+      - name: Measure profile (${{ matrix.profile }})
+        run: |
+          echo ">>> tools/measure_profile.sh ${{ matrix.profile }} ${{ matrix.build_args }}"
+          bash tools/measure_profile.sh "${{ matrix.profile }}" ${{ matrix.build_args }}
+
+      - name: Upload profile-measurement.json + .md
+        uses: actions/upload-artifact@v4
+        with:
+          name: profile-${{ matrix.profile }}-measurement
+          path: |
+            build/profiles/linux-profile-${{ matrix.profile }}/profile-measurement.json
+            build/profiles/linux-profile-${{ matrix.profile }}/profile-measurement.md
+          if-no-files-found: error
+          retention-days: 30
+
+  # ────────────────────────────────────────────────────────────────────
   # 6. Install consumer — end-to-end SDK boundary test (PR-0).
-  # ─────────────────────────────────────────────────────────────────────
+  # ────────────────────────────────────────────────────────────────────
   install-consumer-script:
     name: Gate 6 / install-consumer (tools/install_consumer_test.sh)
     runs-on: ubuntu-latest

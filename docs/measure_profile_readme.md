@@ -44,22 +44,29 @@ dimensione di `chronon3d_sdk_impl.a` viene monitorata come proxy di
 
 ## CI matrix
 
-La CI `linux-ci` estende la matrice con un job per profilo:
-
-```yaml
-profile-core:
-  - tools/measure_profile.sh core
-profile-motion:
-  - tools/measure_profile.sh motion
-profile-video:
-  - tools/measure_profile.sh video
-profile-extended:
-  - tools/measure_profile.sh extended --build --parallel 16
-```
+La CI `linux-ci` non esegue piú il check discrezionale dei presets: la
+misurazione dei quattro `linux-profile-*`` e' ora un job di matrice
+dedicato in `.github/workflows/gates.yml` (Gate 7 —
+`profile-measurement`). Ogni esecuzione produce un artifact
+`profile-<name>-measurement.tar` (JSON + MD) consultabile dal tab
+*Actions* di GitHub; il job gira su `ubuntu-latest`, usa
+[`lukka/run-vcpkg@v11`](https://github.com/marketplace/actions/run-vcpkg)
+e condivide il `VCPKG_COMMIT` che gli altri gate (1-6) giá
+impiegano, cosí il confronto dei tempi fra profili rimane
+coerente su tutto il piano.
 
 Solo `extended` esegue il `--build` (sono gli unici target che la
 CI `linux-ci` testa in full-validation). I profili `core/motion/video`
 misurano solo configure e vcpkg deps per essere leggeri.
+
+Per ri-eseguire localmente la stessa matrice in pochi minuti:
+
+```bash
+for p in core motion video; do
+    tools/measure_profile.sh "$p"
+done
+tools/measure_profile.sh extended --build --parallel 16
+```
 
 ## Manutenzione
 
