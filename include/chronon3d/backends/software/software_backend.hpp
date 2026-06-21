@@ -10,7 +10,7 @@
 //
 // SoftwareRenderer still owns the RenderBackend identity and delegates
 // rendering calls to this backend.  Draw operations that require
-// SoftwareRenderer& (draw_node, draw_text_run) remain on SoftwareRenderer
+// SoftwareRenderer & (draw_node, draw_text_run) remain on SoftwareRenderer
 // until ShapeProcessor is migrated to accept RenderBackend&.
 // ---------------------------------------------------------------------------
 
@@ -76,7 +76,7 @@ public:
                    const Camera& camera, int width, int height) override;
 
     // draw_text_run remains on SoftwareRenderer because
-    // ShapeProcessor::draw() takes SoftwareRenderer& (not RenderBackend&).
+    // ShapeProcessor::draw() takes SoftwareRenderer & (not RenderBackend&).
     // Once ShapeProcessor is migrated, these can move here.
 
 private:

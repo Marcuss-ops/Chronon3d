@@ -4,12 +4,14 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include "../../utils/render_effects_processor.hpp"
 #include <spdlog/spdlog.h>
+// R2: draw() now consumes the slim processor context POD.
+#include <chronon3d/backends/software/software_processor_context.hpp>
 
 namespace chronon3d::renderer {
 
 class SoftwareImageProcessor final : public ShapeProcessor {
 public:
-    void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
+    void draw(const SoftwareProcessorContext& rctx, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
         CHRONON_ZONE_C("image_render", trace_category::kImage);
         // Increment images sampled counter
@@ -39,7 +41,7 @@ public:
             );
             draw_glow(fb, node, state);
         }
-        renderer.image_renderer().draw_image(node.shape.image(), state, fb);
+        rctx.image_renderer.draw_image(node.shape.image(), state, fb);
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {

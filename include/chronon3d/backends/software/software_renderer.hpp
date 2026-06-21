@@ -133,10 +133,10 @@ public:
     // Non-copyable.  Movable iff the RenderRuntime pointer can transfer;
     // in practice a SoftwareRenderer is always held via unique_ptr so move
     // is not relied upon.
-    SoftwareRenderer(const SoftwareRenderer&) = delete;
-    SoftwareRenderer& operator=(const SoftwareRenderer&) = delete;
-    SoftwareRenderer(SoftwareRenderer&&) noexcept = default;
-    SoftwareRenderer& operator=(SoftwareRenderer&&) noexcept = default;
+    SoftwareRenderer(const SoftwareRenderer &) = delete;
+    SoftwareRenderer & operator=(const SoftwareRenderer &) = delete;
+    SoftwareRenderer(SoftwareRenderer &&) noexcept = default;
+    SoftwareRenderer & operator=(SoftwareRenderer &&) noexcept = default;
 
     // ── Render settings management ───────────────────────────────────
     void set_settings(const RenderSettings& settings) {

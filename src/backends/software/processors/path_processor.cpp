@@ -8,12 +8,14 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <algorithm>
 #include <cmath>
+// R2: draw() now consumes the slim processor context POD.
+#include <chronon3d/backends/software/software_processor_context.hpp>
 
 namespace chronon3d::renderer {
 
 class PathProcessor : public ShapeProcessor {
 public:
-    void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node,
+    void draw(const SoftwareProcessorContext& rctx, Framebuffer& fb, const RenderNode& node,
               const RenderState& state, const Camera& camera, i32 width, i32 height) override {
         PathRasterizer::draw_path(fb, node, state, camera, width, height);
     }
