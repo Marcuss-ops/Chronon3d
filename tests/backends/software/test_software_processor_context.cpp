@@ -8,6 +8,18 @@
 // This test does NOT exercise the rendering pipeline (it would force a
 // full build with software backend + a real Composition); it inspects
 // the wiring directly via the accessors exposed by SoftwareRenderer.
+//
+// NOTE (2026-06-21): This file is currently DORMANT — it is not listed
+// in any tests/*/CMakeLists.txt, and `tests/backends/` has no top-level
+// CMakeLists.  All TEST_CASE bodies are wrapped in `#if defined(
+// CHRONON3D_BUILD_TESTS)` so the file contributes nothing to the build.
+// When the R2 migration land fully (processors stop taking
+// `SoftwareRenderer&`), add a tests/backends/CMakeLists.txt (or wire
+// this single TU into tests/backends/software/CMakeLists.txt) and
+// register the new source list under `${CHRONON3D_TEST_TARGETS}` so
+// CTest picks it up.  At that point this file should also start
+// exercising a real `make_processor_context(renderer)` fixture instead
+// of the default-constructed null-check only.
 // ============================================================================
 
 #if defined(CHRONON3D_BUILD_TESTS)
