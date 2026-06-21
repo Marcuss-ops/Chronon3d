@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # tools/check_architecture_boundaries.sh
 # ─────────────────────────────────────────────────────────────────────
-# PR-0 — Temporary architecture boundary grep checks.
+# PR-0 — Temporary architecture boundary grep checks (4 total).
 #
 # Verifies that headers removed in prior refactors (TICKET-011 render-
 # session split, render-runtime-resources extraction, cache-state
 # removal) have not accidentally been re-introduced via #include or
-# direct reference in source files.
+# direct reference in source files.  Also enforces the retirement of
+# legacy reset APIs from WP-3 close-out.
 #
-# These checks are intentionally simple grap-based assertions.  When
+# These checks are intentionally simple grep-based assertions.  When
 # the architecture stabilises further, they can be graduated into
 # tools/test_architectural.sh or removed once the risk of drift is zero.
 #
@@ -55,10 +56,28 @@ fi
 # RendererCacheState was eliminated in TICKET-011.  Its contents
 # (NodeCache, FramebufferPool, CompiledGraphCache) now live on
 # runtime::RenderRuntime.  The old header must never be included.
-echo -n "  [3/3] renderer_cache_state.hpp         ... "
+echo -n "  [3/4] renderer_cache_state.hpp         ... "
 if grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include.*renderer_cache_state\.hpp' include src tests 2>/dev/null; then
     echo "FAIL"
+    FAILED=1
+else
+    echo "PASS"
+fi
+
+# ── 4. clear_per_frame() method (WP-3 PR 3.4 close-out) ────────────────
+# `clear_per_frame()` was RETIRED in WP-3 PR 3.4 close-out (commit
+# dc9f1cfa on origin/main).  Callers must migrate to
+# `reset_frame_temporaries()` (frame-scoped) or `reset_job()`
+# (full reset).  This guard prevents silent reintroduction.
+# Allowlist: docs/refactor-roadmap/03- mentions it for context only.
+echo -n "  [4/4] clear_per_frame() method         ... "
+hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
+    -E 'clear_per_frame' include src tests apps 2>/dev/null | \
+    grep -v '^docs/' | grep -v 'tools/check_architecture_boundaries.sh' || true)
+if [ -n "$hits" ]; then
+    echo "FAIL"
+    echo "$hits" | sed 's/^/    /'
     FAILED=1
 else
     echo "PASS"
