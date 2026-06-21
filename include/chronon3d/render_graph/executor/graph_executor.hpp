@@ -59,21 +59,13 @@ public:
     ///                         `SoftwareRenderer::plan_cache()` /
     ///                         future `RenderRuntime::plan_cache()`)
     ///                         to enable reuse across `execute()` calls.
-    /// @param arena_override   Optional external arena override for
-    ///                         temporary allocations.  When provided
-    ///                         the executor uses this arena instead of
-    ///                         `session.arena()` — used by tile-execution
-    ///                         paths that supply a short-lived local
-    ///                         arena.  (Retained temporarily — will be
-    ///                         removed in PR-6.)
     std::shared_ptr<Framebuffer> execute(
         RenderGraph& graph,
         GraphNodeId output,
         RenderGraphContext& ctx,
         RenderSession& session,
         ExecutionScheduler& scheduler,
-        runtime::ExecutionPlanCache* plan_cache = nullptr,
-        FrameArena* arena_override = nullptr
+        runtime::ExecutionPlanCache* plan_cache = nullptr
     ) const;
 
     std::shared_ptr<Framebuffer> execute(
@@ -91,8 +83,7 @@ public:
         RenderGraphContext& ctx,
         RenderSession& session,
         ExecutionScheduler& scheduler,
-        runtime::ExecutionPlanCache* plan_cache = nullptr,
-        FrameArena* arena_override = nullptr
+        runtime::ExecutionPlanCache* plan_cache = nullptr
     ) const;
 
     // TICKET-009 — `invalidate_plan_cache()` was removed.  Callers that
