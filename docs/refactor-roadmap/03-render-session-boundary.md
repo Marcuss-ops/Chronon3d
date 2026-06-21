@@ -82,7 +82,7 @@ Make `runtime/render_session.hpp` backend-agnostic and free from render-graph im
 - [x] Job reset also clears history, caches owned by the session, and software resources.
 - [x] Retire ambiguous `clear_per_frame()` after call sites migrate.
 
-> DELIVERED in this PR:
+> DELIVERED + CLOSED-OUT:
 >
 > **RenderSession (`<chronon3d/runtime/render_session.hpp>`):**
 > - New `reset_frame_temporaries()` method that clears
@@ -91,17 +91,34 @@ Make `runtime/render_session.hpp` backend-agnostic and free from render-graph im
 >   `reset_frame_temporaries()` + `frame_history = {}` +
 >   `layer_history = {}` + `scene_hasher = {}` +
 >   `program_store->clear()`.
-> - `clear_per_frame()` is kept for backward compatibility but
->   annotated `@deprecated` in its doxygen comment, recommending
->   callers migrate to the two new methods above.
+> - `clear_per_frame()` has been **REMOVED** in the WP-3 close-out
+>   delivery (commit landed).  Its legacy semantics
+>   ("erase everything except arena") is now provided by
+>   `reset_job()`.  Any caller that previously depended on the
+>   retired method must use `reset_job()` instead.
 >
 > **SoftwareSessionResources** already had
 > `reset_frame_temporaries()` (clears scratch_buffer + scene_hasher)
 > and `reset_job()` (also drops buffer_ring) — kept as-is.
 >
-> **SoftwareRenderSession** (canonical wrapper at
-> `backends/software/software_render_session.hpp`) already routed both
-> reset methods to BOTH halves before this PR — no change.
+> **SoftwareRenderSession** now exposes both reset methods
+> (`reset_frame_temporaries()` and `reset_job()`) on BOTH the legacy
+> duplicate at `<chronon3d/runtime/render_session.hpp>` AND the
+> canonical wrapper at
+> `<chronon3d/backends/software/software_render_session.hpp>`.  The
+> `clear_per_frame()` method (which previously forwarded to
+> `common.clear_per_frame() + software.reset_job()`) has been
+> **REMOVED** from both locations.
+>
+> **Caller migration:** the only caller in production code,
+> `SoftwareRenderer::clear_caches()` in
+> `include/chronon3d/backends/software/software_renderer.hpp:146`,
+> has been migrated from `m_session.clear_per_frame()` to
+> `m_session.reset_job()`.  The manual
+> `m_session.common.frame_history.prev_graph_structure_fingerprint = 0`
+> line above it is now redundant (reset_job zeroes frame_history) and
+> was dropped as part of this close-out.  `git grep clear_per_frame
+> -- include/ src/ tests/ apps/` returns zero hits.
 
 ### PR 3.5 — Tighten session services
 - [x] Review nullable service pointers.
@@ -179,21 +196,35 @@ PipelineSessionState
 - [~] Runtime session has no graph dependency.
 - [x] Reset behavior is explicit and tested.
 - [~] No duplicated session state remains.
+- [x] `clear_per_frame()` is REMOVED from all headers and call
+      sites; `git grep clear_per_frame -- include/ src/ tests/ apps/`
+      returns zero hits.
 
 > Exit criteria that are still `[~]` rely on the Phase-5 migration
 > described in the architecture evolution plan
 > (`docs/ARCHITECTURE_EVOLUTION_PLAN.md`).  This PR advances the
-> **reset semantics** criteria — the others are tracked in followup.
+> **reset semantics** and the **`clear_per_frame()` retirement**
+> criteria to ✅; the structural dependencies on `software_session_resources`
+> and `scene_program_store` (which surface as allowlisted TICKET-013/014/017
+> entries in WP-8's boundary test) are tracked separately.
 
 ## Implementation status (this delivery)
 
 - Added `RenderSession::reset_frame_temporaries()` and
   `RenderSession::reset_job()` to
-  `<chronon3d/runtime/render_session.hpp>`.  Both are **additive**;
-  no callers are forced to migrate (yet).  `clear_per_frame()` is
-  left behind with a `@deprecated` doxygen comment pointing at the
-  two new methods.
+  `<chronon3d/runtime/render_session.hpp>`.  Both are now the only
+  reset APIs; `clear_per_frame()` has been **RETIRED** in the WP-3
+  close-out delivery — the method body and `@deprecated` doxygen
+  annotation were removed from `RenderSession` and from both
+  `SoftwareRenderSession` definitions.
+- The single live caller, `SoftwareRenderer::clear_caches()` in
+  `include/chronon3d/backends/software/software_renderer.hpp`, was
+  migrated from `m_session.clear_per_frame()` to
+  `m_session.reset_job()`.  The redundant manual
+  `prev_graph_structure_fingerprint = 0` line immediately above
+  was dropped because `reset_job()` zeroes `frame_history`.
 - Field ownership is documented in the PR 3.0 box above.
-- Boundary scripts already enforce PR 3.7 (CI grep).
+- Boundary scripts already enforce PR 3.7 (CI grep +
+  `tests/architecture/test_render_session_includes_boundary.py`).
 - Tests for `reset_*` semantics are the next concrete deliverable —
   see `docs/FOLLOWUP_TICKETS.md` (planned).

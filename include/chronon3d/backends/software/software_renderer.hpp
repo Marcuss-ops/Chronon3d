@@ -131,6 +131,10 @@ public:
 
     /// Clear all caches (image, font, node, pool, graph, frame state).
     /// Forwards to the runtime's NodeCache/FramebufferPool/CompiledGraphCache.
+    /// WP-3 PR 3.4 close-out: `clear_per_frame()` was retired; the
+    /// session reset below is now `m_session.reset_job()` which performs
+    /// the same full reset (telemetry + history + buffer_ring +
+    /// scratch_buffer + scene_hasher + program_store) on both halves.
     void clear_caches() {
         m_image_renderer.clear_cache();
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
@@ -142,8 +146,7 @@ public:
             pool->clear();
         }
         m_runtime->graph_cache() = {};
-        m_session.common.frame_history.prev_graph_structure_fingerprint = 0;
-        m_session.clear_per_frame();
+        m_session.reset_job();
     }
 
     /// Clear only the node cache.
