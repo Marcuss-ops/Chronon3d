@@ -1,4 +1,5 @@
 #include "test_text_quality_helpers.hpp"
+#include <chronon3d/runtime/render_runtime.hpp>
 using namespace chronon3d;
 using namespace test_text_quality;
 
@@ -7,7 +8,7 @@ using namespace test_text_quality;
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextQuality: integration — ByGlyph positions increase monotonically") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     TextAnimator ta;
@@ -30,7 +31,7 @@ TEST_CASE("TextQuality: integration — ByGlyph positions increase monotonically
 }
 
 TEST_CASE("TextQuality: integration — measure_unit_width uses grapheme cluster count") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     TextAnimator ta;
     ta.text("ABC")
         .font_size(72.0f)
@@ -69,7 +70,7 @@ TEST_CASE("TextQuality: integration — wrapping never splits e+combining acute"
     const size_t input_clusters = grapheme_cluster_count(text);
     CHECK(input_clusters == 5);
 
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     TextLayoutInput li;
@@ -98,7 +99,7 @@ TEST_CASE("TextQuality: integration — wrapping never splits RI flag pair") {
     const size_t input_clusters = grapheme_cluster_count(text);
     CHECK(input_clusters == 5);
 
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     TextLayoutInput li;
@@ -124,7 +125,7 @@ TEST_CASE("TextQuality: integration — wrapping never splits RI flag pair") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextQuality: inter-token tracking — non-wrapping adds tracking between tokens") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     TextLayoutInput li;
@@ -144,7 +145,7 @@ TEST_CASE("TextQuality: inter-token tracking — non-wrapping adds tracking betw
 }
 
 TEST_CASE("TextQuality: inter-token tracking — three words have more gaps") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     TextLayoutInput li;
@@ -164,7 +165,7 @@ TEST_CASE("TextQuality: inter-token tracking — three words have more gaps") {
 }
 
 TEST_CASE("TextQuality: inter-token tracking — single token has fewer gaps") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     TextLayoutInput li;
@@ -184,7 +185,7 @@ TEST_CASE("TextQuality: inter-token tracking — single token has fewer gaps") {
 }
 
 TEST_CASE("TextQuality: inter-token tracking — single char with spaces has no gaps") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     TextLayoutInput li;
@@ -204,7 +205,7 @@ TEST_CASE("TextQuality: inter-token tracking — single char with spaces has no 
 }
 
 TEST_CASE("TextQuality: inter-token tracking — word wrap preserves inter-token gaps") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     TextLayoutInput li;
@@ -229,7 +230,7 @@ TEST_CASE("TextQuality: inter-token tracking — word wrap preserves inter-token
 }
 
 TEST_CASE("TextQuality: inter-token tracking — multi-word wrap with tracking") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     TextLayoutInput li;
@@ -254,7 +255,7 @@ TEST_CASE("TextQuality: inter-token tracking — multi-word wrap with tracking")
 }
 
 TEST_CASE("TextQuality: inter-token tracking — ellipsis with tracking remeasures correctly") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     TextLayoutInput li;
@@ -280,7 +281,7 @@ TEST_CASE("TextQuality: inter-token tracking — ellipsis with tracking remeasur
 }
 
 TEST_CASE("TextQuality: inter-token tracking — no tracking with zero value") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     TextLayoutInput li;
@@ -304,7 +305,7 @@ TEST_CASE("TextQuality: inter-token tracking — no tracking with zero value") {
 namespace ct = chronon3d::content::text;
 
 TEST_CASE("TextQuality: typewriter tracking — width matches layout engine") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     const std::string text = "HELLO WORLD";
@@ -329,7 +330,7 @@ TEST_CASE("TextQuality: typewriter tracking — width matches layout engine") {
 }
 
 TEST_CASE("TextQuality: typewriter tracking — zero tracking matches layout") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     const std::string text = "ABC";
@@ -353,7 +354,7 @@ TEST_CASE("TextQuality: typewriter tracking — zero tracking matches layout") {
 }
 
 TEST_CASE("TextQuality: typewriter tracking — per-char advances sum to total") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     const std::string text = "ABCD";
@@ -376,7 +377,7 @@ TEST_CASE("TextQuality: typewriter tracking — per-char advances sum to total")
 }
 
 TEST_CASE("TextQuality: typewriter tracking — with combining marks no double-count") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     const std::string text = "A" "e\xCC\x81" "B";
@@ -405,7 +406,7 @@ TEST_CASE("TextQuality: typewriter tracking — with combining marks no double-c
 }
 
 TEST_CASE("TextQuality: typewriter tracking — with ZWJ emoji sequence") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     const std::string zwj_seq =
@@ -432,7 +433,7 @@ TEST_CASE("TextQuality: typewriter tracking — with ZWJ emoji sequence") {
 }
 
 TEST_CASE("TextQuality: typewriter tracking — different tracking values scale correctly") {
-    FontEngine engine;
+    FontEngine engine{chronon3d::runtime::typed_resolver_for_deep_code()};
     if (!require_font(engine)) return;
 
     const std::string text = "TYPEWRITER";

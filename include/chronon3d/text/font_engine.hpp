@@ -230,30 +230,7 @@ public:
     /// for deletion in PR 8.1.
     explicit FontEngine(const chronon3d::assets::AssetResolver& resolver);
 
-    // ====================================================================
-    // WP-8 PR 8.0 — TRANSITIONAL default ctor.
-    //
-    //   DO NOT USE IN NEW CODE.
-    //
-    //   This default ctor exists ONLY to bridge the PR 8.0 migration:
-    //   (a) ~150 test sites that called `FontEngine engine;` continue to
-    //       compile under Slice A of the font_engine family, and
-    //   (b) the explicit-resolver ctor above is the canonical API.
-    //
-    //   The default ctor delegates to the explicit ctor using
-    //   `runtime::typed_resolver_for_deep_code()` (which is also
-    //   slated for deletion in PR 8.1).  It will be REMOVED in PR 8.1
-    //   alongside the bridge — until then, call sites that invoke it
-    //   silently pull the process-wide bridge instead of an explicit
-    //   per-engine resolver, defeating per-runtime isolation.
-    //
-    //   Migration path: replace `FontEngine engine;` with
-    //   `FontEngine engine{resolver};` where `resolver` is sourced from
-    //   `sw_renderer->runtime().resolver()` (production), or
-    //   `chronon3d::runtime::typed_resolver_for_deep_code()` (PR 8.0
-    //   transitional alias).
-    // ====================================================================
-    FontEngine();
+    FontEngine() = delete;
 
     ~FontEngine();
 
