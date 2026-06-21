@@ -11,6 +11,17 @@
 #include <algorithm>
 #include <cmath>
 
+// ── WP-6 PR 6.9 — Determinism-contract safety net ───────────────────────
+//
+// Mirrors the gate in `blend2d_bridge_core.cpp`: the AVX2 scale-
+// translation batch path uses a non-associative float-reduction under
+// `tbb::parallel_for`.  Default to scalar; an opt-in
+// `CHRONON3D_ENABLE_AVX2_BLEND` (via CMake) re-enables AVX2 perf in
+// non-deterministic builds.
+#ifndef CHRONON3D_ENABLE_AVX2_BLEND
+#define CHRONON3D_FORCE_SCALAR_BLEND
+#endif
+
 #if defined(__AVX2__)
 #include <immintrin.h>
 #endif
@@ -104,7 +115,11 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
                     const Color* src_row1 = src_base + sy1 * src_stride;
 
                     int x = x0_st;
-#if defined(__AVX2__)
+// WP-6 PR 6.9 — gate AVX2 scale-translation batch behind
+// !defined(CHRONON3D_FORCE_SCALAR_BLEND); when the safety net is on
+// the scale-translation loop falls through to the scalar
+// `detail::blend_pixel` branch that follows.
+#if defined(__AVX2__) && !defined(CHRONON3D_FORCE_SCALAR_BLEND)
                     if (!downscale_x && !downscale_y) for (; x + 1 < x1_st; x += 2) {
                         const bool mask0 = !state || pixel_passes_mask(*state, x, y);
                         const bool mask1 = !state || pixel_passes_mask(*state, x + 1, y);
