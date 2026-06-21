@@ -59,6 +59,8 @@ GraphPreflightReport debug_preflight_render_graph(
         ctx.services.compiled_graph_cache = &sw_renderer->graph_cache();
         ctx.services.node_catalog = &sw_renderer->graph_node_registry();
         ctx.services.effect_catalog = &sw_renderer->effect_catalog();
+        // WP-8 PR 8.0 typed resolver plumbed in explicitly so the asset-integrity analysis phase uses the same resolver instance as the owning engine (no service-locator bridge).
+        ctx.services.asset_resolver = &sw_renderer->runtime().resolver();
     }
 
     // ── 2. Build graph (no execution) ────────────────────────────────────
@@ -87,7 +89,23 @@ GraphPreflightReport debug_preflight_render_graph(
 
     // ── 7–10. Further analysis phases ────────────────────────────────────
     check_topological_warnings(graph, report);
-    check_asset_integrity(graph, report);
+    if (ctx.services.asset_resolver) {
+        // Local-reference guard: when the SoftwareRenderer branch above
+        // populated ctx.services.asset_resolver, asset integrity runs
+        // through that exact resolver instance.  When no
+        // SoftwareRenderer backend was wired (test fixtures, hypothetical
+        // non-SWR backends, etc.) we skip MISSING_ASSET checks with a
+        // clear warning so the report isn't fully silent.  Closes the
+        // CRITICAL null-pointer deref flagged by the PR-8.0 review.
+        chronon3d::assets::AssetResolver& resolver = *ctx.services.asset_resolver;
+        check_asset_integrity(graph, resolver, report);
+    } else {
+        report.warnings.push_back(
+            "ASSET_RESOLVER_UNAVAILABLE: ctx.services.asset_resolver is null; "
+            "skipping MISSING_ASSET checks. Wire a SoftwareRenderer-backed "
+            "preflight call site (or supply an AssetResolver) to enable "
+            "asset integrity.");
+    }
     check_coordinate_mismatch(graph, topo_order, report);
     propagate_dirty_chain(graph, topo_order, report);
 

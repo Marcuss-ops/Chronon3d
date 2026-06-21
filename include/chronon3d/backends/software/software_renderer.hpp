@@ -269,11 +269,27 @@ public:
     // the parent graph.  Never nullptr while m_runtime is valid.
     [[nodiscard]] chronon3d::ExecutionScheduler& scheduler() noexcept {
         return m_runtime->scheduler();
-    }
-    [[nodiscard]] const chronon3d::ExecutionScheduler& scheduler() const noexcept {
+    }    [[nodiscard]] const chronon3d::ExecutionScheduler& scheduler() const noexcept {
         return m_runtime->scheduler();
     }
 
+    /// WP-8 PR 8.0 — forwarder to the underlying RenderRuntime.  Used
+    /// by analysis preflight plumbing
+    /// (`preflight.cpp::debug_preflight_render_graph`) and any future
+    /// graph-building surface that needs to copy a typed service
+    /// pointer into the per-frame `RenderServices` bundle (e.g.
+    /// `ctx.services.asset_resolver = &runtime().resolver()`).
+    /// Lifetime invariant: the returned reference is bound to this
+    /// renderer's lifetime — never dereference after the renderer is
+    /// destroyed.  Same pointer used by the other runtime forwarders
+    /// above (the constructor sets `m_runtime` either to an external
+    /// runtime or to the synthesised `m_owned_runtime_storage`).
+    [[nodiscard]] runtime::RenderRuntime& runtime() noexcept {
+        return *m_runtime;
+    }
+    [[nodiscard]] const runtime::RenderRuntime& runtime() const noexcept {
+        return *m_runtime;
+    }
 
     [[nodiscard]] graph::CompiledGraphCache& graph_cache() { return m_runtime->graph_cache(); }
     [[nodiscard]] const graph::CompiledGraphCache& graph_cache() const { return m_runtime->graph_cache(); }
