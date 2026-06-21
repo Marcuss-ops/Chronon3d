@@ -68,6 +68,7 @@ Composition glow_02_orb_galaxy() {
 Composition glow_basic_word();
 Composition premium_thumbnail_buttery_smooth();
 Composition premium_thumbnail_saas_blue();
+Composition premium_thumbnail_saas_blue_authored();  // PR 6 — authoring-DSL migration validator
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 Composition glow_sharpness_test();
 Composition glow_radius_compare_test();
@@ -92,6 +93,11 @@ void register_effect_compositions(CompositionRegistry& registry) {
     registry.add("GlowBasicWord", [](const CompositionProps&) { return glow_basic_word(); });
     registry.add("PremiumThumbnailButterySmooth", [](const CompositionProps&) { return premium_thumbnail_buttery_smooth(); });
     registry.add("PremiumThumbnailSaaSBlue", [](const CompositionProps&) { return premium_thumbnail_saas_blue(); });
+    // PR 6 — authoring-DSL migration validator.  Rendered alongside the
+    // brace-init version by tools/render_premium_artifacts.sh (extended
+    // version), then compared by tools/compare_pngs.py.  Should be
+    // byte-identical at frame 0.
+    registry.add("PremiumThumbnailSaaSBlueAuthored", [](const CompositionProps&) { return premium_thumbnail_saas_blue_authored(); });
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
     // Diagnostic compositions (A/B tests + 2.5D reference suite)
     registry.add("GlowSharpnessTest", [](const CompositionProps&) { return glow_sharpness_test(); });

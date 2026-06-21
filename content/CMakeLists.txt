@@ -50,6 +50,7 @@ add_library(chronon3d_content OBJECT
     effects/glow/glow_02_orb_galaxy.cpp
     effects/glow/glow_basic_word.cpp
     effects/thumbnails/premium_thumbnail_showcase.cpp
+    effects/thumbnails/premium_thumbnail_saas_blue_authored.cpp  # PR 6 — authoring-DSL migration validator
 
     # Grid
     grid/compositions/grid_showcase.cpp
