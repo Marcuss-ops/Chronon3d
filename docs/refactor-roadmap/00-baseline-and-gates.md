@@ -114,7 +114,7 @@ authored lacks `cmake`/`gcc`/`vcpkg` — see "Known limitations").
 - Fast tests: `chronon3d_tests_fast` (built by the cheap gates; full `chronon3d_tests` run on push-to-main only).
 - No-content build: `linux-ci-nocontent` preset configures with `CHRONON3D_BUILD_CONTENT=OFF`; gate 4 (`install-consumer-check`) consumes that build artifact.
 - Install consumer: `tools/install_consumer_test.sh` invoked by:
-  - CI Gate 6 (`install-consumer-script`) in `.github/workflows/gates.yml` (~line 241);
+  - CI Gate 7 (`install-consumer-script`) in `.github/workflows/gates.yml` (~line 290+);
   - CTest `install_consumer_ci` (registered in root `CMakeLists.txt` ~line 225).
   The fast path reuses `build/chronon/$PRESET/src/libchronon3d_sdk_impl.a` when present; the cold path configures + builds + installs into a temp prefix.
 - Release archive size: **(DEFERRED — runtime samples blocked on toolchain; populated on the next CI pipeline run that produces a clean build artifact)**.
