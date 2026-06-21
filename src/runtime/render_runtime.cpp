@@ -118,7 +118,7 @@ void RenderRuntime::populate() {
         .graph_node_registry = m_owned_graph_node_registry.get(),
         .effect_catalog      = m_owned_effect_catalog.get(),
         .scene_hasher        = &m_owned_scene_hasher,
-        .program_store()       = m_owned_program_store.get(),
+        .program_store       = m_owned_program_store.get(),
     };
 
     // ── Populate builtin processors/effects + freeze the catalogs ───
@@ -263,7 +263,7 @@ make_session(RenderRuntime& runtime) {
         // src/runtime/render_session.cpp) can reach the runtime-owned
         // state through `services` instead of via header include.
         .scene_hasher        = runtime.services().scene_hasher,
-        .program_store()       = runtime.services().program_store(),
+        .program_store       = runtime.services().program_store,
     };
     return session;
 }
