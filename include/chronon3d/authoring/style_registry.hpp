@@ -33,9 +33,16 @@ public:
     using detail::BasicRegistry<chronon3d::TextStyle>::BasicRegistry;
 
     // Domain-specific alias: register_style(id, value).
-    // Forwards to the generic `register_value` of BasicRegistry.
+    // Forwards to the generic `register_value` of BasicRegistry and
+    // returns *this so chaining returns the derived ref. We can't
+    // `return register_value(...)` directly: BasicRegistry::register_value
+    // returns a base ref (BasicRegistry<TextStyle>&) and `register_value`
+    // is NOT virtual, so covariant downcast from base&→derived& is not
+    // allowed. Forwarding via side-effect + `return *this` is the
+    // canonical workaround.
     StyleRegistry& register_style(std::string id, chronon3d::TextStyle value) & {
-        return register_value(std::move(id), std::move(value));
+        this->register_value(std::move(id), std::move(value));
+        return *this;
     }
 
     // `register_factory`, `resolve`, `has`, `unregister`, `clear`,
