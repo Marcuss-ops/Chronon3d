@@ -91,13 +91,13 @@ TileExecutionResult execute_tile_or_fallback(
         {
             CHRONON_ZONE_C("graph_execute", trace_category::kGraph);
             if (sw_renderer && sw_renderer->executor()) {
-                // TICKET-009 — pass the renderer-owned plan cache to the
-                // executor (the executor is now stateless).
+                // TICKET-009 / PR-2 rewire — the executor was stateless AND
+                // is now cache-less (topology plans live on
+                // CompiledFrameGraph::levels).
                 // PR-1 — route through the authoritative scheduler.
                 result.fb = sw_renderer->executor()->execute(
                     compiled, ctx, sw_renderer->session(),
-                    sw_renderer->scheduler(),
-                    sw_renderer->plan_cache());
+                    sw_renderer->scheduler());
             } else {
                 RenderSession local_session;
                 GraphExecutor local_executor;

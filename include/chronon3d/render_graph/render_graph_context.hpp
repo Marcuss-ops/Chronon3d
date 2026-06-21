@@ -205,13 +205,12 @@ struct RenderServices {
     /// pinned to the owning runtime; never dereference past shutdown.
     chronon3d::ExecutionScheduler* scheduler{nullptr};
 
-    /// PR-5 — parent render session pointer.  PrecompNode borrows the
-    /// session's arena (via `session->arena()`) for inner graph execution
-    /// PMR allocations, the session's `services.executor` and
-    /// `services.plan_cache` for inner executor calls, and the session's
-    /// `program_store` for cache lookups.  Set by scene.cpp when a
-    /// SoftwareRenderer is available.  Null in test paths without a
-    /// wired session.
+    /// PR-5 / PR-2-rewire — parent render session pointer.  PrecompNode
+    /// borrows the session's arena (via `session->arena()`) for inner
+    /// graph execution PMR allocations, the session's `services.executor`
+    /// for inner executor calls, and the session's `program_store` for
+    /// cache lookups.  Set by scene.cpp when a SoftwareRenderer is
+    /// available.  Null in test paths without a wired session.
     chronon3d::RenderSession* session{nullptr};
 };
 

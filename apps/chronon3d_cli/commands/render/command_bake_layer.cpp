@@ -3,10 +3,10 @@
 #include "../../utils/job/cli_render_utils.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
+#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/pipeline/graph_filter.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
-#include <chronon3d/runtime/execution_plan_cache.hpp>
 #include <chronon3d/runtime/render_session.hpp>
 #include <spdlog/spdlog.h>
 
@@ -59,14 +59,18 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
                      args.layer_id, selection.matching_nodes.size(), frame, args.output);
     }
 
-    // Execute the graph for just the selected layer
+    // Execute the graph for just the selected layer.
+    // PR-2 rewire close-out (WP-8 followup) — retarget the graph's output
+    // to the selected layer node, then compile through FrameGraphCompiler
+    // (single source of truth for topological plans after WP-8 close-out).
+    graph.retarget_output(selection.selected_output);
+    graph::FrameGraphCompiler compiler;
+    auto compiled = compiler.compile(std::move(graph), graph_ctx);
     graph::GraphExecutor executor;
     RenderSession session;
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
-    // TICKET-009 — local plan cache for the one-shot bake path.
-    chronon3d::runtime::ExecutionPlanCache plan_cache;
     auto fb = executor.execute(
-        graph, selection.selected_output, graph_ctx, session, scheduler, &plan_cache);
+        compiled, graph_ctx, session, scheduler);
 
     if (!fb) {
         spdlog::error("[bake-layer] Bake failed: layer '{}' produced no framebuffer",

@@ -102,8 +102,7 @@ namespace chronon3d::graph::detail {
             : sw_renderer->scheduler();
         tile_fb = sw_renderer->executor()->execute(
             compiled, tile_ctx, local_session,
-            tile_scheduler,
-            sw_renderer->plan_cache());
+            tile_scheduler);
     }
 
     if (tile_fb) {

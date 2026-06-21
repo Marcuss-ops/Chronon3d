@@ -13,7 +13,8 @@
 //   4. ctx.services.session->program_store->acquire(instance_key(), ...)
 //      → cache HIT: reuse; cache MISS: compile via PrecompBuilderService.
 //   5. Refresh per-frame payloads, warm up param block.
-//   6. Execute via session's executor + plan_cache + scheduler.
+//   6. Execute via session's executor + scheduler (topology plans live
+//      on the cached CompiledFrameGraph::levels; see WP-8 followup).
 //
 // The comp_name-based instance key ensures each PrecompNode gets its own
 // partition in the shared SceneProgramStore.
@@ -140,15 +141,14 @@ OwnedFB PrecompNode::execute(
     detail::refresh_compiled_graph_payloads(program->frame_graph, nested_scene, nested_ctx, resolved);
 
     // ── 8. Execute the cached program ────────────────────────────────────
-    // PR-5 — GraphExecutor is stateless, so creating it locally per call
-    // is safe and cheap.  The plan_cache is borrowed from the session's
-    // services (populated by runtime::make_session()).
+    // PR-5 + PR-2 rewire (WP-8 followup) — GraphExecutor is stateless;
+    // the topology plan lives on `program->frame_graph.levels`, so we
+    // was RETIRED alongside the legacy RenderGraph& overloads).
     GraphExecutor local_executor;
 
     auto nested_result = local_executor.execute(
         program->frame_graph, nested_ctx, *session,
-        *ctx.services.scheduler,
-        session->services.plan_cache);
+        *ctx.services.scheduler);
 
     if (nested_result) {
         return ctx.acquire_owned_fb(std::move(nested_result));

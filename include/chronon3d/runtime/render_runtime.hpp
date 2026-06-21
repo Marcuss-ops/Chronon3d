@@ -21,11 +21,6 @@
 //   - graph::PipelineCatalogs                      (graph_nodes + effects
 //                                                    + extensions +
 //                                                    precomp_builder)
-//   - runtime::ExecutionPlanCache (unique_ptr)     (topological-plan
-//                                                    reuse; was
-//                                                    RendererRuntimeResources
-//                                                    ::plan_cache shared_ptr
-//                                                    per TICKET-009)
 //   - graph::ExecutionScheduler                     (tbb::task_arena owner)
 //   - graph::GraphExecutor                          (stateless executor)
 //   - renderer::SoftwareRegistry                    (shape processor reg.)
@@ -72,7 +67,6 @@
 #include <chronon3d/render_graph/pipeline/pipeline_catalogs.hpp>
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
-#include <chronon3d/runtime/execution_plan_cache.hpp>
 #include <chronon3d/runtime/render_session.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 
@@ -115,7 +109,6 @@ struct RenderServices {
     chronon3d::renderer::SoftwareRegistry*    software_registry{nullptr};
     chronon3d::graph::GraphNodeCatalog*       graph_node_registry{nullptr};
     chronon3d::effects::EffectCatalog*        effect_catalog{nullptr};
-    chronon3d::runtime::ExecutionPlanCache*  plan_cache{nullptr};
     /// WP-8 follow-up — runtime-owned scene hasher (relocated from
     /// RenderSession).  Lifetime: the runtime's; non-owning pointer.
     chronon3d::graph::SceneHasher*          scene_hasher{nullptr};
@@ -180,7 +173,6 @@ public:
         return *m_owned_framebuffer_pool;
     }
     [[nodiscard]] chronon3d::graph::GraphExecutor&         executor()       noexcept { return *m_owned_executor; }
-    [[nodiscard]] chronon3d::runtime::ExecutionPlanCache&  plan_cache()     noexcept { return *m_owned_plan_cache; }
     [[nodiscard]] chronon3d::renderer::SoftwareRegistry&   software_registry() noexcept { return *m_owned_software_registry; }
     [[nodiscard]] chronon3d::graph::GraphNodeCatalog&      graph_node_registry() noexcept { return *m_owned_graph_node_registry; }
     [[nodiscard]] chronon3d::effects::EffectCatalog&       effect_catalog() noexcept { return *m_owned_effect_catalog; }
@@ -212,10 +204,6 @@ private:
     std::shared_ptr<chronon3d::cache::FramebufferPool> m_owned_framebuffer_pool;
     chronon3d::graph::CompiledGraphCache                m_owned_graph_cache{};
     std::unique_ptr<chronon3d::graph::GraphExecutor>         m_owned_executor;
-    // TICKET-009 — was `RendererRuntimeResources::plan_cache`
-    // (shared_ptr); promoted to unique_ptr because runtime is the
-    // sole owner under TICKET-011.
-    std::unique_ptr<chronon3d::runtime::ExecutionPlanCache>  m_owned_plan_cache;
     std::unique_ptr<chronon3d::renderer::SoftwareRegistry>   m_owned_software_registry;
     std::unique_ptr<chronon3d::graph::GraphNodeCatalog>       m_owned_graph_node_registry;
     std::unique_ptr<chronon3d::effects::EffectCatalog>        m_owned_effect_catalog;

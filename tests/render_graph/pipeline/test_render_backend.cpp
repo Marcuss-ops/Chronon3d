@@ -6,7 +6,7 @@
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
-#include <chronon3d/runtime/execution_plan_cache.hpp>
+#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/runtime/render_session.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
@@ -74,13 +74,13 @@ TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
     };
     
     RenderGraph graph = GraphBuilder::build(scene, ctx);
-    
+    // PR-2 rewire — compile through FrameGraphCompiler (sole topical-plan producer).
+    auto compiled = FrameGraphCompiler{}.compile(std::move(graph), ctx);
+
     GraphExecutor executor;
     RenderSession session;
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
-    // TICKET-009 — local per-TEST_CASE plan cache.
-    chronon3d::runtime::ExecutionPlanCache plan_cache;
-    auto out = executor.execute(graph, ctx, session, scheduler, &plan_cache);
+    auto out = executor.execute(compiled, ctx, session, scheduler);
 
     REQUIRE(out != nullptr);
     CHECK(backend.draw_node_called == 1);
@@ -104,12 +104,12 @@ TEST_CASE("RenderBackend - EffectStackNode execution calls apply_effect_stack on
     };
     
     RenderGraph graph = GraphBuilder::build(scene, ctx);
-    
+    auto compiled = FrameGraphCompiler{}.compile(std::move(graph), ctx);
+
     GraphExecutor executor;
     RenderSession session;
     ExecutionScheduler scheduler2{SchedulerMode::Sequential, 1, false};
-    chronon3d::runtime::ExecutionPlanCache plan_cache2;
-    auto out = executor.execute(graph, ctx, session, scheduler2, &plan_cache2);
+    auto out = executor.execute(compiled, ctx, session, scheduler2);
 
     REQUIRE(out != nullptr);
     CHECK(backend.apply_effect_stack_called >= 1);
@@ -131,12 +131,12 @@ TEST_CASE("RenderBackend - CompositeNode execution calls composite_layer on back
     };
     
     RenderGraph graph = GraphBuilder::build(scene, ctx);
-    
+    auto compiled = FrameGraphCompiler{}.compile(std::move(graph), ctx);
+
     GraphExecutor executor;
     RenderSession session;
     ExecutionScheduler scheduler3{SchedulerMode::Sequential, 1, false};
-    chronon3d::runtime::ExecutionPlanCache plan_cache3;
-    auto out = executor.execute(graph, ctx, session, scheduler3, &plan_cache3);
+    auto out = executor.execute(compiled, ctx, session, scheduler3);
 
     REQUIRE(out != nullptr);
     // There are 2 layer composite nodes
