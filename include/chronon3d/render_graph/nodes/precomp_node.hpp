@@ -47,8 +47,8 @@ public:
         return cache::NodeCacheKey{
             .scope = "precomp",
             .frame = m_cache_frame >= 0 ? m_cache_frame : Frame{0},
-            .width  = ctx.frame.width,
-            .height = ctx.frame.height,
+            .width  = ctx.frame_input.width,
+            .height = ctx.frame_input.height,
             .params_hash = hash_string(m_comp_name)
         };
     }
@@ -57,7 +57,7 @@ public:
         const RenderGraphContext& ctx,
         std::span<const std::optional<raster::BBox>> = {}
     ) const override {
-        return raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
     }
 
     /// Execute the nested composition, using the inner cache to avoid

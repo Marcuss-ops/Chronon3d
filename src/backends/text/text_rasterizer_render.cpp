@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <chronon3d/assets/asset_registry.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <chronon3d/text/font_engine.hpp>
@@ -123,7 +124,7 @@ struct Blend2DResources {
 
     BLFontFace get_face(const std::string& path) {
         std::lock_guard<std::mutex> lock(mutex);
-        const std::string resolved_path = resolve_asset_path(path);
+        const std::string resolved_path = chronon3d::runtime::resolve_asset_path(path);
         auto it = faces.find(resolved_path);
         if (it == faces.end()) {
             BLFontFace face;
@@ -217,7 +218,7 @@ struct FtGlyphPathBuilder {
 
     bool load_face(const std::string& font_path, float font_size) {
         std::lock_guard<std::mutex> lock(mutex);
-        const std::string resolved = resolve_asset_path(font_path);
+        const std::string resolved = chronon3d::runtime::resolve_asset_path(font_path);
         if (ft_face && resolved == loaded_path) {
             FT_Set_Pixel_Sizes(ft_face, 0, static_cast<FT_UInt>(std::ceil(font_size)));
             return true;

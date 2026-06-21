@@ -27,10 +27,10 @@ TileExecutionResult execute_tile_or_fallback(
 
     const TileDecision tile_decision = TileExecutionPolicy::decide(
         resolved, settings, dirty_out, dirty_ratio, sw_renderer, frame,
-        ctx.resources.effect_catalog);
+        ctx.services.effect_catalog);
     result.use_tile_execution = tile_decision.enabled;
 
-    if (ctx.options.diagnostics_enabled && !result.use_tile_execution) {
+    if (ctx.policy.diagnostics_enabled && !result.use_tile_execution) {
         spdlog::info(
             "[tile-debug] frame={} tile_execution_skipped dirty_ratio={:.3f} threshold={} reason={}",
             static_cast<int>(frame), dirty_ratio,
@@ -65,23 +65,23 @@ TileExecutionResult execute_tile_or_fallback(
                 *result.fb, width, height, parallel_tiles);
 
             // ── Tile counters ───────────────────────────────────────────
-            if (ctx.telemetry.counters) {
-                ctx.telemetry.counters->tile_dirty_count.fetch_add(
+            if (ctx.node_exec.counters) {
+                ctx.node_exec.counters->tile_dirty_count.fetch_add(
                     tile_result.dirty_count, std::memory_order_relaxed);
                 const int clean_count = std::max(0, total_tiles - tile_result.dirty_count);
-                ctx.telemetry.counters->tile_clean_count.fetch_add(
+                ctx.node_exec.counters->tile_clean_count.fetch_add(
                     clean_count, std::memory_order_relaxed);
-                ctx.telemetry.counters->tile_pixels_rendered.fetch_add(
+                ctx.node_exec.counters->tile_pixels_rendered.fetch_add(
                     tile_result.pixels_rendered, std::memory_order_relaxed);
                 const uint64_t total_pixels =
                     static_cast<uint64_t>(width) * static_cast<uint64_t>(height);
                 const uint64_t pixels_skipped = (total_pixels > tile_result.pixels_rendered)
                     ? total_pixels - tile_result.pixels_rendered : 0;
-                ctx.telemetry.counters->tile_pixels_skipped.fetch_add(
+                ctx.node_exec.counters->tile_pixels_skipped.fetch_add(
                     pixels_skipped, std::memory_order_relaxed);
             }
 
-            if (ctx.options.diagnostics_enabled) {
+            if (ctx.policy.diagnostics_enabled) {
                 spdlog::info("[tile-debug] frame={} tile_total={} tile_dirty={}",
                     static_cast<int>(frame), total_tiles, tile_result.dirty_count);
             }
@@ -104,8 +104,8 @@ TileExecutionResult execute_tile_or_fallback(
             }
         }
         // Track tile fallbacks when tile system requested but couldn't execute
-        if (dirty_out.use_dirty_tiles && ctx.telemetry.counters) {
-            ctx.telemetry.counters->tile_full_fallbacks.fetch_add(
+        if (dirty_out.use_dirty_tiles && ctx.node_exec.counters) {
+            ctx.node_exec.counters->tile_full_fallbacks.fetch_add(
                 1, std::memory_order_relaxed);
         }
     }

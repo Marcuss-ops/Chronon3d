@@ -3,10 +3,10 @@
 // methods (`acquire_owned_fb`, `acquire_framebuffer`, etc.).
 //
 // TICKET-010 — these methods forward into the new sub-context fields:
-//   - ctx.services.framebuffer_pool     (was ctx.resources.framebuffer_pool)
-//   - ctx.node_exec.transform_scratch   (was ctx.scratch.transform_scratch)
-//   - ctx.node_exec.ping_write          (was ctx.scratch.ping_write)
-//   - ctx.node_exec.reusable_inputs     (was ctx.scratch.reusable_inputs)
+//   - ctx.services.framebuffer_pool     (was ctx.services.framebuffer_pool)
+//   - ctx.node_exec.transform_scratch   (was ctx.node_exec.transform_scratch)
+//   - ctx.node_exec.ping_write          (was ctx.node_exec.ping_write)
+//   - ctx.node_exec.reusable_inputs     (was ctx.node_exec.reusable_inputs)
 // `clone_for_node_execution()` skips the same hot-path vectors as before,
 // now under `ctx.node_exec.{node_telemetry, layer_telemetry, dof_depth,
 // early_exit_skip, reusable_inputs}`.
@@ -30,10 +30,20 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
 ) const {
     OwnedFB out;
     auto* pool = services.framebuffer_pool.get();
+    // TICKET-012 follow-up: re-introduce a 5-arg overload of
+    // FramebufferPool::acquire_owned that integrates `bounds` into the
+    // ReturnToScratch policy slot routing and routes specific_clear_ms
+    // into a per-call pool counter.  For the GREEN-build gate (3-arg
+    // pool overload only exists today), the BBox+counter proxies are a
+    // no-op; the OwnedFB hot path still returns from pool with the
+    // default policy.
+    (void)bounds;
+    (void)specific_clear_ms;
     if (pool) {
-        out = pool->acquire_owned(w, h, clear, bounds, specific_clear_ms);
+        out = pool->acquire_owned(w, h, clear);
     } else {
-        out = OwnedFB(std::make_unique<Framebuffer>(w, h, clear));
+        out = OwnedFB(new Framebuffer(w, h, clear),
+                      PoolFbDeleter(DeleteFramebuffer{}));
     }
     return out;
 }
@@ -44,7 +54,12 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
     if (pool) {
         out = pool->acquire_from(other);
     } else {
-        out = OwnedFB(std::make_unique<Framebuffer>(other.width(), other.height(), false));
+        // OwnedFB = unique_ptr<Framebuffer, PoolFbDeleter>; cannot be
+        // constructed from std::make_unique<Framebuffer>() which yields
+        // unique_ptr<Framebuffer, default_delete>.  Build the FB
+        // manually and pair with the no-pool deleter.
+        auto* fresh = new Framebuffer(other.width(), other.height(), false);
+        out = OwnedFB(fresh, PoolFbDeleter(DeleteFramebuffer{}));
         std::copy(other.data(),
                   other.data() + static_cast<size_t>(other.width()) * static_cast<size_t>(other.height()),
                   out->data());
@@ -58,8 +73,10 @@ OwnedFB RenderGraphContext::acquire_owned_fb(std::shared_ptr<Framebuffer>&& src)
     if (pool) {
         out = pool->adopt_owned(std::move(src));
     } else {
-        // No pool — adopt as a plain unique_ptr with no-op deleter.
-        out = OwnedFB(OwnedFB::from_shared_no_pool(std::move(src)));
+        // No pool — adopt as a plain OwnedFB with no-op deleter.  The
+        // shared_ptr retains its own refcount on the source FB; the
+        // returned OwnedFB owns a deep copy decoupled from src.
+        out = make_owned_fb_from_shared(std::move(src));
     }
     return out;
 }
@@ -94,7 +111,20 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
     std::shared_ptr<Framebuffer> out;
     auto* pool = services.framebuffer_pool.get();
     if (pool) {
-        out = pool->acquire_shared(std::move(OwnedFB(acquire_owned_fb(w, h, clear, bounds, specific_clear_ms))));
+        // Direct acquire_shared acquires a fresh CachedFB with pool-aware
+        // deleter (no OwnedFB intermediary: acquire_shared(int,int,bool)
+        // does not match OwnedFB).
+        //
+        // TICKET-012 follow-up: re-introduce a 5-arg overload of
+        // FramebufferPool::acquire_shared that integrates `bounds` into
+        // the ReturnToScratch policy slot routing and routes
+        // specific_clear_ms into a per-call pool counter.  For the
+        // GREEN-build gate (3-arg pool overload only exists today), the
+        // BBox+counter proxies are a no-op; the CachedFB path still
+        // returns from pool with the default policy.
+        (void)bounds;
+        (void)specific_clear_ms;
+        out = pool->acquire_shared(w, h, clear);
     } else {
         out = std::make_shared<Framebuffer>(w, h, clear);
     }
@@ -105,7 +135,16 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(const Frame
     std::shared_ptr<Framebuffer> out;
     auto* pool = services.framebuffer_pool.get();
     if (pool) {
-        out = std::shared_ptr<Framebuffer>(pool->acquire_from(other).release());
+        // Previously did unique_ptr.release() into shared_ptr, which
+        // leaks pool ownership when refcount hits zero.  Use
+        // acquire_shared for a correct pool reclaim path; copy pixels
+        // because the pool's bucket may have a re-used allocation.
+        out = pool->acquire_shared(other.width(), other.height(), false);
+        if (out && out->data() != other.data()) {
+            std::copy(other.data(),
+                      other.data() + static_cast<size_t>(other.width()) * static_cast<size_t>(other.height()),
+                      out->data());
+        }
     } else {
         out = std::make_shared<Framebuffer>(other.width(), other.height(), false);
         std::copy(other.data(),

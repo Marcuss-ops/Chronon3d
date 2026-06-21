@@ -45,20 +45,20 @@ GraphPreflightReport debug_preflight_render_graph(
         backend, node_cache, camera, width, height,
         frame, frame_time, settings, registry, video_decoder, fps
     );
-    ctx.options.diagnostics_enabled = true;
-    ctx.camera.light_context = scene.light_context();
+    ctx.policy.diagnostics_enabled = true;
+    ctx.frame_input.light_context = scene.light_context();
     const auto resolved_camera = resolve_scene_camera(scene);
     if (resolved_camera.camera.enabled) {
-        ctx.camera.camera_2_5d      = resolved_camera.camera;
-        ctx.camera.has_camera_2_5d  = true;
-        ctx.camera.projection_ctx   = renderer::make_projection_context(ctx.camera.camera_2_5d, width, height);
-        ctx.camera.projection_ctx.ready = true;
+        ctx.frame_input.camera_2_5d      = resolved_camera.camera;
+        ctx.frame_input.has_camera_2_5d  = true;
+        ctx.frame_input.projection_ctx   = renderer::make_projection_context(ctx.frame_input.camera_2_5d, width, height);
+        ctx.frame_input.projection_ctx.ready = true;
     }
 
     if (auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend)) {
-        ctx.resources.compiled_graph_cache = &sw_renderer->graph_cache();
-        ctx.resources.node_catalog = &sw_renderer->graph_node_registry();
-        ctx.resources.effect_catalog = &sw_renderer->effect_catalog();
+        ctx.services.compiled_graph_cache = &sw_renderer->graph_cache();
+        ctx.services.node_catalog = &sw_renderer->graph_node_registry();
+        ctx.services.effect_catalog = &sw_renderer->effect_catalog();
     }
 
     // ── 2. Build graph (no execution) ────────────────────────────────────

@@ -232,6 +232,43 @@ OwnedFB FramebufferPool::acquire_owned(int width, int height, bool clear) {
     return OwnedFB(fb.release(), PoolFbDeleter(ReturnToPool{weak_from_this()}));
 }
 
+// ── TICKET-011-final — adapters restored after PoolFbDeleter migration
+
+OwnedFB FramebufferPool::acquire_from(const Framebuffer& other) {
+    bool fresh_alloc = false;
+    auto fb = acquire_unique(other.width(), other.height(), &fresh_alloc);
+    if (fb && other.data() != fb->data()) {
+        const usize count = std::min(static_cast<usize>(other.width() * other.height()),
+                                     static_cast<usize>(fb->width() * fb->height()));
+        std::memcpy(fb->data(), other.data(), count * sizeof(Color));
+    }
+    return OwnedFB(fb.release(), PoolFbDeleter(ReturnToPool{weak_from_this()}));
+}
+
+OwnedFB FramebufferPool::adopt_owned(std::shared_ptr<Framebuffer>&& src) {
+    if (!src) return OwnedFB{};
+    // std::shared_ptr has no .release(); deep-copy src into a fresh FB
+    // owned by *this* pool (caller's src still holds a refcount on the
+    // original).  Zero-copy alias goes through BorrowedCachedFB instead.
+    auto* fresh = new Framebuffer(*src);
+    return OwnedFB(fresh, PoolFbDeleter(ReturnToPool{weak_from_this()}));
+}
+
+CachedFB FramebufferPool::cache_adopt(OwnedFB owned) {
+    if (!owned) return CachedFB{};
+    auto weak_pool = weak_from_this();
+    return CachedFB(owned.release(), [weak_pool](Framebuffer* fp) {
+        if (auto p = weak_pool.lock()) p->release(fp);
+        else delete fp;
+    });
+}
+
+std::shared_ptr<Framebuffer> FramebufferPool::acquire_shared(int width, int height, bool clear) {
+    return acquire_hinted(width, height, clear ? FramebufferAcquireHint::Default : FramebufferAcquireHint::ReuseNoClear);
+}
+
+// release_shared removed (TICKET-011 cleanup; zero callers).
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Eviction helpers
 // ─────────────────────────────────────────────────────────────────────────────

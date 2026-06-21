@@ -58,6 +58,24 @@ public:
         framebuffer_increment_allocations(size_bytes());
     }
 
+    // TICKET-011-final — constructors required by callers that haven't
+    // been migrated. Provide both (int,int,bool) (int&,int&,bool&) overloads.
+    // The bool parameter is "initial clear" — when true the framebuffer
+    // already starts cleared (default behaviour); when false the caller
+    // promises to overwrite every pixel and we skip the zero-init step.
+    Framebuffer(i32 width, i32 height, bool initial_clear)
+        : m_width(width), m_height(height), m_allocated_width(align_stride_to_cache_line(width)),
+          m_allocated_height(height), m_owns_pixels(true),
+          m_content_cleared{initial_clear} {
+        framebuffer_validate_dimensions(width, height);
+        if (initial_clear) {
+            m_pixels.resize(static_cast<size_t>(m_allocated_width) * m_allocated_height, Color::transparent());
+        } else {
+            m_pixels.resize(static_cast<size_t>(m_allocated_width) * m_allocated_height);
+        }
+        framebuffer_increment_allocations(size_bytes());
+    }
+
     Framebuffer(i32 width, i32 height, Color* external_pixels)
         : m_width(width), m_height(height),
           m_allocated_width(align_stride_to_cache_line(width)),

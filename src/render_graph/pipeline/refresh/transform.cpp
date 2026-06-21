@@ -33,26 +33,26 @@ void refresh_transform_node(
         Mat4 effective_matrix = item.world_matrix;
 
         if (should_use_centered_rendering(item, ctx)) {
-            if (ctx.options.ssaa_factor > 1.0f) {
+            if (ctx.policy.ssaa_factor > 1.0f) {
                 Mat4 ssaa_world = item.world_matrix;
-                ssaa_world[3][0] *= ctx.options.ssaa_factor;
-                ssaa_world[3][1] *= ctx.options.ssaa_factor;
-                ssaa_world[3][2] *= ctx.options.ssaa_factor;
+                ssaa_world[3][0] *= ctx.policy.ssaa_factor;
+                ssaa_world[3][1] *= ctx.policy.ssaa_factor;
+                ssaa_world[3][2] *= ctx.policy.ssaa_factor;
                 effective_matrix = ssaa_world;
             }
             effective_matrix =
-                glm::translate(Mat4(1.0f), Vec3(-ctx.frame.width * 0.5f, -ctx.frame.height * 0.5f, 0.0f)) *
+                glm::translate(Mat4(1.0f), Vec3(-ctx.frame_input.width * 0.5f, -ctx.frame_input.height * 0.5f, 0.0f)) *
                 effective_matrix;
         } else {
             // Delegate to the shared helper so the refresh-path stays in
             // sync with the build-path (graph_builder_layer_passes.cpp).
             const Mat4 stripped = strip_implicit_canvas_centering(
                 effective_matrix, item, ctx);
-            if (ctx.options.diagnostics_enabled &&
+            if (ctx.policy.diagnostics_enabled &&
                 (stripped[3][0] != effective_matrix[3][0] ||
                  stripped[3][1] != effective_matrix[3][1])) {
                 spdlog::info("[refresh-transform] stripped centering translation for layer='{}' frame={}",
-                    layer_id, static_cast<int>(ctx.frame.frame));
+                    layer_id, static_cast<int>(ctx.frame_input.frame));
             }
             effective_matrix = stripped;
         }

@@ -21,7 +21,7 @@ struct TextRunDrawParams {
     const Mat4& model_matrix;                      // world-space transform
     f32 opacity{1.0f};                            // overall layer opacity
     // PR2: removed `bool diagnostic_mode{}`.  Diagnostic logging is
-    // controlled by the caller (e.g. graph-node `ctx.options.diagnostics_enabled`)
+    // controlled by the caller (e.g. graph-node `ctx.policy.diagnostics_enabled`)
     // and propagated into `spdlog::*` calls at the caller side, not as a
     // flag buried inside the processor's params struct.
 };

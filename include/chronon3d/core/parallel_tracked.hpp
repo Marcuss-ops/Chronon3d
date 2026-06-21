@@ -30,7 +30,7 @@ namespace chronon3d {
  *   parallel_for_tracked(blocked_range<int>(0, n), [&](auto& r) { work(r); });
  *
  * The wrapper picks up profiling::g_current_counters automatically.
- * Pass an explicit counters pointer to override (e.g. ctx.telemetry.counters).
+ * Pass an explicit counters pointer to override (e.g. ctx.node_exec.counters).
  *
  * When counters is null, the call degrades to plain tbb::parallel_for
  * with zero overhead.

@@ -29,17 +29,17 @@ public:
         const RenderGraphContext& ctx,
         std::span<const std::optional<raster::BBox>> = {}
     ) const override {
-        const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.frame.width;
-        const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.frame.height;
+        const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.frame_input.width;
+        const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.frame_input.height;
         return raster::BBox{0, 0, render_w, render_h};
     }
 
     [[nodiscard]] cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
-        const Frame local_frame = ctx.frame.frame - m_layer_start;
+        const Frame local_frame = ctx.frame_input.frame - m_layer_start;
         const Frame source_frame = video::map_video_frame(local_frame, m_source);
 
-        const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.frame.width;
-        const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.frame.height;
+        const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.frame_input.width;
+        const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.frame_input.height;
         return cache::NodeCacheKey{
             .scope = "video:" + m_source.path,
             .frame = source_frame,
@@ -56,20 +56,20 @@ public:
         std::span<const std::optional<raster::BBox>>
     ) override {
         if (!m_decoder) {
-            const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.frame.width;
-            const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.frame.height;
+            const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.frame_input.width;
+            const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.frame_input.height;
             return ctx.acquire_owned_fb(render_w, render_h);
         }
 
-        const Frame local_frame = ctx.frame.frame - m_layer_start;
+        const Frame local_frame = ctx.frame_input.frame - m_layer_start;
         if (local_frame < 0) {
-            return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
+            return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
         }
 
         const Frame source_frame = video::map_video_frame(local_frame, m_source);
 
-        const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.frame.width;
-        const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.frame.height;
+        const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.frame_input.width;
+        const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.frame_input.height;
         auto decoded = m_decoder->decode_frame(
             m_source.path,
             source_frame,

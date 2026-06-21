@@ -9,7 +9,11 @@
 # CompositionRegistry::add() directly via ExtensionContext.
 # ==============================================================================
 
-add_library(chronon3d_content STATIC
+# TICKET-011 cmake-boundary (OBJECT lift) — chronon3d_content is now an
+# OBJECT library; its objects flow into chronon3d_sdk_impl.a via the
+# foreach-if-TARGET pattern in src/CMakeLists.txt when CHRONON3D_BUILD_CONTENT
+# is enabled.
+add_library(chronon3d_content OBJECT
     # Registration orchestrator
     register_content_modules.cpp
 
@@ -80,7 +84,8 @@ target_link_libraries(chronon3d_content
 #   images/compositions/image_test_patterns.cpp → factories called by the above
 # ==============================================================================
 if(CHRONON3D_BUILD_DIAGNOSTICS)
-    add_library(chronon3d_diagnostics STATIC
+    # TICKET-011 cmake-boundary (OBJECT lift).
+    add_library(chronon3d_diagnostics OBJECT
         # ── Shape + motion proofs (called by register_shape_compositions) ──
         shapes/proofs/shape_proofs.cpp
         shapes/motion/shape_motion_proofs.cpp
@@ -129,4 +134,15 @@ if(CHRONON3D_BUILD_DIAGNOSTICS)
     target_link_libraries(chronon3d_content PRIVATE chronon3d_diagnostics)
 endif()
 
-add_library(chronon3d::content ALIAS chronon3d_content)
+# In-tree-only convenience alias (TICKET-011 cmake-boundary OBJECT lift):
+# `chronon3d_content` is now an OBJECT library with no installed
+# ARCHIVE artifact, so a downstream `find_package(Chronon3D)` consumer
+# that referenced this namespaced form via Chronon3DTargets.cmake would
+# break.  Gate the alias so it only exists when Chronon3d is the top-
+# level project (in-tree builds).  Sub-project consumers (who
+# `add_subdirectory(Chronon3d)` or `find_package` this SDK) use the raw
+# `chronon3d_content` target name; their `find_package` path does not
+# expose any `chronon3d::`-prefixed alias anyway.
+if(CMAKE_PROJECT_NAME STREQUAL "Chronon3d")
+    add_library(chronon3d::content ALIAS chronon3d_content)
+endif()

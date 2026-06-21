@@ -1,3 +1,4 @@
+#include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/effects/effect_catalog_data.hpp>
 #include <chronon3d/effects/effect_instance.hpp>

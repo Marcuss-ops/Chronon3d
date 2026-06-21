@@ -1,5 +1,6 @@
 #include <chronon3d/assets/render_preflight.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include "render_preflight_helpers.hpp"
 
 #include <filesystem>
@@ -14,7 +15,9 @@ void validate_file_exists(const PreflightRequirement& req,
                           PreflightAssetType type,
                           std::vector<PreflightIssue>& issues) {
     namespace fs = std::filesystem;
-    std::string resolved = resolve_asset_path(req.path);
+    // TICKET-011a follow-up #2 — use the runtime-bridged resolver
+    // (active runtime → process-wide fallback → relative path).
+    std::string resolved = chronon3d::runtime::resolve_asset_path(req.path);
 
     if (!fs::exists(resolved)) {
         PreflightIssue issue;

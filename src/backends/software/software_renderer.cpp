@@ -1,10 +1,18 @@
+// ===========================================================================
+// backends/software/software_renderer.cpp
+//
+// TICKET-011 — SoftwareRenderer is a thin per-instance orchestrator.
+// All long-lived state lives on `m_runtime` (chronon3d::runtime::RenderRuntime);
+// this file holds only per-instance wiring + caching of RenderCounters /
+// RenderSettings / ImageBackend / etc.
+// ===========================================================================
+
 #include "utils/render_effects_processor.hpp"
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
-#include <chronon3d/backends/software/software_compositor.hpp>
-#include <chronon3d/backends/software/text_run_processor.hpp>
 
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
@@ -13,6 +21,7 @@
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #endif
+#include <chronon3d/backends/software/text_run_processor.hpp>
 #include <chronon3d/cache/cache_policy.hpp>
 #include <chronon3d/cache/persistent_framebuffer_store.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
@@ -21,15 +30,16 @@
 #include <chronon3d/text/glyph_atlas.hpp>
 #include <optional>
 #include <chronon3d/core/profiling/profiling.hpp>
-#include "../../backends/software/processors/text/text_processor_helpers.hpp"
-#include "../../backends/software/rasterizers/path/pip.hpp"
-#include "../../backends/software/rasterizers/path/path_utils.hpp"
+#include "processors/text/text_processor_helpers.hpp"
+#include "rasterizers/path/pip.hpp"
+#include "rasterizers/path/path_utils.hpp"
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 #include "diagnostics/bbox_overlay.hpp"
 #include "diagnostics/layout_preview_overlay.hpp"
 #include "diagnostics/nulls_overlay.hpp"
 #endif
 #include <algorithm>
+#include <utility>
 
 namespace chronon3d {
     struct RenderNode;
@@ -75,127 +85,40 @@ uint64_t clipped_area(int32_t width, int32_t height, const std::optional<raster:
 
 } // namespace
 
-SoftwareRenderer::SoftwareRenderer()
-    : m_runtime_resources{
-        .software_registry = std::make_unique<renderer::SoftwareRegistry>(),
-        // TICKET-009 — GraphExecutor ctor takes no `pin_main_thread` arg
-        // anymore.  The planner cache is owned by `m_runtime_resources.plan_cache`
-        // (shared_ptr) and passed explicitly to `executor.execute()`.
-        .executor = std::make_unique<graph::GraphExecutor>(),
-        .plan_cache = std::make_shared<runtime::ExecutionPlanCache>(),
-        .graph_node_registry = std::make_unique<graph::GraphNodeCatalog>(),
-        .effect_catalog = std::make_unique<effects::EffectCatalog>()
-    }
-    , m_cache_state{
-        .node_cache = cache::NodeCache{
-            m_config.cache().node_cache_max_bytes()},
-        .framebuffer_pool = std::make_shared<cache::FramebufferPool>(
-            m_config.cache().fb_pool_max_bytes())
-    }
-    , m_backend(std::make_unique<SoftwareBackend>(
-        m_counters, m_settings, m_cache_state.framebuffer_pool))
+// ── Construction ──────────────────────────────────────────────────────────────
+
+SoftwareRenderer::SoftwareRenderer(runtime::RenderRuntime& rt, Config config)
+    : m_config(std::move(config))
+    , m_owned_runtime_storage{}
+    , m_runtime(&rt)
 {
-    // ── Thread sub-configs to singleton / static-state components ────
-    const auto& cache_cfg = m_config.cache();
-    const auto& sched_cfg = m_config.scheduler();
-
-    cache::PersistentFramebufferStore::set_store_config(
-        cache_cfg.disable_persistent_framebuffer_cache(),
-        m_config.paths().persistent_framebuffer_cache_dir());
-    ImageCache::set_capacity_bytes(cache_cfg.image_cache_max_bytes());
-    cache::set_global_cache_config(cache_cfg);
-#ifdef CHRONON3D_HAS_BACKEND_TEXT
-    set_glyph_atlas_capacity(cache_cfg.glyph_atlas_max_bytes());
-    set_text_cache_capacity(cache_cfg.text_cache_max_bytes());
-#endif
-    renderer::set_shadow_cache_capacity(cache_cfg.shadow_cache_max_bytes());
-    renderer::set_glow_cache_capacity(cache_cfg.glow_cache_max_bytes());
-    renderer::set_pip_mode(sched_cfg.pip_mode());
-    renderer::set_prefetch_enabled(sched_cfg.prefetch_enabled());
-
-    renderer::register_builtin_processors(*m_runtime_resources.software_registry);
-
-    graph::register_pipeline_graph_nodes(*m_runtime_resources.graph_node_registry);
-
-    // Built-in effects are registered via EffectCatalog's constructor;
-    // freeze to prevent further registrations.
-    m_runtime_resources.effect_catalog->freeze();
-
-    // Thread the per-instance debug config for deep rendering code
-    // (glow_pipeline, text_rasterizer) that can't receive context directly.
+    // Per-instance state is default-initialised.  Catalogs/registries
+    // were populated by RenderRuntime::populate(); the SoftwareBackend
+    // is attached externally by RenderEngine::Impl.
 }
 
 SoftwareRenderer::SoftwareRenderer(Config config)
     : m_config(std::move(config))
-    , m_runtime_resources{
-        .software_registry = std::make_unique<renderer::SoftwareRegistry>(),
-        // TICKET-009 — see default ctor; pin + arena gone, plan_cache added.
-        .executor = std::make_unique<graph::GraphExecutor>(),
-        .plan_cache = std::make_shared<runtime::ExecutionPlanCache>(),
-        .graph_node_registry = std::make_unique<graph::GraphNodeCatalog>(),
-        .effect_catalog = std::make_unique<effects::EffectCatalog>()
-    }
-    , m_cache_state{
-        .node_cache = cache::NodeCache{
-            m_config.cache().node_cache_max_bytes()},
-        .framebuffer_pool = std::make_shared<cache::FramebufferPool>(
-            m_config.cache().fb_pool_max_bytes())
-    }
-    , m_backend(std::make_unique<SoftwareBackend>(
-        m_counters, m_settings, m_cache_state.framebuffer_pool))
 {
-    const auto& cache_cfg = m_config.cache();
-    const auto& sched_cfg = m_config.scheduler();
-
-    cache::PersistentFramebufferStore::set_store_config(
-        cache_cfg.disable_persistent_framebuffer_cache(),
-        m_config.paths().persistent_framebuffer_cache_dir());
-    ImageCache::set_capacity_bytes(cache_cfg.image_cache_max_bytes());
-    cache::set_global_cache_config(cache_cfg);
-#ifdef CHRONON3D_HAS_BACKEND_TEXT
-    set_glyph_atlas_capacity(cache_cfg.glyph_atlas_max_bytes());
-    set_text_cache_capacity(cache_cfg.text_cache_max_bytes());
-#endif
-    renderer::set_shadow_cache_capacity(cache_cfg.shadow_cache_max_bytes());
-    renderer::set_glow_cache_capacity(cache_cfg.glow_cache_max_bytes());
-    renderer::set_pip_mode(sched_cfg.pip_mode());
-    renderer::set_prefetch_enabled(sched_cfg.prefetch_enabled());
-
-    renderer::register_builtin_processors(*m_runtime_resources.software_registry);
-
-    graph::register_pipeline_graph_nodes(*m_runtime_resources.graph_node_registry);
-
-    m_runtime_resources.effect_catalog->freeze();
-
+    // Transitional ctor: synthesise an internal RenderRuntime.  We
+    // initialise m_owned_runtime_storage via move-assignment in the
+    // body (after m_config is populated above).  m_runtime binds to
+    // the synthesised runtime.
+    m_owned_runtime_storage =
+        std::make_unique<runtime::RenderRuntime>(m_config);
+    m_runtime = m_owned_runtime_storage.get();
 }
 
 SoftwareRenderer::~SoftwareRenderer() = default;
 
-graph::GraphExecutor* SoftwareRenderer::executor() {
-    return m_runtime_resources.executor.get();
-}
-
-const graph::GraphExecutor* SoftwareRenderer::executor() const {
-    return m_runtime_resources.executor.get();
-}
-
-// TICKET-009 — accessor for the shared plan cache.  Callers (tile executor,
-// precomp node) pass this pointer into GraphExecutor::execute() for
-// per-render topology caching.
-runtime::ExecutionPlanCache* SoftwareRenderer::plan_cache() {
-    return m_runtime_resources.plan_cache.get();
-}
-
-const runtime::ExecutionPlanCache* SoftwareRenderer::plan_cache() const {
-    return m_runtime_resources.plan_cache.get();
-}
+// ── Rendering ────────────────────────────────────────────────────────────────
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp,
                                                             Frame frame) {
-    profiling::ProfilingGuard scope(&m_counters, m_cache_state.framebuffer_pool.get());
+    profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());
 
     auto res = graph::render_composition_frame(
-        *this, m_cache_state.node_cache, m_settings, m_registry, m_video_decoder.get(), comp, frame
+        *this, node_cache(), m_settings, m_registry, m_video_decoder.get(), comp, frame
     );
     return res;
 }
@@ -203,11 +126,11 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& c
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
                                                             const Camera& camera, i32 width,
                                                             i32 height) {
-    profiling::ProfilingGuard scope(&m_counters, m_cache_state.framebuffer_pool.get());
+    profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());
 
     auto res = graph::render_scene_via_graph(
         *this,
-        m_cache_state.node_cache,
+        node_cache(),
         scene,
         camera,
         width,
@@ -223,7 +146,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
     const Scene& scene, const std::optional<Camera2_5D>& camera, i32 width, i32 height) {
-    profiling::ProfilingGuard scope(&m_counters, m_cache_state.framebuffer_pool.get());
+    profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());
 
     Scene effective_scene = scene.clone();
     if (camera.has_value()) {
@@ -233,7 +156,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
     Camera default_camera;
     auto res = graph::render_scene_via_graph(
         *this,
-        m_cache_state.node_cache,
+        node_cache(),
         effective_scene,
         default_camera,
         width,
@@ -257,7 +180,7 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
                                                   f32 frame_time) const {
     return graph::debug_scene_graph(
         const_cast<SoftwareRenderer&>(*this),
-        m_cache_state.node_cache,
+        const_cast<cache::NodeCache&>(node_cache()),
         scene,
         camera,
         width,
@@ -271,11 +194,11 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
 }
 
 void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip) {
-    m_backend->apply_blur(fb, radius, clip);
+    m_runtime->backend().apply_blur(fb, radius, clip);
 }
 
 void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack, const effects::EffectExecutionContext& context) {
-    m_backend->apply_effect_stack(fb, stack, context);
+    m_runtime->backend().apply_effect_stack(fb, stack, context);
 }
 
 void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
@@ -297,7 +220,7 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
 }
 
 void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip, CompositeOperator op) {
-    m_backend->composite_layer(dst, src, mode, clip, op);
+    m_runtime->backend().composite_layer(dst, src, mode, clip, op);
 }
 
 void SoftwareRenderer::apply_per_pixel_dof(
@@ -307,7 +230,7 @@ void SoftwareRenderer::apply_per_pixel_dof(
     const LensModel& lens,
     const std::optional<raster::BBox>& clip)
 {
-    m_backend->apply_per_pixel_dof(framebuffer, depth, dof, lens, clip);
+    m_runtime->backend().apply_per_pixel_dof(framebuffer, depth, dof, lens, clip);
 }
 
 graph::RenderOpResult SoftwareRenderer::draw_text_run(
@@ -318,9 +241,6 @@ graph::RenderOpResult SoftwareRenderer::draw_text_run(
 ) {
 #ifdef CHRONON3D_USE_BLEND2D
     CHRONON_ZONE_C("draw_text_run", trace_category::kText);
-    // PR2: `bool diagnostic_mode` removed — caller (TextRunNode / multi_source_node)
-    // controls timing logs via `ctx.options.diagnostics_enabled` and emits them
-    // at the graph-node level, not via the TextRunDrawParams struct.
     renderer::TextRunDrawParams params{
         .fb = fb,
         .shape = shape,

@@ -1,3 +1,4 @@
+#include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
@@ -20,8 +21,8 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
     const RenderGraphContext& ctx,
     std::span<const std::optional<raster::BBox>>
 ) const {
-    const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.options.ssaa_factor, ctx.options.ssaa_factor, 1.0f));
-    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
+    const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
+    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
 
     i32 x0 = std::numeric_limits<i32>::max();
     i32 y0 = std::numeric_limits<i32>::max();
@@ -57,19 +58,19 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
             // shape itself — the spread arg covers node-level shadow/glow.
             bbox = renderer::compute_text_run_world_bbox(
                 *item.node->shape.text_run_shape_handle().value, matrix, spread);
-        } else if (ctx.camera.has_camera_2_5d &&
+        } else if (ctx.frame_input.has_camera_2_5d &&
             (item.node->shape.type() == ShapeType::FakeBox3D || item.node->shape.type() == ShapeType::GridPlane)) {
             if (auto proj_bbox = detail::projected_native_3d_bbox(ctx, *item.node, item.matrix, spread)) {
                 bbox = *proj_bbox;
             } else {
-                bbox = raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
+                bbox = raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
             }
         } else {
             bbox = renderer::compute_world_bbox(item.node->shape, matrix, spread);
         }
 
-        if (!ctx.options.diagnostics_enabled) {
-            bbox.clip_to(ctx.frame.width, ctx.frame.height);
+        if (!ctx.policy.diagnostics_enabled) {
+            bbox.clip_to(ctx.frame_input.width, ctx.frame_input.height);
         }
         if (!bbox.is_empty()) {
             x0 = std::min(x0, bbox.x0);
@@ -94,7 +95,7 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
     // cache reuse a rendered result across frames that share the same
     // effective transform (e.g. settled tail of an animation).
     key.frame = Frame{0};
-    key.params_hash = hash_combine(key.params_hash, static_cast<u64>(ctx.options.modular_coordinates));
+    key.params_hash = hash_combine(key.params_hash, static_cast<u64>(ctx.policy.modular_coordinates));
 
     // Hash every item's full world matrix and opacity so the cache key
     // changes when the layer-level animation (e.g. tracking_breathing)
@@ -114,15 +115,15 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
                 key.params_hash,
                 chronon3d::hash_text_run_shape(
                     *item.node->shape.text_run_shape_handle().value,
-                    ctx.frame.sample_time.integral_frame()));
+                    ctx.frame_input.sample_time.integral_frame()));
         }
     }
 
     // 2.5D camera transform — invalidate when the camera moves so the bg
     // matrix inside compute_text_run_world_bbox / compute_world_bbox is
     // up-to-date.  Mirrors SourceNode::cache_key and TextRunNode::cache_key.
-    if (m_uses_2_5d_projection && ctx.camera.has_camera_2_5d) {
-        const auto& cam = ctx.camera.camera_2_5d;
+    if (m_uses_2_5d_projection && ctx.frame_input.has_camera_2_5d) {
+        const auto& cam = ctx.frame_input.camera_2_5d;
         key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.position, sizeof(Vec3)));
         key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.rotation, sizeof(Vec3)));
         key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.zoom, sizeof(f32)));
@@ -141,11 +142,11 @@ OwnedFB MultiSourceNode::execute(
     std::span<const std::optional<raster::BBox>>
 ) {
     CHRONON_ZONE_C("multi_source_render", trace_category::kRasterize);
-    auto fb = ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height, /*clear=*/true);
+    auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true);
 
-    if (ctx.resources.backend) {
-        const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.options.ssaa_factor, ctx.options.ssaa_factor, 1.0f));
-        const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
+    if (ctx.services.backend) {
+        const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
+        const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
 
         // text_run items are dispatched to `RenderBackend::draw_text_run`
         // instead of the generic `RenderBackend::draw_node` because the
@@ -181,7 +182,7 @@ OwnedFB MultiSourceNode::execute(
                 // (no re-shaping); cache key fold on hash_text_run_shape
                 // invalidates the entry automatically.  No-op when
                 // animators is empty.
-                chronon3d::update_text_run_shape_per_frame(*run_shape, ctx.frame.sample_time);
+                chronon3d::update_text_run_shape_per_frame(*run_shape, ctx.frame_input.sample_time);
 
                 Mat4 world_matrix;
                 if (m_uses_2_5d_projection || m_centered) {
@@ -194,7 +195,7 @@ OwnedFB MultiSourceNode::execute(
                 // active backend does not support text runs, emit a one-shot
                 // warning and skip the per-item dispatch (avoids a
                 // per-frame failed-virtual call).
-                if (!ctx.resources.backend->capabilities().text_run) {
+                if (!ctx.services.backend->capabilities().text_run) {
                     if (!m_backend_warned) {
                         spdlog::error(
                             "[multi-source] node='{}' contains text run items "
@@ -205,7 +206,7 @@ OwnedFB MultiSourceNode::execute(
                     continue;
                 }
 
-                auto result = ctx.resources.backend->draw_text_run(
+                auto result = ctx.services.backend->draw_text_run(
                     *fb, *run_shape, world_matrix,
                     item.opacity);
 
@@ -220,7 +221,7 @@ OwnedFB MultiSourceNode::execute(
                 // NOTE: draw_text_run() already increments text_glyphs_rasterized
                 // inside the processor.  Do NOT double-count here.
 
-                if (ctx.options.diagnostics_enabled) {
+                if (ctx.policy.diagnostics_enabled) {
                     spdlog::debug(
                         "[multi-source] node='{}' text_run drew={} glyphs={} "
                         "hash=0x{:016x} opacity={:.3f} tx={:.1f} ty={:.1f}",
@@ -229,7 +230,7 @@ OwnedFB MultiSourceNode::execute(
                         item.node->shape.text_run_shape_handle().value->glyphs.size(),
                         chronon3d::hash_text_run_shape(
                             *item.node->shape.text_run_shape_handle().value,
-                            ctx.frame.sample_time.integral_frame()),
+                            ctx.frame_input.sample_time.integral_frame()),
                         item.opacity,
                         world_matrix[3][0],
                         world_matrix[3][1]
@@ -240,8 +241,8 @@ OwnedFB MultiSourceNode::execute(
 
             // ── regular (non-text-run) item ───────────────────────
             RenderState state;
-            state.frame_number = static_cast<int>(ctx.frame.frame);
-            state.ssaa_factor = ctx.options.ssaa_factor;
+            state.frame_number = static_cast<int>(ctx.frame_input.frame);
+            state.ssaa_factor = ctx.policy.ssaa_factor;
             if (m_uses_2_5d_projection) {
                 state.matrix = canvas_center * ssaa_scale * item.matrix;
             } else {
@@ -254,14 +255,14 @@ OwnedFB MultiSourceNode::execute(
 
             state.opacity = item.opacity;
             state.world_matrix = item.matrix;
-            state.clip_rect = ctx.tile.clip_rect;
-            state.diagnostics_enabled = ctx.options.diagnostics_enabled;
+            state.clip_rect = ctx.node_exec.clip_rect;
+            state.diagnostics_enabled = ctx.policy.diagnostics_enabled;
 
-            if (ctx.camera.has_camera_2_5d) {
-                state.projection  = ctx.camera.projection_ctx;
+            if (ctx.frame_input.has_camera_2_5d) {
+                state.projection  = ctx.frame_input.projection_ctx;
             }
 
-            ctx.resources.backend->draw_node(*fb, *item.node, state, ctx.camera.camera, ctx.frame.width, ctx.frame.height);
+            ctx.services.backend->draw_node(*fb, *item.node, state, ctx.frame_input.camera, ctx.frame_input.width, ctx.frame_input.height);
         }
 
         fb->set_opaque(false);

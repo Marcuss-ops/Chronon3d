@@ -20,7 +20,7 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
                            float world_z) {
     if (layer_output == k_invalid_node || layer_output == current) return;
 
-    if (!ctx.options.dirty_rects_enabled &&
+    if (!ctx.policy.dirty_rects_enabled &&
         current < graph.size() &&
         graph.node(current).kind() == RenderGraphNodeKind::Output &&
         graph.node(current).name() == "Clear" &&
@@ -54,7 +54,7 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
     // the constructed node; in-place mutation was removed. Single id.
     for (const auto& effect : layer.effects()) {
         if (!effect.enabled) continue;
-        const auto* ec = ctx.resources.effect_catalog;
+        const auto* ec = ctx.services.effect_catalog;
         GraphNodeId effect_id = graph.add_node(ec->create_node(effect));
         graph.connect(layer_output, effect_id);
         layer_output = effect_id;
@@ -67,7 +67,7 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
         // Per-pixel DOF is signalled by track_dof_depth being set in the ctx.
         // When active, the per-layer DofEffectNode is skipped to avoid
         // double-blurring.
-        if (!ctx.options.track_dof_depth) {
+        if (!ctx.policy.track_dof_depth) {
             // PR2-cleanup: DofEffectNode is intrinsically frame-dependent via its
             // built-in `static_memory_cache` default; the legacy `!is_static`
             // distinction was removed. Single node, taken as id.
@@ -121,11 +121,11 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
         Mat4 effective_matrix = item.world_matrix;
         if (should_use_centered_rendering(item, ctx)) {
             Mat4 ssaa_world = item.world_matrix;
-            ssaa_world[3][0] *= ctx.options.ssaa_factor;
-            ssaa_world[3][1] *= ctx.options.ssaa_factor;
-            ssaa_world[3][2] *= ctx.options.ssaa_factor;
+            ssaa_world[3][0] *= ctx.policy.ssaa_factor;
+            ssaa_world[3][1] *= ctx.policy.ssaa_factor;
+            ssaa_world[3][2] *= ctx.policy.ssaa_factor;
             effective_matrix =
-                glm::translate(Mat4(1.0f), Vec3(-ctx.frame.width * 0.5f, -ctx.frame.height * 0.5f, 0.0f)) *
+                glm::translate(Mat4(1.0f), Vec3(-ctx.frame_input.width * 0.5f, -ctx.frame_input.height * 0.5f, 0.0f)) *
                 ssaa_world;
         } else {
             // Delegate to the shared helper so the build-path stays in sync

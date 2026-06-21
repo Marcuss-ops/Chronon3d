@@ -13,8 +13,8 @@ inline bool is_implicit_2d_centering_only(const LayerGraphItem& item, const Rend
 
 inline Mat4 implicit_canvas_center_matrix(const RenderGraphContext& ctx) {
     return glm::translate(Mat4(1.0f), Vec3(
-        ctx.frame.width * 0.5f,
-        ctx.frame.height * 0.5f,
+        ctx.frame_input.width * 0.5f,
+        ctx.frame_input.height * 0.5f,
         0.0f
     ));
 }
@@ -32,7 +32,7 @@ inline bool matrix_near(const Mat4& a, const Mat4& b, f32 eps = 1e-4f) {
 
 /// Determine if a layer should be rendered in centered mode.
 inline bool should_use_centered_rendering(const LayerGraphItem& item, const RenderGraphContext& ctx) {
-    if (!ctx.options.modular_coordinates) {
+    if (!ctx.policy.modular_coordinates) {
         return (item.layer && item.layer->uses_2_5d_projection);
     }
     return layer_needs_render_transform(item, ctx) && !item.native_3d;
@@ -41,7 +41,7 @@ inline bool should_use_centered_rendering(const LayerGraphItem& item, const Rend
 /// True only when item.transform is exactly the automatic 2D centering transform.
 /// This must NOT count as a user/custom transform.
 inline bool is_implicit_2d_centering_only(const LayerGraphItem& item, const RenderGraphContext& ctx) {
-    if (!ctx.options.modular_coordinates) return false;
+    if (!ctx.policy.modular_coordinates) return false;
     if (!item.layer) return false;
     if (item.projected) return false;
     if (item.native_3d) return false;
@@ -114,8 +114,8 @@ inline Mat4 strip_implicit_canvas_centering(
     if (item.native_3d) return matrix;
     if (!item.layer || item.layer->kind != LayerKind::Normal) return matrix;
 
-    const f32 cx = static_cast<f32>(ctx.frame.width) * 0.5f;
-    const f32 cy = static_cast<f32>(ctx.frame.height) * 0.5f;
+    const f32 cx = static_cast<f32>(ctx.frame_input.width) * 0.5f;
+    const f32 cy = static_cast<f32>(ctx.frame_input.height) * 0.5f;
 
     if (std::abs(matrix[3][0] - cx) < tolerance &&
         std::abs(matrix[3][1] - cy) < tolerance) {

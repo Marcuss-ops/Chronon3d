@@ -155,7 +155,7 @@ public:
     /// RenderBackendErrorCode::UnsupportedCapability.
     /// PR2: the `diagnostic_mode` parameter was removed — diagnostic logging
     /// is now controlled by the caller (e.g. graph-node
-    /// `ctx.options.diagnostics_enabled`) and propagated into `spdlog::*`
+    /// `ctx.policy.diagnostics_enabled`) and propagated into `spdlog::*`
     /// calls at the caller side, not as a flag buried inside the processor's
     /// params struct.
     virtual RenderOpResult draw_text_run(

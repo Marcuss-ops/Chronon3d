@@ -53,8 +53,8 @@ namespace chronon3d::graph {
     RenderGraph graph = pipeline.build_with_resolved(scene, mutable_ctx, pre_resolved);
 
     // Carry forward context state set by the pipeline
-    ctx.options.skip_initial_clear = mutable_ctx.options.skip_initial_clear;
-    ctx.tile.early_exit_skip = std::move(mutable_ctx.tile.early_exit_skip);
+    ctx.policy.skip_initial_clear = mutable_ctx.policy.skip_initial_clear;
+    ctx.node_exec.early_exit_skip = std::move(mutable_ctx.node_exec.early_exit_skip);
 
     // Compile + optimize
     FrameGraphCompiler compiler;
@@ -62,7 +62,7 @@ namespace chronon3d::graph {
     compile_options.run_optimizer = true;
     compile_options.compute_lifetimes = true;
     compile_options.compute_bboxes = true;
-    compile_options.include_diagnostics = ctx.options.diagnostics_enabled;
+    compile_options.include_diagnostics = ctx.policy.diagnostics_enabled;
 
     return compiler.compile(std::move(graph), ctx, compile_options);
 }
@@ -89,8 +89,8 @@ namespace chronon3d::graph {
     detail::refresh_compiled_graph_payloads(compiled, scene, ctx, resolved);
     const auto t_refresh1 = profiling::now();
 
-    if (ctx.telemetry.counters) {
-        ctx.telemetry.counters->compiled_graph_refresh_ms.fetch_add(
+    if (ctx.node_exec.counters) {
+        ctx.node_exec.counters->compiled_graph_refresh_ms.fetch_add(
             to_ms_u64(profiling::duration_ms(t_refresh0, t_refresh1)),
             std::memory_order_relaxed);
     }
@@ -98,8 +98,8 @@ namespace chronon3d::graph {
     compiled.skip_initial_clear = false;
     compiled.early_exit_skip.assign(compiled.graph.size(), false);
 
-    ctx.options.skip_initial_clear = compiled.skip_initial_clear;
-    ctx.tile.early_exit_skip = compiled.early_exit_skip;
+    ctx.policy.skip_initial_clear = compiled.skip_initial_clear;
+    ctx.node_exec.early_exit_skip = compiled.early_exit_skip;
 
     if (diagnostics_enabled) {
         spdlog::info("[graph-cache] reusing cached compiled graph ({} live nodes)",
@@ -118,7 +118,7 @@ GraphBuildResult build_or_reuse_graph(
     bool scene_structure_unchanged,
     bool diagnostics_enabled)
 {
-    auto* graph_cache = ctx.resources.compiled_graph_cache;
+    auto* graph_cache = ctx.services.compiled_graph_cache;
 
     GraphBuildResult result;
     result.can_reuse = scene_structure_unchanged &&
@@ -128,26 +128,26 @@ GraphBuildResult build_or_reuse_graph(
     const auto t_graph0 = profiling::now();
 
     if (result.can_reuse) {
-        if (ctx.telemetry.counters) {
-            ctx.telemetry.counters->graph_cache_hits.fetch_add(1, std::memory_order_relaxed);
+        if (ctx.node_exec.counters) {
+            ctx.node_exec.counters->graph_cache_hits.fetch_add(1, std::memory_order_relaxed);
         }
         result.compiled = reuse_cached_graph(
             *graph_cache, scene, ctx, resolved, width, height, diagnostics_enabled);
         result.graph_reused = true;
         result.skip_initial_clear = result.compiled.skip_initial_clear;
     } else {
-        if (ctx.telemetry.counters) {
-            ctx.telemetry.counters->graph_cache_misses.fetch_add(1, std::memory_order_relaxed);
+        if (ctx.node_exec.counters) {
+            ctx.node_exec.counters->graph_cache_misses.fetch_add(1, std::memory_order_relaxed);
         }
         result.compiled = build_fresh_graph(ctx, scene, resolved);
         result.graph_reused = false;
-        result.skip_initial_clear = ctx.options.skip_initial_clear;
+        result.skip_initial_clear = ctx.policy.skip_initial_clear;
     }
 
     const auto t_graph1 = profiling::now();
 
-    if (ctx.telemetry.counters && !result.graph_reused) {
-        ctx.telemetry.counters->graph_build_ms.fetch_add(
+    if (ctx.node_exec.counters && !result.graph_reused) {
+        ctx.node_exec.counters->graph_build_ms.fetch_add(
             to_ms_u64(profiling::duration_ms(t_graph0, t_graph1)),
             std::memory_order_relaxed);
     }

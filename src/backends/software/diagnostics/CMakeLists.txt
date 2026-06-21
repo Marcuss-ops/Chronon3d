@@ -9,7 +9,11 @@
 # ==============================================================================
 
 if(CHRONON3D_BUILD_DIAGNOSTICS)
-    add_library(chronon3d_backend_software_diagnostics STATIC
+    # TICKET-011 cmake-boundary (OBJECT lift) — chronon3d_backend_software_diagnostics
+    # is now an OBJECT library.  PRIVATE-linked above into chronon3d_backend_software
+    # (also OBJECT); CMake propagates the .o files transitively, and the aggregate
+    # chronon3d_sdk_impl.a bundles them at the static-link step.
+    add_library(chronon3d_backend_software_diagnostics OBJECT
         ${CMAKE_CURRENT_SOURCE_DIR}/bbox_overlay.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layout_preview_overlay.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/nulls_overlay.cpp
@@ -27,6 +31,12 @@ if(CHRONON3D_BUILD_DIAGNOSTICS)
         PRIVATE spdlog::spdlog_header_only glm::glm
     )
 
-    # Project-style ALIAS for consumers that prefer the namespaced form
-    add_library(chronon3d::backend_software_diagnostics ALIAS chronon3d_backend_software_diagnostics)
+    # In-tree-only convenience alias (TICKET-011 cmake-boundary OBJECT lift):
+    # same rationale as `chronon3d::content` in content/CMakeLists.txt —
+    # `chronon3d_backend_software_diagnostics` is now an OBJECT lib with
+    # no installed ARCHIVE; downstream `find_package(Chronon3D)` consumers
+    # must use the raw target name.
+    if(CMAKE_PROJECT_NAME STREQUAL "Chronon3d")
+        add_library(chronon3d::backend_software_diagnostics ALIAS chronon3d_backend_software_diagnostics)
+    endif()
 endif()

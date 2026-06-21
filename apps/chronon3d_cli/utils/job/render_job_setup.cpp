@@ -10,6 +10,7 @@
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 #endif
 #include <chronon3d/assets/asset_registry.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include "../../cli_init.hpp"
 
 #include <spdlog/spdlog.h>
@@ -25,9 +26,13 @@ void setup_render_job(const CompositionRegistry& registry,
     // (fonts, images, etc.) resolve correctly.
     auto& assets = cli_asset_registry();
     assets.mount(std::filesystem::current_path());
-    // Also set the default assets root for deep rendering code that
-    // uses resolve_asset_path() without explicit context.
-    detail::set_default_assets_root(
+    // TICKET-011a follow-up #2 — seed the typed process-wide
+    // assets root so deep rendering paths that resolve assets
+    // before a RenderRuntime is alive still find the project
+    // directory.  Once `create_renderer(...)` is called below and
+    // the engine publishes its active runtime, this fallback is
+    // shadowed by RenderRuntime::default_assets_root().
+    chronon3d::runtime::set_process_wide_assets_root(
         std::filesystem::current_path().string());
 
     profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);

@@ -29,10 +29,10 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         }
 
         const bool layer_needs_transform = layer_needs_render_transform(item, ctx);
-        const bool use_local = ctx.options.modular_coordinates && layer_needs_transform && !item.native_3d;
+        const bool use_local = ctx.policy.modular_coordinates && layer_needs_transform && !item.native_3d;
         const bool source_is_static = is_static || use_local;
 
-        if (ctx.options.diagnostics_enabled) {
+        if (ctx.policy.diagnostics_enabled) {
             spdlog::info(
                 "[source-pass] layer='{}' kind={} item_transform_any={} implicit_center_only={} custom_transform={} use_local={} centered={} tx={} ty={}",
                 layer.name.c_str(),
@@ -78,9 +78,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 } else {
                     cache::NodeCacheKey run_key{
                         .scope = "layer.textrun:" + std::string(layer.name) + ":" + std::string(node.name),
-                        .frame = source_is_static ? Frame{0} : ctx.frame.frame,
-                        .width = ctx.frame.width,
-                        .height = ctx.frame.height,
+                        .frame = source_is_static ? Frame{0} : ctx.frame_input.frame,
+                        .width = ctx.frame_input.width,
+                        .height = ctx.frame_input.height,
                         .params_hash = content_hash,
                         .source_hash = hash_combine(hash_string(node.name), placement_hash)
                     };
@@ -98,12 +98,12 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                         run_key,
                         should_use_centered_rendering(item, ctx),
                         item.projected,
-                        ctx.options.modular_coordinates ? std::optional<Mat4>(run_matrix) : std::nullopt,
-                        ctx.options.modular_coordinates ? std::optional<f32>(run_opacity) : std::nullopt,
+                        ctx.policy.modular_coordinates ? std::optional<Mat4>(run_matrix) : std::nullopt,
+                        ctx.policy.modular_coordinates ? std::optional<f32>(run_opacity) : std::nullopt,
                         source_is_static ? static_memory_cache("text_run") : frame_variant_cache("text_run")
                     ));
 
-                    if (ctx.options.diagnostics_enabled) {
+                    if (ctx.policy.diagnostics_enabled) {
                         spdlog::info(
                             "[source-pass] layer='{}' routed to TextRunNode "
                             "glyphs={} centered={} projected={}",
@@ -123,9 +123,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             if (node.shape.type() == ShapeType::Text) {
                 cache::NodeCacheKey source_key{
                     .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
-                    .frame = source_is_static ? Frame{0} : ctx.frame.frame,
-                    .width = ctx.frame.width,
-                    .height = ctx.frame.height,
+                    .frame = source_is_static ? Frame{0} : ctx.frame_input.frame,
+                    .width = ctx.frame_input.width,
+                    .height = ctx.frame_input.height,
                     .params_hash = content_hash,
                     .source_hash = hash_combine(hash_string(node.name), placement_hash)
                 };
@@ -141,16 +141,16 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     std::string(node.name), node, source_key,
                     should_use_centered_rendering(item, ctx),
                     item.projected,
-                    ctx.options.modular_coordinates ? std::optional<Mat4>(text_matrix) : std::nullopt,
-                    ctx.options.modular_coordinates ? std::optional<f32>(text_opacity) : std::nullopt,
+                    ctx.policy.modular_coordinates ? std::optional<Mat4>(text_matrix) : std::nullopt,
+                    ctx.policy.modular_coordinates ? std::optional<f32>(text_opacity) : std::nullopt,
                     source_is_static ? static_memory_cache("source") : frame_variant_cache("source")
                 ));
             } else {
                 cache::NodeCacheKey source_key{
                     .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
-                    .frame = source_is_static ? Frame{0} : ctx.frame.frame,
-                    .width = ctx.frame.width,
-                    .height = ctx.frame.height,
+                    .frame = source_is_static ? Frame{0} : ctx.frame_input.frame,
+                    .width = ctx.frame_input.width,
+                    .height = ctx.frame_input.height,
                     .params_hash = content_hash,
                     .source_hash = hash_combine(hash_string(node.name), placement_hash)
                 };
@@ -166,8 +166,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     std::string(node.name), node, source_key,
                     should_use_centered_rendering(item, ctx),
                     item.projected,
-                    ctx.options.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::nullopt,
-                    ctx.options.modular_coordinates ? std::optional<f32>(shape_opacity) : std::nullopt,
+                    ctx.policy.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::nullopt,
+                    ctx.policy.modular_coordinates ? std::optional<f32>(shape_opacity) : std::nullopt,
                     source_is_static ? static_memory_cache("source") : frame_variant_cache("source")
                 ));
             }
@@ -219,9 +219,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
         cache::NodeCacheKey source_key{
             .scope = "layer.multisource:" + std::string(layer.name),
-            .frame = source_is_static ? Frame{0} : ctx.frame.frame,
-            .width = ctx.frame.width,
-            .height = ctx.frame.height,
+            .frame = source_is_static ? Frame{0} : ctx.frame_input.frame,
+            .width = ctx.frame_input.width,
+            .height = ctx.frame_input.height,
             .params_hash = aggregated_params_hash,
             .source_hash = aggregated_source_hash
         };
@@ -262,10 +262,10 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
     }
 
     if (layer.kind == LayerKind::Precomp) {
-        const size_t cache_cap   = ctx.options.program_cache_capacity > 0
-            ? ctx.options.program_cache_capacity
+        const size_t cache_cap   = ctx.policy.program_cache_capacity > 0
+            ? ctx.policy.program_cache_capacity
             : 8;  // default
-        const auto tune_mode     = ctx.options.program_cache_tune
+        const auto tune_mode     = ctx.policy.program_cache_tune
             ? cache::TuneMode::Auto
             : cache::TuneMode::Fixed;
 
@@ -281,19 +281,19 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 .cache_capacity = cache_cap,
                 .tune_mode = tune_mode,
                 .tune_interval =
-                    ctx.options.program_cache_tune_interval,
+                    ctx.policy.program_cache_tune_interval,
                 .tune_min_capacity =
-                    ctx.options.program_cache_tune_min_capacity,
+                    ctx.policy.program_cache_tune_min_capacity,
                 .tune_max_capacity =
-                    ctx.options.program_cache_tune_max_capacity,
+                    ctx.policy.program_cache_tune_max_capacity,
             }
         };
 
-        if (!ctx.resources.node_catalog) {
+        if (!ctx.services.node_catalog) {
             throw std::logic_error(
                 "source.precomp: node_catalog not wired (call wire_precomp_build_factory)");
         }
-        auto node = ctx.resources.node_catalog->create(
+        auto node = ctx.services.node_catalog->create(
             "source.precomp", request);
 
         if (!node) {
@@ -310,7 +310,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         // PR2-cleanup: VideoNode is intrinsically frame-variant per its ctor;
         // the cache policy is baked in by the factory.
         return graph.add_node(std::make_unique<VideoNode>(
-            *layer.video_source, ctx.resources.video_decoder, layer.from
+            *layer.video_source, ctx.services.video_decoder, layer.from
         ));
     }
 

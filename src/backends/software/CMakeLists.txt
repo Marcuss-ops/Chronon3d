@@ -2,7 +2,11 @@
 # src/backends/software/CMakeLists.txt — chronon3d_backend_software
 # ==============================================================================
 
-add_library(chronon3d_backend_software STATIC
+# TICKET-011 cmake-boundary (OBJECT lift) — chronon3d_backend_software is now
+# an OBJECT library; its compiled objects are aggregated into
+# chronon3d_sdk_impl.a (see src/CMakeLists.txt).  Tests / CLI executables
+# resolve the .o files transitively through chronon3d_pipeline → OBJECT deps.
+add_library(chronon3d_backend_software OBJECT
     # Top-level files only — subsystem sources are in per-directory CMakeLists.txt
     software_compositor.cpp
     software_renderer.cpp

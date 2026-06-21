@@ -73,20 +73,37 @@ namespace chronon3d::graph::detail {
     Framebuffer& output_fb
 ) {
     RenderGraphContext tile_ctx = ctx;
-    tile_ctx.tile.clip_rect = region_bbox;
-    tile_ctx.tile.dirty_rect = region_bbox;
-    tile_ctx.options.reuse_prev_framebuffer = false;
-    tile_ctx.tile.tile_execution_enabled = true;
-    tile_ctx.tile.active_tile_clip = region_bbox;
-    tile_ctx.options.skip_initial_clear = false;
-    tile_ctx.tile.early_exit_skip.clear();
+    tile_ctx.node_exec.clip_rect = region_bbox;
+    tile_ctx.node_exec.dirty_rect = region_bbox;
+    tile_ctx.policy.reuse_prev_framebuffer = false;
+    tile_ctx.policy.tile_execution_enabled = true;
+    tile_ctx.node_exec.active_tile_clip = region_bbox;
+    tile_ctx.policy.skip_initial_clear = false;
+    tile_ctx.node_exec.early_exit_skip.clear();
 
-    FrameArena tile_arena;
-    // TICKET-009 — pass the renderer-owned plan cache and the local
-    // scratch arena override.  The executor is now stateless.
-    auto tile_fb = sw_renderer->executor()->execute(
-        compiled, tile_ctx, sw_renderer->session(),
-        sw_renderer->plan_cache(), &tile_arena);
+    // ── Defence-in-depth null-guard.  The upstream caller
+    // `execute_tile_or_fallback` already null-guards before this path
+    // runs, but we mirror the same `if (sw_renderer && executor) /
+    // else { local_fallback }` shape here so a future caller that
+    // reaches this function directly cannot crash on a null pointer.
+    // The local fallback uses the 3-argument `execute` form (matching
+    // `tile_execution_coordinator.cpp::execute_tile_or_fallback`)
+    // because that overload takes no plan_cache pointer and no scratch
+    // arena; we keep `tile_arena` construction scoped to the
+    // sw_renderer branch so the fallback path doesn't pay for it.
+    std::shared_ptr<Framebuffer> tile_fb;
+    if (!sw_renderer || !sw_renderer->executor()) {
+        RenderSession local_session;
+        GraphExecutor local_executor;
+        tile_fb = local_executor.execute(compiled, tile_ctx, local_session);
+    } else {
+        FrameArena tile_arena;
+        // TICKET-009 — pass the renderer-owned plan cache and the
+        // local scratch arena override.  The executor is now stateless.
+        tile_fb = sw_renderer->executor()->execute(
+            compiled, tile_ctx, sw_renderer->session(),
+            sw_renderer->plan_cache(), &tile_arena);
+    }
 
     if (tile_fb) {
         for (i32 y = region_bbox.y0; y < region_bbox.y1; ++y) {

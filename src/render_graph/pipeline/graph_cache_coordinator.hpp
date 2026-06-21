@@ -35,7 +35,7 @@ struct GraphBuildResult {
 /// for the current resolution, the graph structure is identical to the
 /// previous frame — only payloads need refreshing.
 ///
-/// The compiled graph cache is accessed via ctx.resources.compiled_graph_cache.
+/// The compiled graph cache is accessed via ctx.services.compiled_graph_cache.
 ///
 /// Otherwise, performs a full build via GraphBuildPipeline + FrameGraphCompiler.
 [[nodiscard]] GraphBuildResult build_or_reuse_graph(

@@ -18,9 +18,9 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "adjustment",
-            .frame = cache_policy().frame_dependent() ? ctx.frame.frame : Frame{0},
-            .width = ctx.frame.width,
-            .height = ctx.frame.height,
+            .frame = cache_policy().frame_dependent() ? ctx.frame_input.frame : Frame{0},
+            .width = ctx.frame_input.width,
+            .height = ctx.frame_input.height,
             .params_hash = hash_effect_stack(m_effects)
         };
     }
@@ -34,21 +34,21 @@ public:
     }
 
     OwnedFB execute(RenderGraphContext& ctx, std::span<const FramebufferRef> inputs, std::span<const std::optional<raster::BBox>>) override {
-        if (inputs.empty()) return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
+        if (inputs.empty()) return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
         
         auto result = ctx.acquire_owned_fb(*inputs[0]);
-        if (ctx.resources.backend) {
+        if (ctx.services.backend) {
             const effects::EffectExecutionContext effect_context{
-                .time_seconds = ctx.frame.time_seconds,
-                .frame = ctx.frame.frame,
-                .clip = ctx.tile.clip_rect,
+                .time_seconds = ctx.frame_input.time_seconds,
+                .frame = ctx.frame_input.frame,
+                .clip = ctx.node_exec.clip_rect,
                 .quality = effects::RenderQuality::Final,
-                .diagnostics_enabled = ctx.options.diagnostics_enabled
+                .diagnostics_enabled = ctx.policy.diagnostics_enabled
             };
-            ctx.resources.backend->apply_effect_stack(*result, m_effects, effect_context);
-            if (ctx.telemetry.counters) {
-                ctx.telemetry.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
-                ctx.telemetry.counters->effect_pixels.fetch_add(static_cast<uint64_t>(ctx.frame.width * ctx.frame.height), std::memory_order_relaxed);
+            ctx.services.backend->apply_effect_stack(*result, m_effects, effect_context);
+            if (ctx.node_exec.counters) {
+                ctx.node_exec.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
+                ctx.node_exec.counters->effect_pixels.fetch_add(static_cast<uint64_t>(ctx.frame_input.width * ctx.frame_input.height), std::memory_order_relaxed);
             }
         }
         return result;
