@@ -92,6 +92,11 @@ void RenderRuntime::populate() {
     m_owned_effect_catalog       = std::make_unique<chronon3d::effects::EffectCatalog>();
     m_scheduler                  = std::make_unique<chronon3d::ExecutionScheduler>(
         make_execution_scheduler(m_config));
+    // WP-8 follow-up: scene_hasher is a default-constructible value
+    // member (no explicit construction needed).  program_store uses
+    // unique_ptr because SceneProgramStore carries a std::mutex and
+    // is therefore non-movable; the runtime is the sole owner.
+    m_owned_program_store = std::make_unique<chronon3d::graph::SceneProgramStore>();
 
     // ── Service bundle: typed pointer view of long-lived state ───────
     m_services = RenderServices{
@@ -105,6 +110,8 @@ void RenderRuntime::populate() {
         .graph_node_registry = m_owned_graph_node_registry.get(),
         .effect_catalog      = m_owned_effect_catalog.get(),
         .plan_cache          = m_owned_plan_cache.get(),
+        .scene_hasher        = &m_owned_scene_hasher,
+        .program_store       = m_owned_program_store.get(),
     };
 
     // ── Populate builtin processors/effects + freeze the catalogs ───
@@ -235,6 +242,12 @@ make_session(RenderRuntime& runtime) {
         .graph_cache         = runtime.services().graph_cache,
         .asset_registry      = runtime.services().asset_registry,
         .default_assets_root = &runtime.default_assets_root(),
+        // WP-8 follow-up: scope-scoped scene-hasher + program-store
+        // back-pointers into the session so its accessor methods (in
+        // src/runtime/render_session.cpp) can reach the runtime-owned
+        // state through `services` instead of via header include.
+        .scene_hasher        = runtime.services().scene_hasher,
+        .program_store       = runtime.services().program_store,
     };
     return session;
 }
