@@ -120,18 +120,7 @@ The change is observable at:
   SHOULD add a `assert(engine.renderer() != nullptr)` in CI / debug
   builds.
 
-* **Source-compatibility is broken, NOT binary-compatibility.**  Both
-  install links (the static `libchronon3d_sdk_impl.a` archive and the
-  shared `chronon3d_sdk` aggregate) are yielded by the install layout.
-  For **static-link consumers**, source-compat IS ABI-compat — every
-  consumer that statically links Chronon3D MUST be recompiled.  For
-  **shared-link consumers**, only the installed headers change; the
-  shipped `.so` artifact remains ABI-compatible at the function-call
-  boundary, but every shared-link consumer using `engine.renderer()`
-  MUST be recompiled against the new headers to pick up the new
-  signature.  Consumers that were already dereferencing the renderer
-  pointer (none today) remain ABI-stable across the upgrade.
-
+* **Source-compatibility AND binary-compatibility are BOTH broken for `engine.renderer()` specifically.**  The return-type change (`SoftwareRenderer&` → `SoftwareRenderer*`) alters the function's ABI signature at the engine boundary.  The shipped `.so` (and the static archive's embedded call sites) must therefore be rebuilt as part of the upgrade.  For **static-link consumers**, source-compat IS the ABI in practice — every consumer that statically links Chronon3D MUST be recompiled against the new SDK archive.  For **shared-link consumers**, the installed `.so` is rebuilt by the new branch and every consumer that called `engine.renderer()` MUST be recompiled against the new headers to pick up the new pointer-return signature.  The ABI surface for **other** Chronon3D entry points (those whose signature did NOT change in this refactor) is preserved — only `engine.renderer()` plus the matching `RenderPipeline` constructor are affected.
 ### Neutral
 
 * **The pointer is not exposed via `Chronon3D::SDK::Handle` or any
