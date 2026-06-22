@@ -56,15 +56,13 @@ GraphPreflightReport debug_preflight_render_graph(
         ctx.frame_input.projection_ctx.ready = true;
     }
 
-    // WP-6 / TICKET-018 closeout — single SoftwareRenderer-based matcher (post-
-    //         Option-C state where SoftwareRenderer : public Renderer, public graph::RenderBackend).
-    //         See docs/audits/2026-06-software-renderer-inventory.md §"dynamic_cast /
-    //         static_cast verso SoftwareRenderer" for the canonical migration off
-    //         `dynamic_cast<SoftwareBackend*>`.  sw_renderer null = legacy SoftwareBackend
-    //         caller ⇒ pre-flight reports skip the renderer-specific accessor ports
-    //         (preserves pre-fix semantics).  R3b follow-up unchanged in spirit.
-    if (auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend)) {
-        (void)sw_renderer;  // R3b follow-up: forward graph_cache/node_catalog/effect_catalog/runtime.resolver via SoftwareRenderer.
+    // 06 R3b — when callers populate the renderer sidecar bundle
+    // (`ctx.services.sw_renderer_sidecar`), we surface the typed
+    // SoftwareRenderer pointer.  The pre-flight caller provides the
+    // typed channel; no runtime RTTI on the backend reference required.
+    if (auto* sw_renderer =
+            static_cast<chronon3d::SoftwareRenderer*>(ctx.services.sw_renderer_sidecar)) {
+        (void)sw_renderer;
     }
 
     // ── 2. Build graph (no execution) ────────────────────────────────────

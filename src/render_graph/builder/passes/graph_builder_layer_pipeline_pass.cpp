@@ -24,15 +24,13 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
     // Per-layer: culling, matte sub-pipeline, then full layer pipeline.
     auto append_item = [&](LayerGraphItem item,
                            std::span<const ShadowCasterInfo> casters = {}) {
-        // WP-6 / TICKET-018 closeout — renderer-over-backend matcher (post-Option-C
-        //         state where SoftwareRenderer : public Renderer, public graph::RenderBackend).
-        //         See docs/audits/2026-06-software-renderer-inventory.md §"dynamic_cast /
-        //         static_cast verso SoftwareRenderer" for the canonical migration off
-        //         `dynamic_cast<SoftwareBackend*>`.  Caller currently passes nullptr to
-        //         compute_layer_bbox because the sw_renderer wasn't previously sourced;
-        //         future PRs can wire the per-layer caller signature now that the cast
-        //         compiles + the renderer path is uniform.
-        auto* renderer = dynamic_cast<SoftwareRenderer*>(rctx.services.backend);
+        // 06 R3b — surface the typed SoftwareRenderer sidecar pointer
+        // (when present) by static_cast from the bundle.  No
+        // runtime RTTI on the backend ref is not used because the
+        // caller pipeline already populates `sw_renderer_sidecar`
+        // uniformly.
+        auto* renderer =
+            static_cast<chronon3d::SoftwareRenderer*>(rctx.services.sw_renderer_sidecar);
         (void)renderer;
         raster::BBox bbox = detail::compute_layer_bbox(item, rctx, nullptr);
 
