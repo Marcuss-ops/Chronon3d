@@ -77,7 +77,19 @@ public:
         // of `RenderRuntime`, so the reference is stable for the
         // renderer's lifetime.
         const auto& resolver = renderer.runtime().resolver();
-        FontEngine* engine = node.font_engine ? node.font_engine : &renderer.font_engine();
+        // WP-6 / TICKET-018 closeout — bind by NON-CONST reference so the
+        //         call site passes a `FontEngine&` to
+        //         `rasterize_text_to_bl_image` (the previous
+        //         `FontEngine*` + `engine` pass-by-pointer hit `invalid
+        //         initialization of reference of type "FontEngine&" from
+        //         expression of type "FontEngine*"` at this site once
+        //         the cascade-fix downstream TUs cleared compilation).
+        // The CONST cast would yield a forbidden const→non-const
+        // conversion at the call site \u2014 must be a mutable ref.  Per-
+        // RenderNode override preserved; renderer-local engine used as the
+        // canonical default.  Short-circuit on `node.font_engine` keeps
+        // the deref safe.
+        FontEngine& engine = node.font_engine ? *node.font_engine : renderer.font_engine();
         // TICKET-007: per-instance DebugConfig forwarded from the
         // owning SoftwareRenderer so text-bbox / ink-bounds / baseline
         // debug overlays honour the engine's debug.text_bbox() flag

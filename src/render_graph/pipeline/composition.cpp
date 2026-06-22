@@ -42,8 +42,12 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     media::MediaFrameProvider* video_decoder,
     const Composition& comp,
     Frame frame,
-    chronon3d::SoftwareRenderer* sw_sidecar = nullptr
+    chronon3d::SoftwareRenderer* sw_sidecar
 ) {
+    // (Default arg `sw_sidecar = nullptr` lives in
+    //  `<chronon3d/render_graph/pipeline/render_pipeline.hpp>` —
+    //  duplicated defaults here would Clang into the
+    //  `default argument given for parameter 8` diagnostic.)
     const auto t0 = profiling::now();
     const auto hits_before = node_cache.stats().hits;
     const float ssaa = std::max(1.0f, settings.ssaa_factor);
@@ -51,7 +55,19 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     const int h = comp.height();
     const int rw = static_cast<int>(w * ssaa);
     const int rh = static_cast<int>(h * ssaa);
-    SoftwareRenderer* sw_renderer = sw_sidecar;
+    // WP-6 / TICKET-018 closeout — audit-prescribed migration
+    //         (`docs/audits/2026-06-software-renderer-inventory.md` §"dynamic_cast /
+    //         static_cast verso SoftwareRenderer" — composition.cpp:53).  When
+    //         the runtime's RenderBackend IS a SoftwareRenderer (post-Option-C),
+    //         the cast succeeds and downstream renderer-specific accessors
+    //         (e.g. `sw_renderer->dirty_telemetry()` below) reach the right
+    //         object.  When it ISN'T (legacy SoftwareBackend caller), the cast
+    //         nulls and gates inside `if (sw_renderer)` skip.  The sw_sidecar
+    //         parameter remains in the signature for caller compatibility and is
+    //         explicitly `(void)`-suppressed below so -Wunused-parameter stays
+    //         quiet.
+    SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
+    (void)sw_sidecar;
 
     std::shared_ptr<Framebuffer> render_fb = nullptr;
 

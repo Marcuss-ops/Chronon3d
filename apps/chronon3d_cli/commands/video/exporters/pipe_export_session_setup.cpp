@@ -80,8 +80,15 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             profiling::duration_ms(renderer_t0, renderer_t1));
         session->renderer->counters()->setup_graph_parsing_ms.fetch_add(setup_ms, std::memory_order_relaxed);
     }
-    // R3b: SoftwareRenderer is no longer IS-A RenderBackend. Cast via SoftwareBackend.
-    session->sw_renderer = nullptr;  // R3b follow-up: route from SoftwareBackend forwarder.
+    // WP-6 / TICKET-018 closeout — audit-prescribed migration
+    //         (`docs/audits/2026-06-software-renderer-inventory.md` §
+    //         "dynamic_cast / static_cast verso SoftwareRenderer" — site 7/7,
+    //         pipe_export_session_setup.cpp:83).  When the engine-built
+    //         `session->renderer` IS a SoftwareRenderer (post-Option-C),
+    //         the cast succeeds and downstream encoder-wiring / telemetry
+    //         paths reach the renderer-specific accessors; otherwise
+    //         `session->sw_renderer` stays null and the gates below skip.
+    session->sw_renderer = dynamic_cast<SoftwareRenderer*>(session->renderer.get());
 
     // ── Wire counters into encoder so async converter thread can report telemetry ──
     if (session->sw_renderer && session->sw_renderer->counters()) {
