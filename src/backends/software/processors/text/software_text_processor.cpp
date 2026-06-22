@@ -7,6 +7,7 @@
 // ---------------------------------------------------------------------------
 
 #include "software_text_effects.hpp"
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>

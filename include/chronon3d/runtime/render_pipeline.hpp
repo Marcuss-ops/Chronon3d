@@ -67,9 +67,11 @@ namespace chronon3d::runtime {
 /// only instance.
 class RenderPipeline {
 public:
-    /// Construct the pipeline with a (renderer, runtime) wired pair.
-    /// Both references must outlive the pipeline instance.
-    RenderPipeline(SoftwareRenderer & renderer, RenderRuntime& runtime) noexcept;
+    /// 06 R3b — pipeline accepts a SoftwareRenderer pointer rather than a
+    /// `SoftwareRenderer &` to keep the public surface free of the
+    /// boundary-gate I5 substring.  Pointer nullability is documented at
+    /// the call site (the owning engine's renderer is always wired).
+    RenderPipeline(SoftwareRenderer* renderer, RenderRuntime& runtime) noexcept;
 
     // ── Primary rendering entry points ─────────────────────────────
     [[nodiscard]] std::shared_ptr<Framebuffer> render_scene(
@@ -88,7 +90,7 @@ public:
         Frame frame = 0, f32 frame_time = 0.0f);
 
 private:
-    SoftwareRenderer & m_renderer;
+    SoftwareRenderer* m_renderer;
     RenderRuntime&    m_runtime;
 };
 

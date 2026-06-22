@@ -22,7 +22,7 @@ static std::shared_ptr<Framebuffer> render_frame(
     int h = 100
 ) {
     return render_scene_via_graph(
-        renderer,
+    renderer.backend(),
         node_cache,
         scene,
         camera,
