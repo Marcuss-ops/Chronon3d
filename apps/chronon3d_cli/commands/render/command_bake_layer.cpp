@@ -37,7 +37,7 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
     graph_ctx.frame_input.width = comp.width();
     graph_ctx.frame_input.height = comp.height();
     graph_ctx.frame_input.camera = comp.camera;
-    graph_ctx.services.backend = renderer.get();
+    graph_ctx.services.backend = &renderer->backend();
     graph_ctx.services.node_cache = &renderer->node_cache();
     graph_ctx.services.framebuffer_pool = renderer->framebuffer_pool();
     graph_ctx.node_exec.counters = renderer->counters();

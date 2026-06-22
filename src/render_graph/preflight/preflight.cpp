@@ -12,6 +12,7 @@
 
 #include <chronon3d/render_graph/preflight/preflight_render_graph.hpp>
 #include "format.hpp"
+#include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>

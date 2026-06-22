@@ -44,7 +44,7 @@ public:
     void draw(const SoftwareProcessorContext& rctx, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
         CHRONON_ZONE_C("text_render", trace_category::kText);
-        const bool diagnostics_enabled = rctx.settings->diagnostics.enabled;
+        const bool diagnostics_enabled = rctx.renderer->is_diagnostic_mode();
         const auto draw_start = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
         const Mat4& model = state.matrix;
         const f32 opacity = state.opacity;
@@ -76,26 +76,14 @@ public:
         // receives it explicitly below.  `AssetResolver` is a value-member
         // of `RenderRuntime`, so the reference is stable for the
         // renderer's lifetime.
-        const auto& resolver = *rctx.asset_resolver;
-        // WP-6 / TICKET-018 closeout — bind by NON-CONST reference so the
-        //         call site passes a `FontEngine&` to
-        //         `rasterize_text_to_bl_image` (the previous
-        //         `FontEngine*` + `engine` pass-by-pointer hit `invalid
-        //         initialization of reference of type "FontEngine&" from
-        //         expression of type "FontEngine*"` at this site once
-        //         the cascade-fix downstream TUs cleared compilation).
-        // The CONST cast would yield a forbidden const→non-const
-        // conversion at the call site \u2014 must be a mutable ref.  Per-
-        // RenderNode override preserved; renderer-local engine used as the
-        // canonical default.  Short-circuit on `node.font_engine` keeps
-        // the deref safe.
-        FontEngine& engine = node.font_engine ? *node.font_engine : *rctx.font_engine;
+        const auto& resolver = rctx.renderer->runtime().resolver();
+        FontEngine* engine = node.font_engine ? node.font_engine : &rctx.renderer->font_engine();
         // TICKET-007: per-instance DebugConfig forwarded from the
         // owning SoftwareRenderer so text-bbox / ink-bounds / baseline
         // debug overlays honour the engine's debug.text_bbox() flag
         // and never read a process-wide singleton.
-        const chronon3d::DebugConfig* text_debug_cfg = rctx.debug_config;
-        auto raster = rasterize_text_to_bl_image(node.shape.text(), effective_size, 32, resolver, &raster_cache_hit, raster_transform, engine, text_debug_cfg);
+        const chronon3d::DebugConfig* text_debug_cfg = &rctx.renderer->config().debug();
+        auto raster = rasterize_text_to_bl_image(node.shape.text(), effective_size, 32, resolver, &raster_cache_hit, raster_transform, *engine, text_debug_cfg);
         if (diagnostics_enabled) {
             rasterize_ms = profiling::elapsed_ms(raster_start);
         }
@@ -104,7 +92,7 @@ public:
             return;
         }
 
-        if (rctx.debug_config && rctx.debug_config->dump_text_raster()) {
+        if (rctx.renderer->config().debug().dump_text_raster()) {
             BLImageData debug_data;
             if (raster->image.getData(&debug_data) == BL_SUCCESS) {
                 const int sw = debug_data.size.w;
@@ -132,7 +120,7 @@ public:
         }
 
         if (!raster_cache_hit) {
-            rctx.counters->text_glyphs_rasterized.fetch_add(
+            rctx.renderer->counters()->text_glyphs_rasterized.fetch_add(
                 static_cast<uint64_t>(node.shape.text().text.length()),
                 std::memory_order_relaxed
             );

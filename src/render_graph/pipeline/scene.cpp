@@ -60,7 +60,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const CompositionRegistry* registry,
     media::MediaFrameProvider* video_decoder,
     float fps,
-    std::string_view diagnostic_label
+    std::string_view diagnostic_label,
+    chronon3d::SoftwareRenderer* sw_sidecar
 ) {
     ZoneScoped;
     const auto t0 = profiling::now();
@@ -143,6 +144,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         // PR-5 — propagate session pointer so PrecompNode can borrow the
         // program_store for cache lookups.
         ctx.services.session = &sw_renderer->session();
+        // PR-9 — populate software sidecar so nodes can reach
+        // cpu-specific resources (buffer_ring) via static_cast.
+        ctx.services.sw_renderer_sidecar = sw_renderer;
         // PR-1 — production paths must have a wired scheduler after
         // pipeline wiring.  Test paths (no SoftwareRenderer) create
         // a local Sequential(1) scheduler.
