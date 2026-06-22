@@ -9,6 +9,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 
@@ -88,7 +89,7 @@ TEST_CASE("Render Determinism & Telemetry Hash") {
         }
     };
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);

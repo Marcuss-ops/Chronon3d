@@ -25,12 +25,13 @@
 #include <cmath>
 #include <cstdint>
 #include <memory>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 namespace {
 namespace mask_rg_impl {
 SoftwareRenderer make_mask_rg_renderer() {
-    SoftwareRenderer r(Config{});
+    auto r = test::make_renderer();
     RenderSettings s;
     s.use_modular_graph = true;
     r.set_settings(s);

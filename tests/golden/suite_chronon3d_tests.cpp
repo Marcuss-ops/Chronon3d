@@ -112,7 +112,7 @@ void verify_suite_golden_or_create(const Framebuffer& rendered, const std::strin
 
 // ── 1. TEST MANDATORY VISUAL SNAPSHOTS ────────────────────────────────────────
 TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     // Scene 1: Linear Gradient
     Composition comp_lin(CompositionSpec{.width = 512, .height = 128}, [](const FrameContext& ctx) {
@@ -310,7 +310,7 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
 
 // ── 2. GRADIENT TESTS ────────────────────────────────────────────────────────
 TEST_CASE("Chronon3d Suite: Gradient Tests") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     SUBCASE("Linear Gradient Mixing and Coordinates") {
         Composition comp(CompositionSpec{.width = 512, .height = 128}, [](const FrameContext& ctx) {
@@ -452,7 +452,7 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
 
 // ── 3. ADVANCED STROKE TESTS ──────────────────────────────────────────────────
 TEST_CASE("Chronon3d Suite: Advanced Stroke Tests") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     SUBCASE("Thickness 0 Does Not Draw") {
         Composition comp(CompositionSpec{.width = 100, .height = 100}, [](const FrameContext& ctx) {
@@ -497,7 +497,7 @@ TEST_CASE("Chronon3d Suite: Advanced Stroke Tests") {
 
 // ── 4. SHADOW SYSTEM TESTS ──────────────────────────────────────────────────
 TEST_CASE("Chronon3d Suite: Shadow System Tests") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     SUBCASE("Drop Shadow Containment") {
         Composition comp(CompositionSpec{.width = 128, .height = 128}, [](const FrameContext& ctx) {
@@ -536,7 +536,7 @@ TEST_CASE("Chronon3d Suite: Shadow System Tests") {
 
 // ── 5. CINEMATIC BLOOM TESTS ──────────────────────────────────────────────────
 TEST_CASE("Chronon3d Suite: Cinematic Bloom Tests") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     Composition comp(CompositionSpec{.width = 512, .height = 128}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
@@ -637,7 +637,7 @@ TEST_CASE("Chronon3d Suite: Color Pipeline Tests") {
 
 // ── 7. ANIMATION DETERMINISM TESTS ───────────────────────────────────────────
 TEST_CASE("Chronon3d Suite: Animation Tests") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     Composition comp(CompositionSpec{.width = 256, .height = 256}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
@@ -665,7 +665,7 @@ TEST_CASE("Chronon3d Suite: Animation Tests") {
 TEST_CASE("Chronon3d Suite: ImageProofs Golden Reference") {
     Composition comp = chronon3d::content::images::image_proofs();
 
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     // Render frame 60: fully animated state
     auto fb = renderer.render_frame(comp, 60);
@@ -695,7 +695,7 @@ TEST_CASE("Chronon3d Suite: ImageProofs Golden Reference") {
 TEST_CASE("Chronon3d Suite: ShapeProofs Golden Reference") {
     Composition comp = chronon3d::content::shapes::shape_proofs();
 
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     // Render frame 60: fully animated state
     auto fb = renderer.render_frame(comp, 60);
@@ -837,7 +837,7 @@ TEST_CASE("Chronon3d Suite: SSAA 2x Quality Verification") {
 
 // ── 8. COMBINED STRESS TEST ──────────────────────────────────────────────────
 TEST_CASE("Chronon3d Suite: Final Combined Stress Test") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     Composition comp(CompositionSpec{.width = 512, .height = 512}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);

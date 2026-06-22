@@ -51,7 +51,7 @@ Composition make_shadow_scene() {
 }
 
 TEST_CASE("PR2-RG-Shadow: shadow projects at light direction + offset") {
-    auto renderer = ctt::make_renderer();
+    auto renderer = ctt::test::make_renderer();
     auto fb = renderer.render_frame(make_shadow_scene(), 0);
     REQUIRE(fb != nullptr);
 
@@ -66,7 +66,7 @@ TEST_CASE("PR2-RG-Shadow: shadow projects at light direction + offset") {
 }
 
 TEST_CASE("PR2-RG-Shadow: shadow extends beyond caster silhouette (blur)") {
-    auto renderer = ctt::make_renderer();
+    auto renderer = ctt::test::make_renderer();
     auto fb = renderer.render_frame(make_shadow_scene(), 0);
     REQUIRE(fb != nullptr);
 
@@ -94,7 +94,7 @@ TEST_CASE("PR2-RG-Shadow: render with no drop_shadow completes cleanly") {
             return s.build();
         });
 
-    auto renderer = ctt::make_renderer();
+    auto renderer = ctt::test::make_renderer();
     auto fb = renderer.render_frame(comp, 0);
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 128);

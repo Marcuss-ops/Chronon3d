@@ -12,7 +12,7 @@ using namespace chronon3d::test;
 
 
 TEST_CASE("Camera visual: center target renders correctly") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto comp = make_center_target_composition();
 
     auto fb = renderer.render_frame(comp, 0);
@@ -26,7 +26,7 @@ TEST_CASE("Camera visual: center target renders correctly") {
 }
 
 TEST_CASE("Camera visual: parallax stack frame 000") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto comp = make_parallax_stack_composition();
 
     auto fb = renderer.render_frame(comp, 0);
@@ -36,7 +36,7 @@ TEST_CASE("Camera visual: parallax stack frame 000") {
 }
 
 TEST_CASE("Camera visual: parallax stack frame 030") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto comp = make_parallax_stack_composition();
 
     auto fb = renderer.render_frame(comp, 30);
@@ -46,7 +46,7 @@ TEST_CASE("Camera visual: parallax stack frame 030") {
 }
 
 TEST_CASE("Camera visual: parallax stack displacement is correct") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto comp = make_parallax_stack_composition();
 
     auto fb0 = renderer.render_frame(comp, 0);
@@ -63,7 +63,7 @@ TEST_CASE("Camera visual: parallax stack displacement is correct") {
 }
 
 TEST_CASE("Camera visual: orbit two node frame 000") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto comp = make_orbit_two_node_composition();
 
     auto fb = renderer.render_frame(comp, 0);
@@ -73,7 +73,7 @@ TEST_CASE("Camera visual: orbit two node frame 000") {
 }
 
 TEST_CASE("Camera visual: orbit two node frame 030") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto comp = make_orbit_two_node_composition();
 
     auto fb = renderer.render_frame(comp, 30);
@@ -83,7 +83,7 @@ TEST_CASE("Camera visual: orbit two node frame 030") {
 }
 
 TEST_CASE("Camera visual: orbit two node renders without errors") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto comp = make_orbit_two_node_composition();
 
     auto fb = renderer.render_frame(comp, 0);
@@ -105,7 +105,7 @@ TEST_CASE("Camera visual: orbit two node renders without errors") {
 }
 
 TEST_CASE("Camera visual: near plane crossing does not explode") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto comp = make_near_plane_crossing_composition();
 
     auto fb = renderer.render_frame(comp, 0);
@@ -131,7 +131,7 @@ TEST_CASE("Camera visual: near plane crossing does not explode") {
 }
 
 TEST_CASE("Camera visual: z sort stack is correct") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto comp = make_z_sort_stack_composition();
 
     auto fb = renderer.render_frame(comp, 0);

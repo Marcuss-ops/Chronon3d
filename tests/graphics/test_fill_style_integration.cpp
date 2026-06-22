@@ -14,6 +14,7 @@
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <tests/helpers/sample_helpers.hpp>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 namespace gfx = chronon3d::graphics;
@@ -22,7 +23,7 @@ using chronon3d::test::sample_left;
 using chronon3d::test::sample_right;
 
 static std::shared_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame) {
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);

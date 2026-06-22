@@ -29,6 +29,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <memory>
 #include <string>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 using namespace chronon3d::cache;
 using namespace chronon3d::graph;
@@ -117,7 +118,7 @@ TEST_CASE("MultiSourceNode: predicted_bbox handles text_run item via text_run he
     items.push_back({&text_node, text_node.world_transform.to_mat4(), 1.0f});
     items.push_back({&rect_node, rect_node.world_transform.to_mat4(), 1.0f});
 
-    SoftwareRenderer backend(Config{});
+    auto backend = test::make_renderer();
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
@@ -207,7 +208,7 @@ TEST_CASE("MultiSourceNode: execute tolerant of text_run item with null shape") 
     items.push_back({&text_node, text_node.world_transform.to_mat4(), 1.0f});
     items.push_back({&rect_node, rect_node.world_transform.to_mat4(), 1.0f});
 
-    SoftwareRenderer backend(Config{});
+    auto backend = test::make_renderer();
     auto pool = std::make_shared<FramebufferPool>(8);
     NodeCache node_cache;
     RenderGraphContext ctx;
@@ -256,7 +257,7 @@ TEST_CASE("MultiSourceNode: execute with mixed rect + text_run returns valid fb"
     items.push_back({&rect_node, rect_node.world_transform.to_mat4(), 1.0f});
     items.push_back({&text_node, text_node.world_transform.to_mat4(), 1.0f});
 
-    SoftwareRenderer backend(Config{});
+    auto backend = test::make_renderer();
     auto pool = std::make_shared<FramebufferPool>(8);
     NodeCache node_cache;
     RenderGraphContext ctx;

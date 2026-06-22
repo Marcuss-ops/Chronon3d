@@ -14,6 +14,7 @@
 #include <xxhash.h>
 #include <cmath>
 #include <iostream>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 
@@ -104,7 +105,7 @@ TEST_CASE("Invariants: bbox_expands_with_glow_radius") {
 
 // 3. alpha_zero_noop
 TEST_CASE("Invariants: alpha_zero_noop") {
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
@@ -165,7 +166,7 @@ TEST_CASE("Invariants: alpha_zero_noop") {
 
 // 4. blur_radius_zero_noop
 TEST_CASE("Invariants: blur_radius_zero_noop") {
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
@@ -197,7 +198,7 @@ TEST_CASE("Invariants: blur_radius_zero_noop") {
 
 // 5. glow_intensity_zero_noop
 TEST_CASE("Invariants: glow_intensity_zero_noop") {
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
@@ -229,7 +230,7 @@ TEST_CASE("Invariants: glow_intensity_zero_noop") {
 
 // 6. bloom_threshold_above_max_noop
 TEST_CASE("Invariants: bloom_threshold_above_max_noop") {
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
@@ -366,7 +367,7 @@ TEST_CASE("Invariants: dirty_rect_contains_glow_spread") {
 
 // 10. no_nan_after_effect_stack
 TEST_CASE("Invariants: no_nan_after_effect_stack") {
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);

@@ -36,7 +36,7 @@ public:
 };
 
 std::shared_ptr<Framebuffer> render_video_comp(const Composition& comp, Color mock_color = {0.2f, 0.6f, 1.0f, 1.0f}) {
-    SoftwareRenderer renderer = make_renderer();
+    SoftwareRenderer renderer = test::make_renderer();
     auto decoder = std::make_shared<MockVideoDecoder>(mock_color);
     renderer.set_video_decoder(decoder);
     return renderer.render_frame(comp, 0);
@@ -95,7 +95,7 @@ TEST_CASE("VideoCard: video_size controls decoder dimensions") {
     };
 
     auto comp = make_video_card_comp(0.0f, {320, 180});
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);

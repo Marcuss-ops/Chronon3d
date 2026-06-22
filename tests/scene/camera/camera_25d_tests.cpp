@@ -8,6 +8,7 @@
 #include <chronon3d/api/renderer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <cmath>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 
@@ -34,7 +35,7 @@ std::shared_ptr<Framebuffer> render_with_camera(
     Vec3 layer_rot = {0, 0, 0},
     float rect_size = 100.0f
 ) {
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
@@ -163,7 +164,7 @@ TEST_CASE("Test 9.6 — Camera 2.5D: 90 deg rotation collapses the layer project
 }
 
 TEST_CASE("Test 9.7 — Camera 2.5D: 3D layers are sorted by depth before rendering") {
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
