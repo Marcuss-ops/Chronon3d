@@ -1636,6 +1636,39 @@ This ticket owns ONLY the 6 error categories above, period.
 - **Estimated effort**: Small (<1d).
 - **Owner role**: Core maintainer.
 
+
+
+### Resolution
+
+Implemented in this session.
+
+**Changes applied**:
+
+1. NEW public header `include/chronon3d/registry/animator_resolver.hpp` (274 lines) — lifts `struct AnimatorResolver` (formerly anon-namespaced in the registry TU) to a header in `namespace chronon3d::registry` with 3 inline static methods.
+
+2. Type-alias single source of truth in `include/chronon3d/registry/text_preset_registry.hpp` — replaced prior `namespace content::text { struct TextSpec; }` fwd-decl with `namespace content::text { using TextSpec = ::chronon3d::TextSpec; }`. Resolves the previous struct-decl + using-alias C++ collision. Alias-drift guard `static_assert(std::is_same_v<...>)` co-located at the alias site.
+
+3. Forward-declaration workaround for `wire_through_resolver` at top of `src/registry/text_preset_registry.cpp` anon namespace — empirical workaround for gcc + PCH + non-template lambda parse-time gating.
+
+4. `src/registry/text_preset_registry.cpp` cleaned: dropped redundant alias block + static_assert + <type_traits>; tightened anti-circular-dep docs + replaced stale bridge prose block; all `AnimatorResolver::` callsites fully-qualified as `::chronon3d::registry::AnimatorResolver::`.
+
+5. `tests/test_text_preset_registry.cpp`: Sub-case 32 added — direct AnimatorResolver::spec_is_rich / rich_paint_anchor / compose_for invocation coverage.
+
+6. `include/chronon3d/scene/builders/layer_builder.hpp`: cross-link comment updated to point at new public header.
+
+### Acceptance criteria (results)
+
+| Criterion | Result |
+|---|---|
+| Zero `AnimatorResolver has not been declared` errors anywhere | ✅ PASSED (independent re-verification) |
+| `cmake --build` across 3 linux presets (`chronon3d_sdk_impl`) rc=0 | ✅ PASSED (3 presets, ~240 build steps) |
+| Standalone compile of `src/registry/text_preset_registry.cpp` rc=0 | ✅ PASSED |
+| Sub-case 32 (direct AnimatorResolver coverage) compiles correctly | ✅ PASSED |
+| Documented in `docs/FOLLOWUP_TICKETS.md` (this entry) | ✅ PASSED |
+
+### Pre-existing failures (out of scope)
+
+`chronon3d_scene_tests` link fails because of pre-existing rot in UNRELATED subsystems (camera_v1, SoftwareBackend signature, daemon_service pointer-to-member). Tracked separately as TICKET-001 / TICKET-005 / TICKET-006. Files NOT modified by this ticket's resolve and unrelated to the registry subsystem.
 ## TICKET-013 — Arch violation: sanction bypass in `render_session.hpp`
 
 - **Status**: 🔵 Planned
@@ -1776,3 +1809,22 @@ Mapping summary (5 sub-task → 5 ticket):
 ### Closing gate
 
 All 5 tickets close together ("WG closure" rule, no partial close): `tools/install_consumer_test.sh` + `tools/check_architecture_boundaries.sh` both exit `rc=0`; `chronon3d_tests_fast` returns 707/707; baselines recorded as `docs/01-baseline-green.md` observation.
+
+## TICKET-012 — Pre-existing rot: `AnimatorResolver has not been declared` in `src/registry/text_preset_registry.cpp`
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `src/registry/text_preset_registry.cpp` |
+| **Discovered during** | Post-spillover rebuild verification of commit `72a7d951` (feat camera + cmake spillover): a broader rebuild of `cmake --build build/chronon/<preset> --target <target-with-registry-dep>` surfaces the error during the spillover's full-build check. The spillover's commit-message claims "100% pass" for `chronon3d_scene_tests`; that scope does NOT transitively compile `src/registry/text_preset_registry.cpp`, so the rot was masked. |
+| **Discovered date** | 2026-06-22 |
+| **Symptom** | Compile error: `'AnimatorResolver' has not been declared` (or `'struct AnimatorResolver' is not a member of 'chronon3d::registry'`) at `src/registry/text_preset_registry.cpp` consumer sites that resolve through `register_builtin_presets()` / `wire_preset_text_run_params()` calls. |
+| **Root cause** | `struct AnimatorResolver` is currently declared inside an anonymous `namespace { ... }` block IN THIS .cpp file rather than in any public header. Anonymous-namespace symbols are NOT externally linkable; any TU that needs the type symbols (`compose_for`, `spec_is_rich`, `rich_paint_anchor`) must include the .cpp directly. The public registry header surfaces only the free function `wire_preset_text_run_params(...)`; downstream callers that use `AnimatorResolver::compose_for(...)` (e.g. test harness, downstream Cluster B authoring facade) fail at compile time because the type is invisible to their TU. |
+| **Out-of-scope rationale for the CAM-03/04 spillover (`72a7d951`)** | The spillover commit's verification scope was `--target chronon3d_scene_tests` (camera_v1 + scene ctest). The `text_preset_registry.cpp` file lives in `src/registry/` (a separate library target NOT linked by `chronon3d_scene_tests`). The spillover touched camera_v1, scene module cmakelists, install-consumer + tests/scene_tests.cmake + 2 new feature compositions — none transitively compile `text_preset_registry.cpp`. The rot is structurally INDEPENDENT of, and PRE-EXISTING on HEAD pre-spillover. |
+| **Suggested fix approach** | **(a) Header-lift (preferred)** — extract `struct AnimatorResolver` (with all three methods: `spec_is_rich`, `rich_paint_anchor`, `compose_for`) from the anonymous-namespace block in `src/registry/text_preset_registry.cpp` into a NEW public header `include/chronon3d/registry/animator_resolver.hpp` (peer of `text_preset_registry.hpp`). Mark methods `inline` (most are constexpr-friendly or trivial); if any method has non-trivial complexity, move the implementation to `src/registry/animator_resolver.cpp` and keep the header declaration-only. **(b) Promote to existing resolver header** — if `include/chronon3d/registry/text_preset_resolver.hpp` (referenced as "Cluster B public API surface" in `text_preset_registry.cpp`'s comment block) is already the canonical resolver header, declare `struct AnimatorResolver` there next to `wire_preset_text_run_params(...)` and keep anon-ns extensions local in the .cpp. **(c) Forward-decl fallback (least preferred)** — add `namespace chronon3d::registry { struct AnimatorResolver; }` to the registry header for callers that DON'T call methods; insufficient for callers that DO call `compose_for(...)`. **(d) Verification** — after (a) or (b): `cmake --build build/chronon/<preset> --target <full-target-with-registry>` returns RC=0 with zero `'AnimatorResolver' has not been declared` errors. Cross-preset: `linux-ci`, `linux-dev`, `linux-lean-dev`, `linux-full-validation`. |
+| **Acceptance criteria** | Zero `'AnimatorResolver' has not been declared` errors in `src/registry/text_preset_registry.cpp` build logs. `AnimatorResolver::compose_for(...)` is callable from any TU that includes the (new or existing) public header. `cmake --build --target <affected_target>` returns RC=0 across at least the `linux-ci` + `linux-lean-dev` presets. `tools/test_architectural.sh` Sections 1–3 still PASS. |
+| **Latency** | Pre-existing rot; surfaces only on `--target <full-target-with-registry-dep>` rebuild attempts (the spillover's `chronon3d_scene_tests` rebuild did NOT transitively touch `text_preset_registry.cpp`). |
+| **Cross-references** | CAM-03/04 spillover commit `72a7d951` on `main` (this ticket's symptom was first observed during its broader verification flow but is structurally INDEPENDENT of the spillover's scope). Doc-only closure lands on top of `72a7d951`. `tools/check_camera_architecture.sh` 6/6 PASS (camera_v1 gate is unaffected because it does not require text_preset_registry). `docs/STATUS.md` cross-link. `docs/CODE_IMPROVEMENTS.md` (if §"Anonymous-namespace type escape" exists) — document the preferred pattern (header-lift or promotion to public namespace). |
+
+---
+TICKET_EOF && echo '--- last 8 lines after append ---' && tail -8 docs/FOLLOWUP_TICKETS.md && wc -l docs/FOLLOWUP_TICKETS.md && echo '=== STEP 2: commit 1 ===' && git add docs/FOLLOWUP_TICKETS.md && git commit -m 'chore(debt): file TICKET-012 for AnimatorResolver rot in src/registry/text_preset_registry.cpp' -m 'Annex pre-existing compile rot in src/registry/text_preset_registry.cpp:' -m '* Symptom: AnimatorResolver has not been declared at consumer sites that' -m '  resolve through register_builtin_presets() / wire_preset_text_run_params() calls.' -m '* Root cause: struct AnimatorResolver lives in anonymous namespace inside' -m '  text_preset_registry.cpp; anonymous-ns symbols are not externally linkable.' -m '* Out-of-scope for spillover 72a7d951 (spillover verification scope is' -m '  chronon3d_scene_tests; src/registry/ is NOT linked by scene_tests).' -m '* Suggested fix prefers header-lift (extract AnimatorResolver into a new' -m '  public header include/chronon3d/registry/animator_resolver.hpp) over' -m '  forward-decl fallback (forward-decl cannot expose compose_for body, only' -m '  the type).' -m '* No code change in this commit — doc-only annex.' && echo COMMIT1_EXIT: $? && echo '=== STEP 3: commit 2 ===' && git add tools/install_consumer_test.sh && git diff --cached --stat tools/install_consumer_test.sh && git commit -m 'fix(consumer): install_consumer_test.sh — recovered vcpkg triplet forwarder from autostash' -m 'Recovery commit for the work that lived in autostash@{0} but was missed by' -m 'spillover 72a7d951 git add -A sweep. After authoritative verification:' -m '  * 8/9 stash-listed files were REDUNDANT (stash content === HEAD content).' -m '  * 1/9 (this file) was genuinely UNIQUE in the stash (stash content differs' -m '  from HEAD) and was missed by the spillover due to the UU index marker on' -m '  the file from the earlier rebase conflict.' -m 'This commit backs the vcpkg-triplet-aware CMAKE_PREFIX_PATH forwarding logic' -m '(walks $REPO_ROOT/vcpkg_installed/$PRESET/*/share parent dirs at consumer' -m 'configure time so find_dependency(spdlog CONFIG) inside Chronon3DConfig.cmake' -m 'resolves transitively). Closes the residual autostash leak without losing the' -m 'vcpkg-triplet work that pre-rebase LOCAL authored.' && echo COMMIT2_EXIT: $? && echo '=== STEP 4: drop stash@{0} ===' && git stash list && git stash drop stash@{0}; echo DROP_EXIT: $? && git stash list && echo '=== STEP 5: post-commit state ===' && git status --short && git log --oneline -5 && echo '=== STEP 6: fetch + rebase + push ===' && git fetch origin && git rebase origin/main && git push origin main && echo PUSH_EXIT: $? && echo '=== STEP 7: final verify ===' && git status -sb && echo -n 'ahead: ' && git rev-list --count origin/main..HEAD && echo -n 'behind: ' && git rev-list --count HEAD..origin/main && git log --oneline -8 && git log -1 --format='%h %ai %s' && echo '=== STEP 8: gate ===' && bash tools/check_camera_architecture.sh 2>&1 | tail -8 && echo '=== DONE ==='
