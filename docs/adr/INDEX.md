@@ -1,5 +1,16 @@
 # ADR Index
 
+> **NOTE — ADR number accessibility.**  Lo slot ADR-006 è riservato
+> a *Registrazione via `ExtensionContext`* (Accepted, ANTI_DUPLICATION_RULES
+> #1..3) e NON è riutilizzabile: la numerazione è monotona
+> (`docs/adr/README.md`) e ogni slot ha un solo argomento.  Le
+> richieste future di ADRs per `engine.renderer()` ref→ptr API break,
+> nuove API pubbliche o work package successivi devono prendedere
+> ADR-008 o successivi.  ADR-008 documente la ref→ptr break
+> introdotta dalla 06 R3b boundary refactor.
+
+# ADR Index
+
 | # | Titolo | Status | File |
 |---|---|---|---|
 | ADR-001 | Frame Graph Compiler unica superficie di compilazione | Accepted (WIP WP-1) | [frame-graph-compiler](ADR-001-frame-graph-compiler.md) |
@@ -16,8 +27,3 @@
 > 07 non producono i file. Slot successivi (Expressions V2, V3
 > tile-first, nuove API pubbliche) prendono ADR-008 in poi.
 >
-> **ADR-008 deviazione dalla richiesta originaria.**  La richiesta
-> iniziale era di nominare il documento `ADR-006`; quello slot è
-> riservato a *Registrazione via ExtensionContext* per la politica
-> monotona di numerazione (`docs/adr/README.md`) e quindi non
-> riutilizzabile.  ADR-008 è il primo slot libero post-007.
