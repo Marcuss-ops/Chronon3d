@@ -107,11 +107,12 @@ TEST_CASE("Camera2_5D projection: camera pan affects near layer more than far la
 //   Motivation: pre-existing rot; focal_length_from_fov doesn't differentiate FOV values.
 //
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing bug — focal35 and focal70 compute to same value (1000).
-// The focal_length_from_fov function may not differentiate 35° vs 70° FOV.
-// TODO(chronon3d): fix focal_length_from_fov and re-enable.
-// TICKET-007.w (compliance metadata — see docs/FOLLOWUP_TICKETS.md). Issue: focal_length_from_fov doesn't differentiate FOV values. Owner: chronon3d-owners. Motivation: pre-existing rot. Data introduzione: 2026-06-20. Deadline rimozione: 2026-09-30.
-TEST_CASE("Camera2_5D projection: wider FOV creates smaller focal length" * doctest::skip()) {
+// Re-enabled in PR-C after impl-side fix in
+// chronon3d::camera_math::focal_from_camera(): prior code always returned
+// camera.zoom (default 1000) when projection_mode was Fov because the zoom
+// fallback fired before the projection_mode branch. Now projection_mode=Fov
+// takes priority, giving focal = (h/2)/tan(fov/2) correctly.
+TEST_CASE("Camera2_5D projection: wider FOV creates smaller focal length") {
     const f32 h = 720.0f;
 
     const f32 focal35 = focal_length_from_fov(h, 35.0f);
@@ -125,9 +126,11 @@ TEST_CASE("Camera2_5D projection: wider FOV creates smaller focal length" * doct
 //   Motivation: pre-existing rot; perspective_scale dependency on FOV mode.
 //
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing bug — perspective_scale comparison fails.
-// TODO(chronon3d): fix perspective_scale computation in project_layer_2_5d.
-TEST_CASE("Camera2_5D projection: FOV mode changes perspective scale" * doctest::skip()) {
+// Re-enabled in PR-C after impl-side fix in
+// chronon3d::camera_math::focal_from_camera(): projection_mode=Fov now
+// produces a focal length that scales linearly with FOV, so
+// perspective_scale = focal/depth tracks FOV correctly.
+TEST_CASE("Camera2_5D projection: FOV mode changes perspective scale") {
     Camera2_5D cam35;
     cam35.enabled = true;
     cam35.position = {0, 0, -1000};

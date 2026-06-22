@@ -22,12 +22,16 @@ TEST_CASE("ConvertedFrameCache: defaulted ctor uses policy default (128 MiB)") {
 
 // TICKET-007.z (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
 //   Owner: chronon3d-owners.
-//   Motivation: pre-existing rot; ConvertedFrameCache weight-mode LRU bookkeeping bug.
+//   Motivation: pre-existing rot; ConvertedFrameCache LRU bookkeeping bug.
 //
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing bug — weight-mode LRU with single shard miscounts entries.
-// TODO(chronon3d): fix ConvertedFrameCache LRU weight accounting and re-enable.
-TEST_CASE("ConvertedFrameCache: explicit cap=5 with num_shards=1 keeps total=5" * doctest::skip()) {
+// Re-enabled in PR-C after impl-side fix in
+// cache::capacity_mode_for(CacheDomain::ConvertedFrames): switch the
+// ConvertedFrames domain from Weight mode to Count mode so cap=5 means
+// "5 entries" (matching the ConvertedFrameCache(max_entries) constructor
+// API contract).  In Weight mode each entry's byte weight exceeded the
+// 5-unit cap and was rejected as oversized (logged via log_item_too_large).
+TEST_CASE("ConvertedFrameCache: explicit cap=5 with num_shards=1 keeps total=5") {
     // num_shards=1 means capacity_per_shard = cap/1 = 5 (no rounding).
     ConvertedFrameCache cache(5, /*num_shards=*/1);
 
@@ -56,9 +60,10 @@ TEST_CASE("ConvertedFrameCache: explicit cap=5 with num_shards=1 keeps total=5" 
 //   Motivation: pre-existing rot; ConvertedFrameCache LRU promotion-on-hit bug.
 //
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing bug — LRU promotion miscounts (weight-mode).
-// TODO(chronon3d): fix ConvertedFrameCache LRU and re-enable.
-TEST_CASE("ConvertedFrameCache: LRU promotion on hit (weight-mode)" * doctest::skip()) {
+// Re-enabled in PR-C alongside TICKET-007.z (see above).  Count-mode LRU
+// correctly promotes the hit key to the front and evicts the tail on the
+// 4th insert (was previously rejected as oversized in Weight mode).
+TEST_CASE("ConvertedFrameCache: LRU promotion on hit (weight-mode)") {
     ConvertedFrameCache cache(3, /*num_shards=*/1);
 
     const std::vector<uint8_t> payload{0x01};
