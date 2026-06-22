@@ -5,6 +5,7 @@
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
+#include <chronon3d/core/scope/execution_scope.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include "../builder/graph_builder_pipeline.hpp"
 #include "../builder/graph_builder_internal.hpp"
@@ -116,7 +117,10 @@ SceneGraphStats analyze_scene_graph(
     std::shared_ptr<Framebuffer> fb_shared;
     {
         CHRONON_ZONE_C("execute_graph", trace_category::kGraph);
-        fb_shared = executor.execute(compiled, ctx, session, scheduler);
+        // PR 6.1 — migrate to execute_with_scope (typed ExecutionScope contract)
+        ExecutionScope root_scope(ExecutionScopeKind::Root, session,
+                                  compiled.graph_instance_id);
+        fb_shared = executor.execute_with_scope(compiled, ctx, root_scope, scheduler);
     }
     const auto t_exec1 = profiling::now();
         stats.execute_ms   = profiling::duration_ms(t_exec0, t_exec1);

@@ -15,11 +15,13 @@ namespace chronon3d {
 
 SoftwareProcessorContext make_processor_context(SoftwareRenderer* renderer) {
     SoftwareProcessorContext ctx;
-    ctx.counters        = &renderer.counters();
-    ctx.settings        = &renderer.render_settings();
-    ctx.registry        = &renderer.software_registry();
-    ctx.image_backend   = renderer.image_backend();
-    ctx.image_renderer  = &renderer.image_renderer();
+    ctx.counters        = renderer->counters();
+    ctx.settings        = &renderer->render_settings();
+    ctx.registry        = &renderer->software_registry();
+    ctx.image_backend   = renderer->image_backend();
+    ctx.image_renderer  = &renderer->image_renderer();
+    ctx.debug_config    = &renderer->config().debug();
+    ctx.asset_resolver  = &renderer->runtime().resolver();
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
     // font_engine() throws on non-text builds; callers must be in
     // a `#if CHRONON3D_HAS_BACKEND_TEXT` block before invoking.

@@ -202,10 +202,10 @@ const RenderSettings& RenderEngine::settings() const noexcept {
 
 // ── Accessors ─────────────────────────────────────────────────────────────
 
-decltype(auto) RenderEngine::renderer() noexcept                 { return *m_impl->m_renderer; }
-SoftwareRenderer*       RenderEngine::renderer_or_null noexcept       { return m_impl->m_renderer; }
-decltype(auto) RenderEngine::renderer() const noexcept           { return *m_impl->m_renderer; }
-const SoftwareRenderer* RenderEngine::renderer_or_null const noexcept { return m_impl->m_renderer; }
+SoftwareRenderer& RenderEngine::renderer() noexcept                 { return *m_impl->m_renderer; }
+SoftwareRenderer*       RenderEngine::renderer_or_null() noexcept       { return m_impl->m_renderer.get(); }
+const SoftwareRenderer& RenderEngine::renderer() const noexcept           { return *m_impl->m_renderer; }
+const SoftwareRenderer* RenderEngine::renderer_or_null() const noexcept { return m_impl->m_renderer.get(); }
 
 runtime::RenderRuntime&       RenderEngine::runtime() noexcept       { return m_impl->m_runtime; }
 const runtime::RenderRuntime& RenderEngine::runtime() const noexcept { return m_impl->m_runtime; }

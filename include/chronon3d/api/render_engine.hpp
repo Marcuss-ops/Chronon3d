@@ -148,6 +148,10 @@ public:
     [[nodiscard]] SoftwareRenderer & renderer() noexcept;
     [[nodiscard]] const SoftwareRenderer & renderer() const noexcept;
 
+    /// Nullable access to the underlying SoftwareRenderer.
+    [[nodiscard]] SoftwareRenderer* renderer_or_null() noexcept;
+    [[nodiscard]] const SoftwareRenderer* renderer_or_null() const noexcept;
+
     /// Access to the engine-owned RenderRuntime.
     /// Phase A: returns the Impl-owned runtime.
     [[nodiscard]] runtime::RenderRuntime& runtime() noexcept;
