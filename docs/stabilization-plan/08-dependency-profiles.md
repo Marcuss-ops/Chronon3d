@@ -1,43 +1,49 @@
 # Profili dipendenze e build
 
-- [ ] Definire profilo core senza testo, video, mesh ed EXR.
-- [ ] Definire profilo motion con Blend2D e testo.
-- [ ] Definire profilo video separato.
-- [ ] Definire profilo extended per mesh, EXR e telemetria.
+## Stato reale
+
+I quattro profili e lo script di misura esistono già. Restano da chiudere la validazione CI, l'allineamento completo con vcpkg e la riduzione delle feature predefinite.
+
+## Implementato
+
+- [x] Profilo core senza testo, video, mesh ed EXR.
+- [x] Profilo motion con Blend2D e testo.
+- [x] Profilo video separato.
+- [x] Profilo extended per mesh, EXR, telemetria e profiling.
+- [x] Preset CMake dedicati ai quattro profili.
+- [x] Script `tools/measure_profile.sh`.
+- [x] Output di misura JSON e Markdown.
+- [x] Documentazione di utilizzo dello script.
+
+## Ancora aperto
+
+- [ ] Allineare completamente preset CMake e feature vcpkg.
+- [ ] Verificare che ogni profilo installi solo le dipendenze necessarie.
 - [ ] Ridurre le feature predefinite non essenziali.
-- [ ] Allineare preset CMake e feature vcpkg.
 - [ ] Testare ogni profilo in CI.
-- [ ] Misurare tempi, dimensioni e dipendenze installate.
-- [ ] Documentare quale profilo usare in produzione.
+- [ ] Registrare tempi di configure e build su una baseline comune.
+- [ ] Registrare dimensione di SDK, CLI e target test.
+- [ ] Registrare il numero effettivo di dipendenze per profilo.
+- [ ] Documentare il profilo raccomandato per produzione CPU-first.
+- [ ] Verificare il consumer SDK almeno per core e motion.
+
+## Profili canonici
+
+| Profilo | Scopo | Stato |
+|---|---|---|
+| `linux-profile-core` | runtime e graph minimi | Implementato, CI pending |
+| `linux-profile-motion` | Blend2D e text | Implementato, CI pending |
+| `linux-profile-video` | video nativo e telemetria | Implementato, CI pending |
+| `linux-profile-extended` | tutte le feature e profiling | Implementato, CI pending |
+
+## Ordine di chiusura
+
+1. Chiudere `linux-lean-dev` e il consumer SDK.
+2. Verificare coerenza preset-feature vcpkg.
+3. Eseguire la matrice CI dei quattro profili.
+4. Registrare misure confrontabili.
+5. Ridurre i default soltanto dopo aver verificato che core e motion coprano i casi produttivi.
 
 ## Completato quando
 
-Ogni build installa solo ciò che serve e la configurazione CPU-first rimane semplice, ripetibile e leggera.
-
-## Implementazione eseguita
-
-Deliverable concreti (a partire dal commit `359fef38` e successivi
-fix in `8c2fb…`/etc.):
-
-- [`../../tools/measure_profile.sh`](../../tools/measure_profile.sh) —
-  script bash canonico che, per un `linux-profile-{core,motion,video,extended}`
-  dato, esegue `cmake --preset`, misura tempo configure e numero deps
-  vcpkg, opzionalmente builda, misura dimensione dei binari
-  (`chronon3d_sdk_impl.a`, `chronon3d_cli`, `chronon3d_tests_fast`),
-  scrive JSON + Markdown in `build/profiles/<name>/`.
-- [`../../CMakePresets.json`](../../CMakePresets.json) — quattro
-  nuovi `configurePresets` nominati secondo la matrice del piano
-  08: `linux-profile-core` (Release, minimo), `linux-profile-motion`
-  (Release, blend2d + text), `linux-profile-video` (Release, native
-  ffmpeg + telemetry), `linux-profile-extended` (Release, tutto,
-  unity OFF, profiling ON). Ogni preset ha `displayName` e
-  `description` consultabili via `cmake --list-presets`.
-- [`../../docs/measure_profile_readme.md`](../../docs/measure_profile_readme.md) —
-  documenta l'uso dello script, la tabella profilo→preset, la CI
-  matrix proposta, la manutenzione.
-
-Collegamento al gate `D3` del piano 07:
-`tools/check_doc_sync.sh` (regola `R4`) richiede che ogni modifica
-a `vcpkg.json` o `CMakePresets.json` sia accompagnata da un update
-di questo file. Quando si aggiunge un nuovo preset profilo,
-riprodurre la riga nella tabella "Profili" sopra.
+Ogni profilo configura, compila, installa ed esegue i test previsti; le dipendenze installate sono coerenti con il profilo; il profilo CPU-first raccomandato è documentato e verificato in CI.
