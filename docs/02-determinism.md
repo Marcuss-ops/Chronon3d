@@ -315,12 +315,22 @@ in [`docs/01-baseline-green.md`](01-baseline-green.md) §2.3:
 
 ### Stato del workflow di cattura
 
-I sentinel per §4 (Composite), §5 (SSIM), §6 (PrecompCache) sono
-stati popolati con hash reali catturati su linux-ci. I sentinel per §1 (FreshShader), §2
-(ArenaPin), §3 (ThreadEq) restano `kUncapturedSentinel` finché il
-blocco `FrameGraphCompiler: stable_node_id collision` nella
-baseline static-comp (3 rects) non viene risolto — bug preesistente
-nel `frame_graph_compiler.cpp`, non correlato al path determinism.
+Tutti i 6 sentinel sono stati popolati con hash reali catturati su
+linux-ci (PR 6.9 — fix bug `stable_node_id collision` nel
+`FrameGraphCompiler::build_node_metadata`):
+
+| Sentinel | Hash |
+|---|---|
+| §1 `kRefBaselineFreshShader` | `610724219931969400` |
+| §2 `kRefBaselineArenaPin` | `610724219931969400` |
+| §3 `kRefBaselineThreadEq` | `610724219931969400` |
+| §4 `kRefBaselineComposite` | `610724219931969400` |
+| §5 `kRefBaselineSsim` | `610724219931969400` |
+| §6 `kRefBaselinePrecompCache` | `15056832347528341909` |
+
+§1–§5 condividono lo stesso hash perché renderizzano la stessa
+composizione statica (`make_baseline_static_comp`); §6 è diverso
+perché la scena precomp ha dimensione framebuffer diversa.
 
 Il workflow step-by-step per la cattura è in
 [`docs/01-baseline-green.md`](01-baseline-green.md) §2.3 §5.
