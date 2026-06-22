@@ -133,14 +133,17 @@ void seed_previous_layers(RenderSession& s, uint64_t marker) {
 bool dirty_history_default(const DirtyHistory& d) noexcept {
     // Default-constructed DirtyHistory canonical defaults.  Layer
     // diff source-of-truth (`previous_layers`) is empty by default.
+    // NOTE: previous_layers is intentionally excluded — it survives
+    // per-frame resets (see DirtyHistory::reset_telemetry_counters()
+    // contract).  Callers that need to assert previous_layers empty
+    // must add an explicit CHECK(…previous_layers.empty()).
     return d.last_dirty_area_ratio == 1.0
         && d.last_layer_count == 0
         && !d.last_dirty_rect_enabled
         && !d.last_dirty_rect.has_value()
         && !d.last_tile_execution_used
         && !d.last_fast_path_reused
-        && !d.last_graph_reused
-        && d.previous_layers.empty();
+        && !d.last_graph_reused;
 }
 
 } // namespace
@@ -231,11 +234,9 @@ TEST_CASE("WP-3 PR 3.2 + 3.3 + 3.1: reset_job clears frame_history, dirty_teleme
     RenderSession session;
     seed_frame_history(session, 0xCAFEBABE);
     seed_dirty_telemetry(session, 0xCAFEBABE);
-    seed_previous_layers(session, 0xCAFEBABE);
-
-    CHECK_NOTHROW(session.reset_job());
-
+    seed_previous_layers(session, 0xCAFEBABE);    CHECK_NOTHROW(session.reset_job());
     CHECK(session.frame_history == FrameHistory{});
+    CHECK(session.dirty_telemetry.previous_layers.empty());
     CHECK(dirty_history_default(session.dirty_telemetry));
     CHECK_NOTHROW((void)session.scene_hasher());
     CHECK_NOTHROW((void)session.program_store());

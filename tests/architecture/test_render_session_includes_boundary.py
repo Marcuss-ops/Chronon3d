@@ -24,7 +24,18 @@ CHECKS = [
 # software_session_resources include dropped (no symbol referenced
 # in this header since the legacy SoftwareRenderSession struct was
 # removed in WP-3 PR 3.4 close-out).
-KNOWN_VIOLATIONS = {}
+KNOWN_VIOLATIONS = {
+    'include/chronon3d/runtime/render_session.hpp': {
+        'scene_hasher.hpp': ('WP-3 PR-3.1',
+            'per-session ownership of SceneHasher requires full type; '
+            'forward-declaration boundary lifted per '
+            'docs/refactor-roadmap/03-render-session-boundary.md'),
+        'scene_program_store.hpp': ('WP-3 PR-3.1',
+            'per-session ownership of SceneProgramStore requires full type; '
+            'forward-declaration boundary lifted per '
+            'docs/refactor-roadmap/03-render-session-boundary.md'),
+    },
+}
 
 
 def check_file(filepath, forbidden_substrings, allowlist):
