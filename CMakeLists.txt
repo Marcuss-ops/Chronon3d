@@ -340,7 +340,10 @@ include(CMakePackageConfigHelpers)
 # Public headers — installed verbatim under <prefix>/include/.
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-    FILES_MATCHING PATTERN "*.hpp"
+    FILES_MATCHING
+        PATTERN "*.hpp"
+        PATTERN "*.h"
+        PATTERN "*.def"
 )
 
 # ── Install / Export target list — derived from central registry ─────

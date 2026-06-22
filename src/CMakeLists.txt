@@ -210,6 +210,19 @@ target_include_directories(chronon3d_sdk INTERFACE
 target_link_libraries(chronon3d_sdk INTERFACE
     $<BUILD_INTERFACE:chronon3d_pipeline>
     $<INSTALL_INTERFACE:chronon3d_sdk_impl>
+    # Public third-party deps that consumer headers transitively need.
+    # The STATIC archive (chronon3d_sdk_impl) bundles all .o files but
+    # does NOT propagate PUBLIC link deps from the aggregated OBJECT
+    # libraries (PRIVATE link).  We explicitly list the non-OBJECT
+    # third-party targets here so downstream find_package() consumers
+    # get glm, fmt, spdlog, etc. include dirs and link flags.
+    $<INSTALL_INTERFACE:glm::glm>
+    $<INSTALL_INTERFACE:fmt::fmt>
+    $<INSTALL_INTERFACE:spdlog::spdlog_header_only>
+    $<INSTALL_INTERFACE:TBB::tbb>
+    $<INSTALL_INTERFACE:magic_enum::magic_enum>
+    $<INSTALL_INTERFACE:nlohmann_json::nlohmann_json>
+    $<INSTALL_INTERFACE:xxHash::xxhash>
 )
 # ── In-tree link closure — derived from central registry ─────────────
 # Every OBJECT library registered in cmake/Chronon3DRegistry.cmake has
