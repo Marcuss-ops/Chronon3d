@@ -219,6 +219,56 @@ nuove API) seguono lo stesso template.
   - merge che cambia `vcpkg.json` senza aggiornare `08-dependency-profiles.md`
     → fail (cross-link con piano 08).
 
+### R6 — Filename-drift gate (path-existence)
+
+> Complementare a R1–R5 (co-update, documentati in `tools/check_doc_sync.sh`
+> header comment) e distinta da *piano 06 R6* (camera-policy), R6 enforza
+> *path-existence*:
+> ogni filename citation nei sorgenti / docs / cmake deve puntare a
+> un path che esiste su disco, OR essere marcata come forward
+> reference pianificata con il marker `drift-allow: <id>`.
+
+**Implementation**:
+
+- `tools/check_filename_drift.sh` — estrae token di citation
+  repo-relativi (regex
+  `\b(tests|src|include|docs|tools|examples)/[A-Za-z0-9_./-]+\.(cpp|hpp|h|md|cmake|txt)\b`)
+  e verifica l'esistenza su disco di ognuno.
+- `cmake/Hygiene.cmake` + `add_custom_target(check_refs)` —
+  espone la regola come entry point CI:
+  `cmake --build <build-dir> --target check_refs`.
+
+**Two-mode policy**:
+
+- `--strict` (default; allineato al CMake wire-up): exit 1 on drift.
+- `--wip` / `--warn`: log warnings, exit 0 (utile per cherry-pick
+  fattibili a metà).
+
+**Known limitations (v1)** — tracciate in `FOLLOWUP_TICKETS.md`:
+
+- **Per-line `drift-allow` scope**: il marker opt-out si applica
+  all'intera riga. Posizionare il marker su una riga dedicata
+  (comment-only); non mescolare in-linea con una vera citation
+  forward-path.
+- **Portability**: la v2 del gate usa ancora `mapfile` (bash 4+);
+  future release userà grep's native `--include` / `--exclude-dir`
+  per bash 3.2 compat.
+
+**Relationship to R1–R5**:
+
+- R1–R5 enforzano co-update: "se tocchi area X, aggiorna
+  anche doc Y".
+- R6 enforza path-existence: "se citi path Z, esiste già".
+- Le due regole sono ortogonali e complementari. Una violazione R6
+  che non sia di co-update è drift — un path inesistente referenziato
+  in documentazione o in CMake senza un corrispondente ticket
+  pianificato è un bug di sincronizzazione.
+
+**Cross-reference**: `cmake/Hygiene.cmake` è il file canonico per
+i custom_target di hygiene; `cmake/Chronon3DRegistry.cmake`
+resta il registro esclusivo di OBJECT/INTERFACE library target
+(non mescolare le due concerns).
+
 ## 6. Test plan
 
 Per ogni PR: test mirato prima della chiusura. Configurazione minima:
@@ -232,6 +282,7 @@ Per ogni PR: test mirato prima della chiusura. Configurazione minima:
 | D4 | `tools/audit_status_vocab.py` (o equivalente) parsa tabelle e rifiuta emoji non mappate |
 | D5 | `git grep -nE "R6|PR-[0-9] rewire|M-3"` su `include/`, `src/` decrementa rispetto a baseline |
 | D6 | cinque scenari D6 in `tools/check_doc_sync_test.sh` verdi in `linux-ci` |
+| R6 | `tools/check_filename_drift.sh --strict` exits 0 on `main`; `cmake --build --target check_refs` succeeds; `check_doc_sync.sh --strict` exits 0 (R1–R5 invariati). |
 
 ## 7. Criteri di chiusura
 
@@ -248,6 +299,9 @@ Per ogni PR: test mirato prima della chiusura. Configurazione minima:
 - [ ] `tools/check_doc_sync.sh` e `tools/check_doc_sync_test.sh`
       installati nel path `tools/`, eseguibili in `linux-ci`,
       citati come invarianti in `check_architecture_boundaries.sh`.
+- [ ] `tools/check_filename_drift.sh` installato in `tools/`, esposto come
+      custom_target `check_refs` via `cmake/Hygiene.cmake`, eseguibile in
+      `linux-ci` (R6 path-existence, complementare a R1–R5 co-update).
 - [ ] Aggiornare `STATUS.md` ("Stato e roadmap sincronizzati"),
       `ROADMAP.md`, `NEXT_STEPS.md`, `CHANGELOG.md`.
 
@@ -260,6 +314,9 @@ Per ogni PR: test mirato prima della chiusura. Configurazione minima:
 | Stato "Validato in CI" non ottenibile per esperimenti | `experimental/**` escluso per default; gating solo su `src/**` |
 | Refactor-roadmap 00..08 e `refactor-roadmap/README.md` non migrazione completa al vocabolario D4 | D4 PR include un bot-style audit `tools/audit_status_vocab.py` con diff mitigation |
 | D6 si intreccia con WP-0 PR 0.x | D6 consegnato dopo chiusura di WP-0; cita `tools/check_architecture_boundaries.sh` come dipendenza |
+| Gate R6 — `mapfile` (bash 4+) limita portabilità del gate ai soli host con bash ≥ 4 | v3 di `tools/check_filename_drift.sh` drop `mapfile`, sostituito da `grep` native `--include` / `--exclude-dir`; tracciato in `FOLLOWUP_TICKETS.md` |
+| Gate R6 — `drift-allow:` opt-out scope per-line (non per-token) può nascondere drift legittimo su una riga mista | v3 con parse per-token; interim: marker su riga dedicata, mai in-linea con una vera citation forward-path |
+| Mixing hygiene gates in `cmake/Chronon3DRegistry.cmake` espanderebbe il contratto del file (registro library-only) | `cmake/Hygiene.cmake` mantenuto come unica casa dei custom_target di hygiene; tracciato in `09-document-canonicalization.md` |
 
 ## 9. Segnale di completamento
 

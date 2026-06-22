@@ -33,6 +33,7 @@ add_executable(chronon3d_scene_tests
     scene/camera_path_sampler_tests.cpp
     scene/camera/test_camera_registry.cpp
     scene/camera/test_camera_program.cpp
+    scene/camera/test_camera_program_compiled.cpp   # CAM-01 / DOC 04: baseline compiled-path tests
     scene/camera/test_camera_constraints_p5.cpp
     scene/camera/test_camera_framing_solver.cpp
     scene/camera/test_shot_timeline.cpp
