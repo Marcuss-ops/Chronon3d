@@ -139,18 +139,18 @@ TEST_CASE("GraphContract: same scene produces identical DOT across renders") {
     cache::NodeCache node_cache;
 
     // Render twice and collect DOT from debug output
-    auto fb1 = render_composition_frame(renderer, node_cache, {}, nullptr, nullptr,
+    auto fb1 = render_composition_frame(renderer.backend(), node_cache, {}, nullptr, nullptr,
         Composition(CompositionSpec{.name = "snap1", .width = W, .height = H, .duration = 1},
                     [&](const FrameContext&) { return scene.clone(); }), 0);
-    auto dot1 = debug_scene_graph(renderer, node_cache, scene, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
+    auto dot1 = debug_scene_graph(renderer.backend(), node_cache, scene, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
 
     // Reset and render again
     auto renderer2 = test::make_renderer();
     cache::NodeCache node_cache2;
-    auto fb2 = render_composition_frame(renderer2, node_cache2, {}, nullptr, nullptr,
+    auto fb2 = render_composition_frame(renderer2.backend(), node_cache2, {}, nullptr, nullptr,
         Composition(CompositionSpec{.name = "snap2", .width = W, .height = H, .duration = 1},
                     [&](const FrameContext&) { return scene.clone(); }), 0);
-    auto dot2 = debug_scene_graph(renderer2, node_cache2, scene, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
+    auto dot2 = debug_scene_graph(renderer2.backend(), node_cache2, scene, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
 
     CHECK(dot1 == dot2);
 }
@@ -197,9 +197,9 @@ TEST_CASE("GraphContract: layer order change produces different graph and finger
     auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
 
-    auto dot_normal = debug_scene_graph(renderer, node_cache, scene_normal, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
+    auto dot_normal = debug_scene_graph(renderer.backend(), node_cache, scene_normal, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
     cache::NodeCache node_cache2;
-    auto dot_reversed = debug_scene_graph(renderer, node_cache2, scene_reversed, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
+    auto dot_reversed = debug_scene_graph(renderer.backend(), node_cache2, scene_reversed, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
 
     // Different layer order must produce a different DOT
     CHECK(dot_normal != dot_reversed);
@@ -226,7 +226,7 @@ TEST_CASE("GraphContract: normalized DOT is deterministic") {
     auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
 
-    auto dot = debug_scene_graph(renderer, node_cache, scene, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
+    auto dot = debug_scene_graph(renderer.backend(), node_cache, scene, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
 
     // Normalized DOT should be stable (sorted lines)
     auto normalized = normalize_dot(dot);
@@ -235,7 +235,7 @@ TEST_CASE("GraphContract: normalized DOT is deterministic") {
     // Render again and verify normalized output matches
     auto renderer2 = test::make_renderer();
     cache::NodeCache node_cache2;
-    auto dot2 = debug_scene_graph(renderer2, node_cache2, scene, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
+    auto dot2 = debug_scene_graph(renderer2.backend(), node_cache2, scene, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
     auto normalized2 = normalize_dot(dot2);
 
     CHECK(normalized == normalized2);
@@ -255,14 +255,14 @@ TEST_CASE("GraphContract: different scenes produce different graphs") {
     auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
 
-    auto stats_a = analyze_scene_graph(renderer, node_cache, scene_a, camera, W, H, 0, 0.0f, {}, nullptr, nullptr, false, false);
+    auto stats_a = analyze_scene_graph(renderer.backend(), node_cache, scene_a, camera, W, H, 0, 0.0f, {}, nullptr, nullptr, false, false);
     cache::NodeCache node_cache2;
-    auto stats_b = analyze_scene_graph(renderer, node_cache2, scene_b, camera, W, H, 0, 0.0f, {}, nullptr, nullptr, false, false);
+    auto stats_b = analyze_scene_graph(renderer.backend(), node_cache2, scene_b, camera, W, H, 0, 0.0f, {}, nullptr, nullptr, false, false);
 
     // Different shape types (rect vs circle) should produce different node counts
     // or at minimum different DOT output
-    auto dot_a = debug_scene_graph(renderer, node_cache, scene_a, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
-    auto dot_b = debug_scene_graph(renderer, node_cache2, scene_b, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
+    auto dot_a = debug_scene_graph(renderer.backend(), node_cache, scene_a, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
+    auto dot_b = debug_scene_graph(renderer.backend(), node_cache2, scene_b, camera, W, H, 0, 0.0f, {}, nullptr, nullptr);
 
     CHECK(dot_a != dot_b);
 }
