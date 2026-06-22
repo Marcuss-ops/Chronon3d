@@ -1,23 +1,46 @@
 // ─── text_preset_registry.cpp — TextPresetRegistry implementation ───────────
 //
-// DoD #1b prerequisite (Cluster A).  Stage 1 (PR `41cda40c`) shipped
-// metadata-only cataloguing of the 5 compositions.  Stage 2 (this PR)
-// fills the no-op builders (TODO(c3d-001)) with real SceneBuilder /
-// LayerBuilder / TextSpec calls after a header audit of:
-//   - `include/chronon3d/scene/builders/scene_builder.hpp`
-//   - `include/chronon3d/scene/builders/layer_builder.hpp`
-//   - `include/chronon3d/scene/builders/builder_params.hpp` (TextSpec)
+// Cluster A DoD #1 (DoD primo-milestone #1 — "20+ preset stabili Reveal /
+// Emphasis / Cinematic / Subtitle").  Stage 1 (PR `41cda40c`) shipped
+// metadata-only cataloguing of the 5 compositionally-derived entries.
+// Stage 2 (PR `ba107a7d`) filled the no-op builders (TODO(c3d-001))
+// with real LayerBuilder API calls.  Stage 3 (this PR — Cluster A
+// copy-modify PR — TODO(c3d-002)) ships the 17 addizionali ceiling,
+// reaching 22 entries total (≥20+, DoD #1 verde).
 //
-// 5 built-in entries seeded from the existing compositions in
-// `content/anims/compositions/` + `content/text/`:
-//   - animation_compositions        → Cinematic (utility suite, Reveal+Cinematic mix)
-//   - cinematic_text_camera         → Cinematic (5 hero comps, depth-driven)
-//   - cinematic_title_reveal        → Cinematic (push-in / tilt hero titles)
-//   - text_animations               → Reveal    (typewriter + word-stagger emphasis)
-//   - tilt_sweep_title_v2           → Cinematic (cinematic-push tilt-sweep blur)
+// All 22 entries:
+//   ─ REVEAL (9) ─────────────────────────────────────────────────────
+//     1. text_animations            (PR 41cda40c, kept)
+//     2. fade_in                    (Stage 3)
+//     3. blur_in                    (Stage 3)
+//     4. slide_up                   (Stage 3)
+//     5. slide_down                 (Stage 3)
+//     6. scale_in                   (Stage 3)
+//     7. tracking_close             (Stage 3)
+//     8. masked_line_reveal         (Stage 3)
+//     9. word_cascade               (Stage 3)
+//    10. character_cascade          (Stage 3)
+//
+//   ─ EMPHASIS (4) ───────────────────────────────────────────────────
+//    11. word_pop                   (Stage 3)
+//    12. scale_punch                (Stage 3)
+//    13. color_accent               (Stage 3)
+//    14. gradient_fill              (Stage 3)
+//
+//   ─ CINEMATIC (4) ──────────────────────────────────────────────────
+//    15. animation_compositions     (PR 41cda40c, kept)
+//    16. cinematic_text_camera      (PR 41cda40c, kept)
+//    17. cinematic_title_reveal     (PR 41cda40c, kept)
+//    18. tilt_sweep_title_v2        (PR 41cda40c, kept)
+//
+//   ─ SUBTITLE (4) ───────────────────────────────────────────────────
+//    19. minimal_white              (Stage 3)
+//    20. yellow_keyword             (Stage 3)
+//    21. glow_pulse                 (Stage 3)
+//    22. caption_box                (Stage 3)
 //
 // Anti-circular-dependency: this .cpp DOES NOT include any
-// `content/text/text_*.hpp`.  The edge direction canon
+// `content/text/text_*.hpp`.  Edge direction canon
 // (content → core/registry, mai viceversa) is preserved.
 // The header `include/chronon3d/registry/text_preset_registry.hpp` stays
 // include-light (forward-decls only); full type definitions of
@@ -33,6 +56,15 @@
 // and the lambda parameter type in the .cpp resolve to the same
 // underlying type once the alias is in scope.  External callers that
 // instantiate `chronon3d::TextSpec` can pass it to the Builder unchanged.
+//
+// ── DoD #1 Catalyst → Visual Regression Harness ──────────────────────
+// Each new factory function ships a `// golden-frame-link:` comment naming
+// the Visual Regression Harness fixture that will validate the rendered
+// PNG (`tests/visual_tests.cmake` + `tools/visual_quality_suite.py`).
+// PR Stage 3 ships the registries + builder bodies + invocation tests
+// (Sub-cases 11–27 in test_text_preset_registry.cpp).  Adding the
+// PNG fixtures + golden-frame renders is the work of Fase 2 / Cluster E
+// (Visual Regression Harness maturity); the registry commits first.
 
 #include <chronon3d/registry/text_preset_registry.hpp>
 
@@ -41,6 +73,7 @@
 #include <chronon3d/scene/builders/builder_params.hpp>   // full TextSpec (canonical)
 
 #include <stdexcept>
+#include <type_traits>  // explicit — for static_assert(std::is_same_v<...>) drift guard.
 
 // ── content::text::TextSpec alias (private to this TU) ───────────────────
 // Resolves the forward declaration in the registry header.  Without this
@@ -141,19 +174,14 @@ void TextPresetRegistry::reset() {
 
 // ── register_builtin_presets ────────────────────────────────────────────────
 //
-// Stage 2 (this PR): filled bodies using the audited SceneBuilder /
-// LayerBuilder / TextSpec API. Each builder:
-//
-//   1. Sets the user-provided `spec` as the text content via `lb.text(name, spec)`.
-//   2. Chains motion presets that give the preset its identity
-//      (depth_reveal / soft_pop / scale_drop / focus_in / fade_in / float_idle).
-//
-// All motions use only `(f32, Frame [, EasingCurve])` signatures so we
-// avoid constructing `Glow`/`DropShadow` struct literals (which would
-// require pulling additional headers into this TU).  When DoD #1 reaches
-// the 20-preset bar, instances that need polish (glow / shadow / multiple
-// visual effects) will live in their own composition files in `content/`
-// and will be reachable through the same registry.
+// Stage 3 (this PR — Cluster A copy-modify): 22 built-in entries.
+// Each builder calls `lb.text("<name>", spec)` to register the user-provided
+// TextSpec on the layer, then chains 1-3 motion presets that give the
+// preset its identity.  All motion recipes use only `(f32, Frame [,
+// EasingCurve])` signatures — no `Glow`/`DropShadow` struct literals.
+// `[[maybe_unused]] SceneBuilderT& sb` is added to all lambdas for
+// forward-compat with Cinematic builders that may use sb.camera() in
+// later stages.
 
 namespace {
 
@@ -161,14 +189,9 @@ using SceneBuilderT  = ::chronon3d::SceneBuilder;
 using LayerBuilderT  = ::chronon3d::LayerBuilder;
 using TextSpecT      = ::chronon3d::content::text::TextSpec;
 
-// ────────────────────────────────────────────────────────────────────────
-// 1. animation_compositions — Cinematic utility suite
-//
-//    Identity: depth-reveal push-in + soft-pop settle + subtle float_idle
-//    for hero/dashboard utility that needs the cinematic feel without
-//    camera-lock-in. Mirrors the depth_reveal + float_idle combinations
-//    in `animation_compositions.cpp` DeepParallaxCascade / OrbitHandheldGlow.
-// ────────────────────────────────────────────────────────────────────────
+
+// ── Cinematic factory functions (PR `41cda40c` — kept verbatim) ────────────
+
 TextPreset animation_compositions_entry() {
     TextPreset p;
     p.id           = "animation_compositions";
@@ -181,6 +204,7 @@ TextPreset animation_compositions_entry() {
     p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/cinematic_motion/DeepParallaxCascade
         lb.text("anim_comp_text", spec)
           .depth_reveal(280.0f, Frame{45})
           .soft_pop(Frame{30})
@@ -189,13 +213,6 @@ TextPreset animation_compositions_entry() {
     return p;
 }
 
-// ────────────────────────────────────────────────────────────────────────
-// 2. cinematic_text_camera — Cinematic (5 hero comps)
-//
-//    Identity: depth-reveal driven by camera (no float_idle — camera
-//    drives the parallax).  Mirrors DeepParallaxCascade / WhipPanHeroReveal /
-//    RackFocusTitleSwap.  scale_drop + soft_pop keep the entrance sharp.
-// ────────────────────────────────────────────────────────────────────────
 TextPreset cinematic_text_camera_entry() {
     TextPreset p;
     p.id           = "cinematic_text_camera";
@@ -208,6 +225,7 @@ TextPreset cinematic_text_camera_entry() {
     p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/camera/camera_visual_tests
         lb.text("camera_text", spec)
           .depth_reveal(260.0f, Frame{50})
           .scale_drop(0.95f, Frame{30})
@@ -216,13 +234,6 @@ TextPreset cinematic_text_camera_entry() {
     return p;
 }
 
-// ────────────────────────────────────────────────────────────────────────
-// 3. cinematic_title_reveal — Cinematic (push-in / tilt variants)
-//
-//    Identity: classic scale_drop push-in + soft_pop settle.  The
-//    fastest clean entrance for hero section titles.  Mirrors the
-//    scene-canonical `cinematic_title_reveal.cpp` family.
-// ────────────────────────────────────────────────────────────────────────
 TextPreset cinematic_title_reveal_entry() {
     TextPreset p;
     p.id           = "cinematic_title_reveal";
@@ -234,6 +245,7 @@ TextPreset cinematic_title_reveal_entry() {
     p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/cinematic_motion/cinematic_title_reveal
         lb.text("title_reveal_text", spec)
           .scale_drop(0.92f, Frame{40})
           .soft_pop(Frame{30});
@@ -241,13 +253,33 @@ TextPreset cinematic_title_reveal_entry() {
     return p;
 }
 
-// ────────────────────────────────────────────────────────────────────────
-// 4. text_animations — Reveal (typewriter + emphasis)
-//
-//    Identity: fade_in + scale_drop.  Normalises to the typewriter /
-//    word-stagger / per-glyph emphasis family.  Mirrors the Re-veal
-//    substack of `text_animations.cpp`.
-// ────────────────────────────────────────────────────────────────────────
+TextPreset tilt_sweep_title_v2_entry() {
+    TextPreset p;
+    p.id           = "tilt_sweep_title_v2";
+    p.display_name = "Tilt-sweep title v2";
+    p.category     = TextPresetCategory::Cinematic;
+    p.description  = "Tilt-sweep title with cinematic push-in reveal, "
+                     "scale animation, and blur ramp — cross-link "
+                     "tilt_sweep_title preset family.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/cinematic_motion/tilt_sweep_title_v2
+        lb.text("tilt_sweep_text", spec)
+          .scale_drop(1.08f, Frame{45})
+          .focus_in(2.5f, Frame{30})
+          .soft_pop(Frame{24});
+    };
+    return p;
+}
+
+
+// ── Reveal factory functions (Stage 3 — 9 addizionali) ─────────────────────
+
+// 1. text_animations (Reveal) — kept from PR 41cda40c; the typewriter +
+//    emphasis reveal preset.  Listed under Reveal because its dominant
+//    identity is the typewriter fade-in entrance.
 TextPreset text_animations_entry() {
     TextPreset p;
     p.id           = "text_animations";
@@ -261,8 +293,8 @@ TextPreset text_animations_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // fade_in / scale_drop both default to OutCubic, so we omit the
-        // redundant explicit arg here. If a future preset wants a non-default
-        // easing (e.g. bounce or elastic), pass it explicitly.
+        // redundant explicit arg here.
+        // golden-frame-link: tests/visual/PR3/pr3_compositions (text-heavy PR3 end-to-end)
         lb.text("reveal_text", spec)
           .fade_in(Frame{20})
           .scale_drop(0.95f, Frame{30});
@@ -270,38 +302,407 @@ TextPreset text_animations_entry() {
     return p;
 }
 
-// ────────────────────────────────────────────────────────────────────────
-// 5. tilt_sweep_title_v2 — Cinematic (tilt-sweep blur)
-//
-//    Identity: scale_drop push-in + focus_in blur ramp (the camera-blur-style
-//    reveal).  Mirrors `tilt_sweep_title_v2.cpp` cinematic push-in family.
-// ────────────────────────────────────────────────────────────────────────
-TextPreset tilt_sweep_title_v2_entry() {
+// 2. fade_in — the canonical pixel-accurate reveal; no scale, no shift,
+//    pure opacity ramp.  Use for body copy / subtitle-level text.
+TextPreset fade_in_entry() {
     TextPreset p;
-    p.id           = "tilt_sweep_title_v2";
-    p.display_name = "Tilt-sweep title v2";
-    p.category     = TextPresetCategory::Cinematic;
-    p.description  = "Tilt-sweep title with cinematic push-in reveal, "
-                     "scale animation, and blur ramp — cross-link "
-                     "tilt_sweep_title preset family.";
+    p.id           = "fade_in";
+    p.display_name = "FadeIn";
+    p.category     = TextPresetCategory::Reveal;
+    p.description  = "Pure opacity ramp over Frame{15}, no spatial motion. "
+                     "Canonical reveal for body copy / subtitle-level text.";
     p.builtin      = true;
     p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
-        lb.text("tilt_sweep_text", spec)
-          .scale_drop(1.08f, Frame{45})
-          .focus_in(2.5f, Frame{30})
-          .soft_pop(Frame{24});
+        // golden-frame-link: tests/visual/text/reveal_fade_in
+        lb.text("fade_in_text", spec)
+          .fade_in(Frame{15})
+          .soft_pop(Frame{10});
     };
     return p;
 }
 
+// 3. blur_in — focus_in (decreasing blur) + opacity ramp. The classic
+//    info-graphic reveal pattern.
+TextPreset blur_in_entry() {
+    TextPreset p;
+    p.id           = "blur_in";
+    p.display_name = "BlurIn";
+    p.category     = TextPresetCategory::Reveal;
+    p.description  = "Focus ramp (4.0 → 0.0 blur) over Frame{30}, paired with "
+                     "short fade_in.  Classic motion-graphic reveal pattern.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/text/reveal_blur_in
+        lb.text("blur_in_text", spec)
+          .focus_in(4.0f, Frame{30})
+          .fade_in(Frame{15});
+    };
+    return p;
+}
+
+// 4. slide_up — fade_shift_vertical upward (offset.y > 0) + fade_in.
+//    Nudge the text up from its resting position into place.
+TextPreset slide_up_entry() {
+    TextPreset p;
+    p.id           = "slide_up";
+    p.display_name = "SlideUp";
+    p.category     = TextPresetCategory::Reveal;
+    p.description  = "Vertical slide-up (from below, offset {0,200,0}) + "
+                     "fade_in over Frame{25}.  Eyebrow / section-header pattern.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/text/reveal_slide_up
+        lb.text("slide_up_text", spec)
+          .fade_shift_vertical(Vec3{0.0f, 200.0f, 0.0f}, Frame{25})
+          .fade_in(Frame{15});
+    };
+    return p;
+}
+
+// 5. slide_down — same as slide_up but offset {0,-200,0}.  Used for
+//    bottom-docked subtitles that slide down from a screen edge.
+TextPreset slide_down_entry() {
+    TextPreset p;
+    p.id           = "slide_down";
+    p.display_name = "SlideDown";
+    p.category     = TextPresetCategory::Reveal;
+    p.description  = "Vertical slide-down (from above, offset {0,-200,0}) + "
+                     "fade_in over Frame{25}.  Bottom-docked subtitle entry.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/text/reveal_slide_down
+        lb.text("slide_down_text", spec)
+          .fade_shift_vertical(Vec3{0.0f, -200.0f, 0.0f}, Frame{25})
+          .fade_in(Frame{15});
+    };
+    return p;
+}
+
+// 6. scale_in — scale_drop from 0.85 → 1.0 + soft_pop. Section-header
+//    crop variant.
+TextPreset scale_in_entry() {
+    TextPreset p;
+    p.id           = "scale_in";
+    p.display_name = "ScaleIn";
+    p.category     = TextPresetCategory::Reveal;
+    p.description  = "Scale drop (0.85 → 1.0) over Frame{25} + soft_pop "
+                     "settle.  Section-header crop pattern.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/text/reveal_scale_in
+        lb.text("scale_in_text", spec)
+          .scale_drop(0.85f, Frame{25})
+          .soft_pop(Frame{15});
+    };
+    return p;
+}
+
+// 7. tracking_close — tracking_breathing (subtle letter-spacing pulse)
+//    over Frame{30}.  Continuous idle, no entrance motion.  Use after
+//    the text has already entered via a parent cinematic preset.
+TextPreset tracking_close_entry() {
+    TextPreset p;
+    p.id           = "tracking_close";
+    p.display_name = "TrackingClose";
+    p.category     = TextPresetCategory::Reveal;
+    p.description  = "Letter-spacing idle pulse (tracking_breathing) over "
+                     "Frame{30}.  Use AFTER a parent cinematic preset; "
+                     "no entrance motion of its own.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/text/reveal_tracking_close
+        lb.text("tracking_close_text", spec)
+          .tracking_breathing(0.05f, Frame{30});
+    };
+    return p;
+}
+
+// 8. masked_line_reveal — center_split (mask-in from the middle out)
+//    + horizontal fade_shift suggesting the lines reading in.
+TextPreset masked_line_reveal_entry() {
+    TextPreset p;
+    p.id           = "masked_line_reveal";
+    p.display_name = "MaskedLineReveal";
+    p.category     = TextPresetCategory::Reveal;
+    p.description  = "Center-split mask reveal (lines read out from the "
+                     "middle) + horizontal fade_shift.  Mask-and-reveal pattern.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/text/reveal_masked_line
+        lb.text("masked_line_text", spec)
+          .center_split(Frame{30})
+          .fade_shift_horizontal(Vec3{120.0f, 0.0f, 0.0f}, Frame{25});
+    };
+    return p;
+}
+
+// 9. word_cascade — word_stagger (inter-word stagger) + fade_in. Each
+//    word enters in succession.
+TextPreset word_cascade_entry() {
+    TextPreset p;
+    p.id           = "word_cascade";
+    p.display_name = "WordCascade";
+    p.category     = TextPresetCategory::Reveal;
+    p.description  = "Per-word stagger (Frame{4} delay) + fade_in.  Each "
+                     "word enters in succession — the classic kinetic-title "
+                     "reveal pattern.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/text/reveal_word_cascade
+        lb.text("word_cascade_text", spec)
+          .word_stagger(Frame{4}, Frame{20})
+          .fade_in(Frame{15});
+    };
+    return p;
+}
+
+// 10. character_cascade — same recipe as word_cascade but with Frame{2}
+//     per-glyph delay.  Use when the input has clear glyph separators
+//     (monospace, kerned display fonts).
+TextPreset character_cascade_entry() {
+    TextPreset p;
+    p.id           = "character_cascade";
+    p.display_name = "CharacterCascade";
+    p.category     = TextPresetCategory::Reveal;
+    p.description  = "Per-glyph stagger (Frame{2} delay) + fade_in.  Tighter "
+                     "than WordCascade — best on monospace / kerned display.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/text/reveal_character_cascade
+        lb.text("character_cascade_text", spec)
+          .fade_in(Frame{15})
+          .word_stagger(Frame{2}, Frame{20});
+    };
+    return p;
+}
+
+
+// ── Emphasis factory functions (Stage 3 — 4 addizionali) ────────────────────
+
+// 11. word_pop — scale_drop up to 1.15 (overshoot) + soft_pop. The
+//     bouncy per-word emphasis.
+TextPreset word_pop_entry() {
+    TextPreset p;
+    p.id           = "word_pop";
+    p.display_name = "WordPop";
+    p.category     = TextPresetCategory::Emphasis;
+    p.description  = "Bouncy scale overshoot (1.0 → 1.15) + soft_pop.  "
+                     "Per-word emphasis pop — best in mid-flow body copy.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/text/emphasis_word_pop
+        lb.text("word_pop_text", spec)
+          .scale_drop(1.15f, Frame{8})
+          .soft_pop(Frame{15});
+    };
+    return p;
+}
+
+// 12. scale_punch — scale_drop DOWN to 0.7 + soft_pop. The text
+//     compresses then snaps back.
+TextPreset scale_punch_entry() {
+    TextPreset p;
+    p.id           = "scale_punch";
+    p.display_name = "ScalePunch";
+    p.category     = TextPresetCategory::Emphasis;
+    p.description  = "Compression scale_drop (1.0 → 0.7) + soft_pop "
+                     "(snap-back).  Impact-punch emphasis.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/text/emphasis_scale_punch
+        lb.text("scale_punch_text", spec)
+          .scale_drop(0.70f, Frame{12})
+          .soft_pop(Frame{20});
+    };
+    return p;
+}
+
+// 13. color_accent — pure fade_in; the colour itself lives in
+//     `spec.appearance.color`, so the builder writes nothing about
+//     colour identity.  Use when the CALLER customises the spec
+//     appearance (e.g. accent colour set by the pipeline).
+TextPreset color_accent_entry() {
+    TextPreset p;
+    p.id           = "color_accent";
+    p.display_name = "ColorAccent";
+    p.category     = TextPresetCategory::Emphasis;
+    p.description  = "Pure fade_in; colour comes from spec.appearance.color "
+                     "(set by the caller / pipeline).  Pipe colour-accent "
+                     "without touching motion.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/text/emphasis_color_accent
+        lb.text("color_accent_text", spec)
+          .fade_in(Frame{12});
+    };
+    return p;
+}
+
+// 14. gradient_fill — downward slide + fade_in; pair with a
+//     gradient spec.appearance.paint (caller-set) for the dashboard-look.
+TextPreset gradient_fill_entry() {
+    TextPreset p;
+    p.id           = "gradient_fill";
+    p.display_name = "GradientFill";
+    p.category     = TextPresetCategory::Emphasis;
+    p.description  = "Short downward slide + fade_in; gradient paint "
+                     "comes from spec.appearance.paint (caller-set).";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/text/emphasis_gradient_fill
+        lb.text("gradient_fill_text", spec)
+          .fade_shift_vertical(Vec3{0.0f, 80.0f, 0.0f}, Frame{20})
+          .fade_in(Frame{15});
+    };
+    return p;
+}
+
+
+// ── Subtitle factory functions (Stage 3 — 4 addizionali) ───────────────────
+
+// 19. minimal_white — the no-motion subtitle baseline. The builder
+//     only registers the spec on the layer; no entrance / no idle.
+//     Use for static captions or burnt-in subs.
+TextPreset minimal_white_entry() {
+    TextPreset p;
+    p.id           = "minimal_white";
+    p.display_name = "MinimalWhite";
+    p.category     = TextPresetCategory::Subtitle;
+    p.description  = "No-motion baseline. Registers the spec on the layer "
+                     "without any motion preset.  Use for static captions "
+                     "or burnt-in subs.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/text/subtitle_minimal_white
+        lb.text("minimal_white_text", spec);
+    };
+    return p;
+}
+
+// 20. yellow_keyword — per-word stagger + fade_in.  Designed to be
+//     paired with a yellow appearance.color (caller-set) for
+//     karaoke-style keyword highlighting.
+TextPreset yellow_keyword_entry() {
+    TextPreset p;
+    p.id           = "yellow_keyword";
+    p.display_name = "YellowKeyword";
+    p.category     = TextPresetCategory::Subtitle;
+    p.description  = "Per-word stagger (Frame{3}) + fade_in.  Pair with a "
+                     "yellow appearance.color (caller-set) for karaoke-style "
+                     "keyword highlighting.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/text/subtitle_yellow_keyword
+        lb.text("yellow_keyword_text", spec)
+          .word_stagger(Frame{3}, Frame{20})
+          .fade_in(Frame{12});
+    };
+    return p;
+}
+
+// 21. glow_pulse — continuous tracking-breathing idle. The text breathes
+//     subtly on screen.  Pair with a glow appearance.material (caller-set).
+TextPreset glow_pulse_entry() {
+    TextPreset p;
+    p.id           = "glow_pulse";
+    p.display_name = "GlowPulse";
+    p.category     = TextPresetCategory::Subtitle;
+    p.description  = "Continuous tracking-breathing idle (Frame{40}) — "
+                     "subtle on-screen presence.  Pair with a glow "
+                     "appearance.material (caller-set).";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/text/subtitle_glow_pulse
+        lb.text("glow_pulse_text", spec)
+          .tracking_breathing(0.08f, Frame{40});
+    };
+    return p;
+}
+
+// 22. caption_box — small downward motion (offset.y = 30) + fade_in.
+//     Subtitle-like pixel-accurate dock-in.
+TextPreset caption_box_entry() {
+    TextPreset p;
+    p.id           = "caption_box";
+    p.display_name = "CaptionBox";
+    p.category     = TextPresetCategory::Subtitle;
+    p.description  = "Short downward dock (offset.y=30) + fade_in. "
+                     "Pixel-accurate caption-box entry.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/text/subtitle_caption_box
+        lb.text("caption_box_text", spec)
+          .fade_shift_vertical(Vec3{0.0f, -30.0f, 0.0f}, Frame{18})
+          .fade_in(Frame{12});
+    };
+    return p;
+}
+
+
 void register_builtin_presets(TextPresetRegistry& r) {
+    // ── Cinematic (4) — PR `41cda40c` kept verbatim ──────────────────────
     r.register_preset(animation_compositions_entry());
     r.register_preset(cinematic_text_camera_entry());
     r.register_preset(cinematic_title_reveal_entry());
-    r.register_preset(text_animations_entry());
     r.register_preset(tilt_sweep_title_v2_entry());
+
+    // ── Reveal (10) — 1 from PR 41cda40c + 9 from Stage 3 ───────────────
+    r.register_preset(text_animations_entry());
+    r.register_preset(fade_in_entry());
+    r.register_preset(blur_in_entry());
+    r.register_preset(slide_up_entry());
+    r.register_preset(slide_down_entry());
+    r.register_preset(scale_in_entry());
+    r.register_preset(tracking_close_entry());
+    r.register_preset(masked_line_reveal_entry());
+    r.register_preset(word_cascade_entry());
+    r.register_preset(character_cascade_entry());
+
+    // ── Emphasis (4) — Stage 3 ───────────────────────────────────────────
+    r.register_preset(word_pop_entry());
+    r.register_preset(scale_punch_entry());
+    r.register_preset(color_accent_entry());
+    r.register_preset(gradient_fill_entry());
+
+    // ── Subtitle (4) — Stage 3 ───────────────────────────────────────────
+    r.register_preset(minimal_white_entry());
+    r.register_preset(yellow_keyword_entry());
+    r.register_preset(glow_pulse_entry());
+    r.register_preset(caption_box_entry());
 }
 
 } // namespace
