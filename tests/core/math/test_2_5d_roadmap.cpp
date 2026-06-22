@@ -5,6 +5,7 @@
 #include <chronon3d/api/renderer.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/backends/software/rasterizers/projected_card_rasterizer.hpp>
+#include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
@@ -425,6 +426,15 @@ TEST_CASE("TEST MATH 12 - Temporal Stability") {
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
+
+    // Attach a SoftwareBackend — SoftwareRenderer runs on top of a
+    // RenderRuntime that must have a concrete backend bound before
+    // render_frame / render_scene can dispatch to the modular graph.
+    renderer.runtime().attach_backend(
+        std::make_unique<chronon3d::SoftwareBackend>(
+            *renderer.counters(),
+            renderer.settings(),
+            renderer.runtime().framebuffer_pool_shared()));
 
     auto fb0 = renderer.render_frame(scene, 0);
     auto fb1 = renderer.render_frame(scene_shifted, 1);
