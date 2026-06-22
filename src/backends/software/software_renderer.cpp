@@ -16,7 +16,6 @@
 
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
-#include <chronon3d/backends/software/software_processor_context.hpp>
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/backends/software/utils/effects/per_pixel_dof.hpp>
 #ifdef CHRONON3D_ENABLE_TEXT
@@ -257,8 +256,7 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
         spdlog::error("No processor registered for shape type");
         return;
     }
-    auto proc_ctx = make_processor_context(this);
-    processor->draw(proc_ctx, fb, node, state, camera, width, height);
+    processor->draw(make_processor_context(this), fb, node, state, camera, width, height);
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
     if (m_settings.diagnostics.enabled) {
         renderer::diagnostics::draw_layout_preview(fb, node, state, *processor);
@@ -305,3 +303,5 @@ graph::RenderOpResult SoftwareRenderer::draw_text_run(
 }
 
 } // namespace chronon3d
+
+
