@@ -2212,8 +2212,8 @@ The evaluator's post-base projection branch hardcodes Zoom as the universal defa
 
 | Field | Value |
 |---|---|
-| **Status** | 🔵 Planned |
-| **Affected file(s)** | `src/scene/camera/camera_v1/internal/camera_program_compiler.cpp` (orientation step), `src/scene/camera/camera_v1/internal/evaluators/look_at_point.cpp` + `look_at_layer.cpp`, `include/chronon3d/scene/camera/camera_v1/orientation_spec.hpp` (`point_of_interest_enabled` flag), `tests/scene/camera/test_camera_program_compiled.cpp` (regression). |
+| **Status** | 🟡 Code-fix landed (tests-blocked-by-TICKET-029; status flips to 🟢 once `chronon3d_scene_tests` links and the §4.B regression tests pass). |
+| **Affected file(s)** | `src/scene/camera/camera_v1/camera_program.cpp` (`eval_pose_tracks` / `eval_orbit_motion` / `evaluate_compiled_source` trajectory branch / closing canonical-order comment), `tests/scene/camera/test_camera_program_compiled.cpp` (§4.B regression lock — 3 TEST_CASEs). |
 | **Discovered during** | PR #36 — `docs/camera-plan/01-CANONICAL_CAMERA_ARCHITECTURE.md` section "Operazioni equivalenti ai Camera Tools" + `03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md` section "PoseTracksSource / P0 da correggere". |
 | **Discovered date** | 2026-06-22 |
 | **Parent umbrella** | PR #36 AE-Core. |
@@ -2270,6 +2270,21 @@ Same table as TICKET-021.
 - Source of truth: `docs/camera-plan/01-CANONICAL_CAMERA_ARCHITECTURE.md` section "Un solo tipo di modalità camera".
 - Companion: TICKET-021 (PoseTracksSource), TICKET-023 (OrientAlongPath), TICKET-024 (OrbitMotion), TICKET-025 (Trajectory). All five share the compiled canonical order.
 - ADR-candidate: introduce `CameraNodeMode {OneNode, TwoNode}` (still under PR #36 backlog).
+
+### Resolution (committed on branch `codex/cam-double-lookat`)
+
+1. Stripped `apply_orientation_spec_free(&orient, ctx, cam);` from `eval_pose_tracks()` (post-source, pre-modifier site).
+2. Stripped `apply_orientation_spec_free(&orient, ctx, cam);` from `eval_orbit_motion()` (post-orbit, pre-modifier site).
+3. Stripped `apply_orientation_spec_free(&descriptor_.orientation, ctx, cam);` from the trajectory branch of `evaluate_compiled_source()`.
+4. Removed the now-unused `const OrientationSpec& orient` parameter from `eval_pose_tracks` and `eval_orbit_motion` signatures (both TU-local `static` so no ABI risk).
+5. Updated call sites in `evaluate_compiled_source()` correspondingly (drops `descriptor_.orientation` 2nd arg on the 2 source-evaluator calls; trajectory branch no longer reads it).
+6. Added a closing block-comment in `camera_program.cpp` documenting the canonical-order rule (`base → modifier → orientation → constraints`).
+7. Added §4.B in `tests/scene/camera/test_camera_program_compiled.cpp` with 3 lock tests:
+   - `compiled_orientation_double_application_determinism`: same descriptor → same quaternion across two CameraPrograms, 1e-9 tolerance.
+   - `compiled_orientation_look_at_canonical_rotation_computation`: LookAtPoint + HandheldNoise → final rotation matches `quat_to_camera_euler(quat_look_along(unit(target − (base.position + wiggle3D(t, freq, amp, seed))), 0)`, 0.05° tolerance.
+   - `compiled_orientation_single_look_at_constraint_skipped`: LookAtPoint + LookAtConstraint → constraint silently skipped (CAM-03 single-look-at policy), POI = orientation target, rotation non-trivial, single-look-at Warning diagnostic recorded.
+
+The single canonical application site is `CameraProgram::evaluate()` post-modifiers, post-`descriptor_.modifiers` loop and pre-`descriptor_.constraints` loop.  Behaviour identical for descriptors where the redundant pre-modifier calls produced a rotation that the post-modifier call overwrote (last-call-wins).  Tests cannot run on this branch yet because `chronon3d_scene_tests` fails to link due to TICKET-029 (an unrelated `camera_program_compiler.cpp` pre-existing breakage).
 
 ---
 
