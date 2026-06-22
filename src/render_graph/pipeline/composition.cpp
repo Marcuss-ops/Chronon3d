@@ -167,14 +167,25 @@ std::shared_ptr<Framebuffer> render_composition_frame(
 
         std::vector<float> accum(static_cast<size_t>(rw * rh * 4), 0.0f);
 
-        // TICKET-007.j — track the bit-exact sum of the SAME weights that were
-        // sent into the accumulator.  Multiplication by `1 / sum_w` at the end
-        // cancels any FP-rounding error that occurred when the per-sample
-        // weights were normalized upstream; for STATIC content (sub-frame
-        // samples pixel-identical) this guarantees byte-equal framebuffers
-        // between N=16 and N=1 / mode=Off, because the implicit multiplication
-        // by `sum_w` in `accum == sample_0 * sum_w` is perfectly compensated
-        // by `accum * (1 / sum_w) == sample_0`.
+        // TICKET-007.j — track the sum of the SAME weights that were sent into
+        // the accumulator.  Multiplication by `1 / sum_w` at the post-loop step
+        // cancels any FP-rounding error introduced upstream by the per-sample
+        // weight normalisation.  The accumulation is still sub-frames-anonymous:
+        // a pixel covered by multiple sub-frame samples accumulates ALL their
+        // weight contributions before any post-normalisation.
+        //
+        // Cross-N determinism is preserved in the equal-weight (Stratified + Box
+        // / Stratified alone / Single-Frame) regime: every per-sample `v_weight`
+        // equals the normalisation constant `1/N`, so `accum == sample_0 * N`
+        // trivially.  In that regime `accum * (1 / sum_w) == sample_0` is
+        // bit-exact, hence the static-framebuffer byte-equality contract between
+        // N=1 / N=16 / mode=Off is preserved end-to-end.
+        //
+        // For DIVERSE-weight sub-frames (theoretical: per-sample weights not all
+        // equal) the same `accum * (1 / sum_w)` reciprocal-multiply is still
+        // FP-stable and algebraically equivalent to per-pixel divide, but NOT
+        // bit-equal to the per-pixel divide path.  This document does not claim
+        // more than that; the equal-weight case is what the unit tests verify.
         float actual_weight_sum = 0.0f;
 
         const auto t_mb0 = profiling::now();
