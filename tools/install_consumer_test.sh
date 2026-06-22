@@ -146,17 +146,34 @@ log "  headers dir  : $headers_dir ($header_count hpp files)"
 
 # ────────────────────────── Step 4: consumer ──────────────────────────
 log "Configuring consumer (tests/install_consumer/)"
+
+# Build CMAKE_PREFIX_PATH as a single semicolon-separated string.
+#   - The SDK install prefix (where Chronon3DConfig.cmake lives).
+#   - Each vcpkg triplet prefix under vcpkg_installed/<preset>/ so
+#     find_dependency(spdlog CONFIG) inside Chronon3DConfig.cmake
+#     resolves against the vcpkg-managed package configs.
+#   - Any CMAKE_PREFIX_PATH already set in the environment.
+CONSUMER_PREFIX_PATH="$SDK_PREFIX"
+if [[ -n "${CMAKE_PREFIX_PATH:-}" ]]; then
+    CONSUMER_PREFIX_PATH="$CONSUMER_PREFIX_PATH;${CMAKE_PREFIX_PATH}"
+fi
+VCPKG_INSTALLED="$REPO_ROOT/vcpkg_installed/$PRESET"
+if [[ -d "$VCPKG_INSTALLED" ]]; then
+    while IFS= read -r -d '' triplet_dir; do
+        CONSUMER_PREFIX_PATH="$CONSUMER_PREFIX_PATH;$triplet_dir"
+    done < <(find "$VCPKG_INSTALLED" -maxdepth 2 -type d -name share -printf '%h\0' 2>/dev/null || true)
+fi
+
 # Use bash array — never word-split unquoted env vars into cmake argv.
 CMAKE_ARGS=(
     "-S" "$REPO_ROOT/tests/install_consumer"
-    "-B" "$CONS_BUILD"        "-DCMAKE_PREFIX_PATH=$SDK_PREFIX\;${CMAKE_PREFIX_PATH:-}"
+    "-B" "$CONS_BUILD"
+    "-DCMAKE_PREFIX_PATH=$CONSUMER_PREFIX_PATH"
     "-DCMAKE_BUILD_TYPE=Release"
 )
-# Forward vcpkg toolchain so transitive third-party deps (spdlog, fmt,
-# glm, xxHash, …) resolve at consumer config-time.  Otherwise
-# `find_dependency(... CONFIG REQUIRED)` inside Chronon3DConfig.cmake.in
-# would fail and CI would surface as a misleading "boundary broken"
-# rather than a missing toolchain.
+# Forward vcpkg toolchain so the consumer's find_package/ find_dependency
+# calls can locate vcpkg-managed packages via the toolchain's find_package
+# override.  The CMAKE_PREFIX_PATH above provides the search roots.
 VCPKG_TC="$REPO_ROOT/vcpkg_bootstrap/scripts/buildsystems/vcpkg.cmake"
 if [[ -f "$VCPKG_TC" ]]; then
     CMAKE_ARGS+=( "-DCMAKE_TOOLCHAIN_FILE=$VCPKG_TC" )
