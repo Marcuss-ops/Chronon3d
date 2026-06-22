@@ -282,10 +282,11 @@ invece di compilare — output deterministico (empty fb) secondo
 
 ### Stato attuale
 
-🟡 **Partial** — i touchpoints sono identificati e documentati,
-**ma** nessun call-site produttivo passa ancora un `ExecutionScope&`.
-Il path produttivo corrente usa ancora il vecchio contratto
-`session+scheduler`. PR 6.1 — 6.5 sono ancora da implementare.
+🟢 **Done** — tutti i touchpoints di pipeline sono plumbati con
+`ExecutionScope&`.  PR 6.2 ha completato il threading root scope
+attraverso l'intera catena di esecuzione (scene → tile_or_fallback →
+dirty_tiles → single_dirty_region); PR 6.3 ha completato il path
+precomp; PR 6.4 ha eliminato ogni `local_session` residuo.
 
 ---
 
@@ -325,16 +326,16 @@ per tracciare lo stato corrente dei PR rimanenti della catena WP-6:
 | Hold the `ProgramLease` for the complete child scope | 🟢 Done (this commit: `lease` declared §5, `precomp_scope` declared §8; RAII reverse order means `shared_ptr<CompiledSceneProgram>` outlives the `inner_executor->execute_with_scope()` call) |
 | Ensure child teardown cannot invalidate parent `ExecutionState` | 🟢 Done (this commit: `child_arena` is a separate `FrameArena` value (not aliased to parent); PR 6.4 isolation contract propagated to the precomp path via the constructor's `FrameArena&` ctor taking a child arena reference distinct from `session.arena()`) |
 
-### PR 6.4 — Replace tile-local sessions with tile scopes — 🟡 Partial
+### PR 6.4 — Replace tile-local sessions with tile scopes — 🟢 Done
 
 | Exit criterion | Stato |
 |---|---|
-| Create one tile arena/scope per coalesced region | 🟢 Done (this commit: `FrameArena child_arena` per regione + `ExecutionScope Tile`) |
-| Reuse the parent render job session | 🟡 Partial (sw_renderer-path riusa `sw_renderer->session()`; fallback path mantiene `local_session`; full reuse deferred) |
-| Reuse the parent render job caches | 🟡 Partial (session-borne `scene_hasher` / `program_store` reusable via `scope.session()` accessors; read-side non ancora migrato in profondità) |
+| Create one tile arena/scope per coalesced region | 🟢 Done (`FrameArena child_arena` per regione + `ExecutionScope Tile`) |
+| Reuse the parent render job session | 🟢 Done — entrambi i branch (sw_renderer e fallback) usano `root_scope.session()` via PR 6.2 threading; zero `local_session` residui |
+| Reuse the parent render job caches | 🟢 Done — session-borne `scene_hasher` / `program_store` accessibili via `scope.session()` condiviso |
 | Preserve independent temporary memory | 🟢 Done (child_arena distinta per regione; ArenaGuard resetta SOLO la child) |
 | Keep tile clipping and cache-key isolation | 🟢 Done (tile_ctx setup invariato + scope isolation) |
-| Remove ad-hoc logical session construction from tile orchestration | 🟡 Partial (single-pass path riusa sw_renderer->session(); tile fallback mantiene local_session + fence; follow-up PR) |
+| Remove ad-hoc logical session construction from tile orchestration | 🟢 Done — zero `RenderSession local_session` in tutto il codebase; single-pass e tile path condividono `root_scope.session()` |
 
 ### PR 6.5 — Add recursion protection — 🟢 Done
 
@@ -372,13 +373,12 @@ per tracciare lo stato corrente dei PR rimanenti della catena WP-6:
 
 ### Stato globale
 
-🟡 **Partial** globale: la **fondazione** del tipo `ExecutionScope` e
-i test di acceptance sono done (PR 6.0); i PR 6.1–6.7 sono:
+🟢 **Mostly done**: la **fondazione** del tipo `ExecutionScope` e
+i test di acceptance sono done (PR 6.0); i PR 6.1–6.5 sono:
 - 🟢 PR 6.1 — execute_with_scope overload (done)
 - 🟢 PR 6.2 — root scope construction + threading (done)
 - 🟢 PR 6.3 — PrecompNode execute_with_scope + ProgramLease (done)
-- 🟡 PR 6.4 — tile plumbing (partial: session reuse done via PR 6.2;
-  follow-up local_session removal from fallback path deferred)
+- 🟢 PR 6.4 — tile plumbing: session reuse, arena isolation, zero local_session (done)
 - 🟢 PR 6.5 — recursion protection + kMaxScopeDepth (done)
 - 🔵 PR 6.6/6.7 — memory/race tests + permanent guards (planned)
 
@@ -404,25 +404,21 @@ anche questo status-bump di docs:
 
 ### PR 6.4 — landing log (this commit)
 
-PR 6.4 è stato **parzialmente implementato** (esci criterion 4.2 —
-tile plumbing):
+PR 6.4 è stato **completato** con il threading del `root_scope` di
+PR 6.2 attraverso l'intera pipeline di esecuzione:
 
-- `src/render_graph/pipeline/scene_tile_execution.cpp:81–130` —
-  i due `RenderSession local_session;` site sono stati wrappati in
-  una catena `Root → Tile` `ExecutionScope` con `FrameArena child_arena`
-  distinta per regione.  L'`ArenaGuard` dell'executor resetta solo
-  l'arena figlia, lasciando intatto il puntatore all'arena del
-  parent session (PR 6.4 isolation contract).
-- `src/render_graph/pipeline/tile_execution_coordinator.cpp:64–106` —
-  i due single-pass fallback path wrappano `sw_renderer->session()` o
-  `local_session` in un Root `ExecutionScope` e usano il nuovo
-  overload `execute_with_scope(...)`.
-
-L'exit criterion rimanente** di PR 6.4 — "rimuovere
-`RenderSession local_session;` dai tile fallback paths per riusare
-sw_renderer->session()" — è deferito a un follow-up PR.  L'estrazione
-della scaffolding duplicata (4 linee × 2 branch in
-`scene_tile_execution.cpp`) è deferita a un refactor di WP-7.
+- `scene_tile_execution.cpp` — `execute_single_dirty_region` crea
+  `tile_scope(Tile, root_scope.session(), child_arena, graph_id,
+  &root_scope)` per ogni regione.  Entrambi i branch (sw_renderer e
+  fallback) condividono la stessa session via `root_scope.session()`.
+  Il `root_fence` ad-hoc è stato eliminato.  Zero `local_session`
+  residui in tutto il codebase.
+- `tile_execution_coordinator.cpp` — il single-pass sw_renderer path
+  e il fallback path usano direttamente il `root_scope` passato da
+  `render_scene_via_graph()`, senza creare session locali.
+- `scene.cpp` — il `fallback_session` è costruito una volta sola in
+  `render_scene_via_graph()` e bindato al `root_scope`; tutti i path
+  figli lo riusano.
 
 ### PR 6.3 — landing log (this commit — pre-PR-6.3-merge)
 
