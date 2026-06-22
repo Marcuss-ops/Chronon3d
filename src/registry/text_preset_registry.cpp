@@ -213,6 +213,73 @@ TextPreset animation_compositions_entry() {
     return p;
 }
 
+// ── Stage 4 (Cluster A DoD #2 - preset library + TextAnimator V2 integration)
+// ─────────────────────────────────────────────────────────────────────────
+// AnimatorResolver maps motion-preset canonal entries to TextAnimatorSpec
+// entries that compose the per-glyph animated state alongside the layer
+// level transform.  At Stage 4 we ship ONE conservative resolver mapping:
+//
+//     cinematic_text_camera  ─►  rich_paint_anchor("cinematic_text_camera")
+//
+// fired when the spec carries ANY of:
+//   - appearance.paint.stroke_enabled        = true
+//   - appearance.paint.fill_style.has_value() (a Fill variant populated)
+//   - appearance.paint.stroke_style.has_value()
+//
+// These three signals proxy a "richly-painted text spec" intent (the
+// caller-authored `paint.rich_text` style — gradient fill, outline, or
+// stroke).  When resolved, the resolver pushes a global-selector
+// TextAnimatorSpec with `id = "ctc_rich_<preset_id>"` onto
+// params.animators BEFORE the cinematic_text_camera factory invokes the
+// canonical motion-preset chain.  This satisfies the DoD #2 contract:
+//
+//   "preset registry resolves motion(id) against embedded animators
+//    BEFORE invoking the motion-preset canon."
+//
+// Downstream stages can extend the resolver table for additional motion
+// presets WITHOUT touching the cinematic_text_camera factory body —
+// the factory is now: "spec_is_rich → wire rich_paint_anchor → chain
+// motion canon".
+struct AnimatorResolver {
+    [[nodiscard]] static bool spec_is_rich(const TextSpecT& spec) noexcept {
+        return spec.appearance.paint.stroke_enabled
+            || spec.appearance.paint.fill_style.has_value()
+            || spec.appearance.paint.stroke_style.has_value();
+    }
+
+    [[nodiscard]] static TextAnimatorSpec
+    rich_paint_anchor(std::string_view preset_id) {
+        TextAnimatorSpec a;
+        a.id             = std::string{"ctc_rich_"} + std::string{preset_id};
+        a.enabled        = true;
+        a.transform_mode = TextPropertyBlendMode::Add;
+        a.color_mode     = TextPropertyBlendMode::Replace;
+
+        // Global glyph selector — every glyph receives weight=1 (the
+        // After Effects-style "entire text as one unit" pattern).  The
+        // id on the selector is the parent animator's id with a
+        // `_sel_global` suffix so diagnostics can correlate the two.
+        GlyphSelectorSpec sel;
+        sel.id    = a.id + "_sel_global";
+        sel.unit  = TextSelectorUnit::Glyph;
+        sel.shape = TextSelectorShape::Square;
+        sel.start  = {0.0f};
+        sel.end    = {100.0f};
+        sel.amount = {100.0f};
+        a.selectors.push_back(sel);
+
+        // No-op-at-render property: OpacityProperty{1.0f} keeps the
+        // glyphs at the standard full opacity (1.0) so the resolver
+        // entry is observable AND semantically full (it composes with
+        // the canonical motion-preset canon via `evaluate_animator_stack`
+        // rather than id-only).  Future Stage 5+ resolver extensions
+        // can swap in PositionProperty{vec3} ramps tied to depth_reveal
+        // / scale_drop without changing this contract.
+        a.properties.push_back(OpacityProperty{1.0f});
+        return a;
+    }
+};
+
 TextPreset cinematic_text_camera_entry() {
     TextPreset p;
     p.id           = "cinematic_text_camera";
@@ -220,16 +287,46 @@ TextPreset cinematic_text_camera_entry() {
     p.category     = TextPresetCategory::Cinematic;
     p.description  = "5 hero cinematic compositions (DeepParallaxCascade, "
                      "WhipPanHeroReveal, OrbitHandheldGlow, RackFocusTitleSwap, "
-                     "AbyssFreefallStagger). Camera-driven depth reveal.";
+                     "AbyssFreefallStagger). Camera-driven depth reveal. "
+                     "Stage 4 (this PR - DoD #2): resolver-wires a "
+                     "TextAnimatorSpec onto the TextRun when the spec "
+                     "carries rich-paint signals (stroke_enabled / "
+                     "fill_style / stroke_style).";
     p.builtin      = true;
     p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/camera/camera_visual_tests
-        lb.text("camera_text", spec)
-          .depth_reveal(260.0f, Frame{50})
-          .scale_drop(0.95f, Frame{30})
-          .soft_pop(Frame{24});
+
+        // ── Stage 4 wiring: resolve motion-id BEFORE chain ─────────────
+        // The resolver fires first; when it does, we route through
+        // `lb.text_run(...)` so the wired TextAnimatorSpec lands on
+        // `params.animators` before the canonical motion-preset chain
+        // mutates the layer.  When the spec is plain (default Title
+        // Case text without a rich_paint signal), the resolver does
+        // NOT fire and the original `lb.text(...)` path is unchanged
+        // — Sub-cases 7, 8, 9 (which use `make_test_text_spec()` with
+        // no rich signals) pass-through unchanged.
+        if (AnimatorResolver::spec_is_rich(spec)) {
+            TextRunParams params;
+            params.text   = spec;
+            params.animators.push_back(
+                AnimatorResolver::rich_paint_anchor("cinematic_text_camera"));
+            // .commit() returns LayerBuilder& so the canonical motion
+            // presets still chain cleanly after the wiring step.
+            lb.text_run("camera_text", params)
+              .commit()
+              .depth_reveal(260.0f, Frame{50})
+              .scale_drop(0.95f, Frame{30})
+              .soft_pop(Frame{24});
+        } else {
+            // Plain-spec path — identical to PR 41cda40c body so
+            // Sub-cases 7-9 stay green without modification.
+            lb.text("camera_text", spec)
+              .depth_reveal(260.0f, Frame{50})
+              .scale_drop(0.95f, Frame{30})
+              .soft_pop(Frame{24});
+        }
     };
     return p;
 }
