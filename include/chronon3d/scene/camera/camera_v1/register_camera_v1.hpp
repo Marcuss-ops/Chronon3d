@@ -2,27 +2,41 @@
 // ==============================================================================
 // chronon3d/scene/camera/camera_v1/register_camera_v1.hpp
 //
-// Single entry-point for camera V1 built-in registration.
+// CAM-04/05 (DOC 03) — Per-job ownership enforcement for camera V1.
 //
-// Call once at engine startup, BEFORE any CameraProgram evaluation:
-//   register_camera_v1_builtins();
+// Historical context: this header previously declared:
 //
-// After this call, the CameraTransitionCatalog is frozen — reads are
-// concurrent-safe, writes are rejected.
+//   - `get_transition_catalog()` — exposed a process-wide static singleton;
+//   - `register_camera_v1_builtins()` — populated the static singleton.
 //
-// Idempotent: calling multiple times is safe (subsequent calls are no-ops
-// because each ID is checked individually before registration).
+// Both were removed in CAM-05 because DOC 03 §5 requires that camera
+// state mutation (and the mutex acquisition that comes with it) be
+// confined to per-job lifetimes, never process-global.
+//
+// The new entry point is `register_camera_v1_builtins_into(catalog)` below:
+// callers own the catalog and pass it by reference.  Typical usage from
+// `RenderRuntime::initialise()`:
+//
+//   m_owned_transition_catalog = std::make_unique<CameraTransitionCatalog>();
+//   register_camera_v1_builtins_into(*m_owned_transition_catalog);
+//
+// Reference: docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md
+//            §5 (Per-job ownership enforcement).
 // ==============================================================================
 
 namespace chronon3d::camera_v1 {
 
 class CameraTransitionCatalog;
 
-/// Get the static transition catalog (populated by register_camera_v1_builtins).
-const CameraTransitionCatalog& get_transition_catalog();
-
-/// Register all built-in camera constraints and freeze both registries.
-/// Idempotent — safe to call multiple times.
-void register_camera_v1_builtins();
+/// Register all built-in camera transitions (Cut / SmoothBlend / Push /
+/// WhipPan / FocusHandoff) into the CALLER-OWNED `catalog` reference.
+///
+/// Lifetime: `catalog` must outlive all usages of the resulting
+/// transitions — typically owned by the render runtime.
+///
+/// Thread-safety: idempotent.  After this call `catalog` is frozen for
+/// concurrent-safe reads; if the catalog was already frozen by a prior
+/// call, this is a no-op.
+void register_camera_v1_builtins_into(CameraTransitionCatalog& catalog);
 
 } // namespace chronon3d::camera_v1

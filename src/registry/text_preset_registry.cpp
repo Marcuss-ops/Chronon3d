@@ -294,9 +294,9 @@ struct AnimatorResolver {
     //      and routes through `lb.text_run(...).commit()` so the wired
     //      entry lands on the PendingTextRun BEFORE the canonical motion
     //      chain mutates the layer;
-    //   3. if null (only `minimal_white` today), the helper falls back to
-    //      a plain `lb.text(...)` — no canonical motion means no
-    //      resolver output.
+    //   3. if null (no branch matched — `minimal_white` OR any unknown
+    //      id), the helper falls back to a plain `lb.text(...)` — no
+    //      canonical motion mapped → no resolver output.
     //
     // The 22 branches below encode each preset's terminal glyph state as
     // END-STATE static values (the engine reads opacity/position/scale as
@@ -409,11 +409,6 @@ struct AnimatorResolver {
             a.properties.push_back(PositionProperty{Vec3{0.0f, 80.0f, 0.0f}});
             a.properties.push_back(OpacityProperty{1.0f});
         }
-        else if (preset_id == "minimal_white") {
-            // No motion → no resolver output.  Factory body falls back
-            // to plain `lb.text(...)` (see `wire_through_resolver()`).
-            return std::nullopt;
-        }
         else if (preset_id == "yellow_keyword") {
             // word_stagger(3,20) + fade_in(12)
             a.properties.push_back(OpacityProperty{1.0f});
@@ -428,8 +423,13 @@ struct AnimatorResolver {
             a.properties.push_back(OpacityProperty{1.0f});
         }
         else {
-            // Unknown id — fail-safe to plain path.  The factory body's
-            // helper will route to `lb.text(...)` if it gets this back.
+            // No branch matched: either `minimal_white` (the only preset
+            // without canonical motion) OR an id not in the registered
+            // 22-preset catalog.  Both routes fall through to a fail-safe
+            // std::nullopt return — the factory body's `wire_through_resolver()`
+            // helper detects `params.animators.empty()` and routes to a
+            // plain `lb.text(...)` (no resolver output, no pending TextRun
+            // mutation).
             return std::nullopt;
         }
         return a;
