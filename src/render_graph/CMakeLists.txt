@@ -54,11 +54,13 @@ set_target_properties(chronon3d_graph_nodes PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_nodes
     PUBLIC
         chronon3d_graph_core
-        chronon3d_text_core
     PRIVATE
         fmt::fmt
         spdlog::spdlog_header_only
 )
+if(TARGET chronon3d_text_core)
+    target_link_libraries(chronon3d_graph_nodes PUBLIC chronon3d_text_core)
+endif()
 target_precompile_headers(chronon3d_graph_nodes PRIVATE
     <glm/glm.hpp>
     <glm/gtc/matrix_transform.hpp>

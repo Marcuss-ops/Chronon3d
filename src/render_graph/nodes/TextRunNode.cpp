@@ -1,7 +1,9 @@
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
+#ifdef CHRONON3D_ENABLE_TEXT
 #include <chronon3d/text/text_run_geometry.hpp>
 #include <chronon3d/text/text_run_driver.hpp>
+#endif
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -90,7 +92,11 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
     //   - per-glyph rotation.x → vertical shear expansion
     //   - per-glyph scale.z → uniform expansion
     //   - blur + stroke_width + spread padding
+#ifdef CHRONON3D_ENABLE_TEXT
     auto bbox = renderer::compute_text_run_world_bbox(*m_shape, matrix, spread);
+#else
+    auto bbox = renderer::compute_world_bbox(m_render_ref.shape, matrix, spread);
+#endif
 
     if (!ctx.policy.diagnostics_enabled) {
         bbox.clip_to(ctx.frame_input.width, ctx.frame_input.height);
@@ -131,6 +137,7 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
     // mix into the cache key.  This guarantees Scramble / Morph /
     // CrossfadeLayouts / font-swap Cut frames invalidate the
     // executor's per-frame node cache correctly.
+#ifdef CHRONON3D_ENABLE_TEXT
     if (m_shape) {
         key.params_hash = hash_combine(
             key.params_hash,
@@ -140,6 +147,9 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
     } else {
         key.params_hash = hash_combine(key.params_hash, static_cast<u64>(0xdeadbeef));
     }
+#else
+    key.params_hash = hash_combine(key.params_hash, static_cast<u64>(0xdeadbeef));
+#endif
 
     // Placement: node name + position (mirrors SourceNode).
     key.source_hash = hash_combine(
@@ -217,7 +227,9 @@ OwnedFB TextRunNode::execute(
     // the executor evaluates `cache_key()` — the order is intentionally
     // mutated-after-cache-key-fetch because the hash overload mirrors
     // the post-mutation layout contents.
+#ifdef CHRONON3D_ENABLE_TEXT
     chronon3d::update_text_run_shape_per_frame(*m_shape, ctx.frame_input.sample_time);
+#endif
 
     // Acquire full-canvas framebuffer (no clear-skip — text can't fill a frame).
     auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true);
@@ -285,6 +297,7 @@ OwnedFB TextRunNode::execute(
         // explicitly opt in via Chronon log-level configuration.
         // PR 10: log the frame overload so the diagnostic value matches
         // the actual cache key the executor used.
+#ifdef CHRONON3D_ENABLE_TEXT
         spdlog::debug(
             "[text-run] node='{}' shape_hash=0x{:016x} glyphs={} drew={} "
             "opacity={:.3f} tx={:.1f} ty={:.1f}",
@@ -298,6 +311,18 @@ OwnedFB TextRunNode::execute(
             world_matrix[3][0],
             world_matrix[3][1]
         );
+#else
+        spdlog::debug(
+            "[text-run] node='{}' glyphs={} drew={} "
+            "opacity={:.3f} tx={:.1f} ty={:.1f}",
+            m_name,
+            m_shape->glyphs.size(),
+            result ? result.value().items_drawn : 0u,
+            opacity,
+            world_matrix[3][0],
+            world_matrix[3][1]
+        );
+#endif
     }
 
     // NOTE: draw_text_run() already increments text_glyphs_rasterized

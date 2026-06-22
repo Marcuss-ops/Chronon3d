@@ -31,7 +31,7 @@ target_link_libraries(chronon3d_backend_software
         TBB::tbb
         # text_run_processor.cpp calls compute_text_run_world_bbox() which
         # now lives in chronon3d_text_core (text_run_geometry.cpp).
-        chronon3d_text_core
+        $<$<BOOL:${CHRONON3D_ENABLE_TEXT}>:chronon3d_text_core>
 )
 if(CHRONON3D_USE_BLEND2D)
     target_link_libraries(chronon3d_backend_software PRIVATE chronon3d_blend2d_paint)

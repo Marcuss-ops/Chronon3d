@@ -2,9 +2,11 @@
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
+#ifdef CHRONON3D_ENABLE_TEXT
 #include <chronon3d/text/text_run_geometry.hpp>
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/text/text_run_driver.hpp>
+#endif
 #include <spdlog/spdlog.h>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <limits>
@@ -49,16 +51,13 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
         spread += 8.0f;
 
         raster::BBox bbox;
+#ifdef CHRONON3D_ENABLE_TEXT
         if (item.node->shape.type() == ShapeType::TextRun && item.node->shape.text_run_shape_handle().value) {
-            // text_run items use the 2.5D-aware
-            // `compute_text_run_world_bbox` instead of the regular
-            // shape-driven `compute_world_bbox`.  The helper accounts for
-            // per-glyph rotation.x/y shears and scale.z expansion,
-            // per-glyph blur/stroke, and the shadow stack inside the
-            // shape itself — the spread arg covers node-level shadow/glow.
             bbox = renderer::compute_text_run_world_bbox(
                 *item.node->shape.text_run_shape_handle().value, matrix, spread);
-        } else if (ctx.frame_input.has_camera_2_5d &&
+        } else
+#endif
+        if (ctx.frame_input.has_camera_2_5d &&
             (item.node->shape.type() == ShapeType::FakeBox3D || item.node->shape.type() == ShapeType::GridPlane)) {
             if (auto proj_bbox = detail::projected_native_3d_bbox(ctx, *item.node, item.matrix, spread)) {
                 bbox = *proj_bbox;
@@ -103,6 +102,7 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
     for (const auto& item : m_items) {
         key.params_hash = hash_combine(key.params_hash, hash_value(item.matrix));
         key.params_hash = hash_combine(key.params_hash, hash_value(item.opacity));
+#ifdef CHRONON3D_ENABLE_TEXT
         // text_run items also fold the per-glyph animated state of
         // the underlying TextRunShape so the cache key invalidates when
         // `evaluate_animator_stack` mutates glyph state.  Without this
@@ -117,6 +117,7 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
                     *item.node->shape.text_run_shape_handle().value,
                     ctx.frame_input.sample_time.integral_frame()));
         }
+#endif
     }
 
     // 2.5D camera transform — invalidate when the camera moves so the bg
@@ -158,30 +159,13 @@ OwnedFB MultiSourceNode::execute(
         for (const auto& item : m_items) {
             if (!item.node) continue;
 
+#ifdef CHRONON3D_ENABLE_TEXT
             // ── text_run branch ─────────────────────────────────────
-            // Dispatch via the virtual RenderBackend::draw_text_run when
-            // the item carries ShapeType::TextRun.  Falls through
-            // to the generic `draw_node` path when the backend doesn't
-            // support text (draw_text_run returns false) so the layer still
-            // produces partial output (shapes render; text is skipped).
             if (item.node->shape.type() == ShapeType::TextRun) {
                 auto run_shape = item.node->shape.text_run_shape_handle().value;
                 if (!run_shape) {
-                    // Orphan text_run: an upstream source-pass already
-                    // logs this once per layer (one-shot guard);
-                    // here we silently skip so the layer still produces
-                    // partial output for any non-text siblings on the
-                    // shared framebuffer.
                     continue;
                 }
-
-                // ── PR 8 wire-up (mirror TextRunNode::execute) ──────
-                // Re-evaluate the AE-style animator stack per frame
-                // BEFORE calling draw_text_run so animated glyphs reach
-                // the rasterizer with the current sample time.  Cheap
-                // (no re-shaping); cache key fold on hash_text_run_shape
-                // invalidates the entry automatically.  No-op when
-                // animators is empty.
                 chronon3d::update_text_run_shape_per_frame(*run_shape, ctx.frame_input.sample_time);
 
                 Mat4 world_matrix;
@@ -191,10 +175,6 @@ OwnedFB MultiSourceNode::execute(
                     world_matrix = ssaa_scale * item.matrix;
                 }
 
-                // PR2 — gate on capabilities().text_run first.  When the
-                // active backend does not support text runs, emit a one-shot
-                // warning and skip the per-item dispatch (avoids a
-                // per-frame failed-virtual call).
                 if (!ctx.services.backend->capabilities().text_run) {
                     if (!m_backend_warned) {
                         spdlog::error(
@@ -218,9 +198,6 @@ OwnedFB MultiSourceNode::execute(
                         result.error().message);
                 }
 
-                // NOTE: draw_text_run() already increments text_glyphs_rasterized
-                // inside the processor.  Do NOT double-count here.
-
                 if (ctx.policy.diagnostics_enabled) {
                     spdlog::debug(
                         "[multi-source] node='{}' text_run drew={} glyphs={} "
@@ -236,8 +213,9 @@ OwnedFB MultiSourceNode::execute(
                         world_matrix[3][1]
                     );
                 }
-                continue;  // text_run item is rendered; advance to next.
+                continue;
             }
+#endif
 
             // ── regular (non-text-run) item ───────────────────────
             RenderState state;

@@ -459,7 +459,9 @@ private:
     /// in scope).  This decoupling keeps the heavy FreeType + HarfBuzz
     /// machinery in `<chronon3d/text/font_engine.hpp>` out of every TU
     /// that includes software_renderer.hpp.
+#ifdef CHRONON3D_ENABLE_TEXT
     std::unique_ptr<FontEngine> m_font_engine;
+#endif
 
     SoftwareRenderSession    m_session;
 };

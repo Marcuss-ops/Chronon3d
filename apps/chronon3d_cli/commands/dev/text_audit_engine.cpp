@@ -5,6 +5,7 @@
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 
 #include <spdlog/spdlog.h>
 #include <algorithm>
@@ -272,7 +273,7 @@ TextAuditFrameResult audit_single_text(
         auto ink = compute_ink_bbox(raster->image, policy.alpha_threshold);
         if (ink.has_ink) {
             // Translate ink bbox from texture coords to canvas coords
-            result.ink_bbox = {
+            result.ink_bbox = TextAuditBBox{
                 text_start_x + raster->x_offset + ink.bbox.x0,
                 text_start_y + raster->y_offset + ink.bbox.y0,
                 text_start_x + raster->x_offset + ink.bbox.x1,
