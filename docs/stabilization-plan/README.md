@@ -15,8 +15,8 @@ Piano operativo per portare il repository da pre-stabile a baseline verificata.
 
 ## TODO generale
 
-- [ ] Build core, lean e no-content verdi.
-- [ ] Test veloci verdi.
+- [x] Build core, lean e no-content verdi.
+- [ ] Test veloci verdi (704/707 pass, 3 failure pre-esistenti).
 - [ ] Determinismo seriale, parallelo e tile verificato.
 - [ ] Scope root, tile e precomp espliciti.
 - [ ] Moduli CMake registrati una volta sola.

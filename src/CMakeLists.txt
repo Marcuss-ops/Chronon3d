@@ -93,7 +93,9 @@ add_subdirectory(extension)        # chronon3d_extension (Fase 5)
 add_subdirectory(backends/software) # chronon3d_backend_software
 add_subdirectory(scene)             # chronon3d_scene
 add_subdirectory(animations)        # chronon3d_animations
-add_subdirectory(text)              # chronon3d_text_core
+if(CHRONON3D_ENABLE_TEXT)
+    add_subdirectory(text)              # chronon3d_text_core
+endif()
 
 # ==============================================================================
 # Final aggregate targets
@@ -109,10 +111,12 @@ target_link_libraries(chronon3d_core INTERFACE
     chronon3d_cache
     chronon3d_animations
     chronon3d_core_impl
-    chronon3d_text_core
     # chronon3d_backend_video is linked via chronon3d_software, not core.
     # Core should be dependency-minimal for server-side / headless use.
 )
+if(TARGET chronon3d_text_core)
+    target_link_libraries(chronon3d_core INTERFACE chronon3d_text_core)
+endif()
 
 if(CHRONON3D_ENABLE_VIDEO)
     target_link_libraries(chronon3d_core INTERFACE chronon3d_backend_video)
@@ -183,7 +187,6 @@ target_link_libraries(chronon3d_sdk_impl PRIVATE
     chronon3d_scene
     chronon3d_runtime
     chronon3d_extension
-    chronon3d_text_core
     chronon3d_backend_image
     chronon3d_backend_software
     chronon3d_backend_assets
@@ -194,8 +197,14 @@ target_link_libraries(chronon3d_sdk_impl PRIVATE
     chronon3d_graph_executor
     chronon3d_graph_preflight
     chronon3d_graph_cache
-    chronon3d_graph_pipeline
-)
+    chronon3d_graph_pipeline)
+
+# Conditional private link for chronon3d_text_core (only built when
+# CHRONON3D_ENABLE_TEXT is ON).
+if(TARGET chronon3d_text_core)
+    target_link_libraries(chronon3d_sdk_impl PRIVATE chronon3d_text_core)
+endif()
+
 # Conditional subsystems — guarded so disabled features don't leak
 # into the aggregate.  Same gating logic as the prior `$<TARGET_OBJECTS>`
 # form, but expressed as ordinary `target_link_libraries` (skip silently
@@ -265,7 +274,6 @@ target_sources(chronon3d_sdk INTERFACE
     $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_scene>>
     $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_runtime>>
     $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_extension>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_text_core>>
     $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_backend_image>>
     $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_backend_software>>
     $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_backend_assets>>
@@ -276,8 +284,17 @@ target_sources(chronon3d_sdk INTERFACE
     $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_compiler>>
     $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_preflight>>
     $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_cache>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_pipeline>>
-)
+    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_pipeline>>)
+
+# Conditional OBJECT library — chronon3d_text_core is only built when
+# CHRONON3D_ENABLE_TEXT is ON.  Add its objects separately so the
+# main target_sources() block above stays pure.
+if(TARGET chronon3d_text_core)
+    target_sources(chronon3d_sdk INTERFACE
+        $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_text_core>>
+    )
+endif()
+
 # Conditional OBJECT libraries — guarded so disabled features don't
 # produce dangling generator-expression references.
 foreach(_chronon3d_obj IN ITEMS

@@ -100,9 +100,9 @@ add_library(chronon3d_cli_dev STATIC
     commands/dev/command_bench_convert.cpp
     commands/dev/command_doctor_verify.cpp
     commands/dev/command_camera_path.cpp
-    commands/dev/command_text_audit.cpp
-    commands/dev/text_audit_engine.cpp
-    commands/dev/text_audit_json.cpp
+    $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/command_text_audit.cpp>
+    $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_audit_engine.cpp>
+    $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_audit_json.cpp>
     utils/batch/batch_job_spec.cpp
     utils/batch/batch_runner.cpp
 )
