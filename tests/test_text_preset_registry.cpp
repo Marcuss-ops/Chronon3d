@@ -557,21 +557,25 @@ TEST_CASE("TextPresetRegistry: golden-frame harness cross-link (Sub-case 28)") {
 // against a richly-painted spec BEFORE invoking the canonical
 // motion-preset chain in the cinematic_text_camera builder body.
 //
-// The contract being tested:
+// The contract being tested (Stage 4 hardening):
 //   Given: preset = cinematic_text_camera, spec = make_chronon_rich_text_spec()
 //          (content.value = "CHRONON" + appearance.paint.stroke_enabled = true)
 //   When : the cinematic_text_camera builder lambda runs
-//   Then : (a) build() does not throw and produces >= 1 RenderNode
+//   Then : (a) build() does not throw and produces >= 1 RenderNode,
 //          (b) the canonical motion-preset canon still fires post-wiring
-//              (Layer::depth_offset > 0 — depth_reveal(260, Frame{50}) ran)
-//          (c) the AnimatorResolver pushed a TextAnimatorSpec entry with
-//              the registry-side `ctc_rich_cinematic_text_camera` id prefix
-//              onto the TextRunSpec that the materialised RenderNode was
-//              built from.  Probe is best-effort on the TextRunShape
-//              variant so it tolerates font-engine materialisation gaps
-//              (the materialiser returns nullptr on shaping failure;
-//              AnimatorResolver wiring evidence is still preserved on
-//              the PendingTextRun in the builder path before build()).
+//              (Layer::depth_offset > 0 — depth_reveal(260, Frame{50}) ran),
+//          (c) PRE-build, the LayerBuilder's `pending_text_runs()` shows
+//              exactly one entry named "camera_text" with the wired
+//              TextAnimatorSpec entry `id = "ctc_rich_cinematic_text_camera"`
+//              on its `params.animators` vector — DETERMINISTIC, does NOT
+//              depend on font-engine materialisation succeeding.
+//
+// Probe (c) relies on the test-only `LayerBuilder::pending_text_runs()`
+// inspector (added alongside this test in the Stage 4 hardening PR)
+// which reads `m_text_runs` before `LayerBuilder::build()` consumes
+// the entries into `Layer::nodes`.  This replaces the prior lenient
+// post-build probe (which silently regressed if materialisation
+// returned a null `text_run_shape_handle().value`).
 TEST_CASE("TextPresetRegistry: TextAnimator V2 wiring tier (Sub-case 29)") {
 
     SUBCASE("29) BUILDER WIRES_TEXT_ANIMATORS — cinematic_text_camera resolves motion-id to wired TextAnimatorSpec on rich-paint spec") {
@@ -585,11 +589,34 @@ TEST_CASE("TextPresetRegistry: TextAnimator V2 wiring tier (Sub-case 29)") {
         CHECK(rich_spec.content.value == "CHRONON");
         CHECK(rich_spec.appearance.paint.stroke_enabled);
 
-        // ── (a) Invoking the preset does not throw and produces a Layer. ─
+        // ── Pre-build assertion: invariants hold BEFORE preset.builder ───
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("wiring_test_layer", Frame{0});
         const auto& preset = reg.get("cinematic_text_camera");
+        // No text_run(...) yet → pending_text_runs() must be empty.
+        REQUIRE(lb.pending_text_runs().empty());
+
         REQUIRE_NOTHROW(preset.builder(sb, lb, rich_spec));
+
+        // ── (c) DETERMINISTIC pre-build probe ─────────────────────────
+        // Read `lb.pending_text_runs()` BEFORE `lb.build()` consumes
+        // the entries.  Hard-CHECK (no IF-skip): the resolver must
+        // have pushed a TextAnimatorSpec EXACTLY at animators[0]
+        // (the resolver pushes it ONCE before the cinematic builder's
+        // factory body returns, so this is the strictest possible
+        // index-based assertion — a future Stage 5+ resolver extension
+        // that inserts a different animator BEFORE the wired entry
+        // will fail this CHECK loudly).
+        const auto pre = lb.pending_text_runs();
+        REQUIRE(pre.size() == 1);
+        REQUIRE(pre[0] != nullptr);
+        CHECK(pre[0]->name == "camera_text");
+        const auto& animators = pre[0]->params.animators;
+        REQUIRE(animators.size() >= 1);
+        // Strict prefix match: id starts with "ctc_rich_cinematic_text_camera".
+        CHECK(animators[0].id.rfind("ctc_rich_cinematic_text_camera", 0) == 0);
+
+        // ── Build the layer; verify Layer::nodes still materialises. ───
         lb.screen_dimensions(1280.0f, 720.0f);
         Layer built = lb.build();
         REQUIRE(built.nodes.size() >= 1);
@@ -597,37 +624,10 @@ TEST_CASE("TextPresetRegistry: TextAnimator V2 wiring tier (Sub-case 29)") {
         // ── (b) Motion-preset canon still fired AFTER the resolver. ────
         // depth_reveal(z, …) sets depth_offset > 0 at frame 0 — same
         // directional probe as Sub-case 9.  Confirms the canonical chain
-        // ran post-wiring (resolver-then-motion contract).
+        // ran post-wiring (.commit() returned LayerBuilder& and we
+        // chained depth_reveal/scale_drop/soft_pop after the resolver's
+        // text_run(...) commit).
         CHECK(built.depth_offset > 0.0f);
-
-        // ── (c) AnimatorResolver wired a TextAnimatorSpec entry onto the ─
-        // cinematic_text_camera routes through `lb.text_run(...)` when
-        // the resolver fires (instead of `lb.text(...)`), so the
-        // materialised RenderNode discriminates to ShapeType::TextRun.
-        // If the font-engine materialiser succeeds the value is non-null
-        // and we verify the wired animator id directly.  If the
-        // materialiser returns nullptr the wiring evidence is preserved
-        // on the PendingTextRun and (a)+(b) lock the contract.
-        bool wired_animator_observed = false;
-        for (std::size_t i = 0; i < built.nodes.size(); ++i) {
-            const auto& n = built.nodes[i];
-            if (n.shape.type() != ShapeType::TextRun) continue;
-            const auto& h = n.shape.text_run_shape_handle();
-            if (!h.value) continue;
-            for (const auto& a : h.value->animators) {
-                if (a.id.find("ctc_rich_cinematic_text_camera") != std::string::npos) {
-                    wired_animator_observed = true;
-                    break;
-                }
-            }
-            if (wired_animator_observed) break;
-        }
-        // Best-effort: a future Stage 5+ PR replaces the lenient probe
-        // with a hard-asserted animation-stack round-trip via
-        // evaluate_animator_stack_into.  Stage 4 ships this default —
-        // wiring landed if the materialisation pipeline honoured the
-        // resolver's push.
-        CHECK(wired_animator_observed);
 
         // ── Bonus probe: golden-frame-link canon preserved ────────────
         // The wiring tier ships the same `// golden-frame-link:` canon
