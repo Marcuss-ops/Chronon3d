@@ -2,9 +2,9 @@
 
 ## Stato reale
 
-I quattro profili e lo script di misura esistono già. Restano da chiudere la validazione CI, l'allineamento completo con vcpkg e la riduzione delle feature predefinite.
+I quattro profili configurano e l'isolamento vcpkg è verificato dopo il fix `VCPKG_MANIFEST_NO_DEFAULT_FEATURES`. Restano CI, build completa, dimensioni binari e allineamento dei preset non-profile.
 
-## Implementato
+## Implementato e verificato
 
 - [x] Profilo core senza testo, video, mesh ed EXR.
 - [x] Profilo motion con Blend2D e testo.
@@ -14,36 +14,53 @@ I quattro profili e lo script di misura esistono già. Restano da chiudere la va
 - [x] Script `tools/measure_profile.sh`.
 - [x] Output di misura JSON e Markdown.
 - [x] Documentazione di utilizzo dello script.
+- [x] Fix `VCPKG_MANIFEST_NO_DEFAULT_FEATURES: "ON"` nei quattro profili (CMakePresets.json).
+- [x] Fix bug script: `declare -A bin_paths` mancante (tools/measure_profile.sh).
+
+## Misurazioni configure (Linux, 2026-06-22)
+
+| Profilo | Configure | Package vcpkg | Cosa installa |
+|---|---|---|---|
+| `linux-profile-core` | 12s | **49** | base + doctest |
+| `linux-profile-motion` | 8s | **86** | core + blend2d, freetype, harfbuzz, fribidi, cli11 |
+| `linux-profile-video` | 5s | **91** | motion + sqlite3 (telemetry) |
+| `linux-profile-extended` | 11s | **125** | tutto: mesh, openexr, benchmark, tracy |
+
+Package base (49): fmt, glm, highway, magic-enum, nlohmann-json, spdlog, stb, taskflow, tbb, xxhash, doctest.
+
+## Gap scoperti e corretti
+
+1. **`default-features` inquinavano tutti i profili** — `vcpkg.json` dichiara `default-features: ["mesh", "cli", "blend2d", "text", "exr"]`. Prima del fix, anche `linux-profile-core` installava blend2d, freetype, harfbuzz, openexr, meshoptimizer (36 package identici al profilo motion). **Fix**: `VCPKG_MANIFEST_NO_DEFAULT_FEATURES: "ON"` aggiunto ai quattro profili in `CMakePresets.json`.
+
+2. **Bug in `tools/measure_profile.sh`** — `bin_paths` usato come array associativo senza `declare -A`, causava crash con chiavi contenenti punti (es. `chronon3d_sdk_impl.a`). **Fix**: aggiunto `declare -A bin_paths`.
 
 ## Ancora aperto
 
-- [ ] Allineare completamente preset CMake e feature vcpkg.
-- [ ] Verificare che ogni profilo installi solo le dipendenze necessarie.
-- [ ] Ridurre le feature predefinite non essenziali.
-- [ ] Testare ogni profilo in CI.
-- [ ] Registrare tempi di configure e build su una baseline comune.
-- [ ] Registrare dimensione di SDK, CLI e target test.
-- [ ] Registrare il numero effettivo di dipendenze per profilo.
+- [ ] Testare ogni profilo in CI (configure + build + test).
+- [ ] Registrare tempi di build (non solo configure) su baseline comune.
+- [ ] Registrare dimensione di `chronon3d_sdk_impl.a`, `chronon3d_cli`, `chronon3d_tests_fast` (richiede `--build`).
 - [ ] Documentare il profilo raccomandato per produzione CPU-first.
 - [ ] Verificare il consumer SDK almeno per core e motion.
+- [ ] Allineare i preset non-profile (`linux-debug`, `linux-release`, `linux-ci`, `linux-fast-dev`, `linux-turbo`): hanno `VCPKG_MANIFEST_FEATURES` incompleti rispetto ai flag CMake default ON, funzionano solo perché mascherati dai `default-features`. Rimuovere `default-features` da `vcpkg.json` e rendere esplicite tutte le feature in ogni preset.
+- [ ] Feature `video` e `ffmpeg` non esistono in `vcpkg.json` — non bloccante perché non hanno dipendenze vcpkg esterne, ma andrebbero aggiunte per coerenza se in futuro richiederanno pacchetti.
 
 ## Profili canonici
 
 | Profilo | Scopo | Stato |
 |---|---|---|
-| `linux-profile-core` | runtime e graph minimi | Implementato, CI pending |
-| `linux-profile-motion` | Blend2D e text | Implementato, CI pending |
-| `linux-profile-video` | video nativo e telemetria | Implementato, CI pending |
-| `linux-profile-extended` | tutte le feature e profiling | Implementato, CI pending |
+| `linux-profile-core` | runtime e graph minimi | Isolamento verificato, CI pending |
+| `linux-profile-motion` | Blend2D e text | Isolamento verificato, CI pending |
+| `linux-profile-video` | video nativo e telemetria | Isolamento verificato, CI pending |
+| `linux-profile-extended` | tutte le feature e profiling | Isolamento verificato, CI pending |
 
 ## Ordine di chiusura
 
 1. Chiudere `linux-lean-dev` e il consumer SDK.
-2. Verificare coerenza preset-feature vcpkg.
+2. Eseguire build completa (`--build`) per ogni profilo e registrare dimensioni binari.
 3. Eseguire la matrice CI dei quattro profili.
-4. Registrare misure confrontabili.
-5. Ridurre i default soltanto dopo aver verificato che core e motion coprano i casi produttivi.
+4. Allineare i preset non-profile e rimuovere `default-features` da `vcpkg.json`.
+5. Documentare il profilo raccomandato per produzione CPU-first.
 
 ## Completato quando
 
-Ogni profilo configura, compila, installa ed esegue i test previsti; le dipendenze installate sono coerenti con il profilo; il profilo CPU-first raccomandato è documentato e verificato in CI.
+Ogni profilo configura, compila, installa ed esegue i test previsti; le dipendenze installate sono coerenti con il profilo; i `default-features` sono rimossi da `vcpkg.json` e ogni preset dichiara esplicitamente le proprie feature; il profilo CPU-first raccomandato è documentato e verificato in CI.
