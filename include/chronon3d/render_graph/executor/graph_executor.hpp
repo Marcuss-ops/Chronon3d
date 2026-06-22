@@ -53,8 +53,16 @@ public:
     /// unmodified — WP-7 will retire this overload once all production
     /// call sites are migrated to `execute_with_scope(...)`.
     ///
+    /// PR 6.7 — DEPRECATED.  Callers MUST migrate to the typed
+    /// `execute_with_scope(ExecutionScope&, ...)` overload which
+    /// enforces the arena-ownership contract and prevents child teardown
+    /// from invalidating the parent's arena.  This overload will be
+    /// REMOVED in WP-7 once all call sites (production + test lattice)
+    /// pass an explicit `ExecutionScope&`.
+    ///
     /// - `compiled.levels` is the source of truth for the topology plan.
     /// - `compiled.output` is the node whose framebuffer is returned.
+    [[deprecated("use execute_with_scope(ExecutionScope&, ExecutionScheduler&) — the session-based path will be removed in WP-7; pass a typed scope to enforce arena-ownership isolation")]]
     [[nodiscard]] std::shared_ptr<Framebuffer> execute(
         CompiledFrameGraph& compiled,
         RenderGraphContext& ctx,

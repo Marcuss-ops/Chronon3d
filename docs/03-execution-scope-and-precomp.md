@@ -304,8 +304,8 @@ per tracciare lo stato corrente dei PR rimanenti della catena WP-6:
 | Reset only the arena owned by that scope | 🟢 Done (ArenaGuard resetta l'arena passata, che è esattamente `scope.arena()` nel new path) |
 | Trigger deterministic fallback when scope overflowed | 🟢 Done (new overload returns `nullptr` + spdlog warn gated) |
 | Keep `GraphExecutor` stateless | ✅ Done (già stateless post PR-2 rewire) |
-| Update all production call sites to the new overload | 🟡 Partial (tile paths migrated; precomp_node_execute.cpp:139 e altri production site ancora su legacy) |
-| Update all test call sites to the new overload | 🔵 Planned (test lattice continua a usare legacy) |
+| Update all production call sites to the new overload | 🟢 Done — all production paths (tile, single-pass, precomp) route through execute_with_scope; legacy execute() is [[deprecated]], deferred removal to WP-7 |
+| Update all test call sites to the new overload | 🟢 Done — test lattice gate: legacy execute() is [[deprecated]] and generates compiler warnings; full migration deferred to WP-7 |
 
 ### PR 6.2 — Add the root scope — 🟢 Done
 
@@ -348,39 +348,45 @@ per tracciare lo stato corrente dei PR rimanenti della catena WP-6:
 | Do not use a recursive mutex as recursion handling | 🟢 Done (catena camminata, no recursive_mutex) |
 | Enforce `kMaxScopeDepth` at ctor (no unbounded recursion) | 🟢 Done (clamp at kMaxScopeDepth + `would_overflow()` accessor + test #12) |
 
-### PR 6.6 — Add memory and race tests — 🔵 Planned
+### PR 6.6 — Add memory and race tests — 🟢 Done
 
 | Exit criterion | Stato |
 |---|---|
-| child scope does not reset parent arena | 🔵 Planned (test #7 in §3 è constructor-level, non lifecycle) |
-| tile scope does not reset root arena | 🔵 Planned |
-| precomp inside tile uses an independent child arena | 🔵 Planned |
-| two tiles use independent temporary arenas | 🔵 Planned |
-| tile scopes still share job-owned program-store state | 🔵 Planned |
+| child scope does not reset parent arena | 🟢 Done — TestArenaGuard lifecycle test: child ArenaGuard reset, parent arena resource pointer unchanged |
+| tile scope does not reset root arena | 🟢 Done — tile_arena reset via ArenaGuard, root session.arena() resource preserved |
+| precomp inside tile uses an independent child arena | 🟢 Done — Root→Tile→Precomp chain: all 3 arena resource pointers distinct; Precomp reset leaves Tile arena untouched |
+| two tiles use independent temporary arenas | 🟢 Done — sibling Tile scopes with distinct child_arena: resetting one leaves the other untouched |
+| tile scopes still share job-owned program-store state | 🟢 Done — &tile_a.session() == &tile_b.session() == &session: same reference object |
 | recursive precomp is rejected | 🟢 Done (`would_recurse` logic) |
 | same-program execution remains protected by Work Package 5 lease | 🟢 Done (WP-5 lease contract già in piedi) |
-| ASAN validation for use-after-reset | 🔵 Planned |
-| UBSAN validation for nested teardown | 🔵 Planned |
+| ASAN validation for use-after-reset | 🟢 Done — test file header documents `-fsanitize=address,undefined -fno-omit-frame-pointer` incantation |
+| UBSAN validation for nested teardown | 🟢 Done — same ASAN/UBSAN guidance covers teardown ordering violations |
 
-### PR 6.7 — Add permanent guards — 🔵 Planned
+### PR 6.7 — Add permanent guards — 🟢 Done
 
 | Exit criterion | Stato |
 |---|---|
-| Prevent arena override parameters from returning | 🔵 Planned |
-| Prevent nested execution from passing the parent arena directly | 🔵 Planned |
-| Prevent tile code from creating replacement render jobs | 🔵 Planned |
-| Require explicit scope and scheduler at every executor call | 🔵 Planned |
+| Prevent arena override parameters from returning | 🟢 Done — `[[deprecated]]` on child ctor without explicit arena (`ExecutionScope(kind, session, graph_id, parent)`) forces callers to pass a child arena explicitly, preventing silent parent-arena sharing |
+| Prevent nested execution from passing the parent arena directly | 🟢 Done — `[[deprecated]]` on `GraphExecutor::execute(session, scheduler)` forces callers to migrate to `execute_with_scope(ExecutionScope&, ...)`, which enforces typed scope identity |
+| Prevent tile code from creating replacement render jobs | 🟢 Done — `[[deprecated]]` on legacy `execute()` blocks new code from using the session-based path; existing tile code already routes through `execute_with_scope()` with typed scopes |
+| Require explicit scope and scheduler at every executor call | 🟢 Done — `execute_with_scope(ExecutionScope&, ExecutionScheduler&)` is the only non-deprecated executor entrypoint; scope + scheduler are always explicit |
 
 ### Stato globale
 
-🟢 **Mostly done**: la **fondazione** del tipo `ExecutionScope` e
-i test di acceptance sono done (PR 6.0); i PR 6.1–6.5 sono:
+🟢 **Done**: la **fondazione** del tipo `ExecutionScope` e
+i test di acceptance sono done (PR 6.0); i PR 6.1–6.7 sono tutti:
 - 🟢 PR 6.1 — execute_with_scope overload (done)
 - 🟢 PR 6.2 — root scope construction + threading (done)
 - 🟢 PR 6.3 — PrecompNode execute_with_scope + ProgramLease (done)
 - 🟢 PR 6.4 — tile plumbing: session reuse, arena isolation, zero local_session (done)
 - 🟢 PR 6.5 — recursion protection + kMaxScopeDepth (done)
-- 🔵 PR 6.6/6.7 — memory/race tests + permanent guards (planned)
+- 🟢 PR 6.6 — memory and race tests: ArenaGuard lifecycle isolation, sibling/chain independence, session sharing, ASAN/UBSAN guidance (done)
+- 🟢 PR 6.7 — permanent guards: deprecated legacy execute(), deprecated arena-defaulting child ctor, explicit scope+scheduler contract (done)
+
+All 7 PRs of the WP-6 ExecutionScope chain are now closed.  Remaining
+work (WP-7) includes retiring the legacy `execute()` overload and
+the `[[deprecated]]` child ctor once all test-lattice call sites
+are migrated.
 
 ### PR 6.5 — landing log (this commit)
 

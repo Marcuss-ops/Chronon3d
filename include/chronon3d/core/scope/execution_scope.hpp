@@ -96,8 +96,14 @@ public:
     {}
 
     /// Child scope ctor — requires a non-null parent; depth tracks.
-    /// Arena defaults to the parent's arena (PR 6.4 follow-up will
-    /// split this into a fresh child arena for Tile surfaces).
+    /// Arena defaults to the parent's arena.
+    ///
+    /// PR 6.7 — DEPRECATED.  Child scopes MUST use the explicit-arena
+    /// ctor below so that the child arena is provably distinct from the
+    /// parent's arena.  Defaulting to the parent's arena silently shares
+    /// the allocation surface, which means child teardown (ArenaGuard
+    /// reset) would invalidate pointers the parent still holds.
+    [[deprecated("child scopes must pass an explicit FrameArena& distinct from the parent's — use ExecutionScope(kind, session, child_arena, graph_id, parent) with a locally-constructed child arena")]]
     explicit ExecutionScope(
         ExecutionScopeKind                  kind,
         chronon3d::RenderSession&           session,
