@@ -69,7 +69,8 @@ namespace chronon3d::graph::detail {
     const RenderGraphContext& ctx,
     SoftwareRenderer* sw_renderer,
     const raster::BBox& region_bbox,
-    Framebuffer& output_fb
+    Framebuffer& output_fb,
+    const ExecutionScope& root_scope
 ) {
     RenderGraphContext tile_ctx = ctx;
     tile_ctx.node_exec.clip_rect = region_bbox;
@@ -80,62 +81,26 @@ namespace chronon3d::graph::detail {
     tile_ctx.policy.skip_initial_clear = false;
     tile_ctx.node_exec.early_exit_skip.clear();
 
-    // ── Defence-in-depth null-guard.  The upstream caller
-    // `execute_tile_or_fallback` already null-guards before this path
-    // runs, but we mirror the same `if (sw_renderer && executor) /
-    // else { local_fallback }` shape here so a future caller that
-    // reaches this function directly cannot crash on a null pointer.
-    // PR-1 — route through the authoritative scheduler (via
-    // ctx.services.scheduler for the sw_renderer path, or a local
-    // Sequential scheduler for the fallback).
-    // PR-6 — arena_override removed; tile regions each get a local
-    // RenderSession with their own FrameArena (parallel-safe).
+    // PR 6.2 — root_scope is constructed once in render_scene_via_graph()
+    // and threaded through.  Each tile region creates a child Tile scope
+    // with its own FrameArena (per-region isolation) but borrows the
+    // root scope's session (shared across all tile regions).  The
+    // parent chain is: root_scope → tile_scope, so child teardown
+    // (ArenaGuard on tile_scope.arena()) never touches the root arena.
     //
-    // PR 6.4 — wrap the per-region `RenderSession local_session` in a
-    // typed `ExecutionScope` chain.  Each tile region now carries:
-    //   1. Its own `FrameArena child_arena` (the per-region temporary
-    //      memory surface, distinct from the parent session's arena).
-    //   2. A Root `ExecutionScope root_fence` (logical parent so the
-    //      Tile scope's parent chain is non-null per docs/03 §4).
-    //   3. A Tile `ExecutionScope tile_scope` whose parent is the root
-    //      fence and whose arena is `child_arena`.
-    // The executor reads `scope.arena()` for allocation + `scope.session()`
-    // for resource access; the resulting `ArenaGuard` only resets the
-    // child's arena on return, never touching the parent session's
-    // arena pointer (PR 6.4 isolation contract — a child teardown cannot
-    // invalidate parent's `ExecutionState`).
-    //
-    // NOTE: the 4-line scope scaffolding is duplicated between the two
-    // branches below.  Code reviewer (Nit Pick Nick, 1st pass) flagged
-    // this as latent copy-paste drift risk; full extraction deferred
-    // to a follow-up PR because the lambda-capture pattern (returning
-    // refs to stack scopes) was messier than the inlined version.  WP-7
-    // follow-up will refactor this into a private helper without
-    // touching the public API.
+    // The sw_renderer gate selects the executor/scheduler (renderer-owned
+    // vs local), not the session — both paths use root_scope.session().
     std::shared_ptr<Framebuffer> tile_fb;
+    FrameArena child_arena;   // PR 6.4 — distinct child arena per region
+    ExecutionScope tile_scope(ExecutionScopeKind::Tile, root_scope.session(),
+                              child_arena, compiled.graph_instance_id,
+                              &root_scope);
     if (!sw_renderer || !sw_renderer->executor()) {
-        RenderSession local_session;
-        FrameArena child_arena;                                     // PR 6.4 — distinct child arena per region
-        ExecutionScope root_fence(ExecutionScopeKind::Root, local_session,
-                                  compiled.graph_instance_id);
-        ExecutionScope tile_scope(ExecutionScopeKind::Tile, local_session,
-                                  child_arena, compiled.graph_instance_id,
-                                  &root_fence);
         GraphExecutor local_executor;
         ExecutionScheduler local_scheduler{SchedulerMode::Sequential, 1, false};
         tile_fb = local_executor.execute_with_scope(
             compiled, tile_ctx, tile_scope, local_scheduler);
     } else {
-        // PR 6.4 — reuse parent render job session instead of creating
-        // ad-hoc local_session.  The session carries program_store,
-        // scene_hasher, frame_history which are safe to share across
-        // tile regions (child_arena provides per-region isolation).
-        FrameArena child_arena;                                     // PR 6.4 — distinct child arena per region
-        ExecutionScope root_fence(ExecutionScopeKind::Root, sw_renderer->session(),
-                                  compiled.graph_instance_id);
-        ExecutionScope tile_scope(ExecutionScopeKind::Tile, sw_renderer->session(),
-                                  child_arena, compiled.graph_instance_id,
-                                  &root_fence);
         auto& tile_scheduler = ctx.services.scheduler
             ? *ctx.services.scheduler
             : sw_renderer->scheduler();
@@ -169,7 +134,8 @@ TileExecutionResult execute_dirty_tiles(
     Framebuffer& output_fb,
     i32 width,
     i32 height,
-    bool parallel
+    bool parallel,
+    ExecutionScope& root_scope
 ) {
     const auto& tile_grid = *dirty_out.tile_grid;
     const auto& dirty_tiles = *dirty_out.dirty_tiles;
@@ -195,7 +161,7 @@ TileExecutionResult execute_dirty_tiles(
             regions.size(), [&](std::size_t i) {
                 if (regions[i].is_empty()) return;
                 auto region_result = execute_single_dirty_region(
-                    compiled, ctx, sw_renderer, regions[i], output_fb);
+                    compiled, ctx, sw_renderer, regions[i], output_fb, root_scope);
                 per_region[i] = region_result.pixels_rendered;
             });
         for (auto px : per_region) {
@@ -205,7 +171,7 @@ TileExecutionResult execute_dirty_tiles(
         for (const auto& region : regions) {
             if (region.is_empty()) continue;
             auto region_result = execute_single_dirty_region(
-                compiled, ctx, sw_renderer, region, output_fb);
+                compiled, ctx, sw_renderer, region, output_fb, root_scope);
             result.pixels_rendered += region_result.pixels_rendered;
         }
     }

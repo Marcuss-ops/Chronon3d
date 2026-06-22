@@ -60,8 +60,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const CompositionRegistry* registry,
     media::MediaFrameProvider* video_decoder,
     float fps,
-    std::string_view diagnostic_label,
-    chronon3d::SoftwareRenderer* sw_sidecar
+    std::string_view diagnostic_label
 ) {
     ZoneScoped;
     const auto t0 = profiling::now();
@@ -337,10 +336,24 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const auto t_prealloc1 = profiling::now();
 
     // ── 10. Execute: tile-based (V1) or traditional single-pass ──────────
+    // PR 6.2 — construct root ExecutionScope per render invocation.
+    // The root scope binds the render job session + compiled graph identity
+    // and lives for the entire execute phase, ensuring child scopes (tile /
+    // precomp) can walk the parent chain without the parent arena being
+    // reset prematurely.  Reset of root memory (session.arena()) is deferred
+    // until after final output ownership is safe (the executor's ArenaGuard
+    // resets at scope exit of execute_with_scope, which happens inside
+    // execute_tile_or_fallback before we return the fb).
+    RenderSession fallback_session;   // default-constructed; used when !sw_renderer
+    ExecutionScope root_scope(
+        ExecutionScopeKind::Root,
+        sw_renderer ? static_cast<RenderSession&>(sw_renderer->session()) : fallback_session,
+        graph_result.compiled.graph_instance_id);
+
     const auto t_exec0 = profiling::now();
     auto exec_result = execute_tile_or_fallback(
         ctx, graph_result.compiled, resolved, settings, dirty_out,
-        dirty_ratio, sw_renderer, frame, width, height);
+        dirty_ratio, sw_renderer, frame, width, height, root_scope);
     const auto t_exec1 = profiling::now();
 
     // ── 11. Phase timing telemetry ───────────────────────────────────────

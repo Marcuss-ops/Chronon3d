@@ -18,6 +18,7 @@
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
+#include <chronon3d/core/scope/execution_scope.hpp>   // PR 6.2 — root scope parameter
 #include "scene_internal.hpp"
 #include <memory>
 
@@ -46,6 +47,7 @@ struct TileExecutionResult {
     SoftwareRenderer* sw_renderer,
     Frame frame,
     int width,
-    int height);
+    int height,
+    ExecutionScope& root_scope);
 
 } // namespace chronon3d::graph

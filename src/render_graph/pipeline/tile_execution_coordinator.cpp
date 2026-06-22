@@ -23,7 +23,8 @@ TileExecutionResult execute_tile_or_fallback(
     SoftwareRenderer* sw_renderer,
     Frame frame,
     int width,
-    int height)
+    int height,
+    ExecutionScope& root_scope)
 {
     TileExecutionResult result;
 
@@ -64,7 +65,7 @@ TileExecutionResult execute_tile_or_fallback(
 
             auto tile_result = detail::execute_dirty_tiles(
                 compiled, ctx, sw_renderer, dirty_out,
-                *result.fb, width, height, parallel_tiles);
+                *result.fb, width, height, parallel_tiles, root_scope);
 
             // ── Tile counters ───────────────────────────────────────────
             if (ctx.node_exec.counters) {
@@ -93,33 +94,14 @@ TileExecutionResult execute_tile_or_fallback(
         {
             CHRONON_ZONE_C("graph_execute", trace_category::kGraph);
             if (sw_renderer && sw_renderer->executor()) {
-                // TICKET-009 / PR-2 rewire — the executor was stateless AND
-                // is now cache-less (topology plans live on
-                // CompiledFrameGraph::levels).
-                // PR-1 — route through the authoritative scheduler.
-                // PR 6.4 — wrap the renderer-owned `sw_renderer->session()`
-                // in a typed ExecutionScope (Root) so the executor reads
-                // `scope.session()` / `scope.arena()` symmetrically with
-                // the tile-fallback path below.  PR 6.5 will migrate
-                // production callers (precomp_node_execute.cpp,
-                // single-pass execution) to this overload exclusively.
-                RenderSession& root_session = sw_renderer->session();
-                ExecutionScope root_scope(ExecutionScopeKind::Root, root_session,
-                                          compiled.graph_instance_id);
+                // PR 6.2 — root_scope constructed in render_scene_via_graph()
+                // binds session + graph identity; passed through to executor.
                 result.fb = sw_renderer->executor()->execute_with_scope(
                     compiled, ctx, root_scope,
                     sw_renderer->scheduler());
             } else {
-                // TICKET-009 — ad-hoc fallback path; no shared plan cache.
-                // PR 6.4 — wrap the local `RenderSession local_session`
-                // in a typed ExecutionScope (Root) so the fallback
-                // path becomes consistent with the renderer-owned path
-                // above.  Child arenas are NOT allocated here (this is
-                // single-pass, not tile-orchestrated); the Root scope's
-                // arena is `session.arena()`.
-                RenderSession local_session;
-                ExecutionScope root_scope(ExecutionScopeKind::Root, local_session,
-                                          compiled.graph_instance_id);
+                // PR 6.2 — fallback single-pass uses the same root_scope
+                // (already bound to fallback_session at the top level).
                 GraphExecutor local_executor;
                 ExecutionScheduler local_scheduler{SchedulerMode::Sequential, 1, false};
                 result.fb = local_executor.execute_with_scope(
