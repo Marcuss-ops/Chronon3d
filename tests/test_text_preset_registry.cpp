@@ -6,6 +6,15 @@
 //   (3) contains() correctly distinguishes known / unknown ids.
 //   (4) get() returns descriptor with correct metadata + non-null builder.
 //   (5) by_category() correctly filters 4-category partitioning.
+//   (6) freeze() blocks further registration (EffectCatalog parity).
+//   (7) Builder INVOCATION: each built-in builder can be invoked with a real
+//       SceneBuilder + LayerBuilder + TextSpec fixture without throwing.
+//   (8) Builder STATE-EFFECT: after invocation, the LayerBuilder's `build()`
+//       produces a Layer with at least one text node per build call.
+//       This is strictly more stringent than `builder != nullptr` (PR
+//       `41cda40c`'s Sub-case 4): the builder must actually USE the
+//       LayerBuilder pipeline (call `lb.text(name, spec)`), not just be a
+//       non-null std::function pointing at an empty lambda.
 //
 // Mirrors tests/scene/camera/test_camera_registry.cpp template style
 // (DOCTEST_CONFIG_SUPER_FAST_ASSERTS, idiomatic TEST_CASE + SUBCASE blocks).
@@ -15,8 +24,34 @@
 
 #include <chronon3d/registry/text_preset_registry.hpp>
 
+// ── Stage-2 full type defs required by invocation tests ────────────────
+// The builder bodies now use the real SceneBuilder / LayerBuilder /
+// TextSpec APIs.  The test must include their full defs to instantiate
+// fixtures.  This is consistent with the .cpp impl which also pulls
+// these in (anti-circular: header stays include-light; this test + the
+// .cpp pull in the full defs).
+#include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/builders/builder_params.hpp>
+
 using namespace chronon3d;
 using namespace chronon3d::registry;
+
+// ── Fixture: minimal TextSpec with non-empty content ────────────────────
+// Designated-initializer aggregate initialisation matches the content/
+// text helpers canonical idiom in `content/text/text_helpers_centered.hpp`.
+inline TextSpec make_test_text_spec() {
+    return TextSpec{
+        .content    = {.value = "Hello"},
+        .font       = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
+                       .font_family = "Poppins",
+                       .font_weight = 700,
+                       .font_style  = "normal",
+                       .font_size   = 96.0f},
+        .layout     = {.box = {1200.0f, 240.0f}},
+        .appearance = {.color = {1.0f, 1.0f, 1.0f, 1.0f}},
+    };
+}
 
 TEST_CASE("TextPresetRegistry: enum round-trip + registry filtering + 5-entry seeding") {
     SUBCASE("1) enum <-> string round-trip preserves identity (no Unicode drift)") {
@@ -104,5 +139,77 @@ TEST_CASE("TextPresetRegistry: enum round-trip + registry filtering + 5-entry se
         TextPreset q;
         q.id = "bar";
         CHECK_THROWS_AS(reg.register_preset(q), std::runtime_error);
+    }
+
+    SUBCASE("7) BUILDER INVOCATION — each preset runs without throwing on real fixtures") {
+        // Stringent: stand up real SceneBuilder + LayerBuilder + TextSpec,
+        // invoke each builder once, assert CHECK_NOTHROW per preset.
+        // This catches: type-mismatch errors, missing-include errors, dead
+        // std::function targets, and signature drift between header and impl.
+        auto reg = make_default_text_preset_registry();
+        SceneBuilder sb(1280, 720);
+        LayerBuilder lb("invocation_test_layer", Frame{0});
+        TextSpec ts = make_test_text_spec();
+
+        for (const auto& preset : reg.list()) {
+            CAPTURE(preset.id);
+            CHECK_NOTHROW(preset.builder(sb, lb, ts));
+        }
+    }
+
+    SUBCASE("8) BUILDER STATE-EFFECT — `lb.text(name, spec)` actually adds a node") {
+        // Most stringent: after invoking each builder, calling
+        // `lb.screen_dimensions(W, H); lb.build()` must produce a Layer
+        // whose `nodes` size is >= the number of text-shape builders
+        // invoked.  This proves the builder body executed `lb.text(...)`,
+        // i.e. it's not a no-op std::function.  Strictly stronger than
+        // Sub-case 4 of the previous PR (`builder != nullptr`).
+        auto reg = make_default_text_preset_registry();
+        SceneBuilder sb(1280, 720);
+        LayerBuilder lb("state_effect_test_layer", Frame{0});
+        const TextSpec ts = make_test_text_spec();
+
+        const std::size_t expected_minimum = reg.list().size();  // 1 text() call per preset.
+        std::size_t invoked_count = 0;
+        for (const auto& preset : reg.list()) {
+            CAPTURE(preset.id);
+            REQUIRE_NOTHROW(preset.builder(sb, lb, ts));
+            ++invoked_count;
+        }
+        // Each invocation adds one pending text node.  After build()
+        // those pending nodes are committed to Layer::nodes.
+        lb.screen_dimensions(1280.0f, 720.0f);
+        Layer built = lb.build();
+        CHECK(invoked_count >= 5);                       // sanity: ≥5 presets.
+        CHECK(built.nodes.size() >= expected_minimum);   // ≥1 node per invocation.
+    }
+
+    SUBCASE("9) BUILDER MOTION-EFFECT — depth_reveal registered on the baked Layer") {
+        // Most stringent single-preset motion assertion: a Cinematic
+        // builder must produce a Layer whose `depth_offset` was initialised
+        // by `lb.depth_reveal(z, Frame{...})` to its `z` at frame 0.  We
+        // probe cinematic_text_camera (verified Cinematic per Sub-case 5)
+        // and check the directional contract `depth_offset > 0`.
+        auto reg = make_default_text_preset_registry();
+        REQUIRE(reg.contains("cinematic_text_camera"));
+
+        SceneBuilder sb(1280, 720);
+        LayerBuilder lb("motion_probe_layer", Frame{0});
+        const TextSpec ts = make_test_text_spec();
+
+        const auto& preset = reg.get("cinematic_text_camera");
+        REQUIRE_NOTHROW(preset.builder(sb, lb, ts));
+
+        lb.screen_dimensions(1280.0f, 720.0f);
+        Layer built = lb.build();
+
+        // ≥1 node present (text() registered the spec).
+        CHECK(built.nodes.size() >= 1);
+        // Directional contract: depth_reveal(z, …) initialises depth_offset
+        // to z at frame 0.  depth_role is a separate settable state (via
+        // lb.depth_role(role)), so we probe only the offset — directional `>`
+        // matches the actual contract and is invariant under any future
+        // magnitude change (260 → 200, etc.).
+        CHECK(built.depth_offset > 0.0f);
     }
 }
