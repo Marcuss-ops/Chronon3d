@@ -36,6 +36,12 @@ if(@CHRONON3D_USE_BLEND2D@)
     find_dependency(blend2d CONFIG)
 endif()
 if(@CHRONON3D_ENABLE_TEXT@)
+    # ZLIB is a transitive dependency of freetype (referenced via
+    # $<LINK_ONLY:ZLIB::ZLIB> in freetype-targets.cmake).  Resolve it
+    # FIRST so the ZLIB::ZLIB target exists before freetype's config
+    # tries to link against it.  Without this, find_dependency(freetype)
+    # fails with "target ZLIB::ZLIB was not found".
+    find_dependency(ZLIB)  # Find-module (no CONFIG) — vcpkg provides FindZLIB.cmake
     find_dependency(freetype CONFIG)
     find_dependency(harfbuzz CONFIG)
 endif()

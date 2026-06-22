@@ -34,8 +34,8 @@
       "dependencies": ["blend2d"]
     },
     "text": {
-      "description": "Text rendering — FreeType + HarfBuzz + FriBidi (CHRONON3D_ENABLE_TEXT)",
-      "dependencies": ["freetype", "harfbuzz", "fribidi"]
+      "description": "Text rendering — FreeType + HarfBuzz + FriBidi + ZLIB (CHRONON3D_ENABLE_TEXT)",
+      "dependencies": ["freetype", "harfbuzz", "fribidi", "zlib"]
     },
     "exr": {
       "description": "OpenEXR image format support (CHRONON3D_ENABLE_EXR)",
