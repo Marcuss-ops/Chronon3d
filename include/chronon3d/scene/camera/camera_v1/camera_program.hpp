@@ -34,6 +34,7 @@ namespace chronon3d::camera_v1 {
 // which cannot be included here to avoid circular deps.
 struct CameraSession;
 struct CameraEvalContext;
+struct CameraCompileContext;
 struct CameraCompileError;
 class CameraCatalog;
 

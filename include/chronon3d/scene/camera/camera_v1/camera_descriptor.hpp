@@ -436,7 +436,7 @@ inline std::uint64_t compute_camera_descriptor_fingerprint(
     {
         const auto& mb = desc.base.motion_blur;
         h.mix_bool(mb.enabled);
-        h.mix_f32(mb.shutter_angle);
+        h.mix_f32(mb.shutter_angle_deg);
     }
 
     // ── projection variant ────────────────────────────────────────
