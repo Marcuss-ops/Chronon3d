@@ -27,17 +27,23 @@
 //   di Scene::SceneBuilder / LayerBuilder / TextSpec).
 //
 // Vincoli anti-circular-dependency:
-//   Questo header NON include `include/chronon3d/scene/builders/scene_builder.hpp`
-//   né alcun `content/text/text_*.hpp` né `chronon3d_backends_*`.
-//   Tali dipendenze sono forward-declared. Le full-includes avvengono solo
-//   nel .cpp consumatore (per metadata seed) e nei call site finali.
+//   Forward-declared in this header: `SceneBuilder`, `LayerBuilder`.
+//   Included: `<chronon3d/scene/builders/builder_params.hpp>`
+//     (TICKET-012 — supplies the canonical `::chronon3d::TextSpec` that
+//      `content::text::TextSpec` aliases in this header).
+//   NOT included here: `scene_builder.hpp`, any `content/text/text_*.hpp`,
+//     or any `chronon3d_backends_*` header.  Full SceneBuilder/LayerBuilder
+//     definitions are pulled in only inside the .cpp consumer.
 
 #pragma once
+
+#include <chronon3d/scene/builders/builder_params.hpp>  // canonical ::chronon3d::TextSpec — alias target.
 
 #include <functional>
 #include <map>
 #include <string>
 #include <string_view>
+#include <type_traits>  // explicit — for the static_assert alias-drift guard (TICKET-012).
 #include <vector>
 
 namespace chronon3d {
@@ -46,7 +52,25 @@ class SceneBuilder;
 class LayerBuilder;
 
 namespace content::text {
-struct TextSpec;  // forward decl — TODO(c3d-001): promote to include/chronon3d/text/text_spec.hpp post-Fase 0 baseline.
+// TICKET-012 — single source of truth: the public `content::text::TextSpec`
+// is a thin alias for the canonical `::chronon3d::TextSpec` from
+// builder_params.hpp.  External SDK consumers that instantiate
+// `::chronon3d::TextSpec` can pass it directly to any registry Builder.
+// The previous forward-decl (`struct TextSpec;`) collided with the
+// `using` declaration in the registry TU — the alias must live HERE so
+// the std::function signature in this header resolves to the canonical
+// type for every consumer without a per-TU bridge.
+using TextSpec = ::chronon3d::TextSpec;
+// TICKET-012 — alias-drift guard.  If the canonical `::chronon3d::TextSpec`
+// is ever renamed or promoted to a different namespace, the std::function
+// signature in this header would silently mismatch downstream Builder
+// lambdas.  This compile-time assertion catches such drift BEFORE the
+// breakage reaches consumers (the canonicalization lives HERE — in this
+// public header — so this is the ONLY place an alias-target refactor can
+// touch the std::function signature).
+static_assert(std::is_same_v<::chronon3d::content::text::TextSpec,
+                             ::chronon3d::TextSpec>,
+              "content::text::TextSpec alias must resolve to canonical chronon3d::TextSpec");
 }
 
 namespace registry {
