@@ -2355,8 +2355,8 @@ Same defer table as TICKET-021.
 
 | Field | Value |
 |---|---|
-| **Status** | 🔵 Planned |
-| **Affected file(s)** | `src/scene/camera/camera_v1/internal/evaluators/orbit_motion.{hpp,cpp}` (`evaluate()` and dolly/track loops), `include/chronon3d/scene/camera/camera_v1/camera_descriptor.hpp` (`OrbitMotion` source entry), `tests/scene/camera/test_camera_program_compiled.cpp` (regression). |
+| **Status** | 🟡 Code-fix landed on `codex/cam-orbit-local-basis` (tests-blocked-by-TICKET-029; flips to 🟢 once `chronon3d_scene_tests` links and the §4.C regression tests pass). |
+| **Affected file(s)** | `src/scene/camera/camera_v1/camera_program.cpp` (`eval_orbit_motion`: basis math + `pos.z += dolly` removed), `tests/scene/camera/test_camera_program_compiled.cpp` (§4.C: per-yaw + per-track.x + per-dolly + per-radius regression locks + `compiled_orbit_motion_source` description rewrite). |
 | **Discovered during** | PR #36 — `docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md` section "OrbitMotion / Bug P0 reale". |
 | **Discovered date** | 2026-06-22 |
 | **Parent umbrella** | PR #36 AE-Motion. |
@@ -2417,6 +2417,27 @@ Same defer table as TICKET-021.
 - Source of truth: `docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md` section "OrbitMotion".
 - Companion: TICKET-022 (One/Two node base), TICKET-023 (OrientAlongPath tangent provider).
 - After fix: enables TICKET-029 (rig-modern → `OrbitMotion` adapter migration).
+
+### Resolution (branch `codex/cam-orbit-local-basis`, base `main@519173a6`)
+
+| Aspect | Change |
+|---|---|
+| **Identity** | `forward = unit(target - orbit_position)` (camera→target); derived each frame from live `orbit_position`. |
+| **Right axis** | `unit(cross(forward, world_up))`, with `world_up=(0,1,0)` fallback to `(1,0,0)` when `forward ∥ world_up` (pitch = ±90° NaN guard). |
+| **Up axis** | `cross(right, forward)` (already unit because `right ⊥ forward` and both unit). |
+| **track.x** | → camera-local right (was world +X). |
+| **track.y** | → camera-local up (was world +Y). |
+| **track.z** | **dropped** (was un-scoped world-space lateral; user spec says `track XY`). Existing authored motions in this repo use `track=(0,0,0)` so no regression; new authored motions should use `dolly` for any forward-depth offset. **Documented here so any external consumer can audit the behavior change.** |
+| **dolly** | → camera-local forward (toward target; was world +Z). |
+| **pos.z += dolly** | removed. |
+| **canonical order** | unchanged from TICKET-022 — orientation still applied ONCE in `CameraProgram::evaluate()` post-modifiers; orbit source evaluator stays orientation-free. |
+| **Test plan** | §4.C: per-yaw (0/90/180/270), per-track.x flips on half-orbit, per-dolly along camera→target, per-radius rotation coherence. |
+| **`compiled_orbit_motion_source` test** | Title rewritten to honestly describe the new math; the test itself (yaw=0, pitch=0, track=(0,0,0), dolly=0) is forward-compatible because all basis-vector offsets are zero. |
+| **Robustness** | Both basis axes have 1e-4 NaN guards with safe unit-vector fallbacks (`-world_forward` and `world +X` respectively). |
+
+**Compiler ready:** `camera_program.cpp.o` + `test_camera_program_compiled.cpp.o` compile clean (verified 2026-06-22 on `codex/cam-orbit-local-basis`).
+
+**Blocked on:** TICKET-029 — `chronon3d_scene_tests` cannot link until that ticket is closed, so the new §4.C tests cannot RUN, only compile. Status flips to 🟢 once TICKET-029 is closed and `ctest -R compiled_orbit` is green.
 
 ---
 
