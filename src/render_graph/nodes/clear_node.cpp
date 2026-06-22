@@ -21,15 +21,25 @@ OwnedFB ClearNode::execute(
     std::span<const FramebufferRef>,
     std::span<const std::optional<raster::BBox>>
 ) {
-    auto* sw_backend = dynamic_cast<SoftwareBackend*>(ctx.services.backend);
-    bool use_dirty_rects = sw_backend && ctx.policy.reuse_prev_framebuffer && false;
+    // WP-6 / TICKET-018 closeout — single SoftwareRenderer-based matcher.  When the
+    //         runtime's backend IS a SoftwareRenderer (the post-Option-C state in which
+    //         SoftwareRenderer : public Renderer, public graph::RenderBackend) the cast
+    //         succeeds and the diagnostic + dirty-rect paths below reach the renderer-
+    //         specific accessors (buffer_ring, framebuffer_hash, etc.).  When it isn't
+    //         (legacy SoftwareBackend subtype, no inheritance relation), sw_renderer is
+    //         null and the paths are gated off — preserves the pre-fix semantics for any
+    //         callers that haven't migrated yet.  See docs/audits/2026-06-software-
+    //         renderer-inventory.md §"dynamic_cast / static_cast verso SoftwareRenderer"
+    //         for the canonical migration off `dynamic_cast<SoftwareBackend*>`.
+    auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(ctx.services.backend);
+    bool use_dirty_rects = sw_renderer && ctx.policy.reuse_prev_framebuffer && false;
     const bool skip_clear = ctx.policy.skip_initial_clear && !use_dirty_rects;
     const uint64_t clear_pixels = ctx.node_exec.clip_rect
         ? static_cast<uint64_t>(std::max(0, ctx.node_exec.clip_rect->x1 - ctx.node_exec.clip_rect->x0)) *
           static_cast<uint64_t>(std::max(0, ctx.node_exec.clip_rect->y1 - ctx.node_exec.clip_rect->y0))
         : static_cast<uint64_t>(ctx.frame_input.width) * static_cast<uint64_t>(ctx.frame_input.height);
 
-    if (sw_backend && ctx.policy.diagnostics_enabled) {
+    if (sw_renderer && ctx.policy.diagnostics_enabled) {
         spdlog::info(
             "[dirty-debug] frame={} Clear reuse_prev={} clip=[{}:{} -> {}:{}] prev_origin=[{},{}] prev_opaque={}",
             static_cast<int>(ctx.frame_input.frame),

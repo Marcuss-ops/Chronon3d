@@ -103,7 +103,16 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     profiling::ProfilingGuard profiling_guard(
         ctx.node_exec.counters, ctx.services.framebuffer_pool.get());
 
-    SoftwareRenderer* sw_renderer = sw_sidecar;
+    // WP-6 / TICKET-018 closeout — audit-prescribed migration
+    //         (`docs/audits/2026-06-software-renderer-inventory.md` §"dynamic_cast /
+    //         static_cast verso SoftwareRenderer" — scene.cpp:106).  Inherits
+    //         gracefully when the runtime's RenderBackend is a SoftwareRenderer
+    //         instance; null otherwise (legacy SoftwareBackend caller ⇒
+    //         renders as if no renderer hint were provided).  The previous
+    //         `= sw_sidecar` referred to a parameter that does not exist on
+    //         `render_scene_via_graph`; this compilation error was one of the
+    //         the pre-existing cascade regressions addressed by TICKET-018.
+    SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
 
     // TICKET-007 - single per-instance seeding point for the DebugConfig
     // pointer.  Every code path that reads `ctx.policy.debug_config`

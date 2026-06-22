@@ -104,7 +104,25 @@ void clear_text_shadow_cache();
  * SoftwareRenderSession, MediaFrameProvider, ImageBackend,
  * CompositionRegistry pointer.
  */
-class SoftwareRenderer : public Renderer {
+// WP-6 / TICKET-018-SR-CAPABILITIES — SoftwareRenderer now also
+// inherits `graph::RenderBackend` (multi-inheritance alongside `Renderer`)
+// so that callers who polymorphically dispatch through `graph::RenderBackend*`
+// (notably `src/render_graph/nodes/multi_source_node.cpp:198`,
+// `src/render_graph/nodes/TextRunNode.cpp:261`, and
+// `include/chronon3d/backends/software/text_run_processor.hpp:50` —
+// all gate text-rendering branches on `backend->capabilities().text_run`)
+// reach the SoftwareRenderer override below rather than RenderBackend's
+// default empty `RenderCapabilities{}` no-op.  The fix resolves the missing-
+// virtual regression that has blocked the captured-framebuffer workflow
+// (PR 6.8.5) since the sentinel-infrastructure commit (fb5980c9) landed on
+// origin/main.  `Renderer` (the abstract non-Backend API in
+// `include/chronon3d/backends/software/renderer.hpp`) does NOT itself
+// inherit from `graph::RenderBackend` — there is no diamond, this is plain
+// multiple inheritance between two unrelated base classes.  vtable impact:
+// a second vptr is added to SoftwareRenderer's storage; no ABI fingerprint
+// test asserts on SoftwareRenderer's size and framebuffer hashes are
+// unaffected.
+class SoftwareRenderer : public Renderer, public graph::RenderBackend {
 public:
     std::shared_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame);
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
