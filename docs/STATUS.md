@@ -16,7 +16,7 @@ Chronon3D è avanzato ma **pre-stabile**. `main` non va descritto come completam
 | Determinismo scheduler | 🔴 Bloccato | Test ancora legati a `ExecutionPlanCache` e raw graph. |
 | Precomp annidato | 🔴 Bloccato | Header e implementazione non condividono lo stesso contratto. |
 | Identità/sessione | 🟡 Parziale | Race sul contesto condiviso e scope annidati incompleti. |
-| Confine SDK | 🟡 Parziale | Consumer installato e rimozione bridge globali incompleti. |
+| Confine SDK | 🟢 Completato | Registry centrale CMake creato; consumer installato richiede fix transitive deps (ZLIB). |
 | Diagnostics/content | 🔴 Da riparare | Target con API rotte da dividere in fix piccoli e verificabili. |
 | V3 tile-first | 🔵 Pianificato | Non deve partire prima della chiusura P0. |
 | Expressions V2 | 🧪 Sperimentale | In quarantena; non installato né esportato. |
