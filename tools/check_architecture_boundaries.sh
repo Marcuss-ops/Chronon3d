@@ -99,7 +99,7 @@ echo "=== Architecture boundary grep checks (WP-0 — 9 checks) ==="
 # Split into runtime/render_session.hpp + software_session_resources.hpp
 # during TICKET-011. The old path must NEVER appear in #include or
 # reference.
-echo -n "  [1/9] core/memory/render_session.hpp  ... "
+echo -n "  [1/11] core/memory/render_session.hpp  ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include.*core/memory/render_session\.hpp' $SCRIPT_PATHS 2>/dev/null || true)
 if [ -n "$hits" ]; then
@@ -111,7 +111,7 @@ else echo "PASS"; fi
 # contents (ExecutionPlanCache, GraphExecutor, SoftwareRegistry,
 # GraphNodeCatalog, EffectCatalog, ExecutionScheduler) now live on
 # runtime::RenderRuntime.
-echo -n "  [2/9] renderer_runtime_resources.hpp   ... "
+echo -n "  [2/11] renderer_runtime_resources.hpp   ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include.*renderer_runtime_resources\.hpp' $SCRIPT_PATHS 2>/dev/null || true)
 if [ -n "$hits" ]; then
@@ -121,7 +121,7 @@ else echo "PASS"; fi
 # ── 3. renderer_cache_state.hpp ───────────────────────────────────────
 # RendererCacheState eliminated in TICKET-011. Its contents (NodeCache,
 # FramebufferPool, CompiledGraphCache) now live on runtime::RenderRuntime.
-echo -n "  [3/9] renderer_cache_state.hpp         ... "
+echo -n "  [3/11] renderer_cache_state.hpp         ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include.*renderer_cache_state\.hpp' $SCRIPT_PATHS 2>/dev/null || true)
 if [ -n "$hits" ]; then
@@ -131,7 +131,7 @@ else echo "PASS"; fi
 # ── 4. clear_per_frame() method (WP-3 PR 3.4 close-out) ────────────────
 # Full-reset shim RETIRED. Migrate callers to `reset_frame_temporaries()`
 # (frame-scoped) or `reset_job()` (full reset).
-echo -n "  [4/9] legacy clear_per_frame() RETIRED ... "
+echo -n "  [4/11] legacy clear_per_frame() RETIRED ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\bclear_per_frame\b' $SCRIPT_PATHS 2>/dev/null || true)
 if [ -n "$hits" ]; then
@@ -142,7 +142,7 @@ else echo "PASS"; fi
 # chronon3d::runtime::ExecutionPlanCache class & header were RETIRED
 # alongside the legacy `GraphExecutor::execute(RenderGraph&, ...)` overloads.
 # This guard enforces zero reintroduction.
-echo -n "  [5/9] plan_cache references RETIRED    ... "
+echo -n "  [5/11] plan_cache references RETIRED    ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\bplan_cache\b' $SCRIPT_PATHS 2>/dev/null || true)
 if [ -n "$hits" ]; then
@@ -160,7 +160,7 @@ else echo "PASS"; fi
 # The single exception is the TICKET-007 canary test file, which names a
 # TEST_CASE after the symbol by string literal (line 118). That reference
 # is the test STUB for the guard itself and is exempt from the guard.
-echo -n "  [6/9] detail::g_debug_config REMOVED    ... "
+echo -n "  [6/11] detail::g_debug_config REMOVED    ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E 'detail::(g_debug_config|set_debug_config)' $SCRIPT_PATHS 2>/dev/null \
     | filter_symbol_in_code_only 'detail::(g_debug_config|set_debug_config)' \
@@ -174,7 +174,7 @@ else echo "PASS"; fi
 # Companion global (asset_registry.hpp). Migrated to per-instance
 # m_assets_root on RenderEngine; legacy global REMOVED. Same comment-strip
 # policy as check #6 applies.
-echo -n "  [7/9] g_default_assets_root REMOVED    ... "
+echo -n "  [7/11] g_default_assets_root REMOVED    ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\bg_default_assets_root\b' $SCRIPT_PATHS 2>/dev/null \
     | filter_symbol_in_code_only '\bg_default_assets_root\b' \
@@ -187,7 +187,7 @@ else echo "PASS"; fi
 # Pre-PR-23 typo: `chrono3d` (missing 'n') vs the correct `chronon3d/`.
 # Original offender: `include/chronon3d/expressions/v2/lexer.hpp` line 9 —
 # since fixed in TICKET-003.  This guard prevents silent reintroduction.
-echo -n "  [8/9] chrono3d typo header RETIRED    ... "
+echo -n "  [8/11] chrono3d typo header RETIRED    ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include[[:space:]]*<chrono3d/' $SCRIPT_PATHS 2>/dev/null || true)
 if [ -n "$hits" ]; then
@@ -202,7 +202,7 @@ else echo "PASS"; fi
 # `core/memory/render_session.hpp` specifically — that is check #1.
 # This guard does NOT validate that sanctioned-include references still
 # resolve to extant files (a separate concern for build-time validation).
-echo -n "  [9/9] core/memory/* within allowlist   ... "
+echo -n "  [9/11] core/memory/* within allowlist   ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include[[:space:]]*<[^>]*core/memory/' $SCRIPT_PATHS 2>/dev/null \
     | grep -Ev "core/memory/${MEMORY_SANCTIONED_RE}" \
@@ -216,7 +216,7 @@ else echo "PASS"; fi
 # green: 06 R2..R5 invariants on SoftwareRenderer (single-backend identity,
 # header LOC <=200, non-local includes <=6, no `dynamic_cast<SoftwareRenderer*>`,
 # no `SoftwareRenderer&` in processor surfaces).
-echo -n "  [10/10] SoftwareRenderer boundaries  ... "
+echo -n "  [10/11] SoftwareRenderer boundaries  ... "
 if [ -x tools/check_software_renderer_boundary.sh ]; then
     if bash tools/check_software_renderer_boundary.sh > /dev/null 2>&1; then
         echo "PASS"
