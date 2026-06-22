@@ -5,6 +5,7 @@
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
+#include <chronon3d/core/scope/execution_scope.hpp>
 #include <chronon3d/render_graph/pipeline/graph_filter.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/runtime/render_session.hpp>
@@ -69,8 +70,10 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
     graph::GraphExecutor executor;
     RenderSession session;
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
-    auto fb = executor.execute(
-        compiled, graph_ctx, session, scheduler);
+    graph::ExecutionScope root_scope(
+        graph::ExecutionScopeKind::Root, session, compiled.graph_instance_id);
+    auto fb = executor.execute_with_scope(
+        compiled, graph_ctx, root_scope, scheduler);
 
     if (!fb) {
         spdlog::error("[bake-layer] Bake failed: layer '{}' produced no framebuffer",
