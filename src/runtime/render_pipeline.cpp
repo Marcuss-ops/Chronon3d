@@ -22,7 +22,9 @@
 
 namespace chronon3d::runtime {
 
-RenderPipeline::RenderPipeline(SoftwareRenderer& renderer, RenderRuntime& runtime) noexcept
+// 06 R3b — SoftwareRenderer passed in by pointer (a single canonical type
+// the RenderPipeline FACADE stores and forwards to graph free functions).
+RenderPipeline::RenderPipeline(SoftwareRenderer* renderer, RenderRuntime& runtime) noexcept
     : m_renderer(renderer), m_runtime(runtime) {}
 
 std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
@@ -37,9 +39,9 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
         m_runtime.node_cache(),
         scene, camera, width, height,
         /*frame=*/0, /*frame_time=*/0.0f,
-        m_renderer.settings(),
-        m_renderer.composition_registry(),
-        m_renderer.video_decoder(),
+        m_renderer->settings(),
+        m_renderer->composition_registry(),
+        m_renderer->video_decoder(),
         30.0f, "scene"
     );
 }
@@ -62,9 +64,9 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
         m_runtime.node_cache(),
         effective, default_camera, width, height,
         /*frame=*/0, /*frame_time=*/0.0f,
-        m_renderer.settings(),
-        m_renderer.composition_registry(),
-        m_renderer.video_decoder(),
+        m_renderer->settings(),
+        m_renderer->composition_registry(),
+        m_renderer->video_decoder(),
         30.0f, "scene"
     );
 }
@@ -75,11 +77,11 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_composition(
     return chronon3d::graph::render_composition_frame(
         m_runtime.backend(),
         m_runtime.node_cache(),
-        m_renderer.settings(),
-        m_renderer.composition_registry(),
-        m_renderer.video_decoder(),
+        m_renderer->settings(),
+        m_renderer->composition_registry(),
+        m_renderer->video_decoder(),
         comp, frame,
-        &m_renderer  /*R3 sidecar*/
+        m_renderer  /*R3 sidecar*/
     );
 }
 
@@ -92,9 +94,9 @@ std::string RenderPipeline::debug_graph(
         m_runtime.node_cache(),
         scene, camera, width, height,
         frame, frame_time,
-        m_renderer.settings(),
-        m_renderer.composition_registry(),
-        m_renderer.video_decoder(),
+        m_renderer->settings(),
+        m_renderer->composition_registry(),
+        m_renderer->video_decoder(),
         30.0f
     );
 }

@@ -2,6 +2,7 @@
 
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>   // graph::RenderFrameInfo
