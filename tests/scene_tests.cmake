@@ -37,6 +37,7 @@ add_executable(chronon3d_scene_tests
     scene/camera/test_camera_descriptor_adapters.cpp
     scene/camera/test_composition_default_camera.cpp   # TICKET-034: CameraDescriptor as canonical default in composition settings
     scene/camera/test_camera_constraints_p5.cpp
+    scene/camera/test_camera_session_checkpoint.cpp   # TICKET-031 — stateful constraint checkpoint + canonical pre-roll
     scene/camera/test_camera_framing_solver.cpp
     scene/camera/test_shot_timeline.cpp
     scene/camera/test_camera_trajectory.cpp
