@@ -202,8 +202,18 @@ inline CenterTextOptions make_preset_base_opts(const std::string& text,
 //    make_default_text_preset_registry() inside the function would otherwise
 //    re-build + re-register all 22 entries 128 times (once per emit). Lifting
 //    to file-scope reduces this to 1 construction. (PR-A4 code-reviewer fix.)
-static const TextPresetRegistry kTextPresetRegistry =
-    make_default_text_preset_registry();
+//
+// Freeze posture: the canonical "default text preset registry" is frozen
+// immediately after the 22 builtin entries seed it — mirrors the camera
+// catalog posture at src/scene/camera/camera_v1/register_camera_v1.cpp:53
+// and EffectCatalog at src/runtime/render_runtime.cpp:117. 16 TEST_CASEs
+// only READ the registry via `kTextPresetRegistry.get(preset_id)`, so
+// the freeze does NOT break the visual harness.
+static const TextPresetRegistry kTextPresetRegistry = []{
+    auto reg = make_default_text_preset_registry();
+    reg.freeze();
+    return reg;
+}();
 
 // ── Build a Composition that applies the named preset at a specific
 //    (ratio, frame) point. `fps` is fixed at 30 to keep the F0/F20/F30/F40

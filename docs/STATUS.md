@@ -67,6 +67,7 @@ Chiude:
 Chiude:
 
 - registry CMake centrale;
+- text-preset registry cleanup sub-PR: TextPresetRegistry confirmed single source of truth (Stage-5 canonical path: `wire_preset_text_run_params(preset_id, spec)` + `AnimatorResolver::compose_for(preset_id)`); freeze() mirrored at PR-A4 fixture (EffectCatalog parity); zero local preset-construction fallbacks outside the registry TU.
 - toolchain/preset vcpkg coerenti;
 - external consumer SDK;
 - baseline osservata e documenti canonici sincronizzati.
