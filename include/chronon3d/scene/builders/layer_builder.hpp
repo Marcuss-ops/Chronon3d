@@ -194,6 +194,52 @@ public:
     /// `std::string{builder.name()}`.
     [[nodiscard]] std::string_view name() const noexcept { return m_layer.name; }
 
+    // ── Test-only inspector: pending text-run entries ─────────────────
+    /// Read-only view of every pending `text_run(...)` entry collected
+    /// by this builder, in insertion order.  Each entry mirrors a
+    /// `PendingTextRun` slot whose `params.animators` vector carries
+    /// the resolved TextAnimatorSpec stack — including any entry pushed
+    /// by the preset registry's `AnimatorResolver` (e.g. the
+    /// `ctc_rich_<preset_id>` anchor for cinematic presets built from
+    /// richly-painted specs).
+    ///
+    /// Intended audience: tests + tooling that need to assert
+    /// pre-build state of the wiring resolver (e.g. Sub-case 29 of
+    /// test_text_preset_registry.cpp — verifies that the resolver
+    /// pushed the wired animator BEFORE the canonical motion-preset
+    /// chain ran).  Returns an empty vector when no `text_run(...)`
+    /// call has been made on this builder (Sub-cases 7-9 use the
+    /// `lb.text(...)` simple-entry path and produce an empty view).
+    ///
+    /// Const-correctness: returns `std::vector<const PendingTextRun*>`
+    /// (raw const-pointers into the internal `m_text_runs` storage).
+    /// The element pointers are `PendingTextRun const*` so the
+    /// type system actually prevents production-code mutation,
+    /// independent of a doc-comment.  Trade-off: loses unique-ownership
+    /// guarantee at the type level (acceptable for a read-only
+    /// inspector — callers cannot drop or rebind the pointed-to
+    /// PendingTextRun via this view).
+    ///
+    /// Lifetime caveat: pointers may be invalidated by any subsequent
+    /// `text_run(...)` call that triggers `m_text_runs` reallocation
+    /// (vector `push_back` can grow the backing storage); capture the
+    /// inspector data immediately and do NOT interleave further
+    /// `text_run` calls between inspector reads.  Pointers are also
+    /// invalidated by destruction of this `LayerBuilder`,
+    /// `reset()`/move-assignment into another instance, or rebuild of
+    /// the underlying vector storage.  The test inspector MUST read
+    /// the returned vector immediately after `text_run(...)` / before
+    /// `build()` to guarantee stability.
+    [[nodiscard]] std::vector<const PendingTextRun*>
+    pending_text_runs() const noexcept {
+        std::vector<const PendingTextRun*> out;
+        out.reserve(m_text_runs.size());
+        for (const auto& up : m_text_runs) {
+            out.push_back(up.get());
+        }
+        return out;  // one small allocation per call; cheap on test path.
+    }
+
     // ── FontEngine ──
     LayerBuilder& font_engine(FontEngine* engine);
     [[nodiscard]] FontEngine* font_engine() const;
