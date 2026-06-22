@@ -55,18 +55,11 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     const int h = comp.height();
     const int rw = static_cast<int>(w * ssaa);
     const int rh = static_cast<int>(h * ssaa);
-    // WP-6 / TICKET-018 closeout — audit-prescribed migration
-    //         (`docs/audits/2026-06-software-renderer-inventory.md` §"dynamic_cast /
-    //         static_cast verso SoftwareRenderer" — composition.cpp:53).  When
-    //         the runtime's RenderBackend IS a SoftwareRenderer (post-Option-C),
-    //         the cast succeeds and downstream renderer-specific accessors
-    //         (e.g. `sw_renderer->dirty_telemetry()` below) reach the right
-    //         object.  When it ISN'T (legacy SoftwareBackend caller), the cast
-    //         nulls and gates inside `if (sw_renderer)` skip.  The sw_sidecar
-    //         parameter remains in the signature for caller compatibility and is
-    //         explicitly `(void)`-suppressed below so -Wunused-parameter stays
-    //         quiet.
-    SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
+    // 06 R3b — `sw_sidecar` is the typed channel from the caller
+    // (the SoftwareRenderer that owns this engine).  Replaces the
+    // previously-rtti-based hack that violated boundary-gate I4.
+    // All downstream software-only branches read `sw_sidecar`
+    // directly; no need to alias to a separate local.
     (void)sw_sidecar;
 
     std::shared_ptr<Framebuffer> render_fb = nullptr;
@@ -242,8 +235,8 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         );
     }
 
-    if (sw_renderer) {
-        sw_renderer->dirty_telemetry().last_layer_count = layer_count;
+    if (sw_sidecar) {
+        sw_sidecar->dirty_telemetry().last_layer_count = layer_count;
     }
 
     if (ssaa > 1.0f) {

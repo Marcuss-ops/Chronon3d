@@ -30,17 +30,9 @@ int dry_run_video_job(const VideoJobPlan& plan) {
     // Try to build the render graph to detect errors early
     try {
         auto renderer = create_renderer(*plan.registry, plan.settings);
-        // WP-6 / TICKET-018 closeout — audit-prescribed migration
-        //         (`docs/audits/2026-06-software-renderer-inventory.md` §
-        //         "dynamic_cast / static_cast verso SoftwareRenderer" — site 6/7,
-        //         video_job_dry_run.cpp:33).  When the constructed renderer IS
-        //         a SoftwareRenderer (post-Option-C) the cast succeeds and the
-        //         dry-run report identifies this; otherwise the line is gated
-        //         off and the dry-run continues without renderer-type hint.
-        auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(renderer.get());
-        if (sw_renderer) {
-            spdlog::info("[dry-run]   Backend: SoftwareRenderer");
-        }
+        // 06 R3b — `create_renderer` returns `std::shared_ptr<SoftwareRenderer>`
+        // (the canonical CLI-side wire).  No dynamic_cast required.
+        spdlog::info("[dry-run]   Backend: SoftwareRenderer");
         cache::NodeCache node_cache;
         auto fb = graph::render_composition_frame(
             *renderer, node_cache, plan.settings, plan.registry,

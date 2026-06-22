@@ -1,3 +1,4 @@
+#include <chronon3d/backends/software/software_registry.hpp>
 // ============================================================================
 // src/backends/software/software_processor_context.cpp
 //

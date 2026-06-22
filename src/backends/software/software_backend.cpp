@@ -2,6 +2,7 @@
 #include <chronon3d/backends/software/software_compositor.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/backends/software/utils/effects/per_pixel_dof.hpp>
+#include <chronon3d/backends/software/text_run_processor.hpp>  // 06 R3b wire-through
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/trace_categories.hpp>
 #include <chronon3d/scene/model/layer/layer_effect.hpp>
@@ -48,12 +49,14 @@ uint64_t clipped_area(int32_t width, int32_t height, const std::optional<raster:
 // ── Construction ──────────────────────────────────────────────────────────
 
 SoftwareBackend::SoftwareBackend(
+    class SoftwareRenderer*            owner,
     RenderCounters&                    counters,
     const RenderSettings&              settings,
     std::shared_ptr<cache::FramebufferPool> pool)
     : m_counters(counters)
     , m_settings(settings)
     , m_framebuffer_pool(std::move(pool))
+    , m_owner(owner)
 {}
 
 SoftwareBackend::~SoftwareBackend() = default;
@@ -137,6 +140,58 @@ void SoftwareBackend::apply_per_pixel_dof(
     const std::optional<raster::BBox>& clip) {
     std::vector<float> depth_vec(depth.begin(), depth.end());
     renderer::apply_per_pixel_dof(framebuffer, depth_vec, dof, lens, clip);
+}
+
+// ── draw_text_run (06 R3b wire-through — routes to renderer::draw_text_run) ─
+//
+// This method forwards into the canonical Blend2D text-run pipeline via
+// `renderer::draw_text_run` (see `text_run_processor.hpp`).  The required
+// `SoftwareProcessorContext` service bundle is sourced from `m_owner`
+// (the orchestrating SoftwareRenderer) using the canonical
+// `make_processor_context(SoftwareRenderer*)` helper.
+//
+// Failure modes:
+//   - `UnsupportedCapability`: Blend2D not enabled at compile time.
+//   - `InvalidInput` / `ExecutionFailure`: propagated from the renderer
+//     (= defects in shape, font, or context).  Loud by design — no silent
+//     zero-glyph renders.
+//
+// Boundary gate: this method's transient `SoftwareRenderer*` back-pointer
+// is a PR-9-compatible TEMPORARY bridge.  R3 (06-stabilization) will
+// source the context directly from `runtime::RenderRuntime` and drop
+// `m_owner`.
+graph::RenderOpResult SoftwareBackend::draw_text_run(
+    Framebuffer& fb,
+    const TextRunShape& shape,
+    const Mat4& model_matrix,
+    float opacity
+) {
+#ifndef CHRONON3D_USE_BLEND2D
+    (void)fb; (void)shape; (void)model_matrix; (void)opacity;
+    return graph::RenderOpResult(graph::RenderBackendError{
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "SoftwareBackend::draw_text_run: Blend2D not enabled at compile time "
+        "(capabilities().text_run gated on CHRONON3D_USE_BLEND2D; see "
+        "software_backend.cpp::capabilities)."
+    });
+#else
+    CHRONON_ZONE_C("backend_draw_text_run", trace_category::kText);
+
+    // Defensive loud-fail — without a renderer context, we cannot build a
+    // SoftwareProcessorContext, and silently rendering zero glyphs is
+    // exactly the silent loud-fail this wire-through is meant to fix.
+    if (m_owner == nullptr) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::InvalidInput,
+            "SoftwareBackend::draw_text_run: owner SoftwareRenderer* is null "
+            "(construction contract violation).  Pass a non-null owner from "
+            "RenderEngine via std::make_unique<SoftwareBackend>(...)."
+        });
+    }
+
+    renderer::TextRunDrawParams params{fb, shape, model_matrix, opacity};
+    return renderer::draw_text_run(make_processor_context(m_owner), params);
+#endif
 }
 
 } // namespace chronon3d

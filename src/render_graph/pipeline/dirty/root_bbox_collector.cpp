@@ -1,3 +1,4 @@
+#include <chronon3d/backends/software/software_registry.hpp>
 // ---------------------------------------------------------------------------
 // dirty/root_bbox_collector.cpp — Scene root node bbox computation
 // ---------------------------------------------------------------------------

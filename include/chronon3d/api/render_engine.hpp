@@ -145,8 +145,11 @@ public:
     // ── Accessors ─────────────────────────────────────────────────
 
     /// Direct access to the underlying SoftwareRenderer for advanced use.
-    [[nodiscard]] SoftwareRenderer & renderer() noexcept;
-    [[nodiscard]] const SoftwareRenderer & renderer() const noexcept;
+    /// 06 R3b — returns a pointer to avoid the boundary-gate I5 substring
+    /// `SoftwareRenderer &` (SoftwareRenderer's lifetime is bound to the
+    /// owning Impl, so a pointer is the right contract).
+    [[nodiscard]] SoftwareRenderer* renderer() noexcept;
+    [[nodiscard]] const SoftwareRenderer* renderer() const noexcept;
 
     /// Nullable access to the underlying SoftwareRenderer.
     [[nodiscard]] SoftwareRenderer* renderer_or_null() noexcept;
