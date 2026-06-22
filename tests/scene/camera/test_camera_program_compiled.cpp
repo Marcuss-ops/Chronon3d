@@ -323,6 +323,109 @@ TEST_CASE("compiled_projection_fov — "
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// §2.A — TICKET-021: variance-preserving dispatch for PoseTracksSource
+// ══════════════════════════════════════════════════════════════════════════
+//
+// The original eval_pose_tracks() in src/scene/camera/camera_v1/camera_program.cpp
+// ran apply_projection_spec() correctly and then unconditionally rewrote:
+//
+//     cam.projection_mode = Camera2_5DProjectionMode::Zoom;
+//     cam.optics_mode     = CameraOpticsMode::Zoom;
+//
+// This wiped out FovProjection and PhysicalLensProjection — the variant
+// decided by descriptor_.base was silently thrown away.  The fix in
+// TICKET-021 dispatches pose-track channels onto the ACTIVE variant only,
+// and never re-states `projection_mode`/`optics_mode` (apply_projection_spec
+// is the single canonical writepoint).  These three tests lock the
+// behaviour: static + projection-variant is unaffected, and the three
+// variant combinations under PoseTracksSource all preserve their mode +
+// carry the right channels.
+
+TEST_CASE("compiled_pose_tracks_fov_no_zoom_override — "
+          "PoseTracksSource + FovProjection: optics_mode MUST stay "
+          "FieldOfView even when pose tracks carry NO fov_deg keys "
+          "(TICKET-021 regression)") {
+    auto desc = make_cam01_base_desc("test.t021.fov_static");
+    desc.base.projection = FovProjection{AnimatedValue<float>{45.0f}};
+    PoseTracksSource pts;
+    // No keyframes on fov_deg / zoom; only position is animated.  The pose
+    // track MUST NOT touch the FovProjection channel when src.fov_deg has
+    // no animation; the base 45 deg value MUST survive.
+    pts.position.key(Frame{0},  Vec3{0.0f, 0.0f, -1500.0f}, Easing::Linear)
+               .key(Frame{60}, Vec3{0.0f, 0.0f, -500.0f},  Easing::Linear);
+    desc.source = pts;
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+    auto cam = eval_at_or_die_cam01(program, session, Frame{30});
+
+    CHECK(cam.optics_mode     == CameraOpticsMode::FieldOfView);
+    CHECK(cam.projection_mode == Camera2_5DProjectionMode::Fov);
+    CHECK(cam.fov_deg == doctest::Approx(45.0f).epsilon(kCam01Eps));
+}
+
+TEST_CASE("compiled_pose_tracks_fov_with_animated_fov — "
+          "PoseTracksSource + FovProjection: animated fov_deg wins AND "
+          "optics_mode stays FieldOfView (TICKET-021 regression)") {
+    auto desc = make_cam01_base_desc("test.t021.fov_animated");
+    desc.base.projection = FovProjection{AnimatedValue<float>{30.0f}};
+    PoseTracksSource pts;
+    // Animated fov_deg: 60 → 30 over 60 frames.  Position is held so the
+    // dolly reading is pure rotation-of-FOV, no parallax noise.
+    pts.fov_deg.key(Frame{0},  60.0f)
+              .key(Frame{60}, 30.0f, Easing::Linear);
+    pts.position.key(Frame{0},  Vec3{0.0f, 0.0f, -1000.0f}, Easing::Linear)
+               .key(Frame{60}, Vec3{0.0f, 0.0f, -1000.0f}, Easing::Linear);
+    desc.source = pts;
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+    // At Frame{30}: 50% linear interpolation between 60 and 30 → 45 deg.
+    auto cam_mid = eval_at_or_die_cam01(program, session, Frame{30});
+    CHECK(cam_mid.optics_mode     == CameraOpticsMode::FieldOfView);
+    CHECK(cam_mid.projection_mode == Camera2_5DProjectionMode::Fov);
+    CHECK(cam_mid.fov_deg == doctest::Approx(45.0f).epsilon(0.01f));
+}
+
+TEST_CASE("compiled_pose_tracks_physical_lens_no_clobber — "
+          "PoseTracksSource + PhysicalLensProjection: optics_mode stays "
+          "PhysicalLens AND descriptor.base.lens MUST NOT overwrite the "
+          "physical lens carried by the projection variant "
+          "(TICKET-021 regression)") {
+    auto desc = make_cam01_base_desc("test.t021.physlens");
+    // Build a sentinel LensModel that differs from base.lens defaults in
+    // focal_length, sensor/crop, and f_stop.  After the fix, every value
+    // must propagate from this descriptor-level lens, NOT from
+    // descriptor.base.lens (50mm / 2.8f / 36x24).
+    LensModel lens = LensPresets::full_frame_85mm();
+    lens.f_stop    = 4.0f;     // sentinel vs default 2.8f
+    desc.base.projection = PhysicalLensProjection{lens};
+    PoseTracksSource pts;
+    // Deliberately no keyframes on zoom / fov_deg — apply_projection_spec
+    // already zeroed them on entry; if eval_pose_tracks forced Zoom or
+    // base.lens afterwards, this snapshot would diverge.
+    pts.position.key(Frame{0},  Vec3{0.0f, 0.0f, -1500.0f}, Easing::Linear)
+               .key(Frame{60}, Vec3{0.0f, 0.0f, -500.0f},  Easing::Linear);
+    desc.source = pts;
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+    auto cam = eval_at_or_die_cam01(program, session, Frame{30});
+
+    CHECK(cam.optics_mode     == CameraOpticsMode::PhysicalLens);
+    CHECK(cam.projection_mode == Camera2_5DProjectionMode::Zoom);
+    // PhysicalLens carries a LensModel; canonical source-of-truth.
+    CHECK(cam.lens.focal_length  == doctest::Approx(85.0f).epsilon(kCam01Eps));
+    CHECK(cam.lens.sensor_width  == doctest::Approx(36.0f).epsilon(kCam01Eps));
+    CHECK(cam.lens.sensor_height == doctest::Approx(24.0f).epsilon(kCam01Eps));
+    CHECK(cam.lens.f_stop        == doctest::Approx(4.0f).epsilon(kCam01Eps));
+    // apply_projection_spec resets cam.zoom / cam.fov_deg to 0 for the
+    // physical projection snapshot; pose tracks MUST NOT pollute them.
+    CHECK(cam.zoom    == doctest::Approx(0.0f).epsilon(kCam01Eps));
+    CHECK(cam.fov_deg == doctest::Approx(0.0f).epsilon(kCam01Eps));
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // §3 — MODIFIER (only IdleOscillation implemented today)
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -800,9 +903,14 @@ TEST_CASE("compiled_cycle_detection_self_loop — "
 TEST_CASE("compiled_fingerprint_identical_content_equal — "
           "two descriptors with identical content hash to same fingerprint") {
     CameraDescriptor desc1 = make_cam01_base_desc("test.fp_id_a");
-    desc1.source = PoseTracksSource{};
-    desc1.source.position.key(Frame{0}, Vec3{0.0f, 0.0f, -1500.0f})
-                          .key(Frame{90}, Vec3{0.0f, 0.0f, -500.0f});
+    // CameraSourceSpec is std::variant; assign the named struct FIRST into
+    // a local so we can drive its keyframes, then promote the local into the
+    // descriptor.  Writing `desc1.source.position.key(...)` is a class of
+    // pre-existing test-file bug (variant has no `position` member).
+    PoseTracksSource pts_a;
+    pts_a.position.key(Frame{0},  Vec3{0.0f, 0.0f, -1500.0f})
+               .key(Frame{90}, Vec3{0.0f, 0.0f, -500.0f});
+    desc1.source = pts_a;
     desc1.constraints.push_back(DampedFollowConstraint{0.3f});
     desc1.orientation = LookAtPoint{Vec3{1.0f, 0.0f, 0.0f}};
 
