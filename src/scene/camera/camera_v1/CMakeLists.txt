@@ -24,4 +24,7 @@ target_sources(chronon3d_scene PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/internal/shutter_pose_sampler.cpp
     # PR1 — CameraDescriptor → compiled CameraProgram compiler.
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_program_compiler.cpp
+    # PR1 — pure adapters from legacy authoring types (CameraMotionParams /
+    #        CameraRig / CameraShotProfile) to CameraDescriptor.
+    ${CMAKE_CURRENT_SOURCE_DIR}/camera_descriptor_adapters.cpp
 )

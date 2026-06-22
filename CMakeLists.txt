@@ -245,7 +245,7 @@ if(CHRONON3D_BUILD_INSTALL_CONSUMER_TEST AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
         # Also forward the parent's CMAKE_PREFIX_PATH so the consumer's
         # standalone configure can locate the vcpkg-installed spdlog; the test
         # script appends (does not overwrite) this on its `cmake` invocation.
-        ENVIRONMENT "CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE};CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}"
+        ENVIRONMENT "CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE};CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH};VCPKG_INSTALLED_DIR=${VCPKG_INSTALLED_DIR};VCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET}"
     )
 endif()
 
@@ -340,7 +340,10 @@ include(CMakePackageConfigHelpers)
 # Public headers — installed verbatim under <prefix>/include/.
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-    FILES_MATCHING PATTERN "*.hpp"
+    FILES_MATCHING
+        PATTERN "*.hpp"
+        PATTERN "*.h"
+        PATTERN "*.def"
 )
 
 # ── Install / Export target list — derived from central registry ─────

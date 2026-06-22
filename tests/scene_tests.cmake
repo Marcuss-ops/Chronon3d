@@ -34,6 +34,7 @@ add_executable(chronon3d_scene_tests
     scene/camera/test_camera_registry.cpp
     scene/camera/test_camera_program.cpp
     scene/camera/test_camera_program_compiled.cpp   # CAM-01 / DOC 04: baseline compiled-path tests
+    scene/camera/test_camera_descriptor_adapters.cpp
     scene/camera/test_camera_constraints_p5.cpp
     scene/camera/test_camera_framing_solver.cpp
     scene/camera/test_shot_timeline.cpp
@@ -70,3 +71,31 @@ endif()
 target_include_directories(chronon3d_scene_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_scene_tests)
 add_test(NAME chronon3d_scene_tests COMMAND chronon3d_scene_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+# ── CAM-DOC 04 — 5 mandatory camera_v1 determinism test categories ──
+# Compiled-execution / parity / golden struct hash / serial-vs-parallel /
+# random-access determinism.  See tests/scene/camera/test_camera_compiled_evaluate.cpp.
+add_executable(chronon3d_camera_compiled_evaluate_tests
+    ${TEST_MAIN}
+    scene/camera/test_camera_compiled_evaluate.cpp
+)
+target_link_libraries(chronon3d_camera_compiled_evaluate_tests PRIVATE
+    chronon3d_sdk chronon3d_sdk_impl chronon3d_scene doctest::doctest)
+target_include_directories(chronon3d_camera_compiled_evaluate_tests PRIVATE ${CMAKE_SOURCE_DIR})
+chronon3d_enable_test_pch(chronon3d_camera_compiled_evaluate_tests)
+add_test(NAME chronon3d_camera_compiled_evaluate_tests
+         COMMAND chronon3d_camera_compiled_evaluate_tests
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+# CAM-DOC 04 architecture boundary gate — shadows the bash script so
+# `ctest -L camera_architecture_gate` runs the lint before any of the
+# scene tests below.  Fails the gate on legacy AnimatedCamera2_5D /
+# CameraRig / SceneBuilder animated_camera usages, tan(fov) outside
+# camera_math/, or compile_camera() in hot paths.  See
+# tools/check_camera_architecture.sh for the rule definitions.
+add_test(NAME chronon3d_camera_architecture_gate
+         COMMAND ${CMAKE_SOURCE_DIR}/tools/check_camera_architecture.sh
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(chronon3d_camera_architecture_gate
+    PROPERTIES LABELS "camera_architecture_gate;gate"
+    TIMEOUT 30)

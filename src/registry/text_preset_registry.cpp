@@ -48,14 +48,11 @@
 // where the builder bodies actually use them.
 //
 // ── content::text::TextSpec ↔ chronon3d::TextSpec bridge ───────────────
-// The header forward-declares `namespace content::text { struct TextSpec; }`
-// to keep the public surface include-light.  The canonical TextSpec
-// actually lives in `chronon3d::TextSpec` (from builder_params.hpp).  We
-// bridge the two by aliasing in this TU only — the std::function
-// signature in the header (`void(..., const content::text::TextSpec&)`)
-// and the lambda parameter type in the .cpp resolve to the same
-// underlying type once the alias is in scope.  External callers that
-// instantiate `chronon3d::TextSpec` can pass it to the Builder unchanged.
+// (TICKET-012) The `content::text::TextSpec` alias lives in
+// `include/chronon3d/registry/text_preset_registry.hpp` (single source
+// of truth).  No per-TU bridge is needed here; the .cpp consumers see
+// identical `TextSpecT = ::chronon3d::content::text::TextSpec` types
+// resolving to `::chronon3d::TextSpec` from `builder_params.hpp`.
 //
 // ── DoD #1 Catalyst → Visual Regression Harness ──────────────────────
 // Each new factory function ships a `// golden-frame-link:` comment naming
@@ -69,32 +66,14 @@
 #include <chronon3d/registry/text_preset_registry.hpp>
 
 #include <chronon3d/registry/text_preset_resolver.hpp>   // Cluster B public API surface
+#include <chronon3d/registry/animator_resolver.hpp>      // TICKET-012 — header-lifted public AnimatorResolver.
 
 #include <chronon3d/scene/builders/scene_builder.hpp>   // full SceneBuilder
 #include <chronon3d/scene/builders/layer_builder.hpp>    // full LayerBuilder
 #include <chronon3d/scene/builders/builder_params.hpp>   // full TextSpec (canonical)
 
 #include <stdexcept>
-#include <type_traits>  // explicit — for static_assert(std::is_same_v<...>) drift guard.
 #include <utility>      // std::move for wire_preset_text_run_params implementation.
-
-// ── content::text::TextSpec alias (private to this TU) ───────────────────
-// Resolves the forward declaration in the registry header.  Without this
-// alias the std::function signature `void(..., const content::text::TextSpec&)`
-// would not match a lambda accepting `const chronon3d::TextSpec&`.
-namespace chronon3d::content::text {
-    using TextSpec = ::chronon3d::TextSpec;
-}
-
-// Drift guard: catch any future divergence between the forward-declared
-// `content::text::TextSpec` and the canonical `chronon3d::TextSpec`
-// (e.g. if someone promotes TextSpec to a different namespace without
-// updating the bridge). A failure here means all std::function Builder
-// signatures in the registry stop matching the lambdas.
-static_assert(
-    std::is_same_v<::chronon3d::content::text::TextSpec, ::chronon3d::TextSpec>,
-    "content::text::TextSpec alias must resolve to canonical chronon3d::TextSpec");
-
 
 namespace chronon3d::registry {
 
@@ -192,6 +171,25 @@ using SceneBuilderT  = ::chronon3d::SceneBuilder;
 using LayerBuilderT  = ::chronon3d::LayerBuilder;
 using TextSpecT      = ::chronon3d::content::text::TextSpec;
 
+// ── Forward declarations (TICKET-012 gcc + PCH workaround) ───────────────────
+// Per C++ [basic.lookup], names declared in a namespace are visible from
+// any point within that namespace body, including before their textual
+// definition.  In standard C++ no forward declaration is required here.
+// However, gcc with `-include cmake_pch.hxx -Winvalid-pch` emits a
+// spurious "'wire_through_resolver' was not declared in this scope"
+// diagnostic when `wire_through_resolver` is reached inside a
+// non-template lambda's operator() body and only appears as a forward
+// reference at that point in the same anonymous namespace.  Empirically
+// the explicit declaration below resolves it.  There is NO C++ rule
+// violation either way; this declaration is purely an empirical
+// workaround for a downstream tooling quirk and can be removed if the
+// underlying gcc issue is ever fixed (or the helper is reordered above
+// its first call site).
+[[nodiscard]] LayerBuilderT&
+wire_through_resolver(LayerBuilderT& lb,
+                      std::string_view preset_id,
+                      const TextSpecT& spec);
+
 
 // ── Cinematic factory functions (PR `41cda40c` — kept verbatim) ────────────
 
@@ -216,10 +214,12 @@ TextPreset animation_compositions_entry() {
     return p;
 }
 
-// ── // (AnimatorResolver moved out of inner anonymous namespace below.)
-// (See definition in chrono3d::registry, just before wire_preset_text_run_params.)
+// ── AnimatorResolver — header-lifted in TICKET-012 ──────────────
+// The struct + its 22-branch `compose_for` table now live in
+// `include/chronon3d/registry/animator_resolver.hpp`.
+// See TICKET-012 in docs/FOLLOWUP_TICKETS.md.
 
-// ── wire_through_resolver — factory-body helper (Cluster A bridge)
+>>>>>>> 56ec4682f54e9e74d132cfc83feeb5d02fb5532f
 
 // ── wire_through_resolver — factory-body helper (Cluster A bridge) ─────────
 // Thin factory-body helper that delegates to the Cluster B public API
@@ -285,11 +285,11 @@ TextPreset cinematic_text_camera_entry() {
         //   so the Stage 4 deterministic probe stays green.
         TextRunParams params;
         params.text = spec;
-        if (AnimatorResolver::spec_is_rich(spec)) {
+        if (::chronon3d::registry::AnimatorResolver::spec_is_rich(spec)) {
             params.animators.push_back(
-                AnimatorResolver::rich_paint_anchor("cinematic_text_camera"));
+                ::chronon3d::registry::AnimatorResolver::rich_paint_anchor("cinematic_text_camera"));
         }
-        if (auto canonical = AnimatorResolver::compose_for("cinematic_text_camera")) {
+        if (auto canonical = ::chronon3d::registry::AnimatorResolver::compose_for("cinematic_text_camera")) {
             params.animators.push_back(*canonical);
         }
         lb.text_run("camera_text", params)
@@ -1004,7 +1004,7 @@ struct AnimatorResolver {
 // Implementation lives in `::chronon3d::registry` namespace (NOT anon)
 // so cross-TU callers — the test harness in tests/test_text_preset_registry.cpp
 // and any downstream Cluster B authoring facade — can link to the
-// external symbol.  The body calls `AnimatorResolver::compose_for()`
+// external symbol.  The body calls `::chronon3d::registry::AnimatorResolver::compose_for()`
 // which is in the anon namespace above; anon-namespace symbols are
 // visible by standard name lookup from the enclosing
 // `::chronon3d::registry` namespace within the same TU (C++ [namespace]).
@@ -1022,7 +1022,7 @@ struct AnimatorResolver {
 TextRunParams
 wire_preset_text_run_params(std::string_view preset_id,
                             TextSpec spec) noexcept {
-    auto composed = AnimatorResolver::compose_for(preset_id);
+    auto composed = ::chronon3d::registry::AnimatorResolver::compose_for(preset_id);
     TextRunParams out;
     out.text = std::move(spec);
     if (composed) {
