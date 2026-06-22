@@ -4,15 +4,19 @@ Piano operativo per portare il repository da pre-stabile a baseline verificata.
 
 ## Documenti
 
-1. [Baseline verde](01-baseline-green.md)
-2. [Determinismo](02-determinism.md)
-3. [Execution scope e Precomp](03-execution-scope-and-precomp.md)
+I documenti nel `stabilization-plan/` sono **checklist operative brevi** che rimandano alla fonte canonica del dettaglio in `docs/`. Ogni work package ha una sola fonte autorevole.
+
+1. [Baseline verde](01-baseline-green.md) → dettaglio: [`docs/01-baseline-green.md`](../01-baseline-green.md)
+2. [Determinismo](02-determinism.md) → dettaglio: [`docs/02-determinism.md`](../02-determinism.md)
+3. [Execution scope e Precomp](03-execution-scope-and-precomp.md) → dettaglio: [`docs/03-execution-scope-and-precomp.md`](../03-execution-scope-and-precomp.md)
 4. [Registry moduli CMake](04-cmake-module-registry.md)
 5. [Confine SDK](05-sdk-plan.md)
 6. [SoftwareRenderer](06-renderer-plan.md)
 7. [Documentazione e ADR](07-documentation-and-adrs.md)
 8. [Profili dipendenze](08-dependency-profiles.md)
 9. [Canonicalizzazione documenti](09-document-canonicalization.md)
+
+I work package 04–09 non hanno duplicati in `docs/` e sono essi stessi fonte canonica.
 
 ## Priorità operative attuali
 

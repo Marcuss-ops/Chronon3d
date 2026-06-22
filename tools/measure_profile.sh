@@ -111,6 +111,7 @@ fi
 
 # -- 4. binary size ---------------------------------------------------------------------
 declare -A bin_sizes
+declare -A bin_paths
 # Advisory metric: SDK archive may live under an OBJECT-library subpath
 # rather than flat under $build_dir. We attempt a flat find first and
 # fall back to a recursive search; size = 0 means "binary was not
