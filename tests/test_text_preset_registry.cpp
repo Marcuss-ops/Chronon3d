@@ -613,8 +613,15 @@ TEST_CASE("TextPresetRegistry: TextAnimator V2 wiring tier (Sub-case 29)") {
         CHECK(pre[0]->name == "camera_text");
         const auto& animators = pre[0]->params.animators;
         REQUIRE(animators.size() >= 1);
-        // Strict prefix match: id starts with "ctc_rich_cinematic_text_camera".
-        CHECK(animators[0].id.rfind("ctc_rich_cinematic_text_camera", 0) == 0);
+        // Strict equality: AnimatorResolver composes the wired id as
+        // "ctc_rich_" + preset_id, where preset_id = "cinematic_text_camera".
+        // The full id is therefore the literal "ctc_rich_cinematic_text_camera"
+        // — strictly stronger than a prefix match (a future resolver extension
+        // that prefixes or suffixes the id would break this CHECK loudly).
+        // If the resolver's id format evolves (e.g. a frame-aware suffix like
+        // "ctc_rich_cinematic_text_camera_f0"), update this test alongside the
+        // resolver — exact-match is a deliberate contract lock.
+        CHECK(animators[0].id == "ctc_rich_cinematic_text_camera");
 
         // ── Build the layer; verify Layer::nodes still materialises. ───
         lb.screen_dimensions(1280.0f, 720.0f);
