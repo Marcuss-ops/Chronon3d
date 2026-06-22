@@ -159,9 +159,23 @@ private:
 };
 
 /// Helper mirroring `make_default_shape_registry()` pattern — populates the
-/// 5 built-in entries seeded from the existing 5 compositions in
-/// `content/anims/compositions/`. Returns the registry fully populated but
-/// UNFROZEN — callers may still register additional presets before freeze().
+/// 22 built-in text presets (Reveal/Emphasis/Subtitle/Cinematic tiers,
+/// per `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md` §Fase 10).
+///
+/// Composition flow (the "compute" step the registry delegates to):
+///   1. `register_builtin_presets(r)` seeds the `TextPreset` table.
+///   2. Run-time consumers call `AnimatorResolver::compose_for(preset_id)`
+///      (in `include/chronon3d/registry/animator_resolver.hpp`) for the
+///      `TextAnimatorSpec` half of the wiring.
+///
+/// Returns the registry fully populated but UNFROZEN — callers may still
+/// register additional presets before `freeze()`.  Production consumers
+/// MUST call `freeze()` after construction (EffectCatalog parity,
+/// enforced at `src/runtime/render_runtime.cpp` for the catalog mirror
+/// and at PR-A4's static-singleton fixture in
+/// `tests/text/test_text_preset_visual.cpp` for the canonical "default
+/// text preset registry" surface today) so `register_preset` throws
+/// `std::runtime_error` on any later mutation attempt.
 TextPresetRegistry make_default_text_preset_registry();
 
 } // namespace chronon3d::registry

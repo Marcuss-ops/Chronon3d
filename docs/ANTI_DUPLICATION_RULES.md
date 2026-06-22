@@ -24,6 +24,7 @@
 | Sampler            | `SamplerRegistry`         | `src/registry/sampler_registry.cpp`   |
 | Shape              | `ShapeRegistry`           | `src/registry/shape_registry.cpp`     |
 | Source             | `SourceRegistry`          | `src/registry/source_registry.cpp`    |
+| Text preset        | `TextPresetRegistry`      | compose via `AnimatorResolver::compose_for`; inspect via `wire_preset_text_run_params` (canonical `custom_preset` path) |
 | Cache generiche    | `LruCache`                | `src/cache/` — no cache ad-hoc       |
 | Errori pubblici    | `Result<T, ChrononError>` | Futuro — oggi eccezioni               |
 | Config motore      | `EngineConfig`            | Futuro — oggi flag sparsi             |
