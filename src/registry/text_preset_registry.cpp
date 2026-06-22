@@ -1,30 +1,64 @@
 // ─── text_preset_registry.cpp — TextPresetRegistry implementation ───────────
 //
-// DoD #1b prerequisite (Cluster A first PR). Mirrors ShapeRegistry /
-// SamplerRegistry / SourceRegistry / EffectCatalog canon (preserved in
-// `include/chronon3d/registry/*` + `src/registry/*`).
+// DoD #1b prerequisite (Cluster A).  Stage 1 (PR `41cda40c`) shipped
+// metadata-only cataloguing of the 5 compositions.  Stage 2 (this PR)
+// fills the no-op builders (TODO(c3d-001)) with real SceneBuilder /
+// LayerBuilder / TextSpec calls after a header audit of:
+//   - `include/chronon3d/scene/builders/scene_builder.hpp`
+//   - `include/chronon3d/scene/builders/layer_builder.hpp`
+//   - `include/chronon3d/scene/builders/builder_params.hpp` (TextSpec)
 //
-// 5 built-in entries seeded from the 5 existing compositions in
-// `content/anims/compositions/`:
-//   - animation_compositions.cpp       — `animation_compositions`     (Cinematic, factories utility)
-//   - cinematic_text_camera.cpp        — `cinematic_text_camera`      (Cinematic, 5 hero comps)
-//   - cinematic_title_reveal.cpp       — `cinematic_title_reveal`     (Cinematic, push-in/tilt titles)
-//   - text_animations.cpp              — `text_animations`            (Reveal, typewriter + emphasis)
-//   - tilt_sweep_title_v2.cpp          — `tilt_sweep_title_v2`        (Cinematic, tilt-sweep blur)
+// 5 built-in entries seeded from the existing compositions in
+// `content/anims/compositions/` + `content/text/`:
+//   - animation_compositions        → Cinematic (utility suite, Reveal+Cinematic mix)
+//   - cinematic_text_camera         → Cinematic (5 hero comps, depth-driven)
+//   - cinematic_title_reveal        → Cinematic (push-in / tilt hero titles)
+//   - text_animations               → Reveal    (typewriter + word-stagger emphasis)
+//   - tilt_sweep_title_v2           → Cinematic (cinematic-push tilt-sweep blur)
 //
-// Builder bodies in questo PR sono no-op (TODO). Il next PR compilerà i
-// bodies dopo aver auditato:
-//   - `include/chronon3d/scene/builders/scene_builder.hpp` (SceneBuilder API)
-//   - `include/chronon3d/scene/builders/layer_builder.hpp` (LayerBuilder API)
-//   - `content/text/text_helpers_centered.hpp` (TextSpec canonical shape)
+// Anti-circular-dependency: this .cpp DOES NOT include any
+// `content/text/text_*.hpp`.  The edge direction canon
+// (content → core/registry, mai viceversa) is preserved.
+// The header `include/chronon3d/registry/text_preset_registry.hpp` stays
+// include-light (forward-decls only); full type definitions of
+// SceneBuilder / LayerBuilder / TextSpec are pulled in here, in the .cpp,
+// where the builder bodies actually use them.
 //
-// Motivo della scelta staged: nessuna dipendenza da content/text/* deve
-// essere introdotta in src/registry/* per preservare l'edge direction canon
-// (content → core/registry, mai viceversa).
+// ── content::text::TextSpec ↔ chronon3d::TextSpec bridge ───────────────
+// The header forward-declares `namespace content::text { struct TextSpec; }`
+// to keep the public surface include-light.  The canonical TextSpec
+// actually lives in `chronon3d::TextSpec` (from builder_params.hpp).  We
+// bridge the two by aliasing in this TU only — the std::function
+// signature in the header (`void(..., const content::text::TextSpec&)`)
+// and the lambda parameter type in the .cpp resolve to the same
+// underlying type once the alias is in scope.  External callers that
+// instantiate `chronon3d::TextSpec` can pass it to the Builder unchanged.
 
 #include <chronon3d/registry/text_preset_registry.hpp>
 
+#include <chronon3d/scene/builders/scene_builder.hpp>   // full SceneBuilder
+#include <chronon3d/scene/builders/layer_builder.hpp>    // full LayerBuilder
+#include <chronon3d/scene/builders/builder_params.hpp>   // full TextSpec (canonical)
+
 #include <stdexcept>
+
+// ── content::text::TextSpec alias (private to this TU) ───────────────────
+// Resolves the forward declaration in the registry header.  Without this
+// alias the std::function signature `void(..., const content::text::TextSpec&)`
+// would not match a lambda accepting `const chronon3d::TextSpec&`.
+namespace chronon3d::content::text {
+    using TextSpec = ::chronon3d::TextSpec;
+}
+
+// Drift guard: catch any future divergence between the forward-declared
+// `content::text::TextSpec` and the canonical `chronon3d::TextSpec`
+// (e.g. if someone promotes TextSpec to a different namespace without
+// updating the bridge). A failure here means all std::function Builder
+// signatures in the registry stop matching the lambdas.
+static_assert(
+    std::is_same_v<::chronon3d::content::text::TextSpec, ::chronon3d::TextSpec>,
+    "content::text::TextSpec alias must resolve to canonical chronon3d::TextSpec");
+
 
 namespace chronon3d::registry {
 
@@ -107,11 +141,19 @@ void TextPresetRegistry::reset() {
 
 // ── register_builtin_presets ────────────────────────────────────────────────
 //
-// Stage 1 (this PR): metadata-only cataloguing of the 5 existing
-// compositions. Builders are no-op std::function (non-null so the test
-// assertion `CHECK(spec.builder != nullptr)` passes, but bodies empty).
-// Stage 2 (next PR, post-baseline-verde) fills bodies after SceneBuilder /
-// LayerBuilder / TextSpec API audit.
+// Stage 2 (this PR): filled bodies using the audited SceneBuilder /
+// LayerBuilder / TextSpec API. Each builder:
+//
+//   1. Sets the user-provided `spec` as the text content via `lb.text(name, spec)`.
+//   2. Chains motion presets that give the preset its identity
+//      (depth_reveal / soft_pop / scale_drop / focus_in / fade_in / float_idle).
+//
+// All motions use only `(f32, Frame [, EasingCurve])` signatures so we
+// avoid constructing `Glow`/`DropShadow` struct literals (which would
+// require pulling additional headers into this TU).  When DoD #1 reaches
+// the 20-preset bar, instances that need polish (glow / shadow / multiple
+// visual effects) will live in their own composition files in `content/`
+// and will be reachable through the same registry.
 
 namespace {
 
@@ -119,54 +161,147 @@ using SceneBuilderT  = ::chronon3d::SceneBuilder;
 using LayerBuilderT  = ::chronon3d::LayerBuilder;
 using TextSpecT      = ::chronon3d::content::text::TextSpec;
 
-template <TextPresetCategory Cat>
-TextPreset make_metadata_entry(std::string id,
-                               std::string display_name,
-                               std::string description) {
+// ────────────────────────────────────────────────────────────────────────
+// 1. animation_compositions — Cinematic utility suite
+//
+//    Identity: depth-reveal push-in + soft-pop settle + subtle float_idle
+//    for hero/dashboard utility that needs the cinematic feel without
+//    camera-lock-in. Mirrors the depth_reveal + float_idle combinations
+//    in `animation_compositions.cpp` DeepParallaxCascade / OrbitHandheldGlow.
+// ────────────────────────────────────────────────────────────────────────
+TextPreset animation_compositions_entry() {
     TextPreset p;
-    p.id            = std::move(id);
-    p.display_name  = std::move(display_name);
-    p.category      = Cat;
-    p.description   = std::move(description);
-    p.builtin       = true;
-    // No-op builder — TODO(c3d-001): implement using verified SceneBuilder
-    // / LayerBuilder / TextSpec APIs (audit post-baseline-verde).
-    p.builder       = []([[maybe_unused]] SceneBuilderT& sb,
-                         [[maybe_unused]] LayerBuilderT& lb,
-                         [[maybe_unused]] const TextSpecT& spec) {
-                           // Implementation deferred to follow-up PR.
-                       };
+    p.id           = "animation_compositions";
+    p.display_name = "Animation compositions utility suite";
+    p.category     = TextPresetCategory::Cinematic;
+    p.description  = "Catalogues helper functions for animation compositions "
+                     "(reveal/tilt/word-shimmer factory). Cinematic depth-reveal "
+                     "+ soft-pop + float_idle motion preset.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        lb.text("anim_comp_text", spec)
+          .depth_reveal(280.0f, Frame{45})
+          .soft_pop(Frame{30})
+          .float_idle(8.0f, Frame{120});
+    };
+    return p;
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// 2. cinematic_text_camera — Cinematic (5 hero comps)
+//
+//    Identity: depth-reveal driven by camera (no float_idle — camera
+//    drives the parallax).  Mirrors DeepParallaxCascade / WhipPanHeroReveal /
+//    RackFocusTitleSwap.  scale_drop + soft_pop keep the entrance sharp.
+// ────────────────────────────────────────────────────────────────────────
+TextPreset cinematic_text_camera_entry() {
+    TextPreset p;
+    p.id           = "cinematic_text_camera";
+    p.display_name = "Cinematic text-camera compositions (5 hero comps)";
+    p.category     = TextPresetCategory::Cinematic;
+    p.description  = "5 hero cinematic compositions (DeepParallaxCascade, "
+                     "WhipPanHeroReveal, OrbitHandheldGlow, RackFocusTitleSwap, "
+                     "AbyssFreefallStagger). Camera-driven depth reveal.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        lb.text("camera_text", spec)
+          .depth_reveal(260.0f, Frame{50})
+          .scale_drop(0.95f, Frame{30})
+          .soft_pop(Frame{24});
+    };
+    return p;
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// 3. cinematic_title_reveal — Cinematic (push-in / tilt variants)
+//
+//    Identity: classic scale_drop push-in + soft_pop settle.  The
+//    fastest clean entrance for hero section titles.  Mirrors the
+//    scene-canonical `cinematic_title_reveal.cpp` family.
+// ────────────────────────────────────────────────────────────────────────
+TextPreset cinematic_title_reveal_entry() {
+    TextPreset p;
+    p.id           = "cinematic_title_reveal";
+    p.display_name = "Cinematic title reveal (push-in/tilt variants)";
+    p.category     = TextPresetCategory::Cinematic;
+    p.description  = "Cinematic title reveal utilities — push-in + tilt "
+                     "variants for hero/section titles with subtle drift.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        lb.text("title_reveal_text", spec)
+          .scale_drop(0.92f, Frame{40})
+          .soft_pop(Frame{30});
+    };
+    return p;
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// 4. text_animations — Reveal (typewriter + emphasis)
+//
+//    Identity: fade_in + scale_drop.  Normalises to the typewriter /
+//    word-stagger / per-glyph emphasis family.  Mirrors the Re-veal
+//    substack of `text_animations.cpp`.
+// ────────────────────────────────────────────────────────────────────────
+TextPreset text_animations_entry() {
+    TextPreset p;
+    p.id           = "text_animations";
+    p.display_name = "Text animations utility (typewriter + emphasis)";
+    p.category     = TextPresetCategory::Reveal;
+    p.description  = "Reveal-oriented text animation utilities — typewriter "
+                     "+ per-glyph emphasis (word pop, scale punch, gradient fill). "
+                     "fade_in + scale_drop entrance.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // fade_in / scale_drop both default to OutCubic, so we omit the
+        // redundant explicit arg here. If a future preset wants a non-default
+        // easing (e.g. bounce or elastic), pass it explicitly.
+        lb.text("reveal_text", spec)
+          .fade_in(Frame{20})
+          .scale_drop(0.95f, Frame{30});
+    };
+    return p;
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// 5. tilt_sweep_title_v2 — Cinematic (tilt-sweep blur)
+//
+//    Identity: scale_drop push-in + focus_in blur ramp (the camera-blur-style
+//    reveal).  Mirrors `tilt_sweep_title_v2.cpp` cinematic push-in family.
+// ────────────────────────────────────────────────────────────────────────
+TextPreset tilt_sweep_title_v2_entry() {
+    TextPreset p;
+    p.id           = "tilt_sweep_title_v2";
+    p.display_name = "Tilt-sweep title v2";
+    p.category     = TextPresetCategory::Cinematic;
+    p.description  = "Tilt-sweep title with cinematic push-in reveal, "
+                     "scale animation, and blur ramp — cross-link "
+                     "tilt_sweep_title preset family.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        lb.text("tilt_sweep_text", spec)
+          .scale_drop(1.08f, Frame{45})
+          .focus_in(2.5f, Frame{30})
+          .soft_pop(Frame{24});
+    };
     return p;
 }
 
 void register_builtin_presets(TextPresetRegistry& r) {
-    // 5 entries mapped from the existing 5 compositions. Each maps to one
-    // canonical category. The mapping is the audit result of 2026-06-22
-    // (cross-ref TICKET-006 expansion in docs/FOLLOWUP_TICKETS.md:762).
-    r.register_preset(make_metadata_entry<TextPresetCategory::Cinematic>(
-        "animation_compositions",
-        "Animation compositions utility suite",
-        "Catalogues helper functions for animation compositions (camera scene builders, reveal/tilt/word-shimmer factory)."));
-
-    r.register_preset(make_metadata_entry<TextPresetCategory::Cinematic>(
-        "cinematic_text_camera",
-        "Cinematic text-camera compositions (5 hero comps)",
-        "5 hero cinematic compositions: DeepParallaxCascade, WhipPanHeroReveal, OrbitHandheldGlow, RackFocusTitleSwap, AbyssFreefallStagger."));
-
-    r.register_preset(make_metadata_entry<TextPresetCategory::Cinematic>(
-        "cinematic_title_reveal",
-        "Cinematic title reveal (push-in/tilt variants)",
-        "Cinematic title reveal utilities — push-in + tilt variants for hero/section titles with subtle drift."));
-
-    r.register_preset(make_metadata_entry<TextPresetCategory::Reveal>(
-        "text_animations",
-        "Text animations utility (typewriter + emphasis)",
-        "Reveal-oriented text animation utilities — typewriter + per-glyph emphasis (word pop, scale punch, gradient fill)."));
-
-    r.register_preset(make_metadata_entry<TextPresetCategory::Cinematic>(
-        "tilt_sweep_title_v2",
-        "Tilt-sweep title v2",
-        "Tilt-sweep title with cinematic push-in reveal, scale animation, and blur ramp — cross-link tilt_sweep_title preset family."));
+    r.register_preset(animation_compositions_entry());
+    r.register_preset(cinematic_text_camera_entry());
+    r.register_preset(cinematic_title_reveal_entry());
+    r.register_preset(text_animations_entry());
+    r.register_preset(tilt_sweep_title_v2_entry());
 }
 
 } // namespace
