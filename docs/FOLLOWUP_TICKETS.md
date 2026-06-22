@@ -1696,3 +1696,83 @@ Vedi `docs/stabilization-plan/01-baseline-green.md` §Working group: Fase 0 clos
 - `tools/install_consumer_test.sh` RC=0 (cross-cut dopo i 2 arch violation fix).
 - `chronon3d_tests_fast` 707/707 verde (TICKET-014 + TICKET-015 + TICKET-016).
 - Cumulatively → DoD #6, #9, #2 sbloccati; Cluster C unblocked.
+
+---
+
+## Working group: Fase 0 closure (WG-FASE0) — 5 ticket di chiusura
+
+> Charter canonico (sponsorship, AC, sequencing, cadence, rischi pre-mortem): sezione `## Working group: Fase 0 closure (WG-FASE0)` di `docs/stabilization-plan/01-baseline-green.md` (commit `91dcb9bd`). I 5 ticket sotto sono gli operational ticket che compongono il WG; devono chiudere insieme per sbloccare `tools/install_consumer_test.sh` + `tools/check_architecture_boundaries.sh` (cross-ref DoD Cluster C: #6 golden test determinismo, #9 Consumer SDK, #2 preset subtitle).
+
+Mapping summary (5 sub-task → 5 ticket):
+
+| # | Sub-task | Ticket | Owner role | Effort | Blocking risk |
+|---|---|---|---|---|---|
+| 1 | Arch violation: forbidden include pattern in `render_session.hpp` | TICKET-012 | Core maintainer | Small (< 1d) | High (blocks CI Gate 5) |
+| 2 | Arch violation: sanction bypass in `core/memory/*` | TICKET-013 | Core maintainer | Small (< 1d) | High (blocks CI Gate 5) |
+| 3 | Test: `test_render_session_reset_and_isolation` concurrent path | TICKET-014 | Runtime maintainer | Medium (1-2d) | Med (blocks DoD #6) |
+| 4 | Test: `backend()` before `attach_backend()` (scene #1) | TICKET-015 | Scene-graph owner | Small (< 1d) | Low |
+| 5 | Test: `backend()` before `attach_backend()` (scene #2) | TICKET-016 | Scene-graph owner | Small (< 1d) | Low |
+
+### TICKET-012
+
+- **Status**: 🔵 Planned
+- **Affected file(s)**: `include/chronon3d/runtime/render_session.hpp`
+- **Discovered-on**: 2026-06-22. Originated from the WG-FASE0 closeout plan chartered on `docs/stabilization-plan/01-baseline-green.md`.
+- **Root cause**: `render_session.hpp` is part of the public `core/*` runtime surface and currently violates one of the architecture boundaries checked by `tools/check_architecture_boundaries.sh`. Likely candidate: private `core/memory/*` header pulled into the canonical runtime header without a sanctioned trait/wrapper, or a retired type assumed instead of the modern pipeline identity.
+- **Suggested fix**: Audit `render_session.hpp` for forbidden include graph, drop the violating include, and route access through a sanctioned trait or move the symbol to the proper module. Add or update an architecture canary in `tests/architecture_tests.cmake`. Re-run `tools/check_architecture_boundaries.sh` and `tools/check_architecture_boundaries_selftest.sh`.
+- **Acceptance criteria**: `tools/check_architecture_boundaries.sh` exits with `rc=0`, the canary is green, no regression in `chronon3d_tests_fast`.
+- **Cross-references**: `AGENTS.md` (architecture rules), `docs/DEFINITION_OF_DONE.md` (machine-verifiable gates), WG-FASE0 charter (sequencing + critical path).
+- **Estimated effort**: Small (< 1d).
+- **Owner role**: Core maintainer.
+
+### TICKET-013
+
+- **Status**: 🔵 Planned
+- **Affected file(s)**: `include/chronon3d/runtime/render_session.hpp` + `include/chronon3d/core/memory/*` consumer sites
+- **Discovered-on**: 2026-06-22. Originated from the WG-FASE0 closeout plan.
+- **Root cause**: A sanctioned include pattern in `core/memory/*` is being bypassed through a secondary indirection that the boundary check does not currently flag, but the second WG-FASE0 violation suggests the original boundary check missed it.
+- **Suggested fix**: Strengthen the boundary check (or add a new sibling canary) to detect the indirect bypass, fix the consumer site to use the sanctioned route, and document the canary in `tests/architecture_tests.cmake`.
+- **Acceptance criteria**: Updated canary exits `rc=0` after the consumer-site fix; no false positives on unrelated modules.
+- **Cross-references**: `tools/check_architecture_boundaries.sh`, `tools/check_architecture_boundaries_selftest.sh`, `tests/architecture_tests.cmake`.
+- **Estimated effort**: Small (< 1d).
+- **Owner role**: Core maintainer.
+
+### TICKET-014
+
+- **Status**: 🔵 Planned
+- **Affected file(s)**: `tests/runtime/test_render_session_reset_and_isolation.cpp` + `src/runtime/render_session.cpp` (concurrent reset path)
+- **Discovered-on**: 2026-06-22. Originated from the WG-FASE0 closeout plan; existing test is known to fail in the concurrent path since baseline first measurement.
+- **Root cause**: Concurrent reset of the `RenderSession` does not fully isolate arena + cache + identity resources; the test exposes a race or stale state across iterations.
+- **Suggested fix**: Refactor the reset path to be arena-bound + cache-aware (use the same isolation pattern adopted in production scope plumbing), add a deterministic stress variant (loop of N resets with single-thread + parallel), and reproduce on the same toolchain as baseline.
+- **Acceptance criteria**: The test exits `rc=0` on first execution; same hash on second execution; no regression in adjacent render session tests; `chronon3d_tests_fast` count unchanged.
+- **Cross-references**: `docs/03-execution-scope-and-precomp.md` (ExecutionScope plumbing), `docs/02-determinism.md` (deterministic contract), `tests/runtime/test_render_session_reset_and_isolation.cpp`.
+- **Estimated effort**: Medium (1-2d).
+- **Owner role**: Runtime maintainer.
+
+### TICKET-015
+
+- **Status**: 🔵 Planned
+- **Affected file(s)**: `tests/scene/*_test.cpp` (scene test #1 calling `RenderRuntime::backend()`) + `include/chronon3d/runtime/render_runtime.hpp` (precondition contract)
+- **Discovered-on**: 2026-06-22. Originated from the WG-FASE0 closeout plan.
+- **Root cause**: Scene test calls `RenderRuntime::backend()` before `attach_backend()`, exposing an undefined-behavior or assertion path; the test must call `attach_backend` first or assert the contract in the runtime header.
+- **Suggested fix**: Fix the test to call `attach_backend(...)` before `backend()` (preferred, no API contract change), or add a documented precondition assertion to `RenderRuntime::backend()` that fails with a clear error.
+- **Acceptance criteria**: Scene test #1 exits `rc=0`; `RenderRuntime::backend()` precondition is documented in the public header; no regression in adjacent scene tests.
+- **Cross-references**: `include/chronon3d/runtime/render_runtime.hpp`, `tests/scene/*_test.cpp`.
+- **Estimated effort**: Small (< 1d).
+- **Owner role**: Scene-graph owner.
+
+### TICKET-016
+
+- **Status**: 🔵 Planned
+- **Affected file(s)**: `tests/scene/*_test.cpp` (scene test #2 same pattern as #1) + scene test scaffolding
+- **Discovered-on**: 2026-06-22. Originated from the WG-FASE0 closeout plan.
+- **Root cause**: Same root cause family as TICKET-015: scene test #2 calls `RenderRuntime::backend()` before `attach_backend()`.
+- **Suggested fix**: Apply the same canonical fix as TICKET-015 (test fix preferred) to scene test #2. If a precondition assertion was added to the public header, ensure it produces a clear, actionable error message.
+- **Acceptance criteria**: Scene test #2 exits `rc=0`; both scene tests use the same `attach_backend`-first pattern; no regression in adjacent scene tests.
+- **Cross-references**: TICKET-015 (precedent), `include/chronon3d/runtime/render_runtime.hpp`, `tests/scene/*_test.cpp`.
+- **Estimated effort**: Small (< 1d).
+- **Owner role**: Scene-graph owner.
+
+### Closing gate
+
+All 5 tickets close together ("WG closure" rule, no partial close): `tools/install_consumer_test.sh` + `tools/check_architecture_boundaries.sh` both exit `rc=0`; `chronon3d_tests_fast` returns 707/707; baselines recorded as `docs/01-baseline-green.md` observation.
