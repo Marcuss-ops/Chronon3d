@@ -41,7 +41,16 @@ constexpr PolicyDefaults kDefaults[] = {
     // in PR 3 (byte budgets).
     { CacheDomain::RenderedFrames,  CacheCapacityUnit::Bytes,   512ULL * 1024ULL * 1024ULL, 2 },  // 512 MiB
     { CacheDomain::VideoFrames,     CacheCapacityUnit::Bytes,   256ULL * 1024ULL * 1024ULL, 2 },  // 256 MiB
-    { CacheDomain::ConvertedFrames, CacheCapacityUnit::Bytes,   128ULL * 1024ULL * 1024ULL, 2 },  // 128 MiB
+    // ── PR-C (TICKET-007.z/.aa) ──────────────────────────────────────────────
+    // ConvertedFrames was byte-weighted (Bytes) but the ConvertedFrameCache
+    // public API takes max_entries (count), so cap=5 meant 5 bytes — too
+    // small to admit any frame payload and caused every insert past the
+    // first to be rejected as oversized.  Switched to Count mode so the
+    // ctor's cap argument matches the LruCache CapacityMode contract used
+    // downstream.  Default bumped from 128 MiB to 256 entries (≈ one wave
+    // of freeze-frame replays + a handful of static-frame conversions —
+    // matches prior testing-suite expectation of 5–10 resident slots).
+    { CacheDomain::ConvertedFrames, CacheCapacityUnit::Entries, 256,                            2 },  // 256 entries
     { CacheDomain::ScenePrograms,   CacheCapacityUnit::Entries,   8,                             2 },
 };
 

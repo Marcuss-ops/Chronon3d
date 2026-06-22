@@ -68,6 +68,20 @@ struct ProjectedPoint {
 //
 // At depth == focal the perspective scale is exactly 1.0.
 inline f32 focal_from_camera(const CameraProjectionSource& camera, f32 viewport_width, f32 viewport_height) {
+    // ── PR-C (TICKET-007.v/.w/.x) ────────────────────────────────────────────
+    // Canonical projection_mode takes priority over optics_mode's zoom
+    // fallback.  Previously a Camera2_5D with projection_mode=Fov but
+    // optics_mode=Zoom (the default) returned camera.get_zoom() = 1000
+    // every time — ignoring the caller's explicit FOV intent.  Now the
+    // Fov formula wins when projection_mode is explicit.
+    if (camera.get_projection_mode() == Camera2_5DProjectionMode::Fov) {
+        const f32 fov_rad = glm::radians(camera.get_fov_deg());
+        if (std::tan(fov_rad * 0.5f) > std::numeric_limits<f32>::epsilon()) {
+            return (viewport_height * 0.5f) / std::tan(fov_rad * 0.5f);
+        }
+        // degenerate FOV → fall through to optics_mode-driven path
+    }
+
     // Canon: switch purely on optics_mode — optics != DoF.
     switch (camera.get_optics_mode()) {
         case CameraOpticsMode::PhysicalLens: {
@@ -90,10 +104,10 @@ inline f32 focal_from_camera(const CameraProjectionSource& camera, f32 viewport_
     if (camera.get_lens().focal_length > 0.0f && camera.get_dof_use_physical_model()) {
         return camera.get_lens().focal_pixels(viewport_width, viewport_height);
     }
-    if (camera.get_projection_mode() == Camera2_5DProjectionMode::Fov) {
-        const f32 fov_rad = glm::radians(camera.get_fov_deg());
-        return (viewport_height * 0.5f) / std::tan(fov_rad * 0.5f);
-    }
+    // ── PR-C: the projection_mode == Fov branch that lived here historically
+    // is unreachable now that the early-return at the top of the function
+    // handles every `projection_mode == Fov` invocation.  Kept the explicit
+    // Zoom default for callers with neither Fov intent nor an explicit zoom.
     return camera.get_zoom();
 }
 

@@ -693,16 +693,16 @@ Rationale for two-PR split: 3a is mechanical (port builtins + add resolver hook 
 |---|---|---|
 | `TICKET-007.a` | `tests/render_graph/nodes/test_mask_node_rg_integration.cpp` | rectangular mask_rect clipping |
 | `TICKET-007.b` | `tests/render_graph/nodes/test_mask_node_rg_integration.cpp` | inverted mask_rect zeroes interior alpha |
-| `TICKET-007.c` | `tests/scene/transform_hierarchy_tests.cpp` | HierarchyResolver cycle detection |
+| `TICKET-007.c` 🔵 deferred → `TICKET-017` | `tests/scene/transform_hierarchy_tests.cpp` | HierarchyResolver cycle detection (high-risk: cross-engaging `scene_hierarchy_resolver` refactor, Fase 5 cross-ref) |
 | `TICKET-007.d` | `tests/scene/layout/test_layer_hierarchy.cpp` | parent position/scale propagation |
 | `TICKET-007.e` | `tests/scene/layout/test_layer_hierarchy.cpp` | parent rotation propagation |
 | `TICKET-007.f` | `tests/scene/layout/test_layer_hierarchy.cpp` | opacity multiplies through parents |
 | `TICKET-007.g` | `tests/scene/layout/test_layer_hierarchy.cpp` | missing parent fallback |
 | `TICKET-007.h` | `tests/scene/camera/test_camera_hierarchy.cpp` | fast target swap detection |
-| `TICKET-007.i` | `tests/scene/camera/test_temporal_samples_pr1.cpp` | frame-keyed jitter differs |
-| `TICKET-007.j` | `tests/scene/camera/test_motion_blur_torture_pr1.cpp` | static framebuffer identical 1↔16 samples |
-| `TICKET-007.k` | `tests/scene/camera/test_motion_blur_torture_pr1.cpp` | semi-transparent layer no dark borders |
-| `TICKET-007.l` | `tests/scene/camera/test_motion_blur_torture_pr1.cpp` | no clipping of fast objects |
+| `TICKET-007.i` 🔵 deferred → `TICKET-018` | `tests/scene/camera/test_temporal_samples_pr1.cpp` | frame-keyed jitter differs (per-frame temporal keying, MotionBlur accumulator input) |
+| `TICKET-007.j` 🔵 deferred → `TICKET-019` | `tests/scene/camera/test_motion_blur_torture_pr1.cpp` | static framebuffer identical 1↔16 samples (MotionBlur static-cluster) |
+| `TICKET-007.k` 🔵 deferred → `TICKET-019` | `tests/scene/camera/test_motion_blur_torture_pr1.cpp` | semi-transparent layer no dark borders (premul-alpha accumulation) |
+| `TICKET-007.l` 🔵 deferred → `TICKET-019` | `tests/scene/camera/test_motion_blur_torture_pr1.cpp` | no clipping of fast objects (sub-frame shutter sampling) |
 | `TICKET-007.m` | `tests/text/test_text_run_builder.cpp` | single paragraph produces single layout |
 | `TICKET-007.n` | `tests/text/test_text_run_builder.cpp` | multiple paragraphs produce multiple layouts |
 | `TICKET-007.o` | `tests/text/test_text_run_builder.cpp` | empty paragraph from consecutive newlines |
@@ -1776,3 +1776,268 @@ Mapping summary (5 sub-task → 5 ticket):
 ### Closing gate
 
 All 5 tickets close together ("WG closure" rule, no partial close): `tools/install_consumer_test.sh` + `tools/check_architecture_boundaries.sh` both exit `rc=0`; `chronon3d_tests_fast` returns 707/707; baselines recorded as `docs/01-baseline-green.md` observation.
+
+---
+
+## TICKET-017 — Re-enable `TICKET-007.c` HierarchyResolver cycle detection (single-PR, post-P0-verde)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned (gate-compliance metadata reflected on the disabled test; underlying cycle-detection algorithm NOT yet fixed) |
+| **Affected file(s)** | `src/scene/model/core/hierarchy_resolver.cpp` (cycle detection algorithm in `resolve_one()` + `compute_depths()` + `ResolvedNode::cycle_detected` flag), `include/chronon3d/scene/model/core/hierarchy_resolver.hpp` (`HierarchyNodeView`/`ResolvedNode` public surface), `tests/scene/transform_hierarchy_tests.cpp` (TEST_CASE `HierarchyResolver: cycle_detection` to re-enable), consumers in `src/scene/model/layer_hierarchy.cpp::resolve_layer_hierarchy` + Fase 5 cross-ref `src/scene/model/scene_hierarchy_resolver.hpp`. |
+| **Discovered during** | PR-C staging audit (this session, 2026-06-22): the audit classified `.c` as impl-side high-risk and confirmed the algorithm\u2019s `HierarchyResolver::resolve_one()` does NOT correctly flag cross-edge cycles — a `A⇄B` 2-node mutual-parent composition returns `cycle_detected = false` for one side. |
+| **Discovered date** | 2026-06-22 |
+| **Parent umbrella** | `TICKET-007.c` (consumes sub-ID `.c`, redirects ownership here). |
+| **Compliance target** | `tools/test_architectural.sh` Section 3 (Anti-skip-senza-ticket) — gate already satisfied via TICKET-007 metadata; this ticket is about **closing the test**, not the gate. |
+| **Defer rationale** | PR-A (`d4e4601c`) + PR-B (pending) + PR-C (this session) all explicitly OUT-OF-SCOPE for `.c`: PR-C\u2019s pre-impl audit flagged `.c` as cross-engaging `scene_hierarchy_resolver` refactor (Fase 5 cross-ref). Single PR requires deep read of (i) `HierarchyResolver` algorithm in `src/scene/model/core/hierarchy_resolver.cpp`, (ii) layered `scene_hierarchy_resolver` consumers, (iii) the previous-generation `TransformResolver3D::resolve()` it replaced — to ensure no regression on Fase 5 scene composition contracts. |
+
+### Symptom
+
+`tests/scene/transform_hierarchy_tests.cpp` is `\* doctest::skip()` with the failure reason:
+
+> **DISABLED**: pre-existing bug — `cycle_detected` returns `false` for an `A⇄B` cycle.
+
+Verbatim test body:
+
+```cpp
+TEST_CASE("HierarchyResolver: cycle detection" * doctest::skip()) {
+    std::vector<TestNode> nodes;
+    Transform3D a; a.parent_name = "b"; a.position = Vec3(10.0f, 0.0f, 0.0f);
+    Transform3D b; b.parent_name = "a"; b.position = Vec3(20.0f, 0.0f, 0.0f);
+    nodes.push_back({"a", a});
+    nodes.push_back({"b", b});
+    auto results = resolve_hierarchy(nodes);
+    REQUIRE(results.size() == 2);
+    CHECK(results[0].cycle_detected);  // ← FAILS: A\u2019s parent walk hits B (cycle) but A.cycle_detected ≠ true
+    CHECK(results[1].cycle_detected);
+}
+```
+
+A 2-node mutual-parent composition (`a.parent="b"`, `b.parent="a"`) is the canonical cycle-detection canary. Currently, one of the two sides does NOT get its `cycle_detected` flag set.
+
+### Root cause analysis (preliminary — full read required in PR)
+
+Reading the canonical impl (lines 49–132 of `src/scene/model/core/hierarchy_resolver.cpp`):
+
+1. `compute_depths()` recurses per node using a `visiting[]` vector to track DFS state. On cycle, it returns depth = 0 ("cycle fallback") but does NOT persist the cycle detection flag back to the resolved result.
+2. `resolve_levels()` iterates `by_depth[d]` per level. `resolve_one()` does set `m_results[index].cycle_detected = true` when the visited state hits `Visiting` (back-edge detection), BUT only flags the side where the recursion re-enters. The upstream-facing side is NOT flagged.
+3. The wrapper `src/scene/model/layer_hierarchy.cpp::resolve_layer_hierarchy` correctly propagates `results[i].cycle_detected` → `out[i].cycle_detected`, so the fix is at the `HierarchyResolver` layer.
+
+Fix in scope: set `cycle_detected = true` on BOTH sides of a back-edge in the cycle branch.
+
+### Out-of-scope rationale for prior cleanup chains
+
+| Cleanup chain | Scope | Why excluded |
+|---|---|---|
+| PR-A (`d4e4601c`) | Text run builder re-enablement | `.c` is scene-hierarchy, not text. No code path overlap. |
+| PR-B (pending, never opened) | Text pipeline + 9 SUBTAS cases | `.c` skips text subtree entirely. |
+| PR-C (this session) | Test cleanup + impl-side fixes for low-risk clusters | `.c` was explicitly classified as **DEFER** in PR-C’s pre-impl audit (high-risk + cross-engaging `scene_hierarchy_resolver`). |
+
+### Suggested fix approach
+
+1. **Deep read pre-requisites** (blocking, before any code edit):
+   - Read `src/scene/model/core/hierarchy_resolver.cpp` end-to-end (374 LOC). Focus on `compute_depths`, `resolve_levels`, `resolve_one`, the DFS state machine, and `ResolvedNode` semantics.
+   - Read `include/chronon3d/scene/model/core/hierarchy_resolver.hpp` to understand `HierarchyNodeView::parent` + `ResolvedNode` public contract. Cycle flag must round-trip through `ResolvedSceneTransforms::insert(...)`.
+   - Read `src/scene/model/scene_hierarchy_resolver.hpp` (Fase 5 cross-ref) and any pipeline callers.
+2. **Impl fix in `HierarchyResolver`**: in `resolve_one()`, when the `state[index] == Visiting` branch fires (cycle detection), propagate `m_results[other_idx].cycle_detected = true` to BOTH sides of the back-edge. Minimum surgical fix.
+3. **Test re-enable**: remove `\* doctest::skip()` from `tests/scene/transform_hierarchy_tests.cpp::HierarchyResolver: cycle_detection`. Replace inline `DISABLED` comment with a `// RE-ENABLED in TICKET-017 (closing .c)` block. Add a sister case for a 3-cycle (`a→b→c→a`) verifying all 3 nodes flagged, AND a non-cycle diamond-dependency fixture (`A→B→D`, `A→C→D`) verifying no false positives.
+4. **Cross-engagement audit**: re-run `tests/scene/layout/test_layer_hierarchy.cpp::Layer hierarchy: self parent is detected and does not crash` (which also exercises the cycle-detected path) to ensure no regression.
+5. **Re-record baseline**: machine-confirm `chronon3d_tests_fast` rc=0 + `test_transform_hierarchy_tests` green before opening PR.
+
+### Acceptance criteria
+
+| Criterion | Verification |
+|---|---|
+| `HierarchyResolver: cycle_detection` exits green — both `results[0]` and `results[1]` have `cycle_detected == true`. | `tests/scene/transform_hierarchy_tests.cpp` exit 0. |
+| New sister case 3-cycle (`a→b→c→a`) flags all 3 nodes. | Sister case in same file; exit 0. |
+| New non-cycle diamond-dependency fixture returns `cycle_detected == false` for all 4 nodes (no false positive). | Sister case in same file; exit 0. |
+| `chronon3d_tests_fast` returns rc=0 — no scene-hierarchy test regressed. | Full binary exit 0. |
+| `docs/FOLLOWUP_TICKETS.md::TICKET-007.c` Status flipped to 🟢 Done with Resolved-at-commit field. | Doc-only follow-up. |
+| `docs/STATUS.md` "Sottosistema scene/model" entry reflects `.c` closed. | Doc-only. |
+
+### Cross-references
+
+- **Parent umbrella**: `TICKET-007` (umbrella at closed-tickets-table).
+- **PR-C audit (this session)**: `.c` classification as **DEFER** (high-risk + cross-engaging `scene_hierarchy_resolver`).
+- **Fase 5 cross-ref**: `docs/camera-plan/01-CANONICAL_CAMERA_ARCHITECTURE.md`, `src/scene/model/scene_hierarchy_resolver.hpp`.
+
+---
+
+## TICKET-018 — Re-enable `TICKET-007.i` temporal frame-keyed jitter (single-PR, post-P0-verde)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned (gate-compliance metadata reflected; underlying `TemporalSampleParams` per-frame keying NOT yet fixed) |
+| **Affected file(s)** | `src/animations/temporal/temporal_samples.cpp` (`generate_temporal_samples()` + jitter seeding state machine), `include/chronon3d/animation/temporal/temporal_samples.hpp` (`TemporalSampleParams` + `TemporalSample` + `TemporalSamplePattern` enum), `tests/scene/camera/test_temporal_samples_pr1.cpp` (TEST_CASE `PR1: temporal::generate_temporal_samples — frame-keyed jitter differs` to re-enable), cross-ref consumers in `src/render_graph/pipeline/composition.cpp::TemporalAccumulation`. |
+| **Discovered during** | PR-C staging audit (this session, 2026-06-22): `.i` classified as impl-side because the test expects `generate_temporal_samples` to produce DIFFERENT sample weights between `Frame{0}` and `Frame{1}` (Stratified pattern with fixed `jitter_seed=42`), but the current impl likely seeds the timeline globally without per-frame keying. |
+| **Discovered date** | 2026-06-22 |
+| **Parent umbrella** | `TICKET-007.i` (consumes sub-ID `.i`, redirects ownership here). |
+| **Defer rationale** | Temporal sample generation is consumed by the motion-blur pipeline (TICKET-019 consumes `.j/.k/.l` cluster). Pre-rebaseline, fixing `.i` in isolation risks breaking the static-frame determinism that `.j` verifies. The two tickets should land together OR `.i` first with explicit cross-test verification. |
+
+### Symptom
+
+`tests/scene/camera/test_temporal_samples_pr1.cpp` is `\* doctest::skip()`:
+
+> **DISABLED**: pre-existing bug — Stratified jitter does not differ across frames.
+
+Verbatim body:
+
+```cpp
+TEST_CASE("PR1: temporal::generate_temporal_samples — frame-keyed jitter differs" * doctest::skip()) {
+    chronon3d::temporal::TemporalSampleParams p;
+    p.pattern = TemporalSamplePattern::Stratified;
+    p.jitter_seed = 42;
+    const auto a = chronon3d::temporal::generate_temporal_samples(p, 8, Frame{0});
+    const auto b = chronon3d::temporal::generate_temporal_samples(p, 8, Frame{1});
+    bool differs = false;
+    for (int i = 0; i < a.num_samples(); ++i) {
+        if (!approx(a.normalized_weights[i], b.normalized_weights[i], 1e-6)) {
+            differs = true;
+            break;
+        }
+    }
+    CHECK(differs);
+}
+```
+
+Contract: with `jitter_seed = 42` fixed across calls, the Stratified pattern\u2019s per-sample `normalized_weights` MUST depend on the input frame. Currently the impl produces frame-invariant weights.
+
+### Root cause analysis (preliminary — full read required)
+
+Hypothesis: `generate_temporal_samples(Params, n_samples, Frame)` uses `Params::jitter_seed` directly to seed the PRNG without XOR-mixing the `Frame` ordinal into the seed. Pseudocode fix:
+
+```cpp
+const uint64_t effective_seed = params.jitter_seed ^ (frame.value() * 0x9E3779B97F4A7C15ULL);
+auto rng = make_stratified_rng(effective_seed, params.num_samples);
+// per-sample weights as before, seeded by effective_seed
+```
+
+Subtleties:
+- **Anti-regression on TICKET-019 `.j`** (static-frame determinism): for a STATIC composition+scene + Frame{0}, all 16 sub-samples must accumulate at the same Frame{0} → no per-frame offset. Same-`Frame` reproducibility must hold (different calls with same Frame = same weights).
+- **Determinism across calls**: stateless per call. No global PRNG drift.
+
+### Out-of-scope rationale for prior cleanup chains
+
+Same as TICKET-017: `.i` is camera/animation subtree, not text; PR-A + PR-B + PR-C all OUT-OF-SCOPE.
+
+### Suggested fix approach
+
+1. **Deep read pre-requisites**:
+   - Read `src/animations/temporal/temporal_samples.cpp` end-to-end.
+   - Read `include/chronon3d/animation/temporal/temporal_samples.hpp` to understand `TemporalSampleParams`, `TemporalSample`, `TemporalSamplePattern` enum.
+   - Read `src/render_graph/pipeline/composition.cpp` to see how `generate_temporal_samples()` is called from the motion-blur accumulator.
+   - Read the static-frame determinism invariant in TICKET-019 (`.j`) so the fix preserves it.
+2. **Impl fix**: per the pseudocode. Mix `Frame::value()` into the seed; keep `params.jitter_seed` as master key so two PRNGs from same `seed + frame` produce identical samples.
+3. **Test re-enable**: remove `\* doctest::skip()` + add a 3-frame distinct-weight sister case.
+4. **Cross-test audit**: re-run `test_motion_blur_torture_pr1.cpp::static framebuffer identical 1↔16 samples` after TICKET-019 lands.
+5. **Re-record**: machine-confirm `chronon3d_tests_fast` rc=0 + relevant test binaries rc=0.
+
+### Acceptance criteria
+
+| Criterion | Verification |
+|---|---|
+| `PR1: temporal::generate_temporal_samples — frame-keyed jitter differs` exits green. | Single test-case PASS. |
+| New sister case: 3 consecutive frames (`{0,1,2}`) produce pairwise-distinct weight sets. | Sister case in same file; exit 0. |
+| Identical-frame reproducibility: 2 calls with same Frame ord = bit-exact weights. | Sister case; exit 0. |
+| Motion-blur torture tests (TICKET-019 `.j/.k/.l` IF landed before) still pass. | Cross-test grep; no REGRESSION. |
+| `tools/test_architectural.sh` Sections 1–5 still PASS. | Single arch-check rc=0. |
+| `docs/FOLLOWUP_TICKETS.md::TICKET-007.i` Status flipped to 🟢 Done. | Doc-only. |
+
+### Cross-references
+
+- Parent umbrella: `TICKET-007.i`.
+- Companion ticket: `TICKET-019` (motion-blur torture; consumes `.j/.k/.l`).
+- `docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md` — timeline determinism contract.
+- `src/render_graph/pipeline/composition.cpp::TemporalAccumulation` — primary consumer.
+
+---
+
+## TICKET-019 — Re-enable `TICKET-007.j/.k/.l` motion-blur torture cluster (single-PR, post-P0-verde)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned (gate-compliance metadata reflected on 3 disabled tests; underlying motion-blur impl cluster NOT yet fixed) |
+| **Affected file(s)** | `src/render_graph/pipeline/composition.cpp` (TemporalAccumulator + sub-frame compositing + shutter window handling), `src/scene/camera/camera_v1/internal/shutter_pose_sampler.hpp` + `shutter_pose_sampler.cpp` (sub-frame pose evaluation), `src/backends/software/processors/software_compositor.cpp` (premul-alpha accumulation path), `src/render_graph/nodes/composite_node.cpp` (upstream wiring), `tests/scene/camera/test_motion_blur_torture_pr1.cpp` (3 TEST_CASE bodies to re-enable). |
+| **Discovered during** | PR-C staging audit (this session, 2026-06-22): the 3-test cluster (`.j` static-frame determinism + `.k` premul-alpha border + `.l` fast-object sub-frame clipping) was classified impl-side + high-risk; all 3 require deep-read of `composition.cpp::TemporalAccumulator` to coordinate fixes. |
+| **Discovered date** | 2026-06-22 |
+| **Parent umbrella** | `TICKET-007.j/.k/.l` (consumes 3 sub-IDs). |
+| **Defer rationale** | The 3 tests cross a non-trivial surface: premul-alpha accumulation (`.k`) + shutter-window sampling (`.l`) + static-frame determinism (`.j`). Fixing in isolation risks regression in any of the other 2. Single-PR convention with deep-read of all three impls is the minimum-risk path. |
+
+### Symptom (cluster)
+
+3 disabled tests with metadata:
+
+- `.j` static-framebuffer determinism: for a STATIC composition+scene, `Mode::TemporalAccumulation` with `samples=1` AND `samples=16` MUST produce byte-equal output to `Mode::Off`. Currently the 16-sample accumulator\u2019s `jitter_seed = 0xC0FFEE` produces different per-sample weights between calls that should be deterministic.
+- `.k` premul-alpha accumulation: a 50%-alpha rect composited over black through 8-sample `TemporalAccumulation+Box` shows dark borders at the rect edges (each sub-frame composites over the original black-each-iteration, without premul-aware blending).
+- `.l` fast-object sub-frame clipping: a small (20×20) object at 100 px/frame through a 256×64 canvas shows clipped edges during the 4-frame shutter window (integer-frame sampling loses sub-frame positions).
+
+### Root cause analysis (preliminary)
+
+Hypotheses:
+- `.j`: `composition.cpp::TemporalAccumulator` fails to suppress per-sample jitter when source-static; per-call jitter RNG fires unconditionally.
+- `.k`: `software_compositor.cpp` uses `(src * src_a + dst * (1-src_a))` accumulator without premul-aware state preservation; edges under-blend across N sub-frames.
+- `.l`: `shutter_pose_sampler.cpp::sample()` uses integer-frame `frame_int → sub_frame_offset` mapping; fractional sub-frame positions aren\u2019t interpolated.
+
+### Out-of-scope rationale
+
+Same as TICKET-017/018.
+
+### Suggested fix approach
+
+1. **Deep read pre-requisites**:
+   - Read `src/render_graph/pipeline/composition.cpp::TemporalAccumulator` end-to-end.
+   - Read `include/chronon3d/scene/model/camera/camera_v1/internal/shutter_pose_sampler.hpp` + `src/scene/camera/camera_v1/internal/shutter_pose_sampler.cpp` for shutter-window pose math.
+   - Read `src/backends/software/processors/software_compositor.cpp::CompositeLayerBlended` for premul-alpha path.
+   - Read `src/render_graph/nodes/composite_node.cpp` for upstream wiring.
+2. **Impl fix per test** (one commit, three logically-coupled changes):
+   - `.j`: hard-suppress sub-frame jitter when `MotionBlurSettings::samples == 1` OR when the source is deterministic-static (zero-motion). The motion_offset_zero branch must yield identity.
+   - `.k`: premul-aware accumulation formula in `software_compositor.cpp`. `accumulator_color = accumulator_color + (src_color * src_alpha - accumulator_color) * blend_factor` preserves color fidelity AND edge alpha.
+   - `.l`: shutter sub-frame position uses `world_position(frame + sub_frame_offset)`, not `world_position(frame_int)`. Sub-frame {0.25, 0.5, 0.75} sampling of the shutter window interpolates correctly.
+3. **Test re-enable**: remove `\* doctest::skip()` from the 3 TEST_CASE bodies + replace `DISABLED` comments with closed-canary notes. No extra tests (existing 3 cover the cluster exhaustively).
+4. **Cross-test audit**: re-run `test_temporal_samples_pr1.cpp` (TICKET-018 companion) — verify cross-cluster determinism preserved.
+5. **Re-record baseline**: machine-confirm `chronon3d_tests_fast` rc=0 + 3 motion-blur torture tests pass across ≥3 consecutive runs.
+
+### Acceptance criteria
+
+| Criterion | Verification |
+|---|---|
+| `PR1-Torture: static framebuffer identical between 1 and 16 samples` exits green; pixel hashes are byte-equal. | tests/scene/camera/test_motion_blur_torture_pr1.cpp exit 0. |
+| `PR1-Torture: semi-transparent layer no dark borders after accumulation` exits green; rect-edge ring ≥80% intensity. | Same test binary; PASS. |
+| `PR1-Torture: no clipping of fast objects across shutter window` exits green; fast-object at sub-frame position shows NO canvas-edge clipping. | Same test binary; PASS. |
+| `tests/scene/camera/test_temporal_samples_pr1.cpp` (TICKET-018 companion) STILL passes if already landed. | Re-run; no REGRESSION marker. |
+| `chronon3d_tests_fast` rc=0 overall. | Full binary exit 0. |
+| `docs/FOLLOWUP_TICKETS.md::TICKET-007.j/.k/.l` Status flipped to 🟢 Done. | Doc-only. |
+| `docs/STATUS.md` "Sottosistema render_graph (motion-blur)" reflects cluster closed. | Doc-only. |
+| Cross-cluster sequencing gate: TICKET-018 (per-frame temporal jitter via tests/scene/camera/test_temporal_samples_pr1.cpp) MUST land BEFORE this ticket. Reason: TICKET-019’s TemporalAccumulator consumes per-sample temporal-jitter input from TICKET-018’s jitter-keying contract. Landing TICKET-019 first risks breaking TICKET-018’s determinism invariants mid-cluster. |  MUST exit rc=0 BEFORE TICKET-019 PR opens. |
+| Cross-cluster verification artifact (concrete log-grep): check  for the literal  line, zero  or  markers, AND exit code 0. Paste a 1-line OK verdict (date + log path) into the PR description. TBD: this manual step will become automated in  after TICKET-018 PR is merged (script consumes the same  artifact). | Manual during PR open; becomes part of future CI gate. |
+
+### Splitting criterion
+
+This ticket deliberately groups 3 root causes (`.j` static-frame determinism + `.k` premul-alpha borders + `.l` fast-object sub-frame clipping) under one umbrella because:
+
+1. All 3 touch `src/render_graph/pipeline/composition.cpp::TemporalAccumulator` — splitting would force 3 PRs to coordinate edits on the same function.
+2. The 3 root causes are algorithmically coupled: `.j` (zero-motion suppression) feeds `.k` (premul-aware accumulation) feeds `.l` (sub-frame shutter sampling). Reversing the implementation order would invert the determinism chain.
+3. The 3 disabled tests share the same fixture (`test_motion_blur_torture_pr1.cpp`) so a single PR surface minimizes rebased test churn.
+
+**When to split**: if pre-read of `TemporalAccumulator` shows that `.k`’s premul-aware formula lives in `software_compositor.cpp` (not the `TemporalAccumulator`), and `.l`’s sub-frame shutter math lives in `shutter_pose_sampler.cpp` (independent of the accumulator), then split into:
+- `TICKET-019a`: re-enable `.j` (temporal-accumulator static-frame suppress).
+- `TICKET-019b`: re-enable `.k` (software-compositor premul accumulation).
+- `TICKET-019c`: re-enable `.l` (shutter-pose-sampler sub-frame interpolation).
+
+Each new sub-ticket would then carry its own Affected-files row + Acceptance criteria row.
+
+**Schema note**: this section is ticket-specific structural metadata, not present in TICKET-002 through TICKET-016 because no prior ticket was cluster-split-worthy. Future single-bug tickets MUST NOT add this H3. Only future cluster tickets (3+ root causes that share one impl surface) MAY inherit it; if a future cluster splits across different impl surfaces, adapt the wording rather than copy verbatim.
+### Cross-references
+
+- Parent umbrella: `TICKET-007.j/.k/.l` (3 sub-IDs).
+- Companion: `TICKET-018` (temporal per-frame jitter; consumed by `.j` accumulator). Land `.i` first OR in same combined PR.
+- `docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md` — shutter-window + sub-frame guarantee contract.
+- `docs/camera-plan/01-CANONICAL_CAMERA_ARCHITECTURE.md` — camera-rig shutter semantics baseline.
+- `src/render_graph/pipeline/composition.cpp::TemporalAccumulator` — primary impl.
+
+### Sequencing hint
+
+Recommended order:
+1. TICKET-018 first (per-frame temporal jitter); verifies motion-blur accumulator input determinism.
+2. TICKET-019 in same PR (or right after TICKET-018), reopening 3 torture tests.
+3. TICKET-017 independently (cycle detection is unbounded by motion-blur).

@@ -92,7 +92,16 @@ TEST_CASE("Camera hierarchy: parent rotation moves the camera around the origin"
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bug — target_b POI resolves to (720,30) instead of (520,40).
 // TODO(chronon3d): fix fast target swap resolution and re-enable.
-TEST_CASE("Camera hierarchy: fast target swap is detected" * doctest::skip()) {
+// TICKET-007.h (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; fast-swap camera hierarchy resolution bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
+// Re-enabled in PR-C after audit confirmed test-only fix (impl
+// resolve_camera_hierarchy correctly resolves target_b world-matrix to
+// (520,40) via detail::world_anchor_point; prior "720,30" symptom was
+// stale comment from a pre-resolver-era local-matrix path).
+TEST_CASE("Camera hierarchy: fast target swap is detected") {
     std::pmr::monotonic_buffer_resource res;
     SceneBuilder s(&res);
 
