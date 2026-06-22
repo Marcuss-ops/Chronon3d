@@ -1,26 +1,102 @@
-# Chronon3D Camera — Integration, Tests e Rimozione Legacy
+# Chronon3D Camera — Integrazione, test e rimozione legacy per parità After Effects
 
 ## Missione
 
-Collegare il sistema camera compilato al normale render path, costruire una baseline verificabile e rimuovere progressivamente le API duplicate senza lasciare bridge permanenti, alias confusi o due comportamenti concorrenti.
+Trasformare il piano camera in una sequenza eseguibile basata sul codice realmente presente su `main`.
 
-Questo documento è il gate finale dei tre work package precedenti.
+Non ricreare componenti già esistenti. Ogni PR deve dichiarare:
 
-## Regola principale
+1. anchor esistente riutilizzato;
+2. gap reale corretto;
+3. duplicazione eliminata;
+4. test aggiornati;
+5. file legacy che possono essere rimossi dopo parity.
 
-Una feature camera non è completata quando compila isolatamente. È completata soltanto quando:
+## Baseline verificata su main
 
-1. viene descritta tramite `CameraDescriptor`;
-2. viene compilata tramite `compile_camera()`;
-3. viene valutata tramite `CameraProgram` e una sessione per-job;
-4. entra nel `SceneBuilder` o nel render pipeline canonico;
-5. produce output verificato;
-6. ha test random-access e sub-frame;
-7. non richiede una seconda API legacy per funzionare.
+### Già presente — non ricreare
+
+- `CameraDescriptor` come authoring canonico;
+- `ProjectionSpec` con Zoom, FOV e PhysicalLens;
+- `LensModel` e `LensPresets`;
+- `CameraCatalog` e preset descriptor;
+- `CameraProgram` e `compile_camera()`;
+- `CameraCompileContext` con cycle detection;
+- fingerprint deterministico del descriptor;
+- `CameraEvaluationDependency`;
+- `StaticCameraSource`, `PoseTracksSource`, `OrbitMotion`, `TrajectoryMotion`;
+- `IdleOscillation` e `HandheldNoise`;
+- `OrientationSpec`, incluso `OrientAlongPath` come tipo;
+- `CameraConstraintSpec`;
+- `EvaluatedProjection`;
+- `CameraProjectionSource`;
+- `camera_projection_contract.hpp`;
+- `ShotTimeline` e transizioni;
+- `CameraSession` e `ShotTimelineSession`;
+- `LayerKind::Camera`;
+- `Layer::visible`, `from`, `duration`, `active_at()`;
+- `Layer::uses_2_5d_projection`;
+- test compiled camera già esistente e già incluso in CMake;
+- adapter descriptor legacy già incluso nel target camera.
+
+### Gap reali — implementare
+
+- consolidare `CameraRigMode` e legacy `RigMode` in un solo `CameraNodeMode`;
+- agganciare il payload `CameraDescriptor` a `LayerKind::Camera` senza side list;
+- compilare active camera dal normale layer stack verso `ShotTimeline`;
+- default camera come normale `CameraDescriptor` di composizione;
+- correggere `PoseTracksSource` che forza Zoom;
+- correggere double look-at nel compiled path;
+- implementare `OrientAlongPath`;
+- applicare Orbit track/dolly nel basis locale;
+- preservare projection/lens/DOF/motion blur/parent nel trajectory path;
+- completare focal X/Y, gate fit, anamorphic e clipping nel projection contract;
+- spostare `CameraFocusMode` nel common contract;
+- evolvere `DepthOfFieldSettings` senza creare un secondo modello;
+- eliminare il legacy motion-blur boolean;
+- propagare diagnostics nella timeline;
+- implementare checkpoint/pre-roll per stateful random-access;
+- estendere i test già esistenti e correggere commenti di copertura non aggiornati.
+
+## Livelli di parità
+
+### AE-Core — P0
+
+- One-Node e Two-Node;
+- Point of Interest;
+- active camera da `LayerKind::Camera`;
+- default composition camera;
+- world layer vs screen layer;
+- Comp Camera come capability effetto;
+- Zoom 1:1;
+- focal length, film size e Angle of View coerenti;
+- focus manuale, POI, layer e LockToZoom;
+- Aperture/F-Stop e Blur Level;
+- Orbit, Track XY, Track Z e Look At Layers.
+
+### AE-Motion — P1
+
+- parenting camera;
+- proprietà animate;
+- più camere e Cut;
+- temporal motion blur;
+- framing Selected/All;
+- random-access parity;
+- import/export descriptor.
+
+### AE-Extended — P2
+
+- stereo derivata da un master program;
+- lens distortion;
+- bokeh fisico;
+- autofocus stateful;
+- formati camera esterni.
+
+Working view e mouse tool restano fuori dal core.
 
 ## Integrazione nel render job
 
-Il render job deve possedere lo stato camera mutabile:
+Usare i tipi di sessione esistenti e aggregarli nel normale render-session state:
 
 ```cpp
 struct CameraRenderState {
@@ -31,378 +107,412 @@ struct CameraRenderState {
 };
 ```
 
-Il nome e la posizione esatta possono seguire l'architettura runtime esistente, ma l'ownership deve restare per-job/per-sessione.
+`CameraRenderState` può essere un campo del render job/session esistente. Non deve diventare un manager globale.
 
-È vietato:
+Regole:
 
-- stato camera globale;
-- sessioni statiche;
-- una sessione condivisa fra render concorrenti;
-- sessioni create dentro i nodi;
-- sessioni create e distrutte per ogni frame quando esistono constraint stateful.
+- una istanza per render job;
+- nessuna sessione statica;
+- nessuna condivisione mutabile fra worker;
+- reset esplicito a inizio render;
+- checkpoint invalidati dal fingerprint;
+- compilazione fuori dall'hot path.
 
-## Integrazione CameraApi e SceneBuilder
+## Active camera con i layer esistenti
 
-Aggiungere un solo percorso moderno:
+Non aggiungere:
+
+- `CameraLayerSpec`;
+- un array camera parallelo;
+- `CameraApi::camera_layers()`;
+- `LayerCameraMode`;
+- un secondo resolver nel renderer.
+
+### Implementazione
+
+1. Il normale authoring layer crea `LayerKind::Camera`.
+2. Il layer contiene/referenzia il `CameraDescriptor` mediante un payload tipizzato dedicato al kind Camera.
+3. Il composition compiler usa il normale ordine layer.
+4. `Layer::active_at()` decide visibilità e intervallo.
+5. La camera topmost attiva viene convertita in segmenti `CameraShot`.
+6. I cambi producono `Cut`.
+7. I gap usano il default `CameraDescriptor` della composizione.
+8. Il render path valuta soltanto la `ShotTimeline` compilata.
+
+## World, screen e Comp Camera
+
+Non creare un nuovo enum layer camera.
+
+- `uses_2_5d_projection == true`: world/2.5D camera-aware.
+- `uses_2_5d_projection == false`: screen/comp space.
+- Comp Camera: capability dichiarata nel descriptor/catalogo effetto esistente.
+
+Tutti consumano lo stesso `Camera2_5D`/`CameraProjectionSource` del frame.
+
+## CameraApi
+
+Mantenere soltanto:
 
 ```cpp
 scene.camera().descriptor(descriptor);
 scene.camera().program(program);
-scene.camera().preset("camera.hero_push", catalog);
+scene.camera().preset("camera.50mm", catalog);
 scene.camera().timeline(timeline);
 ```
 
-### Responsabilità di CameraApi
+Le camera layer passano dal normale layer API.
 
-- selezionare il programma o timeline;
-- non compilare ripetutamente a ogni frame;
-- non possedere stateful session globale;
-- propagare errori di compilazione;
-- produrre diagnostica comprensibile;
-- conservare compatibilità tramite adapter dichiarati, non tramite overload duplicati indefiniti.
+`CameraApi`:
 
-### Responsabilità del render path
-
-- valutare al `SampleTime` richiesto;
-- fornire transform snapshot e viewport;
-- risolvere sessione corretta;
-- gestire stateful pre-roll/checkpoint;
-- propagare la camera valutata alla scena;
-- usare il projection contract canonico;
-- invalidare cache con il fingerprint camera corretto.
+- non compila a ogni frame;
+- non crea sessioni globali;
+- non risolve lo stack layer nel renderer;
+- propaga compile errors e diagnostics.
 
 ## Compilazione fuori dall'hot path
 
-La compilazione camera deve avvenire:
+Consentita:
 
-- durante la compilazione della composizione;
-- durante il caricamento del template;
-- oppure esplicitamente prima del render.
+- composition compile;
+- template load;
+- comando pre-render esplicito.
 
-Non deve avvenire dentro:
+Vietata dentro:
 
 - `render_frame()`;
 - loop tile;
-- singoli nodi;
-- singoli layer;
-- sub-sample motion blur.
-
-Durante il temporal accumulation si rivaluta lo stesso `CameraProgram`; non lo si ricompila.
+- nodo/layer processor;
+- sub-frame motion blur.
 
 ## Cache e fingerprint
 
-Il fingerprint camera deve includere tutti i dati semanticamente rilevanti:
+Il fingerprint descriptor esiste già. Estenderne la copertura quando vengono aggiunti campi canonici:
 
-- source;
-- keyframe e easing;
-- projection variant;
-- lens e gate fit;
-- orientation;
-- modifier;
-- constraint e ordine;
-- failure policy;
-- parent/target reference;
-- motion blur settings;
-- timeline e transition spec;
+- `CameraNodeMode`;
+- focus mode e target;
+- blur level;
+- pixel aspect/anamorphic;
+- camera layer local-time inputs quando la timeline viene compilata;
 - versione del formato compilato.
 
-Non includere:
+Non includere stato sessione, puntatori o identità heap.
 
-- indirizzi di memoria;
-- puntatori;
-- ordine accidentale di allocazione;
-- stato della sessione runtime.
+Separare:
 
-Il programma deve dichiarare se il risultato dipende da:
-
-- solo tempo;
-- transform esterni;
-- history;
-- viewport;
-- asset o metadata esterni.
+- fingerprint del `CameraDescriptor`;
+- fingerprint della `ShotTimeline`/active-camera schedule;
+- checkpoint state, che non è parte del programma immutabile.
 
 ## Diagnostica
 
-Unificare la diagnostica in tipi strutturati:
+Evolvere i tipi diagnostici esistenti. Non creare un secondo canale di errori.
 
-```cpp
-struct CameraDiagnostic {
-    CameraDiagnosticSeverity severity;
-    CameraDiagnosticCode code;
-    std::string message;
-    std::string camera_id;
-    std::optional<i32> shot_index;
-    std::optional<SampleTime> sample_time;
-};
-```
-
-Codici minimi:
+Codici/gap minimi:
 
 - invalid source;
+- empty descriptor id;
 - preset not found;
-- circular preset reference;
-- invalid projection;
-- invalid lens;
-- invalid trajectory;
-- target not found;
-- parent not found;
-- constraint failure;
-- state history unavailable;
+- circular catalog reference;
+- invalid node mode;
+- invalid projection/lens;
+- invalid DOF/focus target;
+- null/empty/zero-duration trajectory;
+- parent/target missing;
+- parent cycle;
+- constraint range/failure;
+- history unavailable;
 - non-finite camera;
 - clipping degeneracy;
-- transition mismatch.
+- transition mismatch;
+- invalid default camera.
 
-Non perdere la diagnostica passando da `CameraProgram` a `ShotTimeline` o dal builder al renderer.
+`ShotTimelineResolver` deve propagare diagnostics dei programmi valutati.
 
 ## Piano test canonico
 
-### Test unitari compiler
+### Suite compiled esistente
 
-Creare e collegare esplicitamente:
+`tests/scene/camera/test_camera_program_compiled.cpp` esiste ed è già incluso in `tests/scene_tests.cmake`.
 
-```text
-tests/scene/camera/test_camera_program_compiled.cpp
-```
+Non ricrearlo.
 
-Copertura minima:
+### Prima attività
 
-- static source;
-- pose tracks;
-- orbit;
-- trajectory;
-- registered preset;
-- preset mancante;
-- ciclo A -> B -> A;
-- projection Zoom;
-- projection FOV;
-- projection PhysicalLens;
-- modifier;
-- orientation;
-- tutti i constraint;
-- failure policy;
-- metadata;
-- fingerprint;
-- invalid descriptor.
+- aggiornare il commento iniziale ormai non allineato al codice;
+- verificare cosa è coperto realmente;
+- aggiungere test mancanti nello stesso file o in file mirati quando il perimetro cresce;
+- non lasciare checklist che dichiarano assenti feature già presenti.
 
-Il file non deve essere soltanto menzionato nei commenti: deve esistere ed essere incluso nel target CMake.
+### Copertura da aggiungere/verificare
 
-### Test projection parity
+- PhysicalLensProjection;
+- HandheldNoise;
+- cycle detection;
+- descriptor fingerprint;
+- CameraEvaluationDependency;
+- One/Two Node canonical mode;
+- PoseTracks non forza Zoom;
+- double-look-at regression;
+- Orbit local basis;
+- trajectory field preservation;
+- OrientAlongPath;
+- DOF focus modes;
+- active camera layer schedule;
+- timeline diagnostics;
+- checkpoint parity.
 
-Costruire una tabella di casi con input e output atteso e verificare che tutte le superfici passino dal contratto canonico.
+## Test semantica After Effects
 
-Confrontare:
+### Node mode
 
-- projection helper;
+- One-Node ignora POI;
+- Two-Node usa POI;
+- roll/pan/tilt locali applicati una volta;
+- conversione dei due enum rig legacy verso il modo canonico.
+
+### Zoom e ottica
+
+- depth = Zoom -> 1.0;
+- depth = 2 × Zoom -> 0.5;
+- descriptor preset e descriptor diretto equivalenti;
+- FOV e PhysicalLens preservati nei PoseTracks;
+- Angle of View coerente;
+- focal X/Y e gate fit.
+
+### DOF
+
+- ManualDistance;
+- LockToZoom;
+- PointOfInterest;
+- TargetLayer;
+- target mancante;
+- Blur Level 0/50/100;
+- LensModel f-stop autorevole;
+- legacy adapter parity.
+
+### Camera operations
+
+- Orbit intorno al POI;
+- Track XY sposta camera e POI;
+- Track Z segue il forward corretto;
+- Look At Selected/All usa il solver canonico.
+
+### Active camera
+
+- solo `LayerKind::Camera`;
+- stack order;
+- `visible`;
+- `from` e `duration`;
+- Cut;
+- default descriptor;
+- local time;
+- world/screen;
+- effect Comp Camera.
+
+## Projection parity
+
+Gli stessi input devono produrre risultati equivalenti in:
+
+- `camera_projection_contract`;
+- `project_world_to_screen`;
 - layer projection;
 - projection context;
 - framing solver;
-- renderer software;
-- debug overlay.
+- software renderer.
 
-### Test golden render
+Usare `EvaluatedProjection` esistente come snapshot condiviso.
 
-Aggiungere scene minime, non content pack pesanti:
+## Golden render
 
-1. one-node static;
-2. two-node look-at;
-3. orbit;
-4. Bézier trajectory;
-5. physical 24mm;
-6. physical 135mm;
-7. rack focus;
-8. motion blur temporal;
-9. shot transition;
-10. framing multi-target.
+Scene minime:
 
-Per ogni scena registrare:
+1. One-Node Zoom;
+2. Two-Node POI;
+3. camera layer switch;
+4. default camera gap;
+5. Orbit;
+6. Track Z;
+7. PhysicalLens wide;
+8. PhysicalLens telephoto;
+9. LockToZoom;
+10. focus target layer;
+11. temporal motion blur;
+12. world content + screen overlay + Comp Camera effect.
 
-- frame specifici;
-- hash deterministico;
-- tolleranza quando necessaria;
-- viewport;
-- frame rate;
-- preset e fingerprint.
+Registrare frame, viewport, frame rate, camera id, descriptor fingerprint e timeline fingerprint.
 
-### Test determinismo
-
-Obbligatori:
+## Determinismo
 
 - seriale vs parallelo;
 - sequenziale vs frame diretto;
 - ordine frame casuale;
-- due render job simultanei;
-- retry dello stesso frame;
-- sub-frame ripetuto;
-- tile vs full frame quando applicabile;
+- due render job;
+- retry;
+- sub-frame;
 - checkpoint restore;
-- cache hit vs cache miss.
-
-### Test API migration
-
-Per ogni adapter legacy mantenuto temporaneamente:
-
-```text
-legacy input -> descriptor adapter -> compiled output
-```
-
-Deve essere confrontato con il risultato legacy atteso fino al momento della rimozione.
-
-Questi test non devono giustificare la permanenza del legacy. Servono soltanto a rendere sicura la migrazione.
+- cache hit vs miss;
+- temporal samples ripetibili;
+- HandheldNoise ripetibile.
 
 ## Gate CI anti-duplicazione
 
-Aggiungere uno script camera boundary, per esempio:
+Aggiungere o estendere `tools/check_camera_architecture.sh`.
 
-```text
-tools/check_camera_architecture.sh
-```
+Il gate deve impedire nuovi:
 
-Il gate deve fallire se trova nuovi utilizzi fuori dalle allowlist di migrazione:
+- `CameraProgramV2` o namespace camera parallelo;
+- camera registry oltre `CameraCatalog`;
+- lens preset registry oltre `CameraCatalog` + helper `LensPresets`;
+- `FocusMode`/DOF struct concorrenti;
+- node-mode enum fuori dal common contract;
+- `CameraLayerSpec`/side list;
+- `LayerCameraMode` parallelo;
+- active-camera resolver nel renderer;
+- projection math fuori dal contract;
+- compiler call nell'hot path;
+- sessioni statiche/globali;
+- evaluator autonomi dei rig;
+- direct `Camera2_5D` authoring nei contenuti moderni.
 
-- nuovi include di `animated_camera_2_5d.hpp` nelle composizioni moderne;
-- nuovi utilizzi di `camera_rig::CameraRig`;
-- nuovi preset che restituiscono `AnimatedCamera2_5D`;
-- nuovi registry camera;
-- nuove funzioni di projection math fuori dal contratto canonico;
-- nuove compilazioni camera dentro hot path;
-- nuove sessioni statiche/globali;
-- nuovi `Camera2_5D` costruiti direttamente nei content pack moderni;
-- nuovi evaluator source separati dal `CameraProgram` canonico.
+Allowlist soltanto per test e directory compatibility esplicita.
 
-Il gate non deve impedire test unitari o file di migrazione esplicitamente allowlisted.
+## Inventario legacy aggiornato
 
-## Inventario legacy obbligatorio
-
-Prima di eliminare file, produrre una tabella aggiornata:
-
-| Elemento | Stato | Sostituto canonico | Adapter | Fase rimozione |
-|---|---|---|---|---|
-| `AnimatedCamera2_5D` | legacy | `PoseTracksSource` | sì, temporaneo | fase 3 |
-| `CameraRig` moderno | migrazione | `OrbitMotion` | sì | fase 2 |
-| `camera_rig::CameraRig` | legacy | `OrbitMotion` | sì, minimo | fase 2 |
-| helper motion imperative | legacy | preset descriptor | sì/no | fase 2 |
-| camera motion registry | rimosso | `CameraCatalog` | no | completato |
-| constraint class hierarchy | rimosso | variant constraint | no | completato |
-| legacy motion blur alias | compatibility | temporal accumulation | sì | fase 3 |
-
-La tabella deve essere aggiornata durante il lavoro. Non dichiarare rimosso ciò che è ancora incluso dallo SDK.
+| Elemento | Stato | Sostituto canonico | Rimozione |
+|---|---|---|---|
+| `AnimatedCamera2_5D` | legacy | `PoseTracksSource` | dopo adapter parity |
+| modern `CameraRig` | migrazione | `OrbitMotion` | dopo parity |
+| `camera_rig::CameraRig` | legacy | `OrbitMotion` | dopo parity |
+| `CameraRigMode` | duplicato | common `CameraNodeMode` | dopo call-site migration |
+| legacy `RigMode` | duplicato | common `CameraNodeMode` | dopo call-site migration |
+| `point_of_interest_enabled` authoring | transitorio | `CameraNodeMode` | runtime-only poi cleanup |
+| `projection_mode` + `optics_mode` | doppio selector transitorio | `ProjectionSpec` compilata | dopo migration |
+| `CameraFocusMode` nel rig | posizione errata | common focus enum | spostare e riusare |
+| legacy DOF `focus_z/aperture/max_blur/use_physical_model` | legacy | `DepthOfFieldSettings` evoluto + `LensModel` | dopo parity |
+| `MotionBlurSettings::enabled` | legacy | `MotionBlurMode` | dopo adapter migration |
+| helper motion imperative | legacy | descriptor/source helper | dopo migration |
+| direct `Camera2_5D` authoring | legacy | `CameraDescriptor` | solo test/compat |
 
 ## Strategia di rimozione
 
-### Fase 1 — Freeze legacy
+### Fase 1 — Freeze
 
-- nessuna nuova feature sulle API legacy;
-- deprecation annotation dove possibile;
-- documentazione indirizzata al percorso compilato;
-- boundary gate in modalità bloccante per nuovi utilizzi.
+- boundary gate;
+- nessuna nuova feature legacy;
+- deprecation annotation;
+- inventario call site.
 
-### Fase 2 — Adapter-only
+### Fase 2 — Canonical extension
 
-- `CameraRig` delega a `OrbitMotion`;
-- `AnimatedCamera2_5D` viene convertita in `PoseTracksSource`;
-- preset legacy restituiscono descriptor tramite adapter;
-- rimuovere implementazioni duplicate dopo parity test.
+- common node mode;
+- focus/DOF consolidation;
+- active camera su LayerKind Camera;
+- source bug fixes;
+- tests.
 
-### Fase 3 — SDK cleanup
+### Fase 3 — Adapter-only
 
-- rimuovere header legacy dallo SDK pubblico;
-- spostare adapter in compatibility package opzionale, se necessario;
-- eliminare alias e typedef non più usati;
-- rimuovere test del comportamento legacy sostituendoli con test adapter/descriptor.
+- rig e AnimatedCamera delegano al descriptor;
+- legacy selectors tradotti una sola volta;
+- parity test.
 
-### Fase 4 — Delete
+### Fase 4 — SDK cleanup
 
-- eliminare file senza call site;
-- eliminare liste CMake residue;
-- eliminare commenti che rimandano a test o percorsi non esistenti;
-- eliminare documentazione duplicata;
-- aggiornare changelog e migration guide.
+- rimuovere header/alias legacy dalla superficie stabile;
+- eventuale compatibility package separato;
+- migrare call site e preset.
+
+### Fase 5 — Delete
+
+- eliminare implementazioni, CMake residue, placeholder e documentazione obsoleta.
+
+## Sequenza PR corretta
+
+### CAM-01 — Baseline test refresh
+
+- aggiornare la suite compiled esistente;
+- correggere commenti stale;
+- aggiungere test per feature già implementate;
+- nessuna nuova architettura.
+
+### CAM-02 — Compiler hardening
+
+- validazioni mancanti;
+- recursive metadata/failure policy;
+- diagnostics;
+- fingerprint coverage.
+
+### CAM-03 — Canonical node mode
+
+- unificare `CameraRigMode` e `RigMode`;
+- aggiungere modo al descriptor;
+- One/Two Node parity;
+- niente nuovo runtime.
+
+### CAM-04 — Projection and DOF fixes
+
+- PoseTracks projection;
+- focal X/Y;
+- DOF/focus consolidation;
+- double look-at.
+
+### CAM-05 — Motion and trajectory
+
+- Orbit basis;
+- trajectory field preservation;
+- OrientAlongPath;
+- Handheld tests.
+
+### CAM-06 — Active camera layers
+
+- payload su `LayerKind::Camera`;
+- stack compiler;
+- default descriptor;
+- Cut timeline.
+
+### CAM-07 — Render integration and state
+
+- render-job sessions;
+- timeline diagnostics;
+- checkpoint/pre-roll;
+- cache.
+
+### CAM-08 — Legacy adapters
+
+- rig/AnimatedCamera delegano al descriptor;
+- parity.
+
+### CAM-09 — Legacy deletion
+
+- SDK/CMake/file cleanup.
+
+Ogni PR parte da `origin/main` aggiornato, resta piccola e non mescola feature con cancellazioni massive.
 
 ## Cosa non fare
 
-- non rinominare il legacy in `V2` lasciando intatta la duplicazione;
-- non introdurre `CameraManager` globale;
-- non creare `CameraProgram2`;
-- non mantenere due cataloghi;
-- non mantenere due modelli di constraint;
-- non aggiungere overload indefiniti per ogni vecchio tipo;
-- non conservare file vuoti come falso segnale di compatibilità;
-- non lasciare commenti che indicano test inesistenti;
-- non rimuovere una API prima che esista adapter, parity test e migrazione dei call site;
-- non mescolare la rimozione legacy con nuove feature cinematografiche nella stessa PR.
-
-## Suddivisione PR consigliata
-
-### CAM-01 — Compiled camera tests
-
-- aggiungere il test compiled mancante;
-- collegarlo a CMake;
-- registrare failure reali;
-- nessuna nuova feature.
-
-### CAM-02 — Compiler validation
-
-- compile context;
-- cycle detection;
-- errori strutturati;
-- metadata e fingerprint.
-
-### CAM-03 — Optics and orientation
-
-- projection variant completa;
-- physical lens;
-- look-at singolo;
-- orient along path.
-
-### CAM-04 — Source parity
-
-- base camera comune;
-- orbit locale;
-- trajectory completa;
-- modifier deterministici.
-
-### CAM-05 — Render integration
-
-- CameraApi moderna;
-- render job session;
-- cache integration;
-- diagnostica.
-
-### CAM-06 — Timeline and state
-
-- transition spec;
-- timeline result;
-- checkpoint/pre-roll;
-- random-access parity.
-
-### CAM-07 — Legacy adapters
-
-- rig -> orbit;
-- animated camera -> pose tracks;
-- preset migration;
-- parity test.
-
-### CAM-08 — Legacy deletion
-
-- rimozione file e include;
-- SDK cleanup;
-- CMake cleanup;
-- documentazione finale.
-
-Ogni PR deve partire da `origin/main` aggiornato, avere un solo obiettivo e non mescolare feature, refactor e cancellazione massiva.
+- non implementare componenti già presenti;
+- non creare una camera AE parallela;
+- non creare side list camera;
+- non creare nuovi lens/focus/node catalogs;
+- non spostare l'active-camera resolution nel renderer;
+- non introdurre GUI nel core;
+- non rimuovere legacy prima di adapter, parity e call-site migration.
 
 ## Definition of Done globale
 
-Il sottosistema camera è considerato canonicalizzato quando:
-
 - `CameraDescriptor -> CameraProgram` è l'unico percorso moderno;
-- `SceneBuilder` e render pipeline usano quel percorso;
-- sessioni camera sono per-job;
-- projection e orientation hanno una sola fonte matematica;
-- motion, trajectory e timeline sono deterministici;
-- test compiled, parity, golden e random-access sono bloccanti;
-- il gate vieta nuove dipendenze legacy;
-- `AnimatedCamera2_5D` e i due rig non mantengono implementazioni autonome;
-- lo SDK non esporta API ritirate;
-- non esistono file placeholder che rimandano a implementazioni o test assenti;
-- documentazione, codice, test e CMake descrivono lo stesso stato.
+- un solo node mode, projection model, lens model, focus mode e DOF model;
+- `LayerKind::Camera` è l'unico camera-layer model;
+- active camera confluisce in `ShotTimeline`;
+- default camera è un normale descriptor;
+- source bug P0 corretti;
+- sessioni per-job;
+- stateful random-access checkpointed;
+- test compiled, parity, golden e determinism bloccanti;
+- boundary gate impedisce regressioni legacy;
+- rig e AnimatedCamera non mantengono evaluator autonomi;
+- codice, CMake, test e documenti descrivono lo stesso stato.
+
+## Riferimento funzionale
+
+Audit del 2026-06-22 contro la documentazione ufficiale Adobe After Effects e contro il `main` corrente di Chronon3D. Le feature Adobe definiscono il comportamento; i tipi e registry esistenti di Chronon3D definiscono l'architettura.
