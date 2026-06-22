@@ -854,6 +854,46 @@ Possible root causes (binary search needed to nail the actual one):
 - The `chronon3d_tests_fast` umbrella target links all its component test executables successfully under `linux-ci`, `linux-lean-dev`, `linux-full-validation`, `linux-asan` presets.
 - If a different preset (e.g., a CI preset without text enabled) makes the dependency optional, the build still configures + builds cleanly without spurious warnings.
 
+### DoD mapping + Cluster A prerequisite role
+
+Questo ticket è il **prerequisite pipelined unblocker** per il Cluster A del DoD primo-milestone (vedi [`docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md` §"Primo milestone produttivo"](TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md)):
+
+| DoD # | Item | Status pre-TICKET-006 | Status post-fix (target) |
+|---|---|---|---|
+| DoD #1 | 20+ preset stabili (Reveal/Emphasis/Cinematic) | 🔴 TICKET-006 blocked + `TextPresetRegistry` canon non esiste | 🟢 `TextPresetRegistry` può essere wireato a `chronon3d_backend_text` correttamente |
+| DoD #2 | 8+ preset subtitle | 🔴 TICKET-007.m/n/o/p gated tests `doctest::skip()` | 🟢 i test subtitle riabilitati possono linkare correttamente |
+| DoD #4 | Styling per parola funzionante | 🔴 test framework path in `tests/text/*.cmake` non buildabile | 🟢 build verde → TextSpan POD (committato `7783668a`) wireable a `TextLayoutEngine::layout_paragraph_with_spans` |
+
+**Vincolo esterno NON risolto da questo ticket**: Fase 0 baseline verde (3 test failures + 2 arch violations, [`docs/stabilization-plan/01-baseline-green.md`](stabilization-plan/01-baseline-green.md) §1/§2/§3 ancora 🔴). TICKET-006 chiude la rot **cmake-linkage**; la baseline verde è un blocker indipendente che richiede PR separati (TICKET-007 + i ticket di chiusura dei 3 test failures).
+
+### Sub-task tracking (mechanical order)
+
+I sub-task sono derivati dalla §"Suggested fix approach" sopra, con verifica dei 6 punti dell'accept criteria come checkpoint obbligatori.
+
+- [ ] **Sub-task 1**: Locate failing test target via `cmake --build build/chronon/linux-ci --target chronon3d_tests_fast -v 2>&1 | grep -E 'FAILED|undefined symbol|/usr/bin/mold|chronon3d_.*_tests'` (precise executable name + file in `tests/*.cmake`).
+- [ ] **Sub-task 2**: Aggiungere `chronon3d_backend_text` al `target_link_libraries` del file identificato, gated da generator expression `$<$<BOOL:${CHRONON3D_USE_BLEND2D}>:chronon3d_backend_text>` (preserva opt-out per preset no-Blend2D).
+- [ ] **Sub-task 3**: Verificare `cmake --build build/chronon/linux-ci --target chronon3d_tests_fast` RC=0.
+- [ ] **Sub-task 4**: Cross-preset validation: `linux-lean-dev`, `linux-full-validation`, `linux-asan` — tutti RC=0 con `chronon3d_backend_text` linkato correttamente.
+- [ ] **Sub-task 5**: Cross-preset validation per preset senza Text (`linux-ci-nocontent`): configure + build pulito senza errori né warnings spuri di dipendenza mancante (il generator expression deve silenciare correttamente l'absence del target).
+- [ ] **Sub-task 6**: Se `chronon3d_backend_text` ha link gaps analoghi downstream (es. mancano `chronon3d_blend2d_paint`, `freetype`, `harfbuzz`), fix nello stesso commit — condividono la stessa root cause.
+
+### Cross-references
+
+- **TICKET-002** (sotto-sezione di questo file): mop-up per `content/text/text_helpers_centered.hpp` (5685 bytes, estratto da `src/text/text_helpers.hpp` ora non più esistente). **NON** incluso nello scope di TICKET-006 — scope decision **(i) JUST the CMake linkage** (single-responsibility PR), mop-up del helper rot resta su commit dedicato a TICKET-002. Questo previene scope creep e mantiene osso del PR focalizzato sul link-time defect.
+- **TICKET-007.m/n/o/p** (sotto-sezione di questo file): subtitle gated tests in `tests/text/test_text_run_builder.cpp` + `tests/text/test_text_unit_map.cpp` (`doctest::skip()`). Chiusura di TICKET-006 NON riabilita automaticamente i TICKET-007.m/n/o/p gated (che richiedono logica di business subtitle + DoD #2 list). Tuttavia TICKET-006 *sblocca* la loro re-enable perché i test potranno ora linkare correttamente contro `chronon3d_backend_text`.
+- **TICKET-020** (CMake guard uniformation, [`docs/NEXT_STEPS.md`](NEXT_STEPS.md)): standardizzazione guard `CHRONON3D_ENABLE_TEXT`/`CHRONON3D_USE_BLEND2D` tra tutti i presets non-profile in `CMakePresets.json`. Il generator expression `$<$<BOOL:${CHRONON3D_USE_BLEND2D}>:chronon3d_backend_text>` qui introdotto è conforme al pattern raccomandato da TICKET-020 quando sarà chiuso (cross-link `AGENTS.md` regola "Ogni nuova feature deve usare il registry, resolver o sampler canonico già esistente").
+
+### Definition of Done machine-verificabile
+
+Riallineamento alla regola [`docs/DEFINITION_OF_DONE.md`](DEFINITION_OF_DONE.md) per-PR (build 3 target + targeted tests + machine-clean exit code). Per TICKET-006 i gate specifici sono:
+
+- `cmake --build build/chronon/linux-ci --target chronon3d_tests_fast` ritorna **RC=0** in ambiente stabile.
+- 0 errori `undefined symbol: chronon3d::segment_bidi_runs(...)` / `shared_font_engine()` / `glyph_atlas_lookup(...)` / `rasterize_text_to_bl_image(...)` / `shape_resolved_run(...)` / `text_run_materialize(...)` nel build log.
+- 0 errori `collect2: error: ld returned 1` (tail del link finale).
+- Stesso RC=0 su `linux-lean-dev`, `linux-full-validation`, `linux-asan` (cross-preset Sub-task 4).
+- Build log non incrementa error count rispetto al baseline pre-fix (378/386 → 386/386 success rate).
+- Sub-task 6: se applicato, link gap analoghi downstream (`blend2d_paint`/`freetype`/`harfbuzz`) chiusi nello stesso commit, verificati RC=0 su 3 preset sopra.
+
 ## TICKET-007 — Remove process-wide `detail::g_debug_config` (P1, ticket #5 from architectural spec)
 
 | Field | Value |
