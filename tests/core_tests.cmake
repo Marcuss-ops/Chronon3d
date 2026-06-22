@@ -79,6 +79,7 @@ add_executable(chronon3d_core_tests
     core/test_execution_scope.cpp
     core/math/test_expression.cpp
     core/math/test_expression_extended.cpp
+    test_text_preset_registry.cpp
     ${CORE_BLEND2D_TESTS}
     media/test_media_placement.cpp
     core/test_result.cpp
