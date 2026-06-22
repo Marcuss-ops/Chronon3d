@@ -1,63 +1,120 @@
 # Chronon3D — Next Steps Reali
 
-Piano operativo per chiudere lo stato pre-stabile del repository.
+Piano operativo per portare il repository da pre-stabile a baseline verificata senza nascondere failure o duplicare architetture.
 
 > Punto di ingresso per agenti: [`../AGENTS.md`](../AGENTS.md)  
-> Checklist operative: [`stabilization-plan/README.md`](stabilization-plan/README.md)
+> Checklist operative: [`stabilization-plan/README.md`](stabilization-plan/README.md)  
+> Incarichi correnti: [`agent-tasks/`](agent-tasks/)
 
-## Ordine obbligatorio
+## Strategia corrente
 
-1. Correggere le false dichiarazioni di baseline verde.
-2. Risolvere i 3 test falliti della baseline core.
-3. Risolvere le 2 violazioni architetturali rilevate dai test di boundary.
-4. Riparare il preset `linux-lean-dev`.
-5. Riparare il consumer SDK e il passaggio della toolchain/prefix vcpkg.
-6. Catturare i golden hash reali ed eliminare i sentinel.
-7. Sincronizzare il piano ExecutionScope con quanto già implementato.
-8. Completare la migrazione scope di Precomp e dei call site legacy.
-9. Rendere canonici i documenti ed eliminare i duplicati.
-10. Avviare il registry centrale dei moduli CMake.
+Il lavoro è diviso in due stream con ownership non sovrapposta.
 
-## Work package
+| Stream | Branch | Ownership |
+|---|---|---|
+| Agente 1 | `codex/agent1-renderer-boundary` | Renderer/backend software, cast, processor context, capability e gate renderer |
+| Agente 2 | `codex/agent2-cmake-sdk-baseline` | Registry CMake, vcpkg/preset, install consumer, full validation e documenti canonici |
 
-- [Baseline](stabilization-plan/01-baseline-green.md)
-- [Determinismo](stabilization-plan/02-determinism.md)
-- [ExecutionScope e Precomp](stabilization-plan/03-execution-scope-and-precomp.md)
-- [Registry CMake](stabilization-plan/04-cmake-module-registry.md)
-- [SDK consumer](stabilization-plan/05-sdk-plan.md)
-- [SoftwareRenderer](stabilization-plan/06-renderer-plan.md)
-- [Documentazione e ADR](stabilization-plan/07-documentation-and-adrs.md)
-- [Profili dipendenze](stabilization-plan/08-dependency-profiles.md)
-- [Canonicalizzazione](stabilization-plan/09-document-canonicalization.md)
+Gli agenti possono iniziare in parallelo. L'Agente 2 deve però fare rebase sul `main` aggiornato dopo il merge dell'Agente 1 prima di registrare la baseline finale.
 
-## Dopo il P0
+## Fase A — Agente 1: confine renderer/backend
 
-- TICKET-002: riparare diagnostics/content a piccoli blocchi, registrando il numero di errori residui dopo ogni modifica.
-- TICKET-006: verificare il build `linux-ci` di `chronon3d_renderer_tests`, quindi uniformare lo stile dei guard CMake.
-- TICKET-005: decidere esplicitamente se ripristinare o rimuovere `keyframes()`, poi aggiornare test e documentazione.
-- TICKET-008: verificare il riuso del compiler con hash, fallback, test e benchmark prima della chiusura definitiva.
-- Expressions V2: completare i gate senza rimuovere anticipatamente la quarantena.
-- **Strategia text/kinetic typography post-P0**: [`docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md`](TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md) (13 fasi, AE-level; ogni fase ha cross-ref alla fonte canonica di dettaglio).
+Documento operativo: [`AGENT_1_RENDERER_BOUNDARY.md`](agent-tasks/AGENT_1_RENDERER_BOUNDARY.md)
+
+Ordine obbligatorio:
+
+1. Inventariare cast e dipendenze dal renderer concreto.
+2. Rimuovere la doppia identità `SoftwareRenderer : Renderer + RenderBackend`.
+3. Rendere `SoftwareBackend` l'unica implementazione software di `graph::RenderBackend`.
+4. Instradare capability e servizi attraverso backend/runtime canonici.
+5. Eliminare `dynamic_cast<SoftwareRenderer*>` e `SoftwareRenderer&` dalle superfici di processo controllate.
+6. Ridurre `software_renderer.hpp` senza creare nuovi bridge paralleli.
+7. Far passare tutte le invarianti del boundary gate.
+8. Rendere il gate CI bloccante.
+9. Validare core e lean.
+
+## Fase B — Agente 2: build, SDK e baseline
+
+Documento operativo: [`AGENT_2_CMAKE_SDK_BASELINE.md`](agent-tasks/AGENT_2_CMAKE_SDK_BASELINE.md)
+
+Ordine obbligatorio:
+
+1. Inventariare tutte le OBJECT library e le liste duplicate.
+2. Introdurre un registry CMake centrale.
+3. Derivare build, aggregazione, install ed export dalla stessa fonte.
+4. Uniformare root vcpkg, toolchain e preset/workflow.
+5. Chiudere il consumer esterno su profili core, text e no-content.
+6. Fare rebase sul `main` contenente il lavoro dell'Agente 1.
+7. Eseguire core, lean, no-content, install consumer e full-validation.
+8. Aggiornare i documenti soltanto con risultati osservati.
+
+## Ordine di merge
+
+1. Review e merge Agente 1.
+2. `git fetch origin` e `git rebase origin/main` sul branch Agente 2.
+3. Riesecuzione completa della validazione da parte dell'Agente 2.
+4. Review e merge Agente 2.
+5. Controllo del commit finale e dei workflow associati.
+
+## File ownership per evitare conflitti
+
+### Agente 1
+
+- `include/chronon3d/backends/software/`
+- `src/backends/software/`
+- runtime e render-graph soltanto per la migrazione del confine
+- test renderer/backend mirati
+- `tools/check_software_renderer_boundary.sh`
+- step renderer in `.github/workflows/gates.yml`
+
+### Agente 2
+
+- root e moduli CMake
+- `cmake/`
+- `CMakePresets.json`
+- `vcpkg.json`
+- install consumer e relativi script/workflow
+- `docs/STATUS.md`
+- `docs/NEXT_STEPS.md`
+- `docs/ROADMAP.md`
+- `docs/stabilization-plan/`
 
 ## Cosa non rifare
 
 - Non reintrodurre `ExecutionPlanCache`.
 - Non reintrodurre executor su `RenderGraph` grezzo.
-- Non creare registry, resolver, sampler o cache paralleli.
+- Non creare registry, resolver, sampler, cache o service locator paralleli.
 - Non costruire `GraphExecutor` dentro i nodi.
-- Non iniziare V3 prima della chiusura P0.
+- Non rendere verde un gate modificandone le soglie per adattarlo al codice rotto.
+- Non disabilitare o saltare test per ottenere una baseline verde.
+- Non iniziare V3 prima della chiusura dei P0.
 - Non promuovere Expressions V2 solo perché compila in modalità opt-in.
+
+## Lavori successivi alla nuova baseline
+
+Dopo il merge dei due stream, rivalutare sul commit verificato:
+
+1. ExecutionScope root/tile/precomp e child arena.
+2. Precomp lease, nested execution e concorrenza.
+3. Riuso del compiled graph con identità per-node corretta.
+4. Diagnostics/content, divisi in ticket piccoli in base agli errori reali residui.
+5. Determinismo seriale/parallelo/tile e golden hash.
+6. Canonicalizzazione dei documenti ancora duplicati.
+7. Strategia text/kinetic typography post-P0: [`TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md`](TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md).
+
+Non mantenere automaticamente ticket storici se la nuova baseline dimostra che sono già chiusi; aggiornarli con prova verificabile.
 
 ## Criteri di chiusura
 
 | Area | Prova richiesta |
 |---|---|
-| Baseline | build obbligatorie e test senza failure |
-| Gate architettura | repository pulito verde e test di regressione verde |
-| Scheduler | golden numerici e test seriale/parallelo/tile ripetuti verdi |
-| Precomp | test cache, lease, nested execution e concorrenza verdi |
-| Scope | child execution non invalida arena o stato del parent |
-| SDK | install, configure, build e run di un consumer esterno |
+| Renderer/backend | single identity, nessun cast vietato, capability corrette |
+| Gate renderer | exit zero e step CI bloccante |
 | CMake | un solo registry da cui derivano build, install ed export |
-| CI | esito richiesto registrato sul commit di chiusura |
-| Documenti | una sola fonte canonica per area |
+| Toolchain | preset locali e CI usano lo stesso contratto vcpkg |
+| SDK | install, configure, build e run di consumer esterni |
+| Baseline | core, lean, no-content e full validation registrati sullo stesso commit |
+| Documenti | `STATUS`, `NEXT_STEPS`, `ROADMAP` e stabilization plan coerenti |
+| Git | branch aggiornati, PR mirate, cronologia verificata dopo push |
+
+Un'attività è completata soltanto quando codice, test, gate e documenti riportano lo stesso stato.
