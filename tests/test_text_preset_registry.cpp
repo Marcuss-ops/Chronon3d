@@ -73,6 +73,13 @@
 // facade.  Declared in <chronon3d/registry/text_preset_resolver.hpp>.
 #include <chronon3d/registry/text_preset_resolver.hpp>
 
+// TICKET-012 — header-lifted AnimatorResolver (peer header of text_preset_resolver.hpp).
+// Sub-case 32 calls AnimatorResolver::compose_for / rich_paint_anchor / spec_is_rich
+// DIRECTLY from this test TU (without going through the factory-body pipeline) so
+// the header-lift's PRIMARY contract — "callable from any TU" — has a structural
+// compile-time guard, not just indirect coverage via the registry factory body.
+#include <chronon3d/registry/animator_resolver.hpp>
+
 // ── Stage-2/3 full type defs required by invocation tests ─────────────
 // The builder bodies now use the real SceneBuilder / LayerBuilder /
 // TextSpec APIs.  The test must include their full defs to instantiate
@@ -978,5 +985,88 @@ TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
             wire_preset_text_run_params("fade_in", std::move(movable));
         CHECK(moved_params.text.content.value == original_value);
         CHECK(moved_params.animators.size() == 1);
+    }
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────
+// TIER H — AnimatorResolver direct-call coverage (Sub-case 32, TICKET-012)
+// ─────────────────────────────────────────────────────────────────────────
+// TICKET-012 header-lifts `struct AnimatorResolver` from a private
+// anonymous namespace in `src/registry/text_preset_registry.cpp` into a
+// public header (`include/chronon3d/registry/animator_resolver.hpp`).
+// Sub-cases 30 + 31 already exercise the resolver indirectly via the
+// factory-body pipeline (SUBCASE 30) and the public
+// `wire_preset_text_run_params` entry point (SUBCASE 31).  Sub-case 32
+// locks the header-lift's PRIMARY contract — *any TU that includes
+// the new header reaches the same resolver table without include-
+// transitive reliance on the registry impl TU*.  Without Sub-case 32,
+// TICKET-012's acceptance criterion (b) ("callable from any TU") is
+// unproven; with it, the test TU is itself a structural compile-time
+// guard for the header-lift.
+//
+// If the header-lift BROKE, the cross-TU coverage would manifest as
+// either:
+//   (i)   'AnimatorResolver has not been declared' at compile time
+//         (test TU fails to compile; CI surfaces red at compile step,
+//         before any run-time tuple is exercised), or
+//   (ii)  silent shadow by a same-named symbol from a transitive
+//         include path — caught by 32b + 32c strict id-format checks.
+TEST_CASE("TextPresetRegistry: TICKET-012 AnimatorResolver direct-call coverage (Sub-case 32)") {
+
+    SUBCASE("32a) compose_for returns std::nullopt for unknown ids + minimal_white (Stage 5 fail-safe)") {
+        CHECK_FALSE(AnimatorResolver::compose_for("phantom_unknown_id").has_value());
+        CHECK_FALSE(AnimatorResolver::compose_for("").has_value());
+        // minimal_white is the ONLY preset with no canonical motion in
+        // Stage 5 — the resolver should fail-safe to nullopt so the
+        // factory body falls back to plain `lb.text(...)`.
+        CHECK_FALSE(AnimatorResolver::compose_for("minimal_white").has_value());
+    }
+
+    SUBCASE("32b) compose_for returns 'presetc_<preset_id>' id format for known ids (one per category)") {
+        // One sample per category + the tracking_close discriminator.
+        for (const auto& pid : {"fade_in", "word_pop", "cinematic_text_camera",
+                                "minimal_white", "caption_box", "tilt_sweep_title_v2",
+                                "tracking_close"}) {
+            CAPTURE(pid);
+            const auto opt = AnimatorResolver::compose_for(pid);
+            if (std::string{pid} == "minimal_white") {
+                CHECK_FALSE(opt.has_value());  // Stage 5 fail-safe.
+                continue;
+            }
+            REQUIRE(opt.has_value());
+            CHECK(opt->id == ("presetc_" + std::string{pid}));
+            CHECK(opt->enabled);
+        }
+    }
+
+    SUBCASE("32c) rich_paint_anchor returns 'ctc_rich_<preset_id>' id + OpacityProperty{1.0f} + GlyphSelector") {
+        const auto rich = AnimatorResolver::rich_paint_anchor("cinematic_text_camera");
+        CHECK(rich.id == "ctc_rich_cinematic_text_camera");           // strict id-format contract.
+        CHECK(rich.enabled);
+        // OpacityProperty{1.0f} presence per Stage 4 design (drift guard).
+        bool opacity_present = false;
+        for (const auto& p : rich.properties) {
+            if (std::holds_alternative<OpacityProperty>(p)) { opacity_present = true; break; }
+        }
+        CHECK(opacity_present);
+        // Global glyph selector with Square shape (Stage 4 design).
+        REQUIRE_FALSE(rich.selectors.empty());
+        CHECK(rich.selectors[0].unit == TextSelectorUnit::Glyph);
+        CHECK(rich.selectors[0].shape == TextSelectorShape::Square);
+    }
+
+    SUBCASE("32d) spec_is_rich dispatches on rich-paint signals (stroke / fill / stroke_style)") {
+        CHECK_FALSE(AnimatorResolver::spec_is_rich(make_test_text_spec()));         // plain — no rich paint.
+        CHECK(AnimatorResolver::spec_is_rich(make_chronon_rich_text_spec()));      // rich — stroke_enabled = true.
+    }
+
+    SUBCASE("32e) compile-time anchor — direct AnimatorResolver:: access from this test TU (smoke)") {
+        // This SUBCASE exists as a compile-time + minimal-runtime smoke
+        // anchor.  The structural coverage above (32a–32d) COMPILES ONLY
+        // IF the header-lift's primary contract holds.  The body has no
+        // runtime semantics beyond anchoring the chain — the structural
+        // assertions live in 32a–32d.
+        CHECK(true);
     }
 }

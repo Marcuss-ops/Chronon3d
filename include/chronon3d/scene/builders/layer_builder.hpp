@@ -199,9 +199,11 @@ public:
     /// by this builder, in insertion order.  Each entry mirrors a
     /// `PendingTextRun` slot whose `params.animators` vector carries
     /// the resolved TextAnimatorSpec stack — including any entry pushed
-    /// by the preset registry's `AnimatorResolver` (e.g. the
-    /// `ctc_rich_<preset_id>` anchor for cinematic presets built from
-    /// richly-painted specs).
+    /// by the preset registry's `AnimatorResolver` (see
+    /// `<chronon3d/registry/animator_resolver.hpp>` — header-lifted in
+    /// TICKET-012; resolves preset ids → TextAnimatorSpec stacks, e.g.
+    /// the `ctc_rich_<preset_id>` anchor for cinematic presets built
+    /// from richly-painted specs).
     ///
     /// Intended audience: tests + tooling that need to assert
     /// pre-build state of the wiring resolver (e.g. Sub-case 29 of
