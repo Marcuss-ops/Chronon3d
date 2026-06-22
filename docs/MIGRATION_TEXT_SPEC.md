@@ -379,6 +379,18 @@ Update TICKET-002's "Status" → 🟢 Done, with cross-reference to PR-A and PR-
 
 ---
 
+## 9. Boundary enforcement (PR-A10, Gate 5 extension)
+
+La postura **CPU-first headless** (AGENTS.md §Regole di lavoro) vieta in modo categorico dipendenze di terze parti per glyph rasterization, polygon tessellation e ICU shaper. Il Gate 5 di `tools/check_architecture_boundaries.sh` (Check 11) nega *ovunque* in `include/`, `src/`, `tests/`, `apps/` i seguenti include:
+
+| Header           | Dominio bloccato                     | Eccezione                     |
+| ---------------- | ------------------------------------ | ----------------------------- |
+| `<msdfgen>`      | Distance-field / SDF font rasterizer | nessuna                       |
+| `<libtess2>`     | GPU-style polygon tessellator        | nessuna                       |
+| `<unicode/...>`  | ICU / Unicode segmentation / bidi    | nessuna                       |
+
+Per deroghe: aprire un ADR in `docs/adr/` che giustifichi l'introduzione della dipendenza e aggiorni contestualmente MIGRATION_TEXT_SPEC.md + AGENTS.md + lo script Gate 5. Nessuna eccezione implicita.
+
 ## 8. One-paragraph summary (for commit message)
 
 `TextSpec`'s composable redesign (TextContent + FontSpec + TextLayoutSpec + TextAppearanceSpec + position) replaced the legacy 30-field `TextParams` monolith. Pre-existing call sites in `content/` that still use the legacy shape (`.text = "X"`, `.font_size = N`, `.font_spec = X`, top-level `.box`/`.align`/`.tracking`/`.color`) need a mechanical transform: top-level fields fan out into the four sub-structs. The rot is concentrated in `chronon3d::content::text::centered_text(...)` (one helper rewrite, 6 inline callsites re-route through it) plus a parallel 1-line CMake glue fix that lets `cmake --preset linux-full-validation` actually exercise the content/ tree (otherwise configure dies earlier on `experimental/expressions/tests/CMakeLists.txt:27` and the rot can only be verified via static grep). After PR-A + PR-B land, the historical "102+" figure is replaced by machine-verified rc=0 on the full set of presets, and TICKET-002 moves to 🟢 Done.
