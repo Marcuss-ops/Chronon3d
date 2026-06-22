@@ -38,9 +38,14 @@ enum class MotionBlurMode {
 };
 
 struct MotionBlurSettings {
-    /// PR1 — replaces the previous `bool enabled` field.  See MotionBlurMode.
+    /// PR1 / TICKET-026 — sole source of truth for "is motion blur active".
+    /// The legacy `bool enabled` field has been deleted; everything that
+    /// used to gate on `settings.motion_blur.enabled` now uses the helper
+    /// `is_motion_blur_active(settings.motion_blur)` (defined below).
+    /// Either `TemporalAccumulation` (sub-frame accumulator) or
+    /// `VelocityApproximation` (single-frame velocity buffer) is
+    /// "motion-blur on"; `Off` is "no motion blur".
     MotionBlurMode mode{MotionBlurMode::Off};
-    bool enabled{false};
     int  samples{8};                    // number of subframes to accumulate
     f32  shutter_angle_deg{180.0f};     // degrees; 180 = half-frame exposure
     f32  shutter_phase_deg{-90.0f};     // degrees; -90 centres exposure around the frame
@@ -52,6 +57,21 @@ struct MotionBlurSettings {
     // Defaults to 0x3A5C9F1E (arbitrary constant).
     u64  jitter_seed{0x3A5C9F1E};
 };
+
+// TICKET-026 — free helper, the canonical replacement for the deleted
+// `MotionBlurSettings::enabled` bool.  Any code that needs to ask "is
+// motion blur active for this settings struct" should call this.  Kept as
+// a free inline helper so it can be called from headers AND TUs without
+// pulling in extra linkage, and so future enum additions
+// (e.g. `MotionBlurMode::DisabledButRenderAnyway`) stay centralised.
+[[nodiscard]] inline bool is_motion_blur_active(const MotionBlurSettings& s) noexcept {
+    return s.mode != MotionBlurMode::Off;
+}
+
+// TICKET-026 NIT — bound enum widening.  Guard every u8(u8 mix used by
+// the descriptor fingerprint against future drift.
+static_assert(static_cast<std::uint32_t>(MotionBlurMode::VelocityApproximation) < 256,
+              "MotionBlurMode fingerprint mixes u8 — keep enum < 256 values");
 
 // DepthOfFieldSettings is now in camera_common_types.hpp
 

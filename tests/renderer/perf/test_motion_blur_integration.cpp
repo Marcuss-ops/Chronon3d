@@ -98,7 +98,7 @@ TEST_CASE("Motion blur: 8 samples smear a fast-moving layer across the frame") {
 
     // ── Render WITH motion blur ──────────────────────────────────────────
     RenderSettings mb_settings;
-    mb_settings.motion_blur.enabled          = true;
+    mb_settings.motion_blur.mode             = MotionBlurMode::TemporalAccumulation;
     mb_settings.motion_blur.samples          = 8;
     mb_settings.motion_blur.shutter_angle_deg = 180.0f;
     mb_settings.motion_blur.shutter_phase_deg = -90.0f;   // centred
@@ -112,7 +112,7 @@ TEST_CASE("Motion blur: 8 samples smear a fast-moving layer across the frame") {
 
     // ── Render WITHOUT motion blur ───────────────────────────────────────
     RenderSettings no_mb_settings;
-    no_mb_settings.motion_blur.enabled = false;
+    no_mb_settings.motion_blur.mode    = MotionBlurMode::Off;
 
     auto no_mb_renderer = test::make_renderer();
     no_mb_renderer.set_settings(no_mb_settings);
@@ -145,7 +145,7 @@ TEST_CASE("Motion blur: Stratified pattern with Triangle filter produces consist
 
     // Stratified + Triangle: should still produce valid blended output
     RenderSettings mb_settings;
-    mb_settings.motion_blur.enabled          = true;
+    mb_settings.motion_blur.mode             = MotionBlurMode::TemporalAccumulation;
     mb_settings.motion_blur.samples          = 8;
     mb_settings.motion_blur.shutter_angle_deg = 180.0f;
     mb_settings.motion_blur.shutter_phase_deg = -90.0f;
@@ -171,7 +171,7 @@ TEST_CASE("Motion blur: deterministic — same seed produces identical output") 
     auto comp = make_moving_layer_comp(w, h, 20.0f, 180.0f);
 
     RenderSettings mb_settings;
-    mb_settings.motion_blur.enabled          = true;
+    mb_settings.motion_blur.mode             = MotionBlurMode::TemporalAccumulation;
     mb_settings.motion_blur.samples          = 8;
     mb_settings.motion_blur.shutter_angle_deg = 180.0f;
     mb_settings.motion_blur.shutter_phase_deg = -90.0f;
@@ -219,7 +219,7 @@ TEST_CASE("Motion blur: sub-frame pipeline — 8 samples produce 8 distinct posi
     auto comp = make_moving_layer_comp(w, h, 0.0f, 300.0f);
 
     RenderSettings mb_settings;
-    mb_settings.motion_blur.enabled          = true;
+    mb_settings.motion_blur.mode             = MotionBlurMode::TemporalAccumulation;
     mb_settings.motion_blur.samples          = 8;
     mb_settings.motion_blur.shutter_angle_deg = 180.0f;
     mb_settings.motion_blur.shutter_phase_deg = -90.0f;
@@ -255,7 +255,7 @@ TEST_CASE("Motion blur: sub-frame pipeline — 8 samples produce 8 distinct posi
 
     // Verify: without MB, the box is at a single position
     RenderSettings no_mb_settings;
-    no_mb_settings.motion_blur.enabled = false;
+    no_mb_settings.motion_blur.mode    = MotionBlurMode::Off;
     auto r2 = test::make_renderer();
     r2.set_settings(no_mb_settings);
     auto no_mb_fb = r2.render_frame(comp, Frame{0});

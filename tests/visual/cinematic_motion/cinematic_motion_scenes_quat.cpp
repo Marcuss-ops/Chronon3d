@@ -246,14 +246,14 @@ Framebuffer render_motion_blur_comparison(SoftwareRenderer& renderer) {
 
     {
         auto s = base;
-        s.motion_blur.enabled = false;
+        s.motion_blur.mode = MotionBlurMode::Off;
         renderer.set_settings(s);
         panels.push_back(renderer.render_frame(anim_comp, kFrame));
     }
 
     {
         auto s = base;
-        s.motion_blur.enabled = true;
+        s.motion_blur.mode = MotionBlurMode::TemporalAccumulation;
         s.motion_blur.samples = 8;
         s.motion_blur.shutter_angle_deg = 180.0f;
         s.motion_blur.jitter_seed = 0xABCD1234;
@@ -263,7 +263,7 @@ Framebuffer render_motion_blur_comparison(SoftwareRenderer& renderer) {
 
     {
         auto s = base;
-        s.motion_blur.enabled = true;
+        s.motion_blur.mode = MotionBlurMode::TemporalAccumulation;
         s.motion_blur.samples = 16;
         s.motion_blur.shutter_angle_deg = 180.0f;
         s.motion_blur.jitter_seed = 0xABCD1234;
@@ -273,7 +273,7 @@ Framebuffer render_motion_blur_comparison(SoftwareRenderer& renderer) {
 
     {
         auto s = base;
-        s.motion_blur.enabled = true;
+        s.motion_blur.mode = MotionBlurMode::TemporalAccumulation;
         s.motion_blur.samples = 16;
         s.motion_blur.shutter_angle_deg = 360.0f;
         s.motion_blur.jitter_seed = 0xABCD1234;

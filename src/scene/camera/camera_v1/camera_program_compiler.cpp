@@ -31,7 +31,7 @@
 #include <cmath>
 #include <utility>
 
-namespace chrono3d::camera_v1 {
+namespace chronon3d::camera_v1 {
 
 // CAM-02: 3-arg compile_camera() is the canonical implementation.  The
 // 2-arg public overload (declared in camera_program_compiler.hpp) is an
