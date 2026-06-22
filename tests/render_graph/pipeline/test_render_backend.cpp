@@ -9,6 +9,7 @@
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compile_options.hpp>
 #include <chronon3d/runtime/render_session.hpp>
+#include <chronon3d/core/scope/execution_scope.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
@@ -82,7 +83,9 @@ TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
     GraphExecutor executor;
     RenderSession session;
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
-    auto out = executor.execute(compiled, ctx, session, scheduler);
+    ExecutionScope root_scope(
+        ExecutionScopeKind::Root, session, compiled.graph_instance_id);
+    auto out = executor.execute_with_scope(compiled, ctx, root_scope, scheduler);
 
     REQUIRE(out != nullptr);
     CHECK(backend.draw_node_called == 1);
@@ -112,7 +115,9 @@ TEST_CASE("RenderBackend - EffectStackNode execution calls apply_effect_stack on
     GraphExecutor executor;
     RenderSession session;
     ExecutionScheduler scheduler2{SchedulerMode::Sequential, 1, false};
-    auto out = executor.execute(compiled, ctx, session, scheduler2);
+    ExecutionScope root_scope2(
+        ExecutionScopeKind::Root, session, compiled.graph_instance_id);
+    auto out = executor.execute_with_scope(compiled, ctx, root_scope2, scheduler2);
 
     REQUIRE(out != nullptr);
     CHECK(backend.apply_effect_stack_called >= 1);
@@ -140,7 +145,9 @@ TEST_CASE("RenderBackend - CompositeNode execution calls composite_layer on back
     GraphExecutor executor;
     RenderSession session;
     ExecutionScheduler scheduler3{SchedulerMode::Sequential, 1, false};
-    auto out = executor.execute(compiled, ctx, session, scheduler3);
+    ExecutionScope root_scope3(
+        ExecutionScopeKind::Root, session, compiled.graph_instance_id);
+    auto out = executor.execute_with_scope(compiled, ctx, root_scope3, scheduler3);
 
     REQUIRE(out != nullptr);
     // There are 2 layer composite nodes
