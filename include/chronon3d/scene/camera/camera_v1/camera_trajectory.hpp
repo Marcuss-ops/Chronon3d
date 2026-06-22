@@ -68,7 +68,10 @@ public:
 class CameraTrajectory {
 public:
     /// Evaluate at a continuous frame position using ctx.sample_time.frame
-    /// (float, sub-frame aware). Uses arc-length remap if pre_lut_ is set.
+    /// (float, sub-frame aware). Uses per-segment arc-length remap when
+    /// `segment_luts_` is populated (CAM-04 / DOC 03 — a mini-LUT per
+    /// segment avoids the time-vs-arc-length mismatch that a single global
+    /// LUT incurred when segment durations differ from arc proportions).
     CameraTrajectorySample sample(const CameraMotionContext& ctx) const;
 
     /// Total duration in frames (sum of segment durations).
@@ -80,14 +83,18 @@ public:
     /// Read-only access for diagnostics.
     const std::vector<CameraTrajectoryPoint>& points() const { return points_; }
     const std::vector<CameraTrajectorySegment>& segments() const { return segments_; }
-    bool arc_length_parameterized() const { return pre_lut_ != nullptr; }
+    bool arc_length_parameterized() const { return !segment_luts_.empty(); }
 
 private:
     friend class CameraTrajectoryBuilder;
     std::vector<CameraTrajectoryPoint> points_;
     std::vector<CameraTrajectorySegment> segments_;
     std::vector<std::unique_ptr<TrajectorySegmentSampler>> samplers_;
-    std::shared_ptr<ArcLengthTable> pre_lut_;  // nullptr = uniform t01
+    /// Per-segment mini-LUTs (CAM-04 / DOC 03).  Index-aligned with
+    /// `samplers_`.  `segment_luts_[i]` maps local arc-length fraction
+    /// within segment `i` → parametric `t01 ∈ [0,1]` for segment `i`.
+    /// Empty = uniform t01 (matches the legacy "no arc-length" path).
+    std::vector<std::shared_ptr<ArcLengthTable>> segment_luts_;
 };
 
 // =========================================================================

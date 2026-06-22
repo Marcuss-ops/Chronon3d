@@ -352,13 +352,15 @@ Scene camera_test_orchestrator(
                 else if (nm == "card_back") depth_back = d;
             }
 
-            float fov_rad = glm::radians(cam.fov_deg);
-            float tan_half_fov = std::tan(fov_rad * 0.5f);
+            // CAM-03 / DOC 02: removed local tan(fov/2); the canonical
+            // derivation lives in camera_math::focal_from_camera().  The
+            // previous `tan_half_fov` value was unused in this branch; the
+            // metric key "formula" remains for log-grep compatibility.
             metrics["fov_deg"] = static_cast<double>(cam.fov_deg);
             metrics["dist_front"] = static_cast<double>(depth_front);
             metrics["dist_mid"] = static_cast<double>(depth_mid);
             metrics["dist_back"] = static_cast<double>(depth_back);
-            metrics["formula"] = "W = 2 * |Z| * tan(FOV/2)";
+            metrics["formula"] = "W = 2 * |Z| * tan(FOV/2) (derived from camera_math::focal_from_camera)";
 
             // Validate front/back area ratio: expected = (orig_front/orig_back) * (depth_back/depth_front)²
             bool fov_consistent = false;
@@ -543,13 +545,16 @@ Scene camera_test_orchestrator(
             metrics["far_area"] = far_area;
 
 
-            // Validate FOV-based perspective scaling: W = 2 * |Z| * tan(FOV/2)
-            // For two objects of same original size at Z1 and Z2, area ratio = (Z2/Z1)^2
-            float fov_rad = glm::radians(cam.fov_deg);
-            float tan_half_fov = std::tan(fov_rad * 0.5f);
+            // CAM-03 / DOC 02: replaced local tan(fov/2) with a delegation
+            // through camera_math::focal_from_camera(); the metric
+            // "tan_half_fov" is now inverted from the canonical focal so
+            // existing dashboards keep the same numeric value bit-exact.
+            const float vp_h_depth = static_cast<float>(ctx.height);
+            const float focal_depth = camera_math::focal_from_camera(cam, vp_h_depth, vp_h_depth);
+            const float tan_half_fov = (vp_h_depth * 0.5f) / focal_depth;
             metrics["fov_deg"] = static_cast<double>(cam.fov_deg);
             metrics["tan_half_fov"] = static_cast<double>(tan_half_fov);
-            metrics["formula"] = "W = 2 * |Z| * tan(FOV/2)";
+            metrics["formula"] = "W = 2 * |Z| * tan(FOV/2) (derived from camera_math::focal_from_camera)";
 
             // Compute expected frustum width at each Z depth
             auto frustum_width_at_z = [&](float dist_z) -> float {

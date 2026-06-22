@@ -53,6 +53,28 @@ struct ProjectedPoint {
     bool  visible{false};
 };
 
+// ── Canonical focal formula (CAM-03 / DOC 02) ───────────────────────────────
+//
+// DO NOT RECOMPUTE `(viewport_h/2) / tan(fov/2)` ANYWHERE ELSE.
+//
+// This is the SINGLE legal implementation of the per-FOV focal formula
+// in the codebase.  All callers (rendering, framing, projection, composition
+// validators) MUST delegate to `camera_math::focal_from_camera()` instead of
+// recomputing the tangent locally.  The helper exists solely so that the
+// trigonometric step lives in exactly one place and one place only.
+//
+// !!! INTERNAL — use `camera_math::focal_from_camera()` instead !!!
+// New production code MUST NOT call `pixel_focal_from_fov` directly; the
+// only consumer is the `FieldOfView` branch of `focal_from_camera()`.
+// The function is `inline` only because it lives in a header, NOT because
+// it is meant for callers outside the contract.  If you find yourself
+// reaching for this helper, route through `focal_from_camera()` so the
+// optics_mode switch (PhysicalLens / Fov / Zoom / legacy DoF fallback)
+// stays the single source of truth.
+inline f32 pixel_focal_from_fov(f32 fov_rad, f32 viewport_height) {
+    return (viewport_height * 0.5f) / std::tan(fov_rad * 0.5f);
+}
+
 // ── Contract: focal length (pixels) ──────────────────────────────────────────
 //
 // Returns the focal length in pixels for a given camera and viewport dimensions.
@@ -61,7 +83,8 @@ struct ProjectedPoint {
 //   - PhysicalLens mode (canonical):  derived from Camera2_5D::lens with
 //     gate-fit.  Independent of DoF — a 24mm or 135mm lens changes the
 //     perspective even when camera.dof.enabled is false (AE contract).
-//   - FieldOfView mode (canonical):   focal = (viewport_height/2) / tan(fov/2).
+//   - FieldOfView mode (canonical):   focal = (viewport_height/2) / tan(fov/2)
+//     — centralizzato in `pixel_focal_from_fov()`.
 //   - Zoom mode (canonical):          focal = camera.get_zoom().
 //   - Legacy DoF fallback:            if optics_mode is the default Zoom but
 //     camera.get_dof_use_physical_model() is true, the legacy path is still honoured.
@@ -78,7 +101,7 @@ inline f32 focal_from_camera(const CameraProjectionSource& camera, f32 viewport_
         }
         case CameraOpticsMode::FieldOfView: {
             const f32 fov_rad = glm::radians(camera.get_fov_deg());
-            return (viewport_height * 0.5f) / std::tan(fov_rad * 0.5f);
+            return pixel_focal_from_fov(fov_rad, viewport_height);
         }
         case CameraOpticsMode::Zoom:
             break;
@@ -92,7 +115,7 @@ inline f32 focal_from_camera(const CameraProjectionSource& camera, f32 viewport_
     }
     if (camera.get_projection_mode() == Camera2_5DProjectionMode::Fov) {
         const f32 fov_rad = glm::radians(camera.get_fov_deg());
-        return (viewport_height * 0.5f) / std::tan(fov_rad * 0.5f);
+        return pixel_focal_from_fov(fov_rad, viewport_height);
     }
     return camera.get_zoom();
 }

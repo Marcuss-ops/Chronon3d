@@ -32,6 +32,14 @@ struct CameraSession {
     /// Banking roll accumulator (shared state across frames).
     float banking_roll{0.0f};
 
+    /// CAM-03 / DOC 02: when both an OrientationSpec look-at AND a
+    /// LookAtConstraint are present in the descriptor, the orientation
+    /// wins (it carries the source-derived target).  This flag is set by
+    /// CameraProgram::evaluate() and consumed by the constraint loop so
+    /// the constraint's look-at branch is skipped — preserving the
+    /// single-look-at policy.
+    bool skip_look_at_constraint_from_orientation{false};
+
     /// Ensure at least n constraint state slots are allocated.
     void ensure_constraint_states(std::size_t n) {
         constraint_session.ensure_states(n);
@@ -41,6 +49,7 @@ struct CameraSession {
     void reset() {
         constraint_session.reset();
         banking_roll = 0.0f;
+        skip_look_at_constraint_from_orientation = false;
     }
 };
 
