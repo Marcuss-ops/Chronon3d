@@ -57,6 +57,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 #include <tests/helpers/test_utils.hpp>
 #include <tests/helpers/pixel_assertions.hpp>
 
@@ -290,9 +291,12 @@ TEST_CASE("Baseline green §3: 1t == 4t == 8t bit-exact under per-render tbb are
     // present in the static-scene path.
     auto comp = make_baseline_static_comp();
 
-    auto res_1t = render_in_arena(1, make_renderer(), comp, 0);
-    auto res_4t = render_in_arena(4, make_renderer(), comp, 0);
-    auto res_8t = render_in_arena(8, make_renderer(), comp, 0);
+    auto r1t = make_renderer();
+    auto r4t = make_renderer();
+    auto r8t = make_renderer();
+    auto res_1t = render_in_arena(1, r1t, comp, 0);
+    auto res_4t = render_in_arena(4, r4t, comp, 0);
+    auto res_8t = render_in_arena(8, r8t, comp, 0);
 
     REQUIRE(res_1t.fb != nullptr);
     REQUIRE(res_4t.fb != nullptr);

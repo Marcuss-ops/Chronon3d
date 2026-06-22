@@ -16,6 +16,7 @@
 
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
+#include <chronon3d/backends/software/software_processor_context.hpp>
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/backends/software/utils/effects/per_pixel_dof.hpp>
 #ifdef CHRONON3D_ENABLE_TEXT
@@ -256,7 +257,8 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
         spdlog::error("No processor registered for shape type");
         return;
     }
-    processor->draw(*this, fb, node, state, camera, width, height);
+    auto proc_ctx = make_processor_context(this);
+    processor->draw(proc_ctx, fb, node, state, camera, width, height);
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
     if (m_settings.diagnostics.enabled) {
         renderer::diagnostics::draw_layout_preview(fb, node, state, *processor);
@@ -292,7 +294,7 @@ graph::RenderOpResult SoftwareRenderer::draw_text_run(
         .model_matrix = model_matrix,
         .opacity = opacity,
     };
-    return renderer::draw_text_run(*this, params);
+    return renderer::draw_text_run(make_processor_context(this), params);
 #else
     (void)fb; (void)shape; (void)model_matrix; (void)opacity;
     return graph::RenderOpResult(graph::RenderBackendError{
@@ -303,173 +305,3 @@ graph::RenderOpResult SoftwareRenderer::draw_text_run(
 }
 
 } // namespace chronon3d
-
-
-
-// === R4 OUT-OF-LINE EXTENSION ===
-//
-// R4 close-out (resolves HOLD on commit 0d72a851):
-//   * Every method is prefixed with `SoftwareRenderer::`.
-//   * `capabilities()` is added with the matching `override` qualifier.
-//   * Each body retains the EXACT logic of the pre-R4 inline body.
-
-void SoftwareRenderer::set_settings(const RenderSettings& settings) {
-    m_settings = settings;
-    m_counters.program_cache_capacity.store(settings.program_cache_capacity, std::memory_order_relaxed);
-    m_counters.program_cache_tune.store(settings.program_cache_tune ? 1 : 0, std::memory_order_relaxed);
-}
-const RenderSettings& SoftwareRenderer::settings() const { return m_settings; }
-
-void SoftwareRenderer::set_motion_blur(MotionBlurSettings mb) { m_settings.motion_blur = mb; }
-const MotionBlurSettings& SoftwareRenderer::motion_blur() const { return m_settings.motion_blur; }
-
-void SoftwareRenderer::set_diagnostic_mode(bool enabled) { m_settings.diagnostics.enabled = enabled; }
-bool SoftwareRenderer::is_diagnostic_mode() const { return m_settings.diagnostics.enabled; }
-
-void SoftwareRenderer::clear_caches() {
-    m_image_renderer.clear_cache();
-#ifdef CHRONON3D_HAS_BACKEND_TEXT
-    renderer::clear_text_glow_cache();
-    renderer::clear_text_shadow_cache();
-#endif
-    node_cache().clear();
-    if (auto* pool = m_runtime->framebuffer_pool_shared().get()) {
-        pool->clear();
-    }
-    m_runtime->graph_cache() = {};
-    m_session.reset_job();
-}
-void SoftwareRenderer::clear_node_cache() { node_cache().clear(); }
-void SoftwareRenderer::reset_counters() { m_counters.reset(); }
-void SoftwareRenderer::set_composition_registry(const CompositionRegistry* registry) { m_registry = registry; }
-const CompositionRegistry* SoftwareRenderer::composition_registry() const { return m_registry; }
-
-ImageRenderer& SoftwareRenderer::image_renderer() { return m_image_renderer; }
-cache::NodeCache& SoftwareRenderer::node_cache() noexcept { return m_runtime->node_cache(); }
-const cache::NodeCache& SoftwareRenderer::node_cache() const noexcept { return m_runtime->node_cache(); }
-const RenderSettings& SoftwareRenderer::render_settings() const { return m_settings; }
-
-void SoftwareRenderer::set_video_decoder(std::shared_ptr<media::MediaFrameProvider> decoder) {
-    m_video_decoder = std::move(decoder);
-}
-media::MediaFrameProvider* SoftwareRenderer::video_decoder() const { return m_video_decoder.get(); }
-
-void SoftwareRenderer::set_image_backend(std::shared_ptr<image::ImageBackend> backend) {
-    m_image_backend = std::move(backend);
-    m_image_renderer.set_backend(m_image_backend);
-}
-image::ImageBackend* SoftwareRenderer::image_backend() const { return m_image_backend.get(); }
-
-double SoftwareRenderer::last_dirty_area_ratio() const { return m_session.common.dirty_telemetry.last_dirty_area_ratio; }
-bool SoftwareRenderer::last_dirty_rect_enabled() const { return m_session.common.dirty_telemetry.last_dirty_rect_enabled; }
-std::optional<raster::BBox> SoftwareRenderer::last_dirty_rect() const { return m_session.common.dirty_telemetry.last_dirty_rect; }
-bool SoftwareRenderer::last_tile_execution_used() const { return m_session.common.dirty_telemetry.last_tile_execution_used; }
-bool SoftwareRenderer::last_fast_path_reused() const { return m_session.common.dirty_telemetry.last_fast_path_reused; }
-bool SoftwareRenderer::last_graph_reused() const { return m_session.common.dirty_telemetry.last_graph_reused; }
-int SoftwareRenderer::last_layer_count() const { return m_session.common.dirty_telemetry.last_layer_count; }
-
-const CompositionRegistry* SoftwareRenderer::composition_registry() const { return m_registry; }
-
-renderer::SoftwareRegistry& SoftwareRenderer::software_registry() { return m_runtime->software_registry(); }
-const renderer::SoftwareRegistry& SoftwareRenderer::software_registry() const { return m_runtime->software_registry(); }
-
-graph::GraphNodeCatalog& SoftwareRenderer::graph_node_registry() { return m_runtime->graph_node_registry(); }
-const graph::GraphNodeCatalog& SoftwareRenderer::graph_node_registry() const { return m_runtime->graph_node_registry(); }
-
-effects::EffectCatalog& SoftwareRenderer::effect_catalog() { return m_runtime->effect_catalog(); }
-const effects::EffectCatalog& SoftwareRenderer::effect_catalog() const { return m_runtime->effect_catalog(); }
-
-std::shared_ptr<cache::FramebufferPool> SoftwareRenderer::framebuffer_pool() { return m_runtime->framebuffer_pool_shared(); }
-cache::FramebufferPool& SoftwareRenderer::software_framebuffer_pool() { return m_runtime->framebuffer_pool(); }
-const cache::FramebufferPool& SoftwareRenderer::software_framebuffer_pool() const { return m_runtime->framebuffer_pool(); }
-
-RenderCounters* SoftwareRenderer::counters() { return &m_counters; }
-const RenderCounters* SoftwareRenderer::counters() const { return &m_counters; }
-
-graph::GraphExecutor* SoftwareRenderer::executor() { return &m_runtime->executor(); }
-const graph::GraphExecutor& SoftwareRenderer::executor() const noexcept { return m_runtime->executor(); }
-
-graph::CompiledGraphCache& SoftwareRenderer::graph_cache() { return m_runtime->graph_cache(); }
-const graph::CompiledGraphCache& SoftwareRenderer::graph_cache() const { return m_runtime->graph_cache(); }
-
-Config& SoftwareRenderer::config() { return m_config; }
-const Config& SoftwareRenderer::config() const { return m_config; }
-
-graph::RenderBackend& SoftwareRenderer::backend() { return m_runtime->backend(); }
-const graph::RenderBackend& SoftwareRenderer::backend() const { return m_runtime->backend(); }
-
-RenderSession& SoftwareRenderer::session() { return m_session.common; }
-const RenderSession& SoftwareRenderer::session() const { return m_session.common; }
-
-SoftwareRenderSession& SoftwareRenderer::software_session() { return m_session; }
-const SoftwareRenderSession& SoftwareRenderer::software_session() const { return m_session; }
-
-FrameHistory& SoftwareRenderer::frame_history() { return m_session.common.frame_history; }
-const FrameHistory& SoftwareRenderer::frame_history() const { return m_session.common.frame_history; }
-
-DirtyHistory& SoftwareRenderer::dirty_telemetry() { return m_session.common.dirty_telemetry; }
-const DirtyHistory& SoftwareRenderer::dirty_telemetry() const { return m_session.common.dirty_telemetry; }
-
-chronon3d::graph::SceneHasher& SoftwareRenderer::scene_hasher() { return m_session.common.scene_hasher(); }
-const chronon3d::graph::SceneHasher& SoftwareRenderer::scene_hasher() const { return m_session.common.scene_hasher(); }
-
-chronon3d::graph::SceneProgramStore& SoftwareRenderer::program_store() { return m_session.common.program_store(); }
-const chronon3d::graph::SceneProgramStore& SoftwareRenderer::program_store() const { return m_session.common.program_store(); }
-
-// LOOP: scheduler + runtime in const + non-const flavors
-chronon3d::ExecutionScheduler& SoftwareRenderer::scheduler() noexcept { return m_runtime->scheduler(); }
-const chronon3d::ExecutionScheduler& SoftwareRenderer::scheduler() const noexcept { return m_runtime->scheduler(); }
-
-runtime::RenderRuntime& SoftwareRenderer::runtime() noexcept { return *m_runtime; }
-const runtime::RenderRuntime& SoftwareRenderer::runtime() const noexcept { return *m_runtime; }
-
-void SoftwareRenderer::mark_fast_path_reused(Frame frame, const Camera2_5D& cam, uint64_t combined_fp) {
-    m_session.common.dirty_telemetry.last_dirty_area_ratio = 0.0;
-    m_session.common.dirty_telemetry.last_dirty_rect_enabled = false;
-    m_session.common.dirty_telemetry.last_dirty_rect = std::nullopt;
-    m_session.common.dirty_telemetry.last_tile_execution_used = false;
-    m_session.common.dirty_telemetry.last_fast_path_reused = true;
-    m_session.common.dirty_telemetry.last_graph_reused = false;
-    m_session.common.frame_history.prev_frame = frame;
-    m_session.common.frame_history.prev_scene_fingerprint = combined_fp;
-    m_session.common.frame_history.prev_camera = cam;
-    m_session.common.frame_history.prev_camera_valid = cam.enabled;
-}
-
-void SoftwareRenderer::commit_frame_state(Frame frame, const Camera2_5D& cam, uint64_t combined_fp, uint64_t static_fp, uint64_t structure_fp, uint64_t active_at_fp, std::unordered_map<std::string, graph::LayerBBoxState>&& layer_bboxes) {
-    commit_prev_frame_state(frame, cam, combined_fp, static_fp, structure_fp, active_at_fp, std::move(layer_bboxes));
-}
-
-void SoftwareRenderer::commit_prev_frame_state(Frame frame, const Camera2_5D& cam, uint64_t combined_fp, uint64_t static_fp, uint64_t structure_fp, uint64_t active_at_fp, std::unordered_map<std::string, graph::LayerBBoxState>&& layer_bboxes) {
-    m_session.common.dirty_telemetry.previous_layers = std::move(layer_bboxes);
-    m_session.common.frame_history.prev_frame = frame;
-    m_session.common.frame_history.prev_scene_fingerprint = combined_fp;
-    m_session.common.frame_history.prev_static_scene_fingerprint = static_fp;
-    m_session.common.frame_history.prev_graph_structure_fingerprint = structure_fp;
-    m_session.common.frame_history.prev_active_at_fingerprint = active_at_fp;
-    m_session.common.frame_history.prev_camera = cam;
-    m_session.common.frame_history.prev_camera_valid = cam.enabled;
-}
-
-void SoftwareRenderer::update_dirty_telemetry(bool rect_enabled, std::optional<raster::BBox> rect, bool tile_execution_used, bool fast_path_reused, bool graph_reused) {
-    m_session.common.dirty_telemetry.last_dirty_rect_enabled = rect_enabled;
-    m_session.common.dirty_telemetry.last_dirty_rect = rect;
-    m_session.common.dirty_telemetry.last_tile_execution_used = tile_execution_used;
-    m_session.common.dirty_telemetry.last_fast_path_reused = fast_path_reused;
-    m_session.common.dirty_telemetry.last_graph_reused = graph_reused;
-}
-
-RendererBufferRing& SoftwareRenderer::buffer_ring() { return m_session.software.buffer_ring; }
-const RendererBufferRing& SoftwareRenderer::buffer_ring() const { return m_session.software.buffer_ring; }
-
-TransformScratchBuffer& SoftwareRenderer::scratch_buffer() { return m_session.software.scratch_buffer; }
-const TransformScratchBuffer& SoftwareRenderer::scratch_buffer() const { return m_session.software.scratch_buffer; }
-
-// capabilities() — R4 close-out addition (override retained).
-graph::RenderCapabilities SoftwareRenderer::capabilities() const noexcept {
-#ifdef CHRONON3D_USE_BLEND2D
-    return graph::RenderCapabilities{ .text_run = true };
-#else
-    return graph::RenderCapabilities{ .text_run = false };
-#endif
-}

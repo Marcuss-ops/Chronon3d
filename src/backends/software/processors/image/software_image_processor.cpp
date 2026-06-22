@@ -15,7 +15,7 @@ public:
               const Camera& camera, i32 width, i32 height) override {
         CHRONON_ZONE_C("image_render", trace_category::kImage);
         // Increment images sampled counter
-        renderer.counters()->images_sampled.fetch_add(1, std::memory_order_relaxed);
+        rctx.counters->images_sampled.fetch_add(1, std::memory_order_relaxed);
 
         draw_shadow(fb, node, state);
         if (node.glow.enabled) {
@@ -41,7 +41,7 @@ public:
             );
             draw_glow(fb, node, state);
         }
-        rctx.image_renderer.draw_image(node.shape.image(), state, fb);
+        rctx.image_renderer->draw_image(node.shape.image(), state, fb);
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {

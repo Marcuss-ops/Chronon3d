@@ -28,6 +28,7 @@
 namespace chronon3d {
 struct RenderCounters;
 struct RenderSettings;
+struct DebugConfig;
 
 namespace renderer {
 class SoftwareRegistry;
@@ -38,10 +39,12 @@ namespace image {
 class ImageBackend;
 } // namespace image
 
+namespace assets {
+class AssetResolver;
+} // namespace assets
+
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
-namespace text {
 class FontEngine;
-} // namespace text
 #endif
 
 struct SoftwareProcessorContext {
@@ -50,8 +53,10 @@ struct SoftwareProcessorContext {
     renderer::SoftwareRegistry*                      registry{nullptr};        // REQUIRED
     image::ImageBackend*                             image_backend{nullptr};
     ImageRenderer*                                   image_renderer{nullptr};
+    const DebugConfig*                               debug_config{nullptr};    // optional, for text-bbox debug overlays
+    const assets::AssetResolver*                     asset_resolver{nullptr};  // optional, for font/text resolution
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
-    text::FontEngine*                                font_engine{nullptr};
+    FontEngine*                                      font_engine{nullptr};
 #endif
 };
 
