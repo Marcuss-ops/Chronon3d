@@ -105,14 +105,34 @@ std::shared_ptr<Framebuffer> render_with_mb(
 // 1 — Static framebuffer identical between 1 and 16 sub-samples
 // ==============================================================================
 // TICKET-007.j (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Issue: motion-blur static-framebuffer determinism bug.
+//          ROOT CAUSE: rendering pipeline (NOT the accumulator) — see
+//          root-cause hypothesis below.
 //   Owner: chronon3d-owners.
-//   Motivation: pre-existing rot; motion-blur static-framebuffer determinism bug.
-//
+//   Motivation: pre-existing rot.
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing bug — fb_hash mismatch for static framebuffer
-// at 16 samples.  TODO(chronon3d): fix motion-blur TemporalAccumulation
-// sub-frame determinism and re-enable.
-// TICKET-007.j (compliance metadata — see docs/FOLLOWUP_TICKETS.md). Issue: motion-blur static-framebuffer determinism bug. Owner: chronon3d-owners. Motivation: pre-existing rot. Data introduzione: 2026-06-20. Deadline rimozione: 2026-09-30.
+//
+//   Diagnostic findings (post-accumulator-fix in
+//   src/render_graph/pipeline/composition.cpp):
+//   The FP-stable reciprocal-multiply normalization `accum * (1/sum_w_post)`
+//   IS algebraically correct for STATIC content.  For THIS test-1 setup
+//   (Stratified+Box, samples=16, jitter_seed=0xC0FFEE) the normalizer
+//   evaluates to identity (0.0625 * 16 == 1.0 exact in IEEE-754), so the
+//   post-fix code is a numerical no-op for the exact test configuration.
+//   The accumulator is therefore NOT the source of test 1's byte mismatch.
+//
+//   Root-cause hypothesis (fix target rotated here, per user's instruction):
+//     (i)  sub-pixel jitter in `render_scene_via_graph` (binary rasterizer
+//          boundary flips when the sub-frame `t` parameter changes
+//          fractionally even with a static composition); OR
+//     (ii) FP drift in `comp.evaluate(frame, t)` (sub-frame composition
+//          evaluation produces non-bit-identical intermediate floats when
+//          fed different `t` values, even though the SceneBuilder/Layer
+//          recipe is identical for every sub-frame).
+//
+//   TODO(chronon3d): rotate the fix target to (i) or (ii) above.  Re-enable
+//   this test once the rendering pipeline is byte-exact between N=1
+//   (mode=Off) and N=16 (TemporalAccumulation) for static compositions.
 TEST_CASE("PR1-Torture: static framebuffer identical between 1 and 16 samples" * doctest::skip()) {
     auto comp = make_static_composition();
 
