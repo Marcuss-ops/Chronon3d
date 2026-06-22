@@ -197,7 +197,8 @@ void draw_text_glow(const SoftwareProcessorContext& rctx, Framebuffer& fb, const
         const int padding = static_cast<int>(std::ceil(base_radius * 4.0f)) + 8;
 
         // ── Step 1: Build padded white alpha mask (text-specific) ────
-        auto [alpha_mask, actual_pad] = make_padded_alpha_mask(raster.image, padding, renderer.config().debug());
+        const DebugConfig& debug_ref = rctx.debug_config ? *rctx.debug_config : DebugConfig{};
+        auto [alpha_mask, actual_pad] = make_padded_alpha_mask(raster.image, padding, debug_ref);
 
         // ── Step 2: Run the unified GlowPipeline ─────────────────────
         // Convert alpha mask to Framebuffer and feed it to the shared
@@ -221,7 +222,7 @@ void draw_text_glow(const SoftwareProcessorContext& rctx, Framebuffer& fb, const
         // SoftwareRenderer) into the locally-built context so that
         // GlowPipeline::render reads the correct flag and the per-pass
         // debug artefacts honour the engine's debug.glow() flag.
-        ctx.policy.debug_config = &renderer.config().debug();
+        ctx.policy.debug_config = rctx.debug_config;
 
         auto output = GlowPipeline::render(ctx, input);
 

@@ -40,6 +40,7 @@
 #include "dirty_telemetry_reporter.hpp"
 #include "tile_execution_coordinator.hpp"
 #include "frame_timing_recorder.hpp"
+#include <chronon3d/core/scope/execution_scope.hpp>  // PR 6.2 — root scope per render invocation
 
 #include <spdlog/spdlog.h>
 #include <cassert>

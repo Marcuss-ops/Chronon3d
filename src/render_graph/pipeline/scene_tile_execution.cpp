@@ -126,11 +126,14 @@ namespace chronon3d::graph::detail {
         tile_fb = local_executor.execute_with_scope(
             compiled, tile_ctx, tile_scope, local_scheduler);
     } else {
-        RenderSession local_session;
+        // PR 6.4 — reuse parent render job session instead of creating
+        // ad-hoc local_session.  The session carries program_store,
+        // scene_hasher, frame_history which are safe to share across
+        // tile regions (child_arena provides per-region isolation).
         FrameArena child_arena;                                     // PR 6.4 — distinct child arena per region
-        ExecutionScope root_fence(ExecutionScopeKind::Root, local_session,
+        ExecutionScope root_fence(ExecutionScopeKind::Root, sw_renderer->session(),
                                   compiled.graph_instance_id);
-        ExecutionScope tile_scope(ExecutionScopeKind::Tile, local_session,
+        ExecutionScope tile_scope(ExecutionScopeKind::Tile, sw_renderer->session(),
                                   child_arena, compiled.graph_instance_id,
                                   &root_fence);
         auto& tile_scheduler = ctx.services.scheduler

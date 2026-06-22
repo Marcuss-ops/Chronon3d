@@ -242,7 +242,7 @@ struct TextRunPathBuilder {
 // ═══════════════════════════════════════════════════════════════════════════
 
 graph::RenderOpResult draw_text_run(
-    SoftwareRenderer & renderer,
+    const SoftwareProcessorContext& rctx,
     TextRunDrawParams& params
 ) {
     // WP-8 PR 8.0 — function-scope resolver sourced from the renderer’s
@@ -252,7 +252,7 @@ graph::RenderOpResult draw_text_run(
     // `runtime::typed_resolver_for_deep_code()` inside both caches.
     // `AssetResolver` is a value-member of `RenderRuntime`, so this
     // reference is stable for the renderer’s lifetime.
-    const auto& resolver = renderer.runtime().resolver();
+    const auto& resolver = *rctx.asset_resolver;
 
     const auto& shape = params.shape;
     if (!shape.layout || shape.glyphs.empty()) {
@@ -768,8 +768,8 @@ graph::RenderOpResult draw_text_run(
     chronon3d::blend2d_bridge::composite_bl_image_transformed(
         params.fb, img, full_model, params.opacity, BlendMode::Normal);
 
-    if (renderer.counters()) {
-        renderer.counters()->text_glyphs_rasterized.fetch_add(
+    if (rctx.counters) {
+        rctx.counters->text_glyphs_rasterized.fetch_add(
             static_cast<uint64_t>(glyphs_drawn),
             std::memory_order_relaxed
         );
@@ -809,7 +809,7 @@ std::unique_ptr<ShapeProcessor> create_text_run_processor() {
     struct TextRunProcessor : ShapeProcessor {
         // No-op: the TextRunNode in the render graph handles rasterization.
         // This processor exists only as a registry marker.
-        void draw(SoftwareRenderer &, Framebuffer&, const RenderNode&,
+        void draw(const SoftwareProcessorContext&, Framebuffer&, const RenderNode&,
                   const RenderState&, const Camera&, i32, i32) override {}
 
         raster::BBox compute_world_bbox(const Shape&, const Mat4&, f32) override {

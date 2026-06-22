@@ -6,6 +6,7 @@
 // compute_text_run_world_bbox() lives in the text core so the render graph
 // can compute bounding boxes without linking the software backend.
 #include <chronon3d/text/text_run_geometry.hpp>
+#include <chronon3d/backends/software/software_processor_context.hpp>
 
 namespace chronon3d {
 

@@ -13,10 +13,10 @@ public:
     void draw(const SoftwareProcessorContext& rctx, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
         CHRONON_ZONE_C("tiled_image_render", trace_category::kImage);
-        renderer.counters()->images_sampled.fetch_add(1, std::memory_order_relaxed);
+        rctx.counters->images_sampled.fetch_add(1, std::memory_order_relaxed);
 
         draw_shadow(fb, node, state);
-        rctx.image_renderer.draw_image_tiled(node.shape.image(), state, fb);
+        rctx.image_renderer->draw_image_tiled(node.shape.image(), state, fb);
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
