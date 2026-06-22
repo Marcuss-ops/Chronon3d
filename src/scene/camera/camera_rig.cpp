@@ -99,7 +99,16 @@ Camera2_5D CameraRig::evaluate(
         };
     }
 
-    cam.dof.enabled = dof.enabled;
+    // ── Propagate motion blur from rig to camera ────────────────
+    // TICKET-026 — `cam.motion_blur.enabled = motion_blur.enabled` is gone.
+    // The mode field is the canonical "active?" indicator now.
+    cam.motion_blur.mode            = motion_blur.mode;
+    cam.motion_blur.samples          = motion_blur.samples;
+    cam.motion_blur.shutter_angle_deg = motion_blur.shutter_angle_deg;
+    cam.motion_blur.shutter_phase_deg = motion_blur.shutter_phase_deg;
+    cam.motion_blur.pattern          = motion_blur.pattern;
+    cam.motion_blur.filter           = motion_blur.filter;
+    cam.motion_blur.jitter_seed      = motion_blur.jitter_seed;
 
     // ── Focus: single switch is responsible for focus_distance ────────────
     //
@@ -200,7 +209,10 @@ Camera2_5D CameraRig::evaluate(
     cam.is_animated = local_animated || external_dep;
 
     // ── Propagate motion blur from rig to camera ────────────────────────────
-    cam.motion_blur.enabled          = motion_blur.enabled;
+    // TICKET-026 — `MotionBlurSettings::enabled` removed; `mode` is the
+    // canonical active indicator.  Mirror the rig-side mode verbatim; helper
+    // `is_motion_blur_active(settings)` reads it for downstream consumers.
+    cam.motion_blur.mode             = motion_blur.mode;
     cam.motion_blur.samples          = motion_blur.samples;
     cam.motion_blur.shutter_angle_deg = motion_blur.shutter_angle_deg;
     cam.motion_blur.shutter_phase_deg = motion_blur.shutter_phase_deg;

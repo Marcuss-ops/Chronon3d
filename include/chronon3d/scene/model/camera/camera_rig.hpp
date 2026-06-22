@@ -8,7 +8,15 @@
 // Complete type needed only in camera_rig.cpp.
 // AnimatedCamera2_5D is not needed by the struct definitions — only by the
 // presets header (camera_rig_animated_presets.hpp).
+//
+// TICKET-026 — `CameraRigMotionBlur` keeps `MotionBlurSettings::mode`
+// by-value (canonical), so the `MotionBlurMode` enum must be visible
+// at struct-definition time.  `camera_2_5d.hpp` is the canonical owner
+// and does not include `camera_rig.hpp` back, so this include is safe
+// (no circular).  Only the enum + MotionBlurSettings struct are reached
+// here; the heavyweight Camera2_5D view-matrix/renderers stay in the .cpp.
 #include <memory_resource>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>  // TICKET-026 — MotionBlurMode visibility.
 #include <chronon3d/scene/model/core/hierarchy_resolver.hpp>  // ResolvedSceneTransforms replaces the legacy TransformResolverResult.
 #include <string>
 #include <utility>
@@ -69,8 +77,15 @@ struct CameraRigDOF {
     bool use_physical_model{false};
 };
 
+// TICKET-026 — `bool enabled` removed; the rig-side struct now mirrors the
+// canonical MotionBlurSettings (mode + the 6 numeric/pattern fields).
+// CameraRigMotionBlur is the per-rig authoring form; MotionBlurSettings is
+// the per-frame Camera2_5D carrier.  The historical one-to-one plumbing
+// `cam.motion_blur.enabled = motion_blur.enabled` becomes
+// `cam.motion_blur.mode = motion_blur.mode` and the per-numeric-field copy
+// loop in camera_rig.cpp is unchanged.
 struct CameraRigMotionBlur {
-    bool enabled{false};
+    MotionBlurMode mode{MotionBlurMode::Off};
     int samples{8};
     f32 shutter_angle_deg{180.0f};
     f32 shutter_phase_deg{-90.0f};
