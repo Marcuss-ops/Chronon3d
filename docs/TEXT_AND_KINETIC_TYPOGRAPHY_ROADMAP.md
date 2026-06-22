@@ -695,6 +695,26 @@ Ogni preset deve avere:
 
 Dipendenza opzionale: `libtess2`.
 
+## Piano operativo
+
+**Stato corrente** (audit 2026-06-22): zero match per `libtess2` (e per `tess.h` / `TESStesselator` / `Tessellator`) nel tree (`src/`, `include/`, `tools/`) e in `vcpkg.json` (presente solo `meshoptimizer` tramite feature `mesh`). La pipeline `FreeType → GlyphOutlineProvider → libtess2 adapter → GlyphMeshBuilder → Mesh cache → CPU rasterizer` non è ancora installata. Da aggiungere a `vcpkg.json` come nuova feature opzionale `text-3d` (opt-in; non abilitata dai profili `linux-profile-{core,motion,video,extended}` correnti in [`docs/stabilization-plan/08-dependency-profiles.md`](stabilization-plan/08-dependency-profiles.md)).
+
+**Anti-collisione con Fase 5**: questa Fase 11 NON sostituisce `src/text/text_path_composer.cpp` (178 LOC, canon produttivo) né `include/chronon3d/text/path_sampler.hpp` (`PathSampler` con arc-length table, De Casteljau). La composizione 2D su path resta su Fase 5; libtess2 introduce *solo* la mesh extrusion 3D dei glifi. I tipi Fase 11 seguono la naming canon qui sotto, separata da Fase 5:
+
+```text
+GlyphOutlineProvider   (FreeType → outline 2D del glifo)
+        ↓
+libtess2 adapter        (tessellazione triangolare)
+        ↓
+GlyphMeshBuilder       (front/back/side faces + bevel + extrusion depth)
+        ↓
+Mesh cache              (cache-key: font_id + glyph_id + outline_hash + extrusion_depth)
+        ↓
+Text3DNode / CPU rasterizer  (rasterizza la mesh proiettata)
+```
+
+**Vincolo Camera 2.5D-text-only** (free-standing, distinto da `chronon3d::camera::CameraRig`): la Camera 2.5D di Fase 11 è un **code-path separato** che produce un `chronon3d::scene::model::camera::Camera2_5D` (`include/chronon3d/scene/model/camera/camera_2_5d.hpp`) senza passare per `CameraRig::evaluate(...)` né per `AnimatedCamera2_5D::evaluate(...)` (vedi [`docs/CAMERA_REGIA_AE_PLAN.md`](CAMERA_REGIA_AE_PLAN.md) §3 sul canon CameraRig). Il traguardo è: Fase 11 istanzia localmente un `Camera2_5D{position, rotation, zoom, dof, motion_blur}`; questo evita aliasing con la pipeline produttiva camera di scena che ha già i suoi preset `orbit_reveal`/`premium_push_in`/`hero_title_push` in [`src/scene/camera/camera_rig_presets.cpp`](src/scene/camera/camera_rig_presets.cpp).
+
 ## Pipeline
 
 ```text
@@ -740,6 +760,20 @@ CPU rasterizer
 
 Dipendenza opzionale: `msdfgen`.
 
+## Piano operativo
+
+**Stato corrente** (audit 2026-06-22): zero match per `msdfgen` (o per `msdfgen::`, `MSDFGenerator`, `MultiSignedDistanceField`) nel tree (`src/`, `include/`, `docs/`, `tests/`, `tools/`) e in `vcpkg.json`. `GlyphRasterStrategy` non è ancora esposta come tipo canon nel codice: l'ASCII-tree in questa Fase 12 è design, nomenclatura pre-canonizzata in [`docs/TEXT_BOTTLENECKS.md`](TEXT_BOTTLENECKS.md) §Fase 3 (MSDF atlas) ma senza implementazione.
+
+Plan di esecuzione:
+
+1. **Resolver canon** in `include/chronon3d/text/glyph_raster_strategy.hpp`:
+   * `enum class GlyphRasterStrategy { Bitmap, Vector, Msdf }`.
+   * `IGlyphRasterizer` interface con `rasterize(font_face_handle, glyph_id, target) -> RasterizedGlyph` che le 3 strategie implementano.
+   * `GlyphRasterStrategyResolver::select(font_table_capability) -> GlyphRasterStrategy` in base alla presenza di `glyf`/`CFF`/`COLR`+`CPAL` e (per MSDF) presenza del atlas pre-generato associato al font.
+2. **Vincolo anti-disclosure** (hard): i nodi downstream (`TextRunNode`, `TextAnimatorStack`, il rendering pipeline) ricevono un `IGlyphRasterizer*` dal resolver e non istanziano `msdfgen::Shape` né `msdfgen::generateMSDF` direttamente. test_architectural.sh §5 (gate check, già esteso per Fase 9 ICU) deve negare `#include <msdfgen*>` al di fuori di `src/text/glyph_raster/`. Stesso vincolo per `#include <libtess2/*>` (Fase 11).
+3. **vcpkg feature opzionale**: aggiungere `msdfgen` come dipendenza di una nuova feature `text-msdf` (opt-in, NON parte di `default-features` in `vcpkg.json`). Solo `linux-profile-extended` la abilita, cross-ref [`docs/stabilization-plan/08-dependency-profiles.md`](stabilization-plan/08-dependency-profiles.md). La feature `text-msdf` richiede indirettamente `freetype[harfbuzz]` + `glm` (già presenti).
+4. **Estensioni Morph/Displacement** — vedi sezione dedicata dopo questa Fase 12.
+
 ## Casi d'uso
 
 - [ ] Scale estreme.
@@ -763,6 +797,33 @@ GlyphRasterStrategy
 Il resolver deve scegliere la strategia. I nodi non devono conoscere `msdfgen`.
 
 **Cross-ref**: gap già candidato in [`docs/TEXT_BOTTLENECKS.md`](TEXT_BOTTLENECKS.md) §Fase 3 (MSDF font atlas).
+
+## Estensioni della Fase 12: Morph e displacement avanzati
+
+Queste estensioni **non introducono nuove dipendenze esterne** — si appoggiano sulla stessa pipeline `msdfgen → GlyphRasterStrategy::Msdf` promossa in questa Fase 12, aggiungendo due POD canon e due Effect canon (registrati nel catalogo esistente [`src/effects/effect_catalog.cpp`](src/effects/effect_catalog.cpp) + [`effect_catalog_data.cpp`](src/effects/effect_catalog_data.cpp), NON creando un catalogo locale).
+
+### Morph
+
+Passaggio continuo tra due glyph runs (cifre che mutano in altre cifre, lettere che confluiscono in logo, A↔B cross-fade per transizioni di titolo).
+
+- POD `TextMorphSpec` (`include/chronon3d/text/text_morph_spec.hpp`): `source_glyph_id`, `target_glyph_id`, `progress` (0..1), `easing` (enum `Easing` canonico da [`include/chronon3d/animation/core/easing.hpp`](include/chronon3d/animation/core/easing.hpp) cross-ref Fase 10).
+- POD `MorphField` (`include/chronon3d/text/morph_field.hpp`): `std::vector<TextMorphSpec>` ordinati per priorità di interpolazione.
+- Effect `MorphEffectNode` (`src/render_graph/nodes/morph_effect_node.hpp`): interpola la signed-distance-field del sample source e target via approssimazione barycentrica sui pixel MSDF, gated da `MotionBlurSettings::jitter_seed`-style seed per il determinismo (cross-ref `Morph::jitter_seed{u64, default=0x4B2E8F91}` come nel canon `Camera2_5D::Camera2_5D` motion_blur).
+
+### Displacement
+
+Deformazione per-glyph su base d'onda / noise / audio amplitude.
+
+- POD `TextDisplacementSpec` (`include/chronon3d/text/text_displacement_spec.hpp`): `amplitude` (em), `wavelength` (em), `phase_offset` (rad), `mode = { Sin | Noise | Audio }`, `axis = { X | Y | Both }`.
+- Effect `DisplacementEffectNode` (`src/render_graph/nodes/displacement_effect_node.hpp`): applica un campo di deformazione al MSDF sample pre-rasterizzazione, estendendo la cache-key canon di Fase 6 (`font_id + axis → shaping → glyph → layout → render`) con `displacement_mode + axis`. NON introduce cache locale: riusa `chronon3d::text::font_engine::LruCache` sharded.
+- Audio coupling: quando `mode = Audio`, legge `audioAmplitude` dal context (cross-ref [`docs/EXPRESSIONS_V2_PROMOTION.md`](docs/EXPRESSIONS_V2_PROMOTION.md) Gate 4+; il POD espone già il campo per essere wired successivamente, anche se Gate 3 non è ancora `🟢 Done`).
+
+### Cross-ref canon (riuso, no duplicazione)
+
+Le estensioni Fase 12 ereditano:
+- Registri canon: effect canon in [`src/effects/`](src/effects/) + AnimationPack canon in [`src/registry/`](src/registry/) (vedi [`docs/CORE_OWNERSHIP.md`](CORE_OWNERSHIP.md) §6 anti-duplicazione).
+- Cache canon: `shared_mutex` + `LruCache` sharded in [`src/text/font_engine.cpp`](src/text/font_engine.cpp) (Fase 0/Fase 6); morph/displacement estendono la cache-key, NON creano cache locali.
+- Determinismo seed: pattern canon `MotionBlurSettings::jitter_seed` in [`include/chronon3d/scene/model/camera/camera_2_5d.hpp`](include/chronon3d/scene/model/camera/camera_2_5d.hpp) — Fixture di test riusano lo stesso schema (default `0x4B2E8F91`).
 
 ---
 
