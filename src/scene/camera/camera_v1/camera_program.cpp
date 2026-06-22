@@ -243,9 +243,35 @@ static void apply_projection_spec(const ProjectionSpec& spec,
     }, spec);
 }
 
-/// Evaluate an OrbitMotion by computing orbit + track + dolly.
+/// Evaluate an OrbitMotion by sampling the orbit spherical params and
+/// translating `track` + `dolly` in the camera-local basis (camera→target
+/// forward, world-up-relative right, world-up-relative up).
 ///
-/// TICKET-022 — orientation is applied once by `CameraProgram::evaluate()`
+/// TICKET-024 / DOC 02 — PRE-FIX:
+///   `track` was added to `target + forward*radius` in WORLD coordinates,
+///   and `dolly` was hard-coded to world +Z (`pos.z += dolly`).  Both
+///   directives are wrong for an orbit: pitch=90° rotates the camera
+///   off-axis and the "lateral" track then pushes the camera in a
+///   non-orthogonal world axis, AND `dolly` always pushes AWAY from the
+///   target regardless of where the orbit placed the camera.
+///
+/// TICKET-024 / DOC 02 — POST-FIX:
+///   1.  `orbit_position = target + world_forward*radius` (unchanged spherical).
+///   2.  `basis_forward = normalize(target - orbit_position)`  (camera→target;
+///       equivalent to `-world_forward` for non-degenerate orbits, but the live
+///       computation is unit-stable even when radius → 0 or pitch collapses).
+///   3.  `basis_right = normalize(cross(basis_forward, world_up))` — right-handed
+///       camera-local right; world-X fallback when forward ↔ world-up
+///       (pitch = ±90°).
+///   4.  `basis_up = cross(basis_right, basis_forward)` (already unit).
+///   5.  `pos = orbit_position + track.x * basis_right
+///                    + track.y * basis_up
+///                    + dolly * basis_forward`.
+///       `track.z` is no longer used (was un-scoped "lateral offset" — the
+///       OrbitMotion struct docstring says lateral; use `dolly` for any
+///       forward push).  The world-Z dollied axis has been removed.
+///
+/// TICKET-022 — orientation is applied ONCE by `CameraProgram::evaluate()`
 /// after the modifier pipeline.  See closing block-comment in this TU.
 static Camera2_5D eval_orbit_motion(const CameraBaseSpec& base,
                                      const OrbitMotion& orbit,
@@ -259,13 +285,58 @@ static Camera2_5D eval_orbit_motion(const CameraBaseSpec& base,
     const float dolly     = orbit.dolly.evaluate(ctx.sample_time);
     const float roll_deg  = orbit.roll.evaluate(ctx.sample_time);
 
-    const Vec3 forward{
+    // Spherical forward (target→camera, world frame, unit length by construction).
+    const Vec3 world_forward{
         std::cos(pitch_rad) * std::sin(yaw_rad),
         std::sin(pitch_rad),
         std::cos(pitch_rad) * std::cos(yaw_rad)
     };
-    Vec3 pos = target_pos + forward * radius + track;
-    pos.z += dolly;
+    const Vec3 orbit_position = target_pos + world_forward * radius;
+
+    // Camera-local basis for track + dolly: derived from the live
+    // orbit_position so the basis is unit-stable even when radius → 0
+    // (degenerate: orbit_position ≡ target) or pitch → ±90° (basis_forward
+    // ∥ world_up triggers the right-axis fallback below).
+    Vec3 basis_forward = target_pos - orbit_position;
+    float basis_fwd_len = glm::length(basis_forward);
+    if (basis_fwd_len > 1e-4f) {
+        basis_forward /= basis_fwd_len;
+    } else {
+        // Degenerate: orbit_position == target.  Fall back to the negated
+        // spherical forward (already a unit vector because world_forward
+        // is cos²+sin² = 1).  This avoids NaN and preserves the canonical
+        // camera→target intent.
+        basis_forward = Vec3{
+            -world_forward.x,
+            -world_forward.y,
+            -world_forward.z
+        };
+    }
+
+    // Right axis = world up × forward (right-handed so camera-local
+    // +X maps to world +X when looking down -Z; the look-at-with-up
+    // convention used elsewhere in this TU).
+    const Vec3 world_up{0.0f, 1.0f, 0.0f};
+    Vec3 basis_right = glm::cross(basis_forward, world_up);
+    float basis_right_len = glm::length(basis_right);
+    if (basis_right_len > 1e-4f) {
+        basis_right /= basis_right_len;
+    } else {
+        // basis_forward ∥ world-up (pitch = ±90°).  Use world +X as a
+        // non-NaN fallback; this matches the convention that camera-right
+        // aligns with world-X when the camera looks straight down.
+        basis_right = Vec3{1.0f, 0.0f, 0.0f};
+    }
+    // basis_up is already a unit vector (cross of two orthogonal unit vectors).
+    Vec3 basis_up = glm::cross(basis_right, basis_forward);
+
+    // Camera-local translations: track.x → right, track.y → up, dolly →
+    // camera→target forward.  track.z is no longer used (was un-scoped;
+    // see TICKET-024 resolution in docs/FOLLOWUP_TICKETS.md).
+    Vec3 pos = orbit_position
+             + track.x * basis_right
+             + track.y * basis_up
+             + dolly * basis_forward;
 
     Camera2_5D cam;
     cam.enabled = base.enabled;
