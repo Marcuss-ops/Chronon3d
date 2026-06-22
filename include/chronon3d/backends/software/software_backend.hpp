@@ -32,11 +32,22 @@ namespace chronon3d::cache {
 
 namespace chronon3d {
 
+// 06 R3b follow-up — SoftwareBackend holds a non-owning back-pointer to
+// its orchestrator SoftwareRenderer.  This is a TEMPORARY bridge used by
+// `draw_text_run` (which needs the `SoftwareProcessorContext` bundle the
+// renderer builds).  When 06 R3 drops dual identity, the back-pointer
+// will be replaced with sourcing context directly from `runtime::
+class SoftwareRenderer;  // forward decl only — keeps I3 budget
+
 class SoftwareBackend : public graph::RenderBackend {
 public:
     /// Construct the backend with the resources it needs from the orchestrator.
-    /// All references must outlive the backend.
-    SoftwareBackend(RenderCounters&                    counters,
+    /// All references AND the owner pointer must outlive the backend.
+    /// `owner` is required for `draw_text_run` until R3 drops dual identity;
+    /// until then passing `nullptr` here will propagate `InvalidInput` from
+    /// `renderer::draw_text_run` (defensive loud-fail rather than silent).
+    SoftwareBackend(class SoftwareRenderer*            owner,
+                    RenderCounters&                    counters,
                     const RenderSettings&              settings,
                     std::shared_ptr<cache::FramebufferPool> pool);
 
@@ -75,14 +86,26 @@ public:
     void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state,
                    const Camera& camera, int width, int height) override;
 
-    // draw_text_run remains on SoftwareRenderer because
-    // ShapeProcessor::draw() takes SoftwareRenderer & (not RenderBackend&).
-    // Once ShapeProcessor is migrated, these can move here.
+    // 06 R3b — `draw_text_run` and `capabilities` migrated to
+    // SoftwareBackend.  SoftwareRenderer no longer exposes these.
+    graph::RenderOpResult draw_text_run(Framebuffer& fb,
+                                        const TextRunShape& shape,
+                                        const Mat4& model_matrix,
+                                        float opacity) override;
 
 private:
     RenderCounters&                        m_counters;
     const RenderSettings&                  m_settings;
     std::shared_ptr<cache::FramebufferPool> m_framebuffer_pool;
+    // 06 R3b — non-owning back-pointer to the orchestrating SoftwareRenderer,
+    // used by `draw_text_run` to source the SoftwareProcessorContext service
+    // bundle (font_engine, asset_resolver, debug_config).  Lifetime invariant
+    // (verified 06 R3b): m_owner is read ONLY inside `draw_text_run` (a
+    // dispatch path, never the destructor), and `~RenderRuntime()` is
+    // `= default`, so the field is never dereferenced after
+    // `~SoftwareRenderer()`.  When R3 sources context directly from
+    // runtime (planned), m_owner will be removed.
+    class SoftwareRenderer*                m_owner{nullptr};  // 06 R3b back-pointer
 };
 
 } // namespace chronon3d

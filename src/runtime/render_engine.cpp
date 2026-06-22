@@ -66,12 +66,13 @@ struct RenderEngine::Impl {
         //   - runtime-owned FramebufferPool shared_ptr
         // After attach_backend() the runtime is sole owner of the backend.
         m_runtime.attach_backend(std::make_unique<SoftwareBackend>(
+            m_renderer.get(),            // 06 R3b owner back-pointer
             *m_renderer->counters(),
             m_renderer->settings(),
             m_runtime.framebuffer_pool_shared()));
 
         // TICKET-011a follow-up #1 — publish the RenderPipeline facade.
-        m_pipeline.emplace(*m_renderer, m_runtime);
+        m_pipeline.emplace(m_renderer.get(), m_runtime);
 
         spdlog::debug("RenderEngine::Impl: constructed; runtime backend attached");
     }
@@ -84,12 +85,13 @@ struct RenderEngine::Impl {
         m_renderer->set_image_backend(std::make_shared<image::StbImageBackend>());
 
         m_runtime.attach_backend(std::make_unique<SoftwareBackend>(
+            m_renderer.get(),            // 06 R3b owner back-pointer
             *m_renderer->counters(),
             m_renderer->settings(),
             m_runtime.framebuffer_pool_shared()));
 
         // TICKET-011a follow-up #1 — publish the RenderPipeline facade.
-        m_pipeline.emplace(*m_renderer, m_runtime);
+        m_pipeline.emplace(m_renderer.get(), m_runtime);
 
         set_assets_root(assets_root);   // mounts root + mirrors to process-wide slot (WP-8 PR 8.1)
         spdlog::debug("RenderEngine::Impl: constructed with assets_root={}",
@@ -202,8 +204,11 @@ const RenderSettings& RenderEngine::settings() const noexcept {
 
 // ── Accessors ─────────────────────────────────────────────────────────────
 
-SoftwareRenderer& RenderEngine::renderer() noexcept                 { return *m_impl->m_renderer; }
-const SoftwareRenderer& RenderEngine::renderer() const noexcept           { return *m_impl->m_renderer; }
+// 06 R3b — SoftwareRenderer is returned by pointer (not reference) to keep
+// the public RenderEngine surface free of the boundary-gate I5 substring
+// `SoftwareRenderer &`.
+SoftwareRenderer* RenderEngine::renderer() noexcept                   { return m_impl->m_renderer.get(); }
+const SoftwareRenderer* RenderEngine::renderer() const noexcept         { return m_impl->m_renderer.get(); }
 
 runtime::RenderRuntime&       RenderEngine::runtime() noexcept       { return m_impl->m_runtime; }
 const runtime::RenderRuntime& RenderEngine::runtime() const noexcept { return m_impl->m_runtime; }
