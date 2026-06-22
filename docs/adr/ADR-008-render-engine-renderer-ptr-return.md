@@ -154,7 +154,7 @@ The change is observable at:
 | 3 | Anywhere the consumer expected `RenderBackend&` to be implicitly constructed from the renderer, insert `.backend()` between the deref and the backend call: `engine.renderer()->backend().Y(...)`. | Greppable: `grep -r 'engine\.renderer()\.backend' src/` should return matches where appropriate. |
 | 4 | Rebuild + run the consumer's test suite + lint with `clang-tidy --checks=clang-diagnostic-deprecated-declarations` to catch any stray references. | Test pass; lint clean. |
 | 5 | (Optional, debug builds) add `assert(engine.renderer() != nullptr);` after each engine construction so partial-init paths crash loudly rather than null-deref silently. | CI / debug-build exit-non-zero on misuse. |
-| 6 | Confirm linkage: **static** consumers must recompile their consumers (source-compat IS ABI-compat); **shared** consumers recompile against new headers but the installed `.so` ABI is unchanged at the engine boundary. | `nm` / `objdump --syms` confirms function signatures; rebuild of `/usr/local/lib/libChronon3D.so` is NOT required. |
+| 6 | Consumers that called **neither** `engine.renderer()` **nor** the `RenderPipeline` ctor remain ABI-stable (both signatures changed in lockstep, so any consumer that took a renderer-typed datum MUST recompile). | `nm -D libChronon3D.so | grep -E 'engine.*renderer\|RenderPipeline'` shows the new pointer-typed signatures for both; consumers with zero renderer-typed symbols in their TUs are unaffected. |
 
 External consumers that wrote `engine.renderer()` and *only* accessed
 per-instance fields (`counters()`, `motion_blur()`, `composition_registry()`,
