@@ -386,7 +386,9 @@ GlyphInstanceState
 - [ ] RTL.
 - [ ] Path animato.
 
-**Consolidamento**: `src/text/text_path_composer.cpp` esiste già e fornisce primitive da liberare in `PathMeasure`/`TextPathLayout`; questa fase NON introduce una pipeline parallela.
+## Piano operativo
+
+**Stato corrente** (audit 2026-06-22): `src/text/text_path_composer.cpp` è già production-canonical (178 LOC) con `include/chronon3d/text/path_sampler.hpp` (`PathSampler` con arc-length table, De Casteljau subdivision) e `include/chronon3d/text/text_path_spec.hpp`. Il lavoro di Fase 5 è dunque **consolidamento-intelligente**, non creazione: renominare/riprodurre i tipi canon in `PathMeasure` + `TextPathLayout` facendo leva sulle primitive esistenti, senza introdurre una pipeline parallela.
 
 > **Cross-link con Fase 11**: la `Camera 2.5D-text-only` di Fase 11 (libtess2 free-standing) è distinta dalla transform path-based di questa Fase 5. Vedi Fase 11 §Camera 2.5D per il vincolo anti-aliasing con la pipeline produttiva camera di [`docs/CAMERA_REGIA_AE_PLAN.md`](CAMERA_REGIA_AE_PLAN.md).
 
@@ -399,6 +401,14 @@ Non serve una nuova libreria: usare FreeType e HarfBuzz già presenti.
 ## Obiettivo
 
 Animare gli assi del font: `wght`, `wdth`, `slnt`, `opsz`, assi personalizzati.
+
+## Piano operativo
+
+**Stato corrente** (audit 2026-06-22): nessuna infrastruttura variable-font presente nel tree (zero match per `fvar`, `OT_VAR`, `HarfBuzz.*variable`, `FT_PARAM_TAG_VARIATIONS` in `src/`+`include/`). Il design cache-key è da fare ex-novo, ancorato al canon `FontEngine` in `include/chronon3d/text/font_engine.hpp` (Fase 0 — [`docs/01-baseline-green.md`](01-baseline-green.md) §2.5 + `[docs/TEXT_BOTTLENECKS.md](TEXT_BOTTLENECKS.md) §1 HarfBuzz shaper). Plan di esecuzione:
+
+1. Aggiungere `VariableAxisProperty` + `VariableAxisMap` POD canonici in `include/chronon3d/text/variable_axis.hpp`.
+2. Estendere la cache-key canon di `FontEngine` (vedi `src/text/font_engine.cpp` shared_mutex + LruCache pattern con sharding) per includere `axis_coords` su 5 livelli: `font_id + axis → shaping → glyph → layout → render`.
+3. Adottare il path HarfBuzz `hb_font_set_var_named_instance` + `hb_font_set_var_axis_design_coords` come modificatore di shaper (single-source-of-truth); test determinismo-ordered per ri-abilitare AVX2 quando servirà (cross-ref `docs/01-baseline-green.md` §3.1 ordered-reduction ticket separato).
 
 ## Nuove proprietà
 
@@ -579,6 +589,22 @@ TextBoundaryResolver
 ## Regola
 
 Il resto del motore non deve dipendere direttamente da ICU.
+
+## Piano operativo
+
+**Stato corrente** (audit 2026-06-22): nessuna ICU installata in `vcpkg_installed/*` (opt-in via `CHRONON3D_USE_ICU=ON`); riferimenti condizionali esistenti in `src/text/glyph_selector.cpp`, `src/backends/text/bidi_segmenter.cpp`, `include/chronon3d/text/text_layout_engine.hpp`. Boundary-resolver-like references in `src/text/text_resolver.cpp` + `src/text/text_run_driver.cpp`; nessun `TextBoundaryResolver` canon ancora esposto.
+
+**Piano di esecuzione**:
+
+1. **Adapter pattern canon** in `include/chronon3d/text/boundary_resolver.hpp`:
+   * `TextBoundaryResolver` interface con metodi virtuali `grapheme_clusters(text) -> vector<Range>`, `word_bounds(text)`, `line_breaks(text)`, `sentence_bounds(text)`.
+   * `BuiltinBoundaryResolver` (zero ICU dep): ASCII word + newlines + char-class segmentation baseline.
+   * `IcuBoundaryResolver` (opt-in): wrappa `icu::BreakIterator` per grapheme/word/line/sentence + CJK line-breaking (Thai/Lao/Khmer/Burmese).
+2. **Resoluzione runtime** via `std::unique_ptr<TextBoundaryResolver>` istanziato da `src/text/text_resolver.cpp` in base al flag `CHRONON3D_USE_ICU` (compile-time) + `CHRONON3D_FORCE_BUILTIN_BOUNDARY` (runtime override); mai istanziato dentro i nodi downstream.
+3. **Regola di isolation** (hard): `#include <unicode/*>` consentito solo in `src/text/boundary_resolver/` + `src/backends/text/icu_resolver.cpp`. Nessun altra TU può includere ICU headers. test_architectural.sh §5 (gate check) deve essere extended a verificare questa invariante.
+4. **`GlyphRasterStrategy` color emoji**: dipende da Fase 12 che ha canonicalizzato la multi-strategy (Bitmap | Vector | Msdf). Aggiungere `ColorGlyphRasterizer` come quarta strategia per COLR/CPAL tables (OpenType color-font extension) + emoji fallback via `sil`/`twemoji` provider. `GlyphRasterStrategy` enum è keyed by font-table-capability detection.
+5. **Profilo vcpkg**: la feature `text` esistente (vedi [`docs/stabilization-plan/08-dependency-profiles.md`](stabilization-plan/08-dependency-profiles.md)) introduce `harfbuzz` indirettamente; per Fase 9 si richiede l'aggiunta `icu` opzionale a uno dei profili (es. motion + icu = motion+icu). Estensione del `vcpkg.json`.
+6. **Testing harness multilingua**: 10 lingue target (vedi sotto) come integration-test su scene Compositor. Cross-ref [`docs/01-baseline-green.md`](01-baseline-green.md) §2.4-2.5 per il formatter `metrics.json` + §4 per i comandi di riproduzione.
 
 ## Test linguistici
 
@@ -780,7 +806,7 @@ textIndex == activeWord ? 100 : 0
 
 Non introdurre un parser separato per il testo.
 
-**Cross-ref Gate (precondizione forward-looking)**: [`docs/EXPRESSIONS_V2_PROMOTION.md`](EXPRESSIONS_V2_PROMOTION.md) Gate 3 + [`docs/FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md) TICKET-EXP2-G3 — stato corrente `🔵 Planned`. Fase 13 non inizia finché entrambi i ticket e Gate 3 non passano a `🟢 Done`.
+**Cross-ref Gate (precondizione forward-looking, verificato)**: [`docs/EXPRESSIONS_V2_PROMOTION.md`](EXPRESSIONS_V2_PROMOTION.md) Gate 3 + [`docs/FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md) TICKET-EXP2-G3 — stato corrente `🔵 Planned`; design catturato in TICKET-EXP2-G3 §Audit findings, Gate 3 attualmente in `Kickoff` (no PR ancora green). Plan: Gate 3a (Path B feature parity PR, wiggle/linear/random/seedRandom/loopOut/loopIn port in `experimental/expressions/v2/vm.cpp`) → Gate 3b (AnimatedValue swap PR). Fase 13 non inizia finché Gate 3 è `🟢 Done`.
 
 ---
 
