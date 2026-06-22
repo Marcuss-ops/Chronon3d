@@ -11,6 +11,7 @@
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include "src/backends/software/utils/render_effects_processor.hpp"
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 using namespace chronon3d::effects;
@@ -207,7 +208,7 @@ TEST_CASE("EffectExecutionContext: SoftwareRenderer::apply_effect_stack plumbing
     };
 
     // Use the SoftwareRenderer path — passes context through to renderer::apply_effect_stack
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     renderer.apply_effect_stack(fb, stack, context);
 
     // Brightness adjustment should have modified the framebuffer

@@ -8,6 +8,7 @@
 
 #include <cmath>
 #include <filesystem>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 using namespace chronon3d::animation;
@@ -39,7 +40,7 @@ void add_motion_content(SceneBuilder& s, const FrameContext& ctx, const CameraMo
 void render_motion_clip(MotionAxis axis, const char* name, const char* filename) {
     std::filesystem::create_directories("output/camera_motion");
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     CameraMotionParams params;
     params.axis = axis;
     auto comp = chronon3d::presets::camera_motion_clip(name, params, add_motion_content);

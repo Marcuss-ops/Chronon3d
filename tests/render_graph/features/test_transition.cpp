@@ -48,7 +48,7 @@ Composition make_transition_comp(
 } // namespace
 
 TEST_CASE("Crossfade transition_in renders progressive opacity") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     
     LayerTransitionSpec trans_in{
         .transition_id = "crossfade",
@@ -78,7 +78,7 @@ TEST_CASE("Crossfade transition_in renders progressive opacity") {
 }
 
 TEST_CASE("Transition direction and different types execute successfully") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     std::vector<std::string> transition_types = {
         "slide", "wipe_linear", "smooth_wipe", "circle_iris", "flash", "procedural_remotion", "remotion"
@@ -109,7 +109,7 @@ TEST_CASE("Transition direction and different types execute successfully") {
 }
 
 TEST_CASE("Remotion-style transitions compute noise-driven masks and colors") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     // Verify procedural_remotion
     {

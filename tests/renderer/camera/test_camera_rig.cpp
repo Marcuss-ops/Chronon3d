@@ -224,14 +224,14 @@ TEST_CASE("CameraRig: resolves target anchor through the camera target null") {
 }
 
 TEST_CASE("CameraRig: center golden render stays readable and centered") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto fb = renderer.render_frame(make_center_composition(), 0);
     REQUIRE(fb != nullptr);
     verify_golden_or_create(*fb, "center.png");
 }
 
 TEST_CASE("CameraRig: orbit golden render changes the view in a controlled way") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto fb = renderer.render_frame(make_orbit_composition(), 120);
     REQUIRE(fb != nullptr);
     verify_golden_or_create(*fb, "orbit_120.png");

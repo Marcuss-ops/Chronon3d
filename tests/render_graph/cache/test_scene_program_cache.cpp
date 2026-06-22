@@ -144,16 +144,16 @@ TEST_CASE("scene_program_cache: same structure key bypasses recompilation") {
     int compile_count = 0;
 
     auto key = make_key(0xABCD);
-    cache.find_or_compile(key, TestCompiler{compile_count});
+    (void)cache.find_or_compile(key, TestCompiler{compile_count});
     CHECK(compile_count == 1);
 
     // Same key again — no compile.
-    cache.find_or_compile(key, TestCompiler{compile_count});
+    (void)cache.find_or_compile(key, TestCompiler{compile_count});
     CHECK(compile_count == 1);
 
     // Different width → different key → recompile.
     auto key_diff_size = make_key(0xABCD, 200, 200);
-    cache.find_or_compile(key_diff_size, TestCompiler{compile_count});
+    (void)cache.find_or_compile(key_diff_size, TestCompiler{compile_count});
     CHECK(compile_count == 2);
 }
 
@@ -345,9 +345,9 @@ TEST_CASE("scene_program_cache: LRU eviction with capacity 3 (spec)") {
     auto key_d = make_key(0xD);
 
     // Insert A, B, C.
-    cache.find_or_compile(key_a, TestCompiler{compile_count});  // +1
-    cache.find_or_compile(key_b, TestCompiler{compile_count});  // +1
-    cache.find_or_compile(key_c, TestCompiler{compile_count});  // +1
+    (void)cache.find_or_compile(key_a, TestCompiler{compile_count});  // +1
+    (void)cache.find_or_compile(key_b, TestCompiler{compile_count});  // +1
+    (void)cache.find_or_compile(key_c, TestCompiler{compile_count});  // +1
     CHECK(compile_count == 3);
     CHECK(cache.size() == 3);
 
@@ -357,7 +357,7 @@ TEST_CASE("scene_program_cache: LRU eviction with capacity 3 (spec)") {
     CHECK(cache.stats().hits >= 1);
 
     // Insert D → should evict B (LRU tail).
-    cache.find_or_compile(key_d, TestCompiler{compile_count});  // +1
+    (void)cache.find_or_compile(key_d, TestCompiler{compile_count});  // +1
     CHECK(compile_count == 4);
     CHECK(cache.size() == 3);    // still at capacity
 
@@ -384,13 +384,13 @@ TEST_CASE("scene_program_cache: LRU access order with 4 entries") {
     auto k4 = make_key(4);
 
     // Fill cache.
-    cache.find_or_compile(k1, TestCompiler{compile_count});
-    cache.find_or_compile(k2, TestCompiler{compile_count});
-    cache.find_or_compile(k3, TestCompiler{compile_count});
+    (void)cache.find_or_compile(k1, TestCompiler{compile_count});
+    (void)cache.find_or_compile(k2, TestCompiler{compile_count});
+    (void)cache.find_or_compile(k3, TestCompiler{compile_count});
     CHECK(cache.size() == 3);
 
     // Insert k4 → evicts LRU (k1).
-    cache.find_or_compile(k4, TestCompiler{compile_count});
+    (void)cache.find_or_compile(k4, TestCompiler{compile_count});
     CHECK_FALSE(cache.contains(k1));
     CHECK(cache.contains(k2));
     CHECK(cache.contains(k3));
@@ -406,9 +406,9 @@ TEST_CASE("scene_program_cache: LRU touch promotes to MRU") {
     auto k2 = make_key(2);
     auto k3 = make_key(3);
 
-    cache.find_or_compile(k1, TestCompiler{compile_count});
-    cache.find_or_compile(k2, TestCompiler{compile_count});
-    cache.find_or_compile(k3, TestCompiler{compile_count});
+    (void)cache.find_or_compile(k1, TestCompiler{compile_count});
+    (void)cache.find_or_compile(k2, TestCompiler{compile_count});
+    (void)cache.find_or_compile(k3, TestCompiler{compile_count});
 
     // k1 is LRU (head: k3, then k2, tail: k1).
     // Access k1 → becomes MRU (head: k1, then k3, tail: k2).
@@ -417,7 +417,7 @@ TEST_CASE("scene_program_cache: LRU touch promotes to MRU") {
 
     // Insert k4 → should evict k2 (now LRU tail), not k1.
     auto k4 = make_key(4);
-    cache.find_or_compile(k4, TestCompiler{compile_count});
+    (void)cache.find_or_compile(k4, TestCompiler{compile_count});
 
     CHECK(cache.contains(k1));   // k1 was MRU after access
     CHECK_FALSE(cache.contains(k2));  // k2 was LRU → evicted
@@ -432,8 +432,8 @@ TEST_CASE("scene_program_cache: clear resets everything") {
     auto k1 = make_key(1);
     auto k2 = make_key(2);
 
-    cache.find_or_compile(k1, TestCompiler{compile_count});
-    cache.find_or_compile(k2, TestCompiler{compile_count});
+    (void)cache.find_or_compile(k1, TestCompiler{compile_count});
+    (void)cache.find_or_compile(k2, TestCompiler{compile_count});
 
     CHECK(cache.size() == 2);
     CHECK(compile_count == 2);
@@ -455,8 +455,8 @@ TEST_CASE("scene_program_cache: erase removes specific entry") {
     auto k1 = make_key(1);
     auto k2 = make_key(2);
 
-    cache.find_or_compile(k1, TestCompiler{compile_count});
-    cache.find_or_compile(k2, TestCompiler{compile_count});
+    (void)cache.find_or_compile(k1, TestCompiler{compile_count});
+    (void)cache.find_or_compile(k2, TestCompiler{compile_count});
 
     CHECK(cache.size() == 2);
 
@@ -475,7 +475,7 @@ TEST_CASE("scene_program_cache: set_capacity evicts excess") {
     int compile_count = 0;
 
     for (int i = 0; i < 8; ++i) {
-        cache.find_or_compile(make_key(i), TestCompiler{compile_count});
+        (void)cache.find_or_compile(make_key(i), TestCompiler{compile_count});
     }
     CHECK(cache.size() == 8);
 
@@ -541,11 +541,11 @@ TEST_CASE("scene_program_cache: telemetry counters on hit") {
     int compile_count = 0;
 
     auto key = make_key(0xCAFE);
-    cache.find_or_compile(key, TestCompiler{compile_count});
+    (void)cache.find_or_compile(key, TestCompiler{compile_count});
     CHECK(counters.program_cache_misses.load() == 1);
     CHECK(counters.program_cache_hits.load() == 0);
 
-    cache.find_or_compile(key, TestCompiler{compile_count});
+    (void)cache.find_or_compile(key, TestCompiler{compile_count});
     CHECK(counters.program_cache_hits.load() == 1);
     CHECK(counters.program_cache_misses.load() == 1);
 }
@@ -556,12 +556,12 @@ TEST_CASE("scene_program_cache: telemetry counters on eviction") {
     cache.set_counters(&counters);
     int compile_count = 0;
 
-    cache.find_or_compile(make_key(100), TestCompiler{compile_count});
-    cache.find_or_compile(make_key(200), TestCompiler{compile_count});
+    (void)cache.find_or_compile(make_key(100), TestCompiler{compile_count});
+    (void)cache.find_or_compile(make_key(200), TestCompiler{compile_count});
     CHECK(counters.program_cache_evictions.load() == 0);
 
     // Insert third → evicts LRU (key 100).
-    cache.find_or_compile(make_key(300), TestCompiler{compile_count});
+    (void)cache.find_or_compile(make_key(300), TestCompiler{compile_count});
     CHECK(counters.program_cache_evictions.load() == 1);
     CHECK(counters.program_cache_misses.load() == 3);
 }
@@ -595,12 +595,12 @@ TEST_CASE("scene_program_cache: eviction callback fires on evict") {
     auto k2 = make_key(20);
     auto k3 = make_key(30);
 
-    cache.find_or_compile(k1, TestCompiler{compile_count});
-    cache.find_or_compile(k2, TestCompiler{compile_count});
+    (void)cache.find_or_compile(k1, TestCompiler{compile_count});
+    (void)cache.find_or_compile(k2, TestCompiler{compile_count});
     CHECK(evict_count == 0);  // no eviction yet
 
     // Insert third → evicts k1.
-    cache.find_or_compile(k3, TestCompiler{compile_count});
+    (void)cache.find_or_compile(k3, TestCompiler{compile_count});
     CHECK(evict_count == 1);
     CHECK(last_evicted.topology_hash == k1.topology_hash);
     CHECK(last_evicted.width == k1.width);
@@ -615,8 +615,8 @@ TEST_CASE("scene_program_cache: eviction callback fires on erase") {
     });
 
     int compile_count = 0;
-    cache.find_or_compile(make_key(1), TestCompiler{compile_count});
-    cache.find_or_compile(make_key(2), TestCompiler{compile_count});
+    (void)cache.find_or_compile(make_key(1), TestCompiler{compile_count});
+    (void)cache.find_or_compile(make_key(2), TestCompiler{compile_count});
     CHECK(evict_count == 0);
 
     // Explicit erase should also fire the callback.
@@ -637,7 +637,7 @@ TEST_CASE("scene_program_cache: eviction callback fires on set_capacity") {
 
     int compile_count = 0;
     for (int i = 0; i < 8; ++i) {
-        cache.find_or_compile(make_key(i), TestCompiler{compile_count});
+        (void)cache.find_or_compile(make_key(i), TestCompiler{compile_count});
     }
     CHECK(evict_count == 0);
 
@@ -651,9 +651,9 @@ TEST_CASE("scene_program_cache: no callback when not set") {
     SceneProgramCache cache(2, 1);
     int compile_count = 0;
 
-    cache.find_or_compile(make_key(1), TestCompiler{compile_count});
-    cache.find_or_compile(make_key(2), TestCompiler{compile_count});
-    cache.find_or_compile(make_key(3), TestCompiler{compile_count});  // evicts #1
+    (void)cache.find_or_compile(make_key(1), TestCompiler{compile_count});
+    (void)cache.find_or_compile(make_key(2), TestCompiler{compile_count});
+    (void)cache.find_or_compile(make_key(3), TestCompiler{compile_count});  // evicts #1
     // No crash expected.
     CHECK(cache.size() == 2);
 }

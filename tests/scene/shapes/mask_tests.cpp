@@ -6,6 +6,7 @@
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 
@@ -14,7 +15,7 @@ namespace {
 std::shared_ptr<Framebuffer> render_masked_layer(
     std::function<void(LayerBuilder&)> mask_fn
 ) {
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);

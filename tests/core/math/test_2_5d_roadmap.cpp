@@ -422,19 +422,7 @@ TEST_CASE("TEST MATH 12 - Temporal Stability") {
     auto scene = make_depth_scene(0.0f);
     auto scene_shifted = make_depth_scene(0.1f);
 
-    SoftwareRenderer renderer(Config{});
-    RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
-
-    // Attach a SoftwareBackend — SoftwareRenderer runs on top of a
-    // RenderRuntime that must have a concrete backend bound before
-    // render_frame / render_scene can dispatch to the modular graph.
-    renderer.runtime().attach_backend(
-        std::make_unique<chronon3d::SoftwareBackend>(
-            *renderer.counters(),
-            renderer.settings(),
-            renderer.runtime().framebuffer_pool_shared()));
+    auto renderer = test::make_renderer();
 
     auto fb0 = renderer.render_frame(scene, 0);
     auto fb1 = renderer.render_frame(scene_shifted, 1);

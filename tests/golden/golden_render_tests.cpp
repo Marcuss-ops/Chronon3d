@@ -25,7 +25,7 @@ bool colors_near(const Color& c1, const Color& c2, float tolerance = 0.05f) {
 } // namespace
 
 TEST_CASE("Test 17.1 — Golden image baseline and pixel-by-pixel validation") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     Composition comp({.width = 64, .height = 64}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.rect("red_box", {.size={30, 30}, .color=Color::red(), .pos={32, 32, 0}});
@@ -64,7 +64,7 @@ TEST_CASE("Test 17.1 — Golden image baseline and pixel-by-pixel validation") {
 }
 
 TEST_CASE("Test 17.2 — Framebuffer dimension and float boundary comparisons") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     Composition comp({.width = 128, .height = 64}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.rect("box", {.size={60, 30}, .color=Color::white(), .pos={0, 0, 0}});
@@ -85,7 +85,7 @@ TEST_CASE("Test 17.2 — Framebuffer dimension and float boundary comparisons") 
 }
 
 TEST_CASE("Test 17.3 — Pixel-level difference reporting on mismatch") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     Composition comp({.width = 32, .height = 32}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.rect("green_box", {.size={20, 20}, .color=Color::green(), .pos={16, 16, 0}});
@@ -131,7 +131,7 @@ TEST_CASE("Test 17.3 — Pixel-level difference reporting on mismatch") {
 }
 
 TEST_CASE("Test 17.4 — Text layout alignment Center/Middle") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     Composition comp({.width = 256, .height = 256}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("text_layer", [](LayerBuilder& l) {
@@ -179,7 +179,7 @@ TEST_CASE("Test 17.4 — Text layout alignment Center/Middle") {
 }
 
 TEST_CASE("Test 17.5 — Text auto-fit automatic sizing") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     Composition comp({.width = 256, .height = 128}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("text_layer", [](LayerBuilder& l) {
@@ -228,7 +228,7 @@ TEST_CASE("Test 17.5 — Text auto-fit automatic sizing") {
 }
 
 TEST_CASE("Test 17.6 — Text max-lines and ellipsis truncation") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     Composition comp({.width = 256, .height = 128}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("text_layer", [](LayerBuilder& l) {
@@ -276,7 +276,7 @@ TEST_CASE("Test 17.6 — Text max-lines and ellipsis truncation") {
 }
 
 TEST_CASE("Test 17.7 — Text style (Cyan neon-like coloring)") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     Composition comp({.width = 256, .height = 128}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("text_layer", [](LayerBuilder& l) {
@@ -322,7 +322,7 @@ TEST_CASE("Test 17.7 — Text style (Cyan neon-like coloring)") {
 }
 
 TEST_CASE("Test 17.8 — Subtitle backing box rendering") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     Composition comp({.width = 256, .height = 128}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("text_layer", [](LayerBuilder& l) {

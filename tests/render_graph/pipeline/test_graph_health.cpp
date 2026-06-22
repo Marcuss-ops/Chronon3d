@@ -8,6 +8,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <cmath>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 using namespace chronon3d::graph;
@@ -68,7 +69,7 @@ TEST_CASE("GraphHealth: fullscreen background covers all corners and center") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -113,7 +114,7 @@ TEST_CASE("GraphHealth: layer order is preserved") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -142,7 +143,7 @@ TEST_CASE("GraphHealth: custom layer translation is applied exactly once") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -173,7 +174,7 @@ TEST_CASE("GraphHealth: custom layer scale is applied correctly") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -210,7 +211,7 @@ TEST_CASE("GraphHealth: mask remains aligned with transformed layer") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -242,7 +243,7 @@ TEST_CASE("GraphHealth: glow expands visible pixels outside source bbox") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -278,7 +279,7 @@ TEST_CASE("GraphHealth: glow falloff is radial and fades with distance") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -320,7 +321,7 @@ TEST_CASE("GraphHealth: screen blend brightens underlying layer") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -368,13 +369,13 @@ TEST_CASE("GraphHealth: dirty rects on and off render identically") {
         return s.build();
     });
 
-    SoftwareRenderer baseline(Config{});
+    auto baseline = test::make_renderer();
     RenderSettings baseline_settings;
     baseline_settings.use_modular_graph = true;
     baseline_settings.dirty.enabled = false;
     baseline.set_settings(baseline_settings);
 
-    SoftwareRenderer dirty(Config{});
+    auto dirty = test::make_renderer();
     RenderSettings dirty_settings;
     dirty_settings.use_modular_graph = true;
     dirty_settings.dirty.enabled = true;
@@ -427,14 +428,14 @@ TEST_CASE("GraphHealth: same frame renders deterministically") {
     Scene scene_a = make_scene();
     Scene scene_b = make_scene();
 
-    SoftwareRenderer renderer_a(Config{});
+    auto renderer_a = test::make_renderer();
     cache::NodeCache node_cache_a;
     Camera camera;
 
     auto fb_a = render_graph_scene(renderer_a, node_cache_a, scene_a, camera, W, H);
     REQUIRE(fb_a != nullptr);
 
-    SoftwareRenderer renderer_b(Config{});
+    auto renderer_b = test::make_renderer();
     cache::NodeCache node_cache_b;
     auto fb_b = render_graph_scene(renderer_b, node_cache_b, scene_b, camera, W, H);
     REQUIRE(fb_b != nullptr);
@@ -471,11 +472,11 @@ TEST_CASE("GraphHealth: graph output matches direct renderer for layered scene")
 
     Scene scene = s.build();
 
-    SoftwareRenderer direct_renderer(Config{});
+    auto direct_renderer = test::make_renderer();
     Camera camera;
     auto fb_direct = direct_renderer.render_scene(scene, camera, W, H);
 
-    SoftwareRenderer graph_renderer(Config{});
+    auto graph_renderer = test::make_renderer();
     cache::NodeCache node_cache;
     auto fb_graph = render_graph_scene(graph_renderer, node_cache, scene, camera, W, H);
 

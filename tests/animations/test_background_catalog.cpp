@@ -8,6 +8,7 @@
 
 #include <doctest/doctest.h>
 #include <cmath>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 
@@ -32,7 +33,7 @@ TEST_CASE("Builtin background compositions are registered") {
 }
 
 TEST_CASE("Analytical verification of GridCleanBackground render") {
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);

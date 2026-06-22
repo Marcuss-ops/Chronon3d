@@ -238,7 +238,7 @@ u64 compute_pixel_hash(const Framebuffer& fb) {
 
 TEST_CASE("Gradient determinism: 20 consecutive renders — pixel-identical") {
     auto comp = make_gradient_static_comp();
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     std::vector<u64> hashes;
     hashes.reserve(20);
@@ -257,7 +257,7 @@ TEST_CASE("Gradient determinism: 20 consecutive renders — pixel-identical") {
 
 TEST_CASE("Gradient determinism: animated scene — same frame repeated 10× identical") {
     auto comp = make_gradient_animated_comp();
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     const Frame test_frame{25};
     std::vector<u64> hashes;
@@ -289,7 +289,7 @@ TEST_CASE("Gradient determinism: cold cache vs warm cache — identical pixels")
     auto comp = make_gradient_static_comp();
 
     // Cold run: fresh renderer (cache empty)
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto fb_cold = renderer.render_frame(comp, 0);
     REQUIRE(fb_cold != nullptr);
     const u64 hash_cold = framebuffer_hash(*fb_cold);
@@ -308,7 +308,7 @@ TEST_CASE("Gradient determinism: cold cache vs warm cache — identical pixels")
 //   above.  The invalidated-rebuilt gradient path is bit-exact.
 TEST_CASE("Gradient determinism: cache invalidated → rebuilt — identical pixels (arena-reset)") {
     auto comp = make_gradient_static_comp();
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     auto res_cached = render_in_arena(/*slots=*/0, renderer, comp, Frame{0});
     REQUIRE(res_cached.fb != nullptr);
@@ -344,14 +344,14 @@ TEST_CASE("Gradient determinism: new renderer vs reused renderer — identical p
 
     // Fresh renderer A — first two renders share the same renderer so the
     // "reuse" determinism is exercised; each frame is isolated by a fresh arena.
-    auto renderer_a = make_renderer();
+    auto renderer_a = test::make_renderer();
     auto res_a1 = render_in_arena(/*slots=*/0, renderer_a, comp, Frame{0});
     REQUIRE(res_a1.fb != nullptr);
     auto res_a2 = render_in_arena(/*slots=*/0, renderer_a, comp, Frame{0});
     REQUIRE(res_a2.fb != nullptr);
 
     // Fresh renderer B — completely new instance, isolated by a 3rd arena.
-    auto renderer_b = make_renderer();
+    auto renderer_b = test::make_renderer();
     auto res_b  = render_in_arena(/*slots=*/0, renderer_b, comp, Frame{0});
     REQUIRE(res_b.fb != nullptr);
 
@@ -379,11 +379,11 @@ TEST_CASE("Gradient determinism: new renderer vs reused renderer — identical p
 TEST_CASE("Gradient determinism: 1 thread vs 4 threads — identical pixels (arena-reset)") {
     auto comp = make_gradient_static_comp();
 
-    auto renderer_1t = make_renderer();
+    auto renderer_1t = test::make_renderer();
     auto res_1t = render_in_arena(/*slots=*/1, renderer_1t, comp, Frame{0});
     REQUIRE(res_1t.fb != nullptr);
 
-    auto renderer_4t = make_renderer();
+    auto renderer_4t = test::make_renderer();
     auto res_4t = render_in_arena(/*slots=*/4, renderer_4t, comp, Frame{0});
     REQUIRE(res_4t.fb != nullptr);
 
@@ -401,11 +401,11 @@ TEST_CASE("Gradient determinism: 1 thread vs 4 threads — identical pixels (are
 TEST_CASE("Gradient determinism: 1 thread vs 8 threads — identical pixels (arena-reset)") {
     auto comp = make_gradient_static_comp();
 
-    auto renderer_1t = make_renderer();
+    auto renderer_1t = test::make_renderer();
     auto res_1t = render_in_arena(/*slots=*/1, renderer_1t, comp, Frame{0});
     REQUIRE(res_1t.fb != nullptr);
 
-    auto renderer_8t = make_renderer();
+    auto renderer_8t = test::make_renderer();
     auto res_8t = render_in_arena(/*slots=*/8, renderer_8t, comp, Frame{0});
     REQUIRE(res_8t.fb != nullptr);
 
@@ -422,7 +422,7 @@ TEST_CASE("Gradient determinism: 1 thread vs 8 threads — identical pixels (are
 
 TEST_CASE("Gradient determinism: semantic comparison — identical frames") {
     auto comp = make_gradient_static_comp();
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     auto fb1 = renderer.render_frame(comp, 0);
     auto fb2 = renderer.render_frame(comp, 0);
@@ -442,7 +442,7 @@ TEST_CASE("Gradient determinism: semantic comparison — identical frames") {
 
 TEST_CASE("Gradient determinism: semantic comparison — different frames differ") {
     auto comp = make_gradient_animated_comp();
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     auto fb10 = renderer.render_frame(comp, Frame{10});
     auto fb20 = renderer.render_frame(comp, Frame{20});
@@ -501,7 +501,7 @@ TEST_CASE("Gradient determinism: GradientDefinition sampler — repeatable outpu
 
 TEST_CASE("Gradient determinism: centroid detection on gradient shapes") {
     auto comp = make_gradient_static_comp();
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     auto fb = renderer.render_frame(comp, 0);
     REQUIRE(fb != nullptr);

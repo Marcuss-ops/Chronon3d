@@ -101,7 +101,7 @@ int main() {
     int64_t tbb_spawn_count = 0;
 
     for (int frame_num = 0; frame_num < 3; ++frame_num) {
-        auto renderer = make_renderer();
+        auto renderer = test::make_renderer();
         auto* counters = renderer.counters();
         if (!counters) {
             std::fprintf(stderr, "ERROR: No counters available\n");

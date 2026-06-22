@@ -96,7 +96,7 @@ Composition make_linear_horizontal() {
 }
 
 TEST_CASE("GradientGolden: linear horizontal") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto rendered = renderer.render_frame(make_linear_horizontal(), 0);
     REQUIRE(rendered != nullptr);
     verify_golden_or_create(*rendered, "gradient_linear_horizontal");
@@ -134,7 +134,7 @@ Composition make_linear_vertical() {
 }
 
 TEST_CASE("GradientGolden: linear vertical") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto rendered = renderer.render_frame(make_linear_vertical(), 0);
     REQUIRE(rendered != nullptr);
     verify_golden_or_create(*rendered, "gradient_linear_vertical");
@@ -171,7 +171,7 @@ Composition make_linear_diagonal() {
 }
 
 TEST_CASE("GradientGolden: linear diagonal") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto rendered = renderer.render_frame(make_linear_diagonal(), 0);
     REQUIRE(rendered != nullptr);
     verify_golden_or_create(*rendered, "gradient_linear_diagonal");
@@ -208,7 +208,7 @@ Composition make_radial_centered() {
 }
 
 TEST_CASE("GradientGolden: radial centered") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto rendered = renderer.render_frame(make_radial_centered(), 0);
     REQUIRE(rendered != nullptr);
     verify_golden_or_create(*rendered, "gradient_radial_centered");
@@ -245,7 +245,7 @@ Composition make_radial_offset() {
 }
 
 TEST_CASE("GradientGolden: radial offset") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto rendered = renderer.render_frame(make_radial_offset(), 0);
     REQUIRE(rendered != nullptr);
     verify_golden_or_create(*rendered, "gradient_radial_offset");
@@ -284,7 +284,7 @@ Composition make_multiple_stops() {
 }
 
 TEST_CASE("GradientGolden: multiple stops") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto rendered = renderer.render_frame(make_multiple_stops(), 0);
     REQUIRE(rendered != nullptr);
     verify_golden_or_create(*rendered, "gradient_multiple_stops");
@@ -326,7 +326,7 @@ Composition make_alpha_stops() {
 }
 
 TEST_CASE("GradientGolden: alpha stops") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto rendered = renderer.render_frame(make_alpha_stops(), 0);
     REQUIRE(rendered != nullptr);
     verify_golden_or_create(*rendered, "gradient_alpha_stops");
@@ -364,7 +364,7 @@ Composition make_transformed_shape() {
 }
 
 TEST_CASE("GradientGolden: transformed shape") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto rendered = renderer.render_frame(make_transformed_shape(), 0);
     REQUIRE(rendered != nullptr);
     verify_golden_or_create(*rendered, "gradient_transformed_shape");
@@ -401,7 +401,7 @@ Composition make_clipped_shape() {
 }
 
 TEST_CASE("GradientGolden: clipped shape") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto rendered = renderer.render_frame(make_clipped_shape(), 0);
     REQUIRE(rendered != nullptr);
     verify_golden_or_create(*rendered, "gradient_clipped_shape");
@@ -554,7 +554,7 @@ Composition make_composite_scene() {
 }
 
 TEST_CASE("GradientGolden: composite six-card scene") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto rendered = renderer.render_frame(make_composite_scene(), 0);
     REQUIRE(rendered != nullptr);
     verify_golden_or_create(*rendered, "gradient_composite_scene");
@@ -597,7 +597,7 @@ Composition make_animated_gradient() {
 }
 
 TEST_CASE("GradientGolden: animated three-frame") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     const auto comp = make_animated_gradient();
 
     auto fb0  = renderer.render_frame(comp, 0);

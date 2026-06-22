@@ -24,6 +24,7 @@
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/runtime/render_session.hpp>
+#include <tests/helpers/test_utils.hpp>
 
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/cache/scene_program_store.hpp>
@@ -393,7 +394,7 @@ TEST_CASE("precomp_cache: end-to-end via SoftwareRenderer does not crash") {
     });
 
     // WP-3 close-out: SoftwareRenderer() no-arg ctor retired; use Config{}.
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     renderer.set_composition_registry(&registry);
 
     Composition parent_comp(
@@ -438,7 +439,7 @@ TEST_CASE("auto_tune: many misses with evictions double capacity") {
     CHECK(cache.capacity() == 4);
 
     for (int i = 0; i < 30; ++i) {
-        cache.find_or_compile(
+        (void)cache.find_or_compile(
             SceneStructureKey{static_cast<uint64_t>(1000 + i), 0, 0, 80, 80, 1},
             []() -> std::unique_ptr<CompiledSceneProgram> {
                 auto p = std::make_unique<CompiledSceneProgram>();
@@ -464,14 +465,14 @@ TEST_CASE("auto_tune: high hit rate with zero evictions halves capacity") {
     cache.set_tune_config(cfg);
 
     const auto key = SceneStructureKey{42, 0, 0, 80, 80, 1};
-    cache.find_or_compile(key, []() -> std::unique_ptr<CompiledSceneProgram> {
+    (void)cache.find_or_compile(key, []() -> std::unique_ptr<CompiledSceneProgram> {
         auto p = std::make_unique<CompiledSceneProgram>();
         p->valid = true;
         p->frame_graph.valid = true;
         return p;
     });
     for (int i = 0; i < 19; ++i) {
-        cache.find_or_compile(key, []() -> std::unique_ptr<CompiledSceneProgram> {
+        (void)cache.find_or_compile(key, []() -> std::unique_ptr<CompiledSceneProgram> {
             auto p = std::make_unique<CompiledSceneProgram>();
             p->valid = true;
             p->frame_graph.valid = true;
@@ -488,7 +489,7 @@ TEST_CASE("auto_tune: Fixed mode does not change capacity") {
     cache.set_tune_mode(TuneMode::Fixed);
 
     for (int i = 0; i < 30; ++i) {
-        cache.find_or_compile(
+        (void)cache.find_or_compile(
             SceneStructureKey{static_cast<uint64_t>(2000 + i), 0, 0, 80, 80, 1},
             []() -> std::unique_ptr<CompiledSceneProgram> {
                 auto p = std::make_unique<CompiledSceneProgram>();

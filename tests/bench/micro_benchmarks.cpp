@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 using namespace chronon3d::video;
@@ -271,7 +272,7 @@ void BM_TileRenderNoTiles(benchmark::State& state) {
     Composition comp = make_tile_bench_scene(W, H, kFrames);
 
     for (auto _ : state) {
-        SoftwareRenderer renderer(Config{});
+        auto renderer = test::make_renderer();
         RenderSettings s;
         s.use_modular_graph = true;
         s.dirty.enabled = false;
@@ -295,7 +296,7 @@ void BM_TileRenderSequential(benchmark::State& state) {
     Composition comp = make_tile_bench_scene(W, H, kFrames);
 
     for (auto _ : state) {
-        SoftwareRenderer renderer(Config{});
+        auto renderer = test::make_renderer();
         RenderSettings s;
         s.use_modular_graph = true;
         s.dirty.enabled = true;
@@ -322,7 +323,7 @@ void BM_TileRenderParallel(benchmark::State& state) {
     Composition comp = make_tile_bench_scene(W, H, kFrames);
 
     for (auto _ : state) {
-        SoftwareRenderer renderer(Config{});
+        auto renderer = test::make_renderer();
         RenderSettings s;
         s.use_modular_graph = true;
         s.dirty.enabled = true;
@@ -369,7 +370,7 @@ static void BM_TileDirtyRatioSweep(benchmark::State& state, bool use_tiles) {
     double per_frame_ms = 0.0;
 
     for (auto _ : state) {
-        SoftwareRenderer renderer(Config{});
+        auto renderer = test::make_renderer();
         RenderSettings s;
         s.use_modular_graph = true;
         s.dirty.enabled = true;
