@@ -12,6 +12,7 @@ Piano operativo per portare il repository da pre-stabile a baseline verificata.
 6. [SoftwareRenderer](06-renderer-plan.md)
 7. [Documentazione e ADR](07-documentation-and-adrs.md)
 8. [Profili dipendenze](08-dependency-profiles.md)
+9. [Canonicalizzazione documenti](09-document-canonicalization.md)
 
 ## Priorità operative attuali
 
