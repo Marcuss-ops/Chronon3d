@@ -1608,3 +1608,91 @@ This ticket owns ONLY the 6 error categories above, period.
 - `tools/test_architectural.sh Section 3` — the architecture-check CI gate that sub-ID `TICKET-011.e` makes per-test metadata compliant.
 - `docs/refactor-roadmap/01-scheduler-single-authority.md` — the architectural roadmap this ticket's mitigation (one fix per lineage) parallels.
 - **Discovered-on**: 2026-06-21. Originated from the verification cycle of the TICKET-010 source-level implementation commit.
+
+---
+
+## Working group: Fase 0 closure (WG-FASE0) — 5 ticket di chiusura
+
+> Charter canonico: la sezione `## Working group: Fase 0 closure (WG-FASE0)` in `docs/stabilization-plan/01-baseline-green.md` (commit `91dcb9bd`) possiede la strategia operativa, sequencing, cadence, AC machine-verificabili e rischi pre-mortem. I 5 ticket sotto sono gli operational tickets che compongono questo WG e devono chiudere insieme per sbloccare `tools/install_consumer_test.sh` + `tools/check_architecture_boundaries.sh` (cross-ref DoD #6, #9, #2).
+
+| # | Sub-task breve | Ticket | Status |
+|---|---|---|---|
+| 1 | Arch violation: forbidden include pattern in `render_session.hpp` | TICKET-012 | 🔵 Planned |
+| 2 | Arch violation: sanction bypass in `render_session.hpp` | TICKET-013 | 🔵 Planned |
+| 3 | Test fail: `test_render_session_reset_and_isolation.cpp` concurrent path | TICKET-014 | 🔵 Planned |
+| 4 | Test fail (Scene 1): `RenderRuntime::backend()` prima di `attach_backend()` | TICKET-015 | 🔵 Planned |
+| 5 | Test fail (Scene 2): stesso contratto di #4 in secondo test scene | TICKET-016 | 🔵 Planned |
+
+## TICKET-012 — Arch violation: forbidden include in `include/chronon3d/runtime/render_session.hpp`
+
+- **Status**: 🔵 Planned
+- **Affected file(s)**: `include/chronon3d/runtime/render_session.hpp`
+- **Discovered during**: `tools/check_architecture_boundaries.sh` run su `main`, output: `FAILED: render_session.hpp includes forbidden header X`.
+- **Discovered-on**: 2026-06-22, WG-FASE0 audit.
+- **Root cause**: `render_session.hpp` include un header fuori dal boundary consentito (es. `core/memory/*` o `backends/*`) che è forbidden dal per-PR architectural gate (`tools/check_architecture_boundaries.sh` rule 1–9).
+- **Suggested fix approach**: forward-declare i tipi usati; se serve transitivamente, promuovere l'inclusione a pch.hpp o al file `.cpp` consumatore.
+- **Acceptance criteria**: `tools/check_architecture_boundaries.sh` RC=0; `cmake --build --target chronon3d_tests_fast` RC=0.
+- **Cross-references**: WG-FASE0 charter (sub-task #1).
+- **Estimated effort**: Small (<1d).
+- **Owner role**: Core maintainer.
+
+## TICKET-013 — Arch violation: sanction bypass in `render_session.hpp`
+
+- **Status**: 🔵 Planned
+- **Affected file(s)**: `include/chronon3d/runtime/render_session.hpp`
+- **Discovered during**: `tools/check_architecture_boundaries.sh` run su `main`, output: `FAILED: rule N sanction bypass via detail::g_debug_config pattern`.
+- **Discovered-on**: 2026-06-22, WG-FASE0 audit.
+- **Root cause**: `render_session.hpp` usa un idiom di sanctioned bypass (es. preprocessor direct-include di un header stable-policy-forbidden, oppure `detail::` namespace riservato a file interni). Vedi TICKET-007 stessa famiglia pattern.
+- **Suggested fix approach**: refactor verso il contratto canonico (`RenderGraphContext` o `ExecutionScope`) invece del bypass pattern. Honora `AGENTS.md` "no new global/process-wide state".
+- **Acceptance criteria**: `tools/check_architecture_boundaries.sh` RC=0; no new compiler warnings sotto `-Wall -Wextra`.
+- **Cross-references**: TICKET-007 (process-wide `detail::g_debug_config` removal), WG-FASE0 charter.
+- **Estimated effort**: Small (<1d).
+- **Owner role**: Core maintainer.
+
+## TICKET-014 — Test fail: `test_render_session_reset_and_isolation.cpp` concurrent path
+
+- **Status**: 🔵 Planned
+- **Affected file(s)**: `tests/runtime/test_render_session_reset_and_isolation.cpp`
+- **Discovered during**: `cmake --build build/chronon/linux-ci --target chronon3d_tests_fast` RC=0 producendo 706/707 doctest pass, 1 fail.
+- **Discovered-on**: 2026-06-22, TICKET-006 verification build.
+- **Root cause**: concurrent path (multi-session reset + isolation) hits race condition in `RenderSession::reset()` — probabilmente unsynchronized cache access.
+- **Suggested fix approach**: isolare per-session state; aggiungere `std::shared_mutex`-gated sections per cache invalidation; verificare con `tsan`/`helgrind` se disponibile.
+- **Acceptance criteria**: `chronon3d_tests_fast` RC=0 con 707/707 verde; 0 race conditions sotto `helgrind` quando CI supporta.
+- **Cross-references**: `docs/02-determinism.md` Scheduler determinism; WG-FASE0 charter.
+- **Estimated effort**: Medium (1–2d).
+- **Owner role**: Runtime maintainer.
+
+## TICKET-015 — Test fail (Scene 1): `RenderRuntime::backend()` prima di `attach_backend()`
+
+- **Status**: 🔵 Planned
+- **Affected file(s)**: `tests/scene/test_render_graph_orchestrator.cpp` (o altro test scene candidato dall'audit 2026-06-22).
+- **Discovered during**: `chronon3d_tests_fast` su `linux-debug` — 1 fail con messaggio `RenderRuntime::backend() called on unattached instance`.
+- **Discovered-on**: 2026-06-22, TICKET-006 verification build.
+- **Root cause**: il test chiama `RenderRuntime::backend()` direttamente senza prima invocare `attach_backend()` — il contratto è "backend() valido solo dopo attach_backend()". Il test probabilmente è stato copiato da una versione precedente della fixture dove il default era no-op.
+- **Suggested fix approach**: aggiungere `attach_backend(test_backend)` prima della chiamata `backend()` con un `FakeBackend` o un backend minimalmente valido. Se l'audit richiede un cambio di contract sul production code, valutare TICKET separato (FUORI da WG-FASE0).
+- **Acceptance criteria**: `chronon3d_tests_fast` RC=0; il test passa anche senza alterare il contract di `attach_backend`/`backend()`.
+- **Cross-references**: `include/chronon3d/runtime/render_session.hpp` API contract; WG-FASE0 charter.
+- **Estimated effort**: Small (<1d).
+- **Owner role**: Scene-graph owner.
+
+## TICKET-016 — Test fail (Scene 2): stesso contratto di TICKET-015
+
+- **Status**: 🔵 Planned
+- **Affected file(s)**: `tests/scene/test_composition_layer.cpp` o `tests/scene/test_debug_renderer.cpp` (uno dei due candidati dall'audit 2026-06-22).
+- **Discovered during**: `chronon3d_tests_fast` su `linux-debug` — 1 fail con stesso errore di TICKET-015.
+- **Discovered-on**: 2026-06-22, TICKET-006 verification build.
+- **Root cause**: identico a TICKET-015 ma in secondo file di test scene.
+- **Suggested fix approach**: stessa fix di TICKET-015 (aggiungere `attach_backend`); opportuno consolidare in un helper `attach_test_backend(RenderRuntime&)` per evitare duplicazione nei due test scene (DRY).
+- **Acceptance criteria**: `chronon3d_tests_fast` RC=0; helper `attach_test_backend` riusato in entrambi i scene test (DRY).
+- **Cross-references**: TICKET-015 (parallelismo); WG-FASE0 charter.
+- **Estimated effort**: Small (<1d).
+- **Owner role**: Scene-graph owner.
+
+## Common WG-FASE0 acceptance criteria (cross-link)
+
+Vedi `docs/stabilization-plan/01-baseline-green.md` §Working group: Fase 0 closure (WG-FASE0) per il charter completo (sequencing, cadence, AC machine-verificabili, rischi pre-mortem). I 5 ticket sopra chiudono insieme per sbloccare:
+
+- `tools/check_architecture_boundaries.sh` RC=0 (TICKET-012 + TICKET-013).
+- `tools/install_consumer_test.sh` RC=0 (cross-cut dopo i 2 arch violation fix).
+- `chronon3d_tests_fast` 707/707 verde (TICKET-014 + TICKET-015 + TICKET-016).
+- Cumulatively → DoD #6, #9, #2 sbloccati; Cluster C unblocked.
