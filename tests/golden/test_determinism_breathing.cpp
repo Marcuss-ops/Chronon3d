@@ -95,7 +95,7 @@ int main() {
     hashes.reserve(5);
 
     for (int run = 0; run < 5; ++run) {
-        auto renderer = make_renderer();
+        auto renderer = test::make_renderer();
         auto fb = renderer.render_frame(comp, Frame{50});
         if (!fb) {
             std::fprintf(stderr, "ERROR: Run %d returned null framebuffer\n", run);
@@ -157,9 +157,9 @@ int main() {
         }
 
         // Compare first pixel of first and second run to see error magnitude
-        auto renderer1 = make_renderer();
+        auto renderer1 = test::make_renderer();
         auto fb1 = renderer1.render_frame(comp, Frame{50});
-        auto renderer2 = make_renderer();
+        auto renderer2 = test::make_renderer();
         auto fb2 = renderer2.render_frame(comp, Frame{50});
 
         if (fb1 && fb2 && fb1->width() == fb2->width() && fb1->height() == fb2->height()) {

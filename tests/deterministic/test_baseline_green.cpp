@@ -17,7 +17,7 @@
 //
 // Strategia di isolamento:
 //   • Fresh-renderer-per-render: ogni render ottiene un SoftwareRenderer
-//     distintro (`make_renderer()` ritorna un nuovo oggetto per call).
+//     distintro (`test::make_renderer()` ritorna un nuovo oggetto per call).
 //     Lo stato del renderer (buffer_ring, frame_history, scene_hasher,
 //     program_store) è quindi fresh ogni volta e non può leakare.
 //   • Precomp cache esplicita: il primo render missa la cache, il secondo
@@ -201,7 +201,7 @@ inline bool is_reference_captured(std::uint64_t r) noexcept {
 
 TEST_CASE("Baseline green §1: 30 fresh renderers produce identical composite hashes") {
     // 30 distinct SoftwareRenderer instances, each rendering the same
-    // composition once.  Each renderer is built `make_renderer()` which
+    // composition once.  Each renderer is built `test::make_renderer()` which
     // allocates a fresh RenderRuntime + session + buffer_ring.  Since
     // the state is per-instance fresh, no cross-render state can leak
     // — and the FNV-1a framebuffer hash is identical for the identical
@@ -212,7 +212,7 @@ TEST_CASE("Baseline green §1: 30 fresh renderers produce identical composite ha
     hashes.reserve(30);
 
     for (int i = 0; i < 30; ++i) {
-        auto renderer = make_renderer();   // fresh per render
+        auto renderer = test::make_renderer();   // fresh per render
         auto fb = renderer.render_frame(comp, 0);
         REQUIRE(fb != nullptr);
         hashes.push_back(framebuffer_hash(*fb));
@@ -254,7 +254,7 @@ TEST_CASE("Baseline green §2: serial-mode (arena(1)) produces identical hashes 
     hashes.reserve(30);
 
     for (int i = 0; i < 30; ++i) {
-        auto renderer = make_renderer();
+        auto renderer = test::make_renderer();
         auto res = render_in_arena(/*slots=*/1, renderer, comp, 0);
         REQUIRE(res.fb != nullptr);
         hashes.push_back(res.hash);
@@ -291,9 +291,9 @@ TEST_CASE("Baseline green §3: 1t == 4t == 8t bit-exact under per-render tbb are
     // present in the static-scene path.
     auto comp = make_baseline_static_comp();
 
-    auto r1t = make_renderer();
-    auto r4t = make_renderer();
-    auto r8t = make_renderer();
+    auto r1t = test::make_renderer();
+    auto r4t = test::make_renderer();
+    auto r8t = test::make_renderer();
     auto res_1t = render_in_arena(1, r1t, comp, 0);
     auto res_4t = render_in_arena(4, r4t, comp, 0);
     auto res_8t = render_in_arena(8, r8t, comp, 0);
@@ -336,7 +336,7 @@ TEST_CASE("Baseline green §4: 30 consecutive composite-full-frame renders — p
     //     repeated full-frame composite invokes, NOT isolating the
     //     gradient SIMD rot that disables TICKET-007.q/r/s.
     auto comp = make_baseline_composite_comp();
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     std::vector<std::uint64_t> hashes;
     hashes.reserve(30);
@@ -373,7 +373,7 @@ TEST_CASE("Baseline green §4: 30 consecutive composite-full-frame renders — p
 
 TEST_CASE("Baseline green §5: composite path SSIM ≥ 0.999 across 2 renders") {
     auto comp = make_baseline_composite_comp();
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     auto fb1 = renderer.render_frame(comp, 0);
     auto fb2 = renderer.render_frame(comp, 0);
@@ -448,7 +448,7 @@ TEST_CASE("Baseline green §6: precomp cache-hit determinism — two consecutive
         }
     );
 
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     renderer.set_composition_registry(&registry);
 
     // First frame: cache miss (compile from registry)

@@ -488,7 +488,7 @@ TEST_CASE("Stabilization: tile_effect renders identically to full-frame pass") {
 
     Scene scene = scene_fn();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
 
@@ -532,7 +532,7 @@ TEST_CASE("Stabilization: tile_effect small tile sizes produce identical output"
     };
 
     Scene scene = scene_fn();
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
 
@@ -585,7 +585,7 @@ TEST_CASE("Stabilization: tile_effect produces no NaN/Inf for complex scenes") {
     };
 
     Scene scene = scene_fn();
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
     settings.dirty.tile_size = 32;

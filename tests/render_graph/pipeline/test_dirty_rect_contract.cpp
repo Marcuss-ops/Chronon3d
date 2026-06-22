@@ -6,6 +6,7 @@
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 
@@ -45,11 +46,11 @@ TEST_CASE("DirtyRectContract: static scene is pixel-identical with and without d
         return builder.build();
     });
 
-    SoftwareRenderer renderer_base(Config{});
+    auto renderer_base = test::make_renderer();
     RenderSettings s_base; s_base.use_modular_graph = true; s_base.dirty.enabled = false; s_base.dirty.use_bitmask = false;
     renderer_base.set_settings(s_base);
 
-    SoftwareRenderer renderer_opt(Config{});
+    auto renderer_opt = test::make_renderer();
     RenderSettings s_opt; s_opt.use_modular_graph = true; s_opt.dirty.enabled = true;
     renderer_opt.set_settings(s_opt);
 
@@ -74,11 +75,11 @@ TEST_CASE("DirtyRectContract: animated scene is pixel-identical with dirty rects
         return builder.build();
     });
 
-    SoftwareRenderer renderer_base(Config{});
+    auto renderer_base = test::make_renderer();
     RenderSettings s_base; s_base.use_modular_graph = true; s_base.dirty.enabled = false; s_base.dirty.use_bitmask = false;
     renderer_base.set_settings(s_base);
 
-    SoftwareRenderer renderer_opt(Config{});
+    auto renderer_opt = test::make_renderer();
     RenderSettings s_opt; s_opt.use_modular_graph = true; s_opt.dirty.enabled = true;
     renderer_opt.set_settings(s_opt);
 
@@ -109,7 +110,7 @@ TEST_CASE("DirtyRectContract: dirty pixels counter is less than total pixels") {
         return builder.build();
     });
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings s; s.use_modular_graph = true; s.dirty.enabled = true;
     renderer.set_settings(s);
 

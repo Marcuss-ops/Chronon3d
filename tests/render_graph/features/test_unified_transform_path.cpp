@@ -54,7 +54,7 @@ RenderResult render_single_element_scene([[maybe_unused]] const std::string& typ
 
     auto scene = s.build();
 
-    SoftwareRenderer renderer = make_renderer();
+    SoftwareRenderer renderer = test::make_renderer();
     auto fb = renderer.render_scene(scene, camera, width, height);
     REQUIRE(fb != nullptr);
 
@@ -198,7 +198,7 @@ TEST_CASE("Unified 2.5D projection: Rect and Image share the same projected laye
 }
 
 TEST_CASE("Unified compositing: z order beats paint order") {
-    SoftwareRenderer renderer = make_renderer();
+    SoftwareRenderer renderer = test::make_renderer();
     auto comp = composition({
         .name = "UnifiedZOrder",
         .width = 640,
@@ -251,7 +251,7 @@ TEST_CASE("Unified compositing: z order beats paint order") {
 }
 
 TEST_CASE("Unified FakeBox3D: front face matches Rect in shared composition") {
-    SoftwareRenderer renderer = make_renderer();
+    SoftwareRenderer renderer = test::make_renderer();
     auto comp = composition({
         .name = "UnifiedFakeBox3DFrontParity",
         .width = 640,

@@ -170,7 +170,7 @@ TEST_CASE("Golden: MinimalistImageTrackingBreathing frame 50") {
         "Asset not found: " << IMAGE_PATH << ". "
         "This test requires the minimalist landscape image to render.");
 
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     const auto comp = make_breathing_comp();
 
     const Frame test_frame{50};
@@ -195,7 +195,7 @@ TEST_CASE("Golden: MinimalistImageTrackingBreathing frame 1 (static check)") {
         return;
     }
 
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     const auto comp = make_breathing_comp();
 
     const Frame test_frame{1};
@@ -216,7 +216,7 @@ TEST_CASE("Golden: consecutive frames produce different output (animation)") {
         return;
     }
 
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     const auto comp = make_breathing_comp();
 
     auto fb0 = renderer.render_frame(comp, Frame{0});

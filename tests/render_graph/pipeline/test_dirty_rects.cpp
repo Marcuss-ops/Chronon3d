@@ -8,6 +8,7 @@
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <cmath>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 
@@ -74,7 +75,7 @@ TEST_CASE("Dirty Rectangles V1 Pixel-Perfect Equivalence & Counters Test") {
     });
 
     // 2. Render frame 10 WITHOUT dirty rects (Baseline)
-    SoftwareRenderer renderer_baseline(Config{});
+    auto renderer_baseline = test::make_renderer();
     RenderSettings settings_baseline;
     settings_baseline.use_modular_graph = true;
     settings_baseline.dirty.enabled = false;
@@ -85,7 +86,7 @@ TEST_CASE("Dirty Rectangles V1 Pixel-Perfect Equivalence & Counters Test") {
     REQUIRE(fb_baseline != nullptr);
 
     // 3. Render frame 10 WITH dirty rects (Optimized)
-    SoftwareRenderer renderer_opt(Config{});
+    auto renderer_opt = test::make_renderer();
     RenderSettings settings_opt;
     settings_opt.use_modular_graph = true;
     settings_opt.dirty.enabled = true;
@@ -178,14 +179,14 @@ TEST_CASE("Dirty rectangles stay stable for geometric backgrounds across frames"
         return builder.build();
     });
 
-    SoftwareRenderer renderer_baseline(Config{});
+    auto renderer_baseline = test::make_renderer();
     RenderSettings settings_baseline;
     settings_baseline.use_modular_graph = true;
     settings_baseline.dirty.enabled = false;
     settings_baseline.dirty.use_bitmask = false;
     renderer_baseline.set_settings(settings_baseline);
 
-    SoftwareRenderer renderer_opt(Config{});
+    auto renderer_opt = test::make_renderer();
     RenderSettings settings_opt;
     settings_opt.use_modular_graph = true;
     settings_opt.dirty.enabled = true;

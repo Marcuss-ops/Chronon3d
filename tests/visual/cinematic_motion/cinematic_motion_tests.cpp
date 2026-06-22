@@ -15,6 +15,7 @@
 #include <cmath>
 #include <memory>
 #include <vector>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 using namespace chronon3d::test;
@@ -26,7 +27,7 @@ const std::filesystem::path kArtifactDir = "artifacts/visual/cinematic_motion";
 
 /// Helper: create a fresh SoftwareRenderer with deterministic settings.
 static SoftwareRenderer make_test_renderer() {
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.diagnostics.enabled = true;
     renderer.set_settings(settings);

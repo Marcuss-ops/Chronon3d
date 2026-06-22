@@ -11,6 +11,7 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <cmath>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 
@@ -69,7 +70,7 @@ TEST_CASE("Dirty Tiles: Smoke test — renders without crash with tile settings"
     const int W = 200, H = 150;
     Composition comp = make_moving_circle_comp(W, H, 5);
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
     settings.dirty.tile_size = 32;
@@ -95,7 +96,7 @@ TEST_CASE("Dirty Tiles: Pixel-perfect equivalence with moving element") {
     Composition comp = make_moving_circle_comp(W, H, kFrames);
 
     // Baseline: no dirty rects, no tiles
-    SoftwareRenderer baseline(Config{});
+    auto baseline = test::make_renderer();
     {
         RenderSettings s;
         s.use_modular_graph = true;
@@ -104,7 +105,7 @@ TEST_CASE("Dirty Tiles: Pixel-perfect equivalence with moving element") {
     }
 
     // Optimized: dirty rects + tiles
-    SoftwareRenderer opt(Config{});
+    auto opt = test::make_renderer();
     {
         RenderSettings s;
         s.use_modular_graph = true;
@@ -135,7 +136,7 @@ TEST_CASE("Dirty Tiles: Dirty rect counters still active with tiles on") {
     const int W = 200, H = 150;
     Composition comp = make_moving_circle_comp(W, H, 5);
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
     settings.dirty.enabled = true;
@@ -165,7 +166,7 @@ TEST_CASE("Dirty Tiles: First frame renders full frame (no prev fb)") {
     const int W = 160, H = 120;
     Composition comp = make_moving_circle_comp(W, H, 3);
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
     settings.dirty.enabled = true;
@@ -196,7 +197,7 @@ TEST_CASE("Dirty Tiles: Correct output across different tile sizes") {
 
     for (int tsize : tile_sizes) {
         // Baseline
-        SoftwareRenderer baseline(Config{});
+        auto baseline = test::make_renderer();
         {
             RenderSettings s;
             s.use_modular_graph = true;
@@ -205,7 +206,7 @@ TEST_CASE("Dirty Tiles: Correct output across different tile sizes") {
         }
 
         // With tiles
-        SoftwareRenderer opt(Config{});
+        auto opt = test::make_renderer();
         {
             RenderSettings s;
             s.use_modular_graph = true;
@@ -267,7 +268,7 @@ TEST_CASE("Dirty Tiles: Two distant moving objects render correctly") {
     });
 
     // Baseline vs optimized
-    SoftwareRenderer baseline(Config{});
+    auto baseline = test::make_renderer();
     {
         RenderSettings s;
         s.use_modular_graph = true;
@@ -275,7 +276,7 @@ TEST_CASE("Dirty Tiles: Two distant moving objects render correctly") {
         baseline.set_settings(s);
     }
 
-    SoftwareRenderer opt(Config{});
+    auto opt = test::make_renderer();
     {
         RenderSettings s;
         s.use_modular_graph = true;

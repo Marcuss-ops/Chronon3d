@@ -178,21 +178,21 @@ Composition make_premium_pill_scene() {
 } // namespace
 
 TEST_CASE("StrokeGolden: stroke alignment variants (inside/center/outside)") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto rendered = renderer.render_frame(make_stroke_alignment_scene(), 0);
     REQUIRE(rendered != nullptr);
     verify_stroke_golden_or_create(*rendered, "stroke_alignment_variants.png");
 }
 
 TEST_CASE("StrokeGolden: heavy stroke insertion order") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto rendered = renderer.render_frame(make_heavy_stroke_order_scene(), 0);
     REQUIRE(rendered != nullptr);
     verify_stroke_golden_or_create(*rendered, "heavy_stroke_order.png");
 }
 
 TEST_CASE("StrokeGolden: premium pill default style") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto rendered = renderer.render_frame(make_premium_pill_scene(), 0);
     REQUIRE(rendered != nullptr);
     verify_stroke_golden_or_create(*rendered, "premium_pill_default.png");

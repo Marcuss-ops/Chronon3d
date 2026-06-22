@@ -10,6 +10,7 @@
 #include <cmath>
 #include "src/render_graph/builder/graph_builder_coordinates.hpp"
 #include "src/render_graph/builder/graph_builder_internal.hpp"
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 using namespace chronon3d::graph;
@@ -21,7 +22,7 @@ TEST_CASE("Coordinate Centered vs Top Left - 2D standard top left layer") {
     });
     Scene scene = builder.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings = renderer.settings();
     settings.use_modular_graph = false;
     settings.diagnostics.enabled = false;
@@ -71,7 +72,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Opacity only keeps implicit centeri
     ctx.frame_input.width = 1536;
     ctx.frame_input.height = 1024;
     ctx.frame_input.frame = 0;
-    ctx.options.modular_coordinates = true;
+    ctx.policy.modular_coordinates = true;
 
     auto resolved = chronon3d::graph::detail::resolve_layers(scene, ctx);
     REQUIRE(!resolved.layers.empty());
@@ -89,7 +90,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Opacity only keeps implicit centeri
     CHECK(!chronon3d::graph::detail::has_custom_render_transform(item, ctx));
     CHECK(!chronon3d::graph::detail::layer_needs_render_transform(item, ctx));
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings = renderer.settings();
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
@@ -116,7 +117,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Centered exactly on canvas") {
     });
     Scene scene = builder.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings = renderer.settings();
     settings.use_modular_graph = false;
     settings.diagnostics.enabled = false;
@@ -186,7 +187,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Transform matrix offset") {
     });
     Scene scene = builder.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings = renderer.settings();
     settings.use_modular_graph = false;
     settings.diagnostics.enabled = true;
@@ -231,7 +232,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Layer near border should not disapp
     });
     Scene scene = builder.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings = renderer.settings();
     settings.use_modular_graph = false;
     settings.diagnostics.enabled = false;
@@ -260,7 +261,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Render graph mixed 2D and centered"
     });
     Scene scene = builder.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings = renderer.settings();
     settings.use_modular_graph = false;
     settings.diagnostics.enabled = false;
@@ -289,7 +290,7 @@ TEST_CASE("Effects, predicted_bbox and clipping - Blur near border doesn't crash
     });
     Scene scene = builder.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     Camera camera;
 
     auto fb = renderer.render_scene(scene, camera, 200, 200);
@@ -304,7 +305,7 @@ TEST_CASE("Test visivi e lettura pixel in C++ - Pixel check white") {
     });
     Scene scene = builder.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     Camera camera;
 
     auto fb = renderer.render_scene(scene, camera, 100, 100);
@@ -328,7 +329,7 @@ TEST_CASE("Test visivi e lettura pixel in C++ - Alpha blending") {
     });
     Scene scene = builder.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings = renderer.settings();
     settings.use_modular_graph = false;
     renderer.set_settings(settings);
@@ -393,7 +394,7 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 2D standard top left layer") {
         .pos = {0.0f, 0.0f, 0.0f}
     });
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
@@ -429,7 +430,7 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 3D non-centered source") {
         .pos = {0.0f, 0.0f, 0.0f}
     });
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
@@ -465,7 +466,7 @@ TEST_CASE("SourceNode predicted_bbox vs execute - Centered 2D source") {
         .pos = {0.0f, 0.0f, 0.0f}
     });
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
@@ -501,7 +502,7 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 3D centered source") {
         .pos = {0.0f, 0.0f, 0.0f}
     });
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
@@ -537,7 +538,7 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 3D source near border") {
         .pos = {900.0f, 500.0f, 0.0f}
     });
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
@@ -582,7 +583,7 @@ TEST_CASE("MultiSourceNode predicted_bbox vs execute - Centering & Bounds check"
     items.push_back({&rnode_a, rnode_a.world_transform.to_mat4(), 1.0f});
     items.push_back({&rnode_b, rnode_b.world_transform.to_mat4(), 1.0f});
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;

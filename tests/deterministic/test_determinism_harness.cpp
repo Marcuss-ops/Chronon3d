@@ -54,7 +54,7 @@ Composition make_animated_test_comp() {
 // ── 1. REPEATED RENDER DETERMINISM ───────────────────────────────────────────
 TEST_CASE("Determinism harness: static scene — 20 consecutive renders identical") {
     auto comp = make_static_test_comp();
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     std::vector<u64> hashes;
     hashes.reserve(20);
@@ -72,7 +72,7 @@ TEST_CASE("Determinism harness: static scene — 20 consecutive renders identica
 
 TEST_CASE("Determinism harness: animated scene — same frame repeated identical") {
     auto comp = make_animated_test_comp();
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     const Frame test_frame{25};
     std::vector<u64> hashes;
@@ -94,7 +94,7 @@ TEST_CASE("Determinism harness: cold cache vs warm cache yields identical pixels
     auto comp = make_static_test_comp();
 
     // Cold run: fresh renderer
-    auto renderer1 = make_renderer();
+    auto renderer1 = test::make_renderer();
     auto fb_cold = renderer1.render_frame(comp, 0);
     REQUIRE(fb_cold != nullptr);
     const u64 hash_cold = framebuffer_hash(*fb_cold);
@@ -111,11 +111,11 @@ TEST_CASE("Determinism harness: cold cache vs warm cache yields identical pixels
 TEST_CASE("Determinism harness: new renderer instance yields identical pixels") {
     auto comp = make_static_test_comp();
 
-    auto renderer1 = make_renderer();
+    auto renderer1 = test::make_renderer();
     auto fb1 = renderer1.render_frame(comp, 0);
     REQUIRE(fb1 != nullptr);
 
-    auto renderer2 = make_renderer();
+    auto renderer2 = test::make_renderer();
     auto fb2 = renderer2.render_frame(comp, 0);
     REQUIRE(fb2 != nullptr);
 
@@ -128,7 +128,7 @@ TEST_CASE("Determinism harness: new renderer instance yields identical pixels") 
 // ── 4. SEMANTIC COMPARISON UTILITIES ────────────────────────────────────────
 TEST_CASE("Determinism harness: semantic comparison on identical frames") {
     auto comp = make_static_test_comp();
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     auto fb1 = renderer.render_frame(comp, 0);
     auto fb2 = renderer.render_frame(comp, 0);
@@ -144,7 +144,7 @@ TEST_CASE("Determinism harness: semantic comparison on identical frames") {
 
 TEST_CASE("Determinism harness: semantic comparison on different frames") {
     auto comp = make_animated_test_comp();
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     auto fb1 = renderer.render_frame(comp, Frame{10});
     auto fb2 = renderer.render_frame(comp, Frame{20});
@@ -160,7 +160,7 @@ TEST_CASE("Determinism harness: semantic comparison on different frames") {
 
 TEST_CASE("Determinism harness: SSIM on identical frames") {
     auto comp = make_static_test_comp();
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     auto fb1 = renderer.render_frame(comp, 0);
     auto fb2 = renderer.render_frame(comp, 0);
@@ -173,7 +173,7 @@ TEST_CASE("Determinism harness: SSIM on identical frames") {
 
 TEST_CASE("Determinism harness: bounding box and centroid detection") {
     auto comp = make_static_test_comp();
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     auto fb = renderer.render_frame(comp, 0);
     REQUIRE(fb != nullptr);
@@ -201,7 +201,7 @@ TEST_CASE("Determinism harness: 1-thread vs 4-thread renders identical") {
     u64 hash_1t = 0;
     {
         tbb::global_control gc(tbb::global_control::max_allowed_parallelism, 1);
-        auto renderer = make_renderer();
+        auto renderer = test::make_renderer();
         auto fb = renderer.render_frame(comp, 0);
         REQUIRE(fb != nullptr);
         hash_1t = framebuffer_hash(*fb);
@@ -210,7 +210,7 @@ TEST_CASE("Determinism harness: 1-thread vs 4-thread renders identical") {
     u64 hash_4t = 0;
     {
         tbb::global_control gc(tbb::global_control::max_allowed_parallelism, 4);
-        auto renderer = make_renderer();
+        auto renderer = test::make_renderer();
         auto fb = renderer.render_frame(comp, 0);
         REQUIRE(fb != nullptr);
         hash_4t = framebuffer_hash(*fb);
@@ -222,7 +222,7 @@ TEST_CASE("Determinism harness: 1-thread vs 4-thread renders identical") {
 // ── 6. GRAPH CACHE vs REBUILD ────────────────────────────────────────────
 TEST_CASE("Determinism harness: graph cache invalidated then rebuilt yields identical pixels") {
     auto comp = make_static_test_comp();
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
 
     auto fb_cached = renderer.render_frame(comp, 0);
     REQUIRE(fb_cached != nullptr);
@@ -241,8 +241,8 @@ TEST_CASE("Determinism harness: graph cache invalidated then rebuilt yields iden
 TEST_CASE("Determinism harness: non-determinism detection with tolerance") {
     auto comp = make_static_test_comp();
 
-    auto renderer1 = make_renderer();
-    auto renderer2 = make_renderer();
+    auto renderer1 = test::make_renderer();
+    auto renderer2 = test::make_renderer();
 
     auto fb1 = renderer1.render_frame(comp, 0);
     auto fb2 = renderer2.render_frame(comp, 0);

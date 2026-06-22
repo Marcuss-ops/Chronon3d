@@ -4,6 +4,7 @@
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <cmath>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 using namespace chronon3d::graph;
@@ -19,7 +20,7 @@ TEST_CASE("Line Thickness - BBox and Raster Verification") {
     });
 
     Scene scene = builder.build();
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     Camera camera;
 
     // Render onto a 400x200 framebuffer

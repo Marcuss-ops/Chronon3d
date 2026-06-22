@@ -9,13 +9,14 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 
 static std::shared_ptr<Framebuffer> render_dof_fn(
     std::function<Scene(const FrameContext&)> fn, int w = 120, int h = 120)
 {
-    SoftwareRenderer rend(Config{});
+    auto rend = test::make_renderer();
     Composition comp(CompositionSpec{.width=w,.height=h,.duration=1}, fn);
     return rend.render_frame(comp, 0);
 }

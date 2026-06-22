@@ -11,6 +11,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 using namespace chronon3d::cache;
@@ -247,7 +248,7 @@ TEST_CASE("TileCache: Integration — render with tiles shows cache activity") {
         return s.build();
     });
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     {
         RenderSettings s;
         s.use_modular_graph = true;
@@ -332,7 +333,7 @@ TEST_CASE("TileCache: Integration — pixel-perfect output with tile cache") {
     });
 
     // Baseline: no tiles
-    SoftwareRenderer baseline(Config{});
+    auto baseline = test::make_renderer();
     {
         RenderSettings s;
         s.use_modular_graph = true;
@@ -341,7 +342,7 @@ TEST_CASE("TileCache: Integration — pixel-perfect output with tile cache") {
     }
 
     // Optimized: tiles + cache
-    SoftwareRenderer opt(Config{});
+    auto opt = test::make_renderer();
     {
         RenderSettings s;
         s.use_modular_graph = true;

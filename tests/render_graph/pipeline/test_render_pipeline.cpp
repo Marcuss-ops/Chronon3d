@@ -4,6 +4,7 @@
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 using namespace chronon3d::graph;
@@ -14,7 +15,7 @@ TEST_CASE("RenderPipeline - render_scene_via_graph produces valid framebuffer") 
     builder.rect("red_rect", {.size={50.0f, 50.0f}, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});
     Scene scene = builder.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -53,7 +54,7 @@ TEST_CASE("RenderPipeline - SoftwareRenderer::render_scene produces same output 
     builder.rect("blue_rect", {.size={60.0f, 60.0f}, .color=Color::blue(), .pos={10.0f, 10.0f, 0.0f}});
     Scene scene = builder.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     Camera camera;
 
     auto fb_backend = renderer.render_scene(scene, camera, 100, 100);
@@ -99,7 +100,7 @@ TEST_CASE("RenderPipeline - debug_render_graph passes through the unique pipelin
     builder.rect("rect", {.size={40.0f, 40.0f}, .color=Color::green(), .pos={0.0f, 0.0f, 0.0f}});
     Scene scene = builder.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     Camera camera;
 
     std::string dot = renderer.debug_render_graph(scene, camera, 100, 100);
@@ -116,7 +117,7 @@ TEST_CASE("render_graph_uses_framebuffer_pool") {
     builder.rect("B", {.size={50, 50}, .color=Color::blue(), .pos={25, 25, 0}});
     Scene scene = builder.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
     
     RenderSettings settings = renderer.settings();
@@ -170,7 +171,7 @@ TEST_CASE("RenderGraph: unpinned fullscreen 2D layer is not clipped to top-left 
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -207,7 +208,7 @@ TEST_CASE("RenderGraph: custom translated layer still renders correctly") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -251,7 +252,7 @@ TEST_CASE("RenderGraph: glow on centered 2D layer is not clipped by local frameb
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -290,7 +291,7 @@ TEST_CASE("RenderGraph: unpinned fullscreen centered rect covers the whole frame
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -340,7 +341,7 @@ TEST_CASE("RenderGraph: fullscreen background and centered object render togethe
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -389,7 +390,7 @@ TEST_CASE("RenderGraph: custom translated layer still applies transform") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
     Camera camera;
 
@@ -441,7 +442,7 @@ TEST_CASE("RenderGraph: glow on unpinned centered layer is not clipped") {
 
     Scene scene = s.build();
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
     Camera camera;
 

@@ -342,35 +342,35 @@ Composition make_pulse_scene() {
 } // namespace
 
 TEST_CASE("GlowGolden: neon card radius ladder") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto rendered = renderer.render_frame(make_neon_card(), 0);
     REQUIRE(rendered != nullptr);
     verify_glow_golden_or_create(*rendered, "neon_card_radius_ladder.png");
 }
 
 TEST_CASE("GlowGolden: text hero and caption") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto rendered = renderer.render_frame(make_text_glow_scene(), 0);
     REQUIRE(rendered != nullptr);
     verify_glow_golden_or_create(*rendered, "text_hero_caption.png");
 }
 
 TEST_CASE("GlowGolden: image glow alpha coverage") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto rendered = renderer.render_frame(make_image_glow_scene(), 0);
     REQUIRE(rendered != nullptr);
     verify_glow_golden_or_create(*rendered, "image_glow_alpha.png");
 }
 
 TEST_CASE("GlowGolden: edge clip safety") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     auto rendered = renderer.render_frame(make_edge_glow_scene(), 0);
     REQUIRE(rendered != nullptr);
     verify_glow_golden_or_create(*rendered, "edge_clip_safety.png");
 }
 
 TEST_CASE("GlowGolden: pulse animation frame pair") {
-    auto renderer = make_renderer();
+    auto renderer = test::make_renderer();
     const auto comp = make_pulse_scene();
 
     auto fb0 = renderer.render_frame(comp, 0);

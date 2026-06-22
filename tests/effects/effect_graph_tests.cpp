@@ -9,6 +9,7 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <tests/helpers/render_fixtures.hpp>
 #include <xxhash.h>
+#include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 
@@ -18,7 +19,7 @@ std::shared_ptr<Framebuffer> render_with_effects(
     std::function<void(LayerBuilder&)> effect_fn,
     bool modular = true
 ) {
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = modular;
     renderer.set_settings(settings);
@@ -143,7 +144,7 @@ TEST_CASE("Test 10.6 — Drop shadow renders offset shadow pixels") {
 }
 
 TEST_CASE("Test 10.7 — Disabled effects do not affect hash or rendering") {
-    SoftwareRenderer renderer(Config{});
+    auto renderer = test::make_renderer();
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
