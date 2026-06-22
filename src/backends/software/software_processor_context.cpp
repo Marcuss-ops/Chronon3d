@@ -17,7 +17,7 @@ SoftwareProcessorContext make_processor_context(SoftwareRenderer* renderer) {
     SoftwareProcessorContext ctx;
     ctx.renderer        = renderer;
     ctx.counters        = renderer->counters();
-    ctx.settings        = &renderer.render_settings();
+    ctx.settings        = &renderer->render_settings();
     ctx.registry        = &renderer->software_registry();
     ctx.image_backend   = renderer->image_backend();
     ctx.image_renderer  = &renderer->image_renderer();

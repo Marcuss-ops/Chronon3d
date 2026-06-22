@@ -234,23 +234,15 @@ child) e quale catena di parent lo precede (per i child scope), il
 `RenderSession&` da solo non basta — serve un puntatore opaco al
 scope.
 
-### 4.2 TileLocalSession vs TileScope (PR 6.4)
+### 4.2 TileLocalSession vs TileScope (PR 6.4 — 🟢 Done via PR 6.2 threading)
 
-`src/render_graph/pipeline/scene_tile_execution.cpp:91` istanzia
-oggi `RenderSession local_session;` ad ogni regione tile da
-renderizzare. Va rimpiazzato da:
-
-```cpp
-ExecutionScope tile_scope{kind::Tile,
-                           sw_renderer->session(),  // borrowed, not copied
-                           child_arena,             // own arena, freed at scope end
-                           tile_graph_id,
-                           &root_scope};
-```
-
-In questo modo la child-arena è distinta per regione (vd. §5 PR 6.4
-exit criteria), la root session è borrowed, e il parent (root)
-resta in scope per tutta la vita del tile scope.
+`src/render_graph/pipeline/scene_tile_execution.cpp` ora crea un
+`ExecutionScope tile_scope(Tile, root_scope.session(), child_arena,
+graph_id, &root_scope)` — la child-arena è distinta per regione,
+la session è shared via `root_scope.session()`, e il parent chain
+`root_scope → tile_scope` garantisce che il teardown del child
+(`ArenaGuard` su `tile_scope.arena()`) non tocchi mai l'arena root.
+Il `root_fence` ad-hoc è stato eliminato.
 
 ### 4.3 PrecompNode::execute(...) → Hold ProgramLease (PR 6.3 — Done)
 
@@ -314,14 +306,14 @@ per tracciare lo stato corrente dei PR rimanenti della catena WP-6:
 | Update all production call sites to the new overload | 🟡 Partial (tile paths migrated; precomp_node_execute.cpp:139 e altri production site ancora su legacy) |
 | Update all test call sites to the new overload | 🔵 Planned (test lattice continua a usare legacy) |
 
-### PR 6.2 — Add the root scope — 🔵 Planned
+### PR 6.2 — Add the root scope — 🟢 Done
 
 | Exit criterion | Stato |
 |---|---|
-| Construct one root scope per render invocation | 🔵 Planned |
-| Bind the render job session and compiled graph identity | 🔵 Planned |
-| Keep root execution memory alive through every child invocation | 🔵 Planned |
-| Reset root memory only after final output ownership is safe | 🔵 Planned |
+| Construct one root scope per render invocation | 🟢 Done — `ExecutionScope root_scope(Root, session, graph_instance_id)` in `render_scene_via_graph()` after graph compilation |
+| Bind the render job session and compiled graph identity | 🟢 Done — `sw_renderer->session()` (or `fallback_session`) + `graph_result.compiled.graph_instance_id` bound at construction |
+| Keep root execution memory alive through every child invocation | 🟢 Done — root_scope is stack-allocated in `render_scene_via_graph()` and outlives all nested `execute_tile_or_fallback` / `execute_dirty_tiles` calls |
+| Reset root memory only after final output ownership is safe | 🟢 Done — root_scope's arena is reset by executor's ArenaGuard inside `execute_with_scope()` before we return the fb |
 
 ### PR 6.3 — Add the precomp child scope — 🟢 Done (commit pre-PR-6.3-merge)
 
@@ -381,14 +373,14 @@ per tracciare lo stato corrente dei PR rimanenti della catena WP-6:
 ### Stato globale
 
 🟡 **Partial** globale: la **fondazione** del tipo `ExecutionScope` e
-i test di acceptance sono done (PR 6.0); i PR 6.1–6.7 che plumbing
-the type into production paths sono **partially landed** — PR 6.5
-enforcement e PR 6.4 tile plumbing sono codice-effettivo nel working
-tree (vedi seguito), mentre i PR 6.2 (root scope plumbed into
-single-pass) e 6.6/6.7 (memory + race + permanent guard tests) sono
-ancora **planned**. **PR 6.3 (PrecompNode migration a
-`execute_with_scope` + ProgramLease held for scope) è stato chiuso**
-nel commit pre-PR-6.3-merge.
+i test di acceptance sono done (PR 6.0); i PR 6.1–6.7 sono:
+- 🟢 PR 6.1 — execute_with_scope overload (done)
+- 🟢 PR 6.2 — root scope construction + threading (done)
+- 🟢 PR 6.3 — PrecompNode execute_with_scope + ProgramLease (done)
+- 🟡 PR 6.4 — tile plumbing (partial: session reuse done via PR 6.2;
+  follow-up local_session removal from fallback path deferred)
+- 🟢 PR 6.5 — recursion protection + kMaxScopeDepth (done)
+- 🔵 PR 6.6/6.7 — memory/race tests + permanent guards (planned)
 
 ### PR 6.5 — landing log (this commit)
 
