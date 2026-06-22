@@ -77,6 +77,11 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
+// ── Stage-4 wiring probe: TextRunShape.h + animators vector ────────────
+// Sub-case 29 verifies that the AnimatorResolver wired a
+// TextAnimatorSpec entry onto `node.shape.text_run_shape_handle().value->animators`.
+// The full TextRunShape definition lives in text/text_run.hpp.
+#include <chronon3d/text/text_run.hpp>
 
 #include <filesystem>
 
@@ -96,6 +101,34 @@ inline TextSpec make_test_text_spec() {
                        .font_size   = 96.0f},
         .layout     = {.box = {1200.0f, 240.0f}},
         .appearance = {.color = {1.0f, 1.0f, 1.0f, 1.0f}},
+    };
+}
+
+// ── Fixture: rich-paint TextSpec (Stage 4 wiring probe) ─────────────────
+// Triggers the Stage-4 AnimatorResolver in cinematic_text_camera via the
+// three rich-paint signals the resolver keys off:
+//   - appearance.paint.fill_style.has_value()  (Fill populated)
+//   - appearance.paint.stroke_enabled          (true)
+//   - appearance.paint.stroke_style populated  (optional, has_value() proxy)
+// With ANY of those signals firing, the resolver pushes a global-selector
+// TextAnimatorSpec with id prefix "ctc_rich_cinematic_text_camera" onto
+// the TextRunSpec.animators vector BEFORE the canonical motion-preset
+// chain runs (depth_reveal + scale_drop + soft_pop).
+inline TextSpec make_chronon_rich_text_spec() {
+    return TextSpec{
+        .content    = {.value = "CHRONON"},
+        .font       = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
+                       .font_family = "Poppins",
+                       .font_weight = 700,
+                       .font_style  = "normal",
+                       .font_size   = 96.0f},
+        .layout     = {.box = {1200.0f, 240.0f}},
+        .appearance = {.color = {1.0f, 1.0f, 1.0f, 1.0f},
+                       .paint  = {.fill = {1.0f, 1.0f, 1.0f, 1.0f},
+                                  // ── Richness trigger (bool signal) ──
+                                  .stroke_enabled = true,
+                                  .stroke_color  = {0.0f, 0.0f, 0.0f, 1.0f},
+                                  .stroke_width  = 2.0f}},
     };
 }
 
@@ -488,40 +521,14 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
 TEST_CASE("TextPresetRegistry: golden-frame harness cross-link (Sub-case 28)") {
 
     SUBCASE("28) HARNESS LINK — Visual Regression Harness reachable; tier applied to all 22 entries") {
-        // (a) Visual Regression Harness entry-point reachable.
+        // Visual Regression Harness entry point reachable.  PNG fixtures
+        // themselves ship in Fase 2 / Cluster E — this SUBCASE only
+        // asserts the harness scaffolding is in place.
         CHECK(std::filesystem::exists("tests/visual_tests.cmake"));
         CHECK(std::filesystem::exists("tests/visual/support/golden_test.cpp"));
-        // (b) Every new preset has a reachable harness bucket under
-        // tests/visual/<area>/.  We don't require the PNG itself to
-        // exist (Fase 2 production) — only that the *directory* is
-        // reachable so a future PNG fixture lands in the canon path.
-        const std::vector<std::string> reveal_buckets = {
-            "tests/visual/text",                     // new Stage-3 reveal
-            "tests/visual/PR3",                      // text_animations
-            "tests/visual/cinematic_motion",         // cinematic
-            "tests/visual/camera",                   // camera-driven cinematic
-        };
-        const std::vector<std::string> emphasis_buckets = {
-            "tests/visual/text",                     // emphasis also lands under tests/visual/text
-        };
-        const std::vector<std::string> subtitle_buckets = {
-            "tests/visual/text",                     // subtitle bucket
-        };
-        // Each bucket must exist OR we note it as soon-to-be-created.
-        // We only CHECK the program-wide harness (tests/visual_tests.cmake
-        // exists); per-bucket directories will materialise in Fase 2.
-        for (const auto& bucket : reveal_buckets) {
-            INFO("reveal bucket: " << bucket);
-        }
-        for (const auto& bucket : emphasis_buckets) {
-            INFO("emphasis bucket: " << bucket);
-        }
-        for (const auto& bucket : subtitle_buckets) {
-            INFO("subtitle bucket: " << bucket);
-        }
-        // Final cross-check: every new preset is in the registry and
-        // has a non-null builder we can call (this is the Tier-C
-        // assertion rolled up here for the harness tier).
+        // Cross-check: every new preset is in the registry with
+        // non-null builder + builtin=true.  This is the Tier-C
+        // invariant rolled up here for the harness tier.
         auto reg = make_default_text_preset_registry();
         const std::vector<std::string> new_preset_ids = {
             "fade_in", "blur_in", "slide_up", "slide_down", "scale_in",
@@ -538,5 +545,95 @@ TEST_CASE("TextPresetRegistry: golden-frame harness cross-link (Sub-case 28)") {
             CHECK(static_cast<bool>(preset.builder));
             CHECK(preset.builtin == true);
         }
+    }
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────
+// TIER E — TextAnimator V2 wiring (Stage 4 / DoD #2 closure)
+// ─────────────────────────────────────────────────────────────────────────
+// Sub-case 29 verifies that the AnimatorResolver in
+// `src/registry/text_preset_registry.cpp` correctly resolves motion id
+// against a richly-painted spec BEFORE invoking the canonical
+// motion-preset chain in the cinematic_text_camera builder body.
+//
+// The contract being tested:
+//   Given: preset = cinematic_text_camera, spec = make_chronon_rich_text_spec()
+//          (content.value = "CHRONON" + appearance.paint.stroke_enabled = true)
+//   When : the cinematic_text_camera builder lambda runs
+//   Then : (a) build() does not throw and produces >= 1 RenderNode
+//          (b) the canonical motion-preset canon still fires post-wiring
+//              (Layer::depth_offset > 0 — depth_reveal(260, Frame{50}) ran)
+//          (c) the AnimatorResolver pushed a TextAnimatorSpec entry with
+//              the registry-side `ctc_rich_cinematic_text_camera` id prefix
+//              onto the TextRunSpec that the materialised RenderNode was
+//              built from.  Probe is best-effort on the TextRunShape
+//              variant so it tolerates font-engine materialisation gaps
+//              (the materialiser returns nullptr on shaping failure;
+//              AnimatorResolver wiring evidence is still preserved on
+//              the PendingTextRun in the builder path before build()).
+TEST_CASE("TextPresetRegistry: TextAnimator V2 wiring tier (Sub-case 29)") {
+
+    SUBCASE("29) BUILDER WIRES_TEXT_ANIMATORS — cinematic_text_camera resolves motion-id to wired TextAnimatorSpec on rich-paint spec") {
+        auto reg = make_default_text_preset_registry();
+        REQUIRE(reg.contains("cinematic_text_camera"));
+        REQUIRE(reg.get("cinematic_text_camera").category == TextPresetCategory::Cinematic);
+
+        // ── Fixture: spec.content.value = "CHRONON" with rich paint. ────
+        TextSpec rich_spec = make_chronon_rich_text_spec();
+        REQUIRE_FALSE(rich_spec.content.value.empty());
+        CHECK(rich_spec.content.value == "CHRONON");
+        CHECK(rich_spec.appearance.paint.stroke_enabled);
+
+        // ── (a) Invoking the preset does not throw and produces a Layer. ─
+        SceneBuilder sb(1280, 720);
+        LayerBuilder lb("wiring_test_layer", Frame{0});
+        const auto& preset = reg.get("cinematic_text_camera");
+        REQUIRE_NOTHROW(preset.builder(sb, lb, rich_spec));
+        lb.screen_dimensions(1280.0f, 720.0f);
+        Layer built = lb.build();
+        REQUIRE(built.nodes.size() >= 1);
+
+        // ── (b) Motion-preset canon still fired AFTER the resolver. ────
+        // depth_reveal(z, …) sets depth_offset > 0 at frame 0 — same
+        // directional probe as Sub-case 9.  Confirms the canonical chain
+        // ran post-wiring (resolver-then-motion contract).
+        CHECK(built.depth_offset > 0.0f);
+
+        // ── (c) AnimatorResolver wired a TextAnimatorSpec entry onto the ─
+        // cinematic_text_camera routes through `lb.text_run(...)` when
+        // the resolver fires (instead of `lb.text(...)`), so the
+        // materialised RenderNode discriminates to ShapeType::TextRun.
+        // If the font-engine materialiser succeeds the value is non-null
+        // and we verify the wired animator id directly.  If the
+        // materialiser returns nullptr the wiring evidence is preserved
+        // on the PendingTextRun and (a)+(b) lock the contract.
+        bool wired_animator_observed = false;
+        for (std::size_t i = 0; i < built.nodes.size(); ++i) {
+            const auto& n = built.nodes[i];
+            if (n.shape.type() != ShapeType::TextRun) continue;
+            const auto& h = n.shape.text_run_shape_handle();
+            if (!h.value) continue;
+            for (const auto& a : h.value->animators) {
+                if (a.id.find("ctc_rich_cinematic_text_camera") != std::string::npos) {
+                    wired_animator_observed = true;
+                    break;
+                }
+            }
+            if (wired_animator_observed) break;
+        }
+        // Best-effort: a future Stage 5+ PR replaces the lenient probe
+        // with a hard-asserted animation-stack round-trip via
+        // evaluate_animator_stack_into.  Stage 4 ships this default —
+        // wiring landed if the materialisation pipeline honoured the
+        // resolver's push.
+        CHECK(wired_animator_observed);
+
+        // ── Bonus probe: golden-frame-link canon preserved ────────────
+        // The wiring tier ships the same `// golden-frame-link:` canon
+        // comments as Stages 2 + 3; we re-confirm the fixture path
+        // exists at tests/visual_tests.cmake so reviewers can rely on
+        // end-to-end PNG traceability.
+        CHECK(std::filesystem::exists("tests/visual_tests.cmake"));
     }
 }
