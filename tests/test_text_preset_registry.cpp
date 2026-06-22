@@ -644,3 +644,193 @@ TEST_CASE("TextPresetRegistry: TextAnimator V2 wiring tier (Sub-case 29)") {
         CHECK(std::filesystem::exists("tests/visual_tests.cmake"));
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// TIER F — Stage 5 AnimatorResolver coverage (all 22 presets)
+// ─────────────────────────────────────────────────────────────────────────
+// Verifies that AnimatorResolver::compose_for() (now extended to ALL 22
+// presets) routes each built-in preset through `wire_through_resolver()`
+// in its factory body, leaving a PendingTextRun entry whose
+// animators[0].id carries the `presetc_<preset_id>` prefix from the
+// new Stage 5 resolver.  Every preset EXCEPT `minimal_white` (no
+// canonical motion) pushes at least one TextAnimatorSpec via
+// `lb.text_run(...).commit()` BEFORE the layer-level motion chain.
+// Sub-case 29 already covers the rich-paint path on cinematic_text_camera
+// (animators[0].id strictly equal to "ctc_rich_cinematic_text_camera"),
+// so Sub-case 30 only probes plain-spec wiring to keep assertions
+// orthogonal.
+TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)") {
+
+    SUBCASE("30) compose_for wires property-level composition for all 22 presets via wire_through_resolver") {
+        const auto& reg = make_default_text_preset_registry();
+
+        // Plain test_spec — no rich-paint signal — so cinematic_text_camera
+        // plain-spec path is exercised (Sub-case 29 covers the rich path).
+        const auto plain = make_test_text_spec();
+
+        // Expected property-pack minimum count per preset_id. Mirrors the
+        // 22-branch table in src/registry/text_preset_registry.cpp
+        // (AnimatorResolver::compose_for()). If the resolver table
+        // evolves, this array evolves alongside it.
+        //
+        // `first_kind_predicate` catches the strongest drift signature:
+        // a Stage 6+ refactor that accidentally swaps the FIRST push's
+        // property type (e.g., `PositionProperty` → `ScaleProperty` on
+        // the cinematic_text_camera branch).  Loose count alone would
+        // not detect such a swap.
+        struct ExpectedComposition {
+            std::string preset_id;
+            std::size_t min_property_count;
+            std::function<bool(const TextAnimatorProperty&)> first_kind_predicate;
+        };
+        const std::array<ExpectedComposition, 22> expected{{
+            {"animation_compositions",      2,  // Position + Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<PositionProperty>(p);
+                }},
+            {"cinematic_text_camera",       3,  // Position + Scale + Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<PositionProperty>(p);
+                }},
+            {"cinematic_title_reveal",      2,  // Scale + Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<ScaleProperty>(p);
+                }},
+            {"tilt_sweep_title_v2",         3,  // Scale + Blur + Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<ScaleProperty>(p);
+                }},
+            {"text_animations",             2,  // Scale + Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<ScaleProperty>(p);
+                }},
+            {"fade_in",                     1,  // Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<OpacityProperty>(p);
+                }},
+            {"blur_in",                     2,  // Blur + Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<BlurProperty>(p);
+                }},
+            {"slide_up",                    2,  // Position + Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<PositionProperty>(p);
+                }},
+            {"slide_down",                  2,  // Position + Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<PositionProperty>(p);
+                }},
+            {"scale_in",                    2,  // Scale + Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<ScaleProperty>(p);
+                }},
+            {"tracking_close",              1,  // Tracking
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<TrackingProperty>(p);
+                }},
+            {"masked_line_reveal",          1,  // Position
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<PositionProperty>(p);
+                }},
+            {"word_cascade",                1,  // Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<OpacityProperty>(p);
+                }},
+            {"character_cascade",           1,  // Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<OpacityProperty>(p);
+                }},
+            {"word_pop",                    2,  // Scale + Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<ScaleProperty>(p);
+                }},
+            {"scale_punch",                 2,  // Scale + Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<ScaleProperty>(p);
+                }},
+            {"color_accent",                1,  // Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<OpacityProperty>(p);
+                }},
+            {"gradient_fill",               2,  // Position + Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<PositionProperty>(p);
+                }},
+            // minimal_white: no resolver output — predicate unused
+            // (loop `continue`s before reaching the kind-check).
+            {"minimal_white",               0,
+                [](const TextAnimatorProperty& p){ return true; }},
+            {"yellow_keyword",              1,  // Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<OpacityProperty>(p);
+                }},
+            {"glow_pulse",                  1,  // Tracking
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<TrackingProperty>(p);
+                }},
+            {"caption_box",                 2,  // Position + Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<PositionProperty>(p);
+                }},
+        }};
+
+        REQUIRE(reg.list().size() == expected.size());
+
+        // Helper — verifies the FIRST property on a wired TextAnimatorSpec
+        // is of the alternative-type `T`.  This catches future drift in
+        // the branch table silently swapping property kinds (e.g., a
+        // `ScaleProperty` accidentally replacing `PositionProperty` in the
+        // `cinematic_text_camera` branch).  See the per-preset
+        // `expected_first_kind` field below.
+        const auto first_kind_is = [](const TextAnimatorSpec& spec,
+                                      auto kind_predicate) -> bool {
+            if (spec.properties.empty()) return false;
+            return kind_predicate(spec.properties[0]);
+        };
+
+        for (const auto& exp : expected) {
+            CAPTURE(exp.preset_id);
+            REQUIRE(reg.contains(exp.preset_id));
+            // Use the canonical LayerBuilder(string, Frame) constructor
+            // pattern — matches every other Sub-case in this file
+            // (see Sub-cases 7-9 and Tier C at lines ~266, ~278, etc).
+            LayerBuilder lb("resolve_probe_" + exp.preset_id, Frame{0});
+            SceneBuilder sb("resolve_probe");
+            reg.get(exp.preset_id).builder(sb, lb, plain);
+
+            // Read `pending_text_runs()` BEFORE any subsequent mutation.
+            // Lifetime caveat: each call to `text_run(...)` may reallocate
+            // `m_text_runs` storage, invalidating previously-returned
+            // pointers (see LayerBuilder::pending_text_runs docstring).
+            const auto pre = lb.pending_text_runs();
+
+            if (exp.preset_id == "minimal_white") {
+                // No canonical motion → resolver returns nullopt →
+                // wire_through_resolver() falls back to plain lb.text() →
+                // no PendingTextRun entry.
+                CHECK(pre.size() == 0);
+                continue;
+            }
+
+            // Stage 5 wiring: every other preset routes through
+            // `lb.text_run(...).commit()`, leaving exactly one entry
+            // with the resolver's property-composed spec on animators[0]
+            // (plain-spec path; rich-spec pushes the anchor ahead of the
+            // canonical — Sub-case 29 already covers that).
+            CHECK(pre.size() == 1);
+            REQUIRE(pre[0] != nullptr);
+            const auto& animators = pre[0]->params.animators;
+            CHECK(animators.size() >= 1);
+            CHECK(animators[0].id == ("presetc_" + exp.preset_id));
+            CHECK(animators[0].properties.size() >= exp.min_property_count);
+
+            // Stronger drift catch — verifies the FIRST property kind
+            // matches the canonical mapping.  Loose count alone would
+            // let a Stage 6+ refactor silently swap PositionProperty for
+            // ScaleProperty on the cinematic_text_camera branch.
+            if (!animators[0].properties.empty()) {
+                CHECK(first_kind_is(animators[0], exp.first_kind_predicate));
+            }
+        }
+    }
+}

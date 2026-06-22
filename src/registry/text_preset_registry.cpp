@@ -205,7 +205,7 @@ TextPreset animation_compositions_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/cinematic_motion/DeepParallaxCascade
-        lb.text("anim_comp_text", spec)
+        wire_through_resolver(lb, "animation_compositions", spec)
           .depth_reveal(280.0f, Frame{45})
           .soft_pop(Frame{30})
           .float_idle(8.0f, Frame{120});
@@ -272,13 +272,193 @@ struct AnimatorResolver {
         // glyphs at the standard full opacity (1.0) so the resolver
         // entry is observable AND semantically full (it composes with
         // the canonical motion-preset canon via `evaluate_animator_stack`
-        // rather than id-only).  Future Stage 5+ resolver extensions
-        // can swap in PositionProperty{vec3} ramps tied to depth_reveal
-        // / scale_drop without changing this contract.
+        // rather than id-only).  Stage 5 below extends the resolver with
+        // property-level compositions for ALL 22 presets.
         a.properties.push_back(OpacityProperty{1.0f});
         return a;
     }
+
+    // ── Stage 5 (Cluster A DoD #2 closure — all 22 presets) ──────────────
+    // `compose_for(preset_id)` maps each of the 22 built-in presets to a
+    // TextAnimatorSpec that captures the END-STATE glyph contribution of
+    // the canonical motion chain.  When the caller invokes the factory
+    // body of preset P, the registry routes through this resolver:
+    //
+    //   1. auxiliary `wire_through_resolver()` helper (see anon-ns below)
+    //      calls `compose_for(P).value_or(nullopt)` to obtain the
+    //      property-composed TextAnimatorSpec;
+    //   2. if non-null, the helper pushes it onto TextRunParams.animators
+    //      and routes through `lb.text_run(...).commit()` so the wired
+    //      entry lands on the PendingTextRun BEFORE the canonical motion
+    //      chain mutates the layer;
+    //   3. if null (only `minimal_white` today), the helper falls back to
+    //      a plain `lb.text(...)` — no canonical motion means no
+    //      resolver output.
+    //
+    // The 22 branches below encode each preset's terminal glyph state as
+    // END-STATE static values (the engine reads opacity/position/scale as
+    // STATIC values in `evaluate_animator_stack`; ramps are produced by
+    // the layer-level motion canon that runs AFTER the resolver).  Stagger
+    // / center-split / float-idle do NOT have a static end-state property
+    // and therefore route via the canonical Opacity/Position path.
+    [[nodiscard]] static std::optional<TextAnimatorSpec>
+    compose_for(std::string_view preset_id) {
+        TextAnimatorSpec a;
+        a.id             = std::string{"presetc_"} + std::string{preset_id};
+        a.enabled        = true;
+        a.transform_mode = TextPropertyBlendMode::Add;
+        a.color_mode     = TextPropertyBlendMode::Replace;
+
+        // Global glyph selector — every glyph receives weight=1 (the
+        // After Effects-style "entire text as one unit" pattern).
+        GlyphSelectorSpec sel;
+        sel.id     = a.id + "_sel_global";
+        sel.unit   = TextSelectorUnit::Glyph;
+        sel.shape  = TextSelectorShape::Square;
+        sel.start  = {0.0f};
+        sel.end    = {100.0f};
+        sel.amount = {100.0f};
+        a.selectors.push_back(sel);
+
+        if (preset_id == "animation_compositions") {
+            // depth_reveal(280,45) + soft_pop(30) + float_idle(8,120)
+            a.properties.push_back(PositionProperty{Vec3{0.0f, 8.0f, 280.0f}});
+            a.properties.push_back(OpacityProperty{1.0f});
+        }
+        else if (preset_id == "cinematic_text_camera") {
+            // depth_reveal(260,50) + scale_drop(0.95,30) + soft_pop(24)
+            a.properties.push_back(PositionProperty{Vec3{0.0f, 0.0f, 260.0f}});
+            a.properties.push_back(ScaleProperty{Vec3{0.95f, 0.95f, 1.0f}});
+            a.properties.push_back(OpacityProperty{1.0f});
+        }
+        else if (preset_id == "cinematic_title_reveal") {
+            // scale_drop(0.92,40) + soft_pop(30)
+            a.properties.push_back(ScaleProperty{Vec3{0.92f, 0.92f, 1.0f}});
+            a.properties.push_back(OpacityProperty{1.0f});
+        }
+        else if (preset_id == "tilt_sweep_title_v2") {
+            // scale_drop(1.08,45) + focus_in(2.5,30) + soft_pop(24)
+            a.properties.push_back(ScaleProperty{Vec3{1.08f, 1.08f, 1.0f}});
+            a.properties.push_back(BlurProperty{2.5f});
+            a.properties.push_back(OpacityProperty{1.0f});
+        }
+        else if (preset_id == "text_animations") {
+            // fade_in(20) + scale_drop(0.95,30)
+            a.properties.push_back(ScaleProperty{Vec3{0.95f, 0.95f, 1.0f}});
+            a.properties.push_back(OpacityProperty{1.0f});
+        }
+        else if (preset_id == "fade_in") {
+            // fade_in(15) + soft_pop(10)
+            a.properties.push_back(OpacityProperty{1.0f});
+        }
+        else if (preset_id == "blur_in") {
+            // focus_in(4.0,30) + fade_in(15)
+            a.properties.push_back(BlurProperty{4.0f});
+            a.properties.push_back(OpacityProperty{1.0f});
+        }
+        else if (preset_id == "slide_up") {
+            // fade_shift_vertical({0,200,0},25) + fade_in(15)
+            a.properties.push_back(PositionProperty{Vec3{0.0f, 200.0f, 0.0f}});
+            a.properties.push_back(OpacityProperty{1.0f});
+        }
+        else if (preset_id == "slide_down") {
+            // fade_shift_vertical({0,-200,0},25) + fade_in(15)
+            a.properties.push_back(PositionProperty{Vec3{0.0f, -200.0f, 0.0f}});
+            a.properties.push_back(OpacityProperty{1.0f});
+        }
+        else if (preset_id == "scale_in") {
+            // scale_drop(0.85,25) + soft_pop(15)
+            a.properties.push_back(ScaleProperty{Vec3{0.85f, 0.85f, 1.0f}});
+            a.properties.push_back(OpacityProperty{1.0f});
+        }
+        else if (preset_id == "tracking_close") {
+            // tracking_breathing(0.05,30)
+            a.properties.push_back(TrackingProperty{0.05f});
+        }
+        else if (preset_id == "masked_line_reveal") {
+            // center_split(30) + fade_shift_horizontal({120,0,0},25)
+            a.properties.push_back(PositionProperty{Vec3{120.0f, 0.0f, 0.0f}});
+        }
+        else if (preset_id == "word_cascade") {
+            // word_stagger(4,20) + fade_in(15)
+            a.properties.push_back(OpacityProperty{1.0f});
+        }
+        else if (preset_id == "character_cascade") {
+            // fade_in(15) + word_stagger(2,20)
+            a.properties.push_back(OpacityProperty{1.0f});
+        }
+        else if (preset_id == "word_pop") {
+            // scale_drop(1.15,8) + soft_pop(15)
+            a.properties.push_back(ScaleProperty{Vec3{1.15f, 1.15f, 1.0f}});
+            a.properties.push_back(OpacityProperty{1.0f});
+        }
+        else if (preset_id == "scale_punch") {
+            // scale_drop(0.70,12) + soft_pop(20)
+            a.properties.push_back(ScaleProperty{Vec3{0.70f, 0.70f, 1.0f}});
+            a.properties.push_back(OpacityProperty{1.0f});
+        }
+        else if (preset_id == "color_accent") {
+            // fade_in(12) — colour identity comes from caller-set spec
+            a.properties.push_back(OpacityProperty{1.0f});
+        }
+        else if (preset_id == "gradient_fill") {
+            // fade_shift_vertical({0,80,0},20) + fade_in(15)
+            a.properties.push_back(PositionProperty{Vec3{0.0f, 80.0f, 0.0f}});
+            a.properties.push_back(OpacityProperty{1.0f});
+        }
+        else if (preset_id == "minimal_white") {
+            // No motion → no resolver output.  Factory body falls back
+            // to plain `lb.text(...)` (see `wire_through_resolver()`).
+            return std::nullopt;
+        }
+        else if (preset_id == "yellow_keyword") {
+            // word_stagger(3,20) + fade_in(12)
+            a.properties.push_back(OpacityProperty{1.0f});
+        }
+        else if (preset_id == "glow_pulse") {
+            // tracking_breathing(0.08,40)
+            a.properties.push_back(TrackingProperty{0.08f});
+        }
+        else if (preset_id == "caption_box") {
+            // fade_shift_vertical({0,-30,0},18) + fade_in(12)
+            a.properties.push_back(PositionProperty{Vec3{0.0f, -30.0f, 0.0f}});
+            a.properties.push_back(OpacityProperty{1.0f});
+        }
+        else {
+            // Unknown id — fail-safe to plain path.  The factory body's
+            // helper will route to `lb.text(...)` if it gets this back.
+            return std::nullopt;
+        }
+        return a;
+    }
 };
+
+// ── wire_through_resolver — factory-body helper ────────────────────────────
+// Routes a preset invocation through the Stage 5 AnimatorResolver.  When
+// the resolver returns a non-null TextAnimatorSpec, the helper pushes it
+// onto TextRunParams.animators and routes through `lb.text_run(...).commit()`
+// so the wired entry lands on the PendingTextRun BEFORE the canonical
+// motion-preset chain mutates the layer.  When the resolver returns
+// std::nullopt (e.g., `minimal_white` with no canonical motion), the
+// helper falls back to a plain `lb.text(...)` — preserves the Sub-case
+// 7-9 plain-spec invariants.
+//
+// Returns LayerBuilder& so the chained motion-presets in the factory
+// body (.depth_reveal / .scale_drop / .soft_pop / etc.) continue to
+// compile unchanged.
+[[nodiscard]] inline LayerBuilderT&
+wire_through_resolver(LayerBuilderT& lb,
+                      std::string_view preset_id,
+                      const TextSpecT& spec) {
+    auto composed = AnimatorResolver::compose_for(preset_id);
+    if (!composed) {
+        return lb.text(std::string{preset_id} + "_text", spec);
+    }
+    TextRunParams params;
+    params.text = spec;
+    params.animators.push_back(*composed);
+    return lb.text_run(std::string{preset_id} + "_text", params).commit();
+}
 
 TextPreset cinematic_text_camera_entry() {
     TextPreset p;
@@ -298,35 +478,34 @@ TextPreset cinematic_text_camera_entry() {
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/camera/camera_visual_tests
 
-        // ── Stage 4 wiring: resolve motion-id BEFORE chain ─────────────
-        // The resolver fires first; when it does, we route through
-        // `lb.text_run(...)` so the wired TextAnimatorSpec lands on
-        // `params.animators` before the canonical motion-preset chain
-        // mutates the layer.  When the spec is plain (default Title
-        // Case text without a rich_paint signal), the resolver does
-        // NOT fire and the original `lb.text(...)` path is unchanged
-        // — Sub-cases 7, 8, 9 (which use `make_test_text_spec()` with
-        // no rich signals) pass-through unchanged.
+        // ── Stages 4 + 5 wiring ─────────────────────────────────────
+        // Stage 4: when the spec carries a rich-paint signal
+        //   (stroke_enabled OR fill_style OR stroke_style) the resolver
+        //   pushes a TextAnimatorSpec with id "ctc_rich_<id>" first —
+        //   the anchor that other content layers compose with.
+        // Stage 5: ALL cinematic_text_camera invocations ALSO push the
+        //   canonical end-state composition (animators[1] when rich,
+        //   animators[0] when plain).  This makes the resolver output
+        //   semantically rich — depth_reveal (260) -> PositionProperty{z},
+        //   scale_drop (0.95) -> ScaleProperty{0.95}, soft_pop -> Opacity.
+        //
+        // Sub-case 29 invariant: when the spec IS rich, animators[0]
+        //   keeps the rich-paint anchor id "ctc_rich_cinematic_text_camera"
+        //   so the Stage 4 deterministic probe stays green.
+        TextRunParams params;
+        params.text = spec;
         if (AnimatorResolver::spec_is_rich(spec)) {
-            TextRunParams params;
-            params.text   = spec;
             params.animators.push_back(
                 AnimatorResolver::rich_paint_anchor("cinematic_text_camera"));
-            // .commit() returns LayerBuilder& so the canonical motion
-            // presets still chain cleanly after the wiring step.
-            lb.text_run("camera_text", params)
-              .commit()
-              .depth_reveal(260.0f, Frame{50})
-              .scale_drop(0.95f, Frame{30})
-              .soft_pop(Frame{24});
-        } else {
-            // Plain-spec path — identical to PR 41cda40c body so
-            // Sub-cases 7-9 stay green without modification.
-            lb.text("camera_text", spec)
-              .depth_reveal(260.0f, Frame{50})
-              .scale_drop(0.95f, Frame{30})
-              .soft_pop(Frame{24});
         }
+        if (auto canonical = AnimatorResolver::compose_for("cinematic_text_camera")) {
+            params.animators.push_back(*canonical);
+        }
+        lb.text_run("camera_text", params)
+          .commit()
+          .depth_reveal(260.0f, Frame{50})
+          .scale_drop(0.95f, Frame{30})
+          .soft_pop(Frame{24});
     };
     return p;
 }
@@ -343,7 +522,7 @@ TextPreset cinematic_title_reveal_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/cinematic_motion/cinematic_title_reveal
-        lb.text("title_reveal_text", spec)
+        wire_through_resolver(lb, "cinematic_title_reveal", spec)
           .scale_drop(0.92f, Frame{40})
           .soft_pop(Frame{30});
     };
@@ -363,7 +542,7 @@ TextPreset tilt_sweep_title_v2_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/cinematic_motion/tilt_sweep_title_v2
-        lb.text("tilt_sweep_text", spec)
+        wire_through_resolver(lb, "tilt_sweep_title_v2", spec)
           .scale_drop(1.08f, Frame{45})
           .focus_in(2.5f, Frame{30})
           .soft_pop(Frame{24});
@@ -392,7 +571,7 @@ TextPreset text_animations_entry() {
         // fade_in / scale_drop both default to OutCubic, so we omit the
         // redundant explicit arg here.
         // golden-frame-link: tests/visual/PR3/pr3_compositions (text-heavy PR3 end-to-end)
-        lb.text("reveal_text", spec)
+        wire_through_resolver(lb, "text_animations", spec)
           .fade_in(Frame{20})
           .scale_drop(0.95f, Frame{30});
     };
@@ -413,7 +592,7 @@ TextPreset fade_in_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/reveal_fade_in
-        lb.text("fade_in_text", spec)
+        wire_through_resolver(lb, "fade_in", spec)
           .fade_in(Frame{15})
           .soft_pop(Frame{10});
     };
@@ -434,7 +613,7 @@ TextPreset blur_in_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/reveal_blur_in
-        lb.text("blur_in_text", spec)
+        wire_through_resolver(lb, "blur_in", spec)
           .focus_in(4.0f, Frame{30})
           .fade_in(Frame{15});
     };
@@ -455,7 +634,7 @@ TextPreset slide_up_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/reveal_slide_up
-        lb.text("slide_up_text", spec)
+        wire_through_resolver(lb, "slide_up", spec)
           .fade_shift_vertical(Vec3{0.0f, 200.0f, 0.0f}, Frame{25})
           .fade_in(Frame{15});
     };
@@ -476,7 +655,7 @@ TextPreset slide_down_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/reveal_slide_down
-        lb.text("slide_down_text", spec)
+        wire_through_resolver(lb, "slide_down", spec)
           .fade_shift_vertical(Vec3{0.0f, -200.0f, 0.0f}, Frame{25})
           .fade_in(Frame{15});
     };
@@ -497,7 +676,7 @@ TextPreset scale_in_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/reveal_scale_in
-        lb.text("scale_in_text", spec)
+        wire_through_resolver(lb, "scale_in", spec)
           .scale_drop(0.85f, Frame{25})
           .soft_pop(Frame{15});
     };
@@ -520,7 +699,7 @@ TextPreset tracking_close_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/reveal_tracking_close
-        lb.text("tracking_close_text", spec)
+        wire_through_resolver(lb, "tracking_close", spec)
           .tracking_breathing(0.05f, Frame{30});
     };
     return p;
@@ -540,7 +719,7 @@ TextPreset masked_line_reveal_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/reveal_masked_line
-        lb.text("masked_line_text", spec)
+        wire_through_resolver(lb, "masked_line_reveal", spec)
           .center_split(Frame{30})
           .fade_shift_horizontal(Vec3{120.0f, 0.0f, 0.0f}, Frame{25});
     };
@@ -562,7 +741,7 @@ TextPreset word_cascade_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/reveal_word_cascade
-        lb.text("word_cascade_text", spec)
+        wire_through_resolver(lb, "word_cascade", spec)
           .word_stagger(Frame{4}, Frame{20})
           .fade_in(Frame{15});
     };
@@ -584,7 +763,7 @@ TextPreset character_cascade_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/reveal_character_cascade
-        lb.text("character_cascade_text", spec)
+        wire_through_resolver(lb, "character_cascade", spec)
           .fade_in(Frame{15})
           .word_stagger(Frame{2}, Frame{20});
     };
@@ -608,7 +787,7 @@ TextPreset word_pop_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/emphasis_word_pop
-        lb.text("word_pop_text", spec)
+        wire_through_resolver(lb, "word_pop", spec)
           .scale_drop(1.15f, Frame{8})
           .soft_pop(Frame{15});
     };
@@ -629,7 +808,7 @@ TextPreset scale_punch_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/emphasis_scale_punch
-        lb.text("scale_punch_text", spec)
+        wire_through_resolver(lb, "scale_punch", spec)
           .scale_drop(0.70f, Frame{12})
           .soft_pop(Frame{20});
     };
@@ -653,7 +832,7 @@ TextPreset color_accent_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/emphasis_color_accent
-        lb.text("color_accent_text", spec)
+        wire_through_resolver(lb, "color_accent", spec)
           .fade_in(Frame{12});
     };
     return p;
@@ -673,7 +852,7 @@ TextPreset gradient_fill_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/emphasis_gradient_fill
-        lb.text("gradient_fill_text", spec)
+        wire_through_resolver(lb, "gradient_fill", spec)
           .fade_shift_vertical(Vec3{0.0f, 80.0f, 0.0f}, Frame{20})
           .fade_in(Frame{15});
     };
@@ -720,7 +899,7 @@ TextPreset yellow_keyword_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/subtitle_yellow_keyword
-        lb.text("yellow_keyword_text", spec)
+        wire_through_resolver(lb, "yellow_keyword", spec)
           .word_stagger(Frame{3}, Frame{20})
           .fade_in(Frame{12});
     };
@@ -742,7 +921,7 @@ TextPreset glow_pulse_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/subtitle_glow_pulse
-        lb.text("glow_pulse_text", spec)
+        wire_through_resolver(lb, "glow_pulse", spec)
           .tracking_breathing(0.08f, Frame{40});
     };
     return p;
@@ -762,7 +941,7 @@ TextPreset caption_box_entry() {
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/subtitle_caption_box
-        lb.text("caption_box_text", spec)
+        wire_through_resolver(lb, "caption_box", spec)
           .fade_shift_vertical(Vec3{0.0f, -30.0f, 0.0f}, Frame{18})
           .fade_in(Frame{12});
     };
