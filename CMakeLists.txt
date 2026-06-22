@@ -159,6 +159,12 @@ if(CHRONON3D_ENABLE_PROFILING)
     find_package(Tracy CONFIG QUIET)
 endif()
 
+# --- Central Module Registry ---
+# Single source of truth for all OBJECT/INTERFACE library targets.
+# Included early so it is available to both src/CMakeLists.txt (sdk_impl
+# aggregation + in-tree link closure) and the install/export section below.
+include(cmake/Chronon3DRegistry.cmake)
+
 # --- Git Commit Hash Extraction ---
 execute_process(
     COMMAND git rev-parse --short HEAD
@@ -337,95 +343,24 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
     FILES_MATCHING PATTERN "*.hpp"
 )
 
-# Aggregate list of chronon3d_* targets to install + export.  TICKET-011
-# cmake-boundary (OBJECT lift final stage): the OUTPUT of every per-
-# subsystem OBJECT is bundled into `chronon3d_sdk_impl` (the single
-# STATIC archive) at link time — `libchronon3d_sdk_impl.a` is the ONLY
-# `.a` file in `<prefix>/<libdir>`.  The per-subsystem OBJECT targets
-# themselves are still listed here so `install(EXPORT …)` registers
-# them in `Chronon3DTargets.cmake` and CMake's export-walker does not
-# flag them as "not in any export set".  They have no ARCHIVE/LIBRARY
-# output (they are OBJECT), so the install step produces no per-subsystem
-# file — only `libchronon3d_sdk_impl.a` is written to disk.
+# ── Install / Export target list — derived from central registry ─────
+# Every OBJECT and INTERFACE target defined in cmake/Chronon3DRegistry.cmake
+# is automatically collected here.  The foreach-if-TARGET loop handles
+# conditional subsystems (targets not created in this configuration are
+# silently skipped).  The old manual list + conditional append blocks
+# (~60 lines) are replaced by 6 lines below.
 #
-# INTERFACE-only aggregates are also included for documentation/exposure.
-# The exported targets are kept under their raw names so the transitive
-# link closure resolves through `Chronon3D::SDK` without exposing
-# per-subsystem IMPORTED targets to consumers.
-set(_chronon3d_install_targets
-    # Consumer-facing — this is the only target that gets the
-    # `Chronon3D::SDK` namespace alias.
-    chronon3d_sdk
-    # Single aggregated linkable archive.
-    chronon3d_sdk_impl
-    # Aggregate INTERFACE libraries (logical groupers; propagate OBJECT
-    # deps transitively at build-time via $<BUILD_INTERFACE:…> in
-    # chronon3d_sdk's link closure).
-    chronon3d_pipeline
-    chronon3d_core
-    chronon3d_software
-    chronon3d_graph
-    chronon3d_media_interface
-    chronon3d
-    # Per-subsystem OBJECT libraries — included so `install(EXPORT)`
-    # does not flag them as `not in any export set`.  They produce no
-    # installable file; their .o files are bundled into
-    # `libchronon3d_sdk_impl.a` at aggregate-link time.
-    chronon3d_core_impl
-    chronon3d_animations
-    chronon3d_cache
-    chronon3d_effects
-    chronon3d_registry
-    chronon3d_assets
-    chronon3d_scene
-    chronon3d_runtime
-    chronon3d_extension
-    chronon3d_backend_image
-    chronon3d_backend_software
-    chronon3d_backend_assets
-    chronon3d_graph_core
-    chronon3d_graph_nodes
-    chronon3d_graph_builder
-    chronon3d_graph_compiler
-    chronon3d_graph_executor
-    chronon3d_graph_preflight
-    chronon3d_graph_cache
-    chronon3d_graph_pipeline
-)
-
-# Conditional subsystems — included for EXPORT-graph participation when
-# the feature is enabled; skip otherwise.
-if(TARGET chronon3d_text_core)
-    list(APPEND _chronon3d_install_targets chronon3d_text_core)
-endif()
-if(CHRONON3D_ENABLE_VIDEO)
-    list(APPEND _chronon3d_install_targets
-        chronon3d_backend_video
-        chronon3d_media_video
-    )
-endif()
-if(CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D)
-    list(APPEND _chronon3d_install_targets chronon3d_backend_text)
-endif()
-if(CHRONON3D_USE_BLEND2D)
-    list(APPEND _chronon3d_install_targets chronon3d_blend2d_paint)
-endif()
-if(CHRONON3D_BUILD_DIAGNOSTICS)
-    list(APPEND _chronon3d_install_targets chronon3d_backend_software_diagnostics)
-endif()
-if(CHRONON3D_BUILD_CONTENT OR CHRONON3D_BUILD_DIAGNOSTICS)
-    list(APPEND _chronon3d_install_targets chronon3d_content)
-endif()
-if(CHRONON3D_BUILD_DIAGNOSTICS)
-    list(APPEND _chronon3d_install_targets chronon3d_diagnostics)
-endif()
-
-if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
-    list(APPEND _chronon3d_install_targets
-        chronon3d_ffmpeg_light
-        chronon3d_ffmpeg_full
-    )
-endif()
+# per-subsystem OBJECT targets have no ARCHIVE/LIBRARY output (they are
+# OBJECT), so only `libchronon3d_sdk_impl.a` is written to disk at install
+# time.  They are still listed here so `install(EXPORT …)` registers them
+# in `Chronon3DTargets.cmake` and CMake's export-walker does not flag them
+# as "not in any export set".
+set(_chronon3d_install_targets "")
+foreach(_reg_tgt IN LISTS CHRONON3D_REGISTRY_OBJECT_LIBS CHRONON3D_REGISTRY_INTERFACE_LIBS)
+    if(TARGET ${_reg_tgt})
+        list(APPEND _chronon3d_install_targets ${_reg_tgt})
+    endif()
+endforeach()
 
 install(TARGETS ${_chronon3d_install_targets}
     EXPORT Chronon3DTargets
