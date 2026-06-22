@@ -19,6 +19,7 @@ Verifica rapida:
 
 ```bash
 git ls-tree -r --name-only HEAD docs/stabilization-plan
+git ls-tree -r --name-only HEAD docs/agent-tasks
 ```
 
 ## Piano operativo canonico
@@ -47,28 +48,74 @@ Documenti generali da leggere insieme:
 - `docs/FOLLOWUP_TICKETS.md`
 - `docs/ANTI_DUPLICATION_RULES.md`
 
+## Assegnazione corrente a due agenti
+
+I due incarichi sono separati per ridurre conflitti e duplicazioni:
+
+1. [Agente 1 — Renderer/Backend Single Identity](docs/agent-tasks/AGENT_1_RENDERER_BOUNDARY.md)
+   - branch: `codex/agent1-renderer-boundary`
+   - ownership: renderer/backend software, call site correlati, test mirati e gate renderer.
+2. [Agente 2 — CMake Registry, SDK Boundary e Baseline](docs/agent-tasks/AGENT_2_CMAKE_SDK_BASELINE.md)
+   - branch: `codex/agent2-cmake-sdk-baseline`
+   - ownership: CMake, preset/toolchain, install consumer, full validation e documenti canonici.
+
+Gli agenti possono iniziare in parallelo, ma il lavoro dell'Agente 2 deve essere validato dopo un rebase sul `main` che contiene la correzione renderer/backend approvata.
+
+Non scambiare ownership senza una decisione esplicita. In particolare:
+
+- l'Agente 1 non aggiorna i claim globali di baseline;
+- l'Agente 2 non modifica l'implementazione renderer/backend;
+- entrambi devono controllare il diff remoto prima di toccare file già modificati dall'altro agente.
+
 ## Priorità obbligatoria
 
-1. Baseline e dichiarazioni di stato corrette.
-2. Tre test falliti.
-3. Due violazioni architetturali.
-4. Preset `linux-lean-dev`.
-5. Consumer SDK e toolchain/prefix vcpkg.
-6. Golden hash reali, senza sentinel.
-7. Sincronizzazione ExecutionScope.
-8. Migrazione completa Precomp e call site legacy.
-9. Canonicalizzazione documenti.
-10. Registry centrale CMake.
+1. Ripristinare una sola identità renderer/backend e rendere bloccante il relativo gate.
+2. Centralizzare la registrazione dei moduli CMake.
+3. Unificare toolchain/preset vcpkg.
+4. Chiudere installazione ed external consumer SDK.
+5. Registrare una baseline reale su checkout pulito.
+6. Allineare `STATUS.md`, `NEXT_STEPS.md`, `ROADMAP.md` e stabilization plan ai risultati osservati.
+7. Proseguire con ExecutionScope, Precomp e determinismo soltanto sui gap ancora dimostrati dalla nuova baseline.
+8. Non iniziare V3 prima della chiusura completa dei P0.
 
 ## Regole di lavoro
 
 - Cercare prima il codice e i documenti esistenti.
-- Non duplicare registry, resolver, sampler, cache o checklist.
+- Non duplicare registry, resolver, sampler, cache, service locator o checklist.
 - Non segnare verde una suite che restituisce failure.
 - Non cambiare un gate per nascondere un errore.
 - Aggiornare il piano relativo nello stesso commit che cambia lo stato.
 - Ogni nuova feature deve usare il registry, resolver o sampler canonico già esistente.
 - Non introdurre GUI, browser o dipendenze GPU nel core headless CPU-first.
+- Fare PR piccole e mirate, senza mescolare refactor indipendenti.
+- Non committare `node_modules/`, directory di build, output, artefatti o file generati.
+- Eseguire almeno i test del modulo toccato prima della PR.
+- Dopo ogni push verificare la cronologia recente con `git log -n 5 --oneline`.
+
+## Workflow Git obbligatorio
+
+```bash
+git fetch origin
+git checkout main
+git pull --ff-only origin main
+git checkout <branch-assegnato>
+git rebase origin/main
+git status -sb
+```
+
+Dopo le modifiche:
+
+```bash
+git status -sb
+git diff
+# test mirati
+git add <solo-file-assegnati>
+git commit -m "<tipo(scope): descrizione chiara>"
+git push origin <branch-assegnato>
+git log -n 5 --oneline
+```
+
+Non pushare direttamente su `main`.
 
 ## Quando un file sembra mancare
 
