@@ -26,6 +26,14 @@ add_executable(chronon3d_deterministic_tests
     # parameter (WP1 PR 1.0+1.1) is the test surface, but it reuses
     # the determinism harness helpers from this aggregate.
     render_graph/executor/test_scheduler_determinism.cpp
+    # PR-A3 (Blocco A, Fase 2) — 15 minimal visual regression scenarios.
+    # Extends the scheduler-level determinism fixture with scenario-
+    # specific compositions (static, multiline, tracking, stroke, gradient,
+    # shadow, glow, blur, typewriter, anim-glyph, anim-word, RTL, CJK,
+    # emoji fallback, scale-extreme).  Sentinels captured on first clean
+    # CI run per PR 6.8.5 Two-Phase Commit Strategy.  See
+    # docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md §"Fase 2".
+    deterministic/test_visual_regression_scenarios.cpp
 )
 
 target_link_libraries(chronon3d_deterministic_tests
