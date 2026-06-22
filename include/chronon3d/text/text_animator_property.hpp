@@ -124,6 +124,38 @@ struct TextAnimatorSpec {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TextAnimatorStack — canonical animation-stack type
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The canonical text-animation-stack is an ordered list of TextAnimatorSpec
+// entries, evaluated in sequence by `evaluate_animator_stack(...)` below.
+// This typedef closes the canonical-contract gap documented in
+// `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md` §"Pipeline canonica":
+//
+//     TextDocument → TextResolver → FontEngine → HarfBuzz shaping
+//     → TextLayoutEngine → TextRunLayout → GlyphInstanceState
+//     → TextAnimatorStack → TextRunNode → RenderBackend
+//
+// The first three canonical names already lived in dedicated headers:
+//   • TextDocument      (include/chronon3d/text/text_document.hpp)
+//   • TextRunLayout     (include/chronon3d/text/text_run.hpp)
+//   • GlyphInstanceState (this header, below)
+//
+// "TextAnimatorStack" was previously a doc-only concept that pointed at
+// the `std::vector<TextAnimatorSpec>` field of `TextRunShape`
+// (`include/chronon3d/text/text_run.hpp::TextRunShape::animators`). PR-A2
+// promotes it to an explicit named type so new code can write
+// `TextAnimatorStack` against this header without depending on
+// `TextRunShape`'s internal layout. Backward-compatible: it is a
+// typedef over `std::vector<TextAnimatorSpec>` so existing code that
+// uses the vector form continues to compile unchanged.
+//
+// Default-constructible, sharable across frames (the canonical pipeline
+// never mutates the stack after build; `evaluate_animator_stack(...)`
+// reads it immutably per-frame).
+using TextAnimatorStack = std::vector<TextAnimatorSpec>;
+
+// ═══════════════════════════════════════════════════════════════════════════
 // GlyphInstanceState — resolved per-glyph state for one frame
 // ═══════════════════════════════════════════════════════════════════════════
 //
