@@ -27,4 +27,7 @@ target_sources(chronon3d_scene PRIVATE
     # PR1 — pure adapters from legacy authoring types (CameraMotionParams /
     #        CameraRig / CameraShotProfile) to CameraDescriptor.
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_descriptor_adapters.cpp
+    # TICKET-031 — canonical stateful-constraint pre-roll + fingerprint
+    # invalidation + Cut reset + per-worker session isolation.
+    ${CMAKE_CURRENT_SOURCE_DIR}/camera_session_cache.cpp
 )
