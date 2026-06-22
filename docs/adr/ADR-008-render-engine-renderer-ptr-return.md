@@ -109,14 +109,28 @@ The change is observable at:
   of type 'SoftwareRenderer'`.  This is the same error class the
   in-tree `tests/render_graph/{builder,pipeline}/test_graph_*` tests
   tripped over (and were mechanically rewired in the test-graph
-  follow-up commit `754bea6e`).
+  follow-up on `codex/agent1-renderer-boundary`).
 
 * **`noexcept` is a hard contract** — caller code that previously
   trapped a `throw` from a misformed renderer can now crash the
   process on null-deref.  Mitigated by the construction-order invariant
   (engine ctor → renderer ctor → accessor available) and by the
   pointer semantics being uniform with `m_runtime->X()` forwarders
-  already in the same file.
+  already in the same file.  Custom fixtures and partial-init tests
+  SHOULD add a `assert(engine.renderer() != nullptr)` in CI / debug
+  builds.
+
+* **Source-compatibility is broken, NOT binary-compatibility.**  Both
+  install links (the static `libchronon3d_sdk_impl.a` archive and the
+  shared `chronon3d_sdk` aggregate) are yielded by the install layout.
+  For **static-link consumers**, source-compat IS ABI-compat — every
+  consumer that statically links Chronon3D MUST be recompiled.  For
+  **shared-link consumers**, only the installed headers change; the
+  shipped `.so` artifact remains ABI-compatible at the function-call
+  boundary, but every shared-link consumer using `engine.renderer()`
+  MUST be recompiled against the new headers to pick up the new
+  signature.  Consumers that were already dereferencing the renderer
+  pointer (none today) remain ABI-stable across the upgrade.
 
 ### Neutral
 
@@ -125,7 +139,24 @@ The change is observable at:
   facade still exposes the concrete `SoftwareRenderer` so the API
   surface remains greppable.
 
-## Migration path (for the — currently zero — external consumers)
+* **Performance: pointer-deref on every accessor call.**  Each
+  `engine.renderer()->X` now goes through one pointer dereference
+  where the previous `engine.renderer().X` came from a stack
+  reference.  Per-call CPU overhead is sub-nanosecond, dwarfed by the
+  surrounding render work; macrobenchmark parity expected.  Hot
+  callers (`counters()`, `motion_blur()`, `composition_registry()`,
+  `video_decoder()`) read these pointer-deref'd values inside render
+  loops but no profile regression is anticipated because the values
+  are already cache-line-resident on the per-instance cache.
+
+## Migration path (for the — currently zero third-party — external consumers)
+
+> **Consumer scope.**  No third-party external consumers ship against
+> Chronon3D today.  One **in-tree** SDK smoke consumer lives at
+> `tests/package_consumer/CMakeLists.txt` + `tests/package_consumer/main.cpp`
+> and was updated in lockstep with the boundary refactor.  The steps
+> below apply to both the in-tree consumer and any future third-party
+> consumer; both static- and shared-link consumers must recompile.
 
 | Step | Action | Verification |
 |---|---|---|
@@ -133,6 +164,8 @@ The change is observable at:
 | 2 | At every call site: replace `engine.renderer().X` with `engine.renderer()->X` (or `(*engine.renderer()).X` if stylistically preferred). | Greppable: `grep -r 'engine\.renderer()\.' src/` should return zero hits. |
 | 3 | Anywhere the consumer expected `RenderBackend&` to be implicitly constructed from the renderer, insert `.backend()` between the deref and the backend call: `engine.renderer()->backend().Y(...)`. | Greppable: `grep -r 'engine\.renderer()\.backend' src/` should return matches where appropriate. |
 | 4 | Rebuild + run the consumer's test suite + lint with `clang-tidy --checks=clang-diagnostic-deprecated-declarations` to catch any stray references. | Test pass; lint clean. |
+| 5 | (Optional, debug builds) add `assert(engine.renderer() != nullptr);` after each engine construction so partial-init paths crash loudly rather than null-deref silently. | CI / debug-build exit-non-zero on misuse. |
+| 6 | Confirm linkage: **static** consumers must recompile their consumers (source-compat IS ABI-compat); **shared** consumers recompile against new headers but the installed `.so` ABI is unchanged at the engine boundary. | `nm` / `objdump --syms` confirms function signatures; rebuild of `/usr/local/lib/libChronon3D.so` is NOT required. |
 
 External consumers that wrote `engine.renderer()` and *only* accessed
 per-instance fields (`counters()`, `motion_blur()`, `composition_registry()`,
@@ -152,5 +185,7 @@ canonical moment to break this surface.
   guarantees `m_renderer` is non-null when the accessor is called.
 * `docs/stabilization-plan/04-cmake-module-registry.md` — public SDK
   facade (`Chronon3D::SDK` is the only documented consumer target).
-* Branch `codex/agent1-renderer-boundary` (commit `754bea6e` and
-  predecessors) — the implementation series.
+* Branch `codex/agent1-renderer-boundary` — the implementation series.
+  Refer to the branch HEAD for the latest commit series (do not cite
+  individual commit hashes from the ADR; commits are rebased / squashed
+  routinely during the boundary refactor PR cycle).
