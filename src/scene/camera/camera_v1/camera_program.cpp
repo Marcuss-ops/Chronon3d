@@ -127,8 +127,10 @@ static void apply_orientation_spec_free(const void* orient_variant,
 }
 
 /// Evaluate a PoseTracksSource by sampling all animated channels.
+///
+/// TICKET-022 — orientation is applied once by `CameraProgram::evaluate()`
+/// after the modifier pipeline.  See closing block-comment in this TU.
 static Camera2_5D eval_pose_tracks(const CameraBaseSpec& base,
-                                    const OrientationSpec& orient,
                                     const PoseTracksSource& src,
                                     const CameraEvalContext& ctx) {
     Camera2_5D cam;
@@ -199,7 +201,10 @@ static Camera2_5D eval_pose_tracks(const CameraBaseSpec& base,
     if (src.max_blur.is_time_dependent())
         cam.dof.max_blur = src.max_blur.evaluate(ctx.sample_time);
 
-    apply_orientation_spec_free(&orient, ctx, cam);
+    // TICKET-022 / DOC 02 — orientation is applied ONCE by CameraProgram::evaluate()
+    // after the modifier pipeline (canonical order: base → modifier → orientation → constraints).
+    // The look-at rotation here would be DERIVED FROM src.position (no modifier offset),
+    // then thrown away by evaluate()'s post-modifier re-application.  Call site removed.
 
     return cam;
 }
@@ -239,8 +244,10 @@ static void apply_projection_spec(const ProjectionSpec& spec,
 }
 
 /// Evaluate an OrbitMotion by computing orbit + track + dolly.
+///
+/// TICKET-022 — orientation is applied once by `CameraProgram::evaluate()`
+/// after the modifier pipeline.  See closing block-comment in this TU.
 static Camera2_5D eval_orbit_motion(const CameraBaseSpec& base,
-                                     const OrientationSpec& orient,
                                      const OrbitMotion& orbit,
                                      const CameraEvalContext& ctx,
                                      bool is_animated) {
@@ -276,7 +283,8 @@ static Camera2_5D eval_orbit_motion(const CameraBaseSpec& base,
     // CAM-03: central projection dispatch (handles all 3 variants).
     apply_projection_spec(base.projection, ctx, cam);
 
-    apply_orientation_spec_free(&orient, ctx, cam);
+    // TICKET-022 / DOC 02 — orientation is applied ONCE by CameraProgram::evaluate()
+    // after the modifier pipeline (canonical order: base → modifier → orientation → constraints).
     return cam;
 }
 
@@ -289,11 +297,13 @@ Camera2_5D CameraProgram::evaluate_compiled_source(const CameraEvalContext& ctx)
     const auto& base = descriptor_.base;
 
     if (auto* pts = std::get_if<PoseTracksSource>(&source)) {
-        return eval_pose_tracks(base, descriptor_.orientation, *pts, ctx);
+        // TICKET-022 / DOC 02 — orientation is no longer passed to source evaluators;
+        // CameraProgram::evaluate() applies it once after modifiers.
+        return eval_pose_tracks(base, *pts, ctx);
     }
     if (auto* orbit = std::get_if<OrbitMotion>(&source)) {
         bool animated = source_is_time_dependent(source);
-        return eval_orbit_motion(base, descriptor_.orientation, *orbit, ctx, animated);
+        return eval_orbit_motion(base, *orbit, ctx, animated);
     }
     if (auto* traj = std::get_if<TrajectoryMotion>(&source)) {
         if (traj->trajectory) {
@@ -316,7 +326,7 @@ Camera2_5D CameraProgram::evaluate_compiled_source(const CameraEvalContext& ctx)
             if (t.target) cam.point_of_interest = *t.target;
             cam.point_of_interest_enabled = true;
 
-            apply_orientation_spec_free(&descriptor_.orientation, ctx, cam);
+            // TICKET-022 / DOC 02 — orientation is applied ONCE in evaluate() after modifiers.
             return cam;
         }
     }
@@ -463,6 +473,16 @@ void CameraProgram::apply_orientation_spec(const void* orient_variant,
                                             Camera2_5D& cam) const {
     apply_orientation_spec_free(orient_variant, ctx, cam);
 }
+
+// TICKET-022 / DOC 02 — apply_orientation_spec_free() has exactly ONE real
+// call site (CameraProgram::evaluate()) per evaluate() invocation.  All source
+// evaluators (eval_pose_tracks / eval_orbit_motion / the trajectory branch)
+// have been stripped of their pre-modifier orientation calls so the canonical
+// order (base → modifier → orientation → constraints) is enforced.
+// The camera-program-compiler member `apply_orientation_spec` simply forwards
+// to this free function; the member exists so the evaluator can call it as a
+// virtual-shaped API surface (matching the public camera_program.hpp
+// signature).
 
 // =========================================================================
 // compiled evaluate() — no registry lookup, no mutex.
@@ -633,5 +653,15 @@ CameraProgramResult CameraProgram::evaluate(const CameraEvalContext& ctx,
     result.ok = true;
     return result;
 }
+
+// TICKET-022 / DOC 02 — canonical order is enforced:
+// base (descriptor.base + descriptor.source via source evaluator)  → modifier
+// (descriptor.modifiers loop in evaluate()) → orientation (single site:
+// CameraProgram::evaluate() post-modifiers, before constraints) → constraints
+// (descriptor.constraints loop in evaluate()).  This file's source evaluators
+// (eval_pose_tracks / eval_orbit_motion / the trajectory branch) MUST NOT
+// call `apply_orientation_spec_free`; doing so would double-apply look-at at
+// the SOURCE position (pre-modifier) and discard it.  See §4.B in
+// tests/scene/camera/test_camera_program_compiled.cpp for the regression lock.
 
 } // namespace chronon3d::camera_v1
