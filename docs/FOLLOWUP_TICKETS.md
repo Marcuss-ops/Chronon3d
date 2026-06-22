@@ -860,7 +860,8 @@ Questo ticket è il **prerequisite pipelined unblocker** per il Cluster A del Do
 
 | DoD # | Item | Status pre-TICKET-006 | Status post-fix (target) |
 |---|---|---|---|
-| DoD #1 | 20+ preset stabili (Reveal/Emphasis/Cinematic) | 🔴 TICKET-006 blocked + `TextPresetRegistry` canon non esiste | 🟢 `TextPresetRegistry` può essere wireato a `chronon3d_backend_text` correttamente |
+| DoD #1a | 20+ preset stabili (Reveal/Emphasis/Cinematic) — cmake linkage `chronon3d_backend_text` | 🔴 TICKET-006 blocked | 🟢 sbloccato da TICKET-006 |
+| DoD #1b | 20+ preset stabili (Reveal/Emphasis/Cinematic) — `TextPresetRegistry` canon | 🔴 registry non esiste (`src/registry/` ha solo `shape_registry`/`sampler_registry`/`source_registry`/`effect_catalog` senza text canon) | 🔴 richiede ticket separato ("Create TextPresetRegistry", post-baseline-verde) |
 | DoD #2 | 8+ preset subtitle | 🔴 TICKET-007.m/n/o/p gated tests `doctest::skip()` | 🟢 i test subtitle riabilitati possono linkare correttamente |
 | DoD #4 | Styling per parola funzionante | 🔴 test framework path in `tests/text/*.cmake` non buildabile | 🟢 build verde → TextSpan POD (committato `7783668a`) wireable a `TextLayoutEngine::layout_paragraph_with_spans` |
 
