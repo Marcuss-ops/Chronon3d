@@ -8,6 +8,7 @@
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/software/software_processor_context.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <blend2d.h>
 
