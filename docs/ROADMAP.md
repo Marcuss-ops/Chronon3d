@@ -23,3 +23,7 @@ Stato: [`STATUS.md`](STATUS.md). Piano: [`NEXT_STEPS.md`](NEXT_STEPS.md).
 ## Vincoli
 
 Non reintrodurre `ExecutionPlanCache`, executor raw graph, duplicati di registry/resolver/cache o executor locali nei nodi. Non iniziare V3 prima della chiusura P0.
+
+## Roadmap testuale post-P0
+
+Per la strategia 13-fasi sul testo/cinetica tipografica (kinetic typography, titoli cinematici, sottotitoli animati, text-on-path, variable fonts, ICU, MSDF, Text 3D) vedi [`docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md`](TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md). Si apre dopo la chiusura di P0 e applica le stesse regole canon di [`docs/stabilization-plan/09-document-canonicalization.md`](stabilization-plan/09-document-canonicalization.md).
