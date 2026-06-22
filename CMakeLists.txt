@@ -380,7 +380,6 @@ set(_chronon3d_install_targets
     chronon3d_scene
     chronon3d_runtime
     chronon3d_extension
-    chronon3d_text_core
     chronon3d_backend_image
     chronon3d_backend_software
     chronon3d_backend_assets
@@ -396,6 +395,9 @@ set(_chronon3d_install_targets
 
 # Conditional subsystems — included for EXPORT-graph participation when
 # the feature is enabled; skip otherwise.
+if(TARGET chronon3d_text_core)
+    list(APPEND _chronon3d_install_targets chronon3d_text_core)
+endif()
 if(CHRONON3D_ENABLE_VIDEO)
     list(APPEND _chronon3d_install_targets
         chronon3d_backend_video

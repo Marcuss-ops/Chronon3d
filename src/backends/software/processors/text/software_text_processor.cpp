@@ -81,7 +81,7 @@ public:
         // debug overlays honour the engine's debug.text_bbox() flag
         // and never read a process-wide singleton.
         const chronon3d::DebugConfig* text_debug_cfg = &renderer.config().debug();
-        auto raster = rasterize_text_to_bl_image(node.shape.text(), effective_size, 32, resolver, &raster_cache_hit, raster_transform, engine, text_debug_cfg);
+        auto raster = rasterize_text_to_bl_image(node.shape.text(), effective_size, 32, resolver, &raster_cache_hit, raster_transform, *engine, text_debug_cfg);
         if (diagnostics_enabled) {
             rasterize_ms = profiling::elapsed_ms(raster_start);
         }

@@ -1244,9 +1244,9 @@ TEST_CASE("Authoring/Text: style() with unknown id is a no-op (doesn't drop cont
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
 
-    Text t = layer.text("FUTURI MILIONARI")
-                .font("Inter-Bold.ttf", 106.0f)
-                .color(Color::white());
+    Text t = layer.text("FUTURI MILIONARI");
+    t.font("Inter-Bold.ttf", 106.0f)
+     .color(Color::white());
 
     // unknown id should leave the existing setup intact
     const StyleRegistry empty_registry;
@@ -1352,7 +1352,8 @@ TEST_CASE("Authoring/Layer: text() does not crash on destruction of the returned
     LayerBuilder lb("destroy");
     {
         Layer layer(lb);
-        Text t = layer.text("ephemeral").font("X.ttf", 12.0f);
+        Text t = layer.text("ephemeral");
+        t.font("X.ttf", 12.0f);
         // t is destroyed at end of block; the PendingTextRun is still
         // alive in lb's m_text_runs, fully populated.
         (void)t;
@@ -1487,7 +1488,8 @@ TEST_CASE("Authoring/Layer + Text: ambient methods no-op when no ExtensionContex
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);   // No extension_context(...) call.
 
-    Text t = layer.text("PLAIN").font("X.ttf", 32.0f);
+    Text t = layer.text("PLAIN");
+    t.font("X.ttf", 32.0f);
     REQUIRE(t.ambient_style_registry()  == nullptr);
     REQUIRE(t.ambient_motion_registry() == nullptr);
 
@@ -1526,7 +1528,8 @@ TEST_CASE("Authoring/Layer + Text: ambient method no-op when ExtensionContext.st
 
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
-    Text t = layer.text("X").font("Y.ttf", 24.0f);
+    Text t = layer.text("X");
+    t.font("Y.ttf", 24.0f);
 
     REQUIRE(t.ambient_style_registry()  == nullptr);
     REQUIRE(t.ambient_motion_registry() == &motions);
@@ -1596,7 +1599,8 @@ TEST_CASE("Authoring/Layer + Text: ambient resolves unknown id to no-op (preserv
 
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
-    Text t = layer.text("UNCHANGED").font("K.ttf", 24.0f);
+    Text t = layer.text("UNCHANGED");
+    t.font("K.ttf", 24.0f);
 
     t.style("never.registered");
     t.motion("never.registered.either");
