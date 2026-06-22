@@ -2,8 +2,11 @@
 
 Code-first, headless, CPU-only motion graphics engine in C++20.
 
-> **Stato:** `main` è pre-stabile. Leggere [`docs/STATUS.md`](docs/STATUS.md) e
-> [`docs/NEXT_STEPS.md`](docs/NEXT_STEPS.md) prima di usarlo come SDK stabile.
+> **Stato:** `main` è pre-stabile. Leggere [`AGENTS.md`](AGENTS.md),
+> [`docs/STATUS.md`](docs/STATUS.md),
+> [`docs/NEXT_STEPS.md`](docs/NEXT_STEPS.md) e
+> [`docs/stabilization-plan/README.md`](docs/stabilization-plan/README.md)
+> prima di modificare il repository o usarlo come SDK stabile.
 
 ## Quick start
 
@@ -69,8 +72,10 @@ Expressions V2 è OFF di default, non viene installato e non è collegato da `Ch
 
 ## Documenti principali
 
+- [`AGENTS.md`](AGENTS.md) — istruzioni e percorsi obbligatori per agenti.
+- [`docs/stabilization-plan/README.md`](docs/stabilization-plan/README.md) — priorità operative e work package correnti.
 - [`docs/STATUS.md`](docs/STATUS.md) — stato reale e blocker.
-- [`docs/NEXT_STEPS.md`](docs/NEXT_STEPS.md) — cosa rifare, cosa sistemare e criteri di chiusura.
+- [`docs/NEXT_STEPS.md`](docs/NEXT_STEPS.md) — cosa sistemare e criteri di chiusura.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — backlog ordinato.
 - [`docs/refactor-roadmap/README.md`](docs/refactor-roadmap/README.md) — work package architetturali.
 - [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) — ticket aperti e storici.
