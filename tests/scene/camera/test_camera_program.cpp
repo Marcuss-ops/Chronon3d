@@ -30,10 +30,11 @@
 //                                          / .rotation (no implicit wiggle
 //                                          on the modifier path).
 //
-// Forward reference (was a stub comment in tests/scene/camera/
-// test_camera_compiled_evaluate.cpp [5]): the previous test fixture
-// didn't touch HandheldNoise; this file is now the explicit home
-// for that determinism check.
+// Forward reference: tests/scene/camera/test_camera_program_compiled.cpp
+// hosts the compiled-path tests; this file is the explicit home for the
+// HandheldNoise modifier-determinism checks (per CAM-04). The previous
+// fixture didn't touch HandheldNoise, so the contracts verified here
+// live only in this file.
 //
 // Round-trip determinism relies on the abs-time guarantee in
 // camera_program.cpp::evaluate() — `ctx.sample_time.seconds()` is the

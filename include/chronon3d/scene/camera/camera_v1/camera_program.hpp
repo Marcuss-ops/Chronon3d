@@ -56,6 +56,35 @@ struct CameraProgramResult {
 };
 
 // =========================================================================
+// CameraEvaluationDependency — CAM-02 metadata.
+//
+// Classifies whether the compiled program requires persistent state across
+// frames to evaluate correctly.  Surfaced on CameraProgram via
+// `evaluation_dependency()` so the runtime / scheduler can decide whether
+// the program may be safely evaluated in a stateless fast-path (e.g. a
+// worker pool that does not preserve CameraSession identity across calls)
+// or whether it must always be evaluated with the SAME CameraSession.
+//
+//   - Stateless          : pure function of (descriptor, CameraEvalContext).
+//                          No state is read or written across frames.
+//   - RequiresHistory    : the program mutates a CameraSession's
+//                          ConstraintState (e.g. DampedFollowConstraint's
+//                          EMA accumulator) or banking_roll across
+//                          frames; identity-preserving evaluation is
+//                          required.
+//
+// The compiler (camera_program_compiler.cpp) sets this field from a
+// survey of the descriptor's source / constraints / modifiers.  Pure
+// modifiers (IdleOscillation — sin(t*freq)) are Stateless even with
+// amplitude ≠ 0 because the formula is f(ctx.sample_time).
+// =========================================================================
+
+enum class CameraEvaluationDependency : std::uint8_t {
+    Stateless      = 0,
+    RequiresHistory = 1,
+};
+
+// =========================================================================
 // CameraProgram
 // =========================================================================
 
@@ -87,17 +116,26 @@ public:
     /// True if the camera is time-dependent (for caching).
     bool is_time_dependent() const { return time_dependent_; }
 
+    /// CAM-02: classify whether the compiled program requires persistent
+    /// state (CameraSession) across frames.  See `CameraEvaluationDependency`
+    /// above for the per-variant classification rules applied by the compiler.
+    CameraEvaluationDependency evaluation_dependency() const {
+        return evaluation_dependency_;
+    }
+
 private:
     friend chronon3d::Result<CameraProgram, CameraCompileError>
-    compile_camera(const CameraDescriptor&, const CameraCatalog*);
+    compile_camera(const CameraDescriptor&, const CameraCatalog*, CameraCompileContext&);
 
     // ── Runtime state ───────────────────────────────────────────────────
     CameraFailurePolicy        failure_policy_{CameraFailurePolicy::Stop};
 
     // ── Compiled state (populated by compile_camera()) ───────────────────
-    bool                       compiled_{false};
-    bool                       time_dependent_{false};
-    CameraDescriptor           descriptor_{};
+    bool                              compiled_{false};
+    bool                              time_dependent_{false};
+    CameraEvaluationDependency        evaluation_dependency_{
+        CameraEvaluationDependency::Stateless};
+    CameraDescriptor                  descriptor_{};
 
     // ── Compiled evaluation helpers ─────────────────────────────────────
     /// Evaluate a source variant directly (no registry lookup).
