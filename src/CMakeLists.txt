@@ -177,48 +177,15 @@ target_link_libraries(chronon3d_pipeline INTERFACE
 add_library(chronon3d_sdk_impl STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/sdk_impl_marker.cpp
 )
-target_link_libraries(chronon3d_sdk_impl PRIVATE
-    chronon3d_core_impl
-    chronon3d_animations
-    chronon3d_cache
-    chronon3d_effects
-    chronon3d_registry
-    chronon3d_assets
-    chronon3d_scene
-    chronon3d_runtime
-    chronon3d_extension
-    chronon3d_backend_image
-    chronon3d_backend_software
-    chronon3d_backend_assets
-    chronon3d_graph_core
-    chronon3d_graph_nodes
-    chronon3d_graph_builder
-    chronon3d_graph_compiler
-    chronon3d_graph_executor
-    chronon3d_graph_preflight
-    chronon3d_graph_cache
-    chronon3d_graph_pipeline)
-
-# Conditional private link for chronon3d_text_core (only built when
-# CHRONON3D_ENABLE_TEXT is ON).
-if(TARGET chronon3d_text_core)
-    target_link_libraries(chronon3d_sdk_impl PRIVATE chronon3d_text_core)
-endif()
-
-# Conditional subsystems — guarded so disabled features don't leak
-# into the aggregate.  Same gating logic as the prior `$<TARGET_OBJECTS>`
-# form, but expressed as ordinary `target_link_libraries` (skip silently
-# if the OBJECT lib does not exist for this configuration).
-foreach(_chronon3d_impl_obj IN ITEMS
-        chronon3d_backend_video
-        chronon3d_media_video
-        chronon3d_backend_text
-        chronon3d_blend2d_paint
-        chronon3d_backend_software_diagnostics
-        chronon3d_content
-        chronon3d_diagnostics)
-    if(TARGET ${_chronon3d_impl_obj})
-        target_link_libraries(chronon3d_sdk_impl PRIVATE ${_chronon3d_impl_obj})
+# ── Archive aggregation — derived from central registry ────────────
+# Every OBJECT library registered in cmake/Chronon3DRegistry.cmake is
+# automatically linked into the single libchronon3d_sdk_impl.a archive.
+# The foreach-if-TARGET loop handles conditional subsystems (targets not
+# created in this configuration are silently skipped).  The old manual
+# list + conditional foreach blocks (~40 lines) are replaced by 6 lines.
+foreach(_reg_obj IN LISTS CHRONON3D_REGISTRY_OBJECT_LIBS)
+    if(TARGET ${_reg_obj})
+        target_link_libraries(chronon3d_sdk_impl PRIVATE ${_reg_obj})
     endif()
 endforeach()
 
@@ -244,73 +211,23 @@ target_link_libraries(chronon3d_sdk INTERFACE
     $<BUILD_INTERFACE:chronon3d_pipeline>
     $<INSTALL_INTERFACE:chronon3d_sdk_impl>
 )
-# TICKET-011 cmake-boundary (Branch C fix): OBJECT .o propagation.
-# CMake does NOT transitively propagate OBJECT .o files through
-# INTERFACE → STATIC → EXECUTABLE chains.  We must explicitly bind
-# each OBJECT library's compiled objects via $<TARGET_OBJECTS> so
-# they appear as direct inputs on the final executable link line.
-# The $<BUILD_INTERFACE:...> guard ensures these object files only
-# appear during in-tree builds, not in installed consumers.
+# ── In-tree link closure — derived from central registry ─────────────
+# Every OBJECT library registered in cmake/Chronon3DRegistry.cmake has
+# its .o files propagated for in-tree consumers (CLI, tests) via
+# $<TARGET_OBJECTS:…>.  The foreach-if-TARGET loop handles conditional
+# subsystems automatically.  The old manual MAINTENANCE CONTRACT block
+# (~50 lines) is replaced by 6 lines below.
 #
-# ═══ MAINTENANCE CONTRACT ═══════════════════════════════════════
-# Every OBJECT library created in this project MUST be listed below.
-# When you add a new `add_library(xxx OBJECT ...)` anywhere under
-# src/, add the corresponding $<BUILD_INTERFACE:$<TARGET_OBJECTS:xxx>>
-# entry to the appropriate block:
-#   • Unconditional OBJECT libs  →  block immediately below
-#   • Conditional OBJECT libs    →  foreach loop below (guarded
-#     by `if(TARGET ...)`, so the entry only fires when the
-#     feature that creates the OBJECT is enabled)
-# Failure to list a new OBJECT library here will cause linker
-# errors ("undefined reference") in the CLI and test executables.
-# ════════════════════════════════════════════════════════════════
-target_sources(chronon3d_sdk INTERFACE
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_core_impl>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_animations>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_cache>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_effects>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_registry>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_assets>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_scene>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_runtime>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_extension>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_backend_image>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_backend_software>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_backend_assets>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_core>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_nodes>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_builder>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_executor>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_compiler>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_preflight>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_cache>>
-    $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_graph_pipeline>>)
-
-# Conditional OBJECT library — chronon3d_text_core is only built when
-# CHRONON3D_ENABLE_TEXT is ON.  Add its objects separately so the
-# main target_sources() block above stays pure.
-if(TARGET chronon3d_text_core)
-    target_sources(chronon3d_sdk INTERFACE
-        $<BUILD_INTERFACE:$<TARGET_OBJECTS:chronon3d_text_core>>
-    )
-endif()
-
-# Conditional OBJECT libraries — guarded so disabled features don't
-# produce dangling generator-expression references.
-foreach(_chronon3d_obj IN ITEMS
-        chronon3d_backend_video
-        chronon3d_media_video
-        chronon3d_backend_text
-        chronon3d_blend2d_paint
-        chronon3d_backend_software_diagnostics
-        chronon3d_content
-        chronon3d_diagnostics)
-    if(TARGET ${_chronon3d_obj})
+# MAINTENANCE: when you add a new OBJECT library, add its name to
+# cmake/Chronon3DRegistry.cmake — this block picks it up automatically.
+foreach(_reg_obj IN LISTS CHRONON3D_REGISTRY_OBJECT_LIBS)
+    if(TARGET ${_reg_obj})
         target_sources(chronon3d_sdk INTERFACE
-            $<BUILD_INTERFACE:$<TARGET_OBJECTS:${_chronon3d_obj}>>
-        )
+            $<BUILD_INTERFACE:$<TARGET_OBJECTS:${_reg_obj}>>)
     endif()
 endforeach()
+# Conditional OBJECT libraries — already handled by the foreach above.
+# The old manual foreach block for conditional subsystems is retired.
 set_target_properties(chronon3d_sdk PROPERTIES EXPORT_NAME SDK)
 add_library(Chronon3D::SDK ALIAS chronon3d_sdk)
 
