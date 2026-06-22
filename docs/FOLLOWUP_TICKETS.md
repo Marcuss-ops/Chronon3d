@@ -759,6 +759,130 @@ Underlying bug fixes for each sub-ID are tracked as separate concerns (`TICKET-0
 
 ---
 
+## TICKET-007.k — Motion-blur premul-alpha edge accumulation bug (test 2 of PR1 torture suite)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `src/render_graph/pipeline/composition.cpp` (TemporalAccumulation alpha-channel split); `tests/scene/camera/test_motion_blur_torture_pr1.cpp` (test 2 `PR1-Torture: semi-transparent layer no dark borders after accumulation`, line ~187) |
+| **Discovered during** | TICKET-007 torture-test dry-run on `main` after PR-cleanup chain merged. |
+| **Discovered date** | 2026-06-20 |
+| **Deadline** | 2026-09-30 |
+| **Owner** | chronon3d-owners |
+
+### Symptom
+
+Test 2 is `* doctest::skip()`. The test renders a 200×200 rect at 50% alpha (`{1.0, 0.0, 0.0, 0.5}`) over a black background, accumulates across 8 stratified samples with Box filter, then samples 8 pixels at the half-alpha silhouette edge. The CHECK asserts `dark_border_count == 0`. The in-file `DISABLED` commentary records `"dark border count != 0 for semi-transparent layer accumulation"` — the silhouette-edge pixels register with red contribution zeroed out even though alpha is > 0.
+
+### Root cause analysis (hypothesis, investigation needed)
+
+[Plausible mechanism A] The motion-blur accumulator in `src/render_graph/pipeline/composition.cpp` (`render_composition_frame()` TemporalAccumulation branch) currently treats RGBA as four parallel float accumulators summed by the same weight. For premultiplied-alpha content (the rect's source pixels are written as `(0.5, 0.0, 0.0, 0.5)` and accumulated in-lane with the RGB), the per-sample contributions collapse to `(0.5*color_s, 0.5*alpha_s)` per sample, summed across samples.
+
+[Plausible mechanism B] If the post-loop normalization uses a per-frame weight sum (`post_norm == 1 / sum_w`, as introduced by the TICKET-007.j closeout) instead of a per-pixel alpha-weighted denominator, silhouette-edge pixels — where multiple sub-frames contributed asymmetric alpha — could produce `accum_rgb / accum_alpha == (0, 0, 0)` even when alpha is non-zero.
+
+Note: the actual root cause may be either A, B, or neither — e.g. the producer might encode alpha straight (not premul) before accumulation, or the rasterizer's coverage math may be the dominant source. **Full investigation required before committing to a fix path.**
+
+If mechanism B pans out, the canonical fix is a premultiplied-alpha-safe accumulator — separately track `accum_alpha_premul = sum_s (w_s * alpha_s)` and divide RGB by `accum_alpha_premul` per-pixel with safe-divide (1.0 default when alpha < epsilon), instead of dividing by the per-frame weight sum. **SIMD vectorization disclosure**: this approach breaks the existing 4-channel SIMD `MulAdd(vals, v_weight, acc)` vectorization in `composition.cpp::render_composition_frame()`'s accumulator loop (currently operates on a 4-float lane). Either two parallel SIMD passes (RGB + alpha lanes separately) or scalar tail fallback are required; perf-budget impact <5% (TBD via `tools/test_architectural.sh` Section 1). Distinct from TICKET-007.j (which fixed the FP-stability of `1/sum_w`); distinct from TICKET-007.l (which targets sub-frame spatial raster, not colour blending).
+
+### Out-of-scope rationale
+
+- TICKET-007.j closeout (this session) addressed FP-stability of the per-frame weight normalizer. That fix is independent of this ticket's alpha-channel split.
+- Premul-alpha accumulates differently across blend-mode combinations (vertical surface, double-buffer) which are scoped to follow-up tickets. This ticket scopes its fix to the single-pass TemporalAccumulation compositor path only.
+- The TICKET-007 umbrella classifies this as a pre-existing architectural defect; per-bug fix is opened here per the umbrella's prescribed contract.
+
+### Suggested fix approach
+
+1. Open `src/render_graph/pipeline/composition.cpp` around lines 170-260 (TemporalAccumulation outer sample loop + final write pass).
+2. Split the per-pixel RGBA accumulation so alpha is tracked separately from RGB:
+   ```cpp
+   accum_rgb[3*x + 0] += w * src_a * src_rgb[0];
+   accum_rgb[3*x + 1] += w * src_a * src_rgb[1];
+   accum_rgb[3*x + 2] += w * src_a * src_rgb[2];
+   accum_alpha[4*x + 3] += w * src_a;
+   ```
+   Note the order: per-sample `src_a` is multiplied INTO `src_rgb` (premultiplied convention).
+3. In the post-loop final write pass (currently `src[x] * post_norm`, where `post_norm == 1/sum_w`), add a per-pixel safe-divide:
+   ```cpp
+   const float inv_a = (accum_alpha > 1e-6f) ? 1.0f / accum_alpha : 1.0f;
+   dst[x + 0] = accum_rgb[c + 0] * inv_a;
+   dst[x + 1] = accum_rgb[c + 1] * inv_a;
+   dst[x + 2] = accum_rgb[c + 2] * inv_a;
+   dst[x + 3] = accum_alpha;
+   ```
+4. Verify the test-1 setup still produces byte-equal FB for static content (post_norm == identity for dyadic weights; per-pixel inv_a == 1.0 when alpha accumulates without drift).
+5. Remove `* doctest::skip()` from test 2 in `tests/scene/camera/test_motion_blur_torture_pr1.cpp`.
+6. Optional regression test: extend test 2 with alpha sweep (0.25 / 0.5 / 0.75) to lock the contract.
+
+### Acceptance criteria
+
+- Test 2 of `tests/scene/camera/test_motion_blur_torture_pr1.cpp` runs `CHECK(dark_border_count == 0)` AND passes (no `* doctest::skip()`).
+- Test 1 of the same file STILL produces byte-equal FB for the static-composition 1↔16 comparison (no regression).
+- No new process-wide state introduced; per-pixel alpha accumulator remains in the per-frame stack.
+- `cmake --build build/chronon/linux-ci --target chronon3d_scene_tests` returns rc=0.
+- The umbrella TICKET-007 status can flip to 🟢 Done when both .k and .l are resolved (per the umbrella's acceptance criterion).
+
+### Cross-references
+
+- TICKET-007 umbrella — this ticket is part of the umbrella's sub-ID space (line 704 of the Sub-IDs table).
+- TICKET-007.j — sibling ticket (static-framebuffer determinism) closed in this session; numerically detangled from this ticket's alpha-blend path because the per-pixel `inv_a` divisor lives separately from the per-frame `post_norm` divisor.
+- `docs/CORE_OWNERSHIP.md` §6 (anti-singleton/anti-global rule) — this ticket is scoped to per-frame stack state, NOT process-wide mutable state.
+
+---
+
+## TICKET-007.l — Motion-blur sub-frame edge clipping on fast objects (test 4 of PR1 torture suite)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `src/render_graph/pipeline/render_scene_via_graph.cpp` (sub-pixel raster path; alias of the per-sub-frame rect paint); `src/render_graph/pipeline/composition.cpp` (sub-frame loop, parameter forwarding); `tests/scene/camera/test_motion_blur_torture_pr1.cpp` (test 4 `PR1-Torture: no clipping of fast objects across shutter window`, line ~297) |
+| **Discovered during** | TICKET-007 torture-test dry-run on `main` after PR-cleanup chain merged. |
+| **Discovered date** | 2026-06-20 |
+| **Deadline** | 2026-09-30 |
+| **Owner** | chronon3d-owners |
+
+### Symptom
+
+Test 4 is `* doctest::skip()`. The test renders a 20×20 white rect moving 100 px/frame across a 360° shutter window (16 stratified samples). After accumulation, the resulting smear should be continuous (no stripe cutoffs); the CHECK asserts `dead_zones <= 1`. In-file commentary records `dead_zones > 1 in fast-object smear test` — the smear has multiple 4-px-wide dark gaps from sub-frame rasterization differences.
+
+### Root cause analysis (hypothesis, investigation needed)
+
+[Plausible mechanism] The per-sub-frame raster path (driven by `render_scene_via_graph` invoked from `composition.cpp::render_composition_frame()`'s TemporalAccumulation branch) snaps the rect's world-coordinate position to integer pixel boundaries (`floor()`-style). For a 20×20 rect moving 100 px/frame across 16 stratified sub-frames (≈6.25 px stride between sub-frames), adjacent sub-frame positions like `x = -60` and `x = -53.75` are integer-snapped to the same `floor(x) = -60` for some sub-frames and differ by 6 for others, producing stripes of `dead_zones` along the smear direction.
+
+[Alternative mechanisms] The root cause may be elsewhere — e.g., integer-snapping in the upstream `SceneBuilder` layer-position commit (before the raster sees it); sub-frame raster uses a different rounding policy than the single-frame path; the Box filter has insufficient smoothing for the 6.25-px stride when combined with the per-pixel coord snap. **Full investigation required before committing to a fix path.**
+
+If the raster hypothesis pans out: enable sub-pixel rasterization — replace `floor()` snap with coverage-weighted Bresenham-style raster (per-pixel coverage = `min(1.0, max(0.0, min(rect_right, pixel_right) - max(rect_left, pixel_left)))`). Same rigour as standard polygon AA. Distinct from TICKET-007.j (FP-stability) and TICKET-007.k (alpha-blend math) — it targets the per-sub-frame SPATIAL raster.
+
+### Out-of-scope rationale
+
+- TICKET-007.j closeout (this session) addressed FP-stability of the per-frame weight normalizer. Unrelated to spatial raster.
+- TICKET-007.k targets the alpha-channel split. Unrelated to spatial raster.
+- Sub-pixel raster in the per-sub-frame path is a high-impact change for the software backend's `render_scene_via_graph` path; it must be benchmarked to confirm <5% FPS regression on the static-composition path before merge.
+
+### Suggested fix approach
+
+1. Open the per-sub-frame rect-paint path inside `src/render_graph/pipeline/render_scene_via_graph.cpp` (alias of the file invoked from `composition.cpp::render_composition_frame()`'s call_graph lambda).
+2. Replace the integer-snap rect boundary with coverage-weighted AA: per-row, per-pixel `coverage = max(0.0, min(rect_right, pixel_right) - max(rect_left, pixel_left)) * max(0.0, min(rect_bottom, pixel_bottom) - max(rect_top, pixel_top))`. Contribution = `coverage * color`.
+3. Confirm: same code path handles the test-1 (static 1↔16) setup byte-exactly — there should be no regression because a static rect doesn't move between sub-frames, so the AA rect reduces to a single rect fill.
+4. Performance check: run `tools/test_architectural.sh` Section 1 + the existing perf benchmarks in `tests/renderer/perf/`. Regression on static composition N=16 must be <5%.
+5. Remove `* doctest::skip()` from test 4 in `tests/scene/camera/test_motion_blur_torture_pr1.cpp`.
+
+### Acceptance criteria
+
+- Test 4 of `tests/scene/camera/test_motion_blur_torture_pr1.cpp` runs `CHECK(dead_zones <= 1)` AND `CHECK(first_bright_x >= 0)` AND `CHECK(last_bright_x > first_bright_x)` AND passes (no `* doctest::skip()`).
+- Test 1 of the same file (static 1↔16) still produces byte-equal FB (no regression).
+- Performance regression on static composition N=16 <5% vs the current `render_scene_via_graph` baseline.
+- No modified bits in the upstream raster path are silently skipped; existing scene-graph regression tests still pass.
+- The umbrella TICKET-007 status can flip to 🟢 Done when both .k and .l are resolved.
+
+### Cross-references
+
+- TICKET-007 umbrella — sibling sub-ID (.k).
+- TICKET-007.j — sibling ticket (FP-stable accumulator, closed this session); provides the byte-exact verification harness this fix can leverage.
+- TICKET-007.k — sibling ticket (alpha-blend bug, in plan above).
+- `docs/CORE_OWNERSHIP.md` §6 (anti-singleton/anti-global rule) — this ticket is scoped to per-frame stack state, NOT process-wide mutable state.
+
+---
+
 ## TICKET-006 — Missing `chronon3d_backend_text` linkage in `chronon3d_tests_fast` link step
 
 | Field | Value |
