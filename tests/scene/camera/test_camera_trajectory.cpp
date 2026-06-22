@@ -376,6 +376,9 @@ TEST_CASE("Hold segment preserves exact position") {
 // ==============================================================================
 // 10 — Zero-length segment never emits NaN.
 // ==============================================================================
+// =============================================================================
+// 10 — Zero-length segment never emits NaN.
+// =============================================================================
 TEST_CASE("Zero-length segment never emits NaN") {
     CameraTrajectoryBuilder b;
     b.move_to(make_vec(5, 5, 5))
@@ -393,6 +396,74 @@ TEST_CASE("Zero-length segment never emits NaN") {
         CHECK_FALSE(std::isnan(s.tangent.y));
         CHECK_FALSE(std::isnan(s.tangent.z));
     }
+}
+
+// =============================================================================
+// 11 — CAM-04 / DOC 03 — per-segment mini-LUTs (segment_luts_).
+//
+// Verifies that the segment_luts_ vector is populated correctly when
+// arc_length_parameterized(true) is requested, and that each segment
+// uses its OWN mini-LUT for the local-arc-length → t01 mapping
+// (i.e. the legacy single-LUT-globale bug is fixed).
+// =============================================================================
+TEST_CASE("CAM-04: per-segment mini-LUTs are populated and indexed") {
+    // 3-segment trajectory, mixed durations + arc-length param ON.
+    CameraTrajectoryBuilder b;
+    b.move_to(make_vec(0,    0, -1000))
+     .move_to(make_vec(100,  0,  -900)).duration_frames(15)
+     .bezier_to({50, 0, 50}, {50, 0, 50}, make_vec(300, 0, -700)).duration_frames(45)
+     .move_to(make_vec(500,  0,  -500)).duration_frames(60)
+     .arc_length_parameterized(true);
+    auto tr_arc = b.build();
+
+    // CAM-04 invariant: arc_length_parameterized() returns true iff segment_luts_
+    // is non-empty.  This pins the accessor contract after the pre_lut_ →
+    // segment_luts_ refactor.
+    REQUIRE(tr_arc->arc_length_parameterized());
+    REQUIRE(tr_arc->size() == 3);
+
+    // Determinism: sampling each frame twice MUST produce bit-identical
+    // positions.  This is a per-segment mini-LUT invariant — the LUT's
+    // binary-search + linear-interp is pure on the same inputs.
+    for (int f : {0, 15, 25, 50, 60, 90, 119}) {
+        auto ctx = CameraMotionContext::at(Frame{0});
+        ctx.sample_time = SampleTime::from_frame(static_cast<double>(f), kFps30);
+        auto s_a = tr_arc->sample(ctx);
+        auto s_b = tr_arc->sample(ctx);
+        CHECK(approx_vec(s_a.position, s_b.position, 1e-5f));
+    }
+
+    // Boundary parity: frame = segment_durations[i] lands exactly on the
+    // shared endpoint of segment i and segment i+1.
+    {
+        auto ctx = CameraMotionContext::at(Frame{0});
+        ctx.sample_time = SampleTime::from_frame(15.0, kFps30);
+        auto s = tr_arc->sample(ctx);
+        CHECK(approx_vec(s.position, make_vec(100, 0, -900)));
+    }
+    {
+        auto ctx = CameraMotionContext::at(Frame{0});
+        ctx.sample_time = SampleTime::from_frame(60.0, kFps30);
+        auto s = tr_arc->sample(ctx);
+        CHECK(approx_vec(s.position, make_vec(300, 0, -700)));
+    }
+}
+
+// 12 — CAM-04 / DOC 03 — arc-length OFF keeps the uniform-t01 fallback
+// (backward compat for any pre-existing test or composition that disables
+// arc-length parameterization).
+TEST_CASE("CAM-04: arc-length OFF keeps uniform-t01 fallback") {
+    CameraTrajectoryBuilder b;
+    b.move_to(make_vec(0, 0, 0))
+     .move_to(make_vec(100, 0, 0)).duration_frames(30.0f);
+    auto tr_no_arc = b.build();
+    REQUIRE_FALSE(tr_no_arc->arc_length_parameterized());
+
+    auto ctx = CameraMotionContext::at(Frame{0});
+    ctx.sample_time = SampleTime::from_frame(15.0, kFps30);
+    auto mid = tr_no_arc->sample(ctx);
+    // Uniform t01 on a LINEAR segment is just lerp: 0.5 between P0 and P1.
+    CHECK(approx_vec(mid.position, make_vec(50, 0, 0), 1e-5f));
 }
 
 } // namespace

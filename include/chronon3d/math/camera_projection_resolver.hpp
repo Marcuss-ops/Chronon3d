@@ -28,7 +28,7 @@
 /// | Screen origin     = CENTRE (centred coords)          |
 /// | Framebuffer Y     = DOWN  (top-left origin)          |
 /// | Rotation order    = ZYX (yaw -> pitch -> roll)       |
-/// | Focal formula     = (viewport_h/2) / tan(fov/2)      |
+/// | Focal length     = camera_math::focal_from_camera() |
 /// | Perspective scale = focal / camera_depth             |
 /// | Backface test     = camera-space normal.z < 0        |
 /// | Near plane        = z >= kNearClipZ                  |

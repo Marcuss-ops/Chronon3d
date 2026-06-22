@@ -759,6 +759,130 @@ Underlying bug fixes for each sub-ID are tracked as separate concerns (`TICKET-0
 
 ---
 
+## TICKET-007.k — Motion-blur premul-alpha edge accumulation bug (test 2 of PR1 torture suite)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `src/render_graph/pipeline/composition.cpp` (TemporalAccumulation alpha-channel split); `tests/scene/camera/test_motion_blur_torture_pr1.cpp` (test 2 `PR1-Torture: semi-transparent layer no dark borders after accumulation`, line ~187) |
+| **Discovered during** | TICKET-007 torture-test dry-run on `main` after PR-cleanup chain merged. |
+| **Discovered date** | 2026-06-20 |
+| **Deadline** | 2026-09-30 |
+| **Owner** | chronon3d-owners |
+
+### Symptom
+
+Test 2 is `* doctest::skip()`. The test renders a 200×200 rect at 50% alpha (`{1.0, 0.0, 0.0, 0.5}`) over a black background, accumulates across 8 stratified samples with Box filter, then samples 8 pixels at the half-alpha silhouette edge. The CHECK asserts `dark_border_count == 0`. The in-file `DISABLED` commentary records `"dark border count != 0 for semi-transparent layer accumulation"` — the silhouette-edge pixels register with red contribution zeroed out even though alpha is > 0.
+
+### Root cause analysis (hypothesis, investigation needed)
+
+[Plausible mechanism A] The motion-blur accumulator in `src/render_graph/pipeline/composition.cpp` (`render_composition_frame()` TemporalAccumulation branch) currently treats RGBA as four parallel float accumulators summed by the same weight. For premultiplied-alpha content (the rect's source pixels are written as `(0.5, 0.0, 0.0, 0.5)` and accumulated in-lane with the RGB), the per-sample contributions collapse to `(0.5*color_s, 0.5*alpha_s)` per sample, summed across samples.
+
+[Plausible mechanism B] If the post-loop normalization uses a per-frame weight sum (`post_norm == 1 / sum_w`, as introduced by the TICKET-007.j closeout) instead of a per-pixel alpha-weighted denominator, silhouette-edge pixels — where multiple sub-frames contributed asymmetric alpha — could produce `accum_rgb / accum_alpha == (0, 0, 0)` even when alpha is non-zero.
+
+Note: the actual root cause may be either A, B, or neither — e.g. the producer might encode alpha straight (not premul) before accumulation, or the rasterizer's coverage math may be the dominant source. **Full investigation required before committing to a fix path.**
+
+If mechanism B pans out, the canonical fix is a premultiplied-alpha-safe accumulator — separately track `accum_alpha_premul = sum_s (w_s * alpha_s)` and divide RGB by `accum_alpha_premul` per-pixel with safe-divide (1.0 default when alpha < epsilon), instead of dividing by the per-frame weight sum. **SIMD vectorization disclosure**: this approach breaks the existing 4-channel SIMD `MulAdd(vals, v_weight, acc)` vectorization in `composition.cpp::render_composition_frame()`'s accumulator loop (currently operates on a 4-float lane). Either two parallel SIMD passes (RGB + alpha lanes separately) or scalar tail fallback are required; perf-budget impact <5% (TBD via `tools/test_architectural.sh` Section 1). Distinct from TICKET-007.j (which fixed the FP-stability of `1/sum_w`); distinct from TICKET-007.l (which targets sub-frame spatial raster, not colour blending).
+
+### Out-of-scope rationale
+
+- TICKET-007.j closeout (this session) addressed FP-stability of the per-frame weight normalizer. That fix is independent of this ticket's alpha-channel split.
+- Premul-alpha accumulates differently across blend-mode combinations (vertical surface, double-buffer) which are scoped to follow-up tickets. This ticket scopes its fix to the single-pass TemporalAccumulation compositor path only.
+- The TICKET-007 umbrella classifies this as a pre-existing architectural defect; per-bug fix is opened here per the umbrella's prescribed contract.
+
+### Suggested fix approach
+
+1. Open `src/render_graph/pipeline/composition.cpp` around lines 170-260 (TemporalAccumulation outer sample loop + final write pass).
+2. Split the per-pixel RGBA accumulation so alpha is tracked separately from RGB:
+   ```cpp
+   accum_rgb[3*x + 0] += w * src_a * src_rgb[0];
+   accum_rgb[3*x + 1] += w * src_a * src_rgb[1];
+   accum_rgb[3*x + 2] += w * src_a * src_rgb[2];
+   accum_alpha[4*x + 3] += w * src_a;
+   ```
+   Note the order: per-sample `src_a` is multiplied INTO `src_rgb` (premultiplied convention).
+3. In the post-loop final write pass (currently `src[x] * post_norm`, where `post_norm == 1/sum_w`), add a per-pixel safe-divide:
+   ```cpp
+   const float inv_a = (accum_alpha > 1e-6f) ? 1.0f / accum_alpha : 1.0f;
+   dst[x + 0] = accum_rgb[c + 0] * inv_a;
+   dst[x + 1] = accum_rgb[c + 1] * inv_a;
+   dst[x + 2] = accum_rgb[c + 2] * inv_a;
+   dst[x + 3] = accum_alpha;
+   ```
+4. Verify the test-1 setup still produces byte-equal FB for static content (post_norm == identity for dyadic weights; per-pixel inv_a == 1.0 when alpha accumulates without drift).
+5. Remove `* doctest::skip()` from test 2 in `tests/scene/camera/test_motion_blur_torture_pr1.cpp`.
+6. Optional regression test: extend test 2 with alpha sweep (0.25 / 0.5 / 0.75) to lock the contract.
+
+### Acceptance criteria
+
+- Test 2 of `tests/scene/camera/test_motion_blur_torture_pr1.cpp` runs `CHECK(dark_border_count == 0)` AND passes (no `* doctest::skip()`).
+- Test 1 of the same file STILL produces byte-equal FB for the static-composition 1↔16 comparison (no regression).
+- No new process-wide state introduced; per-pixel alpha accumulator remains in the per-frame stack.
+- `cmake --build build/chronon/linux-ci --target chronon3d_scene_tests` returns rc=0.
+- The umbrella TICKET-007 status can flip to 🟢 Done when both .k and .l are resolved (per the umbrella's acceptance criterion).
+
+### Cross-references
+
+- TICKET-007 umbrella — this ticket is part of the umbrella's sub-ID space (line 704 of the Sub-IDs table).
+- TICKET-007.j — sibling ticket (static-framebuffer determinism) closed in this session; numerically detangled from this ticket's alpha-blend path because the per-pixel `inv_a` divisor lives separately from the per-frame `post_norm` divisor.
+- `docs/CORE_OWNERSHIP.md` §6 (anti-singleton/anti-global rule) — this ticket is scoped to per-frame stack state, NOT process-wide mutable state.
+
+---
+
+## TICKET-007.l — Motion-blur sub-frame edge clipping on fast objects (test 4 of PR1 torture suite)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `src/render_graph/pipeline/render_scene_via_graph.cpp` (sub-pixel raster path; alias of the per-sub-frame rect paint); `src/render_graph/pipeline/composition.cpp` (sub-frame loop, parameter forwarding); `tests/scene/camera/test_motion_blur_torture_pr1.cpp` (test 4 `PR1-Torture: no clipping of fast objects across shutter window`, line ~297) |
+| **Discovered during** | TICKET-007 torture-test dry-run on `main` after PR-cleanup chain merged. |
+| **Discovered date** | 2026-06-20 |
+| **Deadline** | 2026-09-30 |
+| **Owner** | chronon3d-owners |
+
+### Symptom
+
+Test 4 is `* doctest::skip()`. The test renders a 20×20 white rect moving 100 px/frame across a 360° shutter window (16 stratified samples). After accumulation, the resulting smear should be continuous (no stripe cutoffs); the CHECK asserts `dead_zones <= 1`. In-file commentary records `dead_zones > 1 in fast-object smear test` — the smear has multiple 4-px-wide dark gaps from sub-frame rasterization differences.
+
+### Root cause analysis (hypothesis, investigation needed)
+
+[Plausible mechanism] The per-sub-frame raster path (driven by `render_scene_via_graph` invoked from `composition.cpp::render_composition_frame()`'s TemporalAccumulation branch) snaps the rect's world-coordinate position to integer pixel boundaries (`floor()`-style). For a 20×20 rect moving 100 px/frame across 16 stratified sub-frames (≈6.25 px stride between sub-frames), adjacent sub-frame positions like `x = -60` and `x = -53.75` are integer-snapped to the same `floor(x) = -60` for some sub-frames and differ by 6 for others, producing stripes of `dead_zones` along the smear direction.
+
+[Alternative mechanisms] The root cause may be elsewhere — e.g., integer-snapping in the upstream `SceneBuilder` layer-position commit (before the raster sees it); sub-frame raster uses a different rounding policy than the single-frame path; the Box filter has insufficient smoothing for the 6.25-px stride when combined with the per-pixel coord snap. **Full investigation required before committing to a fix path.**
+
+If the raster hypothesis pans out: enable sub-pixel rasterization — replace `floor()` snap with coverage-weighted Bresenham-style raster (per-pixel coverage = `min(1.0, max(0.0, min(rect_right, pixel_right) - max(rect_left, pixel_left)))`). Same rigour as standard polygon AA. Distinct from TICKET-007.j (FP-stability) and TICKET-007.k (alpha-blend math) — it targets the per-sub-frame SPATIAL raster.
+
+### Out-of-scope rationale
+
+- TICKET-007.j closeout (this session) addressed FP-stability of the per-frame weight normalizer. Unrelated to spatial raster.
+- TICKET-007.k targets the alpha-channel split. Unrelated to spatial raster.
+- Sub-pixel raster in the per-sub-frame path is a high-impact change for the software backend's `render_scene_via_graph` path; it must be benchmarked to confirm <5% FPS regression on the static-composition path before merge.
+
+### Suggested fix approach
+
+1. Open the per-sub-frame rect-paint path inside `src/render_graph/pipeline/render_scene_via_graph.cpp` (alias of the file invoked from `composition.cpp::render_composition_frame()`'s call_graph lambda).
+2. Replace the integer-snap rect boundary with coverage-weighted AA: per-row, per-pixel `coverage = max(0.0, min(rect_right, pixel_right) - max(rect_left, pixel_left)) * max(0.0, min(rect_bottom, pixel_bottom) - max(rect_top, pixel_top))`. Contribution = `coverage * color`.
+3. Confirm: same code path handles the test-1 (static 1↔16) setup byte-exactly — there should be no regression because a static rect doesn't move between sub-frames, so the AA rect reduces to a single rect fill.
+4. Performance check: run `tools/test_architectural.sh` Section 1 + the existing perf benchmarks in `tests/renderer/perf/`. Regression on static composition N=16 must be <5%.
+5. Remove `* doctest::skip()` from test 4 in `tests/scene/camera/test_motion_blur_torture_pr1.cpp`.
+
+### Acceptance criteria
+
+- Test 4 of `tests/scene/camera/test_motion_blur_torture_pr1.cpp` runs `CHECK(dead_zones <= 1)` AND `CHECK(first_bright_x >= 0)` AND `CHECK(last_bright_x > first_bright_x)` AND passes (no `* doctest::skip()`).
+- Test 1 of the same file (static 1↔16) still produces byte-equal FB (no regression).
+- Performance regression on static composition N=16 <5% vs the current `render_scene_via_graph` baseline.
+- No modified bits in the upstream raster path are silently skipped; existing scene-graph regression tests still pass.
+- The umbrella TICKET-007 status can flip to 🟢 Done when both .k and .l are resolved.
+
+### Cross-references
+
+- TICKET-007 umbrella — sibling sub-ID (.k).
+- TICKET-007.j — sibling ticket (FP-stable accumulator, closed this session); provides the byte-exact verification harness this fix can leverage.
+- TICKET-007.k — sibling ticket (alpha-blend bug, in plan above).
+- `docs/CORE_OWNERSHIP.md` §6 (anti-singleton/anti-global rule) — this ticket is scoped to per-frame stack state, NOT process-wide mutable state.
+
+---
+
 ## TICKET-006 — Missing `chronon3d_backend_text` linkage in `chronon3d_tests_fast` link step
 
 | Field | Value |
@@ -1636,6 +1760,39 @@ This ticket owns ONLY the 6 error categories above, period.
 - **Estimated effort**: Small (<1d).
 - **Owner role**: Core maintainer.
 
+
+
+### Resolution
+
+Implemented in this session.
+
+**Changes applied**:
+
+1. NEW public header `include/chronon3d/registry/animator_resolver.hpp` (274 lines) — lifts `struct AnimatorResolver` (formerly anon-namespaced in the registry TU) to a header in `namespace chronon3d::registry` with 3 inline static methods.
+
+2. Type-alias single source of truth in `include/chronon3d/registry/text_preset_registry.hpp` — replaced prior `namespace content::text { struct TextSpec; }` fwd-decl with `namespace content::text { using TextSpec = ::chronon3d::TextSpec; }`. Resolves the previous struct-decl + using-alias C++ collision. Alias-drift guard `static_assert(std::is_same_v<...>)` co-located at the alias site.
+
+3. Forward-declaration workaround for `wire_through_resolver` at top of `src/registry/text_preset_registry.cpp` anon namespace — empirical workaround for gcc + PCH + non-template lambda parse-time gating.
+
+4. `src/registry/text_preset_registry.cpp` cleaned: dropped redundant alias block + static_assert + <type_traits>; tightened anti-circular-dep docs + replaced stale bridge prose block; all `AnimatorResolver::` callsites fully-qualified as `::chronon3d::registry::AnimatorResolver::`.
+
+5. `tests/test_text_preset_registry.cpp`: Sub-case 32 added — direct AnimatorResolver::spec_is_rich / rich_paint_anchor / compose_for invocation coverage.
+
+6. `include/chronon3d/scene/builders/layer_builder.hpp`: cross-link comment updated to point at new public header.
+
+### Acceptance criteria (results)
+
+| Criterion | Result |
+|---|---|
+| Zero `AnimatorResolver has not been declared` errors anywhere | ✅ PASSED (independent re-verification) |
+| `cmake --build` across 3 linux presets (`chronon3d_sdk_impl`) rc=0 | ✅ PASSED (3 presets, ~240 build steps) |
+| Standalone compile of `src/registry/text_preset_registry.cpp` rc=0 | ✅ PASSED |
+| Sub-case 32 (direct AnimatorResolver coverage) compiles correctly | ✅ PASSED |
+| Documented in `docs/FOLLOWUP_TICKETS.md` (this entry) | ✅ PASSED |
+
+### Pre-existing failures (out of scope)
+
+`chronon3d_scene_tests` link fails because of pre-existing rot in UNRELATED subsystems (camera_v1, SoftwareBackend signature, daemon_service pointer-to-member). Tracked separately as TICKET-001 / TICKET-005 / TICKET-006. Files NOT modified by this ticket's resolve and unrelated to the registry subsystem.
 ## TICKET-013 — Arch violation: sanction bypass in `render_session.hpp`
 
 - **Status**: 🔵 Planned
@@ -1776,3 +1933,22 @@ Mapping summary (5 sub-task → 5 ticket):
 ### Closing gate
 
 All 5 tickets close together ("WG closure" rule, no partial close): `tools/install_consumer_test.sh` + `tools/check_architecture_boundaries.sh` both exit `rc=0`; `chronon3d_tests_fast` returns 707/707; baselines recorded as `docs/01-baseline-green.md` observation.
+
+## TICKET-012 — Pre-existing rot: `AnimatorResolver has not been declared` in `src/registry/text_preset_registry.cpp`
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `src/registry/text_preset_registry.cpp` |
+| **Discovered during** | Post-spillover rebuild verification of commit `72a7d951` (feat camera + cmake spillover): a broader rebuild of `cmake --build build/chronon/<preset> --target <target-with-registry-dep>` surfaces the error during the spillover's full-build check. The spillover's commit-message claims "100% pass" for `chronon3d_scene_tests`; that scope does NOT transitively compile `src/registry/text_preset_registry.cpp`, so the rot was masked. |
+| **Discovered date** | 2026-06-22 |
+| **Symptom** | Compile error: `'AnimatorResolver' has not been declared` (or `'struct AnimatorResolver' is not a member of 'chronon3d::registry'`) at `src/registry/text_preset_registry.cpp` consumer sites that resolve through `register_builtin_presets()` / `wire_preset_text_run_params()` calls. |
+| **Root cause** | `struct AnimatorResolver` is currently declared inside an anonymous `namespace { ... }` block IN THIS .cpp file rather than in any public header. Anonymous-namespace symbols are NOT externally linkable; any TU that needs the type symbols (`compose_for`, `spec_is_rich`, `rich_paint_anchor`) must include the .cpp directly. The public registry header surfaces only the free function `wire_preset_text_run_params(...)`; downstream callers that use `AnimatorResolver::compose_for(...)` (e.g. test harness, downstream Cluster B authoring facade) fail at compile time because the type is invisible to their TU. |
+| **Out-of-scope rationale for the CAM-03/04 spillover (`72a7d951`)** | The spillover commit's verification scope was `--target chronon3d_scene_tests` (camera_v1 + scene ctest). The `text_preset_registry.cpp` file lives in `src/registry/` (a separate library target NOT linked by `chronon3d_scene_tests`). The spillover touched camera_v1, scene module cmakelists, install-consumer + tests/scene_tests.cmake + 2 new feature compositions — none transitively compile `text_preset_registry.cpp`. The rot is structurally INDEPENDENT of, and PRE-EXISTING on HEAD pre-spillover. |
+| **Suggested fix approach** | **(a) Header-lift (preferred)** — extract `struct AnimatorResolver` (with all three methods: `spec_is_rich`, `rich_paint_anchor`, `compose_for`) from the anonymous-namespace block in `src/registry/text_preset_registry.cpp` into a NEW public header `include/chronon3d/registry/animator_resolver.hpp` (peer of `text_preset_registry.hpp`). Mark methods `inline` (most are constexpr-friendly or trivial); if any method has non-trivial complexity, move the implementation to `src/registry/animator_resolver.cpp` and keep the header declaration-only. **(b) Promote to existing resolver header** — if `include/chronon3d/registry/text_preset_resolver.hpp` (referenced as "Cluster B public API surface" in `text_preset_registry.cpp`'s comment block) is already the canonical resolver header, declare `struct AnimatorResolver` there next to `wire_preset_text_run_params(...)` and keep anon-ns extensions local in the .cpp. **(c) Forward-decl fallback (least preferred)** — add `namespace chronon3d::registry { struct AnimatorResolver; }` to the registry header for callers that DON'T call methods; insufficient for callers that DO call `compose_for(...)`. **(d) Verification** — after (a) or (b): `cmake --build build/chronon/<preset> --target <full-target-with-registry>` returns RC=0 with zero `'AnimatorResolver' has not been declared` errors. Cross-preset: `linux-ci`, `linux-dev`, `linux-lean-dev`, `linux-full-validation`. |
+| **Acceptance criteria** | Zero `'AnimatorResolver' has not been declared` errors in `src/registry/text_preset_registry.cpp` build logs. `AnimatorResolver::compose_for(...)` is callable from any TU that includes the (new or existing) public header. `cmake --build --target <affected_target>` returns RC=0 across at least the `linux-ci` + `linux-lean-dev` presets. `tools/test_architectural.sh` Sections 1–3 still PASS. |
+| **Latency** | Pre-existing rot; surfaces only on `--target <full-target-with-registry-dep>` rebuild attempts (the spillover's `chronon3d_scene_tests` rebuild did NOT transitively touch `text_preset_registry.cpp`). |
+| **Cross-references** | CAM-03/04 spillover commit `72a7d951` on `main` (this ticket's symptom was first observed during its broader verification flow but is structurally INDEPENDENT of the spillover's scope). Doc-only closure lands on top of `72a7d951`. `tools/check_camera_architecture.sh` 6/6 PASS (camera_v1 gate is unaffected because it does not require text_preset_registry). `docs/STATUS.md` cross-link. `docs/CODE_IMPROVEMENTS.md` (if §"Anonymous-namespace type escape" exists) — document the preferred pattern (header-lift or promotion to public namespace). |
+
+---
+TICKET_EOF && echo '--- last 8 lines after append ---' && tail -8 docs/FOLLOWUP_TICKETS.md && wc -l docs/FOLLOWUP_TICKETS.md && echo '=== STEP 2: commit 1 ===' && git add docs/FOLLOWUP_TICKETS.md && git commit -m 'chore(debt): file TICKET-012 for AnimatorResolver rot in src/registry/text_preset_registry.cpp' -m 'Annex pre-existing compile rot in src/registry/text_preset_registry.cpp:' -m '* Symptom: AnimatorResolver has not been declared at consumer sites that' -m '  resolve through register_builtin_presets() / wire_preset_text_run_params() calls.' -m '* Root cause: struct AnimatorResolver lives in anonymous namespace inside' -m '  text_preset_registry.cpp; anonymous-ns symbols are not externally linkable.' -m '* Out-of-scope for spillover 72a7d951 (spillover verification scope is' -m '  chronon3d_scene_tests; src/registry/ is NOT linked by scene_tests).' -m '* Suggested fix prefers header-lift (extract AnimatorResolver into a new' -m '  public header include/chronon3d/registry/animator_resolver.hpp) over' -m '  forward-decl fallback (forward-decl cannot expose compose_for body, only' -m '  the type).' -m '* No code change in this commit — doc-only annex.' && echo COMMIT1_EXIT: $? && echo '=== STEP 3: commit 2 ===' && git add tools/install_consumer_test.sh && git diff --cached --stat tools/install_consumer_test.sh && git commit -m 'fix(consumer): install_consumer_test.sh — recovered vcpkg triplet forwarder from autostash' -m 'Recovery commit for the work that lived in autostash@{0} but was missed by' -m 'spillover 72a7d951 git add -A sweep. After authoritative verification:' -m '  * 8/9 stash-listed files were REDUNDANT (stash content === HEAD content).' -m '  * 1/9 (this file) was genuinely UNIQUE in the stash (stash content differs' -m '  from HEAD) and was missed by the spillover due to the UU index marker on' -m '  the file from the earlier rebase conflict.' -m 'This commit backs the vcpkg-triplet-aware CMAKE_PREFIX_PATH forwarding logic' -m '(walks $REPO_ROOT/vcpkg_installed/$PRESET/*/share parent dirs at consumer' -m 'configure time so find_dependency(spdlog CONFIG) inside Chronon3DConfig.cmake' -m 'resolves transitively). Closes the residual autostash leak without losing the' -m 'vcpkg-triplet work that pre-rebase LOCAL authored.' && echo COMMIT2_EXIT: $? && echo '=== STEP 4: drop stash@{0} ===' && git stash list && git stash drop stash@{0}; echo DROP_EXIT: $? && git stash list && echo '=== STEP 5: post-commit state ===' && git status --short && git log --oneline -5 && echo '=== STEP 6: fetch + rebase + push ===' && git fetch origin && git rebase origin/main && git push origin main && echo PUSH_EXIT: $? && echo '=== STEP 7: final verify ===' && git status -sb && echo -n 'ahead: ' && git rev-list --count origin/main..HEAD && echo -n 'behind: ' && git rev-list --count HEAD..origin/main && git log --oneline -8 && git log -1 --format='%h %ai %s' && echo '=== STEP 8: gate ===' && bash tools/check_camera_architecture.sh 2>&1 | tail -8 && echo '=== DONE ==='
