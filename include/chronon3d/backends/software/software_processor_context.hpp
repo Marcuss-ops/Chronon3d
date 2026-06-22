@@ -48,6 +48,7 @@ class FontEngine;
 #endif
 
 struct SoftwareProcessorContext {
+    class SoftwareRenderer*                           renderer{nullptr};        // back-pointer for incomplete migration
     RenderCounters*                                  counters{nullptr};        // REQUIRED
     const RenderSettings*                            settings{nullptr};        // REQUIRED
     renderer::SoftwareRegistry*                      registry{nullptr};        // REQUIRED

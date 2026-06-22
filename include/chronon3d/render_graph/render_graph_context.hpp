@@ -233,6 +233,15 @@ struct RenderServices {
     /// available.  Null in test paths without a wired session.
     chronon3d::RenderSession* session{nullptr};
 
+    /// PR-9 — opaque sidecar pointer to the owning SoftwareRenderer.
+    /// Set by scene.cpp / composition.cpp alongside `session` so that
+    /// render-graph nodes (ClearNode, etc.) can reach software-specific
+    /// resources (buffer_ring) without pulling SoftwareRenderer into
+    /// the public SDK header.  Null when no software renderer is active.
+    /// Callers must static_cast to SoftwareRenderer* after including
+    /// the full software_renderer.hpp header.
+    void* sw_renderer_sidecar{nullptr};
+
     /// WP-8 PR 8.0 — typed engine-local asset path resolver (non-owning
     /// pointer into the owning RenderRuntime's resolver).  Set by
     /// `preflight.cpp::debug_preflight_render_graph` (and any future

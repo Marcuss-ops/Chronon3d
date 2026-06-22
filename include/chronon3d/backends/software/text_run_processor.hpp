@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/backends/software/software_processor_context.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/text/text_run.hpp>

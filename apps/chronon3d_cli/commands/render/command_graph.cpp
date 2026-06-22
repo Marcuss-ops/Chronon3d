@@ -202,7 +202,7 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
 
     if (args.plan) {
         auto ctx = chronon3d::graph::make_graph_context(
-            *renderer, renderer->node_cache(), comp.camera,
+            renderer->backend(), renderer->node_cache(), comp.camera,
             comp.width(), comp.height(),
             args.frame, 0.0f,
             settings, &registry, nullptr, 30.0f
@@ -223,7 +223,7 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
     if (args.summary) {
         const bool need_dot = !args.output.empty();
         const auto stats = graph::analyze_scene_graph(
-            *renderer, renderer->node_cache(), scene,
+            renderer->backend(), renderer->node_cache(), scene,
             comp.camera, comp.width(), comp.height(),
             args.frame, 0.0f, settings, &registry, nullptr,
             /*execute=*/true, /*include_dot=*/need_dot
@@ -236,7 +236,7 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
     // Legacy: export DOT only
     const std::string dot_path = args.output.empty() ? "output/graph.dot" : args.output;
     const auto stats = graph::analyze_scene_graph(
-        *renderer, renderer->node_cache(), scene,
+        renderer->backend(), renderer->node_cache(), scene,
         comp.camera, comp.width(), comp.height(),
         args.frame, 0.0f, settings, &registry, nullptr,
         /*execute=*/false, /*include_dot=*/true
