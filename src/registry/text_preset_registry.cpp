@@ -68,12 +68,15 @@
 
 #include <chronon3d/registry/text_preset_registry.hpp>
 
+#include <chronon3d/registry/text_preset_resolver.hpp>   // Cluster B public API surface
+
 #include <chronon3d/scene/builders/scene_builder.hpp>   // full SceneBuilder
 #include <chronon3d/scene/builders/layer_builder.hpp>    // full LayerBuilder
 #include <chronon3d/scene/builders/builder_params.hpp>   // full TextSpec (canonical)
 
 #include <stdexcept>
 #include <type_traits>  // explicit — for static_assert(std::is_same_v<...>) drift guard.
+#include <utility>      // std::move for wire_preset_text_run_params implementation.
 
 // ── content::text::TextSpec alias (private to this TU) ───────────────────
 // Resolves the forward declaration in the registry header.  Without this
@@ -433,15 +436,13 @@ struct AnimatorResolver {
     }
 };
 
-// ── wire_through_resolver — factory-body helper ────────────────────────────
-// Routes a preset invocation through the Stage 5 AnimatorResolver.  When
-// the resolver returns a non-null TextAnimatorSpec, the helper pushes it
-// onto TextRunParams.animators and routes through `lb.text_run(...).commit()`
-// so the wired entry lands on the PendingTextRun BEFORE the canonical
-// motion-preset chain mutates the layer.  When the resolver returns
-// std::nullopt (e.g., `minimal_white` with no canonical motion), the
-// helper falls back to a plain `lb.text(...)` — preserves the Sub-case
-// 7-9 plain-spec invariants.
+// ── wire_through_resolver — factory-body helper (Cluster A bridge) ─────────
+// Thin factory-body helper that delegates to the Cluster B public API
+// (`wire_preset_text_run_params`) and then routes the returned
+// TextRunParams through `lb.text_run(...).commit()` (or plain
+// `lb.text(...)` when `animators.empty()`).  Preserves Sub-case 7-9
+// invariants: minimal_white + unknown ids still produce 1 RenderNode
+// each via the plain text path.
 //
 // Returns LayerBuilder& so the chained motion-presets in the factory
 // body (.depth_reveal / .scale_drop / .soft_pop / etc.) continue to
@@ -450,14 +451,19 @@ struct AnimatorResolver {
 wire_through_resolver(LayerBuilderT& lb,
                       std::string_view preset_id,
                       const TextSpecT& spec) {
-    auto composed = AnimatorResolver::compose_for(preset_id);
-    if (!composed) {
-        return lb.text(std::string{preset_id} + "_text", spec);
+    // Delegate to the public Cluster B free function — keeps the
+    // resolver logic in a single place (the public header) so the
+    // test harness and downstream authoring facade use the same
+    // path the factory bodies here use.
+    TextRunParams params =
+        ::chronon3d::registry::wire_preset_text_run_params(preset_id, spec);
+    const std::string entry_name = std::string{preset_id} + "_text";
+    if (params.animators.empty()) {
+        // No canonical motion (minimal_white / unknown id) → plain path.
+        return lb.text(entry_name, params.text);
     }
-    TextRunParams params;
-    params.text = spec;
-    params.animators.push_back(*composed);
-    return lb.text_run(std::string{preset_id} + "_text", params).commit();
+    // Resolver wired a TextAnimatorSpec → route through text_run.commit().
+    return lb.text_run(entry_name, params).commit();
 }
 
 TextPreset cinematic_text_camera_entry() {
@@ -982,6 +988,41 @@ void register_builtin_presets(TextPresetRegistry& r) {
 }
 
 } // namespace
+
+// ── wire_preset_text_run_params — Cluster B public free function ─────────
+// Public Cluster B API surface entry point.  Declared in
+// include/chronon3d/registry/text_preset_resolver.hpp; see that header
+// for full doc + downstream usage patterns.
+//
+// Implementation lives in `::chronon3d::registry` namespace (NOT anon)
+// so cross-TU callers — the test harness in tests/test_text_preset_registry.cpp
+// and any downstream Cluster B authoring facade — can link to the
+// external symbol.  The body calls `AnimatorResolver::compose_for()`
+// which is in the anon namespace above; anon-namespace symbols are
+// visible by standard name lookup from the enclosing
+// `::chronon3d::registry` namespace within the same TU (C++ [namespace]).
+//
+// Return value contract:
+//   - `params.text = std::move(spec)` — the supplied spec moved into
+//     `out.text` (always populated, regardless of motion presence).
+//   - `params.animators` — pushed exactly ONE entry (the composed
+//     TextAnimatorSpec) when the resolver returns a spec; EMPTY when
+//     the preset has no canonical motion (`minimal_white`) OR when
+//     `preset_id` is not in the registered catalog.
+//   - Callers detect the no-motion case via `params.animators.empty()`
+//     rather than a std::optional wrapper — keeps downstream authoring
+//     facades ergonomic.
+TextRunParams
+wire_preset_text_run_params(std::string_view preset_id,
+                            TextSpec spec) noexcept {
+    auto composed = AnimatorResolver::compose_for(preset_id);
+    TextRunParams out;
+    out.text = std::move(spec);
+    if (composed) {
+        out.animators.push_back(std::move(*composed));
+    }
+    return out;
+}
 
 // ── make_default_text_preset_registry ──────────────────────────────────────
 TextPresetRegistry make_default_text_preset_registry() {
