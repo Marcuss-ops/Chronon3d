@@ -1,4 +1,5 @@
 #include "frame_state_commit.hpp"
+#include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
 
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>

@@ -250,7 +250,7 @@ struct RenderServices {
     /// no resolver has been wired into the context — callers MUST
     /// null-check before dereferencing.
     /// NOTE: callers that dereference `asset_resolver` MUST
-    /// `#include <chrono3d/assets/asset_resolver.hpp>` themselves;
+    /// `#include <chronon3d/assets/asset_resolver.hpp>` themselves;
     /// the SDK header stays lightweight (forward decl only above).
     chronon3d::assets::AssetResolver* asset_resolver{nullptr};
 };
