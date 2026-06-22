@@ -410,6 +410,14 @@ if(CHRONON3D_BUILD_CLI AND CHRONON3D_BUILD_TESTS)
     )
 endif()
 
+# ── Hygiene gates ─────────────────────────────────────────────────────
+# check_refs: invoke tools/check_filename_drift.sh to ensure every cited
+# filename points to a path that exists on disk.  Complementary to
+# check_doc_sync.sh (which enforces co-update, not existence).  Kept
+# in a separate file to avoid mixing custom_targets with the
+# OBJECT/INTERFACE library registry in Chronon3DRegistry.cmake.
+include(cmake/Hygiene.cmake)
+
 # ── WP0 PR 0.1 — chronon3d_architecture_check aggregate target ────────────
 # The architecture-check target compiles (or verifies the previous build of)
 # every architectural boundary layer the project uses:

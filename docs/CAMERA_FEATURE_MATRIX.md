@@ -28,7 +28,7 @@ This matrix is the canonical inventory for the Camera System V1 effort. It is co
 | `orbit`        | `camera_rig::orbit_yaw` keys | ✅ Verified | `CameraMotionRegistry::build("camera.orbit_small")` |
 | `focus_pull`   | `camera_rig::focus_pull()` | ✅ Verified | `CameraMotionRegistry::build("camera.focus_pull")` |
 | `parallax_pan` | `camera_rig::parallax_pan()` | ✅ Verified | `CameraMotionRegistry::build("camera.parallax_sweep")` |
-| `dolly_zoom`  | `camera_rig::dolly_zoom()` | ⚠️ Partial | `CameraMotionRegistry::build("camera.dolly_zoom")` — needs regression test (`tests/scene/camera/test_camera_motion_presets.cpp`). |
+| `dolly_zoom`  | `camera_rig::dolly_zoom()` | ⚠️ Partial | `CameraMotionRegistry::build("camera.dolly_zoom")` — regression test not yet implemented (CAM-04). |
 | `low_angle_reveal` | `camera_rig::low_angle_reveal()` | ⚠️ Partial | Same. |
 | `subtle_float` | `camera_rig::subtle_float()` | ⚠️ Partial | Same. |
 | `product_orbit` | — | 📋 Planned | `CameraMotionRegistry::build("camera.product_orbit")` (P11). |

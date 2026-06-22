@@ -18,9 +18,19 @@ namespace chronon3d::test {
 /// Attach a SoftwareBackend to the renderer's runtime.  Required before
 /// calling render_frame / render_scene — RenderRuntime::backend() throws
 /// when called before attach_backend().  Call after set_settings().
+// 06 R3b boundary refactor — `SoftwareBackend` now requires a non-owning
+// `SoftwareRenderer* owner` as its first constructor argument (the
+// back-pointer used by `draw_text_run` to source the
+// SoftwareProcessorContext bundle).  We pass `&renderer` here; lifetime
+// is verified safe because the backend is owned by `renderer.runtime()`,
+// whose `~RenderRuntime()` runs BEFORE `~SoftwareRenderer()` — so m_owner
+// is dangling at the moment the backend's `~SoftwareBackend()` runs,
+// but the destructor NEVER dereferences m_owner (verified 06 R3b:
+// m_owner is read only inside `draw_text_run` dispatch path).
 inline void attach_software_backend(SoftwareRenderer& renderer) {
     renderer.runtime().attach_backend(
         std::make_unique<chronon3d::SoftwareBackend>(
+            &renderer,
             *renderer.counters(),
             renderer.settings(),
             renderer.runtime().framebuffer_pool_shared()));

@@ -13,6 +13,17 @@
 //
 // builtin_camera_presets() returns all legacy presets as CameraDescriptors,
 // enabling the compiled evaluation path without CameraMotionRegistry.
+//
+// CAM-02 additions:
+//   - 3-arg compile_camera() with CameraCompileContext supports cycle
+//     detection in RegisteredMotionRef chains.
+//   - On every entry, descriptor.id is inserted into ctx.visited_ids; the
+//     resolution_stack is then pushed.  On every exit (success or error),
+//     both are cleaned up.  A duplicate insert produces
+//     Kind::CircularCatalogReference with a "a -> b -> a" path string.
+//   - Program::evaluation_dependency_ is set from a survey of the
+//     descriptor's constraints: DampedFollowConstraint ⇒ RequiresHistory;
+//     all other constraint / source / modifier combinations ⇒ Stateless.
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
@@ -20,30 +31,74 @@
 #include <cmath>
 #include <utility>
 
-namespace chronon3d::camera_v1 {
+namespace chrono3d::camera_v1 {
 
+// CAM-02: 3-arg compile_camera() is the canonical implementation.  The
+// 2-arg public overload (declared in camera_program_compiler.hpp) is an
+// inline forwarder that constructs a fresh CameraCompileContext.
 Result<CameraProgram, CameraCompileError>
 compile_camera(const CameraDescriptor& descriptor,
-               const CameraCatalog* catalog) {
-    CameraProgram program;
+               const CameraCatalog* catalog,
+               CameraCompileContext& ctx) {
+    // ── CAM-02: cycle detection.  clean-up helper must reach every exit.
+    auto leave_scope = [&ctx, &descriptor]() {
+        if (!ctx.resolution_stack.empty()) {
+            ctx.resolution_stack.pop_back();
+        }
+        ctx.visited_ids.erase(descriptor.id);
+    };
 
-    // ── 1. Store the descriptor ─────────────────────────────────────────
+    // If this id is already being resolved, we have a circular chain.
+    // Build a diagnostic message showing the resolution path + the
+    // back-edge that closes the loop.
+    if (!ctx.visited_ids.insert(descriptor.id).second) {
+        std::string path;
+        for (const auto& s : ctx.resolution_stack) {
+            if (!path.empty()) path += " -> ";
+            path += std::string{s};
+        }
+        if (!path.empty()) path += " -> ";
+        path += descriptor.id + " (back-edge to id already in resolution)";
+        // No push occurred yet but the failed insert is itself a state
+        // change to the set; restore by erasing so the parent's
+        // leave_scope() call (which will run on return) leaves a clean ctx.
+        ctx.visited_ids.erase(descriptor.id);
+        return CameraCompileError{
+            CameraCompileError::Kind::CircularCatalogReference,
+            "circular catalog reference: " + path
+        };
+    }
+    ctx.resolution_stack.push_back(descriptor.id);
+
+    CameraProgram program;
     program.descriptor_ = descriptor;
 
-    // ── 2. Resolve source ────────────────────────────────────────────────
+    // ── 1. Resolve source ────────────────────────────────────────────────
     if (auto* ref = std::get_if<RegisteredMotionRef>(&descriptor.source)) {
         // Try to resolve via the catalog (CameraMotionRegistry is removed).
         if (catalog) {
             auto* preset_desc = catalog->find_descriptor(ref->id);
             if (preset_desc) {
-                // Recursively compile the referenced descriptor.
-                // This handles preset -> preset chains.
-                auto recursive_result = compile_camera(*preset_desc, catalog);
+                // Recursively compile the referenced descriptor.  Cycle
+                // detection + resolution_stack diagnostics are handled by
+                // `ctx`.  Errors propagate back with the inner diagnostic
+                // augmented by the wrapping `ref->id`.
+                auto recursive_result =
+                    compile_camera(*preset_desc, catalog, ctx);
                 if (!recursive_result) {
-                    return CameraCompileError{
-                        CameraCompileError::Kind::MotionNotFound,
-                        "motion '" + ref->id + "' catalog entry failed to compile"
-                    };
+                    auto inner = recursive_result.error();
+                    // CAM-02 fix-set: do NOT compound the wrapper layer when
+                    // the inner error is already a CircularCatalogReference.
+                    // Without this, three recursive layers deep produce
+                    // "motion 'A' failed: motion 'A' failed: circular..." which
+                    // is hard to read in logs.
+                    if (inner.kind != CameraCompileError::Kind::CircularCatalogReference) {
+                        inner.message = "motion '" + std::string{ref->id}
+                                      + "' catalog entry failed: "
+                                      + inner.message;
+                    }
+                    leave_scope();
+                    return inner;
                 }
                 auto recursive = std::move(recursive_result).value();
                 // Preserve the resolved source from the recursive compile
@@ -53,15 +108,17 @@ compile_camera(const CameraDescriptor& descriptor,
                 program.descriptor_ = descriptor;
                 program.descriptor_.source = resolved_source;
                 program.compiled_ = true;
+                leave_scope();
                 return program;
             }
         }
 
         // CameraMotionRegistry is removed — only the catalog is used.
         if (!ref->id.empty()) {
+            leave_scope();
             return CameraCompileError{
                 CameraCompileError::Kind::MotionNotFound,
-                "motion '" + ref->id + "' not found in catalog"
+                "motion '" + std::string{ref->id} + "' not found in catalog"
             };
         }
 
@@ -69,6 +126,7 @@ compile_camera(const CameraDescriptor& descriptor,
         // directly by evaluate_compiled_source() without a separate member.
     } else if (auto* traj = std::get_if<TrajectoryMotion>(&descriptor.source)) {
         if (traj->trajectory && traj->trajectory->size() == 0) {
+            leave_scope();
             return CameraCompileError{
                 CameraCompileError::Kind::TrajectoryEmpty,
                 "trajectory has zero segments"
@@ -77,18 +135,37 @@ compile_camera(const CameraDescriptor& descriptor,
         // Trajectory is evaluated directly via evaluate_compiled_source().
     }
 
-    // ── 3. Set failure policy ────────────────────────────────────────────
+    // ── 2. Set failure policy ────────────────────────────────────────────
     program.failure_policy_ = descriptor.failure_policy;
 
-    // ── 4. Compute time_dependent flag ───────────────────────────────────
+    // ── 3. Compute time_dependent flag ───────────────────────────────────
     // Conservative: any non-static source is assumed time-dependent.
     // Any modifier also makes the camera time-dependent (e.g. IdleOscillation).
-    bool source_is_static = std::holds_alternative<StaticCameraSource>(descriptor.source);
+    bool source_is_static =
+        std::holds_alternative<StaticCameraSource>(descriptor.source);
     bool has_modifiers = !descriptor.modifiers.empty();
     program.time_dependent_ = !source_is_static || has_modifiers;
 
+    // ── 4. CAM-02 — compute evaluation_dependency metadata ─────────────
+    // Heuristic: a program RequiresHistory iff it accumulates state in
+    // ConstraintSession across frames.  Only DampedFollowConstraint (EMA
+    // of previous_camera + previous_velocity) currently fits this
+    // classification.  All other constraint types (LookAt, KeepHorizon,
+    // Distance, RotationLimit) and pure sources / modifiers are Stateless.
+    bool requires_history = false;
+    for (const auto& c : descriptor.constraints) {
+        if (std::holds_alternative<DampedFollowConstraint>(c)) {
+            requires_history = true;
+            break;
+        }
+    }
+    program.evaluation_dependency_ = requires_history
+        ? CameraEvaluationDependency::RequiresHistory
+        : CameraEvaluationDependency::Stateless;
+
     // ── 5. Mark as compiled and return ───────────────────────────────────
     program.compiled_ = true;
+    leave_scope();
     return program;
 }
 
