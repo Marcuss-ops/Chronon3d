@@ -315,14 +315,14 @@ in [`docs/01-baseline-green.md`](01-baseline-green.md) §2.3:
 
 ### Stato del workflow di cattura
 
-Il **prerequisito** per popolare i 6 sentinel con valori reali è il
-fix del regression `SoftwareRenderer::capabilities() override`
-(`TICKET-018-SR-CAPABILITIES` — placeholder, retrofit to numeric `TICKET-NNN` convention on first filing in `docs/FOLLOWUP_TICKETS.md`; separato da PR 6.8.5 per scope) che
-blocca il `linux-ci` build. Una volta che `chronon3d_tests_fast`
-compila, `ctest -R 'Baseline green' -V` estrae i 6 hash via il
-braccio `MESSAGE` dell'`is_reference_captured(...)` → str_replace
-dei 6 placeholder in `kRefBaseline*` → ri-run ctest per verificare
-il braccio `REQUIRE` bloccato. Il workflow step-by-step è in
+I sentinel per §4 (Composite), §5 (SSIM), §6 (PrecompCache) sono
+stati popolati con hash reali catturati su linux-ci. I sentinel per §1 (FreshShader), §2
+(ArenaPin), §3 (ThreadEq) restano `kUncapturedSentinel` finché il
+blocco `FrameGraphCompiler: stable_node_id collision` nella
+baseline static-comp (3 rects) non viene risolto — bug preesistente
+nel `frame_graph_compiler.cpp`, non correlato al path determinism.
+
+Il workflow step-by-step per la cattura è in
 [`docs/01-baseline-green.md`](01-baseline-green.md) §2.3 §5.
 
 ---

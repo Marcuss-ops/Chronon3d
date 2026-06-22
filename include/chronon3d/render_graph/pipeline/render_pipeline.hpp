@@ -15,7 +15,7 @@
 #include <string_view>
 
 namespace chronon3d {
-class SoftwareRenderer;  // R3 sidecar — owned by callers when on software backend.
+class SoftwareRenderer;  // sw_sidecar parameter for render_composition_frame
 }
 
 namespace chronon3d::graph {
@@ -37,8 +37,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const CompositionRegistry* registry,
     media::MediaFrameProvider* video_decoder,
     float fps = 30.0f,
-    std::string_view diagnostic_label = "scene",
-    chronon3d::SoftwareRenderer* sw_sidecar = nullptr
+    std::string_view diagnostic_label = "scene"
 );
 
 /**
@@ -56,8 +55,7 @@ std::string debug_scene_graph(
     const RenderSettings& settings,
     const CompositionRegistry* registry,
     media::MediaFrameProvider* video_decoder,
-    float fps = 30.0f,
-    chronon3d::SoftwareRenderer* sw_sidecar = nullptr
+    float fps = 30.0f
 );
 
 /**
@@ -114,8 +112,7 @@ SceneGraphStats analyze_scene_graph(
     media::MediaFrameProvider* video_decoder,
     bool execute = true,
     bool include_dot = false,
-    float fps = 30.0f,
-    chronon3d::SoftwareRenderer* sw_sidecar = nullptr
+    float fps = 30.0f
 );
 
 } // namespace chronon3d::graph

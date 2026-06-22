@@ -28,7 +28,7 @@ SoftwareProcessorContext make_processor_context(SoftwareRenderer* renderer) {
     // On non-text builds the unique_ptr is null which is benign — the
     // pointer remains null and downstream code-checks kick in.
     try {
-        ctx.font_engine = &renderer.font_engine();
+        ctx.font_engine = &renderer->font_engine();
     } catch (const std::logic_error&) {
         ctx.font_engine = nullptr;
     }
