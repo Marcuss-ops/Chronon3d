@@ -5,14 +5,16 @@
 // After Effects separates temporal interpolation (how fast we move between
 // keyframes) from spatial interpolation (the shape of the path in space).
 //
-//   TemporalCurve1D    → "At what percentage am I done?"
-//   CubicBezier3D      → "Where am I in space at that percentage?"
-//   MotionSegment3D    → one keyframe pair (timing + 3D path)
-//   MotionPath3D       → sequence of segments
-//   MotionPathSampler3D → evaluates the whole path at a SampleTime
+//   TemporalCurve1D     → "At what percentage am I done?"
+//   CubicBezier3D       → "Where am I in space at that percentage?"
+//   MotionSegment3D     → one keyframe pair (timing + 3D path)
+//   MotionPath3D        → sequence of segments
+//   MotionPathSampler3D → evaluates the whole path at a SampleTime with a
+//                        PathTimingMode (Parametric / ArcLength / EasedArcLength)
 //
-// This module is pure math: no camera, no render graph, no scene.
-// Integration with CameraRig / AnimatedCamera comes in a follow-up PR.
+// This module is pure math. Camera integration wiring (consuming a
+// MotionPath3D inside a CameraTrajectory) lives in `scene/camera/camera_v1`
+// and is tracked on the camera-plan roadmap (see FU-1.5).
 // ────────────────────────────────────────────────────────────────────────────
 
 #include <chronon3d/animation/core/animated_value.hpp>
@@ -298,19 +300,92 @@ struct MotionSegment3D {
     SampleTime end_time{};
     TemporalCurve1D timing{};
     CubicBezier3D path{};
-    bool use_arc_length{false};
+
+    // ── Per-segment arc-length LUT (lazy, mutable cache). ────────────────────
+    // Mirrors the SpatialBezierPath::ensure_arc_length_table() pattern: built
+    // on first arc-length query, kept in mutable state for const-correctness
+    // (MotionPath3D::segments() returns const&).  Self-contained inside the
+    // animation/core zone per CORE_OWNERSHIP.md layering — does NOT depend
+    // on chronon3d::camera_v1::ArcLengthTable (that one belongs to the
+    // integration zone and has different semantics for camera_v1 trajectories).
+    mutable std::vector<Vec3> m_arc_samples{};
+    mutable std::vector<f32> m_arc_lengths{};
+    mutable f32              m_total_arc_length{0.0f};
+    mutable bool             m_arc_length_dirty{true};
 
     /// Duration in frames (may be fractional).
     [[nodiscard]] double duration_frames() const {
         return end_time.frame - start_time.frame;
     }
 
+    /// Total arc length of the segment's spatial path (lazy, cached).
+    /// Returns 0 if the path is degenerate (zero-length handles).
+    [[nodiscard]] f32 total_arc_length() const {
+        ensure_arc_length_table();
+        return m_total_arc_length;
+    }
+
+    /// Map an absolute arc-length distance ∈ [0, total_arc_length()] to the
+    /// uniform parametric u ∈ [0, 1] for the segment's spatial path.
+    /// This is the inverse of the LUT built by ensure_arc_length_table().
+    [[nodiscard]] double arc_length_to_u(double distance) const {
+        ensure_arc_length_table();
+        if (m_total_arc_length <= 1e-6f) return 0.0;
+        const float wanted = static_cast<float>(
+            std::clamp(distance, 0.0, static_cast<double>(m_total_arc_length)));
+        auto it = std::lower_bound(
+            m_arc_lengths.begin(), m_arc_lengths.end(), wanted);
+        if (it == m_arc_lengths.begin()) return 0.0;
+        if (it == m_arc_lengths.end())   return 1.0;
+        const auto hi_idx = static_cast<std::size_t>(
+            std::distance(m_arc_lengths.begin(), it));
+        const auto lo_idx = hi_idx - 1;
+        const float seg_len = m_arc_lengths[hi_idx] - m_arc_lengths[lo_idx];
+        const float frac = (seg_len > 1e-6f)
+            ? (wanted - m_arc_lengths[lo_idx]) / seg_len
+            : 0.0f;
+        const double N = static_cast<double>(m_arc_samples.size()) - 1.0;
+        return (static_cast<double>(lo_idx) + static_cast<double>(frac)) / N;
+    }
+
+    /// Lazily build the arc-length LUT.  Identical structure to
+    /// SpatialBezierPath::ensure_arc_length_table() (256 samples + binary
+    /// search lookup).  Respects const-correctness via mutable cache.
+    ///
+    /// Thread safety: Not thread-safe.  In the motion-blur TBB pipeline the
+    /// owning MotionPath3D is shared by N sub-samples; first-access from
+    /// multiple threads can race.  Pre-bake via `MotionPath3D::prepare()`
+    /// before sharing across threads.
+    /// (Pattern inherited from SpatialBezierPath::ensure_arc_length_table.
+    ///  Future PR: add chronological `m_arc_length_state` atomic to gate the
+    ///  write once, then mark shared-after-prepare.)
+    void ensure_arc_length_table() const {
+        if (!m_arc_length_dirty) return;
+        constexpr int kArcSamples = 256;
+        m_arc_samples.assign(static_cast<std::size_t>(kArcSamples + 1), Vec3{0.0f});
+        m_arc_lengths.assign(static_cast<std::size_t>(kArcSamples + 1), 0.0f);
+        m_arc_samples[0] = path.position(0.0);
+        m_arc_lengths[0] = 0.0f;
+        for (int i = 1; i <= kArcSamples; ++i) {
+            const double t = static_cast<double>(i) / static_cast<double>(kArcSamples);
+            const Vec3 p = path.position(t);
+            m_arc_samples[static_cast<std::size_t>(i)] = p;
+            m_arc_lengths[static_cast<std::size_t>(i)] =
+                m_arc_lengths[static_cast<std::size_t>(i - 1)]
+                + static_cast<f32>(glm::length(p - m_arc_samples[static_cast<std::size_t>(i - 1)]));
+        }
+        m_total_arc_length = m_arc_lengths[static_cast<std::size_t>(kArcSamples)];
+        m_arc_length_dirty = false;
+    }
+
     /// Build from two spatial keyframes with a timing curve.
+    /// Note: `use_arc_length` flag was removed; per-segment behaviour is
+    /// decided at sample-time by the PathTimingMode enum, not by segment
+    /// state (single source of truth).
     static MotionSegment3D from_keyframes(
         const SpatialKeyframe3D& a,
         const SpatialKeyframe3D& b,
-        TemporalCurve1D timing = TemporalCurve1D{},
-        bool arc_length = false
+        TemporalCurve1D timing = TemporalCurve1D{}
     ) {
         return {
             .start_time = a.time,
@@ -318,8 +393,7 @@ struct MotionSegment3D {
             .timing     = std::move(timing),
             .path       = CubicBezier3D::from_handles(
                 a.value, a.out_handle,
-                b.value, b.in_handle),
-            .use_arc_length = arc_length
+                b.value, b.in_handle)
         };
     }
 };
@@ -341,14 +415,16 @@ public:
     }
 
     /// All segments share the same timing curve.
+    /// Note: `arc_length` parameter was removed; PathTimingMode is the single
+    /// source of truth for arc-length behaviour, selected at sample-time.
     MotionPath3D& build_segments_uniform(TemporalCurve1D timing = {}) {
-        build_segments(std::move(timing), false);
+        build_segments(std::move(timing));
         return *this;
     }
 
     /// Build segments from the accumulated keyframes.
     /// If keyframes < 2, no segments are produced.
-    void build_segments(TemporalCurve1D timing = {}, bool arc_length = false) {
+    void build_segments(TemporalCurve1D timing = {}) {
         m_segments.clear();
         if (m_keyframes.size() < 2) {
             m_segments_dirty = false;
@@ -356,7 +432,7 @@ public:
         }
         for (size_t i = 0; i + 1 < m_keyframes.size(); ++i) {
             m_segments.push_back(MotionSegment3D::from_keyframes(
-                m_keyframes[i], m_keyframes[i + 1], timing, arc_length));
+                m_keyframes[i], m_keyframes[i + 1], timing));
         }
         m_segments_dirty = false;
     }
@@ -409,6 +485,10 @@ public:
 
     /// Sample the path at a given SampleTime.
     /// Returns the position + forward direction.
+    /// FU-1.3 bridge: ArcLength and EasedArcLength modes use the per-segment
+    /// arc-length LUT (MotionSegment3D::m_arc_lengths) for uniform speed
+    /// along curved paths.  Parametric mode (default) preserves the original
+    /// behaviour and is bit-identical to the previous implementation.
     [[nodiscard]] PathSample sample(
         const MotionPath3D& path,
         SampleTime time,
@@ -431,14 +511,35 @@ public:
         double local = (time.frame - seg.start_time.frame) / duration;
         local = std::clamp(local, 0.0, 1.0);
 
-        // Apply the temporal curve to get the effective progress.
-        const f32 progress = seg.timing.evaluate_normalized(
+        // Apply the temporal curve to get the effective time-progress.
+        const f32 temporal_progress = seg.timing.evaluate_normalized(
             static_cast<f32>(local));
 
-        // Determine the spatial parameter `u` based on the timing mode.
-        // TODO(PR5): Implement ArcLength and EasedArcLength modes
-        // (requires ArcLengthLUT integration).
-        const double u = static_cast<double>(progress);
+        // FU-1.3: choose spatial parameter u based on PathTimingMode.
+        double u;
+        switch (mode) {
+            case PathTimingMode::Parametric:
+                // Identity: temporal_progress IS the parametric u.
+                u = static_cast<double>(temporal_progress);
+                break;
+
+            case PathTimingMode::ArcLength:
+                // Uniform speed: remap local → arc-length uniform u.
+                // local distance = local * total_arc_length of segment.
+                u = seg.arc_length_to_u(
+                    local * static_cast<double>(seg.total_arc_length()));
+                break;
+
+            case PathTimingMode::EasedArcLength:
+                // Timing curve AND uniform speed:
+                //   1. Apply temporal curve to local (gives eased_local ∈ [0,1])
+                //   2. Remap eased_local through arc-length LUT for uniform
+                //      speed while preserving the curve's intent.
+                u = seg.arc_length_to_u(
+                    static_cast<double>(temporal_progress)
+                    * static_cast<double>(seg.total_arc_length()));
+                break;
+        }
 
         return seg.path.sample(u);
     }

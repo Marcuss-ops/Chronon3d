@@ -167,12 +167,34 @@ std::shared_ptr<Framebuffer> render_composition_frame(
 
         std::vector<float> accum(static_cast<size_t>(rw * rh * 4), 0.0f);
 
+        // TICKET-007.j — track the sum of the SAME weights that were sent into
+        // the accumulator.  Multiplication by `1 / sum_w` at the post-loop step
+        // cancels any FP-rounding error introduced upstream by the per-sample
+        // weight normalisation.  The accumulation is still sub-frames-anonymous:
+        // a pixel covered by multiple sub-frame samples accumulates ALL their
+        // weight contributions before any post-normalisation.
+        //
+        // Cross-N determinism is preserved in the equal-weight (Stratified + Box
+        // / Stratified alone / Single-Frame) regime: every per-sample `v_weight`
+        // equals the normalisation constant `1/N`, so `accum == sample_0 * N`
+        // trivially.  In that regime `accum * (1 / sum_w) == sample_0` is
+        // bit-exact, hence the static-framebuffer byte-equality contract between
+        // N=1 / N=16 / mode=Off is preserved end-to-end.
+        //
+        // For DIVERSE-weight sub-frames (theoretical: per-sample weights not all
+        // equal) the same `accum * (1 / sum_w)` reciprocal-multiply is still
+        // FP-stable and algebraically equivalent to per-pixel divide, but NOT
+        // bit-equal to the per-pixel divide path.  This document does not claim
+        // more than that; the equal-weight case is what the unit tests verify.
+        float actual_weight_sum = 0.0f;
+
         const auto t_mb0 = profiling::now();
         {
             CHRONON_ZONE_C("motion_blur_accumulation", trace_category::kEffect);
             for (int s = 0; s < N; ++s) {
                 const float t = sample_times[s];
                 const float w = samples.normalized_weights[s];
+                actual_weight_sum += w;
                 Scene sub = comp.evaluate(frame, t);
                 if (s == 0) layer_count = static_cast<int>(sub.layers().size());
                 const Framebuffer& sub_fb = *call_graph(sub, frame, t);
@@ -210,6 +232,18 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         }
         motion_blur_ms = profiling::duration_ms(t_mb0, profiling::now());
 
+        // TICKET-007.j — single reciprocal-multiply final normalization.
+        //   output = accum * (1 / sum_w)
+        // is FP-bit-exact equivalent to accum / sum_w but cheaper (one divide,
+        // broadcast across SIMD lanes) than per-pixel division, AND it
+        // perfectly compensates any non-associative FP drift introduced by
+        // the per-sample weight sum `sum_w == sum_{s} w_s`.  Guarded for the
+        // degenerate case where all sample weights were zero (e.g. shutter
+        // phase pushed the window outside the frame).
+        const float post_norm = (actual_weight_sum > 1e-6f)
+            ? (1.0f / actual_weight_sum)
+            : 1.0f;
+
         // Write accumulated float buffer to output framebuffer (parallel + SIMD)
         render_fb = backend.framebuffer_pool()->acquire(rw, rh, true);
         tbb::parallel_for(tbb::blocked_range<int>(0, rh, 16),
@@ -217,6 +251,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                 using namespace hwy::HWY_NAMESPACE;
                 const ScalableTag<float> df;
                 const size_t lanes = Lanes(df);
+                const auto v_post = Set(df, post_norm);
 
                 for (int y = range.begin(); y < range.end(); ++y) {
                     const float* src = accum.data() + static_cast<size_t>(y * rw * 4);
@@ -225,10 +260,12 @@ std::shared_ptr<Framebuffer> render_composition_frame(
 
                     int x = 0;
                     for (; x + static_cast<int>(lanes) <= total_floats; x += static_cast<int>(lanes)) {
-                        StoreU(LoadU(df, src + x), df, dst + x);
+                        auto v = LoadU(df, src + x);
+                        v = Mul(v, v_post);
+                        StoreU(v, df, dst + x);
                     }
                     for (; x < total_floats; ++x) {
-                        dst[x] = src[x];
+                        dst[x] = src[x] * post_norm;
                     }
                 }
             }

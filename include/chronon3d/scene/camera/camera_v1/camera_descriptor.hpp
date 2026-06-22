@@ -65,7 +65,18 @@ struct FovProjection {
     AnimatedValue<float> fov_deg{AnimatedValue<float>{50.0f}};
 };
 
-using ProjectionSpec = std::variant<ZoomProjection, FovProjection>;
+/// Perspective defined by a physical lens (focal length, sensor, gate-fit).
+///
+/// CAM-03 / DOC 02 — anamorphic behaviour is expressed entirely through the
+/// `LensModel` (sensor dimensions + gate-fit).  See `LensPresets::anamorphic_50mm()`
+/// for a real anamorphic preset; use that as `lens` here. A future PR will
+/// surface explicit `anamorphic_squeeze` and `pixel_aspect` on Camera2_5D;
+///// for now the variant only carries the lens and the optics-mode switch.
+struct PhysicalLensProjection {
+    LensModel lens{LensPresets::full_frame_50mm()};
+};
+
+using ProjectionSpec = std::variant<ZoomProjection, FovProjection, PhysicalLensProjection>;
 
 // =============================================================================
 // CameraBaseSpec — non-motion camera state.
@@ -178,12 +189,28 @@ struct IdleOscillation {
     float phase{0.0f};
 };
 
-/// Placeholder for future handheld / additive-track modifiers.
-// struct HandheldNoise {};
+/// Handheld noise (CAM-04 / DOC 03) — wiggle3D-based per-axis displacement
+/// driven by ABSOLUTE time (`ctx.sample_time.seconds()`). Same absolute
+/// time ⇒ identical offset regardless of evaluation order, giving
+/// strong deterministic-render guarantees.  Inspired by `ShakePreset::handheld`
+/// but rebuilt around abs-time to ensure cross-stitch / random-access
+/// determinism (DOC 03 §5 — random-access determinism).
+struct HandheldNoise {
+    Vec3       position_amplitude{2.0f, 1.0f, 0.5f};
+    Vec3       rotation_amplitude_deg{0.5f, 0.3f, 0.2f};
+    float      zoom_amplitude{0.0f};
+    float      position_freq_hz{4.0f};
+    float      rotation_freq_hz{3.0f};
+    float      zoom_freq_hz{1.0f};
+    std::uint32_t seed{42};
+};
+
+/// Placeholder for future additive-track modifiers.
 // struct AdditivePoseTrack {};
 
 using CameraModifierSpec = std::variant<
-    IdleOscillation
+    IdleOscillation,
+    HandheldNoise
 >;
 
 // =============================================================================

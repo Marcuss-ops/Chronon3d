@@ -35,6 +35,7 @@ add_library(chronon3d_content OBJECT
     anims/compositions/text_animations.cpp
     anims/compositions/tilt_sweep_title_v2.cpp
     anims/compositions/cinematic_text_camera.cpp
+    anims/compositions/ae_camera_text_parity.cpp
 
     # Minimalist
     Minimalist/minimalist_animations.cpp
