@@ -3,6 +3,17 @@
 //
 // CameraProgram implementation — V1 compiled evaluation path.
 //
+// CAM-03 / DOC 02 extensions:
+//   - ProjectionSpec dispatch is centralised in apply_projection_spec()
+//     (handles ZoomProjection / FovProjection / PhysicalLensProjection).
+//   - The EvaluatedProjection snapshot is exposed via
+//     camera_math::make_evaluated_projection() defined in
+//     scene/camera/camera_v1/evaluated_projection.hpp.
+//   - Single look-at policy: when both an OrientationSpec look-at AND a
+//     LookAtConstraint are present, the orientation wins and the constraint
+//     is skipped (CAM-03 / DOC 02).  A Warning diagnostic is emitted so
+//     composition authors can correct their descriptor.
+//
 // The old builder API (motion(), trajectory(), orient(), banking()) and its
 // evaluate(CameraMotionContext, ConstraintSession) overload were removed in
 // PR12. Only the compiled evaluate(CameraEvalContext, CameraSession) remains.
@@ -11,11 +22,14 @@
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_session.hpp>
+#include <chronon3d/scene/camera/camera_v1/evaluated_projection.hpp>  // CAM-03 snapshot
 #include <chronon3d/scene/model/core/hierarchy_resolver.hpp>  // ResolvedSceneTransforms::world_position
 #include <chronon3d/animation/path/spatial_bezier_path.hpp>  // quat_look_along, quat_to_camera_euler
+#include <chronon3d/animation/effects/wiggle.hpp>             // CAM-04 — wiggle3D abs-time
 
 #include <cmath>
 #include <algorithm>
+#include <type_traits>
 
 namespace chronon3d::camera_v1 {
 
@@ -52,6 +66,15 @@ static bool source_is_time_dependent(const CameraSourceSpec& source) {
     }
     return true;
 }
+
+// Forward declaration for apply_projection_spec() — CAM-03 / DOC 02
+// central dispatch helper.  Defined later in this TU as a `static` free
+// function, but `eval_pose_tracks` (line ~140) calls it before the
+// definition appears in source order, so declare up-front to make the
+// signature visible to all callers in this TU.
+static void apply_projection_spec(const ProjectionSpec& spec,
+                                  const CameraEvalContext& ctx,
+                                  Camera2_5D& cam);
 
 // =============================================================================
 // COMPILED EVALUATION PATH
@@ -124,9 +147,16 @@ static Camera2_5D eval_pose_tracks(const CameraBaseSpec& base,
     cam.point_of_interest = src.target.evaluate(ctx.sample_time);
     cam.point_of_interest_enabled = src.use_target;
 
+    // CAM-03: route the BASE projection through the central dispatch
+    // (must match the contract for any other source — Zoom/Fov/PhysicalLens
+    // semantics decided by descriptor_.base).  PoseTracksSource's animated
+    // zoom / fov_deg channels then override below (preserving the legacy
+    // "unconditional Zoom projection_mode" behaviour of this evaluator).
+    apply_projection_spec(base.projection, ctx, cam);
     cam.zoom = src.zoom.evaluate(ctx.sample_time);
     cam.fov_deg = src.fov_deg.evaluate(ctx.sample_time);
     cam.projection_mode = Camera2_5DProjectionMode::Zoom;
+    cam.optics_mode = CameraOpticsMode::Zoom;
 
     cam.lens = base.lens;
     cam.motion_blur = base.motion_blur;
@@ -144,6 +174,40 @@ static Camera2_5D eval_pose_tracks(const CameraBaseSpec& base,
     apply_orientation_spec_free(&orient, ctx, cam);
 
     return cam;
+}
+
+/// Resolve the active ProjectionSpec into the camera's optics fields.
+/// CAM-03 / DOC 02 — central dispatch so adding new variants (e.g.
+/// PhysicalLensProjection) does not require duplicate streams of `if/else`
+/// across every source evaluator.  Mirrors the contract's optics_mode
+/// switches in `camera_math::focal_from_camera()`.
+static void apply_projection_spec(const ProjectionSpec& spec,
+                                  const CameraEvalContext& ctx,
+                                  Camera2_5D& cam) {
+    std::visit([&](auto&& p) {
+        using T = std::decay_t<decltype(p)>;
+        if constexpr (std::is_same_v<T, ZoomProjection>) {
+            cam.zoom = p.zoom.evaluate(ctx.sample_time);
+            cam.projection_mode = Camera2_5DProjectionMode::Zoom;
+            cam.optics_mode = CameraOpticsMode::Zoom;
+        } else if constexpr (std::is_same_v<T, FovProjection>) {
+            cam.fov_deg = p.fov_deg.evaluate(ctx.sample_time);
+            cam.projection_mode = Camera2_5DProjectionMode::Fov;
+            cam.optics_mode = CameraOpticsMode::FieldOfView;
+        } else if constexpr (std::is_same_v<T, PhysicalLensProjection>) {
+            // CAM-03 / DOC 02: physical-lens perspective.
+            // The lens's `focal_pixels()` is the runtime focal source-of-truth;
+            // zoom and fov_deg from base are intentionally reset here so that
+            // any later consumer reading `cam.zoom` or `cam.fov_deg` cannot see
+            // a stale Zoom/Fov value coexisting with the lens.  Anamorphic and
+            // pixel_aspect live inside LensModel (sensor_width / sensor_height).
+            cam.lens = p.lens;
+            cam.optics_mode = CameraOpticsMode::PhysicalLens;
+            cam.projection_mode = Camera2_5DProjectionMode::Zoom;
+            cam.zoom = 0.0f;
+            cam.fov_deg = 0.0f;
+        }
+    }, spec);
 }
 
 /// Evaluate an OrbitMotion by computing orbit + track + dolly.
@@ -181,13 +245,8 @@ static Camera2_5D eval_orbit_motion(const CameraBaseSpec& base,
     cam.motion_blur = base.motion_blur;
     cam.parent_name = base.parent_name;
 
-    if (auto* zp = std::get_if<ZoomProjection>(&base.projection)) {
-        cam.zoom = zp->zoom.evaluate(ctx.sample_time);
-        cam.projection_mode = Camera2_5DProjectionMode::Zoom;
-    } else if (auto* fp = std::get_if<FovProjection>(&base.projection)) {
-        cam.fov_deg = fp->fov_deg.evaluate(ctx.sample_time);
-        cam.projection_mode = Camera2_5DProjectionMode::Fov;
-    }
+    // CAM-03: central projection dispatch (handles all 3 variants).
+    apply_projection_spec(base.projection, ctx, cam);
 
     apply_orientation_spec_free(&orient, ctx, cam);
     return cam;
@@ -246,13 +305,8 @@ Camera2_5D CameraProgram::evaluate_compiled_source(const CameraEvalContext& ctx)
     cam.point_of_interest = base.point_of_interest;
     cam.point_of_interest_enabled = base.point_of_interest_enabled;
 
-    if (auto* zp = std::get_if<ZoomProjection>(&base.projection)) {
-        cam.zoom = zp->zoom.evaluate(ctx.sample_time);
-        cam.projection_mode = Camera2_5DProjectionMode::Zoom;
-    } else if (auto* fp = std::get_if<FovProjection>(&base.projection)) {
-        cam.fov_deg = fp->fov_deg.evaluate(ctx.sample_time);
-        cam.projection_mode = Camera2_5DProjectionMode::Fov;
-    }
+    // CAM-03: central projection dispatch (handles all 3 variants).
+    apply_projection_spec(base.projection, ctx, cam);
 
     return cam;
 }
@@ -277,6 +331,13 @@ static CompiledConstraintResult apply_constraint_spec(
     std::size_t constraint_idx) {
 
     if (auto* look_at = std::get_if<LookAtConstraint>(&spec)) {
+        // CAM-03 / DOC 02 — single-look-at policy.  When the orientation
+        // already provided a look-at (see evaluate() detection block),
+        // this constraint branch is silently no-op.  Authors are notified
+        // via a Warning diagnostic emitted at evaluate() time.
+        if (session.skip_look_at_constraint_from_orientation) {
+            return {in, true};
+        }
         Vec3 look_dir = look_at->target - in.position;
         float len = glm::length(look_dir);
         if (len > 1e-4f) {
@@ -395,7 +456,13 @@ CameraProgramResult CameraProgram::evaluate(const CameraEvalContext& ctx,
     // Evaluate source directly (no registry lookup).
     Camera2_5D intermediate = evaluate_compiled_source(ctx);
 
-    // Apply modifiers (PR1: idle oscillation only).
+    // Apply modifiers (PR1: idle oscillation; CAM-04: handheld noise).
+    //
+    // Both IdleOscillation and HandheldNoise use ABSOLUTE time
+    // (`ctx.sample_time.seconds()`) so that two evaluations at the same
+    // sample_time — regardless of order or threading — produce identical
+    // camera state.  This is the DOC-03 random-access determinism
+    // guarantee for the modifier pipeline.
     for (const auto& mod : descriptor_.modifiers) {
         if (auto* idle = std::get_if<IdleOscillation>(&mod)) {
             const double t_sec = ctx.sample_time.seconds();
@@ -410,6 +477,82 @@ CameraProgramResult CameraProgram::evaluate(const CameraEvalContext& ctx,
             intermediate.rotation.y += idle->rotation_amplitude_deg.y * s;
             intermediate.rotation.z += idle->rotation_amplitude_deg.z * c;
             intermediate.zoom += idle->zoom_amplitude * s;
+        } else if (auto* hh = std::get_if<HandheldNoise>(&mod)) {
+            // CAM-04 / DOC 03 — seeded wiggle on ABSOLUTE time.
+            const float t_sec = static_cast<float>(ctx.sample_time.seconds());
+            // Per-axis 3-channel wiggle for position rotation (decorrelated
+            // axes per the same seed; +50u/+150u offsets decorrelate the
+            // three vectors used in this modifier).
+            const Vec3 pos_off = wiggle3D(
+                hh->position_freq_hz, hh->position_amplitude, t_sec, hh->seed);
+            const Vec3 rot_off = wiggle3D(
+                hh->rotation_freq_hz, hh->rotation_amplitude_deg, t_sec,
+                hh->seed + 50u);
+            intermediate.position += pos_off;
+            intermediate.rotation += rot_off;
+            if (hh->zoom_amplitude > 0.0f) {
+                intermediate.zoom += wiggle(
+                    hh->zoom_freq_hz, hh->zoom_amplitude, t_sec, hh->seed + 150u);
+            }
+        }
+    }
+
+    // CAM-03 / DOC 02 — single-look-at policy detection.
+    //
+    // Hierarchy rule:  world_orientation = parent ⊗ base ⊗ local_offset.
+    //
+    // When BOTH an OrientationSpec look-at (LookAtPoint / LookAtLayer) AND
+    // a LookAtConstraint are present, the orientation is treated as
+    // authoritative (it carries the source-derived target).  A Warning
+    // diagnostic is emitted (with the indices of the skipped constraints)
+    // and the constraint's look-at branch is skipped via
+    // session.skip_look_at_constraint_from_orientation.
+    {
+        const bool orientation_is_look_at =
+            std::holds_alternative<LookAtPoint>(descriptor_.orientation) ||
+            std::holds_alternative<LookAtLayer>(descriptor_.orientation);
+
+        // Reviewer minor #2: collect the indices of ALL LookAtConstraint
+        // entries (not just any_of bool) so the diagnostic can pinpoint
+        // exactly which LookAtConstraint[i] was skipped.  This is what
+        // composition authors need to fix their descriptor.
+        std::vector<std::size_t> skipped_constraint_indices;
+        for (std::size_t i = 0; i < descriptor_.constraints.size(); ++i) {
+            if (std::holds_alternative<LookAtConstraint>(descriptor_.constraints[i])) {
+                skipped_constraint_indices.push_back(i);
+            }
+        }
+
+        if (orientation_is_look_at && !skipped_constraint_indices.empty()) {
+            session.skip_look_at_constraint_from_orientation = true;
+
+            // Build a human-readable list of skipped indices — "constraints[1]"
+            // for single-skip, "constraints[1] and constraints[3]" for two,
+            // "constraints[0], constraints[2], and constraints[4]" for >2.
+            std::string indices_str;
+            for (std::size_t k = 0; k < skipped_constraint_indices.size(); ++k) {
+                if (k > 0) {
+                    indices_str += (k + 1 < skipped_constraint_indices.size()) ? ", " : " and ";
+                }
+                indices_str += "constraints[" +
+                               std::to_string(skipped_constraint_indices[k]) + "]";
+            }
+
+            const char* orient_kind =
+                std::holds_alternative<LookAtPoint>(descriptor_.orientation)
+                    ? "LookAtPoint"
+                    : "LookAtLayer";
+
+            const std::string msg =
+                std::string("CAM-03: OrientationSpec ") + orient_kind +
+                " and LookAtConstraint present at " + indices_str +
+                "; orientation wins (single look-at policy) so the listed "
+                "constraint(s) are skipped.";
+
+            result.diagnostics.push_back({
+                CameraProgramDiagnostic::Severity::Warning,
+                msg
+            });
         }
     }
 

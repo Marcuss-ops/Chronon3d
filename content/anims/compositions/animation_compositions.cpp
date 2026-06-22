@@ -107,6 +107,11 @@ Composition orbit_handheld_glow();
 Composition rack_focus_title_swap();
 Composition abyss_freefall_stagger();
 
+// AE parity stress test — 360-frame multi-segment composition that
+// compares Chronon3D's camera stack against After Effects Classic 3D.
+// Defined in ae_camera_text_parity.cpp (same translation-unit group).
+Composition ae_camera_text_parity();
+
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_anim_compositions(CompositionRegistry& registry) {
     registry.add("AnimFadeInText", [](const CompositionProps&) { return anim_fade_in_text(); });
@@ -137,6 +142,11 @@ void register_anim_compositions(CompositionRegistry& registry) {
     registry.add("OrbitHandheldGlow", [](const CompositionProps&) { return orbit_handheld_glow(); });
     registry.add("RackFocusTitleSwap", [](const CompositionProps&) { return rack_focus_title_swap(); });
     registry.add("AbyssFreefallStagger", [](const CompositionProps&) { return abyss_freefall_stagger(); });
+
+    // AE parity stress test (see ae_camera_text_parity.cpp).  360 frames
+    // covering static / dolly-zoom / orbit / rack-focus / whip-pan+
+    // motion-blur / stress — renders cleanly via the standard CLI.
+    registry.add("AECameraTextParity", [](const CompositionProps&) { return ae_camera_text_parity(); });
 }
 
 } // namespace chronon3d::content::anims
