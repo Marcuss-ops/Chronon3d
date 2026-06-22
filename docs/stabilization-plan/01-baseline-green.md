@@ -1,56 +1,86 @@
 # Baseline verde
 
-- [x] Build core verde.
-- [x] Build lean verde.
-- [x] Test veloci verdi (704/707 pass, 3 failure pre-esistenti).
-- [ ] Consumer SDK esterno verde (fallisce per configurazione vcpkg).
-- [x] Stato documentato con SHA e toolchain.
+## Stato reale
 
-## Dettaglio Baseline
+La baseline complessiva non è ancora verde.
 
-**Data:** 2026-06-21
-**SHA:** `f7468355`
-**Toolchain:** cmake 4.2.3, gcc 15.2.0, ninja 1.13.2, x86_64
-**vcpkg:** 2026-05-27 (bootstrap presente)
+- [x] Build `linux-core-dev` verde.
+- [x] Build `linux-lean` verde.
+- [ ] Build `linux-lean-dev` verde.
+- [ ] Test veloci verdi: 704/707, con 3 failure.
+- [ ] Gate architetturali verdi: restano 2 violazioni.
+- [ ] Consumer SDK esterno verde.
+- [x] Prima osservazione documentata con SHA e toolchain.
 
-### Build
+Un errore pre-esistente non rende verde una suite. Il checkbox può essere chiuso solo con exit code zero.
 
-| Preset | Status | Note |
-|--------|--------|------|
-| `linux-core-dev` | ✅ | Build minimale (no text, no blend2d, no CLI, no video) |
-| `linux-lean` | ✅ | core-dev + CLI + MESH (168 target) |
-| `linux-lean-dev` | ❌ | Build rot pre-esistente (text_audit_engine, typewriter tracking, SoftwareRenderer ctor, etc.) |
+## Osservazione registrata
 
-### Test (linux-core-dev)
+**Data:** 2026-06-21  
+**SHA osservato:** `f7468355`  
+**Toolchain:** CMake 4.2.3, GCC 15.2.0, Ninja 1.13.2, x86_64  
+**vcpkg:** baseline 2026-05-27
 
-| Suite | Status | Dettaglio |
-|-------|--------|-----------|
-| `chronon3d_core_tests` | ⚠️ | 1 FAIL — `test_render_session_reset_and_isolation` (concurrent calls) |
-| `chronon3d_scene_tests` | ⚠️ | 2 FAIL — `RenderRuntime::backend()` chiamato prima di `attach_backend()` |
-| `chronon3d_optimizer_tests` | ✅ | OK |
-| `chronon3d_cache_tests` | ✅ | OK |
-| `chronon3d_compositor_tests` | ✅ | OK |
-| `chronon3d_architecture_includes_boundary` | ❌ | 2 violazioni header in `render_session.hpp` |
-| Totale doctest | **704/707** | 3 failed, 3 skipped |
+Questa osservazione è storica e non sostituisce una nuova validazione sul `main` corrente.
 
-### Consumer SDK
+## Blocchi da chiudere in ordine
 
-| Test | Status | Note |
-|------|--------|------|
-| `install_consumer_ci` | ❌ | `find_package(spdlog)` fallisce nel configure standalone — manca `CMAKE_TOOLCHAIN_FILE`/`CMAKE_PREFIX_PATH` corretti |
+### 1. Tre test falliti
 
-### Fix applicati per raggiungere la baseline
+- [ ] Correggere `test_render_session_reset_and_isolation` nel percorso concorrente.
+- [ ] Correggere il primo test scene che chiama `RenderRuntime::backend()` prima di `attach_backend()`.
+- [ ] Correggere il secondo test scene con lo stesso contratto backend non inizializzato.
+- [ ] Rieseguire la singola suite dopo ogni fix.
+- [ ] Rieseguire l'intero `chronon3d_tests_fast` da build pulita.
+- [ ] Registrare il nuovo totale soltanto quando è 707/707 o equivalente senza failure.
 
-1. **CMake: `add_subdirectory(text)` guardato con `CHRONON3D_ENABLE_TEXT`** — `chronon3d_text_core` non viene compilato quando TEXT=OFF, evitando linker error per `FontEngine`.
-2. **CMake: tutti i riferimenti a `chronon3d_text_core` guardati con `if(TARGET ...)`** — in `src/CMakeLists.txt`, `tests/CMakeLists.txt`, `src/backends/software/CMakeLists.txt`, `src/render_graph/CMakeLists.txt`.
-3. **Header: `m_font_engine` in `software_renderer.hpp` guardato con `CHRONON3D_ENABLE_TEXT`** — evita che `std::unique_ptr<FontEngine>` richieda il distruttore quando TEXT=OFF.
-4. **Source: `software_renderer.cpp` allineato a `CHRONON3D_ENABLE_TEXT`** — le guardie `#ifdef CHRONON3D_HAS_BACKEND_TEXT` sostituite con `CHRONON3D_ENABLE_TEXT`.
-5. **Authoring tests: `authoring_tests.cmake` guardato con `CHRONON3D_ENABLE_TEXT && CHRONON3D_USE_BLEND2D`** — evita compilazione quando il sottosistema text non è disponibile.
-6. **Source: `TextRunNode.cpp` e `multi_source_node.cpp`** — chiamate a funzioni text (`compute_text_run_world_bbox`, `hash_text_run_shape`, `update_text_run_shape_per_frame`) guardate con `#ifdef CHRONON3D_ENABLE_TEXT`.
-7. **Source: `software_text_processor.cpp`** — dereferenziazione puntatore `engine` → `*engine` per match con signature `FontEngine&`.
-8. **Authoring test: `test_animator_dsl.cpp`** — split delle chain su `Text` temporaneo per evitare uso del copy constructor deleted.
-9. **Test: `test_text_quality_tracking.cpp` e `test_text_quality_arabic.cpp`** — aggiunto parametro `resolver` alle chiamate `compute_typewriter_layout`.
-10. **CLI: `text_audit_engine.cpp`** — aggiunto `#include <chronon3d/runtime/render_runtime.hpp>`, fix brace init `TextAuditBBox`.
-11. **CLI: `CMakeLists.txt`** — file `text_audit_*.cpp` esclusi condizionalmente quando BLEND2D o TEXT sono OFF (via generator expression `$<$<AND:...>:>`)`.
-12. **Test: `tests/CMakeLists.txt`** — `chronon3d_authoring_tests` nella fast-test list ora guardato con `if(TARGET ...)`.
-13. **Source: `software_renderer.cpp`** — messaggi `throw` aggiornati da `CHRONON3D_HAS_BACKEND_TEXT` a `CHRONON3D_ENABLE_TEXT`.
+### 2. Due violazioni architetturali
+
+- [ ] Identificare le due violazioni in `render_session.hpp`.
+- [ ] Stabilire se sono include vietati, simboli ritirati o ownership duplicata.
+- [ ] Correggere il codice, non indebolire il gate.
+- [ ] Aggiungere o aggiornare un test canary per impedire la regressione.
+- [ ] Eseguire `chronon3d_architecture_includes_boundary` con exit code zero.
+- [ ] Eseguire anche tutti gli script in `tools/check_*architecture*`.
+
+### 3. Preset `linux-lean-dev`
+
+- [ ] Riprodurre il primo errore da build pulita.
+- [ ] Separare errori text, CLI, authoring e renderer.
+- [ ] Correggere un solo lineage per commit.
+- [ ] Verificare le guardie CMake TEXT/BLEND2D.
+- [ ] Verificare firme `FontEngine`, typewriter e costruttori `SoftwareRenderer`.
+- [ ] Ricostruire l'intero preset senza affidarsi a oggetti precedenti.
+
+### 4. Consumer SDK
+
+- [ ] Correggere propagazione di `CMAKE_TOOLCHAIN_FILE` o `CMAKE_PREFIX_PATH`.
+- [ ] Verificare risoluzione di `spdlog`, `fmt` e dipendenze transitive.
+- [ ] Installare in prefix temporaneo vuoto.
+- [ ] Configurare un consumer esterno con solo `find_package(Chronon3D)`.
+- [ ] Collegare soltanto `Chronon3D::SDK`.
+- [ ] Compilare ed eseguire il consumer.
+- [ ] Usare lo stesso percorso in locale, CTest e CI.
+
+## Comandi minimi da registrare
+
+La chiusura deve registrare i comandi equivalenti per:
+
+```text
+architecture checks
+linux-core-dev
+linux-lean
+linux-lean-dev
+linux-ci-nocontent
+chronon3d_tests_fast
+install_consumer_ci
+external consumer run
+```
+
+## Completato quando
+
+- [ ] Tutti i target obbligatori restituiscono exit code zero.
+- [ ] Nessun test fallisce.
+- [ ] Nessun gate architetturale fallisce.
+- [ ] Il consumer installato configura, compila ed esegue.
+- [ ] SHA, toolchain, comandi e risultati del `main` validato sono registrati.
