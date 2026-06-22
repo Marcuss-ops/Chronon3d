@@ -58,6 +58,7 @@
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <chronon3d/core/scheduler/scheduler_mode.hpp>
+#include <chronon3d/core/scope/execution_scope.hpp>
 // PR-2 rewire (CHANGELOG.md R6): tests now compile via FrameGraphCompiler.
 // ExecutionPlanCache was RETIRED by the PR-2 rewire (see CHANGELOG.md R6).
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
@@ -253,11 +254,8 @@ struct TestFixture {
 // ── render_with_mode(fix, mode, workers) ─────────────────────────────────────
 //
 // Single entry-point that calls the WP1 PR 1.0 executor with the chosen
-// scheduler.  PR-2 rewire (CHANGELOG.md R6): the legacy ExecutionPlanCache*
-// parameter retired; the test fixture now owns a CompiledFrameGraph built
-// ONCE in the ctor, so render_with_mode reuses it for every scheduler mode.
-// The topological plan lives on CompiledFrameGraph::levels — no per-call
-// (re-)plan work, no separate cache instance to thread through.
+// scheduler.  Uses `execute_with_scope()` — the typed ExecutionScope path —
+// instead of the deprecated `execute(session, scheduler)` overload.
 inline std::shared_ptr<Framebuffer> render_with_mode(
     TestFixture&                  fix,
     SchedulerMode                 mode,
@@ -265,8 +263,12 @@ inline std::shared_ptr<Framebuffer> render_with_mode(
 {
     auto scheduler = build_scheduler(mode, worker_count);
     GraphExecutor executor;
-    return executor.execute(
-        fix.compiled, fix.ctx, fix.session, scheduler);
+    ExecutionScope root_scope(
+        ExecutionScopeKind::Root,
+        fix.session,
+        fix.compiled.graph_instance_id);
+    return executor.execute_with_scope(
+        fix.compiled, fix.ctx, root_scope, scheduler);
 }
 
 // ── ModeHashes + render_all_modes helpers ─────────────────────────────────
