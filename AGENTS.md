@@ -87,6 +87,7 @@ Non scambiare ownership senza una decisione esplicita. In particolare:
 - Aggiornare il piano relativo nello stesso commit che cambia lo stato.
 - Ogni nuova feature deve usare il registry, resolver o sampler canonico già esistente.
 - Non introdurre GUI, browser o dipendenze GPU nel core headless CPU-first.
+- Non introdurre `#include <msdfgen>`, `<libtess2>` o `<unicode[/...]>` da nessuna parte — dei pattern deny-everywhere di Gate 5 in `tools/check_architecture_boundaries.sh` (Check 11). Per deroghe serve prima un ADR.
 - Fare PR piccole e mirate, senza mescolare refactor indipendenti.
 - Non committare `node_modules/`, directory di build, output, artefatti o file generati.
 - Eseguire almeno i test del modulo toccato prima della PR.
