@@ -592,7 +592,7 @@ Il resto del motore non deve dipendere direttamente da ICU.
 
 ## Piano operativo
 
-**Stato corrente** (audit 2026-06-22): nessuna ICU installata in `vcpkg_installed/*` (opt-in via `CHRONON3D_USE_ICU=ON`); riferimenti condizionali esistenti in `src/text/glyph_selector.cpp`, `src/backends/text/bidi_segmenter.cpp`, `include/chronon3d/text/text_layout_engine.hpp`. Boundary-resolver-like references in `src/text/text_resolver.cpp` + `src/text/text_run_driver.cpp`; nessun `TextBoundaryResolver` canon ancora esposto.
+**Stato corrente** (audit 2026-06-22): nessuna ICU installata in `vcpkg_installed/*` (to-be-introduced compile-time opt-in flag `CHRONON3D_USE_ICU=ON`; flag is **currently undefined** in `CMakeLists.txt`/`cmake/`/`vcpkg.json` and will be wired in during Fase 9); riferimenti condizionali esistenti in `src/text/glyph_selector.cpp`, `src/backends/text/bidi_segmenter.cpp`, `include/chronon3d/text/text_layout_engine.hpp`. Boundary-resolver-like references in `src/text/text_resolver.cpp` + `src/text/text_run_driver.cpp`; nessun `TextBoundaryResolver` canon ancora esposto.
 
 **Piano di esecuzione**:
 
@@ -600,7 +600,7 @@ Il resto del motore non deve dipendere direttamente da ICU.
    * `TextBoundaryResolver` interface con metodi virtuali `grapheme_clusters(text) -> vector<Range>`, `word_bounds(text)`, `line_breaks(text)`, `sentence_bounds(text)`.
    * `BuiltinBoundaryResolver` (zero ICU dep): ASCII word + newlines + char-class segmentation baseline.
    * `IcuBoundaryResolver` (opt-in): wrappa `icu::BreakIterator` per grapheme/word/line/sentence + CJK line-breaking (Thai/Lao/Khmer/Burmese).
-2. **Resoluzione runtime** via `std::unique_ptr<TextBoundaryResolver>` istanziato da `src/text/text_resolver.cpp` in base al flag `CHRONON3D_USE_ICU` (compile-time) + `CHRONON3D_FORCE_BUILTIN_BOUNDARY` (runtime override); mai istanziato dentro i nodi downstream.
+2. **Resoluzione runtime** via `std::unique_ptr<TextBoundaryResolver>` istanziato da `src/text/text_resolver.cpp` in base al flag `CHRONON3D_USE_ICU` (compile-time, **currently undefined** in `CMakeLists.txt`/`cmake/`/`vcpkg.json` — to-be-introduced in Fase 9) + `CHRONON3D_FORCE_BUILTIN_BOUNDARY` (runtime override, to-be-introduced alongside the compile-time flag); mai istanziato dentro i nodi downstream.
 3. **Regola di isolation** (hard): `#include <unicode/*>` consentito solo in `src/text/boundary_resolver/` + `src/backends/text/icu_resolver.cpp`. Nessun altra TU può includere ICU headers. test_architectural.sh §5 (gate check) deve essere extended a verificare questa invariante.
 4. **`GlyphRasterStrategy` color emoji**: dipende da Fase 12 che ha canonicalizzato la multi-strategy (Bitmap | Vector | Msdf). Aggiungere `ColorGlyphRasterizer` come quarta strategia per COLR/CPAL tables (OpenType color-font extension) + emoji fallback via `sil`/`twemoji` provider. `GlyphRasterStrategy` enum è keyed by font-table-capability detection.
 5. **Profilo vcpkg**: la feature `text` esistente (vedi [`docs/stabilization-plan/08-dependency-profiles.md`](stabilization-plan/08-dependency-profiles.md)) introduce `harfbuzz` indirettamente; per Fase 9 si richiede l'aggiunta `icu` opzionale a uno dei profili (es. motion + icu = motion+icu). Estensione del `vcpkg.json`.
