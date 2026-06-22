@@ -43,7 +43,14 @@ TEST_CASE("Transform: anchor stays fixed when rotating around pivot") {
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bugs — position/opacity/parent_missing assertions fail.
 // TODO(chronon3d): fix layer hierarchy resolution and re-enable.
-TEST_CASE("Layer hierarchy: parent position and scale propagate to child" * doctest::skip()) {
+// TICKET-007.d (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; layer hierarchy position-scale propagation bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
+// Re-enabled in PR-C after audit confirmed test-only fix (impl already correct
+// via parent_world * local_matrix in HierarchyResolver::resolve_one()).
+TEST_CASE("Layer hierarchy: parent position and scale propagate to child") {
     std::pmr::monotonic_buffer_resource res;
     SceneBuilder s(&res);
 
@@ -70,7 +77,13 @@ TEST_CASE("Layer hierarchy: parent position and scale propagate to child" * doct
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bugs — position/opacity/parent_missing assertions fail.
 // TODO(chronon3d): fix layer hierarchy resolution and re-enable.
-TEST_CASE("Layer hierarchy: parent rotation changes child world position" * doctest::skip()) {
+// TICKET-007.e (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; parent-rotation propagation to child bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
+// Re-enabled in PR-C after audit confirmed test-only fix (impl already correct).
+TEST_CASE("Layer hierarchy: parent rotation changes child world position") {
     std::pmr::monotonic_buffer_resource res;
     SceneBuilder s(&res);
 
@@ -96,7 +109,13 @@ TEST_CASE("Layer hierarchy: parent rotation changes child world position" * doct
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bugs — position/opacity/parent_missing assertions fail.
 // TODO(chronon3d): fix layer hierarchy resolution and re-enable.
-TEST_CASE("Layer hierarchy: opacity multiplies through parents" * doctest::skip()) {
+// TICKET-007.f (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; opacity-through-hierarchy accumulation bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
+// Re-enabled in PR-C after audit confirmed test-only fix.
+TEST_CASE("Layer hierarchy: opacity multiplies through parents") {
     std::pmr::monotonic_buffer_resource res;
     SceneBuilder s(&res);
 
@@ -121,7 +140,13 @@ TEST_CASE("Layer hierarchy: opacity multiplies through parents" * doctest::skip(
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bugs — position/opacity/parent_missing assertions fail.
 // TODO(chronon3d): fix layer hierarchy resolution and re-enable.
-TEST_CASE("Layer hierarchy: missing parent falls back to local transform" * doctest::skip()) {
+// TICKET-007.g (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
+//   Owner: chronon3d-owners.
+//   Motivation: pre-existing rot; missing-parent fallback path bug.
+//
+//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
+// Re-enabled in PR-C after audit confirmed test-only fix.
+TEST_CASE("Layer hierarchy: missing parent falls back to local transform") {
     std::pmr::monotonic_buffer_resource res;
     SceneBuilder s(&res);
 

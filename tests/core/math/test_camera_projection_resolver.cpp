@@ -410,9 +410,12 @@ TEST_CASE("CameraProjectionResolver: UVs valid after clipping") {
 //   Motivation: pre-existing rot; perspective_scale ≈ focal/depth formula regressed.
 //
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing bug — perspective_scale diverges by >10% from expected.
-// TODO(chronon3d): fix perspective_scale computation and re-enable.
-TEST_CASE("CameraProjectionResolver: perspective_scale = focal / depth" * doctest::skip()) {
+// Re-enabled in PR-C after impl-side fix in
+// chronon3d::camera_math::focal_from_camera(): when camera.projection_mode
+// is Fov, the Fov formula `(viewport_h/2)/tan(fov/2)` now wins over the
+// zoom-mode fallback (which previously returned the default zoom=1000
+// even when projection_mode=Fov was explicit).
+TEST_CASE("CameraProjectionResolver: perspective_scale = focal / depth") {
     auto cam = make_test_camera();
     auto vp = make_test_viewport();
 
