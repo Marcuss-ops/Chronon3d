@@ -2041,3 +2041,551 @@ Recommended order:
 1. TICKET-018 first (per-frame temporal jitter); verifies motion-blur accumulator input determinism.
 2. TICKET-019 in same PR (or right after TICKET-018), reopening 3 torture tests.
 3. TICKET-017 independently (cycle detection is unbounded by motion-blur).
+
+---
+
+## TICKET-021 — `PoseTracksSource` forza `Zoom` sopra FOV/PhysicalLens (P0, from PR #36)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned (impl fix pending; no test deferral; regression case must be added) |
+| **Affected file(s)** | `src/scene/camera/camera_v1/internal/pose_tracks_source.{hpp,cpp}` (rebase-only-on-active-variant), `include/chronon3d/scene/camera/camera_v1/camera_descriptor.hpp` (`ProjectionSpec` + `LensModel` carry-through), `tests/scene/camera/test_camera_program_compiled.cpp` (new regression case). |
+| **Discovered during** | PR #36 docs(camera): ground AE parity plan in existing contracts — commit chain `5d4b2f75` → `6acf4b82` on `origin/codex/camera-plan-docs`. Explicit gap enumerated in `docs/camera-plan/02-OPTICS_PROJECTION_ORIENTATION.md` section "Bug P0 reale". |
+| **Discovered date** | 2026-06-22 |
+| **Parent umbrella** | PR #36 AE-Core parity (`docs/camera-plan/04-INTEGRATION_TESTS_AND_LEGACY_REMOVAL.md`). |
+| **Compliance target** | `tools/check_architecture_boundaries.sh` + `tests/scene/camera/test_camera_program_compiled.cpp` green |
+| **Defer rationale** | No prior cleanup chain ever re-opened the descriptor metadata; PR #36 is the first concrete slice that names the bug. |
+
+### Symptom
+
+In `PoseTracksSource::evaluate()`, after applying the `CameraBaseSpec`-level projection, the evaluator unconditionally rewrites:
+
+```text
+projection_mode = CameraOpticsMode::Zoom
+optics_mode     = CameraOpticsMode::Zoom
+```
+
+When the base spec used `FovProjection` or `PhysicalLensProjection` (with `LensModel` populated), those channels are silently overwritten and any later animation on FOV / focal length / sensor size is discarded.
+
+### Root cause analysis
+
+The evaluator's post-base projection branch hardcodes Zoom as the universal default, instead of forwarding the active variant chosen by the descriptor. The variant type already exists in `ProjectionSpec = std::variant<ZoomProjection, FovProjection, PhysicalLensProjection>` and `PhysicalLensProjection` already carries a `LensModel`. The fix is variance-preserving dispatch, not a new projection mode.
+
+### Out-of-scope rationale for prior cleanup chains
+
+| Cleanup chain | Why excluded |
+|---|---|
+| PR-A (`d4e4601c`) — text runner | No text surface overlap; bug is in `camera_v1`. |
+| PR-B (pending) | Stays in text subtree. |
+| PR-C / Agent-3 PR-C | Explicit "DEFER — impl-side high-risk, single-PR not split" per the camera-plan audit. |
+
+### Suggested fix approach
+
+1. Read `pose_tracks_source.cpp::evaluate()` end-to-end.
+2. Replace the unconditional `Zoom` re-write with a `std::visit` over the active `ProjectionSpec` variant — mutate only channels owned by that variant.
+3. Lift `LensModel` carry-through from `PhysicalLensProjection` into the snapshot without re-applying any projection scalar.
+4. Add the regression case in `test_camera_program_compiled.cpp`:
+
+   ```cpp
+   PoseTracksBase base;
+   base.projection = FovProjection{ /* animated FOV */ };
+   // also one for PhysicalLensProjection with a non-default sensor
+   // run evaluator at SampleTime {frame=0, sub=0}
+   // assert projection_mode == base.mode
+   // assert FOV / focal value equals base value at SampleTime
+   ```
+
+5. Re-run `chronon3d_tests_fast` and the camera binary; rc=0 expected.
+
+### Acceptance criteria
+
+| Criterion | Verification |
+|---|---|
+| New regression test `PoseTracksSource: does NOT override active projection variant` exits green. | Single test-case PASS. |
+| Existing `PoseTracksSource: pose tracks` cases (if any baseline) still pass. | No regression. |
+| `tests/scene/camera/test_camera_program_compiled.cpp` rc=0 overall. | Binary exit 0. |
+| `chronon3d_tests_fast` rc=0. | Full preset exit 0. |
+| `tools/check_architecture_boundaries.sh` Sections 1–5 PASS. | Gate script rc=0. |
+| `docs/STATUS.md` "Sottosistema camera" flipped on this ticket. | Doc-only. |
+
+### Cross-references
+
+- Source of truth: `docs/camera-plan/02-OPTICS_PROJECTION_ORIENTATION.md` section "Bug P0 reale / PoseTracksSource".
+- Companion: TICKET-022 (double look-at) — both touch compiled path; can land in same commit.
+- `src/scene/camera/camera_v1/internal/camera_program_compiler.{hpp,cpp}` — primary compile site.
+
+---
+
+## TICKET-022 — Double look-at nel compiled path (P0, from PR #36)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `src/scene/camera/camera_v1/internal/camera_program_compiler.cpp` (orientation step), `src/scene/camera/camera_v1/internal/evaluators/look_at_point.cpp` + `look_at_layer.cpp`, `include/chronon3d/scene/camera/camera_v1/orientation_spec.hpp` (`point_of_interest_enabled` flag), `tests/scene/camera/test_camera_program_compiled.cpp` (regression). |
+| **Discovered during** | PR #36 — `docs/camera-plan/01-CANONICAL_CAMERA_ARCHITECTURE.md` section "Operazioni equivalenti ai Camera Tools" + `03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md` section "PoseTracksSource / P0 da correggere". |
+| **Discovered date** | 2026-06-22 |
+| **Parent umbrella** | PR #36 AE-Core. |
+| **Compliance target** | `tools/test_architectural.sh` (camera section) + camera-program-compiled green. |
+| **Defer rationale** | No prior cleanup ever owned the orientation step of the compiled path. |
+
+### Symptom
+
+When `OrientationSpec::LookAtPoint` or `LookAtLayer` is set AND `point_of_interest_enabled = true`, the compiled snapshot's orientation is derived twice:
+
+1. The orientation step in `camera_program_compiler.cpp` computes a base quaternion from `(position → point_of_interest)`.
+2. The `LookAtPoint` / `LookAtLayer` evaluator then also rotates the camera so it points at the POI.
+
+Net effect: rotation applied twice → inconsistent quaternion vs. any single-rotation baseline.
+
+### Root cause analysis
+
+The POI is BOTH a sort key for the orientation step AND an input to the look-at evaluator. The two paths were developed at different times and never reconciled: the orientation step runs unconditionally if `point_of_interest_enabled`, then the chosen evaluator runs again.
+
+### Out-of-scope rationale for prior cleanup chains
+
+Same table as TICKET-021.
+
+### Suggested fix approach
+
+1. Read `camera_program_compiler.cpp::compile_orientation_step` + the two look-at evaluators end-to-end.
+2. Enforce canonical order ONCE:
+
+   ```text
+   1. base camera (with mode One/Two Node)
+   2. source (Pose / Orbit / Trajectory / …)
+   3. modifier
+   4. orientation (LOOK_AT applied EXACTLY ONCE if mode == TwoNode; IGNORED if OneNode)
+   5. constraint
+   6. framing (optional)
+   7. final validation
+   ```
+
+3. Inside the orientation step, decide ONCE whether to apply the look-at based on `CameraNodeMode`. Strip the duplicate from any evaluator that also touches orientation.
+4. Regressions: same input with `OneNode` vs `TwoNode` produces OneNode = no POI influence; TwoNode = POI applied exactly once.
+
+### Acceptance criteria
+
+| Criterion | Verification |
+|---|---|
+| Regression test `LookAt applied exactly once in compiled snapshot` exits green. | PASS. |
+| Quaternion difference between `TwoNode` impl and a reference single-application impl < 1e-6 rad. | Numeric within tolerance. |
+| No existing PASSED test regresses. | Side-by-side run. |
+| `chronon3d_tests_fast` rc=0. | Preset exit 0. |
+| `tools/check_architecture_boundaries.sh` Section 4 (camera boundary) PASS. | Gate rc=0. |
+
+### Cross-references
+
+- Source of truth: `docs/camera-plan/01-CANONICAL_CAMERA_ARCHITECTURE.md` section "Un solo tipo di modalità camera".
+- Companion: TICKET-021 (PoseTracksSource), TICKET-023 (OrientAlongPath), TICKET-024 (OrbitMotion), TICKET-025 (Trajectory). All five share the compiled canonical order.
+- ADR-candidate: introduce `CameraNodeMode {OneNode, TwoNode}` (still under PR #36 backlog).
+
+---
+
+## TICKET-023 — `OrientAlongPath` stub (P0, from PR #36)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `src/scene/camera/camera_v1/internal/evaluators/orient_along_path.{hpp,cpp}` (currently empty/stub), `include/chronon3d/scene/camera/camera_v1/camera_descriptor.hpp` (`OrientationSpec::OrientAlongPath` variant entry), `src/scene/camera/camera_v1/internal/pose_tracks_source.cpp` (calls evaluator when orientation tag matches), `tests/scene/camera/test_camera_program_compiled.cpp` (new cases). |
+| **Discovered during** | PR #36 — `docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md` section "OrientAlongPath". |
+| **Discovered date** | 2026-06-22 |
+| **Parent umbrella** | PR #36 AE-Core. |
+| **Compliance target** | camera-program-compiled green; deterministic per `seed + absolute_time`. |
+| **Defer rationale** | Variant entry exists since earlier work; evaluator never filled. |
+
+### Symptom
+
+`OrientationSpec::OrientAlongPath` is recognized in the descriptor variant list, but the evaluator returns the base orientation unchanged. Camera descriptors using it therefore behave as if no orientation spec were provided.
+
+### Root cause analysis
+
+The evaluator file exists but `evaluate()` is a stub. Implementation was deferred when the orientation variant was first added; PR #36 is the first concrete demand.
+
+### Out-of-scope rationale for prior cleanup chains
+
+Same defer table as TICKET-021.
+
+### Suggested fix approach
+
+1. Read `orient_along_path.cpp` end-to-end (probably 0–20 lines today).
+2. Implement using the active sample's tangent, the descriptor's reference-up, and roll/banking/look-ahead subfields:
+
+   ```cpp
+   vec3 forward = normalize(tangent_at(sample));
+   vec3 reference_up = descriptor.reference_up; // deterministic
+   if (descriptor.keep_horizon) {
+       forward = orthogonalize(forward, reference_up);
+   }
+   quat base = quat_look_rotation(forward, reference_up);
+   if (descriptor.roll != 0) base = base * quat_roll(descriptor.roll);
+   if (descriptor.look_ahead > 0) {
+       vec3 ahead = normalize(tangent_at(sample + descriptor.look_ahead));
+       base = slerp(base, quat_look_rotation(ahead, reference_up), 0.5);
+   }
+   return base;
+   ```
+
+3. Add regressions: (a) static tangent → consistent orientation; (b) tangent flip → orientation flip; (c) keep-horizon suppresses pitch drift; (d) look-ahead averages two tangents.
+
+### Acceptance criteria
+
+| Criterion | Verification |
+|---|---|
+| New test `OrientAlongPath: tangent-driven forward` exit green. | PASS. |
+| New test `OrientAlongPath: keep-horizon orthogonalizes` exit green. | PASS. |
+| Existing camera-program-compiled cases still pass. | No regression. |
+| `chronon3d_tests_fast` rc=0. | Preset exit 0. |
+
+### Cross-references
+
+- Source of truth: `docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md` section "OrientAlongPath".
+- Companion: TICKET-025 (Trajectory — sample provider for tangent).
+- `src/scene/camera/camera_v1/internal/arc_length_table.hpp` — used to remap local time uniformly before sampling the tangent.
+
+---
+
+## TICKET-024 — `OrbitMotion` usa world-Z invece del basis camera-target (P0, from PR #36)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `src/scene/camera/camera_v1/internal/evaluators/orbit_motion.{hpp,cpp}` (`evaluate()` and dolly/track loops), `include/chronon3d/scene/camera/camera_v1/camera_descriptor.hpp` (`OrbitMotion` source entry), `tests/scene/camera/test_camera_program_compiled.cpp` (regression). |
+| **Discovered during** | PR #36 — `docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md` section "OrbitMotion / Bug P0 reale". |
+| **Discovered date** | 2026-06-22 |
+| **Parent umbrella** | PR #36 AE-Motion. |
+| **Compliance target** | camera-program-compiled green; parity with After Effects Orbit / Track XY / Track Z semantics. |
+| **Defer rationale** | Behaviour parity required to retire the legacy `CameraRig` modern + `camera_rig::CameraRig` legacy pair (PR #36 explicitly defers cleanup behind parity). |
+
+### Symptom
+
+`OrbitMotion::evaluate()` applies:
+
+```text
+pos += track          // world space (wrong)
+pos.z += dolly        // world-Z axis (wrong)
+```
+
+instead of using the orbit basis derived from `target - position`.
+
+### Root cause analysis
+
+The current evaluator adds the track offsets in world coordinates and pushes distance in raw Z (which only equals forward when camera-target axis happens to be world Z). A camera orbiting an off-axis target drifts away from its POI.
+
+### Out-of-scope rationale for prior cleanup chains
+
+Same defer table as TICKET-021.
+
+### Suggested fix approach
+
+1. Read `orbit_motion.cpp` end-to-end.
+2. Compute the basis each frame:
+
+   ```cpp
+   vec3 forward = normalize(target - position);
+   vec3 right   = normalize(cross(forward, up));
+   vec3 true_up = cross(right, forward);
+   position += forward * dolly;
+   position += right  * track.x;
+   position += true_up* track.y;
+   ```
+
+3. For Track Z, the same `forward` axis is used (camera-target line), not world Z.
+4. Regressions:
+   - Orbit around a non-origin target produces a consistent circular trajectory.
+   - Dolly moves camera toward/away from target, not world-Z.
+   - Track XY shifts both camera and POI in the same local frame (when POI is shared).
+
+### Acceptance criteria
+
+| Criterion | Verification |
+|---|---|
+| New test `Orbit: target not at origin → trajectory is a circle around target` exit green. | PASS, max radial error < 1e-3. |
+| New test `Dolly: moves toward target's depth along forward` exit green. | PASS, depth delta < 1e-3. |
+| Existing `OrbitMotion` cases (if any) still pass. | No regression. |
+| `tests/scene/camera/test_camera_program_compiled.cpp` rc=0. | Binary exit 0. |
+| `chronon3d_tests_fast` rc=0. | Preset exit 0. |
+
+### Cross-references
+
+- Source of truth: `docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md` section "OrbitMotion".
+- Companion: TICKET-022 (One/Two node base), TICKET-023 (OrientAlongPath tangent provider).
+- After fix: enables TICKET-029 (rig-modern → `OrbitMotion` adapter migration).
+
+---
+
+## TICKET-025 — `Trajectory` hardcoded `zoom=1000`/`fov=50` con perdita campi base (P0, from PR #36)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `src/scene/camera/camera_v1/internal/evaluators/trajectory_motion.{hpp,cpp}` (init branch overriding many base fields), `include/chronon3d/scene/camera/camera_v1/camera_descriptor.hpp` (`TrajectoryMotion` source entry), `src/scene/camera/camera_v1/internal/camera_program_compiler.cpp` (compile_camera side), `tests/scene/camera/test_camera_program_compiled.cpp` (regression). |
+| **Discovered during** | PR #36 — `docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md` section "TrajectoryMotion / Bug P0 reale". |
+| **Discovered date** | 2026-06-22 |
+| **Parent umbrella** | PR #36 AE-Motion. |
+| **Compliance target** | camera-program-compiled green; trajectory descriptor parity with `StaticCamera` for non-movement fields. |
+| **Defer rationale** | Same cleanup-chain defer table. |
+
+### Symptom
+
+In the `TrajectoryMotion` evaluation path, regardless of `CameraBaseSpec`, the snapshot ends up with:
+
+```text
+zoom = 1000
+fov  = 50
+point_of_interest_enabled = true
+```
+
+`LensModel`, `DepthOfFieldSettings`, `MotionBlurSettings`, parent metadata, local rotation, and `OrientationSpec` are dropped on the floor.
+
+### Root cause analysis
+
+Trajectory evaluator writes its own default projection block instead of calling — or carrying forward — `make_camera_from_base(CameraBaseSpec, …)`. The init runs the bare-minimum trajectory-pos sample path, then hardcodes defaults.
+
+### Out-of-scope rationale for prior cleanup chains
+
+Same defer table.
+
+### Suggested fix approach
+
+1. Read `trajectory_motion.cpp::evaluate()` end-to-end.
+2. Refactor to start from `make_camera_from_base(base, ctx)` and override only:
+   - `position` (from the segment sample),
+   - `forward` / `tangent` (from the segment),
+   - `target` if the segment declared one,
+   - `roll` if the segment declared one,
+   - `OrientationSpec` if the segment declared one (and only once — cf. TICKET-022).
+3. Remove the `zoom=1000` / `fov=50` / `point_of_interest_enabled=true` defaults entirely.
+4. Regressions:
+   - Trajectory descriptor carrying `PhysicalLensProjection` → snapshot keeps `LensModel` intact.
+   - Trajectory descriptor carrying DOF focus mode `= LockToZoom` → focus distance follows base, not hardcoded.
+   - Trajectory descriptor carrying `MotionBlurSettings.mode = Always` → mode preserved.
+
+### Acceptance criteria
+
+| Criterion | Verification |
+|---|---|
+| New test `Trajectory: base PhysicalLensProjection preserved` exit green. | PASS. |
+| New test `Trajectory: base DOF focus mode preserved` exit green. | PASS. |
+| New test `Trajectory: base motion blur settings preserved` exit green. | PASS. |
+| Existing trajectory cases still pass on simple inputs. | No regression on trivial trajectories. |
+| `chronon3d_tests_fast` rc=0. | Preset exit 0. |
+
+### Cross-references
+
+- Source of truth: `docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md` section "TrajectoryMotion".
+- Companion: TICKET-021 (variant preservation in Pose), TICKET-023 (tangent reuse for `OrientAlongPath`).
+- Required precursor to TICKET-029 (rig-modern migration).
+
+---
+
+## TICKET-026 — `MotionBlurSettings` conserva sia `MotionBlurMode` sia il booleano legacy `enabled` (P0, from PR #36)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `include/chronon3d/animation/temporal/motion_blur_settings.hpp` (struct definition), `src/render_graph/pipeline/composition.cpp` (TemporalAccumulator reads both fields), `src/scene/camera/camera_v1/internal/camera_program_compiler.cpp` (compiler reads both), all consumers that gate on `settings.enabled`, fingerprint logic over `MotionBlurSettings`. |
+| **Discovered during** | PR #36 docs + cross-ref to TICKET-007.k motion-blur listing. User-supplied PR-description: "`MotionBlurSettings` conserva sia `MotionBlurMode` sia il vecchio booleano `enabled`". |
+| **Discovered date** | 2026-06-22 |
+| **Parent umbrella** | PR #36 cleanup-after-AE-Motion. |
+| **Compliance target** | Animation temporal test binary green + camera-program-compiled green. |
+| **Defer rationale** | API drift between `MotionBlurMode::Always` and the `enabled` boolean has accumulated. PR #36 names the cleanup. Prior chains kept both for backwards compatibility. |
+
+### Symptom
+
+`MotionBlurSettings` exports both:
+
+```cpp
+bool enabled{false};
+MotionBlurMode mode{MotionBlurMode::Off};
+int samples{8};
+```
+
+Consumers can't decide: some gate on `enabled`, others on `mode == Always` (semantically equivalent). The combination `enabled=true, mode=Off` is a deadmode that produces inconsistent accumulation.
+
+### Root cause analysis
+
+Pre-refactor variant of motion blur used `enabled`. After the temporal supersampling pass, `MotionBlurMode` was added as the explicit selector. The boolean was kept to avoid touching every consumer; today it has no caller that can't be migrated.
+
+### Out-of-scope rationale for prior cleanup chains
+
+| Cleanup chain | Why excluded |
+|---|---|
+| PR-A | Text runner; no consumers of `MotionBlurSettings`. |
+| PR-B | Text subtree. |
+| PR-C | Deferred behind the camera backlog. |
+
+### Suggested fix approach
+
+1. Read `motion_blur_settings.hpp` + every `#include` in the repo that references `MotionBlurSettings::enabled` (grep).
+2. Add a transitional alias (compile-time deprecation warning):
+
+   ```cpp
+   [[deprecated("use mode == MotionBlurMode::Always")]]
+   bool enabled{false};
+   ```
+
+3. Replace every readsite with:
+
+   ```cpp
+   const bool on = (settings.mode == MotionBlurMode::Always);
+   ```
+
+4. Once no green code reads `enabled`, remove the field entirely + the deprecation gate.
+5. Extend descriptor fingerprint to include `MotionBlurMode` (replacing the conditional inclusion of `enabled`).
+
+### Acceptance criteria
+
+| Criterion | Verification |
+|---|---|
+| No source file outside legacy stubs references `MotionBlurSettings::enabled` after step 2. | `grep -RIn 'MotionBlurSettings::enabled'` returns 0 lines. |
+| Camera-program-compiled + motion-blur torture cluster rc=0. | Test binaries exit 0. |
+| `chronon3d_tests_fast` rc=0. | Preset exit 0. |
+| Fingerprint over `MotionBlurSettings` now stable across legacy boolean s/d roundtrip. | Canary test PASS. |
+
+### Cross-references
+
+- Source of truth: PR #36 user-supplied PR-description bullet 6.
+- Companion: TICKET-019 (motion-blur torture cluster), TICKET-018 (temporal jitter).
+- Arch-gate: `tools/check_architecture_boundaries.sh` Section 2 (no dead configuration fields).
+
+---
+
+## TICKET-027 — `ShotTimeline` non propaga completamente diagnostica (P0, from PR #36)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `src/scene/camera/camera_v1/internal/shot_timeline_resolver.{hpp,cpp}` (`CameraProgramResult` aggregation), `include/chronon3d/scene/camera/camera_v1/camera_diagnostic.hpp` (existing codes list to extend), `src/render_graph/pipeline/scene.cpp` (caller of `ShotTimelineResolver::resolve`), `tests/scene/camera/test_camera_program_compiled.cpp` (per-timeline diagnostic propagation cases). |
+| **Discovered during** | PR #36 — `docs/camera-plan/04-INTEGRATION_TESTS_AND_LEGACY_REMOVAL.md` section "Diagnostica". |
+| **Discovered date** | 2026-06-22 |
+| **Parent umbrella** | PR #36 AE-Core integration. |
+| **Compliance target** | camera-program-compiled diagnostic tests + render-graph scene green. |
+| **Defer rationale** | Same cleanup-chain defer table; PR #36 first names the propagation gap. |
+
+### Symptom
+
+When `ShotTimeline` resolves a sequence of `CameraProgram` evaluations, the aggregated result returns the LAST program's diagnostic only. Earlier programs that emitted warnings (`empty descriptor id`, `invalid DOF/target`, `parent cycle`, etc.) are silently dropped. The render-graph `scene.cpp` caller then has incomplete information when deciding whether to fall back to the default composition camera or hard-fail.
+
+### Root cause analysis
+
+`ShotTimelineResolver` aggregates `CameraProgramResult::ok` with logical-AND but only forwards the diagnostic of the last evaluated program. Multi-cut timelines therefore lose the diagnostic history.
+
+### Out-of-scope rationale for prior cleanup chains
+
+Same defer table.
+
+### Suggested fix approach
+
+1. Read `shot_timeline_resolver.cpp::resolve()` end-to-end.
+2. Extend the return type to carry an accumulated diagnostic list, not single diagnostic:
+
+   ```cpp
+   struct ResolvedShotTimeline {
+       Camera2_5D camera;
+       std::vector<CameraDiagnostic> diagnostics;
+       bool ok;
+       // active camera id, shot index, transition state…
+   };
+   ```
+
+3. Extend the diagnostic-code enum with the gap codes listed in PR #36 §04 "Diagnostica" (empty descriptor id, invalid node mode, DOF/focus target invalid, null trajectory, parent cycle, invalid default camera).
+4. At every transition step (cut, focus handoff), emit a diagnostic that links the two participating programs by `(from_camera_id, to_camera_id)`.
+5. Add the camera-program-compiled regression cases.
+
+### Acceptance criteria
+
+| Criterion | Verification |
+|---|---|
+| New test `ShotTimelineResolver: emits diagnostics from all evaluated programs` exit green. | PASS. |
+| New test `ShotTimelineResolver: classifies invalid DOF target` exit green. | PASS. |
+| `CameraProgramResult::ok == false` propagates up even if later program resolves ok. | PASS (lint). |
+| `chronon3d_tests_fast` rc=0. | Preset exit 0. |
+
+### Cross-references
+
+- Source of truth: `docs/camera-plan/04-INTEGRATION_TESTS_AND_LEGACY_REMOVAL.md` section "Diagnostica".
+- Companion: TICKET-022 (One/Two node mode affects diagnostic codes), TICKET-025 (Trajectory null-pointer diagnostic carries here).
+
+---
+
+## TICKET-028 — Constraint stateful senza `CameraStateCheckpoint`/pre-roll per random-access (P0, from PR #36)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `include/chronon3d/scene/camera/camera_v1/camera_state_checkpoint.hpp` (new), `src/scene/camera/camera_v1/internal/camera_program.cpp` (`CameraProgram::evaluate_with_history`), `src/scene/camera/camera_v1/internal/evaluators/constraint_evaluators.cpp` (`DampedFollow`, `AutofocusHysteresis`, etc.), `tests/scene/camera/test_camera_program_compiled.cpp` + a new `test_camera_random_access_determinism.cpp` suite. |
+| **Discovered during** | PR #36 — `docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md` sections "Constraint e stateful dependency" + "Determinismo random-access". |
+| **Discovered date** | 2026-06-22 |
+| **Parent umbrella** | PR #36 AE-Motion. |
+| **Compliance target** | New determinism test suite + scene render green. |
+| **Defer rationale** | Strategy explicitly listed in PR #36 as P0; no prior chain owned the checkpoint scheme. |
+
+### Symptom
+
+`CameraEvaluationDependency::RequiresHistory` constraints (DampedFollow integration, autofocus hysteresis, collision avoidance with memory) produce non-deterministic output across:
+
+- Serial vs. parallel render.
+- Sequential vs. frame-direct (random-access) calls.
+- Two render jobs in the same process (session sharing).
+- Retry of the same sub-frame.
+- Worker reassignment between frames.
+
+Because no checkpoint is recorded and every stateful constraint re-derives history from "the last frame asked for", the result depends on call order, not on time.
+
+### Root cause analysis
+
+The compiler marks `RequiresHistory` constraints but no run-time strategy is implemented to either (a) checkpoint-and-preroll on random-access or (b) isolate per-worker sessions. `CameraSession` is reused across calls and across workers where it shouldn't be.
+
+### Out-of-scope rationale for prior cleanup chains
+
+Same defer table.
+
+### Suggested fix approach
+
+1. Define the canonical checkpoint structure in `camera_state_checkpoint.hpp`:
+
+   ```cpp
+   struct CameraStateCheckpoint {
+       u64 fingerprint;
+       SampleTime timestamp;
+       CameraSession snapshot;
+   };
+   ```
+
+2. Implement `CameraProgram::evaluate_with_history(SampleTime, CameraSession&, std::span<CameraStateCheckpoint const> history)`:
+   - find the most-recent checkpoint whose timestamp ≤ requested time;
+   - clone the session from that checkpoint;
+   - pre-roll deterministically from `checkpoint.timestamp` to `requested.time` using the SAME steps regardless of caller;
+   - evaluate once and return.
+3. Invalidate checkpoints on:
+   - camera descriptor fingerprint change;
+   - Cut transition;
+   - explicit reset.
+4. Implement per-worker session isolation: never share `CameraSession` across render-job boundaries.
+
+Add the determinism test suite with cases:
+
+- serial vs parallel
+- sequential vs random frame order
+- two concurrent render jobs
+- sub-frame retry of the same SampleTime → bit-exact output
+- checkpoint restore after explicit reset
+- cache hit vs cache miss parity
+
+### Acceptance criteria
+
+| Criterion | Verification |
+|---|---|
+| New test suite `test_camera_random_access_determinism.cpp` exits green. | New binary rc=0. |
+| `DampedFollowConstraint: serial-vs-parallel parity` exits green. | Numeric parity < 1e-5. |
+| `AutofocusHysteresis: sub-frame retry bit-exact` exits green. | Binary-equal. |
+| Two concurrent jobs do not corrupt each other's `CameraSession` (run twice in same process, diff zero). | PASS. |
+| `chronon3d_tests_fast` rc=0. | Preset exit 0. |
+| `tools/test_architectural.sh` Section 5 (determinism) PASS. | Gate rc=0. |
+| `docs/STATUS.md` "Determinismo random-access" lifted from 🟡 to 🟢 on this cluster. | Doc-only. |
+
+### Cross-references
+
+- Source of truth: `docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md` sections "Constraint e stateful dependency" + "Determinismo random-access".
+- Companion: TICKET-027 (diagnostics emitted on invalid checkpoints).
+- ADR-candidate: explicit `CameraEvaluationDependency` enum migration is implicit, not enacted yet.
