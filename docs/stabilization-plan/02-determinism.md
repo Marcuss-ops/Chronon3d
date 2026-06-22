@@ -1,42 +1,50 @@
 # Determinismo scheduler e rendering
 
-## Problema
+## Stato reale
 
-I test confrontano più scheduler, ma restano hash non acquisiti e percorsi composite o tile non completamente validati.
+La copertura è avanzata, ma il contratto non è ancora chiuso perché i golden hash numerici non sono stati acquisiti e resta aperto il FakeBackend composite deterministico.
 
-## TODO
+## Completato
 
-- [x] **Sostituire i sentinel con golden hash reali.**  (PR 6.8.5 — `kRefBaseline*` sentinels
-  aggiunti a `tests/deterministic/test_baseline_green.cpp` con
-  `kUncapturedSentinel = 0xDEADBEEFDEADBEEFULL` come first-clean-CI
-  marker; commit `fb5980c9` su `main`.  Pattern analog a
-  `kRefStaticScene` in `test_scheduler_determinism.cpp` per Q6 hybrid
-  reviewer-round-2 mandate.  Numerici reali pending il toolchain
-  fix su `SoftwareRenderer::capabilities() override` (TICKET-XXX-SR-
-  CAPABILITIES) — capture workflow documentato in
-  [`docs/01-baseline-green.md` §2.3](../../docs/01-baseline-green.md#23-baseline-verde-mitigato-ticket-007-rot-isolato)
-  + [`docs/02-determinism.md` §4 Interlocking con WP-6](../../docs/02-determinism.md#4-superficie-3--composite-path)).
-  Due-Phase Commit Strategy: PR 6.8.5 lands con i placeholder; il
-  follow-up popola le 6 costanti con gli hash dal primo clean
-  `ctest -R 'Baseline green' -V`.)
-- [x] Validare Sequential, TBB 1, 2, 4 e automatico.  (PR 6.5 scheduler determinism + PR 6.9 SIMD safety net; vedi [`docs/02 §2/§3`](../../docs/02-determinism.md))
-- [x] Ripetere ogni scenario più volte.  (test_baseline_green.cpp §1+§2+§4: 30 iter per scenario; §3: 1t/4t/8t lattice)
-- [x] Testare cache fredda e calda.  (TICKET-007.q/.r re-enabled PR 6.9 + test_baseline_green.cpp §4 composite + §6 precomp cache hit/miss)
-- [x] Riattivare la scena composite.  (test_baseline_green.cpp §4+§5 PR 6.8)
-- [ ] Aggiungere un FakeBackend con compositing deterministico.  *(TICKET-013 deferred)*
-- [x] Aggiungere il percorso tile.  (PR 6.1, 10 TEST_CASE in test_tile_determinism.cpp)
-- [x] Testare frame diversi e scene animate.  (test_determinism_harness.cpp §2 + §11 + test_deterministic.cpp §2-§4)
-- [x] Salvare seed, hash osservati e piattaforma.  *(procedura: l'hash è prodotto da `SoftwareRenderer::render_frame` → `framebuffer_hash` documentato in tools/visual_quality_suite.py; seed e piattaforma sono già nel run CLI del determinismo)*
+- [x] Validare Sequential, TBB 1, 2, 4 e automatico.
+- [x] Ripetere gli scenari più volte.
+- [x] Testare cache fredda e calda.
+- [x] Riattivare la scena composite reale.
+- [x] Aggiungere il percorso tile.
+- [x] Testare frame diversi e scene animate.
+- [x] Salvare la procedura per seed, hash osservati e piattaforma.
+
+## Ancora aperto
+
+- [ ] Sostituire tutti i sentinel con golden hash numerici reali.
+- [ ] Risolvere il blocker toolchain/backend che impedisce la cattura pulita.
+- [ ] Eseguire da checkout e build puliti i test di acquisizione.
+- [ ] Copiare i valori osservati nelle costanti `kRefBaseline*`.
+- [ ] Rimuovere il comportamento dormant basato su `kUncapturedSentinel`.
+- [ ] Fare fallire il test quando il golden non è valorizzato.
+- [ ] Aggiungere un FakeBackend con compositing deterministico.
+- [ ] Riattivare ogni test ancora legato a TICKET-013.
+- [ ] Verificare stesso numero di visite per nodo.
+- [ ] Eseguire sanitizer o race detector quando disponibile.
+
+## Procedura golden hash
+
+1. Chiudere prima baseline, test falliti, boundary e `linux-lean-dev`.
+2. Costruire il target deterministico da directory pulita.
+3. Eseguire ogni scenario su piattaforma e toolchain registrate.
+4. Verificare che le ripetizioni producano un solo hash per scenario.
+5. Inserire i valori numerici nelle costanti di riferimento.
+6. Rieseguire seriale, TBB, composite, tile, cold cache e warm cache.
+7. Registrare SHA, compilatore, worker count e hash finali.
 
 ## Test richiesti
 
 - output bit-for-bit uguale tra scheduler;
-- hash uguale al golden atteso; *(via kRefBaseline* sentinels PR 6.8.5)*
+- hash uguale al golden numerico atteso;
 - stesso numero di visite per nodo;
-- nessuna race con sanitizer quando disponibile.
+- nessuna race rilevata nei percorsi concorrenti;
+- nessun test saltato per sentinel non acquisito.
 
 ## Completato quando
 
-Tutti i percorsi seriali, paralleli, composite e tile producono lo stesso output atteso senza skip temporanei.
-
-**Stato corrente**: tutti i 6 TEST_CASE baseline verdesi seriale-parallelo-composite-tile sono live; i 5 gradient-determinism test (TICKET-007.q/r/s/t/u) sono re-enabled da PR 6.9.  I 6 sentinel-gated REQUIRE di PR 6.8.5 sono dormant sui placeholder `kUncapturedSentinel = 0xDEADBEEFDEADBEEFULL` — il toolchain fix `SoftwareRenderer::capabilities() override` (TICKET-XXX-SR-CAPABILITIES, FIXME nel codice) precede la capture workflow e il flip dei 6 placeholder in valori numerici reali.
+Tutti i percorsi seriali, paralleli, composite e tile producono lo stesso output numerico atteso e nessuna costante golden usa ancora `0xDEADBEEFDEADBEEF` o un altro placeholder.
