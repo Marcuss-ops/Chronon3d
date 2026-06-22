@@ -222,32 +222,49 @@ std::unique_ptr<TrajectorySegmentSampler> make_sampler(
     return nullptr;
 }
 
-// Build arc-length LUT by sampling every segment's actual curve.
-std::shared_ptr<ArcLengthTable> build_arc_length_lut(
+// Build per-segment arc-length LUTs (CAM-04 / DOC 03).
+//
+// Replaces the previous single global LUT with N mini-LUTs — one per
+// segment — so that the time-vs-arc-length mismatch (when segment
+// durations differ sharply from their arc-length proportions) cannot
+// occur.  The previous global LUT assumed uniform parametric segment
+// width (1/N each), which led to "time search picks segment X while
+// remapped global_t lands in segment Y" artifacts.
+//
+// Each segment's LUT is local: `parameter_at_fraction(0)` returns
+// `t01 = 0` (start of segment), `parameter_at_fraction(1)` returns
+// `t01 = 1` (end of segment).  `parameter_at_fraction(frac)` maps
+// `frac ∈ [0,1]` (local arc-length fraction within that segment) to
+// the parametric `t01` along the same segment's curve — making the
+// mapping frame-search-invariant.
+std::vector<std::shared_ptr<ArcLengthTable>> build_per_segment_luts(
     const std::vector<std::unique_ptr<TrajectorySegmentSampler>>& samplers)
 {
     constexpr int kSamplesPerSegment = 64;
-    if (samplers.empty()) return nullptr;
+    std::vector<std::shared_ptr<ArcLengthTable>> out;
+    if (samplers.empty()) return out;
+    out.reserve(samplers.size());
 
-    std::vector<ArcLengthEntry> entries;
-    float cumulative = 0.0f;
-    int total_segs = static_cast<int>(samplers.size());
-
-    for (int seg = 0; seg < total_segs; ++seg) {
-        auto positions = samplers[static_cast<std::size_t>(seg)]->sample_positions(kSamplesPerSegment);
+    for (std::size_t seg = 0; seg < samplers.size(); ++seg) {
+        auto positions = samplers[seg]->sample_positions(kSamplesPerSegment);
+        std::vector<ArcLengthEntry> entries;
+        entries.reserve(kSamplesPerSegment);
+        float cumulative = 0.0f;
         for (int i = 0; i < kSamplesPerSegment; ++i) {
             if (i > 0) {
                 Vec3 delta = positions[static_cast<std::size_t>(i)]
                            - positions[static_cast<std::size_t>(i - 1)];
                 cumulative += std::sqrt(delta.x*delta.x + delta.y*delta.y + delta.z*delta.z);
             }
-            float param = (static_cast<float>(seg) +
-                          static_cast<float>(i) / static_cast<float>(kSamplesPerSegment - 1))
-                         / static_cast<float>(total_segs);
+            // LOCAL parametric t01: 0 at start, 1 at end of THIS segment.
+            const float param = (kSamplesPerSegment > 1)
+                ? static_cast<float>(i) / static_cast<float>(kSamplesPerSegment - 1)
+                : 0.0f;
             entries.push_back({cumulative, param});
         }
+        out.push_back(std::make_shared<ArcLengthTable>(std::move(entries)));
     }
-    return std::make_shared<ArcLengthTable>(std::move(entries));
+    return out;
 }
 
 } // namespace
@@ -267,7 +284,8 @@ CameraTrajectorySample CameraTrajectory::sample(const CameraMotionContext& ctx) 
     // Clamp to [0, total] so frame_position 0 maps to t=0, total maps to t=1.
     const double clamped = std::clamp(frame_position, 0.0, total);
 
-    // Find which segment contains frame_position.
+    // Find which segment contains frame_position (TIME-based search; this is
+    // the canonical, frame-monotonic segment picker).
     double cursor = 0.0;
     for (std::size_t i = 0; i < segments_.size(); ++i) {
         double seg_dur = static_cast<double>(segments_[i].duration_frames);
@@ -275,25 +293,20 @@ CameraTrajectorySample CameraTrajectory::sample(const CameraMotionContext& ctx) 
         bool is_last = (i + 1 == segments_.size());
 
         if (clamped <= seg_end || is_last) {
-            double local = clamped - cursor;
-            float t01 = static_cast<float>(local / std::max(1.0, seg_dur));
-            t01 = std::clamp(t01, 0.0f, 1.0f);
+            const double local = clamped - cursor;
+            float local_frac = static_cast<float>(local / std::max(1.0, seg_dur));
+            local_frac = std::clamp(local_frac, 0.0f, 1.0f);
 
-            // Arc-length remap: convert frame fraction → global parametric t,
-            // then extract the segment-local t01 for the current segment.
-            // NOTE: This assumes uniform parametric segment width (1/N each).
-            // When segment durations differ sharply from their arc-length
-            // proportions, the time-based segment search (above) may pick a
-            // different segment than the remapped global_t implies.
-            // P13 will add per-segment mini-LUTs for a rigorous fix.
-            if (pre_lut_) {
-                float frame_frac = static_cast<float>(clamped / total);
-                float global_t = pre_lut_->parameter_at_fraction(frame_frac);
-                const float seg_width = 1.0f / static_cast<float>(segments_.size());
-                const float seg_start = static_cast<float>(i) * seg_width;
-                t01 = (seg_width > 0.0f)
-                    ? (global_t - seg_start) / seg_width
-                    : 0.0f;
+            // CAM-04 / DOC 03 — per-segment arc-length remap.  Use the
+            // segment-local mini-LUT (index-aligned with `samplers_`) to map
+            // the local frame fraction within this segment to its parametric
+            // t01.  This is invariant under segment duration vs. arc-length
+            // proportion mismatches: the LUT only knows about THIS segment's
+            // own curve, so its output (t01) is always correct for the
+            // already-selected segment.
+            float t01 = local_frac;  // default: uniform t01 within the segment
+            if (i < segment_luts_.size() && segment_luts_[i]) {
+                t01 = segment_luts_[i]->parameter_at_fraction(local_frac);
                 t01 = std::clamp(t01, 0.0f, 1.0f);
             }
             return samplers_[i]->sample(t01);
@@ -392,9 +405,12 @@ std::shared_ptr<CameraTrajectory> CameraTrajectoryBuilder::build() {
         out->samplers_.push_back(std::move(s));
     }
 
-    // Build arc-length LUT by sampling the real curves.
+    // Build per-segment arc-length mini-LUTs (CAM-04 / DOC 03) by sampling
+    // each segment's real curve.  When arc-length parameterization is NOT
+    // requested, segment_luts_ stays empty and sample() falls back to
+    // uniform-t01 within each segment.
     if (arc_len_) {
-        out->pre_lut_ = build_arc_length_lut(out->samplers_);
+        out->segment_luts_ = build_per_segment_luts(out->samplers_);
     }
     return out;
 }

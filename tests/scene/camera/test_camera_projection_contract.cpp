@@ -25,6 +25,8 @@
 #include <chronon3d/scene/model/camera/lens_model.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/scene/model/shape/transform_3d.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_framing_solver.hpp>        // CAM-03 parity test
+#include <chronon3d/scene/camera/camera_v1/evaluated_projection.hpp>          // CAM-03 snapshot
 #include <cmath>
 using namespace chronon3d;
 
@@ -324,4 +326,138 @@ TEST_CASE("AE-CameraContract: evaluate() is deterministic in pose and pixels") {
     CHECK(pa.screen.x == doctest::Approx(pb.screen.x).epsilon(1e-5f));
     CHECK(pa.screen.y == doctest::Approx(pb.screen.y).epsilon(1e-5f));
     CHECK(pa.depth    == doctest::Approx(pb.depth).epsilon(1e-5f));
+}
+
+// ============================================================================
+// CAM-03 (DOC 02) — Projection contract parity tests
+//
+// Verify that the focal-from-camera contract agrees between two derivation
+// paths (rendering projection vs framing solver) and that the
+// EvaluatedProjection snapshot is sane across Zoom / Fov / PhysicalLens.
+// ============================================================================
+
+TEST_CASE("CAM-03 parity: framing solver returns base camera -> projection is bit-exact") {
+    // Camera far from any target so the framing solver has no reason to
+    // apply dolly / dead-zone / safe-area adjustments.
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {10000.0f, 10000.0f, -5000.0f};
+    cam.zoom = 1000.0f;
+    cam.fov_deg = 50.0f;
+
+    Vec3 world_pt{0.0f, 0.0f, 0.0f};
+    auto p_direct = camera_math::project_world_point(cam, world_pt, {1920.0f, 1080.0f});
+
+    // Drive the framing solver with empty targets; the solver must return
+    // the base camera unchanged.  Projection through the framed camera
+    // must be bit-exact equal to the direct path.
+    CameraFramingSolver solver;
+    CameraFramingRequest req;
+    req.targets = {};  // empty -> base preserved
+    req.viewport = {1920, 1080};
+    FramingSession session;
+    auto framed = solver.solve(req, cam, session);
+
+    CHECK(framed.camera.position.x == doctest::Approx(cam.position.x).epsilon(1e-5f));
+    CHECK(framed.camera.position.y == doctest::Approx(cam.position.y).epsilon(1e-5f));
+
+    auto p_framed = camera_math::project_world_point(framed.camera, world_pt, {1920.0f, 1080.0f});
+    CHECK(p_direct.screen.x == doctest::Approx(p_framed.screen.x).epsilon(1e-5f));
+    CHECK(p_direct.screen.y == doctest::Approx(p_framed.screen.y).epsilon(1e-5f));
+    CHECK(p_direct.depth == doctest::Approx(p_framed.depth).epsilon(1e-5f));
+}
+
+// CAM-03 / DOC 02 followup — reviewer minor #5: add the DOLLY-forward case.
+//   Frame a small (point-like) target that is INSIDE the initial frustum but
+//   offset from center; the framing solver must dolly the camera forward
+//   (z increases — pulls camera toward target in our LH coord system) AND
+//   re-aim so the target world point projects near the viewport center.
+//
+// Reviewer's note: the first framing parity test covers the "no motion" case
+// (empty targets → bit-exact).  This second test covers the "motion + re-aim"
+// case that exercises compute_dolly() + compute_aim_point() + apply_dead_zone()
+// together — the canonical pipeline used by the production framing path.
+TEST_CASE("CAM-03 parity: framing solver DOLLY forward + re-aim -> target projects near center") {
+    // Camera offset from target.  Target at world origin is INSIDE the
+    // initial frustum (camera at z=-1000, zoom=1000, fov equivalent to
+    // ~50deg → half-frustum at z=0 covers ±1000 world units horizontally),
+    // but offset from camera's current aim direction.
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {-200.0f, -150.0f, -1000.0f};
+    cam.zoom = 1000.0f;
+    cam.point_of_interest = {0.0f, 0.0f, 0.0f};
+    cam.point_of_interest_enabled = true;  // initial aim at target
+
+    Vec3 target{0.0f, 0.0f, 0.0f};
+
+    CameraFramingRequest req;
+    req.targets = {FramingBBox{target, target, 1.0f}};  // point-like BBox
+    req.viewport = {1920, 1080};
+    req.strategy = FramingStrategy::FitAll;
+    // Disable dead zone + hysteresis so the dolly + aim are applied directly
+    // (reviewer's #5 request — verifies the dolly itself, not the dampening).
+    req.dead_zone.dolly_dead_zone   = 0.0f;
+    req.dead_zone.aim_dead_zone_deg = 0.0f;
+    req.dead_zone.hysteresis        = 0.0f;
+    req.aim_error_deg               = 0.0f;  // legacy: no aim-error gating
+
+    FramingSession session;
+    auto framed = CameraFramingSolver{}.solve(req, cam, session);
+    REQUIRE(framed.ok);
+
+    // Dolly assertion: camera must move forward (z increases — dolly toward
+    // target).  The exact delta magnitude depends on the framing solver's
+    // scale; we verify DIRECTION + NON-ZERO, not the magnitude.
+    INFO("Base z = " << cam.position.z);
+    INFO("Framed z = " << framed.camera.position.z);
+    CHECK(framed.camera.position.z > cam.position.z);  // dolly forward
+    CHECK(std::abs(framed.camera.position.z - cam.position.z) > 0.1f);
+
+    // After framing + re-aim, the target world point must project near
+    // viewport center (960 px, 540 px) — the framing's whole point.
+    auto p_target = camera_math::project_world_point(
+        framed.camera, target, chronon3d::camera_math::Viewport2D{1920.0f, 1080.0f});
+    REQUIRE(p_target.visible);
+    INFO("Target screen = " << p_target.screen.x << "x, " << p_target.screen.y << "y");
+    // 60 px tolerance covers the framing solver's residual fit error for
+    // a small BBox in FitAll mode with default safe-area 12% margins.
+    CHECK(p_target.screen.x == doctest::Approx(960.0f).epsilon(60.0f));
+    CHECK(p_target.screen.y == doctest::Approx(540.0f).epsilon(60.0f));
+}
+
+TEST_CASE("CAM-03: PhysicalLens routes focal through lens model, not zoom") {
+    Camera2_5D cam;
+    cam.optics_mode = CameraOpticsMode::PhysicalLens;
+    cam.lens = LensPresets::full_frame_50mm();
+    cam.zoom = 1234.0f;  // intentionally different from the lens-derived focal
+    const f32 focal = camera_math::focal_from_camera(cam, 1920.0f, 1080.0f);
+    CHECK(focal != doctest::Approx(1234.0f));
+    CHECK(focal > 0.0f);
+    CHECK_FALSE(std::isnan(focal));
+}
+
+TEST_CASE("CAM-03: focal_from_camera is non-NaN for degenerate FOV/zoom inputs") {
+    Camera2_5D cam;
+    cam.fov_deg = 0.0f;
+    cam.zoom = 0.0f;
+    cam.optics_mode = CameraOpticsMode::Zoom;
+    const f32 focal = camera_math::focal_from_camera(cam, 1920.0f, 1080.0f);
+    CHECK_FALSE(std::isnan(focal));
+    CHECK_FALSE(std::isinf(focal));
+}
+
+TEST_CASE("CAM-03: make_evaluated_projection snapshot fields are sane (Fov mode)") {
+    Camera2_5D cam;
+    cam.fov_deg = 50.0f;
+    cam.zoom = 1000.0f;
+    cam.optics_mode = CameraOpticsMode::FieldOfView;
+    auto snap = chronon3d::camera_v1::make_evaluated_projection(cam, {1920.0f, 1080.0f});
+    // focal = (vp.height / 2) / tan(25°) ≈ 1158 px.
+    CHECK(snap.focal_y_px == doctest::Approx(1158.0f).epsilon(5.0f));
+    CHECK(snap.focal_x_px == doctest::Approx(snap.focal_y_px).epsilon(1e-4f));
+    CHECK(snap.active_viewport.width  == doctest::Approx(1920.0f));
+    CHECK(snap.active_viewport.height == doctest::Approx(1080.0f));
+    CHECK_FALSE(snap.is_physical_lens);
+    CHECK_FALSE(snap.is_anamorphic);
 }
