@@ -1,6 +1,6 @@
 # ADR Index
 
-> **NOTE — ADR number accessibility.**  Lo slot ADR-006 è riservato
+> **NOTE — ADR-006 deviation / chronological slot policy.**  Lo slot ADR-006 è riservato
 > a *Registrazione via `ExtensionContext`* (Accepted, ANTI_DUPLICATION_RULES
 > #1..3) e NON è riutilizzabile: la numerazione è monotona
 > (`docs/adr/README.md`) e ogni slot ha un solo argomento.  Le
