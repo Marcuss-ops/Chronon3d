@@ -231,6 +231,23 @@ else
     echo "SKIP (tools/check_software_renderer_boundary.sh not executable)"
 fi
 
+# ── 11. msdfgen / libtess2 / unicode include DENY (PR-A10) ───────────────
+# CPU-first headless posture (AGENTS.md §Regole di lavoro): no third-party
+# glyph / tessellation / ICU deps anywhere in $SCRIPT_PATHS.  Density /
+# boundary / text-backend code is finite and self-contained; future
+# contributions that need msdfgen or libtess2 must first file a design
+# ADR that lifts the deny posture server-wide.  Deny patterns are
+# tightly scoped to include *statements* only — do NOT broaden to
+# comments or tests.  Pattern: <msdfgen> | <libtess2> | <unicode[/...]>.
+echo -n "  [11/11] msdfgen/libtess2/unicode includes FORBIDDEN  ... "
+hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
+    -E '#[[:space:]]*include[[:space:]]*<(msdfgen|libtess2|unicode(/[^>]*)?)>' \
+    $SCRIPT_PATHS 2>/dev/null \
+    || true)
+if [ -n "$hits" ]; then
+    echo "FAIL"; echo "$hits" | sed 's/^/    /'; FAILED=1
+else echo "PASS"; fi
+
 # ── Summary ───────────────────────────────────────────────────────────
 echo ""
 if [ "$FAILED" -ne 0 ]; then
