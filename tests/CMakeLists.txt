@@ -54,6 +54,14 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
     include(${CMAKE_CURRENT_SOURCE_DIR}/graphics_tests.cmake)
     include(${CMAKE_CURRENT_SOURCE_DIR}/gradient_visual_tests.cmake)
     include(${CMAKE_CURRENT_SOURCE_DIR}/deterministic_tests.cmake)
+
+# ── PR-A4 (Blocco A, Fase 1 followup) — 16 text-style preset visual regression
+include(${CMAKE_CURRENT_SOURCE_DIR}/text_preset_visual_tests.cmake)
+
+# PR-A4 review-fix: register the new target with the render-test aggregator.
+if(TARGET chronon3d_text_preset_visual_tests)
+    list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_text_preset_visual_tests)
+endif()
 endif()
 
 # WP-0 PR 0.2 — focused compile-coherence target for the PrecompNode
