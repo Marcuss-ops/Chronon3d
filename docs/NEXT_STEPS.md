@@ -37,6 +37,7 @@ Piano operativo per chiudere lo stato pre-stabile del repository.
 - TICKET-005: decidere esplicitamente se ripristinare o rimuovere `keyframes()`, poi aggiornare test e documentazione.
 - TICKET-008: verificare il riuso del compiler con hash, fallback, test e benchmark prima della chiusura definitiva.
 - Expressions V2: completare i gate senza rimuovere anticipatamente la quarantena.
+- **Strategia text/kinetic typography post-P0**: [`docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md`](TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md) (13 fasi, AE-level; ogni fase ha cross-ref alla fonte canonica di dettaglio).
 
 ## Cosa non rifare
 
