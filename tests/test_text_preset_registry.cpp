@@ -68,6 +68,11 @@
 
 #include <chronon3d/registry/text_preset_registry.hpp>
 
+// Cluster B public API surface — the deterministic verification entry
+// point for the cross-TU test harness and any downstream authoring
+// facade.  Declared in <chronon3d/registry/text_preset_resolver.hpp>.
+#include <chronon3d/registry/text_preset_resolver.hpp>
+
 // ── Stage-2/3 full type defs required by invocation tests ─────────────
 // The builder bodies now use the real SceneBuilder / LayerBuilder /
 // TextSpec APIs.  The test must include their full defs to instantiate
@@ -83,6 +88,9 @@
 // The full TextRunShape definition lives in text/text_run.hpp.
 #include <chronon3d/text/text_run.hpp>
 
+#include <functional>   // std::function for Sub-case 30/31 expected_kind_predicate
+#include <array>        // std::array<ExpectedComposition, 22>
+#include <variant>      // std::holds_alternative for Sub-case 30/31 kind checks
 #include <filesystem>
 
 using namespace chronon3d;
@@ -832,5 +840,143 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
                 CHECK(first_kind_is(animators[0], exp.first_kind_predicate));
             }
         }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// TIER G — Cluster B public API surface (Sub-case 31)
+// ─────────────────────────────────────────────────────────────────────────
+// Stage 5+ exposes the AnimatorResolver table via a SINGLE public free
+// function: `wire_preset_text_run_params(preset_id, spec) -> TextRunParams`.
+// This is the deterministic verification entry point the test harness and
+// downstream authoring facade use — no LayerBuilder, no SceneBuilder,
+// no factory-body invocation.  Sub-case 31 iterates all 22 presets and
+// asserts the public function returns the same canonical end-state
+// composition the registry factory bodies wire (Sub-cases 7-30).
+//
+// Why this matters: the test harness's deterministic verification path
+// (Sub-case 30) requires constructing LayerBuilder + SceneBuilder +
+// invoking the factory body.  Sub-case 31 collapses all that ceremony
+// behind a single pure-function call.  If the test harness is ever
+// migrated to a Cluster B authoring facade, only Sub-case 31 needs to
+// follow — Sub-case 30 stays as the integration regression test.
+TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
+
+    SUBCASE("31) wire_preset_text_run_params returns deterministic TextRunParams for all 22 presets") {
+        const auto& reg = make_default_text_preset_registry();
+        const auto plain = make_test_text_spec();
+
+        // Signature contract check — the public free function lives
+        // in <chronon3d/registry/text_preset_resolver.hpp> with the
+        // exact signature (string_view, TextSpec) -> TextRunParams.
+        // The compile-time assertion below verifies the resolved type
+        // via `decltype(function-name)` which yields the function type.
+        static_assert(
+            std::is_same_v<
+                decltype(wire_preset_text_run_params),
+                TextRunParams(std::string_view, TextSpec) noexcept>,
+            "wire_preset_text_run_params must return TextRunParams via (string_view, TextSpec) noexcept");
+
+        // ── Per-preset pure-function probe ─────────────────────────────────
+        // Iterate all 22 preset ids via reg.available() (sorted-by-key,
+        // deterministic across runs).  For each id, the public function
+        // must return:
+        //   - animators.empty() == true   for `minimal_white` only
+        //   - animators.size() == 1       for every other preset id
+        //   - animators[0].id == "presetc_<id>"  in wired cases
+        //   - animators[0].text survives the move (params.text == supplied spec)
+        //   - animators[0].properties[0] holds the canonical first-property kind
+        //
+        // An additional sub-test verifies the third contract (text survival):
+        // params.text == supplied spec — so the canonical "spec-in / spec-out"
+        // pattern holds, and downstream authoring facades can rely on
+        // `params.text` being the moved-from caller-supplied spec.
+        for (const auto& id : reg.available()) {
+            CAPTURE(id);
+            REQUIRE(reg.contains(id));
+
+            const auto params =
+                wire_preset_text_run_params(id, plain);
+
+            // Test-text-survival contract: the spec travels through the
+            // public function unchanged (moved into params.text).
+            CHECK(params.text.content.value == plain.content.value);
+
+            if (id == "minimal_white") {
+                // No canonical motion → public function returns
+                // TextRunParams with animators.empty() == true.  The
+                // caller routes via plain lb.text(...) which does not
+                // require an AnimatorResolver entry.
+                CHECK(params.animators.empty());
+                continue;
+            }
+
+            // Stage 5 wiring: every other preset yields exactly one
+            // composed TextAnimatorSpec pushed onto animators[0].
+            REQUIRE(params.animators.size() == 1);
+            CHECK(params.animators[0].id == ("presetc_" + id));
+            CHECK(params.animators[0].enabled);
+
+            // First-property kind check (cross-preset).  Mirrors
+            // Sub-case 30's per-branch assertions, but reached via the
+            // public API rather than the LayerBuilder factory-body path.
+            REQUIRE_FALSE(params.animators[0].properties.empty());
+            const auto& first_prop = params.animators[0].properties[0];
+            if (id == "animation_compositions"  || id == "slide_up"        ||
+                id == "slide_down"             || id == "masked_line_reveal" ||
+                id == "gradient_fill"          || id == "caption_box"     ||
+                id == "cinematic_text_camera") {
+                CHECK(std::holds_alternative<PositionProperty>(first_prop));
+            }
+            else if (id == "cinematic_title_reveal" || id == "tilt_sweep_title_v2" ||
+                     id == "text_animations"        || id == "scale_in"           ||
+                     id == "word_pop"               || id == "scale_punch") {
+                CHECK(std::holds_alternative<ScaleProperty>(first_prop));
+            }
+            else if (id == "fade_in" || id == "word_cascade" ||
+                     id == "character_cascade" || id == "color_accent" ||
+                     id == "yellow_keyword") {
+                CHECK(std::holds_alternative<OpacityProperty>(first_prop));
+            }
+            else if (id == "blur_in") {
+                // Only `blur_in` has BlurProperty as the FIRST pushed
+                // property.  `tilt_sweep_title_v2` ALSO pushes BlurProperty
+                // but its first push is ScaleProperty (matched in the
+                // prior branch — verified in compose_for() table).
+                CHECK(std::holds_alternative<BlurProperty>(first_prop));
+            }
+            else if (id == "tracking_close" || id == "glow_pulse") {
+                CHECK(std::holds_alternative<TrackingProperty>(first_prop));
+            }
+            else {
+                // Drift catcher: a Stage 6+ branch table expansion that
+                // falls outside the expected kind buckets above.
+                FAIL_TEST("Unknown preset_id branch in Sub-case 31: " << id);
+            }
+        }
+
+        // ── Unknown id contract (fail-safe path) ───────────────────────────
+        // The public function must return TextRunParams with empty
+        // animators when called with an id that is not in the registered
+        // catalog.  This is the fail-safe fallback for any downstream
+        // authoring facade that misroutes a preset id.
+        const auto unknown_params =
+            wire_preset_text_run_params("phantom_preset_unknown", plain);
+        CHECK(unknown_params.text.content.value == plain.content.value);
+        CHECK(unknown_params.animators.empty());
+
+        // ── spec-move semantics (move-constructible input) ────────────────
+        // Verify the public function accepts an rvalue spec (the
+        // canonical authoring-facade pattern is `wire_preset_text_run_
+        // params(id, std::move(my_spec))`).  If the signature is
+        // mis-tuned (e.g. takes const-ref only), the move is silently
+        // elided into a copy and this assertion over-constructs; we
+        // include it as a compile-time + runtime smoke test.
+        TextSpec movable = make_test_text_spec();
+        const std::string original_value = movable.content.value;
+        const auto moved_params =
+            wire_preset_text_run_params("fade_in", std::move(movable));
+        CHECK(moved_params.text.content.value == original_value);
+        CHECK(moved_params.animators.size() == 1);
     }
 }
