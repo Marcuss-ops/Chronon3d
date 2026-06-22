@@ -435,7 +435,11 @@ inline std::uint64_t compute_camera_descriptor_fingerprint(
     }
     {
         const auto& mb = desc.base.motion_blur;
-        h.mix_bool(mb.enabled);
+        // TICKET-026 — `mb.enabled` removed; mode is the canonical
+        // active indicator.  mix_u8(<enum index>) keeps the fingerprint
+        // byte-stable across identical mode values and distinguishes Off
+        // from any enabled mode (TemporalAccumulation/VelocityApproximation).
+        h.mix_u8(static_cast<std::uint8_t>(mb.mode));
         h.mix_f32(mb.shutter_angle_deg);
     }
 

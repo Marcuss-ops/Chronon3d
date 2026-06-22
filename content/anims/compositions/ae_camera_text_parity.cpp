@@ -361,7 +361,11 @@ Camera2_5D evaluate_segment_camera(const FrameContext& ctx) {
     cam.dof.max_blur         = (f >= 180 && f < 240) ? 30.0f : 24.0f;
 
     // Motion blur — only active in segment 4 (240–299).
-    cam.motion_blur.enabled           = (f >= 240 && f < 300);
+    // TICKET-026 — `motion_blur.enabled` removed; mode is the canonical
+    // active-indicator.  Map the legacy `bool enabled` to `TemporalAccumulation`.
+    cam.motion_blur.mode              = (f >= 240 && f < 300)
+        ? MotionBlurMode::TemporalAccumulation
+        : MotionBlurMode::Off;
     cam.motion_blur.samples           = (f >= 240 && f < 300) ? 16 : 8;
     cam.motion_blur.shutter_angle_deg = (f >= 240 && f < 300) ? 180.0f : 0.0f;
     cam.motion_blur.shutter_phase_deg = (f >= 240 && f < 300) ? -90.0f : 0.0f;

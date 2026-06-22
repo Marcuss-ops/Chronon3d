@@ -246,9 +246,11 @@ camera_descriptor_from(const chronon3d::CameraRig& rig,
     d.base.dof.focus_distance     = rig.dof.focus_distance.evaluate(kEpoch);
     d.base.dof.focus_z            = rig.dof.focus_z.evaluate(kEpoch);
 
-    // MotionBlurSettings (base) and CameraRigMotionBlur (rig) are distinct
-    // types with identical fields but no conversion operator; copy field-by-field.
-    d.base.motion_blur.enabled           = rig.motion_blur.enabled;
+    // TICKET-026 — `enabled` removed from MotionBlurSettings.  Mode is now
+    // the canonical "active?" indicator, so the adapter copies it directly
+    // (rather than translating the legacy rig.enabled bool).  CameraRigMotionBlur
+    // (rig-side) ALSO lost its `enabled` field on this branch — see camera_rig.hpp.
+    d.base.motion_blur.mode              = rig.motion_blur.mode;
     d.base.motion_blur.samples           = rig.motion_blur.samples;
     d.base.motion_blur.shutter_angle_deg = rig.motion_blur.shutter_angle_deg;
     d.base.motion_blur.shutter_phase_deg = rig.motion_blur.shutter_phase_deg;

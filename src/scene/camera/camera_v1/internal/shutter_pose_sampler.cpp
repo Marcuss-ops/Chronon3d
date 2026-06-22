@@ -37,7 +37,7 @@ Camera2_5D ShutterPoseSampler::evaluate(
     FrameRate frame_rate,
     const CameraEvaluatorFn& evaluator) const
 {
-    if (!settings_.enabled || settings_.samples <= 1) {
+    if (!::chronon3d::is_motion_blur_active(settings_) || settings_.samples <= 1) {
         SampleTime st = SampleTime::from_frame(frame, frame_rate);
         return evaluator(st);
     }

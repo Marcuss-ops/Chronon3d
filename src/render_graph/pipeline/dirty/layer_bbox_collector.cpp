@@ -8,6 +8,7 @@
 #include <chronon3d/core/dirty_fallback_reason.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>  // TICKET-026 is_motion_blur_active()
 #include "../../builder/graph_builder_internal.hpp"
 #include "../../builder/graph_builder_pipeline.hpp"
 #include "../../builder/graph_builder_bbox.hpp"
@@ -78,7 +79,8 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                 if (rl.layer && rl.layer->active_at(frame)) {
                     raster::BBox bbox = compute_bbox_for_resolved(rl);
 
-                    if (!is_safe_for_dirty_rects(*rl.layer, settings.motion_blur.enabled,
+                    if (!is_safe_for_dirty_rects(*rl.layer,
+                                                   chronon3d::is_motion_blur_active(settings.motion_blur),
                                                    ctx.services.effect_catalog)) {
                         bbox = raster::BBox{0, 0, width, height};
                         if (ctx.node_exec.counters) {

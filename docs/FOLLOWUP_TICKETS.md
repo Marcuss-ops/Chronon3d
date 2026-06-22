@@ -2474,7 +2474,7 @@ Same defer table.
 
 | Field | Value |
 |---|---|
-| **Status** | 🔵 Planned |
+| **Status** | 🟡 Code-fix landed on `codex/cam-motionblur-mode-only` (tests-blocked-by-TICKET-029; flips to 🟢 once `chronon3d_camera_compiled_evaluate_tests` links) |
 | **Affected file(s)** | `include/chronon3d/animation/temporal/motion_blur_settings.hpp` (struct definition), `src/render_graph/pipeline/composition.cpp` (TemporalAccumulator reads both fields), `src/scene/camera/camera_v1/internal/camera_program_compiler.cpp` (compiler reads both), all consumers that gate on `settings.enabled`, fingerprint logic over `MotionBlurSettings`. |
 | **Discovered during** | PR #36 docs + cross-ref to TICKET-007.k motion-blur listing. User-supplied PR-description: "`MotionBlurSettings` conserva sia `MotionBlurMode` sia il vecchio booleano `enabled`". |
 | **Discovered date** | 2026-06-22 |
@@ -2542,6 +2542,32 @@ Pre-refactor variant of motion blur used `enabled`. After the temporal supersamp
 
 ---
 
+
+### Resolution — landed on `codex/cam-motionblur-mode-only`
+
+The legacy `bool MotionBlurSettings::enabled` field is **deleted**. Migration:
+
+- **Field removed:** `bool MotionBlurSettings::enabled` (and the parallel rig-side `bool CameraRigMotionBlur::enabled`).
+- **Canonical active indicator:** `MotionBlurMode mode`.  `Off === enabled == false` semantically; `TemporalAccumulation` / `VelocityApproximation` === "motion blur on".  `enable=true` pre-fix therefore maps to `TemporalAccumulation` post-fix (the only legacy-on mode).
+- **Helper added:** `[[nodiscard]] inline bool is_motion_blur_active(const MotionBlurSettings&) noexcept` in `include/chronon3d/scene/model/camera/camera_2_5d.hpp` (free inline so it works from both headers and TUs).  All read sites now reach through this helper.
+- **Struct u8 bound:** `static_assert(static_cast<u32>(MotionBlurMode::VelocityApproximation) < 256)` in the same header to future-proof the descriptor-fingerprint cast.
+- **Descriptor fingerprint:** `h.mix_bool(mb.enabled)` (`MotionBlurSettings`) replaced by `h.mix_u8(static_cast<std::uint8_t>(mb.mode))`; bitwise byte-stable for legacy scenes (only off vs TemporalAccumulation since legacy).
+- **Read sites:** `apps/chronon3d_cli/utils/job/render_job_execute.cpp`, `src/render_graph/pipeline/dirty/layer_bbox_collector.cpp` read via `is_motion_blur_active(...)` helper.
+- **CLI sync line dropped:** `cli_render_utils.hpp` removed the redundant `s.motion_blur.enabled = (s.motion_blur.mode != MotionBlurMode::Off)` since the surrounding code already assigns `mode` directly.
+- **Camera-rig ↔ Camera2_5D propagate:** explicit per-field copy of the rig-side `MotionBlurMode mode` + the 6 numeric/pattern fields into the camera-side `camera.motion_blur`.  Two parallel copy blocks in `src/scene/camera/camera_rig.cpp` (both rewritten).
+- **Adapter drop:** `camera_descriptor_adapters.cpp` no longer copies the rig-side bool (already wired via mode).
+- **camera_rig.hpp visibility:** added `#include <camera_2_5d.hpp>` because `CameraRigMotionBlur` keeps `MotionBlurMode` by-value at struct-definition time.  No circular include (`camera_2_5d.hpp` does not include `camera_rig.hpp` back).
+- **Tests:** every `motion_blur.enabled = X` write in `tests/renderer/perf/test_motion_blur_integration.cpp`, `tests/visual/cinematic_motion/cinematic_motion_scenes_quat.cpp`, `content/anims/compositions/ae_camera_text_parity.cpp` rewritten to `(cond ? MotionBlurMode::TemporalAccumulation : MotionBlurMode::Off)`.
+- **Parity test TC007:** appended to `tests/scene/camera/test_motion_blur_torture_pr1.cpp` — two structurally identical `RunSettings` (one with `mode=TemporalAccumulation`, one with the legacy `enabled=true` runtime flag routed via the new mode) produce **byte-equal accumulator framebuffers** (`fb->bytes() == fb->bytes()`).  Uses `static_comp_64()` fixture from the same test file.
+- **Other clean-up:** dropped the explicit `d.base.motion_blur.enabled = rig.motion_blur.enabled` adapter line (redundant after the rig-side mode-propagation path).
+- **Incidental fixes (bubbled up by my header-dep change):**
+  - `src/scene/camera/camera_v1/internal/shutter_pose_sampler.cpp:40` — `!settings_.enabled` rewritten to `!is_motion_blur_active(settings_)`.
+  - `src/scene/camera/camera_v1/camera_program_compiler.cpp:34` — reverted pre-existing namespace typo `chrono3d::camera_v1` → `chronon3d::camera_v1` (latent, surfaced by ninja's header-dep tracking after `camera_2_5d.hpp` was added to `camera_rig.hpp`).
+- **Out of scope for this PR:** `apps/chronon3d_cli/daemon/daemon_service.cpp:221` is a pre-existing unrelated `renderer().counters` (val vs ptr) bug from commit `1294e9be` (2026-06-20); the underlying member name is `counters()`.  Track as a future follow-up; do not bundle.
+- **Test-blocking caveat:** `chronon3d_camera_compiled_evaluate_tests` link target is gated behind TICKET-029.  Build verifies clean for the touched TUs; parity test cannot RUN until TICKET-029 unblocks the link.
+- **Backward-compat note:** no .chronon / .json / scene-file migrator is required — the field is **deleted**, not renamed.
+
+### Status transition: 🔵 Planned → 🟡 Code-fix landed
 ## TICKET-027 — `ShotTimeline` non propaga completamente diagnostica (P0, from PR #36)
 
 | Field | Value |

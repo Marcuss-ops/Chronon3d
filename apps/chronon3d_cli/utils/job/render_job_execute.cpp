@@ -32,7 +32,7 @@ bool execute_render_job(const CompositionRegistry& registry, RenderJobPlan& plan
 
     spdlog::info("Rendering {} [{} -> {} step {}]{}{}...",
                  plan.comp_id, plan.range.start, plan.range.end, plan.range.step,
-                 plan.settings.motion_blur.enabled
+                 chronon3d::is_motion_blur_active(plan.settings.motion_blur)
                      ? fmt::format(" [MB {}smp {:.0f}°/{:.0f}°]",
                                    plan.settings.motion_blur.samples,
                                    plan.settings.motion_blur.shutter_angle_deg,

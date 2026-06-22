@@ -83,8 +83,9 @@ RenderSettings settings_from_args(const Args& args,
     } else {
         s.motion_blur.mode = MotionBlurMode::Off;
     }
-    // Keep the legacy boolean field in sync for callers that still read it.
-    s.motion_blur.enabled          = (s.motion_blur.mode != MotionBlurMode::Off);
+    // (TICKET-026) `s.motion_blur.enabled` no longer exists — consumers that
+    // need to ask "is motion blur active?" must call
+    // `is_motion_blur_active(s.motion_blur)` (defined in camera_2_5d.hpp).
     s.motion_blur.samples          = args.pipeline.quality.motion_blur_samples;
     s.motion_blur.shutter_angle_deg = args.pipeline.quality.shutter_angle_deg;
     s.motion_blur.shutter_phase_deg = args.pipeline.quality.shutter_phase_deg;
