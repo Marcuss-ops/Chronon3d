@@ -18,6 +18,7 @@
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/text/text_glow_spec.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 
 #include <string>
 #include <vector>

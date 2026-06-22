@@ -2,6 +2,7 @@
 
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>   // graph::RenderFrameInfo
 #include <xxhash.h>
@@ -13,12 +14,24 @@ namespace chronon3d::test {
 
 // ── Renderer factories ────────────────────────────────────────────────────
 
+/// Attach a SoftwareBackend to the renderer's runtime.  Required before
+/// calling render_frame / render_scene — RenderRuntime::backend() throws
+/// when called before attach_backend().  Call after set_settings().
+inline void attach_software_backend(SoftwareRenderer& renderer) {
+    renderer.runtime().attach_backend(
+        std::make_unique<chronon3d::SoftwareBackend>(
+            *renderer.counters(),
+            renderer.settings(),
+            renderer.runtime().framebuffer_pool_shared()));
+}
+
 inline SoftwareRenderer make_renderer() {
     SoftwareRenderer renderer(Config{});
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
+    attach_software_backend(renderer);
     return renderer;
 }
 
@@ -29,6 +42,7 @@ inline SoftwareRenderer make_renderer_ssaa(float factor) {
     settings.ssaa_factor = std::max(1.0f, factor);
     renderer.set_settings(settings);
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
+    attach_software_backend(renderer);
     return renderer;
 }
 
@@ -54,6 +68,7 @@ inline SoftwareRenderer make_renderer(bool /*modular_coordinates_unused*/) {
     RenderSettings settings;
     settings.use_modular_graph = true;     // preserved invariant
     renderer.set_settings(settings);
+    attach_software_backend(renderer);
     return renderer;
 }
 
@@ -145,6 +160,10 @@ inline std::shared_ptr<Framebuffer> render_fn(
     int height = 200
 ) {
     SoftwareRenderer renderer(Config{});
+    RenderSettings settings;
+    settings.use_modular_graph = true;
+    renderer.set_settings(settings);
+    attach_software_backend(renderer);
     Composition comp = composition({.width = width, .height = height}, build_fn);
     return renderer.render_frame(comp, 0);
 }

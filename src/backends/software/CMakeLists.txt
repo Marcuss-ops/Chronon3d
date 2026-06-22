@@ -11,6 +11,7 @@ add_library(chronon3d_backend_software OBJECT
     software_compositor.cpp
     software_renderer.cpp
     software_backend.cpp
+    software_processor_context.cpp
     buffer_ring.cpp
     scratch_buffer.cpp
 )

@@ -178,8 +178,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
         m_registry,
         m_video_decoder.get(),
         30.0f,
-        "scene",
-        this /*R3 sidecar*/
+        "scene"
     );
     return res;
 }
@@ -207,8 +206,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
         m_registry,
         m_video_decoder.get(),
         30.0f,
-        "scene",
-        this /*R3 sidecar*/
+        "scene"
     );
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
     if (res && m_settings.diagnostics.enabled) {
@@ -233,8 +231,7 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
         m_settings,
         m_registry,
         m_video_decoder.get(),
-        30.0f,
-        const_cast<SoftwareRenderer*>(this) /*R3 sidecar*/
+        30.0f
     );
 }
 

@@ -40,8 +40,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
         m_renderer.settings(),
         m_renderer.composition_registry(),
         m_renderer.video_decoder(),
-        30.0f, "scene",
-        &m_renderer  /*R3 sidecar: typed SoftwareRenderer channel*/
+        30.0f, "scene"
     );
 }
 
@@ -66,8 +65,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
         m_renderer.settings(),
         m_renderer.composition_registry(),
         m_renderer.video_decoder(),
-        30.0f, "scene",
-        &m_renderer  /*R3 sidecar*/
+        30.0f, "scene"
     );
 }
 
@@ -97,8 +95,7 @@ std::string RenderPipeline::debug_graph(
         m_renderer.settings(),
         m_renderer.composition_registry(),
         m_renderer.video_decoder(),
-        30.0f,
-        &m_renderer  /*R3 sidecar*/
+        30.0f
     );
 }
 

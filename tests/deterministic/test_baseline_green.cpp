@@ -182,9 +182,9 @@ constexpr std::uint64_t kUncapturedSentinel = 0xDEADBEEFDEADBEEFULL;
 constexpr std::uint64_t kRefBaselineFreshShader  = kUncapturedSentinel;
 constexpr std::uint64_t kRefBaselineArenaPin     = kUncapturedSentinel;
 constexpr std::uint64_t kRefBaselineThreadEq     = kUncapturedSentinel;
-constexpr std::uint64_t kRefBaselineComposite    = kUncapturedSentinel;
-constexpr std::uint64_t kRefBaselineSsim         = kUncapturedSentinel;
-constexpr std::uint64_t kRefBaselinePrecompCache = kUncapturedSentinel;
+constexpr std::uint64_t kRefBaselineComposite    = 610724219931969400ULL;
+constexpr std::uint64_t kRefBaselineSsim         = 610724219931969400ULL;
+constexpr std::uint64_t kRefBaselinePrecompCache = 15056832347528341909ULL;
 
 inline bool is_reference_captured(std::uint64_t r) noexcept {
     return r != kUncapturedSentinel;
@@ -448,7 +448,7 @@ TEST_CASE("Baseline green §6: precomp cache-hit determinism — two consecutive
         }
     );
 
-    SoftwareRenderer renderer(Config{});
+    auto renderer = make_renderer();
     renderer.set_composition_registry(&registry);
 
     // First frame: cache miss (compile from registry)

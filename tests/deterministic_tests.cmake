@@ -31,6 +31,8 @@ add_executable(chronon3d_deterministic_tests
 target_link_libraries(chronon3d_deterministic_tests
     PRIVATE
         chronon3d_sdk
+        chronon3d_graph
+        chronon3d_graph_pipeline
         chronon3d_backend_software
         chronon3d_scene
         doctest::doctest

@@ -4,6 +4,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/animation/motion/timeline.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include "content/common/animation_helpers.hpp"
 #include "content/text/text_helpers.hpp"
 
@@ -72,7 +73,7 @@ Composition anim_typewriter() {
             .tracking = 3.0f,
             .chars_per_frame = 0.3f,
             .easing = EasingCurve{Easing::OutCubic},
-        }, ctx.frame);
+        }, ctx.frame, chronon3d::runtime::process_wide_resolver());
         return s.build();
     });
 }
