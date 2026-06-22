@@ -1,242 +1,272 @@
-# Chronon3D Camera — Canonical Architecture
+# Chronon3D Camera — Architettura canonica con semantica After Effects
 
 ## Missione
 
-Portare il sottosistema camera a un solo percorso di authoring, compilazione, valutazione e rendering:
+Raggiungere una semantica camera familiare a After Effects senza creare un secondo motore camera, un manager globale o una gerarchia legacy parallela.
+
+Il solo percorso moderno resta:
 
 ```text
 CameraDescriptor
-    -> compile_camera()
-    -> CameraProgram
-    -> CameraProgram::evaluate(CameraEvalContext, CameraSession)
-    -> Camera2_5D
-    -> CameraProjectionSource
-    -> canonical projection contract
-    -> renderer
+  -> compile_camera()
+  -> CameraProgram
+  -> evaluate(CameraEvalContext, CameraSession)
+  -> Camera2_5D
+  -> CameraProjectionSource
+  -> camera_projection_contract
+  -> renderer
 ```
 
-Questo documento definisce la direzione architetturale obbligatoria. Le API esistenti che non seguono questo flusso possono restare soltanto come adapter di migrazione temporanei e devono avere una data o una fase di rimozione.
+Chronon3D rimane headless, CPU-first e deterministico. Working views, pannelli e mouse tool non appartengono al core.
 
-## Stato da preservare
+## Anchor già presenti su main
 
-Le seguenti fondazioni sono corrette e devono restare canoniche:
+Prima di aggiungere codice, usare e completare questi elementi esistenti:
 
-- `CameraDescriptor` come forma di authoring dati.
-- `compile_camera()` come unico passaggio descriptor -> programma eseguibile.
-- `CameraProgram` immutabile dopo la compilazione.
-- `CameraSession` come stato mutabile per-job/per-render.
-- `Camera2_5D` come snapshot runtime valutato per un istante.
-- `CameraProjectionSource` come vista read-only verso il contratto di proiezione.
-- `camera_projection_contract.hpp` come unica fonte matematica per world-to-camera e world-to-screen.
-- `CameraCatalog` come catalogo dati di preset, senza registry globale concorrente.
-- `ShotTimeline` come composizione di programmi camera già compilati.
+| Responsabilità | Anchor canonico esistente |
+|---|---|
+| Authoring camera | `camera_v1::CameraDescriptor` |
+| Compilazione | `camera_v1::compile_camera()` |
+| Programma runtime | `camera_v1::CameraProgram` |
+| Stato per render | `camera_v1::CameraSession` |
+| Snapshot valutato | `Camera2_5D` |
+| Vista di proiezione | `CameraProjectionSource` |
+| Matematica prospettica | `camera_projection_contract.hpp` |
+| Preset camera | `camera_v1::CameraCatalog` |
+| Cut e transizioni | `camera_v1::ShotTimeline` |
+| Layer camera | `LayerKind::Camera` |
+| Intervallo e visibilità layer | `Layer::from`, `duration`, `visible`, `active_at()` |
+| Partecipazione alla proiezione | `Layer::uses_2_5d_projection` |
+| Ordine layer | contratto canonico dello scene/layer stack |
 
-## Problema corrente
+Non introdurre alternative agli anchor della tabella.
 
-Oggi convivono più percorsi sovrapposti:
+## Compatibilità comportamentale richiesta
 
-1. `Camera2_5D` impostata direttamente.
-2. `AnimatedCamera2_5D` valutata dal `SceneBuilder`.
-3. `CameraRig` moderno.
-4. `camera_rig::CameraRig` legacy.
-5. `CameraDescriptor -> CameraProgram`.
-6. helper e preset che restituiscono ancora tipi legacy.
+Il percorso canonico deve supportare:
 
-Questi percorsi duplicano responsabilità e permettono risultati diversi per la stessa intenzione artistica.
+- One-Node Camera;
+- Two-Node Camera con Point of Interest;
+- Point of Interest ignorato dalla One-Node;
+- camera attiva determinata dallo stack layer al sample time corrente;
+- default composition camera quando nessuna camera layer è attiva;
+- più camere nella stessa composizione con Cut deterministici;
+- camera applicata ai layer world/2.5D;
+- layer screen-space indipendenti dalla camera;
+- effetti 2D che richiedono esplicitamente la Comp Camera;
+- Zoom, preset focali e Depth of Field coerenti;
+- operazioni equivalenti a Orbit, Track XY, Track Z e Look At Layers come funzioni pure.
 
-## Architettura finale
+## Un solo tipo di modalità camera
 
-### Authoring
+Oggi esistono almeno:
 
-Tutte le nuove composizioni devono costruire un `CameraDescriptor`.
+- `CameraRigMode` nel rig moderno;
+- `camera_rig::RigMode` nel rig legacy;
+- `point_of_interest_enabled` nello snapshot runtime.
+
+Non aggiungere un terzo enum indipendente.
+
+### Implementazione richiesta
+
+1. Spostare o introdurre **un solo** enum canonico in `camera_common_types.hpp`:
 
 ```cpp
-camera_v1::CameraDescriptor descriptor;
-descriptor.id = "hero_push";
-descriptor.base = ...;
-descriptor.source = camera_v1::PoseTracksSource{...};
-descriptor.orientation = camera_v1::LookAtPoint{...};
-descriptor.constraints = {...};
+enum class CameraNodeMode {
+    OneNode,
+    TwoNode
+};
 ```
 
-Non aggiungere nuove funzioni che restituiscono direttamente `Camera2_5D`, `AnimatedCamera2_5D` o `CameraRig` per descrivere un movimento artistico.
+2. Aggiungere `CameraNodeMode` a `CameraBaseSpec`.
+3. Far derivare lo snapshot runtime da questa modalità durante `CameraProgram::evaluate()`.
+4. Convertire `CameraRigMode` e `camera_rig::RigMode` in adapter/deprecated alias temporanei.
+5. Rimuovere gli enum legacy dopo la migrazione dei call site.
+6. Conservare `point_of_interest_enabled` soltanto come dettaglio runtime transitorio; non deve restare un secondo selettore di authoring.
 
-### Compilazione
+### Semantica
 
-`compile_camera()` deve:
+- `OneNode`: orientation/rotation determina la vista; il Point of Interest non orienta la camera.
+- `TwoNode`: il Point of Interest determina l'orientamento base; pan, tilt e roll sono offset locali applicati una sola volta.
 
-1. validare interamente il descriptor;
-2. risolvere i riferimenti al catalogo;
-3. rilevare cicli fra preset;
-4. normalizzare projection e optics mode;
-5. compilare traiettorie e lookup table;
-6. assegnare gli slot dei constraint stateful;
-7. calcolare dipendenze temporali ed esterne;
-8. calcolare un fingerprint deterministico;
-9. produrre un programma immutabile senza lookup runtime.
+## Active camera usando LayerKind::Camera
 
-### Valutazione
+`LayerKind::Camera` esiste già. Non aggiungere `CameraLayerSpec`, un array parallelo di camere o `CameraApi::camera_layers()`.
 
-`CameraProgram::evaluate()` deve essere l'unico entry point per ottenere la camera runtime.
+### Modello richiesto
 
-```cpp
-auto result = program.evaluate(eval_context, camera_session);
-```
+Un layer con `kind == LayerKind::Camera` deve contenere o referenziare un `CameraDescriptor` tramite una singola proprietà/payload tipizzato del layer. Se serve aggiungerla, usare forward declaration/PIMPL o il registry/payload pattern canonico del modello scene; non aggiungere una seconda collezione fuori da `Scene::layers()`.
 
-La funzione deve restituire:
+### Risoluzione active camera
 
-- camera valutata;
-- stato `ok`;
-- diagnostica strutturata;
-- indicazione delle dipendenze da history;
-- eventuale fallback applicato.
+Il compiler della composizione deve:
 
-### Runtime ownership
+1. attraversare i layer nell'ordine definito dal contratto layer esistente;
+2. considerare soltanto `LayerKind::Camera`;
+3. usare `Layer::active_at(frame)` come fonte per `visible`, `from` e `duration`;
+4. scegliere il layer camera topmost attivo;
+5. compilare ogni descriptor una sola volta;
+6. trasformare gli intervalli risolti in `ShotTimeline` con transizione `Cut`;
+7. usare il tempo locale del layer camera;
+8. utilizzare la default camera nei gap.
 
-- `CameraProgram`: stato immutabile condivisibile.
-- `CameraSession`: stato per singolo render job.
-- `ShotTimelineSession`: stato per timeline nel render job.
-- `FramingSession`: stato per solver nel render job.
-- nessuno stato camera mutabile in singleton o registry globale.
+Il renderer non deve avere un secondo active-camera resolver.
 
-## API da aggiungere
+## Default composition camera
 
-Integrare il percorso compilato nella normale API di composizione:
+Non introdurre `DefaultCameraSpec` come nuovo modello concorrente.
+
+La default camera deve essere un normale `CameraDescriptor` posseduto dalle impostazioni della composizione, compilato tramite `compile_camera()` e valutato dallo stesso runtime.
+
+Il valore predefinito deve essere serializzabile e testabile; non deve essere nascosto come costante nel renderer.
+
+## Layer world, screen e Comp Camera
+
+Non aggiungere `LayerCameraMode`.
+
+Usare i contratti esistenti:
+
+- `uses_2_5d_projection == true`: il layer partecipa alla proiezione camera;
+- `uses_2_5d_projection == false`: il layer resta in screen/comp space;
+- un effetto che richiede la Comp Camera deve dichiarare una capability nel catalogo/descriptor degli effetti esistente.
+
+La capability Comp Camera non deve diventare un nuovo tipo di layer o una seconda pipeline di proiezione.
+
+## API moderna
+
+Mantenere l'API concentrata sul percorso compilato:
 
 ```cpp
 class CameraApi {
 public:
-    CameraApi& descriptor(const camera_v1::CameraDescriptor& descriptor);
-    CameraApi& program(const camera_v1::CameraProgram& program);
-    CameraApi& preset(std::string_view id,
-                      const camera_v1::CameraCatalog& catalog);
-    CameraApi& timeline(const camera_v1::ShotTimeline& timeline);
+    CameraApi& descriptor(const camera_v1::CameraDescriptor&);
+    CameraApi& program(const camera_v1::CameraProgram&);
+    CameraApi& preset(std::string_view, const camera_v1::CameraCatalog&);
+    CameraApi& timeline(const camera_v1::ShotTimeline&);
 };
 ```
 
-Il builder non deve creare una `CameraSession` locale a ogni chiamata. Deve ricevere o risolvere la sessione dal contesto del render job.
+Le camera layer vengono create attraverso il normale layer authoring con `LayerKind::Camera`, non attraverso un side channel in `CameraApi`.
 
-Aggiungere un adapter esplicito per i casi legacy:
+La compilazione avviene prima del render. `CameraApi` non crea sessioni globali e non ricompila a ogni frame.
+
+## Operazioni equivalenti ai Camera Tools
+
+Implementare funzioni pure che modificano o restituiscono `CameraDescriptor`:
+
+```cpp
+CameraDescriptor orbit_camera(const CameraDescriptor&, Vec2 delta_deg);
+CameraDescriptor track_camera_xy(const CameraDescriptor&, Vec2 delta_world);
+CameraDescriptor track_camera_z(const CameraDescriptor&, f32 distance);
+CameraDescriptor look_at_point(const CameraDescriptor&, Vec3 target);
+CameraDescriptor look_at_layers(const CameraDescriptor&, Span<WorldBounds>);
+```
+
+Queste funzioni devono riusare `OrbitMotion`, il framing solver e il projection contract. Non devono introdurre classi UI o un nuovo rig.
+
+## Compiler canonico
+
+`compile_camera()` esiste già con:
+
+- `CameraCompileContext`;
+- cycle detection per `RegisteredMotionRef`;
+- `CameraEvaluationDependency`;
+- fingerprint deterministico.
+
+Il lavoro restante è hardening, non una seconda implementazione:
+
+- descriptor ID vuoti;
+- source nulle o incoerenti;
+- trajectory nulla, vuota o a durata zero;
+- range dei constraint;
+- projection/lens non finite;
+- parent/target mancanti o ciclici;
+- preservazione corretta della failure policy e dei metadata dopo la risoluzione ricorsiva;
+- diagnostica strutturata completa.
+
+## Ownership runtime
+
+- `CameraProgram`: immutabile e condivisibile.
+- `CameraSession`: una per render job.
+- `ShotTimelineSession`: una per timeline e render job.
+- `FramingSession`: una per render job.
+- checkpoint stateful: posseduti dal render job.
+- nessuno stato mutabile in singleton o cataloghi globali.
+
+## Legacy
+
+Adapter temporanei consentiti:
 
 ```cpp
 CameraDescriptor descriptor_from_legacy(const AnimatedCamera2_5D&);
 CameraDescriptor descriptor_from_legacy(const CameraRig&);
 ```
 
-Gli adapter devono vivere in una directory di migrazione e non nel core canonico.
-
-## API da eliminare o deprecare
+Gli adapter devono produrre soltanto descriptor, avere parity test e non mantenere evaluator autonomi.
 
 ### Deprecare subito
 
 - nuovi utilizzi di `SceneBuilder::animated_camera()`;
 - nuovi preset che restituiscono `AnimatedCamera2_5D`;
-- nuovi utilizzi di `camera_rig::CameraRig`;
-- helper imperative separati per dolly, pan, orbit o focus che bypassano `CameraDescriptor`;
-- creazione di `Camera2_5D` direttamente nelle composizioni, tranne test matematici e adapter.
+- nuovi utilizzi del rig legacy;
+- helper motion che bypassano `CameraDescriptor`;
+- costruzione diretta di `Camera2_5D` nelle composizioni moderne.
 
-### Eliminare dopo la migrazione
+### Eliminare dopo parity
 
-- `camera_rig::CameraRig` legacy;
-- duplicazione fra `CameraRig` moderno e `OrbitMotion`;
-- vecchi namespace di preset che producono tipi legacy;
-- alias pubblici non più necessari dopo la finestra di compatibilità;
-- builder path camera non compilati.
+- implementazioni autonome di `AnimatedCamera2_5D` e dei due rig;
+- `CameraRigMode` e `camera_rig::RigMode` dopo migrazione a `CameraNodeMode`;
+- registry concorrenti con `CameraCatalog`;
+- builder path non compilati;
+- projection math duplicata;
+- alias pubblici senza call site.
 
-### Mantenere
-
-`Camera2_5D` deve restare come snapshot runtime, ma non come API primaria di authoring.
+`Camera2_5D` resta come snapshot runtime, non come authoring API.
 
 ## Regole anti-duplicazione
 
 È vietato:
 
-- introdurre `CameraProgramV2` accanto a `CameraProgram`;
-- introdurre un nuovo `CameraRegistry` oltre a `CameraCatalog`;
+- creare `CameraProgramV2`;
+- creare `AfterEffectsCamera`;
+- creare `CameraLayerSpec` separato dai layer;
+- creare `LayerCameraMode` parallelo a `uses_2_5d_projection`;
+- creare `DefaultCameraSpec` parallelo a `CameraDescriptor`;
+- creare un secondo active-camera resolver;
 - creare un secondo projection contract;
-- creare un secondo evaluator per descriptor;
-- mantenere due rig completi con feature equivalenti;
-- copiare la stessa logica source-specific in static, pose, orbit e trajectory evaluator;
-- aggiungere service locator o singleton per accedere alla camera session;
-- costruire o compilare il programma a ogni frame.
-
-Ogni nuova source, modifier, orientation o constraint deve entrare nelle variant canoniche esistenti oppure sostituirle con una forma più completa nello stesso percorso.
-
-## Implementazione richiesta
-
-### Fase 1 — Base runtime comune
-
-Creare una funzione interna canonica:
-
-```cpp
-Camera2_5D make_camera_from_base(
-    const CameraBaseSpec& base,
-    SampleTime time);
-```
-
-Ogni source evaluator deve partire da questo snapshot e modificare soltanto i canali di propria responsabilità.
-
-### Fase 2 — Compile context
-
-Introdurre:
-
-```cpp
-struct CameraCompileContext {
-    const CameraCatalog* catalog{nullptr};
-    std::vector<std::string> resolution_stack;
-    std::unordered_set<std::string> visited;
-    std::vector<CameraCompileDiagnostic> diagnostics;
-};
-```
-
-La risoluzione dei preset deve essere iterativa o ricorsiva con cycle detection obbligatoria.
-
-### Fase 3 — Program metadata
-
-Il programma compilato deve esporre almeno:
-
-```cpp
-enum class CameraEvaluationDependency {
-    Stateless,
-    RequiresHistory
-};
-
-struct CameraProgramMetadata {
-    bool time_dependent{false};
-    bool has_external_dependencies{false};
-    CameraEvaluationDependency evaluation_dependency{
-        CameraEvaluationDependency::Stateless
-    };
-    u64 fingerprint{0};
-};
-```
-
-### Fase 4 — Scene integration
-
-Il render job deve possedere le sessioni camera e passarle alla valutazione. Il `SceneBuilder` deve soltanto descrivere o selezionare il programma, non possedere stato temporale persistente.
+- mantenere due rig completi;
+- compilare la camera nell'hot path;
+- introdurre un `CameraManager` globale.
 
 ## Test obbligatori
 
-- descriptor statico -> programma -> snapshot;
-- stessa camera via preset e descriptor diretto produce snapshot equivalente;
-- nessun lookup catalog durante `evaluate()`;
-- programma condiviso fra due render job con sessioni separate;
-- nessuna contaminazione di stato fra sessioni;
-- cycle detection nei riferimenti preset;
-- fingerprint uguale per descriptor semanticamente uguali;
-- fingerprint diverso per canali differenti;
-- adapter legacy produce lo stesso risultato prima della rimozione;
-- il percorso canonico compila senza includere header legacy.
+- One-Node ignora il Point of Interest.
+- Two-Node guarda il Point of Interest.
+- `CameraRigMode` e legacy `RigMode` convertono correttamente nel modo canonico.
+- camera topmost attiva selezionata tramite i layer esistenti.
+- camera `visible == false` ignorata.
+- `from` e `duration` rispettati.
+- gap coperto dalla default camera descriptor.
+- camera layer compilati in Cut corretti.
+- layer con `uses_2_5d_projection` influenzato; screen layer invariato.
+- effect capability Comp Camera usa il medesimo snapshot.
+- due render job non condividono sessione.
+- adapter legacy mantiene parity durante la migrazione.
 
-## Criteri di chiusura
+## Definition of Done
 
-Questo work package è chiuso quando:
+- `CameraDescriptor -> CameraProgram` è l'unico percorso moderno.
+- esiste un solo `CameraNodeMode`.
+- `LayerKind::Camera` è l'unico modello di camera layer.
+- active camera deriva dal normale scene/layer stack.
+- default camera è un `CameraDescriptor`.
+- nessuna collezione camera parallela.
+- `CameraApi` usa programmi compilati.
+- sessioni per-job.
+- distinzione world/screen usa il contratto esistente.
+- operazioni camera disponibili come funzioni pure.
+- test di compatibilità bloccanti.
 
-- le nuove composizioni usano `CameraDescriptor` o `CameraProgram`;
-- `CameraApi` accetta il percorso compilato;
-- `CameraSession` appartiene al render job;
-- `compile_camera()` valida e normalizza realmente il descriptor;
-- non esistono nuovi preset legacy;
-- esiste una lista esplicita di API deprecate con fase di rimozione;
-- i test del percorso compilato sono bloccanti in CI;
-- non è stato introdotto nessun nuovo registry o evaluator parallelo.
+## Riferimento funzionale
+
+Audit del 2026-06-22 basato sulla guida ufficiale Adobe After Effects dedicata a camera layer, active camera, One-Node, Two-Node e Point of Interest. Adobe definisce la semantica utente; gli anchor architetturali restano quelli già presenti in Chronon3D.
