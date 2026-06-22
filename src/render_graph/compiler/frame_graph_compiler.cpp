@@ -402,6 +402,52 @@ void FrameGraphCompiler::build_node_metadata(
         }
     }
 
+    // ── Work Package 4.4 — input-aware refinement (PR 6.9) ───────────────────
+    // Two nodes that share (layer_id, kind, name) but have different
+    // inputs (e.g. multiple CompositeNodes in a root-level compositing
+    // chain) would collide under the preliminary hash above.  Fold each
+    // reachable node's input stable_node_ids into its own hash, processing
+    // in topological order so upstream nodes are already finalised.
+    //
+    // Leaf nodes (zero inputs) keep their preliminary SID unchanged.
+    // This is a Merkle-style refinement: the SID becomes a content hash
+    // of the node's local identity XOR its reachable subgraph.
+    for (const auto& level : compiled.levels) {
+        for (GraphNodeId id : level) {
+            if (id >= node_count) continue;
+            auto& node_info = compiled.nodes[id];
+            if (!node_info.reachable) continue;
+            if (node_info.stable_node_id == kInvalidStableNodeId) continue;
+
+            uint64_t h = node_info.stable_node_id.value;
+            bool folded = false;
+
+            // Collect reachable input SIDs and sort for determinism —
+            // graph builder insertion order is not guaranteed stable
+            // across builds (same as compile()'s sorted-SID contract for
+            // graph_instance_id).
+            std::vector<uint64_t> input_sids;
+            input_sids.reserve(node_info.inputs.size());
+            for (GraphNodeId input_id : node_info.inputs) {
+                if (input_id >= node_count) continue;
+                const auto& input_info = compiled.nodes[input_id];
+                if (!input_info.reachable) continue;
+                if (input_info.stable_node_id == kInvalidStableNodeId) continue;
+                input_sids.push_back(input_info.stable_node_id.value);
+            }
+            std::sort(input_sids.begin(), input_sids.end());
+            for (uint64_t sid : input_sids) {
+                // FNV-1a fold — same mixing as hash_stable_node_inputs
+                h ^= sid;
+                h *= 0x100000001b3ULL;
+                folded = true;
+            }
+            if (folded) {
+                node_info.stable_node_id = StableNodeId{h == 0u ? 1u : h};
+            }
+        }
+    }
+
     // ── Work Package 4 — collision detection (PR 4.3) ────────────────────────
     // Two distinct reachable nodes in the same graph MUST NOT produce
     // identical stable_node_ids.  Detect this and throw so the bug is
