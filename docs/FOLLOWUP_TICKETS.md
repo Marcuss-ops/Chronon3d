@@ -3031,3 +3031,39 @@ The CLI slim cleanup (F1.2) triggered a fresh repo-wide grep that surfaced this 
 - **`docs/EXPRESSIONS_V2_PROMOTION.md`** Gate 2 — the v2 expressions path is now self-contained in `experimental/expressions/`, no longer relies on Taskflow.
 - **`cmake/Chronon3DConfig.cmake.in`** lines 23-26 — the canonical install-export deliberately excludes Taskflow from downstream consumers; comments document this exclusion.
 - **`AGENTS.md`** §Regole di lavoro — "Ogni nuova feature deve usare il registry, resolver o sampler canonico già esistente" — Taskflow's absence from usage is consistent with the "no orphan registries" policy.
+## TICKET-041 — Sync cmake/Chronon3DRegistry.cmake with src/ add_library(OBJECT|INTERFACE) targets
+
+| **Status** | 🔵 Planned |
+|---|---|
+| **Affected file(s)** | `cmake/Chronon3DRegistry.cmake`; `src/**/CMakeLists.txt` |
+| **Discovered during** | F3.1 phase B (2026-06-23) — new boundary-gate `[12/14]` |
+| **Symptom** | Gate `[12/14]` reports `FAIL (advisory)`; `comm -23` is non-empty. Script exits 0 (advisory). |
+| **Root cause analysis** | Registry populated incrementally; not introspected against every `src/**`. Gate (AGENTS.md §2 + ADR-010-1) is first detector. |
+| **Suggested fix** | (1) Enumerate OBJECT/INTERFACE targets in `src/**/CMakeLists.txt`. (2) Sync registry. (3) Promote gate status. |
+| **Acceptance criteria** | (1) `comm -23` returns EMPTY. (2) `[12/14]` passes. (3) Selftests pass. |
+| **Cross-references** | AGENTS.md §2; ADR-010-1; Gate `[12/14]`. |
+
+## TICKET-042 — Sync vcpkg.json deps with root CMakeLists.txt find_package(... REQUIRED) entries
+
+| **Status** | 🔵 Planned |
+|---|---|
+| **Affected file(s)** | `vcpkg.json`; `CMakeLists.txt` |
+| **Discovered during** | F3.1 phase B (2026-06-23) — new boundary-gate `[13/14]` |
+| **Symptom** | Gate `[13/14]` reports `FAIL (advisory)` for missing vcpkg dependencies. Script exits 0 (advisory). |
+| **Root cause analysis** | `find_package` aliases or namespace prefixes. Gate (AGENTS.md §3 + ADR-010-2) is first detector. |
+| **Suggested fix** | (1) Lowercase `find_package` names. (2) Sync `vcpkg.json` or update gate allowlist. (3) Promote gate. |
+| **Acceptance criteria** | (1) All deps mapped. (2) `[13/14]` passes. (3) `cmake --preset` configures cleanly. |
+| **Cross-references** | AGENTS.md §3; ADR-010-2; Gate `[13/14]`. |
+
+## TICKET-043 — Audit apps/* includes for internal chronon3d_sdk_impl leaks
+
+| **Status** | 🔵 Planned |
+|---|---|
+| **Affected file(s)** | `apps/chronon3d_cli/**`; `install_consumer_test/**` |
+| **Discovered during** | F3.1 phase B (2026-06-23) — new boundary-gate `[14/14]` |
+| **Symptom** | Gate `[14/14]` reports `FAIL (advisory)` if internal headers leaked under `apps/`. |
+| **Root cause analysis** | SDK INSTALL contract requires consumer usage of `Chronon3D::SDK` alias; direct headers leakbreaks consumer builds. Gate is first detector. |
+| **Suggested fix** | (1) Ensure no internal includes. (2) Rewrite to use `Chronon3D::SDK` INTERFACE alias. (3) Promote gate. |
+| **Acceptance criteria** | (1) `[14/14]` passes. (2) `install_consumer_test` compiles against installed SDK alias without internal includes. |
+| **Cross-references** | AGENTS.md §4; ADR-008; ADR-010-3; Gate `[14/14]`. |
+
