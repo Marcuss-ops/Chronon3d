@@ -18,7 +18,7 @@ percorso unico, verificato e consumabile fuori dalla source tree.
 | Software backend | 🟡 Avanzato | Confine rifattorizzato; gate, core, lean e full validation devono risultare verdi insieme. |
 | Precomp / execution scope | 🔴 Aperto | Nested execution, lease, child arena e concorrenza richiedono chiusura verificata. |
 | Text Production V1 | 🟡 60–65% stimato | Word timing, rich text produttivo, preset e visual regression sistematica. |
-| Camera Production V1 | 🟡 70–75% stimato | Test scene bloccati, migrazione legacy e feature di path/framing/ottica ancora aperte. |
+| Camera Production V1 | 🟡 70–75% stimato | scene_tests link sbloccato via PR 2 (`fb1b7e97`, TICKET-029 risolto); migrazione legacy e feature di path/framing/ottica ancora aperte. |
 | SDK C++ | 🟡 80–85% stimato | Package presente; manca consumer esterno che renderizzi una composizione reale. |
 | SDK cross-language | 🔵 30–40% stimato | C ABI e formato dichiarativo `.chronon` assenti. |
 | Expressions V2 | 🧪 Sperimentale | Non installato, non esportato e non integrato nel percorso produttivo. |
@@ -82,10 +82,16 @@ constraint, shot timeline e transizioni.
 
 ### Stato delle prove
 
-Alcuni fix camera compilano ma non possono essere dichiarati verificati finché
-`chronon3d_scene_tests` non collega ed esegue. Il blocker principale è tracciato
-come TICKET-029. I ticket camera devono passare da “code-fix landed” a “verified”
-soltanto dopo test eseguiti sul commit candidato.
+Il blocker TICKET-029 (che bloccava il link step di `chronon3d_scene_tests`) è
+stato chiuso upstream via PR 2 (`fb1b7e97`): il link step ora collega e i fix
+camera che compilano possono procedere verso la fase di verifica macchina
+end-to-end. TICKET-029 è ora `🟢 Resolved` in `docs/FOLLOWUP_TICKETS.md` (per il
+dettaglio della 6-fix bundle che include anche `8547b2e9 fix(scene+tests): TICKET-029
+align test doctest pattern + camera compiler includes`). I ticket camera devono
+passare da “code-fix landed” a “verified” soltanto dopo che i test siano
+effettivamente eseguiti e `RC=0` sul commit candidato — la verifica end-to-end
+resta il prerequisito per dichiarare una baseline verde anche con il blocker
+TICKET-029 risolto.
 
 ### Gap residui principali
 
