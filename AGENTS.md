@@ -48,9 +48,9 @@ Documenti generali da leggere insieme:
 - `docs/FOLLOWUP_TICKETS.md`
 - `docs/ANTI_DUPLICATION_RULES.md`
 
-## Assegnazione corrente a due agenti
+## Stato assegnazioni agenti (snapshot 2026-06-23)
 
-I due incarichi sono separati per ridurre conflitti e duplicazioni:
+Snapshot dello stato corrente (vedi body per lo stato per-agente). L'assegnazione iniziale prevedeva due incarichi paralleli per ridurre conflitti e duplicazioni; la realtà attuale è sequenziale.
 
 1. [Agente 1 — Renderer/Backend Single Identity](docs/agent-tasks/AGENT_1_RENDERER_BOUNDARY.md)
    - branch: `codex/agent1-renderer-boundary` **[DONE ✓ — Merged into main on 2026-06-23, branch retired]**
@@ -59,7 +59,7 @@ I due incarichi sono separati per ridurre conflitti e duplicazioni:
    - branch: `codex/agent2-cmake-sdk-baseline` **[NOT STARTED — branch missing on origin as of 2026-06-23]**
    - ownership: CMake, preset/toolchain, install consumer, full validation e documenti canonici.
 
-Gli agenti possono iniziare in parallelo, ma il lavoro dell'Agente 2 deve essere validato dopo un rebase sul `main` che contiene la correzione renderer/backend approvata.
+L'Agente 2 (non ancora avviato), quando sarà avviato, dovrà rebase su `main` che già contiene la correzione renderer/backend approvata nell'ambito dell'Agente 1.
 
 Non scambiare ownership senza una decisione esplicita. In particolare:
 
