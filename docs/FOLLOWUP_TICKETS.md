@@ -2873,3 +2873,91 @@ becomes referenced for the first time.
 **Companion blockers:** TICKET-035 (`Framebuffer::bytes()` missing on canonical type); TICKET-029 (`camera_program_compiler.cpp` references types not visible in this TU — still open as a separate predecessor, not gated on this ticket's resolution).
 
 ---
+
+## TICKET-037 -- FontEngine default-ctor regression in text tests blocks `chronon3d_core_tests` umbrella (P0, post-rebase blocker for ctest -R camera)
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned (post-rebase surfaced; investigation complete, fix unstarted) |
+| **Affected file(s)** | `include/chronon3d/text/font_engine.hpp` (canonical ctor declaration, line 231) · `tests/text/test_text_material.cpp` (line 52: `FontEngine test_engine{resolver};`) · `tests/text/test_text_material.cpp` (line 291, same pattern) · `tests/test_text_preset_registry.cpp` (line 961: `FAIL_TEST` macro absent) · transitive: `chronon3d_core_tests` umbrella target does not link because these compilation errors halt the umbrella |
+| **Discovered during** | Post-rebase validation of PR 2 closure commit (`f154f2a9`) — `ninja -C build/chronon/linux-ci chronon3d_core_tests -j8` returns subcommand failed while compiling `tests/text/test_text_material.cpp` and `tests/test_text_preset_registry.cpp` as part of the umbrella target. The downstream effect: `ctest --test-dir build/chronon/linux-ci -R camera --output-on-failure` reports `chronon3d_camera_compiled_evaluate_tests` + `chronon3d_camera_visual_tests` as `Not Run` (the camera test executables live under `chronon3d_core_tests` umbrella and are blocked by these compile errors). |
+| **Discovered date** | 2026-06-23 |
+| **Owner** | Cross-agent decision required.<br/>  - `codex/agent1-renderer-boundary` does NOT own the text subsystem (renderer/backend is its scope per AGENTS.md).<br/>  - `codex/agent2-cmake-sdk-baseline` does NOT own the text subsystem (cmake/preset/toolchain/install/SDK is its scope).<br/>  - The text subsystem (`include/chronon3d/text/`, `src/backends/text/`, `tests/text/`) is NOT listed in either agent's AGENTS.md ownership table.<br/>  - Three operational options: (a) extend agent1's ownership to "text/font_engine + text_backend_text" (cross-agent extension); (b) spawn a third agent `codex/agent3-text-subsystem` (new ownership row); (c) escalate to a user decision. AGENTS.md "ownership cross-agent" rule requires explicit handover protocol before opening the fix branch. |
+| **Companion blockers** | TICKET-035 (Framebuffer::bytes() accessor) — **Resolved at implementation-gate level** (commit `f154f2a9`). TICKET-036 (compile_camera() policy allowlist) — **Resolved at implementation-gate level** (commit `f154f2a9`). This TICKET-037 is the only Remaining blocker before `ctest -R camera --output-on-failure` can fully exit 0 and the 5 camera tickets (021/022/024/026/028) can be flipped to "Verified by running tests". |
+| **Compliance target** | AGENTS.md: "non segnare verde una suite che restituisce failure" — applied to today: `chronon3d_camera_compiled_evaluate_tests` + `chronon3d_camera_visual_tests` are blocked by TICKET-037; 5 tickets stay in **deferred** state until this regression is fixed. |
+
+### Symptom
+
+```text
+/home/pierone/Pyt/Chronon3d/tests/test_text_preset_registry.cpp:961:17: error: 'FAIL_TEST' was not declared in this scope; did you mean 'F_TEST'?
+  961 |                 FAIL_TEST("Unknown preset_id branch in Sub-case 31: " << id);
+```
+
+```text
+/home/pierone/Pyt/Chronon3d/tests/text/test_text_material.cpp:52:36: error: no matching function for call to 'chronon3d::FontEngine::FontEngine(<brace-enclosed initializer list>)'
+  52 |     FontEngine test_engine{resolver};
+... (cascade: cc1plus template-deduction failures on operator<< for FAIL_TEST macro, plus downstream undeclared-identifier errors)
+```
+
+```text
+/home/pierone/Pyt/Chronon3d/include/chronon3d/text/font_engine.hpp:231:14: note: candidate 2: 'chronon3d::FontEngine::FontEngine(const chronon3d::assets::AssetResolver&)'
+  231 |     explicit FontEngine(const chronon3d::assets::AssetResolver& resolver);
+```
+
+The build of `chronon3d_core_tests` umbrella (392 ninja compile steps total) fails at step 18 (test_text_preset_registry.cpp) and step 22 (test_text_material.cpp). The umbrella attempts to build `chronon3d_camera_compiled_evaluate_tests` + `chronon3d_camera_visual_tests` via transitive inclusion, but these two scene test executables require `chronon3d_core_tests` to link successfully — and the `chronon3d_core_tests` link step never completes because the text-test compilation emissions are aborted at the cc1plus step.
+
+### Root cause analysis
+
+The root cause has **two independent axes** that converged at rebase time:
+
+**Axis A — FontEngine ctor lifecycle (text/font_engine, axis of `tests/text/test_text_material.cpp` errors).**
+The canonical `chronon3d::FontEngine` ctor signature is currently `explicit FontEngine(const chronon3d::assets::AssetResolver& resolver);` (header `include/chronon3d/text/font_engine.hpp:231`). The previous transitional default ctor `FontEngine()` was deleted in a recent commit (`git blame` shows `8a2d404d` `-- refactor(text): WP-8 PR 8.1 Slice B -- delete FontEngine() transitional default ctor`). The test code at `tests/text/test_text_material.cpp:52` and `:291` still calls `FontEngine test_engine{resolver};` with a brace-enclosed initializer list. The brace list `{resolver}` matches against `FontEngine(const AssetResolver&)` only via list-initialization rules when the resolver type is exactly `chronon3d::assets::AssetResolver`. If `resolver` is a derived-class instance OR a type-converting-wrapper, the list-init falls back to a non-explicit ctor — but the explicit qualifier blocks that path, so the cc1plus emits "no matching function for call to FontEngine(<brace-enclosed initializer list>)". This is a signature-drift regression: the tests were not updated when the FontEngine ctor became explicit-and-AssetResolver-only.
+
+**Axis B — `FAIL_TEST` macro absent (axis of `tests/test_text_preset_registry.cpp` error).**
+The `FAIL_TEST` macro is referenced at line 961 of `tests/test_text_preset_registry.cpp`. cc1plus reports "did you mean `F_TEST`?" — implying the project once used `FAIL_TEST` (probably a Catch2 idiom or a transient alias) but the canonical pytest/doctest surface now only exposes `F_TEST` / `CHECK` / `REQUIRE` / `MESSAGE`. The macro was removed or renamed in a commit that did not update this test, leaving a reserved-but-undefined identifier. The cascade downstream (template-deduction failures on operator<<) is the side-effect of macro substitution producing an unparseable expression, NOT a separate issue.
+
+Both axes were masked on `origin/main` before the PR 2 rebase because the umbrella `chronon3d_core_tests` had already been failing on chronon3d_scene camera tests (TICKET-035/036 territory), so cc1plus aborted at the camera-test compile step before reaching the text-test compile step. With camera tests removed from the umbrella (post-PR-2 closure) OR re-bundled onto `chronon3d_scene_tests` (which now compiles cleanly), the build flow reaches `tests/text/test_text_preset_registry.cpp` + `tests/text/test_text_material.cpp` for the first time post-rebase, exposing TICKET-037.
+
+### Out-of-scope rationale
+
+- **Per AGENTS.md "Fare PR piccole e mirate"** — TICKET-037 fix should be its own PR (text subsystem only) and should NOT be bundled with TICKET-035/036 closing commits, which were already complete at commit `f154f2a9`.
+- **TICKET-035/036 status are independent** — neither ticket depends on TICKET-037; TICKET-037 is the sole remaining blocker.
+- **The 5 camera tickets 021/022/024/026/028** all stay in their **deferred** state because `ctest -R camera` cannot fully exit 0 until TICKET-037 is fixed. AGENTS.md "non segnare verde suite che restituisce failure" remains the governing rule.
+
+### Suggested fix approach
+
+For **Axis A** (FontEngine ctor lifecycle):
+
+1. Decide between three remediation strategies (Axis A):
+   - **A.1 — Expose transitional bridge ctor** (minimal): add `FontEngine() = default;` (or `FontEngine() noexcept = default;`) back to the header alongside the AssetResolver one, with a comment marking it transitional + a 30-day deprecation timeline. Update `tests/text/test_text_material.cpp` to use whichever ctor is canonical. Fastest path; preserves back-compat for all downstream callers.
+   - **A.2 — Refactor internal callers** (canonicalized): audit every existing `FontEngine{resolver}` / `FontEngine()` call site, route them through a single `FontEngine::from_resolver(const AssetResolver&)` factory function. No transitional ctor; explicit canonical entry point. Medium diff; no regress for downstream.
+   - **A.3 — Header split** (text/backend alignment): split `include/chronon3d/text/font_engine.hpp` into a thin interface header + a heavy implementation header that includes `assets/asset_resolver.hpp`, so list-init at callsite sees the complete type. Larger diff; affects every TU.
+2. Whichever strategy, the canonical fix must update the call sites in `tests/text/test_text_material.cpp:52, :291` (and any other site discovered by `grep -rn 'FontEngine[ {]*[a-zA-Z_]*[ {]*resolver' tests/`).
+3. Compile-validate: `ninja -C build/chronon/linux-ci chronon3d_core_tests` rc=0.
+4. Link-validate: `ctest --test-dir build/chronon/linux-ci -N` lists both `chronon3d_camera_compiled_evaluate_tests` + `chronon3d_camera_visual_tests` as executable-not-missing.
+
+For **Axis B** (`FAIL_TEST` macro absent):
+
+1. Audit `tests/test_text_preset_registry.cpp:961` line context — confirm the test is calling `FAIL_TEST` as a Catch2-macro idiom for fatal assertion. If so, replace with the canonical doctest idiom: `FAIL("Unknown preset_id branch in Sub-case 31: ", id);` or `MESSAGE("Unknown preset_id branch in Sub-case 31: ", id); FAIL_CHECK();` (per doctest conventions).
+2. Or, if `FAIL_TEST` is a project-local macro that was removed: grep for any definitions of `FAIL_TEST` in the tree (`grep -rn 'FAIL_TEST'`). If an alternative macro remains (`FAIL_CHECK` / `FAIL` / `MESSAGE`), use it consistently.
+3. Update `tests/test_text_preset_registry.cpp` to use the canonical macro.
+4. Compile-validate.
+
+### Acceptance criteria
+
+| # | Criterion | Verification |
+| :--- | :--- | :--- |
+| 1 | `chronon3d_core_tests` umbrella compiles + links rc=0 | `time ninja -C build/chronon/linux-ci chronon3d_core_tests -j8` returns rc=0 within stable environment; `tests/text/test_text_material.cpp.o` and `tests/test_text_preset_registry.cpp.o` emit successfully. |
+| 2 | `chronon3d_camera_compiled_evaluate_tests` + `chronon3d_camera_visual_tests` are linked binaries | `ls build/chronon/linux-ci/chronon3d_camera_compiled_evaluate_tests build/chronon/linux-ci/chronon3d_camera_visual_tests` reports both files. |
+| 3 | `ctest --test-dir build/chronon/linux-ci -R '^camera|^chronon3d_camera' --output-on-failure` exits 0 | All 3 ctest entries (`chronon3d_camera_architecture_gate`, `chronon3d_camera_compiled_evaluate_tests`, `chronon3d_camera_visual_tests`) PASS. |
+| 4 | The 5 camera tickets 021/022/024/026/028 can be flipped to "Verified by running tests" post-this-fix | After acceptance #3, run a doc-only commit appending TICKET-022/024/026/028 Resolution sub-sections + replacing the 5 deferral-notes with squelched "Verified by running tests at commit <SHA>" wording. AGENTS.md compliance restored. |
+
+### Cross-references
+
+- TICKET-035 (`Framebuffer::bytes()` accessor): Resolved at implementation-gate level at commit `f154f2a9` (PR 2 closure).
+- TICKET-036 (`compile_camera()` policy allowlist extend): Resolved at implementation-gate level at commit `f154f2a9`.
+- TICKET-029 pre-existing on origin/main (`camera_program_compiler.cpp` types not visible in TU): separate predecessor of TICKET-037 scope.
+- AGENTS.md: ownership table currently lists only agent1 (renderer/backend, ✓ retired) + agent2 (CMake/SDK, not started). Text subsystem must be assigned an agent or owners via cross-agent handover before TICKET-037 fix opens.
+- Discovered-on: 2026-06-23 by PR 2 closure validation flow.
+
+---
