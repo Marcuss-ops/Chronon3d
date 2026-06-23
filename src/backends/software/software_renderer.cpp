@@ -124,56 +124,53 @@ SoftwareRenderer::SoftwareRenderer(Config config)
 #endif
 }
 
-// 06 R5b \u2014 move ops.  EAST-CONST params in the header keep boundary
-// gate I5 passing (the gate scans the substring `SoftwareRenderer&`).
-// We const_cast<SoftwareRenderer&>(other) ONCE up front so each
-// member can be std::move'd into *this.  imagiRenderer and
-// SoftwareRenderSession both contain unique_ptr-internal mutexes and
-// shared_ptr-backed pools, so std::move transfers ownership cleanly
-// without double-destruction of nested resources.
-SoftwareRenderer::SoftwareRenderer(SoftwareRenderer const&& other) noexcept
-    : m_config(std::move(const_cast<SoftwareRenderer&>(other).m_config))
-    , m_settings(std::move(const_cast<SoftwareRenderer&>(other).m_settings))
-    , m_counters(std::move(const_cast<SoftwareRenderer&>(other).m_counters))
-    , m_image_renderer(std::move(const_cast<SoftwareRenderer&>(other).m_image_renderer))
-    , m_video_decoder(std::move(const_cast<SoftwareRenderer&>(other).m_video_decoder))
-    , m_image_backend(std::move(const_cast<SoftwareRenderer&>(other).m_image_backend))
+// Move ops use real rvalue-ref (no EAST-CONST hack). See header.
+// Members are std::move'd into *this; the moved-from object is left
+// destructible-but-empty (raw pointers nulled; unique_ptrs emptied) to
+// avoid double-destruction of nested resources (m_image_renderer,
+// m_session each carry shared internal mutex / pool state).
+SoftwareRenderer::SoftwareRenderer(SoftwareRenderer&& other) noexcept
+    : m_config(std::move(other.m_config))
+    , m_settings(std::move(other.m_settings))
+    , m_counters(std::move(other.m_counters))
+    , m_image_renderer(std::move(other.m_image_renderer))
+    , m_video_decoder(std::move(other.m_video_decoder))
+    , m_image_backend(std::move(other.m_image_backend))
     , m_registry(other.m_registry)
     , m_runtime(other.m_runtime)
     , m_owned_runtime_storage(
-          std::move(const_cast<SoftwareRenderer&>(other).m_owned_runtime_storage))
+          std::move(other.m_owned_runtime_storage))
 #ifdef CHRONON3D_ENABLE_TEXT
     , m_font_engine(
-          std::move(const_cast<SoftwareRenderer&>(other).m_font_engine))
+          std::move(other.m_font_engine))
 #endif
-    , m_session(std::move(const_cast<SoftwareRenderer&>(other).m_session))
+    , m_session(std::move(other.m_session))
 {
     // Leave the moved-from object in a destructible-but-empty state:
     // unset m_runtime + m_registry (raw pointers; ownership already
     // moved out via the unique_ptr transfers above).
-    const_cast<SoftwareRenderer&>(other).m_runtime = nullptr;
-    const_cast<SoftwareRenderer&>(other).m_registry = nullptr;
+    m_runtime = nullptr;
+    m_registry = nullptr;
 }
 
-SoftwareRenderer const&
-SoftwareRenderer::operator=(SoftwareRenderer const&& other) noexcept
+SoftwareRenderer&
+SoftwareRenderer::operator=(SoftwareRenderer&& other) noexcept
 {
-    auto& mut_other = const_cast<SoftwareRenderer&>(other);
-    m_config        = std::move(mut_other.m_config);
-    m_settings      = std::move(mut_other.m_settings);
-    m_counters      = std::move(mut_other.m_counters);
-    m_image_renderer = std::move(mut_other.m_image_renderer);
-    m_video_decoder  = std::move(mut_other.m_video_decoder);
-    m_image_backend  = std::move(mut_other.m_image_backend);
-    m_registry       = mut_other.m_registry;
-    m_runtime        = mut_other.m_runtime;
-    m_owned_runtime_storage = std::move(mut_other.m_owned_runtime_storage);
+    m_config        = std::move(other.m_config);
+    m_settings      = std::move(other.m_settings);
+    m_counters      = std::move(other.m_counters);
+    m_image_renderer = std::move(other.m_image_renderer);
+    m_video_decoder  = std::move(other.m_video_decoder);
+    m_image_backend  = std::move(other.m_image_backend);
+    m_registry       = other.m_registry;
+    m_runtime        = other.m_runtime;
+    m_owned_runtime_storage = std::move(other.m_owned_runtime_storage);
 #ifdef CHRONON3D_ENABLE_TEXT
-    m_font_engine    = std::move(mut_other.m_font_engine);
+    m_font_engine    = std::move(other.m_font_engine);
 #endif
-    m_session        = std::move(mut_other.m_session);
-    mut_other.m_runtime = nullptr;
-    mut_other.m_registry = nullptr;
+    m_session        = std::move(other.m_session);
+    other.m_runtime = nullptr;
+    other.m_registry = nullptr;
     return *this;
 }
 
