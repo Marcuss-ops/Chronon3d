@@ -162,7 +162,6 @@ bool Composition::redecompose_camera_from_descriptor(SampleTime time) {
         src.fov_deg > 0.0f) {
         camera.fov_deg = src.fov_deg;
     }
-    }
     return true;
 }
 
