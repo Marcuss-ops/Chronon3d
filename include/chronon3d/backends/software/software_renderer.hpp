@@ -140,6 +140,7 @@ public:
     [[nodiscard]] const chronon3d::ExecutionScheduler& scheduler() const noexcept;
     [[nodiscard]] runtime::RenderRuntime& runtime() noexcept;
     [[nodiscard]] const runtime::RenderRuntime& runtime() const noexcept;
+    [[nodiscard]] bool has_runtime() const noexcept { return m_runtime != nullptr; }  // moved-from gate (runtime() would deref null)
     [[nodiscard]] FontEngine& font_engine();
     [[nodiscard]] const FontEngine& font_engine() const;
     [[nodiscard]] graph::CompiledGraphCache& graph_cache();
