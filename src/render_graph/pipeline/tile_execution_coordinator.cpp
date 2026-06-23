@@ -93,10 +93,12 @@ TileExecutionResult execute_tile_or_fallback(
         // ── Traditional single-pass execution ───────────────────────────
         {
             CHRONON_ZONE_C("graph_execute", trace_category::kGraph);
-            if (sw_renderer && sw_renderer->executor()) {
+            // Section 5 violation fix: executor is engine-owned by RenderRuntime,
+            // not by SoftwareRenderer.  Reach it via runtime().executor().
+            if (sw_renderer && sw_renderer->has_runtime()) {
                 // PR 6.2 — root_scope constructed in render_scene_via_graph()
                 // binds session + graph identity; passed through to executor.
-                result.fb = sw_renderer->executor()->execute_with_scope(
+                result.fb = sw_renderer->runtime().executor().execute_with_scope(
                     compiled, ctx, root_scope,
                     sw_renderer->scheduler());
             } else {
