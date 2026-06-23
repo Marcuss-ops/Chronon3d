@@ -21,6 +21,8 @@
 | ADR-006 | Registrazione via `ExtensionContext` | Accepted | _(placeholder, vedi ANTI_DUPLICATION_RULES #1..3)_ |
 | ADR-007 | `SoftwareRenderSession`: stato per-renderer unificato | Accepted (WIP WP-3 phase 5) | _(placeholder)_ |
 | ADR-008 | `RenderEngine::renderer()` returns pointer (ref→ptr API break) | Accepted (06 R3b boundary refactor) | [render-engine-renderer-ptr-return](ADR-008-render-engine-renderer-ptr-return.md) |
+| ADR-009 | `runtime::RenderPipeline` single identity (ADR-009 elision on `p1/render-pipeline-single-identity` branch) | Reserved / merged via branch PR (not in `main` at #6e0c7413) | _(placeholder; rendered as ADR-009 once branch lands in `main`)_ |
+| ADR-010 | Boundary gate semantic extension (F3.1 extension of `tools/check_architecture_boundaries.sh` with 3 regression-resistant semantic gates: `m_runtime`/`m_registry=nullptr` canonical copy pattern, `m_renderer->settings()` zero-match post-F0.2, `RenderPipeline::m_renderer` scope guard) | Accepted (F3.1 commit, validated by selftest cases 8/9/10) | [boundary-gate-semantic-extension](ADR-010-boundary-gate-semantic-extension.md) |
 
 > Slot ADR-003/004/006/007 sono previsti dal piano 07 sezione D2
 > ma formalmente *Proposed* finché i deliverable D2.x del piano
