@@ -92,6 +92,7 @@ add_subdirectory(runtime)           # chronon3d_runtime
 add_subdirectory(extension)        # chronon3d_extension (Fase 5)
 add_subdirectory(backends/software) # chronon3d_backend_software
 add_subdirectory(scene)             # chronon3d_scene
+add_subdirectory(timeline)          # TICKET-034: composes `<chronon3d/timeline/composition.cpp>` into chronon3d_scene OBJECT
 add_subdirectory(animations)        # chronon3d_animations
 if(CHRONON3D_ENABLE_TEXT)
     add_subdirectory(text)              # chronon3d_text_core
