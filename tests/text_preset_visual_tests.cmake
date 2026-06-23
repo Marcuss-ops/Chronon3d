@@ -16,10 +16,13 @@
 # PNG dump pipeline is wired in follow-up sub-PR A4.png (no-op here).
 # ═══════════════════════════════════════════════════════════════════════════
 
+# TICKET-029: align to canonical Chronon3D test pattern (doctest::doctest
+# + shared tests/test_main.cpp). The vcpkg `doctest` port exports only
+# `doctest::doctest`, not `doctest_with_main` — previous link broke the
+# cmake configure step before any TU compiled.
 add_executable(chronon3d_text_preset_visual_tests
-    ${TEST_MAIN}
     ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_preset_visual.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_main.cpp
+    ${TEST_MAIN}
 )
 
 target_include_directories(chronon3d_text_preset_visual_tests PRIVATE
@@ -36,5 +39,4 @@ target_link_libraries(chronon3d_text_preset_visual_tests PRIVATE
 add_test(
     NAME VRTextPresetVisual
     COMMAND chronon3d_text_preset_visual_tests
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
