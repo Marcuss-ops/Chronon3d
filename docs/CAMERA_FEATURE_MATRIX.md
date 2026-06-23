@@ -1,90 +1,187 @@
-# Camera Feature Matrix — Chronon3d
+# Camera Feature Matrix — Chronon3D
 
-> **Status legend**
-> - ✅ **Verified**     — implemented, tested, used in production-grade compositions.
-> - ⚠️ **Partial**      — implemented but missing tests / edge cases / configuration knobs.
-> - 📋 **Planned**      — listed in the V1 roadmap (P0–P14), not implemented yet.
-> - ❌ **Deprecated**   — kept only as a thin compat wrapper; new code should target its replacement.
+> **Snapshot:** `main@25049b2`, 23 giugno 2026.
+>
+> Stato prodotto complessivo: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
+> Piano canonico: [`camera-plan/`](camera-plan/).
+>
+> Una feature presente nel codice ma con test non eseguibili è 🟡, non ✅.
 
-This matrix is the canonical inventory for the Camera System V1 effort. It is consulted every time a new camera feature is added: the entry must be updated in the same PR that introduces the feature, or the feature is considered un-owned.
+## Legenda
 
-## 1. Core model
+- ✅ **Verificato** — implementato e coperto da prova eseguita osservata.
+- 🟡 **Implementato/parziale** — codice presente, ma limiti, migrazione o test aperti.
+- 🔴 **Bloccante** — impedisce la chiusura della Camera Production V1.
+- 🔵 **Pianificato** — design presente, implementazione non completata.
+- ⚪ **Legacy** — mantenuto soltanto per compatibilità/migrazione.
 
-| Feature | Status | Notes |
+## Valutazione complessiva
+
+| Obiettivo | Completezza stimata | Nota |
+|---|---:|---|
+| Camera Production V1 per motion graphics 2.5D | 70–75% | Percorso compilato avanzato; test/link e migrazione legacy ancora aperti. |
+| Parità camera molto ampia con After Effects | 55–60% | Framing, clipping, DOF e path/orientation avanzati non sono tutti completi. |
+
+Le percentuali sono stime ingegneristiche, non risultati CI.
+
+## 1. Architettura canonica
+
+| Feature | Stato | Evidenza / limite |
 |---|---|---|
-| `Camera2_5D` core model | ✅ | Single Vec3+rotation+dof struct used everywhere. |
-| `CameraRig` 1-node / 2-node targeting | ✅ | `target`, `poi_node_target`, parenting tests in `tests/stabilization/test_stabilization.cpp`. |
-| Focal length / sensor size / f-stop | ✅ | Animated, FOV derived. |
-| Focus distance | ✅ | Animatable per key. |
-| Motion blur (temporal) | ✅ | Velocity buffer + multi-sample. |
-| DOF physics | ✅ | bokeh + CoC controllable. |
-| FOV / zoom projection | ✅ | `Camera2_5D` projection unit tested. |
+| `Camera2_5D` snapshot runtime | ✅ | Tipo runtime usato da projection e renderer. Non deve essere l’authoring primario futuro. |
+| `CameraDescriptor` authoring | 🟡 | Presente con source/orientation/modifier/constraint variant; migrazione composizioni non completa. |
+| `compile_camera()` | 🟡 | Produce `CameraProgram`; alcuni regression test sono bloccati dal link scene tests. |
+| `CameraProgram` immutabile | 🟡 | Entry point compilato presente e metadata dependency disponibili. |
+| `CameraSession` per render job | 🟡 | Stato separato e checkpoint/pre-roll presenti; integrazione e prove complete da chiudere. |
+| Fingerprint descriptor | 🟡 | Hash deterministico implementato; includere nei gate di regressione. |
+| Default descriptor in `Composition` | 🟡 | Integrazione presente; consumer e full-validation da verificare. |
+| Unico percorso authoring | 🔴 | Coesistono ancora camera diretta, `AnimatedCamera2_5D`, rig moderni/legacy e compiled path. |
 
-## 2. Motion presets
+Percorso obbligatorio per nuove feature:
 
-| Preset | Old API | Status | New API target |
-|---|---|---|---|
-| `hero_push_in` | `camera_rig::hero_push_in()` | ✅ Verified | `CameraMotionRegistry::build("camera.hero_push")` |
-| `orbit`        | `camera_rig::orbit_yaw` keys | ✅ Verified | `CameraMotionRegistry::build("camera.orbit_small")` |
-| `focus_pull`   | `camera_rig::focus_pull()` | ✅ Verified | `CameraMotionRegistry::build("camera.focus_pull")` |
-| `parallax_pan` | `camera_rig::parallax_pan()` | ✅ Verified | `CameraMotionRegistry::build("camera.parallax_sweep")` |
-| `dolly_zoom`  | `camera_rig::dolly_zoom()` | ⚠️ Partial | `CameraMotionRegistry::build("camera.dolly_zoom")` — regression test not yet implemented (CAM-04). |
-| `low_angle_reveal` | `camera_rig::low_angle_reveal()` | ⚠️ Partial | Same. |
-| `subtle_float` | `camera_rig::subtle_float()` | ⚠️ Partial | Same. |
-| `product_orbit` | — | 📋 Planned | `CameraMotionRegistry::build("camera.product_orbit")` (P11). |
-| `card_reveal`, `whip_pan`, `fly_through`, `dashboard_tour` | — | 📋 Planned | P11. |
+```text
+CameraDescriptor
+    → compile_camera()
+    → CameraProgram
+    → evaluate(CameraEvalContext, CameraSession)
+    → Camera2_5D
+    → projection contract
+    → renderer
+```
 
-> **P2 deliverable**: every Verified/Partial preset above has a thin wrapper in `camera_motion_registry.cpp` that delegates to the existing `camera_rig::` implementation, so legacy compositions continue to compile unchanged while new compositions use the registry directly.
+## 2. Projection e ottica
 
-## 3. Sampling / validation / framing
-
-| Feature | Status | Notes |
+| Feature | Stato | Evidenza / limite |
 |---|---|---|
-| `sample_camera_path` (diagnostic) | ✅ | Renamed conceptually to **“diagnostic sampler”** — see P3 — to free the term `sampler` for `CameraTrajectorySampler`. |
-| `CameraShotValidator` (centering / visibility / safe area / depth / black-frame) | ✅ | Already handles the 4 critical cases. |
-| Hard-coded validation thresholds in `CameraPathSamplerReport` | ⚠️ Partial | Will be replaced by `CameraPathValidationOptions{ max_target_error_px, max_velocity_jump, max_acceleration_jump, max_jerk }` (P1). |
-| Sub-frame / `SampleTime` evaluation | ✅ Verified | End-to-end pipeline: `SampleTime { frame, frame_rate }` + `TemporalSampleKey { frame, subframe_tick, version }` (kTicksPerFrame = 65536) defined in `include/chronon3d/core/types/sample_time.hpp`; `AnimatedValue<T>::evaluate(SampleTime)` + `evaluate_base_double(double)` sub-frame interpolation in `include/chronon3d/animation/core/animated_value.hpp`; `AnimatedCamera2_5D::evaluate(SampleTime, …)` in `include/chronon3d/scene/camera/animated_camera_2_5d.hpp`; `CameraRig::evaluate(SampleTime, …)` in `src/scene/camera/camera_rig.cpp`; `Composition::evaluate_double(double, FrameRate, …)` in `include/chronon3d/timeline/composition.hpp`; `ShutterPoseSampler::evaluate(frame, FrameRate, evaluator)` drives the sub-sample loop in `src/scene/camera/camera_v1/internal/shutter_pose_sampler.cpp` and is consumed by `render_composition_frame` in `src/render_graph/pipeline/composition.cpp`; per-frame cache keys include `TemporalSampleKey` in `include/chronon3d/cache/node_cache.hpp` + `include/chronon3d/cache/frame_cache.hpp`. Backward compatibility: each `evaluate(Frame)` overload is preserved as a thin adapter over the `SampleTime` overload. Regression tests: `tests/core/animation/test_sample_time.cpp::AnimatedValue sub-frame produces different values than integer frame` (decisive 8-sample assertion from `CAMERA_AE_GAP_VENDETTA.md`), `tests/scene/camera/test_camera_stabilization.cpp` Section B (3 sub-frame cases), `tests/scene/camera/test_temporal_samples_pr1.cpp` (property test for shutter `sample_times` being in [0,1] and monotone-non-decreasing). |
-| `fit_camera_to_layers` (framing) | ⚠️ Partial | Iterative dolly steps; uses external `layer_sizes`. Will be replaced by `CameraFramingSolverV2` (P6). |
-| Multi-target framing | 📋 Planned | P6. |
-| Rule-of-thirds placement | 📋 Planned | P6. |
-| Dead-zone / hysteresis / look-ahead | 📋 Planned | P6. |
-| Bounds-aware framing (real bbox, no `layer_sizes` table) | 📋 Planned | P6. |
+| Zoom projection | ✅ | Contratto esistente e test storici. |
+| Vertical FOV projection | 🟡 | Supportata; fix recente evita che PoseTracks la sovrascriva con Zoom. Regression run da certificare. |
+| Physical Lens projection | 🟡 | Variant e `LensModel` presenti; percorso e parity completa da verificare. |
+| Focal length / sensor size / f-stop | 🟡 | Modello presente e animabile in parti del sistema; ownership da rendere unica. |
+| Focal X/Y separati | 🟡 | Contratto implementato; full parity renderer/solver da chiudere. |
+| GateFit Fill | 🟡 | Presente nel lens/projection contract. |
+| GateFit Overscan/Fit | 🟡 | Contratto presente; active viewport parity da certificare. |
+| GateFit Stretch | 🟡 | Focal X/Y implementati; test end-to-end da certificare. |
+| Pixel aspect | 🟡 | Contratto presente; propagation completa da verificare. |
+| Anamorphic squeeze | 🟡 | Contratto/preset presenti; propagation e bokeh avanzato incompleti. |
+| Near/far plane | 🟡 | Parametri/contratto parziali. |
+| Clipping point | 🟡 | Fondazioni presenti. |
+| Clipping segment/quad/polygon | 🔵 | Necessario per primitive che attraversano il near plane. |
 
-## 4. Diagnostics
+## 3. Source e movimento
 
-| Feature | Status | Notes |
+| Feature | Stato | Evidenza / limite |
 |---|---|---|
-| `CameraDebugOverlay` (safe area, target, projected bounds, path, top-down, depth side view) | ✅ | Rich. Used in `content/2d5/compositions/camera_*_test.cpp`. |
-| `chronon3d_cli camera path-report` | ⚠️ Partial | Not exposed yet (see P10). |
-| `chronon3d_cli camera validate` | 📋 Planned | P10. |
-| `chronon3d_cli camera debug-video` | 📋 Planned | P10. |
-| Handle / tangent / banking overlay | 📋 Planned | P3, requires trajectories + orientation. |
-| JSON-stable report format | 📋 Planned | P10. |
+| Static camera source | 🟡 | Presente nel compiled path. |
+| Pose Tracks | 🟡 | Posizione, rotazione, target, zoom/FOV e DOF channels presenti. |
+| Orbit Motion | 🟡 | Track/dolly corretti nel basis locale; nuovi test compilano ma sono bloccati da TICKET-029. |
+| Trajectory Motion | 🟡 | Tipo e trajectory path presenti; base-state preservation e test completi ancora aperti. |
+| Arc-length LUT | ✅ | Implementazione e regression test documentati. |
+| Sub-frame `SampleTime` | ✅ | Animated values, camera, composition e temporal samples usano il contratto sub-frame. |
+| Idle oscillation | 🟡 | Modifier assoluto nel tempo presente. |
+| Handheld noise | 🟡 | Modifier deterministico absolute-time presente. |
+| Dolly zoom | 🟡 | Helper/preset esistenti; regression e percorso canonico da chiudere. |
+| Product orbit / fly-through / dashboard tour | 🔵 | Preset prodotto, non primitive core; introdurre solo nel catalogo canonico. |
 
-## 5. Trajectory / constraint / shot / lens (V1 NEW)
+## 4. Orientamento
 
-| Subsystem | Status | Notes |
+| Feature | Stato | Evidenza / limite |
 |---|---|---|
-| `CameraTrajectory` (Linear / Cubic-Bézier / Catmull-Rom / Hold) | 📋 Planned | P3. |
-| `ArcLengthTable` LUT | ✅ Verified | O(1) sample with arc-length param, used in `camera_v1/camera_trajectory.cpp::build_arc_length_lut` and mirrored in `animation/core/temporal_spatial_curve.hpp::MotionSegment3D::ensure_arc_length_table` (FU-1.3 closeout). PathTimingMode::{Parametric, ArcLength, EasedArcLength} all evaluated, deterministic regression suite in `tests/core/animation/test_temporal_spatial_curve.cpp`. |
-| `OrientationPolicy` (FixedRotation / LookAtPoint / LookAtLayer / OrientAlongPath / OrientAlongPathKeepHorizon / Custom) | 📋 Planned | P3. |
-| `BankingSettings` | 📋 Planned | P3. |
-| `CameraProgram` (single evaluator: source → trajectory → constraints → framing → lens → validation) | 📋 Planned | P4. |
-| Constraint registry + resolver (`LookAt`, `Follow`, `KeepHorizon`, `DampedTarget`, `Rail`, `RotationLimit`, `Distance`) | 📋 Planned | P5. |
-| `ShotTimeline` + `CameraTransitionRegistry` | 📋 Planned | P7. |
-| Lens effects V1 (breathing, autofocus, rack focus, vignette, barrel/pincushion, CA, bokeh, bloom by CoC) | 📋 Planned | P8. |
+| Fixed orientation | 🟡 | Variant presente. |
+| Look-at point | 🟡 | Presente; fix recente evita doppia applicazione. Regression run da certificare. |
+| Look-at layer | 🟡 | Variant e context dependency presenti. |
+| Roll/local offset | 🟡 | Presente in source/rig; ordine canonico da proteggere con parity test. |
+| Parent orientation | 🟡 | Fondazioni esistenti; integrazione unica da chiudere. |
+| `OrientAlongPath` type | 🟡 | Variant dichiarata. |
+| `OrientAlongPath` completo | 🔴 | TICKET-023: tangent provider, fallback, look-ahead, keep-horizon e banking non chiusi. |
+| Quaternion continuity / shortest arc | 🟡 | Parti presenti; evitare conversioni Euler come rappresentazione primaria. |
 
-## 6. Integration points
+## 5. Constraint e framing
 
-| Feature | Status | Notes |
+| Feature | Stato | Evidenza / limite |
 |---|---|---|
-| `ExtensionRegistry` module pattern for camera presets | ✅ | Same pattern as `MotionPresetRegistry` / `LayerCommandRegistry`. |
-| `ExtensionModule` per-domain registration | ✅ | Demo composition registers via `ExtensionModule::register_composition`. |
-| `SceneBuilder` is **unaware** of CameraProgram internals | ✅ | Camera is set via `scene.camera().set(cam)` after `program.evaluate(ctx)`. |
-| CameraProgram render-graph pass | 📋 Planned | P4 — added only after the model is stable. |
+| LookAt constraint | 🟡 | Spec tipizzata presente. |
+| KeepHorizon constraint | 🟡 | Spec tipizzata presente. |
+| DampedFollow constraint | 🟡 | Stateful; richiede session/pre-roll corretti. |
+| Distance constraint | 🟡 | Spec tipizzata presente. |
+| RotationLimit constraint | 🟡 | Spec tipizzata presente. |
+| Camera checkpoint/pre-roll | 🟡 | Implementato per random access; test completi da certificare. |
+| Basic fit/framing | 🟡 | Helper/solver di base presenti. |
+| Bounds reali dei layer | 🔵 | Non affidarsi a tabelle `layer_sizes`. |
+| Multi-target framing | 🔵 | Da implementare nel solver canonico. |
+| Rule-of-thirds | 🔵 | Da implementare nel solver canonico. |
+| Dead-zone/hysteresis/look-ahead | 🔵 | Da implementare senza matematica prospettica duplicata. |
+| DollyZoom solver | 🔵 | Deve usare lo stesso projection contract. |
 
-## Definition-of-Done guardrails
+## 6. Motion blur e depth of field
 
-- No entry in this matrix can move back from ✅ to ⚠️ without an explicit regression PR.
-- No 📋 entry can be implemented in a PR that also touches an existing ✅ entry unless there is a justified cross-cutting refactor.
-- Every new ✅ entry must come with a regression test in `tests/scene/camera/` and a debug-golden in `tests/golden/camera/`.
+| Feature | Stato | Evidenza / limite |
+|---|---|---|
+| Temporal multi-sample motion blur | 🟡 | Pipeline e sub-frame sampling presenti; baseline deterministica completa da certificare. |
+| `MotionBlurMode` source of truth | 🟡 | Bool legacy rimosso; regression run da certificare. |
+| Shutter angle/phase/pattern/filter | 🟡 | Contratti presenti in più parti; verificare end-to-end e cache keys. |
+| Depth buffer / per-pixel DOF foundation | 🟡 | Backend support presente. |
+| Focus distance / aperture | 🟡 | Presenti e animabili. |
+| Circle of Confusion fisico | 🔵 | Non ancora chiuso come modello canonico. |
+| Near/far blur separati | 🔵 | Da implementare. |
+| Iris blades/rotation/roundness | 🔵 | Modello/rendering non produttivo. |
+| Anamorphic bokeh / focus breathing | 🔵 | Effetti avanzati post-V1. |
+
+## 7. Shot timeline e transizioni
+
+| Feature | Stato | Evidenza / limite |
+|---|---|---|
+| `ShotTimeline` | 🟡 | Sequenza di programmi camera presente. |
+| Per-shot sessions | 🟡 | `ShotTimelineSession` presente. |
+| Cut | 🟡 | Implementazione/factory presente. |
+| Smooth Blend | 🟡 | Implementazione/factory presente. |
+| Push | 🟡 | Implementazione/factory presente. |
+| Whip Pan | 🟡 | Implementazione/factory presente. |
+| Focus Handoff | 🟡 | Implementazione/factory presente. |
+| Transition catalog | 🟡 | Catalogo DI, non singleton, presente. |
+| Diagnostica completa | 🔴 | TICKET-027: non tutta la diagnostica viene propagata. |
+| Random-access determinism | 🟡 | Checkpoint/pre-roll presente; integrazione timeline da certificare. |
+
+## 8. Diagnostics e tool
+
+| Feature | Stato | Evidenza / limite |
+|---|---|---|
+| Camera debug overlay | 🟡 | Safe area, target, bounds/path e viste diagnostiche presenti. |
+| Camera shot validator | 🟡 | Validazioni di base presenti; soglie/options da canonicalizzare. |
+| CLI path report | 🔵 | Non esposta come comando prodotto stabile. |
+| CLI camera validate | 🔵 | Pianificata. |
+| CLI debug video | 🔵 | Pianificata. |
+| JSON report stabile | 🔵 | Schema/versionamento da definire. |
+| Golden camera suite | 🔴 | Necessaria per dichiarare Camera Production V1. |
+
+## 9. Blocker immediato
+
+### TICKET-029
+
+`chronon3d_scene_tests` non collega correttamente. Finché questo blocker non è
+chiuso, i fix camera recenti con test compilati restano 🟡 e non possono essere
+promossi a ✅.
+
+Dopo la chiusura, rieseguire almeno:
+
+- projection variant preservation;
+- single orientation application;
+- orbit local basis;
+- motion blur mode;
+- checkpoint/pre-roll;
+- projection focal X/Y e gate fit;
+- composition default descriptor.
+
+## 10. Definition of Done — Camera Production V1
+
+La milestone è chiusa quando:
+
+1. le nuove composizioni usano `CameraDescriptor` o `CameraProgram`;
+2. `CameraSession` appartiene al render job;
+3. non avvengono compile/catalog lookup per frame;
+4. projection e orientation hanno un solo contratto;
+5. `OrientAlongPath` è realmente operativo;
+6. test scene/camera collegano ed eseguono in CI;
+7. parity e golden sono bloccanti;
+8. adapter legacy hanno regression parity e data/fase di rimozione;
+9. il consumer SDK esterno usa una camera compilata;
+10. nessun secondo registry, evaluator o projection contract è stato introdotto.
