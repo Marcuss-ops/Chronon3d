@@ -18,6 +18,7 @@
 
 add_executable(chronon3d_text_preset_visual_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_preset_visual.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_main.cpp
 )
 
 target_include_directories(chronon3d_text_preset_visual_tests PRIVATE
@@ -28,7 +29,7 @@ target_include_directories(chronon3d_text_preset_visual_tests PRIVATE
 target_link_libraries(chronon3d_text_preset_visual_tests PRIVATE
     chronon3d_sdk
     chronon3d_software
-    doctest::doctest_with_main
+    doctest::doctest
 )
 
 add_test(
