@@ -478,6 +478,36 @@ Downstream consumers using only `RenderSession` (not the
 
 ---
 
+## P1 — High-value cuts dopo baseline
+
+### PR-pre-7a — Unblock cmake configure per `chronon3d_text_preset_visual_tests`
+
+2026-06-23 — Hotfix pre-7a (unblocker per PR-7a). Il file
+`tests/text_preset_visual_tests.cmake` (introdotto da PR-A4) aveva tre
+problemi che impedivano `cmake --preset linux-ci` di configurare su
+`main` anche dopo il taglio Taskflow:
+
+1. **Manca `${TEST_MAIN}`** — l'`add_executable(chronon3d_text_preset_visual_tests ...)`
+   non includeva `tests/test_main.cpp` (che `#define DOCTEST_CONFIG_IMPLEMENT`
+   fornisce `main()`) → link step falliva con `undefined reference to 'main'`.
+2. **Alias doctest inesistente** — `target_link_libraries(...)` referenziava
+   `doctest::doctest_with_main`, target alias non esportato dal port vcpkg
+   di doctest (esporta solo `doctest::doctest`).
+3. **Runtime asset resolution** — aggiunto
+   `WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}` all'`add_test(...)` per
+   specchiare il pattern canonico di `tests/visual_tests.cmake`, in modo
+   che `tests/test_main.cpp`'s `test_assets.mount(current_path())` monti
+   rispetto alla root del repository e `assets/fonts/Poppins-Bold.ttf`
+   (citato nel cpp del test) risolva correttamente.
+
+**Sweep**: `grep -rn 'doctest::doctest_with_main\|DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN' tests/` → **0 hit** fuori da questo file (anti-pattern unico, root cause isolato).
+
+**Machine verification**: `cmake --preset linux-ci` sul branch
+`codex/pre-7a-fix-text-preset-visual-cmake` raggiunge
+`Configuring done (2.1s) / Generating done (0.8s)` con `rc=0`.
+
+Branch: `codex/pre-7a-fix-text-preset-visual-cmake`.
+
 ## Expression System v2 — Lifecycle (PR #23 → guard retirement)
 
 Provenance trail for `expressions/v2` through the repo, 2026-06-20.
