@@ -542,6 +542,28 @@ Zero residui a livello `src/`, `include/`, `content/`, `apps/`, `cmake/`, `tests
 
 Branch: `codex/p1-pr7b-experimental-v2-retire`.
 
+
+### PR-7c — Remove legacy `Chronon3D_SDK` alias
+
+2026-06-23 — Removed the historical `add_library(Chronon3D_SDK ALIAS chronon3d_sdk)` from `src/CMakeLists.txt:249`. The canonical public alias `add_library(Chronon3D::SDK ALIAS chronon3d_sdk)` (line 246) is the documented namespace entry point per the public surface contract in root `CMakeLists.txt`. The non-namespaced `Chronon3D_SDK` (without `::`) was a "during migration" compat shim; zero consumers in the repo or extensions reference it (verified below).
+
+[Residual references audit]
+
+```
+grep -rn 'Chronon3D_SDK' --include='*.cpp' --include='*.hpp' --include='CMakeLists.txt' \
+  --include='*.cmake' --include='*.in' --include='*.json' --include='*.sh' \
+  --include='*.py' --include='*.yml' --exclude-dir=build \
+  --exclude-dir=vcpkg_bootstrap --exclude-dir=vcpkg_installed .
+```
+
+Risultato: 0 hit fuori da `src/CMakeLists.txt` (alias rimosso) + solo documentation references in `docs/CHANGELOG.md` + `docs/FOLLOWUP_TICKETS.md` (historical). Tutti OK per AGENTS.md "Don't duplicate".
+
+[Machine verification]
+
+- `cmake --preset linux-ci` rc=0 (Configuring done, Generating done).
+- `bash tools/test_architectural.sh` Section 5 renderer test: nessun nuovo failure introdotto (failure pre-esistenti su main baseline invariati).
+
+Branch: `codex/p1-pr7c-remove-legacy-alias`.
 ## Expression System v2 — Lifecycle (PR #23 → guard retirement)
 
 Provenance trail for `expressions/v2` through the repo, 2026-06-20.
