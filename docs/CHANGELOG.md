@@ -628,3 +628,42 @@ Provenance trail for `expressions/v2` through the repo, 2026-06-20.
 > `docs/FOLLOWUP_TICKETS.md`).
 
 - PR-6 (commit pending, branch `codex/p1-pr6-cli-slim`) — CLI slim with sub-target gating. The 6 CLI sub-targets are now gated behind 8 new `option()` declarations (`CHRONON3D_BUILD_CLI_CORE` always ON, plus `_RENDER`, `_VIDEO`, `_TELEMETRY`, `_DEV`, `_BENCH`, and forward-compat placeholders `_DAEMON`, `_WATCH`). All default ON so existing builds reproduce byte-equivalent binaries; turning any sub-target OFF yields a slimmer CLI on demand. The executable `chronon3d_cli` link closure is slimmed: explicit list now contains only `Chronon3D::SDK` (via `chronon3d_sdk` + `chronon3d_sdk_impl` aliases), `chronon3d_cli_core` (mandatory), `chronon3d_backend_image`, `spdlog`, `fmt`; gated sub-targets are linked via a canonical `foreach (... IN ITEMS ...)` + `if(TARGET ${_cli_target})` loop. Files touched: `apps/chronon3d_cli/CMakeLists.txt` only (8 `option()` decls + 5 `if()/endif()` wraps around sub-target `add_library()` blocks + slimmed executable link + canonical foreach loop + updated `set_target_properties(... UNITY_BUILD OFF)` block). Machine verification: `cmake --preset linux-ci` rc=0; `grep -c 'option(CHRONON3D_BUILD_CLI_' apps/chronon3d_cli/CMakeLists.txt` returns 8 hit(s).
+
+### PR-6a — F1.2 cli-slim-real-hygiene (2 cosmetic notes layered on PR-6)
+
+2026-06-23 — F1.2 hygiene patch on top of PR-6 (`p1/cli-slim-real @ ca6a5d76`).
+PR-6 itself flipped `CHRONON3D_BUILD_CLI_DEV` / `CHRONON3D_BUILD_CLI_BENCH`
+defaults from ON to OFF — that flip is **documented in PR-6's own commit
+subject ("... + default DEV/BENCH OFF + SDK-only link")** and is **not
+re-applied here**. This PR-6a commit layers TWO cosmetic add-ons only
+(NO code rotation, NO build surface change):
+
+- **`apps/chronon3d_cli/CMakeLists.txt` Forward-compat block** — the
+  `Forward-compat placeholders` comment block (lines ~26-30) was completed
+  with the phrase *"cron daemon/watch extraction deferred to follow-up PR"* —
+  pinning the intent that `CHRONON3D_BUILD_CLI_DAEMON` / `_WATCH` are no-op
+  flags today and that the actual extraction logic lands in a future
+  single-bot PR (preserves commit-graph hygiene without prematurely
+  extracting daemon/watch code).
+
+- **`apps/chronon3d_cli/CMakeLists.txt` `target_link_libraries` hardening**
+  — the link-closure comment block (preceding `target_link_libraries(chronon3d_cli PRIVATE`) was extended with a verbatim enumeration of the
+  OBJ-lib specifics inside `chronon3d_sdk_impl`: `chronon3d_pipeline` +
+  `chronon3d_scene` + `chronon3d_runtime` + `chronon3d_cache` +
+  `chronon3d_effects` + `chronon3d_registry` + `chronon3d_assets` +
+  `chronon3d_extension` + `chronon3d_animations` + `chronon3d_text_core` +
+  `chronon3d_blend2d_paint` + `chronon3d_graph_*` sub-targets — making the
+  SDK singleton aggregation explicit so future readers don't grep for
+  `chronon3d_pipeline` / `chronon3d_scene` as direct link entries on the
+  CLI executable (intentionally absent per TICKET-011).
+
+(The original F1.2 spec listed 3 notes; the third note — `CHRONON3D_BUILD_CLI_(DEV|BENCH)` default-flip ON→OFF — was already done at `ca6a5d76`,
+recorded in PR-6 above. This PR-6a hygiene entry corrects that earlier
+'flip remains un-applied' wording, which was a factual contradiction with
+the branch base state at `ca6a5d76`.)
+
+Build surface byte-equivalent with `p1/cli-slim-real @ ca6a5d76` baseline.
+
+Branch: `p1/cli-slim-real-hygiene` (1 commit ahead of `p1/cli-slim-real`).
+To be FF-merged into local `main` (which is currently at `a094b020b22b870c4d6ccf4018d72384514ecdfe`,
+1 commit ahead of `origin/main @ 3bad8c82`).
