@@ -53,4 +53,6 @@ target_link_libraries(chronon3d_scene
         spdlog::spdlog_header_only        fmt::fmt
     )
 target_include_directories(chronon3d_scene PRIVATE ${CMAKE_SOURCE_DIR}/include)
-target_precompile_headers(chronon3d_scene PRIVATE <chronon3d/detail/pch.hpp>)
+# TICKET-029-followup: workaround gcc 15.2 ICE su PCH — disabilitato
+# temporaneamente; riattivare quando il compiler toolchain è aggiornato.
+# target_precompile_headers(chronon3d_scene PRIVATE <chronon3d/detail/pch.hpp>)

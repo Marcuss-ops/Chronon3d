@@ -6,6 +6,7 @@
 #include <cassert>
 #include <iterator>
 #include <utility>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d {
 

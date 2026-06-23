@@ -39,7 +39,7 @@ using chronon3d::test::approx;
 // ==============================================================================
 TEST_CASE("PR8: disabled motion blur returns center-frame result") {
     MotionBlurSettings mb;
-    mb.enabled = false;
+    mb.mode = MotionBlurMode::Off;
     mb.samples = 8;
     CameraMotionBlurIntegrator integrator(mb);
 
@@ -59,7 +59,7 @@ TEST_CASE("PR8: disabled motion blur returns center-frame result") {
 // ==============================================================================
 TEST_CASE("PR8: single sample returns evaluator result") {
     MotionBlurSettings mb;
-    mb.enabled = true;
+    mb.mode = MotionBlurMode::TemporalAccumulation;
     mb.samples = 1;
     CameraMotionBlurIntegrator integrator(mb);
 
@@ -78,7 +78,7 @@ TEST_CASE("PR8: single sample returns evaluator result") {
 // ==============================================================================
 TEST_CASE("PR8: uniform box filter averages position") {
     MotionBlurSettings mb;
-    mb.enabled = true;
+    mb.mode = MotionBlurMode::TemporalAccumulation;
     mb.samples = 4;
     mb.pattern = TemporalSamplePattern::Uniform;
     mb.filter = TemporalFilter::Box;
@@ -104,7 +104,7 @@ TEST_CASE("PR8: uniform box filter averages position") {
 // ==============================================================================
 TEST_CASE("PR8: triangle filter center-weights sub-samples") {
     MotionBlurSettings mb;
-    mb.enabled = true;
+    mb.mode = MotionBlurMode::TemporalAccumulation;
     mb.samples = 3;
     mb.pattern = TemporalSamplePattern::Uniform;
     mb.filter = TemporalFilter::Triangle;
@@ -133,7 +133,7 @@ TEST_CASE("PR8: triangle filter center-weights sub-samples") {
 // ==============================================================================
 TEST_CASE("PR8: gaussian filter bell-weights sub-samples") {
     MotionBlurSettings mb;
-    mb.enabled = true;
+    mb.mode = MotionBlurMode::TemporalAccumulation;
     mb.samples = 5;
     mb.pattern = TemporalSamplePattern::Uniform;
     mb.filter = TemporalFilter::Gaussian;
@@ -160,7 +160,7 @@ TEST_CASE("PR8: gaussian filter bell-weights sub-samples") {
 // ==============================================================================
 TEST_CASE("PR8: static camera unchanged by motion blur") {
     MotionBlurSettings mb;
-    mb.enabled = true;
+    mb.mode = MotionBlurMode::TemporalAccumulation;
     mb.samples = 8;
     CameraMotionBlurIntegrator integrator(mb);
 
@@ -187,7 +187,7 @@ TEST_CASE("PR8: static camera unchanged by motion blur") {
 // ==============================================================================
 TEST_CASE("PR8: moving camera produces smeared position") {
     MotionBlurSettings mb;
-    mb.enabled = true;
+    mb.mode = MotionBlurMode::TemporalAccumulation;
     mb.samples = 16;
     mb.pattern = TemporalSamplePattern::Uniform;
     mb.filter = TemporalFilter::Box;
@@ -214,7 +214,7 @@ TEST_CASE("PR8: moving camera produces smeared position") {
 // ==============================================================================
 TEST_CASE("PR8: narrow shutter angle reduces blur spread") {
     MotionBlurSettings narrow, wide;
-    narrow.enabled = true;
+    narrow.mode = MotionBlurMode::TemporalAccumulation;
     narrow.samples = 16;
     narrow.pattern = TemporalSamplePattern::Uniform;
     narrow.filter = TemporalFilter::Box;
@@ -249,7 +249,7 @@ TEST_CASE("PR8: narrow shutter angle reduces blur spread") {
 // ==============================================================================
 TEST_CASE("PR8: rotation uses quaternion slerp average") {
     MotionBlurSettings mb;
-    mb.enabled = true;
+    mb.mode = MotionBlurMode::TemporalAccumulation;
     mb.samples = 3;
     mb.filter = TemporalFilter::Box;
     mb.pattern = TemporalSamplePattern::Uniform;
@@ -272,7 +272,7 @@ TEST_CASE("PR8: rotation uses quaternion slerp average") {
 // ==============================================================================
 TEST_CASE("PR8: deterministic motion blur with fixed seed") {
     MotionBlurSettings mb;
-    mb.enabled = true;
+    mb.mode = MotionBlurMode::TemporalAccumulation;
     mb.samples = 8;
     mb.pattern = TemporalSamplePattern::Stratified;
     mb.jitter_seed = 42;
@@ -302,7 +302,7 @@ TEST_CASE("PR8: deterministic motion blur with fixed seed") {
 // ==============================================================================
 TEST_CASE("PR8: halton pattern produces valid sub-samples") {
     MotionBlurSettings mb;
-    mb.enabled = true;
+    mb.mode = MotionBlurMode::TemporalAccumulation;
     mb.samples = 10;
     mb.pattern = TemporalSamplePattern::Halton;
     mb.filter = TemporalFilter::Box;
@@ -325,7 +325,7 @@ TEST_CASE("PR8: halton pattern produces valid sub-samples") {
 // ==============================================================================
 TEST_CASE("PR8: focus distance accumulated across sub-samples") {
     MotionBlurSettings mb;
-    mb.enabled = true;
+    mb.mode = MotionBlurMode::TemporalAccumulation;
     mb.samples = 4;
     mb.filter = TemporalFilter::Box;
     mb.pattern = TemporalSamplePattern::Uniform;

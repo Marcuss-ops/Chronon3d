@@ -29,6 +29,7 @@
 #include <chronon3d/scene/camera/camera_v1/evaluated_projection.hpp>          // CAM-03 snapshot
 #include <cmath>
 using namespace chronon3d;
+using namespace chronon3d::camera_v1;
 
 // ── Migration helper ───────────────────────────────────────────────────────
 //
