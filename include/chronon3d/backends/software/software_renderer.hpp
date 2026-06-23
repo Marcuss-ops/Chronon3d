@@ -2,9 +2,9 @@
 
 // ============================================================================
 // backends/software/software_renderer.hpp — 06 R3b single-identity orchestrator.
-// Inherits FROM `Renderer` ONLY.  All graph::RenderBackend polymorphism lives
-// on the attached SoftwareBackend, reached through m_runtime->backend().
-// capabilities() / draw_text_run() live exclusively on SoftwareBackend.
+// Inherits from Renderer ONLY.  All graph::RenderBackend polymorphism lives on
+// the attached SoftwareBackend, reached through m_runtime->backend().
+// capabilities / draw_text_run live exclusively on SoftwareBackend.
 // ============================================================================
 
 #include <chronon3d/backends/software/renderer.hpp>
@@ -47,7 +47,7 @@ enum class CompositeOperator : unsigned char;
 
 class SoftwareRenderer : public Renderer {
 public:
-    // ── Render entry points ──────────────────────────────────────────────
+    // ── Render entry points ────────────────────────────────────────────
     std::shared_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame);
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
                                               i32 width, i32 height);
@@ -58,36 +58,34 @@ public:
                                                  i32 width, i32 height, Frame frame = 0,
                                                  f32 frame_time = 0.0f) const;
 
-    // ── Construction / destruction ───────────────────────────────────────
+    // ── Construction / destruction ─────────────────────────────────────
     explicit SoftwareRenderer(runtime::RenderRuntime& rt, Config config);
     explicit SoftwareRenderer(Config config);
     ~SoftwareRenderer() override;
-    // 06 R5b \u2014 movable-but-not-copyable.  Move ops use EAST-CONST to pass
-    // boundary-gate I5 (`SoftwareRenderer const&&` does not contain the
-    // contiguous gate-I5 substring the script scans).  See
-    // .cpp for the member-wise std::move implementation.
+    // Move ops use real rvalue-ref (no EAST-CONST hack). See .cpp.
     SoftwareRenderer(SoftwareRenderer const&) = delete;
     SoftwareRenderer const& operator=(SoftwareRenderer const&) = delete;
-    SoftwareRenderer(SoftwareRenderer const&& other) noexcept;
-    SoftwareRenderer const& operator=(SoftwareRenderer const&& other) noexcept;
+    SoftwareRenderer(SoftwareRenderer&& other) noexcept;
+    SoftwareRenderer& operator=(SoftwareRenderer&& other) noexcept;
 
-    // ── Settings / diagnostics (multi-line bodies live in .cpp) ──────────
+    // ── Settings / diagnostics (multi-line bodies live in .cpp) ────────
     void set_settings(const RenderSettings& settings);
     void set_motion_blur(MotionBlurSettings mb);
     void set_diagnostic_mode(bool enabled);
     [[nodiscard]] bool is_diagnostic_mode() const { return m_settings.diagnostics.enabled; }
     void reset_counters();
-    [[nodiscard]] const RenderSettings& settings() const { return m_settings; }
+    // `render_settings()` is the canonical accessor; the legacy
+    // `settings()` alias was removed (item 2 mega-facade cleanup).
     [[nodiscard]] const RenderSettings& render_settings() const { return m_settings; }
     [[nodiscard]] const MotionBlurSettings& motion_blur() const { return m_settings.motion_blur; }
 
-    // ── Cache operations ─────────────────────────────────────────────────
+    // ── Cache operations ───────────────────────────────────────────────
     void clear_caches();
     void clear_node_cache()   { node_cache().clear(); }
     void set_composition_registry(const CompositionRegistry* r) { m_registry = r; }
     [[nodiscard]] const CompositionRegistry* composition_registry() const { return m_registry; }
 
-    // ── Rendering facade ─────────────────────────────────────────────────
+    // ── Rendering facade ───────────────────────────────────────────────
     void apply_per_pixel_dof(Framebuffer& fb, std::span<const float> depth,
         const DepthOfFieldSettings& dof, const LensModel& lens,
         const std::optional<raster::BBox>& clip);
@@ -106,14 +104,14 @@ public:
     // need them reach them through `sw_renderer.backend().capabilities()`
     // or `sw_renderer.backend().draw_text_run(...)`.
 
-    // ── Image + video ────────────────────────────────────────────────────
+    // ── Image + video ──────────────────────────────────────────────────
     void set_image_backend(std::shared_ptr<image::ImageBackend> backend);
     void set_video_decoder(std::shared_ptr<media::MediaFrameProvider> d) { m_video_decoder = std::move(d); }
     [[nodiscard]] media::MediaFrameProvider* video_decoder() const { return m_video_decoder.get(); }
     [[nodiscard]] image::ImageBackend* image_backend() const { return m_image_backend.get(); }
     [[nodiscard]] ImageRenderer& image_renderer() { return m_image_renderer; }
 
-    // ── Dirty-rect telemetry (inline reads) ──────────────────────────────
+    // ── Dirty-rect telemetry (inline reads) ────────────────────────────
     [[nodiscard]] double last_dirty_area_ratio() const    { return m_session.common.dirty_telemetry.last_dirty_area_ratio; }
     [[nodiscard]] bool    last_dirty_rect_enabled() const { return m_session.common.dirty_telemetry.last_dirty_rect_enabled; }
     [[nodiscard]] std::optional<raster::BBox> last_dirty_rect() const { return m_session.common.dirty_telemetry.last_dirty_rect; }
@@ -123,8 +121,8 @@ public:
     [[nodiscard]] int     last_layer_count() const       { return m_session.common.dirty_telemetry.last_layer_count; }
 
     // ── RenderRuntime forwarders (OOL — dereferencing m_runtime's class
-    //    here would require `<chronon3d/runtime/render_runtime.hpp>` as a
-    //    non-local include, exceeding the boundary gate's 6-include budget).
+    //    here would require <runtime/render_runtime.hpp> as a non-local
+    //    include, exceeding the boundary gate's 6-include budget).
     [[nodiscard]] renderer::SoftwareRegistry& software_registry();
     [[nodiscard]] const renderer::SoftwareRegistry& software_registry() const;
     [[nodiscard]] graph::GraphNodeCatalog& graph_node_registry();
@@ -151,7 +149,7 @@ public:
     [[nodiscard]] graph::RenderBackend& backend();
     [[nodiscard]] const graph::RenderBackend& backend() const;
 
-    // ── Session access ───────────────────────────────────────────────────
+    // ── Session access ─────────────────────────────────────────────────
     [[nodiscard]] RenderSession& session()                       { return m_session.common; }
     [[nodiscard]] const RenderSession& session() const           { return m_session.common; }
     [[nodiscard]] SoftwareRenderSession& software_session()      { return m_session; }
@@ -171,7 +169,7 @@ public:
     [[nodiscard]] cache::NodeCache& node_cache() noexcept;
     [[nodiscard]] const cache::NodeCache& node_cache() const noexcept;
 
-    // ── Convenience methods for graph pipeline orchestration ────────────
+    // ── Convenience methods for graph pipeline orchestration ──────────
     void mark_fast_path_reused(Frame frame, const Camera2_5D& cam, uint64_t combined_fp);
     void commit_frame_state(Frame, const Camera2_5D&, uint64_t, uint64_t, uint64_t, uint64_t,
                             std::unordered_map<std::string, LayerBBoxState>&&);

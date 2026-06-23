@@ -32,14 +32,15 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
 {
     // Pull shared caches/catalogs from the runtime; per-instance
     // state from the renderer (settings, registry, video_decoder).
-    // Cast to RenderBackend& is valid because SoftwareRenderer
-    // public-inherits from RenderBackend (graph::RenderBackend).
+    // The pipeline dispatches to the graph via the runtime's
+    // attached backend (m_runtime.backend()), bypassing
+    // SoftwareRenderer (06 R3b single-identity boundary).
     return chronon3d::graph::render_scene_via_graph(
         m_runtime.backend(),
         m_runtime.node_cache(),
         scene, camera, width, height,
         /*frame=*/0, /*frame_time=*/0.0f,
-        m_renderer->settings(),
+        m_renderer->render_settings(),
         m_renderer->composition_registry(),
         m_renderer->video_decoder(),
         30.0f, "scene"
@@ -64,7 +65,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
         m_runtime.node_cache(),
         effective, default_camera, width, height,
         /*frame=*/0, /*frame_time=*/0.0f,
-        m_renderer->settings(),
+        m_renderer->render_settings(),
         m_renderer->composition_registry(),
         m_renderer->video_decoder(),
         30.0f, "scene"
@@ -77,7 +78,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_composition(
     return chronon3d::graph::render_composition_frame(
         m_runtime.backend(),
         m_runtime.node_cache(),
-        m_renderer->settings(),
+        m_renderer->render_settings(),
         m_renderer->composition_registry(),
         m_renderer->video_decoder(),
         comp, frame,
@@ -94,7 +95,7 @@ std::string RenderPipeline::debug_graph(
         m_runtime.node_cache(),
         scene, camera, width, height,
         frame, frame_time,
-        m_renderer->settings(),
+        m_renderer->render_settings(),
         m_renderer->composition_registry(),
         m_renderer->video_decoder(),
         30.0f
