@@ -120,6 +120,7 @@ endif()
 find_package(spdlog CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(TBB CONFIG REQUIRED)
+find_package(Taskflow CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 if(CHRONON3D_ENABLE_MESH)
     find_package(meshoptimizer CONFIG REQUIRED)
@@ -157,12 +158,6 @@ endif()
 if(CHRONON3D_ENABLE_PROFILING)
     find_package(Tracy CONFIG QUIET)
 endif()
-
-# --- Central Module Registry ---
-# Single source of truth for all OBJECT/INTERFACE library targets.
-# Included early so it is available to both src/CMakeLists.txt (sdk_impl
-# aggregation + in-tree link closure) and the install/export section below.
-include(cmake/Chronon3DRegistry.cmake)
 
 # --- Git Commit Hash Extraction ---
 execute_process(
@@ -244,7 +239,7 @@ if(CHRONON3D_BUILD_INSTALL_CONSUMER_TEST AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
         # Also forward the parent's CMAKE_PREFIX_PATH so the consumer's
         # standalone configure can locate the vcpkg-installed spdlog; the test
         # script appends (does not overwrite) this on its `cmake` invocation.
-        ENVIRONMENT "CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE};CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH};VCPKG_INSTALLED_DIR=${VCPKG_INSTALLED_DIR};VCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET}"
+        ENVIRONMENT "CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE};CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}"
     )
 endif()
 
@@ -258,15 +253,29 @@ endif()
 # -DCHRONON3D_BUILD_EXPERIMENTAL=ON. Promotion criteria for individual
 # experiments are documented in docs/EXPRESSIONS_V2_PROMOTION.md (and similar
 # files for any future experimental subsystems).
-
+#
+# The legacy CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2 flag is now strictly
+# OBSOLETE: we keep the option() declaration as a cmake-cache-key compatibility
+# no-op so existing forks / CI that still pass -DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON
+# do not break their configuration step, but it has NO effect on the build. The
+# actual gate is CHRONON3D_BUILD_EXPERIMENTAL.
 option(CHRONON3D_BUILD_EXPERIMENTAL
     "Build experimental subsystems (e.g. expressions/v2). OFF by default: experiments are NOT installed, NOT exported in the SDK, NOT tested in CI unless this flag is set. See docs/EXPRESSIONS_V2_PROMOTION.md for promotion criteria."
     OFF)
 
-# PR-7b: the previously-deprecated CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2
-# option + empty if-block were retired entirely. The canonical gate below is
-# CHRONON3D_BUILD_EXPERIMENTAL; tools/test_architectural.sh Section 1 keeps a
-# regression sentinel so a future reintroduction cannot land silently.
+# Deprecated option kept for cmake-cache-key compat with forks / CI scripts
+# that still pass -DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON. The
+# if() below is an empty touch so cmake does not emit "unused cache variable"
+# warnings. The OBSOLETE option has NO EFFECT on the build — the actual gate
+# is CHRONON3D_BUILD_EXPERIMENTAL above.
+option(CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2
+    "[OBSOLETE] Retired in favor of CHRONON3D_BUILD_EXPERIMENTAL. Configure with no effect."
+    OFF)
+if(CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2)
+    # OBSOLETE no-op touch: read the option once so cmake does NOT emit
+    # "unused cache variable" warnings when forks / CI pass -D...=ON.
+    # No-op: use CHRONON3D_BUILD_EXPERIMENTAL=ON instead.
+endif()
 
 if(CHRONON3D_BUILD_EXPERIMENTAL AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/experimental/expressions/CMakeLists.txt")
     add_subdirectory(experimental/expressions)
@@ -325,30 +334,96 @@ include(CMakePackageConfigHelpers)
 # Public headers — installed verbatim under <prefix>/include/.
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-    FILES_MATCHING
-        PATTERN "*.hpp"
-        PATTERN "*.h"
-        PATTERN "*.def"
+    FILES_MATCHING PATTERN "*.hpp"
 )
 
-# ── Install / Export target list — derived from central registry ─────
-# Every OBJECT and INTERFACE target defined in cmake/Chronon3DRegistry.cmake
-# is automatically collected here.  The foreach-if-TARGET loop handles
-# conditional subsystems (targets not created in this configuration are
-# silently skipped).  The old manual list + conditional append blocks
-# (~60 lines) are replaced by 6 lines below.
+# Aggregate list of chronon3d_* targets to install + export.  TICKET-011
+# cmake-boundary (OBJECT lift final stage): the OUTPUT of every per-
+# subsystem OBJECT is bundled into `chronon3d_sdk_impl` (the single
+# STATIC archive) at link time — `libchronon3d_sdk_impl.a` is the ONLY
+# `.a` file in `<prefix>/<libdir>`.  The per-subsystem OBJECT targets
+# themselves are still listed here so `install(EXPORT …)` registers
+# them in `Chronon3DTargets.cmake` and CMake's export-walker does not
+# flag them as "not in any export set".  They have no ARCHIVE/LIBRARY
+# output (they are OBJECT), so the install step produces no per-subsystem
+# file — only `libchronon3d_sdk_impl.a` is written to disk.
 #
-# per-subsystem OBJECT targets have no ARCHIVE/LIBRARY output (they are
-# OBJECT), so only `libchronon3d_sdk_impl.a` is written to disk at install
-# time.  They are still listed here so `install(EXPORT …)` registers them
-# in `Chronon3DTargets.cmake` and CMake's export-walker does not flag them
-# as "not in any export set".
-set(_chronon3d_install_targets "")
-foreach(_reg_tgt IN LISTS CHRONON3D_REGISTRY_OBJECT_LIBS CHRONON3D_REGISTRY_INTERFACE_LIBS)
-    if(TARGET ${_reg_tgt})
-        list(APPEND _chronon3d_install_targets ${_reg_tgt})
-    endif()
-endforeach()
+# INTERFACE-only aggregates are also included for documentation/exposure.
+# The exported targets are kept under their raw names so the transitive
+# link closure resolves through `Chronon3D::SDK` without exposing
+# per-subsystem IMPORTED targets to consumers.
+set(_chronon3d_install_targets
+    # Consumer-facing — this is the only target that gets the
+    # `Chronon3D::SDK` namespace alias.
+    chronon3d_sdk
+    # Single aggregated linkable archive.
+    chronon3d_sdk_impl
+    # Aggregate INTERFACE libraries (logical groupers; propagate OBJECT
+    # deps transitively at build-time via $<BUILD_INTERFACE:…> in
+    # chronon3d_sdk's link closure).
+    chronon3d_pipeline
+    chronon3d_core
+    chronon3d_software
+    chronon3d_graph
+    chronon3d_media_interface
+    chronon3d
+    # Per-subsystem OBJECT libraries — included so `install(EXPORT)`
+    # does not flag them as `not in any export set`.  They produce no
+    # installable file; their .o files are bundled into
+    # `libchronon3d_sdk_impl.a` at aggregate-link time.
+    chronon3d_core_impl
+    chronon3d_animations
+    chronon3d_cache
+    chronon3d_effects
+    chronon3d_registry
+    chronon3d_assets
+    chronon3d_scene
+    chronon3d_runtime
+    chronon3d_extension
+    chronon3d_text_core
+    chronon3d_backend_image
+    chronon3d_backend_software
+    chronon3d_backend_assets
+    chronon3d_graph_core
+    chronon3d_graph_nodes
+    chronon3d_graph_builder
+    chronon3d_graph_compiler
+    chronon3d_graph_executor
+    chronon3d_graph_preflight
+    chronon3d_graph_cache
+    chronon3d_graph_pipeline
+)
+
+# Conditional subsystems — included for EXPORT-graph participation when
+# the feature is enabled; skip otherwise.
+if(CHRONON3D_ENABLE_VIDEO)
+    list(APPEND _chronon3d_install_targets
+        chronon3d_backend_video
+        chronon3d_media_video
+    )
+endif()
+if(CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D)
+    list(APPEND _chronon3d_install_targets chronon3d_backend_text)
+endif()
+if(CHRONON3D_USE_BLEND2D)
+    list(APPEND _chronon3d_install_targets chronon3d_blend2d_paint)
+endif()
+if(CHRONON3D_BUILD_DIAGNOSTICS)
+    list(APPEND _chronon3d_install_targets chronon3d_backend_software_diagnostics)
+endif()
+if(CHRONON3D_BUILD_CONTENT OR CHRONON3D_BUILD_DIAGNOSTICS)
+    list(APPEND _chronon3d_install_targets chronon3d_content)
+endif()
+if(CHRONON3D_BUILD_DIAGNOSTICS)
+    list(APPEND _chronon3d_install_targets chronon3d_diagnostics)
+endif()
+
+if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    list(APPEND _chronon3d_install_targets
+        chronon3d_ffmpeg_light
+        chronon3d_ffmpeg_full
+    )
+endif()
 
 install(TARGETS ${_chronon3d_install_targets}
     EXPORT Chronon3DTargets
