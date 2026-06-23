@@ -6,7 +6,9 @@
 # clean.  Each case creates a FRESH mktemp directory so residual hits
 # from earlier cases cannot leak into later assertions.
 #
-# Test surface: 8 assertions covering prerelease-script regressions.
+# Test surface: 13 assertions covering prerelease-script regressions and
+# the F3.1 extension (3 new semantic gates: [12/14] registry, [13/14] vcpkg
+# parity, [14/14] SDK public surface).
 # ─────────────────────────────────────────────────────────────────────
 set -uo pipefail
 
@@ -143,6 +145,146 @@ set +e
     rc=$?
 set -e
 assert_exit "clean tree with scoped executor dir -> exit 0" 0 "$rc"
+rm -rf "$TMP"
+
+# ── Case 8: bare m_runtime = nullptr outside canonical (other.m_X) → exit 1 ──
+TMP=$(fresh_tree)
+cat > "$TMP/src/leak_nullptr.cpp" <<'EOF'
+int dummy() {
+    m_runtime = nullptr;}
+EOF
+set +e; BOUNDARY_CHECK_ROOT="$TMP" bash "$MAIN" >"$TMP.out" 2>&1; rc=$?; set -e
+assert_exit "bare m_runtime = nullptr outside canonical -> exit 1" 1 "$rc"
+if ! grep -q "leak_nullptr\.cpp" "$TMP.out"; then
+    echo "  FAIL: leak_nullptr.cpp not reported in output"
+    FAIL=$((FAIL + 1))
+else
+    echo "  PASS: leak_nullptr.cpp reported"
+    PASS=$((PASS + 1))
+fi
+rm -rf "$TMP"
+
+# ── Case 9: m_renderer->settings() F0.2 rot regression → exit 1 ────────
+TMP=$(fresh_tree)
+cat > "$TMP/src/leak_f02_rot.cpp" <<'EOF'
+int dummy() {
+    auto s = m_renderer->settings();
+    (void)s;
+    return 0;
+}
+EOF
+set +e; BOUNDARY_CHECK_ROOT="$TMP" bash "$MAIN" >"$TMP.out" 2>&1; rc=$?; set -e
+assert_exit "m_renderer->settings() F0.2 rot -> exit 1" 1 "$rc"
+if ! grep -q "leak_f02_rot\.cpp" "$TMP.out"; then
+    echo "  FAIL: leak_f02_rot.cpp not reported in output"
+    FAIL=$((FAIL + 1))
+else
+    echo "  PASS: leak_f02_rot.cpp reported"
+    PASS=$((PASS + 1))
+fi
+rm -rf "$TMP"
+
+# ── Case 10: RenderPipeline::m_renderer sidecar leak → exit 1 ──────────
+# NOTE: RenderPipeline file no longer exists post-F2.4, so the canonical
+# filter is vacuous.  Any future reintroduction in any other TU is a
+# regression caught by this case.
+TMP=$(fresh_tree)
+cat > "$TMP/src/sidecar_leak.cpp" <<'EOF'
+struct RenderPipeline {
+    void* m_renderer;
+};
+int dummy() {
+    RenderPipeline rp;
+    (void)rp.m_renderer;
+    return 0;
+}
+EOF
+set +e; BOUNDARY_CHECK_ROOT="$TMP" bash "$MAIN" >"$TMP.out" 2>&1; rc=$?; set -e
+assert_exit "RenderPipeline::m_renderer sidecar leak -> exit 1" 1 "$rc"
+if ! grep -q "sidecar_leak\.cpp" "$TMP.out"; then
+    echo "  FAIL: sidecar_leak.cpp not reported in output"
+    FAIL=$((FAIL + 1))
+else
+    echo "  PASS: sidecar_leak.cpp reported"
+    PASS=$((PASS + 1))
+fi
+rm -rf "$TMP"
+
+# ── Case 11: OBJECT lib leak not in registry → gate [12/14] exit 1 ─────
+# Inject a fake add_library(... OBJECT ...) target in src/CMakeLists.txt
+# but leave cmake/Chronon3DRegistry.cmake empty — gate [12/14] should
+# FAIL because the source declares a target not in the canonical
+# module registry.  Verify exit=1 AND output mentions the leaked target.
+TMP=$(fresh_tree)
+cat > "$TMP/src/CMakeLists.txt" <<'EOF'
+add_library(leaked_registry_target OBJECT src.cpp)
+EOF
+echo "int dummy() { return 0; }" > "$TMP/src/src.cpp"
+mkdir -p "$TMP/cmake"
+cat > "$TMP/cmake/Chronon3DRegistry.cmake" <<'EOF'
+# intentionally empty registry — no add_library(leaked_registry_target)
+EOF
+set +e; BOUNDARY_CHECK_ROOT="$TMP" bash "$MAIN" >"$TMP.out" 2>&1; rc=$?; set -e
+# Gate [12/14] is ADVISORY: does not set FAILED=1 (TICKET-041 promotion).
+# Selftest verifies the violation IS reported (mechanism), NOT that rc=1.
+assert_exit "OBJECT lib leak (gate [12/14] advisory) -> exit 0" 0 "$rc"
+if ! grep -q "leaked_registry_target" "$TMP.out"; then
+    echo "  FAIL: leaked_registry_target not reported in output"
+    FAIL=$((FAIL + 1))
+else
+    echo "  PASS: leaked_registry_target reported"
+    PASS=$((PASS + 1))
+fi
+rm -rf "$TMP"
+
+# ── Case 12: find_package X without vcpkg entry → gate [13/14] exit 1 ─────
+# Inject a top-level CMakeLists.txt with find_package(LeakedBarPkg REQUIRED)
+# but vcpkg.json does NOT contain 'leakedbarpkg' (case-insensitive).
+# Gate [13/14] should FAIL.  Verify exit=1 AND output mentions leaked pkg.
+TMP=$(fresh_tree)
+cat > "$TMP/CMakeLists.txt" <<'EOF'
+find_package(LeakedBarPkg REQUIRED)
+EOF
+cat > "$TMP/vcpkg.json" <<'EOF'
+{ "dependencies": ["fmt"] }
+EOF
+set +e; BOUNDARY_CHECK_ROOT="$TMP" bash "$MAIN" >"$TMP.out" 2>&1; rc=$?; set -e
+# Gate [13/14] is ADVISORY: does not set FAILED=1 (TICKET-042 promotion).
+# Selftest verifies the violation IS reported (mechanism), NOT that rc=1.
+assert_exit "find_package leak (gate [13/14] advisory) -> exit 0" 0 "$rc"
+if ! grep -q "LeakedBarPkg" "$TMP.out"; then
+    echo "  FAIL: LeakedBarPkg not reported in output"
+    FAIL=$((FAIL + 1))
+else
+    echo "  PASS: LeakedBarPkg reported"
+    PASS=$((PASS + 1))
+fi
+rm -rf "$TMP"
+
+# ── Case 13: SDK public surface violation → gate [14/14] exit 1 ──────────
+# Inject apps/leak_test/LeakedAppsSurface.hpp that directly includes
+# <chronon3d_sdk_impl/foo.h> — Forbidden under AGENTS.md §4.  Gate [14/14]
+# should FAIL.  Verify exit=1 AND output mentions leak_test path.
+TMP=$(fresh_tree)
+mkdir -p "$TMP/apps/leak_test"
+cat > "$TMP/apps/leak_test/LeakedAppsSurface.hpp" <<'EOF'
+#include <chronon3d_sdk_impl/leaked_internal.h>
+int dummy() { return 0; }
+EOF
+set +e; BOUNDARY_CHECK_ROOT="$TMP" bash "$MAIN" >"$TMP.out" 2>&1; rc=$?; set -e
+# Gate [14/14] is ADVISORY: does not set FAILED=1 (TICKET-043 promotion).
+# Selftest verifies the violation IS reported in older_injection form
+# (mechanism), NOT that rc=1.  Note: the synthetic heredoc literal-
+# contains `<chronon3d_sdk_impl/...>` which the tightened regex still
+# matches because the path starts with `chronon3d_sdk_impl/`.
+assert_exit "SDK public surface leak (gate [14/14] advisory) -> exit 0" 0 "$rc"
+if ! grep -q "leak_test\|chronon3d_sdk_impl" "$TMP.out"; then
+    echo "  FAIL: SDK public surface violation not reported in output"
+    FAIL=$((FAIL + 1))
+else
+    echo "  PASS: SDK public surface violation reported"
+    PASS=$((PASS + 1))
+fi
 rm -rf "$TMP"
 
 # ── Summary ──────────────────────────────────────────────────────────
