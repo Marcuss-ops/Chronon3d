@@ -399,7 +399,7 @@ Per deroghe: aprire un ADR in `docs/adr/` che giustifichi l'introduzione della d
 
 ## 10. P1 — Single canonical text pipeline (status, 2026-06-23)
 
-**Status: 🟢 Applied** — branch `codex/p1-text-unify` (commit pending reviewer sign-off; no push yet per AGENTS.md).
+**Status: 🟢 Applied (branch prepared)** — `codex/p1-text-unify` carries the in-tree edits for all 7 source/test/doc files below; the branch has not been committed locally yet because the build verification surfaced a pre-existing `FAIL_TEST` macro build break in `tests/test_text_preset_registry.cpp:968` (Sub-case 31), which is documented as out-of-scope in the P0 commit body (commit `9703960b` on `codex/p0-render-engine-settings-fix`). The P1 commit will land separately from that fix to keep the PR focused. No push yet per AGENTS.md.
 
 Concretely:
 
