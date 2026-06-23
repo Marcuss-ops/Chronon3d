@@ -24,6 +24,8 @@
 | ADR-009 | Opt-in third-party text deps (`icu`, `libtess2`, `msdfgen`) for Phases 9 / 11 / 12 | Accepted (WIP — features added to `vcpkg.json`, Gate-5 scoped exem. live) | [optional-text-deps](ADR-009-optional-text-deps.md) |
 | ADR-010 | Boundary gate semantic extension (F3.1 extension of `tools/check_architecture_boundaries.sh` with 3 regression-resistant semantic gates: `m_runtime`/`m_registry=nullptr` canonical copy pattern, `m_renderer->settings()` zero-match post-F0.2, `RenderPipeline::m_renderer` scope guard) | Accepted (F3.1 commit, validated by selftest cases 8/9/10) | [boundary-gate-semantic-extension](ADR-010-boundary-gate-semantic-extension.md) |
 | ADR-011 | Delete legacy camera surface (AnimatedCamera2_5D, both CameraRig namespaces, CameraShotProfile, camera_descriptor_adapters); keep `camera_v1::CameraDescriptor` canonical; remove `projection_mode` from `Camera2_5D` | 📋 Documented (F2.3 design recorded; deletion pending dedicated F2.3.X workstream) | [camera-legacy-deletion](ADR-011-camera-legacy-deletion.md) |
+| ADR-012/013/014/015/016/017 | _reserved slots_ (chronological; see `docs/adr/README.md`) | — | _(placeholder)_ |
+| ADR-018 | Fix CMake per-target `link.txt` staleness via `set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS)` on `tests/CMakeLists.txt` over the 23 per-area `.cmake` includes (TXT-00 follow-up F-B; see `docs/baselines/codex-txt-00-attempt1-blocked-375bd5b9.md`) | Accepted (F-B diagnostic merged on branch `codex/link-rot-diagnostic`) | [link-rot-text-visual](ADR-018-link-rot-text-visual.md) |
 
 > Slot ADR-003/004/006/007 sono previsti dal piano 07 sezione D2
 > ma formalmente *Proposed* finché i deliverable D2.x del piano
