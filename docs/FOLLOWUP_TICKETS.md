@@ -2972,6 +2972,18 @@ Verified by full static investigation:
    - `src/render_graph/pipeline/tile_execution_coordinator.cpp:101` — `sw_renderer->runtime().executor().execute_with_scope(...)`
    - `apps/chronon3d_cli/commands/render/command_bake_layer.cpp:78` — `renderer->runtime().executor()`
 
+   Predecessor closure -- origin commit 91debc36 (TICKET-038/TXT-00 ROT 1) closed 2 of the 3 sites before this commit landed:
+
+   Origin commit 91debc36 ("TICKET-038/TXT-00 -- close source-level compile rotation ROT 1 on the two render-graph/pipeline files") had ALREADY added the canonical `#include <chronon3d/runtime/render_runtime.hpp>` plus the per-file audit comment block to the first two call sites in the bullet list above (the two src/render_graph/pipeline/*.cpp files). 91debc36 landed on origin/main in the same pre-bc29fbc0 window during which TICKET-037's cascade-fix was being prepared. The rebase step against the post-4ab8cbb8 origin/main (which additionally retired AGENTS.md's "non pushare direttamente su main" rule) resolved those two src/render_graph/pipeline/*.cpp hunks in favour of origin's form via git checkout --theirs, preserving the longer-form audit comment that 91debc36 carries over the shorter one carried at rebase-prep time. Reading git show bc29fbc0 -- src/ reveals only command_bake_layer.cpp in the source diff -- the natural consequence of the predecessor's coverage, not a discrepancy with this Resolution's three-file framing.
+
+   This commit therefore contributes only the third call site as a unique source-level edit:
+
+   - apps/chronon3d_cli/commands/render/command_bake_layer.cpp:78 -- renderer->runtime().executor()
+
+   plus the doc-only edit to docs/FOLLOWUP_TICKETS.md (Status flip from [BLUE-PLANNED] to [GREEN-DONE], plus this Resolution sub-section).
+
+   Audit-trail precedent -- both the predecessor 91debc36 close and this commit bc29fbc0 follow the same TICKET-005 Gap B cascade-of-fix pattern documented at commit 856ff957.
+
 **Local verification caveat**: `cmake --preset linux-ci && cmake --build ... --target chronon3d_core_tests -j2` was attempted. The three fresh edits resolved the specific `incomplete type` errors downstream. However, the broader build also hit two environmental cc1plus internal-compiler-errors on `src/backends/software/software_renderer.cpp` (segmentation fault in `asset_metadata.hpp:38:5`) and `src/backends/software/software_compositor.cpp` (`in lazy_hex_fp_value, at c-family/c-cppbuiltin.cc:1793`). These are pre-existing environmental instabilities documented in TICKET-005 §"Resolution" (gcc-12 ICE / SIGBUS pattern) — **outside the scope of this cascade-fix commit**. The three fresh edits are correct, code-reviewer-approved (`"Clean"`), and follow the documented Gap B precedent. Full machine-verification of `ctest -R camera --output-on-failure` rc=0 should run on a stable environment (recommended: GitHub Actions CI / a clean Linux container).
 
 **Acceptance criteria (results)**:
