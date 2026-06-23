@@ -1,24 +1,29 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@25049b2` — 23 giugno 2026.
+> **Snapshot funzionale analizzato:** `main@25049b2` — 23 giugno 2026.
+>
+> **Ultima baseline eseguita e documentata:** `main@446a60e2`.
+>
+> **HEAD ricontrollato:** `main@844bc7c0` — 23 giugno 2026.
 >
 > Stato prodotto canonico: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
-> Questo documento descrive blocker e prove operative. Non certifica una baseline
-> verde finché tutti i gate richiesti non sono osservati sullo stesso commit.
+> Ordine operativo: [`NEXT_STEPS.md`](NEXT_STEPS.md).
+> Prova osservata: [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md).
 
 ## Stato generale
 
 Chronon3D è avanzato ma **pre-stabile**. Le fondazioni di rendering, testo,
-camera e packaging SDK sono presenti; il lavoro immediato è trasformarle in un
-percorso unico, verificato e consumabile fuori dalla source tree.
+camera e packaging SDK sono presenti; la baseline non è verde perché almeno un
+target richiesto non compila.
 
 | Area | Stato | Gap principale |
 |---|---|---|
-| Render graph compilato | 🟡 Avanzato | Baseline completa e determinismo scheduler da verificare sul commit candidato. |
-| Software backend | 🟡 Avanzato | Confine rifattorizzato; gate, core, lean e full validation devono risultare verdi insieme. |
+| Baseline repository | 🔴 Rossa | 3 controlli su 4 verdi; `chronon3d_text_preset_visual_tests` fallisce su TICKET-039. |
+| Render graph compilato | 🟡 Avanzato | Build/test completi e determinismo scheduler da verificare sullo stesso commit. |
+| Software backend | 🟡 Avanzato | Boundary gate verde sulla baseline; integrazione runtime ancora bloccata da TICKET-039. |
 | Precomp / execution scope | 🔴 Aperto | Nested execution, lease, child arena e concorrenza richiedono chiusura verificata. |
-| Text Production V1 | 🟡 60–65% stimato | Word timing, rich text produttivo, preset e visual regression sistematica. |
-| Camera Production V1 | 🟡 70–75% stimato | Test scene bloccati, migrazione legacy e feature di path/framing/ottica ancora aperte. |
+| Text Production V1 | 🟡 60–65% stimato | Visual target non compilabile; word timing, rich text produttivo, preset e golden da chiudere. |
+| Camera Production V1 | 🟡 70–75% stimato | Certificazione test bloccata dalla catena TICKET-039 → TICKET-038 → TICKET-029. |
 | SDK C++ | 🟡 80–85% stimato | Package presente; manca consumer esterno che renderizzi una composizione reale. |
 | SDK cross-language | 🔵 30–40% stimato | C ABI e formato dichiarativo `.chronon` assenti. |
 | Expressions V2 | 🧪 Sperimentale | Non installato, non esportato e non integrato nel percorso produttivo. |
@@ -26,6 +31,51 @@ percorso unico, verificato e consumabile fuori dalla source tree.
 
 Le percentuali sono stime di copertura funzionale e non vanno usate come stato
 di test o claim di release.
+
+## Ultima baseline osservata
+
+La baseline `main@446a60e2` ha registrato:
+
+| Controllo | Esito |
+|---|---|
+| Software renderer boundary gate | ✅ PASS |
+| `linux-full-validation` configure | ✅ PASS |
+| `linux-lean-dev` configure | ✅ PASS |
+| Build `chronon3d_text_preset_visual_tests` | ❌ FAIL |
+
+Il risultato netto è **3/4 verde ma baseline rossa**. Configure-only non prova
+che il codice compili, colleghi o esegua. L’HEAD corrente contiene commit
+successivi, ma non è ancora coperto da una nuova full validation sullo stesso
+commit.
+
+## Blocker operativi ordinati
+
+### TICKET-039 — blocker globale immediato
+
+`src/runtime/render_engine.cpp` usa il vecchio
+`SoftwareRenderer::settings()`, mentre il confine renderer conserva
+`render_settings()` come accessor canonico. Il target visuale si arresta qui.
+
+La correzione deve aggiornare il consumer al percorso canonico, non ripristinare
+un alias duplicato.
+
+### TICKET-038 — secondo blocker globale noto
+
+Il visual test testuale contiene un problema di lambda capture/deduzione `auto`
+che può emergere appena TICKET-039 viene chiuso. Serve build ed esecuzione del
+target, non sola compilazione isolata.
+
+### TICKET-009 — residui build/experimental
+
+Restano da verificare i residui effettivi dopo il branch cleanup, incluso il rot
+`CompileResult`/variant del percorso sperimentale. Il profilo stabile non deve
+dipendere da Expressions V2.
+
+### TICKET-029 — blocker specifico camera
+
+La type visibility di `camera_program_compiler.cpp` impedisce link ed esecuzione
+dei test scene/camera compilati. È necessario per certificare i fix camera, ma
+non è il primo blocker globale osservato dalla baseline.
 
 ## Fondazioni valide da preservare
 
@@ -38,6 +88,7 @@ di test o claim di release.
 - Registrazione esplicita tramite `ExtensionModule` e `ExtensionContext`.
 - Un solo registry CMake per build, aggregate archive, install ed export.
 - `Chronon3D::SDK` come unico target pubblico documentato.
+- Alias legacy non namespaced `Chronon3D_SDK` rimosso.
 - `experimental/` escluso dallo SDK stabile.
 - Camera canonica: `CameraDescriptor → compile_camera() → CameraProgram`.
 - Testo canonico: `TextDocument/TextSpec → layout → animator stack → renderer`.
@@ -56,6 +107,7 @@ di test o claim di release.
 
 ### Ancora aperto
 
+- rendere compilabile ed eseguibile il visual regression target;
 - word timing/SRT/JSON;
 - styling per parola realmente end-to-end;
 - subtitle/highlight/karaoke pipeline;
@@ -82,10 +134,9 @@ constraint, shot timeline e transizioni.
 
 ### Stato delle prove
 
-Alcuni fix camera compilano ma non possono essere dichiarati verificati finché
-`chronon3d_scene_tests` non collega ed esegue. Il blocker principale è tracciato
-come TICKET-029. I ticket camera devono passare da “code-fix landed” a “verified”
-soltanto dopo test eseguiti sul commit candidato.
+I fix camera non possono essere promossi tutti a verificati finché la catena di
+build non supera TICKET-039 e TICKET-038 e i target camera non superano
+TICKET-029. La prova deve includere link ed esecuzione sullo stesso commit.
 
 ### Gap residui principali
 
@@ -132,6 +183,8 @@ replichino il runtime.
 
 Servono tutte le prove seguenti sullo stesso commit:
 
+- TICKET-039 chiuso e target scopritore compilato;
+- TICKET-038 chiuso se riemerge;
 - build core verde;
 - test core verdi;
 - build lean verde;
@@ -139,7 +192,7 @@ Servono tutte le prove seguenti sullo stesso commit:
 - architecture gate verde e bloccante;
 - renderer-boundary gate verde e bloccante;
 - no-content build/test verde;
-- scene/camera test link + run verde;
+- scene/camera test link + run verde, incluso TICKET-029;
 - install consumer esterno reale verde;
 - full-validation build/test verde;
 - documenti aggiornati con commit, comandi e risultati.
