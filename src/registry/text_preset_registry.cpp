@@ -223,10 +223,14 @@ TextPreset animation_compositions_entry() {
 // ── wire_through_resolver — factory-body helper (Cluster A bridge) ─────────
 // Thin factory-body helper that delegates to the Cluster B public API
 // (`wire_preset_text_run_params`) and then routes the returned
-// TextRunParams through `lb.text_run(...).commit()` (or plain
-// `lb.text(...)` when `animators.empty()`).  Preserves Sub-case 7-9
-// invariants: minimal_white + unknown ids still produce 1 RenderNode
-// each via the plain text path.
+// TextRunParams through `lb.text_run(...).commit()`.  Single canonical
+// pipeline: every text preset enters the render graph as a TextRunShape
+// (ShapeType::TextRun), regardless of whether the resolver wired a
+// TextAnimatorSpec or not.  Preserves Sub-case 7-9 invariants:
+// minimal_white + unknown ids still produce 1 RenderNode via the
+// empty-animators text_run path — `materialize_text_run_shape` synthesizes
+// a valid shape when animators is non-empty AND when it is empty (the
+// driver treats empty as a static no-op).
 //
 // Returns LayerBuilder& so the chained motion-presets in the factory
 // body (.depth_reveal / .scale_drop / .soft_pop / etc.) continue to
@@ -242,11 +246,11 @@ wire_through_resolver(LayerBuilderT& lb,
     TextRunParams params =
         ::chronon3d::registry::wire_preset_text_run_params(preset_id, spec);
     const std::string entry_name = std::string{preset_id} + "_text";
-    if (params.animators.empty()) {
-        // No canonical motion (minimal_white / unknown id) → plain path.
-        return lb.text(entry_name, params.text);
-    }
-    // Resolver wired a TextAnimatorSpec → route through text_run.commit().
+    // P1 — single canonical text pipeline (no empty-animators shortcut to
+    // lb.text()).  Use ONLY `lb.text_run(...).commit()` from this helper;
+    // every preset entry — including minimal_white and unknown ids — flows
+    // through the same single path.  Anti-duplication-guardrail
+    // (CORE_OWNERSHIP.md §anti-duplicazione registry/resolver).
     return lb.text_run(entry_name, params).commit();
 }
 
@@ -653,22 +657,31 @@ TextPreset gradient_fill_entry() {
 // ── Subtitle factory functions (Stage 3 — 4 addizionali) ───────────────────
 
 // 19. minimal_white — the no-motion subtitle baseline. The builder
-//     only registers the spec on the layer; no entrance / no idle.
-//     Use for static captions or burnt-in subs.
+//     routes through `wire_through_resolver(...)` (Cluster A bridge)
+//     like all other 21 presets, so the canonical pipeline is uniform.
+//     No entrance / no idle motion: use for static captions or
+//     burnt-in subs.
 TextPreset minimal_white_entry() {
     TextPreset p;
     p.id           = "minimal_white";
     p.display_name = "MinimalWhite";
     p.category     = TextPresetCategory::Subtitle;
-    p.description  = "No-motion baseline. Registers the spec on the layer "
-                     "without any motion preset.  Use for static captions "
-                     "or burnt-in subs.";
+    p.description  = "No-motion baseline. Routes through `wire_through_resolver` "
+                     "(single canonical path) — empty animators produce a "
+                     "static TextRunNode via `materialize_text_run_shape`.  "
+                     "Use for static captions or burnt-in subs.";
     p.builtin      = true;
     p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/subtitle_minimal_white
-        lb.text("minimal_white_text", spec);
+        // P1 — minimal_white now goes through the same path as the other
+        // 21 built-ins (Sub-cases 7-9 invariants preserved: 1 RenderNode
+        // produced when params.animators.empty()).
+        // The (void) cast is intentional — wire_through_resolver is
+        // [[nodiscard]] for the 21 chained callers (.depth_reveal(...) etc.)
+        // and minimal_white does not chain, so we explicitly discard.
+        (void)wire_through_resolver(lb, "minimal_white", spec);
     };
     return p;
 }
