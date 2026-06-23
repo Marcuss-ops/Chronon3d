@@ -59,13 +59,6 @@ I due incarichi sono separati per ridurre conflitti e duplicazioni:
    - branch: `codex/agent2-cmake-sdk-baseline` **[NOT STARTED — branch missing on origin as of 2026-06-23]**
    - ownership: CMake, preset/toolchain, install consumer, full validation e documenti canonici.
 
-### Stato branch cleanup 2026-06-23
-
-Lavoro di pulizia dei branch remoti eseguito il 2026-06-23:
-
-- Mergiate (squash + auto-delete) le PR aperte: #39 `docs: update immediate next steps from current main`, #40 `docs: rebuild camera feature matrix from current code`, #41 `docs: replace stale camera AE gap audit`. I branch head sono stati cancellati automaticamente dopo il merge.
-- Cancellati i branch remoti già confluiti in `main` con 0 commit unici: `codex/orphan-cleanup-2026-06-23`, `codex/agent1-renderer-boundary` (lavoro Agente 1), `codex/docs-current-readiness-20260623`, `codex/docs-readiness-followup-20260623` (PR #37/#38 già merged, post-merge re-population abbandonata).
-
 Gli agenti possono iniziare in parallelo, ma il lavoro dell'Agente 2 deve essere validato dopo un rebase sul `main` che contiene la correzione renderer/backend approvata.
 
 Non scambiare ownership senza una decisione esplicita. In particolare:
