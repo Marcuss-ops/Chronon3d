@@ -259,29 +259,15 @@ endif()
 # -DCHRONON3D_BUILD_EXPERIMENTAL=ON. Promotion criteria for individual
 # experiments are documented in docs/EXPRESSIONS_V2_PROMOTION.md (and similar
 # files for any future experimental subsystems).
-#
-# The legacy CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2 flag is now strictly
-# OBSOLETE: we keep the option() declaration as a cmake-cache-key compatibility
-# no-op so existing forks / CI that still pass -DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON
-# do not break their configuration step, but it has NO effect on the build. The
-# actual gate is CHRONON3D_BUILD_EXPERIMENTAL.
+
 option(CHRONON3D_BUILD_EXPERIMENTAL
     "Build experimental subsystems (e.g. expressions/v2). OFF by default: experiments are NOT installed, NOT exported in the SDK, NOT tested in CI unless this flag is set. See docs/EXPRESSIONS_V2_PROMOTION.md for promotion criteria."
     OFF)
 
-# Deprecated option kept for cmake-cache-key compat with forks / CI scripts
-# that still pass -DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON. The
-# if() below is an empty touch so cmake does not emit "unused cache variable"
-# warnings. The OBSOLETE option has NO EFFECT on the build — the actual gate
-# is CHRONON3D_BUILD_EXPERIMENTAL above.
-option(CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2
-    "[OBSOLETE] Retired in favor of CHRONON3D_BUILD_EXPERIMENTAL. Configure with no effect."
-    OFF)
-if(CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2)
-    # OBSOLETE no-op touch: read the option once so cmake does NOT emit
-    # "unused cache variable" warnings when forks / CI pass -D...=ON.
-    # No-op: use CHRONON3D_BUILD_EXPERIMENTAL=ON instead.
-endif()
+# PR-7b: the previously-deprecated CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2
+# option + empty if-block were retired entirely. The canonical gate below is
+# CHRONON3D_BUILD_EXPERIMENTAL; tools/test_architectural.sh Section 1 keeps a
+# regression sentinel so a future reintroduction cannot land silently.
 
 if(CHRONON3D_BUILD_EXPERIMENTAL AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/experimental/expressions/CMakeLists.txt")
     add_subdirectory(experimental/expressions)

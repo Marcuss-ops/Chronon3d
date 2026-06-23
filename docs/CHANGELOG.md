@@ -508,6 +508,40 @@ problemi che impedivano `cmake --preset linux-ci` di configurare su
 
 Branch: `codex/pre-7a-fix-text-preset-visual-cmake`.
 
+### PR-7b — Retire deprecated `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` option
+
+2026-06-23 — Rimozione completa dell'option deprecato e del blocco `if()/endif()` no-op che era stato lasciato in `root CMakeLists.txt` come compat shim per forks / CI che ancora passano `-DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON`. Il PR chiude il ciclo aperto dal retirement comment `aae68561`-prefix e da TICKET-005 Gap C.
+
+Modifiche:
+
+- `CMakeLists.txt` (root): rimosso tutto il blocco `option(CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2 ...)` + il comment block "Deprecated option kept for cmake-cache-key compat" + l'empty `if() endif()` no-op touch + il paragrafo "The legacy CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2 flag is now strictly OBSOLETE" del comment block superiore. Mantenuto il canonical gate `option(CHRONON3D_BUILD_EXPERIMENTAL ... OFF)` + il `add_subdirectory(experimental/expressions)` gated.
+- `tools/test_architectural.sh` (Section 1 Quarantine integrity): aggiornato il regression sentinel per `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2`. Le due exclusion lines obsolete (`grep -v '^./CMakeLists.txt:.*option('`, `grep -v '^./CMakeLists.txt:.*if(...)'`) sono state rimosse — l'option non esiste più, le esclusioni erano eccezioni per uno stato precedente. Aggiunta self-exclusion `grep -v '^./tools/test_architectural.sh'` per belt-and-suspenders (la regex con `[:=]` non matcha il proprio literal pattern, ma l'esplicita è documentazione leggibile).
+
+[Residual references audit]
+
+```
+grep -rn 'CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2' . \
+  --exclude-dir=build --exclude-dir=vcpkg_bootstrap --exclude-dir=vcpkg_installed
+```
+
+Risultato: 4 file (tutti NON code-level, tutti OK).
+
+| File | Natura | Permit |
+|---|---|---|
+| `tools/test_architectural.sh` | Sentinel grep pattern itself | OK by self-exclusion |
+| `docs/CHANGELOG.md` | Questa entry + storico retirement | OK (historical) |
+| `docs/FOLLOWUP_TICKETS.md` | TICKET-005 Gap C body | OK (historical) |
+| `docs/FEATURES.md` | Expression V2 quarantine enclosure mention | OK (historical) |
+
+Zero residui a livello `src/`, `include/`, `content/`, `apps/`, `cmake/`, `tests/`.
+
+[Machine verification]
+
+- `cmake --preset linux-ci` rc=0 sul branch (Configuring done / Generating done).
+- `bash tools/test_architectural.sh` → tutti i 6 section PASSED, inclusa la Section 1 con il sentinel che emette `PASSED: CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2 is no longer a live directive`.
+
+Branch: `codex/p1-pr7b-experimental-v2-retire`.
+
 ## Expression System v2 — Lifecycle (PR #23 → guard retirement)
 
 Provenance trail for `expressions/v2` through the repo, 2026-06-20.
