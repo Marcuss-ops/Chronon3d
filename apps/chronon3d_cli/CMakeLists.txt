@@ -17,8 +17,8 @@ option(CHRONON3D_BUILD_CLI_CORE      "Build the chronon3d_cli_core sub-target (a
 option(CHRONON3D_BUILD_CLI_RENDER    "Build the chronon3d_cli_render sub-target (render/preflight/proofs/bake_layer/graph commands)" ON)
 option(CHRONON3D_BUILD_CLI_VIDEO     "Build the chronon3d_cli_video sub-target (video/ffmpeg-pipe commands; also requires CHRONON3D_ENABLE_VIDEO)" ON)
 option(CHRONON3D_BUILD_CLI_TELEMETRY "Build the chronon3d_cli_telemetry sub-target (telemetry summary/report; also requires CHRONON3D_ENABLE_TELEMETRY)" ON)
-option(CHRONON3D_BUILD_CLI_DEV       "Build the chronon3d_cli_dev sub-target (batch/studio/inspect/camera_path/dev-tools)" ON)
-option(CHRONON3D_BUILD_CLI_BENCH     "Build the chronon3d_cli_bench sub-target (benchmark commands; also requires CHRONON3D_BUILD_BENCHMARKS)" ON)
+option(CHRONON3D_BUILD_CLI_DEV       "Build the chronon3d_cli_dev sub-target (batch/studio/inspect/camera_path/dev-tools)" OFF)
+option(CHRONON3D_BUILD_CLI_BENCH     "Build the chronon3d_cli_bench sub-target (benchmark commands; also requires CHRONON3D_BUILD_BENCHMARKS)" OFF)
 # --------------------------------------------------------------------------
 # Forward-compat placeholders: daemon + watch commands currently live inside
 # chronon3d_cli_core (sources: commands/daemon/command_daemon.cpp,
@@ -28,8 +28,6 @@ option(CHRONON3D_BUILD_CLI_BENCH     "Build the chronon3d_cli_bench sub-target (
 # OFF once the dedicated sub-targets exist will prune daemon/watch code from
 # _core as a single-bot follow-up PR.
 # --------------------------------------------------------------------------
-option(CHRONON3D_BUILD_CLI_DAEMON    "Forward-compat: gate for dedicated daemon sub-target (no-op until extracted)" ON)
-option(CHRONON3D_BUILD_CLI_WATCH     "Forward-compat: gate for dedicated watch sub-target (no-op until extracted)" ON)
 
 # Group: Core (list, info, doctor, verify) — always included
 add_library(chronon3d_cli_core STATIC
@@ -170,15 +168,16 @@ add_executable(chronon3d_cli
 
 get_target_property(CLI11_INCLUDE_DIRS CLI11::CLI11 INTERFACE_INCLUDE_DIRECTORIES)
 
-# PR-6: Chronon3D::SDK (via chronon3d_sdk + chronon3d_sdk_impl) is the canonical
-# SDK surface and is unconditionally linked. chronon3d_cli_core is likewise
-# unconditional (always-ON, contains list/info/doctor/verify/daemon/watch).
-# The gated sub-targets (_render, _dev, _bench) and conditional sub-targets
-# (_video, _telemetry) are linked ONLY when their target exists at configure
-# time — canonical idiom for option()-driven compilation gating.
+# PR-6: Chronon3D::SDK (via chronon3d_sdk INTERFACE = Chronon3D::SDK alias) is the
+# canonical SDK surface and is unconditionally linked.  The transitively-imported
+# OBJECT libs from chronon3d_pipeline resolve every symbol for in-tree consumers,
+# so an explicit link to chronon3d_sdk_impl is redundant and bypasses the
+# boundary that Chronon3D::SDK exists to certify.  chronon3d_cli_core is likewise
+# unconditional.  The gated sub-targets (_render, _dev, _bench) are linked ONLY
+# when their target exists at configure time — canonical idiom for option()-
+# driven compilation gating.
 target_link_libraries(chronon3d_cli PRIVATE
     chronon3d_sdk
-    chronon3d_sdk_impl
     chronon3d_cli_core
     chronon3d_backend_image
     spdlog::spdlog_header_only
