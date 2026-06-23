@@ -29,7 +29,9 @@
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 
 #include <cmath>
+#include <span>
 #include <utility>
+#include <variant>
 
 namespace chronon3d::camera_v1 {
 
