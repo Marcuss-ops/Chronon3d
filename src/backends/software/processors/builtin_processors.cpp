@@ -51,6 +51,34 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     registry.register_shape(ShapeType::TiledImage, create_tiled_image_processor());
     registry.register_shape(ShapeType::GridBackground, create_grid_background_processor());
 #ifdef CHRONON3D_ENABLE_TEXT
+    // TODO(P2 — Text pipeline clean-up; remove in two coordinated steps):
+    //
+    //   Step A. DELETE the legacy text producer quartet:
+    //     - `RenderNodeFactory::text()` in src/scene/model/render_node_factory.cpp
+    //       (currently unreachable from production; only 2 tests in
+    //       tests/scene/rendering/test_render_node_factory.cpp:104,116
+    //       still call it directly — migrate those test cases to
+    //       RenderNodeFactory::text_run())
+    //     - `create_text_processor()` factory + its forward declaration in
+    //       this file.
+    //     - The `ShapeType::Text` enum entry in
+    //       include/chronon3d/scene/model/shape/shape.hpp (case 6 in the
+    //       dispatch ladder; case 14 is TextRun). Cascading migration
+    //       touches shape_rasterizer.cpp:56, shape_rasterizer_helpers.hpp:108,
+    //       render_graph_hashing.hpp:307, graph_builder_source_pass.cpp:124,
+    //       analysis_helpers.hpp:53,102, text_audit_engine.cpp:501, test_shape_model.cpp:84,
+    //       and 2 sites in tests/renderer/helpers/test_stroke_gradient_helpers.cpp.
+    //     - The `case 6:  return ShapeType::Text;` and inverse maps in
+    //       shape.hpp:381,402.
+    //
+    //   Step B. DELETE the orphaned factory call site:
+    //     - `factory = make_factory<TextSpec>(...RenderNodeFactory::text())`
+    //       already gone from src/registry/shape_registry.cpp:108-117
+    //       (P1 commit). No further action.
+    //
+    // Until then, this registration keeps the orphan ShapeType::Text
+    // dispatch ladder compiling while the authoring layer routes every
+    // text node through TextRun.
     registry.register_shape(ShapeType::Text, create_text_processor());
     registry.register_shape(ShapeType::TextRun, create_text_run_processor());
 #endif
