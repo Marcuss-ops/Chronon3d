@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@25049b2` — 23 giugno 2026.
+> **Snapshot:** `main@fb1b7e97` — 23 giugno 2026.
 >
 > Stato prodotto canonico: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
 > Questo documento descrive blocker e prove operative. Non certifica una baseline
