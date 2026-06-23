@@ -48,22 +48,34 @@ minimal‑closure invariant forbids fixing inside TXT‑00.
   callers untouched; comment block above the macro explains the
   WHY (no canonical type touched, no API surface affect).
 
-### ROT 4 — soft rot: linker rot
-- File: `tests/text_preset_visual_tests.cmake`
-- Edit: original surface was `chronon3d_sdk + chronon3d_software +
-  doctest::doctest`. First attempted to add `chronon3d_sdk_impl`
-  (alleged static aggregate archive) — empirically did NOT resolve the
-  link step. Final state replaces the surface with the proven‑good
-  in‑tree pattern from `tests/deterministic_tests.cmake` plus
-  documented extras: `chronon3d_sdk + chronon3d_graph +
-  chronon3d_graph_pipeline + chronon3d_backend_software +
-  chronon3d_scene + chronon3d_cache + chronon3d_runtime +
-  doctest::doctest`. Header comment block documents the
-  in‑tree / install‑boundary distinction and the empirical rationale
-  (the static archive drops `.o` lazily; OBJECT libs are pushed to
-  the link line unconditionally). All added targets already exist in
-  the canonical CMake graph (`cmake/Chronon3DRegistry.cmake`); no new
-  `add_library(...)` was introduced.
+### ROT 4 — NOT landed: linker rot (deferred to F-B / F-C)
+- File: `tests/text_preset_visual_tests.cmake` — **NOT in this commit**.
+  The in‑working‑tree entry was REVERTED to the `origin/main` state at the
+  F‑A packaging step. The reverted baseline surface is
+  `chronon3d_sdk + chronon3d_software + doctest::doctest` (the same
+  surface that the test target was registered with at `375bd5b…`).
+- Diagnostic work (NOT committed): the WIP tried two fix shapes:
+  (a) `+ chronon3d_sdk_impl` (alleged static aggregate archive) —
+  empirically did NOT resolve the link step;
+  (b) replace with the proven‑good in‑tree pattern from
+  `tests/deterministic_tests.cmake` (`chronon3d_sdk +
+  chronon3d_graph + chronon3d_graph_pipeline +
+  chronon3d_backend_software + chronon3d_scene + chronon3d_cache +
+  chronon3d_runtime + doctest::doctest`) — STILL did not resolve
+  all misses; new visible undefined references surfaced for graphics
+  /simd kernels (`chronon3d::simd::clear_framebuffer`), text‑core
+  hash helpers (`chronon3d::hash_text_run_shape`,
+  `chronon3d::build_text_unit_map`), the color pipeline
+  (`chronon3d::ColorPipeline::apply`) and the effect catalog
+  (`chronon3d::effects::EffectCatalog::freeze`).
+- Decision: per AGENTS.md "non mescolare refactor indipendenti / fare PR
+  piccole e mirate", closing this from inside TXT‑00 would expand
+  scope. Stop Rule applied: ROT 4 here is **a diagnostic that surfaces
+  scope**, not a TXT‑00 closure. Tracking: see §4 follow‑up PRs F‑B
+  (diagnostic ADR + in‑tree link‑surface contract) and F‑C (real
+  TXT‑00 follow‑up that lands the granular libs that close the
+  remaining miss set, regenerates the positive baseline, and finally
+  declares TXT‑00 green).
 
 ## 2. Empirical evidence that the link step is blocked despite ROT 4
 
@@ -178,21 +190,36 @@ to become genuinely green; each is small by construction:
   with a positive `Configure / Build / Test rc=0` and a clean
   `git status -sb` — and only THEN the DoD is satisfied.
 
-## 5. Files modified this attempt (in‑working‑tree, uncommitted)
+## 5. Files in the F‑A commit that landed
 
 ```
-M src/render_graph/pipeline/scene_tile_execution.cpp
-M src/render_graph/pipeline/tile_execution_coordinator.cpp
-M tests/text/test_text_preset_visual.cpp
-M tests/deterministic/test_visual_regression_scenarios.cpp
-M tests/text_preset_visual_tests.cmake
-?? docs/baselines/codex-txt-00-attempt1-blocked-375bd5b9.md   ← THIS FILE
+M src/render_graph/pipeline/scene_tile_execution.cpp   (ROT 1)
+M src/render_graph/pipeline/tile_execution_coordinator.cpp  (ROT 1)
+M tests/text/test_text_preset_visual.cpp                (ROT 2 + ROT 3)
+M tests/deterministic/test_visual_regression_scenarios.cpp  (ROT 2 mirror POD only)
+A docs/baselines/codex-txt-00-attempt1-blocked-375bd5b9.md   ← THIS FILE
 ```
 
-The branch `codex/txt-00-baseline-compilable` is rebased onto
-`375bd5b…` and contains the same changes. **It is intentional that the
-branch has NOT been pushed** (Stop Rule, item 2 — "documentare file,
-comando ed errore" without further escalation of forks/PRs).
+Intentionally NOT in the F‑A commit (reverted at packaging):
+
+```
+  tests/text_preset_visual_tests.cmake   (baseline kept from origin/main;
+                                          ROT 4 deferred to F‑B / F‑C per §4)
+```
+
+Pre‑commit, on the branch, the same 5 file edits listed above plus the
+`tests/text_preset_visual_tests.cmake` modification were in the working
+tree. At F‑A packaging the `.cmake` change was reverted so the commit
+stays minimal and avoids mixing the link‑rot investigation into the
+source‑level fix closure.
+
+Branch state after the F‑A commit:
+
+- Rebased onto `375bd5b…`
+- One commit ahead: `91debc36` (replace with the actual SHA this doc
+  lands with — the doc itself is part of that commit).
+- Pushed to `origin/codex/txt-00-baseline-compilable`.
+- Ready to be opened as a PR against `main`.
 
 ## 6. Recorded commands (re‑runnable on the next attempt)
 
