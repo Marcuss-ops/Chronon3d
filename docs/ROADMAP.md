@@ -1,35 +1,59 @@
 # Chronon3D — Active Roadmap
 
-> Snapshot: `main@25049b2`, 23 giugno 2026.
+> **Snapshot funzionale analizzato:** `main@25049b2`, 23 giugno 2026.
+>
+> **Ultima baseline eseguita:** `main@446a60e2`.
+>
+> **HEAD ricontrollato:** `main@844bc7c0`, 23 giugno 2026.
 >
 > Stato prodotto: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
 > Ordine immediato: [`NEXT_STEPS.md`](NEXT_STEPS.md).
+> Prova operativa: [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md).
 
 La roadmap è organizzata per milestone prodotto. Non avviare una milestone
 successiva per nascondere blocker della precedente.
 
 ## M0 — Baseline verificata
 
+### Stato corrente
+
+L’ultima baseline è 3/4 verde ma complessivamente rossa:
+
+- software renderer boundary gate: PASS;
+- full-validation configure: PASS;
+- lean configure: PASS;
+- build `chronon3d_text_preset_visual_tests`: FAIL.
+
+Il primo errore osservato è TICKET-039. TICKET-038 è il blocker successivo noto;
+TICKET-029 resta specifico della catena camera.
+
 ### Obiettivo
 
 Produrre un commit candidato sul quale build, test, gate, consumer e documenti
 riportano lo stesso stato.
 
-### Lavori
+### Lavori, in ordine
 
-1. Chiudere il link/run di `chronon3d_scene_tests`, incluso TICKET-029.
-2. Rieseguire i regression test dei fix camera recenti.
-3. Chiudere i gap Precomp, execution scope e identity/session che bloccano la baseline.
-4. Eseguire core, lean, no-content e full-validation.
-5. Rendere architecture e renderer-boundary gate realmente bloccanti.
-6. Eseguire install consumer sullo stesso commit.
-7. Registrare comandi, commit ed esiti osservati.
+1. Chiudere TICKET-039 aggiornando `RenderEngine` all’accessor canonico
+   `render_settings()` senza ripristinare alias duplicati.
+2. Rieseguire il target scopritore e chiudere TICKET-038 se riemerge.
+3. Verificare e chiudere i residui TICKET-009, mantenendo Expressions V2 fuori
+   dal profilo stabile.
+4. Chiudere TICKET-029 e ottenere link/run dei test scene/camera compilati.
+5. Rieseguire i regression test dei fix camera recenti.
+6. Chiudere i gap Precomp, execution scope e identity/session che bloccano la baseline.
+7. Eseguire core, lean, no-content e full-validation build/test.
+8. Mantenere architecture e renderer-boundary gate realmente bloccanti.
+9. Eseguire install consumer sullo stesso commit.
+10. Registrare comandi, commit ed esiti osservati sotto `docs/baselines/`.
 
 ### Gate di uscita
 
 - nessun test richiesto skipped per nascondere un errore;
 - nessun gate con `continue-on-error` sul percorso candidato;
+- configure, build, link e test distinti e registrati;
 - tutti i profili richiesti verdi sullo stesso commit;
+- consumer esterno reale verde;
 - documenti sincronizzati.
 
 ## M1 — Text Production V1
@@ -41,14 +65,15 @@ per pipeline video automatizzate.
 
 ### Lavori
 
-1. Completare rich text e styling per parola end-to-end.
-2. Introdurre timed text/SRT/JSON e word timing.
-3. Implementare highlight, karaoke, word pop e subtitle layout policies.
-4. Completare Wiggly/Wave/Random selector richiesti dai preset.
-5. Stabilizzare almeno 20 preset generali e 8 subtitle.
-6. Aggiungere golden 16:9/9:16, testo corto/lungo e più timestamp.
-7. Verificare 24/30/60 fps e determinismo seriale/parallelo.
-8. Esporre esempi pubblici tramite `Chronon3D::SDK`.
+1. Rendere verde il target visual regression esistente.
+2. Completare rich text e styling per parola end-to-end.
+3. Introdurre timed text/SRT/JSON e word timing.
+4. Implementare highlight, karaoke, word pop e subtitle layout policies.
+5. Completare Wiggly/Wave/Random selector richiesti dai preset.
+6. Stabilizzare almeno 20 preset generali e 8 subtitle.
+7. Aggiungere golden 16:9/9:16, testo corto/lungo e più timestamp.
+8. Verificare 24/30/60 fps e determinismo seriale/parallelo.
+9. Esporre esempi pubblici tramite `Chronon3D::SDK`.
 
 ### Non-goal M1
 
@@ -65,6 +90,12 @@ per pipeline video automatizzate.
 Rendere `CameraDescriptor → CameraProgram` l’unico percorso authoring nuovo e
 coprire i movimenti cinematografici necessari al motion graphics 2.5D.
 
+### Prerequisito
+
+La catena TICKET-039 → TICKET-038 → TICKET-029 deve consentire link ed
+esecuzione dei target camera. La presenza del codice senza regression run non
+soddisfa il prerequisito.
+
 ### Lavori
 
 1. Completare i ticket camera P0/P1 ancora test-blocked o parziali.
@@ -79,7 +110,7 @@ coprire i movimenti cinematografici necessari al motion graphics 2.5D.
 
 ### Gate di uscita
 
-- nuove composizioni senza `AnimatedCamera2_5D` o rig legacy;
+- nuove composizioni senza `AnimatedCamera2_5D` o rig legacy come authoring primario;
 - sessione posseduta dal render job;
 - nessuna compilazione o lookup catalog per frame;
 - test camera bloccanti verdi;
@@ -91,6 +122,11 @@ coprire i movimenti cinematografici necessari al motion graphics 2.5D.
 
 Distribuire Chronon3D come SDK C++ installabile e documentato, non soltanto come
 repository sorgente.
+
+### Contratto pubblico
+
+Il target canonico è esclusivamente `Chronon3D::SDK`. L’alias legacy
+`Chronon3D_SDK` è stato rimosso e non deve essere reintrodotto.
 
 ### Lavori
 
