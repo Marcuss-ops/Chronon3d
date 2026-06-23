@@ -4,12 +4,7 @@
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>     // PR 6.4 — typed scope plumbing
 #include <chronon3d/core/memory/arena.hpp>              // PR 6.4 — explicit child FrameArena
-// TICKET-038 / TXT-00 — RenderRuntime is only forward-declared in
-// `software_renderer.hpp` (cannot include the runtime header there
-// without exceeding the 6 non-local include budget).  This TU
-// dereferences `sw_renderer->runtime()` so it must include the
-// canonical runtime header to use `RenderRuntime::executor()`.
-#include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>         // TICKET-005 Gap B cascade — RenderRuntime full type
 #include <algorithm>
 
 namespace chronon3d::graph::detail {
