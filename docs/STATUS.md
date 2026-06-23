@@ -1,85 +1,134 @@
 # Chronon3D — Current Status
 
-> Stato documentale aggiornato il **2026-06-22**.
+> **Snapshot:** `main@25049b2` — 23 giugno 2026.
 >
-> Questo documento non certifica una baseline verde. Build, test, gate e consumer devono essere verificati da checkout pulito sul commit che verrà candidato alla chiusura.
->
-> Piano operativo: [`NEXT_STEPS.md`](NEXT_STEPS.md).
-> Incarichi correnti: [`agent-tasks/`](agent-tasks/).
+> Stato prodotto canonico: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
+> Questo documento descrive blocker e prove operative. Non certifica una baseline
+> verde finché tutti i gate richiesti non sono osservati sullo stesso commit.
 
-Chronon3D è avanzato ma **pre-stabile**. `main` non deve essere descritto come completamente verde, release-ready o SDK stabile finché i blocker P0 non sono chiusi e verificati.
+## Stato generale
 
-## Stato reale
+Chronon3D è avanzato ma **pre-stabile**. Le fondazioni di rendering, testo,
+camera e packaging SDK sono presenti; il lavoro immediato è trasformarle in un
+percorso unico, verificato e consumabile fuori dalla source tree.
 
 | Area | Stato | Gap principale |
 |---|---|---|
-| Render graph compilato | 🟡 Parziale | Fondazione completata; restano test e chiamanti sulle API eliminate. |
-| Gate architetturali | 🔴 Bloccato | L’ultimo controllo può fallire senza exit code non-zero. |
-| Determinismo scheduler | 🔴 Bloccato | Test ancora legati a `ExecutionPlanCache` e raw graph. |
-| Precomp annidato | 🔴 Bloccato | Header e implementazione non condividono lo stesso contratto. |
-| Identità/sessione | 🟡 Parziale | Race sul contesto condiviso e scope annidati incompleti. |
-| Confine SDK | 🟢 Completato | Registry centrale CMake creato; consumer installato richiede fix transitive deps (ZLIB). |
-| Diagnostics/content | 🔴 Da riparare | Target con API rotte da dividere in fix piccoli e verificabili. |
-| V3 tile-first | 🔵 Pianificato | Non deve partire prima della chiusura P0. |
-| Expressions V2 | 🧪 Sperimentale | In quarantena; non installato né esportato. |
+| Render graph compilato | 🟡 Avanzato | Baseline completa e determinismo scheduler da verificare sul commit candidato. |
+| Software backend | 🟡 Avanzato | Confine rifattorizzato; gate, core, lean e full validation devono risultare verdi insieme. |
+| Precomp / execution scope | 🔴 Aperto | Nested execution, lease, child arena e concorrenza richiedono chiusura verificata. |
+| Text Production V1 | 🟡 60–65% stimato | Word timing, rich text produttivo, preset e visual regression sistematica. |
+| Camera Production V1 | 🟡 70–75% stimato | Test scene bloccati, migrazione legacy e feature di path/framing/ottica ancora aperte. |
+| SDK C++ | 🟡 80–85% stimato | Package presente; manca consumer esterno che renderizzi una composizione reale. |
+| SDK cross-language | 🔵 30–40% stimato | C ABI e formato dichiarativo `.chronon` assenti. |
+| Expressions V2 | 🧪 Sperimentale | Non installato, non esportato e non integrato nel percorso produttivo. |
+| V3 tile-first | 🔵 Pianificato | Non deve precedere la chiusura della baseline e dei percorsi V1. |
 
-## Contraddizione P0 immediata
-
-Il confine software corrente non è coerente:
-
-- il gate richiede che `SoftwareRenderer` non erediti `graph::RenderBackend`;
-- il gate vieta `dynamic_cast<SoftwareRenderer*>`;
-- l'header corrente dichiara la doppia ereditarietà;
-- lo step CI relativo usa ancora `continue-on-error: true`.
-
-La soluzione richiesta è correggere il codice verso una singola identità, non rilassare il gate.
+Le percentuali sono stime di copertura funzionale e non vanno usate come stato
+di test o claim di release.
 
 ## Fondazioni valide da preservare
 
 - `RenderGraph → FrameGraphCompiler → CompiledFrameGraph → GraphExecutor`.
 - Executor su `RenderGraph` grezzo ritirati.
-- Scheduler esplicito.
-- ID forti e hashing deterministico.
-- Stato per-sessione per `SceneHasher`, `SceneProgramStore`, frame history e dirty history.
+- Scheduler esplicito e ID/hash deterministici.
+- `RenderRuntime` proprietario dell'infrastruttura engine-lifetime.
+- Stato per-sessione per history, cache e camera.
 - `AssetResolver` tipizzato e runtime-owned.
 - Registrazione esplicita tramite `ExtensionModule` e `ExtensionContext`.
-- `RenderRuntime` come proprietario dell'infrastruttura engine-lifetime.
+- Un solo registry CMake per build, aggregate archive, install ed export.
+- `Chronon3D::SDK` come unico target pubblico documentato.
 - `experimental/` escluso dallo SDK stabile.
+- Camera canonica: `CameraDescriptor → compile_camera() → CameraProgram`.
+- Testo canonico: `TextDocument/TextSpec → layout → animator stack → renderer`.
 
-## Esecuzione corrente a due agenti
+## Stato testo
 
-### Agente 1
+### Implementato
 
-[`AGENT_1_RENDERER_BOUNDARY.md`](agent-tasks/AGENT_1_RENDERER_BOUNDARY.md)
+- FreeType, HarfBuzz e FriBidi.
+- `TextSpec`, `TextRunSpec`, `TextDocument`, span e paragrafi.
+- Layout, wrap, overflow, auto-fit, gradienti, stroke e shadow.
+- Animator per glifo e selector per glifo/grapheme/parola/riga.
+- Sample time sub-frame.
+- Text-on-path da consolidare.
+- Registry canonico dei preset e sentinel iniziali.
 
-Chiude:
+### Ancora aperto
 
-- single identity renderer/backend;
-- eliminazione dei cast al renderer concreto;
-- capability sul backend software;
-- riduzione della superficie del renderer;
-- gate renderer bloccante.
+- word timing/SRT/JSON;
+- styling per parola realmente end-to-end;
+- subtitle/highlight/karaoke pipeline;
+- Wiggly/Wave/Random selector completi;
+- golden multi-resolution e multi-fps per tutti i preset;
+- consumer SDK che usa il percorso testuale pubblico;
+- variable fonts, ICU, Text 3D, MSDF ed expression selector produttivi.
 
-### Agente 2
+## Stato camera
 
-[`AGENT_2_CMAKE_SDK_BASELINE.md`](agent-tasks/AGENT_2_CMAKE_SDK_BASELINE.md)
+Il percorso compilato esiste e comprende descriptor, programma immutabile,
+sessione per render job, projection variant, lente fisica, pose/orbit/trajectory,
+constraint, shot timeline e transizioni.
 
-Chiude:
+### Correzioni recenti presenti nel codice
 
-- registry CMake centrale;
-- text-preset registry cleanup sub-PR: TextPresetRegistry confirmed single source of truth (Stage-5 canonical path: `wire_preset_text_run_params(preset_id, spec)` + `AnimatorResolver::compose_for(preset_id)`); freeze() mirrored at PR-A4 fixture (EffectCatalog parity); zero local preset-construction fallbacks outside the registry TU.
-- toolchain/preset vcpkg coerenti;
-- external consumer SDK;
-- baseline osservata e documenti canonici sincronizzati.
+- preservazione della projection variant nel pose path;
+- orientation applicata una sola volta;
+- orbit track/dolly nel basis locale della camera;
+- `MotionBlurMode` come unica fonte di verità;
+- checkpoint/pre-roll per accesso non sequenziale;
+- focal X/Y, gate fit, anamorphic/pixel-aspect contract;
+- descriptor di default integrato nella composition.
 
-## Ordine di integrazione
+### Stato delle prove
 
-1. Merge del lavoro Agente 1 dopo review e gate mirati verdi.
-2. Rebase del lavoro Agente 2 su `origin/main` aggiornato.
-3. Full validation, install consumer e aggiornamento definitivo dei claim.
-4. Solo dopo, rivalutazione dei gap residui su Precomp, determinismo, content e diagnostics.
+Alcuni fix camera compilano ma non possono essere dichiarati verificati finché
+`chronon3d_scene_tests` non collega ed esegue. Il blocker principale è tracciato
+come TICKET-029. I ticket camera devono passare da “code-fix landed” a “verified”
+soltanto dopo test eseguiti sul commit candidato.
 
-## Criterio per dichiarare una baseline verde
+### Gap residui principali
+
+- `OrientAlongPath` completo;
+- trajectory/base-state preservation e diagnostica shot timeline;
+- framing multi-target/rule-of-thirds/dead-zone/bounds-aware;
+- clipping near/far completo;
+- DOF più fisico;
+- rimozione di `AnimatedCamera2_5D` e rig legacy come authoring primario;
+- golden/parity test bloccanti.
+
+## Stato SDK
+
+### Presente
+
+- `libchronon3d_sdk_impl.a` aggregato;
+- header pubblici installati;
+- package config/version/targets CMake;
+- target pubblico `Chronon3D::SDK`;
+- dipendenze transitive risolte nel package config;
+- consumer esterno basato su `find_package`;
+- estensioni tramite module/context.
+
+### Prova ancora insufficiente
+
+Il consumer corrente verifica package, link e un simbolo reale. Per la release
+serve un consumer fuori-tree che:
+
+1. installi e trovi Chronon3D;
+2. registri un pack esterno;
+3. costruisca testo e camera pubblici;
+4. renderizzi almeno un frame;
+5. scriva un file;
+6. verifichi output e diagnostica.
+
+### Interoperabilità mancante
+
+Il C API storico è stato rimosso. Un SDK per Python, C#, Node, Rust o host come
+Blender/Unreal richiede un C ABI stabile con handle opachi e un formato dati
+versionato per le animazioni. Non creare binding diretti indipendenti che
+replichino il runtime.
+
+## Blocker per dichiarare una baseline verde
 
 Servono tutte le prove seguenti sullo stesso commit:
 
@@ -87,22 +136,25 @@ Servono tutte le prove seguenti sullo stesso commit:
 - test core verdi;
 - build lean verde;
 - test lean verdi;
-- architecture gate verde;
-- renderer boundary gate verde e bloccante;
+- architecture gate verde e bloccante;
+- renderer-boundary gate verde e bloccante;
 - no-content build/test verde;
-- install consumer esterno verde;
+- scene/camera test link + run verde;
+- install consumer esterno reale verde;
 - full-validation build/test verde;
 - documenti aggiornati con commit, comandi e risultati.
 
-L'assenza di workflow run o di log verificabili non equivale a successo.
+L’assenza di workflow o log verificabili non equivale a successo.
 
-## Ruolo dei documenti
+## Documenti di riferimento
 
-- `STATUS.md`: stato corrente, senza claim non verificati.
-- `NEXT_STEPS.md`: ordine operativo e coordinamento.
-- `agent-tasks/`: incarichi eseguibili dai due agenti.
-- `stabilization-plan/`: checklist dei work package.
-- `ROADMAP.md`: backlog ordinato.
-- `FOLLOWUP_TICKETS.md`: difetti e follow-up tracciati.
-- `CHANGELOG.md`: lavoro completato e verificato.
-- `V3_BLUEPRINT.md`: architettura futura, non runtime corrente.
+- [`CURRENT_READINESS.md`](CURRENT_READINESS.md): stato prodotto e stime.
+- [`NEXT_STEPS.md`](NEXT_STEPS.md): ordine operativo immediato.
+- [`ROADMAP.md`](ROADMAP.md): milestone prodotto.
+- [`FEATURES.md`](FEATURES.md): inventario delle feature.
+- [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md): ticket e prove puntuali.
+- [`CAMERA_FEATURE_MATRIX.md`](CAMERA_FEATURE_MATRIX.md): stato camera.
+- [`TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md`](TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md): piano testo.
+
+Un’attività è completata soltanto quando codice, test, gate e documenti riportano
+lo stesso stato.
