@@ -307,7 +307,7 @@ else echo "PASS"; fi
 # guard: src OBJECT/INTERFACE libs not in registry -> FAIL.
 echo -n "  [12/14] CMake module registry (semantic) ... "
 src_libs=$(grep -Rh --include='CMakeLists.txt' \
-    -E '^[[:space:]]*add_library\([[:space:]]*[A-Za-z_][A-Za-z_0-9]*[[:space:]]+(OBJECT|INTERFACE)[[:space:]]*\)' \
+    -E '^[[:space:]]*add_library\([[:space:]]*[A-Za-z_][A-Za-z_0-9]*[[:space:]]+(OBJECT|INTERFACE)\b' \
     src/ 2>/dev/null \
     | sed -E 's/.*add_library\([[:space:]]*([A-Za-z_][A-Za-z_0-9]*).*/\1/' \
     | sort -u || true)
