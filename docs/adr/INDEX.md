@@ -26,6 +26,7 @@
 | ADR-011 | Delete legacy camera surface (AnimatedCamera2_5D, both CameraRig namespaces, CameraShotProfile, camera_descriptor_adapters); keep `camera_v1::CameraDescriptor` canonical; remove `projection_mode` from `Camera2_5D` | 📋 Documented (F2.3 design recorded; deletion pending dedicated F2.3.X workstream) | [camera-legacy-deletion](ADR-011-camera-legacy-deletion.md) |
 | ADR-012/013/014/015/016/017 | _reserved slots_ (chronological; see `docs/adr/README.md`) | — | _(placeholder)_ |
 | ADR-018 | Fix CMake per-target `link.txt` staleness via `set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS)` on `tests/CMakeLists.txt` over the 23 per-area `.cmake` includes (TXT-00 follow-up F-B; see `docs/baselines/codex-txt-00-attempt1-blocked-375bd5b9.md`) | Accepted (F-B diagnostic merged on branch `codex/link-rot-diagnostic`) | [link-rot-text-visual](ADR-018-link-rot-text-visual.md) |
+| ADR-019 | Canonical CMake link pattern for in-tree test executables: OBJECT `.o` propagation via dual `chronon3d_sdk` + `chronon3d_sdk_impl` linkage, with `-Wl,--whole-archive` escalation for static-init symbol retention (TXT-00 F-C follow-up; see `docs/baselines/tcb-txt-00-f-c-blocked-4ab8cbb8.md`) | Accepted (2026-06-23, empirical F-C history + renderer_tests reference) | [test-bin-object-propagation](ADR-019-test-bin-object-propagation.md) |
 
 > Slot ADR-003/004/006/007 sono previsti dal piano 07 sezione D2
 > ma formalmente *Proposed* finché i deliverable D2.x del piano
