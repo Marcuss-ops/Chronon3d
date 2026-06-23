@@ -87,17 +87,26 @@ else
     echo "PASSED: no <chronon3d_experimental/...> includes outside experimental/"
 fi
 
-# Old experimental flag must NOT be used as a live directive anywhere.
-# (The deprecated `option(... OFF)` declaration in the root CMakeLists.txt is
-# an allowed exception because it exists for cache-key compat.)
+# Old experimental flag must NOT be reintroduced as a live directive anywhere.
+# Retired in PR-7b: the deprecated option() declaration + empty if-block were
+# dropped from root CMakeLists.txt; the canonical gate is now
+# CHRONON3D_BUILD_EXPERIMENTAL above. This block is preserved as a regression
+# sentinel: any non-doc/non-script reference to `…=ON` or `…=OFF` for the flag
+# indicates someone reintroduced it without the cache-key compat guard.
+#
+# ┌─ REGRESSION SENTINEL (PR-7b) ─────────────────────────────────────
+# │ DO NOT REMOVE OR "CLEAN UP" THIS SENTINEL.
+# │ Without CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2 in tree, this
+# │ gate is vacuously-passing forever -- that is INTENTIONAL: the sentinel
+# │ must stay to fail loudly if a future reintroduction attempt lands.
+# └────────────────────────────────────────────────────────────────────
 LIVE_EXPERIMENTAL_FLAG=$(grep -RIn --include='*.cmake' --include='CMakeLists.txt' \
     --include='*.sh' --include='*.yml' --include='*.yaml' --include='*.json' --include='*.py' \
     'CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2[[:space:]]*[:=]' . 2>/dev/null \
-    | grep -v '^./CMakeLists.txt:.*option(' \
-    | grep -v '^./CMakeLists.txt:.*if(CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2)' \
     | grep -v '^./build/' \
     | grep -v '^./vcpkg_bootstrap/' \
     | grep -v '^./vcpkg_installed/' \
+    | grep -v '^./tools/test_architectural.sh' \
     | grep -v '^./docs/' \
     || true)
 if [ -n "$LIVE_EXPERIMENTAL_FLAG" ]; then
