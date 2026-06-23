@@ -73,14 +73,17 @@ else
   ok "I4: nessuna dynamic_cast<SoftwareRenderer*>"
 fi
 
-# -- I5: SoftwareRenderer& nelle superfici di processo (R2)
+# -- I5: SoftwareRenderer& nelle superfici di processo (R2).
+# Allowlist:  `SoftwareRenderer&&` (legitimate move-ctor/move-assign
+# rvalue-ref parameter type) is permitted; any other occurrence of
+# `SoftwareRenderer&` (lvalue reference surface) is forbidden.
 proc_uses=$(grep -RIn 'SoftwareRenderer&' \
   src/backends/software/processors/ \
   src/backends/software/text_run_processor.cpp \
   src/render_graph/ \
   src/runtime/ \
   include/chronon3d/backends/ \
-  2>/dev/null | wc -l || true)
+  2>/dev/null | grep -v 'SoftwareRenderer&&' | wc -l || true)
 if [[ "$proc_uses" -ne 0 ]]; then
   fail "I5: $proc_uses riferimenti SoftwareRenderer& nelle superfici di processo (target R2)"
   grep -RIn 'SoftwareRenderer&' \
@@ -89,9 +92,9 @@ if [[ "$proc_uses" -ne 0 ]]; then
     src/render_graph/ \
     src/runtime/ \
     include/chronon3d/backends/ \
-    2>/dev/null | sed 's|^|      |' >&2
+    2>/dev/null | grep -v 'SoftwareRenderer&&' | sed 's|^|      |' >&2
 else
-  ok "I5: nessun SoftwareRenderer& nelle superfici di processo"
+  ok "I5: nessun SoftwareRenderer& nelle superfici di processo (`&&` move-ref allowlisted)"
 fi
 
 echo
