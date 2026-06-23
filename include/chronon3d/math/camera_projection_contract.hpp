@@ -3,23 +3,29 @@
 // ============================================================================
 // camera_projection_contract.hpp — Unified Camera Projection Contract
 //
-/// @file    camera_projection_contract.hpp
-/// @brief   Single source of truth for all 2.5D camera projection math.
-///
-/// Every projection path in Chronon3D must go through this contract so that:
-///   - Y sign        → screen Y increases downward (origin top-left)
-///   - Viewport      → viewport center is ALWAYS added by the contract
-///   - Depth         → positive Z = in front of camera (LH system)
-///   - FOV / Zoom    → `focal_from_camera()` is the single source of truth
-///   - Behind camera → `world_to_camera_space().visible` is the single check
-///
-/// After this contract is adopted, three layers use it:
-///   1. camera_projection.cpp         (Path 1 — `project_world_to_screen`)
-///   2. camera_2_5d_projection.hpp    (Path 2 — `project_layer_2_5d`)
-///   3. projection_context.hpp         (Path 3 — `ProjectionContext`)
-///   4. projection_utils.cpp           (Path 4 — `project_2_5d`)
-///
-/// All four MUST produce pixel-identical results for the same input.
+// @file    camera_projection_contract.hpp
+// @brief   Single source of truth for all 2.5D camera projection math.
+//
+// Every projection path in Chronon3D MUST go through this contract so that:
+//   - Y sign        → screen Y increases downward (origin top-left)
+//   - Viewport      → viewport center is ALWAYS added by the contract
+//   - Depth         → positive Z = in front of camera (LH system)
+//   - FOV / Zoom    → `focal_xy_from_camera()` is the single source of truth
+//                     (returns per-axis focal x and y; the legacy scalar
+//                     `focal_from_camera(...)` is a thin wrapper)
+//   - Behind camera → `out.visible == false` is the single check
+//
+// After this contract is adopted, four layers use it:
+//   1. camera_projection.cpp         (Path 1 — `project_world_to_screen`)
+//   2. camera_2_5d_projection.hpp    (Path 2 — `project_layer_2_5d`)
+//   3. projection_context.hpp         (Path 3 — `ProjectionContext`)
+//   4. projection_utils.cpp           (Path 4 — `project_2_5d`)
+//
+// All four MUST produce bit-identical results for the same input.
+//
+// TICKET-035 — focal x/y + GateFit::Stretch + Overscan active viewport +
+// pixel_aspect / anamorphic_squeeze from `LensModel` + visibility/coordinate
+// separation for invisible points.
 // ============================================================================
 
 #include <chronon3d/math/glm_types.hpp>
@@ -29,7 +35,7 @@
 
 namespace chronon3d::camera_math {
 
-// ── Viewport descriptor ─────────────────────────────────────────────────────
+// ── Viewport descriptor ────────────────────────────────────────────────────
 // Mirrors the existing Viewport struct but lives in the contract namespace
 // to avoid circular dependencies.
 struct Viewport2D {
@@ -45,77 +51,130 @@ struct CameraSpacePoint {
 };
 
 // ── Fully projected point (screen-space coordinates) ───────────────────────
+//
+// TICKET-035 — Validity/coordinate separation:
+//   * If `visible == false`, the `centered` and `screen` fields hold safe
+//     ZERO defaults (NOT numeric sentinels).  Callers MUST treat them as
+//     meaning-less "valid == false" territory and never project them as
+//     scene geometry.  The single source of truth is `visible`.
+//   * If `visible == true`, `centered` is relative to canvas centre, `screen`
+//     has the canvas-centre offset applied, and `perspective_scale` is the
+//     Y-axis reference (focal_y_px / depth).
 struct ProjectedPoint {
-    Vec2  centered{0.0f};   // relative to canvas centre
-    Vec2  screen{0.0f};     // absolute top-left screen coordinates
+    Vec2  centered{0.0f};          // relative to canvas centre (Y inverted: screen-Y down)
+    Vec2  screen{0.0f};            // absolute top-left screen coordinates
     f32   depth{0.0f};
-    f32   perspective_scale{1.0f};
-    bool  visible{false};
+    f32   perspective_scale{1.0f}; // canonical: focal_y_px / depth
+    bool  visible{false};          // SOURCE OF TRUTH for invisibility; never trust coords when false.
 };
 
-// ── Contract: focal length (pixels) ──────────────────────────────────────────
+// ── Focal-length-per-axis result (TICKET-035) ───────────────────────────────
 //
-// Returns the focal length in pixels for a given camera and viewport dimensions.
+// Returned by `focal_xy_from_camera(...)`.  `x` is the horizontal focal in
+// pixels (colloquially `focal_x_px`); `y` is the vertical focal in pixels
+// (`focal_y_px`, the canonical Y reference for `perspective_scale`).
 //
-// Rules:
-//   - PhysicalLens mode (canonical):  derived from Camera2_5D::lens with
-//     gate-fit.  Independent of DoF — a 24mm or 135mm lens changes the
-//     perspective even when camera.dof.enabled is false (AE contract).
-//   - FieldOfView mode (canonical):   focal = (viewport_height/2) / tan(fov/2).
-//   - Zoom mode (canonical):          focal = camera.get_zoom().
-//   - Legacy DoF fallback:            if optics_mode is the default Zoom but
-//     camera.get_dof_use_physical_model() is true, the legacy path is still honoured.
+// For Fill / Overscan with a spherical lens and square pixels, `x == y`.
+// For `GateFit::Stretch`, anamorphic lenses, or non-square pixel grids,
+// `x != y` — callers MUST apply the per-axis scale (`scale_x = x / depth`,
+// `scale_y = y / depth`) so aspect ratio is preserved on the canvas.
+struct FocalPx {
+    f32 x{0.0f};   // horizontal focal length in pixels
+    f32 y{0.0f};   // vertical focal length in pixels (canonical reference)
+};
+
+// ── Contract: focal length (x and y, per axis) ─────────────────────────────
 //
-// At depth == focal the perspective scale is exactly 1.0.
-inline f32 focal_from_camera(const CameraProjectionSource& camera, f32 viewport_width, f32 viewport_height) {
-    // ── PR-C (TICKET-007.v/.w/.x) ────────────────────────────────────────────
-    // Canonical projection_mode takes priority over optics_mode's zoom
-    // fallback.  Previously a Camera2_5D with projection_mode=Fov but
-    // optics_mode=Zoom (the default) returned camera.get_zoom() = 1000
-    // every time — ignoring the caller's explicit FOV intent.  Now the
-    // Fov formula wins when projection_mode is explicit.
+// TICKET-035 — produces per-axis focal lengths without creating a second
+// projector.  All four projection paths (`project_world_point`,
+// `project_layer_2_5d`, `make_projection_context`, `project_2_5d`) MUST
+// route through this function before any `scale = focal/depth` math.
+//
+// Rules (mirrors the legacy `focal_from_camera` projection_mode /
+// optics_mode priority):
+//   - PhysicalLens mode (canonical):   focal_xy derived from cam.lens
+//                                       via `LensModel::focal_xy_pixels`.
+//                                       Honors `pixel_aspect` +
+//                                       `anamorphic_squeeze` on focal_x.
+//   - FieldOfView mode (canonical):    focal_x = focal_y = (vp.h/2)/tan(fov/2).
+//   - Fov projection_mode (priority):  same as FieldOfView.
+//   - Zoom mode (canonical):           focal_x = focal_y = cam.zoom.
+//   - Legacy DoF fallback:             focal via `LensModel::focal_xy_pixels`.
+//
+// Per-axis scaling (`scale_x`, `scale_y`) for `GateFit::Stretch` and
+// anamorphic lenses happens in `LensModel::focal_xy_pixels()` + the lens
+// factors (`pixel_aspect` and `anamorphic_squeeze`).  The contract returns
+// the post-factored values so callers cannot accidentally drop the X-axis.
+inline FocalPx focal_xy_from_camera(const CameraProjectionSource& camera,
+                                    f32 viewport_width, f32 viewport_height) {
+    FocalPx out{1000.0f, 1000.0f};
+
+    // Canonical projection_mode takes priority over optics_mode (TICKET-007).
     if (camera.get_projection_mode() == Camera2_5DProjectionMode::Fov) {
         const f32 fov_rad = glm::radians(camera.get_fov_deg());
         if (std::tan(fov_rad * 0.5f) > std::numeric_limits<f32>::epsilon()) {
-            return (viewport_height * 0.5f) / std::tan(fov_rad * 0.5f);
+            const f32 f = (viewport_height * 0.5f) / std::tan(fov_rad * 0.5f);
+            out.x = f;
+            out.y = f;
+            return out;
         }
         // degenerate FOV → fall through to optics_mode-driven path
     }
 
-    // Canon: switch purely on optics_mode — optics != DoF.
+    // Canon: switch purely on optics_mode.
     switch (camera.get_optics_mode()) {
         case CameraOpticsMode::PhysicalLens: {
             if (camera.get_lens().focal_length > 0.0f) {
-                return camera.get_lens().focal_pixels(viewport_width, viewport_height);
+                const Vec2 fxy = camera.get_lens().focal_xy_pixels(
+                    viewport_width, viewport_height);
+                out.x = fxy.x;
+                out.y = fxy.y;
+                return out;
             }
-            return camera.get_zoom();  // degenerate lens → fall back to zoom
+            // Degenerate lens → fall back to zoom (consistent across X and Y).
+            out.x = camera.get_zoom();
+            out.y = camera.get_zoom();
+            return out;
         }
         case CameraOpticsMode::FieldOfView: {
             const f32 fov_rad = glm::radians(camera.get_fov_deg());
-            return (viewport_height * 0.5f) / std::tan(fov_rad * 0.5f);
+            const f32 f = (viewport_height * 0.5f) / std::tan(fov_rad * 0.5f);
+            out.x = f;
+            out.y = f;
+            return out;
         }
         case CameraOpticsMode::Zoom:
             break;
     }
     if (camera.get_zoom() > 0.0f) {
-        return camera.get_zoom();
+        out.x = camera.get_zoom();
+        out.y = camera.get_zoom();
+        return out;
     }
-    // Legacy DoF-driven fallback for callers that pre-date CameraOpticsMode.
+    // Legacy DoF-driven fallback.
     if (camera.get_lens().focal_length > 0.0f && camera.get_dof_use_physical_model()) {
-        return camera.get_lens().focal_pixels(viewport_width, viewport_height);
+        const Vec2 fxy = camera.get_lens().focal_xy_pixels(
+            viewport_width, viewport_height);
+        out.x = fxy.x;
+        out.y = fxy.y;
+        return out;
     }
-    // ── PR-C: the projection_mode == Fov branch that lived here historically
-    // is unreachable now that the early-return at the top of the function
-    // handles every `projection_mode == Fov` invocation.  Kept the explicit
-    // Zoom default for callers with neither Fov intent nor an explicit zoom.
-    return camera.get_zoom();
+    // No viewport-aware derivation succeeded → keep default {1000,1000}.
+    return out;
 }
 
-// Single-arg overload for backward compat with callers that don't yet pass viewport_width.
-// Legacy code paths use only viewport_height (Fov/Zoom modes ignore viewport_width).
-// For lens mode, this is a fallback — prefer the 2-arg overload with real viewport dims.
-inline f32 focal_from_camera(const CameraProjectionSource& camera, f32 viewport_height) {
-    return focal_from_camera(camera, viewport_height, viewport_height);
+// Single-arg overload for backward compat with callers that only know
+// viewport_height (legacy code paths).  Fov/Zoom modes ignore viewport_width;
+// for lens mode it is a fallback — prefer the 2-arg overload.
+inline f32 focal_from_camera(const CameraProjectionSource& camera,
+                             f32 viewport_width, f32 viewport_height) {
+    return focal_xy_from_camera(camera, viewport_width, viewport_height).y;
+}
+
+// Single-arg overload for callers that don't pass viewport_width separately.
+inline f32 focal_from_camera(const CameraProjectionSource& camera,
+                             f32 viewport_height) {
+    return focal_xy_from_camera(camera, viewport_height, viewport_height).y;
 }
 
 // ── Contract: view matrix ───────────────────────────────────────────────────
@@ -156,19 +215,28 @@ inline CameraSpacePoint world_to_camera_space(
 // One-stop function: transforms a world-space point through camera space into
 // screen-space pixel coordinates.
 //
-// Contract:
+// Contract (TICKET-035):
 //   ┌─────────────────────────────────────────────────────────────────┐
 //   │ 1. Y sign: INVERTED — screen Y increases downward.              │
-//   │    centered.y = -cam.position.y * scale                         │
+//   │    centered.y = -cam.position.y * scale_y                        │
 //   │    screen.y   = centered.y + viewport.height / 2                │
 //   │                                                                 │
 //   │ 2. Viewport centre: ALWAYS added in screen coordinates.         │
 //   │    screen = centered + (viewport.width/2, viewport.height/2)    │
 //   │                                                                 │
-//   │ 3. Depth: positive Z = in front of camera (LH convention).      │
-//   │    visible == false  ⇒  screen is set to -FLT_MAX sentinel.     │
+//   │ 3. Validity/coord separation (TICKET-035):                      │
+//   │    visible == false  ⇒  centered = screen = {0,0},              │
+//   │    perspective_scale = 0.0f, depth = cam.depth.                  │
+//   │    Callers MUST NOT use centered/screen as geometry when         │
+//   │    visible == false.  The single source of truth is .visible.    │
+//   │    No numeric sentinels like -FLT_MAX are emitted.               │
 //   │                                                                 │
-//   │ 4. perspective_scale = focal / depth                            │
+//   │ 4. Per-axis perspective scale (TICKET-035):                      │
+//   │    scale_x = focal_xy.x / depth       (X axis)                   │
+//   │    scale_y = focal_xy.y / depth       (Y axis, canonical; used   │
+//   │                                            as perspective_scale)│
+//   │    For Fill/Overscan + spherical + square pixels, scale_x == scale_y│
+//   │    For Stretch / anamorphic / non-square pixels, scale_x != scale_y│
 //   └─────────────────────────────────────────────────────────────────┘
 inline ProjectedPoint project_world_point(
     const CameraProjectionSource& camera,
@@ -182,26 +250,30 @@ inline ProjectedPoint project_world_point(
     out.visible = cam.visible;
 
     if (!cam.visible) {
-        out.centered = {
-            -std::numeric_limits<f32>::max(),
-            -std::numeric_limits<f32>::max()
-        };
-        out.screen = out.centered;
+        // ── TICKET-035: validity/coord separation ──
+        // Coords set to safe ZERO defaults; the single source of truth
+        // for invisibility is `out.visible`.  Callers MUST check
+        // `visible` BEFORE consuming centered/screen as geometry.
+        out.centered = {0.0f, 0.0f};
+        out.screen = {0.0f, 0.0f};
         out.perspective_scale = 0.0f;
         return out;
     }
 
-    const f32 focal = focal_from_camera(camera, viewport.width, viewport.height);
-    const f32 scale = focal / cam.depth;
-    out.perspective_scale = scale;
+    const FocalPx focal_xy = focal_xy_from_camera(camera, viewport.width, viewport.height);
+    const f32 scale_x = focal_xy.x / cam.depth;
+    const f32 scale_y = focal_xy.y / cam.depth;
+    // Canonical perspective_scale uses focal_y_px (TICKET-035; preserves the
+    // focal/depth invariant tested by the existing parity tests).
+    out.perspective_scale = scale_y;
 
-    // ── Contract: centered coordinates (no viewport centre, Y inverted) ──
+    // Center coordinates: per-axis scale (X and Y independent).
     out.centered = {
-        cam.position.x * scale,
-        -cam.position.y * scale      // Y sign: inverted (screen Y down)
+        cam.position.x * scale_x,
+        -cam.position.y * scale_y      // Y sign: inverted (screen Y down)
     };
 
-    // ── Contract: screen coordinates (viewport centre added) ────────────
+    // Screen coordinates: viewport centre added.
     out.screen = {
         out.centered.x + viewport.width * 0.5f,
         out.centered.y + viewport.height * 0.5f

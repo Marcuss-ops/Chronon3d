@@ -147,18 +147,46 @@ static Camera2_5D eval_pose_tracks(const CameraBaseSpec& base,
     cam.point_of_interest = src.target.evaluate(ctx.sample_time);
     cam.point_of_interest_enabled = src.use_target;
 
-    // CAM-03: route the BASE projection through the central dispatch
-    // (must match the contract for any other source — Zoom/Fov/PhysicalLens
-    // semantics decided by descriptor_.base).  PoseTracksSource's animated
-    // zoom / fov_deg channels then override below (preserving the legacy
-    // "unconditional Zoom projection_mode" behaviour of this evaluator).
+    // CAM-03 / DOC 02: route the BASE projection through the central
+    // dispatch (handles ZoomProjection / FovProjection / PhysicalLensProjection).
+    // TICKET-021 — PoseTracksSource must NOT unconditionally force Zoom or
+    // stomp the active variant.  Animated pose tracks overlay ONLY the
+    // channels owned by the active variant; for PhysicalLensProjection the
+    // physical lens carried by the descriptor is canonical and never gets
+    // clobbered to base.lens below.
     apply_projection_spec(base.projection, ctx, cam);
-    cam.zoom = src.zoom.evaluate(ctx.sample_time);
-    cam.fov_deg = src.fov_deg.evaluate(ctx.sample_time);
-    cam.projection_mode = Camera2_5DProjectionMode::Zoom;
-    cam.optics_mode = CameraOpticsMode::Zoom;
+    std::visit([&](auto&& p) {
+        using T = std::decay_t<decltype(p)>;
+        if constexpr (std::is_same_v<T, ZoomProjection>) {
+            if (src.zoom.is_time_dependent())
+                cam.zoom = src.zoom.evaluate(ctx.sample_time);
+        } else if constexpr (std::is_same_v<T, FovProjection>) {
+            if (src.fov_deg.is_time_dependent())
+                cam.fov_deg = src.fov_deg.evaluate(ctx.sample_time);
+        } else if constexpr (std::is_same_v<T, PhysicalLensProjection>) {
+            (void)p;
+            // Pose tracks must NOT touch zoom / fov_deg / lens here:
+            // apply_projection_spec already encoded the lens from p.lens
+            // and zeroed cam.zoom / cam.fov_deg (so an animated Fov on the
+            // pose track cannot leak into a PhysicalLens descriptor).
+        } else {
+            // TICKET-021 / DOC 02: a new ProjectionSpec variant must update
+            // BOTH this std::visit AND apply_projection_spec together.
+            // Without this guard the new variant is silently dropped on
+            // PoseTracksSource (only the base projection writes cam.zoom /
+            // cam.fov_deg / cam.lens, never the pose tracks).
+            static_assert(std::is_void_v<T>,
+                "PoseTracksSource: unhandled ProjectionSpec variant — "
+                "update eval_pose_tracks std::visit AND "
+                "apply_projection_spec together.");
+        }
+    }, base.projection);
 
-    cam.lens = base.lens;
+    // TICKET-021 / DOC 02: PhysicalLensProjection's lens is the canonical
+    // source-of-truth; for Zoom / Fov, fall back to the base lens.
+    if (!std::holds_alternative<PhysicalLensProjection>(base.projection)) {
+        cam.lens = base.lens;
+    }
     cam.motion_blur = base.motion_blur;
     cam.parent_name = base.parent_name;
 
@@ -562,12 +590,18 @@ CameraProgramResult CameraProgram::evaluate(const CameraEvalContext& ctx,
     // Set is_animated flag.
     intermediate.is_animated = time_dependent_;
 
-    // Carry forward lens and motion blur from descriptor base.
-    // DOF is handled by the source evaluator (eval_pose_tracks applies
-    // animated DOF channels; OrbitMotion and TrajectoryMotion copy base
-    // DOF). Do NOT overwrite with descriptor_.base.dof here — that would
-    // erase animated DOF channels from PoseTracksSource.
-    intermediate.lens = descriptor_.base.lens;
+    // Carry forward lens and motion blur from descriptor base. The lens
+    // must come from PhysicalLensProjection when that variant is active
+    // (TICKET-021); otherwise fall back to base.lens. DOF is handled by
+    // the source evaluator (PoseTracksSource carries animated DOF
+    // channels; OrbitMotion copies base DOF; TrajectoryMotion's DOF
+    // coverage is deferred to TICKET-025); do NOT overwrite
+    // intermediate.dof here — that would erase animated DOF from
+    // PoseTracksSource.
+    if (!std::holds_alternative<PhysicalLensProjection>(descriptor_.base.projection)) {
+        intermediate.lens = descriptor_.base.lens;
+    }
+
     intermediate.motion_blur = descriptor_.base.motion_blur;
 
     // Evaluate descriptor constraints (PR6+PR10: all 5 constraint types).
