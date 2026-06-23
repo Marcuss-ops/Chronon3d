@@ -137,15 +137,27 @@ TEST_CASE("Camera projection contract: FOV and zoom focal equivalence") {
     CHECK(a.depth == doctest::Approx(b.depth).epsilon(0.0001f));
 }
 
-TEST_CASE("Camera projection contract: sentinel values for invisible points") {
+TEST_CASE("TICKET-035: invisible points have safe defaults, NOT numeric sentinels") {
     Camera2_5D cam;
     cam.enabled = true;
     cam.position = {0, 0, -1000};
     cam.zoom = 1000;
     auto p = camera_math::project_world_point(cam, Vec3{0, 0, -1001}, camera_math::Viewport2D{1920, 1080});
+    // Source of truth for invisibility is the boolean; coords are safe defaults.
     CHECK_FALSE(p.visible);
-    CHECK(p.screen.x == doctest::Approx(-std::numeric_limits<f32>::max()));
-    CHECK(p.screen.y == doctest::Approx(-std::numeric_limits<f32>::max()));
+    CHECK(p.screen.x == doctest::Approx(0.0f));
+    CHECK(p.screen.y == doctest::Approx(0.0f));
+    CHECK(p.centered.x == doctest::Approx(0.0f));
+    CHECK(p.centered.y == doctest::Approx(0.0f));
+    CHECK(p.perspective_scale == doctest::Approx(0.0f));
+    // Negative guard: NOT emitted as a numeric sentinel like -FLT_MAX.
+    CHECK(p.screen.x > -std::numeric_limits<f32>::max() * 0.5f);
+    CHECK(p.screen.y > -std::numeric_limits<f32>::max() * 0.5f);
+    // Sanity for a VISIBLE point: coords are non-zero (perspective math ran).
+    auto p_vis = camera_math::project_world_point(cam, Vec3{0, 0, 0}, camera_math::Viewport2D{1920, 1080});
+    CHECK(p_vis.visible);
+    CHECK(p_vis.screen.x == doctest::Approx(960.0f));
+    CHECK(p_vis.screen.y == doctest::Approx(540.0f));
 }
 
 TEST_CASE("Camera projection contract: project_world_to_screen matches contract") {
@@ -460,4 +472,94 @@ TEST_CASE("CAM-03: make_evaluated_projection snapshot fields are sane (Fov mode)
     CHECK(snap.active_viewport.height == doctest::Approx(1080.0f));
     CHECK_FALSE(snap.is_physical_lens);
     CHECK_FALSE(snap.is_anamorphic);
+}
+
+
+// ============================================================================
+// TICKET-035 — FocalPx per-axis + GateFit::Stretch + Overscan active viewport
+// + anamorphic_squeeze + pixel_aspect from LensModel.
+// ============================================================================
+
+TEST_CASE("TICKET-035: focal_xy_from_camera returns equal values for spherical Fill") {
+    Camera2_5D cam;
+    cam.lens = LensPresets::full_frame_50mm();   // 50mm spherical, Fill, no squeeze
+    cam.optics_mode = CameraOpticsMode::PhysicalLens;
+    auto fxy = camera_math::focal_xy_from_camera(cam, 1920.0f, 1080.0f);
+    CHECK(fxy.x == doctest::Approx(fxy.y).epsilon(1e-4f));
+    CHECK(fxy.x > 0.0f);
+    CHECK_FALSE(std::isnan(fxy.x));
+    CHECK_FALSE(std::isnan(fxy.y));
+}
+
+TEST_CASE("TICKET-035: GateFit::Stretch produces focal_x != focal_y (independent axes)") {
+    Camera2_5D cam;
+    cam.lens = LensPresets::full_frame_50mm();
+    cam.lens.gate_fit = GateFit::Stretch;        // viewport aspect != sensor aspect -> axes differ
+    cam.optics_mode = CameraOpticsMode::PhysicalLens;
+
+    // Sensor is 36x24mm (3:2 = 1.5); viewport is 1920x1080 (16:9 = ~1.78).
+    // For Stretch: focal_x = 50 * (1920/36) ~= 2666.67 px
+    //              focal_y = 50 * (1080/24) = 2250 px
+    // => focal_x > focal_y because viewport is wider than sensor.
+    auto fxy = camera_math::focal_xy_from_camera(cam, 1920.0f, 1080.0f);
+    CHECK(fxy.x != doctest::Approx(fxy.y).epsilon(0.01f));
+    CHECK(fxy.x == doctest::Approx(50.0f * 1920.0f / 36.0f).epsilon(0.5f));
+    CHECK(fxy.y == doctest::Approx(50.0f * 1080.0f / 24.0f).epsilon(0.5f));
+}
+
+TEST_CASE("TICKET-035: GateFit::Overscan exposes effective viewport (pillarbox for 3:2 sensor in 16:9)") {
+    Camera2_5D cam;
+    cam.lens = LensPresets::full_frame_50mm();   // 36x24mm sensor, 1.5 aspect
+    cam.lens.gate_fit = GateFit::Overscan;
+    auto eff = cam.lens.effective_viewport(1920.0f, 1080.0f);
+    // Viewport 16:9 (~1.78) > sensor 3:2 (1.5) => pillarbox layout.
+    // Effective height = viewport_height = 1080.
+    // Effective width  = viewport_height * sensor_aspect = 1080 * 1.5 = 1620.
+    CHECK(eff.x == doctest::Approx(1620.0f).epsilon(0.5f));
+    CHECK(eff.y == doctest::Approx(1080.0f).epsilon(0.5f));
+
+    // Fill and Stretch are passthroughs of the requested viewport.
+    cam.lens.gate_fit = GateFit::Fill;
+    auto eff_fill = cam.lens.effective_viewport(1920.0f, 1080.0f);
+    CHECK(eff_fill.x == doctest::Approx(1920.0f));
+    CHECK(eff_fill.y == doctest::Approx(1080.0f));
+    cam.lens.gate_fit = GateFit::Stretch;
+    auto eff_str = cam.lens.effective_viewport(1920.0f, 1080.0f);
+    CHECK(eff_str.x == doctest::Approx(1920.0f));
+    CHECK(eff_str.y == doctest::Approx(1080.0f));
+}
+
+TEST_CASE("TICKET-035: anamorphic_squeeze 2.0 produces focal_x == 2 * focal_y for anamorphic_50mm") {
+    Camera2_5D cam;
+    cam.lens = LensPresets::anamorphic_50mm();    // 50mm anamorphic Fill, anamorphic_squeeze=2.0
+    cam.optics_mode = CameraOpticsMode::PhysicalLens;
+    auto fxy = camera_math::focal_xy_from_camera(cam, 1920.0f, 1080.0f);
+    // For Fill with 3:2 sensor in 16:9 viewport, the post-aspect fit
+    // produces an equal base focal_x/base_focal_y; anamorphic_squeeze=2 then
+    // inflates focal_x by exactly 2x.
+    CHECK(fxy.x == doctest::Approx(2.0f * fxy.y).epsilon(0.5f));
+    CHECK(cam.lens.anamorphic_squeeze == doctest::Approx(2.0f));
+
+    // Spherical lens with default squeeze 1.0 should NOT inflate focal_x.
+    cam.lens = LensPresets::full_frame_50mm();
+    auto fxy_spherical = camera_math::focal_xy_from_camera(cam, 1920.0f, 1080.0f);
+    CHECK(fxy_spherical.x == doctest::Approx(fxy_spherical.y).epsilon(1e-4f));
+}
+
+TEST_CASE("TICKET-035: EvaluatedProjection active_viewport honours Overscan; pixel_aspect + anamorphic_squeeze from LensModel") {
+    Camera2_5D cam;
+    cam.optics_mode = CameraOpticsMode::PhysicalLens;
+    cam.lens = LensPresets::anamorphic_50mm();
+    cam.lens.gate_fit = GateFit::Overscan;
+
+    auto snap = chronon3d::camera_v1::make_evaluated_projection(cam, {1920.0f, 1080.0f});
+    CHECK(snap.is_physical_lens);
+    CHECK(snap.is_anamorphic);                  // squeeze=2 -> focal_x != focal_y
+    CHECK(snap.focal_x_px == doctest::Approx(2.0f * snap.focal_y_px).epsilon(0.5f));
+    CHECK(snap.pixel_aspect        == doctest::Approx(cam.lens.pixel_aspect));
+    CHECK(snap.anamorphic_squeeze  == doctest::Approx(cam.lens.anamorphic_squeeze));
+    CHECK(snap.anamorphic_squeeze  == doctest::Approx(2.0f));
+    // active_viewport for 3:2 sensor in 16:9 viewport with Overscan == {1620, 1080}.
+    CHECK(snap.active_viewport.width  == doctest::Approx(1620.0f).epsilon(0.5f));
+    CHECK(snap.active_viewport.height == doctest::Approx(1080.0f).epsilon(0.5f));
 }
