@@ -79,7 +79,6 @@
 // and `session_services` (render-side software types).  WP-8 PR 8.4
 // moves those APIs to a software-internal header; revert this include
 // at that point.
-#include <chronon3d/backends/software/software_render_session.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 // WP-3 PR 3.4 — canonical location for the renamed SoftwareRenderSession.
 #include <chronon3d/backends/software/software_render_session.hpp>
