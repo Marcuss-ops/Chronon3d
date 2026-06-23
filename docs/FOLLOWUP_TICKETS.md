@@ -1114,7 +1114,8 @@ Implemented in this session. Single seeding point + per-instance parameter forwa
 
 | Field | Value |
 |---|---|
-| **Status** | 🔵 Planned |
+| **Status** | 🟡 In Progress (PR-A4 canonical cmake pattern landed: `64c40ed90d25e1cb32f1adf8a1340475de439ed1`; PR-A subtree-fix in same cycle; remaining: PART-B CompileResult rot in vm.cpp:414, out of scope) |
+| **PR-A4 Resolved at** | Commit `64c40ed90d25e1cb32f1adf8a1340475de439ed1` (tests/text_preset_visual_tests.cmake canonical pattern: doctest::doctest_with_main -> doctest::doctest + test_main.cpp link) |
 | **Affected file(s)** | `experimental/expressions/CMakeLists.txt` (missing `find_package(doctest)`); `experimental/expressions/src/expressions/v2/vm.cpp:414` (declared-but-undefined `CompileResult`); `experimental/expressions/tests/CMakeLists.txt` (PR-A gen-exp guard at line 27 — the guard is correct vs. TICKET-006 precedent but masks a missing-package-find); cascading consumers in `experimental/expressions/tests/{test_v2_headers.cpp, test_expressions_v2_determinism.cpp}` (`std::variant` constexpr + deleted assignment errors). |
 | **Discovered during** | PR-A verification build of `cmake --build build/chronon/linux-full-validation --target chronon3d_expressions_v2_tests` after applying the gen-exp guard on `doctest::doctest` link (commit landing 2026-06-21, this PR's main push). PR-A unblocked `cmake --preset linux-full-validation` configure AND verified `cmake --build --target chronon3d_content rc=0` — the user's stated mission. The full target-by-target verification then surfaced this distinct rot downstream. |
 | **Discovered date** | 2026-06-21 |
