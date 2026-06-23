@@ -213,13 +213,17 @@ tree. At F‑A packaging the `.cmake` change was reverted so the commit
 stays minimal and avoids mixing the link‑rot investigation into the
 source‑level fix closure.
 
-Branch state after the F‑A commit:
+Branch state at HEAD `d261dd44`:
 
-- Rebased onto `375bd5b…`
-- One commit ahead: `91debc36` (replace with the actual SHA this doc
-  lands with — the doc itself is part of that commit).
-- Pushed to `origin/codex/txt-00-baseline-compilable`.
-- Ready to be opened as a PR against `main`.
+- Rebased onto `375bd5b…` (the `docs(agent-tasks): add Text Production
+  V1 PR plan` baseline).
+- Commit `91debc36` (F‑A): closes ROT 1‑3 source‑level rotations +
+  adds this blocker doc.
+- Commit `d261dd44` (this one): aligns section 1 ROT 4 entry +
+  section 5 file list with the actual F‑A commit scope.
+- 2 commits ahead of `origin/main`; pushed to
+  `origin/codex/txt-00-baseline-compilable`.
+- Ready to be opened as a PR against `main` (current `main` = `375bd5b…`).
 
 ## 6. Recorded commands (re‑runnable on the next attempt)
 
