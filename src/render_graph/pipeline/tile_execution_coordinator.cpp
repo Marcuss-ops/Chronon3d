@@ -6,6 +6,7 @@
 #include <chronon3d/core/profiling/trace_categories.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>         // TICKET-005 Gap B cascade — RenderRuntime full type
 #include <chronon3d/runtime/render_session.hpp>
 // TICKET-038 / TXT-00 — RenderRuntime is only forward-declared in
 // `software_renderer.hpp` (cannot include the runtime header there
