@@ -39,6 +39,8 @@
 #include <atomic>
 #include <cstdint>
 #include <cstring>
+#include <algorithm>
+#include <ranges>
 #include <vector>
 using namespace chronon3d;
 
@@ -468,7 +470,7 @@ TEST_CASE("motion_blur_parity_ticket_026 — MotionBlurMode::TemporalAccumulatio
     REQUIRE(fb_b != nullptr);
 
     // Bit-exact accumulator output across two independent runs.
-    CHECK(fb_a->bytes() == fb_b->bytes());
+    CHECK(std::ranges::equal(fb_a->bytes(), fb_b->bytes()));
 
     // And the upstream parity test: TemporalAccumulation with a static
     // camera + static composition produces an output byte-equal to mode=Off
@@ -482,7 +484,7 @@ TEST_CASE("motion_blur_parity_ticket_026 — MotionBlurMode::TemporalAccumulatio
     auto fb_off = renderer_off.render_frame(comp, Frame{0});
     REQUIRE(fb_off != nullptr);
 
-    CHECK(fb_a->bytes() == fb_off->bytes());
+    CHECK(std::ranges::equal(fb_a->bytes(), fb_off->bytes()));
 
     // Belt-and-braces: is_motion_blur_active reflects mode != Off.
     CHECK(chronon3d::is_motion_blur_active(s_new.motion_blur)  == true);

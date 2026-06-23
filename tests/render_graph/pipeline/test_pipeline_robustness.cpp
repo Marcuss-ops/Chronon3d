@@ -23,7 +23,7 @@ TEST_CASE("Coordinate Centered vs Top Left - 2D standard top left layer") {
     Scene scene = builder.build();
 
     auto renderer = test::make_renderer();
-    RenderSettings settings = renderer.settings();
+    RenderSettings settings = renderer.render_settings();
     settings.use_modular_graph = false;
     settings.diagnostics.enabled = false;
     renderer.set_settings(settings);
@@ -91,7 +91,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Opacity only keeps implicit centeri
     CHECK(!chronon3d::graph::detail::layer_needs_render_transform(item, ctx));
 
     auto renderer = test::make_renderer();
-    RenderSettings settings = renderer.settings();
+    RenderSettings settings = renderer.render_settings();
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
 
@@ -118,7 +118,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Centered exactly on canvas") {
     Scene scene = builder.build();
 
     auto renderer = test::make_renderer();
-    RenderSettings settings = renderer.settings();
+    RenderSettings settings = renderer.render_settings();
     settings.use_modular_graph = false;
     settings.diagnostics.enabled = false;
     renderer.set_settings(settings);
@@ -188,7 +188,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Transform matrix offset") {
     Scene scene = builder.build();
 
     auto renderer = test::make_renderer();
-    RenderSettings settings = renderer.settings();
+    RenderSettings settings = renderer.render_settings();
     settings.use_modular_graph = false;
     settings.diagnostics.enabled = true;
     renderer.set_settings(settings);
@@ -233,7 +233,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Layer near border should not disapp
     Scene scene = builder.build();
 
     auto renderer = test::make_renderer();
-    RenderSettings settings = renderer.settings();
+    RenderSettings settings = renderer.render_settings();
     settings.use_modular_graph = false;
     settings.diagnostics.enabled = false;
     renderer.set_settings(settings);
@@ -262,7 +262,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Render graph mixed 2D and centered"
     Scene scene = builder.build();
 
     auto renderer = test::make_renderer();
-    RenderSettings settings = renderer.settings();
+    RenderSettings settings = renderer.render_settings();
     settings.use_modular_graph = false;
     settings.diagnostics.enabled = false;
     renderer.set_settings(settings);
@@ -330,7 +330,7 @@ TEST_CASE("Test visivi e lettura pixel in C++ - Alpha blending") {
     Scene scene = builder.build();
 
     auto renderer = test::make_renderer();
-    RenderSettings settings = renderer.settings();
+    RenderSettings settings = renderer.render_settings();
     settings.use_modular_graph = false;
     renderer.set_settings(settings);
 

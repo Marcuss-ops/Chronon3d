@@ -246,6 +246,12 @@ else echo "PASS"; fi
 #     (the legacy-bridge adapter one-shot)
 # Any NEW call site in per-frame inner loops (src/runtime/, src/scene/builders/,
 # src/render_graph/) is a regression to be blocked.
+#
+# TICKET-036 — `src/timeline/composition.cpp` is also recognised as an
+# authorised adapter site: composition owns the lazy pre-compile of the
+# default camera from the descriptor (see `Composition::default_camera_program`
+# + the comment block in `include/chronon3d/timeline/composition.hpp`).
+# This exemption is surgical: other `src/timeline/` files are still flagged.
 echo -n "  [6/6] compile_camera() call-site policy ... "
 # Only flag CALL sites in .cpp; declarations (.hpp) are allowed because
 # compile_camera() is the canonical entry point and its declaration must
@@ -258,6 +264,7 @@ hits=$(grep -Rn --include='*.cpp' \
     | filter_symbol_in_code_only 'compile_camera' \
     | grep -Ev 'src/scene/camera/camera_v1/' \
     | grep -Ev 'tests/' \
+    | grep -Ev 'src/timeline/composition\.cpp' \
     || true)
 if [ -n "$hits" ]; then
     echo "FAIL"; echo "$hits" | sed 's/^/    /'; FAILED=1
