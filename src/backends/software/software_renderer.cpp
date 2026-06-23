@@ -277,8 +277,8 @@ const effects::EffectCatalog& SoftwareRenderer::effect_catalog() const       { r
 cache::FramebufferPool& SoftwareRenderer::software_framebuffer_pool()        { return m_runtime->framebuffer_pool(); }
 const cache::FramebufferPool& SoftwareRenderer::software_framebuffer_pool() const { return m_runtime->framebuffer_pool(); }
 std::shared_ptr<cache::FramebufferPool> SoftwareRenderer::framebuffer_pool() { return m_runtime->framebuffer_pool_shared(); }
-graph::GraphExecutor* SoftwareRenderer::executor()                            { return &m_runtime->executor(); }
-const graph::GraphExecutor* SoftwareRenderer::executor() const                { return &m_runtime->executor(); }
+// Note: executor forwarder was removed.  See commit message of the
+// baseline-12c295be PR for the architectural rationale.
 chronon3d::ExecutionScheduler& SoftwareRenderer::scheduler() noexcept        { return m_runtime->scheduler(); }
 const chronon3d::ExecutionScheduler& SoftwareRenderer::scheduler() const noexcept { return m_runtime->scheduler(); }
 runtime::RenderRuntime& SoftwareRenderer::runtime() noexcept                  { return *m_runtime; }
