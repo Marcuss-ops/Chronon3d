@@ -12,7 +12,6 @@
     "spdlog",
     "fmt",
     "glm",
-    "taskflow",
     "tbb",
     "stb",
     "xxhash",
