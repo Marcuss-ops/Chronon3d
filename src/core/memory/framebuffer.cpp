@@ -118,3 +118,17 @@ void Framebuffer::resize_logical(i32 width, i32 height) {
 }
 
 } // namespace chronon3d
+
+
+// ── bytes (TICKET-035) — deterministic byte view of logical pixel storage ──
+
+namespace chronon3d {
+
+std::span<const std::byte> Framebuffer::bytes() const noexcept {
+    const std::size_t n = static_cast<std::size_t>(m_width) *
+                           static_cast<std::size_t>(m_height) *
+                           sizeof(Color);
+    return {reinterpret_cast<const std::byte*>(data()), n};
+}
+
+}  // namespace chronon3d

@@ -32,7 +32,7 @@ inline void attach_software_backend(SoftwareRenderer& renderer) {
         std::make_unique<chronon3d::SoftwareBackend>(
             &renderer,
             *renderer.counters(),
-            renderer.settings(),
+            renderer.render_settings(),
             renderer.runtime().framebuffer_pool_shared()));
 }
 
