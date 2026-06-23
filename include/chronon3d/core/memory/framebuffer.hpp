@@ -15,6 +15,7 @@
 #include <cmath>
 #include <atomic>
 #include <new>
+#include <span>
 
 namespace chronon3d {
 
@@ -179,6 +180,13 @@ public:
     [[nodiscard]] Color sample_nearest(f32 x, f32 y) const {
         return get_pixel(static_cast<i32>(std::floor(x)), static_cast<i32>(std::floor(y)));
     }
+
+    // TICKET-035 — deterministic byte view of the logical pixel storage.
+    // Used by parity assertions (e.g. TC007 in test_motion_blur_torture_pr1.cpp).
+    // Returns a span over the active logical area only (m_width * m_height, no
+    // stride padding) reinterpreted as std::byte.  Row-major, contiguous within
+    // each row; callers can hash the bytes directly for bit-exact comparisons.
+    [[nodiscard]] std::span<const std::byte> bytes() const noexcept;
 
     [[nodiscard]] Color sample_bilinear(f32 x, f32 y) const {
         const f32 u = x - 0.5f;

@@ -120,7 +120,7 @@ TEST_CASE("render_graph_uses_framebuffer_pool") {
     auto renderer = test::make_renderer();
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
     
-    RenderSettings settings = renderer.settings();
+    RenderSettings settings = renderer.render_settings();
     settings.dirty.enabled = false;
     renderer.set_settings(settings);
 

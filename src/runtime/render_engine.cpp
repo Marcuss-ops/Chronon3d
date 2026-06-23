@@ -68,7 +68,7 @@ struct RenderEngine::Impl {
         m_runtime.attach_backend(std::make_unique<SoftwareBackend>(
             m_renderer.get(),            // 06 R3b owner back-pointer
             *m_renderer->counters(),
-            m_renderer->settings(),
+            m_renderer->render_settings(),
             m_runtime.framebuffer_pool_shared()));
 
         // TICKET-011a follow-up #1 — publish the RenderPipeline facade.
@@ -87,7 +87,7 @@ struct RenderEngine::Impl {
         m_runtime.attach_backend(std::make_unique<SoftwareBackend>(
             m_renderer.get(),            // 06 R3b owner back-pointer
             *m_renderer->counters(),
-            m_renderer->settings(),
+            m_renderer->render_settings(),
             m_runtime.framebuffer_pool_shared()));
 
         // TICKET-011a follow-up #1 — publish the RenderPipeline facade.
@@ -199,7 +199,7 @@ void RenderEngine::set_settings(const RenderSettings& settings) {
 }
 
 const RenderSettings& RenderEngine::settings() const noexcept {
-    return m_impl->m_renderer->settings();
+    return m_impl->m_renderer->render_settings();
 }
 
 // ── Accessors ─────────────────────────────────────────────────────────────
