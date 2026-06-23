@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # tools/check_architecture_boundaries.sh
 # ─────────────────────────────────────────────────────────────────────
-# WP-0 (PR 0.2 / 0.5 close-out) — Architecture boundary grep checks (9 total).
+# WP-0 (PR 0.2 / 0.5 close-out) + F3.1 phase B — Architecture boundary
+# grep + semantic checks (14 total).
 #
 # Verifies that headers / symbols retired in prior refactors have not been
 # accidentally re-introduced.  Every check runs linearly before the summary
@@ -28,6 +29,15 @@
 #                                              (2026-06-21)
 #   9. core/memory/* reintroduced (allowlist) — TICKET-011 follow-up
 #                                              (2026-06-21)
+#  10. SoftwareRenderer boundary             — 06 R5
+#  11. msdfgen / libtess2 / unicode          — PR-A10 (CPU-first deny)
+#        include patterns
+#  12. CMake module registry                 — AGENTS.md §2 / ADR-010
+#        (semantic)
+#  13. vcpkg / find_package parity           — AGENTS.md §3 / ADR-010
+#        (semantic)
+#  14. SDK public surface boundary           — AGENTS.md §4 / ADR-010
+#        (semantic)
 #
 # Wired into:
 #   - CI:     .github/workflows/gates.yml (Gate 5 / architecture-check)
@@ -41,8 +51,12 @@
 # ─────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-cd "$REPO_ROOT"
+if [ -n "${BOUNDARY_CHECK_ROOT:-}" ]; then
+    REPO_ROOT="$BOUNDARY_CHECK_ROOT"
+else
+    REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+fi
+cd "$REPO_ROOT" || { echo "INTERNAL_ERROR: cannot cd to $REPO_ROOT" >&2; exit 2; }
 
 FAILED=0
 
@@ -93,13 +107,13 @@ filter_symbol_in_code_only() {
     '
 }
 
-echo "=== Architecture boundary grep checks (WP-0 — 9 checks) ==="
+echo "=== Architecture boundary grep + semantic checks (WP-0 / F3.1 — 14 checks) ==="
 
 # ── 1. core/memory/render_session.hpp ─────────────────────────────────
 # Split into runtime/render_session.hpp + software_session_resources.hpp
 # during TICKET-011. The old path must NEVER appear in #include or
 # reference.
-echo -n "  [1/11] core/memory/render_session.hpp  ... "
+echo -n "  [1/14] core/memory/render_session.hpp  ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include.*core/memory/render_session\.hpp' $SCRIPT_PATHS 2>/dev/null || true)
 if [ -n "$hits" ]; then
@@ -111,7 +125,7 @@ else echo "PASS"; fi
 # contents (ExecutionPlanCache, GraphExecutor, SoftwareRegistry,
 # GraphNodeCatalog, EffectCatalog, ExecutionScheduler) now live on
 # runtime::RenderRuntime.
-echo -n "  [2/11] renderer_runtime_resources.hpp   ... "
+echo -n "  [2/14] renderer_runtime_resources.hpp   ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include.*renderer_runtime_resources\.hpp' $SCRIPT_PATHS 2>/dev/null || true)
 if [ -n "$hits" ]; then
@@ -121,7 +135,7 @@ else echo "PASS"; fi
 # ── 3. renderer_cache_state.hpp ───────────────────────────────────────
 # RendererCacheState eliminated in TICKET-011. Its contents (NodeCache,
 # FramebufferPool, CompiledGraphCache) now live on runtime::RenderRuntime.
-echo -n "  [3/11] renderer_cache_state.hpp         ... "
+echo -n "  [3/14] renderer_cache_state.hpp         ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include.*renderer_cache_state\.hpp' $SCRIPT_PATHS 2>/dev/null || true)
 if [ -n "$hits" ]; then
@@ -131,7 +145,7 @@ else echo "PASS"; fi
 # ── 4. clear_per_frame() method (WP-3 PR 3.4 close-out) ────────────────
 # Full-reset shim RETIRED. Migrate callers to `reset_frame_temporaries()`
 # (frame-scoped) or `reset_job()` (full reset).
-echo -n "  [4/11] legacy clear_per_frame() RETIRED ... "
+echo -n "  [4/14] legacy clear_per_frame() RETIRED ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\bclear_per_frame\b' $SCRIPT_PATHS 2>/dev/null || true)
 if [ -n "$hits" ]; then
@@ -142,7 +156,7 @@ else echo "PASS"; fi
 # chronon3d::runtime::ExecutionPlanCache class & header were RETIRED
 # alongside the legacy `GraphExecutor::execute(RenderGraph&, ...)` overloads.
 # This guard enforces zero reintroduction.
-echo -n "  [5/11] plan_cache references RETIRED    ... "
+echo -n "  [5/14] plan_cache references RETIRED    ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\bplan_cache\b' $SCRIPT_PATHS 2>/dev/null || true)
 if [ -n "$hits" ]; then
@@ -160,7 +174,7 @@ else echo "PASS"; fi
 # The single exception is the TICKET-007 canary test file, which names a
 # TEST_CASE after the symbol by string literal (line 118). That reference
 # is the test STUB for the guard itself and is exempt from the guard.
-echo -n "  [6/11] detail::g_debug_config REMOVED    ... "
+echo -n "  [6/14] detail::g_debug_config REMOVED    ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E 'detail::(g_debug_config|set_debug_config)' $SCRIPT_PATHS 2>/dev/null \
     | filter_symbol_in_code_only 'detail::(g_debug_config|set_debug_config)' \
@@ -174,7 +188,7 @@ else echo "PASS"; fi
 # Companion global (asset_registry.hpp). Migrated to per-instance
 # m_assets_root on RenderEngine; legacy global REMOVED. Same comment-strip
 # policy as check #6 applies.
-echo -n "  [7/11] g_default_assets_root REMOVED    ... "
+echo -n "  [7/14] g_default_assets_root REMOVED    ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\bg_default_assets_root\b' $SCRIPT_PATHS 2>/dev/null \
     | filter_symbol_in_code_only '\bg_default_assets_root\b' \
@@ -187,7 +201,7 @@ else echo "PASS"; fi
 # Pre-PR-23 typo: `chrono3d` (missing 'n') vs the correct `chronon3d/`.
 # Original offender: `include/chronon3d/expressions/v2/lexer.hpp` line 9 —
 # since fixed in TICKET-003.  This guard prevents silent reintroduction.
-echo -n "  [8/11] chrono3d typo header RETIRED    ... "
+echo -n "  [8/14] chrono3d typo header RETIRED    ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include[[:space:]]*<chrono3d/' $SCRIPT_PATHS 2>/dev/null || true)
 if [ -n "$hits" ]; then
@@ -202,7 +216,7 @@ else echo "PASS"; fi
 # `core/memory/render_session.hpp` specifically — that is check #1.
 # This guard does NOT validate that sanctioned-include references still
 # resolve to extant files (a separate concern for build-time validation).
-echo -n "  [9/11] core/memory/* within allowlist   ... "
+echo -n "  [9/14] core/memory/* within allowlist   ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include[[:space:]]*<[^>]*core/memory/' $SCRIPT_PATHS 2>/dev/null \
     | grep -Ev "core/memory/${MEMORY_SANCTIONED_RE}" \
@@ -216,7 +230,7 @@ else echo "PASS"; fi
 # green: 06 R2..R5 invariants on SoftwareRenderer (single-backend identity,
 # header LOC <=200, non-local includes <=6, no `dynamic_cast<SoftwareRenderer*>`,
 # no `SoftwareRenderer&` in processor surfaces).
-echo -n "  [10/11] SoftwareRenderer boundaries  ... "
+echo -n "  [10/14] SoftwareRenderer boundaries  ... "
 if [ -x tools/check_software_renderer_boundary.sh ]; then
     if bash tools/check_software_renderer_boundary.sh > /dev/null 2>&1; then
         echo "PASS"
@@ -239,13 +253,90 @@ fi
 # ADR that lifts the deny posture server-wide.  Deny patterns are
 # tightly scoped to include *statements* only — do NOT broaden to
 # comments or tests.  Pattern: <msdfgen> | <libtess2> | <unicode[/...]>.
-echo -n "  [11/11] msdfgen/libtess2/unicode includes FORBIDDEN  ... "
+echo -n "  [11/14] msdfgen/libtess2/unicode includes FORBIDDEN  ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#[[:space:]]*include[[:space:]]*<(msdfgen|libtess2|unicode(/[^>]*)?)>' \
     $SCRIPT_PATHS 2>/dev/null \
     || true)
 if [ -n "$hits" ]; then
     echo "FAIL"; echo "$hits" | sed 's/^/    /'; FAILED=1
+else echo "PASS"; fi
+
+# ── 12. CMake module registry (AGENTS.md §2 / ADR-010 Decision 1) ──────────
+# Semantic: Every add_library(... OBJECT|INTERFACE) target declared in
+# src/**/CMakeLists.txt MUST also be listed in
+# cmake/Chronon3DRegistry.cmake. That registry is the SOLE registration
+# channel — anti-duplication per ANTI_DUPLICATION_RULES.md.  Reversed
+# guard: src OBJECT/INTERFACE libs not in registry -> FAIL.
+echo -n "  [12/14] CMake module registry (semantic) ... "
+src_libs=$(grep -Rh --include='CMakeLists.txt' \
+    -E '^[[:space:]]*add_library\([[:space:]]*[A-Za-z_][A-Za-z_0-9]*[[:space:]]+(OBJECT|INTERFACE)[[:space:]]*\)' \
+    src/ 2>/dev/null \
+    | sed -E 's/.*add_library\([[:space:]]*([A-Za-z_][A-Za-z_0-9]*).*/\1/' \
+    | sort -u || true)
+registry_libs=$(grep -E '^[[:space:]]*add_library\(' \
+    cmake/Chronon3DRegistry.cmake 2>/dev/null \
+    | sed -E 's/.*add_library\([[:space:]]*([A-Za-z_][A-Za-z_0-9]*).*/\1/' \
+    | sort -u || true)
+missing=$(comm -23 <(printf '%s\n' "$src_libs") \
+                <(printf '%s\n' "$registry_libs") 2>/dev/null \
+            | tr -d '[:space:]' || true)
+if [ -n "$missing" ]; then
+    echo "FAIL (advisory)"
+    echo "  src OBJECT/INTERFACE libs not in registry:"
+    comm -23 <(printf '%s\n' "$src_libs") \
+             <(printf '%s\n' "$registry_libs") 2>/dev/null \
+        | sed 's/^/    /' | head -10
+    echo "  (registry sync tracked separately — promotion to blocking"
+    echo "   requires TICKET-041 CMake registry completeness sync)"
+else echo "PASS"; fi
+
+# ── 13. vcpkg / find_package parity (AGENTS.md §3 / ADR-010 Decision 2) ──
+# Semantic: Every find_package(X REQUIRED) in CMakeLists.txt MUST have a
+# matching entry in vcpkg.json (case-insensitive lowercase).  Allowlist
+# for CMake/system-builtin deps (Threads, EXPAT) that don't need vcpkg
+# entries.  Files: top-level CMakeLists.txt.
+echo -n "  [13/14] vcpkg dep parity (semantic) ... "
+miss=""
+for pkg in $(grep -hE '^[[:space:]]*find_package\([[:space:]]*[A-Za-z_][A-Za-z_0-9]*' \
+                CMakeLists.txt 2>/dev/null \
+             | sed -E 's/.*find_package\([[:space:]]*([A-Za-z_][A-Za-z_0-9]*).*/\1/' \
+             | sort -u); do
+    [ -z "$pkg" ] && continue
+    case "$pkg" in
+        Threads|EXPAT) continue ;;
+    esac
+    lcp=$(echo "$pkg" | tr '[:upper:]' '[:lower:]')
+    if ! grep -qE "\"${lcp}\"" vcpkg.json 2>/dev/null; then
+        miss="$miss $pkg"
+    fi
+done
+if [ -n "$(echo $miss | tr -d '[:space:]')" ]; then
+    echo "FAIL (advisory)"
+    echo "  find_package entries without vcpkg deps:$miss"
+    echo "  (vcpkg / CMakeLists.txt sync tracked separately — promotion"
+    echo "   to blocking requires TICKET-042 vcpkg dependency coverage)"
+else echo "PASS"; fi
+
+# ── 14. SDK public surface boundary (AGENTS.md §4 / ADR-010 Decision 3) ──
+# Semantic: apps/* MUST NOT directly include internal chronon3d_sdk_impl
+# headers.  Only the SDK INTERFACE alias Chronon3D::SDK may be consumed by
+# external consumers (apps/chronon3d_cli, install_consumer_test,
+# downstream).  Permitted entry points: <chronon3d/...> | "chronon3d/...".
+# FORBIDDEN: <chronon3d_sdk_impl[/...> | "chronon3d_sdk_impl[/...].
+echo -n "  [14/14] SDK public surface (semantic) ... "
+# Tighter regex: require /, >, or " boundary immediately after
+# `chronon3d_sdk_impl` so legitimate internal filenames like
+# <chronon3d_sdk_impl_marker.h> are exempted while any include UNAMBIGUOUSLY
+# targeting the internal sdk_impl layer is flagged.
+hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
+    -E '#include[[:space:]]*[<"]chronon3d_sdk_impl[/>"]' \
+    apps/ 2>/dev/null || true)
+if [ -n "$hits" ]; then
+    echo "FAIL (advisory)"
+    echo "$hits" | sed 's/^/    /'
+    echo "  (SDK consumer-surface audit tracked separately — promotion"
+    echo "   to blocking requires TICKET-043 SDK consumer-surface audit)"
 else echo "PASS"; fi
 
 # ── Summary ───────────────────────────────────────────────────────────
