@@ -2961,3 +2961,73 @@ For **Axis B** (`FAIL_TEST` macro absent):
 - Discovered-on: 2026-06-23 by PR 2 closure validation flow.
 
 ---
+
+---
+
+## TICKET-040 — Retire `taskflow` from root `CMakeLists.txt` + `vcpkg.json` (P1, unused since v2-expressions quarantine)
+
+| Field | Value |
+|---|---|
+| **Status** | 🟢 Done (PR-A zelante canonical-deps sweep, 2026-06-23) |
+| **Affected file(s)** | `CMakeLists.txt` (root, removed `find_package(Taskflow CONFIG REQUIRED)` at line 123); `vcpkg.json` (root, removed `"taskflow",` dependency entry at line 15). Doc-only change in `docs/FOLLOWUP_TICKETS.md`. |
+| **Resolved at** | Branch `p1/retire-taskflow` HEAD (forked from `main@14dbc415`); commit top-of-branch (this session). |
+| **Resolver** | Direct branch push post-cmake-preset-verification + grep-residual audit. |
+| **Discovered during** | Repo-wide grep audit on `p1/cli-slim-real` branch (continuation of F1.2 → CLI slim sweep). Searching `Taskflow::`/`tf::`/`taskflow` across `src/`, `include/`, `apps/`, `tests/`, `content/`, `experimental/` returned ZERO hits; meanwhile root `CMakeLists.txt:123` still ran `find_package(Taskflow CONFIG REQUIRED)` and `vcpkg.json:15` still listed `"taskflow"` as a `dependencies[]` entry. The package was a transitive leftover from the v2-expressions quarantine era (pre-PR #23), where it was once intended to back the v2 dependency-graph scheduler. After the v2 expressions moved to a self-contained `DependencyGraph` implementation in `experimental/expressions/include/chronon3d_experimental/expressions/v2/dependency_graph.hpp`, Taskflow became a bring-along dependency with no callsite anywhere in the productive tree. |
+| **Discovered date** | 2026-06-23 |
+
+### Symptom
+
+The repository's root build files expose Taskflow as a required dependency even though no production code uses it:
+
+- `CMakeLists.txt` line 123: `find_package(Taskflow CONFIG REQUIRED)` — would fail any configure that lacks `taskflow` in the vcpkg overlay.
+- `vcpkg.json` line 15: `"taskflow",` listed in `dependencies[]` — forces every clean vcpkg install to fetch + build Taskflow (~2-3 min overhead on cold cache, plus ~3.2 MB binary footprint).
+
+Meanwhile `grep -RIn 'Taskflow::\|tf::\|taskflow' src/ include/ apps/ tests/ content/ experimental/` returns ZERO matches. The dependency is dead weight.
+
+Only places Taskflow is *named* (not used) in the tree are the explanatory comments in `cmake/Chronon3DConfig.cmake.in` (3 lines: 23, 25, 26) — left intentionally as documentation that the canonical install-export deliberately omits Taskflow to prevent leakage. Those comments remain after this PR (they are documentation, not active code).
+
+### Root cause analysis
+
+The dependency was inherited from the v2-expressions scheduler era. When Path B (`experimental/expressions/`) was initially scaffolded in 2026, it was planned to use `Taskflow::Taskflow` for the dependency-graph executor. The path pivoted (Gate 2 of `docs/EXPRESSIONS_V2_PROMOTION.md`) to a hand-rolled `DependencyGraph` with expression-level static-cycle detection (instead of Taskflow's runtime-cycle protection). The pivot shipped at commit `< PR #23 ancestor >`; the `find_package` and vcpkg entries were never removed because no audit recalled them.
+
+The CLI slim cleanup (F1.2) triggered a fresh repo-wide grep that surfaced this gap.
+
+### Out-of-scope rationale for the PR1/CLI-slim chains
+
+- PR1 (renderer/backend single-identity) and F1.2 (CLI slim) addresses renderer surface and CLI surface respectively. Taskflow retirement is orthogonal to those concerns.
+- A focused single-commit PR keeps the audit trail narrow ("I see the dep leave, cmake still configures, no callsite breaks").
+- The 3 explanatory comments in `cmake/Chronon3DConfig.cmake.in` are intentionally not removed — they document WHY Taskflow is omitted from the install-export set; deleting them would lose that rationale.
+
+### Suggested fix approach
+
+1. **Pre-fix grep audit**: confirm zero Taskflow usage in productive tree.
+   ```bash
+   grep -RIn 'Taskflow::\|tf::\|taskflow' src/ include/ apps/ tests/ content/ experimental/
+   # EXPECTED: zero results
+   ```
+2. **Root `CMakeLists.txt`**: delete `find_package(Taskflow CONFIG REQUIRED)` (line 123). Surrounding `find_package(spdlog|fmt|TBB|glm)` calls remain untouched.
+3. **`vcpkg.json`**: delete `"taskflow",` from `dependencies[]` (line 15). All other deps stay.
+4. **`cmake/Chronon3DConfig.cmake.in`**: leave the 3 explanatory comments intact (they document the canonical install-export's explicit exclusion of Taskflow).
+5. **`docs/FOLLOWUP_TICKETS.md`**: append this TICKET-040 entry with 🟢 Done status (the doc-only side of the closure).
+6. **Verification**:
+   - `cmake --preset linux-lean-dev` re-configures clean (no Taskflow-related configure errors; configure time +1s faster).
+   - `grep -RIn 'Taskflow\|taskflow' src/ include/ apps/ tests/ content/ experimental/ CMakeLists.txt vcpkg.json cmake/` returns zero hits outside of the 3 explanatory comments noted in step 4.
+   - Any test target that transitively uses Taskflow (zero expected) still passes; sanity-check `chronon3d_runtime_tests` (largest transitive surface) builds and links.
+7. **Cross-preset validation**: `linux-lean-dev`, `linux-ci`, `linux-dev`, `linux-full-validation`, `linux-asan` all configure cleanly post-removal.
+
+### Acceptance criteria
+
+- `CMakeLists.txt:123` no longer contains `find_package(Taskflow ...)`.
+- `vcpkg.json:15` no longer contains `"taskflow",`.
+- `grep -RIn 'Taskflow\|taskflow' src/ include/ apps/ tests/ content/ experimental/ CMakeLists.txt vcpkg.json 2>/dev/null` returns zero hits outside `cmake/Chronon3DConfig.cmake.in` (the 3 explanatory comments).
+- `cmake --preset linux-lean-dev` reconfigures with rc=0, configure log shows no `taskflow` mention.
+- All presets (`linux-lean-dev`, `linux-ci`, `linux-dev`, `linux-full-validation`, `linux-asan`) configure clean post-removal.
+- vcpkg cold install time reduces by ~2-3 min for downstream consumers using the canonical `vcpkg.json` (no longer need to fetch + build Taskflow).
+
+### Cross-references
+
+- **F1.2 — CLI slim real**: the prior cleanup chain that surfaced this gap via the F1.2 grep audit (commit `< F1.2 SHA on p1/cli-slim-real >`).
+- **PR #23** ancestor (expressions v2 quarantine): the historical reason Taskflow entered the dependency list (~2026-05); Path B's pivot to hand-rolled `DependencyGraph` made it dead weight.
+- **`docs/EXPRESSIONS_V2_PROMOTION.md`** Gate 2 — the v2 expressions path is now self-contained in `experimental/expressions/`, no longer relies on Taskflow.
+- **`cmake/Chronon3DConfig.cmake.in`** lines 23-26 — the canonical install-export deliberately excludes Taskflow from downstream consumers; comments document this exclusion.
+- **`AGENTS.md`** §Regole di lavoro — "Ogni nuova feature deve usare il registry, resolver o sampler canonico già esistente" — Taskflow's absence from usage is consistent with the "no orphan registries" policy.
