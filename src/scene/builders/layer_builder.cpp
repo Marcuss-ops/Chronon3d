@@ -372,7 +372,17 @@ Layer LayerBuilder::build() {
     // back to the process-wide shared FontEngine.  Shaping failures
     // log warn-level and skip the entry (the layer otherwise renders
     // as a normal Layer — explicit empty-place behavior).
-#ifdef CHRONON3D_USE_BLEND2D
+    //
+    // P1 refactor note — the placeholder RenderNode is ALWAYS emitted
+    // (ShapeType::TextRun, name set, default transform / color / fill)
+    // even when CHRONON3D_USE_BLEND2D is undefined.  Without this,
+    // BLEND2D-less builds silently swallow every text-run entry and
+    // `built.nodes` ends up empty for text-only layers.  The shape
+    // materialization itself stays gated on BLEND2D (it requires the
+    // harfbuzz-shaped TextLayout / TextRunShape builders); the empty
+    // `text_run_shape_handle().value` matches the per-failure semantics
+    // graph_builder_source_pass already emits a one-shot
+    // `spdlog::error` for.
     if (!m_text_runs.empty()) {
         const SampleTime local_time = m_layer.local_time(m_current_time);
         std::pmr::memory_resource* res = m_layer.nodes.get_allocator().resource();
@@ -392,6 +402,7 @@ Layer LayerBuilder::build() {
             node.color = spec.params.text.appearance.color;
             node.fill = Fill::solid_color(spec.params.text.appearance.color);
 
+#ifdef CHRONON3D_USE_BLEND2D
             // Per-spec FontEngine override (set via trb.font_engine(...))
             // wins over the layer's default font_engine when present.
             FontEngine* engine_for_shape = spec.font_engine ? spec.font_engine : m_font_engine;
@@ -412,17 +423,17 @@ Layer LayerBuilder::build() {
             if (shape) {
                 node.shape.text_run_shape_handle().value = std::move(shape);
             }
-            // On failure, leave text_run_shape_handle().value = nullptr and
-            // rely on the graph-builder source-pass to emit its existing
-            // one-shot `spdlog::error` for null-shape fallthrough.
-            // We do NOT silently drop the placeholder node, so the
-            // user sees the failure at compose time, not just in
-            // build-time logs.
+#endif
+            // On failure (or BLEND2D OFF), text_run_shape_handle().value
+            // remains null and we rely on the graph-builder source-pass
+            // to emit its existing one-shot `spdlog::error` for null-
+            // shape fallthrough.  We do NOT silently drop the
+            // placeholder node, so the user sees the failure at compose
+            // time, not just in build-time logs.
 
             spec.consumed = true;
         }
     }
-#endif
 
     return std::move(m_layer);
 }

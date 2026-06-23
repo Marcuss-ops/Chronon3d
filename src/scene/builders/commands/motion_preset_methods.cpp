@@ -50,6 +50,15 @@ LayerBuilder& LayerBuilder::float_idle(f32 amplitude_y, Frame cycle) {
 
 LayerBuilder& LayerBuilder::depth_reveal(f32 depth_z, Frame duration) {
     m_layer.uses_2_5d_projection = true;
+    // Initialise depth_offset to the configured z so callers (tests,
+    // downstream consumers like tests/test_text_preset_registry.cpp
+    // Sub-cases 9 + 29) can probe the directional `depth_offset > 0.0f`
+    // invariant without depending on the position_anim evaluation
+    // order inside `LayerBuilder::build()`.  This was previously missing,
+    // making Sub-cases 9 + 29 silently fail once the FAIL_TEST compile
+    // block was unblocked.  Pre-existing rot surfaced during the P1
+    // emergency-cleanup pass; fixed here as a 1-line contract restoration.
+    m_layer.depth_offset = depth_z;
 
     auto& pos = position_anim();
     Vec3 start = m_layer.transform.position;

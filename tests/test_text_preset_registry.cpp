@@ -481,6 +481,11 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
         const auto& preset = reg.get("minimal_white");
         // minimal_white intentionally registers only the spec (no motion
         // preset).  Validate >= 1 RenderNode still added by lb.text().
+        // ShapeType::TextRun contract for minimal_white is locked in
+        // Sub-case 30 (pre-build probe via lb.pending_text_runs()), since
+        // a second `lb.build()` here would observe spec.consumed=true
+        // on every entry and emit zero nodes (the consume-on-build
+        // path is one-shot per constructor).
         CHECK(invoke_and_node_count(preset, sb, lb, make_test_text_spec()) >= 1);
     }
 
@@ -810,7 +815,7 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
             // pattern — matches every other Sub-case in this file
             // (see Sub-cases 7-9 and Tier C at lines ~266, ~278, etc).
             LayerBuilder lb("resolve_probe_" + exp.preset_id, Frame{0});
-            SceneBuilder sb("resolve_probe");
+            SceneBuilder sb(1280, 720);
             reg.get(exp.preset_id).builder(sb, lb, plain);
 
             // Read `pending_text_runs()` BEFORE any subsequent mutation.
@@ -965,7 +970,13 @@ TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
             else {
                 // Drift catcher: a Stage 6+ branch table expansion that
                 // falls outside the expected kind buckets above.
-                FAIL_TEST("Unknown preset_id branch in Sub-case 31: " << id);
+                // Doctest's FAIL accepts a stream-extraction expression:
+                // multiple arguments chained with `<<` flow into a
+                // MessageBuilder and the test aborts with the resulting
+                // string.  Use the canonical `<<` chain so the FAIL macro
+                // context resolves correctly (string-concat `+` does NOT
+                // resolve inside MessageBuilder -- verified empirically).
+                FAIL("Unknown preset_id branch in Sub-case 31: " << id);
             }
         }
 
