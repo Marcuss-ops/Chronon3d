@@ -1,120 +1,196 @@
 # Chronon3D — Next Steps Reali
 
-Piano operativo per portare il repository da pre-stabile a baseline verificata senza nascondere failure o duplicare architetture.
+> Snapshot: `main@25049b2`, 23 giugno 2026.
+>
+> Stato prodotto: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
+> Milestone: [`ROADMAP.md`](ROADMAP.md).
 
-> Punto di ingresso per agenti: [`../AGENTS.md`](../AGENTS.md)  
-> Checklist operative: [`stabilization-plan/README.md`](stabilization-plan/README.md)  
-> Incarichi correnti: [`agent-tasks/`](agent-tasks/)
+Questo documento descrive l’ordine operativo immediato. Le precedenti attività
+“Agente 1 / Agente 2” sono già state integrate e non rappresentano più il piano
+corrente.
 
-## Strategia corrente
+## Priorità 0 — Rendere verificabile il codice già atterrato
 
-Il lavoro è diviso in due stream con ownership non sovrapposta.
+### 1. Chiudere TICKET-029
 
-| Stream | Branch | Ownership |
-|---|---|---|
-| Agente 1 | `codex/agent1-renderer-boundary` | Renderer/backend software, cast, processor context, capability e gate renderer |
-| Agente 2 | `codex/agent2-cmake-sdk-baseline` | Registry CMake, vcpkg/preset, install consumer, full validation e documenti canonici |
+Obiettivo: `chronon3d_scene_tests` deve collegare ed eseguire.
 
-Gli agenti possono iniziare in parallelo. L'Agente 2 deve però fare rebase sul `main` aggiornato dopo il merge dell'Agente 1 prima di registrare la baseline finale.
+Il blocker impedisce di trasformare diversi fix camera da “compila” a
+“regression test verificato”. Non aggiungere nuove feature camera importanti
+prima di questa chiusura.
 
-## Fase A — Agente 1: confine renderer/backend
+Prove richieste:
 
-Documento operativo: [`AGENT_1_RENDERER_BOUNDARY.md`](agent-tasks/AGENT_1_RENDERER_BOUNDARY.md)
+- build del target scene tests;
+- esecuzione dei test camera compilati;
+- nessun include/circular dependency workaround fuori dal percorso canonico;
+- ticket e matrice camera aggiornati con comando, commit ed esito.
 
-Ordine obbligatorio:
+### 2. Rieseguire i fix camera recenti
 
-1. Inventariare cast e dipendenze dal renderer concreto.
-2. Rimuovere la doppia identità `SoftwareRenderer : Renderer + RenderBackend`.
-3. Rendere `SoftwareBackend` l'unica implementazione software di `graph::RenderBackend`.
-4. Instradare capability e servizi attraverso backend/runtime canonici.
-5. Eliminare `dynamic_cast<SoftwareRenderer*>` e `SoftwareRenderer&` dalle superfici di processo controllate.
-6. Ridurre `software_renderer.hpp` senza creare nuovi bridge paralleli.
-7. Far passare tutte le invarianti del boundary gate.
-8. Rendere il gate CI bloccante.
-9. Validare core e lean.
+Dopo TICKET-029, verificare almeno:
 
-## Fase B — Agente 2: build, SDK e baseline
+- projection variant preservation;
+- orientation applicata una volta;
+- OrbitMotion in camera-local basis;
+- motion blur mode unico;
+- checkpoint/pre-roll e random access;
+- focal X/Y, gate fit e anamorphic/pixel aspect;
+- descriptor camera di default nella composition.
 
-Documento operativo: [`AGENT_2_CMAKE_SDK_BASELINE.md`](agent-tasks/AGENT_2_CMAKE_SDK_BASELINE.md)
+I ticket passano a ✅ soltanto dopo esecuzione osservata.
 
-Ordine obbligatorio:
+### 3. Produrre una baseline sullo stesso commit
 
-1. Inventariare tutte le OBJECT library e le liste duplicate.
-2. Introdurre un registry CMake centrale.
-3. Derivare build, aggregazione, install ed export dalla stessa fonte.
-4. Uniformare root vcpkg, toolchain e preset/workflow.
-5. Chiudere il consumer esterno su profili core, text e no-content.
-6. Fare rebase sul `main` contenente il lavoro dell'Agente 1.
-7. Eseguire core, lean, no-content, install consumer e full-validation.
-8. Aggiornare i documenti soltanto con risultati osservati.
+Eseguire, senza modificare soglie o saltare errori:
 
-## Ordine di merge
+1. core build/test;
+2. lean build/test;
+3. no-content build/test;
+4. architecture boundary gate;
+5. renderer boundary gate;
+6. scene/camera tests;
+7. install consumer;
+8. full validation.
 
-1. Review e merge Agente 1.
-2. `git fetch origin` e `git rebase origin/main` sul branch Agente 2.
-3. Riesecuzione completa della validazione da parte dell'Agente 2.
-4. Review e merge Agente 2.
-5. Controllo del commit finale e dei workflow associati.
+Salvare commit, comandi, exit code e risultati nei documenti canonici.
 
-## File ownership per evitare conflitti
+## Priorità 1 — Consumer SDK reale
 
-### Agente 1
+Il consumer corrente verifica il package e il link. Estenderlo o affiancarlo con
+un consumer fuori-tree che:
 
-- `include/chronon3d/backends/software/`
-- `src/backends/software/`
-- runtime e render-graph soltanto per la migrazione del confine
-- test renderer/backend mirati
-- `tools/check_software_renderer_boundary.sh`
-- step renderer in `.github/workflows/gates.yml`
+1. include soltanto header pubblici;
+2. collega soltanto `Chronon3D::SDK`;
+3. registra un `ExtensionModule` esterno;
+4. costruisce una composizione con testo e camera compilata;
+5. crea runtime/backend;
+6. renderizza un frame;
+7. scrive un PNG;
+8. verifica dimensioni, hash o marker diagnostico.
 
-### Agente 2
+Profili minimi:
 
-- root e moduli CMake
-- `cmake/`
-- `CMakePresets.json`
-- `vcpkg.json`
-- install consumer e relativi script/workflow
-- `docs/STATUS.md`
-- `docs/NEXT_STEPS.md`
-- `docs/ROADMAP.md`
-- `docs/stabilization-plan/`
+- core/no-text;
+- text + Blend2D;
+- no-content;
+- configurazione release Linux;
+- configurazione release Windows quando disponibile.
 
-## Cosa non rifare
+## Priorità 2 — Text Production V1
 
-- Non reintrodurre `ExecutionPlanCache`.
-- Non reintrodurre executor su `RenderGraph` grezzo.
-- Non creare registry, resolver, sampler, cache o service locator paralleli.
-- Non costruire `GraphExecutor` dentro i nodi.
-- Non rendere verde un gate modificandone le soglie per adattarlo al codice rotto.
-- Non disabilitare o saltare test per ottenere una baseline verde.
-- Non iniziare V3 prima della chiusura dei P0.
-- Non promuovere Expressions V2 solo perché compila in modalità opt-in.
+Ordine consigliato:
 
-## Lavori successivi alla nuova baseline
+1. visual regression harness sui preset già presenti;
+2. chiusura rich text e styling per parola end-to-end;
+3. modello timed text e parser JSON/SRT;
+4. word timing compiler;
+5. subtitle layout policies 16:9, 9:16 e 1:1;
+6. highlight/karaoke/word-pop;
+7. Wiggly/Wave/Random selector necessari ai preset;
+8. catalogo di 20 preset generali + 8 subtitle;
+9. consumer SDK e documentazione pubblica.
 
-Dopo il merge dei due stream, rivalutare sul commit verificato:
+Non iniziare Text 3D/MSDF prima di questo milestone.
 
-1. ExecutionScope root/tile/precomp e child arena.
-2. Precomp lease, nested execution e concorrenza.
-3. Riuso del compiled graph con identità per-node corretta.
-4. Diagnostics/content, divisi in ticket piccoli in base agli errori reali residui.
-5. Determinismo seriale/parallelo/tile e golden hash.
-6. Canonicalizzazione dei documenti ancora duplicati.
-7. Strategia text/kinetic typography post-P0: [`TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md`](TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md).
+## Priorità 3 — Camera Production V1
 
-Non mantenere automaticamente ticket storici se la nuova baseline dimostra che sono già chiusi; aggiornarli con prova verificabile.
+Dopo la baseline e i regression test:
 
-## Criteri di chiusura
+1. completare TICKET-023 `OrientAlongPath`;
+2. chiudere trajectory/base-state preservation;
+3. chiudere diagnostica shot timeline;
+4. aggiungere parity/golden del percorso compilato;
+5. completare framing essenziale bounds-aware;
+6. completare clipping necessario;
+7. introdurre adapter parity per i percorsi legacy;
+8. migrare preset e composizioni;
+9. deprecare e rimuovere authoring duplicato.
 
-| Area | Prova richiesta |
-|---|---|
-| Renderer/backend | single identity, nessun cast vietato, capability corrette |
-| Gate renderer | exit zero e step CI bloccante |
-| CMake | un solo registry da cui derivano build, install ed export |
-| Toolchain | preset locali e CI usano lo stesso contratto vcpkg |
-| SDK | install, configure, build e run di consumer esterni |
-| Baseline | core, lean, no-content e full validation registrati sullo stesso commit |
-| Documenti | `STATUS`, `NEXT_STEPS`, `ROADMAP` e stabilization plan coerenti |
-| Git | branch aggiornati, PR mirate, cronologia verificata dopo push |
+Ogni nuova feature deve entrare nelle variant, registry e resolver canonici già
+presenti. Non creare `CameraProgramV2`, un secondo catalogo o un secondo
+projection contract.
 
-Un'attività è completata soltanto quando codice, test, gate e documenti riportano lo stesso stato.
+## Priorità 4 — Export delle animazioni
+
+Prima scrivere la specifica, poi il codice.
+
+### Work package A — formato dichiarativo
+
+Definire un ADR e uno schema versionato per:
+
+- manifest;
+- composition metadata;
+- layer e gerarchie;
+- keyframe/animation tracks;
+- `TextDocument` e timed text;
+- `CameraDescriptor` e shot timeline;
+- effects tramite ID catalogo;
+- asset/font references;
+- parametri pubblici;
+- compatibility e migration version.
+
+### Work package B — C ABI
+
+Definire handle opachi e ownership chiara per:
+
+- engine/runtime;
+- package;
+- extension/plugin;
+- render job;
+- framebuffer;
+- diagnostics/error;
+- cancellation e progress.
+
+Non esporre STL, eccezioni C++ o tipi interni nell’ABI.
+
+### Work package C — binding iniziale
+
+Creare il binding Python sul C ABI e usarlo come prova che il confine non dipende
+dal linguaggio host.
+
+## File ownership consigliata
+
+Mantenere PR piccole e non sovrapposte:
+
+- baseline/link/test;
+- consumer SDK;
+- text visual harness;
+- timed text;
+- camera orient/path;
+- camera legacy migration;
+- schema `.chronon`;
+- C ABI.
+
+Non mescolare refactor, nuova feature, documentazione ampia e modifica dei gate
+nella stessa PR salvo necessità architetturale dimostrata.
+
+## Workflow Git obbligatorio
+
+```bash
+git fetch origin
+git checkout main
+git pull --ff-only origin main
+git checkout -b codex/<nome-blocco>
+```
+
+Durante il lavoro:
+
+- cercare il codice esistente prima di aggiungere nuovi tipi;
+- modificare soltanto i file del problema assegnato;
+- fare rebase frequente su `origin/main`;
+- eseguire test mirati;
+- controllare `git status -sb` e `git diff`;
+- non committare output, `node_modules` o `*.tsbuildinfo`;
+- dopo il push controllare la cronologia recente.
+
+## Criterio di chiusura
+
+Un lavoro è chiuso soltanto quando:
+
+- il codice usa il percorso canonico;
+- i test pertinenti vengono eseguiti e passano;
+- i gate non sono indeboliti;
+- il branch è aggiornato su `origin/main`;
+- la PR è piccola e reviewabile;
+- i documenti riportano lo stesso stato osservato.
