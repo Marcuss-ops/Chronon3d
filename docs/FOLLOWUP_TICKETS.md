@@ -2211,6 +2211,8 @@ The evaluator's post-base projection branch hardcodes Zoom as the universal defa
 
 ---
 
+**Post-P0-deferral note (2026-06-23):** Verified-by-running-tests status for this ticket is **deferred** until the two pre-existing blockers surfaced post-rebase (`TICKET-035` — `Framebuffer::bytes()` missing on canonical type; `TICKET-036` — `chronon3d_camera_architecture_gate` P0 violation on `src/timeline/composition.cpp` `compile_camera()` call-site policy) are closed.  Re-evaluate against `ctest -R camera` once both blockers are resolved.
+
 ## TICKET-022 — Double look-at nel compiled path (P0, from PR #36)
 
 | Field | Value |
@@ -2353,6 +2355,8 @@ Same defer table as TICKET-021.
 - `src/scene/camera/camera_v1/internal/arc_length_table.hpp` — used to remap local time uniformly before sampling the tangent.
 
 ---
+
+**Post-P0-deferral note (2026-06-23):** Verified-by-running-tests status for this ticket is **deferred** until the two pre-existing blockers surfaced post-rebase (`TICKET-035` — `Framebuffer::bytes()` missing on canonical type; `TICKET-036` — `chronon3d_camera_architecture_gate` P0 violation on `src/timeline/composition.cpp` `compile_camera()` call-site policy) are closed.  Re-evaluate against `ctest -R camera` once both blockers are resolved.
 
 ## TICKET-024 — `OrbitMotion` usa world-Z invece del basis camera-target (P0, from PR #36)
 
@@ -2508,6 +2512,8 @@ Same defer table.
 - Required precursor to TICKET-029 (rig-modern migration).
 
 ---
+
+**Post-P0-deferral note (2026-06-23):** Verified-by-running-tests status for this ticket is **deferred** until the two pre-existing blockers surfaced post-rebase (`TICKET-035` — `Framebuffer::bytes()` missing on canonical type; `TICKET-036` — `chronon3d_camera_architecture_gate` P0 violation on `src/timeline/composition.cpp` `compile_camera()` call-site policy) are closed.  Re-evaluate against `ctest -R camera` once both blockers are resolved.
 
 ## TICKET-026 — `MotionBlurSettings` conserva sia `MotionBlurMode` sia il booleano legacy `enabled` (P0, from PR #36)
 
@@ -2665,6 +2671,8 @@ Same defer table.
 
 ---
 
+**Post-P0-deferral note (2026-06-23):** Verified-by-running-tests status for this ticket is **deferred** until the two pre-existing blockers surfaced post-rebase (`TICKET-035` — `Framebuffer::bytes()` missing on canonical type; `TICKET-036` — `chronon3d_camera_architecture_gate` P0 violation on `src/timeline/composition.cpp` `compile_camera()` call-site policy) are closed.  Re-evaluate against `ctest -R camera` once both blockers are resolved.
+
 ## TICKET-028 — Constraint stateful senza `CameraStateCheckpoint`/pre-roll per random-access (P0, from PR #36)
 
 | Field | Value |
@@ -2749,6 +2757,8 @@ Add the determinism test suite with cases:
 
 ---
 
+**Post-P0-deferral note (2026-06-23):** Verified-by-running-tests status for this ticket is **deferred** until the two pre-existing blockers surfaced post-rebase (`TICKET-035` — `Framebuffer::bytes()` missing on canonical type; `TICKET-036` — `chronon3d_camera_architecture_gate` P0 violation on `src/timeline/composition.cpp` `compile_camera()` call-site policy) are closed.  Re-evaluate against `ctest -R camera` once both blockers are resolved.
+
 ## TICKET-029 — `camera_program_compiler.cpp` references types not visible in this TU (P0, pre-existing on main; blocks `chronon3d_scene_tests` link)
 
 | Field | Value |
@@ -2790,3 +2800,76 @@ Add the determinism test suite with cases:
 | **Suggested fix approach** | Implemented across 7 files on `codex/cam-default-comp-camera`.  (1) `include/chronon3d/timeline/composition.hpp` — new API: `default_camera_descriptor(setter/getter)`, `has_default_camera_descriptor()`, `invalidate_default_camera_program()`, `default_camera_program()` (lazy compile, cached, fingerprint-throttled spdlog::warn), `redecompose_camera_from_descriptor(time)` (always copies transform.position+rotation; only FovProjection+positive fov_deg populates `camera.fov_deg`).  (2) `src/timeline/composition.cpp` — out-of-line bodies; spdlog throttle uses `compute_camera_descriptor_fingerprint(desc)` for content-stable hashing.  (3) `src/timeline/CMakeLists.txt` — `target_sources(chronon3d_scene PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/composition.cpp)` (camera_v1 pattern).  (4) `src/CMakeLists.txt` — `add_subdirectory(timeline)` between scene + animations.  (5) `tests/scene_tests.cmake` — `+ tests/scene/camera/test_composition_default_camera.cpp`; stray TICKET-033 `test_camera_payload.cpp` line removed.  (6) `tests/scene/camera/test_composition_default_camera.cpp` — 7 TEST_CASEs (round-trip, fingerprint stability across Composition copies, recompile-on-change, sentinel for empty, ZoomProjection returns true with no fov_deg mutation, FovProjection populates fov_deg, copy-only-fields contract). |
 | **Acceptance criteria** | (1) `git log --oneline codex/cam-default-comp-camera` shows the TICKET-034 commit at HEAD.  (2) `compile_file include/chronon3d/timeline/composition.hpp` parses clean (no incomplete type errors after the value-member / full-include fix).  (3) `compile_unit src/timeline/composition.cpp` parses clean against the camera_v1 headers (no FwdProjection / Result / PoseTracksSource errors within this TU).  (4) CMake configure: `add_subdirectory(timeline)` is invoked; `target_sources(chronon3d_scene PRIVATE ...)` resolves to existing `chronon3d_scene` OBJECT target defined by `add_subdirectory(scene)` earlier in the same file.  (5) Once the TICKET-029 rot is independently fixed, `chronon3d_scene_tests --test-case='*composition_default_camera*'` runs the 7 new TEST_CASEs and they pass.  (6) Documentation followup: this entry appears at the end of `docs/FOLLOWUP_TICKETS.md`. |
 | **Cross-references** | `include/chronon3d/timeline/composition.hpp` (TICKET-034 API); `src/timeline/composition.cpp` (out-of-line bodies); `src/timeline/CMakeLists.txt` (wiring); `src/CMakeLists.txt` (`add_subdirectory(timeline)`); `tests/scene_tests.cmake`; `tests/scene/camera/test_composition_default_camera.cpp`; `include/chronon3d/scene/camera/camera_v1/camera_descriptor.hpp` (provides `compute_camera_descriptor_fingerprint`); `include/chronon3d/scene/camera/camera_v1/camera_program.hpp`; `include/chronon3d/scene/model/camera/camera.hpp` (the slim legacy `Camera` struct + `focal_length` GETTER limitation forcing TICKET-035 deferral).  Build-blocker pre-existing rot: TICKET-029 in this same file.  Forwards: TICKET-035 (rich `Camera2_5D`-shaped field on Composition + PIMPL re-light). |
+
+
+## TICKET-035 — `Framebuffer` lacks `bytes()` accessor for byte-equal parity assertions (P0, post-rebase blocker)
+
+**Discovered:** 2026-06-23 — after rebasing PR 1 (`fb1b7e97`) + PR 2 (`8547b2e9`) onto `origin/main` and rebuilding `chronon3d_scene_tests`.
+
+**Owner:** `codex/agent1-renderer-boundary` (canonical `Framebuffer` type lives in `include/chronon3d/backends/software/`; per AGENTS.md ownership table, agent1 owns renderer/backend).
+
+**Context.** `tests/scene/camera/test_motion_blur_torture_pr1.cpp::TC007` is the byte-equal parity test for TICKET-026 (motion-blur mode migration). The assertion is:
+
+```cpp
+CHECK(fb_left->bytes() == fb_right->bytes());
+```
+
+where `fb_left` / `fb_right` are produced by `make_static_composition(64, 64)`. The canonical `Framebuffer` type (used by the software renderer) does not expose `bytes()`. The compiler therefore rejects TC007 with:
+
+```
+'struct chronon3d::Framebuffer' has no member named 'bytes'
+```
+
+This was silently masked before the rebase because the test was either
+(s) never compiled in the previous binary, or (ii) downstream commits in the
+24 remote commits changed the include chain such that `Framebuffer::bytes`
+becomes referenced for the first time.
+
+**Goal.** Decide whether to (A) add a canonical `Span<const std::byte> Framebuffer::bytes() const` (or equivalent `gsl::span<const std::byte>`) returning a deterministic view of the pixel buffer, or (B) reformulate TC007 to compare via a deterministic byte-hash helper (e.g., xxhash over RGBA8 planar pixels) provided by the test fixture. Option (A) keeps parity tests natural but adds runtime cost on every call; option (B) keeps the type canonical and forces parity assertions to declare a hashing policy.
+
+**Required precursor to:** TICKET-026 `MotionBlurMode` parity contract closure (TC007), hence to `ctest -R camera` being green.
+
+**Acceptance criterion:**
+
+| # | Criterion | Verification |
+| :--- | :--- | :--- |
+| 1 | `Framebuffer::bytes()` is callable on the canonical software-renderer framebuffer type, returning a deterministic byte view of the pixel storage. | New unit test in `tests/scene/camera/` (or `tests/render_graph/` — pick by ownership) verifies that two independently constructed `make_static_composition(N, N)` instances with identical pixel writes return identical spans. |
+| 2 | TC007 in `test_motion_blur_torture_pr1.cpp` compiles and links without warnings. | `ninja -C build/chronon/linux-ci chronon3d_scene_tests` succeeds. |
+| 3 | `ctest -R camera` runs without compile-time gate failures on TC007. | `ctest --test-dir build/chronon/linux-ci -R camera --output-on-failure` exits 0 (or with non-blocker pre-existing failures, but never from TC007). |
+
+**Companion blockers:** TICKET-036 (`compile_camera()` call-site policy on `composition.cpp`).
+
+---
+
+## TICKET-036 — `chronon3d_camera_architecture_gate` P0 violation: `compile_camera()` called outside canonical site in `src/timeline/composition.cpp` (P0, post-rebase blocker)
+
+**Discovered:** 2026-06-23 — flagged by `tools/check_camera_architecture.sh` during the post-rebase validation of `chronon3d_scene_tests`.
+
+**Owner:** Cross-agent decision required.
+  - `codex/agent1-renderer-boundary` owns the canonical compile path in `src/scene/camera/camera_v1/`.
+  - `codex/agent2-cmake-sdk-baseline` owns the architecture-gate script `tools/check_camera_architecture.sh` and SDK implications on `chronon3d_scene`.
+  - `src/timeline/composition.cpp` is not listed in either agent's AGENTS.md ownership table — escalate via the cross-agent handover protocol documented in `AGENTS.md` ("ownership cross-agent") before opening the fix branch.
+
+**Context.** The architecture gate enforces that `compile_camera()` is invoked from one canonical site only (currently `src/scene/camera/camera_v1/camera_program_compiler.cpp` and its TU-equivalents in `src/scene/camera/camera_v1/`). When the gate scans `src/timeline/composition.cpp`, it finds at least one direct call to `compile_camera(...)` that bypasses the canonical pipeline. This is unrelated to my recent edits (none of my 6-fix bundle or PR 1 commits touches `composition.cpp` other than the orphan-`}` syntax fix) — the call was already present on `origin/main`.
+
+**Ownership.** `src/timeline/composition.cpp` belongs to the `chronon3d_scene` aggregate target, but the canonical compile path lives in `src/scene/camera/camera_v1/`. The fix should NOT be in `composition.cpp` (the caller is correct in wanting to pre-compile ahead of timeline evaluation), but the policy of "only canonical sites call compile_camera" requires the gate to recognise the composition-driven pre-compile path. Options:
+
+| # | Approach | Trade-off |
+| :--- | :--- | :--- |
+| 1 | Whitelist `src/timeline/composition.cpp` in the gate's call-site allowlist. | Lowest-risk, smallest diff. Risk: anchors a precedent that could grow the allowlist; future regressions hidden. |
+| 2 | Refactor composition to call the canonical pipeline's public facade (`CameraProgramCompiler::compile_for_timeline(...)`), which internally does the compile_camera() call. | Correct architectural fix; removes the bypass path. Cost: larger diff, must keep parity with PR 1 / PR 2's tests. |
+| 3 | Move the call into a new driver (e.g., `src/scene/camera/camera_v1/camera_timeline_compiler.cpp`) that the gate recognises as canonical. | Most invasive; reorganises ownership table. |
+
+**Goal.** Pick option 1, 2, or 3 (default: option 1 for unblock, plan option 2 for follow-up) so `check_camera_architecture.sh` returns 0 on `src/timeline/composition.cpp`.
+
+**Acceptance criterion:**
+
+| # | Criterion | Verification |
+| :--- | :--- | :--- |
+| 1 | `compile_camera()` direct call exists in exactly one TU: either the canonical `camera_program_compiler.cpp` baseline + the whitelisted driver (option 1/3) or zero direct calls (option 2). | `tools/check_camera_architecture.sh` exits 0. |
+| 2 | `make_static_composition(64, 64)` + `redecompose_camera_from_descriptor()` flow continues to work end-to-end. | `ctest -R camera` smoke (motion_blur_torture_pr1 + framing_solver) exits 0 on the relevant TEST_CASE. |
+| 3 | AGENTS.md ownership table entry for `src/timeline/composition.cpp` is unchanged OR explicitly updated with rationale. | PR description / commit message documents. |
+
+**Companion blockers:** TICKET-035 (`Framebuffer::bytes()` missing on canonical type); TICKET-029 (`camera_program_compiler.cpp` references types not visible in this TU — still open as a separate predecessor, not gated on this ticket's resolution).
+
+---
