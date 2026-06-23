@@ -144,6 +144,36 @@ global-text + libtess2 + msdfgen
 
 ---
 
+## Library Mapping — terze parti opt-in per i gap AE (ADR-009)
+
+> **Sezione canonica per tutte le dipendenze di terze parti che supportano le fasi 9 / 11 / 12.** Il dettaglio (decision, scope, eccezioni Gate 5) vive in [`docs/adr/ADR-009-optional-text-deps.md`](../adr/ADR-009-optional-text-deps.md). Qui si conserva **solo la mappa libreria → fase / gap AE → vcpkg feature → profilo**.
+
+| Libreria vcpkg | Fase | Gap AE coperto | Feature vcpkg | Profilo canon | Adapter path consentito (Gate 5 §11) |
+|---|---|---|---|---|---|
+| `icu` | 9 — ICU / global text | CJK / Thai / Lao / Khmer / Burmese line-breaking (Unicode UAX #14/#29) | `icu-layout` (CHRONON3D_USE_ICU) | `global-text` (`linux-profile-motion-icu` o equivalente futuro) | `src/text/boundary_resolver/`, `src/backends/text/icu_resolver.cpp` |
+| `libtess2` | 11 — Text 3D opzionale | Triangolazione glifo con buchi (interno della "O") per estrusione + bevel 3D | `text-3d` (CHRONON3D_ENABLE_TEXT_3D) | `extended` (`linux-profile-extended`) | `src/text/text_3d/` |
+| `msdfgen` | 12 — MSDF opzionale (+ estensioni morph / displacement) | Atlas MSDF per scale-estreme, glow controllato, morph A↔B, displacement per onda/noise/audio | `text-msdf` (CHRONON3D_ENABLE_TEXT_MSDF) | `extended` (`linux-profile-extended`) | `src/text/glyph_raster/` |
+
+Librerie **valutate e scartate** (decisione ADR-009 §Decision #2):
+
+- `tinyspline` / NURBS — `src/text/path_sampler.cpp` (De Casteljau + arc-length) è già canonico (Fase 5); NURBS non è nel roadmap e introdurrebbe una pipeline parallela vietata.
+- `boost::locale` — shell su `libicu`; aggiunge un layer Boost senza guadagno.
+- `skia` / `SkShaper` — MB-scale, GPU-leaning, in conflitto con CPU-first headless; duplica `FontEngine`.
+- `freetype-gl` — GLUT-side; `FreeType` lo guidiamo già via `src/text/font_engine.cpp`.
+- `clipper2`, `par_shapes`, `bgfx` — out of scope per le fasi 9 / 11 / 12.
+
+**Regole d'uso** (deroghe al deny-everywhere posture di `tools/check_architecture_boundaries.sh` §11):
+
+1. Nessuna delle tre feature entra in `default-features` di `vcpkg.json`; attivazione **esplicita** via `VCPKG_MANIFEST_FEATURES` del preset CMake.
+2. Gli `#include <msdfgen/...>`, `<libtess2/...>`, `<unicode/...>` sono ammessi **solo** negli adapter path indicati in tabella. Qualsiasi altro file sorgente che li include trippa Gate 5 e blocca la PR.
+3. I simboli delle tre librerie **non possono uscire dai loro adapter**. I consumer vedono solo interfacce canoniche: `IGlyphRasterizer*` (msdfgen), `TextBoundaryResolver*` (ICU), `Text3DNode` + `GlyphMesh` (libtess2).
+4. Threading deterministico: nessuna nuova `global_ptr`, nessun singleton esterno; i resolver istanziati in `src/text/text_resolver.cpp` (ICU) e `src/text/glyph_raster/strategy_resolver.cpp` (msdfgen).
+5. Ogni nuova feature deve entrare nei `Tests` esistenti (`tests/text/`, `tests/deterministic/`) senza duplicare gateway; eventuali nuovi gate vanno nel `gates.yml` di CI in modalità opt-in (non bloccante finché `default-features` non include la feature).
+
+**Esclusione esplicita** dalla mappa: `tinyspline` rimane fuori anche se proposto come "Move along path" — la parametrizzazione avverrà via `RangeSelector` su `path_distance` sopra il `PathSampler` canon esistente (vedi Fase 5 §Pipeline).
+
+---
+
 # Fase 0 — Stabilizzare la baseline
 
 Questa fase precede ogni nuova feature testuale. **Non avviare le altre fasi finché i gate di uscita di Fase 0 non sono verdi macchina.**
@@ -592,7 +622,9 @@ Il resto del motore non deve dipendere direttamente da ICU.
 
 ## Piano operativo
 
-**Stato corrente** (audit 2026-06-22): nessuna ICU installata in `vcpkg_installed/*` (to-be-introduced compile-time opt-in flag `CHRONON3D_USE_ICU=ON`; flag is **currently undefined** in `CMakeLists.txt`/`cmake/`/`vcpkg.json` and will be wired in during Fase 9); riferimenti condizionali esistenti in `src/text/glyph_selector.cpp`, `src/backends/text/bidi_segmenter.cpp`, `include/chronon3d/text/text_layout_engine.hpp`. Boundary-resolver-like references in `src/text/text_resolver.cpp` + `src/text/text_run_driver.cpp`; nessun `TextBoundaryResolver` canon ancora esposto.
+**Stato corrente** (audit 2026-06-22 — aggiornato 2026-06-23 dopo ADR-009): nessuna ICU installata in `vcpkg_installed/*` su questo commit; il flag compile-time `CHRONON3D_USE_ICU` è documentato come opt-in in `vcpkg.json` (feature `icu-layout`) e giustificato da `ADR-009 §Decision #1` — la definizione del target CMake corrispondente e gli switch di feature sono tracciati come gap di follow-up (vedi `docs/stabilization-plan/08-dependency-profiles.md` §Ancora aperto). Edge caso: nessun consumer di `vcpkg.json` attiverà `icu-layout` finché un preset CMake (`CMakePresets.json`) non imposta esplicitamente `VCPKG_MANIFEST_FEATURES` per questa feature; la mancanza del preset non blocca questo PR (opt-in per definizione) ma va chiusa in un follow-up dedicato. Boundary-resolver-like references in `src/text/text_resolver.cpp` + `src/text/text_run_driver.cpp`; nessun `TextBoundaryResolver` canon ancora esposto.
+
+> **Library Mapping (ADR-009):** la feature vcpkg `icu-layout` (dipende da `icu`) è già stata aggiunta a `vcpkg.json` come opt-in (NON in `default-features`). L'unica deroga al deny-everywhere posture di `tools/check_architecture_boundaries.sh` §11 è limitata ai path `src/text/boundary_resolver/` e `src/backends/text/icu_resolver.cpp`. Vedi sezione [Library Mapping](#library-mapping--terze-parti-opt-in-per-i-gap-ae-adr-009) in cima a questo documento + [`docs/adr/ADR-009-optional-text-deps.md`](../adr/ADR-009-optional-text-deps.md) per la regola completa.
 
 **Piano di esecuzione**:
 
@@ -699,6 +731,8 @@ Dipendenza opzionale: `libtess2`.
 
 **Stato corrente** (audit 2026-06-22): zero match per `libtess2` (e per `tess.h` / `TESStesselator` / `Tessellator`) nel tree (`src/`, `include/`, `tools/`) e in `vcpkg.json` (presente solo `meshoptimizer` tramite feature `mesh`). La pipeline `FreeType → GlyphOutlineProvider → libtess2 adapter → GlyphMeshBuilder → Mesh cache → CPU rasterizer` non è ancora installata. Da aggiungere a `vcpkg.json` come nuova feature opzionale `text-3d` (opt-in; non abilitata dai profili `linux-profile-{core,motion,video,extended}` correnti in [`docs/stabilization-plan/08-dependency-profiles.md`](stabilization-plan/08-dependency-profiles.md)).
 
+> **Library Mapping (ADR-009):** la feature vcpkg `text-3d` (dipende da `libtess2`) è già stata aggiunta a `vcpkg.json` come opt-in — NON entra in `default-features`, e l'unica deroga al deny-everywhere posture di `tools/check_architecture_boundaries.sh` §11 è limitata al path `src/text/text_3d/` (vedi sezione [Library Mapping](#library-mapping--terze-parti-opt-in-per-i-gap-ae-adr-009) in cima a questo documento + [`docs/adr/ADR-009-optional-text-deps.md`](../adr/ADR-009-optional-text-deps.md)). Nessuna pipeline parallela a `src/text/text_path_composer.cpp` o `path_sampler.hpp` deve emergere (consolidamento-intelligente, non doppio motore).
+
 **Anti-collisione con Fase 5**: questa Fase 11 NON sostituisce `src/text/text_path_composer.cpp` (178 LOC, canon produttivo) né `include/chronon3d/text/path_sampler.hpp` (`PathSampler` con arc-length table, De Casteljau). La composizione 2D su path resta su Fase 5; libtess2 introduce *solo* la mesh extrusion 3D dei glifi. I tipi Fase 11 seguono la naming canon qui sotto, separata da Fase 5:
 
 ```text
@@ -763,6 +797,8 @@ Dipendenza opzionale: `msdfgen`.
 ## Piano operativo
 
 **Stato corrente** (audit 2026-06-22): zero match per `msdfgen` (o per `msdfgen::`, `MSDFGenerator`, `MultiSignedDistanceField`) nel tree (`src/`, `include/`, `docs/`, `tests/`, `tools/`) e in `vcpkg.json`. `GlyphRasterStrategy` non è ancora esposta come tipo canon nel codice: l'ASCII-tree in questa Fase 12 è design, nomenclatura pre-canonizzata in [`docs/TEXT_BOTTLENECKS.md`](TEXT_BOTTLENECKS.md) §Fase 3 (MSDF atlas) ma senza implementazione.
+
+> **Library Mapping (ADR-009):** la feature vcpkg `text-msdf` (dipende da `msdfgen`) è già stata aggiunta a `vcpkg.json` come opt-in — NON entra in `default-features`, e l'unica deroga al deny-everywhere posture di `tools/check_architecture_boundaries.sh` §11 è limitata al path `src/text/glyph_raster/` (vedi sezione [Library Mapping](#library-mapping--terze-parti-opt-in-per-i-gap-ae-adr-009) in cima a questo documento + [`docs/adr/ADR-009-optional-text-deps.md`](../adr/ADR-009-optional-text-deps.md)). Le estensioni Morph / Displacement ereditano automaticamente la stessa allowlist (stessa libreria, stesso adapter).
 
 Plan di esecuzione:
 
