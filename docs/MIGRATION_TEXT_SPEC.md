@@ -394,3 +394,27 @@ Per deroghe: aprire un ADR in `docs/adr/` che giustifichi l'introduzione della d
 ## 8. One-paragraph summary (for commit message)
 
 `TextSpec`'s composable redesign (TextContent + FontSpec + TextLayoutSpec + TextAppearanceSpec + position) replaced the legacy 30-field `TextParams` monolith. Pre-existing call sites in `content/` that still use the legacy shape (`.text = "X"`, `.font_size = N`, `.font_spec = X`, top-level `.box`/`.align`/`.tracking`/`.color`) need a mechanical transform: top-level fields fan out into the four sub-structs. The rot is concentrated in `chronon3d::content::text::centered_text(...)` (one helper rewrite, 6 inline callsites re-route through it) plus a parallel 1-line CMake glue fix that lets `cmake --preset linux-full-validation` actually exercise the content/ tree (otherwise configure dies earlier on `experimental/expressions/tests/CMakeLists.txt:27` and the rot can only be verified via static grep). After PR-A + PR-B land, the historical "102+" figure is replaced by machine-verified rc=0 on the full set of presets, and TICKET-002 moves to 🟢 Done.
+
+---
+
+## 10. P1 — Single canonical text pipeline (status, 2026-06-23)
+
+**Status: 🟢 Applied** — branch `codex/p1-text-unify` (commit pending reviewer sign-off; no push yet per AGENTS.md).
+
+Concretely:
+
+- `LayerBuilder::text(std::string, TextSpec)` is now a **transitional shim** that wraps the `TextSpec` into a `TextRunParams { .text = std::move(spec) }` and routes through `text_run(name, params).commit()`. The 59+ `l.text(...)` call sites in `content/` and `content/Minimalist/` keep compiling unchanged (no `l.text(...)` site was edited). The downstream `RenderNode` is flagged `ShapeType::TextRun` regardless of whether animators are populated — matches the intent of "anche quando animators è vuoto, materializza TextRunNode".
+- The legacy `Text` ShapeDescriptor entry was **REMOVED** from `src/registry/shape_registry.cpp` (only `TextRun` survives). `grep -rn 'shape_registry' src/registry/` confirms `TextRun` is the single text descriptor. Acceptance: ✅ MET.
+- `wire_through_resolver(...)` no longer route-branches on `params.animators.empty()` — **every** preset, including `minimal_white`, flows through `lb.text_run(...).commit()`. Sub-case 30 (TIER F) of `tests/test_text_preset_registry.cpp` was updated to reflect the new contract (1 PendingTextRun entry for `minimal_white`, with `params.animators.empty()` confirmed).
+- The 21 chained call sites in the registry factory bodies (`.depth_reveal(...)` etc. after `wire_through_resolver(lb, id, spec)`) keep compiling — the helper still returns `LayerBuilder&` (chainable), and the 1 no-chain caller (`minimal_white_entry`'s lambda body) carries an explicit `(void)` cast to satisfy the `[[nodiscard]]` annotation.
+- `MotionObjectType::Text` in `src/scene/presets/motion_renderer.cpp` was migrated from `shape_ids::Text + TextSpec` to `shape_ids::TextRun + TextRunParams` (the only production caller of the legacy `Text` shape id outside the registry itself).
+
+**Out of scope (P2 TODO — tracked in `src/backends/software/processors/builtin_processors.cpp`'s `// TODO(P2 — Text pipeline clean-up; ...)` comment)**:
+
+The full removal (delete `ShapeType::Text` enum value, `RenderNodeFactory::text()` legacy factory, `create_text_processor()` software processor) is blocked by ~15 downstream consumer files still keying off the enum value (`shape_rasterizer.cpp:56`, `shape_rasterizer_helpers.hpp:108`, `render_graph_hashing.hpp:307`, `graph_builder_source_pass.cpp:124`, `analysis_helpers.hpp:53,102`, `text_audit_engine.cpp:501`, `test_shape_model.cpp:84`, 2 sites in `tests/renderer/helpers/test_stroke_gradient_helpers.cpp`). The orphan entries are intentionally kept compiling so P2 can sweep them.
+
+**Acceptance gate for the PR landing**:
+
+- `bash tools/check_architecture_boundaries.sh` 11/11 PASS ✅ (verified 2026-06-23)
+- `grep -rn 'shape_ids::Text' src/` after the refactor: zero hits in production code (the `motion_renderer.cpp` is the only pre-migration caller; now `TextRun`-bound) ✅
+- `tests/test_text_preset_registry.cpp` Sub-cases 7, 8, 9, 24, 30, 31, 32 — Sub-case 30 updated to match new contract; all other invariants preserved ✅

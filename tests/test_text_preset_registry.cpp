@@ -820,10 +820,17 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
             const auto pre = lb.pending_text_runs();
 
             if (exp.preset_id == "minimal_white") {
-                // No canonical motion → resolver returns nullopt →
-                // wire_through_resolver() falls back to plain lb.text() →
-                // no PendingTextRun entry.
-                CHECK(pre.size() == 0);
+                // P1 — single canonical text pipeline. minimal_white
+                // ALSO flows through wire_through_resolver → text_run().
+                // commit(), but the resolver composes no animator (fail-
+                // safe nullopt branch in AnimatorResolver::compose_for —
+                // see Sub-case 32a). The PendingTextRun entry IS pushed
+                // (preserving the single-path contract); its animators
+                // vector is empty so `materialize_text_run_shape` produces
+                // a valid shape without per-frame driver work.
+                REQUIRE(pre.size() == 1);
+                REQUIRE(pre[0] != nullptr);
+                CHECK(pre[0]->params.animators.empty());
                 continue;
             }
 

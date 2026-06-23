@@ -105,16 +105,16 @@ void register_builtin_shapes(ShapeRegistry& registry) {
             return RenderNodeFactory::grid_background(res, std::move(name), p);
         }),
     });
-    registry.register_shape(ShapeDescriptor{
-        .id = std::string{shape_ids::Text},
-        .display_name = "Text",
-        .kind = ShapeKind::Primitive,
-        .description = "Rasterized text",
-        .builtin = true,
-        .factory = make_factory<TextSpec>([](auto* res, std::string name, TextSpec p) {
-            return RenderNodeFactory::text(res, std::move(name), std::move(p));
-        }),
-    });
+    // P1 — single canonical text pipeline
+    // (docs/MIGRATION_TEXT_SPEC.md §9 acceptance: only TextRun survives).
+    //
+    // The legacy `Text` ShapeDescriptor entry was REMOVED. Every text node
+    // now enters the authoring layer through `LayerBuilder::text(name,
+    // TextSpec)` which is a transitional shim into
+    // `text_run(name, TextRunParams).commit()`. The downstream RenderNode
+    // is flagged ShapeType::TextRun regardless of whether animators are
+    // populated (an empty-animators TextRunParams still synthesizes a valid
+    // TextRunShape via `materialize_text_run_shape`).
     registry.register_shape(ShapeDescriptor{
         .id = std::string{shape_ids::TextRun},
         .display_name = "Text Run (animatable)",
