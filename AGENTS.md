@@ -116,7 +116,6 @@ git push origin <branch-assegnato>
 git log -n 5 --oneline
 ```
 
-Non pushare direttamente su `main`.
 
 ## Quando un file sembra mancare
 
