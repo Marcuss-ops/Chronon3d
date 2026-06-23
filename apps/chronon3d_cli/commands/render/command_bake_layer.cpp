@@ -64,14 +64,18 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
     // PR-2 rewire close-out (WP-8 followup) — retarget the graph's output
     // to the selected layer node, then compile through FrameGraphCompiler
     // (single source of truth for topological plans after WP-8 close-out).
+    //
+    // Section 5 fix: route the executor via the renderer's runtime — the
+    // executor is engine-lifetime owned by RenderRuntime (per AGENTS.md +
+    // STATUS.md).  No local executor instantiation in CLI TUs.
     graph.retarget_output(selection.selected_output);
     graph::FrameGraphCompiler compiler;
     auto compiled = compiler.compile(std::move(graph), graph_ctx);
-    graph::GraphExecutor executor;
     RenderSession session;
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
     graph::ExecutionScope root_scope(
         graph::ExecutionScopeKind::Root, session, compiled.graph_instance_id);
+    auto& executor = renderer->runtime().executor(); // Section 5 fix.
     auto fb = executor.execute_with_scope(
         compiled, graph_ctx, root_scope, scheduler);
 

@@ -218,7 +218,12 @@ void DaemonService::cmd_clear_caches() {
 }
 
 void DaemonService::cmd_status() {
-    const auto* counters = m_engine->renderer().counters();
+    // ADR-008 — RenderEngine::renderer() returns a pointer, not a reference.
+    // The daemon TU is the only consumer left over from the pre-ADR-008 era
+    // that still derefs the accessor as a reference; flipped to `->` so the
+    // build matches the canonical accessor contract (closes TICKET-040 from
+    // the baseline-12c295be run, structurally symmetric with TICKET-039).
+    const auto* counters = m_engine->renderer()->counters();
 
     spdlog::info("");
     spdlog::info("═══ Daemon Status ═══");

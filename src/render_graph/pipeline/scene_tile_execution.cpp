@@ -95,7 +95,11 @@ namespace chronon3d::graph::detail {
     ExecutionScope tile_scope(ExecutionScopeKind::Tile, root_scope.session(),
                               child_arena, compiled.graph_instance_id,
                               &root_scope);
-    if (!sw_renderer || !sw_renderer->executor()) {
+    // Section 5 violation fix: executor lives on RenderRuntime (engine-
+    // lifetime owner), not on SoftwareRenderer.  Reach it via
+    // `sw_renderer->runtime().executor()`; the reference is guaranteed
+    // non-null once HasRuntime() is true.
+    if (!sw_renderer || !sw_renderer->has_runtime()) {
         GraphExecutor local_executor;
         ExecutionScheduler local_scheduler{SchedulerMode::Sequential, 1, false};
         tile_fb = local_executor.execute_with_scope(
@@ -104,7 +108,7 @@ namespace chronon3d::graph::detail {
         auto& tile_scheduler = ctx.services.scheduler
             ? *ctx.services.scheduler
             : sw_renderer->scheduler();
-        tile_fb = sw_renderer->executor()->execute_with_scope(
+        tile_fb = sw_renderer->runtime().executor().execute_with_scope(
             compiled, tile_ctx, tile_scope,
             tile_scheduler);
     }

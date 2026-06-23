@@ -30,8 +30,9 @@ namespace runtime { class RenderRuntime; }
 namespace raster { struct BBox; }
 namespace cache { class FramebufferPool; class NodeCache; }
 namespace graph {
-  class RenderBackend; class GraphExecutor; class CompiledGraphCache;
+  class RenderBackend; class CompiledGraphCache;
   class GraphNodeCatalog; class SceneHasher; class SceneProgramStore;
+  // Note: executor access was removed; route via `runtime().executor()`.
 }
 namespace effects { class EffectCatalog; struct EffectExecutionContext; }
 namespace renderer { class SoftwareRegistry; }
@@ -134,8 +135,6 @@ public:
     [[nodiscard]] std::shared_ptr<cache::FramebufferPool> framebuffer_pool();
     [[nodiscard]] RenderCounters* counters()                             { return &m_counters; }
     [[nodiscard]] const RenderCounters* counters() const                 { return &m_counters; }
-    [[nodiscard]] graph::GraphExecutor* executor();
-    [[nodiscard]] const graph::GraphExecutor* executor() const;
     [[nodiscard]] chronon3d::ExecutionScheduler& scheduler() noexcept;
     [[nodiscard]] const chronon3d::ExecutionScheduler& scheduler() const noexcept;
     [[nodiscard]] runtime::RenderRuntime& runtime() noexcept;
