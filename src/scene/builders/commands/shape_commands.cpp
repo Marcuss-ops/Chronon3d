@@ -158,7 +158,22 @@ LayerBuilder& LayerBuilder::grid_background(std::string name, GridBackgroundPara
 }
 
 LayerBuilder& LayerBuilder::text(std::string name, TextSpec p) {
-    return shape(registry::shape_ids::Text, std::move(name), std::move(p));
+    // P1 — single canonical text pipeline
+    // (docs/MIGRATION_TEXT_SPEC.md §9 acceptance: "rimuovi la shape diretta
+    // Text dal registry, conserva solo TextRun. Anche quando animators è
+    // vuoto, materializza TextRunNode").
+    //
+    // The legacy `Text` ShapeDescriptor was REMOVED from
+    // chronon3d::registry::ShapeRegistry (only `TextRun` remains). To keep
+    // the existing `LayerBuilder::text(name, TextSpec)` ergonomic — used by
+    // 59+ content/ call sites — this method is now a transitional shim that
+    // maps the flat TextSpec into a TextRunParams (with .text = std::move(p))
+    // and routes through `text_run(name, params).commit()`. The downstream
+    // RenderNode is flagged ShapeType::TextRun in both cases; empty animators
+    // still produce a valid TextRunShape via `materialize_text_run_shape`.
+    TextRunParams run;
+    run.text = std::move(p);
+    return text_run(std::move(name), std::move(run)).commit();
 }
 
 LayerBuilder& LayerBuilder::shape(std::string_view id, std::string name, registry::ShapeParams params) {

@@ -1,6 +1,7 @@
 #include <chronon3d/presets/motion_renderer.hpp>
 #include <chronon3d/presets/motion_resolver.hpp>
 #include <chronon3d/registry/shape_ids.hpp>
+#include <chronon3d/scene/builders/builder_params.hpp>  // P1 — TextRunSpec (TextRunParams alias) for the migrated shape_ids::TextRun call site.
 #include <chronon3d/math/camera_pose.hpp>
 
 #include <algorithm>
@@ -107,8 +108,17 @@ Vec3 face_camera_rotation(const SceneBuilder& s, const MotionState& st, bool fac
 
 void draw_content(LayerBuilder& l, const MotionObject& obj, const MotionState& st, const std::string& layer_name) {
     switch (obj.type) {
-    case MotionObjectType::Text:
-        l.shape(chronon3d::registry::shape_ids::Text, layer_name + "_text", chronon3d::TextSpec{
+    case MotionObjectType::Text: {
+        // P1 — single canonical text pipeline. The legacy shape_ids::Text
+        // entry was REMOVED from chronon3d::registry::ShapeRegistry; this
+        // direct caller now wraps the TextSpec into a TextRunParams (alias
+        // TextRunSpec) and reaches the render graph via shape_ids::TextRun
+        // (the ONLY surviving text shape descriptor in the authoring
+        // registry). The downstream RenderNode is flagged ShapeType::TextRun
+        // — same node shape as if the user had called `l.text_run(...)`
+        // directly. Anti-duplication rule respected: no second code path.
+        chronon3d::TextRunParams run_params;
+        run_params.text = chronon3d::TextSpec{
             .content = {.value = apply_text_reveal(obj.text_value, st.text_reveal)},
             .font = {.font_path = obj.text_style.font_path, .font_family = obj.text_style.font_family, .font_weight = obj.text_style.font_weight, .font_style = obj.text_style.font_style, .font_size = obj.text_style.font_size},
             .layout = {.box = obj.size_value, .align = obj.text_style.align == TextAlign::Left
@@ -118,8 +128,10 @@ void draw_content(LayerBuilder& l, const MotionObject& obj, const MotionState& s
                     : chronon3d::TextAlign::Center, .vertical_align = obj.text_style.vertical_align, .wrap = TextWrap::Word, .overflow = TextOverflow::Clip, .line_height = obj.text_style.line_height, .tracking = obj.text_style.tracking, .auto_fit = false, .max_lines = 0},
             .appearance = {.color = obj.color_value},
             .position = {0.0f, 0.0f, 0.0f}
-        });
+        };
+        l.shape(chronon3d::registry::shape_ids::TextRun, layer_name + "_text", run_params);
         break;
+    }
     case MotionObjectType::Image:
         l.image(layer_name + "_image", {
             .path = obj.image_path_value,
