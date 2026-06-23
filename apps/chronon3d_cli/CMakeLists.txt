@@ -27,6 +27,7 @@ option(CHRONON3D_BUILD_CLI_BENCH     "Build the chronon3d_cli_bench sub-target (
 # extraction intent without modifying any compilation today; flipping them
 # OFF once the dedicated sub-targets exist will prune daemon/watch code from
 # _core as a single-bot follow-up PR.
+# cron daemon/watch extraction deferred to follow-up PR
 # --------------------------------------------------------------------------
 
 # Group: Core (list, info, doctor, verify) — always included
@@ -176,6 +177,20 @@ get_target_property(CLI11_INCLUDE_DIRS CLI11::CLI11 INTERFACE_INCLUDE_DIRECTORIE
 # unconditional.  The gated sub-targets (_render, _dev, _bench) are linked ONLY
 # when their target exists at configure time — canonical idiom for option()-
 # driven compilation gating.
+#
+# OBJ-lib specifics (chronon3d_sdk singleton via Chronon3D::SDK INTERFACE
+# alias; chronon3d_sdk_impl NOT linked directly to preserve the SDK-public-
+# surface boundary certified by TICKET-011):
+#   chronon3d_sdk_impl is a unity-built OBJECT library aggregating static
+#   archives per cmake/Chronon3DRegistry.cmake: chronon3d_pipeline +
+#   chronon3d_scene + chronon3d_runtime + chronon3d_cache +
+#   chronon3d_effects + chronon3d_registry + chronon3d_assets +
+#   chronon3d_extension + chronon3d_animations + chronon3d_text_core +
+#   chronon3d_blend2d_paint + chronon3d_graph_* sub-targets.
+#   chronon3d_pipeline + chronon3d_scene + chronon3d_runtime ARE NOT
+#   linked directly here — they resolve transitively via chronon3d_sdk,
+#   which the linker set above resolves to as the Chronon3D::SDK public
+#   surface contract entrypoint.
 target_link_libraries(chronon3d_cli PRIVATE
     chronon3d_sdk
     chronon3d_cli_core
