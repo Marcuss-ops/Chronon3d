@@ -592,6 +592,8 @@ Lo stato delle assegnazioni agenti è stato consolidato in `AGENTS.md` (commit `
 - Branch Agente 1 `codex/agent1-renderer-boundary` → marker `[DONE ✓ — Merged into main on 2026-06-23, branch retired]`
 - Branch Agente 2 `codex/agent2-cmake-sdk-baseline` → marker `[NOT STARTED — branch missing on origin as of 2026-06-23]`
 
+_Nota di affinamento titolo_: la sezione "Assegnazione corrente a due agenti" in `AGENTS.md` è stata riformulata in `## Stato assegnazioni agenti (snapshot 2026-06-23)` (commit `738c6d78`), con lead-in minimale (`vedi body per lo stato per-agente`) + sequential-reality qualifier compresso e paragrafo Agente-2 sequenziale (la frase "Gli agenti possono iniziare in parallelo" riformulata come rebase post-Agente-1). Quattro iterazioni di amend + force-push con `--force-with-lease` prima dello ship finale; primo commit rigettato per avanzamento di `origin` a `3a6b4324` durante la prima finestra, recovery via amend successivo.
+
 ### PR #42 — landing via direct push
 
 PR #42 (`codex/docs-next-steps-clean-20260623`) ispezionata per ridondanza con PR #39/#40/#41: diff corposo e non byte-identico, quindi non ridondante. Merge eseguito con `--no-ff` dopo rebase del branch su `83a4bf21`. Effetto netto sul `main`: solo `docs/NEXT_STEPS.md` modificato (+110/-38); le modifiche di PR #42 su `docs/CAMERA_FEATURE_MATRIX.md` e `docs/CAMERA_AE_GAP_VENDETTA.md` sono state deduplicate dal rebase perché sovrapposte a quanto già confluito con #40 e #41. Commit di merge: `844bc7c0`. Branch remoto cancellato, PR chiusa.
