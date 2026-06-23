@@ -600,6 +600,12 @@ PR #42 (`codex/docs-next-steps-clean-20260623`) ispezionata per ridondanza con P
 
 Per coerenza con l'istruzione utente \"non crear branch inutili e pusha e committa tutto sul main\", le tre azioni di cleanup (squash-merge + auto-delete di #39/#40/#41, eliminazione diretta dei 4 branch remoti, landing di PR #42) e il commit corrente (carry-over reviewer verso `AGENTS.md` + `CHANGELOG.md`) sono stati eseguiti via direct push su `origin/main` anziché via PR review. Questa eccezione è stata concessa ad hoc in risposta a un'istruzione esplicita dell'utente durante la sessione del 2026-06-23 e non è ancora formalizzata come pattern standard in `AGENTS.md` né in un ADR dedicato — replicarla in futuro richiede prima la normalizzazione via aggiornamento di `AGENTS.md` o creazione di un ADR.
 
+### Snapshot pointer refresh in governance docs
+
+_Nota di recupero_: il primo commit `b9bf0b05` (snapshot pointer refresh a `main@617c0377`) è stato rigettato dal push perché nel frattempo due commit `8547b2e9` (TICKET-029 alignment) e `fb1b7e97` (PR 2 — unblock `chronon3d_scene_tests` build) sono atterrati su `origin/main` da un push esterno. Il commit è stato ricostruito via `git reset --hard origin/main` + re-apply delle modifiche con SHA aggiornato al nuovo HEAD.
+
+I riferimenti a `main@25049b2` in `docs/STATUS.md` e `docs/ROADMAP.md` sono stati aggiornati a `main@fb1b7e97` (HEAD corrente dopo il passaggio del PR 2 — unblock `chronon3d_scene_tests` build con TICKET-029).
+
 ## Expression System v2 — Lifecycle (PR #23 → guard retirement)
 
 Provenance trail for `expressions/v2` through the repo, 2026-06-20.

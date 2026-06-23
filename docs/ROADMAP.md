@@ -1,6 +1,6 @@
 # Chronon3D — Active Roadmap
 
-> Snapshot: `main@25049b2`, 23 giugno 2026.
+> Snapshot: `main@fb1b7e97`, 23 giugno 2026.
 >
 > Stato prodotto: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
 > Ordine immediato: [`NEXT_STEPS.md`](NEXT_STEPS.md).
