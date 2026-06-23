@@ -25,6 +25,9 @@
 add_executable(chronon3d_backends_software_tests
     ${TEST_MAIN}
     backends/software/test_software_processor_context.cpp
+    # 06 R5b follow-up regression guard — locks real SoftwareRenderer&&
+    # move semantics so the EAST-CONST const&& trick cannot regress.
+    backends/software/test_software_renderer_move.cpp
 )
 
 target_link_libraries(chronon3d_backends_software_tests PRIVATE
