@@ -436,7 +436,7 @@ The defect is harmless in practice because every source file in `src/expressions
 
 | Field | Value |
 |---|---|
-| **Status** | 🔵 Planned |
+| **Status** | 🟡 Partial (Gap C chiuso via PR-7b retire-CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2; Gap A e Gap B ancora aperti) |
 | **Affected file(s)** | `tests/core/animation/test_keyframes.cpp` (animations); `CMakeLists.txt` (root, deprecated option residue); `CMakePresets.json` (drift check); `docs/CHANGELOG.md`, `docs/ROADMAP.md`, `docs/ARCHITECTURE_EVOLUTION_PLAN.md`, `docs/FEATURES.md` (documentation reconciliation); `*.sh` / `*.yml` / `*.yaml` / CI configs (stale-flag scan). |
 | **Discovered during** | Post-rebase verification flow: cmake-guard retirement commit (`aae68561`-origin cycle, retired this session); cascade of missing-transitive-include fixes in `856ff957`; PR #23 rebase integration. |
 | **Discovered date** | 2026-06-20 |
@@ -474,7 +474,7 @@ Multiple test/scaffold files surfaced missing transitive headers during this ses
 
 Upstream's fix commit `76d547a6` (closing PR #23) evidently took a different strategy — likely either disabling the affected tests or removing the dependent feature code. We chose to fix the missing-include cascade in place, on the grounds that disabling tests reduces coverage and removing feature code regresses surface area. The risk: if PR #23's eventual strategy lands on a different fix pattern, our in-place include additions may have to be revisited when those branches converge.
 
-**Gap C — CMake guard interaction with merged PR #23 needs reconciliation.**
+**Gap C — CMake guard interaction with merged PR #23 needs reconciliation. (🟢 DONE)**
 
 The `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` guard (added in the prior session cycle as `aae68561`-prefix lineage, retired this session) fired correctly on re-verification after PR #23 merged expressions/v2 into main (commits `1871eb77` + `76d547a6`). The guard's retirement is captured in the cmake comment block + a deprecated `option(... OFF)` + an empty `if(... ) endif()` no-op touch to preserve cache-key compat.
 
@@ -1297,6 +1297,8 @@ TICKET-008 chooses (b) — document the limitation + require callers to either k
 ---
 
 ## TICKET-009 — Pre-existing compile breaks surfaced by `cmake --build chronon3d_tests_fast`
+
+> **Nota (post-cleanup 2026-06-23):** questo è il secondo TICKET-009 nel file. Il primo (a line 1113) descrive l'_Experimental subtree rot_; questo è una rot distinta (pre-existing compile breaks in `chronon3d_tests_fast`). I riferimenti testuali al solo identificativo `TICKET-009` continuano a puntare al v1 (line 1113); le cross-references nel body di altri ticket usano spesso il v2 perchè storicamente confusi. Non rinumerare per non rompere le 13+ cross-references esistenti nel file.
 
 | Field | Value |
 |---|---|
@@ -2751,7 +2753,7 @@ Add the determinism test suite with cases:
 
 | Field | Value |
 |---|---|
-| **Status** | 🔵 Planned (pre-existing breakage; blocks the link step that produces `chronon3d_scene_tests` and therefore blocks running ANY scene-camera test, including the new TICKET-021 regression tests). |
+| **Status** | 🟢 Resolved (PR 2 — unblock `chronon3d_scene_tests` build, commit `fb1b7e97`; rot pre-esistente chiusa upstream nella 6-fix bundle che include anche `8547b2e9 fix(scene+tests): TICKET-029 align test doctest pattern + camera compiler includes`). |
 | **Affected file(s)** | `src/scene/camera/camera_v1/camera_program_compiler.cpp` (errors at lines 39, 184, 194, 204, 217, 228, 241, 252, 261, 265, 275, 279, 290, 292, 573). |
 | **Discovered during** | TICKET-021 fixing attempt; the file already failed to compile on `main` BEFORE this work and continues to fail after the 2-hpp pre-existing build fixes + TICKET-021 logic fix in this PR. |
 | **Discovered date** | 2026-06-22 |
