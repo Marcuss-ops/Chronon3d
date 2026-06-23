@@ -564,6 +564,42 @@ Risultato: 0 hit fuori da `src/CMakeLists.txt` (alias rimosso) + solo documentat
 - `bash tools/test_architectural.sh` Section 5 renderer test: nessun nuovo failure introdotto (failure pre-esistenti su main baseline invariati).
 
 Branch: `codex/p1-pr7c-remove-legacy-alias`.
+## Cleanup pass 2026-06-23 — Branch consolidation
+
+2026-06-23 — Serie di azioni di pulizia sui branch remoti e consolidamento dello stato del repo dopo l'integrazione delle PR docs e i ritiri dei branch orfani. La sottosezione di tracking è stata spostata da `AGENTS.md` a questo changelog (con i marker di stato per i due agenti rimasti in `AGENTS.md`).
+
+### PR docs confluite via squash + auto-delete
+
+- **PR #39** `docs: update immediate next steps from current main` → `docs/NEXT_STEPS.md` (squash commit `2aec95bf`)
+- **PR #40** `docs: rebuild camera feature matrix from current code` → `docs/CAMERA_FEATURE_MATRIX.md` (squash commit `aa909d7a`)
+- **PR #41** `docs: replace stale camera AE gap audit` → `docs/CAMERA_AE_GAP_VENDETTA.md` (squash commit `384cf1dc`)
+
+I branch head di queste PR sono stati cancellati automaticamente dopo il merge.
+
+### Branch remoti orfani cancellati
+
+I seguenti branch remoti sono stati eliminati in quanto già confluiti in `main` con 0 commit unici (tip = antenato di `main`):
+
+- `codex/orphan-cleanup-2026-06-23` — nome autoesplicativo (\"orphan cleanup\")
+- `codex/agent1-renderer-boundary` — branch di proprietà dell'Agente 1 (tip `1321d56`)
+- `codex/docs-current-readiness-20260623` — PR #37 già merged, post-merge re-population ridondante
+- `codex/docs-readiness-followup-20260623` — PR #38 già merged, post-merge re-population ridondante
+
+### Tracking agent retirements in `AGENTS.md`
+
+Lo stato delle assegnazioni agenti è stato consolidato in `AGENTS.md` (commit `83a4bf21`):
+
+- Branch Agente 1 `codex/agent1-renderer-boundary` → marker `[DONE ✓ — Merged into main on 2026-06-23, branch retired]`
+- Branch Agente 2 `codex/agent2-cmake-sdk-baseline` → marker `[NOT STARTED — branch missing on origin as of 2026-06-23]`
+
+### PR #42 — landing via direct push
+
+PR #42 (`codex/docs-next-steps-clean-20260623`) ispezionata per ridondanza con PR #39/#40/#41: diff corposo e non byte-identico, quindi non ridondante. Merge eseguito con `--no-ff` dopo rebase del branch su `83a4bf21`. Effetto netto sul `main`: solo `docs/NEXT_STEPS.md` modificato (+110/-38); le modifiche di PR #42 su `docs/CAMERA_FEATURE_MATRIX.md` e `docs/CAMERA_AE_GAP_VENDETTA.md` sono state deduplicate dal rebase perché sovrapposte a quanto già confluito con #40 e #41. Commit di merge: `844bc7c0`. Branch remoto cancellato, PR chiusa.
+
+### Bypassing PR review workflow per doc-only commit consecutivi
+
+Per coerenza con l'istruzione utente \"non crear branch inutili e pusha e committa tutto sul main\", le tre azioni di cleanup (squash-merge + auto-delete di #39/#40/#41, eliminazione diretta dei 4 branch remoti, landing di PR #42) e il commit corrente (carry-over reviewer verso `AGENTS.md` + `CHANGELOG.md`) sono stati eseguiti via direct push su `origin/main` anziché via PR review. Questa eccezione è stata concessa ad hoc in risposta a un'istruzione esplicita dell'utente durante la sessione del 2026-06-23 e non è ancora formalizzata come pattern standard in `AGENTS.md` né in un ADR dedicato — replicarla in futuro richiede prima la normalizzazione via aggiornamento di `AGENTS.md` o creazione di un ADR.
+
 ## Expression System v2 — Lifecycle (PR #23 → guard retirement)
 
 Provenance trail for `expressions/v2` through the repo, 2026-06-20.
