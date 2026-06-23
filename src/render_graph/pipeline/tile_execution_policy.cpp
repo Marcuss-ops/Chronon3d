@@ -33,9 +33,12 @@ TileDecision TileExecutionPolicy::decide(
         return {false, "dirty_ratio_too_high"};
     }
 
-    // Need a renderer + executor to run the per-tile graph re-executions.
-    if (!sw_renderer || !sw_renderer->executor()) {
-        return {false, "missing_renderer_executor"};
+    // Need a renderer + runtime to run the per-tile graph re-executions.
+    // Section 5 violation fix: we no longer expose a public `executor()`
+    // accessor on SoftwareRenderer; the executor lives on RenderRuntime.
+    // `has_runtime()` is the equivalent pre-condition for callers.
+    if (!sw_renderer || !sw_renderer->has_runtime()) {
+        return {false, "missing_renderer_runtime"};
     }
 
     // Need a tile grid + mask with at least one dirty tile.
