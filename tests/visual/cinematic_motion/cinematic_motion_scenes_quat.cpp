@@ -241,7 +241,7 @@ Framebuffer render_motion_blur_comparison(SoftwareRenderer& renderer) {
     });
 
     std::vector<std::shared_ptr<Framebuffer>> panels;
-    RenderSettings base = renderer.settings();
+    RenderSettings base = renderer.render_settings();
     const Frame kFrame{30};
 
     {
