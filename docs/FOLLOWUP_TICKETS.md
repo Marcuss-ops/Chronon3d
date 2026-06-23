@@ -3031,6 +3031,35 @@ The CLI slim cleanup (F1.2) triggered a fresh repo-wide grep that surfaced this 
 - **`docs/EXPRESSIONS_V2_PROMOTION.md`** Gate 2 — the v2 expressions path is now self-contained in `experimental/expressions/`, no longer relies on Taskflow.
 - **`cmake/Chronon3DConfig.cmake.in`** lines 23-26 — the canonical install-export deliberately excludes Taskflow from downstream consumers; comments document this exclusion.
 - **`AGENTS.md`** §Regole di lavoro — "Ogni nuova feature deve usare il registry, resolver o sampler canonico già esistente" — Taskflow's absence from usage is consistent with the "no orphan registries" policy.
+### Cleanup completion (2026-06-23)
+
+The original TICKET-040 status (🟢 Done) was recorded while the `vcpkg.json`
+half of the retirement had shipped, but the symmetric removal from
+`CMakeLists.txt:123` (`find_package(Taskflow CONFIG REQUIRED)`) was
+deferred to a follow-up. That follow-up now ships on branch
+`codex/fix-ticket-040-taskflow-cleanup` (off `main@9e1750a9`), completing
+both halves of the retirement. Verification on a clean sandbox:
+
+- `cmake --preset linux-ci -S . -B <build-dir>` returns rc=0 (no more
+  `TASKFLOW_NOTFOUND` error at configure step that previously blocked
+  `chronon3d_tests_fast` link).
+- Repository-wide grep for any Taskflow executable consumer returns zero:
+  zero `#include <taskflow*>` in `src/`, `include/`, `apps/`, `tests/`,
+  `content/`, `experimental/`; zero `Taskflow::` / `Taskflow_LIBRARIES` /
+  `Taskflow_INCLUDE_DIRS` / `Taskflow_FOUND` references in any
+  `*.cmake`/`*.txt`/`*.cpp`/`*.hpp`/`*.in` (excluding `vcpkg_installed/`/
+  `build*/`/`.git/`/). The only remaining mentions are explanatory comments
+  in `cmake/Chronon3DConfig.cmake.in` (lines 23-26) documenting the
+  intentional exclusion from the install-export and the now-historical
+  references in `docs/CHANGELOG.md` + this ticket.
+- The find_package line is gone from `CMakeLists.txt`; the surrounding
+  dep-discovery block is unchanged (`spdlog`/`fmt`/`TBB`/`glm` ...).
+- No other `find_package(Taskflow ...)` call exists in the tree.
+
+This sub-section is doc-hygiene only — the actual code delta lives in
+the `codex/fix-ticket-040-taskflow-cleanup` branch commit.
+
+
 ## TICKET-041 — Sync cmake/Chronon3DRegistry.cmake with src/ add_library(OBJECT|INTERFACE) targets
 
 | **Status** | 🔵 Planned |

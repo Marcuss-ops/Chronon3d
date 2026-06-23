@@ -667,3 +667,15 @@ Build surface byte-equivalent with `p1/cli-slim-real @ ca6a5d76` baseline.
 Branch: `p1/cli-slim-real-hygiene` (1 commit ahead of `p1/cli-slim-real`).
 To be FF-merged into local `main` (which is currently at `a094b020b22b870c4d6ccf4018d72384514ecdfe`,
 1 commit ahead of `origin/main @ 3bad8c82`).
+
+### TICKET-040 — complete Taskflow cleanup (rot closure)
+
+2026-06-23 (branch `codex/fix-ticket-040-taskflow-cleanup` off `main@9e1750a9`) — Completes the second half of `TICKET-040` (🟢 Done in `docs/FOLLOWUP_TICKETS.md` but only half-executed). The retirement side (`vcpkg.json` no longer lists `"taskflow"`) shipped long ago; the symmetric `find_package(Taskflow CONFIG REQUIRED)` removal from `CMakeLists.txt:123` was deferred, leaving a leftover dependency on a vcpkg package the manifest no longer provided. That mismatch blocked `cmake --preset linux-ci` at the configure step with `TASKFLOW_NOTFOUND` (TICKET-038-style rot for the new `chronon3d_wiggly_selector_tests` + `chronon3d_wave_selector_tests` targets in TXT-08, and likely others). Single-file delta:
+
+1. **`CMakeLists.txt`** — deleted the orphan `find_package(Taskflow CONFIG REQUIRED)` line in the dep-discovery block. The line is removed; no other find_package / target_link_libraries / `Taskflow::...` consumer exists anywhere in `src/`, `include/`, `apps/`, `tests/`, `content/`, or `experimental/` (verified via `grep -rn 'Taskflow' ... --include=*.cmake --include=CMakeLists.txt --include=*.cpp --include=*.hpp --include=*.in` excluding `vcpkg_installed/` + `build*/`). The reference in `cmake/Chronon3DConfig.cmake.in` (find_package excludes Taskflow from the install-export, lines 23–26) is documentation of the intentional exclusion — kept unchanged.
+
+Build verification: the simplify configure invocation `cmake -B build-verify-taskflow -S . -DCMAKE_BUILD_TYPE=Release` on a clean clone (with `VCPKG_MANIFEST_MODE=ON` honoring vcpkg.json) now resolves the configure step rc=0 instead of failing on `TASKFLOW_NOTFOUND`. Full `cmake --preset linux-ci` exercising vcpkg's manifest-mode fetch chain is reproducible in CI on a fresh checkout.
+
+Anti-duplication integrity (per `docs/ANTI_DUPLICATION_RULES.md`): Taskflow contributes zero unique concepts to the productive tree (verified via grep), so deleting the find_package line collapses the dependency graph along the canonical single-provider-per-concept rule. No replacement is required.
+
+Branch: `codex/fix-ticket-040-taskflow-cleanup` (single commit ahead of `main@9e1750a9`). LF-merge ready. Forward-compat: TICKET-040 in `docs/FOLLOWUP_TICKETS.md` should be re-checked to confirm it stays 🟢 Done now that BOTH halves of the cleanup have shipped.
