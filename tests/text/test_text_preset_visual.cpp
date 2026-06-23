@@ -59,6 +59,17 @@
 using namespace chronon3d;
 using namespace chronon3d::test;
 using chronon3d::content::text::centered_text;
+// TICKET-038 / TXT-00 — bring the canonical text-options + registry
+// symbols into TU scope. `CenterTextOptions` lives in
+// `chronon3d::content::text` (sibling of `centered_text`); the registry
+// trio (`TextPreset` / `TextPresetRegistry` /
+// `make_default_text_preset_registry`) lives in `chronon3d::registry`
+// and is not transitively pulled by `using namespace chronon3d`,
+// so it must be qualified explicitly.
+using chronon3d::content::text::CenterTextOptions;
+using chronon3d::registry::TextPreset;
+using chronon3d::registry::TextPresetRegistry;
+using chronon3d::registry::make_default_text_preset_registry;
 
 namespace {
 
@@ -68,6 +79,19 @@ constexpr std::uint64_t kUncapturedSentinel = 0xDEADBEEFDEADBEEFULL;
 inline bool is_reference_captured(std::uint64_t r) noexcept {
     return r != kUncapturedSentinel;
 }
+
+// TICKET-038 / TXT-00 — POD `RectF`. The SDK has no public canonical
+// RectF; the 8-metric ScenarioMetrics canon (PR-A3 /
+// docs/01-baseline-green.md §2.4-2.5) uses
+// `RectF{float,float,float,float}` (x0,y0,w,h). TXT-00 forbids cross-
+// package aliasing and renaming canonical types, so each test TU that
+// needs the metric declares a 4-float POD inside its own anonymous
+// namespace. Default member initializers keep it an aggregate under
+// C++17/20, so both `RectF{}` (value-init) and aggregate positional
+// initialisation (`RectF{a,b,c,d}`) still compile.
+struct RectF {
+    float x{0.0f}, y{0.0f}, w{0.0f}, h{0.0f};
+};
 
 // ── 8-metric ScenarioMetrics canon (PR-A3 / docs/01-baseline-green.md §2.4-2.5)
 struct ScenarioMetrics {
@@ -127,16 +151,26 @@ inline ScenarioMetrics compute_metrics(const Framebuffer& fb,
 // (reviewer feedback on PR-A3 amend). 'short_label' is a stable token used
 // by the grep-based capture workflow. NOT auto-derived from a TEST_CASE name
 // to avoid whitespace / special-character fragility.
+//
+// TICKET-038 / TXT-00 — `emit_preset_gate` declares an outer
+// `auto m = compute_metrics(...)` and passes `m` as `metrics_expr`
+// here; the original macro body re-declared `auto m = (m)` which the
+// compiler correctly rejects ("use of 'm' before deduction of 'auto'")
+// because the RHS `m` referred to the freshly-introduced local, not
+// the outer.  Renamed the macro-local binding to `gate_m` so the RHS
+// unambiguously refers to the caller's `m` (or to a fresh expression
+// when the caller passes one inline). TU-local rename; no canonical
+// type touched.
 #define VR_TEXT_PRESET_GATE(short_label, kref, metrics_expr)              \
     do {                                                                   \
-        auto m = (metrics_expr);                                            \
+        auto gate_m = (metrics_expr);                                       \
         if (is_reference_captured(kref)) {                                  \
-            REQUIRE(m.hash == kref);                                        \
+            REQUIRE(gate_m.hash == kref);                                   \
         } else {                                                            \
             MESSAGE("VR/Text/" << short_label                               \
-                    << " unset; first hash to capture: " << m.hash);        \
+                    << " unset; first hash to capture: " << gate_m.hash);   \
         }                                                                   \
-        CHECK(m.ink_pixels > 0);                                            \
+        CHECK(gate_m.ink_pixels > 0);                                       \
     } while (0)
 
 // ── Aspect ratio helpers ─────────────────────────────────────────────────

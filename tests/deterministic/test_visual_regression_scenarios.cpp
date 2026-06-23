@@ -80,6 +80,17 @@ constexpr std::uint64_t kRefVRCJK            = kUncapturedSentinel;
 constexpr std::uint64_t kRefVREmojiFallback  = kUncapturedSentinel;
 constexpr std::uint64_t kRefVRScaleExtreme   = kUncapturedSentinel;
 
+// TICKET-038 / TXT-00 — POD `RectF`. Same TU-local convention as the
+// text-preset visual test (see tests/text/test_text_preset_visual.cpp).
+// 4-float (x0,y0,w,h) aggregate with default member initializers so
+// both `RectF{}` (value-init) and aggregate positional initialisation
+// (`RectF{a,b,c,d}`) compile. SDK has no public canonical RectF; TXT-00
+// forbids cross-package aliasing, so the struct stays TU-scoped and
+// mirrors the metrics canon in docs/01-baseline-green.md §2.4-2.5.
+struct RectF {
+    float x{0.0f}, y{0.0f}, w{0.0f}, h{0.0f};
+};
+
 // ── ScenarioMetrics (8-metric canon from docs/01-baseline-green.md §2.4-2.5)
 
 struct ScenarioMetrics {
