@@ -245,8 +245,7 @@ endforeach()
 set_target_properties(chronon3d_sdk PROPERTIES EXPORT_NAME SDK)
 add_library(Chronon3D::SDK ALIAS chronon3d_sdk)
 
-# Keep the old alias for backward compatibility during migration.
-add_library(Chronon3D_SDK ALIAS chronon3d_sdk)
+# PR-7c: legacy `Chronon3D_SDK` alias retired (canonical is `Chronon3D::SDK` above).
 
 # Expressions V2 (Path-B engine) is now quarantined under
 # experimental/expressions/ and is gated by CHRONON3D_BUILD_EXPERIMENTAL.
