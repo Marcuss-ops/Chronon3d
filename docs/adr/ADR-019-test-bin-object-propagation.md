@@ -4,7 +4,7 @@
 |---|---|
 | **Status** | Accepted |
 | **Date** | 2026-06-23 |
-| **Deciders** | `codex/fix-ticket038-lambda-capture` author, thinker-with-files-gemini |
+| **Deciders** | Buffy (Codebuff), thinker-with-files-gemini |
 | **Tags** | `cmake`, `linker`, `whole-archive`, `tests`, `static-init`, `object-propagation`, `txt-00` |
 | **Related** | [ADR-018 — CMake `CMAKE_CONFIGURE_DEPENDS` for per-area `.cmake` staleness](./ADR-018-link-rot-text-visual.md), [docs/baselines/tcb-txt-00-f-c-blocked-4ab8cbb8.md](../baselines/tcb-txt-00-f-c-blocked-4ab8cbb8.md) (F-C empirical history), `tests/renderer_tests.cmake` (working reference), `tests/text_preset_visual_tests.cmake` (failing surface), `src/CMakeLists.txt` (sdk / sdk_impl definition), `cmake/Chronon3DRegistry.cmake` (OBJECT library registry) |
 
@@ -110,7 +110,7 @@ target_link_libraries(<test_target> PRIVATE
 )
 ```
 
-**When to apply Rule 2:** apply it from the start for any test target that exercises symbols registered via static-initializer patterns (effect catalogs, presets, layer builders, registry auto-registration). If in doubt, apply it — the cost is a few kB of dead code in the binary; the benefit is no silent symbol drop.
+**When to apply Rule 2:** start with Rule 1. If the build fails with undefined references to symbols reachable only through static-initializer constructors (effect catalogs, presets, layer builders, registry auto-registration), escalate to Rule 2. If in doubt, apply it — the cost is a few MB of dead code in the test binary; the benefit is no silent symbol drop.
 
 **Platform note:** `-Wl,--whole-archive` is supported by GCC, Clang, and mold on Linux. For MSVC, the equivalent is `/WHOLEARCHIVE:<lib>` (not used in linux-ci / macos-dev presets). For Apple ld64, use `-Wl,-force_load,path/to/lib.a`. The linux-ci preset is the primary gate; platform-specific wrappers can be added as needed.
 
@@ -137,7 +137,7 @@ target_link_libraries(<test_target> PRIVATE
 
 ### Negative
 
-- **Binary size increase with `--whole-archive`.** Forcing all objects from `libchronon3d_sdk_impl.a` into the test binary adds dead code (unreferenced subsystems). For a test binary this is acceptable (~hundreds of kB, not MB). Production binaries (CLI, daemon) are unaffected — they link via the canonical two-target pattern without `--whole-archive`.
+- **Binary size increase with `--whole-archive`.** Forcing all objects from `libchronon3d_sdk_impl.a` into the test binary adds dead code (unreferenced subsystems). For a test binary this is acceptable (a few MB with debug symbols). Production binaries (CLI, daemon) are unaffected — they link via the canonical two-target pattern without `--whole-archive`.
 - **Platform-specific `--whole-archive` syntax.** `-Wl,--whole-archive` is GCC/Clang/Linux-specific. Apple ld64 requires `-Wl,-force_load,<path>`. MSVC requires `/WHOLEARCHIVE:<lib>`. The linux-ci preset is the primary gate; cross-platform wrappers can be added when macos-dev / msvc-ci presets are activated.
 - **Maintenance: two rules to remember.** Rule 1 always; Rule 2 when static-init symbols are dropped. The cost of forgetting Rule 2 is a link failure — the gate is self-enforcing.
 
@@ -157,8 +157,8 @@ Audit all test targets in `tests/*.cmake` against the canonical pattern. Current
 |---|---|---|---|
 | `chronon3d_renderer_tests` | ✅ | ✅ | No (canonical) |
 | `chronon3d_text_preset_visual_tests` | ✅ | ✅ (Option C residual) | Rule 2 (`--whole-archive`) needed |
-| `chronon3d_deterministic_tests` | ✅ (`chronon3d_sdk` + `chronon3d_graph` + `chronon3d_graph_pipeline` + `chronon3d_backend_software`) | ❌ | Add `chronon3d_sdk_impl` |
-| Other test targets | TBD | TBD | Audit recommended |
+| `chronon3d_deterministic_tests` | ✅ (`chronon3d_sdk` + `chronon3d_graph` + `chronon3d_graph_pipeline` + `chronon3d_backend_software`) | ❌ | Audit: add `chronon3d_sdk_impl` only if link failures appear |
+| Other test targets | TBD | TBD | Audit: migrate only targets with link failures |
 
 Migration for each non-compliant target:
 1. Add `chronon3d_sdk_impl` after `chronon3d_sdk` in `target_link_libraries`.
