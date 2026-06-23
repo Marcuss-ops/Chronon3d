@@ -2949,7 +2949,7 @@ For **Axis B** (`FAIL_TEST` macro absent):
 | :--- | :--- | :--- |
 | 1 | `chronon3d_core_tests` umbrella compiles + links rc=0 | `time ninja -C build/chronon/linux-ci chronon3d_core_tests -j8` returns rc=0 within stable environment; `tests/text/test_text_material.cpp.o` and `tests/test_text_preset_registry.cpp.o` emit successfully. |
 | 2 | `chronon3d_camera_compiled_evaluate_tests` + `chronon3d_camera_visual_tests` are linked binaries | `ls build/chronon/linux-ci/chronon3d_camera_compiled_evaluate_tests build/chronon/linux-ci/chronon3d_camera_visual_tests` reports both files. |
-| 3 | `ctest --test-dir build/chronon/linux-ci -R '^camera|^chronon3d_camera' --output-on-failure` exits 0 | All 3 ctest entries (`chronon3d_camera_architecture_gate`, `chronon3d_camera_compiled_evaluate_tests`, `chronon3d_camera_visual_tests`) PASS. |
+| 3 | `ctest --test-dir build/chronon/linux-ci -R '^camera|^chronon3d_camera' --output-on-failure` returns rc=0 (binary verification) | All 3 ctest entries (`chronon3d_camera_architecture_gate`, `chronon3d_camera_compiled_evaluate_tests`, `chronon3d_camera_visual_tests`) PASS. |
 | 4 | The 5 camera tickets 021/022/024/026/028 can be flipped to "Verified by running tests" post-this-fix | After acceptance #3, run a doc-only commit appending TICKET-022/024/026/028 Resolution sub-sections + replacing the 5 deferral-notes with squelched "Verified by running tests at commit <SHA>" wording. AGENTS.md compliance restored. |
 
 ### Cross-references
