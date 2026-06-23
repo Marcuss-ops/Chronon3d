@@ -81,6 +81,13 @@ struct LensModel {
     // ── Gate fit ─────────────────────────────────────────────────────────
     GateFit gate_fit{GateFit::Fill};
 
+    // TICKET-035 - pixel_aspect + anamorphic_squeeze fields (canonical lens-source). Pixel aspect compensates
+    // for non-square pixel grids; anamorphic_squeeze compensates for physically-anamorphic lens
+    // horizontal compression at capture time (Panavision 2x, ARRI 1.8x, etc.). Both default to 1.0 and
+    // are overridden by LensPresets (e.g. anamorphic_50mm -> anamorphic_squeeze = 2.0).
+    f32 pixel_aspect{1.0f};        // TICKET-035 - pixel shape ratio (1.0 = square)
+    f32 anamorphic_squeeze{1.0f};  // TICKET-035 - physical lens squeeze factor (1.0 = spherical, 2.0 = 2x anamorphic)
+
     // ── Computed helpers ─────────────────────────────────────────────────
 
     /// Aspect ratio of the physical sensor (width / height).
@@ -108,60 +115,96 @@ struct LensModel {
     /// Convert lens focal length to effective focal length in pixels
     /// for a viewport of given width and height.
     ///
-    /// Gate-fit logic:
-    ///   Fill:    The sensor is scaled up to cover the viewport. The smaller
-    ///            dimension of the viewport determines the scale factor.
-    ///   Overscan: The sensor is scaled down to fit inside the viewport. The
-    ///             larger dimension of the sensor determines the scale factor.
-    ///   Stretch:  Independent X/Y scale to fill viewport exactly.
-    ///
-    /// With Fill (the common case for video/cinema), the focal length in pixels
-    /// is derived from the viewport width and the sensor's horizontal coverage
-    /// after cropping to the viewport aspect ratio.
+    /// Kept as a single-scalar back-compat wrapper: returns focal_y_px,
+    /// the canonical reference for `perspective_scale = focal_y / depth`.
+    /// New code should prefer `focal_xy_pixels(...)` which preserves the
+    /// distinct X/Y axes (required for `GateFit::Stretch` and any
+    /// anamorphic / non-square-pixel setup where focal_x != focal_y).
     [[nodiscard]] f32 focal_pixels(f32 viewport_width, f32 viewport_height) const {
-        if (focal_length <= 0.0f || viewport_width <= 0.0f || viewport_height <= 0.0f)
-            return 1000.0f;
+        return focal_xy_pixels(viewport_width, viewport_height).y;
+    }
 
-        const f32 viewport_aspect = viewport_width / viewport_height;
-        const f32 sensor_aspect_ratio = sensor_aspect();
+    /// TICKET-035 — focal_x_px AND focal_y_px returned independently.
+    ///
+    /// Returns `Vec2{focal_x_px, focal_y_px}` so callers (notably the
+    /// canonical projection contract) can apply a per-axis perspective
+    /// scale.  Spherical / Fill / Overscan produce equal focal_x/y;
+    /// `GateFit::Stretch` and anamorphic lenses produce unequal values.
+    ///
+    /// Composition:
+    ///   focal_x_px_raw = focal_length_mm * (effective_viewport.x / sensor_width_mm)
+    ///   focal_y_px_raw = focal_length_mm * (effective_viewport.y / sensor_height_mm)
+    ///   focal_x_px     = focal_x_px_raw * (pixel_aspect * anamorphic_squeeze)
+    ///   focal_y_px     = focal_y_px_raw
+    ///
+    /// For Stretch, the per-axis formula uses the requested viewport (not
+    /// the effective viewport) because Stretch explicitly violates the
+    /// aspect ratio to fill the viewport completely.
+    [[nodiscard]] Vec2 focal_xy_pixels(f32 viewport_width, f32 viewport_height) const {
+        if (focal_length <= 0.0f || viewport_width <= 0.0f || viewport_height <= 0.0f) {
+            return Vec2{1000.0f, 1000.0f};
+        }
 
-        f32 effective_sensor_fraction;  // fraction of sensor width used
+        Vec2 eff = effective_viewport(viewport_width, viewport_height);
 
+        f32 raw_x;
+        f32 raw_y;
         switch (gate_fit) {
-            case GateFit::Fill: {
-                // Sensor is cropped to match viewport aspect ratio.
-                // If sensor is wider (3:2 > 16:9), we crop top/bottom.
-                // If viewport is wider (16:9 > 3:2), we crop left/right.
-                if (sensor_aspect_ratio > viewport_aspect) {
-                    // Sensor wider than viewport: use sensor_height * viewport_aspect as effective width
-                    effective_sensor_fraction = viewport_aspect / sensor_aspect_ratio;
-                } else {
-                    // Viewport wider than sensor: sensor width fills viewport
-                    effective_sensor_fraction = 1.0f;
-                }
-                break;
-            }
+            case GateFit::Fill:
             case GateFit::Overscan: {
-                // Entire sensor visible inside viewport. The horizontal FOV is
-                // determined by the full sensor width.  Pillarbox/letterbox bars
-                // are purely visual and don't affect the projection.
-                effective_sensor_fraction = 1.0f;
+                // Uniform (per-axis but equal): use effective viewport.
+                raw_x = focal_length * (eff.x / sensor_width);
+                raw_y = focal_length * (eff.y / sensor_height);
                 break;
             }
             case GateFit::Stretch: {
-                // Use sensor width as-is (viewport distorts aspect ratio)
-                effective_sensor_fraction = 1.0f;
+                // Per-axis independent: stretch to fill the requested viewport
+                // outright, even if it distorts the aspect ratio.
+                raw_x = focal_length * (viewport_width  / sensor_width);
+                raw_y = focal_length * (viewport_height / sensor_height);
                 break;
             }
             default:
-                effective_sensor_fraction = 1.0f;
+                raw_x = focal_length * (viewport_width  / sensor_width);
+                raw_y = focal_length * (viewport_height / sensor_height);
         }
 
-        // Focal length in pixels: scale from sensor-space to viewport-space.
-        // focal_px = focal_mm * (viewport_width / (sensor_width * effective_sensor_fraction))
-        const f32 effective_sensor_width = sensor_width * effective_sensor_fraction;
-        if (effective_sensor_width <= 0.0f) return 1000.0f;
-        return focal_length * (viewport_width / effective_sensor_width);
+        const f32 lens_factor = pixel_aspect * anamorphic_squeeze;
+        return Vec2{raw_x * lens_factor, raw_y};
+    }
+
+    /// TICKET-035 — effective (post-gate-fit) viewport.
+    ///
+    /// Returns `Vec2{effective_width, effective_height}` describing the
+    /// rectangle inside the rendered viewport that the sensor image
+    /// actually occupies.  For `Fill` and `Stretch` this equals the
+    /// requested viewport.  For `Overscan` the effective viewport is
+    /// smaller than the requested viewport, with the difference being
+    /// letterbox or pillarbox bars.
+    ///
+    /// Example (1920×1080 viewport, 36×24mm sensor, sensor_aspect=1.5,
+    /// viewport_aspect≈1.78): viewport wider than sensor → pillarbox →
+    /// effective_viewport = {1080*1.5, 1080} = {1620, 1080}.
+    [[nodiscard]] Vec2 effective_viewport(f32 viewport_width, f32 viewport_height) const {
+        if (viewport_width <= 0.0f || viewport_height <= 0.0f) {
+            return Vec2{0.0f, 0.0f};
+        }
+        if (gate_fit != GateFit::Overscan) {
+            // Fill: sensor is cropped to fill viewport (effective viewport = viewport as-is).
+            // Stretch: sensor stretched non-uniformly to fill viewport (effective viewport = viewport as-is).
+            return Vec2{viewport_width, viewport_height};
+        }
+        // Overscan: sensor fully visible inside viewport with bars.
+        const f32 vp_a = viewport_width / viewport_height;
+        const f32 sa   = sensor_aspect();
+        if (sa > vp_a) {
+            // Sensor wider than viewport: pillarbox (side bars).
+            // Effective height = viewport_height; effective width = vp_h * sa.
+            return Vec2{viewport_height * sa, viewport_height};
+        }
+        // Viewport wider than sensor: letterbox (top/bottom bars).
+        // Effective width = viewport_width; effective height = vp_w / sa.
+        return Vec2{viewport_width, viewport_width / sa};
     }
 };
 
@@ -247,14 +290,19 @@ inline LensModel full_frame_135mm() {
 
 /// Anamorphic — 2× squeeze on 35mm film gate (21.95 × 18.59mm).
 /// Desqueezed FOV is 2× wider than spherical equivalent.
+///
+/// TICKET-035 — `anamorphic_squeeze = 2.0f` so `focal_xy_pixels` returns
+/// `focal_x_px = 2 × focal_y_px` (the canonical anamorphic behaviour).
 inline LensModel anamorphic_50mm() {
     LensModel l;
-    l.focal_length   = 50.0f;
-    l.f_stop         = 2.8f;
-    l.close_focus    = 600.0f;
-    l.sensor_width   = 21.95f;   // 4-perf 35mm anamorphic gate
-    l.sensor_height  = 18.59f;
-    l.gate_fit       = GateFit::Fill;
+    l.focal_length        = 50.0f;
+    l.f_stop              = 2.8f;
+    l.close_focus         = 600.0f;
+    l.sensor_width        = 21.95f;   // 4-perf 35mm anamorphic gate
+    l.sensor_height       = 18.59f;
+    l.gate_fit            = GateFit::Fill;
+    l.pixel_aspect        = 1.0f;
+    l.anamorphic_squeeze  = 2.0f;
     return l;
 }
 
