@@ -2790,3 +2790,40 @@ Add the determinism test suite with cases:
 | **Suggested fix approach** | Implemented across 7 files on `codex/cam-default-comp-camera`.  (1) `include/chronon3d/timeline/composition.hpp` — new API: `default_camera_descriptor(setter/getter)`, `has_default_camera_descriptor()`, `invalidate_default_camera_program()`, `default_camera_program()` (lazy compile, cached, fingerprint-throttled spdlog::warn), `redecompose_camera_from_descriptor(time)` (always copies transform.position+rotation; only FovProjection+positive fov_deg populates `camera.fov_deg`).  (2) `src/timeline/composition.cpp` — out-of-line bodies; spdlog throttle uses `compute_camera_descriptor_fingerprint(desc)` for content-stable hashing.  (3) `src/timeline/CMakeLists.txt` — `target_sources(chronon3d_scene PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/composition.cpp)` (camera_v1 pattern).  (4) `src/CMakeLists.txt` — `add_subdirectory(timeline)` between scene + animations.  (5) `tests/scene_tests.cmake` — `+ tests/scene/camera/test_composition_default_camera.cpp`; stray TICKET-033 `test_camera_payload.cpp` line removed.  (6) `tests/scene/camera/test_composition_default_camera.cpp` — 7 TEST_CASEs (round-trip, fingerprint stability across Composition copies, recompile-on-change, sentinel for empty, ZoomProjection returns true with no fov_deg mutation, FovProjection populates fov_deg, copy-only-fields contract). |
 | **Acceptance criteria** | (1) `git log --oneline codex/cam-default-comp-camera` shows the TICKET-034 commit at HEAD.  (2) `compile_file include/chronon3d/timeline/composition.hpp` parses clean (no incomplete type errors after the value-member / full-include fix).  (3) `compile_unit src/timeline/composition.cpp` parses clean against the camera_v1 headers (no FwdProjection / Result / PoseTracksSource errors within this TU).  (4) CMake configure: `add_subdirectory(timeline)` is invoked; `target_sources(chronon3d_scene PRIVATE ...)` resolves to existing `chronon3d_scene` OBJECT target defined by `add_subdirectory(scene)` earlier in the same file.  (5) Once the TICKET-029 rot is independently fixed, `chronon3d_scene_tests --test-case='*composition_default_camera*'` runs the 7 new TEST_CASEs and they pass.  (6) Documentation followup: this entry appears at the end of `docs/FOLLOWUP_TICKETS.md`. |
 | **Cross-references** | `include/chronon3d/timeline/composition.hpp` (TICKET-034 API); `src/timeline/composition.cpp` (out-of-line bodies); `src/timeline/CMakeLists.txt` (wiring); `src/CMakeLists.txt` (`add_subdirectory(timeline)`); `tests/scene_tests.cmake`; `tests/scene/camera/test_composition_default_camera.cpp`; `include/chronon3d/scene/camera/camera_v1/camera_descriptor.hpp` (provides `compute_camera_descriptor_fingerprint`); `include/chronon3d/scene/camera/camera_v1/camera_program.hpp`; `include/chronon3d/scene/model/camera/camera.hpp` (the slim legacy `Camera` struct + `focal_length` GETTER limitation forcing TICKET-035 deferral).  Build-blocker pre-existing rot: TICKET-029 in this same file.  Forwards: TICKET-035 (rich `Camera2_5D`-shaped field on Composition + PIMPL re-light). |
+
+## TICKET-041 — Sync cmake/Chronon3DRegistry.cmake with src/ add_library(OBJECT|INTERFACE) targets
+
+| **Status** | 🔵 Planned |
+|---|---|
+| **Affected file(s)** | `cmake/Chronon3DRegistry.cmake`; `src/**/CMakeLists.txt` |
+| **Discovered during** | F3.1 phase B (2026-06-23) — new boundary-gate `[12/14]` |
+| **Symptom** | Gate `[12/14]` reports `FAIL (advisory)`; `comm -23` is non-empty. Script exits 0 (advisory). |
+| **Root cause analysis** | Registry populated incrementally; not introspected against every `src/**`. Gate (AGENTS.md §2 + ADR-010-1) is first detector. |
+| **Suggested fix** | (1) Enumerate OBJECT/INTERFACE targets in `src/**/CMakeLists.txt`. (2) Sync registry. (3) Promote gate status. |
+| **Acceptance criteria** | (1) `comm -23` returns EMPTY. (2) `[12/14]` passes. (3) Selftests pass. |
+| **Cross-references** | AGENTS.md §2; ADR-010-1; Gate `[12/14]`. |
+
+## TICKET-042 — Sync vcpkg.json deps with root CMakeLists.txt find_package(... REQUIRED) entries
+
+| **Status** | 🔵 Planned |
+|---|---|
+| **Affected file(s)** | `vcpkg.json`; `CMakeLists.txt` |
+| **Discovered during** | F3.1 phase B (2026-06-23) — new boundary-gate `[13/14]` |
+| **Symptom** | Gate `[13/14]` reports `FAIL (advisory)` for missing vcpkg dependencies. Script exits 0 (advisory). |
+| **Root cause analysis** | `find_package` aliases or namespace prefixes. Gate (AGENTS.md §3 + ADR-010-2) is first detector. |
+| **Suggested fix** | (1) Lowercase `find_package` names. (2) Sync `vcpkg.json` or update gate allowlist. (3) Promote gate. |
+| **Acceptance criteria** | (1) All deps mapped. (2) `[13/14]` passes. (3) `cmake --preset` configures cleanly. |
+| **Cross-references** | AGENTS.md §3; ADR-010-2; Gate `[13/14]`. |
+
+## TICKET-043 — Audit apps/* includes for internal chronon3d_sdk_impl leaks
+
+| **Status** | 🔵 Planned |
+|---|---|
+| **Affected file(s)** | `apps/chronon3d_cli/**`; `install_consumer_test/**` |
+| **Discovered during** | F3.1 phase B (2026-06-23) — new boundary-gate `[14/14]` |
+| **Symptom** | Gate `[14/14]` reports `FAIL (advisory)` if internal headers leaked under `apps/`. |
+| **Root cause analysis** | SDK INSTALL contract requires consumer usage of `Chronon3D::SDK` alias; direct headers leakbreaks consumer builds. Gate is first detector. |
+| **Suggested fix** | (1) Ensure no internal includes. (2) Rewrite to use `Chronon3D::SDK` INTERFACE alias. (3) Promote gate. |
+| **Acceptance criteria** | (1) `[14/14]` passes. (2) `install_consumer_test` compiles against installed SDK alias without internal includes. |
+| **Cross-references** | AGENTS.md §4; ADR-008; ADR-010-3; Gate `[14/14]`. |
+
