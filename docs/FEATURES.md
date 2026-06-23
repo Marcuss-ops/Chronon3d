@@ -1,47 +1,164 @@
 # Chronon3D — Feature Reference
 
-Stato del repository: [`STATUS.md`](STATUS.md). Lavori da chiudere:
-[`NEXT_STEPS.md`](NEXT_STEPS.md).
+> Snapshot: `main@25049b2`, 23 giugno 2026.
+>
+> Stato prodotto: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
+> Blocker operativi: [`STATUS.md`](STATUS.md).
 
-## Feature stabili presenti
+La presenza di codice non implica che l’intero sottosistema sia verificato o
+release-ready. Questa pagina separa feature presenti, parziali e pianificate.
 
-- SVG Path V1: comandi `M/L/H/V/C/Q/Z`, incluse le forme relative.
-- Text: FreeType, HarfBuzz, FriBidi, layout, auto-fit, overflow, preset, animazione per glifo, gradienti, stroke e glyph cache.
-- Immagini, layer, mask, blend mode, camera 2.5D ed effetti software.
-- Output video e telemetria controllati dalle opzioni di build.
+## Rendering e compositing
 
-Limiti noti:
+### Presenti
+
+- Scene, layer e gerarchie.
+- Render graph compilato.
+- Backend software CPU-first.
+- Immagini, shape e SVG Path V1 (`M/L/H/V/C/Q/Z`, incluse forme relative).
+- Mask, blend mode ed effetti software.
+- Cache, dirty tracking, frame/history state e telemetria opzionale.
+- Output immagine e video controllato dalle opzioni di build.
+- Extension modules e registrazione esplicita delle composizioni.
+
+### Parziali
+
+- Precomp annidato, execution scope e concorrenza.
+- Determinismo completo tra scheduler/profili.
+- Import SVG limitato: primo path, styling/gruppi/trasformazioni/filtri incompleti.
+- V3 tile-first non ancora runtime produttivo.
+
+## Testo
+
+### Presenti
+
+- FreeType, HarfBuzz e FriBidi.
+- Shaping, bidi, layout, wrapping, overflow e auto-fit.
+- `TextSpec`, `TextRunSpec` e `TextDocument`.
+- Span di stile e paragrafi.
+- Gradient fill, stroke, shadow, material e glyph cache.
+- Animator per glifo:
+  - position;
+  - scale;
+  - rotation;
+  - skew;
+  - anchor;
+  - opacity;
+  - blur;
+  - fill/stroke color;
+  - stroke width;
+  - tracking;
+  - baseline shift;
+  - character offset.
+- Selector per glyph, grapheme, character, word e line.
+- Range shape Square, RampUp, RampDown, Triangle, Round e Smooth.
+- Ordine Forward, Reverse, FromCenter, ToCenter e Random deterministico.
+- Sample-time sub-frame.
+- Text-on-path esistente da consolidare.
+- Registry canonico dei preset e sentinel test iniziali.
+
+### Parziali
+
+- Rich text end-to-end con più font/dimensioni/materiali nello stesso paragrafo.
+- Animator e identità semantica per span/parola.
+- Preset kinetic typography non ancora tutti verificati come prodotto.
+- Motion blur testuale e visual regression completa.
+- Segmentazione e line breaking globale senza ICU.
+
+### Pianificate
+
+- Timed text/SRT/JSON e word timing produttivo.
+- Highlight, karaoke e subtitle layout policies.
+- Wiggly, Wave e Random selector completi.
+- Variable fonts.
+- ICU opzionale.
+- Color emoji/fallback completo.
+- Expression Selector.
+- Text 3D, MSDF, morph e displacement avanzati.
+
+### Limiti noti
 
 - line breaking CJK non ancora basato su ICU;
-- color emoji non supportate;
-- import SVG limitato al primo path, senza supporto completo per styling, gruppi, trasformazioni e filtri.
+- color emoji non supportate in modo produttivo;
+- Text 3D e MSDF non fanno parte del profilo stabile.
 
-La presenza di una feature non implica che l’intero repository sia release-ready. I blocker architetturali e di validazione sono descritti in `STATUS.md`.
+## Camera
+
+### Presenti
+
+- `Camera2_5D` come snapshot runtime.
+- `CameraDescriptor` come authoring canonico futuro.
+- `compile_camera()` e `CameraProgram` immutabile.
+- `CameraSession` per stato per-job.
+- Zoom, FOV e Physical Lens projection.
+- Focal length, sensor size, gate fit, pixel aspect e anamorphic contract.
+- Focus distance, aperture, temporal motion blur e depth-of-field di base.
+- Pose Tracks, Orbit Motion e Trajectory Motion.
+- Look-at point/layer e tipo OrientAlongPath.
+- Idle oscillation e handheld noise deterministico.
+- Constraint tipizzati.
+- Fingerprint del descriptor.
+- Shot timeline.
+- Transizioni Cut, Smooth Blend, Push, Whip Pan e Focus Handoff.
+- Sub-frame sampling.
+- Checkpoint/pre-roll per accesso non sequenziale.
+- Camera debug/validation foundations.
+
+### Parziali
+
+- `OrientAlongPath` completo e banking.
+- Framing solver bounds-aware, multi-target e rule-of-thirds.
+- Near/far clipping di primitive complesse.
+- DOF fisico con Circle of Confusion e near/far separation.
+- Diagnostica della shot timeline.
+- Preset e adapter legacy ancora sovrapposti al percorso compilato.
+- Alcuni fix camera sono compilati ma test-blocked da TICKET-029.
+
+### Pianificate
+
+- Rimozione dei percorsi authoring legacy.
+- CLI camera validate/path-report/debug-video stabile.
+- Lens effects avanzati e bokeh fisico più completo.
+- Multi-camera avanzata, se richiesta dal prodotto dopo Camera Production V1.
+
+## SDK
+
+### Presenti
+
+- Header pubblici installabili.
+- Archivio statico aggregato `libchronon3d_sdk_impl.a`.
+- `Chronon3DConfig.cmake`, version file e targets export.
+- Target pubblico `Chronon3D::SDK`.
+- Registry CMake centrale.
+- Consumer esterno `find_package` per il confine install/link.
+- `ExtensionModule` e `ExtensionContext` per pack C++ esterni.
+
+### Parziali
+
+- Consumer corrente verifica package e simbolo, non un render completo.
+- Documentazione pubblica e compatibility policy non ancora da release.
+- Release artifact Linux/Windows non ancora certificati sullo stesso commit.
+
+### Pianificate
+
+- Consumer end-to-end che renderizza testo, camera ed effetti.
+- Formato dichiarativo versionato `.chronon`.
+- C ABI stabile con handle opachi.
+- Binding Python iniziale e binding successivi sullo stesso ABI.
+- Plugin binari versionati per pack C++ complessi.
 
 ## Expressions V2 — quarantena sperimentale
 
-Expressions V2 è presente su `main`, ma non è una feature pubblica stabile.
+Expressions V2 è presente sotto `experimental/expressions/`, ma non è una
+feature pubblica stabile.
 
 | Superficie | Stato reale |
 |---|---|
 | Root | `experimental/expressions/` |
-| Header | `experimental/expressions/include/chronon3d_experimental/expressions/v2/` |
-| Sorgenti/test | Dentro `experimental/expressions/` |
 | Build switch | `CHRONON3D_BUILD_EXPERIMENTAL=ON` |
 | Default | Escluso |
 | Install/export SDK | No |
 | Integrazione produttiva | No |
 
-`CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` è soltanto una chiave CMake deprecata senza effetto.
-
-Stato ticket:
-
-- TICKET-003: chiuso.
-- TICKET-004: chiuso.
-- TICKET-005: follow-up separato su `keyframes()` e pulizia documentale.
-- TICKET-EXP2-G3: migrazione reale da Path A a Path B.
-
-La promozione richiede tutti gli otto gate di
-[`EXPRESSIONS_V2_PROMOTION.md`](EXPRESSIONS_V2_PROMOTION.md): integrazione produttiva singola, determinismo, API documentata, benchmark, replacement map, deadline di rimozione e enforcement di un solo parser/VM/dependency graph.
-
-Non includere `chronon3d_experimental/...` nel codice stabile prima della rimozione approvata della quarantena.
+Non includere header sperimentali nel codice stabile prima della promozione e
+della rimozione approvata della quarantena.
