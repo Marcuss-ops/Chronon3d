@@ -436,7 +436,7 @@ TEST_CASE("motion_blur_parity_ticket_026 — MotionBlurMode::TemporalAccumulatio
     const i32 w = 64;
     const i32 h = 64;
 
-    auto comp = static_comp_64();  // factory from torture test set-up
+    auto comp = make_static_composition(64, 64);  // static_comp_64 alias (factory lives in this TU)
 
     // Two RenderSettings instances that are LITERALLY identical EXCEPT for
     // the legacy `enabled` vs new `mode` field.  Post-fix, the only field
