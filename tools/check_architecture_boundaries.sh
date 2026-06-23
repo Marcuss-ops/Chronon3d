@@ -231,21 +231,58 @@ else
     echo "SKIP (tools/check_software_renderer_boundary.sh not executable)"
 fi
 
-# ── 11. msdfgen / libtess2 / unicode include DENY (PR-A10) ───────────────
+# ── 11. msdfgen / libtess2 / unicode include DENY (PR-A10, ADR-009) ────
 # CPU-first headless posture (AGENTS.md §Regole di lavoro): no third-party
-# glyph / tessellation / ICU deps anywhere in $SCRIPT_PATHS.  Density /
-# boundary / text-backend code is finite and self-contained; future
-# contributions that need msdfgen or libtess2 must first file a design
-# ADR that lifts the deny posture server-wide.  Deny patterns are
-# tightly scoped to include *statements* only — do NOT broaden to
-# comments or tests.  Pattern: <msdfgen> | <libtess2> | <unicode[/...]>.
-echo -n "  [11/11] msdfgen/libtess2/unicode includes FORBIDDEN  ... "
+# glyph / tessellation / ICU deps anywhere *outside* the scoped adapter
+# directories justified by ADR-009 (`docs/adr/ADR-009-optional-text-deps.md`).
+# The adapter allowlist is the single source of truth for which paths may
+# include the otherwise-forbidden headers; a leak outside these paths
+# trips this guard and the PR fails.  Pattern:
+#   <msdfgen[/...]> | <libtess2[/...]> | <unicode[/...]>
+# Adapter scopes (ADR-009 §Decision #4):
+#   <msdfgen[/...]>    src/text/glyph_raster/   (FILES ONLY, not include/)
+#   <libtess2[/...]>   src/text/text_3d/        (FILES ONLY, not include/)
+#   <unicode[/...]>    src/text/boundary_resolver/   + src/backends/text/icu_resolver.cpp
+# Public headers reflected from adapters must NOT include these libraries
+# directly — downstream consumers see only IGlyphRasterizer*, TextBoundaryResolver*,
+# and Text3DNode (the same adapter pattern already documented for HarfBuzz
+# and Blend2D).
+#
+# Adapter-scope note (forward-looking hardening): the source surface does
+# NOT yet contain any of `src/text/glyph_raster/`, `src/text/text_3d/`,
+# `src/text/boundary_resolver/`, or `src/backends/text/icu_resolver.cpp`
+# (those paths are reserved for future phase 9/11/12 per the ROADMAP).
+# Once adapter modules land, the awk filter below must continue to drop
+# their include statements before the deny-pattern fires.
+#
+# Anchor policy: each forbidden header NAME is matched at the START of
+# the included token (right after `<` or `"`), so substring coincidences
+# such as `text_unicode_utils.hpp` (a Chronon3D-internal helper whose
+# name contains `unicode` as a substring) do NOT false-positive.
+echo -n "  [11/11] msdfgen/libtess2/unicode includes FORBIDDEN (ADR-009 scoped) ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
-    -E '#[[:space:]]*include[[:space:]]*<(msdfgen|libtess2|unicode(/[^>]*)?)>' \
+    -E '#[[:space:]]*include[[:space:]]*[<"](msdfgen|libtess2|unicode|tesselator)([-./][^>"]*)?[>"]' \
     $SCRIPT_PATHS 2>/dev/null \
-    || true)
+    | awk -F: '
+        {
+            path = $1
+            # Drop hits that fall inside the ADR-009 allowlist paths.
+            if (path ~ /^src\/text\/glyph_raster\//)       next
+            if (path ~ /^src\/text\/text_3d\//)            next
+            if (path ~ /^src\/text\/boundary_resolver\//)  next
+            if (path == "src/backends/text/icu_resolver.cpp") next
+            print
+        }
+    ' || true)
 if [ -n "$hits" ]; then
-    echo "FAIL"; echo "$hits" | sed 's/^/    /'; FAILED=1
+    echo "FAIL"; echo "$hits" | sed 's/^/    /'
+    echo "    → ADR-009 (\`docs/adr/ADR-009-optional-text-deps.md\` §Decision #4) lists the only scopes that"
+    echo "      may legitimately include the forbidden headers.  Relocate the offending file into one of:"
+    echo "        src/text/glyph_raster/             — msdfgen[/...]  only"
+    echo "        src/text/text_3d/                  — libtess2[/...]  or tesselator...  only"
+    echo "        src/text/boundary_resolver/        — unicode[/...]  only"
+    echo "        src/backends/text/icu_resolver.cpp — unicode[/...]  only"
+    FAILED=1
 else echo "PASS"; fi
 
 # ── Summary ───────────────────────────────────────────────────────────
