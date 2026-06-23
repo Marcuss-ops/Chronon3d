@@ -1,8 +1,13 @@
 # Camera Feature Matrix — Chronon3D
 
-> **Snapshot:** `main@25049b2`, 23 giugno 2026.
+> **Snapshot funzionale camera analizzato:** `main@25049b2`, 23 giugno 2026.
+>
+> **Ultima baseline eseguita:** `main@446a60e2`.
+>
+> **HEAD ricontrollato:** `main@14dbc415`, 23 giugno 2026.
 >
 > Stato prodotto complessivo: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
+> Prova operativa: [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md).
 > Piano canonico: [`camera-plan/`](camera-plan/).
 >
 > Una feature presente nel codice ma con test non eseguibili è 🟡, non ✅.
@@ -19,10 +24,24 @@
 
 | Obiettivo | Completezza stimata | Nota |
 |---|---:|---|
-| Camera Production V1 per motion graphics 2.5D | 70–75% | Percorso compilato avanzato; test/link e migrazione legacy ancora aperti. |
+| Camera Production V1 per motion graphics 2.5D | 70–75% | Percorso compilato avanzato; certificazione test e migrazione legacy ancora aperte. |
 | Parità camera molto ampia con After Effects | 55–60% | Framing, clipping, DOF e path/orientation avanzati non sono tutti completi. |
 
-Le percentuali sono stime ingegneristiche, non risultati CI.
+Le percentuali sono stime ingegneristiche, non risultati CI. I commit di
+stabilizzazione successivi a `25049b2` non giustificano da soli una variazione
+della stima funzionale camera; cambiano invece lo stato di verificabilità del
+repository.
+
+## Stato della verifica corrente
+
+L’ultima baseline documentata su `446a60e2` ha prodotto tre controlli verdi e un
+target build rosso. La build si arresta attualmente su TICKET-039 nel confine
+`RenderEngine`/`SoftwareRenderer`; TICKET-038 resta il blocker successivo noto.
+Di conseguenza, i target camera non sono ancora raggiunti dalla baseline completa.
+
+TICKET-029 resta un blocker specifico della compilazione/link dei test camera,
+ma non deve essere descritto come l’unico o il primo blocker globale del
+repository.
 
 ## 1. Architettura canonica
 
@@ -30,7 +49,7 @@ Le percentuali sono stime ingegneristiche, non risultati CI.
 |---|---|---|
 | `Camera2_5D` snapshot runtime | ✅ | Tipo runtime usato da projection e renderer. Non deve essere l’authoring primario futuro. |
 | `CameraDescriptor` authoring | 🟡 | Presente con source/orientation/modifier/constraint variant; migrazione composizioni non completa. |
-| `compile_camera()` | 🟡 | Produce `CameraProgram`; alcuni regression test sono bloccati dal link scene tests. |
+| `compile_camera()` | 🟡 | Produce `CameraProgram`; la certificazione dei regression test è bloccata dalla catena TICKET-039/TICKET-038 e poi da TICKET-029. |
 | `CameraProgram` immutabile | 🟡 | Entry point compilato presente e metadata dependency disponibili. |
 | `CameraSession` per render job | 🟡 | Stato separato e checkpoint/pre-roll presenti; integrazione e prove complete da chiudere. |
 | Fingerprint descriptor | 🟡 | Hash deterministico implementato; includere nei gate di regressione. |
@@ -73,7 +92,7 @@ CameraDescriptor
 |---|---|---|
 | Static camera source | 🟡 | Presente nel compiled path. |
 | Pose Tracks | 🟡 | Posizione, rotazione, target, zoom/FOV e DOF channels presenti. |
-| Orbit Motion | 🟡 | Track/dolly corretti nel basis locale; nuovi test compilano ma sono bloccati da TICKET-029. |
+| Orbit Motion | 🟡 | Track/dolly corretti nel basis locale; nuovi test compilano isolatamente ma non sono ancora eseguiti. |
 | Trajectory Motion | 🟡 | Tipo e trajectory path presenti; base-state preservation e test completi ancora aperti. |
 | Arc-length LUT | ✅ | Implementazione e regression test documentati. |
 | Sub-frame `SampleTime` | ✅ | Animated values, camera, composition e temporal samples usano il contratto sub-frame. |
@@ -153,15 +172,27 @@ CameraDescriptor
 | JSON report stabile | 🔵 | Schema/versionamento da definire. |
 | Golden camera suite | 🔴 | Necessaria per dichiarare Camera Production V1. |
 
-## 9. Blocker immediato
+## 9. Catena di blocker per la certificazione camera
 
-### TICKET-029
+### TICKET-039 — blocker globale corrente
 
-`chronon3d_scene_tests` non collega correttamente. Finché questo blocker non è
-chiuso, i fix camera recenti con test compilati restano 🟡 e non possono essere
-promossi a ✅.
+La baseline si arresta nel percorso `RenderEngine`/`SoftwareRenderer` prima di
+raggiungere la certificazione completa dei target camera. Correggere il consumer
+verso l’accessor canonico `render_settings()` e rieseguire il target scopritore.
 
-Dopo la chiusura, rieseguire almeno:
+### TICKET-038 — blocker globale successivo noto
+
+Il visual test testuale contiene un rot di lambda capture/deduzione che potrebbe
+manifestarsi subito dopo TICKET-039. Deve essere chiuso prima di dichiarare la
+catena di build sufficientemente sana per una nuova baseline.
+
+### TICKET-029 — blocker specifico camera
+
+`camera_program_compiler.cpp` presenta una rottura di type visibility che blocca
+link ed esecuzione dei test scene/camera. Finché è aperto, i fix camera recenti
+con test compilati isolatamente restano 🟡.
+
+Dopo la chiusura della catena, rieseguire almeno:
 
 - projection variant preservation;
 - single orientation application;
