@@ -5,6 +5,42 @@
 # and include it here. This keeps merge conflicts small when multiple
 # developers add tests in parallel.
 
+# ADR-018 — declare the per-area `.cmake` files that are `include()`d
+# below as configure-time dependencies, so Ninja / Make re-runs
+# `cmake --preset` whenever any of them is touched. Without this, an
+# edit to e.g. `text_preset_visual_tests.cmake` silently leaves the
+# generated `build.ninja` and per-target `link.txt` stale (the F-A
+# diagnostic surfaced this as a missing `link.txt` when the link
+# step fails). Adding a `.cmake` to the property list is the canonical
+# fix; do NOT add new per-area `.cmake` files without extending this
+# list too. ADR-018 keeps the rule explicit and the file list co-located
+# with the orchestrator.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/backends_software_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/core_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/scene_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/cli_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/optimizer_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/cache_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/compositor_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/authoring_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/benchmarks.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/animation_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/renderer_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/io_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/breathing_golden_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/visual_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/graphics_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/gradient_visual_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/deterministic_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/text_preset_visual_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/precomp_focus_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/content_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/video_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/media_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/architecture_tests.cmake
+)
+
 find_package(doctest CONFIG REQUIRED)
 
 # Shared test main
