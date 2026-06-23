@@ -3066,4 +3066,3 @@ The CLI slim cleanup (F1.2) triggered a fresh repo-wide grep that surfaced this 
 | **Suggested fix** | (1) Ensure no internal includes. (2) Rewrite to use `Chronon3D::SDK` INTERFACE alias. (3) Promote gate. |
 | **Acceptance criteria** | (1) `[14/14]` passes. (2) `install_consumer_test` compiles against installed SDK alias without internal includes. |
 | **Cross-references** | AGENTS.md §4; ADR-008; ADR-010-3; Gate `[14/14]`. |
-
