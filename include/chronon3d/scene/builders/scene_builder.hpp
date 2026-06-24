@@ -31,6 +31,8 @@
 
 namespace chronon3d {
 
+    class FontEngine;
+
     class SceneBuilder {
       public:
         explicit SceneBuilder(std::pmr::memory_resource *res = std::pmr::get_default_resource(),
@@ -130,6 +132,7 @@ namespace chronon3d {
             local_ctx.frame_time = m_ctx.frame_time;
 
             SceneBuilder sub_builder(local_ctx, m_shape_registry);
+            if (m_font_engine) sub_builder.font_engine(m_font_engine);
             std::forward<Fn>(fn)(sub_builder);
 
             Scene sub_scene = sub_builder.build();
@@ -156,6 +159,7 @@ namespace chronon3d {
         SceneBuilder &layer(std::string name, Fn &&fn) {
             LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
             builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
+            if (m_font_engine) builder.font_engine(m_font_engine);
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
@@ -169,6 +173,7 @@ namespace chronon3d {
         SceneBuilder &screen_layer(std::string name, Fn &&fn) {
             LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
             builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
+            if (m_font_engine) builder.font_engine(m_font_engine);
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
@@ -184,6 +189,7 @@ namespace chronon3d {
         SceneBuilder &adjustment_layer(std::string name, Fn &&fn) {
             LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
             builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
+            if (m_font_engine) builder.font_engine(m_font_engine);
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
@@ -197,6 +203,7 @@ namespace chronon3d {
         template <typename Fn>
         SceneBuilder &precomp_layer(std::string name, std::string comp_name, Fn &&fn) {
             LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
+            if (m_font_engine) builder.font_engine(m_font_engine);
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
@@ -211,6 +218,7 @@ namespace chronon3d {
         template <typename Fn>
         SceneBuilder &video_layer(std::string name, video::VideoSource source, Fn &&fn) {
             LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
+            if (m_font_engine) builder.font_engine(m_font_engine);
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
@@ -253,6 +261,7 @@ namespace chronon3d {
                 return *this;
             } else {
                 LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
+                if (m_font_engine) builder.font_engine(m_font_engine);
                 std::forward<Fn>(fn)(builder);
 
                 Layer l = builder.build();
@@ -330,6 +339,11 @@ namespace chronon3d {
             return current_time_;
         }
 
+        /// WP-8 PR 8.0 — per-SceneBuilder FontEngine default. Forwarded to
+        /// every LayerBuilder created by layer() / screen_layer() / etc.
+        SceneBuilder& font_engine(FontEngine* engine) { m_font_engine = engine; return *this; }
+        [[nodiscard]] FontEngine* font_engine() const { return m_font_engine; }
+
         friend class CameraApi;
 
       private:
@@ -355,6 +369,7 @@ namespace chronon3d {
         i32 m_height{1080};
         registry::ShapeRegistry* m_shape_registry{nullptr};
         std::optional<registry::ShapeRegistry> m_own_shape_registry;
+        FontEngine* m_font_engine{nullptr};
     };
 
 } // namespace chronon3d
