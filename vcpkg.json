@@ -69,5 +69,5 @@
       "dependencies": ["tracy"]
     }
   },
-  "default-features": ["mesh", "cli", "blend2d", "text", "exr"]
+  "default-features": []
 }
