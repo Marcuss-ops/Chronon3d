@@ -1,6 +1,6 @@
 # Chronon3D — Next Steps Reali
 
-> **Snapshot:** current `main` — 24 giugno 2026. Stato confluito dai due
+> **Snapshot:** current `main` — 24 giugno 2026. Stato confluito dai tre
 > blocchi recenti:
 >
 > - **Blocco 1** (baseline registrata con articolo dedicato, già su main):
@@ -8,8 +8,16 @@
 > - **Blocco 2** (eseguito sul main corrente): TXT-00 **CHIUSO** su
 >   `main@f90174cc` — build/link/test rc=0, `VRTextPresetVisual` 18/18,
 >   263/263 assertions, entrambe le `TextE2E` verdi.
+> - **Blocco 3** (eseguito a valle): TXT-01 parzialmente **CHIUSO** su
+>   `main@5b83a123` — hash gate ingaggiato (128 sentinel catturati come
+>   `constexpr`) + failure-path provata (`+1` mutation osservata a
+>   doctest rc=8; revert a rc=0). Restano aperti: PNG dump,
+>   light/dark BG, testo corto/lungo, determinismo seriale/parallelo
+>   (i restanti 4 DoD di TXT-01).
 >
 > Baseline Blocco 1 corrente: [`baselines/main-25c6b5cd-render-aggregator-deps-fixed.md`](baselines/main-25c6b5cd-render-aggregator-deps-fixed.md).
+> Baseline Blocco 2 (TXT-00 chiuso): [`baselines/main-345e5f2e-txt-00-closed.md`](baselines/main-345e5f2e-txt-00-closed.md).
+> Baseline Blocco 3 (TXT-01 hash-gate): [`baselines/main-5b83a123-txt-01-blocco-3-failure-path-proven.md`](baselines/main-5b83a123-txt-01-blocco-3-failure-path-proven.md).
 > Baseline storica TXT-00 build-only: [`baselines/main-ccabb574-txt-00-build-green.md`](baselines/main-ccabb574-txt-00-build-green.md) (superata da Blocco 2).
 > Stato prodotto: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
 > Milestone: [`ROADMAP.md`](ROADMAP.md).
@@ -146,22 +154,53 @@ Profili minimi:
 - release Linux;
 - release Windows quando disponibile.
 
+## Priorità 1.5 — TXT-01 rimanenti (Blocco 4+: PNG dump + scenari aggiuntivi)
+
+Dopo la chiusura parziale del Blocco 3 (hash gate ingaggiato + failure-path
+provata) restano aperti 4 dei 6 Definition-of-Done di TXT-01 sul main corrente:
+
+1. `PNG o altro artifact visuale ispezionabile` — PNG dump da cablare nel TU;
+   introduce `tests/helpers/render_regression.hpp::verify_golden_or_create` oppure
+   un `tools/dump_text_preset_pngs.sh` parallelo al ctest, dump su failure o
+   in modalità `--update-goldens`.
+2. `almeno un testo corto e un testo lungo per ogni famiglia critica` — la matrice
+   attuale usa solo `"THE QUICK BROWN FOX JUMPS"`. Aggiungere `LONG_TEXT_FIXTURE`
+   (es. paragraph 4-line) per il gate di overflow.
+3. `sfondo chiaro e scuro almeno per i preset con fill, stroke, glow o box` —
+   la matrice attuale usa solo sfondo trasparente. Servono 2 combinazioni
+   `CentroTextOptions.background_color` (light/dark) per i 4 preset della
+   famiglia fill/stroke/glow/box.
+4. `seriale e parallelo producono gli stessi riferimenti quando supportati` —
+   harness determinismo che confronta i 128 hash con N_BUILD_WORKERS=1 vs
+   N_BUILD_WORKERS=8.
+
+Ognuno di questi sub-PR è piccolo (1 TU + 1 doc update), mantiene il contratto
+di "lavoro direttamente su `main`, un task alla volta", e produce la propria
+baseline dedicata (es. `docs/baselines/main-<sha>-txt-01-png-dump.md`,
+`docs/baselines/main-<sha>-txt-01-light-dark.md`, ecc.).
+
 ## Priorità 4 — Text Production V1
 
-Ordine consigliato:
+Ordine consigliato (TXT-01 in cima, poi lavoro già pianificato):
 
-1. sbloccare FontEngine e rendere verde il visual regression target;
-2. ampliare il visual regression harness sui preset già presenti;
-3. chiudere rich text e styling per parola end-to-end;
-4. introdurre modello timed text e parser JSON/SRT;
-5. implementare word timing compiler;
-6. chiudere subtitle layout policies 16:9, 9:16 e 1:1;
-7. implementare highlight, karaoke e word-pop;
-8. completare Wiggly/Wave/Random selector necessari ai preset;
-9. certificare 20 preset generali e 8 subtitle;
-10. verificare consumer SDK e documentazione pubblica.
+1. (TXT-01 in corso) — completare i 4 DoD aperti sopra (PNG dump, light/dark BG,
+   testo corto/lungo, determinismo seriale/parallelo).
+2. (TXT-02) — `TextPresetRegistry` unica fonte della verità (dipende da TXT-01
+   green end-to-end).
+3. (TXT-03) — Contratto `TextPropertyStage` e invalidazione cache.
+4. (TXT-04) — Character Offset realmente pre-shaping.
+5. (TXT-05) — Ritiro della pipeline legacy `TextAnimator`.
+6. (TXT-06) — Correttezza paragraph e layout (rimozione `doctest::skip()`).
+7. (TXT-07) — Wiggly Selector nel resolver comune.
+8. (TXT-08) — Wave Selector e completamento Range Selector.
+9. (TXT-09) — Preset per-unità autentici (word_cascade, character_cascade, word_pop).
+10. (TXT-10) — Rich text produttivo e semantic word IDs.
+11. (TXT-11) — Modello timed text e parser SRT/VTT/JSON.
+12. (TXT-12) — Subtitle compiler, highlight, karaoke e layout (16:9, 9:16, 1:1).
+13. (TXT-13) — Text on Path completo.
+14. (TXT-14) — Certificazione Text Production V1 finale + consumer SDK esterno.
 
-Non iniziare Text 3D o MSDF prima di questo milestone.
+Non iniziare Text 3D o MSDF prima di TXT-14.
 
 ## Priorità 5 — Camera Production V1
 
