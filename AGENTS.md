@@ -56,16 +56,10 @@ Snapshot dello stato corrente (vedi body per lo stato per-agente). L'assegnazion
    - branch: `codex/agent1-renderer-boundary` **[DONE ✓ — Merged into main on 2026-06-23, branch retired]**
    - ownership: renderer/backend software, call site correlati, test mirati e gate renderer.
 2. [Agente 2 — CMake Registry, SDK Boundary e Baseline](docs/agent-tasks/AGENT_2_CMAKE_SDK_BASELINE.md)
-   - branch: `codex/agent2-cmake-sdk-baseline` **[NOT STARTED — branch missing on origin as of 2026-06-23]**
+   - branch: `codex/agent2-cmake-sdk-baseline` **[COMPLETED — merged into main at ccabb574 on 2026-06-24]**
    - ownership: CMake, preset/toolchain, install consumer, full validation e documenti canonici.
 
-L'Agente 2 (non ancora avviato), quando sarà avviato, dovrà rebase su `main` che già contiene la correzione renderer/backend approvata nell'ambito dell'Agente 1.
-
-Non scambiare ownership senza una decisione esplicita. In particolare:
-
-- l'Agente 1 non aggiorna i claim globali di baseline;
-- l'Agente 2 non modifica l'implementazione renderer/backend;
-- entrambi devono controllare il diff remoto prima di toccare file già modificati dall'altro agente.
+Entrambi gli agenti sono completati. Lavoro sequenziale su `main`, un task alla volta.
 
 ## Priorità obbligatoria
 
@@ -99,9 +93,6 @@ Non scambiare ownership senza una decisione esplicita. In particolare:
 git fetch origin
 git checkout main
 git pull --ff-only origin main
-git checkout <branch-assegnato>
-git rebase origin/main
-git status -sb
 ```
 
 Dopo le modifiche:
@@ -110,9 +101,9 @@ Dopo le modifiche:
 git status -sb
 git diff
 # test mirati
-git add <solo-file-assegnati>
+git add <solo-file-modificati>
 git commit -m "<tipo(scope): descrizione chiara>"
-git push origin <branch-assegnato>
+git push origin main
 git log -n 5 --oneline
 ```
 
