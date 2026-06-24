@@ -1,6 +1,10 @@
 # Chronon3D — Current Product Readiness
 
-> **Snapshot canonico:** `main@25049b2` — 23 giugno 2026.
+> ⚠️ **SUPERSEDED** — Questo documento è stato sostituito da [`CURRENT_STATUS.md`](CURRENT_STATUS.md).
+> Il contenuto sottostante è conservato per riferimento storico. Per lo stato
+> corrente del prodotto, consultare [`CURRENT_STATUS.md`](CURRENT_STATUS.md).
+
+> **Snapshot canonico:** `main@83a4bf21` — 23 giugno 2026.
 >
 > Questo documento descrive il punto reale del prodotto. Le percentuali sono
 > stime ingegneristiche di copertura funzionale, non risultati di CI. Una
@@ -121,10 +125,10 @@ Il repository conserva ancora percorsi sovrapposti: `Camera2_5D` diretta,
 devono entrare soltanto in `CameraDescriptor → CameraProgram`; gli altri percorsi
 sono adapter temporanei o debito di migrazione.
 
-Alcune correzioni camera recenti sono atterrate nel codice ma i relativi test
-non possono essere considerati verdi finché `chronon3d_scene_tests` non collega
-correttamente. In particolare, il blocker documentato come TICKET-029 impedisce
-di trasformare alcuni fix compilati in prove eseguite.
+Alcune correzioni camera recenti sono atterrate nel codice. Il blocker TICKET-029
+che impediva il link step di `chronon3d_scene_tests` è stato risolto (vedi
+[`STATUS.md`](STATUS.md)). I test camera compilati devono ancora essere eseguiti
+end-to-end con `RC=0` per dichiarare una baseline verde.
 
 ### Gap principali
 

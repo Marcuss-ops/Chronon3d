@@ -17,7 +17,7 @@
 //   tile_pruning.cpp     — compute_dirty_clip
 //   framebuffer_lifetime — init / release FB resources
 //
-// PR-2 rewire followup (WP-8) — the two `execute(RenderGraph&, ...)`
+// PR-2 rewire (WP-8 Done) — the two `execute(RenderGraph&, ...)`
 // were RETIRED.  All callers compile through `FrameGraphCompiler` first;
 // see `docs/refactor-roadmap/02-compiled-graph-only.md`.
 
@@ -40,18 +40,9 @@ namespace chronon3d::graph {
 // GraphExecutor public API
 // ──────────────────────────────────────────────────────────────────────
 
-// PR 6.1 — extracted shared body.  Both legacy `execute(RenderSession&, ...)`
-// and new `execute_with_scope(ExecutionScope&, ...)` route through this
-// helper; the only difference is which `arena` reference the helper's
-// `ArenaGuard` resets on return (parent session's arena vs child scope's
-// arena).  The `(session, arena)` signature keeps the helper agnostic to
-// whether the caller came via the legacy fragment or the new typed one.
-//
-// The helper takes `arena` BY REFERENCE because the executor's
-// `ArenaGuard` struct needs a stable address for its destructor to fire
-// `arena.reset()` deterministically (RAII unwind path).  The lifetime
-// invariant is the CALLER's responsibility: `arena` must outlive the
-// helper frame.
+// WP-7 — single implementation body.  Takes `session` and `arena` separately
+// so the helper is agnostic to whether the arena came from `session.arena()`
+// (root scope) or a distinct child arena (tile / precomp scope).
 [[nodiscard]] static std::shared_ptr<Framebuffer> execute_internal(
     CompiledFrameGraph& compiled,
     RenderGraphContext& ctx,
@@ -103,26 +94,12 @@ namespace chronon3d::graph {
     return state.temp[output];
 }
 
-std::shared_ptr<Framebuffer> GraphExecutor::execute(
-    CompiledFrameGraph& compiled,
-    RenderGraphContext& ctx,
-    RenderSession& session,
-    ExecutionScheduler& scheduler
-) const {
-    return execute_internal(compiled, ctx, session, session.arena(), scheduler);
-}
-
-// PR 6.1 — additive overload.  Reads `scope.session()` and `scope.arena()`
-// so callers can pass a typed `ExecutionScope&` (with an explicit
-// parent-chain + child-arena).  PR 6.5 — if `scope.would_overflow()`
-// returns true (chain depth > kMaxScopeDepth was clamped at ctor time),
-// log the overflow deterministically via spdlog and return nullptr per
-// docs/03-§4.4 (empty fb / engine error convention).
-//
-// Code-reviewer finding (Nit Pick Nick, 1st pass): gate the spdlog::warn
-// behind `spdlog::should_log(level::warn)` so the warning doesn't spam
-// the log when spdlog's level filter excludes `warn` (e.g. benchmark
-// runs at level::err or higher).
+// WP-7 — single entrypoint.  Reads `scope.session()` and `scope.arena()`
+// so callers pass a typed `ExecutionScope&` (with an explicit
+// parent-chain + child-arena).  If `scope.would_overflow()` returns true
+// (chain depth > kMaxScopeDepth was clamped at ctor time), log the
+// overflow deterministically via spdlog and return nullptr per
+// docs/03-execution-scope-and-precomp.md §4.4 (empty fb / engine error).
 std::shared_ptr<Framebuffer> GraphExecutor::execute_with_scope(
     CompiledFrameGraph& compiled,
     RenderGraphContext& ctx,

@@ -39,6 +39,10 @@
 //    21. glow_pulse                 (Stage 3)
 //    22. caption_box                (Stage 3)
 //
+//   ─ TXT-12 HIGHLIGHT/KARAOKE (2) ──────────────────────────────────
+//    23. active_word_pop            (TXT-12)
+//    24. karaoke_fill               (TXT-12)
+//
 // Anti-circular-dependency: this .cpp DOES NOT include any
 // `content/text/text_*.hpp`.  Edge direction canon
 // (content → core/registry, mai viceversa) is preserved.
@@ -751,6 +755,56 @@ TextPreset caption_box_entry() {
     return p;
 }
 
+// ── TXT-12: Highlight / Karaoke (Subtitle) ─────────────────────────────────
+
+// 23. active_word_pop — per-word scale overshoot (1.15) with word stagger.
+//     Designed for active-word highlighting driven by timing data. Each word
+//     pops in sequence; the caller sets fill color via spec.appearance.color.
+TextPreset active_word_pop_entry() {
+    TextPreset p;
+    p.id           = "active_word_pop";
+    p.display_name = "ActiveWordPop";
+    p.category     = TextPresetCategory::Subtitle;
+    p.description  = "Per-word scale overshoot (1.0→1.15) with word_stagger. "
+                     "Each word pops in sequence — active-word highlight effect. "
+                     "Pair with a highlight color via spec.appearance.color.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/text/subtitle_active_word_pop
+        // Per-word ScaleProperty{1.15} is driven by the resolver (Word selector).
+        // word_stagger sequences the word appearances; no layer-level scale.
+        wire_through_resolver(lb, "active_word_pop", spec)
+          .word_stagger(Frame{3}, Frame{24})
+          .fade_in(Frame{12});
+    };
+    return p;
+}
+
+// 24. karaoke_fill — progressive word-by-word reveal with fill color transition.
+//     Each word appears in sequence driven by word_stagger; the caller sets
+//     the karaoke highlight color (e.g. yellow) via spec.appearance.color.
+TextPreset karaoke_fill_entry() {
+    TextPreset p;
+    p.id           = "karaoke_fill";
+    p.display_name = "KaraokeFill";
+    p.category     = TextPresetCategory::Subtitle;
+    p.description  = "Progressive word-by-word reveal. Words appear in sequence "
+                     "via word_stagger, simulating karaoke-style fill. Caller "
+                     "sets highlight color via spec.appearance.color.";
+    p.builtin      = true;
+    p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
+                        LayerBuilderT& lb,
+                        const TextSpecT& spec) {
+        // golden-frame-link: tests/visual/text/subtitle_karaoke_fill
+        wire_through_resolver(lb, "karaoke_fill", spec)
+          .word_stagger(Frame{4}, Frame{30})
+          .fade_in(Frame{15});
+    };
+    return p;
+}
+
 
 void register_builtin_presets(TextPresetRegistry& r) {
     // ── Cinematic (4) — PR `41cda40c` kept verbatim ──────────────────────
@@ -782,6 +836,10 @@ void register_builtin_presets(TextPresetRegistry& r) {
     r.register_preset(yellow_keyword_entry());
     r.register_preset(glow_pulse_entry());
     r.register_preset(caption_box_entry());
+
+    // ── TXT-12 Highlight / Karaoke (2) ───────────────────────────────────
+    r.register_preset(active_word_pop_entry());
+    r.register_preset(karaoke_fill_entry());
 }
 
 } // namespace
