@@ -1,0 +1,76 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# gates-experimental-validation.yml — V1 stable + experimental subsystems gate
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Companion to gates-release-validation.yml. Created on 2026-06-24 after the
+# split of `linux-full-validation` into V1-stable (release-validation, the
+# release contract) + forward-looking (experimental-validation, this workflow).
+#
+# The experimental-contract gate. Triggered when the PR touches the
+# experimental subsystems (experimental/expressions/**) OR the shared core
+# that the experimental subsystems depend on (include/chronon3d/**, src/**,
+# CMakeLists.txt, CMakePresets.json, vcpkg.json, workflows, tools, tests).
+#
+# Compared to gates-release-validation.yml the differences are:
+# 1. paths INCLUDES `experimental/**` (the experimental subtree).
+# 2. configure uses `linux-experimental-validation` (Debug + diagnostics +
+#    telemetry + profiling + CHRONON3D_BUILD_EXPERIMENTAL, plus the
+#    icu-layout, text-3d, text-msdf vcpkg features — icu, libtess2, msdfgen).
+# 3. timeout is the same 60 min (debug builds with the wider feature surface
+#    stay below the cut-off on the canonical ubuntu-latest runner).
+#
+# Why include `src/**` and `include/chronon3d/**` here even though those
+# are also in the release-validation paths:
+# `experimental/expressions/src/...` transitively consumes core headers
+# and BOOST-style interfaces under `include/chronon3d/`. A regression in a
+# shared header can break the experimental subtree even when the V1
+# contract is unchanged; the experimental gate must run to catch that.
+
+name: Chronon Gates (experimental-validation)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'include/chronon3d/**'
+      - 'src/**'
+      - 'experimental/**'
+      - 'CMakeLists.txt'
+      - 'CMakePresets.json'
+      - 'vcpkg.json'
+      - '.github/workflows/**'
+      - 'tools/**'
+      - 'tests/**'
+
+env:
+  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+  VCPKG_BINARY_SOURCES: "clear;nuget,GitHub,readwrite"
+  VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+
+jobs:
+  experimental-validation:
+    name: Gate / experimental-validation (V1 + icu / text-3d / msdf / expressions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: ${{ github.event_name == 'push' }}
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+      - name: Configure (linux-experimental-validation preset)
+        run: cmake --preset linux-experimental-validation
+
+      - name: Build (chronon3d_cli + chronon3d_tests + chronon3d_expressions_v2_tests)
+        run: cmake --build --preset linux-experimental-validation
+
+      - name: Run experimental-validation test suite
+        run: ctest --preset linux-experimental-validation-test --output-on-failure

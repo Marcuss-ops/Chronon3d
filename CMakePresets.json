@@ -145,13 +145,45 @@
       }
     },
     {
-      "name": "linux-full-validation",
+      "name": "linux-release-validation",
       "inherits": "base-linux",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
       },
+      "displayName": "Linux Release Validation (V1 stable contract)",
+      "description": "CI gate validating the V1 release contract: stable features only (cli, blend2d, text, mesh, exr, video, content, tests, benchmarks). Release build for release-contract semantics. Excludes telemetry, profiling, diagnostics, BUILD_EXPERIMENTAL, icu-layout, text-3d, text-msdf. Renamed from linux-full-validation on 2026-06-24.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_BENCHMARKS": "ON",
+        "CHRONON3D_BUILD_CONTENT": "ON",
+        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
+        "CHRONON3D_ENABLE_TEXT": "ON",
+        "CHRONON3D_USE_BLEND2D": "ON",
+        "CHRONON3D_ENABLE_EXR": "ON",
+        "CHRONON3D_ENABLE_VIDEO": "ON",
+        "CHRONON3D_ENABLE_MESH": "ON",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
+        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
+        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_UNITY_BUILD": "ON",
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;tests;benchmarks"
+      }
+    },
+    {
+      "name": "linux-experimental-validation",
+      "inherits": "base-linux",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "displayName": "Linux Experimental Validation (V1 stable + ICU + Text-3D + MSDF + Expressions)",
+      "description": "CI gate validating V1 stable features PLUS forward-looking experimental subsystems (BUILD_EXPERIMENTAL, icu-layout, text-3d, text-msdf, expressions/v2). Debug build with diagnostics + telemetry + profiling for full surface coverage. Renamed from linux-full-validation on 2026-06-24; the original preset was a Debug catch-all covering both contracts — the split makes each contract independently machine-gateable.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_CLI": "ON",
@@ -169,6 +201,7 @@
         "CHRONON3D_ENABLE_PROFILING": "ON",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "CHRONON3D_BUILD_EXPERIMENTAL": "ON",
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
         "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;telemetry;tests;benchmarks;profiling;icu-layout;text-3d;text-msdf"
       }
     },
@@ -531,11 +564,21 @@
       "jobs": 16
     },
     {
-      "name": "linux-full-validation",
-      "configurePreset": "linux-full-validation",
+      "name": "linux-release-validation",
+      "configurePreset": "linux-release-validation",
       "targets": [
         "chronon3d_cli",
         "chronon3d_tests"
+      ],
+      "jobs": 16
+    },
+    {
+      "name": "linux-experimental-validation",
+      "configurePreset": "linux-experimental-validation",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests",
+        "chronon3d_expressions_v2_tests"
       ],
       "jobs": 16
     },
@@ -707,8 +750,15 @@
       }
     },
     {
-      "name": "linux-full-validation-test",
-      "configurePreset": "linux-full-validation",
+      "name": "linux-release-validation-test",
+      "configurePreset": "linux-release-validation",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-experimental-validation-test",
+      "configurePreset": "linux-experimental-validation",
       "output": {
         "outputOnFailure": true
       }
