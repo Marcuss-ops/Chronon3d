@@ -3009,6 +3009,97 @@ Verified by full static investigation:
 
 ---
 
+## TICKET-039 — SoftwareRenderer::settings() regression from Agent-1 perimeter refactor
+
+| Field | Value |
+|---|---|
+| **Status** | 🟢 Done |
+| **Affected file(s)** | `src/runtime/render_engine.cpp` |
+| **Discovered during** | Post-merge stabilization gate at `main@446a60e2` (Agent-1 merge baseline), step (c.2) targeted build |
+| **Discovered date** | 2026-06-23 |
+| **Resolved at** | Commit `9703960b` on branch `codex/p0-render-engine-settings-fix` (now retired), merged to `main` at `ccabb574` (Agent 2 merge). Subsequent TXT-00 closure at `main@f90174cc` and audit baseline at `main@345e5f2e` / `b8114705` confirm no regression. |
+| **Resolver** | Agent 2 (CMake / SDK / baseline) — direct main push post-fix |
+
+### Symptom
+
+Targeted build `cmake --build --target chronon3d_text_preset_visual_tests --parallel 8` exits with code `1` at `src/runtime/render_engine.cpp`:
+
+> `SoftwareRenderer::settings()` is referenced from `RenderEngine::Impl` but is private (declared as `m_settings`).
+
+Per the documentary at `docs/baselines/main-446a60e2-baseline.md` step (c.2), this is a NEW rot — introduced during the Agent-1 perimeter refactor — not the previously predicted TICKET-038 lambda-capture rot.
+
+### Root cause
+
+Commit `b5c7df01` (Agent-1 perimeter canonicalization) renamed/shadowed the public `SoftwareRenderer::settings()` accessor without updating the only known consumer (`RenderEngine::Impl`). The targeted build of `chronon3d_text_preset_visual_tests` transitively instantiates `RenderEngine::Impl` via the `chronon3d_runtime` chain, so the failure surfaced in step (c.2) of the post-merge baseline.
+
+### Out-of-scope rationale
+
+Discovered post-merge at `main@446a60e2` and classified separately from the TICKET-009 PR-A4 closure that preceded it. AGENTS.md mandates small, non-overlapping PRs, so the rename fix landed in its own branch (`codex/p0-render-engine-settings-fix`) rather than within the Agent-1 perimeter commit itself.
+
+### Suggested fix approach (resolved)
+
+Replace the public `settings()` call site with the canonical `render_settings()` orchestrator pattern (chain `sw_renderer.runtime()->render_settings()`), implemented in commit `9703960b`.
+
+### Acceptance criteria
+
+- (a) `cmake --build --target chronon3d_text_preset_visual_tests --parallel 8` → rc=0. ✅ Observed at `main@345e5f2e` baseline; see `docs/baselines/main-345e5f2e-txt-00-closed.md`.
+- (b) `ctest -R '^VRTextPresetVisual$' --output-on-failure` → rc=0; 18/18 doctest cases, 263/263 assertions, 0 skipped. ✅ Observed.
+- (c) Both `TextE2E` cases green (`ink_pixels=1372` each). ✅ Observed.
+
+### Cross-references
+
+- `docs/baselines/main-446a60e2-baseline.md` — original discovery & priority-queue entry
+- `docs/baselines/main-ccabb574-txt-00-build-green.md` — fix-merge baseline
+- `docs/baselines/main-345e5f2e-txt-00-closed.md` — closure audit baseline (`b8114705`)
+
+---
+
+## TICKET-038 — Lambda capture / `auto` deduction rot in `tests/text/test_text_preset_visual.cpp` (predicted secondary blocker)
+
+| Field | Value |
+|---|---|
+| **Status** | 🟢 Done |
+| **Affected file(s)** | `tests/text/test_text_preset_visual.cpp` |
+| **Discovered during** | First-attempt baseline flow at `main@375bd5b9` (TXT-00 baseline attempt 1, compile rotated, link step failed with 96 undefined references); re-prioritized as the predicted secondary blocker in the next-stabilization-wave section of `docs/baselines/main-446a60e2-baseline.md`. |
+| **Discovered date** | 2026-06-23 |
+| **Resolved at** | TXT-00 closure verified at `main@f90174cc` and audit baseline at `main@345e5f2e` / `b8114705` (`docs/baselines/main-345e5f2e-txt-00-closed.md`). |
+| **Resolver** | Direct main push post-`VRTextPresetVisual` rc=0 (18/18 doctest cases, 263/263 assertions) |
+
+### Symptom
+
+Predicted at `main@446a60e2` baseline but did not manifest in step (c.2) because TICKET-039 aborted the chain first. Expected symptom (per priority-queue item 2): lambda capture / `auto` deduction rot in the test visual TU that would surface once TICKET-039 fixed the link surface and the test TU was then required to compile cleanly.
+
+### Root cause / resolution path
+
+Originally predicted as a secondary-side rot that would re-surface only after TICKET-039's link surface was reopened. Once TICKET-039 was closed, the issue did **not** surface in practice: the Agent 2 fix preempted the lambda-capture concern by closing both rot sites simultaneously. The TXT-00 closure path included the broader CMake registry restructure (`chronon3d_sdk` + `chronon3d_sdk_impl` surface split), FontEngine propagation `3254ef9f` (SceneBuilder → LayerBuilder → visual test injection, `WORKING_DIRECTORY` correctness), and asset_resolver injection `c68196d7` (which fixed the SIGSEGV inside `draw_text_run` from a missing `make_processor_context` asset_resolver).
+
+### Out-of-scope rationale
+
+Tracked separately from TICKET-039 so that, if it had emerged, resolution would have been a small surgical edit rather than tangled with the Agent-1 perimeter commit.
+
+### Suggested fix approach (resolved)
+
+None required — closed by prevention. The TXT-00 closure baseline at `b8114705` / `345e5f2e` observed the test TU compile + run green; 128 sentinels across 16 presets × 8 frames + 2 `TextE2E` cases all rc=0 with the lambda-capture / `auto` deduction concern never re-emerging.
+
+### Acceptance criteria
+
+- (a) `cmake --preset linux-ci` → rc=0. ✅ Observed.
+- (b) `cmake --build --preset linux-ci --target chronon3d_text_preset_visual_tests --parallel 8` → rc=0. ✅ Observed.
+- (c) `ctest -R '^VRTextPresetVisual$' --output-on-failure` → rc=0; 18/18 doctest cases, 263/263 assertions, 0 skipped; both `TextE2E` `ink_pixels=1372`. ✅ Observed.
+- (d) Frame-transparency matrix verified: 14 entrance-animation presets truly transparent at F000 by design; `BlurIn` F020 and `MaskedLineReveal` F020 sub-threshold mid-animation; `tracking_close` + `minimal_white` visible at every timestamp. ✅ Observed. No blanket labelling of intermediate frames.
+
+### Cross-references
+
+- `docs/baselines/main-345e5f2e-txt-00-closed.md` — TXT-00 closure baseline (audit-trail anchor)
+- `docs/baselines/main-ccabb574-txt-00-build-green.md` — TXT-00 build-only baseline (predecessor)
+- `docs/baselines/main-446a60e2-baseline.md` — original priority-queue mention
+- `docs/agent-tasks/TEXT_PRODUCTION_V1_PR_PLAN.md` — TXT-00 plan (TXT-00 → TXT-01 follow-ups)
+- `docs/adr/ADR-018-link-rot-text-visual.md` — F-A → F-C ROT history
+- `docs/FOLLOWUP_TICKETS.md` — TICKET-037 (FontEngine default-ctor regression, prior blocker; closed at `ccabb574`)
+
+---
+
+
 ## TICKET-040 — Retire `taskflow` from root `CMakeLists.txt` + `vcpkg.json` (P1, unused since v2-expressions quarantine)
 
 | Field | Value |
