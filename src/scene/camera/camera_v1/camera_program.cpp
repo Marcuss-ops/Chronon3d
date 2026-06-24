@@ -83,9 +83,18 @@ static void apply_projection_spec(const ProjectionSpec& spec,
 // ── Free helpers for compiled source dispatch (no header declarations needed) ──
 
 /// Apply orientation from an OrientationSpec variant (free function).
+///
+/// Agente 1: `path_tangent` and `path_roll_deg` are forwarded from the
+/// source evaluator.  When the source is TrajectoryMotion they carry the
+/// real tangent and the trajectory point's banking value; for any other
+/// source they're std::nullopt and OrientAlongPath falls back to the
+/// legacy POI-based contract (NEVER used as a "fake tangent" — just a
+/// safe no-op fallback for non-trajectory descriptors).
 static void apply_orientation_spec_free(const void* orient_variant,
                                          const CameraEvalContext& ctx,
-                                         Camera2_5D& cam) {
+                                         Camera2_5D& cam,
+                                         const std::optional<Vec3>& path_tangent,
+                                         const std::optional<float>& path_roll_deg) {
     const auto& orient = *static_cast<const OrientationSpec*>(orient_variant);
 
     if (std::holds_alternative<FixedOrientation>(orient)) {
@@ -122,27 +131,55 @@ static void apply_orientation_spec_free(const void* orient_variant,
         return;
     }
     if (auto* oap = std::get_if<OrientAlongPath>(&orient)) {
-        // CAM-03 / TICKET-023 — Orient camera forward along trajectory tangent.
+        // ── A1.3 / A1.4 — Orient camera forward along the REAL tangent ──────
         //
-        // The camera position has already been set by the source evaluator
-        // (TrajectoryMotion, PoseTracksSource, or OrbitMotion) and any
-        // modifiers.  We derive the tangent from the point_of_interest
-        // when available: normalize(target - position) gives the camera→target
-        // forward vector.  quat_look_along + quat_to_camera_euler produce the
-        // Euler rotation consistent with the Camera2_5D convention.
+        // When the source evaluator supplied a path_tangent (TrajectoryMotion
+        // branch in evaluate_compiled_source) the camera forward is the
+        // trajectory tangent — NOT a direction derived from the POI.  This
+        // is the cinematic intent: a path that turns a corner must rotate
+        // the camera around the curve, regardless of what the per-point
+        // POI is set to.  For non-trajectory sources (PoseTracks / Orbit /
+        // Static), path_tangent is empty and the orientation step falls
+        // back to the legacy POI-based contract (no "fake tangent").
         //
-        // For TrajectoryMotion, the trajectory sample returns both position
-        // and target, so the tangent is the camera→target forward.  For
-        // OrbitMotion, the target is the orbit centre.  For PoseTracksSource
-        // with use_target=true, the animated target provides the tangent.
+        // ── A1.5 — Banking ─────────────────────────────────────────────
+        //   keep_horizon=true ⇒ roll = 0 (level horizon regardless of path banking).
+        //   keep_horizon=false + path_roll_deg present (TrajectoryMotion) ⇒ roll
+        //     = path_roll_deg (the trajectory point's banking value).
+        //   keep_horizon=false + no path_tangent ⇒ roll = cam.rotation.z
+        //     (legacy POI contract preserves whatever rotation was set by
+        //      the source/modifiers).
         //
-        // When point_of_interest is NOT enabled (StaticCameraSource or
-        // PoseTracksSource without use_target), the orientation is a no-op
-        // (keep existing rotation) — the caller should pair OrientAlongPath
-        // with TrajectoryMotion for meaningful path-following behavior.
-        //
-        // keep_horizon=true zeroes roll (rotation.z) after the look-at,
-        // enforcing a level horizon regardless of path banking.
+        // ── A1.7 — Degenerate-tangent handling ──────────────────────────
+        //   The CALLER (CameraProgram::apply_orientation_spec member, see
+        //   below) resolves "last valid tangent" fallback BEFORE this
+        //   function, so when path_tangent arrives here with length ≤ ε
+        //   it means no cached valid tangent is available either; in that
+        //   case we simply skip the orientation step and keep the
+        //   existing rotation.  Together with upstream NaN-free
+        //   quaternion math, this means the camera NEVER reports NaN values.
+
+        if (path_tangent.has_value()) {
+            const Vec3& raw = *path_tangent;
+            const float len = glm::length(raw);
+            if (len > 1e-4f) {
+                const Vec3 forward = raw / len;
+                const Quat orientation = quat_look_along(forward);
+                const float roll = oap->keep_horizon
+                    ? 0.0f
+                    : (path_roll_deg.has_value() ? *path_roll_deg : cam.rotation.z);
+                cam.rotation = quat_to_camera_euler(orientation, roll);
+            }
+            // path_tangent present but degenerate (len ≤ ε) AND no cached
+            // fallback made it through the caller: keep existing rotation,
+            // never produce NaN.
+            return;
+        }
+
+        // No path_tangent (non-trajectory sources): fall back to the legacy
+        // POI-based contract — preserves existing tests in §4.D and golden
+        // suite.  NEVER reuse the POI as a "fake tangent" — it's only used
+        // as a behavioural safety net for non-path sources.
         if (cam.point_of_interest_enabled) {
             Vec3 look_dir = cam.point_of_interest - cam.position;
             float len = glm::length(look_dir);
@@ -394,18 +431,26 @@ static Camera2_5D eval_orbit_motion(const CameraBaseSpec& base,
 // evaluate_compiled_source — dispatch to the right evaluator by variant.
 // =========================================================================
 
-Camera2_5D CameraProgram::evaluate_compiled_source(const CameraEvalContext& ctx) const {
+EvaluatedCameraSource CameraProgram::evaluate_compiled_source(const CameraEvalContext& ctx) const {
     const auto& source = descriptor_.source;
     const auto& base = descriptor_.base;
+
+    EvaluatedCameraSource out;   // All paths default-construct (camera=default, optionals=empty).
 
     if (auto* pts = std::get_if<PoseTracksSource>(&source)) {
         // TICKET-022 / DOC 02 — orientation is no longer passed to source evaluators;
         // CameraProgram::evaluate() applies it once after modifiers.
-        return eval_pose_tracks(base, *pts, ctx);
+        out.camera = eval_pose_tracks(base, *pts, ctx);
+        // A1.1 — no path_tangent for non-trajectory sources (orientation step
+        // falls back to POI contract for non-path sources).
+        return out;
     }
     if (auto* orbit = std::get_if<OrbitMotion>(&source)) {
         bool animated = source_is_time_dependent(source);
-        return eval_orbit_motion(base, *orbit, ctx, animated);
+        out.camera = eval_orbit_motion(base, *orbit, ctx, animated);
+        // A1.1 — no path_tangent for orbit source (POI = orbit target; legacy
+        // POI contract applies if the user pairs OrientAlongPath with Orbit).
+        return out;
     }
     if (auto* traj = std::get_if<TrajectoryMotion>(&source)) {
         if (traj->trajectory) {
@@ -414,27 +459,68 @@ Camera2_5D CameraProgram::evaluate_compiled_source(const CameraEvalContext& ctx)
             motion_ctx.sample_time = ctx.sample_time;
             motion_ctx.base_position = base.position;
             motion_ctx.base_target = base.point_of_interest;
+            // motion_ctx.base_zoom / .base_fov_deg are unused by the trajectory
+            // samplers (they only emit position/tangent/target/roll_deg), so
+            // they keep their harmless default values.  Camera optics come
+            // from base.projection via apply_projection_spec below (A1.6).
             motion_ctx.base_zoom = 1000.0f;
             motion_ctx.base_fov_deg = 50.0f;
             motion_ctx.base_focus_distance = base.dof.focus_distance;
 
             auto t = traj->trajectory->sample(motion_ctx);
-            Camera2_5D cam;
+            Camera2_5D& cam = out.camera;
             cam.enabled = base.enabled;
             cam.position = t.position;
-            cam.zoom = 1000.0f;
-            cam.fov_deg = 50.0f;
+
+            // CAM-03 / A1.6 — preserve the optics via central projection
+            // dispatch (Zoom / Fov / PhysicalLensProjection).  Previously this
+            // branch hard-coded `cam.zoom = 1000.0f; cam.fov_deg = 50.0f;`
+            // which silently clobbered PhysicalLensProjection — fixed here.
+            apply_projection_spec(base.projection, ctx, cam);
+
+            // A1.6 — propagate the rest of the non-motion base state:
+            //   lens, DOF, motion blur, parent name.  None of these are
+            //   touched by the trajectory itself, so we are simply NOT
+            //   dropping them anymore.
+            cam.lens            = base.lens;
+            cam.dof             = base.dof;
+            cam.motion_blur     = base.motion_blur;
+            cam.parent_name     = base.parent_name;
+
             cam.point_of_interest = base.point_of_interest;
             if (t.target) cam.point_of_interest = *t.target;
             cam.point_of_interest_enabled = true;
 
+            // A1.1 — forward the REAL trajectory tangent (parametric
+            // direction at this sample) to the orientation step.  Stored
+            // raw (not renormalised) here so the orientation step can reuse
+            // the normalization it already does in quat_look_along.
+            if (glm::length(t.tangent) > 0.0f) {
+                out.path_tangent = t.tangent;
+            }
+            // A1.5 — banking value from the trajectory point (used by the
+            // orientation step when keep_horizon=false).
+            out.path_roll_deg = t.roll_deg;
+
+            // A1.7 — update the session-cached last valid tangent so a
+            // transient degenerate-tangent sample (e.g. start of a Hold
+            // segment with zero derivative) doesn't snap the camera to
+            // identity on the next evaluate().  Only update when the *raw*
+            // tangent has non-trivial length (we keep the raw here so the
+            // orientation step's renormalization stays a single site).
+            const float raw_len = glm::length(t.tangent);
+            if (raw_len > 1e-4f) {
+                last_valid_path_tangent_ = t.tangent / raw_len;
+                has_last_path_tangent_   = true;
+            }
+
             // TICKET-022 / DOC 02 — orientation is applied ONCE in evaluate() after modifiers.
-            return cam;
+            return out;
         }
     }
 
     // StaticCameraSource or unknown: use base.
-    Camera2_5D cam;
+    Camera2_5D& cam = out.camera;
     cam.enabled = base.enabled;
     cam.position = base.position;
     cam.rotation = base.rotation;
@@ -448,7 +534,7 @@ Camera2_5D CameraProgram::evaluate_compiled_source(const CameraEvalContext& ctx)
     // CAM-03: central projection dispatch (handles all 3 variants).
     apply_projection_spec(base.projection, ctx, cam);
 
-    return cam;
+    return out;
 }
 
 // ── Compiled constraint evaluation helper ─────────────────────────────────
@@ -570,10 +656,38 @@ static CompiledConstraintResult apply_constraint_spec(
 
 // ── apply_orientation_spec member delegates to free function ────────────────
 
+// Agente 1 — the member owns the A1.7 "last valid tangent" fallback cache
+// (mutable private state, session-local lifetime) and hands the helper
+// either the raw tangent (when non-degenerate) or the cached last-valid
+// tangent (when degenerate AND a previous valid sample exists).  The free
+// function does the A1.3/A1.4/A1.5/A1.7 NaN-free-safe math on whichever
+// tangent survives this selection.
 void CameraProgram::apply_orientation_spec(const void* orient_variant,
                                             const CameraEvalContext& ctx,
-                                            Camera2_5D& cam) const {
-    apply_orientation_spec_free(orient_variant, ctx, cam);
+                                            Camera2_5D& cam,
+                                            const std::optional<Vec3>& path_tangent,
+                                            const std::optional<float>& path_roll_deg) const {
+    // A1.7 — step 1: legacy tangent fallback.  When the source evaluator
+    // returned a degenerate path_tangent (length ≤ 1e-4f) AND a previous
+    // tangent has been cached for this session/program, route the
+    // orientation step through the *last valid* vector.  This prevents
+    // the camera from snapping to identity when a transient zero-derivative
+    // sample lands (e.g. start of a Hold segment with a zero-length first
+    // step, or the very last sample of a closed loop).
+    std::optional<Vec3> effective_tangent = path_tangent;
+    if (path_tangent.has_value()) {
+        const float raw_len = glm::length(*path_tangent);
+        if (raw_len <= 1e-4f && has_last_path_tangent_) {
+            effective_tangent = last_valid_path_tangent_;
+        }
+        // (When raw_len > 1e-4f the free helper handles the happy path
+        //  directly; when raw_len ≤ 1e-4f AND no cached valid AND no
+        //  alternative, the free helper's `if (len > 1e-4f)` skip
+        //  implements A1.7 step 2 — keep existing rotation.)
+    }
+
+    apply_orientation_spec_free(orient_variant, ctx, cam,
+                                effective_tangent, path_roll_deg);
 }
 
 // TICKET-022 / DOC 02 — apply_orientation_spec_free() has exactly ONE real
@@ -603,8 +717,11 @@ CameraProgramResult CameraProgram::evaluate(const CameraEvalContext& ctx,
         return result;
     }
 
-    // Evaluate source directly (no registry lookup).
-    Camera2_5D intermediate = evaluate_compiled_source(ctx);
+    // Evaluate source directly (no registry lookup).  Agente 1: the source
+    // evaluator now returns an EvaluatedCameraSource so we can thread the
+    // real trajectory tangent + banking value into the orientation step.
+    EvaluatedCameraSource intermediate_src = evaluate_compiled_source(ctx);
+    Camera2_5D& intermediate = intermediate_src.camera;
 
     // Apply modifiers (PR1: idle oscillation; CAM-04: handheld noise).
     //
@@ -706,8 +823,13 @@ CameraProgramResult CameraProgram::evaluate(const CameraEvalContext& ctx,
         }
     }
 
-    // Re-apply orientation after modifiers.
-    apply_orientation_spec(&descriptor_.orientation, ctx, intermediate);
+    // Re-apply orientation after modifiers.  Agente 1: forward the
+    // trajectory path_tangent + path_roll_deg from the source evaluator so
+    // OrientAlongPath can use the *real* tangent (not a POI-derived fake)
+    // when paired with TrajectoryMotion.
+    apply_orientation_spec(&descriptor_.orientation, ctx, intermediate,
+                           intermediate_src.path_tangent,
+                           intermediate_src.path_roll_deg);
 
     // Set is_animated flag.
     intermediate.is_animated = time_dependent_;
