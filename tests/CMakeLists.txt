@@ -92,12 +92,10 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
     include(${CMAKE_CURRENT_SOURCE_DIR}/deterministic_tests.cmake)
 
 # ── PR-A4 (Blocco A, Fase 1 followup) — 16 text-style preset visual regression
+# The executable is gated by the outer `if(CHRONON3D_USE_BLEND2D AND
+# CHRONON3D_ENABLE_TEXT)` wrap above; the render-aggregator append is the
+# single canonical site (below) — never edit a copy here.
 include(${CMAKE_CURRENT_SOURCE_DIR}/text_preset_visual_tests.cmake)
-
-# PR-A4 review-fix: register the new target with the render-test aggregator.
-if(TARGET chronon3d_text_preset_visual_tests)
-    list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_text_preset_visual_tests)
-endif()
 endif()
 
 # WP-0 PR 0.2 — focused compile-coherence target for the PrecompNode
@@ -194,6 +192,12 @@ if(TARGET chronon3d_render_graph_node_visual_tests)
 endif()
 if(TARGET chronon3d_pr3_composition_visual_tests)
     list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_pr3_composition_visual_tests)
+endif()
+# PR-A4: visual executable created by the outer `if(CHRONON3D_USE_BLEND2D AND
+# CHRONON3D_ENABLE_TEXT)` wrap above. Single aggregator append — do not
+# reintroduce duplicate appends before the `set(... "")` reset below.
+if(TARGET chronon3d_text_preset_visual_tests)
+    list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_text_preset_visual_tests)
 endif()
 add_custom_target(chronon3d_tests_render
     DEPENDS ${CHRONON3D_RENDER_TEST_DEPS}
