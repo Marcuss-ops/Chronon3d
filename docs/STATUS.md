@@ -1,15 +1,19 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@25c6b5cd` — 24 giugno 2026.
-> Ultimo lavoro audit-driven: [`baselines/main-25c6b5cd-render-aggregator-deps-fixed.md`](baselines/main-25c6b5cd-render-aggregator-deps-fixed.md) (Blocco 1, wiring verificato).
+> **Snapshot:** current `main` — 24 giugno 2026. Stato confluito dai due
+> blocchi recenti:
+>
+> - **Blocco 1** (audit-driven, già su main): render-aggregator wiring
+>   verificato su `main@25c6b5cd` — vedi
+>   [`baselines/main-25c6b5cd-render-aggregator-deps-fixed.md`](baselines/main-25c6b5cd-render-aggregator-deps-fixed.md).
+> - **Blocco 2** (eseguito a valle): TXT-00 **CHIUSO** su `main@f90174cc`:
+>   build/link/test tutti rc=0 sull'attuale main; `VRTextPresetVisual`
+>   18/18 test cases, 263/263 assertions; entrambe le `TextE2E` verdi su
+>   `render_frame` e su `materialize + draw_text_run`.
 >
 > Stato prodotto canonico: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
 > Questo documento descrive blocker e prove operative. Non certifica una baseline
 > verde finché tutti i gate richiesti non sono osservati sullo stesso commit.
->
-> **Ultimo aggiornamento agenti:** Agent 1 (renderer/backend) **COMPLETED**,
-> Agent 2 (CMake/SDK/baseline) **COMPLETED** — merged in `ccabb574`.
-> TXT-00 build/link: **GREEN**; test esecuzione bloccato da FontEngine mancante.
 
 ## Stato generale
 
@@ -23,7 +27,7 @@ percorso unico, verificato e consumabile fuori dalla source tree.
 | Software backend | 🟢 Stabile | Confine rifattorizzato (Agent 1); gate, core, lean e full validation da certificare insieme. |
 | CMake/SDK registry | 🟢 Stabile | Registry centralizzato, aggregate archive, install consumer funzionante (Agent 2). |
 | Precomp / execution scope | 🔴 Aperto | Nested execution, lease, child arena e concorrenza richiedono chiusura verificata. |
-| Text Production V1 | 🟡 60–65% stimato | TXT-00 build/link verde; test bloccato da FontEngine runtime. Word timing, rich text, preset e visual regression ancora aperti. |
+| Text Production V1 | 🟡 65–70% stimato | TXT-00 build/link/test **CHIUSO** (rc=0; 18/18, 263/263). Word timing, rich text, preset e visual regression ancora aperti. |
 | Camera Production V1 | 🟡 70–75% stimato | scene_tests link sbloccato via PR 2 (`fb1b7e97`, TICKET-029 risolto); migrazione legacy e feature di path/framing/ottica ancora aperte. |
 | SDK C++ | 🟡 80–85% stimato | Package presente; manca consumer esterno che renderizzi una composizione reale. |
 | SDK cross-language | 🔵 30–40% stimato | C ABI e formato dichiarativo `.chronon` assenti. |
@@ -62,7 +66,7 @@ di test o claim di release.
 
 ### Ancora aperto
 
-- **TXT-00:** build/link rc=0, test esecuzione bloccato da FontEngine non disponibile nell'ambiente ctest;
+- **TXT-00:** **CHIUSO** — build/link/test tutti rc=0 sull'attuale main (FontEngine inizializzato nel runner di test; VRTextPresetVisual 18/18, 263/263; TextE2E x2 verdi).
 - word timing/SRT/JSON;
 - styling per parola realmente end-to-end;
 - subtitle/highlight/karaoke pipeline;
@@ -162,8 +166,7 @@ L’assenza di workflow o log verificabili non equivale a successo.
 Stato attuale dei blocker principali:
 - **TICKET-039** (SoftwareRenderer::settings): **RISOLTO** dal fix Agent 2.
 - **TXT-00 linker strutturale** (~30 simboli): **RISOLTO** dal fix Agent 2; build/link rc=0.
-- **TXT-00 test esecuzione**: bloccato da FontEngine non disponibile in ctest.
-- **FontEngine runtime**: dipendenza di ambiente da risolvere per chiudere TXT-00.
+- **TXT-00 test esecuzione**: **RISOLTO** — `VRTextPresetVisual` rc=0 (18/18, 263/263) + entrambe le `TextE2E` rc=0. **TXT-00 CHIUSO**.
 
 ## Documenti di riferimento
 
