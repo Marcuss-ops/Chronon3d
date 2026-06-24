@@ -184,9 +184,23 @@ add_library(chronon3d_sdk_impl STATIC
 # The foreach-if-TARGET loop handles conditional subsystems (targets not
 # created in this configuration are silently skipped).  The old manual
 # list + conditional foreach blocks (~40 lines) are replaced by 6 lines.
+# ── Archive aggregation — derived from central registry ────────────
+# TICKET-011 cmake-boundary (Branch C — target_sources form):
+# CMake 3.12+ `target_link_libraries(STATIC PRIVATE obj)` SHOULD natively
+# aggregate OBJECT .o files into the STATIC archive, but CMake 3.31.6 +
+# Ninja generator does NOT emit the .o files as inputs to the `ar` rule
+# (confirmed: build.ninja archive rule lists only sdk_impl_marker.cpp.o).
+#
+# Fix (Agent 2): use the explicit `target_sources(... PRIVATE
+# $<TARGET_OBJECTS:obj>)` form WITHOUT nesting in $<BUILD_INTERFACE:…>.
+# The bare $<TARGET_OBJECTS:obj> generator expression expands at
+# generate time and is NOT affected by CMake issues #18090/#18814
+# (which only strip .o files when nested inside an INTERFACE target's
+# $<BUILD_INTERFACE:…> generator expression).
 foreach(_reg_obj IN LISTS CHRONON3D_REGISTRY_OBJECT_LIBS)
     if(TARGET ${_reg_obj})
-        target_link_libraries(chronon3d_sdk_impl PRIVATE ${_reg_obj})
+        target_sources(chronon3d_sdk_impl PRIVATE
+            $<TARGET_OBJECTS:${_reg_obj}>)
     endif()
 endforeach()
 
