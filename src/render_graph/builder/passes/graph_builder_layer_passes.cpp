@@ -104,14 +104,40 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
                                      const LayerGraphItem& item, const RenderGraphContext& ctx) {
     const Layer& layer = *item.layer;
 
+    // TextRunNode handles its own world-space positioning via draw_text_run —
+    // translation, scale, and rotation are baked into glyph rasterization.
+    // A TransformNode that re-applies the world matrix would double-transform
+    // the text (e.g. tracking_breathing scale 0.05 would shrink text to 5%).
+    // For single-text-run Normal layers, emit an identity-matrix TransformNode
+    // that ONLY applies opacity — preserving fade_in / soft_pop entrance
+    // animations without the double-positioning bug.
+    const bool is_text_run = layer.kind == LayerKind::Normal &&
+                             layer.nodes.size() == 1 &&
+                             layer.nodes[0].shape.type() == ShapeType::TextRun;
+
     const bool needs_transform = layer_needs_render_transform(item, ctx);
 
-    if (!needs_transform) return;
+    // Early exit: no transform needed AND not a text-run layer.
+    // Text-run layers always need the opacity-only TransformNode.
+    if (!needs_transform && !is_text_run) return;
 
-    std::unique_ptr<TransformNode> transform_node;
     const bool is_static = layer.cache_static || item.is_static;
     const Frame cache_frame = is_static ? Frame{0} : Frame{-1};
-    if (item.projected) {
+
+    std::unique_ptr<TransformNode> transform_node;
+
+    if (is_text_run) {
+        // Opacity-only transform: identity matrix passes position/scale/rotation
+        // as-is (TextRunNode already baked them), but opacity is still animated
+        // by fade_in / soft_pop / etc.
+        const Mat4 identity{1.0f};
+        transform_node = std::make_unique<TransformNode>(
+            identity,
+            item.transform.opacity,
+            cache_frame,
+            SamplingMode::Bilinear,
+            is_static ? static_memory_cache("transform") : frame_variant_cache("transform"));
+    } else if (item.projected) {
         transform_node = std::make_unique<TransformNode>(item.projection_matrix,
                                                          layer.transform.opacity,
                                                          cache_frame,
@@ -128,10 +154,6 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
                 glm::translate(Mat4(1.0f), Vec3(-ctx.frame_input.width * 0.5f, -ctx.frame_input.height * 0.5f, 0.0f)) *
                 ssaa_world;
         } else {
-            // Delegate to the shared helper so the build-path stays in sync
-            // with the refresh-path (scene_refresh.hpp) — both now strip the
-            // implicit canvas-center translation for non-3D Normal layers,
-            // preventing the double-centring bug.
             effective_matrix = strip_implicit_canvas_centering(effective_matrix, item, ctx);
         }
         transform_node = std::make_unique<TransformNode>(effective_matrix,
@@ -141,7 +163,6 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
                                                          is_static ? static_memory_cache("transform") : frame_variant_cache("transform"));
     }
 
-    // PR2-cleanup: TransformNode carries its policy in `m_cache_policy` (ctor-time).
     {
         GraphNodeId transform = graph.add_node(std::move(transform_node));
         graph.connect(layer_output, transform);
