@@ -286,38 +286,182 @@ inline AspectSpec aspect_dims(AspectRatio r) {
                                     : AspectSpec{1080, 1920};
 }
 
-// ── 128 sentinel constants (16 presets × 8 each) via DECLARE_TEXT_PRESET_REFS
-#define DECLARE_TEXT_PRESET_REFS(prefix)                                  \
-    constexpr std::uint64_t kRefTextPres##prefix##_169_F000 = kUncapturedSentinel; \
-    constexpr std::uint64_t kRefTextPres##prefix##_169_F020 = kUncapturedSentinel; \
-    constexpr std::uint64_t kRefTextPres##prefix##_169_F030 = kUncapturedSentinel; \
-    constexpr std::uint64_t kRefTextPres##prefix##_169_F040 = kUncapturedSentinel; \
-    constexpr std::uint64_t kRefTextPres##prefix##_916_F000 = kUncapturedSentinel; \
-    constexpr std::uint64_t kRefTextPres##prefix##_916_F020 = kUncapturedSentinel; \
-    constexpr std::uint64_t kRefTextPres##prefix##_916_F030 = kUncapturedSentinel; \
-    constexpr std::uint64_t kRefTextPres##prefix##_916_F040 = kUncapturedSentinel;
+// ── 128 explicit sentinel constants (16 presets × 8 each)
+//
+// Captured 2026-06-24 from main@56cde97fd9 (build RC=0, run RC=0,
+// 3-run determinism: hashes identical across consecutive runs).
+// Each sentinel stores the observed framebuffer_hash for the
+// (preset, ratio, frame) point. Multiple sentinels may share
+// the same observed hash (e.g. all 32 Transparent + PartialCoverage
+// sentinels render an all-zero-alpha framebuffer that hashes to
+// the same value across presets — this is by design, not a capture
+// bug). When the hash gate engages (is_reference_captured returns
+// true for each), VR_TEXT_PRESET_GATE will REQUIRE the observed
+// hash matches; any rendering drift that produces a different
+// framebuffer state will trigger a doc-test failure.
 
 // Reveal (10)
-DECLARE_TEXT_PRESET_REFS(TextAnimations)
-DECLARE_TEXT_PRESET_REFS(FadeIn)
-DECLARE_TEXT_PRESET_REFS(BlurIn)
-DECLARE_TEXT_PRESET_REFS(SlideUp)
-DECLARE_TEXT_PRESET_REFS(SlideDown)
-DECLARE_TEXT_PRESET_REFS(ScaleIn)
-DECLARE_TEXT_PRESET_REFS(TrackingClose)
-DECLARE_TEXT_PRESET_REFS(MaskedLineReveal)
-DECLARE_TEXT_PRESET_REFS(WordCascade)
-DECLARE_TEXT_PRESET_REFS(CharacterCascade)
-// Emphasis (4)
-DECLARE_TEXT_PRESET_REFS(WordPop)
-DECLARE_TEXT_PRESET_REFS(ScalePunch)
-DECLARE_TEXT_PRESET_REFS(ColorAccent)
-DECLARE_TEXT_PRESET_REFS(GradientFill)
-// Subtitle (2 — caption_box + glow_pulse deferred to A4.1)
-DECLARE_TEXT_PRESET_REFS(MinimalWhite)
-DECLARE_TEXT_PRESET_REFS(YellowKeyword)
+constexpr std::uint64_t kRefTextPresTextAnimations_169_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresTextAnimations_169_F020 = 0xC6A045F7AD1A0327ULL;
+constexpr std::uint64_t kRefTextPresTextAnimations_169_F030 = 0xC6A045F7AD1A0327ULL;
+constexpr std::uint64_t kRefTextPresTextAnimations_169_F040 = 0xC6A045F7AD1A0327ULL;
 
-#undef DECLARE_TEXT_PRESET_REFS
+constexpr std::uint64_t kRefTextPresTextAnimations_916_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresTextAnimations_916_F020 = 0xB6B2271F075C563EULL;
+constexpr std::uint64_t kRefTextPresTextAnimations_916_F030 = 0xB6B2271F075C563EULL;
+constexpr std::uint64_t kRefTextPresTextAnimations_916_F040 = 0xB6B2271F075C563EULL;
+
+constexpr std::uint64_t kRefTextPresFadeIn_169_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresFadeIn_169_F020 = 0x27AA41CD4F05D75CULL;
+constexpr std::uint64_t kRefTextPresFadeIn_169_F030 = 0x27AA41CD4F05D75CULL;
+constexpr std::uint64_t kRefTextPresFadeIn_169_F040 = 0x27AA41CD4F05D75CULL;
+
+constexpr std::uint64_t kRefTextPresFadeIn_916_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresFadeIn_916_F020 = 0x6AD1620C3845F8EDULL;
+constexpr std::uint64_t kRefTextPresFadeIn_916_F030 = 0x6AD1620C3845F8EDULL;
+constexpr std::uint64_t kRefTextPresFadeIn_916_F040 = 0x6AD1620C3845F8EDULL;
+
+constexpr std::uint64_t kRefTextPresBlurIn_169_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresBlurIn_169_F020 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresBlurIn_169_F030 = 0xDFCB192ADA69503AULL;
+constexpr std::uint64_t kRefTextPresBlurIn_169_F040 = 0xDFCB192ADA69503AULL;
+
+constexpr std::uint64_t kRefTextPresBlurIn_916_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresBlurIn_916_F020 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresBlurIn_916_F030 = 0x6A8A5E5F038BD129ULL;
+constexpr std::uint64_t kRefTextPresBlurIn_916_F040 = 0x6A8A5E5F038BD129ULL;
+
+constexpr std::uint64_t kRefTextPresSlideUp_169_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresSlideUp_169_F020 = 0xFC161DFF734E490FULL;
+constexpr std::uint64_t kRefTextPresSlideUp_169_F030 = 0xFC161DFF734E490FULL;
+constexpr std::uint64_t kRefTextPresSlideUp_169_F040 = 0xFC161DFF734E490FULL;
+
+constexpr std::uint64_t kRefTextPresSlideUp_916_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresSlideUp_916_F020 = 0x0FD52CD0B591CDB4ULL;
+constexpr std::uint64_t kRefTextPresSlideUp_916_F030 = 0x0FD52CD0B591CDB4ULL;
+constexpr std::uint64_t kRefTextPresSlideUp_916_F040 = 0x0FD52CD0B591CDB4ULL;
+
+constexpr std::uint64_t kRefTextPresSlideDown_169_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresSlideDown_169_F020 = 0xE59D392631667582ULL;
+constexpr std::uint64_t kRefTextPresSlideDown_169_F030 = 0xE59D392631667582ULL;
+constexpr std::uint64_t kRefTextPresSlideDown_169_F040 = 0xE59D392631667582ULL;
+
+constexpr std::uint64_t kRefTextPresSlideDown_916_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresSlideDown_916_F020 = 0x4ACE36B7135C6526ULL;
+constexpr std::uint64_t kRefTextPresSlideDown_916_F030 = 0x4ACE36B7135C6526ULL;
+constexpr std::uint64_t kRefTextPresSlideDown_916_F040 = 0x4ACE36B7135C6526ULL;
+
+constexpr std::uint64_t kRefTextPresScaleIn_169_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresScaleIn_169_F020 = 0x59356830127DB75CULL;
+constexpr std::uint64_t kRefTextPresScaleIn_169_F030 = 0x59356830127DB75CULL;
+constexpr std::uint64_t kRefTextPresScaleIn_169_F040 = 0x59356830127DB75CULL;
+
+constexpr std::uint64_t kRefTextPresScaleIn_916_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresScaleIn_916_F020 = 0x1C7A03DA4E64D649ULL;
+constexpr std::uint64_t kRefTextPresScaleIn_916_F030 = 0x1C7A03DA4E64D649ULL;
+constexpr std::uint64_t kRefTextPresScaleIn_916_F040 = 0x1C7A03DA4E64D649ULL;
+
+constexpr std::uint64_t kRefTextPresTrackingClose_169_F000 = 0xA6F11B03D157CA36ULL;
+constexpr std::uint64_t kRefTextPresTrackingClose_169_F020 = 0xA6F11B03D157CA36ULL;
+constexpr std::uint64_t kRefTextPresTrackingClose_169_F030 = 0xA6F11B03D157CA36ULL;
+constexpr std::uint64_t kRefTextPresTrackingClose_169_F040 = 0xA6F11B03D157CA36ULL;
+
+constexpr std::uint64_t kRefTextPresTrackingClose_916_F000 = 0x4EDB69A1F97FF896ULL;
+constexpr std::uint64_t kRefTextPresTrackingClose_916_F020 = 0x4EDB69A1F97FF896ULL;
+constexpr std::uint64_t kRefTextPresTrackingClose_916_F030 = 0x4EDB69A1F97FF896ULL;
+constexpr std::uint64_t kRefTextPresTrackingClose_916_F040 = 0x4EDB69A1F97FF896ULL;
+
+constexpr std::uint64_t kRefTextPresMaskedLineReveal_169_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresMaskedLineReveal_169_F020 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresMaskedLineReveal_169_F030 = 0x0F44807361BA6E90ULL;
+constexpr std::uint64_t kRefTextPresMaskedLineReveal_169_F040 = 0x0F44807361BA6E90ULL;
+
+constexpr std::uint64_t kRefTextPresMaskedLineReveal_916_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresMaskedLineReveal_916_F020 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresMaskedLineReveal_916_F030 = 0xD566CEBA7F5907F8ULL;
+constexpr std::uint64_t kRefTextPresMaskedLineReveal_916_F040 = 0xD566CEBA7F5907F8ULL;
+
+constexpr std::uint64_t kRefTextPresWordCascade_169_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresWordCascade_169_F020 = 0x27AA41CD4F05D75CULL;
+constexpr std::uint64_t kRefTextPresWordCascade_169_F030 = 0x27AA41CD4F05D75CULL;
+constexpr std::uint64_t kRefTextPresWordCascade_169_F040 = 0x27AA41CD4F05D75CULL;
+
+constexpr std::uint64_t kRefTextPresWordCascade_916_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresWordCascade_916_F020 = 0x6AD1620C3845F8EDULL;
+constexpr std::uint64_t kRefTextPresWordCascade_916_F030 = 0x6AD1620C3845F8EDULL;
+constexpr std::uint64_t kRefTextPresWordCascade_916_F040 = 0x6AD1620C3845F8EDULL;
+
+constexpr std::uint64_t kRefTextPresCharacterCascade_169_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresCharacterCascade_169_F020 = 0x27AA41CD4F05D75CULL;
+constexpr std::uint64_t kRefTextPresCharacterCascade_169_F030 = 0x27AA41CD4F05D75CULL;
+constexpr std::uint64_t kRefTextPresCharacterCascade_169_F040 = 0x27AA41CD4F05D75CULL;
+
+constexpr std::uint64_t kRefTextPresCharacterCascade_916_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresCharacterCascade_916_F020 = 0x6AD1620C3845F8EDULL;
+constexpr std::uint64_t kRefTextPresCharacterCascade_916_F030 = 0x6AD1620C3845F8EDULL;
+constexpr std::uint64_t kRefTextPresCharacterCascade_916_F040 = 0x6AD1620C3845F8EDULL;
+
+// Emphasis (4)
+constexpr std::uint64_t kRefTextPresWordPop_169_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresWordPop_169_F020 = 0x12F47704662555FEULL;
+constexpr std::uint64_t kRefTextPresWordPop_169_F030 = 0x12F47704662555FEULL;
+constexpr std::uint64_t kRefTextPresWordPop_169_F040 = 0x12F47704662555FEULL;
+
+constexpr std::uint64_t kRefTextPresWordPop_916_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresWordPop_916_F020 = 0xB500B523E8B2386DULL;
+constexpr std::uint64_t kRefTextPresWordPop_916_F030 = 0xB500B523E8B2386DULL;
+constexpr std::uint64_t kRefTextPresWordPop_916_F040 = 0xB500B523E8B2386DULL;
+
+constexpr std::uint64_t kRefTextPresScalePunch_169_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresScalePunch_169_F020 = 0x925D84677F40E896ULL;
+constexpr std::uint64_t kRefTextPresScalePunch_169_F030 = 0x925D84677F40E896ULL;
+constexpr std::uint64_t kRefTextPresScalePunch_169_F040 = 0x925D84677F40E896ULL;
+
+constexpr std::uint64_t kRefTextPresScalePunch_916_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresScalePunch_916_F020 = 0x50E732BAC355B50FULL;
+constexpr std::uint64_t kRefTextPresScalePunch_916_F030 = 0x50E732BAC355B50FULL;
+constexpr std::uint64_t kRefTextPresScalePunch_916_F040 = 0x50E732BAC355B50FULL;
+
+constexpr std::uint64_t kRefTextPresColorAccent_169_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresColorAccent_169_F020 = 0x27AA41CD4F05D75CULL;
+constexpr std::uint64_t kRefTextPresColorAccent_169_F030 = 0x27AA41CD4F05D75CULL;
+constexpr std::uint64_t kRefTextPresColorAccent_169_F040 = 0x27AA41CD4F05D75CULL;
+
+constexpr std::uint64_t kRefTextPresColorAccent_916_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresColorAccent_916_F020 = 0x6AD1620C3845F8EDULL;
+constexpr std::uint64_t kRefTextPresColorAccent_916_F030 = 0x6AD1620C3845F8EDULL;
+constexpr std::uint64_t kRefTextPresColorAccent_916_F040 = 0x6AD1620C3845F8EDULL;
+
+constexpr std::uint64_t kRefTextPresGradientFill_169_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresGradientFill_169_F020 = 0x28E291D3D7F8CD29ULL;
+constexpr std::uint64_t kRefTextPresGradientFill_169_F030 = 0x28E291D3D7F8CD29ULL;
+constexpr std::uint64_t kRefTextPresGradientFill_169_F040 = 0x28E291D3D7F8CD29ULL;
+
+constexpr std::uint64_t kRefTextPresGradientFill_916_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresGradientFill_916_F020 = 0xA1E89278EF91ACB9ULL;
+constexpr std::uint64_t kRefTextPresGradientFill_916_F030 = 0xA1E89278EF91ACB9ULL;
+constexpr std::uint64_t kRefTextPresGradientFill_916_F040 = 0xA1E89278EF91ACB9ULL;
+
+// Subtitle (2 — caption_box + glow_pulse deferred to A4.1)
+constexpr std::uint64_t kRefTextPresMinimalWhite_169_F000 = 0x27AA41CD4F05D75CULL;
+constexpr std::uint64_t kRefTextPresMinimalWhite_169_F020 = 0x27AA41CD4F05D75CULL;
+constexpr std::uint64_t kRefTextPresMinimalWhite_169_F030 = 0x27AA41CD4F05D75CULL;
+constexpr std::uint64_t kRefTextPresMinimalWhite_169_F040 = 0x27AA41CD4F05D75CULL;
+
+constexpr std::uint64_t kRefTextPresMinimalWhite_916_F000 = 0x6AD1620C3845F8EDULL;
+constexpr std::uint64_t kRefTextPresMinimalWhite_916_F020 = 0x6AD1620C3845F8EDULL;
+constexpr std::uint64_t kRefTextPresMinimalWhite_916_F030 = 0x6AD1620C3845F8EDULL;
+constexpr std::uint64_t kRefTextPresMinimalWhite_916_F040 = 0x6AD1620C3845F8EDULL;
+
+constexpr std::uint64_t kRefTextPresYellowKeyword_169_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresYellowKeyword_169_F020 = 0x27AA41CD4F05D75CULL;
+constexpr std::uint64_t kRefTextPresYellowKeyword_169_F030 = 0x27AA41CD4F05D75CULL;
+constexpr std::uint64_t kRefTextPresYellowKeyword_169_F040 = 0x27AA41CD4F05D75CULL;
+
+constexpr std::uint64_t kRefTextPresYellowKeyword_916_F000 = 0xCA7F696086E7F8B4ULL;
+constexpr std::uint64_t kRefTextPresYellowKeyword_916_F020 = 0x6AD1620C3845F8EDULL;
+constexpr std::uint64_t kRefTextPresYellowKeyword_916_F030 = 0x6AD1620C3845F8EDULL;
+constexpr std::uint64_t kRefTextPresYellowKeyword_916_F040 = 0x6AD1620C3845F8EDULL;
 
 // ── Helper: CenterTextOptions builder for preset-text baseline ───────────
 inline CenterTextOptions make_preset_base_opts(const std::string& text,
