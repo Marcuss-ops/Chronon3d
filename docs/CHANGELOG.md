@@ -668,6 +668,60 @@ Branch: `p1/cli-slim-real-hygiene` (1 commit ahead of `p1/cli-slim-real`).
 To be FF-merged into local `main` (which is currently at `a094b020b22b870c4d6ccf4018d72384514ecdfe`,
 1 commit ahead of `origin/main @ 3bad8c82`).
 
+### PR-7d — Split `linux-full-validation` preset into V1 release + experimental contract gates
+
+2026-06-24 — Split del preset `linux-full-validation` in due preset distinti per separare il contratto di release (V1 stabile) dai sottosistemi sperimentali (ICU, Text-3D, MSDF, Expressions/V2). Il preset originale era un "catch-all" Debug che mescolava entrambi i contracts in un solo gate.
+
+- **`linux-release-validation`** (NUOVO) — `CMAKE_BUILD_TYPE=Release`, V1 stable features (cli, blend2d, text, mesh, exr, video, content, tests, benchmarks). Esclude `CHRONON3D_ENABLE_TELEMETRY`, `CHRONON3D_ENABLE_PROFILING`, `CHRONON3D_BUILD_DIAGNOSTICS`, `CHRONON3D_BUILD_EXPERIMENTAL`, le feature vcpkg `telemetry/profiling/icu-layout/text-3d/text-msdf`. Rappresenta il contratto di release V1 shippable.
+- **`linux-experimental-validation`** (NUOVO) — `CMAKE_BUILD_TYPE=Debug`, V1 stable + `CHRONON3D_BUILD_EXPERIMENTAL=ON` + feature vcpkg `icu-layout;text-3d;text-msdf` + diagnostics + telemetry + profiling per copertura forward-looking completa (Expressions/V2 vive sotto `experimental/expressions/` ed è gated da `CHRONON3D_BUILD_EXPERIMENTAL`).
+- **`linux-full-validation`** (RIMOSSO) — sostituito dai due preset sopra. Le cacheVariables erano semanticamente equivalenti al nuovo `linux-experimental-validation` ma invocabili anche sul contratto V1, perdendo il fail-fast sui due contracts indipendenti.
+
+**Behavior change** (da segnalare in modo evidente):
+  - `linux-release-validation` **esclude** `CHRONON3D_ENABLE_TELEMETRY=OFF` e `telemetry` da `VCPKG_MANIFEST_FEATURES`. Il preset preesistente `linux-release-full` (`CMakePresets.json`, configurePreset immediatamente adiacente ai due nuovi preset di split) includeva invece telemetry sia come flag che come feature vcpkg. Questa è una scelta deliberata per onorare la richiesta 'V1 stabili' (telemetry è forward-looking/V1.5), ma **chiunque assumesse che V1 release passasse con telemetry ON adesso perde quella copertura automatizzata sul nuovo gate**. Il gate `linux-experimental-validation` continua a coprire la build con telemetry ON sotto `cmake_build_type=Debug`.
+
+**Gate split** (CI workflows):
+- `.github/workflows/gates-full-validation.yml` — rinominato (via `git mv` per preservare la history) in `.github/workflows/gates-release-validation.yml`, MA con content edit: il `paths:` filter è stato aggiornato (rimossa la riga `'experimental/**'`, ora owned da experimental-validation), `name:` → `Chronon Gates (release-validation)`, `jobs.full-validation` rinominato in `jobs.release-validation`, e i tre `run:` commands ora referenziano `linux-release-validation` + `linux-release-validation-test`.
+- `.github/workflows/gates-experimental-validation.yml` — NUOVO file, specchiato su gates-release-validation.yml ma con paths che INCLUDONO `experimental/**` + preset `linux-experimental-validation` (+ companion test preset). Importante: il **build preset `linux-experimental-validation`** lista `targets: ["chronon3d_cli", "chronon3d_tests", "chronon3d_expressions_v2_tests"]` — l'ultimo target è **esplicito** perché `chronon3d_tests` (umbrella fast/render/video) **NON** aggrega `chronon3d_expressions_v2_tests` (registrato standalone in `experimental/expressions/tests/CMakeLists.txt` via `add_executable + add_test`). Senza l'append esplicito, il nuovo gate non avrebbe validato l'effettivo sottosistema `experimental/expressions/` benché le cacheVariables lo richiedessero.
+
+**Rationale dell'asimmetria `paths:` filter**:
+L'asimmetria tra le due workflows è mirata SOLO a `experimental/**`. `tools/**` e `tests/**` restano in ENTRAMBI i `paths:` filter perché questi path coprono codice shared-core che può rompere il contratto V1 anche quando la patch è "solo test/TU" — un edit a `tests/text/test_*` può rompere un'asserzione V1 se cambia un header pubblico transitivo. Il costo aggiuntivo (CI paid twice su PR che tocca tools/tests) è accettabile: `tools/**` e `tests/**` PR sono rari e la duplicazione del coverage è ridondante-voluta. Una sola nota di manutenzione: se in futuro si vuole ridurre ulteriormente il costo CI, anche `tools/**` può essere spostato solo a experimental-validation (o a un terzo gate dedicato), ma è una decisione che va prima formalizzata in una ADR.
+
+**VCPKG hardening** esplicito: entrambi i nuovi preset aggiungono `VCPKG_MANIFEST_NO_DEFAULT_FEATURES=ON` esplicito (coerentemente con il pattern dei profile-extended presets), per evitare silent-addition quando `vcpkg.json::default-features` cambia in futuro.
+
+[Rationale]
+
+Il preset originale era un trade-off pratico che ha funzionato per il ciclo baseline ma ha due svantaggi strutturali:
+
+1. **Falso negativo sul release contract** — una regressione in `expressions/v2` rompeva la CI gates-full-validation, che è il gate ONDE il team deve garantire la V1 shippable. Lo sviluppatore della regression V1 vedeva il CI rosso anche se la sua patch non toccava V1.
+2. **Falso negativo sul forward-looking** — una regressione V1 rompeva la CI gates-full-validation allo stesso modo, anche se il developer stava lavorando solo su Expressions/V2 (sottosistema dichiaratamente fuori dal contratto V1).
+
+Con i due contracts su gates separati: V1 contract è GATEATO da release-validation (Release build, V1 feature set); forward-looking è GATEATO da experimental-validation (Debug build, V1 + experimental). Una regression in `expressions/v2` rompe SOLO experimental-validation; una regression in V1 rompe entrambi (coverage ridondante voluto, perché il forward-looking dipende transitivamente dalle API V1).
+
+[File modificati]
+
+- `CMakePresets.json` — rimossi `linux-full-validation` (configurePreset + buildPreset + testPreset); aggiunti `linux-release-validation` e `linux-experimental-validation` triad ognuno (configure + build + test). `cmake --list-presets` su clean checkout riporta correttamente i 6 nuovi preset e zero riferimenti al vecchio nome.
+- `.github/workflows/gates-release-validation.yml` (rename da `gates-full-validation.yml`) — preset references aggiornate, paths filter aggiornato, `name:` + job id aggiornati.
+- `.github/workflows/gates-experimental-validation.yml` (NUOVO) — specchiato su release-validation, con paths/preset per il contratto experimental.
+- `docs/CHANGELOG.md` — questo entry.
+
+[Reference accounting — non riscrivere la storia]
+
+- `docs/agent-tasks/AGENT_2_CMAKE_SDK_BASELINE.md:131-133` cita `cmake --preset linux-full-validation` come comandi del baseline-cycle dell'Agente 2 (chiuso commit `ee9533bb`). ACCETTATO come historical record; **NON** aggiornato retroattivamente. Per agenti futuri che vogliono replicare il baseline-cycle di Agente 2, il comando canonico aggiornato è `cmake --preset linux-release-validation` (V1 contract) — la failure scenario di Agente 2 (cache-render-aggregator rot) viene riprodotta altrettanto bene sotto V1 contract perché quel preset copre comunque `src/render_graph/...`.
+- `docs/baselines/main-446a60e2-baseline.md:28` cita `linux-full-validation` come baseline-validate. ACCETTATO come historical — chi legge sa che il baseline è stato acquisito con il preset pre-split.
+- `docs/adr/README.md:17` cita `linux-ci / linux-full-validation` come CI marcia. MINOR UPDATE consigliato in follow-up per riflettere i due nuovi contracts.
+- `docs/stabilization-plan/07-documentation-and-adrs.md:178` cita `linux-full-validation o equivalente win-release` come acceptance criterion. La formulazione "o equivalente" è ancora valida: `linux-release-validation` (V1 stable) è l'equivalente canonico per `linux-full-validation` sul piano V1.
+
+[Machine verification]
+
+- `python3 -c 'import json; json.load(open("CMakePresets.json"))'` → `OK - JSON valid`.
+- `cmake --list-presets=configure` su clean checkout riporta `linux-release-validation` + `linux-experimental-validation` e NON `linux-full-validation`.
+- `cmake --list-presets=build` riporta idem.
+- `cmake --list-presets=test` riporta `linux-release-validation-test` + `linux-experimental-validation-test` e NON `linux-full-validation-test`.
+- `cmake --preset linux-release-validation` → configure-only in clean build dir (configure step) rc=0.
+- `cmake --preset linux-experimental-validation` → configure-only in clean build dir rc=0.
+
+Full build verification (`cmake --build` + `ctest`) è delegata al primo CI run post-merge; baseline doc dedicato sarà generato come `docs/baselines/main-<sha>-preset-split-validated.md` con la validation matrix completa di entrambi i presets.
+
 ### TICKET-040 — complete Taskflow cleanup (rot closure)
 
 2026-06-23 (branch `codex/fix-ticket-040-taskflow-cleanup` off `main@9e1750a9`) — Completes the second half of `TICKET-040` (🟢 Done in `docs/FOLLOWUP_TICKETS.md` but only half-executed). The retirement side (`vcpkg.json` no longer lists `"taskflow"`) shipped long ago; the symmetric `find_package(Taskflow CONFIG REQUIRED)` removal from `CMakeLists.txt:123` was deferred, leaving a leftover dependency on a vcpkg package the manifest no longer provided. That mismatch blocked `cmake --preset linux-ci` at the configure step with `TASKFLOW_NOTFOUND` (TICKET-038-style rot for the new `chronon3d_wiggly_selector_tests` + `chronon3d_wave_selector_tests` targets in TXT-08, and likely others). Single-file delta:
