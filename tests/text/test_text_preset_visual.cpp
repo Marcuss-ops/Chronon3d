@@ -263,6 +263,7 @@ static const TextPresetRegistry kTextPresetRegistry = []{
 inline Composition build_preset_composition(const std::string& preset_id,
                                              AspectRatio r,
                                              int t_frame,
+                                             FontEngine* font_engine = nullptr,
                                              int fps = 30) {
     AspectSpec d = aspect_dims(r);
     const TextPreset& preset = kTextPresetRegistry.get(preset_id);  // throws if id absent
@@ -273,8 +274,9 @@ inline Composition build_preset_composition(const std::string& preset_id,
          .width = d.width, .height = d.height,
          .frame_rate = FrameRate{fps, 1},
          .duration = 60},
-        [preset, preset_id, t_frame, r](const FrameContext& ctx) -> Scene {
+        [preset, preset_id, t_frame, r, font_engine](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            if (font_engine) s.font_engine(font_engine);
             TextSpec base = centered_text(
                 make_preset_base_opts("THE QUICK BROWN FOX JUMPS",
                                        aspect_dims(r)));
@@ -297,7 +299,7 @@ inline void emit_preset_gate(SoftwareRenderer& renderer,
                               int t_frame,
                               std::uint64_t kref,
                               const std::string& short_label) {
-    auto comp = build_preset_composition(preset_id, r, t_frame, 30);
+    auto comp = build_preset_composition(preset_id, r, t_frame, &renderer.font_engine(), 30);
     auto t0 = std::chrono::steady_clock::now();
     auto fb = renderer.render_frame(comp, Frame{t_frame});
     REQUIRE(fb != nullptr);

@@ -44,4 +44,5 @@ target_link_libraries(chronon3d_text_preset_visual_tests PRIVATE
 add_test(
     NAME VRTextPresetVisual
     COMMAND chronon3d_text_preset_visual_tests
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
