@@ -1,6 +1,7 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@3ef352d` — 24 giugno 2026.
+> **Snapshot:** `main@25c6b5cd` — 24 giugno 2026.
+> Ultimo lavoro audit-driven: [`baselines/main-25c6b5cd-render-aggregator-deps-fixed.md`](baselines/main-25c6b5cd-render-aggregator-deps-fixed.md) (Blocco 1, wiring verificato).
 >
 > Stato prodotto canonico: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
 > Questo documento descrive blocker e prove operative. Non certifica una baseline
