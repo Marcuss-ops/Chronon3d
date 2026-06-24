@@ -8,6 +8,7 @@ add_library(chronon3d_content_anims STATIC
     compositions/tilt_sweep_title_v2.cpp
     compositions/cinematic_text_camera.cpp
     compositions/ae_camera_text_parity.cpp
+    compositions/cinematic_camera_showcase.cpp
 )
 set_target_properties(chronon3d_content_anims PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_anims PRIVATE ${CMAKE_SOURCE_DIR})
