@@ -1,67 +1,60 @@
 # Chronon3D — Next Steps Reali
 
-> **Snapshot funzionale analizzato:** `main@25049b2`, 23 giugno 2026.
+> **Snapshot:** `main@3ef352d`, 24 giugno 2026.
 >
-> **Ultima baseline eseguita e documentata:** `main@446a60e2`.
+> **Ultima baseline eseguita:** `main@ccabb574` (TXT-00: build/link green,
+> test bloccato da FontEngine).
 >
-> **HEAD ricontrollato:** `main@83a4bf21`, 23 giugno 2026.
->
+> Baseline TXT-00: [`baselines/main-ccabb574-txt-00-build-green.md`](baselines/main-ccabb574-txt-00-build-green.md).
 > Stato prodotto: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
 > Milestone: [`ROADMAP.md`](ROADMAP.md).
-> Prova operativa: [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md).
 
-Questo documento descrive l’ordine operativo immediato. Le precedenti attività
-“Agente 1 / Agente 2” non rappresentano più il piano corrente: il lavoro Agente 1
-è stato integrato, mentre il branch Agente 2 non risulta avviato su origin.
+Questo documento descrive l'ordine operativo immediato. Agent 1 (renderer/backend)
+e Agent 2 (CMake/SDK/baseline) sono entrambi **completati** e mergiati su `main`.
+Il lavoro procede sequenziale, direttamente su `main`, un task alla volta.
 
 ## Stato osservato della baseline
 
-La baseline registrata su `main@446a60e2` ha prodotto:
+La baseline registrata su `main@ccabb574` (Agent 2 merge) ha prodotto:
 
 | Controllo | Esito |
 |---|---|
-| Software renderer boundary gate | ✅ PASS |
-| `linux-full-validation` configure | ✅ PASS |
-| `linux-lean-dev` configure | ✅ PASS |
-| Build `chronon3d_text_preset_visual_tests` | ❌ FAIL |
+| `cmake --preset linux-ci` configure | ✅ PASS |
+| Build `chronon3d_text_preset_visual_tests` | ✅ PASS (rc=0) |
+| ctest `VRTextPresetVisual` | ❌ FAIL (rc=8) — FontEngine non disponibile |
 
-Il verdetto complessivo resta **rosso**: tre controlli su quattro sono verdi, ma
-il target compilato fallisce. Una configurazione CMake riuscita non equivale a
-una build o a una baseline verde.
+Il linker strutturale (~30 simboli irrisolti) è **risolto** dal fix CMake registry
+dell'Agent 2. La build/link è verde. Il test esegue ma fallisce perché l'ambiente
+ctest non dispone di un FontEngine inizializzato — problema di dipendenza runtime,
+non di codice.
 
-L’HEAD corrente `83a4bf21` contiene altri commit successivi alla baseline, ma
-non esiste ancora una nuova validazione completa sullo stesso HEAD. I risultati
-di `446a60e2` restano quindi l’ultima prova operativa canonica, non una
-certificazione dell’HEAD corrente.
+Il verdetto: **TXT-00 parziale** — build/link green, test bloccato da
+ambiente. Baseline completa in `docs/baselines/main-ccabb574-txt-00-build-green.md`.
 
-## Priorità 0 — Ripristinare la compilabilità della baseline
 
-### 1. Chiudere TICKET-039 — blocker globale immediato
+### 1. TICKET-039 — RISOLTO ✅
 
-Il target `chronon3d_text_preset_visual_tests` si ferma in
-`src/runtime/render_engine.cpp`: `RenderEngine::Impl` usa il vecchio accessor
-`SoftwareRenderer::settings()`, mentre il confine renderer ha mantenuto come
-accessor canonico `render_settings()`.
+Il fix CMake registry dell'Agent 2 ha risolto il problema strutturale di link.
+`SoftwareRenderer::settings()` è stato migrato a `render_settings()` nel commit
+`9703960b` (branch `codex/p0-render-engine-settings-fix`, ora eliminato).
+Il target `chronon3d_text_preset_visual_tests` compila e linka con rc=0.
 
-Criteri di chiusura:
+### 2. Sbloccare FontEngine per TXT-00
 
-- aggiornare il consumer al percorso canonico senza ripristinare sinonimi API
-  inutili;
-- compilare il translation unit interessato;
-- rieseguire il target che ha scoperto il problema;
-- aggiungere o mantenere una regressione mirata;
-- aggiornare ticket e baseline con comando, commit ed exit code.
+Il test `VRTextPresetVisual` compila e linka (rc=0) ma fallisce a runtime
+perché `materialize_text_run_shape` non trova un FontEngine disponibile.
+Occorre:
+- verificare se il test environment ha bisogno di un font path di default;
+- aggiungere un init esplicito del FontEngine nel test o nel runner;
+- documentare la dipendenza runtime nei requisiti del test.
 
-### 2. Chiudere TICKET-038 — secondo blocker di compilazione
+### 3. Chiudere TICKET-038 — lambda capture in test visuale
 
-Dopo TICKET-039 potrebbe riemergere il problema già noto in
+Dopo lo sblocco FontEngine potrebbe riemergere il problema già noto in
 `tests/text/test_text_preset_visual.cpp` relativo a lambda capture e deduzione
-`auto`.
+`auto`. La chiusura richiede build ed esecuzione del target visuale.
 
-La chiusura richiede build ed esecuzione del target visuale, non soltanto la
-compilazione isolata del file modificato.
-
-### 3. Completare TICKET-009 residuo
+### 4. Completare TICKET-009 residuo
 
 Restano da chiudere separatamente:
 
@@ -71,16 +64,15 @@ Restano da chiudere separatamente:
   `experimental/expressions`;
 - verifica che il profilo stabile non dipenda da Expressions V2 sperimentale.
 
-Ogni parte deve restare una PR piccola e non sovrapposta.
+Ogni parte deve restare una modifica piccola e non sovrapposta.
 
 ## Priorità 1 — Sbloccare e certificare i test camera
 
 ### 1. Chiudere TICKET-029 — blocker specifico camera
 
 TICKET-029 riguarda la type visibility di `camera_program_compiler.cpp` e blocca
-il link/run dei test scene/camera compilati. Non è più il primo blocker globale,
-perché la baseline corrente si arresta prima su TICKET-039; resta però necessario
-per certificare i fix camera recenti.
+il link/run dei test scene/camera compilati. Ora che TICKET-039 è risolto,
+TICKET-029 è il prossimo blocker camera da affrontare.
 
 Prove richieste:
 
@@ -91,7 +83,7 @@ Prove richieste:
 
 ### 2. Rieseguire i fix camera recenti
 
-Dopo TICKET-039, TICKET-038 e TICKET-029, verificare almeno:
+Dopo TICKET-038 e TICKET-029, verificare almeno:
 
 - projection variant preservation;
 - orientation applicata una volta;
@@ -149,7 +141,7 @@ Profili minimi:
 
 Ordine consigliato:
 
-1. rendere verde il visual regression target esistente;
+1. sbloccare FontEngine e rendere verde il visual regression target;
 2. ampliare il visual regression harness sui preset già presenti;
 3. chiudere rich text e styling per parola end-to-end;
 4. introdurre modello timed text e parser JSON/SRT;
@@ -222,7 +214,6 @@ dal linguaggio host.
 
 Mantenere PR piccole e non sovrapposte:
 
-- TICKET-039 renderer consumer;
 - TICKET-038 text visual test;
 - TICKET-009 orphan/experimental cleanup;
 - TICKET-029 camera compiler/link;
@@ -235,7 +226,7 @@ Mantenere PR piccole e non sovrapposte:
 - C ABI.
 
 Non mescolare refactor, nuova feature, documentazione ampia e modifica dei gate
-nella stessa PR salvo necessità architetturale dimostrata.
+nella stessa modifica salvo necessità architetturale dimostrata.
 
 ## Workflow Git obbligatorio
 
@@ -243,18 +234,16 @@ nella stessa PR salvo necessità architetturale dimostrata.
 git fetch origin
 git checkout main
 git pull --ff-only origin main
-git checkout -b codex/<nome-blocco>
 ```
 
-Durante il lavoro:
+Lavoro direttamente su `main`, un task alla volta:
 
 - cercare il codice esistente prima di aggiungere nuovi tipi;
 - modificare soltanto i file del problema assegnato;
-- fare rebase frequente su `origin/main`;
 - eseguire test mirati;
 - controllare `git status -sb` e `git diff`;
 - non committare output, `node_modules` o `*.tsbuildinfo`;
-- dopo il push controllare la cronologia recente.
+- dopo il push: `git push origin main && git log -n 5 --oneline`.
 
 ## Criterio di chiusura
 
@@ -263,6 +252,6 @@ Un lavoro è chiuso soltanto quando:
 - il codice usa il percorso canonico;
 - i test pertinenti vengono eseguiti e passano;
 - i gate non sono indeboliti;
-- il branch è aggiornato su `origin/main`;
-- la PR è piccola e reviewabile;
+- il commit è su `main` aggiornato;
+- la modifica è piccola e reviewabile;
 - i documenti riportano lo stesso stato osservato.
