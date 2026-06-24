@@ -1,0 +1,58 @@
+# tests/showcase/CMakeLists.txt — AGENT 4 Cinematic Camera Showcase Tests
+#
+# Local test target registry for AGENT 4 / TICKET-A4:
+#   * chronon3d_cinematic_camera_showcase_tests — six DoD gates
+#     (A4.1 frame non-empty / A4.2 camera motion / A4.3 text motion /
+#      A4.4 determinism / A4.5 contact sheet PNG / A4.6 performance).
+#   * Composition under test: deep_parallax_cascade (180 frames,
+#     Catmull-Rom camera path + 4 stacked text layers).
+#
+# This file is gated by CHRONON3D_BUILD_CONTENT because the
+# cinematic_text_camera compositions live in content/anims/compositions/.
+# Content is the only "core" code path exercised; Agent 1 (camera) and
+# Agent 2 (text) core code are intentionally NOT touched.
+
+# ── Showcase end-to-end verification test binary ──────────────────────
+# Path note: `include(${CMAKE_CURRENT_SOURCE_DIR}/showcase/CMakeLists.txt)`
+# in the parent tests/CMakeLists.txt preserves the parent's scope, so
+# CMAKE_CURRENT_SOURCE_DIR here is still `tests/` (not `tests/showcase/`).
+# That means src paths must be relative to THE PARENT directory, exactly
+# as in tests/visual_tests.cmake's `add_executable(... visual/camera/...)`
+# pattern.  Hence `showcase/test_cinematic_camera_showcase.cpp` — not
+# `test_cinematic_camera_showcase.cpp`.  Without this prefix CMake config
+# fails with "Cannot find source file" because it would look at
+# tests/test_cinematic_camera_showcase.cpp (nonexistent).
+add_executable(chronon3d_cinematic_camera_showcase_tests
+    ${TEST_MAIN}
+    showcase/test_cinematic_camera_showcase.cpp
+)
+
+target_link_libraries(chronon3d_cinematic_camera_showcase_tests
+    PRIVATE
+        chronon3d_sdk
+        chronon3d_backend_software
+        chronon3d_backend_image
+        chronon3d_scene
+        chronon3d_content
+        doctest::doctest
+)
+
+target_compile_definitions(chronon3d_cinematic_camera_showcase_tests
+    PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
+
+target_include_directories(chronon3d_cinematic_camera_showcase_tests
+    PRIVATE ${CMAKE_SOURCE_DIR}
+)
+
+set_target_properties(chronon3d_cinematic_camera_showcase_tests
+    PROPERTIES UNITY_BUILD OFF
+)
+
+chronon3d_enable_test_pch(chronon3d_cinematic_camera_showcase_tests)
+
+add_test(
+    NAME chronon3d_cinematic_camera_showcase_tests
+    COMMAND chronon3d_cinematic_camera_showcase_tests
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
