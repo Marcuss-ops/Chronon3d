@@ -28,7 +28,10 @@
 #   - chronon3d_software  : INTERFACE umbrella
 #
 # Single-file test:
-#   tests/text/test_text_preset_visual.cpp (~510 LOC, 128 sentinels)
+#   tests/text/test_text_preset_visual.cpp (VisualExpectation 4-state enum,
+#   VR_TEXT_PRESET_GATE macro dispatching on the enum, 128 (preset, ratio,
+#   frame) sentinels — see file header for the enum, threshold, and
+#   sentinel-distribution rationale).
 #
 # PNG dump pipeline is wired in follow-up sub-PR A4.png (no-op here).
 # ═══════════════════════════════════════════════════════════════════════════
