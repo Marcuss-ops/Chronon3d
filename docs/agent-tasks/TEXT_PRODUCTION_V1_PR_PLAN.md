@@ -28,7 +28,7 @@ Il risultato non deve essere un clone generale di After Effects. Deve implementa
 
 ## 2. Regola obbligatoria: lavorare sempre dal `main` aggiornato
 
-Ogni PR deve iniziare da un checkout pulito del `main` remoto.
+Ogni task deve iniziare da un checkout pulito del `main` remoto.
 
 ```bash
 git fetch origin
@@ -41,54 +41,35 @@ git log -n 5 --oneline
 ### Regole operative
 
 1. `main` è sempre la base e la fonte della verità.
-2. Non continuare a lavorare su un branch vecchio dopo che un'altra PR è stata integrata.
+2. Non continuare a lavorare su una copia locale vecchia; rifare sempre pull --ff-only.
 3. Non creare branch di prova, branch duplicati o branch per sola analisi.
-4. Deve esistere al massimo **un branch temporaneo attivo per il lavoro corrente**.
-5. Il branch temporaneo deve nascere dal `main` aggiornato e deve contenere una sola PR.
-6. Non creare PR stacked basate su altri feature branch.
-7. Prima del push, riallineare il branch con `origin/main`.
-8. Dopo il merge, tornare immediatamente su `main`, aggiornarlo e cancellare il branch temporaneo.
-9. Analisi, audit, lettura e pianificazione si fanno direttamente sul checkout di `main`, senza creare branch.
-10. Non pushare direttamente su `main`; il codice passa da una PR piccola e verificabile.
+4. Lavora **direttamente su `main`**, senza branch. Un task alla volta, sequenziale.
+5. Pusha direttamente su `main` al termine del task integrato e verificato.
 
-Workflow per una PR reale:
+Workflow main-direct:
 
 ```bash
 git fetch origin
 git checkout main
 git pull --ff-only origin main
-git checkout -b codex/text-prXX-nome-breve
 
-# modifiche limitate alla PR corrente
+# modifiche al codice
 
-git fetch origin
-git rebase origin/main
 git status -sb
 git diff
 
 # test mirati
 
-git add <solo-file-della-PR>
+git add <solo-file-modificati>
 git commit -m "feat(text): descrizione chiara"
-git push origin codex/text-prXX-nome-breve
-git log -n 5 --oneline
-```
-
-Dopo il merge:
-
-```bash
-git checkout main
-git pull --ff-only origin main
-git branch -d codex/text-prXX-nome-breve
-git status -sb
+git push origin main
 git log -n 5 --oneline
 ```
 
 ### Divieti
 
-- niente branch permanente per il testo;
-- niente branch per ogni singolo preset;
-- niente PR che mescolano testo, camera, renderer e refactor generici;
+- niente branch per il testo;
+- niente task che mescolano testo, camera, renderer e refactor generici;
 - niente nuova pipeline parallela;
 - niente nuovo registry, resolver, shaper, path engine o cache quando esiste già un contratto canonico;
 - niente modifica dei gate per nascondere failure;
@@ -867,13 +848,11 @@ Ordine successivo consigliato:
 
 ### Prima del codice
 
-- [ ] `git fetch origin`
-- [ ] `git checkout main`
-- [ ] `git pull --ff-only origin main`
+- [ ] `git pull --ff-only origin main` (se necessario: `git fetch origin` prima)
 - [ ] `git status -sb`
 - [ ] `git log -n 5 --oneline`
 - [ ] ricerca del codice esistente completata
-- [ ] nessun altro branch temporaneo attivo per lo stesso lavoro
+- [ ] un solo task attivo alla volta
 - [ ] file ownership e scope definiti
 
 ### Durante il codice
@@ -886,28 +865,19 @@ Ordine successivo consigliato:
 
 ### Prima del push
 
-- [ ] `git fetch origin`
-- [ ] `git rebase origin/main`
+- [ ] `git fetch origin && git pull --ff-only origin main`
 - [ ] `git status -sb`
 - [ ] `git diff`
 - [ ] test mirati verdi
 - [ ] nessun output o file generato committato
 - [ ] commit piccolo e leggibile
 
-### Dopo il push
+Dopo il push:
 
 - [ ] `git log -n 5 --oneline`
-- [ ] controllato il diff remoto
 - [ ] CI/check osservati
 - [ ] nessun claim “verde” senza prova
-
-### Dopo il merge
-
-- [ ] checkout `main`
-- [ ] pull `--ff-only`
-- [ ] branch temporaneo cancellato
-- [ ] cronologia recente verificata
-- [ ] PR successiva parte dal nuovo `main`
+- [ ] task successivo già pronto su `main` aggiornato
 
 ---
 
@@ -920,6 +890,6 @@ Quando una PR scopre un errore fuori scope:
 3. completare o fermare la PR corrente in modo pulito;
 4. tornare su `main` aggiornato;
 5. decidere se il problema richiede davvero una nuova PR;
-6. non creare automaticamente un branch aggiuntivo.
+6. non creare task paralleli sullo stesso scope.
 
-Il numero di branch non misura il progresso. Il progresso è misurato da codice canonico, test eseguiti, golden approvate e una baseline riproducibile su `main`.
+Il progresso è misurato da codice canonico, test eseguiti, golden approvate e una baseline riproducibile su `main`.
