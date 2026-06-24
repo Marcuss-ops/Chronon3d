@@ -112,6 +112,12 @@ Composition abyss_freefall_stagger();
 // Defined in ae_camera_text_parity.cpp (same translation-unit group).
 Composition ae_camera_text_parity();
 
+// Cinematic showcase composition (Agente 3).
+// 180-frame sequence exercising Agent-1 Bezier TrajectoryMotion + four
+// canonical text reveal behaviors end-to-end.  See
+// content/anims/compositions/cinematic_camera_showcase.hpp for DoD.
+Composition cinematic_camera_showcase();
+
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_anim_compositions(CompositionRegistry& registry) {
     registry.add("AnimFadeInText", [](const CompositionProps&) { return anim_fade_in_text(); });
@@ -147,6 +153,11 @@ void register_anim_compositions(CompositionRegistry& registry) {
     // covering static / dolly-zoom / orbit / rack-focus / whip-pan+
     // motion-blur / stress — renders cleanly via the standard CLI.
     registry.add("AECameraTextParity", [](const CompositionProps&) { return ae_camera_text_parity(); });
+
+    // Cinematic camera showcase (Agente 3 — see cinematic_camera_showcase.hpp
+    // for DoD).  Renders via `tools/render_cinematic_showcase.sh`.
+    registry.add("CinematicCameraShowcase",
+                 [](const CompositionProps&) { return cinematic_camera_showcase(); });
 }
 
 } // namespace chronon3d::content::anims
