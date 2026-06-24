@@ -25,6 +25,7 @@
 #include <chronon3d/math/camera_2_5d_projection.hpp>  // Camera2_5D
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -138,14 +139,45 @@ private:
         CameraEvaluationDependency::Stateless};
     CameraDescriptor                  descriptor_{};
 
-    // ── Compiled evaluation helpers ─────────────────────────────────────
-    /// Evaluate a source variant directly (no registry lookup).
-    Camera2_5D evaluate_compiled_source(const CameraEvalContext& ctx) const;
+    // ── Source evaluator output (Agente 1) ───────────────────────────────
+    // Threads the *real* trajectory tangent + banking value from the
+    // source evaluator (which knows the parametric direction) into the
+    // orientation step.  Both fields are std::optional so non-trajectory
+    // sources (PoseTracks / OrbitMotion / StaticCamera) leave them empty
+    // and the orientation step falls back to the legacy POI-based contract
+    // (never used as a "fake tangent").
+    struct EvaluatedCameraSource {
+        Camera2_5D             camera;
+        std::optional<Vec3>    path_tangent;   ///< raw tangent from trajectory sample (orientation step normalises).
+        std::optional<float>   path_roll_deg;  ///< trajectory sample's banking value for A1.5.
+    };
 
-    /// Apply orientation from an OrientationSpec variant (passed as opaque ptr).
+    // ── A1.7 degenerate-tangent fallback cache ───────────────────────────
+    // `evaluate()` is `const` so this fallback state lives on mutable
+    // members.  Sequential CameraProgram evaluation only (one program per
+    // render thread per AGENTS.md policy); concurrent evaluate() on the
+    // same program is not a documented use case here and would race
+    // this fallback but not affect correctness for any non-degenerate
+    // tangent (which is the overwhelming majority).
+    mutable Vec3  last_valid_path_tangent_{0.0f, 0.0f, 0.0f};
+    mutable bool  has_last_path_tangent_{false};
+
+    // ── Compiled evaluation helpers ─────────────────────────────────────
+    /// Evaluate a source variant directly (no registry lookup).  Returns
+    /// the per-source camera snapshot plus optional trajectory metadata
+    /// (path_tangent + path_roll_deg) consumed by `apply_orientation_spec`
+    /// below.
+    EvaluatedCameraSource evaluate_compiled_source(const CameraEvalContext& ctx) const;
+
+    /// Apply orientation from an OrientationSpec variant (passed as opaque
+    /// ptr).  `path_tangent` / `path_roll_deg` are forwarded from the
+    /// source evaluator; they are populated ONLY by TrajectoryMotion, and
+    /// OrientAlongPath uses the real tangent when present (A1.3-A1.5).
     void apply_orientation_spec(const void* orient_variant,
                                 const CameraEvalContext& ctx,
-                                Camera2_5D& cam) const;
+                                Camera2_5D& cam,
+                                const std::optional<Vec3>& path_tangent,
+                                const std::optional<float>& path_roll_deg) const;
 };
 
 } // namespace chronon3d::camera_v1

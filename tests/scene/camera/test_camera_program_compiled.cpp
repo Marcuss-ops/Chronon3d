@@ -1096,6 +1096,211 @@ TEST_CASE("compiled_orientation_orient_along_path_no_poi_is_noop — "
     CHECK_FALSE(cam.point_of_interest_enabled);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// §4.E — Agente 1: Camera cinematografica vera
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Locks the post-fix behaviour for the five behaviours the spec requires:
+//
+//   T1  real-tangent forward (NOT POI-derived) when target ≠ tangent.
+//   T2  keep_horizon=true ⇒ rotation.z == 0.
+//   T3  trajectory sample.roll_deg wins through OrientAlongPath.
+//   T4  Physical-lens projection survives the trajectory source (A1.6).
+//   T5  no NaN at start / middle / end (A1.7 stability contract).
+//
+// `dot(camera_forward, normalized_tangent)` for the T1 assertion is computed
+// the same way `quat_look_along` is the inverse of `quat_to_camera_euler`:
+//   camera_forward = (qx*tilt * qy*pan * qz*roll) * (0, 0, -1)
+// which matches the camera's *effective* forward direction in world space
+// after the orientation step.
+
+TEST_CASE("compiled_trajectory_orient_along_path_uses_real_tangent — "
+          "Agente 1 (T1): direction toward target != trajectory tangent "
+          "(target +X, tangent +Z) ⇒ camera forward MUST align with the "
+          "trajectory tangent, NOT with the camera→target direction. "
+          "Locks A1.3 / A1.4: the target is never reused as a fake tangent.") {
+    auto desc = make_cam01_base_desc("test.a1.t1");
+    // Linear trajectory along +Z, with the FIRST point's target overridden
+    // to +X.  The bezier/linear sampler falls back to pt0's target when
+    // pt1 has no override, so the runtime target stays +X throughout the
+    // segment.  Direction camera→target is therefore not parallel to the
+    // trajectory tangent (which is +Z): a clean setup for the T1 lock.
+    auto traj = CameraTrajectoryBuilder()
+                    .move_to(Vec3{0.0f, 0.0f, -1500.0f},
+                              /*target=*/Vec3{1000.0f, 0.0f, 0.0f})
+                    .move_to(Vec3{0.0f, 0.0f, -500.0f})
+                    .duration_frames(90.0f)
+                    .build();
+    REQUIRE(traj);
+    REQUIRE(traj->size() == 1);
+
+    desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
+    desc.orientation = OrientAlongPath{/*keep_horizon=*/false};
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+
+    // Sample at frame 0 of the segment (linear, zero bezier handles above).
+    auto cam = eval_at_or_die_cam01(program, session, Frame{0});
+    CAPTURE(cam.position.x); CAPTURE(cam.position.y); CAPTURE(cam.position.z);
+
+    // Reconstruct camera forward from the Euler rotation the orientation
+    // step produced.  Matches Camera2_5D::resolve_look_at_orientation()'s
+    // Euler composition (qX*tilt * qY*pan * qZ*roll).
+    const Quat qx = glm::angleAxis(glm::radians(cam.rotation.x),
+                                    Vec3{1.0f, 0.0f, 0.0f});
+    const Quat qy = glm::angleAxis(glm::radians(cam.rotation.y),
+                                    Vec3{0.0f, 1.0f, 0.0f});
+    const Quat qz = glm::angleAxis(glm::radians(cam.rotation.z),
+                                    Vec3{0.0f, 0.0f, 1.0f});
+    const Quat orientation = qx * qy * qz;
+    const Vec3 camera_forward = orientation * Vec3{0.0f, 0.0f, -1.0f};
+
+    // Parametric direction of the trajectory piece: +Z.
+    const Vec3 expected_tangent{0.0f, 0.0f, 1.0f};
+    const float dot_ft = glm::dot(camera_forward, expected_tangent);
+
+    CAPTURE(camera_forward.x); CAPTURE(camera_forward.y); CAPTURE(camera_forward.z);
+    CAPTURE(dot_ft);
+    // Strict spec threshold.  Reconstructed camera-forward from Euler
+    // (0, 180, 0) hits (0, 0, 1) bit-exact via qY(180°) * (0, 0, -1).
+    CHECK(dot_ft > 0.995f);
+
+    // Symmetric negative lock: the camera MUST NOT be aligned to the
+    // camera→target direction (which points to (1000,0,0)).  Tangent
+    // direction (0,0,1) is orthogonal to target direction's X component, so
+    // the abs(dot(forward, x_hat)) must be small.
+    const float dot_fx = std::abs(glm::dot(camera_forward, Vec3{1.0f, 0.0f, 0.0f}));
+    CAPTURE(dot_fx);
+    CHECK(dot_fx < 0.10f);  // not aligned to +X (the POI direction).
+}
+
+TEST_CASE("compiled_trajectory_keep_horizon_zeroes_roll — "
+          "Agente 1 (T2): OrientAlongPath::keep_horizon=true when paired "
+          "with TrajectoryMotion MUST clamp rotation.z ≈ 0 regardless of "
+          "the trajectory point's roll_deg.  Locks A1.5.") {
+    auto desc = make_cam01_base_desc("test.a1.t2");
+
+    auto traj = CameraTrajectoryBuilder()
+                    .move_to(Vec3{0.0f, 0.0f, -1500.0f},
+                              std::nullopt, /*roll_deg=*/15.0f)
+                    .move_to(Vec3{100.0f, 50.0f, -500.0f})
+                    .duration_frames(60.0f)
+                    .build();
+    REQUIRE(traj);
+
+    desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
+    desc.orientation = OrientAlongPath{/*keep_horizon=*/true};
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+    auto cam = eval_at_or_die_cam01(program, session, Frame{30});
+    CAPTURE(cam.rotation.x); CAPTURE(cam.rotation.y); CAPTURE(cam.rotation.z);
+    CHECK(std::abs(cam.rotation.z) < 0.01f);
+}
+
+TEST_CASE("compiled_trajectory_banking_uses_sample_roll_deg — "
+          "Agente 1 (T3): OrientAlongPath + TrajectoryMotion with "
+          "sample.roll_deg = 15 (keep_horizon=false) ⇒ rotation.z ≈ 15. "
+          "Locks A1.5: trajectory banking is propagated.") {
+    auto desc = make_cam01_base_desc("test.a1.t3");
+
+    auto traj = CameraTrajectoryBuilder()
+                    .move_to(Vec3{0.0f, 0.0f, -1500.0f},
+                              std::nullopt, /*roll_deg=*/15.0f)
+                    .move_to(Vec3{0.0f, 0.0f, -500.0f})
+                    .duration_frames(60.0f)
+                    .build();
+    REQUIRE(traj);
+
+    desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
+    desc.orientation = OrientAlongPath{/*keep_horizon=*/false};
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+    auto cam = eval_at_or_die_cam01(program, session, Frame{0});
+    CAPTURE(cam.rotation.z);
+    CHECK(cam.rotation.z == doctest::Approx(15.0f).epsilon(0.01f));
+}
+
+TEST_CASE("compiled_trajectory_preserves_physical_lens — "
+          "Agente 1 (T4): Trajectory source MUST NOT clobber a Physical "
+          "Lens projection into a Zoom-fisso or FOV-fisso (A1.6).  "
+          "Locked by reuse of the same apply_projection_spec() the "
+          "PoseTracks path uses, plus carry-forward of base lens/dof/"
+          "motion_blur/parent_name.") {
+    auto desc = make_cam01_base_desc("test.a1.t4");
+    // Sentinel physical lens (different from default full_frame_50mm).
+    LensModel lens = LensPresets::full_frame_85mm();
+    lens.f_stop = 4.0f;
+    desc.base.projection = PhysicalLensProjection{lens};
+
+    auto traj = CameraTrajectoryBuilder()
+                    .move_to(Vec3{0.0f, 0.0f, -1500.0f})
+                    .bezier_to(Vec3{0.0f, 0.0f, 0.0f},
+                               Vec3{0.0f, 0.0f, 0.0f},
+                               Vec3{0.0f, 0.0f, -500.0f})
+                    .duration_frames(90.0f)
+                    .build();
+    REQUIRE(traj);
+
+    desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
+    desc.orientation = FixedOrientation{};
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+    auto cam = eval_at_or_die_cam01(program, session, Frame{45});
+    CAPTURE(cam.optics_mode); CAPTURE(cam.lens.focal_length); CAPTURE(cam.lens.f_stop);
+    CHECK(cam.optics_mode == CameraOpticsMode::PhysicalLens);
+    CHECK(cam.lens.focal_length  == doctest::Approx(85.0f).epsilon(kCam01Eps));
+    CHECK(cam.lens.f_stop        == doctest::Approx(4.0f).epsilon(kCam01Eps));
+    // apply_projection_spec resets zoom / fov_deg for the physical lens —
+    // the trajectory source must respect that (no zoom = 1000.0f clobber).
+    CHECK(cam.zoom    == doctest::Approx(0.0f).epsilon(kCam01Eps));
+    CHECK(cam.fov_deg == doctest::Approx(0.0f).epsilon(kCam01Eps));
+    // Carry-forward: lens, dof, motion_blur, parent_name are propagated
+    // from base even on the trajectory source.
+    CHECK(cam.motion_blur.mode == MotionBlurMode::Off);
+    CHECK(cam.parent_name == std::pmr::string{});
+}
+
+TEST_CASE("compiled_trajectory_no_nan_at_three_samples — "
+          "Agente 1 (T5): stability contract — no NaN in position or "
+          "rotation at start, middle, or end of a trajectory that mixes "
+          "a non-zero roll_deg with a non-trivial bezier handle.  Locks "
+          "A1.7's 'mai NaN' invariant.") {
+    auto desc = make_cam01_base_desc("test.a1.t5");
+
+    auto traj = CameraTrajectoryBuilder()
+                    .move_to(Vec3{0.0f, 0.0f, -1500.0f},
+                              std::nullopt, /*roll_deg=*/15.0f)
+                    .bezier_to(Vec3{100.0f, 50.0f, 0.0f},
+                               Vec3{-50.0f, -20.0f, 0.0f},
+                               Vec3{0.0f, 0.0f, -500.0f})
+                    .duration_frames(60.0f)
+                    .build();
+    REQUIRE(traj);
+
+    desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
+    desc.orientation = OrientAlongPath{/*keep_horizon=*/false};
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+
+    for (Frame f : {Frame{0}, Frame{30}, Frame{60}}) {  // start / mid / end-of-60f trajectory
+        auto cam = eval_at_or_die_cam01(program, session, f);
+        CAPTURE(f.value);
+        CAPTURE(cam.position.x); CAPTURE(cam.position.y); CAPTURE(cam.position.z);
+        CAPTURE(cam.rotation.x); CAPTURE(cam.rotation.y); CAPTURE(cam.rotation.z);
+        CHECK(std::isfinite(cam.position.x));
+        CHECK(std::isfinite(cam.position.y));
+        CHECK(std::isfinite(cam.position.z));
+        CHECK(std::isfinite(cam.rotation.x));
+        CHECK(std::isfinite(cam.rotation.y));
+        CHECK(std::isfinite(cam.rotation.z));
+    }
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // §5 — ALL 5 CONSTRAINTS
 // ══════════════════════════════════════════════════════════════════════════
