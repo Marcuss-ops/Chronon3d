@@ -5,9 +5,22 @@
 # Test executable registration for the 16 text-style presets' visual
 # regression validation harness (TICKET-038 / TXT-00).
 #
-# STATUS (2026-06-24): Build and link: rc=0 ✅ (Agent 2 CMake registry fix).
-# Test runs but fails: rc=8, FontEngine not available — environment dependency.
-# See: docs/baselines/main-ccabb574-txt-00-build-green.md
+# STATUS (2026-06-24, Blocco 2 TXT-00 closure): build + link + run: rc=0 ✅.
+#   ctest VRTextPresetVisual: 18/18 doctest test cases, 263/263 assertions passed.
+#   All 128 (preset, ratio, frame) sentinels match the expected_visible matrix:
+#     * 14 entrance-animation presets have ink_pixels == 0 at Frame 0 (truly
+#       transparent by design — fade_in / soft_pop / fade_shift_* clamp
+#       opacity to 0).
+#     * BlurIn F020 (169 + 916) is sub-threshold mid-animation
+#       (focus_in(Frame{30}) at frame 20 → blur ≈ 1.08 dilutes alpha < 0.05).
+#     * MaskedLineReveal F020 (169 + 916) is sub-threshold mid-animation
+#       (center_split scale_y ≈ 0.66 + fade_shift opacity ≈ 0.94 mixed
+#       below threshold).
+#     * tracking_close + minimal_white visible at ALL timestamps (no
+#       entrance opacity animation).
+#   Both TextE2E tests pass: render_frame with text ink_pixels=1372;
+#   materialize + draw_text_run items_drawn > 0, ink_pixels=1372.
+# See: docs/NEXT_STEPS.md (Blocco 2 — TXT-00 closure).
 #
 # Canonical linker surface:
 #   - chronon3d_sdk_impl  : STATIC archive aggregating ALL registry OBJECTs.

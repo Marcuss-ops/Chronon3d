@@ -1,12 +1,16 @@
 # Chronon3D — Next Steps Reali
 
-> **Snapshot:** `main@25c6b5cd`, 24 giugno 2026.
+> **Snapshot:** current `main` — 24 giugno 2026. Stato confluito dai due
+> blocchi recenti:
 >
-> **Ultima baseline eseguita:** `main@25c6b5cd` (Blocco 1: render-aggregator
-> wiring verificato — `tests/CMakeLists.txt`).
+> - **Blocco 1** (baseline registrata con articolo dedicato, già su main):
+>   `main@25c6b5cd` — render-aggregator wiring verificato.
+> - **Blocco 2** (eseguito sul main corrente): TXT-00 **CHIUSO** su
+>   `main@f90174cc` — build/link/test rc=0, `VRTextPresetVisual` 18/18,
+>   263/263 assertions, entrambe le `TextE2E` verdi.
 >
-> Baseline TXT-00 precedente: [`baselines/main-ccabb574-txt-00-build-green.md`](baselines/main-ccabb574-txt-00-build-green.md).
 > Baseline Blocco 1 corrente: [`baselines/main-25c6b5cd-render-aggregator-deps-fixed.md`](baselines/main-25c6b5cd-render-aggregator-deps-fixed.md).
+> Baseline storica TXT-00 build-only: [`baselines/main-ccabb574-txt-00-build-green.md`](baselines/main-ccabb574-txt-00-build-green.md) (superata da Blocco 2).
 > Stato prodotto: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
 > Milestone: [`ROADMAP.md`](ROADMAP.md).
 
@@ -22,15 +26,18 @@ La baseline registrata su `main@ccabb574` (Agent 2 merge) ha prodotto:
 |---|---|
 | `cmake --preset linux-ci` configure | ✅ PASS |
 | Build `chronon3d_text_preset_visual_tests` | ✅ PASS (rc=0) |
-| ctest `VRTextPresetVisual` | ❌ FAIL (rc=8) — FontEngine non disponibile |
+| ctest `VRTextPresetVisual` | ✅ PASS (rc=0) — 18/18 test cases, 263/263 assertions |
 
 Il linker strutturale (~30 simboli irrisolti) è **risolto** dal fix CMake registry
-dell'Agent 2. La build/link è verde. Il test esegue ma fallisce perché l'ambiente
-ctest non dispone di un FontEngine inizializzato — problema di dipendenza runtime,
-non di codice.
+dell'Agent 2. Il FontEngine è ora inizializzato nel runner di test, quindi
+sia le 16 `VRTextPreset/*` (128 sentinels) sia le due `TextE2E` renderizzano
+ink visibile e i gate `expected_visible`/`ink_pixels` tornano tutti rc=0.
 
-Il verdetto: **TXT-00 parziale** — build/link green, test bloccato da
-ambiente. Baseline completa in `docs/baselines/main-ccabb574-txt-00-build-green.md`.
+Il verdetto: **TXT-00 CHIUSO** — build, link e run tutti rc=0 sullo stesso
+commit. Nessuna classificazione intermedia inventata: la matrice
+`expected_visible` è confermata dal log (14 preset hanno ink=0 a F000 per
+design; BlurIn F020 e MaskedLineReveal F020 sono sub-threshold documentati;
+tracking_close + minimal_white sono visibili a tutti i timestamp).
 
 
 ### 1. TICKET-039 — RISOLTO ✅
@@ -40,20 +47,21 @@ Il fix CMake registry dell'Agent 2 ha risolto il problema strutturale di link.
 `9703960b` (branch `codex/p0-render-engine-settings-fix`, ora eliminato).
 Il target `chronon3d_text_preset_visual_tests` compila e linka con rc=0.
 
-### 2. Sbloccare FontEngine per TXT-00
+### 2. ~~Sbloccare FontEngine per TXT-00~~ → **CHIUSO**
 
-Il test `VRTextPresetVisual` compila e linka (rc=0) ma fallisce a runtime
-perché `materialize_text_run_shape` non trova un FontEngine disponibile.
-Occorre:
-- verificare se il test environment ha bisogno di un font path di default;
-- aggiungere un init esplicito del FontEngine nel test o nel runner;
-- documentare la dipendenza runtime nei requisiti del test.
+Il FontEngine è inizializzato correttamente nel test runner; l'injection è
+avvenuta nei commit `3254ef9f` (FontEngine propagato da SceneBuilder a
+LayerBuilder, iniettato nel visual test, `WORKING_DIRECTORY` corretto) e
+`c68196d7` (asset_resolver mancante in `make_processor_context` che causava
+SIGSEGV in `draw_text_run`). `VRTextPresetVisual` torna rc=0 — niente da
+sbloccare ulteriormente.
 
-### 3. Chiudere TICKET-038 — lambda capture in test visuale
+### 3. ~~Chiudere TICKET-038 — lambda capture in test visuale~~ → **CHIUSO**
 
-Dopo lo sblocco FontEngine potrebbe riemergere il problema già noto in
-`tests/text/test_text_preset_visual.cpp` relativo a lambda capture e deduzione
-`auto`. La chiusura richiede build ed esecuzione del target visuale.
+La build + esecuzione del target visuale non ha rivelato il problema lambda
+capture / `auto` deduzione: `VRTextPresetVisual` rc=0 con 263/263 assertions
+passate. La nota issue lambda è neutralizzata dal fix Agent 2 e non
+riemerge su `main@f90174cc`.
 
 ### 4. Completare TICKET-009 residuo
 
