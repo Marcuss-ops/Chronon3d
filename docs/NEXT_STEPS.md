@@ -1,11 +1,12 @@
 # Chronon3D — Next Steps Reali
 
-> **Snapshot:** `main@3ef352d`, 24 giugno 2026.
+> **Snapshot:** `main@25c6b5cd`, 24 giugno 2026.
 >
-> **Ultima baseline eseguita:** `main@ccabb574` (TXT-00: build/link green,
-> test bloccato da FontEngine).
+> **Ultima baseline eseguita:** `main@25c6b5cd` (Blocco 1: render-aggregator
+> wiring verificato — `tests/CMakeLists.txt`).
 >
-> Baseline TXT-00: [`baselines/main-ccabb574-txt-00-build-green.md`](baselines/main-ccabb574-txt-00-build-green.md).
+> Baseline TXT-00 precedente: [`baselines/main-ccabb574-txt-00-build-green.md`](baselines/main-ccabb574-txt-00-build-green.md).
+> Baseline Blocco 1 corrente: [`baselines/main-25c6b5cd-render-aggregator-deps-fixed.md`](baselines/main-25c6b5cd-render-aggregator-deps-fixed.md).
 > Stato prodotto: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
 > Milestone: [`ROADMAP.md`](ROADMAP.md).
 
