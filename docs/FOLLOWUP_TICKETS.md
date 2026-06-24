@@ -3231,3 +3231,374 @@ the `codex/fix-ticket-040-taskflow-cleanup` branch commit.
 | **Suggested fix** | (1) Ensure no internal includes. (2) Rewrite to use `Chronon3D::SDK` INTERFACE alias. (3) Promote gate. |
 | **Acceptance criteria** | (1) `[14/14]` passes. (2) `install_consumer_test` compiles against installed SDK alias without internal includes. |
 | **Cross-references** | AGENTS.md §4; ADR-008; ADR-010-3; Gate `[14/14]`. |
+
+---
+
+## TICKET-044 — `arch_boundaries_selftest` hard-coded against pre-`babfdf80` parser expectations
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `tools/check_architecture_boundaries_selftest.sh` (13 of 22 assertions fail), `tools/check_architecture_boundaries.sh` (subject under test; the post-`babfdf80` parser is the new ground truth). |
+| **Discovered during** | Documented in `docs/baselines/main-9c98aa7c-gates-promoted.md` — off-CI sweep on `a5af4b23` exposed 6 pre-existing umbrella bugs. The selftest script is the FIRST surfacing in that sweep. |
+| **Discovered date** | 2026-06-24 |
+| **Compliance target** | `arch_boundaries_selftest` RC=0 — i.e., every selftest assertion matches the current parser behaviour. |
+
+### Symptom
+
+`bash tools/check_architecture_boundaries_selftest.sh` returns RC=1 with 13 assertions failing and 9 assertions passing. Two failure classes:
+
+1. **Hard-coded against gate [12/14]/[13/14]/[14/14] advisory-mode behaviour**: assertions of the form
+   ```
+   assert_exit 'OBJECT lib leak (gate [12/14] advisory) -> exit 0' 0 $rc
+   ```
+   return GOT=1 (FAIL) because commit `9c98aa7c` promoted those gates to blocking-mode (RC=1 on real rot). The selftest script still asserts RC=0 because the gates were advisory when the script was last updated.
+
+2. **Hard-coded against pre-`babfdf80` regex/extraction assumptions**: assertions of the form
+   ```
+   assert_grep 'ExecutionPlanCache (rot pattern) -> grep finds it' 1 $count
+   ```
+   return GOT=0 (FAIL) because the parser-fix in `babfdf80` rewrote the rot-pattern extraction logic. Patterns that the OLD parser rotated on no longer produce a match under the new parser; the selftest still asserts the old pattern was found.
+
+### Root cause analysis
+
+The selftest's structure (22 assertions, each a `bash function + assert_exit/assert_grep pair`) was authored when:
+- Gates 12/13/14 were advisory → RC=0 was the expected (correct) outcome.
+- The arch_boundaries.py parser used `add_library`-only extraction → certain `grep`-based rot searches had a known FAIL signature.
+
+After commit `9c98aa7c` (promote 12/13/14 to blocking) and commit `babfdf80` (parser fix), both assumptions are reversed:
+- For 12/13/14, RC=1 is the new "gate correctly identifies rot" answer.
+- For the rot-pattern grep canaries, several previously-expected FAIL-signatures are no longer emitted by the parser.
+
+The selftest was not updated alongside the parser fix because the parser fix was scoped to the script-under-test, not the selftest. The selftest is a separate hard-coded fixture.
+
+### Suggested fix approach
+
+Two options:
+
+1. **Update the 13 failing assertions** to match the new ground truth:
+   - Change `OBJECT lib leak (gate [12/14] advisory) -> exit 0` to `OBJECT lib leak (gate [12/14] blocking) -> exit 1` (and equivalent for [13/14], [14/14]).
+   - Change `assert_grep ... 1` to `assert_grep ... 0` for the rot-patterns the new parser no longer rotates on; OR add new `assert_grep` invocations whose patterns match the new parser's `set()`-block + add_library extraction surface.
+   - Verify: `bash tools/check_architecture_boundaries_selftest.sh` returns RC=0 with 22/22 assertions passing.
+
+2. **Rewrite the selftest** as a data-driven table of `{test_name, expected_RC, expected_grep_pattern, expected_grep_count}` rows resolved against a small fixture tree the script generates on the fly. This decouples the fixture from the promotion state and from parser changes, at the cost of a slightly larger selftest. (Future-proofs the selftest against further promotion changes.)
+
+**Recommended**: option 2 — it scales better as gates 15+ get promoted. The data-driven table also makes the selftest itself auditable as a single source of truth for "what should the architecture-check gates detect on HEAD?").
+
+### Acceptance criteria
+
+- `bash tools/check_architecture_boundaries_selftest.sh` returns RC=0 with 22/22 assertions passing.
+- Every assertion has a comment block referencing the commit hash that introduced/changed the gate or parser behaviour it tests (so future maintainers know what the assertion is anchored to).
+- The selftest is documented in `docs/baselines/main-9c98aa7c-gates-promoted.md` §"Validation Results" as PASS, not FAIL.
+
+### Cross-references
+
+- TICKET-041 + TICKET-042 — the parser bugs the selftest was implicitly testing for. After `babfdf80`, those bugs are gone; the selftest's hard-coded expectations are stale.
+- Commit `9c98aa7c` — the promotion commit that flipped 12/13/14 from advisory to blocking (assertion class 1 above).
+- Commit `babfdf80` — the parser-fix commit that removed the rot-pattern grep canaries the selftest asserted on (assertion class 2 above).
+- `docs/baselines/main-9c98aa7c-gates-promoted.md` §"Validation Results" — broader 11-check CI matrix showing this script as the first OFF-CI surfacing.
+
+---
+
+## TICKET-045 — `tools/check_gitignored_dirs.sh` + `tools/audit_software_renderer.sh` shell self-bugs
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `tools/check_gitignored_dirs.sh` (line 116 `.gitignore: command not found` + line 178 `[: too many arguments`), `tools/audit_software_renderer.sh` (silent exit 1 via `set -e` + `grep` no-match abort). |
+| **Discovered during** | Documented in `docs/baselines/main-9c98aa7c-gates-promoted.md` — off-CI sweep on `a5af4b23`. Both scripts fail before they can give a meaningful PASS/FAIL signal. |
+| **Discovered date** | 2026-06-24 |
+
+### Symptom
+
+#### `tools/check_gitignored_dirs.sh`
+
+```bash
+$ bash tools/check_gitignored_dirs.sh
+tools/check_gitignored_dirs.sh: line 116: .gitignore: command not found
+tools/check_gitignored_dirs.sh: line 178: [: too many arguments
+                ╔══════════════════════════════════════╗
+                ║   FAIL: tracked files in build dirs  ║
+                ╚══════════════════════════════════════╝
+exit 1
+```
+
+The script runs through to its FAIL-summary emit, but two shell errors fire BEFORE the FAIL block — the script exits 1 on a shell-level error, NOT on the (intended) check-finding. The repo's actual state is unknown: the script can't parse its own inputs.
+
+#### `tools/audit_software_renderer.sh`
+
+```bash
+$ bash tools/audit_software_renderer.sh
+$ # (exit 1, no output AT ALL: empty stdout, empty stderr)
+$ bash -x tools/audit_software_renderer.sh 2>&1 | tail -10
++ cd /home/.../Chronon3d
++ ...
++ grep ... src/backends/software/software_renderer.hpp
++ ... (script hits a redirection fail or grep no-match, `set -e` aborts silently)
+exit 1
+```
+
+Empty stdout + empty stderr means the script can't tell us whether the repo's SoftwareRenderer invariants are clean or dirty. There IS no signal.
+
+### Root cause analysis
+
+#### `tools/check_gitignored_dirs.sh`
+
+The `.gitignore: command not found` error at line 116 is the canonical bash pattern for an unquoted glob expansion followed by a `for X in ${Y}; do` — specifically the line `for real in ${d}; do` (around line 116 inside a `for d in "${GLOB_BUILD_DIRS[@]}"` loop). When `${d}` contains a glob like `build-*` and the glob expands to filenames starting with a dash or a non-existent dir, bash interprets the filename as either a command (`.gitignore`) or as a `[: too many arguments` argument to the `[` builtin. The fix: quote the glob expansion (`for real in ${d[@]}` or use `readarray -t` + iterate) and quote the `[` operands.
+
+#### `tools/audit_software_renderer.sh`
+
+**Diagnostic step FIRST** (before assuming a failure class): run `bash -x tools/audit_software_renderer.sh 2>&1 | tail -50` and read the trace. The trace will branch into one of three scenarios:
+
+1. `grep ...` immediately followed by an early script exit -> **`set -e` + `grep` no-match** hypothesis. This is the most common pattern. `grep(1)` returns exit code 1 when its input doesn't contain a match; with `set -e` enabled, that exit-code aborts the entire script silently. Fix: convert `grep` calls to `grep ... || true` or wrap them in `if ! grep ...; then handle_nomatch; fi` blocks. Consider `set -uo pipefail` + careful grep handling for the rest of the script.
+2. The trace shows the script running to its natural completion but with empty stdout + non-zero exit -> **stdout/stderr redirection to `/dev/null`** hypothesis (an upstream caller OR the script itself redirects output; the script can't tell us what it found even when it succeeded). Fix: `grep -nE '/dev/null|2>/dev/null|1>/dev/null' tools/audit_software_renderer.sh` and inspect all redirection sites; remove the ones that swallow the audit report.
+3. The trace shows a parse/init failure (e.g. `syntax error near unexpected token`, uninitialized variable under `set -u`) -> **parser/init failure** hypothesis. Fix: declare defaults `VAR="${VAR:-}"`, `set +u` around optional reads, escape regex literals.
+
+After diagnosis, the most common pattern in this category is the `set -e` + grep no-match family. The script needs either:
+- `set +e` followed by explicit error-handling + `set -e` around the truly-fatal-only sections, OR
+- `\grep ... || true` patterns to convert grep no-match to a non-fatal exit, OR
+- `if ! grep ...; then ...` patterns.
+
+### Suggested fix approach
+
+Two independent single-script fixes:
+
+1. **`tools/check_gitignored_dirs.sh`**:
+   - Locate `for real in ${d}; do` around line 116; replace with `for real in "${d[@]}"; do` (or use `readarray -t` if a real array exists).
+   - Locate the `[` test on line 178; quote the operands.
+   - Verify: `bash tools/check_gitignored_dirs.sh` returns RC=0 (clean repo) or RC=1 (real gitignore-rot found) WITHOUT firing the shell-syntax errors.
+   - Optional add: `set -u` for safer unbound-variable behaviour, paired with explicit `${VAR:-}` defaults on each subscript.
+
+2. **`tools/audit_software_renderer.sh`**:
+   - Locate every `grep ... ` invocation; convert to `grep ... || true` or wrap in `if ! grep ...; then handle_nomatch; fi` blocks.
+   - OR: globally replace `set -e` with `set -euo pipefail` and add `|| true` after each grep, since grep no-match is semantically informative ("this pattern did not occur") rather than fatal.
+   - Verify: `bash tools/audit_software_renderer.sh` exits 0 on a clean tree with informative stdout (`SoftwareRenderer I1..I5 invariants: all PASS`), or exits 1 on real rot found with the audit finding reported.
+
+   Also confirm the script's stdout isn't being redirected to `/dev/null` somewhere upstream — if it is, the empty-stdout symptom is a caller-side issue, not a script-side issue.
+
+### Acceptance criteria
+
+- `bash tools/check_gitignored_dirs.sh` returns RC=0 on a clean repo (no real gitignore rot) WITHOUT the `command not found` / `[: too many arguments` shell errors.
+- `bash tools/check_software_renderer.sh` returns RC=0 on a clean repo WITHOUT silent empty-stdout — it should print a per-invariant PASS/FAIL summary.
+- Both scripts are wired into the broader CI matrix as OFF-CI-blocking if RC=1 (i.e., they should be promoted to a CI-blocking position, matching gates 12/13/14 promotion).
+
+### Cross-references
+
+- TICKET-044 — companion ticket for selftest script bugs (same script-bug category).
+- `docs/baselines/main-9c98aa7c-gates-promoted.md` §"Validation Results" — listing of the broader 11-check CI matrix exposing both script-bugs as 2 of the 6 OFF-CI failures.
+- AGENTS.md §"Regole di lavoro" — *Ogni rot deve avere un TICKET riferimento* (the reason these two script-bugs are TICKET-045 even though they share a tightness category).
+
+---
+
+## TICKET-046 — `tools/check_filename_drift.sh` reports 236 stale filename citations
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `docs/FOLLOWUP_TICKETS.md` (~40+ stale refs), `build/chronon/linux-ci/src/cmake_install.cmake` (~25+ refs to a generated build artifact), `tools/CHRONON3D_BACKEND_SOFTWARE_SOURCES.txt` (~15+ refs), `docs/V3_BLUEPRINT.md` (~15+ refs), `tools/telemetry_dashboard/frontend/node_modules/zustand/readme.md` (~10+ refs to a vendored-deps file that should be gitignored), plus ~130 other secondary citations. |
+| **Discovered during** | Documented in `docs/baselines/main-9c98aa7c-gates-promoted.md` — off-CI sweep on `a5af4b23`. The 236 finding count came from `wc -l /tmp/cisim/filename_drift.out`. |
+| **Discovered date** | 2026-06-24 |
+
+### Symptom
+
+`bash tools/check_filename_drift.sh` returns RC=1 with 236 findings in /tmp/cisim/filename_drift.out. Top citing-file × cited-path pairs:
+
+| Citing file | Cited path | Count |
+|---|---|---|
+| `docs/FOLLOWUP_TICKETS.md` | (multiple stale refs to deleted-docts) | ~40+ |
+| `build/chronon/linux-ci/src/cmake_install.cmake` | (self-refs in a generated build artifact) | ~25+ |
+| `tools/CHRONON3D_BACKEND_SOFTWARE_SOURCES.txt` | (refs to renamed/removed backends) | ~15+ |
+| `docs/V3_BLUEPRINT.md` | (refs to pre-V3 paths) | ~15+ |
+| `tools/telemetry_dashboard/frontend/node_modules/zustand/readme.md` | (refs to a vendored-deps file) | ~10+ |
+
+### Root cause analysis
+
+The 236 findings cluster around four real-rot signatures:
+
+1. **Stale `docs/FOLLOWUP_TICKETS.md` references**: when files are renamed/moved, the ticket's "Affected file(s)" + "Suggested fix approach" lines may still reference the old path. ~40+ cases.
+
+2. **Docs that cite `build/...` paths**: build artifacts (like `cmake_install.cmake`) generated by cmake configure are dynamic and shouldn't be cited from source-stable docs (TICKETs, STATUS, etc.). Either the citing doc has the wrong reference (should reference the canonical source path, not the generated artifact) OR the script's "drift" detection should ignore `build/...` paths as out-of-scope.
+
+3. **Stale `tools/CHRONON3D_BACKEND_SOFTWARE_SOURCES.txt`**: this is a generated snapshot file (likely from a periodic inventory scan). If the backends have been renamed/removed but the snapshot hasn't been regenerated, the README-style summary may cite stale backend names.
+
+4. **Stale `docs/V3_BLUEPRINT.md`**: pre-V3-architecture references that haven't been updated to V3 paths. Likely needs a V3-blueprint update pass.
+
+5. **Vendored-deps references in `node_modules/...`**: `tools/telemetry_dashboard/frontend/` is a Vite/React app that uses `npm` dependencies. The `node_modules/` tree is gitignored but `tools/check_filename_drift.sh` likely scans it, finding references like `tools/telemetry_dashboard/frontend/node_modules/zustand/readme.md` that are inside vendored deps the script should ignore.
+
+### Suggested fix approach
+
+Triage cluster-by-cluster:
+
+1. **TICKETs MD stale refs**: iterate `/tmp/cisim/filename_drift.out`, find the subset referencing `docs/FOLLOWUP_TICKETS.md` (citing) → x → (cited). Update each `docs/FOLLOWUP_TICKETS.md` "Affected file(s)" + "Suggested fix approach" line to the canonical current path. ~40+ edits.
+
+2. **Build artifact refs**: identify the docs that cite `build/chrono*/...` paths; replace with the canonical source path. If the citation is genuinely about an artifact (e.g. "the cmake_install.cmake emitted by linux-ci"), rephrase to be about the source that emits it, not the emitted artifact.
+
+3. **`CHRONON3D_BACKEND_SOFTWARE_SOURCES.txt` stale refs**: regenerate the snapshot. Verify the new snapshot aligns with `src/backends/software/CMakeLists.txt` registered backends.
+
+4. **`V3_BLUEPRINT.md` stale refs**: V3-blueprint update pass. Either update the doc to cite the current paths, or remove the V3-blueprint citations entirely if V3 isn't underway.
+
+5. **`node_modules/` scans**: add a `.filename_drift_excludes` (or analogous) filter to `tools/check_filename_drift.sh` to skip `node_modules/`, `build/`, `vcpkg_*/`, `.git/`, and any other vendored/dep-tree roots. This is the right fix because the script is supposed to track drift in the project source, not in third-party deps.
+
+Quota estimate after fixes: the 236 count should drop to ~30-60 (the remaining "true drift" that survives the cleanup).
+
+### Acceptance criteria
+
+- `bash tools/check_filename_drift.sh` returns RC=0 OR a count <60 (a residual that's been triaged and explicitly labelled as "deferred drift").
+
+  Concretely: 236 → ~30-60 after the 5-cluster triage pass above.
+
+- The script has a `.filename_drift_excludes` filter applied at the top-level (skip `node_modules/`, `build/`, `vcpkg_*/`, `.git/`, `.vcpkg-root/`, etc.).
+
+### Cross-references
+
+- `docs/baselines/main-9c98aa7c-gates-promoted.md` §"Validation Results" — broader 11-check CI matrix exposing this 236-count as one of the 6 OFF-CI failures.
+- AGENTS.md — *Non commentare build artifacts in source-stable docs* (an implicit rule this rot violates).
+
+---
+
+## TICKET-047 — `tools/test_architectural.sh` Section X (TU-level) rot
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `CMakeLists.txt` (stale `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` directive), `tests/per_pixel_dof.cpp` + `tests/test_graph_build_pass_order.cpp` + others (over-use of `static std::unordered_map` / `static std::vector`), `tests/scene/camera/test_motion_blur_torture_pr1.cpp` (`doctest::skip()` caller missing required TICKET/Owner/Motivation/Date introduzione/Deadline rimozione metadata). |
+| **Discovered during** | Documented in `docs/baselines/main-9c98aa7c-gates-promoted.md` — off-CI sweep on `a5af4b23`. |
+| **Discovered date** | 2026-06-24 |
+
+### Symptom
+
+`bash tools/test_architectural.sh` returns RC=1 in three categories:
+
+1. **Stale `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` directive** — the script verifies the directive does not appear anywhere except as a deprecated `option()` declaration + retirement comment in root `CMakeLists.txt`. A second occurrence outside the canonical places fails the check. Likely source: someone added the directive to a non-root `CMakeLists.txt` to override locally for a test run.
+
+2. **`static std::unordered_map` / `static std::vector` over-use** — the script flags tests that cache state at namespace scope via `static` globals. Tests with such globals: `tests/per_pixel_dof.cpp`, `tests/test_graph_build_pass_order.cpp`, plus others. The script's threshold is "no more than 1 `static` global per test executable" or analogous.
+
+3. **Missing `doctest::skip()` metadata** — `tests/scene/camera/test_motion_blur_torture_pr1.cpp` has a `* doctest::skip()` caller without the required TICKET + Issue/Owner/Motivation/Date introduzione/Deadline rimozione markers in the surrounding ±3 lines. Per `tools/test_architectural.sh` Section 3 (`Anti-skip-senza-ticket`).
+
+### Root cause analysis
+
+- Category 1: post-PR #23 rebase, the `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` flag's retirement is documented in one place (root `CMakeLists.txt`), but other CMakeLists may have inherited the override. The script's check fires on any non-canonical occurrence.
+
+- Category 2: tests that cache state across cases via `static` globals are a known correctness hazard (test order determinism). The script's threshold is intentionally low to discourage this pattern.
+
+- Category 3: ticket metadata for disabled tests is a project-wide compliance gate. Adding the metadata is a 4-line block per disabled test; missing it is a static-check failure.
+
+### Suggested fix approach
+
+Cluster-by-cluster:
+
+1. **`grep -rn CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2`** across `*.cmake` + `CMakeLists.txt` + `*.sh` + `*.yml` + `*.yaml` + `*.py`. Identify the non-canonical occurrence. Either remove it (if it was a one-off override) or update it to the canonical deprecated-flag form. Cross-reference TICKET-005 §"Gap C" for audit progress on this directive.
+
+2. **Reduce `static` globals in tests**. Each test that has too many `static` globals should refactor to either:
+   - Move the global into the test's `TEST_CASE` body as a local.
+   - Use a `TestScopedFixture` (a small RAII class that owns the state and resets on construction).
+   - Or, if the global is genuinely needed for cross-case caching, reduce to exactly one and document it.
+
+3. **Add the missing TICKET-### metadata block** to the disabled test in `test_motion_blur_torture_pr1.cpp`. Format per the project's existing convention (see other disabled tests in `tests/scene/` for the canonical block shape).
+
+### Acceptance criteria
+
+- `bash tools/test_architectural.sh` exits RC=0 with all 3 categories resolved.
+- Grep canaries from `docs/MIGRATION_TEXT_SPEC.md` §3.3 still pass (no regression on-site from the static-global refactor).
+- The `doctest::skip()` metadata block in `test_motion_blur_torture_pr1.cpp` conforms to the project's standard shape (TICKET + Issue + Owner + Motivation + Data introduzione + Deadline rimozione).
+
+### Out-of-scope cross-reference: Section 1 = TICKET-005 Gap C follow-up
+
+`tools/test_architectural.sh` Section 1 (Quarantine integrity) STILL fires on the `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` token even after PR-7b's retirement. This is a TICKET-005 Gap C underdelivery (re-opened), NOT a TICKET-047 sub-issue. Per AGENTS.md "Anti-duplication rules", the work belongs on the originally-claimed ticket. The follow-up:
+
+1. Run `grep -rn CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` across `cmake/`, `src/`, `include/`, `tests/`, `apps/`, `tools/` (NOT `docs/` — docs are intentionally exempt for audit-trail reasons).
+2. Identify the non-canonical occurrence outside the retirement comment in root `CMakeLists.txt`.
+3. Either: (a) remove the occurrence if it was a one-off override, OR (b) update the sentinel regex in `tools/test_architectural.sh` Section 1 to exclude the specific occurrence (preserving the audit intent).
+4. Until this follow-up lands, `tools/test_architectural.sh` will continue to return RC=1 — but per AGENTS.md "Non cambiare un gate per nascondere un errore", the gate must keep failing visibly.
+
+### Cross-references
+
+- TICKET-005 §"Gap C" — companion ticket on the `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` directive (category 1).
+- TICKET-007 — precedent for ticket-metadata compliance on `doctest::skip()` calls (category 3).
+- `docs/baselines/main-9c98aa7c-gates-promoted.md` §"Validation Results" — broader 11-check CI matrix exposing this rot.
+
+---
+
+## TICKET-048 — `tools/install_consumer_test.sh` consumer can't see vcpkg-installed spdlog
+
+| Field | Value |
+|---|---|
+| **Status** | 🔵 Planned |
+| **Affected file(s)** | `tools/install_consumer_test.sh` (consumer's `CMAKE_PREFIX_PATH` not bootstrapped to include vcpkg's installed-dir). |
+| **Discovered during** | Documented in `docs/baselines/main-9c98aa7c-gates-promoted.md` — off-CI sweep on `a5af4b23`. The final commit step of the consumer configure fails with `Could not find a package configuration file provided by "spdlog"`. |
+| **Discovered date** | 2026-06-24 |
+
+### Symptom
+
+```bash
+$ bash tools/install_consumer_test.sh
+...
+CMake Error at consumer/CMakeLists.txt (find_package):
+  By not providing "Findspdlog.cmake" in CMAKE_MODULE_PATH this project has
+  asked CMake to find a package configuration file provided by "spdlog", but
+  CMake did not find one.
+
+  Could not find a package configuration file provided by "spdlog" (requested
+  found version "1.14.0") with any of the following names:
+
+    spdlogConfig.cmake
+    spdlog-config.cmake
+
+  Add the installation prefix of "spdlog" to CMAKE_PREFIX_PATH or set
+  "spdlog_DIR" to a directory containing one of the above files.  If "spdlog"
+  provides a separate development package or "--config" for SDK configuration
+  ensure that you have installed its SDK.
+```
+
+The consumer script successfully:
+- Configures Chronon3D itself (`cmake --preset linux-ci`).
+- Builds Chronon3D (`cmake --build build/chronon/linux-ci`).
+- Installs to local `DESTDIR=$PWD/consumer-install`.
+
+But the consumer project (under `./consumer/`) calls `find_package(spdlog)` and fails because `CMAKE_PREFIX_PATH` for the consumer doesn't include the vcpkg installed-dir where spdlog was installed during the Chronon3D build.
+
+### Root cause analysis
+
+When Chronon3D builds under vcpkg, spdlog is installed to `${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share/spdlog/`. The consumer's `find_package(spdlog)` needs that directory in `CMAKE_PREFIX_PATH`. The current consumer's CMake invocation is:
+
+```bash
+cmake -S consumer -B consumer/build   -DCMAKE_PREFIX_PATH=$PWD/consumer-install/usr/local
+```
+
+This sets `CMAKE_PREFIX_PATH` to the consumer-install dir, but the consumer-install dir doesn't have spdlog's package config — it only has Chronon3D's installed CMake config. The consumer also needs vcpkg's installed-dir to see spdlog.
+
+### Suggested fix approach
+
+Pre-compute vcpkg's installed-dir before invoking consumer configure, and append it to the consumer's `CMAKE_PREFIX_PATH`:
+
+```bash
+# Inside tools/install_consumer_test.sh, after the Chronon3D install:
+vcpkg_installed="${VCPKG_ROOT}/installed/${VCPKG_DEFAULT_TRIPLET}"
+cmake -S consumer -B consumer/build   -DCMAKE_PREFIX_PATH="$PWD/consumer-install/usr/local;${vcpkg_installed}"
+cmake --build consumer/build
+```
+
+Or, set the `spdlog_DIR` cache variable directly:
+
+```bash
+cmake -S consumer -B consumer/build   -DCMAKE_PREFIX_PATH="$PWD/consumer-install/usr/local"   -Dspdlog_DIR="${vcpkg_installed}/share/spdlog"
+```
+
+Use whatever matches the script's style. Add a verification step:
+
+```bash
+cmake -S consumer -B consumer/build   -DCMAKE_PREFIX_PATH="$PWD/consumer-install/usr/local;${vcpkg_installed}" 2>&1 | tee /tmp/consumer-configure.log
+grep -E 'Could not find.*spdlog' /tmp/consumer-configure.log   && { echo 'FAIL: spdlog not visible to consumer'; exit 1; }   || echo 'PASS: spdlog visible to consumer'
+```
+
+### Acceptance criteria
+
+- `bash tools/install_consumer_test.sh` exits 0 end-to-end.
+- The consumer's `find_package(spdlog)` succeeds (Chronon3D::SDK + spdlog both visible).
+- The fix is documented inline (a comment in `tools/install_consumer_test.sh` explaining the bootstrap pattern, so future SDKs that depend on vcpkg-installed deps can mirror it).
+
+### Cross-references
+
+- TICKET-038 (or equivalent) — earlier ticket on the install-consumer pattern, if one exists, for stylistic consistency.
+- `docs/baselines/main-9c98aa7c-gates-promoted.md` §"Validation Results" — broader 11-check CI matrix exposing this rot as the 6th of 6 OFF-CI failures.
+- AGENTS.md — *Non cambiare un gate per nascondere un errore* — once fixed, this script can join the CI-blocking set (post-baseline-green verification).
