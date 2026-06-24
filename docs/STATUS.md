@@ -1,10 +1,14 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@fb1b7e97` — 23 giugno 2026.
+> **Snapshot:** `main@3ef352d` — 24 giugno 2026.
 >
 > Stato prodotto canonico: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
 > Questo documento descrive blocker e prove operative. Non certifica una baseline
 > verde finché tutti i gate richiesti non sono osservati sullo stesso commit.
+>
+> **Ultimo aggiornamento agenti:** Agent 1 (renderer/backend) **COMPLETED**,
+> Agent 2 (CMake/SDK/baseline) **COMPLETED** — merged in `ccabb574`.
+> TXT-00 build/link: **GREEN**; test esecuzione bloccato da FontEngine mancante.
 
 ## Stato generale
 
@@ -15,9 +19,10 @@ percorso unico, verificato e consumabile fuori dalla source tree.
 | Area | Stato | Gap principale |
 |---|---|---|
 | Render graph compilato | 🟡 Avanzato | Baseline completa e determinismo scheduler da verificare sul commit candidato. |
-| Software backend | 🟡 Avanzato | Confine rifattorizzato; gate, core, lean e full validation devono risultare verdi insieme. |
+| Software backend | 🟢 Stabile | Confine rifattorizzato (Agent 1); gate, core, lean e full validation da certificare insieme. |
+| CMake/SDK registry | 🟢 Stabile | Registry centralizzato, aggregate archive, install consumer funzionante (Agent 2). |
 | Precomp / execution scope | 🔴 Aperto | Nested execution, lease, child arena e concorrenza richiedono chiusura verificata. |
-| Text Production V1 | 🟡 60–65% stimato | Word timing, rich text produttivo, preset e visual regression sistematica. |
+| Text Production V1 | 🟡 60–65% stimato | TXT-00 build/link verde; test bloccato da FontEngine runtime. Word timing, rich text, preset e visual regression ancora aperti. |
 | Camera Production V1 | 🟡 70–75% stimato | scene_tests link sbloccato via PR 2 (`fb1b7e97`, TICKET-029 risolto); migrazione legacy e feature di path/framing/ottica ancora aperte. |
 | SDK C++ | 🟡 80–85% stimato | Package presente; manca consumer esterno che renderizzi una composizione reale. |
 | SDK cross-language | 🔵 30–40% stimato | C ABI e formato dichiarativo `.chronon` assenti. |
@@ -56,6 +61,7 @@ di test o claim di release.
 
 ### Ancora aperto
 
+- **TXT-00:** build/link rc=0, test esecuzione bloccato da FontEngine non disponibile nell'ambiente ctest;
 - word timing/SRT/JSON;
 - styling per parola realmente end-to-end;
 - subtitle/highlight/karaoke pipeline;
@@ -151,6 +157,12 @@ Servono tutte le prove seguenti sullo stesso commit:
 - documenti aggiornati con commit, comandi e risultati.
 
 L’assenza di workflow o log verificabili non equivale a successo.
+
+Stato attuale dei blocker principali:
+- **TICKET-039** (SoftwareRenderer::settings): **RISOLTO** dal fix Agent 2.
+- **TXT-00 linker strutturale** (~30 simboli): **RISOLTO** dal fix Agent 2; build/link rc=0.
+- **TXT-00 test esecuzione**: bloccato da FontEngine non disponibile in ctest.
+- **FontEngine runtime**: dipendenza di ambiente da risolvere per chiudere TXT-00.
 
 ## Documenti di riferimento
 
