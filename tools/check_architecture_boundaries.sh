@@ -307,16 +307,32 @@ else echo "PASS"; fi
 # guard: src OBJECT/INTERFACE libs not in registry -> FAIL.
 # Promoted to BLOCKING on 2026-06-24 (was advisory): the `FAILED=1`
 # assignment below makes a missing registry entry exit-script-fail.
+#
+# TICKET-041 fix (2026-06-24): the registry uses BOTH
+#   - `add_library(<name> STATIC|INTERFACE ...)` declarations for aggregate
+#     targets (chronon3d_sdk, chronon3d_sdk_impl, chronon3d_pipeline, etc.)
+#   - `set(CHRONON3D_REGISTRY_(OBJECT|INTERFACE)_LIBS ...)` block(s) for the
+#     bulk of OBJECT/INTERFACE library names.
+# The pre-2026-06-24 parser only read `add_library(...)` declarations; the
+# set-list names were silently dropped, producing false-positive FAILs for
+# every name in the OBJECT/INTERFACE set lists. The new parser unions
+# both forms so comm -23 reports genuinely-missing names only.
 echo -n "  [12/14] CMake module registry (semantic) ... "
 src_libs=$(grep -Rh --include='CMakeLists.txt' \
     -E '^[[:space:]]*add_library\([[:space:]]*[A-Za-z_][A-Za-z_0-9]*[[:space:]]+(OBJECT|INTERFACE)\b' \
     src/ 2>/dev/null \
     | sed -E 's/.*add_library\([[:space:]]*([A-Za-z_][A-Za-z_0-9]*).*/\1/' \
     | sort -u || true)
-registry_libs=$(grep -E '^[[:space:]]*add_library\(' \
+registry_add_libs=$(grep -E '^[[:space:]]*add_library\(' \
     cmake/Chronon3DRegistry.cmake 2>/dev/null \
     | sed -E 's/.*add_library\([[:space:]]*([A-Za-z_][A-Za-z_0-9]*).*/\1/' \
     | sort -u || true)
+registry_set_lists=$(awk '
+    /^set\(CHRONON3D_REGISTRY_(OBJECT|INTERFACE)_LIBS$/ { in_block=1; next }
+    in_block && /^[[:space:]]+chronon3d[A-Za-z0-9_]*$/ { sub(/^[[:space:]]+/, ""); print }
+    in_block && /^\)$/ { in_block=0 }
+' cmake/Chronon3DRegistry.cmake | sort -u || true)
+registry_libs=$(printf '%s\n%s\n' "$registry_add_libs" "$registry_set_lists" | sort -u)
 missing=$(comm -23 <(printf '%s\n' "$src_libs") \
                 <(printf '%s\n' "$registry_libs") 2>/dev/null \
             | tr -d '[:space:]' || true)
@@ -327,7 +343,8 @@ if [ -n "$missing" ]; then
              <(printf '%s\n' "$registry_libs") 2>/dev/null \
         | sed 's/^/    /' | head -10
     echo "  (was advisory until 2026-06-24; promoted to blocking per AGENTS.md §Regole di lavoro:"
-    echo "   'Non cambiare un gate per nascondere un errore'. TICKET-041 sync is the fix path.)"
+    echo "   'Non cambiare un gate per nascondere un errore'. TICKET-041 fix closed 2026-06-24;"
+    echo "   the FAIL list before the fix showed existing entries as missing due to parser bug;)"
     FAILED=1
 else echo "PASS"; fi
 
@@ -337,18 +354,38 @@ else echo "PASS"; fi
 # for CMake/system-builtin deps (Threads, EXPAT) that don't need vcpkg
 # entries.  Files: top-level CMakeLists.txt.
 # Promoted to BLOCKING on 2026-06-24 (was advisory).
+#
+# TICKET-042 fix (2026-06-24): two pre-existing parser bugs made the gate
+# emit four false-positive missing-deps BEFORE this fix:
+#   (a) the package-name regex `[A-Za-z_][A-Za-z_0-9]*` did NOT accept
+#       hyphens, so `find_package(unofficial-sqlite3 CONFIG REQUIRED)` was
+#       truncated to `unofficial` and grep-searched as `"unofficial"`. The
+#       fix extends the regex to `[A-Za-z_][A-Za-z0-9_-]*` so the full
+#       hyphen-separated package name reaches the lookup.
+#   (b) vcpkg port names use hyphens while CMake find_package calls use
+#       underscores, AND some ports have abbreviated canonical names. A
+#       small alias table translates the find_package name to the canonical
+#       vcpkg.json entry. `case "$lcp" in` form (NOT `declare -A`) for
+#       bash 3.x / macOS pre-bash-4 compatibility.
 echo -n "  [13/14] vcpkg dep parity (semantic) ... "
 miss=""
-for pkg in $(grep -hE '^[[:space:]]*find_package\([[:space:]]*[A-Za-z_][A-Za-z_0-9]*' \
+for pkg in $(grep -hE '^[[:space:]]*find_package\([[:space:]]*[A-Za-z_][A-Za-z0-9_-]*' \
                 CMakeLists.txt 2>/dev/null \
-             | sed -E 's/.*find_package\([[:space:]]*([A-Za-z_][A-Za-z_0-9]*).*/\1/' \
+             | sed -E 's/.*find_package\([[:space:]]*([A-Za-z_][A-Za-z0-9_-]*).*/\1/' \
              | sort -u); do
     [ -z "$pkg" ] && continue
     case "$pkg" in
         Threads|EXPAT) continue ;;
     esac
     lcp=$(echo "$pkg" | tr '[:upper:]' '[:lower:]')
-    if ! grep -qE "\"${lcp}\"" vcpkg.json 2>/dev/null; then
+    vcpkg_name="$lcp"
+    case "$lcp" in
+        hwy)                vcpkg_name="highway" ;;
+        magic_enum)         vcpkg_name="magic-enum" ;;
+        nlohmann_json)      vcpkg_name="nlohmann-json" ;;
+        unofficial-sqlite3) vcpkg_name="sqlite3" ;;
+    esac
+    if ! grep -qE "\"${vcpkg_name}\"" vcpkg.json 2>/dev/null; then
         miss="$miss $pkg"
     fi
 done
@@ -356,7 +393,8 @@ if [ -n "$(echo $miss | tr -d '[:space:]')" ]; then
     echo "FAIL"
     echo "  find_package entries without vcpkg deps:$miss"
     echo "  (was advisory until 2026-06-24; promoted to blocking per AGENTS.md §Regole di lavoro."
-    echo "   TICKET-042 vcpkg dependency coverage is the fix path.)"
+    echo "   TICKET-042 fix closed 2026-06-24; the FAIL list before the fix was misleading"
+    echo "   because the regex did not handle vcpkg's hyphen-separated port names.)"
     FAILED=1
 else echo "PASS"; fi
 
