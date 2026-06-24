@@ -436,7 +436,7 @@ The defect is harmless in practice because every source file in `src/expressions
 
 | Field | Value |
 |---|---|
-| **Status** | 🟡 Partial (Gap C partially re-opened via TICKET-005 Gap C follow-up filed in the post-promotion baseline PR `5599f762` — sentinel in `tools/test_architectural.sh` Section 1 still re-fires post-PR-7b; Gap A e Gap B ancora aperti) |
+| **Status** | 🟡 Partial (Gap C partially re-opened — sentinel in `tools/test_architectural.sh` Section 1 still re-fires post-PR-7b; work documented in the post-promotion baseline PR `5599f762`, see TICKET-047 Out-of-scope cross-reference sub-section for audit details; Gap A e Gap B ancora aperti) |
 | **Affected file(s)** | `tests/core/animation/test_keyframes.cpp` (animations); `CMakeLists.txt` (root, deprecated option residue); `CMakePresets.json` (drift check); `docs/CHANGELOG.md`, `docs/ROADMAP.md`, `docs/ARCHITECTURE_EVOLUTION_PLAN.md`, `docs/FEATURES.md` (documentation reconciliation); `*.sh` / `*.yml` / `*.yaml` / CI configs (stale-flag scan). |
 | **Discovered during** | Post-rebase verification flow: cmake-guard retirement commit (`aae68561`-origin cycle, retired this session); cascade of missing-transitive-include fixes in `856ff957`; PR #23 rebase integration. |
 | **Discovered date** | 2026-06-20 |
@@ -3239,6 +3239,7 @@ the `codex/fix-ticket-040-taskflow-cleanup` branch commit.
 | Field | Value |
 |---|---|
 | **Status** | 🔵 Planned |
+| **At-fault commit** | `babfdf80` (`fix(ci): TICKET-041 + TICKET-042 script parser closure (gates [12/14] + [13/14])`) — the parser-fix that invalidated the selftest's pre-fix hard-coded expectations; this is REGRESSION-FAST-TRACK, not slow-track cleanup. |
 | **Affected file(s)** | `tools/check_architecture_boundaries_selftest.sh` (13 of 22 assertions fail), `tools/check_architecture_boundaries.sh` (subject under test; the post-`babfdf80` parser is the new ground truth). |
 | **Discovered during** | Documented in `docs/baselines/main-9c98aa7c-gates-promoted.md` — off-CI sweep on `a5af4b23` exposed 6 pre-existing umbrella bugs. The selftest script is the FIRST surfacing in that sweep. |
 | **Discovered date** | 2026-06-24 |
