@@ -6,6 +6,41 @@
 
 ## Completati (Maggio-Giugno 2026)
 
+### Post-promotion CI baseline on `main@9c98aa7c` + 5x OFF-CI rot TICKETs
+
+2026-06-24 (snapshot at `a5af4b23`; documentation-only commit) — catalogue the full CI surface after the gate-promotion cycle (`9c98aa7c` → `babfdf80` → `a5af4b23`) and surface rot the broader sweep exposes.
+
+**Files touched (docs-only)** — `docs/baselines/main-9c98aa7c-gates-promoted.md` (NEW), `docs/FOLLOWUP_TICKETS.md` (5 new TICKETs appended: TICKET-044..048), `docs/CHANGELOG.md` (this entry).
+
+**What the doc captures**:
+
+- The full 14-gate `tools/check_architecture_boundaries.sh` matrix on `a5af4b23` — all 14 gates PASS post-`babfdf80` parser fix. Gate labels reported verbatim from `/tmp/arch_clean.log` (referenced specific rot-pattern canaries like `detail::g_debug_config REMOVED` for TICKET-007 closure attestation, etc.).
+- The broader 11-check CI matrix (`arch_boundaries + arch_boundaries_selftest + sw_renderer_boundary + gitignored_dirs + audit_software_renderer + camera_architecture + doc_sync + filename_drift + test_architectural + install_consumer_test + backend_sanitization`) — 5 PASS / 6 FAIL.
+- 6 OFF-CI surfacing failures filed as TICKET-044..048 (all `🔵 Planned`, deliberately out-of-scope per AGENTS.md "Fare PR piccole e mirate").
+- The AGENTS.md §"Regole di lavoro" principle paragraph "Non cambiare un gate per nascondere un errore" that motivated the promotion cycle.
+
+**TICKETs filed**:
+
+- TICKET-044 — `arch_boundaries_selftest` 13/22 assertions hard-coded against pre-`babfdf80` parser expectations.
+- TICKET-045 — `tools/check_gitignored_dirs.sh` shell self-bug + `tools/audit_software_renderer.sh` silent-fail (with new diagnostic-first scenario walkthrough in the Suggested fix approach).
+- TICKET-046 — `tools/check_filename_drift.sh` 236 stale citations across 5 distinct clusters (TICKETs MD / build-artifact refs / backend-sources / V3_BLUEPRINT / node_modules scans).
+- TICKET-047 — `tools/test_architectural.sh` TU-level rot; static-globals over-use + missing `doctest::skip()` metadata. NOTE: cross-references TICKET-005 §"Gap C" (`CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` retirement) for category 1 to avoid duplication; TICKET-047 owns only categories 2-3.
+- TICKET-048 — `tools/install_consumer_test.sh` consumer can't see vcpkg-installed spdlog (CMake `CMAKE_PREFIX_PATH` bootstrap missing for vcpkg's installed-dir).
+
+**Acknowledged rot pattern**: 5/6 OFF-CI failures are pre-existing script-level rot independent of the promotion cycle; 1/6 (TICKET-044) is a regression introduced when `babfdf80` invalidated the selftest's hard-coded expectations. The promotion itself is safe — its 4 promoted gates are GREEN on `a5af4b23`.
+
+**Verification commands** (run on `a5af4b23`):
+
+- `bash tools/check_architecture_boundaries.sh` -> RC=0; tail shows "All 14 gates passed."
+- `bash tools/check_software_renderer_boundary.sh` -> RC=0; fresh stderr empty post-`a5af4b23` line-97 fix.
+
+**Cross-references**:
+
+- `docs/baselines/main-9c98aa7c-gates-promoted.md` — this PR's doc deliverable; canonical snapshot for the post-promotion CI surface.
+- `docs/FOLLOWUP_TICKETS.md` — TICKET-044..048 entries (NEW); see also TICKET-041 + TICKET-042 closures attributed to commit `babfdf80`, and TICKET-005 §"Gap C" reference from TICKET-047.
+- AGENTS.md §"Regole di lavoro" — *Non cambiare un gate per nascondere un errore* (the principle this baseline documents), *Fare PR piccole e mirate, senza mescolare refactor indipendenti* (the reason TICKET-044..048 fixes are NOT in this atomic commit).
+
+
 ### PRs 1-4 (Performance)
 
 _Data: fine maggio 2026_
