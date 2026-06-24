@@ -305,6 +305,8 @@ else echo "PASS"; fi
 # cmake/Chronon3DRegistry.cmake. That registry is the SOLE registration
 # channel — anti-duplication per ANTI_DUPLICATION_RULES.md.  Reversed
 # guard: src OBJECT/INTERFACE libs not in registry -> FAIL.
+# Promoted to BLOCKING on 2026-06-24 (was advisory): the `FAILED=1`
+# assignment below makes a missing registry entry exit-script-fail.
 echo -n "  [12/14] CMake module registry (semantic) ... "
 src_libs=$(grep -Rh --include='CMakeLists.txt' \
     -E '^[[:space:]]*add_library\([[:space:]]*[A-Za-z_][A-Za-z_0-9]*[[:space:]]+(OBJECT|INTERFACE)\b' \
@@ -319,13 +321,14 @@ missing=$(comm -23 <(printf '%s\n' "$src_libs") \
                 <(printf '%s\n' "$registry_libs") 2>/dev/null \
             | tr -d '[:space:]' || true)
 if [ -n "$missing" ]; then
-    echo "FAIL (advisory)"
+    echo "FAIL"
     echo "  src OBJECT/INTERFACE libs not in registry:"
     comm -23 <(printf '%s\n' "$src_libs") \
              <(printf '%s\n' "$registry_libs") 2>/dev/null \
         | sed 's/^/    /' | head -10
-    echo "  (registry sync tracked separately — promotion to blocking"
-    echo "   requires TICKET-041 CMake registry completeness sync)"
+    echo "  (was advisory until 2026-06-24; promoted to blocking per AGENTS.md §Regole di lavoro:"
+    echo "   'Non cambiare un gate per nascondere un errore'. TICKET-041 sync is the fix path.)"
+    FAILED=1
 else echo "PASS"; fi
 
 # ── 13. vcpkg / find_package parity (AGENTS.md §3 / ADR-010 Decision 2) ──
@@ -333,6 +336,7 @@ else echo "PASS"; fi
 # matching entry in vcpkg.json (case-insensitive lowercase).  Allowlist
 # for CMake/system-builtin deps (Threads, EXPAT) that don't need vcpkg
 # entries.  Files: top-level CMakeLists.txt.
+# Promoted to BLOCKING on 2026-06-24 (was advisory).
 echo -n "  [13/14] vcpkg dep parity (semantic) ... "
 miss=""
 for pkg in $(grep -hE '^[[:space:]]*find_package\([[:space:]]*[A-Za-z_][A-Za-z_0-9]*' \
@@ -349,10 +353,11 @@ for pkg in $(grep -hE '^[[:space:]]*find_package\([[:space:]]*[A-Za-z_][A-Za-z_0
     fi
 done
 if [ -n "$(echo $miss | tr -d '[:space:]')" ]; then
-    echo "FAIL (advisory)"
+    echo "FAIL"
     echo "  find_package entries without vcpkg deps:$miss"
-    echo "  (vcpkg / CMakeLists.txt sync tracked separately — promotion"
-    echo "   to blocking requires TICKET-042 vcpkg dependency coverage)"
+    echo "  (was advisory until 2026-06-24; promoted to blocking per AGENTS.md §Regole di lavoro."
+    echo "   TICKET-042 vcpkg dependency coverage is the fix path.)"
+    FAILED=1
 else echo "PASS"; fi
 
 # ── 14. SDK public surface boundary (AGENTS.md §4 / ADR-010 Decision 3) ──
@@ -361,6 +366,7 @@ else echo "PASS"; fi
 # external consumers (apps/chronon3d_cli, install_consumer_test,
 # downstream).  Permitted entry points: <chronon3d/...> | "chronon3d/...".
 # FORBIDDEN: <chronon3d_sdk_impl[/...> | "chronon3d_sdk_impl[/...].
+# Promoted to BLOCKING on 2026-06-24 (was advisory).
 echo -n "  [14/14] SDK public surface (semantic) ... "
 # Tighter regex: require /, >, or " boundary immediately after
 # `chronon3d_sdk_impl` so legitimate internal filenames like
@@ -370,10 +376,11 @@ hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include[[:space:]]*[<"]chronon3d_sdk_impl[/>"]' \
     apps/ 2>/dev/null || true)
 if [ -n "$hits" ]; then
-    echo "FAIL (advisory)"
+    echo "FAIL"
     echo "$hits" | sed 's/^/    /'
-    echo "  (SDK consumer-surface audit tracked separately — promotion"
-    echo "   to blocking requires TICKET-043 SDK consumer-surface audit)"
+    echo "  (was advisory until 2026-06-24; promoted to blocking per AGENTS.md §Regole di lavoro."
+    echo "   TICKET-043 SDK consumer-surface audit is the fix path.)"
+    FAILED=1
 else echo "PASS"; fi
 
 # ── Summary ───────────────────────────────────────────────────────────
