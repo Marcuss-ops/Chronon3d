@@ -43,6 +43,8 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/scene/builders/text_run_builder.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <tests/helpers/test_utils.hpp>
 #include <tests/helpers/pixel_assertions.hpp>
 #include <tests/helpers/render_fixtures.hpp>
@@ -55,6 +57,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <glm/gtc/matrix_transform.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::test;
@@ -281,7 +284,11 @@ inline Composition build_preset_composition(const std::string& preset_id,
                 make_preset_base_opts("THE QUICK BROWN FOX JUMPS",
                                        aspect_dims(r)));
             s.layer("hero", [&s, &preset, base](LayerBuilder& l) {
-                l.text("k", base);
+                // The preset builder (wire_through_resolver) already creates the
+                // canonical text-run entry.  A second l.text(…) call would produce
+                // a duplicate RenderNode at the same position, routing through
+                // MultiSourceNode instead of TextRunNode — the duplicate's animators
+                // (fade_in / scale_drop) can blank the static text at early frames.
                 if (preset.builder) {
                     preset.builder(s, l, base);
                 }
@@ -508,4 +515,97 @@ TEST_CASE("VRTextPreset/YellowKeyword") {
     emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k9x16, 20, kRefTextPresYellowKeyword_916_F020, "YellowKeyword_916_F020");
     emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k9x16, 30, kRefTextPresYellowKeyword_916_F030, "YellowKeyword_916_F030");
     emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k9x16, 40, kRefTextPresYellowKeyword_916_F040, "YellowKeyword_916_F040");
+}
+
+// =============================================================================
+// Minimal test: text through full render_frame() pipeline (near-e2e)
+// Exercises the entire compositor → graph → text_run_node path.
+// =============================================================================
+
+TEST_CASE("TextE2E: render_frame with text produces visible ink pixels") {
+    auto renderer = make_renderer();
+
+    chronon3d::content::text::CenterTextOptions opts;
+    opts.text = "HELLO";
+    opts.font_path = "assets/fonts/Poppins-Bold.ttf";
+    opts.font_size = 48.0f;
+    opts.color = Color::white();
+    opts.box = Vec2{400.0f, 100.0f};
+
+    auto comp = composition(
+        {.name = "e2e_render_frame",
+         .width = 640, .height = 200,
+         .frame_rate = FrameRate{30, 1},
+         .duration = 60},
+        [opts = std::move(opts), &renderer](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
+            auto text_spec = chronon3d::content::text::centered_text(opts);
+            s.layer("hero", [&s, text_spec](LayerBuilder& l) mutable {
+                l.text("k", std::move(text_spec));
+            });
+            return s.build();
+        });
+
+    auto fb = renderer.render_frame(comp, Frame{0});
+    REQUIRE(fb != nullptr);
+
+    int ink = 0;
+    for (int y = 0; y < fb->height(); ++y)
+        for (int x = 0; x < fb->width(); ++x)
+            if (fb->get_pixel(x, y).a > 0.05f) ++ink;
+
+    CHECK(ink > 0);
+    MESSAGE("ink_pixels=" << ink);
+}
+
+// =============================================================================
+// End-to-end isolation test: FontEngine + materialize + draw_text_run
+// Bypasses the render graph entirely to verify the core text pipeline
+// produces visible pixels in isolation.
+// =============================================================================
+
+TEST_CASE("TextE2E: materialize + draw_text_run produces visible ink pixels") {
+    auto renderer = make_renderer();
+    FontEngine& engine = renderer.font_engine();
+
+    // Build TextSpec for centered text
+    chronon3d::content::text::CenterTextOptions opts;
+    opts.text = "HELLO";
+    opts.font_path = "assets/fonts/Poppins-Bold.ttf";
+    opts.font_size = 48.0f;
+    opts.color = Color::white();
+    opts.box = Vec2{400.0f, 100.0f};
+    TextSpec spec = chronon3d::content::text::centered_text(std::move(opts));
+
+    // Materialize the text shape via the canonical helper
+    TextRunParams params;
+    params.text = std::move(spec);
+    SampleTime st = SampleTime::from_frame_int(0, FrameRate{30, 1});
+    auto shape = materialize_text_run_shape(params, &engine, st);
+    REQUIRE(shape != nullptr);
+    REQUIRE(shape->glyphs.size() > 0);
+    MESSAGE("shaped glyphs: " << shape->glyphs.size());
+
+    // Render directly to a framebuffer via the software backend,
+    // bypassing the render graph entirely.
+    const int w = 640, h = 200;
+    Framebuffer fb(w, h, true);  // cleared to transparent
+
+    Mat4 model = glm::translate(Mat4(1.0f), Vec3(w * 0.5f, h * 0.5f, 0.0f));
+
+    auto& backend = renderer.backend();
+    auto result = backend.draw_text_run(fb, *shape, model, 1.0f);
+    REQUIRE(result);
+    CHECK(result.value().items_drawn > 0);
+    MESSAGE("items_drawn=" << result.value().items_drawn);
+
+    // Count ink pixels
+    int ink = 0;
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x)
+            if (fb.get_pixel(x, y).a > 0.05f) ++ink;
+
+    CHECK(ink > 0);
+    MESSAGE("ink_pixels=" << ink);
 }
