@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** current `main` — 24 giugno 2026. Stato confluito dai due
+> **Snapshot:** current `main` — 24 giugno 2026. Stato confluito dai tre
 > blocchi recenti:
 >
 > - **Blocco 1** (audit-driven, già su main): render-aggregator wiring
@@ -10,6 +10,16 @@
 >   build/link/test tutti rc=0 sull'attuale main; `VRTextPresetVisual`
 >   18/18 test cases, 263/263 assertions; entrambe le `TextE2E` verdi su
 >   `render_frame` e su `materialize + draw_text_run`.
+> - **Blocco 3** (eseguito a valle di TXT-00): TXT-01 PARZIALMENTE **CHIUSO**
+>   su `main@5b83a123` — i primi 2 dei 6 Definition-of-Done di TXT-01 sono
+>   verdi sul commit corrente: hash gate ingaggiato per tutti i 128
+>   sentinel `(preset, ratio, frame)` e failure path provata
+>   end-to-end (mutazione deliberata di un sentinel osservata a
+>   doctest rc=8; revert ripristina rc=0). Vedi
+>   [`baselines/main-5b83a123-txt-01-blocco-3-failure-path-proven.md`](baselines/main-5b83a123-txt-01-blocco-3-failure-path-proven.md).
+>   I restanti 4 DoD (PNG dump + light/dark BG + testo corto/lungo +
+>   determinismo seriale/parallelo) restano aperti per i prossimi
+>   sotto-PR di TXT-01.
 >
 > Stato prodotto canonico: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
 > Questo documento descrive blocker e prove operative. Non certifica una baseline
@@ -27,7 +37,7 @@ percorso unico, verificato e consumabile fuori dalla source tree.
 | Software backend | 🟢 Stabile | Confine rifattorizzato (Agent 1); gate, core, lean e full validation da certificare insieme. |
 | CMake/SDK registry | 🟢 Stabile | Registry centralizzato, aggregate archive, install consumer funzionante (Agent 2). |
 | Precomp / execution scope | 🔴 Aperto | Nested execution, lease, child arena e concorrenza richiedono chiusura verificata. |
-| Text Production V1 | 🟡 65–70% stimato | TXT-00 build/link/test **CHIUSO** (rc=0; 18/18, 263/263). Word timing, rich text, preset e visual regression ancora aperti. |
+| Text Production V1 | 🟡 70–75% stimato | TXT-00 build/link/test **CHIUSO** (rc=0; 18/18, 263/263). TXT-01 Blocco 3 parzialmente chiuso (`main@5b83a123`): hash gate ingaggiato per i 128 sentinel, failure path provata. Word timing, rich text, preset, golden PNG e light/dark BG ancora aperti. |
 | Camera Production V1 | 🟡 70–75% stimato | scene_tests link sbloccato via PR 2 (`fb1b7e97`, TICKET-029 risolto); migrazione legacy e feature di path/framing/ottica ancora aperte. |
 | SDK C++ | 🟡 80–85% stimato | Package presente; manca consumer esterno che renderizzi una composizione reale. |
 | SDK cross-language | 🔵 30–40% stimato | C ABI e formato dichiarativo `.chronon` assenti. |
@@ -167,6 +177,7 @@ Stato attuale dei blocker principali:
 - **TICKET-039** (SoftwareRenderer::settings): **RISOLTO** dal fix Agent 2.
 - **TXT-00 linker strutturale** (~30 simboli): **RISOLTO** dal fix Agent 2; build/link rc=0.
 - **TXT-00 test esecuzione**: **RISOLTO** — `VRTextPresetVisual` rc=0 (18/18, 263/263) + entrambe le `TextE2E` rc=0. **TXT-00 CHIUSO**.
+- **TXT-01 Blocco 3 (hash gate + failure-path proof)**: **PARZIALMENTE CHIUSO** su `main@5b83a123` — i 128 `(preset, ratio, frame)` sentinel ora portano un `constexpr` hash osservato; `VR_TEXT_PRESET_GATE` esegue `REQUIRE(gate_m.hash == kref)` su tutti; 3-run determinism rc=0 (0 `unset` lines, 263/263 assertions); mutazione deliberata di `kRefTextPresMinimalWhite_916_F030` da `0x6AD1620C3845F8EDULL` a `0x6AD1620C3845F8EEULL` osservata a doctest rc=8 (failure path provata); revert osservato a rc=0. I restanti 4 DoD di TXT-01 (PNG dump, light/dark BG, testo corto/lungo, determinismo seriale/parallelo) sono tracciati come sub-PR prossimi.
 
 ## Documenti di riferimento
 
