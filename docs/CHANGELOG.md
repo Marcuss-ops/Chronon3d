@@ -733,3 +733,29 @@ Build verification: the simplify configure invocation `cmake -B build-verify-tas
 Anti-duplication integrity (per `docs/ANTI_DUPLICATION_RULES.md`): Taskflow contributes zero unique concepts to the productive tree (verified via grep), so deleting the find_package line collapses the dependency graph along the canonical single-provider-per-concept rule. No replacement is required.
 
 Branch: `codex/fix-ticket-040-taskflow-cleanup` (single commit ahead of `main@9e1750a9`). LF-merge ready. Forward-compat: TICKET-040 in `docs/FOLLOWUP_TICKETS.md` should be re-checked to confirm it stays 🟢 Done now that BOTH halves of the cleanup have shipped.
+
+### TXT-00 closure + audit-grade baseline for TICKET-038 / TICKET-039
+
+2026-06-24 (commit `b8114705` off `main@345e5f2e`) — TXT-00 officially CHIUSO with the new audit-grade baseline doc at [`docs/baselines/main-345e5f2e-txt-00-closed.md`](baselines/main-345e5f2e-txt-00-closed.md). The closure verifies:
+
+- `cmake --preset linux-ci` configure rc=0.
+- `cmake --build --preset linux-ci --target chronon3d_text_preset_visual_tests --parallel 8` rc=0.
+- `ctest --test-dir build/chronon/linux-ci -R '^VRTextPresetVisual$' --output-on-failure -V` rc=0 — 18/18 doctest cases, 263/263 assertions, 0 skipped.
+- Both `TextE2E` rc=0 — `render_frame` with text produces `ink_pixels = 1372`; `materialize + draw_text_run` produces `items_drawn > 0` and `ink_pixels = 1372`.
+
+Frame transparency is verified per `(preset, ratio, frame)` — **no blanket classification**:
+
+- 14 entrance-animation presets (`fade_in` / `soft_pop` / `fade_shift_*`) have `ink_pixels == 0` at `F000` by design (opacity clamped to 0).
+- Only `BlurIn` F020 and `MaskedLineReveal` F020 (both 169 + 916) are sub-threshold mid-animation (physical pixels present but per-pixel alpha `< 0.05`).
+- `tracking_close` + `minimal_white` are visible at every timestamp (no entrance opacity animation).
+
+The 128 sentinel hashes are captured into `tests/text/test_text_preset_visual.cpp` constants and the gate is engaged for all of them (`grep -c 'first hash to capture' /tmp/vr_text_after_capture.txt` → 0 — no "first hash to capture" markers remaining).
+
+This commit additionally cross-links the new closure baseline into `docs/FOLLOWUP_TICKETS.md` as the audit-grade resolution for both:
+
+- **TICKET-038** — pre-existing lambda capture / `auto` deduction rot in `tests/text/test_text_preset_visual.cpp`; macro body TU-local `gate_m` rename + 128 sentinel capture; **Status 🟢 Done** at `main@345e5f2e`.
+- **TICKET-039** — `SoftwareRenderer::settings()` accessor regression from `b5c7df01`; Agent 2 migrated to `render_settings()` in commit `9703960b`; **Status 🟢 Done** at `main@ccabb574`.
+
+The new ticket entries mirror the TICKET-040 format (data table / Symptom / Root cause / Suggested fix approach / Acceptance criteria / Cross-references / Resolution sub-section) and cite the closure baseline as Resolved-at evidence, completing the audit-trail pointer. `docs/STATUS.md` + `docs/NEXT_STEPS.md` already reflect the TXT-00 closure in the prior `345e5f2e` commit — this commit propagates the pointer into FOLLOWUP_TICKETS.md and CHANGELOG.md so the audit-trail is now pointer-unified across all four governance docs (`STATUS.md`, `NEXT_STEPS.md`, `CHANGELOG.md`, `FOLLOWUP_TICKETS.md`) plus the new baseline file.
+
+Branch: doc-only commit on `main` (`b8114705`), in sync with `origin/main` after push. Forward-compat: the audit-trail is now pointer-unified; the closure baseline file `docs/baselines/main-345e5f2e-txt-00-closed.md` is the canonical reference for any future audit against TICKET-038 / TICKET-039 / TXT-00.
