@@ -20,7 +20,7 @@
 //   ✓ Orientation: FixedOrientation
 //   ✓ Orientation: LookAtPoint
 //   ✓ Orientation: LookAtLayer (no-op when transforms missing)
-//   ✗ Orientation: OrientAlongPath             [CAM-03 — implementation stub]
+//   ✓ Orientation: OrientAlongPath             [TICKET-023 — implemented §4.D]
 //   ✓ All 5 constraint types (LookAt / KeepHorizon / DampedFollow /
 //                                 Distance / RotationLimit)
 //   ✓ All 3 failure policies (Stop / SkipFailedConstraint /
@@ -1006,6 +1006,94 @@ TEST_CASE("compiled_orbit_rotation_coherence_independent_of_radius — "
         CHECK(cam.point_of_interest.y == doctest::Approx(0.0f).epsilon(kCam01Eps));
         CHECK(cam.point_of_interest.z == doctest::Approx(0.0f).epsilon(kCam01Eps));
     }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// §4.D — TICKET-023: OrientAlongPath orientation follows trajectory tangent
+// ══════════════════════════════════════════════════════════════════════════
+//
+// OrientAlongPath computes the camera's forward direction from the
+// point_of_interest (set by the source evaluator) and applies a look-at
+// rotation.  For TrajectoryMotion, the trajectory sample returns both
+// position and target, so the tangent is camera→target.
+//
+// keep_horizon=true zeroes roll (rotation.z) after the look-at.
+
+TEST_CASE("compiled_orientation_orient_along_path_trajectory — "
+          "TICKET-023: OrientAlongPath with TrajectoryMotion orients camera "
+          "forward along the tangent derived from point_of_interest (position→target)") {
+    auto desc = make_cam01_base_desc("test.t023.traj");
+
+    // Build a trajectory: start at (-500, 0, -1500), move to (500, 0, -500).
+    auto traj = CameraTrajectoryBuilder()
+                    .move_to(Vec3{-500.0f, 0.0f, -1500.0f})
+                    .bezier_to(Vec3{0.0f, 0.0f, 0.0f},
+                               Vec3{0.0f, 0.0f, 0.0f},
+                               Vec3{500.0f, 0.0f, -500.0f})
+                    .duration_frames(90.0f)
+                    .build();
+    REQUIRE(traj);
+
+    desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
+    desc.orientation = OrientAlongPath{/*keep_horizon=*/false};
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+
+    auto cam_start = eval_at_or_die_cam01(program, session, Frame{0});
+    CAPTURE(cam_start.rotation.x); CAPTURE(cam_start.rotation.y); CAPTURE(cam_start.rotation.z);
+    CHECK(cam_start.point_of_interest_enabled);
+    const float rot_l2_start = std::sqrt(cam_start.rotation.x * cam_start.rotation.x
+                                         + cam_start.rotation.y * cam_start.rotation.y
+                                         + cam_start.rotation.z * cam_start.rotation.z);
+    CHECK(rot_l2_start > 0.5f);
+}
+
+TEST_CASE("compiled_orientation_orient_along_path_keep_horizon — "
+          "TICKET-023: OrientAlongPath with keep_horizon=true zeroes roll (rotation.z=0)") {
+    auto desc = make_cam01_base_desc("test.t023.horizon");
+
+    auto traj = CameraTrajectoryBuilder()
+                    .move_to(Vec3{0.0f, 0.0f, -1500.0f})
+                    .bezier_to(Vec3{100.0f, 50.0f, 0.0f},
+                               Vec3{-100.0f, -50.0f, 0.0f},
+                               Vec3{100.0f, 0.0f, -500.0f})
+                    .duration_frames(90.0f)
+                    .build();
+    REQUIRE(traj);
+
+    desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
+    desc.orientation = OrientAlongPath{/*keep_horizon=*/true};
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+
+    auto cam = eval_at_or_die_cam01(program, session, Frame{45});
+    CAPTURE(cam.rotation.x); CAPTURE(cam.rotation.y); CAPTURE(cam.rotation.z);
+    CHECK(cam.rotation.z == doctest::Approx(0.0f).epsilon(kCam01Eps));
+    const float rot_l2 = std::sqrt(cam.rotation.x * cam.rotation.x
+                                   + cam.rotation.y * cam.rotation.y);
+    CHECK(rot_l2 > 0.1f);
+}
+
+TEST_CASE("compiled_orientation_orient_along_path_no_poi_is_noop — "
+          "TICKET-023: OrientAlongPath with no point_of_interest is a safe no-op "
+          "(preserves existing rotation)") {
+    auto desc = make_cam01_base_desc("test.t023.noop");
+    desc.source = StaticCameraSource{};
+    desc.base.rotation = Vec3{5.0f, 10.0f, 15.0f};
+    desc.base.point_of_interest_enabled = false;
+    desc.orientation = OrientAlongPath{/*keep_horizon=*/false};
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+
+    auto cam = eval_at_or_die_cam01(program, session, Frame{0});
+    CAPTURE(cam.rotation.x); CAPTURE(cam.rotation.y); CAPTURE(cam.rotation.z);
+    CHECK(cam.rotation.x == doctest::Approx(5.0f).epsilon(kCam01Eps));
+    CHECK(cam.rotation.y == doctest::Approx(10.0f).epsilon(kCam01Eps));
+    CHECK(cam.rotation.z == doctest::Approx(15.0f).epsilon(kCam01Eps));
+    CHECK_FALSE(cam.point_of_interest_enabled);
 }
 
 // ══════════════════════════════════════════════════════════════════════════

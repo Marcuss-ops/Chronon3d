@@ -121,7 +121,38 @@ static void apply_orientation_spec_free(const void* orient_variant,
         }
         return;
     }
-    if (std::holds_alternative<OrientAlongPath>(orient)) {
+    if (auto* oap = std::get_if<OrientAlongPath>(&orient)) {
+        // CAM-03 / TICKET-023 — Orient camera forward along trajectory tangent.
+        //
+        // The camera position has already been set by the source evaluator
+        // (TrajectoryMotion, PoseTracksSource, or OrbitMotion) and any
+        // modifiers.  We derive the tangent from the point_of_interest
+        // when available: normalize(target - position) gives the camera→target
+        // forward vector.  quat_look_along + quat_to_camera_euler produce the
+        // Euler rotation consistent with the Camera2_5D convention.
+        //
+        // For TrajectoryMotion, the trajectory sample returns both position
+        // and target, so the tangent is the camera→target forward.  For
+        // OrbitMotion, the target is the orbit centre.  For PoseTracksSource
+        // with use_target=true, the animated target provides the tangent.
+        //
+        // When point_of_interest is NOT enabled (StaticCameraSource or
+        // PoseTracksSource without use_target), the orientation is a no-op
+        // (keep existing rotation) — the caller should pair OrientAlongPath
+        // with TrajectoryMotion for meaningful path-following behavior.
+        //
+        // keep_horizon=true zeroes roll (rotation.z) after the look-at,
+        // enforcing a level horizon regardless of path banking.
+        if (cam.point_of_interest_enabled) {
+            Vec3 look_dir = cam.point_of_interest - cam.position;
+            float len = glm::length(look_dir);
+            if (len > 1e-4f) {
+                look_dir = look_dir / len;
+                const Quat orientation = quat_look_along(look_dir);
+                const float preserved_roll = oap->keep_horizon ? 0.0f : cam.rotation.z;
+                cam.rotation = quat_to_camera_euler(orientation, preserved_roll);
+            }
+        }
         return;
     }
 }

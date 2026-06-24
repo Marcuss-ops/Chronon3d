@@ -85,8 +85,8 @@ inline constexpr int kMaxScopeDepth = 16;
 class ExecutionScope {
 public:
     /// Root scope ctor — no parent, depth = 0.  Arena defaults to
-    /// `session.arena()`.  Use the explicit-arena ctor if a child
-    /// scope needs a distinct arena from the parent.
+    /// `session.arena()`.  For child scopes that need a distinct arena,
+    /// use the explicit-arena ctor below.
     explicit ExecutionScope(
         ExecutionScopeKind                  kind,
         chronon3d::RenderSession&           session,
@@ -95,37 +95,7 @@ public:
         : ExecutionScope(kind, session, session.arena(), graph_id, nullptr)
     {}
 
-    /// Child scope ctor — requires a non-null parent; depth tracks.
-    /// Arena defaults to the parent's arena.
-    ///
-    /// PR 6.7 — DEPRECATED.  Child scopes MUST use the explicit-arena
-    /// ctor below so that the child arena is provably distinct from the
-    /// parent's arena.  Defaulting to the parent's arena silently shares
-    /// the allocation surface, which means child teardown (ArenaGuard
-    /// reset) would invalidate pointers the parent still holds.
-    [[deprecated("child scopes must pass an explicit FrameArena& distinct from the parent's — use ExecutionScope(kind, session, child_arena, graph_id, parent) with a locally-constructed child arena")]]
-    explicit ExecutionScope(
-        ExecutionScopeKind                  kind,
-        chronon3d::RenderSession&           session,
-        GraphInstanceId                     graph_id,
-        const ExecutionScope*               parent
-    ) noexcept
-        : ExecutionScope(kind, session, session.arena(), graph_id, parent)
-    {}
-
-    /// Explicit-arena ctor (PR 6.3 / 6.4 — child arenas distinct from
-    /// the parent).  Caller-owned arena; lifetime tracked by caller.
-    /// Passing `parent == nullptr` is silently accepted (depth clamps
-    /// to 0); the call is documented as a usage contract violation.
-    ///
-    /// PR 6.5 — depth is CLAMPED to `kMaxScopeDepth` (no exception, no
-    /// abort — consistent with `noexcept` contract).  When the
-    /// constructed depth would have exceeded the bound, `would_overflow()`
-    /// returns true on this scope so callers can detect the situation
-    /// and route to a deterministic fallback (e.g. bail out with empty
-    /// fb per docs/03 §4.4).  The clamp guarantees bounded chain walks
-    /// (is_descendant_of / would_recurse always terminate in at most
-    /// `kMaxScopeDepth` iterations).
+    /// Explicit-arena ctor (WP-6 / WP-7 — the canonical ctor for all scopes).
     explicit ExecutionScope(
         ExecutionScopeKind                  kind,
         chronon3d::RenderSession&           session,

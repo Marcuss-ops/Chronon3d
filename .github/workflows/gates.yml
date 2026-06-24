@@ -15,7 +15,11 @@
 #   4. install-consumer-check   — cmake --install + external find_package.
 #   5. architecture-check       — Static rules + doctest skip tickets +
 #                                  architecture boundary grep (PR-0).
-#   6. install-consumer-script  — tools/install_consumer_test.sh (PR-0).
+#   6. architecture-selftest    — Boundary script self-tests (14 assertions).
+#   7. audit-software-renderer  — SoftwareRenderer inventory report.
+#   8. filename-drift           — Cited filenames must exist on disk.
+#   9. profile-measurement      — Per-profile compile metrics.
+#  10. install-consumer-script  — tools/install_consumer_test.sh (PR-0).
 #
 # Why this file exists:
 # The previous CI (ci.yml) only built `chronon3d_tests_fast` on PRs and
@@ -234,7 +238,75 @@ jobs:
         run: bash tools/check_gitignored_dirs.sh
 
   # ────────────────────────────────────────────────────────────────────
-  # 6. Profile measurement matrix — drives tools/measure_profile.sh on
+  # 6. Architecture selftest — validates boundary script assertions.
+  #    Runs 14 synthetic test cases to verify the boundary script catches
+  #    forbidden patterns correctly.  Cheap: no build, no vcpkg.
+  # ────────────────────────────────────────────────────────────────────
+  architecture-selftest:
+    name: Gate 6 / architecture-selftest (14 boundary assertions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make script executable
+        run: chmod +x tools/check_architecture_boundaries_selftest.sh
+
+      - name: Run architecture boundary selftest
+        run: bash tools/check_architecture_boundaries_selftest.sh
+
+  # ────────────────────────────────────────────────────────────────────
+  # 7. Software renderer audit — canonical inventory report.
+  #    Classifies public methods, include counts, dynamic_cast usage,
+  #    and renderer/backend dual identity.  Produces a markdown report
+  #    artifact.  Cheap: no build, no vcpkg.
+  # ────────────────────────────────────────────────────────────────────
+  audit-software-renderer:
+    name: Gate 7 / audit-software-renderer (SoftwareRenderer inventory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make script executable
+        run: chmod +x tools/audit_software_renderer.sh
+
+      - name: Run SoftwareRenderer audit
+        run: |
+          bash tools/audit_software_renderer.sh
+          echo "::notice::SoftwareRenderer audit complete; check the generated markdown for metrics."
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: software-renderer-audit
+          path: docs/audits/2026-06-software-renderer-inventory.md
+          if-no-files-found: warn
+          retention-days: 30
+
+  # ────────────────────────────────────────────────────────────────────
+  # 8. Filename drift — every cited file path in source/docs/cmake must
+  #    exist on disk.  Complements check_doc_sync.sh: this gate enforces
+  #    on-disk existence, not content co-update. Cheap: grep + stat only.
+  # ────────────────────────────────────────────────────────────────────
+  filename-drift:
+    name: Gate 8 / filename-drift (cited files must exist)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make script executable
+        run: chmod +x tools/check_filename_drift.sh
+
+      - name: Run filename drift check
+        run: bash tools/check_filename_drift.sh --strict
+
+  # ────────────────────────────────────────────────────────────────────
+  # 9. Profile measurement matrix — drives tools/measure_profile.sh on
   # each of the four linux-profile-* presets (08 plan + readme). Outputs
   # JSON+MD are uploaded via actions/upload-artifact@v4 for trend
   # dashboards and changelog attestations. Only `extended` runs `--build`
@@ -244,7 +316,7 @@ jobs:
   # canonical job; see docs/measure_profile_readme.md CI matrix section.
   # ────────────────────────────────────────────────────────────────────
   profile-measurement:
-    name: Gate 6 / profile-measurement (${{ matrix.profile }})
+    name: Gate 9 / profile-measurement (${{ matrix.profile }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -293,7 +365,7 @@ jobs:
   # 7. Install consumer — end-to-end SDK boundary test (PR-0).
   # ────────────────────────────────────────────────────────────────────
   install-consumer-script:
-    name: Gate 7 / install-consumer (tools/install_consumer_test.sh)
+    name: Gate 10 / install-consumer (tools/install_consumer_test.sh)
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
