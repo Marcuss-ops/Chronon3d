@@ -161,8 +161,10 @@ L'approccio usato — camminata della catena parent fino alla root —
 
 ### Stato attuale
 
-🟡 **Partial** — `would_recurse` è completo e coperto da test
-(see §3); `kMaxScopeDepth` enforcement è demandato a PR 6.5.
+🟢 **Done** — `would_recurse` è completo e coperto da test (see §3);
+`kMaxScopeDepth` enforcement è implementato nel ctor (clamp a 16 +
+`would_overflow()` accessor) come parte di PR 6.5 e verificato nel
+TEST_CASE #12.
 
 ---
 
@@ -366,10 +368,19 @@ per tracciare lo stato corrente dei PR rimanenti della catena WP-6:
 
 | Exit criterion | Stato |
 |---|---|
-| Prevent arena override parameters from returning | 🟢 Done — `[[deprecated]]` on child ctor without explicit arena (`ExecutionScope(kind, session, graph_id, parent)`) forces callers to pass a child arena explicitly, preventing silent parent-arena sharing |
-| Prevent nested execution from passing the parent arena directly | 🟢 Done — `[[deprecated]]` on `GraphExecutor::execute(session, scheduler)` forces callers to migrate to `execute_with_scope(ExecutionScope&, ...)`, which enforces typed scope identity |
-| Prevent tile code from creating replacement render jobs | 🟢 Done — `[[deprecated]]` on legacy `execute()` blocks new code from using the session-based path; existing tile code already routes through `execute_with_scope()` with typed scopes |
-| Require explicit scope and scheduler at every executor call | 🟢 Done — `execute_with_scope(ExecutionScope&, ExecutionScheduler&)` is the only non-deprecated executor entrypoint; scope + scheduler are always explicit |
+| Prevent arena override parameters from returning | 🟢 Done — child ctor without explicit arena **retired** (removed) in WP-7; callers must pass a child arena explicitly |
+| Prevent nested execution from passing the parent arena directly | 🟢 Done — legacy `GraphExecutor::execute(session, scheduler)` **retired** (removed) in WP-7; all callers use `execute_with_scope()` |
+| Prevent tile code from creating replacement render jobs | 🟢 Done — zero legacy execute() callers remain; all paths route through typed scope contract |
+| Require explicit scope and scheduler at every executor call | 🟢 Done — `execute_with_scope(ExecutionScope&, ExecutionScheduler&)` is the only executor entrypoint |
+
+### WP-7 — Retire deprecated APIs — 🟢 Done (2026-06-24)
+
+| Exit criterion | Stato |
+|---|---|
+| Remove `[[deprecated]]` legacy `GraphExecutor::execute(RenderSession&, ...)` | 🟢 Done — removed from both header and implementation in WP-7 |
+| Remove `[[deprecated]]` child ctor without explicit arena | 🟢 Done — removed from `execution_scope.hpp` in WP-7; only the explicit-arena ctor remains |
+| Migrate all test-lattice call sites | 🟢 Done — zero `local_session` instances exist; all 12 test-lattice tests pass with `execute_with_scope()` |
+| Simplify executor.cpp to single canonical body | 🟢 Done — `execute_internal()` is the sole implementation; `execute_with_scope()` is the sole public entrypoint |
 
 ### Stato globale
 
@@ -383,10 +394,16 @@ i test di acceptance sono done (PR 6.0); i PR 6.1–6.7 sono tutti:
 - 🟢 PR 6.6 — memory and race tests: ArenaGuard lifecycle isolation, sibling/chain independence, session sharing, ASAN/UBSAN guidance (done)
 - 🟢 PR 6.7 — permanent guards: deprecated legacy execute(), deprecated arena-defaulting child ctor, explicit scope+scheduler contract (done)
 
-All 7 PRs of the WP-6 ExecutionScope chain are now closed.  Remaining
-work (WP-7) includes retiring the legacy `execute()` overload and
-the `[[deprecated]]` child ctor once all test-lattice call sites
-are migrated.
+All 7 PRs of the WP-6 ExecutionScope chain are now closed. 🟢 **WP-7 deprecation retirement is complete** (2026-06-24):
+the legacy `GraphExecutor::execute()` overload and the arena-defaulting
+child ctor have been **removed** (not just deprecated).  The sole
+executor entrypoint is `execute_with_scope(ExecutionScope&, ...)` and
+the sole scope ctor for child scopes is the explicit-arena variant.
+
+### Stato globale
+
+🟢 **Done** — WP-6 (PR 6.0–6.7) + WP-7 (deprecation retirement) completi.
+Il sottosistema ExecutionScope è chiuso.
 
 ### PR 6.5 — landing log (this commit)
 
