@@ -436,7 +436,7 @@ The defect is harmless in practice because every source file in `src/expressions
 
 | Field | Value |
 |---|---|
-| **Status** | 🟡 Partial (Gap C chiuso via PR-7b retire-CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2; Gap A e Gap B ancora aperti) |
+| **Status** | 🟡 Partial (Gap C partially re-opened via TICKET-005 Gap C follow-up filed in the post-promotion baseline PR `5599f762` — sentinel in `tools/test_architectural.sh` Section 1 still re-fires post-PR-7b; Gap A e Gap B ancora aperti) |
 | **Affected file(s)** | `tests/core/animation/test_keyframes.cpp` (animations); `CMakeLists.txt` (root, deprecated option residue); `CMakePresets.json` (drift check); `docs/CHANGELOG.md`, `docs/ROADMAP.md`, `docs/ARCHITECTURE_EVOLUTION_PLAN.md`, `docs/FEATURES.md` (documentation reconciliation); `*.sh` / `*.yml` / `*.yaml` / CI configs (stale-flag scan). |
 | **Discovered during** | Post-rebase verification flow: cmake-guard retirement commit (`aae68561`-origin cycle, retired this session); cascade of missing-transitive-include fixes in `856ff957`; PR #23 rebase integration. |
 | **Discovered date** | 2026-06-20 |
