@@ -23,9 +23,8 @@
 #
 # Exit codes:
 #   0 = boundary validated (consumer ran + printed marker)
-#   1 = boundary broken (install rules / package config / consumer)
-#   2 = SDK build blocked (CTest skipped via SKIP_RETURN_CODE; not a
-#       regression caused by this script — see docs/FOLLOWUP_TICKETS.md).
+#   1 = boundary broken (install rules / package config / consumer,
+#       OR SDK build failed — all failures are release-gate blockers).
 #
 # Env knobs:
 #   CHRONON3D_INSTALL_TEST_PRESET                  default: linux-ci-nocontent
@@ -61,10 +60,8 @@ SDK_PREFIX=""
 CONS_BUILD=""
 cleanup() {
     local rc=$?
-    # Never delete the user's main build dir if we reused it.
-    if [[ -n "$SDK_BUILD" && "$SDK_BUILD" != "$EXPECTED_BUILD_DIR" ]]; then
-        rm -rf "$SDK_BUILD"
-    fi
+    # SDK_BUILD is always a fresh mktemp directory (no stale-artifact reuse).
+    [[ -n "$SDK_BUILD" ]] && rm -rf "$SDK_BUILD"
     [[ -n "$SDK_PREFIX" ]] && rm -rf "$SDK_PREFIX"
     [[ -n "$CONS_BUILD" ]] && rm -rf "$CONS_BUILD"
     exit "$rc"
@@ -77,27 +74,21 @@ log "temp install prefix: $SDK_PREFIX"
 log "temp consumer build : $CONS_BUILD"
 
 # ────────────────────────── Step 1: source build ──────────────────────
-if [[ -f "$EXPECTED_BUILD_DIR/src/libchronon3d_sdk_impl.a" ]]; then
-    SDK_BUILD="$EXPECTED_BUILD_DIR"
-    log "FAST PATH: reusing existing build artifact"
-    log "  artifact: $SDK_BUILD/src/libchronon3d_sdk_impl.a"
-else
-    SDK_BUILD="$(mktemp -d "$TMP_ROOT/chronon3d_install_consumer_sdk_build.XXXXXX")"
-    log "COLD PATH: configuring SDK at $SDK_BUILD (preset=$PRESET)"
-    cmake -S "$REPO_ROOT" -B "$SDK_BUILD" --preset "$PRESET" \
-        -DCMAKE_INSTALL_PREFIX="$SDK_PREFIX" 1>&2
-    log "Building SDK target 'chronon3d_sdk_impl' (per-subsystem OBJECT aggregate)"
-    # Capture build output.  If the SDK build fails due to pre-existing TU
-    # breakage (e.g. unresolved Pool/Scheduler signatures from prior refactor
-    # merges — see docs/FOLLOWUP_TICKETS.md), exit 2 so CTest SKIPs the
-    # boundary check with a clean signal in CI, rather than failing the
-    # entire install-consumer gate on unrelated source-level issues.
-    if ! cmake --build "$SDK_BUILD" --target chronon3d_sdk_impl 1>&2; then
-        log "WARN: SDK build blocked — surfacing as 'sdk-build-blocked' (CTest SKIP)"
-        printf '{"test":"install_consumer_ci","status":"sdk-build-blocked","preset":"%s","reason":"pre-existing source-level breakage (render_graph/ + backends/software/foo)"}\n' \
-            "$PRESET"
-        exit 2
-    fi
+# ALWAYS do a fresh build from the current commit.  Reusing a stale
+# libchronon3d_sdk_impl.a from a previous build could validate an
+# archive that does NOT correspond to the current commit.
+SDK_BUILD="$(mktemp -d "$TMP_ROOT/chronon3d_install_consumer_sdk_build.XXXXXX")"
+log "COLD PATH: configuring SDK at $SDK_BUILD (preset=$PRESET)"
+cmake -S "$REPO_ROOT" -B "$SDK_BUILD" --preset "$PRESET" \
+    -DCMAKE_INSTALL_PREFIX="$SDK_PREFIX" 1>&2
+log "Building SDK target 'chronon3d_sdk_impl' (per-subsystem OBJECT aggregate)"
+# The SDK build MUST succeed for the release gate to pass.  A build
+# failure is a hard blocker — never downgrade to a skip.
+if ! cmake --build "$SDK_BUILD" --target chronon3d_sdk_impl 1>&2; then
+    log "FAIL: SDK build failed — this is a release-gate blocker"
+    printf '{"test":"install_consumer_ci","status":"sdk-build-blocked","preset":"%s","reason":"SDK build failure on current commit"}\n' \
+        "$PRESET"
+    exit 1
 fi
 
 # ────────────────────────── Step 2: install ───────────────────────────

@@ -29,16 +29,75 @@
 
 #include <chronon3d/chronon3d.hpp>
 
+// ── Camera Production V1 public SDK surface ──────────────────────────
+// CameraDescriptor → compile_camera() → CameraProgram → evaluate()
+// Certifies that the compiled camera path is consumable by external SDK
+// consumers (Camera Production V1 gate §9).
+#include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_session.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_motion_context.hpp>
+
 #include <cstdio>
 
 int main() {
-    // Force a real symbol lookup against the aggregate archive.
+    // ── §1 — Basic type boundary check ────────────────────────────────
     chronon3d::Vec3 v{1.0f, 2.0f, 3.0f};
 
-    // Boundary marker.  The orchestrator greps the consumer stdout for
-    // this exact substring and fails CI if it is absent.
+    // ── §2 — Compiled camera boundary check (Camera Production V1 §9) ─
+    // Build a minimal CameraDescriptor, compile it, and evaluate at frame 0.
+    // Exercises the COMPLETE authored-camera SDK surface:
+    //   CameraDescriptor → compile_camera() → CameraProgram → evaluate().
+    using namespace chronon3d::camera_v1;
+
+    CameraDescriptor cam_desc;
+    cam_desc.id = "sdk_consumer_test_cam";
+    cam_desc.base.position = chronon3d::Vec3{0.0f, 100.0f, -1500.0f};
+    cam_desc.base.point_of_interest = chronon3d::Vec3{0.0f, 0.0f, 0.0f};
+    cam_desc.base.point_of_interest_enabled = true;
+    cam_desc.source = PoseTracksSource{};
+    cam_desc.orientation = OrientAlongPath{.keep_horizon = true};
+
+    auto compile_result = compile_camera(cam_desc, nullptr);
+    if (!compile_result) {
+        std::fprintf(stderr,
+            "[BOUNDARY-FAIL] compile_camera() error: %s\n",
+            compile_result.error().message.c_str());
+        return 1;
+    }
+
+    auto program = std::move(compile_result).value();
+    if (!program.is_compiled()) {
+        std::fprintf(stderr,
+            "[BOUNDARY-FAIL] CameraProgram not compiled\n");
+        return 1;
+    }
+
+    // Evaluate at frame 0 with a fresh session.
+    CameraSession session;
+    session.ensure_constraint_states(0);
+    auto ctx = CameraEvalContext::at(chronon3d::Frame{0});
+
+    auto result = program.evaluate(ctx, session);
+    if (!result.ok) {
+        std::fprintf(stderr,
+            "[BOUNDARY-FAIL] evaluate() returned !ok; diagnostics=%zu\n",
+            result.diagnostics.size());
+        return 1;
+    }
+
+    // ── Boundary marker ───────────────────────────────────────────────
+    // The orchestrator greps the consumer stdout for this exact substring
+    // and fails CI if it is absent.
     std::printf("[BOUNDARY-OK] install_consumer linked: "
-                "Vec3={%f,%f,%f}\n",
-                v.x, v.y, v.z);
+                "Vec3={%f,%f,%f} "
+                "camera_compiled=%d "
+                "camera_pos={%f,%f,%f}\n",
+                v.x, v.y, v.z,
+                program.is_compiled() ? 1 : 0,
+                result.camera.position.x,
+                result.camera.position.y,
+                result.camera.position.z);
     return 0;
 }

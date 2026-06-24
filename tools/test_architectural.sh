@@ -181,12 +181,23 @@ echo "--- Section 3: Anti-skip-senza-ticket ---"
 # Every `* doctest::skip()` call must have, in the line(s) immediately
 # preceding, a `TICKET-XXX` marker plus a marker for Issue/Owner/Motivation/
 # Date/Deadline metadata. Missing any of those blocks a PR.
+# Each required field is checked independently — finding ONE of them is
+# NOT sufficient (previous alternation regex was a bug).
 SKIP_VIOLATIONS=$(python3 - <<'PY' 2>&1 || true
 import os, re, sys
 
 root = '.'
-skip_re   = re.compile(r'\*\s*doctest::skip\(')
-ticket_re = re.compile(r'(TICKET-[A-Za-z0-9_-]+|Issue:|Owner:|Motivation:|Data\s+introduzione:|Deadline\s+rimozione:)')
+skip_re = re.compile(r'\*\s*doctest::skip\(')
+
+# Each required metadata field is validated INDEPENDENTLY.
+# Finding one does NOT satisfy all — all must be present.
+required = {
+    "ticket":     re.compile(r'TICKET-[A-Za-z0-9_-]+'),
+    "owner":      re.compile(r'Owner:'),
+    "motivation": re.compile(r'Motivation:'),
+    "introduced": re.compile(r'Data introduzione:'),
+    "deadline":   re.compile(r'Deadline rimozione:'),
+}
 
 bad = []
 for base, dirs, files in os.walk(root):
@@ -207,11 +218,14 @@ for base, dirs, files in os.walk(root):
                 # Look at the 3 lines before, plus the same line, plus the
                 # 3 lines after (sometimes the comment is below).
                 ctx = ''.join(lines[max(0, i - 3): i + 4])
-                if not ticket_re.search(ctx):
-                    bad.append((path, i + 1, line.rstrip()))
+                missing = [name for name, pattern in required.items()
+                           if not pattern.search(ctx)]
+                if missing:
+                    bad.append((path, i + 1, line.rstrip(), missing))
 
-for path, lineno, content in bad:
+for path, lineno, content, missing in bad:
     print(f"{path}:{lineno}: {content}")
+    print(f"  -> missing: {', '.join(missing)}")
 sys.exit(1 if bad else 0)
 PY
 )
