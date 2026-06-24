@@ -170,6 +170,13 @@ if(NOT CHRONON3D_GIT_COMMIT)
     set(CHRONON3D_GIT_COMMIT "unknown")
 endif()
 
+# ── Central module registry ───────────────────────────────────
+# Includes CHRONON3D_REGISTRY_OBJECT_LIBS and CHRONON3D_REGISTRY_INTERFACE_LIBS.
+# Must be included BEFORE add_subdirectory(src) so the variable lists are
+# available when src/CMakeLists.txt runs (the foreach loops consume the
+# lists AFTER all add_subdirectory calls have created the targets).
+include(cmake/Chronon3DRegistry.cmake)
+
 add_subdirectory(src)
 
 # 10. Content Generation (optional — proofs/demos, not core engine)
@@ -351,78 +358,23 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
 # The exported targets are kept under their raw names so the transitive
 # link closure resolves through `Chronon3D::SDK` without exposing
 # per-subsystem IMPORTED targets to consumers.
-set(_chronon3d_install_targets
-    # Consumer-facing — this is the only target that gets the
-    # `Chronon3D::SDK` namespace alias.
-    chronon3d_sdk
-    # Single aggregated linkable archive.
-    chronon3d_sdk_impl
-    # Aggregate INTERFACE libraries (logical groupers; propagate OBJECT
-    # deps transitively at build-time via $<BUILD_INTERFACE:…> in
-    # chronon3d_sdk's link closure).
-    chronon3d_pipeline
-    chronon3d_core
-    chronon3d_software
-    chronon3d_graph
-    chronon3d_media_interface
-    chronon3d
-    # Per-subsystem OBJECT libraries — included so `install(EXPORT)`
-    # does not flag them as `not in any export set`.  They produce no
-    # installable file; their .o files are bundled into
-    # `libchronon3d_sdk_impl.a` at aggregate-link time.
-    chronon3d_core_impl
-    chronon3d_animations
-    chronon3d_cache
-    chronon3d_effects
-    chronon3d_registry
-    chronon3d_assets
-    chronon3d_scene
-    chronon3d_runtime
-    chronon3d_extension
-    chronon3d_text_core
-    chronon3d_backend_image
-    chronon3d_backend_software
-    chronon3d_backend_assets
-    chronon3d_graph_core
-    chronon3d_graph_nodes
-    chronon3d_graph_builder
-    chronon3d_graph_compiler
-    chronon3d_graph_executor
-    chronon3d_graph_preflight
-    chronon3d_graph_cache
-    chronon3d_graph_pipeline
-)
-
-# Conditional subsystems — included for EXPORT-graph participation when
-# the feature is enabled; skip otherwise.
-if(CHRONON3D_ENABLE_VIDEO)
-    list(APPEND _chronon3d_install_targets
-        chronon3d_backend_video
-        chronon3d_media_video
-    )
-endif()
-if(CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D)
-    list(APPEND _chronon3d_install_targets chronon3d_backend_text)
-endif()
-if(CHRONON3D_USE_BLEND2D)
-    list(APPEND _chronon3d_install_targets chronon3d_blend2d_paint)
-endif()
-if(CHRONON3D_BUILD_DIAGNOSTICS)
-    list(APPEND _chronon3d_install_targets chronon3d_backend_software_diagnostics)
-endif()
-if(CHRONON3D_BUILD_CONTENT OR CHRONON3D_BUILD_DIAGNOSTICS)
-    list(APPEND _chronon3d_install_targets chronon3d_content)
-endif()
-if(CHRONON3D_BUILD_DIAGNOSTICS)
-    list(APPEND _chronon3d_install_targets chronon3d_diagnostics)
-endif()
-
-if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
-    list(APPEND _chronon3d_install_targets
-        chronon3d_ffmpeg_light
-        chronon3d_ffmpeg_full
-    )
-endif()
+# ── Install / export target list — derived from central registry ───
+# Replaces the previously manual _chronon3d_install_targets list +
+# per-feature conditional APPEND blocks (~60 lines) with two
+# foreach-if-TARGET loops consuming cmake/Chronon3DRegistry.cmake.
+# Conditional targets gated by CHRONON3D_ENABLE_*/USE_*/BUILD_*
+# options are handled by `if(TARGET …)` — no manual guard needed.
+set(_chronon3d_install_targets)
+foreach(_reg_obj IN LISTS CHRONON3D_REGISTRY_OBJECT_LIBS)
+    if(TARGET ${_reg_obj})
+        list(APPEND _chronon3d_install_targets ${_reg_obj})
+    endif()
+endforeach()
+foreach(_reg_iface IN LISTS CHRONON3D_REGISTRY_INTERFACE_LIBS)
+    if(TARGET ${_reg_iface})
+        list(APPEND _chronon3d_install_targets ${_reg_iface})
+    endif()
+endforeach()
 
 install(TARGETS ${_chronon3d_install_targets}
     EXPORT Chronon3DTargets
