@@ -55,3 +55,11 @@ Il build rapido è utile per iterazione, ma non certifica da solo la baseline.
 Ogni lavoro deve chiudersi con build mirata, test e gate architetturale. Quando applicabile servono anche no-content build, install consumer esterno, full-validation e CI registrata.
 
 Expressions V2 resta sotto `experimental/expressions/`, OFF di default e fuori da `Chronon3D::SDK`. V3 resta pianificato e non deve partire prima della chiusura P0.
+
+## Closed-state baseline
+
+TXT-00 chiuso su `main@345e5f2e` (audit-pinned al commit `b8114705` su `origin/main`). Per i log completi osservati (`cmake --preset linux-ci` / build / `ctest -R '^VRTextPresetVisual$'` rc=0; 18/18 doctest cases + 263/263 assertions; chiusura TICKET‑038 + TICKET‑039; matrice di trasparenza 128 sentinels su 16 preset × 8 frame) vedere:
+
+[`baselines/main-345e5f2e-txt-00-closed.md`](baselines/main-345e5f2e-txt-00-closed.md).
+
+Il file conserva ancora la baseline storica di pre‑chiusura `baselines/main-ccabb574-txt-00-build-green.md` come riferimento dell'attività precedente dell'Agent 2 (merge della rot linker strutturale) ma lo stato autorevole corrente è quello del file `345e5f2e` indicato sopra.

@@ -56,8 +56,9 @@ Snapshot dello stato corrente (vedi body per lo stato per-agente). L'assegnazion
    - branch: `codex/agent1-renderer-boundary` **[DONE ✓ — Merged into main on 2026-06-23, branch retired]**
    - ownership: renderer/backend software, call site correlati, test mirati e gate renderer.
 2. [Agente 2 — CMake Registry, SDK Boundary e Baseline](docs/agent-tasks/AGENT_2_CMAKE_SDK_BASELINE.md)
-   - branch: `codex/agent2-cmake-sdk-baseline` **[COMPLETED — merged into main at ccabb574 on 2026-06-24]**
+   - branch: `codex/agent2-cmake-sdk-baseline` **[COMPLETED]**
    - ownership: CMake, preset/toolchain, install consumer, full validation e documenti canonici.
+   - closed-state baseline: [`docs/baselines/main-345e5f2e-txt-00-closed.md`](docs/baselines/main-345e5f2e-txt-00-closed.md) (main@`345e5f2e`, audit-pinned at commit `b8114705`, 2026-06-24).
 
 Entrambi gli agenti sono completati. Lavoro sequenziale su `main`, un task alla volta.
 
