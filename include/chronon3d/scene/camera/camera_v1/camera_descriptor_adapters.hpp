@@ -33,7 +33,6 @@
 #include <chronon3d/animations/camera_motion_params.hpp>     // CameraMotionParams
 #include <chronon3d/scene/model/camera/camera_rig.hpp>        // CameraRig
 #include <chronon3d/scene/model/camera/camera_shot_profile.hpp> // CameraShotProfile
-#include <chronon3d/scene/camera/animated_camera_2_5d.hpp>     // AnimatedCamera2_5D (deprecated — adapter target)
 
 #include <cstdint>
 
@@ -69,15 +68,6 @@ camera_descriptor_from(const chronon3d::CameraRig& rig,
 // are post-processing concerns and are NOT carried into the descriptor.
 [[nodiscard]] CameraDescriptor
 camera_descriptor_from(const chronon3d::CameraShotProfile& shot,
-                       RigBakeDensity density = RigBakeDensity::Default);
-
-// ── Pure adapter: AnimatedCamera2_5D (legacy) → CameraDescriptor ──────────
-// Bakes the legacy animated camera into a PoseTracksSource sampled at N=`density`
-// evenly-distributed SampleTime points across [0, total_frames].  DOF, lens,
-// and motion blur are copied from the static fields.
-[[nodiscard]] CameraDescriptor
-camera_descriptor_from(const chronon3d::AnimatedCamera2_5D& cam,
-                       int total_frames = 300,
                        RigBakeDensity density = RigBakeDensity::Default);
 
 } // namespace chronon3d::camera_v1

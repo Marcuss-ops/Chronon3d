@@ -1,6 +1,11 @@
 # Chronon3D — Active Roadmap
 
-> Stato corrente: [`CURRENT_STATUS.md`](CURRENT_STATUS.md).
+> Snapshot: `main@21fb10af`, 25 giugno 2026. Linux-only.
+>
+> Ultima baseline macchina-verificata: `main@446a60e2` (3/4 ✅).
+>
+> Stato presente: [`CURRENT_STATUS.md`](CURRENT_STATUS.md).
+> Requisiti di release: [`RELEASE_GATE.md`](RELEASE_GATE.md).
 
 La roadmap è organizzata per milestone prodotto. Non avviare una milestone
 successiva per nascondere blocker della precedente.
@@ -14,13 +19,15 @@ riportano lo stesso stato.
 
 ### Lavori
 
-1. Chiudere il link/run di `chronon3d_scene_tests` e i blocker realmente ancora presenti.
-2. Rieseguire i regression test dei fix camera recenti.
-3. Chiudere i gap Precomp, execution scope e identity/session ancora dimostrati dalla baseline.
-4. Eseguire core, lean, no-content e full-validation.
-5. Rendere architecture e renderer-boundary gate realmente bloccanti.
-6. Eseguire install consumer sullo stesso commit.
-7. Registrare comandi, commit ed esiti osservati.
+1. ✅ Chiudere il link/run di `chronon3d_scene_tests`, incluso **TICKET-029** — **RISOLTO** (`fb1b7e97`).
+2. Rieseguire i regression test dei fix camera recenti (ora possibili grazie a TICKET-029).
+3. 🔴 Chiudere **TICKET-039** (`SoftwareRenderer::settings()` regression) — blocker immediato.
+4. 🔴 Chiudere **TICKET-038** (lambda/auto rot in text preset visual) — secondo blocker.
+5. Chiudere i gap Precomp, execution scope e identity/session che bloccano la baseline.
+6. Eseguire core, lean, no-content e full-validation sullo stesso commit.
+7. Rendere architecture e renderer-boundary gate realmente bloccanti.
+8. Eseguire install consumer sullo stesso commit.
+9. Registrare comandi, commit ed esiti osservati in `docs/baselines/`.
 
 ### Gate di uscita
 
@@ -33,22 +40,22 @@ riportano lo stesso stato.
 
 ### Obiettivo
 
-Generare titoli, citazioni, keyword highlight e testi animati affidabili per
-pipeline video automatizzate.
+Generare titoli, citazioni, keyword highlight e sottotitoli animati affidabili
+per pipeline video automatizzate.
 
 ### Lavori
 
 1. Completare rich text e styling per parola end-to-end.
-2. Rendere realmente temporali i preset titolo, parola e carattere.
-3. Stabilizzare almeno 20 preset generali realmente visibili.
-4. Aggiungere golden 16:9/9:16, testo corto/lungo e più timestamp.
-5. Verificare 24/30/60 fps e determinismo seriale/parallelo.
-6. Esporre esempi pubblici tramite `Chronon3D::SDK`.
+2. Introdurre timed text/SRT/JSON e word timing.
+3. Implementare highlight, karaoke, word pop e subtitle layout policies.
+4. Completare Wiggly/Wave/Random selector richiesti dai preset.
+5. Stabilizzare almeno 20 preset generali e 8 subtitle.
+6. Aggiungere golden 16:9/9:16, testo corto/lungo e più timestamp.
+7. Verificare 24/30/60 fps e determinismo seriale/parallelo.
+8. Esporre esempi pubblici tramite `Chronon3D::SDK`.
 
 ### Non-goal M1
 
-- parser JSON;
-- karaoke e subtitle pipeline non richiesti dagli showcase attivi;
 - Text 3D;
 - MSDF;
 - morph avanzato;
@@ -65,13 +72,13 @@ coprire i movimenti cinematografici necessari al motion graphics 2.5D.
 ### Lavori
 
 1. Completare i ticket camera P0/P1 ancora test-blocked o parziali.
-2. Completare `OrientAlongPath`, look-ahead, keep-horizon e banking usando la tangente reale.
-3. Preservare correttamente stato base, projection, lens e DOF in tutte le source.
+2. Completare `OrientAlongPath`, look-ahead, keep-horizon e banking.
+3. Preservare correttamente stato base/projection in tutte le source.
 4. Chiudere diagnostica e determinismo della shot timeline.
 5. Portare framing a multi-target, bounds-aware, rule-of-thirds e dead-zone.
 6. Completare clipping near/far necessario al renderer.
 7. Migliorare DOF senza creare un secondo sistema ottico.
-8. Aggiungere parity test e golden reali sul percorso compilato.
+8. Aggiungere parity test e golden sul percorso compilato.
 9. Migrare preset e composizioni, poi deprecare/rimuovere authoring legacy.
 
 ### Gate di uscita
@@ -80,8 +87,7 @@ coprire i movimenti cinematografici necessari al motion graphics 2.5D.
 - sessione posseduta dal render job;
 - nessuna compilazione o lookup catalog per frame;
 - test camera bloccanti verdi;
-- consumer esterno usa una camera compilata;
-- showcase camera + testo renderizzato dalla CLI.
+- consumer esterno usa una camera compilata.
 
 ## M3 — SDK Product V1
 
@@ -116,17 +122,18 @@ compilare direttamente il core C++.
 
 ### Lavori
 
-1. Definire un formato dichiarativo versionato soltanto quando esiste un consumer reale.
-2. Modellare composition, layer, animation tracks, text, camera, effects e asset refs.
+1. Definire schema versionato `.chronon`.
+2. Serializzare composition, layer, animation tracks, text, camera, effects e asset refs.
 3. Loader con validazione, diagnostica e migration version.
-4. Definire un eventuale C ABI con handle opachi.
+4. Definire C ABI con handle opachi.
 5. Esporre runtime, package, render job, framebuffer ed error API.
-6. Creare il primo binding soltanto dopo la stabilizzazione dell’ABI.
+6. Creare primo binding Python.
 7. Definire plugin ABI versionato per pack C++ non serializzabili.
 
 ### Regola
 
-Nessun binding deve duplicare il runtime o introdurre una seconda pipeline.
+Python, C#, Node, Rust e altri binding devono appoggiarsi allo stesso C ABI.
+Non duplicare il runtime in ogni binding.
 
 ## M5 — Global text ed effetti premium
 
@@ -149,11 +156,10 @@ siano verificati.
 
 ## Vincoli permanenti
 
-- Linux-only: non aggiungere supporto Windows;
 - non reintrodurre executor su raw graph o `ExecutionPlanCache`;
 - non creare registry, resolver, sampler o cache paralleli;
 - non costruire executor dentro i nodi;
 - non indebolire gate per adattarli al codice;
 - non promuovere `experimental/` perché compila in opt-in;
 - non aggiungere GUI/browser al core headless;
-- ogni modifica deve risolvere un problema chiaro e avere test mirati.
+- una PR deve risolvere un problema chiaro e avere test mirati.

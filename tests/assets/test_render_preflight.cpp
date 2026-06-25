@@ -133,12 +133,7 @@ TEST_CASE("RenderPreflight: require_external_tool existing (echo/where)") {
     auto& assets = test_registry();
     RenderPreflight::instance().clear();
 
-    // These tools should exist on virtually every system
-#if defined(_WIN32)
-    RenderPreflight::instance().require_external_tool("cmd");
-#else
     RenderPreflight::instance().require_external_tool("echo");
-#endif
     auto issues = RenderPreflight::instance().validate(assets, test_resolver());
 
     bool has_tool_error = false;
@@ -365,12 +360,7 @@ TEST_CASE("RenderPreflight: JSON roundtrip is valid JSON") {
 }
 
 TEST_CASE("tool_exists_in_path: known tools") {
-    // These tools should exist on virtually every system
-#if defined(_WIN32)
-    CHECK(tool_exists_in_path("cmd.exe"));
-#else
     CHECK(tool_exists_in_path("echo"));
-#endif
 }
 
 TEST_CASE("tool_exists_in_path: nonexistent tool") {

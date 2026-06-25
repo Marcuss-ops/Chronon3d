@@ -17,10 +17,6 @@ struct CameraFramingOptions {
     std::unordered_map<std::string, Vec2> layer_sizes;
 };
 
-/// @deprecated Use camera_v1::CameraFramingSolver instead (supports multi-target,
-/// safe-area, dead-zone, hysteresis, RuleOfThirds, and all strategy modes).
-/// See `<chronon3d/scene/camera/camera_v1/camera_framing_solver.hpp>`.
-[[deprecated("Use camera_v1::CameraFramingSolver instead.")]]
 Camera2_5D fit_camera_to_layers(
     Camera2_5D camera,
     const std::vector<std::string>& layer_names,

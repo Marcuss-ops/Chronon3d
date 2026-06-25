@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------------
 // process_runner.hpp — Cross-platform subprocess runner (no shell).
 //
-// Replaces popen()/pclose() with posix_spawnp (Linux/macOS) and
-// CreateProcessW (Windows).  argv is passed directly to the child —
+// Replaces popen()/pclose() with posix_spawnp (Linux/POSIX).
+// argv is passed directly to the child —
 // no shell parsing, no injection risk.
 //
 // Lifecycle:  launch() → write()×N → close_stdin() → wait()
@@ -81,8 +81,7 @@ public:
     /// @return Exit code (0–255), or -1 on error.
     int terminate_and_wait(std::chrono::milliseconds graceful_timeout);
 
-    /// Send SIGTERM (Linux/macOS) or TerminateProcess (Windows) to the
-    /// child.  Does NOT wait — call wait() / wait_for() afterwards.
+    /// Send SIGTERM to the child. Does NOT wait — call wait() / wait_for() afterwards.
     void terminate();
 
     // ── Queries ─────────────────────────────────────────────────────────
@@ -114,10 +113,6 @@ private:
     std::string stderr_buffer_;  // accumulated stderr output
     int  cached_exit_status_{0};  // stored by is_running() if child exited
     bool exit_cached_{false};     // true when cached_exit_status_ is valid
-
-#ifdef _WIN32
-    void* process_handle_{nullptr};
-#endif
 
     // ── Internal helpers ───────────────────────────────────────────────
 

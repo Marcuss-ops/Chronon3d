@@ -1,7 +1,7 @@
 # Architecture Evolution Plan — Chronon3D
 
-Stato corrente: [`STATUS.md`](STATUS.md). Piano operativo:
-[`NEXT_STEPS.md`](NEXT_STEPS.md).
+Stato presente: [`CURRENT_STATUS.md`](CURRENT_STATUS.md). Piano operativo:
+[`ROADMAP.md`](ROADMAP.md).
 
 ## Frontiera corrente
 

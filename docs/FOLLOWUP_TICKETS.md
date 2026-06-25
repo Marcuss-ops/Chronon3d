@@ -1,5 +1,11 @@
 # Follow-up Tickets
 
+> **Nota — giugno 2026**: I documenti `stabilization-plan/` e `refactor-roadmap/` sono stati archiviati in [`ARCHIVE/`](ARCHIVE/).
+> I riferimenti a `stabilization-plan/X.md` e `refactor-roadmap/X.md` in questo file puntano ai percorsi archiviati
+> `ARCHIVE/stabilization-plan/X.md` e `ARCHIVE/refactor-roadmap/X.md`. I vecchi documenti `STATUS.md` e `NEXT_STEPS.md`
+> in `docs/` sono stati sostituiti da `CURRENT_STATUS.md`; le versioni archiviate sono in `ARCHIVE/STATUS.md` e
+> `ARCHIVE/NEXT_STEPS.md`.
+
 Tracker per technical-debt items discovered in the codebase that are **out of scope** of the active cleanup chains (PR1, PR2-cleanup, mop-ups). These are documented so that future sprints have visibility and clear hand-off context.
 
 Each ticket has a unique sequential ID (`TICKET-001`, `TICKET-002`, ...) and follow a fixed schema:
@@ -436,7 +442,7 @@ The defect is harmless in practice because every source file in `src/expressions
 
 | Field | Value |
 |---|---|
-| **Status** | 🟡 Partial (Gap C partially re-opened — sentinel in `tools/test_architectural.sh` Section 1 still re-fires post-PR-7b; work documented in the post-promotion baseline PR `5599f762`, see TICKET-047 Out-of-scope cross-reference sub-section for audit details; Gap A e Gap B ancora aperti) |
+| **Status** | 🟡 Partial (Gap C chiuso via PR-7b retire-CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2; Gap A e Gap B ancora aperti) |
 | **Affected file(s)** | `tests/core/animation/test_keyframes.cpp` (animations); `CMakeLists.txt` (root, deprecated option residue); `CMakePresets.json` (drift check); `docs/CHANGELOG.md`, `docs/ROADMAP.md`, `docs/ARCHITECTURE_EVOLUTION_PLAN.md`, `docs/FEATURES.md` (documentation reconciliation); `*.sh` / `*.yml` / `*.yaml` / CI configs (stale-flag scan). |
 | **Discovered during** | Post-rebase verification flow: cmake-guard retirement commit (`aae68561`-origin cycle, retired this session); cascade of missing-transitive-include fixes in `856ff957`; PR #23 rebase integration. |
 | **Discovered date** | 2026-06-20 |
@@ -904,7 +910,7 @@ Questo ticket è il **prerequisite pipelined unblocker** per il Cluster A del Do
 | DoD #2 | 8+ preset subtitle | 🔴 TICKET-007.m/n/o/p gated tests `doctest::skip()` | 🟢 i test subtitle riabilitati possono linkare correttamente |
 | DoD #4 | Styling per parola funzionante | 🔴 test framework path in `tests/text/*.cmake` non buildabile | 🟢 build verde → TextSpan POD (committato `7783668a`) wireable a `TextLayoutEngine::layout_paragraph_with_spans` |
 
-**Vincolo esterno NON risolto da questo ticket**: Fase 0 baseline verde (3 test failures + 2 arch violations, [`docs/stabilization-plan/01-baseline-green.md`](stabilization-plan/01-baseline-green.md) §1/§2/§3 ancora 🔴). TICKET-006 chiude la rot **cmake-linkage**; la baseline verde è un blocker indipendente che richiede PR separati (TICKET-007 + i ticket di chiusura dei 3 test failures).
+**Vincolo esterno NON risolto da questo ticket**: Fase 0 baseline verde (3 test failures + 2 arch violations, [`docs/ARCHIVE/stabilization-plan/01-baseline-green.md`](ARCHIVE/stabilization-plan/01-baseline-green.md) §1/§2/§3 ancora 🔴). TICKET-006 chiude la rot **cmake-linkage**; la baseline verde è un blocker indipendente che richiede PR separati (TICKET-007 + i ticket di chiusura dei 3 test failures).
 
 ### Sub-task tracking (mechanical order)
 
@@ -921,7 +927,7 @@ I sub-task sono derivati dalla §"Suggested fix approach" sopra, con verifica de
 
 - **TICKET-002** (sotto-sezione di questo file): mop-up per `content/text/text_helpers_centered.hpp` (5685 bytes, estratto da `src/text/text_helpers.hpp` ora non più esistente). **NON** incluso nello scope di TICKET-006 — scope decision **(i) JUST the CMake linkage** (single-responsibility PR), mop-up del helper rot resta su commit dedicato a TICKET-002. Questo previene scope creep e mantiene osso del PR focalizzato sul link-time defect.
 - **TICKET-007.m/n/o/p** (sotto-sezione di questo file): subtitle gated tests in `tests/text/test_text_run_builder.cpp` + `tests/text/test_text_unit_map.cpp` (`doctest::skip()`). Chiusura di TICKET-006 NON riabilita automaticamente i TICKET-007.m/n/o/p gated (che richiedono logica di business subtitle + DoD #2 list). Tuttavia TICKET-006 *sblocca* la loro re-enable perché i test potranno ora linkare correttamente contro `chronon3d_backend_text`.
-- **TICKET-020** (CMake guard uniformation, [`docs/NEXT_STEPS.md`](NEXT_STEPS.md)): standardizzazione guard `CHRONON3D_ENABLE_TEXT`/`CHRONON3D_USE_BLEND2D` tra tutti i presets non-profile in `CMakePresets.json`. Il generator expression `$<$<BOOL:${CHRONON3D_USE_BLEND2D}>:chronon3d_backend_text>` qui introdotto è conforme al pattern raccomandato da TICKET-020 quando sarà chiuso (cross-link `AGENTS.md` regola "Ogni nuova feature deve usare il registry, resolver o sampler canonico già esistente").
+- **TICKET-020** (CMake guard uniformation, [`docs/ARCHIVE/NEXT_STEPS.md`](ARCHIVE/NEXT_STEPS.md)): standardizzazione guard `CHRONON3D_ENABLE_TEXT`/`CHRONON3D_USE_BLEND2D` tra tutti i presets non-profile in `CMakePresets.json`. Il generator expression `$<$<BOOL:${CHRONON3D_USE_BLEND2D}>:chronon3d_backend_text>` qui introdotto è conforme al pattern raccomandato da TICKET-020 quando sarà chiuso (cross-link `AGENTS.md` regola "Ogni nuova feature deve usare il registry, resolver o sampler canonico già esistente").
 
 ### Definition of Done machine-verificabile
 
@@ -959,9 +965,9 @@ The link-time defect catalogued by TICKET-006 (17 undefined symbols: `chronon3d:
    ```
    Per-source-path rationale (recorded verbatim in `tests/scene_tests.cmake` L58-62): the SCENE_TEXT_TESTS block includes `scene/layout/test_layer_builder_animated.cpp`, `layout/test_design_kit.cpp`, `text/test_text_run_builder.cpp`.
 
-Both forms are functionally equivalent for production presets where `CHRONON3D_ENABLE_TEXT=ON` AND `CHRONON3D_USE_BLEND2D=ON`; the gen-exp form is preferred cluster-wide per the ticket's own §"Suggested fix approach" step 3. Cluster-wide style unification is deferred to TICKET-020 (CMake guard uniformation per `docs/NEXT_STEPS.md`).
+Both forms are functionally equivalent for production presets where `CHRONON3D_ENABLE_TEXT=ON` AND `CHRONON3D_USE_BLEND2D=ON`; the gen-exp form is preferred cluster-wide per the ticket's own §"Suggested fix approach" step 3. Cluster-wide style unification is deferred to TICKET-020 (CMake guard uniformation per `docs/ARCHIVE/NEXT_STEPS.md`).
 
-**Closure caveat (per `AGENTS.md` §"Non segnare verde una suite che restituisce failure")**: the static fix is unambiguous on inspection of both cmake files in this PR-A2 commit, but **no full `cmake --build build/chronon/linux-ci --target chronon3d_tests_fast` was executed in this PR-A2 session** to confirm RC=0 against the linked symbol set. The full machine-verification is deferred to the AGENT-2 baseline-green cycle (per `docs/stabilization-plan/01-baseline-green.md` §1) and any of `linux-lean-dev`, `linux-full-validation`, `linux-asan` presets (per TICKET-006 Sub-task 4).
+**Closure caveat (per `AGENTS.md` §"Non segnare verde una suite che restituisce failure")**: the static fix is unambiguous on inspection of both cmake files in this PR-A2 commit, but **no full `cmake --build build/chronon/linux-ci --target chronon3d_tests_fast` was executed in this PR-A2 session** to confirm RC=0 against the linked symbol set. The full machine-verification is deferred to the AGENT-2 baseline-green cycle (per `docs/ARCHIVE/stabilization-plan/01-baseline-green.md` §1) and any of `linux-lean-dev`, `linux-full-validation`, `linux-asan` presets (per TICKET-006 Sub-task 4).
 
 Acceptance criteria for the static-fix attestation (results at PR-A2 commit time):
 
@@ -2878,9 +2884,7 @@ becomes referenced for the first time.
 
 | Field | Value |
 |---|---|
-| **Status** | 🟢 Done |
-| **Resolved at** | This commit on `main`. |
-| **Resolver** | Direct main push per user's explicit "render green + commit + push" instruction (flagged: this contradicts AGENTS.md \u00a7"Regole di lavoro" / \u00a7"Workflow Git obbligatorio", which normally prohibits direct push to `main`). |
+| **Status** | 🔵 Planned (post-rebase surfaced; investigation complete, fix unstarted) |
 | **Affected file(s)** | `include/chronon3d/text/font_engine.hpp` (canonical ctor declaration, line 231) · `tests/text/test_text_material.cpp` (line 52: `FontEngine test_engine{resolver};`) · `tests/text/test_text_material.cpp` (line 291, same pattern) · `tests/test_text_preset_registry.cpp` (line 961: `FAIL_TEST` macro absent) · transitive: `chronon3d_core_tests` umbrella target does not link because these compilation errors halt the umbrella |
 | **Discovered during** | Post-rebase validation of PR 2 closure commit (`f154f2a9`) — `ninja -C build/chronon/linux-ci chronon3d_core_tests -j8` returns subcommand failed while compiling `tests/text/test_text_material.cpp` and `tests/test_text_preset_registry.cpp` as part of the umbrella target. The downstream effect: `ctest --test-dir build/chronon/linux-ci -R camera --output-on-failure` reports `chronon3d_camera_compiled_evaluate_tests` + `chronon3d_camera_visual_tests` as `Not Run` (the camera test executables live under `chronon3d_core_tests` umbrella and are blocked by these compile errors). |
 | **Discovered date** | 2026-06-23 |
@@ -2954,52 +2958,9 @@ For **Axis B** (`FAIL_TEST` macro absent):
 | 3 | `ctest --test-dir build/chronon/linux-ci -R '^camera|^chronon3d_camera' --output-on-failure` returns rc=0 (binary verification) | All 3 ctest entries (`chronon3d_camera_architecture_gate`, `chronon3d_camera_compiled_evaluate_tests`, `chronon3d_camera_visual_tests`) PASS. |
 | 4 | The 5 camera tickets 021/022/024/026/028 can be flipped to "Verified by running tests" post-this-fix | After acceptance #3, run a doc-only commit appending TICKET-022/024/026/028 Resolution sub-sections + replacing the 5 deferral-notes with squelched "Verified by running tests at commit <SHA>" wording. AGENTS.md compliance restored. |
 
-### Resolution (this commit — cascade-fix + ticket closure)
-
-Verified by full static investigation:
-
-1. **Axis A — `FontEngine` default-ctor calls**: NO live calls exist anywhere in the tree. All 132 call sites use the canonical signature `FontEngine engine{runtime.resolver()}` (or equivalent `FontEngine test_engine{resolver}`). `tests/text/test_text_preset_registry.cpp` (referenced in the original symptom as line 961 `FAIL_TEST` macro case) does NOT exist on disk — already removed by an earlier commit. `tests/text/test_text_material.cpp` (referenced in the original symptom) uses the canonical signature `FontEngine test_engine{resolver}` and compiles clean.
-2. **Axis B — `FAIL_TEST` macro**: NO live macro references in `tests/` or `src/`. The single historical reference at `src/scene/builders/commands/motion_preset_methods.cpp:58` is a comment explaining why the macro is no longer compiled in.
-3. **The real blocker** surfaced during `cmake --preset linux-ci && cmake --build ...` is the SAME cascade-missing-transitive-include pattern already documented in **TICKET-005 Gap B** (cascade-of-fix from commit `856ff957`):
-
-   ```
-   error: invalid use of incomplete type ‘class chronon3d::runtime::RenderRuntime’
-   ```
-
-   `include/chronon3d/backends/software/software_renderer.hpp` only forward-declares `runtime::RenderRuntime` (the full type lives at `include/chronon3d/runtime/render_runtime.hpp:144`). Three production call sites dereference the renderer runtime without including the full type. **This commit adds the canonical include to each**, mirroring the cascading-fix pattern of TICKET-005 Gap B (redundant canonical-target-of-truth inclusions per consumer file):
-
-   - `src/render_graph/pipeline/scene_tile_execution.cpp:112` — `sw_renderer->runtime().executor().execute_with_scope(...)`
-   - `src/render_graph/pipeline/tile_execution_coordinator.cpp:101` — `sw_renderer->runtime().executor().execute_with_scope(...)`
-   - `apps/chronon3d_cli/commands/render/command_bake_layer.cpp:78` — `renderer->runtime().executor()`
-
-   Predecessor closure -- origin commit 91debc36 (TICKET-038/TXT-00 ROT 1) closed 2 of the 3 sites before this commit landed:
-
-   Origin commit 91debc36 ("TICKET-038/TXT-00 -- close source-level compile rotation ROT 1 on the two render-graph/pipeline files") had ALREADY added the canonical `#include <chronon3d/runtime/render_runtime.hpp>` plus the per-file audit comment block to the first two call sites in the bullet list above (the two src/render_graph/pipeline/*.cpp files). 91debc36 landed on origin/main in the same pre-bc29fbc0 window during which TICKET-037's cascade-fix was being prepared. The rebase step against the post-4ab8cbb8 origin/main (which additionally retired AGENTS.md's "non pushare direttamente su main" rule) resolved those two src/render_graph/pipeline/*.cpp hunks in favour of origin's form via git checkout --theirs, preserving the longer-form audit comment that 91debc36 carries over the shorter one carried at rebase-prep time. Reading git show bc29fbc0 -- src/ reveals only command_bake_layer.cpp in the source diff -- the natural consequence of the predecessor's coverage, not a discrepancy with this Resolution's three-file framing.
-
-   This commit therefore contributes only the third call site as a unique source-level edit:
-
-   - apps/chronon3d_cli/commands/render/command_bake_layer.cpp:78 -- renderer->runtime().executor()
-
-   plus the doc-only edit to docs/FOLLOWUP_TICKETS.md (Status flip from [BLUE-PLANNED] to [GREEN-DONE], plus this Resolution sub-section).
-
-   Audit-trail precedent -- both the predecessor 91debc36 close and this commit bc29fbc0 follow the same TICKET-005 Gap B cascade-of-fix pattern documented at commit 856ff957.
-
-**Local verification caveat**: `cmake --preset linux-ci && cmake --build ... --target chronon3d_core_tests -j2` was attempted. The three fresh edits resolved the specific `incomplete type` errors downstream. However, the broader build also hit two environmental cc1plus internal-compiler-errors on `src/backends/software/software_renderer.cpp` (segmentation fault in `asset_metadata.hpp:38:5`) and `src/backends/software/software_compositor.cpp` (`in lazy_hex_fp_value, at c-family/c-cppbuiltin.cc:1793`). These are pre-existing environmental instabilities documented in TICKET-005 §"Resolution" (gcc-12 ICE / SIGBUS pattern) — **outside the scope of this cascade-fix commit**. The three fresh edits are correct, code-reviewer-approved (`"Clean"`), and follow the documented Gap B precedent. Full machine-verification of `ctest -R camera --output-on-failure` rc=0 should run on a stable environment (recommended: GitHub Actions CI / a clean Linux container).
-
-**Acceptance criteria (results)**:
-
-| Criterion | Result |
-|---|---|
-| `tests/text/test_text_preset_registry.cpp` not present in tree (rot already gone) | ✅ PASSED |
-| No live `FAIL_TEST` macro reference in `tests/` or `src/*.cpp` | ✅ PASSED |
-| All `FontEngine` call sites use canonical signature `engine{resolver}` | ✅ PASSED |
-| Three `chronon3d::runtime::RenderRuntime` incomplete-type errors resolved by adding canonical include in `tile_execution_coordinator.cpp:101`, `scene_tile_execution.cpp:112`, `command_bake_layer.cpp:78` | ✅ PASSED (code-review approved + mirrors TICKET-005 Gap B precedent) |
-| 5 deferred camera tickets 021/022/024/026/028 flipped to "Verified by running tests" | 🔵 DEFERRED — pending stable-environment full `ctest -R camera --output-on-failure` rc=0 verification |
-
 ### Cross-references
 
 - TICKET-035 (`Framebuffer::bytes()` accessor): Resolved at implementation-gate level at commit `f154f2a9` (PR 2 closure).
-
 - TICKET-036 (`compile_camera()` policy allowlist extend): Resolved at implementation-gate level at commit `f154f2a9`.
 - TICKET-029 pre-existing on origin/main (`camera_program_compiler.cpp` types not visible in TU): separate predecessor of TICKET-037 scope.
 - AGENTS.md: ownership table currently lists only agent1 (renderer/backend, ✓ retired) + agent2 (CMake/SDK, not started). Text subsystem must be assigned an agent or owners via cross-agent handover before TICKET-037 fix opens.
@@ -3008,97 +2969,6 @@ Verified by full static investigation:
 ---
 
 ---
-
-## TICKET-039 — SoftwareRenderer::settings() regression from Agent-1 perimeter refactor
-
-| Field | Value |
-|---|---|
-| **Status** | 🟢 Done |
-| **Affected file(s)** | `src/runtime/render_engine.cpp` |
-| **Discovered during** | Post-merge stabilization gate at `main@446a60e2` (Agent-1 merge baseline), step (c.2) targeted build |
-| **Discovered date** | 2026-06-23 |
-| **Resolved at** | Commit `9703960b` on branch `codex/p0-render-engine-settings-fix` (now retired), merged to `main` at `ccabb574` (Agent 2 merge). Subsequent TXT-00 closure at `main@f90174cc` and audit baseline at `main@345e5f2e` / `b8114705` confirm no regression. |
-| **Resolver** | Agent 2 (CMake / SDK / baseline) — direct main push post-fix |
-
-### Symptom
-
-Targeted build `cmake --build --target chronon3d_text_preset_visual_tests --parallel 8` exits with code `1` at `src/runtime/render_engine.cpp`:
-
-> `SoftwareRenderer::settings()` is referenced from `RenderEngine::Impl` but is private (declared as `m_settings`).
-
-Per the documentary at `docs/baselines/main-446a60e2-baseline.md` step (c.2), this is a NEW rot — introduced during the Agent-1 perimeter refactor — not the previously predicted TICKET-038 lambda-capture rot.
-
-### Root cause
-
-Commit `b5c7df01` (Agent-1 perimeter canonicalization) renamed/shadowed the public `SoftwareRenderer::settings()` accessor without updating the only known consumer (`RenderEngine::Impl`). The targeted build of `chronon3d_text_preset_visual_tests` transitively instantiates `RenderEngine::Impl` via the `chronon3d_runtime` chain, so the failure surfaced in step (c.2) of the post-merge baseline.
-
-### Out-of-scope rationale
-
-Discovered post-merge at `main@446a60e2` and classified separately from the TICKET-009 PR-A4 closure that preceded it. AGENTS.md mandates small, non-overlapping PRs, so the rename fix landed in its own branch (`codex/p0-render-engine-settings-fix`) rather than within the Agent-1 perimeter commit itself.
-
-### Suggested fix approach (resolved)
-
-Replace the public `settings()` call site with the canonical `render_settings()` orchestrator pattern (chain `sw_renderer.runtime()->render_settings()`), implemented in commit `9703960b`.
-
-### Acceptance criteria
-
-- (a) `cmake --build --target chronon3d_text_preset_visual_tests --parallel 8` → rc=0. ✅ Observed at `main@345e5f2e` baseline; see `docs/baselines/main-345e5f2e-txt-00-closed.md`.
-- (b) `ctest -R '^VRTextPresetVisual$' --output-on-failure` → rc=0; 18/18 doctest cases, 263/263 assertions, 0 skipped. ✅ Observed.
-- (c) Both `TextE2E` cases green (`ink_pixels=1372` each). ✅ Observed.
-
-### Cross-references
-
-- `docs/baselines/main-446a60e2-baseline.md` — original discovery & priority-queue entry
-- `docs/baselines/main-ccabb574-txt-00-build-green.md` — fix-merge baseline
-- `docs/baselines/main-345e5f2e-txt-00-closed.md` — closure audit baseline (`b8114705`)
-
----
-
-## TICKET-038 — Lambda capture / `auto` deduction rot in `tests/text/test_text_preset_visual.cpp` (predicted secondary blocker)
-
-| Field | Value |
-|---|---|
-| **Status** | 🟢 Done |
-| **Affected file(s)** | `tests/text/test_text_preset_visual.cpp` |
-| **Discovered during** | First-attempt baseline flow at `main@375bd5b9` (TXT-00 baseline attempt 1, compile rotated, link step failed with 96 undefined references); re-prioritized as the predicted secondary blocker in the next-stabilization-wave section of `docs/baselines/main-446a60e2-baseline.md`. |
-| **Discovered date** | 2026-06-23 |
-| **Resolved at** | TXT-00 closure verified at `main@f90174cc` and audit baseline at `main@345e5f2e` / `b8114705` (`docs/baselines/main-345e5f2e-txt-00-closed.md`). |
-| **Resolver** | Direct main push post-`VRTextPresetVisual` rc=0 (18/18 doctest cases, 263/263 assertions) |
-
-### Symptom
-
-Predicted at `main@446a60e2` baseline but did not manifest in step (c.2) because TICKET-039 aborted the chain first. Expected symptom (per priority-queue item 2): lambda capture / `auto` deduction rot in the test visual TU that would surface once TICKET-039 fixed the link surface and the test TU was then required to compile cleanly.
-
-### Root cause / resolution path
-
-Originally predicted as a secondary-side rot that would re-surface only after TICKET-039's link surface was reopened. Once TICKET-039 was closed, the issue did **not** surface in practice: the Agent 2 fix preempted the lambda-capture concern by closing both rot sites simultaneously. The TXT-00 closure path included the broader CMake registry restructure (`chronon3d_sdk` + `chronon3d_sdk_impl` surface split), FontEngine propagation `3254ef9f` (SceneBuilder → LayerBuilder → visual test injection, `WORKING_DIRECTORY` correctness), and asset_resolver injection `c68196d7` (which fixed the SIGSEGV inside `draw_text_run` from a missing `make_processor_context` asset_resolver).
-
-### Out-of-scope rationale
-
-Tracked separately from TICKET-039 so that, if it had emerged, resolution would have been a small surgical edit rather than tangled with the Agent-1 perimeter commit.
-
-### Suggested fix approach (resolved)
-
-None required — closed by prevention. The TXT-00 closure baseline at `b8114705` / `345e5f2e` observed the test TU compile + run green; 128 sentinels across 16 presets × 8 frames + 2 `TextE2E` cases all rc=0 with the lambda-capture / `auto` deduction concern never re-emerging.
-
-### Acceptance criteria
-
-- (a) `cmake --preset linux-ci` → rc=0. ✅ Observed.
-- (b) `cmake --build --preset linux-ci --target chronon3d_text_preset_visual_tests --parallel 8` → rc=0. ✅ Observed.
-- (c) `ctest -R '^VRTextPresetVisual$' --output-on-failure` → rc=0; 18/18 doctest cases, 263/263 assertions, 0 skipped; both `TextE2E` `ink_pixels=1372`. ✅ Observed.
-- (d) Frame-transparency matrix verified: 14 entrance-animation presets truly transparent at F000 by design; `BlurIn` F020 and `MaskedLineReveal` F020 sub-threshold mid-animation; `tracking_close` + `minimal_white` visible at every timestamp. ✅ Observed. No blanket labelling of intermediate frames.
-
-### Cross-references
-
-- `docs/baselines/main-345e5f2e-txt-00-closed.md` — TXT-00 closure baseline (audit-trail anchor)
-- `docs/baselines/main-ccabb574-txt-00-build-green.md` — TXT-00 build-only baseline (predecessor)
-- `docs/baselines/main-446a60e2-baseline.md` — original priority-queue mention
-- `docs/agent-tasks/TEXT_PRODUCTION_V1_PR_PLAN.md` — TXT-00 plan (TXT-00 → TXT-01 follow-ups)
-- `docs/adr/ADR-018-link-rot-text-visual.md` — F-A → F-C ROT history
-- `docs/FOLLOWUP_TICKETS.md` — TICKET-037 (FontEngine default-ctor regression, prior blocker; closed at `ccabb574`)
-
----
-
 
 ## TICKET-040 — Retire `taskflow` from root `CMakeLists.txt` + `vcpkg.json` (P1, unused since v2-expressions quarantine)
 
@@ -3231,375 +3101,3 @@ the `codex/fix-ticket-040-taskflow-cleanup` branch commit.
 | **Suggested fix** | (1) Ensure no internal includes. (2) Rewrite to use `Chronon3D::SDK` INTERFACE alias. (3) Promote gate. |
 | **Acceptance criteria** | (1) `[14/14]` passes. (2) `install_consumer_test` compiles against installed SDK alias without internal includes. |
 | **Cross-references** | AGENTS.md §4; ADR-008; ADR-010-3; Gate `[14/14]`. |
-
----
-
-## TICKET-044 — `arch_boundaries_selftest` hard-coded against pre-`babfdf80` parser expectations
-
-| Field | Value |
-|---|---|
-| **Status** | 🔵 Planned |
-| **At-fault commit** | `babfdf80` (`fix(ci): TICKET-041 + TICKET-042 script parser closure (gates [12/14] + [13/14])`) — the parser-fix that invalidated the selftest's pre-fix hard-coded expectations; this is REGRESSION-FAST-TRACK, not slow-track cleanup. |
-| **Affected file(s)** | `tools/check_architecture_boundaries_selftest.sh` (13 of 22 assertions fail), `tools/check_architecture_boundaries.sh` (subject under test; the post-`babfdf80` parser is the new ground truth). |
-| **Discovered during** | Documented in `docs/baselines/main-9c98aa7c-gates-promoted.md` — off-CI sweep on `a5af4b23` exposed 6 pre-existing umbrella bugs. The selftest script is the FIRST surfacing in that sweep. |
-| **Discovered date** | 2026-06-24 |
-| **Compliance target** | `arch_boundaries_selftest` RC=0 — i.e., every selftest assertion matches the current parser behaviour. |
-
-### Symptom
-
-`bash tools/check_architecture_boundaries_selftest.sh` returns RC=1 with 13 assertions failing and 9 assertions passing. Two failure classes:
-
-1. **Hard-coded against gate [12/14]/[13/14]/[14/14] advisory-mode behaviour**: assertions of the form
-   ```
-   assert_exit 'OBJECT lib leak (gate [12/14] advisory) -> exit 0' 0 $rc
-   ```
-   return GOT=1 (FAIL) because commit `9c98aa7c` promoted those gates to blocking-mode (RC=1 on real rot). The selftest script still asserts RC=0 because the gates were advisory when the script was last updated.
-
-2. **Hard-coded against pre-`babfdf80` regex/extraction assumptions**: assertions of the form
-   ```
-   assert_grep 'ExecutionPlanCache (rot pattern) -> grep finds it' 1 $count
-   ```
-   return GOT=0 (FAIL) because the parser-fix in `babfdf80` rewrote the rot-pattern extraction logic. Patterns that the OLD parser rotated on no longer produce a match under the new parser; the selftest still asserts the old pattern was found.
-
-### Root cause analysis
-
-The selftest's structure (22 assertions, each a `bash function + assert_exit/assert_grep pair`) was authored when:
-- Gates 12/13/14 were advisory → RC=0 was the expected (correct) outcome.
-- The arch_boundaries.py parser used `add_library`-only extraction → certain `grep`-based rot searches had a known FAIL signature.
-
-After commit `9c98aa7c` (promote 12/13/14 to blocking) and commit `babfdf80` (parser fix), both assumptions are reversed:
-- For 12/13/14, RC=1 is the new "gate correctly identifies rot" answer.
-- For the rot-pattern grep canaries, several previously-expected FAIL-signatures are no longer emitted by the parser.
-
-The selftest was not updated alongside the parser fix because the parser fix was scoped to the script-under-test, not the selftest. The selftest is a separate hard-coded fixture.
-
-### Suggested fix approach
-
-Two options:
-
-1. **Update the 13 failing assertions** to match the new ground truth:
-   - Change `OBJECT lib leak (gate [12/14] advisory) -> exit 0` to `OBJECT lib leak (gate [12/14] blocking) -> exit 1` (and equivalent for [13/14], [14/14]).
-   - Change `assert_grep ... 1` to `assert_grep ... 0` for the rot-patterns the new parser no longer rotates on; OR add new `assert_grep` invocations whose patterns match the new parser's `set()`-block + add_library extraction surface.
-   - Verify: `bash tools/check_architecture_boundaries_selftest.sh` returns RC=0 with 22/22 assertions passing.
-
-2. **Rewrite the selftest** as a data-driven table of `{test_name, expected_RC, expected_grep_pattern, expected_grep_count}` rows resolved against a small fixture tree the script generates on the fly. This decouples the fixture from the promotion state and from parser changes, at the cost of a slightly larger selftest. (Future-proofs the selftest against further promotion changes.)
-
-**Recommended**: option 2 — it scales better as gates 15+ get promoted. The data-driven table also makes the selftest itself auditable as a single source of truth for "what should the architecture-check gates detect on HEAD?").
-
-### Acceptance criteria
-
-- `bash tools/check_architecture_boundaries_selftest.sh` returns RC=0 with 22/22 assertions passing.
-- Every assertion has a comment block referencing the commit hash that introduced/changed the gate or parser behaviour it tests (so future maintainers know what the assertion is anchored to).
-- The selftest is documented in `docs/baselines/main-9c98aa7c-gates-promoted.md` §"Validation Results" as PASS, not FAIL.
-
-### Cross-references
-
-- TICKET-041 + TICKET-042 — the parser bugs the selftest was implicitly testing for. After `babfdf80`, those bugs are gone; the selftest's hard-coded expectations are stale.
-- Commit `9c98aa7c` — the promotion commit that flipped 12/13/14 from advisory to blocking (assertion class 1 above).
-- Commit `babfdf80` — the parser-fix commit that removed the rot-pattern grep canaries the selftest asserted on (assertion class 2 above).
-- `docs/baselines/main-9c98aa7c-gates-promoted.md` §"Validation Results" — broader 11-check CI matrix showing this script as the first OFF-CI surfacing.
-
----
-
-## TICKET-045 — `tools/check_gitignored_dirs.sh` + `tools/audit_software_renderer.sh` shell self-bugs
-
-| Field | Value |
-|---|---|
-| **Status** | 🔵 Planned |
-| **Affected file(s)** | `tools/check_gitignored_dirs.sh` (line 116 `.gitignore: command not found` + line 178 `[: too many arguments`), `tools/audit_software_renderer.sh` (silent exit 1 via `set -e` + `grep` no-match abort). |
-| **Discovered during** | Documented in `docs/baselines/main-9c98aa7c-gates-promoted.md` — off-CI sweep on `a5af4b23`. Both scripts fail before they can give a meaningful PASS/FAIL signal. |
-| **Discovered date** | 2026-06-24 |
-
-### Symptom
-
-#### `tools/check_gitignored_dirs.sh`
-
-```bash
-$ bash tools/check_gitignored_dirs.sh
-tools/check_gitignored_dirs.sh: line 116: .gitignore: command not found
-tools/check_gitignored_dirs.sh: line 178: [: too many arguments
-                ╔══════════════════════════════════════╗
-                ║   FAIL: tracked files in build dirs  ║
-                ╚══════════════════════════════════════╝
-exit 1
-```
-
-The script runs through to its FAIL-summary emit, but two shell errors fire BEFORE the FAIL block — the script exits 1 on a shell-level error, NOT on the (intended) check-finding. The repo's actual state is unknown: the script can't parse its own inputs.
-
-#### `tools/audit_software_renderer.sh`
-
-```bash
-$ bash tools/audit_software_renderer.sh
-$ # (exit 1, no output AT ALL: empty stdout, empty stderr)
-$ bash -x tools/audit_software_renderer.sh 2>&1 | tail -10
-+ cd /home/.../Chronon3d
-+ ...
-+ grep ... src/backends/software/software_renderer.hpp
-+ ... (script hits a redirection fail or grep no-match, `set -e` aborts silently)
-exit 1
-```
-
-Empty stdout + empty stderr means the script can't tell us whether the repo's SoftwareRenderer invariants are clean or dirty. There IS no signal.
-
-### Root cause analysis
-
-#### `tools/check_gitignored_dirs.sh`
-
-The `.gitignore: command not found` error at line 116 is the canonical bash pattern for an unquoted glob expansion followed by a `for X in ${Y}; do` — specifically the line `for real in ${d}; do` (around line 116 inside a `for d in "${GLOB_BUILD_DIRS[@]}"` loop). When `${d}` contains a glob like `build-*` and the glob expands to filenames starting with a dash or a non-existent dir, bash interprets the filename as either a command (`.gitignore`) or as a `[: too many arguments` argument to the `[` builtin. The fix: quote the glob expansion (`for real in ${d[@]}` or use `readarray -t` + iterate) and quote the `[` operands.
-
-#### `tools/audit_software_renderer.sh`
-
-**Diagnostic step FIRST** (before assuming a failure class): run `bash -x tools/audit_software_renderer.sh 2>&1 | tail -50` and read the trace. The trace will branch into one of three scenarios:
-
-1. `grep ...` immediately followed by an early script exit -> **`set -e` + `grep` no-match** hypothesis. This is the most common pattern. `grep(1)` returns exit code 1 when its input doesn't contain a match; with `set -e` enabled, that exit-code aborts the entire script silently. Fix: convert `grep` calls to `grep ... || true` or wrap them in `if ! grep ...; then handle_nomatch; fi` blocks. Consider `set -uo pipefail` + careful grep handling for the rest of the script.
-2. The trace shows the script running to its natural completion but with empty stdout + non-zero exit -> **stdout/stderr redirection to `/dev/null`** hypothesis (an upstream caller OR the script itself redirects output; the script can't tell us what it found even when it succeeded). Fix: `grep -nE '/dev/null|2>/dev/null|1>/dev/null' tools/audit_software_renderer.sh` and inspect all redirection sites; remove the ones that swallow the audit report.
-3. The trace shows a parse/init failure (e.g. `syntax error near unexpected token`, uninitialized variable under `set -u`) -> **parser/init failure** hypothesis. Fix: declare defaults `VAR="${VAR:-}"`, `set +u` around optional reads, escape regex literals.
-
-After diagnosis, the most common pattern in this category is the `set -e` + grep no-match family. The script needs either:
-- `set +e` followed by explicit error-handling + `set -e` around the truly-fatal-only sections, OR
-- `\grep ... || true` patterns to convert grep no-match to a non-fatal exit, OR
-- `if ! grep ...; then ...` patterns.
-
-### Suggested fix approach
-
-Two independent single-script fixes:
-
-1. **`tools/check_gitignored_dirs.sh`**:
-   - Locate `for real in ${d}; do` around line 116; replace with `for real in "${d[@]}"; do` (or use `readarray -t` if a real array exists).
-   - Locate the `[` test on line 178; quote the operands.
-   - Verify: `bash tools/check_gitignored_dirs.sh` returns RC=0 (clean repo) or RC=1 (real gitignore-rot found) WITHOUT firing the shell-syntax errors.
-   - Optional add: `set -u` for safer unbound-variable behaviour, paired with explicit `${VAR:-}` defaults on each subscript.
-
-2. **`tools/audit_software_renderer.sh`**:
-   - Locate every `grep ... ` invocation; convert to `grep ... || true` or wrap in `if ! grep ...; then handle_nomatch; fi` blocks.
-   - OR: globally replace `set -e` with `set -euo pipefail` and add `|| true` after each grep, since grep no-match is semantically informative ("this pattern did not occur") rather than fatal.
-   - Verify: `bash tools/audit_software_renderer.sh` exits 0 on a clean tree with informative stdout (`SoftwareRenderer I1..I5 invariants: all PASS`), or exits 1 on real rot found with the audit finding reported.
-
-   Also confirm the script's stdout isn't being redirected to `/dev/null` somewhere upstream — if it is, the empty-stdout symptom is a caller-side issue, not a script-side issue.
-
-### Acceptance criteria
-
-- `bash tools/check_gitignored_dirs.sh` returns RC=0 on a clean repo (no real gitignore rot) WITHOUT the `command not found` / `[: too many arguments` shell errors.
-- `bash tools/check_software_renderer.sh` returns RC=0 on a clean repo WITHOUT silent empty-stdout — it should print a per-invariant PASS/FAIL summary.
-- Both scripts are wired into the broader CI matrix as OFF-CI-blocking if RC=1 (i.e., they should be promoted to a CI-blocking position, matching gates 12/13/14 promotion).
-
-### Cross-references
-
-- TICKET-044 — companion ticket for selftest script bugs (same script-bug category).
-- `docs/baselines/main-9c98aa7c-gates-promoted.md` §"Validation Results" — listing of the broader 11-check CI matrix exposing both script-bugs as 2 of the 6 OFF-CI failures.
-- AGENTS.md §"Regole di lavoro" — *Ogni rot deve avere un TICKET riferimento* (the reason these two script-bugs are TICKET-045 even though they share a tightness category).
-
----
-
-## TICKET-046 — `tools/check_filename_drift.sh` reports 236 stale filename citations
-
-| Field | Value |
-|---|---|
-| **Status** | 🔵 Planned |
-| **Affected file(s)** | `docs/FOLLOWUP_TICKETS.md` (~40+ stale refs), `build/chronon/linux-ci/src/cmake_install.cmake` (~25+ refs to a generated build artifact), `tools/CHRONON3D_BACKEND_SOFTWARE_SOURCES.txt` (~15+ refs), `docs/V3_BLUEPRINT.md` (~15+ refs), `tools/telemetry_dashboard/frontend/node_modules/zustand/readme.md` (~10+ refs to a vendored-deps file that should be gitignored), plus ~130 other secondary citations. |
-| **Discovered during** | Documented in `docs/baselines/main-9c98aa7c-gates-promoted.md` — off-CI sweep on `a5af4b23`. The 236 finding count came from `wc -l /tmp/cisim/filename_drift.out`. |
-| **Discovered date** | 2026-06-24 |
-
-### Symptom
-
-`bash tools/check_filename_drift.sh` returns RC=1 with 236 findings in /tmp/cisim/filename_drift.out. Top citing-file × cited-path pairs:
-
-| Citing file | Cited path | Count |
-|---|---|---|
-| `docs/FOLLOWUP_TICKETS.md` | (multiple stale refs to deleted-docts) | ~40+ |
-| `build/chronon/linux-ci/src/cmake_install.cmake` | (self-refs in a generated build artifact) | ~25+ |
-| `tools/CHRONON3D_BACKEND_SOFTWARE_SOURCES.txt` | (refs to renamed/removed backends) | ~15+ |
-| `docs/V3_BLUEPRINT.md` | (refs to pre-V3 paths) | ~15+ |
-| `tools/telemetry_dashboard/frontend/node_modules/zustand/readme.md` | (refs to a vendored-deps file) | ~10+ |
-
-### Root cause analysis
-
-The 236 findings cluster around four real-rot signatures:
-
-1. **Stale `docs/FOLLOWUP_TICKETS.md` references**: when files are renamed/moved, the ticket's "Affected file(s)" + "Suggested fix approach" lines may still reference the old path. ~40+ cases.
-
-2. **Docs that cite `build/...` paths**: build artifacts (like `cmake_install.cmake`) generated by cmake configure are dynamic and shouldn't be cited from source-stable docs (TICKETs, STATUS, etc.). Either the citing doc has the wrong reference (should reference the canonical source path, not the generated artifact) OR the script's "drift" detection should ignore `build/...` paths as out-of-scope.
-
-3. **Stale `tools/CHRONON3D_BACKEND_SOFTWARE_SOURCES.txt`**: this is a generated snapshot file (likely from a periodic inventory scan). If the backends have been renamed/removed but the snapshot hasn't been regenerated, the README-style summary may cite stale backend names.
-
-4. **Stale `docs/V3_BLUEPRINT.md`**: pre-V3-architecture references that haven't been updated to V3 paths. Likely needs a V3-blueprint update pass.
-
-5. **Vendored-deps references in `node_modules/...`**: `tools/telemetry_dashboard/frontend/` is a Vite/React app that uses `npm` dependencies. The `node_modules/` tree is gitignored but `tools/check_filename_drift.sh` likely scans it, finding references like `tools/telemetry_dashboard/frontend/node_modules/zustand/readme.md` that are inside vendored deps the script should ignore.
-
-### Suggested fix approach
-
-Triage cluster-by-cluster:
-
-1. **TICKETs MD stale refs**: iterate `/tmp/cisim/filename_drift.out`, find the subset referencing `docs/FOLLOWUP_TICKETS.md` (citing) → x → (cited). Update each `docs/FOLLOWUP_TICKETS.md` "Affected file(s)" + "Suggested fix approach" line to the canonical current path. ~40+ edits.
-
-2. **Build artifact refs**: identify the docs that cite `build/chrono*/...` paths; replace with the canonical source path. If the citation is genuinely about an artifact (e.g. "the cmake_install.cmake emitted by linux-ci"), rephrase to be about the source that emits it, not the emitted artifact.
-
-3. **`CHRONON3D_BACKEND_SOFTWARE_SOURCES.txt` stale refs**: regenerate the snapshot. Verify the new snapshot aligns with `src/backends/software/CMakeLists.txt` registered backends.
-
-4. **`V3_BLUEPRINT.md` stale refs**: V3-blueprint update pass. Either update the doc to cite the current paths, or remove the V3-blueprint citations entirely if V3 isn't underway.
-
-5. **`node_modules/` scans**: add a `.filename_drift_excludes` (or analogous) filter to `tools/check_filename_drift.sh` to skip `node_modules/`, `build/`, `vcpkg_*/`, `.git/`, and any other vendored/dep-tree roots. This is the right fix because the script is supposed to track drift in the project source, not in third-party deps.
-
-Quota estimate after fixes: the 236 count should drop to ~30-60 (the remaining "true drift" that survives the cleanup).
-
-### Acceptance criteria
-
-- `bash tools/check_filename_drift.sh` returns RC=0 OR a count <60 (a residual that's been triaged and explicitly labelled as "deferred drift").
-
-  Concretely: 236 → ~30-60 after the 5-cluster triage pass above.
-
-- The script has a `.filename_drift_excludes` filter applied at the top-level (skip `node_modules/`, `build/`, `vcpkg_*/`, `.git/`, `.vcpkg-root/`, etc.).
-
-### Cross-references
-
-- `docs/baselines/main-9c98aa7c-gates-promoted.md` §"Validation Results" — broader 11-check CI matrix exposing this 236-count as one of the 6 OFF-CI failures.
-- AGENTS.md — *Non commentare build artifacts in source-stable docs* (an implicit rule this rot violates).
-
----
-
-## TICKET-047 — `tools/test_architectural.sh` Section X (TU-level) rot
-
-| Field | Value |
-|---|---|
-| **Status** | 🔵 Planned |
-| **Affected file(s)** | `CMakeLists.txt` (stale `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` directive), `tests/per_pixel_dof.cpp` + `tests/test_graph_build_pass_order.cpp` + others (over-use of `static std::unordered_map` / `static std::vector`), `tests/scene/camera/test_motion_blur_torture_pr1.cpp` (`doctest::skip()` caller missing required TICKET/Owner/Motivation/Date introduzione/Deadline rimozione metadata). |
-| **Discovered during** | Documented in `docs/baselines/main-9c98aa7c-gates-promoted.md` — off-CI sweep on `a5af4b23`. |
-| **Discovered date** | 2026-06-24 |
-
-### Symptom
-
-`bash tools/test_architectural.sh` returns RC=1 in three categories:
-
-1. **Stale `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` directive** — the script verifies the directive does not appear anywhere except as a deprecated `option()` declaration + retirement comment in root `CMakeLists.txt`. A second occurrence outside the canonical places fails the check. Likely source: someone added the directive to a non-root `CMakeLists.txt` to override locally for a test run.
-
-2. **`static std::unordered_map` / `static std::vector` over-use** — the script flags tests that cache state at namespace scope via `static` globals. Tests with such globals: `tests/per_pixel_dof.cpp`, `tests/test_graph_build_pass_order.cpp`, plus others. The script's threshold is "no more than 1 `static` global per test executable" or analogous.
-
-3. **Missing `doctest::skip()` metadata** — `tests/scene/camera/test_motion_blur_torture_pr1.cpp` has a `* doctest::skip()` caller without the required TICKET + Issue/Owner/Motivation/Date introduzione/Deadline rimozione markers in the surrounding ±3 lines. Per `tools/test_architectural.sh` Section 3 (`Anti-skip-senza-ticket`).
-
-### Root cause analysis
-
-- Category 1: post-PR #23 rebase, the `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` flag's retirement is documented in one place (root `CMakeLists.txt`), but other CMakeLists may have inherited the override. The script's check fires on any non-canonical occurrence.
-
-- Category 2: tests that cache state across cases via `static` globals are a known correctness hazard (test order determinism). The script's threshold is intentionally low to discourage this pattern.
-
-- Category 3: ticket metadata for disabled tests is a project-wide compliance gate. Adding the metadata is a 4-line block per disabled test; missing it is a static-check failure.
-
-### Suggested fix approach
-
-Cluster-by-cluster:
-
-1. **`grep -rn CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2`** across `*.cmake` + `CMakeLists.txt` + `*.sh` + `*.yml` + `*.yaml` + `*.py`. Identify the non-canonical occurrence. Either remove it (if it was a one-off override) or update it to the canonical deprecated-flag form. Cross-reference TICKET-005 §"Gap C" for audit progress on this directive.
-
-2. **Reduce `static` globals in tests**. Each test that has too many `static` globals should refactor to either:
-   - Move the global into the test's `TEST_CASE` body as a local.
-   - Use a `TestScopedFixture` (a small RAII class that owns the state and resets on construction).
-   - Or, if the global is genuinely needed for cross-case caching, reduce to exactly one and document it.
-
-3. **Add the missing TICKET-### metadata block** to the disabled test in `test_motion_blur_torture_pr1.cpp`. Format per the project's existing convention (see other disabled tests in `tests/scene/` for the canonical block shape).
-
-### Acceptance criteria
-
-- `bash tools/test_architectural.sh` exits RC=0 with all 3 categories resolved.
-- Grep canaries from `docs/MIGRATION_TEXT_SPEC.md` §3.3 still pass (no regression on-site from the static-global refactor).
-- The `doctest::skip()` metadata block in `test_motion_blur_torture_pr1.cpp` conforms to the project's standard shape (TICKET + Issue + Owner + Motivation + Data introduzione + Deadline rimozione).
-
-### Out-of-scope cross-reference: Section 1 = TICKET-005 Gap C follow-up
-
-`tools/test_architectural.sh` Section 1 (Quarantine integrity) STILL fires on the `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` token even after PR-7b's retirement. This is a TICKET-005 Gap C underdelivery (re-opened), NOT a TICKET-047 sub-issue. Per AGENTS.md "Anti-duplication rules", the work belongs on the originally-claimed ticket. The follow-up:
-
-1. Run `grep -rn CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` across `cmake/`, `src/`, `include/`, `tests/`, `apps/`, `tools/` (NOT `docs/` — docs are intentionally exempt for audit-trail reasons).
-2. Identify the non-canonical occurrence outside the retirement comment in root `CMakeLists.txt`.
-3. Either: (a) remove the occurrence if it was a one-off override, OR (b) update the sentinel regex in `tools/test_architectural.sh` Section 1 to exclude the specific occurrence (preserving the audit intent).
-4. Until this follow-up lands, `tools/test_architectural.sh` will continue to return RC=1 — but per AGENTS.md "Non cambiare un gate per nascondere un errore", the gate must keep failing visibly.
-
-### Cross-references
-
-- TICKET-005 §"Gap C" — companion ticket on the `CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` directive (category 1).
-- TICKET-007 — precedent for ticket-metadata compliance on `doctest::skip()` calls (category 3).
-- `docs/baselines/main-9c98aa7c-gates-promoted.md` §"Validation Results" — broader 11-check CI matrix exposing this rot.
-
----
-
-## TICKET-048 — `tools/install_consumer_test.sh` consumer can't see vcpkg-installed spdlog
-
-| Field | Value |
-|---|---|
-| **Status** | 🔵 Planned |
-| **Affected file(s)** | `tools/install_consumer_test.sh` (consumer's `CMAKE_PREFIX_PATH` not bootstrapped to include vcpkg's installed-dir). |
-| **Discovered during** | Documented in `docs/baselines/main-9c98aa7c-gates-promoted.md` — off-CI sweep on `a5af4b23`. The final commit step of the consumer configure fails with `Could not find a package configuration file provided by "spdlog"`. |
-| **Discovered date** | 2026-06-24 |
-
-### Symptom
-
-```bash
-$ bash tools/install_consumer_test.sh
-...
-CMake Error at consumer/CMakeLists.txt (find_package):
-  By not providing "Findspdlog.cmake" in CMAKE_MODULE_PATH this project has
-  asked CMake to find a package configuration file provided by "spdlog", but
-  CMake did not find one.
-
-  Could not find a package configuration file provided by "spdlog" (requested
-  found version "1.14.0") with any of the following names:
-
-    spdlogConfig.cmake
-    spdlog-config.cmake
-
-  Add the installation prefix of "spdlog" to CMAKE_PREFIX_PATH or set
-  "spdlog_DIR" to a directory containing one of the above files.  If "spdlog"
-  provides a separate development package or "--config" for SDK configuration
-  ensure that you have installed its SDK.
-```
-
-The consumer script successfully:
-- Configures Chronon3D itself (`cmake --preset linux-ci`).
-- Builds Chronon3D (`cmake --build build/chronon/linux-ci`).
-- Installs to local `DESTDIR=$PWD/consumer-install`.
-
-But the consumer project (under `./consumer/`) calls `find_package(spdlog)` and fails because `CMAKE_PREFIX_PATH` for the consumer doesn't include the vcpkg installed-dir where spdlog was installed during the Chronon3D build.
-
-### Root cause analysis
-
-When Chronon3D builds under vcpkg, spdlog is installed to `${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share/spdlog/`. The consumer's `find_package(spdlog)` needs that directory in `CMAKE_PREFIX_PATH`. The current consumer's CMake invocation is:
-
-```bash
-cmake -S consumer -B consumer/build   -DCMAKE_PREFIX_PATH=$PWD/consumer-install/usr/local
-```
-
-This sets `CMAKE_PREFIX_PATH` to the consumer-install dir, but the consumer-install dir doesn't have spdlog's package config — it only has Chronon3D's installed CMake config. The consumer also needs vcpkg's installed-dir to see spdlog.
-
-### Suggested fix approach
-
-Pre-compute vcpkg's installed-dir before invoking consumer configure, and append it to the consumer's `CMAKE_PREFIX_PATH`:
-
-```bash
-# Inside tools/install_consumer_test.sh, after the Chronon3D install:
-vcpkg_installed="${VCPKG_ROOT}/installed/${VCPKG_DEFAULT_TRIPLET}"
-cmake -S consumer -B consumer/build   -DCMAKE_PREFIX_PATH="$PWD/consumer-install/usr/local;${vcpkg_installed}"
-cmake --build consumer/build
-```
-
-Or, set the `spdlog_DIR` cache variable directly:
-
-```bash
-cmake -S consumer -B consumer/build   -DCMAKE_PREFIX_PATH="$PWD/consumer-install/usr/local"   -Dspdlog_DIR="${vcpkg_installed}/share/spdlog"
-```
-
-Use whatever matches the script's style. Add a verification step:
-
-```bash
-cmake -S consumer -B consumer/build   -DCMAKE_PREFIX_PATH="$PWD/consumer-install/usr/local;${vcpkg_installed}" 2>&1 | tee /tmp/consumer-configure.log
-grep -E 'Could not find.*spdlog' /tmp/consumer-configure.log   && { echo 'FAIL: spdlog not visible to consumer'; exit 1; }   || echo 'PASS: spdlog visible to consumer'
-```
-
-### Acceptance criteria
-
-- `bash tools/install_consumer_test.sh` exits 0 end-to-end.
-- The consumer's `find_package(spdlog)` succeeds (Chronon3D::SDK + spdlog both visible).
-- The fix is documented inline (a comment in `tools/install_consumer_test.sh` explaining the bootstrap pattern, so future SDKs that depend on vcpkg-installed deps can mirror it).
-
-### Cross-references
-
-- TICKET-038 (or equivalent) — earlier ticket on the install-consumer pattern, if one exists, for stylistic consistency.
-- `docs/baselines/main-9c98aa7c-gates-promoted.md` §"Validation Results" — broader 11-check CI matrix exposing this rot as the 6th of 6 OFF-CI failures.
-- AGENTS.md — *Non cambiare un gate per nascondere un errore* — once fixed, this script can join the CI-blocking set (post-baseline-green verification).

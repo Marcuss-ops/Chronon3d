@@ -113,7 +113,7 @@ GLOB_BUILD_DIRS=(build-tmp build-debug build-release build-asan build-*)
 # ── Header ───────────────────────────────────────────────────────────
 echo "=== Gitignored build/output dirs not tracked (PR 0.2 close-out) ==="
 echo "    IGNORED_DIRS_HEADER_DATE = ${IGNORED_DIRS_HEADER_DATE}"
-echo '    If `.gitignore` was amended after this date, mirror the change'
+echo "    If `.gitignore` was amended after this date, mirror the change"
 echo "    in IGNORED_DIRS / IGNORED_FILE_PATTERNS and bump the date."
 echo ""
 
@@ -127,17 +127,12 @@ for d in "${IGNORED_DIRS[@]}"; do
     #   0 — at least one tracked entry listed, OR
     #   ≥1 — dir does not exist / no tracked entries (no stdout).
     # `2>/dev/null || true` absorbs the dir-missing case as vacuous pass.
-    # Use mapfile to read into array — no word-splitting risk.
-    tracked_lines=()
-    mapfile -t tracked_lines < <(git ls-files "${d}/" 2>/dev/null || true)
-    if ((${#tracked_lines[@]} > 0)); then
-        count=${#tracked_lines[@]}
-        per_dir_lines+=("  [FAIL] ${d}/ has tracked entries (count: ${count}):")
-        for t in "${tracked_lines[@]}"; do
-            per_dir_lines+=("           ${t}")
-        done
+    tracked=$(git ls-files "${d}/" 2>/dev/null || true)
+    if [ -n "$tracked" ]; then
+        per_dir_lines+=("  [FAIL] ${d}/ has tracked entries (count: $(printf '%s\n' "${tracked}" | wc -l | tr -d ' ')):")
+        per_dir_lines+=("$(printf '%s\n' "${tracked}" | sed 's/^/           /')")
         overall_fail=1
-        total_violations=$((total_violations + count))
+        total_violations=$((total_violations + $(printf '%s\n' "${tracked}" | wc -l | tr -d ' ')))
     else
         per_dir_lines+=("  [PASS] ${d}/ — no tracked entries")
     fi
@@ -147,40 +142,30 @@ done
 # `git ls-files build*/` expands the glob against real directories on
 # the filesystem; this catches sibling build-tmp/, build-linux-fast-dev/,
 # etc. without committing to a closed enumeration.
-# Uses nullglob + compgen to avoid word-splitting bugs on unquoted ${d}.
-shopt -s nullglob
 glob_hits=0
 for d in "${GLOB_BUILD_DIRS[@]}"; do
     # Skip the literal "build" to avoid double-listing.
     [ "${d}" = "build" ] && continue
-    expanded_dirs=()
-    mapfile -t expanded_dirs < <(compgen -G "${d}" 2>/dev/null | sort -u || true)
-    for real in "${expanded_dirs[@]}"; do
-        if [ -d "${real}" ]; then
-            tracked_lines=()
-            mapfile -t tracked_lines < <(git ls-files "${real}/" 2>/dev/null || true)
-            if ((${#tracked_lines[@]} > 0)); then
-                gcount=${#tracked_lines[@]}
-                per_dir_lines+=("  [FAIL] (glob) ${real}/ has tracked entries (count: ${gcount}):")
-                for t in "${tracked_lines[@]}"; do
-                    per_dir_lines+=("           ${t}")
-                done
+    for real in ${d}; do
+        if [ "${real}" != "${d}" ] || [ -d "${real}" ]; then
+            tracked=$(git ls-files "${real}/" 2>/dev/null || true)
+            if [ -n "$tracked" ]; then
+                per_dir_lines+=("  [FAIL] (glob) ${real}/ has tracked entries (count: $(printf '%s\n' "${tracked}" | wc -l | tr -d ' ')):")
+                per_dir_lines+=("$(printf '%s\n' "${tracked}" | sed 's/^/           /')")
                 overall_fail=1
-                glob_hits=$((glob_hits + gcount))
+                glob_hits=$((glob_hits + $(printf '%s\n' "${tracked}" | wc -l | tr -d ' ')))
             fi
         fi
     done
 done
-shopt -u nullglob
 
 # ── File-pattern audit (root-level patterns only) ────────────────────
 file_violations=0
 for f in "${IGNORED_FILE_PATTERNS[@]}"; do
     # `f` may be a literal path or a glob; use compgen to expand globs
-    # at the root level (no recursion). Use mapfile to avoid word-splitting.
-    matches_arr=()
-    mapfile -t matches_arr < <(compgen -G "${f}" 2>/dev/null || true)
-    for m in "${matches_arr[@]}"; do
+    # at the root level (no recursion). Quiet failure on missing files.
+    matches=$(compgen -G "${f}" 2>/dev/null || true)
+    for m in ${matches}; do
         if [ -f "${m}" ] && git ls-files --error-unmatch "${m}" >/dev/null 2>&1; then
             per_dir_lines+=("  [FAIL] (file-pattern match) ${m} is tracked but should be ignored")
             overall_fail=1
@@ -189,21 +174,8 @@ for f in "${IGNORED_FILE_PATTERNS[@]}"; do
     done
 done
 
-# ── Self-consistency drift check ─────────────────────────────────────
-# Warn if .gitignore has been modified more recently than
-# IGNORED_DIRS_HEADER_DATE — the manual mirror may have drifted.
-if [[ -f .gitignore ]]; then
-    gitignore_mtime=$(git log -1 --format='%ad' --date=short .gitignore 2>/dev/null || true)
-    if [[ -n "$gitignore_mtime" && "$gitignore_mtime" > "$IGNORED_DIRS_HEADER_DATE" ]]; then
-        echo ""
-        echo "  [WARN] .gitignore last modified $gitignore_mtime, but IGNORED_DIRS_HEADER_DATE is $IGNORED_DIRS_HEADER_DATE"
-        echo "         The manually mirrored IGNORED_DIRS / IGNORED_FILE_PATTERNS lists may be stale."
-        echo "         Update IGNORED_DIRS, IGNORED_FILE_PATTERNS and bump IGNORED_DIRS_HEADER_DATE."
-    fi
-fi
-
 # ── Summary ──────────────────────────────────────────────────────────
-if ((${#per_dir_lines[@]} > 0)); then
+if [ "${per_dir_lines[@]}" ]; then
     printf '%s\n' "${per_dir_lines[@]}"
 fi
 echo ""

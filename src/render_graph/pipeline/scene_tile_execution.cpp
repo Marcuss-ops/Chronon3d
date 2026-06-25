@@ -4,7 +4,6 @@
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>     // PR 6.4 — typed scope plumbing
 #include <chronon3d/core/memory/arena.hpp>              // PR 6.4 — explicit child FrameArena
-#include <chronon3d/runtime/render_runtime.hpp>         // TICKET-005 Gap B cascade — RenderRuntime full type
 #include <algorithm>
 
 namespace chronon3d::graph::detail {

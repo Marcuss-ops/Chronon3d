@@ -15,9 +15,6 @@
 #if defined(__linux__)
 #include <pthread.h>
 #include <sched.h>
-#elif defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
 #endif
 
 namespace chronon3d {
@@ -34,8 +31,6 @@ void pin_thread_to_core(int core_id) {
     CPU_ZERO(&cpuset);
     CPU_SET(core_id, &cpuset);
     pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
-#elif defined(_WIN32)
-    SetThreadAffinityMask(GetCurrentThread(), static_cast<DWORD_PTR>(1) << core_id);
 #endif
 }
 

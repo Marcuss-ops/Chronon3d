@@ -19,12 +19,7 @@ namespace chronon3d {
 ///       .key(90,  Vec3{0,0,-800},  EasingCurve{Easing::OutCubic});
 ///   cam.fov_deg.set(50.0f);
 ///   Camera2_5D static_cam = cam.evaluate(45);
-///
-/// @deprecated Use CameraDescriptor + compile_camera() + CameraProgram instead.
-/// Migration path: convert to PoseTracksSource via camera_descriptor_from()
-/// adapter in `<chronon3d/scene/camera/camera_v1/camera_descriptor_adapters.hpp>`.
-struct [[deprecated("Use CameraDescriptor + compile_camera() + CameraProgram instead. "
-                     "See camera_descriptor_from() adapter.")]] AnimatedCamera2_5D {
+struct AnimatedCamera2_5D {
     bool enabled{true};
 
     AnimatedValue<Vec3> position{Vec3{0.0f, 0.0f, -1000.0f}};

@@ -11,7 +11,6 @@
 
 #include <chronon3d/backends/software/software_processor_context.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/runtime/render_runtime.hpp>
 
 namespace chronon3d {
 
@@ -23,9 +22,6 @@ SoftwareProcessorContext make_processor_context(SoftwareRenderer* renderer) {
     ctx.registry        = &renderer->software_registry();
     ctx.image_backend   = renderer->image_backend();
     ctx.image_renderer  = &renderer->image_renderer();
-    // WP-8 PR 8.0 — asset_resolver required for text_run_processor
-    // draw_text_run font face resolution (TextRunBlResources::get_face).
-    ctx.asset_resolver  = &renderer->runtime().resolver();
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
     // font_engine() throws on non-text builds; callers must be in
     // a `#if CHRONON3D_HAS_BACKEND_TEXT` block before invoking.

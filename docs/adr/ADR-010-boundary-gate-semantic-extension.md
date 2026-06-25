@@ -89,7 +89,7 @@ The pre-flight on `main@6e0c7413` (this branch's fork point) confirmed:
 
 * **No external consumer impact.**  All three changes are internal tooling + one render-engine internal accessor rename.  No downstream API surface changes.
 * **`AGENTS.md` regole di lavoro** (CE 2026-06-21) already call out "non cambiare un gate per nascondere un errore" — this change keeps the gate a hard fail and adds new checks, doesn't relax any.
-* **`docs/stabilization-plan/04-cmake-module-registry.md`** does NOT need updating — the gate script is referenced by `.github/workflows/gates.yml` Gate 5 (existing) and runs unchanged in CI.
+* **`docs/ARCHIVE/stabilization-plan/04-cmake-module-registry.md`** does NOT need updating — the gate script is referenced by `.github/workflows/gates.yml` Gate 5 (existing) and runs unchanged in CI.
 
 ## Migration path
 

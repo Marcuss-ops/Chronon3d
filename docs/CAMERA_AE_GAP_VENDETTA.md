@@ -11,7 +11,7 @@
 > altre implementazioni atterrate successivamente.
 >
 > Matrice dettagliata: [`CAMERA_FEATURE_MATRIX.md`](CAMERA_FEATURE_MATRIX.md).
-> Stato prodotto complessivo: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
+> Stato presente: [`CURRENT_STATUS.md`](CURRENT_STATUS.md).
 > Prova operativa: [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md).
 
 ## Verdetto attuale

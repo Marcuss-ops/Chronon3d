@@ -25,10 +25,6 @@
 // Use GCC/Clang built-in prefetch
 #define C3D_PREFETCH_READ(addr) __builtin_prefetch(reinterpret_cast<const void*>(addr), 0, 1)
 #define C3D_PREFETCH_WRITE(addr) __builtin_prefetch(reinterpret_cast<const void*>(addr), 1, 1)
-#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-#include <xmmintrin.h>
-#define C3D_PREFETCH_READ(addr)  _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T1)
-#define C3D_PREFETCH_WRITE(addr) _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T1)
 #else
 #define C3D_PREFETCH_READ(addr)  ((void)0)
 #define C3D_PREFETCH_WRITE(addr) ((void)0)

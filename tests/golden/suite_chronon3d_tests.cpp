@@ -16,7 +16,7 @@
 using namespace chronon3d::test;
 
 #if defined(CHRONON3D_HAS_CONTENT_2D5) && defined(CHRONON3D_BUILD_DIAGNOSTICS)
-#include "content/images/compositions/image_proofs.hpp"
+#include "content/experimental/proofs/image_proofs.hpp"
 namespace chronon3d::content::shapes {
     Composition shape_proofs();
 }

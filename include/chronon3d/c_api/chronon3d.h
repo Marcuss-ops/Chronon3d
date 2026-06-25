@@ -2,11 +2,7 @@
 
 #include <stdint.h>
 
-#ifdef _WIN32
-  #define CHRONON3D_API __declspec(dllimport)
-#else
-  #define CHRONON3D_API __attribute__((visibility("default")))
-#endif
+#define CHRONON3D_API __attribute__((visibility("default")))
 
 #ifdef __cplusplus
 extern "C" {

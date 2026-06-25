@@ -1,103 +1,122 @@
 // tests/install_consumer/main.cpp
 //
-// ── End-to-end install boundary validation (TICKET-011 final gate) ──
+// ── Real render end-to-end SDK consumer (TICKET-011 final gate) ──
 //
 // This is a STANDALONE consumer project — it does NOT share
-// tests/CMakeLists.txt and does NOT link against the in-tree targets.
+// tests/CMakeLists.txt and does NOT link against in-tree targets.
 // Its only dependency is the *installed* Chronon3D package.
 //
-// The fact that this file:
-//   1. Compiles against `<prefix>/include/chronon3d/...` headers
-//   2. Links against `libchronon3d_sdk_impl.a` (transitively via
-//      Chronon3D::SDK)
-//   3. Runs and emits the [BOUNDARY-OK] marker string
-// …proves that the SDK install is consumable by an external project
-// downstream.
+// The consumer:
+//   1. Creates a composition with text + camera via SceneBuilder
+//   2. Renders a frame via RenderEngine
+//   3. Saves the framebuffer as a PNG
+//   4. Verifies the PNG exists and is non-empty
 //
-// Wired into CTest via the entry added in the top-level CMakeLists.txt
-// (option CHRONON3D_BUILD_INSTALL_CONSUMER_TEST, enabled by the
-// linux-ci preset). The orchestrator script
-// `tools/install_consumer_test.sh` runs the full configure -> build ->
-// install -> consume -> run pipeline against an isolated temp prefix
-// and validates the marker.
-//
-// NOTE: even a minimal main() instantiates `chronon3d::Vec3` and reads
-// its members, so the linker is forced to scan libchronon3d_sdk_impl.a
-// for the symbol.  Without an actual SDK symbol reference, a static
-// archive passes `nm -D` vacuously and the test would not detect a
-// corrupt / empty archive.
+// Wired into CTest via the top-level CMakeLists.txt option
+// CHRONON3D_BUILD_INSTALL_CONSUMER_TEST (enabled by the linux-ci preset).
+// The orchestrator script `tools/install_consumer_test.sh` runs the full
+// configure → build → install → consume → run pipeline against an isolated
+// temp prefix and validates the output.
 
 #include <chronon3d/chronon3d.hpp>
 
-// ── Camera Production V1 public SDK surface ──────────────────────────
-// CameraDescriptor → compile_camera() → CameraProgram → evaluate()
-// Certifies that the compiled camera path is consumable by external SDK
-// consumers (Camera Production V1 gate §9).
-#include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_session.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_motion_context.hpp>
-
 #include <cstdio>
+#include <filesystem>
 
 int main() {
-    // ── §1 — Basic type boundary check ────────────────────────────────
-    chronon3d::Vec3 v{1.0f, 2.0f, 3.0f};
+    // ── Create a composition with text + camera ─────────────────
+    auto comp = chronon3d::composition(
+        {.name = "SDKConsumerTest",
+         .width = 640,
+         .height = 360,
+         .duration = 1},
+        [](const chronon3d::FrameContext& ctx) {
+            chronon3d::SceneBuilder s(ctx);
 
-    // ── §2 — Compiled camera boundary check (Camera Production V1 §9) ─
-    // Build a minimal CameraDescriptor, compile it, and evaluate at frame 0.
-    // Exercises the COMPLETE authored-camera SDK surface:
-    //   CameraDescriptor → compile_camera() → CameraProgram → evaluate().
-    using namespace chronon3d::camera_v1;
+            // Background grid
+            s.layer("bg", [](chronon3d::LayerBuilder& l) {
+                l.grid_background("grid", chronon3d::GridBackgroundParams{
+                    .size = {640.0f, 360.0f},
+                    .bg_color = {0.02f, 0.02f, 0.06f, 1.0f},
+                    .grid_color = {0.15f, 0.55f, 1.0f, 0.10f},
+                    .spacing = 60.0f,
+                    .minor_thickness = 1.0f,
+                    .major_thickness = 2.0f,
+                    .major_every = 4,
+                    .centered = true
+                });
+            });
 
-    CameraDescriptor cam_desc;
-    cam_desc.id = "sdk_consumer_test_cam";
-    cam_desc.base.position = chronon3d::Vec3{0.0f, 100.0f, -1500.0f};
-    cam_desc.base.point_of_interest = chronon3d::Vec3{0.0f, 0.0f, 0.0f};
-    cam_desc.base.point_of_interest_enabled = true;
-    cam_desc.source = PoseTracksSource{};
-    cam_desc.orientation = OrientAlongPath{.keep_horizon = true};
+            // Text layer
+            s.layer("title", [](chronon3d::LayerBuilder& l) {
+                l.position({0.0f, -20.0f, 0.0f});
+                l.text("txt", {
+                    .content = {.value = "Chronon3D SDK"},
+                    .font = {.font_family = "sans-serif",
+                             .font_size = 48.0f},
+                    .layout = {.box = {600.0f, 80.0f},
+                               .align = chronon3d::TextAlign::Center,
+                               .vertical_align = chronon3d::VerticalAlign::Middle},
+                    .appearance = {.color = chronon3d::Color{0.92f, 0.97f, 1.0f, 1.0f}},
+                    .position = {0.0f, 0.0f, 0.0f}
+                });
+            });
 
-    auto compile_result = compile_camera(cam_desc, nullptr);
-    if (!compile_result) {
-        std::fprintf(stderr,
-            "[BOUNDARY-FAIL] compile_camera() error: %s\n",
-            compile_result.error().message.c_str());
+            // Subtitle text
+            s.layer("sub", [](chronon3d::LayerBuilder& l) {
+                l.position({0.0f, 60.0f, 0.0f});
+                l.text("sub", {
+                    .content = {.value = "External Consumer OK"},
+                    .font = {.font_family = "sans-serif",
+                             .font_size = 22.0f},
+                    .layout = {.box = {600.0f, 48.0f},
+                               .align = chronon3d::TextAlign::Center,
+                               .vertical_align = chronon3d::VerticalAlign::Middle},
+                    .appearance = {.color = chronon3d::Color{0.62f, 0.78f, 1.0f, 1.0f}},
+                    .position = {0.0f, 0.0f, 0.0f}
+                });
+            });
+
+            // Camera — 2.5D with slight orbit
+            s.camera().enable(true)
+                .position({0.0f, 0.0f, -800.0f})
+                .zoom(800.0f)
+                .look_at({0.0f, 0.0f, 0.0f});
+
+            return s.build();
+        });
+
+    // ── Render ──────────────────────────────────────────────────
+    chronon3d::RenderEngine engine;
+    auto fb = engine.render_frame(comp, 0);
+
+    if (!fb) {
+        std::fprintf(stderr, "[BOUNDARY-FAIL] render_frame returned null\n");
         return 1;
     }
 
-    auto program = std::move(compile_result).value();
-    if (!program.is_compiled()) {
-        std::fprintf(stderr,
-            "[BOUNDARY-FAIL] CameraProgram not compiled\n");
+    // ── Save PNG ────────────────────────────────────────────────
+    const std::filesystem::path output_path = "sdk_consumer_output.png";
+    if (!chronon3d::save_png(*fb, output_path.string())) {
+        std::fprintf(stderr, "[BOUNDARY-FAIL] save_png failed\n");
         return 1;
     }
 
-    // Evaluate at frame 0 with a fresh session.
-    CameraSession session;
-    session.ensure_constraint_states(0);
-    auto ctx = CameraEvalContext::at(chronon3d::Frame{0});
-
-    auto result = program.evaluate(ctx, session);
-    if (!result.ok) {
-        std::fprintf(stderr,
-            "[BOUNDARY-FAIL] evaluate() returned !ok; diagnostics=%zu\n",
-            result.diagnostics.size());
+    // ── Verify output ───────────────────────────────────────────
+    if (!std::filesystem::exists(output_path)) {
+        std::fprintf(stderr, "[BOUNDARY-FAIL] output PNG not found: %s\n",
+                     output_path.c_str());
         return 1;
     }
 
-    // ── Boundary marker ───────────────────────────────────────────────
-    // The orchestrator greps the consumer stdout for this exact substring
-    // and fails CI if it is absent.
-    std::printf("[BOUNDARY-OK] install_consumer linked: "
-                "Vec3={%f,%f,%f} "
-                "camera_compiled=%d "
-                "camera_pos={%f,%f,%f}\n",
-                v.x, v.y, v.z,
-                program.is_compiled() ? 1 : 0,
-                result.camera.position.x,
-                result.camera.position.y,
-                result.camera.position.z);
+    const auto file_size = std::filesystem::file_size(output_path);
+    if (file_size == 0) {
+        std::fprintf(stderr, "[BOUNDARY-FAIL] output PNG is empty\n");
+        return 1;
+    }
+
+    // ── Boundary marker ─────────────────────────────────────────
+    std::printf("[BOUNDARY-OK] SDK consumer rendered %dx%d PNG (%zu bytes)\n",
+                fb->width(), fb->height(), static_cast<size_t>(file_size));
     return 0;
 }

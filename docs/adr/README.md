@@ -38,13 +38,13 @@ Ogni ADR ha, nell'ordine:
 
 Un ADR diventa **Accepted** solo quando il comportamento che
 protegge è *validato in CI* (vedi piano 07 sezione D4) sul commit
-che aggiorna `STATUS.md`. Un `Accepted` non viene retrocesso.
+che aggiorna `CURRENT_STATUS.md`. Un `Accepted` non viene retrocesso.
 
 ## Regola di aggiornamento
 
-`docs/STATUS.md` cita gli ADR rilevanti per l'area aperta.
+`docs/CURRENT_STATUS.md` cita gli ADR rilevanti per l'area aperta.
 [`../migrations/`](../migrations/) conserva i changelog dettagliati
-ma lo *status* vive qui. `refactor-roadmap/*.md` referenzia gli
+ma lo *status* vive qui. `ARCHIVE/refactor-roadmap/*.md` (archiviato) referenzia gli
 ADR via slug anziché riscrivere la decisione.
 
 ## Indice

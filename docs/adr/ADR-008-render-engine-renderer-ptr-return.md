@@ -6,7 +6,7 @@
 | **Date** | 2026-06-22 |
 | **Deciders** | `codex/agent1-renderer-boundary` author, code-reviewer-minimax-m3 |
 | **Tags** | `api-break`, `boundary-gate`, `sdk`, `software-renderer` |
-| **Related** | [ADR-002 — RenderRuntime Ownership](./ADR-002-render-runtime-ownership.md), [docs/stabilization-plan/04-cmake-module-registry.md](../stabilization-plan/04-cmake-module-registry.md) |
+| **Related** | [ADR-002 — RenderRuntime Ownership](./ADR-002-render-runtime-ownership.md), [docs/ARCHIVE/stabilization-plan/04-cmake-module-registry.md](../ARCHIVE/stabilization-plan/04-cmake-module-registry.md) |
 
 ## Context
 
@@ -172,7 +172,7 @@ canonical moment to break this surface.
   constructor taking `SoftwareRenderer*`.
 * `src/runtime/render_engine.cpp` — construction sequence that
   guarantees `m_renderer` is non-null when the accessor is called.
-* `docs/stabilization-plan/04-cmake-module-registry.md` — public SDK
+* `docs/ARCHIVE/stabilization-plan/04-cmake-module-registry.md` — public SDK
   facade (`Chronon3D::SDK` is the only documented consumer target).
 * Branch `codex/agent1-renderer-boundary` — the implementation series.
   Refer to the branch HEAD for the latest commit series (do not cite

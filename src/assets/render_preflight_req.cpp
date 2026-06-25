@@ -5,11 +5,7 @@
 namespace chronon3d {
 
 bool tool_exists_in_path(const std::string& tool) {
-#if defined(_WIN32)
-    std::string cmd = "where " + tool + " >nul 2>nul";
-#else
     std::string cmd = "command -v " + tool + " >/dev/null 2>&1";
-#endif
     return std::system(cmd.c_str()) == 0;
 }
 

@@ -12,15 +12,8 @@
 #include <sstream>
 #include <iomanip>
 #include <cstdlib>
-#if defined(__linux__)
 #include <fstream>
 #include <sys/resource.h>
-#endif
-
-#if defined(_WIN32)
-#include <windows.h>
-#include <psapi.h>
-#endif
 
 namespace chronon3d::telemetry {
 
@@ -31,19 +24,11 @@ std::string get_telemetry_directory() {
         return env;
     }
     std::filesystem::path home_path;
-#if defined(_WIN32)
-    if (const char* userprofile = std::getenv("USERPROFILE")) {
-        home_path = userprofile;
-    } else {
-        home_path = "C:/";
-    }
-#else
     if (const char* home = std::getenv("HOME")) {
         home_path = home;
     } else {
         home_path = "/tmp";
     }
-#endif
     return (home_path / ".chronon3d" / "telemetry").string();
 }
 
@@ -217,9 +202,7 @@ bool TelemetryManager::record_run(RenderTelemetryRecord& run,
 }
 
 std::string TelemetryManager::get_os_name() {
-#if defined(_WIN32)
-    return "Windows";
-#elif defined(__linux__)
+#if defined(__linux__)
     return "Linux";
 #elif defined(__APPLE__)
     return "macOS";
@@ -229,14 +212,7 @@ std::string TelemetryManager::get_os_name() {
 }
 
 std::string TelemetryManager::get_cpu_model() {
-#if defined(_WIN32)
-    if (const char* env = std::getenv("PROCESSOR_IDENTIFIER")) {
-        return env;
-    }
-    return "x86_64 MSVC Generic";
-#else
     return "Generic CPU";
-#endif
 }
 
 int TelemetryManager::get_logical_cores() {
@@ -245,9 +221,7 @@ int TelemetryManager::get_logical_cores() {
 }
 
 std::string TelemetryManager::get_compiler_info() {
-#if defined(_MSC_VER)
-    return "MSVC " + std::to_string(_MSC_VER);
-#elif defined(__clang__)
+#if defined(__clang__)
     return "Clang " + std::to_string(__clang_major__) + "." + std::to_string(__clang_minor__);
 #elif defined(__GNUC__)
     return "GCC " + std::to_string(__GNUC__) + "." + std::to_string(__GNUC_MINOR__);
@@ -276,11 +250,7 @@ std::string TelemetryManager::get_current_iso_time() {
     auto now = std::chrono::system_clock::now();
     std::time_t now_time = std::chrono::system_clock::to_time_t(now);
     std::tm tm_buf;
-#if defined(_WIN32)
-    gmtime_s(&tm_buf, &now_time);
-#else
     gmtime_r(&now_time, &tm_buf);
-#endif
     std::ostringstream oss;
     oss << std::put_time(&tm_buf, "%Y-%m-%dT%H:%M:%SZ");
     return oss.str();
@@ -303,13 +273,6 @@ std::string TelemetryManager::generate_uuid() {
 }
 
 uint64_t TelemetryManager::get_peak_memory_usage() {
-#if defined(_WIN32)
-    PROCESS_MEMORY_COUNTERS pmc;
-    if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
-        return static_cast<uint64_t>(pmc.PeakPagefileUsage);
-    }
-    return 0;
-#elif defined(__linux__)
     {
         std::ifstream status("/proc/self/status");
         std::string line;
@@ -331,9 +294,6 @@ uint64_t TelemetryManager::get_peak_memory_usage() {
         return static_cast<uint64_t>(usage.ru_maxrss) * 1024ULL;
     }
     return 0;
-#else
-    return 0;
-#endif
 }
 
 } // namespace chronon3d::telemetry
