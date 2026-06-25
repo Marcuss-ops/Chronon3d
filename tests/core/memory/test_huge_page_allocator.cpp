@@ -122,12 +122,17 @@ TEST_CASE("HugePageAllocator<int>: repeated alloc/dealloc cycles hold alignment 
     }
 }
 
-TEST_CASE("HugePageAllocator: k_huge_page_header<T>() satisfies the 64-byte invariant at compile time") {
+TEST_CASE("HugePageAllocator: k_huge_page_header<T>() satisfies the 64-byte invariant at compile time and at runtime") {
     // The static_assert inside `k_huge_page_header<T>()` already enforces
-    // this at compile time; this test exists to surface the invariant in
-    // the test lattice and to record the alignment contract.
+    // this at compile time; the runtime CHECKs below give doctest a
+    // measurable artifact so this TEST_CASE is not just a green-light in
+    // the test report.
     static_assert(chronon3d::memory::k_huge_page_header<int>() >= 64);
     static_assert(chronon3d::memory::k_huge_page_header<int>() % 64 == 0);
     static_assert(chronon3d::memory::k_huge_page_header<chronon3d::Color>() >= 64);
     static_assert(chronon3d::memory::k_huge_page_header<chronon3d::Color>() % 64 == 0);
+    CHECK(chronon3d::memory::k_huge_page_header<int>() >= 64);
+    CHECK(chronon3d::memory::k_huge_page_header<int>() % 64 == 0);
+    CHECK(chronon3d::memory::k_huge_page_header<chronon3d::Color>() >= 64);
+    CHECK(chronon3d::memory::k_huge_page_header<chronon3d::Color>() % 64 == 0);
 }
