@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@24388800` — 25 giugno 2026. Linux-only.
+> **Snapshot:** `main@562110d6` — 25 giugno 2026. Linux-only.
 >
 > Ultima baseline macchina-verificata: `main@446a60e2` (3/4 ✅, registrata in [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md)).
 > La baseline sull'HEAD corrente non è ancora stata eseguita.
