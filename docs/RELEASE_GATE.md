@@ -64,6 +64,8 @@ Tutti i punti seguenti devono essere veri:
 
 L'unica baseline macchina-verificata ha eseguito **4 controlli** (non tutti i gate).
 Dettaglio completo in [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md).
+Gli esiti della tabella sono la fotografia al commit `446a60e2`; i progressi successivi
+sono elencati più sotto (`### Progressi sull'HEAD corrente`).
 
 | # | Controllo | Esito | Blocker |
 |---|---|---|---|
