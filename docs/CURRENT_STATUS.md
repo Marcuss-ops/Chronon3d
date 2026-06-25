@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@21fb10af` — 25 giugno 2026. Linux-only.
+> **Snapshot:** `main@24388800` — 25 giugno 2026. Linux-only.
 >
 > Ultima baseline macchina-verificata: `main@446a60e2` (3/4 ✅, registrata in [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md)).
 > La baseline sull'HEAD corrente non è ancora stata eseguita.
@@ -130,15 +130,16 @@ L'ultima baseline macchina-verificata ha prodotto:
 | BG-3 | `linux-lean-dev` configure | ✅ PASS | Configure completato clean |
 | BG-4 | Build `chronon3d_text_preset_visual_tests` | ❌ FAIL | TICKET-039: `SoftwareRenderer::settings()` regression |
 
-**Verdetto**: 3/4 ✅ — baseline non verde. I blocker attivi sull'HEAD corrente sono:
-
-- **🔴 TICKET-039** — `SoftwareRenderer::settings()` access regression (introdotta da Agent-1 #49).
-  Blocca la build di `chronon3d_text_preset_visual_tests` e qualsiasi target che istanzia `RenderEngine::Impl`.
-- **🔴 TICKET-038** — lambda capture / auto deduction rot in `tests/text/test_text_preset_visual.cpp`.
-  Secondo blocker nella catena di compilazione; si manifesterà dopo la chiusura di TICKET-039.
+**Verdetto**: 3/4 ✅ — baseline non verde (registrata al commit `446a60e2`). I blocker noti sulla
+compilazione del testo (TICKET-038, TICKET-039) sono chiusi nel grafo dei commit dell'HEAD corrente,
+ma una nuova baseline macchina-verificata sull'HEAD non è ancora stata registrata.
 
 ### Progressi dalla baseline
 
+- **🟢 TICKET-039** — `SoftwareRenderer::settings()` access regression risolta (commit `68c3e0f0`).
+  TXT-00 build/link verde; `chronon3d_text_preset_visual_tests` cablato nel render aggregator (`44def204`).
+- **🟢 TICKET-038** — lambda capture / auto deduction rot in `tests/text/test_text_preset_visual.cpp`
+  risolta (commit `91debc36`).
 - **🟢 TICKET-029** — link di `chronon3d_scene_tests` sbloccato (commit `fb1b7e97`). I fix camera atterrati
   sul codice possono ora procedere verso la verifica macchina.
 - **🟢 TICKET-040** — Taskflow completamente rimosso (non più required, rot chiusa).
