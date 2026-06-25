@@ -1,6 +1,6 @@
 # Chronon3D — Active Roadmap
 
-> Snapshot: `main@24388800`, 25 giugno 2026. Linux-only.
+> Snapshot: `main@562110d6`, 25 giugno 2026. Linux-only.
 >
 > Ultima baseline macchina-verificata: `main@446a60e2` (3/4 ✅).
 >
