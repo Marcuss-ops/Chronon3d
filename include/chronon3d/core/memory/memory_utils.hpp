@@ -143,6 +143,23 @@ inline void free_memory_block(void* ptr, std::size_t size, AllocationBackend bac
 // up to a 64-byte boundary so the returned pointer is always cache-line
 // aligned — required by `Framebuffer`'s stride alignment contract for
 // SIMD / cache-friendly row access.
+//
+// `k_huge_page_header<T>()` is the SINGLE source of truth for the metadata
+// pad (both `allocate()` and `deallocate()` reference it; a previous
+// inline-constexpr-block duplication risked silent drift on edit).
+
+template <typename T>
+constexpr std::size_t k_huge_page_header() noexcept {
+    constexpr std::size_t base_pad =
+        sizeof(AllocationBackend) > alignof(T)
+            ? sizeof(AllocationBackend)
+            : alignof(T);
+    constexpr std::size_t meta_pad =
+        (base_pad + static_cast<std::size_t>(63)) & ~static_cast<std::size_t>(63);
+    static_assert(meta_pad >= 64 && meta_pad % 64 == 0,
+                  "HugePageAllocator meta_pad must be at least one 64-byte cache line");
+    return meta_pad;
+}
 
 template <typename T>
 struct HugePageAllocator {
@@ -168,15 +185,9 @@ struct HugePageAllocator {
         }
 
         // Pad the metadata slot to a 64-byte boundary so the returned
-        // pointer is cache-line aligned (required by `Framebuffer`'s
-        // stride-alignment contract; also keeps SIMD row loads aligned).
-        constexpr std::size_t base_pad =
-            sizeof(AllocationBackend) > alignof(T)
-                ? sizeof(AllocationBackend)
-                : alignof(T);
-        constexpr std::size_t meta_pad = (base_pad + 63) & ~static_cast<std::size_t>(63);
-        static_assert(meta_pad >= 64 && meta_pad % 64 == 0,
-                      "HugePageAllocator meta_pad must be at least one 64-byte cache line");
+        // pointer is cache-line aligned.  The exact meta_pad size lives
+        // in `k_huge_page_header<T>()` (single source of truth).
+        constexpr std::size_t meta_pad = k_huge_page_header<T>();
 
         const std::size_t total = n * sizeof(T);
         const std::size_t alloc_size = total + meta_pad;
@@ -198,11 +209,11 @@ struct HugePageAllocator {
     void deallocate(T* p, std::size_t n) noexcept {
         if (!p) return;
 
-        constexpr std::size_t base_pad =
-            sizeof(AllocationBackend) > alignof(T)
-                ? sizeof(AllocationBackend)
-                : alignof(T);
-        constexpr std::size_t meta_pad = (base_pad + 63) & ~static_cast<std::size_t>(63);
+        // Mirror the offset used by `allocate()` exactly so `raw - meta_pad`
+        // resolves to the same base pointer.  `k_huge_page_header<T>()`
+        // is the canonical helper; do NOT inline a second copy of the
+        // rounding math here.
+        constexpr std::size_t meta_pad = k_huge_page_header<T>();
 
         auto* raw = static_cast<char*>(static_cast<void*>(p)) - meta_pad;
         auto* meta = reinterpret_cast<AllocationBackend*>(raw);
