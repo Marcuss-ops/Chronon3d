@@ -2,9 +2,9 @@
 
 Code-first, headless, CPU-first motion graphics and compositing engine in C++20.
 
-> **Stato al 24 giugno 2026:** `main` è avanzato ma pre-stabile.
-> La fonte canonica del punto prodotto è
-> [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
+> **Stato al 25 giugno 2026:** `main` è avanzato ma pre-stabile.
+> La fonte canonica dello stato è [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
+> I requisiti di release: [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md).
 > Non descrivere il repository come release-ready, completamente verde o in
 > parità con After Effects senza prove eseguite sullo stesso commit.
 
@@ -39,8 +39,7 @@ La direzione pubblica resta:
 - una sola pipeline camera `CameraDescriptor → CameraProgram`;
 - registrazione esplicita tramite estensioni;
 - runtime headless e deterministico;
-- nessuna GUI o dipendenza browser nel core;
-- supporto Linux-only.
+- nessuna GUI o dipendenza browser nel core.
 
 ## Registrare una composizione
 
@@ -71,9 +70,10 @@ Le percentuali seguenti sono stime di copertura funzionale, non risultati CI.
 
 | Area | Completezza stimata | Stato reale |
 |---|---:|---|
-| Text Production V1 | 60–65% | Fondazioni avanzate; preset temporali reali e golden da chiudere. |
+| Text Production V1 | 60–65% | Fondazioni avanzate; word timing, rich text produttivo, preset e golden da chiudere. |
 | Camera Production V1 | 70–75% | Percorso compilato avanzato; migrazione legacy e alcuni gate/funzioni restano aperti. |
 | SDK C++ installabile | 80–85% | Package CMake e target pubblico presenti; consumer di rendering reale ancora da certificare. |
+| SDK cross-language | 30–40% | C ABI e formato dichiarativo delle animazioni ancora da progettare e implementare. |
 
 Dettagli, limiti e criteri di chiusura:
 [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
@@ -87,6 +87,7 @@ Dettagli, limiti e criteri di chiusura:
 | Camera compilata | Presente e avanzata; non ancora unico percorso produttivo |
 | Software backend | Confine rifattorizzato; gate e full validation da osservare insieme |
 | SDK C++ installabile | Package presente; release gate end-to-end da completare |
+| Pacchetti animazione / C ABI | Pianificati |
 | V3 tile-first | Pianificato, non prioritario prima della stabilizzazione |
 | Expressions V2 | Sperimentale in `experimental/expressions/` |
 
@@ -96,14 +97,14 @@ Expressions V2 è OFF di default, non viene installato e non è collegato da
 ## Documenti principali
 
 - [`AGENTS.md`](AGENTS.md) — istruzioni operative e regole architetturali.
-- [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) — unica fonte dello stato corrente.
+- [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) — stato presente.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — milestone prodotto.
-- [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md) — criteri tecnici di validazione.
+- [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md) — requisiti di release.
 - [`docs/FEATURES.md`](docs/FEATURES.md) — inventario delle feature.
 - [`docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md`](docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md) — piano testo.
 - [`docs/CAMERA_FEATURE_MATRIX.md`](docs/CAMERA_FEATURE_MATRIX.md) — matrice camera.
-- [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) — ticket attivi.
-- [`docs/adr/`](docs/adr/) — decisioni architetturali.
+- [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) — difetti e follow-up.
+- [`docs/V3_BLUEPRINT.md`](docs/V3_BLUEPRINT.md) — futuro tile-first, non runtime corrente.
 
 ## License
 

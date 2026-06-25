@@ -8,17 +8,8 @@
 #include <type_traits>
 #include <utility>
 
-#ifdef __linux__
 #include <sys/mman.h>
 #include <unistd.h>
-#endif
-
-#ifdef _WIN32
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#endif
 
 namespace chronon3d::memory {
 
@@ -28,7 +19,6 @@ enum class AllocationBackend : u8 {
     MmapHuge,
     MmapStandard,
     Malloc,
-    VirtualAlloc,
 };
 
 // ── RAII MemoryBlock — remembers how it was allocated so free is correct ───
@@ -74,17 +64,10 @@ struct MemoryBlock {
         if (!data) return;
 
         switch (backend) {
-#ifdef __linux__
         case AllocationBackend::MmapHuge:
         case AllocationBackend::MmapStandard:
             ::munmap(data, size);
             break;
-#endif
-#ifdef _WIN32
-        case AllocationBackend::VirtualAlloc:
-            ::VirtualFree(data, 0, MEM_RELEASE);
-            break;
-#endif
         case AllocationBackend::Malloc:
         default:
             std::free(data);
@@ -112,10 +95,6 @@ struct MemoryBlock {
 inline MemoryBlock allocate_memory_block(std::size_t size) {
     if (size == 0) return {};
 
-#ifdef __linux__
-    // MAP_HUGETLB requires the requested length to be a multiple of the
-    // huge-page size (default 2 MiB on Linux/x86_64).  Round up; the
-    // unused tail is acceptable since huge pages only come in fixed sizes.
     constexpr std::size_t huge_page_size = static_cast<std::size_t>(2) * 1024 * 1024;
     const std::size_t aligned_size =
         (size + huge_page_size - 1) & ~(huge_page_size - 1);
@@ -123,9 +102,6 @@ inline MemoryBlock allocate_memory_block(std::size_t size) {
         void* ptr = ::mmap(nullptr, aligned_size, PROT_READ | PROT_WRITE,
                            MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
         if (ptr != MAP_FAILED) {
-            // Hint the kernel that THP is acceptable too — leftover coarse
-            // hints when explicit huge-tables are exhausted, fall back to
-            // standard pages when both fail.
             (void)::madvise(ptr, aligned_size, MADV_HUGEPAGE);
             return MemoryBlock(ptr, aligned_size, AllocationBackend::MmapHuge);
         }
@@ -134,22 +110,10 @@ inline MemoryBlock allocate_memory_block(std::size_t size) {
         void* ptr = ::mmap(nullptr, size, PROT_READ | PROT_WRITE,
                            MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         if (ptr != MAP_FAILED) {
-            // Ask the kernel to coalesce into a transparent huge page so the
-            // standard-page path still benefits from large-page TLB entries.
             (void)::madvise(ptr, size, MADV_HUGEPAGE);
             return MemoryBlock(ptr, size, AllocationBackend::MmapStandard);
         }
     }
-#endif
-
-#ifdef _WIN32
-    {
-        void* ptr = ::VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-        if (ptr) {
-            return MemoryBlock(ptr, size, AllocationBackend::VirtualAlloc);
-        }
-    }
-#endif
 
     void* ptr = std::malloc(size);
     if (!ptr) return {};
@@ -160,17 +124,10 @@ inline void free_memory_block(void* ptr, std::size_t size, AllocationBackend bac
     if (!ptr) return;
 
     switch (backend) {
-#ifdef __linux__
     case AllocationBackend::MmapHuge:
     case AllocationBackend::MmapStandard:
         ::munmap(ptr, size);
         return;
-#endif
-#ifdef _WIN32
-    case AllocationBackend::VirtualAlloc:
-        ::VirtualFree(ptr, 0, MEM_RELEASE);
-        return;
-#endif
     case AllocationBackend::Malloc:
     default:
         std::free(ptr);
@@ -201,15 +158,7 @@ inline void free_huge_pages(void* ptr, size_t size) {
     // This legacy stub cannot know the correct backend.
     // It will be removed once FramebufferArena migrates to MemoryBlock.
     if (!ptr) return;
-#ifdef __linux__
     ::munmap(ptr, size);
-#elif defined(_WIN32)
-    if (!::VirtualFree(ptr, 0, MEM_RELEASE)) {
-        std::free(ptr);
-    }
-#else
-    std::free(ptr);
-#endif
 }
 
 // ── HugePageAllocator — for std::vector<Color, HugePageAllocator<Color>> ───

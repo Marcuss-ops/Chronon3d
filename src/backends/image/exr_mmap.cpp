@@ -5,14 +5,10 @@
 #include <Imath/half.h>
 #include <spdlog/spdlog.h>
 
-#ifdef _WIN32
-#include <windows.h>
-#else
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#endif
 
 #include <stdexcept>
 #include <cstring>
@@ -24,32 +20,6 @@ namespace chronon3d::image {
 class MmapIStream : public Imf::IStream {
 public:
     MmapIStream(const std::string& fileName) : Imf::IStream(fileName.c_str()), _data(nullptr), _size(0), _pos(0) {
-#ifdef _WIN32
-        _hFile = CreateFileA(fileName.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-        if (_hFile == INVALID_HANDLE_VALUE) {
-            throw std::runtime_error("Cannot open file: " + fileName);
-        }
-
-        LARGE_INTEGER size;
-        if (!GetFileSizeEx(_hFile, &size)) {
-            CloseHandle(_hFile);
-            throw std::runtime_error("Cannot get file size: " + fileName);
-        }
-        _size = static_cast<size_t>(size.QuadPart);
-
-        _hMapping = CreateFileMappingA(_hFile, NULL, PAGE_READONLY, 0, 0, NULL);
-        if (_hMapping == NULL) {
-            CloseHandle(_hFile);
-            throw std::runtime_error("Cannot create file mapping: " + fileName);
-        }
-
-        _data = static_cast<const char*>(MapViewOfFile(_hMapping, FILE_MAP_READ, 0, 0, 0));
-        if (_data == NULL) {
-            CloseHandle(_hMapping);
-            CloseHandle(_hFile);
-            throw std::runtime_error("Cannot map view of file: " + fileName);
-        }
-#else
         int fd = open(fileName.c_str(), O_RDONLY);
         if (fd == -1) {
             throw std::runtime_error("Cannot open file: " + fileName);
@@ -68,19 +38,12 @@ public:
         if (_data == MAP_FAILED) {
             throw std::runtime_error("Cannot mmap file: " + fileName);
         }
-#endif
     }
 
     ~MmapIStream() override {
-#ifdef _WIN32
-        if (_data) UnmapViewOfFile(_data);
-        if (_hMapping) CloseHandle(_hMapping);
-        if (_hFile != INVALID_HANDLE_VALUE) CloseHandle(_hFile);
-#else
         if (_data != MAP_FAILED && _data != nullptr) {
             munmap(const_cast<char*>(_data), _size);
         }
-#endif
     }
 
     bool read(char c[/*n*/], int n) override {
@@ -106,10 +69,6 @@ private:
     const char* _data;
     size_t _size;
     size_t _pos;
-#ifdef _WIN32
-    HANDLE _hFile = INVALID_HANDLE_VALUE;
-    HANDLE _hMapping = NULL;
-#endif
 };
 
 std::unique_ptr<ImageBuffer> load_exr_mmap(const std::string& path) {

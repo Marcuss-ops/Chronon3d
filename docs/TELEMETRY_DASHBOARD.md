@@ -191,14 +191,17 @@ Usage: `python3 server.py [PORT]` — default 8000, we use **5005**.
 | GET | `/output` | Yes | Gallery of all output PNGs |
 | GET | `/output/<file>` | Yes | Single output file |
 | GET | `/api/graph/<comp>` | Yes | Generate and serve render graph DOT |
-| GET | `/videos` | No | Gallery page of all output MP4s |
 | GET | `/*` | No | Serve React SPA (from `frontend/dist/`) |
 
 ### Auth Check (`require_auth`)
 
-> **Note:** Authentication is currently **disabled** (no-op). All API routes are open.
-> The `require_auth` decorator passes through without checking tokens.
-> `POST /api/login` always returns `{"token": "no-auth", "success": true}`.
+The decorator checks **two places** for the auth token:
+
+1. `Authorization: Bearer <token>` header — used by `fetch()` API calls
+2. `?token=<token>` query parameter — used by `<img>` and `<video>` tags
+   (these HTML elements cannot set custom headers)
+
+If neither has a valid token, returns **401 Unauthorized**.
 
 ### Path Resolution (`resolve_artifact_path`)
 
@@ -218,11 +221,12 @@ dashboard auto-updates.
 
 ### Server Startup
 
-```bash
-python3 tools/telemetry_dashboard/server.py 5005
+```python
+CHRONON3D_DASHBOARD_PASSWORD="yourpassword" python3 server.py 5005
 ```
 
-The default port is **8000**; pass an argument to override (convention is **5005**).
+The password is read from the `CHRONON3D_DASHBOARD_PASSWORD` env variable.
+If not set, login returns 500 with "Dashboard password not configured".
 
 ---
 
@@ -344,12 +348,29 @@ consider switching to signed URLs with expiration (`?expires=...&sig=...`).
 
 ## 7. Auth Mechanism
 
-> **Authentication is currently disabled.** The server does not validate passwords or tokens.
-> `POST /api/login` returns a dummy token (`no-auth`) and the frontend stores it, but
-> `require_auth` is a no-op decorator that lets all requests through.
->
-> To re-enable auth, restore token-checking logic in `telemetry_server/flask_app.py` and
-> require `CHRONON3D_DASHBOARD_PASSWORD` in the login route.
+### Login Flow
+
+1. User enters password → `POST /api/login` with `{ password: "..." }`
+2. Server validates against `CHRONON3D_DASHBOARD_PASSWORD` env var
+3. On success: returns `{ token: "<random-32-bytes>" }`
+4. Frontend stores token in `localStorage` as `chronon_auth_token`
+5. Token is sent with every request:
+   - `fetch()` calls: `Authorization: Bearer <token>` header
+   - `<img>/<video>` tags: `?token=<token>` query parameter
+
+### Session Model
+
+- Tokens are stored **in-memory** on the server (`auth_tokens` set)
+- Restarting the server invalidates all tokens
+- No token expiry currently (tokens live until server restart)
+- On 401 response, frontend clears token and shows login form again
+
+### Setting the Password
+
+```bash
+export CHRONON3D_DASHBOARD_PASSWORD="my_password"
+python3 tools/telemetry_dashboard/server.py 5005
+```
 
 ---
 
@@ -377,7 +398,8 @@ cd ../../..
     MinimalistFocusQuote --frames 0 -o output/focus_quote_frame.png
 
 # 4. Start Flask server
-python3 tools/telemetry_dashboard/server.py 5005 &
+CHRONON3D_DASHBOARD_PASSWORD="pierone" \
+    python3 tools/telemetry_dashboard/server.py 5005 &
 
 # 5. Open browser → http://<server-ip>:5005/
 ```
@@ -390,7 +412,8 @@ python3 tools/telemetry_dashboard/server.py 5005 &
 
 ```bash
 # Terminal 1: Flask server
-python3 tools/telemetry_dashboard/server.py 5005
+CHRONON3D_DASHBOARD_PASSWORD="pierone" \
+    python3 tools/telemetry_dashboard/server.py 5005
 
 # Terminal 2: Vite dev server (auto-proxies /api, /artifact, /socket.io to Flask:5005)
 cd tools/telemetry_dashboard/frontend
@@ -402,6 +425,16 @@ npx vite --port 5173 --host 0.0.0.0
 > **Tip:** During development, edit React files and see changes instantly on :5173
 > without rebuilding. Only rebuild the `dist/` when deploying to production (:5005).
 
+### Setting the Password Permanently
+
+Add to `~/.bashrc` or `~/.profile`:
+
+```bash
+export CHRONON3D_DASHBOARD_PASSWORD="your_password"
+```
+
+Then restart the server. This avoids having to pass it inline every time.
+
 ### Restarting After Changes
 
 ```bash
@@ -412,7 +445,8 @@ lsof -ti:5005 | xargs kill -9
 cd tools/telemetry_dashboard/frontend && npx vite build && cd ../..
 
 # Restart Flask
-nohup python3 tools/telemetry_dashboard/server.py 5005 \
+CHRONON3D_DASHBOARD_PASSWORD="pierone" \
+    nohup python3 tools/telemetry_dashboard/server.py 5005 \
     > /tmp/telemetry_server.log 2>&1 &
 ```
 
@@ -485,6 +519,7 @@ nohup python3 tools/telemetry_dashboard/server.py 5005 \
 
 | Symptom | Cause | Fix |
 |---|---|---|
+| 401 on artifact load but logged in | Token in query param not recognized | Ensure `require_auth` checks `request.args.get('token')` |
 | 404 on artifact | Double path nesting (`output/output/`) | `ALLOWED_ARTIFACT_ROOTS` must include `PROJECT_ROOT` |
 | "Frame preview unavailable" for video runs | Frontend loads MP4 as image | Frame path derivation logic must replace `.mp4` → `_frame.png` |
 | Run not appearing in dashboard | `render` command without `--report` | Add `--report` flag |

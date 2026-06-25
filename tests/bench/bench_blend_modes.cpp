@@ -58,21 +58,12 @@ using BlendFunc = void (*)(std::span<Color> dst, std::span<const Color> src);
 
 /// Platform-portable aligned allocation (C11 aligned_alloc or MSVC _aligned_malloc).
 static Color* aligned_color_alloc(int count) {
-#if defined(_MSC_VER)
-    return static_cast<Color*>(_aligned_malloc(
-        static_cast<size_t>(count) * sizeof(Color), 64));
-#else
     return static_cast<Color*>(std::aligned_alloc(
         64, static_cast<size_t>(count) * sizeof(Color)));
-#endif
 }
 
 static void aligned_color_free(Color* ptr) {
-#if defined(_MSC_VER)
-    _aligned_free(ptr);
-#else
     std::free(ptr);
-#endif
 }
 
 /// Normal blend wrapper — adapts composite_normal_premul (3 params with default)
