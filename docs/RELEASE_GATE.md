@@ -1,5 +1,7 @@
 # Chronon3D — Release Gate
 
+> Snapshot: `main@24388800` — 25 giugno 2026. Linux-only.
+>
 > Requisiti per dichiarare una release valida.
 > Per lo stato corrente vedi [`CURRENT_STATUS.md`](CURRENT_STATUS.md).
 > Per le milestone vedi [`ROADMAP.md`](ROADMAP.md).
@@ -73,14 +75,16 @@ Dettaglio completo in [`baselines/main-446a60e2-baseline.md`](baselines/main-446
 **Verdetto**: 3/4 ✅ — baseline non verde. I gate 5 (architecture), 8 (scene/camera test),
 9 (install consumer) e 10 (full validation) non sono stati eseguiti in questa baseline.
 
-### Blocker attivi sull'HEAD corrente
+### Progressi sull'HEAD corrente (da re-baselinare)
 
-- **🔴 TICKET-039** — `SoftwareRenderer::settings()` regression, blocca la build di
-  `chronon3d_text_preset_visual_tests` e ogni target che istanzia `RenderEngine::Impl`.
-- **🔴 TICKET-038** — lambda capture / auto deduction rot in
-  `tests/text/test_text_preset_visual.cpp`. Si manifesterà dopo TICKET-039.
+- **🟢 TICKET-039** — RISOLTO nel commit `68c3e0f0` (TXT-00 build/link green).
+- **🟢 TICKET-038** — RISOLTO nel commit `91debc36` (3 source-level ROT chiuse).
+- **🟢 Text Preset Tests** — `chronon3d_text_preset_visual_tests` cablato nel render aggregator
+  (commit `44def204`).
 
-## Criterio di chiusura
+I due blocker noti della baseline `446a60e2` sono quindi chiusi nel grafo dei commit dell'HEAD corrente,
+ma non è ancora stata registrata una nuova baseline completa. Per dichiarare `24388800` una baseline
+verde serve un run macchina-verificato di tutti gli 11 gate sul commit candidato.
 
 ## Criterio di chiusura
 
