@@ -34,7 +34,6 @@ add_executable(chronon3d_scene_tests
     scene/camera/test_camera_registry.cpp
     scene/camera/test_camera_program.cpp
     scene/camera/test_camera_program_compiled.cpp   # CAM-01 / DOC 04: baseline compiled-path tests
-    scene/camera/test_camera_golden.cpp              # Golden camera suite: 10 config × 4 frames = 40 snapshots
     scene/camera/test_camera_descriptor_adapters.cpp
     scene/camera/test_composition_default_camera.cpp   # TICKET-034: CameraDescriptor as canonical default in composition settings
     scene/camera/test_camera_constraints_p5.cpp

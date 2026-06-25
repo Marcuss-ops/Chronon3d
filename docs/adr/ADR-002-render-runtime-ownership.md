@@ -65,4 +65,4 @@ l'interfaccia).
 * TICKET-011 / `docs/FOLLOWUP_TICKETS.md`.
 * WP-3 PR 3.4 (SoftwareRenderSession end-state).
 * WP-7 PR 7.4 (`SoftwareRenderer` non più backend).
-* [`../stabilization-plan/06-renderer-plan.md`](../stabilization-plan/06-renderer-plan.md) (R3, R6).
+* [`../ARCHIVE/stabilization-plan/06-renderer-plan.md`](../ARCHIVE/stabilization-plan/06-renderer-plan.md) (R3, R6).

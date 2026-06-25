@@ -23,7 +23,6 @@
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/camera/lens_model.hpp>
 #include <chronon3d/scene/model/camera/camera_rig.hpp>
-#include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
 
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
@@ -271,65 +270,6 @@ camera_descriptor_from(const chronon3d::CameraShotProfile& shot,
                        RigBakeDensity density) {
     CameraDescriptor d = camera_descriptor_from(shot.rig, density);
     d.id = "adapter_camera_shot_profile";
-    return d;
-}
-
-// ───────────────────────────────────────────────────────────────────────────
-// Adapter 4: AnimatedCamera2_5D (legacy) → CameraDescriptor
-// ───────────────────────────────────────────────────────────────────────────
-CameraDescriptor
-camera_descriptor_from(const chronon3d::AnimatedCamera2_5D& cam,
-                       int total_frames,
-                       RigBakeDensity density) {
-    CameraDescriptor d;
-    d.id = "adapter_animated_camera_2_5d";
-
-    constexpr FrameRate kBakeFps{60, 1};
-    const int n = static_cast<int>(density);
-
-    PoseTracksSource pts;
-    pts.use_target = cam.point_of_interest_enabled;
-
-    for (int i = 0; i <= n; ++i) {
-        const double t = static_cast<double>(i) / static_cast<double>(n);
-        const int frame_at_st = static_cast<int>(std::round(t * total_frames));
-        const SampleTime st = SampleTime::from_frame(
-            static_cast<double>(frame_at_st), kBakeFps);
-
-        Camera2_5D legacy = cam.evaluate(st);
-
-        pts.position.key(Frame{frame_at_st}, legacy.position);
-        pts.rotation.key(Frame{frame_at_st}, legacy.rotation);
-        pts.target.key(Frame{frame_at_st}, legacy.point_of_interest);
-        pts.zoom.key(Frame{frame_at_st}, legacy.zoom);
-        pts.fov_deg.key(Frame{frame_at_st}, legacy.fov_deg);
-        pts.focus_distance.key(Frame{frame_at_st}, legacy.dof.focus_distance);
-        pts.aperture.key(Frame{frame_at_st}, legacy.dof.aperture);
-        pts.max_blur.key(Frame{frame_at_st}, legacy.dof.max_blur);
-    }
-
-    d.source = pts;
-
-    // Static base values from the legacy camera defaults.
-    const SampleTime kEpoch = SampleTime::from_frame(0.0, kBakeFps);
-    d.base.enabled = cam.enabled;
-    d.base.lens.focal_length   = cam.focal_length.evaluate(kEpoch);
-    d.base.lens.sensor_width   = cam.sensor_width.evaluate(kEpoch);
-    d.base.lens.sensor_height  = cam.sensor_height.evaluate(kEpoch);
-    d.base.lens.f_stop         = cam.f_stop.evaluate(kEpoch);
-    d.base.lens.close_focus    = cam.close_focus.evaluate(kEpoch);
-    d.base.lens.gate_fit       = cam.gate_fit;
-
-    d.base.dof.enabled            = cam.dof_enabled;
-    d.base.dof.use_physical_model = cam.use_physical_model;
-    d.base.dof.focus_z            = cam.focus_z.evaluate(kEpoch);
-    d.base.dof.aperture           = cam.aperture.evaluate(kEpoch);
-    d.base.dof.max_blur           = cam.max_blur.evaluate(kEpoch);
-    d.base.dof.focus_distance     = cam.focus_distance.evaluate(kEpoch);
-
-    d.base.point_of_interest_enabled = cam.point_of_interest_enabled;
-    d.base.point_of_interest = cam.point_of_interest.evaluate(kEpoch);
-
     return d;
 }
 

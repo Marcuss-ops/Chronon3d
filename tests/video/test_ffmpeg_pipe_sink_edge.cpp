@@ -7,10 +7,8 @@
 #include <thread>
 #include <vector>
 
-#if !defined(_WIN32)
 #include <sys/types.h>
 #include <signal.h>
-#endif
 
 using namespace chronon3d;
 using namespace chronon3d::media::video;

@@ -32,51 +32,33 @@ fi
 
 mkdir -p "$(dirname "$OUT")"
 
-# Helper: count matches safely under set -euo pipefail.
-# grep -c treats "no matches" as exit 0 with output "0", avoiding
-# the pipefail trap where `grep ... | wc -l` kills the script on zero hits.
-count_matches() {
-    local pattern="$1"
-    local file="$2"
-    grep -Ec "$pattern" "$file" 2>/dev/null || true
-}
-
-count_matches_recursive() {
-    local pattern="$1"
-    shift
-    grep -RIc "$pattern" "$@" 2>/dev/null | awk -F: '{s+=$NF} END{print s+0}'
-}
-
 # 1. Metriche di base.
 HDR_LOC=$(wc -l < "$HDR")
-NON_LOCAL_INC=$(count_matches '^#include <(chronon3d|backends)/' "$HDR")
-LOCAL_INC=$(count_matches '^#include "[^"]+"' "$HDR")
-GUARD_DEFS=$(count_matches '^#ifdef|^#if defined' "$CPP")
+NON_LOCAL_INC=$(grep -E '^#include <(chronon3d|backends)/' "$HDR" 2>/dev/null | wc -l)
+LOCAL_INC=$(grep -E '^#include "[^"]+"' "$HDR" 2>/dev/null | wc -l)
+GUARD_DEFS=$(grep -E '^#ifdef|^#if defined' "$CPP" 2>/dev/null | wc -l)
 
 # 2. Doppio rimbalzo: metodi del renderer che inoltrano a m_runtime->backend()
 # Sono candidati R3a per essere rimossi dal renderer.
-FWD_BACKEND=$(count_matches 'm_runtime->backend\(\)\.' "$CPP")
-FWD_RUNTIME=$(count_matches 'm_runtime->' "$CPP")
+FWD_BACKEND=$(grep -E 'm_runtime->backend\(\)\.' "$CPP" 2>/dev/null | wc -l)
+FWD_RUNTIME=$(grep -E 'm_runtime->' "$CPP" 2>/dev/null | wc -l)
 
 # 3. Doppia identità: SoftwareRenderer : public ... , public ... RenderBackend
 DUAL_INH=$(grep -nE 'class SoftwareRenderer\b.*:.*public\b' "$HDR" || true)
 
 # 4. dynamic_cast<SoftwareRenderer*> e static_cast in pipeline/processor
-CASTS=$(count_matches_recursive 'dynamic_cast<SoftwareRenderer' src/ include/ apps/)
-STATIC_CASTS=$(count_matches_recursive 'static_cast<SoftwareRenderer' src/ include/ apps/)
+CASTS=$(grep -RIn 'dynamic_cast<SoftwareRenderer' src/ include/ apps/ 2>/dev/null | wc -l)
+STATIC_CASTS=$(grep -RIn 'static_cast<SoftwareRenderer' src/ include/ apps/ 2>/dev/null | wc -l)
 
 # 5. SoftwareRenderer& nei processor / header di processo.
-PROC_USES=$(count_matches_recursive 'SoftwareRenderer&' \
+PROC_USES=$(grep -RIn 'SoftwareRenderer&' \
   src/backends/software/ \
   src/render_graph/ \
   src/runtime/ \
-  include/chronon3d/backends/software/)
+  include/chronon3d/backends/software/ \
+  2>/dev/null | wc -l)
 
 # 6. Metodi pubblici (euristica): righe di dichiarazione dentro il blocco public.
-# Use mktemp + trap to avoid collision between concurrent CI jobs.
-SW_PUBLIC_TMP="$(mktemp -t sw_public_methods.XXXXXX.txt)"
-trap 'rm -f "$SW_PUBLIC_TMP"' EXIT
-
 awk '
   BEGIN { p=0 }
 /^public:/ { p=1; next }
@@ -85,8 +67,8 @@ awk '
     sub(/^[[:space:]]+/, "")
     print
   }
-' "$HDR" | sort -u > "$SW_PUBLIC_TMP"
-PUB_COUNT=$(wc -l < "$SW_PUBLIC_TMP")
+' "$HDR" | sort -u > /tmp/sw_public_methods.txt
+PUB_COUNT=$(wc -l < /tmp/sw_public_methods.txt)
 
 # 7. RenderBackend override implementati nel renderer (candidati R3a per rimozione)
 RB_OVERRIDES=$(grep -E 'override' "$HDR" 2>/dev/null | wc -l)
@@ -122,7 +104,7 @@ RB_OVERRIDES=$(grep -E 'override' "$HDR" 2>/dev/null | wc -l)
   echo
   echo "## dynamic_cast / static_cast verso SoftwareRenderer"
   echo
-  echo "Trovati \`dynamic_cast<SoftwareRenderer*>\` = **${CASTS}**, \`static_cast<SoftwareRenderer*>\` = **${STATIC_CASTS}**."
+  echo "Trovati \`dynamic_cast<SoftwareDesigner*>\` = **${CASTS}**, \`static_cast<SoftwareRenderer*>\` = **${STATIC_CASTS}**."
   echo
   if [[ "$CASTS" -gt 0 ]]; then
     echo "Dettaglio \`dynamic_cast\`:"
@@ -152,7 +134,7 @@ RB_OVERRIDES=$(grep -E 'override' "$HDR" 2>/dev/null | wc -l)
   echo "## Metodi pubblici dell'header (euristica)"
   echo
   echo '```text'
-  cat "$SW_PUBLIC_TMP" | sed 's|^|  |'
+  cat /tmp/sw_public_methods.txt | sed 's|^|  |'
   echo '```'
   echo
   echo "## Classificazione per categoria"

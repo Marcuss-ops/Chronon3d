@@ -10,18 +10,13 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
 if(NOT DEFINED CMAKE_TOOLCHAIN_FILE AND NOT DEFINED VCPKG_CHAINLOAD_TOOLCHAIN_FILE)
     message(WARNING "vcpkg toolchain not detected. Dependencies are strict and might fail to configure. Please use a CMake preset (e.g., --preset linux-release) or set CMAKE_TOOLCHAIN_FILE to vcpkg.cmake.")
 endif()
 
 # --- Opzioni di Compilazione Globali ---
-if(MSVC)
-    add_compile_options(/utf-8 /FS /EHsc /fp:strict)
-else()
-    add_compile_options(-ffp-contract=off)
-endif()
+add_compile_options(-ffp-contract=off)
 
 # --- Configurazione Strumenti di Build (ccache / linkers) ---
 if(NOT DEFINED CMAKE_CXX_COMPILER_LAUNCHER AND DEFINED ENV{CMAKE_CXX_COMPILER_LAUNCHER})
@@ -38,7 +33,7 @@ if(NOT CMAKE_CXX_COMPILER_LAUNCHER)
     endif()
 endif()
 
-if(NOT MSVC AND NOT CMAKE_CXX_LINKER_LAUNCHER)
+if(NOT CMAKE_CXX_LINKER_LAUNCHER)
     find_program(MOLD_PROGRAM mold)
     if(MOLD_PROGRAM)
         message(STATUS "mold found: ${MOLD_PROGRAM}")
@@ -170,13 +165,6 @@ if(NOT CHRONON3D_GIT_COMMIT)
     set(CHRONON3D_GIT_COMMIT "unknown")
 endif()
 
-# ── Central module registry ───────────────────────────────────
-# Includes CHRONON3D_REGISTRY_OBJECT_LIBS and CHRONON3D_REGISTRY_INTERFACE_LIBS.
-# Must be included BEFORE add_subdirectory(src) so the variable lists are
-# available when src/CMakeLists.txt runs (the foreach loops consume the
-# lists AFTER all add_subdirectory calls have created the targets).
-include(cmake/Chronon3DRegistry.cmake)
-
 add_subdirectory(src)
 
 # 10. Content Generation (optional — proofs/demos, not core engine)
@@ -218,10 +206,8 @@ endif()
 #      [BOUNDARY-OK] marker.
 #
 # Wired into CI via the linux-ci preset cache var
-# `CHRONON3D_BUILD_INSTALL_CONSUMER_TEST=ON`.  Exit code 2 is mapped to
-# CTest SKIP so that pre-existing SDK-side TU breakage (e.g.
-# chronon3d::cache::FramebufferPool signature drift from TICKET-011)
-# surfaces as a SKIP, not as a boundary regression.
+# `CHRONON3D_BUILD_INSTALL_CONSUMER_TEST=ON`.  The consumer renders a
+# real composition (text + camera → PNG) and verifies the output.
 option(CHRONON3D_BUILD_INSTALL_CONSUMER_TEST
     "Run the end-to-end SDK install-boundary check via tools/install_consumer_test.sh. CTest registers install_consumer_ci; orchestrator exit code 2 maps to CTEST SKIP. Enable via the linux-ci preset or -DCHRONON3D_BUILD_INSTALL_CONSUMER_TEST=ON."
     OFF)
@@ -234,17 +220,8 @@ if(CHRONON3D_BUILD_INSTALL_CONSUMER_TEST AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # scratch (rare, but covered for legibility).  FAST path reuses the
     # existing build artifact and completes in seconds.
     set_tests_properties(install_consumer_ci PROPERTIES
-        SKIP_RETURN_CODE 2
         TIMEOUT 900
         LABELS "boundary;ci"
-        # Forward the active toolchain file so the standalone consumer configure
-        # step (running inside ctest) can locate deps that vcpkg has installed
-        # (e.g. spdlog, which is a transitive `find_dependency(spdlog CONFIG)`
-        # declared by Chronon3DConfig.cmake) without polluting the SDK install
-        # prefix.
-        # Also forward the parent's CMAKE_PREFIX_PATH so the consumer's
-        # standalone configure can locate the vcpkg-installed spdlog; the test
-        # script appends (does not overwrite) this on its `cmake` invocation.
         ENVIRONMENT "CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE};CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}"
     )
 endif()
@@ -358,23 +335,78 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
 # The exported targets are kept under their raw names so the transitive
 # link closure resolves through `Chronon3D::SDK` without exposing
 # per-subsystem IMPORTED targets to consumers.
-# ── Install / export target list — derived from central registry ───
-# Replaces the previously manual _chronon3d_install_targets list +
-# per-feature conditional APPEND blocks (~60 lines) with two
-# foreach-if-TARGET loops consuming cmake/Chronon3DRegistry.cmake.
-# Conditional targets gated by CHRONON3D_ENABLE_*/USE_*/BUILD_*
-# options are handled by `if(TARGET …)` — no manual guard needed.
-set(_chronon3d_install_targets)
-foreach(_reg_obj IN LISTS CHRONON3D_REGISTRY_OBJECT_LIBS)
-    if(TARGET ${_reg_obj})
-        list(APPEND _chronon3d_install_targets ${_reg_obj})
-    endif()
-endforeach()
-foreach(_reg_iface IN LISTS CHRONON3D_REGISTRY_INTERFACE_LIBS)
-    if(TARGET ${_reg_iface})
-        list(APPEND _chronon3d_install_targets ${_reg_iface})
-    endif()
-endforeach()
+set(_chronon3d_install_targets
+    # Consumer-facing — this is the only target that gets the
+    # `Chronon3D::SDK` namespace alias.
+    chronon3d_sdk
+    # Single aggregated linkable archive.
+    chronon3d_sdk_impl
+    # Aggregate INTERFACE libraries (logical groupers; propagate OBJECT
+    # deps transitively at build-time via $<BUILD_INTERFACE:…> in
+    # chronon3d_sdk's link closure).
+    chronon3d_pipeline
+    chronon3d_core
+    chronon3d_software
+    chronon3d_graph
+    chronon3d_media_interface
+    chronon3d
+    # Per-subsystem OBJECT libraries — included so `install(EXPORT)`
+    # does not flag them as `not in any export set`.  They produce no
+    # installable file; their .o files are bundled into
+    # `libchronon3d_sdk_impl.a` at aggregate-link time.
+    chronon3d_core_impl
+    chronon3d_animations
+    chronon3d_cache
+    chronon3d_effects
+    chronon3d_registry
+    chronon3d_assets
+    chronon3d_scene
+    chronon3d_runtime
+    chronon3d_extension
+    chronon3d_text_core
+    chronon3d_backend_image
+    chronon3d_backend_software
+    chronon3d_backend_assets
+    chronon3d_graph_core
+    chronon3d_graph_nodes
+    chronon3d_graph_builder
+    chronon3d_graph_compiler
+    chronon3d_graph_executor
+    chronon3d_graph_preflight
+    chronon3d_graph_cache
+    chronon3d_graph_pipeline
+)
+
+# Conditional subsystems — included for EXPORT-graph participation when
+# the feature is enabled; skip otherwise.
+if(CHRONON3D_ENABLE_VIDEO)
+    list(APPEND _chronon3d_install_targets
+        chronon3d_backend_video
+        chronon3d_media_video
+    )
+endif()
+if(CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D)
+    list(APPEND _chronon3d_install_targets chronon3d_backend_text)
+endif()
+if(CHRONON3D_USE_BLEND2D)
+    list(APPEND _chronon3d_install_targets chronon3d_blend2d_paint)
+endif()
+if(CHRONON3D_BUILD_DIAGNOSTICS)
+    list(APPEND _chronon3d_install_targets chronon3d_backend_software_diagnostics)
+endif()
+if(CHRONON3D_BUILD_CONTENT OR CHRONON3D_BUILD_DIAGNOSTICS)
+    list(APPEND _chronon3d_install_targets chronon3d_content)
+endif()
+if(CHRONON3D_BUILD_DIAGNOSTICS)
+    list(APPEND _chronon3d_install_targets chronon3d_diagnostics)
+endif()
+
+if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    list(APPEND _chronon3d_install_targets
+        chronon3d_ffmpeg_light
+        chronon3d_ffmpeg_full
+    )
+endif()
 
 install(TARGETS ${_chronon3d_install_targets}
     EXPORT Chronon3DTargets

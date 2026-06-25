@@ -43,8 +43,6 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/scene/builders/text_run_builder.hpp>
-#include <chronon3d/core/types/sample_time.hpp>
 #include <tests/helpers/test_utils.hpp>
 #include <tests/helpers/pixel_assertions.hpp>
 #include <tests/helpers/render_fixtures.hpp>
@@ -57,22 +55,10 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include <glm/gtc/matrix_transform.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::test;
 using chronon3d::content::text::centered_text;
-// TICKET-038 / TXT-00 — bring the canonical text-options + registry
-// symbols into TU scope. `CenterTextOptions` lives in
-// `chronon3d::content::text` (sibling of `centered_text`); the registry
-// trio (`TextPreset` / `TextPresetRegistry` /
-// `make_default_text_preset_registry`) lives in `chronon3d::registry`
-// and is not transitively pulled by `using namespace chronon3d`,
-// so it must be qualified explicitly.
-using chronon3d::content::text::CenterTextOptions;
-using chronon3d::registry::TextPreset;
-using chronon3d::registry::TextPresetRegistry;
-using chronon3d::registry::make_default_text_preset_registry;
 
 namespace {
 
@@ -82,19 +68,6 @@ constexpr std::uint64_t kUncapturedSentinel = 0xDEADBEEFDEADBEEFULL;
 inline bool is_reference_captured(std::uint64_t r) noexcept {
     return r != kUncapturedSentinel;
 }
-
-// TICKET-038 / TXT-00 — POD `RectF`. The SDK has no public canonical
-// RectF; the 8-metric ScenarioMetrics canon (PR-A3 /
-// docs/01-baseline-green.md §2.4-2.5) uses
-// `RectF{float,float,float,float}` (x0,y0,w,h). TXT-00 forbids cross-
-// package aliasing and renaming canonical types, so each test TU that
-// needs the metric declares a 4-float POD inside its own anonymous
-// namespace. Default member initializers keep it an aggregate under
-// C++17/20, so both `RectF{}` (value-init) and aggregate positional
-// initialisation (`RectF{a,b,c,d}`) still compile.
-struct RectF {
-    float x{0.0f}, y{0.0f}, w{0.0f}, h{0.0f};
-};
 
 // ── 8-metric ScenarioMetrics canon (PR-A3 / docs/01-baseline-green.md §2.4-2.5)
 struct ScenarioMetrics {
@@ -154,126 +127,16 @@ inline ScenarioMetrics compute_metrics(const Framebuffer& fb,
 // (reviewer feedback on PR-A3 amend). 'short_label' is a stable token used
 // by the grep-based capture workflow. NOT auto-derived from a TEST_CASE name
 // to avoid whitespace / special-character fragility.
-//
-// TICKET-038 / TXT-00 — `emit_preset_gate` declares an outer
-// `auto m = compute_metrics(...)` and passes `m` as `metrics_expr`
-// here; the original macro body re-declared `auto m = (m)` which the
-// compiler correctly rejects ("use of 'm' before deduction of 'auto'")
-// because the RHS `m` referred to the freshly-introduced local, not
-// the outer.  Renamed the macro-local binding to `gate_m` so the RHS
-// unambiguously refers to the caller's `m` (or to a fresh expression
-// when the caller passes one inline). TU-local rename; no canonical
-// type touched.
-//
-// ── VisualExpectation (Blocco 2) ─────────────────────────────────────────
-// Replaces the audit-flagged binary `expected_visible` (which conflated
-// "intentionally transparent entrance" with "sub-threshold mid-animation"
-// — both produced ink_pixels == 0 under the 0.05 alpha filter in
-// compute_metrics). Four states, each sentinel declares its outcome once:
-//
-//   * Transparent       — frame is INTENTIONALLY blank (entrance
-//                         opacity=0 at F000, etc.); ink_pixels == 0.
-//   * PartialCoverage   — frame has SOME ink above the 0.05 alpha
-//                         filter but is mid-animation (diluted alpha,
-//                         vertically compressed copy): 0 < ink_pixels
-//                         < kVisibleMinPixels. Covers the audit-cited
-//                         BlurIn F020 (focus_in blur) and
-//                         MaskedLineReveal F020 (center_split scale_y).
-//   * Visible           — frame has substantial text render;
-//                         ink_pixels >= kVisibleMinPixels.
-//   * GoldenReference   — PLACEHOLDER for Blocco 3 (PNG dump + hash
-//                         capture + bbox + coverage comparison). No
-//                         current sentinel uses this — it's declared
-//                         so future sentinels can declare intent
-//                         without re-shaping the enum.
-//
-// Threshold kVisibleMinPixels = 2500 was chosen empirically from the
-// observed distribution on HEAD 3f14e101: minimum non-zero ink_pixels
-// in current rendering is 2601; partial/mid-animation frames (F020
-// BlurIn, F020 MaskedLineReveal) sit at ink_pixels == 0 because the
-// 0.05 alpha filter in compute_metrics suppresses diluted pixels —
-// those are caught by PartialCoverage's permissive lower bound. A
-// future Blocco 3 PR will introduce real GoldenReference matching
-// and may re-tune this threshold if alpha_coverage ratios prove better.
-enum class VisualExpectation {
-    Transparent,
-    PartialCoverage,
-    Visible,
-    GoldenReference,
-};
-
-inline std::string_view expectation_name(VisualExpectation e) {
-    switch (e) {
-        case VisualExpectation::Transparent:     return "Transparent";
-        case VisualExpectation::PartialCoverage: return "PartialCoverage";
-        case VisualExpectation::Visible:         return "Visible";
-        case VisualExpectation::GoldenReference: return "GoldenReference";
-    }
-    // unreachable on a well-formed enum value; suppresses -Wswitch warning
-    // on compilers that don't track switch exhaustiveness on enum class.
-    return "Unknown";
-}
-
-// Empirical gap between Transparent/PartialCoverage and Visible. Re-tune if
-// the visible ink minimum moves below this floor; Blocco 3 will replace
-// ink-based checks with hash capture, after which this constant is retired.
-// The observed distribution that calibrates this value lives in the Blocco 2
-// baseline doc under docs/baselines/ — do not duplicate here to avoid drift.
-constexpr std::size_t kVisibleMinPixels = 2500;
-
-// Sentinel-gate macro for Text Preset visual regression. 'short_label' is a
-// stable token used by the grep-based capture workflow. NOT auto-derived
-// from a TEST_CASE name to avoid whitespace / special-character fragility.
-//
-// Branch semantics (kept intentionally lean — no body comments; see the
-// VisualExpectation enum block above for the WHY behind each branch):
-//
-//   Transparent      → frame is intentionally blank. ink_pixels == 0.
-//   PartialCoverage  → frame is mid-animation (diluted alpha or compressed
-//                      layout — the audit-cited BlurIn F020 focus_in blur
-//                      and MaskedLineReveal F020 center_split scale_y both
-//                      produce ink == 0 under the 0.05 alpha filter in
-//                      compute_metrics()). Permissive upper bound only; do
-//                      NOT add a hard ink > 0 lower bound here, or those
-//                      frames would FAIL and revert the bug this enum was
-//                      meant to fix. Blocco 3 will tighten via hash gating.
-//   Visible          → frame has substantial text render.
-//                      ink_pixels >= kVisibleMinPixels (gap between
-//                      Transparent+PartialCoverage and full-render frames).
-//   GoldenReference  → PLACEHOLDER for Blocco 3 (hash + bbox + PNG compare).
-//                      Any sentinel tagged this today FAILS the build until
-//                      the hash gate lands — a CI landmine guard, NOT a
-//                      silent placeholder.
-//
-// TICKET-038: `emit_preset_gate` declares an outer `auto m = compute_metrics(...)`
-// and passes `m` as `metrics_expr` here; the macro-local binding is named
-// `gate_m` so the RHS `auto gate_m = (metrics_expr)` unambiguously receives
-// the caller's `m` (or fresh inline expression). TU-local rename only.
-#define VR_TEXT_PRESET_GATE(short_label, kref, metrics_expr, expectation)   \
+#define VR_TEXT_PRESET_GATE(short_label, kref, metrics_expr)              \
     do {                                                                   \
-        auto gate_m = (metrics_expr);                                       \
+        auto m = (metrics_expr);                                            \
         if (is_reference_captured(kref)) {                                  \
-            REQUIRE(gate_m.hash == kref);                                   \
+            REQUIRE(m.hash == kref);                                        \
         } else {                                                            \
             MESSAGE("VR/Text/" << short_label                               \
-                    << " unset; first hash to capture: " << gate_m.hash);   \
+                    << " unset; first hash to capture: " << m.hash);        \
         }                                                                   \
-        MESSAGE("VR/Text/" << short_label                                   \
-                << " gate=" << expectation_name(expectation)                \
-                << " ink_pixels=" << gate_m.ink_pixels                      \
-                << " alpha_coverage=" << gate_m.alpha_coverage);            \
-        if (expectation == VisualExpectation::Transparent) {               \
-            CHECK(gate_m.ink_pixels == 0);                                  \
-        } else if (expectation == VisualExpectation::PartialCoverage) {     \
-            CHECK(gate_m.ink_pixels < kVisibleMinPixels);                   \
-        } else if (expectation == VisualExpectation::Visible) {             \
-            CHECK(gate_m.ink_pixels >= kVisibleMinPixels);                  \
-        } else if (expectation == VisualExpectation::GoldenReference) {     \
-            FAIL_CHECK("TODO Blocco 3 — GoldenReference matches PNG dump +"  \
-                       " hash capture which are not yet implemented; tag"   \
-                       " this sentinel with VisualExpectation::{Transparent,"\
-                       "PartialCoverage,Visible} instead.");                  \
-        }                                                                   \
+        CHECK(m.ink_pixels > 0);                                            \
     } while (0)
 
 // ── Aspect ratio helpers ─────────────────────────────────────────────────
@@ -286,182 +149,38 @@ inline AspectSpec aspect_dims(AspectRatio r) {
                                     : AspectSpec{1080, 1920};
 }
 
-// ── 128 explicit sentinel constants (16 presets × 8 each)
-//
-// Captured 2026-06-24 from main@56cde97fd9 (build RC=0, run RC=0,
-// 3-run determinism: hashes identical across consecutive runs).
-// Each sentinel stores the observed framebuffer_hash for the
-// (preset, ratio, frame) point. Multiple sentinels may share
-// the same observed hash (e.g. all 32 Transparent + PartialCoverage
-// sentinels render an all-zero-alpha framebuffer that hashes to
-// the same value across presets — this is by design, not a capture
-// bug). When the hash gate engages (is_reference_captured returns
-// true for each), VR_TEXT_PRESET_GATE will REQUIRE the observed
-// hash matches; any rendering drift that produces a different
-// framebuffer state will trigger a doc-test failure.
+// ── 128 sentinel constants (16 presets × 8 each) via DECLARE_TEXT_PRESET_REFS
+#define DECLARE_TEXT_PRESET_REFS(prefix)                                  \
+    constexpr std::uint64_t kRefTextPres##prefix##_169_F000 = kUncapturedSentinel; \
+    constexpr std::uint64_t kRefTextPres##prefix##_169_F020 = kUncapturedSentinel; \
+    constexpr std::uint64_t kRefTextPres##prefix##_169_F030 = kUncapturedSentinel; \
+    constexpr std::uint64_t kRefTextPres##prefix##_169_F040 = kUncapturedSentinel; \
+    constexpr std::uint64_t kRefTextPres##prefix##_916_F000 = kUncapturedSentinel; \
+    constexpr std::uint64_t kRefTextPres##prefix##_916_F020 = kUncapturedSentinel; \
+    constexpr std::uint64_t kRefTextPres##prefix##_916_F030 = kUncapturedSentinel; \
+    constexpr std::uint64_t kRefTextPres##prefix##_916_F040 = kUncapturedSentinel;
 
 // Reveal (10)
-constexpr std::uint64_t kRefTextPresTextAnimations_169_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresTextAnimations_169_F020 = 0xC6A045F7AD1A0327ULL;
-constexpr std::uint64_t kRefTextPresTextAnimations_169_F030 = 0xC6A045F7AD1A0327ULL;
-constexpr std::uint64_t kRefTextPresTextAnimations_169_F040 = 0xC6A045F7AD1A0327ULL;
-
-constexpr std::uint64_t kRefTextPresTextAnimations_916_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresTextAnimations_916_F020 = 0xB6B2271F075C563EULL;
-constexpr std::uint64_t kRefTextPresTextAnimations_916_F030 = 0xB6B2271F075C563EULL;
-constexpr std::uint64_t kRefTextPresTextAnimations_916_F040 = 0xB6B2271F075C563EULL;
-
-constexpr std::uint64_t kRefTextPresFadeIn_169_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresFadeIn_169_F020 = 0x27AA41CD4F05D75CULL;
-constexpr std::uint64_t kRefTextPresFadeIn_169_F030 = 0x27AA41CD4F05D75CULL;
-constexpr std::uint64_t kRefTextPresFadeIn_169_F040 = 0x27AA41CD4F05D75CULL;
-
-constexpr std::uint64_t kRefTextPresFadeIn_916_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresFadeIn_916_F020 = 0x6AD1620C3845F8EDULL;
-constexpr std::uint64_t kRefTextPresFadeIn_916_F030 = 0x6AD1620C3845F8EDULL;
-constexpr std::uint64_t kRefTextPresFadeIn_916_F040 = 0x6AD1620C3845F8EDULL;
-
-constexpr std::uint64_t kRefTextPresBlurIn_169_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresBlurIn_169_F020 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresBlurIn_169_F030 = 0xDFCB192ADA69503AULL;
-constexpr std::uint64_t kRefTextPresBlurIn_169_F040 = 0xDFCB192ADA69503AULL;
-
-constexpr std::uint64_t kRefTextPresBlurIn_916_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresBlurIn_916_F020 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresBlurIn_916_F030 = 0x6A8A5E5F038BD129ULL;
-constexpr std::uint64_t kRefTextPresBlurIn_916_F040 = 0x6A8A5E5F038BD129ULL;
-
-constexpr std::uint64_t kRefTextPresSlideUp_169_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresSlideUp_169_F020 = 0xFC161DFF734E490FULL;
-constexpr std::uint64_t kRefTextPresSlideUp_169_F030 = 0xFC161DFF734E490FULL;
-constexpr std::uint64_t kRefTextPresSlideUp_169_F040 = 0xFC161DFF734E490FULL;
-
-constexpr std::uint64_t kRefTextPresSlideUp_916_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresSlideUp_916_F020 = 0x0FD52CD0B591CDB4ULL;
-constexpr std::uint64_t kRefTextPresSlideUp_916_F030 = 0x0FD52CD0B591CDB4ULL;
-constexpr std::uint64_t kRefTextPresSlideUp_916_F040 = 0x0FD52CD0B591CDB4ULL;
-
-constexpr std::uint64_t kRefTextPresSlideDown_169_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresSlideDown_169_F020 = 0xE59D392631667582ULL;
-constexpr std::uint64_t kRefTextPresSlideDown_169_F030 = 0xE59D392631667582ULL;
-constexpr std::uint64_t kRefTextPresSlideDown_169_F040 = 0xE59D392631667582ULL;
-
-constexpr std::uint64_t kRefTextPresSlideDown_916_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresSlideDown_916_F020 = 0x4ACE36B7135C6526ULL;
-constexpr std::uint64_t kRefTextPresSlideDown_916_F030 = 0x4ACE36B7135C6526ULL;
-constexpr std::uint64_t kRefTextPresSlideDown_916_F040 = 0x4ACE36B7135C6526ULL;
-
-constexpr std::uint64_t kRefTextPresScaleIn_169_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresScaleIn_169_F020 = 0x59356830127DB75CULL;
-constexpr std::uint64_t kRefTextPresScaleIn_169_F030 = 0x59356830127DB75CULL;
-constexpr std::uint64_t kRefTextPresScaleIn_169_F040 = 0x59356830127DB75CULL;
-
-constexpr std::uint64_t kRefTextPresScaleIn_916_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresScaleIn_916_F020 = 0x1C7A03DA4E64D649ULL;
-constexpr std::uint64_t kRefTextPresScaleIn_916_F030 = 0x1C7A03DA4E64D649ULL;
-constexpr std::uint64_t kRefTextPresScaleIn_916_F040 = 0x1C7A03DA4E64D649ULL;
-
-constexpr std::uint64_t kRefTextPresTrackingClose_169_F000 = 0xA6F11B03D157CA36ULL;
-constexpr std::uint64_t kRefTextPresTrackingClose_169_F020 = 0xA6F11B03D157CA36ULL;
-constexpr std::uint64_t kRefTextPresTrackingClose_169_F030 = 0xA6F11B03D157CA36ULL;
-constexpr std::uint64_t kRefTextPresTrackingClose_169_F040 = 0xA6F11B03D157CA36ULL;
-
-constexpr std::uint64_t kRefTextPresTrackingClose_916_F000 = 0x4EDB69A1F97FF896ULL;
-constexpr std::uint64_t kRefTextPresTrackingClose_916_F020 = 0x4EDB69A1F97FF896ULL;
-constexpr std::uint64_t kRefTextPresTrackingClose_916_F030 = 0x4EDB69A1F97FF896ULL;
-constexpr std::uint64_t kRefTextPresTrackingClose_916_F040 = 0x4EDB69A1F97FF896ULL;
-
-constexpr std::uint64_t kRefTextPresMaskedLineReveal_169_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresMaskedLineReveal_169_F020 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresMaskedLineReveal_169_F030 = 0x0F44807361BA6E90ULL;
-constexpr std::uint64_t kRefTextPresMaskedLineReveal_169_F040 = 0x0F44807361BA6E90ULL;
-
-constexpr std::uint64_t kRefTextPresMaskedLineReveal_916_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresMaskedLineReveal_916_F020 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresMaskedLineReveal_916_F030 = 0xD566CEBA7F5907F8ULL;
-constexpr std::uint64_t kRefTextPresMaskedLineReveal_916_F040 = 0xD566CEBA7F5907F8ULL;
-
-constexpr std::uint64_t kRefTextPresWordCascade_169_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresWordCascade_169_F020 = 0x27AA41CD4F05D75CULL;
-constexpr std::uint64_t kRefTextPresWordCascade_169_F030 = 0x27AA41CD4F05D75CULL;
-constexpr std::uint64_t kRefTextPresWordCascade_169_F040 = 0x27AA41CD4F05D75CULL;
-
-constexpr std::uint64_t kRefTextPresWordCascade_916_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresWordCascade_916_F020 = 0x6AD1620C3845F8EDULL;
-constexpr std::uint64_t kRefTextPresWordCascade_916_F030 = 0x6AD1620C3845F8EDULL;
-constexpr std::uint64_t kRefTextPresWordCascade_916_F040 = 0x6AD1620C3845F8EDULL;
-
-constexpr std::uint64_t kRefTextPresCharacterCascade_169_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresCharacterCascade_169_F020 = 0x27AA41CD4F05D75CULL;
-constexpr std::uint64_t kRefTextPresCharacterCascade_169_F030 = 0x27AA41CD4F05D75CULL;
-constexpr std::uint64_t kRefTextPresCharacterCascade_169_F040 = 0x27AA41CD4F05D75CULL;
-
-constexpr std::uint64_t kRefTextPresCharacterCascade_916_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresCharacterCascade_916_F020 = 0x6AD1620C3845F8EDULL;
-constexpr std::uint64_t kRefTextPresCharacterCascade_916_F030 = 0x6AD1620C3845F8EDULL;
-constexpr std::uint64_t kRefTextPresCharacterCascade_916_F040 = 0x6AD1620C3845F8EDULL;
-
+DECLARE_TEXT_PRESET_REFS(TextAnimations)
+DECLARE_TEXT_PRESET_REFS(FadeIn)
+DECLARE_TEXT_PRESET_REFS(BlurIn)
+DECLARE_TEXT_PRESET_REFS(SlideUp)
+DECLARE_TEXT_PRESET_REFS(SlideDown)
+DECLARE_TEXT_PRESET_REFS(ScaleIn)
+DECLARE_TEXT_PRESET_REFS(TrackingClose)
+DECLARE_TEXT_PRESET_REFS(MaskedLineReveal)
+DECLARE_TEXT_PRESET_REFS(WordCascade)
+DECLARE_TEXT_PRESET_REFS(CharacterCascade)
 // Emphasis (4)
-constexpr std::uint64_t kRefTextPresWordPop_169_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresWordPop_169_F020 = 0x12F47704662555FEULL;
-constexpr std::uint64_t kRefTextPresWordPop_169_F030 = 0x12F47704662555FEULL;
-constexpr std::uint64_t kRefTextPresWordPop_169_F040 = 0x12F47704662555FEULL;
-
-constexpr std::uint64_t kRefTextPresWordPop_916_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresWordPop_916_F020 = 0xB500B523E8B2386DULL;
-constexpr std::uint64_t kRefTextPresWordPop_916_F030 = 0xB500B523E8B2386DULL;
-constexpr std::uint64_t kRefTextPresWordPop_916_F040 = 0xB500B523E8B2386DULL;
-
-constexpr std::uint64_t kRefTextPresScalePunch_169_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresScalePunch_169_F020 = 0x925D84677F40E896ULL;
-constexpr std::uint64_t kRefTextPresScalePunch_169_F030 = 0x925D84677F40E896ULL;
-constexpr std::uint64_t kRefTextPresScalePunch_169_F040 = 0x925D84677F40E896ULL;
-
-constexpr std::uint64_t kRefTextPresScalePunch_916_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresScalePunch_916_F020 = 0x50E732BAC355B50FULL;
-constexpr std::uint64_t kRefTextPresScalePunch_916_F030 = 0x50E732BAC355B50FULL;
-constexpr std::uint64_t kRefTextPresScalePunch_916_F040 = 0x50E732BAC355B50FULL;
-
-constexpr std::uint64_t kRefTextPresColorAccent_169_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresColorAccent_169_F020 = 0x27AA41CD4F05D75CULL;
-constexpr std::uint64_t kRefTextPresColorAccent_169_F030 = 0x27AA41CD4F05D75CULL;
-constexpr std::uint64_t kRefTextPresColorAccent_169_F040 = 0x27AA41CD4F05D75CULL;
-
-constexpr std::uint64_t kRefTextPresColorAccent_916_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresColorAccent_916_F020 = 0x6AD1620C3845F8EDULL;
-constexpr std::uint64_t kRefTextPresColorAccent_916_F030 = 0x6AD1620C3845F8EDULL;
-constexpr std::uint64_t kRefTextPresColorAccent_916_F040 = 0x6AD1620C3845F8EDULL;
-
-constexpr std::uint64_t kRefTextPresGradientFill_169_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresGradientFill_169_F020 = 0x28E291D3D7F8CD29ULL;
-constexpr std::uint64_t kRefTextPresGradientFill_169_F030 = 0x28E291D3D7F8CD29ULL;
-constexpr std::uint64_t kRefTextPresGradientFill_169_F040 = 0x28E291D3D7F8CD29ULL;
-
-constexpr std::uint64_t kRefTextPresGradientFill_916_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresGradientFill_916_F020 = 0xA1E89278EF91ACB9ULL;
-constexpr std::uint64_t kRefTextPresGradientFill_916_F030 = 0xA1E89278EF91ACB9ULL;
-constexpr std::uint64_t kRefTextPresGradientFill_916_F040 = 0xA1E89278EF91ACB9ULL;
-
+DECLARE_TEXT_PRESET_REFS(WordPop)
+DECLARE_TEXT_PRESET_REFS(ScalePunch)
+DECLARE_TEXT_PRESET_REFS(ColorAccent)
+DECLARE_TEXT_PRESET_REFS(GradientFill)
 // Subtitle (2 — caption_box + glow_pulse deferred to A4.1)
-constexpr std::uint64_t kRefTextPresMinimalWhite_169_F000 = 0x27AA41CD4F05D75CULL;
-constexpr std::uint64_t kRefTextPresMinimalWhite_169_F020 = 0x27AA41CD4F05D75CULL;
-constexpr std::uint64_t kRefTextPresMinimalWhite_169_F030 = 0x27AA41CD4F05D75CULL;
-constexpr std::uint64_t kRefTextPresMinimalWhite_169_F040 = 0x27AA41CD4F05D75CULL;
+DECLARE_TEXT_PRESET_REFS(MinimalWhite)
+DECLARE_TEXT_PRESET_REFS(YellowKeyword)
 
-constexpr std::uint64_t kRefTextPresMinimalWhite_916_F000 = 0x6AD1620C3845F8EDULL;
-constexpr std::uint64_t kRefTextPresMinimalWhite_916_F020 = 0x6AD1620C3845F8EDULL;
-constexpr std::uint64_t kRefTextPresMinimalWhite_916_F030 = 0x6AD1620C3845F8EDULL;
-constexpr std::uint64_t kRefTextPresMinimalWhite_916_F040 = 0x6AD1620C3845F8EDULL;
-
-constexpr std::uint64_t kRefTextPresYellowKeyword_169_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresYellowKeyword_169_F020 = 0x27AA41CD4F05D75CULL;
-constexpr std::uint64_t kRefTextPresYellowKeyword_169_F030 = 0x27AA41CD4F05D75CULL;
-constexpr std::uint64_t kRefTextPresYellowKeyword_169_F040 = 0x27AA41CD4F05D75CULL;
-
-constexpr std::uint64_t kRefTextPresYellowKeyword_916_F000 = 0xCA7F696086E7F8B4ULL;
-constexpr std::uint64_t kRefTextPresYellowKeyword_916_F020 = 0x6AD1620C3845F8EDULL;
-constexpr std::uint64_t kRefTextPresYellowKeyword_916_F030 = 0x6AD1620C3845F8EDULL;
-constexpr std::uint64_t kRefTextPresYellowKeyword_916_F040 = 0x6AD1620C3845F8EDULL;
+#undef DECLARE_TEXT_PRESET_REFS
 
 // ── Helper: CenterTextOptions builder for preset-text baseline ───────────
 inline CenterTextOptions make_preset_base_opts(const std::string& text,
@@ -510,7 +229,6 @@ static const TextPresetRegistry kTextPresetRegistry = []{
 inline Composition build_preset_composition(const std::string& preset_id,
                                              AspectRatio r,
                                              int t_frame,
-                                             FontEngine* font_engine = nullptr,
                                              int fps = 30) {
     AspectSpec d = aspect_dims(r);
     const TextPreset& preset = kTextPresetRegistry.get(preset_id);  // throws if id absent
@@ -521,18 +239,13 @@ inline Composition build_preset_composition(const std::string& preset_id,
          .width = d.width, .height = d.height,
          .frame_rate = FrameRate{fps, 1},
          .duration = 60},
-        [preset, preset_id, t_frame, r, font_engine](const FrameContext& ctx) -> Scene {
+        [preset, preset_id, t_frame, r](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
-            if (font_engine) s.font_engine(font_engine);
             TextSpec base = centered_text(
                 make_preset_base_opts("THE QUICK BROWN FOX JUMPS",
                                        aspect_dims(r)));
             s.layer("hero", [&s, &preset, base](LayerBuilder& l) {
-                // The preset builder (wire_through_resolver) already creates the
-                // canonical text-run entry.  A second l.text(…) call would produce
-                // a duplicate RenderNode at the same position, routing through
-                // MultiSourceNode instead of TextRunNode — the duplicate's animators
-                // (fade_in / scale_drop) can blank the static text at early frames.
+                l.text("k", base);
                 if (preset.builder) {
                     preset.builder(s, l, base);
                 }
@@ -542,25 +255,20 @@ inline Composition build_preset_composition(const std::string& preset_id,
 }
 
 // ── Helper: render one (preset, ratio, frame) point and route through
-//    the sentinel gate. `expected_visible` distinguishes reveal presets
-//    that are intentionally transparent at early frames (fade_in / soft_pop
-//    set opacity=0 at F000) from presets that should always be visible
-//    (e.g. minimal_white, tracking_close — no entrance opacity animation).
-//    One line per emit call keeps the 16 TEST_CASE bodies short and
-//    grep-friendly for capture workflow.
+//    the sentinel gate. One line per emit call keeps the 16 TEST_CASE
+//    bodies short and grep-friendly for capture workflow.
 inline void emit_preset_gate(SoftwareRenderer& renderer,
                               const std::string& preset_id,
                               AspectRatio r,
                               int t_frame,
                               std::uint64_t kref,
-                              const std::string& short_label,
-                              VisualExpectation expectation) {
-    auto comp = build_preset_composition(preset_id, r, t_frame, &renderer.font_engine(), 30);
+                              const std::string& short_label) {
+    auto comp = build_preset_composition(preset_id, r, t_frame, 30);
     auto t0 = std::chrono::steady_clock::now();
     auto fb = renderer.render_frame(comp, Frame{t_frame});
     REQUIRE(fb != nullptr);
     auto m = compute_metrics(*fb, t0);
-    VR_TEXT_PRESET_GATE(short_label, kref, m, expectation);
+    VR_TEXT_PRESET_GATE(short_label, kref, m);
 }
 
 } // namespace
@@ -572,299 +280,196 @@ inline void emit_preset_gate(SoftwareRenderer& renderer,
 
 TEST_CASE("VRTextPreset/TextAnimations") {
     auto renderer = make_renderer();
-    emit_preset_gate(renderer, "text_animations", AspectRatio::k16x9, 0, kRefTextPresTextAnimations_169_F000, "TextAnimations_169_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "text_animations", AspectRatio::k16x9, 20, kRefTextPresTextAnimations_169_F020, "TextAnimations_169_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "text_animations", AspectRatio::k16x9, 30, kRefTextPresTextAnimations_169_F030, "TextAnimations_169_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "text_animations", AspectRatio::k16x9, 40, kRefTextPresTextAnimations_169_F040, "TextAnimations_169_F040", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "text_animations", AspectRatio::k9x16, 0, kRefTextPresTextAnimations_916_F000, "TextAnimations_916_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "text_animations", AspectRatio::k9x16, 20, kRefTextPresTextAnimations_916_F020, "TextAnimations_916_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "text_animations", AspectRatio::k9x16, 30, kRefTextPresTextAnimations_916_F030, "TextAnimations_916_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "text_animations", AspectRatio::k9x16, 40, kRefTextPresTextAnimations_916_F040, "TextAnimations_916_F040", VisualExpectation::Visible);
+    emit_preset_gate(renderer, "text_animations", AspectRatio::k16x9, 0,  kRefTextPresTextAnimations_169_F000, "TextAnimations_169_F000");
+    emit_preset_gate(renderer, "text_animations", AspectRatio::k16x9, 20, kRefTextPresTextAnimations_169_F020, "TextAnimations_169_F020");
+    emit_preset_gate(renderer, "text_animations", AspectRatio::k16x9, 30, kRefTextPresTextAnimations_169_F030, "TextAnimations_169_F030");
+    emit_preset_gate(renderer, "text_animations", AspectRatio::k16x9, 40, kRefTextPresTextAnimations_169_F040, "TextAnimations_169_F040");
+    emit_preset_gate(renderer, "text_animations", AspectRatio::k9x16, 0,  kRefTextPresTextAnimations_916_F000, "TextAnimations_916_F000");
+    emit_preset_gate(renderer, "text_animations", AspectRatio::k9x16, 20, kRefTextPresTextAnimations_916_F020, "TextAnimations_916_F020");
+    emit_preset_gate(renderer, "text_animations", AspectRatio::k9x16, 30, kRefTextPresTextAnimations_916_F030, "TextAnimations_916_F030");
+    emit_preset_gate(renderer, "text_animations", AspectRatio::k9x16, 40, kRefTextPresTextAnimations_916_F040, "TextAnimations_916_F040");
 }
 
 TEST_CASE("VRTextPreset/FadeIn") {
     auto renderer = make_renderer();
-    emit_preset_gate(renderer, "fade_in", AspectRatio::k16x9, 0, kRefTextPresFadeIn_169_F000, "FadeIn_169_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "fade_in", AspectRatio::k16x9, 20, kRefTextPresFadeIn_169_F020, "FadeIn_169_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "fade_in", AspectRatio::k16x9, 30, kRefTextPresFadeIn_169_F030, "FadeIn_169_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "fade_in", AspectRatio::k16x9, 40, kRefTextPresFadeIn_169_F040, "FadeIn_169_F040", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "fade_in", AspectRatio::k9x16, 0, kRefTextPresFadeIn_916_F000, "FadeIn_916_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "fade_in", AspectRatio::k9x16, 20, kRefTextPresFadeIn_916_F020, "FadeIn_916_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "fade_in", AspectRatio::k9x16, 30, kRefTextPresFadeIn_916_F030, "FadeIn_916_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "fade_in", AspectRatio::k9x16, 40, kRefTextPresFadeIn_916_F040, "FadeIn_916_F040", VisualExpectation::Visible);
+    emit_preset_gate(renderer, "fade_in", AspectRatio::k16x9, 0,  kRefTextPresFadeIn_169_F000, "FadeIn_169_F000");
+    emit_preset_gate(renderer, "fade_in", AspectRatio::k16x9, 20, kRefTextPresFadeIn_169_F020, "FadeIn_169_F020");
+    emit_preset_gate(renderer, "fade_in", AspectRatio::k16x9, 30, kRefTextPresFadeIn_169_F030, "FadeIn_169_F030");
+    emit_preset_gate(renderer, "fade_in", AspectRatio::k16x9, 40, kRefTextPresFadeIn_169_F040, "FadeIn_169_F040");
+    emit_preset_gate(renderer, "fade_in", AspectRatio::k9x16, 0,  kRefTextPresFadeIn_916_F000, "FadeIn_916_F000");
+    emit_preset_gate(renderer, "fade_in", AspectRatio::k9x16, 20, kRefTextPresFadeIn_916_F020, "FadeIn_916_F020");
+    emit_preset_gate(renderer, "fade_in", AspectRatio::k9x16, 30, kRefTextPresFadeIn_916_F030, "FadeIn_916_F030");
+    emit_preset_gate(renderer, "fade_in", AspectRatio::k9x16, 40, kRefTextPresFadeIn_916_F040, "FadeIn_916_F040");
 }
 
 TEST_CASE("VRTextPreset/BlurIn") {
     auto renderer = make_renderer();
-    emit_preset_gate(renderer, "blur_in", AspectRatio::k16x9, 0, kRefTextPresBlurIn_169_F000, "BlurIn_169_F000", VisualExpectation::Transparent);
-    // F020: focus_in(Frame{30}) at frame 20 = blur ≈ 1.08 (OutCubic 67%). Heavy mid-animation blur
-    // dilutes per-pixel alpha below the 0.05 ink threshold; not a regression.
-    emit_preset_gate(renderer, "blur_in", AspectRatio::k16x9, 20, kRefTextPresBlurIn_169_F020, "BlurIn_169_F020", VisualExpectation::PartialCoverage);
-    emit_preset_gate(renderer, "blur_in", AspectRatio::k16x9, 30, kRefTextPresBlurIn_169_F030, "BlurIn_169_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "blur_in", AspectRatio::k16x9, 40, kRefTextPresBlurIn_169_F040, "BlurIn_169_F040", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "blur_in", AspectRatio::k9x16, 0, kRefTextPresBlurIn_916_F000, "BlurIn_916_F000", VisualExpectation::Transparent);
-    // F020: focus_in(Frame{30}) at frame 20 = blur ≈ 1.08 (OutCubic 67%). Heavy mid-animation blur
-    // dilutes per-pixel alpha below the 0.05 ink threshold; not a regression.
-    emit_preset_gate(renderer, "blur_in", AspectRatio::k9x16, 20, kRefTextPresBlurIn_916_F020, "BlurIn_916_F020", VisualExpectation::PartialCoverage);
-    emit_preset_gate(renderer, "blur_in", AspectRatio::k9x16, 30, kRefTextPresBlurIn_916_F030, "BlurIn_916_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "blur_in", AspectRatio::k9x16, 40, kRefTextPresBlurIn_916_F040, "BlurIn_916_F040", VisualExpectation::Visible);
+    emit_preset_gate(renderer, "blur_in", AspectRatio::k16x9, 0,  kRefTextPresBlurIn_169_F000, "BlurIn_169_F000");
+    emit_preset_gate(renderer, "blur_in", AspectRatio::k16x9, 20, kRefTextPresBlurIn_169_F020, "BlurIn_169_F020");
+    emit_preset_gate(renderer, "blur_in", AspectRatio::k16x9, 30, kRefTextPresBlurIn_169_F030, "BlurIn_169_F030");
+    emit_preset_gate(renderer, "blur_in", AspectRatio::k16x9, 40, kRefTextPresBlurIn_169_F040, "BlurIn_169_F040");
+    emit_preset_gate(renderer, "blur_in", AspectRatio::k9x16, 0,  kRefTextPresBlurIn_916_F000, "BlurIn_916_F000");
+    emit_preset_gate(renderer, "blur_in", AspectRatio::k9x16, 20, kRefTextPresBlurIn_916_F020, "BlurIn_916_F020");
+    emit_preset_gate(renderer, "blur_in", AspectRatio::k9x16, 30, kRefTextPresBlurIn_916_F030, "BlurIn_916_F030");
+    emit_preset_gate(renderer, "blur_in", AspectRatio::k9x16, 40, kRefTextPresBlurIn_916_F040, "BlurIn_916_F040");
 }
 
 TEST_CASE("VRTextPreset/SlideUp") {
     auto renderer = make_renderer();
-    emit_preset_gate(renderer, "slide_up", AspectRatio::k16x9, 0, kRefTextPresSlideUp_169_F000, "SlideUp_169_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "slide_up", AspectRatio::k16x9, 20, kRefTextPresSlideUp_169_F020, "SlideUp_169_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "slide_up", AspectRatio::k16x9, 30, kRefTextPresSlideUp_169_F030, "SlideUp_169_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "slide_up", AspectRatio::k16x9, 40, kRefTextPresSlideUp_169_F040, "SlideUp_169_F040", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "slide_up", AspectRatio::k9x16, 0, kRefTextPresSlideUp_916_F000, "SlideUp_916_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "slide_up", AspectRatio::k9x16, 20, kRefTextPresSlideUp_916_F020, "SlideUp_916_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "slide_up", AspectRatio::k9x16, 30, kRefTextPresSlideUp_916_F030, "SlideUp_916_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "slide_up", AspectRatio::k9x16, 40, kRefTextPresSlideUp_916_F040, "SlideUp_916_F040", VisualExpectation::Visible);
+    emit_preset_gate(renderer, "slide_up", AspectRatio::k16x9, 0,  kRefTextPresSlideUp_169_F000, "SlideUp_169_F000");
+    emit_preset_gate(renderer, "slide_up", AspectRatio::k16x9, 20, kRefTextPresSlideUp_169_F020, "SlideUp_169_F020");
+    emit_preset_gate(renderer, "slide_up", AspectRatio::k16x9, 30, kRefTextPresSlideUp_169_F030, "SlideUp_169_F030");
+    emit_preset_gate(renderer, "slide_up", AspectRatio::k16x9, 40, kRefTextPresSlideUp_169_F040, "SlideUp_169_F040");
+    emit_preset_gate(renderer, "slide_up", AspectRatio::k9x16, 0,  kRefTextPresSlideUp_916_F000, "SlideUp_916_F000");
+    emit_preset_gate(renderer, "slide_up", AspectRatio::k9x16, 20, kRefTextPresSlideUp_916_F020, "SlideUp_916_F020");
+    emit_preset_gate(renderer, "slide_up", AspectRatio::k9x16, 30, kRefTextPresSlideUp_916_F030, "SlideUp_916_F030");
+    emit_preset_gate(renderer, "slide_up", AspectRatio::k9x16, 40, kRefTextPresSlideUp_916_F040, "SlideUp_916_F040");
 }
 
 TEST_CASE("VRTextPreset/SlideDown") {
     auto renderer = make_renderer();
-    emit_preset_gate(renderer, "slide_down", AspectRatio::k16x9, 0, kRefTextPresSlideDown_169_F000, "SlideDown_169_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "slide_down", AspectRatio::k16x9, 20, kRefTextPresSlideDown_169_F020, "SlideDown_169_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "slide_down", AspectRatio::k16x9, 30, kRefTextPresSlideDown_169_F030, "SlideDown_169_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "slide_down", AspectRatio::k16x9, 40, kRefTextPresSlideDown_169_F040, "SlideDown_169_F040", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "slide_down", AspectRatio::k9x16, 0, kRefTextPresSlideDown_916_F000, "SlideDown_916_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "slide_down", AspectRatio::k9x16, 20, kRefTextPresSlideDown_916_F020, "SlideDown_916_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "slide_down", AspectRatio::k9x16, 30, kRefTextPresSlideDown_916_F030, "SlideDown_916_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "slide_down", AspectRatio::k9x16, 40, kRefTextPresSlideDown_916_F040, "SlideDown_916_F040", VisualExpectation::Visible);
+    emit_preset_gate(renderer, "slide_down", AspectRatio::k16x9, 0,  kRefTextPresSlideDown_169_F000, "SlideDown_169_F000");
+    emit_preset_gate(renderer, "slide_down", AspectRatio::k16x9, 20, kRefTextPresSlideDown_169_F020, "SlideDown_169_F020");
+    emit_preset_gate(renderer, "slide_down", AspectRatio::k16x9, 30, kRefTextPresSlideDown_169_F030, "SlideDown_169_F030");
+    emit_preset_gate(renderer, "slide_down", AspectRatio::k16x9, 40, kRefTextPresSlideDown_169_F040, "SlideDown_169_F040");
+    emit_preset_gate(renderer, "slide_down", AspectRatio::k9x16, 0,  kRefTextPresSlideDown_916_F000, "SlideDown_916_F000");
+    emit_preset_gate(renderer, "slide_down", AspectRatio::k9x16, 20, kRefTextPresSlideDown_916_F020, "SlideDown_916_F020");
+    emit_preset_gate(renderer, "slide_down", AspectRatio::k9x16, 30, kRefTextPresSlideDown_916_F030, "SlideDown_916_F030");
+    emit_preset_gate(renderer, "slide_down", AspectRatio::k9x16, 40, kRefTextPresSlideDown_916_F040, "SlideDown_916_F040");
 }
 
 TEST_CASE("VRTextPreset/ScaleIn") {
     auto renderer = make_renderer();
-    emit_preset_gate(renderer, "scale_in", AspectRatio::k16x9, 0, kRefTextPresScaleIn_169_F000, "ScaleIn_169_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "scale_in", AspectRatio::k16x9, 20, kRefTextPresScaleIn_169_F020, "ScaleIn_169_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "scale_in", AspectRatio::k16x9, 30, kRefTextPresScaleIn_169_F030, "ScaleIn_169_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "scale_in", AspectRatio::k16x9, 40, kRefTextPresScaleIn_169_F040, "ScaleIn_169_F040", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "scale_in", AspectRatio::k9x16, 0, kRefTextPresScaleIn_916_F000, "ScaleIn_916_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "scale_in", AspectRatio::k9x16, 20, kRefTextPresScaleIn_916_F020, "ScaleIn_916_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "scale_in", AspectRatio::k9x16, 30, kRefTextPresScaleIn_916_F030, "ScaleIn_916_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "scale_in", AspectRatio::k9x16, 40, kRefTextPresScaleIn_916_F040, "ScaleIn_916_F040", VisualExpectation::Visible);
+    emit_preset_gate(renderer, "scale_in", AspectRatio::k16x9, 0,  kRefTextPresScaleIn_169_F000, "ScaleIn_169_F000");
+    emit_preset_gate(renderer, "scale_in", AspectRatio::k16x9, 20, kRefTextPresScaleIn_169_F020, "ScaleIn_169_F020");
+    emit_preset_gate(renderer, "scale_in", AspectRatio::k16x9, 30, kRefTextPresScaleIn_169_F030, "ScaleIn_169_F030");
+    emit_preset_gate(renderer, "scale_in", AspectRatio::k16x9, 40, kRefTextPresScaleIn_169_F040, "ScaleIn_169_F040");
+    emit_preset_gate(renderer, "scale_in", AspectRatio::k9x16, 0,  kRefTextPresScaleIn_916_F000, "ScaleIn_916_F000");
+    emit_preset_gate(renderer, "scale_in", AspectRatio::k9x16, 20, kRefTextPresScaleIn_916_F020, "ScaleIn_916_F020");
+    emit_preset_gate(renderer, "scale_in", AspectRatio::k9x16, 30, kRefTextPresScaleIn_916_F030, "ScaleIn_916_F030");
+    emit_preset_gate(renderer, "scale_in", AspectRatio::k9x16, 40, kRefTextPresScaleIn_916_F040, "ScaleIn_916_F040");
 }
 
 TEST_CASE("VRTextPreset/TrackingClose") {
     auto renderer = make_renderer();
-    // tracking_close has no entrance opacity animation (tracking_breathing only),
-    // so text is always visible from F000.
-    emit_preset_gate(renderer, "tracking_close", AspectRatio::k16x9, 0, kRefTextPresTrackingClose_169_F000, "TrackingClose_169_F000", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "tracking_close", AspectRatio::k16x9, 20, kRefTextPresTrackingClose_169_F020, "TrackingClose_169_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "tracking_close", AspectRatio::k16x9, 30, kRefTextPresTrackingClose_169_F030, "TrackingClose_169_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "tracking_close", AspectRatio::k16x9, 40, kRefTextPresTrackingClose_169_F040, "TrackingClose_169_F040", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "tracking_close", AspectRatio::k9x16, 0, kRefTextPresTrackingClose_916_F000, "TrackingClose_916_F000", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "tracking_close", AspectRatio::k9x16, 20, kRefTextPresTrackingClose_916_F020, "TrackingClose_916_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "tracking_close", AspectRatio::k9x16, 30, kRefTextPresTrackingClose_916_F030, "TrackingClose_916_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "tracking_close", AspectRatio::k9x16, 40, kRefTextPresTrackingClose_916_F040, "TrackingClose_916_F040", VisualExpectation::Visible);
+    emit_preset_gate(renderer, "tracking_close", AspectRatio::k16x9, 0,  kRefTextPresTrackingClose_169_F000, "TrackingClose_169_F000");
+    emit_preset_gate(renderer, "tracking_close", AspectRatio::k16x9, 20, kRefTextPresTrackingClose_169_F020, "TrackingClose_169_F020");
+    emit_preset_gate(renderer, "tracking_close", AspectRatio::k16x9, 30, kRefTextPresTrackingClose_169_F030, "TrackingClose_169_F030");
+    emit_preset_gate(renderer, "tracking_close", AspectRatio::k16x9, 40, kRefTextPresTrackingClose_169_F040, "TrackingClose_169_F040");
+    emit_preset_gate(renderer, "tracking_close", AspectRatio::k9x16, 0,  kRefTextPresTrackingClose_916_F000, "TrackingClose_916_F000");
+    emit_preset_gate(renderer, "tracking_close", AspectRatio::k9x16, 20, kRefTextPresTrackingClose_916_F020, "TrackingClose_916_F020");
+    emit_preset_gate(renderer, "tracking_close", AspectRatio::k9x16, 30, kRefTextPresTrackingClose_916_F030, "TrackingClose_916_F030");
+    emit_preset_gate(renderer, "tracking_close", AspectRatio::k9x16, 40, kRefTextPresTrackingClose_916_F040, "TrackingClose_916_F040");
 }
 
 TEST_CASE("VRTextPreset/MaskedLineReveal") {
     auto renderer = make_renderer();
-    emit_preset_gate(renderer, "masked_line_reveal", AspectRatio::k16x9, 0, kRefTextPresMaskedLineReveal_169_F000, "MaskedLineReveal_169_F000", VisualExpectation::Transparent);
-    // F020: center_split(Frame{30}) at frame 20 = scale_y ≈ 0.66, fade_shift_horizontal ≈ 0.94 opacity.
-    // Vertically compressed, mid-opacity text falls below the 0.05 ink threshold; not a regression.
-    emit_preset_gate(renderer, "masked_line_reveal", AspectRatio::k16x9, 20, kRefTextPresMaskedLineReveal_169_F020, "MaskedLineReveal_169_F020", VisualExpectation::PartialCoverage);
-    emit_preset_gate(renderer, "masked_line_reveal", AspectRatio::k16x9, 30, kRefTextPresMaskedLineReveal_169_F030, "MaskedLineReveal_169_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "masked_line_reveal", AspectRatio::k16x9, 40, kRefTextPresMaskedLineReveal_169_F040, "MaskedLineReveal_169_F040", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "masked_line_reveal", AspectRatio::k9x16, 0, kRefTextPresMaskedLineReveal_916_F000, "MaskedLineReveal_916_F000", VisualExpectation::Transparent);
-    // F020: scale_y ≈ 0.66, opacity ≈ 0.94 — sub-threshold mid-animation (see 16:9 note above).
-    emit_preset_gate(renderer, "masked_line_reveal", AspectRatio::k9x16, 20, kRefTextPresMaskedLineReveal_916_F020, "MaskedLineReveal_916_F020", VisualExpectation::PartialCoverage);
-    emit_preset_gate(renderer, "masked_line_reveal", AspectRatio::k9x16, 30, kRefTextPresMaskedLineReveal_916_F030, "MaskedLineReveal_916_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "masked_line_reveal", AspectRatio::k9x16, 40, kRefTextPresMaskedLineReveal_916_F040, "MaskedLineReveal_916_F040", VisualExpectation::Visible);
+    emit_preset_gate(renderer, "masked_line_reveal", AspectRatio::k16x9, 0,  kRefTextPresMaskedLineReveal_169_F000, "MaskedLineReveal_169_F000");
+    emit_preset_gate(renderer, "masked_line_reveal", AspectRatio::k16x9, 20, kRefTextPresMaskedLineReveal_169_F020, "MaskedLineReveal_169_F020");
+    emit_preset_gate(renderer, "masked_line_reveal", AspectRatio::k16x9, 30, kRefTextPresMaskedLineReveal_169_F030, "MaskedLineReveal_169_F030");
+    emit_preset_gate(renderer, "masked_line_reveal", AspectRatio::k16x9, 40, kRefTextPresMaskedLineReveal_169_F040, "MaskedLineReveal_169_F040");
+    emit_preset_gate(renderer, "masked_line_reveal", AspectRatio::k9x16, 0,  kRefTextPresMaskedLineReveal_916_F000, "MaskedLineReveal_916_F000");
+    emit_preset_gate(renderer, "masked_line_reveal", AspectRatio::k9x16, 20, kRefTextPresMaskedLineReveal_916_F020, "MaskedLineReveal_916_F020");
+    emit_preset_gate(renderer, "masked_line_reveal", AspectRatio::k9x16, 30, kRefTextPresMaskedLineReveal_916_F030, "MaskedLineReveal_916_F030");
+    emit_preset_gate(renderer, "masked_line_reveal", AspectRatio::k9x16, 40, kRefTextPresMaskedLineReveal_916_F040, "MaskedLineReveal_916_F040");
 }
 
 TEST_CASE("VRTextPreset/WordCascade") {
     auto renderer = make_renderer();
-    emit_preset_gate(renderer, "word_cascade", AspectRatio::k16x9, 0, kRefTextPresWordCascade_169_F000, "WordCascade_169_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "word_cascade", AspectRatio::k16x9, 20, kRefTextPresWordCascade_169_F020, "WordCascade_169_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "word_cascade", AspectRatio::k16x9, 30, kRefTextPresWordCascade_169_F030, "WordCascade_169_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "word_cascade", AspectRatio::k16x9, 40, kRefTextPresWordCascade_169_F040, "WordCascade_169_F040", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "word_cascade", AspectRatio::k9x16, 0, kRefTextPresWordCascade_916_F000, "WordCascade_916_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "word_cascade", AspectRatio::k9x16, 20, kRefTextPresWordCascade_916_F020, "WordCascade_916_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "word_cascade", AspectRatio::k9x16, 30, kRefTextPresWordCascade_916_F030, "WordCascade_916_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "word_cascade", AspectRatio::k9x16, 40, kRefTextPresWordCascade_916_F040, "WordCascade_916_F040", VisualExpectation::Visible);
+    emit_preset_gate(renderer, "word_cascade", AspectRatio::k16x9, 0,  kRefTextPresWordCascade_169_F000, "WordCascade_169_F000");
+    emit_preset_gate(renderer, "word_cascade", AspectRatio::k16x9, 20, kRefTextPresWordCascade_169_F020, "WordCascade_169_F020");
+    emit_preset_gate(renderer, "word_cascade", AspectRatio::k16x9, 30, kRefTextPresWordCascade_169_F030, "WordCascade_169_F030");
+    emit_preset_gate(renderer, "word_cascade", AspectRatio::k16x9, 40, kRefTextPresWordCascade_169_F040, "WordCascade_169_F040");
+    emit_preset_gate(renderer, "word_cascade", AspectRatio::k9x16, 0,  kRefTextPresWordCascade_916_F000, "WordCascade_916_F000");
+    emit_preset_gate(renderer, "word_cascade", AspectRatio::k9x16, 20, kRefTextPresWordCascade_916_F020, "WordCascade_916_F020");
+    emit_preset_gate(renderer, "word_cascade", AspectRatio::k9x16, 30, kRefTextPresWordCascade_916_F030, "WordCascade_916_F030");
+    emit_preset_gate(renderer, "word_cascade", AspectRatio::k9x16, 40, kRefTextPresWordCascade_916_F040, "WordCascade_916_F040");
 }
 
 TEST_CASE("VRTextPreset/CharacterCascade") {
     auto renderer = make_renderer();
-    emit_preset_gate(renderer, "character_cascade", AspectRatio::k16x9, 0, kRefTextPresCharacterCascade_169_F000, "CharacterCascade_169_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "character_cascade", AspectRatio::k16x9, 20, kRefTextPresCharacterCascade_169_F020, "CharacterCascade_169_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "character_cascade", AspectRatio::k16x9, 30, kRefTextPresCharacterCascade_169_F030, "CharacterCascade_169_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "character_cascade", AspectRatio::k16x9, 40, kRefTextPresCharacterCascade_169_F040, "CharacterCascade_169_F040", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "character_cascade", AspectRatio::k9x16, 0, kRefTextPresCharacterCascade_916_F000, "CharacterCascade_916_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "character_cascade", AspectRatio::k9x16, 20, kRefTextPresCharacterCascade_916_F020, "CharacterCascade_916_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "character_cascade", AspectRatio::k9x16, 30, kRefTextPresCharacterCascade_916_F030, "CharacterCascade_916_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "character_cascade", AspectRatio::k9x16, 40, kRefTextPresCharacterCascade_916_F040, "CharacterCascade_916_F040", VisualExpectation::Visible);
+    emit_preset_gate(renderer, "character_cascade", AspectRatio::k16x9, 0,  kRefTextPresCharacterCascade_169_F000, "CharacterCascade_169_F000");
+    emit_preset_gate(renderer, "character_cascade", AspectRatio::k16x9, 20, kRefTextPresCharacterCascade_169_F020, "CharacterCascade_169_F020");
+    emit_preset_gate(renderer, "character_cascade", AspectRatio::k16x9, 30, kRefTextPresCharacterCascade_169_F030, "CharacterCascade_169_F030");
+    emit_preset_gate(renderer, "character_cascade", AspectRatio::k16x9, 40, kRefTextPresCharacterCascade_169_F040, "CharacterCascade_169_F040");
+    emit_preset_gate(renderer, "character_cascade", AspectRatio::k9x16, 0,  kRefTextPresCharacterCascade_916_F000, "CharacterCascade_916_F000");
+    emit_preset_gate(renderer, "character_cascade", AspectRatio::k9x16, 20, kRefTextPresCharacterCascade_916_F020, "CharacterCascade_916_F020");
+    emit_preset_gate(renderer, "character_cascade", AspectRatio::k9x16, 30, kRefTextPresCharacterCascade_916_F030, "CharacterCascade_916_F030");
+    emit_preset_gate(renderer, "character_cascade", AspectRatio::k9x16, 40, kRefTextPresCharacterCascade_916_F040, "CharacterCascade_916_F040");
 }
 
 // ── Emphasis (4) ────────────────────────────────────────────────────────
 
 TEST_CASE("VRTextPreset/WordPop") {
     auto renderer = make_renderer();
-    emit_preset_gate(renderer, "word_pop", AspectRatio::k16x9, 0, kRefTextPresWordPop_169_F000, "WordPop_169_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "word_pop", AspectRatio::k16x9, 20, kRefTextPresWordPop_169_F020, "WordPop_169_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "word_pop", AspectRatio::k16x9, 30, kRefTextPresWordPop_169_F030, "WordPop_169_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "word_pop", AspectRatio::k16x9, 40, kRefTextPresWordPop_169_F040, "WordPop_169_F040", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "word_pop", AspectRatio::k9x16, 0, kRefTextPresWordPop_916_F000, "WordPop_916_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "word_pop", AspectRatio::k9x16, 20, kRefTextPresWordPop_916_F020, "WordPop_916_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "word_pop", AspectRatio::k9x16, 30, kRefTextPresWordPop_916_F030, "WordPop_916_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "word_pop", AspectRatio::k9x16, 40, kRefTextPresWordPop_916_F040, "WordPop_916_F040", VisualExpectation::Visible);
+    emit_preset_gate(renderer, "word_pop", AspectRatio::k16x9, 0,  kRefTextPresWordPop_169_F000, "WordPop_169_F000");
+    emit_preset_gate(renderer, "word_pop", AspectRatio::k16x9, 20, kRefTextPresWordPop_169_F020, "WordPop_169_F020");
+    emit_preset_gate(renderer, "word_pop", AspectRatio::k16x9, 30, kRefTextPresWordPop_169_F030, "WordPop_169_F030");
+    emit_preset_gate(renderer, "word_pop", AspectRatio::k16x9, 40, kRefTextPresWordPop_169_F040, "WordPop_169_F040");
+    emit_preset_gate(renderer, "word_pop", AspectRatio::k9x16, 0,  kRefTextPresWordPop_916_F000, "WordPop_916_F000");
+    emit_preset_gate(renderer, "word_pop", AspectRatio::k9x16, 20, kRefTextPresWordPop_916_F020, "WordPop_916_F020");
+    emit_preset_gate(renderer, "word_pop", AspectRatio::k9x16, 30, kRefTextPresWordPop_916_F030, "WordPop_916_F030");
+    emit_preset_gate(renderer, "word_pop", AspectRatio::k9x16, 40, kRefTextPresWordPop_916_F040, "WordPop_916_F040");
 }
 
 TEST_CASE("VRTextPreset/ScalePunch") {
     auto renderer = make_renderer();
-    emit_preset_gate(renderer, "scale_punch", AspectRatio::k16x9, 0, kRefTextPresScalePunch_169_F000, "ScalePunch_169_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "scale_punch", AspectRatio::k16x9, 20, kRefTextPresScalePunch_169_F020, "ScalePunch_169_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "scale_punch", AspectRatio::k16x9, 30, kRefTextPresScalePunch_169_F030, "ScalePunch_169_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "scale_punch", AspectRatio::k16x9, 40, kRefTextPresScalePunch_169_F040, "ScalePunch_169_F040", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "scale_punch", AspectRatio::k9x16, 0, kRefTextPresScalePunch_916_F000, "ScalePunch_916_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "scale_punch", AspectRatio::k9x16, 20, kRefTextPresScalePunch_916_F020, "ScalePunch_916_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "scale_punch", AspectRatio::k9x16, 30, kRefTextPresScalePunch_916_F030, "ScalePunch_916_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "scale_punch", AspectRatio::k9x16, 40, kRefTextPresScalePunch_916_F040, "ScalePunch_916_F040", VisualExpectation::Visible);
+    emit_preset_gate(renderer, "scale_punch", AspectRatio::k16x9, 0,  kRefTextPresScalePunch_169_F000, "ScalePunch_169_F000");
+    emit_preset_gate(renderer, "scale_punch", AspectRatio::k16x9, 20, kRefTextPresScalePunch_169_F020, "ScalePunch_169_F020");
+    emit_preset_gate(renderer, "scale_punch", AspectRatio::k16x9, 30, kRefTextPresScalePunch_169_F030, "ScalePunch_169_F030");
+    emit_preset_gate(renderer, "scale_punch", AspectRatio::k16x9, 40, kRefTextPresScalePunch_169_F040, "ScalePunch_169_F040");
+    emit_preset_gate(renderer, "scale_punch", AspectRatio::k9x16, 0,  kRefTextPresScalePunch_916_F000, "ScalePunch_916_F000");
+    emit_preset_gate(renderer, "scale_punch", AspectRatio::k9x16, 20, kRefTextPresScalePunch_916_F020, "ScalePunch_916_F020");
+    emit_preset_gate(renderer, "scale_punch", AspectRatio::k9x16, 30, kRefTextPresScalePunch_916_F030, "ScalePunch_916_F030");
+    emit_preset_gate(renderer, "scale_punch", AspectRatio::k9x16, 40, kRefTextPresScalePunch_916_F040, "ScalePunch_916_F040");
 }
 
 TEST_CASE("VRTextPreset/ColorAccent") {
     auto renderer = make_renderer();
-    emit_preset_gate(renderer, "color_accent", AspectRatio::k16x9, 0, kRefTextPresColorAccent_169_F000, "ColorAccent_169_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "color_accent", AspectRatio::k16x9, 20, kRefTextPresColorAccent_169_F020, "ColorAccent_169_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "color_accent", AspectRatio::k16x9, 30, kRefTextPresColorAccent_169_F030, "ColorAccent_169_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "color_accent", AspectRatio::k16x9, 40, kRefTextPresColorAccent_169_F040, "ColorAccent_169_F040", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "color_accent", AspectRatio::k9x16, 0, kRefTextPresColorAccent_916_F000, "ColorAccent_916_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "color_accent", AspectRatio::k9x16, 20, kRefTextPresColorAccent_916_F020, "ColorAccent_916_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "color_accent", AspectRatio::k9x16, 30, kRefTextPresColorAccent_916_F030, "ColorAccent_916_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "color_accent", AspectRatio::k9x16, 40, kRefTextPresColorAccent_916_F040, "ColorAccent_916_F040", VisualExpectation::Visible);
+    emit_preset_gate(renderer, "color_accent", AspectRatio::k16x9, 0,  kRefTextPresColorAccent_169_F000, "ColorAccent_169_F000");
+    emit_preset_gate(renderer, "color_accent", AspectRatio::k16x9, 20, kRefTextPresColorAccent_169_F020, "ColorAccent_169_F020");
+    emit_preset_gate(renderer, "color_accent", AspectRatio::k16x9, 30, kRefTextPresColorAccent_169_F030, "ColorAccent_169_F030");
+    emit_preset_gate(renderer, "color_accent", AspectRatio::k16x9, 40, kRefTextPresColorAccent_169_F040, "ColorAccent_169_F040");
+    emit_preset_gate(renderer, "color_accent", AspectRatio::k9x16, 0,  kRefTextPresColorAccent_916_F000, "ColorAccent_916_F000");
+    emit_preset_gate(renderer, "color_accent", AspectRatio::k9x16, 20, kRefTextPresColorAccent_916_F020, "ColorAccent_916_F020");
+    emit_preset_gate(renderer, "color_accent", AspectRatio::k9x16, 30, kRefTextPresColorAccent_916_F030, "ColorAccent_916_F030");
+    emit_preset_gate(renderer, "color_accent", AspectRatio::k9x16, 40, kRefTextPresColorAccent_916_F040, "ColorAccent_916_F040");
 }
 
 TEST_CASE("VRTextPreset/GradientFill") {
     auto renderer = make_renderer();
-    emit_preset_gate(renderer, "gradient_fill", AspectRatio::k16x9, 0, kRefTextPresGradientFill_169_F000, "GradientFill_169_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "gradient_fill", AspectRatio::k16x9, 20, kRefTextPresGradientFill_169_F020, "GradientFill_169_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "gradient_fill", AspectRatio::k16x9, 30, kRefTextPresGradientFill_169_F030, "GradientFill_169_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "gradient_fill", AspectRatio::k16x9, 40, kRefTextPresGradientFill_169_F040, "GradientFill_169_F040", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "gradient_fill", AspectRatio::k9x16, 0, kRefTextPresGradientFill_916_F000, "GradientFill_916_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "gradient_fill", AspectRatio::k9x16, 20, kRefTextPresGradientFill_916_F020, "GradientFill_916_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "gradient_fill", AspectRatio::k9x16, 30, kRefTextPresGradientFill_916_F030, "GradientFill_916_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "gradient_fill", AspectRatio::k9x16, 40, kRefTextPresGradientFill_916_F040, "GradientFill_916_F040", VisualExpectation::Visible);
+    emit_preset_gate(renderer, "gradient_fill", AspectRatio::k16x9, 0,  kRefTextPresGradientFill_169_F000, "GradientFill_169_F000");
+    emit_preset_gate(renderer, "gradient_fill", AspectRatio::k16x9, 20, kRefTextPresGradientFill_169_F020, "GradientFill_169_F020");
+    emit_preset_gate(renderer, "gradient_fill", AspectRatio::k16x9, 30, kRefTextPresGradientFill_169_F030, "GradientFill_169_F030");
+    emit_preset_gate(renderer, "gradient_fill", AspectRatio::k16x9, 40, kRefTextPresGradientFill_169_F040, "GradientFill_169_F040");
+    emit_preset_gate(renderer, "gradient_fill", AspectRatio::k9x16, 0,  kRefTextPresGradientFill_916_F000, "GradientFill_916_F000");
+    emit_preset_gate(renderer, "gradient_fill", AspectRatio::k9x16, 20, kRefTextPresGradientFill_916_F020, "GradientFill_916_F020");
+    emit_preset_gate(renderer, "gradient_fill", AspectRatio::k9x16, 30, kRefTextPresGradientFill_916_F030, "GradientFill_916_F030");
+    emit_preset_gate(renderer, "gradient_fill", AspectRatio::k9x16, 40, kRefTextPresGradientFill_916_F040, "GradientFill_916_F040");
 }
 
 // ── Subtitle (2 — caption_box + glow_pulse deferred to A4.1) ─────────────
 
 TEST_CASE("VRTextPreset/MinimalWhite") {
     auto renderer = make_renderer();
-    // minimal_white has no entrance animation — text is static and always visible.
-    emit_preset_gate(renderer, "minimal_white", AspectRatio::k16x9, 0, kRefTextPresMinimalWhite_169_F000, "MinimalWhite_169_F000", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "minimal_white", AspectRatio::k16x9, 20, kRefTextPresMinimalWhite_169_F020, "MinimalWhite_169_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "minimal_white", AspectRatio::k16x9, 30, kRefTextPresMinimalWhite_169_F030, "MinimalWhite_169_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "minimal_white", AspectRatio::k16x9, 40, kRefTextPresMinimalWhite_169_F040, "MinimalWhite_169_F040", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "minimal_white", AspectRatio::k9x16, 0, kRefTextPresMinimalWhite_916_F000, "MinimalWhite_916_F000", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "minimal_white", AspectRatio::k9x16, 20, kRefTextPresMinimalWhite_916_F020, "MinimalWhite_916_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "minimal_white", AspectRatio::k9x16, 30, kRefTextPresMinimalWhite_916_F030, "MinimalWhite_916_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "minimal_white", AspectRatio::k9x16, 40, kRefTextPresMinimalWhite_916_F040, "MinimalWhite_916_F040", VisualExpectation::Visible);
+    emit_preset_gate(renderer, "minimal_white", AspectRatio::k16x9, 0,  kRefTextPresMinimalWhite_169_F000, "MinimalWhite_169_F000");
+    emit_preset_gate(renderer, "minimal_white", AspectRatio::k16x9, 20, kRefTextPresMinimalWhite_169_F020, "MinimalWhite_169_F020");
+    emit_preset_gate(renderer, "minimal_white", AspectRatio::k16x9, 30, kRefTextPresMinimalWhite_169_F030, "MinimalWhite_169_F030");
+    emit_preset_gate(renderer, "minimal_white", AspectRatio::k16x9, 40, kRefTextPresMinimalWhite_169_F040, "MinimalWhite_169_F040");
+    emit_preset_gate(renderer, "minimal_white", AspectRatio::k9x16, 0,  kRefTextPresMinimalWhite_916_F000, "MinimalWhite_916_F000");
+    emit_preset_gate(renderer, "minimal_white", AspectRatio::k9x16, 20, kRefTextPresMinimalWhite_916_F020, "MinimalWhite_916_F020");
+    emit_preset_gate(renderer, "minimal_white", AspectRatio::k9x16, 30, kRefTextPresMinimalWhite_916_F030, "MinimalWhite_916_F030");
+    emit_preset_gate(renderer, "minimal_white", AspectRatio::k9x16, 40, kRefTextPresMinimalWhite_916_F040, "MinimalWhite_916_F040");
 }
 
 TEST_CASE("VRTextPreset/YellowKeyword") {
     auto renderer = make_renderer();
-    emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k16x9, 0, kRefTextPresYellowKeyword_169_F000, "YellowKeyword_169_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k16x9, 20, kRefTextPresYellowKeyword_169_F020, "YellowKeyword_169_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k16x9, 30, kRefTextPresYellowKeyword_169_F030, "YellowKeyword_169_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k16x9, 40, kRefTextPresYellowKeyword_169_F040, "YellowKeyword_169_F040", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k9x16, 0, kRefTextPresYellowKeyword_916_F000, "YellowKeyword_916_F000", VisualExpectation::Transparent);
-    emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k9x16, 20, kRefTextPresYellowKeyword_916_F020, "YellowKeyword_916_F020", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k9x16, 30, kRefTextPresYellowKeyword_916_F030, "YellowKeyword_916_F030", VisualExpectation::Visible);
-    emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k9x16, 40, kRefTextPresYellowKeyword_916_F040, "YellowKeyword_916_F040", VisualExpectation::Visible);
-}
-
-// =============================================================================
-// Minimal test: text through full render_frame() pipeline (near-e2e)
-// Exercises the entire compositor → graph → text_run_node path.
-// =============================================================================
-
-TEST_CASE("TextE2E: render_frame with text produces visible ink pixels") {
-    auto renderer = make_renderer();
-
-    chronon3d::content::text::CenterTextOptions opts;
-    opts.text = "HELLO";
-    opts.font_path = "assets/fonts/Poppins-Bold.ttf";
-    opts.font_size = 48.0f;
-    opts.color = Color::white();
-    opts.box = Vec2{400.0f, 100.0f};
-
-    auto comp = composition(
-        {.name = "e2e_render_frame",
-         .width = 640, .height = 200,
-         .frame_rate = FrameRate{30, 1},
-         .duration = 60},
-        [opts = std::move(opts), &renderer](const FrameContext& ctx) -> Scene {
-            SceneBuilder s(ctx);
-            s.font_engine(&renderer.font_engine());
-            auto text_spec = chronon3d::content::text::centered_text(opts);
-            s.layer("hero", [&s, text_spec](LayerBuilder& l) mutable {
-                l.text("k", std::move(text_spec));
-            });
-            return s.build();
-        });
-
-    auto fb = renderer.render_frame(comp, Frame{0});
-    REQUIRE(fb != nullptr);
-
-    int ink = 0;
-    for (int y = 0; y < fb->height(); ++y)
-        for (int x = 0; x < fb->width(); ++x)
-            if (fb->get_pixel(x, y).a > 0.05f) ++ink;
-
-    CHECK(ink > 0);
-    MESSAGE("ink_pixels=" << ink);
-}
-
-// =============================================================================
-// End-to-end isolation test: FontEngine + materialize + draw_text_run
-// Bypasses the render graph entirely to verify the core text pipeline
-// produces visible pixels in isolation.
-// =============================================================================
-
-TEST_CASE("TextE2E: materialize + draw_text_run produces visible ink pixels") {
-    auto renderer = make_renderer();
-    FontEngine& engine = renderer.font_engine();
-
-    // Build TextSpec for centered text
-    chronon3d::content::text::CenterTextOptions opts;
-    opts.text = "HELLO";
-    opts.font_path = "assets/fonts/Poppins-Bold.ttf";
-    opts.font_size = 48.0f;
-    opts.color = Color::white();
-    opts.box = Vec2{400.0f, 100.0f};
-    TextSpec spec = chronon3d::content::text::centered_text(std::move(opts));
-
-    // Materialize the text shape via the canonical helper
-    TextRunParams params;
-    params.text = std::move(spec);
-    SampleTime st = SampleTime::from_frame_int(0, FrameRate{30, 1});
-    auto shape = materialize_text_run_shape(params, &engine, st);
-    REQUIRE(shape != nullptr);
-    REQUIRE(shape->glyphs.size() > 0);
-    MESSAGE("shaped glyphs: " << shape->glyphs.size());
-
-    // Render directly to a framebuffer via the software backend,
-    // bypassing the render graph entirely.
-    const int w = 640, h = 200;
-    Framebuffer fb(w, h, true);  // cleared to transparent
-
-    Mat4 model = glm::translate(Mat4(1.0f), Vec3(w * 0.5f, h * 0.5f, 0.0f));
-
-    auto& backend = renderer.backend();
-    auto result = backend.draw_text_run(fb, *shape, model, 1.0f);
-    REQUIRE(result);
-    CHECK(result.value().items_drawn > 0);
-    MESSAGE("items_drawn=" << result.value().items_drawn);
-
-    // Count ink pixels
-    int ink = 0;
-    for (int y = 0; y < h; ++y)
-        for (int x = 0; x < w; ++x)
-            if (fb.get_pixel(x, y).a > 0.05f) ++ink;
-
-    CHECK(ink > 0);
-    MESSAGE("ink_pixels=" << ink);
+    emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k16x9, 0,  kRefTextPresYellowKeyword_169_F000, "YellowKeyword_169_F000");
+    emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k16x9, 20, kRefTextPresYellowKeyword_169_F020, "YellowKeyword_169_F020");
+    emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k16x9, 30, kRefTextPresYellowKeyword_169_F030, "YellowKeyword_169_F030");
+    emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k16x9, 40, kRefTextPresYellowKeyword_169_F040, "YellowKeyword_169_F040");
+    emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k9x16, 0,  kRefTextPresYellowKeyword_916_F000, "YellowKeyword_916_F000");
+    emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k9x16, 20, kRefTextPresYellowKeyword_916_F020, "YellowKeyword_916_F020");
+    emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k9x16, 30, kRefTextPresYellowKeyword_916_F030, "YellowKeyword_916_F030");
+    emit_preset_gate(renderer, "yellow_keyword", AspectRatio::k9x16, 40, kRefTextPresYellowKeyword_916_F040, "YellowKeyword_916_F040");
 }

@@ -1,122 +1,180 @@
-# Chronon3D — Current Status (canonico)
+# Chronon3D — Current Status
 
-> Questo è l’unico documento di stato corrente del repository.
-> Le vecchie snapshot `CURRENT_READINESS.md`, `STATUS.md` e `NEXT_STEPS.md`
-> sono state eliminate perché duplicate e superate.
+> **Snapshot:** `main@21fb10af` — 25 giugno 2026. Linux-only.
+>
+> Ultima baseline macchina-verificata: `main@446a60e2` (3/4 ✅, registrata in [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md)).
+> La baseline sull'HEAD corrente non è ancora stata eseguita.
+>
+> Questo è l'unico documento canonico per lo stato presente del progetto.
+> Per il futuro vedi [`ROADMAP.md`](ROADMAP.md).
+> Per i requisiti di release vedi [`RELEASE_GATE.md`](RELEASE_GATE.md).
+> Per i ticket vedi [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 
-## Direzione prodotto
+## Come leggere gli stati
 
-Chronon3D è un motore C++20 headless, Linux-only e CPU-first per motion graphics.
-Il traguardo immediato è produrre animazioni testuali reali e camera 2.5D
-cinematografica realmente utilizzabile dalla CLI.
+| Stato | Significato |
+|---|---|
+| ✅ Verificato | Implementato e coperto da una prova eseguibile osservata. |
+| 🟡 Implementato/parziale | Codice presente, ma con limiti, migrazione incompleta o test bloccati. |
+| 🔴 Bloccante | Impedisce di dichiarare stabile il sottosistema o la release. |
+| 🔵 Pianificato | Design o roadmap presenti, implementazione non completata. |
 
-Non sono priorità attuali:
+## Stato generale
 
-- supporto Windows;
-- parser JSON per testi;
-- GUI o browser;
-- binding cross-language;
-- V3 tile-first;
-- nuove pipeline parallele.
+Chronon3D è un motore C++20 headless, CPU-first e code-first per motion graphics.
+È avanzato ma **pre-stabile**.
 
-## Percorsi canonici
-
-- Render: `RenderGraph → FrameGraphCompiler → CompiledFrameGraph → GraphExecutor`
-- Camera: `CameraDescriptor → compile_camera() → CameraProgram`
-- Testo: `TextDocument/TextSpec → layout → animator stack → renderer`
-- SDK pubblico: `Chronon3D::SDK`
-
-## Obiettivo operativo immediato
-
-Produrre e validare uno showcase camera + testo che dimostri:
-
-1. traiettoria Bezier reale;
-2. orientamento dalla tangente;
-3. banking e keep-horizon;
-4. lens, projection e DOF preservati;
-5. preset testuali realmente temporali;
-6. parallasse tra più piani;
-7. output PNG e MP4 dalla CLI su Linux CPU.
-
-## Stato sintetico
-
-| Area | Stato | Gap principale |
+| Area | Stato | Completezza stimata |
 |---|---|---|
-| Render graph compilato | Avanzato | Baseline completa sullo stesso commit |
-| Software backend | Avanzato | Gate e full validation da osservare insieme |
-| Text Production V1 | In corso | Preset temporali reali, golden e consumer pubblico |
-| Camera Production V1 | In corso | Tangente reale, preservazione stato e golden autentici |
-| SDK C++ | Avanzato | Consumer fuori-tree che renderizzi una composizione reale |
-| Expressions V2 | Sperimentale | Fuori dal percorso produttivo |
-| V3 tile-first | Pianificato | Non prioritario |
+| Render graph compilato | 🟡 Avanzato | Baseline e determinismo scheduler da verificare sullo stesso commit. |
+| Software backend | 🟡 Avanzato | Confine rifattorizzato (Agent-1 #49); gate e full validation da osservare insieme. |
+| Precomp / execution scope | 🔴 Aperto | Nested execution, lease, child arena e concorrenza da chiudere. |
+| Text Production V1 | 🟡 | 60–65% — word timing, rich text produttivo, preset e golden da chiudere. |
+| Camera Production V1 | 🟡 | 70–75% — TICKET-029 risolto (link sbloccato); migrazione legacy e feature path/framing/ottica aperte. |
+| SDK C++ installabile | 🟡 | 80–85% — consumer di rendering reale con testo+camera→PNG in fase di certificazione. |
+| SDK cross-language | 🔵 | 30–40% — C ABI e formato `.chronon` da progettare. |
+| Expressions V2 | 🧪 Sperimentale | OFF di default, non installato, non in SDK. |
+| V3 tile-first | 🔵 Pianificato | Non prima della chiusura baseline e percorsi V1. |
 
-## Camera
+Le percentuali sono stime di copertura funzionale, non risultati CI.
 
-### Presente
+## Fondazioni da preservare
 
-- descriptor variant-based;
-- programma compilato immutabile;
-- sessione per render job;
-- Zoom, FOV e Physical Lens;
-- Pose Tracks, Orbit Motion e Trajectory Motion;
-- look-at point/layer;
-- constraint tipizzati;
-- shot timeline e transizioni;
-- motion blur temporale;
-- traiettorie Bezier e showcase cinematografico.
-
-### Da chiudere
-
-- `OrientAlongPath` deve usare la tangente campionata, non il point of interest;
-- trajectory source deve preservare projection, lens, DOF, motion blur e parent;
-- banking e keep-horizon devono avere test matematici reali;
-- i golden camera devono contenere riferimenti catturati e fallire in caso di drift;
-- rimuovere progressivamente `AnimatedCamera2_5D` e authoring legacy dopo parity.
+- `RenderGraph → FrameGraphCompiler → CompiledFrameGraph → GraphExecutor`.
+- Executor su `RenderGraph` grezzo ritirati.
+- Scheduler esplicito e ID/hash deterministici.
+- `RenderRuntime` proprietario dell'infrastruttura engine-lifetime.
+- Stato per-sessione per history, cache e camera.
+- `AssetResolver` tipizzato e runtime-owned.
+- Registrazione esplicita tramite `ExtensionModule` e `ExtensionContext`.
+- Un solo registry CMake per build, aggregate archive, install ed export.
+- `Chronon3D::SDK` come unico target pubblico documentato.
+- `experimental/` escluso dallo SDK stabile.
+- Camera canonica: `CameraDescriptor → compile_camera() → CameraProgram`.
+- Testo canonico: `TextDocument/TextSpec → layout → animator stack → renderer`.
 
 ## Testo
 
 ### Presente
 
-- FreeType, HarfBuzz e FriBidi;
-- shaping, bidirezionalità, layout, wrap, overflow e auto-fit;
-- `TextSpec`, `TextRunSpec`, `TextDocument`, span e paragrafi;
-- animator e selector per glifo, grapheme, parola e riga;
-- registry centrale dei preset;
-- visual harness e composizioni dimostrative.
+- FreeType, HarfBuzz e FriBidi.
+- `TextSpec`, `TextRunSpec`, `TextDocument`, span e paragrafi.
+- Layout, wrap, overflow, auto-fit, gradienti, stroke e shadow.
+- Animator per glifo e selector per glifo/grapheme/parola/riga.
+- Sample time sub-frame.
+- Text-on-path da consolidare.
+- Registry canonico dei preset e sentinel iniziali.
 
-### Da chiudere
+### Parziale o aperto
 
-- `cinematic_title_reveal` realmente temporale;
-- `word_cascade` realmente per parola;
-- `character_cascade` realmente per glifo;
-- `tracking_close` realmente animato nel tempo;
-- frame iniziale, intermedio e finale visivamente differenti;
-- golden reali e determinismo seriale/parallelo;
-- consumer SDK che usi il percorso testuale pubblico.
+- Word timing/SRT/JSON.
+- Styling per parola end-to-end.
+- Subtitle/highlight/karaoke pipeline.
+- Wiggly/Wave/Random selector completi.
+- Golden multi-resolution e multi-fps per tutti i preset.
+- Consumer SDK che usa il percorso testuale pubblico.
 
-## Gate di successo camera + testo
+### Pianificato (non prima di Text Production V1)
 
-La milestone è chiusa quando esiste un render riproducibile che mostra:
+- Variable fonts, ICU, Text 3D, MSDF, expression selector produttivi.
 
-- camera che percorre una curva e guarda lungo la tangente;
-- banking visibile durante la curva e orizzonte stabile nel finale;
-- almeno tre piani con parallasse;
-- quattro animazioni testuali reali;
-- frame finale leggibile;
-- output MP4 prodotto dalla CLI su Linux CPU.
+## Camera
 
-## Documenti canonici
+### Percorso canonico
 
-| Documento | Ruolo |
-|---|---|
-| [`README.md`](../README.md) | Entry point e quick start |
-| [`CURRENT_STATUS.md`](CURRENT_STATUS.md) | Stato corrente unico |
-| [`ROADMAP.md`](ROADMAP.md) | Milestone attive |
-| [`RELEASE_GATE.md`](RELEASE_GATE.md) | Criteri tecnici di validazione |
-| [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md) | Problemi ancora aperti |
-| [`CAMERA_FEATURE_MATRIX.md`](CAMERA_FEATURE_MATRIX.md) | Dettaglio camera |
-| [`TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md`](TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md) | Dettaglio testo |
-| [`adr/`](adr/) | Decisioni architetturali |
+```text
+CameraDescriptor
+    → compile_camera()
+    → CameraProgram
+    → CameraProgram::evaluate(CameraEvalContext, CameraSession)
+    → Camera2_5D
+    → CameraProjectionSource / projection contract
+    → renderer
+```
 
-Quando un documento di dettaglio contraddice questo file, prevalgono il codice e
-la prova eseguita più recente. Il documento in conflitto va corretto o eliminato.
+Sono presenti: descriptor variant-based, programma compilato immutabile, sessione camera per render job, Zoom/FOV/Physical Lens, Pose/Orbit/Trajectory, constraint, shot timeline e transizioni, checkpoint/pre-roll, fingerprint deterministico.
+
+### Gap principali
+
+- Completare `OrientAlongPath` con tangent provider, look-ahead, keep-horizon e banking.
+- Chiudere trajectory/base-state preservation e diagnostica shot timeline.
+- Rimuovere i percorsi legacy dopo adapter e regression parity.
+- Framing solver con multi-target, rule-of-thirds, dead-zone.
+- DOF con Circle of Confusion e bokeh più fisico.
+- Golden camera e parity test bloccanti.
+
+## SDK
+
+### Presente
+
+- `libchronon3d_sdk_impl.a` aggregato.
+- Header pubblici installati.
+- Package config/version/targets CMake.
+- Target pubblico `Chronon3D::SDK`.
+- Consumer esterno basato su `find_package`.
+
+### Da completare
+
+- Consumer fuori-tree che renderizza una composizione reale (testo + camera → PNG).
+- C ABI stabile con handle opachi.
+- Formato dichiarativo versionato `.chronon`.
+
+## Baseline osservata (`main@446a60e2`, 2026-06-23)
+
+L'ultima baseline macchina-verificata ha prodotto:
+
+| # | Controllo | Esito | Note |
+|---|---|---|---|
+| BG-1 | Software renderer boundary gate | ✅ PASS | `tools/check_software_renderer_boundary.sh` exit 0 |
+| BG-2 | `linux-full-validation` configure | ✅ PASS | Configure completato clean |
+| BG-3 | `linux-lean-dev` configure | ✅ PASS | Configure completato clean |
+| BG-4 | Build `chronon3d_text_preset_visual_tests` | ❌ FAIL | TICKET-039: `SoftwareRenderer::settings()` regression |
+
+**Verdetto**: 3/4 ✅ — baseline non verde. I blocker attivi sull'HEAD corrente sono:
+
+- **🔴 TICKET-039** — `SoftwareRenderer::settings()` access regression (introdotta da Agent-1 #49).
+  Blocca la build di `chronon3d_text_preset_visual_tests` e qualsiasi target che istanzia `RenderEngine::Impl`.
+- **🔴 TICKET-038** — lambda capture / auto deduction rot in `tests/text/test_text_preset_visual.cpp`.
+  Secondo blocker nella catena di compilazione; si manifesterà dopo la chiusura di TICKET-039.
+
+### Progressi dalla baseline
+
+- **🟢 TICKET-029** — link di `chronon3d_scene_tests` sbloccato (commit `fb1b7e97`). I fix camera atterrati
+  sul codice possono ora procedere verso la verifica macchina.
+- **🟢 TICKET-040** — Taskflow completamente rimosso (non più required, rot chiusa).
+- **🟢 TICKET-006** — fix statico per il linkage `chronon3d_backend_text` (gen-exp guard in
+  `tests/renderer_tests.cmake` + if-endif in `tests/scene_tests.cmake`). Verifica macchina deferred.
+- **🟢 Content restructuring** — riorganizzazione `content/` in showcases/examples/experimental, staging completato.
+- **🟢 Docs** — archivio `stabilization-plan/` e `refactor-roadmap/` in `ARCHIVE/`, single source of truth
+  (`CURRENT_STATUS.md`, `RELEASE_GATE.md`), nuovo `AGENTS.md`.
+- **🟢 Windows/MSVC** — supporto rimosso, progetto Linux-only.
+
+## Blocker per baseline verde
+
+Servono tutte le prove seguenti sullo stesso commit:
+
+- build core verde;
+- test core verdi;
+- build lean verde;
+- test lean verdi;
+- architecture gate verde e bloccante;
+- renderer-boundary gate verde e bloccante;
+- no-content build/test verde;
+- scene/camera test link + run verde;
+- install consumer esterno reale verde;
+- full-validation build/test verde;
+- documenti aggiornati con commit, comandi e risultati.
+
+L'assenza di workflow fallito non equivale a una baseline verde.
+
+## Documenti correlati
+
+- [`ROADMAP.md`](ROADMAP.md): milestone prodotto.
+- [`RELEASE_GATE.md`](RELEASE_GATE.md): criteri di release.
+- [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md): ticket e difetti tracciati.
+- [`FEATURES.md`](FEATURES.md): inventario delle feature.
+- [`CAMERA_FEATURE_MATRIX.md`](CAMERA_FEATURE_MATRIX.md): dettaglio camera.
+- [`TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md`](TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md): piano testo.
+- [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md): ultima baseline macchina-verificata.
+
+Documenti archiviati: [`ARCHIVE/`](ARCHIVE/).

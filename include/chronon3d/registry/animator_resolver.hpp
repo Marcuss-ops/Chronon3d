@@ -257,40 +257,6 @@ struct AnimatorResolver {
             a.properties.push_back(PositionProperty{Vec3{0.0f, -30.0f, 0.0f}});
             a.properties.push_back(OpacityProperty{1.0f});
         }
-        // ── TXT-12: Highlight / Karaoke (Subtitle) ────────────────────
-        else if (preset_id == "active_word_pop") {
-            // Word-level selector: scale 1.15 overshoot + opacity 1.0
-            // Per-word stagger (Frame{3}, Frame{20}) from factory body
-            // produces the active-word highlight effect.
-            a.selectors.clear();
-            GlyphSelectorSpec word_sel;
-            word_sel.id     = a.id + "_sel_word";
-            word_sel.unit   = TextSelectorUnit::Word;
-            word_sel.shape  = TextSelectorShape::Smooth;
-            word_sel.start  = {0.0f};
-            word_sel.end    = {100.0f};
-            word_sel.amount = {100.0f};
-            a.selectors.push_back(word_sel);
-            a.properties.push_back(ScaleProperty{Vec3{1.15f, 1.15f, 1.0f}});
-            a.properties.push_back(OpacityProperty{1.0f});
-        }
-        else if (preset_id == "karaoke_fill") {
-            // Word-level selector: per-word scale emphasis + fill color transition.
-            // Each word enters with ScaleProperty{1.08} overshoot as it appears.
-            // FillColor set by caller via spec.appearance.color (e.g. yellow).
-            // This creates the classic karaoke progressive-highlight look.
-            a.selectors.clear();
-            GlyphSelectorSpec kw_sel;
-            kw_sel.id     = a.id + "_sel_word";
-            kw_sel.unit   = TextSelectorUnit::Word;
-            kw_sel.shape  = TextSelectorShape::Smooth;
-            kw_sel.start  = {0.0f};
-            kw_sel.end    = {100.0f};
-            kw_sel.amount = {100.0f};
-            a.selectors.push_back(kw_sel);
-            a.properties.push_back(ScaleProperty{Vec3{1.08f, 1.08f, 1.0f}});
-            a.properties.push_back(OpacityProperty{1.0f});
-        }
         else {
             // No branch matched: either `minimal_white` (the only preset
             // without canonical motion) OR an id not in the registered

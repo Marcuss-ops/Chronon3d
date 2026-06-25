@@ -6,41 +6,6 @@
 
 ## Completati (Maggio-Giugno 2026)
 
-### Post-promotion CI baseline on `main@9c98aa7c` + 5x OFF-CI rot TICKETs
-
-2026-06-24 (snapshot at `a5af4b23`; documentation-only commit) — catalogue the full CI surface after the gate-promotion cycle (`9c98aa7c` → `babfdf80` → `a5af4b23`) and surface rot the broader sweep exposes.
-
-**Files touched (docs-only)** — `docs/baselines/main-9c98aa7c-gates-promoted.md` (NEW), `docs/FOLLOWUP_TICKETS.md` (5 new TICKETs appended: TICKET-044..048), `docs/CHANGELOG.md` (this entry).
-
-**What the doc captures**:
-
-- The full 14-gate `tools/check_architecture_boundaries.sh` matrix on `a5af4b23` — all 14 gates PASS post-`babfdf80` parser fix. Gate labels reported verbatim from `/tmp/arch_clean.log` (referenced specific rot-pattern canaries like `detail::g_debug_config REMOVED` for TICKET-007 closure attestation, etc.).
-- The broader 11-check CI matrix (`arch_boundaries + arch_boundaries_selftest + sw_renderer_boundary + gitignored_dirs + audit_software_renderer + camera_architecture + doc_sync + filename_drift + test_architectural + install_consumer_test + backend_sanitization`) — 5 PASS / 6 FAIL.
-- 6 OFF-CI surfacing failures filed as TICKET-044..048 (all `🔵 Planned`, deliberately out-of-scope per AGENTS.md "Fare PR piccole e mirate").
-- The AGENTS.md §"Regole di lavoro" principle paragraph "Non cambiare un gate per nascondere un errore" that motivated the promotion cycle.
-
-**TICKETs filed**:
-
-- TICKET-044 — `arch_boundaries_selftest` 13/22 assertions hard-coded against pre-`babfdf80` parser expectations.
-- TICKET-045 — `tools/check_gitignored_dirs.sh` shell self-bug + `tools/audit_software_renderer.sh` silent-fail (with new diagnostic-first scenario walkthrough in the Suggested fix approach).
-- TICKET-046 — `tools/check_filename_drift.sh` 236 stale citations across 5 distinct clusters (TICKETs MD / build-artifact refs / backend-sources / V3_BLUEPRINT / node_modules scans).
-- TICKET-047 — `tools/test_architectural.sh` TU-level rot; static-globals over-use + missing `doctest::skip()` metadata. NOTE: cross-references TICKET-005 §"Gap C" (`CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2` retirement) for category 1 to avoid duplication; TICKET-047 owns only categories 2-3.
-- TICKET-048 — `tools/install_consumer_test.sh` consumer can't see vcpkg-installed spdlog (CMake `CMAKE_PREFIX_PATH` bootstrap missing for vcpkg's installed-dir).
-
-**Acknowledged rot pattern**: 5/6 OFF-CI failures are pre-existing script-level rot independent of the promotion cycle; 1/6 (TICKET-044) is a regression introduced when `babfdf80` invalidated the selftest's hard-coded expectations. The promotion itself is safe — its 4 promoted gates are GREEN on `a5af4b23`.
-
-**Verification commands** (run on `a5af4b23`):
-
-- `bash tools/check_architecture_boundaries.sh` -> RC=0; tail shows "All 14 gates passed."
-- `bash tools/check_software_renderer_boundary.sh` -> RC=0; fresh stderr empty post-`a5af4b23` line-97 fix.
-
-**Cross-references**:
-
-- `docs/baselines/main-9c98aa7c-gates-promoted.md` — this PR's doc deliverable; canonical snapshot for the post-promotion CI surface.
-- `docs/FOLLOWUP_TICKETS.md` — TICKET-044..048 entries (NEW); see also TICKET-041 + TICKET-042 closures attributed to commit `babfdf80`, and TICKET-005 §"Gap C" reference from TICKET-047.
-- AGENTS.md §"Regole di lavoro" — *Non cambiare un gate per nascondere un errore* (the principle this baseline documents), *Fare PR piccole e mirate, senza mescolare refactor indipendenti* (the reason TICKET-044..048 fixes are NOT in this atomic commit).
-
-
 ### PRs 1-4 (Performance)
 
 _Data: fine maggio 2026_
@@ -202,7 +167,7 @@ Unificato con S5.
 ### R6 — PR-2 rewire close-out: RenderGraph& execute() overloads + ExecutionPlanCache RETIRED
 
 2026-06-21 — The PR-2 rewire followups that were documented in
-`docs/refactor-roadmap/02-compiled-graph-only.md` (PR 2.3 + PR 2.4)
+`docs/ARCHIVE/refactor-roadmap/02-compiled-graph-only.md` (PR 2.3 + PR 2.4)
 landed.  Three classes of public surface were RETIRED in this
 delivery; the frontier is now `RenderGraph → FrameGraphCompiler →
 CompiledFrameGraph → GraphExecutor::execute`.
@@ -703,60 +668,6 @@ Branch: `p1/cli-slim-real-hygiene` (1 commit ahead of `p1/cli-slim-real`).
 To be FF-merged into local `main` (which is currently at `a094b020b22b870c4d6ccf4018d72384514ecdfe`,
 1 commit ahead of `origin/main @ 3bad8c82`).
 
-### PR-7d — Split `linux-full-validation` preset into V1 release + experimental contract gates
-
-2026-06-24 — Split del preset `linux-full-validation` in due preset distinti per separare il contratto di release (V1 stabile) dai sottosistemi sperimentali (ICU, Text-3D, MSDF, Expressions/V2). Il preset originale era un "catch-all" Debug che mescolava entrambi i contracts in un solo gate.
-
-- **`linux-release-validation`** (NUOVO) — `CMAKE_BUILD_TYPE=Release`, V1 stable features (cli, blend2d, text, mesh, exr, video, content, tests, benchmarks). Esclude `CHRONON3D_ENABLE_TELEMETRY`, `CHRONON3D_ENABLE_PROFILING`, `CHRONON3D_BUILD_DIAGNOSTICS`, `CHRONON3D_BUILD_EXPERIMENTAL`, le feature vcpkg `telemetry/profiling/icu-layout/text-3d/text-msdf`. Rappresenta il contratto di release V1 shippable.
-- **`linux-experimental-validation`** (NUOVO) — `CMAKE_BUILD_TYPE=Debug`, V1 stable + `CHRONON3D_BUILD_EXPERIMENTAL=ON` + feature vcpkg `icu-layout;text-3d;text-msdf` + diagnostics + telemetry + profiling per copertura forward-looking completa (Expressions/V2 vive sotto `experimental/expressions/` ed è gated da `CHRONON3D_BUILD_EXPERIMENTAL`).
-- **`linux-full-validation`** (RIMOSSO) — sostituito dai due preset sopra. Le cacheVariables erano semanticamente equivalenti al nuovo `linux-experimental-validation` ma invocabili anche sul contratto V1, perdendo il fail-fast sui due contracts indipendenti.
-
-**Behavior change** (da segnalare in modo evidente):
-  - `linux-release-validation` **esclude** `CHRONON3D_ENABLE_TELEMETRY=OFF` e `telemetry` da `VCPKG_MANIFEST_FEATURES`. Il preset preesistente `linux-release-full` (`CMakePresets.json`, configurePreset immediatamente adiacente ai due nuovi preset di split) includeva invece telemetry sia come flag che come feature vcpkg. Questa è una scelta deliberata per onorare la richiesta 'V1 stabili' (telemetry è forward-looking/V1.5), ma **chiunque assumesse che V1 release passasse con telemetry ON adesso perde quella copertura automatizzata sul nuovo gate**. Il gate `linux-experimental-validation` continua a coprire la build con telemetry ON sotto `cmake_build_type=Debug`.
-
-**Gate split** (CI workflows):
-- `.github/workflows/gates-full-validation.yml` — rinominato (via `git mv` per preservare la history) in `.github/workflows/gates-release-validation.yml`, MA con content edit: il `paths:` filter è stato aggiornato (rimossa la riga `'experimental/**'`, ora owned da experimental-validation), `name:` → `Chronon Gates (release-validation)`, `jobs.full-validation` rinominato in `jobs.release-validation`, e i tre `run:` commands ora referenziano `linux-release-validation` + `linux-release-validation-test`.
-- `.github/workflows/gates-experimental-validation.yml` — NUOVO file, specchiato su gates-release-validation.yml ma con paths che INCLUDONO `experimental/**` + preset `linux-experimental-validation` (+ companion test preset). Importante: il **build preset `linux-experimental-validation`** lista `targets: ["chronon3d_cli", "chronon3d_tests", "chronon3d_expressions_v2_tests"]` — l'ultimo target è **esplicito** perché `chronon3d_tests` (umbrella fast/render/video) **NON** aggrega `chronon3d_expressions_v2_tests` (registrato standalone in `experimental/expressions/tests/CMakeLists.txt` via `add_executable + add_test`). Senza l'append esplicito, il nuovo gate non avrebbe validato l'effettivo sottosistema `experimental/expressions/` benché le cacheVariables lo richiedessero.
-
-**Rationale dell'asimmetria `paths:` filter**:
-L'asimmetria tra le due workflows è mirata SOLO a `experimental/**`. `tools/**` e `tests/**` restano in ENTRAMBI i `paths:` filter perché questi path coprono codice shared-core che può rompere il contratto V1 anche quando la patch è "solo test/TU" — un edit a `tests/text/test_*` può rompere un'asserzione V1 se cambia un header pubblico transitivo. Il costo aggiuntivo (CI paid twice su PR che tocca tools/tests) è accettabile: `tools/**` e `tests/**` PR sono rari e la duplicazione del coverage è ridondante-voluta. Una sola nota di manutenzione: se in futuro si vuole ridurre ulteriormente il costo CI, anche `tools/**` può essere spostato solo a experimental-validation (o a un terzo gate dedicato), ma è una decisione che va prima formalizzata in una ADR.
-
-**VCPKG hardening** esplicito: entrambi i nuovi preset aggiungono `VCPKG_MANIFEST_NO_DEFAULT_FEATURES=ON` esplicito (coerentemente con il pattern dei profile-extended presets), per evitare silent-addition quando `vcpkg.json::default-features` cambia in futuro.
-
-[Rationale]
-
-Il preset originale era un trade-off pratico che ha funzionato per il ciclo baseline ma ha due svantaggi strutturali:
-
-1. **Falso negativo sul release contract** — una regressione in `expressions/v2` rompeva la CI gates-full-validation, che è il gate ONDE il team deve garantire la V1 shippable. Lo sviluppatore della regression V1 vedeva il CI rosso anche se la sua patch non toccava V1.
-2. **Falso negativo sul forward-looking** — una regressione V1 rompeva la CI gates-full-validation allo stesso modo, anche se il developer stava lavorando solo su Expressions/V2 (sottosistema dichiaratamente fuori dal contratto V1).
-
-Con i due contracts su gates separati: V1 contract è GATEATO da release-validation (Release build, V1 feature set); forward-looking è GATEATO da experimental-validation (Debug build, V1 + experimental). Una regression in `expressions/v2` rompe SOLO experimental-validation; una regression in V1 rompe entrambi (coverage ridondante voluto, perché il forward-looking dipende transitivamente dalle API V1).
-
-[File modificati]
-
-- `CMakePresets.json` — rimossi `linux-full-validation` (configurePreset + buildPreset + testPreset); aggiunti `linux-release-validation` e `linux-experimental-validation` triad ognuno (configure + build + test). `cmake --list-presets` su clean checkout riporta correttamente i 6 nuovi preset e zero riferimenti al vecchio nome.
-- `.github/workflows/gates-release-validation.yml` (rename da `gates-full-validation.yml`) — preset references aggiornate, paths filter aggiornato, `name:` + job id aggiornati.
-- `.github/workflows/gates-experimental-validation.yml` (NUOVO) — specchiato su release-validation, con paths/preset per il contratto experimental.
-- `docs/CHANGELOG.md` — questo entry.
-
-[Reference accounting — non riscrivere la storia]
-
-- `docs/agent-tasks/AGENT_2_CMAKE_SDK_BASELINE.md:131-133` cita `cmake --preset linux-full-validation` come comandi del baseline-cycle dell'Agente 2 (chiuso commit `ee9533bb`). ACCETTATO come historical record; **NON** aggiornato retroattivamente. Per agenti futuri che vogliono replicare il baseline-cycle di Agente 2, il comando canonico aggiornato è `cmake --preset linux-release-validation` (V1 contract) — la failure scenario di Agente 2 (cache-render-aggregator rot) viene riprodotta altrettanto bene sotto V1 contract perché quel preset copre comunque `src/render_graph/...`.
-- `docs/baselines/main-446a60e2-baseline.md:28` cita `linux-full-validation` come baseline-validate. ACCETTATO come historical — chi legge sa che il baseline è stato acquisito con il preset pre-split.
-- `docs/adr/README.md:17` cita `linux-ci / linux-full-validation` come CI marcia. MINOR UPDATE consigliato in follow-up per riflettere i due nuovi contracts.
-- `docs/stabilization-plan/07-documentation-and-adrs.md:178` cita `linux-full-validation o equivalente win-release` come acceptance criterion. La formulazione "o equivalente" è ancora valida: `linux-release-validation` (V1 stable) è l'equivalente canonico per `linux-full-validation` sul piano V1.
-
-[Machine verification]
-
-- `python3 -c 'import json; json.load(open("CMakePresets.json"))'` → `OK - JSON valid`.
-- `cmake --list-presets=configure` su clean checkout riporta `linux-release-validation` + `linux-experimental-validation` e NON `linux-full-validation`.
-- `cmake --list-presets=build` riporta idem.
-- `cmake --list-presets=test` riporta `linux-release-validation-test` + `linux-experimental-validation-test` e NON `linux-full-validation-test`.
-- `cmake --preset linux-release-validation` → configure-only in clean build dir (configure step) rc=0.
-- `cmake --preset linux-experimental-validation` → configure-only in clean build dir rc=0.
-
-Full build verification (`cmake --build` + `ctest`) è delegata al primo CI run post-merge; baseline doc dedicato sarà generato come `docs/baselines/main-<sha>-preset-split-validated.md` con la validation matrix completa di entrambi i presets.
-
 ### TICKET-040 — complete Taskflow cleanup (rot closure)
 
 2026-06-23 (branch `codex/fix-ticket-040-taskflow-cleanup` off `main@9e1750a9`) — Completes the second half of `TICKET-040` (🟢 Done in `docs/FOLLOWUP_TICKETS.md` but only half-executed). The retirement side (`vcpkg.json` no longer lists `"taskflow"`) shipped long ago; the symmetric `find_package(Taskflow CONFIG REQUIRED)` removal from `CMakeLists.txt:123` was deferred, leaving a leftover dependency on a vcpkg package the manifest no longer provided. That mismatch blocked `cmake --preset linux-ci` at the configure step with `TASKFLOW_NOTFOUND` (TICKET-038-style rot for the new `chronon3d_wiggly_selector_tests` + `chronon3d_wave_selector_tests` targets in TXT-08, and likely others). Single-file delta:
@@ -768,29 +679,3 @@ Build verification: the simplify configure invocation `cmake -B build-verify-tas
 Anti-duplication integrity (per `docs/ANTI_DUPLICATION_RULES.md`): Taskflow contributes zero unique concepts to the productive tree (verified via grep), so deleting the find_package line collapses the dependency graph along the canonical single-provider-per-concept rule. No replacement is required.
 
 Branch: `codex/fix-ticket-040-taskflow-cleanup` (single commit ahead of `main@9e1750a9`). LF-merge ready. Forward-compat: TICKET-040 in `docs/FOLLOWUP_TICKETS.md` should be re-checked to confirm it stays 🟢 Done now that BOTH halves of the cleanup have shipped.
-
-### TXT-00 closure + audit-grade baseline for TICKET-038 / TICKET-039
-
-2026-06-24 (commit `b8114705` off `main@345e5f2e`) — TXT-00 officially CHIUSO with the new audit-grade baseline doc at [`docs/baselines/main-345e5f2e-txt-00-closed.md`](baselines/main-345e5f2e-txt-00-closed.md). The closure verifies:
-
-- `cmake --preset linux-ci` configure rc=0.
-- `cmake --build --preset linux-ci --target chronon3d_text_preset_visual_tests --parallel 8` rc=0.
-- `ctest --test-dir build/chronon/linux-ci -R '^VRTextPresetVisual$' --output-on-failure -V` rc=0 — 18/18 doctest cases, 263/263 assertions, 0 skipped.
-- Both `TextE2E` rc=0 — `render_frame` with text produces `ink_pixels = 1372`; `materialize + draw_text_run` produces `items_drawn > 0` and `ink_pixels = 1372`.
-
-Frame transparency is verified per `(preset, ratio, frame)` — **no blanket classification**:
-
-- 14 entrance-animation presets (`fade_in` / `soft_pop` / `fade_shift_*`) have `ink_pixels == 0` at `F000` by design (opacity clamped to 0).
-- Only `BlurIn` F020 and `MaskedLineReveal` F020 (both 169 + 916) are sub-threshold mid-animation (physical pixels present but per-pixel alpha `< 0.05`).
-- `tracking_close` + `minimal_white` are visible at every timestamp (no entrance opacity animation).
-
-The 128 sentinel hashes are captured into `tests/text/test_text_preset_visual.cpp` constants and the gate is engaged for all of them (`grep -c 'first hash to capture' /tmp/vr_text_after_capture.txt` → 0 — no "first hash to capture" markers remaining).
-
-This commit additionally cross-links the new closure baseline into `docs/FOLLOWUP_TICKETS.md` as the audit-grade resolution for both:
-
-- **TICKET-038** — pre-existing lambda capture / `auto` deduction rot in `tests/text/test_text_preset_visual.cpp`; macro body TU-local `gate_m` rename + 128 sentinel capture; **Status 🟢 Done** at `main@345e5f2e`.
-- **TICKET-039** — `SoftwareRenderer::settings()` accessor regression from `b5c7df01`; Agent 2 migrated to `render_settings()` in commit `9703960b`; **Status 🟢 Done** at `main@ccabb574`.
-
-The new ticket entries mirror the TICKET-040 format (data table / Symptom / Root cause / Suggested fix approach / Acceptance criteria / Cross-references / Resolution sub-section) and cite the closure baseline as Resolved-at evidence, completing the audit-trail pointer. `docs/STATUS.md` + `docs/NEXT_STEPS.md` already reflect the TXT-00 closure in the prior `345e5f2e` commit — this commit propagates the pointer into FOLLOWUP_TICKETS.md and CHANGELOG.md so the audit-trail is now pointer-unified across all four governance docs (`STATUS.md`, `NEXT_STEPS.md`, `CHANGELOG.md`, `FOLLOWUP_TICKETS.md`) plus the new baseline file.
-
-Branch: doc-only commit on `main` (`b8114705`), in sync with `origin/main` after push. Forward-compat: the audit-trail is now pointer-unified; the closure baseline file `docs/baselines/main-345e5f2e-txt-00-closed.md` is the canonical reference for any future audit against TICKET-038 / TICKET-039 / TXT-00.

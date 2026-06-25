@@ -21,11 +21,7 @@ int command_doctor(const CompositionRegistry& registry) {
 
     {
         const bool sys_ffmpeg =
-#ifdef _WIN32
-            (std::system("ffmpeg -version > NUL 2>&1") == 0);
-#else
             (std::system("ffmpeg -version > /dev/null 2>&1") == 0);
-#endif
         spdlog::info("doctor: ffmpeg (system PATH)   {}", sys_ffmpeg ? "found" : "NOT found");
         if (!sys_ffmpeg) ok = false;
     }

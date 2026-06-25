@@ -2,12 +2,6 @@
 
 #include <cstddef>
 
-#if defined(_MSC_VER)
-#include <intrin.h>
-#include <mmintrin.h>
-#include <xmmintrin.h>
-#endif
-
 namespace chronon3d {
 
 /**
@@ -37,12 +31,6 @@ inline void prefetch(const void* addr, bool write = false, int locality = 3) {
             default: __builtin_prefetch(addr, 0, 3); break;
         }
     }
-#elif defined(_MSC_VER)
-    #if defined(_M_X64) || defined(_M_IX86)
-        _mm_prefetch(static_cast<const char*>(addr), _MM_HINT_T0);
-    #endif
-    (void)write;
-    (void)locality;
 #else
     (void)addr;
     (void)write;

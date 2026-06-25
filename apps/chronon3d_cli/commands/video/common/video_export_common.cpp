@@ -43,11 +43,7 @@ std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& o
 }
 
 bool ffmpeg_in_path() {
-#ifdef _WIN32
-    return std::system("ffmpeg -version > NUL 2>&1") == 0;
-#else
     return std::system("ffmpeg -version > /dev/null 2>&1") == 0;
-#endif
 }
 
 PipePixelFormat parse_pipe_pixfmt(const std::string& fmt) {

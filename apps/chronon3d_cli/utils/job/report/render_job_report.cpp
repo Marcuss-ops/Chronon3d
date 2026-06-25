@@ -308,11 +308,7 @@ std::string generate_execution_report(const RenderReportContext& ctx) {
     auto now = std::chrono::system_clock::now();
     std::time_t now_time = std::chrono::system_clock::to_time_t(now);
     std::tm tm_buf;
-#if defined(_WIN32)
-    localtime_s(&tm_buf, &now_time);
-#else
     localtime_r(&now_time, &tm_buf);
-#endif
     std::ostringstream file_name;
     file_name << "chronon3d-"
               << std::put_time(&tm_buf, "%Y%m%d-%H%M%S")

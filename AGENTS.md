@@ -1,81 +1,61 @@
 # Chronon3D Agent Instructions
 
-Questo file è il punto di ingresso operativo per ogni agente che lavora nel repository.
+Punto di ingresso obbligatorio per ogni agente che lavora nel repository.
 
-## Missione del progetto
-
-Chronon3D è un motore C++20 headless, Linux-only e CPU-first per motion graphics e compositing programmabile.
-
-Priorità attuale:
-
-1. camera cinematografica realmente funzionante;
-2. animazioni testuali realmente temporali;
-3. composizioni e showcase renderizzabili dalla CLI;
-4. rendering deterministico e riproducibile;
-5. pulizia progressiva del legacy soltanto dopo un percorso reale funzionante.
-
-Non introdurre GUI, browser, supporto Windows o dipendenze GPU-first nel core.
-
-## Prima di iniziare
+## Workflow Git obbligatorio
 
 ```bash
 git fetch origin
 git checkout main
 git pull --ff-only origin main
-git status -sb
+git checkout -b codex/<task>
 ```
 
-Su `main` può scrivere un solo agente alla volta. Gli altri agenti possono analizzare, preparare patch o eseguire test, ma devono riallinearsi con `git pull --ff-only origin main` prima di modificare o committare.
+Durante il lavoro:
 
-Non creare branch o PR salvo richiesta esplicita.
+```bash
+git rebase origin/main   # frequente
+git status -sb           # prima di ogni commit
+git diff                 # verifica le modifiche
+# test mirati sul modulo toccato
+git add <solo-file-modificati>
+git commit -m "<tipo(scope): descrizione>"
+git push origin codex/<task>
+git log -n 5 --oneline   # dopo il push
+```
+
+- **Mai pushare direttamente su `main`.**
+- Una PR = un solo problema.
+- PR piccola e reviewable.
+- Rebase su `origin/main` prima del merge.
+- Dopo il merge, il branch va rimosso.
+
+## Regole di lavoro
+
+- Cercare prima il codice e i documenti esistenti.
+- Non duplicare registry, resolver, sampler, cache, service locator o checklist.
+- Non segnare verde una suite che restituisce failure.
+- Non cambiare un gate per nascondere un errore.
+- Aggiornare i documenti nello stesso commit che cambia lo stato.
+- Ogni nuova feature deve usare il registry, resolver o sampler canonico già esistente.
+- Non introdurre GUI, browser o dipendenze GPU nel core headless CPU-first.
+- Non introdurre `#include <msdfgen>`, `<libtess2>` o `<unicode[/...]>` da nessuna parte.
+- Non committare `node_modules/`, directory di build, output, artefatti o file generati.
+- Eseguire almeno i test del modulo toccato prima della PR.
 
 ## Documenti canonici
 
-- `README.md` — ingresso e quick start;
-- `docs/CURRENT_STATUS.md` — unica fonte dello stato corrente;
-- `docs/ROADMAP.md` — milestone ancora attive;
-- `docs/RELEASE_GATE.md` — criteri tecnici di validazione;
-- `docs/FOLLOWUP_TICKETS.md` — problemi ancora aperti;
-- `docs/adr/` — decisioni architetturali;
-- `docs/CAMERA_FEATURE_MATRIX.md` — dettaglio camera;
-- `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md` — dettaglio testo.
-
-Non creare nuovi documenti di stato paralleli. Quando cambia lo stato, aggiornare `docs/CURRENT_STATUS.md` o il documento tecnico specifico.
-
-## Regole architetturali
-
-- Cercare prima il codice esistente.
-- Non duplicare registry, resolver, sampler, cache, service locator o pipeline.
-- Ogni nuova feature deve entrare nel percorso canonico già esistente.
-- Camera canonica: `CameraDescriptor → compile_camera() → CameraProgram`.
-- Testo canonico: `TextDocument/TextSpec → layout → animator stack → renderer`.
-- Render canonico: `RenderGraph → FrameGraphCompiler → CompiledFrameGraph → GraphExecutor`.
-- Non aggiungere correzioni speciali soltanto per uno showcase.
-- Non indebolire gate o test per nascondere un errore.
-- Non trasformare failure in skip.
-- Non committare build, output, video, PNG, cache o file generati.
-- Limitare ogni modifica a un problema chiaro e ai file necessari.
-
-## Flusso di consegna su main
-
-```bash
-git status -sb
-git diff
-# eseguire almeno i test mirati del modulo toccato
-git add <solo-file-modificati>
-git commit -m "<tipo(scope): descrizione chiara>"
-git push origin main
-git log -n 5 --oneline
-```
-
-Dopo ogni push verificare che il commit remoto contenga davvero i file previsti.
+- [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) — stato presente.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — milestone future.
+- [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md) — requisiti per una release valida.
+- [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) — ticket e difetti tracciati.
 
 ## Quando un file sembra mancare
 
-1. controllare `git status -sb`;
-2. controllare `git rev-parse HEAD`;
-3. eseguire `git fetch origin`;
-4. confrontare `HEAD` con `origin/main`;
-5. aggiornare il checkout prima di creare sostituti.
+1. `git fetch origin`
+2. `git status -sb`
+3. `git rev-parse HEAD`
+4. Confrontare `HEAD` con `origin/main`.
+5. Aggiornare il checkout prima di concludere che il file non esiste.
 
-Non creare file con nomi simili per sostituire documenti o componenti già esistenti.
+Non creare un file sostitutivo con nome simile: usare sempre i percorsi canonici.

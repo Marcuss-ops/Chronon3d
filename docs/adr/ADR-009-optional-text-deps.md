@@ -77,7 +77,7 @@ under the `text` feature).
    `linux-profile-extended` enables `text-3d` + `text-msdf`, and a
    future `linux-profile-motion-icu` (or `global-text`-equivalent)
    enables `icu-layout`. The `linux-profile-core` profile (49
-   packages per `docs/stabilization-plan/08-dependency-profiles.md`)
+   packages per `docs/ARCHIVE/stabilization-plan/08-dependency-profiles.md`)
    remains untouched.
 
 4. **Scoped Gate-5 exemptions.** Update
@@ -119,7 +119,7 @@ under the `text` feature).
   `src/text/glyph_raster/` will fail Gate 5 on the PR.
 - **Negative.** Adoption expands binaries; tracked via
   `tools/measure_profile.sh` and reported in
-  `docs/stabilization-plan/08-dependency-profiles.md`.
+  `docs/ARCHIVE/stabilization-plan/08-dependency-profiles.md`.
 - **Neutral.** Existing `text` feature (`freetype`, `harfbuzz`,
   `fribidi`, `zlib`) and Blend2D / `mesh` feature are unaffected.
 
@@ -144,7 +144,7 @@ under the `text` feature).
   in `CMakePresets.json` adds the new features to
   `VCPKG_MANIFEST_FEATURES`. Tracked as a separate follow-up PR
   mirroring the precedent in
-  `docs/stabilization-plan/08-dependency-profiles.md` (work item
+  `docs/ARCHIVE/stabilization-plan/08-dependency-profiles.md` (work item
   "Allineare i preset non-profile ... rendere esplicite tutte le
   feature in ogni preset"). Until that lands, the three features are
   documented and vcpkg-installable, but no consumer of `vcpkg.json`
@@ -167,7 +167,7 @@ under the `text` feature).
 - `AGENTS.md` §Regole di lavoro — ADR-first deroga rule.
 - `tools/check_architecture_boundaries.sh` (Check 11).
 - `vcpkg.json`.
-- `docs/stabilization-plan/08-dependency-profiles.md` — profile matrix
+- `docs/ARCHIVE/stabilization-plan/08-dependency-profiles.md` — profile matrix
   + `default-features` policy.
 - `src/text/path_sampler.cpp` — canonical PathSampler (Phase 5);
   reason for rejecting `tinyspline`.

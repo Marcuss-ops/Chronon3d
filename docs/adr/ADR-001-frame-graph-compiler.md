@@ -55,5 +55,5 @@ identificati come fonti di non-determinismo e di stato nascosto:
 * Commit `9f9af90e`: rimozione `ExecutionPlanCache`.
 * TICKET-008 (FOLLOWUP_TICKETS.md): closure di `graph_structure_unchanged`
   via `compile_with_reuse`.
-* [`../refactor-roadmap/01-scheduler-single-authority.md`](../refactor-roadmap/01-scheduler-single-authority.md).
-* [`../stabilization-plan/02-determinism.md`](../stabilization-plan/02-determinism.md) (§TODO).
+* [`../ARCHIVE/refactor-roadmap/01-scheduler-single-authority.md`](../ARCHIVE/refactor-roadmap/01-scheduler-single-authority.md).
+* [`../ARCHIVE/stabilization-plan/02-determinism.md`](../ARCHIVE/stabilization-plan/02-determinism.md) (§TODO).
