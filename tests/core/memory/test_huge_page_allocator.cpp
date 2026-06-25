@@ -14,6 +14,12 @@
 // (the allocator doesn't expose which it picked), so the test exercises the
 // alignment invariant by sweeping sizes that almost always touch each
 // backend at least once across repeated alloc/dealloc cycles.
+//
+// For the larger sizes we use `vector::reserve(N)` (NOT `resize(N)`) so the
+// test does NOT trigger N default-ctor calls on `Color` — the alignment
+// invariant lives on the allocator's pointer (exposed by reserve() via
+// `data()`), so reserve is sufficient and avoids O(N) work on the 4K
+// footprint.
 
 #include <doctest/doctest.h>
 
@@ -71,20 +77,28 @@ TEST_CASE("HugePageAllocator<int>: 64-byte alignment across small / medium / 108
 TEST_CASE("HugePageAllocator<Color>: 64-byte alignment for the Framebuffer-canonical use case") {
     using Alloc = chronon3d::memory::HugePageAllocator<chronon3d::Color>;
 
+    // NOTE: `reserve(N)` (not `resize(N)`) so we don't trigger N
+    // default-ctor calls on `Color`.  The alignment invariant holds on
+    // the allocator's returned pointer which `reserve` exposes via
+    // `data()`.
+
     SUBCASE("640x360 (SD framebuffer)") {
-        std::vector<chronon3d::Color, Alloc> v(static_cast<std::size_t>(640) * 360);
+        std::vector<chronon3d::Color, Alloc> v;
+        v.reserve(static_cast<std::size_t>(640) * 360);
         REQUIRE(v.data() != nullptr);
         CHECK(is_64_aligned(v.data()));
     }
 
     SUBCASE("1920x1080 (Full HD framebuffer)") {
-        std::vector<chronon3d::Color, Alloc> v(static_cast<std::size_t>(1920) * 1080);
+        std::vector<chronon3d::Color, Alloc> v;
+        v.reserve(static_cast<std::size_t>(1920) * 1080);
         REQUIRE(v.data() != nullptr);
         CHECK(is_64_aligned(v.data()));
     }
 
     SUBCASE("3840x2160 (4K framebuffer)") {
-        std::vector<chronon3d::Color, Alloc> v(static_cast<std::size_t>(3840) * 2160);
+        std::vector<chronon3d::Color, Alloc> v;
+        v.reserve(static_cast<std::size_t>(3840) * 2160);
         REQUIRE(v.data() != nullptr);
         CHECK(is_64_aligned(v.data()));
     }
@@ -108,16 +122,12 @@ TEST_CASE("HugePageAllocator<int>: repeated alloc/dealloc cycles hold alignment 
     }
 }
 
-TEST_CASE("HugePageAllocator counter-offer: k_huge_page_header<int>() is >= 64 and 64-aligned") {
-    constexpr std::size_t pad_int  = chronon3d::memory::k_huge_page_header<int>();
-    constexpr std::size_t pad_col  = chronon3d::memory::k_huge_page_header<chronon3d::Color>();
-    CHECK(pad_int  >= 64);
-    CHECK(pad_int  % 64 == 0);
-    CHECK(pad_col  >= 64);
-    CHECK(pad_col  % 64 == 0);
-    // Compile-time check baked into the helper itself — this is the
-    // defensive guarantee in case a downstream refactor accidentally drops
-    // the rounding math.
+TEST_CASE("HugePageAllocator: k_huge_page_header<T>() satisfies the 64-byte invariant at compile time") {
+    // The static_assert inside `k_huge_page_header<T>()` already enforces
+    // this at compile time; this test exists to surface the invariant in
+    // the test lattice and to record the alignment contract.
     static_assert(chronon3d::memory::k_huge_page_header<int>() >= 64);
+    static_assert(chronon3d::memory::k_huge_page_header<int>() % 64 == 0);
     static_assert(chronon3d::memory::k_huge_page_header<chronon3d::Color>() >= 64);
+    static_assert(chronon3d::memory::k_huge_page_header<chronon3d::Color>() % 64 == 0);
 }
