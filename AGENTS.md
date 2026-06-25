@@ -1,10 +1,22 @@
 # Chronon3D Agent Instructions
 
-Questo file è il punto di ingresso obbligatorio per ogni agente che lavora nel repository.
+Questo file è il punto di ingresso operativo per ogni agente che lavora nel repository.
+
+## Missione del progetto
+
+Chronon3D è un motore C++20 headless, Linux-only e CPU-first per motion graphics e compositing programmabile.
+
+Priorità attuale:
+
+1. camera cinematografica realmente funzionante;
+2. animazioni testuali realmente temporali;
+3. composizioni e showcase renderizzabili dalla CLI;
+4. rendering deterministico e riproducibile;
+5. pulizia progressiva del legacy soltanto dopo un percorso reale funzionante.
+
+Non introdurre GUI, browser, supporto Windows o dipendenze GPU-first nel core.
 
 ## Prima di iniziare
-
-L'agente deve lavorare su `main` aggiornato:
 
 ```bash
 git fetch origin
@@ -13,108 +25,57 @@ git pull --ff-only origin main
 git status -sb
 ```
 
-Se il checkout non contiene i file elencati sotto, il clone o worktree è obsoleto. Non inventare percorsi alternativi e non ricreare copie dei documenti.
+Su `main` può scrivere un solo agente alla volta. Gli altri agenti possono analizzare, preparare patch o eseguire test, ma devono riallinearsi con `git pull --ff-only origin main` prima di modificare o committare.
 
-Verifica rapida:
+Non creare branch o PR salvo richiesta esplicita.
 
-```bash
-git ls-tree -r --name-only HEAD docs/stabilization-plan
-git ls-tree -r --name-only HEAD docs/agent-tasks
-```
+## Documenti canonici
 
-## Piano operativo canonico
+- `README.md` — ingresso e quick start;
+- `docs/CURRENT_STATUS.md` — unica fonte dello stato corrente;
+- `docs/ROADMAP.md` — milestone ancora attive;
+- `docs/RELEASE_GATE.md` — criteri tecnici di validazione;
+- `docs/FOLLOWUP_TICKETS.md` — problemi ancora aperti;
+- `docs/adr/` — decisioni architetturali;
+- `docs/CAMERA_FEATURE_MATRIX.md` — dettaglio camera;
+- `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md` — dettaglio testo.
 
-Indice principale:
+Non creare nuovi documenti di stato paralleli. Quando cambia lo stato, aggiornare `docs/CURRENT_STATUS.md` o il documento tecnico specifico.
 
-- `docs/stabilization-plan/README.md`
+## Regole architetturali
 
-Work package:
+- Cercare prima il codice esistente.
+- Non duplicare registry, resolver, sampler, cache, service locator o pipeline.
+- Ogni nuova feature deve entrare nel percorso canonico già esistente.
+- Camera canonica: `CameraDescriptor → compile_camera() → CameraProgram`.
+- Testo canonico: `TextDocument/TextSpec → layout → animator stack → renderer`.
+- Render canonico: `RenderGraph → FrameGraphCompiler → CompiledFrameGraph → GraphExecutor`.
+- Non aggiungere correzioni speciali soltanto per uno showcase.
+- Non indebolire gate o test per nascondere un errore.
+- Non trasformare failure in skip.
+- Non committare build, output, video, PNG, cache o file generati.
+- Limitare ogni modifica a un problema chiaro e ai file necessari.
 
-- `docs/stabilization-plan/01-baseline-green.md`
-- `docs/stabilization-plan/02-determinism.md`
-- `docs/stabilization-plan/03-execution-scope-and-precomp.md`
-- `docs/stabilization-plan/04-cmake-module-registry.md`
-- `docs/stabilization-plan/05-sdk-plan.md`
-- `docs/stabilization-plan/06-renderer-plan.md`
-- `docs/stabilization-plan/07-documentation-and-adrs.md`
-- `docs/stabilization-plan/08-dependency-profiles.md`
-- `docs/stabilization-plan/09-document-canonicalization.md`
-
-Documenti generali da leggere insieme:
-
-- `docs/STATUS.md`
-- `docs/NEXT_STEPS.md`
-- `docs/ROADMAP.md`
-- `docs/FOLLOWUP_TICKETS.md`
-- `docs/ANTI_DUPLICATION_RULES.md`
-
-## Stato assegnazioni agenti (snapshot 2026-06-23)
-
-Snapshot dello stato corrente (vedi body per lo stato per-agente). L'assegnazione iniziale prevedeva due incarichi paralleli per ridurre conflitti e duplicazioni; la realtà attuale è sequenziale.
-
-1. [Agente 1 — Renderer/Backend Single Identity](docs/agent-tasks/AGENT_1_RENDERER_BOUNDARY.md)
-   - branch: `codex/agent1-renderer-boundary` **[DONE ✓ — Merged into main on 2026-06-23, branch retired]**
-   - ownership: renderer/backend software, call site correlati, test mirati e gate renderer.
-2. [Agente 2 — CMake Registry, SDK Boundary e Baseline](docs/agent-tasks/AGENT_2_CMAKE_SDK_BASELINE.md)
-   - branch: `codex/agent2-cmake-sdk-baseline` **[COMPLETED]**
-   - ownership: CMake, preset/toolchain, install consumer, full validation e documenti canonici.
-   - closed-state baseline: [`docs/baselines/main-345e5f2e-txt-00-closed.md`](docs/baselines/main-345e5f2e-txt-00-closed.md) (main@`345e5f2e`, audit-pinned at commit `b8114705`, 2026-06-24).
-
-Entrambi gli agenti sono completati. Lavoro sequenziale su `main`, un task alla volta.
-
-## Priorità obbligatoria
-
-1. Ripristinare una sola identità renderer/backend e rendere bloccante il relativo gate.
-2. Centralizzare la registrazione dei moduli CMake.
-3. Unificare toolchain/preset vcpkg.
-4. Chiudere installazione ed external consumer SDK.
-5. Registrare una baseline reale su checkout pulito.
-6. Allineare `STATUS.md`, `NEXT_STEPS.md`, `ROADMAP.md` e stabilization plan ai risultati osservati.
-7. Proseguire con ExecutionScope, Precomp e determinismo soltanto sui gap ancora dimostrati dalla nuova baseline.
-8. Non iniziare V3 prima della chiusura completa dei P0.
-
-## Regole di lavoro
-
-- Cercare prima il codice e i documenti esistenti.
-- Non duplicare registry, resolver, sampler, cache, service locator o checklist.
-- Non segnare verde una suite che restituisce failure.
-- Non cambiare un gate per nascondere un errore.
-- Aggiornare il piano relativo nello stesso commit che cambia lo stato.
-- Ogni nuova feature deve usare il registry, resolver o sampler canonico già esistente.
-- Non introdurre GUI, browser o dipendenze GPU nel core headless CPU-first.
-- Non introdurre `#include <msdfgen>`, `<libtess2>` o `<unicode[/...]>` da nessuna parte — dei pattern deny-everywhere di Gate 5 in `tools/check_architecture_boundaries.sh` (Check 11). Per deroghe serve prima un ADR.
-- Fare PR piccole e mirate, senza mescolare refactor indipendenti.
-- Non committare `node_modules/`, directory di build, output, artefatti o file generati.
-- Eseguire almeno i test del modulo toccato prima della PR.
-- Dopo ogni push verificare la cronologia recente con `git log -n 5 --oneline`.
-
-## Workflow Git obbligatorio
-
-```bash
-git fetch origin
-git checkout main
-git pull --ff-only origin main
-```
-
-Dopo le modifiche:
+## Flusso di consegna su main
 
 ```bash
 git status -sb
 git diff
-# test mirati
+# eseguire almeno i test mirati del modulo toccato
 git add <solo-file-modificati>
 git commit -m "<tipo(scope): descrizione chiara>"
 git push origin main
 git log -n 5 --oneline
 ```
 
+Dopo ogni push verificare che il commit remoto contenga davvero i file previsti.
 
 ## Quando un file sembra mancare
 
-1. Controllare `git status -sb`.
-2. Controllare `git rev-parse HEAD`.
-3. Eseguire `git fetch origin`.
-4. Confrontare `HEAD` con `origin/main`.
-5. Aggiornare il checkout prima di concludere che il file non esiste.
+1. controllare `git status -sb`;
+2. controllare `git rev-parse HEAD`;
+3. eseguire `git fetch origin`;
+4. confrontare `HEAD` con `origin/main`;
+5. aggiornare il checkout prima di creare sostituti.
 
-Non creare un nuovo file sostitutivo con nome simile: usare sempre i percorsi canonici sopra.
+Non creare file con nomi simili per sostituire documenti o componenti già esistenti.
