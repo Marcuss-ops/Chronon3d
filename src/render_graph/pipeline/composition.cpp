@@ -165,7 +165,13 @@ std::shared_ptr<Framebuffer> render_composition_frame(
             }
         }
 
-        std::vector<float> accum(static_cast<size_t>(rw * rh * 4), 0.0f);
+        // Block 3 — pool the accumulator buffer: replaces the per-frame
+        // `std::vector<float> accum(rw*rh*4)` heap alloc (~32 MiB at 1080p
+        // ssaa=1, ~133 MiB at ssaa=2 / 4K) by acquiring the SAME pooled
+        // buffer up-front that we ultimately return as `render_fb`.  Pool's
+        // `clear=true` zeroes to `Color::transparent()` (R=G=B=A=0) — the
+        // initial-condition required for premul `+= sub * w` accumulation.
+        render_fb = backend.framebuffer_pool()->acquire(rw, rh, /*clear=*/true);
 
         // TICKET-007.j — track the sum of the SAME weights that were sent into
         // the accumulator.  Multiplication by `1 / sum_w` at the post-loop step
@@ -210,7 +216,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
 
                         for (int y = range.begin(); y < range.end(); ++y) {
                             const float* src = reinterpret_cast<const float*>(sub_fb.pixels_row(y));
-                            float* dst = accum.data() + static_cast<size_t>(y * rw * 4);
+                            float* dst = reinterpret_cast<float*>(render_fb->pixels_row(y));
                             const int total_floats = rw * 4;
 
                             // SIMD path: process full lanes
@@ -244,32 +250,37 @@ std::shared_ptr<Framebuffer> render_composition_frame(
             ? (1.0f / actual_weight_sum)
             : 1.0f;
 
-        // Write accumulated float buffer to output framebuffer (parallel + SIMD)
-        render_fb = backend.framebuffer_pool()->acquire(rw, rh, true);
-        tbb::parallel_for(tbb::blocked_range<int>(0, rh, 16),
-            [&](const tbb::blocked_range<int>& range) {
-                using namespace hwy::HWY_NAMESPACE;
-                const ScalableTag<float> df;
-                const size_t lanes = Lanes(df);
-                const auto v_post = Set(df, post_norm);
+        // In-place normalize: the same pooled buffer doubles as the final
+        // output.  Eliminates one full-frame copy pass (~66 MiB transferred
+        // at 1080p ssaa=1, ~264 MiB at ssaa=2 / 4K) AND the per-frame
+        // `<vector<float>>` alloc.  Bit-exact with the prior two-buffer
+        // pipeline (see commit message).
+        {
+            CHRONON_ZONE_C("motion_blur_normalize_in_place", trace_category::kEffect);
+            tbb::parallel_for(tbb::blocked_range<int>(0, rh, 16),
+                [&](const tbb::blocked_range<int>& range) {
+                    using namespace hwy::HWY_NAMESPACE;
+                    const ScalableTag<float> df;
+                    const size_t lanes = Lanes(df);
+                    const auto v_post = Set(df, post_norm);
 
-                for (int y = range.begin(); y < range.end(); ++y) {
-                    const float* src = accum.data() + static_cast<size_t>(y * rw * 4);
-                    float* dst = reinterpret_cast<float*>(render_fb->pixels_row(y));
-                    const int total_floats = rw * 4;
+                    for (int y = range.begin(); y < range.end(); ++y) {
+                        float* row = reinterpret_cast<float*>(render_fb->pixels_row(y));
+                        const int total_floats = rw * 4;
 
-                    int x = 0;
-                    for (; x + static_cast<int>(lanes) <= total_floats; x += static_cast<int>(lanes)) {
-                        auto v = LoadU(df, src + x);
-                        v = Mul(v, v_post);
-                        StoreU(v, df, dst + x);
-                    }
-                    for (; x < total_floats; ++x) {
-                        dst[x] = src[x] * post_norm;
+                        int x = 0;
+                        for (; x + static_cast<int>(lanes) <= total_floats; x += static_cast<int>(lanes)) {
+                            auto v = LoadU(df, row + x);
+                            v = Mul(v, v_post);
+                            StoreU(v, df, row + x);
+                        }
+                        for (; x < total_floats; ++x) {
+                            row[x] *= post_norm;
+                        }
                     }
                 }
-            }
-        );
+            );
+        }
     }
 
     if (sw_sidecar) {
