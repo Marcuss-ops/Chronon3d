@@ -165,12 +165,13 @@ std::shared_ptr<Framebuffer> render_composition_frame(
             }
         }
 
-        // Block 3 — pool the accumulator buffer: replaces the per-frame
-        // `std::vector<float> accum(rw*rh*4)` heap alloc (~32 MiB at 1080p
-        // ssaa=1, ~133 MiB at ssaa=2 / 4K) by acquiring the SAME pooled
-        // buffer up-front that we ultimately return as `render_fb`.  Pool's
-        // `clear=true` zeroes to `Color::transparent()` (R=G=B=A=0) — the
-        // initial-condition required for premul `+= sub * w` accumulation.
+        // perf(review-block-3): pool the accumulator buffer — replaces the
+        // per-frame `std::vector<float> accum(rw*rh*4)` heap alloc
+        // (~32 MiB at 1080p ssaa=1, ~133 MiB at ssaa=2 / 4K) by acquiring the
+        // SAME pooled buffer up-front that we ultimately return as
+        // `render_fb`.  Pool's `clear=true` zeroes to `Color::transparent()`
+        // (R=G=B=A=0) — the initial-condition required for premul
+        // `+= sub * w` accumulation.
         render_fb = backend.framebuffer_pool()->acquire(rw, rh, /*clear=*/true);
 
         // TICKET-007.j — track the sum of the SAME weights that were sent into
@@ -182,13 +183,13 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         //
         // Cross-N determinism is preserved in the equal-weight (Stratified + Box
         // / Stratified alone / Single-Frame) regime: every per-sample `v_weight`
-        // equals the normalisation constant `1/N`, so `accum == sample_0 * N`
-        // trivially.  In that regime `accum * (1 / sum_w) == sample_0` is
+        // equals the normalisation constant `1/N`, so `buffer == sample_0 * N`
+        // trivially.  In that regime `buffer * (1 / sum_w) == sample_0` is
         // bit-exact, hence the static-framebuffer byte-equality contract between
         // N=1 / N=16 / mode=Off is preserved end-to-end.
         //
         // For DIVERSE-weight sub-frames (theoretical: per-sample weights not all
-        // equal) the same `accum * (1 / sum_w)` reciprocal-multiply is still
+        // equal) the same `buffer * (1 / sum_w)` reciprocal-multiply is still
         // FP-stable and algebraically equivalent to per-pixel divide, but NOT
         // bit-equal to the per-pixel divide path.  This document does not claim
         // more than that; the equal-weight case is what the unit tests verify.
@@ -239,8 +240,8 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         motion_blur_ms = profiling::duration_ms(t_mb0, profiling::now());
 
         // TICKET-007.j — single reciprocal-multiply final normalization.
-        //   output = accum * (1 / sum_w)
-        // is FP-bit-exact equivalent to accum / sum_w but cheaper (one divide,
+        //   output = buffer * (1 / sum_w)
+        // is FP-bit-exact equivalent to buffer / sum_w but cheaper (one divide,
         // broadcast across SIMD lanes) than per-pixel division, AND it
         // perfectly compensates any non-associative FP drift introduced by
         // the per-sample weight sum `sum_w == sum_{s} w_s`.  Guarded for the
