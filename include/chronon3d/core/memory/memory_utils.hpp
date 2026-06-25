@@ -135,37 +135,14 @@ inline void free_memory_block(void* ptr, std::size_t size, AllocationBackend bac
     }
 }
 
-// ── Legacy compat (used by FramebufferArena which now uses MemoryBlock) ────
-// Keep the old names for the transition, but mark them as deprecated redirects.
-
-[[deprecated("Use allocate_memory_block() / MemoryBlock instead")]]
-inline void* allocate_huge_pages(size_t size) {
-    MemoryBlock block = allocate_memory_block(size);
-    if (!block.data) return nullptr;
-    // Leak the backend info — caller MUST use the matching free path.
-    // Only FramebufferArena still uses this via the compat path; it will
-    // be migrated to MemoryBlock in the same commit.
-    AllocationBackend* meta = static_cast<AllocationBackend*>(block.data);
-    // Cannot store backend info in a raw void* return — this path is
-    // fundamentally broken for mixed-backend free.  Callers MUST migrate
-    // to MemoryBlock.
-    block.data = nullptr;  // prevent double-free
-    return static_cast<void*>(meta);
-}
-
-[[deprecated("Use free_memory_block() instead")]]
-inline void free_huge_pages(void* ptr, size_t size) {
-    // This legacy stub cannot know the correct backend.
-    // It will be removed once FramebufferArena migrates to MemoryBlock.
-    if (!ptr) return;
-    ::munmap(ptr, size);
-}
-
 // ── HugePageAllocator — for std::vector<Color, HugePageAllocator<Color>> ───
 //
 // Embeds the AllocationBackend metadata in the allocated block (before the
 // returned pointer) so that deallocate() can dispatch correctly without
-// any global state or per-allocation lookup.
+// any global state or per-allocation lookup.  The metadata pad is rounded
+// up to a 64-byte boundary so the returned pointer is always cache-line
+// aligned — required by `Framebuffer`'s stride alignment contract for
+// SIMD / cache-friendly row access.
 
 template <typename T>
 struct HugePageAllocator {
@@ -190,12 +167,16 @@ struct HugePageAllocator {
             throw std::bad_alloc();
         }
 
-        // Pad the metadata slot to alignof(T) so the returned pointer
-        // is correctly aligned for T (e.g. Color requires 4-byte alignment).
-        constexpr std::size_t meta_pad =
+        // Pad the metadata slot to a 64-byte boundary so the returned
+        // pointer is cache-line aligned (required by `Framebuffer`'s
+        // stride-alignment contract; also keeps SIMD row loads aligned).
+        constexpr std::size_t base_pad =
             sizeof(AllocationBackend) > alignof(T)
                 ? sizeof(AllocationBackend)
                 : alignof(T);
+        constexpr std::size_t meta_pad = (base_pad + 63) & ~static_cast<std::size_t>(63);
+        static_assert(meta_pad >= 64 && meta_pad % 64 == 0,
+                      "HugePageAllocator meta_pad must be at least one 64-byte cache line");
 
         const std::size_t total = n * sizeof(T);
         const std::size_t alloc_size = total + meta_pad;
@@ -217,10 +198,11 @@ struct HugePageAllocator {
     void deallocate(T* p, std::size_t n) noexcept {
         if (!p) return;
 
-        constexpr std::size_t meta_pad =
+        constexpr std::size_t base_pad =
             sizeof(AllocationBackend) > alignof(T)
                 ? sizeof(AllocationBackend)
                 : alignof(T);
+        constexpr std::size_t meta_pad = (base_pad + 63) & ~static_cast<std::size_t>(63);
 
         auto* raw = static_cast<char*>(static_cast<void*>(p)) - meta_pad;
         auto* meta = reinterpret_cast<AllocationBackend*>(raw);
