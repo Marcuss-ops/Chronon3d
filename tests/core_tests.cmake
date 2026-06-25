@@ -26,6 +26,7 @@ endif()
 add_executable(chronon3d_core_tests
     ${TEST_MAIN}
     core/test_frame_context.cpp
+    core/memory/test_huge_page_allocator.cpp
     core/math/test_math.cpp
     core/math/test_output_transform.cpp
     simd/test_simd_kernels.cpp
