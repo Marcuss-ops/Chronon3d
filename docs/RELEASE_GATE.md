@@ -85,8 +85,8 @@ sono elencati più sotto (`### Progressi sull'HEAD corrente`).
   (commit `44def204`).
 
 I due blocker noti della baseline `446a60e2` sono quindi chiusi nel grafo dei commit dell'HEAD corrente,
-ma non è ancora stata registrata una nuova baseline completa. Per dichiarare `24388800` una baseline
-verde serve un run macchina-verificato di tutti gli 11 gate sul commit candidato.
+ma non è ancora stata registrata una nuova baseline completa. Per dichiarare una baseline verde serve
+un run macchina-verificato di tutti gli 11 gate sul commit candidato corrente.
 
 ## Criterio di chiusura
 
