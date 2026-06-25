@@ -64,12 +64,15 @@ struct SoftwareSessionResources {
     SoftwareSessionResources& operator=(SoftwareSessionResources&&) noexcept = default;
 
     /// Reset per-frame temporaries ONLY: the transform scratch buffer is
-    /// released (it gets reallocated lazily on the next frame's
-    /// `slot_view(width, height)` call).  The buffer ring is preserved
-    /// because its previous-frame data must remain valid until the
-    /// next frame's commit.
+    /// INTENTIONALLY PRESERVED across frames so its rounded bucket size
+    /// survives (avoids per-frame new/delete churn when animated
+    /// transforms vary the output size by a few pixels).  The first
+    /// frame of a job may still lazily allocate via `slot_view()`; the
+    /// scratch is reused on all subsequent frames until `reset_job()`
+    /// is called.  The buffer ring is preserved because its previous-
+    /// frame data must remain valid until the next frame's commit.
     void reset_frame_temporaries() {
-        scratch_buffer.reset();
+        // scratch_buffer intentionally preserved.
         // buffer_ring intentionally preserved: holds previous frame FB.
         // WP-3 PR 3.1: scene_hasher reset no longer happens here —
         // canonical scene_hasher is on RenderSession (per-session).

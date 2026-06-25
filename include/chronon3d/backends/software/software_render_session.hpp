@@ -26,11 +26,9 @@
 //     previous-frame buffer ring).
 //   - reset_job() forwards to BOTH halves for a full job reset.
 //
-// The `SoftwareRenderer::m_session` field is NOT yet migrated to this
-// wrapper — that migration is phase 5.  Until phase 5,
-// `SoftwareRenderer` holds `RenderSession m_session` and a separate
-// `SoftwareSessionResources m_software_resources` field, and this
-// wrapper is the end-state type that phase 5 will adopt.
+// `SoftwareRenderer::m_session` IS this wrapper — the migration to
+// `SoftwareRenderSession` (composition of `RenderSession common` +
+// `SoftwareSessionResources software`) is complete.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/runtime/render_session.hpp>
