@@ -61,8 +61,6 @@ std::string current_utc_timestamp_iso();
 constexpr const char* detect_os() {
 #if defined(__linux__)
     return "Linux";
-#elif defined(_WIN32)
-    return "Windows";
 #elif defined(__APPLE__)
     return "macOS";
 #else
@@ -76,8 +74,6 @@ constexpr const char* detect_compiler() {
     return "Clang " __clang_version__;
 #elif defined(__GNUC__)
     return "GCC " __VERSION__;
-#elif defined(_MSC_VER)
-    return "MSVC";
 #else
     return "Unknown";
 #endif

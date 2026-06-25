@@ -130,6 +130,10 @@ LayerBuilder& LayerBuilder::focus_in(f32 start_blur, Frame duration, EasingCurve
     auto& bl = blur_anim();
     bl.key(Frame{0}, start_blur, easing);
     bl.key(duration, 0.0f);
+
+    auto& op = opacity_anim();
+    op.key(Frame{0}, 0.0f, easing);
+    op.key(duration, m_layer.transform.opacity);
     return *this;
 }
 
@@ -139,6 +143,10 @@ LayerBuilder& LayerBuilder::scale_drop(f32 start_scale, Frame duration, EasingCu
     auto& sc = scale_anim();
     sc.key(Frame{0}, Vec3{start_scale, start_scale, 1.0f}, easing);
     sc.key(duration, m_layer.transform.scale);
+
+    auto& op = opacity_anim();
+    op.key(Frame{0}, 0.0f, easing);
+    op.key(duration, m_layer.transform.opacity);
     return *this;
 }
 

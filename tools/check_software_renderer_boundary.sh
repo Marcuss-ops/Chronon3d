@@ -94,7 +94,7 @@ if [[ "$proc_uses" -ne 0 ]]; then
     include/chronon3d/backends/ \
     2>/dev/null | grep -v 'SoftwareRenderer&&' | sed 's|^|      |' >&2
 else
-  ok "I5: nessun SoftwareRenderer& nelle superfici di processo ('&&' move-ref allowlisted)"
+  ok "I5: nessun SoftwareRenderer& nelle superfici di processo (`&&` move-ref allowlisted)"
 fi
 
 echo

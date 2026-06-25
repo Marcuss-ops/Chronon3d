@@ -1,57 +1,94 @@
 # Chronon3D — Release Gate
 
-Questo documento definisce i criteri tecnici minimi per considerare verificato un commit.
-Lo stato prodotto è in [`CURRENT_STATUS.md`](CURRENT_STATUS.md); le milestone sono in
-[`ROADMAP.md`](ROADMAP.md).
+> Requisiti per dichiarare una release valida.
+> Per lo stato corrente vedi [`CURRENT_STATUS.md`](CURRENT_STATUS.md).
+> Per le milestone vedi [`ROADMAP.md`](ROADMAP.md).
+> Ultima baseline macchina-verificata: [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md).
 
-## Piattaforma supportata
+## Baseline verde — requisiti (tutti sullo stesso commit)
 
-Chronon3D è Linux-only. Non sono richiesti build, artifact o test Windows.
+Prima di qualsiasi release, tutti i controlli seguenti devono passare sullo **stesso commit**:
 
-## Gate obbligatori
+| # | Controllo | Descrizione |
+|---|---|---|
+| 1 | Build core | `cmake --build` su preset Linux con target core |
+| 2 | Test core | `ctest` su test core, nessun fallimento |
+| 3 | Build lean | Compilazione senza contenuti opzionali |
+| 4 | Test lean | Test senza contenuti, nessun fallimento |
+| 5 | Architecture gate | `tools/check_architecture_boundaries.sh` bloccante |
+| 6 | Renderer boundary gate | Gate renderer/backend bloccante |
+| 7 | No-content build/test | Build e test senza moduli content |
+| 8 | Scene/camera test | Link + run di `chronon3d_scene_tests` |
+| 9 | Install consumer | Progetto esterno installa, compila e linka SDK |
+| 10 | Full validation | Build e test completi su preset di validazione |
+| 11 | Documenti allineati | Commit, comandi, exit code documentati |
 
-- build core;
-- build SDK con testo;
-- header pubblici compilabili standalone;
-- installazione + `find_package(Chronon3D CONFIG REQUIRED)` da consumer esterno;
-- controlli architetturali;
-- controllo confine SoftwareRenderer/SoftwareBackend;
-- controllo drift dei file citati;
-- test camera e testo mirati;
-- render dello showcase camera + testo;
-- output riproducibile sullo stesso commit.
+## Text Production V1
 
-## Regole
+Tutti i punti seguenti devono essere veri:
 
-- nessun gate può essere indebolito per adattarlo al codice;
-- nessun test può essere skipped per nascondere un errore;
-- nessun `continue-on-error` sui gate bloccanti;
-- una baseline non è verde finché build, test, consumer, render e documenti non
-  riportano lo stesso stato sullo stesso commit;
-- su `main` scrive un solo agente alla volta;
-- branch e PR vengono usati soltanto quando richiesti esplicitamente.
+1. almeno 20 preset generali e 8 preset subtitle verificati;
+2. input word-timing JSON/SRT funzionante;
+3. styling per parola e highlight produttivi;
+4. ogni preset ha golden su 16:9 e 9:16, testo corto/lungo e almeno tre timestamp;
+5. consumer SDK installato usa i preset senza includere header interni;
+6. output seriale e parallelo deterministico.
 
-## Camera + Text Production V1
+## Camera Production V1
 
-La milestone è verificata quando:
+Tutti i punti seguenti devono essere veri:
 
-1. `OrientAlongPath` usa la tangente campionata;
-2. trajectory source preserva projection, lens, DOF, motion blur e parent;
-3. banking e keep-horizon sono coperti da test;
-4. quattro preset testuali cambiano realmente nel tempo;
-5. lo showcase contiene almeno tre piani con parallasse;
-6. vengono verificati frame iniziale, intermedio e finale;
-7. la CLI genera PNG e MP4 su Linux CPU;
-8. due render degli stessi frame chiave producono lo stesso risultato.
+1. tutte le nuove composizioni usano `CameraDescriptor` o `CameraProgram`;
+2. `CameraSession` è posseduta dal render job;
+3. nessun lookup o compilazione avviene per frame;
+4. orientation e projection hanno un solo contratto matematico;
+5. test camera compilati collegano ed eseguono in CI;
+6. adapter legacy hanno parity test e una fase di rimozione;
+7. consumer SDK esterno può costruire e usare una camera compilata.
 
 ## SDK Product V1
 
-La milestone è verificata quando un progetto esterno:
+Tutti i punti seguenti devono essere veri:
 
-1. installa e trova `Chronon3D::SDK`;
-2. include soltanto header pubblici;
-3. registra un extension pack;
-4. costruisce testo e camera;
-5. renderizza un frame reale;
-6. scrive un file valido;
-7. non collega target interni.
+1. un progetto vuoto può installare e usare `Chronon3D::SDK`;
+2. render di almeno una composizione reale fuori-tree (testo + camera → PNG);
+3. nessun link diretto a target interni;
+4. documentazione e artifact associati allo stesso tag;
+5. API pubblica minima documentata;
+6. header interni esclusi dagli esempi;
+7. artifact Linux riproducibili.
+
+## Baseline osservata — `main@446a60e2` (2026-06-23)
+
+L'unica baseline macchina-verificata ha eseguito **4 controlli** (non tutti i gate).
+Dettaglio completo in [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md).
+
+| # | Controllo | Esito | Blocker |
+|---|---|---|---|
+| BG-1 | Software renderer boundary gate | ✅ PASS | — |
+| BG-2 | `linux-full-validation` configure | ✅ PASS | — |
+| BG-3 | `linux-lean-dev` configure | ✅ PASS | — |
+| BG-4 | Build `chronon3d_text_preset_visual_tests` | ❌ FAIL | TICKET-039 |
+
+**Verdetto**: 3/4 ✅ — baseline non verde. I gate 5 (architecture), 8 (scene/camera test),
+9 (install consumer) e 10 (full validation) non sono stati eseguiti in questa baseline.
+
+### Blocker attivi sull'HEAD corrente
+
+- **🔴 TICKET-039** — `SoftwareRenderer::settings()` regression, blocca la build di
+  `chronon3d_text_preset_visual_tests` e ogni target che istanzia `RenderEngine::Impl`.
+- **🔴 TICKET-038** — lambda capture / auto deduction rot in
+  `tests/text/test_text_preset_visual.cpp`. Si manifesterà dopo TICKET-039.
+
+## Criterio di chiusura
+
+## Criterio di chiusura
+
+Un lavoro è chiuso soltanto quando:
+
+- il codice usa il percorso canonico;
+- i test pertinenti vengono eseguiti e passano;
+- i gate non sono indeboliti;
+- il branch è aggiornato su `origin/main`;
+- la PR è piccola e reviewable;
+- i documenti riportano lo stesso stato osservato.

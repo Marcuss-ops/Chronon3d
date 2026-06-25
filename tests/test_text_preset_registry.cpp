@@ -181,11 +181,13 @@ TEST_CASE("TextPresetRegistry: metadata + filter tier (Sub-cases 1-6)") {
         CHECK(to_string_view(TextPresetCategory::Reveal) == "reveal");
     }
 
-    SUBCASE("2) make_default_text_preset_registry populates >= 24 builtin entries (DoD #1 + TXT-12)") {
-        // Stage 3 bumps to 22; TXT-12 adds active_word_pop + karaoke_fill (=24).
+    SUBCASE("2) make_default_text_preset_registry populates >= 21 builtin entries (DoD #1)") {
+        // Stage 3 (this PR) bumps the floor from 5 → 21 to satisfy
+        // DoD primo-milestone #1 ("20+ preset stabili Reveal/Emphasis/
+        // Cinematic/Subtitle").
         auto reg = make_default_text_preset_registry();
         const auto all = reg.list();
-        CHECK(all.size() >= 24);
+        CHECK(all.size() >= 21);
         const auto ids = reg.available();
         CHECK(ids.size() == all.size());
         // Built-in flag must be true on seeded entries.
@@ -220,8 +222,12 @@ TEST_CASE("TextPresetRegistry: metadata + filter tier (Sub-cases 1-6)") {
     }
 
     SUBCASE("5) by_category filters correctly across all 4 categories") {
-        // Stage 3 + TXT-12 distribution:
-        //   Cinematic >= 4, Reveal >= 10, Emphasis >= 4, Subtitle >= 6
+        // Stage 3 distribution:
+        //   Cinematic >= 4  (animation_compositions, cinematic_text_camera,
+        //                     cinematic_title_reveal, tilt_sweep_title_v2)
+        //   Reveal    >= 10 (text_animations + 9 Stage 3 reveal entries)
+        //   Emphasis  >= 4  (Stage 3 emphasis)
+        //   Subtitle  >= 4  (Stage 3 subtitle)
         auto reg = make_default_text_preset_registry();
         const auto cinematics = reg.by_category(TextPresetCategory::Cinematic);
         const auto reveals    = reg.by_category(TextPresetCategory::Reveal);
@@ -230,7 +236,7 @@ TEST_CASE("TextPresetRegistry: metadata + filter tier (Sub-cases 1-6)") {
         CHECK(cinematics.size() >= 4);
         CHECK(reveals.size()    >= 10);
         CHECK(emphasis.size()   >= 4);
-        CHECK(subtitles.size()  >= 6);
+        CHECK(subtitles.size()  >= 4);
         // Sum check: total of all categories == total entries.
         CHECK(cinematics.size() + reveals.size() + emphasis.size() + subtitles.size()
               == reg.list().size());
@@ -296,8 +302,8 @@ TEST_CASE("TextPresetRegistry: strict API tier (Sub-cases 7-9)") {
         }
         lb.screen_dimensions(1280.0f, 720.0f);
         Layer built = lb.build();
-        // Sanity: ≥24 presets registered (DoD #1 + TXT-12 floor — matches Sub-case 2).
-        CHECK(invoked_count >= 24);
+        // Sanity: ≥21 presets registered (DoD #1 floor — matches Sub-case 2).
+        CHECK(invoked_count >= 21);
         CHECK(built.nodes.size() >= expected_minimum);
     }
 
@@ -551,7 +557,7 @@ TEST_CASE("TextPresetRegistry: golden-frame harness cross-link (Sub-case 28)") {
             "word_pop", "scale_punch", "color_accent", "gradient_fill",
             "minimal_white", "yellow_keyword", "glow_pulse", "caption_box",
         };
-        CHECK(new_preset_ids.size() == 19);
+        CHECK(new_preset_ids.size() == 17);
         for (const auto& id : new_preset_ids) {
             CAPTURE(id);
             REQUIRE(reg.contains(id));

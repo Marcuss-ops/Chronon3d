@@ -78,5 +78,5 @@ i risultati.
 * WP-8 PR 8.1 (`RenderRuntime::resolver()`).
 * WP-8 PR 8.5 (gate architetturale: arch-boundary script rifiuta
   reintroduzioni).
-* [`../stabilization-plan/06-renderer-plan.md`](../stabilization-plan/06-renderer-plan.md) §R6.
-* [`../refactor-roadmap/08-global-state-and-sdk.md`](../refactor-roadmap/08-global-state-and-sdk.md).
+* [`../ARCHIVE/stabilization-plan/06-renderer-plan.md`](../ARCHIVE/stabilization-plan/06-renderer-plan.md) §R6.
+* [`../ARCHIVE/refactor-roadmap/08-global-state-and-sdk.md`](../ARCHIVE/refactor-roadmap/08-global-state-and-sdk.md).

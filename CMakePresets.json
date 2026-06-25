@@ -27,14 +27,7 @@
         "CMAKE_C_FLAGS": "-fdiagnostics-color=always -pipe"
       }
     },
-    {
-      "name": "base-win",
-      "hidden": true,
-      "inherits": "base",
-      "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-windows"
-      }
-    },
+
     {
       "name": "linux-core-dev",
       "inherits": "base-linux",
@@ -145,45 +138,13 @@
       }
     },
     {
-      "name": "linux-release-validation",
+      "name": "linux-full-validation",
       "inherits": "base-linux",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
       },
-      "displayName": "Linux Release Validation (V1 stable contract)",
-      "description": "CI gate validating the V1 release contract: stable features only (cli, blend2d, text, mesh, exr, video, content, tests, benchmarks). Release build for release-contract semantics. Excludes telemetry, profiling, diagnostics, BUILD_EXPERIMENTAL, icu-layout, text-3d, text-msdf. Renamed from linux-full-validation on 2026-06-24.",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CHRONON3D_BUILD_CLI": "ON",
-        "CHRONON3D_BUILD_TESTS": "ON",
-        "CHRONON3D_BUILD_BENCHMARKS": "ON",
-        "CHRONON3D_BUILD_CONTENT": "ON",
-        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
-        "CHRONON3D_ENABLE_TEXT": "ON",
-        "CHRONON3D_USE_BLEND2D": "ON",
-        "CHRONON3D_ENABLE_EXR": "ON",
-        "CHRONON3D_ENABLE_VIDEO": "ON",
-        "CHRONON3D_ENABLE_MESH": "ON",
-        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
-        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
-        "CHRONON3D_ENABLE_PROFILING": "OFF",
-        "CHRONON3D_UNITY_BUILD": "ON",
-        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;tests;benchmarks"
-      }
-    },
-    {
-      "name": "linux-experimental-validation",
-      "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
-      "displayName": "Linux Experimental Validation (V1 stable + ICU + Text-3D + MSDF + Expressions)",
-      "description": "CI gate validating V1 stable features PLUS forward-looking experimental subsystems (BUILD_EXPERIMENTAL, icu-layout, text-3d, text-msdf, expressions/v2). Debug build with diagnostics + telemetry + profiling for full surface coverage. Renamed from linux-full-validation on 2026-06-24; the original preset was a Debug catch-all covering both contracts — the split makes each contract independently machine-gateable.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_CLI": "ON",
@@ -201,10 +162,10 @@
         "CHRONON3D_ENABLE_PROFILING": "ON",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "CHRONON3D_BUILD_EXPERIMENTAL": "ON",
-        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;telemetry;tests;benchmarks;profiling;icu-layout;text-3d;text-msdf"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;telemetry;tests;benchmarks;profiling"
       }
     },
+
     {
       "name": "linux-release",
       "inherits": "base-linux",
@@ -216,7 +177,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CHRONON3D_BUILD_CONTENT": "ON",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;tests",
+        "VCPKG_MANIFEST_FEATURES": "tests",
         "CHRONON3D_BUILD_TESTS": "ON"
       }
     },
@@ -231,7 +192,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_UNITY_BUILD": "OFF",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;tests",
+        "VCPKG_MANIFEST_FEATURES": "tests",
         "CHRONON3D_BUILD_TESTS": "ON"
       }
     },
@@ -248,7 +209,7 @@
         "CHRONON3D_UNITY_BUILD": "OFF",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
         "CHRONON3D_BUILD_CONTENT": "ON",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;tests",
+        "VCPKG_MANIFEST_FEATURES": "tests",
         "CHRONON3D_BUILD_TESTS": "ON",
         "CHRONON3D_BUILD_INSTALL_CONSUMER_TEST": "ON"
       }
@@ -276,8 +237,7 @@
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
-        "CMAKE_UNITY_BUILD_BATCH_SIZE": "32",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr"
+        "CMAKE_UNITY_BUILD_BATCH_SIZE": "32"
       }
     },
     {
@@ -298,14 +258,14 @@
         "CHRONON3D_ENABLE_EXR": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
         "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;tests"
+        "VCPKG_MANIFEST_FEATURES": "tests"
       }
     },
     {
       "name": "linux-fast-dev-release",
       "inherits": "linux-fast-dev",
       "displayName": "Linux Fast Dev Release (RelWithDebInfo)",
-      "description": "Release-like dev build with optimisations + debug symbols + ccache + tmpfs \u2014 2-5\u00d7 faster runtime",
+      "description": "Release-like dev build with optimisations + debug symbols + ccache + tmpfs — 2-5× faster runtime",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo"
       }
@@ -316,7 +276,7 @@
       "cacheVariables": {
         "CHRONON3D_BUILD_CLI": "ON",
         "CHRONON3D_ENABLE_MESH": "ON",
-        "VCPKG_MANIFEST_FEATURES": "tests;cli;mesh"
+        "VCPKG_MANIFEST_FEATURES": "tests"
       }
     },
     {
@@ -335,7 +295,7 @@
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "ON",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;telemetry;tests"
+        "VCPKG_MANIFEST_FEATURES": "tests;telemetry"
       }
     },
     {
@@ -354,7 +314,7 @@
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "ON",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;tests;benchmarks;telemetry"
+        "VCPKG_MANIFEST_FEATURES": "tests;benchmarks;telemetry"
       }
     },
     {
@@ -370,39 +330,11 @@
         "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
         "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined",
         "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address,undefined",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;tests",
+        "VCPKG_MANIFEST_FEATURES": "tests",
         "CHRONON3D_BUILD_TESTS": "ON"
       }
     },
-    {
-      "name": "win-release",
-      "inherits": "base-win",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      },
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;tests",
-        "CHRONON3D_BUILD_TESTS": "ON"
-      }
-    },
-    {
-      "name": "win-debug",
-      "inherits": "base-win",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      },
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CHRONON3D_UNITY_BUILD": "OFF",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;tests",
-        "CHRONON3D_BUILD_TESTS": "ON"
-      }
-    },
+
     {
       "name": "linux-profile-core",
       "inherits": "base-linux",
@@ -523,7 +455,7 @@
         "CHRONON3D_ENABLE_PROFILING": "ON",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;telemetry;tests;benchmarks;profiling;icu-layout;text-3d;text-msdf"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;telemetry;tests;benchmarks;profiling"
       }
     }
   ],
@@ -564,21 +496,11 @@
       "jobs": 16
     },
     {
-      "name": "linux-release-validation",
-      "configurePreset": "linux-release-validation",
+      "name": "linux-full-validation",
+      "configurePreset": "linux-full-validation",
       "targets": [
         "chronon3d_cli",
         "chronon3d_tests"
-      ],
-      "jobs": 16
-    },
-    {
-      "name": "linux-experimental-validation",
-      "configurePreset": "linux-experimental-validation",
-      "targets": [
-        "chronon3d_cli",
-        "chronon3d_tests",
-        "chronon3d_expressions_v2_tests"
       ],
       "jobs": 16
     },
@@ -673,57 +595,27 @@
       "jobs": 16
     },
     {
-      "name": "win",
-      "configurePreset": "win-release",
-      "targets": [
-        "chronon3d_cli",
-        "chronon3d_tests"
-      ],
-      "jobs": 16
-    },
-    {
-      "name": "win-debug",
-      "configurePreset": "win-debug",
-      "targets": [
-        "chronon3d_cli",
-        "chronon3d_tests"
-      ],
-      "jobs": 16
-    },
-    {
       "name": "linux-profile-core",
       "configurePreset": "linux-profile-core",
-      "targets": [
-        "chronon3d_tests_fast"
-      ],
+      "targets": ["chronon3d_tests_fast"],
       "jobs": 16
     },
     {
       "name": "linux-profile-motion",
       "configurePreset": "linux-profile-motion",
-      "targets": [
-        "chronon3d_cli",
-        "chronon3d_tests_fast"
-      ],
+      "targets": ["chronon3d_cli", "chronon3d_tests_fast"],
       "jobs": 16
     },
     {
       "name": "linux-profile-video",
       "configurePreset": "linux-profile-video",
-      "targets": [
-        "chronon3d_cli",
-        "chronon3d_tests_fast"
-      ],
+      "targets": ["chronon3d_cli", "chronon3d_tests_fast"],
       "jobs": 16
     },
     {
       "name": "linux-profile-extended",
       "configurePreset": "linux-profile-extended",
-      "targets": [
-        "chronon3d_cli",
-        "chronon3d_tests",
-        "chronon3d_benchmarks"
-      ],
+      "targets": ["chronon3d_cli", "chronon3d_tests", "chronon3d_benchmarks"],
       "jobs": 16
     }
   ],
@@ -750,15 +642,8 @@
       }
     },
     {
-      "name": "linux-release-validation-test",
-      "configurePreset": "linux-release-validation",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "linux-experimental-validation-test",
-      "configurePreset": "linux-experimental-validation",
+      "name": "linux-full-validation-test",
+      "configurePreset": "linux-full-validation",
       "output": {
         "outputOnFailure": true
       }
@@ -806,13 +691,6 @@
       }
     },
     {
-      "name": "win-test",
-      "configurePreset": "win-release",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
       "name": "linux-fast-dev-test",
       "configurePreset": "linux-fast-dev",
       "output": {
@@ -829,30 +707,22 @@
     {
       "name": "linux-profile-core-test",
       "configurePreset": "linux-profile-core",
-      "output": {
-        "outputOnFailure": true
-      }
+      "output": { "outputOnFailure": true }
     },
     {
       "name": "linux-profile-motion-test",
       "configurePreset": "linux-profile-motion",
-      "output": {
-        "outputOnFailure": true
-      }
+      "output": { "outputOnFailure": true }
     },
     {
       "name": "linux-profile-video-test",
       "configurePreset": "linux-profile-video",
-      "output": {
-        "outputOnFailure": true
-      }
+      "output": { "outputOnFailure": true }
     },
     {
       "name": "linux-profile-extended-test",
       "configurePreset": "linux-profile-extended",
-      "output": {
-        "outputOnFailure": true
-      }
+      "output": { "outputOnFailure": true }
     }
   ]
 }

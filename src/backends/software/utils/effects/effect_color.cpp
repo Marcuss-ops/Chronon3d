@@ -15,7 +15,7 @@ namespace {
 /// AVX2-accelerated brightness/contrast/tint pass.
 /// Returns true if the pass ran (AVX2 available); false triggers scalar fallback.
 inline bool apply_color_effects_avx2(Framebuffer& fb, const LayerEffect& effect) {
-#if defined(__AVX2__) || defined(_MSC_VER)
+#if defined(__AVX2__)
     const bool needs_brightness_contrast = effect.brightness != 0.0f || effect.contrast != 1.0f;
     const bool needs_tint = effect.tint.a > 0.0f;
     if (!needs_brightness_contrast && !needs_tint) {

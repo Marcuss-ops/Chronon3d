@@ -2,8 +2,8 @@
 
 > Snapshot: `main@25049b2`, 23 giugno 2026.
 >
-> Stato prodotto: [`CURRENT_READINESS.md`](CURRENT_READINESS.md).
-> Blocker operativi: [`STATUS.md`](STATUS.md).
+> Stato presente: [`CURRENT_STATUS.md`](CURRENT_STATUS.md).
+> Requisiti di release: [`RELEASE_GATE.md`](RELEASE_GATE.md).
 
 La presenza di codice non implica che l’intero sottosistema sia verificato o
 release-ready. Questa pagina separa feature presenti, parziali e pianificate.
@@ -137,7 +137,7 @@ release-ready. Questa pagina separa feature presenti, parziali e pianificate.
 
 - Consumer corrente verifica package e simbolo, non un render completo.
 - Documentazione pubblica e compatibility policy non ancora da release.
-- Release artifact Linux/Windows non ancora certificati sullo stesso commit.
+- Release artifact Linux non ancora certificati sullo stesso commit.
 
 ### Pianificate
 
