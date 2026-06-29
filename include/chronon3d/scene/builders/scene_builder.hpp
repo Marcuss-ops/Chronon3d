@@ -75,6 +75,24 @@ namespace chronon3d {
                 m_own_shape_registry.emplace(registry::make_default_shape_registry());
                 m_shape_registry = &*m_own_shape_registry;
             }
+            // codex/agent2-font-bind-fixes — auto-forward the per-frame
+            // FontEngine from the FrameContext to the builder's
+            // m_font_engine slot.  Explicit override guarantee: a
+            // composition lambda that calls `s.font_engine(X)` later
+            // REPLACES this auto-bind with its own pointer (the setter
+            // assignment is unconditional), so per-composition overrides
+            // continue to work without modification.  Composition
+            // lambdas that do nothing with `ctx.font_engine`
+            // therefore get the engine bound transparently — fixing
+            // the WP-8 PR 8.0 strict-binding "no FontEngine available"
+            // failure path that `materialize_text_run_shape` reports
+            // when the SceneBuilder has no engine.  If
+            // `ctx.font_engine` is nullptr, this branch is a no-op and
+            // the legacy path (callers set `m_font_engine`
+            // themselves) is preserved.
+            if (ctx.font_engine) {
+                m_font_engine = ctx.font_engine;
+            }
         }
 
         [[nodiscard]] CameraApi camera() { return CameraApi(*this); }
