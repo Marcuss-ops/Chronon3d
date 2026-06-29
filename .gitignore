@@ -115,3 +115,17 @@ CMakeFiles/
 .worktrees/
 .build-tmp/
 .git_tmp_*
+
+# Partner-owned Refactor 1B overlay (text preset catalog split) — gitignored
+# to keep GATE-MNT-01 clean for everyone.  Canonical registry path is
+# `cmake/Chronon3DRegistry.cmake`, NOT this directory.  Partner commit
+# `8d5ed596` (presets: bump version...) did not include these files; they
+# are deferred indefinitely.  See `docs/FOLLOWUP_TICKETS.md` TICKET-062.
+/src/registry/text/
+
+# Local idempotency scratch helpers (Agent3 atomic-commit tooling) —
+# underscore prefix signals "ephemeral, not project-owned".  These are
+# re-run-on-demand scripts (e.g. `_sect12_stub.py` to restore a missing
+# doc section, `_span_name_closure.py` for batch edits) and are NOT
+# durable project tooling.  See `docs/FOLLOWUP_TICKETS.md` TICKET-063.
+tools/_*.py
