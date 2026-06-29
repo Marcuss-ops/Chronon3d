@@ -1,6 +1,6 @@
 # Follow-up Tickets — Open Blockers Index
 
-> Snapshot: `main@111d9930` — 2026-06-29. Linux-only.
+> Snapshot: `main@88d2deec` — 2026-06-29. Linux-only.
 >
 > File canonico per gli aperti. Massimo ~10 righe di tabella, ordinate per blocco della
 > certificazione `Baseline verde: CERTIFICATA` (vedi `AGENTS.md` regola di lavoro #4). Tutti gli
