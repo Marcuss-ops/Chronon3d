@@ -282,7 +282,8 @@ auto a = animator("hero")
 - Nessun `.property(GenericProp)` esiste: ogni property ha il suo setter dedicato.
 - `Selector` builder methods (`selector.hpp`): `.shape(...)`, `.smooth()`, `.order(...)`, `.combine_mode(...)`, `.exclude_spaces(bool=true)`, `.start(Frame, f32, Easing=Linear)`, `.end(Frame, f32, Easing=Linear)`, `.offset(Frame, f32, Easing=Linear)`, `.amount(Frame, f32, Easing=Linear)`, `.ease_low(f32)`, `.ease_high(f32)`.
 - Nessun `Selector::range(...)` static factory: il Range selector si costruisce via `.start(...).end(...).amount(...)` keyframes.
-- `release()` è `private &&` + friend-only (`animator.hpp:~198-201`, `selector.hpp:~195-198`); consumato da `Text::animate()` (PR 3, pianificato in `authoring.hpp:64-67`).
+- `release()` è `private &&` + friend-only (`animator.hpp:~198-201`, `selector.hpp:~195-198`); consumato da `Text::animate()` (PR 3, pianificato in `authoring.hpp:~64-67`).
+- **Convenzione precisione**: tutti i line-ref `~NNN` in questo doc sono **range approssimativi** (per modifiche continue del codice post-`4105c547`); la riga esatta richiede `git blame -L NNN <file>` o `git log -L '<regex>',<file>` su `main@651f6d64`.
 
 Le property type (PositionProperty, ScaleProperty, RotationProperty, SkewProperty, AnchorProperty, TrackingProperty, **BaselineShiftProperty**, **CharacterOffsetProperty**, OpacityProperty, BlurProperty, FillColorProperty, StrokeColorProperty, StrokeWidthProperty) sono **struct static senza `AnimatedValue<T>`** in `include/chronon3d/text/text_animator_property.hpp`.
 
