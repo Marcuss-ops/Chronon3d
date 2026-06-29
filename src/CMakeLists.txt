@@ -255,18 +255,44 @@ list(REMOVE_DUPLICATES _sdk_archive_obj_files)
 list(SORT _sdk_archive_obj_files)
 list(LENGTH _sdk_archive_obj_files _sdk_archive_count)
 
-# Early-fail: silent-empty manifest would leave the stale archive on
-# disk and silently fail DoD ar t > 1.  Loud configure-time error
-# surfaces the problem immediately.
-if(_sdk_archive_count LESS 2)
+# Stale-manifest guard (fix: gate on non-empty GLOB).
+#
+# The original guard fired at CONFIGURE time whenever the manifest
+# held fewer than 2 entries.  That broke the canonical fresh-checkout
+# flow (`cmake --preset linux-ci --fresh`) because BEFORE any source
+# is compiled, the whole-tree GLOB_RECURSE returns 0 files; only the
+# marker TU is present, so count=1 looked indistinguishable from a
+# torn-archive state.
+#
+# Correct semantics: the DoD "marker + >= 1 subsystem" check should
+# ONLY fail HARD when at least one .cpp.o IS on disk but the
+# registry-driven filter dropped the manifest below threshold.  That
+# is the "torn" case (e.g. a source was renamed but the old .cpp.o
+# still lingers in CMakeFiles/<target>.dir/) -- the genuine stale
+# registry we want to surface loud.
+#
+# On a FRESH configure (GLOB=0), the marker-only manifest is the
+# legitimate pre-build state and the `sdk_archive_merge` build-step
+# populates it naturally via the dependency chain
+# `DEPENDS chronon3d_sdk_impl ${CHRONON3D_REGISTRY_OBJECT_LIBS}`.
+list(LENGTH _all_cpp_o _all_cpp_o_count)
+if(_all_cpp_o_count GREATER 0 AND _sdk_archive_count LESS 2)
     message(FATAL_ERROR
-        "sdk_archive_merge: manifest contains only ${_sdk_archive_count} .cpp.o files; "
-        "DoD requires >= 2 (marker + >= 1 subsystem). "
-        "If this is a fresh build, run `cmake --build <build-dir> --target <all_subsystems>` first "
-        "so .cpp.o files exist under <build>/<sub>/CMakeFiles/<target>.dir/, then re-run.")
+        "sdk_archive_merge: stale manifest.  Found ${_all_cpp_o_count} raw .cpp.o file(s) "
+        "on disk but the registry-driven filter retained only ${_sdk_archive_count} "
+        "(marker TU only).  This typically indicates a renamed/removed source whose "
+        "old .cpp.o lingered in CMakeFiles/<target>.dir/.  Clean the build dir "
+        "(`rm -rf build/<dir>`) and re-run the build.")
 endif()
 
-message(STATUS "sdk_archive_merge: ${_sdk_archive_count} .o objects derived from registry (manifest)")
+if(_sdk_archive_count LESS 2)
+    message(STATUS
+        "sdk_archive_merge: ${_sdk_archive_count} .o object(s) derived from registry "
+        "(fresh build; _all_cpp_o=${_all_cpp_o_count}; populate via "
+        "`cmake --build <build-dir> --target sdk_archive_merge`)")
+else()
+    message(STATUS "sdk_archive_merge: ${_sdk_archive_count} .o objects derived from registry (manifest)")
+endif()
 
 # ── POST_BUILD: merge subsystem .o files into the archive ──────────
 # CMake 3.25 does not aggregate OBJECT .o files into STATIC archives.
