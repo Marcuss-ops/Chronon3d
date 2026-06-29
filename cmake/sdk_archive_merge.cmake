@@ -5,22 +5,29 @@
 # via `ar crs` (create fresh with symbol table).
 #
 # Parameters (passed via -D from calling CMakeLists.txt):
-#   ARCHIVE   — path to libchronon3d_sdk_impl.a
-#   BUILD_DIR — CMAKE_BINARY_DIR
-#   AR        — path to ar (CMAKE_AR)
+#   ARCHIVE      — path to libchronon3d_sdk_impl.a
+#   OBJECT_FILES — semicolon-separated list of .o paths, derived at
+#                  configure time in src/CMakeLists.txt from
+#                  CHRONON3D_REGISTRY_OBJECT_LIBS (no GLOB_* here).
+#   AR           — path to ar (CMAKE_AR)
 
 cmake_minimum_required(VERSION 3.25)
 
-# Collect all .o files from subsystem build directories (including marker)
-file(GLOB_RECURSE _obj_files
-    "${BUILD_DIR}/src/*.cpp.o"
-    "${BUILD_DIR}/content/*.cpp.o"
-)
+# Filter to existing files, sort, dedupe — defensive guard for missing
+# .o files under feature-flag flips or unity-build batching.
+set(_obj_files "")
+foreach(_obj IN LISTS OBJECT_FILES)
+    if(EXISTS "${_obj}")
+        list(APPEND _obj_files "${_obj}")
+    endif()
+endforeach()
 
+list(SORT _obj_files)
+list(REMOVE_DUPLICATES _obj_files)
 list(LENGTH _obj_files _count)
 
-# Create archive from scratch with all .o files
-if(_obj_files)
+# Create archive from scratch with all .o files (registry-driven manifest).
+if(_count GREATER 0)
     execute_process(
         COMMAND "${AR}" crs "${ARCHIVE}" ${_obj_files}
         RESULT_VARIABLE _rc
