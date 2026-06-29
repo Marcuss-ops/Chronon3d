@@ -65,16 +65,71 @@ Snapshot dello stato corrente (vedi body per lo stato per-agente). L'assegnazion
 
 Tutti gli agenti di questa tornata sono completati. Lavoro sequenziale su `main`, un task alla volta.
 
+## 🔴 Feature Freeze — V0.1 (attivo dal 2026-06-29)
+
+**Nessuna nuova feature viene accettata fino a baseline verde certificata**
+(11 gate architetturali sullo stesso commit).
+
+### Cosa è BLOCCATO
+
+- Nuove feature camera, testo, rendering, shape, animazioni.
+- Nuovi nodi render graph, effect processor, backend.
+- Nuovi preset, registry, risolutori, sampler.
+- Estensioni V3, tile-first, expressions V2.
+- Nuovi formati di input/output.
+
+### Cosa è CONSENTITO (solo queste categorie)
+
+1. **Correzioni di build** — CMake, link, include mancanti, dipendenze.
+2. **Test deterministici** — golden test, sentinel hash, regression gate.
+3. **Rimozione percorsi legacy** — dead code, API deprecate, artifact obsoleti.
+4. **Consumer SDK esterno** — certificazione install + link + `render_frame()`.
+5. **Allineamento documentazione** — `STATUS.md`, `ROADMAP.md`, `RELEASE_GATE.md`.
+
+### Cosa è VIETATO
+
+- Percentuali manuali di completamento ("Camera 70-75%", "Text 60-65%").
+  Sostituire con `STATUS.generated.md` prodotto dalla CI.
+- Nuovi `#include`, nuove classi pubbliche, nuovi `target_link_libraries`
+  non strettamente necessari alle 5 categorie sopra.
+- Qualsiasi modifica a `include/chronon3d/` che espanda la superficie API.
+
+### Definizione di "baseline verde"
+
+Tutti gli 11 check architetturali devono restituire PASS sullo **stesso commit**:
+
+```bash
+commit=$(git rev-parse HEAD)
+bash tools/check_architecture_boundaries.sh          # 14 gate
+bash tools/check_architecture_boundaries_selftest.sh # selftest
+bash tools/check_software_renderer_boundary.sh       # sw boundary
+bash tools/check_gitignored_dirs.sh                  # gitignore hygiene
+bash tools/audit_software_renderer.sh                # sw audit
+bash tools/check_camera_architecture.sh              # camera arch
+bash tools/check_doc_sync.sh                         # doc sync
+bash tools/check_filename_drift.sh                   # filename drift
+bash tools/test_architectural.sh                     # TU-level rot
+bash tools/install_consumer_test.sh                  # consumer SDK
+bash tools/check_backend_sanitization.py             # backend sanitization
+# 11/11 PASS → feature freeze revocato
+```
+
+### Revoca
+
+Il feature freeze viene rimosso SOLO quando un commit su `main` registra
+11/11 PASS e la baseline viene documentata in `docs/baselines/` con SHA
+canonico. La revoca richiede un commit esplicito che rimuove questa sezione.
+
+---
+
 ## Priorità obbligatoria
 
-1. Ripristinare una sola identità renderer/backend e rendere bloccante il relativo gate.
-2. Centralizzare la registrazione dei moduli CMake.
+1. Ottenere baseline verde: 11/11 gate sullo stesso commit (feature freeze attivo).
+2. Certificare una sola strategia di packaging CMake per l'SDK (verifica `ar t` + `nm -C`).
 3. Unificare toolchain/preset vcpkg.
 4. Chiudere installazione ed external consumer SDK.
-5. Registrare una baseline reale su checkout pulito.
-6. Allineare `STATUS.md`, `NEXT_STEPS.md`, `ROADMAP.md` e stabilization plan ai risultati osservati.
-7. Proseguire con ExecutionScope, Precomp e determinismo soltanto sui gap ancora dimostrati dalla nuova baseline.
-8. Non iniziare V3 prima della chiusura completa dei P0.
+5. Riallineare `STATUS.md`, `NEXT_STEPS.md`, `ROADMAP.md` alla baseline osservata.
+6. Solo dopo baseline verde e SDK certificato: Text V1, Camera V1, V0.1 release.
 
 ## Regole di lavoro
 
