@@ -2,10 +2,13 @@
   "version": 6,
   "include": [
     "cmake/presets/base.json",
-    "cmake/presets/experimental.json",
-    "cmake/presets/release.json",
-    "cmake/presets/ci.json",
     "cmake/presets/development.json",
+    "cmake/presets/ci.json",
+    "cmake/presets/release.json",
+    "cmake/presets/experimental.json",
     "cmake/presets/profiling.json"
-  ]
+  ],
+  "configurePresets": [],
+  "buildPresets": [],
+  "testPresets": []
 }
