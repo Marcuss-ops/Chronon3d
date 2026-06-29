@@ -16,25 +16,34 @@
 //    - Distinct opacity per layer so different layers visibly enter /
 //      exit across the 6 keyframes
 //
-//  Frames asserted:
-//    F000  F030  F070  F110  F145  F179
-//    Coincide with composition milestones: backdrop at F030 stable,
-//    first text-layer at F110 fully visible, all layers fading at F179.
+//  Frames asserted (full mode):
+//    F000  F030  F070  F110  F145  F179  (3×2 contact-sheet grid)
 //
 //  Six DoD gates verified by the test body:
 //    A4.1   every keyframe has visible ink, valid alpha, no NaN
-//    A4.2   hashes differ between camera-motion windows (F030 vs F110)
-//    A4.3   text motion: hash(F000) ≠ hash(Fmid) ≠ hash(Ffinal)
-//    A4.4   determinism: render 6 frames twice → identical hashes
+//    A4.2   hashes differ between camera-motion windows
+//    A4.3   text motion: hash(F0) ≠ hash(Fmid) ≠ hash(Ffinal) per preset
+//    A4.4   determinism: re-render frames → identical hashes
 //    A4.5   contact sheet: 3×2 grid → output/showcase/contact_sheet.png
-//    A4.6   performance: total / mean render ms + peak RSS
+//    A4.6   performance: total / mean render ms + peak RSS (full only)
+//
+//  RUNTIME MODE — Agent 2 / ci-showcase plan (Step 2/6)
+//    Same binary serves BOTH daily smoke (CI push) and the nightly
+//    full validation (workflow_dispatch + cron).  Two env vars select
+//    the mode without recompiling:
+//      CHRONON3D_CINEMATIC_FRAME_COUNT  1..6  (default 6)
+//      CHRONON3D_CINEMATIC_COMP_COUNT   1..5  (default 5)
+//    Daily smoke uses FRAME_COUNT=2 + COMP_COUNT=1 (cheap: no PNG, no
+//    perf envelope, no telemetry).  Nightly uses defaults (full gates,
+//    contact sheet PNG, A4.6 telemetry).  A4.5 + A4.6 DOCTEST_SKIP in
+//    smoke so the verify_cinematic_showcase.sh required-gate list is
+//    unambiguous per run-mode.
 //
 //  Non-goals (out of scope per DoD):
-//    - No graphics-stack audit / no per-pixel goldens (Tier F visual suite
-//      covers that).
+//    - No graphics-stack audit / no per-pixel goldens.
 //    - No CI integration of camera or text internals.
-//    - No cross-OS work; Linux-only process_rss_bytes() call in A4.6 is
-//      a best-effort metric; absent platform, MESSAGE is informational.
+//    - Linux-only process_rss_bytes() is best-effort; absent platform,
+//      MESSAGE is informational.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <doctest/doctest.h>
@@ -60,6 +69,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>     // std::getenv
 #include <filesystem>
 #include <iomanip>
 #include <ios>
@@ -82,11 +92,55 @@ using chronon3d::test::make_renderer;
 
 namespace {
 
-// ── DoD key frames ────────────────────────────────────────────────────
-// Per AGENT 4 brief: 0 / 30 / 70 / 110 / 145 / 179.  Constexpr so the
-// tests can iterate deterministically without runtime allocation.
+// ── Runtime cinematic config (Agent 2 ci-showcase plan, Step 2/6) ─────
+// Same binary serves both daily smoke (push on main) and nightly full
+// validation.  Two env vars select the mode; defaults preserve the
+// historical 6-frame + 5-preset behaviour so callers see zero regression.
+struct CinematicConfig {
+    int  frame_count;        // 1..6 (default 6)
+    int  comp_count;         // 1..5 (default 5)
+    bool skip_contact_sheet; // = (frame_count < 6) — A4.5 not run.
+    bool smoke_mode;         // = (skip_contact_sheet) || (comp_count < 5) — A4.6 not run.
+};
+
+// One-shot env-var read with safe defaults + clamping.  std::atoi can
+// throw std::invalid_argument on garbage input; we trivially catch and
+// fall back to default.  Never read the env after this initialisation.
+inline CinematicConfig read_cinematic_config() {
+    auto read_int = [](const char* name, int dflt) -> int {
+        const char* p = std::getenv(name);
+        if (!p || !*p) return dflt;
+        try { return std::atoi(p); }
+        catch (...) { return dflt; }
+    };
+    CinematicConfig c;
+    c.frame_count        = std::clamp(read_int("CHRONON3D_CINEMATIC_FRAME_COUNT", 6), 1, 6);
+    c.comp_count         = std::clamp(read_int("CHRONON3D_CINEMATIC_COMP_COUNT",  5), 1, 5);
+    c.skip_contact_sheet = (c.frame_count < 6);
+    c.smoke_mode         = c.skip_contact_sheet || (c.comp_count < 5);
+    return c;
+}
+
+const CinematicConfig g_runtime = read_cinematic_config();
+
+// ── DoD key frames (canonical source-of-truth, NEVER reorder) ────────
+// Per AGENT 4 brief: 0 / 30 / 70 / 110 / 145 / 179.
 constexpr int kKeyFrames[] = {0, 30, 70, 110, 145, 179};
-constexpr int kKFCount     = sizeof(kKeyFrames) / sizeof(kKeyFrames[0]);
+constexpr int kKFStatic    = sizeof(kKeyFrames) / sizeof(kKeyFrames[0]);
+
+// Runtime-sliced view of kKeyFrames — first g_runtime.frame_count
+// entries.  Cached lazily as a static const vector so every TEST_CASE
+// shares one allocation across invocations.
+inline const std::vector<int>& runtime_kf() {
+    static const auto v = []() {
+        std::vector<int> out;
+        const int n = std::min<int>(kKFStatic, g_runtime.frame_count);
+        out.reserve(n);
+        for (int i = 0; i < n; ++i) out.push_back(kKeyFrames[i]);
+        return out;
+    }();
+    return v;
+}
 
 // Composition's native resolution.  Authors hard-code 1920×1080 in
 // deep_parallax_cascade() — the harness respects that contract
@@ -153,15 +207,16 @@ inline FrameMetrics compute_metrics(const Framebuffer& fb, float render_ms) {
     return m;
 }
 
-// Render the 6 DoD keyframes against a fresh renderer.  Each row of the
-// returned FrameCache owns its Framebuffer so the lifetime is safe
-// across multiple gates (A4.5 contact sheet reuses these buffers).
+// Render the runtime-configured keyframes against a fresh renderer.
+// Each row of the returned FrameCache owns its Framebuffer so the
+// lifetime is safe across multiple gates (A4.5 contact sheet reuses
+// these buffers when present).
 using FrameRow = std::pair<FrameMetrics, std::shared_ptr<Framebuffer>>;
 using FrameCache = std::map<int, FrameRow>;
 
-FrameCache render_six(SoftwareRenderer& renderer, const Composition& comp) {
+FrameCache render_frames(SoftwareRenderer& renderer, const Composition& comp) {
     FrameCache out;
-    for (int f : kKeyFrames) {
+    for (int f : runtime_kf()) {
         const auto t0 = std::chrono::steady_clock::now();
         auto fb = renderer.render_frame(comp, Frame{f});
         const auto t1 = std::chrono::steady_clock::now();
@@ -194,12 +249,16 @@ inline std::string stamped(int frame) {
 //  A4.1 — Every key frame is non-empty: visible ink + valid alpha + no NaN.
 // ─────────────────────────────────────────────────────────────────────
 TEST_CASE("AGENT4: A4.1 every keyframe non-empty") {
+    const auto& kfs = runtime_kf();
+    const int kf_count = static_cast<int>(kfs.size());
+    REQUIRE(kf_count >= 1);
+
     auto renderer = make_renderer();
     const auto comp = deep_parallax_cascade();
-    const auto cache = render_six(renderer, comp);
+    const auto cache = render_frames(renderer, comp);
 
     int non_empty = 0;
-    for (int f : kKeyFrames) {
+    for (int f : kfs) {
         const auto& m = cache.at(f).first;
 
         // Compose a single MESSAGE row for forensic tracing.  Cheap; printed
@@ -225,94 +284,62 @@ TEST_CASE("AGENT4: A4.1 every keyframe non-empty") {
 
         if (m.ink_pixels > 0) ++non_empty;
     }
-    CHECK(non_empty == kKFCount);
-    MESSAGE("A4.1 OK — " << non_empty << "/" << kKFCount
+    CHECK(non_empty == kf_count);
+    MESSAGE("A4.1 OK — " << non_empty << "/" << kf_count
             << " keyframes have visible ink + valid alpha");
 }
 
 // ─────────────────────────────────────────────────────────────────────
 //  A4.2 — Camera motion: hashes between frames span multiple distinct
-//          values, validating real motion across the timeline.  Proxy
-//          probe (no direct camera.position() / rotation() accessors;
-//          the visual signature across layers IS the canonical probe).
+//          values, validating real motion across the timeline.  The
+//          threshold is kf_count-agnostic: at minimum one distinct pair
+//          (smoke) or 12-of-15 (full, empirical lower bound that
+//          tolerates bg_halo + held-key collisions).
 // ─────────────────────────────────────────────────────────────────────
-TEST_CASE("AGENT4: A4.2 camera motion across 6 keyframes") {
+TEST_CASE("AGENT4: A4.2 camera motion across keyframes") {
+    const auto& kfs = runtime_kf();
+    const int kf_count = static_cast<int>(kfs.size());
+    REQUIRE(kf_count >= 2);  // motion needs ≥2 frames
+
     auto renderer = make_renderer();
     const auto comp = deep_parallax_cascade();
-    const auto cache = render_six(renderer, comp);
+    const auto cache = render_frames(renderer, comp);
 
-    // F030 vs F110: camera has moved + parallax has shifted
-    // foreground against background between these frames.  Real motion
-    // ⇒ distinct framebuffer hashes.
-    REQUIRE(cache.count(30) == 1);
-    REQUIRE(cache.count(110) == 1);
-    const auto h_f030 = cache.at(30).first.hash;
-    const auto h_f110 = cache.at(110).first.hash;
-    CHECK(h_f030 != h_f110);
+    // Smoke-grade invariant: first vs second frame must differ.
+    const auto h_first  = cache.at(kfs[0]).first.hash;
+    const auto h_second = cache.at(kfs[1]).first.hash;
+    CHECK(h_first != h_second);
 
-    // Coarse lower bound: of the C(6, 2) = 15 frame pairs, at least 12
-    // must produce distinct hashes (only the few pairs sitting on dead
-    // keyframe holds — common in any 180-frame timeline — would even
-    // legitimately collide).  12-of-15 is empirically safe for
-    // deep_parallax_cascade: the bg_halo is static, but the 4 layers
-    // each have a unique motion curve, so only overlapping holds may
-    // collide.
+    // Pairwise-distinct counting (informational).
     int diffs = 0;
-    for (int i = 0; i < kKFCount; ++i) {
-        for (int j = i + 1; j < kKFCount; ++j) {
-            if (cache.at(kKeyFrames[i]).first.hash !=
-                cache.at(kKeyFrames[j]).first.hash) {
+    const int total_pairs = kf_count * (kf_count - 1) / 2;
+    for (int i = 0; i < kf_count; ++i) {
+        for (int j = i + 1; j < kf_count; ++j) {
+            if (cache.at(kfs[i]).first.hash != cache.at(kfs[j]).first.hash) {
                 ++diffs;
             }
         }
     }
-    CHECK(diffs >= 12);  // empirical lower bound; bg_halo + held keys can collide.
+    const int motion_lower_bound = (kf_count >= 6) ? 12 : 1;
+    CHECK(diffs >= motion_lower_bound);
     MESSAGE("A4.2 OK — pairwise-distinct keyframes: "
-            << diffs << " / 15 (F030 hash=" << hash_to_hex(h_f030)
-            << " F110 hash=" << hash_to_hex(h_f110) << ")");
+            << diffs << " / " << total_pairs
+            << " (F[0] hash=" << hash_to_hex(h_first)
+            << " F[1] hash=" << hash_to_hex(h_second) << ")");
 }
 
 // ─────────────────────────────────────────────────────────────────────
 //  A4.3 — Text motion per PRESET (TICKET-A2 followup #1).
 //
-//  Iterates ALL 5 cinematic_text_camera compositions, hashes F0 vs
-//  Fdur/2 vs Fdur-1, asserts the three hashes are pairwise distinct.
-//
-//  Why five compositions instead of one:
-//    The original A4.3 only covered deep_parallax_cascade (180-frame
-//    duration exactly matches the 6 DoD keyframes).  AGENT 4 brief
-//    says "Per ogni preset: F0 != Fmid; Fmid != Ffinal; F0 != Ffinal";
-//    that maps cleanly to all 5 cinematic_text_camera compositions
-//    registered in cinemtic_text_camera.cpp.  Each composition has its
-//    own duration (90 / 180 / 180 / 210 / 240 frames) — so we use
-//    Composition::duration() to derive (0, dur/2, dur-1) instead of
-//    hard-coding the original 0/70/179 windows.
-//
-//  Memory discipline (the hash-only invariant):
-//    Each render_frame() return is HASHED then DISCARDED — the
-//    shared_ptr<Framebuffer> goes out of scope at the end of the inner
-//    for-loop body, so peak transient for this test is a single
-//    1920x1080x16B ≈ 33 MB framebuffer (vs. ~600 MB if all 5×3=15
-//    framebuffers were retained).  Three hashes per composition are
-//    stored in a std::array<std::uint64_t, 3> — trivially small.
-//
-//  Composition under test (canonical names from
-//  content/anims/compositions/cinematic_text_camera.cpp):
-//    1. deep_parallax_cascade   (Catmull-Rom Z-push through 4 layers)
-//    2. whip_pan_hero_reveal    (camera whip + staggered typewriter)
-//    3. orbit_handheld_glow     (Catmull-Rom orbit + handheld wiggle)
-//    4. rack_focus_title_swap   (Vertigo dolly-zoom + opposing blur)
-//    5. abyss_freefall_stagger  (rolling camera + glyph Z fall)
-//
-//  Expected outcome (per-preset): hash(F0) ≠ hash(dur/2) ≠ hash(dur-1),
-//  all distinct.  At minimum 5/5 must pass for AGENT-4 DoD to be met.
-//  If any preset fails, doctest reports it bypassing the others; the
-//  MESSAGE call below makes the per-preset results visible without
-//  breaking the test loop early.
+//  Iterates the first g_runtime.comp_count cinematic compositions and,
+//  per preset, samples F0/Fmid/Ffinal hashes and asserts they are
+//  pairwise distinct.  Strict N/N (N = g_runtime.comp_count = 5 in
+//  full mode, 1 in smoke).  The "A4.3 OK" marker only emits when
+//  presets_passed == presets_total, so the verify shell-side grep is
+//  unambiguous.  REQUIRE (not CHECK) aborts on partial success so a
+//  4/5 partial can't produce a spurious "A4.3 OK" anyway.
 // ─────────────────────────────────────────────────────────────────────
 TEST_CASE("AGENT4: A4.3 text motion per preset (5 cinematic compositions)") {
-    auto renderer = make_renderer();
-
     struct Preset {
         const char* name;
         Composition (*factory)();
@@ -324,12 +351,16 @@ TEST_CASE("AGENT4: A4.3 text motion per preset (5 cinematic compositions)") {
         {"rack_focus_title_swap",  &rack_focus_title_swap},
         {"abyss_freefall_stagger", &abyss_freefall_stagger},
     };
-    constexpr int kPresetCount = sizeof(kPresets) / sizeof(kPresets[0]);
+    constexpr int kPSStatic = sizeof(kPresets) / sizeof(kPresets[0]);
+    const int presets_total = std::min<int>(kPSStatic, g_runtime.comp_count);
+    REQUIRE(presets_total >= 1);
+
+    auto renderer = make_renderer();
 
     int presets_passed = 0;
-    int presets_total  = kPresetCount;
+    std::vector<std::string> missing_presets;
 
-    for (int i = 0; i < kPresetCount; ++i) {
+    for (int i = 0; i < presets_total; ++i) {
         const Preset& p = kPresets[i];
         const auto comp = p.factory();
 
@@ -361,8 +392,11 @@ TEST_CASE("AGENT4: A4.3 text motion per preset (5 cinematic compositions)") {
             (hashes[0] != hashes[1]) &&
             (hashes[1] != hashes[2]) &&
             (hashes[0] != hashes[2]);
-        CHECK(all_distinct);
-        if (all_distinct) ++presets_passed;
+        if (all_distinct) {
+            ++presets_passed;
+        } else {
+            missing_presets.emplace_back(p.name);
+        }
 
         MESSAGE("A4.3 per-preset " << p.name
                 << " (dur=" << dur
@@ -373,62 +407,86 @@ TEST_CASE("AGENT4: A4.3 text motion per preset (5 cinematic compositions)") {
                 << (all_distinct ? " (DISTINCT)" : " (COLLISION)"));
     }
 
-    CHECK(presets_passed == presets_total);
-    MESSAGE("A4.3 OK (per-preset) — " << presets_passed << "/"
-            << presets_total << " cinematic compositions pass text-motion gate");
+    // Strict N/N enforcement per runtime preset count.  REQUIRE (not CHECK)
+    // aborts the test on failure so a (presets_total-1)/presets_total
+    // partial can't produce a "A4.3 OK" marker on the way out.
+    REQUIRE(presets_passed == presets_total);
+
+    // Fire the OK marker ONLY when strictly complete.  Combined with the
+    // REQUIRE above, the substring "A4.3 OK" only ever appears in the
+    // log when the full gate is satisfied — verify script grep is
+    // unambiguous (matches iff strict pass).
+    if (!missing_presets.empty()) {
+        // Defensive: unreachable in practice (REQUIRE above aborts); kept
+        // as a forensic trace if a future refactor weakens the abort path.
+        MESSAGE("A4.3 missing-collision presets: ");
+        for (const auto& n : missing_presets) MESSAGE("  - " << n);
+    }
+    MESSAGE("A4.3 OK (per-preset strict — no partial marker) — "
+            << presets_passed << "/" << presets_total
+            << " cinematic compositions pass text-motion gate");
 }
 
 // ─────────────────────────────────────────────────────────────────────
-//  A4.4 — Determinism: run the 6-frame loop twice; hashes must match.
-//          Software renderer is single-threaded CPU — no stochastic
-//          scheduling — but this contract is part of the DoD for any
-//          future GPU/code-paths to honor; this test anchors it now.
+//  A4.4 — Determinism: re-render and assert byte-exact hashes.
+//          Smoke = 2 frames; full = 6 frames.
 // ─────────────────────────────────────────────────────────────────────
 TEST_CASE("AGENT4: A4.4 determinism run A == run B") {
+    const auto& kfs = runtime_kf();
+    const int kf_count = static_cast<int>(kfs.size());
+    REQUIRE(kf_count >= 2);
+
     auto renderer = make_renderer();
     const auto comp = deep_parallax_cascade();
 
-    const auto run_a = render_six(renderer, comp);
+    const auto run_a = render_frames(renderer, comp);
     int matches_a = 0;
-    for (int f : kKeyFrames) {
+    for (int f : kfs) {
         const auto h = run_a.at(f).first.hash;
         MESSAGE("run A " << stamped(f) << " hash=" << hash_to_hex(h));
         ++matches_a;  // bookkeeping only
     }
 
-    const auto run_b = render_six(renderer, comp);
+    const auto run_b = render_frames(renderer, comp);
     int matches_ab = 0;
-    for (int f : kKeyFrames) {
+    for (int f : kfs) {
         const auto h_a = run_a.at(f).first.hash;
         const auto h_b = run_b.at(f).first.hash;
         MESSAGE("run B " << stamped(f) << " hash=" << hash_to_hex(h_b));
         CHECK(h_a == h_b);
         ++matches_ab;
     }
-    CHECK(matches_ab == kKFCount);
-    CHECK(matches_a   == kKFCount);
-    MESSAGE("A4.4 OK — " << matches_ab << "/" << kKFCount
+    CHECK(matches_ab == kf_count);
+    CHECK(matches_a   == kf_count);
+    MESSAGE("A4.4 OK — " << matches_ab << "/" << kf_count
             << " keyframes are bit-exact-identical across runs");
 }
 
 // ─────────────────────────────────────────────────────────────────────
-//  A4.5 — Contact sheet: blit the 6 framebuffers into a 3×2 grid master
-//          framebuffer, then save as PNG to output/showcase/contact_sheet.png.
-//          No ImageMagick / PIL in env → SDK primitives (blit + save_png)
-//          keep dependency zero.
+//  A4.5 — Contact sheet (FULL mode only).  DOCTEST_SKIP in smoke so no
+//          contact_sheet.png is written — daily CI stays artefact-free.
 // ─────────────────────────────────────────────────────────────────────
 TEST_CASE("AGENT4: A4.5 contact sheet 3x2 to output/showcase/contact_sheet.png") {
-    auto renderer = make_renderer();
-    const auto comp = deep_parallax_cascade();
-    const auto cache = render_six(renderer, comp);
+    if (g_runtime.skip_contact_sheet) {
+        DOCTEST_SKIP("A4.5 — contact sheet skipped (smoke mode: "
+                     "CHRONON3D_CINEMATIC_FRAME_COUNT=" << g_runtime.frame_count
+                     << " < 6). Render via nightly-visual workflow "
+                     "(.github/workflows/nightly-visual.yml) for the full 5760×2160 grid.");
+    }
 
     constexpr int kCols = 3;
     constexpr int kRows = 2;
-    REQUIRE(kKFCount == kCols * kRows);
+    REQUIRE(runtime_kf().size() == static_cast<size_t>(kCols * kRows));
+
+    auto renderer = make_renderer();
+    const auto comp = deep_parallax_cascade();
+    const auto cache = render_frames(renderer, comp);
+
+    const auto& kfs = runtime_kf();
 
     Framebuffer master(kCompW * kCols, kCompH * kRows);
     int cell = 0;
-    for (int f : kKeyFrames) {
+    for (int f : kfs) {
         const int col = cell % kCols;
         const int row = cell / kCols;
         cache.at(f).second->blit(master, col * kCompW, row * kCompH);
@@ -454,26 +512,17 @@ TEST_CASE("AGENT4: A4.5 contact sheet 3x2 to output/showcase/contact_sheet.png")
 }
 
 // ─────────────────────────────────────────────────────────────────────
-//  A4.6 — Performance: total/mean ms across 6 renders, approximate peak
-//          RSS, AND per-test peak transient heap envelope.
-//
-//  TICKET-053: peak transient heap tracked via the lifetime hooks in
-//  include/chronon3d/core/memory/framebuffer.hpp —
-//    g_peak_live_framebuffer_bytes (HWM, bumped on ctor, never decremented)
-//    g_live_framebuffer_bytes     (live bytes, bumped on ctor, decremented
-//                                  on dtor / release_owned_pixels)
-//  Snapshotting BEFORE vs AFTER the run gives the peak transient heap
-//  contribution of A4.6 specifically, independent of RSS noise and of
-//  any prior tests in the doctest process.  The HWM delta REPLACES the
-//  previous <33 MB rule-of-thumb with an actual measured number, but
-//  is REPORTED ONLY (MESSAGE) — no CI threshold is enforced here.  A
-//  hard CI threshold will be added once the showcase fleet has been
-//  measured end-to-end across all keyframes in an env-fixed baseline.
-//  Rationale per AGENTS.md rule: an uncalibrated CHECK bound is a
-//  flake source the same way an uncalibrated GREEN-mark is.  We
-//  report the number; we don't gate on it until the number is known.
+//  A4.6 — Performance telemetry (FULL mode only).  DOCTEST_SKIP in
+//          smoke so daily CI stays free of perf-envelope artefacts.
 // ─────────────────────────────────────────────────────────────────────
 TEST_CASE("AGENT4: A4.6 performance telemetry") {
+    if (g_runtime.smoke_mode) {
+        DOCTEST_SKIP("A4.6 — telemetry skipped (smoke mode: "
+                     "keeps daily CI free of perf-envelope artefacts). "
+                     "Nightly-visual workflow (workflow_dispatch + cron) "
+                     "runs the full envelope.");
+    }
+
     auto renderer = make_renderer();
     const auto comp = deep_parallax_cascade();
 
@@ -493,7 +542,7 @@ TEST_CASE("AGENT4: A4.6 performance telemetry") {
     const std::uint64_t fb_live_prerun_bytes =
         ::chronon3d::profiling::g_live_framebuffer_bytes.load(std::memory_order_relaxed);
 
-    const auto cache = render_six(renderer, comp);
+    const auto cache = render_frames(renderer, comp);
 
     const std::uint64_t fb_hwm_postrun_bytes =
         ::chronon3d::profiling::g_peak_live_framebuffer_bytes.load(std::memory_order_relaxed);
@@ -503,11 +552,12 @@ TEST_CASE("AGENT4: A4.6 performance telemetry") {
     const auto rss_after = sm.process_rss_bytes();
     const auto rss_peak_bytes = std::max(rss_before, rss_after);
 
+    const auto& kfs = runtime_kf();
     double sum_ms = 0.0;
-    for (int f : kKeyFrames) {
+    for (int f : kfs) {
         sum_ms += cache.at(f).first.render_ms;
     }
-    const double mean_ms = sum_ms / static_cast<double>(kKFCount);
+    const double mean_ms = sum_ms / static_cast<double>(kfs.size());
     const double total_ms = sum_ms;
     const double rss_mb = static_cast<double>(rss_peak_bytes) / (1024.0 * 1024.0);
 
@@ -556,5 +606,5 @@ TEST_CASE("AGENT4: A4.6 performance telemetry") {
             << " fbpeak_delta=" << fb_hwm_delta_mb << " MB"
             << " fbretained_delta=" << fb_live_delta_mb << " MB"
             << " fbpeak_safety_bound=" << kFBPeakEnvelopeMB << " MB (TICKET-053 provisional, CI threshold deferred)"
-            << " frames=" << kKFCount);
+            << " frames=" << kfs.size());
 }
