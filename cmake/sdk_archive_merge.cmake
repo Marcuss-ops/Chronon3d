@@ -26,6 +26,17 @@ list(SORT _obj_files)
 list(REMOVE_DUPLICATES _obj_files)
 list(LENGTH _obj_files _count)
 
+# Force archive rebuild from scratch: `ar crs` (the c = create, r =
+# replace, s = write symbol table) only inserts/replaces the files
+# listed; entries present in a previous archive that are absent from
+# the new manifest survive as ghosts.  REMOVE-ing the archive first
+# guarantees the new merge cannot leak residual .o from a prior
+# configuration (e.g., diagnostics were ON in a previous build, then
+# switched OFF — chronon3d_*_diagnostics.cpp.o must not survive).
+if(EXISTS "${ARCHIVE}")
+    file(REMOVE "${ARCHIVE}")
+endif()
+
 # Create archive from scratch with all .o files (registry-driven manifest).
 if(_count GREATER 0)
     execute_process(
