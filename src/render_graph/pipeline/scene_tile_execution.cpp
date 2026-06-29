@@ -1,5 +1,17 @@
 #include "scene_tile_execution.hpp"
 
+// TICKET-038/TXT-00 — canonical include for sw_renderer->runtime().
+// RenderRuntime (in <chronon3d/runtime/render_runtime.hpp>) is the SOLE
+// owner of GraphExecutor per TICKET-011.  Calling
+// sw_renderer->runtime().executor().execute_with_scope(...) below
+// needs the FULL type of RenderRuntime (the .executor() accessor +
+// the GraphExecutor& return — only declared in the full type).
+// graph_executor.hpp transitively forward-declares RenderRuntime; the
+// include here resolves the type for this TU.  See commit 91debc36
+// (TXT-00 closure of ROT 1 on src/render_graph/pipeline/) for the
+// duplicate-fix precedent — the audit-comment block above mirrors
+// the wording exactly.
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>     // PR 6.4 — typed scope plumbing
