@@ -22,9 +22,12 @@
 #include "cinematic_showcase_fixture.hpp"
 
 // Exhibit the cinematic_text_camera compositions directly (no registry hop
-// required for these).  cinematic_text_camera.hpp reaches:
-//   content/anims/compositions/cinematic_text_camera.{hpp,cpp}.
-#include "content/anims/compositions/cinematic_text_camera.hpp"
+// required for these).  Phase-2.2-fix: the umbrella header lives at
+// content/showcases/cinematic/cinematic_text_camera.hpp (the old
+// content/anims/compositions/ path was deleted by the 24388800
+// content/ directory restructuring commit; only the showcase
+// sub-directory survived).
+#include "content/showcases/cinematic/cinematic_text_camera.hpp"
 
 using namespace chronon3d::testing::cinematic;
 
