@@ -1,0 +1,125 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# profile-envelope.yml — Profile-measurement matrix (observation only)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Drives tools/measure_profile.sh on each of the four linux-profile-* presets
+# (core / motion / video / extended).  Replaces the in-gates profile-
+# measurement job that used to run on every push to main.
+#
+# Triggers:
+#   • workflow_dispatch   — manual invocation from the Actions UI.
+#   • schedule (cron)     — weekly, Monday 04:00 UTC.
+#
+# This workflow NEVER runs on push or pull_request.  Profile measurement is
+# observation-only and intentionally time-displaced from merge velocity:
+# the merge pipeline stays responsive (cheap gates), and the perf envelope
+# baseline is recomputed on a slower cadence.  See Agent 2 / Step 4/6 of
+# the ci-showcase / cmakesdk-baseline plan.
+#
+# Concurrency policy:
+#   - Manual `workflow_dispatch` cancels the in-flight prior run if it
+#     exceeds the per-leg timeout — keeps the latest measurement
+#     authoritative.
+#   - `schedule` does NOT cancel the prior schedule: cadence (1/wk) is
+#     slower than per-leg timeout (90 min) so back-to-back schedules are
+#     nearly impossible; overlapping artifacts never collide (artifact
+#     names are profile-typed).
+#   - ref-based group is INTENTIONAL: `workflow_dispatch` from a non-
+#     default branch deliberately forms its OWN group so manual
+#     experimentation on a feature branch does NOT cancel the main
+#     schedule run.
+#
+# Job catalog (this file):
+#   • profile-envelope-collection — 4-leg matrix observation; each leg
+#     uploads profile-*-measurement.{json,md}; runner: ubuntu-latest.
+#
+# The four profile presets (linux-profile-core / motion / video / extended)
+# remain `hidden: true` in CMakePresets.json (Step 1/6) so they are NOT
+# advertised in `cmake --list-presets` but remain callable via
+# `cmake --preset <name>`.  This workflow uses the SHORT profile name
+# (`core`/`motion`/`video`/`extended`); tools/measure_profile.sh prepends
+# `linux-profile-` internally when invoking the cmake preset.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Chronon profile envelope (weekly + manual)
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Weekly Monday 04:00 UTC.  Slowest cadence that keeps the trend
+    # dashboard useful without spending CI minutes on every push.
+    # Cadence changes must be co-documented in
+    # docs/measure_profile_readme.md to keep the discipline one-shot.
+    - cron: '0 4 * * 1'
+
+concurrency:
+  group: profile-envelope-${{ github.ref }}
+  # Cancel the in-flight prior run only when this invocation is a manual
+  # `workflow_dispatch`.  Scheduled runs never cancel — see header note.
+  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
+
+permissions:
+  contents: read
+
+jobs:
+  profile-envelope-collection:
+    name: "Profile envelope observation (${{ matrix.profile }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      # Observation semantics: ONE leg's failure does NOT abort the others.
+      # The dashboard still receives the three working legs and the
+      # failing leg is flagged for forensic investigation.  Aligns with
+      # the `continue-on-error: true` pattern used elsewhere in gates.yml
+      # for advisory steps (e.g. renderer-boundary-observation), but
+      # WITHOUT promoting to a hard blocking signal.
+      fail-fast: false
+      matrix:
+        include:
+          - profile: core
+          - profile: motion
+          - profile: video
+          - profile: extended
+            build_args: "--build --parallel 16"
+
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_BINARY_SOURCES: "clear;nuget,GitHub,readwrite"
+      VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          # Explicit `lfs: false` defensively documents intent: this
+          # workflow never triggers on push, so we deliberately disable
+          # LFS fetching.  If a future .gitattributes adds an lfs filter
+          # under paths this workflow touches, this remains a single
+          # local edit to flip the switch back on.
+          lfs: false
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+      - name: Make measure_profile.sh executable
+        run: chmod +x tools/measure_profile.sh
+
+      # matrix.build_args is empty for core/motion/video; only `extended`
+      # carries `--build --parallel 16`.  The `${{ }}` expansion collapses
+      # to "" without leaving stray whitespace at script argv boundaries.
+      - name: Measure profile (${{ matrix.profile }})
+        run: |
+          echo ">>> tools/measure_profile.sh ${{ matrix.profile }} ${{ matrix.build_args }}"
+          bash tools/measure_profile.sh "${{ matrix.profile }}" ${{ matrix.build_args }}
+
+      - name: Upload profile-measurement.json + .md
+        uses: actions/upload-artifact@v4
+        with:
+          name: profile-${{ matrix.profile }}-measurement
+          path: |
+            build/profiles/linux-profile-${{ matrix.profile }}/profile-measurement.json
+            build/profiles/linux-profile-${{ matrix.profile }}/profile-measurement.md
+          if-no-files-found: warn
+          retention-days: 30
