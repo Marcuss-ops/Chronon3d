@@ -395,3 +395,40 @@ TEST_CASE("TextUnitMap_8lvl (h) empty input → all 0 + all nullopt") {
     // Unknown span name → InvalidIndex.
     CHECK(map.span_index_by_name("nonexistent")   == InvalidIndex);
 }
+
+// =================================================================
+// TEST CASE (i) -- span_index_by_name resolves SemanticSpanRef.name.
+//
+// Closes TEXT-UNM-01 paragraph 15 deferred item: span_index_by_name
+// now reads from an OWNED span_names_[i] table populated at construction.
+//
+// Covers: canonical lookup (2 named spans), unknown name (returns
+// InvalidIndex), empty name (anti-double-free guard), duplicate-name
+// (first-wins semantics, mirrors paragraph_to_span_'s behaviour).
+TEST_CASE("TextUnitMap_8lvl (i) span_index_by_name resolves SemanticSpanRef.name") {
+    const string_view s = "Hello, world!";
+    auto [offs, lens] = one_cluster_per_codepoint(s);
+    const PlacedGlyphRun placed = make_placed(offs, lens);
+
+    const std::vector<SemanticSpanRef> spans = {
+        {"title", 0u, 5u},
+        {"body",  6u, 12u},
+    };
+    TextUnitMap map(s, placed, {}, spans);
+
+    CHECK(map.span_count() == 2u);
+    CHECK(map.span_index_by_name("title") == 0u);
+    CHECK(map.span_index_by_name("body")  == 1u);
+    CHECK(map.span_index_by_name("nope")  == InvalidIndex);
+    CHECK(map.span_index_by_name("")      == InvalidIndex);
+
+    // Duplicate names: first-wins (matches paragraph_to_span_'s
+    // "first span attached" semantics for the simplified 1-paragraph
+    // model; future multi-paragraph attribution will keep this rule).
+    const std::vector<SemanticSpanRef> dup_spans = {
+        {"body", 6u,  12u},
+        {"body", 12u, 13u},
+    };
+    TextUnitMap dup_map(s, placed, {}, dup_spans);
+    CHECK(dup_map.span_index_by_name("body") == 0u);
+}
