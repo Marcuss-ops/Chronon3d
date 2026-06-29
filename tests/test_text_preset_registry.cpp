@@ -1,4 +1,4 @@
-// ─── test_text_preset_registry.cpp — Cluster A DoD #1 test ───────────────
+// ─── test_text_preset_registry.cpp — Cluster A DoD #1 test (TEXT-RES-01 migrated) ───────────────
 //
 // Tier overview (Cluster A copy-modify PR — Stage 3):
 //
@@ -203,7 +203,7 @@ TEST_CASE("TextPresetRegistry: metadata + filter tier (Sub-cases 1-6)") {
         CHECK(ids.size() == all.size());
         // Built-in flag must be true on seeded entries.
         for (const auto& p : all) {
-            CHECK(p.builtin == true);
+            CHECK(p.metadata.builtin == true);
             CHECK_FALSE(p.id.empty());
         }
         // Sorted-by-key determinism (std::map contract).
@@ -227,8 +227,8 @@ TEST_CASE("TextPresetRegistry: metadata + filter tier (Sub-cases 1-6)") {
         auto reg = make_default_text_preset_registry();
         const auto& spec = reg.get("cinematic_text_camera");
         CHECK(spec.id == "cinematic_text_camera");
-        CHECK(spec.category == TextPresetCategory::Cinematic);
-        CHECK(spec.builtin == true);
+        CHECK(spec.metadata.category == TextPresetCategory::Cinematic);
+        CHECK(spec.metadata.builtin == true);
         CHECK(static_cast<bool>(spec.builder));  // non-null std::function.
     }
 
@@ -253,16 +253,16 @@ TEST_CASE("TextPresetRegistry: metadata + filter tier (Sub-cases 1-6)") {
               == reg.list().size());
         // Filter correctness: never mis-categorised.
         for (const auto& p : cinematics) {
-            CHECK(p.category == TextPresetCategory::Cinematic);
+            CHECK(p.metadata.category == TextPresetCategory::Cinematic);
         }
         for (const auto& p : reveals) {
-            CHECK(p.category == TextPresetCategory::Reveal);
+            CHECK(p.metadata.category == TextPresetCategory::Reveal);
         }
         for (const auto& p : emphasis) {
-            CHECK(p.category == TextPresetCategory::Emphasis);
+            CHECK(p.metadata.category == TextPresetCategory::Emphasis);
         }
         for (const auto& p : subtitles) {
-            CHECK(p.category == TextPresetCategory::Subtitle);
+            CHECK(p.metadata.category == TextPresetCategory::Subtitle);
         }
     }
 
@@ -270,7 +270,7 @@ TEST_CASE("TextPresetRegistry: metadata + filter tier (Sub-cases 1-6)") {
         TextPresetRegistry reg;
         TextPreset p;
         p.id = "foo";
-        p.category = TextPresetCategory::Reveal;
+        p.metadata.category = TextPresetCategory::Reveal;
         reg.register_preset(p);
         CHECK(reg.contains("foo"));
         reg.freeze();
@@ -356,7 +356,7 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
     SUBCASE("11) fade_in (Reveal) → fixture invocation produces >= 1 node") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("fade_in"));
-        REQUIRE(reg.get("fade_in").category == TextPresetCategory::Reveal);
+        REQUIRE(reg.get("fade_in").metadata.category == TextPresetCategory::Reveal);
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("golden_fade_in", Frame{0});
         const auto& preset = reg.get("fade_in");
@@ -366,7 +366,7 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
     SUBCASE("12) blur_in (Reveal) → fixture invocation produces >= 1 node") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("blur_in"));
-        REQUIRE(reg.get("blur_in").category == TextPresetCategory::Reveal);
+        REQUIRE(reg.get("blur_in").metadata.category == TextPresetCategory::Reveal);
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("golden_blur_in", Frame{0});
         const auto& preset = reg.get("blur_in");
@@ -376,7 +376,7 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
     SUBCASE("13) slide_up (Reveal) → fixture invocation produces >= 1 node") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("slide_up"));
-        REQUIRE(reg.get("slide_up").category == TextPresetCategory::Reveal);
+        REQUIRE(reg.get("slide_up").metadata.category == TextPresetCategory::Reveal);
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("golden_slide_up", Frame{0});
         const auto& preset = reg.get("slide_up");
@@ -386,7 +386,7 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
     SUBCASE("14) slide_down (Reveal) → fixture invocation produces >= 1 node") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("slide_down"));
-        REQUIRE(reg.get("slide_down").category == TextPresetCategory::Reveal);
+        REQUIRE(reg.get("slide_down").metadata.category == TextPresetCategory::Reveal);
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("golden_slide_down", Frame{0});
         const auto& preset = reg.get("slide_down");
@@ -396,7 +396,7 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
     SUBCASE("15) scale_in (Reveal) → fixture invocation produces >= 1 node") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("scale_in"));
-        REQUIRE(reg.get("scale_in").category == TextPresetCategory::Reveal);
+        REQUIRE(reg.get("scale_in").metadata.category == TextPresetCategory::Reveal);
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("golden_scale_in", Frame{0});
         const auto& preset = reg.get("scale_in");
@@ -406,7 +406,7 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
     SUBCASE("16) tracking_close (Reveal) → fixture invocation produces >= 1 node") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("tracking_close"));
-        REQUIRE(reg.get("tracking_close").category == TextPresetCategory::Reveal);
+        REQUIRE(reg.get("tracking_close").metadata.category == TextPresetCategory::Reveal);
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("golden_tracking_close", Frame{0});
         const auto& preset = reg.get("tracking_close");
@@ -416,7 +416,7 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
     SUBCASE("17) masked_line_reveal (Reveal) → fixture invocation produces >= 1 node") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("masked_line_reveal"));
-        REQUIRE(reg.get("masked_line_reveal").category == TextPresetCategory::Reveal);
+        REQUIRE(reg.get("masked_line_reveal").metadata.category == TextPresetCategory::Reveal);
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("golden_masked_line_reveal", Frame{0});
         const auto& preset = reg.get("masked_line_reveal");
@@ -426,7 +426,7 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
     SUBCASE("18) word_cascade (Reveal) → fixture invocation produces >= 1 node") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("word_cascade"));
-        REQUIRE(reg.get("word_cascade").category == TextPresetCategory::Reveal);
+        REQUIRE(reg.get("word_cascade").metadata.category == TextPresetCategory::Reveal);
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("golden_word_cascade", Frame{0});
         const auto& preset = reg.get("word_cascade");
@@ -436,7 +436,7 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
     SUBCASE("19) character_cascade (Reveal) → fixture invocation produces >= 1 node") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("character_cascade"));
-        REQUIRE(reg.get("character_cascade").category == TextPresetCategory::Reveal);
+        REQUIRE(reg.get("character_cascade").metadata.category == TextPresetCategory::Reveal);
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("golden_character_cascade", Frame{0});
         const auto& preset = reg.get("character_cascade");
@@ -446,7 +446,7 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
     SUBCASE("20) word_pop (Emphasis) → fixture invocation produces >= 1 node") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("word_pop"));
-        REQUIRE(reg.get("word_pop").category == TextPresetCategory::Emphasis);
+        REQUIRE(reg.get("word_pop").metadata.category == TextPresetCategory::Emphasis);
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("golden_word_pop", Frame{0});
         const auto& preset = reg.get("word_pop");
@@ -456,7 +456,7 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
     SUBCASE("21) scale_punch (Emphasis) → fixture invocation produces >= 1 node") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("scale_punch"));
-        REQUIRE(reg.get("scale_punch").category == TextPresetCategory::Emphasis);
+        REQUIRE(reg.get("scale_punch").metadata.category == TextPresetCategory::Emphasis);
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("golden_scale_punch", Frame{0});
         const auto& preset = reg.get("scale_punch");
@@ -466,7 +466,7 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
     SUBCASE("22) color_accent (Emphasis) → fixture invocation produces >= 1 node") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("color_accent"));
-        REQUIRE(reg.get("color_accent").category == TextPresetCategory::Emphasis);
+        REQUIRE(reg.get("color_accent").metadata.category == TextPresetCategory::Emphasis);
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("golden_color_accent", Frame{0});
         const auto& preset = reg.get("color_accent");
@@ -476,7 +476,7 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
     SUBCASE("23) gradient_fill (Emphasis) → fixture invocation produces >= 1 node") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("gradient_fill"));
-        REQUIRE(reg.get("gradient_fill").category == TextPresetCategory::Emphasis);
+        REQUIRE(reg.get("gradient_fill").metadata.category == TextPresetCategory::Emphasis);
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("golden_gradient_fill", Frame{0});
         const auto& preset = reg.get("gradient_fill");
@@ -486,7 +486,7 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
     SUBCASE("24) minimal_white (Subtitle) → fixture invocation produces >= 1 node") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("minimal_white"));
-        REQUIRE(reg.get("minimal_white").category == TextPresetCategory::Subtitle);
+        REQUIRE(reg.get("minimal_white").metadata.category == TextPresetCategory::Subtitle);
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("golden_minimal_white", Frame{0});
         const auto& preset = reg.get("minimal_white");
@@ -503,7 +503,7 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
     SUBCASE("25) yellow_keyword (Subtitle) → fixture invocation produces >= 1 node") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("yellow_keyword"));
-        REQUIRE(reg.get("yellow_keyword").category == TextPresetCategory::Subtitle);
+        REQUIRE(reg.get("yellow_keyword").metadata.category == TextPresetCategory::Subtitle);
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("golden_yellow_keyword", Frame{0});
         const auto& preset = reg.get("yellow_keyword");
@@ -513,7 +513,7 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
     SUBCASE("26) glow_pulse (Subtitle) → fixture invocation produces >= 1 node") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("glow_pulse"));
-        REQUIRE(reg.get("glow_pulse").category == TextPresetCategory::Subtitle);
+        REQUIRE(reg.get("glow_pulse").metadata.category == TextPresetCategory::Subtitle);
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("golden_glow_pulse", Frame{0});
         const auto& preset = reg.get("glow_pulse");
@@ -523,7 +523,7 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
     SUBCASE("27) caption_box (Subtitle) → fixture invocation produces >= 1 node") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("caption_box"));
-        REQUIRE(reg.get("caption_box").category == TextPresetCategory::Subtitle);
+        REQUIRE(reg.get("caption_box").metadata.category == TextPresetCategory::Subtitle);
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("golden_caption_box", Frame{0});
         const auto& preset = reg.get("caption_box");
@@ -574,7 +574,7 @@ TEST_CASE("TextPresetRegistry: golden-frame harness cross-link (Sub-case 28)") {
             REQUIRE(reg.contains(id));
             const auto& preset = reg.get(id);
             CHECK(static_cast<bool>(preset.builder));
-            CHECK(preset.builtin == true);
+            CHECK(preset.metadata.builtin == true);
         }
     }
 }
@@ -610,7 +610,7 @@ TEST_CASE("TextPresetRegistry: golden-frame harness cross-link (Sub-case 28)") {
 TEST_CASE("TextPresetRegistry: TextAnimator V2 wiring tier (Sub-case 29)") {        SUBCASE("29) BUILDER WIRES_TEXT_ANIMATORS — cinematic_text_camera resolves motion-id to wired TextAnimatorSpec on rich-paint spec") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("cinematic_text_camera"));
-        REQUIRE(reg.get("cinematic_text_camera").category == TextPresetCategory::Cinematic);
+        REQUIRE(reg.get("cinematic_text_camera").metadata.category == TextPresetCategory::Cinematic);
 
         // ── Fixture: spec.content.value = "CHRONON" with rich paint. ────
         TextSpec rich_spec = make_chronon_rich_text_spec();
