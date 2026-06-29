@@ -47,6 +47,8 @@
 #include <memory>
 #include <optional>
 
+namespace chronon3d::advanced { class RenderEngineAccess; }
+
 namespace chronon3d {
 
 namespace image { class ImageBackend; }
@@ -123,7 +125,11 @@ public:
         i32 width, i32 height);
 
     /// Render a single frame from a Composition.
-    [[nodiscard]] std::shared_ptr<Framebuffer> render_frame(
+    /// Pass A — marked deprecated; the canonical entry is
+    /// `chronon3d::sdk::RenderEngine::render()` (V0.2 SDK migration).
+    /// The implementation still works until Pass B/D removes it.
+    [[nodiscard]] [[deprecated("Use RenderEngine::render()")]]
+    std::shared_ptr<Framebuffer> render_frame(
         const Composition& comp, Frame frame);
 
     // ── Backend injection ────────────────────────────────────────
@@ -148,17 +154,23 @@ public:
     /// 06 R3b — returns a pointer to avoid the boundary-gate I5 substring
     /// `SoftwareRenderer &` (SoftwareRenderer's lifetime is bound to the
     /// owning Impl, so a pointer is the right contract).
-    [[nodiscard]] SoftwareRenderer* renderer() noexcept;
-    [[nodiscard]] const SoftwareRenderer* renderer() const noexcept;
+    [[nodiscard]] [[deprecated("Internal backend access is not part of the stable SDK")]]
+    SoftwareRenderer* renderer() noexcept;
+    [[nodiscard]] [[deprecated("Internal backend access is not part of the stable SDK")]]
+    const SoftwareRenderer* renderer() const noexcept;
 
     /// Nullable access to the underlying SoftwareRenderer.
-    [[nodiscard]] SoftwareRenderer* renderer_or_null() noexcept;
-    [[nodiscard]] const SoftwareRenderer* renderer_or_null() const noexcept;
+    [[nodiscard]] [[deprecated("Internal backend access is not part of the stable SDK")]]
+    SoftwareRenderer* renderer_or_null() noexcept;
+    [[nodiscard]] [[deprecated("Internal backend access is not part of the stable SDK")]]
+    const SoftwareRenderer* renderer_or_null() const noexcept;
 
     /// Access to the engine-owned RenderRuntime.
     /// Phase A: returns the Impl-owned runtime.
-    [[nodiscard]] runtime::RenderRuntime& runtime() noexcept;
-    [[nodiscard]] const runtime::RenderRuntime& runtime() const noexcept;
+    [[nodiscard]] [[deprecated("Runtime access is internal")]]
+    runtime::RenderRuntime& runtime() noexcept;
+    [[nodiscard]] [[deprecated("Runtime access is internal")]]
+    const runtime::RenderRuntime& runtime() const noexcept;
 
     /// Access the per-instance engine configuration.
     [[nodiscard]] const Config& config() const noexcept;
@@ -175,6 +187,14 @@ public:
     [[nodiscard]] chronon3d::SoftwareRenderSession create_session();
 
 private:
+    /// OPP-side escape hatch (Pass C).  Grants the typed
+    /// `chronon3d::advanced::RenderEngineAccess` accessor private access
+    /// to `Impl` so legacy code can still reach the backend during the
+    /// Pass B→D migration.  Not part of the stable SDK surface; consumers
+    /// MUST include `<chronon3d/advanced/render_engine_access.hpp>`
+    /// (Pass C deliverable) to use this friend.
+    friend class ::chronon3d::advanced::RenderEngineAccess;
+
     struct Impl;
     std::unique_ptr<Impl> m_impl;
 };
