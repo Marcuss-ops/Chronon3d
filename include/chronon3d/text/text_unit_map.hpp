@@ -251,6 +251,13 @@ private:
     u32 line_count_{0};
     u32 paragraph_count_{0};
     u32 span_count_{0};
+
+    // ---- Span name lookup table -------------------------------------
+    // Owned copy of SemanticSpanRef.name strings, indexed parallel to
+    // semantic_spans for O(N) by-name lookup. Lifetime-safe because
+    // the ctor copies names; the ctor's const vector<SemanticSpanRef>&
+    // parameter is a borrowed view of caller-owned storage.
+    std::vector<std::string> span_names_;  // size = span_count_
 };
 
 // ── Forward declaration of the constructor's logging hook ────────────────

@@ -709,3 +709,20 @@ d'identità testuale: `Byte ⇄ CodePoint ⇄ GraphemeCluster ⇄ ShapedGlyph
 - Reverse mapping for `byte_to_grapheme` (skipping codepoint step).
 - Migration dei 30+ callers del narrow `glyph_selector::TextUnitMap`
   verso la ladder a 8 livelli (TICKET-046 next-track storico).
+
+### 15.X Span-name lookup closure (SECT-15-SPAN-CLOSURE)
+
+**Status: done (atomic commit on main)** -- agent3, 2026-06-29.
+
+Close-out of the deferred follow-up: `TextUnitMap::span_index_by_name(name)`
+now actually resolves `SemanticSpanRef.name` values instead of returning
+`InvalidIndex` unconditionally.
+
+- Storage added: `std::vector<std::string> span_names_` parallel to the
+  constructor's `semantic_spans` parameter (lifetime-safe owned copy).
+- Lookup: O(N) linear scan (span sets are small; hash-table overhead
+  unwarranted).  Duplicate-name resolved first-wins.
+- Acceptance: 1 new TEST_CASE (i) in `tests/text/test_text_unit_map_8level.cpp`
+  covers canonical lookup, unknown name, empty name, and first-wins
+  duplicate semantics.
+- TICKET: TICKET-061 row in `docs/FOLLOWUP_TICKETS.md`.

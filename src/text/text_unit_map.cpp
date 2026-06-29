@@ -170,6 +170,14 @@ TextUnitMap::TextUnitMap(std::string_view utf8,
         std::min<size_t>(utf8.size(), max_source_bytes))},
     span_count_{static_cast<u32>(semantic_spans.size())} {
 
+    // Span name lookup table: copy names from SemanticSpanRef[] for O(N)
+    // span_index_by_name() resolution. Owned copy means the caller's
+    // vector<SemanticSpanRef> may be temporary.
+    span_names_.reserve(semantic_spans.size());
+    for (const auto& s : semantic_spans) {
+        span_names_.push_back(s.name);
+    }
+
     // Cap silently: when source exceeds max_source_bytes, truncate.
     if (utf8.size() > max_source_bytes) {
         utf8 = std::string_view(utf8.data(), max_source_bytes);
