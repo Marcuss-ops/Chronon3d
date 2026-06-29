@@ -90,3 +90,5 @@ See:
 - `docs/MIGRATION_TEXT_SPEC.md` §12 (closure for TEXT-UNM-01) is **missing on disk** — followup SECT-12-RESTORE in atomi backlog to restore closure doc after partner rebase truncated it.
 
 | TICKET-058 | TEXT-PLY-01 — 14-feature ParagraphStyle extension + wiring | 🟢 Done | `feat(text): TEXT-PLY-01 — 14-feature ParagraphStyle extension + wiring` (env-vars Agent3, atomic on `main`; §14 closure doc in `docs/MIGRATION_TEXT_SPEC.md` §14; 14 TEST_CASEs in `tests/text/test_paragraph_layout_extras.cpp`) |
+
+| TICKET-048 | GATE-MNT-01 — wire main-sync gate as pre-push wrapper | 🟢 Done | `ops(gates): GATE-MNT-01 — wire main-sync gate as pre-push wrapper` (env-vars Agent3, atomic on `main`; 4 tracked files: `tools/check_main_clean.sh` + `tools/wrap_push.sh` + `docs/FOLLOWUP_TICKETS.md` TICKET-048 row + `AGENTS.md` § GATE-MNT-01; local-only `.git/hooks/pre-push` installed per-repo for defence in depth) |
