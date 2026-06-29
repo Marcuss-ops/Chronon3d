@@ -5,64 +5,41 @@ using namespace chronon3d;
 using namespace test_text_quality;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 7. Integration: TextAnimator ByGlyph with Tracking
+// § 7 — RETIRED in TEXT-RET-01 (canonical path replaces legacy API)
 // ═══════════════════════════════════════════════════════════════════════════
-
-TEST_CASE("TextQuality: integration — ByGlyph positions increase monotonically") {
-    chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
-    if (!require_font(engine)) return;
-
-    TextAnimator ta;
-    ta.text("ABC")
-        .font_size(64.0f)
-        .font_path("assets/fonts/Inter-Bold.ttf")
-        .font_engine(&engine)
-        .config({.mode = TextAnimMode::ByGlyph});
-
-    auto glyphs = ta.split_glyphs();
-    REQUIRE(glyphs.size() == 3);
-
-    CHECK(glyphs[0].x < glyphs[1].x);
-    CHECK(glyphs[1].x < glyphs[2].x);
-
-    float gap01 = glyphs[1].x - glyphs[0].x;
-    float gap12 = glyphs[2].x - glyphs[1].x;
-    CHECK(gap01 > glyphs[0].advance_x * 0.7f);
-    CHECK(gap12 > glyphs[1].advance_x * 0.7f);
-}
-
-TEST_CASE("TextQuality: integration — measure_unit_width uses grapheme cluster count") {
-    chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
-    TextAnimator ta;
-    ta.text("ABC")
-        .font_size(72.0f)
-        .font_path("assets/fonts/Inter-Bold.ttf")
-        .font_engine(&engine);
-
-    float w = ta.measure_unit_width("ABC");
-    CHECK(w > 0.0f);
-    CHECK(w > 50.0f);
-    CHECK(w < 200.0f);
-
-    TextLayoutInput li;
-    li.text = "ABC";
-    li.style.size = 72.0f;
-    li.font_engine = &engine;
-    li.font_spec = inter_bold_quality();
-
-    auto res = TextLayoutEngine::layout(li);
-    float w0 = res.size.x;
-
-    li.style.tracking = 20.0f;
-    auto res20 = TextLayoutEngine::layout(li);
-    float w20 = res20.size.x;
-
-    CHECK(w20 == doctest::Approx(w0 + 40.0f).epsilon(0.2f));
-}
+//
+// The previous § 7 used the legacy `TextAnimator` class (with
+// `TextAnimMode::ByGlyph`) to produce N RenderNodes per glyph layer.
+// Per TEXT-RET-01, that legacy multi-layer approach is OBSOLETE; the
+// canonical text pipeline produces ONE `TextRunShape` RenderNode per
+// text run regardless of stagger pattern, with per-glyph stagger
+// driven by `GlyphSelectorSpec { .unit = TextSelectorUnit::Glyph }`
+// (see `character_cascade` preset in
+// `tests/test_text_preset_registry.cpp` Sub-cases 43 + 44).
+//
+// The 2 TEST_CASE blocks below (ByGlyph positions monotonicity +
+// measure_unit_width grapheme cluster count) have been REMOVED in
+// TEXT-RET-01 because they relied on `TextAnimator` and
+// `TextAnimMode::ByGlyph` from the deleted
+// `include/chronon3d/text/text_animator.hpp` header.
+//
+// Where the § 7 invariants live today (canonical equivalents):
+//   * Per-glyph staggered reveal
+//       → tests/test_text_preset_registry.cpp Sub-case 43
+//         ("character_cascade — Glyph selector + animated end sweep").
+//       → tests/test_text_preset_registry.cpp Sub-case 44
+//         ("agents cross-link invariant — 4 mandatory presets").
+//   * Inter-cluster tracking + grapheme-cluster width contracts
+//       → Below (§ 11 Inter-Token Tracking).  The canonical path
+//         exercises these invariants directly through
+//         `TextLayoutEngine::layout(...)` + the
+//         `compute_typewriter_layout` helper, both of which honour
+//         UAX #29 grapheme cluster boundaries for any input text
+//         (combining marks, ZWJ emoji sequences, RI flag pairs).
+//
+// No migration shim is left for the old API surface — anti-
+// duplication-guardrail from `docs/ANTI_DUPLICATION_RULES.md`
+// forbids a parallel text animation API.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 8. Integration: Wrapping Never Splits Grapheme Clusters
@@ -464,7 +441,7 @@ TEST_CASE("TextQuality: typewriter tracking — with ZWJ emoji sequence") {
 
     CHECK(tw.total_width >= 0.0f);
     CHECK(tw.chars.size() >= 1);
-    
+
     if (tw.chars.size() >= 2) {
         for (const auto& cp : tw.chars) {
             CHECK(cp.advance >= 0.0f);
