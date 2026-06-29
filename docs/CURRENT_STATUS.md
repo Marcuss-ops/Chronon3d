@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@41c3d5a6` — 2026-06-29. Linux-only.
+> **Snapshot:** `main@62c71e55` — 2026-06-29. Linux-only.
 >
 > Ultima baseline macchina-verificata: `main@446a60e2` (3/4 ✅, registrata in [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md)).
 > **Baseline sull'HEAD corrente: NON CERTIFICATA** (nessun run macchina-verificato di tutti gli 11 gate registrato dopo `446a60e2`).
@@ -194,6 +194,14 @@ ma una nuova baseline macchina-verificata sull'HEAD non è ancora stata registra
 - **🟢 Docs** — archivio `stabilization-plan/` e `refactor-roadmap/` in `ARCHIVE/`, single source of truth
   (`CURRENT_STATUS.md`, `RELEASE_GATE.md`), nuovo `AGENTS.md`.
 - **🟢 Windows/MSVC** — supporto rimosso, progetto Linux-only.
+- **🟢 Phase-3 — mechanical P1 split of public headers.** Quattro header pubblici di grandi dimensioni sono stati suddivisi secondo il P1 meccanico del piano:
+  - `include/chronon3d/animation/core/animated_value.hpp` (842 → 498 righe) decompresso in `detail/{animated_value_expressions.hpp, animated_value_roving.inl, animated_value_bezier.inl, animated_value_evaluation.inl}` (class declaration-only + bottom `#include` dei file `detail/`).
+  - `include/chronon3d/registry/animator_resolver.hpp` (381 → 72 righe) dichiarazione-only; l'implementazione completa (22-branch `composer_for` table + `spec_is_rich` + `rich_paint_anchor`) è migrata in `src/registry/animator_resolver.cpp`, registrata in `src/registry/CMakeLists.txt`.
+  - `include/chronon3d/scene/builders/scene_builder.hpp` (395 → ~190 righe) ha sostituito i corpi template in-line di `layer<> / screen_layer<> / adjustment_layer<> / precomp_layer<> / video_layer<> (2 overloads) / null_layer<> / sequence<> / camera_rig<>` con dichiarazioni + bottom-include di `detail/scene_builder_{layers,sequences,camera}.inl` (deportati verbatim, comportamento bit-identico).
+  - `include/chronon3d/scene/builders/layer_builder.hpp` (415 → ~190 righe) — `pending_text_runs()` rimosso dalla superficie pubblica (restituiva `std::vector<const PendingTextRun*>` faceva leaking dello storage interno `m_text_runs`); il metodo è stato promosso nell'adattatore test-only `chronon3d::builders::testing::LayerBuilderInspector::pending_runs(lb)` (snapshot value-typed `PendingRunSnapshot{ name, animators }`) con accesso chiuso da `friend class`. I sette accessori out-of-class (`screen_dimensions` setter + getter, `name()`, `resource()`, `extension_context` setter/getter) vivono ora in `detail/layer_builder_inline.inl` (esplicitamente `inline` per ODR safety). Il file `detail/layer_builder_text.hpp` (forward-decl di `PendingTextRun`, `TextRunParams`, `TextRunSpec`, `TextRunBuilder`) è la superficie di accoppiamento minima per consumatori downstream del pipeline text-run senza dover includere l'intera catena `text_run_builder.hpp`.
+  - I test (`tests/test_text_preset_registry.cpp`) sono stati aggiornati per usare `LayerBuilderInspector::pending_runs(lb)` invece di `lb.pending_text_runs()`: 4 callsites migrati, pattern `pre[i]->name`/`pre[i]->params.animators` convertiti in `pre[i].name`/`pre[i].animators` (snapshot value-typed), check di null-pointer rimossi.
+  - **API delta**: aggiunto `chronon3d::builders::testing::LayerBuilderInspector::pending_runs(...)` (test-only); rimosso `LayerBuilder::pending_text_runs()`. Nessun altro cambio di superficie pubblica.
+  - CI non ancora ri-verificato dopo Phase-3 (richiede macchina-verifica dedicata sui 11 gate per promuovere la baseline a `CERTIFICATA @ 62c71e55`).
 
 ## Blocker per baseline verde
 
@@ -217,7 +225,9 @@ L'assenza di workflow fallito non equivale a una baseline verde.
 > La regola di sopra si applica: serve un run macchina-verificato dei 11 gate sul commit candidato
 > per promuovere la baseline a `CERTIFICATA @ <SHA>`.
 
-## Documenti correlati
+> **Certificazione corrente (2026-06-29, `62c71e55`)**: NON CERTIFICATA.
+> La regola di sopra si applica: serve un run macchina-verificato dei 11 gate sul commit candidato
+> per promuovere la baseline a `CERTIFICATA @ <SHA>`.
 
 - [`ROADMAP.md`](ROADMAP.md): milestone prodotto.
 - [`RELEASE_GATE.md`](RELEASE_GATE.md): criteri di release.
