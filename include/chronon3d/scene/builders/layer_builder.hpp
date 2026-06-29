@@ -21,6 +21,12 @@
 #include <string_view>
 #include <memory_resource>
 #include <optional>
+// NOTE: Phase-3.3 slim avoided adding <utility>, <vector>, <memory> —
+// text_run_builder.hpp (already included above) transitively brings
+// in std::forward / std::vector / std::unique_ptr via the full type
+// definitions of PendingTextRun and TextRunBuilder.  Re-adding them
+// as top-of-file includes was a reviewer-flagged redundancy (would
+// lengthen the compile unit without buying anything).
 
 namespace chronon3d {
 
@@ -29,6 +35,15 @@ struct ExtensionContext;  // PR 3.5 — forward-decl (host-side ambient registri
                          // Full definition lives in <chronon3d/extension/extension_context.hpp>.
                          // Kept as a forward-decl here so layer_builder.hpp stays include-light;
                          // accessor below returns the pointer verbatim.
+
+// Forward-declare the test-only inspector so its `friend class`
+// declaration below resolves correctly.  Full definition lives in
+// <chronon3d/scene/builders/test/layer_builder_inspection.hpp>.
+// Production TUs that do not include this inspection header cannot
+// trigger the friend declaration either — friendship is 1:1 and
+// does NOT propagate transitively, so this is a strict test-only
+// gating.
+namespace builders { namespace testing { class LayerBuilderInspector; } }
 
 // `TextRunBuilder` and `TextRunSpec` are now pulled in fully via
 // `#include <chronon3d/scene/builders/text_run_builder.hpp>` above.
@@ -60,6 +75,20 @@ public:
     static void add_fake_box3d(Layer& layer, std::string name, FakeBox3DParams p, FontEngine* font_engine);
     static void add_grid_plane(Layer& layer, std::string name, GridPlaneParams p, FontEngine* font_engine);
 };
+
+// ── Phase-3.3 mechanical split note ──────────────────────────────────
+// Inline accessor bodies (screen_dimensions family, name, resource,
+// extension_context setter/getter) have moved verbatim into
+// detail/layer_builder_inline.inl (bottom-included).  The
+// `pending_text_runs()` method has been REMOVED from the public
+// surface — it returned `std::vector<const PendingTextRun*>`,
+// leaking the builder's internal `m_text_runs` storage layout.
+// Downstream consumers that need a pre-build enum of pending
+// text-run entries MUST go through the test-only inspector at
+// <chronon3d/scene/builders/test/layer_builder_inspection.hpp>.
+// The inspector returns a value-typed snapshot
+// (`std::vector<PendingRunSnapshot>`) and closes the access via
+// a `friend class` declaration below.
 
 class LayerBuilder {
 public:
@@ -152,107 +181,42 @@ public:
     LayerBuilder& transition_out(LayerTransitionSpec spec);
 
     // ── Specialized ──
-    LayerBuilder& screen_dimensions(f32 w, f32 h) {
-        m_screen_width = w;
-        m_screen_height = h;
-        m_screen_dimensions_explicit = true;       // PR 4 — flip the flag so Layer(LayerBuilder&) can detect 'was-set'.
-        return *this;
-    }
+    // ── Phase-3.3.D inline bodies → detail/layer_builder_inline.inl ────
+    LayerBuilder& screen_dimensions(f32 w, f32 h);
     LayerBuilder& fullscreen_rect(std::string name, Color color);
     LayerBuilder& fill(Color color);
 
     // ── PR 4 — screen_dimensions readback (no full type required) ────
     /// Returns true once `screen_dimensions(w, h)` has been called
-    /// explicitly.  Used by `chronon3d::authoring::Layer::Layer(LayerBuilder&)`
-    /// to decide whether the silent-default overload is safe to use, or
-    /// whether to throw + debug-assert the misuse.
-    [[nodiscard]] bool screen_dimensions_were_set() const noexcept {
-        return m_screen_dimensions_explicit;
-    }
+    /// explicitly.  See the public header doc-comment block (kept above
+    /// the inline `.inl` for grep-compatibility) and the body in
+    /// detail/layer_builder_inline.inl.
+    [[nodiscard]] bool screen_dimensions_were_set() const noexcept;
     /// Read-back accessor: returns (width, height) recorded by the last
     /// `screen_dimensions(w, h)` call (or the default 1920×1080 if the
-    /// builder was constructed without one).  Pair with
-    /// `screen_dimensions_were_set()` for a guarded read.
-    [[nodiscard]] Vec2 screen_dimensions() const noexcept {
-        return Vec2{m_screen_width, m_screen_height};
-    }
+    /// builder was constructed without one).
+    [[nodiscard]] Vec2 screen_dimensions() const noexcept;
     /// Read-back accessor for the layer's name (used by error messages
     /// in `chronon3d::authoring::Layer::Layer(LayerBuilder&)` when the
     /// builder has no `screen_dimensions(...)` set).
     ///
-    /// Returns a non-owning `std::string_view` over `m_layer.name`
-    /// (`std::pmr::string`).  `string_view` is allocator-agnostic, so
-    /// callers can assign to either a `std::string` (via the
-    /// `std::string(string_view)` ctor) or a `std::pmr::string` without
-    /// an implicit-conversion error from the underlying
-    /// `std::pmr::polymorphic_allocator`.
-    ///
-    /// Lifetime: tied to this `LayerBuilder`'s lifetime.  Any operation
-    /// that replaces or moves the builder invalidates the view.
-    /// Re-acquire each time you need it, or copy into an owning
-    /// `std::string` via the canonical receiver pattern:
-    /// `std::string{builder.name()}`.
-    [[nodiscard]] std::string_view name() const noexcept { return m_layer.name; }
+    /// Returns a non-owning `std::string_view` over `m_layer.name`.
+    /// See detail/layer_builder_inline.inl for the body.
+    [[nodiscard]] std::string_view name() const noexcept;
 
-    // ── Test-only inspector: pending text-run entries ─────────────────
-    /// Read-only view of every pending `text_run(...)` entry collected
-    /// by this builder, in insertion order.  Each entry mirrors a
-    /// `PendingTextRun` slot whose `params.animators` vector carries
-    /// the resolved TextAnimatorSpec stack — including any entry pushed
-    /// by the preset registry's `AnimatorResolver` (see
-    /// `<chronon3d/registry/animator_resolver.hpp>` — header-lifted in
-    /// TICKET-012; resolves preset ids → TextAnimatorSpec stacks, e.g.
-    /// the `ctc_rich_<preset_id>` anchor for cinematic presets built
-    /// from richly-painted specs).
-    ///
-    /// Intended audience: tests + tooling that need to assert
-    /// pre-build state of the wiring resolver (e.g. Sub-case 29 of
-    /// test_text_preset_registry.cpp — verifies that the resolver
-    /// pushed the wired animator BEFORE the canonical motion-preset
-    /// chain ran).  Returns an empty vector when no `text_run(...)`
-    /// call has been made on this builder (Sub-cases 7-9 use the
-    /// `lb.text(...)` simple-entry path and produce an empty view).
-    ///
-    /// Const-correctness: returns `std::vector<const PendingTextRun*>`
-    /// (raw const-pointers into the internal `m_text_runs` storage).
-    /// The element pointers are `PendingTextRun const*` so the
-    /// type system actually prevents production-code mutation,
-    /// independent of a doc-comment.  Trade-off: loses unique-ownership
-    /// guarantee at the type level (acceptable for a read-only
-    /// inspector — callers cannot drop or rebind the pointed-to
-    /// PendingTextRun via this view).
-    ///
-    /// Lifetime caveat: pointers may be invalidated by any subsequent
-    /// `text_run(...)` call that triggers `m_text_runs` reallocation
-    /// (vector `push_back` can grow the backing storage); capture the
-    /// inspector data immediately and do NOT interleave further
-    /// `text_run` calls between inspector reads.  Pointers are also
-    /// invalidated by destruction of this `LayerBuilder`,
-    /// `reset()`/move-assignment into another instance, or rebuild of
-    /// the underlying vector storage.  The test inspector MUST read
-    /// the returned vector immediately after `text_run(...)` / before
-    /// `build()` to guarantee stability.
-    [[nodiscard]] std::vector<const PendingTextRun*>
-    pending_text_runs() const noexcept {
-        std::vector<const PendingTextRun*> out;
-        out.reserve(m_text_runs.size());
-        for (const auto& up : m_text_runs) {
-            out.push_back(up.get());
-        }
-        return out;  // one small allocation per call; cheap on test path.
-    }
+    // (REMOVED in Phase-3.3) `pending_text_runs()` previously exposed
+    // `std::vector<const PendingTextRun*>` (raw internal pointers).
+    // Production callers that need pre-build enum of pending text-run
+    // entries must now go through the test-only inspector at
+    // <chronon3d/scene/builders/test/layer_builder_inspection.hpp> —
+    // LayerBuilderInspector::pending_runs(lb) returns a value-typed
+    // snapshot of (name, animators) per entry, friend-mediated.
 
     // ── FontEngine ──
     LayerBuilder& font_engine(FontEngine* engine);
     [[nodiscard]] FontEngine* font_engine() const;
 
     // ── PR 3.5 — ExtensionContext attachment (ambient authoring registries) ──
-    //
-    // Attach the host-side ExtensionContext so that downstream
-    // `chronon3d::authoring::Layer::text(...)` and the resulting
-    // Text handle can resolve `.style(id)` / `.motion(id)` ambient
-    // without an explicit registry parameter.
-    //
     // Pointer semantics: nullable. When no ExtensionContext is attached,
     // the authoring façade's ambient methods gracefully no-op. The
     // existing explicit-param variants on Text (`.style(id, registry)`,
@@ -260,13 +224,8 @@ public:
     //
     // Lifetime: the host owns the ExtensionContext — LayerBuilder does
     // NOT take ownership. The pointer must outlive this LayerBuilder.
-    LayerBuilder&  extension_context(const ExtensionContext& ctx) noexcept {
-        m_extension_context = &ctx;
-        return *this;
-    }
-    [[nodiscard]] const ExtensionContext* extension_context() const noexcept {
-        return m_extension_context;
-    }
+    LayerBuilder&  extension_context(const ExtensionContext& ctx) noexcept;
+    [[nodiscard]] const ExtensionContext* extension_context() const noexcept;
 
     // ── Masks ──
     LayerBuilder& mask_rect(RectMaskParams p);
@@ -364,7 +323,7 @@ public:
     // ── Precomp ──
     LayerBuilder& precomp(std::string comp_name);
 
-    [[nodiscard]] std::pmr::memory_resource* resource() const { return m_layer.nodes.get_allocator().resource(); }
+    [[nodiscard]] std::pmr::memory_resource* resource() const;
     [[nodiscard]] Layer build();
 
 private:
@@ -377,6 +336,15 @@ private:
     // (via std::string(string_view)) or a std::pmr::string without
     // tripping an implicit-conversion error across distinct allocator
     // types.
+
+    // ── Phase-3.3.D friend declaration for the test-only inspector ──
+    // Closes the access to `m_text_runs` for
+    // <chronon3d/scene/builders/test/layer_builder_inspection.hpp>.
+    // Friendship is 1:1 — production TUs that do not include the
+    // test-only header cannot trigger this access.  See the inspector
+    // header for design rationale + lifetime considerations.
+    friend class chronon3d::builders::testing::LayerBuilderInspector;
+
     Layer m_layer;
     SampleTime m_current_time{SampleTime::from_frame_int(0, FrameRate{30, 1})};
     std::optional<Frame> m_until_frame{};
@@ -413,3 +381,11 @@ private:
 };
 
 } // namespace chronon3d
+
+// ── Phase-3.3.D bottom include of inline accessor bodies ──────────
+// The bodies of the inline accessors (screen_dimensions family,
+// name, resource, extension_context setter/getter) live in
+// detail/layer_builder_inline.inl.  The .inl includes are reached
+// here so that any TU pulling in <chronon3d/scene/builders/layer_builder.hpp>
+// gets the inline bodies transitively via ODR-safe mechanism.
+#include "chronon3d/scene/builders/detail/layer_builder_inline.inl"
