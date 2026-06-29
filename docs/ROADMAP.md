@@ -1,6 +1,6 @@
 # Chronon3D — Active Roadmap
 
-> Snapshot: `main@41c3d5a6`, 2026-06-29. Linux-only.
+> Snapshot: `main@81cdc738`, 2026-06-29. Linux-only.
 >
 > Ultima baseline macchina-verificata: `main@446a60e2` (3/4 ✅).
 >
@@ -11,6 +11,25 @@ La roadmap è organizzata per milestone prodotto. Non avviare una milestone
 successiva per nascondere blocker della precedente.
 
 ## M0 — Baseline verificata
+
+### Stato M0 al commit `81cdc738`
+
+- TICKET-038 e TICKET-039 risultano chiusi.
+- `sdk_archive_merge` e RenderRuntime ROT-1 fissati atomicamente (4 commit
+  nuovi, catena `56ab0625` → `81cdc738`).
+- Matrice DoD attuale: **1 PASS / 3 FAIL / 5 SKIP** (Step 2 regression FRESH,
+  Step 5 cascade, Step 9 ROT-2 in `src/animations/animated_value_*`).
+- 3 follow-up tracciati in `docs/NEXT_STEPS.md` (P0/P1 queue).
+- Catalogo canary: 8/9 PRESENT + 1 BEST-EFFORT (TICKET-039 follow-up).
+
+### M0.x — SDK packaging close-out (4 commit atomici)
+
+| # | Commit futuro | File coinvolto | Sintesi |
+|---|---|---|---|
+| 1 | `fix(sdk): sdk_archive_merge DEPENDS — foreach-if-TARGET filter` | `cmake/Chronon3DSdkArchive.cmake` | Risolve `ninja: error: missing … no known rule` per target gated-out (`CHRONON3D_BUILD_*` / `CHRONON3D_ENABLE_*` / `CHRONON3D_USE_BLEND2D`). |
+| 2 | `fix(render_graph): render_runtime.hpp include for runtime().executor() ROT-1` | `src/render_graph/pipeline/scene_tile_execution.cpp` + `tile_execution_coordinator.cpp` | Incomplete-type ROT-1 chiuso (audit TICKET-038/TXT-00, cita commit `91debc36`). |
+| 3 | `fix(sdk): create sdk_archive_merge.cmake POST_BUILD ar crs response-file script` | `cmake/sdk_archive_merge.cmake` (NEW) | Risolve `CMake Error: Not a file: cmake/sdk_archive_merge.cmake`. |
+| 4 | `fix(sdk): update canary catalog picks — 8 verified via nm -C, 1 BEST-EFFORT` | `cmake/Chronon3DCanarySymbols.cmake` | 9 voci canary, 8 PRESENT + 1 BEST-EFFORT (TICKET-039 follow-up). |
 
 ### Obiettivo
 
