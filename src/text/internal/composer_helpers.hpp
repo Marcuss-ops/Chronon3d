@@ -89,6 +89,48 @@ namespace composer_internal {
     return static_cast<unsigned char>(sv[byte_start + 1]) == 0xAD;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TEXT-PLY-01 — CJK kinsoku (simplified opening-bracket rule)
+// ═══════════════════════════════════════════════════════════════════════════
+
+[[nodiscard]] inline bool is_cjk_opening_bracket(char32_t cp) noexcept {
+    switch (cp) {
+    // CJK opening punctuation that should never end a line.
+    case 0x300C:  // 「 LEFT CORNER BRACKET
+    case 0x300E:  // 『 LEFT WHITE CORNER BRACKET
+    case 0x300A:  // 《 LEFT DOUBLE ANGLE BRACKET
+    case 0x3008:  // 〈 LEFT ANGLE BRACKET
+    case 0xFF08:  // （ FULLWIDTH LEFT PARENTHESIS
+    case 0x3010:  // 【 LEFT BLACK LENTICULAR BRACKET
+    case 0xFF3B:  // ［ FULLWIDTH LEFT SQUARE BRACKET
+    case 0x3014:  // 〔 LEFT TORTOISE SHELL BRACKET
+        return true;
+    default:
+        return false;
+    }
+}
+
+/// Walk clusters; when kinsoku is enabled, clear `allowed_break_after` on
+/// CJK opening-bracket clusters so the line won't break immediately after
+/// them.  Note: this implements only the simplified "no-break-after-opening"
+/// rule.  The complementary "no-break-before-closing" rule would require
+/// extending ShapedCluster with a `no_break_before` flag and is deferred
+/// to a follow-up atom.
+inline void apply_kinsoku(
+    std::vector<ShapedCluster>& clusters,
+    std::string_view source_text,
+    const ParagraphStyle& style
+) noexcept {
+    if (!style.kinsoku) return;
+    for (auto& cl : clusters) {
+        if (cl.source_byte_start >= source_text.size()) continue;
+        char32_t cp = decode_codepoint_at(source_text, cl.source_byte_start);
+        if (is_cjk_opening_bracket(cp)) {
+            cl.allowed_break_after = false;
+        }
+    }
+}
+
 // ── Build ShapedCluster vector from PlacedGlyphRun ──────────────────────
 
 [[nodiscard]] inline std::vector<ShapedCluster> build_clusters(
@@ -184,6 +226,16 @@ inline void apply_justification(
     const std::vector<ShapedCluster>& clusters
 ) {
     float delta = available_width - line.natural_width;
+
+    // TEXT-PLY-01: cap delta to ±justification_tolerance_px when configured
+    // (>0).  Default 0.0 = back-compat (no clamp).  The clamp prevents weak
+    // justification from spreading word/letter gaps beyond a sub-pixel
+    // tolerance when the line shape is close to but not exactly at the
+    // target width.
+    const float tolerance = std::max(0.0f, style.justification_tolerance_px);
+    if (tolerance > 0.0f) {
+        delta = std::clamp(delta, -tolerance, tolerance);
+    }
 
     switch (style.justification) {
     case TextJustification::Left:
@@ -322,6 +374,10 @@ inline void finalize_lines(
 ) {
     float max_line_width = 0.0f;
     float cumulative_height = style.space_before;
+    // TEXT-PLY-01: tight_leading multiplier [0.0, 1.0) reduces effective
+    // line height.  -1.0 sentinel = inherit (no modification).
+    const float leading_scale = (style.tight_leading >= 0.0f && style.tight_leading < 1.0f)
+        ? style.tight_leading : 1.0f;
 
     for (size_t li = 0; li < result.lines.size(); ++li) {
         auto& line = result.lines[li];
@@ -371,7 +427,7 @@ inline void finalize_lines(
             line.baseline_y = cumulative_height;
         }
 
-        // Line height
+        // Line height (TEXT-PLY-01: tight_leading multiplier applied)
         float line_height = 0.0f;
         for (size_t ci = line.first_cluster; ci < line.first_cluster + line.cluster_count; ++ci) {
             if (!clusters[ci].mandatory_break) {
@@ -380,6 +436,7 @@ inline void finalize_lines(
             }
         }
         if (line_height <= 0.0f) line_height = shaped.ascent + shaped.descent;
+        line_height *= leading_scale;
         cumulative_height += line_height;
 
         float effective_width = line.final_width + left_overhang + right_overhang;

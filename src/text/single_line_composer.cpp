@@ -116,6 +116,8 @@ ParagraphLayout compose_single_line_paragraph(
 
     // ── Step 1: Build ShapedClusters ────────────────────────────────────
     auto clusters = build_clusters(shaped, source_text);
+    // ── TEXT-PLY-01: kinsoku (CJK opening-bracket break protection) ─────
+    apply_kinsoku(clusters, source_text, style);
     if (clusters.empty()) {
         return ParagraphLayout{};
     }
