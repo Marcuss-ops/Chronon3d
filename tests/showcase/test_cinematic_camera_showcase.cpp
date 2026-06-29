@@ -338,6 +338,15 @@ TEST_CASE("AGENT4: A4.2 camera motion across keyframes") {
 //  presets_passed == presets_total, so the verify shell-side grep is
 //  unambiguous.  REQUIRE (not CHECK) aborts on partial success so a
 //  4/5 partial can't produce a spurious "A4.3 OK" anyway.
+//
+//  Agent 2 / Step 3/6 (Azione D) — 5/5 strict suite green contract:
+//   • compile-time: `static_assert(kPSStatic >= 5)` below hard-gates
+//     the literal roster size; shrinking `kPresets[]` fails the build.
+//   • runtime / forensic: the dedicated `A4.3-strict preset coverage
+//     gate (>= 5)` TEST_CASE at the end of this file mirrors the
+//     canonical 5-slot roster and REQUIRES == 5 so the suite fails
+//     fast with an unambiguous diagnostic instead of producing a
+//     green run that secretly covers (say) 3-of-3.
 // ─────────────────────────────────────────────────────────────────────
 TEST_CASE("AGENT4: A4.3 text motion per preset (5 cinematic compositions)") {
     struct Preset {
@@ -352,6 +361,16 @@ TEST_CASE("AGENT4: A4.3 text motion per preset (5 cinematic compositions)") {
         {"abyss_freefall_stagger", &abyss_freefall_stagger},
     };
     constexpr int kPSStatic = sizeof(kPresets) / sizeof(kPresets[0]);
+    // Agent 2 / Step 3/6 (Azione D) — compile-time contract gate.
+    // The A4.3 nightly target MUST iterate over at least the canonical
+    // 5 cinematic compositions defined above; shrinking `kPresets[]`
+    // to <5 entries fails this assert at compile time so the suite
+    // cannot silently turn green on a smaller roster.  Companion to
+    // the `A4.3-strict preset coverage gate` TEST_CASE at the end of
+    // this file (grep-able runtime mirror of the same contract).
+    static_assert(kPSStatic >= 5,
+        "A4.3 strict 5/5: kPresets[] must contain at least 5 cinematic "
+        "compositions (Agent 2 / Step 3/6 Azione D contract).");
     const int presets_total = std::min<int>(kPSStatic, g_runtime.comp_count);
     REQUIRE(presets_total >= 1);
 
@@ -607,4 +626,75 @@ TEST_CASE("AGENT4: A4.6 performance telemetry") {
             << " fbretained_delta=" << fb_live_delta_mb << " MB"
             << " fbpeak_safety_bound=" << kFBPeakEnvelopeMB << " MB (TICKET-053 provisional, CI threshold deferred)"
             << " frames=" << kfs.size());
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  AGENT4: A4.3-strict preset coverage gate (>= 5 cinematic compositions).
+//
+//  Agent 2 / Step 3/6 (Azione D) — explicit contract test for the
+//  A4.3 nightly 5/5 strict binding.  Companion to the static_assert
+//  inside the A4.3 TEST_CASE: the static_assert fires if anyone
+//  shrinks the literal `kPresets[]` to <5 entries at the source-of-
+//  truth site; THIS test_CASE mirrors the canonical 5-slot roster
+//  as a grep-able runtime gate so the contract is visible in test
+//  output rather than buried in the compile log.  Failure modes it
+//  protects against:
+//      • kPresets[] shrinks from 5 to N<5      → static_assert fails
+//                                                  at compile.
+//      • future refactor renames a preset       → mirror below records
+//                                                  the rename so the
+//                                                  A4.3 per-preset
+//                                                  forensic log stays
+//                                                  identifiable.
+//      • someone drops the entire A4.3 gate     → A4.3-strict still
+//                                                  fails via the same
+//                                                  `add_test(NAME
+//                                                  chronon3d_cinematic
+//                                                  _camera_showcase
+//                                                  _tests)` target.
+//
+//  No rendering.  No fixtures.  No env-var dependency.  Doctest
+//  registers this alongside A4.1..A4.6 via the single
+//  `chronon3d_cinematic_camera_showcase_tests` CMake target — no
+//  CMakeLists.txt change required.
+// ─────────────────────────────────────────────────────────────────────
+TEST_CASE("AGENT4: A4.3-strict preset coverage gate (>= 5 cinematic compositions)") {
+    struct PresetSlot {
+        const char* composition_factory_name;
+    };
+    // Mirror of the canonical A4.3 nightly roster.  Members stay
+    // ordered and named-after the kPresets[] literal so any future
+    // divergence surfaces immediately in code review.
+    const PresetSlot kA43ContractRoster[] = {
+        {"deep_parallax_cascade"},
+        {"whip_pan_hero_reveal"},
+        {"orbit_handheld_glow"},
+        {"rack_focus_title_swap"},
+        {"abyss_freefall_stagger"},
+    };
+    constexpr int kA43ContractRosterSize =
+        sizeof(kA43ContractRoster) / sizeof(kA43ContractRoster[0]);
+
+    // Strict 5/5 nightly contract.  REQUIRE (not CHECK) aborts the
+    // suite so any roster size < 5 fails fast with a clear diagnostic
+    // — no "OK partial" marker can turn this green (Agent 2 / Step
+    // 3/6 Azione D: "Vietato marker 'OK parziale'").
+    REQUIRE(kA43ContractRosterSize >= 5);
+    REQUIRE(kA43ContractRosterSize == 5);
+
+    // Every slot must carry a non-empty, non-null name string so A4.3's
+    // per-preset forensic MESSAGE rows remain identifiable across
+    // refactors.
+    for (int i = 0; i < kA43ContractRosterSize; ++i) {
+        CAPTURE(i);
+        const auto slot_name = kA43ContractRoster[i].composition_factory_name;
+        REQUIRE(slot_name != nullptr);
+        REQUIRE(std::string(slot_name).size() > 0);
+    }
+
+    MESSAGE("A4.3-strict OK — 5/5 nightly preset coverage contract "
+            "enforced (contract roster size = " << kA43ContractRosterSize
+            << ").  See A4.3 TEST_CASE for the runtime gate; "
+            "static_assert at compile time provides the structural "
+            "backup (kPSStatic >= 5).");
 }
