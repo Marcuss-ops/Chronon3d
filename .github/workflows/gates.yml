@@ -218,21 +218,24 @@ jobs:
       - name: Run tools/check_architecture_boundaries.sh
         run: bash tools/check_architecture_boundaries.sh
 
-      # 06 R5 boundary gate — ADVISORY ONLY until R2+R3+R4 fully land.
-      # The boundary invariants (I1..I5) currently FAIL on `main`: 467/200
-      # LOC on software_renderer.hpp; 28/6 non-local includes; 8
+      # 06 R5 boundary gate — RENAMED to `renderer-boundary-observation`
+      # (Agent 2 / Step 5/6 contract, 2026-06-29).  Until R2+R3+R4 land,
+      # the boundary invariants (I1..I5) FAIL on `main`: 467/200 LOC on
+      # software_renderer.hpp; 28/6 non-local includes; 8
       # dynamic_cast<SoftwareRenderer*> sites; public graph::RenderBackend
-      # dual-identity still in place.  Until those invariants are produced
-      # by real refactors (R3 drops the dual identity, R4 slims the header,
-      # R2 migrates the 33 SoftwareRenderer& processor sites), promoting
-      # this step to a hard block would turn every PR red.  Promote by
-      # removing `continue-on-error` once `bash
-      # tools/check_software_renderer_boundary.sh; echo $?` returns 0.
-      - name: Run tools/check_software_renderer_boundary.sh (06 R5 — advisory)
+      # dual-identity still in place.  This step is therefore EXPLICITLY
+      # observation-only — promote to blocking ONLY after a future ADR
+      # explicitly removes `continue-on-error` AND the check has a green
+      # baseline measurement on a stable commit.  Naming uses
+      # 'observation' (NOT 'gate' / 'required' / 'must pass' /
+      # 'blocking') to keep the advisory semantics explicit in workflow
+      # runs and dashboards.  Tool invocation + threshold are deliberately
+      # unchanged per Step 5/6 contract.
+      - name: renderer-boundary-observation (06 R5 — observation)
         continue-on-error: true
         run: |
           bash tools/check_software_renderer_boundary.sh
-          echo "::notice::R5 boundary gate is advisory until R2..R4 land; current exit code is informational only."
+          echo "::notice::renderer-boundary-observation: non-blocking observation; current exit code is informational only. Do not promote to blocking without an ADR."
 
       - name: Run tools/check_gitignored_dirs.sh
         run: bash tools/check_gitignored_dirs.sh
