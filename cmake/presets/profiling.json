@@ -1,0 +1,160 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "linux-profile-core",
+      "hidden": true,
+      "inherits": "base-linux",
+      "displayName": "Linux Profile Core (no text/video/mesh/exr)",
+      "description": "Profile matrix preset — hidden. Core-only. Used by nightly profile-envelope workflow, not at push.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CHRONON3D_BUILD_CLI": "OFF",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_BENCHMARKS": "OFF",
+        "CHRONON3D_BUILD_CONTENT": "OFF",
+        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
+        "CHRONON3D_ENABLE_TEXT": "OFF",
+        "CHRONON3D_USE_BLEND2D": "OFF",
+        "CHRONON3D_ENABLE_EXR": "OFF",
+        "CHRONON3D_ENABLE_VIDEO": "OFF",
+        "CHRONON3D_ENABLE_MESH": "OFF",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
+        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
+        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_UNITY_BUILD": "ON",
+        "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests"
+      }
+    },
+    {
+      "name": "linux-profile-motion",
+      "hidden": true,
+      "inherits": "base-linux",
+      "displayName": "Linux Profile Motion (Blend2D + text)",
+      "description": "Profile matrix preset — hidden. Blend2D + text on; the rest off.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_BENCHMARKS": "OFF",
+        "CHRONON3D_BUILD_CONTENT": "OFF",
+        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
+        "CHRONON3D_ENABLE_TEXT": "ON",
+        "CHRONON3D_USE_BLEND2D": "ON",
+        "CHRONON3D_ENABLE_EXR": "OFF",
+        "CHRONON3D_ENABLE_VIDEO": "OFF",
+        "CHRONON3D_ENABLE_MESH": "OFF",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
+        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
+        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_UNITY_BUILD": "ON",
+        "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests"
+      }
+    },
+    {
+      "name": "linux-profile-video",
+      "hidden": true,
+      "inherits": "base-linux",
+      "displayName": "Linux Profile Video (native ffmpeg + telemetry)",
+      "description": "Profile matrix preset — hidden. Native ffmpeg ON, telemetry ON, blend2d/text on; off the V0.1 release path.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_BENCHMARKS": "OFF",
+        "CHRONON3D_BUILD_CONTENT": "OFF",
+        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
+        "CHRONON3D_ENABLE_TEXT": "ON",
+        "CHRONON3D_USE_BLEND2D": "ON",
+        "CHRONON3D_ENABLE_EXR": "OFF",
+        "CHRONON3D_ENABLE_VIDEO": "ON",
+        "CHRONON3D_ENABLE_MESH": "OFF",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "ON",
+        "CHRONON3D_ENABLE_TELEMETRY": "ON",
+        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_UNITY_BUILD": "ON",
+        "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;telemetry;tests"
+      }
+    },
+    {
+      "name": "linux-profile-extended",
+      "hidden": true,
+      "inherits": "base-linux",
+      "displayName": "Linux Profile Extended (mesh, EXR, telemetry, benchmarks, profiling)",
+      "description": "Profile matrix preset — hidden. Everything ON, profiling/Tracy on.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_BENCHMARKS": "ON",
+        "CHRONON3D_BUILD_CONTENT": "ON",
+        "CHRONON3D_BUILD_DIAGNOSTICS": "ON",
+        "CHRONON3D_ENABLE_TEXT": "ON",
+        "CHRONON3D_USE_BLEND2D": "ON",
+        "CHRONON3D_ENABLE_EXR": "ON",
+        "CHRONON3D_ENABLE_VIDEO": "ON",
+        "CHRONON3D_ENABLE_MESH": "ON",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
+        "CHRONON3D_ENABLE_TELEMETRY": "ON",
+        "CHRONON3D_ENABLE_PROFILING": "ON",
+        "CHRONON3D_UNITY_BUILD": "OFF",
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;telemetry;tests;benchmarks;profiling"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "linux-profile-core",
+      "configurePreset": "linux-profile-core",
+      "targets": ["chronon3d_tests_fast"],
+      "jobs": 16
+    },
+    {
+      "name": "linux-profile-motion",
+      "configurePreset": "linux-profile-motion",
+      "targets": ["chronon3d_cli", "chronon3d_tests_fast"],
+      "jobs": 16
+    },
+    {
+      "name": "linux-profile-video",
+      "configurePreset": "linux-profile-video",
+      "targets": ["chronon3d_cli", "chronon3d_tests_fast"],
+      "jobs": 16
+    },
+    {
+      "name": "linux-profile-extended",
+      "configurePreset": "linux-profile-extended",
+      "targets": ["chronon3d_cli", "chronon3d_tests", "chronon3d_benchmarks"],
+      "jobs": 16
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "linux-profile-core-test",
+      "configurePreset": "linux-profile-core",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "linux-profile-motion-test",
+      "configurePreset": "linux-profile-motion",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "linux-profile-video-test",
+      "configurePreset": "linux-profile-video",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "linux-profile-extended-test",
+      "configurePreset": "linux-profile-extended",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}
