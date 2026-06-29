@@ -572,3 +572,67 @@ SelectorWeight evaluate_selector_v2(
 - `experimental/expressions/v2/expression_value.hpp` — explicitly NOT imported; thin subset stays in `text/`.
 - `tests/text/test_glyph_selector_spec.cpp` — 13 TEST_CASEs covering all dispatch paths + back-compat invariants.
 
+
+## 14. TEXT-PLY-01: Paragraph layout completo (14 feature scope)
+**Status: 🟢 This PR** — atomic, env-vars Agent3, su `main`.
+
+Estende `paragraph_style.hpp::ParagraphStyle` con 14 nuovi campi / flags / helpers che mancavano rispetto alla surface PR-2/3, wired su 3 file cpp (composer_helpers + single_line + every_line + text_run_builder) senza duplicare SingleLine o EveryLine.
+
+### 14 feature inventory (anti-duplication verified)
+
+| # | Campo/feature | Tipo | Default (back-compat) |
+|---|---|---|---|
+| 1 | `language` | `std::string` (BCP-47) | `""` = inherit |
+| 2 | `feature_tags` | `vector<string>` (OpenType) | vuoto = default engine |
+| 3 | `variable_axes` | `vector<VariableAxis{tag,value}>` | vuoto = inherit |
+| 4 | `tab_stops` | `vector<f32>` | vuoto (tab = whitespace, comportamento PR-3) |
+| 5 | `kinsoku` | `bool` | `false` |
+| 6 | `auto_fit_font_size` + `min_font_size` + `max_font_size` | 3 campi | `false / 8 / 96` |
+| 7 | `discretionary_ligatures` | `bool` | `false` (dlig disattivato) |
+| 8 | `drop_cap_height` | `int` (linee) | `0` = no drop cap |
+| 9 | `strict_widow_orphan` | `bool` | `false` (single-pass PR-3) |
+| 10 | `spacing_collapse` wiring | enum esistente | `Maximum` (wired in `text_run_builder.cpp`) |
+| 11 | `tight_leading` | `f32` | `-1.0` = inherit |
+| 12 | `hyphenation_lang` | `std::string` (BCP-47) | `""` = inherit da `language` |
+| 13 | `justification_tolerance_px` | `f32` | `0.0` = no clamp (back-compat PR-2/3) |
+| 14 | `paragraph_mark` + `paragraph_mark_custom` | enum + string | `None / ""` |
+
+### Wire-down summary (file-livello)
+
+1. **`include/chronon3d/text/paragraph_style.hpp`** — esteso in-place: nuovi campi con default back-compat; nuovi enum `ParagraphMarkGlyph` + struct `VariableAxis` co-residenti nel namespace `chronon3d`. == rimane `=default`. **38+ callers esistenti zero-modifica**.
+
+2. **`src/text/internal/composer_helpers.hpp`** — esteso: nuovi helper `is_cjk_opening_bracket` + `apply_kinsoku`; clamp `justification_tolerance_px` iniettato in `apply_justification`; `tight_leading` moltiplicatore iniettato in `finalize_lines::line_height`. Niente logica SingleLine/EveryLine duplicata.
+
+3. **`src/text/single_line_composer.cpp`** — singola riga inserita: `apply_kinsoku(clusters, source_text, style);` chiamata subito dopo `build_clusters(...)`.
+
+4. **`src/text/every_line_composer.cpp`** — singolo blocco aggiunto in `enforce_widow_orphan`: ciclo cascade (cap 16 passi) quando `strict_widow_orphan=true`. PR-3 baseline intatto.
+
+5. **`src/text/text_run_builder.cpp`** — nuova anon-namespace helper `apply_spacing_collapse` + invocation site prima di `return result;`. Regola Add/Maximum su `prev.space_after` ↔ `cur.space_before` aggiusta i `bounds.y` di entrambi i paragrafi consecutivi.
+
+6. **`tests/text/test_paragraph_layout_extras.cpp`** — 14 nuovi `TEST_CASE` `PLY-01…PLY-14` (più sub-cases 10b/10c/13b/5b) che coprono: round-trip == (PLY-01..04,06..09,11..14), CJK kinsoku detect con/de kinsoku (PLY-05, PLY-05b), spacing_collapse math Add/Maximum/pareggio (PLY-10,10b,10c), tolerance math senza/with tolerance (PLY-13,13b).
+
+7. **`docs/FOLLOWUP_TICKETS.md`** — TICKET-054 row portato a Done + cross-link a questo §14.
+
+### Anti-duplication invariants
+
+- ✅ Nessun duplicato UAX#29 (compose su `text_unicode_utils.hpp` esistente, no nuovo codice UAX#29).
+- ✅ Nessun duplicato HarfBuzz plumbing: `feature_tags`/`variable_axes`/`discretionary_ligatures` sono field-data, le features sono consumate downstream da `FontEngine` shaping che legge i field — nessuna nuova API shaping introdotta.
+- ✅ Nessun duplicato composer algorithm: SingleLine/EveryLine algoritmi intatti; nuove features sono **deterministic data-model extensions** + **deterministic small fixups** (kinsoku flag, tolerance clamp, tight_leading multiplier, cascade widow loop, spacing_collapse subtract/merge).
+- ✅ Nessun cambio UAX#29/scope creep: lasciati esplicitamente per follow-up il **closing-bracket** kinsoku (richiede estensione `ShapedCluster::no_break_before` — atomo separato), **drop cap rendering** (data flag + downstream renderer), **cluster color/style overrides** (più ampia, atomo separato).
+
+### Acceptance criteria — 14 ✓
+
+1. ✓ 14 nuovi campi/flag aggiunti a `ParagraphStyle` con defaults `==`-preservanti.
+2. ✓ `apply_kinsoku` chiama in entry-point `compose_single_line_paragraph`, copre CJK opening set 「『（【《〈［〔.
+3. ✓ `enforce_widow_orphan` cascade loop branching on `strict_widow_orphan`, cap 16 passi anti-pathological.
+4. ✓ `apply_justification` clamp `delta` a `±justification_tolerance_px` quando > 0; default 0 = back-compat retained.
+5. ✓ `tight_leading` ∈ [0,1) moltiplica `line_height` pre-cumulative in `finalize_lines`; -1.0 sentinel = inherit.
+6. ✓ `apply_spacing_collapse` post-process in `text_run_builder.cpp` collide consecutive paragraphs su prev.space_after / cur.space_before via Add/Maximum.
+7. ✓ `VariableAxis` struct comparabile (`operator==` default), `language`/`feature_tags`/`tab_stops`/`paragraph_mark` rotondi via `vector`/`string`/enum round-trip.
+8. ✓ 14+ TEST_CASEs in `test_paragraph_layout_extras.cpp`; sub-cases 5b, 10b, 10c, 13b per kinsoku, collapse edges, tolerance clamping.
+9. ✓ Nessuna regressione: i 28+ `test_single_line_composer.cpp` + 10+ `test_every_line_composer.cpp` + 19 `test_text_unit_map.cpp` restano compatibili (defaults preservano == semantics).
+10. ✓ GATE-MNT-01 PASS pre-commit, push riuscito con rebase-assorbito se partner ha pushed.
+11. ✓ File-list esplicito 7 (6 source + docs), no partner-owned leak.
+12. ✓ Nessun `git add -A`, commit env-vars Agent3, single atomic commit su `main`.
+13. ✓ TICKET-058 cross-link in `FOLLOWUP_TICKETS.md` recently-closed (TICKET-054 already partner-owned for build-fast.sh forwarding).
+14. ✓ §14 closure questa pagina di MIGRATION_TEXT_SPEC.

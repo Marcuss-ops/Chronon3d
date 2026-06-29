@@ -88,3 +88,5 @@ preservato verbatim dal pre-Step-6), vedi:
 See:
 - `docs/MIGRATION_TEXT_SPEC.md` §13 for full closure documentation (3 canonical selector types stored under `std::variant<RangeSelector, WigglySelector, ExpressionSelector>`, `std::visit` dispatch via `evaluate_selector_v2` / `evaluate_selectors_v2`, `SafeAccessMap` with `textIndex` / `textTotal` / `frame` auto-binding, 13 new TEST_CASEs at `tests/text/test_glyph_selector_spec.cpp`).
 - `docs/MIGRATION_TEXT_SPEC.md` §12 (closure for TEXT-UNM-01) is **missing on disk** — followup SECT-12-RESTORE in atomi backlog to restore closure doc after partner rebase truncated it.
+
+| TICKET-058 | TEXT-PLY-01 — 14-feature ParagraphStyle extension + wiring | 🟢 Done | `feat(text): TEXT-PLY-01 — 14-feature ParagraphStyle extension + wiring` (env-vars Agent3, atomic on `main`; §14 closure doc in `docs/MIGRATION_TEXT_SPEC.md` §14; 14 TEST_CASEs in `tests/text/test_paragraph_layout_extras.cpp`) |
