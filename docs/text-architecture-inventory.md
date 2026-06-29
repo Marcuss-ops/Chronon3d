@@ -34,7 +34,7 @@ Il sistema è **ben fondato per la kinetic typography 2D**, ma **non AE-parity**
 | **D6** | No `PropertyStage` plumbing (TXT-03 ancora PLAN) | assente (vedi `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md:702`) | **TEXT-STG-01** |
 | **D7** | Selector variants limited to **Range**; Wiggly + Expression missing | `include/chronon3d/text/glyph_selector.hpp:67-88` (range-only fields) | **TEXT-SEL-01** |
 
-### Properties con `AnimatedValue<T>` (oggi, post Step 4)
+### Properties con `AnimatedValue<T>` (post Step 4 spec Agent 3, commit `c6b9b99`)
 
 | Property | Type | Note |
 |---|---|---|
@@ -186,11 +186,12 @@ Estratto da `docs/FOLLOWUP_TICKETS.md` snapshot corrente e `docs/ARCHIVE/FOLLOWU
 
 | Ticket | Stato | Commit | Note |
 |---|---|---|---|
-| TICKET-006 | 🟢 Done | (gen-exp guard in `tests/renderer_tests.cmake` + `tests/scene_tests.cmake`) | sblocca link `chronon3d_backend_text` |
+| TICKET-051 | `🔵 OPEN` | n/a (unica OPEN testo nell'active index) | area `A4.3 per-preset diagnostic` (source `tests/text/test_text_preset_visual.cpp`, target `A4.3 visual`) |
+| TICKET-006 | 🟢 Done | `09997570` (PR-A archive narrative) | gen-exp guard in `tests/renderer_tests.cmake` + `tests/scene_tests.cmake`; sblocca link `chronon3d_backend_text` |
 | TICKET-029 | 🟢 Done | `fb1b7e97` | sblocca link di `chronon3d_scene_tests` |
 | TICKET-038 | 🟢 Done | `91debc36` | lambda capture / auto deduction rot in `tests/text/test_text_preset_visual.cpp` |
 | TICKET-039 | 🟢 Done | `68c3e0f0` | `SoftwareRenderer::settings()` access regression |
-| TICKET-040 | 🟢 Done | — | Taskflow rimosso |
+| TICKET-040 | 🟢 Done | — | Taskflow rimosso (no SHA in `CURRENT_STATUS.md` narrative; verificare `git log --grep='TICKET-040'` se serve pinning) |
 
 ### Aperti
 
@@ -248,21 +249,33 @@ TextDocument (src/text)
 
 ### 6.3 Authoring façade fan-in
 
-User-level code path:
+Surface autoriale canonica (verbatim dall'header docstring — `include/chronon3d/authoring/animator.hpp` line 9-22):
 
 ```cpp
 #include <chronon3d/authoring/authoring.hpp>
-using chronon3d::authoring::Animator;
-using chronon3d::GlyphSelectorSpec;
+using namespace chronon3d::authoring;
 
-auto anim = Animator("my_anim")
-    .property(BaselineShiftProperty{8.0f})
-    .property(CharacterOffsetProperty{2})
-    .selector(Selector::range(0.0f, 50.0f));
-auto spec = anim.release();  // -> TextAnimatorSpec
+auto a = animator("hero")
+             .select(selector(TextSelectorUnit::Word)
+                           .start(Frame{0},    0.0f)
+                           .start(Frame{30}, 100.0f))
+             .position({0.0f, 46.0f, 0.0f})
+             .scale(0.94f)
+             .opacity(0.0f)
+             .blur(12.0f)
+             .tracking(10.0f);
+// release() è friend-only: consumato da Text::animate() (PR 3)
 ```
 
-Le `BaselineShiftProperty` e `CharacterOffsetProperty` sono definite in `include/chronon3d/text/text_animator_property.hpp` come struct static **senza** `AnimatedValue<T>` (`animator.hpp:139, 143, 147, 151`).
+**API curate dal codice (non dedotte)**:
+- Factory: `animator(std::string id)` (`animator.hpp:209-211`) + `selector(TextSelectorUnit unit)` (`selector.hpp:~210`).
+- `Animator` builder methods (verbatimmente enumerati a `animator.hpp:50-178`): `.select(Selector&)`, `.position(Vec3)`, `.scale(Vec3)`, `.scale(f32 uniform)`, `.rotation(Vec3)`, `.skew(f32 angle, f32 axis=0)`, `.anchor(Vec3)`, `.tracking(f32)`, `.baseline_shift(f32)`, `.character_offset(i32)`, `.opacity(f32)`, `.blur(f32 radius_px)`, `.fill_color(Color)`, `.stroke_color(Color)`, `.stroke_width(f32)`.
+- Nessun `.property(GenericProp)` esiste: ogni property ha il suo setter dedicato.
+- `Selector` builder methods (`selector.hpp`): `.shape(...)`, `.smooth()`, `.order(...)`, `.combine_mode(...)`, `.exclude_spaces(bool=true)`, `.start(Frame, f32, Easing=Linear)`, `.end(Frame, f32, Easing=Linear)`, `.offset(Frame, f32, Easing=Linear)`, `.amount(Frame, f32, Easing=Linear)`, `.ease_low(f32)`, `.ease_high(f32)`.
+- Nessun `Selector::range(...)` static factory: il Range selector si costruisce via `.start(...).end(...).amount(...)` keyframes.
+- `release()` è `private &&` + friend-only (`animator.hpp:198-201`, `selector.hpp:~195-198`); consumato da `Text::animate()` (PR 3, pianificato in `authoring.hpp:64-67`).
+
+Le property type (PositionProperty, ScaleProperty, RotationProperty, SkewProperty, AnchorProperty, TrackingProperty, **BaselineShiftProperty**, **CharacterOffsetProperty**, OpacityProperty, BlurProperty, FillColorProperty, StrokeColorProperty, StrokeWidthProperty) sono **struct static senza `AnimatedValue<T>`** in `include/chronon3d/text/text_animator_property.hpp`.
 
 ---
 
@@ -314,8 +327,8 @@ Le `BaselineShiftProperty` e `CharacterOffsetProperty` sono definite in `include
 5. **TEXT-RET-01** — Retire legacy `TextAnimator` (char/word/line/glyph layer).
 6. **TEXT-SEL-01** — Implementare Range + Wiggly + Expression selectors canonicamente.
 7. **TEXT-UNM-01** — `TextUnitMap` reale: byte UTF-8, code point, grapheme cluster, glyph, word, line, paragraph, span.
-8. **TEXT-RCH-01** — Rich text end-to-end (font per span, sizes, weight, variable axes per span, ID semantici).
-9. **TEXT-PLY-01** — Paragraph layout completo (point/box, kerning, leading, hanging, CJK+RTL).
+8. **TEXT-PLY-01** — Paragraph layout completo (point/box, kerning, leading, hanging, CJK+RTL).
+9. **TEXT-RCH-01** — Rich text end-to-end (font per span, sizes, weight, variable axes per span, ID semantici).
 10. **TEXT-EXP-01** — Source Text expressions + variable fonts axes animabili + sandbox deterministica.
 11. **TEXT-PTH-01** — Text on Path completo (tutte le opzioni + RTL + degenerate).
 12. **TEXT-3DF-01** — Per-character 3D + motion blur (Z per char, Rotation XYZ, anchor grouping multi-livello, perspective).
