@@ -92,3 +92,5 @@ See:
 | TICKET-058 | TEXT-PLY-01 — 14-feature ParagraphStyle extension + wiring | 🟢 Done | `feat(text): TEXT-PLY-01 — 14-feature ParagraphStyle extension + wiring` (env-vars Agent3, atomic on `main`; §14 closure doc in `docs/MIGRATION_TEXT_SPEC.md` §14; 14 TEST_CASEs in `tests/text/test_paragraph_layout_extras.cpp`) |
 
 | TICKET-048 | GATE-MNT-01 — wire main-sync gate as pre-push wrapper | 🟢 Done | `ops(gates): GATE-MNT-01 — wire main-sync gate as pre-push wrapper` (env-vars Agent3, atomic on `main`; 4 tracked files: `tools/check_main_clean.sh` + `tools/wrap_push.sh` + `docs/FOLLOWUP_TICKETS.md` TICKET-048 row + `AGENTS.md` § GATE-MNT-01; local-only `.git/hooks/pre-push` installed per-repo for defence in depth) |
+
+| TICKET-060 | SECT-12-RESTORE — MIGRATION_TEXT_SPEC §12 stub (chronology drift closure) | 🟢 Done | `docs: SECT-12-RESTORE — restore §12 stub pointing to §15` (env-vars Agent3, atomic on \`main\`; §12 stub inserted in \`docs/MIGRATION_TEXT_SPEC.md\` immediately before §13 marker; 2-file docs-only diff, no partner-owned \`src/registry/text/\` files staged) |
