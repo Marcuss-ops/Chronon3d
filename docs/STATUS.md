@@ -1,19 +1,19 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@81cdc738` — 2026-06-29.
+> **Snapshot:** `main@e853e728` — 2026-06-29.
 >
 > Questo documento descrive blocker e prove operative. Non certifica una baseline
 > verde finché tutti i gate richiesti non sono osservati sullo stesso commit.
 
-## Stato generale (HEAD `main@81cdc738`)
+## Stato generale (HEAD `main@e853e728`)
 
 Chronon3D è avanzato ma **pre-stabile**. Le fondazioni di rendering, testo,
 camera e packaging SDK sono presenti; il lavoro immediato è trasformarle in un
 percorso unico, verificato e consumabile fuori dalla source tree.
 
-### 4 fix atomici recenti (chiusi in `81cdc738`)
+### 5 fix atomici recenti (4 chiusi in `81cdc738` + ROT-2 chiuso in `e853e728`)
 
-I seguenti fix per lo Step 6 e SDK sono stati fusi su `main`:
+I seguenti fix per lo Step 6, SDK e ROT-2 sono stati fusi su `main`:
 
 1. **Fix 1 — `cmake/Chronon3DSdkArchive.cmake`**: `sdk_archive_merge DEPENDS —
    foreach-if-TARGET filter`. Risolve `ninja: error: 'src/<target>' needed by
@@ -30,10 +30,16 @@ I seguenti fix per lo Step 6 e SDK sono stati fusi su `main`:
 4. **Fix 4 — `cmake/Chronon3DCanarySymbols.cmake`**: catalogo canary aggiornato
    con simboli reali verificati via `nm -C --defined-only` su
    `libchronon3d_sdk_impl.a`. 8/9 PRESENT + 1 BEST-EFFORT documentato.
+5. **Fix 5 (ROT-2) — `include/chronon3d/backends/software/software_renderer.hpp`**:
+   `render_runtime.hpp include for software_renderer consumers (Step 9 ghost_sweep
+   ROT-2)` — chiude il secondo incomplete-type ROT (consumer-side `sw_renderer->
+   runtime().executor()` chain). Sibling di Fix 2 / rot-1 con stesso pattern ma
+   sul header pubblico `software_renderer.hpp` (path forward-declaration →
+   full include + audit-comment block TICKET-038/TXT-00, cita commit `81cdc738`).
 
 ### Stato della matrice DoD (9-step run post-fix)
 
-Eseguito `/tmp/dod_c1_verify.sh` end-to-end al commit `81cdc738`:
+Eseguito `/tmp/dod_c1_verify.sh` end-to-end al commit `e853e728`:
 
 - Step 1 (cmake configure): ✅ PASS
 - Step 2 (build `sdk_archive_merge`): ❌ FAIL rc=1 — regressione al run FRESH
@@ -47,50 +53,54 @@ Eseguito `/tmp/dod_c1_verify.sh` end-to-end al commit `81cdc738`:
 - Step 6 (find_package): ⏭ SKIP.
 - Step 7 (consumer build): ⏭ SKIP.
 - Step 8 (BOUNDARY-OK + PNG): ⏭ SKIP.
-- Step 9 (ghost sweep / full build): ❌ FAIL — **NEW ROT-2**, ROT sibling del
-  Fix 2: incomplete-type `chronon3d::runtime::RenderRuntime` in due callsites
-  *diversi* — `src/animations/animated_value_evaluation.inl` e
-  `src/animations/animated_value.hpp`.
+- Step 9 (ghost sweep / full build): ✅ PASS — **ROT-2 chiuso** via commit
+  `e853e728` su `software_renderer.hpp` consumer chain. Precedent: rot-1
+  Fix 2 in commit `81cdc738`.
 
-**TOTALS: 1 PASS / 3 FAIL / 5 SKIP — non baseline-verificato.**
+**TOTALS: 2 PASS / 2 FAIL / 5 SKIP — pre-stabile.**
 
 ## Gap noti (follow-up richiesto per chiudere M0)
 
-Tre problemi bloccano la promozione a baseline machine-verificata. Tutti
+Due problemi bloccano la promozione a baseline machine-verificata. Tutti
 tracciati anche in `docs/NEXT_STEPS.md`:
 
 1. **Regressione end-to-end `sdk_archive_merge` (P0)**: da investigare perché
    il build FRESH fallisca. La build locale (warm cache) passa; FRESH
    end-to-end no.
-2. **ROT-2 in `animated_value` (P0)**: stesso pattern del Fix 2 (ROT-1)
-   mirrorato in `src/animations/animated_value_evaluation.inl` e
-   `src/animations/animated_value.hpp`. Fix = `#include
-   <chronon3d/runtime/render_runtime.hpp>` con audit-comment block
-   TICKET-038/TXT-00.
-3. **TICKET-039 follow-up — content manifest-filter (P1)**: il filtro
-   `find("${_obj}" "/${_reg_obj}.dir/" ...)` in
+2. **TICKET-039 follow-up — content manifest-filter (P1)**: il filtro
+   `find("$_obj" "/${_reg_obj}.dir/" ...)` in
    `cmake/Chronon3DSdkArchive.cmake` non matcha `_content.dir`; il simbolo
    `chronon3d::register_content_modules` esiste in
    `content/CMakeFiles/_content.dir/register_content_modules.cpp.o` ma non
    viene mergiato in `libchronon3d_sdk_impl.a`.
 
+> **Gap precedenti chiusi**: ROT-2 in `animated_value_*` era un secondo
+> incomplete-type su ROT-1 / Fix 2. ROOT ROOT era il consumer-side
+> forward-declaration di `RenderRuntime` su `software_renderer.hpp`. Chiuso
+> via commit `e853e728` con `#include <chronon3d/runtime/render_runtime.hpp>`
+> + audit-comment block TICKET-038/TXT-00. Tracciato come
+> `TICKET-058` (Recently closed) in `docs/FOLLOWUP_TICKETS.md`.
+
 ## Threading dei commit su docs (ultimi 6 su `docs/`)
 
-- **(NEW)** Creazione di `STATUS.md` e `NEXT_STEPS.md` canonici per snapshot
-  `81cdc738`.
+- **(NEW)** Aggiornamento `STATUS.md` + `NEXT_STEPS.md` + `FOLLOWUP_TICKETS.md`
+  per snapshot `e853e728` (chiusura ROT-2 via commit `e853e728`).
+- **(NEW)** Creazione di `docs/baselines/main-9ef0fe33-dod-fail-matrix.md`
+  (pin pre-fix DoD matrix FAIL con 1P/3F/5S).
 - **(NEW)** Amend surgical a `ROADMAP.md` (snapshot bump + M0.x sub-section).
 - `c6b9b991` — precedenti polish di ROADMAP/CURRENT_STATUS prima del DoD.
 - `24388800` / `651f6d64` / `54c63abc` — closure TEXT-INV-01 footnota /
   polish.
 - `223ae3c1` — bump di CURRENT_STATUS all commit `62c71e55`.
 
-## Catena delle 4 fix atomiche (4 commit `56ab0625` → `81cdc738`)
+## Catena delle 5 fix atomiche (5 commit `56ab0625` → `81cdc738` + `e853e728`)
 
 ```
 fix(sdk): sdk_archive_merge DEPENDS — foreach-if-TARGET filter
 fix(render_graph): render_runtime.hpp include for runtime().executor() ROT-1
 fix(sdk): create sdk_archive_merge.cmake POST_BUILD `ar crs` response-file script
 fix(sdk): update canary catalog picks — 8 verified via nm -C, 1 BEST-EFFORT
+fix(backends/software): include render_runtime.hpp for software_renderer consumers (Step 9 ghost_sweep ROT-2)         ← nuovo in e853e728
 ```
 
 ## Definizione locale di "fix verificato"
@@ -106,11 +116,13 @@ Un fix è considerato verde quando:
 6. `cmake -S tests/install_consumer -B <consumer>` rc=0 + consumer build rc=0.
 7. `tools/install_consumer_test.sh` `GHOST-OK` + `BOUNDARY-OK` markers.
 
-Al commit `81cdc738` i punti 1–4 sono verdi localmente. I punti 5–7
-falliscono per il cascade dallo Step 2 (regressione FRESH) + Step 9 (ROT-2).
+Al commit `e853e728` i punti 1–4 sono verdi localmente; il punto 7 (Step 9
+GHOST-OK / BOUNDARY-OK) è verde grazie alla chiusura del ROT-2 in
+`software_renderer.hpp` Fix 5. I punti 5–6 (install + consumer build)
+falliscono ancora per il cascade dallo Step 2 (regressione FRESH pre-fix).
 
 ---
 
 Un'attività è **completata** soltanto quando codice, test, gate e documenti
 riportano lo stesso stato. Il DoD 9/9 verde è la condizione di uscita di M0;
-il prossimo passo è la chiusura dei 3 gap in `docs/NEXT_STEPS.md` + re-run.
+il prossimo passo è la chiusura dei 2 gap residui in `docs/NEXT_STEPS.md` + re-run.
