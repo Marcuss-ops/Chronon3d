@@ -1,12 +1,11 @@
 # Follow-up Tickets — Open Blockers Index
 
-> Snapshot: `main@0ac86d9f8` — 2026-06-29. Linux-only.
+> Snapshot: `main@c6b9b99` — 2026-06-29. Linux-only.
 >
 > File canonico per gli aperti. Massimo ~10 righe di tabella, ordinate per blocco della
 > certificazione `Baseline verde: CERTIFICATA` (vedi `AGENTS.md` regola di lavoro #4). Tutti gli
-> altri ticket aperti non-baseline-critical + i 7 ticket con stato derivazionale `UNKNOWN` (data-quality
-> carry-forward di Step 6, riqualificazione deferrata a Step 8) vivono in
-> `docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md` e in git history pre-Step-6.
+> altri ticket aperti non-baseline-critical vivono in `docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md`
+> (verbatim cronologia) e in git history pre-Step-6 (commit `6f3309e6`).
 >
 > Schema pregresso (`🔵 Planned` / `🟡 Partial` / `🟢 Done`) rimane canonico. Label `🔵 OPEN`
 > introdotta per TICKET-051 è sinonimo di `🔵 Planned` (Step 4 spec Agent 3).
@@ -28,8 +27,8 @@
 
 ## Cross-link history
 
-Per la cronologia completa (49+ ticket chiusi + 28 deferred a follow-up + 7 ticket `UNKNOWN` da
-riqualificare in Step 8), vedi:
+Per la cronologia completa (49+ ticket chiusi + 28 deferred a follow-up, tutti con `**Status**` reale
+preservato verbatim dal pre-Step-6), vedi:
 
 - `docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md` — verbatim cronologia ticket chiusi + deferred.
 - `git show main~N:docs/FOLLOWUP_TICKETS.md` (commit pre-Step-6) per la versione 3834-line originale.
