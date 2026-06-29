@@ -1,6 +1,6 @@
 # Chronon3D — Next Steps Reali
 
-> **Snapshot funzionale analizzato:** `main@81cdc738`, 2026-06-29.
+> **Snapshot funzionale analizzato:** `main@e853e728`, 2026-06-29.
 >
 > Questo documento descrive l'ordine operativo immediato delle priorità per
 > sbloccare la costruzione della baseline. Ogni azione è atomica (un commit
@@ -16,28 +16,13 @@
   --preset linux-ci --fresh && cmake --build … --target sdk_archive_merge`)
   fallisce con `rc=1` nonostante la build locale (warm cache) produca un
   archivio valido con 289 oggetti. Root-cause non ancora isolata.
-  *Sintomo*: il run finale DoD end-to-end sul commit `81cdc738` ha
+  *Sintomo*: il run finale DoD end-to-end sul commit `e853e728` ha
   Step 2 FAIL + Step 5 cascade FAIL + tutti i successivi SKIP.
   *Unblocks*: artefatto `libchronon3d_sdk_impl.a` consumabile da
   `cmake --install` (Step 5) e dall'intero consumer pipeline (Steps 6–8).
   *Azione minima*: leggere `/tmp/dod_c1v2_step2.log` (tail 50) per estrarre
   l'errore reale, identificarne la singola causa radice, applicare la fix
   più piccola (≤1 commit atomico).
-
-- **P0.2 — Risolvere ROT-2 in `animated_value_{evaluation.inl, hpp}`**
-  *Descrizione*: nuovo incomplete-type ROT su
-  `chronon3d::runtime::RenderRuntime` mirrors del ROT-1 (Fix 2) ma in due
-  callsites *diversi*: `src/animations/animated_value_evaluation.inl` e
-  `src/animations/animated_value.hpp`. ROOT: forward declaration transitiva
-  insufficiente per invocare `.executor()` / altri accessor simili.
-  *Sintomo*: DoD Step 9 (ghost sweep / full build) FAIL con messaggi
-  `invalid use of incomplete type 'class chronon3d::runtime::RenderRuntime'`.
-  *Unblocks*: chiusura di Step 9 (ghost sweep) → DoD 9/9 verde.
-  *Azione minima*: aggiungere `#include <chronon3d/runtime/render_runtime.hpp>`
-  ai due file, con audit-comment block TICKET-038/TXT-00 (mirror del Fix 2).
-  Nel caso ROT-2 emerga in callsites ulteriori dopo questa fix, ricercare
-  tutti i `sw_renderer->runtime().<method>()` su `src/` via grep ed
-  estendere l'include set di conseguenza.
 
 ### P1 — Follow-up packaging e validazione
 
@@ -57,7 +42,7 @@
   `get_target_property(... SOURCE_DIR ...)`), validare con single-`nm -C`.
 
 - **P1.2 — Re-run DoD 9-step end-to-end post-fix P0 + P1**
-  *Descrizione*: dopo la chiusura di P0.1, P0.2 e P1.1, rilanciare
+  *Descrizione*: dopo la chiusura di P0.1 e P1.1, rilanciare
   `/tmp/dod_c1_verify.sh` su `main@HEAD` per produrre una matrice 9/9 PASS
   (target).
   *Unblocks*: certificazione machine-verificata del commit post-fix.
@@ -67,25 +52,49 @@
 
 ### P2 — Snapshot e documentazione
 
-- **P2.1 — Aggiornare `docs/FOLLOWUP_TICKETS.md` con i nuovi ticket**
-  *Descrizione*: tracciare formalmente i 3 gap come ticket con severità
+- **P2.1 — Aggiornare `docs/FOLLOWUP_TICKETS.md` con i nuovi ticket residui**
+  *Descrizione*: tracciare formalmente i 2 gap come ticket con severità
   + commit di chiusura pianificati. Permette di non perderli nella
   coda operativa generale.
-  *Azione minima*: aggiungere `TICKET-049` (sdk_archive_merge
-  regressione) + `TICKET-050` (ROT-2 animated_value) + `TICKET-051`
-  (content manifest-filter, già pre-tracciato come TICKET-039 follow-up).
+  *Azione minima*: aggiungere `TICKET-059` (sdk_archive_merge regressione)
+  + tracking di `TICKET-039` follow-up (content manifest-filter, già
+  pre-tracciato come P1.1).
 
 - **P2.2 — Refresh `docs/CHANGELOG.md`**
-  *Descrizione*: aggiungere una sezione per il batch di 4 commit
-  atomici (`56ab0625` → `81cdc738`) sotto l'intestazione del mese, citando
-  i 4 fix e il DoD state al momento del close-out.
+  *Descrizione*: aggiungere una sezione per il batch di 4 commit atomici
+  SDK chain (`56ab0625` → `81cdc738`) sotto l'intestazione del mese + la
+  Fix-5 ROT-2 (`e853e728`) sotto la stessa sezione.
   *Azione minima*: una commit atomica `docs(CHANGELOG): post-doD-Fase-1…`.
 
 - **P2.3 — Refresh `docs/baselines/` con snapshot post-fix**
   *Descrizione*: dopo P0 + P1 chiusi, creare
   `docs/baselines/main-<<post-fix>>-dod-9-of-9.md` come baseline di
   riferimento per le milestone M1–M4. Include: 9-step PASS matrix,
-  4 atomic commit refs, ambiente (preset, OS, compiler).
+  atomic commit refs, ambiente (preset, OS, compiler).
+
+## Coda post-baseline (residuo M0 → M1)
+
+Items che erano blocker baseline-critical ma sono stati chiusi su `main`
+durante il wind-down DoD; rimangono come reference e per retrospettiva
+del prossimo ciclo M1 (nessuna azione richiesta, ma documentati per
+tracciabilità storica):
+
+- **CODA-PB.1 — ROT-2 in `software_renderer.hpp` chain (alias TICKET-058)**
+  ✅ chiuso
+  *Descrizione storica*: nuovo incomplete-type ROT su `RenderRuntime`
+  siblings del ROT-1 (Fix 2 / commit `81cdc738`). Root cause: sul
+  consumer-side (Step 9 ghost_sweep path) il path canonico
+  `sw_renderer->runtime().executor()` incontrava forward-declaration-only
+  di `RenderRuntime` su `include/chronon3d/backends/software/software_renderer.hpp`,
+  producendo `invalid use of incomplete type 'class chronon3d::runtime::RenderRuntime'`.
+  *Stato attuale*: ✅ ROT-2 **chiuso** su commit `e853e728` via Fix 5
+  (`include/chronon3d/backends/software/software_renderer.hpp` include +
+  audit-comment block TICKET-038/TXT-00). NON richiede commit dedicato.
+  Tracking: `TICKET-058` in `docs/FOLLOWUP_TICKETS.md` (Recently closed).
+  *Lesson learned*: il pattern rot-2 era su un header pubblico
+  (forward-decl rimossa) mentre il pattern rot-1 era su TUs `.cpp` private.
+  Predicare audit-comment block TICKET-038/TXT-00 a entrambi i casi per
+  tracciabilità.
 
 ## Vincoli operativi (richiamati da `AGENTS.md`)
 
@@ -105,13 +114,13 @@
 
 1. **P0.1**: leggere il log di errore dal FRESH build → diagnostic →
    fix-atomico → push.
-2. **P0.2**: ROT-2 include mirror → fix-atomico su `animated_value_*` →
-   push.
-3. **P1.1**: content manifest-filter (single regex o normalize) →
+2. **P1.1**: content manifest-filter (single regex o normalize) →
    fix-atomico su `cmake/Chronon3DSdkArchive.cmake` → push.
-4. **P1.2**: re-run DoD end-to-end. Se matrice 9/9 PASS → baseline snapshot
+3. **P1.2**: re-run DoD end-to-end. Se matrice 9/9 PASS → baseline snapshot
    (P2.3) + FOLLOWUP_TICKETS update (P2.1) + CHANGELOG bump (P2.2).
-5. Se la matrice non è 9/9 → riaprire la coda con un nuovo gap classificato.
+4. Se la matrice non è 9/9 → riaprire la coda con un nuovo gap classificato.
 
 L'obiettivo finale è una DoD machine-verificata 9/9 PASS su un singolo commit
-di `main`, certificato da un baseline snapshot — vero "fine di M0".
+di `main`, certificato da un baseline snapshot — vero "fine di M0". A
+`e853e728` la coda è ridotta a 2 gap (P0.1 + P1.1) dopo la chiusura del
+ROT-2.
