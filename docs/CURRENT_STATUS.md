@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@25b63730` — 2026-06-29. Linux-only.
+> **Snapshot:** `main@d0d9a782` — 2026-06-29. Linux-only.
 >
 > Ultima baseline macchina-verificata: `main@446a60e2` (3/4 ✅, registrata in [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md)).
 > **Baseline sull'HEAD corrente: NON CERTIFICATA** (nessun run macchina-verificato di tutti gli 11 gate registrato dopo `446a60e2`).
@@ -209,7 +209,9 @@ ma una nuova baseline macchina-verificata sull'HEAD non è ancora stata registra
   - `include/chronon3d/scene/builders/layer_builder.hpp` (415 → ~190 righe) — `pending_text_runs()` rimosso dalla superficie pubblica (restituiva `std::vector<const PendingTextRun*>` faceva leaking dello storage interno `m_text_runs`); il metodo è stato promosso nell'adattatore test-only `chronon3d::builders::testing::LayerBuilderInspector::pending_runs(lb)` (snapshot value-typed `PendingRunSnapshot{ name, animators }`) con accesso chiuso da `friend class`. I sette accessori out-of-class (`screen_dimensions` setter + getter, `name()`, `resource()`, `extension_context` setter/getter) vivono ora in `detail/layer_builder_inline.inl` (esplicitamente `inline` per ODR safety). Il file `detail/layer_builder_text.hpp` (forward-decl di `PendingTextRun`, `TextRunParams`, `TextRunSpec`, `TextRunBuilder`) è la superficie di accoppiamento minima per consumatori downstream del pipeline text-run senza dover includere l'intera catena `text_run_builder.hpp`.
   - I test (`tests/test_text_preset_registry.cpp`) sono stati aggiornati per usare `LayerBuilderInspector::pending_runs(lb)` invece di `lb.pending_text_runs()`: 4 callsites migrati, pattern `pre[i]->name`/`pre[i]->params.animators` convertiti in `pre[i].name`/`pre[i].animators` (snapshot value-typed), check di null-pointer rimossi.
   - **API delta**: aggiunto `chronon3d::builders::testing::LayerBuilderInspector::pending_runs(...)` (test-only); rimosso `LayerBuilder::pending_text_runs()`. Nessun altro cambio di superficie pubblica.
-  - CI non ancora ri-verificato dopo Phase-3 (richiede macchina-verifica dedicata sui 11 gate per promuovere la baseline a `CERTIFICATA @ 62c71e55`).
+  - CI non ancora ri-verificato dopo Phase-3 (richiede macchina-verifica dedicata sui 11 gate  per promuovere la baseline a `CERTIFICATA @ 62c71e55`).
+  - **🟢 Phase-1.3 — CMakePresets v6 + split + CI migration.** Schema CMakePresets `version: 6` (cmake `>= 3.27`, vedi FASE 1.3.B). 12 legacy configurePresets rimossi atomicamente (linux-core-dev, linux-lean-dev, linux-artist-dev, linux-full-validation, linux-release, linux-debug, linux-turbo, linux-fast-dev, linux-fast-dev-release, linux-lean, linux-dev-video, linux-release-full). 18 canonical configurePresets mantenuti, splittati in 6 file sotto `cmake/presets/`: `base.json` (base + base-linux), `development.json` (linux-dev, linux-asan), `ci.json` (linux-ci, linux-ci-nocontent + 4 gate linux-ci-{core-gate,lean-gate,release-build,full-validation}), `release.json` (__release-base + linux-release-validation + linux-experimental-validation), `experimental.json` (__experimental-base hidden helper), `profiling.json` (linux-profile-{core,motion,video,extended}). ROOT `CMakePresets.json` ridotto a index-only `{"version":6,"include":[6 paths]}` (915 → 7 righe). 3 workflow CI migrati atomicamente (FASE 1.3.C/D/E): `.github/workflows/gates.yml`, `.github/workflows/ci.yml`, `.github/workflows/gates-full-validation.yml` → riferimenti canonici `linux-ci-{core-gate,lean-gate,release-build,full-validation}`. 9 buildPresets + 8 testPresets orfani (referenziavano cp legacy rimossi) rimossi. ZERO nuovi registry locali, ZERO nuova API pubblica introdotta: solo build-infra (AGENTS.md Feature-Freeze Category 1). ZERO SHA hardcoded nei file di config post-fix.
+  - CI non ancora ri-verificato dopo Phase-1.3 (richiede macchina-verifica dedicata sui 11 gate per promuovere la baseline a `CERTIFICATA @ d0d9a782`). AGENTS.md **co-update rule** rispettata: stesso commit che cambia lo stato aggiorna `CURRENT_STATUS.md` + snapshot SHA.
 
 ## Blocker per baseline verde
 
@@ -240,6 +242,10 @@ L'assenza di workflow fallito non equivale a una baseline verde.
 > **Certificazione corrente (2026-06-29, `25b63730`)**: NON CERTIFICATA.
 > La regola di sopra si applica: serve un run macchina-verificato dei 11 gate sul commit candidato
 > per promuovere la baseline a `CERTIFICATA @ <SHA>`.
+
+> **Certificazione corrente (2026-06-29, `d0d9a782`)**: NON CERTIFICATA.
+> La regola di sopra si applica: serve un run macchina-verificato dei 11 gate sul commit candidato
+> per promuovere la baseline a `CERTIFICATA @ <SHA>`. Ultima baseline macchina-verificata registrata: `446a60e2` (immutata da Phase-1.3; nessun nuovo run registrato).
 
 - [`ROADMAP.md`](ROADMAP.md): milestone prodotto.
 - [`RELEASE_GATE.md`](RELEASE_GATE.md): criteri di release.
