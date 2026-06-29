@@ -33,6 +33,22 @@ namespace chronon3d {
 
     class FontEngine;  // forward decl — per-frame engine cascade
 
+    // ── Phase-3.3 mechanical split note ────────────────────────────────────
+    // The template member function bodies that were previously inline
+    // inside this class have been moved verbatim into:
+    //   * detail/scene_builder_layers.inl   (layer / screen_layer /
+    //                                         adjustment_layer /
+    //                                         precomp_layer /
+    //                                         video_layer /
+    //                                         null_layer)
+    //   * detail/scene_builder_sequences.inl (sequence)
+    //   * detail/scene_builder_camera.inl    (camera_rig)
+    // This header now DECLARES them inline-template-style and reaches
+    // for the bodies via bottom `#include "detail/...inl"`.  Behaviour
+    // is preserved BIT-IDENTICALLY.  Anonymous sequence decals
+    // (SequenceSpec, etc.) and other class-body-typed data still live
+    // inline in this scope.
+
     class SceneBuilder {
       public:
         explicit SceneBuilder(std::pmr::memory_resource *res = std::pmr::get_default_resource(),
@@ -142,161 +158,32 @@ namespace chronon3d {
             Frame duration{0};
         };
 
+        // ── DECL-only templates (Phase-3.3 split) ─────────────────────────────
+        // Bodies live in detail/scene_builder_*.inl (bottom-included).
         template <typename Fn>
-        SceneBuilder &sequence(const std::string & /*name*/, SequenceSpec spec, Fn &&fn) {
-            const Frame cf = current_integer_frame();
-            bool active = cf >= spec.from && cf < spec.from + spec.duration;
-            if (!active) {
-                return *this;
-            }
-
-            FrameContext local_ctx = m_ctx;
-            local_ctx.frame = Frame{cf - spec.from};
-            local_ctx.local_frame = local_ctx.frame;
-            local_ctx.duration = spec.duration;
-            // Preserve sub-frame fraction from the parent time.
-            local_ctx.frame_time = m_ctx.frame_time;
-
-            SceneBuilder sub_builder(local_ctx, m_shape_registry);
-            std::forward<Fn>(fn)(sub_builder);
-
-            Scene sub_scene = sub_builder.build();
-
-            for (auto &layer : sub_scene.layers()) {
-                if (layer.duration >= 0) {
-                    layer.from += spec.from;
-                } else {
-                    layer.from = spec.from;
-                    layer.duration = spec.duration;
-                }
-                scene_.add_layer(std::move(layer));
-            }
-
-            for (auto &node : sub_scene.nodes()) {
-                scene_.add_node(std::move(node));
-            }
-
-            return *this;
-        }
+        SceneBuilder &sequence(const std::string &name, SequenceSpec spec, Fn &&fn);
 
         // Standard Layers
         template <typename Fn>
-        SceneBuilder &layer(std::string name, Fn &&fn) {
-            LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
-            builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
-            builder.font_engine(m_font_engine);  // cascade scene-level bind
-            std::forward<Fn>(fn)(builder);
-
-            Layer l = builder.build();
-            if (l.active_at(current_integer_frame())) {
-                scene_.add_layer(std::move(l));
-            }
-            return *this;
-        }
-
+        SceneBuilder &layer(std::string name, Fn &&fn);
         template <typename Fn>
-        SceneBuilder &screen_layer(std::string name, Fn &&fn) {
-            LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
-            builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
-            builder.font_engine(m_font_engine);  // cascade scene-level bind
-            std::forward<Fn>(fn)(builder);
-
-            Layer l = builder.build();
-            if (l.active_at(current_integer_frame())) {
-                scene_.add_layer(std::move(l));
-            }
-            return *this;
-        }
+        SceneBuilder &screen_layer(std::string name, Fn &&fn);
 
         // Adjustment layer: applies its effect stack to everything rendered before it.
         // The lambda receives a LayerBuilder but any visuals added are ignored.
         template <typename Fn>
-        SceneBuilder &adjustment_layer(std::string name, Fn &&fn) {
-            LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
-            builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
-            builder.font_engine(m_font_engine);  // cascade scene-level bind
-            std::forward<Fn>(fn)(builder);
-
-            Layer l = builder.build();
-            l.kind = LayerKind::Adjustment;
-            if (l.active_at(current_integer_frame())) {
-                scene_.add_layer(std::move(l));
-            }
-            return *this;
-        }
+        SceneBuilder &adjustment_layer(std::string name, Fn &&fn);
 
         template <typename Fn>
-        SceneBuilder &precomp_layer(std::string name, std::string comp_name, Fn &&fn) {
-            LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
-            builder.font_engine(m_font_engine);  // cascade scene-level bind
-            std::forward<Fn>(fn)(builder);
-
-            Layer l = builder.build();
-            l.kind = LayerKind::Precomp;
-            l.precomp_composition_name = std::pmr::string{comp_name, scene_.resource()};
-            if (l.active_at(current_integer_frame())) {
-                scene_.add_layer(std::move(l));
-            }
-            return *this;
-        }
+        SceneBuilder &precomp_layer(std::string name, std::string comp_name, Fn &&fn);
 
         template <typename Fn>
-        SceneBuilder &video_layer(std::string name, video::VideoSource source, Fn &&fn) {
-            LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
-            builder.font_engine(m_font_engine);  // cascade scene-level bind
-            std::forward<Fn>(fn)(builder);
-
-            Layer l = builder.build();
-            l.kind = LayerKind::Video;
-            l.video_source = std::make_unique<video::VideoSource>(std::move(source));
-            if (l.active_at(current_integer_frame())) {
-                scene_.add_layer(std::move(l));
-            }
-            return *this;
-        }
+        SceneBuilder &video_layer(std::string name, video::VideoSource source, Fn &&fn);
+        template <typename Fn>
+        SceneBuilder &video_layer(std::string name, std::string path, Fn &&fn);
 
         template <typename Fn>
-        SceneBuilder &video_layer(std::string name, std::string path, Fn &&fn) {
-            video::VideoSource source;
-            source.path = std::move(path);
-            return video_layer(std::move(name), std::move(source), std::forward<Fn>(fn));
-        }
-
-        template <typename Fn>
-        SceneBuilder &null_layer(std::string name, Fn &&fn) {
-            if constexpr (std::is_invocable_v<Fn, NullBuilder&>) {
-                NullParams params;
-                params.name = std::move(name);
-                NullBuilder builder(params);
-                std::forward<Fn>(fn)(builder);
-
-                Layer l(scene_.resource());
-                l.name = std::pmr::string(params.name, scene_.resource());
-                l.kind = LayerKind::Null;
-                l.transform.position = params.transform.position;
-                l.transform.rotation = glm::quat(glm::radians(params.transform.rotation));
-                l.transform.scale = params.transform.scale;
-                l.transform.anchor = params.transform.anchor;
-                l.parent_name = std::pmr::string(params.transform.parent_name, scene_.resource());
-                l.visible = params.visible_in_diagnostics;
-
-                if (l.active_at(current_integer_frame())) {
-                    scene_.add_layer(std::move(l));
-                }
-                return *this;
-            } else {
-                LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
-                builder.font_engine(m_font_engine);  // cascade scene-level bind
-                std::forward<Fn>(fn)(builder);
-
-                Layer l = builder.build();
-                l.kind = LayerKind::Null;
-                if (l.active_at(current_integer_frame())) {
-                    scene_.add_layer(std::move(l));
-                }
-                return *this;
-            }
-        }
+        SceneBuilder &null_layer(std::string name, Fn &&fn);
 
         // Fluent API for transformations (root level)
         SceneBuilder &at(Vec3 pos);
@@ -310,41 +197,9 @@ namespace chronon3d {
         [[nodiscard]] Scene build();
         [[nodiscard]] const Camera2_5D &camera_2_5d() const;
 
+        // DECL-only template (body in detail/scene_builder_camera.inl)
         template <typename Fn>
-        SceneBuilder &camera_rig(std::string name, Fn &&fn) {
-            CameraRig rig;
-            rig.name = std::move(name);
-            CameraRigBuilder builder(rig);
-            std::forward<Fn>(fn)(builder);
-
-            // Resolve parent/target nulls through the canonical HierarchyResolver
-            // pipeline.  ResolvedSceneTransforms is the value type consumed by
-            // CameraRig::evaluate(); no legacy bridge required.
-            std::vector<SceneTransformInput> inputs;
-            inputs.reserve(scene_.layers().size());
-            for (const auto& layer : scene_.layers()) {
-                Transform3D t3d;
-                t3d.position = layer.transform.position;
-                t3d.rotation = glm::degrees(glm::eulerAngles(layer.transform.rotation));
-                t3d.scale = layer.transform.scale;
-                t3d.anchor = layer.transform.anchor;
-                t3d.parent_name = std::string(layer.parent_name);
-                t3d.inherits_position = true;
-                t3d.inherits_rotation = true;
-                t3d.inherits_scale = true;
-                inputs.push_back(SceneTransformInput{
-                    std::string(layer.name),
-                    t3d,
-                    layer.kind != LayerKind::Null,
-                    false
-                });
-            }
-            ResolvedSceneTransforms resolved = resolve_scene_transforms(inputs);
-
-            Camera2_5D camera_baked = rig.evaluate(current_time_, &resolved);
-            scene_.set_camera_2_5d(camera_baked);
-            return *this;
-        }
+        SceneBuilder &camera_rig(std::string name, Fn &&fn);
 
         /// Stagger all layers in the scene by their spatial order.
         SceneBuilder& stagger(const StaggerConfig& config, StaggerOrder order = StaggerOrder::LeftToRight);
@@ -393,3 +248,11 @@ namespace chronon3d {
     };
 
 } // namespace chronon3d
+
+// ── Phase-3.3 bottom includes ──────────────────────────────────────────
+// Templated member function bodies live in the .inl files below.
+// Implicitly inline because the underlying templates are defined
+// there (no ODR risk even with multiple TU inclusions).
+#include "chronon3d/scene/builders/detail/scene_builder_layers.inl"
+#include "chronon3d/scene/builders/detail/scene_builder_sequences.inl"
+#include "chronon3d/scene/builders/detail/scene_builder_camera.inl"
