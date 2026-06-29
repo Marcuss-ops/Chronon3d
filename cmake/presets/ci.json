@@ -1,5 +1,8 @@
 {
   "version": 6,
+  "include": [
+    "base.json"
+  ],
   "configurePresets": [
     {
       "name": "linux-ci",
