@@ -26,7 +26,11 @@ add_library(chronon3d_content OBJECT
     # Cinematic showcases (catmull-rom, dolly-zoom, title reveal, text camera)
     showcases/cinematic/catmull_rom_showcase.cpp
     showcases/cinematic/cinematic_title_reveal.cpp
-    showcases/cinematic/cinematic_text_camera.cpp
+    showcases/cinematic/deep_parallax_cascade.cpp
+    showcases/cinematic/whip_pan_hero_reveal.cpp
+    showcases/cinematic/orbit_handheld_glow.cpp
+    showcases/cinematic/rack_focus_title_swap.cpp
+    showcases/cinematic/abyss_freefall_stagger.cpp
     showcases/cinematic/dolly_zoom_showcase.cpp
     showcases/cinematic/tilt_sweep_title_v2.cpp
 
