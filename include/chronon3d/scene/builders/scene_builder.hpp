@@ -31,6 +31,8 @@
 
 namespace chronon3d {
 
+    class FontEngine;  // forward decl — per-frame engine cascade
+
     class SceneBuilder {
       public:
         explicit SceneBuilder(std::pmr::memory_resource *res = std::pmr::get_default_resource(),
@@ -94,6 +96,14 @@ namespace chronon3d {
                 m_font_engine = ctx.font_engine;
             }
         }
+
+        /// Bind a FontEngine to cascade into every LayerBuilder created via layer() calls.
+        SceneBuilder& font_engine(FontEngine* engine) {
+            m_font_engine = engine;
+            return *this;
+        }
+
+        [[nodiscard]] FontEngine* font_engine() const { return m_font_engine; }
 
         [[nodiscard]] CameraApi camera() { return CameraApi(*this); }
 
@@ -174,6 +184,7 @@ namespace chronon3d {
         SceneBuilder &layer(std::string name, Fn &&fn) {
             LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
             builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
+            builder.font_engine(m_font_engine);  // cascade scene-level bind
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
@@ -187,6 +198,7 @@ namespace chronon3d {
         SceneBuilder &screen_layer(std::string name, Fn &&fn) {
             LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
             builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
+            builder.font_engine(m_font_engine);  // cascade scene-level bind
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
@@ -202,6 +214,7 @@ namespace chronon3d {
         SceneBuilder &adjustment_layer(std::string name, Fn &&fn) {
             LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
             builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
+            builder.font_engine(m_font_engine);  // cascade scene-level bind
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
@@ -215,6 +228,7 @@ namespace chronon3d {
         template <typename Fn>
         SceneBuilder &precomp_layer(std::string name, std::string comp_name, Fn &&fn) {
             LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
+            builder.font_engine(m_font_engine);  // cascade scene-level bind
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
@@ -229,6 +243,7 @@ namespace chronon3d {
         template <typename Fn>
         SceneBuilder &video_layer(std::string name, video::VideoSource source, Fn &&fn) {
             LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
+            builder.font_engine(m_font_engine);  // cascade scene-level bind
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
@@ -271,6 +286,7 @@ namespace chronon3d {
                 return *this;
             } else {
                 LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
+                builder.font_engine(m_font_engine);  // cascade scene-level bind
                 std::forward<Fn>(fn)(builder);
 
                 Layer l = builder.build();
@@ -373,6 +389,7 @@ namespace chronon3d {
         i32 m_height{1080};
         registry::ShapeRegistry* m_shape_registry{nullptr};
         std::optional<registry::ShapeRegistry> m_own_shape_registry;
+        FontEngine* m_font_engine{nullptr};  // cascaded to LayerBuilder via layer() calls
     };
 
 } // namespace chronon3d
