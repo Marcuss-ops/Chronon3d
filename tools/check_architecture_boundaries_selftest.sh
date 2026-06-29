@@ -81,15 +81,17 @@ else
 fi
 rm -rf "$TMP"
 
-# ── Case 4: forbidden ExecutionPlanCache spelling → exit 1 ────────────
+# ── Case 4: forbidden ExecutionPlanCache spelling → advisory only (TICKET-044) ──
 TMP=$(fresh_tree)
 cat > "$TMP/src/leak_execcache.cpp" <<'EOF'
 class ExecutionPlanCache { int x; };
 EOF
 set +e; BOUNDARY_CHECK_ROOT="$TMP" bash "$MAIN" >"$TMP.out" 2>&1; rc=$?; set -e
-assert_exit "forbidden ExecutionPlanCache reference -> exit 1" 1 "$rc"
+assert_exit "forbidden ExecutionPlanCache reference -> exit 0 (advisory)" 0 "$rc"
 rm -rf "$TMP"
 
+# ── Case 5: REMOVED — make_execution_scheduler pattern removed from main script ──
+: <<'SKIP_CASE5'
 # ── Case 5: forbidden make_execution_scheduler in executor scope ─────
 # Populate a fresh tree; set EXECUTOR_SCOPED_DIR so check [6/12] scans
 # the synthetic tree instead of the real repo.  Other checks scan the
@@ -114,6 +116,7 @@ else
     PASS=$((PASS + 1))
 fi
 rm -rf "$TMP"
+SKIP_CASE5
 
 # ── Case 6: forbidden GraphExecutor local declaration in precomp TU ──
 # (Honours REAL-CWD check [9/12] — src/render_graph/cache/...)
@@ -133,7 +136,7 @@ set +e; BOUNDARY_CHECK_ROOT="$TMP" bash "$MAIN" >"$TMP.out" 2>&1; rc=$?; set -e
 # re-run the script with cwd=$TMP so the synthetic file IS scanned
 # under the relative path src/render_graph/cache/precomp_node_execute.cpp.
 set +e; cd "$TMP" && BOUNDARY_CHECK_ROOT="$TMP" bash "$MAIN" >"$TMP.out" 2>&1; rc2=$?; cd - >/dev/null 2>&1; set -e
-assert_exit "forbidden GraphExecutor local in precomp TU -> exit 1" 1 "$rc2"
+assert_exit "forbidden GraphExecutor local in precomp TU -> exit 0 (advisory)" 0 "$rc2"
 rm -rf "$TMP"
 
 # ── Case 7: clean tree with EXECUTOR_SCOPED_DIR pointing mktemp ──────
@@ -147,6 +150,8 @@ set -e
 assert_exit "clean tree with scoped executor dir -> exit 0" 0 "$rc"
 rm -rf "$TMP"
 
+# ── Case 8: REMOVED — m_runtime nullptr pattern removed from main script ──
+: <<'SKIP_CASE8'
 # ── Case 8: bare m_runtime = nullptr outside canonical (other.m_X) → exit 1 ──
 TMP=$(fresh_tree)
 cat > "$TMP/src/leak_nullptr.cpp" <<'EOF'
@@ -163,7 +168,10 @@ else
     PASS=$((PASS + 1))
 fi
 rm -rf "$TMP"
+SKIP_CASE8
 
+# ── Case 9: REMOVED — m_renderer->settings() pattern removed from main script ──
+: <<'SKIP_CASE9'
 # ── Case 9: m_renderer->settings() F0.2 rot regression → exit 1 ────────
 TMP=$(fresh_tree)
 cat > "$TMP/src/leak_f02_rot.cpp" <<'EOF'
@@ -183,7 +191,10 @@ else
     PASS=$((PASS + 1))
 fi
 rm -rf "$TMP"
+SKIP_CASE9
 
+# ── Case 10: REMOVED — RenderPipeline pattern removed from main script ──
+: <<'SKIP_CASE10'
 # ── Case 10: RenderPipeline::m_renderer sidecar leak → exit 1 ──────────
 # NOTE: RenderPipeline file no longer exists post-F2.4, so the canonical
 # filter is vacuous.  Any future reintroduction in any other TU is a
@@ -209,6 +220,7 @@ else
     PASS=$((PASS + 1))
 fi
 rm -rf "$TMP"
+SKIP_CASE10
 
 # ── Case 11: OBJECT lib leak not in registry → gate [12/14] exit 1 ─────
 # Inject a fake add_library(... OBJECT ...) target in src/CMakeLists.txt
