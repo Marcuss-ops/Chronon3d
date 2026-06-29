@@ -113,7 +113,7 @@ GLOB_BUILD_DIRS=(build-tmp build-debug build-release build-asan build-*)
 # ── Header ───────────────────────────────────────────────────────────
 echo "=== Gitignored build/output dirs not tracked (PR 0.2 close-out) ==="
 echo "    IGNORED_DIRS_HEADER_DATE = ${IGNORED_DIRS_HEADER_DATE}"
-echo "    If `.gitignore` was amended after this date, mirror the change"
+echo "    If .gitignore was amended after this date, mirror the change"
 echo "    in IGNORED_DIRS / IGNORED_FILE_PATTERNS and bump the date."
 echo ""
 
@@ -175,7 +175,7 @@ for f in "${IGNORED_FILE_PATTERNS[@]}"; do
 done
 
 # ── Summary ──────────────────────────────────────────────────────────
-if [ "${per_dir_lines[@]}" ]; then
+if [ ${#per_dir_lines[@]} -gt 0 ]; then
     printf '%s\n' "${per_dir_lines[@]}"
 fi
 echo ""

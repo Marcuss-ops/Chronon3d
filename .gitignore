@@ -106,6 +106,7 @@ build_output.txt
 
 artifacts/visual/camera/
 .build-logs/
+/Testing/
 
 # CMake build artifacts (regenerated on every configure)
 CMakeCache.txt
