@@ -15,55 +15,28 @@ git status -sb
 
 Se il checkout non contiene i file elencati sotto, il clone o worktree è obsoleto. Non inventare percorsi alternativi e non ricreare copie dei documenti.
 
-Verifica rapida:
+Verifica rapida (i documenti canonici devono essere presenti nel checkout):
 
 ```bash
-git ls-tree -r --name-only HEAD docs/stabilization-plan
-git ls-tree -r --name-only HEAD docs/agent-tasks
+git ls-tree -r --name-only HEAD docs/CURRENT_STATUS.md docs/ROADMAP.md docs/RELEASE_GATE.md docs/FOLLOWUP_TICKETS.md
 ```
 
-## Piano operativo canonico
+## Documenti canonici (single source of truth)
 
-Indice principale:
+- `docs/CURRENT_STATUS.md` — stato presente.
+- `docs/ROADMAP.md` — milestone prodotto.
+- `docs/RELEASE_GATE.md` — requisiti di release.
+- `docs/FOLLOWUP_TICKETS.md` — difetti e follow-up aperti.
 
-- `docs/stabilization-plan/README.md`
+I documenti storici (vecchi `docs/STATUS.md`, `docs/NEXT_STEPS.md`, `docs/stabilization-plan/**`,
+plan agente legacy `docs/agent-tasks/`) vivono in `docs/ARCHIVE/` e **non** sono operativi.
 
-Work package:
+## Stato assegnazioni agenti (snapshot 2026-06-29)
 
-- `docs/stabilization-plan/01-baseline-green.md`
-- `docs/stabilization-plan/02-determinism.md`
-- `docs/stabilization-plan/03-execution-scope-and-precomp.md`
-- `docs/stabilization-plan/04-cmake-module-registry.md`
-- `docs/stabilization-plan/05-sdk-plan.md`
-- `docs/stabilization-plan/06-renderer-plan.md`
-- `docs/stabilization-plan/07-documentation-and-adrs.md`
-- `docs/stabilization-plan/08-dependency-profiles.md`
-- `docs/stabilization-plan/09-document-canonicalization.md`
+Tutti gli agenti della tornata (Agent 1 — Renderer/Backend Single Identity, Agent 2 — CMake Registry / SDK Boundary / Baseline, Agent 4 — Visual Verification) sono confluiti su `main`. Lavoro corrente sequenziale su `main`, un task alla volta.
 
-Documenti generali da leggere insieme:
-
-- `docs/STATUS.md`
-- `docs/NEXT_STEPS.md`
-- `docs/ROADMAP.md`
-- `docs/FOLLOWUP_TICKETS.md`
-- `docs/ANTI_DUPLICATION_RULES.md`
-
-## Stato assegnazioni agenti (snapshot 2026-06-24)
-
-Snapshot dello stato corrente (vedi body per lo stato per-agente). L'assegnazione iniziale prevedeva due incarichi paralleli per ridurre conflitti e duplicazioni; la realtà attuale è sequenziale.
-
-1. [Agente 1 — Renderer/Backend Single Identity](docs/agent-tasks/AGENT_1_RENDERER_BOUNDARY.md)
-   - branch: `codex/agent1-renderer-boundary` **[DONE ✓ — Merged into main on 2026-06-23, branch retired]**
-   - ownership: renderer/backend software, call site correlati, test mirati e gate renderer.
-2. [Agente 2 — CMake Registry, SDK Boundary e Baseline](docs/agent-tasks/AGENT_2_CMAKE_SDK_BASELINE.md)
-   - branch: `codex/agent2-cmake-sdk-baseline` **[COMPLETED]**
-   - ownership: CMake, preset/toolchain, install consumer, full validation e documenti canonici.
-   - closed-state baseline: [`docs/baselines/main-345e5f2e-txt-00-closed.md`](docs/baselines/main-345e5f2e-txt-00-closed.md) (main@`345e5f2e`, audit-pinned at commit `b8114705`, 2026-06-24).
-3. [Agente 4 — Verifica visuale e integrazione](docs/agent-tasks/AGENT_4_VERIFY_VISUAL_INTEGRATION.md)
-   - branch: `main` **[DONE ✓ — landed via atomic commit `db81d51d` on 2026-06-24; pre-pickup post-Agente 1+2]**
-   - ownership: verifica end-to-end (test-only + doc-only); nessun `include/`, `src/`, `content/` modificato.
-
-Tutti gli agenti di questa tornata sono completati. Lavoro sequenziale su `main`, un task alla volta.
+Stato presente e blocker attivi: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
+Documenti storici di quelle tornate in `docs/ARCHIVE/` (consultazione non operativa).
 
 ## 🔴 Feature Freeze — V0.1 (attivo dal 2026-06-29)
 
@@ -84,7 +57,7 @@ Tutti gli agenti di questa tornata sono completati. Lavoro sequenziale su `main`
 2. **Test deterministici** — golden test, sentinel hash, regression gate.
 3. **Rimozione percorsi legacy** — dead code, API deprecate, artifact obsoleti.
 4. **Consumer SDK esterno** — certificazione install + link + `render_frame()`.
-5. **Allineamento documentazione** — `STATUS.md`, `ROADMAP.md`, `RELEASE_GATE.md`.
+5. **Allineamento documentazione** — `docs/CURRENT_STATUS.md`, `ROADMAP.md`, `RELEASE_GATE.md`.
 
 ### Cosa è VIETATO
 
@@ -128,7 +101,7 @@ canonico. La revoca richiede un commit esplicito che rimuove questa sezione.
 2. Certificare una sola strategia di packaging CMake per l'SDK (verifica `ar t` + `nm -C`).
 3. Unificare toolchain/preset vcpkg.
 4. Chiudere installazione ed external consumer SDK.
-5. Riallineare `STATUS.md`, `NEXT_STEPS.md`, `ROADMAP.md` alla baseline osservata.
+5. Riallineare `docs/CURRENT_STATUS.md` e `docs/ROADMAP.md` alla baseline osservata (i file `STATUS.md` / `NEXT_STEPS.md` sono ora storici in `docs/ARCHIVE/`).
 6. Solo dopo baseline verde e SDK certificato: Text V1, Camera V1, V0.1 release.
 
 ## Regole di lavoro
