@@ -1,156 +1,108 @@
 #!/usr/bin/env bash
-# tools/sdk/common.sh — Shared helpers for tools/install_consumer_test.sh
+# tools/sdk/common.sh — shared callable library for the install-consume
+# boundary CI test pipeline.
 #
-# PURPOSE
-#   Single source of truth for the bash plumbing consumed by each phase
-#   script in tools/sdk/:
-#     • tools/sdk/check_archive_members.sh
-#     • tools/sdk/check_archive_canaries.sh
-#     • tools/sdk/check_feature_ghosts.sh
-#     • tools/sdk/run_external_consumer.sh
-#   Plus `tools/install_consumer_test.sh` (the thin orchestrator).
+# Sourced (NOT executed) by:
+#   * tools/install_consumer_test.sh       (orchestrator)
+#   * tools/sdk/check_archive_canaries.sh  (Step 3.5)
+#   * tools/sdk/check_feature_ghosts.sh    (Step 2.5)
+#   * tools/sdk/run_external_consumer.sh   (Steps 4-5)
 #
-# CONTRACT
-#   • Each phase script MUST `source "$(dirname "$0")/common.sh"` as its
-#     first executable line (after `#! …` and the header).
-#   • Phase scripts communicate with the orchestrator via SHELL VARIABLES
-#     (set with `export VAR=…`), not via stdin/stdout.  The orchestrator
-#     exports, the phase script reads, no temporary files.  Variables:
-#       SDK_BUILD    — mktemp'd build dir for the SDK
-#       SDK_PREFIX   — mktemp'd install prefix
-#       CONS_BUILD   — mktemp'd build dir for tests/install_consumer
-#       GATE_TMP     — mktemp'd working dir for ar t / nm -C artifacts
-#       PRESET       — cmake preset (default: linux-ci)
-#       REPO_ROOT    — repo root (resolved from common.sh's dirname)
-#       TMP_ROOT     — base for mktemp (default: /tmp or $TMPDIR)
-#   • `cleanup_trap` is registered automatically at source time and
-#     removes every temp var that's non-empty on EXIT.  Phases do NOT
-#     install their own cleanup traps.
-#   • Helpers exposed:
-#       log <msg>                 — log to stderr (CI-friendly).
-#       require_cmake_3_25        — exit 1 if cmake < 3.25.
-#       make_temp_dirs            — produce SDK_BUILD/SDK_PREFIX/CONS_BUILD.
-#       register_cleanup_trap     — registers trap for SDK_BUILD/etc.
-#       load_cache_var <var>      — read a CMakeCache.txt var (stdout).
-#       parse_canary_catalog      — populate canary_areas/symbols/guards arrays.
-#       emit_summary_json         — single-line JSON for CI log scraping.
-#   • `set -euo pipefail` is enforced on entry.  Phases inherit strict mode.
-# ==============================================================================
+# Conventions enforced:
+#   * strict mode (`set -euo pipefail`) re-applied at top; safe to source
+#     twice — the include guard below short-circuits the second source.
+#   * log()   → stderr with `[install_consumer_test]` prefix.
+#   * fail()  → log + exit 1 (one exit code shared by all phases).
+#   * REPO_ROOT resolution from caller's BASH_SOURCE so bash subshell
+#     invocations work identically.
+#   * cache_var() reads CMakeCache.txt with safe empty fallback (caller
+#     can supply default via `${cache_var_name:=default}` parameter exp.).
+#   * mktemp_dir() wraps mktemp with the project's TMPDIR policy.
+#
+# Phase scripts MUST source this file via:
+#     source "$(dirname "$0")/common.sh"
+# …relative to the phase script's path (works under `bash tools/sdk/x.sh`
+# invocations from any cwd).
+
+# ── Include guard (idempotent re-sourcing safety) ────────────────────
+if [[ -n "${_CHRONON3D_COMMON_SH_LOADED:-}" ]]; then
+    return 0
+fi
+_CHRONON3D_COMMON_SH_LOADED=1
 
 set -euo pipefail
 
-# ── Defaults and discovery ──────────────────────────────────────────
-INSTALL_TEST_PRESET="${CHRONON3D_INSTALL_TEST_PRESET:-linux-ci}"
-: "${PRESET:=$INSTALL_TEST_PRESET}"
-# REPO_ROOT is two levels up from this file: tools/sdk/common.sh →
-#   tools/ → repo root.
-# Allow override for sandbox paths (CI sets REPO_ROOT explicitly).
-if [[ -z "${REPO_ROOT:-}" ]]; then
-    REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-fi
-TMP_ROOT="${TMPDIR:-/tmp}"
+# ── Logging ───────────────────────────────────────────────────────────
+log()  { printf "[install_consumer_test] %s\n" "$*" >&2; }
+fail() { log "FAIL: $*"; exit 1; }
 
-# ── Logging ────────────────────────────────────────────────────────
-# Per-line stderr write so CTest / `set -x` follows the script faithfully.
-log() { printf '[install_consumer_test] %s\n' "$*" >&2; }
-
-# ── Toolchain gate ─────────────────────────────────────────────────
+# ── CMake version guard ───────────────────────────────────────────────
 require_cmake_3_25() {
-    command -v cmake >/dev/null || { log "FAIL: cmake not on PATH"; exit 1; }
-    local v
-    v="$(cmake --version | head -1 | awk '{print $3}')"
+    command -v cmake >/dev/null || fail "cmake not on PATH"
+    local v; v="$(cmake --version | head -1 | awk '{print $3}')"
     local major minor
     major="$(echo "$v" | cut -d. -f1)"
     minor="$(echo "$v" | cut -d. -f2)"
     if (( major < 3 || (major == 3 && minor < 25) )); then
-        log "FAIL: cmake >=3.25 required (have $v)"
-        exit 1
+        fail "cmake >=3.25 required (have $v)"
     fi
-    log "cmake $v at $(command -v cmake)"
+    echo "$v"
 }
 
-# ── Temp-dir lifecycle ────────────────────────────────────────────
-# Single source of truth for the three persistent temp dirs (SDK build,
-# SDK install prefix, consumer build).  Each phase that needs a gate
-# tmp calls `make_gate_tmp` separately.
-make_temp_dirs() {
-    [[ -z "${SDK_BUILD:-}"  ]] && SDK_BUILD="$(mktemp -d "$TMP_ROOT/chronon3d_install_consumer_sdk_build.XXXXXX")"
-    [[ -z "${SDK_PREFIX:-}" ]] && SDK_PREFIX="$(mktemp -d "$TMP_ROOT/chronon3d_install_consumer_prefix.XXXXXX")"
-    [[ -z "${CONS_BUILD:-}" ]] && CONS_BUILD="$(mktemp -d "$TMP_ROOT/chronon3d_install_consumer_build.XXXXXX")"
-    export SDK_BUILD SDK_PREFIX CONS_BUILD
-    log "temp sdk build : $SDK_BUILD"
-    log "temp install   : $SDK_PREFIX"
-    log "temp consumer  : $CONS_BUILD"
+# ── REPO_ROOT resolution (works under bash subshell / direct exec) ────
+# Callers are typically `tools/install_consumer_test.sh` (depth 1) or
+# `tools/sdk/<phase>.sh` (depth 2).  Fallback returns the resolved dir
+# verbatim when the call stack doesn't match either pattern (test
+# invocations can `source` this directly).
+resolve_repo_root() {
+    local src="${BASH_SOURCE[1]:-$0}"
+    local dir; dir="$(cd "$(dirname "$src")" && pwd)"
+    case "$dir" in
+        */tools)       (cd "$dir/.." && pwd);;
+        */tools/sdk)   (cd "$dir/../.." && pwd);;
+        *)             echo "$dir";;
+    esac
 }
 
-make_gate_tmp() {
-    [[ -z "${GATE_TMP:-}" ]] && GATE_TMP="$(mktemp -d "$TMP_ROOT/chronon3d_install_gate.XXXXXX")"
-    export GATE_TMP
+# ── Temp dir factory (project TMPDIR policy) ──────────────────────────
+mktemp_dir() {
+    local prefix="${1:-chronon3d_install}"
+    local root="${TMPDIR:-/tmp}"
+    mktemp -d "$root/${prefix}.XXXXXX"
 }
 
-# Register the EXIT trap once at source time.  Removes any non-empty
-# of {SDK_BUILD, SDK_PREFIX, CONS_BUILD, GATE_TMP} on exit, regardless
-# of which phase script created them.  Re-sourcing this file is a
-# no-op (the trap is idempotent via function declared below).
-register_cleanup_trap() {
-    cleanup() {
-        local rc=$?
-        [[ -n "${SDK_BUILD:-}" ]]  && rm -rf "$SDK_BUILD"
-        [[ -n "${SDK_PREFIX:-}" ]] && rm -rf "$SDK_PREFIX"
-        [[ -n "${CONS_BUILD:-}" ]] && rm -rf "$CONS_BUILD"
-        [[ -n "${GATE_TMP:-}"   ]] && rm -rf "$GATE_TMP"
-        exit "$rc"
-    }
-    trap cleanup EXIT
-}
-register_cleanup_trap
-
-# ── CMakeCache.txt reader ────────────────────────────────────────
-# Pull a single CMakeCache.txt value (trimmed) from $SDK_BUILD, or
-# empty string if the var is not set in cache.  Each call is a single
-# grep+head+sed; cheap.
-load_cache_var() {
-    local var="$1"
-    local cache="${SDK_BUILD}/CMakeCache.txt"
-    [[ -f "$cache" ]] || return 0
-    grep -E "^${var}:" "$cache" 2>/dev/null \
+# ── CMakeCache.txt reader ─────────────────────────────────────────────
+# Reads the cached value of a CMake variable from
+# `$SDK_BUILD/CMakeCache.txt`.  Returns "" (empty) if the cache is
+# missing OR the variable is unset.  Caller is expected to apply
+# sensible defaults via parameter expansion (`${var:=default}`).
+#
+# Usage:
+#     text_on="$(cache_var CHRONON3D_ENABLE_TEXT)"; : "${text_on:=ON}"
+cache_var() {
+    local cache_file="${SDK_BUILD}/CMakeCache.txt"
+    [[ -f "$cache_file" ]] || return 0
+    grep -E "^${1}:" "$cache_file" 2>/dev/null \
         | head -1 | sed -E 's/^[^=]*=//' | tr -d ' \t\r\n' || true
 }
 
-# ── Canary catalog parser ────────────────────────────────────────
-# Extract `AREA|SYMBOL|GUARD|TARGET` tuples from the CMake-format
-# catalog.  After this call, canary_areas[i] / canary_symbols[i] /
-# canary_guards[i] / canary_targets[i] are populated (parallel arrays).
-parse_canary_catalog() {
-    local catalog="${REPO_ROOT}/cmake/Chronon3DCanarySymbols.cmake"
-    if [[ ! -f "$catalog" ]]; then
-        log "FAIL: canary catalog not found: $catalog"
-        exit 1
-    fi
-    local entries
-    entries="$(grep -oE '"[a-z_]+\|[a-zA-Z0-9_:]+\|[a-zA-Z0-9_]+\|[a-zA-Z0-9_]+"' "$catalog" 2>/dev/null || true)"
-    if [[ -z "$entries" ]]; then
-        log "FAIL: no canary entries parsed from $catalog"
-        exit 1
-    fi
-    canary_areas=()
-    canary_symbols=()
-    canary_guards=()
-    canary_targets=()
-    while IFS= read -r entry; do
-        local body="${entry#\"}"
-        body="${body%\"}"
-        IFS='|' read -r area symbol guard target <<<"$body"
-        canary_areas+=("$area")
-        canary_symbols+=("$symbol")
-        canary_guards+=("$guard")
-        canary_targets+=("$target")
-    done <<<"$entries"
+# ── Cleanup-trap registrar ────────────────────────────────────────────
+# Registers an EXIT trap that removes each named temp dir (idempotent
+# against empty / unset entries).  Reusable across orchestrator +
+# phase scripts; last call wins.
+cleanup_register() {
+    local rc_save=$?
+    trap '
+        for d in "$@"; do
+            [[ -n "$d" && -d "$d" ]] && rm -rf "$d" 2>/dev/null || true
+        done
+        return '"$rc_save"'
+    ' EXIT
 }
 
-# ── Final JSON summary line ──────────────────────────────────────
-emit_summary_json() {
-    local png_size="${1:-0}"
-    printf '{"test":"install_consumer_ci","status":"passed","preset":"%s","png_bytes":%d}\n' \
-        "$PRESET" "$png_size"
-}
+# ── chmod convention reminder (informational only) ────────────────────
+# The 3 phase scripts under tools/sdk/ declare `#!/usr/bin/env bash`
+# and are intended to be invoked as `bash tools/sdk/<phase>.sh` from
+# the orchestrator.  Local-engine convenience: `chmod +x` after
+# checkout so `./tools/sdk/<phase>.sh` also works.
+:
