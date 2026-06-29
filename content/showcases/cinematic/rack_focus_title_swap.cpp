@@ -39,6 +39,24 @@
 
 namespace chronon3d::content::anims {
 
+namespace {
+
+// Phase-2.3 review-fix — restore anon-namespace `using` declarations
+// that the original monolithic cinematic_text_camera.cpp provided via
+// implicit using-directive on its enclosing-namespace leakage.  After
+// the per-composition .cpp split, this TU no longer inherits that
+// injection; the four names below are referenced unqualified in the
+// factory body beyond this point.  Keep scope narrow: only what
+// RACK_FOCUS_TITLE_SWAP actually uses (the other 8 declarations from
+// the original block live in deep_parallax_cascade / whip_pan_ /
+// orbit_ / abyss_ / and are not needed here).
+using chronon3d::content::text_reveal::CinematicGlowPreset;
+using chronon3d::content::text_reveal::apply_cinematic_glow;
+using chronon3d::content::text::FRESH_TEXT_WHITE;
+using chronon3d::content::text::FRESH_TEXT_MUTED;
+
+} // anonymous namespace
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 4. RackFocusTitleSwap
 //    Vertigo dolly-zoom paired with two opposing blur tracks: a
