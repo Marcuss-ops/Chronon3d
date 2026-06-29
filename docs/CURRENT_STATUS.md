@@ -24,19 +24,21 @@
 Chronon3D è un motore C++20 headless, CPU-first e code-first per motion graphics.
 È avanzato ma **pre-stabile**.
 
-| Area | Stato | Completezza stimata |
+| Area | Stato (osservato) | Note |
 |---|---|---|
-| Render graph compilato | 🟡 Avanzato | Baseline e determinismo scheduler da verificare sullo stesso commit. |
-| Software backend | 🟡 Avanzato | Confine rifattorizzato (Agent-1 #49); gate e full validation da osservare insieme. |
-| Precomp / execution scope | 🔴 Aperto | Nested execution, lease, child arena e concorrenza da chiudere. |
-| Text Production V1 | 🟡 | 60–65% — word timing, rich text produttivo, preset e golden da chiudere. |
-| Camera Production V1 | 🟡 | 70–75% — TICKET-029 risolto (link sbloccato); migrazione legacy e feature path/framing/ottica aperte. |
-| SDK C++ installabile | 🟡 | 80–85% — consumer di rendering reale con testo+camera→PNG in fase di certificazione. |
-| SDK cross-language | 🔵 | 30–40% — C ABI e formato `.chronon` da progettare. |
+| Render graph compilato | 🟡 NOT RUN | Baseline e determinismo scheduler da verificare sullo stesso commit. |
+| Software backend | 🟡 NOT RUN | Confine rifattorizzato (Agent-1 #49); gate e full validation da osservare insieme. |
+| Precomp / execution scope | 🔴 NOT RUN | Nested execution, lease, child arena e concorrenza da chiudere. |
+| Text Production V1 | 🟡 NOT RUN | word timing, rich text produttivo, preset e golden da chiudere. |
+| Camera Production V1 | 🟡 NOT RUN | TICKET-029 risolto (link sbloccato); migrazione legacy e feature path/framing/ottica aperte. |
+| SDK C++ installabile | 🟡 NOT RUN | consumer di rendering reale con testo+camera→PNG in fase di certificazione. |
+| SDK cross-language | 🔵 NOT RUN | C ABI e formato `.chronon` da progettare. |
 | Expressions V2 | 🧪 Sperimentale | OFF di default, non installato, non in SDK. |
 | V3 tile-first | 🔵 Pianificato | Non prima della chiusura baseline e percorsi V1. |
 
-Le percentuali sono stime di copertura funzionale, non risultati CI.
+Lo stato è osservabile (`PASS` / `FAIL` / `PARTIAL` / `NOT RUN`): mai una
+stima di copertura. Un valore `PASS` senza output simultaneo sul commit
+corrente è un falso positivo e va corretto.
 
 ## Fondazioni da preservare
 

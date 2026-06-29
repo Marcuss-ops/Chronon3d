@@ -61,8 +61,9 @@ Documenti storici di quelle tornate in `docs/ARCHIVE/` (consultazione non operat
 
 ### Cosa è VIETATO
 
-- Percentuali manuali di completamento ("Camera 70-75%", "Text 60-65%").
-  Sostituire con `STATUS.generated.md` prodotto dalla CI.
+- Stime manuali di completamento (es. "X–Y%") non sono ammissibili.
+  Sostituire con stato osservabile: `PASS` / `FAIL` / `PARTIAL` / `NOT RUN`
+  (fonte canonica: `STATUS.generated.md` prodotto dalla CI quando disponibile).
 - Nuovi `#include`, nuove classi pubbliche, nuovi `target_link_libraries`
   non strettamente necessari alle 5 categorie sopra.
 - Qualsiasi modifica a `include/chronon3d/` che espanda la superficie API.
