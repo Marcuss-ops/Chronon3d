@@ -51,6 +51,13 @@ function(chronon3d_enable_test_pch target_name)
     # PCH disabled to prevent compiler crashes on resource-constrained environments
 endfunction()
 
+# §12.1 — Test source registration helpers (registration-only; see
+# cmake/Chronon3DTestSuite.cmake for the §11 forward-compat design).
+# This include must come BEFORE the per-area .cmake files so any
+# call to chronon3d_add_test_suite() / chronon3d_register_test_source()
+# from those .cmake files is recognised.
+include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DTestSuite.cmake)
+
 # R2 — SoftwareProcessorContext acceptance test bundle (06 R2 deliverable).
 # No `CHRONON3D_USE_BLEND2D`/`CHRONON3D_BUILD_CONTENT` guard: this test
 # exercises the header-only POD default-state only, so it compiles in
@@ -240,3 +247,26 @@ if(TARGET chronon3d_media_video_tests)
 endif()
 include(${CMAKE_CURRENT_SOURCE_DIR}/architecture_tests.cmake)
 endif()
+
+# §12.1 — Test source registry dump step.
+# Reads the GLOBAL property populated by chronon3d_add_test_suite()
+# and chronon3d_register_test_source() calls in the per-area .cmake
+# files above, and writes the canonical list to
+# ${CMAKE_BINARY_DIR}/registered_test_sources.txt.  The Python gate
+# (`tools/check_test_source_registration.py`, §12.3) diffs this file
+# against the on-disk `tests/**/test_*.cpp` enumeration to detect
+# orphan / stale / duplicate sources.
+#
+# This step always runs (placed outside the `if(CHRONON3D_BUILD_TESTS)`
+# block above) so the artifact is always present — empty when tests
+# are not configured, populated when they are.  Determinism: the
+# global property is appended in call order, which is deterministic
+# (per CMake documentation on GLOBAL properties).
+get_property(CHRONON3D_ALL_REGISTERED_TEST_SOURCES
+    GLOBAL
+    PROPERTY CHRONON3D_REGISTERED_TEST_SOURCES
+)
+file(WRITE
+    "${CMAKE_BINARY_DIR}/registered_test_sources.txt"
+    "${CHRONON3D_ALL_REGISTERED_TEST_SOURCES}"
+)
