@@ -44,11 +44,16 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     Frame frame,
     chronon3d::SoftwareRenderer* sw_sidecar
 ) {
-    // (Default arg `sw_sidecar = nullptr` lives in
-    //  `<chronon3d/render_graph/pipeline/render_pipeline.hpp>` —
-    //  duplicated defaults here would Clang into the
-    //  `default argument given for parameter 8` diagnostic.)
-    const auto t0 = profiling::now();
+    // codex/agent2-font-bind-fixes — Materialise the FontEngine* once
+    // at the entry point so both the single-frame and the motion-blur
+    // sub-frame evaluation paths below share the same pointer.
+    // `sw_sidecar` is the SoftwareRenderer that owns the FontEngine
+    // (per-instance, WP-8 PR 8.0 strict binding); nullptr is
+    // tolerated by Composition::evaluate (engine-aware overload defaults
+    // to nullptr), so non-software callers (tests, CLI dry-runs) keep
+    // their existing semantics.
+    FontEngine* frame_engine =
+        (sw_sidecar != nullptr) ? &sw_sidecar->font_engine() : nullptr;
     const auto hits_before = node_cache.stats().hits;
     const float ssaa = std::max(1.0f, settings.ssaa_factor);
     const int w = comp.width();
@@ -120,7 +125,12 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         Scene scene;
         {
             CHRONON_ZONE_C("evaluate_composition", trace_category::kTimeline);
-            scene = comp.evaluate(frame);
+            // codex/agent2-font-bind-fixes — thread the renderer-owned
+            // FontEngine pointer through to FrameContext so the
+            // composition lambda's auto-bound SceneBuilder can shape
+            // text layers.  See Composition::evaluate's engine-aware
+            // overload (engine before memres; memres has a default).
+            scene = comp.evaluate(frame, 0.0f, frame_engine);
         }
         evaluate_ms = profiling::duration_ms(t_eval0, profiling::now());
         layer_count = static_cast<int>(scene.layers().size());
@@ -202,7 +212,14 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                 const float t = sample_times[s];
                 const float w = samples.normalized_weights[s];
                 actual_weight_sum += w;
-                Scene sub = comp.evaluate(frame, t);
+                // codex/agent2-font-bind-fixes — same engine forwarding
+                // as the single-frame path above.  Sub-frame samples in
+                // the motion-blur accumulator must each see the engine
+                // pointer so text is shaped consistently across the
+                // shutter window.  Engine-aware overload uses default
+                // memres so callers don't need to write
+                // `std::pmr::get_default_resource()`.
+                Scene sub = comp.evaluate(frame, t, frame_engine);
                 if (s == 0) layer_count = static_cast<int>(sub.layers().size());
                 const Framebuffer& sub_fb = *call_graph(sub, frame, t);
 

@@ -310,15 +310,22 @@ TextPreset cinematic_title_reveal_entry() {
     p.display_name = "Cinematic title reveal (push-in/tilt variants)";
     p.category     = TextPresetCategory::Cinematic;
     p.description  = "Cinematic title reveal utilities — push-in + tilt "
-                     "variants for hero/section titles with subtle drift.";
+                     "variants for hero/section titles with subtle drift. "
+                     "AGENT 2 (TICKET-A2) — animation is resolver-driven "
+                     "(Scale/Opacity/Blur/Position AnimatedValue over 36f "
+                     "ease-out cubic); no layer-level chain so the canonical "
+                     "resolver path is the single source of keyframes.";
     p.builtin      = true;
     p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/cinematic_motion/cinematic_title_reveal
-        wire_through_resolver(lb, "cinematic_title_reveal", spec)
-          .scale_drop(0.92f, Frame{40})
-          .soft_pop(Frame{30});
+        // AGENT 2 — animation lives in AnimatorResolver::compose_for;
+        // factory body only routes through the resolver (no second
+        // motor of keyframes per AGENTS.md / brief A2.2+A2.3).
+        // (void)-cast silences [[nodiscard]] on wire_through_resolver
+        // (matches minimal_white_entry pattern at line ~547).
+        (void)wire_through_resolver(lb, "cinematic_title_reveal", spec);
     };
     return p;
 }
@@ -487,14 +494,20 @@ TextPreset tracking_close_entry() {
     p.category     = TextPresetCategory::Reveal;
     p.description  = "Letter-spacing idle pulse (tracking_breathing) over "
                      "Frame{30}.  Use AFTER a parent cinematic preset; "
-                     "no entrance motion of its own.";
+                     "no entrance motion of its own. AGENT 2 (TICKET-A2) — "
+                     "Tracking 0.18→0 over 35f and Opacity 0→1 are "
+                     "resolver-driven (AnimatedValue<>); the factory body "
+                     "is just the canonical wire-through-resolver path.";
     p.builtin      = true;
     p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/reveal_tracking_close
-        wire_through_resolver(lb, "tracking_close", spec)
-          .tracking_breathing(0.05f, Frame{30});
+        // AGENT 2 — resolver-driven; layer-level tracking_breathing removed
+        // (it duplicated the resolver output, see A2.2 / A2.3).
+        // (void)-cast silences [[nodiscard]] on wire_through_resolver
+        // (matches minimal_white_entry pattern).
+        (void)wire_through_resolver(lb, "tracking_close", spec);
     };
     return p;
 }
@@ -527,22 +540,29 @@ TextPreset word_cascade_entry() {
     p.id           = "word_cascade";
     p.display_name = "WordCascade";
     p.category     = TextPresetCategory::Reveal;
-    p.description  = "Per-word stagger (Frame{4} delay) + fade_in.  Each "
+    p.description  = "Per-word stagger (Frame{3} delay) + fade_in.  Each "
                      "word enters in succession — the classic kinetic-title "
-                     "reveal pattern.";
+                     "reveal pattern. AGENT 2 (TICKET-A2) — the Word-unit "
+                     "selector carries an AnimatedValue<>`end` that sweeps "
+                     "0→100 over 48f, and OpacityProperty/PositionProperty/"
+                     "ScaleProperty ramp 0→end_state over 36f ease-out cubic. "
+                     "The factory routes through the resolver only — no "
+                     "layer-level word_stagger + fade_in chain (single "
+                     "canonical path, A2.3).";
     p.builtin      = true;
     p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/reveal_word_cascade
-        wire_through_resolver(lb, "word_cascade", spec)
-          .word_stagger(Frame{4}, Frame{20})
-          .fade_in(Frame{15});
+        // AGENT 2 — resolver-driven; layer-level chain removed (A2.3).
+        // (void)-cast silences [[nodiscard]] on wire_through_resolver
+        // (matches minimal_white_entry pattern).
+        (void)wire_through_resolver(lb, "word_cascade", spec);
     };
     return p;
 }
 
-// 10. character_cascade — same recipe as word_cascade but with Frame{2}
+// 10. character_cascade — same recipe as word_cascade but with Frame{1}
 //     per-glyph delay.  Use when the input has clear glyph separators
 //     (monospace, kerned display fonts).
 TextPreset character_cascade_entry() {
@@ -550,16 +570,22 @@ TextPreset character_cascade_entry() {
     p.id           = "character_cascade";
     p.display_name = "CharacterCascade";
     p.category     = TextPresetCategory::Reveal;
-    p.description  = "Per-glyph stagger (Frame{2} delay) + fade_in.  Tighter "
-                     "than WordCascade — best on monospace / kerned display.";
+    p.description  = "Per-glyph stagger (Frame{1} delay) + fade_in.  Tighter "
+                     "than WordCascade — best on monospace / kerned display. "
+                     "AGENT 2 (TICKET-A2) — Glyph-unit selector with "
+                     "AnimatedValue<>`end` (24f) + property ramps over 18f "
+                     "ease-out cubic; factory routes through the resolver "
+                     "only — no layer-level fade_in + word_stagger chain "
+                     "(single canonical path, A2.3).";
     p.builtin      = true;
     p.builder      = []([[maybe_unused]] SceneBuilderT& sb,
                         LayerBuilderT& lb,
                         const TextSpecT& spec) {
         // golden-frame-link: tests/visual/text/reveal_character_cascade
-        wire_through_resolver(lb, "character_cascade", spec)
-          .fade_in(Frame{15})
-          .word_stagger(Frame{2}, Frame{20});
+        // AGENT 2 — resolver-driven; layer-level chain removed (A2.3).
+        // (void)-cast silences [[nodiscard]] on wire_through_resolver
+        // (matches minimal_white_entry pattern).
+        (void)wire_through_resolver(lb, "character_cascade", spec);
     };
     return p;
 }

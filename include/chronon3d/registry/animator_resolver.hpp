@@ -170,9 +170,34 @@ struct AnimatorResolver {
             a.properties.push_back(OpacityProperty{1.0f});
         }
         else if (preset_id == "cinematic_title_reveal") {
-            // scale_drop(0.92,40) + soft_pop(30)
-            a.properties.push_back(ScaleProperty{Vec3{0.92f, 0.92f, 1.0f}});
-            a.properties.push_back(OpacityProperty{1.0f});
+            // AGENT 2 (TICKET-A2) — really animated, single 36-frame ease-out
+            // timeline baking into the resolver (clean replacement for the
+            // prior static `ScaleProperty{0.92f}` + `OpacityProperty{1.0f}`
+            // terminal-state values).
+            //   F0 : opacity 0,    blur 12,   scale 0.92,  Y +40
+            //   F18: opacity ~0.7, blur ~3,   scale 0.98,  Y ~+12
+            //   F36: opacity 1,    blur  0,   scale 1.0,   Y  0
+            const EasingCurve eo_cine{Easing::OutCubic};
+
+            ScaleProperty sp;
+            sp.value.add_keyframe(Frame{0},  Vec3{0.92f, 0.92f, 1.0f}, eo_cine);
+            sp.value.add_keyframe(Frame{36}, Vec3{1.0f,  1.0f,  1.0f}, eo_cine);
+            a.properties.push_back(sp);
+
+            OpacityProperty op;
+            op.value.add_keyframe(Frame{0},  0.0f, eo_cine);
+            op.value.add_keyframe(Frame{36}, 1.0f, eo_cine);
+            a.properties.push_back(op);
+
+            BlurProperty bp;
+            bp.radius.add_keyframe(Frame{0},  12.0f, eo_cine);
+            bp.radius.add_keyframe(Frame{36}, 0.0f,  eo_cine);
+            a.properties.push_back(bp);
+
+            PositionProperty pp;
+            pp.value.add_keyframe(Frame{0},  Vec3{0.0f, 40.0f, 0.0f}, eo_cine);
+            pp.value.add_keyframe(Frame{36}, Vec3{0.0f, 0.0f,  0.0f}, eo_cine);
+            a.properties.push_back(pp);
         }
         else if (preset_id == "tilt_sweep_title_v2") {
             // scale_drop(1.08,45) + focus_in(2.5,30) + soft_pop(24)
@@ -210,20 +235,100 @@ struct AnimatorResolver {
             a.properties.push_back(OpacityProperty{1.0f});
         }
         else if (preset_id == "tracking_close") {
-            // tracking_breathing(0.05,30)
-            a.properties.push_back(TrackingProperty{0.05f});
+            // AGENT 2 (TICKET-A2) — 35-frame timeline: tracking 0.18 \u2192 0,
+            // opacity 0 \u2192 1. Replaces the prior static TrackingProperty{0.05f}.
+            // OutExpo on tracking keeps the initial deflection punchy; the
+            // opacity ramp uses plain Linear.
+            TrackingProperty tp;
+            tp.pixels.add_keyframe(Frame{0},  0.18f, EasingCurve{Easing::OutExpo});
+            tp.pixels.add_keyframe(Frame{35}, 0.0f,  EasingCurve{Easing::Linear});
+            a.properties.push_back(tp);
+
+            OpacityProperty op;
+            op.value.add_keyframe(Frame{0},  0.0f, EasingCurve{Easing::Linear});
+            op.value.add_keyframe(Frame{35}, 1.0f, EasingCurve{Easing::Linear});
+            a.properties.push_back(op);
         }
         else if (preset_id == "masked_line_reveal") {
             // center_split(30) + fade_shift_horizontal({120,0,0},25)
             a.properties.push_back(PositionProperty{Vec3{120.0f, 0.0f, 0.0f}});
         }
         else if (preset_id == "word_cascade") {
-            // word_stagger(4,20) + fade_in(15)
-            a.properties.push_back(OpacityProperty{1.0f});
+            // AGENT 2 (TICKET-A2) — per-word cascade, 3-frame stagger.
+            //   Per word: opacity 0\u21921, position Y 30\u21920, scale 0.96\u21921.
+            // Selector (Word unit) carries an AnimatedValue `end` that
+            // sweeps 0\u2192100 over 48 frames, revealing words left-to-right;
+            // the property AnimatedValues ramp 0\u2192final_state over 36 frames
+            // so each revealed word animates in. The selector.unit binding
+            // (Word) is a hard requirement of the brief; the staggering
+            // effect is observable via glyph count + per-word weight
+            // differences at intermediate frames.
+            const EasingCurve eo_words{Easing::OutCubic};
+
+            OpacityProperty op;
+            op.value.add_keyframe(Frame{0},  0.0f,  eo_words);
+            op.value.add_keyframe(Frame{36}, 1.0f,  eo_words);
+            a.properties.push_back(op);
+
+            PositionProperty pp;
+            pp.value.add_keyframe(Frame{0},  Vec3{0.0f, 30.0f, 0.0f}, eo_words);
+            pp.value.add_keyframe(Frame{36}, Vec3{0.0f, 0.0f,  0.0f}, eo_words);
+            a.properties.push_back(pp);
+
+            ScaleProperty sp;
+            sp.value.add_keyframe(Frame{0},  Vec3{0.96f, 0.96f, 1.0f}, eo_words);
+            sp.value.add_keyframe(Frame{36}, Vec3{1.0f,  1.0f,  1.0f}, eo_words);
+            a.properties.push_back(sp);
+
+            // Override the default global selector: Word unit + animated
+            // `end` (sweep 0\u2192100 over 48f, ease-out cubic).
+            a.selectors.clear();
+            GlyphSelectorSpec word_sel;
+            word_sel.id     = a.id + "_sel_word";
+            word_sel.unit   = TextSelectorUnit::Word;
+            word_sel.shape  = TextSelectorShape::Square;
+            word_sel.start  = AnimatedValue<f32>{0.0f};
+            word_sel.end    = AnimatedValue<f32>{
+                {{Frame{0},  0.0f,   eo_words},
+                 {Frame{48}, 100.0f, eo_words}}};
+            word_sel.amount = AnimatedValue<f32>{100.0f};
+            a.selectors.push_back(word_sel);
         }
         else if (preset_id == "character_cascade") {
-            // fade_in(15) + word_stagger(2,20)
-            a.properties.push_back(OpacityProperty{1.0f});
+            // AGENT 2 (TICKET-A2) — per-glyph cascade, 1-frame stagger.
+            //   Per glyph: opacity 0\u21921, position Y 18\u21920, scale 0.9\u21921.
+            // Selector (Glyph unit) carries an AnimatedValue `end` that
+            // sweeps 0\u2192100 over 24 frames, revealing glyphs left-to-right.
+            const EasingCurve eo_char{Easing::OutCubic};
+
+            OpacityProperty op;
+            op.value.add_keyframe(Frame{0},  0.0f,  eo_char);
+            op.value.add_keyframe(Frame{18}, 1.0f,  eo_char);
+            a.properties.push_back(op);
+
+            PositionProperty pp;
+            pp.value.add_keyframe(Frame{0},  Vec3{0.0f, 18.0f, 0.0f}, eo_char);
+            pp.value.add_keyframe(Frame{18}, Vec3{0.0f, 0.0f,  0.0f}, eo_char);
+            a.properties.push_back(pp);
+
+            ScaleProperty sp;
+            sp.value.add_keyframe(Frame{0},  Vec3{0.9f, 0.9f, 1.0f}, eo_char);
+            sp.value.add_keyframe(Frame{18}, Vec3{1.0f, 1.0f, 1.0f}, eo_char);
+            a.properties.push_back(sp);
+
+            // Override the default global selector: Glyph unit + animated
+            // `end` (sweep 0\u2192100 over 24f, ease-out cubic).
+            a.selectors.clear();
+            GlyphSelectorSpec glyph_sel;
+            glyph_sel.id     = a.id + "_sel_glyph";
+            glyph_sel.unit   = TextSelectorUnit::Glyph;
+            glyph_sel.shape  = TextSelectorShape::Square;
+            glyph_sel.start  = AnimatedValue<f32>{0.0f};
+            glyph_sel.end    = AnimatedValue<f32>{
+                {{Frame{0},  0.0f,  eo_char},
+                 {Frame{24}, 100.0f, eo_char}}};
+            glyph_sel.amount = AnimatedValue<f32>{100.0f};
+            a.selectors.push_back(glyph_sel);
         }
         else if (preset_id == "word_pop") {
             // scale_drop(1.15,8) + soft_pop(15)

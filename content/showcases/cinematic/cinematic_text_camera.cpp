@@ -96,6 +96,18 @@ Composition deep_parallax_cascade() {
         .duration = 180,
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
+        // codex/agent2-font-bind-fixes — bind the renderer-supplied
+        // FontEngine at scene-build time.  Without this explicit call,
+        // WP-8 PR 8.0 strict-binding in `materialize_text_run_shape`
+        // rejects resolve_engine(engine) lookup (engine = nullptr) and
+        // the text layers render blank.  SceneBuilder.cascade-forwards
+        // `m_font_engine` onto every LayerBuilder constructed below, so
+        // a single bind at scene-build time reaches all text layers in
+        // this composition.  Explicit `s.font_engine(ctx.font_engine)`
+        // REPLACES any auto-bound pointer (same setter used by
+        // SceneBuilder(ctx) ctor auto-forward) — re-assignment is
+        // idempotent and safe.
+        if (ctx.font_engine) s.font_engine(ctx.font_engine);
 
         // ── Background: dark with a vertical cyan halo behind the hero ─────
         s.layer("bg_halo", [](LayerBuilder& l) {
@@ -184,6 +196,11 @@ Composition whip_pan_hero_reveal() {
         .duration = 90,
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
+        // codex/agent2-font-bind-fixes — see deep_parallax_cascade()
+        // header comment for the rationale; same single bind at
+        // scene-build time forwards the engine into every subsequent
+        // LayerBuilder.created-via-s.layer(...) call.
+        if (ctx.font_engine) s.font_engine(ctx.font_engine);
 
         // ── Deep magenta+black backdrop with pink vignette accents ──────
         s.layer("bg", [](LayerBuilder& l) {
@@ -299,6 +316,9 @@ Composition orbit_handheld_glow() {
         .duration = 240,
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
+        // codex/agent2-font-bind-fixes — same single-bind scene-build
+        // pattern as deep_parallax_cascade(); see header comment.
+        if (ctx.font_engine) s.font_engine(ctx.font_engine);
 
         // Pure black pitch background.
         s.layer("bg", [](LayerBuilder& l) {
@@ -409,6 +429,9 @@ Composition rack_focus_title_swap() {
         .duration = 180,
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
+        // codex/agent2-font-bind-fixes — same single-bind scene-build
+        // pattern as deep_parallax_cascade(); see header comment.
+        if (ctx.font_engine) s.font_engine(ctx.font_engine);
 
         // ── Bokeh-ish background: radial purple-to-black ──────────────
         s.layer("bg", [](LayerBuilder& l) {
@@ -535,6 +558,9 @@ Composition abyss_freefall_stagger() {
         .duration = 210,
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
+        // codex/agent2-font-bind-fixes — same single-bind scene-build
+        // pattern as deep_parallax_cascade(); see header comment.
+        if (ctx.font_engine) s.font_engine(ctx.font_engine);
 
         // Pure black background with a single blue point-light at the
         // far end so the eye has something to fall toward.

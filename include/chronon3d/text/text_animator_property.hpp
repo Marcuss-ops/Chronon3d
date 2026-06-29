@@ -30,13 +30,29 @@ enum class TextPropertyBlendMode {
 };
 
 // ── Individual property structs ───────────────────────────────────────────
+//
+// AGENT 2 — Testi realmente animati (TICKET-A2):
+//   PositionProperty, ScaleProperty, OpacityProperty, BlurProperty, and
+//   TrackingProperty now hold `AnimatedValue<T>` instead of static `T` so
+//   the per-frame evaluator in `src/text/text_animator_property.cpp` can
+//   query `.evaluate(time)`. The behaviour for callers that constructed
+//   properties with `{1.0f}` / `Vec3{1,1,1}` / etc. is preserved —
+//   aggregate-init still routes through `AnimatedValue(T default_value)`
+//   so the static end-state semantics are equivalent when no keyframes
+//   are present (AnimatedValue evaluates to m_default_value).
+//
+//   The remaining variants (RotationProperty, SkewProperty, AnchorProperty,
+//   FillColorProperty, StrokeColorProperty, StrokeWidthProperty,
+//   BaselineShiftProperty, CharacterOffsetProperty) keep static values
+//   to keep the refactor scope tight. They can be migrated in a
+//   follow-up PR without breaking any contracts.
 
 struct PositionProperty {
-    Vec3 value{0.0f, 0.0f, 0.0f};
+    AnimatedValue<Vec3> value{Vec3{0.0f, 0.0f, 0.0f}};
 };
 
 struct ScaleProperty {
-    Vec3 value{1.0f, 1.0f, 1.0f};
+    AnimatedValue<Vec3> value{Vec3{1.0f, 1.0f, 1.0f}};
 };
 
 struct RotationProperty {
@@ -53,11 +69,11 @@ struct AnchorProperty {
 };
 
 struct OpacityProperty {
-    f32 value{1.0f};
+    AnimatedValue<f32> value{1.0f};
 };
 
 struct BlurProperty {
-    f32 radius{0.0f};                 // gaussian blur radius in pixels
+    AnimatedValue<f32> radius{0.0f};           // gaussian blur radius in pixels
 };
 
 struct FillColorProperty {
@@ -73,7 +89,7 @@ struct StrokeWidthProperty {
 };
 
 struct TrackingProperty {
-    f32 pixels{0.0f};                 // extra tracking per glyph in pixels
+    AnimatedValue<f32> pixels{0.0f};          // extra tracking per glyph in pixels
 };
 
 struct BaselineShiftProperty {
