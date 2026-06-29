@@ -1,9 +1,9 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@562110d6` — 25 giugno 2026. Linux-only.
+> **Snapshot:** `main@4586d816` — 2026-06-29. Linux-only.
 >
 > Ultima baseline macchina-verificata: `main@446a60e2` (3/4 ✅, registrata in [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md)).
-> La baseline sull'HEAD corrente non è ancora stata eseguita.
+> **Baseline sull'HEAD corrente: NON CERTIFICATA** (nessun run macchina-verificato di tutti gli 11 gate registrato dopo `446a60e2`).
 >
 > Questo è l'unico documento canonico per lo stato presente del progetto.
 > Per il futuro vedi [`ROADMAP.md`](ROADMAP.md).
@@ -169,6 +169,10 @@ Servono tutte le prove seguenti sullo stesso commit:
 - documenti aggiornati con commit, comandi e risultati.
 
 L'assenza di workflow fallito non equivale a una baseline verde.
+
+> **Certificazione corrente (2026-06-29, `4586d816`)**: NON CERTIFICATA.
+> La regola di sopra si applica: serve un run macchina-verificato dei 11 gate sul commit candidato
+> per promuovere la baseline a `CERTIFICATA @ <SHA>`.
 
 ## Documenti correlati
 

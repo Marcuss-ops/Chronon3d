@@ -1,6 +1,6 @@
 # Follow-up Tickets — Open Blockers Index
 
-> Snapshot: `main@f69045a6a` — 2026-06-29. Linux-only.
+> Snapshot: `main@4586d816` — 2026-06-29. Linux-only.
 > File canonico: solo blocker aperti. La storia completa (49+ ticket chiusi) è migrata in
 > `docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md`.
 >
