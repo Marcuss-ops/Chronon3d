@@ -1,0 +1,117 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# nightly-visual.yml — Full cinematic camera + visual validation
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Runs the FULL cinematic showcase surface (5 compositions × 6 keyframes
+# per composition).  Daily push counterpart is wired into
+# `.github/workflows/ci.yml` via `tools/verify_cinematic_showcase.sh --smoke`,
+# which runs a 1-comp × 2-frame smoke and produces zero artefacts on disk.
+#
+# Triggers:
+#   workflow_dispatch   — manual on-demand from the GitHub UI
+#   schedule cron       — nightly at 02:00 UTC (low contention window)
+#
+# Heavy gate surface in this workflow:
+#   * A4.1..A4.6 strict (5/5 × 6/6 = full coverage)
+#   * output/showcase/contact_sheet.png  (5760 × 2160 PNG master grid)
+#   * A4.6 perf envelope (mean/total ms + peak RSS framebuffer envelope)
+#   * run artifacts uploaded for trend dashboards (60-day retention)
+#
+# Step 2/6 of the Agent 2 / ci-showcase plan.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Chronon Nightly Visual
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Nightly at 02:00 UTC. Worst CI contention is in NA evening; this
+    # window is well below peak. Adjust here if fleet usage shifts.
+    - cron: '0 2 * * *'
+
+env:
+  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+  VCPKG_BINARY_SOURCES: "clear;nuget,GitHub,readwrite"
+  VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+
+jobs:
+  cinematic-full:
+    name: Nightly cinematic full (5 comps × 6 keyframes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+      # ── Configure (linux-ci: content + tests ON, no experimental) ────
+      - name: Configure (linux-ci)
+        run: cmake --preset linux-ci
+
+      # ── Build only what's needed for the cinematic showcase ───────────
+      - name: Build showcase binary + render tests
+        run: |
+          cmake --build build/chronon/linux-ci \
+            --target chronon3d_cinematic_camera_showcase_tests \
+            --target chronon3d_tests_render \
+            -j$(nproc)
+
+      # ── Full-mode env (defaults; passing through explicitly for log) ─
+      - name: "Verify cinematic showcase (FULL: 5 × 6)"
+        env:
+          # Explicit unpinned "default" values for the audit log; binary
+          # also defaults to 6/5 if unset.
+          CHRONON3D_CINEMATIC_FRAME_COUNT: '6'
+          CHRONON3D_CINEMATIC_COMP_COUNT: '5'
+        run: |
+          echo ">>> tools/verify_cinematic_showcase.sh (FULL mode)"
+          bash tools/verify_cinematic_showcase.sh
+
+      # ── Render contact sheet (full: 5760×2160 PNG master) ────────────
+      - name: "Render contact sheet (FULL: 5760×2160)"
+        env:
+          CHRONON3D_CINEMATIC_FRAME_COUNT: '6'
+          CHRONON3D_CINEMATIC_COMP_COUNT: '5'
+        run: |
+          echo ">>> tools/render_showcase_contact_sheet.sh (FULL)"
+          bash tools/render_showcase_contact_sheet.sh
+
+      # ── Collect + upload artefacts (60-day retention) ────────────────
+      - name: Collect nightly artefacts
+        if: always()
+        run: |
+          mkdir -p artifacts
+          # Contact sheet master (5760×2160 PNG)
+          if [ -f output/showcase/contact_sheet.png ]; then
+            cp output/showcase/contact_sheet.png artifacts/contact_sheet.png
+            sha256sum output/showcase/contact_sheet.png > artifacts/contact_sheet.png.sha256
+          fi
+          # Raw output/ artefacts (forensic if verify failed)
+          if [ -d output/showcase ]; then
+            find output/showcase -maxdepth 2 -type f \
+              \( -name '*.png' -o -name '*.log' -o -name '*.txt' -o -name '*.json' \) \
+              -exec cp --parents {} artifacts/ \; 2>/dev/null || true
+          fi
+          # Other output/ subdirs (camera_visual, debug, diff) optionally
+          for sub in debug diff camera_visual; do
+            if [ -d "output/${sub}" ]; then
+              cp -r "output/${sub}" "artifacts/${sub}/" 2>/dev/null || true
+            fi
+          done
+
+      - name: Upload nightly artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-visual-${{ github.run_id }}
+          path: artifacts/
+          retention-days: 60
+          if-no-files-found: warn
