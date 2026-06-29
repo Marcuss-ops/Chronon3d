@@ -1,30 +1,30 @@
-# ==============================================================================
-# include/chronon3d/animation/core/detail/animated_value_bezier.inl
-#
-# BEZIER side of AnimatedValue<T> — extracted verbatim from
-# include/chronon3d/animation/core/animated_value.hpp as part of the
-# Phase-3 mechanical split.  Single source of truth for:
-#   • `compute_auto_beziers()` — auto-tangent computation for
-#     AutoBezier keyframes (1/3-tension interpolation, similar to
-#     AnimationCurve::compute_auto_beziers).
-#   • `eval_temporal_bezier(...)` — Newton-Raphson solve for
-#     x(u) = t, return y(u) (the scalar temporal-bezier evaluation
-#     used when prev.interp is Bezier/AutoBezier and T is arithmetic).
-#
-# PRECONDITIONS
-#   This `.inl` is included at the BOTTOM of animated_value.hpp, AFTER
-#   the AnimatedValue<T> class body.  The template class type MUST be
-#   fully defined at this point.
-#
-# CONTRACT
-#   Bodies byte-equivalent to the original lines in animated_value.hpp
-#   (verbatim move + template<class>:: scope prefix added for
-#   out-of-line definitions).  Algorithm invariants unchanged:
-#     • No tangent updates at endpoints (kTension = 1/3; ends have
-#       at most one neighbour).
-#     • Newton-Raphson fallback to bisection after 8 iterations OR
-#       |dVal| < 1e-6.
-# ==============================================================================
+// ==============================================================================
+// include/chronon3d/animation/core/detail/animated_value_bezier.inl
+//
+// BEZIER side of AnimatedValue<T> — extracted verbatim from
+// include/chronon3d/animation/core/animated_value.hpp as part of the
+// Phase-3 mechanical split.  Single source of truth for:
+//   • `compute_auto_beziers()` — auto-tangent computation for
+//     AutoBezier keyframes (1/3-tension interpolation, similar to
+//     AnimationCurve::compute_auto_beziers).
+//   • `eval_temporal_bezier(...)` — Newton-Raphson solve for
+//     x(u) = t, return y(u) (the scalar temporal-bezier evaluation
+//     used when prev.interp is Bezier/AutoBezier and T is arithmetic).
+//
+// PRECONDITIONS
+//   This `.inl` is included at the BOTTOM of animated_value.hpp, AFTER
+//   the AnimatedValue<T> class body.  The template class type MUST be
+//   fully defined at this point.
+//
+// CONTRACT
+//   Bodies byte-equivalent to the original lines in animated_value.hpp
+//   (verbatim move + template<class>:: scope prefix added for
+//   out-of-line definitions).  Algorithm invariants unchanged:
+//     • No tangent updates at endpoints (kTension = 1/3; ends have
+//       at most one neighbour).
+//     • Newton-Raphson fallback to bisection after 8 iterations OR
+//       |dVal| < 1e-6.
+// ==============================================================================
 
 // compute_auto_beziers — temporal-tangent auto-compute for AutoBezier keyframes.
 template <AnimatableValue T>

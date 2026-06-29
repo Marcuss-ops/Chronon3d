@@ -1,35 +1,35 @@
-# ==============================================================================
-# include/chronon3d/animation/core/detail/animated_value_evaluation.inl
-#
-# EVALUATION side of AnimatedValue<T> — extracted verbatim from
-# include/chronon3d/animation/core/animated_value.hpp as part of the
-# Phase-3 mechanical split.  Single source of truth for the core
-# interpolation engine (boilerplate-free, depends only on T being
-# AnimatableValue).
-#
-# PRECONDITIONS
-#   This `.inl` is included at the BOTTOM of animated_value.hpp, AFTER
-#   the AnimatedValue<T> class body.  The template class type MUST be
-#   fully defined at this point; that's why the .inl lives in `detail/`
-#   (must include animated_value.hpp first, which includes its detail/*
-#   blocks at the very end).
-#
-# CONTRACT
-#   The bodies of `evaluate_base_double(...)`, `has_spatial_handles(...)`,
-#   and `should_cache_double(...)` are byte-equivalent to the original
-#   lines in animated_value.hpp (verbatim move + template<class>:: scope
-#   prefix added for out-of-line definitions).
-#
-# NOTE on the LoopMode block
-#   `evaluate_base_double(...)` carries a small `if (m_loop_mode == LoopMode::Loop)`
-#   block and a corresponding PingPong block.  These are KEPT INSIDE
-#   `evaluate_base_double(...)` rather than extracted into a dedicated
-#   `animated_value_looping.inl`.  Cutting a `LoopMode` block out of the
-#   middle of a function body via `#include` is an archaic C-style
-#   anti-pattern that breaks IDE formatting and scope analysis (see
-#   docs/ARCHIVE/anti-loop-include-pattern for example discussion).
-#   Inline preservation is also what `git blame` + diff viewers expect.
-# ==============================================================================
+// ==============================================================================
+// include/chronon3d/animation/core/detail/animated_value_evaluation.inl
+//
+// EVALUATION side of AnimatedValue<T> — extracted verbatim from
+// include/chronon3d/animation/core/animated_value.hpp as part of the
+// Phase-3 mechanical split.  Single source of truth for the core
+// interpolation engine (boilerplate-free, depends only on T being
+// AnimatableValue).
+//
+// PRECONDITIONS
+//   This `.inl` is included at the BOTTOM of animated_value.hpp, AFTER
+//   the AnimatedValue<T> class body.  The template class type MUST be
+//   fully defined at this point; that's why the .inl lives in `detail/`
+//   (must include animated_value.hpp first, which includes its detail/*
+//   blocks at the very end).
+//
+// CONTRACT
+//   The bodies of `evaluate_base_double(...)`, `has_spatial_handles(...)`,
+//   and `should_cache_double(...)` are byte-equivalent to the original
+//   lines in animated_value.hpp (verbatim move + template<class>:: scope
+//   prefix added for out-of-line definitions).
+//
+// NOTE on the LoopMode block
+//   `evaluate_base_double(...)` carries a small `if (m_loop_mode == LoopMode::Loop)`
+//   block and a corresponding PingPong block.  These are KEPT INSIDE
+//   `evaluate_base_double(...)` rather than extracted into a dedicated
+//   `animated_value_looping.inl`.  Cutting a `LoopMode` block out of the
+//   middle of a function body via `#include` is an archaic C-style
+//   anti-pattern that breaks IDE formatting and scope analysis (see
+//   docs/ARCHIVE/anti-loop-include-pattern for example discussion).
+//   Inline preservation is also what `git blame` + diff viewers expect.
+// ==============================================================================
 
 // has_spatial_handles — checks a keyframe for non-zero bezier handles.
 /// Returns true if the keyframe has non-zero out_handle or in_handle
