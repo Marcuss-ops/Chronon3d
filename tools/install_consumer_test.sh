@@ -77,6 +77,62 @@ cmake --build "$SDK_BUILD" --target chronon3d_sdk_impl 1>&2
 log "Installing SDK into $SDK_PREFIX"
 cmake --install "$SDK_BUILD" --prefix "$SDK_PREFIX" 1>&2
 
+# ────────────────────────── Step 2.5: feature-OFF ghost sweep ───────
+# Activated by CHRONON3D_INSTALL_TEST_GHOST_SWEEP=1 env var.  When
+# ON, reconfigure the SAME $SDK_BUILD with DIAG=OFF + CONTENT=OFF,
+# rebuild via sdk_archive_merge, re-install into the SAME prefix,
+# and verify the resulting libchronon3d_sdk_impl.a does NOT contain
+# any of the gated .o files.  Hard-fail with `GHOST-FAIL: <objname>`
+# if any leak through; emit `GHOST-OK` otherwise.
+#
+# Why: the manifest count gate (Fase 1 + Fase 5) verifies that the
+# archive contains the EXPECTED objects, but does not prove the
+# registry ENFORCES the feature toggles.  A builder that always picks
+# up the full .o set regardless of CHRONON3D_BUILD_* flags would
+# still pass the manifest gate.  This sweep proves the gate actually
+# drops the gated compilation units when their toggle is OFF.
+#
+# After this OFF re-install, the downstream Fase-5 canary gate
+# (Step 3.5) runs with the diagnostics canary correctly SKIPPED, but
+# the unconditional subsystems (core/animations/scene/runtime/
+# render_graph/software_backend/text_core) are still verified.
+if [[ "${CHRONON3D_INSTALL_TEST_GHOST_SWEEP:-0}" == "1" ]]; then
+    log "ghost sweep ON: switching SDK_BUILD to DIAG=OFF + CONTENT=OFF"
+    cmake -S "$REPO_ROOT" -B "$SDK_BUILD" --preset "$PRESET" \
+        -DCMAKE_INSTALL_PREFIX="$SDK_PREFIX" \
+        -DCHRONON3D_BUILD_DIAGNOSTICS=OFF \
+        -DCHRONON3D_BUILD_CONTENT=OFF 1>&2
+
+    cmake --build "$SDK_BUILD" --target sdk_archive_merge -j8 1>&2
+
+    cmake --install "$SDK_BUILD" --prefix "$SDK_PREFIX" 1>&2
+
+    impl_archive_off="$(find "$SDK_PREFIX" -type f -name 'libchronon3d_sdk_impl.a' 2>/dev/null | head -1 || true)"
+    if [[ -z "$impl_archive_off" ]]; then
+        log "GHOST-FAIL: archive missing after OFF re-install"
+        exit 1
+    fi
+    log "OFF archive: $impl_archive_off"
+
+    ar_ghost_list="$GATE_TMP/ar_off.txt"
+    ar t "$impl_archive_off" | sort > "$ar_ghost_list"
+    ghost_fail_count=0
+    for ghost in chronon3d_diagnostics.cpp.o \
+                 chronon3d_backend_software_diagnostics.cpp.o \
+                 chronon3d_content.cpp.o; do
+        if grep -qF -- "$ghost" "$ar_ghost_list"; then
+            log "GHOST-FAIL: $ghost"
+            ghost_fail_count=$((ghost_fail_count + 1))
+        fi
+    done
+    if (( ghost_fail_count > 0 )); then
+        log "Ghost sweep: $ghost_fail_count feature-OFF object(s) leaked into OFF archive"
+        log "              (registries must drop these .cpp.o when their CHRONON3D_BUILD_* flag is OFF)"
+        exit 1
+    fi
+    log "GHOST-OK: feature-OFF archive is clean (no diagnostics/content ghost .o)"
+fi
+
 # ────────────────────────── Step 3: boundary pre-conditions ───────────
 config_file="$(find "$SDK_PREFIX" -type f -name 'Chronon3DConfig.cmake' 2>/dev/null | head -1 || true)"
 targets_file="$(find "$SDK_PREFIX" -type f -name 'Chronon3DTargets.cmake' 2>/dev/null | head -1 || true)"
