@@ -39,30 +39,28 @@
 #   `cmake/Chronon3DRegistry.cmake`.  Keep the `# #[area] #[target_lib]`
 #   comment on each line so `tools/install_consumer_test.sh` Step 3.5 can
 #   parse it without ambiguity.
-# ==============================================================================# CANARY ENTRY VERIFICATION STATUS (re-verified 2026-06-29 from source-tree
-# evidence; real nm -C cross-check BLOCKED until Phase 1/8 target_sources
-# fix lands — see header caveat above):
+# ==============================================================================# CANARY ENTRY VERIFICATION STATUS (re-verified 2026-06-29 against the
+# freshly-built libchronon3d_sdk_impl.a via `nm -C --defined-only`):
 #
-# VERIFIED via src-header grep:
-#   [1] core           → chronon3d::detail::system_metrics_parse (found in src/core/system_metrics_parse.hpp, NS=chronon3d::detail)
-#   [2] animations     → chronon3d::temporal::generate_temporal_samples  (NS=chronon3d::temporal)
-#   [3] scene          → chronon3d::camera_v1::register_camera_v1_builtins  (NS=chronon3d::camera_v1)
-#   [4] graph          → chronon3d::graph::register_pipeline_graph_nodes (NS=chronon3d::graph)
-#   [7] text_core      → chronon3d::glyph_atlas_lookup  (NS=chronon3d, no text_core:: sub-namespace)
+# PRESENT (8/9 picked by direct archive grep):
+#   [1] core           → chronon3d::detail::parse_proc_stat       (NS=chronon3d::detail; src/core/, free fn)
+#   [2] animations     → chronon3d::temporal::generate_temporal_samples (NS=chronon3d::temporal; src/animations/temporal/)
+#   [3] scene          → chronon3d::camera_v1::register_camera_v1_builtins (NS=chronon3d::camera_v1; src/scene/camera/camera_v1/)
+#   [4] runtime        → chronon3d::RenderSession::arena          (class accessor; src/runtime/render_session.cpp)
+#   [5] graph          → chronon3d::graph::register_pipeline_graph_nodes (NS=chronon3d::graph; src/render_graph/pipeline/)
+#   [6] software_backend → chronon3d::SoftwareRenderer::buffer_ring (member fn; src/backends/software/software_renderer.cpp)
+#   [7] text_core      → chronon3d::glyph_atlas_lookup            (conditional CHRONON3D_ENABLE_TEXT; NS=chronon3d)
+#   [8] diagnostics    → chronon3d::effects::EffectCatalog::freeze (NS=chronon3d::effects; src/effects/)
 #
-# BEST-EFFORT (no direct grep hit; deferred to Fase 5 nm -C validation):
-#   [5] runtime        → chronon3d::render_session (class RenderSession at src/runtime/render_session.cpp; NS=chronon3d)
-#   [6] backend_software → chronon3d::backends::software::SoftwareRenderer::set_diagnostic_mode (member fn, src/backends/software/software_renderer.cpp:82)
-#   [8] diagnostics    → chronon3d::EffectCatalog::freeze (registry header mirror pattern; src/registry/effect_catalog.cpp existence unverified in current checkout)
-#   [9] content        → chronon3d::register_content_modules (root-level symbol from content/register_content_modules.cpp)
+# BEST-EFFORT (1/9 NOT YET in merged archive — separate manifest-filter fix):
+#   [9] content        → chronon3d::register_content_modules      (free fn; exists in content/CMakeFiles/_content.dir/register_content_modules.cpp.o but CONSUMER archive's registry-driven manifest filter currently drops content.dir entries — see TICKET-039 follow-up; not a canary-quality issue, a merge-side issue)
 #
-# MAINTENANCE: when Phase 1/8 lands and build is green, run:
-#   for s in $(grep -oE '"[A-Za-z0-9_:.+]+"' cmake/Chronon3DCanarySymbols.cmake | tr -d '"'); do
-#     nm -C libchronon3d_sdk_impl.a | grep -F "$s" || echo "MISS: $s"; done
-# Any MISS line replaces the canary with the closest real emission from the same area.
+# MAINTENANCE: re-run the grep loop below after each push of `cmake/Chronon3DRegistry.cmake`
+# or namespace-affecting rename.  When the loop emits only PRESENT lines, the catalog
+# can be tightened (remove BEST-EFFORT caveats; promote to VERIFIED status).
 set(CHRONON3D_SDK_CANARY_SYMBOLS
     # #area=core #lib=chronon3d_core_impl
-    "chronon3d::detail::system_metrics_parse"
+    "chronon3d::detail::parse_proc_stat"
 
     # #area=animations #lib=chronon3d_animations
     "chronon3d::temporal::generate_temporal_samples"
@@ -70,21 +68,21 @@ set(CHRONON3D_SDK_CANARY_SYMBOLS
     # #area=scene #lib=chronon3d_scene
     "chronon3d::camera_v1::register_camera_v1_builtins"
 
-    # #area=runtime #lib=chronon3d_runtime (best-effort: class name on flat NS=chronon3d)
-    "chronon3d::render_session"
+    # #area=runtime #lib=chronon3d_runtime
+    "chronon3d::RenderSession::arena"
 
     # #area=graph #lib=chronon3d_graph_pipeline
     "chronon3d::graph::register_pipeline_graph_nodes"
 
-    # #area=software_backend #lib=chronon3d_backend_software (best-effort member-fn symbol)
-    "chronon3d::backends::software::SoftwareRenderer::set_diagnostic_mode"
+    # #area=software_backend #lib=chronon3d_backend_software
+    "chronon3d::SoftwareRenderer::buffer_ring"
 
-    # #area=text_core #lib=chronon3d_text_core (NS=chronon3d, NOT chronon3d::text_core)
+    # #area=text_core #lib=chronon3d_text_core  (conditional CHRONON3D_ENABLE_TEXT)
     "chronon3d::glyph_atlas_lookup"
 
-    # #area=diagnostics #lib=chronon3d_diagnostics (best-effort registry mirror)
-    "chronon3d::EffectCatalog::freeze"
+    # #area=diagnostics #lib=chronon3d_diagnostics
+    "chronon3d::effects::EffectCatalog::freeze"
 
-    # #area=content #lib=chronon3d_content (best-effort root-level symbol)
+    # #area=content #lib=chronon3d_content  (BEST-EFFORT: separate manifest-filter issue, TICKET-039 follow-up)
     "chronon3d::register_content_modules"
 )
