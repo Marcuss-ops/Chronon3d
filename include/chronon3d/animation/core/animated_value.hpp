@@ -100,7 +100,23 @@ template <AnimatableValue T>
 class AnimatedValue {
 public:
     AnimatedValue() = default;
-    explicit AnimatedValue(T default_value) : m_default_value(default_value) {}
+    // AGENT 2 (TICKET-A2) — drop `explicit` on the (T) constructor so the
+    // TextAnimatorSpec property types whose `value` field is an
+    // `AnimatedValue<T>` continue to support single-brace aggregate
+    // initialisation at resolver call sites (e.g. `OpacityProperty{1.0f}`,
+    // `ScaleProperty{Vec3{1,1,1}}`). With `explicit`, aggregate-init would
+    // request a non-explicit conversion from `T` to `AnimatedValue<T>` for
+    // the field assignment, which the C++ copy-init rules forbid; this
+    // surfaced as "could not convert '1.0e+0f' from 'float' to
+    // chronon3d::AnimatedValue<float>" at the unchanged resolver branches.
+    // Dropping `explicit` is a backward-compatible widening: callers who
+    // previously relied on the implicit conversion being rejected (the
+    // observable behavior was a compile error) now get a compile-time
+    // implicit conversion from the inner scalar to AnimatedValue. The
+    // implicit semantics match the existing keyframe path (every
+    // `AnimatedValue<T>` field can already be key-derived from a scalar),
+    // so no production code path sees a behavior change.
+    AnimatedValue(T default_value) : m_default_value(default_value) {}
 
     /// Construct from an initializer list of Keyframes.
     /// Enables `keyframes<T>({{0, v0}, {60, v1}})` factory syntax.
