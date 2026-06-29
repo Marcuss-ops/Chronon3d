@@ -21,6 +21,11 @@
       "name": "base-linux",
       "hidden": true,
       "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
       "cacheVariables": {
         "VCPKG_TARGET_TRIPLET": "x64-linux",
         "CMAKE_CXX_FLAGS": "-fdiagnostics-color=always -pipe",
@@ -29,13 +34,46 @@
     },
 
     {
-      "name": "linux-core-dev",
+      "name": "__release-base",
+      "hidden": true,
       "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
+      "displayName": "V0.1 release-only base (hidden helper)",
+      "description": "Shared hidden base for the V0.1 release-validation surface. Forces Release buildType, disables experimental, telemetry, profiling, benchmarks, diagnostics. VCPKG manifest features = `tests`; defaults (cli, blend2d, text, mesh, exr) are merged automatically by vcpkg.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CHRONON3D_BUILD_EXPERIMENTAL": "OFF",
+        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
+        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_BUILD_BENCHMARKS": "OFF",
+        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
+        "CHRONON3D_ENABLE_DIAGNOSTICS": "OFF",
+        "VCPKG_MANIFEST_FEATURES": "tests"
+      }
+    },
+    {
+      "name": "__experimental-base",
+      "hidden": true,
+      "inherits": "base-linux",
+      "displayName": "Experimental validation base (hidden helper)",
+      "description": "Shared hidden base for the experimental-validation surface. Enables Diagnostics + Telemetry + Profiling + Benchmarks + Experimental (Expressions V2). Nightly-manual only — NOT on the V0.1 release path.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CHRONON3D_BUILD_EXPERIMENTAL": "ON",
+        "CHRONON3D_ENABLE_DIAGNOSTICS": "ON",
+        "CHRONON3D_BUILD_DIAGNOSTICS": "ON",
+        "CHRONON3D_ENABLE_TELEMETRY": "ON",
+        "CHRONON3D_ENABLE_PROFILING": "ON",
+        "CHRONON3D_BUILD_BENCHMARKS": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests;profiling;benchmarks;telemetry"
+      }
+    },
+
+    {
+      "name": "linux-core-dev",
+      "hidden": true,
+      "inherits": "base-linux",
+      "displayName": "Linux Core Dev (legacy)",
+      "description": "Legacy dev preset — hidden. Kept for backwards-compatibility with workflows/scripts that reference it.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_CLI": "OFF",
@@ -58,12 +96,10 @@
     },
     {
       "name": "linux-lean-dev",
+      "hidden": true,
       "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
+      "displayName": "Linux Lean Dev (legacy)",
+      "description": "Legacy dev preset — hidden. CLI + text + blend2d + tests, no benchmarks/diagnostics/video.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_CLI": "ON",
@@ -86,12 +122,10 @@
     },
     {
       "name": "linux-artist-dev",
+      "hidden": true,
       "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
+      "displayName": "Linux Artist Dev (legacy)",
+      "description": "Legacy dev preset — hidden. CLI + text + blend2d + content, no tests.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_CLI": "ON",
@@ -115,11 +149,8 @@
     {
       "name": "linux-dev",
       "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
+      "displayName": "Linux Dev (daily inner loop)",
+      "description": "Daily developer preset: CLI + content + telemetry + tests, Debug build, unity build enabled. Text + Blend2D + mesh + EXR (defaults from vcpkg.json).",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_CLI": "ON",
@@ -139,12 +170,10 @@
     },
     {
       "name": "linux-full-validation",
+      "hidden": true,
       "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
+      "displayName": "Linux Full Validation (legacy alias for experimental-validation)",
+      "description": "Legacy alias — hidden. Kept for backwards-compat with any workflow referencing `linux-full-validation`. Equivalent to the new public `linux-experimental-validation`.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_CLI": "ON",
@@ -168,12 +197,10 @@
 
     {
       "name": "linux-release",
+      "hidden": true,
       "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
+      "displayName": "Linux Release (legacy)",
+      "description": "Legacy release preset — hidden. Superseded by linux-release-validation.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CHRONON3D_BUILD_CONTENT": "ON",
@@ -183,12 +210,10 @@
     },
     {
       "name": "linux-debug",
+      "hidden": true,
       "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
+      "displayName": "Linux Debug (legacy)",
+      "description": "Legacy debug preset — hidden. Non-unity build, tests on, content off.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_UNITY_BUILD": "OFF",
@@ -199,11 +224,8 @@
     {
       "name": "linux-ci",
       "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
+      "displayName": "Linux CI (daily install-consumer gate)",
+      "description": "Daily CI preset: CLI + content + tests + install_consumer_ci, no benchmarks/profiling/experimental. BuildType Debug, unity OFF. Wires `tools/install_consumer_test.sh` via `CHRONON3D_BUILD_INSTALL_CONSUMER_TEST=ON`.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_UNITY_BUILD": "OFF",
@@ -216,19 +238,20 @@
     },
     {
       "name": "linux-ci-nocontent",
+      "hidden": true,
       "inherits": "linux-ci",
+      "displayName": "Linux CI no-content (legacy)",
+      "description": "Legacy CI variant — hidden. Content off.",
       "cacheVariables": {
         "CHRONON3D_BUILD_CONTENT": "OFF"
       }
     },
     {
       "name": "linux-turbo",
+      "hidden": true,
       "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
+      "displayName": "Linux Turbo (legacy fast inner loop)",
+      "description": "Legacy fast-build preset — hidden. Unity build BATCH=32, no tests/benchmarks.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_TESTS": "OFF",
@@ -242,12 +265,10 @@
     },
     {
       "name": "linux-fast-dev",
+      "hidden": true,
       "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
+      "displayName": "Linux Fast Dev (legacy)",
+      "description": "Legacy fast-build preset — hidden. Unity BATCH=16.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_TESTS": "ON",
@@ -263,16 +284,20 @@
     },
     {
       "name": "linux-fast-dev-release",
+      "hidden": true,
       "inherits": "linux-fast-dev",
       "displayName": "Linux Fast Dev Release (RelWithDebInfo)",
-      "description": "Release-like dev build with optimisations + debug symbols + ccache + tmpfs — 2-5× faster runtime",
+      "description": "Legacy RelWithDebInfo variant of fast-dev — hidden. Kept for backwards-compat.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo"
       }
     },
     {
       "name": "linux-lean",
+      "hidden": true,
       "inherits": "linux-core-dev",
+      "displayName": "Linux Lean (legacy)",
+      "description": "Legacy lean preset — hidden. CLI + mesh on top of linux-core-dev.",
       "cacheVariables": {
         "CHRONON3D_BUILD_CLI": "ON",
         "CHRONON3D_ENABLE_MESH": "ON",
@@ -281,12 +306,10 @@
     },
     {
       "name": "linux-dev-video",
+      "hidden": true,
       "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
+      "displayName": "Linux Dev Video (legacy)",
+      "description": "Legacy dev preset with native ffmpeg — hidden.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_TESTS": "ON",
@@ -300,12 +323,10 @@
     },
     {
       "name": "linux-release-full",
+      "hidden": true,
       "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
+      "displayName": "Linux Release Full (legacy)",
+      "description": "Legacy release-full preset — hidden.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CHRONON3D_BUILD_TESTS": "ON",
@@ -317,14 +338,39 @@
         "VCPKG_MANIFEST_FEATURES": "tests;benchmarks;telemetry"
       }
     },
+
+    {
+      "name": "linux-release-validation",
+      "inherits": "__release-base",
+      "displayName": "Linux Release Validation (V0.1)",
+      "description": "V0.1 release-only validation surface: CLI + text + Blend2D + software renderer + camera (via content) + install consumer + test obbligatori. Disables experimental / telemetry / profiling / benchmarks / diagnostics / expressions-v2. BuildType Release.",
+      "cacheVariables": {
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_CONTENT": "ON",
+        "CHRONON3D_BUILD_INSTALL_CONSUMER_TEST": "ON"
+      }
+    },
+    {
+      "name": "linux-experimental-validation",
+      "inherits": "__experimental-base",
+      "displayName": "Linux Experimental Validation (full + Expressions V2)",
+      "description": "Full-fat experimental validation. Enables Expressions V2 (CHRONON3D_BUILD_EXPERIMENTAL=ON), diagnostics, profiling, telemetry, benchmarks. Nightly/manual only — NOT on the V0.1 release path.",
+      "cacheVariables": {
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_CONTENT": "ON",
+        "CHRONON3D_ENABLE_VIDEO": "ON",
+        "CHRONON3D_ENABLE_MESH": "ON",
+        "CHRONON3D_ENABLE_EXR": "ON"
+      }
+    },
+
     {
       "name": "linux-asan",
       "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
+      "displayName": "Linux ASan + UBSan (DEBUG)",
+      "description": "AddressSanitizer + UndefinedBehaviorSanitizer debug preset, tests on. Daily buildType=Debug. NOTE: asan-specific -fsanitize flags override base-linux diag-color+pipe flags.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
@@ -337,14 +383,10 @@
 
     {
       "name": "linux-profile-core",
+      "hidden": true,
       "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
       "displayName": "Linux Profile Core (no text/video/mesh/exr)",
-      "description": "Profilo core: solo test veloci, niente testo, niente blend2d, niente EXR, niente video. Misura tempo configure + numero deps.",
+      "description": "Profile matrix preset — hidden. Core-only. Used by nightly profile-envelope workflow, not at push.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CHRONON3D_BUILD_CLI": "OFF",
@@ -368,14 +410,10 @@
     },
     {
       "name": "linux-profile-motion",
+      "hidden": true,
       "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
       "displayName": "Linux Profile Motion (Blend2D + text)",
-      "description": "Profilo motion: blend2d + testo attivi, tutto il resto off. Misura il 'lutto' del SDK motion-graphics.",
+      "description": "Profile matrix preset — hidden. Blend2D + text on; the rest off.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CHRONON3D_BUILD_CLI": "ON",
@@ -399,14 +437,10 @@
     },
     {
       "name": "linux-profile-video",
+      "hidden": true,
       "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
       "displayName": "Linux Profile Video (native ffmpeg + telemetry)",
-      "description": "Profilo video: native ffmpeg ON, telemetry ON, blend2d/text abilitati per overlay, ma niente mesh/EXR.",
+      "description": "Profile matrix preset — hidden. Native ffmpeg ON, telemetry ON, blend2d/text on; off the V0.1 release path.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CHRONON3D_BUILD_CLI": "ON",
@@ -430,14 +464,10 @@
     },
     {
       "name": "linux-profile-extended",
+      "hidden": true,
       "inherits": "base-linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
       "displayName": "Linux Profile Extended (mesh, EXR, telemetry, benchmarks, profiling)",
-      "description": "Profilo extended: tutto attivo, unity build OFF, profiling Tracy ON. Custode della CI full-validation.",
+      "description": "Profile matrix preset — hidden. Everything ON, profiling/Tracy on.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CHRONON3D_BUILD_CLI": "ON",
@@ -595,6 +625,27 @@
       "jobs": 16
     },
     {
+      "name": "linux-release-validation",
+      "configurePreset": "linux-release-validation",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests",
+        "chronon3d_sdk_impl"
+      ],
+      "jobs": 16
+    },
+    {
+      "name": "linux-experimental-validation",
+      "configurePreset": "linux-experimental-validation",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests",
+        "chronon3d_benchmarks",
+        "chronon3d_sdk_impl"
+      ],
+      "jobs": 16
+    },
+    {
       "name": "linux-profile-core",
       "configurePreset": "linux-profile-core",
       "targets": ["chronon3d_tests_fast"],
@@ -700,6 +751,20 @@
     {
       "name": "linux-fast-dev-release-test",
       "configurePreset": "linux-fast-dev-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-release-validation-test",
+      "configurePreset": "linux-release-validation",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-experimental-validation-test",
+      "configurePreset": "linux-experimental-validation",
       "output": {
         "outputOnFailure": true
       }
