@@ -31,7 +31,7 @@ git ls-tree -r --name-only HEAD docs/CURRENT_STATUS.md docs/ROADMAP.md docs/RELE
 I documenti storici (vecchi `docs/STATUS.md`, `docs/NEXT_STEPS.md`, `docs/stabilization-plan/**`,
 plan agente legacy `docs/agent-tasks/`) vivono in `docs/ARCHIVE/` e **non** sono operativi.
 
-## Stato assegnazioni agenti (snapshot 2026-06-29, commit `22504bef`)
+## Stato assegnazioni agenti (snapshot 2026-06-29, `main@111d9930`)
 
 - Agent 1 — Renderer/Backend Single Identity: DONE.
 - Agent 2 — CMake Registry / SDK Boundary / Baseline: COMPLETED.
