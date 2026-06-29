@@ -485,6 +485,19 @@ not by producing one layer per character.
 - `tests/test_text_preset_registry.cpp` Sub-cases 11-27 (per-preset golden-frame), 30 (Stage 5 AnimatorResolver coverage), 43-44 (AGENT 2 resolver-driven evolution for `character_cascade`).
 - `tests/text/test_text_quality_tracking.cpp` § 8 + § 11 + § 12 (canonical `TextLayoutEngine` invariants).
 
+## 12. TEXT-UNM-01: §15 closure-doc forward reference (chronology drift restored)
+
+**Status: 🟢 Done (stub restored, atomic commit on `main`)** — agent3, 2026-06-29.
+
+Forward reference: the original TEXT-UNM-01 closure doc (TICKET-052) targeted §12
+but landed at §15 during a partner rebase. This stub preserves §12 as the
+canonical slot per original chronology; see **§15** for the full closure doc
+(8-level identity ladder + anti-duplication invariants + 8 acceptance criteria).
+
+Restoration scope: docs-only stub. Two files: §12 stub here + TICKET-060 row in
+`docs/FOLLOWUP_TICKETS.md`. No code changes. No renumbering cascade (§13/§14/§15
+keep their slots — this stub merely bridges the chronology drift).
+
 ## 13. TEXT-SEL-01 — Range / Wiggly / Expression Selector come tipi canonici
 
 **Status: 🟢 Done (atomic commit on `main`)**
