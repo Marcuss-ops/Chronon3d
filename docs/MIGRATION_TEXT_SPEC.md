@@ -484,3 +484,91 @@ not by producing one layer per character.
 - docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md §Fase 10 (preset library — the canonical alternative).
 - `tests/test_text_preset_registry.cpp` Sub-cases 11-27 (per-preset golden-frame), 30 (Stage 5 AnimatorResolver coverage), 43-44 (AGENT 2 resolver-driven evolution for `character_cascade`).
 - `tests/text/test_text_quality_tracking.cpp` § 8 + § 11 + § 12 (canonical `TextLayoutEngine` invariants).
+
+## 13. TEXT-SEL-01 — Range / Wiggly / Expression Selector come tipi canonici
+
+**Status: 🟢 Done (atomic commit on `main`)**
+**Date**: 2026-06-29
+**Owner**: Agent 3 (text subsystem foundation)
+**Related**: §12 closure doc lost during partner rebase (see followup SECT-12-RESTORE); TEXT-UNM-01 code surface unaffected — `TextUnitMap::unit_index`/`unit_count`/`identity_at_byte` remain available.
+
+### 13.1 Background
+
+The legacy `GlyphSelectorSpec` (in `include/chronon3d/text/glyph_selector.hpp`) was functionally a single `RangeSelector` in disguise (start / end / offset / amount / shape / order / ease / random). Animation systems need three distinct selector kinds — **Range** for canonical sweeps, **Wiggly** for time-/position-driven jitter, **Expression** for safe property access. This commit introduces all three as canonical types under a single `std::variant`.
+
+### 13.2 Canonical surface
+
+| Type | Storage | Semantics |
+|---|---|---|
+| `RangeSelector` | `AnimatedValue<f32>` start/end/offset/amount + `TextSelectorShape/Order/CombineMode` | Subsumes the legacy `GlyphSelectorSpec` fields verbatim. Composes on the existing `evaluate_selector` for backward-compatible math (no duplicate Range logic). |
+| `WigglySelector` | `AnimatedValue<f32>` min_amount/max_amount/temporal_phase/spatial_phase + `f32 wps/correlation/seed` | Sin-based (2π × wps) jitter with seed-derived per-glyph noise; weight clamped to [min, max] after shape remap. |
+| `ExpressionSelector` | `SafeAccessMap props` + `std::string value` + `u64 seed` | Property lookup; missing key → **0.0** (`std::nullopt` fallback, NO throw); `textIndex`/`textTotal`/`frame` auto-bound before evaluate. |
+
+### 13.3 New files
+
+| File | Status | Purpose |
+|---|---|---|
+| `include/chronon3d/text/glyph_selector_spec.hpp` | 🟢 NEW | `TextUnitRef`, `SafeAccessMap`, `RangeSelector`, `WigglySelector`, `ExpressionSelector`, `GlyphSelectorVariant`, `GlyphSelectorSpec`, `GlyphSelectorContext`, `evaluate_selector_v2`, `evaluate_selectors_v2`. |
+| `src/text/glyph_selector_v2.cpp` | 🟢 NEW | `std::visit` dispatch + per-kind evaluation logic (`dispatch_range` / `dispatch_wiggly` / `dispatch_expression`) + `selector_targets_match` filter + `bind_builtin_variables` helper. |
+| `tests/text/test_glyph_selector_spec.cpp` | 🟢 NEW | 13 TEST_CASEs covering SafeAccessMap ops, TextUnitRef helpers, RangeSelector composition, WigglySelector determinism/clamp/shape, ExpressionSelector safe access, compositional variables (textIndex/textTotal/frame), `std::variant` dispatch, selector targets filter, `evaluate_selectors_v2` combine modes, 1000-iter bit-exact determinism, legacy back-compat (identical output). |
+
+### 13.4 Dispatch signature
+
+```cpp
+SelectorWeight evaluate_selector_v2(
+    const GlyphSelectorSpec& spec,
+    u32 glyph_index,
+    const GlyphSelectorContext& ctx   // { TextUnitMap&, SampleTime, source, PlacedGlyphRun*, text_total }
+) noexcept;
+```
+
+`std::visit` routes to one of three dispatchers:
+- `dispatch_range(r, glyph, ctx)` — synthesises a temporary legacy `GlyphSelectorSpec` and reuses the existing `evaluate_selector` math.
+- `dispatch_wiggly(w, glyph, ctx)` — sin-jitter with `seed`-derived noise via `hash_to_unit_float`; `(sin_a + correlation × sin_b)` mixed to [0,1] then shaped.
+- `dispatch_expression(e, glyph, ctx)` — binds `textIndex` / `textTotal` / `frame` into a `SafeAccessMap` copy, evaluates `e.value`; missing-key yields `0.0` (no throw).
+
+### 13.5 Anti-Duplication respected (`docs/ANTI_DUPLICATION_RULES.md`)
+
+- **NO dependency** on `experimental/expressions/v2/...` (the thin subset — `textIndex`/`textTotal`/`frame`/safe access — is self-contained in `text/`).
+- **NO duplication** of the legacy `evaluate_selector` math; RangeSelector composes on it via synthesised temporary `GlyphSelectorSpec`.
+- **NO duplication** of UAX#29 surface; all grapheme work continues to flow through `TextUnitMap`.
+- `WigglySelector` semantics mirror the surface of `include/chronon3d/animation/effects/wiggle.hpp` without a hard coupling — independent struct composing on `AnimatedValue<>`.
+
+### 13.6 Back-compat
+
+- Legacy `GlyphSelectorSpec` (in `glyph_selector.hpp`) untouched — all 10+ callers + 19 tests in `test_text_unit_map.cpp` + `test_selector_evaluate.cpp` + `test_selector_shapes.cpp` keep compiling and passing unchanged.
+- Legacy `evaluate_selector` / `evaluate_selectors` / `evaluate_selector_shape` / `apply_selector_order` / `hash_to_unit_float` / `get_or_build_permutation` / `should_exclude_unit` all preserved verbatim.
+
+### 13.7 Wire-down consumers
+
+| Downstream ticket | Reads from TEXT-SEL-01 surface |
+|---|---|
+| TEXT-EXP-01 | `evaluate_selectors_v2` + `SafeAccessMap` for property-driven source-text rewrites |
+| TEXT-RCH-01 | `evaluate_selector_v2` with `TextSelectorUnit::SemanticSpan` for rich-text per-span |
+| TEXT-3DF-01 | `dispatch_wiggly(w, glyph, ctx)` for per-character 3-D rotation/anchor payments |
+| TEXT-PTH-01 | `evaluate_selectors_v2` with `TextSelectorUnit::Word` / `Line` for path-drift staggered reveals |
+
+### 13.8 Acceptance criteria (all ✅ MET)
+
+| # | Criterion | Result |
+|---|---|---|
+| 1 | `RangeSelector` composes on legacy `evaluate_selector` via synthesised spec; output matches | ✅ |
+| 2 | `WigglySelector` determinism bit-exact over 1000 iterations on same seed | ✅ |
+| 3 | `ExpressionSelector` missing-key returns 0.0 (no throw) | ✅ |
+| 4 | `std::visit` dispatch routes 3 kinds correctly | ✅ |
+| 5 | `targets` filter applies selector only to listed units | ✅ |
+| 6 | `evaluate_selectors_v2` combine modes Replace/Add/Subtract/Intersect/Min/Max | ✅ |
+| 7 | Legacy `evaluate_selector` semantics preserved unchanged | ✅ |
+| 8 | `ANTI_DUPLICATION_RULES.md` respected (no `experimental/expressions/` dep + no new UAX#29 surface + no duplicate Range math) | ✅ |
+| 9 | Atomic single commit on `main` (env-vars Agent3); gated by GATE-MNT-01 | ✅ |
+| 10 | TICKET-053 closure (this PR's companion row in `docs/FOLLOWUP_TICKETS.md`) | ✅ |
+
+### 13.9 Cross-references
+
+- §12 (TEXT-UNM-01) — `TextUnitMap` is the dependency enabling `unit_index(glyph, TextSelectorUnit)` lookup that the `TextUnitRef` filter uses.
+- AGENTS.md §Piano operativo canonico.
+- `docs/ANTI_DUPLICATION_RULES.md` §registry/resolver.
+- `include/chronon3d/animation/effects/wiggle.hpp` — semantic reference for WigglySelector wps/correlation/temporal_phase/spatial_phase (no hard coupling).
+- `experimental/expressions/v2/expression_value.hpp` — explicitly NOT imported; thin subset stays in `text/`.
+- `tests/text/test_glyph_selector_spec.cpp` — 13 TEST_CASEs covering all dispatch paths + back-compat invariants.
+
