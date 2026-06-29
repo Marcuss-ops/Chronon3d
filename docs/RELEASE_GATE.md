@@ -1,6 +1,6 @@
 # Chronon3D — Release Gate
 
-> Snapshot: `main@4586d816` — 2026-06-29. Linux-only.
+> Snapshot: `main@41c3d5a6` — 2026-06-29. Linux-only.
 >
 > Requisiti per dichiarare una release valida.
 > Per lo stato corrente vedi [`CURRENT_STATUS.md`](CURRENT_STATUS.md).
