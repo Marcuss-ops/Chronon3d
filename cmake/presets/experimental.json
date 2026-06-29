@@ -1,0 +1,22 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "__experimental-base",
+      "hidden": true,
+      "inherits": "base-linux",
+      "displayName": "Experimental validation base (hidden helper)",
+      "description": "Shared hidden base for the experimental-validation surface in release.json. Enables Diagnostics + Telemetry + Profiling + Benchmarks + Experimental (Expressions V2). Nightly-manual only — NOT on the V0.1 release path.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CHRONON3D_BUILD_EXPERIMENTAL": "ON",
+        "CHRONON3D_ENABLE_DIAGNOSTICS": "ON",
+        "CHRONON3D_BUILD_DIAGNOSTICS": "ON",
+        "CHRONON3D_ENABLE_TELEMETRY": "ON",
+        "CHRONON3D_ENABLE_PROFILING": "ON",
+        "CHRONON3D_BUILD_BENCHMARKS": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests;profiling;benchmarks;telemetry"
+      }
+    }
+  ]
+}
