@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@4586d816` — 2026-06-29. Linux-only.
+> **Snapshot:** `main@41c3d5a6` — 2026-06-29. Linux-only.
 >
 > Ultima baseline macchina-verificata: `main@446a60e2` (3/4 ✅, registrata in [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md)).
 > **Baseline sull'HEAD corrente: NON CERTIFICATA** (nessun run macchina-verificato di tutti gli 11 gate registrato dopo `446a60e2`).
@@ -9,6 +9,49 @@
 > Per il futuro vedi [`ROADMAP.md`](ROADMAP.md).
 > Per i requisiti di release vedi [`RELEASE_GATE.md`](RELEASE_GATE.md).
 > Per i ticket vedi [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
+
+## Preset CMake attivi
+
+Configurazione osservata in [`CMakePresets.json`](../CMakePresets.json) al commit corrente:
+
+- `linux-dev` — preset di sviluppo locale (default).
+- `linux-asan` — instrumentazione ASAN + UBSAN.
+- `linux-release-validation` — preset consumato da `.github/workflows/gates-full-validation.yml`.
+- `linux-experimental-validation` — preset per la catena `experimental/expressions/` (opt-in).
+- `linux-ci` — preset consumato da `tools/install_consumer_test.sh`.
+- Varianti di profiling (`true`/`false`) — vedi file per la lista completa.
+
+Build/test preset default: `jobs: 16`.
+
+## CI gate osservati (lettura `.github/workflows/*.yml`)
+
+### Gate bloccanti (failure = PR bloccato)
+
+- `.github/workflows/gates.yml` — 6 cheap gates (`core-build`, `sdk-build`, `public-header-check`, `install+consumer`, arch-boundary, sw-renderer-boundary). Trigger: push + pull_request su `main`.
+- `.github/workflows/ci.yml` — matrix Release + Debug + lean + scene/camera. Trigger: push + PR su `main`.
+- `.github/workflows/gates-full-validation.yml` — full-validation con `paths:` filter (SDK/src/cmake). Trigger: push + PR.
+- `.github/workflows/validation.yml` — validate secondario. Trigger: push + PR su `main`.
+
+### Gate advisory (osservazione; non bloccante)
+
+- `.github/workflows/visual_ci.yml` — visual regression con `continue-on-error: true` su più job (`diff-engine-test`, `visual-regression-test`).
+- `.github/workflows/nightly-visual.yml` — schedule cron nightly + `workflow_dispatch`.
+- `.github/workflows/profile-envelope.yml` — schedule weekly (lunedì 04:00 UTC) + dispatch.
+- Step `renderer-boundary-observation` dentro `.github/workflows/gates.yml` — osservazione esplicita non bloccante (annotata come tale nel workflow) del confine renderer/software.
+
+## Packaging SDK
+
+[`tools/install_consumer_test.sh`](../tools/install_consumer_test.sh) — script end-to-end (7339 bytes, eseguibile). Configura + build + installa SDK in prefix temporaneo + richiede preset `linux-ci` + `cmake >= 3.25`.
+
+- **Stato corrente**: `NOT RUN` per questo run di Step 5 (richiede macchina-verifica dedicata sul commit candidato). Syntax check (`bash -n tools/install_consumer_test.sh`) deferred a macchina-verifica.
+- **Cosa serve per elevare a `PASS`**: run macchina-verificato di `tools/install_consumer_test.sh` su HEAD + exit `0` + log di configure + build su preset `linux-ci`.
+
+## Install consumer
+
+[`tests/install_consumer/`](../tests/install_consumer/) progetto consumer esterno che linka `Chronon3D::SDK` contro il prefix installato da `tools/install_consumer_test.sh`. Coperto dallo stesso script (vedi `## Packaging SDK` sopra).
+
+- **Stato corrente**: `NOT RUN` (stessa giustificazione: macchina-verifica richiesta su commit candidato).
+- **Cosa serve per elevare a `PASS`**: log del build del consumer in step separato + link riuscito + render di una composizione reale (testo + camera → PNG) fuori-tree.
 
 ## Come leggere gli stati
 
