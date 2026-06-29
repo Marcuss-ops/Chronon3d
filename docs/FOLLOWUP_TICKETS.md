@@ -83,6 +83,7 @@ preservato verbatim dal pre-Step-6), vedi:
 |---|---|---|---|
 | TICKET-052 | TEXT-UNM-01 — real TextUnitMap 8-level identity ladder | 🟢 Done (code on main) | `feat(text): TEXT-UNM-01 — real TextUnitMap with separated identity levels` (env-vars Agent3; **§12 closure doc lost during partner rebase**, see followup SECT-12-RESTORE; **code surface intact on main HEAD**, verify via `git grep kInvariant include/chronon3d/text/glyph_selector.hpp`) |
 | TICKET-053 | TEXT-SEL-01 — Range / Wiggly / Expression canonical selectors | 🟢 Done | `feat(text): TEXT-SEL-01 — Range/Wiggly/Expression selectors as canonical types` (env-vars Agent3, atomic commit on `main`) |
+| TICKET-058 | Step 9 ghost_sweep ROT-2 — `RenderRuntime::executor` chain on software_renderer consumers | 🟢 Done (atomic on `main`) | `e853e728 fix(backends/software): include render_runtime.hpp for software_renderer consumers (Step 9 ghost_sweep ROT-2)` — Fix-5 sibling rot-2 mirror del Fix-2 in `81cdc738`. Audit-comment block TICKET-038/TXT-00 cita rot-1 precedent. Forbidden-list: solo `include/chronon3d/backends/software/software_renderer.hpp`. |
 
 See:
 - `docs/MIGRATION_TEXT_SPEC.md` §13 for full closure documentation (3 canonical selector types stored under `std::variant<RangeSelector, WigglySelector, ExpressionSelector>`, `std::visit` dispatch via `evaluate_selector_v2` / `evaluate_selectors_v2`, `SafeAccessMap` with `textIndex` / `textTotal` / `frame` auto-binding, 13 new TEST_CASEs at `tests/text/test_glyph_selector_spec.cpp`).
