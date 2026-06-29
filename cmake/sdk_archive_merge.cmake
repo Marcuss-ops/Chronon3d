@@ -37,15 +37,43 @@ if(EXISTS "${ARCHIVE}")
     file(REMOVE "${ARCHIVE}")
 endif()
 
-# Create archive from scratch with all .o files (registry-driven manifest).
+# Build the archive via a RESPONSE file so the object list is not subject
+# to the shell ARG_MAX limit.  A command line of 300+ absolute .o paths
+# can exceed LOW ARG_MAX systems (e.g. macOS default 256 KB per execve,
+# some embedded CI containers); a response file breaks the limit because
+# only the path to `@<rsp>` sits on the argv.
+#
+# Format: `<archive>\n<obj1>\n<obj2>\n…\n`
+#   `ar @file` reads the first non-flag token as the archive name and
+#   the rest as member files (binutils 2.46 + CMake 3.25+).
+#
+# MRI fallback (`ar -M`) is documented in the commit message; keep the
+# old inline-argv ar invocation here as a comment for future readers.
 if(_count GREATER 0)
+    # Place the response file alongside ARCHIVE.  In `-P` script mode
+    # CMAKE_CURRENT_BINARY_DIR is not auto-populated; ARCHIVE is the only
+    # fully-qualified path we have, so derive the rsp filename from its
+    # directory via get_filename_component (purely local, no target graph).
+    get_filename_component(_archive_dir "${ARCHIVE}" DIRECTORY)
+    set(_rsp "${_archive_dir}/sdk_archive.rsp")
+    file(WRITE "${_rsp}" "${ARCHIVE}\n")
+    foreach(_obj IN LISTS _obj_files)
+        file(APPEND "${_rsp}" "${_obj}\n")
+    endforeach()
+
+    # Legacy fallback (kept as comment, response-file is canonical):
+    #   execute_process(COMMAND "${AR}" crs "${ARCHIVE}" ${_obj_files} ...)
     execute_process(
-        COMMAND "${AR}" crs "${ARCHIVE}" ${_obj_files}
+        COMMAND "${AR}" crs "@${_rsp}"
         RESULT_VARIABLE _rc
     )
     if(NOT _rc EQUAL 0)
-        message(FATAL_ERROR "ar crs failed with exit code ${_rc}")
+        # Preserve the response file for post-mortem inspection.
+        message(FATAL_ERROR
+            "ar crs via response file failed with exit code ${_rc}; "
+            "response file preserved at: ${_rsp}")
     endif()
+    file(REMOVE "${_rsp}")
 endif()
 
-message(STATUS "sdk_archive_merge: archive created with ${_count} .o files → ${ARCHIVE}")
+message(STATUS "sdk_archive_merge: invoked via response-file, n=${_count} → ${ARCHIVE}")
