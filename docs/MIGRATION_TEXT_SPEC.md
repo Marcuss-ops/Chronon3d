@@ -636,3 +636,63 @@ Estende `paragraph_style.hpp::ParagraphStyle` con 14 nuovi campi / flags / helpe
 12. ✓ Nessun `git add -A`, commit env-vars Agent3, single atomic commit su `main`.
 13. ✓ TICKET-058 cross-link in `FOLLOWUP_TICKETS.md` recently-closed (TICKET-054 already partner-owned for build-fast.sh forwarding).
 14. ✓ §14 closure questa pagina di MIGRATION_TEXT_SPEC.
+
+## 15. TEXT-UNM-01: Real TextUnitMap with 8-level identity ladder
+
+**Status: 🟢 This PR** — atomic, env-vars Agent3, su `main`.
+
+Nova `TextUnitMap` (in `include/chronon3d/text/text_unit_map.hpp` +
+`src/text/text_unit_map.cpp`) con mapping separati per ogni livello
+d'identità testuale: `Byte ⇄ CodePoint ⇄ GraphemeCluster ⇄ ShapedGlyph
+⇄ Word ⇄ Line ⇄ Paragraph ⇄ SemanticSpan`.
+
+### Anti-duplication invariants
+
+- Non introduce `<msdfgen>`, `<libtess2>`, `<unicode/ubidi.h>`, ICU,
+  Boost o altre librerie esterne per word-break / grapheme cluster.
+- Composes on `include/chronon3d/backends/text/text_unicode_utils.hpp`
+  per i range di `is_grapheme_extend() / is_extended_pictographic()`
+  / RI solo dove gli helper esistenti offrono coverage più ricca.
+- Il narrow `TextUnitMap` di `glyph_selector.hpp` (3 livelli) resta
+  invariato per non rompere i 30+ callers del selettore
+  (`TextSelectorUnit::{Glyph,Grapheme,Character,Word,Line}`).
+- Storage: dense `std::vector<u32>`, no hash/bitfield, determinismo
+  bit-exact; l'impl è single-pass-per-level senza loop stantii.
+
+### Algoritmo (single-pass per level)
+
+| Livello | Forward map                                | Inverse lookup (O(log N) binary-search) |
+|---------|--------------------------------------------|------------------------------------------|
+| 1 byte  | walk UTF-8; ogni byte → idx del suo cp     | `codepoint_to_byte` (lower_bound)        |
+| 2 cp    | UAX#29 GB1, GB2, GB9, GB11 (ZWJ), GB12/13  | `grapheme_to_codepoint`                  |
+| 3 graph | map first-cp → first-HB-cluster            | `glyph_to_grapheme` (linear probe)       |
+| 4 glyph | UAX#29 WB1, WB5a, WB999                    | `word_to_glyph`                          |
+| 5 word  | `PlacedParagraphLayout.lines`              | `line_to_word`                           |
+| 6 line  | 1-paragraph model (multi-para = follow-up) | `paragraph_to_line`                      |
+| 7 para  | `SemanticSpanRef[]` first-wins             | `span_to_paragraph`                      |
+| 8 span  | named byte-range                            | `span_index_by_name`                     |
+
+### Acceptance criteria (8 TEST_CASE in `tests/text/test_text_unit_map_8level.cpp`)
+
+(a) ZWJ family emoji 👨‍👩‍👧 = 1 grapheme cluster (GB11 merges ZWJ+extpict).
+(b) `cafe + combining acute` (U+0065+U+0301) → 4 codepoints, 4 graphemes (GB9 attaches combining marks).
+(c) `fi` ligature → 1 glyph covering 2 codepoints; both graphemes map to glyph 0.
+(d) `Hello, world!` → 2 words (WB5a whitespace break), 1 line.
+(e) OOB safety su tutti i 7 inverse lookups (below/beyond range → nullopt).
+(f) Determinismo bit-exact su 100 iterazioni identiche (counts + spot round-trip).
+(g) `identity_at_byte(0)` → tutti gli 8 indici pieni; forward-then-inverse round-trip chiuso.
+(h) Empty input → counts=0, lookup nullopt, `_for_parent` counts=0, identity=InvalidIndex.
+
+### Cap & determinismo
+
+- `max_source_bytes` default 1MB per evitare array unbounded
+  (anti-duplication memory safety).
+- Cap applicato silently troncando la stringa a `max_source_bytes`.
+- No threads, no PRNG, no time → bit-exact riproducibile.
+
+### Deferred (follow-up atoms)
+
+- Multi-paragraph layout (`PlacedParagraphLayout` multi-paragraph).
+- Reverse mapping for `byte_to_grapheme` (skipping codepoint step).
+- Migration dei 30+ callers del narrow `glyph_selector::TextUnitMap`
+  verso la ladder a 8 livelli (TICKET-046 next-track storico).
