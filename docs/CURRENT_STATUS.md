@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@62c71e55` — 2026-06-29. Linux-only.
+> **Snapshot:** `main@25b63730` — 2026-06-29. Linux-only.
 >
 > Ultima baseline macchina-verificata: `main@446a60e2` (3/4 ✅, registrata in [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md)).
 > **Baseline sull'HEAD corrente: NON CERTIFICATA** (nessun run macchina-verificato di tutti gli 11 gate registrato dopo `446a60e2`).
@@ -193,8 +193,16 @@ ma una nuova baseline macchina-verificata sull'HEAD non è ancora stata registra
 - **🟢 Content restructuring** — riorganizzazione `content/` in showcases/examples/experimental, staging completato.
 - **🟢 Docs** — archivio `stabilization-plan/` e `refactor-roadmap/` in `ARCHIVE/`, single source of truth
   (`CURRENT_STATUS.md`, `RELEASE_GATE.md`), nuovo `AGENTS.md`.
-- **🟢 Windows/MSVC** — supporto rimosso, progetto Linux-only.
-- **🟢 Phase-3 — mechanical P1 split of public headers.** Quattro header pubblici di grandi dimensioni sono stati suddivisi secondo il P1 meccanico del piano:
+- **🟢 Windows/MSVC** — supporto rimosso, progetto Linux-only.  - **🟢 Phase-2 — mechanical P0 split of tests + content compositions.** Tre famiglie di file grandi sono stati suddivisi secondo il P0 meccanico del piano (1-commit-per-sotto-step + sub-commit-frequenti per i sotto-passi atomici):
+    - **`tests/text/test_text_preset_visual.cpp` (898 righe)** decomposto in 8 file:
+      `tests/text/visual/text_visual_fixture.hpp` (per-creazione-composizione + render-frame + calcolo-metriche + confronto-aspettative), `tests/text/visual/text_visual_metrics.cpp` (kUncapturedSentinel + RectF POD + ScenarioMetrics POD + compute_metrics `inline`), `tests/text/visual/text_visual_expectations.hpp` (VisualExpectation enum + VR_TEXT_PRESET_GATE macro), `tests/text/visual/text_visual_sentinels.hpp` (128 sentinel esadecimali dei 16 preset × 4 frame × 2 ratio, in forma di tabella dati).
+      I 4 test TUs (reveal × 10 preset, emphasis × 4, subtitle × 2, cinematic × 0 — esclusi da A4 scope-lock) sostituiscono il file monolitico in `tests/text_preset_visual_tests.cmake`.
+    - **`tests/showcase/test_cinematic_camera_showcase.cpp` (771 righe)** decomposto in 7 file sotto `tests/showcase/cinematic/`:
+      `cinematic_showcase_config.hpp` (env-var driven CinematicConfig + read_cinematic_config lambda + `inline const` g_runtime + perf_opt_in_from_env strict 4-value accept-list), `cinematic_showcase_fixture.hpp` (kKeyFrames + kCompW/kCompH + runtime_kf lazy cached + FrameMetrics + hash_framebuffer FNV-1a 64-bit + compute_metrics + hash_to_hex + stamped + render_frames DECL), `cinematic_showcase_fixture.cpp` (render_frames definition FUORI classe), `test_cinematic_smoke.cpp` (A4.1 + A4.2), `test_cinematic_presets.cpp` (A4.3 + A4.3-strict 5/5 contract), `test_cinematic_determinism.cpp` (A4.4), `test_cinematic_artifacts.cpp` (A4.5 contact-sheet + A4.6 perf telemetry TICKET-053). `tests/showcase/CMakeLists.txt` aggiornato per singolo eseguibile (single-exec constraint), nessun target separato per-gate. Bug-fix associato: `cinematic_text_camera.hpp` include path corretto da `content/anims/compositions/` (post-24388800 restructuring) a `content/showcases/cinematic/` su tutti e 4 i test TUs.
+    - **`content/showcases/cinematic/cinematic_text_camera.cpp` (667 righe)** decomposto in 10 file: 5 `.hpp` forwarder (1-factory-decl ciascuno: deep_parallax_cascade, whip_pan_hero_reveal, orbit_handheld_glow, rack_focus_title_swap, abyss_freefall_stagger) + 5 verbatim `.cpp` extractions + `cinematic_showcase_helpers.hpp` (shared per user spec) + `cinematic_text_camera.hpp` declassato a umbrella forwarder a 5 #include. `cinematic_text_camera.cpp` (667 LOC) cancellato atomicamente con il `content/CMakeLists.txt` update (1-line replace: cinematic_text_camera.cpp → 5 split .cpp). Le registrazioni canoniche in `content/animation_compositions.cpp::register_anim_compositions()` restano intatte (forward-declares satisfied at link time), MAI 5 registry locali.
+  - CI non ancora ri-verificato dopo Phase-2 (richiede macchina-verifica dedicata sui 11 gate per promuovere la baseline a `CERTIFICATA @ 25b63730`).
+
+  - **🟢 Phase-3 — mechanical P1 split of public headers.** Quattro header pubblici di grandi dimensioni sono stati suddivisi secondo il P1 meccanico del piano:
   - `include/chronon3d/animation/core/animated_value.hpp` (842 → 498 righe) decompresso in `detail/{animated_value_expressions.hpp, animated_value_roving.inl, animated_value_bezier.inl, animated_value_evaluation.inl}` (class declaration-only + bottom `#include` dei file `detail/`).
   - `include/chronon3d/registry/animator_resolver.hpp` (381 → 72 righe) dichiarazione-only; l'implementazione completa (22-branch `composer_for` table + `spec_is_rich` + `rich_paint_anchor`) è migrata in `src/registry/animator_resolver.cpp`, registrata in `src/registry/CMakeLists.txt`.
   - `include/chronon3d/scene/builders/scene_builder.hpp` (395 → ~190 righe) ha sostituito i corpi template in-line di `layer<> / screen_layer<> / adjustment_layer<> / precomp_layer<> / video_layer<> (2 overloads) / null_layer<> / sequence<> / camera_rig<>` con dichiarazioni + bottom-include di `detail/scene_builder_{layers,sequences,camera}.inl` (deportati verbatim, comportamento bit-identico).
@@ -226,6 +234,10 @@ L'assenza di workflow fallito non equivale a una baseline verde.
 > per promuovere la baseline a `CERTIFICATA @ <SHA>`.
 
 > **Certificazione corrente (2026-06-29, `62c71e55`)**: NON CERTIFICATA.
+> La regola di sopra si applica: serve un run macchina-verificato dei 11 gate sul commit candidato
+> per promuovere la baseline a `CERTIFICATA @ <SHA>`.
+
+> **Certificazione corrente (2026-06-29, `25b63730`)**: NON CERTIFICATA.
 > La regola di sopra si applica: serve un run macchina-verificato dei 11 gate sul commit candidato
 > per promuovere la baseline a `CERTIFICATA @ <SHA>`.
 
