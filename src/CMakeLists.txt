@@ -149,31 +149,21 @@ target_link_libraries(chronon3d_pipeline INTERFACE
 # subsystems are gated with `if(TARGET …)` so disabled features do not
 # produce dangling references.
 #
+# VERIFIED 2026-06-29 on CMake 3.25.1: target_link_libraries(STATIC PRIVATE
+# objlib) does NOT embed .o files into the .a archive — only the marker TU
+# lands (3.1 KB archive, 1 object file). The .o propagation works at final
+# link time (executables resolve symbols correctly) but the intermediate
+# .a is empty.
+#
+# WORKAROUND: A POST_BUILD custom command (sdk_archive_merge below) runs
+# `ar qc` to manually merge all subsystem .o files into the archive.
+# Upgrade to CMake ≥3.28 to remove this workaround (native aggregation
+# is fixed upstream).
+#
 # Marker TU (`sdk_impl_marker.cpp`) is the canonical CMake idiom for
 # forcing a `STATIC` archive to be emitted when the target has no
 # own source files.  See commentary at the top of that file.
 # ==============================================================================
-# TICKET-011 cmake-boundary (Branch C — target_link_libraries form):
-# CMake 3.12+ NATIVELY aggregates OBJECT files into the consuming STATIC
-# target's archive when OBJECT libs are linked via `target_link_libraries(
-# chronon3d_sdk_impl PRIVATE objlib)`. The .o files propagate automatically
-# via the OBJECT target's INTERFACE — no `$<TARGET_OBJECTS:...>` generator
-# expressions needed. (Per `cmake(1)` docs §"LIBRARY OUTPUT", §"OBJECT
-# library association" since CMake 3.12.)
-#
-# The marker TU (`sdk_impl_marker.cpp`) is now compiled DIRECTLY into the
-# STATIC target (not via a separate `chronon3d_sdk_impl_marker` OBJECT
-# library), to:
-#   1. Force CMake to deduce `LINKER_LANGUAGE = CXX` from the concrete
-#      source file — guarantees the `ar` rule is emitted even when the
-#      aggregate targets are empty due to conditional subsystem gating.
-#   2. Avoid duplicate-symbol errors that would arise from compiling the
-#      same TU into a separate OBJECT lib AND linking it into the STATIC.
-#
-# This replaces the prior `target_sources(... PRIVATE $<TARGET_OBJECTS:x>)`
-# pattern which silently skipped `ar` on CMake 3.25 even with
-# `set_target_properties(LINKER_LANGUAGE CXX)` (the generator-expression
-# form was emitting nothing at build time).
 add_library(chronon3d_sdk_impl STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/sdk_impl_marker.cpp
 )
@@ -188,6 +178,23 @@ foreach(_reg_obj IN LISTS CHRONON3D_REGISTRY_OBJECT_LIBS)
         target_link_libraries(chronon3d_sdk_impl PRIVATE ${_reg_obj})
     endif()
 endforeach()
+
+# ── POST_BUILD: merge subsystem .o files into the archive ──────────
+# CMake 3.25 does not aggregate OBJECT .o files into STATIC archives.
+# This custom target collects all compiled .o files from the build tree
+# and appends them to libchronon3d_sdk_impl.a via `ar qc`. Depends on
+# all registered OBJECT targets to ensure compilation completes first.
+add_custom_target(sdk_archive_merge
+    COMMAND ${CMAKE_COMMAND} -E echo "Merging subsystem .o files into SDK archive..."
+    COMMAND ${CMAKE_COMMAND} -DARCHIVE="$<TARGET_FILE:chronon3d_sdk_impl>" -DBUILD_DIR="${CMAKE_BINARY_DIR}" -DAR="${CMAKE_AR}" -P "${CMAKE_SOURCE_DIR}/cmake/sdk_archive_merge.cmake"
+    COMMAND ${CMAKE_COMMAND} -E echo "=== Archive object count after merge ==="
+    COMMAND ${CMAKE_AR} t "$<TARGET_FILE:chronon3d_sdk_impl>"
+    COMMENT "Merging all subsystem OBJECT .o files into libchronon3d_sdk_impl.a (CMake 3.25 workaround)"
+    DEPENDS chronon3d_sdk_impl ${CHRONON3D_REGISTRY_OBJECT_LIBS}
+)
+
+# Also register the merge target as a dependency of the install step
+install(CODE "execute_process(COMMAND \${CMAKE_COMMAND} --build \${CMAKE_BINARY_DIR} --target sdk_archive_merge)")
 
 set_target_properties(chronon3d_sdk_impl PROPERTIES EXPORT_NAME SDKImpl)
 
