@@ -1,11 +1,40 @@
 # Chronon3D — Release Gate
 
-> Snapshot: `main@562110d6` — 25 giugno 2026. Linux-only.
+> Snapshot: `main@4586d816` — 2026-06-29. Linux-only.
 >
 > Requisiti per dichiarare una release valida.
 > Per lo stato corrente vedi [`CURRENT_STATUS.md`](CURRENT_STATUS.md).
 > Per le milestone vedi [`ROADMAP.md`](ROADMAP.md).
 > Ultima baseline macchina-verificata: [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md).
+
+## Certificazione corrente (`main@4586d816`)
+
+**Baseline verde: NON CERTIFICATA.**
+
+L'unica baseline macchina-verificata registrata è `main@446a60e2` (4 gate, 3/4 ✅ + 1 FAIL).
+Sul commit candidato corrente (`4586d816`) nessun run macchina-verificato di tutti gli 11 gate
+è stato registrato in `docs/baselines/`. L'assenza di workflow fallito non equivale a baseline
+verde (regole di non-deduzione: vedere [`AGENTS.md`](AGENTS.md) regole di lavoro).
+
+### Mapping gate → workflow CI reale
+
+I 11 gate elencati sotto sono osservabili tramite i workflow GitHub presenti. La colonna
+"Workflow" indica il file che li esegue, da confermare con un run macchina-verificato sul
+commit candidato per promuovere la certificazione:
+
+| # | Gate | Workflow |
+|---|---|---|
+| 1 | Build core | `.github/workflows/ci.yml` (matrix Release) |
+| 2 | Test core | `.github/workflows/ci.yml` (`ctest`) |
+| 3 | Build lean | `.github/workflows/ci.yml` (matrix lean) |
+| 4 | Test lean | `.github/workflows/ci.yml` |
+| 5 | Architecture gate | `.github/workflows/gates.yml` (`tools/check_architecture_boundaries.sh`) |
+| 6 | Renderer boundary gate | `.github/workflows/gates.yml` (`tools/check_software_renderer_boundary.sh`) |
+| 7 | No-content build/test | `.github/workflows/ci.yml` (No Content matrix) |
+| 8 | Scene/camera test | `.github/workflows/ci.yml` (build/run `chronon3d_scene_tests`) |
+| 9 | Install consumer | `.github/workflows/gates.yml` (`tools/install_consumer_test.sh`) |
+| 10 | Full validation | `.github/workflows/gates-full-validation.yml` |
+| 11 | Documenti allineati | `tools/check_doc_sync.sh` (manuale + check, non un workflow) |
 
 ## Baseline verde — requisiti (tutti sullo stesso commit)
 
