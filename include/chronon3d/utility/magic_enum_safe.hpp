@@ -31,9 +31,9 @@
 #include <type_traits>
 
 #if !defined(MAGIC_ENUM_NO_EXCEPTION) && (defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND))
-#  define CHRONON3D_MAGIC_ENUM_EXCEPTIONS_ENABLED 1
+//  define CHRONON3D_MAGIC_ENUM_EXCEPTIONS_ENABLED 1
 #else
-#  define CHRONON3D_MAGIC_ENUM_EXCEPTIONS_ENABLED 0
+//  define CHRONON3D_MAGIC_ENUM_EXCEPTIONS_ENABLED 0
 #endif
 
 namespace chronon3d::magic_enum_safe {

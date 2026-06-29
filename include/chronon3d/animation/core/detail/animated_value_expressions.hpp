@@ -1,33 +1,33 @@
-# ==============================================================================
-# include/chronon3d/animation/core/detail/animated_value_expressions.hpp
-#
-# EXPRESSIONS side of AnimatedValue<T> — extracted verbatim from
-# include/chronon3d/animation/core/animated_value.hpp as part of the
-# Phase-3 mechanical split.  Single source of truth for:
-#   • the four expression-related free function DECLARATIONS that
-#     AnimatedValue<FillStyle/StrokeStyle/f32> requires at evaluate
-#     time (split_expr_args, evaluate_solid_color_color_expression,
-#     evaluate_fill_expression, evaluate_stroke_expression). Their
-#     implementations live in `src/animations/` (linked into
-#     chronon3d_animations OBJECT library) — this header exposes only
-#     the surface.
-#   • the template method `evaluate(SampleTime, AnimationEvalContext)`
-#     that dispatches the expression side per-type (if constexpr T
-#     branches for f32, FillStyle, StrokeStyle, fallback to base value).
-#
-# PRECONDITIONS
-#   This header is included at the BOTTOM of animated_value.hpp, AFTER
-#   AnimatedValue<T>'s class body is fully defined.  No circular
-#   dependency: the detail header references the template class type
-#   from the public header.
-#
-# CONTRACT
-#   The free function declarations (split_expr_args, the four
-#   evaluators) are unchanged from their pre-split signatures — the
-#   `src/animations/` definitions link the same symbols.  The
-#   `evaluate(SampleTime, AnimationEvalContext)` template method body
-#   is byte-equivalent to the original in the public header.
-# ==============================================================================
+// ==============================================================================
+// include/chronon3d/animation/core/detail/animated_value_expressions.hpp
+//
+// EXPRESSIONS side of AnimatedValue<T> — extracted verbatim from
+// include/chronon3d/animation/core/animated_value.hpp as part of the
+// Phase-3 mechanical split.  Single source of truth for:
+//   • the four expression-related free function DECLARATIONS that
+//     AnimatedValue<FillStyle/StrokeStyle/f32> requires at evaluate
+//     time (split_expr_args, evaluate_solid_color_color_expression,
+//     evaluate_fill_expression, evaluate_stroke_expression). Their
+//     implementations live in `src/animations/` (linked into
+//     chronon3d_animations OBJECT library) — this header exposes only
+//     the surface.
+//   • the template method `evaluate(SampleTime, AnimationEvalContext)`
+//     that dispatches the expression side per-type (if constexpr T
+//     branches for f32, FillStyle, StrokeStyle, fallback to base value).
+//
+// PRECONDITIONS
+//   This header is included at the BOTTOM of animated_value.hpp, AFTER
+//   AnimatedValue<T>'s class body is fully defined.  No circular
+//   dependency: the detail header references the template class type
+//   from the public header.
+//
+// CONTRACT
+//   The free function declarations (split_expr_args, the four
+//   evaluators) are unchanged from their pre-split signatures — the
+//   `src/animations/` definitions link the same symbols.  The
+//   `evaluate(SampleTime, AnimationEvalContext)` template method body
+//   is byte-equivalent to the original in the public header.
+// ==============================================================================
 #pragma once
 
 #include <chronon3d/animation/core/animated_value.hpp>  // for AnimationEvalContext, graphics::FillStyle/StrokeStyle, math::ExpressionContext.
