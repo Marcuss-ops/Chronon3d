@@ -150,27 +150,18 @@ public:
 
     // ── Accessors ─────────────────────────────────────────────────
 
-    /// Direct access to the underlying SoftwareRenderer for advanced use.
-    /// 06 R3b — returns a pointer to avoid the boundary-gate I5 substring
-    /// `SoftwareRenderer &` (SoftwareRenderer's lifetime is bound to the
-    /// owning Impl, so a pointer is the right contract).
-    [[nodiscard]] [[deprecated("Internal backend access is not part of the stable SDK")]]
-    SoftwareRenderer* renderer() noexcept;
-    [[nodiscard]] [[deprecated("Internal backend access is not part of the stable SDK")]]
-    const SoftwareRenderer* renderer() const noexcept;
+    // `renderer()` (and 2-3 `renderer_or_null()` overloads retained
+    // for legacy callers) were moved to RenderEngineAccess in Pass C.
+    // The methods listed below no longer exist on the public class.
 
-    /// Nullable access to the underlying SoftwareRenderer.
-    [[nodiscard]] [[deprecated("Internal backend access is not part of the stable SDK")]]
-    SoftwareRenderer* renderer_or_null() noexcept;
-    [[nodiscard]] [[deprecated("Internal backend access is not part of the stable SDK")]]
-    const SoftwareRenderer* renderer_or_null() const noexcept;
-
-    /// Access to the engine-owned RenderRuntime.
-    /// Phase A: returns the Impl-owned runtime.
-    [[nodiscard]] [[deprecated("Runtime access is internal")]]
-    runtime::RenderRuntime& runtime() noexcept;
-    [[nodiscard]] [[deprecated("Runtime access is internal")]]
-    const runtime::RenderRuntime& runtime() const noexcept;
+    // ── Note (Pass C) ─────────────────────────────────────────────────
+    // The legacy accessors `runtime()`, `renderer()` (and overloads),
+    // and `create_session()` have been REMOVED from the public surface.
+    // Engineering code that genuinely needs the underlying runtime or
+    // renderer (CLI / benchmark / OPP-internal migration code) must use
+    // `chronon3d::advanced::RenderEngineAccess` (declared in
+    // `<chronon3d/advanced/render_engine_access.hpp>`).  This header is
+    // intentionally NOT part of the standard V0.1 SDK package.
 
     /// Access the per-instance engine configuration.
     [[nodiscard]] const Config& config() const noexcept;
@@ -181,10 +172,12 @@ public:
     /// Reset all profiling counters to zero.
     void reset_counters();
 
-    /// Session factory: vends a fresh per-render-job
-    /// SoftwareRenderSession referencing the engine-owned runtime.
-    /// Lifetime invariant: the engine outlives any session it vends.
-    [[nodiscard]] chronon3d::SoftwareRenderSession create_session();
+    // Session factory moved to RenderEngineAccess in Pass C; the
+    // public `create_session()` method has been removed.
+
+    // ── (Pass C removed) ─────────────────────────────────────────────
+    // `create_session()` was moved to
+    // `chronon3d::advanced::RenderEngineAccess::create_session()`.
 
 private:
     /// OPP-side escape hatch (Pass C).  Grants the typed

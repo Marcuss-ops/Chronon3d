@@ -43,6 +43,12 @@
 namespace chronon3d {
 
 struct RenderEngine::Impl {
+    /// Pass C — friend declaration for `chronon3d::advanced::RenderEngineAccess`.
+    /// Grants the advanced accessor direct access to the Impl internals so
+    /// legacy call sites can keep reaching the renderer / runtime during the
+    /// Pass B→D migration window.  Removed in V0.2 freeze (Pass D).
+    friend class ::chronon3d::advanced::RenderEngineAccess;
+
     Config                                       m_config;
     AssetRegistry                                m_assets;
     runtime::RenderRuntime                       m_runtime;
@@ -204,14 +210,17 @@ const RenderSettings& RenderEngine::settings() const noexcept {
 
 // ── Accessors ─────────────────────────────────────────────────────────────
 
-// 06 R3b — SoftwareRenderer is returned by pointer (not reference) to keep
-// the public RenderEngine surface free of the boundary-gate I5 substring
-// `SoftwareRenderer &`.
-SoftwareRenderer* RenderEngine::renderer() noexcept                   { return m_impl->m_renderer.get(); }
-const SoftwareRenderer* RenderEngine::renderer() const noexcept         { return m_impl->m_renderer.get(); }
-
-runtime::RenderRuntime&       RenderEngine::runtime() noexcept       { return m_impl->m_runtime; }
-const runtime::RenderRuntime& RenderEngine::runtime() const noexcept { return m_impl->m_runtime; }
+// (Pass C — 2026-06-29)  The public accessors `RenderEngine::renderer()`
+// (×2), `RenderEngine::runtime()` (×2), and `RenderEngine::create_session()`
+// were moved out of the public RenderEngine surface.  Their functionality
+// is now reached exclusively through
+// `chronon3d::advanced::RenderEngineAccess` from
+// `<chronon3d/advanced/render_engine_access.hpp>`.  The declarations in
+// `include/chronon3d/api/render_engine.hpp` were removed in the same
+// commit; the corresponding definitions are gone from this TU.
+// The replacement bodies are appended at the bottom of this file under
+// `namespace chronon3d::advanced` and access Impl through the friend
+// declaration declared above.
 
 const Config& RenderEngine::config() const noexcept {
     return m_impl->m_config;
@@ -220,8 +229,35 @@ const Config& RenderEngine::config() const noexcept {
 void RenderEngine::clear_caches() { m_impl->m_renderer->clear_caches(); }
 void RenderEngine::reset_counters() { m_impl->m_renderer->reset_counters(); }
 
-chronon3d::SoftwareRenderSession RenderEngine::create_session() {
-    return m_impl->create_session();
-}
+// (Pass C)  `RenderEngine::create_session()` moved to
+// `chronon3d::advanced::RenderEngineAccess::create_session()` (below).
 
 } // namespace chronon3d
+
+// ═══════════════════════════════════════════════════════════════════════════
+// chronon3d::advanced::RenderEngineAccess — bodies live here because they
+// need `RenderEngine::Impl` to be a complete type (it is, in this TU).
+// Forward declared in `<chronon3d/advanced/render_engine_access.hpp>`.
+// The `friend class ::chronon3d::advanced::RenderEngineAccess;` declaration
+// in `struct RenderEngine::Impl` (above) is what authorises the access to
+// private members `m_runtime`, `m_renderer`, and the inner
+// `create_session()`.  `m_impl` (a private member of `RenderEngine`) is
+// reachable via the friend declaration already present in
+// `include/chronon3d/api/render_engine.hpp` (added in P1-B).
+// ═══════════════════════════════════════════════════════════════════════════
+
+namespace chronon3d::advanced {
+
+runtime::RenderRuntime& RenderEngineAccess::runtime(RenderEngine& engine) noexcept {
+    return engine.m_impl->m_runtime;
+}
+
+SoftwareRenderer& RenderEngineAccess::software_renderer(RenderEngine& engine) noexcept {
+    return *engine.m_impl->m_renderer;
+}
+
+chronon3d::SoftwareRenderSession RenderEngineAccess::create_session(RenderEngine& engine) {
+    return engine.m_impl->create_session();
+}
+
+} // namespace chronon3d::advanced
