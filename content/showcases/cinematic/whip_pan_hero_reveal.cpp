@@ -39,6 +39,23 @@
 
 namespace chronon3d::content::anims {
 
+namespace {
+
+// Phase-2.3 review-fix — restore anon-namespace `using` declarations
+// that the original monolithic cinematic_text_camera.cpp provided via
+// implicit using-directive on its enclosing-namespace leakage.  After
+// the per-composition .cpp split, this TU no longer inherits that
+// injection; the three names below are referenced unqualified in the
+// factory body beyond this point.  Keep scope narrow: only what
+// WHIP_PAN_HERO_REVEAL actually uses (the 9 other declarations from
+// the original block live in deep_parallax_cascade / orbit_ / rack_
+// focus / abyss / and are not needed here).
+using chronon3d::content::text_reveal::TextRevealDescriptor;
+using chronon3d::content::text_reveal::build_text_reveal_line;
+using chronon3d::content::text_reveal::font_bold;
+
+} // anonymous namespace
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 2. WhipPanHeroReveal
 //    Camera translates violently left→right (overshoot) and snaps onto

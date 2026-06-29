@@ -42,6 +42,23 @@
 
 namespace chronon3d::content::anims {
 
+namespace {
+
+// Phase-2.3 review-fix — restore anon-namespace `using` declarations
+// that the original monolithic cinematic_text_camera.cpp provided via
+// implicit using-directive on its enclosing-namespace leakage.  After
+// the per-composition .cpp split, this TU no longer inherits that
+// injection; the three names below are referenced unqualified in the
+// factory body beyond this point.  Keep scope narrow: only what
+// ABYSS_FREEFALL_STAGGER actually uses (the other 9 declarations from
+// the original block live in deep_parallax_cascade / whip_pan_ /
+// orbit_ / rack_focus / and are not needed here).
+using chronon3d::content::text_reveal::font_bold;
+using chronon3d::content::text_reveal::measure_text_width;
+using chronon3d::content::text_reveal::layout_glyphs;
+
+} // anonymous namespace
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 5. AbyssFreefallStagger
 //    Camera looks straight down the Z axis. Each letter of the phrase
