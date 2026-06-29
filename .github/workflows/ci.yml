@@ -29,9 +29,9 @@ jobs:
         config:
           - name: Linux (Release)
             os: ubuntu-latest
-            preset: linux-release
-            build_preset: linux
-            test_preset: linux-test
+            preset: linux-ci-release-build
+            build_preset: linux-ci-release-build
+            test_preset: linux-ci-release-build-test
             vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
 
           - name: Linux (Debug/CI)
