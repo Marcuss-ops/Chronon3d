@@ -1,5 +1,9 @@
 {
   "version": 6,
+  "include": [
+    "base.json",
+    "experimental.json"
+  ],
   "configurePresets": [
     {
       "name": "__release-base",
