@@ -1,0 +1,128 @@
+# ============================================================================
+# tests/baselines/renderer_before.txt
+#
+# §13.0 — Committed baseline of chronon3d_renderer_tests sources.
+#
+# This file is the single source of truth for the §13 series correctness
+# check.  The §13 series splits the monolithic chronon3d_renderer_tests
+# executable (defined in tests/renderer_tests.cmake) into 6 per-area
+# targets:
+#
+#   chronon3d_effects_tests
+#   chronon3d_camera_tests
+#   chronon3d_golden_tests
+#   chronon3d_precomp_tests
+#   chronon3d_render_graph_tests
+#   chronon3d_renderer_core_tests
+#
+# The §13.13 correctness gate sorts the lines of THIS file
+# (before.sorted) and diffs it against the sorted union of the 6 new
+# targets' source lists (after.sorted).  The diff MUST be empty: every
+# .cpp file in the monolithic must appear in exactly one of the 6 new
+# targets, and no .cpp file may be added or lost in the split.
+#
+# Format
+# ------
+# One path per line, relative to the repo root.  Alphabetically sorted
+# (so the raw file == before.sorted modulo the comment header).  Comments
+# (#) at the top describe the file; blank lines + non-# lines below the
+# header are the source list and are diff-checked.
+#
+# Sources
+# -------
+# 85 .cpp files in total = 83 unconditional + 1 (${TEST_MAIN} expansion
+# = tests/test_main.cpp, set in tests/CMakeLists.txt) + 1
+# (${RENDERER_BLEND2D_TESTS} = tests/renderer/test_blend_pixel_nan.cpp,
+# gated by CHRONON3D_USE_BLEND2D).
+#
+# The baseline is the union across all feature flag combinations.  Per-
+# area targets at §13.7-13.12 may re-apply the same feature gates
+# (CHRONON3D_USE_BLEND2D, etc.) — the diff still holds because the
+# gated-out sources don't appear in either set at validation time.
+# ============================================================================
+
+tests/backends/software/sampling/test_sampler2d.cpp
+tests/backends/software/text_run_processor_tests.cpp
+tests/backends/software/utils/test_projection_utils.cpp
+tests/cache/test_cache_sharding.cpp
+tests/cache/test_tile_cache.cpp
+tests/deterministic/test_deterministic.cpp
+tests/effects/effect_graph_tests.cpp
+tests/effects/test_compose_color_op.cpp
+tests/effects/test_curves.cpp
+tests/effects/test_directional_blur.cpp
+tests/effects/test_effect_catalog.cpp
+tests/effects/test_effect_catalog_data.cpp
+tests/effects/test_effect_execution_context.cpp
+tests/effects/test_exposure_levels.cpp
+tests/effects/test_fill_noise_offset.cpp
+tests/effects/test_levels.cpp
+tests/effects/test_radial_blur.cpp
+tests/effects/test_stroke.cpp
+tests/golden/glow_golden_tests.cpp
+tests/golden/golden_render_tests.cpp
+tests/golden/roadmap_2_5d_suite.cpp
+tests/golden/stroked_shape_golden_tests.cpp
+tests/golden/suite_chronon3d_tests.cpp
+tests/registry/test_registries.cpp
+tests/render_graph/cache/test_scene_program_store.cpp
+tests/render_graph/compiler/test_frame_graph_compiler.cpp
+tests/render_graph/core/test_node_identity.cpp
+tests/render_graph/features/test_transition.cpp
+tests/render_graph/features/test_unified_transform_path.cpp
+tests/render_graph/nodes/test_mask_node_rg_integration.cpp
+tests/render_graph/nodes/test_mask_node_unit.cpp
+tests/render_graph/nodes/test_multi_source_text_run.cpp
+tests/render_graph/nodes/test_per_pixel_dof_node_rg_integration.cpp
+tests/render_graph/nodes/test_per_pixel_dof_node_unit.cpp
+tests/render_graph/nodes/test_precomp_node_cache.cpp
+tests/render_graph/nodes/test_shadow_node_rg_integration.cpp
+tests/render_graph/nodes/test_shadow_node_unit.cpp
+tests/render_graph/optimizer/test_graph_optimizer.cpp
+tests/render_graph/pipeline/test_dirty_rect_contract.cpp
+tests/render_graph/pipeline/test_dirty_rects.cpp
+tests/render_graph/pipeline/test_dirty_rects_v2.cpp
+tests/render_graph/pipeline/test_dirty_tiles_output.cpp
+tests/render_graph/pipeline/test_graph_health.cpp
+tests/render_graph/pipeline/test_graph_preflight_diagnostics.cpp
+tests/render_graph/pipeline/test_grid_math.cpp
+tests/render_graph/pipeline/test_line_grid.cpp
+tests/render_graph/pipeline/test_pipeline_robustness.cpp
+tests/render_graph/pipeline/test_render_backend.cpp
+tests/render_graph/pipeline/test_render_pipeline.cpp
+tests/render_graph/pipeline/test_tile_grid.cpp
+tests/render_graph/pipeline/test_tile_parallel.cpp
+tests/render_graph/test_post_processing_system.cpp
+tests/render_graph/test_velocity_buffer_motion_blur.cpp
+tests/renderer/2d5/test_card3d_material.cpp
+tests/renderer/2d5/test_card3d_rasterizer.cpp
+tests/renderer/2d5/test_depth_grade.cpp
+tests/renderer/camera/test_animated_camera.cpp
+tests/renderer/camera/test_camera_motion.cpp
+tests/renderer/camera/test_camera_rig.cpp
+tests/renderer/camera/test_dof.cpp
+tests/renderer/camera/test_lens_model.cpp
+tests/renderer/camera/test_per_pixel_dof.cpp
+tests/renderer/effects/test_adjustment_layer.cpp
+tests/renderer/effects/test_advanced_effects.cpp
+tests/renderer/effects/test_effect_stack.cpp
+tests/renderer/effects/test_glow_pipeline_rg_integration.cpp
+tests/renderer/effects/test_glow_pipeline_unit.cpp
+tests/renderer/effects/test_glow_torture.cpp
+tests/renderer/effects/test_invariants.cpp
+tests/renderer/helpers/test_stroke_gradient_helpers.cpp
+tests/renderer/lighting/test_depth_aware_shadows.cpp
+tests/renderer/lighting/test_directional_lights.cpp
+tests/renderer/lighting/test_light_context.cpp
+tests/renderer/lighting/test_lighting_rig.cpp
+tests/renderer/lighting/test_shadows.cpp
+tests/renderer/media/test_video_card.cpp
+tests/renderer/perf/test_motion_blur_integration.cpp
+tests/renderer/perf/test_render_perf.cpp
+tests/renderer/test_blend_pixel_nan.cpp
+tests/runtime/test_telemetry.cpp
+tests/runtime/test_telemetry_report.cpp
+tests/runtime/test_telemetry_semantic.cpp
+tests/scene/shapes/mask_tests.cpp
+tests/stabilization/test_stabilization.cpp
+tests/test_main.cpp
