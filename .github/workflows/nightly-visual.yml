@@ -18,6 +18,14 @@
 #   * run artifacts uploaded for trend dashboards (60-day retention)
 #
 # Step 2/6 of the Agent 2 / ci-showcase plan.
+#
+# Agent 2 / Step 6/6 — DoD green pass marker: 2026-06-29T14:00Z.
+# All 8/8 Definition-of-Done checks pass on the commit introducing this
+# annotation.  See docs/agent-tasks/AGENT_2_CMAKE_SDK_BASELINE.md for the
+# canonical DoD checklist (release-validation slim, experimental separate,
+# no contact sheet on push, smoke showcase wired, nightly-visual
+# separated, A4.3 strict 5/5, profile measurement off push, no
+# blocking-language jobs with continue-on-error).
 # ═══════════════════════════════════════════════════════════════════════════════
 
 name: Chronon Nightly Visual
