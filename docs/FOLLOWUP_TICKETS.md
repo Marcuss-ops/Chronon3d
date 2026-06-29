@@ -3608,7 +3608,7 @@ grep -E 'Could not find.*spdlog' /tmp/consumer-configure.log   && { echo 'FAIL: 
 
 | Field | Value |
 |---|---|
-| **Status** | 🔵 Planned |
+| **Status** | 🔵 OPEN |
 | **Affected file(s)** | `tests/showcase/test_cinematic_camera_showcase.cpp` |
 | **Discovered during** | AGENT-4 bootstrap+build+verify pipeline on `main` at commit AGENT-4 (2026-06-24) |
 | **Discovered date** | 2026-06-24 |
