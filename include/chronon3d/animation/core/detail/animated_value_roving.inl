@@ -1,28 +1,28 @@
-# ==============================================================================
-# include/chronon3d/animation/core/detail/animated_value_roving.inl
-#
-# ROVING side of AnimatedValue<T> — extracted verbatim from
-# include/chronon3d/animation/core/animated_value.hpp as part of the
-# Phase-3 mechanical split.  Single source of truth for the constant-
-# velocity roving keyframe time-redistribution algorithm.
-#
-# PRECONDITIONS
-#   This `.inl` is included at the BOTTOM of animated_value.hpp, AFTER
-#   the AnimatedValue<T> class body.  The template class type MUST be
-#   fully defined at this point.
-#
-# CONTRACT
-#   The body of `compute_roving()` is byte-equivalent to the original
-#   (verbatim move + template<class>:: scope prefix added for out-of-line
-#   definition).  Behaviour preserved end-to-end: behaviour invariants
-#   (first/last keyframes cannot be roving; roving-with-no-anchors
-#   frames are flipped to safe positions; re-sort after frame mods).
-#
-# Algorithm: for each group of consecutive roving keyframes between two
-# non-roving anchors, redistributes their frames so the velocity between
-# anchors is constant.  Constant-velocity per-anchor-pair guarantees a
-# visually-smooth ramp irrespective of the author's frame choice.
-# ==============================================================================
+// ==============================================================================
+// include/chronon3d/animation/core/detail/animated_value_roving.inl
+//
+// ROVING side of AnimatedValue<T> — extracted verbatim from
+// include/chronon3d/animation/core/animated_value.hpp as part of the
+// Phase-3 mechanical split.  Single source of truth for the constant-
+// velocity roving keyframe time-redistribution algorithm.
+//
+// PRECONDITIONS
+//   This `.inl` is included at the BOTTOM of animated_value.hpp, AFTER
+//   the AnimatedValue<T> class body.  The template class type MUST be
+//   fully defined at this point.
+//
+// CONTRACT
+//   The body of `compute_roving()` is byte-equivalent to the original
+//   (verbatim move + template<class>:: scope prefix added for out-of-line
+//   definition).  Behaviour preserved end-to-end: behaviour invariants
+//   (first/last keyframes cannot be roving; roving-with-no-anchors
+//   frames are flipped to safe positions; re-sort after frame mods).
+//
+// Algorithm: for each group of consecutive roving keyframes between two
+// non-roving anchors, redistributes their frames so the velocity between
+// anchors is constant.  Constant-velocity per-anchor-pair guarantees a
+// visually-smooth ramp irrespective of the author's frame choice.
+// ==============================================================================
 
 template <AnimatableValue T>
 void AnimatedValue<T>::compute_roving() const {
