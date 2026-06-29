@@ -55,6 +55,37 @@ struct AnimationEvalContext {
     const math::ExpressionContext* expression_context{nullptr};
 };
 
+// ── CP-A forward declarations ──────────────────────────────────────────────
+// AnimatedValue<T>::evaluate(SampleTime, const AnimationEvalContext&) calls
+// ::chronon3d::evaluate_fill_expression and ::chronon3d::evaluate_stroke_expression
+// as NON-DEPENDENT names.  C++ two-phase name lookup (phase 1 = template
+// definition, phase 2 = instantiation) requires those symbols to be visible
+// at template definition time INSIDE the lexical scope — i.e. declared in
+// ::chronon3d:: BEFORE the class AnimatedValue<T> body parses.  Without this
+// fwdecl, the reference inside `if constexpr (std::is_same_v<T, FillStyle>)`
+// branches resolves to "not a member of chronon3d" at parse time, even
+// though the user-visible behaviour happens to be correct.
+//
+// Full declarations (with detailed docs) live in
+// <chronon3d/animation/core/detail/animated_value_expressions.hpp> (included
+// at the bottom of this file); these fwdecls only exist to bridge phase 1
+// lookup before that bottom include is processed.
+[[nodiscard]] graphics::FillStyle evaluate_fill_expression(
+    const std::string& expr,
+    const graphics::FillStyle& base,
+    const AnimationEvalContext& ctx,
+    f32 fps,
+    double t,
+    double frame);
+
+[[nodiscard]] graphics::StrokeStyle evaluate_stroke_expression(
+    const std::string& expr,
+    const graphics::StrokeStyle& base,
+    const AnimationEvalContext& ctx,
+    f32 fps,
+    double t,
+    double frame);
+
 // Note: the four expression-related free functions
 // (::chronon3d::detail::split_expr_args +
 //  ::chronon3d::detail::evaluate_solid_color_expression +
@@ -476,20 +507,27 @@ inline f32 keyframes(Frame current, std::initializer_list<KF> kfs) {
     return keyframes<f32>(kfs).sample(current);
 }
 
-} // namespace chronon3d
-
 // ==============================================================================
-// Phase-3 mechanical split — include detail implementations at the BOTTOM of
-// the public header.  Order matters: roving depends on bezier
-// (compute_roving → compute_auto_beziers); evaluation depends on both bezier
-// (eval_temporal_bezier) and roving (compute_roving); expressions forwards
-// the public FillStyle/StrokeStyle declarations.
+// CP-A (snapshot: docs/baselines/main-9ef0fe33-dod-fail-matrix.md, 2026-06-29):
+// Phase-3 mechanical split — include detail implementations INSIDE the
+// `namespace chronon3d { ... }` block so the .inl template method
+// definitions (e.g. `AnimatedValue<T>::compute_roving()`) observe
+// `AnimatedValue<T>` in scope.  Previously these includes sat AFTER
+// `} // namespace chronon3d`, leaving the qualifier unresolved in the
+// global namespace and producing `expected initializer before '<' token`
+// at the `AnimatedValue<T>::method(...)` lines.  Order is preserved
+// (expressions → bezier → roving → evaluation) per the prior invariants:
+//   • roving depends on bezier (compute_roving → compute_auto_beziers)
+//   • evaluation depends on bezier (eval_temporal_bezier) AND roving
+//   • expressions forwards public FillStyle/StrokeStyle declarations
 //
-// expressions.hpp declares the four FREE functions consumed by AnimatedValue<…>
-// for FillStyle / StrokeStyle / f32 expression semantics.  Implementations
-// live in `src/animations/` — linked into chronon3d_animations OBJECT.
+// expressions.hpp opens/closes its own chronon3d namespace; the disjoint-
+// namespace concatenation rule (C++ [namespace.memdef]) merges those
+// declarations into the outer `chronon3d::` namespace.
 // ==============================================================================
 #include <chronon3d/animation/core/detail/animated_value_expressions.hpp>
 #include <chronon3d/animation/core/detail/animated_value_bezier.inl>
 #include <chronon3d/animation/core/detail/animated_value_roving.inl>
 #include <chronon3d/animation/core/detail/animated_value_evaluation.inl>
+
+} // namespace chronon3d
