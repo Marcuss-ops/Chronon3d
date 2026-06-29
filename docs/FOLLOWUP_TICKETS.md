@@ -76,3 +76,14 @@ preservato verbatim dal pre-Step-6), vedi:
 - `docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md` — verbatim cronologia ticket chiusi + deferred.
 - `git show 6f3309e6:docs/FOLLOWUP_TICKETS.md` (commit pre-Step-6 pinned) per la versione 3834-line originale.
 - `docs/CHANGELOG.md` — eventi sul main.
+
+### Recently closed (atomic `main` commits, 2026-06-29)
+
+| ID | Area | Status | Atomic commit on `main` |
+|---|---|---|---|
+| TICKET-052 | TEXT-UNM-01 — real TextUnitMap 8-level identity ladder | 🟢 Done (code on main) | `feat(text): TEXT-UNM-01 — real TextUnitMap with separated identity levels` (env-vars Agent3; **§12 closure doc lost during partner rebase**, see followup SECT-12-RESTORE; **code surface intact on main HEAD**, verify via `git grep kInvariant include/chronon3d/text/glyph_selector.hpp`) |
+| TICKET-053 | TEXT-SEL-01 — Range / Wiggly / Expression canonical selectors | 🟢 Done | `feat(text): TEXT-SEL-01 — Range/Wiggly/Expression selectors as canonical types` (env-vars Agent3, atomic commit on `main`) |
+
+See:
+- `docs/MIGRATION_TEXT_SPEC.md` §13 for full closure documentation (3 canonical selector types stored under `std::variant<RangeSelector, WigglySelector, ExpressionSelector>`, `std::visit` dispatch via `evaluate_selector_v2` / `evaluate_selectors_v2`, `SafeAccessMap` with `textIndex` / `textTotal` / `frame` auto-binding, 13 new TEST_CASEs at `tests/text/test_glyph_selector_spec.cpp`).
+- `docs/MIGRATION_TEXT_SPEC.md` §12 (closure for TEXT-UNM-01) is **missing on disk** — followup SECT-12-RESTORE in atomi backlog to restore closure doc after partner rebase truncated it.
