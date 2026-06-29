@@ -17,7 +17,6 @@
 | ID | Area | Stato | File principali | Gate |
 |---|---|---|---|---|
 | TICKET-051 | A4.3 per-preset diagnostic | 🔵 OPEN | `tests/text/test_text_preset_visual.cpp` | A4.3 visual |
-| TICKET-048 | SDK install consumer rot | 🔵 Planned | `tools/install_consumer_test.sh` | install consumer (gate 9) |
 | TICKET-036 | chronon3d_camera_architecture_gate P0 | 🔵 Planned | `tools/check_camera_architecture.sh` | arch-boundary (gate 5/6) |
 | TICKET-044 | arch_boundaries_selftest hardcoded | 🔵 Planned | `tools/check_architecture_boundaries_selftest.sh` | arch-boundary (gate 5) |
 | TICKET-046 | filename drift stale refs | 🔵 Planned | `tools/check_filename_drift.sh` | arch-boundary (gate 5) |
@@ -89,7 +88,7 @@ See:
 - `docs/MIGRATION_TEXT_SPEC.md` §13 for full closure documentation (3 canonical selector types stored under `std::variant<RangeSelector, WigglySelector, ExpressionSelector>`, `std::visit` dispatch via `evaluate_selector_v2` / `evaluate_selectors_v2`, `SafeAccessMap` with `textIndex` / `textTotal` / `frame` auto-binding, 13 new TEST_CASEs at `tests/text/test_glyph_selector_spec.cpp`).
 - `docs/MIGRATION_TEXT_SPEC.md` §12 (closure for TEXT-UNM-01) is **missing on disk** — followup SECT-12-RESTORE in atomi backlog to restore closure doc after partner rebase truncated it.
 
-| TICKET-058 | TEXT-PLY-01 — 14-feature ParagraphStyle extension + wiring | 🟢 Done | `feat(text): TEXT-PLY-01 — 14-feature ParagraphStyle extension + wiring` (env-vars Agent3, atomic on `main`; §14 closure doc in `docs/MIGRATION_TEXT_SPEC.md` §14; 14 TEST_CASEs in `tests/text/test_paragraph_layout_extras.cpp`) |
+| TICKET-059 | TEXT-PLY-01 — 14-feature ParagraphStyle extension + wiring | 🟢 Done | `feat(text): TEXT-PLY-01 — 14-feature ParagraphStyle extension + wiring` (env-vars Agent3, atomic on `main`; §14 closure doc in `docs/MIGRATION_TEXT_SPEC.md` §14; 14 TEST_CASEs in `tests/text/test_paragraph_layout_extras.cpp`) |
 
 | TICKET-048 | GATE-MNT-01 — wire main-sync gate as pre-push wrapper | 🟢 Done | `ops(gates): GATE-MNT-01 — wire main-sync gate as pre-push wrapper` (env-vars Agent3, atomic on `main`; 4 tracked files: `tools/check_main_clean.sh` + `tools/wrap_push.sh` + `docs/FOLLOWUP_TICKETS.md` TICKET-048 row + `AGENTS.md` § GATE-MNT-01; local-only `.git/hooks/pre-push` installed per-repo for defence in depth) |
 
