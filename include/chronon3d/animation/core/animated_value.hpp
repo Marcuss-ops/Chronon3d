@@ -68,22 +68,15 @@ template <AnimatableValue T>
 class AnimatedValue {
 public:
     AnimatedValue() = default;
-    // AGENT 2 (TICKET-A2) — drop `explicit` on the (T) constructor so the
-    // TextAnimatorSpec property types whose `value` field is an
-    // `AnimatedValue<T>` continue to support single-brace aggregate
-    // initialisation at resolver call sites (e.g. `OpacityProperty{1.0f}`,
-    // `ScaleProperty{Vec3{1,1,1}}`). With `explicit`, aggregate-init would
-    // request a non-explicit conversion from `T` to `AnimatedValue<T>` for
-    // the field assignment, which the C++ copy-init rules forbid; this
-    // surfaced as "could not convert '1.0e+0f' from 'float' to
-    // chronon3d::AnimatedValue<float>" at the unchanged resolver branches.
-    // Dropping `explicit` is a backward-compatible widening: callers who
-    // previously relied on the implicit conversion being rejected (the
-    // observable behavior was a compile error) now get a compile-time
-    // implicit conversion from the inner scalar to AnimatedValue. The
-    // implicit semantics match the existing keyframe path (every
-    // `AnimatedValue<T>` field can already be key-derived from a scalar),
-    // so no production code path sees a behavior change.
+    // Constructor is intentionally NOT `explicit` so callers can use
+    // single-brace aggregate initialisation with an inner scalar:
+    // `OpacityProperty{1.0f}`, `ScaleProperty{Vec3{1,1,1}}`.  Without
+    // this, aggregate-init would request a non-explicit T → AnimatedValue<T>
+    // conversion that C++ copy-init rules forbid.  Behaviourally
+    // identical to the keyframe path (every AnimatedValue<T> field is
+    // already key-derivable from a scalar), so dropping `explicit` is a
+    // backward-compatible widening with no production-side behaviour
+    // change.
     AnimatedValue(T default_value) : m_default_value(default_value) {}
 
     /// Construct from an initializer list of Keyframes.
@@ -283,14 +276,18 @@ public:
             const double fps = time.fps();
             const double t = time.seconds();
             const double frame = time.frame;
-            return evaluate_fill_expression(
+            // Qualified (::chronon3d::) so the lookup is explicit at parse
+            // time even when readers inspect this header without the
+            // bottom-#include of detail/animated_value_expressions.hpp
+            // having been processed.
+            return ::chronon3d::evaluate_fill_expression(
                 m_expression, base, ctx,
                 static_cast<f32>(fps), t, frame);
         } else if constexpr (std::is_same_v<T, graphics::StrokeStyle>) {
             const double fps = time.fps();
             const double t = time.seconds();
             const double frame = time.frame;
-            return evaluate_stroke_expression(
+            return ::chronon3d::evaluate_stroke_expression(
                 m_expression, base, ctx,
                 static_cast<f32>(fps), t, frame);
         }
