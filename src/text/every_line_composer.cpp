@@ -250,10 +250,35 @@ void enforce_widow_orphan(
     }
 
     // Merge the last two lines by removing the second-to-last break.
-    // Runs once; cascading violations after merge are unlikely
-    // because the DP produces reasonable breaks.
+    // Runs once by default; under strict_widow_orphan mode (TEXT-PLY-01)
+    // the fixup loops up to 16 passes so cascading violations are
+    // resolved by repeated merges instead of a single best-effort attempt.
     if (fix_needed) {
         path.erase(path.end() - 2);
+        if (style.strict_widow_orphan) {
+            constexpr size_t kCascadeCap = 16;
+            for (size_t k = 0; k < kCascadeCap; ++k) {
+                if (path.size() < 3) break;
+                const int new_last_id   = static_cast<int>(path.size() - 1);
+                const int new_second_id = static_cast<int>(path.size() - 2);
+                const int new_third_id  = static_cast<int>(path.size() - 3);
+
+                const size_t orphan_count2 = breaks[new_last_id].cluster_index - breaks[new_second_id].cluster_index;
+                const size_t widow_count2  = breaks[new_second_id].cluster_index - breaks[new_third_id].cluster_index;
+
+                bool still_bad = false;
+                if (style.orphan_lines > 0 && orphan_count2 > 0 &&
+                    orphan_count2 < static_cast<size_t>(style.orphan_lines)) {
+                    still_bad = true;
+                }
+                if (style.widow_lines > 0 && widow_count2 > 0 &&
+                    widow_count2 < static_cast<size_t>(style.widow_lines)) {
+                    still_bad = true;
+                }
+                if (!still_bad) break;
+                path.erase(path.end() - 2);
+            }
+        }
     }
 }
 
