@@ -47,11 +47,11 @@
 # because it would look at `cinematic/*.cpp` from a wrong base.
 add_executable(chronon3d_cinematic_camera_showcase_tests
     ${TEST_MAIN}
-    cinematic/cinematic_showcase_fixture.cpp
-    cinematic/test_cinematic_smoke.cpp
-    cinematic/test_cinematic_presets.cpp
-    cinematic/test_cinematic_determinism.cpp
-    cinematic/test_cinematic_artifacts.cpp
+    showcase/cinematic/cinematic_showcase_fixture.cpp
+    showcase/cinematic/test_cinematic_smoke.cpp
+    showcase/cinematic/test_cinematic_presets.cpp
+    showcase/cinematic/test_cinematic_determinism.cpp
+    showcase/cinematic/test_cinematic_artifacts.cpp
 )
 
 target_link_libraries(chronon3d_cinematic_camera_showcase_tests
