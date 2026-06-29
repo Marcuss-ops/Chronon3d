@@ -13,6 +13,11 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/backends/software/software_render_session.hpp>
 #include <chronon3d/core/config.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>  // ROT-2 (Step 9 ghost_sweep fix): software_renderer consumers must see the full
+                                                 // RenderRuntime definition (forward-decl alone causes "incomplete type" at
+                                                 // consumer-side compile of `runtime().executor()`).
+                                                 // Precedent Fix-2 (rot-1) in scene_tile_execution.cpp + tile_execution_coordinator.cpp
+                                                 // at commit 81cdc738 (see docs/STATUS.md / docs/FOLLOWUP_TICKETS.md TICKET-038).
 
 #include <memory>
 #include <optional>
