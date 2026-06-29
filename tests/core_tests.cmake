@@ -81,6 +81,11 @@ add_executable(chronon3d_core_tests
     core/math/test_expression.cpp
     core/math/test_expression_extended.cpp
     test_text_preset_registry.cpp
+    # TEXT-RES-01 — TextPresetDescriptor single-source-of-truth invariants
+    # (id/metadata/builder/animator_factory/fixture completeness, resolver
+    # ↔-registrar equivalence, fail-safe paths).  See
+    # tests/registry/test_text_preset_descriptor.cpp for the Sub-cases A1-D2.
+    registry/test_text_preset_descriptor.cpp
     ${CORE_BLEND2D_TESTS}
     media/test_media_placement.cpp
     core/test_result.cpp
