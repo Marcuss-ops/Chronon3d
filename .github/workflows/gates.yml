@@ -56,10 +56,10 @@ jobs:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
 
       - name: Configure
-        run: cmake --preset linux-core-dev
+        run: cmake --preset linux-ci-core-gate
 
       - name: Build (chronon3d_tests_fast)
-        run: cmake --build --preset linux-core-dev
+        run: cmake --build --preset linux-ci-core-gate
 
   # ─────────────────────────────────────────────────────────────────────
   # 2. SDK build — Text ON, Blend2D ON. Validates consumer-side link closure.
@@ -81,10 +81,10 @@ jobs:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
 
       - name: Configure
-        run: cmake --preset linux-lean-dev
+        run: cmake --preset linux-ci-lean-gate
 
       - name: Build (chronon3d_cli + chronon3d_tests_fast)
-        run: cmake --build --preset linux-lean-dev
+        run: cmake --build --preset linux-ci-lean-gate
 
   # ─────────────────────────────────────────────────────────────────────
   # 3. Public-header check — every header compiled standalone.
@@ -110,11 +110,11 @@ jobs:
       # itself uses, and (2) so that per-header checks see spdlog/fmt/glm/etc.
       # transitively. Without this the gate would false-positive on every
       # header that depends on a third-party include.
-      - name: Configure (linux-lean-dev, with compile_commands)
-        run: cmake --preset linux-lean-dev -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: Configure (linux-ci-lean-gate, with compile_commands)
+        run: cmake --preset linux-ci-lean-gate -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
       - name: Build enough to ensure compile_commands is up-to-date
-        run: cmake --build --preset linux-lean-dev --target chronon3d_pipeline
+        run: cmake --build --preset linux-ci-lean-gate --target chronon3d_pipeline
 
       - name: Enumerate public headers
         run: |
@@ -130,7 +130,7 @@ jobs:
           # reads project compile_flags from compile_commands.json so the
           # header checks see spdlog/fmt/glm/etc. transitively.
           python3 tools/check_public_headers.py \
-            --compile-commands build/chronon/linux-lean-dev/compile_commands.json \
+            --compile-commands build/chronon/linux-ci-lean-gate/compile_commands.json \
             --headers-list headers.txt \
             --out out
 
