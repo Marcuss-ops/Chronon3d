@@ -418,3 +418,69 @@ The full removal (delete `ShapeType::Text` enum value, `RenderNodeFactory::text(
 - `bash tools/check_architecture_boundaries.sh` 11/11 PASS ✅ (verified 2026-06-23)
 - `grep -rn 'shape_ids::Text' src/` after the refactor: zero hits in production code (the `motion_renderer.cpp` is the only pre-migration caller; now `TextRun`-bound) ✅
 - `tests/test_text_preset_registry.cpp` Sub-cases 7, 8, 9, 24, 30, 31, 32 — Sub-case 30 updated to match new contract; all other invariants preserved ✅
+---
+
+## 11. TEXT-RET-01 — Legacy multi-layer `TextAnimator` retirement
+
+**Status: 🟢 Done (atomic commit on `main`)**
+**Date**: 2026-06-29
+**Owner**: Agent 3 (text subsystem canonicalisation)
+**Related**: §P1 above (single canonical text pipeline landed); `tests/test_text_preset_registry.cpp` Sub-cases 43 + 44 (canonical `character_cascade` + cross-link invariants); AGENTS.md §Piano operativo canonico.
+
+### 11.1 Background
+
+The legacy `chronon3d::TextAnimator` class (in
+`include/chronon3d/text/text_animator.hpp`) split text into four units
+(`TextAnimMode::{ByCharacter, ByWord, ByLine, ByGlyph}`) and produced
+**one Layer per unit** on the SceneBuilder (N layers for N chars,
+N layers for N words, etc.).  This API surface predates the
+canonical single-`TextRunShape`-per-run pipeline landed in §P1.
+
+The canonical path is:
+
+```
+TextPreset (registry) → AnimatorResolver → TextAnimatorSpec
+  → wire_preset_text_run_params → lb.text_run(params).commit()
+  → SINGLE TextRunShape RenderNode (NOT N per-char layers)
+```
+
+Per-glyph stagger is now driven by `GlyphSelectorSpec { .unit =
+TextSelectorUnit::Glyph / Word }` + `AnimatedValue<>` property ramps,
+not by producing one layer per character.
+
+### 11.2 Retirement surface (deleted in this commit)
+
+| File | Status |
+|---|---|
+| `include/chronon3d/text/text_animator.hpp` | 🟢 **DELETED** (header-only; inline `void TextAnimator::build(...)` + `split_units()` + `split_glyphs()` + `measure_unit_width()` all gone). |
+| `tests/text/test_text_animator.cpp` | 🟢 **DELETED** (17 legacy TEST_CASE blocks; cover `TextAnimMode::{ByCharacter, ByWord, ByLine, ByGlyph}` splits + builder invocation). |
+| `tests/text/test_text_quality_tracking.cpp` | 🟢 **MIGRATED** (2 of 11 TEST_CASE blocks at § 7 retired; cross-link comment added; the 9 canonical `TextLayoutEngine`-based tests at § 8 + § 11 + § 12 unchanged). |
+| `tests/core_tests.cmake` | 🟢 **UPDATED** (`text/test_text_animator.cpp` removed from `CORE_BLEND2D_TESTS` list; 5-line cross-link comment added). |
+
+### 11.3 Where the retired invariants live today
+
+| Old § 7 invariant | Canonical-path replacement |
+|---|---|
+| `ByGlyph positions increase monotonically` | `tests/test_text_preset_registry.cpp` Sub-case 43 (`character_cascade` — Glyph selector + animated `end` sweep + 18f opacity ramp on `AnimatedValue<>`). |
+| `measure_unit_width uses grapheme cluster count` | `tests/text/test_text_quality_tracking.cpp` § 11 (inter-token tracking with `compute_typewriter_layout` + `TextLayoutEngine::layout`, both of which honour UAX #29 cluster boundaries for combining marks / ZWJ emoji / RI flag pairs). |
+
+### 11.4 Acceptance criteria (all ✅ MET)
+
+| # | Criterion | Result |
+|---|---|---|
+| 1 | `git rm include/chronon3d/text/text_animator.hpp` lands clean (header-only, no .cpp consumer) | ✅ DELETED |
+| 2 | `git rm tests/text/test_text_animator.cpp` lands clean | ✅ DELETED |
+| 3 | `tests/core_tests.cmake` `CORE_BLEND2D_TESTS` list no longer references `text/test_text_animator.cpp` | ✅ UPDATED |
+| 4 | `tests/text/test_text_quality_tracking.cpp` § 7 retired; the 9 canonical TextLayoutEngine tests at § 8 / § 11 / § 12 unchanged | ✅ UPDATED |
+| 5 | Atomic single commit on `main` + push (env-vars Agent3) | ✅ COMMITTED |
+| 6 | `docs/MIGRATION_TEXT_SPEC.md` § 11 cross-link documenting the retirement | ✅ THIS SECTION |
+| 7 | Partner work-trees WIP files NOT pulled into this commit (`text_animator_property.hpp` shim + partner `scene_builder.hpp` etc. untouched) | ✅ EXPLICIT-FILE-LIST staging |
+
+### 11.5 Cross-references
+
+- AGENTS.md §Piano operativo canonico (single-identity rule; anti-duplication-guardrail).
+- docs/ANTI_DUPLICATION_RULES.md §registry/resolver (no parallel text-animation API).
+- docs/V3_BLUEPRINT.md §text pipeline (single canonical path).
+- docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md §Fase 10 (preset library — the canonical alternative).
+- `tests/test_text_preset_registry.cpp` Sub-cases 11-27 (per-preset golden-frame), 30 (Stage 5 AnimatorResolver coverage), 43-44 (AGENT 2 resolver-driven evolution for `character_cascade`).
+- `tests/text/test_text_quality_tracking.cpp` § 8 + § 11 + § 12 (canonical `TextLayoutEngine` invariants).

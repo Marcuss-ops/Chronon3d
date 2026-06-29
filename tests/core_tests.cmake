@@ -7,7 +7,13 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         text/test_text_layout.cpp
         text/test_text_bounds.cpp
         text/test_text_cache_key.cpp
-        text/test_text_animator.cpp
+        # TEXT-RET-01 — retired legacy multi-layer TextAnimator (its
+        # 17 tests in tests/text/test_text_animator.cpp deleted).
+        # The canonical path (TextPreset registry → AnimatorResolver →
+        # TextAnimatorSpec → wire_preset_text_run_params → lb.text_run(...).commit())
+        # produces ONE TextRunShape RenderNode, not N per-char layers.
+        # Staggered reveal coverage lives in
+        # tests/test_text_preset_registry.cpp Sub-cases 11-27 + 30-32.
         text/test_text_material.cpp
         text/test_text_style_presets.cpp
         text/test_font_engine.cpp
