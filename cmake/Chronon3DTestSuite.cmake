@@ -1,70 +1,146 @@
 # ============================================================================
 # cmake/Chronon3DTestSuite.cmake
 #
-# §12.1 — Test source registration helpers (PR 6.8 / §12 series).
+# §11.1 + §12.1 — Test suite registration + link-contract helper.
 #
-# Single source of truth for which test source files participate in
-# the project, independent of which CMake target ends up compiling
-# them.  The actual `add_executable` + `target_link_libraries` wiring
-# is left to the per-area .cmake files (`tests/*_tests.cmake`) for
-# now — §11's test tier-separation refactor will consolidate that
-# responsibility into this helper in a follow-up commit.
+# Single source of truth for test source registration AND per-tier
+# link contract.  Replaces the per-area .cmake file boilerplate
+# (`add_executable(<name> ${TEST_MAIN} <list of sources>)` +
+# `target_link_libraries(<name> PRIVATE chronon3d_sdk
+# chronon3d_sdk_impl chronon3d_pipeline doctest::doctest)`) with
+# one typed call site.
 #
-# Two functions are exposed, both of which write the canonical
-# absolute path of every supplied source to the GLOBAL CMake property
-# `CHRONON3D_REGISTERED_TEST_SOURCES`.  The dump step in
-# `tests/CMakeLists.txt` (at the very end of configuration) reads
-# the property and writes a deterministic list to
-# `${CMAKE_BINARY_DIR}/registered_test_sources.txt`, which the
-# Python gate (`tools/check_test_source_registration.py`, §12.3)
-# diffs against the on-disk `tests/**/test_*.cpp` enumeration.
+# Two functions are exposed:
 #
-# Why two helpers:
-#   * `chronon3d_add_test_suite` captures the high-level intent
-#     (test suite = name + tier + sources + link contract) for the
-#     §11 forward-compat path.  Today the link contract is captured
-#     but NOT enforced; the TIER argument is also captured but NOT
-#     enforced (§11 will enforce both).  This is registration-only
-#     per §12.1's atomicity contract.
-#   * `chronon3d_register_test_source` is the low-level single-source
-#     registration helper.  Use it for conditional sources
-#     (e.g. text- or blend2d-gated test files) referenced inside
-#     `if(... )` blocks where the full-suite metadata (name, tier,
-#     link contract) is not available.  Both helpers write to the
-#     SAME global property so the dump is a single flat list.
+#   * chronon3d_add_test_suite(NAME <name> TIER <UNIT|INTEGRATION|SDK>
+#                              SOURCES <list> [LINK_TARGETS <list>]
+#                              [LABELS <list>])
+#     — Registers sources to the §12.3 GLOBAL property
+#       CHRONON3D_REGISTERED_TEST_SOURCES.
+#     — Validates TIER against the canonical enum.
+#     — Derives the default link contract from TIER (overridable via
+#       LINK_TARGETS; emits AUTHOR_WARNING when overridden).
+#     — Emits add_executable(${NAME} ${TEST_MAIN} ${SOURCES}).
+#     — Emits target_link_libraries(${NAME} PRIVATE
+#       ${LINK_TARGETS} doctest::doctest).
+#     — Sets include dirs directly (replaces what chronon3d_sdk
+#       INTERFACE used to provide for in-tree tests; internal tests
+#       no longer link chronon3d_sdk per §11.3).
+#     — Calls chronon3d_enable_test_pch.
+#     — Emits add_test(NAME ${NAME} COMMAND ${NAME}
+#       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}).
+#     — Tracks the target to per-tier + global GLOBAL properties
+#       for the §11.4 gate.
+#
+#   * chronon3d_register_test_source(...)
+#     — Single-source registration helper (§12.1 forward-compat
+#       stub; §12.2 extends with REQUIRES-gate evaluation).  No
+#       TIER, no add_executable emission.  Used for conditional
+#       sources that don't have a single test-suite context.
+#
+# TIER semantics (canonical enum):
+#
+#   UNIT         — internal types/methods, no rendering backend.
+#                  Link contract: chronon3d_pipeline (the OBJECT
+#                  aggregate of every per-subsystem .o).  No
+#                  rendering, no SDK.
+#   INTEGRATION  — end-to-end pipeline tests, may render.
+#                  Link contract: chronon3d_pipeline +
+#                  chronon3d_backend_software.  No SDK.
+#   SDK          — only the archive consumer test (the
+#                  tests/package_consumer/ executable, plus any
+#                  future find_package(Chronon3D) consumer tests).
+#                  Link contract: chronon3d_sdk (the INTERFACE
+#                  that resolves to libchronon3d_sdk_impl.a at
+#                  install time).
+#
+# Forward-compat: LINK_TARGETS override is supported for the rare
+# test that needs custom third-party deps (e.g. chronon3d_backend_text
+# for Blend2D-gated text tests).  AUTHOR_WARNING is emitted on
+# override; the override path is not the default.
+#
+# Why a per-tier tracker:
+#   The §11.4 gate (tools/check_arch_test_tiers.sh) needs to know
+#   which targets belong to which tier so it can fail on any
+#   internal test that links chronon3d_sdk / chronon3d_sdk_impl.
+#   The helper writes each target name to GLOBAL properties
+#   CHRONON3D_TIER_UNIT / CHRONON3D_TIER_INTEGRATION / CHRONON3D_TIER_SDK
+#   AND a flat list CHRONON3D_ALL_TEST_TARGETS.
 #
 # Freeze compliance (AGENTS.md V0.1):
 #   * This file lives under `cmake/`, not `include/chronon3d/`, so
 #     it does not expand the public API surface.
-#   * It introduces no new canonical type or surface — it is build
-#     infra only (Category 1 of the freeze: build fixes).
+#   * CATEGORY 1 (build fixes) + CATEGORY 3 (legacy removal of
+#     inconsistent per-area link patterns).  The §11.3 commit will
+#     remove the `chronon3d_sdk chronon3d_sdk_impl` from internal
+#     test targets; §11.4 will gate the new contract.
 # ============================================================================
 
-# Append each source in ARG_SOURCES to the GLOBAL property
-# CHRONON3D_REGISTERED_TEST_SOURCES.  Paths are canonicalised to
-# absolute paths so the Python gate (which walks the filesystem
-# relative to CMAKE_SOURCE_DIR) and the registered set use the same
-# string form.  set_property(GLOBAL APPEND …) creates the property
-# on first use, so no pre-declaration is needed.
-#
-# Captures NAME / TIER / LINK_TARGETS / LABELS for §11 forward-compat
-# (these are NOT yet enforced — the per-area .cmake files still do
-# their own add_executable + target_link_libraries).  The parse is
-# kept (rather than dropped) so call sites that opt into the helper
-# in §11 can land their migrations without re-architecting.
+# Canonical TIER enum + per-tier default link contract.
+# The default link contract is overridable via LINK_TARGETS, but the
+# override path emits an AUTHOR_WARNING.  Internal test executables
+# MUST use one of these three tiers; the §11.4 gate enforces the
+# absence of chronon3d_sdk / chronon3d_sdk_impl in UNIT/INTEGRATION
+# test executables.
+set(_CHRONON3D_TIER_DEFAULT_LINKS_UNIT       "chronon3d_pipeline")
+set(_CHRONON3D_TIER_DEFAULT_LINKS_INTEGRATION "chronon3d_pipeline;chronon3d_backend_software")
+set(_CHRONON3D_TIER_DEFAULT_LINKS_SDK        "chronon3d_sdk")
+
+# Register the test suite + emit the executable + link + add_test.
+# See header comment for the full contract.
 function(chronon3d_add_test_suite)
     cmake_parse_arguments(ARG "" "NAME;TIER" "SOURCES;LINK_TARGETS;LABELS" ${ARGN})
 
-    # Fail-fast on missing NAME — a call with no NAME silently registers
-    # sources to a property that no consumer can match.  Better to
-    # surface the misconfiguration at configure time.
+    # Fail-fast: NAME is the add_executable target name; a call with
+    # no NAME silently registers sources to a property no consumer
+    # can match.  Surface the misconfiguration at configure time.
     if(NOT ARG_NAME)
         message(FATAL_ERROR
             "chronon3d_add_test_suite: NAME is required. "
-            "Usage: chronon3d_add_test_suite(NAME <name> TIER <U|I|S> "
-            "SOURCES <list> [LINK_TARGETS <list>] [LABELS <list>])")
+            "Usage: chronon3d_add_test_suite(NAME <name> "
+            "TIER <UNIT|INTEGRATION|SDK> SOURCES <list> "
+            "[LINK_TARGETS <list>] [LABELS <list>])")
     endif()
 
+    # Fail-fast: TIER is the §11.1 contract discriminant.  Without
+    # it, the helper cannot derive the default link contract, and
+    # the §11.4 gate cannot classify the target.
+    if(NOT ARG_TIER)
+        message(FATAL_ERROR
+            "chronon3d_add_test_suite: TIER is required for '${ARG_NAME}'. "
+            "Must be one of: UNIT  INTEGRATION  SDK")
+    endif()
+
+    # Fail-fast: TIER must be one of the canonical enum values.
+    if(NOT ARG_TIER STREQUAL "UNIT" AND
+       NOT ARG_TIER STREQUAL "INTEGRATION" AND
+       NOT ARG_TIER STREQUAL "SDK")
+        message(FATAL_ERROR
+            "chronon3d_add_test_suite: TIER='${ARG_TIER}' is invalid for "
+            "'${ARG_NAME}'.  Must be one of: UNIT  INTEGRATION  SDK")
+    endif()
+
+    # Derive the default link contract from the tier (unless caller
+    # explicitly overrode via LINK_TARGETS).  The override path is
+    # for the rare test that needs custom third-party deps
+    # (e.g. chronon3d_backend_text for Blend2D-gated tests); it
+    # emits an AUTHOR_WARNING so the call site is auditable.
+    if(NOT ARG_LINK_TARGETS)
+        set(ARG_LINK_TARGETS "${_CHRONON3D_TIER_DEFAULT_LINKS_${ARG_TIER}}")
+    else()
+        message(AUTHOR_WARNING
+            "chronon3d_add_test_suite: LINK_TARGETS override on "
+            "'${ARG_NAME}' (tier='${ARG_TIER}').  Default would have been: "
+            "${_CHRONON3D_TIER_DEFAULT_LINKS_${ARG_TIER}}.  Override is "
+            "RARE — confirm this is intentional (e.g. for tests with "
+            "custom third-party deps like chronon3d_backend_text).")
+    endif()
+
+    # Register sources to the GLOBAL property (preserves §12.1
+    # behavior for the §12.3 gate).  Paths are canonicalised to
+    # absolute paths so the Python gate (which walks the filesystem
+    # relative to CMAKE_SOURCE_DIR) and the registered set use the
+    # same string form.
     foreach(_source IN LISTS ARG_SOURCES)
         get_filename_component(_absolute "${_source}" ABSOLUTE)
         set_property(
@@ -73,33 +149,72 @@ function(chronon3d_add_test_suite)
             "${_absolute}"
         )
     endforeach()
+
+    # ── NEW in §11.1: emit add_executable + target_link_libraries ────
+    # Replaces the per-area .cmake boilerplate:
+    #   add_executable(${NAME} ${TEST_MAIN} <list of sources>)
+    #   target_link_libraries(${NAME} PRIVATE <links> doctest::doctest)
+    #   target_include_directories(${NAME} PRIVATE ${CMAKE_SOURCE_DIR} ...)
+    #   chronon3d_enable_test_pch(${NAME})
+    #   add_test(NAME ${NAME} COMMAND ${NAME} WORKING_DIRECTORY ...)
+    add_executable(${ARG_NAME} ${TEST_MAIN} ${ARG_SOURCES})
+    target_link_libraries(${ARG_NAME} PRIVATE
+        ${ARG_LINK_TARGETS}
+        doctest::doctest
+    )
+    # Include dirs: previously provided by `chronon3d_sdk` INTERFACE's
+    # $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>.  After §11.3 the
+    # internal test executables do NOT link chronon3d_sdk, so the
+    # helper must set the include dirs explicitly.  Both
+    # ${CMAKE_SOURCE_DIR}/include (public chronon3d headers) and
+    # ${CMAKE_SOURCE_DIR}/tests (test-only headers like
+    # tests/helpers/test_utils.hpp) are required by existing tests.
+    target_include_directories(${ARG_NAME} PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/tests
+    )
+    chronon3d_enable_test_pch(${ARG_NAME})
+
+    # LABELS is forwarded to ctest's -L filter (e.g. `ctest -L gate`).
+    # The existing per-area tests do not set labels except for the
+    # `chronon3d_camera_architecture_gate` (which sets
+    # `camera_architecture_gate;gate`); this field is forward-compat
+    # for the migration in §11.2-11.3.
+    if(ARG_LABELS)
+        set_tests_properties(${ARG_NAME} PROPERTIES LABELS "${ARG_LABELS}")
+    endif()
+
+    add_test(NAME ${ARG_NAME}
+        COMMAND ${ARG_NAME}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+    # ── NEW in §11.1: per-tier + global target tracking for §11.4 ───
+    # The §11.4 gate (tools/check_arch_test_tiers.sh) enumerates
+    # these properties to know which targets belong to which tier
+    # so it can fail on any internal test that links chronon3d_sdk
+    # or chronon3d_sdk_impl.
+    set_property(
+        GLOBAL APPEND
+        PROPERTY CHRONON3D_TIER_${ARG_TIER}
+        "${ARG_NAME}"
+    )
+    set_property(
+        GLOBAL APPEND
+        PROPERTY CHRONON3D_ALL_TEST_TARGETS
+        "${ARG_NAME}"
+    )
 endfunction()
 
 # Single-source registration helper.  Use for conditional sources
-# (e.g. text- or blend2d-gated).  No metadata required; just appends
-# each positional argument's source path to the SAME GLOBAL property.
+# (e.g. text- or blend2d-gated).  No TIER, no add_executable — just
+# appends each positional argument's source path to the §12.3
+# GLOBAL property.
 #
-# Implementation note: this function does NOT use cmake_parse_arguments
-# (no named args needed) — it iterates over all positional arguments
-# directly via ARGN.  This keeps the call site trivial:
-#   chronon3d_register_test_source(
-#       text/test_text_layout.cpp
-#       text/test_text_bounds.cpp
-#       REQUIRES CHRONON3D_ENABLE_TEXT
-#   )
-# The `REQUIRES …` tail is ignored by this function (consumed by §11's
-# conditional gate) but accepted for forward-compat so call sites
-# don't need a §12.2 migration to keep working.
+# §12.1 — STUB.  The REQUIRES-gate parsing (filter on which features
+# must be ON for the source to be considered registered) lands in
+# §12.2.  Emit an AUTHOR_WARNING whenever this function is called so
+# callers don't mistake it for the §12.2 final form.
 function(chronon3d_register_test_source)
-    # §12.1 — STUB.  This function only registers the path; the
-    # REQUIRES-gate parsing (filter on which features must be ON for
-    # the source to be considered registered) lands in §12.2.  Emit an
-    # AUTHOR_WARNING whenever this function is called so callers don't
-    # mistake it for the §12.2 final form.  When §12.2 lands, this
-    # warning is removed and the function is extended to honour the
-    # `REQUIRES <FEATURE_X> <FEATURE_Y>` tail (the tail is already
-    # silently accepted by the foreach loop below; the §12.2 commit
-    # adds the explicit gate evaluation).
     message(AUTHOR_WARNING
         "chronon3d_register_test_source is a §12.1 stub: REQUIRES-gate "
         "evaluation lands in §12.2.  Current call only registers the "
@@ -107,8 +222,8 @@ function(chronon3d_register_test_source)
         "for the final form.")
 
     foreach(_source IN LISTS ARGN)
-        # Skip "key=value" pairs (they're metadata for §11's
-        # conditional-gate parsing, not source paths).
+        # Skip "key=value" pairs (metadata for §11/§12 conditional
+        # gate parsing, not source paths).
         if(_source MATCHES "^[A-Z_][A-Z0-9_]*=")
             continue()
         endif()
