@@ -34,21 +34,21 @@ mkdir -p "$(dirname "$OUT")"
 
 # 1. Metriche di base.
 HDR_LOC=$(wc -l < "$HDR")
-NON_LOCAL_INC=$(grep -E '^#include <(chronon3d|backends)/' "$HDR" 2>/dev/null | wc -l)
-LOCAL_INC=$(grep -E '^#include "[^"]+"' "$HDR" 2>/dev/null | wc -l)
-GUARD_DEFS=$(grep -E '^#ifdef|^#if defined' "$CPP" 2>/dev/null | wc -l)
+NON_LOCAL_INC=$(grep -E '^#include <(chronon3d|backends)/' "$HDR" 2>/dev/null | wc -l || true)
+LOCAL_INC=$(grep -E '^#include "[^"]+"' "$HDR" 2>/dev/null | wc -l || true)
+GUARD_DEFS=$(grep -E '^#ifdef|^#if defined' "$CPP" 2>/dev/null | wc -l || true)
 
 # 2. Doppio rimbalzo: metodi del renderer che inoltrano a m_runtime->backend()
 # Sono candidati R3a per essere rimossi dal renderer.
-FWD_BACKEND=$(grep -E 'm_runtime->backend\(\)\.' "$CPP" 2>/dev/null | wc -l)
-FWD_RUNTIME=$(grep -E 'm_runtime->' "$CPP" 2>/dev/null | wc -l)
+FWD_BACKEND=$(grep -E 'm_runtime->backend\(\)\.' "$CPP" 2>/dev/null | wc -l || true)
+FWD_RUNTIME=$(grep -E 'm_runtime->' "$CPP" 2>/dev/null | wc -l || true)
 
 # 3. Doppia identità: SoftwareRenderer : public ... , public ... RenderBackend
 DUAL_INH=$(grep -nE 'class SoftwareRenderer\b.*:.*public\b' "$HDR" || true)
 
 # 4. dynamic_cast<SoftwareRenderer*> e static_cast in pipeline/processor
-CASTS=$(grep -RIn 'dynamic_cast<SoftwareRenderer' src/ include/ apps/ 2>/dev/null | wc -l)
-STATIC_CASTS=$(grep -RIn 'static_cast<SoftwareRenderer' src/ include/ apps/ 2>/dev/null | wc -l)
+CASTS=$(grep -RIn 'dynamic_cast<SoftwareRenderer' src/ include/ apps/ 2>/dev/null | wc -l || true)
+STATIC_CASTS=$(grep -RIn 'static_cast<SoftwareRenderer' src/ include/ apps/ 2>/dev/null | wc -l || true)
 
 # 5. SoftwareRenderer& nei processor / header di processo.
 PROC_USES=$(grep -RIn 'SoftwareRenderer&' \
@@ -56,7 +56,7 @@ PROC_USES=$(grep -RIn 'SoftwareRenderer&' \
   src/render_graph/ \
   src/runtime/ \
   include/chronon3d/backends/software/ \
-  2>/dev/null | wc -l)
+  2>/dev/null | wc -l || true)
 
 # 6. Metodi pubblici (euristica): righe di dichiarazione dentro il blocco public.
 awk '
@@ -71,7 +71,7 @@ awk '
 PUB_COUNT=$(wc -l < /tmp/sw_public_methods.txt)
 
 # 7. RenderBackend override implementati nel renderer (candidati R3a per rimozione)
-RB_OVERRIDES=$(grep -E 'override' "$HDR" 2>/dev/null | wc -l)
+RB_OVERRIDES=$(grep -E 'override' "$HDR" 2>/dev/null | wc -l || true)
 
 # 8. Costruzione del report.
 {
