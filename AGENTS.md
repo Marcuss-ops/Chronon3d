@@ -33,7 +33,15 @@ plan agente legacy `docs/agent-tasks/`) vivono in `docs/ARCHIVE/` e **non** sono
 
 ## Stato assegnazioni agenti (snapshot 2026-06-29)
 
-Tutti gli agenti della tornata (Agent 1 — Renderer/Backend Single Identity, Agent 2 — CMake Registry / SDK Boundary / Baseline, Agent 4 — Visual Verification) sono confluiti su `main`. Lavoro corrente sequenziale su `main`, un task alla volta.
+- Agent 1 — Renderer/Backend Single Identity: DONE.
+- Agent 2 — CMake Registry / SDK Boundary / Baseline: COMPLETED.
+- Agent 4 — Visual Verification: PARTIAL.
+  - 5/6 gate `A4.1`–`A4.6` verificati su `linux-ci`.
+  - `A4.3` (per-preset collision diagnostic) non è 5/5: collegato a `TICKET-051`.
+  - `Showcase completo: 5/6`.
+  - `TICKET-051: OPEN` (vedi [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md)).
+
+Lavoro corrente sequenziale su `main`, un task alla volta.
 
 Stato presente e blocker attivi: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 Documenti storici di quelle tornate in `docs/ARCHIVE/` (consultazione non operativa).
