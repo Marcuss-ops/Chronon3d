@@ -37,6 +37,19 @@ on:
     # window is well below peak. Adjust here if fleet usage shifts.
     - cron: '0 2 * * *'
 
+# Single-concurrency guard.  Without this group, a `workflow_dispatch`
+# started while a previous nightly schedule is still running could
+# overlap, doubling CI minute consumption AND racing on the same
+# showcase artefacts (output/showcase/contact_sheet.png).  Ref-based
+# group is INTENTIONAL: manual `workflow_dispatch` from a non-default
+# branch forms its own group, leaving the main schedule uninterrupted.
+# cancel-in-progress is set ONLY for `workflow_dispatch` — scheduled
+# runs never pre-empt a sibling schedule.  Reviewer cleanup (Step 2/6
+# round 2): replaces the previously-suggested double-cron pattern.
+concurrency:
+  group: nightly-visual-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
+
 env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
   VCPKG_BINARY_SOURCES: "clear;nuget,GitHub,readwrite"
