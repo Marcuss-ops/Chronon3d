@@ -66,14 +66,16 @@ Le composizioni di progetto devono vivere in pack esterni, non nel core engine.
 
 ## Stato prodotto sintetico
 
-Le percentuali seguenti sono stime di copertura funzionale, non risultati CI.
+Stato osservato sul commit corrente. Nessuna stima di copertura manuale: si usa
+`PASS` / `FAIL` / `PARTIAL` / `NOT RUN`. Un valore `PASS` non accompagnato da
+output osservato sullo stesso commit è un falso positivo e va corretto.
 
-| Area | Completezza stimata | Stato reale |
-|---|---:|---|
-| Text Production V1 | 60–65% | Fondazioni avanzate; word timing, rich text produttivo, preset e golden da chiudere. |
-| Camera Production V1 | 70–75% | Percorso compilato avanzato; migrazione legacy e alcuni gate/funzioni restano aperti. |
-| SDK C++ installabile | 80–85% | Package CMake e target pubblico presenti; consumer di rendering reale ancora da certificare. |
-| SDK cross-language | 30–40% | C ABI e formato dichiarativo delle animazioni ancora da progettare e implementare. |
+| Area | Stato osservato | Note |
+|---|---|---|
+| Text Production V1 | NOT RUN | Fondazioni avanzate; word timing, rich text produttivo, preset e golden da chiudere. |
+| Camera Production V1 | NOT RUN | Percorso compilato avanzato; migrazione legacy e alcuni gate/funzioni restano aperti. |
+| SDK C++ installabile | NOT RUN | Package CMake e target pubblico presenti; consumer di rendering reale ancora da certificare. |
+| SDK cross-language | NOT RUN | C ABI e formato dichiarativo delle animazioni ancora da progettare e implementare. |
 
 Dettagli, limiti e criteri di chiusura:
 [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
