@@ -47,11 +47,13 @@ log "preset     : $PRESET"
 SDK_BUILD=""
 SDK_PREFIX=""
 CONS_BUILD=""
+GATE_TMP=""
 cleanup() {
     local rc=$?
     [[ -n "$SDK_BUILD" ]] && rm -rf "$SDK_BUILD"
     [[ -n "$SDK_PREFIX" ]] && rm -rf "$SDK_PREFIX"
     [[ -n "$CONS_BUILD" ]] && rm -rf "$CONS_BUILD"
+    [[ -n "$GATE_TMP"  ]] && rm -rf "$GATE_TMP"
     exit "$rc"
 }
 trap cleanup EXIT
@@ -103,6 +105,151 @@ if (( header_count == 0 )); then
     exit 1
 fi
 log "Boundary verified: config, targets, archive, $header_count headers"
+
+# ────────────────────────── Step 3.5: ar t + nm canary gate ───────────
+# Companion to cmake/Chronon3DCanarySymbols.cmake (Fase 4).  After file-level
+# boundary pre-conditions (presence of config/targets/archive/headers), this
+# step verifies the *archive content* is sane:
+#   (a) ar t count >= 2  — marker TU plus >= 1 subsystem .o
+#   (b) nm -C dump       — demangled symbol table (one-time per run)
+#   (c) per canary entry in the catalog: substring match on the demangled
+#       symbol.  Symbols behind conditional guards are skipped when the
+#       guard is not satisfied (so text_off builds do not require text_core).
+#
+# HARD fail on any missing canary so the downstream consumer has zero
+# chance to link against a torn archive.  All temp dirs are released by
+# the cleanup trap registered at the top of the script (covers GATE_TMP
+# on every exit path including bash's set -e firing mid-block).
+
+# Pull option values from CMakeCache.txt; default to CMakeLists.txt
+# defaults when absent.  Each var: read cache → fall back via parameter
+# expansion `${var:=default}` only when empty.
+sdk_cache="$SDK_BUILD/CMakeCache.txt"
+cache_var() {
+    # $1 = cache variable name; emit its value trimmed, or "" if absent.
+    [[ -f "$sdk_cache" ]] || return 0
+    grep -E "^${1}:" "$sdk_cache" 2>/dev/null \
+        | head -1 | sed -E 's/^[^=]*=//' | tr -d ' \t\r\n' || true
+}
+text_on="$(cache_var CHRONON3D_ENABLE_TEXT)";    : "${text_on:=ON}"
+diag_on="$(cache_var CHRONON3D_BUILD_DIAGNOSTICS)"; : "${diag_on:=OFF}"
+blend2d_on="$(cache_var CHRONON3D_USE_BLEND2D)"; : "${blend2d_on:=ON}"
+log "canary guards: text=$text_on diagnostics=$diag_on blend2d=$blend2d_on"
+
+# (c) parse canary catalog into bash arrays.  Catalog is a CMake file; we
+# extract each quoted "AREA|SYMBOL|GUARD|TARGET" entry via a robust grep
+# that constrains each field to the catalog's allowed character set:
+#   AREA   ∈ [a-z_]+
+#   SYMBOL ∈ [a-zA-Z0-9_:]+   (C++ demangled: :: for namespaces)
+#   GUARD  ∈ [a-zA-Z0-9_]+
+#   TARGET ∈ [a-zA-Z0-9_]+
+canary_file="$REPO_ROOT/cmake/Chronon3DCanarySymbols.cmake"
+if [[ ! -f "$canary_file" ]]; then
+    log "FAIL: canary catalog not found: $canary_file"
+    exit 1
+fi
+canary_entries="$(grep -oE '"[a-z_]+\|[a-zA-Z0-9_:]+\|[a-zA-Z0-9_]+\|[a-zA-Z0-9_]+"' "$canary_file" 2>/dev/null || true)"
+if [[ -z "$canary_entries" ]]; then
+    log "FAIL: no canary entries parsed from $canary_file"
+    exit 1
+fi
+
+# Load entries into bash arrays.  Each line is "AREA|SYMBOL|GUARD|TARGET".
+canary_areas=()
+canary_symbols=()
+canary_guards=()
+canary_targets=()
+while IFS= read -r entry; do
+    body="${entry#\"}"
+    body="${body%\"}"
+    IFS='|' read -r area symbol guard target <<<"$body"
+    canary_areas+=("$area")
+    canary_symbols+=("$symbol")
+    canary_guards+=("$guard")
+    canary_targets+=("$target")
+done <<<"$canary_entries"
+
+if [[ -z "${TMP_ROOT:-}" ]]; then
+    TMP_ROOT="${TMPDIR:-/tmp}"
+fi
+GATE_TMP="$(mktemp -d "$TMP_ROOT/chronon3d_install_gate.XXXXXX")"
+ar_list="$GATE_TMP/ar.txt"
+nm_dump="$GATE_TMP/nm.txt"
+
+# (a) ar t output
+if ! ar t "$impl_archive" | sort > "$ar_list" 2>/dev/null; then
+    log "FAIL: ar t failed on $impl_archive"
+    exit 1
+fi
+ar_count="$(wc -l < "$ar_list" | tr -d ' ')"
+if (( ar_count < 2 )); then
+    log "FAIL: archive contains only $ar_count .o files; need >= 2 (marker + >= 1 subsystem)"
+    exit 1
+fi
+log "ar t: $impl_archive :: $ar_count .o files (>= 2)"
+
+# (b) nm -C dump (one-time per run; subsequent greps are O(1) grep -F)
+if ! nm -C "$impl_archive" > "$nm_dump" 2>/dev/null; then
+    log "FAIL: nm -C failed on $impl_archive"
+    exit 1
+fi
+
+# Walk each canary; honour GUARD; ok on substring hit; FAIL hard on miss.
+checked=0
+missing=0
+skipped=0
+fail_list=""
+for i in "${!canary_areas[@]}"; do
+    area="${canary_areas[$i]}"
+    symbol="${canary_symbols[$i]}"
+    guard="${canary_guards[$i]}"
+    # target="${canary_targets[$i]}"  # currently advisory; logged for forensics.
+
+    case "$guard" in
+        always)
+            skip_reason=""
+            ;;
+        CHRONON3D_ENABLE_TEXT)
+            [[ "$text_on" == "ON" ]] || skip_reason="text_off (CHRONON3D_ENABLE_TEXT=$text_on)"
+            ;;
+        CHRONON3D_ENABLE_TEXT_AND_BLEND2D)
+            if [[ "$text_on" != "ON" ]]; then
+                skip_reason="text_off (CHRONON3D_ENABLE_TEXT=$text_on)"
+            elif [[ "$blend2d_on" != "ON" ]]; then
+                skip_reason="blend2d_off (CHRONON3D_USE_BLEND2D=$blend2d_on)"
+            fi
+            ;;
+        CHRONON3D_BUILD_DIAGNOSTICS)
+            [[ "$diag_on" == "ON" ]] || skip_reason="diag_off (CHRONON3D_BUILD_DIAGNOSTICS=$diag_on)"
+            ;;
+        *)
+            log "WARN: unknown guard '$guard' for canary '$area'; treating as always"
+            skip_reason=""
+            ;;
+    esac
+
+    if [[ -n "$skip_reason" ]]; then
+        log "SKIP: canary $area ($skip_reason)"
+        skipped=$((skipped + 1))
+        continue
+    fi
+
+    if grep -F -q -- "$symbol" "$nm_dump"; then
+        log "OK: canary $symbol"
+        checked=$((checked + 1))
+    else
+        log "FAIL: canary $area -> '$symbol' not present in $impl_archive"
+        missing=$((missing + 1))
+        fail_list="${fail_list}${fail_list:+, }$area"
+    fi
+done
+
+if (( missing > 0 )); then
+    log "FAIL: $missing canary symbol(s) missing from archive: $fail_list"
+    log "      (rebuild with the matching CHRONON3D_ENABLE_* option enabled or fix the catalog)"
+    exit 1
+fi
+log "Canary gate: $checked present, $skipped skipped, 0 missing"
 
 # ────────────────────────── Step 4: consumer ──────────────────────────
 log "Configuring consumer (tests/install_consumer/)"
