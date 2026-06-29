@@ -55,46 +55,14 @@ struct AnimationEvalContext {
     const math::ExpressionContext* expression_context{nullptr};
 };
 
-// ── FillStyle expression evaluation ─────────────────────────────────────
-// Parses expressions of the form: solid(r, g, b, a)
-// Each argument is itself a numeric expression supporting variables:
-//   frame, time, fps, index
-// Returns the base value on parse failure or non-solid expression.
-
-namespace detail {
-
-/// Split function arguments by commas, respecting nested parentheses.
-[[nodiscard]] std::vector<std::string> split_expr_args(
-    const std::string& inner);
-
-/// Parse a solid(r, g, b, a) expression into a Color.
-/// Each argument is evaluated as a numeric expression with variables:
-///   frame, time, fps, index
-/// Returns std::nullopt if the expression is not a valid solid(...) call.
-[[nodiscard]] std::optional<Color> evaluate_solid_color_expression(
-    std::string_view expr,
-    const AnimationEvalContext& ctx,
-    f32 fps,
-    double t,
-    double frame);
-
-} // namespace detail
-
-[[nodiscard]] graphics::FillStyle evaluate_fill_expression(
-    const std::string& expr,
-    const graphics::FillStyle& base,
-    const AnimationEvalContext& ctx,
-    f32 fps,
-    double t,
-    double frame);
-
-[[nodiscard]] graphics::StrokeStyle evaluate_stroke_expression(
-    const std::string& expr,
-    const graphics::StrokeStyle& base,
-    const AnimationEvalContext& ctx,
-    f32 fps,
-    double t,
-    double frame);
+// Note: the four expression-related free functions
+// (::chronon3d::detail::split_expr_args +
+//  ::chronon3d::detail::evaluate_solid_color_expression +
+//  ::chronon3d::evaluate_fill_expression +
+//  ::chronon3d::evaluate_stroke_expression)
+// + Graphics FillStyle / StrokeStyle evaluation helpers
+// are declared in <chronon3d/animation/core/detail/animated_value_expressions.hpp>,
+// included at the bottom of this header.
 
 template <AnimatableValue T>
 class AnimatedValue {
@@ -189,176 +157,13 @@ public:
     }
 
     // Recompute roving keyframe timing for constant velocity.
-    // For each group of consecutive roving keyframes between two non-roving
-    // anchors, redistributes their frames so velocity is constant.
-    //
-    // This method is callable on const objects because it's a lazy cache
-    // operation triggered automatically during evaluate().  The mutable
-    // qualifiers on m_keyframes and m_roving_dirty allow this.
-    void compute_roving() const {
-        if (!m_roving_dirty) return;
-        if (m_keyframes.size() < 3) {
-            // Enforce: first and last keyframes cannot be roving.
-            if (!m_keyframes.empty()) {
-                m_keyframes.front().roving = false;
-                m_keyframes.back().roving = false;
-            }
-            m_roving_dirty = false;
-            return;
-        }
-
-        // Auto-compute bezier tangents before roving (like AnimationCurve).
-        compute_auto_beziers();
-
-        std::sort(m_keyframes.begin(), m_keyframes.end());
-
-        size_t i = 0;
-        while (i < m_keyframes.size()) {
-            if (!m_keyframes[i].roving) { ++i; continue; }
-
-            // Find left anchor (closest non-roving to the left)
-            size_t left = (i > 0) ? (i - 1) : 0;
-            while (left > 0 && m_keyframes[left].roving) --left;
-            if (m_keyframes[left].roving) {
-                m_keyframes[i].roving = false;
-                ++i;
-                continue;
-            }
-
-            // Find right anchor (next non-roving to the right)
-            size_t right = i;
-            while (right < m_keyframes.size() && m_keyframes[right].roving) ++right;
-            if (right >= m_keyframes.size()) {
-                for (size_t j = i; j < m_keyframes.size(); ++j)
-                    m_keyframes[j].roving = false;
-                break;
-            }
-
-            // Constant velocity between left and right anchors
-            const f32 t_left = static_cast<f32>(m_keyframes[left].frame);
-            const f32 t_right = static_cast<f32>(m_keyframes[right].frame);
-            const f32 dt = t_right - t_left;
-
-            if constexpr (std::is_arithmetic_v<T>) {
-                const f32 v_left = static_cast<f32>(m_keyframes[left].value);
-                const f32 v_right = static_cast<f32>(m_keyframes[right].value);
-                const f32 dv = v_right - v_left;
-
-                if (std::abs(dv) < 1e-7f || dt <= 0.0f) {
-                    const size_t count = right - left - 1;
-                    for (size_t j = 0; j < count; ++j) {
-                        f32 frac = static_cast<f32>(j + 1) / static_cast<f32>(count + 1);
-                        m_keyframes[left + 1 + j].frame =
-                            Frame{static_cast<i32>(std::round(t_left + frac * dt))};
-                    }
-                } else {
-                    const f32 velocity = dv / dt;
-                    for (size_t j = left + 1; j < right; ++j) {
-                        const f32 val_dist = static_cast<f32>(m_keyframes[j].value) - v_left;
-                        const f32 target = t_left + val_dist / velocity;
-                        m_keyframes[j].frame = Frame{static_cast<i32>(
-                            std::round(std::clamp(target, t_left + 1.0f, t_right - 1.0f))
-                        )};
-                    }
-                }
-            } else if constexpr (is_glm_vec_type_v<T>) {
-                // Spatial types (Vec3, etc.): roving based on spatial distance
-                const f32 total_dist = glm::length(m_keyframes[right].value - m_keyframes[left].value);
-                if (total_dist < 1e-7f || dt <= 0.0f) {
-                    const size_t count = right - left - 1;
-                    for (size_t j = 0; j < count; ++j) {
-                        f32 frac = static_cast<f32>(j + 1) / static_cast<f32>(count + 1);
-                        m_keyframes[left + 1 + j].frame =
-                            Frame{static_cast<i32>(std::round(t_left + frac * dt))};
-                    }
-                } else {
-                    for (size_t j = left + 1; j < right; ++j) {
-                        const f32 dist_from_left = glm::length(m_keyframes[j].value - m_keyframes[left].value);
-                        const f32 frac = dist_from_left / total_dist;
-                        const f32 target = t_left + frac * dt;
-                        m_keyframes[j].frame = Frame{static_cast<i32>(
-                            std::round(std::clamp(target, t_left + 1.0f, t_right - 1.0f))
-                        )};
-                    }
-                }
-            } else {
-                // Non-arithmetic, non-spatial T: distribute frames evenly
-                const size_t count = right - left - 1;
-                for (size_t j = 0; j < count; ++j) {
-                    f32 frac = static_cast<f32>(j + 1) / static_cast<f32>(count + 1);
-                    m_keyframes[left + 1 + j].frame =
-                        Frame{static_cast<i32>(std::round(t_left + frac * dt))};
-                }
-            }
-
-            i = right + 1;
-        }
-
-        m_roving_dirty = false;
-
-        // Re-sort after frame modifications to maintain sorted invariant
-        std::sort(m_keyframes.begin(), m_keyframes.end());
-    }
+    // Implementation lives in detail/animated_value_roving.inl.
+    void compute_roving() const;
 
     /// Auto-compute temporal bezier tangents for AutoBezier keyframes.
     /// Like AnimationCurve::compute_auto_beziers() — only meaningful for
     /// arithmetic (scalar) types.
-    void compute_auto_beziers() const {
-        if (!m_auto_bezier_dirty) return;
-        if (m_keyframes.size() < 3) { m_auto_bezier_dirty = false; return; }
-
-        for (size_t i = 0; i < m_keyframes.size(); ++i) {
-            auto& kf = m_keyframes[i];
-            if (kf.interp != InterpMode::AutoBezier) continue;
-
-            const bool has_prev = (i > 0);
-            const bool has_next = (i + 1 < m_keyframes.size());
-
-            constexpr f32 kTension = 1.0f / 3.0f;
-
-            if (has_prev && has_next) {
-                const f32 dt_prev = static_cast<f32>(kf.frame - m_keyframes[i - 1].frame);
-                const f32 dt_next = static_cast<f32>(m_keyframes[i + 1].frame - kf.frame);
-
-                if constexpr (std::is_arithmetic_v<T>) {
-                    const f32 dv_prev = static_cast<f32>(kf.value - m_keyframes[i - 1].value);
-                    const f32 dv_next = static_cast<f32>(m_keyframes[i + 1].value - kf.value);
-                    const f32 slope = (dv_prev + dv_next) / (dt_prev + dt_next);
-
-                    kf.temporal_in_dx  = -dt_prev * kTension;
-                    kf.temporal_in_dy  = -slope * dt_prev * kTension;
-                    kf.temporal_out_dx = dt_next * kTension;
-                    kf.temporal_out_dy = slope * dt_next * kTension;
-                } else {
-                    kf.temporal_in_dx = 0.0f;
-                    kf.temporal_in_dy = 0.0f;
-                    kf.temporal_out_dx = 0.0f;
-                    kf.temporal_out_dy = 0.0f;
-                }
-            } else if (has_prev) {
-                if constexpr (std::is_arithmetic_v<T>) {
-                    const f32 dt = static_cast<f32>(kf.frame - m_keyframes[i - 1].frame);
-                    const f32 dv = static_cast<f32>(kf.value - m_keyframes[i - 1].value);
-                    const f32 slope = (dt > 0.0f) ? (dv / dt) : 0.0f;
-                    kf.temporal_in_dx  = -dt * kTension;
-                    kf.temporal_in_dy  = -slope * dt * kTension;
-                }
-                kf.temporal_out_dx = 0.0f;
-                kf.temporal_out_dy = 0.0f;
-            } else if (has_next) {
-                if constexpr (std::is_arithmetic_v<T>) {
-                    const f32 dt = static_cast<f32>(m_keyframes[i + 1].frame - kf.frame);
-                    const f32 dv = static_cast<f32>(m_keyframes[i + 1].value - kf.value);
-                    const f32 slope = (dt > 0.0f) ? (dv / dt) : 0.0f;
-                    kf.temporal_out_dx = dt * kTension;
-                    kf.temporal_out_dy = slope * dt * kTension;
-                }
-                kf.temporal_in_dx = 0.0f;
-                kf.temporal_in_dy = 0.0f;
-            }
-        }
-        m_auto_bezier_dirty = false;
-    }
+    void compute_auto_beziers() const;
 
     // Set a constant value (clears all keyframes and expressions).
     AnimatedValue& set(const T& value) {
@@ -627,182 +432,19 @@ public:
     }
 
 private:
-    // Check if any handle is non-zero (spatial bezier mode).
-    [[nodiscard]] static bool has_spatial_handles(const Keyframe<T>& kf) {
-        if constexpr (std::is_same_v<T, Vec3> || std::is_same_v<T, glm::vec2> || std::is_same_v<T, glm::vec4>) {
-            return glm::length2(kf.out_handle) > 1e-12f || glm::length2(kf.in_handle) > 1e-12f;
-        }
-        return false;
-    }
+    // Check if any handle is non-zero (spatial bezier mode). Body in evaluation.inl.
+    [[nodiscard]] static bool has_spatial_handles(const Keyframe<T>& kf);
 
     // Core interpolation engine — works with double precision for sub-frame accuracy.
-    [[nodiscard]] T evaluate_base_double(double frame) const {
-        // Auto-compute beziers and roving before evaluation if dirty.
-        if (m_auto_bezier_dirty) {
-            compute_auto_beziers();
-        }
-        if (m_roving_dirty) {
-            compute_roving();
-        }
-        if (m_keyframes.empty()) {
-            return m_default_value;
-        }
-
-        const double start_f = static_cast<double>(m_keyframes.front().frame);
-        const double end_f   = static_cast<double>(m_keyframes.back().frame);
-        const double range   = end_f - start_f;
-
-        double eval_frame = frame;
-
-        if (m_loop_mode == LoopMode::Loop && range > 0) {
-            if (frame < start_f) {
-                eval_frame = end_f - std::fmod(start_f - frame, range);
-            } else {
-                eval_frame = start_f + std::fmod(frame - start_f, range);
-            }
-        } else if (m_loop_mode == LoopMode::PingPong && range > 0) {
-            double t = (frame < start_f) ? (start_f - frame) : (frame - start_f);
-            double cycle = std::floor(t / range);
-            double offset = std::fmod(t, range);
-            if (static_cast<int64_t>(cycle) % 2 == 0) {
-                eval_frame = start_f + offset;
-            } else {
-                eval_frame = end_f - offset;
-            }
-        } else {
-            if (frame <= start_f) return m_keyframes.front().value;
-            if (frame >= end_f)   return m_keyframes.back().value;
-        }
-
-        // Linear scan for keyframe segment (uses > to correctly handle
-        // duplicate frames — matches upper_bound behavior).
-        size_t idx = 0;
-        for (size_t i = 0; i + 1 < m_keyframes.size(); ++i) {
-            if (static_cast<double>(m_keyframes[i + 1].frame) > eval_frame) {
-                idx = i;
-                break;
-            }
-            idx = i + 1;
-        }
-        if (idx + 1 >= m_keyframes.size()) {
-            return m_keyframes.back().value;
-        }
-
-        const auto& prev = m_keyframes[idx];
-        const auto& next = m_keyframes[idx + 1];
-
-        const double prev_f = static_cast<double>(prev.frame);
-        const double next_f = static_cast<double>(next.frame);
-        if (next_f <= prev_f) return prev.value;
-
-        const f32 t = static_cast<f32>((eval_frame - prev_f) / (next_f - prev_f));
-
-        // Hold interpolation: value jumps at keyframe.
-        if (prev.interp == InterpMode::Hold) return prev.value;
-
-        // Temporal bezier interpolation (arithmetic/scalar types).
-        if constexpr (std::is_arithmetic_v<T>) {
-            if (prev.interp == InterpMode::Bezier || prev.interp == InterpMode::AutoBezier) {
-                return eval_temporal_bezier(prev, next, t);
-            }
-        }
-
-        // Spatial bezier path: when handles are present, use CubicBezier3D
-        // for smooth curved interpolation through 3+ points.
-        if constexpr (std::is_same_v<T, Vec3> || std::is_same_v<T, glm::vec2> || std::is_same_v<T, glm::vec4>) {
-            if (has_spatial_handles(prev) || has_spatial_handles(next)) {
-                const f32 eased_t = prev.easing.apply(std::clamp(t, 0.0f, 1.0f));
-                // Build CubicBezier3D from the four control points
-                const Vec3 p0 = prev.value;
-                const Vec3 p1 = prev.value + prev.out_handle;
-                const Vec3 p3 = next.value;
-                const Vec3 p2 = next.value + next.in_handle;
-                // De Casteljau evaluation
-                const f32 u = 1.0f - eased_t;
-                return u * u * u * p0
-                     + 3.0f * u * u * eased_t * p1
-                     + 3.0f * u * eased_t * eased_t * p2
-                     + eased_t * eased_t * eased_t * p3;
-            }
-        }
-
-        return interpolate_values(prev.value, next.value, std::clamp(t, 0.0f, 1.0f), prev.easing);
-    }
+    [[nodiscard]] T evaluate_base_double(double frame) const;
 
     // ── Temporal bezier evaluation (scalar only) ─────────────────────────
     // Uses Newton-Raphson to solve x(u) = t, then returns y(u).
+    // Body in detail/animated_value_bezier.inl.
     [[nodiscard]] static T eval_temporal_bezier(
-        const Keyframe<T>& prev, const Keyframe<T>& next, f32 t)
-    {
-        const f32 duration = static_cast<f32>(next.frame - prev.frame);
-        if (duration <= 0.0f) return next.value;
+        const Keyframe<T>& prev, const Keyframe<T>& next, f32 t);
 
-        const f32 p0y = static_cast<f32>(prev.value);
-        const f32 p3y = static_cast<f32>(next.value);
-
-        // Out-tangent from prev keyframe
-        const f32 p1x = std::clamp(prev.temporal_out_dx / duration, 0.0f, 1.0f);
-        const f32 p1y = p0y + prev.temporal_out_dy;
-
-        // In-tangent from next keyframe
-        const f32 p2x = std::clamp(1.0f + next.temporal_in_dx / duration, 0.0f, 1.0f);
-        const f32 p2y = p3y + next.temporal_in_dy;
-
-        // X coefficients
-        const f32 cx = 3.0f * p1x;
-        const f32 bx = 3.0f * (p2x - p1x) - cx;
-        const f32 ax = 1.0f - cx - bx;
-
-        // Y coefficients
-        const f32 cy = 3.0f * (p1y - p0y);
-        const f32 by = 3.0f * (p2y - 2.0f * p1y + p0y);
-        const f32 ay = p3y - p0y - cy - by;
-
-        auto sample_x = [&](f32 u) -> f32 {
-            return ((ax * u + bx) * u + cx) * u;
-        };
-        auto sample_y = [&](f32 u) -> f32 {
-            return ((ay * u + by) * u + cy) * u + p0y;
-        };
-        auto sample_dx = [&](f32 u) -> f32 {
-            return (3.0f * ax * u + 2.0f * bx) * u + cx;
-        };
-
-        // Newton-Raphson
-        f32 u = t;
-        for (int i = 0; i < 8; ++i) {
-            f32 x_val = sample_x(u) - t;
-            if (std::abs(x_val) < 1e-6f)
-                return static_cast<T>(sample_y(u));
-            f32 dVal = sample_dx(u);
-            if (std::abs(dVal) < 1e-6f) break;
-            u -= x_val / dVal;
-        }
-
-        // Bisection fallback
-        f32 lo = 0.0f, hi = 1.0f;
-        u = t;
-        for (int i = 0; i < 16; ++i) {
-            f32 x_val = sample_x(u);
-            if (std::abs(x_val - t) < 1e-6f)
-                return static_cast<T>(sample_y(u));
-            if (t > x_val) lo = u; else hi = u;
-            u = (lo + hi) * 0.5f;
-        }
-        return static_cast<T>(sample_y(u));
-    }
-
-    // Shared cache-check logic (Frame + SampleTime)
-    [[nodiscard]] bool should_cache_double(double frame) const {
-        if (has_expression()) return true;
-        if (m_keyframes.empty()) return false;
-
-        const double start_f = static_cast<double>(m_keyframes.front().frame);
-        const double end_f   = static_cast<double>(m_keyframes.back().frame);
-
-        if (frame <= start_f || frame >= end_f) return false;
-        return true;
-    }
+    bool should_cache_double(double frame) const;
 
     // Legacy: delegates to double precision engine
     [[nodiscard]] T evaluate_base(Frame frame) const {
@@ -817,7 +459,7 @@ private:
     mutable bool m_auto_bezier_dirty{false};
 };
 
-// ── KeyframeTrack<T> — backward-compatible alias for AnimatedValue<T> ───
+// ── KeyframeTrack<T> — backward-compatible alias for AnimatedValue<T> ────
 // All KeyframeTrack usage (keyframes<T>(), .sample(), .sample_at(), .value(), etc.)
 // now operates on AnimatedValue<T> with the full engine (expressions, loops, roving).
 template<typename T> using KeyframeTrack = AnimatedValue<T>;
@@ -838,3 +480,19 @@ inline f32 keyframes(Frame current, std::initializer_list<KF> kfs) {
 }
 
 } // namespace chronon3d
+
+// ==============================================================================
+// Phase-3 mechanical split — include detail implementations at the BOTTOM of
+// the public header.  Order matters: roving depends on bezier
+// (compute_roving → compute_auto_beziers); evaluation depends on both bezier
+// (eval_temporal_bezier) and roving (compute_roving); expressions forwards
+// the public FillStyle/StrokeStyle declarations.
+//
+// expressions.hpp declares the four FREE functions consumed by AnimatedValue<…>
+// for FillStyle / StrokeStyle / f32 expression semantics.  Implementations
+// live in `src/animations/` — linked into chronon3d_animations OBJECT.
+// ==============================================================================
+#include <chronon3d/animation/core/detail/animated_value_expressions.hpp>
+#include <chronon3d/animation/core/detail/animated_value_bezier.inl>
+#include <chronon3d/animation/core/detail/animated_value_roving.inl>
+#include <chronon3d/animation/core/detail/animated_value_evaluation.inl>
