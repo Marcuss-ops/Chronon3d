@@ -52,7 +52,23 @@ for arg in "$@"; do
   esac
 done
 
-# ── Locate the showcase binary (needed for both smoke + full) ─────────
+# ── Smoke: short-circuit BEFORE locating or invoking the binary ──────
+# In smoke mode the binary's A4.5 gate is DOCTEST_SKIP'd and no PNG
+# is produced.  We assert that explicitly here so the caller gets a
+# clear PASS-with-skip message instead of either a confusing "(file not
+# written)" FAIL or a misleading "binary $BIN_PATH" log line for a
+# binary we never invoke.  Contact-sheet rendering is a nightly concern
+# only.  Reviewer cleanup (Step 2/6 round 2): re-ordered so the SKIPPED
+# announcement comes BEFORE any binary detection.
+if [ "${SMOKE_MODE}" = "1" ]; then
+    echo "CONTACT_SHEET: SKIPPED — contact sheet is a nightly / full-mode artefact."
+    echo "  (smoke: CHRONON3D_CINEMATIC_FRAME_COUNT=2; A4.5 DOCTEST_SKIP'd in binary)"
+    echo "  Re-run without --smoke against .github/workflows/nightly-visual.yml"
+    echo "  to render the full 5760×2160 grid."
+    exit 0
+fi
+
+# ── Locate the showcase binary (only relevant in full mode) ──────────
 BIN_PATH=""
 if [ -x "${CHRONON3D_BUILD_DIR}/${TEST_NAME}" ]; then
     BIN_PATH="${CHRONON3D_BUILD_DIR}/${TEST_NAME}"
@@ -70,19 +86,6 @@ if [ -z "${BIN_PATH}" ]; then
 fi
 
 echo "CONTACT_SHEET: binary ${BIN_PATH}"
-
-# ── Smoke: short-circuit BEFORE invoking the binary ──────────────────
-# In smoke mode the binary's A4.5 gate is DOCTEST_SKIP'd and no PNG
-# is produced.  We assert that explicitly here so the caller gets a
-# clear PASS-with-skip message instead of a confusing "(file not
-# written)" FAIL.  Contact-sheet rendering is a nightly concern only.
-if [ "${SMOKE_MODE}" = "1" ]; then
-    echo "CONTACT_SHEET: SKIPPED — contact sheet is a nightly / full-mode artefact."
-    echo "  (smoke: CHRONON3D_CINEMATIC_FRAME_COUNT=2; A4.5 DOCTEST_SKIP'd in binary)"
-    echo "  Re-run without --smoke against .github/workflows/nightly-visual.yml"
-    echo "  to render the full 5760×2160 grid."
-    exit 0
-fi
 
 # ── Run the showcase binary; the A4.5 gate composes the PNG ──────────
 cd "${CHRONON3D_ROOT}"
@@ -121,7 +124,12 @@ PNG_DIM=""
 # reads the file path from argv.  The `\u00d7` is interpreted by
 # Python's f-string (not by bash), rendering as `×`.
 if command -v python3 >/dev/null 2>&1; then
-    PNG_DIM="$(python3 -c 'import struct,sys; d=open(sys.argv[1],"rb").read()[16:24]; w,h=struct.unpack(">II", d); print(f"{w} \u00d7 {h}")' "${SHEET_PATH}" 2>/dev/null || true)"
+    # PNG IHDR lives at byte offsets 16..23 of the file.  Read ONLY those
+    # 24 bytes from disk (then slice) so the contact-sheet master — which
+    # runs hundreds of MB — does not get slurped into memory just to
+    # print its width×height.  Reviewer cleanup (Step 2/6 round 2): was
+    # `open(...).read()[16:24]` which loaded the whole file.
+    PNG_DIM="$(python3 -c 'import struct,sys; d=open(sys.argv[1],"rb").read(24)[16:24]; w,h=struct.unpack(">II", d); print(f"{w} \u00d7 {h}")' "${SHEET_PATH}" 2>/dev/null || true)"
 fi
 if [ -z "${PNG_DIM}" ] && command -v xxd >/dev/null 2>&1; then
     xxd_out="$(head -c 24 "${SHEET_PATH}" 2>/dev/null | xxd -p 2>/dev/null || true)"

@@ -39,6 +39,28 @@
 //    smoke so the verify_cinematic_showcase.sh required-gate list is
 //    unambiguous per run-mode.
 //
+//  CONTRACT CHANGE — Agent 2 / Step 3/6 (Azione D)
+//    Effective at commit `208587b2`, A4.3 is a strict 5/5 nightly
+//    gate.  Compile-time `static_assert(kPSStatic >= 5)` below
+//    hard-codes the literal roster size; the grep-able `A4.3-strict
+//    preset coverage gate (>= 5)` TEST_CASE at the bottom of this
+//    file mirrors the canonical 5-slot roster via a runtime REQUIRE
+//    AND a static_assert on the literal array size.  Net effect:
+//      * "A4.3 OK" substring emitted by the binary now matches ONLY
+//        when presets_passed == presets_total AND the LIST contains
+//        >= 5 entries, so verify_cinematic_showcase.sh grep is
+//        unambiguous.
+//      * A future shrink of kPresets[] to <5 entries fails the build
+//        (static_assert) before tests can run.
+//      * Pre-existing custom callers grepping "A4.3 OK" without the
+//        "(per-preset strict" substring continue to match the
+//        strict-success case, but will silently miss partial
+//        failures (which the new gate now refuses to emit).
+//
+//  AUXILIARY ENV VARS — Agent 2 / Step 4/6 backward-compat read-only:
+//      CHRONON3D_CINEMATIC_PERF        set to 1 to force A4.6 to run
+//                                      even in smoke (default: off).
+//
 //  Non-goals (out of scope per DoD):
 //    - No graphics-stack audit / no per-pixel goldens.
 //    - No CI integration of camera or text internals.
@@ -487,10 +509,20 @@ TEST_CASE("AGENT4: A4.4 determinism run A == run B") {
 // ─────────────────────────────────────────────────────────────────────
 TEST_CASE("AGENT4: A4.5 contact sheet 3x2 to output/showcase/contact_sheet.png") {
     if (g_runtime.skip_contact_sheet) {
+#if defined(DOCTEST_VERSION_MAJOR) && \
+    (DOCTEST_VERSION_MAJOR > 2 || \
+     (DOCTEST_VERSION_MAJOR == 2 && DOCTEST_VERSION_MINOR >= 3))
         DOCTEST_SKIP("A4.5 — contact sheet skipped (smoke mode: "
                      "CHRONON3D_CINEMATIC_FRAME_COUNT=" << g_runtime.frame_count
                      << " < 6). Render via nightly-visual workflow "
                      "(.github/workflows/nightly-visual.yml) for the full 5760×2160 grid.");
+#else
+        // doctest < 2.3 has no DOCTEST_SKIP — silently return as we're
+        // already past the smoke-mode short-circuit (no PNG is written
+        // by virtue of FRAME_COUNT < 6; running the body would just
+        // fail the kCols*kRows REQUIRE below, masking the real cause).
+        return;
+#endif
     }
 
     constexpr int kCols = 3;
@@ -531,15 +563,41 @@ TEST_CASE("AGENT4: A4.5 contact sheet 3x2 to output/showcase/contact_sheet.png")
 }
 
 // ─────────────────────────────────────────────────────────────────────
-//  A4.6 — Performance telemetry (FULL mode only).  DOCTEST_SKIP in
-//          smoke so daily CI stays free of perf-envelope artefacts.
+//  A4.6 — Performance telemetry (FULL mode + optional perf flag in
+//          smoke).  Gate tightened by Agent 2 / Step 4/6 review:
+//          DOCTEST_SKIP only when smoke_mode AND the optional
+//          CHRONON3D_CINEMATIC_PERF=1 flag is NOT set.  This lets a
+//          developer re-run A4.6 telemetry on smoke branch via
+//          `CHRONON3D_CINEMATIC_PERF=1 chronon3d_cinematic_camera_
+//          showcase_tests` for ad-hoc perf investigation without
+//          bumping smoke-mode OFF.
 // ─────────────────────────────────────────────────────────────────────
 TEST_CASE("AGENT4: A4.6 performance telemetry") {
-    if (g_runtime.smoke_mode) {
-        DOCTEST_SKIP("A4.6 — telemetry skipped (smoke mode: "
-                     "keeps daily CI free of perf-envelope artefacts). "
+    // Honour explicit perf-on opt-in even inside smoke runs.  Accept-list
+    // { "1", "true", "on", "yes" }; empty / "0" / "false" / "no" / unknown
+    // string all map to perf-OFF.  Code-review followup (Step 4/6 round
+    // 2): the previous `*p != '0'` heuristic silently turned perf ON for
+    // `CHRONON3D_CINEMATIC_PERF=false` because the first byte 'f' is != '0'
+    // — CI matrices that set this env var via GitHub Actions boolean form
+    // would accidentally activate A4.6 in smoke.  Now strictly whitelisted.
+    const bool perf_opt_in = []() {
+        const char* p = std::getenv("CHRONON3D_CINEMATIC_PERF");
+        if (!p || !*p) return false;
+        const std::string v(p);
+        return v == "1" || v == "true" || v == "on" || v == "yes";
+    }();
+    if (g_runtime.smoke_mode && !perf_opt_in) {
+#if defined(DOCTEST_VERSION_MAJOR) && \
+    (DOCTEST_VERSION_MAJOR > 2 || \
+     (DOCTEST_VERSION_MAJOR == 2 && DOCTEST_VERSION_MINOR >= 3))
+        DOCTEST_SKIP("A4.6 — telemetry skipped (smoke mode without "
+                     "CHRONON3D_CINEMATIC_PERF=1). "
                      "Nightly-visual workflow (workflow_dispatch + cron) "
                      "runs the full envelope.");
+#else
+        // doctest < 2.3 has no DOCTEST_SKIP — branch on smoke_mode only.
+        return;
+#endif
     }
 
     auto renderer = make_renderer();
@@ -675,12 +733,23 @@ TEST_CASE("AGENT4: A4.3-strict preset coverage gate (>= 5 cinematic compositions
     constexpr int kA43ContractRosterSize =
         sizeof(kA43ContractRoster) / sizeof(kA43ContractRoster[0]);
 
-    // Strict 5/5 nightly contract.  REQUIRE (not CHECK) aborts the
-    // suite so any roster size < 5 fails fast with a clear diagnostic
-    // — no "OK partial" marker can turn this green (Agent 2 / Step
-    // 3/6 Azione D: "Vietato marker 'OK parziale'").
+    // Strict 5/5 nightly contract — STRENGTHENED by Agent 2 / Step 4/6
+    // review.  The literal array size is now a compile-time constant, so
+    // we promote the == 5 check from runtime REQUIRE to static_assert.
+    // Effects:
+    //   • A future shrink of kA43ContractRoster[] from 5 to <5 entries
+    //     fails the build before tests can run — same coverage
+    //     guarantee as the static_assert(kPSStatic >= 5) inside the
+    //     A4.3 TEST_CASE, but mirrored here as a grep-able forensic.
+    //   • Auto-build of the runtime REQUIRE(kA43ContractRosterSize >= 5)
+    //     is now redundant; kept for runtime smoke readability (the
+    //     compiler folds it away under -O2 anyway, given constexpr).
+    static_assert(kA43ContractRosterSize >= 5,
+        "A4.3-strict mirror roster must contain at least 5 entries "
+        "(Agent 2 / Step 3/6 + 4/6 contract).");
+    static_assert(kA43ContractRosterSize == 5,
+        "A4.3-strict nightly contract: mirror roster size MUST be exactly 5.");
     REQUIRE(kA43ContractRosterSize >= 5);
-    REQUIRE(kA43ContractRosterSize == 5);
 
     // Every slot must carry a non-empty, non-null name string so A4.3's
     // per-preset forensic MESSAGE rows remain identifiable across
