@@ -641,13 +641,12 @@ TextUnitMap::identity_at_byte(u32 byte_idx) const noexcept {
 
 u32
 TextUnitMap::span_index_by_name(std::string_view name) const noexcept {
-    if (span_count_ == 0) return InvalidIndex;
-    // We don't store the names directly in the map; the SemanticSpanRef
-    // list passed to the constructor only contributes the byte_start /
-    // byte_end coordinates.  The canonical name → index lookup is a
-    // builder-side concern (the TextUnitMapProducer keeps the names).
-    // For self-containment we expose an empty lookup that always returns
-    // InvalidIndex; callers needing name resolution must use the producer.
-    (void)name;
+    if (span_names_.empty() || name.empty()) return InvalidIndex;
+    // Linear scan over the owned name table. Span sets are small
+    // (typically < 16 per document), so O(N) is cheaper than any
+    // hash-table overhead and trivially deterministic.
+    for (u32 i = 0; i < span_names_.size(); ++i) {
+        if (span_names_[i] == name) return i;
+    }
     return InvalidIndex;
 }
