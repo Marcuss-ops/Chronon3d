@@ -50,7 +50,7 @@
 #
 # WORKAROUND for native aggregation: see header of
 # cmake/Chronon3DSdkArchive.cmake (TICKET-011 cmake-boundary contract).
-# Upgrade to CMake ≥3.28 to remove the workaround.
+# Upgrade to CMake ≥3.27 to remove the workaround.
 add_library(chronon3d_sdk_impl STATIC
     ${CMAKE_SOURCE_DIR}/src/sdk_impl_marker.cpp
 )
