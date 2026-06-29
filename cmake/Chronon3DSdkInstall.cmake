@@ -59,10 +59,9 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
 # ── Public headers ─────────────────────────────────────────────────────
-# Installed verbatim under <prefix>/include/.  Kept here for module
-# isolation; the root CMakeLists.txt MAY still emit the same directive
-# as an index entry — duplicated no-ops are harmless because CMake
-# de-duplicates install() rules.
+# Installed verbatim under <prefix>/include/. Single source of truth;
+# the root CMakeLists.txt does NOT emit a duplicate install() rule —
+# this is the only place the public-header layout is declared.
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     FILES_MATCHING PATTERN "*.hpp"

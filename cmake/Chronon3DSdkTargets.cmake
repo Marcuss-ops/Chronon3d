@@ -2,13 +2,13 @@
 # cmake/Chronon3DSdkTargets.cmake — SDK consumer-facing targets
 #
 # PURPOSE
-#   Single source of truth for the *consumer-facing* surface of the SDK:
+#   Single source of truth for the *target definitions* of the SDK's
+#   consumer-facing surface:
 #
 #     • chronon3d_sdk_impl        — STATIC archive bundling every per-subsystem
 #                                    OBJECT into `libchronon3d_sdk_impl.a`
-#     • sdk_archive_merge target  — POST_BUILD helper that merges .o files
-#                                    into the archive (CMake 3.25 cannot do
-#                                    that natively for OBJECT libs)
+#                                    (manifest, POST_BUILD merge, install-code
+#                                    hook all live in `cmake/Chronon3DSdkArchive.cmake`)
 #     • chronon3d_sdk (INTERFACE) — in-tree + install link closure for the
 #                                    consumer.  $<BUILD_INTERFACE:…> consumes
 #                                    `chronon3d_pipeline` (which pulls .o
@@ -44,10 +44,13 @@
 # VERIFIED 2026-06-29 on CMake 3.25.1: target_link_libraries(STATIC PRIVATE
 # objlib) does NOT embed .o files into the .a archive — only the marker TU
 # lands (1 object file, ~3 KB). The .o propagation works at final link time
-# but the intermediate .a is empty.
-# WORKAROUND: POST_BUILD custom command (sdk_archive_merge below) runs `ar qc`
-# to manually merge all subsystem .o files into the archive. Upgrade to
-# CMake ≥3.28 to remove this workaround (native aggregation is fixed upstream).
+# but the intermediate .a is empty. The full ARCHIVE mechanics (manifest
+# computation, sdk_archive_merge POST_BUILD target, install-code hook) live
+# in `cmake/Chronon3DSdkArchive.cmake`, included below.
+#
+# WORKAROUND for native aggregation: see header of
+# cmake/Chronon3DSdkArchive.cmake (TICKET-011 cmake-boundary contract).
+# Upgrade to CMake ≥3.28 to remove the workaround.
 add_library(chronon3d_sdk_impl STATIC
     ${CMAKE_SOURCE_DIR}/src/sdk_impl_marker.cpp
 )
@@ -63,113 +66,8 @@ foreach(_reg_obj IN LISTS CHRONON3D_REGISTRY_OBJECT_LIBS)
     endif()
 endforeach()
 
-# ── POST_BUILD manifest: registry-driven enumeration ─────────────────
-# Two-step enumeration keeps the .o list reproducible:
-#
-#   1) Whole-tree scan restricted to the same paths the original
-#      implementation used:
-#        file(GLOB_RECURSE ${CMAKE_BINARY_DIR}/src/*.cpp.o ${BUILD_DIR}/content/*.cpp.o)
-#      A recursive glob from `${CMAKE_BINARY_DIR}/*.cpp.o` alone is fragile
-#      across CMake versions; the two explicit patterns are known-good.
-#
-#   2) Registry filter: keep entries whose path contains
-#      `/<reg_target>.dir/` for any target in CHRONON3D_REGISTRY_OBJECT_LIBS
-#      plus chronon3d_sdk_impl (the marker).  Adding a new OBJECT lib to the
-#      registry is therefore the single line of maintenance needed.
-#
-# Trade-off documented in commit history; supports unity-build=OFF
-# (`linux-ci` / install-boundary CI).  The merge script handles
-# unity-build=ON gracefully via `if(EXISTS …)` in the .cmake script.
-if(NOT CMAKE_GENERATOR STREQUAL "Ninja")
-    message(FATAL_ERROR
-        "sdk_archive_merge: registry-driven manifest assumes Ninja 'CMakeFiles/<target>.dir/*.cpp.o' intermediate-dir layout "
-        "(have generator '${CMAKE_GENERATOR}').")
-endif()
-
-file(GLOB_RECURSE _all_cpp_o
-    "${CMAKE_BINARY_DIR}/src/*.cpp.o"
-    "${CMAKE_BINARY_DIR}/content/*.cpp.o"
-)
-
-set(_sdk_archive_obj_files "")
-foreach(_obj IN LISTS _all_cpp_o)
-    set(_keep FALSE)
-    foreach(_reg_obj IN LISTS CHRONON3D_REGISTRY_OBJECT_LIBS)
-        string(FIND "${_obj}" "/${_reg_obj}.dir/" _hit)
-        if(_hit GREATER -1)
-            set(_keep TRUE)
-            break()
-        endif()
-    endforeach()
-    if(_keep)
-        list(APPEND _sdk_archive_obj_files "${_obj}")
-    endif()
-endforeach()
-
-# Marker TU: chronon3d_sdk_impl is a STATIC library (not in OBJECT_LIBS),
-# but its single source produces a per-source .o under the same Ninja
-# layout — at
-#   <build>/src/CMakeFiles/chronon3d_sdk_impl.dir/sdk_impl_marker.cpp.o
-list(APPEND _sdk_archive_obj_files
-    "${CMAKE_BINARY_DIR}/src/CMakeFiles/chronon3d_sdk_impl.dir/sdk_impl_marker.cpp.o")
-
-list(REMOVE_DUPLICATES _sdk_archive_obj_files)
-list(SORT _sdk_archive_obj_files)
-list(LENGTH _sdk_archive_obj_files _sdk_archive_count)
-
-# Stale-manifest guard (canonical semantics; see commit history).
-#
-# ORIGINAL bug: the guard fired at CONFIGURE time whenever the manifest held
-# fewer than 2 entries.  That broke the canonical fresh-checkout flow
-# (`cmake --preset linux-ci --fresh`) because BEFORE any source is compiled,
-# the whole-tree GLOB_RECURSE returns 0 files; only the marker TU is present,
-# so count=1 looked indistinguishable from a torn-archive state.
-#
-# CORRECT semantics: the DoD "marker + >= 1 subsystem" check should ONLY
-# fail HARD when at least one .cpp.o IS on disk but the registry-driven
-# filter dropped the manifest below threshold.  That is the "torn" case
-# (e.g. a source was renamed but the old .cpp.o still lingers).
-#
-# On a FRESH configure (GLOB=0), the marker-only manifest is the legitimate
-# pre-build state and the `sdk_archive_merge` build-step populates it
-# naturally via the dependency chain
-# `DEPENDS chronon3d_sdk_impl ${CHRONON3D_REGISTRY_OBJECT_LIBS}`.
-list(LENGTH _all_cpp_o _all_cpp_o_count)
-if(_all_cpp_o_count GREATER 0 AND _sdk_archive_count LESS 2)
-    message(FATAL_ERROR
-        "sdk_archive_merge: stale manifest.  Found ${_all_cpp_o_count} raw .cpp.o file(s) "
-        "on disk but the registry-driven filter retained only ${_sdk_archive_count} "
-        "(marker TU only).  This typically indicates a renamed/removed source whose "
-        "old .cpp.o lingered in CMakeFiles/<target>.dir/.  Clean the build dir "
-        "(`rm -rf build/<dir>`) and re-run the build.")
-endif()
-
-if(_sdk_archive_count LESS 2)
-    message(STATUS
-        "sdk_archive_merge: ${_sdk_archive_count} .o object(s) derived from registry "
-        "(fresh build; _all_cpp_o=${_all_cpp_o_count}; populate via "
-        "`cmake --build <build-dir> --target sdk_archive_merge`)")
-else()
-    message(STATUS "sdk_archive_merge: ${_sdk_archive_count} .o objects derived from registry (manifest)")
-endif()
-
-# ── POST_BUILD target: merge subsystem .o files into the archive ─────
-# CMake 3.25 does not aggregate OBJECT .o into STATIC archives natively;
-# this custom target passes a deterministic, registry-derived manifest
-# (computed above) to the helper script which calls `ar crs` (response-file
-# invocation) to build `libchronon3d_sdk_impl.a` from scratch.
-add_custom_target(sdk_archive_merge
-    COMMAND ${CMAKE_COMMAND} -E echo "Merging subsystem .o files into SDK archive..."
-    COMMAND ${CMAKE_COMMAND} -DARCHIVE="$<TARGET_FILE:chronon3d_sdk_impl>" -DOBJECT_FILES="${_sdk_archive_obj_files}" -DAR="${CMAKE_AR}" -P "${CMAKE_SOURCE_DIR}/cmake/sdk_archive_merge.cmake"
-    COMMAND ${CMAKE_COMMAND} -E echo "=== Archive object count after merge ==="
-    COMMAND ${CMAKE_AR} t "$<TARGET_FILE:chronon3d_sdk_impl>"
-    COMMENT "Merging all subsystem OBJECT .o files into libchronon3d_sdk_impl.a (registry-driven manifest)"
-    DEPENDS chronon3d_sdk_impl ${CHRONON3D_REGISTRY_OBJECT_LIBS}
-)
-
-# Register the merge target as a dependency of `cmake --install`, so
-# downstream consumers always see a populated archive.
-install(CODE "execute_process(COMMAND \${CMAKE_COMMAND} --build \${CMAKE_BINARY_DIR} --target sdk_archive_merge)")
+# Archive mechanics (manifest + POST_BUILD merge + install-code hook).
+include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DSdkArchive.cmake)
 
 set_target_properties(chronon3d_sdk_impl PROPERTIES EXPORT_NAME SDKImpl)
 
