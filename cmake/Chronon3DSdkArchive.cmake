@@ -36,7 +36,7 @@
 #   intermediate archive is empty.
 #   WORKAROUND: `sdk_archive_merge` rebuilds the archive from scratch
 #   (`ar crs`, response-file invocation) using the deterministic
-#   manifest computed below.  Upgrade to CMake ≥3.28 to retire this
+#   manifest computed below.  Upgrade to CMake ≥3.27 to retire this
 #   workaround (native OBJECT aggregation into STATIC is fixed upstream).
 # ==============================================================================
 
