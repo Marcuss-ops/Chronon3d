@@ -165,6 +165,19 @@ if(NOT CHRONON3D_GIT_COMMIT)
     set(CHRONON3D_GIT_COMMIT "unknown")
 endif()
 
+# ── Central registry (FIX: must be included BEFORE add_subdirectory(src)) ─────
+# `cmake/Chronon3DSdkInstall.cmake` derives `_chronon3d_install_targets`
+# from `CHRONON3D_REGISTRY_OBJECT_LIBS` + `CHRONON3D_REGISTRY_INTERFACE_LIBS`.
+# Without this include() the lists stay empty, the
+# `install(TARGETS ... EXPORT Chronon3DTargets)` call has nothing to
+# register, and the subsequent `install(EXPORT Chronon3DTargets ...)`
+# fails with `INSTALL(EXPORT) given unknown export "Chronon3DTargets"`.
+# Refactor regression introduced by the SDK install/export extraction
+# commits (b1f24ff0 + 19abfe3b); this single-line include restores the
+# canonical include-order documented at the top of
+# `cmake/Chronon3DRegistry.cmake`.
+include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DRegistry.cmake)
+
 add_subdirectory(src)
 
 # 10. Content Generation (optional — proofs/demos, not core engine)
