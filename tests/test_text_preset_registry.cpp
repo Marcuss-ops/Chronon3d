@@ -95,6 +95,17 @@
 // The full TextRunShape definition lives in text/text_run.hpp.
 #include <chronon3d/text/text_run.hpp>
 
+// ── Phase-3.3.D test-only inspector for pending text-run entries ──────
+// Sub-cases 29 + 30 previously called `lb.pending_text_runs()` which
+// returned `std::vector<const PendingTextRun*>` (raw internal pointers).
+// Phase-3.3.D extracted that inspector into a friend-mediated value-
+// typed adapter under chronon3d::builders::testing::LayerBuilderInspector.
+// The API surface is now snapshot-based — `pre[i].name` and
+// `pre[i].animators` instead of `pre[i]->name` / `pre[i]->params.animators`.
+#include <chronon3d/scene/builders/test/layer_builder_inspection.hpp>
+
+using chronon3d::builders::testing::LayerBuilderInspector;
+
 #include <functional>   // std::function for Sub-case 30/31 expected_kind_predicate
 #include <array>        // std::array<ExpectedComposition, 22>
 #include <variant>      // std::holds_alternative for Sub-case 30/31 kind checks
@@ -596,9 +607,7 @@ TEST_CASE("TextPresetRegistry: golden-frame harness cross-link (Sub-case 28)") {
 // the entries into `Layer::nodes`.  This replaces the prior lenient
 // post-build probe (which silently regressed if materialisation
 // returned a null `text_run_shape_handle().value`).
-TEST_CASE("TextPresetRegistry: TextAnimator V2 wiring tier (Sub-case 29)") {
-
-    SUBCASE("29) BUILDER WIRES_TEXT_ANIMATORS — cinematic_text_camera resolves motion-id to wired TextAnimatorSpec on rich-paint spec") {
+TEST_CASE("TextPresetRegistry: TextAnimator V2 wiring tier (Sub-case 29)") {        SUBCASE("29) BUILDER WIRES_TEXT_ANIMATORS — cinematic_text_camera resolves motion-id to wired TextAnimatorSpec on rich-paint spec") {
         auto reg = make_default_text_preset_registry();
         REQUIRE(reg.contains("cinematic_text_camera"));
         REQUIRE(reg.get("cinematic_text_camera").category == TextPresetCategory::Cinematic);
@@ -613,25 +622,27 @@ TEST_CASE("TextPresetRegistry: TextAnimator V2 wiring tier (Sub-case 29)") {
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("wiring_test_layer", Frame{0});
         const auto& preset = reg.get("cinematic_text_camera");
-        // No text_run(...) yet → pending_text_runs() must be empty.
-        REQUIRE(lb.pending_text_runs().empty());
+        // No text_run(...) yet → pending runs (test-only inspector) must be empty.
+        REQUIRE(LayerBuilderInspector::pending_runs(lb).empty());
 
         REQUIRE_NOTHROW(preset.builder(sb, lb, rich_spec));
 
         // ── (c) DETERMINISTIC pre-build probe ─────────────────────────
-        // Read `lb.pending_text_runs()` BEFORE `lb.build()` consumes
-        // the entries.  Hard-CHECK (no IF-skip): the resolver must
-        // have pushed a TextAnimatorSpec EXACTLY at animators[0]
-        // (the resolver pushes it ONCE before the cinematic builder's
-        // factory body returns, so this is the strictest possible
-        // index-based assertion — a future Stage 5+ resolver extension
-        // that inserts a different animator BEFORE the wired entry
-        // will fail this CHECK loudly).
-        const auto pre = lb.pending_text_runs();
+        // Read pending text-run entries via LayerBuilderInspector BEFORE
+        // `lb.build()` consumes them.  Phase-3.3.D: the inspector
+        // returns a value-typed snapshot (`std::vector<PendingRunSnapshot>`)
+        // so `pre[i].name` / `pre[i].animators` are value accesses
+        // (no raw internal pointers).
+        // Hard-CHECK (no IF-skip): the resolver must have pushed a
+        // TextAnimatorSpec EXACTLY at animators[0] (the resolver pushes
+        // it ONCE before the cinematic builder's factory body returns,
+        // so this is the strictest possible index-based assertion — a
+        // future Stage 5+ resolver extension that inserts a different
+        // animator BEFORE the wired entry will fail this CHECK loudly).
+        const auto pre = LayerBuilderInspector::pending_runs(lb);
         REQUIRE(pre.size() == 1);
-        REQUIRE(pre[0] != nullptr);
-        CHECK(pre[0]->name == "camera_text");
-        const auto& animators = pre[0]->params.animators;
+        CHECK(pre[0].name == "camera_text");
+        const auto& animators = pre[0].animators;
         REQUIRE(animators.size() >= 1);
         // Strict equality: AnimatorResolver composes the wired id as
         // "ctc_rich_" + preset_id, where preset_id = "cinematic_text_camera".
@@ -818,11 +829,12 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
             SceneBuilder sb(1280, 720);
             reg.get(exp.preset_id).builder(sb, lb, plain);
 
-            // Read `pending_text_runs()` BEFORE any subsequent mutation.
-            // Lifetime caveat: each call to `text_run(...)` may reallocate
-            // `m_text_runs` storage, invalidating previously-returned
-            // pointers (see LayerBuilder::pending_text_runs docstring).
-            const auto pre = lb.pending_text_runs();
+            // Read pending text-run entries via LayerBuilderInspector
+            // BEFORE any subsequent mutation.  Phase-3.3.D: returns a
+            // value-typed snapshot (`std::vector<PendingRunSnapshot>`)
+            // — no raw internal pointers, no reallocation-implication
+            // caveats to worry about.
+            const auto pre = LayerBuilderInspector::pending_runs(lb);
 
             if (exp.preset_id == "minimal_white") {
                 // P1 — single canonical text pipeline. minimal_white
@@ -834,8 +846,7 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
                 // vector is empty so `materialize_text_run_shape` produces
                 // a valid shape without per-frame driver work.
                 REQUIRE(pre.size() == 1);
-                REQUIRE(pre[0] != nullptr);
-                CHECK(pre[0]->params.animators.empty());
+                CHECK(pre[0].animators.empty());
                 continue;
             }
 
@@ -845,8 +856,7 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
             // (plain-spec path; rich-spec pushes the anchor ahead of the
             // canonical — Sub-case 29 already covers that).
             CHECK(pre.size() == 1);
-            REQUIRE(pre[0] != nullptr);
-            const auto& animators = pre[0]->params.animators;
+            const auto& animators = pre[0].animators;
             CHECK(animators.size() >= 1);
             CHECK(animators[0].id == ("presetc_" + exp.preset_id));
             CHECK(animators[0].properties.size() >= exp.min_property_count);
