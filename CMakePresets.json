@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 6,
   "configurePresets": [
     {
       "name": "base",
@@ -487,6 +487,97 @@
         "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
         "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;telemetry;tests;benchmarks;profiling"
       }
+    },
+    {
+      "name": "linux-ci-core-gate",
+      "hidden": true,
+      "inherits": "base-linux",
+      "displayName": "Linux CI Core Gate (1.3.C/D/E migration target; replaces gates.yml Linux Core Dev reference)",
+      "description": "Pre-merge core gate preset for .github/workflows/gates.yml Gate 1 (formerly linux-core-dev). Text/Video/Content/Diagnostics OFF; tests ON. BuildType=Debug, unity OFF.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_CLI": "OFF",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_BENCHMARKS": "OFF",
+        "CHRONON3D_BUILD_CONTENT": "OFF",
+        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
+        "CHRONON3D_ENABLE_TEXT": "OFF",
+        "CHRONON3D_USE_BLEND2D": "OFF",
+        "CHRONON3D_ENABLE_EXR": "OFF",
+        "CHRONON3D_ENABLE_VIDEO": "OFF",
+        "CHRONON3D_ENABLE_MESH": "OFF",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
+        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
+        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_UNITY_BUILD": "ON",
+        "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
+        "VCPKG_MANIFEST_FEATURES": "tests"
+      }
+    },
+    {
+      "name": "linux-ci-lean-gate",
+      "hidden": true,
+      "inherits": "base-linux",
+      "displayName": "Linux CI Lean Gate (1.3.C/D/E migration target; replaces gates.yml Linux Lean Dev reference)",
+      "description": "Pre-merge lean gate preset for .github/workflows/gates.yml Gate 2 (formerly linux-lean-dev). CLI + text + blend2d + tests; no benchmarks/diagnostics/video. BuildType=Debug, unity OFF.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_BENCHMARKS": "OFF",
+        "CHRONON3D_BUILD_CONTENT": "OFF",
+        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
+        "CHRONON3D_ENABLE_TEXT": "ON",
+        "CHRONON3D_USE_BLEND2D": "ON",
+        "CHRONON3D_ENABLE_EXR": "OFF",
+        "CHRONON3D_ENABLE_VIDEO": "OFF",
+        "CHRONON3D_ENABLE_MESH": "OFF",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
+        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
+        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_UNITY_BUILD": "ON",
+        "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests"
+      }
+    },
+    {
+      "name": "linux-ci-release-build",
+      "inherits": "base-linux",
+      "displayName": "Linux CI Release Build (1.3.C/D/E migration target; replaces ci.yml Linux (Release) matrix entry)",
+      "description": "Pre-merge release-mode build preset for .github/workflows/ci.yml matrix entry 'Linux (Release)' (formerly linux-release). CLI + tests ON; content OFF; enable text+blend2d. BuildType=Release.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_CONTENT": "OFF",
+        "CHRONON3D_ENABLE_TEXT": "ON",
+        "CHRONON3D_USE_BLEND2D": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests"
+      }
+    },
+    {
+      "name": "linux-ci-full-validation",
+      "inherits": "base-linux",
+      "displayName": "Linux CI Full Validation (1.3.C/D/E migration target; replaces gates-full-validation.yml linux-full-validation reference)",
+      "description": "Heavy pre-merge validation preset for .github/workflows/gates-full-validation.yml (formerly linux-full-validation). Path-filtered to include/src/CMakeLists.txt. BuildType=Debug; everything except native-ffmpeg and profiling is ON.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_BENCHMARKS": "ON",
+        "CHRONON3D_BUILD_CONTENT": "ON",
+        "CHRONON3D_BUILD_DIAGNOSTICS": "ON",
+        "CHRONON3D_ENABLE_TEXT": "ON",
+        "CHRONON3D_USE_BLEND2D": "ON",
+        "CHRONON3D_ENABLE_EXR": "ON",
+        "CHRONON3D_ENABLE_VIDEO": "ON",
+        "CHRONON3D_ENABLE_MESH": "ON",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
+        "CHRONON3D_ENABLE_TELEMETRY": "ON",
+        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_UNITY_BUILD": "OFF",
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;telemetry;tests;benchmarks"
+      }
     }
   ],
   "buildPresets": [
@@ -528,15 +619,6 @@
     {
       "name": "linux-full-validation",
       "configurePreset": "linux-full-validation",
-      "targets": [
-        "chronon3d_cli",
-        "chronon3d_tests"
-      ],
-      "jobs": 16
-    },
-    {
-      "name": "linux",
-      "configurePreset": "linux-release",
       "targets": [
         "chronon3d_cli",
         "chronon3d_tests"
@@ -668,6 +750,30 @@
       "configurePreset": "linux-profile-extended",
       "targets": ["chronon3d_cli", "chronon3d_tests", "chronon3d_benchmarks"],
       "jobs": 16
+    },
+    {
+      "name": "linux-ci-core-gate",
+      "configurePreset": "linux-ci-core-gate",
+      "targets": ["chronon3d_tests_fast"],
+      "jobs": 16
+    },
+    {
+      "name": "linux-ci-lean-gate",
+      "configurePreset": "linux-ci-lean-gate",
+      "targets": ["chronon3d_cli", "chronon3d_tests_fast"],
+      "jobs": 16
+    },
+    {
+      "name": "linux-ci-release-build",
+      "configurePreset": "linux-ci-release-build",
+      "targets": ["chronon3d_cli", "chronon3d_tests"],
+      "jobs": 16
+    },
+    {
+      "name": "linux-ci-full-validation",
+      "configurePreset": "linux-ci-full-validation",
+      "targets": ["chronon3d_cli", "chronon3d_tests"],
+      "jobs": 16
     }
   ],
   "testPresets": [
@@ -787,6 +893,26 @@
     {
       "name": "linux-profile-extended-test",
       "configurePreset": "linux-profile-extended",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "linux-ci-core-gate-test",
+      "configurePreset": "linux-ci-core-gate",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "linux-ci-lean-gate-test",
+      "configurePreset": "linux-ci-lean-gate",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "linux-ci-release-build-test",
+      "configurePreset": "linux-ci-release-build",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "linux-ci-full-validation-test",
+      "configurePreset": "linux-ci-full-validation",
       "output": { "outputOnFailure": true }
     }
   ]
