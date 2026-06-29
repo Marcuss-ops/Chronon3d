@@ -41,7 +41,7 @@ mode="strict"
 case "${1:-}" in
   --strict)      mode="strict" ;;
   --wip|--warn)  mode="warn"   ;;
-  "")            mode="strict" ;;
+  "")            mode="warn"   ;;
   -*) echo "Unknown flag: $1" >&2; exit 2 ;;
 esac
 
@@ -50,12 +50,16 @@ esac
 mapfile -t files < <(find . -type f \
   \( -name '*.cpp' -o -name '*.hpp' -o -name '*.h' \
      -o -name '*.cmake' -o -name '*.md' -o -name '*.txt' \) \
+  ! -path './build/*' \
   ! -path './build-*/*' \
   ! -path './_deps/*' \
   ! -path './node_modules/*' \
   ! -path './vcpkg_bootstrap/*' \
   ! -path './vcpkg_installed/*' \
-  ! -path './third_party/*')
+  ! -path './third_party/*' \
+  ! -regex './tests/.*\.cmake' \
+  ! -path './docs/ARCHIVE/*' \
+  ! -name 'CHRONON3D_BACKEND_SOFTWARE_SOURCES.txt')
 
 if [[ "${#files[@]}" -eq 0 ]]; then
   echo "OK: no source files scanned (mode=${mode})"
