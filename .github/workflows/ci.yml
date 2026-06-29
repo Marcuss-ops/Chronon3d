@@ -105,6 +105,20 @@ jobs:
         if: github.event_name != 'pull_request'
         run: ctest --preset ${{ matrix.config.test_preset }} --output-on-failure
 
+      # ── Agent 2 / ci-showcase plan (Step 2/6) — daily smoke ──────────
+      # Smoke runs ONLY on push to main, on the linux-ci matrix (where
+      # CHRONON3D_BUILD_CONTENT=ON and the chronic showcase binary is
+      # already produced by the `Build (Full — Push)` step above).
+      # verify_cinematic_showcase.sh --smoke configures the showcase
+      # binary to 1 composition × 2 frames, skips A4.5 (no contact-sheet
+      # PNG) and A4.6 (no perf envelope), so daily CI stays artefact-
+      # free.  The full 5×6 cohort still runs nightly-manual via
+      # `.github/workflows/nightly-visual.yml`.
+      - name: Cinematic showcase smoke (Linux Debug/CI, push only)
+        if: github.event_name != 'pull_request' && matrix.config.preset == 'linux-ci' && runner.os == 'Linux'
+        run: |
+          bash tools/verify_cinematic_showcase.sh --smoke
+
       # ── Clang-Tidy (static analysis, Linux only) ──────────────────────
       - name: Clang-Tidy (PR only)
         if: runner.os == 'Linux' && github.event_name == 'pull_request'

@@ -9,14 +9,26 @@
 #  gate composes output/showcase/contact_sheet.png, then asserts the
 #  PNG exists, is non-empty, and reports its byte size + resolution.
 #
+#  Runtime mode (Agent 2 / ci-showcase plan, Step 2/6):
+#    --smoke              sets CHRONON3D_CINEMATIC_FRAME_COUNT=2.
+#                         The binary's A4.5 gate is DOCTEST_SKIP'd
+#                         and no PNG is produced.  This script exits
+#                         0 immediately so daily CI stays
+#                         artefact-free.
+#    (default)            full mode: 6 frames × 5 compositions → 5760×2160
+#                         master contact-sheet PNG + dims/secs reported.
+#
 #  Usage:
-#    tools/render_showcase_contact_sheet.sh            # render + validate
-#    tools/render_showcase_contact_sheet.sh --open     # also xdg-open on
-#                                                       # the local box
+#    tools/render_showcase_contact_sheet.sh                 # render + validate
+#    tools/render_showcase_contact_sheet.sh --open          # also xdg-open on
+#                                                          # the local box
+#    tools/render_showcase_contact_sheet.sh --smoke         # short-circuit
+#    tools/render_showcase_contact_sheet.sh --smoke --open  # short-circuit
 #
 #  Optional env vars:
-#    CHRONON3D_ROOT       project root (default: parent of this script)
-#    CHRONON3D_BUILD_DIR  build tree root (default: build/)
+#    CHRONON3D_ROOT              project root (default: parent of this script)
+#    CHRONON3D_BUILD_DIR         build tree root (default: build/)
+#    CHRONON3D_CINEMATIC_FRAME_COUNT  forwarded to the binary (1..6)
 # ═══════════════════════════════════════════════════════════════════════════
 
 set -euo pipefail
@@ -27,12 +39,20 @@ TEST_NAME="chronon3d_cinematic_camera_showcase_tests"
 OUT_DIR="${CHRONON3D_ROOT}/output/showcase"
 SHEET_PATH="${OUT_DIR}/contact_sheet.png"
 
+# ── CLI flag parsing ──────────────────────────────────────────────────
 DO_OPEN=0
-if [ "${1:-}" = "--open" ]; then
-    DO_OPEN=1
-fi
+SMOKE_MODE=0
+for arg in "$@"; do
+  case "${arg}" in
+    --open) DO_OPEN=1 ;;
+    --smoke)
+      SMOKE_MODE=1
+      export CHRONON3D_CINEMATIC_FRAME_COUNT=2
+      ;;
+  esac
+done
 
-# ── Locate the showcase binary ────────────────────────────────────────
+# ── Locate the showcase binary (needed for both smoke + full) ─────────
 BIN_PATH=""
 if [ -x "${CHRONON3D_BUILD_DIR}/${TEST_NAME}" ]; then
     BIN_PATH="${CHRONON3D_BUILD_DIR}/${TEST_NAME}"
@@ -50,6 +70,19 @@ if [ -z "${BIN_PATH}" ]; then
 fi
 
 echo "CONTACT_SHEET: binary ${BIN_PATH}"
+
+# ── Smoke: short-circuit BEFORE invoking the binary ──────────────────
+# In smoke mode the binary's A4.5 gate is DOCTEST_SKIP'd and no PNG
+# is produced.  We assert that explicitly here so the caller gets a
+# clear PASS-with-skip message instead of a confusing "(file not
+# written)" FAIL.  Contact-sheet rendering is a nightly concern only.
+if [ "${SMOKE_MODE}" = "1" ]; then
+    echo "CONTACT_SHEET: SKIPPED — contact sheet is a nightly / full-mode artefact."
+    echo "  (smoke: CHRONON3D_CINEMATIC_FRAME_COUNT=2; A4.5 DOCTEST_SKIP'd in binary)"
+    echo "  Re-run without --smoke against .github/workflows/nightly-visual.yml"
+    echo "  to render the full 5760×2160 grid."
+    exit 0
+fi
 
 # ── Run the showcase binary; the A4.5 gate composes the PNG ──────────
 cd "${CHRONON3D_ROOT}"
@@ -82,16 +115,13 @@ fi
 # BSD od on macOS lacks `--endian=big`; `xxd -p` is BSD+GNU-portable;
 # `python3` is universally available on CI runners.  Try them in order.
 PNG_DIM=""
+# PNG IHDR parser ladder: python3 -c (single-line, single-quoted →
+# no heredoc) → xxd → od.  We use single-quoted `-c '...'` so the
+# inner double-quoted Python string is preserved verbatim; python
+# reads the file path from argv.  The `\u00d7` is interpreted by
+# Python's f-string (not by bash), rendering as `×`.
 if command -v python3 >/dev/null 2>&1; then
-    PNG_DIM="$(python3 - <<'PY' 2>/dev/null || true
-import struct, sys
-with open(sys.argv[1], 'rb') as f:
-    f.read(16)  # 8-byte signature + 8-byte IHDR length+name
-    data = f.read(8)
-w, h = struct.unpack('>II', data)
-print(f'{w} \u00d7 {h}')
-PY
-" "${SHEET_PATH}")"
+    PNG_DIM="$(python3 -c 'import struct,sys; d=open(sys.argv[1],"rb").read()[16:24]; w,h=struct.unpack(">II", d); print(f"{w} \u00d7 {h}")' "${SHEET_PATH}" 2>/dev/null || true)"
 fi
 if [ -z "${PNG_DIM}" ] && command -v xxd >/dev/null 2>&1; then
     xxd_out="$(head -c 24 "${SHEET_PATH}" 2>/dev/null | xxd -p 2>/dev/null || true)"
