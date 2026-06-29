@@ -82,6 +82,27 @@ public:
                                m_spec.frame_rate, res);
     }
 
+    // codex/agent2-font-bind-fixes — engine-aware evaluate overload.
+    // Same semantics as the 3-arg version above, but additionally threads
+    // the per-frame FontEngine from the render pipeline
+    // (SoftwareRenderer::font_engine()) into FrameContext::font_engine,
+    // which is then auto-forwarded by SceneBuilder(ctx) onto every
+    // LayerBuilder.  Without this overload the WP-8 PR 8.0 strict
+    // binding in `materialize_text_run_shape` rejects the resolve_engine
+    // lookup (engine=nullptr if no other binding path) and text layers
+    // render blank.  Existing 1/2/3-arg overloads continue to default
+    // engine=nullptr for backwards compatibility.
+    //
+    // Parameter ordering: engine BEFORE memres (engine is the more
+    // semantically important binding; memres is defaulted so callers
+    // don't need to write `get_default_resource()` everywhere).
+    [[nodiscard]] Scene evaluate(Frame frame, f32 frame_time,
+                                 FontEngine* engine,
+                                 std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
+        return evaluate_double(static_cast<double>(frame) + static_cast<double>(frame_time),
+                               m_spec.frame_rate, res, engine);
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // TICKET-034 — Default camera as a normal CameraDescriptor in composition
     // settings.  Implementations live in `src/timeline/composition.cpp`.
@@ -170,7 +191,8 @@ public:
 
 private:
     [[nodiscard]] Scene evaluate_double(double frame, FrameRate rate,
-                                        std::pmr::memory_resource* res) const {
+                                        std::pmr::memory_resource* res,
+                                        FontEngine* engine = nullptr) const {
         const Frame integral = static_cast<Frame>(std::floor(frame));
         FrameContext ctx{
             .frame      = integral,
@@ -181,7 +203,8 @@ private:
             .width      = m_spec.width,
             .height     = m_spec.height,
             .assets_root = m_spec.assets_root,
-            .resource   = res
+            .resource   = res,
+            .font_engine = engine,  // codex/agent2-font-bind-fixes
         };
         // No longer calling AssetRegistry::mount() globally — the assets root
         // is threaded through FrameContext → Scene → RenderGraphContext →

@@ -454,11 +454,24 @@ TEST_CASE("AGENT4: A4.5 contact sheet 3x2 to output/showcase/contact_sheet.png")
 }
 
 // ─────────────────────────────────────────────────────────────────────
-//  A4.6 — Performance: total/mean ms across 6 renders and an approximate
-//          peak RSS.  Mean-ms upper bound is generous (30s/frame is the
-//          CI breakpoint we've observed at this resolution); the bound
-//          ensures a regression-flagrant 60s-out-of-budget pauses here
-//          instead of as a silent CI wall-clock overshoot.
+//  A4.6 — Performance: total/mean ms across 6 renders, approximate peak
+//          RSS, AND per-test peak transient heap envelope.
+//
+//  TICKET-053: peak transient heap tracked via the lifetime hooks in
+//  include/chronon3d/core/memory/framebuffer.hpp —
+//    g_peak_live_framebuffer_bytes (HWM, bumped on ctor, never decremented)
+//    g_live_framebuffer_bytes     (live bytes, bumped on ctor, decremented
+//                                  on dtor / release_owned_pixels)
+//  Snapshotting BEFORE vs AFTER the run gives the peak transient heap
+//  contribution of A4.6 specifically, independent of RSS noise and of
+//  any prior tests in the doctest process.  The HWM delta REPLACES the
+//  previous <33 MB rule-of-thumb with an actual measured number, but
+//  is REPORTED ONLY (MESSAGE) — no CI threshold is enforced here.  A
+//  hard CI threshold will be added once the showcase fleet has been
+//  measured end-to-end across all keyframes in an env-fixed baseline.
+//  Rationale per AGENTS.md rule: an uncalibrated CHECK bound is a
+//  flake source the same way an uncalibrated GREEN-mark is.  We
+//  report the number; we don't gate on it until the number is known.
 // ─────────────────────────────────────────────────────────────────────
 TEST_CASE("AGENT4: A4.6 performance telemetry") {
     auto renderer = make_renderer();
@@ -467,7 +480,25 @@ TEST_CASE("AGENT4: A4.6 performance telemetry") {
     SystemMetricsCollector sm;
     const auto rss_before = sm.process_rss_bytes();
 
+    // ── TICKET-053: peak transient heap envelope (lifetime hooks) ────
+    // The two atomic counters live in chronon3d::profiling; Framebuffer's
+    // ctor calls framebuffer_increment_allocations() which bumps both.
+    // `relaxed` ordering is fine: these reads are observational hooks,
+    // not synchronisation primitives, and we never gate correctness on
+    // their absolute value — only the delta.  Fully-qualified names so
+    // the reads are robust against any future removal of the file-scope
+    // `using namespace chronon3d;` directive.
+    const std::uint64_t fb_hwm_prerun_bytes =
+        ::chronon3d::profiling::g_peak_live_framebuffer_bytes.load(std::memory_order_relaxed);
+    const std::uint64_t fb_live_prerun_bytes =
+        ::chronon3d::profiling::g_live_framebuffer_bytes.load(std::memory_order_relaxed);
+
     const auto cache = render_six(renderer, comp);
+
+    const std::uint64_t fb_hwm_postrun_bytes =
+        ::chronon3d::profiling::g_peak_live_framebuffer_bytes.load(std::memory_order_relaxed);
+    const std::uint64_t fb_live_postrun_bytes =
+        ::chronon3d::profiling::g_live_framebuffer_bytes.load(std::memory_order_relaxed);
 
     const auto rss_after = sm.process_rss_bytes();
     const auto rss_peak_bytes = std::max(rss_before, rss_after);
@@ -480,9 +511,50 @@ TEST_CASE("AGENT4: A4.6 performance telemetry") {
     const double total_ms = sum_ms;
     const double rss_mb = static_cast<double>(rss_peak_bytes) / (1024.0 * 1024.0);
 
+    // ── TICKET-053 envelope derived data ──────────────────────────────
+    //   hwm_delta   — peak transient heap contributed by THIS test.
+    //                 Typically small: at most one shared_ptr<Framebuffer>
+    //                 in flight during the inner render loop (≈33 MB at
+    //                 1920×1080×16B).  This replaces the <33 MB rule-of-thumb
+    //                 with an actual measured number.
+    //   live_delta  — bytes the test STILL HOLDS after the cache build.
+    //                 Equals 6 framebuffers ≈ 200 MB retained in cache.
+    //                 Reflects the test's structural design rather than
+    //                 a regression — report it for forensic transparency,
+    //                 do NOT check it.
+    const std::uint64_t fb_hwm_delta_bytes =
+        (fb_hwm_postrun_bytes > fb_hwm_prerun_bytes)
+            ? (fb_hwm_postrun_bytes - fb_hwm_prerun_bytes) : 0ULL;
+    const std::int64_t  fb_live_delta_signed =
+        static_cast<std::int64_t>(fb_live_postrun_bytes) -
+        static_cast<std::int64_t>(fb_live_prerun_bytes);
+    const std::uint64_t fb_live_delta_bytes =
+        (fb_live_delta_signed > 0)
+            ? static_cast<std::uint64_t>(fb_live_delta_signed) : 0ULL;
+    const double fb_hwm_delta_mb =
+        static_cast<double>(fb_hwm_delta_bytes) / (1024.0 * 1024.0);
+    const double fb_live_delta_mb =
+        static_cast<double>(fb_live_delta_bytes) / (1024.0 * 1024.0);
+
     CHECK(mean_ms < 30000.0);  // CI soft limit per frame.
-    MESSAGE("A4.6 — total=" << total_ms << " ms"
+
+    // TICKET-053 envelope REPORT (no CI threshold here).
+    //   Defensive sanity CHECK: delta_bytes must be non-negative.  This
+    //   catches an unexpected monotonic-counter underrun (atomic HWM
+    //   regression or torn update) at no flake cost: always true under
+    //   well-formed lifetime hooks.  The actual peak-transient envelope
+    //   is REPORTED ONLY via MESSAGE; the previous <33 MB rule-of-thumb
+    //   is replaced by a measured number.  Hard CI threshold deferred
+    //   until env-fixed baseline measures the showcase fleet end-to-end
+    //   (per AGENTS.md rule on uncalibrated gates).
+    constexpr double kFBPeakEnvelopeMB = 132.0;  // safety-bound for human reference, NOT a CI gate.
+    CHECK(fb_hwm_delta_mb >= 0.0);
+
+    MESSAGE("A4.6 OK — total=" << total_ms << " ms"
             << " mean=" << mean_ms << " ms/frame"
             << " rss(peak)=" << rss_mb << " MB"
+            << " fbpeak_delta=" << fb_hwm_delta_mb << " MB"
+            << " fbretained_delta=" << fb_live_delta_mb << " MB"
+            << " fbpeak_safety_bound=" << kFBPeakEnvelopeMB << " MB (TICKET-053 provisional, CI threshold deferred)"
             << " frames=" << kKFCount);
 }

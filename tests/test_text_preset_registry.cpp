@@ -1088,3 +1088,242 @@ TEST_CASE("TextPresetRegistry: TICKET-012 AnimatorResolver direct-call coverage 
         CHECK(true);
     }
 }
+
+
+// ─────────────────────────────────────────────────────────────────────────
+// TIER I — AGENT 2 evolution (TICKET-A2: testi realmente animati)
+// ─────────────────────────────────────────────────────────────────────────
+// Sub-cases 40–43 verify the 4 mandatory resolver-driven animated presets.
+// For each preset:
+//   • Resolver produces a spec with the expected alternative per the
+//     pre-refactor Tier F lock-in (cinematic_title_reveal=f ScaleProperty,
+//     tracking_close=TrackingProperty, word_cascade/character_cascade=
+//     OpacityProperty).
+//   • Brief A2.4 selector-binding: title_global/global → Glyph,
+//     word_cascade → Word, character_cascade → Glyph/Grapheme.
+//   • Brief A2.5 single source: start/duration/stagger/easing live in
+//     ONLY ONE place (the AnimatedValue<> keyframes + selectors here).
+//   • At frame 0, mid, and final, AnimatedValue<> properties evaluate to
+//     distinct, non-NaN values within expected ranges.
+//   • OpacityProperty::value evaluates within [0, 1] at every sampled frame.
+//   • ScaleProperty components evaluate to non-negative values.
+//   • GlyphSelectorSpec::end at frame 0 is less than at frame final
+//     (sweep direction confirm).
+//   • Brief DoD: frame iniziale ≠ frame finale; frame intermedio ≠ estremi.
+TEST_CASE("TextPresetRegistry: AGENT-2 resolver-driven evolution tier (Sub-cases 40-44)") {
+
+    // Tiny SampledTime helpers — keep the SUBCASEs readable.
+    const auto f0  = chronon3d::SampleTime::from_frame_int(chronon3d::Frame{0},  chronon3d::FrameRate{30, 1});
+    const auto f18 = chronon3d::SampleTime::from_frame_int(chronon3d::Frame{18}, chronon3d::FrameRate{30, 1});
+    const auto f24 = chronon3d::SampleTime::from_frame_int(chronon3d::Frame{24}, chronon3d::FrameRate{30, 1});
+    const auto f35 = chronon3d::SampleTime::from_frame_int(chronon3d::Frame{35}, chronon3d::FrameRate{30, 1});
+    const auto f36 = chronon3d::SampleTime::from_frame_int(chronon3d::Frame{36}, chronon3d::FrameRate{30, 1});
+    const auto f48 = chronon3d::SampleTime::from_frame_int(chronon3d::Frame{48}, chronon3d::FrameRate{30, 1});
+
+    SUBCASE("40) cinematic_title_reveal — animated opacity/blur/scale/position over 36 frames") {
+        const auto opt = chronon3d::registry::AnimatorResolver::compose_for("cinematic_title_reveal");
+        REQUIRE(opt.has_value());
+        REQUIRE(opt->selectors.size() == 1);
+        // Brief A2.4: titolo globale → global/glyph selector.
+        CHECK(opt->selectors[0].unit == chronon3d::TextSelectorUnit::Glyph);
+        REQUIRE(opt->properties.size() >= 4);
+        // Tier F lock-in: first alternative is ScaleProperty.
+        CHECK(std::holds_alternative<chronon3d::ScaleProperty>(opt->properties[0]));
+
+        // OpacityProperty (index 1) at F0, F18, F36.
+        const auto& op_av = std::get<chronon3d::OpacityProperty>(opt->properties[1]).value;
+        const f32 op_f0  = op_av.evaluate(f0);
+        const f32 op_f18 = op_av.evaluate(f18);
+        const f32 op_f36 = op_av.evaluate(f36);
+        CHECK(op_f0  >= 0.0f);
+        CHECK(op_f0  <= 1.0f);
+        CHECK(op_f36 >= 0.999f);
+        CHECK(op_f36 <= 1.001f);
+        // Brief DoD: frame iniziale ≠ finale; frame intermedio ≠ estremi.
+        CHECK(op_f0 < op_f36);
+        CHECK(op_f18 > op_f0);
+        CHECK(op_f18 < op_f36);
+        CHECK(!std::isnan(op_f0));
+        CHECK(!std::isnan(op_f18));
+        CHECK(!std::isnan(op_f36));
+
+        // BlurProperty (index 2): 12 → 0 across 36 frames.
+        const auto& blur_av = std::get<chronon3d::BlurProperty>(opt->properties[2]).radius;
+        const f32 blur_f0  = blur_av.evaluate(f0);
+        const f32 blur_f36 = blur_av.evaluate(f36);
+        CHECK(blur_f0 >= 11.0f);
+        CHECK(blur_f0 <= 12.01f);
+        CHECK(blur_f36 >= 0.0f);
+        CHECK(blur_f36 <= 0.01f);
+        CHECK(blur_f0 > blur_f36);  // decreasing
+
+        // ScaleProperty (index 0): 0.92 → 1.0 across 36 frames.
+        const auto& scale_av = std::get<chronon3d::ScaleProperty>(opt->properties[0]).value;
+        const Vec3 scale_f0  = scale_av.evaluate(f0);
+        const Vec3 scale_f36 = scale_av.evaluate(f36);
+        CHECK(scale_f0.x >= 0.91f);
+        CHECK(scale_f0.x <= 0.93f);
+        CHECK(std::fabs(scale_f36.x - 1.0f) <= 1e-3f);
+        CHECK(scale_f0.x > 0.0f);   // not negative
+        CHECK(scale_f36.x > 0.0f);  // not negative
+        CHECK(!std::isnan(scale_f0.x));
+        CHECK(!std::isnan(scale_f36.x));
+
+        // PositionProperty (index 3): Y 40 → 0 across 36 frames.
+        const auto& pos_av = std::get<chronon3d::PositionProperty>(opt->properties[3]).value;
+        const Vec3 pos_f0  = pos_av.evaluate(f0);
+        const Vec3 pos_f36 = pos_av.evaluate(f36);
+        CHECK(pos_f0.y >= 39.0f);
+        CHECK(pos_f0.y <= 40.01f);
+        CHECK(std::fabs(pos_f36.y - 0.0f) <= 1e-3f);
+    }
+
+    SUBCASE("41) tracking_close — tracking 0.18→0 + opacity 0→1 over 35 frames") {
+        const auto opt = chronon3d::registry::AnimatorResolver::compose_for("tracking_close");
+        REQUIRE(opt.has_value());
+        REQUIRE(opt->selectors.size() == 1);
+        // Brief A2.4: tracking_close → global selector.
+        CHECK(opt->selectors[0].unit == chronon3d::TextSelectorUnit::Glyph);
+        REQUIRE(opt->properties.size() >= 2);
+        // Tier F lock-in: first alternative is TrackingProperty.
+        CHECK(std::holds_alternative<chronon3d::TrackingProperty>(opt->properties[0]));
+
+        // Tracking: 0.18 → 0 across 35 frames.
+        const auto& trk_av = std::get<chronon3d::TrackingProperty>(opt->properties[0]).pixels;
+        const f32 trk_f0  = trk_av.evaluate(f0);
+        const f32 trk_f17 = trk_av.evaluate(chronon3d::SampleTime::from_frame_int(chronon3d::Frame{17}, chronon3d::FrameRate{30, 1}));
+        const f32 trk_f35 = trk_av.evaluate(f35);
+        CHECK(std::fabs(trk_f0  - 0.18f) <= 0.01f);
+        CHECK(std::fabs(trk_f35 - 0.0f)  <= 0.01f);
+        CHECK(trk_f0 > trk_f35);   // decreasing
+        CHECK(trk_f17 > trk_f35);  // mid still positive
+        CHECK(trk_f17 < trk_f0);   // mid less than start
+        CHECK(!std::isnan(trk_f0));
+        CHECK(!std::isnan(trk_f35));
+
+        // OpacityProperty (index 1): 0 → 1 across 35 frames.
+        const auto& op_av = std::get<chronon3d::OpacityProperty>(opt->properties[1]).value;
+        const f32 op_f0  = op_av.evaluate(f0);
+        const f32 op_f35 = op_av.evaluate(f35);
+        CHECK(op_f0  >= 0.0f);
+        CHECK(op_f0  <= 0.01f);
+        CHECK(op_f35 >= 0.999f);
+        CHECK(op_f35 <= 1.001f);
+        CHECK(op_f0 < op_f35);
+    }
+
+    SUBCASE("42) word_cascade — Word selector + animated end sweep + opacity ramp") {
+        const auto opt = chronon3d::registry::AnimatorResolver::compose_for("word_cascade");
+        REQUIRE(opt.has_value());
+        REQUIRE(opt->selectors.size() == 1);
+        // Brief A2.4: word_cascade → Word selector.
+        CHECK(opt->selectors[0].unit == chronon3d::TextSelectorUnit::Word);
+        REQUIRE(opt->properties.size() >= 3);
+        // Tier F lock-in: first alternative is OpacityProperty.
+        CHECK(std::holds_alternative<chronon3d::OpacityProperty>(opt->properties[0]));
+
+        // OpacityProperty (index 0): 0 → 1 across 36 frames.
+        const auto& op_av = std::get<chronon3d::OpacityProperty>(opt->properties[0]).value;
+        const f32 op_f0  = op_av.evaluate(f0);
+        const f32 op_f18 = op_av.evaluate(f18);
+        const f32 op_f36 = op_av.evaluate(f36);
+        CHECK(op_f0  >= 0.0f);
+        CHECK(op_f0  <= 1.0f);
+        CHECK(op_f36 >= 0.999f);
+        CHECK(op_f0  < op_f18);
+        CHECK(op_f18 < op_f36);
+        CHECK(!std::isnan(op_f0));
+        CHECK(!std::isnan(op_f36));
+
+        // PositionProperty Y: 30 → 0.
+        const auto& pos_av = std::get<chronon3d::PositionProperty>(opt->properties[1]).value;
+        const Vec3 pos_f0  = pos_av.evaluate(f0);
+        const Vec3 pos_f36 = pos_av.evaluate(f36);
+        CHECK(std::fabs(pos_f0.y  - 30.0f) <= 0.01f);
+        CHECK(std::fabs(pos_f36.y - 0.0f)  <= 0.01f);
+
+        // ScaleProperty x: 0.96 → 1.
+        const auto& scale_av = std::get<chronon3d::ScaleProperty>(opt->properties[2]).value;
+        const Vec3 scale_f0  = scale_av.evaluate(f0);
+        const Vec3 scale_f36 = scale_av.evaluate(f36);
+        CHECK(scale_f0.x >= 0.95f);
+        CHECK(scale_f0.x <= 0.97f);
+        CHECK(std::fabs(scale_f36.x - 1.0f) <= 1e-3f);
+        CHECK(scale_f0.x > 0.0f);
+        CHECK(scale_f36.x > 0.0f);
+
+        // Brief A2.5 single source: AnimatedValue `end` sweep 0→100 over 48f.
+        const f32 end_f0  = opt->selectors[0].end.evaluate(f0);
+        const f32 end_f24 = opt->selectors[0].end.evaluate(f24);
+        const f32 end_f48 = opt->selectors[0].end.evaluate(f48);
+        CHECK(end_f0  <= 0.01f);
+        CHECK(end_f48 >= 99.0f);
+        CHECK(end_f0  < end_f48);
+        CHECK(end_f24 > end_f0);   // mid-way between F0 and Ffinal
+        CHECK(end_f24 < end_f48);
+    }
+
+    SUBCASE("43) character_cascade — Glyph selector + animated end sweep + opacity ramp") {
+        const auto opt = chronon3d::registry::AnimatorResolver::compose_for("character_cascade");
+        REQUIRE(opt.has_value());
+        REQUIRE(opt->selectors.size() == 1);
+        // Brief A2.4: character_cascade → glyph/grapheme selector.
+        CHECK(opt->selectors[0].unit == chronon3d::TextSelectorUnit::Glyph);
+        REQUIRE(opt->properties.size() >= 3);
+        // Tier F lock-in: first alternative is OpacityProperty.
+        CHECK(std::holds_alternative<chronon3d::OpacityProperty>(opt->properties[0]));
+
+        // OpacityProperty (index 0): 0 → 1 across 18 frames.
+        const auto& op_av = std::get<chronon3d::OpacityProperty>(opt->properties[0]).value;
+        const f32 op_f0  = op_av.evaluate(f0);
+        const f32 op_f18 = op_av.evaluate(f18);
+        CHECK(op_f0  >= 0.0f);
+        CHECK(op_f0  <= 1.0f);
+        CHECK(op_f18 >= 0.999f);
+        CHECK(op_f0  < op_f18);
+        CHECK(!std::isnan(op_f0));
+
+        // PositionProperty Y: 18 → 0.
+        const auto& pos_av = std::get<chronon3d::PositionProperty>(opt->properties[1]).value;
+        const Vec3 pos_f0  = pos_av.evaluate(f0);
+        const Vec3 pos_f18 = pos_av.evaluate(f18);
+        CHECK(std::fabs(pos_f0.y  - 18.0f) <= 0.01f);
+        CHECK(std::fabs(pos_f18.y - 0.0f)  <= 0.01f);
+
+        // ScaleProperty x: 0.9 → 1.
+        const auto& scale_av = std::get<chronon3d::ScaleProperty>(opt->properties[2]).value;
+        const Vec3 scale_f0  = scale_av.evaluate(f0);
+        const Vec3 scale_f18 = scale_av.evaluate(f18);
+        CHECK(scale_f0.x >= 0.89f);
+        CHECK(scale_f0.x <= 0.91f);
+        CHECK(std::fabs(scale_f18.x - 1.0f) <= 1e-3f);
+        CHECK(scale_f0.x > 0.0f);
+
+        // Brief A2.5 single source: AnimatedValue `end` sweep 0→100 over 24f.
+        const f32 end_f0  = opt->selectors[0].end.evaluate(f0);
+        const f32 end_f24 = opt->selectors[0].end.evaluate(f24);
+        CHECK(end_f0  <= 0.01f);
+        CHECK(end_f24 >= 99.0f);
+        CHECK(end_f0  < end_f24);
+    }
+
+    SUBCASE("44) agents cross-link invariant — 4 mandatory presets produce ≥1 RenderNode") {
+        // Brief DoD: number of glyphs invariant.  Layer-level consistent:
+        // each preset's resolver-driven spec routes through the canonical
+        // lb.text_run(...) which produces ≥1 RenderNode.
+        const auto reg = make_default_text_preset_registry();
+        for (const auto& pid : {"cinematic_title_reveal", "tracking_close",
+                                "word_cascade", "character_cascade"}) {
+            CAPTURE(pid);
+            REQUIRE(reg.contains(pid));
+            const auto& preset = reg.get(pid);
+            chronon3d::SceneBuilder sb(1280, 720);
+            chronon3d::LayerBuilder lb(
+                std::string{"agent2_invariant_"} + pid, chronon3d::Frame{0});
+            CHECK_NOTHROW(preset.builder(sb, lb, make_test_text_spec()));
+            lb.screen_dimensions(1280.0f, 720.0f);
+            chronon3d::Layer built = lb.build();
+            CHECK(built.nodes.size() >= 1);
+        }
+    }
+}

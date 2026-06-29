@@ -44,11 +44,19 @@ std::vector<GlyphInstanceState> make_initial_glyph_states(
 namespace {
 
 /// Apply a single property to a glyph state, scaled by weight.
+///
+/// AGENT 2 (TICKET-A2) property-type refactor: the 5 properties that now
+/// carry `AnimatedValue<T>` (OpacityProperty, ScaleProperty,
+/// PositionProperty, BlurProperty, TrackingProperty) are evaluated at the
+/// supplied `time` BEFORE the blend/weight math. Static-valued variants
+/// (Rotation/Skew/Anchor/Fill/Stroke colors/StrokeWidth/...) keep their
+/// pre-refactor semantics — the change is opt-in per spec entry.
 void apply_property_to_glyph(
     GlyphInstanceState& gs,
     const TextAnimatorProperty& prop,
     SelectorWeight weight,
-    TextPropertyBlendMode blend
+    TextPropertyBlendMode blend,
+    SampleTime time
 ) {
     // Short-circuit for zero weight
     if (weight <= 0.0f) return;
@@ -57,7 +65,9 @@ void apply_property_to_glyph(
         using T = std::decay_t<decltype(p)>;
 
         if constexpr (std::is_same_v<T, PositionProperty>) {
-            const Vec3 delta = p.value * weight;
+            // AGENT 2: AnimatedValue<Vec3> — evaluate per-frame.
+            const Vec3 v = p.value.evaluate(time);
+            const Vec3 delta = v * weight;
             if (blend == TextPropertyBlendMode::Replace) {
                 gs.position = delta;
             } else {
@@ -65,20 +75,22 @@ void apply_property_to_glyph(
             }
         }
         else if constexpr (std::is_same_v<T, ScaleProperty>) {
+            // AGENT 2: AnimatedValue<Vec3> — evaluate per-frame.
+            const Vec3 v = p.value.evaluate(time);
             // Scale: compute the delta from identity (1,1,1)
             const Vec3 delta = {
-                (p.value.x - 1.0f) * weight,
-                (p.value.y - 1.0f) * weight,
-                (p.value.z - 1.0f) * weight
+                (v.x - 1.0f) * weight,
+                (v.y - 1.0f) * weight,
+                (v.z - 1.0f) * weight
             };
             if (blend == TextPropertyBlendMode::Replace) {
                 gs.scale = {1.0f + delta.x, 1.0f + delta.y, 1.0f + delta.z};
             } else if (blend == TextPropertyBlendMode::Multiply) {
                 // Multiply: lerp from identity to target, then multiply
                 const Vec3 factor = {
-                    1.0f + (p.value.x - 1.0f) * weight,
-                    1.0f + (p.value.y - 1.0f) * weight,
-                    1.0f + (p.value.z - 1.0f) * weight
+                    1.0f + (v.x - 1.0f) * weight,
+                    1.0f + (v.y - 1.0f) * weight,
+                    1.0f + (v.z - 1.0f) * weight
                 };
                 gs.scale = {gs.scale.x * factor.x, gs.scale.y * factor.y, gs.scale.z * factor.z};
             } else {
@@ -112,8 +124,10 @@ void apply_property_to_glyph(
             }
         }
         else if constexpr (std::is_same_v<T, OpacityProperty>) {
+            // AGENT 2: AnimatedValue<f32> — evaluate per-frame.
+            const f32 v = p.value.evaluate(time);
             // Opacity: lerp from 1.0 to target, multiply
-            const f32 animated = 1.0f + (p.value - 1.0f) * weight;
+            const f32 animated = 1.0f + (v - 1.0f) * weight;
             if (blend == TextPropertyBlendMode::Replace) {
                 gs.opacity = animated;
             } else if (blend == TextPropertyBlendMode::Multiply) {
@@ -123,10 +137,12 @@ void apply_property_to_glyph(
             }
         }
         else if constexpr (std::is_same_v<T, BlurProperty>) {
+            // AGENT 2: AnimatedValue<f32> — evaluate per-frame.
+            const f32 v = p.radius.evaluate(time);
             if (blend == TextPropertyBlendMode::Replace) {
-                gs.blur = p.radius * weight;
+                gs.blur = v * weight;
             } else {
-                gs.blur += p.radius * weight;
+                gs.blur += v * weight;
             }
         }
         else if constexpr (std::is_same_v<T, FillColorProperty>) {
@@ -252,18 +268,20 @@ void evaluate_animator(
             // semantic.
             if (std::holds_alternative<TrackingProperty>(prop)) {
                 const auto& tp = std::get<TrackingProperty>(prop);
+                // AGENT 2: AnimatedValue<f32> — evaluate per-frame.
+                const f32 tracking_pixels = tp.pixels.evaluate(time);
                 auto& gs = glyph_states[gi];
                 if (blend == TextPropertyBlendMode::Replace) {
                     gs.position.x = cumulative_tracking_delta;
                 } else {
                     gs.position.x += cumulative_tracking_delta;
                 }
-                const f32 delta = tp.pixels * weight;
+                const f32 delta = tracking_pixels * weight;
                 cumulative_tracking_delta += delta;
                 continue;
             }
 
-            apply_property_to_glyph(glyph_states[gi], prop, weight, blend);
+                apply_property_to_glyph(glyph_states[gi], prop, weight, blend, time);
         }
     }
 }
