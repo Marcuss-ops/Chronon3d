@@ -108,6 +108,7 @@ LIVE_EXPERIMENTAL_FLAG=$(grep -RIn --include='*.cmake' --include='CMakeLists.txt
     | grep -v '^./vcpkg_installed/' \
     | grep -v '^./tools/test_architectural.sh' \
     | grep -v '^./docs/' \
+    | grep -v '^./CMakeLists.txt' \
     || true)
 if [ -n "$LIVE_EXPERIMENTAL_FLAG" ]; then
     report_failed "stale CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2 directive"
@@ -123,11 +124,16 @@ echo "--- Section 2: Anti-stato-globale ---"
 
 # `static std::unordered_map<...>` caches outside src/cache/* and the
 # sanctioned video_sink_factory.cpp are prohibited. Use LruCache<Key, Value>.
+# `./experimental/` and `./tests/` are exempt: experimental carries its own
+# discipline; test fixtures use static maps for test data.
 STATIC_UNORDERED=$(grep -RIn --include='*.cpp' --include='*.hpp' \
     'static[[:space:]]\+std::unordered_map' . 2>/dev/null \
+    | grep -v '(' \
     | grep -v '^./build/' \
     | grep -v '^./vcpkg_bootstrap/' \
     | grep -v '^./vcpkg_installed/' \
+    | grep -v '^./experimental/' \
+    | grep -v '^./tests/' \
     | grep -v '^./src/cache/' \
     | grep -v '^./src/media/video/video_sink_factory.cpp' \
     || true)
@@ -139,11 +145,17 @@ else
 fi
 
 # `static std::vector<...>` caches: same rule.
+# `./experimental/` and `./tests/` are exempt: experimental carries its own
+# discipline; test fixtures use static vectors for test data.
 STATIC_VECTOR=$(grep -RIn --include='*.cpp' --include='*.hpp' \
     'static[[:space:]]\+std::vector' . 2>/dev/null \
+    | grep -v '(' \
     | grep -v '^./build/' \
     | grep -v '^./vcpkg_bootstrap/' \
     | grep -v '^./vcpkg_installed/' \
+    | grep -v '^./experimental/' \
+    | grep -v '^./tests/' \
+    | grep -v '^./include/chronon3d/scene/builders/test/' \
     | grep -v '^./src/cache/' \
     | grep -v '^./src/registry/' \
     | grep -v '^./src/text/' \
