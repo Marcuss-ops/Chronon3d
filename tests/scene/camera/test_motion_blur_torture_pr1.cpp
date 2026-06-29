@@ -135,6 +135,7 @@ std::shared_ptr<Framebuffer> render_with_mb(
 //   TODO(chronon3d): rotate the fix target to (i) or (ii) above.  Re-enable
 //   this test once the rendering pipeline is byte-exact between N=1
 //   (mode=Off) and N=16 (TemporalAccumulation) for static compositions.
+// TICKET-007.j — see metadata block 7 lines above.
 TEST_CASE("PR1-Torture: static framebuffer identical between 1 and 16 samples" * doctest::skip()) {
     auto comp = make_static_composition();
 
