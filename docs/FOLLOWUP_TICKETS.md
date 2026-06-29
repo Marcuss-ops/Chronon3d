@@ -25,6 +25,7 @@
 | TICKET-022 | camera double look-at compiled path | 🟡 Code-fix | `include/camera/` | arch-boundary (gate 5/6) |
 | TICKET-024 | camera OrbitMotion world-Z vs camera basis | 🟡 Code-fix | `include/camera/` | camera path |
 | TICKET-026 | camera MotionBlurSettings Mode duality | 🟡 Code-fix | `include/camera/` | arch-boundary (gate 5) |
+| TICKET-064 | §9 ExecutionScope — ScopeError/ScopeErrorCode structured error model (PR 6.8 prep) | 🟡 Code-fix | `include/chronon3d/core/execution/scope_error.hpp` | arch-boundary (gate 5) |
 
 > **Ordinamento tabella top-10**: priorita `gate-impact desc` (regole AGENTS.md #4).
 > Priority order = blocco diretto dei gate `Baseline verde: CERTIFICATA` (gate 1-9 RELEASE_GATE).
