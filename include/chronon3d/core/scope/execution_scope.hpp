@@ -148,6 +148,37 @@ public:
                        && (parent->m_depth + 1) > kMaxScopeDepth)
     {}
 
+    // ── PR 6.8 / §9.2 — Public ROOT factory (infallible) ─────────────────
+    //
+    // `make_root` is the canonical path for the root scope post-§9.5 (the
+    // public ctors are removed in §9.5; `make_root` becomes the ONLY legal
+    // way to start a chain).  Construction cannot fail:
+    //   * kind is hard-coded to `Root` (no caller-passed kind to validate)
+    //   * parent is hard-coded to nullptr (chain anchor, no parent → no
+    //     chain-limit candidate to violate)
+    //   * chain_length() of the anchor is exactly 1 regardless of bound
+    //
+    // The factory still accepts an explicit `FrameArena&` (NOT defaulted to
+    // `session.arena()`) so the call site is honest about arena ownership:
+    // callers that need the root to use `session.arena()` pass that
+    // explicitly, callers that want a distinct fast-reset arena (e.g. a
+    // transient scratch arena for the render job) pass that instead.  This
+    // mirrors the discipline used in `make_child` (§9.3) so root + child
+    // sites use the same explicit-arena pattern.
+    //
+    // `graph_id` defaults to `kInvalidGraphInstanceId` to match the
+    // existing ctor default — the executor overwrites it post-construction
+    // when the compiled graph identity is known (see executor.cpp).
+    static ExecutionScope make_root(
+        chronon3d::RenderSession&           session,
+        FrameArena&                         arena,
+        GraphInstanceId                     graph_id = kInvalidGraphInstanceId
+    ) noexcept {
+        return ExecutionScope(
+            ExecutionScopeKind::Root,
+            session, arena, graph_id, /*parent*/ nullptr);
+    }
+
     [[nodiscard]] ExecutionScopeKind           kind()      const noexcept { return m_kind; }
     [[nodiscard]] chronon3d::RenderSession&    session()   const noexcept { return m_session; }
     [[nodiscard]] FrameArena&                  arena()     const noexcept { return m_arena; }
