@@ -186,7 +186,16 @@ Estratto da `docs/FOLLOWUP_TICKETS.md` snapshot corrente e `docs/ARCHIVE/FOLLOWU
 
 | Ticket | Stato | Commit | Note |
 |---|---|---|---|
+### Aperti (active index, top-10 blockers table)
+
+| Ticket | Stato | Commit/Source | Note |
+|---|---|---|---|
 | TICKET-051 | `🔵 OPEN` | n/a (unica OPEN testo nell'active index) | area `A4.3 per-preset diagnostic` (source `tests/text/test_text_preset_visual.cpp`, target `A4.3 visual`) |
+
+### Chiusi (archive / current index narrative)
+
+| Ticket | Stato | Commit/Source | Note |
+|---|---|---|---|
 | TICKET-006 | 🟢 Done | `09997570` (PR-A archive narrative) | gen-exp guard in `tests/renderer_tests.cmake` + `tests/scene_tests.cmake`; sblocca link `chronon3d_backend_text` |
 | TICKET-029 | 🟢 Done | `fb1b7e97` | sblocca link di `chronon3d_scene_tests` |
 | TICKET-038 | 🟢 Done | `91debc36` | lambda capture / auto deduction rot in `tests/text/test_text_preset_visual.cpp` |
@@ -268,12 +277,12 @@ auto a = animator("hero")
 ```
 
 **API curate dal codice (non dedotte)**:
-- Factory: `animator(std::string id)` (`animator.hpp:209-211`) + `selector(TextSelectorUnit unit)` (`selector.hpp:~210`).
-- `Animator` builder methods (verbatimmente enumerati a `animator.hpp:50-178`): `.select(Selector&)`, `.position(Vec3)`, `.scale(Vec3)`, `.scale(f32 uniform)`, `.rotation(Vec3)`, `.skew(f32 angle, f32 axis=0)`, `.anchor(Vec3)`, `.tracking(f32)`, `.baseline_shift(f32)`, `.character_offset(i32)`, `.opacity(f32)`, `.blur(f32 radius_px)`, `.fill_color(Color)`, `.stroke_color(Color)`, `.stroke_width(f32)`.
+- Factory: `animator(std::string id)` (`animator.hpp:~209-211`) + `selector(TextSelectorUnit unit)` (`selector.hpp:~210`).
+- `Animator` builder methods (verbatimmente enumerati a `animator.hpp:~50-178`): `.select(Selector&)`, `.position(Vec3)`, `.scale(Vec3)`, `.scale(f32 uniform)`, `.rotation(Vec3)`, `.skew(f32 angle, f32 axis=0)`, `.anchor(Vec3)`, `.tracking(f32)`, `.baseline_shift(f32)`, `.character_offset(i32)`, `.opacity(f32)`, `.blur(f32 radius_px)`, `.fill_color(Color)`, `.stroke_color(Color)`, `.stroke_width(f32)`.
 - Nessun `.property(GenericProp)` esiste: ogni property ha il suo setter dedicato.
 - `Selector` builder methods (`selector.hpp`): `.shape(...)`, `.smooth()`, `.order(...)`, `.combine_mode(...)`, `.exclude_spaces(bool=true)`, `.start(Frame, f32, Easing=Linear)`, `.end(Frame, f32, Easing=Linear)`, `.offset(Frame, f32, Easing=Linear)`, `.amount(Frame, f32, Easing=Linear)`, `.ease_low(f32)`, `.ease_high(f32)`.
 - Nessun `Selector::range(...)` static factory: il Range selector si costruisce via `.start(...).end(...).amount(...)` keyframes.
-- `release()` è `private &&` + friend-only (`animator.hpp:198-201`, `selector.hpp:~195-198`); consumato da `Text::animate()` (PR 3, pianificato in `authoring.hpp:64-67`).
+- `release()` è `private &&` + friend-only (`animator.hpp:~198-201`, `selector.hpp:~195-198`); consumato da `Text::animate()` (PR 3, pianificato in `authoring.hpp:64-67`).
 
 Le property type (PositionProperty, ScaleProperty, RotationProperty, SkewProperty, AnchorProperty, TrackingProperty, **BaselineShiftProperty**, **CharacterOffsetProperty**, OpacityProperty, BlurProperty, FillColorProperty, StrokeColorProperty, StrokeWidthProperty) sono **struct static senza `AnimatedValue<T>`** in `include/chronon3d/text/text_animator_property.hpp`.
 
