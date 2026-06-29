@@ -158,3 +158,33 @@ git log -n 5 --oneline
 5. Aggiornare il checkout prima di concludere che il file non esiste.
 
 Non creare un nuovo file sostitutivo con nome simile: usare sempre i percorsi canonici sopra.
+## GATE-MNT-01 — main-sync fail-on-dirty gate (TICKET-048 closure)
+
+Prima di ogni `git push` su `main` il checkout deve essere gated da `tools/check_main_clean.sh` che fallisce (exit ≠ 0) se:
+
+1. `git fetch origin` non riesce.
+2. `HEAD` ≠ `origin/main` (full-SHA compare, rebase-identical detect).
+3. `git status -s` non vuoto (uncommitted o untracked).
+
+### Wrapper canonico (portabile, tracked)
+```bash
+tools/wrap_push.sh origin main    # drop-in per `git push`
+```
+Il wrapper (`tools/wrap_push.sh`) chiama `tools/check_main_clean.sh` e, solo se gate PASS, inoltra `git push "$@"`. È il punto di ingresso canonico per il workflow Agent3 atomic-commit.
+
+### Hook difensivo (per-repo, local-only)
+```bash
+.git/hooks/pre-push               # auto-installed local; NON tracked
+```
+Invocato automaticamente da qualsiasi `git push` (no global git config). Stesso gate: `tools/check_main_clean.sh`. Presente dopo il primo commit di Agent3 in un nuovo clone via questo stesso commit.
+
+### Re-installazione post-clone / post-rebase
+```bash
+cp .git/hooks/pre-push.example .git/hooks/pre-push 2>/dev/null || true
+# oppure usare direttamente `tools/wrap_push.sh origin main` per ogni push
+```
+
+### Smoke-test del gate
+```bash
+tools/check_main_clean.sh   # atteso: GATE_PASS, exit 0  (HEAD==origin/main, clean tree)
+```
