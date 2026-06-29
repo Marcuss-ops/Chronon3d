@@ -2,7 +2,7 @@
 
 Code-first, headless, CPU-first motion graphics and compositing engine in C++20.
 
-> **Stato al 2026-06-29:** `main` è avanzato ma pre-stabile (baseline corrente NON CERTIFICATA).
+> **Stato al 2026-06-29 (commit `22504bef`):** `main` è avanzato ma pre-stabile (baseline corrente NON CERTIFICATA).
 > La fonte canonica dello stato è [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 > I requisiti di release: [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md).
 > Non descrivere il repository come release-ready, completamente verde o in
