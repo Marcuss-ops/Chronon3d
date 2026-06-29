@@ -158,13 +158,44 @@ endif()
 # Invoked via a response file (`cmake/sdk_archive_merge.cmake`) so the
 # object list is not subject to the shell ARG_MAX limit on systems with
 # low per-execve byte caps.
+# ── Filter DEPENDS list to only existing targets ─────────────────────
+# DEPENDS is a configure-time literal — an unconditional reference to a
+# target that was gated out (e.g. chronon3d_backend_software_diagnostics
+# gated by CHRONON3D_BUILD_DIAGNOSTICS, chronon3d_text_core gated by
+# CHRONON3D_ENABLE_TEXT, chronon3d_backend_video gated by
+# CHRONON3D_ENABLE_VIDEO) produces:
+#   ninja: error: 'src/<target>', needed by
+#           'src/CMakeFiles/sdk_archive_merge',
+#           missing and no known rule to make it
+# on a fresh checkout where some features are OFF.
+#
+# Fix: foreach-if-TARGET idiom (same as cmake/Chronon3DSdkTargets.cmake).
+# `chronon3d_sdk_impl` is unconditional.  Each registry entry that was
+# actually created is appended; gated-out targets are silently skipped.
+set(_sdk_archive_deps chronon3d_sdk_impl)
+foreach(_reg_obj IN LISTS CHRONON3D_REGISTRY_OBJECT_LIBS)
+    if(TARGET ${_reg_obj})
+        list(APPEND _sdk_archive_deps ${_reg_obj})
+    endif()
+endforeach()
+
+# ── POST_BUILD custom target: rebuild the archive from scratch ────────
+# `ar crs` (the c = create, r = replace, s = write symbol table) only
+# inserts/replaces the entries listed in OBJECT_FILES; entries from a
+# prior run that are absent from the new manifest would survive as
+# ghosts.  CMake 3.25 does not natively aggregate OBJECT .o into STATIC
+# archives, so this custom target is the canonical workaround.
+#
+# Invoked via a response file (`cmake/sdk_archive_merge.cmake`) so the
+# object list is not subject to the shell ARG_MAX limit on systems with
+# low per-execve byte caps.
 add_custom_target(sdk_archive_merge
     COMMAND ${CMAKE_COMMAND} -E echo "Merging subsystem .o files into SDK archive..."
     COMMAND ${CMAKE_COMMAND} -DARCHIVE="$<TARGET_FILE:chronon3d_sdk_impl>" -DOBJECT_FILES="${_sdk_archive_obj_files}" -DAR="${CMAKE_AR}" -P "${CMAKE_SOURCE_DIR}/cmake/sdk_archive_merge.cmake"
     COMMAND ${CMAKE_COMMAND} -E echo "=== Archive object count after merge ==="
     COMMAND ${CMAKE_AR} t "$<TARGET_FILE:chronon3d_sdk_impl>"
     COMMENT "Merging all subsystem OBJECT .o files into libchronon3d_sdk_impl.a (registry-driven manifest)"
-    DEPENDS chronon3d_sdk_impl ${CHRONON3D_REGISTRY_OBJECT_LIBS}
+    DEPENDS ${_sdk_archive_deps}
 )
 
 # ── Wire `cmake --install` to invoke the merge before installing ──────
