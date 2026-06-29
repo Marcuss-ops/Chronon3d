@@ -23,6 +23,7 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         text/test_text_quality_arabic.cpp
         text/test_text_bidi.cpp
         text/test_text_unit_map.cpp
+        text/test_text_unit_map_8level.cpp
         text/test_selector_shapes.cpp
         text/test_selector_evaluate.cpp
         text/test_selector_combine.cpp
