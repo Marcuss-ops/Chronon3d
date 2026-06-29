@@ -3,11 +3,15 @@
 
 add_library(chronon3d_text_core OBJECT
     animated_text_document.cpp
+    animation/glyph_instance_state.cpp
+    animation/text_animator_evaluator.cpp
+    animation/text_animator_stack.cpp
+    animation/text_property_applier.cpp
+    animation/text_tracking_evaluator.cpp
     every_line_composer.cpp
     glyph_selector.cpp
     path_sampler.cpp
     single_line_composer.cpp
-    text_animator_property.cpp
     text_document.cpp
     text_path_composer.cpp
     text_resolver.cpp
