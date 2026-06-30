@@ -133,11 +133,10 @@ enum class TextLayoutErrorKind {
     /// kept `text_layout->font = doc.defaults.font` while glyph IDs came
     /// from N different fonts, producing the wrong glyph for some spans
     /// (tofu / wrong stroke / fill mismatch).  Stabilization strategy is
-    /// to refuse the compile and surface a structured error rather than
-    /// silently render corrupted glyphs.  A future atom adds
-    /// `ShapedFontSpan` so the renderer can switch fonts at span
-    /// boundaries and re-enable multi-font paragraphs.
-    UnsupportedMultiFontRun,
+    /// ── Phase 1.4 supersedes this stab path with the additive renderer-side
+    /// font-switch via `TextRunLayout::font_spans`; see ShapedFontSpan +
+    /// text_run_processor.cpp for the new compile trajectory.  Multi-font
+    /// paragraphs are NO LONGER rejected at compile.
 };
 
 /// Structured compile error returned in `Result`'s error channel.
