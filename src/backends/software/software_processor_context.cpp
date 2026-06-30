@@ -11,6 +11,7 @@
 
 #include <chronon3d/backends/software/software_processor_context.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/text/text_render_resources.hpp>
 
 namespace chronon3d {
 
@@ -22,6 +23,7 @@ SoftwareProcessorContext make_processor_context(SoftwareRenderer* renderer) {
     ctx.registry        = &renderer->software_registry();
     ctx.image_backend   = renderer->image_backend();
     ctx.image_renderer  = &renderer->image_renderer();
+    ctx.text_resources  = renderer->text_render_resources();
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
     // font_engine() throws on non-text builds; callers must be in
     // a `#if CHRONON3D_HAS_BACKEND_TEXT` block before invoking.
