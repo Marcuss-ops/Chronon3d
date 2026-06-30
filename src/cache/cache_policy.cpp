@@ -8,6 +8,7 @@
 
 #include <chronon3d/cache/cache_policy.hpp>
 #include <chronon3d/core/config.hpp>
+#include <atomic>
 #include <cstddef>
 #include <mutex>
 
@@ -113,15 +114,23 @@ CachePolicy resolve_cache_policy(
 
 // ── Globally-injected CacheConfig (set once by SoftwareRenderer) ─────────
 
+// FASE 3 (TICKET-079) — Globally-injected CacheConfig set once at startup by
+// SoftwareRenderer.  First-call-wins via atomic CAS; eliminates std::once_flag +
+// std::call_once (per AGENTS.md pattern `is serialised + idempotent without an
+// external std::once_flag`).  Pointer borrow retained for `cache_config`'s
+// lifetime — caller responsibility documented in `RenderRuntime::populate()`.
 namespace {
     const chronon3d::CacheConfig* s_global_cache_config = nullptr;
-    std::once_flag                 s_global_cache_config_flag;
+    std::atomic<bool>              s_global_cache_config_set{false};
 } // namespace
 
 void set_global_cache_config(const chronon3d::CacheConfig& cache_config) {
-    std::call_once(s_global_cache_config_flag, [&] {
+    bool expected = false;
+    if (s_global_cache_config_set.compare_exchange_strong(
+            expected, true,
+            std::memory_order_acq_rel, std::memory_order_relaxed)) {
         s_global_cache_config = &cache_config;
-    });
+    }
 }
 
 CachePolicy resolve_cache_policy(
