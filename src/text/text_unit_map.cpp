@@ -25,6 +25,9 @@
 #include <chronon3d/text/text_unit_map.hpp>
 #include <chronon3d/text/font_engine.hpp>
 
+#include "unicode/utf8_decoder.hpp"
+#include "unicode/whitespace.hpp"
+
 #include <algorithm>
 #include <cstring>
 #include <utility>
@@ -33,76 +36,13 @@ namespace chronon3d {
 
 namespace {
 
-// ── UTF-8 decoder (returns codepoint + byte-length consumed) ────────────
+// ── Codepoint classifiers (now consolidated to unicode/whitespace.hpp) ──
 //
-// Same algorithm as `glyph_selector.hpp::detail::decode_utf8_codepoint_from`
-// but without the cp_len reference parameter (we return both as a pair).
-// This duplication is INCIDENTAL (helper, not exposed) and is required
-// because the existing helper is in `chronon3d::detail` which is not
-// exposed in any public include path; copying 30 lines eliminates an
-// export leak that would breach anti-duplication surface principles.
-
-[[nodiscard]] inline std::pair<char32_t, u32>
-decode_utf8(std::string_view sv, u32 byte_idx) noexcept {
-    if (byte_idx >= sv.size()) return {0xFFFD, 1};
-    const auto lead = static_cast<unsigned char>(sv[byte_idx]);
-
-    if ((lead & 0x80u) == 0) {
-        return {static_cast<char32_t>(lead), 1};
-    }
-    if ((lead & 0xE0u) == 0xC0u) {
-        if (byte_idx + 1 >= sv.size()) return {0xFFFD, 1};
-        const auto c1 = static_cast<unsigned char>(sv[byte_idx + 1]);
-        if ((c1 & 0xC0u) != 0x80u) return {0xFFFD, 1};
-        return {static_cast<char32_t>(((lead & 0x1Fu) << 6) | (c1 & 0x3Fu)), 2};
-    }
-    if ((lead & 0xF0u) == 0xE0u) {
-        if (byte_idx + 2 >= sv.size()) return {0xFFFD, 1};
-        const auto c1 = static_cast<unsigned char>(sv[byte_idx + 1]);
-        const auto c2 = static_cast<unsigned char>(sv[byte_idx + 2]);
-        if (((c1 | c2) & 0xC0u) != 0x80u) return {0xFFFD, 1};
-        return {
-            static_cast<char32_t>(
-                ((lead & 0x0Fu) << 12) |
-                ((c1 & 0x3Fu) << 6) |
-                (c2 & 0x3Fu)),
-            3
-        };
-    }
-    if ((lead & 0xF8u) == 0xF0u) {
-        if (byte_idx + 3 >= sv.size()) return {0xFFFD, 1};
-        const auto c1 = static_cast<unsigned char>(sv[byte_idx + 1]);
-        const auto c2 = static_cast<unsigned char>(sv[byte_idx + 2]);
-        const auto c3 = static_cast<unsigned char>(sv[byte_idx + 3]);
-        if (((c1 | c2 | c3) & 0xC0u) != 0x80u) return {0xFFFD, 1};
-        return {
-            static_cast<char32_t>(
-                ((lead & 0x07u) << 18) |
-                ((c1 & 0x3Fu) << 12) |
-                ((c2 & 0x3Fu) << 6) |
-                (c3 & 0x3Fu)),
-            4
-        };
-    }
-    return {0xFFFD, 1};
-}
-
-// ── Codepoint classifiers (Unicode whitespace + ZWJ + Extend + RI + ExtPict) ──
-
-[[nodiscard]] inline bool is_unicode_whitespace_cp(char32_t cp) noexcept {
-    switch (cp) {
-        case 0x0020: case 0x0009: case 0x000A: case 0x000D:
-        case 0x00A0: case 0x1680:
-        case 0x2000: case 0x2001: case 0x2002: case 0x2003:
-        case 0x2004: case 0x2005: case 0x2006: case 0x2007:
-        case 0x2008: case 0x2009: case 0x200A:
-        case 0x2028: case 0x2029:
-        case 0x202F: case 0x205F: case 0x3000:
-            return true;
-        default:
-            return false;
-    }
-}
+// The remaining inline helpers below are grapheme-cluster-break properties
+// (is_combining_mark, is_zwj, is_regional_indicator, is_extended_pictographic)
+// that are tightly coupled to the GB state machine in the constructor below.
+// They are single-call-site internal, kept inline until TICKET-081a (grapheme_break
+// extraction) lands as a follow-up commit.
 
 [[nodiscard]] inline bool is_combining_mark_cp(char32_t cp) noexcept {
     if (cp >= 0x0300 && cp <= 0x036F) return true;
@@ -188,15 +128,17 @@ TextUnitMap::TextUnitMap(std::string_view utf8,
     byte_to_codepoint_.resize(utf8_byte_count_, InvalidIndex);
     {
         u32 cp_idx = 0;
-        u32 i = 0;
+        std::size_t i = 0;
         while (i < utf8_byte_count_) {
-            const auto [cp, len] = decode_utf8(utf8, i);
+            const std::size_t before = i;
+            const char32_t cp = text::unicode::decode_codepoint(utf8, i);
             (void)cp;
-            const u32 fill_end = std::min<u32>(i + len, utf8_byte_count_);
-            for (u32 k = i; k < fill_end; ++k) {
+            const std::size_t consumed = i - before;
+            const u32 fill_end = static_cast<u32>(
+                std::min<std::size_t>(before + consumed, utf8_byte_count_));
+            for (u32 k = static_cast<u32>(before); k < fill_end; ++k) {
                 byte_to_codepoint_[k] = cp_idx;
             }
-            i = fill_end;
             ++cp_idx;
         }
         codepoint_count_ = cp_idx;
@@ -223,9 +165,8 @@ TextUnitMap::TextUnitMap(std::string_view utf8,
         for (u32 cp_i = 0; cp_i < codepoint_count_; ++cp_i) {
             const u32 byte_idx = first_child_with_parent(byte_to_codepoint_, cp_i);
             if (byte_idx != InvalidIndex) {
-                const auto [cp, len] = decode_utf8(utf8, byte_idx);
-                (void)len;
-                cp_at_idx[cp_i] = cp;
+                cp_at_idx[cp_i] =
+                    text::unicode::decode_codepoint_at(utf8, byte_idx);
             }
         }
 
@@ -355,9 +296,9 @@ TextUnitMap::TextUnitMap(std::string_view utf8,
         for (u32 gi = 0; gi < glyph_count_; ++gi) {
             const auto& cl = placed.clusters[gi];
             const u32 cluster_byte = static_cast<u32>(cl.byte_offset);
-            const auto [first_cp, flen] = decode_utf8(utf8, cluster_byte);
-            (void)flen;
-            const bool is_ws = is_unicode_whitespace_cp(first_cp);
+            const char32_t first_cp =
+                text::unicode::decode_codepoint_at(utf8, cluster_byte);
+            const bool is_ws = text::unicode::is_unicode_whitespace(first_cp);
 
             if (!is_ws && !in_word) {
                 // Start of a new word.
@@ -379,9 +320,9 @@ TextUnitMap::TextUnitMap(std::string_view utf8,
         for (u32 gi = 0; gi < glyph_count_; ++gi) {
             const auto& cl = placed.clusters[gi];
             const u32 cluster_byte = static_cast<u32>(cl.byte_offset);
-            const auto [first_cp, flen] = decode_utf8(utf8, cluster_byte);
-            (void)flen;
-            const bool is_ws = is_unicode_whitespace_cp(first_cp);
+            const char32_t first_cp =
+                text::unicode::decode_codepoint_at(utf8, cluster_byte);
+            const bool is_ws = text::unicode::is_unicode_whitespace(first_cp);
             if (is_ws && word_idx > 0) {
                 glyph_to_word_[gi] = word_idx - 1;
             }
