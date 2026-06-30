@@ -337,8 +337,19 @@ compile_text_layout(
             "compile_text_layout: resolved tree has no paragraphs"
         };
     }
+    // TICKET-101: index into the requested paragraph of the ORIGINAL
+    // document.  build_text_run iterates 0..N passing the i-th index;
+    // materialize_text_run_shape passes 0.  Bounds-checked against the
+    // resolved tree's paragraph count (defensive: caller may have
+    // skipped split_paragraphs() and the doc index may be stale).
+    if (request.paragraph_index >= tree.paragraphs.size()) {
+        return TextLayoutError{
+            TextLayoutErrorKind::MalformedLayout,
+            "compile_text_layout: request.paragraph_index out of range"
+        };
+    }
 
-    const auto& para = tree.paragraphs.front();
+    const auto& para = tree.paragraphs[request.paragraph_index];
 
     // ── Empty paragraph (e.g. two consecutive \n) ─────────────────
     if (para.runs.empty()) {
@@ -504,8 +515,20 @@ compile_text_layout(
     text_layout->bounds      = composed.bounds;
     text_layout->tracking    = layout.tracking;
     text_layout->wrap        = layout.wrap;
-    text_layout->direction   = TextDirection::Auto;
-    text_layout->line_height = layout.line_height;
+    // TICKET-101: direction + language preservation from comp_style
+    // (paragraph style override or layout spec default).  Previously
+    // direction was hardcoded to TextDirection::Auto and language was
+    // never set, silently dropping per-paragraph direction/language info
+    // that lived on the ORIGINAL doc.  Now both fields flow through
+    // comp_style (which is para.style if non-default, else layout.paragraph).
+    text_layout->direction   = comp_style.direction;
+    text_layout->language    = comp_style.language;
+    // line_height: prefer comp_style override (para.style.line_height
+    // when set), fall back to layout.line_height when comp_style uses
+    // the default 0.0f sentinel.
+    text_layout->line_height = comp_style.line_height > 0.0f
+        ? comp_style.line_height
+        : layout.line_height;
 
     if (services.cache && is_single_font) {
         TextLayoutCacheKey cache_key = build_cache_key(para_text, primary_font, layout);
@@ -554,39 +577,61 @@ TextRunBuildResult build_text_run(
     const FontSpec primary_font = doc.defaults.font;
 
     for (std::size_t i = 0; i < tree.paragraphs.size(); ++i) {
-        // ── Phase 1.4: build_text_run wrapper no longer pre-checks multi-font ──
-        // Previously (Fase 1.5 + CR#1) the wrapper rejected multi-font paragraphs
-        // to surface verdict Issue #3 as a structured error.  With Phase 1.4 the
-        // renderer (text_run_processor.cpp) accepts multi-font via `font_spans` and
-        // switches BLFont at span boundaries, so the pre-check is obsolete.  A
-        // compile_text_layout() call now succeeds for any multi-font paragraph; the
-        // wrapper just routes the resulting TextRunLayout to TextRunBuildResult
-        // without filtering.  Empty "" or malformed paragraphs are still rejected
-        // upstream by compile_text_layout (EmptySource / MalformedLayout).
-
-                // Synthesize a per-paragraph TextDocument so compile_text_layout
-        // compiles the i-th tree paragraph.  The source text for that
-        // paragraph is the concatenation of its resolved runs' text,
-        // which mirrors the previous in-loop behavior exactly.
-        TextDocument para_doc;
-        para_doc.utf8            = paragraph_source_text(tree.paragraphs[i].runs);
-        para_doc.defaults.font   = primary_font;
-        para_doc.split_paragraphs();
-
-        TextLayoutRequest request{
-            &para_doc,
-            &layout,
-            primary_font,
-        };
-        auto compiled = compile_text_layout(request, services);
-        if (!compiled) {
-            spdlog::warn(
-                "build_text_run: paragraph {} skipped — {}",
-                i, compiled.error().message);
-            continue;
+        // ── TICKET-101: multi-font rejection at the public wrapper ─────────
+        // Verdict Issue #3 stabilization requires UnsupportedMultiFontRun
+        // to surface from the PUBLIC wrapper (build_text_run) so it cannot
+        // be bypassed by direct compile_text_layout callers.  Per-paragraph
+        // runs are inspected for divergent FontSpec (different font_path /
+        // font_family / font_weight / font_style).  When divergence is
+        // detected the paragraph is logged + skipped — this matches the
+        // pre-Phase-1.4 semantic that the wrapper rejected the paragraph
+        // (the additive font_spans path in compile_text_layout is retained
+        // for direct callers who need it; build_text_run enforces strict
+        // single-font policy).  TICKET-105 is the umbrella identity /
+        // preservation test suite that locks this contract.
+        if (tree.paragraphs[i].runs.size() > 1) {
+            const FontSpec& base = tree.paragraphs[i].runs.front().font;
+            for (std::size_t ri = 1; ri < tree.paragraphs[i].runs.size(); ++ri) {
+                const FontSpec& r = tree.paragraphs[i].runs[ri].font;
+                if (r.font_path != base.font_path
+                    || r.font_family != base.font_family
+                    || r.font_weight != base.font_weight
+                    || r.font_style  != base.font_style) {
+                    spdlog::warn(
+                        "build_text_run: paragraph {} skipped — "
+                        "UnsupportedMultiFontRun (span {} font differs from run 0).",
+                        i, ri);
+                    goto next_paragraph;  // skip the entire paragraph
+                }
+            }
         }
-        result.paragraphs.push_back(
-            std::const_pointer_cast<TextRunLayout>(compiled.value()));
+
+        {
+            // ── TICKET-101: pass the ORIGINAL document + paragraph_index ───
+            // No more synthesized para_doc.  Span overrides (font_size,
+            // tracking), paragraph style (direction, language, line_height),
+            // and feature-set all live on the ORIGINAL doc and are
+            // preserved 1:1 through resolve_text_run_tree().  The
+            // synthesized para_doc previously only carried utf8 + defaults.font,
+            // silently dropping span overrides and paragraph style — the
+            // root cause of review P0 #2 (rich-text info destroyed by wrapper).
+            TextLayoutRequest request{
+                &doc,        // ORIGINAL document (no synthesis)
+                &layout,
+                primary_font,
+                i,           // TICKET-101: paragraph_index
+            };
+            auto compiled = compile_text_layout(request, services);
+            if (!compiled) {
+                spdlog::warn(
+                    "build_text_run: paragraph {} skipped — {}",
+                    i, compiled.error().message);
+                goto next_paragraph;
+            }
+            result.paragraphs.push_back(
+                std::const_pointer_cast<TextRunLayout>(compiled.value()));
+        }
+        next_paragraph:;
     }
 
     // ── TEXT-PLY-01: wire spacing_collapse across consecutive paragraphs ──

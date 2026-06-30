@@ -162,10 +162,17 @@ struct TextCompileServices {
 /// `primary_font` is used for cache-key construction (single-font
 /// paragraphs only); empty `primary_font` falls back to
 /// `doc->defaults.font`.
+///
+/// `paragraph_index` (TICKET-101, cat-3 freeze-compliant extension)
+/// selects WHICH paragraph of `*doc` to compile.  `build_text_run()`
+/// iterates 0..N and passes the i-th index; `materialize_text_run_shape`
+/// passes 0.  Default 0 preserves backward compatibility for callers
+/// that supply a single-paragraph TextDocument (the common case).
 struct TextLayoutRequest {
     const TextDocument*   doc{nullptr};
     const TextLayoutSpec* layout{nullptr};
     FontSpec              primary_font{};
+    std::size_t           paragraph_index{0};
 };
 
 /// Single canonical TextRunLayout compiler.  Always populates `units`
