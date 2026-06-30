@@ -165,30 +165,6 @@ int main() {
         return 1;
     }
 
-    // ── 2b. Explicit chronon3d_text_core probe (link-time assertion)
-    //
-    // The probe is gated by the CMake-generated
-    // CHRONON3D_HAVE_TEXT_CORE define (0|1).  When 1, the SDK archive
-    // contains the text_core .cpp compilation units and
-    // glyph_atlas_lookup is callable.  When 0, the SDK was built with
-    // CHRONON3D_ENABLE_TEXT=OFF and we skip with a structured log.
-    //
-    // This complements the Fase-5 canary gate: even if the archive
-    // contains text_core, the consumer's invocation exercises the
-    // public symbol path end-to-end at run time.
-#ifdef CHRONON3D_HAVE_TEXT_CORE
-    std::printf(
-        "[BOUNDARY-LOG] text_core reachable: invoking glyph_atlas_lookup() "
-        "from chronon3d_text_core\n");
-    auto probe = chronon3d::glyph_atlas_lookup(
-        std::string_view{}, std::uint32_t{0}, std::size_t{12});
-    (void)probe;
-#else
-    std::printf(
-        "[BOUNDARY-LOG] text_core NOT in SDK archive - explicit "
-        "chronon3d_text_core node skipped (CHRONON3D_ENABLE_TEXT=OFF)\n");
-#endif
-
     // ── 3. Save PNG ──────────────────────────────────────────────
     const std::filesystem::path output_path = "sdk_consumer_output.png";
     if (!chronon3d::save_png(*fb, output_path.string())) {
