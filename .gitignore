@@ -108,6 +108,9 @@ artifacts/visual/camera/
 .build-logs/
 /Testing/
 
+# Audit script generated reports (audit_software_renderer.sh artifact)
+/docs/audits/
+
 # CMake build artifacts (regenerated on every configure)
 CMakeCache.txt
 CMakeFiles/
