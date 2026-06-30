@@ -352,22 +352,22 @@ const FontEngine& SoftwareRenderer::font_engine() const {
 
 // ── Rendering ────────────────────────────────────────────────────────────────
 
-// ── preflight_fonts -- TICKET-078 declaration moved OUT of the canonical
-//    software_renderer.hpp (gate-3 I3 fix: 7 non-local includes → 6).  The
-//    out-of-class declaration + definition below MUST stay together in this
-//    TU since the parent's class declaration no longer names `preflight_fonts`.
-//    Cross-reference: 'render_scene()' (lines below) is the only caller.
+// ── preflight_fonts (TICKET-087) -- in-class declaration restored in
+//    software_renderer.hpp using `struct FontPreflightSummary;` forward-decl
+//    (gate-3 I3 fix 7 → 6 preserved from TICKET-078).  Only the body
+//    definition lives here; the parent header's class declaration names
+//    `preflight_fonts` so the symbol is visible at the call sites in
+//    `render_scene()` lines below.  The forward-decl suffices for the
+//    declaration site because C++ allows incomplete return types at
+//    the declaration; complete type is pulled in via the unconditional
+//    `#include <chronon3d/backends/text/text_render_resources.hpp>` at
+//    the top of this TU.  Cross-reference: 'render_scene()' (lines below)
+//    is the only caller.
 //
 // Cat-2 font preflight (Cat-2 framing per AGENTS.md freeze audit).
 // Per-layer (fontspec) walk: for each LayerKind::Text, scan nodes for the
 // first TextRunShapeHandle; collect a representative (font_path, font_size)
 // pair and resolve it before render starts.
-[[nodiscard]] FontPreflightSummary SoftwareRenderer::preflight_fonts(
-    const Scene& scene,
-    const assets::AssetResolver& resolver
-);  // <- declaration only (matches what used to live in the parent header)
-
-// Definition follows immediately.
 FontPreflightSummary SoftwareRenderer::preflight_fonts(
     const Scene& scene,
     const assets::AssetResolver& resolver
