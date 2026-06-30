@@ -39,7 +39,7 @@ std::shared_ptr<Framebuffer> render_video_comp(const Composition& comp, Color mo
     SoftwareRenderer renderer = test::make_renderer();
     auto decoder = std::make_shared<MockVideoDecoder>(mock_color);
     renderer.set_video_decoder(decoder);
-    return renderer.render_frame(comp, 0);
+    return renderer.render(comp, 0);
 }
 
 Composition make_video_card_comp(float rotate_y, Vec2 card_size = {320, 180}) {
@@ -101,7 +101,7 @@ TEST_CASE("VideoCard: video_size controls decoder dimensions") {
     renderer.set_settings(settings);
     auto decoder = std::make_shared<SizeCaptureDecoder>();
     renderer.set_video_decoder(decoder);
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
 
     CHECK(decoder->captured_w == 320);

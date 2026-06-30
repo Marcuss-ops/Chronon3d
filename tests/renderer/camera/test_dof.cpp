@@ -18,7 +18,7 @@ static std::shared_ptr<Framebuffer> render_dof_fn(
 {
     auto rend = test::make_renderer();
     Composition comp(CompositionSpec{.width=w,.height=h,.duration=1}, fn);
-    return rend.render_frame(comp, 0);
+    return rend.render(comp, 0);
 }
 
 // ---------------------------------------------------------------------------

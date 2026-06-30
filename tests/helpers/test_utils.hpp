@@ -176,7 +176,7 @@ inline std::shared_ptr<Framebuffer> render_fn(
     renderer.set_settings(settings);
     attach_software_backend(renderer);
     Composition comp = composition({.width = width, .height = height}, build_fn);
-    return renderer.render_frame(comp, 0);
+    return renderer.render(comp, 0);
 }
 
 inline std::shared_ptr<Framebuffer> load_png_as_framebuffer(const std::string& path) {

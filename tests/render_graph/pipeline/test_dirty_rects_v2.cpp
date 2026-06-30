@@ -49,7 +49,7 @@ std::shared_ptr<Framebuffer> render_with_dirty(const Composition& comp, Frame f,
     settings.use_modular_graph = true;
     settings.dirty.enabled = dirty_on;
     renderer.set_settings(settings);
-    return renderer.render_frame(comp, f);
+    return renderer.render(comp, f);
 }
 
 // Count non-transparent pixels in a framebuffer
@@ -121,9 +121,9 @@ TEST_CASE("Dirty Rects: Bounding box correct for simple shapes") {
         s.use_modular_graph = true;
         s.dirty.enabled = true;
         r.set_settings(s);
-        r.render_frame(comp_rect, 0);  // Render frame 0 baseline
+        r.render(comp_rect, 0);  // Render frame 0 baseline
         r.counters()->reset();         // Reset counters for frame 1
-        r.render_frame(comp_rect, 1);  // frame 1 → dirty rect active
+        r.render(comp_rect, 1);  // frame 1 → dirty rect active
         uint64_t dirty_px = r.counters()->dirty_pixels.load();
         uint64_t full_px = static_cast<uint64_t>(W) * H;
         CHECK(dirty_px < full_px);  // dirty area smaller than full frame
@@ -148,9 +148,9 @@ TEST_CASE("Dirty Rects: Bounding box correct for simple shapes") {
         s.use_modular_graph = true;
         s.dirty.enabled = true;
         r.set_settings(s);
-        r.render_frame(comp_circle, 0); // Render frame 0 baseline
+        r.render(comp_circle, 0); // Render frame 0 baseline
         r.counters()->reset();          // Reset counters for frame 1
-        r.render_frame(comp_circle, 1);
+        r.render(comp_circle, 1);
         uint64_t dirty_px = r.counters()->dirty_pixels.load();
         uint64_t full_px = static_cast<uint64_t>(W) * H;
         CHECK(dirty_px < full_px);
@@ -202,9 +202,9 @@ TEST_CASE("Dirty Rects: Inter-frame diff includes old and new position") {
         s.use_modular_graph = true;
         s.dirty.enabled = true;
         r.set_settings(s);
-        r.render_frame(comp, 0);
+        r.render(comp, 0);
         r.counters()->reset();
-        r.render_frame(comp, 1);
+        r.render(comp, 1);
         uint64_t dirty_px = r.counters()->dirty_pixels.load();
         uint64_t full_px = static_cast<uint64_t>(W) * H;
         CHECK(dirty_px > 0);
@@ -256,11 +256,11 @@ TEST_CASE("Dirty Rects: Static scene skips redundant clears") {
     renderer.set_settings(settings);
 
     // Render all frames
-    auto first_fb = renderer.render_frame(comp, 0);
+    auto first_fb = renderer.render(comp, 0);
     REQUIRE(first_fb);
 
     for (Frame f = 1; f < kFrames; ++f) {
-        auto fb = renderer.render_frame(comp, f);
+        auto fb = renderer.render(comp, f);
         REQUIRE(fb);
     }
 
@@ -330,8 +330,8 @@ TEST_CASE("Dirty Rects: Near-static scene with small animated element") {
 
     int total_mismatches = 0;
     for (Frame f = 0; f < kFrames; ++f) {
-        auto fb_ref = ref_renderer.render_frame(comp, f);
-        auto fb_opt = opt_renderer.render_frame(comp, f);
+        auto fb_ref = ref_renderer.render(comp, f);
+        auto fb_opt = opt_renderer.render(comp, f);
         REQUIRE(fb_ref);
         REQUIRE(fb_opt);
 
@@ -393,8 +393,8 @@ TEST_CASE("Dirty Rects: Output correct with effects (blur)") {
     settings.dirty.enabled = true;
     renderer.set_settings(settings);
 
-    auto fb0 = renderer.render_frame(comp, 0);
-    auto fb1 = renderer.render_frame(comp, 1);
+    auto fb0 = renderer.render(comp, 0);
+    auto fb1 = renderer.render(comp, 1);
     REQUIRE(fb0);
     REQUIRE(fb1);
 
@@ -472,8 +472,8 @@ TEST_CASE("Dirty Rects: Long sequence equivalence with moving elements") {
 
     int total_mism = 0;
     for (Frame f = 0; f < kFrames; ++f) {
-        auto fb_d = r_dirty.render_frame(comp, f);
-        auto fb_c = r_clean.render_frame(comp, f);
+        auto fb_d = r_dirty.render(comp, f);
+        auto fb_c = r_clean.render(comp, f);
         REQUIRE(fb_d);
         REQUIRE(fb_c);
 

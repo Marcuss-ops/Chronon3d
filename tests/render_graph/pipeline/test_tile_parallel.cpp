@@ -113,9 +113,9 @@ TEST_CASE("TileParallel: Determinism — three independent renderers produce ide
     }
 
     for (Frame f = 0; f < kFrames; ++f) {
-        auto fb_a = ra.render_frame(comp, f);
-        auto fb_b = rb.render_frame(comp, f);
-        auto fb_c = rc.render_frame(comp, f);
+        auto fb_a = ra.render(comp, f);
+        auto fb_b = rb.render(comp, f);
+        auto fb_c = rc.render(comp, f);
 
         REQUIRE(fb_a != nullptr);
         REQUIRE(fb_b != nullptr);
@@ -151,7 +151,7 @@ TEST_CASE("TileParallel: Determinism — same renderer twice produces identical 
     // Run 1
     std::vector<std::shared_ptr<Framebuffer>> run1;
     for (Frame f = 0; f < kFrames; ++f) {
-        run1.push_back(renderer.render_frame(comp, f));
+        run1.push_back(renderer.render(comp, f));
     }
 
     // Run 2 — fresh renderer
@@ -166,7 +166,7 @@ TEST_CASE("TileParallel: Determinism — same renderer twice produces identical 
     }
 
     for (Frame f = 0; f < kFrames; ++f) {
-        auto fb2 = renderer2.render_frame(comp, f);
+        auto fb2 = renderer2.render(comp, f);
         REQUIRE(fb2 != nullptr);
 
         int mism = 0;
@@ -206,8 +206,8 @@ TEST_CASE("TileParallel: Determinism — parallel tiles match baseline (no tiles
 
     int total_mism = 0;
     for (Frame f = 0; f < kFrames; ++f) {
-        auto fb_b = baseline.render_frame(comp, f);
-        auto fb_o = opt.render_frame(comp, f);
+        auto fb_b = baseline.render(comp, f);
+        auto fb_o = opt.render(comp, f);
         REQUIRE(fb_b != nullptr);
         REQUIRE(fb_o != nullptr);
 
@@ -285,7 +285,7 @@ TEST_CASE("TileParallel: Stress — medium resolution with multiple tile sizes")
 
         // Render all frames — must not throw/crash
         for (Frame f = 0; f < kFrames; ++f) {
-            auto fb = renderer.render_frame(comp, f);
+            auto fb = renderer.render(comp, f);
             REQUIRE(fb != nullptr);
             CHECK(fb->width() == W);
             CHECK(fb->height() == H);
@@ -354,8 +354,8 @@ TEST_CASE("TileParallel: Stress — full-screen dirty (all tiles dirty) still co
     int total_mism = 0;
     void* prev_fb_o = nullptr;
     for (Frame f = 0; f < kFrames; ++f) {
-        auto fb_b = baseline.render_frame(comp, f);
-        auto fb_o = opt.render_frame(comp, f);
+        auto fb_b = baseline.render(comp, f);
+        auto fb_o = opt.render(comp, f);
         REQUIRE(fb_b != nullptr);
         REQUIRE(fb_o != nullptr);
 
@@ -410,7 +410,7 @@ TEST_CASE("TileParallel: Stress — fine-grained tiles (tile_size=16), many fram
 
     // Must not crash across many frames
     for (Frame f = 0; f < kFrames; ++f) {
-        auto fb = renderer.render_frame(comp, f);
+        auto fb = renderer.render(comp, f);
         REQUIRE(fb != nullptr);
     }
 

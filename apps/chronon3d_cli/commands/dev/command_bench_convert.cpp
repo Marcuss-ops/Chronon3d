@@ -173,7 +173,7 @@ int command_bench_convert(const CompositionRegistry& registry, const BenchConver
     const Frame frame{args.frame};
     spdlog::info("Rendering frame {} of '{}' for conversion benchmark...", frame, plan->comp_id);
 
-    auto fb = renderer->render_frame(*plan->comp, frame);
+    auto fb = renderer->render(*plan->comp, frame);
     if (!fb) {
         spdlog::error("Failed to render frame {}", frame);
         return 1;

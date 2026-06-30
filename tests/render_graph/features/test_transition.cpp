@@ -60,19 +60,19 @@ TEST_CASE("Crossfade transition_in renders progressive opacity") {
     auto comp = make_transition_comp(trans_in, {});
 
     // Frame 0: beginning of transition. Progress = 0.0 => layer fully transparent => black bg
-    auto fb0 = renderer.render_frame(comp, 0);
+    auto fb0 = renderer.render(comp, 0);
     REQUIRE(fb0 != nullptr);
     CHECK(fb0->get_pixel(50, 50).r == 0.0f);
     CHECK(fb0->get_pixel(50, 50).a == 1.0f); // background is black, opaque
 
     // Frame 15: middle of transition. Progress = 0.5 => layer half transparent
-    auto fb15 = renderer.render_frame(comp, 15);
+    auto fb15 = renderer.render(comp, 15);
     REQUIRE(fb15 != nullptr);
     CHECK(fb15->get_pixel(50, 50).r > 0.4f);
     CHECK(fb15->get_pixel(50, 50).r < 0.6f);
 
     // Frame 30: end of transition. Progress = 1.0 => layer fully visible
-    auto fb30 = renderer.render_frame(comp, 30);
+    auto fb30 = renderer.render(comp, 30);
     REQUIRE(fb30 != nullptr);
     CHECK(fb30->get_pixel(50, 50).r == 1.0f);
 }
@@ -95,9 +95,9 @@ TEST_CASE("Transition direction and different types execute successfully") {
         auto comp = make_transition_comp(trans_in, {});
 
         // Just ensure it renders without crashing and middle state is distinct from end state
-        auto fb0 = renderer.render_frame(comp, 0);
-        auto fb15 = renderer.render_frame(comp, 15);
-        auto fb30 = renderer.render_frame(comp, 30);
+        auto fb0 = renderer.render(comp, 0);
+        auto fb15 = renderer.render(comp, 15);
+        auto fb30 = renderer.render(comp, 30);
 
         REQUIRE(fb0 != nullptr);
         REQUIRE(fb15 != nullptr);
@@ -121,9 +121,9 @@ TEST_CASE("Remotion-style transitions compute noise-driven masks and colors") {
         };
         auto comp = make_transition_comp(trans_in, {});
         
-        auto fb0 = renderer.render_frame(comp, 0);
-        auto fb15 = renderer.render_frame(comp, 15);
-        auto fb30 = renderer.render_frame(comp, 30);
+        auto fb0 = renderer.render(comp, 0);
+        auto fb15 = renderer.render(comp, 15);
+        auto fb30 = renderer.render(comp, 30);
         
         REQUIRE(fb0 != nullptr);
         REQUIRE(fb15 != nullptr);
@@ -143,9 +143,9 @@ TEST_CASE("Remotion-style transitions compute noise-driven masks and colors") {
         };
         auto comp = make_transition_comp(trans_in, {});
         
-        auto fb0 = renderer.render_frame(comp, 0);
-        auto fb15 = renderer.render_frame(comp, 15);
-        auto fb30 = renderer.render_frame(comp, 30);
+        auto fb0 = renderer.render(comp, 0);
+        auto fb15 = renderer.render(comp, 15);
+        auto fb30 = renderer.render(comp, 30);
         
         REQUIRE(fb0 != nullptr);
         REQUIRE(fb15 != nullptr);

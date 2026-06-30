@@ -259,11 +259,11 @@ TEST_CASE("TileCache: Integration — render with tiles shows cache activity") {
     }
 
     // Frame 0: full render (no prev fb)
-    renderer.render_frame(comp, 0);
+    renderer.render(comp, 0);
     renderer.counters()->reset();
 
     // Frame 1: should have dirty tiles and cache activity
-    renderer.render_frame(comp, 1);
+    renderer.render(comp, 1);
 
     const auto* c = renderer.counters();
 
@@ -291,10 +291,10 @@ TEST_CASE("TileCache: Integration — render with tiles shows cache activity") {
 
     // Render consecutive frames — cache counters should accumulate
     renderer.counters()->reset();
-    renderer.render_frame(comp, 2);
-    renderer.render_frame(comp, 3);
-    renderer.render_frame(comp, 4);
-    renderer.render_frame(comp, 5);
+    renderer.render(comp, 2);
+    renderer.render(comp, 3);
+    renderer.render(comp, 4);
+    renderer.render(comp, 5);
 
     const auto* c2 = renderer.counters();
     uint64_t tile_dirty2 = c2->tile_dirty_count.load();
@@ -354,8 +354,8 @@ TEST_CASE("TileCache: Integration — pixel-perfect output with tile cache") {
 
     int total_mismatches = 0;
     for (Frame f = 0; f < 8; ++f) {
-        auto fb_b = baseline.render_frame(comp, f);
-        auto fb_o = opt.render_frame(comp, f);
+        auto fb_b = baseline.render(comp, f);
+        auto fb_o = opt.render(comp, f);
         REQUIRE(fb_b != nullptr);
         REQUIRE(fb_o != nullptr);
         REQUIRE(fb_b->width() == W);

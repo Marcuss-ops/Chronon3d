@@ -15,7 +15,7 @@ inline std::shared_ptr<Framebuffer> render_modular(const Composition& comp, Fram
     settings.use_modular_graph = true;
     settings.diagnostics.enabled = true;
     renderer.set_settings(settings);
-    return renderer.render_frame(comp, frame);
+    return renderer.render(comp, frame);
 }
 
 inline void save_debug(const Framebuffer& fb, const std::string& path) {

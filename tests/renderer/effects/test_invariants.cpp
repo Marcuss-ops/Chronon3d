@@ -132,8 +132,8 @@ TEST_CASE("Invariants: alpha_zero_noop") {
         return s.build();
     });
 
-    auto fb_bg = renderer.render_frame(comp_bg, 0);
-    auto fb_fg = renderer.render_frame(comp_fg_opacity0, 0);
+    auto fb_bg = renderer.render(comp_bg, 0);
+    auto fb_fg = renderer.render(comp_fg_opacity0, 0);
 
     REQUIRE(fb_bg != nullptr);
     REQUIRE(fb_fg != nullptr);
@@ -188,8 +188,8 @@ TEST_CASE("Invariants: blur_radius_zero_noop") {
         return s.build();
     });
 
-    auto fb_no_blur = renderer.render_frame(comp_no_blur, 0);
-    auto fb_blur0 = renderer.render_frame(comp_blur0, 0);
+    auto fb_no_blur = renderer.render(comp_no_blur, 0);
+    auto fb_blur0 = renderer.render(comp_blur0, 0);
 
     REQUIRE(fb_no_blur != nullptr);
     REQUIRE(fb_blur0 != nullptr);
@@ -220,8 +220,8 @@ TEST_CASE("Invariants: glow_intensity_zero_noop") {
         return s.build();
     });
 
-    auto fb_no_glow = renderer.render_frame(comp_no_glow, 0);
-    auto fb_glow0 = renderer.render_frame(comp_glow_intensity0, 0);
+    auto fb_no_glow = renderer.render(comp_no_glow, 0);
+    auto fb_glow0 = renderer.render(comp_glow_intensity0, 0);
 
     REQUIRE(fb_no_glow != nullptr);
     REQUIRE(fb_glow0 != nullptr);
@@ -252,8 +252,8 @@ TEST_CASE("Invariants: bloom_threshold_above_max_noop") {
         return s.build();
     });
 
-    auto fb_no_bloom = renderer.render_frame(comp_no_bloom, 0);
-    auto fb_bloom_high = renderer.render_frame(comp_bloom_high, 0);
+    auto fb_no_bloom = renderer.render(comp_no_bloom, 0);
+    auto fb_bloom_high = renderer.render(comp_bloom_high, 0);
 
     REQUIRE(fb_no_bloom != nullptr);
     REQUIRE(fb_bloom_high != nullptr);
@@ -386,7 +386,7 @@ TEST_CASE("Invariants: no_nan_after_effect_stack") {
         return s.build();
     });
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
 
     bool has_nan = false;
