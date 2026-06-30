@@ -28,12 +28,26 @@ namespace chronon3d::test {
 // but the destructor NEVER dereferences m_owner (verified 06 R3b:
 // m_owner is read only inside `draw_text_run` dispatch path).
 inline void attach_software_backend(SoftwareRenderer& renderer) {
+    // TICKET-011b + Fase 1 services-validation: build the services bundle
+    // from the live renderer + runtime and route through the validation
+    // factory.  Lifetime: backend is owned by `renderer.runtime()`, whose
+    // `~RenderRuntime()` runs BEFORE `~SoftwareRenderer()` — so m_owner is
+    // dangling at the moment the backend's `~SoftwareBackend()` runs, but
+    // the destructor NEVER dereferences m_owner (verified 06 R3b: m_owner
+    // is read only inside `draw_text_run` dispatch path).
+    chronon3d::SoftwareBackendServices services{
+        /* owner              = */ &renderer,
+        /* counters           = */ renderer.counters(),
+        /* settings           = */ &renderer.render_settings(),
+        /* framebuffer_pool   = */ renderer.runtime().framebuffer_pool_shared(),
+        /* asset_resolver     = */ &renderer.runtime().resolver(),
+        /* text_resources     = */ renderer.text_render_resources(),
+        /* images             = */ nullptr,
+        /* text_raster        = */ nullptr,
+        /* debug_config       = */ nullptr,
+    };
     renderer.runtime().attach_backend(
-        std::make_unique<chronon3d::SoftwareBackend>(
-            &renderer,
-            *renderer.counters(),
-            renderer.render_settings(),
-            renderer.runtime().framebuffer_pool_shared()));
+        chronon3d::make_software_backend(std::move(services)).value());
 }
 
 inline SoftwareRenderer make_renderer() {
