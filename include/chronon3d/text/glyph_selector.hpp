@@ -96,6 +96,11 @@ struct TextUnitMap {
     std::vector<u32> glyph_to_word;       // glyph_index → word_unit_index
     std::vector<u32> glyph_to_line;       // glyph_index → line_unit_index
 
+    /// Precomputed first glyph for each word/line unit — enables O(1)
+    /// whitespace exclusion queries in CompiledSelector.
+    std::vector<u32> first_glyph_for_word;  // word_idx → first glyph index
+    std::vector<u32> first_glyph_for_line;  // line_idx → first glyph index
+
     u32 grapheme_count{0};
     u32 word_count{0};
     u32 line_count{0};
@@ -124,6 +129,63 @@ struct TextUnitMap {
         return static_cast<u32>(glyph_to_grapheme.size());
     }
 };
+
+// ── CompiledSelector — precomputed selector ready for per-glyph evaluation ─
+//
+// Built once per (GlyphSelectorSpec + TextUnitMap + source + placed) tuple.
+// Precomputes everything the per-glyph hot path would otherwise recompute:
+//   • whitespace-exclusion bitset per unit (O(1) instead of O(G) scan)
+//   • Fisher-Yates permutation for Random order (owned, no thread_local cache)
+//   • cached unit count
+//
+// The CompiledSelector owns its precomputed data and stores a non-owning
+// pointer to the original GlyphSelectorSpec.  The caller must keep the spec
+// alive for the lifetime of the CompiledSelector.
+
+struct CompiledSelector {
+    const GlyphSelectorSpec* spec{nullptr};  // non-owning (must outlive this)
+
+    u32 total_units{0};
+
+    /// Precomputed whitespace exclusion: unit_is_whitespace[i] == true
+    /// means unit i should be excluded when exclude_spaces is active.
+    std::vector<bool> unit_is_whitespace;
+
+    /// Precomputed Fisher-Yates permutation for Random order.
+    std::vector<u32> random_permutation;
+};
+
+/// Compile a single selector spec into a CompiledSelector.
+[[nodiscard]] CompiledSelector compile_selector(
+    const GlyphSelectorSpec& spec,
+    const TextUnitMap& unit_map,
+    std::string_view source,
+    const PlacedGlyphRun* placed = nullptr
+);
+
+/// Compile a vector of selector specs.
+[[nodiscard]] std::vector<CompiledSelector> compile_selectors(
+    const std::vector<GlyphSelectorSpec>& specs,
+    const TextUnitMap& unit_map,
+    std::string_view source,
+    const PlacedGlyphRun* placed = nullptr
+);
+
+/// Evaluate a pre-compiled selector for a single glyph (O(1)).
+[[nodiscard]] SelectorWeight evaluate_compiled_selector(
+    const CompiledSelector& compiled,
+    const TextUnitMap& unit_map,
+    u32 glyph_index,
+    SampleTime time
+);
+
+/// Evaluate a stack of pre-compiled selectors with combine modes.
+[[nodiscard]] SelectorWeight evaluate_compiled_selectors(
+    const std::vector<CompiledSelector>& compiled,
+    const TextUnitMap& unit_map,
+    u32 glyph_index,
+    SampleTime time
+);
 
 // ── Build TextUnitMap from a PlacedGlyphRun + source text ────────────────
 

@@ -44,21 +44,22 @@ void evaluate_animator(
 
     const size_t glyph_count = glyph_states.size();
 
+    // ── Compile selectors once (Phase 1: still inside the frame call,
+    //     but the CompiledSelector precomputes permutation + whitespace
+    //     so the per-glyph loop is O(1) per glyph). ─────────────────────
+    const auto compiled_selectors = compile_selectors(
+        spec.selectors, unit_map, source, placed);
+
     // ── Cumulative tracking ──────────────────────────────────────────────
-    // Owned by this loop, threaded by reference into
-    // detail::apply_tracking_to_glyph. Reset to 0 for every animator so
-    // multi-animator stacks each get a fresh gap.
     f32 cumulative_tracking_delta = 0.0f;
 
     for (size_t gi = 0; gi < glyph_count; ++gi) {
-        // Compute combined selector weight for this glyph.
-        SelectorWeight weight = evaluate_selectors(
-            spec.selectors,
+        // Compute combined selector weight for this glyph (compiled path).
+        SelectorWeight weight = evaluate_compiled_selectors(
+            compiled_selectors,
             unit_map,
             static_cast<u32>(gi),
-            source,
-            time,
-            placed
+            time
         );
 
         // Apply each property scaled by the weight.
