@@ -1,6 +1,5 @@
 #include "daemon_service.hpp"
 
-#include <chronon3d/advanced/render_engine_access.hpp>
 #include <chronon3d/api/render_engine.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/config.hpp>
@@ -155,13 +154,13 @@ void DaemonService::cmd_render(const std::vector<std::string>& args) {
     auto comp = m_registry.create(comp_id);
 
     const auto t0 = profiling::now();
-    // P1-F Pass B — `engine->render_frame()` was the OPP-internal migration
-    // path during the Pass B window.  Now uses the SAME canonical `render()`
-    // name as the SDK façade, reached through `advanced::RenderEngineAccess`
-    // (the only legal way to obtain the SoftwareRenderer from a public
-    // RenderEngine instance during the migration window).  Scheduled for
-    // removal in Pass D together with the deprecated render_frame() wrapper.
-    auto fb = chronon3d::advanced::RenderEngineAccess::software_renderer(*m_engine).render(comp, frame);
+    // P1-F Pass D — `engine->render(comp, frame)` is the canonical OPP-side
+    // entry (replacing the now-removed `render_frame()` which had been
+    // `[[deprecated]]` since Pass A).  Returns the `shared_ptr<Framebuffer>`
+    // surface exactly as the OPP render loop expects; the SDK façade
+    // (chronon3d::sdk::RenderEngine::render) returns Result<RenderOutput, …>
+    // for V0.2 consumers.
+    auto fb = m_engine->render(comp, frame);
     const auto t1 = profiling::now();
 
     if (!fb) {
@@ -225,11 +224,12 @@ void DaemonService::cmd_clear_caches() {
 }
 
 void DaemonService::cmd_status() {
-    // P1-F Pass B — `engine->renderer()` accessor was moved to
-    // `advanced::RenderEngineAccess::software_renderer(engine)` in Pass C and
-    // accessed here via the OPP-internal escape hatch.  Scheduled for full
-    // removal in Pass D together with the rest of RenderEngineAccess.
-    const auto* counters = chronon3d::advanced::RenderEngineAccess::software_renderer(*m_engine).counters();
+    // P1-F Pass D — `engine->renderer()->counters()` was the only OPP-internal
+    // escape hatch that ran through RenderEngineAccess.  Counters are no
+    // longer exposed on the public SDK surface (the V0.1 facade keeps that
+    // internal).  The daemon-side status block drops the counters panel but
+    // keeps the per-session tallies (`m_render_count`, `m_total_render_ms`)
+    // which are still visible and useful.
 
     spdlog::info("");
     spdlog::info("═══ Daemon Status ═══");
@@ -239,15 +239,11 @@ void DaemonService::cmd_status() {
         spdlog::info("  Avg render ms   : {:.1f}",
                      m_total_render_ms / m_render_count);
     }
-    if (counters) {
-        spdlog::info("  FB allocs       : {}",
-                     counters->framebuffer_allocations.load(std::memory_order_relaxed));
-        spdlog::info("  FB reuses       : {}",
-                     counters->framebuffer_reuses.load(std::memory_order_relaxed));
-        spdlog::info("  Cache hits      : {}",
-                     counters->cache_hits.load(std::memory_order_relaxed));
-        spdlog::info("  Cache misses    : {}",
-                     counters->cache_misses.load(std::memory_order_relaxed));
+    if (false) {
+        // P1-F Pass D — counters panel removed (was: the four counters lines
+        // printed below).  Kept as a deliberately-false branch only to preserve
+        // the surrounding spdlog::info formatting if/when SDK stats come back.
+        spdlog::info("  FB allocs       : (counters not exposed publicly in V0.1 SDK)");
     }
     spdlog::info("");
 }

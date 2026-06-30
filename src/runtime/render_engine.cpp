@@ -43,11 +43,12 @@
 namespace chronon3d {
 
 struct RenderEngine::Impl {
-    /// Pass C — friend declaration for `chronon3d::advanced::RenderEngineAccess`.
-    /// Grants the advanced accessor direct access to the Impl internals so
-    /// legacy call sites can keep reaching the renderer / runtime during the
-    /// Pass B→D migration window.  Removed in V0.2 freeze (Pass D).
-    friend class ::chronon3d::advanced::RenderEngineAccess;
+    // P1-F Pass D — the friend declaration for
+    // `chronon3d::advanced::RenderEngineAccess` was REMOVED here in lockstep
+    // with the deletion of `advanced/render_engine_access.hpp` and the
+    // corresponding accessor bodies at the bottom of this TU.  OPP-internal
+    // access to the SoftwareRenderer is now reached via the public-path
+    // `RenderEngine::render()` canonical entry (no more escape hatch).
 
     Config                                       m_config;
     AssetRegistry                                m_assets;
@@ -113,9 +114,10 @@ struct RenderEngine::Impl {
         runtime::set_process_wide_assets_root(root_str);              // mirror to process-wide slot for deep code without a runtime in scope
     }
 
-    chronon3d::SoftwareRenderSession create_session() {
-        return runtime::make_session(m_runtime);
-    }
+    // P1-F Pass D — `create_session()` (private helper for the legacy
+    // RenderEngine::create_session() public + advanced::RenderEngineAccess
+    // escape hatch) is REMOVED.  No callers remain after the Pass D deletes
+    // both that public method and the RenderEngineAccess accessor.
 };
 
 // ── Construction / move specials ─────────────────────────────────────────
@@ -182,9 +184,14 @@ std::shared_ptr<Framebuffer> RenderEngine::render_scene(
     return m_impl->m_pipeline->render_scene(scene, camera, width, height);
 }
 
-std::shared_ptr<Framebuffer> RenderEngine::render_frame(
+std::shared_ptr<Framebuffer> RenderEngine::render(
     const Composition& comp, Frame frame)
 {
+    // P1-F Pass D — replaces the removed `render_frame()` (which had been
+    // `[[deprecated("Use RenderEngine::render()")]]` since Pass A).  Same
+    // implementation: delegates into the OPP-side `RenderPipeline` facade
+    // (which in turn routes through the SoftwareRenderer+Runtime graph
+    // orchestration).  Returns the raw framebuffer for OPP consumers.
     return m_impl->m_pipeline->render_composition(comp, frame);
 }
 
@@ -210,17 +217,14 @@ const RenderSettings& RenderEngine::settings() const noexcept {
 
 // ── Accessors ─────────────────────────────────────────────────────────────
 
-// (Pass C — 2026-06-29)  The public accessors `RenderEngine::renderer()`
-// (×2), `RenderEngine::runtime()` (×2), and `RenderEngine::create_session()`
-// were moved out of the public RenderEngine surface.  Their functionality
-// is now reached exclusively through
-// `chronon3d::advanced::RenderEngineAccess` from
-// `<chronon3d/advanced/render_engine_access.hpp>`.  The declarations in
-// `include/chronon3d/api/render_engine.hpp` were removed in the same
-// commit; the corresponding definitions are gone from this TU.
-// The replacement bodies are appended at the bottom of this file under
-// `namespace chronon3d::advanced` and access Impl through the friend
-// declaration declared above.
+// (P1-F Pass D — 2026-06-30)  The OPP-side escape-hatch class
+// `chronon3d::advanced::RenderEngineAccess` and the header
+// `<chronon3d/advanced/render_engine_access.hpp>` have both been REMOVED
+// in lockstep with this body block.  The legacy accessors that lived
+// there are now reached only via the canonical public-path
+// `RenderEngine::render()` (no more escape hatch to the OPP-side
+// SoftwareRenderer).  The `friend` declaration in `RenderEngine::Impl`
+// (above) was REMOVED in the same commit.
 
 const Config& RenderEngine::config() const noexcept {
     return m_impl->m_config;
@@ -229,35 +233,7 @@ const Config& RenderEngine::config() const noexcept {
 void RenderEngine::clear_caches() { m_impl->m_renderer->clear_caches(); }
 void RenderEngine::reset_counters() { m_impl->m_renderer->reset_counters(); }
 
-// (Pass C)  `RenderEngine::create_session()` moved to
-// `chronon3d::advanced::RenderEngineAccess::create_session()` (below).
+// (P1-F Pass D)  `RenderEngine::create_session()` was REMOVED (was a
+// [[deprecated]]-via-advanced path; Pass D closes the escape hatch).
 
 } // namespace chronon3d
-
-// ═══════════════════════════════════════════════════════════════════════════
-// chronon3d::advanced::RenderEngineAccess — bodies live here because they
-// need `RenderEngine::Impl` to be a complete type (it is, in this TU).
-// Forward declared in `<chronon3d/advanced/render_engine_access.hpp>`.
-// The `friend class ::chronon3d::advanced::RenderEngineAccess;` declaration
-// in `struct RenderEngine::Impl` (above) is what authorises the access to
-// private members `m_runtime`, `m_renderer`, and the inner
-// `create_session()`.  `m_impl` (a private member of `RenderEngine`) is
-// reachable via the friend declaration already present in
-// `include/chronon3d/api/render_engine.hpp` (added in P1-B).
-// ═══════════════════════════════════════════════════════════════════════════
-
-namespace chronon3d::advanced {
-
-runtime::RenderRuntime& RenderEngineAccess::runtime(RenderEngine& engine) noexcept {
-    return engine.m_impl->m_runtime;
-}
-
-SoftwareRenderer& RenderEngineAccess::software_renderer(RenderEngine& engine) noexcept {
-    return *engine.m_impl->m_renderer;
-}
-
-chronon3d::SoftwareRenderSession RenderEngineAccess::create_session(RenderEngine& engine) {
-    return engine.m_impl->create_session();
-}
-
-} // namespace chronon3d::advanced
