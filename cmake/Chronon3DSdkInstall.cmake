@@ -59,12 +59,31 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
 # ── Public headers ─────────────────────────────────────────────────────
-# Installed verbatim under <prefix>/include/. Single source of truth;
-# the root CMakeLists.txt does NOT emit a duplicate install() rule —
-# this is the only place the public-header layout is declared.
-install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
-    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-    FILES_MATCHING PATTERN "*.hpp"
+# Installed verbatim under <prefix>/include/chronon3d/. Single source of
+# truth; the root CMakeLists.txt does NOT emit a duplicate install()
+# rule — this is the only place the public-header layout is declared.
+#
+# V0.1 freeze policy (build(sdk) install policy via FILE_SET +
+# explicit Chronon3DPublicHeaders manifest):  NO GLOB.  The OPP-internal
+# surface (src/*/include_private/) and the OPP-public surface
+# (include/chronon3d/{advanced,api,..} excluding the manifest entries)
+# are deliberately NOT installed.  Only the 7 explicit headers listed in
+# cmake/Chronon3DPublicHeaders.cmake travel with the SDK payload,
+# delivered to downstream consumers via a `FILE_SET public_headers`
+# registered on the `chronon3d_sdk` INTERFACE target.
+include("${CMAKE_SOURCE_DIR}/cmake/Chronon3DPublicHeaders.cmake")
+
+# Register the explicit manifest on the public INTERFACE target so the
+# in-tree consumers (CLI, tests, content) get the same `#include`
+# resolution surface as downstream `find_package(Chronon3D)` users.
+# BASE_DIRS uses the absolute include root so path resolution does not
+# depend on CMAKE_CURRENT_SOURCE_DIR (this call site lives inside
+# cmake/Chronon3DSdkInstall.cmake, not the source root).
+target_sources(chronon3d_sdk INTERFACE
+    FILE_SET public_headers
+    TYPE HEADERS
+    BASE_DIRS "${CMAKE_SOURCE_DIR}/include"
+    FILES ${CHRONON3D_PUBLIC_HEADERS}
 )
 
 # ── Aggregate install + export target list ────────────────────────────
@@ -95,17 +114,19 @@ foreach(_tgt IN LISTS _chronon3d_install_targets_raw)
 endforeach()
 
 # Install + export.  EXPORT NAME mapping:
-#   chronon3d_sdk_impl → exported as `SDKImpl`  (alias: Chronon3DSdkTargets.cmake: SDKImpl)
-#   chronon3d_sdk      → exported as `SDK`      (alias: Chronon3DSdkTargets.cmake: SDK)
-#   chronon3d_*_impl / chronon3d_*_text / chronon3d_*_video / …
-#     → exported under their raw target names; consumers cannot find
-#       them under the `Chronon3D::` namespace because no alias is
-#       declared for them.
-# Per the PUBLIC SURFACE contract above, the consumer-facing surface is
-# EXACTLY `Chronon3D::SDK`; everything else resolves transitively.
+#
+# FILE_SET HEADERS clause: the `chronon3d_sdk` target (in
+# `_chronon3d_install_targets` since it is registered in
+# CHRONON3D_REGISTRY_INTERFACE_LIBS) carries the public_headers
+# FILE_SET declared above.  CMake silently skips the FILE_SET clause
+# for the other exported targets that have none.  Combined into a
+# SINGLE install(TARGETS …) call to avoid duplicate `Chronon3DTargets`
+# export sets (which CMake rejects as `install(EXPORT) given unknown
+# / duplicate export`).
 install(TARGETS ${_chronon3d_install_targets}
     EXPORT Chronon3DTargets
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILE_SET HEADERS DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 # Export internal targets WITHOUT NAMESPACE — they remain importable so
