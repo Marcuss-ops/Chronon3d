@@ -4,7 +4,7 @@
 //
 // P0 race that was fixed by Fase 1#7: FreeTypeFaceCache held a single
 // raw FT_Face slot.  Thread A was using that face (e.g. calling
-// FT_Load_Glyph via GlyphOutlineCache::build_outline); thread B called
+// FT_Load_Glyph via GlyphOutlineBuilder::build_path); thread B called
 // get_face() for a different font; thread B's call did FT_Done_Face()
 // on the slot's face before installing the new one — Thread A's
 // subsequent FT_Load_Glyph hit a use-after-free.
@@ -68,7 +68,7 @@ void skip_if_missing(const char* fixture, const char* what) noexcept {
     }
 }
 
-// Touch a glyph the same way GlyphOutlineCache::build_outline does:
+// Touch a glyph the same way GlyphOutlineBuilder::build_path does:
 // FT_Load_Glyph + check glyph->format.  Mimicking the call site of the
 // bug means a regression to the old behaviour (raw FT_Face held
 // across an FT_Done_Face on another thread) traps as a segfault or
