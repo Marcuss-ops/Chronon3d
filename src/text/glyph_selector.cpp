@@ -416,31 +416,24 @@ bool should_exclude_unit(
             return is_whitespace_run(source, g.byte_offset, g.byte_len);
         }
         case TextSelectorUnit::Word: {
-            // For word units, look up any glyph belonging to the same word
-            // and inspect that cluster's byte range.  We pick the first such
-            // glyph so we test the word's first character semantics.
+            // O(1): use precomputed first_glyph_for_word lookup.
             if (glyph_index >= unit_map.glyph_to_word.size()) return false;
             const u32 word_idx = unit_map.glyph_to_word[glyph_index];
-            for (size_t gi = 0; gi < placed->glyphs.size(); ++gi) {
-                if (static_cast<u32>(gi) < unit_map.glyph_to_word.size()
-                    && unit_map.glyph_to_word[gi] == word_idx) {
-                    const auto& g = placed->glyphs[gi];
-                    return is_whitespace_run(source, g.byte_offset, g.byte_len);
-                }
-            }
-            return false;
+            if (word_idx >= unit_map.first_glyph_for_word.size()) return false;
+            const u32 gi = unit_map.first_glyph_for_word[word_idx];
+            if (gi == UINT32_MAX || gi >= placed->glyphs.size()) return false;
+            const auto& g = placed->glyphs[gi];
+            return is_whitespace_run(source, g.byte_offset, g.byte_len);
         }
         case TextSelectorUnit::Line: {
+            // O(1): use precomputed first_glyph_for_line lookup.
             if (glyph_index >= unit_map.glyph_to_line.size()) return false;
             const u32 line_idx = unit_map.glyph_to_line[glyph_index];
-            for (size_t gi = 0; gi < placed->glyphs.size(); ++gi) {
-                if (static_cast<u32>(gi) < unit_map.glyph_to_line.size()
-                    && unit_map.glyph_to_line[gi] == line_idx) {
-                    const auto& g = placed->glyphs[gi];
-                    return is_whitespace_run(source, g.byte_offset, g.byte_len);
-                }
-            }
-            return false;
+            if (line_idx >= unit_map.first_glyph_for_line.size()) return false;
+            const u32 gi = unit_map.first_glyph_for_line[line_idx];
+            if (gi == UINT32_MAX || gi >= placed->glyphs.size()) return false;
+            const auto& g = placed->glyphs[gi];
+            return is_whitespace_run(source, g.byte_offset, g.byte_len);
         }
     }
     return false;
