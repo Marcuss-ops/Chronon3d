@@ -510,10 +510,25 @@ graph::RenderOpResult draw_text_run(
 #ifdef CHRONON3D_ENABLE_TEXT
             // Stroke first (underneath fill).  Override color wins when
             // supplied; otherwise the effective stroke from above.
+            //
+            // PR 11 / Bug #5 fix: stroke glyph_id is taken from
+            // source_placed (the side-specific placed run paired with
+            // source_glyphs), not from layout.placed.  In the crossfade
+            // call path source_placed equals
+            // shape.crossfade_layout->placed, which mirrors how the fill
+            // branch below reads via SingleGlyphRun::from(source_placed).
+            // Reading layout.placed there would render the active
+            // glyph's stroke under the outgoing glyph's fill (visual
+            // mismatch) and read past source_placed.glyphs.size() when
+            // the outgoing text has more glyphs than the active text
+            // (OOB).  Invariant: source_glyphs.size() ==
+            // source_placed.glyphs.size() on every call site (already
+            // required by the fill branch; documented here so future
+            // refactors keep sizes in lockstep).
             if (eff_stroke.a > 0.0f && eff_stroke_w > 0.0f && ft_loaded) {
                 BLPath path = font_handle.outlines->build_outline(
                     font_handle.ft_face,
-                    layout.placed.glyphs[gi].glyph_id, 0.0f, 0.0f);
+                    source_placed.glyphs[gi].glyph_id, 0.0f, 0.0f);
                 if (!path.empty()) {
                     Color out_stroke = eff_stroke;
                     if (override_color.has_value()) {
