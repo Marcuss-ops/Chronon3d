@@ -1,9 +1,9 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@88d2deec` — 2026-06-29. Linux-only.
+> **Snapshot:** `main@21103265` — 2026-06-30. Linux-only.
 >
-> Ultima baseline macchina-verificata: `main@446a60e2` (3/4 ✅, registrata in [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md)).
-> **Baseline sull'HEAD corrente: NON CERTIFICATA** (nessun run macchina-verificato di tutti gli 11 gate registrato dopo `446a60e2`).
+> Ultima baseline macchina-verificata: `main@21103265` (9/11 — NON VERDE per freeze; vedi [`baselines/main-21103265-baseline.md`](baselines/main-21103265-baseline.md)).
+> **Baseline sull'HEAD corrente: 9/11 PASS @ `21103265`** (registrata in [`baselines/main-21103265-baseline.md`](baselines/main-21103265-baseline.md)); feature freeze ancora attivo — AGENTS.md richiede 11/11 PASS sullo stesso commit per promuovere a `CERTIFICATA @ 21103265`.
 >
 > Questo è l'unico documento canonico per lo stato presente del progetto.
 > Per il futuro vedi [`ROADMAP.md`](ROADMAP.md).
@@ -238,21 +238,9 @@ Servono tutte le prove seguenti sullo stesso commit:
 
 L'assenza di workflow fallito non equivale a una baseline verde.
 
-> **Certificazione corrente (2026-06-29, `4586d816`)**: NON CERTIFICATA.
-> La regola di sopra si applica: serve un run macchina-verificato dei 11 gate sul commit candidato
-> per promuovere la baseline a `CERTIFICATA @ <SHA>`.
-
-> **Certificazione corrente (2026-06-29, `62c71e55`)**: NON CERTIFICATA.
-> La regola di sopra si applica: serve un run macchina-verificato dei 11 gate sul commit candidato
-> per promuovere la baseline a `CERTIFICATA @ <SHA>`.
-
-> **Certificazione corrente (2026-06-29, `25b63730`)**: NON CERTIFICATA.
-> La regola di sopra si applica: serve un run macchina-verificato dei 11 gate sul commit candidato
-> per promuovere la baseline a `CERTIFICATA @ <SHA>`.
-
-> **Certificazione corrente (2026-06-29, `d0d9a782`)**: NON CERTIFICATA.
-> La regola di sopra si applica: serve un run macchina-verificato dei 11 gate sul commit candidato
-> per promuovere la baseline a `CERTIFICATA @ <SHA>`. Ultima baseline macchina-verificata registrata: `446a60e2` (immutata da Phase-1.3; nessun nuovo run registrato).
+> **Certificazione corrente (2026-06-30, `21103265`)**: 9/11 PASS — NON VERDE (2 failure: gate #3 `SoftwareRenderer&` accessor env-stable da `88d2deec`; gate #10 install-consumer CMake 3.27 env mismatch — env, non code).
+> AGENTS.md "baseline verde" richiede **11/11 PASS sullo stesso commit** → feature freeze ancora attivo, freeze-revoca bloccata fino al commit che registra 11/11.
+> Vedi [`baselines/main-21103265-baseline.md`](baselines/main-21103265-baseline.md) per log per-gate completi.
 
 - [`ROADMAP.md`](ROADMAP.md): milestone prodotto.
 - [`RELEASE_GATE.md`](RELEASE_GATE.md): criteri di release.
