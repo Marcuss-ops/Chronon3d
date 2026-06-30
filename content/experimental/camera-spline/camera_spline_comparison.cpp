@@ -10,7 +10,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/animation/path/catmull_rom_path.hpp>
 
-#include "cinematic_showcase_helpers.hpp"
+#include "content/showcases/cinematic/cinematic_showcase_helpers.hpp"
 
 #include <string>
 
