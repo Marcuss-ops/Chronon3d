@@ -100,10 +100,31 @@ struct TextRunBuildResult {
 // (logging + skipping paragraphs that return `Err`).
 
 /// Compile-error taxonomy for compile_text_layout.  Future extensions:
-/// `FontMissing`, `MultiFontUnsupported`, `BidiFallback`.
+/// `MultiFontUnsupported`, `BidiFallback`.
 enum class TextLayoutErrorKind {
+    /// Source text contains no UTF-8 bytes and no pre-split paragraphs.
+    /// Catches the "render blank because caller forgot to set text"
+    /// bug rather than silently emitting a zero-glyph layout whose
+    /// unit map is empty (which freezes selectors at total_units=0).
     EmptySource,
+
+    /// Shaping pipeline failed for a paragraph that DID have valid text
+    /// AND a valid font spec — i.e. HarfBuzz rejected the input.  Distinct
+    /// from MissingFont so callers can render a different fallback glyph
+    /// (e.g. tofu replacement vs a system default).
     ShapingFailed,
+
+    /// No usable font could be resolved for ANY run in the paragraph
+    /// (all resolved FontSpec have empty path AND empty family).  Distinct
+    /// from ShapingFailed so callers detect the "no system font available"
+    /// state at compile time rather than producing a layout whose renderer
+    /// will silently drop every glyph.
+    MissingFont,
+
+    /// Compile request itself is malformed (null pointers, out-of-range
+    /// paragraph index, etc.).  Distinguished from EmptySource so a
+    /// malformed call is loud at compile time rather than treated as
+    /// "no text to render".
     MalformedLayout,
 };
 
