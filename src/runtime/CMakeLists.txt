@@ -45,6 +45,10 @@ target_link_libraries(chronon3d_runtime PUBLIC
     chronon3d_backend_image
 )
 target_include_directories(chronon3d_runtime PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(chronon3d_runtime
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include_private
+    INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include_private
+)
 target_precompile_headers(chronon3d_runtime PRIVATE <chronon3d/detail/pch.hpp>)
 
 if(CHRONON3D_ENABLE_TELEMETRY)
