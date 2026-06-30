@@ -27,6 +27,14 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         text/test_selector_shapes.cpp
         text/test_selector_evaluate.cpp
         text/test_selector_combine.cpp
+        # Bug #7 regression — Fase 1#7 close-out.  Concurrency coverage
+        # for the refactored FreeTypeFaceCache (key-indexed cache +
+        # shared_ptr<FT_Face> lease anchor on FontFaceHandle).  See
+        # tests/text/test_freetype_face_cache_concurrency.cpp for the
+        # race scenario: thread A holds a handle while thread B invokes
+        # get_face() on different paths / sizes; identity-stable hits;
+        # outlives cache destruction; size-bucket independence.
+        text/test_freetype_face_cache_concurrency.cpp
     )
 endif()
 
