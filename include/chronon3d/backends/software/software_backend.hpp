@@ -16,10 +16,13 @@
 
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/backends/software/software_backend_services.hpp>
 #include <memory>
 
 namespace chronon3d {
     struct RenderSettings;
+    struct TextRenderResources;
+    namespace assets { class AssetResolver; }
 }
 
 namespace chronon3d::renderer {
@@ -36,20 +39,22 @@ namespace chronon3d {
 // its orchestrator SoftwareRenderer.  This is a TEMPORARY bridge used by
 // `draw_text_run` (which needs the `SoftwareProcessorContext` bundle the
 // renderer builds).  When 06 R3 drops dual identity, the back-pointer
-// will be replaced with sourcing context directly from `runtime::
+// will be replaced with sourcing context directly from `runtime::`
 class SoftwareRenderer;  // forward decl only — keeps I3 budget
 
 class SoftwareBackend : public graph::RenderBackend {
 public:
-    /// Construct the backend with the resources it needs from the orchestrator.
-    /// All references AND the owner pointer must outlive the backend.
-    /// `owner` is required for `draw_text_run` until R3 drops dual identity;
-    /// until then passing `nullptr` here will propagate `InvalidInput` from
-    /// `renderer::draw_text_run` (defensive loud-fail rather than silent).
-    SoftwareBackend(class SoftwareRenderer*            owner,
-                    RenderCounters&                    counters,
-                    const RenderSettings&              settings,
-                    std::shared_ptr<cache::FramebufferPool> pool);
+    /// Construction path — `services` is the typed bundle produced by
+    /// `make_software_backend(...)`.  Direct construction (without the
+    /// factory) is permitted but skips validation; production code MUST
+    /// use the factory so null services fail loudly at construction time
+    /// rather than at first draw_text_run dispatch.
+    ///
+    /// Lifetime: every non-null pointer in `services` must outlive the
+    /// backend; `services.framebuffer_pool` (shared_ptr) is mirror-stored
+    /// on the backend so `RenderBackend::framebuffer_pool()` can return
+    /// by-value.
+    explicit SoftwareBackend(SoftwareBackendServices services);
 
     ~SoftwareBackend() override;
 
@@ -63,7 +68,7 @@ public:
 
     [[nodiscard]] graph::RenderCapabilities capabilities() const noexcept override;
 
-    RenderCounters* counters() override { return &m_counters; }
+    RenderCounters* counters() override { return m_counters; }
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool() override { return m_framebuffer_pool; }
 
     void apply_blur(Framebuffer& fb, f32 radius,
@@ -94,9 +99,18 @@ public:
                                         float opacity) override;
 
 private:
-    RenderCounters&                        m_counters;
-    const RenderSettings&                  m_settings;
-    std::shared_ptr<cache::FramebufferPool> m_framebuffer_pool;
+    // ── Non-owning required-service pointers ──
+    // All fields are non-owning references to services whose lifetime is
+    // managed by the caller (RenderRuntime / renderer) per the
+    // SoftwareBackendServices docs.  FramebufferPool is the sole owning
+    // reference (shared_ptr) so the same pool can be shared by multiple
+    // backends while RenderBackend::framebuffer_pool() can return by-value.
+    RenderCounters*                                m_counters{nullptr};            // REQUIRED
+    const RenderSettings*                          m_settings{nullptr};            // REQUIRED
+    std::shared_ptr<cache::FramebufferPool>        m_framebuffer_pool;             // REQUIRED (shared)
+    const assets::AssetResolver*                   m_asset_resolver{nullptr};      // REQUIRED (draw_text_run)
+    TextRenderResources*                           m_text_resources{nullptr};      // REQUIRED (draw_text_run)
+
     // 06 R3b — non-owning back-pointer to the orchestrating SoftwareRenderer,
     // used by `draw_text_run` to source the SoftwareProcessorContext service
     // bundle (font_engine, asset_resolver, debug_config).  Lifetime invariant
@@ -105,7 +119,26 @@ private:
     // `= default`, so the field is never dereferenced after
     // `~SoftwareRenderer()`.  When R3 sources context directly from
     // runtime (planned), m_owner will be removed.
-    class SoftwareRenderer*                m_owner{nullptr};  // 06 R3b back-pointer
+    class SoftwareRenderer*                        m_owner{nullptr};  // 06 R3b back-pointer
 };
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  make_software_backend — validation-gate factory.
+//
+//  On any null REQUIRED service, returns
+//  `Result::err(SoftwareBackendServicesError{...})` carrying the field
+//  name + Code. Debug builds additionally `assert(false)` so the
+//  failure surfaces in unit tests even when the caller forgets to
+//  inspect the Result.
+//
+//  Production callers SHOULD use `.value()` immediately so a malformed
+//  services bundle fails at construction (not at first draw call).
+//
+//  Defined in `src/backends/software/software_backend.cpp` to avoid a
+//  new TU + a CMake edit (matches the `make_processor_context`
+//  precedent).
+// ═════════════════════════════════════════════════════════════════════════════
+[[nodiscard]] Result<std::unique_ptr<SoftwareBackend>, SoftwareBackendServicesError>
+make_software_backend(SoftwareBackendServices services);
 
 } // namespace chronon3d

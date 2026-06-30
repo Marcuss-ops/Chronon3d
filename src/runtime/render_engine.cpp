@@ -67,17 +67,26 @@ struct RenderEngine::Impl {
     {
         m_renderer->set_image_backend(std::make_shared<image::StbImageBackend>());
 
-        // TICKET-011 — build + attach the SoftwareBackend now that
-        // the renderer exists.  Construction parameters:
-        //   - renderer's per-instance counters (live on m_renderer)
-        //   - renderer's per-instance settings (live on m_renderer)
-        //   - runtime-owned FramebufferPool shared_ptr
-        // After attach_backend() the runtime is sole owner of the backend.
-        m_runtime.attach_backend(std::make_unique<SoftwareBackend>(
-            m_renderer.get(),            // 06 R3b owner back-pointer
-            *m_renderer->counters(),
-            m_renderer->render_settings(),
-            m_runtime.framebuffer_pool_shared()));
+        // TICKET-011 + Fase 1 services-validation — build the
+        // SoftwareBackendServices bundle and route through
+        // `make_software_backend(...)` so all REQUIRED services
+        // (counters, settings, framebuffer_pool, asset_resolver,
+        // text_resources, owner) are validated at construction.  A
+        // malformed bundle surfaces here via `.value()` (which asserts
+        // in debug + throws InvalidServices in release via the result
+        // contract) rather than at first draw_text_run dispatch.
+        chronon3d::SoftwareBackendServices services{
+            /* owner              = */ m_renderer.get(),                       // 06 R3b back-pointer
+            /* counters           = */ m_renderer->counters(),
+            /* settings           = */ &m_renderer->render_settings(),
+            /* framebuffer_pool   = */ m_runtime.framebuffer_pool_shared(),
+            /* asset_resolver     = */ &m_runtime.resolver(),
+            /* text_resources     = */ m_renderer->text_render_resources(),
+            /* images             = */ nullptr,
+            /* text_raster        = */ nullptr,
+            /* debug_config       = */ nullptr,
+        };
+        m_runtime.attach_backend(make_software_backend(std::move(services)).value());
 
         // TICKET-011a follow-up #1 — publish the RenderPipeline facade.
         m_pipeline.emplace(m_renderer.get(), m_runtime);
@@ -92,11 +101,21 @@ struct RenderEngine::Impl {
     {
         m_renderer->set_image_backend(std::make_shared<image::StbImageBackend>());
 
-        m_runtime.attach_backend(std::make_unique<SoftwareBackend>(
-            m_renderer.get(),            // 06 R3b owner back-pointer
-            *m_renderer->counters(),
-            m_renderer->render_settings(),
-            m_runtime.framebuffer_pool_shared()));
+        // TICKET-011 + Fase 1 services-validation — see the matching
+        // constructor above; same factory path: build the services bundle,
+        // call `make_software_backend`, unwrap via `.value()`.
+        chronon3d::SoftwareBackendServices services{
+            /* owner              = */ m_renderer.get(),                       // 06 R3b back-pointer
+            /* counters           = */ m_renderer->counters(),
+            /* settings           = */ &m_renderer->render_settings(),
+            /* framebuffer_pool   = */ m_runtime.framebuffer_pool_shared(),
+            /* asset_resolver     = */ &m_runtime.resolver(),
+            /* text_resources     = */ m_renderer->text_render_resources(),
+            /* images             = */ nullptr,
+            /* text_raster        = */ nullptr,
+            /* debug_config       = */ nullptr,
+        };
+        m_runtime.attach_backend(make_software_backend(std::move(services)).value());
 
         // TICKET-011a follow-up #1 — publish the RenderPipeline facade.
         m_pipeline.emplace(m_renderer.get(), m_runtime);
