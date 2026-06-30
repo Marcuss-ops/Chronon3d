@@ -76,6 +76,28 @@ namespace chronon3d {
 
 namespace {
 
+// Cat-2 RAII guard for the TextRenderResources::debug_io_fence atomic.
+// Constructed with a nullptr (fence disarmed).  Public `fence` member
+// lets the renderer attach the actual atomic AFTER preflight_fonts()
+// has warmed both BL + FT caches, so any unforeseen cache miss surfaces
+// as a deterministic std::runtime_error (see Bug #7 / Cat-2 docblock
+// in text_render_resources.hpp).  Dtor symmetrically disarms via
+// memory_order_release (the release-set / acquire-get pair matches
+// TextRenderResources::set_debug_io_fence/is_debug_io_fence_active).
+struct RenderIOFenceGuard {
+    std::atomic<bool>* fence{nullptr};
+    RenderIOFenceGuard() noexcept = default;
+    explicit RenderIOFenceGuard(std::atomic<bool>* f) noexcept : fence(f) {}
+    ~RenderIOFenceGuard() {
+        if (fence) fence->store(false, std::memory_order_release);
+    }
+    // RAII — must not be copied / moved; a copy would double-disarm.
+    RenderIOFenceGuard(const RenderIOFenceGuard&) = delete;
+    RenderIOFenceGuard& operator=(const RenderIOFenceGuard&) = delete;
+    RenderIOFenceGuard(RenderIOFenceGuard&&) = delete;
+    RenderIOFenceGuard& operator=(RenderIOFenceGuard&&) = delete;
+};
+
 // These helpers are duplicated in software_backend.cpp and will be
 // removed from here once draw_node() migrates to SoftwareBackend
 // (blocked on ShapeProcessor::draw() accepting RenderBackend& instead
@@ -335,8 +357,12 @@ FontPreflightSummary SoftwareRenderer::preflight_fonts(
     for (const auto& layer : scene.layers()) {
         if (!layer.is_text()) continue;
         for (const auto& node : layer.nodes) {
-            if (!std::holds_alternative<TextRunShapeHandle>(node.payload)) continue;
-            const auto& h = std::get<TextRunShapeHandle>(node.payload);
+            // TextRun discrimination moved into the Shape variant
+            // (ShapeType::TextRun).  The payload accessor is now
+            // node.shape.text_run_shape_handle() (returns the wrapper
+            // around shared_ptr<TextRunShape>).
+            if (node.shape.type() != ShapeType::TextRun) continue;
+            const auto& h = node.shape.text_run_shape_handle();
             if (!h.value || !h.value->layout) continue;
             const auto key = std::make_pair(
                 h.value->layout->font.font_path,
