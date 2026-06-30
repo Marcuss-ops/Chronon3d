@@ -31,6 +31,18 @@
 > Priority order = blocco diretto dei gate `Baseline verde: CERTIFICATA` (gate 1-9 RELEASE_GATE).
 > Per espandere la copertura o riordinare, applicare stessa euristica sui ticket deferred listati sotto.
 
+## Sprint-suspended (meta-tickets)
+
+> Le sospensioni di sprint documentate qui sotto non sono "ticket di lavoro" nel senso top-10 ma
+> **meta-tickets di stato**: tracciano l'halt di un piano di migrazione in attesa di una
+> condizione esterna (certificazione baseline verde, revoca formale del freeze, ecc.).
+> Convenzione: lo schema-status resta canonico (`🔵 OPEN`) e lo `SUSPENDED` è un
+> qualificatore testuale a chiarezza.
+
+| ID | Area | Stato | File / Contesto |
+|---|---|---|---|
+| TICKET-066 | 12-ATOMO Single Selector Pipeline migration plan | 🔵 OPEN — **SUSPENDED** pending baseline verde | `docs/TEXT_SELECTOR_SINGLE_PIPELINE_PLAN.md` + downstream `include/chronon3d/text/{glyph_selector,glyph_selector_spec,compiled_selector,glyph_selector_evaluator,animation/text_animator_spec}*`. ATOMO 5/6/7/8 rolled-back per freeze `AGENTS.md` v0.1 (VIETATO: nuovi `#include`, nuove classi pubbliche, modifiche che espandono la superficie API); ATOMO 2 work preservato intatto in `stash@{0}`. |
+
 ## Other open (deferred — see archive)
 
 29 ticket aperti non-baseline-critical. Per `**Status**` reale + root cause + risoluzione,
