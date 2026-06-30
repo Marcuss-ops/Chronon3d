@@ -7,7 +7,11 @@
 #include <chronon3d/core/profiling/trace_categories.hpp>
 #include <chronon3d/scene/model/layer/layer_effect.hpp>
 #include <algorithm>
+#include <cassert>
+#include <memory>
 #include <optional>
+#include <string>
+#include <utility>
 #include <chronon3d/scene/model/layer/layer_effect.hpp>
 
 namespace chronon3d {
@@ -46,18 +50,36 @@ uint64_t clipped_area(int32_t width, int32_t height, const std::optional<raster:
 
 } // namespace
 
-// ── Construction ──────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+//  Construction — single services-object ctor (TICKET-011b). Direct
+//  construction skips validation; production code MUST route through
+//  `make_software_backend(...)`.
+// ═════════════════════════════════════════════════════════════════════════════
 
-SoftwareBackend::SoftwareBackend(
-    class SoftwareRenderer*            owner,
-    RenderCounters&                    counters,
-    const RenderSettings&              settings,
-    std::shared_ptr<cache::FramebufferPool> pool)
-    : m_counters(counters)
-    , m_settings(settings)
-    , m_framebuffer_pool(std::move(pool))
-    , m_owner(owner)
-{}
+SoftwareBackend::SoftwareBackend(SoftwareBackendServices services)
+    : m_counters(services.counters)
+    , m_settings(services.settings)
+    , m_framebuffer_pool(std::move(services.framebuffer_pool))   // share ownership with services
+    , m_asset_resolver(services.asset_resolver)
+    , m_text_resources(services.text_resources)
+    , m_owner(services.owner)
+{
+#ifndef NDEBUG
+    // Direct ctor checks (debug-only). These fire if a caller bypasses
+    // `make_software_backend(...)` AND lets a null services field slip in.
+    // In NDEBUG builds the ctor trusts the services bundle (factory
+    // contract); a malformed bypass becomes a downstream-throw at
+    // first draw_text_run dispatch (the contract-aligned loud-fail).
+    assert(services.counters );
+    assert(services.settings );
+    // framebuffer_pool is a shared_ptr; `m_framebuffer_pool` post-move
+    // is empty iff the services source was empty (no recovery path).
+    assert(m_framebuffer_pool);
+    assert(services.asset_resolver);
+    assert(services.text_resources);
+    assert(services.owner      );
+#endif
+}
 
 SoftwareBackend::~SoftwareBackend() = default;
 
@@ -87,7 +109,7 @@ graph::RenderCapabilities SoftwareBackend::capabilities() const noexcept {
 void SoftwareBackend::apply_blur(Framebuffer& fb, f32 radius,
                                   const std::optional<raster::BBox>& clip) {
     const auto local_clip = to_local_clip(fb, clip);
-    m_counters.blur_pixels.fetch_add(
+    m_counters->blur_pixels.fetch_add(
         clipped_area(fb.width(), fb.height(), local_clip),
         std::memory_order_relaxed);
     CHRONON_ZONE_C("apply_blur", trace_category::kEffect);
@@ -99,13 +121,13 @@ void SoftwareBackend::apply_blur(Framebuffer& fb, f32 radius,
 void SoftwareBackend::composite_layer(
     Framebuffer& dst, const Framebuffer& src, BlendMode mode,
     const std::optional<raster::BBox>& clip, CompositeOperator op) {
-    m_counters.layers_rendered.fetch_add(1, std::memory_order_relaxed);
+    m_counters->layers_rendered.fetch_add(1, std::memory_order_relaxed);
     CHRONON_ZONE_C("composite_layer", trace_category::kComposite);
-    m_counters.pixels_touched.fetch_add(
+    m_counters->pixels_touched.fetch_add(
         clipped_area(dst.width(), dst.height(), to_local_clip(dst, clip)),
         std::memory_order_relaxed);
     SoftwareCompositor::composite_layer(dst, src, mode, clip, op,
-        m_settings.force_scalar_normal_blend);
+        m_settings->force_scalar_normal_blend);
 }
 
 // ── apply_effect_stack ────────────────────────────────────────────────────
@@ -121,7 +143,7 @@ void SoftwareBackend::apply_effect_stack(
     const uint64_t area = clipped_area(fb.width(), fb.height(), local_clip);
     for (const auto& effect : stack) {
         if (effect.enabled && effect.effect_type == effects::EffectType::Blur) {
-            m_counters.blur_pixels.fetch_add(area, std::memory_order_relaxed);
+            m_counters->blur_pixels.fetch_add(area, std::memory_order_relaxed);
         }
     }
 
@@ -150,11 +172,16 @@ void SoftwareBackend::apply_per_pixel_dof(
 // (the orchestrating SoftwareRenderer) using the canonical
 // `make_processor_context(SoftwareRenderer*)` helper.
 //
-// Failure modes:
+// Failure modes (post-construction contract is louder than pre-fix):
 //   - `UnsupportedCapability`: Blend2D not enabled at compile time.
 //   - `InvalidInput` / `ExecutionFailure`: propagated from the renderer
 //     (= defects in shape, font, or context).  Loud by design — no silent
 //     zero-glyph renders.
+//   - Missing `m_owner`            → InvalidInput (TICKET-046 follow-up
+//                                    will source from runtime, then owner
+//                                    becomes null-tolerable).
+//   - Missing `m_asset_resolver`   → InvalidInput (Fase 1 services-
+//                                    validation follow-up).
 //
 // Boundary gate: this method's transient `SoftwareRenderer*` back-pointer
 // is a PR-9-compatible TEMPORARY bridge.  R3 (06-stabilization) will
@@ -185,13 +212,85 @@ graph::RenderOpResult SoftwareBackend::draw_text_run(
             graph::RenderBackendErrorCode::InvalidInput,
             "SoftwareBackend::draw_text_run: owner SoftwareRenderer* is null "
             "(construction contract violation).  Pass a non-null owner from "
-            "RenderEngine via std::make_unique<SoftwareBackend>(...)."
+            "RenderEngine via make_software_backend(SoftwareBackendServices{...})."
+        });
+    }
+
+    // Asset-resolver null-check (Fase 1 services-validation follow-up).
+    // `renderer::draw_text_run` (text_run_processor.cpp) sources font
+    // paths through SoftwareProcessorContext::asset_resolver; a null
+    // here silently renders zero glyphs.  Fail loudly instead.
+    if (m_asset_resolver == nullptr) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::InvalidInput,
+            "SoftwareBackend::draw_text_run: asset_resolver is null (REQUIRED "
+            "service missing — construction should be routed through "
+            "make_software_backend() so the validator surfaces this at startup)."
         });
     }
 
     renderer::TextRunDrawParams params{fb, shape, model_matrix, opacity};
     return renderer::draw_text_run(make_processor_context(m_owner), params);
 #endif
+}
+
+} // namespace chronon3d
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  make_software_backend — validation-gate factory.
+// ═════════════════════════════════════════════════════════════════════════════
+
+namespace chronon3d {
+
+Result<std::unique_ptr<SoftwareBackend>, SoftwareBackendServicesError>
+make_software_backend(SoftwareBackendServices services) {
+    // Helper: build a structured SoftwareBackendServicesError for a given
+    // Code + field name.  The message includes both the field name and
+    // the user-ordered field list so logs read deterministic.
+    auto err = [](SoftwareBackendServicesError::Code c,
+                  const char* field) -> SoftwareBackendServicesError {
+        return SoftwareBackendServicesError{
+            c,
+            field,
+            std::string{"make_software_backend: required service '"} + field +
+                "' is null (SoftwareBackendServices is malformed)"
+        };
+    };
+
+    // ── Debug guards: assert on first failure ──
+    // Fires unconditionally in NDEBUG=0 so a caller that forgets to
+    // inspect the Result surfaces the failure in the debugger before
+    // silently proceeding with a malformed backend.
+#ifndef NDEBUG
+    // Canonical assert form: assert(ptr && "msg") keeps the static analyzer
+    // quiet on the pointer value while carrying a descriptive label in
+    // the diagnostic on failure.
+    assert(services.counters         != nullptr && "make_software_backend: counters is null");
+    assert(services.settings         != nullptr && "make_software_backend: settings is null");
+    assert(services.framebuffer_pool             && "make_software_backend: framebuffer_pool is empty");
+    assert(services.asset_resolver   != nullptr && "make_software_backend: asset_resolver is null");
+    assert(services.text_resources   != nullptr && "make_software_backend: text_resources is null");
+    assert(services.owner            != nullptr && "make_software_backend: owner is null (appended per TICKET-070; relax after TICKET-046)");
+#endif
+
+    // ── Release path: ordered validation matches the user spec:
+    //    counters → settings → framebuffer_pool → asset_resolver → text_resources;
+    //    owner is appended (TICKET-070 follow-up will relax after TICKET-046
+    //    alternatives to the back-pointer land).
+    if (services.counters == nullptr)
+        return err(SoftwareBackendServicesError::Code::MissingCounters,          "counters");
+    if (services.settings == nullptr)
+        return err(SoftwareBackendServicesError::Code::MissingSettings,          "settings");
+    if (!services.framebuffer_pool)
+        return err(SoftwareBackendServicesError::Code::MissingFramebufferPool,   "framebuffer_pool");
+    if (services.asset_resolver == nullptr)
+        return err(SoftwareBackendServicesError::Code::MissingAssetResolver,     "asset_resolver");
+    if (services.text_resources == nullptr)
+        return err(SoftwareBackendServicesError::Code::MissingTextResources,     "text_resources");
+    if (services.owner == nullptr)
+        return err(SoftwareBackendServicesError::Code::MissingOwner,             "owner");
+
+    return std::make_unique<SoftwareBackend>(std::move(services));
 }
 
 } // namespace chronon3d
