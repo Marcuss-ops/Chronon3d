@@ -92,6 +92,18 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         #      single-font paragraphs yields N-1 layouts (N=3 => 2).  Skipped
         #      automatically when tests/fixtures/Inter-Bold.ttf is absent.
         text/test_compile_text_layout_errors.cpp
+        # TICKET-100 — identity regression lock for the materialize_text_run_shape
+        # refactor.  Locks (1) materialize_text_run_shape ≡ compile_text_layout
+        # identity on equivalent input (source_text / font_size / glyph_count /
+        # units size); (2) cache-hit returns the same shared_ptr across calls
+        # (legacy-canonical cache_key preservation); (3) direction + language
+        # override survives the post-compile helper pass (compile_text_layout's
+        # hardcoded Auto/empty defaults would otherwise leak through);
+        # (4) text_layout->font.font_size mirrors params.text.font.font_size
+        # (review P0 #6 closure — pre-refactor `shaped_font = {4 fields}` left
+        # text_layout->font.font_size at the default 0.0f).  Gracefully degrades
+        # via MESSAGE+return when system fonts are absent (no external fixture).
+        text/test_compile_text_layout_identity.cpp
     )
 endif()
 

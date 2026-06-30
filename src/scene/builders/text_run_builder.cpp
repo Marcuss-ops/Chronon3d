@@ -2,6 +2,14 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 
 #include <chronon3d/text/text_run_driver.hpp>
+// TICKET-100 — route the legacy materialize_text_run_shape pipeline through
+// compile_text_layout.  Single canonical TextRunLayout compiler lives in
+// src/text/text_run_builder.cpp; we include it here so the materializer
+// can delegate to it instead of duplicating cache/shape/place/build/store
+// inline.  TextDocument + split_paragraphs are also required to build
+// the per-shape document compile_text_layout consumes.
+#include <chronon3d/text/text_run_builder.hpp>
+#include <chronon3d/text/text_document.hpp>
 
 #include <cassert>
 #include <iterator>
@@ -273,6 +281,110 @@ namespace text_run_materialize_detail {
 
 } // namespace text_run_materialize_detail
 
+// ═════════════════════════════════════════════════════════════════════════
+// TICKET-100 — compile_or_cache_layout (anonymous-namespace helper)
+//
+// Replaces the 5 inline phases that previously lived inside
+// materialize_text_run_shape:
+//   1. Build cache_key with 9 fields (text + font + tracking + layout
+//      + box_width + wrap + direction + language).
+//   2. shared_text_layout_cache().find(cache_key).
+//   3. Engine.shape_text(text, shaped_font, font_spec.font_size, shaping).
+//   4. resolve_placed_glyph_run(*hb_run, layout.tracking, text).
+//   5. Manual TextRunLayout field-by-field assignment + cache.store.
+//
+// The helper routes ALL of them through compile_text_layout (the canonical
+// compiler living in src/text/text_run_builder.cpp).  The legacy cache_key
+// is preserved BIT-IDENTICAL (including direction + language) so cache
+// hits/misses match the pre-refactor behaviour.  compile_text_layout's own
+// cache dance is BYPASSED by passing services.cache = nullptr — its
+// internal cache_key collapses direction to Auto and language to "" which
+// would silently collide bidi-distinct / locale-distinct layouts.  Post-
+// compile we override text_layout->direction + text_layout->language to
+// match the original params so the materialized shape matches the
+// pre-refactor output.
+//
+// Closing this loop ALSO fixes review P0 #6 for free:
+//   `text_layout->font = shaped_font` used to drop font_size (default FontSpec
+//   font_size is 0.0f).  After this refactor compile_text_layout sets
+//   `text_layout->font = primary_font` (full 5-field FontSpec) so the
+//   layout carries the resolved font size and the transition path no
+//   longer reads back a stale 0.0f / 72.0f.
+// ═════════════════════════════════════════════════════════════════════════
+
+namespace {
+
+[[nodiscard]] std::shared_ptr<TextRunLayout> compile_or_cache_layout(
+    const TextRunParams& params,
+    FontEngine& engine
+) {
+    const std::string&    text       = params.text.content.value;
+    const FontSpec&       font_spec  = params.text.font;
+    const TextLayoutSpec& layout     = params.text.layout;
+
+    // ── Legacy cache key (BIT-IDENTICAL to pre-refactor) ───────────
+    TextLayoutCacheKey cache_key;
+    cache_key.text        = text;
+    cache_key.font_path   = font_spec.font_path;
+    cache_key.font_weight = font_spec.font_weight;
+    cache_key.font_style  = font_spec.font_style;
+    cache_key.font_size   = font_spec.font_size;
+    cache_key.tracking    = layout.tracking;
+    cache_key.box_width   = layout.box.x;
+    cache_key.wrap        = layout.wrap;
+    cache_key.direction   = params.direction;
+    cache_key.language    = params.language;
+
+    auto& cache = shared_text_layout_cache();
+    if (params.cache_layout) {
+        if (auto cached = cache.find(cache_key)) {
+            auto text_layout = std::const_pointer_cast<TextRunLayout>(cached);
+            // Cached layouts were written with compile_text_layout's defaults
+            // (direction=Auto, language="").  Override to match the new params
+            // so the materialized shape's direction/language match the request.
+            text_layout->direction = params.direction;
+            text_layout->language  = params.language;
+            return text_layout;
+        }
+    }
+
+    // ── Build per-shape TextDocument for compile_text_layout ──────
+    TextDocument doc;
+    doc.utf8          = text;
+    doc.defaults.font = font_spec;
+    doc.split_paragraphs();
+
+    TextLayoutRequest request{&doc, &layout, font_spec};
+
+    // cache=nullptr to suppress compile_text_layout's internal cache dance
+    // (its key collapses direction/language).  We own the cache here.
+    TextCompileServices services{&engine, /*cache=*/nullptr};
+
+    auto compiled = compile_text_layout(request, services);
+    if (!compiled) {
+        spdlog::warn(
+            "materialize_text_run_shape: compile_text_layout failed — {}",
+            compiled.error().message);
+        return nullptr;
+    }
+
+    auto text_layout = compiled.value();
+
+    // ── Override compile_text_layout's defaults ───────────────────
+    // compile_text_layout hardcodes text_layout->direction = Auto and
+    // leaves text_layout->language empty.  Override to match the original
+    // params so behaviour matches the pre-refactor materialize_text_run_shape.
+    text_layout->direction = params.direction;
+    text_layout->language  = params.language;
+
+    if (params.cache_layout) {
+        cache.store(std::move(cache_key), text_layout);
+    }
+    return text_layout;
+}
+
+} // anonymous namespace
+
 std::shared_ptr<TextRunShape> materialize_text_run_shape(
     const TextRunParams& params,
     FontEngine* engine,
@@ -282,9 +394,15 @@ std::shared_ptr<TextRunShape> materialize_text_run_shape(
     using namespace text_run_materialize_detail;
 
     // ── Composable nested field paths (PR4 canonical form) ──────────
+    // ── Composable nested field paths (PR4 canonical form) ──────────
+    // TICKET-100 — the legacy inline 5-phase pipeline (cache lookup +
+    // shape_text + resolve_placed_glyph_run + manual TextRunLayout build +
+    // cache store) is now consolidated inside the `compile_or_cache_layout`
+    // anonymous-namespace helper above.  Local `font_spec` / `layout`
+    // references are no longer needed here because the helper reads them
+    // itself from `params.text.font` / `params.text.layout`.  `text` and
+    // `appearance` are still consumed below (animator stack + paint).
     const std::string& text      = params.text.content.value;
-    const FontSpec&     font_spec = params.text.font;
-    const TextLayoutSpec& layout = params.text.layout;
     const TextAppearanceSpec& appearance = params.text.appearance;
 
     if (text.empty()) {
@@ -305,70 +423,25 @@ std::shared_ptr<TextRunShape> materialize_text_run_shape(
         return nullptr;
     }
 
-    const FontSpec shaped_font{
-        font_spec.font_path,
-        font_spec.font_family,
-        font_spec.font_weight,
-        font_spec.font_style,
-    };
-
-    // ── Cache lookup ────────────────────────────────────────────────
-    TextLayoutCacheKey cache_key{
-        .text = text,
-        .font_path = font_spec.font_path,
-        .font_weight = font_spec.font_weight,
-        .font_style = font_spec.font_style,
-        .font_size = font_spec.font_size,
-        .tracking = layout.tracking,
-        .box_width = layout.box.x,
-        .wrap = layout.wrap,
-        .direction = params.direction,
-        .language = params.language,
-    };
-
-    std::shared_ptr<TextRunLayout> text_layout;
-    auto& cache = shared_text_layout_cache();
-    if (params.cache_layout) {
-        if (auto cached = cache.find(cache_key)) {
-            text_layout = std::const_pointer_cast<TextRunLayout>(cached);
-        }
-    }
-
+    // ── Delegate 5 pipeline phases to compile_or_cache_layout ──────
+    // TICKET-100 — the legacy inline cache/shape/placed/build/store
+    // pipeline lives in the `compile_or_cache_layout()` anonymous-namespace
+    // helper above.  All 5 phases (cache_key construction, cache lookup,
+    // shape_text, resolve_placed_glyph_run, manual TextRunLayout build,
+    // cache store) route through `compile_text_layout()` internally.
+    // Helper logs the underlying cause via spdlog::warn on Err and
+    // returns nullptr; the materializer preserves the pre-refactor
+    // "skip on shaping failure" contract.
+    //
+    // Side-benefit (closes review P0 #6 for free): the legacy inline code
+    // built `shaped_font` from 4 fields only and assigned it to
+    // `text_layout->font`, dropping font_size implicitly to 0.0f; the
+    // post-refactor path stores `primary_font` (full 5-field FontSpec)
+    // on `text_layout->font`, so transition paths that read back the
+    // size no longer observe a stale 0.0f / 72.0f.
+    auto text_layout = compile_or_cache_layout(params, *use_engine);
     if (!text_layout) {
-        // ── Fresh shape ────────────────────────────────────────────
-        TextShaping shaping;
-        shaping.direction = params.direction;
-        shaping.language  = params.language;
-        auto hb_run = use_engine->shape_text(
-            text, shaped_font, font_spec.font_size, shaping);
-        if (!hb_run) {
-            spdlog::warn(
-                "materialize_text_run_shape: shape_text failed for "
-                "'{}' (font='{}', size={}) — text_run skipped.",
-                text, font_spec.font_path, font_spec.font_size
-            );
-            return nullptr;
-        }
-
-        auto placed = resolve_placed_glyph_run(
-            *hb_run, layout.tracking, text);
-
-        text_layout = std::make_shared<TextRunLayout>();
-        text_layout->source_text = text;
-        text_layout->font = shaped_font;
-        text_layout->font_size = font_spec.font_size;
-        text_layout->placed = placed;
-        text_layout->units = build_text_unit_map(placed, text);
-        text_layout->bounds = { placed.total_width, placed.total_height };
-        text_layout->tracking = layout.tracking;
-        text_layout->wrap = layout.wrap;
-        text_layout->direction = params.direction;
-        text_layout->language = params.language;
-        text_layout->line_height = layout.line_height;
-
-        if (params.cache_layout) {
-            cache.store(std::move(cache_key), text_layout);
-        }
+        return nullptr;
     }
 
     // ── Evaluate animators at sample_time ───────────────────────────
