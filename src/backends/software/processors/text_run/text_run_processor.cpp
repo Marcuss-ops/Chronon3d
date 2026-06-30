@@ -173,37 +173,66 @@ graph::RenderOpResult draw_text_run(
     }
 
     // ── Resolve font handle via TextRenderResources ──────────────────
-    FontFaceHandle font_handle;
-    if (rctx.text_resources) {
-        font_handle = rctx.text_resources->resolve_handle(
-            font_path, layout.font_size, *rctx.asset_resolver);
-    }
-    if (!font_handle.valid()) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure,
-            "draw_text_run: failed to load font face for " + font_path
-        });
+    // ── PHASE 1.4: Per-span font handle pre-resolution ──────────
+    // The layout may carry `font_spans` describing the per-glyph font
+    // identity breakdown (Phase 1.4+ compile path).  We pre-resolve one
+    // FontFaceHandle + BLFont per UNIQUE span, then build a per-glyph
+    // → span-index lookup table.  When the layout has NO font_spans
+    // (legacy / pre-Phase-1.4), we fall back to the single-FontFaceHandle
+    // path backed by single-element aliases so the closure stays unified.
+    std::vector<FontFaceHandle>            span_handles;
+    std::vector<BLFont>                    span_fonts;
+    std::vector<std::size_t>               per_glyph_span_idx;
+    const bool has_font_spans = !layout.font_spans.empty();
+    if (has_font_spans) {
+        span_handles.reserve(layout.font_spans.size());
+        span_fonts.reserve(layout.font_spans.size());
+        for (const auto& spn : layout.font_spans) {
+            FontFaceHandle span_handle;
+            if (rctx.text_resources) {
+                span_handle = rctx.text_resources->resolve_handle(
+                    spn.font.font_path, layout.font_size, *rctx.asset_resolver);
+            }
+            if (!span_handle.valid()) {
+                return graph::RenderOpResult(graph::RenderBackendError{
+                    graph::RenderBackendErrorCode::ExecutionFailure,
+                    "draw_text_run: failed to load font face for span ('" +
+                    spn.font.font_path + "', Phase 1.4 multi-font path)"
+                });
+            }
+            span_handles.push_back(std::move(span_handle));
+            BLFont span_blfont;
+            span_blfont.createFromFace(*span_handles.back().bl_face, layout.font_size);
+            span_fonts.push_back(std::move(span_blfont));
+        }
+        per_glyph_span_idx.assign(layout.placed.glyphs.size(), 0);
+        for (std::size_t si = 0; si < layout.font_spans.size(); ++si) {
+            const auto& spn = layout.font_spans[si];
+            const std::uint32_t span_end = std::min<std::uint32_t>(
+                spn.glyph_end, static_cast<std::uint32_t>(per_glyph_span_idx.size()));
+            for (std::uint32_t gi = spn.glyph_begin; gi < span_end; ++gi) {
+                per_glyph_span_idx[gi] = si;
+            }
+        }
+    } else {
+        FontFaceHandle single_handle;
+        if (rctx.text_resources) {
+            single_handle = rctx.text_resources->resolve_handle(
+                font_path, layout.font_size, *rctx.asset_resolver);
+        }
+        if (!single_handle.valid()) {
+            return graph::RenderOpResult(graph::RenderBackendError{
+                graph::RenderBackendErrorCode::ExecutionFailure,
+                "draw_text_run: failed to load font face for " + font_path
+            });
+        }
+        span_handles.push_back(std::move(single_handle));
+        BLFont single_blfont;
+        single_blfont.createFromFace(*span_handles.back().bl_face, layout.font_size);
+        span_fonts.push_back(std::move(single_blfont));
+        per_glyph_span_idx.assign(layout.placed.glyphs.size(), 0);
     }
 
-    // FASE 3 thread-safety: acquire per-call scratch state from the
-    // engine-owned TextScratchManager.  RAII Handle releases on
-    // function exit.  Two concurrent draw_text_run() invocations on the
-    // same engine receive distinct TextScratchState objects, so there
-    // is no shared mutable storage across invocations.
-    TextScratchManager::Handle scratch_handle;
-    if (rctx.text_resources) {
-        scratch_handle = rctx.text_resources->scratch_manager.acquire();
-    }
-    if (!scratch_handle) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure,
-            "draw_text_run: text_resources/scratch_manager unavailable"
-        });
-    }
-    auto& scratch_state = *scratch_handle;  // alias kept compact at call sites
-
-    BLFont font;
-    font.createFromFace(*font_handle.bl_face, layout.font_size);
 
     // ── Compute glyph bbox (the run's local image-local extent) ─────
     // Conservative padding accounts for blur, stroke, and 2.5D shears
@@ -490,8 +519,14 @@ graph::RenderOpResult draw_text_run(
             // required by the fill branch; documented here so future
             // refactors keep sizes in lockstep).
             if (eff_stroke.a > 0.0f && eff_stroke_w > 0.0f && ft_loaded) {
-                BLPath path = font_handle.outlines->build_path(
-                    font_handle.ft_face,
+                // PHASE 1.4: per-glyph span_handle lookup so the stroke
+                // outline is built from the SAME FontFaceHandle that shape
+                // the active glyph.  Legacy single-font layouts give
+                // span_idx == 0 (their per_glyph_span_idx is uniform).
+                const std::size_t span_idx = per_glyph_span_idx[gi];
+                const FontFaceHandle& span_handle = span_handles[span_idx];
+                BLPath path = span_handle.outlines->build_path(
+                    span_handle.ft_face,
                     source_placed.glyphs[gi].glyph_id, 0.0f, 0.0f);
                 if (!path.empty()) {
                     Color out_stroke = eff_stroke;
@@ -524,7 +559,9 @@ graph::RenderOpResult draw_text_run(
                 ctx.setFillStyle(to_bl_rgba(final_fill));
 
                 auto sgr = SingleGlyphRun::from(source_placed.glyphs[gi]);
-                ctx.fillGlyphRun(BLPoint(0.0, 0.0), font, sgr.bl_run);
+                // PHASE 1.4: span-associated BLFont (per-glyph, O(1) lookup).
+                const BLFont& span_font = span_fonts[per_glyph_span_idx[gi]];
+                ctx.fillGlyphRun(BLPoint(0.0, 0.0), span_font, sgr.bl_run);
             }
 
             ctx.restore();

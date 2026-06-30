@@ -82,6 +82,16 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         # fill_color_rgba (text_rasterizer_render.cpp:627) handles
         # cross-color rejection per the documented contract.
         text/test_glyph_atlas_metadata.cpp
+        # CR#1 (Fase 1.2 + 1.5 closure) regression — compile_text_layout
+        # structured-error taxonomy + build_text_run wrapper
+        # multi-font skip semantics (N-1 contract).  Cases:
+        #   1. Err(EmptySource):       empty utf8 + no pre-split paragraphs
+        #   2. Err(MissingFont):       no usable font after resolve_fallback_fonts
+        #   3. Err(UnsupportedMultiFontRun): 2+ runs with divergent FontSpec
+        #   4. build_text_run skip:    doc with 1 multi-font paragraph + 2
+        #      single-font paragraphs yields N-1 layouts (N=3 => 2).  Skipped
+        #      automatically when tests/fixtures/Inter-Bold.ttf is absent.
+        text/test_compile_text_layout_errors.cpp
     )
 endif()
 

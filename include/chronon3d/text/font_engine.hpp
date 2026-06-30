@@ -79,6 +79,48 @@ struct FontSpec {
     }
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FontIdentity — the FONT_IDENTITY subset of FontSpec.
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Excludes font_size because size is a LAYOUT concern, not a font identity:
+//   * superscript / subscript are the same font at different sizes;
+//   * drop-cap scaling keeps one font across size variation;
+//   * emphasis gradients (e.g. progressive typewriter intro) re-use one
+//     font across a range of sizes.
+//
+// Two paragraphs sharing the same FontIdentity at different sizes are
+// rendering the SAME font.  This is the same semantic contract that
+// `paragraph_is_multi_font` enforces via its std::tie compare (see
+// include/chronon3d/text/text_resolver.hpp — also kept in sync with
+// FontSpec::operator== above; any new identity field added to FontSpec
+// MUST be added here too).
+//
+// Used by `ShapedFontSpan` (text_run.hpp) to label which glyph ranges of a
+// TextRunLayout share a font.  The runtime renderer iterates the spans
+// and switches BLFont at boundaries.  Compile-time, font_identity_of()
+// is the canonical projection from a full FontSpec to its identity.
+struct FontIdentity {
+    std::string font_path;
+    std::string font_family;
+    int         font_weight{400};
+    std::string font_style{"normal"};
+
+    bool operator==(const FontIdentity& o) const noexcept {
+        return font_path == o.font_path &&
+               font_family == o.font_family &&
+               font_weight == o.font_weight &&
+               font_style == o.font_style;
+    }
+    bool operator!=(const FontIdentity& o) const noexcept { return !(*this == o); }
+};
+
+/// Drop-in projection from a full FontSpec to its FontIdentity.
+/// font_size is intentionally DROPPED (see FontIdentity header doc).
+[[nodiscard]] inline FontIdentity font_identity_of(const FontSpec& s) noexcept {
+    return FontIdentity{s.font_path, s.font_family, s.font_weight, s.font_style};
+}
+
 /// Shaping direction for non-Latin / complex-script text.
 /// When Auto, the shaping engine detects RTL from the first
 /// strongly-directional character (Arabic, Hebrew, etc.).
