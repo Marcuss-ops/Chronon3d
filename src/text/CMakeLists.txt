@@ -21,6 +21,7 @@ add_library(chronon3d_text_core OBJECT
     text_run_geometry.cpp
     unicode/utf8_decoder.cpp
     unicode/whitespace.cpp
+    boundary_resolver/text_unit_map.cpp
 )
 
 # NOTE: chronon3d_text_core does NOT declare its own PUBLIC include directory
