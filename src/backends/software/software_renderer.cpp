@@ -29,6 +29,7 @@
 // forward declaration only).  The unique_ptr deleter is also
 // instantiated here at destruction site in ~SoftwareRenderer().
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/backends/text/text_render_resources.hpp>
 #endif
 #include <chronon3d/backends/software/text_run_processor.hpp>
 #include <chronon3d/cache/cache_policy.hpp>
@@ -107,10 +108,11 @@ SoftwareRenderer::SoftwareRenderer(runtime::RenderRuntime& rt, Config config)
     : m_config(std::move(config))
     , m_owned_runtime_storage{}
     , m_runtime(&rt)
-{
 #ifdef CHRONON3D_ENABLE_TEXT
-    m_font_engine = std::make_unique<FontEngine>(m_runtime->resolver());
+    , m_font_engine(std::make_unique<FontEngine>(m_runtime->resolver()))
+    , m_text_render_resources(std::make_unique<TextRenderResources>())
 #endif
+{
 }
 
 SoftwareRenderer::SoftwareRenderer(Config config)
@@ -121,6 +123,7 @@ SoftwareRenderer::SoftwareRenderer(Config config)
     m_runtime = m_owned_runtime_storage.get();
 #ifdef CHRONON3D_ENABLE_TEXT
     m_font_engine = std::make_unique<FontEngine>(m_runtime->resolver());
+    m_text_render_resources = std::make_unique<TextRenderResources>();
 #endif
 }
 
@@ -143,6 +146,8 @@ SoftwareRenderer::SoftwareRenderer(SoftwareRenderer&& other) noexcept
 #ifdef CHRONON3D_ENABLE_TEXT
     , m_font_engine(
           std::move(other.m_font_engine))
+    , m_text_render_resources(
+          std::move(other.m_text_render_resources))
 #endif
     , m_session(std::move(other.m_session))
 {
@@ -167,6 +172,7 @@ SoftwareRenderer::operator=(SoftwareRenderer&& other) noexcept
     m_owned_runtime_storage = std::move(other.m_owned_runtime_storage);
 #ifdef CHRONON3D_ENABLE_TEXT
     m_font_engine    = std::move(other.m_font_engine);
+    m_text_render_resources = std::move(other.m_text_render_resources);
 #endif
     m_session        = std::move(other.m_session);
     other.m_runtime = nullptr;
@@ -438,6 +444,16 @@ void SoftwareRenderer::apply_per_pixel_dof(
 // SoftwareRenderer.  They live exclusively on `SoftwareBackend`.  After
 // 06 R3b the polymorphic graph::RenderBackend* is held by SoftwareBackend,
 // so callers reach these methods through `sw_renderer.backend()`.
+
+// ── Fase 3 — pre-loaded text render resources ────────────────────────────
+
+TextRenderResources* SoftwareRenderer::text_render_resources() {
+    return m_text_render_resources.get();
+}
+
+const TextRenderResources* SoftwareRenderer::text_render_resources() const {
+    return m_text_render_resources.get();
+}
 
 } // namespace chronon3d
 

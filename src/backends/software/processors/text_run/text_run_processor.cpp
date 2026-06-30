@@ -2,6 +2,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>  // apply_text_material
+#include <chronon3d/backends/text/text_render_resources.hpp>   // Fase 3 — TextRenderResources
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>  // WP-8 PR 8.0 — explicit-resolver plumbing
 #include <chronon3d/runtime/render_runtime.hpp>
@@ -15,17 +16,11 @@
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <cmath>
-#include <unordered_map>
-#include <mutex>
 
 #include "../../utils/blend2d_bridge.hpp"
 #include "../../utils/blend2d_paint.hpp"  // PR3: canonical to_bl_rgba + build_bl_gradient
 
 #ifdef CHRONON3D_ENABLE_TEXT
-#include <ft2build.h>
-#include FT_FREETYPE_H
-#include FT_GLYPH_H
-#include FT_OUTLINE_H
 // R2: function now consumes the slim processor context POD.
 #include <chronon3d/backends/software/software_processor_context.hpp>
 #endif
@@ -48,46 +43,6 @@ BLMatrix2D build_glyph_matrix(const GlyphInstanceState& g);
 using chronon3d::blend2d_bridge::paint::to_bl_rgba;
 
 namespace {
-
-// ── Blend2D resource cache (shared across text runs) ──────────────────
-// NOTE: This duplicates blend2d_resources() from text_rasterizer_render.cpp
-// because that cache is in an anonymous namespace there.  Future refactor
-// could extract it to a shared header.
-
-struct TextRunBlResources {
-    std::unordered_map<std::string, BLFontFace> faces;
-    std::mutex mutex;
-
-    // WP-8 PR 8.0 — `resolver` is sourced by the caller (`draw_text_run`)
-    // per the PR 8.0 contract.  Reads of `typed_resolver_for_deep_code()`
-    // are no longer permitted in this deep cache.
-    BLFontFace get_face(const std::string& path,
-                        const chronon3d::assets::AssetResolver& resolver) {
-        std::lock_guard<std::mutex> lock(mutex);
-        std::string resolved;
-        if (auto opt = resolver.resolve_lexical(path)) {
-            resolved = opt->string();
-        } else {
-            resolved = path.empty() ? std::string{} : std::string{path};
-        }
-        auto it = faces.find(resolved);
-        if (it == faces.end()) {
-            BLFontFace face;
-            if (face.createFromFile(resolved.c_str()) != BL_SUCCESS) {
-                spdlog::error("TextRun: failed to load font {}", resolved);
-                return BLFontFace();
-            }
-            faces[resolved] = face;
-            return face;
-        }
-        return it->second;
-    }
-};
-
-TextRunBlResources& text_run_bl_resources() {
-    static TextRunBlResources resources;
-    return resources;
-}
 
 // ── Helper: HbToBlGlyphRun for a single glyph (absolute positioning) ─
 
@@ -112,128 +67,7 @@ struct SingleGlyphRun {
     }
 };
 
-// ── FreeType glyph path builder (for stroke outlines) ───────────────
 
-#ifdef CHRONON3D_ENABLE_TEXT
-struct TextRunPathBuilder {
-    FT_Face    ft_face{nullptr};
-    std::string loaded_path;
-    std::mutex  mutex;
-
-    static FT_Library shared_ft_lib() {
-        static FT_Library lib = [] {
-            FT_Library l = nullptr;
-            if (FT_Init_FreeType(&l) != 0) {
-                spdlog::error("TextRunPathBuilder: FT_Init_FreeType failed");
-            }
-            return l;
-        }();
-        return lib;
-    }
-
-    // WP-8 PR 8.0 — `resolver` is sourced by the caller (`draw_text_run`)
-    // per the PR 8.0 contract.  Reads of `typed_resolver_for_deep_code()`
-    // are no longer permitted in this deep FreeType path-builder cache.
-    bool load(const std::string& font_path,
-              float font_size,
-              const chronon3d::assets::AssetResolver& resolver) {
-        std::lock_guard<std::mutex> lock(mutex);
-        std::string resolved;
-        if (auto opt = resolver.resolve_lexical(font_path)) {
-            resolved = opt->string();
-        } else {
-            resolved = font_path.empty() ? std::string{} : std::string{font_path};
-        }
-        if (ft_face && resolved == loaded_path) {
-            FT_Set_Pixel_Sizes(ft_face, 0, static_cast<FT_UInt>(std::ceil(font_size)));
-            return true;
-        }
-        if (ft_face) { FT_Done_Face(ft_face); ft_face = nullptr; }
-        FT_Library lib = shared_ft_lib();
-        if (!lib) return false;
-        if (FT_New_Face(lib, resolved.c_str(), 0, &ft_face) != 0) return false;
-        FT_Set_Pixel_Sizes(ft_face, 0, static_cast<FT_UInt>(std::ceil(font_size)));
-        loaded_path = resolved;
-        return true;
-    }
-
-    ~TextRunPathBuilder() {
-        std::lock_guard<std::mutex> lock(mutex);
-        if (ft_face) { FT_Done_Face(ft_face); ft_face = nullptr; }
-    }
-
-    TextRunPathBuilder() = default;
-    TextRunPathBuilder(const TextRunPathBuilder&) = delete;
-    TextRunPathBuilder& operator=(const TextRunPathBuilder&) = delete;
-
-    BLPath build(u32 glyph_id, float origin_x, float origin_y) {
-        BLPath path;
-        if (!ft_face) return path;
-
-        std::lock_guard<std::mutex> lock(mutex);
-        if (FT_Load_Glyph(ft_face, glyph_id, FT_LOAD_NO_BITMAP) != 0) return path;
-        if (ft_face->glyph->format != FT_GLYPH_FORMAT_OUTLINE) return path;
-
-        constexpr float kScale = 1.0f / 64.0f;
-        constexpr double kConicWeight = 1.0;
-
-        struct DecomposeCtx {
-            BLPath* path;
-            double  off_x;
-            double  off_y;
-            bool    first_contour{true};
-        };
-
-        FT_Outline_Funcs funcs;
-        funcs.move_to = [](const FT_Vector* to, void* user) -> int {
-            auto* ctx = static_cast<DecomposeCtx*>(user);
-            if (!ctx->first_contour) ctx->path->close();
-            ctx->first_contour = false;
-            ctx->path->moveTo(
-                ctx->off_x + static_cast<double>(to->x) * kScale,
-                ctx->off_y - static_cast<double>(to->y) * kScale);
-            return 0;
-        };
-        funcs.line_to = [](const FT_Vector* to, void* user) -> int {
-            auto* ctx = static_cast<DecomposeCtx*>(user);
-            ctx->path->lineTo(
-                ctx->off_x + static_cast<double>(to->x) * kScale,
-                ctx->off_y - static_cast<double>(to->y) * kScale);
-            return 0;
-        };
-        funcs.conic_to = [](const FT_Vector* control, const FT_Vector* to, void* user) -> int {
-            auto* ctx = static_cast<DecomposeCtx*>(user);
-            ctx->path->conicTo(
-                ctx->off_x + static_cast<double>(control->x) * kScale,
-                ctx->off_y - static_cast<double>(control->y) * kScale,
-                ctx->off_x + static_cast<double>(to->x) * kScale,
-                ctx->off_y - static_cast<double>(to->y) * kScale,
-                kConicWeight);
-            return 0;
-        };
-        funcs.cubic_to = [](const FT_Vector* c1, const FT_Vector* c2, const FT_Vector* to, void* user) -> int {
-            auto* ctx = static_cast<DecomposeCtx*>(user);
-            ctx->path->cubicTo(
-                ctx->off_x + static_cast<double>(c1->x) * kScale,
-                ctx->off_y - static_cast<double>(c1->y) * kScale,
-                ctx->off_x + static_cast<double>(c2->x) * kScale,
-                ctx->off_y - static_cast<double>(c2->y) * kScale,
-                ctx->off_x + static_cast<double>(to->x) * kScale,
-                ctx->off_y - static_cast<double>(to->y) * kScale);
-            return 0;
-        };
-        funcs.delta = 0;
-        funcs.shift = 0;
-
-        DecomposeCtx ctx{&path, static_cast<double>(origin_x), static_cast<double>(origin_y), true};
-        FT_Outline_Decompose(&ft_face->glyph->outline, &funcs, &ctx);
-        if (!ctx.first_contour) path.close();
-
-        return path;
-    }
-};
-
-#endif // CHRONON3D_ENABLE_TEXT
 
 } // anonymous namespace
 
@@ -252,7 +86,8 @@ graph::RenderOpResult draw_text_run(
     // `runtime::typed_resolver_for_deep_code()` inside both caches.
     // `AssetResolver` is a value-member of `RenderRuntime`, so this
     // reference is stable for the renderer’s lifetime.
-    const auto& resolver = *rctx.asset_resolver;
+    // Fase 3 — font loading is handled by TextRenderResources.
+    // The renderer receives a FontFaceHandle — no file I/O here.
 
     const auto& shape = params.shape;
     if (!shape.layout || shape.glyphs.empty()) {
@@ -310,9 +145,13 @@ graph::RenderOpResult draw_text_run(
         });
     }
 
-    // Load font face
-    BLFontFace face = text_run_bl_resources().get_face(font_path, resolver);
-    if (face.empty()) {
+    // ── Resolve font handle via TextRenderResources ──────────────────
+    FontFaceHandle font_handle;
+    if (rctx.text_resources) {
+        font_handle = rctx.text_resources->resolve_handle(
+            font_path, layout.font_size, *rctx.asset_resolver);
+    }
+    if (!font_handle.valid()) {
         return graph::RenderOpResult(graph::RenderBackendError{
             graph::RenderBackendErrorCode::ExecutionFailure,
             "draw_text_run: failed to load font face for " + font_path
@@ -320,7 +159,7 @@ graph::RenderOpResult draw_text_run(
     }
 
     BLFont font;
-    font.createFromFace(face, layout.font_size);
+    font.createFromFace(*font_handle.bl_face, layout.font_size);
 
     // ── Compute glyph bbox (the run's local image-local extent) ─────
     // Conservative padding accounts for blur, stroke, and 2.5D shears
@@ -520,13 +359,11 @@ graph::RenderOpResult draw_text_run(
     };
 
 #ifdef CHRONON3D_ENABLE_TEXT
-    // Hoist the FreeType path builder so the font face is loaded once
-    // for the entire batch, not per glyph.  Resolver threaded in
-    // explicitly (WP-8 PR 8.0).
-    TextRunPathBuilder ft_builder;
-    bool ft_loaded = ft_builder.load(font_path, layout.font_size, resolver);
+    // Fase 3 — FreeType face is pre-loaded in the FontFaceHandle.
+    // No file I/O here — the handle already carries the FT_Face.
+    const bool ft_loaded = (font_handle.ft_face != nullptr);
 #else
-    bool ft_loaded = false;
+    const bool ft_loaded = false;
 #endif
 
     // ── Reusable per-layer renderer ──────────────────────────────────
@@ -592,7 +429,8 @@ graph::RenderOpResult draw_text_run(
             // Stroke first (underneath fill).  Override color wins when
             // supplied; otherwise the effective stroke from above.
             if (eff_stroke.a > 0.0f && eff_stroke_w > 0.0f && ft_loaded) {
-                BLPath path = ft_builder.build(
+                BLPath path = font_handle.outlines->build_outline(
+                    font_handle.ft_face,
                     layout.placed.glyphs[gi].glyph_id, 0.0f, 0.0f);
                 if (!path.empty()) {
                     Color out_stroke = eff_stroke;

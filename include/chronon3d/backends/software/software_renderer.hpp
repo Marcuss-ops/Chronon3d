@@ -22,6 +22,8 @@
 
 namespace chronon3d {
 
+struct TextRenderResources;
+
 class FontEngine; class Composition; class Scene; class Camera; class Camera2_5D;
 class CompositionRegistry;
 namespace media { class MediaFrameProvider; }
@@ -155,6 +157,10 @@ public:
     [[nodiscard]] graph::RenderBackend& backend();
     [[nodiscard]] const graph::RenderBackend& backend() const;
 
+    // ── Fase 3 — pre-loaded text render resources ────────────────────
+    [[nodiscard]] TextRenderResources* text_render_resources();
+    [[nodiscard]] const TextRenderResources* text_render_resources() const;
+
     // ── Session access ─────────────────────────────────────────────────
     [[nodiscard]] RenderSession& session()                       { return m_session.common; }
     [[nodiscard]] const RenderSession& session() const           { return m_session.common; }
@@ -198,6 +204,8 @@ private:
 #ifdef CHRONON3D_ENABLE_TEXT
     std::unique_ptr<FontEngine> m_font_engine;
 #endif
+    // Fase 3 — pre-loaded font caches for text rendering
+    std::unique_ptr<TextRenderResources> m_text_render_resources;
     SoftwareRenderSession m_session;
 };
 
