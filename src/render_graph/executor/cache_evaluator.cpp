@@ -19,8 +19,7 @@ CacheEvalResult evaluate_cache(
     u64 input_hash,
     bool inputs_frame_dependent,
     bool has_cacheable_inputs,
-    GraphNodeId node_id,
-    bool inputs_all_cache_hits
+    GraphNodeId node_id
 ) {
     CacheEvalResult cr;
     const auto policy = node.cache_policy();
@@ -32,11 +31,6 @@ CacheEvalResult evaluate_cache(
         policy.frame_dependent() ||
         (has_cacheable_inputs && inputs_frame_dependent);
 
-    if (node.kind() == RenderGraphNodeKind::Composite && inputs_all_cache_hits) {
-        is_cacheable = true;
-        cr.node_frame_dependent = false;
-    }
-
     // FrameVariant nodes are explicitly documented as cacheable within the same
     // render frame ("multiple consumers within the same render frame may still
     // dedupe").  The temporal_key (set below when node_frame_dependent) already
@@ -45,6 +39,20 @@ CacheEvalResult evaluate_cache(
     // nodes, so they still re-execute each frame.
     cr.use_cache = is_cacheable && ctx.services.node_cache;
     cr.is_cacheable = is_cacheable;
+
+    // ── CompositeNode: always bypass cache (zero-copy enablement) ─────
+    // Composites are always frame-dependent in practice — the blend
+    // output depends on per-frame layout (clip_rect, bbox, top/bottom
+    // origin, blend mode) which changes every frame.  Caching the
+    // result would keep `state.temp[composite_id].use_count() > 1`
+    // (1 from state.temp + 1 from node_cache), which blocks the
+    // zero-copy `reusable_inputs` path in `acquire_owned_fb(const
+    // Framebuffer&)`.  Bypass cache for ALL composites so the next
+    // composite's input has `use_count == 1` and the 1×1-placeholder
+    // swap activates.  Static (Background) nodes remain cached.
+    if (node.kind() == RenderGraphNodeKind::Composite) {
+        cr.use_cache = false;
+    }
 
     // Always compute the key to ensure we have a valid key digest for telemetry,
     // bypassed nodes, and the downstream video conversion frame cache.
@@ -89,6 +97,11 @@ CacheEvalResult evaluate_cache(
     } else {
         if (!ctx.services.node_cache) {
             cr.cache_status = "bypass_no_cache";
+        } else if (node.kind() == RenderGraphNodeKind::Composite) {
+            // Explicit composite status — composites always bypass cache so the
+            // next composite's input keeps use_count == 1 and the reusable_inputs
+            // zero-copy path activates (see cache_skip block above).
+            cr.cache_status = "bypass_composite_for_zerocopy";
         } else if (!is_cacheable) {
             cr.cache_status = "bypass_not_cacheable";
             if (ctx.node_exec.counters) {

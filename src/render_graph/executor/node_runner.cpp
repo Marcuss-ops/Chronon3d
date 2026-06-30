@@ -197,8 +197,7 @@ void execute_single_node(
         pr.input_hash,
         pr.inputs_frame_dependent,
         pr.has_cacheable_inputs,
-        id,
-        pr.inputs_all_cache_hits
+        id
     );
     const auto t_cache1 = profiling::now();
     if (out_cache_ms) {
@@ -319,12 +318,23 @@ void execute_single_node(
     }
 
     node_ctx.node_exec.reusable_inputs.clear();
+    node_ctx.node_exec.reusable_bottom.reset();
     for (size_t j = 0; j < input_ids.size(); ++j) {
         const GraphNodeId input_id = input_ids[j];
         if (contains_index(state.temp, input_id) && state.temp[input_id]) {
             if (consumer_remaining[input_id].load(std::memory_order_relaxed) == 1 &&
                 state.temp[input_id].use_count() == 1) {
                 node_ctx.node_exec.reusable_inputs.push_back(state.temp[input_id].get());
+                // The FIRST input (j == 0) is the "bottom" in composite
+                // terminology — pre-cache_skip, CompositeNode calls
+                // `acquire_owned_fb(*bottom)` which used to invoke
+                // `pool->acquire_from(other)` (8 MB memcpy).  By saving
+                // the CachedFB here, `acquire_owned_fb(const FB&)` can
+                // do a 1×1-placeholder pixel swap with the ORIGINAL
+                // PoolFbDeleter instead.
+                if (j == 0) {
+                    node_ctx.node_exec.reusable_bottom = state.temp[input_id];
+                }
             }
         }
     }

@@ -291,6 +291,26 @@ struct NodeExecutionContext {
     mutable FramebufferSlotView ping_write;
     mutable std::vector<Framebuffer*> reusable_inputs;
 
+    // ── Zero-copy bottom-input ownership transfer (composite hot-path) ──
+    // Populated by `execute_single_node` for the FIRST input (j==0,
+    // i.e. the "bottom" in CompositeNode terminology) when reusable
+    // conditions are met: `consumer_remaining == 1 && state.temp[input_id].use_count() == 1`.
+    //
+    // Consumed by `acquire_owned_fb(const Framebuffer&)` to perform a
+    // 1×1-placeholder pixel swap with the ORIGINAL PoolFbDeleter from
+    // `state.temp[input_id]`, instead of an ~8 MB pool acquire + memcpy.
+    // The cache_evaluator's CompositeNode cache-skip ensures this slot
+    // is reliably populated for chained composites (no node_cache ref
+    // would otherwise inflate use_count above 1).
+    //
+    // Default-constructed (null); reset to {} at the start of each
+    // node's reusable_inputs loop in execute_single_node.
+    //
+    // Note: NOT declared `mutable` because `acquire_owned_fb(const FB&)`
+    // is non-const (unlike `reusable_inputs` which is read from the
+    // const acquire methods).
+    CachedFB reusable_bottom;
+
     // ── WP 4.3 — current node identity ─────────────────────────────────
     // Set by `GraphExecutor::execute_single_node` immediately before
     // delegating to `node->execute(...)`.  Identity is the
