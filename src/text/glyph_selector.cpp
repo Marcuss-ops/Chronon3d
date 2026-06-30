@@ -370,11 +370,19 @@ struct PermutationKeyHash {
 };
 
 const std::vector<u32>& get_or_build_permutation(u64 seed, u32 total_units) {
-    thread_local std::unordered_map<PermutationKey, std::vector<u32>, PermutationKeyHash> cache;
+    // FASE 4 (TICKET-086): thread_local cache replaced with static cache +
+    // std::mutex guard.  thread_local leaks per-thread entries across pool
+    // recycle; static + mutex is amortised (lookup is `(seed, total)` keyed,
+    // not per-glyph, so contention is negligible).  Process-lifetime.
+    static std::unordered_map<PermutationKey, std::vector<u32>, PermutationKeyHash> cache;
+    static std::mutex cache_mutex;
     PermutationKey key{seed, total_units};
-    auto it = cache.find(key);
-    if (it != cache.end()) {
-        return it->second;
+    {
+        std::lock_guard<std::mutex> lock(cache_mutex);
+        auto it = cache.find(key);
+        if (it != cache.end()) {
+            return it->second;
+        }
     }
 
     // Fisher-Yates: start with identity, swap from the right drawing the
@@ -389,6 +397,7 @@ const std::vector<u32>& get_or_build_permutation(u64 seed, u32 total_units) {
         const u32 j = (raw_j < i) ? raw_j : u;  // safety clamp (hash_to_unit_float returns [0,1))
         std::swap(perm[u], perm[j]);
     }
+    std::lock_guard<std::mutex> lock(cache_mutex);
     auto inserted = cache.emplace(key, std::move(perm));
     return inserted.first->second;
 }
