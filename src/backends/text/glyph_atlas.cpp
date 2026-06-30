@@ -6,6 +6,7 @@
 #include <blend2d.h>
 #include <spdlog/spdlog.h>
 
+#include <atomic>
 #include <cstdlib>
 #include <mutex>
 #include <shared_mutex>
@@ -47,17 +48,22 @@ struct GlyphAtlasKeyHash {
 using GlyphAtlasCache = cache::LruCache<GlyphAtlasKey, GlyphAtlasEntry,
                                          GlyphAtlasKeyHash>;
 
-// Injected capacity — set once at startup by SoftwareRenderer.
+// FASE 3 (TICKET-079) — Injected capacity, set once at startup by SoftwareRenderer.
+// First-call-wins via atomic CAS; eliminates std::once_flag + std::call_once (per
+// AGENTS.md pattern `is serialised + idempotent without an external std::once_flag`).
 namespace {
-    size_t         s_glyph_atlas_capacity = 0;
-    std::once_flag s_glyph_atlas_capacity_flag;
+    size_t            s_glyph_atlas_capacity = 0;
+    std::atomic<bool> s_glyph_atlas_capacity_set{false};
 } // namespace
 } // anonymous namespace
 
 void set_glyph_atlas_capacity(size_t max_bytes) {
-    std::call_once(s_glyph_atlas_capacity_flag, [&] {
+    bool expected = false;
+    if (s_glyph_atlas_capacity_set.compare_exchange_strong(
+            expected, true,
+            std::memory_order_acq_rel, std::memory_order_relaxed)) {
         s_glyph_atlas_capacity = max_bytes;
-    });
+    }
 }
 
 namespace {
