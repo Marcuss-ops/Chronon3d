@@ -283,3 +283,28 @@ foreach(_rg_sub_target
     target_include_directories(${_rg_sub_target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include_private)
 endforeach()
 target_include_directories(chronon3d_graph INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include_private)
+
+# P1-E Pass E Commit #4 — software internal headers (software_renderer.hpp,
+# software_backend.hpp) FULL-included by:
+#   - `basic_nodes_common.hpp` (in render_graph/include_private/) →
+#     ALL .cpp files in `chronon3d_graph_nodes`
+#   - `graph_builder_layer_pipeline_pass.cpp` → `chronon3d_graph_builder`
+#   - `preflight.cpp` → `chronon3d_graph_preflight`
+# These sub-targets need explicit PRIVATE access to
+# `src/backends/software/include_private/` because
+# `chronon3d_graph_core` does NOT PUBLIC-link `chronon3d_backend_software`
+# (see graph_core's PUBLIC block); transitive INTERFACE propagation across
+# the umbrella does not auto-resolve, so we bind explicitly.  Other
+# render_graph sub-targets only fwd-decl SoftwareRenderer / consume
+# PIMPL pointers (no full include), so they do not need this wiring.
+foreach(_rg_sw_consumer
+        chronon3d_graph_nodes
+        chronon3d_graph_builder
+        chronon3d_graph_preflight)
+    target_include_directories(${_rg_sw_consumer} PRIVATE ${CMAKE_SOURCE_DIR}/src/backends/software/include_private)
+endforeach()
+# Backward direction — runtime headers (Commit #3) are FULL-included by
+# `software_renderer.hpp` (Compile-time dependency).  chronon3d_backend_software
+# PUBLIC-links `chronon3d_runtime` (Commit #3 pre-emptive edit) so
+# runtime's INTERFACE include_private reaches software's compilation.
+# No additional listing needed here.

@@ -31,7 +31,6 @@
 // ═════════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/assets/asset_registry.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/config.hpp>
@@ -54,6 +53,12 @@ namespace chronon3d {
 namespace image { class ImageBackend; }
 namespace media { class MediaFrameProvider; }
 namespace runtime { class RenderRuntime; }
+// P1-E Pass E — `SoftwareRenderer` was relocated into
+// `src/backends/software/include_private/`; this public SDK header
+// only references it via opaque sidecar pointers + the OPP escape
+// hatch in `advanced::RenderEngineAccess`, so a forward declaration is
+// sufficient (no full include).
+class SoftwareRenderer;
 
 /**
  * RenderEngine — thin public facade for the Chronon3d SDK.
