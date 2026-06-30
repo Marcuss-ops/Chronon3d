@@ -87,7 +87,30 @@ Tutti i punti seguenti devono essere veri:
 4. documentazione e artifact associati allo stesso tag;
 5. API pubblica minima documentata;
 6. header interni esclusi dagli esempi;
-7. artifact Linux riproducibili.
+7. artifact Linux riproducibili;
+8. **P3-H — manifest-clean consumer (TICKET-011 + V0.1 SDK manifest).**
+   Il progetto esterno `tests/install_consumer/`:
+     (a) `#include`s SOLO header elencati in `cmake/Chronon3DPublicHeaders.cmake`
+         (`chronon3d/chronon3d.hpp` + `chronon3d/sdk/*` +
+         `chronon3d/timeline/composition.hpp`);
+     (b) chiama SOLO `RenderEngine::render(...)` + helper SDK di output
+         (es. `chronon3d::save_png`) dalla stessa superficie del
+         manifest;
+     (c) NON raggiunge direttamente o indirettamente (via `try_compile`
+         o altri probe) nessun header `advanced/` /
+         `internal.hpp` / `runtime.hpp` / `test/*`;
+     (d) i `#include` *transitivi* dell'umbrella
+         `chronon3d/chronon3d.hpp` (math/*, animation/*, geometry/*,
+         timeline/composition.hpp, ...) fanno parte del manifest scope:
+         l'umbrella non può esporre il vocabolario pubblico senza di
+         essi. Non sono "creep", sono "manifest scope" documentato.
+   Validazione end-to-end: `tools/install_consumer_test.sh`
+   (`tests/install_consumer/` Phase 4 deve emettere `[BOUNDARY-OK]` e
+   produrre un PNG non completamente nero). I run di Fase-2
+   (`tools/sdk/check_archive_canaries.sh`) e di Fase-3
+   (`tools/sdk/check_feature_ghosts.sh`, opt-in) restano i gate
+   canonici per la copertura del simboli; il consumer manifest-clean
+   è l'invariante pubblica della SDK.
 
 ## Baseline osservata — `main@446a60e2` (2026-06-23)
 
