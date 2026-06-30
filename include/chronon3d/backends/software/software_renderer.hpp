@@ -68,18 +68,13 @@ public:
                                                  i32 width, i32 height, Frame frame = 0,
                                                  f32 frame_time = 0.0f) const;
 
-    // Cat-2 font preflight (Cat-2 framing per AGENTS.md freeze audit).
-    // Public preflight entry: walks scene.layers() once, collects a
-    // representative (font_path, font_size) per text layer, and calls
-    // text_render_resources()->resolve_handle(...) for each unique pair
-    // so the BLFontFace + FreeType caches are primed BEFORE render starts.
-    // TICKET-078 -- preflight_fonts() declaration moved OUT of this header.
-    // The body lives in src/backends/software/software_renderer.cpp, where
-    // the complete `FontPreflightSummary` type is visible (the parent
-    // header keeps ONLY the forward declaration `struct
-    // FontPreflightSummary;` so the value-returning signature compiles
-    // without dragging in <chronon3d/backends/text/text_render_resources.hpp>;
-    // this single-include reduction closes gate-3 I3 from 7 to ≤6).
+    // Cat-2 font preflight.  TICKET-087 — in-class declaration restored;
+    // signature identical to pre-TICKET-078 era; uses
+    // `struct FontPreflightSummary;` forward-decl so this header does
+    // NOT pull in <text_render_resources.hpp> (gate-3 I3 preserved at 6).
+    [[nodiscard]] chronon3d::FontPreflightSummary preflight_fonts(
+        const chronon3d::Scene& scene,
+        const chronon3d::assets::AssetResolver& resolver);
 
     // ── Construction / destruction ─────────────────────────────────────
     explicit SoftwareRenderer(runtime::RenderRuntime& rt, Config config);
