@@ -28,6 +28,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #ifdef CHRONON3D_ENABLE_TEXT
 #include <ft2build.h>
@@ -203,13 +204,91 @@ struct FontFaceHandle {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TextRenderResources — aggregator owning all font caches
+// TextScratchManager — thread-safe reusable scratch pool (FASE 3 thread-safety)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Replaces the previous static BlurScratchPool / TextSurfacePool singletons
+// that lived in src/backends/software/processors/text_run/text_run_processor.cpp.
+// The manager is owned by TextRenderResources (engine-lifetime) and vends
+// RAII handles to acquire/release an isolated TextScratchState for one draw
+// call.  Two concurrent draw_text_run() invocations receive DIFFERENT scratch
+// states — no shared mutable storage, no mutex needed at the per-state level.
+// TSan-clean.
+
+struct TextScratchState {
+    std::vector<uint32_t> blur_buffer;
+
+    struct SurfaceEntry {
+        BLImage image;
+        int w{0};
+        int h{0};
+        uint32_t fmt{BL_FORMAT_PRGB32};
+    };
+    /// Capacity is the legacy value from the static TextSurfacePool
+    /// (5 tiers + final + shadow + crossfade).  Kept here so existing
+    /// memory bounds hold after the static-pool → member migration.
+    static constexpr size_t kMaxPooledSurfaces = 8;
+    std::vector<SurfaceEntry> surface_pool;
+
+    /// Acquire a BLImage of size (w, h, format) from the pool (or create fresh).
+    [[nodiscard]] BLImage acquire_surface(int w, int h, uint32_t fmt = BL_FORMAT_PRGB32);
+    /// Release a BLImage back to the pool (subject to capacity).
+    void release_surface(BLImage img);
+};
+
+class TextScratchManager {
+public:
+    /// RAII handle to a checked-out scratch state.  Releases on destruction.
+    class Handle {
+    public:
+        Handle() = default;
+        Handle(TextScratchState* state, TextScratchManager* manager)
+            : state_(state), manager_(manager) {}
+        ~Handle() { if (manager_ && state_) manager_->release(state_); }
+        Handle(const Handle&) = delete;
+        Handle& operator=(const Handle&) = delete;
+        Handle(Handle&& other) noexcept
+            : state_(other.state_), manager_(other.manager_) {
+            other.state_ = nullptr;
+            other.manager_ = nullptr;
+        }
+        Handle& operator=(Handle&& other) noexcept {
+            if (this != &other) {
+                if (manager_ && state_) manager_->release(state_);
+                state_ = other.state_;
+                manager_ = other.manager_;
+                other.state_ = nullptr;
+                other.manager_ = nullptr;
+            }
+            return *this;
+        }
+        TextScratchState* operator->() const { return state_; }
+        TextScratchState& operator*() const { return *state_; }
+        explicit operator bool() const { return state_ != nullptr; }
+
+    private:
+        TextScratchState* state_{nullptr};
+        TextScratchManager* manager_{nullptr};
+    };
+
+    Handle acquire();
+
+private:
+    void release(TextScratchState* state);
+    std::vector<std::unique_ptr<TextScratchState>> available_;
+    std::mutex mutex_;
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TextRenderResources — aggregator owning all font caches + scratch pool
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // Owned by the renderer/backend.  `resolve_handle()` is the single entry
 // point: it resolves the font path via the AssetResolver, looks up caches,
 // and returns a FontFaceHandle.  File opening happens here (on first use),
-// NOT in the render hot path.
+// NOT in the render hot path.  Also owns the TextScratchManager that vends
+// per-call scratch handles to draw_text_run() — engine-lifetime state but
+// per-call allocation (FASE 3 thread-safety closure).
 
 struct TextRenderResources {
     BLFontFaceCache bl_faces;
@@ -218,6 +297,9 @@ struct TextRenderResources {
     FreeTypeFaceCache ft_faces;
     GlyphOutlineCache outlines;
 #endif
+
+    /// FASE 3 thread-safety: per-call scratch pool engine-owned.
+    TextScratchManager scratch_manager;
 
     /// Build a FontFaceHandle for the given font path + size.
     /// Resolves the path via `resolver` before cache lookup.
