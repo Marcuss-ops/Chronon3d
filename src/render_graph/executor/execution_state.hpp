@@ -43,7 +43,6 @@ struct PreResolvedNode {
     std::pmr::vector<std::optional<raster::BBox>> input_bboxes;
     bool inputs_frame_dependent = false;
     bool has_cacheable_inputs = false;
-    bool inputs_all_cache_hits = false;
     u64 input_hash = 0;
     // Effective opacity at the current frame, evaluated at resolve-time from
     // the layer's m_layer.anim_transform.opacity. Defaults to 1.0 to keep

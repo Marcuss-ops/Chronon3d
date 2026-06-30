@@ -15,7 +15,6 @@ PreResolvedNode resolve_inputs(
     PreResolvedNode pr(res);
     pr.inputs.resize(input_ids.size());
     pr.input_bboxes.resize(input_ids.size());
-    pr.inputs_all_cache_hits = !input_ids.empty();
 
     for (size_t j = 0; j < input_ids.size(); ++j) {
         const GraphNodeId input_id = input_ids[j];
@@ -29,11 +28,6 @@ PreResolvedNode resolve_inputs(
         if (contains_index(state.resolved_frame_dependent, input_id)) {
             pr.inputs_frame_dependent |= (state.resolved_frame_dependent[input_id] != 0);
             pr.has_cacheable_inputs = true;
-        }
-        if (contains_index(state.resolved_cache_hit, input_id)) {
-            pr.inputs_all_cache_hits &= (state.resolved_cache_hit[input_id] != 0);
-        } else {
-            pr.inputs_all_cache_hits = false;
         }
         if (contains_index(state.resolved_key_digest, input_id)) {
             pr.input_hash = hash_combine(pr.input_hash, state.resolved_key_digest[input_id]);
