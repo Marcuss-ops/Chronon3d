@@ -546,7 +546,16 @@ graph::RenderOpResult draw_text_run(
     for (const auto& shadow : shape.shadows) {
         if (!shadow.enabled || shadow.opacity <= 0.0f) continue;
 
-        BLImage shadow_img(img_w, img_h, BL_FORMAT_PRGB32);
+        // perf(text): shadow image comes from the per-call pool, not raw new
+        // (matches the tier-image pattern below).  acquire_surface's internal
+        // raw-new fallback is fine; the safety `if (empty)` covers the
+        // unlikely case where the pool is fully drained.  We then release
+        // explicitly both on the early-out (sh_drawn==0) AND after the
+        // composite, so the surface_pool stays bounded and the next
+        // draw_text_run's acquire_surface hit-rate remains high.
+        BLImage shadow_img = scratch_state.acquire_surface(
+            img_w, img_h, BL_FORMAT_PRGB32);
+        if (shadow_img.empty()) shadow_img = BLImage(img_w, img_h, BL_FORMAT_PRGB32);
         const Color shadow_color = {
             shadow.color.r, shadow.color.g, shadow.color.b,
             shadow.color.a * shadow.opacity
@@ -554,7 +563,10 @@ graph::RenderOpResult draw_text_run(
         const size_t sh_drawn = draw_run_layer(
             shadow_img, shadow_color, detail::bucket_radius_for_tier(shadow.blur),
             shape.glyphs, layout.placed, all_active_glyphs);
-        if (sh_drawn == 0) continue;
+        if (sh_drawn == 0) {
+            scratch_state.release_surface(std::move(shadow_img));
+            continue;
+        }
 
         // Shadow translation: model + image-local offset + shadow offset.
         Mat4 shadow_model = params.model_matrix;
@@ -565,6 +577,8 @@ graph::RenderOpResult draw_text_run(
         chronon3d::blend2d_bridge::composite_bl_image_transformed(
             params.fb, shadow_img, shadow_model,
             params.opacity, BlendMode::Normal);
+        // Image data has been transferred to params.fb; recycle.
+        scratch_state.release_surface(std::move(shadow_img));
     }
 
     // ── Main run: tiered per-glyph blur compositing ──────────────────
@@ -656,6 +670,12 @@ graph::RenderOpResult draw_text_run(
     if (glyphs_drawn == 0) {
         // Nothing visible underneath (e.g. all glyphs had opacity=0 or
         // fell into empty tiers); PR2: explicit outcome with 0 items.
+        // Explicitly release the final-composite pool buffer so the
+        // surface_pool registration stays bounded.  Without this, every
+        // zero-glyph draw_text_run call leaks one slot; the pool's
+        // kMaxPooledSurfaces cap silently drops further allocations
+        // once exhausted.
+        scratch_state.release_surface(std::move(img));
         return graph::RenderOpResult(graph::RenderOpOutcome{0});
     }
 
@@ -674,6 +694,14 @@ graph::RenderOpResult draw_text_run(
 
     chronon3d::blend2d_bridge::composite_bl_image_transformed(
         params.fb, img, full_model, params.opacity, BlendMode::Normal);
+
+    // perf(text): explicit release back to the per-call pool on the SUCCESS
+    // path, not just on early-out.  The image data has been transferred to
+    // params.fb via the composite above; recycling keeps the next draw's
+    // acquire_surface hit-rate high (otherwise kMaxPooledSurfaces grows
+    // unbounded across the lifetime of the engine and falls back to raw-new
+    // every call).
+    scratch_state.release_surface(std::move(img));
 
     if (rctx.counters) {
         rctx.counters->text_glyphs_rasterized.fetch_add(
