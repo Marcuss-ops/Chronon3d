@@ -247,10 +247,15 @@ else echo "PASS"; fi
 # Any NEW call site in per-frame inner loops (src/runtime/, src/scene/builders/,
 # src/render_graph/) is a regression to be blocked.
 #
-# TICKET-036 — `src/timeline/composition.cpp` is also recognised as an
-# authorised adapter site: composition owns the lazy pre-compile of the
-# default camera from the descriptor (see `Composition::default_camera_program`
-# + the comment block in `include/chronon3d/timeline/composition.hpp`).
+# TICKET-036 family — `src/timeline/composition.cpp` AND
+# `src/timeline/compile_evaluate.cpp` are both recognised as authorised
+# adapter sites:
+#   * `composition.cpp` owns the lazy pre-compile of the default camera
+#     from the descriptor (see `Composition::default_camera_program`).
+#   * `compile_evaluate.cpp` is the OPP canonical staging site for
+#     `chronon3d::compile_camera()` — it delegates to
+#     `camera_v1::compile_camera()` and remaps failures to
+#     `CompositionCompileError::CameraFailure` (P3-D).
 # This exemption is surgical: other `src/timeline/` files are still flagged.
 echo -n "  [6/6] compile_camera() call-site policy ... "
 # Only flag CALL sites in .cpp; declarations (.hpp) are allowed because
@@ -265,6 +270,7 @@ hits=$(grep -Rn --include='*.cpp' \
     | grep -Ev 'src/scene/camera/camera_v1/' \
     | grep -Ev 'tests/' \
     | grep -Ev 'src/timeline/composition\.cpp' \
+    | grep -Ev 'src/timeline/compile_evaluate\.cpp' \
     || true)
 if [ -n "$hits" ]; then
     echo "FAIL"; echo "$hits" | sed 's/^/    /'; FAILED=1
