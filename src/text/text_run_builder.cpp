@@ -347,6 +347,34 @@ compile_text_layout(
         return std::move(empty_layout);
     }
 
+    // ── MissingFont check (pre-shape) ────────────────────────
+    // If ALL resolved runs ended up with empty font_path AND empty
+    // font_family after resolve_fallback_fonts(), there is no usable
+    // font for this paragraph.  Surface a structured MissingFont error
+    // so the caller can decide between (a) requesting a font load,
+    // (b) showing a placeholder, or (c) skipping the whole layer.
+    //
+    // This is checked BEFORE the cache lookup — a cache hit would have
+    // produced a glyph anyway, so it can't bypass this guard (cache
+    // entries are written from previously-successful compiles, so a
+    // cache hit cannot have empty font spec).  Cache miss + no font
+    // spec is exactly the failure mode we want to surface.
+    {
+        bool has_font = false;
+        for (const auto& r : para.runs) {
+            if (!r.font.font_path.empty() || !r.font.font_family.empty()) {
+                has_font = true;
+                break;
+            }
+        }
+        if (!has_font) {
+            return TextLayoutError{
+                TextLayoutErrorKind::MissingFont,
+                "compile_text_layout: no usable font resolved for paragraph"
+            };
+        }
+    }
+
     // ── Cache check (single-font paragraphs only) ─────────────────
     std::string para_text = paragraph_source_text(para.runs);
     bool is_single_font = (para.runs.size() == 1);
@@ -371,6 +399,20 @@ compile_text_layout(
 
     // ── Concatenate into one PlacedGlyphRun ────────────────────────
     PlacedGlyphRun merged = concatenate_runs(placed_runs);
+
+    // ── ShapingFailed check (post-shape) ────────────────────
+    // After resolving shape for every run in the paragraph, if the
+    // merged placed run has zero glyphs AND the paragraph text was
+    // non-empty, then HarfBuzz rejected the input even though a
+    // font was provided.  Surface this as a structured ShapingFailed
+    // error (instead of the previous zero-weight silent fallback
+    // that froze animators with total_units=0).
+    if (merged.glyphs.empty() && !para_text.empty()) {
+        return TextLayoutError{
+            TextLayoutErrorKind::ShapingFailed,
+            "compile_text_layout: HarfBuzz produced no glyphs for non-empty paragraph"
+        };
+    }
 
     // ── Paragraph composition ──────────────────────────────────────
     ParagraphStyle comp_style = layout.paragraph;
