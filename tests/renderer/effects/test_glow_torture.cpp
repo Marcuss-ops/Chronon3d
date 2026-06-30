@@ -33,7 +33,7 @@ std::shared_ptr<Framebuffer> render_glow_comp(
     renderer.set_settings(settings);
 
     Composition comp({.width = width, .height = height, .duration = duration}, std::move(build));
-    return renderer.render_frame(comp, frame);
+    return renderer.render(comp, frame);
 }
 
 float max_luma(const Framebuffer& fb) {

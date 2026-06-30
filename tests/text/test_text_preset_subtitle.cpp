@@ -103,7 +103,7 @@ TEST_CASE("TextE2E: render_frame with text produces visible ink pixels") {
             return s.build();
         });
 
-    auto fb = renderer.render_frame(comp, chronon3d::Frame{0});
+    auto fb = renderer.render(comp, chronon3d::Frame{0});
     REQUIRE(fb != nullptr);
 
     int ink = 0;

@@ -31,7 +31,7 @@ inline SoftwareRenderer make_regression_renderer(bool diagnostics = false) {
 inline RenderSample render_sample(SoftwareRenderer& renderer, const Composition& comp, Frame frame) {
     RenderSample sample;
     sample.frame = frame;
-    sample.framebuffer = renderer.render_frame(comp, frame);
+    sample.framebuffer = renderer.render(comp, frame);
     if (sample.framebuffer) {
         sample.bbox = renderer::bright_bbox(*sample.framebuffer);
         sample.centroid = renderer::bright_centroid(*sample.framebuffer);

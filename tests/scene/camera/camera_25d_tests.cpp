@@ -77,7 +77,7 @@ std::shared_ptr<Framebuffer> render_with_camera(
         return s.build();
     });
 
-    return renderer.render_frame(comp, 0);
+    return renderer.render(comp, 0);
 }
 
 } // namespace
@@ -197,7 +197,7 @@ TEST_CASE("Test 9.7 — Camera 2.5D: 3D layers are sorted by depth before render
         return s.build();
     });
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == 200);
     REQUIRE(fb->height() == 200);

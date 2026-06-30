@@ -60,7 +60,7 @@ RenderLoopResult run_render_job_loop(
         {
             const auto hits_before = renderer.node_cache().stats().hits;
             const auto t0 = profiling::now();
-            auto fb = renderer.render_frame(*plan.comp, static_cast<Frame>(f));
+            auto fb = renderer.render(*plan.comp, static_cast<Frame>(f));
             const auto t1 = profiling::now();
             const auto hits_after = renderer.node_cache().stats().hits;
 
@@ -96,7 +96,7 @@ RenderLoopResult run_render_job_loop(
             for (; f < effective_end; f += plan.range.step) {
                 const auto hits_before_n = renderer.node_cache().stats().hits;
                 const auto t0_n = profiling::now();
-                auto fb_n = renderer.render_frame(*plan.comp, static_cast<Frame>(f));
+                auto fb_n = renderer.render(*plan.comp, static_cast<Frame>(f));
                 const auto t1_n = profiling::now();
                 const auto hits_after_n = renderer.node_cache().stats().hits;
 

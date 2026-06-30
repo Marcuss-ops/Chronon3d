@@ -424,8 +424,8 @@ TEST_CASE("TEST MATH 12 - Temporal Stability") {
 
     auto renderer = test::make_renderer();
 
-    auto fb0 = renderer.render_frame(scene, 0);
-    auto fb1 = renderer.render_frame(scene_shifted, 1);
+    auto fb0 = renderer.render(scene, 0);
+    auto fb1 = renderer.render(scene_shifted, 1);
     REQUIRE(fb0 != nullptr);
     REQUIRE(fb1 != nullptr);
     CHECK(framebuffer_has_only_finite(*fb0));

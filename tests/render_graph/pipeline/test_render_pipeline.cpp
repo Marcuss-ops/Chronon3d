@@ -140,11 +140,11 @@ TEST_CASE("render_graph_uses_framebuffer_pool") {
     }};
 
     // First frame — populates pool
-    renderer.render_frame(comp, 0);
+    renderer.render(comp, 0);
     auto reuses_after_first = renderer.counters()->framebuffer_reuses.load();
 
     // Second frame — should reuse pool buffers (or hit static fast-path)
-    renderer.render_frame(comp, 1);
+    renderer.render(comp, 1);
     auto reuses_after_second = renderer.counters()->framebuffer_reuses.load();
 
     // With the static fast-path, second frame may skip graph execution

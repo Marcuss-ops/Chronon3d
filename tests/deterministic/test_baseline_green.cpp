@@ -137,7 +137,7 @@ ArenaPinnedRenderResult render_in_arena(int slots, SoftwareRenderer& r,
                                           const Composition& comp, Frame frame) {
     ArenaPinnedRenderResult out;
     auto body = [&] {
-        auto fb = r.render_frame(comp, frame);
+        auto fb = r.render(comp, frame);
         if (!fb) return;
         out.fb = std::move(fb);
         out.hash = framebuffer_hash(*out.fb);
@@ -213,7 +213,7 @@ TEST_CASE("Baseline green §1: 30 fresh renderers produce identical composite ha
 
     for (int i = 0; i < 30; ++i) {
         auto renderer = test::make_renderer();   // fresh per render
-        auto fb = renderer.render_frame(comp, 0);
+        auto fb = renderer.render(comp, 0);
         REQUIRE(fb != nullptr);
         hashes.push_back(framebuffer_hash(*fb));
     }
@@ -342,7 +342,7 @@ TEST_CASE("Baseline green §4: 30 consecutive composite-full-frame renders — p
     hashes.reserve(30);
 
     for (int i = 0; i < 30; ++i) {
-        auto fb = renderer.render_frame(comp, 0);
+        auto fb = renderer.render(comp, 0);
         REQUIRE(fb != nullptr);
         hashes.push_back(framebuffer_hash(*fb));
     }
@@ -375,8 +375,8 @@ TEST_CASE("Baseline green §5: composite path SSIM ≥ 0.999 across 2 renders") 
     auto comp = make_baseline_composite_comp();
     auto renderer = test::make_renderer();
 
-    auto fb1 = renderer.render_frame(comp, 0);
-    auto fb2 = renderer.render_frame(comp, 0);
+    auto fb1 = renderer.render(comp, 0);
+    auto fb2 = renderer.render(comp, 0);
     REQUIRE(fb1 != nullptr);
     REQUIRE(fb2 != nullptr);
 
@@ -452,12 +452,12 @@ TEST_CASE("Baseline green §6: precomp cache-hit determinism — two consecutive
     renderer.set_composition_registry(&registry);
 
     // First frame: cache miss (compile from registry)
-    auto fb_miss = renderer.render_frame(parent_comp, Frame{0});
+    auto fb_miss = renderer.render(parent_comp, Frame{0});
     REQUIRE(fb_miss != nullptr);
     const std::uint64_t hash_miss = framebuffer_hash(*fb_miss);
 
     // Second frame (identical input): cache hit
-    auto fb_hit = renderer.render_frame(parent_comp, Frame{1});
+    auto fb_hit = renderer.render(parent_comp, Frame{1});
     REQUIRE(fb_hit != nullptr);
     const std::uint64_t hash_hit = framebuffer_hash(*fb_hit);
 

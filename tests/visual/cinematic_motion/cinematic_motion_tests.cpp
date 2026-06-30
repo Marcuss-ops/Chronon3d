@@ -59,7 +59,7 @@ TEST_CASE("Cinematic Motion: SampleTimeSubframeComb — 8 distinct sub-frame pos
     auto renderer = make_test_renderer();
     auto comp = make_subframe_comb_scene();
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 960);
     CHECK(fb->height() == 540);
@@ -132,7 +132,7 @@ TEST_CASE("Cinematic Motion: SampleTimeContinuityContactSheet — smooth sub-fra
     std::vector<std::shared_ptr<Framebuffer>> panels;
     for (int i = 0; i < 9; ++i) {
         const Frame frame_int{static_cast<i32>(std::floor(30.0 + kOffsets[i]))};
-        panels.push_back(renderer.render_frame(animated_comp, frame_int));
+        panels.push_back(renderer.render(animated_comp, frame_int));
     }
 
     auto metrics = analyze_contact_sheet(panels);
@@ -154,8 +154,8 @@ TEST_CASE("Cinematic Motion: TemporalCacheParity — cache hit + invalidation") 
 
     // Render the same frame twice to test cache hit.
     auto renderer_a = make_test_renderer();
-    auto fb_a1 = renderer_a.render_frame(comp, 30);
-    auto fb_a2 = renderer_a.render_frame(comp, 30);
+    auto fb_a1 = renderer_a.render(comp, 30);
+    auto fb_a2 = renderer_a.render(comp, 30);
     REQUIRE(fb_a1 != nullptr);
     REQUIRE(fb_a2 != nullptr);
 
@@ -164,7 +164,7 @@ TEST_CASE("Cinematic Motion: TemporalCacheParity — cache hit + invalidation") 
     CHECK(diff_hit < 0.001);
 
     // Render a different frame — outputs should differ.
-    auto fb_b = renderer_a.render_frame(comp, 35);
+    auto fb_b = renderer_a.render(comp, 35);
     REQUIRE(fb_b != nullptr);
     double diff_version = mean_abs_diff(*fb_a1, *fb_b);
     CHECK(diff_version > 0.001);
@@ -181,7 +181,7 @@ TEST_CASE("Cinematic Motion: BezierHandles3D — ortho views with handles") {
     auto renderer = make_test_renderer();
     auto comp = make_bezier_handles_3d_scene();
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 960);
     CHECK(fb->height() == 540);
@@ -216,7 +216,7 @@ TEST_CASE("Cinematic Motion: ArcLengthSpacing — parametric vs arc-length") {
     auto renderer = make_test_renderer();
     auto comp = make_arc_length_spacing_scene();
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
 
     auto metrics = analyze_arc_length_spacing(*fb);
@@ -241,7 +241,7 @@ TEST_CASE("Cinematic Motion: TemporalSpatialCurveSeparation — timing vs path i
     auto renderer = make_test_renderer();
     auto comp = make_temporal_spatial_separation_scene();
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
 
     // Verify: bezier path P0..P3 are the same regardless of timing.
@@ -273,7 +273,7 @@ TEST_CASE("Cinematic Motion: QuaternionShortestPath — shortest arc from +179°
     auto renderer = make_test_renderer();
     auto comp = make_quaternion_shortest_path_scene();
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 960);
     CHECK(fb->height() == 540);
@@ -312,7 +312,7 @@ TEST_CASE("Cinematic Motion: QuaternionPathOrientation — 16 frustums along S-c
     auto renderer = make_test_renderer();
     auto comp = make_quaternion_path_orientation_scene();
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 960);
     CHECK(fb->height() == 540);
@@ -425,8 +425,8 @@ TEST_CASE("Cinematic Motion: ArcLengthCacheInvalidation — handle change alters
     auto comp_before = make_arc_length_cache_invalidation_before();
     auto comp_after  = make_arc_length_cache_invalidation_after();
 
-    auto fb_before = renderer.render_frame(comp_before, 0);
-    auto fb_after  = renderer.render_frame(comp_after, 0);
+    auto fb_before = renderer.render(comp_before, 0);
+    auto fb_after  = renderer.render(comp_after, 0);
     REQUIRE(fb_before != nullptr);
     REQUIRE(fb_after != nullptr);
 

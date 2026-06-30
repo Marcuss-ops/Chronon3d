@@ -44,7 +44,7 @@ std::shared_ptr<Framebuffer> render_with_effects(
         return s.build();
     });
 
-    return renderer.render_frame(comp, 0);
+    return renderer.render(comp, 0);
 }
 
 u64 fb_hash(const Framebuffer& fb) {
@@ -171,8 +171,8 @@ TEST_CASE("Test 10.7 — Disabled effects do not affect hash or rendering") {
         return scene;
     });
 
-    auto fb1 = renderer.render_frame(comp_no_effect, 0);
-    auto fb2 = renderer.render_frame(comp_disabled_effect, 0);
+    auto fb1 = renderer.render(comp_no_effect, 0);
+    auto fb2 = renderer.render(comp_disabled_effect, 0);
 
     REQUIRE(fb1 != nullptr);
     REQUIRE(fb2 != nullptr);

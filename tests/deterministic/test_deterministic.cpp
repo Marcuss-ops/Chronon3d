@@ -96,7 +96,7 @@ TEST_CASE("Render Determinism & Telemetry Hash") {
 
     // Render run 1
     renderer.counters()->reset();
-    auto fb1 = renderer.render_frame(comp, 0);
+    auto fb1 = renderer.render(comp, 0);
 
     REQUIRE(fb1 != nullptr);
 
@@ -119,7 +119,7 @@ TEST_CASE("Render Determinism & Telemetry Hash") {
     u64 hash1 = get_pixel_hash(*fb1);
 
     // Render run 2
-    auto fb2 = renderer.render_frame(comp, 0);
+    auto fb2 = renderer.render(comp, 0);
     REQUIRE(fb2 != nullptr);
     u64 hash2 = get_pixel_hash(*fb2);
 

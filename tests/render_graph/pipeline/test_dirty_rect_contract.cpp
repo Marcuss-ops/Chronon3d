@@ -55,8 +55,8 @@ TEST_CASE("DirtyRectContract: static scene is pixel-identical with and without d
     renderer_opt.set_settings(s_opt);
 
     for (int f = 0; f < spec.duration; ++f) {
-        auto fb_base = renderer_base.render_frame(comp, f);
-        auto fb_opt = renderer_opt.render_frame(comp, f);
+        auto fb_base = renderer_base.render(comp, f);
+        auto fb_opt = renderer_opt.render(comp, f);
         REQUIRE(fb_base != nullptr);
         REQUIRE(fb_opt != nullptr);
         INFO("Frame ", f);
@@ -84,8 +84,8 @@ TEST_CASE("DirtyRectContract: animated scene is pixel-identical with dirty rects
     renderer_opt.set_settings(s_opt);
 
     for (int f = 0; f < spec.duration; ++f) {
-        auto fb_base = renderer_base.render_frame(comp, f);
-        auto fb_opt = renderer_opt.render_frame(comp, f);
+        auto fb_base = renderer_base.render(comp, f);
+        auto fb_opt = renderer_opt.render(comp, f);
         REQUIRE(fb_base != nullptr);
         REQUIRE(fb_opt != nullptr);
         INFO("Frame ", f);
@@ -116,7 +116,7 @@ TEST_CASE("DirtyRectContract: dirty pixels counter is less than total pixels") {
 
     // Render enough frames to exercise dirty rect tracking
     for (int f = 1; f < spec.duration; ++f) {
-        renderer.render_frame(comp, f);
+        renderer.render(comp, f);
     }
 
     const auto* counters = renderer.counters();

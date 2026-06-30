@@ -174,7 +174,7 @@ TEST_CASE("Golden: MinimalistImageTrackingBreathing frame 50") {
     const auto comp = make_breathing_comp();
 
     const Frame test_frame{50};
-    auto rendered = renderer.render_frame(comp, test_frame);
+    auto rendered = renderer.render(comp, test_frame);
     REQUIRE(rendered != nullptr);
 
     // Verify dimensions
@@ -199,7 +199,7 @@ TEST_CASE("Golden: MinimalistImageTrackingBreathing frame 1 (static check)") {
     const auto comp = make_breathing_comp();
 
     const Frame test_frame{1};
-    auto rendered = renderer.render_frame(comp, test_frame);
+    auto rendered = renderer.render(comp, test_frame);
     REQUIRE(rendered != nullptr);
 
     // Frame 1: tracking_breathing at scale ~1.0003 (barely started)
@@ -219,9 +219,9 @@ TEST_CASE("Golden: consecutive frames produce different output (animation)") {
     auto renderer = test::make_renderer();
     const auto comp = make_breathing_comp();
 
-    auto fb0 = renderer.render_frame(comp, Frame{0});
-    auto fb25 = renderer.render_frame(comp, Frame{25});
-    auto fb50 = renderer.render_frame(comp, Frame{50});
+    auto fb0 = renderer.render(comp, Frame{0});
+    auto fb25 = renderer.render(comp, Frame{25});
+    auto fb50 = renderer.render(comp, Frame{50});
 
     REQUIRE(fb0 != nullptr);
     REQUIRE(fb25 != nullptr);

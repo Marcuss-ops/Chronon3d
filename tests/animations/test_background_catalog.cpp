@@ -43,7 +43,7 @@ TEST_CASE("Analytical verification of GridCleanBackground render") {
     auto comp = registry.create("GridCleanBackground");
     REQUIRE(comp.name() == "GridCleanBackground");
     
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 1920);
     CHECK(fb->height() == 1080);

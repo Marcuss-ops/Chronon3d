@@ -17,7 +17,7 @@ FrameCache render_frames(SoftwareRenderer& renderer, const Composition& comp) {
     FrameCache out;
     for (int f : runtime_kf()) {
         const auto t0 = std::chrono::steady_clock::now();
-        auto fb = renderer.render_frame(comp, Frame{f});
+        auto fb = renderer.render(comp, Frame{f});
         const auto t1 = std::chrono::steady_clock::now();
         REQUIRE(fb != nullptr);
         REQUIRE(fb->width()  == kCompW);
