@@ -87,11 +87,18 @@ public:
     /// (≡ `session.arena()`) and the behaviour is bit-equal to the
     /// legacy `execute(RenderSession&, ...)` overload.
     ///
-    /// If `scope.would_overflow()` returns true, the executor logs the
-    /// overflow deterministically via spdlog and returns `nullptr` —
-    /// downstream callers (`tile_execution_coordinator.cpp`,
-    /// `precomp_node_execute.cpp`) interpret null as the documented
-    /// "engine error / fall back to empty fb" per docs/03-§4.4.
+    /// If `execute_with_scope` returns `nullptr`, downstream callers
+    /// (`tile_execution_coordinator.cpp`, `precomp_node_execute.cpp`)
+    /// interpret null as the documented "engine error / fall back to
+    /// empty fb" per docs/03-§4.4.
+    ///
+    /// FASE 5 — overflow is no longer possible on the public path.
+    /// `scope` MUST have been constructed via
+    /// `ExecutionScope::make_root()` or `ExecutionScope::make_child()`,
+    /// both of which enforce the chain-length and arena-aliasing
+    /// invariants documented in `core/scope/execution_scope.hpp`.
+    /// Callers that bypass these factories obtain undefined behavior at
+    /// link time — the 5-arg explicit ctor is `private` post-FASE-5.
     [[nodiscard]] std::shared_ptr<Framebuffer> execute_with_scope(
         CompiledFrameGraph& compiled,
         RenderGraphContext& ctx,
