@@ -1,135 +1,254 @@
-# ── Renderer & Graph Tests ──
+# ============================================================================
+# tests/renderer_tests.cmake — Renderer test suite split (§13)
+#
+# The monolithic chronon3d_renderer_tests executable (85 sources) is split
+# into 6 per-area targets.  The old name becomes a custom target aggregator
+# that DEPENDS on all six.  Source inventory is canonically recorded in
+# tests/baselines/renderer_before.txt — the §13.13 gate diffs the sorted
+# union of the 6 target source lists against that baseline.
+#
+# Target               | Area                    | Sources
+# ---------------------|-------------------------|--------
+# renderer_core_tests  | Core / lighting / perf  | 21 + test_main
+# render_graph_tests   | Graph compiler/pipeline | 27 + test_main
+# effects_tests        | Effect catalog/pipeline | 19 + test_main
+# camera_tests         | Camera / DOF / 2.5D     | 10 + test_main
+# golden_tests         | Golden snapshot suites  |  5 + test_main
+# precomp_tests        | Precomp node cache      |  1 + test_main
+#
+# NOTE — Pre-existing test compilation errors (NOT caused by this split):
+#   * test_mask_node_unit.cpp, test_multi_source_text_run.cpp:
+#     RenderGraphContext missing members (frame, options, camera)
+#   * test_precomp_node_cache.cpp, test_multi_source_text_run.cpp:
+#     SoftwareRenderer* → RenderBackend* conversion failure
+#   * test_mask_node_rg_integration.cpp: SoftwareRenderer& vs RenderBackend&
+#   These errors exist in the C++ test code and would also fail in the
+#     old monolithic target.  Fix in the C++ code, not here.
+# ============================================================================
 
-# Blend2D-dependent test sources (only compiled when Blend2D is available)
-set(RENDERER_BLEND2D_TESTS "")
+# ── Shared link contract (§11.1 INTEGRATION tier) ────────────────────
+# All 6 targets were previously linked into the monolithic
+# chronon3d_renderer_tests executable.  We replicate the same link
+# closure so each split target compiles independently.
+set(_RENDERER_LINK_TARGETS
+    chronon3d_sdk
+    chronon3d_sdk_impl
+    chronon3d_pipeline
+    chronon3d_scene
+)
+
+# ── Shared post-target properties ────────────────────────────────────
+# Every split target needs the same include dirs, compile defs, and
+# UNITY_BUILD=OFF setting that the monolithic executable had.
+macro(_chronon3d_renderer_target_finalize _target)
+    target_include_directories(${_target} PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${Stb_INCLUDE_DIR}
+    )
+    target_compile_definitions(${_target} PRIVATE
+        CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+    )
+    if(CHRONON3D_BUILD_CONTENT)
+        target_link_libraries(${_target} PRIVATE chronon3d_content)
+        target_compile_definitions(${_target} PRIVATE
+            CHRONON3D_HAS_CONTENT_MINIMALIST
+            CHRONON3D_HAS_CONTENT_2D5
+        )
+    endif()
+    set_target_properties(${_target} PROPERTIES UNITY_BUILD OFF)
+endmacro()
+
+# ── Renderer Core (21 sources) ───────────────────────────────────────
+# Lighting, stabilization, telemetry, software backend, perf, shapes.
+chronon3d_add_test_suite(
+    NAME   chronon3d_renderer_core_tests
+    TIER   INTEGRATION
+    LINK_TARGETS ${_RENDERER_LINK_TARGETS}
+    SOURCES
+        backends/software/sampling/test_sampler2d.cpp
+        backends/software/text_run_processor_tests.cpp
+        backends/software/utils/test_projection_utils.cpp
+        cache/test_cache_sharding.cpp
+        cache/test_tile_cache.cpp
+        deterministic/test_deterministic.cpp
+        registry/test_registries.cpp
+        renderer/helpers/test_stroke_gradient_helpers.cpp
+        renderer/lighting/test_depth_aware_shadows.cpp
+        renderer/lighting/test_directional_lights.cpp
+        renderer/lighting/test_light_context.cpp
+        renderer/lighting/test_lighting_rig.cpp
+        renderer/lighting/test_shadows.cpp
+        renderer/perf/test_motion_blur_integration.cpp
+        renderer/perf/test_render_perf.cpp
+        runtime/test_telemetry.cpp
+        runtime/test_telemetry_report.cpp
+        runtime/test_telemetry_semantic.cpp
+        scene/shapes/mask_tests.cpp
+        stabilization/test_stabilization.cpp
+)
+_chronon3d_renderer_target_finalize(chronon3d_renderer_core_tests)
+
+# Blend2D-gated source (text_run_processor_tests transitively needs it)
 if(CHRONON3D_USE_BLEND2D)
-    list(APPEND RENDERER_BLEND2D_TESTS
+    target_sources(chronon3d_renderer_core_tests PRIVATE
         renderer/test_blend_pixel_nan.cpp
     )
 endif()
 
-add_executable(chronon3d_renderer_tests
-    ${TEST_MAIN}
-    renderer/camera/test_camera_motion.cpp
-    renderer/camera/test_animated_camera.cpp
-    renderer/camera/test_camera_rig.cpp
-    ${RENDERER_BLEND2D_TESTS}
-    renderer/camera/test_dof.cpp
-    renderer/camera/test_lens_model.cpp
-    renderer/camera/test_per_pixel_dof.cpp
-    renderer/effects/test_adjustment_layer.cpp
-    renderer/effects/test_advanced_effects.cpp
-    renderer/effects/test_effect_stack.cpp
-    renderer/effects/test_glow_torture.cpp
-    renderer/effects/test_invariants.cpp
-    renderer/media/test_video_card.cpp
-    stabilization/test_stabilization.cpp
-    renderer/perf/test_render_perf.cpp
-    renderer/perf/test_motion_blur_integration.cpp
-    renderer/lighting/test_light_context.cpp
-    renderer/lighting/test_directional_lights.cpp
-    renderer/lighting/test_shadows.cpp
-    renderer/lighting/test_lighting_rig.cpp
-    renderer/lighting/test_depth_aware_shadows.cpp
-    renderer/2d5/test_card3d_rasterizer.cpp
-    renderer/2d5/test_depth_grade.cpp
-    render_graph/features/test_unified_transform_path.cpp
-    backends/software/sampling/test_sampler2d.cpp
-    backends/software/text_run_processor_tests.cpp
-    backends/software/utils/test_projection_utils.cpp
-    render_graph/features/test_transition.cpp
-    registry/test_registries.cpp
-    cache/test_cache_sharding.cpp
-    cache/test_tile_cache.cpp
-    effects/test_effect_catalog.cpp
-    effects/test_effect_catalog_data.cpp
-    effects/test_exposure_levels.cpp
-    effects/test_levels.cpp
-    effects/test_fill_noise_offset.cpp
-    effects/test_directional_blur.cpp
-    effects/test_radial_blur.cpp
-    effects/test_stroke.cpp
-    effects/test_curves.cpp
-    effects/test_compose_color_op.cpp
-    effects/test_effect_execution_context.cpp
-    deterministic/test_deterministic.cpp
-    render_graph/pipeline/test_render_pipeline.cpp
-    render_graph/pipeline/test_line_grid.cpp
-    render_graph/pipeline/test_pipeline_robustness.cpp
-    render_graph/pipeline/test_graph_health.cpp
-    render_graph/pipeline/test_grid_math.cpp
-    render_graph/pipeline/test_render_backend.cpp
-    render_graph/pipeline/test_dirty_rects.cpp
-    render_graph/pipeline/test_dirty_rect_contract.cpp
-    render_graph/optimizer/test_graph_optimizer.cpp
-    render_graph/compiler/test_frame_graph_compiler.cpp
-    render_graph/pipeline/test_dirty_rects_v2.cpp
-    render_graph/pipeline/test_tile_grid.cpp
-    render_graph/pipeline/test_dirty_tiles_output.cpp
-    render_graph/pipeline/test_tile_parallel.cpp
-    render_graph/pipeline/test_graph_preflight_diagnostics.cpp
-    renderer/2d5/test_card3d_material.cpp
-    renderer/helpers/test_stroke_gradient_helpers.cpp
-    effects/effect_graph_tests.cpp
-    scene/shapes/mask_tests.cpp
-    golden/golden_render_tests.cpp
-    golden/glow_golden_tests.cpp
-    golden/stroked_shape_golden_tests.cpp
-    golden/suite_chronon3d_tests.cpp
-    golden/roadmap_2_5d_suite.cpp
-    runtime/test_telemetry.cpp
-    runtime/test_telemetry_semantic.cpp
-    runtime/test_telemetry_report.cpp
-    render_graph/test_velocity_buffer_motion_blur.cpp
-    render_graph/test_post_processing_system.cpp
-    render_graph/nodes/test_precomp_node_cache.cpp
-    render_graph/core/test_node_identity.cpp
-    render_graph/cache/test_scene_program_store.cpp
-    render_graph/nodes/test_multi_source_text_run.cpp
-    # PR2 — node coverage (4 categories × 2 levels: ShadowNode, PerPixelDofNode,
-    # MaskNode, GlowPipeline) − 8 sources total below
-    render_graph/nodes/test_shadow_node_unit.cpp
-    render_graph/nodes/test_shadow_node_rg_integration.cpp
-    render_graph/nodes/test_per_pixel_dof_node_unit.cpp
-    render_graph/nodes/test_per_pixel_dof_node_rg_integration.cpp
-    render_graph/nodes/test_mask_node_unit.cpp
-    render_graph/nodes/test_mask_node_rg_integration.cpp
-    renderer/effects/test_glow_pipeline_unit.cpp
-    renderer/effects/test_glow_pipeline_rg_integration.cpp
-)
-target_link_libraries(chronon3d_renderer_tests
-    PRIVATE
-        chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline
-        chronon3d_scene
-        doctest::doctest
-        # TICKET-006: two of the test sources below call chronon3d_text_core
-        # symbols whose definitions live in chronon3d_backend_text:
-        #   - backends/software/text_run_processor_tests.cpp
-        #     (uses shape_resolved_run, text_run_materialize)
-        #   - render_graph/nodes/test_multi_source_text_run.cpp
-        #     (multi-source text fan-out, transitively touches the same path)
-        # Without this link the linker errors with:
-        #   'undefined symbol: chronon3d::shape_resolved_run(...)'
-        #   'undefined symbol: chronon3d::text_run_materialize(...)'
-        #
-        # Gen-exp form (per task brief) — implicit coupling: this guard
-        # relies on `chronon3d_backend_text` only being defined when both
-        # CHRONON3D_ENABLE_TEXT=ON and CHRONON3D_USE_BLEND2D=ON (see
-        # src/backends/text/CMakeLists.txt). If those target-defining
-        # conditions ever diverge, the if-endif form in tests/core_tests.cmake
-        # / tests/scene_tests.cmake remains the more defensive pattern; a
-        # follow-up cleanup should pick one style cluster-wide.
-        $<$<TARGET_EXISTS:chronon3d_backend_text>:chronon3d_backend_text>
-)
-if(CHRONON3D_BUILD_CONTENT)
-    target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_content)
-    target_include_directories(chronon3d_renderer_tests PRIVATE ${CMAKE_SOURCE_DIR})
-    target_compile_definitions(chronon3d_renderer_tests PRIVATE CHRONON3D_HAS_CONTENT_MINIMALIST CHRONON3D_HAS_CONTENT_2D5)
+# Text backend for text_run_processor_tests + multi_source_text_run
+if(TARGET chronon3d_backend_text)
+    target_link_libraries(chronon3d_renderer_core_tests PRIVATE
+        chronon3d_backend_text
+    )
 endif()
-target_compile_definitions(chronon3d_renderer_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-target_include_directories(chronon3d_renderer_tests PRIVATE ${CMAKE_SOURCE_DIR})
-target_include_directories(chronon3d_renderer_tests PRIVATE ${Stb_INCLUDE_DIR})
-# Disable unity build to prevent anonymous namespace collisions (e.g. colors_near)
-set_target_properties(chronon3d_renderer_tests PROPERTIES UNITY_BUILD OFF)
-chronon3d_enable_test_pch(chronon3d_renderer_tests)
-add_test(NAME chronon3d_renderer_tests COMMAND chronon3d_renderer_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+# §12.3 — Blend2D-gated source (only needs separate registration when OFF)
+if(CHRONON3D_USE_BLEND2D)
+    chronon3d_register_test_source(renderer/test_blend_pixel_nan.cpp)
+else()
+    chronon3d_register_test_source(
+        renderer/test_blend_pixel_nan.cpp
+        REQUIRES CHRONON3D_USE_BLEND2D
+    )
+endif()
+
+# ── Render Graph (27 sources) ────────────────────────────────────────
+# Compiler, pipeline, nodes, features, post-processing, motion blur.
+chronon3d_add_test_suite(
+    NAME   chronon3d_render_graph_tests
+    TIER   INTEGRATION
+    LINK_TARGETS ${_RENDERER_LINK_TARGETS}
+    SOURCES
+        render_graph/cache/test_scene_program_store.cpp
+        render_graph/compiler/test_frame_graph_compiler.cpp
+        render_graph/core/test_node_identity.cpp
+        render_graph/features/test_transition.cpp
+        render_graph/features/test_unified_transform_path.cpp
+        render_graph/nodes/test_mask_node_rg_integration.cpp
+        render_graph/nodes/test_mask_node_unit.cpp
+        render_graph/nodes/test_multi_source_text_run.cpp
+        render_graph/nodes/test_per_pixel_dof_node_rg_integration.cpp
+        render_graph/nodes/test_per_pixel_dof_node_unit.cpp
+        render_graph/nodes/test_shadow_node_rg_integration.cpp
+        render_graph/nodes/test_shadow_node_unit.cpp
+        render_graph/optimizer/test_graph_optimizer.cpp
+        render_graph/pipeline/test_dirty_rect_contract.cpp
+        render_graph/pipeline/test_dirty_rects.cpp
+        render_graph/pipeline/test_dirty_rects_v2.cpp
+        render_graph/pipeline/test_dirty_tiles_output.cpp
+        render_graph/pipeline/test_graph_health.cpp
+        render_graph/pipeline/test_graph_preflight_diagnostics.cpp
+        render_graph/pipeline/test_grid_math.cpp
+        render_graph/pipeline/test_line_grid.cpp
+        render_graph/pipeline/test_pipeline_robustness.cpp
+        render_graph/pipeline/test_render_backend.cpp
+        render_graph/pipeline/test_render_pipeline.cpp
+        render_graph/pipeline/test_tile_grid.cpp
+        render_graph/pipeline/test_tile_parallel.cpp
+        render_graph/test_post_processing_system.cpp
+        render_graph/test_velocity_buffer_motion_blur.cpp
+)
+_chronon3d_renderer_target_finalize(chronon3d_render_graph_tests)
+
+if(TARGET chronon3d_backend_text)
+    target_link_libraries(chronon3d_render_graph_tests PRIVATE
+        chronon3d_backend_text
+    )
+endif()
+
+# §12.3 — register handled by chronon3d_add_test_suite above.
+
+# ── Effects (19 sources) ─────────────────────────────────────────────
+# Effect catalog, curves, blur, stroke, glow pipeline.
+chronon3d_add_test_suite(
+    NAME   chronon3d_effects_tests
+    TIER   INTEGRATION
+    LINK_TARGETS ${_RENDERER_LINK_TARGETS}
+    SOURCES
+        effects/effect_graph_tests.cpp
+        effects/test_compose_color_op.cpp
+        effects/test_curves.cpp
+        effects/test_directional_blur.cpp
+        effects/test_effect_catalog.cpp
+        effects/test_effect_catalog_data.cpp
+        effects/test_effect_execution_context.cpp
+        effects/test_exposure_levels.cpp
+        effects/test_fill_noise_offset.cpp
+        effects/test_levels.cpp
+        effects/test_radial_blur.cpp
+        effects/test_stroke.cpp
+        renderer/effects/test_adjustment_layer.cpp
+        renderer/effects/test_advanced_effects.cpp
+        renderer/effects/test_effect_stack.cpp
+        renderer/effects/test_glow_pipeline_rg_integration.cpp
+        renderer/effects/test_glow_pipeline_unit.cpp
+        renderer/effects/test_glow_torture.cpp
+        renderer/effects/test_invariants.cpp
+)
+_chronon3d_renderer_target_finalize(chronon3d_effects_tests)
+
+# §12.3 — register handled by chronon3d_add_test_suite above.
+
+# ── Camera (10 sources) ──────────────────────────────────────────────
+# Camera motion, DOF, lens model, 2.5D, video card.
+chronon3d_add_test_suite(
+    NAME   chronon3d_camera_tests
+    TIER   INTEGRATION
+    LINK_TARGETS ${_RENDERER_LINK_TARGETS}
+    SOURCES
+        renderer/camera/test_animated_camera.cpp
+        renderer/camera/test_camera_motion.cpp
+        renderer/camera/test_camera_rig.cpp
+        renderer/camera/test_dof.cpp
+        renderer/camera/test_lens_model.cpp
+        renderer/camera/test_per_pixel_dof.cpp
+        renderer/2d5/test_card3d_material.cpp
+        renderer/2d5/test_card3d_rasterizer.cpp
+        renderer/2d5/test_depth_grade.cpp
+        renderer/media/test_video_card.cpp
+)
+_chronon3d_renderer_target_finalize(chronon3d_camera_tests)
+
+# §12.3 — register handled by chronon3d_add_test_suite above.
+
+# ── Golden (5 sources) ───────────────────────────────────────────────
+# Golden snapshot suites — glow, stroked shapes, 2.5D roadmap.
+chronon3d_add_test_suite(
+    NAME   chronon3d_golden_tests
+    TIER   INTEGRATION
+    LINK_TARGETS ${_RENDERER_LINK_TARGETS}
+    SOURCES
+        golden/glow_golden_tests.cpp
+        golden/golden_render_tests.cpp
+        golden/roadmap_2_5d_suite.cpp
+        golden/stroked_shape_golden_tests.cpp
+        golden/suite_chronon3d_tests.cpp
+)
+_chronon3d_renderer_target_finalize(chronon3d_golden_tests)
+
+# §12.3 — register handled by chronon3d_add_test_suite above.
+
+# ── Precomp (1 source) ───────────────────────────────────────────────
+# Precomp node cache — isolated so it compiles independently from the
+# full render_graph test bag.
+chronon3d_add_test_suite(
+    NAME   chronon3d_precomp_tests
+    TIER   INTEGRATION
+    LINK_TARGETS ${_RENDERER_LINK_TARGETS}
+    SOURCES
+        render_graph/nodes/test_precomp_node_cache.cpp
+)
+_chronon3d_renderer_target_finalize(chronon3d_precomp_tests)
+
+# §12.3 — register handled by chronon3d_add_test_suite above.
+
+# ── Aggregate custom target (old name → DEPENDS on all 6) ────────────
+add_custom_target(chronon3d_renderer_tests
+    DEPENDS
+        chronon3d_renderer_core_tests
+        chronon3d_render_graph_tests
+        chronon3d_effects_tests
+        chronon3d_camera_tests
+        chronon3d_golden_tests
+        chronon3d_precomp_tests
+)
