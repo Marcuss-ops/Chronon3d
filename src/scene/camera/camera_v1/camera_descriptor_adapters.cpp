@@ -327,10 +327,12 @@ camera_descriptor_from(const chronon3d::Camera& legacy_cam) {
     d.base.lens.gate_fit      = chronon3d::GateFit::Fill;
 
     // DoF + motion blur stay at their struct defaults (enabled = false).
-    // Composition's `redecompose_camera_from_descriptor(SampleTime)` flips
-    // fov_deg in-place on the legacy field as a one-way projection; this
-    // adapter produces the FULL descriptor surface that the renderer
-    // compiles through (no field flattening required downstream).
+    // Composition previously exposed `redecompose_camera_from_descriptor(...)`
+    // that flipped fov_deg in-place on the legacy field as a one-way
+    // projection.  That helper has been REMOVED in P3-F (Composition has
+    // no mutable camera state any more).  This adapter produces the FULL
+    // descriptor surface that the renderer compiles through, leaving
+    // no field flattening responsibility at the call site.
 
     return d;
 }
