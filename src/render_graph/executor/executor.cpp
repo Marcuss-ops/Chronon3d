@@ -114,32 +114,20 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
 
 // PR 6.1 — additive overload.  Reads `scope.session()` and `scope.arena()`
 // so callers can pass a typed `ExecutionScope&` (with an explicit
-// parent-chain + child-arena).  PR 6.5 — if `scope.would_overflow()`
-// returns true (chain depth > kMaxScopeChainLength was clamped at ctor time),
-// log the overflow deterministically via spdlog and return nullptr per
-// docs/03-§4.4 (empty fb / engine error convention).
+// parent-chain + child-arena).
 //
-// Code-reviewer finding (Nit Pick Nick, 1st pass): gate the spdlog::warn
-// behind `spdlog::should_log(level::warn)` so the warning doesn't spam
-// the log when spdlog's level filter excludes `warn` (e.g. benchmark
-// runs at level::err or higher).
+// FASE 5 — overflow is no longer possible on the public path: `make_child`
+// is the ONLY way to obtain a non-root scope, and it rejects
+// `parent->chain_length() >= kMaxScopeChainLength` with
+// `ScopeError::ChainLimitExceeded` before the scope is constructed.  The
+// previous `if (scope.would_overflow()) { ... return nullptr; }` branch
+// has been removed as structural dead code.
 std::shared_ptr<Framebuffer> GraphExecutor::execute_with_scope(
     CompiledFrameGraph& compiled,
     RenderGraphContext& ctx,
     ExecutionScope& scope,
     ExecutionScheduler& scheduler
 ) const {
-    if (scope.would_overflow()) {
-        constexpr auto kLevel = spdlog::level::warn;
-        if (spdlog::should_log(kLevel)) {
-            spdlog::log(
-                kLevel,
-                "[graph_executor] scope depth clamped at kMaxScopeChainLength={} "
-                "(proposed chain exceeded bound) — returning empty fb per PR 6.5",
-                static_cast<int>(kMaxScopeChainLength));
-        }
-        return nullptr;
-    }
     return execute_internal(
         compiled, ctx, scope.session(), scope.arena(), scheduler);
 }

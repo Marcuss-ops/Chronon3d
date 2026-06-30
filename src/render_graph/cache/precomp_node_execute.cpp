@@ -165,9 +165,10 @@ OwnedFB PrecompNode::execute_with_scope(
     }
 
     // ── 2. Hoisted PrecompInstanceKey — single computation reused by §3
-    //      (lease acquire), §3b (set_on_evict), §6 (parent_root graph id +
-    //      precomp_scope graph id + set_owner_key).  Eliminates 3
-    //      redundant `instance_key(ctx)` walks in the previous version.
+    //      (lease acquire), §3b (set_on_evict), §6 (parent_root graph id,
+    //      precomp_scope graph id — owner_key is applied via make_child
+    //      arg in §9-§8).  Eliminates 3 redundant `instance_key(ctx)`
+    //      walks in the previous version.
     const auto precomp_key = instance_key(ctx);
 
     // ── 3. Fetch nested composition & build nested context ──────────────
