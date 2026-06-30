@@ -115,7 +115,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
 // PR 6.1 — additive overload.  Reads `scope.session()` and `scope.arena()`
 // so callers can pass a typed `ExecutionScope&` (with an explicit
 // parent-chain + child-arena).  PR 6.5 — if `scope.would_overflow()`
-// returns true (chain depth > kMaxScopeDepth was clamped at ctor time),
+// returns true (chain depth > kMaxScopeChainLength was clamped at ctor time),
 // log the overflow deterministically via spdlog and return nullptr per
 // docs/03-§4.4 (empty fb / engine error convention).
 //
@@ -134,9 +134,9 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_with_scope(
         if (spdlog::should_log(kLevel)) {
             spdlog::log(
                 kLevel,
-                "[graph_executor] scope depth clamped at kMaxScopeDepth={} "
+                "[graph_executor] scope depth clamped at kMaxScopeChainLength={} "
                 "(proposed chain exceeded bound) — returning empty fb per PR 6.5",
-                static_cast<int>(kMaxScopeDepth));
+                static_cast<int>(kMaxScopeChainLength));
         }
         return nullptr;
     }
