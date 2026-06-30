@@ -43,14 +43,6 @@ namespace chronon3d::cache {
     class FramebufferPool;
 }
 
-namespace chronon3d {
-    struct TextRenderResources;
-}
-
-namespace chronon3d::assets {
-    class AssetResolver;
-}
-
 namespace chronon3d::backends::text {
     // TICKET-011d — defined under include/chronon3d/backends/text/.
     class TextRasterService;
@@ -60,8 +52,8 @@ namespace chronon3d {
 
 /// SoftwareBackendServices — flat pointer bundle that mirrors what
 /// `SoftwareBackend` needs at construction time.  Replaces the
-/// legacy multi-arg SoftwareBackend ctor + m_owner back-pointer with
-/// a single services-object ctor (TICKET-011b / Fase 4).
+/// 3-arg SoftwareBackend ctor with a single services-object ctor
+/// (TICKET-011b).
 ///
 /// All pointers are non-owning and must outlive the backend.  Lifetime
 /// invariant: `SoftwareBackendServices ≤ RenderRuntime lifetime`.
@@ -70,21 +62,19 @@ namespace chronon3d {
 ///   - counters          : REQUIRED.  Atomic counters, mutated in-place
 ///                         by apply_blur / composite / draw_node.
 ///   - settings          : REQUIRED.  Render-policy carrier (force_scalar,
-///                         etc.).
+///                         etc.); preserved here for the few legacy
+///                         overrides that still consult m_settings.
 ///   - framebuffer_pool  : REQUIRED.  Acquire path for OwnedFBs.
-///   - asset_resolver    : REQUIRED for text_run.  Font path resolution.
-///   - text_resources    : REQUIRED for text_run.  Pre-loaded font caches.
 ///   - images            : optional.  Nullptr skips image node draw.
 ///   - text_raster       : optional in 011a; becomes REQUIRED once
-///                         TICKET-011d lands.
+///                         TICKET-011d lands (TextRasterService
+///                         replaces static anon cache).
 ///   - debug_config      : optional.  Nullptr suppresses per-instance
-///                         debug overlays.
+///                         debug overlays in text/blur pipelines.
 struct SoftwareBackendServices {
     RenderCounters*                                  counters{nullptr};
     const RenderSettings*                            settings{nullptr};
-    std::shared_ptr<cache::FramebufferPool>          framebuffer_pool;
-    const assets::AssetResolver*                     asset_resolver{nullptr};
-    TextRenderResources*                             text_resources{nullptr};
+    cache::FramebufferPool*                          framebuffer_pool{nullptr};
     ImageRenderer*                                   images{nullptr};
     chronon3d::backends::text::TextRasterService*   text_raster{nullptr};
     const DebugConfig*                               debug_config{nullptr};
