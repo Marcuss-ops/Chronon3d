@@ -12,17 +12,20 @@
 
 namespace chronon3d::renderer {
 
+// FASE 3 (TICKET-079) — pip mode, set once at startup by SoftwareRenderer.
+// std::once_flag redundant with s_pip_mode_set flag already in place; explicit
+// `if (!s_pip_mode_set)` guard retains first-call-wins semantics (per AGENTS.md
+// pattern `is serialised + idempotent without an external std::once_flag`).
 namespace {
     bool           s_pip_mode_set = false;
     bool           s_use_simd     = false;
-    std::once_flag s_pip_mode_flag;
 } // namespace
 
 void set_pip_mode(bool use_simd) {
-    std::call_once(s_pip_mode_flag, [&] {
+    if (!s_pip_mode_set) {
         s_use_simd     = use_simd;
         s_pip_mode_set = true;
-    });
+    }
 }
 
 PipMode get_pip_mode() {
