@@ -9,6 +9,12 @@
 #include <chronon3d/text/text_resolver.hpp>
 #include <chronon3d/text/text_unit_map.hpp>        // TextUnitMap (used by build_text_unit_map)
 
+// TICKET-092: INTERNAL accumulator types (cat-3 freeze — NOT in include/).
+// Provides CompiledParagraphResult / TextDocumentCompileResult /
+// compile_text_document().  See header doc-comment for the per-paragraph
+// failure preservation contract.
+#include "text_document_compile_result.hpp"
+
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -198,28 +204,62 @@ void apply_composition_to_placed(
 
 namespace {
 
+// TICKET-092: spacing_collapse rewritten to use `source_index` as the
+// bridge between the accumulator vector and the resolved tree.  The
+// previous implementation assumed `result.paragraphs[i] == tree.paragraphs[i]`
+// (no per-paragraph failure), which broke the post-process pass the moment
+// any paragraph returned Err: the loop would index into the WRONG tree
+// paragraph (using vector offset instead of source ordinal) and the bounds
+// adjustment would target a paragraph unrelated to the one being spaced.
+//
+// Contract: this pass is a no-op between two paragraphs that are not
+// BOTH Ok.  When paragraph `i` fails to compile, the spacing_collapse
+// chain is BROKEN at `i`: the loop sees (Ok at i-1, Err at i) and skips,
+// then (Err at i, Ok at i+1) and skips again.  This is the conservative
+// behaviour — a missing middle paragraph's space_after / space_before
+// cannot be reasoned about, so we leave the Ok siblings at their
+// pre-collapse bounds.y.  Callers that need a specific gap-recovery
+// policy (e.g. collapse across the missing paragraph) should add a
+// follow-up patch; the cat-3 freeze keeps the contract minimal here.
 inline void apply_spacing_collapse(
-    TextRunBuildResult& result,
+    text_internal::TextDocumentCompileResult& compile_result,
     const ResolvedTextTree& tree,
     const TextLayoutSpec& layout
 ) {
     using ParagraphStyle = chronon3d::ParagraphStyle;
     using ParagraphSpacingCollapse = chronon3d::ParagraphSpacingCollapse;
 
-    if (result.paragraphs.size() < 2) return;
+    if (compile_result.paragraphs.size() < 2) return;
     if (tree.paragraphs.size() < 2) return;
 
-    for (size_t i = 1; i < result.paragraphs.size(); ++i) {
+    for (std::size_t i = 1; i < compile_result.paragraphs.size(); ++i) {
+        auto& prev_entry = compile_result.paragraphs[i - 1];
+        auto& cur_entry  = compile_result.paragraphs[i];
+
+        // Skip pairs that are not BOTH Ok (Err paragraphs have no
+        // bounds to adjust and break the spacing chain — see contract).
+        if (!prev_entry.result || !cur_entry.result) continue;
+
+        // Defensive: source_index must be valid for the resolved tree.
+        if (prev_entry.source_index >= tree.paragraphs.size()) continue;
+        if (cur_entry.source_index  >= tree.paragraphs.size()) continue;
+
+        // TICKET-092: bridge via source_index — the resolved tree's
+        // paragraphs are indexed by the ORIGINAL doc ordinal, not by
+        // the accumulator's vector position.
+        const auto& prev_tree_para = tree.paragraphs[prev_entry.source_index];
+        const auto& cur_tree_para  = tree.paragraphs[cur_entry.source_index];
+
         ParagraphStyle prev_style;
-        if (!(tree.paragraphs[i-1].style == ParagraphStyle{})) {
-            prev_style = tree.paragraphs[i-1].style;
+        if (!(prev_tree_para.style == ParagraphStyle{})) {
+            prev_style = prev_tree_para.style;
         } else {
             prev_style = layout.paragraph;
         }
 
         ParagraphStyle cur_style;
-        if (!(tree.paragraphs[i].style == ParagraphStyle{})) {
-            cur_style = tree.paragraphs[i].style;
+        if (!(cur_tree_para.style == ParagraphStyle{})) {
+            cur_style = cur_tree_para.style;
         } else {
             cur_style = layout.paragraph;
         }
@@ -240,12 +280,12 @@ inline void apply_spacing_collapse(
 
         // Step 1: remove prev.space_after from prev paragraph's bounds.
         if (prev_after > 0.0f) {
-            result.paragraphs[i-1]->bounds.y -= prev_after;
+            prev_entry.result.value()->bounds.y -= prev_after;
         }
         // Step 2: replace cur.space_before with merged_gap (delta shift).
         const float delta = merged_gap - cur_before;
         if (delta != 0.0f) {
-            result.paragraphs[i]->bounds.y += delta;
+            cur_entry.result.value()->bounds.y += delta;
         }
     }
 }
@@ -542,18 +582,30 @@ compile_text_layout(
 // build_text_run — backward-compatible multi-paragraph wrapper
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// Iterates paragraphs in the resolved tree; for each paragraph, builds
-// a synthetic single-paragraph TextDocument, calls compile_text_layout,
-// and accumulates the result into a TextRunBuildResult.  Preserves the
-// external API (TextRunBuildResult) and derives the same per-paragraph
-// invariants compile_text_layout guarantees.  Errors from
-// compile_text_layout are logged via spdlog::warn and the paragraph is
-// skipped (better than a silent empty layout).
+// TICKET-092 refactor: this wrapper is now a THIN filter around
+// `text_internal::compile_text_document` (the canonical accumulator).
+// The accumulator carries Ok AND Err per-paragraph results with a
+// `source_index` bridge, then runs `apply_spacing_collapse` with the
+// bridge.  This wrapper only converts the accumulator into the legacy
+// `TextRunBuildResult` shape (Ok-only `paragraphs` vector) and emits
+// the per-paragraph diagnostic that the previous implementation
+// inlined as `spdlog::warn + goto next_paragraph`.
 //
-// This dual-resolve (compile_text_layout resolves the tree, build_text_run
-// also resolves it) is a temporary atomicity cost: a follow-up commit
-// will thread the resolved tree through both paths.  Cost is one extra
-// O(paragraphs) pass per call and is acceptable.
+// Why a thin wrapper (rather than keeping the loop here)?
+//   - The accumulator pattern (carry Ok+Err with source_index) is the
+//     primary contract being added.  Inlining it here would re-introduce
+//     the spdlog::warn+skip pattern that TICKET-092 explicitly removes.
+//   - The accumulator is the natural input to `apply_spacing_collapse`
+//     because both share the `source_index` bridge.  Keeping the loop
+//     in `build_text_run` and calling spacing_collapse on the filtered
+//     Ok-only result would re-introduce the result[i] == tree[i] bug.
+//   - Tests that need to assert per-paragraph failure (the test added
+//     by TICKET-092) call `compile_text_document` directly to inspect
+//     the full accumulator; build_text_run is no longer the only
+//     compile-pipeline entry point.
+//
+// The pre-loop `auto tree = resolve_text_run_tree(...)` is no longer
+// needed here — `compile_text_document` resolves internally.
 
 TextRunBuildResult build_text_run(
     const TextDocument& doc,
@@ -567,9 +619,67 @@ TextRunBuildResult build_text_run(
         return result;
     }
 
-    // Resolve once for wrapper-level concerns (paragraph iteration
-    // count + spacing_collapse).  compile_text_layout re-resolves
-    // internally; that duplication is documented above.
+    // Delegate to the canonical accumulator.  After the call, `result`
+    // (TextRunBuildResult) is built by filtering Ok entries and
+    // emitting the per-paragraph diagnostic that callers used to see
+    // via the inlined spdlog::warn + goto next_paragraph.
+    auto compile_result = text_internal::compile_text_document(
+        doc, engine, layout, cache);
+
+    for (auto& entry : compile_result.paragraphs) {
+        if (entry.result) {
+            result.paragraphs.push_back(
+                std::const_pointer_cast<TextRunLayout>(entry.result.value()));
+        } else {
+            // Per-paragraph diagnostic — preserved from the previous
+            // implementation (spdlog::warn + skip) so log-scrapers
+            // looking for `paragraph N skipped` keep working.  The
+            // accumulator no longer needs the diagnostic; only this
+            // public wrapper does, for backward-compat.
+            spdlog::warn(
+                "build_text_run: paragraph {} skipped — {}",
+                entry.source_index, entry.result.error().message);
+        }
+    }
+
+    return result;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// compile_text_document — INTERNAL canonical accumulator (TICKET-092)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The single source of truth for per-paragraph compile outcomes.  Walks
+// the resolved tree once, runs the multi-font pre-check (TICKET-101
+// verdict Issue #3 closure at the public surface), invokes
+// `compile_text_layout` per paragraph, and accumulates Ok AND Err
+// results into a `TextDocumentCompileResult`.  Then calls
+// `apply_spacing_collapse` with the `source_index` bridge so the
+// spacing pass uses the ORIGINAL doc ordinal, not the accumulator's
+// vector position.
+//
+// This function is the sole reason `apply_spacing_collapse` and
+// `build_text_run` can be refactored to drop the warn+skip pattern:
+// every per-paragraph outcome is preserved (Ok → value, Err → error
+// in the Result), every paragraph has a `source_index` ordinal, and
+// the post-process passes can pick the right tree paragraph without
+// re-deriving an offset.
+namespace text_internal {
+
+TextDocumentCompileResult compile_text_document(
+    const TextDocument& doc,
+    FontEngine& engine,
+    const TextLayoutSpec& layout,
+    TextLayoutCache* cache
+) {
+    TextDocumentCompileResult result;
+    result.complete = true;  // optimistic; flipped to false on any Err
+
+    if (doc.utf8.empty() && doc.paragraphs.empty()) {
+        return result;  // empty doc → 0 paragraphs, complete=true
+    }
+
+    // Resolve once for both iteration + spacing_collapse.
     auto tree = resolve_text_run_tree(doc, engine);
 
     TextCompileServices services{&engine, cache};
@@ -577,67 +687,62 @@ TextRunBuildResult build_text_run(
     const FontSpec primary_font = doc.defaults.font;
 
     for (std::size_t i = 0; i < tree.paragraphs.size(); ++i) {
-        // ── TICKET-101: multi-font rejection at the public wrapper ─────────
-        // Verdict Issue #3 stabilization requires UnsupportedMultiFontRun
-        // to surface from the PUBLIC wrapper (build_text_run) so it cannot
-        // be bypassed by direct compile_text_layout callers.  Per-paragraph
-        // runs are inspected for divergent FontSpec (different font_path /
-        // font_family / font_weight / font_style).  When divergence is
-        // detected the paragraph is logged + skipped — this matches the
-        // pre-Phase-1.4 semantic that the wrapper rejected the paragraph
-        // (the additive font_spans path in compile_text_layout is retained
-        // for direct callers who need it; build_text_run enforces strict
-        // single-font policy).  TICKET-105 is the umbrella identity /
-        // preservation test suite that locks this contract.
+        CompiledParagraphResult entry;
+        entry.source_index = i;
+
+        // ── TICKET-101: multi-font pre-check (verdict Issue #3) ────────
+        // The wrapper enforces strict single-font policy.  Direct
+        // compile_text_layout callers retain the Phase 1.4 additive
+        // font_spans path.  When divergence is detected the paragraph
+        // is accumulated as Err(UnsupportedMultiFontRun) — the
+        // accumulator carries it through apply_spacing_collapse and
+        // lets callers identify the failing paragraph via source_index.
         if (tree.paragraphs[i].runs.size() > 1) {
             const FontSpec& base = tree.paragraphs[i].runs.front().font;
+            bool divergent = false;
             for (std::size_t ri = 1; ri < tree.paragraphs[i].runs.size(); ++ri) {
                 const FontSpec& r = tree.paragraphs[i].runs[ri].font;
                 if (r.font_path != base.font_path
                     || r.font_family != base.font_family
                     || r.font_weight != base.font_weight
                     || r.font_style  != base.font_style) {
-                    spdlog::warn(
-                        "build_text_run: paragraph {} skipped — "
-                        "UnsupportedMultiFontRun (span {} font differs from run 0).",
-                        i, ri);
-                    goto next_paragraph;  // skip the entire paragraph
+                    divergent = true;
+                    break;
                 }
+            }
+            if (divergent) {
+                entry.result = Err(TextLayoutError{
+                    TextLayoutErrorKind::UnsupportedMultiFontRun,
+                    "compile_text_document: paragraph " + std::to_string(i)
+                    + " is multi-font (span font differs from run 0)"
+                });
+                result.paragraphs.push_back(std::move(entry));
+                result.complete = false;
+                continue;
             }
         }
 
-        {
-            // ── TICKET-101: pass the ORIGINAL document + paragraph_index ───
-            // No more synthesized para_doc.  Span overrides (font_size,
-            // tracking), paragraph style (direction, language, line_height),
-            // and feature-set all live on the ORIGINAL doc and are
-            // preserved 1:1 through resolve_text_run_tree().  The
-            // synthesized para_doc previously only carried utf8 + defaults.font,
-            // silently dropping span overrides and paragraph style — the
-            // root cause of review P0 #2 (rich-text info destroyed by wrapper).
-            TextLayoutRequest request{
-                &doc,        // ORIGINAL document (no synthesis)
-                &layout,
-                primary_font,
-                i,           // TICKET-101: paragraph_index
-            };
-            auto compiled = compile_text_layout(request, services);
-            if (!compiled) {
-                spdlog::warn(
-                    "build_text_run: paragraph {} skipped — {}",
-                    i, compiled.error().message);
-                goto next_paragraph;
-            }
-            result.paragraphs.push_back(
-                std::const_pointer_cast<TextRunLayout>(compiled.value()));
+        // ── Compile via the canonical compiler (TICKET-101 contract) ──
+        TextLayoutRequest request{
+            &doc,
+            &layout,
+            primary_font,
+            i,
+        };
+        entry.result = compile_text_layout(request, services);
+        if (!entry.result) {
+            result.complete = false;
         }
-        next_paragraph:;
+        result.paragraphs.push_back(std::move(entry));
     }
 
     // ── TEXT-PLY-01: wire spacing_collapse across consecutive paragraphs ──
+    // TICKET-092: uses `source_index` as the bridge into tree.paragraphs.
     apply_spacing_collapse(result, tree, layout);
 
     return result;
 }
+
+} // namespace text_internal
 
 } // namespace chronon3d
