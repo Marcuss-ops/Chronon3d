@@ -521,13 +521,17 @@ inline f32 keyframes(Frame current, std::initializer_list<KF> kfs) {
 //   • evaluation depends on bezier (eval_temporal_bezier) AND roving
 //   • expressions forwards public FillStyle/StrokeStyle declarations
 //
-// expressions.hpp opens/closes its own chronon3d namespace; the disjoint-
-// namespace concatenation rule (C++ [namespace.memdef]) merges those
-// declarations into the outer `chronon3d::` namespace.
+// IMPORTANT: expressions.hpp is included OUTSIDE `namespace chronon3d`
+// because it opens its own `namespace chronon3d { }` block.  If included
+// INSIDE the outer namespace block, this creates a nested
+// `chronon3d::chronon3d` namespace (the `expressions.hpp` namespace is
+// NOT merged with the outer one — nested-namespace rules apply).  The
+// .inl files do NOT open a namespace and must remain inside.
 // ==============================================================================
-#include <chronon3d/animation/core/detail/animated_value_expressions.hpp>
 #include <chronon3d/animation/core/detail/animated_value_bezier.inl>
 #include <chronon3d/animation/core/detail/animated_value_roving.inl>
 #include <chronon3d/animation/core/detail/animated_value_evaluation.inl>
 
 } // namespace chronon3d
+
+#include <chronon3d/animation/core/detail/animated_value_expressions.hpp>
