@@ -74,8 +74,10 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
     auto compiled = compiler.compile(std::move(graph), graph_ctx);
     RenderSession session;
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
-    graph::ExecutionScope root_scope(
-        graph::ExecutionScopeKind::Root, session, compiled.graph_instance_id);
+    // FASE 5 — ExecutionScope public direct-ctor is closed; route
+    // through make_root() with the session's own arena.
+    graph::ExecutionScope root_scope = graph::ExecutionScope::make_root(
+        session, session.arena(), compiled.graph_instance_id);
     auto& executor = renderer->runtime().executor(); // Section 5 fix.
     auto fb = executor.execute_with_scope(
         compiled, graph_ctx, root_scope, scheduler);
