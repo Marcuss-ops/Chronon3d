@@ -204,8 +204,10 @@ private:
 #ifdef CHRONON3D_ENABLE_TEXT
     std::unique_ptr<FontEngine> m_font_engine;
 #endif
-    // Fase 3 — pre-loaded font caches for text rendering
+    // Fase 4 — SoftwareRegistry now owned directly by SoftwareRenderer,
+    // no longer forwarded through RenderRuntime.
     std::unique_ptr<TextRenderResources> m_text_render_resources;
+    std::unique_ptr<renderer::SoftwareRegistry> m_software_registry;
     SoftwareRenderSession m_session;
 };
 

@@ -9,6 +9,7 @@
 
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
+#include <chronon3d/backends/software/runtime_adapter.hpp>
 
 #include "utils/render_effects_processor.hpp"
 #include <chronon3d/backends/software/software_renderer.hpp>
@@ -108,11 +109,13 @@ SoftwareRenderer::SoftwareRenderer(runtime::RenderRuntime& rt, Config config)
     : m_config(std::move(config))
     , m_owned_runtime_storage{}
     , m_runtime(&rt)
+    , m_software_registry(std::make_unique<renderer::SoftwareRegistry>())
 #ifdef CHRONON3D_ENABLE_TEXT
     , m_font_engine(std::make_unique<FontEngine>(m_runtime->resolver()))
     , m_text_render_resources(std::make_unique<TextRenderResources>())
 #endif
 {
+    backends::software::register_builtin_processors(*m_software_registry);
 }
 
 SoftwareRenderer::SoftwareRenderer(Config config)
@@ -121,10 +124,12 @@ SoftwareRenderer::SoftwareRenderer(Config config)
     m_owned_runtime_storage =
         std::make_unique<runtime::RenderRuntime>(m_config);
     m_runtime = m_owned_runtime_storage.get();
+    m_software_registry = std::make_unique<renderer::SoftwareRegistry>();
 #ifdef CHRONON3D_ENABLE_TEXT
     m_font_engine = std::make_unique<FontEngine>(m_runtime->resolver());
     m_text_render_resources = std::make_unique<TextRenderResources>();
 #endif
+    backends::software::register_builtin_processors(*m_software_registry);
 }
 
 // Move ops use real rvalue-ref (no EAST-CONST hack). See header.
@@ -149,11 +154,10 @@ SoftwareRenderer::SoftwareRenderer(SoftwareRenderer&& other) noexcept
     , m_text_render_resources(
           std::move(other.m_text_render_resources))
 #endif
+    , m_software_registry(
+          std::move(other.m_software_registry))
     , m_session(std::move(other.m_session))
 {
-    // Leave the moved-from object in a destructible-but-empty state:
-    // unset m_runtime + m_registry (raw pointers; ownership already
-    // moved out via the unique_ptr transfers above).
     m_runtime = nullptr;
     m_registry = nullptr;
 }
@@ -174,6 +178,7 @@ SoftwareRenderer::operator=(SoftwareRenderer&& other) noexcept
     m_font_engine    = std::move(other.m_font_engine);
     m_text_render_resources = std::move(other.m_text_render_resources);
 #endif
+    m_software_registry = std::move(other.m_software_registry);
     m_session        = std::move(other.m_session);
     other.m_runtime = nullptr;
     other.m_registry = nullptr;
@@ -274,8 +279,8 @@ void SoftwareRenderer::update_dirty_telemetry(bool rect_enabled, std::optional<r
 // into the header would exceed the boundary-gate I3 ≤ 6-include budget, so
 // the implementation lives here where the type is complete (this TU already
 // pulls the header via `software_renderer.hpp`'s user clients).
-renderer::SoftwareRegistry& SoftwareRenderer::software_registry()             { return m_runtime->software_registry(); }
-const renderer::SoftwareRegistry& SoftwareRenderer::software_registry() const { return m_runtime->software_registry(); }
+renderer::SoftwareRegistry& SoftwareRenderer::software_registry()             { return *m_software_registry; }
+const renderer::SoftwareRegistry& SoftwareRenderer::software_registry() const { return *m_software_registry; }
 graph::GraphNodeCatalog& SoftwareRenderer::graph_node_registry()             { return m_runtime->graph_node_registry(); }
 const graph::GraphNodeCatalog& SoftwareRenderer::graph_node_registry() const { return m_runtime->graph_node_registry(); }
 effects::EffectCatalog& SoftwareRenderer::effect_catalog()                   { return m_runtime->effect_catalog(); }

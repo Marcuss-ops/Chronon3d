@@ -31,11 +31,13 @@ int dry_run_video_job(const VideoJobPlan& plan) {
     try {
         auto renderer = create_renderer(*plan.registry, plan.settings);
         // 06 R3b — `create_renderer` returns `std::shared_ptr<SoftwareRenderer>`
-        // (the canonical CLI-side wire).  No dynamic_cast required.
+        // (the canonical CLI-side wire).  No dynamic_cast required; route the
+        // first arg through `->backend()` (post-R3b SoftwareRenderer derives
+        // only from Renderer, no implicit IS-A upcast to RenderBackend).
         spdlog::info("[dry-run]   Backend: SoftwareRenderer");
         cache::NodeCache node_cache;
         auto fb = graph::render_composition_frame(
-            *renderer, node_cache, plan.settings, plan.registry,
+            renderer->backend(), node_cache, plan.settings, plan.registry,
             nullptr, *plan.comp, plan.start);
         if (!fb) {
             spdlog::warn("[dry-run]   First frame render returned null");
