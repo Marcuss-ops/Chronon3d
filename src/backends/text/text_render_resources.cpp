@@ -116,14 +116,64 @@ struct FTFaceStorage {
 // `FT_Done_Face` via the custom deleter, AT THE LATEST when the last
 // `FontFaceHandle::ft_lifeline` is destroyed.
 
+// ── TICKET-069: RAII guard for the debug-only in_flight_ counter ────────
+//
+// Definition deliberately placed here (not in the header) so the field can
+// stay private on FreeTypeFaceCache without polluting the public surface
+// with an extra friend declaration.  Stripped in release builds (NDEBUG).
+#ifndef NDEBUG
+namespace {
+struct InFlightGuard {
+    std::atomic<int>& counter;
+    explicit InFlightGuard(std::atomic<int>& c) noexcept : counter(c) {
+        counter.fetch_add(1, std::memory_order_relaxed);
+    }
+    ~InFlightGuard() {
+        counter.fetch_sub(1, std::memory_order_relaxed);
+    }
+    InFlightGuard(const InFlightGuard&)            = delete;
+    InFlightGuard& operator=(const InFlightGuard&) = delete;
+    InFlightGuard(InFlightGuard&&)                 = delete;
+    InFlightGuard& operator=(InFlightGuard&&)      = delete;
+};
+} // namespace
+#endif // !defined(NDEBUG)
+
 FreeTypeFaceCache::FreeTypeFaceCache(std::atomic<bool>* fence) noexcept : fence_(fence) {}
+
+#ifndef NDEBUG
+// TICKET-069: enforce the lease-anchor lifetime contract at runtime.  The
+// unordered_map destructor that follows this assert drops shared_ptrs —
+// potentially the LAST ref drop, firing `FT_Done_Face(raw)` while another
+// thread might still be inside get_face() (use-after-free).  A concurrent
+// get_face() call increments `in_flight_` (RAII guard in get_face()) so
+// this load catches the bug before the destructor proceeds.  Acquire
+// ordering here guarantees all relaxed `fetch_sub` writes from any
+// in-flight get_face() return path complete before we sample the counter.
+FreeTypeFaceCache::~FreeTypeFaceCache() {
+    assert(in_flight_.load(std::memory_order_acquire) == 0 &&
+           "FreeTypeFaceCache destroyed while get_face() in flight "
+           "(TICKET-069: lease-anchor lifetime contract violated; "
+           "ensure no concurrent get_face() calls before destruction)");
+}
+#else
 FreeTypeFaceCache::~FreeTypeFaceCache() = default;
+#endif
 
 std::shared_ptr<FT_Face> FreeTypeFaceCache::get_face(
     const std::string& resolved_path,
     int face_index,
     f32 font_size
 ) {
+#ifndef NDEBUG
+    // TICKET-069: RAII increment.  Placement BEFORE the lock_guard means
+    // even a thread BLOCKED on mutex_ acquisition counts as in-flight, so
+    // concurrent destruction while threads are queued on the mutex fires
+    // the destructor assert.  Decrement fires on every return path
+    // (normal, early-return, throw via std::runtime_error) — the guard's
+    // destructor runs during scope unwind.
+    InFlightGuard guard(in_flight_);
+#endif
     std::lock_guard<std::mutex> lock(mutex_);
 
     // Reject invalid requests BEFORE touching FreeType so a caller bug
