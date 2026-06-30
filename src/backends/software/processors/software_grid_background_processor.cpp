@@ -3,7 +3,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 
-#include "src/backends/software/kernels/grid_background_kernel.hpp"
+#include "../kernels/grid_background_kernel.hpp"
 // R2: draw() now consumes the slim processor context POD.
 #include <chronon3d/backends/software/software_processor_context.hpp>
 

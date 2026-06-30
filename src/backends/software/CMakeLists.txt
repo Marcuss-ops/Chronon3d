@@ -48,47 +48,11 @@ if(TARGET chronon3d_backend_text)
     target_compile_definitions(chronon3d_backend_software PRIVATE CHRONON3D_HAS_BACKEND_TEXT)
 endif()
 
-# Break the chronon3d_runtime<->chronon3d_backend_software OBJECT cycle that
-# CMake rejects (PUBLIC OBJ<->PUBLIC OBJ strongly-connected component).
-# The P1-E Pass E include-private path that the removed PUBLIC link
-# propagated (\`<chronon3d/runtime/render_runtime.hpp>\` from
-# src/runtime/include_private/) is restored here as an explicit PRIVATE
-# include directory.  This preserves every compile-time include resolution
-# that software_renderer.cpp / software_backend.cpp / software_compositor.cpp
-# relied on, with zero .cpp changes.  Direction runtime->backend_software
-# (in src/runtime/CMakeLists.txt) is intentionally kept PUBLIC: a
-# one-directional cycle does not register in CMake's strongly-connected
-# component detector.
-target_include_directories(chronon3d_backend_software PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/runtime/include_private
-)
-
-# Conditional private link for diagnostics target.
-# (See src/backends/software/diagnostics/CMakeLists.txt for the target itself.)
-
-target_include_directories(chronon3d_backend_software PRIVATE ${Stb_INCLUDE_DIR} ${CMAKE_SOURCE_DIR})
 if(CHRONON3D_BUILD_DIAGNOSTICS)
     target_link_libraries(chronon3d_backend_software PRIVATE chronon3d_backend_software_diagnostics)
 endif()
-target_include_directories(chronon3d_backend_software PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(chronon3d_backend_software PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR})
 
-# P1-E Pass E — internal type headers for software (SoftwareRenderer,
-# SoftwareBackend, text_run_processor, buffer_ring) moved out of
-# include/chronon3d/ into this submodule's include_private/.  PRIVATE
-# for backend_software's own .cpp compilation; INTERFACE so
-# cross-module PRIVATE-link consumers (render_graph sub-targets that
-# FULL-include software_renderer.hpp / software_backend.hpp via
-# `basic_nodes_common.hpp` / `graph_builder_layer_pipeline_pass.cpp` /
-# `preflight.cpp`) auto-resolve `<chronon3d/backends/software/...>`.
-# Cross-target wiring in Commit #4 also adds explicit PRIVATE listings
-# for `src/backends/software/include_private/` on these graph
-# sub-targets so PRIVATE-link propagation works without depending on
-# INTERFACE transitive resolution.
-# NEVER installed: `install(DIRECTORY include/)` does not traverse src/.
-target_include_directories(chronon3d_backend_software
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include_private
-    INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include_private>
-)
 target_precompile_headers(chronon3d_backend_software PRIVATE
     <chronon3d/detail/pch.hpp>
 )
