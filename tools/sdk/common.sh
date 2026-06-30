@@ -37,14 +37,14 @@ log()  { printf "[install_consumer_test] %s\n" "$*" >&2; }
 fail() { log "FAIL: $*"; exit 1; }
 
 # ── CMake version guard ───────────────────────────────────────────────
-require_cmake_3_25() {
+require_cmake_3_27() {
     command -v cmake >/dev/null || fail "cmake not on PATH"
     local v; v="$(cmake --version | head -1 | awk '{print $3}')"
     local major minor
     major="$(echo "$v" | cut -d. -f1)"
     minor="$(echo "$v" | cut -d. -f2)"
-    if (( major < 3 || (major == 3 && minor < 25) )); then
-        fail "cmake >=3.25 required (have $v)"
+    if (( major < 3 || (major == 3 && minor < 27) )); then
+        fail "cmake >=3.27 required (have $v)"
     fi
     echo "$v"
 }

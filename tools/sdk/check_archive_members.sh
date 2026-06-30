@@ -19,7 +19,7 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
-require_cmake_3_25
+require_cmake_3_27
 make_temp_dirs
 
 log "repo root  : $REPO_ROOT"
