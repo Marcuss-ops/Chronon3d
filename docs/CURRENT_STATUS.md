@@ -10,6 +10,13 @@
 > Per i requisiti di release vedi [`RELEASE_GATE.md`](RELEASE_GATE.md).
 > Per i ticket vedi [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 
+> **🚧 SPRINT SUSPENDED (`main@30f6c876`, 2026-06-30)** — il piano migrazione canonico
+> [`docs/TEXT_SELECTOR_SINGLE_PIPELINE_PLAN.md`](TEXT_SELECTOR_SINGLE_PIPELINE_PLAN.md) (12 ATOMI) è
+> sospeso per `AGENTS.md` v0.1 feature-freeze (VIETATO: nuovi `#include` in `include/chronon3d/`,
+> nuove classi pubbliche, qualsiasi modifica che espanda la superficie API). TICKET-066 in
+> [`docs/FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md) traccia la sospensione. Ripresa solo
+> dopo 11/11 gate baseline verde certificata su un singolo commit.
+
 ## Preset CMake attivi
 
 Configurazione osservata in [`CMakePresets.json`](../CMakePresets.json) al commit corrente:
