@@ -47,8 +47,17 @@ OwnedFB PerPixelDofNode::execute(
 
     // Apply per-pixel DOF blur via the render backend.
     if (ctx.services.backend) {
+        // Explicit span-wrap: `ctx.node_exec.dof_depth` is `std::vector<float>`
+        // (the executor owns the depth buffer for node lifetimes).  The kernel
+        // signature took `std::vector<float>` historically; that forced
+        // `SoftwareBackend::apply_per_pixel_dof` to allocate a 1920×1080 copy
+        // — 8 MiB — on every dispatch.  Forwarding a `std::span` makes that
+        // alloc go away.  Implicit C++20 range-to-span conversion would also
+        // work, but explicit construction documents intent and guards
+        // against future type drift on `dof_depth`.
         ctx.services.backend->apply_per_pixel_dof(
-            *result, ctx.node_exec.dof_depth, m_camera.dof, m_camera.lens, clip);
+            *result, std::span<const float>{ctx.node_exec.dof_depth},
+            m_camera.dof, m_camera.lens, clip);
     }
 
     if (ctx.node_exec.counters) {
