@@ -20,6 +20,8 @@
 //   there is no `RenderJobFactory`, `RenderJobBuilder`, or `RenderJobRegistry`.
 // ============================================================================
 
+#include <cstdint>                                                  // std::uint32_t
+
 #include <chronon3d/runtime/render_session.hpp>                     // RenderSession
 #include <chronon3d/scene/camera/camera_v1/camera_session.hpp>     // camera_v1::CameraSession
 
