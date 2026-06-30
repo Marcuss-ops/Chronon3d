@@ -31,8 +31,24 @@ if(CHRONON3D_USE_BLEND2D)
 endif()
 
 # backend_assets no longer PUBLIC-links backend_software — symbols it needs
-# (blend2d_bridge_*) are owned in this OBJECT's own source list above.  The
-# remaining PUBLIC link to backend_image provides the ImageBackend interface
-# (which asset's ImageCache::m_backend holds as a shared_ptr).
-target_link_libraries(chronon3d_backend_assets PUBLIC chronon3d chronon3d_backend_image)
+# (blend2d_bridge_*) are owned in this OBJECT's own source list above.
+# backend_image provides the ImageBackend interface (ImageCache::m_backend).
+#
+# FASE 2 closure: `image_cache.hpp` (PUBLIC header) declares `ImageCache`
+# whose non-static data member `m_cache` is of COMPLETE type
+# `cache::LruCache<...>` (declared in `<chronon3d/cache/lru_cache.hpp>`,
+# moved to `src/cache/include_private/` by 97bc2608).  Per ODR class-layout
+# rules the COMPLETE-type requirement propagates to any TU that includes
+# `image_cache.hpp` (verified cascade before this fix:
+# src/backends/assets/image_cache.cpp, src/backends/software/software_renderer.cpp,
+# src/cache/cache_policy.cpp, src/text/text_preset_registry.cpp via chronon3d_registry).
+# PUBLIC link to chronon3d_cache propagates the include_private path through
+# chronon3d_cache's `INTERFACE $<BUILD_INTERFACE:...>` (PRIVATE was insufficient).
+# No cycle risk: chronon3d_cache does not link chronon3d_backend_assets.
+target_link_libraries(chronon3d_backend_assets
+    PUBLIC
+        chronon3d
+        chronon3d_backend_image
+        chronon3d_cache
+)
 target_include_directories(chronon3d_backend_assets PRIVATE ${Stb_INCLUDE_DIR})
