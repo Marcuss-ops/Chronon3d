@@ -65,19 +65,37 @@ FT_Library FreeTypeFaceCache::shared_library() {
     return lib;
 }
 
-// ── Bug #7 fix — Custom deleter for shared_ptr<FT_Face> ──────────────
-// The deleter is a class type (not a lambda) so it has full type identity
-// and can live in a static-local.  FT_Done_Face is called exactly once,
-// exactly on the last shared_ptr drop; ref-count decrements are
-// atomic, so the destroy call cannot fire while another thread still
-// holds a shared_ptr to the same face.
+// ── Bug #7 fix — Heap owner for the FT_Face resource ───────────────
+// `FT_Face` is itself a pointer typedef (`FT_Face` = `FT_FaceRec_*`).
+// `std::shared_ptr<T>` where T is a pointer-typedef cannot be
+// constructed directly from a `T*` raw + custom deleter because the
+// (Y*, D) ctor's template-y deduction forces Y = element type of the
+// inner pointer (i.e. Y = `FT_FaceRec_`), producing a signature
+// `shared_ptr(Y* = FT_FaceRec_**, D)` that mismatches our raw `FT_Face`
+// (= `FT_FaceRec_*`).  The canonical workaround for "shared_ptr over a
+// pointer-typedef" is to wrap the raw in a heap-owned storage and use
+// the aliasing ctor: `shared_ptr<T>(other_shared_ptr, T*)`.  The
+// storage type's destructor runs when the LAST shared_ptr drops, so
+// FT_Done_Face fires once, exactly on the last reference release, with
+// the same acquire/release semantics the original deleter had.
 namespace ft_face_cache_detail {
-struct FTFaceDeleter {
-    void operator()(FT_Face f) const noexcept {
-        if (f != nullptr) {
-            FT_Done_Face(f);
+struct FTFaceStorage {
+    FT_Face raw{nullptr};
+    FTFaceStorage() noexcept = default;
+    explicit FTFaceStorage(FT_Face f) noexcept : raw(f) {}
+    ~FTFaceStorage() {
+        if (raw != nullptr) {
+            FT_Done_Face(raw);
         }
     }
+
+    // Non-copyable / non-movable — the resource is heap-owned and the
+    // shared_ptr is the only valid handle.  Prevents accidental
+    // double-destruction from a stray copy.
+    FTFaceStorage(const FTFaceStorage&) = delete;
+    FTFaceStorage& operator=(const FTFaceStorage&) = delete;
+    FTFaceStorage(FTFaceStorage&&) = delete;
+    FTFaceStorage& operator=(FTFaceStorage&&) = delete;
 };
 } // namespace ft_face_cache_detail
 
@@ -168,8 +186,14 @@ std::shared_ptr<FT_Face> FreeTypeFaceCache::get_face(
         return nullptr;
     }
 
-    auto shared = std::shared_ptr<FT_Face>(
-        raw, ft_face_cache_detail::FTFaceDeleter{});
+    auto storage = std::make_shared<ft_face_cache_detail::FTFaceStorage>(raw);
+    // Aliasing ctor: shared_ptr<FT_Face>(shared_ptr<FTFaceStorage>, T*)
+    // — keeps `storage` alive while storing a pointer into its `raw`
+    // member.  T* = FT_Face* = FT_FaceRec_**; `&storage->raw` is exactly
+    // an FT_Face*.  When the last shared_ptr<FT_Face> (and any other
+    // shared_ptr<FTFaceStorage> aliases) drops, FTFaceStorage's
+    // destructor fires FT_Done_Face(raw) once and only once.
+    auto shared = std::shared_ptr<FT_Face>(storage, &storage->raw);
 
     // `find` returned end under the same lock, so `emplace` cannot fail;
     // discard the bool with `[[maybe_unused]]` so the diagnostic stays
@@ -280,7 +304,7 @@ BLImage TextScratchState::acquire_surface(int w, int h, uint32_t fmt) {
             return img;
         }
     }
-    return BLImage(w, h, fmt);
+    return BLImage(w, h, static_cast<BLFormat>(fmt));
 }
 
 void TextScratchState::release_surface(BLImage img) {
@@ -349,7 +373,11 @@ FontFaceHandle TextRenderResources::resolve_handle(
     // external eviction policy.
     constexpr int kPrimaryFaceIndex = 0;  // multi-face support is future PR
     handle.ft_lifeline = ft_faces.get_face(resolved, kPrimaryFaceIndex, font_size);
-    handle.ft_face     = handle.ft_lifeline ? handle.ft_lifeline.get() : nullptr;
+    // Dereference (operator*) returns FT_Face& (= FT_FaceRec_*&) — the
+    // underlying FreeType handle itself.  `.get()` would yield
+    // FT_Face* = FT_FaceRec_*_*, which is wrong because handle.ft_face
+    // is `FT_Face` (one pointer, not two).
+    handle.ft_face     = handle.ft_lifeline ? *handle.ft_lifeline : nullptr;
     handle.outlines    = &outlines;
 #endif
 

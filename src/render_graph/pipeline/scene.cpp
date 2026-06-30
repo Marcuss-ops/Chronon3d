@@ -341,10 +341,22 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // until after final output ownership is safe (the executor's ArenaGuard
     // resets at scope exit of execute_with_scope, which happens inside
     // execute_tile_or_fallback before we return the fb).
+    // RenderSession's default ctor fabricates a default FrameArena via
+    // its `arena_ptr` member initializer.  When !sw_renderer (test
+    // paths, no real engine wired up), we fall back to that locally-
+    // constructed session; otherwise we borrow sw_renderer's session.
     RenderSession fallback_session;   // default-constructed; used when !sw_renderer
-    ExecutionScope root_scope(
-        ExecutionScopeKind::Root,
-        sw_renderer ? static_cast<RenderSession&>(sw_renderer->session()) : fallback_session,
+    auto& session_ref = sw_renderer
+        ? static_cast<RenderSession&>(sw_renderer->session())
+        : fallback_session;
+    // FASE 5 closed the public direct-ctor surface on ExecutionScope;
+    // construction must go through `make_root()` (or `make_child()`).
+    // Pass the arena BY REFERENCE, sourced from the same session the
+    // scope binds — `session_ref.arena()` is the canonical accessor
+    // defined in runtime/render_session.hpp.
+    ExecutionScope root_scope = ExecutionScope::make_root(
+        session_ref,
+        session_ref.arena(),
         graph_result.compiled.graph_instance_id);
 
     const auto t_exec0 = profiling::now();
