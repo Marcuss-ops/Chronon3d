@@ -31,6 +31,15 @@ option(CHRONON3D_BUILD_CLI_BENCH     "Build the chronon3d_cli_bench sub-target (
 # --------------------------------------------------------------------------
 
 # Group: Core (list, info, doctor, verify) — always included
+# Note: command_doctor_verify.cpp lives in core (not dev) per the
+# convention documented in the option string above.  It implements the
+# doctor + verify commands which are core subcommands of the CLI; moving
+# it to dev meant the executable failed to link without
+# CHRONON3D_BUILD_CLI_DEV=ON, which contradicts the "always included"
+# promise of the core group.  The file's #ifdef CHRONON3D_HAS_CLI_VIDEO
+# block (compile-defined on dev + on this core group when video target
+# exists) preserves the live-video path without dragging in render/video
+# sub-targets unconditionally.
 add_library(chronon3d_cli_core STATIC
     commands/group_core.cpp
     commands/basic/command_list.cpp
@@ -40,6 +49,7 @@ add_library(chronon3d_cli_core STATIC
     daemon/daemon_service.cpp
     utils/common/cli_utils.cpp
     utils/watch/watch_service.cpp
+    commands/dev/command_doctor_verify.cpp
 )
 target_include_directories(chronon3d_cli_core PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)
 target_link_libraries(chronon3d_cli_core PRIVATE chronon3d_pipeline CLI11::CLI11 spdlog::spdlog_header_only fmt::fmt)
@@ -106,6 +116,17 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
 endif()
 endif() # CHRONON3D_ENABLE_VIDEO
 
+# Propagate CHRONON3D_HAS_CLI_VIDEO to core NOW (after chronon3d_cli_video
+# has been added by add_library), so the if(TARGET ...) guard sees the video
+# target.  Earlier placement inside chronon3d_cli_core's library block ran
+# BEFORE the video target existed — the propagation silently no-op'd and
+# builds with CHRONON3D_BUILD_CLI_VIDEO=ON + CHRONON3D_BUILD_CLI_DEV=OFF
+# lost the camera smoke-test step in `verify` (the docstring "core ships
+# doctor + verify including their video-camera leg" stopped holding).
+if(TARGET chronon3d_cli_video AND TARGET chronon3d_cli_core)
+    target_compile_definitions(chronon3d_cli_core PRIVATE CHRONON3D_HAS_CLI_VIDEO)
+endif()
+
 # Group: Telemetry (telemetry summary/report)
 if(CHRONON3D_ENABLE_TELEMETRY AND CHRONON3D_BUILD_CLI_TELEMETRY)
 add_library(chronon3d_cli_telemetry STATIC
@@ -128,7 +149,6 @@ add_library(chronon3d_cli_dev STATIC
     commands/dev/register_inspect_commands.cpp
     commands/dev/command_batch.cpp
     commands/dev/command_bench_convert.cpp
-    commands/dev/command_doctor_verify.cpp
     commands/dev/command_camera_path.cpp
     $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/command_text_audit.cpp>
     $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_audit_engine.cpp>

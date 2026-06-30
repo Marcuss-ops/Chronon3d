@@ -74,18 +74,9 @@
 #include <chronon3d/render_graph/pipeline/pipeline_catalogs.hpp>
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
-#include <chronon3d/runtime/render_session.hpp>
-// WP-8 PR 8.0 stop-gap — `SoftwareRenderSession` is needed for `make_session`
-// and `session_services` (render-side software types).  WP-8 PR 8.4
-// moves those APIs to a software-internal header; revert this include
-// at that point.
-#include <chronon3d/backends/software/software_registry.hpp>
-// WP-3 PR 3.4 — canonical location for the renamed SoftwareRenderSession.
-#include <chronon3d/backends/software/software_render_session.hpp>
-// WP-3 PR 3.1 — scene_program_store.hpp and scene_hasher.hpp are no
-// longer needed by render_runtime.hpp.  The two state engines are now
-// per-session owned (see render_session.hpp), so the runtime doesn't
-// reach into them directly and doesn't need their full types.
+// Fase 4 — software-registry and software-render-session includes removed.
+// SoftwareRegistry ownership moved to SoftwareRenderer; make_session /
+// session_services moved to backends/software/runtime_adapter.hpp.
 
 #include <memory>
 #include <string>
@@ -95,11 +86,6 @@ namespace chronon3d {
     struct RenderSettings;
     class DebugConfig;
     class RenderBackend;
-    // R3 forward decl — typed accessor to the software backend.
-    // Avoid pulling software_backend.hpp (heavy) in this header. The
-    // full definition is required only in render_runtime.cpp where
-    // `software_backend()` is defined.
-    class SoftwareBackend;
 }
 
 namespace chronon3d::cache {
@@ -129,7 +115,6 @@ struct RenderServices {
     chronon3d::graph::CompiledGraphCache*     graph_cache{nullptr};
     chronon3d::ExecutionScheduler*            scheduler{nullptr};
     chronon3d::graph::GraphExecutor*          executor{nullptr};
-    chronon3d::renderer::SoftwareRegistry*    software_registry{nullptr};
     chronon3d::graph::GraphNodeCatalog*       graph_node_registry{nullptr};
     chronon3d::effects::EffectCatalog*        effect_catalog{nullptr};
     // WP-3 PR 3.1 — `scene_hasher` and `program_store` pointer fields
@@ -180,15 +165,6 @@ public:
     [[nodiscard]] chronon3d::graph::RenderBackend& backend();
     [[nodiscard]] const chronon3d::graph::RenderBackend& backend() const;
 
-    // ── Software-backend typed access (R3, replaces dynamic_cast) ──
-    // Returns the attached SoftwareBackend if the engine is on the
-    // software backend; returns nullptr if the backend is a non-software
-    // rendering backend (the boundary-gate forbids `dynamic_cast` to `SoftwareRenderer*`,
-    // so this slot is the typed accessor for code that needs software-only
-    // services). Throws via `backend()` if no backend is attached.
-    [[nodiscard]] chronon3d::SoftwareBackend* software_backend();
-    [[nodiscard]] const chronon3d::SoftwareBackend* software_backend() const;
-
     // ── Backend slot predicates ──────────────────────────────────────
     [[nodiscard]] bool backend_attached() const noexcept { return static_cast<bool>(m_backend); }
 
@@ -213,7 +189,7 @@ public:
         return *m_owned_framebuffer_pool;
     }
     [[nodiscard]] chronon3d::graph::GraphExecutor&         executor()       noexcept { return *m_owned_executor; }
-    [[nodiscard]] chronon3d::renderer::SoftwareRegistry&   software_registry() noexcept { return *m_owned_software_registry; }
+
     [[nodiscard]] chronon3d::graph::GraphNodeCatalog&      graph_node_registry() noexcept { return *m_owned_graph_node_registry; }
     [[nodiscard]] chronon3d::effects::EffectCatalog&       effect_catalog() noexcept { return *m_owned_effect_catalog; }
     [[nodiscard]] chronon3d::ExecutionScheduler&           scheduler()      noexcept { return *m_scheduler; }
@@ -237,7 +213,6 @@ private:
     std::shared_ptr<chronon3d::cache::FramebufferPool> m_owned_framebuffer_pool;
     chronon3d::graph::CompiledGraphCache                m_owned_graph_cache{};
     std::unique_ptr<chronon3d::graph::GraphExecutor>         m_owned_executor;
-    std::unique_ptr<chronon3d::renderer::SoftwareRegistry>   m_owned_software_registry;
     std::unique_ptr<chronon3d::graph::GraphNodeCatalog>       m_owned_graph_node_registry;
     std::unique_ptr<chronon3d::effects::EffectCatalog>        m_owned_effect_catalog;
     std::unique_ptr<chronon3d::ExecutionScheduler>            m_scheduler;
@@ -252,17 +227,6 @@ private:
     std::unique_ptr<chronon3d::graph::RenderBackend>   m_backend;
     bool                                              m_populated{false};
 };
-
-/// Vends a fresh per-render-job `SoftwareRenderSession` whose
-/// `common.services` field is populated with the runtime's catalogue
-/// back-pointers.  Lifetime invariant: `runtime` must outlive every
-/// session it vends.
-[[nodiscard]] chronon3d::SoftwareRenderSession make_session(RenderRuntime& runtime);
-
-/// Read the back-pointers currently bound to a session.  Returns an
-/// empty record if the session was not produced by `make_session()`
-/// (e.g. default-constructed by a test fixture).
-[[nodiscard]] const SessionServices& session_services(const chronon3d::SoftwareRenderSession& session);
 
 // ── Process-wide assets root (TICKET-011a follow-up #2) ────────────
 //

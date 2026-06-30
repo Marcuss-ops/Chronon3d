@@ -7,7 +7,7 @@
 //   - All caches (NodeCache, FramebufferPool, CompiledGraphCache)
 //   - All catalogs (PipelineCatalogs → graph_nodes + effects +
 //     extensions + precomp_builder)
-//   - All registries (SoftwareRegistry, GraphNodeCatalog, EffectCatalog)
+//   - All registries (GraphNodeCatalog, EffectCatalog)
 //   - GraphExecutor + ExecutionScheduler
 //
 // The backend slot is attached externally by RenderEngine::Impl because
@@ -36,8 +36,6 @@
 #include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
-#include <chronon3d/backends/software/builtin_processors.hpp>
-#include <chronon3d/backends/software/software_registry.hpp>
 #include <spdlog/spdlog.h>
 
 #include <atomic>
@@ -80,7 +78,6 @@ void RenderRuntime::populate() {
     m_owned_framebuffer_pool =
         std::make_shared<cache::FramebufferPool>(cache_cfg.fb_pool_max_bytes());
     m_owned_executor    = std::make_unique<chronon3d::graph::GraphExecutor>();
-    m_owned_software_registry     = std::make_unique<chronon3d::renderer::SoftwareRegistry>();
     m_owned_graph_node_registry  = std::make_unique<chronon3d::graph::GraphNodeCatalog>();
     m_owned_effect_catalog       = std::make_unique<chronon3d::effects::EffectCatalog>();
     m_scheduler                  = std::make_unique<chronon3d::ExecutionScheduler>(
@@ -98,7 +95,6 @@ void RenderRuntime::populate() {
         .graph_cache         = &m_owned_graph_cache,
         .scheduler           = m_scheduler.get(),
         .executor            = m_owned_executor.get(),
-        .software_registry   = m_owned_software_registry.get(),
         .graph_node_registry = m_owned_graph_node_registry.get(),
         .effect_catalog      = m_owned_effect_catalog.get(),
         // WP-3 PR 3.1 — .scene_hasher and .program_store fields are
@@ -110,9 +106,11 @@ void RenderRuntime::populate() {
     // TICKET-011 — these registrations previously lived in
     // SoftwareRenderer's ctor body.  They are engine-lifetime state so
     // they belong here.  The renderer borrows the populated registries
-    // and the frozen EffectCatalog via m_runtime->software_registry()
-    // / m_runtime->graph_node_registry() / m_runtime->effect_catalog().
-    renderer::register_builtin_processors(*m_owned_software_registry);
+    // and the frozen EffectCatalog via m_runtime->graph_node_registry()
+    // / m_runtime->effect_catalog().
+    // Fase 4 — SoftwareRegistry ownership moved to SoftwareRenderer;
+    // builtin processors are registered there via
+    // backends::software::register_builtin_processors().
     graph::register_pipeline_graph_nodes(*m_owned_graph_node_registry);
     m_owned_effect_catalog->freeze();
 
@@ -131,7 +129,7 @@ void RenderRuntime::populate() {
     m_populated = true;
     spdlog::debug("RenderRuntime::populate(): runtime populated with "
                   "NodeCache({}B), FramebufferPool({}B), GraphExecutor, "
-                  "ExecutionScheduler (mode={}), 3 registries + 3 catalogs"
+                  "ExecutionScheduler (mode={}), 2 registries + 3 catalogs"
                   " (WP-3 PR 3.1: scene_hasher + program_store are per-session owned,"
                   " NOT runtime-owned)",
                   cache_cfg.node_cache_max_bytes(),
@@ -192,40 +190,6 @@ void set_process_wide_assets_root(std::string root) {
 std::string process_wide_assets_root() {
     std::lock_guard<std::mutex> lock(g_process_root_mutex);
     return g_process_wide_assets_root;
-}
-
-[[nodiscard]] chronon3d::SoftwareRenderSession
-make_session(RenderRuntime& runtime) {
-    // WP-3 PR 3.1 — the SessionServices table no longer wires
-    // scene_hasher / program_store pointers: both state engines are
-    // per-session owned and live on `RenderSession::scene_hasher`
-    // and `RenderSession::program_store` respectively.  Productions
-    // reach them via `session.scene_hasher()` /
-    // `session.program_store()` directly.
-    chronon3d::SoftwareRenderSession session;
-    session.common.services = SessionServices{
-        .executor            = runtime.services().executor,
-        .node_cache          = runtime.services().node_cache,
-        .framebuffer_pool    = runtime.services().framebuffer_pool,
-        .graph_cache         = runtime.services().graph_cache,
-        .asset_registry      = runtime.services().asset_registry,
-        // WP-3 PR 3.1 — .scene_hasher / .program_store fields removed from
-        // SessionServices.  See header for rationale.
-    };
-    return session;
-}
-
-const SessionServices& session_services(const chronon3d::SoftwareRenderSession& session) {
-    // The session carries its bound services on `common.services`
-    // (since `SoftwareRenderSession` is a composition of
-    // `common` = `RenderSession` + `software` = `SoftwareSessionResources`).
-    //
-    // Always return the field directly (never a static empty record).
-    // A default-constructed session returns a stable referent whose
-    // individual pointer fields are simply null; callers null-check.
-    // Returning the field unconditionally preserves legitimate
-    // partial-population bindings from test fixtures.
-    return session.common.services;
 }
 
 // WP-8 PR 8.1 Final — process-wide typed asset resolver for deep code

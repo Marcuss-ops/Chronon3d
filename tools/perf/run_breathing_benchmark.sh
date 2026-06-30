@@ -145,8 +145,37 @@ VIDEO_EXIT=$?
 BENCH_END=$(date +%s.%N)
 WALL_TIME=$(echo "$BENCH_END - $BENCH_START" | bc)
 
+# Fail-fast on video subprocess crash: emit an explicit VIDEO_FAILED
+# sentinel into the JSON report and exit instead of silently continuing
+# to query the telemetry DB (whose "most-recent run_id" lookup would
+# grab a stale row from a previous session, causing the JSON to lie
+# about which composition was measured). Downstream consumers
+# (compare_telemetry.py, future pr2_vs_baseline.json diffs) MUST see
+# a real failure state instead of a phantom success row.
+# Sentinel must be valid JSON even if COMPOSITION/LABEL/VIDEO_OUT contain
+# shell-special characters; cat <<EOF would interpolate raw and could
+# produce malformed JSON. Use python heredoc (same idiom as the existing
+# summary block below) so json.dump is authoritative.
+mkdir -p "$REPORTS_DIR"  # defensive: REPORTS_DIR is normally created earlier, but guard against prior failures
+python3 - "$REPORT_JSON" "$COMPOSITION" "$LABEL" "$VIDEO_OUT" "$VIDEO_EXIT" "$WALL_TIME" << 'SENTINEL_PY' 2>/dev/null || echo "WARNING: VIDEO_FAILED sentinel write failed (filesystem or python3 missing)" >&2
+import json, sys
+out_path = sys.argv[1]
+data = {
+    'success': 0,
+    'error': 'VIDEO_FAILED',
+    'video_exit_code': int(sys.argv[5]),
+    'composition': sys.argv[2],
+    'label': sys.argv[3],
+    'video_out': sys.argv[4],
+    'wall_time_s': sys.argv[6],
+}
+with open(out_path, 'w') as f:
+    json.dump(data, f, indent=2)
+SENTINEL_PY
 if [[ $VIDEO_EXIT -ne 0 ]]; then
-    echo "WARNING: video export exited with code $VIDEO_EXIT" >&2
+    echo "WARNING: video export exited with code $VIDEO_EXIT; VIDEO_FAILED sentinel written to $REPORT_JSON" >&2
+    echo "WARNING: not querying telemetry DB — current run produced no telemetry row" >&2
+    exit "$VIDEO_EXIT"
 fi
 
 echo "  Video export completed in ${WALL_TIME}s"
@@ -191,17 +220,31 @@ else
         echo "─── Saving JSON summary ───"
         if command -v python3 &>/dev/null; then
             # Use heredoc to avoid quoting issues with shell variable interpolation
-            python3 - "$TELEMETRY_DB" "$RUN_ID" "$REPORT_JSON" << 'PYEOF' 2>/dev/null || echo "  WARNING: Python JSON generation failed"
+            python3 - "$TELEMETRY_DB" "$RUN_ID" "$REPORT_JSON" "$COMPOSITION" << 'PYEOF' 2>/dev/null || echo "  WARNING: Python JSON generation failed"
 import sqlite3, json, sys
-if len(sys.argv) < 4:
+if len(sys.argv) < 5:
     sys.exit(1)
-db_path, run_id, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
+db_path, run_id, out_path, expected_comp = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 try:
     db = sqlite3.connect(db_path)
     db.row_factory = sqlite3.Row
     row = db.execute("SELECT * FROM render_runs WHERE run_id = ?", (run_id,)).fetchone()
     if row:
         data = dict(row)
+        # Guard against stale-row fallback: if the row's component_name
+        # does not match --comp, the wrapper's "most recent run_id"
+        # query picked up a leftover from a prior session and the JSON
+        # would lie about which composition was measured. Warn loudly
+        # so the caller knows the numbers in this JSON do NOT represent
+        # the current invocation.
+        if 'component_name' in data and data['component_name'] != expected_comp:
+            # Stale-row fallback: the wrapper's "most recent run_id" query
+            # picked up a leftover from a prior session. Warn loudly AND
+            # signalize the JSON so downstream tools (compare_telemetry.py)
+            # can detect and skip this row instead of consuming the
+            # misleading numbers.
+            print(f"WARNING: telemetry row component_name={data['component_name']!r} differs from --comp={expected_comp!r}. Likely stale row from a prior run; numbers in this JSON do NOT represent the current invocation. Marking JSON with _stale_row_warning=true.", file=sys.stderr)
+            data['_stale_row_warning'] = True
         counters = {}
         for c in db.execute("SELECT counter_name, counter_value FROM render_counters WHERE run_id = ?", (run_id,)):
             counters[c[0]] = c[1]
