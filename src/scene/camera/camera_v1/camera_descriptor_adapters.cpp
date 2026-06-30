@@ -310,7 +310,12 @@ camera_descriptor_from(const chronon3d::Camera& legacy_cam) {
     // Frame base state verbatim from the slim legacy struct.
     d.base.enabled  = true;
     d.base.position = legacy_cam.transform.position;
-    d.base.rotation = legacy_cam.transform.rotation;
+    // legacy_cam.transform.rotation is a glm::quat (per chronon3d::Camera);
+    // CameraDescriptor::base.rotation is a Vec3 euler-in-degrees.  The
+    // conversion uses the same glm::degrees(glm::eulerAngles(...)) pattern
+    // already used by layer_hierarchy.cpp and motion_preset_methods.cpp,
+    // keeping the rest of the pipeline on its degree convention.
+    d.base.rotation = glm::degrees(glm::eulerAngles(legacy_cam.transform.rotation));
 
     // The only projection knob on the legacy struct is vertical FOV.
     // Use FovProjection so the evaluate() pipeline produces a state whose

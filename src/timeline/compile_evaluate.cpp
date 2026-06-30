@@ -122,8 +122,15 @@ compile_composition(const CompositionDefinition& definition,
         &definition, [](const CompositionDefinition*) noexcept {});
 
     // (4) Camera compile path (only when a descriptor was supplied).
+    // ADL on `camera_v1::CameraDescriptor` finds BOTH an outer wrapper in
+    // `chronon3d::` (this TU — returns Result<…, CompositionCompileError>)
+    // AND an inline `camera_v1::compile_camera(...)` returning
+    // Result<…, CameraCompileError>.  Use a QUALIFIED call so only the
+    // outer is in the overload set; the second arg is the required
+    // CompositionCompileContext payload (currently unused by the adapter).
     if (definition.camera.has_value()) {
-        auto cam = compile_camera(*definition.camera, {});
+        auto cam = chronon3d::compile_camera(
+            *definition.camera, CompositionCompileContext{});
         if (!cam.has_value()) {
             return std::move(cam).error();
         }
@@ -143,13 +150,18 @@ compile_composition(const CompositionDefinition& definition,
         h ^= fnv1a64(&*definition.camera, sizeof(camera_v1::CameraDescriptor));
     }
     if (definition.scene) {
-        // Hash only the target-type pointer (cheap, content-stable across
-        // runs on a given ABI).  Two identical-target-type captures will
-        // share the same hashed bytes for the target_type slot, leaving the
-        // descriptor / spec bytes to differentiate them.
-        const auto* target_type = definition.scene.target_type();
-        if (target_type != nullptr) {
-            h ^= fnv1a64(&target_type, sizeof(target_type));
+        // Hash the target-type *identity* via `std::type_info::hash_code()`,
+        // not the bytes of the type_info object itself.  The latter would
+        // depend on libstdc++ layout and the vtable pointer (positional /
+        // ASLR-sensitive), defeating the docstring's "content-stable across
+        // runs on a given ABI" promise.  `hash_code()` is defined by the
+        // standard as a deterministic function of the type identity alone.
+        // `std::function::target_type()` returns the documented sentinel
+        // `typeid(void)` when no target is stored — skip the hash in that
+        // case so empty-functor compositions all share the same bit pattern.
+        const auto& target_type = definition.scene.target_type();
+        if (target_type != typeid(void)) {
+            h ^= static_cast<std::uint64_t>(target_type.hash_code());
         }
     }
     out.fingerprint = h;
