@@ -100,16 +100,12 @@ std::shared_ptr<AnimatedTextDocument> make_crossfade_longer_outgoing_doc(
     auto doc = std::make_shared<AnimatedTextDocument>();
     SourceTextKeyframe kf0;
     kf0.frame = Frame{0};
-    kf0.document.utf8 = outgoing_text;  // OUTGOING (longer)
-    kf0.document.utf8_size = static_cast<u32>(outgoing_text.size());
-    kf0.transition = SourceTextTransition::CrossfadeLayouts;
+    kf0.document.utf8 = outgoing_text;  // OUTGOING (longer)    kf0.transition = SourceTextTransition::CrossfadeLayouts;
     kf0.document.defaults.font = font;
     doc->add_keyframe(kf0);
     SourceTextKeyframe kf60;
     kf60.frame = Frame{60};
-    kf60.document.utf8 = active_text;  // ACTIVE (shorter)
-    kf60.document.utf8_size = static_cast<u32>(active_text.size());
-    kf60.document.defaults.font = font;
+    kf60.document.utf8 = active_text;  // ACTIVE (shorter)    kf60.document.defaults.font = font;
     doc->add_keyframe(kf60);
     return doc;
 }
