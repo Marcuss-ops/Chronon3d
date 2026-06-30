@@ -87,15 +87,15 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time) {
         return;
     }
 
-    // ── Re-evaluate in place.  evaluate_animator_stack_into re-allocates
-    //    inout_states to match `placed.glyphs.size()`.  We always pass the
-    //    current layout's placed run so glyph counts stay in sync with
-    //    the (possibly rebuilt) layout. ────────────────────────────────
+    // ── Re-evaluate in place.  evaluate_animator_stack_into resets
+    //    inout_states in place and uses the pre-built TextUnitMap from
+    //    the layout (no per-frame allocation). ──────────────────────
     evaluate_animator_stack_into(
         shape.glyphs,
         shape.animators,
         shape.layout->placed,
         shape.layout->source_text,
+        shape.layout->units,
         time
     );
 
@@ -130,6 +130,7 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time) {
             shape.animators,
             shape.crossfade_layout->placed,
             shape.crossfade_layout->source_text,
+            shape.crossfade_layout->units,
             time
         );
     }
