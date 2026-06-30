@@ -167,6 +167,14 @@ void apply_composition_to_placed(
     return text;
 }
 
+// NOTE: `paragraph_is_multi_font` was hoisted to the public header
+// `include/chronon3d/text/text_resolver.hpp` (CR#5 closure) where the
+// font hierarchy is canonical.  Both call sites below route through
+// that free helper, which uses std::tie-based font_spec equality so
+// future FontSpec fields are locally extendable.  The local copy that
+// previously lived here has been removed; the helper now lives next
+// to where the font-resolver data is defined.
+
 } // namespace
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -356,34 +364,21 @@ compile_text_layout(
     // refuse the compile with a structured error rather than emit a
     // layout the renderer would silently corrupt.  Multi-run paragraphs
     // that share a font (e.g. bidi segmentation into LTR + RTL runs of
-    // the same family) are NOT rejected — the per-run compare below
-    // distinguishes same-font multi-run from true multi-font.
+    // the same family) are NOT rejected — the `paragraph_is_multi_font`
+    // helper below distinguishes same-font multi-run from true
+    // multi-font.
     //
     // Future atom will add a runtime `font_spans` so the renderer can
     // switch BLFont at span boundaries and re-enable multi-font
     // paragraphs.  Until that lands, callers that need multi-font
     // paragraphs get a structured error here and the wrapper skips the
     // paragraph (with spdlog::warn).  See verdict Issue #3.
-    if (para.runs.size() > 1) {
-        const FontSpec& first_font = para.runs[0].font;
-        bool multiple_fonts = false;
-        for (std::size_t i = 1; i < para.runs.size(); ++i) {
-            const FontSpec& f = para.runs[i].font;
-            if (f.font_path   != first_font.font_path ||
-                f.font_family != first_font.font_family ||
-                f.font_weight != first_font.font_weight ||
-                f.font_style  != first_font.font_style) {
-                multiple_fonts = true;
-                break;
-            }
-        }
-        if (multiple_fonts) {
-            return TextLayoutError{
-                TextLayoutErrorKind::UnsupportedMultiFontRun,
-                "compile_text_layout: multi-font paragraph not supported (verdict Issue #3 stabilization). "
-                "All resolved runs must share font_path/font_family/font_weight/font_style."
-            };
-        }
+    if (paragraph_is_multi_font(para)) {
+        return TextLayoutError{
+            TextLayoutErrorKind::UnsupportedMultiFontRun,
+            "compile_text_layout: multi-font paragraph not supported (verdict Issue #3 stabilization). "
+            "All resolved runs must share font_path/font_family/font_weight/font_style."
+        };
     }
 
     // ── MissingFont check (pre-shape) ────────────────────────
@@ -535,6 +530,51 @@ TextRunBuildResult build_text_run(
     const FontSpec primary_font = doc.defaults.font;
 
     for (std::size_t i = 0; i < tree.paragraphs.size(); ++i) {
+        // ── BUG-FIX closure (Fase 1.5 + CR#1): wrapper-level
+        // multi-font pre-check (verdetto Issue #3 stabilization).
+        //
+        // compile_text_layout() only sees the synthesized per-paragraph
+        // TextDocument we emit below, which deliberately DROPS the
+        // OUTER doc's spans (so the compiler operates on a fresh,
+        // single-paragraph doc).  This means the multi-font compare
+        // compile_text_layout performs — on `para.runs` of the resolved
+        // tree — sees only the synthesized para_doc's defaults.font,
+        // never the OUTER DocStyleSpan font overrides that produced
+        // multi-font runs in `tree.paragraphs[i].runs`.
+        //
+        // Without this pre-check, build_text_run would silently let
+        // a multi-font paragraph through with a single-font synth
+        // para_doc → compile_text_layout returns Ok → the resulting
+        // TextRunLayout carries the wrong font + glyph IDs from a
+        // different font → renderer corrupts the output (tofu /
+        // wrong fill).  Until a future atom adds `paragraph_index`
+        // to TextLayoutRequest (so the compiler can iterate the
+        // OUTER doc's resolved tree directly with spans), this
+        // pre-check mirrors the same multi-font compare the compiler
+        // uses, surfaces the same `UnsupportedMultiFontRun` reason
+        // via spdlog::warn, and lets build_text_run's existing skip
+        // machinery drop the offending paragraph from the result
+        // (yielding the user-visible N-1 contract for inputs that
+        // sandwich a multi-font paragraph between single-font ones).
+        // INVARIANT — tree.paragraphs[i].runs MUST be the OUTER
+        // resolved tree (resolved BEFORE the synth-para_doc emit
+        // drops spans).  Any refactor that re-resolves per paragraph
+        // must keep the OUTER resolution here.
+        if (paragraph_is_multi_font(tree.paragraphs[i])) {
+            const FontSpec& first =
+                tree.paragraphs[i].runs.front().font;
+            spdlog::warn(
+                "build_text_run: paragraph {} skipped — "
+                "multi-font paragraph not supported "
+                "(verdetto Issue #3 stabilization). "
+                "First run font_path='{}' font_family='{}' "
+                "weight={} style='{}'.",
+                i,
+                first.font_path, first.font_family,
+                first.font_weight, first.font_style);
+            continue;
+        }
+
         // Synthesize a per-paragraph TextDocument so compile_text_layout
         // compiles the i-th tree paragraph.  The source text for that
         // paragraph is the concatenation of its resolved runs' text,
