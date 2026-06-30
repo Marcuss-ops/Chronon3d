@@ -1,6 +1,6 @@
 #include <chronon3d/text/animation/text_animator_stack.hpp>
 
-#include <chronon3d/text/animation/glyph_instance_state.hpp>    // make_initial_glyph_states
+#include <chronon3d/text/animation/glyph_instance_state.hpp>    // reset_glyph_states_in_place
 #include <chronon3d/text/animation/text_animator_evaluator.hpp>  // evaluate_animator
 #include <chronon3d/text/font_engine.hpp>                        // PlacedGlyphRun full type
 #include <chronon3d/text/glyph_selector.hpp>                     // build_text_unit_map
@@ -34,10 +34,11 @@ std::vector<GlyphInstanceState> evaluate_animator_stack(
 // evaluate_animator_stack_into — in-place stack evaluator (hot path)
 // ════════════════════════════════════════════════════════════════════════
 //
-// Seed `inout_states` with `make_initial_glyph_states(placed)`, build the
-// unit map once for the run, then evaluate each animator in order.  The
-// vector is REPLACED — callers must not preserve the previous contents
-// across calls.
+// Reset `inout_states` with `reset_glyph_states_in_place(placed)`, which
+// resizes only when the glyph count changes and otherwise mutates in place.
+// Build the unit map once for the run, then evaluate each animator in
+// order.  The vector's previous contents are overwritten — callers must
+// not preserve them across calls.
 
 void evaluate_animator_stack_into(
     std::vector<GlyphInstanceState>& inout_states,
@@ -46,7 +47,7 @@ void evaluate_animator_stack_into(
     std::string_view source,
     SampleTime time
 ) {
-    inout_states = make_initial_glyph_states(placed);
+    reset_glyph_states_in_place(inout_states, placed);
     auto unit_map = build_text_unit_map(placed, source);
 
     for (const auto& animator : animators) {
