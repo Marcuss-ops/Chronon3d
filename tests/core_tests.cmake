@@ -51,6 +51,16 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         #   (4) per-tuple proof: distinct sizes get distinct entries
         #   (5) static-grep proof: hot path contains no I/O calls
         text/test_font_io_fence.cpp
+        # TICKET-068 — Bug #5 / Fase 1#5 regression test.  Crossfade
+        # with OUTGOING text longer than ACTIVE text + the crossfade
+        # slots populated.  The fix in `draw_run_layer()` stroke branch
+        # uses `source_placed.glyphs[gi].glyph_id` (active layout,
+        # bounded -- safe) rather than `layout.placed.glyphs[gi].glyph_id`
+        # (outgoing layout, unbounded -- would OOB on longer outgoing).
+        # This test establishes the OOB-precondition data shape and
+        # verifies the apply-state path is crash-free; the static-grep
+        # discipline in the commit body is the no-regression lock.
+        text/test_crossfade_stroke.cpp
     )
 endif()
 
