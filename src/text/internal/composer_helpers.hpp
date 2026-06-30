@@ -14,6 +14,9 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/paragraph_style.hpp>
 
+#include "../unicode/utf8_decoder.hpp"
+#include "../unicode/whitespace.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <string_view>
@@ -22,45 +25,23 @@
 namespace chronon3d {
 namespace composer_internal {
 
-// ── UTF-8 codepoint decoding ──────────────────────────────────────────────
+// ── UTF-8 codepoint decoding + whitespace classification ────────────────
+//
+// FASE 2 TICKET-080 — both helpers below are now thin forwarders to the
+// canonical impls in src/text/unicode/.  Behaviour change for
+// `is_whitespace_codepoint(0x2028/0x2029)`: was FALSE (composer's prior
+// narrower list), now TRUE (canonical superset).  0x2028 LINE SEPARATOR
+// and 0x2029 PARAGRAPH SEPARATOR are explicit line/paragraph break + whitespace
+// per Unicode, so the superset is more correct.  Composer's existing
+// `is_mandatory_break_codepoint` (kept inline below) still returns FALSE for
+// these two; if you need the line-break semantics, callers must check both.
 
 [[nodiscard]] inline char32_t decode_codepoint_at(std::string_view sv, size_t byte_start) {
-    if (byte_start >= sv.size()) return 0xFFFD;
-    unsigned char c = static_cast<unsigned char>(sv[byte_start]);
-
-    if (c < 0x80) return static_cast<char32_t>(c);
-
-    int len = 0;
-    char32_t cp = 0;
-    if ((c & 0xE0) == 0xC0)       { len = 2; cp = c & 0x1Fu; }
-    else if ((c & 0xF0) == 0xE0)  { len = 3; cp = c & 0x0Fu; }
-    else if ((c & 0xF8) == 0xF0)  { len = 4; cp = c & 0x07u; }
-    else return 0xFFFD;
-
-    if (byte_start + len > sv.size()) return 0xFFFD;
-
-    for (int j = 1; j < len; ++j) {
-        unsigned char cont = static_cast<unsigned char>(sv[byte_start + j]);
-        if ((cont & 0xC0) != 0x80) return 0xFFFD;
-        cp = (cp << 6) | (cont & 0x3Fu);
-    }
-    return cp;
+    return text::unicode::decode_codepoint_at(sv, byte_start);
 }
 
-// ── Character classification ─────────────────────────────────────────────
-
 [[nodiscard]] inline bool is_whitespace_codepoint(char32_t cp) {
-    switch (cp) {
-    case U' ':  case U'\t':  case U'\r':  case U'\n':
-    case 0x00A0: case 0x1680:
-    case 0x2000: case 0x2001: case 0x2002: case 0x2003:
-    case 0x2004: case 0x2005: case 0x2006: case 0x2007:
-    case 0x2008: case 0x2009: case 0x200A:
-    case 0x202F: case 0x205F: case 0x3000:
-        return true;
-    default:
-        return false;
-    }
+    return text::unicode::is_unicode_whitespace(cp);
 }
 
 [[nodiscard]] inline bool is_mandatory_break_codepoint(char32_t cp) {
