@@ -214,7 +214,7 @@ TEST_CASE("freetype_face_cache: identical size buckets share the entry") {
     FreeTypeFaceCache cache;
 
     auto a = cache.get_face(kFontAPath, 0, 16.0f);
-    auto b = cache.get_face(kFontAPath, 0, 16.0f + 1e-4f); // bucketed to 16
+    auto b = cache.get_face(kFontAPath, 0, 15.9999f);  // ceil(15.9999) = 16 → same bucket
 
     REQUIRE(a != nullptr);
     REQUIRE(b != nullptr);
