@@ -67,6 +67,89 @@ struct SingleGlyphRun {
     }
 };
 
+// ── Fase 3 — BlurScratchPool: reusable box-blur scratch buffer ──────
+// Static so the buffer persists across frames (draw calls reuse it).
+
+struct BlurScratchPool {
+    std::vector<uint32_t> buffer;
+
+    void ensure(size_t pixels) {
+        if (buffer.size() < pixels) {
+            buffer.resize(pixels);
+        }
+    }
+
+    static BlurScratchPool& instance() {
+        static BlurScratchPool pool;
+        return pool;
+    }
+};
+
+// ── Fase 3 — TextSurfacePool: reusable BLImage pool ─────────────────
+// Static so BLImages persist across draw calls.  Images are keyed by
+// (width, height, format).  Not thread-safe — single draw-call use.
+
+struct TextSurfacePool {
+    static constexpr size_t kMaxPooled = 8;  // 5 tiers + final + shadow + crossfade
+
+    struct Entry {
+        BLImage image;
+        int w{0};
+        int h{0};
+        uint32_t fmt{BL_FORMAT_PRGB32};
+    };
+    std::vector<Entry> pool;
+
+    BLImage acquire(int w, int h, uint32_t format = BL_FORMAT_PRGB32) {
+        // Remove dead (zeroed) entries first
+        pool.erase(
+            std::remove_if(pool.begin(), pool.end(),
+                [](const Entry& e) { return e.w == 0; }),
+            pool.end());
+
+        for (auto& e : pool) {
+            if (e.w == w && e.h == h && e.fmt == format) {
+                BLImage img = std::move(e.image);
+                e.w = 0; e.h = 0;
+                return img;
+            }
+        }
+        return BLImage(w, h, format);
+    }
+
+    void release(BLImage img) {
+        if (pool.size() < kMaxPooled) {
+            BLImageData data;
+            if (img.getData(&data) == BL_SUCCESS) {
+                pool.push_back({std::move(img), data.size.w, data.size.h, data.format});
+            }
+        }
+    }
+
+    static TextSurfacePool& instance() {
+        static TextSurfacePool pool;
+        return pool;
+    }
+};
+
+// ── Fase 3 — Preclassify glyphs into 5 blur tiers in O(G) ───────────
+
+using BlurTiers = std::array<std::vector<u32>, 5>;
+
+BlurTiers build_blur_tiers(const std::vector<GlyphInstanceState>& glyphs) {
+    BlurTiers tiers;
+    for (u32 gi = 0; gi < glyphs.size(); ++gi) {
+        const float blur = glyphs[gi].blur;
+        int tier = 0;
+        if (blur > 16.0f)       tier = 4;
+        else if (blur > 8.0f)   tier = 3;
+        else if (blur > 4.0f)   tier = 2;
+        else if (blur > 0.0f)   tier = 1;
+        tiers[tier].push_back(gi);
+    }
+    return tiers;
+}
+
 
 
 } // anonymous namespace
@@ -234,13 +317,16 @@ graph::RenderOpResult draw_text_run(
     static constexpr int kBlurTierRadii[5] = { 0, 2, 7, 13, 20 };
     static constexpr int kNumBlurTiers = 5;
 
-    auto classify_blur_tier = [](float blur) -> int {
-        if (blur <= 0.0f) return 0;
-        if (blur <= 4.0f) return 1;
-        if (blur <= 8.0f) return 2;
-        if (blur <= 16.0f) return 3;
-        return 4;
-    };
+    // ── Fase 3 — Preclassify glyphs into blur tiers (O(G), once) ────
+    BlurTiers active_tiers = build_blur_tiers(shape.glyphs);
+    BlurTiers crossfade_tiers;
+    if (shape.crossfade_layout && !shape.crossfade_glyphs.empty()) {
+        crossfade_tiers = build_blur_tiers(shape.crossfade_glyphs);
+    }
+
+    // Build an all-glyphs index array for the shadow pass (no tiering).
+    std::vector<u32> all_active_glyphs(shape.glyphs.size());
+    for (u32 gi = 0; gi < shape.glyphs.size(); ++gi) all_active_glyphs[gi] = gi;
 
     // Keep bucket_radius for shadow passes (shadows composite per-shadow
     // so they don't need tiering — each shadow has a uniform blur radius).
@@ -252,10 +338,14 @@ graph::RenderOpResult draw_text_run(
         return kBlurTierRadii[4];
     };
 
+    // Fase 3 — static TextSurfacePool for reusable tier images
+    auto& surface_pool = TextSurfacePool::instance();
+
     // ── Inline separable box-blur (sliding window, O(w×h)) ──────────
     // Operates on BL_FORMAT_PRGB32 in-place.  Uses a sliding window so
     // the per-pixel cost is O(1) instead of O(radius).  Total cost is
     // roughly 2 × w × h independent of radius.
+    // Fase 3 — uses static BlurScratchPool to avoid per-frame allocation.
     auto apply_box_blur = [](BLImage& image, int radius) {
         if (radius <= 0) return;
         BLImageData data;
@@ -266,7 +356,10 @@ graph::RenderOpResult draw_text_run(
         const int stride = static_cast<int>(data.stride / sizeof(uint32_t));
         uint32_t* base = static_cast<uint32_t*>(data.pixelData);
 
-        std::vector<uint32_t> tmp(static_cast<size_t>(w) * static_cast<size_t>(h));
+        const size_t pixels = static_cast<size_t>(w) * static_cast<size_t>(h);
+        auto& scratch = BlurScratchPool::instance();
+        scratch.ensure(pixels);
+        uint32_t* tmp = scratch.buffer.data();
 
         const int r = radius;
         auto unpack = [](uint32_t c, int& a, int& rr, int& g, int& b) {
@@ -367,22 +460,20 @@ graph::RenderOpResult draw_text_run(
 #endif
 
     // ── Reusable per-layer renderer ──────────────────────────────────
-    // Renders shape.glyphs into `target`.  When `override_color` is set,
-    // every glyph is filled (and stroked) with that color — used for the
-    // shadow pass.  When `override_color` is nullopt, glyph-level
-    // `g.fill` / `g.stroke` are honoured, with `shape.paint.fill` as a
-    // default for glyphs whose fill is the "no override" sentinel.
+    // Renders glyphs from `tier_glyphs` into `target`.  When
+    // `override_color` is set, every glyph is filled (and stroked)
+    // with that color — used for the shadow pass.  When `override_color`
+    // is nullopt, glyph-level `g.fill` / `g.stroke` are honoured.
     //
-    // `only_tier` (optional): when set, only glyphs whose `g.blur` maps
-    // to this tier are drawn.  When nullopt, all glyphs are drawn
-    // (existing shadow-pass behavior).
+    // Fase 3 — `tier_glyphs` contains preclassified glyph indices.
+    // For the shadow pass (no tiering), pass all glyph indices.
     auto draw_run_layer = [&](
         BLImage& target,
         std::optional<Color> override_color,
         int blur_radius,
         const std::vector<GlyphInstanceState>& source_glyphs,
         const PlacedGlyphRun& source_placed,
-        std::optional<int> only_tier = std::nullopt
+        const std::vector<u32>& tier_glyphs
     ) -> size_t {
         size_t drawn = 0;
         BLContext ctx(target);
@@ -391,17 +482,8 @@ graph::RenderOpResult draw_text_run(
         ctx.fillAll();
         ctx.setCompOp(BL_COMP_OP_SRC_OVER);
 
-        for (size_t gi = 0; gi < source_glyphs.size(); ++gi) {
+        for (u32 gi : tier_glyphs) {
             const auto& g = source_glyphs[gi];
-
-            // ── Per-glyph blur tier filter ──────────────────────────
-            // When `only_tier` is set, skip glyphs whose blur value
-            // maps to a different tier.  This enables the main-run
-            // tiered compositing loop below.
-            if (only_tier.has_value()
-                && classify_blur_tier(g.blur) != *only_tier) {
-                continue;
-            }
 
             // Effective stroke: per-glyph if animator set it, else fall
             // back to shape.paint.stroke when no override is in effect.
@@ -492,7 +574,7 @@ graph::RenderOpResult draw_text_run(
         };
         const size_t sh_drawn = draw_run_layer(
             shadow_img, shadow_color, detail::bucket_radius_for_tier(shadow.blur),
-            shape.glyphs, layout.placed);
+            shape.glyphs, layout.placed, all_active_glyphs);
         if (sh_drawn == 0) continue;
 
         // Shadow translation: model + image-local offset + shadow offset.
@@ -515,7 +597,8 @@ graph::RenderOpResult draw_text_run(
     //
     // This means glyphs with blur=0 stay sharp while adjacent blur=16
     // glyphs are fully blurred — the core motivation for per-glyph blur.
-    BLImage img(img_w, img_h, BL_FORMAT_PRGB32);
+    BLImage img = surface_pool.acquire(img_w, img_h);
+    if (img.empty()) img = BLImage(img_w, img_h, BL_FORMAT_PRGB32);
     // Clear the final composite image to transparent.
     {
         BLContext ctx(img);
@@ -527,11 +610,13 @@ graph::RenderOpResult draw_text_run(
 
     size_t glyphs_drawn = 0;
     for (int tier = 0; tier < kNumBlurTiers; ++tier) {
-        BLImage tier_img(img_w, img_h, BL_FORMAT_PRGB32);
+        if (active_tiers[tier].empty()) continue;
+        BLImage tier_img = surface_pool.acquire(img_w, img_h);
+        if (tier_img.empty()) tier_img = BLImage(img_w, img_h, BL_FORMAT_PRGB32);
         const size_t drawn = draw_run_layer(
             tier_img, std::nullopt, kBlurTierRadii[tier],
-            shape.glyphs, layout.placed, tier);
-        if (drawn == 0) continue;
+            shape.glyphs, layout.placed, active_tiers[tier]);
+        if (drawn == 0) { surface_pool.release(std::move(tier_img)); continue; }
         glyphs_drawn += drawn;
 
         // Composite tier_img onto the final image SRC_OVER.
@@ -541,6 +626,7 @@ graph::RenderOpResult draw_text_run(
             ctx.blitImage(BLPoint(0, 0), tier_img);
             ctx.end();
         }
+        surface_pool.release(std::move(tier_img));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -563,11 +649,14 @@ graph::RenderOpResult draw_text_run(
         const f32 cf_fade = std::clamp(
             1.0f - shape.crossfade_mix, 0.0f, 1.0f);
         for (int tier = 0; tier < kNumBlurTiers; ++tier) {
-            BLImage tier_img(img_w, img_h, BL_FORMAT_PRGB32);
+            if (crossfade_tiers[tier].empty()) continue;
+            BLImage tier_img = surface_pool.acquire(img_w, img_h);
+            if (tier_img.empty()) tier_img = BLImage(img_w, img_h, BL_FORMAT_PRGB32);
             const size_t drawn = draw_run_layer(
                 tier_img, std::nullopt, kBlurTierRadii[tier],
-                shape.crossfade_glyphs, shape.crossfade_layout->placed, tier);
-            if (drawn == 0) continue;
+                shape.crossfade_glyphs, shape.crossfade_layout->placed,
+                crossfade_tiers[tier]);
+            if (drawn == 0) { surface_pool.release(std::move(tier_img)); continue; }
             glyphs_drawn += drawn;
 
             // Composite the crossfade tier onto the final image with
@@ -581,6 +670,7 @@ graph::RenderOpResult draw_text_run(
                 ctx.blitImage(BLPoint(0, 0), tier_img);
                 ctx.end();
             }
+            surface_pool.release(std::move(tier_img));
         }
     }
 
