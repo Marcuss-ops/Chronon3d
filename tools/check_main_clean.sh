@@ -8,9 +8,14 @@
 # of the GATE-MNT-01 invariant that all atomic-commit workflows (see
 # AGENTS.md "Workflow Git obbligatorio") must satisfy before pushing.
 #
-# Behaviour (expressly per user spec, 2026-06-29):
+# Behaviour (post TICKET-067 fix, 2026-06-30 — GATE-MNT-01 semantic is
+# merge-base ancestor relation, NOT strict-SHA equality):
 #   git fetch origin
-#   test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+#   git merge-base --is-ancestor check in BOTH directions;
+#     passes if LOCAL == REMOTE OR LOCAL is descendant of REMOTE
+#     (post-commit-push) OR REMOTE is descendant of LOCAL (FF-pull);
+#     rejects ONLY true divergence where neither side is an ancestor of
+#     the other.
 #   [ -z "$(git status -s)" ]
 # All three must hold; otherwise GATE_FAIL (exit 1) is emitted with
 # diagnostics on stderr.
@@ -42,14 +47,18 @@ if ! git fetch origin 2>/dev/null; then
     exit 1
 fi
 
-# 2. Compare local HEAD to origin/main by full SHA (rebase-identical commits
-#    commit-graph-equal but SHA-different; only full-SHA equality passes).
+# 2. Compare local HEAD to origin/main by merge-base ancestor relation
+#    (post TICKET-067 fix).  Accepts fast-forward pulls + post-commit-
+#    push + strict equality; rejects only true divergence where neither
+#    side is an ancestor of the other.
 LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse origin/main)
-if [ "$LOCAL" != "$REMOTE" ]; then
-    echo "GATE_FAIL: HEAD != origin/main" >&2
+if ! git merge-base --is-ancestor "$LOCAL" "$REMOTE" \
+   && ! git merge-base --is-ancestor "$REMOTE" "$LOCAL"; then
+    echo "GATE_FAIL: HEAD and origin/main have diverged (no ancestor relation in either direction)" >&2
     echo "  local  = $LOCAL" >&2
     echo "  remote = $REMOTE" >&2
+    echo "  fix: git pull --rebase origin main (or fetch + manual merge)" >&2
     echo "GATE_FAIL"
     exit 1
 fi

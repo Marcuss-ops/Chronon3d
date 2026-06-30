@@ -163,7 +163,7 @@ Non creare un nuovo file sostitutivo con nome simile: usare sempre i percorsi ca
 Prima di ogni `git push` su `main` il checkout deve essere gated da `tools/check_main_clean.sh` che fallisce (exit ≠ 0) se:
 
 1. `git fetch origin` non riesce.
-2. `HEAD` ≠ `origin/main` (full-SHA compare, rebase-identical detect).
+2. `HEAD` e `origin/main` sono divergenti (nessuno dei due è antenato dell'altro); FF-pull, post-commit-push e uguaglianza sono tutti accettati (vedi `tools/check_main_clean.sh` per l'implementazione).
 3. `git status -s` non vuoto (uncommitted o untracked).
 
 ### Wrapper canonico (portabile, tracked)
