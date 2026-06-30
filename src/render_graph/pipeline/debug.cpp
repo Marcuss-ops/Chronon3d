@@ -117,9 +117,11 @@ SceneGraphStats analyze_scene_graph(
     std::shared_ptr<Framebuffer> fb_shared;
     {
         CHRONON_ZONE_C("execute_graph", trace_category::kGraph);
-        // PR 6.1 — migrate to execute_with_scope (typed ExecutionScope contract)
-        ExecutionScope root_scope(ExecutionScopeKind::Root, session,
-                                  compiled.graph_instance_id);
+        // FASE 5 — ExecutionScope public direct-ctor is closed; route
+        // through make_root() with the session's own arena so the chain
+        // anchor stays consistent with the canonical body.
+        ExecutionScope root_scope = ExecutionScope::make_root(
+            session, session.arena(), compiled.graph_instance_id);
         fb_shared = executor.execute_with_scope(compiled, ctx, root_scope, scheduler);
     }
     const auto t_exec1 = profiling::now();

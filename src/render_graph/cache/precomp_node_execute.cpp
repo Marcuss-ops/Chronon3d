@@ -133,8 +133,12 @@ OwnedFB PrecompNode::execute(
     const auto precomp_key = instance_key(ctx);
     const auto graph_id =
         static_cast<GraphInstanceId>(precomp_key.graph);
-    ExecutionScope parent_root(
-        ExecutionScopeKind::Root, *session, graph_id);
+    // FASE 5 closed ExecutionScope's public direct-ctor surface; the
+    // synthesised Root must route through make_root() with an explicit
+    // FrameArena — borrow the same session's arena so the parent chain
+    // anchor is consistent with execute_with_scope() (the canonical body).
+    ExecutionScope parent_root = ExecutionScope::make_root(
+        *session, session->arena(), graph_id);
     return execute_with_scope(parent_root, ctx, fbs, clips);
 }
 
