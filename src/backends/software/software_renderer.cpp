@@ -319,6 +319,39 @@ const FontEngine& SoftwareRenderer::font_engine() const {
 
 // ── Rendering ────────────────────────────────────────────────────────────────
 
+// Cat-2 font preflight (Cat-2 framing per AGENTS.md freeze audit).
+// Per-layer (fontspec) walk: for each LayerKind::Text, scan nodes for the
+// first TextRunShapeHandle; collect a representative (font_path, font_size)
+// pair and resolve it before render starts.
+FontPreflightSummary SoftwareRenderer::preflight_fonts(
+    const Scene& scene,
+    const assets::AssetResolver& resolver
+) {
+    FontPreflightSummary summary;
+    auto* trr = text_render_resources();
+    if (!trr) return summary;
+
+    std::set<std::pair<std::string, f32>> seen;
+    for (const auto& layer : scene.layers()) {
+        if (!layer.is_text()) continue;
+        for (const auto& node : layer.nodes) {
+            if (!std::holds_alternative<TextRunShapeHandle>(node.payload)) continue;
+            const auto& h = std::get<TextRunShapeHandle>(node.payload);
+            if (!h.value || !h.value->layout) continue;
+            const auto key = std::make_pair(
+                h.value->layout->font.font_path,
+                h.value->layout->font_size);
+            if (!seen.insert(key).second) continue;
+            ++summary.preflight_attempted;
+            const FontFaceHandle fh =
+                trr->resolve_handle(key.first, key.second, resolver);
+            if (fh.valid()) ++summary.preflight_succeeded;
+            else            ++summary.preflight_missing;
+        }
+    }
+    return summary;
+}
+
 std::shared_ptr<Framebuffer> SoftwareRenderer::render(const Composition& comp,
                                                     Frame frame) {
     profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());
@@ -333,6 +366,15 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render(const Composition& comp,
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
                                                             const Camera& camera, i32 width,
                                                             i32 height) {
+    // Cat-2 font preflight: warm both BLFontFace and FreeTypeFace caches
+    // BEFORE any draw_text_run dispatch.  After this call, every
+    // render-thread resolve_handle becomes a cache hit (no I/O).  The
+    // I/O fence itself is opt-in (callers/test may arm with
+    // trr->set_debug_io_fence(true) for defence-in-depth).
+    if (auto* trr = text_render_resources(); trr && m_runtime) {
+        (void)preflight_fonts(scene, m_runtime->resolver());
+    }
+
     profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());
 
     auto res = graph::render_scene_via_graph(
@@ -355,6 +397,14 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
     const Scene& scene, const std::optional<Camera2_5D>& camera, i32 width, i32 height) {
+    // Cat-2 font preflight + auto-arm — same pattern as the Camera
+    // overload above.  RAII guard disarms on every exit path.
+    RenderIOFenceGuard fence_guard(nullptr);
+    if (auto* trr = text_render_resources(); trr && m_runtime) {
+        (void)preflight_fonts(scene, m_runtime->resolver());
+        fence_guard.fence = &trr->debug_io_fence;
+    }
+
     profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());
 
     Scene effective_scene = scene.clone();

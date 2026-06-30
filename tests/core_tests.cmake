@@ -42,6 +42,15 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         # message "fix(text): move static scratch/surface pools into
         # TextRenderResources (thread-safety)" for the refactor context.
         text/test_text_pool_concurrency.cpp
+        # Cat-2 font preflight I/O fence regression. Defends against
+        # re-introduction of synchronous font I/O on render threads
+        # (BLFontFace::createFromFile / FT_New_Face).  Covers:
+        #   (1) arm + miss + fence=true -> throws std::runtime_error
+        #   (2) disarm + miss -> cache lazy-loads (production path)
+        #   (3) re-arm + hit -> no throw (post-preflight hot path)
+        #   (4) per-tuple proof: distinct sizes get distinct entries
+        #   (5) static-grep proof: hot path contains no I/O calls
+        text/test_font_io_fence.cpp
     )
 endif()
 
