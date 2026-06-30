@@ -29,18 +29,28 @@
 //     scope (this PR keeps the spec; the duplication is forbidden and
 //     can be enforced as a static_assert in a follow-up).
 //
+// ── FASE 5 — Closed legacy public surface (2026-06-30) ──────────────────────
+// Before FASE 5 the class exposed 3 public direct ctors + `set_owner_key()`,
+// `would_overflow()`, `would_recurse()` as public methods.  That surface
+// allowed bypassing `make_root()`/`make_child()` validation: a caller could
+// emit a chain with depth > kMaxScopeChainLength (silently clamped) or
+// trigger recursion by setting an owner_key post-construction.  FASE 5 closes
+// the surface:
+//   * All direct explicit ctors are moved to `private:` (and stay there
+//     as the underlying storage constructor used by the static factories).
+//   * `set_owner_key()`, `would_recurse()` are private — internal
+//     implementation details.
+//   * `m_overflowed` and `would_overflow()` are removed entirely.
+//     `make_child()` enforces `parent->chain_length() < kMaxScopeChainLength`
+//     and rejects on overflow with `ScopeErrorCode::ChainLimitExceeded`,
+//     so a scope with clamped depth can no longer exist on the public path.
+//   * Public construction surface is exactly: `make_root(session, arena,
+//     [graph_id])` and `make_child(kind, session, arena, graph_id, parent,
+//     [owner_key])`.
+//
 // This header is intentionally header-only (no .cpp); the class holds
 // no resources of its own.  Tests are at
-// `tests/core/test_execution_scope.cpp` — six TEST_CASE bodies covering
-// the construction invariants, parent/non-parent chain semantics, the
-// direct / indirect recursion guard, and the child-arena independence
-// property.
-//
-// TICKET-011a follow-up note: ExecutionScope itself holds NO counters,
-// NO caches.  All per-job state stays on `RenderSession` (SceneHasher,
-// SceneProgramStore, FrameHistory, DirtyHistory).  The scope is a thin
-// routing object — it tells callers WHERE to allocate and WHICH chain
-// they're in; it does not OWN anything of its own.
+// `tests/core/test_execution_scope.cpp`.
 // ============================================================================
 
 #include <chronon3d/core/execution/execution_scope_types.hpp>
@@ -54,17 +64,20 @@ namespace chronon3d::graph {
 
 /// Per-execution-surface bundle: identity + arena + parent + lease hooks.
 ///
-/// Construction invariants:
+/// Construction invariants (FASE 5 — public construction is `make_root` /
+/// `make_child` ONLY):
 ///   - `kind != Root` requires `parent != nullptr` (the chain must be
-///     rooted).  Constructing a child from `nullptr` is a programmer
-///     error; the ctor accepts it but clamps `depth` to 0 so the call
-///     site surfaces the misuse in a follow-up assertion if needed.
+///     rooted) — enforced by `make_child`, returned as `ScopeError.
+///     ParentRequired` if violated.
 ///   - `session` lifetime MUST outlive every scope that borrows it
 ///     (typically: scope's lifetime is nested inside session's lifetime).
 ///   - `arena` is captured BY REFERENCE at construction.  Callers that
 ///     need a child arena distinct from the parent arena should construct
 ///     the child arena FIRST and pass it explicitly to the child scope's
-///     ctor.  The scope itself does NOT alias the arena or take ownership.
+///     factory.  The scope itself does NOT alias the arena or take ownership.
+///   - `make_child` enforces chain-length, arena-aliasing, and recursion
+///     invariants; violators return `ScopeError` with one of six
+///     `ScopeErrorCode` values (see `execution_scope_types.hpp`).
 ///
 /// Thread-safety:
 ///   - Scope instances are NOT thread-safe; each render job owns its
@@ -73,87 +86,22 @@ namespace chronon3d::graph {
 ///     time and only read after — no thread-safety machinery needed.
 class ExecutionScope {
 public:
-    /// Root scope ctor — no parent, depth = 0.  Arena defaults to
-    /// `session.arena()`.  Use the explicit-arena ctor if a child
-    /// scope needs a distinct arena from the parent.
-    explicit ExecutionScope(
-        ExecutionScopeKind                  kind,
-        chronon3d::RenderSession&           session,
-        GraphInstanceId                     graph_id = kInvalidGraphInstanceId
-    ) noexcept
-        : ExecutionScope(kind, session, session.arena(), graph_id, nullptr)
-    {}
-
-    /// Child scope ctor — requires a non-null parent; depth tracks.
-    /// Arena defaults to the parent's arena.
-    ///
-    /// PR 6.7 — DEPRECATED.  Child scopes MUST use the explicit-arena
-    /// ctor below so that the child arena is provably distinct from the
-    /// parent's arena.  Defaulting to the parent's arena silently shares
-    /// the allocation surface, which means child teardown (ArenaGuard
-    /// reset) would invalidate pointers the parent still holds.
-    [[deprecated("child scopes must pass an explicit FrameArena& distinct from the parent's — use ExecutionScope(kind, session, child_arena, graph_id, parent) with a locally-constructed child arena")]]
-    explicit ExecutionScope(
-        ExecutionScopeKind                  kind,
-        chronon3d::RenderSession&           session,
-        GraphInstanceId                     graph_id,
-        const ExecutionScope*               parent
-    ) noexcept
-        : ExecutionScope(kind, session, session.arena(), graph_id, parent)
-    {}
-
-    /// Explicit-arena ctor (PR 6.3 / 6.4 — child arenas distinct from
-    /// the parent).  Caller-owned arena; lifetime tracked by caller.
-    /// Passing `parent == nullptr` is silently accepted (depth clamps
-    /// to 0); the call is documented as a usage contract violation.
-    ///
-    /// PR 6.5 — depth is CLAMPED to `kMaxScopeChainLength` (no exception, no
-    /// abort — consistent with `noexcept` contract).  When the
-    /// constructed depth would have exceeded the bound, `would_overflow()`
-    /// returns true on this scope so callers can detect the situation
-    /// and route to a deterministic fallback (e.g. bail out with empty
-    /// fb per docs/03 §4.4).  The clamp guarantees bounded chain walks
-    /// (is_descendant_of / would_recurse always terminate in at most
-    /// `kMaxScopeChainLength` iterations).
-    explicit ExecutionScope(
-        ExecutionScopeKind                  kind,
-        chronon3d::RenderSession&           session,
-        FrameArena&                         arena,
-        GraphInstanceId                     graph_id,
-        const ExecutionScope*               parent
-    ) noexcept
-        : m_kind(kind)
-        , m_session(session)
-        , m_arena(arena)
-        , m_graph_id(graph_id)
-        , m_parent(parent)
-        , m_depth(parent
-            ? ((parent->m_depth + 1) > kMaxScopeChainLength
-                ? kMaxScopeChainLength
-                : (parent->m_depth + 1))
-            : 0)
-        // m_owner_key falls back on its `{0u}` member default below.
-        , m_overflowed(parent != nullptr
-                       && (parent->m_depth + 1) > kMaxScopeChainLength)
-    {}
-
-    // ── PR 6.8 / §9.2 — Public ROOT factory (infallible) ─────────────────
+    // ── §9.2 — Public ROOT factory (infallible) ─────────────────────────────
     //
-    // `make_root` is the canonical path for the root scope post-§9.5 (the
-    // public ctors are removed in §9.5; `make_root` becomes the ONLY legal
-    // way to start a chain).  Construction cannot fail:
+    // `make_root` is the canonical path for the root scope.  Construction
+    // cannot fail:
     //   * kind is hard-coded to `Root` (no caller-passed kind to validate)
     //   * parent is hard-coded to nullptr (chain anchor, no parent → no
     //     chain-limit candidate to violate)
     //   * chain_length() of the anchor is exactly 1 regardless of bound
     //
-    // The factory still accepts an explicit `FrameArena&` (NOT defaulted to
+    // The factory accepts an explicit `FrameArena&` (NOT defaulted to
     // `session.arena()`) so the call site is honest about arena ownership:
     // callers that need the root to use `session.arena()` pass that
     // explicitly, callers that want a distinct fast-reset arena (e.g. a
     // transient scratch arena for the render job) pass that instead.  This
-    // mirrors the discipline used in `make_child` (§9.3) so root + child
-    // sites use the same explicit-arena pattern.
+    // mirrors the discipline used in `make_child` so root + child sites use
+    // the same explicit-arena pattern.
     //
     // `graph_id` defaults to `kInvalidGraphInstanceId` to match the
     // existing ctor default — the executor overwrites it post-construction
@@ -162,11 +110,7 @@ public:
         chronon3d::RenderSession&           session,
         FrameArena&                         arena,
         GraphInstanceId                     graph_id = kInvalidGraphInstanceId
-    ) noexcept {
-        return ExecutionScope(
-            ExecutionScopeKind::Root,
-            session, arena, graph_id, /*parent*/ nullptr);
-    }
+    ) noexcept;
 
     // ── §9.3 — Public CHILD factory (Result<ExecutionScope, ScopeError>) ──
     //
@@ -180,10 +124,11 @@ public:
     //   * `parent == nullptr`    → ParentRequired
     //   * `&arena == &parent->arena()` → ArenaAliasesParent
     //   * `parent->chain_length() >= kMaxScopeChainLength` → ChainLimitExceeded
-    //   * `kind == Precomp && owner_key != 0 && parent->would_recurse(owner_key)` → RecursiveOwner
+    //   * `kind == Precomp && owner_key != 0 && would_recurse(owner_key)` → RecursiveOwner
     //
-    // On success, the returned scope has `set_owner_key(owner_key)` already
-    // applied so callers don't need a separate post-construction call.
+    // On success, the returned scope has the `owner_key` already applied
+    // (via the private `set_owner_key`) so callers don't need a separate
+    // post-construction call.
     static chronon3d::Result<ExecutionScope, ScopeError> make_child(
         ExecutionScopeKind                  kind,
         chronon3d::RenderSession&           session,
@@ -191,48 +136,7 @@ public:
         GraphInstanceId                     graph_id,
         const ExecutionScope*               parent,
         std::uint64_t                       owner_key = 0u
-    ) noexcept {
-        if (kind == ExecutionScopeKind::Root) {
-            return ScopeError{
-                ScopeErrorCode::InvalidChildKind,
-                kind, graph_id, owner_key,
-                static_cast<chronon3d::u32>(parent ? parent->chain_length() + 1 : 1)
-            };
-        }
-        if (!parent) {
-            return ScopeError{
-                ScopeErrorCode::ParentRequired,
-                kind, graph_id, owner_key, 1u
-            };
-        }
-        if (&arena == &parent->arena()) {
-            return ScopeError{
-                ScopeErrorCode::ArenaAliasesParent,
-                kind, graph_id, owner_key,
-                static_cast<chronon3d::u32>(parent->chain_length() + 1)
-            };
-        }
-        if (parent->chain_length() >= kMaxScopeChainLength) {
-            return ScopeError{
-                ScopeErrorCode::ChainLimitExceeded,
-                kind, graph_id, owner_key,
-                static_cast<chronon3d::u32>(parent->chain_length() + 1)
-            };
-        }
-        if (kind == ExecutionScopeKind::Precomp
-            && owner_key != 0u
-            && parent->would_recurse(owner_key)) {
-            return ScopeError{
-                ScopeErrorCode::RecursiveOwner,
-                kind, graph_id, owner_key,
-                static_cast<chronon3d::u32>(parent->chain_length() + 1)
-            };
-        }
-        ExecutionScope child(
-            kind, session, arena, graph_id, parent);
-        child.set_owner_key(owner_key);
-        return child;
-    }
+    ) noexcept;
 
     [[nodiscard]] ExecutionScopeKind           kind()      const noexcept { return m_kind; }
     [[nodiscard]] chronon3d::RenderSession&    session()   const noexcept { return m_session; }
@@ -241,43 +145,17 @@ public:
     [[nodiscard]] const ExecutionScope*        parent()    const noexcept { return m_parent; }
     [[nodiscard]] int                          depth()     const noexcept { return m_depth; }
 
-    /// PR 6.5 — true iff this scope's depth was CLAMPED by `kMaxScopeChainLength`
-    /// (i.e. the chain the scope was constructed against exceeded 16
-    /// nested scopes).  When true, callers SHOULD route to a deterministic
-    /// fallback rather than proceed into the inner executor — the chain
-    /// walk inside `would_recurse`/`is_descendant_of` is still bounded
-    /// (they always terminate in at most `kMaxScopeChainLength` steps) but the
-    /// downstream graph execution will diverge from the intended depth
-    /// count and may have hidden aliasing on the parent's caches.
-    [[nodiscard]] bool would_overflow() const noexcept { return m_overflowed; }
-
-    /// Owner key — populated by PrecompNode via `set_owner_key(k)`
-    /// before executing an inner subgraph.  Consulted by
-    /// `would_recurse()` to reject direct + indirect precomp recursion
-    /// per PR 6.5.
-    void                set_owner_key(std::uint64_t key) noexcept { m_owner_key = key; }
-    [[nodiscard]] std::uint64_t owner_key()     const noexcept { return m_owner_key; }
+    /// Owner key — populated by `make_child` (and only by `make_child`)
+    /// with the `owner_key` argument.  Read-only for callers; mutation
+    /// after construction is forbidden, hence no `set_owner_key()` in
+    /// the public API.
+    [[nodiscard]] std::uint64_t owner_key() const noexcept { return m_owner_key; }
 
     /// True iff `other` is a strict ancestor of THIS (this is `other`'s
     /// child or grand-child).  O(depth).
     [[nodiscard]] bool is_descendant_of(const ExecutionScope& other) const noexcept {
         for (const ExecutionScope* cur = m_parent; cur; cur = cur->m_parent) {
             if (cur == &other) return true;
-        }
-        return false;
-    }
-
-    /// PR 6.5 — guards against direct AND indirect precomp recursion.
-    /// Returns true if constructing a Precomp child scope whose
-    /// `owner_key == k` would re-enter any active Precomp scope in the
-    /// current chain.
-    [[nodiscard]] bool would_recurse(std::uint64_t k) const noexcept {
-        for (const ExecutionScope* cur = this; cur; cur = cur->m_parent) {
-            if (cur->m_kind == ExecutionScopeKind::Precomp
-                && cur->m_owner_key != 0u
-                && cur->m_owner_key == k) {
-                return true;
-            }
         }
         return false;
     }
@@ -290,6 +168,51 @@ public:
     }
 
 private:
+    // ── Internal 5-arg ctor — PRIVATE (FASE 5) ─────────────────────────────
+    //
+    // Reachable only from the static factories `make_root` / `make_child`,
+    // which are class members and therefore have private-access.
+    // Direct construction by any caller (test, executor, includes) is a
+    // compile error after FASE 5.
+    explicit ExecutionScope(
+        ExecutionScopeKind                  kind,
+        chronon3d::RenderSession&           session,
+        FrameArena&                         arena,
+        GraphInstanceId                     graph_id,
+        const ExecutionScope*               parent
+    ) noexcept
+        : m_kind(kind)
+        , m_session(session)
+        , m_arena(arena)
+        , m_graph_id(graph_id)
+        , m_parent(parent)
+        , m_depth(parent ? (parent->m_depth + 1) : 0)
+        // m_owner_key falls back on its `{0u}` member default below.
+    {}
+
+    // Private mutation entry — only the static factories call this.  Pulled
+    // out of the ctor so `make_child` can apply the owner_key after all
+    // validation has succeeded (recursion check depends on the chain being
+    // reachable through `would_recurse` → but `would_recurse` walks `this`
+    // upward, so the key applied to the new scope is read by FUTURE checks
+    // on parents of this scope, not this scope itself).
+    void set_owner_key(std::uint64_t key) noexcept { m_owner_key = key; }
+
+    // PR 6.5 — guards against direct AND indirect precomp recursion.
+    // Returns true if constructing a Precomp child scope whose
+    // `owner_key == k` would re-enter any active Precomp scope in the
+    // current chain.
+    [[nodiscard]] bool would_recurse(std::uint64_t k) const noexcept {
+        for (const ExecutionScope* cur = this; cur; cur = cur->m_parent) {
+            if (cur->m_kind == ExecutionScopeKind::Precomp
+                && cur->m_owner_key != 0u
+                && cur->m_owner_key == k) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     ExecutionScopeKind              m_kind;
     chronon3d::RenderSession&       m_session;
     FrameArena&                     m_arena;
@@ -297,7 +220,68 @@ private:
     const ExecutionScope*           m_parent{nullptr};
     int                             m_depth{0};
     std::uint64_t                   m_owner_key{0u};
-    bool                            m_overflowed{false};
 };
+
+// ── Inline factory definitions (kept out-of-class for readability) ─────
+
+inline ExecutionScope ExecutionScope::make_root(
+    chronon3d::RenderSession&           session,
+    FrameArena&                         arena,
+    GraphInstanceId                     graph_id
+) noexcept {
+    return ExecutionScope(
+        ExecutionScopeKind::Root,
+        session, arena, graph_id, /*parent*/ nullptr);
+}
+
+inline chronon3d::Result<ExecutionScope, ScopeError> ExecutionScope::make_child(
+    ExecutionScopeKind                  kind,
+    chronon3d::RenderSession&           session,
+    FrameArena&                         arena,
+    GraphInstanceId                     graph_id,
+    const ExecutionScope*               parent,
+    std::uint64_t                       owner_key
+) noexcept {
+    if (kind == ExecutionScopeKind::Root) {
+        return ScopeError{
+            ScopeErrorCode::InvalidChildKind,
+            kind, graph_id, owner_key,
+            static_cast<chronon3d::u32>(parent ? parent->chain_length() + 1 : 1)
+        };
+    }
+    if (!parent) {
+        return ScopeError{
+            ScopeErrorCode::ParentRequired,
+            kind, graph_id, owner_key, 1u
+        };
+    }
+    if (&arena == &parent->arena()) {
+        return ScopeError{
+            ScopeErrorCode::ArenaAliasesParent,
+            kind, graph_id, owner_key,
+            static_cast<chronon3d::u32>(parent->chain_length() + 1)
+        };
+    }
+    if (parent->chain_length() >= kMaxScopeChainLength) {
+        return ScopeError{
+            ScopeErrorCode::ChainLimitExceeded,
+            kind, graph_id, owner_key,
+            static_cast<chronon3d::u32>(parent->chain_length() + 1)
+        };
+    }
+    if (kind == ExecutionScopeKind::Precomp
+        && owner_key != 0u
+        && parent->would_recurse(owner_key)) {
+        return ScopeError{
+            ScopeErrorCode::RecursiveOwner,
+            kind, graph_id, owner_key,
+            static_cast<chronon3d::u32>(parent->chain_length() + 1)
+        };
+    }
+    ExecutionScope child(
+        kind, session, arena, graph_id, parent);
+    child.set_owner_key(owner_key);
+    return child;
+}
 
 } // namespace chronon3d::graph
