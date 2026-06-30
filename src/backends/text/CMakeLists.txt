@@ -11,6 +11,7 @@ add_library(chronon3d_backend_text OBJECT
     bidi_segmenter.cpp
     glyph_atlas.cpp
     rich_text.cpp
+    text_render_resources.cpp
 )
 target_link_libraries(chronon3d_backend_text PUBLIC
     chronon3d

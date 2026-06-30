@@ -59,6 +59,7 @@ struct SoftwareProcessorContext {
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
     FontEngine*                                      font_engine{nullptr};
 #endif
+    struct TextRenderResources*                      text_resources{nullptr}; // Fase 3: pre-loaded font caches
 };
 
 /// Build a SoftwareProcessorContext from a renderer (the
