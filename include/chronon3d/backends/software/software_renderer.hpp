@@ -12,7 +12,6 @@
 #include <chronon3d/backends/assets/image_renderer.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/backends/software/software_render_session.hpp>
-#include <chronon3d/backends/text/text_render_resources.hpp>   // FontPreflightSummary
 #include <chronon3d/core/config.hpp>
 
 #include <memory>
@@ -24,6 +23,7 @@
 namespace chronon3d {
 
 struct TextRenderResources;
+struct FontPreflightSummary;   // TICKET-078 -- forward-decl only; full definition in text_render_resources.hpp (referenced by .cpp)
 
 class FontEngine; class Composition; class Scene; class Camera; class Camera2_5D;
 class CompositionRegistry;
@@ -73,18 +73,13 @@ public:
     // representative (font_path, font_size) per text layer, and calls
     // text_render_resources()->resolve_handle(...) for each unique pair
     // so the BLFontFace + FreeType caches are primed BEFORE render starts.
-    // Returned FontPreflightSummary drives diagnostics; render proceeds
-    // even when preflight_missing>0 (missing fonts fall through to BL/FT
-    // load-failure paths, same behaviour as the pre-preflight era).
-    //
-    // Auto-wired inside render_scene(): the auto path arms
-    // set_debug_io_fence(true) AFTER preflighting and disarms on render
-    // return so any unforeseen font (added after preflight) throws loudly
-    // instead of silently doing synchronous I/O on the render thread.
-    [[nodiscard]] chronon3d::FontPreflightSummary preflight_fonts(
-        const Scene& scene,
-        const assets::AssetResolver& resolver
-    );
+    // TICKET-078 -- preflight_fonts() declaration moved OUT of this header.
+    // The body lives in src/backends/software/software_renderer.cpp, where
+    // the complete `FontPreflightSummary` type is visible (the parent
+    // header keeps ONLY the forward declaration `struct
+    // FontPreflightSummary;` so the value-returning signature compiles
+    // without dragging in <chronon3d/backends/text/text_render_resources.hpp>;
+    // this single-include reduction closes gate-3 I3 from 7 to ≤6).
 
     // ── Construction / destruction ─────────────────────────────────────
     explicit SoftwareRenderer(runtime::RenderRuntime& rt, Config config);

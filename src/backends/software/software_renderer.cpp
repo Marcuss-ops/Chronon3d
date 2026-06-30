@@ -11,6 +11,15 @@
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/backends/software/runtime_adapter.hpp>
 
+// TICKET-078 -- `text_render_resources.hpp` moved OUT of the
+// CHRONON3D_ENABLE_TEXT #ifdef below.  `FontPreflightSummary` is defined
+// unconditionally in the header (`<chronon3d/backends/text/text_render_resources.hpp>`),
+// and `preflight_fonts()` (whose declaration moved out of the canonical
+// software_renderer.hpp) reaches for the complete type in this TU on
+// every build mode.  FreeType-gated types (FreeTypeFaceCache,
+// GlyphOutlineBuilder) remain gated by CHRONON3D_ENABLE_TEXT below.
+#include <chronon3d/backends/text/text_render_resources.hpp>
+
 #include "utils/render_effects_processor.hpp"
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/software_backend.hpp>
@@ -30,7 +39,9 @@
 // forward declaration only).  The unique_ptr deleter is also
 // instantiated here at destruction site in ~SoftwareRenderer().
 #include <chronon3d/text/font_engine.hpp>
-#include <chronon3d/backends/text/text_render_resources.hpp>
+// (TICKET-078) text_render_resources.hpp moved OUT of this #ifdef; the
+// unconditional `FontPreflightSummary` is included above this block so
+// the `preflight_fonts()` body can return-by-value on every build mode.
 #endif
 #include <chronon3d/backends/software/text_run_processor.hpp>
 #include <chronon3d/cache/cache_policy.hpp>
@@ -341,10 +352,22 @@ const FontEngine& SoftwareRenderer::font_engine() const {
 
 // ── Rendering ────────────────────────────────────────────────────────────────
 
+// ── preflight_fonts -- TICKET-078 declaration moved OUT of the canonical
+//    software_renderer.hpp (gate-3 I3 fix: 7 non-local includes → 6).  The
+//    out-of-class declaration + definition below MUST stay together in this
+//    TU since the parent's class declaration no longer names `preflight_fonts`.
+//    Cross-reference: 'render_scene()' (lines below) is the only caller.
+//
 // Cat-2 font preflight (Cat-2 framing per AGENTS.md freeze audit).
 // Per-layer (fontspec) walk: for each LayerKind::Text, scan nodes for the
 // first TextRunShapeHandle; collect a representative (font_path, font_size)
 // pair and resolve it before render starts.
+[[nodiscard]] FontPreflightSummary SoftwareRenderer::preflight_fonts(
+    const Scene& scene,
+    const assets::AssetResolver& resolver
+);  // <- declaration only (matches what used to live in the parent header)
+
+// Definition follows immediately.
 FontPreflightSummary SoftwareRenderer::preflight_fonts(
     const Scene& scene,
     const assets::AssetResolver& resolver
