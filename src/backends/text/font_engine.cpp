@@ -85,6 +85,49 @@ struct FontEngine::Impl {
     mutable std::shared_mutex face_cache_mutex;
     mutable cache::LruCache<GlyphBBoxCacheKey, GlyphBBoxCacheEntry, std::hash<GlyphBBoxCacheKey>> glyph_bbox_cache{8192, 2};
 
+    // FASE 4 (TICKET-088) — HarfBuzz buffer pool.
+    // `hb_buffer_create()` + `hb_buffer_destroy()` is a per-shape-call
+    // overhead (alloc / free + HarfBuzz internal bookkeeping).  We pool
+    // reset-able buffers (callers must `hb_buffer_reset(buf)` before
+    // reuse; we do that on release) so steady-state shaping has zero
+    // HarfBuzz allocation cost.  Pool is bounded by kMaxHbBufferPoolSize
+    // to avoid runaway memory if a single burst creates many buffers.
+    static constexpr size_t kMaxHbBufferPoolSize = 64;
+    mutable std::mutex hb_buffer_pool_mutex;
+    mutable std::vector<hb_buffer_t*> hb_buffer_pool;
+
+    [[nodiscard]] hb_buffer_t* acquire_hb_buffer() const {
+        std::lock_guard<std::mutex> lock(hb_buffer_pool_mutex);
+        if (!hb_buffer_pool.empty()) {
+            hb_buffer_t* buf = hb_buffer_pool.back();
+            hb_buffer_pool.pop_back();
+            return buf;
+        }
+        return hb_buffer_create();
+    }
+
+    void release_hb_buffer(hb_buffer_t* buf) const {
+        if (!buf) return;
+        // Caller-owned reset point: wipe glyph infos / positions / flags /
+        // cluster state so the next acquire starts from a clean slate.
+        hb_buffer_reset(buf);
+        std::lock_guard<std::mutex> lock(hb_buffer_pool_mutex);
+        if (hb_buffer_pool.size() < kMaxHbBufferPoolSize) {
+            hb_buffer_pool.push_back(buf);
+        } else {
+            // Pool full → destroy rather than leak.
+            hb_buffer_destroy(buf);
+        }
+    }
+
+    void destroy_hb_buffer_pool() {
+        std::lock_guard<std::mutex> lock(hb_buffer_pool_mutex);
+        for (hb_buffer_t* buf : hb_buffer_pool) {
+            if (buf) hb_buffer_destroy(buf);
+        }
+        hb_buffer_pool.clear();
+    }
+
     Impl() {
         FT_Error err = FT_Init_FreeType(&ft_library);
         if (err != 0) {
@@ -103,6 +146,7 @@ struct FontEngine::Impl {
     }
 
     ~Impl() {
+        destroy_hb_buffer_pool();
         clear_cache_unlocked();
         if (ft_library) {
             FT_Done_FreeType(ft_library);
@@ -216,7 +260,7 @@ std::optional<GlyphRun> FontEngine::shape_text(
     if (size_err != 0) return std::nullopt;
     hb_ft_font_changed(entry->hb_font);
 
-    hb_buffer_t* buf = hb_buffer_create();
+    hb_buffer_t* buf = m_impl->acquire_hb_buffer();
     if (!buf) return std::nullopt;
     hb_buffer_add_utf8(buf, text.data(), static_cast<int>(text.size()), 0, static_cast<int>(text.size()));
 
@@ -237,6 +281,7 @@ std::optional<GlyphRun> FontEngine::shape_text(
 
     hb_buffer_guess_segment_properties(buf);
     hb_shape(entry->hb_font, buf, nullptr, 0);
+
 
     unsigned int glyph_count = 0;
     hb_glyph_info_t* glyph_infos = hb_buffer_get_glyph_infos(buf, &glyph_count);
@@ -290,7 +335,11 @@ std::optional<GlyphRun> FontEngine::shape_text(
         cursor_y += gp.advance_y;
     }
 
-    hb_buffer_destroy(buf);
+    // FASE 4 (TICKET-088) — release the buffer to the per-Impl pool
+    // (reset + cache, NOT destroyed) on the success path.  Failures
+    // before the release point also call release_hb_buffer so the
+    // normalize handles both clean shutdown and bail-out paths.
+    m_impl->release_hb_buffer(buf);
 
     run.width = cursor_x;
     run.ascent  = static_cast<float>(face->size->metrics.ascender)  * scale;
