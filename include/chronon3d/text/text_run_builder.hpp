@@ -20,6 +20,7 @@
 //   }
 // ═══════════════════════════════════════════════════════════════════════════
 
+#include <chronon3d/core/types/result.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/text/font_engine.hpp>
@@ -27,6 +28,7 @@
 #include <chronon3d/text/text_run.hpp>
 
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace chronon3d {
@@ -73,6 +75,81 @@ struct TextRunBuildResult {
     FontEngine& engine,
     const TextLayoutSpec& layout,
     TextLayoutCache* cache = nullptr
+);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// compile_text_layout — single canonical TextRunLayout compiler (Fase 1.1)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Replaces the dual pipeline that previously lived across:
+//   - `build_text_run()` above (populated the layout but NOT the
+//     TextUnitMap — leaked an empty `units` field to per-frame code paths
+//     and broke the selector's `total_units` query in Scramble/Morph/
+//     CrossfadeLayouts drivers)
+//   - `materialize_text_run_shape()` in `scene/builders/text_run_builder.cpp`
+//     (populated the unit map, but via its OWN inline pipeline)
+//
+// After this refactor, both call sites route through `compile_text_layout`,
+// guaranteeing the invariant: every successful return carries a valid
+// `units` (TextUnitMap) — even zero-glyph paragraphs expose a valid empty
+// Map with deterministic counts.  Per-frame drivers no longer observe
+// `shape.layout->units` in an undefined state.
+//
+// `build_text_run()` is preserved as a backward-compatible wrapper that
+// iterates paragraphs and routes each through `compile_text_layout()`
+// (logging + skipping paragraphs that return `Err`).
+
+/// Compile-error taxonomy for compile_text_layout.  Future extensions:
+/// `FontMissing`, `MultiFontUnsupported`, `BidiFallback`.
+enum class TextLayoutErrorKind {
+    EmptySource,
+    ShapingFailed,
+    MalformedLayout,
+};
+
+/// Structured compile error returned in `Result`'s error channel.
+/// `message` carries a one-line diagnostic for spdlog/debug; `kind`
+/// gives callers programmatic switching (e.g. UI fallback policy).
+struct TextLayoutError {
+    TextLayoutErrorKind kind{TextLayoutErrorKind::EmptySource};
+    std::string         message{};
+};
+
+/// Lightweight services bundle for `compile_text_layout`.  Intentionally
+/// a STRICT SUBSET of the future full `TextServices` (FontStore,
+/// GlyphAtlas, …) so this refactor stays atomic.  Migrating to the full
+/// surface is a follow-up atom.
+struct TextCompileServices {
+    FontEngine*      engine{nullptr};
+    TextLayoutCache* cache{nullptr};
+};
+
+/// Request type for `compile_text_layout`.  Borrows the caller's data
+/// via non-owning pointers — the compile call is synchronous, lifetime
+/// of `doc` / `layout` / `primary_font` is the caller's responsibility.
+/// `primary_font` is used for cache-key construction (single-font
+/// paragraphs only); empty `primary_font` falls back to
+/// `doc->defaults.font`.
+struct TextLayoutRequest {
+    const TextDocument*   doc{nullptr};
+    const TextLayoutSpec* layout{nullptr};
+    FontSpec              primary_font{};
+};
+
+/// Single canonical TextRunLayout compiler.  Always populates `units`
+/// on success — that is the bug-fix for shape.layout->units being
+/// undefined after Scramble/Morph/CrossfadeLayouts transitions.
+///
+/// On failure returns `Err(TextLayoutError)` enumerating the cause.
+/// On success returns a `SharedTextRunLayout` whose members
+/// (`source_text`, `font`, `font_size`, `placed`, `units`, `bounds`,
+/// `direction`, `line_height`) are all populated by construction.
+[[nodiscard]] Result<
+    std::shared_ptr<TextRunLayout>,
+    TextLayoutError
+> compile_text_layout(
+    const TextLayoutRequest& request,
+    TextCompileServices& services
 );
 
 } // namespace chronon3d
