@@ -8,6 +8,13 @@
 
 ### PRs 1-4 (Performance)
 
+
+### TICKET-100 — Eliminate legacy materialize_text_run_shape pipeline (cat-3, 2026-06-30)
+
+2026-06-30 — Refactor cat-3 freeze-compliant che elimina la pipeline legacy inline di `materialize_text_run_shape()` (`src/scene/builders/text_run_builder.cpp`) consolidando le 5 fasi (cache lookup + `shape_text()` + `resolve_placed_glyph_run()` + manual `TextRunLayout` field-by-field assignment + cache store) in un helper anonimo `compile_or_cache_layout()` che chiama `compile_text_layout()` (canonical compiler in `src/text/text_run_builder.cpp`). La cache_key legacy (9 campi, inclusi direction + language) è preservata BIT-IDENTICAL (cache hit/miss match pre-refactor contract); compile_text_layout cache dance è BYPASSATO via `services.cache = nullptr` per evitare default hardcoded leak. Helper post-override `text_layout->direction` + `text_layout->language` per matchare `params.direction` / `params.language`. ZERO espansione `include/chronon3d/` (cat-3 freeze-compliant per AGENTS.md v0.1). Side-benefit (chiude review P0 #6 gratis): `text_layout->font = primary_font` (FontSpec 5-campi pieno) sostituisce il legacy `shaped_font = {4 campi}` che lasciava `font.font_size` al default 0.0f / 72.0f. 4 nuovi TEST_CASE identity in `tests/text/test_compile_text_layout_identity.cpp` (registrato in `tests/core_tests.cmake` `CORE_BLEND2D_TESTS`): (1) materialize ≡ compile_text_layout diretto su input equivalente; (2) cache-hit returns same shared_ptr; (3) direction+language override post-compile (RTL/`ar` + LTR/`en` round-trip); (4) `text_layout->font.font_size` mirrors `params.text.font.font_size` (P0 #6 closure). File modificati: `src/scene/builders/text_run_builder.cpp` (helper + 5-fasi rimosse) + `tests/text/test_compile_text_layout_identity.cpp` (NEW) + `tests/core_tests.cmake` (registrazione CORE_BLEND2D_TESTS) + `docs/FOLLOWUP_TICKETS.md` (TICKET-100 status flip + recently-closed row) + `docs/CURRENT_STATUS.md` § Testo (closure line) + `docs/CHANGELOG.md` (questa entry).
+
+---
+
 _Data: fine maggio 2026_
 
 | PR | Ottimizzazione | Bench | Prima | Dopo | Speedup |
