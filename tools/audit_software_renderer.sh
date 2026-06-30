@@ -17,14 +17,24 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-HDR="${ROOT}/include/chronon3d/backends/software/software_renderer.hpp"
-CPP="${ROOT}/src/backends/software/software_renderer.cpp"
-OUT="${1:-${ROOT}/docs/audits/2026-06-software-renderer-inventory.md}"
-
-if [[ ! -f "$HDR" ]]; then
-  echo "FATAL: missing $HDR" >&2
+# SoftwareRenderer is intentionally NOT on the public API surface (P1-E Pass E).
+# The header lives under src/backends/software/include_private/ since commit
+# 2c05d0d4 ("refactor(sdk): move software internal headers into
+# src/backends/software/include_private/"). We accept BOTH locations to (a)
+# honour the current private layout and (b) keep the gate functional when
+# bisecting historical commits where the header was still under include/.
+HDR_PRIVATE="${ROOT}/src/backends/software/include_private/chronon3d/backends/software/software_renderer.hpp"
+HDR_PUBLIC="${ROOT}/include/chronon3d/backends/software/software_renderer.hpp"
+if [[ -f "$HDR_PRIVATE" ]]; then
+  HDR="$HDR_PRIVATE"
+elif [[ -f "$HDR_PUBLIC" ]]; then
+  HDR="$HDR_PUBLIC"
+else
+  echo "FATAL: missing software_renderer.hpp (checked $HDR_PRIVATE and $HDR_PUBLIC)" >&2
   exit 2
 fi
+CPP="${ROOT}/src/backends/software/software_renderer.cpp"
+OUT="${1:-${ROOT}/docs/audits/2026-06-software-renderer-inventory.md}"
 if [[ ! -f "$CPP" ]]; then
   echo "FATAL: missing $CPP" >&2
   exit 2
