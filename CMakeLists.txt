@@ -178,12 +178,14 @@ endif()
 # `cmake/Chronon3DRegistry.cmake`.
 include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DRegistry.cmake)
 
-add_subdirectory(src)
-
 # 10. Content Generation (optional — proofs/demos, not core engine)
+# MUST come before add_subdirectory(src) so chronon3d_content exists
+# when Chronon3DSdkTargets.cmake runs the $<TARGET_OBJECTS> loop.
 if(CHRONON3D_BUILD_CONTENT OR CHRONON3D_BUILD_DIAGNOSTICS)
     add_subdirectory(content)
 endif()
+
+add_subdirectory(src)
 
 # --- Profiling & Condizionali di Build ---
 if(CHRONON3D_ENABLE_PROFILING AND Tracy_FOUND)
