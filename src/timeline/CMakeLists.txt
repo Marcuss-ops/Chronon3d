@@ -23,4 +23,8 @@
 
 target_sources(chronon3d_scene PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/composition.cpp
+    # P3-D — V2 timeline staging: explicit compile_camera() / compile_composition() /
+    # evaluate() bodies.  Pulls camera_v1/camera_program_compiler.hpp + spdlog
+    # once per binary; off the public header path.
+    ${CMAKE_CURRENT_SOURCE_DIR}/compile_evaluate.cpp
 )
