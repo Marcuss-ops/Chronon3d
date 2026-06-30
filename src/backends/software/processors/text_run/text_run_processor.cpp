@@ -490,7 +490,7 @@ graph::RenderOpResult draw_text_run(
             // required by the fill branch; documented here so future
             // refactors keep sizes in lockstep).
             if (eff_stroke.a > 0.0f && eff_stroke_w > 0.0f && ft_loaded) {
-                BLPath path = font_handle.outlines->build_outline(
+                BLPath path = font_handle.outlines->build_path(
                     font_handle.ft_face,
                     source_placed.glyphs[gi].glyph_id, 0.0f, 0.0f);
                 if (!path.empty()) {

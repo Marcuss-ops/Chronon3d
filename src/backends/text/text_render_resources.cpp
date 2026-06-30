@@ -153,10 +153,14 @@ std::shared_ptr<FT_Face> FreeTypeFaceCache::get_face(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// GlyphOutlineCache
+// GlyphOutlineBuilder — builds BLPath from FT_Outline per glyph
 // ═══════════════════════════════════════════════════════════════════════════
+//
+// NOT a cache: every call freshly runs FT_Load_Glyph + FT_Outline_Decompose.
+// The `mutex_` guards FreeType face mutation safety across concurrent
+// build_path() calls, not stored-result caching.  See header for rationale.
 
-BLPath GlyphOutlineCache::build_outline(
+BLPath GlyphOutlineBuilder::build_path(
     FT_Face ft_face,
     u32 glyph_id,
     float origin_x,
