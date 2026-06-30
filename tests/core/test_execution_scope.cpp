@@ -11,7 +11,7 @@
 //   5. Child arena is INDEPENDENT of the parent's resource().
 //   6. chain_length() tracks depth + 1.
 //   7. kind() preserves the value passed at construction.
-//   8. Chain depth is bounded by kMaxScopeDepth.
+//   8. Chain depth is bounded by kMaxScopeChainLength.
 //   9-13. PR 6.6 — lifecycle isolation: ArenaGuard child/parent, tile/root,
 //      precomp-inside-tile chain, sibling tile independence, session sharing.
 //
@@ -38,7 +38,7 @@ using chronon3d::RenderSession;
 using chronon3d::graph::ExecutionScope;
 using chronon3d::graph::ExecutionScopeKind;
 using chronon3d::graph::GraphInstanceId;
-using chronon3d::graph::kMaxScopeDepth;
+using chronon3d::graph::kMaxScopeChainLength;
 
 TEST_CASE("ExecutionScope: root construction — kind=Root, depth=0, parent=null") {
     RenderSession session;
@@ -211,53 +211,53 @@ TEST_CASE("ExecutionScope: anthrilinear (ancestor-then-sibling) chain rejected")
     CHECK_FALSE(b.would_recurse(0x1111ull));
 }
 
-TEST_CASE("ExecutionScope: kMaxScopeDepth is the published constant") {
-    REQUIRE(kMaxScopeDepth == 16);
+TEST_CASE("ExecutionScope: kMaxScopeChainLength is the published constant") {
+    REQUIRE(kMaxScopeChainLength == 16);
 }
 
-TEST_CASE("ExecutionScope: kMaxScopeDepth clamps depth + would_overflow() reports it") {
-    // PR 6.5 — chain depth > kMaxScopeDepth must be CLAMPED (not overflow
+TEST_CASE("ExecutionScope: kMaxScopeChainLength clamps depth + would_overflow() reports it") {
+    // PR 6.5 — chain depth > kMaxScopeChainLength must be CLAMPED (not overflow
     // past the bound, not throw/abort).  would_overflow() latches true on
     // the offending scope so callers can detect + route to a deterministic
     // fallback (empty fb per docs/03 §4.4).
     RenderSession session;
     FrameArena child_arena;  // distinct from parent.arena() to test independent allocation path
 
-    // Build a chain of depth=kMaxScopeDepth (anchor).  Establishes the chain
-    // anchor without overflowing; first child (depth 1) + (kMaxScopeDepth-1)
-    // nested children = total depth kMaxScopeDepth, no overflow.
-    // `stack.reserve(kMaxScopeDepth + 1)` matches the exact capacity needed
-    // (1 anchor + kMaxScopeDepth children), guaranteeing no reallocation
+    // Build a chain of depth=kMaxScopeChainLength (anchor).  Establishes the chain
+    // anchor without overflowing; first child (depth 1) + (kMaxScopeChainLength-1)
+    // nested children = total depth kMaxScopeChainLength, no overflow.
+    // `stack.reserve(kMaxScopeChainLength + 1)` matches the exact capacity needed
+    // (1 anchor + kMaxScopeChainLength children), guaranteeing no reallocation
     // across the emplace_back loop — parent addresses (`&stack.back()`) stay
     // stable throughout.
     std::vector<ExecutionScope> stack;
-    stack.reserve(kMaxScopeDepth + 1);
+    stack.reserve(kMaxScopeChainLength + 1);
     stack.emplace_back(ExecutionScopeKind::Root, session, GraphInstanceId{0});
-    for (int i = 1; i <= kMaxScopeDepth; ++i) {
+    for (int i = 1; i <= kMaxScopeChainLength; ++i) {
         stack.emplace_back(
             ExecutionScopeKind::Tile, session,
             child_arena, GraphInstanceId{static_cast<std::uint64_t>(i)},
             &stack.back());
     }
-    // After (kMaxScopeDepth) nested children on top of anchor, the deepest
-    // child has depth = kMaxScopeDepth (boundary case, NOT overflow).
+    // After (kMaxScopeChainLength) nested children on top of anchor, the deepest
+    // child has depth = kMaxScopeChainLength (boundary case, NOT overflow).
     ExecutionScope& deepest = stack.back();
-    CHECK(deepest.depth() == kMaxScopeDepth);
+    CHECK(deepest.depth() == kMaxScopeChainLength);
     CHECK_FALSE(deepest.would_overflow());
-    CHECK(deepest.chain_length() == kMaxScopeDepth + 1);
+    CHECK(deepest.chain_length() == kMaxScopeChainLength + 1);
 
     // Adding one more child should clamp depth and latch would_overflow().
     ExecutionScope overflow_child(
         ExecutionScopeKind::Tile, session, child_arena,
         GraphInstanceId{0xFFFFu}, &deepest);
-    CHECK(overflow_child.depth() == kMaxScopeDepth);  // clamped
+    CHECK(overflow_child.depth() == kMaxScopeChainLength);  // clamped
     CHECK(overflow_child.would_overflow());
-    CHECK(overflow_child.chain_length() == kMaxScopeDepth + 1);  // still bounded
+    CHECK(overflow_child.chain_length() == kMaxScopeChainLength + 1);  // still bounded
 
     // Every scope in the stack BEFORE the overflow child must NOT report
     // would_overflow() — the latch fires only on the scope whose proposed
-    // depth strictly exceeded kMaxScopeDepth.  stack[0] = root anchor,
-    // stack[1..kMaxScopeDepth] = boundary-correct children.
+    // depth strictly exceeded kMaxScopeChainLength.  stack[0] = root anchor,
+    // stack[1..kMaxScopeChainLength] = boundary-correct children.
     CHECK_FALSE(stack.front().would_overflow());
     for (std::size_t i = 1; i < stack.size(); ++i) {
         CHECK_FALSE(stack[i].would_overflow());
