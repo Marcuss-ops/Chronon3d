@@ -1158,13 +1158,28 @@ TextPresetDescriptor caption_box_entry() {
 // registry inventory: Cinematic (4), Reveal (10), Emphasis (4), Subtitle (4).
 // Insertion order does NOT affect runtime lookup (std::map keyed by id)
 // or test enumeration (Sub-cases 11-27 sort deterministically by id).
-void register_builtin_presets(TextPresetRegistry& r) {
+//
+// FASE 5 (TICKET-098) — caller-exposed per-category register helpers.
+// Each `register_text_preset_<category>(r)` seeds ONLY the entries in
+// its category.  Production code uses `register_builtin_presets(r)` to
+// seed all 22; tests / authoring façades can use the per-category
+// helpers to seed + inspect a single category in isolation (e.g., when
+// verifying Sub-case binding against `by_category(category)` queries).
+// Internal linkage (anon namespace): not visible to other TUs.
+//
+// The 22 entry() factories + 22 compose_<id>() helpers stay colocated in
+// this TU and remain anon-namespace internal.  Per-category SEMANTIC split
+// is achieved through the 4 narrow public-within-this-file register
+// helpers without expanding any public API surface (Cat-3 freeze-aligned).
+void register_text_preset_cinematic(TextPresetRegistry& r) {
     // ── Cinematic (4) — PR `41cda40c` kept verbatim ──────────────────────
     r.register_preset(animation_compositions_entry());
     r.register_preset(cinematic_text_camera_entry());
     r.register_preset(cinematic_title_reveal_entry());
     r.register_preset(tilt_sweep_title_v2_entry());
+}
 
+void register_text_preset_reveal(TextPresetRegistry& r) {
     // ── Reveal (10) — 1 from PR 41cda40c + 9 from Stage 3 ───────────────
     r.register_preset(text_animations_entry());
     r.register_preset(fade_in_entry());
@@ -1176,18 +1191,31 @@ void register_builtin_presets(TextPresetRegistry& r) {
     r.register_preset(masked_line_reveal_entry());
     r.register_preset(word_cascade_entry());
     r.register_preset(character_cascade_entry());
+}
 
+void register_text_preset_emphasis(TextPresetRegistry& r) {
     // ── Emphasis (4) — Stage 3 ───────────────────────────────────────────
     r.register_preset(word_pop_entry());
     r.register_preset(scale_punch_entry());
     r.register_preset(color_accent_entry());
     r.register_preset(gradient_fill_entry());
+}
 
+void register_text_preset_subtitle(TextPresetRegistry& r) {
     // ── Subtitle (4) — Stage 3 ───────────────────────────────────────────
     r.register_preset(minimal_white_entry());
     r.register_preset(yellow_keyword_entry());
     r.register_preset(glow_pulse_entry());
     r.register_preset(caption_box_entry());
+}
+
+void register_builtin_presets(TextPresetRegistry& r) {
+    // FASE 5 (TICKET-098) — delegate to per-category helpers; order is:
+    //   Cinematic (4) → Reveal (10) → Emphasis (4) → Subtitle (4).
+    register_text_preset_cinematic(r);
+    register_text_preset_reveal(r);
+    register_text_preset_emphasis(r);
+    register_text_preset_subtitle(r);
 }
 
 } // namespace
