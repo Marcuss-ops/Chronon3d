@@ -1,0 +1,17 @@
+# ninja log v7
+16	99	1782812831052816447	src/cache/CMakeFiles/chronon3d_cache.dir/cmake_pch.hxx.gch	366ceb4c79fcd779
+17	2928	1782812831054832761	src/render_graph/CMakeFiles/chronon3d_graph_builder.dir/cmake_pch.hxx.gch	8c8cc62f77defbd7
+17	3148	1782812831054498804	src/render_graph/CMakeFiles/chronon3d_graph_nodes.dir/cmake_pch.hxx.gch	1be6c231d49e8317
+19	3786	1782812831056507675	src/render_graph/CMakeFiles/chronon3d_graph_pipeline.dir/cmake_pch.hxx.gch	389c30a35b6a86a4
+99	3800	1782812831136422490	content/CMakeFiles/chronon3d_content.dir/register_content_modules.cpp.o	2bb31da67db0577e
+19	4416	1782812831055816509	src/render_graph/CMakeFiles/chronon3d_graph_executor.dir/cmake_pch.hxx.gch	fc690373d07dbb90
+17	5289	1782812831054311020	src/render_graph/CMakeFiles/chronon3d_graph_core.dir/cmake_pch.hxx.gch	8caa019c1b023170
+3148	8772	1782812834184881453	content/CMakeFiles/chronon3d_content.dir/showcases/minimalist/minimalist_image_presets.cpp.o	20a47de798c2d5f1
+2929	9348	1782812833965876907	content/CMakeFiles/chronon3d_content.dir/showcases/minimalist/minimalist_animations.cpp.o	501916e3e6487d01
+4416	9535	1782812835452907770	content/CMakeFiles/chronon3d_content.dir/showcases/grid/grid_showcase.cpp.o	91012fb87af71bd6
+3800	9585	1782812834836894985	content/CMakeFiles/chronon3d_content.dir/showcases/important-words/important_words_animations.cpp.o	4ef35c20fc423c1b
+3786	10385	1782812834822894694	content/CMakeFiles/chronon3d_content.dir/showcases/special-names/special_names_animations.cpp.o	ba0bb7d5c5c918c6
+21	10851	1782812831058563240	src/backends/software/CMakeFiles/chronon3d_backend_software.dir/cmake_pch.hxx.gch	d257d307377fe3c5
+16	10946	1782812831053768758	src/registry/CMakeFiles/chronon3d_registry.dir/cmake_pch.hxx.gch	1f24fe9e069a8add
+21	11153	1782812831057816551	src/runtime/CMakeFiles/chronon3d_runtime.dir/cmake_pch.hxx.gch	d5a6bf7d3b48f29
+16	11530	1782812831054023213	src/backends/image/CMakeFiles/chronon3d_backend_image.dir/cmake_pch.hxx.gch	ef5c5728d3abc816
