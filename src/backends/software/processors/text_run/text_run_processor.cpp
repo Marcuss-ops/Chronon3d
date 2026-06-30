@@ -96,37 +96,19 @@ BlurTiers build_blur_tiers(const std::vector<GlyphInstanceState>& glyphs) {
 
 
 
-// ═══════════════════════════════════════════════════════════════════════════
-// FASE 4 (TICKET-090) — draw_text_run stage primitives, file-local.
-// ═══════════════════════════════════════════════════════════════════════════
-//
-// `draw_text_run()` is decomposed into named stage helpers so the
-// orchestrator body reads top-to-bottom as a sequence of stage calls.
-// Two fully-separable stages are lifted to anonymous-namespace free
-// functions (so they can be reviewed, tested, and reasoned about in
-// isolation):
-//
-//   1. expand_per_glyph_bbox() — Stage: bbox-pre-classification
-//      Walks a glyph vector against its placed run and widens the
-//      running local-space min/max.  No closure state.
-//
-//   2. apply_separable_box_blur() — Stage: tier-blur pass
-//      Inline box-blur, sliding window, O(w*h).  Operates in-place on
-//      BL_FORMAT_PRGB32.  Owns its unpacking lambdas (file-local).
-//
-// The remaining stage (the tier-renderer inside `draw_text_run()`)
-// stays inline as the orchestrator: extracting it would require ~10
-// contextual parameters (offset_x/y, font_handle, ft_loaded, tier
-// radii, TextPaint, …) without changing semantics.
+// FASE 4 (TICKET-090 / 090b) — draw_text_run stage primitives.
+// Two fully-separable stages are lifted to file-local free functions,
+// reviewed / tested in isolation; the tier-renderer stays inline as the
+// orchestrator (extracting it would add ~10 contextual params without
+// changing semantics — see the inline `// ── Stage N ───` markers in
+// `draw_text_run()` below for the call-order decomposition).
 
 // ── Stage 1 — Bbox pre-classification ──────────────────────────────
 //
-// Walks `glyphs` against the corresponding `placed` glyph run and
-// widens the running local-space bounding box (`min_x, min_y, max_x,
-// max_y`) per-glyph.  Used twice in `draw_text_run`: once for the
-// active side, once for the crossfade side.  Padding adds blur,
-// stroke, and a fixed 8px safety margin for stroke / shadow extending
-// beyond the placed glyph extent.
+// Walks `glyphs` against its `placed` glyph run and widens the running
+// local-space min/max.  Used twice in `draw_text_run`: once for the
+// active side, once for the crossfade side.  Padding adds blur +
+// stroke + a fixed 8px safety margin.
 void expand_per_glyph_bbox(
     float& min_x, float& min_y, float& max_x, float& max_y,
     const std::vector<GlyphInstanceState>& glyphs,
@@ -148,9 +130,9 @@ void expand_per_glyph_bbox(
 //
 // In-place blur on BL_FORMAT_PRGB32.  Horizontal then vertical pass,
 // each window sum maintained in O(1) per pixel via a sliding window.
-// Uses a caller-provided scratch buffer (TextScratchState.blur_buffer)
-// to avoid one BLImage alloc per call.  Total cost ~ 2 * w * h
-// (independent of `radius`).
+// Uses a caller-provided scratch buffer (scratch_state.blur_buffer)
+// to avoid one BLImage alloc per call.  Cost ~ 2 * w * h independent
+// of `radius`.
 void apply_separable_box_blur(BLImage& image, int radius, TextScratchState& scratch_state) {
     if (radius <= 0) return;
     BLImageData data;
@@ -267,16 +249,18 @@ graph::RenderOpResult draw_text_run(
     const SoftwareProcessorContext& rctx,
     TextRunDrawParams& params
 ) {
-    // WP-8 PR 8.0 — function-scope resolver sourced from the renderer’s
-    // own runtime, threaded into both caches used below (`get_face` for
-    // the BLFontFace lookup and `TextRunPathBuilder::load` for the
-    // FreeType stroke-path loading).  Replaces deep reads of
-    // `runtime::typed_resolver_for_deep_code()` inside both caches.
-    // `AssetResolver` is a value-member of `RenderRuntime`, so this
-    // reference is stable for the renderer’s lifetime.
-    // Fase 3 — font loading is handled by TextRenderResources.
-    // The renderer receives a FontFaceHandle — no file I/O here.
+    // FASE 4 (TICKET-090b) — orchestrator decomposed into 8 numbered stages.
+    // See the inline `// ── Stage N — XYZ ───` markers below for the
+    // call-order decomposition.  Lifted file-local helpers are documented
+    // in the anonymous namespace above (expand_per_glyph_bbox,
+    // apply_separable_box_blur).  The tier-renderer stays inline as the
+    // orchestrator.
 
+    // Phase 1.4 / WP-8 PR 8.0: function-scope AssetResolver is captured
+    // from the renderer’s runtime; TextRenderResources owns font handles;
+    // FontFaceHandle is opaque (carries FT_Face + BLFontFace + outlines).
+
+    // ── Stage 0 — Input validation + safe early-outs ────────────────
     const auto& shape = params.shape;
     if (!shape.layout || shape.glyphs.empty()) {
         return graph::RenderOpResult(graph::RenderBackendError{
@@ -395,7 +379,7 @@ graph::RenderOpResult draw_text_run(
     }
 
 
-    // ── Compute glyph bbox (the run's local image-local extent) ─────
+    // ── Stage 2 — Compute glyph bbox (run-local image extent) ───────
     // Conservative padding accounts for blur, stroke, and 2.5D shears
     // before we know how aggressive the model_matrix will be.
     //
@@ -413,6 +397,7 @@ graph::RenderOpResult draw_text_run(
     // placed run and widens the running local-space min/max.  Used
     // for both the active side and the crossfade side below.
     // FASE 4 (TICKET-090) — Stage 1 calls the lifted free function.
+    // Stage 1 — bbox pre-classification (lifted helper).
     expand_per_glyph_bbox(min_x, min_y, max_x, max_y, shape.glyphs, layout.placed);
     if (shape.crossfade_layout && !shape.crossfade_glyphs.empty()) {
         expand_per_glyph_bbox(min_x, min_y, max_x, max_y,
@@ -441,7 +426,7 @@ graph::RenderOpResult draw_text_run(
     const float offset_x = min_x - margin;
     const float offset_y = min_y - margin;
 
-    // ── Per-glyph blur tiers ─────────────────────────────────────────
+    // ── Stage 3 — Per-glyph blur tier pre-classification (O(G)) ─────
     // Glyphs are grouped into 5 tiers by their per-glyph blur value.
     // Each tier is rasterized onto its own surface, blurred individually,
     // and then composited SRC_OVER onto the final run image.  This means
@@ -485,10 +470,9 @@ graph::RenderOpResult draw_text_run(
     // Operates on BL_FORMAT_PRGB32 in-place.  Uses a sliding window so
     // the per-pixel cost is O(1) instead of O(radius).  Total cost is
     // roughly 2 × w × h independent of radius.
-    // FASE 3 thread-safety: scratch buffer is now per-call via scratch_state.
-    // (The previous static BlurScratchPool::instance() has been removed.)
-    // FASE 4 (TICKET-090) — Stage 2 in-place blur now lives in
-    // apply_separable_box_blur() above (Stg 2 anon-namespace helper).
+    // (Blur scratch buffer is per-call via scratch_state; previous static
+    // BlurScratchPool singleton was removed in FASE 3.  The in-place blur
+    // itself now lives in `apply_separable_box_blur()` above.)
 
 #ifdef CHRONON3D_ENABLE_TEXT
     // Fase 3 — FreeType face is pre-loaded in the FontFaceHandle.
@@ -624,7 +608,7 @@ graph::RenderOpResult draw_text_run(
         return drawn;
     };
 
-    // ── Shadow stack (drawn UNDER the main fill) ─────────────────────
+    // ── Stage 4 — Shadow stack (under main fill) ───────────────────
     // Each enabled shadow in `shape.shadows` produces a shadow BLImage
     // with the shadow's color, then composites with the shadow's offset
     // folded into the model matrix.  Multiple shadows compose via
@@ -667,7 +651,7 @@ graph::RenderOpResult draw_text_run(
         scratch_state.release_surface(std::move(shadow_img));
     }
 
-    // ── Main run: tiered per-glyph blur compositing ──────────────────
+    // ── Stage 5 — Main run: tiered per-glyph blur compositing ────────
     //
     // Instead of drawing all glyphs to one image and blurring with the
     // single max_blur (which smears blur-0 glyphs), we group glyphs into
@@ -709,7 +693,7 @@ graph::RenderOpResult draw_text_run(
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // PR 11 — CrossfadeLayouts: render the outgoing side too
+    // Stage 6 — PR 11 CrossfadeLayouts: render the outgoing side too
     // ═══════════════════════════════════════════════════════════════════════════
     //
     // Walk the same 5 blur tiers on shape.crossfade_glyphs, then
@@ -765,12 +749,12 @@ graph::RenderOpResult draw_text_run(
         return graph::RenderOpResult(graph::RenderOpOutcome{0});
     }
 
-    // ── Apply TextMaterial (gradient, bevel, etc.) ───────────────────
+    // ── Stage 7 — Apply TextMaterial (gradient, bevel, etc.) ─────────
     if (shape.material.enabled) {
         apply_text_material(img, shape.material);
     }
 
-    // ── Composite MAIN onto framebuffer — full model_matrix ──────────
+    // ── Stage 8 — Composite MAIN onto framebuffer (full model_matrix) 
     // Compose the user's model with the run-local translate so the
     // image content fills the framebuffer correctly under rotation /
     // scale / shear.  composite_bl_image_transformed has a fast path
