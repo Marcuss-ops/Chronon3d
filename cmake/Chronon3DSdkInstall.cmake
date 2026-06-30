@@ -126,7 +126,16 @@ endforeach()
 install(TARGETS ${_chronon3d_install_targets}
     EXPORT Chronon3DTargets
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    FILE_SET HEADERS DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    # `chronon3d_sdk` carries the public_headers FILE_SET declared via
+    # target_sources() above. CMake's export graph validates that EVERY
+    # interface file set on a target is explicitly installed; the
+    # conventional default CMake FILE_SET name is HEADERS, but this
+    # target uses the semantic name `public_headers` (TICKET-011 —
+    # PUBLIC SURFACE manifest). The clause is silently skipped for
+    # targets that do not define a matching file set. Add additional
+    # `FILE_SET <name> DESTINATION ...` lines here when new subsets
+    # are introduced through the registry.
+    FILE_SET public_headers DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 # Export internal targets WITHOUT NAMESPACE — they remain importable so
