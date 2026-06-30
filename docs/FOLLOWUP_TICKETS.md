@@ -26,6 +26,7 @@
 | TICKET-024 | camera OrbitMotion world-Z vs camera basis | 🟡 Code-fix | `include/camera/` | camera path |
 | TICKET-026 | camera MotionBlurSettings Mode duality | 🟡 Code-fix | `include/camera/` | arch-boundary (gate 5) |
 | TICKET-064 | §9 ExecutionScope — ScopeError/ScopeErrorCode structured error model (PR 6.8 prep) | 🟡 Code-fix | `include/chronon3d/core/execution/scope_error.hpp` | arch-boundary (gate 5) |
+| TICKET-067 | GATE-MNT-01 strict-SHA equality incompatible with post-commit push | 🔵 Planned | `tools/check_main_clean.sh` | GATE-MNT-01 (pre-push wrapper). Gate requirement `HEAD == origin/main` (full-SHA equality) is impossible to satisfy after committing a new local change without first pushing. Replace with `git merge-base --is-ancestor origin/main HEAD` so the wrapper correctly accepts fast-forward pulls and rejects diverged pushes.
 
 > **Ordinamento tabella top-10**: priorita `gate-impact desc` (regole AGENTS.md #4).
 > Priority order = blocco diretto dei gate `Baseline verde: CERTIFICATA` (gate 1-9 RELEASE_GATE).

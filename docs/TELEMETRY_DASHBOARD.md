@@ -327,7 +327,7 @@ When the browser loads a frame preview:
 4. Flask get_artifact():
    → resolve_artifact_path("output/focus_quote_frame.png")
    → Tries PROJECT_ROOT/output/ + "output/focus_quote_frame.png" = doesn't exist
-   → Tries PROJECT_ROOT/ + "output/focus_quote_frame.png" = /home/pierone/Pyt/Chronon3d/output/focus_quote_frame.png
+   → Tries PROJECT_ROOT/ + "output/focus_quote_frame.png" = <repo-root>/output/focus_quote_frame.png
    → Exists! Returns file with Content-Type: image/png
 
 5. Browser renders the image ✓
