@@ -56,12 +56,12 @@ These appear to be comments or string literals containing formula references. Th
 ```
 CMake Error in src/cache/CMakeLists.txt:
   Target "chronon3d_cache" INTERFACE_INCLUDE_DIRECTORIES property contains
-  path: "/home/pierone/Pyt/Chronon3d/src/cache/include_private"
+  path: "<repo-root>/src/cache/include_private"
   which is prefixed in the source directory.
 
 CMake Error in src/render_graph/CMakeLists.txt:
   Target "chronon3d_graph" INTERFACE_INCLUDE_DIRECTORIES property contains
-  path: "/home/pierone/Pyt/Chronon3d/src/render_graph/include_private"
+  path: "<repo-root>/src/render_graph/include_private"
   which is prefixed in the source directory.
 ```
 

@@ -977,18 +977,18 @@ TICKET-008 chooses (b) — document the limitation + require callers to either k
 ### Symptom
 
 ```text
-/home/pierone/Pyt/Chronon3d/tests/test_text_preset_registry.cpp:961:17: error: 'FAIL_TEST' was not declared in this scope; did you mean 'F_TEST'?
+<repo-root>/tests/test_text_preset_registry.cpp:961:17: error: 'FAIL_TEST' was not declared in this scope; did you mean 'F_TEST'?
   961 |                 FAIL_TEST("Unknown preset_id branch in Sub-case 31: " << id);
 ```
 
 ```text
-/home/pierone/Pyt/Chronon3d/tests/text/test_text_material.cpp:52:36: error: no matching function for call to 'chronon3d::FontEngine::FontEngine(<brace-enclosed initializer list>)'
+<repo-root>/tests/text/test_text_material.cpp:52:36: error: no matching function for call to 'chronon3d::FontEngine::FontEngine(<brace-enclosed initializer list>)'
   52 |     FontEngine test_engine{resolver};
 ... (cascade: cc1plus template-deduction failures on operator<< for FAIL_TEST macro, plus downstream undeclared-identifier errors)
 ```
 
 ```text
-/home/pierone/Pyt/Chronon3d/include/chronon3d/text/font_engine.hpp:231:14: note: candidate 2: 'chronon3d::FontEngine::FontEngine(const chronon3d::assets::AssetResolver&)'
+<repo-root>/include/chronon3d/text/font_engine.hpp:231:14: note: candidate 2: 'chronon3d::FontEngine::FontEngine(const chronon3d::assets::AssetResolver&)'
   231 |     explicit FontEngine(const chronon3d::assets::AssetResolver& resolver);
 ```
 

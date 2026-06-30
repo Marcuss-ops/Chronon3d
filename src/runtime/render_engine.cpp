@@ -73,15 +73,11 @@ struct RenderEngine::Impl {
         //   - renderer's per-instance settings (live on m_renderer)
         //   - runtime-owned FramebufferPool shared_ptr
         // After attach_backend() the runtime is sole owner of the backend.
-        {
-            SoftwareBackendServices svc;
-            svc.counters         = m_renderer->counters();
-            svc.settings         = &m_renderer->render_settings();
-            svc.framebuffer_pool = m_runtime.framebuffer_pool_shared();
-            svc.asset_resolver   = &m_runtime.resolver();
-            svc.text_resources   = m_renderer->text_render_resources();
-            m_runtime.attach_backend(std::make_unique<SoftwareBackend>(svc));
-        }
+        m_runtime.attach_backend(std::make_unique<SoftwareBackend>(
+            m_renderer.get(),            // 06 R3b owner back-pointer
+            *m_renderer->counters(),
+            m_renderer->render_settings(),
+            m_runtime.framebuffer_pool_shared()));
 
         // TICKET-011a follow-up #1 — publish the RenderPipeline facade.
         m_pipeline.emplace(m_renderer.get(), m_runtime);
@@ -96,15 +92,11 @@ struct RenderEngine::Impl {
     {
         m_renderer->set_image_backend(std::make_shared<image::StbImageBackend>());
 
-        {
-            SoftwareBackendServices svc;
-            svc.counters         = m_renderer->counters();
-            svc.settings         = &m_renderer->render_settings();
-            svc.framebuffer_pool = m_runtime.framebuffer_pool_shared();
-            svc.asset_resolver   = &m_runtime.resolver();
-            svc.text_resources   = m_renderer->text_render_resources();
-            m_runtime.attach_backend(std::make_unique<SoftwareBackend>(svc));
-        }
+        m_runtime.attach_backend(std::make_unique<SoftwareBackend>(
+            m_renderer.get(),            // 06 R3b owner back-pointer
+            *m_renderer->counters(),
+            m_renderer->render_settings(),
+            m_runtime.framebuffer_pool_shared()));
 
         // TICKET-011a follow-up #1 — publish the RenderPipeline facade.
         m_pipeline.emplace(m_renderer.get(), m_runtime);

@@ -40,7 +40,7 @@ set -euo pipefail
 # IGNORED_DIRS_HEADER_DATE — bump this whenever IGNORED_DIRS or
 # IGNORED_FILE_PATTERNS below is amended so a `git blame` consumer
 # can spot list-vs-gitignore drift.
-IGNORED_DIRS_HEADER_DATE='2026-06-21'
+IGNORED_DIRS_HEADER_DATE='2026-06-30'
 
 # Top-level trailing-/ patterns mirrored from .gitignore. Build
 # directories are listed first (most likely to catch violations), then
@@ -110,6 +110,14 @@ IGNORED_FILE_PATTERNS=(
 # defensively by listing the dir itself AND a glob-expanded pass.
 GLOB_BUILD_DIRS=(build-tmp build-debug build-release build-asan build-*)
 
+# `/.tmp_gate*/` glob (Fase 0 hardening, 2026-06-30): sibling CI
+# pipeline temp dirs (.tmp_gate10/, .tmp_gate11/, …) produced by
+# `tools/check_*.sh` and `tools/install_consumer_test.sh`. Their
+# build-tree files leak absolute build-machine paths (e.g.
+# /home/<user>/Pyt/...). Always check existence on disk before
+# `git ls-files` to keep the "no dir" case vacuous.
+GLOB_TMP_GATE_PATTERNS=('.tmp_gate*')
+
 # ── Header ───────────────────────────────────────────────────────────
 echo "=== Gitignored build/output dirs not tracked (PR 0.2 close-out) ==="
 echo "    IGNORED_DIRS_HEADER_DATE = ${IGNORED_DIRS_HEADER_DATE}"
@@ -174,6 +182,52 @@ for f in "${IGNORED_FILE_PATTERNS[@]}"; do
     done
 done
 
+# ── .tmp_gate* tracked-glob audit (Fase 0 hardening, 2026-06-30) ────
+# Catches sibling CI temp dirs (.tmp_gate10, .tmp_gate11, …) that
+# someone may have `git add`'d on disk. The dirs are .gitignore'd but
+# this layer enforces the invariant against the *index* — defense in
+# depth for accidental `git add -f` or `git add --all .` workflows.
+# `git ls-files` accepts glob patterns internally and returns nothing
+# for non-matching entries without external `if`-guard preconditions.
+tmp_gate_violations=0
+for real in ${GLOB_TMP_GATE_PATTERNS[*]}; do
+    tracked=$(git ls-files "${real}/" 2>/dev/null || true)
+    if [ -n "$tracked" ]; then
+        per_dir_lines+=("  [FAIL] (CI-temp-glob) ${real}/ has tracked entries (count: $(printf '%s\n' "${tracked}" | wc -l | tr -d ' ')):")
+        per_dir_lines+=("$(printf '%s\n' "${tracked}" | sed 's/^/           /')")
+        overall_fail=1
+        tmp_gate_violations=$((tmp_gate_violations + $(printf '%s\n' "${tracked}" | wc -l | tr -d ' ')))
+    fi
+done
+
+# ── Absolute-path leak audit (Fase 0 hardening, 2026-06-30) ──────────
+# Any tracked file whose contents embed a build-machine absolute path is
+# a hygiene regression: it bloats the index, can break CI sandboxes
+# (path absent in a fresh clone → broken build references), and leaks
+# the contributor's local filesystem layout. Pattern matches the
+# canonical build-machine absolute path leak shape (<SENTINEL> is the
+# placeholder for the build-machine absolute path; regex-based to avoid
+# self-match against this audit's source line).
+#
+# `--cached` scope = tracked files only (matches the canonical
+# verification command pattern  `git grep -l <SENTINEL> $(git ls-files)`
+# where <SENTINEL> is the build-machine absolute path).
+# Default `git grep` would also scan the working tree (untracked-
+# new-file noise), which is OUT OF SCOPE for the gate — untracked
+# build debris should be handled by .gitignore, not flagged as a
+# hygiene regression.
+abs_path_pattern='/home/[A-Za-z]+/Pyt/Chronon3d'
+abs_path_hits=$(git grep -l --cached -E -- "$abs_path_pattern" 2>/dev/null || true)
+if [ -n "$abs_path_hits" ]; then
+    per_dir_lines+=("  [FAIL] (absolute-path leak) tracked files matching '${abs_path_pattern}':")
+    per_dir_lines+=("$(printf '%s\n' "${abs_path_hits}" | sed 's/^/           /')")
+    overall_fail=1
+fi
+abs_path_violations=0
+if [ -n "$abs_path_hits" ]; then
+    abs_path_violations=$(printf '%s\n' "$abs_path_hits" | wc -l | tr -d ' ')
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────
 if [ ${#per_dir_lines[@]} -gt 0 ]; then
     printf '%s\n' "${per_dir_lines[@]}"
@@ -181,7 +235,7 @@ fi
 echo ""
 
 if [ "${overall_fail}" -ne 0 ]; then
-    echo "=== Gitignored-dirs check FAILED (${total_violations} dir + ${glob_hits} glob + ${file_violations} file violations) ==="
+    echo "=== Gitignored-dirs check FAILED (${total_violations} dir + ${glob_hits} build-glob + ${tmp_gate_violations} tmp-gate + ${file_violations} file + ${abs_path_violations} abs-path violations) ==="
     echo ""
     echo "Fix hint: for each tracked entry remove from the index with"
     echo "    git rm --cached <path>"
@@ -189,5 +243,5 @@ if [ "${overall_fail}" -ne 0 ]; then
     exit 1
 fi
 
-echo "=== Gitignored-dirs check PASSED (${#IGNORED_DIRS[@]} listed dirs + ${#GLOB_BUILD_DIRS[@]} globs + ${#IGNORED_FILE_PATTERNS[@]} file patterns, all empty) ==="
+echo "=== Gitignored-dirs check PASSED (${#IGNORED_DIRS[@]} listed dirs + ${#GLOB_BUILD_DIRS[@]} build-globs + ${#GLOB_TMP_GATE_PATTERNS[@]} tmp-gate-globs + ${#IGNORED_FILE_PATTERNS[@]} file patterns, no abs-path leaks) ==="
 exit 0

@@ -18,7 +18,7 @@
 | Log matrix grezzo         | `/tmp/dod_c1_post_a3_final.log`                              |
 | Script invocation         | `bash /tmp/dod_c1_verify.sh`                                 |
 | Build dir                 | `/tmp/dod` (fresco)                                          |
-| `vcpkg_bootstrap` root    | `/home/pierone/Pyt/Chronon3d/vcpkg_bootstrap`                |
+| `vcpkg_bootstrap` root    | `<repo-root>/vcpkg_bootstrap`                |
 | Doc-sync obbligatorio     | NO (nessun file `include/` o `src/` toccato in questo commit) |
 
 ## 2) Matrice DoD 9-step
