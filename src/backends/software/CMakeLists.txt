@@ -24,6 +24,15 @@ target_link_libraries(chronon3d_backend_software
         chronon3d_effects
         chronon3d_backend_assets
         chronon3d_backend_image
+        # P1-E Pass E — forward-looking link so software's .cpp files can
+        # resolve `<chronon3d/runtime/render_runtime.hpp>` after Commit #3
+        # relocates it into `src/runtime/include_private/`.  `chronon3d_runtime`
+        # exposes its include_private via INTERFACE scope (P1-E Commit #3
+        # CMakeLists edit), which propagates through this PUBLIC link
+        # into software's compilation.  Without this line, `software_renderer.cpp`
+        # would fail to find the moved `render_runtime.hpp` between
+        # Commit #3 and Commit #4.
+        chronon3d_runtime
     PRIVATE
         spdlog::spdlog_header_only
         hwy::hwy

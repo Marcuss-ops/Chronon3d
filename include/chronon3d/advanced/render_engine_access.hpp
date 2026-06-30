@@ -34,9 +34,19 @@
 // ═════════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/api/render_engine.hpp>
-#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/render_session.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
+
+// ── Forward declarations of internal types (P1-E Pass E) ─────────────
+// `render_runtime.hpp` and `software_renderer.hpp` were relocated into
+// `src/runtime/include_private/` and `src/backends/software/include_private/`
+// respectively.  This header is itself installed (advanced/ is not
+// standards-V0.1-SDK but still installed by `install(DIRECTORY include/)`),
+// so the full definitions of these types are NOT pulled in here — only
+// forward declarations are needed because the accessor signatures
+// return references / forward-declared pointers.  Implementations live
+// in `src/runtime/render_engine.cpp` (still uses the full include).
+namespace chronon3d::runtime { class RenderRuntime; }
+namespace chronon3d { class SoftwareRenderer; }
 
 namespace chronon3d::advanced {
 
