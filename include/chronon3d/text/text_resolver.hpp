@@ -36,6 +36,7 @@
 #include <cstddef>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 namespace chronon3d {
@@ -214,5 +215,77 @@ struct ShapedTextTree {
     FontEngine& engine,
     float tracking = 0.0f
 );
+
+// ═══════════════════════════════════════════════════════════════════════════
+// paragraph_is_multi_font — single canonical multi-font detector (CR#5)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Hoisted from `compile_text_layout` (Fase 1.5) into the resolver header
+// where the font hierarchy is canonical.  Both the per-paragraph call site
+// in `compile_text_layout` AND the per-paragraph wrapper pre-check in
+// `build_text_run` use this single helper, so a future distinguishing
+// field (font_stretch, font_variation, language) added to FontSpec is
+// locally extendable: bump the std::tie column list below AND
+// `FontSpec::operator==` in font_engine.hpp.  No edit needed in
+// text_run_builder.cpp / scene / builders.
+///
+/// A paragraph is multi-font iff it carries MORE THAN ONE run AND any
+/// pair of runs differs in the FontSpec fields listed in std::tie.  Note
+/// that `font_size` is EXPLICITLY NOT in the comparison: font_size is a
+/// layout concern (superscript, drop-cap scaling, mid-paragraph emphasis
+/// gradients) and varying font_size on a SINGLE FontSpec must NOT trip
+/// multi-font detection.  Likewise bidi-segmented multi-run paragraphs
+/// that share a font (e.g. LTR + RTL of the same family) intentionally
+/// return false so existing mixed-direction paragraphs continue to
+/// compile normally.
+///
+/// noexcept because FontSpec fields are all POD-like (string + int +
+/// string) with no throwing operations.
+[[nodiscard]] inline bool paragraph_is_multi_font(
+    const ResolvedParagraph& para
+) noexcept {
+    // ── Single-run + empty paragraphs are NEVER multi-font ─────────
+    // Multi-font is defined as "the paragraph has been resolved into
+    // > 1 run AND those runs disagree on font identity".  The trivial
+    // cases (0 or 1 runs) cannot satisfy the second conjunct.
+    if (para.runs.size() < 2) return false;
+
+    // ── Compare against the first run as canonical ─────────────────
+    // (O(N) pairwise check, equivalent to `adjacent_find`-with-unequal
+    // under transitive equality of FontSpec across the same chain).
+    const FontSpec& first = para.runs.front().font;
+    for (std::size_t i = 1; i < para.runs.size(); ++i) {
+        const FontSpec& f = para.runs[i].font;
+
+        // ── FUTURE-PROOF FontSpec equality via std::tie ─────────
+        // std::tie produces a std::tuple<...> whose operator!= is the
+        // lexicographic compare of its elements.  Adding a new
+        // FontSpec field is a two-edit change: extend the column
+        // list here, and FontSpec::operator== in font_engine.hpp.
+        // Callers do not need to be updated.  This is the same
+        // pattern used in compile-text-layout's cache-key builder
+        // and matches the Verdict-Issue-#3 stabilization contract.
+        //
+        // ── Why font_size is intentionally EXCLUDED ────────────
+        // A single font may legitimately be shaped at different
+        // sizes mid-paragraph: superscript, drop-cap scaling,
+        // emphasis gradients (e.g. progressively larger characters
+        // for typewriter-style intro animations).  These are
+        // LAYOUT concerns, not FONT IDENTITY concerns, and a size
+        // variation must NOT trip multi-font detection — the
+        // renderer is expected to keep using the resolved font
+        // (single BLFont) and only vary font_size at span
+        // boundaries in a future atom.
+        //
+        // The compare fields (path / family / weight / style) are
+        // the FontSpec fields that gate FONT IDENTITY — handled
+        // here + in FontSpec::operator== in font_engine.hpp.
+        if (std::tie(f.font_path,   f.font_family,   f.font_weight, f.font_style)
+         != std::tie(first.font_path, first.font_family, first.font_weight, first.font_style)) {
+            return true;
+        }
+    }
+    return false;
+}
 
 } // namespace chronon3d
