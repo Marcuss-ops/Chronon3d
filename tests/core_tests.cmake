@@ -128,6 +128,34 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         # test_compile_text_layout_errors.cpp; degrades gracefully when
         # system fonts are unavailable.
         text/test_rich_text_paragraph_preservation.cpp
+        # TICKET-092 -- text cat-3 #3 regression suite for the INTERNAL
+        # accumulator (compile_text_document) introduced in src/text/.
+        # The accumulator pattern replaces the previous
+        # `spdlog::warn(...) + goto next_paragraph` skip-on-failure
+        # pattern with a per-paragraph result vector (Ok AND Err both
+        # preserved) keyed by `source_index` so callers can identify
+        # WHICH paragraph failed.  3 TEST_CASEs:
+        #   (1) central paragraph (i=1) is multi-font: all 3
+        #       CompiledParagraphResult preserved (size == 3), Err at
+        #       source_index == 1 has TextLayoutErrorKind ::
+        #       UnsupportedMultiFontRun, complete == false;
+        #   (2) single-paragraph multi-font doc: 1 entry with Err at
+        #       source_index == 0, complete == false (regression lock
+        #       that the accumulator does NOT silently swallow the
+        #       failure into an empty vector as the old warn+skip
+        #       pattern did);
+        #   (3) all-single-font 3-paragraph doc: 3 Ok entries,
+        #       complete == true (sanity check that the success case is
+        #       purely additive, no semantic change for callers that
+        #       only ever saw successful compiles).  All cases
+        #       deterministic; system-font availability is irrelevant
+        #       because the multi-font pre-check fires on the RESOLVED
+        #       tree before any shaping.  Header reach:
+        #       `../../src/text/text_document_compile_result.hpp` is
+        #       the only way the test sees the INTERNAL accumulator
+        #       types (they are NOT in include/chronon3d/, by
+        #       cat-3-freeze design).
+        text/test_compile_text_layout_per_paragraph_failure.cpp
     )
 endif()
 
