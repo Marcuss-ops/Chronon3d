@@ -102,7 +102,7 @@
 // typed adapter under chronon3d::builders::testing::LayerBuilderInspector.
 // The API surface is now snapshot-based — `pre[i].name` and
 // `pre[i].animators` instead of `pre[i]->name` / `pre[i]->params.animators`.
-#include <chronon3d/scene/builders/test/layer_builder_inspection.hpp>
+#include "support/layer_builder_inspection.hpp"
 
 using chronon3d::builders::testing::LayerBuilderInspector;
 
