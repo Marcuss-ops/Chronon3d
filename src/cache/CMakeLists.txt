@@ -30,5 +30,5 @@ target_precompile_headers(chronon3d_cache PRIVATE <xxhash.h>)
 # NEVER installed: `install(DIRECTORY include/)` does not traverse src/.
 target_include_directories(chronon3d_cache
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include_private
-    INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include_private
+    INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include_private>
 )

@@ -87,7 +87,7 @@ target_include_directories(chronon3d_backend_software PRIVATE ${CMAKE_SOURCE_DIR
 # NEVER installed: `install(DIRECTORY include/)` does not traverse src/.
 target_include_directories(chronon3d_backend_software
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include_private
-    INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include_private
+    INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include_private>
 )
 target_precompile_headers(chronon3d_backend_software PRIVATE
     <chronon3d/detail/pch.hpp>

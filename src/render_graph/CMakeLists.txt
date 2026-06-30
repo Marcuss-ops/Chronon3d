@@ -282,7 +282,7 @@ foreach(_rg_sub_target
         chronon3d_graph_pipeline)
     target_include_directories(${_rg_sub_target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include_private)
 endforeach()
-target_include_directories(chronon3d_graph INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include_private)
+target_include_directories(chronon3d_graph INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include_private>)
 
 # P1-E Pass E Commit #4 — software internal headers (software_renderer.hpp,
 # software_backend.hpp) FULL-included by:
