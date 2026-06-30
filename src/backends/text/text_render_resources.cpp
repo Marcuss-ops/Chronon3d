@@ -273,6 +273,14 @@ TextScratchManager::Handle TextScratchManager::acquire() {
 void TextScratchManager::release(TextScratchState* state) {
     if (!state) return;
     std::lock_guard<std::mutex> lock(mutex_);
+    if (available_.size() >= kMaxPooledStates) {
+        // Pool is at capacity — drop the state on the floor; the unique_ptr
+        // destructor frees the BLImages + vectors it owns without leaking.
+        // This bounds memory under burst workloads (e.g. 64-thread burst
+        // amortizes down to kMaxPooledStates retained states).
+        delete state;
+        return;
+    }
     available_.emplace_back(state);
 }
 
