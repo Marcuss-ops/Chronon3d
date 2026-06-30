@@ -15,30 +15,37 @@
 // =============================================================================
 // chronon3d/timeline/composition.hpp
 //
-// Composition header — TICKET-034.
+// Composition header — P3-F post-migration state.
 //
-// The default camera is a `camera_v1::CameraDescriptor` held in composition
-// settings, compiled via the canonical `compile_camera()` pipeline at first
-// read, evaluated by the existing `CameraProgram` runtime, fingerprint-
-// serializable via the FNV-1a helper in
-// `<chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>`.
+// Composition is now IMMUTABLE on the camera side after P3-F.  There is
+// NO mutable cache, NO lazy compile, NO depent inverse-projection method.
+// The Composition shape that survives is:
 //
-// The header MUST include the full `camera_v1` types — the private members
-// `m_default_camera_desc` (value) and `m_default_program_cache` (unique_ptr
-// to a value type) REQUIRE complete types at this translation-unit level.
-// The heavy `compile_camera() / evaluate()` BODIES remain out-of-line in
-// `src/timeline/composition.cpp` so spdlog + camera_v1 program-compiler
-// translation-unit weight is paid exactly once per binary, not once per
-// scheduling TU that includes this header.
+//   * CompositionSpec (the static name / width / height / frame_rate / duration).
+//   * Composition class public API (`evaluate` + Scene fn + legacy
+//     `[[deprecated]] Camera camera` field).
+//   * Composition's canonical authoring-time camera surface:
+//     `default_camera_descriptor(CameraDescriptor)` setter,
+//     `default_camera_descriptor()` const getter,
+//     `has_default_camera_descriptor()` const probe.
 //
-// Surface (kept stable across TICKET-033 / TICKET-034 / TICKET-035):
-//   * The CompositionSpec struct.
-//   * The Composition class public API (evaluate / camera enum /
-//     default_camera_descriptor / has_default_camera_descriptor /
-//     invalidate_default_camera_program / default_camera_program /
-//     redecompose_camera_from_descriptor).
-//   * The legacy `Camera camera;` public field (kept for backward-compat
-//     with golden harnesses).
+// REMOVED in P3-F:
+//   * `Composition::default_camera_program()`          — lazy compile cache.
+//   * `Composition::invalidate_default_camera_program()` — cache reset.
+//   * `Composition::redecompose_camera_from_descriptor(SampleTime)` — inverse
+//     projection onto the legacy `Camera camera` field.
+//
+// New V2 staging path (the canonical path going forward):
+//   `CompositionDefinition` → `chronon3d::compile_composition(...)` →
+//   `CompiledComposition` → `chronon3d::evaluate(...)` →
+//   `EvaluatedCompositionFrame` (with `Camera2_5D` populated from the
+//   compiled program).  See
+//   `<chronon3d/timeline/compile_evaluate.hpp>` for the entry points.
+//
+// The header STILL includes `camera_v1::CameraDescriptor` because the
+// descriptor value is stored in `m_default_camera_desc` (POCO field, no
+// cache).  No `camera_v1::CameraProgram` member is retained — heavy
+// program type lives in `CompiledComposition::camera_program` only.
 // =============================================================================
 
 namespace chronon3d {
@@ -104,15 +111,35 @@ public:
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // TICKET-034 — Default camera as a normal CameraDescriptor in composition
-    // settings.  Implementations live in `src/timeline/composition.cpp`.
+    // P3-F — Default camera authoring surface (READ-ONLY after compile).
+    //
+    // The Composition now only carries the camera as a value-typed
+    // `camera_v1::CameraDescriptor`.  No cache, no lazy compile, no
+    // inverse-projection helper.  The OPP renderer that wants a
+    // CameraProgram should:
+    //   1. Read `Composition::default_camera_descriptor()`.
+    //   2. Build a `CompositionDefinition` carrying that descriptor.
+    //   3. Call `chronon3d::compile_composition(...)` to get a
+    //      `CompiledComposition` whose `camera_program` is the
+    //      SINGLE immutable compilation.
+    //   4. Per frame, call `chronon3d::evaluate(compiled, ctx, f)`.
+    //
+    // The legacy `[[deprecated]] Camera camera` field stays in place for
+    // forward-compat with classic golden harnesses; it's NEVER read by
+    // the post-P3-F render path.
     // ══════════════════════════════════════════════════════════════════════
 
-    /// Set the canonical default-camera CameraDescriptor.  Passing an
-    /// empty descriptor (`id.empty()`) is treated as "no descriptor set"
-    /// by `has_default_camera_descriptor()`.
+    /// Set the canonical default-camera CameraDescriptor.
+    /// P3-F: this is now a pure value-set; there is no cache to invalidate
+    /// because the OPP compiles via `compile_composition` and owns the
+    /// resulting `CompiledComposition`.  Passing an empty descriptor
+    /// (`id.empty()`) is treated as "no descriptor set" by
+    /// `has_default_camera_descriptor()`.
     Composition& default_camera_descriptor(
-        chronon3d::camera_v1::CameraDescriptor descriptor);
+        chronon3d::camera_v1::CameraDescriptor descriptor) {
+        m_default_camera_desc = std::move(descriptor);
+        return *this;
+    }
 
     /// Read-only accessor for the CameraDescriptor in composition settings.
     [[nodiscard]] const chronon3d::camera_v1::CameraDescriptor&
@@ -121,88 +148,30 @@ public:
     }
 
     /// True when `default_camera_descriptor(...)` has set a non-empty
-    /// descriptor.  Used as a quick filter so the render pipeline can
-    /// skip the canonical compile path when no descriptor was supplied.
+    /// descriptor.  Read-only; the descriptor's presence is the OPP's
+    /// signal that the V2 compile path should be used.
     [[nodiscard]] bool has_default_camera_descriptor() const noexcept {
         return !m_default_camera_desc.id.empty();
     }
 
-    // ── Thread-safety: Composition's default-camera cache (mutable
-    //    unique_ptr) assumes ONE job-thread per Composition.  Calling
-    //    `default_camera_program()` concurrently from multiple
-    //    threads on the same Composition is a USE-BEYOND-CONTRACT that
-    //    may double-compile and race the unique_ptr.  Wrap with
-    //    `std::call_once` at the call site if multi-threaded access is
-    //    needed. ──
-    /// Invalidate the lazy-compile cache so the next call to
-    /// `default_camera_program()` re-runs `compile_camera(...)`.
-    /// Cheap.  Returns the previous "was compiled" state for diagnostics.
-    bool invalidate_default_camera_program();
-
-    /// Lazy-compile + cache of the canonical `compile_camera()` result.
-    /// Safe to call repeatedly — returns the same CameraProgram from
-    /// the cache after the first successful compile.  Implementation
-    /// in `src/timeline/composition.cpp` (heavy include of
-    /// camera_program_compiler.hpp + spdlog lives there).
-    [[nodiscard]] const chronon3d::camera_v1::CameraProgram&
-    default_camera_program() const;
-
-    /// Evaluate the cached (or freshly compiled) CameraProgram at
-    /// `time` and project the resulting Camera2_5D state onto the
-    /// slim legacy `Composition::camera` field.  Returns false ONLY
-    /// when no descriptor is set or the compile failed.  For every
-    /// successful compile the function returns `true` and copies
-    /// `transform.position` + `transform.rotation`; the slim legacy
-    /// field's `fov_deg` is only populated when the projection variant
-    /// is `FovProjection` AND the evaluated value is > 0 (ZoomProjection
-    /// leaves the field at its struct default — Camera::focal_length
-    /// is a GETTER, not a setter).
-    ///
-    /// Projection — strictly limited to fields that ACTUALLY exist
-    /// on the legacy `Camera` struct (transform position + rotation,
-    /// fov_deg, near_plane, far_plane):
-    ///   * transform.position ← result.camera.position
-    ///   * transform.rotation ← result.camera.rotation
-    ///   * fov_deg            ← result.camera.fov_deg  (only when
-    ///                           projection is FovProjection AND the
-    ///                           evaluated fov_deg > 0)
-    ///
-    /// Out of scope (the slim legacy `Camera` struct has no field):
-    ///   * parent_name / target_name
-    ///   * point_of_interest + point_of_interest_enabled
-    ///   * DoF / LensModel / MotionBlurSettings (rich renderer input)
-    ///   * ZoomProjection → derived fov_deg (getter-only math)
-    ///
-    /// Callers needing those fields must read
-    /// `default_camera_program().descriptor()` or call
-    /// `default_camera_program().evaluate(...)` directly.  A future
-    /// TICKET-035 will add a `Camera2_5D`-shaped field to the
-    /// composition so the rich payload survives evaluation end-to-end
-    /// (including the ZoomProjection → derived fov_deg path).
-    bool redecompose_camera_from_descriptor(SampleTime time);
-
 public:
     /// Legacy public Camera field (renderable + mutable for tests/golden
-    /// harnesses).  TICKET-034 keeps this mutable for backwards
-    /// compatibility; *new* authoring should set
-    /// `default_camera_descriptor(...)` and call
-    /// `redecompose_camera_from_descriptor(...)` to refresh this field.
+    /// harnesses).  P3-F keeps this field in place but the class no longer
+    /// offers ANY method to project V1 camera state INTO it.  The cache
+    /// + redecompose helpers are removed: there is no lazy compile, no
+    /// inverse projection, and writing to this field is no longer the
+    /// canonical camera input.
     ///
-    /// P3-E read-only migration:
     ///   * The OPP renderer MUST consume `Camera2_5D` from the compiled
     ///     program inside `CompiledComposition::camera_program`.  Reading
     ///     `comp.camera` directly from the render path is forbidden.
-    ///   * `comp.redecompose_camera_from_descriptor(...)` MUST NOT be
-    ///     called from the render path either; the renderer evaluates
-    ///     the program itself every frame.
-    ///   * The legacy field stays READ-ONLY: classical golden harnesses
-    ///     and CLI commands that pass `Composition::camera` to non-V2
-    ///     consumers continue to compile (with a deprecation warning).
+    ///   * The legacy adapter
+    ///     `camera_v1::camera_descriptor_from(const Camera&)` is the
+    ///     canonical one-way bridge from this field to the V1 descriptor
+    ///     surface, used by transition code only.
     ///   * For new authoring, set the V2 path on `CompositionDefinition`
     ///     and run `chronon3d::compile_composition(...)` +
-    ///     `chronon3d::evaluate(...)`.  The adapter
-    ///     `camera_v1::camera_descriptor_from(const Camera&)` is the
-    ///     canonical one-way bridge from this field to a CameraDescriptor.
+    ///     `chronon3d::evaluate(...)`.
     [[deprecated("Use CompositionDefinition::camera")]]
     Camera camera;
 
@@ -233,20 +202,10 @@ private:
         return result;
     }
 
-    // ── TICKET-034 — canonical default-camera authoring surface.  The
-    //    descriptor lives on the composition (settings-class field) and
-    //    is compiled via the canonical compile_camera() pipeline at
-    //    first read.  `m_default_program_cache` is mutable so
-    //    const-correctness is preserved on `default_camera_program()`.
-    //
-    //    `m_last_warned_descriptor_hash` triggers on every
-    //    `compile_camera()` failure with a new content-stable FNV-1a
-    //    descriptor fingerprint so `spdlog::warn` does NOT spam the
-    //    log when the same bad descriptor is re-evaluated every frame.
+    // ── P3-F — the Composition is now IMMUTABLE on the camera side.
+    //    Only the value-typed descriptor field remains; no cache, no
+    //    throttle hash, no mutable unique_ptr<CameraProgram>.
     chronon3d::camera_v1::CameraDescriptor m_default_camera_desc{};
-    mutable std::unique_ptr<chronon3d::camera_v1::CameraProgram>
-        m_default_program_cache;
-    mutable std::uint64_t m_last_warned_descriptor_hash{0};
 
     CompositionSpec m_spec;
     SceneFunction m_render;
