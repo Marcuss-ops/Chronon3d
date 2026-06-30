@@ -100,7 +100,7 @@ struct TextRunBuildResult {
 // (logging + skipping paragraphs that return `Err`).
 
 /// Compile-error taxonomy for compile_text_layout.  Future extensions:
-/// `MultiFontUnsupported`, `BidiFallback`.
+/// `BidiFallback`.
 enum class TextLayoutErrorKind {
     /// Source text contains no UTF-8 bytes and no pre-split paragraphs.
     /// Catches the "render blank because caller forgot to set text"
@@ -126,6 +126,18 @@ enum class TextLayoutErrorKind {
     /// malformed call is loud at compile time rather than treated as
     /// "no text to render".
     MalformedLayout,
+
+    /// Paragraph contains text-runs with DIFFERENT resolved FontSpec
+    /// (different font_path / font_family / font_weight / font_style).
+    /// Bug-fix candidate for verdict Issue #3: previously the layout
+    /// kept `text_layout->font = doc.defaults.font` while glyph IDs came
+    /// from N different fonts, producing the wrong glyph for some spans
+    /// (tofu / wrong stroke / fill mismatch).  Stabilization strategy is
+    /// to refuse the compile and surface a structured error rather than
+    /// silently render corrupted glyphs.  A future atom adds
+    /// `ShapedFontSpan` so the renderer can switch fonts at span
+    /// boundaries and re-enable multi-font paragraphs.
+    UnsupportedMultiFontRun,
 };
 
 /// Structured compile error returned in `Result`'s error channel.
