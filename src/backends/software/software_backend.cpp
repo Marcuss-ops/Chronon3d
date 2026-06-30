@@ -48,12 +48,15 @@ uint64_t clipped_area(int32_t width, int32_t height, const std::optional<raster:
 
 // ── Construction ──────────────────────────────────────────────────────────
 
-SoftwareBackend::SoftwareBackend(SoftwareBackendServices services)
-    : m_counters(*services.counters)
-    , m_settings(*services.settings)
-    , m_framebuffer_pool(std::move(services.framebuffer_pool))
-    , m_asset_resolver(services.asset_resolver)
-    , m_text_resources(services.text_resources)
+SoftwareBackend::SoftwareBackend(
+    class SoftwareRenderer*            owner,
+    RenderCounters&                    counters,
+    const RenderSettings&              settings,
+    std::shared_ptr<cache::FramebufferPool> pool)
+    : m_counters(counters)
+    , m_settings(settings)
+    , m_framebuffer_pool(std::move(pool))
+    , m_owner(owner)
 {}
 
 SoftwareBackend::~SoftwareBackend() = default;
@@ -139,11 +142,24 @@ void SoftwareBackend::apply_per_pixel_dof(
     renderer::apply_per_pixel_dof(framebuffer, depth_vec, dof, lens, clip);
 }
 
-// ── draw_text_run (Fase 4 — builds context from stored services) ──────
+// ── draw_text_run (06 R3b wire-through — routes to renderer::draw_text_run) ─
 //
-// Constructs SoftwareProcessorContext directly from the typed services
-// injected at construction time.  No back-pointer to SoftwareRenderer.
-
+// This method forwards into the canonical Blend2D text-run pipeline via
+// `renderer::draw_text_run` (see `text_run_processor.hpp`).  The required
+// `SoftwareProcessorContext` service bundle is sourced from `m_owner`
+// (the orchestrating SoftwareRenderer) using the canonical
+// `make_processor_context(SoftwareRenderer*)` helper.
+//
+// Failure modes:
+//   - `UnsupportedCapability`: Blend2D not enabled at compile time.
+//   - `InvalidInput` / `ExecutionFailure`: propagated from the renderer
+//     (= defects in shape, font, or context).  Loud by design — no silent
+//     zero-glyph renders.
+//
+// Boundary gate: this method's transient `SoftwareRenderer*` back-pointer
+// is a PR-9-compatible TEMPORARY bridge.  R3 (06-stabilization) will
+// source the context directly from `runtime::RenderRuntime` and drop
+// `m_owner`.
 graph::RenderOpResult SoftwareBackend::draw_text_run(
     Framebuffer& fb,
     const TextRunShape& shape,
@@ -161,14 +177,20 @@ graph::RenderOpResult SoftwareBackend::draw_text_run(
 #else
     CHRONON_ZONE_C("backend_draw_text_run", trace_category::kText);
 
-    SoftwareProcessorContext ctx;
-    ctx.counters       = &m_counters;
-    ctx.settings       = &m_settings;
-    ctx.asset_resolver = m_asset_resolver;
-    ctx.text_resources = m_text_resources;
+    // Defensive loud-fail — without a renderer context, we cannot build a
+    // SoftwareProcessorContext, and silently rendering zero glyphs is
+    // exactly the silent loud-fail this wire-through is meant to fix.
+    if (m_owner == nullptr) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::InvalidInput,
+            "SoftwareBackend::draw_text_run: owner SoftwareRenderer* is null "
+            "(construction contract violation).  Pass a non-null owner from "
+            "RenderEngine via std::make_unique<SoftwareBackend>(...)."
+        });
+    }
 
     renderer::TextRunDrawParams params{fb, shape, model_matrix, opacity};
-    return renderer::draw_text_run(ctx, params);
+    return renderer::draw_text_run(make_processor_context(m_owner), params);
 #endif
 }
 

@@ -25,7 +25,7 @@ import subprocess
 import sys
 import shutil
 
-REPO = pathlib.Path("/home/pierone/Pyt/Chronon3d")
+REPO = pathlib.Path(__file__).resolve().parent.parent  # repo root = parent of tools/
 APPLY = REPO / "tools" / "pra3_apply.py"
 TEST_FILE = REPO / "tests" / "deterministic" / "test_visual_regression_scenarios.cpp"
 CACHE = REPO / "tests" / "deterministic_tests.cmake"

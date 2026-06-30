@@ -38,7 +38,7 @@ def fix_file(fpath):
     return False
 
 def main():
-    project_root = '/home/pierone/Pyt/Chronon3d'
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     fixed = 0
     for d in DIRS:
         dirpath = os.path.join(project_root, d)
