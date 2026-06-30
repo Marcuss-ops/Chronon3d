@@ -160,8 +160,9 @@ void SoftwareBackend::apply_per_pixel_dof(
     const DepthOfFieldSettings& dof,
     const LensModel& lens,
     const std::optional<raster::BBox>& clip) {
-    std::vector<float> depth_vec(depth.begin(), depth.end());
-    renderer::apply_per_pixel_dof(framebuffer, depth_vec, dof, lens, clip);
+    // Forward the incoming (non-owning) span directly to the kernel.
+    // No copy: 2,073,600 floats × 4 B = 8 MiB saved per dispatch at 1920×1080.
+    renderer::apply_per_pixel_dof(framebuffer, depth, dof, lens, clip);
 }
 
 // ── draw_text_run (06 R3b wire-through — routes to renderer::draw_text_run) ─

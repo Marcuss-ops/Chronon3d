@@ -21,13 +21,31 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 
 #include <vector>
+#include <span>
 #include <cmath>
 #include <algorithm>
+#include <chrono>
+#include <cstdio>
+#include <fstream>
+#include <filesystem>
 #include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 
 static const LensModel kDefaultLens;
+
+// ── Helper: explicit span-wrap for kernel calls ─────────────────────────────
+//
+// `renderer::apply_per_pixel_dof` takes `std::span<const float>` since the
+// perf refactor (drop the 8 MiB `std::vector<float>` alloc+memcpy in
+// SoftwareBackend::apply_per_pixel_dof).  C++20 implicit range-to-span
+// conversion would work too, but the explicit helper documents intent,
+// matches `std::span<const float>` at the call site (greppable), and
+// shields test callers from any future change in the vector type
+// (e.g. one day a tiny pool counter could replace the local vector).
+static inline std::span<const float> as_span(const std::vector<float>& v) noexcept {
+    return std::span<const float>{v.data(), v.size()};
+}
 
 // ── Helper: create a uniform depth buffer ──────────────────────────────────
 static std::vector<float> make_depth_buffer(i32 w, i32 h, float world_z) {
@@ -391,4 +409,147 @@ TEST_CASE("PerPixelDOF: end-to-end render with DOF does not crash") {
     // Focus region should be at least as sharp as defocused regions
     CHECK(focus_var >= near_var * 0.5f);
     CHECK(focus_var >= far_var * 0.5f);
+}
+
+
+// ============================================================================
+// Section 5: Micro-benchmark — drop the 8 MiB depth copy
+// ============================================================================
+// Exercises the BEFORE path (std::vector<float> alloc + 1920x1080 memcpy)
+// vs the AFTER path (span direct, no copy) under the IDENTICAL workload.
+// Reports both timings to reports/perf/dof_span_before_after.json so the
+// delta is verifiable per-frame on this hardware.  Set
+//   CHRONON3D_SKIP_DOF_BENCH=1  to skip the bench (CI-fast helper).
+// ============================================================================
+TEST_CASE("PerPixelDOF: 1920x1080 micro-benchmark - drop depth copy (delta report)") {
+    if (const char* skip = std::getenv("CHRONON3D_SKIP_DOF_BENCH"); skip && skip[0] == '1') {
+        MESSAGE("CHRONON3D_SKIP_DOF_BENCH=1 -- skipping dof micro-bench");
+        return;
+    }
+    const i32 w = 1920;
+    const i32 h = 1080;
+    const int n_warmup = 2;
+    const int n_runs    = 20;
+
+    Framebuffer fb(w, h);
+    fb.clear(Color::transparent());
+    // Sharp checkerboard so DOF has actual work to do.
+    for (i32 y = 100; y < 980; ++y) {
+        Color* row = fb.pixels_row(y);
+        for (i32 x = 100; x < 1820; ++x) {
+            row[x] = (((x / 50) + (y / 50)) & 1)
+                ? Color{1.0f, 1.0f, 1.0f, 1.0f}
+                : Color{0.0f, 0.0f, 0.0f, 1.0f};
+        }
+    }
+
+    std::vector<float> depth(static_cast<size_t>(w) * h, -1500.0f);
+    DepthOfFieldSettings dof{
+        .enabled  = true,
+        .focus_z  = 0.0f,
+        .aperture = 0.02f,
+        .max_blur = 12.0f
+    };
+
+    using clock = std::chrono::high_resolution_clock;
+    auto ms = [](clock::time_point a, clock::time_point b) {
+        return std::chrono::duration<double, std::milli>(b - a).count();
+    };
+
+    // Warmup (avoid measuring first-call cache effects).
+    for (int i = 0; i < n_warmup; ++i) {
+        renderer::apply_per_pixel_dof(fb, as_span(depth), dof, kDefaultLens);
+    }
+
+    // AFTER: span direct, zero copy.  Kernel work is platform-independent
+    // of the OLD copy path, so timing this gives the SAME kernel cost the
+    // OLD path saw AFTER its wasted copy finished.
+    auto t_after_start = clock::now();
+    for (int i = 0; i < n_runs; ++i) {
+        renderer::apply_per_pixel_dof(fb, as_span(depth), dof, kDefaultLens);
+    }
+    auto t_after_end = clock::now();
+    const double after_ms = ms(t_after_start, t_after_end) / n_runs;
+
+    // BEFORE: simulated wasted copy alone -- kernel work is identical in
+    // both paths, so just isolate the alloc + memcpy the OLD code did on
+    // EVERY dispatch of `apply_per_pixel_dof`.
+    auto t_copy_start = clock::now();
+    for (int i = 0; i < n_runs; ++i) {
+        std::vector<float> depth_copy(depth.begin(), depth.end());
+        (void)depth_copy;
+    }
+    auto t_copy_end = clock::now();
+    const double copy_ms = ms(t_copy_start, t_copy_end) / n_runs;
+
+    const double before_total_ms = after_ms + copy_ms;
+    const double delta_ms        = copy_ms;
+    const double delta_pct       = (before_total_ms > 0.0)
+        ? (delta_ms / before_total_ms) * 100.0 : 0.0;
+
+    // Locate the source-tree root for the JSON writeout: prefer the
+    // compile-time CHRONON3D_SOURCE_DIR macro (set by
+    // tests/renderer_tests.cmake via target_compile_definitions), fall
+    // back to the runtime env var (some setups use add_test(... ENVIRONMENT
+    // ...) instead), then walk up from cwd looking for CMakeLists.txt.
+    std::filesystem::path repo_root;
+#if defined(CHRONON3D_SOURCE_DIR)
+    repo_root = std::filesystem::path(CHRONON3D_SOURCE_DIR);
+#else
+    if (const char* env_src = std::getenv("CHRONON3D_SOURCE_DIR"); env_src && env_src[0]) {
+        repo_root = std::filesystem::path(env_src);
+    } else {
+        std::filesystem::path p = std::filesystem::current_path();
+        while (!p.empty() && !(p / "CMakeLists.txt").exists()) {
+            const auto parent = p.parent_path();
+            if (parent == p) { p.clear(); break; }
+            p = parent;
+        }
+        repo_root = p.empty() ? std::filesystem::current_path() : p;
+    }
+#endif
+    std::filesystem::path out_dir = repo_root / "reports" / "perf";
+    std::error_code ec;
+    std::filesystem::create_directories(out_dir, ec);
+    std::filesystem::path out_path = out_dir / "dof_span_before_after.json";
+
+    std::ofstream out(out_path);
+    out << "{
+";
+    out << "  "schema": "chronon3d.perf.dof_span.v1",
+";
+    out << "  "workload": {
+";
+    out << "    "width": " << w << ",
+";
+    out << "    "height": " << h << ",
+";
+    out << "    "depth_bytes": " << (static_cast<size_t>(w) * h * sizeof(float)) << ",
+";
+    out << "    "runs": " << n_runs << ",
+";
+    out << "    "warmup": " << n_warmup << "
+";
+    out << "  },
+";
+    out << "  "after_ms": " << after_ms << ",
+";
+    out << "  "before_alloc_copy_ms": " << copy_ms << ",
+";
+    out << "  "before_total_ms": " << before_total_ms << ",
+";
+    out << "  "delta_per_frame_ms": " << delta_ms << ",
+";
+    out << "  "delta_pct": " << delta_pct << "
+";
+    out << "}
+";
+    out.close();
+
+    // Sanity: 2,073,600 floats * 4 B = 8,294,400 B = 7.91 MiB.
+    CHECK(static_cast<size_t>(w) * h * sizeof(float) == 8294400);
+    MESSAGE("DOF micro-bench [BENCH]: before_total=" << before_total_ms
+            << "ms, after=" << after_ms << "ms, copy_saved_per_frame="
+            << delta_ms << "ms (" << delta_pct << "%); JSON="
+            << out_path.string());
 }
