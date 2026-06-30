@@ -3,7 +3,7 @@
 #include <chronon3d/text/animation/glyph_instance_state.hpp>    // reset_glyph_states_in_place
 #include <chronon3d/text/animation/text_animator_evaluator.hpp>  // evaluate_animator
 #include <chronon3d/text/font_engine.hpp>                        // PlacedGlyphRun full type
-#include <chronon3d/text/glyph_selector.hpp>                     // build_text_unit_map
+#include <chronon3d/text/glyph_selector.hpp>                     // build_text_unit_map, TextUnitMap
 
 namespace chronon3d {
 
@@ -26,7 +26,8 @@ std::vector<GlyphInstanceState> evaluate_animator_stack(
     SampleTime time
 ) {
     std::vector<GlyphInstanceState> states;
-    evaluate_animator_stack_into(states, animators, placed, source, time);
+    auto unit_map = build_text_unit_map(placed, source);
+    evaluate_animator_stack_into(states, animators, placed, source, unit_map, time);
     return states;
 }
 
@@ -36,19 +37,18 @@ std::vector<GlyphInstanceState> evaluate_animator_stack(
 //
 // Reset `inout_states` with `reset_glyph_states_in_place(placed)`, which
 // resizes only when the glyph count changes and otherwise mutates in place.
-// Build the unit map once for the run, then evaluate each animator in
-// order.  The vector's previous contents are overwritten — callers must
-// not preserve them across calls.
+// Uses the caller-supplied `unit_map` (from TextRunLayout::units, built
+// once during layout) — no per-frame TextUnitMap allocation.
 
 void evaluate_animator_stack_into(
     std::vector<GlyphInstanceState>& inout_states,
     const std::vector<TextAnimatorSpec>& animators,
     const PlacedGlyphRun& placed,
     std::string_view source,
+    const TextUnitMap& unit_map,
     SampleTime time
 ) {
     reset_glyph_states_in_place(inout_states, placed);
-    auto unit_map = build_text_unit_map(placed, source);
 
     for (const auto& animator : animators) {
         evaluate_animator(animator, unit_map, inout_states, source, time, &placed);

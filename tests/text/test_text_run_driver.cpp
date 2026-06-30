@@ -207,6 +207,7 @@ TEST_CASE("TextRunDriver: evaluate_animator_stack_into writes back in place") {
         { make_global_spec("easi_pos", PositionProperty{Vec3{10.0f, 0.0f, 0.0f}}) },
         layout_ptr->placed,
         layout_ptr->source_text,
+        layout_ptr->units,
         SampleTime{}
     );
 
