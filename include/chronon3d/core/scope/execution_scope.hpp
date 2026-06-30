@@ -43,25 +43,14 @@
 // they're in; it does not OWN anything of its own.
 // ============================================================================
 
+#include <chronon3d/core/execution/execution_scope_types.hpp>
+#include <chronon3d/core/types/result.hpp>
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/runtime/render_session.hpp>
-#include <chronon3d/render_graph/core/node_identity.hpp>
 
 #include <cstdint>
 
 namespace chronon3d::graph {
-
-/// Which surface owns this scope.  Drives child-vs-parent memory rules.
-enum class ExecutionScopeKind : std::uint8_t {
-    Root    = 0,  // one per render invocation; primary arena; establishes chain
-    Tile    = 1,  // one per coalesced dirty region; borrows parent's session + caches
-    Precomp = 2,  // nested subgraph; holds a ProgramLease; borrows parent's session
-};
-
-/// Hard upper bound on scope chain depth.  Prevents unbounded recursion
-/// without relying on a recursive mutex (per PR 6.5 — "Do not use a
-/// recursive mutex as recursion handling").
-inline constexpr int kMaxScopeDepth = 16;
 
 /// Per-execution-surface bundle: identity + arena + parent + lease hooks.
 ///
@@ -118,14 +107,14 @@ public:
     /// Passing `parent == nullptr` is silently accepted (depth clamps
     /// to 0); the call is documented as a usage contract violation.
     ///
-    /// PR 6.5 — depth is CLAMPED to `kMaxScopeDepth` (no exception, no
+    /// PR 6.5 — depth is CLAMPED to `kMaxScopeChainLength` (no exception, no
     /// abort — consistent with `noexcept` contract).  When the
     /// constructed depth would have exceeded the bound, `would_overflow()`
     /// returns true on this scope so callers can detect the situation
     /// and route to a deterministic fallback (e.g. bail out with empty
     /// fb per docs/03 §4.4).  The clamp guarantees bounded chain walks
     /// (is_descendant_of / would_recurse always terminate in at most
-    /// `kMaxScopeDepth` iterations).
+    /// `kMaxScopeChainLength` iterations).
     explicit ExecutionScope(
         ExecutionScopeKind                  kind,
         chronon3d::RenderSession&           session,
@@ -139,13 +128,13 @@ public:
         , m_graph_id(graph_id)
         , m_parent(parent)
         , m_depth(parent
-            ? ((parent->m_depth + 1) > kMaxScopeDepth
-                ? kMaxScopeDepth
+            ? ((parent->m_depth + 1) > kMaxScopeChainLength
+                ? kMaxScopeChainLength
                 : (parent->m_depth + 1))
             : 0)
         // m_owner_key falls back on its `{0u}` member default below.
         , m_overflowed(parent != nullptr
-                       && (parent->m_depth + 1) > kMaxScopeDepth)
+                       && (parent->m_depth + 1) > kMaxScopeChainLength)
     {}
 
     // ── PR 6.8 / §9.2 — Public ROOT factory (infallible) ─────────────────
@@ -179,6 +168,72 @@ public:
             session, arena, graph_id, /*parent*/ nullptr);
     }
 
+    // ── §9.3 — Public CHILD factory (Result<ExecutionScope, ScopeError>) ──
+    //
+    // `make_child` is the canonical path for constructing non-root scopes.
+    // Returns `ScopeError` on any invariant violation instead of silently
+    // clamping or coercing.  Validation order matches the error-code enum
+    // (InvalidChildKind → ParentRequired → ArenaAliasesParent →
+    // ChainLimitExceeded → RecursiveOwner).
+    //
+    //   * `kind == Root`         → InvalidChildKind
+    //   * `parent == nullptr`    → ParentRequired
+    //   * `&arena == &parent->arena()` → ArenaAliasesParent
+    //   * `parent->chain_length() >= kMaxScopeChainLength` → ChainLimitExceeded
+    //   * `kind == Precomp && owner_key != 0 && parent->would_recurse(owner_key)` → RecursiveOwner
+    //
+    // On success, the returned scope has `set_owner_key(owner_key)` already
+    // applied so callers don't need a separate post-construction call.
+    static chronon3d::Result<ExecutionScope, ScopeError> make_child(
+        ExecutionScopeKind                  kind,
+        chronon3d::RenderSession&           session,
+        FrameArena&                         arena,
+        GraphInstanceId                     graph_id,
+        const ExecutionScope*               parent,
+        std::uint64_t                       owner_key = 0u
+    ) noexcept {
+        if (kind == ExecutionScopeKind::Root) {
+            return ScopeError{
+                ScopeErrorCode::InvalidChildKind,
+                kind, graph_id, owner_key,
+                static_cast<chronon3d::u32>(parent ? parent->chain_length() + 1 : 1)
+            };
+        }
+        if (!parent) {
+            return ScopeError{
+                ScopeErrorCode::ParentRequired,
+                kind, graph_id, owner_key, 1u
+            };
+        }
+        if (&arena == &parent->arena()) {
+            return ScopeError{
+                ScopeErrorCode::ArenaAliasesParent,
+                kind, graph_id, owner_key,
+                static_cast<chronon3d::u32>(parent->chain_length() + 1)
+            };
+        }
+        if (parent->chain_length() >= kMaxScopeChainLength) {
+            return ScopeError{
+                ScopeErrorCode::ChainLimitExceeded,
+                kind, graph_id, owner_key,
+                static_cast<chronon3d::u32>(parent->chain_length() + 1)
+            };
+        }
+        if (kind == ExecutionScopeKind::Precomp
+            && owner_key != 0u
+            && parent->would_recurse(owner_key)) {
+            return ScopeError{
+                ScopeErrorCode::RecursiveOwner,
+                kind, graph_id, owner_key,
+                static_cast<chronon3d::u32>(parent->chain_length() + 1)
+            };
+        }
+        ExecutionScope child(
+            kind, session, arena, graph_id, parent);
+        child.set_owner_key(owner_key);
+        return child;
+    }
+
     [[nodiscard]] ExecutionScopeKind           kind()      const noexcept { return m_kind; }
     [[nodiscard]] chronon3d::RenderSession&    session()   const noexcept { return m_session; }
     [[nodiscard]] FrameArena&                  arena()     const noexcept { return m_arena; }
@@ -186,12 +241,12 @@ public:
     [[nodiscard]] const ExecutionScope*        parent()    const noexcept { return m_parent; }
     [[nodiscard]] int                          depth()     const noexcept { return m_depth; }
 
-    /// PR 6.5 — true iff this scope's depth was CLAMPED by `kMaxScopeDepth`
+    /// PR 6.5 — true iff this scope's depth was CLAMPED by `kMaxScopeChainLength`
     /// (i.e. the chain the scope was constructed against exceeded 16
     /// nested scopes).  When true, callers SHOULD route to a deterministic
     /// fallback rather than proceed into the inner executor — the chain
     /// walk inside `would_recurse`/`is_descendant_of` is still bounded
-    /// (they always terminate in at most `kMaxScopeDepth` steps) but the
+    /// (they always terminate in at most `kMaxScopeChainLength` steps) but the
     /// downstream graph execution will diverge from the intended depth
     /// count and may have hidden aliasing on the parent's caches.
     [[nodiscard]] bool would_overflow() const noexcept { return m_overflowed; }
@@ -228,7 +283,7 @@ public:
     }
 
     /// Returns the chain length (including this scope).  Bounded by
-    /// kMaxScopeDepth; deeper chains are clamped to kMaxScopeDepth so
+    /// kMaxScopeChainLength; deeper chains are clamped to kMaxScopeChainLength so
     /// callers can compare without surprises.
     [[nodiscard]] int chain_length() const noexcept {
         return m_depth + 1;
@@ -244,17 +299,5 @@ private:
     std::uint64_t                   m_owner_key{0u};
     bool                            m_overflowed{false};
 };
-
-/// Convenience: a stable string-form name for each kind (for logging /
-/// diagnostics; never for equality, since the enum's storage type may
-/// evolve and order is the contract).
-inline const char* execution_scope_kind_name(ExecutionScopeKind k) noexcept {
-    switch (k) {
-        case ExecutionScopeKind::Root:    return "Root";
-        case ExecutionScopeKind::Tile:    return "Tile";
-        case ExecutionScopeKind::Precomp: return "Precomp";
-    }
-    return "Unknown";
-}
 
 } // namespace chronon3d::graph
