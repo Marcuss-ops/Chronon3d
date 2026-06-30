@@ -199,7 +199,7 @@ TEST_CASE("VisualRegression/Static — single-line canonical text on dark bg") {
     auto comp = make_text_composition("VR_Static",
         make_opts("HELLO WORLD", 96.0f, Color::white()));
     auto t0 = std::chrono::steady_clock::now();
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     VR_GATE("VRStatic", kRefVRStatic, compute_metrics(*fb, t0));
 }
@@ -214,7 +214,7 @@ TEST_CASE("VisualRegression/Multiline — 4-line wrapped paragraph") {
                   Vec2{kVW * 0.9f, kVH * 0.85f},
                   /*max_lines*/4));  // PR-A3 fix D: 0 wraps silently clipped, so we pass 4 to actually render
     auto t0 = std::chrono::steady_clock::now();
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     VR_GATE("VRMultiline", kRefVRMultiline, compute_metrics(*fb, t0));
 }
@@ -225,7 +225,7 @@ TEST_CASE("VisualRegression/Tracking — wide positive tracking (+200em)") {
     auto comp = make_text_composition("VR_Tracking",
         make_opts("T R A C K I N G", 96.0f, Color{0.0f, 0.0f, 0.5f, 1.0f}));  // PR-A3 fix B1: navy literal (Color::navy not in math/color.hpp)
     auto t0 = std::chrono::steady_clock::now();
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     VR_GATE("VRTracking", kRefVRTracking, compute_metrics(*fb, t0));
 }
@@ -248,7 +248,7 @@ TEST_CASE("VisualRegression/Stroke — thick stroke style applied via TextAppear
             return s.build();
         });
     auto t0 = std::chrono::steady_clock::now();
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     VR_GATE("VRStroke", kRefVRStroke, compute_metrics(*fb, t0));
 }
@@ -275,7 +275,7 @@ TEST_CASE("VisualRegression/Gradient — gradient fill on canonical text") {
             return s.build();
         });
     auto t0 = std::chrono::steady_clock::now();
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     VR_GATE("VRGradient", kRefVRGradient, compute_metrics(*fb, t0));
 }
@@ -295,7 +295,7 @@ TEST_CASE("VisualRegression/Shadow — drop shadow applied via l.drop_shadow") {
             return s.build();
         });
     auto t0 = std::chrono::steady_clock::now();
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     VR_GATE("VRShadow", kRefVRShadow, compute_metrics(*fb, t0));
 }
@@ -323,7 +323,7 @@ TEST_CASE("VisualRegression/Glow — AE-style multi-layer glow via l.glow") {
             return s.build();
         });
     auto t0 = std::chrono::steady_clock::now();
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     VR_GATE("VRGlow", kRefVRGlow, compute_metrics(*fb, t0));
 }
@@ -343,7 +343,7 @@ TEST_CASE("VisualRegression/Blur — gaussian blur radius applied via l.blur") {
             return s.build();
         });
     auto t0 = std::chrono::steady_clock::now();
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     VR_GATE("VRBlur", kRefVRBlur, compute_metrics(*fb, t0));
 }
@@ -367,7 +367,7 @@ TEST_CASE("VisualRegression/Typewriter — char reveal at midpoint frame") {
             return s.build();
         });
     auto t0 = std::chrono::steady_clock::now();
-    auto fb = renderer.render_frame(comp, Frame{kVTypewriterFrame});
+    auto fb = renderer.render(comp, Frame{kVTypewriterFrame});
     REQUIRE(fb != nullptr);
     VR_GATE("VRTypewriter", kRefVRTypewriter, compute_metrics(*fb, t0));
 }
@@ -392,7 +392,7 @@ TEST_CASE("VisualRegression/AnimGlyph — per-glyph opacity wobble snapshot") {
             return s.build();
         });
     auto t0 = std::chrono::steady_clock::now();
-    auto fb = renderer.render_frame(comp, Frame{25});
+    auto fb = renderer.render(comp, Frame{25});
     REQUIRE(fb != nullptr);
     VR_GATE("VRAnimGlyph", kRefVRAnimGlyph, compute_metrics(*fb, t0));
 }
@@ -417,7 +417,7 @@ TEST_CASE("VisualRegression/AnimWord — per-word wave displacement snapshot") {
             return s.build();
         });
     auto t0 = std::chrono::steady_clock::now();
-    auto fb = renderer.render_frame(comp, Frame{30});
+    auto fb = renderer.render(comp, Frame{30});
     REQUIRE(fb != nullptr);
     VR_GATE("VRAnimWord", kRefVRAnimWord, compute_metrics(*fb, t0));
 }
@@ -430,7 +430,7 @@ TEST_CASE("VisualRegression/RTL — Arabic sample for bidi + shaping path") {
                   72.0f, Color::black(),
                   Vec2{kVW * 0.9f, 240.0f}));
     auto t0 = std::chrono::steady_clock::now();
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     VR_GATE("VRRTL", kRefVRRTL, compute_metrics(*fb, t0));
 }
@@ -444,7 +444,7 @@ TEST_CASE("VisualRegression/CJK — CN + JP + KR mixed sample") {
                   48.0f, Color::black(),
                   Vec2{kVW * 0.95f, 240.0f}));
     auto t0 = std::chrono::steady_clock::now();
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     VR_GATE("VRCJK", kRefVRCJK, compute_metrics(*fb, t0));
 }
@@ -457,7 +457,7 @@ TEST_CASE("VisualRegression/EmojiFallback — mixed emoji + ASCII sample") {
                   72.0f, Color::black(),
                   Vec2{kVW * 0.9f, 240.0f}));
     auto t0 = std::chrono::steady_clock::now();
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     VR_GATE("VREmojiFallback", kRefVREmojiFallback, compute_metrics(*fb, t0));
 }
@@ -480,7 +480,7 @@ TEST_CASE("VisualRegression/ScaleExtreme — small + huge dual composition") {
             return s.build();
         });
     auto t0 = std::chrono::steady_clock::now();
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     VR_GATE("VRScaleExtreme", kRefVRScaleExtreme, compute_metrics(*fb, t0));
 }

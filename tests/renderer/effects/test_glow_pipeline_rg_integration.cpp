@@ -112,7 +112,7 @@ Composition make_bloom_threshold_scene() {
 
 TEST_CASE("PR2-RG-Glow: layer-mode glow creates a halo around bright source") {
     auto r = glow_rg_impl::make_glow_rg_renderer();
-    auto fb = r.render_frame(make_glow_layer_scene(), 0);
+    auto fb = r.render(make_glow_layer_scene(), 0);
     REQUIRE(fb != nullptr);
 
     const Color far_bg = fb->get_pixel(8, 8);
@@ -126,7 +126,7 @@ TEST_CASE("PR2-RG-Glow: layer-mode glow creates a halo around bright source") {
 
 TEST_CASE("PR2-RG-Glow: bloom threshold masks dim sources") {
     auto r = glow_rg_impl::make_glow_rg_renderer();
-    auto fb = r.render_frame(make_bloom_threshold_scene(), 0);
+    auto fb = r.render(make_bloom_threshold_scene(), 0);
     REQUIRE(fb != nullptr);
 
     const Color hal_dim    = fb->get_pixel(128 - 40 + 22, 128);
@@ -137,8 +137,8 @@ TEST_CASE("PR2-RG-Glow: bloom threshold masks dim sources") {
 
 TEST_CASE("PR2-RG-Glow: consecutive renders are deterministic") {
     auto r = glow_rg_impl::make_glow_rg_renderer();
-    auto fb1 = r.render_frame(make_glow_layer_scene(), 0);
-    auto fb2 = r.render_frame(make_glow_layer_scene(), 0);
+    auto fb1 = r.render(make_glow_layer_scene(), 0);
+    auto fb2 = r.render(make_glow_layer_scene(), 0);
     REQUIRE(fb1 != nullptr);
     REQUIRE(fb2 != nullptr);
     CHECK(fb_hash(*fb1) == fb_hash(*fb2));

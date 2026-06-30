@@ -93,7 +93,7 @@ Framebuffer render_continuity_contact_sheet(
     for (int i = 0; i < 9; ++i) {
         const double sub_frame = base_frame + kOffsets[i];
         const Frame frame_int{static_cast<i32>(std::floor(sub_frame))};
-        auto fb = renderer.render_frame(animated_scene, frame_int);
+        auto fb = renderer.render(animated_scene, frame_int);
         if (!fb) {
             fb = std::make_shared<Framebuffer>(320, 180);
         }

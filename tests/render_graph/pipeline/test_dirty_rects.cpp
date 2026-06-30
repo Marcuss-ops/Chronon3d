@@ -82,7 +82,7 @@ TEST_CASE("Dirty Rectangles V1 Pixel-Perfect Equivalence & Counters Test") {
     settings_baseline.dirty.use_bitmask = false;
     renderer_baseline.set_settings(settings_baseline);
 
-    auto fb_baseline = renderer_baseline.render_frame(comp, 10);
+    auto fb_baseline = renderer_baseline.render(comp, 10);
     REQUIRE(fb_baseline != nullptr);
 
     // 3. Render frame 10 WITH dirty rects (Optimized)
@@ -92,7 +92,7 @@ TEST_CASE("Dirty Rectangles V1 Pixel-Perfect Equivalence & Counters Test") {
     settings_opt.dirty.enabled = true;
     renderer_opt.set_settings(settings_opt);
 
-    auto fb_opt = renderer_opt.render_frame(comp, 10);
+    auto fb_opt = renderer_opt.render(comp, 10);
     REQUIRE(fb_opt != nullptr);
 
     // 4. Verify absolute pixel equivalence
@@ -194,10 +194,10 @@ TEST_CASE("Dirty rectangles stay stable for geometric backgrounds across frames"
 
     int total_mismatches = 0;
     for (int frame = 0; frame < spec.duration; ++frame) {
-        auto fb_baseline = renderer_baseline.render_frame(comp, frame);
+        auto fb_baseline = renderer_baseline.render(comp, frame);
         REQUIRE(fb_baseline != nullptr);
 
-        auto fb_opt = renderer_opt.render_frame(comp, frame);
+        auto fb_opt = renderer_opt.render(comp, frame);
         REQUIRE(fb_opt != nullptr);
 
         CHECK(fb_baseline->width() == fb_opt->width());

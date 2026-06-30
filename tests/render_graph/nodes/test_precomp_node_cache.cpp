@@ -409,10 +409,10 @@ TEST_CASE("precomp_cache: end-to-end via SoftwareRenderer does not crash") {
     );
 
     // Render two frames — should not crash
-    auto fb0 = renderer.render_frame(parent_comp, Frame{0});
+    auto fb0 = renderer.render(parent_comp, Frame{0});
     REQUIRE(fb0 != nullptr);
 
-    auto fb1 = renderer.render_frame(parent_comp, Frame{1});
+    auto fb1 = renderer.render(parent_comp, Frame{1});
     REQUIRE(fb1 != nullptr);
 
     // Verify both frames rendered something visible

@@ -377,7 +377,7 @@ TEST_CASE("PerPixelDOF: end-to-end render with DOF does not crash") {
             return s.build();
         });
 
-    auto fb = rend.render_frame(comp, 0);
+    auto fb = rend.render(comp, 0);
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 80);
     CHECK(fb->height() == 80);

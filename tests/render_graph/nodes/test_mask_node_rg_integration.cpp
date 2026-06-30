@@ -85,7 +85,7 @@ TEST_CASE("PR2-RG-Mask: rectangular mask_rect clips a circle into a square" * do
             });
             return s.build();
         });
-    auto fb = r.render_frame(comp, 0);
+    auto fb = r.render(comp, 0);
     REQUIRE(fb != nullptr);
 
     const Color outside_clip = fb->get_pixel(20, 20);
@@ -125,7 +125,7 @@ TEST_CASE("PR2-RG-Mask: inverted mask_rect zeroes interior alpha" * doctest::ski
             });
             return s.build();
         });
-    auto fb = r.render_frame(comp, 0);
+    auto fb = r.render(comp, 0);
     REQUIRE(fb != nullptr);
 
     const Color centre = fb->get_pixel(128, 128);
@@ -157,8 +157,8 @@ TEST_CASE("PR2-RG-Mask: render is deterministic across two calls") {
             });
             return s.build();
         });
-    auto fb1 = r.render_frame(comp, 0);
-    auto fb2 = r.render_frame(comp, 0);
+    auto fb1 = r.render(comp, 0);
+    auto fb2 = r.render(comp, 0);
     REQUIRE(fb1 != nullptr);
     REQUIRE(fb2 != nullptr);
     CHECK(alpha_hash(*fb1) == alpha_hash(*fb2));

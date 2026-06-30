@@ -193,7 +193,7 @@ Framebuffer render_two_node_target_lock_contact_sheet(
     constexpr Frame kFrames[5] = {{0}, {15}, {30}, {45}, {60}};
     std::vector<std::shared_ptr<Framebuffer>> panels;
     for (Frame f : kFrames) {
-        panels.push_back(renderer.render_frame(scene_comp, f));
+        panels.push_back(renderer.render(scene_comp, f));
     }
 
     Framebuffer result(960, 540);
@@ -248,7 +248,7 @@ Framebuffer render_motion_blur_comparison(SoftwareRenderer& renderer) {
         auto s = base;
         s.motion_blur.mode = MotionBlurMode::Off;
         renderer.set_settings(s);
-        panels.push_back(renderer.render_frame(anim_comp, kFrame));
+        panels.push_back(renderer.render(anim_comp, kFrame));
     }
 
     {
@@ -258,7 +258,7 @@ Framebuffer render_motion_blur_comparison(SoftwareRenderer& renderer) {
         s.motion_blur.shutter_angle_deg = 180.0f;
         s.motion_blur.jitter_seed = 0xABCD1234;
         renderer.set_settings(s);
-        panels.push_back(renderer.render_frame(anim_comp, kFrame));
+        panels.push_back(renderer.render(anim_comp, kFrame));
     }
 
     {
@@ -268,7 +268,7 @@ Framebuffer render_motion_blur_comparison(SoftwareRenderer& renderer) {
         s.motion_blur.shutter_angle_deg = 180.0f;
         s.motion_blur.jitter_seed = 0xABCD1234;
         renderer.set_settings(s);
-        panels.push_back(renderer.render_frame(anim_comp, kFrame));
+        panels.push_back(renderer.render(anim_comp, kFrame));
     }
 
     {
@@ -278,7 +278,7 @@ Framebuffer render_motion_blur_comparison(SoftwareRenderer& renderer) {
         s.motion_blur.shutter_angle_deg = 360.0f;
         s.motion_blur.jitter_seed = 0xABCD1234;
         renderer.set_settings(s);
-        panels.push_back(renderer.render_frame(anim_comp, kFrame));
+        panels.push_back(renderer.render(anim_comp, kFrame));
     }
 
     renderer.set_settings(base);

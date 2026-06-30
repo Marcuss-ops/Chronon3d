@@ -22,7 +22,7 @@ bool write_render_frame(const Composition& comp,
                         int& frames_written) {
     const auto hits_before = renderer.node_cache().stats().hits;
     const auto t0 = profiling::now();
-    auto fb = renderer.render_frame(comp, frame);
+    auto fb = renderer.render(comp, frame);
     const auto t1 = profiling::now();
     const auto hits_after = renderer.node_cache().stats().hits;
     const double dirty_ratio = renderer.last_dirty_area_ratio();

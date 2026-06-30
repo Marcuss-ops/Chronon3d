@@ -33,7 +33,7 @@ TEST_CASE("Test 17.1 — Golden image baseline and pixel-by-pixel validation") {
         return s.build();
     });
 
-    auto rendered = renderer.render_frame(comp, 0);
+    auto rendered = renderer.render(comp, 0);
     REQUIRE(rendered != nullptr);
 
     const std::filesystem::path golden_dir = "test_renders/golden";
@@ -71,7 +71,7 @@ TEST_CASE("Test 17.2 — Framebuffer dimension and float boundary comparisons") 
         return s.build();
     });
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 128);
     CHECK(fb->height() == 64);
@@ -92,7 +92,7 @@ TEST_CASE("Test 17.3 — Pixel-level difference reporting on mismatch") {
         return s.build();
     });
 
-    auto rendered = renderer.render_frame(comp, 0);
+    auto rendered = renderer.render(comp, 0);
     REQUIRE(rendered != nullptr);
 
     // We intentionally create a mismatched fake "golden" image (completely black)
@@ -150,7 +150,7 @@ TEST_CASE("Test 17.4 — Text layout alignment Center/Middle") {
         return s.build();
     });
 
-    auto rendered = renderer.render_frame(comp, 0);
+    auto rendered = renderer.render(comp, 0);
     REQUIRE(rendered != nullptr);
 
     const std::filesystem::path golden_dir = "test_renders/golden";
@@ -201,7 +201,7 @@ TEST_CASE("Test 17.5 — Text auto-fit automatic sizing") {
         return s.build();
     });
 
-    auto rendered = renderer.render_frame(comp, 0);
+    auto rendered = renderer.render(comp, 0);
     REQUIRE(rendered != nullptr);
 
     const std::filesystem::path golden_dir = "test_renders/golden";
@@ -249,7 +249,7 @@ TEST_CASE("Test 17.6 — Text max-lines and ellipsis truncation") {
         return s.build();
     });
 
-    auto rendered = renderer.render_frame(comp, 0);
+    auto rendered = renderer.render(comp, 0);
     REQUIRE(rendered != nullptr);
 
     const std::filesystem::path golden_dir = "test_renders/golden";
@@ -295,7 +295,7 @@ TEST_CASE("Test 17.7 — Text style (Cyan neon-like coloring)") {
         return s.build();
     });
 
-    auto rendered = renderer.render_frame(comp, 0);
+    auto rendered = renderer.render(comp, 0);
     REQUIRE(rendered != nullptr);
 
     const std::filesystem::path golden_dir = "test_renders/golden";
@@ -345,7 +345,7 @@ TEST_CASE("Test 17.8 — Subtitle backing box rendering") {
         return s.build();
     });
 
-    auto rendered = renderer.render_frame(comp, 0);
+    auto rendered = renderer.render(comp, 0);
     REQUIRE(rendered != nullptr);
 
     const std::filesystem::path golden_dir = "test_renders/golden";

@@ -128,15 +128,23 @@ struct CompositionEvaluationServices {
 ///                     these from the nested comp once and threads
 ///                     them into the nested frame without a second
 ///                     lookup).
-///   `name`          — non-owning pointer to the composition name
-///                     (typically `comp.name().c_str()`).  Diagnostic
-///                     only — `evaluate_composition` does NOT compare
-///                     it against `comp.name()`.  May be null.
+///   `name`          — non-owning view of the composition name
+///                     (typically `comp.name()`).  Diagnostic only —
+///                     `evaluate_composition` does NOT compare it
+///                     against `comp.name()`.  May be empty.  Lifetime
+///                     contract: the underlying string must outlive
+///                     the context (callers that pass a temporary
+///                     `std::string` should ensure the context's
+///                     lifetime is shorter than the temp).
 ///   `scope`         — non-owning pointer to the owning
 ///                     `ExecutionScope` (for precomp / tile path);
-///                     null for the root render-job path.  Diagnostic
-///                     only in §8.1; §8.3 reads it for
-///                     `set_owner_key(...)` on the precomp path.
+///                     null for the root render-job path.
+///                     Non-const deliberately: §8.3's
+///                     `for_precomp(...)` factory will call
+///                     `set_owner_key(...)` on this pointer to bind
+///                     the precomp's owner key to the scope before
+///                     the inner `execute_with_scope(...)` runs.
+///                     Root render-job path leaves it null.
 ///
 /// Stability contract: same as `CompositionEvaluationServices` — field
 /// order, names, and types are FROZEN between §8.1 and §8.4.
@@ -147,7 +155,7 @@ struct CompositionEvaluationContext {
     FrameRate                    frame_rate{30, 1};
     i32                          width{0};
     i32                          height{0};
-    const char*                  name{nullptr};
+    std::string_view             name{};
     graph::ExecutionScope*       scope{nullptr};
 };
 

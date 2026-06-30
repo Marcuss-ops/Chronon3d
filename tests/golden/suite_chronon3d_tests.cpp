@@ -128,7 +128,7 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
         });
         return s.build();
     });
-    auto fb_lin = renderer.render_frame(comp_lin, 0);
+    auto fb_lin = renderer.render(comp_lin, 0);
     REQUIRE(fb_lin != nullptr);
     verify_golden_or_create(*fb_lin, "gradient-linear.png");
 
@@ -146,7 +146,7 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
         });
         return s.build();
     });
-    auto fb_rad = renderer.render_frame(comp_rad, 0);
+    auto fb_rad = renderer.render(comp_rad, 0);
     REQUIRE(fb_rad != nullptr);
     verify_golden_or_create(*fb_rad, "gradient-radial.png");
 
@@ -167,7 +167,7 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
         });
         return s.build();
     });
-    auto fb_multi = renderer.render_frame(comp_multi, 0);
+    auto fb_multi = renderer.render(comp_multi, 0);
     REQUIRE(fb_multi != nullptr);
     verify_golden_or_create(*fb_multi, "gradient-multi-stop.png");
 
@@ -240,7 +240,7 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
 
         return s.build();
     });
-    auto fb_stroke = renderer.render_frame(comp_stroke, 0);
+    auto fb_stroke = renderer.render(comp_stroke, 0);
     REQUIRE(fb_stroke != nullptr);
     verify_golden_or_create(*fb_stroke, "stroke-dash-cap-join.png");
 
@@ -261,7 +261,7 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
         });
         return s.build();
     });
-    auto fb_shadow = renderer.render_frame(comp_shadow, 0);
+    auto fb_shadow = renderer.render(comp_shadow, 0);
     REQUIRE(fb_shadow != nullptr);
     verify_golden_or_create(*fb_shadow, "shadow-drop-inner-contact.png");
 
@@ -281,7 +281,7 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
         });
         return s.build();
     });
-    auto fb_bloom = renderer.render_frame(comp_bloom, 0);
+    auto fb_bloom = renderer.render(comp_bloom, 0);
     REQUIRE(fb_bloom != nullptr);
     verify_golden_or_create(*fb_bloom, "bloom-threshold-knee.png");
 
@@ -303,7 +303,7 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
         });
         return s.build();
     });
-    auto fb_pipe = renderer.render_frame(comp_pipe, 0);
+    auto fb_pipe = renderer.render(comp_pipe, 0);
     REQUIRE(fb_pipe != nullptr);
     verify_golden_or_create(*fb_pipe, "color-pipeline-linear-srgb.png");
 }
@@ -326,7 +326,7 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
             });
             return s.build();
         });
-        auto fb = renderer.render_frame(comp, 0);
+        auto fb = renderer.render(comp, 0);
         REQUIRE(fb != nullptr);
 
         // Verification of colors:
@@ -363,7 +363,7 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
             });
             return s.build();
         });
-        auto fb = renderer.render_frame(comp, 0);
+        auto fb = renderer.render(comp, 0);
         REQUIRE(fb != nullptr);
 
         // Check exact pixels at: x=0, 128, 256, 384, 511
@@ -401,7 +401,7 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
             });
             return s.build();
         });
-        auto fb = renderer.render_frame(comp, 0);
+        auto fb = renderer.render(comp, 0);
         REQUIRE(fb != nullptr);
 
         // Center pixel (200, 200) should be White
@@ -431,7 +431,7 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
             });
             return s.build();
         });
-        auto fb = renderer.render_frame(comp, 0);
+        auto fb = renderer.render(comp, 0);
         REQUIRE(fb != nullptr);
 
         // At angle 0 (right/east of center: e.g. x=300, y=200), t should be close to 0 (red)
@@ -465,7 +465,7 @@ TEST_CASE("Chronon3d Suite: Advanced Stroke Tests") {
             });
             return s.build();
         });
-        auto fb = renderer.render_frame(comp, 0);
+        auto fb = renderer.render(comp, 0);
         REQUIRE(fb != nullptr);
         
         // Count pixels that are drawn (non-black)
@@ -489,7 +489,7 @@ TEST_CASE("Chronon3d Suite: Advanced Stroke Tests") {
             });
             return s.build();
         });
-        auto fb = renderer.render_frame(comp, 0);
+        auto fb = renderer.render(comp, 0);
         // Check that it doesn't crash and returns a valid framebuffer
         CHECK(fb != nullptr);
     }
@@ -519,7 +519,7 @@ TEST_CASE("Chronon3d Suite: Shadow System Tests") {
         comp.camera.transform.position.y = 0.0f;
         comp.camera.transform.position.z = -comp.camera.focal_length(128.0f);
 
-        auto fb = renderer.render_frame(comp, 0);
+        auto fb = renderer.render(comp, 0);
         REQUIRE(fb != nullptr);
 
         // Center should be white
@@ -555,7 +555,7 @@ TEST_CASE("Chronon3d Suite: Cinematic Bloom Tests") {
     comp.camera.transform.position.y = 64.0f;
     comp.camera.transform.position.z = -comp.camera.focal_length(512.0f);
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
 
     // Box 1 (brightness 0.5): should NOT spread red bloom around it
@@ -652,8 +652,8 @@ TEST_CASE("Chronon3d Suite: Animation Tests") {
     });
 
     // Render frame 50 twice and verify determinism
-    auto fb_run1 = renderer.render_frame(comp, 50);
-    auto fb_run2 = renderer.render_frame(comp, 50);
+    auto fb_run1 = renderer.render(comp, 50);
+    auto fb_run2 = renderer.render(comp, 50);
     REQUIRE(fb_run1 != nullptr);
     REQUIRE(fb_run2 != nullptr);
 
@@ -668,7 +668,7 @@ TEST_CASE("Chronon3d Suite: ImageProofs Golden Reference") {
     auto renderer = test::make_renderer();
 
     // Render frame 60: fully animated state
-    auto fb = renderer.render_frame(comp, 60);
+    auto fb = renderer.render(comp, 60);
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width() == 1920);
     REQUIRE(fb->height() == 1080);
@@ -698,7 +698,7 @@ TEST_CASE("Chronon3d Suite: ShapeProofs Golden Reference") {
     auto renderer = test::make_renderer();
 
     // Render frame 60: fully animated state
-    auto fb = renderer.render_frame(comp, 60);
+    auto fb = renderer.render(comp, 60);
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width() == 1920);
     REQUIRE(fb->height() == 1080);
@@ -786,7 +786,7 @@ TEST_CASE("Chronon3d Suite: SSAA 2x Quality Verification") {
             });
             return s.build();
         });
-        auto fb = renderer.render_frame(comp, 0);
+        auto fb = renderer.render(comp, 0);
         REQUIRE(fb != nullptr);
         verify_golden_or_create(*fb, "stroke-dash-cap-join_ssaa2.png");
     }
@@ -808,7 +808,7 @@ TEST_CASE("Chronon3d Suite: SSAA 2x Quality Verification") {
             });
             return s.build();
         });
-        auto fb = renderer.render_frame(comp, 0);
+        auto fb = renderer.render(comp, 0);
         REQUIRE(fb != nullptr);
         verify_golden_or_create(*fb, "shadow-drop-inner-contact_ssaa2.png");
     }
@@ -828,7 +828,7 @@ TEST_CASE("Chronon3d Suite: SSAA 2x Quality Verification") {
         comp.camera.transform.position.y = 64.0f;
         comp.camera.transform.position.z = -comp.camera.focal_length(512.0f);
 
-        auto fb = renderer.render_frame(comp, 0);
+        auto fb = renderer.render(comp, 0);
         REQUIRE(fb != nullptr);
         verify_golden_or_create(*fb, "bloom-threshold-knee_ssaa2.png");
     }
@@ -901,7 +901,7 @@ TEST_CASE("Chronon3d Suite: Final Combined Stress Test") {
 
     // Render multiple frames to ensure no crash, NaN, or out-of-range colors
     for (int frame : {0, 50, 100}) {
-        auto fb = renderer.render_frame(comp, frame);
+        auto fb = renderer.render(comp, frame);
         REQUIRE(fb != nullptr);
         
         // Assert no NaNs and that all final sRGB colors are safe and in bounds

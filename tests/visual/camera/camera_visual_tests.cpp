@@ -15,7 +15,7 @@ TEST_CASE("Camera visual: center target renders correctly") {
     auto renderer = test::make_renderer();
     auto comp = make_center_target_composition();
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 960);
     CHECK(fb->height() == 540);
@@ -29,7 +29,7 @@ TEST_CASE("Camera visual: parallax stack frame 000") {
     auto renderer = test::make_renderer();
     auto comp = make_parallax_stack_composition();
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
 
     CHECK(average_luma_rect(*fb, 0, 0, 960, 540) > 0.003f);
@@ -39,7 +39,7 @@ TEST_CASE("Camera visual: parallax stack frame 030") {
     auto renderer = test::make_renderer();
     auto comp = make_parallax_stack_composition();
 
-    auto fb = renderer.render_frame(comp, 30);
+    auto fb = renderer.render(comp, 30);
     REQUIRE(fb != nullptr);
 
     CHECK(average_luma_rect(*fb, 0, 0, 960, 540) > 0.003f);
@@ -49,8 +49,8 @@ TEST_CASE("Camera visual: parallax stack displacement is correct") {
     auto renderer = test::make_renderer();
     auto comp = make_parallax_stack_composition();
 
-    auto fb0 = renderer.render_frame(comp, 0);
-    auto fb30 = renderer.render_frame(comp, 30);
+    auto fb0 = renderer.render(comp, 0);
+    auto fb30 = renderer.render(comp, 30);
     REQUIRE(fb0 != nullptr);
     REQUIRE(fb30 != nullptr);
 
@@ -66,7 +66,7 @@ TEST_CASE("Camera visual: orbit two node frame 000") {
     auto renderer = test::make_renderer();
     auto comp = make_orbit_two_node_composition();
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
 
     CHECK(average_luma_rect(*fb, 0, 0, 960, 540) > 0.003f);
@@ -76,7 +76,7 @@ TEST_CASE("Camera visual: orbit two node frame 030") {
     auto renderer = test::make_renderer();
     auto comp = make_orbit_two_node_composition();
 
-    auto fb = renderer.render_frame(comp, 30);
+    auto fb = renderer.render(comp, 30);
     REQUIRE(fb != nullptr);
 
     CHECK(average_luma_rect(*fb, 0, 0, 960, 540) > 0.003f);
@@ -86,7 +86,7 @@ TEST_CASE("Camera visual: orbit two node renders without errors") {
     auto renderer = test::make_renderer();
     auto comp = make_orbit_two_node_composition();
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
 
     CHECK(average_luma_rect(*fb, 0, 0, 960, 540) > 0.003f);
@@ -108,7 +108,7 @@ TEST_CASE("Camera visual: near plane crossing does not explode") {
     auto renderer = test::make_renderer();
     auto comp = make_near_plane_crossing_composition();
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
 
     // Image should not be completely black or white
@@ -134,7 +134,7 @@ TEST_CASE("Camera visual: z sort stack is correct") {
     auto renderer = test::make_renderer();
     auto comp = make_z_sort_stack_composition();
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
 
     // Verify the image is not blank

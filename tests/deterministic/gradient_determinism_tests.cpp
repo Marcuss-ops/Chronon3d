@@ -108,7 +108,7 @@ static ArenaRenderResult render_in_arena(int slots, Renderer& r,
                                           const Composition& comp, Frame frame) {
     ArenaRenderResult out;
     auto body = [&] {
-        auto fb = r.render_frame(comp, frame);
+        auto fb = r.render(comp, frame);
         if (!fb) return;
         out.fb = std::move(fb);
         out.hash = framebuffer_hash(*out.fb);
@@ -244,7 +244,7 @@ TEST_CASE("Gradient determinism: 20 consecutive renders — pixel-identical") {
     hashes.reserve(20);
 
     for (int i = 0; i < 20; ++i) {
-        auto fb = renderer.render_frame(comp, 0);
+        auto fb = renderer.render(comp, 0);
         REQUIRE(fb != nullptr);
         hashes.push_back(framebuffer_hash(*fb));
     }
@@ -264,7 +264,7 @@ TEST_CASE("Gradient determinism: animated scene — same frame repeated 10× ide
     hashes.reserve(10);
 
     for (int i = 0; i < 10; ++i) {
-        auto fb = renderer.render_frame(comp, test_frame);
+        auto fb = renderer.render(comp, test_frame);
         REQUIRE(fb != nullptr);
         hashes.push_back(framebuffer_hash(*fb));
     }
@@ -290,12 +290,12 @@ TEST_CASE("Gradient determinism: cold cache vs warm cache — identical pixels")
 
     // Cold run: fresh renderer (cache empty)
     auto renderer = test::make_renderer();
-    auto fb_cold = renderer.render_frame(comp, 0);
+    auto fb_cold = renderer.render(comp, 0);
     REQUIRE(fb_cold != nullptr);
     const u64 hash_cold = framebuffer_hash(*fb_cold);
 
     // Warm run: same renderer, same frame (cache populated)
-    auto fb_warm = renderer.render_frame(comp, 0);
+    auto fb_warm = renderer.render(comp, 0);
     REQUIRE(fb_warm != nullptr);
     const u64 hash_warm = framebuffer_hash(*fb_warm);
 
@@ -424,8 +424,8 @@ TEST_CASE("Gradient determinism: semantic comparison — identical frames") {
     auto comp = make_gradient_static_comp();
     auto renderer = test::make_renderer();
 
-    auto fb1 = renderer.render_frame(comp, 0);
-    auto fb2 = renderer.render_frame(comp, 0);
+    auto fb1 = renderer.render(comp, 0);
+    auto fb2 = renderer.render(comp, 0);
     REQUIRE(fb1 != nullptr);
     REQUIRE(fb2 != nullptr);
 
@@ -444,8 +444,8 @@ TEST_CASE("Gradient determinism: semantic comparison — different frames differ
     auto comp = make_gradient_animated_comp();
     auto renderer = test::make_renderer();
 
-    auto fb10 = renderer.render_frame(comp, Frame{10});
-    auto fb20 = renderer.render_frame(comp, Frame{20});
+    auto fb10 = renderer.render(comp, Frame{10});
+    auto fb20 = renderer.render(comp, Frame{20});
     REQUIRE(fb10 != nullptr);
     REQUIRE(fb20 != nullptr);
 
@@ -503,7 +503,7 @@ TEST_CASE("Gradient determinism: centroid detection on gradient shapes") {
     auto comp = make_gradient_static_comp();
     auto renderer = test::make_renderer();
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
 
     // The blue gradient (card1) should have dominant blue region

@@ -49,7 +49,13 @@ enum class CompositeOperator : unsigned char;
 class SoftwareRenderer : public Renderer {
 public:
     // ── Render entry points ────────────────────────────────────────────
-    std::shared_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame);
+    // P1-F Pass B — `render_frame` was canonicalised to `render` to align
+    // with the V0.2 SDK API (`chronon3d::sdk::RenderEngine::render`).  Return
+    // type + semantics preserved exactly; pure renaming.  This header is now
+    // in `src/backends/software/include_private/` since P1-E Pass E, so the
+    // bulk `.render_frame(` sed in 70 caller files did NOT see this
+    // declaration line — it has to be renamed here alongside the .cpp body.
+    std::shared_ptr<Framebuffer> render(const Composition& comp, Frame frame);
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
                                               i32 width, i32 height);
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene,

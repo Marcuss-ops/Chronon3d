@@ -381,13 +381,13 @@ TEST_CASE("GraphHealth: dirty rects on and off render identically") {
     dirty_settings.dirty.enabled = true;
     dirty.set_settings(dirty_settings);
 
-    auto fb0_base = baseline.render_frame(comp, 0);
-    auto fb0_dirty = dirty.render_frame(comp, 0);
+    auto fb0_base = baseline.render(comp, 0);
+    auto fb0_dirty = dirty.render(comp, 0);
     REQUIRE(fb0_base != nullptr);
     REQUIRE(fb0_dirty != nullptr);
 
-    auto fb1_base = baseline.render_frame(comp, 1);
-    auto fb1_dirty = dirty.render_frame(comp, 1);
+    auto fb1_base = baseline.render(comp, 1);
+    auto fb1_dirty = dirty.render(comp, 1);
     REQUIRE(fb1_base != nullptr);
     REQUIRE(fb1_dirty != nullptr);
 

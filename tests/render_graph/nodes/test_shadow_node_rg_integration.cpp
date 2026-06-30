@@ -52,7 +52,7 @@ Composition make_shadow_scene() {
 
 TEST_CASE("PR2-RG-Shadow: shadow projects at light direction + offset") {
     auto renderer = ctt::test::make_renderer();
-    auto fb = renderer.render_frame(make_shadow_scene(), 0);
+    auto fb = renderer.render(make_shadow_scene(), 0);
     REQUIRE(fb != nullptr);
 
     const Color bg = fb->get_pixel(40, 40);
@@ -67,7 +67,7 @@ TEST_CASE("PR2-RG-Shadow: shadow projects at light direction + offset") {
 
 TEST_CASE("PR2-RG-Shadow: shadow extends beyond caster silhouette (blur)") {
     auto renderer = ctt::test::make_renderer();
-    auto fb = renderer.render_frame(make_shadow_scene(), 0);
+    auto fb = renderer.render(make_shadow_scene(), 0);
     REQUIRE(fb != nullptr);
 
     const Color bg = fb->get_pixel(40, 40);
@@ -95,7 +95,7 @@ TEST_CASE("PR2-RG-Shadow: render with no drop_shadow completes cleanly") {
         });
 
     auto renderer = ctt::test::make_renderer();
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 128);
     CHECK(fb->height() == 128);

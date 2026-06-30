@@ -156,7 +156,7 @@ inline void emit_preset_gate(chronon3d::SoftwareRenderer& renderer,
                               VisualExpectation expectation) {
     auto comp = build_preset_composition(preset_id, r, t_frame, &renderer.font_engine(), 30);
     auto t0 = std::chrono::steady_clock::now();
-    auto fb = renderer.render_frame(comp, chronon3d::Frame{t_frame});
+    auto fb = renderer.render(comp, chronon3d::Frame{t_frame});
     REQUIRE(fb != nullptr);
     auto m = compute_metrics(*fb, t0);
     VR_TEXT_PRESET_GATE(short_label, kref, m, expectation);

@@ -343,28 +343,28 @@ Composition make_pulse_scene() {
 
 TEST_CASE("GlowGolden: neon card radius ladder") {
     auto renderer = test::make_renderer();
-    auto rendered = renderer.render_frame(make_neon_card(), 0);
+    auto rendered = renderer.render(make_neon_card(), 0);
     REQUIRE(rendered != nullptr);
     verify_glow_golden_or_create(*rendered, "neon_card_radius_ladder.png");
 }
 
 TEST_CASE("GlowGolden: text hero and caption") {
     auto renderer = test::make_renderer();
-    auto rendered = renderer.render_frame(make_text_glow_scene(), 0);
+    auto rendered = renderer.render(make_text_glow_scene(), 0);
     REQUIRE(rendered != nullptr);
     verify_glow_golden_or_create(*rendered, "text_hero_caption.png");
 }
 
 TEST_CASE("GlowGolden: image glow alpha coverage") {
     auto renderer = test::make_renderer();
-    auto rendered = renderer.render_frame(make_image_glow_scene(), 0);
+    auto rendered = renderer.render(make_image_glow_scene(), 0);
     REQUIRE(rendered != nullptr);
     verify_glow_golden_or_create(*rendered, "image_glow_alpha.png");
 }
 
 TEST_CASE("GlowGolden: edge clip safety") {
     auto renderer = test::make_renderer();
-    auto rendered = renderer.render_frame(make_edge_glow_scene(), 0);
+    auto rendered = renderer.render(make_edge_glow_scene(), 0);
     REQUIRE(rendered != nullptr);
     verify_glow_golden_or_create(*rendered, "edge_clip_safety.png");
 }
@@ -373,8 +373,8 @@ TEST_CASE("GlowGolden: pulse animation frame pair") {
     auto renderer = test::make_renderer();
     const auto comp = make_pulse_scene();
 
-    auto fb0 = renderer.render_frame(comp, 0);
-    auto fb15 = renderer.render_frame(comp, 15);
+    auto fb0 = renderer.render(comp, 0);
+    auto fb15 = renderer.render(comp, 15);
     REQUIRE(fb0 != nullptr);
     REQUIRE(fb15 != nullptr);
 
@@ -384,8 +384,8 @@ TEST_CASE("GlowGolden: pulse animation frame pair") {
     // At t=0 and t=0.5 the pulse = 0.5 + 0.5*sin(2pi*2*t) gives 0.5 at both
     // frame 0 (t=0) and frame 15 (t=15/30=0.5 → sin(2pi)=0), so they are
     // identical.  Compare frame 4 (t=4/30≈0.133 → peak) and frame 11 instead.
-    auto fb4 = renderer.render_frame(comp, 4);
-    auto fb11 = renderer.render_frame(comp, 11);
+    auto fb4 = renderer.render(comp, 4);
+    auto fb11 = renderer.render(comp, 11);
     REQUIRE(fb4 != nullptr);
     REQUIRE(fb11 != nullptr);
     CHECK(framebuffer_hash(*fb4) != framebuffer_hash(*fb11));

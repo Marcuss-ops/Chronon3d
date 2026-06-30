@@ -144,7 +144,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                     if (failed.load()) return;
                     const auto frame_t0 = profiling::now();
                     const auto hits_before = renderer->node_cache().stats().hits;
-                    auto fb = renderer->render_frame(comp, f);
+                    auto fb = renderer->render(comp, f);
                     const auto hits_after_render = renderer->node_cache().stats().hits;
                     const double dirty_ratio = renderer->last_dirty_area_ratio();
                     if (!fb) {

@@ -158,7 +158,7 @@ int main() {
 
     // ── 2. Render ────────────────────────────────────────────────
     chronon3d::RenderEngine engine;
-    auto fb = engine.render_frame(comp, 0);
+    auto fb = engine.render(comp, 0);
 
     if (!fb) {
         std::fprintf(stderr, "[BOUNDARY-FAIL] render_frame returned null\n");

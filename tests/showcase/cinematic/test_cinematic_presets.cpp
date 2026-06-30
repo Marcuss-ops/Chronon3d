@@ -116,7 +116,7 @@ TEST_CASE("AGENT4: A4.3 text motion per preset (5 cinematic compositions)") {
         const int samples[3] = {0, half, fin};
         for (int s = 0; s < 3; ++s) {
             const int f = samples[s];
-            auto fb = renderer.render_frame(comp, Frame{f});
+            auto fb = renderer.render(comp, Frame{f});
             REQUIRE(fb != nullptr);
             hashes[s] = hash_framebuffer(*fb);
             // shared_ptr goes out of scope here → fb storage freed.

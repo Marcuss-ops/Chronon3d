@@ -52,7 +52,7 @@ Composition make_dof_scene(bool far_bar) {
 
 TEST_CASE("PR2-RG-DoF: smoke render produces expected dimensions") {
     auto r = ctt::test::make_renderer();
-    auto fb = r.render_frame(make_dof_scene(false), 0);
+    auto fb = r.render(make_dof_scene(false), 0);
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 256);
     CHECK(fb->height() == 256);
@@ -60,8 +60,8 @@ TEST_CASE("PR2-RG-DoF: smoke render produces expected dimensions") {
 
 TEST_CASE("PR2-RG-DoF: two consecutive renders are byte-equal (determinism)") {
     auto r = ctt::test::make_renderer();
-    auto fb1 = r.render_frame(make_dof_scene(false), 0);
-    auto fb2 = r.render_frame(make_dof_scene(false), 0);
+    auto fb1 = r.render(make_dof_scene(false), 0);
+    auto fb2 = r.render(make_dof_scene(false), 0);
     REQUIRE(fb1 != nullptr);
     REQUIRE(fb2 != nullptr);
     CHECK(ctt::framebuffer_hash(*fb1) == ctt::framebuffer_hash(*fb2));
@@ -69,8 +69,8 @@ TEST_CASE("PR2-RG-DoF: two consecutive renders are byte-equal (determinism)") {
 
 TEST_CASE("PR2-RG-DoF: per-element z-range variation produces differing hashes") {
     auto r = ctt::test::make_renderer();
-    auto fb_near = r.render_frame(make_dof_scene(false), 0);
-    auto fb_far  = r.render_frame(make_dof_scene(true),  0);
+    auto fb_near = r.render(make_dof_scene(false), 0);
+    auto fb_far  = r.render(make_dof_scene(true),  0);
     REQUIRE(fb_near != nullptr);
     REQUIRE(fb_far  != nullptr);
     CHECK(ctt::framebuffer_hash(*fb_near) != ctt::framebuffer_hash(*fb_far));

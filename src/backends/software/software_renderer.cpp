@@ -308,8 +308,8 @@ const FontEngine& SoftwareRenderer::font_engine() const {
 
 // ── Rendering ────────────────────────────────────────────────────────────────
 
-std::shared_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp,
-                                                            Frame frame) {
+std::shared_ptr<Framebuffer> SoftwareRenderer::render(const Composition& comp,
+                                                    Frame frame) {
     profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());
 
     auto res = graph::render_composition_frame(

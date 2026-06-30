@@ -27,7 +27,7 @@ static std::shared_ptr<Framebuffer> render_frame(const Composition& comp, Frame 
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
-    return renderer.render_frame(comp, frame);
+    return renderer.render(comp, frame);
 }
 
 // ===========================================================================

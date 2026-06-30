@@ -96,7 +96,7 @@ int main() {
 
     for (int run = 0; run < 5; ++run) {
         auto renderer = test::make_renderer();
-        auto fb = renderer.render_frame(comp, Frame{50});
+        auto fb = renderer.render(comp, Frame{50});
         if (!fb) {
             std::fprintf(stderr, "ERROR: Run %d returned null framebuffer\n", run);
             return 1;
@@ -158,9 +158,9 @@ int main() {
 
         // Compare first pixel of first and second run to see error magnitude
         auto renderer1 = test::make_renderer();
-        auto fb1 = renderer1.render_frame(comp, Frame{50});
+        auto fb1 = renderer1.render(comp, Frame{50});
         auto renderer2 = test::make_renderer();
-        auto fb2 = renderer2.render_frame(comp, Frame{50});
+        auto fb2 = renderer2.render(comp, Frame{50});
 
         if (fb1 && fb2 && fb1->width() == fb2->width() && fb1->height() == fb2->height()) {
             float max_diff = 0.0f;

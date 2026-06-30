@@ -109,7 +109,7 @@ int main() {
         }
 
         // Render frame at frame 50 + frame_num (breathing animation changes slightly)
-        auto fb = renderer.render_frame(make_breathing_comp(), Frame{50 + frame_num});
+        auto fb = renderer.render(make_breathing_comp(), Frame{50 + frame_num});
         if (!fb) {
             std::fprintf(stderr, "ERROR: Frame %d returned null framebuffer\n", frame_num);
             return 1;

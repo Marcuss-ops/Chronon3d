@@ -107,7 +107,7 @@ TEST_CASE("Motion blur: 8 samples smear a fast-moving layer across the frame") {
 
     auto mb_renderer = test::make_renderer();
     mb_renderer.set_settings(mb_settings);
-    auto mb_fb = mb_renderer.render_frame(comp, Frame{0});
+    auto mb_fb = mb_renderer.render(comp, Frame{0});
     REQUIRE(mb_fb != nullptr);
 
     // ── Render WITHOUT motion blur ───────────────────────────────────────
@@ -116,7 +116,7 @@ TEST_CASE("Motion blur: 8 samples smear a fast-moving layer across the frame") {
 
     auto no_mb_renderer = test::make_renderer();
     no_mb_renderer.set_settings(no_mb_settings);
-    auto no_mb_fb = no_mb_renderer.render_frame(comp, Frame{0});
+    auto no_mb_fb = no_mb_renderer.render(comp, Frame{0});
     REQUIRE(no_mb_fb != nullptr);
 
     // ── Assertions ──────────────────────────────────────────────────────
@@ -155,7 +155,7 @@ TEST_CASE("Motion blur: Stratified pattern with Triangle filter produces consist
 
     auto mb_renderer = test::make_renderer();
     mb_renderer.set_settings(mb_settings);
-    auto mb_fb = mb_renderer.render_frame(comp, Frame{0});
+    auto mb_fb = mb_renderer.render(comp, Frame{0});
     REQUIRE(mb_fb != nullptr);
 
     const int mid_y = h / 2;
@@ -182,13 +182,13 @@ TEST_CASE("Motion blur: deterministic — same seed produces identical output") 
     // First render
     auto r1 = test::make_renderer();
     r1.set_settings(mb_settings);
-    auto fb1 = r1.render_frame(comp, Frame{0});
+    auto fb1 = r1.render(comp, Frame{0});
     REQUIRE(fb1 != nullptr);
 
     // Second render (same settings, fresh renderer to avoid cache reuse)
     auto r2 = test::make_renderer();
     r2.set_settings(mb_settings);
-    auto fb2 = r2.render_frame(comp, Frame{0});
+    auto fb2 = r2.render(comp, Frame{0});
     REQUIRE(fb2 != nullptr);
 
     // Pixel-for-pixel equality
@@ -228,7 +228,7 @@ TEST_CASE("Motion blur: sub-frame pipeline — 8 samples produce 8 distinct posi
 
     auto r = test::make_renderer();
     r.set_settings(mb_settings);
-    auto mb_fb = r.render_frame(comp, Frame{0});
+    auto mb_fb = r.render(comp, Frame{0});
     REQUIRE(mb_fb != nullptr);
 
     // Without motion blur, the box at frame 0 is at x=0.
@@ -258,7 +258,7 @@ TEST_CASE("Motion blur: sub-frame pipeline — 8 samples produce 8 distinct posi
     no_mb_settings.motion_blur.mode    = MotionBlurMode::Off;
     auto r2 = test::make_renderer();
     r2.set_settings(no_mb_settings);
-    auto no_mb_fb = r2.render_frame(comp, Frame{0});
+    auto no_mb_fb = r2.render(comp, Frame{0});
 
     int no_mb_min = w, no_mb_max = -1;
     for (i32 x = 0; x < w; ++x) {
