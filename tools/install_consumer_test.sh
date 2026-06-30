@@ -48,7 +48,7 @@ log "repo root   : $REPO_ROOT"
 log "temp root   : $TMP_ROOT"
 log "fast mode   : ${CHRONON3D_INSTALL_TEST_FAST:-0}"
 log "ghost sweep : ${CHRONON3D_INSTALL_TEST_GHOST_SWEEP:-0}"
-require_cmake_3_25 >/dev/null
+require_cmake_3_27 >/dev/null
 
 # ── Temp dirs (orchestrator's responsibility) + EXIT trap cleanup ────
 SDK_BUILD="$(mktemp_dir chronon3d_install_consumer_sdk_build)"
