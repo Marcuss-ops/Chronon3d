@@ -104,6 +104,30 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         # text_layout->font.font_size at the default 0.0f).  Gracefully degrades
         # via MESSAGE+return when system fonts are absent (no external fixture).
         text/test_compile_text_layout_identity.cpp
+        # TICKET-101 — text cat-3 #2 regression suite for build_text_run +
+        # compile_text_layout after the refactor that:
+        #   (a) added `paragraph_index` to TextLayoutRequest (HPP POD
+        #       extension, zero new public classes) so compile_text_layout
+        #       can index into the ORIGINAL document without a synthetic
+        #       per-paragraph TextDocument,
+        #   (b) removed the para_doc synthesis from the build_text_run
+        #       wrapper, preserving spans / font-overrides / font-size-per-
+        #       span / tracking-per-span / paragraph-style / direction /
+        #       language that were previously destroyed (review P0 #2),
+        #   (c) moved UnsupportedMultiFontRun rejection from
+        #       compile_text_layout to the PUBLIC build_text_run wrapper
+        #       (verdict Issue #3 closure at the public API surface).
+        # 3 TEST_CASEs: (1) wrapper rejects multi-font paragraph
+        # (UnsupportedMultiFontRun propagation, paragraph absent from
+        # result); (2) span override (font_size) preserved through
+        # compile_text_layout (regression lock for previous para_doc
+        # synthesis that dropped span info); (3) paragraph style
+        # (line_height) preserved through compile_text_layout
+        # (regression lock for previous para_doc synthesis that dropped
+        # paragraph style).  Uses LocalEngine fixture pattern from
+        # test_compile_text_layout_errors.cpp; degrades gracefully when
+        # system fonts are unavailable.
+        text/test_rich_text_paragraph_preservation.cpp
     )
 endif()
 
