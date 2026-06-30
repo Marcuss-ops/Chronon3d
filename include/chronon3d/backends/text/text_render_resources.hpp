@@ -397,7 +397,7 @@ struct TextRenderResources {
         bind_fences();
         debug_io_fence.store(on, std::memory_order_release);
     }
-    [[nodiscard]] bool debug_io_fence() const noexcept {
+    [[nodiscard]] bool is_debug_io_fence_active() const noexcept {
         return debug_io_fence.load(std::memory_order_acquire);
     }
 
