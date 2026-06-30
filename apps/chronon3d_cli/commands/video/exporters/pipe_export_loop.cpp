@@ -28,7 +28,11 @@ RenderLoopOutput run_pipe_export_loop(
     const auto render_t0 = profiling::now();
 
     RenderLoopContext loop_ctx{
-        .backend = *session.renderer,
+        // 06 R3b boundary refactor: `SoftwareRenderer` no longer derives
+        // from `graph::RenderBackend` — the backend is reachable via the
+        // `->backend()` accessor (a domain-aware forwarder into the
+        // runtime-owned backend slot, NOT an implicit IS-A upcast).
+        .backend = session.renderer->backend(),
         .node_cache = node_cache,
         .settings = settings,
         .registry = registry,
