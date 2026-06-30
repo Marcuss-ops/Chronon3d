@@ -19,6 +19,7 @@
 // Bodies-only headers — kept out of the public API to keep surface includes
 // transitively minimal.
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_session.hpp>
 
 #include <exception>
 
@@ -163,11 +164,18 @@ compile_composition(const CompositionDefinition& definition,
 // captured `CompositionDefinition::scene` lambda, catches any exception as a
 // `CompositionEvaluateError::SceneBuildFailed`.
 //
-// Camera2_5D resolution is intentionally deferred to a future V2 PR — the
-// canonical evaluator forwards through `CameraProgram::evaluate(...)` for
-// per-frame camera transforms; we leave `result.camera == std::nullopt`
-// (mirroring the legacy Composition::default_camera_2_5d() path) for this
-// staging commit to keep the diff tightly scoped.
+// Camera2_5D resolution (P3-E):
+//   * Reads Camera2_5D from the compiled camera program
+//     (`CompiledComposition::camera_program->evaluate(...)`).  NEVER from
+//     `Composition::camera` (the legacy field, freshly `[[deprecated]]`)
+//     and NEVER via `Composition::redecompose_camera_from_descriptor(...)`.
+//   * A `[[deprecated]]` warning + deprecation guarantee is now in place
+//     on the legacy field; future render-path consumers MUST consume the
+//     `EvaluatedCompositionFrame::camera` produced here.
+//   * When a composition was compiled WITHOUT a camera descriptor
+//     (`!definition.camera.has_value()` ⇒ `compiled.camera_program` is
+//     null), we leave `result.camera == std::nullopt` — mirroring the
+//     legacy "Composition has no descriptor" contract.
 // ─────────────────────────────────────────────────────────────────────────────
 Result<EvaluatedCompositionFrame, CompositionEvaluateError>
 evaluate(const CompiledComposition& compiled,
@@ -208,8 +216,27 @@ evaluate(const CompiledComposition& compiled,
         return err;
     }
 
-    // Camera2_5D resolution deferred to a future V2 PR (see header docstring).
-    result.camera = std::nullopt;
+    // P3-E: consume Camera2_5D from the compiled program — NEVER from
+    // `Composition::camera` and NEVER via `redecompose_camera_from_descriptor`.
+    // Adapter-only: `CompiledComposition::camera_program` is null when the
+    // caller supplied `CompositionDefinition` without a CameraDescriptor.
+    if (compiled.camera_program && compiled.camera_program->is_compiled()) {
+        camera_v1::CameraSession session;
+        camera_v1::CameraEvalContext cam_ctx;
+        cam_ctx.sample_time = SampleTime::from_frame(
+            static_cast<double>(frame),
+            static_cast<FrameRate>(context.frame_context.frame_rate));
+        const auto cam_result =
+            compiled.camera_program->evaluate(cam_ctx, session);
+        if (cam_result.ok) {
+            result.camera = cam_result.camera;
+        }
+        // Diagnostics on the CameraProgram::evaluate() result are not
+        // surfaced to the V2 evaluate() return channel — they're
+        // implementation-detail (constraint stack fallback, etc.) and the
+        // legacy Composition logs equivalent info via spdlog::info on
+        // every frame.  Out of scope for this staging commit.
+    }
 
     return result;
 }

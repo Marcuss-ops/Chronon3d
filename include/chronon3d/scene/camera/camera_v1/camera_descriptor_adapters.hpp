@@ -31,6 +31,7 @@
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 
 #include <chronon3d/animations/camera_motion_params.hpp>     // CameraMotionParams
+#include <chronon3d/scene/model/camera/camera.hpp>           // Camera (slim legacy struct)
 #include <chronon3d/scene/model/camera/camera_rig.hpp>        // CameraRig
 #include <chronon3d/scene/model/camera/camera_shot_profile.hpp> // CameraShotProfile
 
@@ -69,5 +70,29 @@ camera_descriptor_from(const chronon3d::CameraRig& rig,
 [[nodiscard]] CameraDescriptor
 camera_descriptor_from(const chronon3d::CameraShotProfile& shot,
                        RigBakeDensity density = RigBakeDensity::Default);
+
+// ── Pure adapter: legacy slim Camera → CameraDescriptor ──────────────────
+//
+// Bridges the OPP's flat `chronon3d::Camera` struct (the field that was just
+// marked `[[deprecated]]` on `chronon3d::Composition`) into the canonical
+// V1 descriptor form.  The legacy struct carries only:
+//
+//   * transform.position + transform.rotation
+//   * fov_deg (perspective vertical FOV)
+//   * near_plane, far_plane            (used to seed a default PhysicalLens)
+//
+// — no parent / target / DoF / motion-blur / zoom slider.  The adapter fills
+// the V1 descriptor's `base` from these and leaves `source =
+// StaticCameraSource{}` so the snapshot is exactly what `comp.camera` was
+// representing at the time of the call.  Mutating the legacy `Camera`
+// afterwards does NOT re-trigger the descriptor; this matches the static
+// snapshot semantics of the slim legacy field.
+//
+// READ-ONLY CONTRACT: this adapter is the canonical one-way bridge into
+// the V1 pipeline.  The renderer MUST stop reading the legacy
+// `Composition::camera` field directly; callers wanting V2 camera input
+// should be reading `CompiledComposition.camera_program->evaluate(...)`.
+[[nodiscard]] CameraDescriptor
+camera_descriptor_from(const chronon3d::Camera& legacy_cam);
 
 } // namespace chronon3d::camera_v1

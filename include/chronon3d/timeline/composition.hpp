@@ -187,6 +187,23 @@ public:
     /// compatibility; *new* authoring should set
     /// `default_camera_descriptor(...)` and call
     /// `redecompose_camera_from_descriptor(...)` to refresh this field.
+    ///
+    /// P3-E read-only migration:
+    ///   * The OPP renderer MUST consume `Camera2_5D` from the compiled
+    ///     program inside `CompiledComposition::camera_program`.  Reading
+    ///     `comp.camera` directly from the render path is forbidden.
+    ///   * `comp.redecompose_camera_from_descriptor(...)` MUST NOT be
+    ///     called from the render path either; the renderer evaluates
+    ///     the program itself every frame.
+    ///   * The legacy field stays READ-ONLY: classical golden harnesses
+    ///     and CLI commands that pass `Composition::camera` to non-V2
+    ///     consumers continue to compile (with a deprecation warning).
+    ///   * For new authoring, set the V2 path on `CompositionDefinition`
+    ///     and run `chronon3d::compile_composition(...)` +
+    ///     `chronon3d::evaluate(...)`.  The adapter
+    ///     `camera_v1::camera_descriptor_from(const Camera&)` is the
+    ///     canonical one-way bridge from this field to a CameraDescriptor.
+    [[deprecated("Use CompositionDefinition::camera")]]
     Camera camera;
 
 private:
