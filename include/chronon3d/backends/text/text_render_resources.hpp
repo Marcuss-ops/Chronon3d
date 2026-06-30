@@ -143,6 +143,18 @@ public:
     /// Late-bind (or unbind) the debug-I/O fence.  Idempotent.
     void set_fence(std::atomic<bool>* fence) noexcept { fence_ = fence; }
 
+#ifndef NDEBUG
+    /// TICKET-069: debug-only in-flight probe — returns the current count
+    /// of get_face() calls that have entered but not yet returned.
+    /// `~FreeTypeFaceCache()` asserts this is zero on destruction, so a
+    /// non-zero return here is allowed (there's an in-flight call) but a
+    /// non-zero return AFTER a get_face() returns is a bug.
+    /// Stripped in release builds (NDEBUG); the field itself is gated.
+    [[nodiscard]] int in_flight() const noexcept {
+        return in_flight_.load(std::memory_order_relaxed);
+    }
+#endif
+
     // Bug #7 fix: returns a shared_ptr that keeps the FT_Face alive
     // even after the cache evicts or destroys its entry.  When a font
     // is swapped (thread B calls get_face for a different font while
@@ -167,6 +179,19 @@ private:
     static FT_Library shared_library();
 
     std::atomic<bool>* fence_{nullptr};
+#ifndef NDEBUG
+    /// TICKET-069: debug-only counter — incremented at the entry of every
+    /// get_face() critical section and decremented on its return path
+    /// (normal return, early return, OR exception unwinding — all routed
+    /// through the `InFlightGuard` RAII shim in the .cpp).  `~FreeTypeFaceCache()`
+    /// loads this with `memory_order_acquire` and asserts == 0 to enforce
+    /// the lease-anchor lifetime contract at runtime: the cache must NOT be
+    /// destroyed while concurrent get_face() calls are in flight (would be
+    /// a UAF on the `unordered_map`'s shared_ptrs whose last ref drop fires
+    /// `FT_Done_Face` while another thread is still inside the critical
+    /// section).  Stripped in release builds → zero payload.
+    std::atomic<int> in_flight_{0};
+#endif
     std::unordered_map<FTFaceKey, std::shared_ptr<FT_Face>, FTFaceKeyHash> faces_;
     std::mutex mutex_;
 };
