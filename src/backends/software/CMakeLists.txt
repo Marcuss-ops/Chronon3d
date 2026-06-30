@@ -24,15 +24,6 @@ target_link_libraries(chronon3d_backend_software
         chronon3d_effects
         chronon3d_backend_assets
         chronon3d_backend_image
-        # P1-E Pass E — forward-looking link so software's .cpp files can
-        # resolve `<chronon3d/runtime/render_runtime.hpp>` after Commit #3
-        # relocates it into `src/runtime/include_private/`.  `chronon3d_runtime`
-        # exposes its include_private via INTERFACE scope (P1-E Commit #3
-        # CMakeLists edit), which propagates through this PUBLIC link
-        # into software's compilation.  Without this line, `software_renderer.cpp`
-        # would fail to find the moved `render_runtime.hpp` between
-        # Commit #3 and Commit #4.
-        chronon3d_runtime
     PRIVATE
         spdlog::spdlog_header_only
         hwy::hwy
@@ -56,6 +47,21 @@ if(TARGET chronon3d_backend_text)
     # text backend are disabled.
     target_compile_definitions(chronon3d_backend_software PRIVATE CHRONON3D_HAS_BACKEND_TEXT)
 endif()
+
+# Break the chronon3d_runtime<->chronon3d_backend_software OBJECT cycle that
+# CMake rejects (PUBLIC OBJ<->PUBLIC OBJ strongly-connected component).
+# The P1-E Pass E include-private path that the removed PUBLIC link
+# propagated (\`<chronon3d/runtime/render_runtime.hpp>\` from
+# src/runtime/include_private/) is restored here as an explicit PRIVATE
+# include directory.  This preserves every compile-time include resolution
+# that software_renderer.cpp / software_backend.cpp / software_compositor.cpp
+# relied on, with zero .cpp changes.  Direction runtime->backend_software
+# (in src/runtime/CMakeLists.txt) is intentionally kept PUBLIC: a
+# one-directional cycle does not register in CMake's strongly-connected
+# component detector.
+target_include_directories(chronon3d_backend_software PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/runtime/include_private
+)
 
 # Conditional private link for diagnostics target.
 # (See src/backends/software/diagnostics/CMakeLists.txt for the target itself.)
