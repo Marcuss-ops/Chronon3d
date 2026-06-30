@@ -164,13 +164,16 @@ compile_composition(const CompositionDefinition& definition,
 // captured `CompositionDefinition::scene` lambda, catches any exception as a
 // `CompositionEvaluateError::SceneBuildFailed`.
 //
-// Camera2_5D resolution (P3-E):
+// Camera2_5D resolution (P3-F):
 //   * Reads Camera2_5D from the compiled camera program
 //     (`CompiledComposition::camera_program->evaluate(...)`).  NEVER from
-//     `Composition::camera` (the legacy field, freshly `[[deprecated]]`)
-//     and NEVER via `Composition::redecompose_camera_from_descriptor(...)`.
-//   * A `[[deprecated]]` warning + deprecation guarantee is now in place
-//     on the legacy field; future render-path consumers MUST consume the
+//     `Composition::camera` (the legacy field, freshly `[[deprecated]]`).
+//     The legacy `redecompose_camera_from_descriptor` helper that
+//     inverse-project-a-program-onto-the-legacy-field has been REMOVED
+//     in P3-F alongside the mutable camera cache inside Composition.
+//     The V2 pipeline evaluated here is the canonical consume path.
+//   * A `[[deprecated]]` warning + deprecation guarantee is in place on
+//     the legacy field; future render-path consumers MUST consume the
 //     `EvaluatedCompositionFrame::camera` produced here.
 //   * When a composition was compiled WITHOUT a camera descriptor
 //     (`!definition.camera.has_value()` ⇒ `compiled.camera_program` is
@@ -216,8 +219,9 @@ evaluate(const CompiledComposition& compiled,
         return err;
     }
 
-    // P3-E: consume Camera2_5D from the compiled program — NEVER from
-    // `Composition::camera` and NEVER via `redecompose_camera_from_descriptor`.
+    // P3-F: consume Camera2_5D from the compiled program.  NEVER from
+    // `Composition::camera`.  The `redecompose_camera_from_descriptor`
+    // helper was REMOVED in P3-F (no mutable state inside Composition).
     // Adapter-only: `CompiledComposition::camera_program` is null when the
     // caller supplied `CompositionDefinition` without a CameraDescriptor.
     if (compiled.camera_program && compiled.camera_program->is_compiled()) {

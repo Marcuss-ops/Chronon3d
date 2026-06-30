@@ -101,3 +101,21 @@ add_test(NAME chronon3d_camera_architecture_gate
 set_tests_properties(chronon3d_camera_architecture_gate
     PROPERTIES LABELS "camera_architecture_gate;gate"
     TIMEOUT 30)
+
+# ── P3-F — Composition camera unification test suite ──
+# 7 mandatory end-to-end tests validating that Composition has NO mutable
+# camera state and the V2 pipeline (CompositionDefinition →
+# compile_composition → evaluate → EvaluatedCompositionFrame) is the
+# canonical consume path.  See
+# tests/scene/camera/test_composition_camera_unification.cpp for details.
+add_executable(chronon3d_composition_camera_unification_tests
+    ${TEST_MAIN}
+    scene/camera/test_composition_camera_unification.cpp
+)
+target_link_libraries(chronon3d_composition_camera_unification_tests PRIVATE
+    chronon3d_sdk chronon3d_sdk_impl chronon3d_scene doctest::doctest)
+target_include_directories(chronon3d_composition_camera_unification_tests PRIVATE ${CMAKE_SOURCE_DIR})
+chronon3d_enable_test_pch(chronon3d_composition_camera_unification_tests)
+add_test(NAME chronon3d_composition_camera_unification_tests
+         COMMAND chronon3d_composition_camera_unification_tests
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
