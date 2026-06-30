@@ -62,4 +62,17 @@ struct GlyphInstanceState {
     const PlacedGlyphRun& placed
 );
 
+/// Reset `states` to initial values for all glyphs in `placed`.
+///
+/// If `states.size() != placed.glyphs.size()`, resizes the vector first.
+/// Otherwise each element is reset in place — zero allocations when the
+/// glyph count is stable across frames.  This is the hot-path alternative
+/// to `make_initial_glyph_states` for the per-frame animator driver.
+///
+/// Implementation lives in `src/text/animation/glyph_instance_state.cpp`.
+void reset_glyph_states_in_place(
+    std::vector<GlyphInstanceState>& states,
+    const PlacedGlyphRun& placed
+);
+
 } // namespace chronon3d

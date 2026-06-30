@@ -22,12 +22,28 @@ std::vector<GlyphInstanceState> make_initial_glyph_states(
     const PlacedGlyphRun& placed
 ) {
     std::vector<GlyphInstanceState> states;
-    states.reserve(placed.glyphs.size());
+    reset_glyph_states_in_place(states, placed);
+    return states;
+}
 
-    for (const auto& g : placed.glyphs) {
-        GlyphInstanceState gs;
-        gs.glyph_id = g.glyph_id;
-        gs.layout_position = {g.x, g.y};
+// ═══════════════════════════════════════════════════════════════════════════
+// reset_glyph_states_in_place — hot-path in-place reset
+// ═══════════════════════════════════════════════════════════════════════════
+
+void reset_glyph_states_in_place(
+    std::vector<GlyphInstanceState>& states,
+    const PlacedGlyphRun& placed
+) {
+    const size_t glyph_count = placed.glyphs.size();
+
+    if (states.size() != glyph_count) {
+        states.resize(glyph_count);
+    }
+
+    for (size_t i = 0; i < glyph_count; ++i) {
+        GlyphInstanceState& gs = states[i];
+        gs.glyph_id = placed.glyphs[i].glyph_id;
+        gs.layout_position = {placed.glyphs[i].x, placed.glyphs[i].y};
         gs.position = {0.0f, 0.0f, 0.0f};
         gs.scale = {1.0f, 1.0f, 1.0f};
         gs.rotation = {0.0f, 0.0f, 0.0f};
@@ -41,10 +57,7 @@ std::vector<GlyphInstanceState> make_initial_glyph_states(
         gs.fill = {1.0f, 1.0f, 1.0f, 1.0f};
         gs.stroke = {0.0f, 0.0f, 0.0f, 0.0f};
         gs.stroke_width = 0.0f;
-        states.push_back(gs);
     }
-
-    return states;
 }
 
 } // namespace chronon3d

@@ -39,10 +39,10 @@ struct PlacedGlyphRun;
 // per-frame animation driver so consecutive frames don't allocate a new
 /// vector.
 //
-// The vector is REPLACED with freshly-initialised states for
-// `placed.glyphs.size()` glyphs via `make_initial_glyph_states`, then
-// each animator mutates them in place.  Callers must NOT preserve the
-// previous contents across calls.
+// The vector is RESET in place via `reset_glyph_states_in_place`, which
+// resizes only when `placed.glyphs.size()` changes and otherwise mutates
+// each element in place.  Callers must NOT preserve the previous contents
+// across calls.
 
 void evaluate_animator_stack_into(
     std::vector<GlyphInstanceState>& inout_states,
