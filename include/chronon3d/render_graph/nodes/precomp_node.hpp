@@ -101,9 +101,10 @@ public:
     /// `shared_ptr<CompiledSceneProgram>` for the entire function
     /// frame, outliving the inner `execute_with_scope` call.  Bail
     /// out with empty fb (per docs/03 §4.4 convention) if
-    /// `precomp_scope.would_overflow()` (depth clamped at
-    /// `kMaxScopeChainLength`) or if `would_recurse(owner_key)` signals a
-    /// cycle.
+    /// `ExecutionScope::make_child(...)` returns `Err` —
+    /// `ScopeErrorCode::ChainLimitExceeded` signals the chain has
+    /// reached `kMaxScopeChainLength`, `ScopeErrorCode::RecursiveOwner`
+    /// signals a precomp cycle via duplicate `owner_key`.
     ///
     /// Production callers (GraphExecutor::execute_single_node
     /// post-PR-6.2 wiring, tile orchestrator post-PR-6.4 propagating
