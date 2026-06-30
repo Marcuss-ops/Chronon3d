@@ -15,8 +15,7 @@ CacheEvalResult evaluate_cache(
     u64 input_hash,
     bool inputs_frame_dependent,
     bool has_cacheable_inputs,
-    GraphNodeId node_id,
-    bool inputs_all_cache_hits
+    GraphNodeId node_id
 );
 
 } // namespace chronon3d::graph

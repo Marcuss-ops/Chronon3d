@@ -49,6 +49,52 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
 }
 
 OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
+    // ── Zero-copy ownership transfer (composite hot-path) ─────────────
+    // When `other` is the uniquely-owned CachedFB at
+    // `node_exec.reusable_bottom` (use_count == 1, populated by
+    // execute_single_node for the bottom input), transfer ownership via
+    // a tiny 1×1 placeholder pixel swap:
+    //   - placeholder (1×1) gets BIG pixel data from `other`
+    //   - `other` gets TINY pixel data from placeholder
+    //   - we return `placeholder` as OwnedFB (with BIG data) using the
+    //     ORIGINAL PoolFbDeleter from the CachedFB (correct pool
+    //     association); the CachedFB drops its reference → its deleter
+    //     returns the (now tiny) FB to its original pool.
+    //
+    // Net effect: zero pixel copies; `other` returns a 1×1 placeholder
+    // to the pool instead of an 8 MB alloc.  Replaces the ~8 MB
+    // `pool->acquire_from(other) → memcpy` that previously dominated
+    // `compositenode_acquire_ms` in chained composite layouts.
+    if (node_exec.reusable_bottom.get() == &other &&
+        node_exec.reusable_bottom.use_count() == 1)
+    {
+        // Allocate a tiny 1×1 placeholder on the heap, then swap contents
+        // with `other`:
+        //   - placeholder ↔ other: placeholder gets BIG pixel data,
+        //     `other` gets the 1×1 placeholder buffer.
+        //
+        // const_cast is required because swap_contents takes a non-const
+        // Framebuffer& (it swaps m_allocated_width/m_pixels/etc.).  We
+        // own the underlying FB lifetime via the CachedFB (not via
+        // `other`'s const-ref param), so dropping the const is safe.
+        auto* placeholder = new Framebuffer(1, 1, false);
+        placeholder->swap_contents(const_cast<Framebuffer&>(other));
+
+        // Wire the placeholder to the current pool so it can be returned
+        // to the pool on destruction.  run_node will additionally swap
+        // this for parent_pool's shared_from_this() when it constructs
+        // the result CachedFB, so this deleter is really just defensive
+        // for the unusual case where the OwnedFB destructs without prior
+        // release().  The outer-if guard `if (!fb) return` ensures
+        // PoolFbDeleter::operator()(nullptr) is safe regardless of
+        // policy variant.
+        PoolFbDeleter placeholder_deleter;
+        if (services.framebuffer_pool) {
+            placeholder_deleter = PoolFbDeleter{services.framebuffer_pool};
+        }
+        return OwnedFB(placeholder, std::move(placeholder_deleter));
+    }
+
     OwnedFB out;
     auto* pool = services.framebuffer_pool.get();
     if (pool) {
