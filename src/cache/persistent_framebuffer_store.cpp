@@ -14,6 +14,7 @@
 #include <spdlog/spdlog.h>
 #include <xxhash.h>
 
+#include <atomic>
 #include <mutex>
 
 #include <algorithm>
@@ -90,10 +91,14 @@ std::filesystem::path PersistentFramebufferStore::file_path(
 
 // ── Static config state (injected by SoftwareRenderer at startup) ────────
 
+// FASE 3 (TICKET-079) — Static config (disabled + cache_dir) set once at startup
+// by SoftwareRenderer.  First-call-wins via atomic CAS; eliminates std::once_flag
+// + std::call_once (per AGENTS.md pattern `is serialised + idempotent without an
+// external std::once_flag`).
 namespace {
     bool              s_disabled  = false;
     std::string       s_cache_dir;
-    std::once_flag    s_config_flag;
+    std::atomic<bool> s_config_set{false};
 } // namespace
 
 // ── Singleton / config ────────────────────────────────────────────────────
@@ -104,10 +109,13 @@ PersistentFramebufferStore& PersistentFramebufferStore::instance() {
 }
 
 void PersistentFramebufferStore::set_store_config(bool disabled, std::string cache_dir) {
-    std::call_once(s_config_flag, [&] {
+    bool expected = false;
+    if (s_config_set.compare_exchange_strong(
+            expected, true,
+            std::memory_order_acq_rel, std::memory_order_relaxed)) {
         s_disabled  = disabled;
         s_cache_dir = std::move(cache_dir);
-    });
+    }
 }
 
 bool PersistentFramebufferStore::enabled_for_current_run() {
