@@ -170,7 +170,10 @@ Prima di ogni `git push` su `main` il checkout deve essere gated da `tools/check
 ```bash
 tools/wrap_push.sh origin main    # drop-in per `git push`
 ```
-Il wrapper (`tools/wrap_push.sh`) chiama `tools/check_main_clean.sh` e, solo se gate PASS, inoltra `git push "$@"`. È il punto di ingresso canonico per il workflow Agent3 atomic-commit.
+Il wrapper (`tools/wrap_push.sh`) — vedi closure lineage TICKET-048 + TICKET-067/TICKET-075 + **TICKET-076** — esegue in ordine:
+  1. `git fetch $REMOTE` + parse args (default `origin` + current branch);
+  2. **auto-FF unidirezionale**: se `HEAD` != `$REMOTE/$BRANCH` E `is-ancestor HEAD $REMOTE_REF` (cioè `origin/<branch>` è discendente fast-forward-puro di `HEAD`), esegue `git merge --ff-only "$REMOTE/$BRANCH"`. Se FF fallisce (vera divergenza) emette `GATE_FAIL` diagnostico + hint `git pull --rebase`;
+  3. invoca `tools/check_main_clean.sh`. Se gate PASS, inoltra `git push "$@"` (drop-in trasparente, tutti gli args originali vengono forwardati). È il punto di ingresso canonico per il workflow Agent3 atomic-commit.
 
 ### Hook difensivo (per-repo, local-only)
 ```bash
