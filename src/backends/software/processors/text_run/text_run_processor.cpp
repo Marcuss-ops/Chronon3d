@@ -67,70 +67,14 @@ struct SingleGlyphRun {
     }
 };
 
-// ── Fase 3 — BlurScratchPool: reusable box-blur scratch buffer ──────
-// Static so the buffer persists across frames (draw calls reuse it).
-
-struct BlurScratchPool {
-    std::vector<uint32_t> buffer;
-
-    void ensure(size_t pixels) {
-        if (buffer.size() < pixels) {
-            buffer.resize(pixels);
-        }
-    }
-
-    static BlurScratchPool& instance() {
-        static BlurScratchPool pool;
-        return pool;
-    }
-};
-
-// ── Fase 3 — TextSurfacePool: reusable BLImage pool ─────────────────
-// Static so BLImages persist across draw calls.  Images are keyed by
-// (width, height, format).  Not thread-safe — single draw-call use.
-
-struct TextSurfacePool {
-    static constexpr size_t kMaxPooled = 8;  // 5 tiers + final + shadow + crossfade
-
-    struct Entry {
-        BLImage image;
-        int w{0};
-        int h{0};
-        uint32_t fmt{BL_FORMAT_PRGB32};
-    };
-    std::vector<Entry> pool;
-
-    BLImage acquire(int w, int h, uint32_t format = BL_FORMAT_PRGB32) {
-        // Remove dead (zeroed) entries first
-        pool.erase(
-            std::remove_if(pool.begin(), pool.end(),
-                [](const Entry& e) { return e.w == 0; }),
-            pool.end());
-
-        for (auto& e : pool) {
-            if (e.w == w && e.h == h && e.fmt == format) {
-                BLImage img = std::move(e.image);
-                e.w = 0; e.h = 0;
-                return img;
-            }
-        }
-        return BLImage(w, h, format);
-    }
-
-    void release(BLImage img) {
-        if (pool.size() < kMaxPooled) {
-            BLImageData data;
-            if (img.getData(&data) == BL_SUCCESS) {
-                pool.push_back({std::move(img), data.size.w, data.size.h, data.format});
-            }
-        }
-    }
-
-    static TextSurfacePool& instance() {
-        static TextSurfacePool pool;
-        return pool;
-    }
-};
+// ── FASE 3 thread-safety — Migrated to engine-owned TextScratchManager ──
+// The previous static BlurScratchPool / TextSurfacePool singletons were
+// removed (FASE 3 per AGENTS.md "no static globals in render paths").
+// draw_text_run() now acquires a per-call RAII Handle from
+// `rctx.text_resources->scratch_manager` (see text_render_resources.hpp).
+// State is owned by TextRenderResources (engine-lifetime), but each
+// draw call gets an isolated TextScratchState — two concurrent calls
+// on the same engine receive distinct buffers (TSan-clean).
 
 // ── Fase 3 — Preclassify glyphs into 5 blur tiers in O(G) ───────────
 
@@ -241,6 +185,23 @@ graph::RenderOpResult draw_text_run(
         });
     }
 
+    // FASE 3 thread-safety: acquire per-call scratch state from the
+    // engine-owned TextScratchManager.  RAII Handle releases on
+    // function exit.  Two concurrent draw_text_run() invocations on the
+    // same engine receive distinct TextScratchState objects, so there
+    // is no shared mutable storage across invocations.
+    TextScratchManager::Handle scratch_handle;
+    if (rctx.text_resources) {
+        scratch_handle = rctx.text_resources->scratch_manager.acquire();
+    }
+    if (!scratch_handle) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::ExecutionFailure,
+            "draw_text_run: text_resources/scratch_manager unavailable"
+        });
+    }
+    auto& scratch_state = *scratch_handle;  // alias kept compact at call sites
+
     BLFont font;
     font.createFromFace(*font_handle.bl_face, layout.font_size);
 
@@ -338,15 +299,17 @@ graph::RenderOpResult draw_text_run(
         return kBlurTierRadii[4];
     };
 
-    // Fase 3 — static TextSurfacePool for reusable tier images
-    auto& surface_pool = TextSurfacePool::instance();
+    // FASE 3 thread-safety: surface pool is now per-call via scratch_state.
+    // (The previous `auto& surface_pool = TextSurfacePool::instance();` line
+    //  has been removed: that singleton would race across concurrent calls.)
 
     // ── Inline separable box-blur (sliding window, O(w×h)) ──────────
     // Operates on BL_FORMAT_PRGB32 in-place.  Uses a sliding window so
     // the per-pixel cost is O(1) instead of O(radius).  Total cost is
     // roughly 2 × w × h independent of radius.
-    // Fase 3 — uses static BlurScratchPool to avoid per-frame allocation.
-    auto apply_box_blur = [](BLImage& image, int radius) {
+    // FASE 3 thread-safety: scratch buffer is now per-call via scratch_state.
+    // (The previous static BlurScratchPool::instance() has been removed.)
+    auto apply_box_blur = [&scratch_state](BLImage& image, int radius) {
         if (radius <= 0) return;
         BLImageData data;
         if (image.getData(&data) != BL_SUCCESS) return;
@@ -357,9 +320,10 @@ graph::RenderOpResult draw_text_run(
         uint32_t* base = static_cast<uint32_t*>(data.pixelData);
 
         const size_t pixels = static_cast<size_t>(w) * static_cast<size_t>(h);
-        auto& scratch = BlurScratchPool::instance();
-        scratch.ensure(pixels);
-        uint32_t* tmp = scratch.buffer.data();
+        if (scratch_state.blur_buffer.size() < pixels) {
+            scratch_state.blur_buffer.resize(pixels);
+        }
+        uint32_t* tmp = scratch_state.blur_buffer.data();
 
         const int r = radius;
         auto unpack = [](uint32_t c, int& a, int& rr, int& g, int& b) {
@@ -612,7 +576,7 @@ graph::RenderOpResult draw_text_run(
     //
     // This means glyphs with blur=0 stay sharp while adjacent blur=16
     // glyphs are fully blurred — the core motivation for per-glyph blur.
-    BLImage img = surface_pool.acquire(img_w, img_h);
+    BLImage img = scratch_state.acquire_surface(img_w, img_h);
     if (img.empty()) img = BLImage(img_w, img_h, BL_FORMAT_PRGB32);
     // Clear the final composite image to transparent.
     {
@@ -626,12 +590,12 @@ graph::RenderOpResult draw_text_run(
     size_t glyphs_drawn = 0;
     for (int tier = 0; tier < kNumBlurTiers; ++tier) {
         if (active_tiers[tier].empty()) continue;
-        BLImage tier_img = surface_pool.acquire(img_w, img_h);
+        BLImage tier_img = scratch_state.acquire_surface(img_w, img_h);
         if (tier_img.empty()) tier_img = BLImage(img_w, img_h, BL_FORMAT_PRGB32);
         const size_t drawn = draw_run_layer(
             tier_img, std::nullopt, kBlurTierRadii[tier],
             shape.glyphs, layout.placed, active_tiers[tier]);
-        if (drawn == 0) { surface_pool.release(std::move(tier_img)); continue; }
+        if (drawn == 0) { scratch_state.release_surface(std::move(tier_img)); continue; }
         glyphs_drawn += drawn;
 
         // Composite tier_img onto the final image SRC_OVER.
@@ -641,7 +605,7 @@ graph::RenderOpResult draw_text_run(
             ctx.blitImage(BLPoint(0, 0), tier_img);
             ctx.end();
         }
-        surface_pool.release(std::move(tier_img));
+        scratch_state.release_surface(std::move(tier_img));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -665,13 +629,13 @@ graph::RenderOpResult draw_text_run(
             1.0f - shape.crossfade_mix, 0.0f, 1.0f);
         for (int tier = 0; tier < kNumBlurTiers; ++tier) {
             if (crossfade_tiers[tier].empty()) continue;
-            BLImage tier_img = surface_pool.acquire(img_w, img_h);
+            BLImage tier_img = scratch_state.acquire_surface(img_w, img_h);
             if (tier_img.empty()) tier_img = BLImage(img_w, img_h, BL_FORMAT_PRGB32);
             const size_t drawn = draw_run_layer(
                 tier_img, std::nullopt, kBlurTierRadii[tier],
                 shape.crossfade_glyphs, shape.crossfade_layout->placed,
                 crossfade_tiers[tier]);
-            if (drawn == 0) { surface_pool.release(std::move(tier_img)); continue; }
+            if (drawn == 0) { scratch_state.release_surface(std::move(tier_img)); continue; }
             glyphs_drawn += drawn;
 
             // Composite the crossfade tier onto the final image with
@@ -685,7 +649,7 @@ graph::RenderOpResult draw_text_run(
                 ctx.blitImage(BLPoint(0, 0), tier_img);
                 ctx.end();
             }
-            surface_pool.release(std::move(tier_img));
+            scratch_state.release_surface(std::move(tier_img));
         }
     }
 

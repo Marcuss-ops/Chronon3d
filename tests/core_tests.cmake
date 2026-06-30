@@ -35,6 +35,13 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         # get_face() on different paths / sizes; identity-stable hits;
         # outlives cache destruction; size-bucket independence.
         text/test_freetype_face_cache_concurrency.cpp
+        # FASE 3 — concurrency test for TextScratchManager (TSan-clean).
+        # Exercises two concurrent draw_text_run-shaped workloads to
+        # verify that the engine-vended scratch states are mutex-guarded
+        # and pool entries are returned to the right owner. See commit
+        # message "fix(text): move static scratch/surface pools into
+        # TextRenderResources (thread-safety)" for the refactor context.
+        text/test_text_pool_concurrency.cpp
     )
 endif()
 
