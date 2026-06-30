@@ -48,8 +48,8 @@ void render_motion_clip(MotionAxis axis, const char* name, const char* filename)
     auto scene_start = comp.evaluate(0);
     auto scene_mid = comp.evaluate(30);
 
-    auto fb_start = renderer.render_frame(comp, 0);
-    auto fb_mid = renderer.render_frame(comp, 30);
+    auto fb_start = renderer.render(comp, 0);
+    auto fb_mid = renderer.render(comp, 30);
 
     REQUIRE(fb_start != nullptr);
     REQUIRE(fb_mid != nullptr);

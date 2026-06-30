@@ -237,7 +237,7 @@ TEST_CASE("Unified compositing: z order beats paint order") {
         return s.build();
     });
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
 
     const Color center = fb->get_pixel(320, 180);
@@ -288,7 +288,7 @@ TEST_CASE("Unified FakeBox3D: front face matches Rect in shared composition") {
         return s.build();
     });
 
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
 
     const std::filesystem::path out = "output/debug/render_graph_unified/fake_box3d_front_parity.png";

@@ -40,7 +40,7 @@ std::shared_ptr<Framebuffer> render_masked_layer(
         return s.build();
     });
 
-    return renderer.render_frame(comp, 0);
+    return renderer.render(comp, 0);
 }
 
 } // namespace

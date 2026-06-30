@@ -98,7 +98,7 @@ std::shared_ptr<Framebuffer> render_with_mb(
     RenderSettings s;
     s.motion_blur = mb;
     renderer.set_settings(s);
-    return renderer.render_frame(comp, frame);
+    return renderer.render(comp, frame);
 }
 
 } // namespace
@@ -462,12 +462,12 @@ TEST_CASE("motion_blur_parity_ticket_026 — MotionBlurMode::TemporalAccumulatio
 
     auto renderer_a = test::make_renderer();
     renderer_a.set_settings(s_new);
-    auto fb_a = renderer_a.render_frame(comp, Frame{0});
+    auto fb_a = renderer_a.render(comp, Frame{0});
     REQUIRE(fb_a != nullptr);
 
     auto renderer_b = test::make_renderer();
     renderer_b.set_settings(s_new);
-    auto fb_b = renderer_b.render_frame(comp, Frame{0});
+    auto fb_b = renderer_b.render(comp, Frame{0});
     REQUIRE(fb_b != nullptr);
 
     // Bit-exact accumulator output across two independent runs.
@@ -482,7 +482,7 @@ TEST_CASE("motion_blur_parity_ticket_026 — MotionBlurMode::TemporalAccumulatio
 
     auto renderer_off = test::make_renderer();
     renderer_off.set_settings(s_off);
-    auto fb_off = renderer_off.render_frame(comp, Frame{0});
+    auto fb_off = renderer_off.render(comp, Frame{0});
     REQUIRE(fb_off != nullptr);
 
     CHECK(std::ranges::equal(fb_a->bytes(), fb_off->bytes()));

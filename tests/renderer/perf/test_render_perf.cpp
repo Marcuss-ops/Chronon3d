@@ -30,7 +30,7 @@ Composition make_perf_comp(int w, int h) {
 long long render_ms(SoftwareRenderer& r, Composition& comp, int frames) {
     auto t0 = profiling::now();
     for (int f = 0; f < frames; ++f)
-        r.render_frame(comp, f);
+        r.render(comp, f);
     auto t1 = profiling::now();
     return static_cast<long long>(profiling::duration_ms(t0, t1));
 }
@@ -53,7 +53,7 @@ TEST_CASE("perf: render frame singolo 480x270 sotto 200ms") {
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
 
     auto t0 = profiling::now();
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render(comp, 0);
     auto ms = static_cast<long long>(profiling::elapsed_ms(t0));
 
     REQUIRE(fb != nullptr);
@@ -68,7 +68,7 @@ TEST_CASE("perf: warm render e' piu' veloce del cold") {
 
     // Cold
     auto t0 = profiling::now();
-    renderer.render_frame(comp, 0);
+    renderer.render(comp, 0);
     auto cold_ms = static_cast<long long>(profiling::elapsed_ms(t0));
 
     // Warm (3 frame successivi)

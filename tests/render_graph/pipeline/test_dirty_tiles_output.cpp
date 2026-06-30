@@ -80,7 +80,7 @@ TEST_CASE("Dirty Tiles: Smoke test — renders without crash with tile settings"
 
     // Render several frames — must not crash
     for (Frame f = 0; f < 5; ++f) {
-        auto fb = renderer.render_frame(comp, f);
+        auto fb = renderer.render(comp, f);
         REQUIRE(fb != nullptr);
         CHECK(fb->width() == W);
         CHECK(fb->height() == H);
@@ -117,8 +117,8 @@ TEST_CASE("Dirty Tiles: Pixel-perfect equivalence with moving element") {
 
     int total_mismatches = 0;
     for (Frame f = 0; f < kFrames; ++f) {
-        auto fb_b = baseline.render_frame(comp, f);
-        auto fb_o = opt.render_frame(comp, f);
+        auto fb_b = baseline.render(comp, f);
+        auto fb_o = opt.render(comp, f);
         REQUIRE(fb_b != nullptr);
         REQUIRE(fb_o != nullptr);
 
@@ -144,9 +144,9 @@ TEST_CASE("Dirty Tiles: Dirty rect counters still active with tiles on") {
     settings.dirty.tile_size = 32;
     renderer.set_settings(settings);
 
-    renderer.render_frame(comp, 0);
+    renderer.render(comp, 0);
     renderer.counters()->reset();
-    renderer.render_frame(comp, 1);
+    renderer.render(comp, 1);
 
     const auto* counters = renderer.counters();
     uint64_t dirty_px = counters->dirty_pixels.load();
@@ -175,7 +175,7 @@ TEST_CASE("Dirty Tiles: First frame renders full frame (no prev fb)") {
     renderer.set_settings(settings);
 
     // Frame 0 has no previous framebuffer → full render
-    auto fb0 = renderer.render_frame(comp, 0);
+    auto fb0 = renderer.render(comp, 0);
     REQUIRE(fb0 != nullptr);
 
     // Verify the output is correct (non-empty)
@@ -217,8 +217,8 @@ TEST_CASE("Dirty Tiles: Correct output across different tile sizes") {
         }
 
         for (Frame f = 0; f < 3; ++f) {
-            auto fb_b = baseline.render_frame(comp, f);
-            auto fb_o = opt.render_frame(comp, f);
+            auto fb_b = baseline.render(comp, f);
+            auto fb_o = opt.render(comp, f);
             REQUIRE(fb_b != nullptr);
             REQUIRE(fb_o != nullptr);
 
@@ -288,8 +288,8 @@ TEST_CASE("Dirty Tiles: Two distant moving objects render correctly") {
 
     int total_mism = 0;
     for (Frame f = 0; f < 6; ++f) {
-        auto fb_b = baseline.render_frame(comp, f);
-        auto fb_o = opt.render_frame(comp, f);
+        auto fb_b = baseline.render(comp, f);
+        auto fb_o = opt.render(comp, f);
         REQUIRE(fb_b != nullptr);
         REQUIRE(fb_o != nullptr);
 

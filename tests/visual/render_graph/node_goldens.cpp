@@ -106,7 +106,7 @@ TEST_CASE("NodeGolden: shadow_contact_and_ambient") {
             });
             return s.build();
         });
-    auto fb = node_goldens_impl::make_node_golden_renderer().render_frame(comp, 0);
+    auto fb = node_goldens_impl::make_node_golden_renderer().render(comp, 0);
     REQUIRE(fb != nullptr);
     verify_node_golden(*fb, "shadow_contact_and_ambient");
 }
@@ -135,7 +135,7 @@ TEST_CASE("NodeGolden: shadow_depth_aware_scaling") {
             });
             return s.build();
         });
-    auto fb = node_goldens_impl::make_node_golden_renderer().render_frame(comp, 0);
+    auto fb = node_goldens_impl::make_node_golden_renderer().render(comp, 0);
     REQUIRE(fb != nullptr);
     verify_node_golden(*fb, "shadow_depth_aware_scaling");
 }
@@ -162,7 +162,7 @@ TEST_CASE("NodeGolden: dof_per_pixel_variable_depth") {
             }
             return s.build();
         });
-    auto fb = node_goldens_impl::make_node_golden_renderer().render_frame(comp, 0);
+    auto fb = node_goldens_impl::make_node_golden_renderer().render(comp, 0);
     REQUIRE(fb != nullptr);
     verify_node_golden(*fb, "dof_per_pixel_variable_depth");
 }
@@ -192,7 +192,7 @@ TEST_CASE("NodeGolden: mask_hard_clip") {
             });
             return s.build();
         });
-    auto fb = node_goldens_impl::make_node_golden_renderer().render_frame(comp, 0);
+    auto fb = node_goldens_impl::make_node_golden_renderer().render(comp, 0);
     REQUIRE(fb != nullptr);
     verify_node_golden(*fb, "mask_hard_clip");
 }
@@ -222,7 +222,7 @@ TEST_CASE("NodeGolden: mask_modular_coord") {
             });
             return s.build();
         });
-    auto fb = node_goldens_impl::make_node_golden_renderer(true).render_frame(comp, 0);
+    auto fb = node_goldens_impl::make_node_golden_renderer(true).render(comp, 0);
     REQUIRE(fb != nullptr);
     verify_node_golden(*fb, "mask_modular_coord");
 }
@@ -253,7 +253,7 @@ TEST_CASE("NodeGolden: glow_pipeline_alpha_source") {
             });
             return s.build();
         });
-    auto fb = node_goldens_impl::make_node_golden_renderer().render_frame(comp, 0);
+    auto fb = node_goldens_impl::make_node_golden_renderer().render(comp, 0);
     REQUIRE(fb != nullptr);
     verify_node_golden(*fb, "glow_pipeline_alpha_source");
 }

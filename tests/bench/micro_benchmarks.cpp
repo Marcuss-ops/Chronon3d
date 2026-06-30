@@ -279,7 +279,7 @@ void BM_TileRenderNoTiles(benchmark::State& state) {
         renderer.set_settings(s);
 
         for (Frame f = 0; f < kFrames; ++f) {
-            auto fb = renderer.render_frame(comp, f);
+            auto fb = renderer.render(comp, f);
             benchmark::DoNotOptimize(fb);
         }
     }
@@ -306,7 +306,7 @@ void BM_TileRenderSequential(benchmark::State& state) {
         renderer.set_settings(s);
 
         for (Frame f = 0; f < kFrames; ++f) {
-            auto fb = renderer.render_frame(comp, f);
+            auto fb = renderer.render(comp, f);
             benchmark::DoNotOptimize(fb);
         }
     }
@@ -333,7 +333,7 @@ void BM_TileRenderParallel(benchmark::State& state) {
         renderer.set_settings(s);
 
         for (Frame f = 0; f < kFrames; ++f) {
-            auto fb = renderer.render_frame(comp, f);
+            auto fb = renderer.render(comp, f);
             benchmark::DoNotOptimize(fb);
         }
     }
@@ -386,7 +386,7 @@ static void BM_TileDirtyRatioSweep(benchmark::State& state, bool use_tiles) {
 
         auto t0 = profiling::now();
         for (Frame f = 0; f < kFrames; ++f) {
-            auto fb = renderer.render_frame(comp, f);
+            auto fb = renderer.render(comp, f);
             benchmark::DoNotOptimize(fb);
         }
         auto t1 = profiling::now();
