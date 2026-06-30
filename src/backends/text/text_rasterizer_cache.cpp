@@ -2,6 +2,7 @@
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
@@ -13,17 +14,22 @@ namespace {
 using CacheKey = u64;
 using TextCache = cache::LruCache<CacheKey, std::shared_ptr<TextRasterization>>;
 
-// Injected capacity — set once at startup by SoftwareRenderer.
+// FASE 3 (TICKET-079) — Injected capacity, set once at startup by SoftwareRenderer.
+// First-call-wins via atomic CAS; eliminates std::once_flag + std::call_once (per
+// AGENTS.md pattern `is serialised + idempotent without an external std::once_flag`).
 namespace {
-    size_t         s_text_cache_capacity = 0;
-    std::once_flag s_text_cache_capacity_flag;
+    size_t            s_text_cache_capacity = 0;
+    std::atomic<bool> s_text_cache_capacity_set{false};
 } // namespace
 } // anonymous namespace
 
 void set_text_cache_capacity(size_t max_bytes) {
-    std::call_once(s_text_cache_capacity_flag, [&] {
+    bool expected = false;
+    if (s_text_cache_capacity_set.compare_exchange_strong(
+            expected, true,
+            std::memory_order_acq_rel, std::memory_order_relaxed)) {
         s_text_cache_capacity = max_bytes;
-    });
+    }
 }
 
 namespace {
