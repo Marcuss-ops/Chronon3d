@@ -360,7 +360,7 @@ Scene camera_test_orchestrator(
             metrics["dist_front"] = static_cast<double>(depth_front);
             metrics["dist_mid"] = static_cast<double>(depth_mid);
             metrics["dist_back"] = static_cast<double>(depth_back);
-            metrics["formula"] = "W = 2 * |Z| * tan(FOV/2) (derived from camera_math::focal_from_camera)";
+            metrics["formula"] = "W = 2 * |Z| * focal_inv  (canonical camera_math::focal_from_camera)";
 
             // Validate front/back area ratio: expected = (orig_front/orig_back) * (depth_back/depth_front)²
             bool fov_consistent = false;
@@ -554,7 +554,7 @@ Scene camera_test_orchestrator(
             const float tan_half_fov = (vp_h_depth * 0.5f) / focal_depth;
             metrics["fov_deg"] = static_cast<double>(cam.fov_deg);
             metrics["tan_half_fov"] = static_cast<double>(tan_half_fov);
-            metrics["formula"] = "W = 2 * |Z| * tan(FOV/2) (derived from camera_math::focal_from_camera)";
+            metrics["formula"] = "W = 2 * |Z| * focal_inv  (canonical camera_math::focal_from_camera)";
 
             // Compute expected frustum width at each Z depth
             auto frustum_width_at_z = [&](float dist_z) -> float {
