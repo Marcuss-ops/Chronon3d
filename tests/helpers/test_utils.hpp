@@ -4,6 +4,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/backends/software/software_backend.hpp>
+#include <chronon3d/backends/software/software_backend_services.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>   // graph::RenderFrameInfo
 #include <xxhash.h>
@@ -27,13 +28,18 @@ namespace chronon3d::test {
 // is dangling at the moment the backend's `~SoftwareBackend()` runs,
 // but the destructor NEVER dereferences m_owner (verified 06 R3b:
 // m_owner is read only inside `draw_text_run` dispatch path).
+/// Attach a SoftwareBackend to the renderer's runtime.  Required before
+/// calling render_frame / render_scene.  Fase 4 — uses SoftwareBackendServices
+/// instead of the legacy SoftwareRenderer* back-pointer.
 inline void attach_software_backend(SoftwareRenderer& renderer) {
+    SoftwareBackendServices svc;
+    svc.counters         = renderer.counters();
+    svc.settings         = &renderer.render_settings();
+    svc.framebuffer_pool = renderer.runtime().framebuffer_pool_shared();
+    svc.asset_resolver   = &renderer.runtime().resolver();
+    svc.text_resources   = renderer.text_render_resources();
     renderer.runtime().attach_backend(
-        std::make_unique<chronon3d::SoftwareBackend>(
-            &renderer,
-            *renderer.counters(),
-            renderer.render_settings(),
-            renderer.runtime().framebuffer_pool_shared()));
+        std::make_unique<chronon3d::SoftwareBackend>(svc));
 }
 
 inline SoftwareRenderer make_renderer() {
