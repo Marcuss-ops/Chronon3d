@@ -46,8 +46,6 @@
 #include <memory>
 #include <optional>
 
-namespace chronon3d::advanced { class RenderEngineAccess; }
-
 namespace chronon3d {
 
 namespace image { class ImageBackend; }
@@ -64,7 +62,7 @@ class SoftwareRenderer;
  * RenderEngine — thin public facade for the Chronon3d SDK.
  *
  * Host creates a RenderEngine, optionally sets the assets root and
- * composition registry, then calls render_scene() or render_frame().
+ * composition registry, then calls render_scene() or render().
  * All heavy state (caches, pool, executor, plan cache, catalogs,
  * assets registry) lives in RenderEngine::Impl / runtime::RenderRuntime.
  */
@@ -130,11 +128,19 @@ public:
         i32 width, i32 height);
 
     /// Render a single frame from a Composition.
-    /// Pass A — marked deprecated; the canonical entry is
-    /// `chronon3d::sdk::RenderEngine::render()` (V0.2 SDK migration).
-    /// The implementation still works until Pass B/D removes it.
-    [[nodiscard]] [[deprecated("Use RenderEngine::render()")]]
-    std::shared_ptr<Framebuffer> render_frame(
+    /// Pass D — `render()` is now the canonical entry.  Replaces the
+    /// `render_frame()` which was [[deprecated]] since Pass A and is
+    /// now permanently removed.  The V0.2 SDK facade in
+    /// `<chronon3d/sdk/render_engine.hpp>` (`sdk::RenderEngine::render`)
+    /// returns a `Result<RenderOutput, …>` — that is the externally
+    /// visible SDK surface; this `render()` is the OPP-internal entry
+    /// used by `apps/chronon3d_cli`, tests, and content composition
+    /// rendering, returning the raw `shared_ptr<Framebuffer>` for direct
+    /// use by the OPP loop.  The OPP-side `SoftwareRenderer::render`
+    /// carries the same name; the public facade here delegates through
+    /// the OPP-side `RenderPipeline` instead of exposing the backend.
+    [[nodiscard]]
+    std::shared_ptr<Framebuffer> render(
         const Composition& comp, Frame frame);
 
     // ── Backend injection ────────────────────────────────────────
@@ -155,18 +161,14 @@ public:
 
     // ── Accessors ─────────────────────────────────────────────────
 
-    // `renderer()` (and 2-3 `renderer_or_null()` overloads retained
-    // for legacy callers) were moved to RenderEngineAccess in Pass C.
-    // The methods listed below no longer exist on the public class.
-
-    // ── Note (Pass C) ─────────────────────────────────────────────────
-    // The legacy accessors `runtime()`, `renderer()` (and overloads),
-    // and `create_session()` have been REMOVED from the public surface.
-    // Engineering code that genuinely needs the underlying runtime or
-    // renderer (CLI / benchmark / OPP-internal migration code) must use
-    // `chronon3d::advanced::RenderEngineAccess` (declared in
-    // `<chronon3d/advanced/render_engine_access.hpp>`).  This header is
-    // intentionally NOT part of the standard V0.1 SDK package.
+    // ── Note (Pass D — V0.1 freeze) ────────────────────────────────────
+    // The legacy accessors `renderer()`, `runtime()`, `create_session()`,
+    // and their OPP-side `advanced::RenderEngineAccess` escape hatch have
+    // all been REMOVED from the public V0.1 SDK surface.  The only entry
+    // through the public facade is `RenderEngine::render(Composition, Frame)`
+    // (above) which forwards into the OPP-side RenderPipeline.  Telemetry
+    // requires linking the OPP-internal headers directly (none of the
+    // counters surface is part of the V0.1 SDK — by design).
 
     /// Access the per-instance engine configuration.
     [[nodiscard]] const Config& config() const noexcept;
@@ -177,22 +179,7 @@ public:
     /// Reset all profiling counters to zero.
     void reset_counters();
 
-    // Session factory moved to RenderEngineAccess in Pass C; the
-    // public `create_session()` method has been removed.
-
-    // ── (Pass C removed) ─────────────────────────────────────────────
-    // `create_session()` was moved to
-    // `chronon3d::advanced::RenderEngineAccess::create_session()`.
-
 private:
-    /// OPP-side escape hatch (Pass C).  Grants the typed
-    /// `chronon3d::advanced::RenderEngineAccess` accessor private access
-    /// to `Impl` so legacy code can still reach the backend during the
-    /// Pass B→D migration.  Not part of the stable SDK surface; consumers
-    /// MUST include `<chronon3d/advanced/render_engine_access.hpp>`
-    /// (Pass C deliverable) to use this friend.
-    friend class ::chronon3d::advanced::RenderEngineAccess;
-
     struct Impl;
     std::unique_ptr<Impl> m_impl;
 };
