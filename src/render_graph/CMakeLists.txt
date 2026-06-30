@@ -252,37 +252,6 @@ target_sources(chronon3d_graph INTERFACE
     $<TARGET_OBJECTS:chronon3d_graph_cache>
 )
 
-# ── P1-E Pass E — internal type headers for render_graph ─────────────
-# CompiledGraphCache, RenderGraphContext, pipeline/render_pipeline,
-# nodes/{render_graph_node, basic_nodes_common}, compiler/
-# compiled_frame_graph moved out of include/chronon3d/ into this
-# submodule's include_private/.  Each of the 8 sub-targets gets PRIVATE
-# include_private for its own .cpp compilation.  The umbrella
-# `chronon3d_graph` (INTERFACE library) propagates an INTERFACE
-# include_private so consumers that PRIVATE-/PUBLIC-link the umbrella
-# (CLI, tests, apps) resolve `<chronon3d/render_graph/...>` against
-# this path.
-#
-# Cross-module access to cache's include_private (NodeCacheKey,
-# FramebufferPool) is already covered transitively:
-#   - `chronon3d_graph_core PUBLIC chronon3d_cache` (line ~31)
-#   - `chronon3d_cache INTERFACE include_private` (Commit #1)
-# So render_graph sub-targets that PUBLIC-link graph_core see
-# cache's include_private without extra wiring.
-#
-# NEVER installed: `install(DIRECTORY include/)` does not traverse src/.
-foreach(_rg_sub_target
-        chronon3d_graph_core
-        chronon3d_graph_nodes
-        chronon3d_graph_builder
-        chronon3d_graph_executor
-        chronon3d_graph_compiler
-        chronon3d_graph_preflight
-        chronon3d_graph_cache
-        chronon3d_graph_pipeline)
-    target_include_directories(${_rg_sub_target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include_private)
-endforeach()
-target_include_directories(chronon3d_graph INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include_private>)
 
 # P1-E Pass E Commit #4 — software internal headers (software_renderer.hpp,
 # software_backend.hpp) FULL-included by:
