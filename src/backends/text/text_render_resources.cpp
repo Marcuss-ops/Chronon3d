@@ -21,6 +21,18 @@ const BLFontFace* BLFontFaceCache::get_face(const std::string& resolved_path) {
         return &it->second;
     }
 
+    // Cat-2 font preflight — see header.  When the I/O fence is armed
+    // (preflight_fonts() set + arm_atomic() succeeded) any unforeseen
+    // cache miss produces a deterministic std::runtime_error here so the
+    // regression test (tests/text/test_font_io_fence.cpp) catches
+    // re-introduction of synchronous font I/O on the render thread.
+    if (fence_ && fence_->load(std::memory_order_acquire)) {
+        throw std::runtime_error(
+            std::string{"BLFontFaceCache: synchronous font I/O on render thread (path='"}
+            + resolved_path + "').  Pre-primed via SoftwareRenderer::preflight_fonts "
+              "before arming the fence; this font was not pre-primed.");
+    }
+
     BLFontFace face;
     if (face.createFromFile(resolved_path.c_str()) != BL_SUCCESS) {
         spdlog::error("[text-resources] BLFontFaceCache: failed to load {}", resolved_path);
@@ -86,7 +98,7 @@ struct FTFaceDeleter {
 // `FT_Done_Face` via the custom deleter, AT THE LATEST when the last
 // `FontFaceHandle::ft_lifeline` is destroyed.
 
-FreeTypeFaceCache::FreeTypeFaceCache() = default;
+FreeTypeFaceCache::FreeTypeFaceCache(std::atomic<bool>* fence) noexcept : fence_(fence) {}
 FreeTypeFaceCache::~FreeTypeFaceCache() = default;
 
 std::shared_ptr<FT_Face> FreeTypeFaceCache::get_face(
@@ -121,6 +133,20 @@ std::shared_ptr<FT_Face> FreeTypeFaceCache::get_face(
         // Hit: copy shared_ptr (atomic ref-count inc).  Caller now owns
         // its own reference; the cached entry remains for the next caller.
         return it->second;
+    }
+
+    // Cat-2 font preflight — symmetric with BLFontFaceCache::get_face.
+    // Throws std::runtime_error if the I/O fence is armed AND this
+    // (resolved_path, face_index, size_bucket) tuple was not
+    // pre-primed by SoftwareRenderer::preflight_fonts.
+    if (fence_ && fence_->load(std::memory_order_acquire)) {
+        throw std::runtime_error(
+            std::string{"FreeTypeFaceCache: synchronous FT_New_Face on render thread "
+                        "(path='"}
+            + resolved_path + "' face_index=" + std::to_string(face_index)
+            + " size_bucket=" + std::to_string(size_bucket)
+            + ").  Pre-primed via SoftwareRenderer::preflight_fonts before arming "
+              "the fence; this font was not pre-primed.");
     }
 
     FT_Library lib = shared_library();
