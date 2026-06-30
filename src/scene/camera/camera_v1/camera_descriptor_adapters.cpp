@@ -23,6 +23,7 @@
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/camera/lens_model.hpp>
 #include <chronon3d/scene/model/camera/camera_rig.hpp>
+#include <chronon3d/scene/model/camera/camera.hpp>
 
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
@@ -270,6 +271,67 @@ camera_descriptor_from(const chronon3d::CameraShotProfile& shot,
                        RigBakeDensity density) {
     CameraDescriptor d = camera_descriptor_from(shot.rig, density);
     d.id = "adapter_camera_shot_profile";
+    return d;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Adapter 4: legacy slim Camera → CameraDescriptor  (P3-E / TICKET-034F+)
+//
+// The OPP's flat `chronon3d::Camera` struct is the legacy authoring form:
+// a position + rotation + FOV triple.  We capture a STATIC SNAPSHOT into a
+// V1 descriptor — the legacy field has no notion of animation, so trivially
+// `source = StaticCameraSource{}` is the cleanest fallback.  After this
+// adapter runs, the resulting descriptor is content-stable (modulo the
+// `id` tag) for as long as the underlying `Camera` field stays unchanged.
+//
+// Fields silently dropped (legacy Camera struct has no analog):
+//   * near_plane / far_plane                              (seeding PhysicalLens
+//                                                          would be presumptuous
+//                                                          given no lens model
+//                                                          on the legacy struct;
+//                                                          V1 defaults to the
+//                                                          standard 35mm gate)
+//   * explicit parent / target / point_of_interest        (no slot on Camera)
+//   * DoF / Motion-blur / handedness                      (no slot on Camera)
+//
+// The adapter is the canonical one-way bridge from legacy composition
+// authoring (the soon-deprecated `Composition::camera` field, golden test
+// harnesses, and ad-hoc CLI commands that still pass a `Camera&`) into the
+// canonical V1 pipeline.  The OPP renderer no longer reads `comp.camera`
+// directly — callers wanting V2 camera input should be reading
+// `CompiledComposition.camera_program->evaluate(...)`.
+CameraDescriptor
+camera_descriptor_from(const chronon3d::Camera& legacy_cam) {
+    CameraDescriptor d;
+    d.id           = "adapter_legacy_camera";
+    d.source       = chronon3d::camera_v1::StaticCameraSource{};
+    d.orientation  = chronon3d::camera_v1::FixedOrientation{};
+
+    // Frame base state verbatim from the slim legacy struct.
+    d.base.enabled  = true;
+    d.base.position = legacy_cam.transform.position;
+    d.base.rotation = legacy_cam.transform.rotation;
+
+    // The only projection knob on the legacy struct is vertical FOV.
+    // Use FovProjection so the evaluate() pipeline produces a state whose
+    // `.fov_deg` matches the legacy field exactly (no zoom→fov guessing).
+    chronon3d::camera_v1::FovProjection proj;
+    proj.fov_deg.set(legacy_cam.fov_deg);
+    d.base.projection = proj;
+
+    // Sensible 35mm optical defaults (the legacy struct has no lens model).
+    d.base.lens.focal_length  = legacy_cam.focal_length(/*width=*/36.0f);
+    d.base.lens.f_stop        = 2.8f;
+    d.base.lens.sensor_width  = 36.0f;
+    d.base.lens.sensor_height = 24.0f;
+    d.base.lens.gate_fit      = chronon3d::GateFit::Fill;
+
+    // DoF + motion blur stay at their struct defaults (enabled = false).
+    // Composition's `redecompose_camera_from_descriptor(SampleTime)` flips
+    // fov_deg in-place on the legacy field as a one-way projection; this
+    // adapter produces the FULL descriptor surface that the renderer
+    // compiles through (no field flattening required downstream).
+
     return d;
 }
 
