@@ -19,6 +19,8 @@ add_library(chronon3d_text_core OBJECT
     text_run_builder.cpp
     text_run_driver.cpp
     text_run_geometry.cpp
+    unicode/utf8_decoder.cpp
+    unicode/whitespace.cpp
 )
 
 # NOTE: chronon3d_text_core does NOT declare its own PUBLIC include directory
