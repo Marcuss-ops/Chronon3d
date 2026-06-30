@@ -104,9 +104,22 @@ namespace chronon3d::graph::detail {
     // vs local), not the session — both paths use root_scope.session().
     std::shared_ptr<Framebuffer> tile_fb;
     FrameArena child_arena;   // PR 6.4 — distinct child arena per region
-    ExecutionScope tile_scope(ExecutionScopeKind::Tile, root_scope.session(),
-                              child_arena, compiled.graph_instance_id,
-                              &root_scope);
+    // FASE 5 closure: the 5-arg explicit ctor is now private.  Tile regions
+    // are never recursive precomp loops (no owner_key), so the only realistic
+    // `make_child` rejection here is `ScopeErrorCode::ChainLimitExceeded`.
+    // Surface it as a zero-valued TileExecutionResult so the caller observes
+    // the failure structurally (rather than via a deprecated ctor's silent
+    // clamp).
+    auto tile_scope_res = ExecutionScope::make_child(
+        ExecutionScopeKind::Tile, root_scope.session(),
+        child_arena, compiled.graph_instance_id, &root_scope);
+    if (!tile_scope_res) {
+        return TileExecutionResult{
+            .dirty_count     = 0,
+            .pixels_rendered = 0ull
+        };
+    }
+    ExecutionScope tile_scope = tile_scope_res.value();
     // Section 5 violation fix: executor lives on RenderRuntime (engine-
     // lifetime owner), not on SoftwareRenderer.  Reach it via
     // `sw_renderer->runtime().executor()`; the reference is guaranteed
