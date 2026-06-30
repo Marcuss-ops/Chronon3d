@@ -231,6 +231,52 @@ BLPath GlyphOutlineCache::build_outline(
 #endif // CHRONON3D_ENABLE_TEXT
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TextScratchState & TextScratchManager (FASE 3 thread-safety)
+// ═══════════════════════════════════════════════════════════════════════════
+
+BLImage TextScratchState::acquire_surface(int w, int h, uint32_t fmt) {
+    // Drop dead (zeroed-out) entries from previous releases.
+    surface_pool.erase(
+        std::remove_if(surface_pool.begin(), surface_pool.end(),
+            [](const SurfaceEntry& e) { return e.w == 0; }),
+        surface_pool.end());
+
+    for (auto& e : surface_pool) {
+        if (e.w == w && e.h == h && e.fmt == fmt) {
+            BLImage img = std::move(e.image);
+            e.w = 0;
+            e.h = 0;
+            return img;
+        }
+    }
+    return BLImage(w, h, fmt);
+}
+
+void TextScratchState::release_surface(BLImage img) {
+    if (surface_pool.size() >= kMaxPooledSurfaces) return;
+    BLImageData data;
+    if (img.getData(&data) == BL_SUCCESS) {
+        surface_pool.push_back({std::move(img), data.size.w, data.size.h, data.format});
+    }
+}
+
+TextScratchManager::Handle TextScratchManager::acquire() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!available_.empty()) {
+        TextScratchState* state = available_.back().release();
+        available_.pop_back();
+        return Handle(state, this);
+    }
+    return Handle(new TextScratchState(), this);
+}
+
+void TextScratchManager::release(TextScratchState* state) {
+    if (!state) return;
+    std::lock_guard<std::mutex> lock(mutex_);
+    available_.emplace_back(state);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TextRenderResources
 // ═══════════════════════════════════════════════════════════════════════════
 
