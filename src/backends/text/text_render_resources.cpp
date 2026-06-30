@@ -265,7 +265,8 @@ BLPath GlyphOutlineBuilder::build_path(
 // ═══════════════════════════════════════════════════════════════════════════
 
 BLImage TextScratchState::acquire_surface(int w, int h, uint32_t fmt) {
-    // Drop dead (zeroed-out) entries from previous releases.
+    // Drop stale (zeroed-out) entries before searching for a hit so the
+    // pool never grows unboundedly with dead slots.
     surface_pool.erase(
         std::remove_if(surface_pool.begin(), surface_pool.end(),
             [](const SurfaceEntry& e) { return e.w == 0; }),
@@ -286,7 +287,9 @@ void TextScratchState::release_surface(BLImage img) {
     if (surface_pool.size() >= kMaxPooledSurfaces) return;
     BLImageData data;
     if (img.getData(&data) == BL_SUCCESS) {
-        surface_pool.push_back({std::move(img), data.size.w, data.size.h, data.format});
+        // emplace_back routes through SurfaceEntry's explicit ctor so the
+        // BLFormat argument is preserved as-is (no brace-init narrowing).
+        surface_pool.emplace_back(std::move(img), data.size.w, data.size.h, data.format);
     }
 }
 

@@ -269,7 +269,13 @@ struct TextScratchState {
         BLImage image;
         int w{0};
         int h{0};
-        uint32_t fmt{BL_FORMAT_PRGB32};
+        uint32_t fmt{BL_FORMAT_PRGB32};  // BL_FORMAT_PRGB32 is a BLFormat enumerator
+
+        // Explicit ctor — emplace_back routes through here so the
+        // BLFormat-valued `data.format` from blend2d is forwarded by
+        // exact typecheck rather than brace-init narrowing.
+        SurfaceEntry(BLImage img, int w_, int h_, uint32_t fmt_)
+            : image(std::move(img)), w(w_), h(h_), fmt(fmt_) {}
     };
     /// Capacity is the legacy value from the static TextSurfacePool
     /// (5 tiers + final + shadow + crossfade).  Kept here so existing
@@ -285,7 +291,15 @@ struct TextScratchState {
 
 class TextScratchManager {
 public:
-    /// RAII handle to a checked-out scratch state.  Releases on destruction.\n    ///\n    /// Ownership invariant: ONE handle at a time owns a given TextScratchState.\n    /// Move construction / assignment explicitly null out the moved-from\n    /// (manager_, state_) pair so the moved-from destructor is a no-op\n    /// (no double-release back into the same manager).  This invariant is\n    /// what makes the manager TSan-clean under parallel draw_text_run()\n    /// invocations sharing a single TextScratchManager.\n    class Handle {
+    /// RAII handle to a checked-out scratch state.  Releases on destruction.
+    ///
+    /// Ownership invariant: ONE handle at a time owns a given TextScratchState.
+    /// Move construction / assignment explicitly null out the moved-from
+    /// (manager_, state_) pair so the moved-from destructor is a no-op
+    /// (no double-release back into the same manager).  This invariant is
+    /// what makes the manager TSan-clean under parallel draw_text_run()
+    /// invocations sharing a single TextScratchManager.
+    class Handle {
     public:
         Handle() = default;
         Handle(TextScratchState* state, TextScratchManager* manager)
@@ -317,7 +331,14 @@ public:
         TextScratchManager* manager_{nullptr};
     };
 
-    /// Maximum number of TextScratchState objects retained between calls.\n    /// A 64-thread burst will amortize down to this many states, then\n    /// surplus releases delete the state outright.  Sized for typical\n    /// render pools without leaking per-thread scratch under sustained\n    /// multi-threaded draw_text_run() workloads.\n    static constexpr size_t kMaxPooledStates = 8;\n\n    Handle acquire();
+    /// Maximum number of TextScratchState objects retained between calls.
+    /// A 64-thread burst will amortize down to this many states, then
+    /// surplus releases delete the state outright.  Sized for typical
+    /// render pools without leaking per-thread scratch under sustained
+    /// multi-threaded draw_text_run() workloads.
+    static constexpr size_t kMaxPooledStates = 8;
+
+    Handle acquire();
 
 private:
     void release(TextScratchState* state);

@@ -30,16 +30,14 @@ option(CHRONON3D_BUILD_CLI_BENCH     "Build the chronon3d_cli_bench sub-target (
 # cron daemon/watch extraction deferred to follow-up PR
 # --------------------------------------------------------------------------
 
-# Group: Core (list, info, doctor, verify) — always included
-# Note: command_doctor_verify.cpp lives in core (not dev) per the
-# convention documented in the option string above.  It implements the
-# doctor + verify commands which are core subcommands of the CLI; moving
-# it to dev meant the executable failed to link without
-# CHRONON3D_BUILD_CLI_DEV=ON, which contradicts the "always included"
-# promise of the core group.  The file's #ifdef CHRONON3D_HAS_CLI_VIDEO
-# block (compile-defined on dev + on this core group when video target
-# exists) preserves the live-video path without dragging in render/video
-# sub-targets unconditionally.
+# Group: Core (list, info, doctor, verify) — always included.
+# command_doctor_verify.cpp must remain in core (not dev): it implements
+# doctor + verify, which are core subcommands; moving it to dev breaks the
+# "always included" promise when CHRONON3D_BUILD_CLI_DEV=OFF.  The
+# #ifdef CHRONON3D_HAS_CLI_VIDEO / CHRONON3D_HAS_CLI_RENDER blocks in
+# that file are compile-defined on _core when the respective group is
+# built, preserving the live-video and live-render paths without
+# unconditionally dragging in the render/video sub-targets.
 add_library(chronon3d_cli_core STATIC
     commands/group_core.cpp
     commands/basic/command_list.cpp
@@ -116,15 +114,19 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
 endif()
 endif() # CHRONON3D_ENABLE_VIDEO
 
-# Propagate CHRONON3D_HAS_CLI_VIDEO to core NOW (after chronon3d_cli_video
-# has been added by add_library), so the if(TARGET ...) guard sees the video
-# target.  Earlier placement inside chronon3d_cli_core's library block ran
-# BEFORE the video target existed — the propagation silently no-op'd and
-# builds with CHRONON3D_BUILD_CLI_VIDEO=ON + CHRONON3D_BUILD_CLI_DEV=OFF
-# lost the camera smoke-test step in `verify` (the docstring "core ships
-# doctor + verify including their video-camera leg" stopped holding).
-if(TARGET chronon3d_cli_video AND TARGET chronon3d_cli_core)
+# Propagate CHRONON3D_HAS_CLI_<GROUP> defines to core AFTER each group has
+# been added by add_library(), so the if(TARGET ...) guards see those
+# targets.  Earlier placement inside chronon3d_cli_core's library block ran
+# BEFORE the gated targets existed — the propagation silently no-op'd and
+# builds with the gated group ON + _DEV=OFF lost their guard blocks in
+# `verify` (the docstring "core ships doctor + verify including their
+# video-camera / render legs" stopped holding).  chronon3d_cli_core is
+# always added (ON by default), so no extra TARGET guard is needed here.
+if(TARGET chronon3d_cli_video)
     target_compile_definitions(chronon3d_cli_core PRIVATE CHRONON3D_HAS_CLI_VIDEO)
+endif()
+if(TARGET chronon3d_cli_render)
+    target_compile_definitions(chronon3d_cli_core PRIVATE CHRONON3D_HAS_CLI_RENDER)
 endif()
 
 # Group: Telemetry (telemetry summary/report)

@@ -33,6 +33,7 @@ int command_verify(const CompositionRegistry& registry, const std::string& outpu
     std::filesystem::create_directories(output_dir);
     int exit_code = 0;
 
+#ifdef CHRONON3D_HAS_CLI_RENDER
     for (const auto& id : registry.available()) {
         RenderArgs args;
         args.comp_id = id;
@@ -42,6 +43,11 @@ int command_verify(const CompositionRegistry& registry, const std::string& outpu
             exit_code = 1;
         }
     }
+#else
+    spdlog::warn("verify: CHRONON3D_HAS_CLI_RENDER off — per-composition render loop skipped");
+    // Still mark verify incomplete so callers know the per-frame smoke wasn't run.
+    exit_code = 1;
+#endif
 
 #ifdef CHRONON3D_HAS_CLI_VIDEO
     {
