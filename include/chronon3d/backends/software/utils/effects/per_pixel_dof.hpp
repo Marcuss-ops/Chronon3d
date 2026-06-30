@@ -28,6 +28,7 @@
 #include <hwy/highway.h>
 #include <algorithm>
 #include <cmath>
+#include <span>
 #include <vector>
 
 namespace chronon3d::renderer {
@@ -35,7 +36,14 @@ namespace chronon3d::renderer {
 /// Apply per-pixel depth-of-field blur to @p fb using @p depth buffer.
 ///
 /// @param fb        Framebuffer to blur in-place.
-/// @param depth     Per-pixel world_z buffer (width × height, row-major).
+/// @param depth     Per-pixel world_z buffer (width × height, row-major),
+///                  passed by non-owning span.  The kernel only reads from it,
+///                  so a span is semantically equivalent to a const-ref vector
+///                  and avoids the 8 MiB alloc+memcpy that the previous
+///                  `std::vector<float>` copy demanded on every dispatch.
+///                  Callers that own a `std::vector<float>` may construct
+///                  the span implicitly (C++20 contiguous_range constructor)
+///                  or use the explicit `std::span<const float>{v}` form.
 /// @param dof       Camera DOF settings (focus_z, aperture, max_blur).
 /// @param lens      Physical lens model (focal_length, sensor_width, f_stop).
 /// @param clip      Optional clip rectangle; only pixels inside are blurred.
@@ -44,7 +52,7 @@ namespace chronon3d::renderer {
 /// Pixels with depth == kUnsetDepth are treated as "no data" and left unblurred.
 inline void apply_per_pixel_dof(
     Framebuffer& fb,
-    const std::vector<float>& depth,
+    std::span<const float> depth,
     const DepthOfFieldSettings& dof,
     const LensModel& lens,
     const std::optional<raster::BBox>& clip = std::nullopt)
