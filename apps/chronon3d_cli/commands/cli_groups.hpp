@@ -45,10 +45,7 @@ inline void register_all_groups(CLI::App& app, CliContext& ctx) {
     group_video::register_commands(app, ctx);
 #endif
 #ifdef CHRONON3D_BUILD_CLI_DEV
-    // chronon3d_cli_dev is a separate target — its symbol only exists when
-    // the dev option is enabled.  Gating the call here keeps the executable
-    // link-clean when CHRONON3D_BUILD_CLI_DEV=OFF (default).
-    group_dev::register_commands(app, ctx);
+    group_dev::register_commands(app, ctx);  // link-clean under -DCHRONON3D_BUILD_CLI_DEV=OFF
 #endif
 #ifdef CHRONON3D_BUILD_BENCHMARKS
     group_bench::register_commands(app, ctx);
