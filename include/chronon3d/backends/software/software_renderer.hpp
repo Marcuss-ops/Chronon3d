@@ -12,6 +12,7 @@
 #include <chronon3d/backends/assets/image_renderer.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/backends/software/software_render_session.hpp>
+#include <chronon3d/backends/text/text_render_resources.hpp>   // FontPreflightSummary
 #include <chronon3d/core/config.hpp>
 
 #include <memory>
@@ -66,6 +67,24 @@ public:
     [[nodiscard]] std::string debug_render_graph(const Scene& scene, const Camera& camera,
                                                  i32 width, i32 height, Frame frame = 0,
                                                  f32 frame_time = 0.0f) const;
+
+    // Cat-2 font preflight (Cat-2 framing per AGENTS.md freeze audit).
+    // Public preflight entry: walks scene.layers() once, collects a
+    // representative (font_path, font_size) per text layer, and calls
+    // text_render_resources()->resolve_handle(...) for each unique pair
+    // so the BLFontFace + FreeType caches are primed BEFORE render starts.
+    // Returned FontPreflightSummary drives diagnostics; render proceeds
+    // even when preflight_missing>0 (missing fonts fall through to BL/FT
+    // load-failure paths, same behaviour as the pre-preflight era).
+    //
+    // Auto-wired inside render_scene(): the auto path arms
+    // set_debug_io_fence(true) AFTER preflighting and disarms on render
+    // return so any unforeseen font (added after preflight) throws loudly
+    // instead of silently doing synchronous I/O on the render thread.
+    [[nodiscard]] chronon3d::FontPreflightSummary preflight_fonts(
+        const Scene& scene,
+        const assets::AssetResolver& resolver
+    );
 
     // ── Construction / destruction ─────────────────────────────────────
     explicit SoftwareRenderer(runtime::RenderRuntime& rt, Config config);

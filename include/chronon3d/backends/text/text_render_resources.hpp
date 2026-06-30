@@ -25,10 +25,16 @@
 
 #include <chronon3d/core/types/types.hpp>
 
+#include <atomic>
+#include <cstddef>
 #include <memory>
 #include <mutex>
+#include <set>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #ifdef CHRONON3D_ENABLE_TEXT
@@ -46,21 +52,40 @@ namespace assets { class AssetResolver; }
 // ═══════════════════════════════════════════════════════════════════════════
 // BLFontFaceCache — thread-safe cache of BLFontFace objects
 // ═══════════════════════════════════════════════════════════════════════════
+//
+// Cat-2 font-preflight defence-in-depth: the cache holds an OPTIONAL
+// non-owning pointer to a shared `std::atomic<bool>` fence.  When the
+// fence is set AND a cache miss would force `BLFontFace::createFromFile`
+// the cache throws `std::runtime_error` so a render-thread sync I/O is
+// surfaced loudly instead of degrading silently.  The fence is set
+// (immediately after `preflight_fonts()` primed the caches) so any
+// unforeseen font that slipped past preflight produces a working
+// regression test rather than a slow first-frame hitch.
+//
+// Production usage never sets the fence (default `nullptr`) so the
+// throw path is opt-in.
 
 class BLFontFaceCache {
 public:
-    BLFontFaceCache() = default;
+    explicit BLFontFaceCache(std::atomic<bool>* fence = nullptr) noexcept
+        : fence_(fence) {}
+
+    /// Late-bind (or unbind, passing `nullptr`) the debug-I/O fence.  Idempotent.
+    void set_fence(std::atomic<bool>* fence) noexcept { fence_ = fence; }
 
     /// Return a cached BLFontFace for the given resolved font path.
     /// If not yet cached, opens the file via BLFontFace::createFromFile().
     /// The returned pointer is non-owning and stable for the cache's lifetime.
     /// Returns nullptr if the file cannot be opened.
+    /// Throws `std::runtime_error` if `fence_` is set AND the cache
+    /// misses (a render-thread sync I/O is the precondition).
     [[nodiscard]] const BLFontFace* get_face(const std::string& resolved_path);
 
-    /// True if the path is already cached (no file I/O needed).
+    /// Cheap lock-free hit probe that does NOT touch the I/O fence.
     [[nodiscard]] bool contains(const std::string& resolved_path) const;
 
 private:
+    std::atomic<bool>* fence_{nullptr};
     std::unordered_map<std::string, BLFontFace> faces_;
     mutable std::mutex mutex_;
 };
@@ -105,11 +130,18 @@ struct FTFaceKeyHash {
 
 class FreeTypeFaceCache {
 public:
-    FreeTypeFaceCache();
+    /// Optional non-owning pointer to a shared debug-I/O fence.  When
+    /// the fence is set AND a cache miss would force `FT_New_Face` the
+    /// cache throws `std::runtime_error` (see BLFontFaceCache header for
+    /// the rationale).  Default `nullptr` — production renders are unaffected.
+    explicit FreeTypeFaceCache(std::atomic<bool>* fence = nullptr) noexcept;
     ~FreeTypeFaceCache();
 
     FreeTypeFaceCache(const FreeTypeFaceCache&) = delete;
     FreeTypeFaceCache& operator=(const FreeTypeFaceCache&) = delete;
+
+    /// Late-bind (or unbind) the debug-I/O fence.  Idempotent.
+    void set_fence(std::atomic<bool>* fence) noexcept { fence_ = fence; }
 
     // Bug #7 fix: returns a shared_ptr that keeps the FT_Face alive
     // even after the cache evicts or destroys its entry.  When a font
@@ -134,6 +166,7 @@ public:
 private:
     static FT_Library shared_library();
 
+    std::atomic<bool>* fence_{nullptr};
     std::unordered_map<FTFaceKey, std::shared_ptr<FT_Face>, FTFaceKeyHash> faces_;
     std::mutex mutex_;
 };
@@ -299,9 +332,22 @@ private:
 // Owned by the renderer/backend.  `resolve_handle()` is the single entry
 // point: it resolves the font path via the AssetResolver, looks up caches,
 // and returns a FontFaceHandle.  File opening happens here (on first use),
-// NOT in the render hot path.  Also owns the TextScratchManager that vends
-// per-call scratch handles to draw_text_run() — engine-lifetime state but
-// per-call allocation (FASE 3 thread-safety closure).
+// NOT in the render hot path after `preflight_fonts()` runs.  Also owns
+// the TextScratchManager that vends per-call scratch handles to
+// draw_text_run() — engine-lifetime state but per-call allocation
+// (FASE 3 thread-safety closure).
+//
+// Cat-2 font preflight: the struct holds an atomic `debug_io_fence`.
+// When `set_debug_io_fence(true)` is called, BOTH underlying caches
+// (BL + FT) throw `std::runtime_error` on any cache miss.  Production
+// callers (CI / exporter / CLI) NEVER set this; tests + the
+// `preflight_fonts()` orchestrator DO set it after priming the caches
+// so any unforeseen font (e.g. one added after preflight) produces a
+// deterministic regression matrix instead of a slow first-frame hitch.
+//
+// The two caches receive the fence pointer via constructor so they
+// observe the SAME atomic that does — releasing the fence (flip false)
+// stops the throw path atomically.
 
 struct TextRenderResources {
     BLFontFaceCache bl_faces;
@@ -314,15 +360,62 @@ struct TextRenderResources {
     /// FASE 3 thread-safety: per-call scratch pool engine-owned.
     TextScratchManager scratch_manager;
 
+    /// ── Cat-2 font I/O fence ──
+    /// Default-off.  When true, caches THROW on miss (defence-in-depth
+    /// against re-introduction of synchronous font I/O on render threads).
+    /// `set_debug_io_fence(bool)` is the canonical setter; `debug_io_fence()`
+    /// returns the current value.  Reading + writing are atomic; the
+    /// underlying caches spot-check via `std::memory_order_acquire` on read
+    /// and release on write so the throw path is observed in deterministic
+    /// order across cores.  Only test/fence-aware callers flip true.
+    std::atomic<bool> debug_io_fence{false};
+    void set_debug_io_fence(bool on) noexcept {
+        // Late-bind (or re-bind, idempotent) the cache fences so a single
+        // arm toggles BOTH caches simultaneously.  Production calls never
+        // hit this; tests + the optional `preflight_fonts()` set it.
+        bind_fences();
+        debug_io_fence.store(on, std::memory_order_release);
+    }
+    [[nodiscard]] bool debug_io_fence() const noexcept {
+        return debug_io_fence.load(std::memory_order_acquire);
+    }
+
+    /// Late-bind both caches' debug fences to this struct's atomic so
+    /// `set_debug_io_fence(true)` flips BOTH caches simultaneously.
+    /// Idempotent.  Set the SAME pointer each call so concurrent readers
+    /// see a deterministic value; no ABA hazard because fences are not
+    /// reallocated.
+    void bind_fences() noexcept {
+        bl_faces.set_fence(&debug_io_fence);
+#ifdef CHRONON3D_ENABLE_TEXT
+        ft_faces.set_fence(&debug_io_fence);
+#endif
+    }
+
     /// Build a FontFaceHandle for the given font path + size.
     /// Resolves the path via `resolver` before cache lookup.
     /// File opening happens inside the caches on first use — subsequent
     /// calls for the same (resolved_path, size) return cached data.
+    /// Throws `std::runtime_error` only if `debug_io_fence()` is set AND
+    /// the cache would otherwise open a file (see class-level doc).
     [[nodiscard]] FontFaceHandle resolve_handle(
         const std::string& font_path,
         f32 font_size,
         const assets::AssetResolver& resolver
     );
+};
+
+// ── Cat-2 font preflight summary ──────────────────────────────────────────
+// Returned by SoftwareRenderer::preflight_fonts.  Lightweight POD — copy
+// freely.  Use for diagnostics; `ok` does not gate the actual render
+// (a missing font falls through to BL/FT cache failure paths, the same as
+// before this PR), but `missing` can drive preflight reports.
+
+struct FontPreflightSummary {
+    size_t preflight_attempted{0};
+    size_t preflight_succeeded{0};
+    size_t preflight_missing{0};
+    bool   ok() const noexcept { return preflight_missing == 0 && preflight_succeeded != 0; }
 };
 
 } // namespace chronon3d
