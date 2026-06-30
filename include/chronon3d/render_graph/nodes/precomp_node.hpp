@@ -102,7 +102,7 @@ public:
     /// frame, outliving the inner `execute_with_scope` call.  Bail
     /// out with empty fb (per docs/03 §4.4 convention) if
     /// `precomp_scope.would_overflow()` (depth clamped at
-    /// `kMaxScopeDepth`) or if `would_recurse(owner_key)` signals a
+    /// `kMaxScopeChainLength`) or if `would_recurse(owner_key)` signals a
     /// cycle.
     ///
     /// Production callers (GraphExecutor::execute_single_node

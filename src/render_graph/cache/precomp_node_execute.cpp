@@ -43,6 +43,7 @@
 #include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
 #include <chronon3d/render_graph/builder/precomp_builder_service.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/core/execution/execution_scope_types.hpp>
 
 namespace chronon3d::graph {
 
@@ -229,31 +230,22 @@ OwnedFB PrecompNode::execute_with_scope(
     const auto resolved = detail::resolve_layers(nested_scene, nested_ctx);
     detail::refresh_compiled_graph_payloads(program->frame_graph, nested_scene, nested_ctx, resolved);
 
-    // ── 8. WP-6 PR 6.3 — Construct child Precomp ExecutionScope (lease-held-for-scope)
+    // ── 8. §9.3 — Construct child Precomp ExecutionScope via make_child()
     //
-    // Sourcing graph_id from `precomp_key.graph` (one variable, two uses)
-    // keeps the body single-source-of-truth.  The `FrameArena child_arena`
-    // is distinct from parent.arena() — the executor's ArenaGuard resets
-    // ONLY the child on return, leaving parent.session().arena() untouched.
+    // make_child() validates all invariants (non-Root kind, parent not null,
+    // arena distinct from parent, chain limit, recursion check) and returns
+    // Result<ExecutionScope, ScopeError>.  On failure, bail out with empty fb.
     FrameArena child_arena;
     const auto graph_id =
         static_cast<GraphInstanceId>(precomp_key.graph);
-    ExecutionScope precomp_scope(
+    auto precomp_result = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, child_arena,
-        graph_id, &parent);
-    precomp_scope.set_owner_key(precomp_key.node);
+        graph_id, &parent, precomp_key.node);
 
-    // WP-6 PR 6.5 — deterministic bail-out if depth clamped at
-    // `kMaxScopeDepth` (`would_overflow()`) OR if the chain already
-    // contains an active Precomp with the same owner_key
-    // (`would_recurse()`).  Empty fb per docs/03-§4.4 convention
-    // ("engine error / fall back to empty fb").  Note: lease still
-    // alive after this return; program release happens at function
-    // exit (RAII unwind of `lease`'s shared_ptr).
-    if (precomp_scope.would_overflow() ||
-        precomp_scope.would_recurse(precomp_scope.owner_key())) {
+    if (!precomp_result) {
         return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
     }
+    ExecutionScope& precomp_scope = precomp_result.value();
 
     // ── 9. Execute the cached program (WP-5 + WP-0 PR 0.1 + WP-6 PR 6.3) ─
     // PR-5 — GraphExecutor is stateless; the topology plan lives on
