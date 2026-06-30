@@ -2,23 +2,30 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/simd/kernels.hpp>
 #include <spdlog/spdlog.h>
+#include <atomic>
 #include <cstdlib>
 #include <mutex>
 #include <thread>
 
 namespace chronon3d {
 
+// FASE 3 (TICKET-079) — Injected capacity, set once at startup by SoftwareRenderer.
+// First-call-wins via atomic CAS; eliminates std::once_flag + std::call_once (per
+// AGENTS.md pattern `is serialised + idempotent without an external std::once_flag`).
 namespace {
 
-    size_t         s_image_cache_capacity = 0;
-    std::once_flag s_image_cache_capacity_flag;
+    size_t            s_image_cache_capacity = 0;
+    std::atomic<bool> s_image_cache_capacity_flag{false};
 
 } // namespace
 
 void ImageCache::set_capacity_bytes(size_t capacity_bytes) {
-    std::call_once(s_image_cache_capacity_flag, [&] {
+    bool expected = false;
+    if (s_image_cache_capacity_flag.compare_exchange_strong(
+            expected, true,
+            std::memory_order_acq_rel, std::memory_order_relaxed)) {
         s_image_cache_capacity = capacity_bytes;
-    });
+    }
 }
 
 static size_t resolve_injected_capacity() {
