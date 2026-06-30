@@ -96,6 +96,167 @@ BlurTiers build_blur_tiers(const std::vector<GlyphInstanceState>& glyphs) {
 
 
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FASE 4 (TICKET-090) — draw_text_run stage primitives, file-local.
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// `draw_text_run()` is decomposed into named stage helpers so the
+// orchestrator body reads top-to-bottom as a sequence of stage calls.
+// Two fully-separable stages are lifted to anonymous-namespace free
+// functions (so they can be reviewed, tested, and reasoned about in
+// isolation):
+//
+//   1. expand_per_glyph_bbox() — Stage: bbox-pre-classification
+//      Walks a glyph vector against its placed run and widens the
+//      running local-space min/max.  No closure state.
+//
+//   2. apply_separable_box_blur() — Stage: tier-blur pass
+//      Inline box-blur, sliding window, O(w*h).  Operates in-place on
+//      BL_FORMAT_PRGB32.  Owns its unpacking lambdas (file-local).
+//
+// The remaining stage (the tier-renderer inside `draw_text_run()`)
+// stays inline as the orchestrator: extracting it would require ~10
+// contextual parameters (offset_x/y, font_handle, ft_loaded, tier
+// radii, TextPaint, …) without changing semantics.
+
+// ── Stage 1 — Bbox pre-classification ──────────────────────────────
+//
+// Walks `glyphs` against the corresponding `placed` glyph run and
+// widens the running local-space bounding box (`min_x, min_y, max_x,
+// max_y`) per-glyph.  Used twice in `draw_text_run`: once for the
+// active side, once for the crossfade side.  Padding adds blur,
+// stroke, and a fixed 8px safety margin for stroke / shadow extending
+// beyond the placed glyph extent.
+void expand_per_glyph_bbox(
+    float& min_x, float& min_y, float& max_x, float& max_y,
+    const std::vector<GlyphInstanceState>& glyphs,
+    const PlacedGlyphRun& placed
+) {
+    for (const auto& g : glyphs) {
+        const float gx = g.layout_position.x + g.position.x;
+        const float gy = g.layout_position.y + g.position.y;
+        const float pad = g.blur + g.stroke_width + 8.0f;
+        min_x = std::min(min_x, gx - pad);
+        min_y = std::min(min_y, gy - pad);
+        max_x = std::max(max_x, gx + placed.total_width /
+            static_cast<float>(std::max(size_t(1), placed.glyphs.size())) + pad);
+        max_y = std::max(max_y, gy + placed.total_height + pad);
+    }
+}
+
+// ── Stage 2 — Separable box-blur (sliding window, O(w*h)) ──────────
+//
+// In-place blur on BL_FORMAT_PRGB32.  Horizontal then vertical pass,
+// each window sum maintained in O(1) per pixel via a sliding window.
+// Uses a caller-provided scratch buffer (TextScratchState.blur_buffer)
+// to avoid one BLImage alloc per call.  Total cost ~ 2 * w * h
+// (independent of `radius`).
+void apply_separable_box_blur(BLImage& image, int radius, TextScratchState& scratch_state) {
+    if (radius <= 0) return;
+    BLImageData data;
+    if (image.getData(&data) != BL_SUCCESS) return;
+    const int w = data.size.w;
+    const int h = data.size.h;
+    if (w <= 0 || h <= 0) return;
+    const int stride = static_cast<int>(data.stride / sizeof(uint32_t));
+    uint32_t* base = static_cast<uint32_t*>(data.pixelData);
+
+    const size_t pixels = static_cast<size_t>(w) * static_cast<size_t>(h);
+    if (scratch_state.blur_buffer.size() < pixels) {
+        scratch_state.blur_buffer.resize(pixels);
+    }
+    uint32_t* tmp = scratch_state.blur_buffer.data();
+
+    const int r = radius;
+    auto unpack = [](uint32_t c, int& a, int& rr, int& g, int& b) {
+        a = static_cast<int>((c >> 24) & 0xFF);
+        rr = static_cast<int>((c >> 16) & 0xFF);
+        g = static_cast<int>((c >>  8) & 0xFF);
+        b = static_cast<int>( c        & 0xFF);
+    };
+    auto pack = [](int a, int rr, int g, int b) -> uint32_t {
+        return (static_cast<uint32_t>(std::clamp(a, 0, 255)) << 24) |
+               (static_cast<uint32_t>(std::clamp(rr, 0, 255)) << 16) |
+               (static_cast<uint32_t>(std::clamp(g, 0, 255)) <<  8) |
+               (static_cast<uint32_t>(std::clamp(b, 0, 255)));
+    };
+
+    // Horizontal pass (sliding window): tmp[y,x] = mean of base[y, x-r..x+r].
+    for (int y = 0; y < h; ++y) {
+        const uint32_t* row = base + static_cast<size_t>(y) * stride;
+        int sum_a = 0, sum_r = 0, sum_g = 0, sum_b = 0, count = 0;
+
+        // Initial window: pixels [0, min(w-1, r)]
+        const int init_right = std::min(w - 1, r);
+        for (int k = 0; k <= init_right; ++k) {
+            int pa, pr, pg, pb;
+            unpack(row[k], pa, pr, pg, pb);
+            sum_a += pa; sum_r += pr; sum_g += pg; sum_b += pb;
+            ++count;
+        }
+        tmp[static_cast<size_t>(y) * w] =
+            pack(sum_a / count, sum_r / count, sum_g / count, sum_b / count);
+
+        for (int x = 1; x < w; ++x) {
+            // Subtract pixel leaving the window
+            const int leave = x - r - 1;
+            if (leave >= 0) {
+                int pa, pr, pg, pb;
+                unpack(row[leave], pa, pr, pg, pb);
+                sum_a -= pa; sum_r -= pr; sum_g -= pg; sum_b -= pb;
+                --count;
+            }
+            // Add pixel entering the window
+            const int enter = x + r;
+            if (enter < w) {
+                int pa, pr, pg, pb;
+                unpack(row[enter], pa, pr, pg, pb);
+                sum_a += pa; sum_r += pr; sum_g += pg; sum_b += pb;
+                ++count;
+            }
+            tmp[static_cast<size_t>(y) * w + x] =
+                pack(sum_a / count, sum_r / count, sum_g / count, sum_b / count);
+        }
+    }
+
+    // Vertical pass (sliding window): base[y,x] = mean of tmp[y-r..y+r, x].
+    for (int x = 0; x < w; ++x) {
+        int sum_a = 0, sum_r = 0, sum_g = 0, sum_b = 0, count = 0;
+
+        // Initial window: rows [0, min(h-1, r)]
+        const int init_bottom = std::min(h - 1, r);
+        for (int k = 0; k <= init_bottom; ++k) {
+            int pa, pr, pg, pb;
+            unpack(tmp[static_cast<size_t>(k) * w + x], pa, pr, pg, pb);
+            sum_a += pa; sum_r += pr; sum_g += pg; sum_b += pb;
+            ++count;
+        }
+        base[static_cast<size_t>(0) * stride + x] =
+            pack(sum_a / count, sum_r / count, sum_g / count, sum_b / count);
+
+        for (int y = 1; y < h; ++y) {
+            // Subtract row leaving the window
+            const int leave = y - r - 1;
+            if (leave >= 0) {
+                int pa, pr, pg, pb;
+                unpack(tmp[static_cast<size_t>(leave) * w + x], pa, pr, pg, pb);
+                sum_a -= pa; sum_r -= pr; sum_g -= pg; sum_b -= pb;
+                --count;
+            }
+            // Add row entering the window
+            const int enter = y + r;
+            if (enter < h) {
+                int pa, pr, pg, pb;
+                unpack(tmp[static_cast<size_t>(enter) * w + x], pa, pr, pg, pb);
+                sum_a += pa; sum_r += pr; sum_g += pg; sum_b += pb;
+                ++count;
+            }
+            base[static_cast<size_t>(y) * stride + x] =
+                pack(sum_a / count, sum_r / count, sum_g / count, sum_b / count);
+        }
+    }
+}
+
 } // anonymous namespace
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -251,23 +412,11 @@ graph::RenderOpResult draw_text_run(
     // Per-glyph bbox accumulator.  Walks a glyph vector against its
     // placed run and widens the running local-space min/max.  Used
     // for both the active side and the crossfade side below.
-    auto expand_per_glyph = [&](const std::vector<GlyphInstanceState>& glyphs,
-                                const PlacedGlyphRun& placed) {
-        for (const auto& g : glyphs) {
-            const float gx = g.layout_position.x + g.position.x;
-            const float gy = g.layout_position.y + g.position.y;
-            const float pad = g.blur + g.stroke_width + 8.0f;
-            min_x = std::min(min_x, gx - pad);
-            min_y = std::min(min_y, gy - pad);
-            max_x = std::max(max_x, gx + placed.total_width /
-                static_cast<float>(std::max(size_t(1), placed.glyphs.size())) + pad);
-            max_y = std::max(max_y, gy + placed.total_height + pad);
-        }
-    };
-
-    expand_per_glyph(shape.glyphs, layout.placed);
+    // FASE 4 (TICKET-090) — Stage 1 calls the lifted free function.
+    expand_per_glyph_bbox(min_x, min_y, max_x, max_y, shape.glyphs, layout.placed);
     if (shape.crossfade_layout && !shape.crossfade_glyphs.empty()) {
-        expand_per_glyph(shape.crossfade_glyphs, shape.crossfade_layout->placed);
+        expand_per_glyph_bbox(min_x, min_y, max_x, max_y,
+                              shape.crossfade_glyphs, shape.crossfade_layout->placed);
     }
 
     // Shadow padding stays on the active side only — shadows track
@@ -338,111 +487,8 @@ graph::RenderOpResult draw_text_run(
     // roughly 2 × w × h independent of radius.
     // FASE 3 thread-safety: scratch buffer is now per-call via scratch_state.
     // (The previous static BlurScratchPool::instance() has been removed.)
-    auto apply_box_blur = [&scratch_state](BLImage& image, int radius) {
-        if (radius <= 0) return;
-        BLImageData data;
-        if (image.getData(&data) != BL_SUCCESS) return;
-        const int w = data.size.w;
-        const int h = data.size.h;
-        if (w <= 0 || h <= 0) return;
-        const int stride = static_cast<int>(data.stride / sizeof(uint32_t));
-        uint32_t* base = static_cast<uint32_t*>(data.pixelData);
-
-        const size_t pixels = static_cast<size_t>(w) * static_cast<size_t>(h);
-        if (scratch_state.blur_buffer.size() < pixels) {
-            scratch_state.blur_buffer.resize(pixels);
-        }
-        uint32_t* tmp = scratch_state.blur_buffer.data();
-
-        const int r = radius;
-        auto unpack = [](uint32_t c, int& a, int& rr, int& g, int& b) {
-            a = static_cast<int>((c >> 24) & 0xFF);
-            rr = static_cast<int>((c >> 16) & 0xFF);
-            g = static_cast<int>((c >>  8) & 0xFF);
-            b = static_cast<int>( c        & 0xFF);
-        };
-        auto pack = [](int a, int rr, int g, int b) -> uint32_t {
-            return (static_cast<uint32_t>(std::clamp(a, 0, 255)) << 24) |
-                   (static_cast<uint32_t>(std::clamp(rr, 0, 255)) << 16) |
-                   (static_cast<uint32_t>(std::clamp(g, 0, 255)) <<  8) |
-                   (static_cast<uint32_t>(std::clamp(b, 0, 255)));
-        };
-
-        // Horizontal pass (sliding window): tmp[y,x] = mean of base[y, x-r..x+r].
-        for (int y = 0; y < h; ++y) {
-            const uint32_t* row = base + static_cast<size_t>(y) * stride;
-            int sum_a = 0, sum_r = 0, sum_g = 0, sum_b = 0, count = 0;
-
-            // Initial window: pixels [0, min(w-1, r)]
-            const int init_right = std::min(w - 1, r);
-            for (int k = 0; k <= init_right; ++k) {
-                int pa, pr, pg, pb;
-                unpack(row[k], pa, pr, pg, pb);
-                sum_a += pa; sum_r += pr; sum_g += pg; sum_b += pb;
-                ++count;
-            }
-            tmp[static_cast<size_t>(y) * w] =
-                pack(sum_a / count, sum_r / count, sum_g / count, sum_b / count);
-
-            for (int x = 1; x < w; ++x) {
-                // Subtract pixel leaving the window
-                const int leave = x - r - 1;
-                if (leave >= 0) {
-                    int pa, pr, pg, pb;
-                    unpack(row[leave], pa, pr, pg, pb);
-                    sum_a -= pa; sum_r -= pr; sum_g -= pg; sum_b -= pb;
-                    --count;
-                }
-                // Add pixel entering the window
-                const int enter = x + r;
-                if (enter < w) {
-                    int pa, pr, pg, pb;
-                    unpack(row[enter], pa, pr, pg, pb);
-                    sum_a += pa; sum_r += pr; sum_g += pg; sum_b += pb;
-                    ++count;
-                }
-                tmp[static_cast<size_t>(y) * w + x] =
-                    pack(sum_a / count, sum_r / count, sum_g / count, sum_b / count);
-            }
-        }
-
-        // Vertical pass (sliding window): base[y,x] = mean of tmp[y-r..y+r, x].
-        for (int x = 0; x < w; ++x) {
-            int sum_a = 0, sum_r = 0, sum_g = 0, sum_b = 0, count = 0;
-
-            // Initial window: rows [0, min(h-1, r)]
-            const int init_bottom = std::min(h - 1, r);
-            for (int k = 0; k <= init_bottom; ++k) {
-                int pa, pr, pg, pb;
-                unpack(tmp[static_cast<size_t>(k) * w + x], pa, pr, pg, pb);
-                sum_a += pa; sum_r += pr; sum_g += pg; sum_b += pb;
-                ++count;
-            }
-            base[static_cast<size_t>(0) * stride + x] =
-                pack(sum_a / count, sum_r / count, sum_g / count, sum_b / count);
-
-            for (int y = 1; y < h; ++y) {
-                // Subtract row leaving the window
-                const int leave = y - r - 1;
-                if (leave >= 0) {
-                    int pa, pr, pg, pb;
-                    unpack(tmp[static_cast<size_t>(leave) * w + x], pa, pr, pg, pb);
-                    sum_a -= pa; sum_r -= pr; sum_g -= pg; sum_b -= pb;
-                    --count;
-                }
-                // Add row entering the window
-                const int enter = y + r;
-                if (enter < h) {
-                    int pa, pr, pg, pb;
-                    unpack(tmp[static_cast<size_t>(enter) * w + x], pa, pr, pg, pb);
-                    sum_a += pa; sum_r += pr; sum_g += pg; sum_b += pb;
-                    ++count;
-                }
-                base[static_cast<size_t>(y) * stride + x] =
-                    pack(sum_a / count, sum_r / count, sum_g / count, sum_b / count);
-            }
-        }
-    };
+    // FASE 4 (TICKET-090) — Stage 2 in-place blur now lives in
+    // apply_separable_box_blur() above (Stg 2 anon-namespace helper).
 
 #ifdef CHRONON3D_ENABLE_TEXT
     // Fase 3 — FreeType face is pre-loaded in the FontFaceHandle.
@@ -460,7 +506,10 @@ graph::RenderOpResult draw_text_run(
     //
     // Fase 3 — `tier_glyphs` contains preclassified glyph indices.
     // For the shadow pass (no tiering), pass all glyph indices.
-    auto draw_run_layer = [&](
+    // FASE 4 (TICKET-090) — tier-renderer stays inline as the
+    // orchestrator stage (see file-local anon-namespace note above);
+    // renamed for clarity.
+    auto render_tier_to_image = [&](
         BLImage& target,
         std::optional<Color> override_color,
         int blur_radius,
@@ -570,7 +619,7 @@ graph::RenderOpResult draw_text_run(
         ctx.end();
 
         if (drawn > 0 && blur_radius > 0) {
-            apply_box_blur(target, blur_radius);
+            apply_separable_box_blur(target, blur_radius, scratch_state);
         }
         return drawn;
     };
@@ -597,7 +646,7 @@ graph::RenderOpResult draw_text_run(
             shadow.color.r, shadow.color.g, shadow.color.b,
             shadow.color.a * shadow.opacity
         };
-        const size_t sh_drawn = draw_run_layer(
+        const size_t sh_drawn = render_tier_to_image(
             shadow_img, shadow_color, detail::bucket_radius_for_tier(shadow.blur),
             shape.glyphs, layout.placed, all_active_glyphs);
         if (sh_drawn == 0) {
@@ -643,7 +692,7 @@ graph::RenderOpResult draw_text_run(
         if (active_tiers[tier].empty()) continue;
         BLImage tier_img = scratch_state.acquire_surface(img_w, img_h);
         if (tier_img.empty()) tier_img = BLImage(img_w, img_h, BL_FORMAT_PRGB32);
-        const size_t drawn = draw_run_layer(
+        const size_t drawn = render_tier_to_image(
             tier_img, std::nullopt, kBlurTierRadii[tier],
             shape.glyphs, layout.placed, active_tiers[tier]);
         if (drawn == 0) { scratch_state.release_surface(std::move(tier_img)); continue; }
@@ -682,7 +731,7 @@ graph::RenderOpResult draw_text_run(
             if (crossfade_tiers[tier].empty()) continue;
             BLImage tier_img = scratch_state.acquire_surface(img_w, img_h);
             if (tier_img.empty()) tier_img = BLImage(img_w, img_h, BL_FORMAT_PRGB32);
-            const size_t drawn = draw_run_layer(
+            const size_t drawn = render_tier_to_image(
                 tier_img, std::nullopt, kBlurTierRadii[tier],
                 shape.crossfade_glyphs, shape.crossfade_layout->placed,
                 crossfade_tiers[tier]);
