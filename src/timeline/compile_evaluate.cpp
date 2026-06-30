@@ -1,0 +1,217 @@
+// ============================================================================
+// src/timeline/compile_evaluate.cpp
+//
+// Bodies for the three free functions declared in
+// `<chronon3d/timeline/compile_evaluate.hpp>`:
+//
+//   * chronon3d::compile_camera(...)
+//   * chronon3d::compile_composition(...)
+//   * chronon3d::evaluate(...)
+//
+// This translation unit pays the heavyweight `camera_v1/camera_program_compiler`
+// + spdlog cost ONCE per binary, instead of once per scheduling TU that
+// includes the public header.  See the header docstring for the design rule
+// "compile separated from evaluate; no mutable state inside Composition".
+// ============================================================================
+
+#include <chronon3d/timeline/compile_evaluate.hpp>
+
+// Bodies-only headers — kept out of the public API to keep surface includes
+// transitively minimal.
+#include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
+
+#include <exception>
+
+namespace chronon3d {
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FNV-1a 64-bit fingerprint (file-scope helpers).
+//   Deterministic across runs (no std::hash<std::string> platform variation).
+//   Mirrors the convention used by Composition::compute_camera_descriptor_fingerprint
+//   (chronon3d/scene/camera/camera_v1/camera_descriptor.hpp).
+// ─────────────────────────────────────────────────────────────────────────────
+namespace {
+constexpr std::uint64_t kFnv1aOffset = 14695981039346656037ULL;
+constexpr std::uint64_t kFnv1aPrime  = 1099511628211ULL;
+
+std::uint64_t fnv1a64(const void* data, std::size_t n) noexcept {
+    std::uint64_t h = kFnv1aOffset;
+    const auto* p   = static_cast<const std::uint8_t*>(data);
+    for (std::size_t i = 0; i < n; ++i) {
+        h ^= static_cast<std::uint64_t>(p[i]);
+        h *= kFnv1aPrime;
+    }
+    return h;
+}
+} // namespace
+
+// ─────────────────────────────────────────────────────────────────────────────
+// compile_camera()
+//
+// V2 staging — delegate to the canonical `camera_v1::compile_camera()` and
+// remap any failure to a structured `CompositionCompileError::CameraFailure`.
+// `CompositionCompileContext::compiled_at` is intentionally NOT consulted at
+// this stage: the camera_v1 cycle-detection state is unrelated to the
+// wall-clock timestamp and is allocated fresh per call.
+// ─────────────────────────────────────────────────────────────────────────────
+Result<camera_v1::CameraProgram, CompositionCompileError>
+compile_camera(const camera_v1::CameraDescriptor& descriptor,
+               const CompositionCompileContext& /*context*/) {
+    camera_v1::CameraCompileContext camera_ctx{};
+    auto inner = camera_v1::compile_camera(
+        descriptor,
+        /*catalog=*/nullptr,
+        camera_ctx);
+
+    if (!inner.has_value()) {
+        CompositionCompileError err;
+        err.kind    = CompositionCompileError::Kind::CameraFailure;
+        err.message = "camera_v1::compile_camera() returned an error";
+        return err;  // implicit Result<...> ctor from E&& (one of the two valid paths)
+    }
+    return std::move(inner).value();  // implicit Result<...> ctor from T&&
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// compile_composition()
+//
+// V2 contract — no mutable state.  Same `(definition, context)` inputs always
+// produce a value-equal `CompiledComposition` (same fingerprint, same
+// camera-program storage).
+//
+// Construction order:
+//   1. Sanity-check CompositionSpec (non-empty name + positive dims).
+//   2. Sanity-check SceneFunction presence.
+//   3. Capture `definition` into a non-owning ref-counted shared_ptr (the
+//      caller retains lifetime ownership).
+//   4. If `definition.camera` is set, delegate the camera compile to
+//      `compile_camera()`; surface any failure verbatim.
+//   5. Compute a deterministic FNV-1a 64-bit fingerprint over the static
+//      (CompositionSpec bytes + optional CameraDescriptor bytes +
+//       SceneFunction target_type() address-as-pointer-as-bytes for
+//       cheap content-stable hashing without per-std::function demangling).
+// ─────────────────────────────────────────────────────────────────────────────
+Result<CompiledComposition, CompositionCompileError>
+compile_composition(const CompositionDefinition& definition,
+                    const CompositionCompileContext& /*context*/) {
+    // (1) CompositionSpec sanity.
+    if (definition.composition.name.empty() ||
+        definition.composition.width  <= 0 ||
+        definition.composition.height <= 0) {
+        CompositionCompileError err;
+        err.kind    = CompositionCompileError::Kind::EmptyCompositionSpec;
+        err.message = "CompositionSpec has empty name or non-positive dimensions";
+        return err;
+    }
+
+    // (2) SceneFunction presence.
+    if (!definition.scene) {
+        CompositionCompileError err;
+        err.kind    = CompositionCompileError::Kind::NoSceneFunction;
+        err.message = "CompositionDefinition::scene is null";
+        return err;
+    }
+
+    CompiledComposition out;
+
+    // (3) Non-owning ref-counted view of the caller-supplied definition.
+    //     The no-op deleter is safe: the caller retains ownership for the
+    //     lifetime of every CompiledComposition derived from this call.
+    out.definition = std::shared_ptr<const CompositionDefinition>(
+        &definition, [](const CompositionDefinition*) noexcept {});
+
+    // (4) Camera compile path (only when a descriptor was supplied).
+    if (definition.camera.has_value()) {
+        auto cam = compile_camera(*definition.camera, {});
+        if (!cam.has_value()) {
+            return std::move(cam).error();
+        }
+        // Adopt-storage-then-const-borrow: the camera program lives in a
+        // keeping shared_ptr<CameraProgram>; the public field is a
+        // shared_ptr<const CameraProgram> aliasing the same object.
+        auto          keep   = std::make_shared<camera_v1::CameraProgram>(
+            std::move(cam).value());
+        out.camera_program = std::shared_ptr<const camera_v1::CameraProgram>(
+            keep, keep.get());
+    }
+
+    // (5) FNV-1a fingerprint over the static inputs.
+    std::uint64_t h = kFnv1aOffset;
+    h = fnv1a64(&definition.composition, sizeof(CompositionSpec));
+    if (definition.camera.has_value()) {
+        h ^= fnv1a64(&*definition.camera, sizeof(camera_v1::CameraDescriptor));
+    }
+    if (definition.scene) {
+        // Hash only the target-type pointer (cheap, content-stable across
+        // runs on a given ABI).  Two identical-target-type captures will
+        // share the same hashed bytes for the target_type slot, leaving the
+        // descriptor / spec bytes to differentiate them.
+        const auto* target_type = definition.scene.target_type();
+        if (target_type != nullptr) {
+            h ^= fnv1a64(&target_type, sizeof(target_type));
+        }
+    }
+    out.fingerprint = h;
+
+    return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// evaluate()
+//
+// V2 staging — pure.  Threads `frame` into `FrameContext::frame`, calls the
+// captured `CompositionDefinition::scene` lambda, catches any exception as a
+// `CompositionEvaluateError::SceneBuildFailed`.
+//
+// Camera2_5D resolution is intentionally deferred to a future V2 PR — the
+// canonical evaluator forwards through `CameraProgram::evaluate(...)` for
+// per-frame camera transforms; we leave `result.camera == std::nullopt`
+// (mirroring the legacy Composition::default_camera_2_5d() path) for this
+// staging commit to keep the diff tightly scoped.
+// ─────────────────────────────────────────────────────────────────────────────
+Result<EvaluatedCompositionFrame, CompositionEvaluateError>
+evaluate(const CompiledComposition& compiled,
+         const CompositionEvaluateContext& context,
+         Frame frame) {
+    if (!compiled.definition) {
+        CompositionEvaluateError err;
+        err.kind    = CompositionEvaluateError::Kind::NullCompiledComposition;
+        err.message = "compiled.definition is null (compile_composition was not invoked)";
+        return err;
+    }
+    const auto& def = *compiled.definition;
+
+    if (!def.scene) {
+        CompositionEvaluateError err;
+        err.kind    = CompositionEvaluateError::Kind::NullSceneFunction;
+        err.message = "CompositionDefinition::scene is null";
+        return err;
+    }
+
+    // Thread Frame into FrameContext::frame before invoking the scene fn.
+    FrameContext fc  = context.frame_context;
+    fc.frame         = frame;
+    fc.local_frame   = frame;
+
+    EvaluatedCompositionFrame result;
+    try {
+        result.scene = def.scene(fc);
+    } catch (const std::exception& e) {
+        CompositionEvaluateError err;
+        err.kind    = CompositionEvaluateError::Kind::SceneBuildFailed;
+        err.message = std::string("scene SceneFunction threw: ") + e.what();
+        return err;
+    } catch (...) {
+        CompositionEvaluateError err;
+        err.kind    = CompositionEvaluateError::Kind::SceneBuildFailed;
+        err.message = "scene SceneFunction threw an unknown exception type";
+        return err;
+    }
+
+    // Camera2_5D resolution deferred to a future V2 PR (see header docstring).
+    result.camera = std::nullopt;
+
+    return result;
+}
+
+} // namespace chronon3d
