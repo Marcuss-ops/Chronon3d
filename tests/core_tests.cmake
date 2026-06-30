@@ -61,6 +61,15 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         # verifies the apply-state path is crash-free; the static-grep
         # discipline in the commit body is the no-regression lock.
         text/test_crossfade_stroke.cpp
+        # Fase 1.3 (verdetto Issue #4) regression — GlyphAtlas preserves
+        # full metadata across store/lookup.  Before this commit the
+        # cache stored only std::shared_ptr<BLImage> and reconstructed a
+        # default-init GlyphAtlasEntry on lookup, losing x_offset,
+        # y_offset, advance_x, fill_color_rgba.  Tests 1–3 in this file
+        # verify direct round-trip; caller-side re-check of
+        # fill_color_rgba (text_rasterizer_render.cpp:627) handles
+        # cross-color rejection per the documented contract.
+        text/test_glyph_atlas_metadata.cpp
     )
 endif()
 

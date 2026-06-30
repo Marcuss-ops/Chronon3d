@@ -38,7 +38,13 @@ struct GlyphAtlasKeyHash {
 };
 
 // ── LRU cache with 8 shards ──────────────────────────────────────────
-using GlyphAtlasCache = cache::LruCache<GlyphAtlasKey, std::shared_ptr<BLImage>,
+// Fase 1.3 (verdetto Issue #4): the cache now stores the COMPLETE
+// GlyphAtlasEntry — image + x_offset + y_offset + advance_x +
+// fill_color_rgba — so that callers (e.g. text_rasterizer_render.cpp
+// line 626-635) see the original rasterization metadata on cache hits
+// instead of zero-initialized placeholders.  Shared_ptr<BLImage> is
+// ref-counted by the cache put, no deep-copy required.
+using GlyphAtlasCache = cache::LruCache<GlyphAtlasKey, GlyphAtlasEntry,
                                          GlyphAtlasKeyHash>;
 
 // Injected capacity — set once at startup by SoftwareRenderer.
@@ -81,13 +87,12 @@ std::optional<GlyphAtlasEntry> glyph_atlas_lookup(
 ) {
     GlyphAtlasKey key{font_path, glyph_id, font_size};
     std::shared_lock lock(get_glyph_atlas_mutex());
-    auto cached = get_glyph_atlas().get(key);
-    if (cached) {
-        GlyphAtlasEntry entry;
-        entry.image = *cached;
-        return entry;
-    }
-    return std::nullopt;
+    // Fase 1.3: cache.get() now returns the COMPLETE GlyphAtlasEntry
+    // (image + all rasterization metadata).  Previously the cache held
+    // only the BLImage and lookups returned a reconstructed entry with
+    // x_offset/y_offset/advance_x/fill_color_rgba all zeroed — closing
+    // verdict Issue #4 (colore/offset persi su store/lookup).
+    return get_glyph_atlas().get(key);
 }
 
 void glyph_atlas_store(
@@ -97,11 +102,18 @@ void glyph_atlas_store(
     const GlyphAtlasEntry& entry
 ) {
     GlyphAtlasKey key{font_path, glyph_id, font_size};
+    // Weight is unchanged: only the BLImage bytes count toward capacity.
+    // Metadata struct is ~24 bytes (3*int + u32 + shared_ptr control)
+    // and is amortized over the image bytes — counting it would distort
+    // cache pressure for negligible gain.
     size_t weight = static_cast<size_t>(entry.image->width()) *
                     static_cast<size_t>(entry.image->height()) * 4;
-    auto img_copy = std::make_shared<BLImage>(*entry.image);
     std::unique_lock lock(get_glyph_atlas_mutex());
-    get_glyph_atlas().put(key, img_copy, weight);
+    // Pass entry by value: the std::shared_ptr<BLImage> inside gets its
+    // ref-count incremented (cheap, atomic) and the cache owns the new
+    // instance until eviction.  Eliminates the previous deep-copy of the
+    // bitmap via std::make_shared<BLImage>(*entry.image).
+    get_glyph_atlas().put(key, entry, weight);
 }
 
 void glyph_atlas_clear() {
