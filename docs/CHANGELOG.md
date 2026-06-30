@@ -4,6 +4,11 @@
 
 ---
 
+
+### TICKET-101 -- compile_text_layout accepts (TextDocument, paragraph_index) + build_text_run preserves rich-text (cat-3, 2026-06-30)
+
+2026-06-30 -- Refactor cat-3 freeze-compliant del compiler canonico + wrapper multi-paragrafo. Aggiunto `std::size_t paragraph_index{0}` a `TextLayoutRequest` (POD extension, zero nuove classi pubbliche in `include/chronon3d/`). `compile_text_layout()` ora indicizza direttamente in `tree.paragraphs[request.paragraph_index]` con bounds check. Rimossa la sintesi di `TextDocument para_doc` dal wrapper `build_text_run()` -- spans / font-overrides / font-size-per-span / tracking-per-span / paragraph-style / direction / language ora preservati 1:1. Chiude review P0 #2. `build_text_run()` wrapper rifiuta paragrafi multi-font tramite pre-check su FontSpec divergenti (verdetto Issue #3 closure al public wrapper). `direction` + `language` + `line_height` ora propagati da `comp_style`. Firma pubblica `build_text_run()` invariata (backward-compatible per i 10+ call site esistenti). 3 nuovi TEST_CASEs in `tests/text/test_rich_text_paragraph_preservation.cpp`. File modificati: `include/chronon3d/text/text_run_builder.hpp` + `src/text/text_run_builder.cpp` + `tests/text/test_rich_text_paragraph_preservation.cpp` (NEW) + `tests/core_tests.cmake` + `docs/FOLLOWUP_TICKETS.md` + `docs/CURRENT_STATUS.md` + `docs/CHANGELOG.md` (questa entry).
+
 ## Completati (Maggio-Giugno 2026)
 
 ### PRs 1-4 (Performance)
