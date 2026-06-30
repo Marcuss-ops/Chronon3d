@@ -27,4 +27,15 @@ add_library(chronon3d_text_core OBJECT
 # $<INSTALL_INTERFACE:include>).  Adding a redundant PUBLIC include dir here
 # would leak the source-tree path when consumers try to import this target
 # from the installed Chronon3DTargets.cmake.
-target_link_libraries(chronon3d_text_core PUBLIC chronon3d)
+#
+# PRIVATE link to chronon3d_cache so cross-module `<chronon3d/cache/*.hpp>`
+# headers (under chronon3d_cache's `include_private/`) become visible at
+# compile time.  The cache target exposes include_private via INTERFACE
+# $<BUILD_INTERFACE:…>, so PRIVATE-link consumers automatically gain
+# `<chronon3d/cache/lru_cache.hpp>` etc. without leaking internal headers
+# to downstreams.  Required for `src/text/text_run.cpp` which uses the
+# generic LRU utility without coupling to chronon3d_cache's whole interface.
+target_link_libraries(chronon3d_text_core
+    PUBLIC  chronon3d
+    PRIVATE chronon3d_cache
+)
