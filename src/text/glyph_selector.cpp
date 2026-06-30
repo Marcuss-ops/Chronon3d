@@ -105,12 +105,28 @@ TextUnitMap build_text_unit_map(
         map.word_count = word_idx;
         map.line_count = line_idx + 1;
 
+        // Precompute first_glyph_for_word and first_glyph_for_line
+        // for O(1) whitespace exclusion in CompiledSelector.
+        constexpr u32 kNotFound = UINT32_MAX;
+        map.first_glyph_for_word.assign(word_idx, kNotFound);
+        map.first_glyph_for_line.assign(line_idx + 1, kNotFound);
+
         // Map each glyph to its word/line via its byte offset
         for (size_t g = 0; g < glyph_count; ++g) {
             size_t byte_off = placed.glyphs[g].byte_offset;
             if (byte_off > src_len) byte_off = src_len;
             map.glyph_to_word[g] = byte_to_word[byte_off];
             map.glyph_to_line[g] = byte_to_line[byte_off];
+
+            // Populate first_glyph_for_word/line (first seen wins)
+            const u32 w = map.glyph_to_word[g];
+            if (w != kNoUnit && map.first_glyph_for_word[w] == kNotFound) {
+                map.first_glyph_for_word[w] = static_cast<u32>(g);
+            }
+            const u32 l = map.glyph_to_line[g];
+            if (l < map.first_glyph_for_line.size() && map.first_glyph_for_line[l] == kNotFound) {
+                map.first_glyph_for_line[l] = static_cast<u32>(g);
+            }
         }
     }
 
@@ -433,50 +449,113 @@ bool should_exclude_unit(
 } // namespace detail
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Public API
+// CompiledSelector — compile-time precomputation
 // ═══════════════════════════════════════════════════════════════════════════
 
-SelectorWeight evaluate_selector(
+CompiledSelector compile_selector(
     const GlyphSelectorSpec& spec,
     const TextUnitMap& unit_map,
-    u32 glyph_index,
     std::string_view source,
-    SampleTime time,
     const PlacedGlyphRun* placed
 ) {
-    // ── Space exclusion (real implementation) ────────────────────────────
-    // Requires the placed run for cluster byte-offset access.  When the
-    // caller hasn't threaded `placed` through, exclude_spaces is a no-op
-    // (preserving backward compatibility).
-    if (detail::should_exclude_unit(spec, unit_map, glyph_index, source, placed)) {
-        return 0.0f;
+    CompiledSelector c;
+    c.spec = &spec;
+    c.total_units = unit_map.unit_count(spec.unit);
+
+    // ── Precompute permutation for Random order ───────────────────────
+    if (spec.randomize_order && c.total_units > 0) {
+        const auto& perm = detail::get_or_build_permutation(spec.random_seed, c.total_units);
+        c.random_permutation = perm;
     }
 
-    // ── Determine unit index ───────────────────────────────────────────
-    const u32 raw_index = unit_map.unit_index(glyph_index, spec.unit);
-    const u32 total = unit_map.unit_count(spec.unit);
+    // ── Precompute whitespace exclusion per unit ──────────────────────
+    if (spec.exclude_spaces && placed != nullptr && c.total_units > 0) {
+        c.unit_is_whitespace.resize(c.total_units, false);
+
+        if (spec.unit == TextSelectorUnit::Glyph ||
+            spec.unit == TextSelectorUnit::Grapheme ||
+            spec.unit == TextSelectorUnit::Character) {
+            for (u32 gi = 0; gi < c.total_units && gi < placed->glyphs.size(); ++gi) {
+                const auto& g = placed->glyphs[gi];
+                c.unit_is_whitespace[gi] = detail::is_whitespace_run(
+                    source, g.byte_offset, g.byte_len);
+            }
+        } else if (spec.unit == TextSelectorUnit::Word) {
+            for (u32 wi = 0; wi < c.total_units; ++wi) {
+                if (wi < unit_map.first_glyph_for_word.size()) {
+                    const u32 gi = unit_map.first_glyph_for_word[wi];
+                    if (gi != UINT32_MAX && gi < placed->glyphs.size()) {
+                        const auto& g = placed->glyphs[gi];
+                        c.unit_is_whitespace[wi] = detail::is_whitespace_run(
+                            source, g.byte_offset, g.byte_len);
+                    }
+                }
+            }
+        } else if (spec.unit == TextSelectorUnit::Line) {
+            for (u32 li = 0; li < c.total_units; ++li) {
+                if (li < unit_map.first_glyph_for_line.size()) {
+                    const u32 gi = unit_map.first_glyph_for_line[li];
+                    if (gi != UINT32_MAX && gi < placed->glyphs.size()) {
+                        const auto& g = placed->glyphs[gi];
+                        c.unit_is_whitespace[li] = detail::is_whitespace_run(
+                            source, g.byte_offset, g.byte_len);
+                    }
+                }
+            }
+        }
+    }
+
+    return c;
+}
+
+std::vector<CompiledSelector> compile_selectors(
+    const std::vector<GlyphSelectorSpec>& specs,
+    const TextUnitMap& unit_map,
+    std::string_view source,
+    const PlacedGlyphRun* placed
+) {
+    std::vector<CompiledSelector> compiled;
+    compiled.reserve(specs.size());
+    for (const auto& spec : specs) {
+        compiled.push_back(compile_selector(spec, unit_map, source, placed));
+    }
+    return compiled;
+}
+
+SelectorWeight evaluate_compiled_selector(
+    const CompiledSelector& compiled,
+    const TextUnitMap& unit_map,
+    u32 glyph_index,
+    SampleTime time
+) {
+    const auto& spec = *compiled.spec;
+    const u32 total = compiled.total_units;
 
     if (total == 0) return 0.0f;
 
-    // Guard: compacted word/line indices may produce kNoUnit values
-    // (UINT32_MAX) for whitespace glyphs.  When the unit index exceeds
-    // the compacted count, the glyph has no valid unit — return zero.
+    // ── Determine unit index (compute once) ───────────────────────────
+    const u32 raw_index = unit_map.unit_index(glyph_index, spec.unit);
+
+    // ── Whitespace exclusion (precomputed, O(1)) ──────────────────────
+    if (spec.exclude_spaces && !compiled.unit_is_whitespace.empty()) {
+        if (raw_index < compiled.unit_is_whitespace.size()
+            && compiled.unit_is_whitespace[raw_index]) {
+            return 0.0f;
+        }
+    }
+
     if (raw_index >= total) return 0.0f;
 
-    // ── Apply order ────────────────────────────────────────────────────
+    // ── Apply order (uses precomputed permutation for Random) ──────────
     u32 ordered_index;
-    if (spec.randomize_order) {
-        ordered_index = detail::apply_selector_order(
-            TextSelectorOrder::Random, raw_index, total, spec.random_seed
-        );
+    if (!compiled.random_permutation.empty()) {
+        ordered_index = compiled.random_permutation[raw_index];
     } else {
         ordered_index = detail::apply_selector_order(
-            spec.order, raw_index, total, 0
-        );
+            spec.order, raw_index, total, 0);
     }
 
     // ── Normalise unit position to [0, 1] ─────────────────────────────
-    // Use centre of unit: (index + 0.5) / total
     const f32 unit_position = (static_cast<f32>(ordered_index) + 0.5f)
                             / static_cast<f32>(total);
 
@@ -486,28 +565,18 @@ SelectorWeight evaluate_selector(
     const f32 animated_offset = spec.offset.evaluate(time) / 100.0f;
     const f32 animated_amount = spec.amount.evaluate(time) / 100.0f;
 
-    // ── Apply offset with wrap-around ─────────────────────────────────
     f32 shifted_position = unit_position - animated_offset;
-    // Wrap to [0, 1] — x - floor(x) always yields [0, 1) in C++
     shifted_position = shifted_position - std::floor(shifted_position);
 
-    // ── Evaluate shape ────────────────────────────────────────────────
     f32 weight = detail::evaluate_selector_shape(
-        spec.shape,
-        shifted_position,
-        animated_start,
-        animated_end
-    );
+        spec.shape, shifted_position, animated_start, animated_end);
 
     // ── Apply ease_low / ease_high ────────────────────────────────────
-    // ease_low: smooth transition at the start of the active range
-    // ease_high: smooth transition at the end of the active range
     if (weight > 0.0f && weight < 1.0f) {
         const f32 ease_low_norm  = std::clamp(spec.ease_low  / 100.0f, 0.0f, 1.0f);
         const f32 ease_high_norm = std::clamp(spec.ease_high / 100.0f, 0.0f, 1.0f);
 
         if (ease_low_norm > 0.0f || ease_high_norm < 1.0f) {
-            // Use absolute range to handle reversed start/end
             const f32 abs_range = std::abs(animated_end - animated_start);
             if (abs_range > 1e-7f) {
                 const f32 t_raw = (shifted_position - animated_start) / abs_range;
@@ -515,43 +584,37 @@ SelectorWeight evaluate_selector(
 
                 f32 ease_factor = 1.0f;
                 if (t_clamped < ease_low_norm) {
-                    // In ease-low region: smooth from 0 to ease_low_norm
                     const f32 et = (ease_low_norm > 1e-7f)
                         ? std::clamp(t_clamped / ease_low_norm, 0.0f, 1.0f)
                         : 1.0f;
-                    ease_factor = et * et * (3.0f - 2.0f * et); // smoothstep
+                    ease_factor = et * et * (3.0f - 2.0f * et);
                 } else if (t_clamped > ease_high_norm) {
-                    // In ease-high region
                     const f32 one_minus_ease_high = 1.0f - ease_high_norm;
                     const f32 et = (one_minus_ease_high > 1e-7f)
                         ? std::clamp((t_clamped - ease_high_norm) / one_minus_ease_high, 0.0f, 1.0f)
                         : 1.0f;
-                    ease_factor = 1.0f - et * et * (3.0f - 2.0f * et); // reverse smoothstep
+                    ease_factor = 1.0f - et * et * (3.0f - 2.0f * et);
                 }
                 weight *= ease_factor;
             }
         }
     }
 
-    // ── Apply amount multiplier ───────────────────────────────────────
     weight *= std::clamp(animated_amount, 0.0f, 1.0f);
-
     return std::clamp(weight, 0.0f, 1.0f);
 }
 
-SelectorWeight evaluate_selectors(
-    const std::vector<GlyphSelectorSpec>& specs,
+SelectorWeight evaluate_compiled_selectors(
+    const std::vector<CompiledSelector>& compiled,
     const TextUnitMap& unit_map,
     u32 glyph_index,
-    std::string_view source,
-    SampleTime time,
-    const PlacedGlyphRun* placed
+    SampleTime time
 ) {
     SelectorWeight combined = 0.0f;
     bool first = true;
 
-    for (const auto& spec : specs) {
-        const SelectorWeight w = evaluate_selector(spec, unit_map, glyph_index, source, time, placed);
+    for (const auto& cs : compiled) {
+        const SelectorWeight w = evaluate_compiled_selector(cs, unit_map, glyph_index, time);
 
         if (first) {
             combined = w;
@@ -559,7 +622,7 @@ SelectorWeight evaluate_selectors(
             continue;
         }
 
-        switch (spec.combine) {
+        switch (cs.spec->combine) {
             case SelectorCombineMode::Replace:
                 combined = w;
                 break;
@@ -580,6 +643,36 @@ SelectorWeight evaluate_selectors(
     }
 
     return std::clamp(combined, 0.0f, 1.0f);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Public API (legacy — delegates to compiled path)
+// ═══════════════════════════════════════════════════════════════════════════
+
+SelectorWeight evaluate_selector(
+    const GlyphSelectorSpec& spec,
+    const TextUnitMap& unit_map,
+    u32 glyph_index,
+    std::string_view source,
+    SampleTime time,
+    const PlacedGlyphRun* placed
+) {
+    // Compile on the fly — delegates to the canonical compiled path.
+    // Phase 2 will hoist compile_selector() out of the per-frame loop.
+    auto compiled = compile_selector(spec, unit_map, source, placed);
+    return evaluate_compiled_selector(compiled, unit_map, glyph_index, time);
+}
+
+SelectorWeight evaluate_selectors(
+    const std::vector<GlyphSelectorSpec>& specs,
+    const TextUnitMap& unit_map,
+    u32 glyph_index,
+    std::string_view source,
+    SampleTime time,
+    const PlacedGlyphRun* placed
+) {
+    auto compiled = compile_selectors(specs, unit_map, source, placed);
+    return evaluate_compiled_selectors(compiled, unit_map, glyph_index, time);
 }
 
 } // namespace chronon3d
