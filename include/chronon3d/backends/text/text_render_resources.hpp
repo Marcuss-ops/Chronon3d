@@ -10,7 +10,8 @@
 // Components:
 //   • BLFontFaceCache       — thread-safe BLFontFace cache (path → face)
 //   • FreeTypeFaceCache     — thread-safe FT_Face loader
-//   • GlyphOutlineCache     — builds BLPath from FT_Outline per glyph
+//   • GlyphOutlineBuilder   — builds BLPath from FT_Outline per glyph
+//                              (NOT a cache: see class-level doc)
 //   • FontFaceHandle        — lightweight handle passed to the renderer
 //   • TextRenderResources   — aggregator owning all caches
 //
@@ -140,20 +141,33 @@ private:
 #endif // CHRONON3D_ENABLE_TEXT
 
 // ═══════════════════════════════════════════════════════════════════════════
-// GlyphOutlineCache — builds BLPath from FT_Outline per glyph
+// GlyphOutlineBuilder — builds BLPath from FT_Outline per glyph
 // ═══════════════════════════════════════════════════════════════════════════
+//
+// NOTE: name is "Builder" NOT "Cache" — the class does NOT memoize any
+// result.  Each `build_path(...)` call freshly invokes `FT_Load_Glyph`
+// and `FT_Outline_Decompose`.  The "cache" in the previous name was a
+// misnomer; the lock guards `FT_Face` mutation safety across
+// concurrent `FT_Load_Glyph` callers, not a stored-result cache.
+//
+// If real caching is added in the future, the natural cache key would
+// be `(font_identity × glyph_id × size × hinting_mode)` and would need
+// an LRU eviction policy sized against `kMaxPooledStates` to avoid
+// unbounded memory growth under burst workloads.  See
+// docs/FOLLOWUP_TICKETS.md for the related TICKET row.
 
 #ifdef CHRONON3D_ENABLE_TEXT
 
-class GlyphOutlineCache {
+class GlyphOutlineBuilder {
 public:
-    GlyphOutlineCache() = default;
+    GlyphOutlineBuilder() = default;
 
     /// Build a BLPath for the given glyph in `ft_face`.
     /// The path is positioned at (origin_x, origin_y).
     /// Returns an empty path if the glyph has no outline (e.g., bitmap font).
     /// Thread-safe: holds an internal lock during FT_Load_Glyph + decomposition.
-    [[nodiscard]] BLPath build_outline(
+    /// Not cached — every call re-runs the FreeType pipeline.
+    [[nodiscard]] BLPath build_path(
         FT_Face ft_face,
         u32 glyph_id,
         float origin_x,
@@ -193,7 +207,7 @@ struct FontFaceHandle {
     FT_Face                  ft_face{nullptr};
 #endif
 
-    GlyphOutlineCache* outlines{nullptr};     // for stroke path building
+    GlyphOutlineBuilder* outlines{nullptr};   // for stroke path building
 
     /// True if the BLFontFace is valid (the minimum requirement for fill).
     /// Stroke uses the FT path separately; callers that need stroke check
@@ -294,7 +308,7 @@ struct TextRenderResources {
 
 #ifdef CHRONON3D_ENABLE_TEXT
     FreeTypeFaceCache ft_faces;
-    GlyphOutlineCache outlines;
+    GlyphOutlineBuilder outlines;
 #endif
 
     /// FASE 3 thread-safety: per-call scratch pool engine-owned.
