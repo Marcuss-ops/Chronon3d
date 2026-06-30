@@ -61,6 +61,18 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         # verifies the apply-state path is crash-free; the static-grep
         # discipline in the commit body is the no-regression lock.
         text/test_crossfade_stroke.cpp
+        # TICKET-068 follow-on E2E — machine-check the dispatch path of
+        # the Bug #5 fix (commit 0d32e049) by invoking
+        # `SoftwareBackend::draw_text_run` end-to-end with a stroke-enabled
+        # shape carrying the OOB-precondition crossfade data shape (outgoing
+        # text strictly longer than active text).  Pairs with the
+        # data-shape-only test above: that file locks the precondition +
+        # apply-state path, this file locks the dispatch path returns
+        # without crashing (failure mode of Bug #5 was OOB-read on
+        # `layout.placed[gi]`).  Skipped via MESSAGE when the Inter-Bold
+        # font fixture is unavailable (same pattern as crossfade_stroke +
+        # font_io_fence + freetype_face_cache_concurrency).
+        text/test_draw_text_run_crossfade_stroke.cpp
         # Fase 1.3 (verdetto Issue #4) regression — GlyphAtlas preserves
         # full metadata across store/lookup.  Before this commit the
         # cache stored only std::shared_ptr<BLImage> and reconstructed a
