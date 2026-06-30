@@ -1,0 +1,52 @@
+{
+  "version": 6,
+  "include": [
+    "base.json"
+  ],
+  "configurePresets": [
+    {
+      "name": "linux-fast-dev",
+      "inherits": "base-linux",
+      "displayName": "Linux Fast Dev (build-fast.sh default preset)",
+      "description": "Daily inner-loop preset consumed by build-fast.sh (PRESET=linux-fast-dev, line 101). CLI + tests + text + blend2d, no content/benchmarks/diagnostics/video. BuildType=Debug, ninja, ccache, unity-ON. vcpkg CMAKE_PREFIX_PATH is computed from VCPKG_INSTALLED_DIR (base) + preset triplet dir.",
+      "binaryDir": "${sourceDir}/build/chronon/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_BENCHMARKS": "OFF",
+        "CHRONON3D_BUILD_CONTENT": "OFF",
+        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
+        "CHRONON3D_ENABLE_TEXT": "ON",
+        "CHRONON3D_USE_BLEND2D": "ON",
+        "CHRONON3D_ENABLE_EXR": "OFF",
+        "CHRONON3D_ENABLE_VIDEO": "OFF",
+        "CHRONON3D_ENABLE_MESH": "OFF",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
+        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
+        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_UNITY_BUILD": "ON",
+        "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_PREFIX_PATH": "${sourceDir}/vcpkg_installed/${presetName}/x64-linux/debug;${sourceDir}/vcpkg_installed/${presetName}/x64-linux",
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "linux-fast-dev",
+      "configurePreset": "linux-fast-dev",
+      "targets": ["chronon3d_dev_fast"],
+      "jobs": 16
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "linux-fast-dev-test",
+      "configurePreset": "linux-fast-dev",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}

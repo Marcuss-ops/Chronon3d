@@ -35,7 +35,7 @@
       "hidden": true,
       "inherits": "base-linux",
       "displayName": "Linux CI Lean Gate (1.3.C/D/E migration target; replaces gates.yml Linux Lean Dev reference)",
-      "description": "Pre-merge lean gate preset for .github/workflows/gates.yml Gate 2 (formerly linux-lean-dev). CLI + text + blend2d + tests; no benchmarks/diagnostics/video. BuildType=Debug, unity OFF.",
+      "description": "Pre-merge lean gate preset for .github/workflows/gates.yml Gate 2 (formerly linux-lean-dev). CLI + text + blend2d + tests; no benchmarks/diagnostics/video. BuildType=Debug, ninja, ccache, unity ON.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_CLI": "ON",
@@ -53,6 +53,9 @@
         "CHRONON3D_ENABLE_PROFILING": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
         "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_PREFIX_PATH": "${sourceDir}/vcpkg_installed/${presetName}/x64-linux/debug;${sourceDir}/vcpkg_installed/${presetName}/x64-linux",
         "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests"
       }
     },
