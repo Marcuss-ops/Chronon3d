@@ -24,6 +24,7 @@
 
 #include <chronon3d/core/types/types.hpp>
 
+#include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -63,10 +64,42 @@ private:
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// FreeTypeFaceCache — thread-safe FT_Face loader
+// FreeTypeFaceCache — thread-safe key-indexed FT_Face loader
 // ═══════════════════════════════════════════════════════════════════════════
 
 #ifdef CHRONON3D_ENABLE_TEXT
+
+// Key for the per-(path, face_index, size) cache slot.
+//
+// `size_bucket` quantizes the requested font size so that the cache hit
+// rate is not gated by floating-point equality — and so the secondary
+// race (Thread A uses face at size 16 while Thread B's get_face(size=24)
+// would otherwise FT_Set_Pixel_Sizes mutate the shared face mid-flight)
+// is structurally prevented: two threads using the same font at
+// different pixel sizes receive independent FT_Face objects.
+struct FTFaceKey {
+    std::string path;
+    int         face_index{0};
+    int         size_bucket{0};
+
+    bool operator==(const FTFaceKey& o) const noexcept {
+        return face_index == o.face_index
+            && size_bucket == o.size_bucket
+            && path == o.path;
+    }
+};
+
+struct FTFaceKeyHash {
+    std::size_t operator()(const FTFaceKey& k) const noexcept {
+        // size_t mixing: classic 64-bit avalanche of (path, face_index, size_bucket)
+        std::size_t h = std::hash<std::string>{}(k.path);
+        h ^= static_cast<std::size_t>(k.face_index) + 0x9e3779b97f4a7c15ULL
+             + (h << 6) + (h >> 2);
+        h ^= static_cast<std::size_t>(k.size_bucket) + 0x9e3779b97f4a7c15ULL
+             + (h << 6) + (h >> 2);
+        return h;
+    }
+};
 
 class FreeTypeFaceCache {
 public:
@@ -76,16 +109,30 @@ public:
     FreeTypeFaceCache(const FreeTypeFaceCache&) = delete;
     FreeTypeFaceCache& operator=(const FreeTypeFaceCache&) = delete;
 
-    /// Load (or return cached) FT_Face for the given resolved path + size.
-    /// Returns nullptr if loading fails.
-    [[nodiscard]] FT_Face get_face(const std::string& resolved_path, f32 font_size);
+    // Bug #7 fix: returns a shared_ptr that keeps the FT_Face alive
+    // even after the cache evicts or destroys its entry.  When a font
+    // is swapped (thread B calls get_face for a different font while
+    // thread A is still using the previous face), thread A's shared_ptr
+    // outlives the dictionary removal, so the in-flight FT_Load_Glyph
+    // cannot use-after-free the underlying font.
+    //
+    // The face_index parameter lets callers open multi-face font files
+    // (e.g., TTC collections).  For now, callers pass 0 (the primary
+    // face); multi-face support is delivered by future PR if needed.
+    //
+    // `font_size` is quantized into a size_bucket internally so callers
+    // requesting 16.0f and 16.00001f share a single FT_Face (and avoid
+    // both a memory and a flush-mutate race).
+    [[nodiscard]] std::shared_ptr<FT_Face> get_face(
+        const std::string& resolved_path,
+        int face_index,
+        f32 font_size
+    );
 
 private:
     static FT_Library shared_library();
 
-    FT_Face ft_face_{nullptr};
-    std::string loaded_path_;
-    f32 loaded_size_{0.0f};
+    std::unordered_map<FTFaceKey, std::shared_ptr<FT_Face>, FTFaceKeyHash> faces_;
     std::mutex mutex_;
 };
 
@@ -130,12 +177,26 @@ struct FontFaceHandle {
     f32               font_size{0.0f};        // requested size
 
 #ifdef CHRONON3D_ENABLE_TEXT
-    FT_Face           ft_face{nullptr};       // from FreeTypeFaceCache (null if not loaded)
+    // ── Bug #7 fix: `ft_lifeline` is a shared ownership anchor that
+    // keeps the FT_Face alive for the lifetime of THIS FontFaceHandle
+    // even if the FreeTypeFaceCache drops its dictionary entry (cache
+    // eviction, font swap on another thread, full cache destruction).
+    //
+    // `ft_face` is the existing raw pointer kept for ABI/source-stability
+    // with existing callers — it aliases `ft_lifeline.get()` while the
+    // handle is alive.  New callers should prefer `ft_lifeline` if they
+    // need to hand the FT_Face across thread boundaries; existing
+    // callers (text_run_processor.cpp) can continue using `ft_face->...`
+    // unmodified.
+    std::shared_ptr<FT_Face> ft_lifeline;
+    FT_Face                  ft_face{nullptr};
 #endif
 
     GlyphOutlineCache* outlines{nullptr};     // for stroke path building
 
     /// True if the BLFontFace is valid (the minimum requirement for fill).
+    /// Stroke uses the FT path separately; callers that need stroke check
+    /// `ft_lifeline != nullptr` (or `ft_face != nullptr`) on their own.
     [[nodiscard]] bool valid() const noexcept {
         return bl_face != nullptr && !bl_face->empty();
     }

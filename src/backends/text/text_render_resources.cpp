@@ -4,6 +4,9 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
+#include <cmath>
+
 namespace chronon3d {
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -50,43 +53,103 @@ FT_Library FreeTypeFaceCache::shared_library() {
     return lib;
 }
 
+// ── Bug #7 fix — Custom deleter for shared_ptr<FT_Face> ──────────────
+// The deleter is a class type (not a lambda) so it has full type identity
+// and can live in a static-local.  FT_Done_Face is called exactly once,
+// exactly on the last shared_ptr drop; ref-count decrements are
+// atomic, so the destroy call cannot fire while another thread still
+// holds a shared_ptr to the same face.
+namespace ft_face_cache_detail {
+struct FTFaceDeleter {
+    void operator()(FT_Face f) const noexcept {
+        if (f != nullptr) {
+            FT_Done_Face(f);
+        }
+    }
+};
+} // namespace ft_face_cache_detail
+
+// `FreeTypeFaceCache` DESTRUCTOR CONTRACT (Bug #7 fix):
+//
+// Do NOT hold `mutex_` from inside the destructor.  Holding it would
+// deadlock if any other thread still holds a `FontFaceHandle::ft_lifeline`
+// pointing into this cache's dictionary (and the whole point of the lease
+// anchor is to allow handles to outlive cache eviction/destruction, so
+// such handles are explicitly expected).  Lifetime contract: the cache
+// must NOT be destroyed while concurrent `get_face()` calls are in
+// flight; once destruction begins, all outstanding handles are the
+// callers' responsibility and their shared_ptr ref-count keeps any inline
+// `FT_Done_Face` calls reachable.
+//
+// Implicit destruction of `faces_` (unordered_map of shared_ptr<FT_Face>)
+// drops each entry's shared_ptr; the *last* ref drop is what fires
+// `FT_Done_Face` via the custom deleter, AT THE LATEST when the last
+// `FontFaceHandle::ft_lifeline` is destroyed.
+
 FreeTypeFaceCache::FreeTypeFaceCache() = default;
+FreeTypeFaceCache::~FreeTypeFaceCache() = default;
 
-FreeTypeFaceCache::~FreeTypeFaceCache() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (ft_face_) {
-        FT_Done_Face(ft_face_);
-        ft_face_ = nullptr;
-    }
-}
-
-FT_Face FreeTypeFaceCache::get_face(const std::string& resolved_path, f32 font_size) {
+std::shared_ptr<FT_Face> FreeTypeFaceCache::get_face(
+    const std::string& resolved_path,
+    int face_index,
+    f32 font_size
+) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    // Fast path: same path and size, return cached face
-    if (ft_face_ && resolved_path == loaded_path_) {
-        FT_Set_Pixel_Sizes(ft_face_, 0, static_cast<FT_UInt>(std::ceil(font_size)));
-        return ft_face_;
+    // Reject invalid requests BEFORE touching FreeType so a caller bug
+    // doesn't silently produce a size-1 face that renders garbled glyphs.
+    if (resolved_path.empty()) {
+        spdlog::warn("[text-resources] FreeTypeFaceCache: empty resolved path");
+        return nullptr;
     }
-
-    // Release stale face
-    if (ft_face_) {
-        FT_Done_Face(ft_face_);
-        ft_face_ = nullptr;
-    }
-
-    FT_Library lib = shared_library();
-    if (!lib) return nullptr;
-
-    if (FT_New_Face(lib, resolved_path.c_str(), 0, &ft_face_) != 0) {
-        spdlog::error("[text-resources] FreeTypeFaceCache: FT_New_Face failed for {}", resolved_path);
+    if (font_size <= 0.0f) {
+        spdlog::warn(
+            "[text-resources] FreeTypeFaceCache: non-positive font_size={} for {}",
+            font_size, resolved_path);
         return nullptr;
     }
 
-    FT_Set_Pixel_Sizes(ft_face_, 0, static_cast<FT_UInt>(std::ceil(font_size)));
-    loaded_path_ = resolved_path;
-    loaded_size_ = font_size;
-    return ft_face_;
+    // Quantize size: identify a per-pixel-size bucket so concurrent
+    // requests at the same pixel size hit the same map entry (one
+    // FT_New_Face call, not one per call) AND requests at different
+    // sizes get distinct FT_Face objects (no FT_Set_Pixel_Sizes race).
+    const int size_bucket = static_cast<int>(std::ceil(font_size));
+    const FTFaceKey key{resolved_path, face_index, size_bucket};
+
+    auto it = faces_.find(key);
+    if (it != faces_.end()) {
+        // Hit: copy shared_ptr (atomic ref-count inc).  Caller now owns
+        // its own reference; the cached entry remains for the next caller.
+        return it->second;
+    }
+
+    FT_Library lib = shared_library();
+    if (lib == nullptr) return nullptr;
+
+    FT_Face raw = nullptr;
+    if (FT_New_Face(lib, resolved_path.c_str(), face_index, &raw) != 0) {
+        spdlog::error(
+            "[text-resources] FreeTypeFaceCache: FT_New_Face failed for {} face {}",
+            resolved_path, face_index);
+        return nullptr;
+    }
+
+    if (FT_Set_Pixel_Sizes(raw, 0, static_cast<FT_UInt>(size_bucket)) != 0) {
+        spdlog::error(
+            "[text-resources] FreeTypeFaceCache: FT_Set_Pixel_Sizes failed for {} size {}",
+            resolved_path, size_bucket);
+        FT_Done_Face(raw);
+        return nullptr;
+    }
+
+    auto shared = std::shared_ptr<FT_Face>(
+        raw, ft_face_cache_detail::FTFaceDeleter{});
+
+    // `find` returned end under the same lock, so `emplace` cannot fail;
+    // discard the bool with `[[maybe_unused]]` so the diagnostic stays
+    // self-checking without `_ok` boolean-noise.
+    [[maybe_unused]] auto emplace_result = faces_.emplace(key, shared);
+    return shared;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -191,9 +254,16 @@ FontFaceHandle TextRenderResources::resolve_handle(
     handle.bl_face = bl_faces.get_face(resolved);
 
 #ifdef CHRONON3D_ENABLE_TEXT
-    // Load FreeType face (for stroke outlines)
-    handle.ft_face = ft_faces.get_face(resolved, font_size);
-    handle.outlines = &outlines;
+    // Load FreeType face (for stroke outlines).  Bug #7 fix: take
+    // ownership of the cache's shared_ptr via ft_lifeline BEFORE
+    // aliasing the raw pointer; this keeps the FT_Face alive for
+    // the lifetime of THIS FontFaceHandle even if the cache's
+    // dictionary entry is dropped by another thread's swap or by an
+    // external eviction policy.
+    constexpr int kPrimaryFaceIndex = 0;  // multi-face support is future PR
+    handle.ft_lifeline = ft_faces.get_face(resolved, kPrimaryFaceIndex, font_size);
+    handle.ft_face     = handle.ft_lifeline ? handle.ft_lifeline.get() : nullptr;
+    handle.outlines    = &outlines;
 #endif
 
     return handle;
