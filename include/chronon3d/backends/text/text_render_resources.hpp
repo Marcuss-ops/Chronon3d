@@ -238,8 +238,7 @@ struct TextScratchState {
 
 class TextScratchManager {
 public:
-    /// RAII handle to a checked-out scratch state.  Releases on destruction.
-    class Handle {
+    /// RAII handle to a checked-out scratch state.  Releases on destruction.\n    ///\n    /// Ownership invariant: ONE handle at a time owns a given TextScratchState.\n    /// Move construction / assignment explicitly null out the moved-from\n    /// (manager_, state_) pair so the moved-from destructor is a no-op\n    /// (no double-release back into the same manager).  This invariant is\n    /// what makes the manager TSan-clean under parallel draw_text_run()\n    /// invocations sharing a single TextScratchManager.\n    class Handle {
     public:
         Handle() = default;
         Handle(TextScratchState* state, TextScratchManager* manager)
@@ -271,7 +270,7 @@ public:
         TextScratchManager* manager_{nullptr};
     };
 
-    Handle acquire();
+    /// Maximum number of TextScratchState objects retained between calls.\n    /// A 64-thread burst will amortize down to this many states, then\n    /// surplus releases delete the state outright.  Sized for typical\n    /// render pools without leaking per-thread scratch under sustained\n    /// multi-threaded draw_text_run() workloads.\n    static constexpr size_t kMaxPooledStates = 8;\n\n    Handle acquire();
 
 private:
     void release(TextScratchState* state);
