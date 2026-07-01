@@ -99,8 +99,9 @@ struct TextRunBuildResult {
 // iterates paragraphs and routes each through `compile_text_layout()`
 // (logging + skipping paragraphs that return `Err`).
 
-/// Compile-error taxonomy for compile_text_layout.  Future extensions:
-/// `BidiFallback`.
+/// Compile-error taxonomy for the text pipeline
+/// (compile_text_layout + compile_text_document).
+/// Future extensions: `BidiFallback`.
 enum class TextLayoutErrorKind {
     /// Source text contains no UTF-8 bytes and no pre-split paragraphs.
     /// Catches the "render blank because caller forgot to set text"
@@ -129,14 +130,20 @@ enum class TextLayoutErrorKind {
 
     /// Paragraph contains text-runs with DIFFERENT resolved FontSpec
     /// (different font_path / font_family / font_weight / font_style).
-    /// Bug-fix candidate for verdict Issue #3: previously the layout
-    /// kept `text_layout->font = doc.defaults.font` while glyph IDs came
-    /// from N different fonts, producing the wrong glyph for some spans
-    /// (tofu / wrong stroke / fill mismatch).  Stabilization strategy is
-    /// ── Phase 1.4 supersedes this stab path with the additive renderer-side
-    /// font-switch via `TextRunLayout::font_spans`; see ShapedFontSpan +
-    /// text_run_processor.cpp for the new compile trajectory.  Multi-font
-    /// paragraphs are NO LONGER rejected at compile.
+    ///
+    /// POLICY (verdict Issue #3, two-tier):
+    ///   - `compile_text_layout()` (canonical single-paragraph compiler)
+    ///     ACCEPTS multi-font paragraphs via the Phase 1.4 additive
+    ///     `font_spans` path.  No rejection at this level — the renderer
+    ///     switches BLFont at span boundaries.
+    ///   - `compile_text_document()` (internal multi-paragraph accumulator)
+    ///     and its public wrapper `build_text_run()` REJECT multi-font
+    ///     paragraphs with `UnsupportedMultiFontRun`.  This protects the
+    ///     public API surface: a caller that passes a full document
+    ///     through `build_text_run()` must get homogeneous-font results.
+    ///     Direct `compile_text_layout()` callers (e.g. the materializer)
+    ///     can use the additive `font_spans` path without rejection.
+    UnsupportedMultiFontRun,
 };
 
 /// Structured compile error returned in `Result`'s error channel.
