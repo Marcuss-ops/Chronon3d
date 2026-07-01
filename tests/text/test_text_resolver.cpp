@@ -254,3 +254,33 @@ TEST_CASE("TextResolver: same input produces same output") {
         }
     }
 }
+
+
+// ============================================================================
+// TICKET-101 follow-up — BCP-47 source-canonicalization regression
+// ============================================================================
+
+TEST_CASE("TextResolver: BCP-47 language tag is canonicalized at source (TICKET-101)") {
+    TextDocument doc;
+    doc.utf8 = "Hello";
+    doc.defaults.font.font_family = "Inter";
+    doc.defaults.font.font_size   = 72.0f;
+
+    ParagraphRange pr;
+    pr.byte_start = 0;
+    pr.byte_end   = doc.utf8.size();
+    pr.style.language = "EN-US";  // mixed case — must be lowercased
+    doc.paragraphs.push_back(pr);
+
+    chronon3d::Config cfg;
+    chronon3d::runtime::RenderRuntime runtime(cfg);
+    FontEngine engine{runtime.resolver()};
+    auto tree = resolve_text_run_tree(doc, engine);
+    REQUIRE(tree.paragraphs.size() == 1);
+    REQUIRE(tree.paragraphs[0].runs.size() == 1);
+    // TICKET-101 follow-up: canonicalize_bcp47_language_tag lowercases
+    // at the SOURCE in resolve_text_run_tree (MAJOR #1 fix).  Now
+    // BOTH the paragraph style and the per-run language carry the
+    // canonical form, so all downstream consumers see the same value.
+    CHECK(tree.paragraphs[0].style.language == "en-us");
+}

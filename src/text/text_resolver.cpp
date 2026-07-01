@@ -8,6 +8,21 @@
 #include <chronon3d/backends/text/bidi_segmenter.hpp>
 #endif
 
+// TICKET-101 follow-up (deferred) — wire 5 of the 7 internal
+// text_resolver_helpers functions into real production paths.  The
+// helpers provide canonicalization for font family names, font weight
+// validation, and BCP-47 language tag handling.
+//
+// Skipped in this TU (helpers still used in internal scaffolding):
+//   * make_resolved_font_path  — needs an assets_root context that is
+//                                not available in text_resolver.cpp
+//   * make_text_preset_id      — no registry lookups happen here
+//   * make_selector_id         — no selector lookups happen here
+//
+// All changes are Cat-3 freeze-compliant: no public API change in
+// include/chronon3d/, internal-only wiring.
+#include "src/text/internal/text_resolver_helpers.hpp"
+
 #include <algorithm>
 
 namespace chronon3d {
@@ -23,6 +38,18 @@ PlacedGlyphRun shape_resolved_run(
 ) {
     TextShaping shaping;
     shaping.direction = run.direction;
+
+    // TICKET-101 follow-up — defense-in-depth: canonicalize the
+    // BCP-47 language tag before forwarding to HarfBuzz.  The
+    // canonical value is ALREADY in resolved_para.style.language
+    // (canonicalized at the source in resolve_text_run_tree), so
+    // this is redundant for the resolve_text_run_tree → shape path.
+    // It protects direct shape_resolved_run() callers that bypass
+    // resolve_text_run_tree (e.g., tests, internal pipelines).
+    const std::string& raw_lang = run.paragraph_style.language;
+    if (chronon3d::text::internal::validate_bcp47_language_tag(raw_lang)) {
+        shaping.language = chronon3d::text::internal::canonicalize_bcp47_language_tag(raw_lang);
+    }
 
     auto hb_run = engine.shape_text(
         run.text,
@@ -82,6 +109,10 @@ FontSpec resolve_fallback_fonts(
     FontSpec primary,
     FontEngine& engine
 ) {
+    // TICKET-101 follow-up — canonicalize family + weight via the
+    // wired text_resolver_helpers before the fallback chain runs.
+    apply_fontspec_canonicalization(primary);
+
     // ── 1. Primary font ──────────────────────────────────────────────
     if (engine.can_load(primary)) {
         return primary;
@@ -173,6 +204,8 @@ namespace {
         }
     }
 
+    // TICKET-101 follow-up — canonicalize the assembled FontSpec.
+    apply_fontspec_canonicalization(font);
     return font;
 }
 
@@ -323,7 +356,15 @@ ResolvedTextTree resolve_text_run_tree(
     // ── Process each paragraph ────────────────────────────────────────
     for (const auto& para : *paragraphs) {
         ResolvedParagraph resolved_para;
+        // TICKET-101 follow-up — canonicalize the BCP-47 language tag
+        // at the SOURCE so all downstream consumers (run.paragraph_style,
+        // shaped_para.style) see the same canonical value.  This fixes
+        // the contract inconsistency identified by code-reviewer MAJOR #1.
+        // Empty / invalid tags fall through to HarfBuzz auto-detection.
         resolved_para.style = para.style;
+        if (chronon3d::text::internal::validate_bcp47_language_tag(para.style.language)) {
+            resolved_para.style.language = chronon3d::text::internal::canonicalize_bcp47_language_tag(para.style.language);
+        }
 
         // Determine paragraph-level direction override.
         TextDirection para_dir = paragraph_direction(para);
