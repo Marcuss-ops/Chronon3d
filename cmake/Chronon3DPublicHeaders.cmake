@@ -106,6 +106,7 @@ set(CHRONON3D_PUBLIC_HEADERS
 
     # ── core/profiling ────────────────────────────────────────────────
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/profiling/profiling.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/profiling/trace_categories.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/profiling/counters.hpp"
 
     # ── core/memory transitive ───────────────────────────────────────
