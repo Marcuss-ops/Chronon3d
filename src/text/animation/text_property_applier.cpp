@@ -10,17 +10,14 @@ namespace chronon3d::detail {
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // ONE source of truth for "what does property X do to a glyph state".
-// All 13 TextAnimatorProperty variants are dispatched here via
-// `std::visit` + `if constexpr` — adding a new property type is a
-// 3-line addition (variant alternative in
-// text_animator_properties.hpp, struct here), never a new evaluator file.
+// All 12 PostLayout TextAnimatorProperty variants are dispatched here.
+// CharacterOffsetProperty was moved to the PreShaping phase (FASE 2a)
+// — it is evaluated in `apply_character_offset_to_source()` in
+// src/text/animation/text_pre_shaping.cpp BEFORE shaping.
 //
 // TrackingProperty is intentionally a no-op here. The cumulative
 // across-glyph bookkeeping for tracking lives in
-// `detail::apply_tracking_to_glyph` (text_tracking_evaluator.cpp) because
-// it requires per-iteration state owned by the evaluator loop. The
-// evaluator in text_animator_evaluator.cpp branches TrackingProperty off
-// before invoking this dispatcher.
+// `detail::apply_tracking_to_glyph` (text_tracking_evaluator.cpp).
 
 void apply_property_to_glyph(
     GlyphInstanceState& gs,
@@ -168,13 +165,15 @@ void apply_property_to_glyph(
             }
         }
         else if constexpr (std::is_same_v<T, CharacterOffsetProperty>) {
-            // Character offset (code-point shift) uses a dedicated field
-            // to avoid collision with PositionProperty's position.x.
-            if (blend == TextPropertyBlendMode::Replace) {
-                gs.character_offset = static_cast<i32>(static_cast<f32>(p.offset) * weight);
-            } else {
-                gs.character_offset += static_cast<i32>(static_cast<f32>(p.offset) * weight);
-            }
+            // FASE 2a: CharacterOffsetProperty is now a PreShaping
+            // property evaluated in `apply_character_offset_to_source()`
+            // BEFORE HarfBuzz shaping.  It no longer writes to
+            // GlyphInstanceState.character_offset (which is now always 0).
+            // This branch exists only so the variant visitor compiles
+            // — it should never be reached because the PreShaping phase
+            // strips CharacterOffsetProperty before this dispatcher runs.
+            (void)p;
+            (void)gs;
         }
     }, prop);
 }

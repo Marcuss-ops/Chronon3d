@@ -218,6 +218,7 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         # (lock against the two equalities drifting).  Mirrors the
         # pure-helper pattern of test_layout_cache_collision.cpp.
         text/test_font_identity_contract.cpp
+        text/test_character_offset_pre_shaping.cpp
     )
 endif()
 

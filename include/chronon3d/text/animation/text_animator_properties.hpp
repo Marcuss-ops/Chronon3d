@@ -6,10 +6,54 @@
 #include <chronon3d/core/types/types.hpp>
 
 #include <string>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
 namespace chronon3d {
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PropertyPhase — which pipeline stage a property belongs to
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// FASE 2a (TXT-Verified): CharacterOffset/CharacterValue modify source
+// text and MUST be evaluated BEFORE shaping, because different code
+// points produce different glyphs, metrics, clusters, ligatures, and
+// bidi reordering.  Applying them after layout is architecturally wrong.
+//
+//   PreShaping  — modifies source text → invalidates shaping + layout
+//   PreLayout   — modifies text properties that affect paragraph composition
+//   PostLayout  — modifies per-glyph state after layout (GlyphInstanceState)
+//   PostRaster  — effects applied after rasterization
+
+enum class PropertyPhase {
+    PreShaping,
+    PreLayout,
+    PostLayout,
+    PostRaster
+};
+
+/// Return the phase for each property type at compile time.
+/// CharacterOffsetProperty is the only PreShaping property today;
+/// CharacterValue and text substitutions (future) will also be PreShaping.
+template <typename T>
+constexpr PropertyPhase property_phase() {
+    if constexpr (std::is_same_v<T, CharacterOffsetProperty>) {
+        return PropertyPhase::PreShaping;
+    } else if constexpr (std::is_same_v<T, TrackingProperty>) {
+        // TrackingProperty affects glyph spacing which feeds into
+        // paragraph composition (line breaking, justification).
+        // Currently evaluated as PostLayout because the per-glyph
+        // tracking runs after shaping; promote to PreLayout when the
+        // layout-composition tracking path is wired.
+        return PropertyPhase::PostLayout;
+    } else {
+        // Position, Scale, Rotation, Skew, Anchor, Opacity, Blur,
+        // FillColor, StrokeColor, StrokeWidth, BaselineShift are all
+        // per-glyph visual properties applied after layout.
+        return PropertyPhase::PostLayout;
+    }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TextPropertyBlendMode — composition mode for property evaluation
@@ -103,9 +147,16 @@ struct BaselineShiftProperty {
 /// After Effects-style Character Offset: shifts the character value
 /// (code point) by a fixed amount.  Wraps within the alphanumeric range.
 /// Example: offset=1 turns 'A' into 'B', 'Z' into 'A'.
-/// When enabled, the per-glyph character values are offset before shaping.
-/// The active text content is modified, so this must be applied BEFORE
-/// the TextRunLayout is built (layout depends on the offset characters).
+///
+/// FASE 2a: CharacterOffsetProperty is now evaluated in the PreShaping
+/// phase — the source text is transformed BEFORE HarfBuzz shaping so
+/// glyph selection, kerning, ligatures, and bidi reordering all see the
+/// offset characters.  See `apply_character_offset_to_source()` in
+/// src/text/animation/text_pre_shaping.cpp.
+///
+/// Previously this was applied to GlyphInstanceState.character_offset
+/// AFTER layout (which was architecturally wrong — the comment below
+/// has always stated "must be applied BEFORE TextRunLayout is built").
 struct CharacterOffsetProperty {
     i32 offset{0};                     // number of codepoints to shift
 };
