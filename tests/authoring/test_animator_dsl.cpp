@@ -978,6 +978,12 @@ using chronon3d::authoring::FrameContext;
 using chronon3d::authoring::Layer;
 using chronon3d::authoring::Text;
 
+// TICKET-109 — test-only inspector mirroring LayerBuilderInspector
+// pattern.  Tests read Text handle state through this inspector rather
+// than calling `mutable_pending()` directly.
+#include "support/text_run_builder_inspection.hpp"
+using chronon3d::authoring::testing::TextRunBuilderInspector;
+
 TEST_CASE("Authoring/Layer: text() pushes a PendingTextRun with auto-generated name") {
     LayerBuilder lb("test_layer");
     lb.screen_dimensions(1920.0f, 1080.0f);
@@ -989,14 +995,17 @@ TEST_CASE("Authoring/Layer: text() pushes a PendingTextRun with auto-generated n
     // Auto-generated name pattern: "text_<N>" where N is per-Layer sequential.
     // Same Layer produced unique entries; both must be reachable through
     // the returned handle.
-    CHECK(t1.mutable_pending().name == "text_0");
-    CHECK(t2.mutable_pending().name == "text_1");
-    CHECK(t1.mutable_pending().params.text.content.value == "HELLO");
-    CHECK(t2.mutable_pending().params.text.content.value == "WORLD");
+    CHECK(TextRunBuilderInspector::pending_of(t1).name == "text_0");
+    CHECK(TextRunBuilderInspector::pending_of(t2).name == "text_1");
+    CHECK(TextRunBuilderInspector::pending_of(t1).params.text.content.value == "HELLO");
+    CHECK(TextRunBuilderInspector::pending_of(t2).params.text.content.value == "WORLD");
 
     // Distinct underlying PendingTextRun* (different entries in the layer's
     // m_text_runs vector). Identity check via the pointer the handle holds.
-    CHECK(&t1.mutable_pending() != &t2.mutable_pending());
+    // Identity check via value-typed name (stronger than raw pointer
+    // compare — distinct names prove distinct underlying entries):
+    CHECK(TextRunBuilderInspector::pending_of(t1).name !=
+          TextRunBuilderInspector::pending_of(t2).name);
 }
 
 TEST_CASE("Authoring/Text: id() + content() store and propagate to underlying spec") {
@@ -1007,8 +1016,8 @@ TEST_CASE("Authoring/Text: id() + content() store and propagate to underlying sp
 
     t.id("hero-title").content("UPDATED");
 
-    CHECK(t.mutable_pending().name == "hero-title");
-    CHECK(t.mutable_pending().params.text.content.value == "UPDATED");
+    CHECK(TextRunBuilderInspector::pending_of(t).name == "hero-title");
+    CHECK(TextRunBuilderInspector::pending_of(t).params.text.content.value == "UPDATED");
 }
 
 TEST_CASE("Authoring/Text: font() / font_family() / weight() / italic() / font_size() cover FontSpec") {
@@ -1023,7 +1032,7 @@ TEST_CASE("Authoring/Text: font() / font_family() / weight() / italic() / font_s
      .italic(true)
      .font_size(120.0f);                  // overrides initial 96
 
-    const auto& font = t.mutable_pending().params.text.font;
+    const auto& font = TextRunBuilderInspector::pending_of(t).params.text.font;
     CHECK(font.font_path   == "assets/fonts/Inter-Bold.ttf");
     CHECK(font.font_family == "Inter");
     CHECK(font.font_weight == 800);
@@ -1038,17 +1047,17 @@ TEST_CASE("Authoring/Text: at(Vec2) lifts z to 0; at(Vec3) preserves all compone
 
     Text t_v2 = layer.text("v2");
     t_v2.at(Vec2{100.0f, 200.0f});
-    CHECK(t_v2.mutable_pending().params.text.position
+    CHECK(TextRunBuilderInspector::pending_of(t_v2).params.text.position
           == doctest::Approx3D(Vec3{100.0f, 200.0f, 0.0f}));
 
     Text t_v3 = layer.text("v3");
     t_v3.at(Vec3{11.0f, 22.0f, 33.0f});
-    CHECK(t_v3.mutable_pending().params.text.position
+    CHECK(TextRunBuilderInspector::pending_of(t_v3).params.text.position
           == doctest::Approx3D(Vec3{11.0f, 22.0f, 33.0f}));
 
     Text t_2arg = layer.text("2arg");
     t_2arg.at(7.0f, 8.0f);
-    CHECK(t_2arg.mutable_pending().params.text.position
+    CHECK(TextRunBuilderInspector::pending_of(t_2arg).params.text.position
           == doctest::Approx3D(Vec3{7.0f, 8.0f, 0.0f}));
 }
 
@@ -1060,11 +1069,11 @@ TEST_CASE("Authoring/Text: center() uses FrameContext viewport") {
     t.center();
 
     // position is (w/2, h/2, 0)
-    CHECK(t.mutable_pending().params.text.position
+    CHECK(TextRunBuilderInspector::pending_of(t).params.text.position
           == doctest::Approx3D(Vec3{400.0f, 300.0f, 0.0f}));
 
     // Layout auto-set for invisibly-aligned center
-    const auto& L = t.mutable_pending().params.text.layout;
+    const auto& L = TextRunBuilderInspector::pending_of(t).params.text.layout;
     CHECK(L.anchor         == TextAnchor::Center);
     CHECK(L.align          == TextAlign::Center);
     CHECK(L.vertical_align == VerticalAlign::Middle);
@@ -1077,7 +1086,7 @@ TEST_CASE("Authoring/Text: center() falls back to 1920x1080 when no FrameContext
 
     Text t = layer.text("x");
     t.center();
-    CHECK(t.mutable_pending().params.text.position
+    CHECK(TextRunBuilderInspector::pending_of(t).params.text.position
           == doctest::Approx3D(Vec3{960.0f, 540.0f, 0.0f}));
 }
 
@@ -1102,7 +1111,7 @@ TEST_CASE("Authoring/Text: layout setters propagate to spec.text.layout") {
      .auto_fit(/*min=*/48.0f, /*max_lines=*/2)
      .max_font_size(160.0f);
 
-    const auto& L = t.mutable_pending().params.text.layout;
+    const auto& L = TextRunBuilderInspector::pending_of(t).params.text.layout;
     CHECK(L.box           == Vec2{1500.0f, 220.0f});
     CHECK(L.anchor        == TextAnchor::Center);
     CHECK(L.align         == TextAlign::Center);
@@ -1127,7 +1136,7 @@ TEST_CASE("Authoring/Text: color() mutates appearance.color only") {
     Text t = layer.text("x");
     t.color(Color{0.9f, 0.1f, 0.2f, 1.0f});
 
-    const auto& A = t.mutable_pending().params.text.appearance;
+    const auto& A = TextRunBuilderInspector::pending_of(t).params.text.appearance;
     CHECK(A.color == Color{0.9f, 0.1f, 0.2f, 1.0f});
     // paint / shadows / material / box_style should still be defaults.
     CHECK(A.paint.fill      == Color{1.0f, 1.0f, 1.0f, 1.0f});  // default
@@ -1149,7 +1158,7 @@ TEST_CASE("Authoring/Text: material(Material) consumes Material::release() into 
 
     // After consumption, source Material is in moved-from state — release()
     // would return an unspecified value but NOT touch the captured value.
-    const auto& captured = t.mutable_pending().params.text.appearance.material;
+    const auto& captured = TextRunBuilderInspector::pending_of(t).params.text.appearance.material;
     CHECK(captured.enabled                 == true);
     CHECK(captured.bevel_px                == doctest::Approx(2.0f));
     CHECK(captured.use_material_glow       == true);
@@ -1173,8 +1182,8 @@ TEST_CASE("Authoring/Text: animate(Animator) consumes Animator::release() into a
      .opacity(0.0f);
     t.animate(std::move(a));
 
-    REQUIRE(t.mutable_pending().params.animators.size() == 1);
-    const auto& appended = t.mutable_pending().params.animators.back();
+    REQUIRE(TextRunBuilderInspector::pending_of(t).params.animators.size() == 1);
+    const auto& appended = TextRunBuilderInspector::pending_of(t).params.animators.back();
     CHECK(appended.id == "reveal");
     CHECK(appended.enabled == true);
     REQUIRE(appended.selectors.size() == 1);
@@ -1193,7 +1202,7 @@ TEST_CASE("Authoring/Text: multiple animate() calls accumulate in order") {
     t.animate(animator("out") .opacity(1.0f));
     t.animate(animator("idle").tracking(2.0f));
 
-    const auto& list = t.mutable_pending().params.animators;
+    const auto& list = TextRunBuilderInspector::pending_of(t).params.animators;
     REQUIRE(list.size() == 3);
     CHECK(list[0].id == "in");
     CHECK(list[1].id == "out");
@@ -1223,9 +1232,9 @@ TEST_CASE("Authoring/Text: style(id, registry) field-maps TextStyle to spec.text
     Text t = layer.text("CHRONON");
     t.style("youtube.hero.premium", styles);
 
-    const auto& F = t.mutable_pending().params.text.font;
-    const auto& L = t.mutable_pending().params.text.layout;
-    const auto& A = t.mutable_pending().params.text.appearance;
+    const auto& F = TextRunBuilderInspector::pending_of(t).params.text.font;
+    const auto& L = TextRunBuilderInspector::pending_of(t).params.text.layout;
+    const auto& A = TextRunBuilderInspector::pending_of(t).params.text.appearance;
     CHECK(F.font_path   == "assets/fonts/Inter-Bold.ttf");
     CHECK(F.font_family == "Inter");
     CHECK(F.font_weight == 700);
@@ -1252,7 +1261,7 @@ TEST_CASE("Authoring/Text: style() with unknown id is a no-op (doesn't drop cont
     const StyleRegistry empty_registry;
     t.style("not.registered", empty_registry);
 
-    const auto& spec = t.mutable_pending().params.text;
+    const auto& spec = TextRunBuilderInspector::pending_of(t).params.text;
     CHECK(spec.content.value            == "FUTURI MILIONARI");
     CHECK(spec.font.font_path            == "Inter-Bold.ttf");
     CHECK(spec.appearance.color.r        == doctest::Approx(1.0f));
@@ -1276,9 +1285,9 @@ TEST_CASE("Authoring/Text: motion(id, registry) appends resolved animator") {
      .center()
      .motion("text.reveal.soft", motions);
 
-    REQUIRE(t.mutable_pending().params.animators.size() == 1);
-    CHECK(t.mutable_pending().params.animators[0].id == "text.reveal.soft");
-    CHECK(t.mutable_pending().params.animators[0].properties.size() == 2);
+    REQUIRE(TextRunBuilderInspector::pending_of(t).params.animators.size() == 1);
+    CHECK(TextRunBuilderInspector::pending_of(t).params.animators[0].id == "text.reveal.soft");
+    CHECK(TextRunBuilderInspector::pending_of(t).params.animators[0].properties.size() == 2);
 }
 
 TEST_CASE("Authoring/Text: configure_core(Fn) lambda mutates raw TextRunSpec") {
@@ -1296,7 +1305,7 @@ TEST_CASE("Authoring/Text: configure_core(Fn) lambda mutates raw TextRunSpec") {
         p.cache_layout = false;
     });
 
-    const auto& P = t.mutable_pending().params;
+    const auto& P = TextRunBuilderInspector::pending_of(t).params;
     CHECK(P.direction    == TextDirection::RTL);
     CHECK(P.language     == "ar");
     CHECK(P.cache_layout == false);
@@ -1343,7 +1352,7 @@ TEST_CASE("Authoring/Text: end-to-end hero chain is mutator-agnostic to TextRunB
     // counter advanced to 0 after the hero entry and will be 1 on a fresh
     // `.text(...)`, which we verify directly.
     Text probe = layer.text("probe");
-    CHECK(probe.mutable_pending().name == "text_1");
+    CHECK(TextRunBuilderInspector::pending_of(probe).name == "text_1");
 }
 
 TEST_CASE("Authoring/Layer: text() does not crash on destruction of the returned handle") {
@@ -1362,7 +1371,7 @@ TEST_CASE("Authoring/Layer: text() does not crash on destruction of the returned
     // We confirm by issuing a new text() and ensuring the counter advanced.
     Layer layer2(lb);
     Text probe = layer2.text("verify");
-    CHECK(probe.mutable_pending().name == "text_1");
+    CHECK(TextRunBuilderInspector::pending_of(probe).name == "text_1");
 }
 
 TEST_CASE("Authoring/Text + Layer: move-only contracts") {
@@ -1444,7 +1453,7 @@ TEST_CASE("Authoring/Layer + Text: ambient style(id) resolves via LayerBuilder::
     // The ambient-resolution path: no registry argument supplied.
     t.style("hero.premium");
 
-    const auto& spec = t.mutable_pending().params.text;
+    const auto& spec = TextRunBuilderInspector::pending_of(t).params.text;
     CHECK(spec.font.font_path   == "fonts/Inter-Bold.ttf");
     CHECK(spec.font.font_weight == 800);
     CHECK(spec.font.font_size   == doctest::Approx(96.0f));
@@ -1479,8 +1488,8 @@ TEST_CASE("Authoring/Layer + Text: ambient motion(id) resolves via LayerBuilder:
 
     t.motion("text.reveal.soft");
 
-    REQUIRE(t.mutable_pending().params.animators.size() == 1);
-    CHECK(t.mutable_pending().params.animators[0].id == "text.reveal.soft");
+    REQUIRE(TextRunBuilderInspector::pending_of(t).params.animators.size() == 1);
+    CHECK(TextRunBuilderInspector::pending_of(t).params.animators[0].id == "text.reveal.soft");
 }
 
 TEST_CASE("Authoring/Layer + Text: ambient methods no-op when no ExtensionContext attached") {
@@ -1508,8 +1517,8 @@ TEST_CASE("Authoring/Layer + Text: ambient methods no-op when no ExtensionContex
 
     // Font set by the prior .font() call is preserved; the ambient
     // attempts did not mutate spec.appearance.color or the animators vector.
-    CHECK(t.mutable_pending().params.text.font.font_path == "X.ttf");
-    CHECK(t.mutable_pending().params.animators.empty());
+    CHECK(TextRunBuilderInspector::pending_of(t).params.text.font.font_path == "X.ttf");
+    CHECK(TextRunBuilderInspector::pending_of(t).params.animators.empty());
 }
 
 TEST_CASE("Authoring/Layer + Text: ambient method no-op when ExtensionContext.style_registry is null") {
@@ -1536,12 +1545,12 @@ TEST_CASE("Authoring/Layer + Text: ambient method no-op when ExtensionContext.st
 
     // Ambient `.style(id)` should no-op because the pointer is null.
     t.style("anything");
-    CHECK(t.mutable_pending().params.text.font.font_path == "Y.ttf");
+    CHECK(TextRunBuilderInspector::pending_of(t).params.text.font.font_path == "Y.ttf");
 
     // Ambient `.motion(id)` no-ops when id is unregistered even though
     // the pointer is set.
     t.motion("unregistered.id");
-    CHECK(t.mutable_pending().params.animators.empty());
+    CHECK(TextRunBuilderInspector::pending_of(t).params.animators.empty());
 }
 
 TEST_CASE("Authoring/Layer + Text: dual-path coexist (explicit + ambient on the same handle)") {
@@ -1573,14 +1582,14 @@ TEST_CASE("Authoring/Layer + Text: dual-path coexist (explicit + ambient on the 
 
     // Ambient call resolves to the ambient style.
     t.style("ambient_call");
-    CHECK(t.mutable_pending().params.text.font.font_path == "ambient.ttf");
-    CHECK(t.mutable_pending().params.text.font.font_size   == doctest::Approx(48.0f));
+    CHECK(TextRunBuilderInspector::pending_of(t).params.text.font.font_path == "ambient.ttf");
+    CHECK(TextRunBuilderInspector::pending_of(t).params.text.font.font_size   == doctest::Approx(48.0f));
 
     // Explicit call with a different registry overrides the previous
     // ambient call's mutation entirely.
     t.style("override", explicit_separate);
-    CHECK(t.mutable_pending().params.text.font.font_path == "explicit.ttf");
-    CHECK(t.mutable_pending().params.text.font.font_size   == doctest::Approx(64.0f));
+    CHECK(TextRunBuilderInspector::pending_of(t).params.text.font.font_path == "explicit.ttf");
+    CHECK(TextRunBuilderInspector::pending_of(t).params.text.font.font_size   == doctest::Approx(64.0f));
 }
 
 TEST_CASE("Authoring/Layer + Text: ambient resolves unknown id to no-op (preserves existing state)") {
@@ -1605,8 +1614,8 @@ TEST_CASE("Authoring/Layer + Text: ambient resolves unknown id to no-op (preserv
     t.style("never.registered");
     t.motion("never.registered.either");
 
-    CHECK(t.mutable_pending().params.text.font.font_path == "K.ttf");
-    CHECK(t.mutable_pending().params.animators.empty());
+    CHECK(TextRunBuilderInspector::pending_of(t).params.text.font.font_path == "K.ttf");
+    CHECK(TextRunBuilderInspector::pending_of(t).params.animators.empty());
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -1996,7 +2005,7 @@ TEST_CASE("Authoring/Text: script(uint32_t) chain mutates pending_->params.scrip
     chronon3d::authoring::Text t = layer.text("ŁATIN");
     t.script(0x4C61746Eu);                  // HB_SCRIPT_LATIN (HarfBuzz tag)
 
-    CHECK(t.mutable_pending().params.script == 0x4C61746Eu);
+    CHECK(TextRunBuilderInspector::pending_of(t).params.script == 0x4C61746Eu);
 }
 
 TEST_CASE("Authoring/Text: default script=0u is preserved (auto-detect path stays intact)") {
@@ -2005,7 +2014,7 @@ TEST_CASE("Authoring/Text: default script=0u is preserved (auto-detect path stay
     chronon3d::authoring::Layer layer(lb);
 
     chronon3d::authoring::Text t = layer.text("AUTODETECT");
-    CHECK(t.mutable_pending().params.script == 0u);
+    CHECK(TextRunBuilderInspector::pending_of(t).params.script == 0u);
 }
 
 // ── apply_text_style propagate shaping.script (Q2: only writes through when != 0) ──
@@ -2026,9 +2035,9 @@ TEST_CASE("Authoring/Text: style(id) propagates shaping.script when non-zero") {
     chronon3d::authoring::Text t = layer.text("AR");
     t.style("arabic.hero", styles);
 
-    CHECK(t.mutable_pending().params.script == 0x41726162u);
-    CHECK(t.mutable_pending().params.direction == TextDirection::LTR);
-    CHECK(t.mutable_pending().params.language == "en");
+    CHECK(TextRunBuilderInspector::pending_of(t).params.script == 0x41726162u);
+    CHECK(TextRunBuilderInspector::pending_of(t).params.direction == TextDirection::LTR);
+    CHECK(TextRunBuilderInspector::pending_of(t).params.language == "en");
 }
 
 TEST_CASE("Authoring/Text: style(id) preserves pending script=0 (auto-detect semantic preserved)") {
@@ -2046,10 +2055,10 @@ TEST_CASE("Authoring/Text: style(id) preserves pending script=0 (auto-detect sem
     // Pre-set script explicitly to HB_SCRIPT_LATIN, then verify apply
     // with shaping.script=0 does NOT overwrite.
     t.script(0x4C61746Eu);
-    REQUIRE(t.mutable_pending().params.script == 0x4C61746Eu);
+    REQUIRE(TextRunBuilderInspector::pending_of(t).params.script == 0x4C61746Eu);
 
     t.style("default.no.script", styles);
-    CHECK(t.mutable_pending().params.script == 0x4C61746Eu);  // unchanged.
+    CHECK(TextRunBuilderInspector::pending_of(t).params.script == 0x4C61746Eu);  // unchanged.
 }
 
 // ── High-bit pattern check (Q3) ───────────────────────────────────────────────
@@ -2060,6 +2069,6 @@ TEST_CASE("Authoring/Text: script accepts patterned HB tag including high-bit by
     chronon3d::authoring::Text t = layer.text("X");
     constexpr std::uint32_t kPattern = 0x80808080u;   // top-bit set in every byte.
     t.script(kPattern);
-    CHECK(t.mutable_pending().params.script == kPattern);
-    CHECK((t.mutable_pending().params.script & 0x80000000u) != 0u);  // sign bit stays unset.
+    CHECK(TextRunBuilderInspector::pending_of(t).params.script == kPattern);
+    CHECK((TextRunBuilderInspector::pending_of(t).params.script & 0x80000000u) != 0u);  // sign bit stays unset.
 }
