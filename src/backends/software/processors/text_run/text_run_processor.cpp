@@ -317,6 +317,25 @@ graph::RenderOpResult draw_text_run(
         });
     }
 
+    // ── Validate text resources + acquire per-call scratch state (FASE 3) ──
+    // TextScratchManager vends an isolated TextScratchState per draw call
+    // (TSan-clean under concurrent invocations).  The RAII Handle releases
+    // the state back to the pool on function exit — no manual cleanup.
+    if (!rctx.text_resources || !rctx.asset_resolver) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::InvalidInput,
+            "draw_text_run: text_resources or asset_resolver is null"
+        });
+    }
+    auto scratch_handle = rctx.text_resources->scratch_manager.acquire();
+    if (!scratch_handle) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::ExecutionFailure,
+            "draw_text_run: failed to acquire scratch state from TextScratchManager"
+        });
+    }
+    auto& scratch_state = *scratch_handle;
+
     // ── Resolve font handle via TextRenderResources ──────────────────
     // ── PHASE 1.4: Per-span font handle pre-resolution ──────────
     // The layout may carry `font_spans` describing the per-glyph font
@@ -333,11 +352,8 @@ graph::RenderOpResult draw_text_run(
         span_handles.reserve(layout.font_spans.size());
         span_fonts.reserve(layout.font_spans.size());
         for (const auto& spn : layout.font_spans) {
-            FontFaceHandle span_handle;
-            if (rctx.text_resources) {
-                span_handle = rctx.text_resources->resolve_handle(
-                    spn.font.font_path, layout.font_size, *rctx.asset_resolver);
-            }
+            FontFaceHandle span_handle = rctx.text_resources->resolve_handle(
+                spn.font.font_path, layout.font_size, *rctx.asset_resolver);
             if (!span_handle.valid()) {
                 return graph::RenderOpResult(graph::RenderBackendError{
                     graph::RenderBackendErrorCode::ExecutionFailure,
@@ -360,11 +376,8 @@ graph::RenderOpResult draw_text_run(
             }
         }
     } else {
-        FontFaceHandle single_handle;
-        if (rctx.text_resources) {
-            single_handle = rctx.text_resources->resolve_handle(
-                font_path, layout.font_size, *rctx.asset_resolver);
-        }
+        FontFaceHandle single_handle = rctx.text_resources->resolve_handle(
+            font_path, layout.font_size, *rctx.asset_resolver);
         if (!single_handle.valid()) {
             return graph::RenderOpResult(graph::RenderBackendError{
                 graph::RenderBackendErrorCode::ExecutionFailure,
@@ -474,13 +487,10 @@ graph::RenderOpResult draw_text_run(
     // BlurScratchPool singleton was removed in FASE 3.  The in-place blur
     // itself now lives in `apply_separable_box_blur()` above.)
 
-#ifdef CHRONON3D_ENABLE_TEXT
-    // Fase 3 — FreeType face is pre-loaded in the FontFaceHandle.
-    // No file I/O here — the handle already carries the FT_Face.
-    const bool ft_loaded = (font_handle.ft_face != nullptr);
-#else
-    const bool ft_loaded = false;
-#endif
+    // ft_loaded removed: the old global `font_handle` no longer exists
+    // (PHASE 1.4 replaced it with per-span `span_handles`).  The stroke
+    // path below now checks `span_handle.ft_face != nullptr` per-glyph
+    // instead of a single global flag.
 
     // ── Reusable per-layer renderer ──────────────────────────────────
     // Renders glyphs from `tier_glyphs` into `target`.  When
@@ -551,13 +561,15 @@ graph::RenderOpResult draw_text_run(
             // source_placed.glyphs.size() on every call site (already
             // required by the fill branch; documented here so future
             // refactors keep sizes in lockstep).
-            if (eff_stroke.a > 0.0f && eff_stroke_w > 0.0f && ft_loaded) {
-                // PHASE 1.4: per-glyph span_handle lookup so the stroke
-                // outline is built from the SAME FontFaceHandle that shape
-                // the active glyph.  Legacy single-font layouts give
-                // span_idx == 0 (their per_glyph_span_idx is uniform).
-                const std::size_t span_idx = per_glyph_span_idx[gi];
-                const FontFaceHandle& span_handle = span_handles[span_idx];
+            // PHASE 1.4: per-glyph span_handle lookup so the stroke
+            // outline is built from the SAME FontFaceHandle that shape
+            // the active glyph.  Legacy single-font layouts give
+            // span_idx == 0 (their per_glyph_span_idx is uniform).
+            const std::size_t span_idx = per_glyph_span_idx[gi];
+            const FontFaceHandle& span_handle = span_handles[span_idx];
+            if (eff_stroke.a > 0.0f && eff_stroke_w > 0.0f
+                && span_handle.ft_face != nullptr
+                && span_handle.outlines != nullptr) {
                 BLPath path = span_handle.outlines->build_path(
                     span_handle.ft_face,
                     source_placed.glyphs[gi].glyph_id, 0.0f, 0.0f);
