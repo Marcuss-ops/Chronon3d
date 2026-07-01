@@ -44,6 +44,11 @@
 #include <chronon3d/registry/text_preset_resolver.hpp>   // Cluster B public API surface
 #include <chronon3d/registry/animator_resolver.hpp>      // TICKET-012 — header-lifted public AnimatorResolver.
 
+// TICKET-107 — per-category register helpers exposed to sibling TUs + tests
+// (sees the 4 helpers + register_builtin_presets lifted out of the file-local
+// anon namespace into `chronon3d::registry::register_helpers_internal`).
+#include "text_preset_register_helpers.hpp"
+
 #include <chronon3d/scene/builders/scene_builder.hpp>   // full SceneBuilder
 #include <chronon3d/scene/builders/layer_builder.hpp>    // full LayerBuilder
 #include <chronon3d/scene/builders/builder_params.hpp>   // full TextSpec (canonical), GlyphSelectorSpec,
@@ -1152,25 +1157,15 @@ TextPresetDescriptor caption_box_entry() {
 }
 
 
-// ── register_builtin_presets: populate the registry ────────────────────────
-//
-// Seeds all 22 of the canonical built-ins.  Order matches the file-picker
-// registry inventory: Cinematic (4), Reveal (10), Emphasis (4), Subtitle (4).
-// Insertion order does NOT affect runtime lookup (std::map keyed by id)
-// or test enumeration (Sub-cases 11-27 sort deterministically by id).
-//
-// FASE 5 (TICKET-098) — caller-exposed per-category register helpers.
-// Each `register_text_preset_<category>(r)` seeds ONLY the entries in
-// its category.  Production code uses `register_builtin_presets(r)` to
-// seed all 22; tests / authoring façades can use the per-category
-// helpers to seed + inspect a single category in isolation (e.g., when
-// verifying Sub-case binding against `by_category(category)` queries).
-// Internal linkage (anon namespace): not visible to other TUs.
-//
-// The 22 entry() factories + 22 compose_<id>() helpers stay colocated in
-// this TU and remain anon-namespace internal.  Per-category SEMANTIC split
-// is achieved through the 4 narrow public-within-this-file register
-// helpers without expanding any public API surface (Cat-3 freeze-aligned).
+// FASE 5 (TICKET-107) — register helpers lifted out of this anon namespace into `chronon3d::registry::register_helpers_internal` (see below).  Production callers reach the umbrella via the public `make_default_text_preset_registry()` + `builtin_text_preset_registry()` free functions; tests / sibling internal TUs reach the per-category helpers via `src/registry/text_preset_register_helpers.hpp`.
+
+} // namespace  // FASE 5 (TICKET-107) — anon ends here.
+
+// ── FASE 5 (TICKET-107) — per-category register helpers lifted out of the
+// anon namespace into `chronon3d::registry::register_helpers_internal` so
+// tests (and any sibling internal TU) can call them in isolation.
+namespace chronon3d::registry::register_helpers_internal {
+
 void register_text_preset_cinematic(TextPresetRegistry& r) {
     // ── Cinematic (4) — PR `41cda40c` kept verbatim ──────────────────────
     r.register_preset(animation_compositions_entry());
@@ -1208,7 +1203,6 @@ void register_text_preset_subtitle(TextPresetRegistry& r) {
     r.register_preset(glow_pulse_entry());
     r.register_preset(caption_box_entry());
 }
-
 void register_builtin_presets(TextPresetRegistry& r) {
     // FASE 5 (TICKET-098) — delegate to per-category helpers; order is:
     //   Cinematic (4) → Reveal (10) → Emphasis (4) → Subtitle (4).
@@ -1218,7 +1212,7 @@ void register_builtin_presets(TextPresetRegistry& r) {
     register_text_preset_subtitle(r);
 }
 
-} // namespace
+} // namespace register_helpers_internal
 
 // ── wire_preset_text_run_params — Cluster B public free function ─────────
 // Public Cluster B API surface entry point.  Declared in
