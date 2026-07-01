@@ -156,6 +156,28 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         #       types (they are NOT in include/chronon3d/, by
         #       cat-3-freeze design).
         text/test_compile_text_layout_per_paragraph_failure.cpp
+        # TICKET-105 -- text cat-2 identity/preservation regression
+        # suite expansion.  3 deterministic TEST_CASEs (no threads,
+        # no time, no PRNG per AGENTS.md v0.1 cat-2 freeze-compliant
+        # invariants):
+        #   (1) materialize_text_run_shape -> compile_text_layout
+        #       identity across frames: same `shared_ptr<TextRunLayout>`
+        #       AND same `layout_hash()` between frame N and frame
+        #       N+1 scramble (cache hit locks).
+        #   (2) Joint-include contract (canonical-only mode): the
+        #       canonical `text_unit_map.hpp` (8-level class) compiles
+        #       cleanly in this TU; the 8-level ladder counts are
+        #       observable; the ODR conflict with the narrow
+        #       `struct TextUnitMap` in `glyph_selector.hpp` is
+        #       documented and delegated to TICKET-083 (post-baseline-
+        #       verde migration).  Narrow compile contract is exercised
+        #       by sibling test files at single-header TU boundaries.
+        #   (3) Double-include safety: triple `#include
+        #       <chronon3d/text/text_unit_map.hpp>` at file scope.
+        #       If `#pragma once` were broken, the third include would
+        #       emit a class redefinition error at compile time.
+        #       File compile-success is the regression lock.
+        text/test_text_unit_map_joint_include.cpp
     )
 endif()
 
