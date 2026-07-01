@@ -49,6 +49,7 @@
 #include <utility>
 
 #include <chronon3d/authoring/text.hpp>            // Text (mutable_pending → PendingTextRun&)
+#include <chronon3d/scene/builders/text_run_builder.hpp>  // PendingTextRun — explicit include (reviewer finding #7; do NOT rely on transitive pull from text.hpp)
 
 namespace chronon3d {
 namespace authoring {
@@ -118,10 +119,16 @@ namespace testing {
         // `t.pending().name`; the `pending` field is a non-owning
         // pointer to the same `PendingTextRun` the handle holds.
         //
-        // noexcept: this snapshot read does not throw under any current
-        // call path (the underlying `pending()` accessor is `noexcept`).
+        // Throws: trivially — body is exception-free.  However, the
+        // returned `TextRunSnapshot::pending` is a non-owning raw pointer;
+        // dereferencing it AFTER the parent `LayerBuilder` is destroyed is
+        // undefined behaviour (use-after-free).  Tests MUST NOT outlive
+        // the underlying `LayerBuilder` instance.  The `noexcept`
+        // annotation is removed (reviewer finding #4) to make the lifetime
+        // contract explicit — the function does not throw, but a downstream
+        // dereference CAN cause SIGSEGV.
         static TextRunSnapshot
-        pending_of(const chronon3d::authoring::Text& t) noexcept {
+        pending_of(const chronon3d::authoring::Text& t) {
             return TextRunSnapshot{
                 std::string(t.pending().name),   // value-typed name copy.
                 &t.pending()                    // non-owning pointer.
