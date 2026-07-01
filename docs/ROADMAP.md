@@ -18,17 +18,15 @@ riportano lo stesso stato.
 
 ### Lavori
 
-1. ✅ Chiudere il link/run di `chronon3d_scene_tests`, incluso **TICKET-029** — **RISOLTO** (`fb1b7e97`).
-2. Rieseguire i regression test dei fix camera recenti (ora possibili grazie a TICKET-029).
-3. ✅ Chiudere **TICKET-039** (`SoftwareRenderer::settings()` regression) — **RISOLTO** (`68c3e0f0`,
-   TXT-00 build/link green, `chronon3d_text_preset_visual_tests` cablato in `44def204`).
-4. ✅ Chiudere **TICKET-038** (lambda/auto rot in text preset visual) — **RISOLTO** (`91debc36`,
-   3 source-level compile rot chiuse).
+1. Completato: link/run di `chronon3d_scene_tests` (TICKET-029).
+2. Rieseguire i regression test dei fix camera recenti.
+3. Completato: `SoftwareRenderer::settings()` regression (TICKET-039).
+4. Completato: lambda/auto compile rot in text preset visual (TICKET-038).
 5. Chiudere i gap Precomp, execution scope e identity/session che bloccano la baseline.
 6. Eseguire core, lean, no-content e full-validation sullo stesso commit.
 7. Rendere architecture e renderer-boundary gate realmente bloccanti.
 8. Eseguire install consumer sullo stesso commit.
-9. Registrare comandi, commit ed esiti osservati in `docs/baselines/`.
+9. Registrare comandi ed esiti osservati in `docs/baselines/`.
 
 ### Gate di uscita
 
