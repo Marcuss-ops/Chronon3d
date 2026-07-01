@@ -89,14 +89,18 @@ cache_var() {
 # ── Cleanup-trap registrar ────────────────────────────────────────────
 # Registers an EXIT trap that removes each named temp dir (idempotent
 # against empty / unset entries).  Reusable across orchestrator +
-# phase scripts; last call wins.
+# phase scripts; directories accumulate across calls (global array).
+# The trap preserves the original exit code so failures propagate
+# correctly through the cleanup.
+_CLEANUP_DIRS=()
 cleanup_register() {
-    local rc_save=$?
+    _CLEANUP_DIRS+=("$@")
     trap '
-        for d in "$@"; do
+        rc=$?
+        for d in "${_CLEANUP_DIRS[@]}"; do
             [[ -n "$d" && -d "$d" ]] && rm -rf "$d" 2>/dev/null || true
         done
-        return '"$rc_save"'
+        exit "$rc"
     ' EXIT
 }
 
