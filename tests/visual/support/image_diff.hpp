@@ -25,6 +25,10 @@ struct ImageDiffThreshold {
 
     // Root-mean-square error, per channel, in [0,1].
     double max_rmse{2.0 / 255.0};
+
+    // Minimum acceptable SSIM (Structural Similarity Index) in [0,1].
+    // 1.0 = identical, 0.98 = near-lossless perceptual match.
+    double min_ssim{0.98};
 };
 
 // ── Result ──────────────────────────────────────────────────────────────────
@@ -35,6 +39,10 @@ struct ImageDiffResult {
     double changed_pixel_ratio{0.0};
     double rmse{0.0};
     double psnr{0.0};
+
+    // SSIM (Structural Similarity Index) in [0, 1].
+    // 1.0 = identical; computed on luminance using 8×8 blocks.
+    double ssim{1.0};
 
     bool   passed{false};
     std::string report;
@@ -75,6 +83,19 @@ Framebuffer create_diff_heatmap(
     const Framebuffer& actual,
     const Framebuffer& expected,
     const ImageDiffThreshold& threshold = {}
+);
+
+// ── compute_ssim ────────────────────────────────────────────────────────────
+// Compute the Structural Similarity Index between two sRGB framebuffers.
+//
+// Uses 8×8 non-overlapping blocks on the luminance (luma) channel.
+// Constants C1 = (0.01)², C2 = (0.03)² (standard for 8-bit [0,1] range).
+//
+// Both framebuffers must have identical dimensions.
+
+double compute_ssim(
+    const Framebuffer& a,
+    const Framebuffer& b
 );
 
 } // namespace chronon3d::test

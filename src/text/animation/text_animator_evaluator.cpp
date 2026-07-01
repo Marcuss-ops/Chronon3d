@@ -10,6 +10,14 @@
 
 namespace chronon3d {
 
+// Forward-declare the phase checker (avoids circular include).
+namespace {
+template <typename T>
+constexpr bool is_pre_shaping() {
+    return std::is_same_v<T, CharacterOffsetProperty>;
+}
+} // namespace
+
 // ═══════════════════════════════════════════════════════════════════════════
 // evaluate_animator — single-spec evaluator
 // ═══════════════════════════════════════════════════════════════════════════
@@ -64,6 +72,14 @@ void evaluate_animator(
 
         // Apply each property scaled by the weight.
         for (const auto& prop : spec.properties) {
+            // FASE 2a: skip PreShaping properties — they're already
+            // evaluated in `evaluate_pre_shaping_source()` before
+            // the animator stack.  Skipping here avoids wasted
+            // std::visit dispatch to the no-op branch.
+            if (std::holds_alternative<CharacterOffsetProperty>(prop)) {
+                continue;
+            }
+
             // Use transform_mode or color_mode based on property type.
             TextPropertyBlendMode blend = spec.transform_mode;
             if (std::holds_alternative<FillColorProperty>(prop) ||

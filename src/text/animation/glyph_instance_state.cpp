@@ -15,8 +15,9 @@ namespace chronon3d {
 // Layout positions are copied from the placed run; `glyph_id`, `x`, `y`
 // are the only fields read from the source glyphs besides cluster/byte
 // info (not used here). All animated offsets, scale, rotation, opacity,
-// blur, baseline_shift, character_offset, fill, stroke, stroke_width
-// start at identity.
+// blur, baseline_shift, fill, stroke, stroke_width start at identity.
+// FASE 2a: character_offset is deprecated (always 0) — CharacterOffset
+// is now evaluated in the PreShaping phase before HarfBuzz.
 
 std::vector<GlyphInstanceState> make_initial_glyph_states(
     const PlacedGlyphRun& placed

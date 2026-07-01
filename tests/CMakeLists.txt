@@ -34,6 +34,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/gradient_visual_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/deterministic_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/text_preset_visual_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/text_golden_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/precomp_focus_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/content_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/video_tests.cmake
@@ -98,6 +99,9 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
     include(${CMAKE_CURRENT_SOURCE_DIR}/graphics_tests.cmake)
     include(${CMAKE_CURRENT_SOURCE_DIR}/gradient_visual_tests.cmake)
     include(${CMAKE_CURRENT_SOURCE_DIR}/deterministic_tests.cmake)
+
+# ── TXT-QA-01 — Real Golden Text Harness (standalone, UNITY_BUILD OFF)
+include(${CMAKE_CURRENT_SOURCE_DIR}/text_golden_tests.cmake)
 
 # ── PR-A4 (Blocco A, Fase 1 followup) — 16 text-style preset visual regression
 # The executable is gated by the outer `if(CHRONON3D_USE_BLEND2D AND
@@ -211,6 +215,10 @@ endif()
 # reintroduce duplicate appends before the `set(... "")` reset below.
 if(TARGET chronon3d_text_preset_visual_tests)
     list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_text_preset_visual_tests)
+endif()
+# TXT-QA-01 — text golden harness (standalone, UNITY_BUILD OFF)
+if(TARGET chronon3d_text_golden_tests)
+    list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_text_golden_tests)
 endif()
 # AGENT 4 / TICKET-A4 — append the cinematic camera showcase binary to the
 # render aggregator (single canonical site, mirrors the PR-A4 append

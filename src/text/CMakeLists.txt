@@ -8,6 +8,7 @@ add_library(chronon3d_text_core OBJECT
     animation/text_animator_stack.cpp
     animation/text_property_applier.cpp
     animation/text_tracking_evaluator.cpp
+    animation/text_pre_shaping.cpp
     every_line_composer.cpp
     glyph_selector.cpp
     path_sampler.cpp

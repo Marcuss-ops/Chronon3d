@@ -18,6 +18,7 @@
 
 #include <chronon3d/text/text_animator_property.hpp>
 #include <chronon3d/text/text_document.hpp>
+#include <chronon3d/text/animation/text_pre_shaping.hpp>
 
 namespace chronon3d {
 
@@ -85,6 +86,39 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time) {
             shape.glyphs = make_initial_glyph_states(shape.layout->placed);
         }
         return;
+    }
+
+    // ── FASE 2a: PreShaping phase — evaluate CharacterOffsetProperty
+    //    BEFORE the animator stack.  If the source text changed, we
+    //    must rebuild the layout (different code points → different
+    //    glyphs, metrics, clusters, ligatures, bidi). ────────────────
+    if (has_pre_shaping_properties(shape.animators)) {
+        std::string offset_source = evaluate_pre_shaping_source(
+            shape.animators, shape.layout->source_text);
+
+        if (offset_source != shape.layout->source_text) {
+            // Source text changed — rebuild layout via the canonical
+            // pipeline (same slow path as AnimatedTextDocument).
+            // The layout cache keys on text content, so a different
+            // source text naturally misses the cache and triggers a
+            // fresh HarfBuzz shaping pass.
+            TextDocument td;
+            td.utf8 = offset_source;
+            if (shape.layout) {
+                td.defaults.font = shape.layout->font;
+            }
+            td.split_paragraphs();
+
+            auto& cache = shared_text_layout_cache();
+            TextRunBuildResult result = build_text_run(
+                td, *shape.engine, shape.layout_spec, &cache);
+
+            if (!result.paragraphs.empty() && result.paragraphs.front()) {
+                shape.layout = result.paragraphs.front();
+                shape.glyphs = make_initial_glyph_states(
+                    shape.layout->placed);
+            }
+        }
     }
 
     // ── Re-evaluate in place.  evaluate_animator_stack_into resets

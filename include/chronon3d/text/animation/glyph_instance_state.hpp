@@ -41,7 +41,10 @@ struct GlyphInstanceState {
     f32 opacity{1.0f};                // final opacity
     f32 blur{0.0f};                   // blur radius
     f32 baseline_shift{0.0f};         // vertical shift from baseline
-    i32 character_offset{0};          // code-point offset (CharacterOffsetProperty)
+    // FASE 2a: character_offset is always 0.  CharacterOffsetProperty
+    // is now evaluated in the PreShaping phase (transforms source text
+    // before HarfBuzz).  Kept for ABI compat; remove in a follow-up.
+    i32 character_offset{0};          // [deprecated] always 0
 
     Color fill{1.0f, 1.0f, 1.0f, 1.0f};   // final fill color
     Color stroke{0.0f, 0.0f, 0.0f, 0.0f};  // stroke color (alpha=0 → disabled)
