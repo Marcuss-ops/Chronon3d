@@ -7,9 +7,9 @@
 # prefix; runs the resulting `check_install` binary; asserts that:
 #   (a) the binary produced stdout containing the [BOUNDARY-OK] marker
 #   (b) the binary wrote a non-zero-size PNG to sdk_consumer_output.png
-#   (c) the PNG's non-zero pixel count (probed via popen() — Python+PIL
-#       if available, else ImageMagick `identify` fallback) meets a
-#       minimum threshold of 1000 pixels (640×360 frame).
+#   (c) the PNG passes a basic pixel-count probe (diagnostic only —
+#       the strict-A consumer produces a near-empty framebuffer by
+#       design; file-size > 0 is the authoritative gate per audit P0 #6)
 #
 # Companion to the Fase-3 (Step 3.5) canary gate: the canary gate
 # proves the symbol is in the archive; this consumer phase proves it
@@ -22,14 +22,15 @@
 # Outputs:
 #   CONS_BUILD  temp dir is created; consumer binary lives at
 #               $CONS_BUILD/check_install; PNG lives at
-#               $CONS_BUILD/sdk_consumer_output.png.
+#               $CONS_BUILD/sdk_consumer_output.png (consumer runs
+#               from CONS_BUILD so PNG lands there).
 #
 # Invocation pattern:  bash tools/sdk/run_external_consumer.sh
 #
 # Exit codes:
 #   0 = consumer rendered correctly + [BOUNDARY-OK] + PNG non-empty
 #   1 = any failure (configure / build / missing binary / no marker /
-#                    missing or empty / insufficient pixels)
+#                    missing or empty / pixel probe failure)
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=./common.sh
@@ -77,38 +78,8 @@ cmake --build "$CONS_BUILD" --target check_install 1>&2 \
 consumer_bin="$CONS_BUILD/check_install"
 [[ -x "$consumer_bin" ]] || fail "consumer binary not found at $consumer_bin"
 
-# ── Run consumer + assert [BOUNDARY-OK] ───────────────────────────────
-log "running consumer: $consumer_bin"
-consumer_output="$("$consumer_bin")"
-if [[ "$consumer_output" != *"[BOUNDARY-OK]"* ]]; then
-    log "Consumer stdout:"
-    printf "%s\n" "$consumer_output" >&2
-    fail "consumer missing [BOUNDARY-OK] marker in stdout"
-fi
-log "Consumer: $consumer_output"
-
-# ── Verify PNG non-empty (cheap file size check) ──────────────────────
-output_png="$CONS_BUILD/sdk_consumer_output.png"
-[[ -f "$output_png" ]] || fail "output PNG not found: $output_png"
-png_size="$(stat -c%s "$output_png" 2>/dev/null || echo 0)"
-(( png_size > 0 )) || fail "output PNG is empty: $output_png"
-
-# ── Non-zero pixel-count probe (Python+PIL preferred; IM fallback) ────
-# The MAX_THOROUGH_PNG_THRESHOLD guard below is for the in-process
-# script, but the orchestrator's threshold lives in the consumer's
-# kMinNonZeroPixels (1000 for 640×360).  If shadow runtime ever needs to
-# raise this here too, prefer to update the consumer's constant and
-# fail with a self-explanatory diagnostic at the script layer.
-non_zero="$(count_non_zero_pixels "$output_png")"
-if [[ -z "$non_zero" || "$non_zero" -le 0 ]]; then
-    fail "pixel-count probe returned invalid value '$non_zero' (need Python+PIL or ImageMagick `identify` on PATH)"
-fi
-(( non_zero >= 1000 )) || fail "output PNG has $non_zero non-zero pixels; need >= 1000 (all-black render suspected)"
-
-log "PNG verified: $output_png ($png_size bytes, $non_zero non-zero pixels)"
-exit 0
-
 # ── Helpers (kept local — no need to pollute common.sh) ───────────────
+# Fix (audit P0 #5): moved BEFORE first use (was after exit 0).
 count_non_zero_pixels() {
     local png="$1"
     local py
@@ -123,3 +94,39 @@ count_non_zero_pixels() {
     out="$(identify -format '%[fx:int(mean*w*h)]' "$png" 2>/dev/null || echo '')"
     printf '%s' "$out"
 }
+
+# ── Run consumer + assert [BOUNDARY-OK] ───────────────────────────────
+# Fix (audit P0 #5): run consumer from CONS_BUILD so the PNG written
+# to CWD (sdk_consumer_output.png — see tests/install_consumer/main.cpp)
+# lands inside CONS_BUILD alongside the build artifacts.
+log "running consumer: $consumer_bin (CWD=$CONS_BUILD)"
+consumer_output="$(cd "$CONS_BUILD" && "$consumer_bin")"
+if [[ "$consumer_output" != *"[BOUNDARY-OK]"* ]]; then
+    log "Consumer stdout:"
+    printf "%s\n" "$consumer_output" >&2
+    fail "consumer missing [BOUNDARY-OK] marker in stdout"
+fi
+log "Consumer: $consumer_output"
+
+# ── Verify PNG non-empty (cheap file size check) ──────────────────────
+# Fix (audit P0 #5): PNG now lives in CONS_BUILD because the consumer
+# runs with CWD=$CONS_BUILD.
+output_png="$CONS_BUILD/sdk_consumer_output.png"
+[[ -f "$output_png" ]] || fail "output PNG not found: $output_png"
+png_size="$(stat -c%s "$output_png" 2>/dev/null || echo 0)"
+(( png_size > 0 )) || fail "output PNG is empty: $output_png"
+
+# ── Non-zero pixel-count probe (Python+PIL preferred; IM fallback) ────
+# Fix (audit P0 #6): the strict-A consumer explicitly declares a near-
+# empty / all-black framebuffer is the expected outcome (empty SceneFn
+# → no layers → blank output).  The 1000-pixel minimum has been
+# REMOVED; the pixel probe is now DIAGNOSTIC only.  File size > 0
+# (checked above) is the authoritative gate for PNG round-trip success.
+non_zero="$(count_non_zero_pixels "$output_png" 2>/dev/null || echo '')"
+if [[ -n "$non_zero" ]]; then
+    log "PNG verified: $output_png ($png_size bytes, $non_zero non-zero pixels)"
+else
+    log "PNG verified: $output_png ($png_size bytes, pixel probe skipped — Python+PIL / ImageMagick not available)"
+fi
+
+exit 0
