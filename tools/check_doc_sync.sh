@@ -7,8 +7,9 @@
 #
 # Regole (matrice del piano 07 sez. D3):
 #
-#   1. Qualsiasi cambio in src/runtime/**       ⇒ STATUS.md obbligatorio
-#      e NEXT_STEPS.md obbligatorio.
+#   1. Qualsiasi cambio in src/runtime/**       ⇒ CURRENT_STATUS.md obbligatorio
+#      e ROADMAP.md obbligatorio.
+#      (DOC-002: STATUS.md e NEXT_STEPS.md sono archiviati in docs/ARCHIVE/.)
 #   2. Qualsiasi cambio in include/chronon3d/**  ⇒ almeno un ADR in
 #      docs/adr/ deve esistere per l'area (warning finché lo slot
 #      non è *Accepted*).
@@ -17,7 +18,8 @@
 #      toccato oppure ADR-001/002 esistente.
 #   4. Qualsiasi cambio in vcpkg.json o
 #      CMakePresets.json                       ⇒
-#      docs/stabilization-plan/08-dependency-profiles.md toccato.
+#      docs/ARCHIVE/stabilization-plan/08-dependency-profiles.md toccato
+#      (archived per AGENTS.md; la regola è mantenuta come audit trail).
 #   5. Chiusura di un TICKET-NNN (parola "Closes #NNN" o
 #      "TICKET-NNN: done" nel messaggio) ⇒ CHANGELOG.md toccato.
 #
@@ -73,13 +75,15 @@ has_change() {
 # (failures always exit regardless of mode).
 log_warn() { if [[ "$wip" -eq 1 ]]; then echo "[WARN:skipped] $1"; return; fi; warnf "$1"; }
 
-# -- R1: src/runtime/** ⇒ STATUS.md + NEXT_STEPS.md -----------------------------------
+# -- R1: src/runtime/** ⇒ CURRENT_STATUS.md + ROADMAP.md --------------------------
+# DOC-002: STATUS.md e NEXT_STEPS.md sono archiviati; i canonici sono
+# CURRENT_STATUS.md e ROADMAP.md (AGENTS.md §Documenti canonici).
 if has_change '^src/runtime/'; then
-  if   has_change '^docs/STATUS\.md$'; then okf "R1: STATUS.md aggiornato (src/runtime/**)"
-  else fail "R1: src/runtime/** toccato ma docs/STATUS.md assente"
+  if   has_change '^docs/CURRENT_STATUS\.md$'; then okf "R1: CURRENT_STATUS.md aggiornato (src/runtime/**)"
+  else fail "R1: src/runtime/** toccato ma docs/CURRENT_STATUS.md assente"
   fi
-  if   has_change '^docs/NEXT_STEPS\.md$'; then okf "R1: NEXT_STEPS.md aggiornato"
-  else fail "R1: src/runtime/** toccato ma docs/NEXT_STEPS.md assente"
+  if   has_change '^docs/ROADMAP\.md$'; then okf "R1: ROADMAP.md aggiornato"
+  else fail "R1: src/runtime/** toccato ma docs/ROADMAP.md assente"
   fi
 fi
 
@@ -135,10 +139,10 @@ fi
 
 # -- R4: vcpkg.json OR CMakePresets.json ⇒ piano 08 ------------------------------------
 if has_change '^(vcpkg\.json|CMakePresets\.json)$'; then
-  if has_change '^docs/stabilization-plan/08-dependency-profiles\.md$'; then
+  if has_change '^docs/ARCHIVE/stabilization-plan/08-dependency-profiles\.md$'; then
     okf "R4: piano 08 aggiornato (vcpkg/CMakePresets)"
   else
-    fail "R4: vcpkg.json o CMakePresets.json toccati ma 08-dependency-profiles.md assente"
+    warnf "R4: vcpkg.json o CMakePresets.json toccati ma docs/ARCHIVE/stabilization-plan/08-dependency-profiles.md assente (archived — audit trail only)"
   fi
 fi
 
