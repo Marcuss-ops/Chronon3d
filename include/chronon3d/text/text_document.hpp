@@ -59,6 +59,10 @@ struct TextStyleSpan {
     std::optional<f32>               tracking;
     std::optional<f32>               baseline_shift;
 
+    // FASE 4a: per-span identity + sizing multipliers (wired by TextDocumentBuilder).
+    std::optional<std::string>       semantic_id;          ///< stable id for analytics/sync/highlights
+    std::optional<f32>               font_size_multiplier;  ///< multiplier vs paragraph default (1.0 = default)
+
     [[nodiscard]] bool operator==(const TextStyleSpan&) const noexcept = default;
 };
 

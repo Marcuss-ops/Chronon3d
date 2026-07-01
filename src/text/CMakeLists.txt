@@ -21,6 +21,7 @@ add_library(chronon3d_text_core OBJECT
     pending_text_run_impl.cpp
     single_line_composer.cpp
     text_document.cpp
+    text_document_builder.cpp
     text_path_composer.cpp
     text_resolver.cpp
     text_run.cpp
