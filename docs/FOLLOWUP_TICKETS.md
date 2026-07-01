@@ -8,8 +8,8 @@
 
 | ID | Priorità | Area | Stato | Blocca | Scheda |
 |---|---|---|---|---|---|
-| TICKET-077 | P0 | gate-3 I2 (LOC) | PLANNED | check_software_renderer_boundary | [TICKET-077.md](tickets/TICKET-077.md) |
-| TICKET-079 | P0 | gate-3 I5 (API surface) | PLANNED | check_software_renderer_boundary | [TICKET-079.md](tickets/TICKET-079.md) |
+| TICKET-077 | P0 | gate-3 I2 (LOC) | 🟢 Done | check_software_renderer_boundary | header LOC 223→182, gate-3 I2 PASS |
+| TICKET-079 | P0 | gate-3 I5 (API surface) | 🟢 Done | check_software_renderer_boundary | SWRenderer& → SWRenderer*, gate-3 I5 PASS |
 | TICKET-036 | P0 | camera architecture gate | PLANNED | arch-boundary gate 5/6 | [TICKET-036.md](tickets/TICKET-036.md) |
 | TICKET-011 | P0 | mainline build rot | PLANNED | arch-boundary gate 1–8 | [TICKET-011.md](tickets/TICKET-011.md) |
 | TICKET-044 | P1 | selftest hardcoded paths | PLANNED | arch-boundary gate 5 | [TICKET-044.md](tickets/TICKET-044.md) |
@@ -29,6 +29,8 @@ Tutti i ticket aperti non nella top-10 (TICKET-024, TICKET-026, TICKET-066, TICK
 
 | ID | Area | Commit |
 |---|---|---|
+| TICKET-077 | gate-3 I2 software_renderer.hpp LOC 223→182 | Done |
+| TICKET-079 | gate-3 I5 attach_software_backend SWRenderer& → SWRenderer* | Done |
 | TICKET-078 | gate-3 I3 non-local includes 7→6 | Done |
 | TICKET-087 | gate-3 I3 build-fix preflight_fonts | Done |
 | TICKET-106 | gate-3 I5 path-list-parity regression test | Done |
