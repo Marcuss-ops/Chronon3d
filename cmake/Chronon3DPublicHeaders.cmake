@@ -76,6 +76,12 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/asset_metadata.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/asset_registry.hpp"
 
+    # ── api ────────────────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/api/render_engine.hpp"
+
+    # ── backends/image ──────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/image/image_writer.hpp"
+
     # ── backends/software/sampling ──────────────────────────────────────
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/software/sampling/edge_mode.hpp"
 
