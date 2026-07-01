@@ -18,6 +18,29 @@
 namespace chronon3d {
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TICKET-103a — freeze-minimum cat-3 type aliases used by TextLayoutRequest,
+// TextRunLayout, and TextLayoutCacheKey.  Same bytewise layout as
+// std::string / TextDirection — no new classes introduced, just explicit
+// semantic names.  Promoted from src/text/aliases.hpp's
+// Bcp47LanguageTag alias (which stays internal-and-unused) so the
+// TICKET-103a cat-3 refactor can extend the existing TextLayoutRequest
+// POD struct with named fields without expanding the public type surface.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// RFC 5646 BCP-47 language tag (e.g. "en", "en-US", "ar", "zh-Hant-HK").
+/// Passes through to HarfBuzz hb_language_from_string() unchanged.
+/// Same bytewise layout as std::string.
+using Bcp47LanguageTag = std::string;
+
+/// OpenType / HarfBuzz shaping features string (e.g. "kern=1,liga=1,dlig=0").
+/// Empty default = "use the font's natural feature set".  Same bytewise
+/// layout as std::string.  Held as a single string for the freeze-minimum
+/// scope; the more elaborate per-feature toggle struct (i32 tag + u8
+/// value + u8 start/end + u16 reserved fields, à la hb_feature_t) is
+/// TICKET-093 (cat-violator post-baseline-verde).
+using TextShapingFeatures = std::string;
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TextRunLayout — immutable layout data for a shaped text run
 // ═══════════════════════════════════════════════════════════════════════════
 //
@@ -82,7 +105,8 @@ struct TextRunLayout {
     f32 tracking{0.0f};                          // per-cluster tracking in pixels
     TextWrap wrap{TextWrap::None};               // wrapping mode
     TextDirection direction{TextDirection::Auto};
-    std::string language;                        // BCP-47 language tag
+    Bcp47LanguageTag language;                  // BCP-47 language tag (TICKET-103a: alias of std::string)
+    TextShapingFeatures features;               // OT shaping features (TICKET-103a: new field)
 
     /// Compute a hash of the layout content (text + font + shaping + wrapping).
     /// Stable across different materials/strokes on the same text.
@@ -222,7 +246,8 @@ struct TextLayoutCacheKey {
     f32 box_width{0.0f};                         // 0 = no wrapping
     TextWrap wrap{TextWrap::None};
     TextDirection direction{TextDirection::Auto};
-    std::string language;                         // BCP-47 language tag
+    Bcp47LanguageTag language;                   // BCP-47 language tag (TICKET-103a: alias of std::string)
+    TextShapingFeatures features;                // OT shaping features (TICKET-103a: new field)
 
     /// Paragraph-level typography.  Different composer/justification/
     /// indentation/spacing/hanging-punctuation settings produce different

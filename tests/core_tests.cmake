@@ -178,6 +178,22 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         #       emit a class redefinition error at compile time.
         #       File compile-success is the regression lock.
         text/test_text_unit_map_joint_include.cpp
+        # TICKET-103a -- text cat-3 #4 cache-key collision regression
+        # suite.  2 deterministic TEST_CASEs (no threads, no time,
+        # no PRNG, no font engine dependency):
+        #   (1) Same text + font + wrap but direction=LTR vs direction=RTL
+        #       -> TextLayoutCacheKey::digest() MUST differ (locks bidi
+        #       cache-collision contract; pre-TICKET-103a the
+        #       force-override collapsed both to TextDirection::Auto,
+        #       producing a false cache hit on bidi-shaping inputs);
+        #   (2) Same text + font + wrap + direction but language="ar"
+        #       vs language="en" -> digests MUST differ (locks BCP-47
+        #       cache-collision contract; pre-TICKET-103a
+        #       language.clear() collapsed both, producing a false
+        #       cache hit on Arabic vs English script-specific shaping
+        #       decisions in HarfBuzz).  Pure key-construction tests;
+        #       no font engine / system fonts required.
+        text/test_layout_cache_collision.cpp
     )
 endif()
 
