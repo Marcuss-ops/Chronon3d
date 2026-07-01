@@ -23,6 +23,9 @@
 #                                       and requires pre-existing
 #                                       $SDK_BUILD/CMakeCache.txt +
 #                                       $SDK_PREFIX/install_manifest.json
+#                                       (SDK_BUILD and SDK_PREFIX must be
+#                                       supplied via env — no mktemp in
+#                                       FAST mode)
 #   CHRONON3D_INSTALL_TEST_GHOST_SWEEP  "1" enables Phase 2 (destructive OFF
 #                                       reconfigure + reinstall + ghost leak
 #                                       assertion)
@@ -50,25 +53,32 @@ log "fast mode   : ${CHRONON3D_INSTALL_TEST_FAST:-0}"
 log "ghost sweep : ${CHRONON3D_INSTALL_TEST_GHOST_SWEEP:-0}"
 require_cmake_3_27 >/dev/null
 
-# ── Temp dirs (orchestrator's responsibility) + EXIT trap cleanup ────
-SDK_BUILD="$(mktemp_dir chronon3d_install_consumer_sdk_build)"
-SDK_PREFIX="$(mktemp_dir chronon3d_install_consumer_prefix)"
-cleanup_register "$SDK_BUILD" "$SDK_PREFIX"
-
-# Export for phase-script consumption.
-export SDK_BUILD SDK_PREFIX REPO_ROOT PRESET="$CHRONON3D_INSTALL_TEST_PRESET"
-
 # ── Phase 1: configure + build + install SDK (inline) ────────────────
 # This phase MUST stay inline because SDK_BUILD and SDK_PREFIX are the
 # inputs every downstream phase reads.  FAST mode skips this phase
 # entirely (reuses a prior install) so a developer can iterate on Phase
 # 2-4 checks without rebuilding the SDK.
+#
+# Fix (audit P0 #4): FAST mode now takes SDK_BUILD / SDK_PREFIX from
+# the ENVIRONMENT instead of creating new mktemp dirs that overwrite
+# the very dirs it's supposed to reuse.  Non-FAST mode creates fresh
+# temp dirs as before.
 if [[ "${CHRONON3D_INSTALL_TEST_FAST:-0}" == "1" ]]; then
+    : "${SDK_BUILD:?FAST mode requires SDK_BUILD env var (pre-configured build dir)}"
+    : "${SDK_PREFIX:?FAST mode requires SDK_PREFIX env var (pre-installed prefix)}"
+    # NOTE: user-supplied dirs are NOT registered for cleanup in FAST
+    # mode — these are pre-existing directories the user intends to
+    # reuse across multiple runs.
+
     log "FAST mode ON: skipping Phase 1 (configure+build+install) — reusing existing SDK_BUILD=$SDK_BUILD"
     [[ -f "$SDK_BUILD/CMakeCache.txt" ]]          || fail "FAST mode requires pre-existing SDK_BUILD/CMakeCache.txt ($SDK_BUILD missing or never configured)"
     [[ -f "$SDK_PREFIX/install_manifest.json" ]]  || fail "FAST mode requires pre-existing SDK_PREFIX with a finished install"
     log "FAST preconditions satisfied: CMakeCache.txt + install_manifest.json both present"
 else
+    SDK_BUILD="$(mktemp_dir chronon3d_install_consumer_sdk_build)"
+    SDK_PREFIX="$(mktemp_dir chronon3d_install_consumer_prefix)"
+    cleanup_register "$SDK_BUILD" "$SDK_PREFIX"
+
     log "Phase 1.1: configure SDK (preset=$PRESET, build=$SDK_BUILD, prefix=$SDK_PREFIX)"
     cmake -S "$REPO_ROOT" -B "$SDK_BUILD" --preset "$PRESET" \
         -DCMAKE_INSTALL_PREFIX="$SDK_PREFIX" 1>&2
@@ -79,6 +89,9 @@ else
     log "Phase 1.3: install SDK into $SDK_PREFIX"
     cmake --install "$SDK_BUILD" --prefix "$SDK_PREFIX" 1>&2
 fi
+
+# Export for phase-script consumption.
+export SDK_BUILD SDK_PREFIX REPO_ROOT PRESET="$CHRONON3D_INSTALL_TEST_PRESET"
 
 # ── Phase 2: feature-OFF ghost sweep (destructive — opt-in only) ─────
 # The ghost sweep reconfigures SDK_BUILD with DIAG=OFF/CONTENT=OFF and
