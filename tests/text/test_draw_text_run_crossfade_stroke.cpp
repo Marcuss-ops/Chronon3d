@@ -161,16 +161,16 @@ bool is_known_render_op_error(graph::RenderBackendErrorCode code) noexcept {
 } // namespace
 
 // ═════════════════════════════════════════════════════════════════════════
-// 1. E2E — draw_text_run with crossfade + stroke + longer outgoing text
-//        must not crash (Bug #5 OOB-defence smoke).
-// ═════════════════════════════════════════════════════════════════════════
+// 1. NO-CRASH — draw_text_run with crossfade + stroke + longer outgoing
+//              text must not crash (Bug #5 OOB-defence regression).
 //
-// Active text = 3 chars; outgoing text = 32 chars.  Stroke width forced to
-// 2.0f on every active glyph + shape-level paint.stroke_enabled = true so
-// BOTH the per-glyph stroke branch and the shape-level fallback fire.
-// Frame sampled at 30 — the middle of the crossfade gap.
+//              Accepts ANY return outcome (success or documented error)
+//              as long as the dispatch does not segfault / OOB-read.
+//              This is PURELY a crash-regression lock — NOT an E2E
+//              rendering-success gate.
+// ═════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("draw_text_run: crossfade + stroke with longer outgoing text does not OOB (Bug #5 E2E)") {
+TEST_CASE("draw_text_run: crossfade + stroke with longer outgoing text does not crash (no-crash regression)") {
     if (!fixture_exists(kFontPath)) {
         skip_if_missing(kFontPath, "TICKET-068 E2E (draw_text_run crossfade+stroke)");
         return;
@@ -264,18 +264,15 @@ TEST_CASE("draw_text_run: crossfade + stroke with longer outgoing text does not 
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// 2. E2E stress — draw_text_run with crossfade + stroke + 33:3
+// 2. NO-CRASH STRESS — draw_text_run with crossfade + stroke + 33:3
 //        active:outgoing ratio must not OOB under deflated ratio.
-// ═════════════════════════════════════════════════════════════════════════
 //
-// Stresses the OOB-defence under a deliberately extreme `active:outgoing`
-// ratio.  If Bug #5 regressed, the maximum crossfade-side access
-// (the OUTGOING glyph count) would not be tested at scale — this test
-// deliberately pushes the asymmetry to 33:3 so any OOB-access regression
-// fires on the FIRST draw call rather than passing through a small
-// ratio unnoticed.
+//        Same no-crash contract as test 1: ANY return outcome is
+//        acceptable as long as the dispatch completes without
+//        segfault / OOB-read.  Stress variant with extreme asymmetry.
+// ═════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("draw_text_run: crossfade + stroke with 33:3 outgoing ratio does not OOB (Bug #5 stress)") {
+TEST_CASE("draw_text_run: crossfade + stroke with 33:3 ratio does not crash (no-crash regression)") {
     if (!fixture_exists(kFontPath)) {
         skip_if_missing(kFontPath, "TICKET-068 E2E stress (33:3 ratio)");
         return;
@@ -328,4 +325,87 @@ TEST_CASE("draw_text_run: crossfade + stroke with 33:3 outgoing ratio does not O
         MESSAGE("draw_text_run error.code = " << static_cast<int>(code));
         CHECK(is_known_render_op_error(code));
     }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// 3. RENDER-SUCCESS — draw_text_run with crossfade + stroke must
+//        produce a successful render (NOT just avoid crashing).
+//
+//        This is the E2E rendering-success gate: a properly-configured
+//        environment (fonts installed, Blend2D present) MUST produce a
+//        non-error RenderOpResult.  Skips gracefully when the font
+//        fixture is missing.  Contrast with tests 1-2 which accept
+//        ExecutionFailure — this test does NOT.
+// ═════════════════════════════════════════════════════════════════════════
+//
+// Uses the same OOB-precondition crossfade data shape as test 1, but
+// adds a RENDER-SUCCESS assertion: draw_text_run MUST return
+// result.has_value() == true when fonts are available.  This closes
+// the audit P0 #6 gap where the no-crash E2E smoke was counted as
+// proof of rendering correctness.
+
+TEST_CASE("draw_text_run: crossfade + stroke produces successful render (E2E render-success gate)") {
+    if (!fixture_exists(kFontPath)) {
+        skip_if_missing(kFontPath, "TICKET-068 E2E render-success");
+        return;
+    }
+
+    const FontSpec font = inter_bold();
+    const std::string active_text    = "Hello";                     // 5 glyphs
+    const std::string outgoing_text  = "HelloWorld";                  // 10 glyphs (LONGER)
+
+    SoftwareRenderer renderer = test::make_renderer();
+    FontEngine engine{renderer.runtime().resolver()};
+    TextLayoutSpec layout;
+    layout.box = {256.0f, 64.0f};
+
+    auto shape = make_real_shape_for_test(active_text, engine, layout, font);
+    REQUIRE(shape != nullptr);
+    REQUIRE(shape->layout != nullptr);
+    REQUIRE_FALSE(shape->glyphs.empty());
+
+    // Enable stroke on every active glyph.
+    for (auto& g : shape->glyphs) {
+        g.stroke_width = 2.0f;
+        g.stroke       = Color{0x00, 0x80, 0xFF, 0xFF};  // blue
+    }
+    shape->paint.stroke_enabled = true;
+    shape->paint.stroke_width   = 2.0f;
+    shape->paint.stroke_color   = Color{0x00, 0x80, 0xFF, 0xFF};
+
+    // Attach OOB-precondition crossfade doc.
+    shape->animated_doc = make_crossfade_longer_outgoing_doc(
+        outgoing_text, active_text, font);
+
+    const auto state = shape->animated_doc->sample_at(Frame{30});
+    REQUIRE(state.transition == SourceTextTransition::CrossfadeLayouts);
+    REQUIRE(state.crossfade_from != nullptr);
+    REQUIRE(apply_active_state_to_text_run_shape(*shape, state, engine, layout));
+
+    REQUIRE(shape->crossfade_layout != nullptr);
+    REQUIRE_FALSE(shape->crossfade_glyphs.empty());
+    REQUIRE(shape->crossfade_layout->placed.glyphs.size() > shape->layout->placed.glyphs.size());
+
+    // ── RENDER-SUCCESS assertion ────────────────────────────────────
+    // Unlike tests 1-2 (no-crash), this test REQUIRES the render to
+    // succeed — result.has_value() must be true.  ExecutionFailure,
+    // InvalidInput, or UnsupportedCapability are NOT acceptable here.
+    Framebuffer fb(128, 64);
+    const Mat4 model = Mat4(1.0f);
+    auto result = renderer.backend().draw_text_run(fb, *shape, model, 1.0f);
+    REQUIRE(result.has_value());
+    CHECK(static_cast<bool>(result));
+
+    // ── Output sanity: framebuffer must not be all-transparent ───────
+    // After a successful stroke render, at least one pixel should be
+    // non-transparent.  This is a weak but useful smoke check that the
+    // renderer actually wrote pixels (not just returned Ok with no-op).
+    bool has_non_transparent = false;
+    for (int y = 0; y < fb.height() && !has_non_transparent; ++y) {
+        for (int x = 0; x < fb.width() && !has_non_transparent; ++x) {
+            const auto px = fb.get_pixel(x, y);
+            if (px.a != 0.0f) has_non_transparent = true;
+        }
+    }
+    CHECK(has_non_transparent);
 }
