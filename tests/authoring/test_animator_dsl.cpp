@@ -978,9 +978,12 @@ using chronon3d::authoring::FrameContext;
 using chronon3d::authoring::Layer;
 using chronon3d::authoring::Text;
 
-// TICKET-109 — test-only inspector mirroring LayerBuilderInspector
-// pattern.  Tests read Text handle state through this inspector rather
-// than calling `mutable_pending()` directly.
+// TICKET-110 — test-only inspector mirroring LayerBuilderInspector
+// pattern.  Tests read Text handle state through this inspector; the
+// public `Text::mutable_pending()` accessor was demoted to private in
+// lock-step with a `friend class testing::TextRunBuilderInspector;`
+// grant on `Text`, so the inspector is the canonical way to reach
+// the underlying `PendingTextRun` from the test side.
 #include "support/text_run_builder_inspection.hpp"
 using chronon3d::authoring::testing::TextRunBuilderInspector;
 
