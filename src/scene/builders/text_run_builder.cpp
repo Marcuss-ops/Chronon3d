@@ -10,6 +10,10 @@
 // the per-shape document compile_text_layout consumes.
 #include <chronon3d/text/text_run_builder.hpp>
 #include <chronon3d/text/text_document.hpp>
+// TICKET-104 -- internal consumed-decrement helper mirrors the
+// include in src/scene/builders/layer_builder.cpp.  Relative path
+// from src/scene/builders/ to src/text/ = "../../text/...".
+#include "../../text/pending_text_run_impl.hpp"
 
 #include <cassert>
 #include <iterator>
@@ -246,12 +250,50 @@ TextRunBuilder& TextRunBuilder::from_animated_document(
 
 LayerBuilder& TextRunBuilder::commit() {
     assert(m_parent != nullptr && "TextRunBuilder commit() called with null parent");
+
+    // TICKET-104 — selector/animator chain validation.  If a selector
+    // spec was queued via `.selector(...)` WITHOUT a preceding
+    // `.animator(...)`, the chain is semantically incomplete: the
+    // selector would have no animator to live on.  Drop the orphaned
+    // selectors here + emit a one-shot `spdlog::warn` diagnostic that
+    // log-scrapers can lock against.  This matches the existing
+    // `build_text_run` skip+warn pattern — both are cat-3-compliant
+    // structural diagnostics (no new public classes, no new Result
+    // types).  The structural outcome (animators vector remains
+    // empty, the orphaned selectors are dropped) is testable
+    // directly.  Two failure modes are intentionally identical from
+    // the caller's perspective: (a) `.selector(...) .commit()` w/o
+    // `.animator(...)`  (this branch), and (b) build-cache-miss on an
+    // unsupported multi-font shape (build_text_run) — both emit warn
+    // + drop the dangling sub-spec rather than fail noisily.
+    if (!m_pending_selectors.empty() && !m_has_explicit_animator) {
+        spdlog::warn(
+            "TextRunBuilder::commit: {} selector spec(s) dropped — "
+            "no .animator(...) call registered before .commit().  "
+            "Selectors require an animator host (call .animator(spec) "
+            "before .selector(spec) or use .commit() only after wiring "
+            "at least one animator).  See TICKET-104.",
+            m_pending_selectors.size());
+        m_pending_selectors.clear();
+    }
+
     // LayerBuilder::build() reads m_text_runs directly; the spec is
     // already up-to-date.  Touching m_cache_layout=false here forces
     // a re-shape even if the layout cache already contains an entry
     // for the spec's TextRunParams (because user edits may have
     // changed shaping inputs).
     m_spec->params.cache_layout = m_cache_layout;
+
+    // TICKET-104 — call the canonical consumed-decrement helper.  The
+    // counter increments regardless of whether the spec's previous
+    // state was already-consumed; this is intentional (commits that
+    // re-emit on the same spec still count as a decrement action
+    // under the diagnostic).  When callers want a strict
+    // "first-commit-only" semantic, they should check `!spec.consumed`
+    // before calling `commit()` themselves.  See
+    // src/text/pending_text_run_impl.hpp for the counter contract.
+    chronon3d::text_internal::mark_consumed(*m_spec);
+
     return *m_parent;
 }
 
