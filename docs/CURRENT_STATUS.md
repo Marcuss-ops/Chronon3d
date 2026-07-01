@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@cee4f649` — 2026-07-01. Linux-only.
+> **Snapshot:** `main@1c106049` — 2026-07-01. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@21103265` (9/11 PASS — vedi [`docs/baselines/main-21103265-baseline.md`](docs/baselines/main-21103265-baseline.md)).
 > Tra `21103265` e l'HEAD corrente sono atterrati commit addizionali (incluso `docs/DOCUMENTATION_GOVERNANCE.md`); non è ancora stata registrata una nuova baseline macchina-verificata sull'HEAD corrente.
@@ -61,7 +61,7 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 ## Certificazione corrente
 
 Ultima baseline macchina-verificata: `main@21103265` — **9/11 PASS** (NON VERDE per freeze).
-HEAD corrente `main@cee4f649` non coincide con la baseline: sono atterrati commit addizionali senza re-baseline.
+HEAD corrente `main@1c106049` non coincide con la baseline: sono atterrati commit addizionali senza re-baseline.
 Per la revoca del **feature freeze** (vedi `AGENTS.md`) è richiesto **11/11 PASS sullo stesso commit**.
 Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA, una sola baseline per commit).
 
