@@ -44,21 +44,22 @@ void register_builtin_processors(chronon3d::renderer::SoftwareRegistry& reg) {
     chronon3d::renderer::register_builtin_processors(reg);
 }
 
-void attach_software_backend(chronon3d::SoftwareRenderer& renderer) {
+void attach_software_backend(chronon3d::SoftwareRenderer* renderer) {
+    assert(renderer && "attach_software_backend: null renderer");
     // Idempotent — re-entry is silent so unit tests don't have to gate
     // against the transition from attach_pending to attached.
-    if (renderer.runtime().backend_attached()) {
+    if (renderer->runtime().backend_attached()) {
         return;
     }
 
     chronon3d::SoftwareBackendServices services{};
-    services.owner            = &renderer;
-    services.counters         = renderer.counters();
-    services.settings         = &renderer.render_settings();
-    services.framebuffer_pool = renderer.runtime().framebuffer_pool_shared();
-    services.asset_resolver   = &renderer.runtime().resolver();
-    services.text_resources   = renderer.text_render_resources();
-    services.images           = &renderer.image_renderer();
+    services.owner            = renderer;
+    services.counters         = renderer->counters();
+    services.settings         = &renderer->render_settings();
+    services.framebuffer_pool = renderer->runtime().framebuffer_pool_shared();
+    services.asset_resolver   = &renderer->runtime().resolver();
+    services.text_resources   = renderer->text_render_resources();
+    services.images           = &renderer->image_renderer();
 
     auto factory_result = make_software_backend(services);
     if (!factory_result.has_value()) {
@@ -71,7 +72,7 @@ void attach_software_backend(chronon3d::SoftwareRenderer& renderer) {
         throw std::runtime_error(
             std::string{"attach_software_backend: "} + e.message);
     }
-    renderer.runtime().attach_backend(std::move(factory_result.value()));
+    renderer->runtime().attach_backend(std::move(factory_result.value()));
 }
 
 } // namespace chronon3d::backends::software
