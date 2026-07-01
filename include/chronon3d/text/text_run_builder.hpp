@@ -33,6 +33,13 @@
 
 namespace chronon3d {
 
+// P1-6 — Forward declaration of `ResolvedTextTree` (defined in
+// `text_resolver.hpp`).  Used by the COMPILE_TEXT_LAYOUT-API additive
+// `pre_resolved` parameter (P1-6 refactor); the implementation that
+// resolves the tree lives in the implementation file.  Keeps this SDK
+// public-header lean (no transitive include of the resolver).
+struct ResolvedTextTree;
+
 // ── Build result — one TextRunLayout per paragraph ─────────────────────
 
 /// The output of build_text_run().  Contains one TextRunLayout per
@@ -214,12 +221,23 @@ struct TextLayoutRequest {
 /// On success returns a `SharedTextRunLayout` whose members
 /// (`source_text`, `font`, `font_size`, `placed`, `units`, `bounds`,
 /// `direction`, `line_height`) are all populated by construction.
+///
+/// P1-6 — additive `pre_resolved` parameter (optional, defaults to
+/// nullptr): when the caller has ALREADY resolved the document into a
+/// `ResolvedTextTree` (e.g. `compile_text_document` does so once at
+/// doc level for spacing_collapse + multi-font pre-check), pass it in
+/// to SKIP the per-paragraph re-resolution.  The N+1 -> 1 reduction is
+/// particularly relevant for multi-paragraph subtitle presets (12+
+/// paragraphs).  When `pre_resolved == nullptr` the function falls
+/// back to its historical behaviour and resolves internally — direct
+/// callers (materializer, tests) continue to compile unchanged.
 [[nodiscard]] Result<
     std::shared_ptr<TextRunLayout>,
     TextLayoutError
 > compile_text_layout(
     const TextLayoutRequest& request,
-    TextCompileServices& services
+    TextCompileServices& services,
+    const ResolvedTextTree* pre_resolved = nullptr
 );
 
 } // namespace chronon3d
