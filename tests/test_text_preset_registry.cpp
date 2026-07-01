@@ -110,11 +110,11 @@
 #include "../src/registry/text_preset_register_helpers.hpp"
 
 using chronon3d::builders::testing::LayerBuilderInspector;
-using chronon3d::registry::register_text_preset_cinematic;
-using chronon3d::registry::register_text_preset_reveal;
-using chronon3d::registry::register_text_preset_emphasis;
-using chronon3d::registry::register_text_preset_subtitle;
-using chronon3d::registry::register_builtin_presets;
+
+// Reviewer finding #6 — call through the verbose `register_helpers_internal::`
+// namespace path (or via the `reg_helpers` alias) to keep the per-category
+// helpers out of the parent `chronon3d::registry` public surface.
+namespace reg_helpers = chronon3d::registry::register_helpers_internal;
 
 #include <functional>   // std::function for Sub-case 30/31 expected_kind_predicate
 #include <array>        // std::array<ExpectedComposition, 22>
@@ -1362,7 +1362,7 @@ TEST_CASE("TextPresetRegistry: TICKET-107 per-category register helpers in isola
 
     SUBCASE("50) per-category helpers reach the canonical 4/10/4/4 distribution in isolation") {
         TextPresetRegistry cinematic_only;
-        register_text_preset_cinematic(cinematic_only);
+        reg_helpers::register_text_preset_cinematic(cinematic_only);
         const auto cins = cinematic_only.by_category(TextPresetCategory::Cinematic);
         CHECK(cins.size() == 4);
         // Other categories must be EMPTY — proves the per-category helper
@@ -1372,21 +1372,21 @@ TEST_CASE("TextPresetRegistry: TICKET-107 per-category register helpers in isola
         CHECK(cinematic_only.by_category(TextPresetCategory::Subtitle).empty());
 
         TextPresetRegistry reveal_only;
-        register_text_preset_reveal(reveal_only);
+        reg_helpers::register_text_preset_reveal(reveal_only);
         CHECK(reveal_only.by_category(TextPresetCategory::Reveal).size() == 10);
         CHECK(reveal_only.by_category(TextPresetCategory::Cinematic).empty());
         CHECK(reveal_only.by_category(TextPresetCategory::Emphasis).empty());
         CHECK(reveal_only.by_category(TextPresetCategory::Subtitle).empty());
 
         TextPresetRegistry emphasis_only;
-        register_text_preset_emphasis(emphasis_only);
+        reg_helpers::register_text_preset_emphasis(emphasis_only);
         CHECK(emphasis_only.by_category(TextPresetCategory::Emphasis).size() == 4);
         CHECK(emphasis_only.by_category(TextPresetCategory::Cinematic).empty());
         CHECK(emphasis_only.by_category(TextPresetCategory::Reveal).empty());
         CHECK(emphasis_only.by_category(TextPresetCategory::Subtitle).empty());
 
         TextPresetRegistry subtitle_only;
-        register_text_preset_subtitle(subtitle_only);
+        reg_helpers::register_text_preset_subtitle(subtitle_only);
         CHECK(subtitle_only.by_category(TextPresetCategory::Subtitle).size() == 4);
         CHECK(subtitle_only.by_category(TextPresetCategory::Cinematic).empty());
         CHECK(subtitle_only.by_category(TextPresetCategory::Reveal).empty());
@@ -1399,7 +1399,7 @@ TEST_CASE("TextPresetRegistry: TICKET-107 per-category register helpers in isola
         // internal std::map order is deterministic but the umbrella's
         // insertion order is Cinematic → Reveal → Emphasis → Subtitle.
         TextPresetRegistry via_umbrella;
-        register_builtin_presets(via_umbrella);
+        reg_helpers::register_builtin_presets(via_umbrella);
         const auto via_factory = make_default_text_preset_registry();
         CHECK(via_umbrella.available() == via_factory.available());
         CHECK(via_umbrella.list().size() == 22);
@@ -1413,8 +1413,8 @@ TEST_CASE("TextPresetRegistry: TICKET-107 per-category register helpers in isola
         // A studio overlay that wants ONLY cinematic + emphasis seeds can
         // compose two per-category calls and inspect a partial catalog.
         TextPresetRegistry studio_overlay;
-        register_text_preset_cinematic(studio_overlay);
-        register_text_preset_emphasis(studio_overlay);
+        reg_helpers::register_text_preset_cinematic(studio_overlay);
+        reg_helpers::register_text_preset_emphasis(studio_overlay);
         CHECK(studio_overlay.list().size() == 8);  // 4 cinematic + 4 emphasis
         CHECK(studio_overlay.by_category(TextPresetCategory::Cinematic).size() == 4);
         CHECK(studio_overlay.by_category(TextPresetCategory::Emphasis).size() == 4);
@@ -1422,7 +1422,7 @@ TEST_CASE("TextPresetRegistry: TICKET-107 per-category register helpers in isola
         CHECK(studio_overlay.by_category(TextPresetCategory::Subtitle).empty());
 
         // Adding reveal AFTER cinematic + emphasis grows the catalog to 18.
-        register_text_preset_reveal(studio_overlay);
+        reg_helpers::register_text_preset_reveal(studio_overlay);
         CHECK(studio_overlay.list().size() == 18);  // 4 + 4 + 10
         // Subtitle still empty.
         CHECK(studio_overlay.by_category(TextPresetCategory::Subtitle).empty());
@@ -1430,10 +1430,14 @@ TEST_CASE("TextPresetRegistry: TICKET-107 per-category register helpers in isola
 
     SUBCASE("53) per-category helper reuse on a populated registry throws (idempotency contract)") {
         TextPresetRegistry reg;
-        register_text_preset_cinematic(reg);
+        reg_helpers::register_text_preset_cinematic(reg);
         // Calling the same helper again on an already-populated registry
-        // throws on the FIRST duplicate id (cinematic_text_camera is the
-        // second seeded entry per Stage 3 ordering).
+        // throws on the FIRST re-seeded id (animation_compositions is
+        // the first entry per reg_helpers::register_text_preset_cinematic;
+        // cinematic_text_camera / cinematic_title_reveal /
+        // tilt_sweep_title_v2 follow).  CHECK_THROWS_AS only verifies
+        // SOME runtime_error escapes — does NOT assert the specific id
+        // (reviewer finding #10).
         CHECK_THROWS_AS(register_text_preset_cinematic(reg), std::runtime_error);
     }
 }
