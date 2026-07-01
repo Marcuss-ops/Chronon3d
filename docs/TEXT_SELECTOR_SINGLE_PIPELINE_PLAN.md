@@ -4,7 +4,7 @@
 > **Snapshot**: `main@HEAD` post-landing di questo atomo
 > **Regola Git**: NO BRANCHES. NO PR. SOLO `main`. UN ATOMO = UN COMMIT.
 > **Push hygiene**: rebase prima del push se altri agenti hanno pushato in parallelo; `HEAD == origin/main` dopo ogni push.
-> **Lingua**: italiano (allineato a `docs/STATUS.md`, `docs/NEXT_STEPS.md`, `docs/FOLLOWUP_TICKETS.md`).
+> **Lingua**: italiano (allineato a `docs/CURRENT_STATUS.md`, `docs/FOLLOWUP_TICKETS.md`).
 
 ## Premessa
 
@@ -228,8 +228,8 @@ Dopo che la matrice DoD è 15/15 PASS:
 
 1. `docs/MIGRATION_TEXT_SPEC.md` — snapshot `main@HEAD` + lista dei 12 SHA + riepilogo DoD.
 2. `docs/FOLLOWUP_TICKETS.md` — chiusura ticket migrazione (riga in "Recently closed").
-3. `docs/STATUS.md` — rimozione aperture P0.x text-selector.
-4. `docs/NEXT_STEPS.md` — reposizionamento text-selector migration come CHIUSA post-baseline.
+3. `docs/CURRENT_STATUS.md` — rimozione aperture P0.x text-selector.
+4. `docs/CURRENT_STATUS.md` — reposizionamento text-selector migration come CHIUSA post-baseline.
 
 ---
 
