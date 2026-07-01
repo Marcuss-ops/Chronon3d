@@ -73,6 +73,14 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         # font fixture is unavailable (same pattern as crossfade_stroke +
         # font_io_fence + freetype_face_cache_concurrency).
         text/test_draw_text_run_crossfade_stroke.cpp
+        # P0-1 regression — draw_text_run scratch_state acquisition +
+        # per-span font_handle fix.  Before the fix, scratch_state was
+        # used at ~15 call sites without being declared, and the old
+        # `font_handle.ft_face` referenced an undeclared variable.
+        # Covers: (1) null text_resources → InvalidInput, (2) null
+        # asset_resolver → InvalidInput, (3) E2E render-success with
+        # stroke proving per-span font_handle + RAII scratch acquisition.
+        text/test_draw_text_run_scratch_state.cpp
         # Fase 1.3 (verdetto Issue #4) regression — GlyphAtlas preserves
         # full metadata across store/lookup.  Before this commit the
         # cache stored only std::shared_ptr<BLImage> and reconstructed a
