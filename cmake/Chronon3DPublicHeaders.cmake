@@ -116,6 +116,7 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/math/camera_projection_resolver.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/math/color.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/math/expression.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/expression_types.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/math/glm_types.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/math/near_plane_clip.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/math/projection_context.hpp"
