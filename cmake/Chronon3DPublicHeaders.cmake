@@ -82,6 +82,21 @@ set(CHRONON3D_PUBLIC_HEADERS
     # ── backends/image ──────────────────────────────────────────────────
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/image/image_writer.hpp"
 
+    # ── backends/software ───────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/software/render_settings.hpp"
+
+    # ── core/composition ────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/composition/composition_registry.hpp"
+
+    # ── core/config ─────────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/config.hpp"
+
+    # ── core/memory ─────────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/framebuffer.hpp"
+
+    # ── runtime ─────────────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/render_session.hpp"
+
     # ── backends/software/sampling ──────────────────────────────────────
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/software/sampling/edge_mode.hpp"
 
