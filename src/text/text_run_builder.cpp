@@ -725,9 +725,6 @@ TextDocumentCompileResult compile_text_document(
     const FontSpec primary_font = doc.defaults.font;
 
     for (std::size_t i = 0; i < tree.paragraphs.size(); ++i) {
-        CompiledParagraphResult entry;
-        entry.source_index = i;
-
         // ── TICKET-101: multi-font pre-check (verdict Issue #3) ────────
         // The wrapper enforces strict single-font policy.  Direct
         // compile_text_layout callers retain the Phase 1.4 additive
@@ -764,12 +761,14 @@ TextDocumentCompileResult compile_text_document(
                     return font_identity_of(r.font) != base_id;
                 });
             if (divergent) {
-                entry.result = Err(TextLayoutError{
-                    TextLayoutErrorKind::UnsupportedMultiFontRun,
-                    "compile_text_document: paragraph " + std::to_string(i)
-                    + " is multi-font (span font differs from run 0)"
+                result.paragraphs.push_back(CompiledParagraphResult{
+                    i,
+                    TextLayoutError{
+                        TextLayoutErrorKind::UnsupportedMultiFontRun,
+                        "compile_text_document: paragraph " + std::to_string(i)
+                        + " is multi-font (span font differs from run 0)"
+                    }
                 });
-                result.paragraphs.push_back(std::move(entry));
                 result.complete = false;
                 continue;
             }
@@ -787,11 +786,14 @@ TextDocumentCompileResult compile_text_document(
         // resolve_text_run_tree() call.  N+1 -> 1 resolution per
         // document compile (the original cost was N+1 for an
         // N-paragraph doc).
-        entry.result = compile_text_layout(request, services, &tree);
-        if (!entry.result) {
+        auto layout_res = compile_text_layout(request, services, &tree);
+        if (!layout_res) {
             result.complete = false;
         }
-        result.paragraphs.push_back(std::move(entry));
+        result.paragraphs.push_back(CompiledParagraphResult{
+            i,
+            std::move(layout_res)
+        });
     }
 
     // ── TEXT-PLY-01: wire spacing_collapse across consecutive paragraphs ──
