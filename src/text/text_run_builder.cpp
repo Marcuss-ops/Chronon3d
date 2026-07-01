@@ -85,10 +85,21 @@ namespace {
 /// Build a TextLayoutCacheKey for a single paragraph's content.
 /// Only used when the paragraph has exactly one run (font-homogeneous).
 /// Multi-font paragraphs skip caching to avoid false hits.
+///
+/// TICKET-103a — the 3 new TextLayoutRequest fields (direction, language,
+/// features) are now honored by the cache key directly.  The previous
+/// overrides that forced `direction = Auto` and `language.clear()` are
+/// GONE — bidi / BCP-47 / OT-shaping-features parity is what the cache
+/// key discriminates, so LTR vs RTL inputs MUST collide on different
+/// keys (graceful LTR-only behavior was a workaround-era cost; bidi
+/// callers now share a memory footprint with their actual cache contents).
 [[nodiscard]] TextLayoutCacheKey build_cache_key(
     const std::string& full_text,
     const FontSpec& primary_font,
-    const TextLayoutSpec& layout
+    const TextLayoutSpec& layout,
+    TextDirection direction,
+    const std::string& language,
+    const std::string& features
 ) {
     TextLayoutCacheKey key;
     key.text        = full_text;
@@ -99,8 +110,9 @@ namespace {
     key.tracking    = layout.tracking;
     key.box_width   = layout.box.x;
     key.wrap        = layout.wrap;
-    key.direction   = TextDirection::Auto;  // bidi handled per-run
-    key.language.clear();
+    key.direction   = direction;             // TICKET-103a — was: TextDirection::Auto (per-run bidi override)
+    key.language    = language;              // TICKET-103a — was: cleared string
+    key.features    = features;              // TICKET-103a — new field
     key.paragraph   = layout.paragraph;
     return key;
 }
@@ -452,7 +464,14 @@ compile_text_layout(
         : request.primary_font;
 
     if (services.cache && is_single_font) {
-        TextLayoutCacheKey cache_key = build_cache_key(para_text, primary_font, layout);
+        // Single-font paragraph: try the cache before re-shaping.
+        // TICKET-103a — direction/language/features now propagated from
+        // request so LTR vs RTL / ar vs en / kern=1 vs kern=0 any of these
+        // produce a different cache_key and bypass the cached entry,
+        // forcing a re-shape for the new shaping parameters.
+        TextLayoutCacheKey cache_key = build_cache_key(
+            para_text, primary_font, layout,
+            request.direction, request.language, request.features);
         if (auto cached = services.cache->find(cache_key)) {
             return std::const_pointer_cast<TextRunLayout>(cached);
         }
@@ -571,7 +590,9 @@ compile_text_layout(
         : layout.line_height;
 
     if (services.cache && is_single_font) {
-        TextLayoutCacheKey cache_key = build_cache_key(para_text, primary_font, layout);
+        TextLayoutCacheKey cache_key = build_cache_key(
+            para_text, primary_font, layout,
+            request.direction, request.language, request.features);
         services.cache->store(std::move(cache_key), text_layout);
     }
 

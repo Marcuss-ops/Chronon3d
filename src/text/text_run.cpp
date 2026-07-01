@@ -37,6 +37,10 @@ u64 TextRunLayout::layout_hash() const {
     seed = hash_combine(seed, hash_value(static_cast<int>(wrap)));
     seed = hash_combine(seed, hash_value(static_cast<int>(direction)));
     seed = hash_combine(seed, hash_string(language));
+    // TICKET-103a — OpenType shaping features are part of the layout
+    // identity (e.g. "kern=1" vs "kern=0" produce different glyph
+    // advances on ligature-heavy runs).
+    seed = hash_combine(seed, hash_string(features));
     return seed;
 }
 
@@ -53,6 +57,9 @@ u64 TextRunLayout::shaping_hash() const {
     seed = hash_combine(seed, hash_value(static_cast<int>(wrap)));
     seed = hash_combine(seed, hash_value(static_cast<int>(direction)));
     seed = hash_combine(seed, hash_string(language));
+    // TICKET-103a — OT shaping features fold into shaping_hash so
+    // compile-time cache partitioning discriminates on feature string.
+    seed = hash_combine(seed, hash_string(features));
     return seed;
 }
 
@@ -75,6 +82,10 @@ u64 TextLayoutCacheKey::digest() const {
     seed = hash_combine(seed, hash_value(static_cast<int>(wrap)));
     seed = hash_combine(seed, hash_value(static_cast<int>(direction)));
     seed = hash_combine(seed, hash_string(language));
+    // TICKET-103a — OpenType shaping features are part of the cache
+    // key signature (different feature strings produce different glyph
+    // placements for the same (text, font, size) tuple).
+    seed = hash_combine(seed, hash_string(features));
 
     // Paragraph-level typography — different composer/justification/
     // indentation/spacing/hanging-punctuation produce different line breaks.
