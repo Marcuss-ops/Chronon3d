@@ -1242,7 +1242,7 @@ wire_preset_text_run_params(std::string_view preset_id,
 // ── make_default_text_preset_registry ──────────────────────────────────────
 TextPresetRegistry make_default_text_preset_registry() {
     TextPresetRegistry r;
-    register_builtin_presets(r);
+    register_helpers_internal::register_builtin_presets(r);
     return r;
 }
 
@@ -1261,7 +1261,7 @@ const TextPresetRegistry&
 builtin_text_preset_registry() noexcept {
     static const TextPresetRegistry r = []{
         TextPresetRegistry reg;
-        register_builtin_presets(reg);
+        register_helpers_internal::register_builtin_presets(reg);
         reg.freeze();
         return reg;
     }();
