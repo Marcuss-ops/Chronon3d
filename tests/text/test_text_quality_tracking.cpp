@@ -26,7 +26,7 @@ using namespace test_text_quality;
 // Where the § 7 invariants live today (canonical equivalents):
 //   * Per-glyph staggered reveal
 //       → tests/test_text_preset_registry.cpp Sub-case 43
-//         ("character_cascade — Glyph selector + animated end sweep").
+//         ("character_cascade — Grapheme selector + animated end sweep").
 //       → tests/test_text_preset_registry.cpp Sub-case 44
 //         ("agents cross-link invariant — 4 mandatory presets").
 //   * Inter-cluster tracking + grapheme-cluster width contracts
