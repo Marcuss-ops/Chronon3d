@@ -611,3 +611,5 @@ TextUnitMap::span_index_by_name(std::string_view name) const noexcept {
     }
     return InvalidIndex;
 }
+
+} // namespace chronon3d
