@@ -21,32 +21,34 @@ namespace chronon3d::test {
 // 06 R3b boundary refactor — `SoftwareBackend` now requires a non-owning
 // `SoftwareRenderer* owner` as its first constructor argument (the
 // back-pointer used by `draw_text_run` to source the
-// SoftwareProcessorContext bundle).  We pass `&renderer` here; lifetime
-// is verified safe because the backend is owned by `renderer.runtime()`,
+// SoftwareProcessorContext bundle).  We pass `renderer` here; lifetime
+// is verified safe because the backend is owned by `renderer->runtime()`,
 // whose `~RenderRuntime()` runs BEFORE `~SoftwareRenderer()` — so m_owner
 // is dangling at the moment the backend's `~SoftwareBackend()` runs,
 // but the destructor NEVER dereferences m_owner (verified 06 R3b:
 // m_owner is read only inside `draw_text_run` dispatch path).
-inline void attach_software_backend(SoftwareRenderer& renderer) {
+// TICKET-079: takes SoftwareRenderer* (pointer) instead of
+// SoftwareRenderer& (lvalue ref) — gate-3 I5 compliance.
+inline void attach_software_backend(SoftwareRenderer* renderer) {
     // TICKET-011b + Fase 1 services-validation: build the services bundle
     // from the live renderer + runtime and route through the validation
-    // factory.  Lifetime: backend is owned by `renderer.runtime()`, whose
+    // factory.  Lifetime: backend is owned by `renderer->runtime()`, whose
     // `~RenderRuntime()` runs BEFORE `~SoftwareRenderer()` — so m_owner is
     // dangling at the moment the backend's `~SoftwareBackend()` runs, but
     // the destructor NEVER dereferences m_owner (verified 06 R3b: m_owner
     // is read only inside `draw_text_run` dispatch path).
     chronon3d::SoftwareBackendServices services{
-        /* owner              = */ &renderer,
-        /* counters           = */ renderer.counters(),
-        /* settings           = */ &renderer.render_settings(),
-        /* framebuffer_pool   = */ renderer.runtime().framebuffer_pool_shared(),
-        /* asset_resolver     = */ &renderer.runtime().resolver(),
-        /* text_resources     = */ renderer.text_render_resources(),
+        /* owner              = */ renderer,
+        /* counters           = */ renderer->counters(),
+        /* settings           = */ &renderer->render_settings(),
+        /* framebuffer_pool   = */ renderer->runtime().framebuffer_pool_shared(),
+        /* asset_resolver     = */ &renderer->runtime().resolver(),
+        /* text_resources     = */ renderer->text_render_resources(),
         /* images             = */ nullptr,
         /* text_raster        = */ nullptr,
         /* debug_config       = */ nullptr,
     };
-    renderer.runtime().attach_backend(
+    renderer->runtime().attach_backend(
         chronon3d::make_software_backend(std::move(services)).value());
 }
 
@@ -56,7 +58,7 @@ inline SoftwareRenderer make_renderer() {
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
-    attach_software_backend(renderer);
+    attach_software_backend(&renderer);
     return renderer;
 }
 
@@ -67,7 +69,7 @@ inline SoftwareRenderer make_renderer_ssaa(float factor) {
     settings.ssaa_factor = std::max(1.0f, factor);
     renderer.set_settings(settings);
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
-    attach_software_backend(renderer);
+    attach_software_backend(&renderer);
     return renderer;
 }
 
@@ -93,7 +95,7 @@ inline SoftwareRenderer make_renderer(bool /*modular_coordinates_unused*/) {
     RenderSettings settings;
     settings.use_modular_graph = true;     // preserved invariant
     renderer.set_settings(settings);
-    attach_software_backend(renderer);
+    attach_software_backend(&renderer);
     return renderer;
 }
 
@@ -188,7 +190,7 @@ inline std::shared_ptr<Framebuffer> render_fn(
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
-    attach_software_backend(renderer);
+    attach_software_backend(&renderer);
     Composition comp = composition({.width = width, .height = height}, build_fn);
     return renderer.render(comp, 0);
 }

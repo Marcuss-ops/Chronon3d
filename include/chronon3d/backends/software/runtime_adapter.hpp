@@ -54,6 +54,6 @@ void register_builtin_processors(chronon3d::renderer::SoftwareRegistry& reg);
 /// for the rest of the session.  Constructing the backend from inside
 /// the renderer ctor would be unsafe: the surrounding
 /// `shared_ptr<SoftwareRenderer>` can be moved before these refs are read.
-void attach_software_backend(chronon3d::SoftwareRenderer& renderer);
+void attach_software_backend(chronon3d::SoftwareRenderer* renderer);
 
 } // namespace chronon3d::backends::software
