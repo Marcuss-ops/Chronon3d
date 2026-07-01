@@ -271,6 +271,20 @@ add_executable(chronon3d_core_tests
     # multi-session isolation tests live in tests/runtime/ alongside the
     # other session/services tests.
     runtime/test_render_session_reset_and_isolation.cpp
+    # TICKET-106 — Cat-2 path-list parity regression.  Source lives at
+    # `${CMAKE_SOURCE_DIR}/tools/` per user request (colocated with the
+    # gate script it asserts against); compiled into chronon3d_core_tests
+    # so it runs in the existing CTest slot.  Asserts every gate-3
+    # TICKET row's acceptance-criterion recipe matches the actual scan
+    # paths in tools/check_software_renderer_boundary.sh, locking the
+    # drift bug observed on `main@872993ea` (TICKET-079 row cited 6
+    # paths; gate-3 walker scans 5 paths).  ID chosen after partner
+    # commits claimed BOTH prior eligible IDs -- `TICKET-086` (FASE-4
+    # thread_local permutation cache refactor) AND `TICKET-100`
+    # (FASE-4 legacy `materialize_text_run_shape` pipeline elimination)
+    # -- for unrelated refactors, so this Cat-2 test landed under the
+    # next free numeric slot.
+    ${CMAKE_SOURCE_DIR}/tools/test_software_renderer_boundary_consistency.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline doctest::doctest)
 # TICKET-006: CORE_BLEND2D_TESTS exercise symbols that only resolve when
