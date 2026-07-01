@@ -59,6 +59,17 @@ if [[ "$TARGET" == "-h" || "$TARGET" == "--help" || "$TARGET" == "help" ]]; then
     show_help
 fi
 
+# ── --target flag: consume flag + next arg as CMake target ───────────
+if [[ "$TARGET" == "--target" ]]; then
+    TARGET="${2:-}"
+    if [[ -z "$TARGET" ]]; then
+        echo "Error: --target requires a CMake target name" >&2
+        echo "Usage: ./build-fast.sh --target <cmake-target>" >&2
+        exit 1
+    fi
+    shift 1 2>/dev/null || true
+fi
+
 bootstrap_ccache() {
     # Never touch CCACHE_DIRs explicitly set by the user or CI.
     if [[ "$CCACHE_DIR" != "${HOME}/.ccache" ]]; then
