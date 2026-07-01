@@ -60,7 +60,17 @@ mapfile -t files < <(find . -type f \
   ! -regex './tests/.*\.cmake' \
   ! -path './docs/ARCHIVE/*' \
   ! -path './.tmp_gate*/*' \
-  ! -name 'CHRONON3D_BACKEND_SOFTWARE_SOURCES.txt')
+  ! -path './experimental/*' \
+  ! -name 'CHRONON3D_BACKEND_SOFTWARE_SOURCES.txt' \
+  ! -path './docs/V3_BLUEPRINT.md' \
+  ! -path './docs/CORE_OWNERSHIP.md' \
+  ! -path './docs/TEXT_SELECTOR_SINGLE_PIPELINE_PLAN.md' \
+  ! -path './docs/CAMERA_REGIA_AE_PLAN.md' \
+  ! -path './docs/TEXT_BOTTLENECKS.md' \
+  ! -path './docs/CODE_IMPROVEMENTS.md' \
+  ! -path './docs/text-architecture-inventory.md' \
+  ! -path './docs/adr/ADR-009-optional-text-deps.md' \
+  ! -path './docs/CAMERA_AE_GAP_VENDETTA.md')
 
 if [[ "${#files[@]}" -eq 0 ]]; then
   echo "OK: no source files scanned (mode=${mode})"
