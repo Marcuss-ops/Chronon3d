@@ -2,26 +2,23 @@
 # ============================================================================
 # tools/check_doc_sync.sh
 #
-# 07 D3 — Gate di co-update per STATUS.md / ROADMAP.md / NEXT_STEPS.md /
-# CHANGELOG.md, ADR e file refactor-roadmap*.
+# Gate di co-update per i 4 documenti canonici:
+#   CURRENT_STATUS.md, ROADMAP.md, RELEASE_GATE.md, FOLLOWUP_TICKETS.md
+# (vedi AGENTS.md §Insieme canonico della documentazione e
+#  DOCUMENTATION_GOVERNANCE.md per il contratto completo).
 #
-# Regole (matrice del piano 07 sez. D3):
+# Regole:
 #
 #   1. Qualsiasi cambio in src/runtime/**       ⇒ CURRENT_STATUS.md obbligatorio
 #      e ROADMAP.md obbligatorio.
-#      (DOC-002: STATUS.md e NEXT_STEPS.md sono archiviati in docs/ARCHIVE/.)
 #   2. Qualsiasi cambio in include/chronon3d/**  ⇒ almeno un ADR in
-#      docs/adr/ deve esistere per l'area (warning finché lo slot
-#      non è *Accepted*).
+#      docs/adr/ deve esistere per l'area (warning).
 #   3. Qualsiasi cambio in src/render_graph/** o
-#      include/chronon3d/render_graph/**  ⇒ refactor-roadmap/01..05
-#      toccato oppure ADR-001/002 esistente.
-#   4. Qualsiasi cambio in vcpkg.json o
-#      CMakePresets.json                       ⇒
-#      docs/ARCHIVE/stabilization-plan/08-dependency-profiles.md toccato
-#      (archived per AGENTS.md; la regola è mantenuta come audit trail).
-#   5. Chiusura di un TICKET-NNN (parola "Closes #NNN" o
-#      "TICKET-NNN: done" nel messaggio) ⇒ CHANGELOG.md toccato.
+#      include/chronon3d/render_graph/**  ⇒ ADR-001/002 esistenti.
+#   4. Qualsiasi cambio in vcpkg.json o CMakePresets.json
+#      ⇒ AUDIT-TRAIL ONLY: docs/ARCHIVE/stabilization-plan/ non è
+#      operativo (archived per AGENTS.md). Nessun enforcement.
+#   5. Chiusura di un TICKET-NNN ⇒ CHANGELOG.md toccato (support doc).
 #
 # Usage:
 #   tools/check_doc_sync.sh [--wip] [--strict] [<base_ref>]
@@ -137,14 +134,11 @@ if has_change '^(src|include/chronon3d)/render_graph/'; then
   fi
 fi
 
-# -- R4: vcpkg.json OR CMakePresets.json ⇒ piano 08 ------------------------------------
-if has_change '^(vcpkg\.json|CMakePresets\.json)$'; then
-  if has_change '^docs/ARCHIVE/stabilization-plan/08-dependency-profiles\.md$'; then
-    okf "R4: piano 08 aggiornato (vcpkg/CMakePresets)"
-  else
-    warnf "R4: vcpkg.json o CMakePresets.json toccati ma docs/ARCHIVE/stabilization-plan/08-dependency-profiles.md assente (archived — audit trail only)"
-  fi
-fi
+# -- R4: vcpkg.json OR CMakePresets.json ⇒ AUDIT-TRAIL ONLY (NO enforcement) ---------
+# NOTA (DOC-002): docs/ARCHIVE/stabilization-plan/08-dependency-profiles.md è archiviato.
+# Questa regola è puramente documentale/storica. Nessun FAIL o WARN viene emesso.
+# Per la cronologia: il piano 08 delle dipendenze tracciava la strategia di
+# profilazione vcpkg/CMakePresets; oggi il contratto è in DOCUMENTATION_GOVERNANCE.md.
 
 # -- R5: chiusura TICKET-NNN ⇒ CHANGELOG.md --------------------------------------------
 commit_msg="$(git log -1 --pretty=%B HEAD 2>/dev/null || true)"
