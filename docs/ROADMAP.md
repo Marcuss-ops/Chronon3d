@@ -1,9 +1,5 @@
 # Chronon3D — Active Roadmap
 
-> Snapshot: `main@1c106049`, 2026-07-01. Linux-only.
->
-> Ultima baseline macchina-verificata: `main@21103265` (9/11 PASS — vedi [`docs/baselines/main-21103265-baseline.md`](docs/baselines/main-21103265-baseline.md)).
-
 La roadmap è organizzata per milestone prodotto. Non avviare una milestone
 successiva per nascondere blocker della precedente.
 
