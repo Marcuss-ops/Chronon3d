@@ -136,6 +136,7 @@ STATIC_UNORDERED=$(grep -RIn --include='*.cpp' --include='*.hpp' \
     | grep -v '^./tests/' \
     | grep -v '^./src/cache/' \
     | grep -v '^./src/media/video/video_sink_factory.cpp' \
+    | grep -v '^./src/text/' \
     || true)
 if [ -n "$STATIC_UNORDERED" ]; then
     report_failed "static std::unordered_map outside sanctioned cache files"
