@@ -24,9 +24,13 @@
 // Both tests cover the contract from a freeze-compliant angle -- no
 // new public classes, internal-only diagnostic counters under
 // `src/text/pending_text_run_impl.hpp`, well-defined FAIL semantics
-// on the structural outcome (test (1) observable on animators
-// vector size + spdlog::warn emitted; test (2) observable on the
-// atomic counter delta).
+// on the structural outcome (test (1) observable via
+// (a) animators vector size, (b) spdlog::warn message CAPTURED via
+// the in-TU `CapturingWarnSink` custom sink + RAII `CaptureSinkGuard`
+// pattern that locks the user-visible fail-fast warn contract --
+// pre-this-update, a regression that DROPPED the `spdlog::warn` but
+// KEPT the structured drop would still pass; test (2) observable on
+// the atomic counter delta).
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/scene/builders/text_run_builder.hpp>  // PendingTextRun + TextRunBuilder + accessor types
@@ -42,13 +46,124 @@
 // source tree so the diagnostic counter is observable end-to-end.
 #include "src/text/pending_text_run_impl.hpp"  // text_internal::mark_consumed + counter diagnostic
 
+// TICKET-104 follow-up -- spdlog::warn CAPTURE for test (1).
+// We inherit from `spdlog::sinks::base_sink<std::mutex>` (header-only,
+// already transitive-linked through the SDK target chain) so the
+// internal `mutex_` is locked automatically before `sink_it_()` is
+// invoked -- the test runs single-threaded per AGENTS.md v0.1 cat-2
+// invariant, but the locking is the cat-3-clean standard idiom and
+// protects against future test parallelization regressions.  We do
+// NOT add a new public class -- both the sink struct and the guard
+// live in this test TU's anonymous namespace.
+//   See: spdlog/sinks/base_sink.h for the base class contract.
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/base_sink.h>
+
 #include <doctest/doctest.h>
 
-#include <cstddef>  // std::size_t
+#include <algorithm>  // std::remove_if for sink removal on guard dtor
+#include <cstddef>    // std::size_t
+#include <memory>     // std::shared_ptr
+#include <mutex>      // std::lock_guard (via base_sink)
+#include <string>     // std::string (sink payload materialization)
+#include <vector>     // std::vector (capture buffer)
 
 using namespace chronon3d;
 using namespace chronon3d::text_internal;
 using std::size_t;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TICKET-104 follow-up -- spdlog::warn capture sink + RAII guard local to
+// this TU.  Both anonymous-namespace-local (cat-3: zero PUBLIC surface
+// expansion).  `CapturingWarnSink` records ONLY warn-level messages so
+// other test output that may flow through the process during the test
+// window doesn't pollute the captured-result assertion (the warn IS the
+// dedicated fail-fast diagnostic per AGENTS.md v0.1 freeze).  RAII
+// guard removes the sink on scope exit -- even if the test fails an
+// early REQUIRE the guard dtor still cleans up, so post-failure
+// diagnostics are not contaminated by stale sink state.
+// ═══════════════════════════════════════════════════════════════════════════
+
+namespace {
+
+class CapturingWarnSink : public spdlog::sinks::base_sink<std::mutex> {
+public:
+    // Backing store is GUARDED by `base_ssink::mutex_` automatically
+    // (lock-and-unlock around `sink_it_()`); our `get_messages_copied()`
+    // helper re-locks under the same mutex so concurrent access from
+    // any future parallel-test driver stays race-free.
+    [[nodiscard]] std::vector<std::string> get_messages_copied() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return messages_;
+    }
+
+    [[nodiscard]] std::size_t message_count() {
+        // Non-`const`: acquiring a lock counts as observation-state
+        // mutation, so we don't pretend this is a pure read.  Working
+        // around the `const_cast` would require either (a) confirmed
+        // `mutable` on `base_sink::mutex_` (fragile across spdlog
+        // versions) or (b) `std::lock_guard` on a `const std::mutex&`
+        // which fails for `std::mutex` because `lock()` is non-const.
+        // The cleanest cross-version form is a plain non-const
+        // accessor that takes the lock explicitly.
+        std::lock_guard<std::mutex> lock(mutex_);
+        return messages_.size();
+    }
+
+protected:
+    void sink_it_(const spdlog::details::log_msg& msg) override {
+        // spdlog::string_view_t is `std::string` for builds without
+        // `SPDLOG_USE_STD_STRING_VIEW_ON`.  Bridge both via the
+        // (data, size) constructor -- safe across all macro toggles.
+        if (msg.level == spdlog::level::warn) {
+            messages_.emplace_back(msg.payload.data(), msg.payload.size());
+        }
+        // Non-warn messages (info / debug / error from concurrent
+        // emit) are deliberately dropped to keep the assertion
+        // surface tight.  Error-level would be a regression signal
+        // too, but cat-3 freeze forbids expanding TEST_CASEs
+        // further; future tickets may widen the filter.
+    }
+
+    void flush_() override {
+        // No-op: capture is in-memory; explicit flush is irrelevant
+        // to the assertion contract.
+    }
+
+private:
+    std::vector<std::string> messages_;  // guarded by base_sink::mutex_
+};
+
+/// RAII helper that pushes a `CapturingWarnSink` to the default
+/// logger on construction and removes it on destruction.  Scope-binds
+/// the capture window to the enclosing TEST_CASE body so test (2)
+/// and other unrelated TUs are not polluted.
+struct CaptureSinkGuard {
+    std::shared_ptr<CapturingWarnSink> sink;
+
+    CaptureSinkGuard()
+        : sink(std::make_shared<CapturingWarnSink>()) {
+        spdlog::default_logger()->sinks().push_back(sink);
+    }
+
+    ~CaptureSinkGuard() {
+        // Erase by shared_ptr stored-pointer equality.  `std::shared_ptr::operator==`
+        // is defined to compare stored pointers (well-defined for our
+        // case); `std::remove` + `erase` is the idiomatic one-liner
+        // and removes the lambda + `std::remove_if` boilerplate.
+        // Only this guard's sink instance is removed even if other
+        // sinks were added concurrently.
+        auto& sinks = spdlog::default_logger()->sinks();
+        sinks.erase(std::remove(sinks.begin(), sinks.end(), this->sink), sinks.end());
+    }
+
+    CaptureSinkGuard(const CaptureSinkGuard&) = delete;
+    CaptureSinkGuard& operator=(const CaptureSinkGuard&) = delete;
+    CaptureSinkGuard(CaptureSinkGuard&&) = delete;
+    CaptureSinkGuard& operator=(CaptureSinkGuard&&) = delete;
+};
+
+} // anonymous namespace
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEST CASE (1) — Selector without an animator: chain validation drops the
@@ -97,6 +212,15 @@ TEST_CASE("TICKET-104 (1) TextRunBuilder::commit drops orphaned selectors (selec
     // drops the orphan selectors + warns.  Result: the spec's
     // `params.animators` vector is EMPTY (no animator was attached,
     // so nothing to chain on).
+    //
+    // TICKET-104 follow-up -- INSTALL spdlog::warn capture BEFORE commit().
+    // The `CaptureSinkGuard` is RAII-scoped to this TEST_CASE body so
+    // the captured-result assertion immediately below sees ONLY the
+    // `commit()` call's warn line (the drop-the-warn regression is
+    // detected by `REQUIRE(message_count() >= 1u)` +
+    // `CHECK(found "selector spec(s) dropped")` below).
+    CaptureSinkGuard warn_capture;
+
     LayerBuilder& lb_back = trb.commit();
     REQUIRE(&lb_back == &layer);   // CR4: commit returns parent reference
 
@@ -107,6 +231,27 @@ TEST_CASE("TICKET-104 (1) TextRunBuilder::commit drops orphaned selectors (selec
     // so the orphan selectors had no host.  Post-commit, the spec is
     // empty (no leakage from the dropped selectors).
     CHECK(spec.params.animators.size() == 0u);  // wire failure → no animators
+
+    // ── spdlog::warn CAPTURE contract (TICKET-104 follow-up) ──
+    // The user-visible fail-fast contract per AGENTS.md v0.1 freeze
+    // is the `spdlog::warn` diagnostic emitted by `commit()`.  Without
+    // this assertion, a regression that DROPPED the warn line but
+    // KEPT the silent drop would still pass the structural assertion
+    // above -- so we LOCK the warn emission by capturing the message
+    // stream and asserting the magic token `"selector spec(s) dropped"`
+    // is present.  This is the dedicated fail-fast contract for
+    // log-scrapers per CI observability.  See TICKET-104 follow-up
+    // section in `docs/FOLLOWUP_TICKETS.md` (recently-closed row).
+    const auto captured_warns = warn_capture.sink->get_messages_copied();
+    REQUIRE(captured_warns.size() >= 1u);  // CR5: at least one warn fired
+    bool found_orphan_drop_token = false;
+    for (const auto& m : captured_warns) {
+        if (m.find("selector spec(s) dropped") != std::string::npos) {
+            found_orphan_drop_token = true;
+            break;
+        }
+    }
+    CHECK(found_orphan_drop_token);  // CR5: warn carries the orphan-drop token
 
     // Secondary structural assertion: the spec's selector list is NOT
     // populated (orphan was dropped, not silently attached).  In the
