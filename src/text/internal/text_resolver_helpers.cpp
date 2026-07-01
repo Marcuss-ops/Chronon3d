@@ -33,7 +33,6 @@
 #include <algorithm>   // std::any_of
 #include <cctype>      // std::tolower
 #include <cstring>     // std::memchr
-#include <filesystem>  // std::filesystem::path::generic_string
 #include <utility>     // std::move
 
 namespace chronon3d {
@@ -98,13 +97,17 @@ std::optional<FontWeight> parse_font_weight(FontWeight w) noexcept {
 // ── 4. make_resolved_font_path ─────────────────────────────────────────────
 ResolvedFontPath
 make_resolved_font_path(FontAssetId asset_id, std::string_view assets_root) {
-    // Compose `assets_root / asset_id` via std::filesystem for portable
-    // path separators.  generic_string() flattens to forward slashes so
-    // the result is consistent across Windows / POSIX builds.
-    namespace fs = std::filesystem;
-    const fs::path composed =
-        fs::path{std::string{assets_root}} / fs::path{std::string{asset_id}};
-    return composed.generic_string();
+    // Compose `assets_root / asset_id` as a portable path string.
+    // Forward slashes work across POSIX + Windows (HarfBuzz + AssetResolver
+    // downstream code normalises the path-separator on ingestion).  The
+    // function is internal-only and produces a std::string — no
+    // portability claim beyond the path-separator handling.  Drops the
+    // earlier <filesystem> dependency (reviewer finding #2) in favour
+    // of 4 lines of std::string concatenation.
+    ResolvedFontPath out{assets_root};
+    if (!out.empty() && out.back() != '/') out.push_back('/');
+    out.append(asset_id.data(), asset_id.size());
+    return out;
 }
 
 // ── 5. make_font_family_name ──────────────────────────────────────────────
