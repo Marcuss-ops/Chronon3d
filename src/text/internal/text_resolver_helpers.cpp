@@ -143,6 +143,19 @@ SelectorId make_selector_id(std::string_view raw_id) {
     return make_text_preset_id(raw_id);  // identical canonicalization rule.
 }
 
+// ── 8. apply_fontspec_canonicalization ─────────────────────────────────────
+void apply_fontspec_canonicalization(chronon3d::FontSpec& spec) {
+    // Canonicalize font_family to lowercase for consistent identity
+    // comparison.  font_style is also lowercased; font_path is
+    // intentionally left as-is (filesystem paths may be case-sensitive).
+    for (char& ch : spec.font_family) {
+        ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    }
+    for (char& ch : spec.font_style) {
+        ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    }
+}
+
 } // namespace internal
 } // namespace text
 } // namespace chronon3d

@@ -111,7 +111,7 @@ FontSpec resolve_fallback_fonts(
 ) {
     // TICKET-101 follow-up — canonicalize family + weight via the
     // wired text_resolver_helpers before the fallback chain runs.
-    apply_fontspec_canonicalization(primary);
+    chronon3d::text::internal::apply_fontspec_canonicalization(primary);
 
     // ── 1. Primary font ──────────────────────────────────────────────
     if (engine.can_load(primary)) {
@@ -205,7 +205,7 @@ namespace {
     }
 
     // TICKET-101 follow-up — canonicalize the assembled FontSpec.
-    apply_fontspec_canonicalization(font);
+    chronon3d::text::internal::apply_fontspec_canonicalization(font);
     return font;
 }
 
