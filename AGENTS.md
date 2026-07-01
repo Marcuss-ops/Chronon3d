@@ -21,15 +21,61 @@ Verifica rapida (i documenti canonici devono essere presenti nel checkout):
 git ls-tree -r --name-only HEAD docs/CURRENT_STATUS.md docs/ROADMAP.md docs/RELEASE_GATE.md docs/FOLLOWUP_TICKETS.md
 ```
 
-## Documenti canonici (single source of truth)
+## Insieme canonico della documentazione
 
-- `docs/CURRENT_STATUS.md` — stato presente.
-- `docs/ROADMAP.md` — milestone prodotto.
-- `docs/RELEASE_GATE.md` — requisiti di release.
-- `docs/FOLLOWUP_TICKETS.md` — difetti e follow-up aperti.
+I seguenti quattro file sono le **uniche fonti canoniche** di stato, requisiti, roadmap e problemi.
+Qualsiasi stato osservabile del repository deve risiedere in uno (e solo uno) di questi file.
+
+| Canonical                                          | Responsabilità unica                                                          |
+| -------------------------------------------------- | ----------------------------------------------------------------------------- |
+| [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) | stato presente (SHA, ultima baseline, blocker correnti, stato per area)        |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md)               | direzione futura (milestone, gate di uscita, non-goal)                        |
+| [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md)     | requisiti permanenti di release (Text V1, Camera V1, SDK V1)                 |
+| [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) | indice one-line dei blocker attivi (max ~10 righe)                        |
 
 I documenti storici (vecchi `docs/STATUS.md`, `docs/NEXT_STEPS.md`, `docs/stabilization-plan/**`,
 plan agente legacy `docs/agent-tasks/`) vivono in `docs/ARCHIVE/` e **non** sono operativi.
+Nessun riferimento operativo a path in `docs/ARCHIVE/` è consentito.
+
+### Pattern di filename vietati
+
+Sono vietati nuovi file con nome simile ai canonicals. In particolare:
+
+* `docs/STATUS.md`, `docs/STATUS_NEXT.md`, `docs/STATUS_<variante>.md` → **VIETATO**
+* `docs/NEXT.md`, `docs/NEXT_STEPS.md`, `docs/NEXT_<variante>.md` → **VIETATO**
+* `docs/ROADMAP_<variante>.md` (es. `ROADMAP_DEV.md`) → **VIETATO**
+* `docs/RELEASE_<variante>.md` (es. `RELEASE_v0.md`) → **VIETATO**
+* `docs/FOLLOWUP_<variante>.md` (es. `FOLLOWUP_BACKLOG.md`) → **VIETATO**
+* qualsiasi combinazione di prefissi simili (`CURRENT_STATUS_*.md`, `ROADMAP_*.md`, ...) → **VIETATO**
+
+Per qualsiasi nuova informazione operativa: aggiungere il contenuto al **canonical esistente** appropriato
+(stato → `CURRENT_STATUS`, requisiti → `RELEASE_GATE`, futuro → `ROADMAP`, blocker → `FOLLOWUP_TICKETS`).
+
+### Regola del gate doc-sync
+
+`tools/check_doc_sync.sh` deve accettare aggiornamenti **SOLO** ai 4 file canonical sopra elencati.
+Qualsiasi check o validazione che richieda aggiornamenti a file diversi (es. `docs/STATUS.md`,
+`docs/NEXT_STEPS.md`, `docs/stabilization-plan/...`) è vietato e deve essere rimosso —
+quei file sono storici, vivono in `docs/ARCHIVE/` e non possono essere modificati operativamente.
+
+### Documenti di supporto (NON fonti canoniche di stato)
+
+I seguenti file sono **ruoli documentali di supporto**: possono linkare i canonicals ma **non** devono duplicarne il contenuto.
+Per il contratto completo di ciascun ruolo, vedi [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md).
+
+| Ruolo                              | File                                               |
+| ---------------------------------- | -------------------------------------------------- |
+| Contratto documentale              | `docs/DOCUMENTATION_GOVERNANCE.md`                 |
+| Audit registry                     | `docs/ARCHITECTURE_AUDIT.md`                       |
+| Inventario feature                 | `docs/FEATURES.md`                                 |
+| Piano testo                        | `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md`      |
+| Matrice camera                     | `docs/CAMERA_FEATURE_MATRIX.md`                    |
+| Futuro tile-first                  | `docs/V3_BLUEPRINT.md`                             |
+| Chiusure recenti                   | `docs/CHANGELOG.md`                                |
+| Baseline macchina-verificata       | `docs/baselines/main-<sha>-baseline.md`             |
+| Scheda ticket specifico            | `docs/tickets/TICKET-NNN.md`                       |
+| Decisione architetturale           | `docs/adr/ADR-NNN-<titolo>.md`                     |
+| Materiale storico (non operativo)  | `docs/ARCHIVE/`                                     |
 
 ## Stato assegnazioni agenti (snapshot 2026-06-29, `main@88d2deec`)
 
