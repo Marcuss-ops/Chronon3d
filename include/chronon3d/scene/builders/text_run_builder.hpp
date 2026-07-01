@@ -122,6 +122,28 @@ struct PendingTextRun {
     // scene holds PendingTextRun, the materializer, and the resulting
     // TextRunShape.
     std::shared_ptr<const AnimatedTextDocument> animated_doc{};
+
+    // TICKET-104 \u2014 PROCESS-WIDE CONSUMED-DECREMENT CONTRACT.
+    //
+    // `consumed` is no longer a no-op.  The canonical mutation path is
+    // `text_internal::mark_consumed(run)` (defined in
+    // `src/text/pending_text_run_impl.hpp`), which sets the flag AND
+    // increments the diagnostic counter.  Direct assignment
+    // (`run.consumed = true;`) is allowed for backwards compatibility
+    // with the 12+ existing call-sites in tests/authoring/, but those
+    // callers do NOT increment the diagnostic counter \u2014 only
+    // `mark_consumed` does.  Future tickets should migrate direct
+    // assignments to `mark_consumed` so the diagnostic reflects actual
+    // consumption.
+    //
+    // NOTE (TICKET-104 code-review): the helper declaration is NOT
+    // forward-declared in this public header.  The only callers
+    // (`src/scene/builders/layer_builder.cpp` +
+    // `src/scene/builders/text_run_builder.cpp`) include the impl
+    // header directly via a relative path.  This keeps the
+    // `text_internal::mark_consumed` symbol OUT of the public-API
+    // catalogue \u2014 cat-3 freeze holds ("zero new public symbols",
+    // even when the symbol lives in a sub-namespace).
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -230,6 +252,17 @@ public:
     //
     // No `friend` declarations are needed on either side — this single
     // public accessor is the only Core Surface extension PR 3 introduces.
+    //
+    // TICKET-104 — `consumed` is now a REAL process-wide decrement
+    // counter (`chronon3d::text_internal::mark_consumed` increments
+    // the counter; direct flag mutation does NOT).  Callers that use
+    // `mutable_pending()` to bypass `commit()` therefore BYPASS the
+    // canonical decrement path.  This is the cat-3 "Rimuovi o
+    // restringi" closure: the accessor stays public for back-compat
+    // (12+ existing sites in tests/authoring depend on it), but the
+    // canonical consumption hook is `commit()` \u2192 `mark_consumed`.
+    // Future migrations should move these sites to read-only accessors
+    // or friend-only test inspectors and drop this public entry point.
     [[nodiscard]] PendingTextRun&        mutable_pending()       noexcept { return *m_spec; }
 
 private:

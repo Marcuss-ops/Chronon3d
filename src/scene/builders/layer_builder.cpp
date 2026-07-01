@@ -7,6 +7,13 @@
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
 #include <chronon3d/text/glyph_selector.hpp>
+// TICKET-104 -- internal helper consumed by the per-spec
+// materialization site below.  Forward declaration is intentionally
+// NOT exposed via the PUBLIC HPP (cat-3 freeze: zero new public
+// symbols, even in a sub-namespace).  Relative path matches the
+// convention used by tests/text/test_builder_consumed_commit_validation.cpp
+// and reach the internalization header directly.
+#include "../../text/pending_text_run_impl.hpp"
 #include <spdlog/spdlog.h>
 
 #include <cmath>
@@ -430,8 +437,16 @@ Layer LayerBuilder::build() {
             // shape fallthrough.  We do NOT silently drop the
             // placeholder node, so the user sees the failure at compose
             // time, not just in build-time logs.
-
-            spec.consumed = true;
+            //
+            // TICKET-104 — mark the spec as consumed via the canonical
+            // process-wide counter (`text_internal::mark_consumed`).
+            // The previous direct assignment (`spec.consumed = true;`)
+            // was a silent no-op: the field flipped but no observer
+            // ever noticed.  The new helper increments
+            // `g_consumed_decrements` so tests can assert that the
+            // decrement is REAL.  See src/text/pending_text_run_impl.hpp
+            // for the counter contract.
+            chronon3d::text_internal::mark_consumed(spec);
         }
     }
 
