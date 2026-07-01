@@ -11,6 +11,13 @@ add_library(chronon3d_text_core OBJECT
     every_line_composer.cpp
     glyph_selector.cpp
     path_sampler.cpp
+    # TICKET-104 -- INTERNAL PendingTextRun::consumed real-decrement
+    # helper.  Provides `text_internal::mark_consumed()` + diagnostic
+    # counter.  Under `src/text/`, NOT in `include/chronon3d/`, per
+    # AGENTS.md v0.1 cat-3 freeze (internal hygiene, zero public surface
+    # expansion).  See src/text/pending_text_run_impl.hpp for the
+    # contract.
+    pending_text_run_impl.cpp
     single_line_composer.cpp
     text_document.cpp
     text_path_composer.cpp
