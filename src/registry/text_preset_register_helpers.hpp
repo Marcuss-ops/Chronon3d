@@ -63,22 +63,26 @@ void register_builtin_presets(TextPresetRegistry& r);
 
 } // namespace register_helpers_internal
 
-// ── Public re-exports ─────────────────────────────────────────────────────
+// ── Public re-exports — DELIBERATELY OMITTED (reviewer finding #6) ────────
 //
-// Re-export the 4 per-category helpers + the umbrella at the parent
-// `chronon3d::registry` namespace so the call site is concise:
+// The 4 per-category helpers + the umbrella are NOT re-exported at the
+// parent `chronon3d::registry` namespace.  Tests / sibling internal TUs
+// reach them through the verbose `register_helpers_internal::` path:
 //
-//     chronon3d::registry::register_text_preset_cinematic(r);
+//     chronon3d::registry::register_helpers_internal::register_text_preset_cinematic(r);
 //
-// without the verbose `register_helpers_internal::` prefix.  Free
-// functions (not member functions) so they compose with the existing
-// `make_default_text_preset_registry()` + `builtin_text_preset_registry()`
-// cluster pattern (both are free functions, both in `chronon3d::registry`).
-using register_helpers_internal::register_text_preset_cinematic;
-using register_helpers_internal::register_text_preset_reveal;
-using register_helpers_internal::register_text_preset_emphasis;
-using register_helpers_internal::register_text_preset_subtitle;
-using register_helpers_internal::register_builtin_presets;
+// or via a namespace alias at the call site:
+//
+//     namespace reg_helpers = chronon3d::registry::register_helpers_internal;
+//     reg_helpers::register_text_preset_cinematic(r);
+//
+// Rationale: re-exports at the parent `chronon3d::registry` namespace
+// widen the public surface (any TU that includes this header would
+// expose `chronon3d::registry::register_text_preset_cinematic` as a
+// callable symbol).  AGENTS.md v0.1 freeze prohibits public API surface
+// expansion.  The verbose path is mildly less ergonomic but keeps the
+// internal-only intent explicit at the call site.
+//
 
 } // namespace registry
 } // namespace chronon3d

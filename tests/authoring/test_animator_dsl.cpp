@@ -1002,10 +1002,15 @@ TEST_CASE("Authoring/Layer: text() pushes a PendingTextRun with auto-generated n
 
     // Distinct underlying PendingTextRun* (different entries in the layer's
     // m_text_runs vector). Identity check via the pointer the handle holds.
-    // Identity check via value-typed name (stronger than raw pointer
-    // compare — distinct names prove distinct underlying entries):
-    CHECK(TextRunBuilderInspector::pending_of(t1).name !=
-          TextRunBuilderInspector::pending_of(t2).name);
+    // Identity check: distinct underlying PendingTextRun entries.
+    // Use stored snapshots so the pointer compare is valid (no
+    // dangling-temporary UB).  Distinct `.pending` pointers prove
+    // distinct underlying storage; name equality is a weaker proxy.
+    // (Reviewer finding #5 — preserves the original "two distinct
+    // entries even when names might be the same" semantic.)
+    const auto snap_t1 = TextRunBuilderInspector::pending_of(t1);
+    const auto snap_t2 = TextRunBuilderInspector::pending_of(t2);
+    CHECK(snap_t1.pending != snap_t2.pending);
 }
 
 TEST_CASE("Authoring/Text: id() + content() store and propagate to underlying spec") {
