@@ -1,6 +1,5 @@
 #pragma once
-
-// software_renderer.hpp — 06 R3b single-identity orchestrator (Renderer only; backend lives on m_runtime->backend())
+// 06 R3b single-identity orchestrator — Renderer only; backend on m_runtime->backend()
 #include <chronon3d/backends/software/renderer.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/backends/assets/image_renderer.hpp>
@@ -16,35 +15,26 @@
 namespace chronon3d {
 
 struct TextRenderResources;
-struct FontPreflightSummary;   // TICKET-078 -- forward-decl only; full definition in text_render_resources.hpp (referenced by .cpp)
+struct FontPreflightSummary;   // TICKET-078 forward-decl; full def in text_render_resources.hpp
 
 class FontEngine; class Composition; class Scene; class Camera; class Camera2_5D;
-class CompositionRegistry;
-namespace media { class MediaFrameProvider; }
-namespace image { class ImageBackend; }
-namespace runtime { class RenderRuntime; }
-namespace raster { struct BBox; }
-namespace cache { class FramebufferPool; class NodeCache; }
-namespace graph {
-  class RenderBackend; class CompiledGraphCache;
-  class GraphNodeCatalog; class SceneHasher; class SceneProgramStore;
-  // Note: executor access was removed; route via `runtime().executor()`.
-}
+class CompositionRegistry; namespace media { class MediaFrameProvider; }
+namespace image { class ImageBackend; } namespace runtime { class RenderRuntime; }
+namespace raster { struct BBox; } namespace cache { class FramebufferPool; class NodeCache; }
+namespace graph { class RenderBackend; class CompiledGraphCache;
+  class GraphNodeCatalog; class SceneHasher; class SceneProgramStore; }
 namespace effects { class EffectCatalog; struct EffectExecutionContext; }
 namespace renderer { class SoftwareRegistry; }
 
 struct MotionBlurSettings; struct DepthOfFieldSettings; struct LensModel;
 struct Frame; struct LayerBBoxState; struct RenderNode; struct RenderState;
 struct EffectStack;
-// Forward-declared as the same enum class as the canonical declarations
-// in `<chronon3d/compositor/*>`.  Underlying type matches so cross-TU
-// identities stay aligned (`unsigned char` here == `uint8_t` there).
 enum class BlendMode : unsigned char;
 enum class CompositeOperator : unsigned char;
 
 class SoftwareRenderer : public Renderer {
 public:
-    // ── Render entry points (render() canonical for V0.2 SDK API) ──────
+    // ── Render entry points (render() canonical for V0.2 SDK) ──────────
     std::shared_ptr<Framebuffer> render(const Composition& comp, Frame frame);
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
                                               i32 width, i32 height);
@@ -55,7 +45,7 @@ public:
                                                  i32 width, i32 height, Frame frame = 0,
                                                  f32 frame_time = 0.0f) const;
 
-    // Cat-2 font preflight (TICKET-087: in-class decl with FontPreflightSummary forward-decl, gate-3 I3=6)
+    // Cat-2 font preflight (TICKET-087: in-class decl, gate-3 I3=6)
     [[nodiscard]] chronon3d::FontPreflightSummary preflight_fonts(
         const chronon3d::Scene& scene,
         const chronon3d::assets::AssetResolver& resolver);
@@ -63,20 +53,17 @@ public:
     explicit SoftwareRenderer(runtime::RenderRuntime& rt, Config config);
     explicit SoftwareRenderer(Config config);
     ~SoftwareRenderer() override;
-    // Move ops use real rvalue-ref (no EAST-CONST hack). See .cpp.
     SoftwareRenderer(SoftwareRenderer const&) = delete;
     SoftwareRenderer const& operator=(SoftwareRenderer const&) = delete;
     SoftwareRenderer(SoftwareRenderer&& other) noexcept;
     SoftwareRenderer& operator=(SoftwareRenderer&& other) noexcept;
 
-    // ── Settings / diagnostics (multi-line bodies live in .cpp) ────────
+    // ── Settings / diagnostics ─────────────────────────────────────────
     void set_settings(const RenderSettings& settings);
     void set_motion_blur(MotionBlurSettings mb);
     void set_diagnostic_mode(bool enabled);
     [[nodiscard]] bool is_diagnostic_mode() const { return m_settings.diagnostics.enabled; }
     void reset_counters();
-    // `render_settings()` is the canonical accessor; the legacy
-    // `settings()` alias was removed (item 2 mega-facade cleanup).
     [[nodiscard]] const RenderSettings& render_settings() const { return m_settings; }
     [[nodiscard]] const MotionBlurSettings& motion_blur() const { return m_settings.motion_blur; }
     // ── Cache operations ───────────────────────────────────────────────
@@ -98,9 +85,7 @@ public:
     void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode,
                          const std::optional<raster::BBox>& clip = std::nullopt,
                          CompositeOperator op = CompositeOperator::SourceOver);
-
-    // capabilities() + draw_text_run() live exclusively on SoftwareBackend.
-    // Access via sw_renderer.backend().capabilities() / .draw_text_run(...).
+    // capabilities() + draw_text_run() live on SoftwareBackend — access via backend().
 
     // ── Image + video ──────────────────────────────────────────────────
     void set_image_backend(std::shared_ptr<image::ImageBackend> backend);
@@ -109,16 +94,16 @@ public:
     [[nodiscard]] image::ImageBackend* image_backend() const { return m_image_backend.get(); }
     [[nodiscard]] ImageRenderer& image_renderer() { return m_image_renderer; }
 
-    // ── Dirty-rect telemetry (inline reads) ────────────────────────────
+    // ── Dirty-rect telemetry ───────────────────────────────────────────
     [[nodiscard]] double last_dirty_area_ratio() const    { return m_session.common.dirty_telemetry.last_dirty_area_ratio; }
-    [[nodiscard]] bool    last_dirty_rect_enabled() const { return m_session.common.dirty_telemetry.last_dirty_rect_enabled; }
+    [[nodiscard]] bool   last_dirty_rect_enabled() const  { return m_session.common.dirty_telemetry.last_dirty_rect_enabled; }
     [[nodiscard]] std::optional<raster::BBox> last_dirty_rect() const { return m_session.common.dirty_telemetry.last_dirty_rect; }
-    [[nodiscard]] bool    last_tile_execution_used() const { return m_session.common.dirty_telemetry.last_tile_execution_used; }
-    [[nodiscard]] bool    last_fast_path_reused() const  { return m_session.common.dirty_telemetry.last_fast_path_reused; }
-    [[nodiscard]] bool    last_graph_reused() const      { return m_session.common.dirty_telemetry.last_graph_reused; }
-    [[nodiscard]] int     last_layer_count() const       { return m_session.common.dirty_telemetry.last_layer_count; }
+    [[nodiscard]] bool   last_tile_execution_used() const { return m_session.common.dirty_telemetry.last_tile_execution_used; }
+    [[nodiscard]] bool   last_fast_path_reused() const    { return m_session.common.dirty_telemetry.last_fast_path_reused; }
+    [[nodiscard]] bool   last_graph_reused() const        { return m_session.common.dirty_telemetry.last_graph_reused; }
+    [[nodiscard]] int    last_layer_count() const         { return m_session.common.dirty_telemetry.last_layer_count; }
 
-    // ── RenderRuntime forwarders (OOL — avoids pulling runtime/* headers, gate I3) ──
+    // ── RenderRuntime forwarders (OOL — avoids pulling runtime/* headers) ──
     [[nodiscard]] renderer::SoftwareRegistry& software_registry();
     [[nodiscard]] const renderer::SoftwareRegistry& software_registry() const;
     [[nodiscard]] graph::GraphNodeCatalog& graph_node_registry();
@@ -134,7 +119,7 @@ public:
     [[nodiscard]] const chronon3d::ExecutionScheduler& scheduler() const noexcept;
     [[nodiscard]] runtime::RenderRuntime& runtime() noexcept;
     [[nodiscard]] const runtime::RenderRuntime& runtime() const noexcept;
-    [[nodiscard]] bool has_runtime() const noexcept { return m_runtime != nullptr; }  // moved-from gate (runtime() would deref null)
+    [[nodiscard]] bool has_runtime() const noexcept { return m_runtime != nullptr; }
     [[nodiscard]] FontEngine& font_engine();
     [[nodiscard]] const FontEngine& font_engine() const;
     [[nodiscard]] graph::CompiledGraphCache& graph_cache();
@@ -143,8 +128,7 @@ public:
     [[nodiscard]] Config& config()                                        { return m_config; }
     [[nodiscard]] graph::RenderBackend& backend();
     [[nodiscard]] const graph::RenderBackend& backend() const;
-
-    // ── Fase 3 — pre-loaded text render resources ────────────────────
+    // ── Text render resources ──────────────────────────────────────────
     [[nodiscard]] TextRenderResources* text_render_resources();
     [[nodiscard]] const TextRenderResources* text_render_resources() const;
 
@@ -168,7 +152,7 @@ public:
     [[nodiscard]] cache::NodeCache& node_cache() noexcept;
     [[nodiscard]] const cache::NodeCache& node_cache() const noexcept;
 
-    // ── Convenience methods for graph pipeline orchestration ──────────
+    // ── Graph pipeline orchestration ───────────────────────────────────
     void mark_fast_path_reused(Frame frame, const Camera2_5D& cam, uint64_t combined_fp);
     void commit_frame_state(Frame, const Camera2_5D&, uint64_t, uint64_t, uint64_t, uint64_t,
                             std::unordered_map<std::string, LayerBBoxState>&&);
@@ -191,8 +175,6 @@ private:
 #ifdef CHRONON3D_ENABLE_TEXT
     std::unique_ptr<FontEngine> m_font_engine;
 #endif
-    // Fase 4 — SoftwareRegistry now owned directly by SoftwareRenderer,
-    // no longer forwarded through RenderRuntime.
     std::unique_ptr<TextRenderResources> m_text_render_resources;
     std::unique_ptr<renderer::SoftwareRegistry> m_software_registry;
     SoftwareRenderSession m_session;
