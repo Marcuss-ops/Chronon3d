@@ -52,3 +52,9 @@ target_link_libraries(chronon3d_text_core
     PUBLIC  chronon3d
     PRIVATE chronon3d_cache
 )
+
+# PRIVATE include of ${CMAKE_SOURCE_DIR} so that source-relative
+# includes (e.g. "src/text/internal/text_resolver_helpers.hpp")
+# resolve during external-consumer builds (install_consumer_test).
+# The path is PRIVATE — it does not leak to downstream consumers.
+target_include_directories(chronon3d_text_core PRIVATE ${CMAKE_SOURCE_DIR})
