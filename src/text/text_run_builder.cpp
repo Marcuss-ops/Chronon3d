@@ -735,19 +735,34 @@ TextDocumentCompileResult compile_text_document(
         // is accumulated as Err(UnsupportedMultiFontRun) — the
         // accumulator carries it through apply_spacing_collapse and
         // lets callers identify the failing paragraph via source_index.
-        if (tree.paragraphs[i].runs.size() > 1) {
-            const FontSpec& base = tree.paragraphs[i].runs.front().font;
-            bool divergent = false;
-            for (std::size_t ri = 1; ri < tree.paragraphs[i].runs.size(); ++ri) {
-                const FontSpec& r = tree.paragraphs[i].runs[ri].font;
-                if (r.font_path != base.font_path
-                    || r.font_family != base.font_family
-                    || r.font_weight != base.font_weight
-                    || r.font_style  != base.font_style) {
-                    divergent = true;
-                    break;
-                }
-            }
+        //
+        // P1-7 — multi-font divergence is now detected via the
+        // canonical `font_identity_of()` projection (defined in
+        // `<chronon3d/text/font_engine.hpp>`).  This replaces the
+        // previous hand-rolled 4-field compare on
+        // font_path/font_family/font_weight/font_style — the inline
+        // `FontIdentity::operator!=` is the same contract
+        // `compile_text_layout`'s font_spans path uses to label per
+        // glyph ranges, so this site is now in SYNC with the
+        // span-emission path (one canonical equality used
+        // everywhere).  font_size is intentionally DROPPED by the
+        // helper (size is a layout concern, not a font identity —
+        // superscript / drop-cap / size-varying typing use the same
+        // font at different sizes).
+        // P1-7 (review-mandated readability nit): hoist a local
+        // reference to `tree.paragraphs[i].runs` so the triple-deref
+        // collapses to one.  `std::any_of` replaces the manual
+        // break-on-divergent loop and matches the C++20 idiom used
+        // elsewhere in the text pipeline.
+        const auto& para_runs = tree.paragraphs[i].runs;
+        if (para_runs.size() > 1) {
+            const FontIdentity base_id =
+                font_identity_of(para_runs.front().font);
+            const bool divergent = std::any_of(
+                para_runs.begin() + 1, para_runs.end(),
+                [&base_id](const ResolvedTextRun& r) {
+                    return font_identity_of(r.font) != base_id;
+                });
             if (divergent) {
                 entry.result = Err(TextLayoutError{
                     TextLayoutErrorKind::UnsupportedMultiFontRun,
