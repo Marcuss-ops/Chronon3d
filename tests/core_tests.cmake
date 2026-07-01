@@ -202,6 +202,22 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         #       decisions in HarfBuzz).  Pure key-construction tests;
         #       no font engine / system fonts required.
         text/test_layout_cache_collision.cpp
+        # P1-8 -- regression lock for the canonical
+        # font_identity_of(FontSpec) -> FontIdentity helper + the
+        # FontIdentity equality operators (defined in
+        # include/chronon3d/text/font_engine.hpp).  Pure helper / POD
+        # test (no font engine, no threads, no time, no PRNG --
+        # AGENTS.md v0.1 cat-2 freeze-compliant).  5 TEST_CASE groups
+        # cover: (A) font_size change alone is identity-equal at any
+        # size from 0 to 96 pt; (B) each of the 4 identity fields
+        # (font_path / font_family / font_weight / font_style) DOES
+        # diverge on its own; (C) combined field changes diverge;
+        # default-constructed FontSpecs share identity; (D)
+        # operator== and operator!= are exact logical complements;
+        # (E) FontSpec::operator== implies identity equality
+        # (lock against the two equalities drifting).  Mirrors the
+        # pure-helper pattern of test_layout_cache_collision.cpp.
+        text/test_font_identity_contract.cpp
     )
 endif()
 
