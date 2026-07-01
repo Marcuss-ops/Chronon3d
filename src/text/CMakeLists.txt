@@ -22,6 +22,11 @@ add_library(chronon3d_text_core OBJECT
     single_line_composer.cpp
     text_document.cpp
     text_document_builder.cpp
+    # FASE 4b — timed text model + adapters (SRT/VTT/JSON → TimedTextDocument)
+    timed_text_document.cpp
+    timed_text_adapter_srt.cpp
+    timed_text_adapter_vtt.cpp
+    timed_text_adapter_json.cpp
     text_path_composer.cpp
     text_resolver.cpp
     text_run.cpp
