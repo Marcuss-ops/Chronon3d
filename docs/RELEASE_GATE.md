@@ -1,40 +1,6 @@
 # Chronon3D — Release Gate
 
-> Snapshot: `main@88d2deec` — 2026-06-29. Linux-only.
->
-> Requisiti per dichiarare una release valida.
-> Per lo stato corrente vedi [`CURRENT_STATUS.md`](CURRENT_STATUS.md).
-> Per le milestone vedi [`ROADMAP.md`](ROADMAP.md).
-> Ultima baseline macchina-verificata: [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md).
-
-## Certificazione corrente (`main@4586d816`)
-
-**Baseline verde: NON CERTIFICATA.**
-
-L'unica baseline macchina-verificata registrata è `main@446a60e2` (4 gate, 3/4 ✅ + 1 FAIL).
-Sul commit candidato corrente (`4586d816`) nessun run macchina-verificato di tutti gli 11 gate
-è stato registrato in `docs/baselines/`. L'assenza di workflow fallito non equivale a baseline
-verde (regole di non-deduzione: vedere [`AGENTS.md`](AGENTS.md) regole di lavoro).
-
-### Mapping gate → workflow CI reale
-
-I 11 gate elencati sotto sono osservabili tramite i workflow GitHub presenti. La colonna
-"Workflow" indica il file che li esegue, da confermare con un run macchina-verificato sul
-commit candidato per promuovere la certificazione:
-
-| # | Gate | Workflow |
-|---|---|---|
-| 1 | Build core | `.github/workflows/ci.yml` (matrix Release) |
-| 2 | Test core | `.github/workflows/ci.yml` (`ctest`) |
-| 3 | Build lean | `.github/workflows/ci.yml` (matrix lean) |
-| 4 | Test lean | `.github/workflows/ci.yml` |
-| 5 | Architecture gate | `.github/workflows/gates.yml` (`tools/check_architecture_boundaries.sh`) |
-| 6 | Renderer boundary gate | `.github/workflows/gates.yml` (`tools/check_software_renderer_boundary.sh`) |
-| 7 | No-content build/test | `.github/workflows/ci.yml` (No Content matrix) |
-| 8 | Scene/camera test | `.github/workflows/ci.yml` (build/run `chronon3d_scene_tests`) |
-| 9 | Install consumer | `.github/workflows/gates.yml` (`tools/install_consumer_test.sh`) |
-| 10 | Full validation | `.github/workflows/gates-full-validation.yml` |
-| 11 | Documenti allineati | `tools/check_doc_sync.sh` (manuale + check, non un workflow) |
+La certificazione corrente e le baseline storiche vivono in [`docs/baselines/`](docs/baselines/). Lo snapshot corrente è in [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
 ## Baseline verde — requisiti (tutti sullo stesso commit)
 
@@ -111,34 +77,6 @@ Tutti i punti seguenti devono essere veri:
    (`tools/sdk/check_feature_ghosts.sh`, opt-in) restano i gate
    canonici per la copertura del simboli; il consumer manifest-clean
    è l'invariante pubblica della SDK.
-
-## Baseline osservata — `main@446a60e2` (2026-06-23)
-
-L'unica baseline macchina-verificata ha eseguito **4 controlli** (non tutti i gate).
-Dettaglio completo in [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md).
-Gli esiti della tabella sono la fotografia al commit `446a60e2`; i progressi successivi
-sono elencati più sotto (`### Progressi sull'HEAD corrente`).
-
-| # | Controllo | Esito | Blocker |
-|---|---|---|---|
-| BG-1 | Software renderer boundary gate | ✅ PASS | — |
-| BG-2 | `linux-full-validation` configure | ✅ PASS | — |
-| BG-3 | `linux-lean-dev` configure | ✅ PASS | — |
-| BG-4 | Build `chronon3d_text_preset_visual_tests` | ❌ FAIL | TICKET-039 |
-
-**Verdetto**: 3/4 ✅ — baseline non verde. I gate 5 (architecture), 8 (scene/camera test),
-9 (install consumer) e 10 (full validation) non sono stati eseguiti in questa baseline.
-
-### Progressi sull'HEAD corrente (da re-baselinare)
-
-- **🟢 TICKET-039** — RISOLTO nel commit `68c3e0f0` (TXT-00 build/link green).
-- **🟢 TICKET-038** — RISOLTO nel commit `91debc36` (3 source-level ROT chiuse).
-- **🟢 Text Preset Tests** — `chronon3d_text_preset_visual_tests` cablato nel render aggregator
-  (commit `44def204`).
-
-I due blocker noti della baseline `446a60e2` sono quindi chiusi nel grafo dei commit dell'HEAD corrente,
-ma non è ancora stata registrata una nuova baseline completa. Per dichiarare una baseline verde serve
-un run macchina-verificato di tutti gli 11 gate sul commit candidato corrente.
 
 ## Criterio di chiusura
 
