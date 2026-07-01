@@ -7,7 +7,6 @@
 #include <chronon3d/text/glyph_selector.hpp>      // build_text_unit_map
 #include <chronon3d/text/single_line_composer.hpp>
 #include <chronon3d/text/text_resolver.hpp>
-#include <chronon3d/text/text_unit_map.hpp>        // TextUnitMap (used by build_text_unit_map)
 
 // TICKET-092: INTERNAL accumulator types (cat-3 freeze — NOT in include/).
 // Provides CompiledParagraphResult / TextDocumentCompileResult /
@@ -594,12 +593,9 @@ compile_text_layout(
     // comp_style (which is para.style if non-default, else layout.paragraph).
     text_layout->direction   = comp_style.direction;
     text_layout->language    = comp_style.language;
-    // line_height: prefer comp_style override (para.style.line_height
-    // when set), fall back to layout.line_height when comp_style uses
-    // the default 0.0f sentinel.
-    text_layout->line_height = comp_style.line_height > 0.0f
-        ? comp_style.line_height
-        : layout.line_height;
+    // line_height: sourced from layout spec (ParagraphStyle does not
+    // carry line_height — it's a layout-level, not paragraph-level, property).
+    text_layout->line_height = layout.line_height;
 
     if (services.cache && is_single_font) {
         TextLayoutCacheKey cache_key = build_cache_key(
