@@ -425,13 +425,25 @@ public:
 
     // ── Read-only accessors (for tests and tooling) ──────────────────────
     [[nodiscard]] const PendingTextRun& pending() const noexcept { return *pending_; }
-    [[nodiscard]] PendingTextRun&       mutable_pending() noexcept { return *pending_; }
+    // TICKET-110 — `mutable_pending()` was demoted from public to private.
+    // The accessor survives (Layer::text() construction path still needs a
+    // non-const handle into the underlying PendingTextRun), but is now
+    // reachable only via the explicit friend grants in the `private:`
+    // section below (`Layer` for the construction path, the
+    // test-only `testing::TextRunBuilderInspector` for read access from
+    // tests).  Production code MUST go through the public `Text` setters
+    // or the `configure_core(...)` escape hatch; raw read access is
+    // intentionally locked down.
     // PR 3.5 — exposed for tests that exercise the ambient-resolution path.
     [[nodiscard]] const StyleRegistry*  ambient_style_registry()  const noexcept { return style_registry_; }
     [[nodiscard]] const MotionRegistry* ambient_motion_registry() const noexcept { return motion_registry_; }
 
 private:
     friend class Layer;                                               // PR 3 — Layer::text() needs to expose `text(content)` factory returning a Text handle.
+    friend class testing::TextRunBuilderInspector;                    // TICKET-110 — test-only read access via the inspector pattern; see tests/support/text_run_builder_inspection.hpp.
+
+    // TICKET-110 — demoted from public; reachable only via the friend grants above.
+    [[nodiscard]] PendingTextRun&       mutable_pending() noexcept { return *pending_; }
 
     // Single field-map helper shared by explicit + ambient `.style(...)`
     // paths.  Owns the PR 3-equivalence contract.
