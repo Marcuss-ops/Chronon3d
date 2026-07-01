@@ -52,6 +52,7 @@ log "temp root   : $TMP_ROOT"
 log "fast mode   : ${CHRONON3D_INSTALL_TEST_FAST:-0}"
 log "ghost sweep : ${CHRONON3D_INSTALL_TEST_GHOST_SWEEP:-0}"
 require_cmake_3_27 >/dev/null
+PRESET="${CHRONON3D_INSTALL_TEST_PRESET}"
 
 # ── Phase 1: configure + build + install SDK (inline) ────────────────
 # This phase MUST stay inline because SDK_BUILD and SDK_PREFIX are the
