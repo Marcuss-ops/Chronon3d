@@ -37,11 +37,24 @@ namespace chronon3d {
 
 /// The output of build_text_run().  Contains one TextRunLayout per
 /// paragraph in the source TextDocument, in document order.
+///
+/// `complete` is true when ALL paragraphs compiled successfully.
+/// When false, one or more paragraphs were skipped (multi-font
+/// rejection, MissingFont, ShapingFailed, etc.) and `paragraphs`
+/// contains only the successful subset.  Callers MUST check
+/// `complete` before assuming the result covers every paragraph.
 struct TextRunBuildResult {
     /// Paragraph layouts (one per TextDocument paragraph).
     std::vector<std::shared_ptr<TextRunLayout>> paragraphs;
 
-    /// Total number of paragraphs.
+    /// True when every paragraph in the source document compiled
+    /// successfully.  False when one or more paragraphs were skipped
+    /// — `paragraphs.size()` may be less than the document's
+    /// paragraph count.  Default `true` preserves backward
+    /// compatibility for callers that don't inspect this field.
+    bool complete{true};
+
+    /// Total number of paragraphs in the result.
     [[nodiscard]] size_t size() const { return paragraphs.size(); }
 };
 
