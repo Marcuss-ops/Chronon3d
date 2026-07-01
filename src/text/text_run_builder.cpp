@@ -331,7 +331,8 @@ inline void apply_spacing_collapse(
 Result<std::shared_ptr<TextRunLayout>, TextLayoutError>
 compile_text_layout(
     const TextLayoutRequest& request,
-    TextCompileServices& services
+    TextCompileServices& services,
+    const ResolvedTextTree* pre_resolved
 ) {
     // ── Validate pointers ─────────────────────────────────────────
     if (request.doc == nullptr || request.layout == nullptr) {
@@ -359,7 +360,18 @@ compile_text_layout(
         };
     }
 
-    auto tree = resolve_text_run_tree(doc, engine);
+    // P1-6 — When `pre_resolved` is non-null, bind `tree` to the
+    // caller's tree by const reference (no copy).  When null, resolve
+    // internally into `local_storage` so the rest of the function
+    // uses one uniform `const ResolvedTextTree&` binding.  The
+    // comma-operator pattern in the nullptr branch extends the
+    // returned prvalue lifetime to the scope of `local_storage`,
+    // avoiding a copy of the (potentially large) resolved tree on
+    // the new doc-compile path.
+    ResolvedTextTree local_storage{};
+    const ResolvedTextTree& tree = (pre_resolved != nullptr)
+        ? *pre_resolved
+        : (local_storage = resolve_text_run_tree(doc, engine), local_storage);
 
     // ── Resolve paragraph index ─────────────────────────────────────
     // The caller supplies the paragraph index they want compiled.
@@ -755,7 +767,12 @@ TextDocumentCompileResult compile_text_document(
             primary_font,
             i,
         };
-        entry.result = compile_text_layout(request, services);
+        // P1-6 — pass &tree (the doc-level resolved tree resolved once
+        // above) so compile_text_layout skips its internal
+        // resolve_text_run_tree() call.  N+1 -> 1 resolution per
+        // document compile (the original cost was N+1 for an
+        // N-paragraph doc).
+        entry.result = compile_text_layout(request, services, &tree);
         if (!entry.result) {
             result.complete = false;
         }
