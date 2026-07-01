@@ -32,11 +32,14 @@
 #include <string>
 #include <string_view>
 
+#include <chronon3d/text/font_engine.hpp>  // FontSpec (for apply_fontspec_canonicalization)
 #include "src/text/aliases.hpp"   // TICKET-099a — internal domain type aliases.
 
 namespace chronon3d {
 namespace text {
 namespace internal {
+
+using namespace chronon3d::text::domain;   // FontAssetId, Bcp47LanguageTag, etc.
 
 // ── BCP-47 language tag helpers ────────────────────────────────────────────
 //
@@ -89,6 +92,15 @@ make_font_family_name(std::string_view family_name);
 // empty strings; callers should validate before use.
 [[nodiscard]] TextPresetId make_text_preset_id(std::string_view raw_id);
 [[nodiscard]] SelectorId   make_selector_id   (std::string_view raw_id);
+
+// ── FontSpec canonicalization ──────────────────────────────────────────────
+//
+// Canonicalize font_family (lowercase) and font_style (lowercase) on a
+// FontSpec in-place.  Used by resolve_fallback_fonts and effective_font
+// before the font is dispatched to HarfBuzz or the fallback chain.
+// font_weight is validated by parse_font_weight elsewhere; font_path is
+// left as-is (filesystem paths are case-sensitive on Linux).
+void apply_fontspec_canonicalization(chronon3d::FontSpec& spec);
 
 } // namespace internal
 } // namespace text
