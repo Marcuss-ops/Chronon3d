@@ -47,11 +47,17 @@ constexpr PropertyPhase property_phase() {
     if constexpr (std::is_same_v<T, CharacterOffsetProperty>) {
         return PropertyPhase::PreShaping;
     } else if constexpr (std::is_same_v<T, TrackingProperty>) {
-        // TrackingProperty affects glyph spacing which feeds into
-        // paragraph composition (line breaking, justification).
-        // Currently evaluated as PostLayout because the per-glyph
-        // tracking runs after shaping; promote to PreLayout when the
-        // layout-composition tracking path is wired.
+        // FASE 2b: TrackingProperty is visual-only tracking — it adjusts
+        // per-glyph advances AFTER HarfBuzz shaping, so it cannot affect
+        // line breaking, word wrapping, or justification.  This is the
+        // After Effects "Animator > Tracking" behaviour.
+        //
+        // Layout tracking (which MUST affect shaping) is controlled by
+        // `TextLayoutSpec::tracking` — that value feeds into HarfBuzz
+        // via `hb_font_set_ptem` / glyph advance adjustment during
+        // shaping, so line breaks and paragraph composition see it.
+        // A future `LayoutTrackingProperty` (PreLayout phase) would
+        // bridge the gap for animated layout-level tracking.
         return PropertyPhase::PostLayout;
     } else {
         // Position, Scale, Rotation, Skew, Anchor, Opacity, Blur,
@@ -143,6 +149,10 @@ struct StrokeWidthProperty {
 };
 
 struct TrackingProperty {
+    /// FASE 2b: visual-only tracking — adjusts glyph advances post-layout.
+    /// This does NOT affect HarfBuzz shaping, line breaking, or justification.
+    /// For layout-affecting tracking, use `TextLayoutSpec::tracking` which
+    /// feeds into the shaping engine directly.
     AnimatedValue<f32> pixels{0.0f};          // extra tracking per glyph in pixels
 };
 

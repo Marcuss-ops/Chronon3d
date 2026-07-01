@@ -1119,8 +1119,7 @@ TEST_CASE("TextPresetRegistry: TICKET-012 AnimatorResolver direct-call coverage 
 //     pre-refactor Tier F lock-in (cinematic_title_reveal=f ScaleProperty,
 //     tracking_close=TrackingProperty, word_cascade/character_cascade=
 //     OpacityProperty).
-//   • Brief A2.4 selector-binding: title_global/global → Glyph,
-//     word_cascade → Word, character_cascade → Glyph/Grapheme.
+//   • Brief A2.4 selector-binding: title_global/global → Glyph,    //     word_cascade → Word, character_cascade → Grapheme.
 //   • Brief A2.5 single source: start/duration/stagger/easing live in
 //     ONLY ONE place (the AnimatedValue<> keyframes + selectors here).
 //   • At frame 0, mid, and final, AnimatedValue<> properties evaluate to
@@ -1283,12 +1282,12 @@ TEST_CASE("TextPresetRegistry: AGENT-2 resolver-driven evolution tier (Sub-cases
         CHECK(end_f24 < end_f48);
     }
 
-    SUBCASE("43) character_cascade — Glyph selector + animated end sweep + opacity ramp") {
+    SUBCASE("43) character_cascade — Grapheme selector + animated end sweep + opacity ramp") {
         const auto opt = chronon3d::registry::AnimatorResolver::compose_for("character_cascade");
         REQUIRE(opt.has_value());
         REQUIRE(opt->selectors.size() == 1);
-        // Brief A2.4: character_cascade → glyph/grapheme selector.
-        CHECK(opt->selectors[0].unit == chronon3d::TextSelectorUnit::Glyph);
+        // FASE 2b: character_cascade → grapheme selector (was Glyph).
+        CHECK(opt->selectors[0].unit == chronon3d::TextSelectorUnit::Grapheme);
         REQUIRE(opt->properties.size() >= 3);
         // Tier F lock-in: first alternative is OpacityProperty.
         CHECK(std::holds_alternative<chronon3d::OpacityProperty>(opt->properties[0]));
@@ -1325,6 +1324,35 @@ TEST_CASE("TextPresetRegistry: AGENT-2 resolver-driven evolution tier (Sub-cases
         CHECK(end_f0  <= 0.01f);
         CHECK(end_f24 >= 99.0f);
         CHECK(end_f0  < end_f24);
+    }
+
+    SUBCASE("45) FASE 2b — word_pop and masked_line_reveal selector-unit locks") {
+        // word_pop now uses Word selector (was global Glyph).
+        {
+            const auto opt = chronon3d::registry::AnimatorResolver::compose_for("word_pop");
+            REQUIRE(opt.has_value());
+            REQUIRE(opt->selectors.size() == 1);
+            CHECK(opt->selectors[0].unit == chronon3d::TextSelectorUnit::Word);
+            // Animated end sweep 0→100 over 20f.
+            const f32 end_f0  = opt->selectors[0].end.evaluate(f0);
+            const f32 end_f20 = opt->selectors[0].end.evaluate(chronon3d::SampleTime::from_frame_int(chronon3d::Frame{20}, chronon3d::FrameRate{30, 1}));
+            CHECK(end_f0  <= 0.01f);
+            CHECK(end_f20 >= 99.0f);
+            CHECK(end_f0 < end_f20);
+        }
+        // masked_line_reveal now uses Line selector (was global Glyph).
+        {
+            const auto opt = chronon3d::registry::AnimatorResolver::compose_for("masked_line_reveal");
+            REQUIRE(opt.has_value());
+            REQUIRE(opt->selectors.size() == 1);
+            CHECK(opt->selectors[0].unit == chronon3d::TextSelectorUnit::Line);
+            // Animated end sweep 0→100 over 30f.
+            const f32 end_f0  = opt->selectors[0].end.evaluate(f0);
+            const f32 end_f30 = opt->selectors[0].end.evaluate(chronon3d::SampleTime::from_frame_int(chronon3d::Frame{30}, chronon3d::FrameRate{30, 1}));
+            CHECK(end_f0  <= 0.01f);
+            CHECK(end_f30 >= 99.0f);
+            CHECK(end_f0 < end_f30);
+        }
     }
 
     SUBCASE("44) agents cross-link invariant — 4 mandatory presets produce ≥1 RenderNode") {

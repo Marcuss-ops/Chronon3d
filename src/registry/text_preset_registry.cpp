@@ -378,11 +378,29 @@ compose_tracking_close(const PresetMetadata& /*meta*/) {
     return a;
 }
 
-// 13. masked_line_reveal — center_split(30) + fade_shift_horizontal({120,0,0},25)
+// 13. masked_line_reveal — FASE 2b — per-line reveal with Line selector.
+// Uses TextSelectorUnit::Line so each newline-delimited line reveals independently
+// (center-split mask reads out lines from the middle outward).
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_masked_line_reveal(const PresetMetadata& /*meta*/) {
+    const EasingCurve eo_line{Easing::OutCubic};
     TextAnimatorSpec a = make_presetc_template("masked_line_reveal");
     a.properties.push_back(PositionProperty{Vec3{120.0f, 0.0f, 0.0f}});
+
+    // FASE 2b: Override default global Glyph selector with per-Line selector.
+    // Animated `end` sweeps 0→100 over 30f — lines reveal in sequence.
+    a.selectors.clear();
+    GlyphSelectorSpec line_sel;
+    line_sel.id     = a.id + "_sel_line";
+    line_sel.unit   = TextSelectorUnit::Line;
+    line_sel.shape  = TextSelectorShape::Square;
+    line_sel.start  = AnimatedValue<f32>{0.0f};
+    line_sel.end    = AnimatedValue<f32>{
+        {{Frame{0},  0.0f,  eo_line},
+         {Frame{30}, 100.0f, eo_line}}};
+    line_sel.amount = AnimatedValue<f32>{100.0f};
+    a.selectors.push_back(line_sel);
+
     return a;
 }
 
@@ -423,7 +441,9 @@ compose_word_cascade(const PresetMetadata& /*meta*/) {
     return a;
 }
 
-// 15. character_cascade — AGENT 2 — per-glyph cascade (Glyph selector + animated end).
+// 15. character_cascade — FASE 2b — per-grapheme cascade (Grapheme selector + animated end).
+// Uses TextSelectorUnit::Grapheme so combining marks, ZWJ emoji sequences, and
+// other grapheme clusters animate as a single visual unit (matches user perception).
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_character_cascade(const PresetMetadata& /*meta*/) {
     const EasingCurve eo_char{Easing::OutCubic};
@@ -444,28 +464,47 @@ compose_character_cascade(const PresetMetadata& /*meta*/) {
     sp.value.add_keyframe(Frame{18}, Vec3{1.0f, 1.0f, 1.0f}, eo_char);
     a.properties.push_back(sp);
 
-    // Override default global selector: Glyph unit + animated `end` (0→100 over 24f).
+    // FASE 2b: Grapheme unit instead of Glyph.  Each user-perceived character
+    // (including combining marks and emoji ZWJ sequences) animates as one unit.
     a.selectors.clear();
-    GlyphSelectorSpec glyph_sel;
-    glyph_sel.id     = a.id + "_sel_glyph";
-    glyph_sel.unit   = TextSelectorUnit::Glyph;
-    glyph_sel.shape  = TextSelectorShape::Square;
-    glyph_sel.start  = AnimatedValue<f32>{0.0f};
-    glyph_sel.end    = AnimatedValue<f32>{
+    GlyphSelectorSpec grapheme_sel;
+    grapheme_sel.id     = a.id + "_sel_grapheme";
+    grapheme_sel.unit   = TextSelectorUnit::Grapheme;
+    grapheme_sel.shape  = TextSelectorShape::Square;
+    grapheme_sel.start  = AnimatedValue<f32>{0.0f};
+    grapheme_sel.end    = AnimatedValue<f32>{
         {{Frame{0},  0.0f,  eo_char},
          {Frame{24}, 100.0f, eo_char}}};
-    glyph_sel.amount = AnimatedValue<f32>{100.0f};
-    a.selectors.push_back(glyph_sel);
+    grapheme_sel.amount = AnimatedValue<f32>{100.0f};
+    a.selectors.push_back(grapheme_sel);
 
     return a;
 }
 
-// 16. word_pop — scale_drop(1.15,8) + soft_pop(15)
+// 16. word_pop — FASE 2b — per-word bouncy scale overshoot with Word selector.
+// Uses TextSelectorUnit::Word so the pop effect targets each whitespace-delimited
+// word independently, matching the preset's semantic intent ("per-word emphasis pop").
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_word_pop(const PresetMetadata& /*meta*/) {
+    const EasingCurve eo_pop{Easing::OutBack};
     TextAnimatorSpec a = make_presetc_template("word_pop");
     a.properties.push_back(ScaleProperty{Vec3{1.15f, 1.15f, 1.0f}});
     a.properties.push_back(OpacityProperty{1.0f});
+
+    // FASE 2b: Override default global Glyph selector with per-Word selector.
+    // Animated `end` sweeps 0→100 over 20f so words pop in sequence.
+    a.selectors.clear();
+    GlyphSelectorSpec word_sel;
+    word_sel.id     = a.id + "_sel_word";
+    word_sel.unit   = TextSelectorUnit::Word;
+    word_sel.shape  = TextSelectorShape::Square;
+    word_sel.start  = AnimatedValue<f32>{0.0f};
+    word_sel.end    = AnimatedValue<f32>{
+        {{Frame{0},  0.0f,  eo_pop},
+         {Frame{20}, 100.0f, eo_pop}}};
+    word_sel.amount = AnimatedValue<f32>{100.0f};
+    a.selectors.push_back(word_sel);
+
     return a;
 }
 
@@ -873,8 +912,10 @@ TextPresetDescriptor masked_line_reveal_entry() {
     meta.id           = "masked_line_reveal";
     meta.display_name = "MaskedLineReveal";
     meta.category     = TextPresetCategory::Reveal;
-    meta.description  = "Center-split mask reveal (lines read out from the "
-                         "middle) + horizontal fade_shift.  Mask-and-reveal pattern.";
+    meta.description  = "Center-split mask reveal with per-Line selector.  "
+                         "FASE 2b: Lines reveal in sequence (animated `end` 0→100 "
+                         "over 30f OutCubic) + horizontal fade_shift.  "
+                         "Mask-and-reveal pattern for multi-line text.";
     meta.builtin      = true;
 
     TextPresetDescriptor d;
@@ -928,9 +969,10 @@ TextPresetDescriptor character_cascade_entry() {
     meta.id           = "character_cascade";
     meta.display_name = "CharacterCascade";
     meta.category     = TextPresetCategory::Reveal;
-    meta.description  = "Per-glyph stagger (Frame{1} delay) + fade_in.  Tighter "
-                         "than WordCascade — best on monospace / kerned display. "
-                         "AGENT 2 (TICKET-A2) — Glyph-unit selector with "
+    meta.description  = "Per-grapheme stagger (Frame{1} delay) + fade_in.  "
+                         "Tighter than WordCascade — best on monospace / kerned display. "
+                         "FASE 2b: Grapheme-unit selector (was Glyph) so combining marks, "
+                         "ZWJ emoji, and accented characters animate as a single visual unit. "
                          "AnimatedValue<>`end` (24f) + property ramps over 18f "
                          "ease-out cubic; factory routes through the resolver "
                          "only — no layer-level fade_in + word_stagger chain "
@@ -958,7 +1000,10 @@ TextPresetDescriptor word_pop_entry() {
     meta.display_name = "WordPop";
     meta.category     = TextPresetCategory::Emphasis;
     meta.description  = "Bouncy scale overshoot (1.0 → 1.15) + soft_pop.  "
-                         "Per-word emphasis pop — best in mid-flow body copy.";
+                         "FASE 2b: now uses a Word selector with animated end sweep "
+                         "(0→100 over 20f OutBack) so the pop effect targets each word "
+                         "independently in sequence — per-word emphasis pop, "
+                         "best in mid-flow body copy.";
     meta.builtin      = true;
 
     TextPresetDescriptor d;
@@ -968,9 +1013,10 @@ TextPresetDescriptor word_pop_entry() {
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
                           const TextSpecT& spec) {
-        wire_through_resolver(lb, "word_pop", spec)
-          .scale_drop(1.15f, Frame{8})
-          .soft_pop(Frame{15});
+        // FASE 2b: resolver-only — Word selector with animated end sweep
+        // drives the per-word pop effect; no layer-level chain methods
+        // (consistent with word_cascade/character_cascade pattern).
+        (void)wire_through_resolver(lb, "word_pop", spec);
     };
     d.animator_factory = compose_word_pop;
     return d;
