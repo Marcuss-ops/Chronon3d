@@ -25,7 +25,7 @@
 #include <chronon3d/text/text_unit_map.hpp>
 #include <chronon3d/text/font_engine.hpp>
 
-#include "unicode/utf8_decoder.hpp"
+#include "src/text/unicode/utf8_decoder.hpp"
 #include "unicode/whitespace.hpp"
 
 #include <algorithm>
