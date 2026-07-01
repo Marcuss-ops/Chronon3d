@@ -53,6 +53,10 @@
 #include <chronon3d/sdk/render_settings.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
+// Additional public types used by the strict-A consumer test
+#include <chronon3d/api/render_engine.hpp>
+#include <chronon3d/backends/image/image_writer.hpp>
+
 namespace chronon3d {
     // Umbrella header for Chronon3d (P3-I re-export-only shim).
     // No definitions live here by design; the umbrella is a one-stop
