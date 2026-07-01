@@ -133,6 +133,12 @@ void expand_per_glyph_bbox(
 // Uses a caller-provided scratch buffer (scratch_state.blur_buffer)
 // to avoid one BLImage alloc per call.  Cost ~ 2 * w * h independent
 // of `radius`.
+//
+// FASE 3b: operates on premultiplied alpha (PRGB32).  Each channel
+// (R, G, B, A) is blurred independently — this preserves correct
+// premultiplied-alpha semantics because the same weight is applied
+// to all channels, so the ratio A/color stays consistent.  No dark
+// halos emerge from separate RGB/A filtering.
 void apply_separable_box_blur(BLImage& image, int radius, TextScratchState& scratch_state) {
     if (radius <= 0) return;
     BLImageData data;
@@ -240,6 +246,93 @@ void apply_separable_box_blur(BLImage& image, int radius, TextScratchState& scra
 }
 
 } // anonymous namespace
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FASE 3b — Adaptive supersampling helpers
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Extract the uniform 2D scale factor from a model matrix.
+/// Uses the max of |sx| and |sy| from the upper-left 2×2 submatrix.
+/// For pure-translation matrices returns 1.0f.
+[[nodiscard]] inline float extract_uniform_scale(const Mat4& model) {
+    const float sx = std::sqrt(model[0][0] * model[0][0] + model[0][1] * model[0][1]);
+    const float sy = std::sqrt(model[1][0] * model[1][0] + model[1][1] * model[1][1]);
+    return std::max(sx, sy);
+}
+
+/// Compute the supersampling factor for a given layer scale.
+///   scale ≤ 1.25  → 1× (no supersampling)
+///   scale ≤ 2.5   → 2×
+///   scale > 2.5   → 4×
+[[nodiscard]] inline int supersampling_factor(float scale) {
+    if (scale <= 1.25f) return 1;
+    if (scale <= 2.5f)  return 2;
+    return 4;
+}
+
+/// High-quality box-filter downsample: averages ss×ss source pixels
+/// into each destination pixel.  Operates on PRGB32 premultiplied alpha
+/// — each channel is averaged independently (same weight), preserving
+/// the premultiplied-alpha invariant (A and RGB stay in lockstep).
+///
+/// When ss == 1, this is a no-op (src and dst are identical).
+/// The dst is cleared to transparent before the downsample to avoid
+/// stale-data leakage at edges.
+void downsample_supersampled(BLImage& dst, const BLImage& src, int ss) {
+    if (ss <= 1) return;
+
+    BLImageData src_data, dst_data;
+    if (src.getData(&src_data) != BL_SUCCESS) return;
+    if (dst.getData(&dst_data) != BL_SUCCESS) return;
+
+    const int sw = src_data.size.w;
+    const int sh = src_data.size.h;
+    const int dw = dst_data.size.w;
+    const int dh = dst_data.size.h;
+    const int src_stride = static_cast<int>(src_data.stride / sizeof(uint32_t));
+    const int dst_stride = static_cast<int>(dst_data.stride / sizeof(uint32_t));
+    const uint32_t* src_base = static_cast<const uint32_t*>(src_data.pixelData);
+    uint32_t* dst_base = static_cast<uint32_t*>(dst_data.pixelData);
+
+    // Clear dst to transparent before downsample.
+    {
+        BLContext ctx(dst);
+        ctx.setCompOp(BL_COMP_OP_SRC_COPY);
+        ctx.setFillStyle(BLRgba32(0, 0, 0, 0));
+        ctx.fillAll();
+        ctx.end();
+    }
+
+    const float inv_area = 1.0f / static_cast<float>(ss * ss);
+
+    for (int dy = 0; dy < dh; ++dy) {
+        uint32_t* dst_row = dst_base + static_cast<size_t>(dy) * dst_stride;
+        for (int dx = 0; dx < dw; ++dx) {
+            const int sx0 = dx * ss;
+            const int sy0 = dy * ss;
+
+            float sum_r = 0, sum_g = 0, sum_b = 0, sum_a = 0;
+            for (int oy = 0; oy < ss; ++oy) {
+                const int sy = std::min(sy0 + oy, sh - 1);
+                const uint32_t* src_row = src_base + static_cast<size_t>(sy) * src_stride;
+                for (int ox = 0; ox < ss; ++ox) {
+                    const int sx = std::min(sx0 + ox, sw - 1);
+                    const uint32_t c = src_row[sx];
+                    sum_r += static_cast<float>((c >> 16) & 0xFF);
+                    sum_g += static_cast<float>((c >>  8) & 0xFF);
+                    sum_b += static_cast<float>( c        & 0xFF);
+                    sum_a += static_cast<float>((c >> 24) & 0xFF);
+                }
+            }
+
+            const uint32_t r = static_cast<uint32_t>(std::clamp(sum_r * inv_area, 0.0f, 255.0f));
+            const uint32_t g = static_cast<uint32_t>(std::clamp(sum_g * inv_area, 0.0f, 255.0f));
+            const uint32_t b = static_cast<uint32_t>(std::clamp(sum_b * inv_area, 0.0f, 255.0f));
+            const uint32_t a = static_cast<uint32_t>(std::clamp(sum_a * inv_area, 0.0f, 255.0f));
+            dst_row[dx] = (a << 24) | (r << 16) | (g << 8) | b;
+        }
+    }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // draw_text_run
@@ -439,6 +532,21 @@ graph::RenderOpResult draw_text_run(
     const float offset_x = min_x - margin;
     const float offset_y = min_y - margin;
 
+    // ── FASE 3b — Adaptive supersampling ────────────────────────────
+    //
+    // When the layer is scaled up (camera zoom, 2.5D push-in), rasterize
+    // text at a higher resolution to avoid blurry/jagged glyph edges.
+    // The supersampled image is box-filter downsampled before compositing.
+    //
+    // Thresholds:  scale ≤ 1.25 → 1×,  ≤ 2.5 → 2×,  > 2.5 → 4×.
+    // Per-pixel cost grows quadratically with ss, so 4× is capped.
+    const float layer_scale = extract_uniform_scale(params.model_matrix);
+    const int ss = supersampling_factor(layer_scale);
+    const int ss_img_w = img_w * ss;
+    const int ss_img_h = img_h * ss;
+    const float ss_offset_x = offset_x * static_cast<float>(ss);
+    const float ss_offset_y = offset_y * static_cast<float>(ss);
+
     // ── Stage 3 — Per-glyph blur tier pre-classification (O(G)) ─────
     // Glyphs are grouped into 5 tiers by their per-glyph blur value.
     // Each tier is rasterized onto its own surface, blurred individually,
@@ -503,13 +611,18 @@ graph::RenderOpResult draw_text_run(
     // FASE 4 (TICKET-090) — tier-renderer stays inline as the
     // orchestrator stage (see file-local anon-namespace note above);
     // renamed for clarity.
+    //
+    // FASE 3b: accepts offset_x/y as parameters — supersampled renders
+    // pass ss_offset, shadow renders (at 1×) pass the original offset.
     auto render_tier_to_image = [&](
         BLImage& target,
         std::optional<Color> override_color,
         int blur_radius,
         const std::vector<GlyphInstanceState>& source_glyphs,
         const PlacedGlyphRun& source_placed,
-        const std::vector<u32>& tier_glyphs
+        const std::vector<u32>& tier_glyphs,
+        float render_offset_x,
+        float render_offset_y
     ) -> size_t {
         size_t drawn = 0;
         BLContext ctx(target);
@@ -538,7 +651,10 @@ graph::RenderOpResult draw_text_run(
             if (op_alpha <= 0.0f && eff_stroke.a <= 0.0f) continue;
 
             BLMatrix2D glyph_mat = build_glyph_matrix(g);
-            glyph_mat.translate(-offset_x, -offset_y);
+            // FASE 3b: use render_offset so glyphs map into the target
+            // image at the correct resolution (ss_offset for supersampled,
+            // original offset for shadows at 1×).
+            glyph_mat.translate(-render_offset_x, -render_offset_y);
 
             ctx.save();
             ctx.setTransform(glyph_mat);
@@ -635,6 +751,11 @@ graph::RenderOpResult draw_text_run(
         // explicitly both on the early-out (sh_drawn==0) AND after the
         // composite, so the surface_pool stays bounded and the next
         // draw_text_run's acquire_surface hit-rate remains high.
+        // FASE 3b: shadows render at 1× (original resolution).
+        // Supersampling shadows adds negligible quality (they're blurry
+        // by design) but requires a separate downsample path.  The
+        // shadow offset in the model matrix uses the original offset_x/y
+        // which maps correctly to the 1× image.
         BLImage shadow_img = scratch_state.acquire_surface(
             img_w, img_h, BL_FORMAT_PRGB32);
         if (shadow_img.empty()) shadow_img = BLImage(img_w, img_h, BL_FORMAT_PRGB32);
@@ -644,7 +765,8 @@ graph::RenderOpResult draw_text_run(
         };
         const size_t sh_drawn = render_tier_to_image(
             shadow_img, shadow_color, detail::bucket_radius_for_tier(shadow.blur),
-            shape.glyphs, layout.placed, all_active_glyphs);
+            shape.glyphs, layout.placed, all_active_glyphs,
+            offset_x, offset_y);
         if (sh_drawn == 0) {
             scratch_state.release_surface(std::move(shadow_img));
             continue;
@@ -672,8 +794,8 @@ graph::RenderOpResult draw_text_run(
     //
     // This means glyphs with blur=0 stay sharp while adjacent blur=16
     // glyphs are fully blurred — the core motivation for per-glyph blur.
-    BLImage img = scratch_state.acquire_surface(img_w, img_h);
-    if (img.empty()) img = BLImage(img_w, img_h, BL_FORMAT_PRGB32);
+    BLImage img = scratch_state.acquire_surface(ss_img_w, ss_img_h);
+    if (img.empty()) img = BLImage(ss_img_w, ss_img_h, BL_FORMAT_PRGB32);
     // Clear the final composite image to transparent.
     {
         BLContext ctx(img);
@@ -686,11 +808,12 @@ graph::RenderOpResult draw_text_run(
     size_t glyphs_drawn = 0;
     for (int tier = 0; tier < kNumBlurTiers; ++tier) {
         if (active_tiers[tier].empty()) continue;
-        BLImage tier_img = scratch_state.acquire_surface(img_w, img_h);
-        if (tier_img.empty()) tier_img = BLImage(img_w, img_h, BL_FORMAT_PRGB32);
+        BLImage tier_img = scratch_state.acquire_surface(ss_img_w, ss_img_h);
+        if (tier_img.empty()) tier_img = BLImage(ss_img_w, ss_img_h, BL_FORMAT_PRGB32);
         const size_t drawn = render_tier_to_image(
             tier_img, std::nullopt, kBlurTierRadii[tier],
-            shape.glyphs, layout.placed, active_tiers[tier]);
+            shape.glyphs, layout.placed, active_tiers[tier],
+            ss_offset_x, ss_offset_y);
         if (drawn == 0) { scratch_state.release_surface(std::move(tier_img)); continue; }
         glyphs_drawn += drawn;
 
@@ -725,12 +848,13 @@ graph::RenderOpResult draw_text_run(
             1.0f - shape.crossfade_mix, 0.0f, 1.0f);
         for (int tier = 0; tier < kNumBlurTiers; ++tier) {
             if (crossfade_tiers[tier].empty()) continue;
-            BLImage tier_img = scratch_state.acquire_surface(img_w, img_h);
-            if (tier_img.empty()) tier_img = BLImage(img_w, img_h, BL_FORMAT_PRGB32);
+            BLImage tier_img = scratch_state.acquire_surface(ss_img_w, ss_img_h);
+            if (tier_img.empty()) tier_img = BLImage(ss_img_w, ss_img_h, BL_FORMAT_PRGB32);
             const size_t drawn = render_tier_to_image(
                 tier_img, std::nullopt, kBlurTierRadii[tier],
                 shape.crossfade_glyphs, shape.crossfade_layout->placed,
-                crossfade_tiers[tier]);
+                crossfade_tiers[tier],
+                ss_offset_x, ss_offset_y);
             if (drawn == 0) { scratch_state.release_surface(std::move(tier_img)); continue; }
             glyphs_drawn += drawn;
 
@@ -761,7 +885,34 @@ graph::RenderOpResult draw_text_run(
         return graph::RenderOpResult(graph::RenderOpOutcome{0});
     }
 
+    // ── FASE 3b — Downsample supersampled image ─────────────────────
+    //
+    // When ss > 1, the composite `img` was rasterized at ss× resolution.
+    // Downsample it back to the original img_w × img_h via a box filter
+    // (averaging ss×ss source pixels per destination pixel).  This
+    // produces a high-quality anti-aliased result with correct
+    // premultiplied alpha — no dark halos because all channels are
+    // averaged with the same weight.
+    //
+    // The downsampled image replaces `img` for the remaining stages
+    // (material, final composite).
+    if (ss > 1) {
+        BLImage ds_img = scratch_state.acquire_surface(img_w, img_h);
+        if (ds_img.empty()) ds_img = BLImage(img_w, img_h, BL_FORMAT_PRGB32);
+
+        downsample_supersampled(ds_img, img, ss);
+        scratch_state.release_surface(std::move(img));  // free supersampled
+        img = std::move(ds_img);                          // replace with downsampled
+    }
+
     // ── Stage 7 — Apply TextMaterial (gradient, bevel, etc.) ─────────
+    //
+    // FASE 3b NOTE: TextMaterial currently operates in display-referred
+    // (gamma) space.  Gradient/bevel computations should ideally happen
+    // in linear space with sRGB conversion only at the final framebuffer
+    // output, but that requires a pipeline-wide color management pass.
+    // For now, material effects are applied to the (possibly supersampled
+    // then downsampled) PRGB32 image with correct premultiplied alpha.
     if (shape.material.enabled) {
         apply_text_material(img, shape.material);
     }
@@ -771,6 +922,11 @@ graph::RenderOpResult draw_text_run(
     // image content fills the framebuffer correctly under rotation /
     // scale / shear.  composite_bl_image_transformed has a fast path
     // for simple-translation matrices so the common case is still cheap.
+    //
+    // FASE 3b: the composite receives the (possibly downsampled) image
+    // at original img_w × img_h resolution.  The model matrix already
+    // encodes the layer's scale — composite_bl_image_transformed will
+    // bilinear-sample from the high-quality source image.
     Mat4 full_model = params.model_matrix;
     full_model = glm::translate(full_model, Vec3(offset_x, offset_y, 0.0f));
 
