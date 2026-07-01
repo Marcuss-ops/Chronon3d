@@ -127,6 +127,15 @@ chronon3d_add_test_suite(
         render_graph/nodes/test_mask_node_rg_integration.cpp
         render_graph/nodes/test_mask_node_unit.cpp
         render_graph/nodes/test_multi_source_text_run.cpp
+        # P0-3 — audit hotspot #2 regression: TextRunNode error surfacing.
+        # Locks the diagnostic invariant that every backend failure path
+        # (ExecutionFailure / no-capability / null-backend) emits a
+        # spdlog error with the node name + error context.  Demonstrates
+        # the current codebase does NOT silently produce "successful"
+        # frames when draw_text_run fails (the structural fix is
+        # post-baseline-verde; this lock prevents regression during the
+        # freeze).  Gated on CHRONON3D_ENABLE_TEXT.
+        render_graph/nodes/test_text_run_node_execute_error.cpp
         render_graph/nodes/test_per_pixel_dof_node_rg_integration.cpp
         render_graph/nodes/test_per_pixel_dof_node_unit.cpp
         render_graph/nodes/test_shadow_node_rg_integration.cpp
