@@ -36,7 +36,7 @@
 ```
 === orchestrator ===
 preset      : linux-ci
-repo root   : /home/pierone/Pyt/Chronon3d
+repo root   : <repo-root>
 temp root   : /tmp
 fast mode   : 0
 ghost sweep : 0
