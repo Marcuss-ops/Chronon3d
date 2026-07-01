@@ -77,20 +77,7 @@ Per il contratto completo di ciascun ruolo, vedi [`docs/DOCUMENTATION_GOVERNANCE
 | Decisione architetturale           | `docs/adr/ADR-NNN-<titolo>.md`                     |
 | Materiale storico (non operativo)  | `docs/ARCHIVE/`                                     |
 
-## Stato assegnazioni agenti (snapshot 2026-06-29, `main@88d2deec`)
 
-- Agent 1 — Renderer/Backend Single Identity: DONE.
-- Agent 2 — CMake Registry / SDK Boundary / Baseline: COMPLETED.
-- Agent 4 — Visual Verification: PARTIAL.
-  - 5/6 gate `A4.1`–`A4.6` verificati su `linux-ci`.
-  - `A4.3` (per-preset collision diagnostic) non è 5/5: collegato a `TICKET-051`.
-  - `Showcase completo: 5/6`.
-  - `TICKET-051: OPEN` (vedi [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md)).
-
-Lavoro corrente sequenziale su `main`, un task alla volta.
-
-Stato presente e blocker attivi: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
-Documenti storici di quelle tornate in `docs/ARCHIVE/` (consultazione non operativa).
 
 ## 🔴 Feature Freeze — V0.1 (attivo dal 2026-06-29)
 
