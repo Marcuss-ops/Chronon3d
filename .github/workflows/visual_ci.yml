@@ -31,7 +31,9 @@ jobs:
   golden:
     name: Golden (${{ matrix.golden.label }})
     runs-on: ubuntu-latest
-    continue-on-error: true
+    # No continue-on-error at job level — failures MUST propagate to
+    # the visual-verdict job.  Artifact uploads use if: always() so
+    # diagnostics are always collected even on failure.
     strategy:
       fail-fast: false
       matrix:
@@ -91,7 +93,6 @@ jobs:
       # ── Run golden suite ──────────────────────────────────────────────
       - name: Run ${{ matrix.golden.label }} tests
         id: golden-test
-        continue-on-error: true
         run: |
           mkdir -p artifacts
           ctest --preset linux-ci-test \
@@ -100,6 +101,9 @@ jobs:
             tee artifacts/test_output_${{ matrix.golden.name }}.txt; \
             exit_code=${PIPESTATUS[0]}
           echo "status=$exit_code" >> $GITHUB_OUTPUT
+          # Propagate the actual test exit code so the job fails when
+          # golden tests fail (audit P0 #7 — visual CI honesty).
+          exit "$exit_code"
 
       # ── Collect artifacts ─────────────────────────────────────────────
       - name: Collect artifacts (${{ matrix.golden.name }})
@@ -243,3 +247,28 @@ for b in data.get('benchmarks', []):
           name: benchmark-results-${{ github.run_id }}
           path: output/benchmarks/
           retention-days: 30
+
+  # ══════════════════════════════════════════════════════════════════════
+  # Visual Verdict — final gate (audit P0 #7)
+  #
+  # Runs AFTER all golden matrix variants and benchmarks.
+  # Fails the workflow when any golden test variant produced a non-zero
+  # exit code.  Benchmarks are advisory only and never block.
+  # Artifacts are preserved via if: always() in upstream jobs so
+  # diagnostics remain available even when the verdict fails.
+  # ══════════════════════════════════════════════════════════════════════
+  visual-verdict:
+    name: Visual Verdict
+    runs-on: ubuntu-latest
+    needs: [golden]
+    if: always()
+    steps:
+      - name: Evaluate golden matrix results
+        run: |
+          echo "Golden matrix result: ${{ needs.golden.result }}"
+          if [ "${{ needs.golden.result }}" != "success" ]; then
+            echo "::error::One or more golden test variants FAILED."
+            echo "Download the golden-* artifacts for diagnostic images."
+            exit 1
+          fi
+          echo "All golden test variants PASSED."
