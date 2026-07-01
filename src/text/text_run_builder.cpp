@@ -647,6 +647,11 @@ TextRunBuildResult build_text_run(
     auto compile_result = text_internal::compile_text_document(
         doc, engine, layout, cache);
 
+    // Propagate completeness from the internal accumulator to the
+    // public result so callers can distinguish "all paragraphs ok"
+    // from "some paragraphs failed" (audit P0 #5).
+    result.complete = compile_result.complete;
+
     for (auto& entry : compile_result.paragraphs) {
         if (entry.result) {
             result.paragraphs.push_back(
