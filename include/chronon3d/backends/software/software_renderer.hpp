@@ -1,19 +1,12 @@
 #pragma once
 
-// ============================================================================
-// backends/software/software_renderer.hpp — 06 R3b single-identity orchestrator.
-// Inherits from Renderer ONLY.  All graph::RenderBackend polymorphism lives on
-// the attached SoftwareBackend, reached through m_runtime->backend().
-// capabilities / draw_text_run live exclusively on SoftwareBackend.
-// ============================================================================
-
+// software_renderer.hpp — 06 R3b single-identity orchestrator (Renderer only; backend lives on m_runtime->backend())
 #include <chronon3d/backends/software/renderer.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/backends/assets/image_renderer.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/backends/software/software_render_session.hpp>
 #include <chronon3d/core/config.hpp>
-
 #include <memory>
 #include <optional>
 #include <span>
@@ -51,13 +44,7 @@ enum class CompositeOperator : unsigned char;
 
 class SoftwareRenderer : public Renderer {
 public:
-    // ── Render entry points ────────────────────────────────────────────
-    // P1-F Pass B — `render_frame` was canonicalised to `render` to align
-    // with the V0.2 SDK API (`chronon3d::sdk::RenderEngine::render`).  Return
-    // type + semantics preserved exactly; pure renaming.  This header is now
-    // in `src/backends/software/include_private/` since P1-E Pass E, so the
-    // bulk `.render_frame(` sed in 70 caller files did NOT see this
-    // declaration line — it has to be renamed here alongside the .cpp body.
+    // ── Render entry points (render() canonical for V0.2 SDK API) ──────
     std::shared_ptr<Framebuffer> render(const Composition& comp, Frame frame);
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
                                               i32 width, i32 height);
@@ -68,14 +55,10 @@ public:
                                                  i32 width, i32 height, Frame frame = 0,
                                                  f32 frame_time = 0.0f) const;
 
-    // Cat-2 font preflight.  TICKET-087 — in-class declaration restored;
-    // signature identical to pre-TICKET-078 era; uses
-    // `struct FontPreflightSummary;` forward-decl so this header does
-    // NOT pull in <text_render_resources.hpp> (gate-3 I3 preserved at 6).
+    // Cat-2 font preflight (TICKET-087: in-class decl with FontPreflightSummary forward-decl, gate-3 I3=6)
     [[nodiscard]] chronon3d::FontPreflightSummary preflight_fonts(
         const chronon3d::Scene& scene,
         const chronon3d::assets::AssetResolver& resolver);
-
     // ── Construction / destruction ─────────────────────────────────────
     explicit SoftwareRenderer(runtime::RenderRuntime& rt, Config config);
     explicit SoftwareRenderer(Config config);
@@ -96,7 +79,6 @@ public:
     // `settings()` alias was removed (item 2 mega-facade cleanup).
     [[nodiscard]] const RenderSettings& render_settings() const { return m_settings; }
     [[nodiscard]] const MotionBlurSettings& motion_blur() const { return m_settings.motion_blur; }
-
     // ── Cache operations ───────────────────────────────────────────────
     void clear_caches();
     void clear_node_cache()   { node_cache().clear(); }
@@ -117,10 +99,8 @@ public:
                          const std::optional<raster::BBox>& clip = std::nullopt,
                          CompositeOperator op = CompositeOperator::SourceOver);
 
-    // IMPORTANT: `capabilities()` and `draw_text_run()` are NOT exposed
-    // here.  They live exclusively on `SoftwareBackend`.  Callers that
-    // need them reach them through `sw_renderer.backend().capabilities()`
-    // or `sw_renderer.backend().draw_text_run(...)`.
+    // capabilities() + draw_text_run() live exclusively on SoftwareBackend.
+    // Access via sw_renderer.backend().capabilities() / .draw_text_run(...).
 
     // ── Image + video ──────────────────────────────────────────────────
     void set_image_backend(std::shared_ptr<image::ImageBackend> backend);
@@ -138,9 +118,7 @@ public:
     [[nodiscard]] bool    last_graph_reused() const      { return m_session.common.dirty_telemetry.last_graph_reused; }
     [[nodiscard]] int     last_layer_count() const       { return m_session.common.dirty_telemetry.last_layer_count; }
 
-    // ── RenderRuntime forwarders (OOL — dereferencing m_runtime's class
-    //    here would require <runtime/render_runtime.hpp> as a non-local
-    //    include, exceeding the boundary gate's 6-include budget).
+    // ── RenderRuntime forwarders (OOL — avoids pulling runtime/* headers, gate I3) ──
     [[nodiscard]] renderer::SoftwareRegistry& software_registry();
     [[nodiscard]] const renderer::SoftwareRegistry& software_registry() const;
     [[nodiscard]] graph::GraphNodeCatalog& graph_node_registry();
@@ -219,5 +197,4 @@ private:
     std::unique_ptr<renderer::SoftwareRegistry> m_software_registry;
     SoftwareRenderSession m_session;
 };
-
 }  // namespace chronon3d
