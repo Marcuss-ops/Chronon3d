@@ -477,7 +477,27 @@ TextUnitMap::word_to_glyph(u32 word_idx) const noexcept {
 std::optional<u32>
 TextUnitMap::line_to_word(u32 line_idx) const noexcept {
     u32 first = first_child_with_parent(word_to_line_, line_idx);
-    if (first == InvalidIndex) return std::opt
+    if (first == InvalidIndex) return std::nullopt;
+    return first;
+}
+
+std::optional<u32>
+TextUnitMap::paragraph_to_line(u32 para_idx) const noexcept {
+    u32 first = first_child_with_parent(line_to_paragraph_, para_idx);
+    if (first == InvalidIndex) return std::nullopt;
+    return first;
+}
+
+std::optional<u32>
+TextUnitMap::span_to_paragraph(u32 span_idx) const noexcept {
+    // span → paragraph: inverse of paragraph_to_span (paragraph→first_span).
+    // Walk paragraph_to_span to find which paragraph owns this span.
+    for (u32 p = 0; p < paragraph_to_span_.size(); ++p) {
+        if (paragraph_to_span_[p] == span_idx) return p;
+    }
+    return std::nullopt;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Missing implementations (declared in header but not yet def'd)
 // ═══════════════════════════════════════════════════════════════════════════
