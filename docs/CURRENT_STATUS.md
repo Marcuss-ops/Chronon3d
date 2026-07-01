@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@1c106049` — 2026-07-01. Linux-only.
+> **Snapshot:** `main@775da4d9` — 2026-07-01. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@21103265` (9/11 PASS — vedi [`docs/baselines/main-21103265-baseline.md`](docs/baselines/main-21103265-baseline.md)).
 > Tra `21103265` e l'HEAD corrente sono atterrati commit addizionali (incluso `docs/DOCUMENTATION_GOVERNANCE.md`); non è ancora stata registrata una nuova baseline macchina-verificata sull'HEAD corrente.
@@ -30,7 +30,7 @@ Un valore `PASS` deve indicare lo SHA e la baseline che lo dimostrano — altrim
 | Area                                            | Stato    | Note sintetiche                                                          |
 | ----------------------------------------------- | -------- | ------------------------------------------------------------------------ |
 | Render graph compilato                          | NOT RUN  | Baseline completa da verificare sul commit candidato.                    |
-| Software backend                                | NOT RUN  | Confine rifattorizzato; gate-3 + full-validation da osservare insieme.   |
+| Software backend                                | PASS     | Gate-3 (I1-I5) tutto verde su `main@775da4d9`. TICKET-077 + TICKET-079 chiusi. |
 | Execution scope (precomp + nested)              | NOT RUN  | Lease, child arena e concorrenza da chiudere.                            |
 | Text Production V1                              | NOT RUN  | word timing, rich text produttivo, preset, golden da chiudere.           |
 | Camera Production V1                            | NOT RUN  | link sbloccato (TICKET-029); migrazione legacy aperta.                  |
@@ -45,8 +45,6 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 
 | ID          | Area                                                                  | Stato    | Blocca                              |
 | ----------- | --------------------------------------------------------------------- | -------- | ----------------------------------- |
-| TICKET-077  | gate-3 I2 — `software_renderer.hpp` LOC overflow (>200)               | PLANNED  | check_software_renderer_boundary I2 |
-| TICKET-079  | gate-3 I5 — `RuntimeAdapter::attach_software_backend` process surface | PLANNED  | check_software_renderer_boundary I5 |
 | TICKET-036  | chronon3d_camera_architecture_gate P0                                 | PLANNED  | arch-boundary gate 5/6              |
 | TICKET-044  | arch_boundaries_selftest hardcoded paths                              | PLANNED  | arch-boundary gate 5                |
 | TICKET-046  | filename drift stale references                                       | PLANNED  | arch-boundary gate 5                |
@@ -61,7 +59,7 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 ## Certificazione corrente
 
 Ultima baseline macchina-verificata: `main@21103265` — **9/11 PASS** (NON VERDE per freeze).
-HEAD corrente `main@1c106049` non coincide con la baseline: sono atterrati commit addizionali senza re-baseline.
+HEAD corrente `main@775da4d9` non coincide con la baseline: sono atterrati commit addizionali senza re-baseline.
 Per la revoca del **feature freeze** (vedi `AGENTS.md`) è richiesto **11/11 PASS sullo stesso commit**.
 Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA, una sola baseline per commit).
 
