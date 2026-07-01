@@ -16,6 +16,19 @@
 #   the `chronon3d_sdk` INTERFACE target's FILE_SET, see
 #   cmake/Chronon3DSdkInstall.cmake).
 #
+# TRANSITIVE CLOSURE (audit P0 #3 — 2026-07-01):
+#   The original 7-header manifest did not represent the actual
+#   transitive #include closure reachable from those 7 entry points.
+#   A consumer installing only the 7 headers would fail during
+#   preprocessing because `sdk/render_engine.hpp` includes
+#   `core/types/result.hpp` and `timeline/composition.hpp` includes
+#   7 additional headers that pull in a deep chain of 70+ more.
+#   This manifest now enumerates the full 85-header transitive closure
+#   computed via BFS from the original 7 entry points.  Long-term the
+#   SDK headers should be made more opaque (forward-declare types
+#   instead of including) to shrink this list back to a curated
+#   surface — tracked as post-baseline cleanup.
+#
 # Path style: absolute paths to `${CMAKE_SOURCE_DIR}/include/...`.
 # Relative paths inside `cmake/*.cmake` resolve against
 # `CMAKE_CURRENT_SOURCE_DIR = <src>/cmake` and would force a fragile
@@ -36,4 +49,129 @@ set(CHRONON3D_PUBLIC_HEADERS
 
     # ── Composition type (canonical timeline leaf, shared by OPP + SDK) ─
     "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/composition.hpp"
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Transitive closure — headers reachable from the 7 entry points above
+    # (audit P0 #3).  Sorted by directory for readability.
+    # ══════════════════════════════════════════════════════════════════════
+
+    # ── animation/core ──────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/core/animated_value.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/core/animation_track.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/core/detail/animated_value_bezier.inl"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/core/detail/animated_value_evaluation.inl"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/core/detail/animated_value_expressions.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/core/detail/animated_value_roving.inl"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/core/keyframe.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/core/quaternion_track.hpp"
+
+    # ── animation/easing ────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/easing/easing.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/easing/interpolate.hpp"
+
+    # ── animation/effects ───────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/effects/animated_transform.hpp"
+
+    # ── assets ──────────────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/asset_metadata.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/asset_registry.hpp"
+
+    # ── backends/software/sampling ──────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/software/sampling/edge_mode.hpp"
+
+    # ── compositor ──────────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/compositor/alpha.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/compositor/blend_mode.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/compositor/composite_operator.hpp"
+
+    # ── core ────────────────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/enum_utils.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/types/frame.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/types/frame_context.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/types/result.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/types/sample_time.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/types/time.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/types/types.hpp"
+
+    # ── effects ─────────────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_params.hpp"
+
+    # ── geometry ────────────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/geometry/bounds.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/geometry/mesh.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/geometry/vertex.hpp"
+
+    # ── graphics ────────────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/gradient.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/shape_style/fill_style.hpp"
+
+    # ── layout ──────────────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/layout/layout_flow_grid.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/layout/layout_rules.hpp"
+
+    # ── math ────────────────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/camera_2_5d_projection.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/camera_pose.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/camera_projection_contract.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/camera_projection_resolver.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/color.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/expression.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/glm_types.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/near_plane_clip.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/projection_context.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/projector_2_5d.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/raster_utils.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/transform.hpp"
+
+    # ── media ───────────────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/media/media_placement.hpp"
+
+    # ── rendering ───────────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/depth_grade.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/light_context.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/lighting_rig.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/projected_card.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/shadow_settings.hpp"
+
+    # ── scene/camera/camera_v1 ──────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/arc_length_table.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_descriptor.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_motion_context.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_program.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_trajectory.hpp"
+
+    # ── scene/model/camera ──────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera_2_5d.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera_common_types.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera_projection_source.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/lens_model.hpp"
+
+    # ── scene/model/core ────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/depth_role.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/mask_utils.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/scene.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/transition.hpp"
+
+    # ── scene/model/layer ───────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/layer/layer.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/layer/layer_hierarchy.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/layer/mask.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/layer/track_matte.hpp"
+
+    # ── scene/model/render ──────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/render/render_node.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/render/render_runtime.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/render/resolved_types.hpp"
+
+    # ── scene/model/shape ───────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/fill.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/material_2_5d.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/path.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/shape.hpp"
+
+    # ── text ────────────────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/font_engine.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_direction.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_material.hpp"
 )
