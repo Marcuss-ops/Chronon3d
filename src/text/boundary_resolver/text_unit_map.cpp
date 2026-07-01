@@ -26,7 +26,7 @@
 #include <chronon3d/text/font_engine.hpp>
 
 #include "src/text/unicode/utf8_decoder.hpp"
-#include "unicode/whitespace.hpp"
+#include "src/text/unicode/whitespace.hpp"
 
 #include <algorithm>
 #include <cstring>
