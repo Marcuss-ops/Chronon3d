@@ -36,6 +36,12 @@ enum class PropertyPhase {
 /// Return the phase for each property type at compile time.
 /// CharacterOffsetProperty is the only PreShaping property today;
 /// CharacterValue and text substitutions (future) will also be PreShaping.
+
+// Forward-declared here so the template body can reference them;
+// definitions follow below in the property structs section.
+struct TrackingProperty;
+struct CharacterOffsetProperty;
+
 template <typename T>
 constexpr PropertyPhase property_phase() {
     if constexpr (std::is_same_v<T, CharacterOffsetProperty>) {
