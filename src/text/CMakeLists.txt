@@ -22,6 +22,9 @@ add_library(chronon3d_text_core OBJECT
     unicode/utf8_decoder.cpp
     unicode/whitespace.cpp
     boundary_resolver/text_unit_map.cpp
+    # TICKET-108a — internal text_resolver_helpers (adopt aliases.hpp 7
+    # typedefs through internal-only helper functions; not installed).
+    internal/text_resolver_helpers.cpp
 )
 
 # NOTE: chronon3d_text_core does NOT declare its own PUBLIC include directory
