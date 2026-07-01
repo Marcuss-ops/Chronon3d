@@ -59,6 +59,7 @@ mapfile -t files < <(find . -type f \
   ! -path './third_party/*' \
   ! -regex './tests/.*\.cmake' \
   ! -path './docs/ARCHIVE/*' \
+  ! -path './.tmp_gate*/*' \
   ! -name 'CHRONON3D_BACKEND_SOFTWARE_SOURCES.txt')
 
 if [[ "${#files[@]}" -eq 0 ]]; then
