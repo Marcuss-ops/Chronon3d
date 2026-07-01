@@ -173,6 +173,17 @@ struct TextLayoutRequest {
     const TextLayoutSpec* layout{nullptr};
     FontSpec              primary_font{};
     std::size_t           paragraph_index{0};
+    // TICKET-103a — extended POD fields so the cache-key signature
+    // (TextLayoutCacheKey::digest) can honor bidi direction + BCP-47
+    // language + OpenType shaping features without the legacy overrides
+    // at src/text/text_run_builder.cpp:102-103 forcing
+    // direction=Auto + language.clear().  Default-init keeps backward
+    // compatibility for callers that aggregate-init with fewer fields
+    // (compile_text_layout direct calls in tests pass {doc, layout, font}
+    // and the new fields pick up their declared defaults).
+    TextDirection         direction{TextDirection::Auto};
+    Bcp47LanguageTag      language{};
+    TextShapingFeatures   features{};
 };
 
 /// Single canonical TextRunLayout compiler.  Always populates `units`
