@@ -96,8 +96,33 @@ set(CHRONON3D_PUBLIC_HEADERS
 
     # ── runtime ─────────────────────────────────────────────────────────
     "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/render_session.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/session_services.hpp"
 
-    # ── backends/software/sampling ──────────────────────────────────────
+    # ── timeline ──────────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/composition_props.hpp"
+
+    # ── core/scheduler ─────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/scheduler/scheduler_mode.hpp"
+
+    # ── core/profiling ────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/profiling/profiling.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/profiling/counters.hpp"
+
+    # ── core/memory transitive ───────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/memory_utils.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/arena.hpp"
+
+    # ── simd ─────────────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/simd/kernels.hpp"
+
+    # ── math ────────────────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/renderer_state.hpp"
+
+    # ── render_graph ───────────────────────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/cache/scene_program_store.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/core/scene_hasher.hpp"
+
+    # ── backends/software/sampling ────────────────────────────────────
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/software/sampling/edge_mode.hpp"
 
     # ── compositor ──────────────────────────────────────────────────────
