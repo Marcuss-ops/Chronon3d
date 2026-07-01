@@ -1,9 +1,9 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@775da4d9` — 2026-07-01. Linux-only.
+> **Snapshot:** `main@aaf70032` — 2026-07-01. Linux-only.
 >
-> **Ultima baseline macchina-verificata:** `main@21103265` (9/11 PASS — vedi [`docs/baselines/main-21103265-baseline.md`](docs/baselines/main-21103265-baseline.md)).
-> Tra `21103265` e l'HEAD corrente sono atterrati commit addizionali (incluso `docs/DOCUMENTATION_GOVERNANCE.md`); non è ancora stata registrata una nuova baseline macchina-verificata sull'HEAD corrente.
+> **Ultima baseline macchina-verificata:** `main@aaf70032` (10/11 PASS — vedi [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md)).
+> Baseline registrata sul commit corrente in questo turno: gate #3 (I5 SoftwareRenderer&) promosso a PASS dal P0-1; gate #10 regressa su unbound-variable script rot (diverso dal CMake-version rot della baseline precedente).
 >
 > Documenti canonici (vedi [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) per il contratto):
 > - Regole operative / feature freeze: [`AGENTS.md`](../AGENTS.md)
@@ -58,8 +58,7 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 
 ## Certificazione corrente
 
-Ultima baseline macchina-verificata: `main@21103265` — **9/11 PASS** (NON VERDE per freeze).
-HEAD corrente `main@775da4d9` non coincide con la baseline: sono atterrati commit addizionali senza re-baseline.
+Ultima baseline macchina-verificata: `main@aaf70032` — **10/11 PASS** (NON VERDE per freeze; gate #10 PRESET unbound-variable rot).
 Per la revoca del **feature freeze** (vedi `AGENTS.md`) è richiesto **11/11 PASS sullo stesso commit**.
 Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA, una sola baseline per commit).
 
@@ -73,7 +72,8 @@ Ottenere un commit `main@<X>` con 11/11 PASS macchina-verificati per promuovere 
 - [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md) — requisiti permanenti di release.
 - [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) — indice blocker aperti (canonical).
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — chiusure recenti.
-- [`docs/baselines/main-21103265-baseline.md`](docs/baselines/main-21103265-baseline.md) — ultima baseline macchina-verificata.
+- [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md) — ultima baseline macchina-verificata (10/11 PASS).
+- [`docs/baselines/main-21103265-baseline.md`](docs/baselines/main-21103265-baseline.md) — baseline precedente (9/11 PASS).
 - [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) — contratto documentale (single-source-of-truth).
 - [`docs/ARCHIVE/`](docs/ARCHIVE/) — materiale storico (non operativo; nessun riferimento operativo consentito).
 
