@@ -93,6 +93,8 @@ fi
 
 # Export for phase-script consumption.
 export SDK_BUILD SDK_PREFIX REPO_ROOT PRESET="$CHRONON3D_INSTALL_TEST_PRESET"
+export VCPKG_INSTALLED_DIR="$REPO_ROOT/vcpkg_installed/$PRESET"
+export VCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET:-x64-linux}"
 
 # ── Phase 2: feature-OFF ghost sweep (destructive — opt-in only) ─────
 # The ghost sweep reconfigures SDK_BUILD with DIAG=OFF/CONTENT=OFF and
