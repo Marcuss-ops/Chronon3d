@@ -42,6 +42,7 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/compositor/composite_operator.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/composition/composition_registry.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/config.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/dirty_fallback_reason.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/enum_utils.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/arena.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/framebuffer.hpp"
@@ -118,4 +119,71 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_direction.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_material.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/composition_props.hpp"
+
+    # ── TICKET-GATE-10-PHASE-4 — transitive-closure additions ─────────
+    # The 43 headers below were discovered by walking the recursive
+    # #include <chronon3d/…> graph starting from the manifest entries
+    # above.  They are transitively required by the consumer test
+    # (tests/install_consumer/main.cpp ⊂ #include <chronon3d/chronon3d.hpp>)
+    # to compile against an installed Chronon3D::SDK target — without
+    # these, Phase 4 of tools/install_consumer_test.sh fails at the
+    # consumer's `cmake --build` step.  All 43 live under
+    # include/chronon3d/ (NOT internal/), so they are de-facto public
+    # surface by directory convention; the manifest entry only governs
+    # which subset is INSTALLED, not the API symbol surface.
+    #
+    # Followups (separate workstreams):
+    #   • tools/check_public_headers.py — add a CI-gate that re-runs the
+    #     transitive-closure audit (see tools/audit_aggregate_archive.sh
+    #     for the analogous pattern) so future public-header additions
+    #     auto-fail until the manifest is updated.
+    #   • Pending V0.1 surface review: each of these 43 should be
+    #     triaged as either (a) genuinely public (current batch), or
+    #     (b) accidentally-public (move to include/chronon3d/internal/
+    #     in a follow-up commit).  The bulk insert here is the
+    #     minimal-impact fix that unblocks the gate; triage is
+    #     orthogonal.
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/video/video_source.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/cache/cache_diagnostics.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/cache/cache_policy.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/cache/framebuffer_pool.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/cache/lru_cache.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/cache/node_cache.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/framebuffer_handle.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/framebuffer_slot_view.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_catalog_data.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_category.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_descriptor.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_execution_context.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_ids.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_instance.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_stage.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_traits.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_type.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/presets/glow_presets.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/cache/scene_program_cache.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/compiler/compiled_scene_program.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/core/cache_policy.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/core/node_identity.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/core/render_graph_hashing.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/nodes/render_graph_node.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/render_backend.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/render_graph.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/render_graph_context.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/dirty_history.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/frame_history.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/telemetry/render_telemetry_record.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/builder_params.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/dof.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/effect_stack.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animation/glyph_instance_state.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animation/text_animator_evaluator.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animation/text_animator_properties.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animation/text_animator_spec.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animation/text_animator_stack.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/glyph_selector.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/paragraph_style.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_animator_property.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_run.hpp"
 )
