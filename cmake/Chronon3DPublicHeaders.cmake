@@ -45,6 +45,10 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/dirty_fallback_reason.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/enum_utils.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/arena.hpp"
+    # detail/ framebuffer_impl.hpp transitively required by core/memory/framebuffer.hpp:27
+    # (relative `#include "detail/framebuffer_impl.hpp"`); de-facto public by
+    # directory convention (under include/chronon3d/, NOT under internal/).
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/detail/framebuffer_impl.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/framebuffer.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/memory_utils.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/profiling/counters.hpp"
