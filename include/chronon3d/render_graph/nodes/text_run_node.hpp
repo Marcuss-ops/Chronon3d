@@ -86,7 +86,7 @@ public:
     ///      for the matte sub-pipeline).
     ///   3. Build a TextRunDrawParams (model_matrix, opacity).
     ///   4. Call `renderer::draw_text_run` for the batched rasterization.
-    OwnedFB execute(
+    NodeExecResult execute(
         RenderGraphContext& ctx,
         std::span<const FramebufferRef> inputs,
         std::span<const std::optional<raster::BBox>> input_bboxes

@@ -35,7 +35,7 @@ public:
         std::span<const std::optional<raster::BBox>> input_bboxes = {}
     ) const override;
 
-    OwnedFB execute(RenderGraphContext& ctx, std::span<const FramebufferRef> inputs, std::span<const std::optional<raster::BBox>> input_bboxes) override;
+    NodeExecResult execute(RenderGraphContext& ctx, std::span<const FramebufferRef> inputs, std::span<const std::optional<raster::BBox>> input_bboxes) override;
 
     // ── Accessors / mutators for graph optimization ────────────────────
     [[nodiscard]] const EffectStack& effects() const { return m_effects; }

@@ -17,7 +17,7 @@
 
 namespace chronon3d::graph {
 
-OwnedFB ClearNode::execute(
+NodeExecResult ClearNode::execute(
     RenderGraphContext& ctx,
     std::span<const FramebufferRef>,
     std::span<const std::optional<raster::BBox>>
@@ -201,7 +201,7 @@ OwnedFB ClearNode::execute(
             ctx.node_exec.ping_write.fb = nullptr;
             PoolFbDeleter deleter;
             deleter.policy = RendererOwned{};
-            return OwnedFB(write_fb, std::move(deleter));
+            return NodeExecResult{OwnedFB(write_fb, std::move(deleter))};
         }
 
         const uint64_t prev_use_count = static_cast<uint64_t>(
@@ -378,7 +378,7 @@ OwnedFB ClearNode::execute(
                     ctx.node_exec.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
                 }
             }
-            return ctx.acquire_owned_fb(std::move(fb));
+            return NodeExecResult{ctx.acquire_owned_fb(std::move(fb))};
         }
     }
     {
@@ -390,7 +390,7 @@ OwnedFB ClearNode::execute(
             }
             fb->set_opaque(false);
         }
-        return fb;
+        return NodeExecResult{std::move(fb)};
     }
 }
 

@@ -33,7 +33,21 @@ double run_node(
     OwnedFB owned;
     {
         CHRONON_ZONE_C("node_execute", trace_category::kGraph);
-        owned = node.execute(node_ctx, inputs, input_bboxes);
+        auto exec_result = node.execute(node_ctx, inputs, input_bboxes);
+        if (!exec_result) {
+            // P0-1 — node execution failed; write error to the shared
+            // frame_error slot so the executor can propagate it to
+            // frame-level failure (GraphExecutor returns nullptr).
+            if (ctx.frame_error) {
+                *ctx.frame_error = exec_result.error();
+            }
+            if (ctx.node_exec.counters) {
+                ctx.node_exec.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
+            }
+            const auto exec_t1 = profiling::now();
+            return profiling::duration_ms(exec_t0, exec_t1);
+        }
+        owned = exec_result.take_value();
     }
     if (ctx.node_exec.counters) {
         ctx.node_exec.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);

@@ -59,7 +59,7 @@ public:
         };
     }
 
-    OwnedFB execute(
+    NodeExecResult execute(
         RenderGraphContext& ctx,
         std::span<const FramebufferRef> inputs,
         std::span<const std::optional<raster::BBox>> input_bboxes

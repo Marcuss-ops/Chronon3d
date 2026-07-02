@@ -113,7 +113,7 @@ public:
 
     [[nodiscard]] virtual cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const = 0;
 
-    virtual OwnedFB execute(
+    virtual NodeExecResult execute(
         RenderGraphContext& ctx,
         std::span<const FramebufferRef> inputs,
         std::span<const std::optional<raster::BBox>> input_bboxes
