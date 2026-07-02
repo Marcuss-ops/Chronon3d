@@ -50,6 +50,7 @@ set(CHRONON3D_PUBLIC_HEADERS
     # directory convention (under include/chronon3d/, NOT under internal/).
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/detail/framebuffer_impl.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/framebuffer.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/detail/framebuffer_impl.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/memory_utils.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/profiling/counters.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/profiling/profiling.hpp"
