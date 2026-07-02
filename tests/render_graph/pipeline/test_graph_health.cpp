@@ -474,7 +474,7 @@ TEST_CASE("GraphHealth: graph output matches direct renderer for layered scene")
 
     auto direct_renderer = test::make_renderer();
     Camera camera;
-    auto fb_direct = direct_renderer.render_scene(scene, camera, W, H);
+    auto fb_direct = direct_renderer.render_scene(scene, camera, W, H, 30.0f)H
 
     auto graph_renderer = test::make_renderer();
     cache::NodeCache node_cache;

@@ -37,12 +37,13 @@ public:
     // ── Render entry points (render() canonical for V0.2 SDK) ──────────
     std::shared_ptr<Framebuffer> render(const Composition& comp, Frame frame);
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
-                                              i32 width, i32 height);
+                                              i32 width, i32 height, float fps);
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene,
                                               const std::optional<Camera2_5D>& camera,
-                                              i32 width, i32 height) override;
+                                              i32 width, i32 height, float fps) override;
     [[nodiscard]] std::string debug_render_graph(const Scene& scene, const Camera& camera,
-                                                 i32 width, i32 height, Frame frame = 0,
+                                                 i32 width, i32 height, float fps,
+                                                 Frame frame = 0,
                                                  f32 frame_time = 0.0f) const;
 
     // Cat-2 font preflight (TICKET-087: in-class decl, gate-3 I3=6)
