@@ -11,6 +11,18 @@ On commit `28004f96` (sdk-public-surface reduction), a buggy bash heredoc leaked
 
 ## Luglio 2026 — Chiusure recenti
 
+### hygiene — drop non-idempotent manifest helper script (retro-fixup to eed2cc9b)
+- `tools/c3d_manifest_alphabetize.py` (added previously on `eed2cc9b`):
+  dropped because it crashes on already-alphabetized manifests
+  (`AssertionError: parse fail: bulk=None`) — non-idempotent on the
+  committed state.  The retro-fixup claim "re-running yields zero diff"
+  was a degenerate true (crash-before-write).  Replacing with a
+  CI-enforced invariant rather than a worker script: future alphabetize
+  drift will surface via the existing `tools/check_public_headers.py`
+  harness, not via a brittle utility.
+- AGENTS.md v0.1 freeze Cat-1 (build corrections — install-pipeline
+  plumbing).  Zero new public API symbols; pure hygiene.
+
 ### hygiene — alphabetize Chronon3DPublicHeaders manifest (retro-fixup to 21b9fb5d)
 - `cmake/Chronon3DPublicHeaders.cmake`: alphabetized the 43 bulk-appended
   TICKET-GATE-10-PHASE-4 entries into the canonical bucket ordering
