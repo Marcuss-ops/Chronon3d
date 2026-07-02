@@ -89,20 +89,21 @@ target_include_directories(chronon3d_sdk INTERFACE
 target_link_libraries(chronon3d_sdk INTERFACE
     $<BUILD_INTERFACE:chronon3d_pipeline>
     $<INSTALL_INTERFACE:chronon3d_sdk_impl>
-    # Public third-party deps that consumer headers transitively need.
-    # The STATIC archive (chronon3d_sdk_impl) bundles all .o files but
-    # does NOT propagate PUBLIC link deps from the aggregated OBJECT
-    # libraries (PRIVATE link).  We explicitly list the non-OBJECT
-    # third-party targets here so downstream find_package() consumers
-    # get glm, fmt, spdlog, etc. include dirs and link flags.
-    $<INSTALL_INTERFACE:glm::glm>
-    $<INSTALL_INTERFACE:fmt::fmt>
-    $<INSTALL_INTERFACE:spdlog::spdlog_header_only>
-    $<INSTALL_INTERFACE:TBB::tbb>
-    $<INSTALL_INTERFACE:magic_enum::magic_enum>
-    $<INSTALL_INTERFACE:nlohmann_json::nlohmann_json>
-    $<INSTALL_INTERFACE:xxHash::xxhash>
 )
+
+# ── Public third-party link deps — derived from central registry ──────────
+# The STATIC archive (chronon3d_sdk_impl) bundles all .o files but does
+# NOT propagate PUBLIC link deps from the aggregated OBJECT libraries
+# (PRIVATE link).  We iterate CHRONON3D_SDK_PUBLIC_DEPS so downstream
+# find_package() consumers get the include dirs and link flags for all
+# publicly-exposed third-party targets.  Each foreach call APPENDS to
+# the target's INTERFACE_LINK_LIBRARIES — the canonical multi-call
+# pattern in CMake.
+foreach(_dep IN LISTS CHRONON3D_SDK_PUBLIC_DEPS)
+    target_link_libraries(chronon3d_sdk INTERFACE
+        $<INSTALL_INTERFACE:${_dep}>
+    )
+endforeach()
 
 # ── In-tree link closure — derived from central registry ──────────────
 # Every OBJECT library registered in cmake/Chronon3DRegistry.cmake has
