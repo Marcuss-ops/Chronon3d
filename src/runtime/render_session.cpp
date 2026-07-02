@@ -58,3 +58,5 @@ void RenderSession::reset_job() {
     // text should not reuse stale cached entries from the previous job.
     layout_cache.clear();
 }
+
+} // namespace chronon3d
