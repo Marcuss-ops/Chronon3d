@@ -41,16 +41,12 @@
 # ==============================================================================
 # chronon3d_sdk_impl — the single aggregated STATIC archive
 # ==============================================================================
-# VERIFIED 2026-06-29 on CMake 3.25.1: target_link_libraries(STATIC PRIVATE
-# objlib) does NOT embed .o files into the .a archive — only the marker TU
-# lands (1 object file, ~3 KB). The .o propagation works at final link time
-# but the intermediate .a is empty. The full ARCHIVE mechanics (manifest
-# computation, sdk_archive_merge POST_BUILD target, install-code hook) live
-# in `cmake/Chronon3DSdkArchive.cmake`, included below.
+# CMake ≥3.27 natively aggregates OBJECT .o files into STATIC archives
+# via target_link_libraries(STATIC PRIVATE objlib).  The former manual
+# `ar crs` workaround (sdk_archive_merge custom target + sdk_archive_merge.cmake)
+# has been removed (TICKET-P1-PART2, P1 #12).
 #
-# WORKAROUND for native aggregation: see header of
-# cmake/Chronon3DSdkArchive.cmake (TICKET-011 cmake-boundary contract).
-# Upgrade to CMake ≥3.27 to remove the workaround.
+# The canary catalog guard lives in `cmake/Chronon3DSdkArchive.cmake`.
 add_library(chronon3d_sdk_impl STATIC
     ${CMAKE_SOURCE_DIR}/src/sdk_impl_marker.cpp
 )

@@ -10,7 +10,7 @@
 #      chronon3d_pipeline) — each propagates a per-subsystem OBJECT set as a
 #      logical grouping
 #
-# The SDK consumer-facing surface (`chronon3d_sdk_impl`, `sdk_archive_merge`,
+# The SDK consumer-facing surface (`chronon3d_sdk_impl`,
 # `chronon3d_sdk`, `Chronon3D::SDK` alias) lives in
 # `cmake/Chronon3DSdkTargets.cmake` and is included below AFTER every
 # per-subsystem OBJECT target has been registered. See the header of that

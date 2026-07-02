@@ -36,7 +36,7 @@
 # VALIDATION CAVEAT (2026-06-29)
 #   Step A1-A4 (CMake-native target_sources OBJECT aggregation) is still in
 #   flight; until the archive is fully populated at `cmake --build --target
-#   sdk_archive_merge -j8`, the canary gate cannot be end-to-end-checked
+#   chronon3d_sdk_impl -j8`, the canary gate cannot be end-to-end-checked
 #   against the actual `nm -C` output.  The symbols below are conservatively
 #   picked from the canonical source-tree layout (each entry's `#[area]
 #   #[target_lib]` annotation maps to the OBJECT library that should emit it).

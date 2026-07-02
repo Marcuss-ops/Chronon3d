@@ -23,12 +23,10 @@ target_precompile_headers(chronon3d_cache PRIVATE <xxhash.h>)
 # P1-E Pass E — internal type headers for NodeCache / FramebufferPool /
 # PersistentFramebufferStore moved out of include/chronon3d/ into this
 # submodule's include_private/.  PRIVATE for cache's own .cpp
-# compilation; INTERFACE so cross-module PRIVATE-link consumers
-# (render_graph, runtime, software, tests, apps) resolve
-# `<chronon3d/cache/...>` automatically via existing
-# `target_link_libraries(... PRIVATE ${_tgt})` propagation.
+# compilation only; INTERFACE removed (TICKET-P1-PART2, P1 #12)
+# because all include_private/ headers have been promoted to the
+# public include/chronon3d/cache/ surface.
 # NEVER installed: `install(DIRECTORY include/)` does not traverse src/.
 target_include_directories(chronon3d_cache
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include_private
-    INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include_private>
 )
