@@ -30,8 +30,30 @@ struct CachedImage {
     }
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Fase B — Global state deprecation (P1 #1: ImageCache)
+//
+// ImageCache is currently a process-wide singleton accessed via
+// `ImageCache::instance()`.  This violates the per-engine/per-session
+// isolation model adopted elsewhere (RenderRuntime, RenderSession).
+//
+// Target: move ImageCache ownership into RenderRuntime so each engine
+// instance has its own isolated image cache with:
+//   - per-runtime capacity (no global capacity CAS)
+//   - executor-owned preload jobs (no std::thread::detach)
+//   - `shared_ptr`-only API surface (no raw `get_or_load`)
+//   - typed cache entries (LoadedImage | MissingAsset | DecodeFailure | OverBudget)
+//   - accurate memory weight (BLImage + Framebuffer, not just width*height*4)
+//
+// Migration blocked by ~6 direct call sites in image_renderer.cpp +
+// image_renderer.hpp that would need per-runtime wiring.  Tracked for
+// Phase C (post-feature-freeze).
+// ═══════════════════════════════════════════════════════════════════════════
+
 class ImageCache {
 public:
+    /// @deprecated Fase B — process-wide singleton; migrate to
+    /// RenderRuntime-owned instance.  See deprecation banner above.
     static ImageCache& instance() {
         static ImageCache inst;
         return inst;
@@ -41,6 +63,9 @@ public:
         instance().get_or_load(path);
     }
 
+    /// @deprecated Fase B — uses std::thread::detach() with no
+    /// cancellation/join/error propagation.  Migrate to
+    /// executor-owned preload jobs.  See deprecation banner above.
     static void preload_async(const std::string& path);
 
     static std::shared_ptr<const CachedImage> get(const std::string& path) {
@@ -61,6 +86,9 @@ public:
         return m_backend;
     }
 
+    /// @deprecated Fase B — returns raw pointer from shared_ptr;
+    /// pointer validity depends on LRU eviction.  Migrate to
+    /// shared_ptr-only API.  See deprecation banner above.
     const CachedImage* get_or_load(const std::string& path);
     std::shared_ptr<const CachedImage> get_or_load_shared(const std::string& path);
     void clear();
