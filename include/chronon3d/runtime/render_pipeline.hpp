@@ -73,20 +73,24 @@ public:
     /// the call site (the owning engine's renderer is always wired).
     RenderPipeline(SoftwareRenderer* renderer, RenderRuntime& runtime) noexcept;
 
-    // ── Primary rendering entry points ─────────────────────────────
+    // ── Primary rendering entry point (Fase C3 canonical) ─────────
+    [[nodiscard]] std::shared_ptr<Framebuffer> render_composition(
+        const Composition& comp, Frame frame);
+
+    // ── @deprecated Fase C3 — thin wrappers, migrate to render_composition() ─
+    /// @deprecated Fase C3 — use render_composition() with an explicit Composition.
     [[nodiscard]] std::shared_ptr<Framebuffer> render_scene(
         const Scene& scene, const Camera& camera, i32 width, i32 height,
         float fps);
 
+    /// @deprecated Fase C3 — use render_composition() with an explicit Composition.
     [[nodiscard]] std::shared_ptr<Framebuffer> render_scene(
         const Scene& scene, const std::optional<Camera2_5D>& camera,
         i32 width, i32 height,
         float fps);
 
-    [[nodiscard]] std::shared_ptr<Framebuffer> render_composition(
-        const Composition& comp, Frame frame);
-
-    // ── Diagnostics ───────────────────────────────────────────────
+    // ── Diagnostics (Fase C3 @deprecated — use render_composition()) ──
+    /// @deprecated Fase C3 — diagnostics-only wrapper; use preflight tools instead.
     // TICKET-GATE-10-PHASE-4 fix-up: `float fps` had no default while
     // parameters 5/6 had defaults, violating the C++ rule that all
     // parameters after a defaulted parameter must also be defaulted.
