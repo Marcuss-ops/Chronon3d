@@ -64,9 +64,9 @@
 // The previous WP-8 forward-declaring design (TICKET-013 boundary invariant)
 // is intentionally lifted here because pr 3.1 requires per-session
 // ownership; PIMPL would over-engineer this for a one-struct header.
-#include <chronon3d/render_graph/cache/scene_program_store.hpp>
-#include <chronon3d/render_graph/core/scene_hasher.hpp>
-#include <chronon3d/runtime/session_services.hpp>
+#include <chronon3d/internal/render_graph/cache/scene_program_store.hpp>
+#include <chronon3d/internal/render_graph/core/scene_hasher.hpp>
+#include <chronon3d/internal/runtime/session_services.hpp>
 
 // P1 #3 — include for the per-session TextLayoutCache member.
 // TextLayoutCache has NO backend dependencies — it is a pure LRU

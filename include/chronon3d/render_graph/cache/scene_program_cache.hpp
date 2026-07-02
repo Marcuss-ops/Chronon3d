@@ -39,7 +39,7 @@
 #include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/config.hpp>
-#include <chronon3d/render_graph/core/scene_hasher.hpp>
+#include <chronon3d/internal/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/render_graph/compiler/compiled_scene_program.hpp>
 #include <atomic>
 #include <cstddef>

@@ -10,7 +10,7 @@
 // ============================================================================
 
 #include <chronon3d/core/types/frame.hpp>
-#include <chronon3d/render_graph/cache/scene_program_store.hpp>
+#include <chronon3d/internal/render_graph/cache/scene_program_store.hpp>
 #include <string>
 #include <variant>
 
