@@ -99,9 +99,11 @@ target_link_libraries(chronon3d_sdk INTERFACE
 # publicly-exposed third-party targets.  Each foreach call APPENDS to
 # the target's INTERFACE_LINK_LIBRARIES — the canonical multi-call
 # pattern in CMake.
-foreach(_dep IN LISTS CHRONON3D_SDK_PUBLIC_DEPS)
+foreach(_entry IN LISTS CHRONON3D_SDK_PUBLIC_DEPS)
+    # entry is "Target::alias;package_name"; index 0 is the link-target.
+    list(GET _entry 0 _target_alias)
     target_link_libraries(chronon3d_sdk INTERFACE
-        $<INSTALL_INTERFACE:${_dep}>
+        $<INSTALL_INTERFACE:${_target_alias}>
     )
 endforeach()
 
