@@ -5,57 +5,61 @@ project(install_consumer
     LANGUAGES CXX
 )
 
-# -------------------------------------------------------------------------
-# End-to-end install boundary check (TICKET-011 + P3-5 strict-A)
+# --------------------------------------------------------------------------
+# End-to-end install boundary check (P3-H + TICKET-011 strict-A → rewrite)
 #
-# This is a STANDALONE CMake project.  It uses ONLY what an installed
-# Chronon3D package exposes.  It is intentionally NOT included in the
-# in-tree tests/CMakeLists.txt: doing so would re-link against the
-# in-tree targets and defeat the whole point of the test.
+# This is a STANDALONE CMake project. It uses ONLY what an installed
+# Chronon3D package exposes. It is intentionally NOT included in the in-tree
+# tests/CMakeLists.txt: doing so would re-link against the in-tree targets
+# and defeat the whole point of the test.
 #
 # The fact that find_package() resolves against a previously-installed
-# <prefix> proves the install boundary produced a valid
-# Chronon3DConfig.cmake + Chronon3DTargets.cmake package.
+# <prefix> proves the install boundary produced a valid Chronon3DConfig.cmake
+# + Chronon3DTargets.cmake package.
 #
-# P3-5 — strict-A "manifest-only API surface":
+# P3-H — manifest-clean consumer:
 #   This consumer transits ONLY the V0.1 public-header manifest
-#   (cmake/Chronon3DPublicHeaders.cmake).  The DIRECT #include set in
+#   (cmake/Chronon3DPublicHeaders.cmake). The DIRECT #include set in
 #   main.cpp is exactly:
-#     - <chronon3d/chronon3d.hpp>           (umbrella, manifest entry)
-#   Transitive include reachability from the umbrella is documented in
-#   docs/adr/ADR-012-chronon3d-sdk-manifest-boundary.md as "manifest
-#   scope" (FrameContext / Scene / SceneFunction / CompositionSpec /
-#   RenderEngine / save_png / Framebuffer are reachable, NOT creep).
+#     - <chronon3d/chronon3d.hpp>           (umbrella, manifest entry 1)
+#   Transitive include reachability from the umbrella is documented
+#   in `docs/adr/ADR-012-chronon3d-sdk-manifest-boundary.md` as
+#   "manifest scope" (FrameContext, Scene, Layer, RenderNode, Shape,
+#   Composition, SceneFunction, CompositionSpec, CameraDescriptor,
+#   Framebuffer, save_png). NOT advanced/, NOT internal.hpp, NOT
+#   runtime.hpp, NOT test/*.
+#
 #   The consumer's runtime calls are strictly:
-#     * chronon3d::RenderEngine::render(const Composition&, Frame)
-#     * chronon3d::save_png(*fb, path)
-#   Plus CompositionSpec + SceneFn + Scene default-construction to give
-#   the engine something to render.  No SceneBuilder / LayerBuilder /
-#   active camera / non-empty SceneFn.
+#     * chronon3d::sdk::RenderEngine::render(const Composition&, Frame)
+#       → Result<RenderOutput, RenderError>
+#     * chronon3d::save_png(Framebuffer, path)
 #
-#   Per the user's explicit choice ("Strict (A) rewrite"), the seal-
-#   discussion surface was DOWNSCOPED from "renders a meaningful test
-#   PNG with text+grid+camera" (Fase-6 spec, 2026-06-23) to "demonstrate
-#   that an installed SDK can be linked, a render invoked, and a PNG
-#   emitted to disk."  An empty SceneFn yields a near-empty / all-black
-#   framebuffer by design; the prior kMinNonZeroPixels=1000 threshold
-#   was REMOVED for this strict-A scope.  See ADR-012 for the deferred
-#   remediation of the OPP-side manifest leak that the empty SceneFn
-#   works around.
+#   Plus the manifest-reachable Composition/Scene/Layer/Shape helpers:
+#     * Composition::default_camera_descriptor(CameraDescriptor)
+#     * Scene::add_layer(Layer); Layer::nodes; RenderNode::shape
+#     * Pixel-hash check in the consumer itself (falls BOUNDARY-FAIL if
+#       every pixel mean luminance < 5/255 — i.e. PNG would be black).
 #
-#   The OPP-side CMP0077 INTERFACE_INCLUDE_DIRECTORIES source-tree path
-#   leak (deferred Commit C from Step 3) is INDEPENDENT of the consumer's
-#   surface discipline asserted here; gate 10 still FAILs upstream of
-#   this consumer's build on that leak.  Both are tracked separately.
-# -------------------------------------------------------------------------
+#   Per the rewrite contract (RELEASE_GATE.md §SDK Product V1 / 8 — P3-H.b
+#   + SDK Product V1 / 2 — "render almeno una composizione reale fuori-tree
+#   (testo + camera → PNG)"), the consumer:
+#     (i)  uses sdk::RenderEngine (NOT the legacy chronon3d::RenderEngine);
+#     (ii) composes a non-empty Scene with a GridBackground Shape layer
+#          AND a Text Shape layer;
+#     (iii) sets a CameraDescriptor on the Composition so the OPP compiles
+#          it via the V2 camera path at render time;
+#     (iv) saves the rendered PNG via save_png;
+#     (v)  fails BOUNDARY-FAIL if the produced PNG would be black.
+# --------------------------------------------------------------------------
+
 find_package(Chronon3D CONFIG REQUIRED)
 
-# Pre-condition: the documented public API surface must be intact.
-# If the install script ever strips these targets, this fails fast
-# with a clear error instead of producing a vague link error further
-# downstream.  The PUBLIC SURFACE contract is defined in
-# `cmake/Chronon3DPublicHeaders.cmake` (single source of truth for
-# the V0.1 SDK manifest) and propagated through Chronon3DSdkTargets.cmake.
+# Pre-condition: the documented public API target must be intact.
+# If the install script ever strips this target, this fails fast with a clear
+# error instead of producing a vague link error further downstream. The
+# PUBLIC SURFACE contract is defined in cmake/Chronon3DPublicHeaders.cmake
+# (single source of truth for the V0.1 SDK manifest) and propagated through
+# Chronon3DSdkTargets.cmake.
 if(NOT TARGET Chronon3D::SDK)
     message(FATAL_ERROR
         "Install boundary broken: Chronon3D::SDK target absent. "
