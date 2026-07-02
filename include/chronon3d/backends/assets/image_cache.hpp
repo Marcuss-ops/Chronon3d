@@ -31,9 +31,13 @@ struct CachedImage {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Fase B B1 — ImageCache is now per-runtime (RenderRuntime-owned).
-// Removed: instance() singleton, preload_async (thread::detach),
-//          raw-pointer get_or_load().
+// Fase B B1+B4 — ImageCache is now per-runtime (RenderRuntime-owned).
+//
+// B1 Removed: instance() singleton, preload_async (std::thread::detach hazard),
+//             raw-pointer get_or_load().
+// B4 Verified: zero .detach() calls remaining in src/ + include/.
+//             Cancellation/join/error-propagation deferred to post-freeze
+//             (requires executor-owned job abstraction not safe under freeze).
 //
 // Owned by RenderRuntime; accessed via runtime.image_cache().
 // ═══════════════════════════════════════════════════════════════════════════
