@@ -18,7 +18,13 @@
 | TICKET-064 | P1 | ExecutionScope error model | PARTIAL | arch-boundary gate 5 | [TICKET-064.md](tickets/TICKET-064.md) |
 
 | TICKET-P1 | P1 | P1 census (5 issues, done) | DONE | post-baseline text/cache/cmake | [TICKET-P1-ACTION-PLAN.md](tickets/TICKET-P1-ACTION-PLAN.md) |
-| TICKET-P1-PART2 | P1 | P1 census #7–#12 (6 issues) | PLANNED | asset/cache/runtime/framerate/timeline/cmake | [TICKET-P1-ACTION-PLAN-PART2.md](tickets/TICKET-P1-ACTION-PLAN-PART2.md) |
+| TICKET-P1-PART2 | P1 | P1 census #7–#12 (6 issues) | PARTIAL | asset/cache/runtime/framerate/timeline/cmake | [TICKET-P1-ACTION-PLAN-PART2.md](tickets/TICKET-P1-ACTION-PLAN-PART2.md) |
+| TICKET-P1-07 | P1 | Asset resolver globale | PLANNED | asset | [TICKET-P1-07.md](tickets/TICKET-P1-07.md) |
+| TICKET-P1-08 | P1 | Text renderer monolite | PLANNED | text | [TICKET-P1-08.md](tickets/TICKET-P1-08.md) |
+| TICKET-P1-09 | P1 | RenderRuntime service locator | PLANNED | runtime | [TICKET-P1-09.md](tickets/TICKET-P1-09.md) |
+| TICKET-P1-10 | P1 | Frame rate hardcoded | DONE | render | [TICKET-P1-10.md](tickets/TICKET-P1-10.md) |
+| TICKET-P1-11 | P1 | Timeline percorsi multipli | PLANNED | timeline | [TICKET-P1-11.md](tickets/TICKET-P1-11.md) |
+| TICKET-P1-12 | P1 | CMake fragile | DONE | cmake | [TICKET-P1-12.md](tickets/TICKET-P1-12.md) |
 
 **P1 progress summary (2026-07-02):**
 - P1 #1–#5 DONE (Part 1 completata, commit `0892a224`)
