@@ -86,10 +86,10 @@ void attach_software_backend(chronon3d::SoftwareRenderer* renderer) {
     // and a populated registry + image_backend [+ font_engine] triplet.
     auto backend = std::move(factory_result.value());
     internal::ProcessorSourceExtras extras{};
-    extras.registry      = renderer->software_registry();
+    extras.registry      = &renderer->software_registry();
     extras.image_backend = renderer->image_backend();
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
-    extras.font_engine   = renderer->font_engine();
+    extras.font_engine   = &renderer->font_engine();
 #endif
     backend->attach_processor_context(
         internal::make_processor_context(services, extras));
