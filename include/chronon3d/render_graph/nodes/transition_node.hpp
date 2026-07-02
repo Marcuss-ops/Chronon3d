@@ -45,7 +45,7 @@ public:
         return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
     }
 
-    OwnedFB execute(
+    NodeExecResult execute(
         RenderGraphContext& ctx,
         std::span<const FramebufferRef> inputs,
         std::span<const std::optional<raster::BBox>> input_bboxes

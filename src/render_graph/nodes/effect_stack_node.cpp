@@ -52,7 +52,7 @@ std::optional<raster::BBox> EffectStackNode::predicted_bbox(
     return bbox;
 }
 
-OwnedFB EffectStackNode::execute(
+NodeExecResult EffectStackNode::execute(
     RenderGraphContext& ctx,
     std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>> input_bboxes
@@ -60,7 +60,7 @@ OwnedFB EffectStackNode::execute(
     if (inputs.empty() || !inputs[0]) {
         auto empty = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
         empty->clear(Color::transparent());
-        return empty;
+        return NodeExecResult{std::move(empty)};
     }
 
     const f32 spread = compute_max_effect_spread();
@@ -129,7 +129,7 @@ OwnedFB EffectStackNode::execute(
             ctx.node_exec.counters->effect_pixels.fetch_add(area, std::memory_order_relaxed);
         }
     }
-    return result;
+    return NodeExecResult{std::move(result)};
 }
 
 } // namespace chronon3d::graph

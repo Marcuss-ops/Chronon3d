@@ -150,7 +150,7 @@ cache::NodeCacheKey SourceNode::cache_key(const RenderGraphContext& ctx) const {
     return key;
 }
 
-OwnedFB SourceNode::execute(
+NodeExecResult SourceNode::execute(
     RenderGraphContext& ctx,
     std::span<const FramebufferRef>,
     std::span<const std::optional<raster::BBox>>
@@ -230,7 +230,7 @@ OwnedFB SourceNode::execute(
             );
         }
     }
-    return fb;
+    return NodeExecResult{std::move(fb)};
 }
 
 bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const noexcept {

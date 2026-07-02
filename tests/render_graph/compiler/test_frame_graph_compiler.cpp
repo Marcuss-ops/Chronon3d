@@ -34,12 +34,12 @@ public:
         return cache::NodeCacheKey{.scope = m_name, .frame = 0, .width = 0, .height = 0};
     }
 
-    OwnedFB execute(
+    NodeExecResult execute(
         RenderGraphContext&,
         std::span<const FramebufferRef>,
         std::span<const std::optional<raster::BBox>>
     ) override {
-        return nullptr;
+        return NodeExecResult{};
     }
 
 private:

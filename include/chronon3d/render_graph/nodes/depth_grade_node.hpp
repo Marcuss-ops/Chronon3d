@@ -60,7 +60,7 @@ public:
         return input_bboxes[0]; // depth grade doesn't change extent
     }
 
-    OwnedFB execute(
+    NodeExecResult execute(
         RenderGraphContext& ctx,
         std::span<const FramebufferRef> inputs,
         std::span<const std::optional<raster::BBox>>

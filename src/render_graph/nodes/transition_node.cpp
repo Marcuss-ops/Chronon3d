@@ -46,13 +46,13 @@ float TransitionNode::compute_progress(const RenderGraphContext& ctx) const {
     return easing::apply(m_spec.easing, static_cast<float>(clamped));
 }
 
-OwnedFB TransitionNode::execute(
+NodeExecResult TransitionNode::execute(
     RenderGraphContext& ctx,
     std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>>
 ) {
     if (inputs.empty() || !inputs[0]) {
-        return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true);
+        return NodeExecResult{ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true)};
     }
 
     const FramebufferRef& src = inputs[0];
@@ -63,7 +63,7 @@ OwnedFB TransitionNode::execute(
 
     if (m_spec.transition_id == "none" || m_spec.transition_id.empty()) {
         *out_fb = *src;
-        return out_fb;
+        return NodeExecResult{std::move(out_fb)};
     }
 
     const float p = compute_progress(ctx);
@@ -309,7 +309,7 @@ OwnedFB TransitionNode::execute(
         *out_fb = *src;
     }
 
-    return out_fb;
+    return NodeExecResult{std::move(out_fb)};
 }
 
 } // namespace chronon3d::graph

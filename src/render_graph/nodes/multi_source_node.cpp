@@ -137,7 +137,7 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
     return key;
 }
 
-OwnedFB MultiSourceNode::execute(
+NodeExecResult MultiSourceNode::execute(
     RenderGraphContext& ctx,
     std::span<const FramebufferRef>,
     std::span<const std::optional<raster::BBox>>
@@ -245,7 +245,7 @@ OwnedFB MultiSourceNode::execute(
 
         fb->set_opaque(false);
     }
-    return fb;
+    return NodeExecResult{std::move(fb)};
 }
 
 } // namespace chronon3d::graph
