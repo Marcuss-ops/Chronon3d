@@ -164,7 +164,17 @@ struct RenderEngine::Impl {
         const std::string root_str = root.string();
         m_assets.mount(root);                                         // legacy AssetRegistry mount (for non-resolver consumers)
         m_runtime.resolver().mount(root);                             // WP-8 PR 8.0 sibling resolver, mounted inside the runtime
-        runtime::set_process_wide_assets_root(root_str);              // mirror to process-wide slot for deep code without a runtime in scope
+        // P1 #7 — intentionally call deprecated function as backward-compat mirror
+        // for deep code without a runtime in scope.  Suppress the deprecation
+        // warning since this is the canonical bridge site.
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+        runtime::set_process_wide_assets_root(root_str);
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
     }
 
     // P1-F Pass D — `create_session()` (private helper for the legacy
@@ -208,12 +218,12 @@ AssetRegistry& RenderEngine::assets() noexcept { return m_impl->m_assets; }
 const AssetRegistry& RenderEngine::assets() const noexcept { return m_impl->m_assets; }
 
 std::string RenderEngine::assets_root() const noexcept {
-    // WP-8 PR 8.1 Final — read from the process-wide slot (the
-    // single source of truth after the orphan `default_assets_root`
-    // field was retired).  Returns by value so callers cannot hold a
-    // reference past a concurrent `set_assets_root()` from another
-    // thread.
-    return runtime::process_wide_assets_root();
+    // P1 #7 — return the engine-local resolver's mount root (per-
+    // runtime), NOT the process-wide global.  Two engines with
+    // different asset roots now observe their own value.
+    // Returns by value so callers cannot hold a reference past a
+    // concurrent `set_assets_root()` from another thread.
+    return m_impl->m_runtime.resolver().mount_root().string();
 }
 
 // ── Composition registry ───────────────────────────────────────────────────
