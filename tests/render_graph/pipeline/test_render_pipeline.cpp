@@ -57,7 +57,7 @@ TEST_CASE("RenderPipeline - SoftwareRenderer::render_scene produces same output 
     auto renderer = test::make_renderer();
     Camera camera;
 
-    auto fb_backend = renderer.render_scene(scene, camera, 100, 100);
+    auto fb_backend = renderer.render_scene(scene, camera, 100, 100, 30.0f)0
     
     cache::NodeCache node_cache;
     auto fb_pipeline = render_scene_via_graph(

@@ -30,7 +30,7 @@ TEST_CASE("Coordinate Centered vs Top Left - 2D standard top left layer") {
 
     Camera camera;
 
-    auto fb = renderer.render_scene(scene, camera, 200, 200);
+    auto fb = renderer.render_scene(scene, camera, 200, 200, 30.0f)0
     REQUIRE(fb != nullptr);
 
     Color p00 = fb->get_pixel(0, 0);
@@ -96,7 +96,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Opacity only keeps implicit centeri
     renderer.set_settings(settings);
 
     Camera camera;
-    auto fb = renderer.render_scene(scene, camera, 1536, 1024);
+    auto fb = renderer.render_scene(scene, camera, 1536, 1024, 30.0f)4
     REQUIRE(fb != nullptr);
 
     CHECK(fb->get_pixel(10, 10).r > 0.4f);
@@ -125,7 +125,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Centered exactly on canvas") {
 
     Camera camera;
 
-    auto fb = renderer.render_scene(scene, camera, 1920, 1080);
+    auto fb = renderer.render_scene(scene, camera, 1920, 1080, 30.0f)0
     REQUIRE(fb != nullptr);
 
     Color p_in_0 = fb->get_pixel(860, 440);
@@ -195,7 +195,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Transform matrix offset") {
 
     Camera camera;
 
-    auto fb = renderer.render_scene(scene, camera, 1920, 1080);
+    auto fb = renderer.render_scene(scene, camera, 1920, 1080, 30.0f)0
     REQUIRE(fb != nullptr);
 
     i32 min_red_x = 9999, max_red_x = -9999;
@@ -240,7 +240,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Layer near border should not disapp
 
     Camera camera;
 
-    auto fb = renderer.render_scene(scene, camera, 1920, 1080);
+    auto fb = renderer.render_scene(scene, camera, 1920, 1080, 30.0f)0
     REQUIRE(fb != nullptr);
 
     Color p_visible = fb->get_pixel(1850, 1000);
@@ -269,7 +269,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Render graph mixed 2D and centered"
 
     Camera camera;
 
-    auto fb = renderer.render_scene(scene, camera, 1920, 1080);
+    auto fb = renderer.render_scene(scene, camera, 1920, 1080, 30.0f)0
     REQUIRE(fb != nullptr);
 
     Color p2d = fb->get_pixel(0, 0);
@@ -293,7 +293,7 @@ TEST_CASE("Effects, predicted_bbox and clipping - Blur near border doesn't crash
     auto renderer = test::make_renderer();
     Camera camera;
 
-    auto fb = renderer.render_scene(scene, camera, 200, 200);
+    auto fb = renderer.render_scene(scene, camera, 200, 200, 30.0f)0
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 200);
 }
@@ -308,7 +308,7 @@ TEST_CASE("Test visivi e lettura pixel in C++ - Pixel check white") {
     auto renderer = test::make_renderer();
     Camera camera;
 
-    auto fb = renderer.render_scene(scene, camera, 100, 100);
+    auto fb = renderer.render_scene(scene, camera, 100, 100, 30.0f)0
     REQUIRE(fb != nullptr);
 
     Color center = fb->get_pixel(25, 25);
@@ -336,7 +336,7 @@ TEST_CASE("Test visivi e lettura pixel in C++ - Alpha blending") {
 
     Camera camera;
 
-    auto fb = renderer.render_scene(scene, camera, 200, 200);
+    auto fb = renderer.render_scene(scene, camera, 200, 200, 30.0f)0
     REQUIRE(fb != nullptr);
 
     Color center = fb->get_pixel(100, 100);

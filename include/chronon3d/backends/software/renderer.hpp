@@ -23,12 +23,14 @@ public:
     virtual std::shared_ptr<Framebuffer> render_scene(const Scene& scene,
                                                       const Camera& camera,
                                                       i32 width,
-                                                      i32 height) = 0;
+                                                      i32 height,
+                                                      float fps) = 0;
 
     virtual std::shared_ptr<Framebuffer> render_scene(const Scene& scene,
                                                       const std::optional<Camera2_5D>& camera,
                                                       i32 width,
-                                                      i32 height) = 0;
+                                                      i32 height,
+                                                      float fps) = 0;
 };
 
 } // namespace chronon3d
