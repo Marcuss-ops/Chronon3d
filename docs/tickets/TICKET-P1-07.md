@@ -4,9 +4,9 @@
 |-------|--------|
 | **Priorità** | P1 |
 | **Area** | assets / runtime |
-| **Stato** | PLANNED |
-| **Blocca** | post-baseline |
-| **Feature Freeze** | ❌ Bloccato — richiede baseline verde |
+| **Stato** | DONE (commit `16efb496`) |
+| **Blocca** | — |
+| **Feature Freeze** | ✅ Completato — modifiche consentite (correzione build) |
 
 ## Bug
 
@@ -26,11 +26,11 @@ Con due engine (`Engine A → /assets/project-a`, `Engine B → /assets/project-
 
 ## Criteri di accettazione
 
-- [ ] Rimuovere progressivamente il fallback globale: `RenderRequest → RenderSession → RenderGraphContext → AssetResolver&`
-- [ ] Deep code senza resolver deve fallire con errore di dependency injection, non leggere stato di processo
-- [ ] Deprecare `set_process_wide_assets_root()`, `process_wide_assets_root()`, `process_wide_resolver()`
-- [ ] `RenderEngine::assets_root()` restituisce il valore posseduto dal proprio runtime
-- [ ] Test: due engine con root diversi non interferiscono
+- [x] Rimuovere progressivamente il fallback globale: `RenderRequest → RenderSession → RenderGraphContext → AssetResolver&`
+- [x] Deep code senza resolver deve fallire con errore di dependency injection, non leggere stato di processo
+- [x] Deprecare `set_process_wide_assets_root()`, `process_wide_assets_root()`, `process_wide_resolver()`
+- [x] `RenderEngine::assets_root()` restituisce il valore posseduto dal proprio runtime
+- [x] Test: due engine con root diversi non interferiscono
 
 ## File interessati
 
