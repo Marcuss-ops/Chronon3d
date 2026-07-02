@@ -1,3 +1,7 @@
+## Fix-forward — corrupted public-header manifest
+
+On commit `28004f96` (sdk-public-surface reduction), a buggy bash heredoc leaked sed `/...d` end-markers into ~420 manifest lines. CMake-configure for install_consumer_test Phase 1.1 failed with target_sources errors. Fix-forward (rather than revert) chosen: the OPP-side `git mv` to `include/chronon3d/internal/` was correct; only the manifest reconstruction needed repair. Manifest rebuilt from `git show HEAD~1` pristine content with the 4 OPP-relocated entries removed and the INTERNAL comment block added.
+
 # Chronon3D — Changelog
 
 > Lavoro completato su `main`. Per i dettagli completi di ogni ticket: [`docs/tickets/`](docs/tickets/).
