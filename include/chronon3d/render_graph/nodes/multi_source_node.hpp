@@ -75,11 +75,14 @@ private:
     bool m_centered{false};
     bool m_uses_2_5d_projection{false};
 
-    // ── Log throttle ───────────────────────────────────────────────────
-    // When a text_run item shows up in a layer but the active backend is not
-    // the SoftwareRenderer, surface the mismatch once at error level per node
-    // lifetime, then fall back to debug so production logs survive at 60 fps.
-    mutable bool m_backend_warned{false};
+    // ── P0-1 / Fase A6 note ──────────────────────────────────────────
+    // TextRunShape items inside m_items are mutated per-frame by
+    // update_text_run_shape_per_frame() inside execute().  Same
+    // immutability violation as TextRunNode — tracked for Phase C.
+    // m_backend_warned (formerly a mutable bool log throttle) was
+    // removed in Fase A6: after the A4+A5 error-propagation fix, the
+    // node returns NodeExecutionError immediately on first failure,
+    // so the per-node-lifetime throttle is dead code.
 };
 
 } // namespace chronon3d::graph
