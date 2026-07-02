@@ -25,10 +25,11 @@
 //   make_software_backend(SoftwareBackendServices services);
 //
 // Pointer expectations at construction (validated by `make_software_backend`):
-//   - owner              : REQUIRED (SoftwareRenderer*, non-owning).
-//                          Orchestrator for the SoftwareProcessorContext
-//                          bundle.  TICKET-046 follow-up will source from
-//                          RenderRuntime directly; owner becomes null-tolerable.
+//   - owner              : REMOVED in TICKET-118 (SoftwareRenderer*
+//                          back-pointer).  The backend now sources
+//                          processor-context fields via the internal
+//                          `ProcessorSourceExtras` bundle attached
+//                          via `SoftwareBackend::attach_processor_context()`.
 //   - counters           : REQUIRED (RenderCounters*, non-owning).  Atomic
 //                          counters, mutated in-place by apply_blur /
 //                          composite / draw_node.
@@ -86,8 +87,21 @@ namespace chronon3d::backends::text {
 
 namespace chronon3d {
 
+// TICKET-118/119 — public ctor signature for SoftwareBackendServices
+// is UNCHANGED for source compatibility, except the `owner` field
+// has been removed.  Renderers that previously populated `owner` MUST
+// build a `chronon3d::backends::software::internal::ProcessorSourceExtras`
+// bundle (registry + image_backend + font_engine) and pass the
+// resulting `SoftwareProcessorContext` to the new public method
+// `SoftwareBackend::attach_processor_context(...)` post-construction.
+//
+// Removing `owner` makes the SoftwareBackend truly owner-free at the
+// software layer; lifetime is now anchored by services.owner-less
+// bundle + the explicit processor-context attachment.  This is a
+// contractive change (zero new public symbols in include/), aligned
+// with the AGENTS.md v0.1 freeze Cat-3 closure of the architectural
+// back-pointer debt.
 struct SoftwareBackendServices {
-    class SoftwareRenderer*                          owner{nullptr};                 // REQUIRED
     RenderCounters*                                  counters{nullptr};              // REQUIRED
     const RenderSettings*                            settings{nullptr};              // REQUIRED
     std::shared_ptr<cache::FramebufferPool>         framebuffer_pool{nullptr};      // REQUIRED (shared)
@@ -109,25 +123,28 @@ struct SoftwareBackendServices {
 
 struct SoftwareBackendServicesError {
     enum class Code : std::uint8_t {
-        MissingOwner            = 1,
-        MissingCounters         = 2,
-        MissingSettings         = 3,
-        MissingFramebufferPool  = 4,
-        MissingAssetResolver    = 5,
-        MissingTextResources    = 6,
+        // MissingOwner REMOVED in TICKET-118 — the back-pointer field
+        // no longer exists on SoftwareBackendServices.  Codes are
+        // renumbered for the remaining 5 REQUIRED services; the new
+        // values are stable for downstream regression-grep tests.
+        MissingCounters         = 1,
+        MissingSettings         = 2,
+        MissingFramebufferPool  = 3,
+        MissingAssetResolver    = 4,
+        MissingTextResources    = 5,
     };
 
-    Code        code{Code::MissingOwner};
+    Code        code{Code::MissingCounters};   // default moved (was MissingOwner pre-TICKET-118)
     std::string field_name;    // mirrors the SoftwareBackendServices field name
     std::string message;       // free-form, never empty
 };
 
 /// Stable string-form name for each `Code`.  For logging + diagnostics only.
+/// TICKET-118: MissingOwner removed; callers using legacy string are OK
+/// (now returns "Unknown" path implicitly — no live callers today).
 inline const char* software_backend_services_error_name(
     SoftwareBackendServicesError::Code c) noexcept {
     switch (c) {
-        case SoftwareBackendServicesError::Code::MissingOwner:
-            return "MissingOwner";
         case SoftwareBackendServicesError::Code::MissingCounters:
             return "MissingCounters";
         case SoftwareBackendServicesError::Code::MissingSettings:

@@ -957,44 +957,22 @@ graph::RenderOpResult draw_text_run(
 // can compute bounding boxes without linking the software backend.
 
 // ═══════════════════════════════════════════════════════════════════════════
-// create_text_run_processor — ShapeFactory entry
+// create_text_run_processor — ShapeFactory entry (REMOVED — TICKET-118)
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// The software-registry back-mapping for `ShapeType::TextRun`.  Because
-// the canonical renderer path for text runs goes through the
-// `TextRunNode` in the render graph (driven by `draw_text_run()` above),
-// the registry ShapeProcessor is a thin no-op marker: it carries the
-// `is_text_run_shape=true` RenderNode flag and forwards through the
-// graph-builder.  This keeps `layer.shape("shape.text_run", ...)` and
-// `LayerBuilder::text_run(...)` semantically identical (both flow to a
-// TextRunNode downstream).
+// TICKET-118 closure — the dummy `TextRunProcessor` ShapeProcessor (no-op
+// draw + zero bbox + always-false hit_test) has been removed from this
+// translation unit.  The canonical text-run rasterization path is:
+//   text_run authoring → TextRunNode → SoftwareBackend::draw_text_run →
+//   `draw_text_run(SoftwareProcessorContext, TextRunDrawParams&)` above.
 //
-// Why not just call `draw_text_run` directly here?  Because the
-// `ShapeProcessor` interface receives a `RenderNode` per node, while
-// `draw_text_run` operates on a `SoftwareRenderer` + `TextRunDrawParams`
-// pair.  Bridging requires the compositor to invoke the renderer with
-// the right z-layer / sample-time context — exactly what the graph
-// provides via the TextRunNode's `execute()`.  Keeping the registry
-// processor thin avoids duplicating that logic.
-
-#ifdef CHRONON3D_ENABLE_TEXT
-std::unique_ptr<ShapeProcessor> create_text_run_processor() {
-    struct TextRunProcessor : ShapeProcessor {
-        // No-op: the TextRunNode in the render graph handles rasterization.
-        // This processor exists only as a registry marker.
-        void draw(const SoftwareProcessorContext&, Framebuffer&, const RenderNode&,
-                  const RenderState&, const Camera&, i32, i32) override {}
-
-        raster::BBox compute_world_bbox(const Shape&, const Mat4&, f32) override {
-            return {0, 0, 0, 0};
-        }
-
-        bool hit_test(const Shape&, Vec2, f32) override {
-            return false;
-        }
-    };
-    return std::make_unique<TextRunProcessor>();
-}
-#endif // CHRONON3D_ENABLE_TEXT
+// The render-graph `multi_source_node.cpp` routes TextRun shapes to
+// `draw_text_run` directly via the TextRunNode, bypassing the registry
+// lookup entirely; therefore the registry marker served no real purpose.
+//
+// `builtin_processors.cpp::register_builtin_processors` MUST ALSO drop
+// its `registry.register_shape(ShapeType::TextRun, create_text_run_processor())`
+// call site — without that, the link will fail with an unresolved
+// symbol.  See builtin_processors.cpp diff.
 
 } // namespace chronon3d::renderer
