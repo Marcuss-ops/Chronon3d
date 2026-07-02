@@ -29,9 +29,16 @@ struct Frame {
     std::int64_t value{0};
 };
 
+/// Frame rate — numerator/denominator for fractional fps (e.g. 30000/1001 ≈ 29.97).
+struct FrameRate {
+    std::int32_t numerator{30};
+    std::int32_t denominator{1};
+};
+
 /// SDK-side render request.
 struct RenderRequest {
     Frame frame{0};                       ///< Frame index, exposed to OPP.
+    FrameRate frame_rate{30, 1};          ///< Frame rate (required; default 30 fps for backward compat).
     bool  has_overrides{false};          ///< True ⇒ apply `override_*` fields.
     int   override_width{0};             ///< 0 ⇒ use `RenderSettings::width`.
     int   override_height{0};            ///< 0 ⇒ use `RenderSettings::height`.

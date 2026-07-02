@@ -134,12 +134,12 @@ public:
 
     /// Render a scene with a standard Camera.
     [[nodiscard]] std::shared_ptr<Framebuffer> render_scene(
-        const Scene& scene, const Camera& camera, i32 width, i32 height);
+        const Scene& scene, const Camera& camera, i32 width, i32 height, float fps);
 
     /// Render a scene with an optional 2.5D Camera (or nullopt for identity).
     [[nodiscard]] std::shared_ptr<Framebuffer> render_scene(
         const Scene& scene, const std::optional<Camera2_5D>& camera,
-        i32 width, i32 height);
+        i32 width, i32 height, float fps);
 
     /// Render a single frame from a Composition.
     /// Pass D — `render()` is now the canonical entry.  Replaces the

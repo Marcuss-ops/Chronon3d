@@ -164,7 +164,7 @@ void run_render_benchmark(benchmark::State& state) {
         for (int i = 0; i < ctx.frames; ++i) {
             const auto frame = static_cast<Frame>(ctx.warmup + i);
             auto scene = ctx.composition->evaluate(frame);
-            ctx.renderer->render_scene(scene, ctx.composition->camera, width, height);
+            ctx.renderer->render_scene(scene, ctx.composition->camera, width, height, 30.0f);
             benchmark::DoNotOptimize(scene);
         }
         benchmark::DoNotOptimize(counters);
@@ -300,7 +300,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     for (int i = 0; i < args.warmup; ++i) {
         const auto frame = static_cast<Frame>(i);
         auto scene = composition.evaluate(frame);
-        renderer->render_scene(scene, composition.camera, composition.width(), composition.height());
+        renderer->render_scene(scene, composition.camera, composition.width(), composition.height(), 30.0f);
     }
 
     uint64_t saved_fb_alloc = 0;

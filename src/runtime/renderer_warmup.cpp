@@ -56,7 +56,8 @@ RendererWarmupResult warmup_renderer(
                 scene,
                 composition.camera,
                 composition.width(),
-                composition.height());
+                composition.height(),
+                30.0f);
             (void)fb; // discard the result
         }
     }

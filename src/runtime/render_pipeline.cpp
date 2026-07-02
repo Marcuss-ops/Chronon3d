@@ -28,7 +28,8 @@ RenderPipeline::RenderPipeline(SoftwareRenderer* renderer, RenderRuntime& runtim
     : m_renderer(renderer), m_runtime(runtime) {}
 
 std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
-    const Scene& scene, const Camera& camera, i32 width, i32 height)
+    const Scene& scene, const Camera& camera, i32 width, i32 height,
+    float fps)
 {
     // Pull shared caches/catalogs from the runtime; per-instance
     // state from the renderer (settings, registry, video_decoder).
@@ -43,13 +44,14 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
         m_renderer->render_settings(),
         m_renderer->composition_registry(),
         m_renderer->video_decoder(),
-        30.0f, "scene"
+        fps, "scene"
     );
 }
 
 std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
     const Scene& scene, const std::optional<Camera2_5D>& camera,
-    i32 width, i32 height)
+    i32 width, i32 height,
+    float fps)
 {
     // 2.5D variant: clone the scene, stamp the optional camera
     // onto it, then route through the standard Scene path.  Mirrors
@@ -68,7 +70,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
         m_renderer->render_settings(),
         m_renderer->composition_registry(),
         m_renderer->video_decoder(),
-        30.0f, "scene"
+        fps, "scene"
     );
 }
 
@@ -88,7 +90,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_composition(
 
 std::string RenderPipeline::debug_graph(
     const Scene& scene, const Camera& camera, i32 width, i32 height,
-    Frame frame, f32 frame_time)
+    Frame frame, f32 frame_time, float fps)
 {
     return chronon3d::graph::debug_scene_graph(
         m_runtime.backend(),
@@ -98,7 +100,7 @@ std::string RenderPipeline::debug_graph(
         m_renderer->render_settings(),
         m_renderer->composition_registry(),
         m_renderer->video_decoder(),
-        30.0f
+        fps
     );
 }
 
