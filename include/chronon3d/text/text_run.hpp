@@ -248,6 +248,7 @@ struct TextLayoutCacheKey {
     TextDirection direction{TextDirection::Auto};
     Bcp47LanguageTag language;                   // BCP-47 language tag (TICKET-103a: alias of std::string)
     TextShapingFeatures features;                // OT shaping features (TICKET-103a: new field)
+    std::string font_family;                     // P0-2 — was missing; placed last for aggregate init compat
 
     /// Paragraph-level typography.  Different composer/justification/
     /// indentation/spacing/hanging-punctuation settings produce different

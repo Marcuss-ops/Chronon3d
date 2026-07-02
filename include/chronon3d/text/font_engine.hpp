@@ -121,6 +121,73 @@ struct FontIdentity {
     return FontIdentity{s.font_path, s.font_family, s.font_weight, s.font_style};
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FontLayoutIdentity — canonical font identity FOR LAYOUT purposes.
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Unlike FontIdentity (which excludes font_size because size is a layout
+// concern), FontLayoutIdentity INCLUDES font_size AND shaping features
+// because these are part of the layout's identity:
+//   * Two text runs at 16pt vs 72pt produce different glyph placements;
+//   * Different OpenType feature strings (kern=1 vs kern=0) produce
+//     different advances on ligature-heavy runs.
+//
+// Used by ALL locations that hash or compare font identity for layout
+// purposes:
+//   1. TextRunLayout::layout_hash()
+//   2. TextRunLayout::shaping_hash()
+//   3. TextLayoutCacheKey::digest()
+//   4. build_cache_key()
+//   5. apply_active_state_to_text_run_shape() fast-path
+//   6. prewarm_text_run_layout_for_frame()
+//
+// P0-2 — closes the font_family omission from layout hashes + the
+// font_path gating that prevented family/weight/style/size overrides
+// when font_path was empty.
+struct FontLayoutIdentity {
+    std::string font_path;       // resolved font file path (may be empty for family-only fallback)
+    std::string font_family;     // CSS family name (case-insensitive, canonicalized)
+    int         font_weight{400};
+    std::string font_style{"normal"};
+    float       font_size{32.0f};
+    std::string features;        // OpenType shaping features (e.g. "kern=1,liga=1")
+
+    [[nodiscard]] bool operator==(const FontLayoutIdentity& o) const noexcept {
+        return font_path == o.font_path &&
+               font_family == o.font_family &&
+               font_weight == o.font_weight &&
+               font_style == o.font_style &&
+               font_size == o.font_size &&
+               features == o.features;
+    }
+    [[nodiscard]] bool operator!=(const FontLayoutIdentity& o) const noexcept {
+        return !(*this == o);
+    }
+};
+
+/// Project a FontSpec + size + features into a FontLayoutIdentity.
+/// Canonical entry point for extracting the layout-relevant font identity
+/// from the scattered (font_path, font_family, weight, style, size, features)
+/// tuple used by cache keys, layout hashes, and fast-path comparisons.
+[[nodiscard]] inline FontLayoutIdentity font_layout_identity_of(
+    const FontSpec& font,
+    float size,
+    const std::string& features
+) noexcept {
+    return FontLayoutIdentity{
+        font.font_path, font.font_family,
+        font.font_weight, font.font_style,
+        size, features
+    };
+}
+
+/// Overload that derives size and features from a TextRunLayout reference.
+/// Kept as a forward-declared free function because it depends on
+/// TextRunLayout (defined in text_run.hpp, which includes this header).
+/// The implementation lives in text_run.cpp.
+struct TextRunLayout;
+[[nodiscard]] FontLayoutIdentity font_layout_identity_of(const TextRunLayout& layout) noexcept;
+
 /// Shaping direction for non-Latin / complex-script text.
 /// When Auto, the shaping engine detects RTL from the first
 /// strongly-directional character (Arabic, Hebrew, etc.).

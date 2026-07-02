@@ -1,4 +1,5 @@
 #include <chronon3d/text/text_run.hpp>
+#include <chronon3d/text/font_engine.hpp>  // P0-2 — font_layout_identity_of(TextRunLayout)
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
@@ -30,6 +31,7 @@ u64 TextRunLayout::layout_hash() const {
 
     u64 seed = hash_string(source_text);
     seed = hash_combine(seed, hash_string(font.font_path));
+    seed = hash_combine(seed, hash_string(font.font_family));   // P0-2
     seed = hash_combine(seed, hash_value(font.font_weight));
     seed = hash_combine(seed, hash_string(font.font_style));
     seed = hash_combine(seed, hash_value(font_size));
@@ -50,6 +52,7 @@ u64 TextRunLayout::shaping_hash() const {
     using chronon3d::graph::hash_value;
 
     u64 seed = hash_string(font.font_path);
+    seed = hash_combine(seed, hash_string(font.font_family));   // P0-2
     seed = hash_combine(seed, hash_value(font.font_weight));
     seed = hash_combine(seed, hash_string(font.font_style));
     seed = hash_combine(seed, hash_value(font_size));
@@ -74,6 +77,7 @@ u64 TextLayoutCacheKey::digest() const {
 
     u64 seed = hash_string(text);
     seed = hash_combine(seed, hash_string(font_path));
+    seed = hash_combine(seed, hash_string(font_family));   // P0-2
     seed = hash_combine(seed, hash_value(font_weight));
     seed = hash_combine(seed, hash_string(font_style));
     seed = hash_combine(seed, hash_value(font_size));
@@ -424,6 +428,15 @@ u64 hash_text_run_shape(const TextRunShape& s, Frame frame) {
     seed = hash_combine(seed, hash_value(state.mix));
 
     return seed;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// font_layout_identity_of(TextRunLayout) — P0-2
+// ═══════════════════════════════════════════════════════════════════════════
+
+FontLayoutIdentity font_layout_identity_of(const TextRunLayout& layout) noexcept {
+    return font_layout_identity_of(
+        layout.font, layout.font_size, layout.features);
 }
 
 } // namespace chronon3d

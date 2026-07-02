@@ -19,6 +19,7 @@
 #include <chronon3d/text/text_animator_property.hpp>
 #include <chronon3d/text/text_document.hpp>
 #include <chronon3d/text/animation/text_pre_shaping.hpp>
+#include <chronon3d/text/font_engine.hpp>  // P0-2 — font_layout_identity_of
 
 namespace chronon3d {
 
@@ -220,48 +221,52 @@ bool apply_active_state_to_text_run_shape(
         return false;
     }
 
-    // ── Fast-path: text already matches the shape's current layout ──
+    // ── Compute the effective font identity the per-frame driver
+    //    will use after applying keyframe overrides.  P0-2: this
+    //    drives both the fast-path comparison (so font-only keyframes
+    //    correctly invalidate) and the TextDocument builder below.
+    FontSpec effective_font;
+    if (shape.layout) {
+        effective_font = shape.layout->font;
+    }
+    // P0-2 — font overrides no longer gated by font_path.empty().
+    if (!state.active->defaults.font.font_path.empty()) {
+        effective_font.font_path = state.active->defaults.font.font_path;
+    }
+    if (!state.active->defaults.font.font_family.empty()) {
+        effective_font.font_family = state.active->defaults.font.font_family;
+    }
+    if (state.active->defaults.font.font_weight != 0) {
+        effective_font.font_weight = state.active->defaults.font.font_weight;
+    }
+    if (!state.active->defaults.font.font_style.empty()) {
+        effective_font.font_style = state.active->defaults.font.font_style;
+    }
+    if (state.active->defaults.font.font_size > 0.0f) {
+        effective_font.font_size = state.active->defaults.font.font_size;
+    }
+
+    // ── Fast-path: text + font identity already match the shape's
+    //    current layout.  P0-2: the previous check only compared
+    //    source_text, which silently ignored font-family/weight/style/
+    //    size changes.  Now the fast-path also compares the full
+    //    FontLayoutIdentity so a font-only keyframe correctly
+    //    invalidates the cached layout.
     if (shape.layout
         && shape.layout->source_text == target_text
-        && !target_text.empty())
+        && !target_text.empty()
+        && font_layout_identity_of(*shape.layout)
+           == font_layout_identity_of(effective_font,
+                  effective_font.font_size,
+                  shape.layout->features))
     {
         return false;  // cache would hit; skip rebuild
     }
 
     // ── Build a synthetic TextDocument from the transition text ──────
-    //
-    // Copy the layout's font (path/weight/style/size) so cache-key
-    // construction in build_text_run uses the same effective FontSpec
-    // the shape was initially laid out with.  When the active document
-    // carries a default font that differs from the shape's, prefer the
-    // active document's defaults (the scene typically rewires fonts on
-    // keyframes).
     TextDocument td;
     td.utf8 = target_text;
-
-    if (shape.layout) {
-        td.defaults.font = shape.layout->font;
-    }
-    if (!state.active->defaults.font.font_path.empty()) {
-        // Keyframe-driven font swap.  Most uses keep the same family
-        // and only change weight/style/size; AudioKeyframes etc. vary
-        // them.  When path is empty we keep the layout's path.
-        if (!state.active->defaults.font.font_path.empty()) {
-            td.defaults.font.font_path = state.active->defaults.font.font_path;
-        }
-        if (!state.active->defaults.font.font_family.empty()) {
-            td.defaults.font.font_family = state.active->defaults.font.font_family;
-        }
-        if (state.active->defaults.font.font_weight != 0) {
-            td.defaults.font.font_weight = state.active->defaults.font.font_weight;
-        }
-        if (!state.active->defaults.font.font_style.empty()) {
-            td.defaults.font.font_style = state.active->defaults.font.font_style;
-        }
-        if (state.active->defaults.font.font_size > 0.0f) {
-            td.defaults.font.font_size = state.active->defaults.font.font_size;
-        }
-    }
+    td.defaults.font = effective_font;  // P0-2: use pre-computed effective font
 
     // ── Split paragraphs (build_text_run requires pre-split input) ──
     td.split_paragraphs();
@@ -445,20 +450,22 @@ bool prewarm_text_run_layout_for_frame(
     if (shape.layout) {
         td.defaults.font = shape.layout->font;
     }
+    // P0-2 — same fix as apply_active_state_to_text_run_shape:
+    // font overrides no longer gated by font_path.empty().
     if (!state.active->defaults.font.font_path.empty()) {
         td.defaults.font.font_path = state.active->defaults.font.font_path;
-        if (!state.active->defaults.font.font_family.empty()) {
-            td.defaults.font.font_family = state.active->defaults.font.font_family;
-        }
-        if (state.active->defaults.font.font_weight != 0) {
-            td.defaults.font.font_weight = state.active->defaults.font.font_weight;
-        }
-        if (!state.active->defaults.font.font_style.empty()) {
-            td.defaults.font.font_style = state.active->defaults.font.font_style;
-        }
-        if (state.active->defaults.font.font_size > 0.0f) {
-            td.defaults.font.font_size = state.active->defaults.font.font_size;
-        }
+    }
+    if (!state.active->defaults.font.font_family.empty()) {
+        td.defaults.font.font_family = state.active->defaults.font.font_family;
+    }
+    if (state.active->defaults.font.font_weight != 0) {
+        td.defaults.font.font_weight = state.active->defaults.font.font_weight;
+    }
+    if (!state.active->defaults.font.font_style.empty()) {
+        td.defaults.font.font_style = state.active->defaults.font.font_style;
+    }
+    if (state.active->defaults.font.font_size > 0.0f) {
+        td.defaults.font.font_size = state.active->defaults.font.font_size;
     }
     td.split_paragraphs();
 
