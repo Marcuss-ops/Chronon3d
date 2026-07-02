@@ -101,11 +101,12 @@ namespace {
     const std::string& features
 ) {
     TextLayoutCacheKey key;
-    key.text        = full_text;
-    key.font_path   = primary_font.font_path;
-    key.font_weight = primary_font.font_weight;
-    key.font_style  = primary_font.font_style;
-    key.font_size   = primary_font.font_size;
+    key.text         = full_text;
+    key.font_path    = primary_font.font_path;
+    key.font_family  = primary_font.font_family;   // P0-2
+    key.font_weight  = primary_font.font_weight;
+    key.font_style   = primary_font.font_style;
+    key.font_size    = primary_font.font_size;
     key.tracking    = layout.tracking;
     key.box_width   = layout.box.x;
     key.wrap        = layout.wrap;
