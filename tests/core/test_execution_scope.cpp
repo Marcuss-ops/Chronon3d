@@ -52,6 +52,7 @@ using chronon3d::RenderSession;
 using chronon3d::graph::ExecutionScope;
 using chronon3d::graph::ExecutionScopeKind;
 using chronon3d::graph::GraphInstanceId;
+using chronon3d::graph::kInvalidGraphInstanceId;
 using chronon3d::graph::kMaxScopeChainLength;
 using chronon3d::graph::ScopeErrorCode;
 
@@ -141,7 +142,7 @@ struct ChainSlotBuilder {
     ) {
         auto result = ExecutionScope::make_child(
             kind, session, arena, gid, &parent, owner_key);
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         slots.push_back(
             std::make_unique<ExecutionScope>(result.value()));
         return *slots.back();
@@ -177,7 +178,7 @@ TEST_CASE("ExecutionScope: tile child — depth=1, parent links to root") {
     auto tile_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, root_session, child_arena,
         GraphInstanceId{2}, &root);
-    REQUIRE(tile_res.is_ok());
+    REQUIRE(tile_res.has_value());
     ExecutionScope tile = tile_res.value();
 
     CHECK(tile.kind() == ExecutionScopeKind::Tile);
@@ -199,8 +200,8 @@ TEST_CASE("ExecutionScope: sibling scopes are NOT descendants of each other") {
     auto tile_b_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, arena_b,
         GraphInstanceId{3}, &root);
-    REQUIRE(tile_a_res.is_ok());
-    REQUIRE(tile_b_res.is_ok());
+    REQUIRE(tile_a_res.has_value());
+    REQUIRE(tile_b_res.has_value());
     ExecutionScope tile_a = tile_a_res.value();
     ExecutionScope tile_b = tile_b_res.value();
 
@@ -222,8 +223,8 @@ TEST_CASE("ExecutionScope: deeper chain — grandchild depth=2") {
     auto pre_res = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, arena_b,
         GraphInstanceId{3}, &tile_res.value());
-    REQUIRE(tile_res.is_ok());
-    REQUIRE(pre_res.is_ok());
+    REQUIRE(tile_res.has_value());
+    REQUIRE(pre_res.has_value());
     const ExecutionScope& tile = tile_res.value();
     const ExecutionScope& pre = pre_res.value();
 
@@ -248,21 +249,21 @@ TEST_CASE("ExecutionScope: recursion detection — direct precomp loop rejected"
     auto pc1_res = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, arena_a,
         GraphInstanceId{2}, &root, /*owner_key*/ 0xDEADBEEFull);
-    REQUIRE(pc1_res.is_ok());
+    REQUIRE(pc1_res.has_value());
     const ExecutionScope& pc1 = pc1_res.value();
 
     // Attempting a child precomp with the SAME owner_key must fail.
     auto pc2_same_key = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, arena_b,
         GraphInstanceId{3}, &pc1, /*owner_key*/ 0xDEADBEEFull);
-    REQUIRE(pc2_same_key.is_err());
-    CHECK(pc2_same_key.err().code == ScopeErrorCode::RecursiveOwner);
+    REQUIRE(pc2_same_key.has_value());
+    CHECK(pc2_same_key.error().code == ScopeErrorCode::RecursiveOwner);
 
     // A different key should succeed.
     auto pc2_diff_key = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, arena_b,
         GraphInstanceId{3}, &pc1, /*owner_key*/ 0xCAFEBABEull);
-    REQUIRE(pc2_diff_key.is_ok());
+    REQUIRE(pc2_diff_key.has_value());
 
     // owner_key==0 is the "unset" sentinel — must also succeed (validation
     // explicitly skips recursion check when key==0).
@@ -270,7 +271,7 @@ TEST_CASE("ExecutionScope: recursion detection — direct precomp loop rejected"
     auto pc2_zero_key = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, arena_c,
         GraphInstanceId{3}, &pc1, /*owner_key*/ 0u);
-    REQUIRE(pc2_zero_key.is_ok());
+    REQUIRE(pc2_zero_key.has_value());
 }
 
 TEST_CASE("ExecutionScope: recursion detection — indirect loop via shared ancestor") {
@@ -284,25 +285,25 @@ TEST_CASE("ExecutionScope: recursion detection — indirect loop via shared ance
     auto pc1_res = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, arena_a,
         GraphInstanceId{2}, &root, /*owner_key*/ 0x456ull);
-    REQUIRE(pc1_res.is_ok());
+    REQUIRE(pc1_res.has_value());
     auto pc2_res = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, arena_b,
         GraphInstanceId{3}, &pc1_res.value(), /*owner_key*/ 0x123ull);
-    REQUIRE(pc2_res.is_ok());
+    REQUIRE(pc2_res.has_value());
     const ExecutionScope& pc2 = pc2_res.value();
 
     // PC2 → make_child PC3 with the ancestor's 0x456 key → Err.
     auto pc3_ancestor_key = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, arena_c,
         GraphInstanceId{4}, &pc2, /*owner_key*/ 0x456ull);
-    REQUIRE(pc3_ancestor_key.is_err());
-    CHECK(pc3_ancestor_key.err().code == ScopeErrorCode::RecursiveOwner);
+    REQUIRE(pc3_ancestor_key.has_value());
+    CHECK(pc3_ancestor_key.error().code == ScopeErrorCode::RecursiveOwner);
 
     // A new key (not yet on the chain) must succeed.
     auto pc3_new_key = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, arena_c,
         GraphInstanceId{4}, &pc2, /*owner_key*/ 0x999ull);
-    REQUIRE(pc3_new_key.is_ok());
+    REQUIRE(pc3_new_key.has_value());
 }
 
 TEST_CASE("ExecutionScope: child arena — independent of parent arena") {
@@ -313,7 +314,7 @@ TEST_CASE("ExecutionScope: child arena — independent of parent arena") {
     auto child_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, parent_session, child_arena,
         GraphInstanceId{2}, &parent);
-    REQUIRE(child_res.is_ok());
+    REQUIRE(child_res.has_value());
     const ExecutionScope& child = child_res.value();
 
     REQUIRE(&child.arena() != &parent.arena());
@@ -340,8 +341,8 @@ TEST_CASE("ExecutionScope: kind() round-trips all three kinds") {
     auto pre_res = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, arena_b,
         GraphInstanceId{0}, &tile_res.value());
-    REQUIRE(tile_res.is_ok());
-    REQUIRE(pre_res.is_ok());
+    REQUIRE(tile_res.has_value());
+    REQUIRE(pre_res.has_value());
 
     CHECK(root.kind() == ExecutionScopeKind::Root);
     CHECK(tile_res.value().kind() == ExecutionScopeKind::Tile);
@@ -372,8 +373,8 @@ TEST_CASE("ExecutionScope: chain depth grows by one per nested child") {
     auto t5_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, arena_e,
         GraphInstanceId{0}, &t4_res.value());
-    REQUIRE(t1_res.is_ok());
-    REQUIRE(t5_res.is_ok());
+    REQUIRE(t1_res.has_value());
+    REQUIRE(t5_res.has_value());
     const ExecutionScope& t5 = t5_res.value();
     const ExecutionScope& t3 = t3_res.value();
 
@@ -409,22 +410,22 @@ TEST_CASE("ExecutionScope: anthrilinear (ancestor-then-sibling) — RecursiveOwn
     auto b_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, a[2],
         GraphInstanceId{0}, &pa_res.value());
-    REQUIRE(a_res.is_ok());
-    REQUIRE(pa_res.is_ok());
-    REQUIRE(b_res.is_ok());
+    REQUIRE(a_res.has_value());
+    REQUIRE(pa_res.has_value());
+    REQUIRE(b_res.has_value());
 
     // Re-entering pa's owner_key from inside b → Err(RecursiveOwner).
     auto reentry = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, a[3],
         GraphInstanceId{0}, &b_res.value(), /*owner_key*/ 0xABCDEFull);
-    REQUIRE(reentry.is_err());
-    CHECK(reentry.err().code == ScopeErrorCode::RecursiveOwner);
+    REQUIRE(reentry.has_value());
+    CHECK(reentry.error().code == ScopeErrorCode::RecursiveOwner);
 
     // A non-colliding key must succeed.
     auto fresh = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, a[4],
         GraphInstanceId{0}, &b_res.value(), /*owner_key*/ 0x1111ull);
-    REQUIRE(fresh.is_ok());
+    REQUIRE(fresh.has_value());
 }
 
 TEST_CASE("ExecutionScope: kMaxScopeChainLength is the published constant") {
@@ -455,8 +456,8 @@ TEST_CASE("ExecutionScope: kMaxScopeChainLength — make_child Err at boundary")
     auto overflow_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, overflow_arena,
         GraphInstanceId{0xFFFFu}, deepest);
-    REQUIRE(overflow_res.is_err());
-    CHECK(overflow_res.err().code == ScopeErrorCode::ChainLimitExceeded);
+    REQUIRE(overflow_res.has_value());
+    CHECK(overflow_res.error().code == ScopeErrorCode::ChainLimitExceeded);
 
     // Failing the 16th child does NOT consume any state — the chain is
     // still usable: a new attempt with a fresh arena would also be rejected,
@@ -476,8 +477,8 @@ TEST_CASE("ExecutionScope: make_child — Root kind rejected (InvalidChildKind)"
     auto bad = ExecutionScope::make_child(
         ExecutionScopeKind::Root, session, arena,
         GraphInstanceId{2}, &root);
-    REQUIRE(bad.is_err());
-    CHECK(bad.err().code == ScopeErrorCode::InvalidChildKind);
+    REQUIRE(bad.has_value());
+    CHECK(bad.error().code == ScopeErrorCode::InvalidChildKind);
 }
 
 TEST_CASE("ExecutionScope FASE 5: make_child — parent=nullptr rejected (ParentRequired)") {
@@ -486,8 +487,8 @@ TEST_CASE("ExecutionScope FASE 5: make_child — parent=nullptr rejected (Parent
     auto bad = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, arena,
         GraphInstanceId{1}, /*parent*/ nullptr);
-    REQUIRE(bad.is_err());
-    CHECK(bad.err().code == ScopeErrorCode::ParentRequired);
+    REQUIRE(bad.has_value());
+    CHECK(bad.error().code == ScopeErrorCode::ParentRequired);
 }
 
 TEST_CASE("ExecutionScope FASE 5: make_child — arena aliasing rejected (ArenaAliasesParent)") {
@@ -500,8 +501,8 @@ TEST_CASE("ExecutionScope FASE 5: make_child — arena aliasing rejected (ArenaA
     auto bad = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, session.arena(),
         GraphInstanceId{2}, &root);
-    REQUIRE(bad.is_err());
-    CHECK(bad.err().code == ScopeErrorCode::ArenaAliasesParent);
+    REQUIRE(bad.has_value());
+    CHECK(bad.error().code == ScopeErrorCode::ArenaAliasesParent);
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -533,7 +534,7 @@ TEST_CASE("ExecutionScope PR 6.6: ArenaGuard — child scope reset does not touc
     auto child_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, parent_session, child_arena,
         GraphInstanceId{2}, &parent);
-    REQUIRE(child_res.is_ok());
+    REQUIRE(child_res.has_value());
     const ExecutionScope& child = child_res.value();
 
     REQUIRE(&child.arena() == &child_arena);
@@ -558,7 +559,7 @@ TEST_CASE("ExecutionScope PR 6.6: tile scope reset does not touch root arena") {
     auto tile_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, tile_arena,
         GraphInstanceId{2}, &root);
-    REQUIRE(tile_res.is_ok());
+    REQUIRE(tile_res.has_value());
     const ExecutionScope& tile = tile_res.value();
 
     {
@@ -587,8 +588,8 @@ TEST_CASE("ExecutionScope PR 6.6: precomp inside tile uses independent child are
     auto pre_res_obj = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, precomp_arena,
         GraphInstanceId{3}, &tile_res_obj.value());
-    REQUIRE(tile_res_obj.is_ok());
-    REQUIRE(pre_res_obj.is_ok());
+    REQUIRE(tile_res_obj.has_value());
+    REQUIRE(pre_res_obj.has_value());
     const ExecutionScope& tile = tile_res_obj.value();
     const ExecutionScope& pre  = pre_res_obj.value();
 
@@ -619,8 +620,8 @@ TEST_CASE("ExecutionScope PR 6.6: two sibling tile scopes use independent arenas
     auto tile_b_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, tile_b_arena,
         GraphInstanceId{3}, &root);
-    REQUIRE(tile_a_res.is_ok());
-    REQUIRE(tile_b_res.is_ok());
+    REQUIRE(tile_a_res.has_value());
+    REQUIRE(tile_b_res.has_value());
     const ExecutionScope& tile_a = tile_a_res.value();
     const ExecutionScope& tile_b = tile_b_res.value();
 
@@ -644,8 +645,8 @@ TEST_CASE("ExecutionScope PR 6.6: tile scopes share the same session by referenc
     auto tile_b_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, arena_b,
         GraphInstanceId{3}, &root);
-    REQUIRE(tile_a_res.is_ok());
-    REQUIRE(tile_b_res.is_ok());
+    REQUIRE(tile_a_res.has_value());
+    REQUIRE(tile_b_res.has_value());
     const ExecutionScope& tile_a = tile_a_res.value();
     const ExecutionScope& tile_b = tile_b_res.value();
 
