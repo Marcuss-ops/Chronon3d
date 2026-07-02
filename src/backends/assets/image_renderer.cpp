@@ -203,7 +203,14 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
 
     const CachedImage* cached = nullptr;
     const auto t_decode0 = profiling::now();
-    cached = ImageCache::instance().get_or_load(image.path);
+    if (!m_cache) {
+        spdlog::error("ImageRenderer::draw_image: no ImageCache set");
+        return false;
+    }
+    // Fase B B1: get_or_load returns shared_ptr; cache holds its own copy.
+    // .get() is safe here because the cache pins the entry for the
+    // lifetime of this function.
+    cached = m_cache->get_or_load(image.path).get();
     const auto t_decode1 = profiling::now();
     const double decode_ms = profiling::duration_ms(t_decode0, t_decode1);
     if (profiling::g_current_counters && decode_ms > 0.0) {
@@ -427,7 +434,14 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
 
     const CachedImage* cached = nullptr;
     const auto t_decode0 = profiling::now();
-    cached = ImageCache::instance().get_or_load(image.path);
+    if (!m_cache) {
+        spdlog::error("ImageRenderer::draw_image_tiled: no ImageCache set");
+        return false;
+    }
+    // Fase B B1: get_or_load returns shared_ptr; cache holds its own copy.
+    // .get() is safe here because the cache pins the entry for the
+    // lifetime of this function.
+    cached = m_cache->get_or_load(image.path).get();
     const auto t_decode1 = profiling::now();
     const double decode_ms = profiling::duration_ms(t_decode0, t_decode1);
     if (profiling::g_current_counters && decode_ms > 0.0) {
