@@ -175,14 +175,21 @@ set(CHRONON3D_REGISTRY_INTERFACE_LIBS
 # Conditional deps (meshoptimizer, blend2d, ZLIB, freetype, harfbuzz,
 # FRIBIDI, OpenEXR) stay hand-written in Chronon3DConfig.cmake.in
 # (gated by CHRONON3D_* / @CHRONON3D_*@ flags, not in this SSoT).
+# ── SDK public deps — explicit Target::alias;package_name pairs ───────── │
+# Convention: each entry is a ';'-separated pair where index 0 is the
+# CMake TARGET alias (used by the SDK link contract in Chronon3DSdkTargets.cmake
+# via `$<INSTALL_INTERFACE:${_target_alias}>`) and index 1 is the vcpkg
+# package name (used for find_dependency at consumer config-time).
+# Storing both explicitly avoids silent string(REPLACE) / TOLOWER
+# normalization of package names (TBB stays 'tbb', xxHash stays 'xxhash').
 set(CHRONON3D_SDK_PUBLIC_DEPS
-    glm::glm
-    fmt::fmt
-    spdlog::spdlog_header_only
-    TBB::tbb
-    magic_enum::magic_enum
-    nlohmann_json::nlohmann_json
-    xxHash::xxhash
+    glm::glm;glm
+    fmt::fmt;fmt
+    spdlog::spdlog_header_only;spdlog
+    TBB::tbb;tbb
+    magic_enum::magic_enum;magic_enum
+    nlohmann_json::nlohmann_json;nlohmann_json
+    xxHash::xxhash;xxhash
 )
 
 # Auto-derive the find_dependency line block (consumed by
@@ -190,11 +197,13 @@ set(CHRONON3D_SDK_PUBLIC_DEPS
 # cmake/Chronon3DConfig.cmake.in's auto-marker block; validated by
 # tools/check_architecture_boundaries.sh check #16).
 set(_chronon3d_find_dep_lines "")
-foreach(_target_alias IN LISTS CHRONON3D_SDK_PUBLIC_DEPS)
-    string(REPLACE "::" ";" _parts "${_target_alias}")
-    list(GET _parts 0 _pkg_name)
-    string(TOLOWER "${_pkg_name}" _pkg_lowercase)
-    string(APPEND _chronon3d_find_dep_lines "find_dependency(${_pkg_lowercase} CONFIG)\n")
+foreach(_entry IN LISTS CHRONON3D_SDK_PUBLIC_DEPS)
+    # entry is "Target::alias;package_name"; index 0 is the link-target.
+    list(GET _entry 1 _pkg_name)
+    string(APPEND _chronon3d_find_dep_lines "find_dependency(${_pkg_name} CONFIG)\n")
 endforeach()
+# Idempotent rebuild: the foreach loop regenerates the string fresh on
+# every configure invocation, so cache replacement is unconditional and
+# a stale string cannot survive a registry-list edit.
 set(CHRONON3D_FIND_DEPENDENCY_LINES "${_chronon3d_find_dep_lines}"
-    CACHE INTERNAL "Auto-generated find_dependency lines (see cmake/Chronon3DRegistry.cmake)")
+    CACHE INTERNAL "Auto-generated find_dependency lines (idempotent — rebuilt every configure)")
