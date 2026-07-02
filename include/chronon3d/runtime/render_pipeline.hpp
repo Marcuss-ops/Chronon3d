@@ -87,9 +87,18 @@ public:
         const Composition& comp, Frame frame);
 
     // ── Diagnostics ───────────────────────────────────────────────
+    // TICKET-GATE-10-PHASE-4 fix-up: `float fps` had no default while
+    // parameters 5/6 had defaults, violating the C++ rule that all
+    // parameters after a defaulted parameter must also be defaulted.
+    // Caused by upstream commit `6df9b429` "fix(render): P1 #10 -
+    // remove hardcoded 30.0f fps defaults from core pipeline" which
+    // removed the default from `fps` but kept the prior defaults on
+    // `Frame frame` and `f32 frame_time`.  Sentinel 0.0f preserves
+    // the upstream intent (no hardcoded fps literal) while restoring
+    // valid C++ syntax.  No new public symbols; Cat-1 allowed.
     [[nodiscard]] std::string debug_graph(
         const Scene& scene, const Camera& camera, i32 width, i32 height,
-        Frame frame = 0, f32 frame_time = 0.0f, float fps);
+        Frame frame = 0, f32 frame_time = 0.0f, float fps = 0.0f);
 
 private:
     SoftwareRenderer* m_renderer;
