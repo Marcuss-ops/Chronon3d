@@ -1,15 +1,14 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@ac5f7125` (commit `ac5f7125`, `fix(build): resolve gate-10 consumer SDK build rot`) — 2026-07-02. Linux-only.
+> **Snapshot:** `main@0295203d` (commit `0295203d`, `docs(tickets): create individual TICKET-P1-07 through TICKET-P1-12.md`) — 2026-07-02. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@aaf70032` (10/11 PASS — vedi [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md)).
-> **Baseline corrente:** `main@ac5f7125` — **8/11 PASS** (NON VERDE).
-> Gate #4 FAIL: `check_gitignored_dirs.sh` — `reports/perf/main-73a2aa9b-gates.json` è ancora un tracked file con percorso assoluto embedded.
-> Gate #7 FAIL: `check_doc_sync.sh` exit 1 (R1) — le modifiche `src/runtime/**` (commit `28004f96` + `59db2da5`) non sono documentate né in `docs/CURRENT_STATUS.md` né in `docs/ROADMAP.md`.
-> Gate #10 FAIL: `install_consumer_test.sh` — Phase 1.1–3 OK (SDK compila + install nel consumer prefix + canary gate verde), ma Phase 4 (consumer cmake build esterno) fallisce su dipendenza `tbb`/`oneTBB` non fornita dal consumer-config.
-> Gate #8 borderline PASS: `check_filename_drift.sh` exit 0 ma 66 warning drift.
+> **Baseline corrente:** `main@0295203d` — **10/11 PASS** (NON VERDE — manca 1 gate).
+> Gate #4 RISOLTO: `check_gitignored_dirs.sh` — `reports/perf/` aggiunto a `.gitignore` (commit `f6f700b1`).
+> Gate #10 FAIL: `install_consumer_test.sh` — build rot pre-esistente (consumer build esterno fallisce). Ultimo blocker per 11/11.
+> Gate #8 borderline PASS: `check_filename_drift.sh` exit 0 ma 155 warning drift.
 >
-> Tra `aaf70032` e l'HEAD corrente sono atterrati: TICKET-118 + TICKET-119 closures, P0 #1, P0 #2, P1 #1–#5 fixes, gate-10 fix (commit `ac5f7125`, 6 build-fix: include mancanti + cmake manifest riparato + namespace closing brace + 4 symlink per file spostati in `internal/`), e TICKET-PUBLIC-MANIFEST-01 (commit `59db2da5`, riparazione manifest corrotto).
+> Tra `aaf70032` e l'HEAD corrente sono atterrati: TICKET-118/119, P0 #1–#2, P1 #1–#5 fixes, P1 #10 (rimozione hardcode 30.0f fps, `6df9b429` + `560750e3`), P1 #12 (CMake ar merge + include_private cleanup, `59b2439f`), gate #4 fix (`f6f700b1`), gate #10 analyze_scene_graph fix (`560750e3`), ticket P1-07..P1-12 individuali (`0295203d`).
 >
 > Documenti canonici (vedi [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) per il contratto):
 > - Regole operative / feature freeze: [`AGENTS.md`](../AGENTS.md)
@@ -71,14 +70,26 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 ## Certificazione corrente
 
 Ultima baseline macchina-verificata: `main@aaf70032` — **10/11 PASS**.
-Baseline corrente: `main@ac5f7125` — **8/11 PASS** (NON VERDE; gate #4 FAIL tracked-asset leak, gate #7 FAIL doc-sync R1, gate #10 FAIL consumer-build Phase 4 tbb).
+Baseline corrente: `main@0295203d` — **10/11 PASS** (NON VERDE; gate #10 FAIL — consumer build rot pre-esistente).
+Gate #4 (gitignored dirs) risolto da `f6f700b1`.
+Gate #7 (doc-sync) PASS nella run corrente.
 Per la revoca del **feature freeze** (vedi `AGENTS.md`) è richiesto **11/11 PASS sullo stesso commit**.
 Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA, una sola baseline per commit).
-Log della run: [`reports/perf/main-73a2aa9b-gates.json`](../reports/perf/main-73a2aa9b-gates.json) (gate snapshot pre-fix, commit `73a2aa9b` → 10/11 PASS con gate #10 ancora FAIL).
+
+## Chiusure recenti (P1)
+
+| P1 | Area | Commit | Stato |
+|----|------|--------|-------|
+| P1 #10 | Frame rate hardcoded | `6df9b429` + `560750e3` | ✅ DONE |
+| P1 #12 | CMake ar merge + include_private | `59b2439f` | ✅ DONE |
+| P1 #7 | Asset resolver globale | — | PLANNED |
+| P1 #8 | Text renderer monolite | — | PLANNED |
+| P1 #9 | RenderRuntime service locator | — | PLANNED |
+| P1 #11 | Timeline percorsi multipli | — | PLANNED |
 
 ## Prossimo passo operativo
 
-Ottenere un commit `main@<X>` con 11/11 PASS macchina-verificati per promuovere la baseline a CERTIFICATA, poi revocare formalmente il freeze. Nel frattempo i lavori consentiti sono solo nelle 5 categorie del freeze (build-fix, test deterministici, rimozione percorsi legacy, consumer SDK, allineamento documentazione — quest'ultima è la categoria del presente commit).
+Chiudere gate #10 (install_consumer_test.sh) per raggiungere 11/11 PASS, poi revocare formalmente il feature freeze. I P1 #7, #8, #9, #11 sono pianificati post-baseline verde.
 
 ## Link canonici
 
@@ -92,22 +103,22 @@ Ottenere un commit `main@<X>` con 11/11 PASS macchina-verificati per promuovere 
 - [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) — contratto documentale (single-source-of-truth).
 - [`docs/ARCHIVE/`](docs/ARCHIVE/) — materiale storico (non operativo; nessun riferimento operativo consentito).
 
-## Gate audit snapshot — `main@ac5f7125` (2026-07-02)
+## Gate audit snapshot — `main@0295203d` (2026-07-02)
 
 | # | Gate                                        | Esito      | Note                                                                       |
 |---|---------------------------------------------|------------|----------------------------------------------------------------------------|
-| 1 | `check_architecture_boundaries.sh`          | ✅ PASS    | 13/15 check, 2 advisory (non blocker).                                     |
-| 2 | `check_architecture_boundaries_selftest.sh` | ✅ PASS    | 15/15 assertions.                                                          |
+| 1 | `check_architecture_boundaries.sh`          | ✅ PASS    | 14/15 check, 1 advisory (TICKET-042, non blocker).                        |
+| 2 | `check_architecture_boundaries_selftest.sh` | ✅ PASS    | 15 assertions.                                                             |
 | 3 | `check_software_renderer_boundary.sh`       | ✅ PASS    | I1-I5 tutti rispettati.                                                    |
-| 4 | `check_gitignored_dirs.sh`                  | ❌ FAIL    | `reports/perf/main-73a2aa9b-gates.json` tracked (abs-path leak).          |
+| 4 | `check_gitignored_dirs.sh`                  | ✅ PASS    | Fissato da `f6f700b1` (`reports/perf/` in `.gitignore`).                 |
 | 5 | `audit_software_renderer.sh`                | ✅ PASS    |                                                                            |
-| 6 | `check_camera_architecture.sh`              | ✅ PASS    | CAM-DOC 04 verde.                                                          |
-| 7 | `check_doc_sync.sh`                         | ❌ FAIL    | exit 1 (R1); richiede sync di `src/runtime/**` in `CURRENT_STATUS` + `ROADMAP`. |
-| 8 | `check_filename_drift.sh`                   | ⚠️ PASS*   | warn-mode; 66 drift warning.                                               |
+| 6 | `check_camera_architecture.sh`              | ✅ PASS    |                                                                            |
+| 7 | `check_doc_sync.sh`                         | ✅ PASS    |                                                                            |
+| 8 | `check_filename_drift.sh`                   | ⚠️ PASS*   | warn-mode; 155 drift warning.                                              |
 | 9 | `test_architectural.sh`                     | ✅ PASS    | Static architecture-level rot: 0.                                          |
-| 10 | `install_consumer_test.sh`                | ❌ FAIL    | Phase 1.1–3 OK (SDK build+install+canary); Phase 4 consumer-build FAIL su `tbb`. |
+| 10 | `install_consumer_test.sh`                | ❌ FAIL    | Ultimo blocker — consumer build esterno fallisce (build rot pre-esistente).|
 | 11 | `check_backend_sanitization.py`            | ✅ PASS    |                                                                            |
 
-**Totale: 8/11 PASS** — 3 gate da chiudere per la baseline verde (gate #4, #7, #10).
+**Totale: 10/11 PASS** — 1 gate da chiudere per la baseline verde (gate #10).
 
 _Limite raccomandato: 150 righe (vedi `DOCUMENTATION_GOVERNANCE.md` DoD §10)._
