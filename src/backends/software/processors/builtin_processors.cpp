@@ -19,7 +19,11 @@ std::unique_ptr<ShapeProcessor> create_fake_box3d_processor();
 std::unique_ptr<ShapeProcessor> create_grid_plane_processor();
 #ifdef CHRONON3D_ENABLE_TEXT
 std::unique_ptr<ShapeProcessor> create_text_processor();
-std::unique_ptr<ShapeProcessor> create_text_run_processor();
+// TICKET-118 — create_text_run_processor() factory + forward-declaration
+// REMOVED.  The dummy TextRunProcessor (no-op draw + zero bbox) it returned
+// served only as a registry marker; canonical text-run dispatch goes
+// through `SoftwareBackend::draw_text_run` (called from `multi_source_node`
+// via the TextRunNode path).  See text_run_processor.cpp tail.
 #endif
 
 // Forward declarations for effect processors
@@ -80,7 +84,11 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     // dispatch ladder compiling while the authoring layer routes every
     // text node through TextRun.
     registry.register_shape(ShapeType::Text, create_text_processor());
-    registry.register_shape(ShapeType::TextRun, create_text_run_processor());
+    // TICKET-118 — `registry.register_shape(ShapeType::TextRun, ...)`
+    // REMOVED.  The TextRun dispatch goes through `SoftwareBackend::draw_text_run`
+    // directly via `multi_source_node` / `TextRunNode`.  See the upstream
+    // TODO block above for the P2 plan on retiring the orphan
+    // `ShapeType::Text` entry on the same lifecycle.
 #endif
     registry.register_shape(ShapeType::Mesh, create_mesh_processor());
     registry.register_shape(ShapeType::FakeBox3D, create_fake_box3d_processor());

@@ -14,6 +14,7 @@
 #include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/backends/software/software_backend_services.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
+#include "internal/software_processor_services.hpp"  // TICKET-118/119 (PUBLIC via parent CMakeLists)
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <spdlog/spdlog.h>
 #include <stdexcept>
@@ -52,8 +53,14 @@ void attach_software_backend(chronon3d::SoftwareRenderer* renderer) {
         return;
     }
 
+    // TICKET-118/119 — `SoftwareBackendServices::owner` REMOVED.  The
+    // public services bundle no longer carries the SoftwareRenderer*
+    // back-pointer; orchestrator-only fields (registry / image_backend /
+    // font_engine) are attached post-construction via
+    // `SoftwareBackend::attach_processor_context()`.  Lifetime invariant
+    // (preserved): renderer outlives the backend because `renderer->runtime()`
+    // owns the backend and `~RenderRuntime()` runs BEFORE `~SoftwareRenderer()`.
     chronon3d::SoftwareBackendServices services{};
-    services.owner            = renderer;
     services.counters         = renderer->counters();
     services.settings         = &renderer->render_settings();
     services.framebuffer_pool = renderer->runtime().framebuffer_pool_shared();
@@ -72,7 +79,22 @@ void attach_software_backend(chronon3d::SoftwareRenderer* renderer) {
         throw std::runtime_error(
             std::string{"attach_software_backend: "} + e.message);
     }
-    renderer->runtime().attach_backend(std::move(factory_result.value()));
+
+    // TICKET-119 — wire the orchestrator-only fields through the internal
+    // bridge (`src/backends/software/internal/software_processor_services.hpp`).
+    // The resulting context carries nullptr `renderer` (m_owner eliminated)
+    // and a populated registry + image_backend [+ font_engine] triplet.
+    auto backend = std::move(factory_result.value());
+    internal::ProcessorSourceExtras extras{};
+    extras.registry      = renderer->software_registry();
+    extras.image_backend = renderer->image_backend();
+#ifdef CHRONON3D_HAS_BACKEND_TEXT
+    extras.font_engine   = renderer->font_engine();
+#endif
+    backend->attach_processor_context(
+        internal::make_processor_context(services, extras));
+
+    renderer->runtime().attach_backend(std::move(backend));
 }
 
 } // namespace chronon3d::backends::software
