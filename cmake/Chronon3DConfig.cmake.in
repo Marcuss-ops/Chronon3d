@@ -2,22 +2,27 @@
 
 include(CMakeFindDependencyMacro)
 
-# Required third-party dependencies that propagate through the SDK link graph.
-# find_dependency() resolves them at config-time so consumers don't have to
-# call find_package() for each one themselves.
-find_dependency(spdlog CONFIG)
-find_dependency(fmt CONFIG)
-find_dependency(TBB CONFIG)
-find_dependency(glm CONFIG)
-find_dependency(xxHash CONFIG)
-find_dependency(nlohmann_json CONFIG)
-find_dependency(magic_enum CONFIG)
+# Required third-party dependencies that propagate through the SDK link
+# graph.  find_dependency() resolves them at config-time so consumers
+# don't have to call find_package() for each one themselves.
+#
+# The block between the AUTO-GENERATED markers is regenerated from
+# CHRONON3D_SDK_PUBLIC_DEPS (single source of truth in
+# cmake/Chronon3DRegistry.cmake) via configure_file's @ONLY mode in
+# the root CMakeLists.txt.  Drift between list-length and the
+# marker-block find_dependency count is fail-fasted by
+# tools/check_architecture_boundaries.sh check #16.
+# >>> AUTO-GENERATED FROM CHRONON3D_SDK_PUBLIC_DEPS (do not edit) >>>
+@CHRONON3D_FIND_DEPENDENCY_LINES@
+# <<< END AUTO-GENERATED BLOCK <<<
 
 # hwy (highway) is linked PRIVATE by chronon3d_graph_core and
 # chronon3d_backend_software, but CMake propagates it into the
 # installed INTERFACE_LINK_LIBRARIES of the static archive's
 # transitive closure via $<LINK_ONLY:hwy::hwy>.  find_dependency
-# ensures consumers can resolve it.
+# ensures consumers can resolve it.  Keep this line HAND-WRITTEN — do
+# NOT add hwy::hwy to CHRONON3D_SDK_PUBLIC_DEPS unless its link
+# contract is also promoted from PRIVATE to PUBLIC.
 find_dependency(hwy CONFIG)
 
 # Stb and Taskflow are intentionally omitted: they are either
