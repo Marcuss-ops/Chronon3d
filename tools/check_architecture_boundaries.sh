@@ -396,6 +396,60 @@ else
     echo "SKIP (tools/check_legacy_text_pipeline.sh not executable)"
 fi
 
+# ── 16. SDK public-deps SSoT fail-on-drift ─────────────────────────────
+# Source-level structural invariant enforcing the fail-on-drift contract
+# (per ANTI_DUPLICATION_RULES.md) between the canonical SDK_PUBLIC_DEPS
+# list (cmake/Chronon3DRegistry.cmake) and the AUTO-GENERATED marker
+# block in cmake/Chronon3DConfig.cmake.in.  Two invariants:
+#
+#   (a) Registry: CHRONON3D_SDK_PUBLIC_DEPS contains ≥1 entry (sanity).
+#   (b) Marker block: EXACTLY ONE @CHRONON3D_FIND_DEPENDENCY_LINES@
+#       substitution line and ZERO hand-written find_dependency( lines.
+#
+# At CONFIGURE time, configure_file(... @ONLY) expands the variable via
+# the foreach loop in Chronon3DRegistry.cmake, producing exactly
+# length(CHRONON3D_SDK_PUBLIC_DEPS) find_dependency lines in the
+# GENERATED cmake/Chronon3DConfig.cmake.  Runtime count parity is a
+# property of the substitution mechanism; this gate enforces the wiring
+# that guarantees it.
+echo -n "  [16/16] SDK public-deps SSoT wiring ... "
+if [ -f cmake/Chronon3DRegistry.cmake ] && [ -f cmake/Chronon3DConfig.cmake.in ]; then
+    registry_entries=$(awk '
+        /set\s*\(\s*CHRONON3D_SDK_PUBLIC_DEPS/ { in_list=1; next }
+        /^\s*\)\s*$/ { in_list=0 }
+        in_list && /\S/ && !/^\s*#/ && !/^\s*\(/ { print }
+    ' cmake/Chronon3DRegistry.cmake | wc -l)
+    marker_subs=$(awk '
+        />>>\s*AUTO-GENERATED FROM CHRONON3D_SDK_PUBLIC_DEPS/ { in_marker=1; next }
+        /<<<\s*END AUTO-GENERATED BLOCK/ { in_marker=0; next }
+        in_marker && /@CHRONON3D_FIND_DEPENDENCY_LINES@/ { print }
+    ' cmake/Chronon3DConfig.cmake.in | wc -l)
+    marker_finds=$(awk '
+        />>>\s*AUTO-GENERATED FROM CHRONON3D_SDK_PUBLIC_DEPS/ { in_marker=1; next }
+        /<<<\s*END AUTO-GENERATED BLOCK/ { in_marker=0; next }
+        in_marker && /^[[:space:]]*find_dependency\(/ { print }
+    ' cmake/Chronon3DConfig.cmake.in | wc -l)
+    drift=""
+    [ "$registry_entries" -lt 1 ] && drift="${drift}empty-sdk-public-deps "
+    [ "$marker_subs" -ne 1 ] && drift="${drift}marker-substitution-ne-1 "
+    [ "$marker_finds" -ne 0 ] && drift="${drift}marker-handwritten-find-dependency-lines "
+    if [ -z "$drift" ]; then
+        echo "PASS (registry=${registry_entries} entries; marker=1 substitution / 0 hand-written)"
+    else
+        echo "FAIL (${drift})"
+        echo "    registry CHRONON3D_SDK_PUBLIC_DEPS entries: $registry_entries"
+        echo "    marker block @CHRONON3D_FIND_DEPENDENCY_LINES@ lines: $marker_subs (expect 1)"
+        echo "    marker block hand-written find_dependency( lines: $marker_finds (expect 0)"
+        echo "    → chrono3DConfig.cmake.in marker block must contain EXACTLY ONE"
+        echo "      '@CHRONON3D_FIND_DEPENDENCY_LINES@' substitution line and ZERO"
+        echo "      'find_dependency(' lines.  Runtime count parity with"
+        echo "      CHRONON3D_SDK_PUBLIC_DEPS is enforced by the substitution mechanic."
+        FAILED=1
+    fi
+else
+    echo "SKIP (registry or Config template missing)"
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────
 echo ""
 if [ "$FAILED" -ne 0 ]; then
