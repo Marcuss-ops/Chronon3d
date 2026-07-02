@@ -114,6 +114,20 @@ artifacts/visual/camera/
 # CMake build artifacts (regenerated on every configure)
 CMakeCache.txt
 CMakeFiles/
+build.ninja
+.ninja_log
+.ninja_deps
+compile_commands.json
+cmake_install.cmake
+CTestTestfile.cmake
+install_manifest.txt
+install_manifest.json
+
+# Scratch / ephemeral directories produced by gate scripts (install_consumer,
+# benchmark snapshots, ad-hoc agent tooling).  NEVER committed; playbooks in
+# docs/AGENTS.md and tools/check_repo_artifacts.sh enforce this.
+.tmp_gate*/
+.tmp_*/
 
 # Local git worktrees (parallel agent branches — never on main)
 .worktrees/
