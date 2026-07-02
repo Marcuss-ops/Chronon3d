@@ -46,6 +46,67 @@ cleanup_register "$CONS_BUILD"
 
 log "consumer build starting (CONS_BUILD=$CONS_BUILD)"
 
+# ── Phase 4 STRICT pre-build source discipline (P3-H gate) ─────────────
+# These five static greps enforce the P3-H RELEASE_GATE.md §SDK Product V1/8
+# invariants without waiting for the compile+run+PNG cycle.  Any miss ⇒
+# fail() with a precise diagnostic.
+CONSUMER_SRC="$REPO_ROOT/tests/install_consumer/main.cpp"
+log "P3-H strict pre-build: static greps on $CONSUMER_SRC"
+[[ -f "$CONSUMER_SRC" ]] || fail "consumer source missing: $CONSUMER_SRC"
+
+# (2) Manifest-clean: NO advanced/, internal.hpp, runtime.hpp, test/*.
+BANNED_RX='#include[[:space:]]*<(advanced/|.*/advanced/|.*internal\.hpp|.*runtime\.hpp|.*/test/[a-z])>'
+banned_hits="$(grep -nE "$BANNED_RX" "$CONSUMER_SRC" 2>/dev/null || true)"
+if [[ -n "$banned_hits" ]]; then
+    log "Banned-path includes found:"
+    printf '%s\n' "$banned_hits" >&2
+    fail "phase4 strict: consumer source contains banned-path includes"
+fi
+
+# (3a) Productive text run present.
+text_hits="$(grep -cE 'TextShape|LayerKind::Text' "$CONSUMER_SRC" 2>/dev/null || echo 0)"
+text_hits="${text_hits//[[:space:]]/}"   # strip whitespace
+if [[ "${text_hits:-0}" -lt 1 ]]; then
+    fail "phase4 strict: consumer source missing TextShape / LayerKind::Text (productive text run required)"
+fi
+log "  - text layer markers: $text_hits hit(s)"
+
+# (3b) Compiled camera present (CameraDescriptor + setter on Composition).
+camera_hits="$(grep -cE 'camera_v1::CameraDescriptor|default_camera_descriptor' "$CONSUMER_SRC" 2>/dev/null || echo 0)"
+camera_hits="${camera_hits//[[:space:]]/}"
+if [[ "${camera_hits:-0}" -lt 1 ]]; then
+    fail "phase4 strict: consumer source missing camera_v1::CameraDescriptor / default_camera_descriptor"
+fi
+log "  - camera markers: $camera_hits hit(s)"
+
+# (4a) sdk::RenderEngine used ≥ 1 (P3-H productive engine path).
+sdk_hits="$(grep -cE '(^|[^A-Za-z0-9_])(chronon3d|c3d)::sdk::RenderEngine' "$CONSUMER_SRC" 2>/dev/null || echo 0)"
+sdk_hits="${sdk_hits//[[:space:]]/}"
+if [[ "${sdk_hits:-0}" -lt 1 ]]; then
+    fail "phase4 strict: consumer source does NOT use chronon3d::sdk::RenderEngine"
+fi
+log "  - sdk::RenderEngine markers: $sdk_hits hit(s)"
+
+# (4b) Legacy bare-namespace RenderEngine class NOT used.
+# Three USAGE-shaped patterns are matched (NOT mere doc references):
+#   (a) variable declaration:    c3d::RenderEngine engine;       / with brace-init
+#   (b) pointer declaration:     c3d::RenderEngine* p;
+#   (c) static method call:      c3d::RenderEngine::render(...)
+# After `RenderEngine`, the regex requires either `\s+[a-zA-Z_]` (var/brace
+# decl), `\s*\*` (pointer decl), or `::` (member/static acccess).  A
+# bare textual reference in a comment (e.g. "the legacy
+# chronon3d::RenderEngine") followed by end-of-line does NOT match.
+# `sdk::` on the same line is then excluded explicitly.
+legacy_rx='(chronon3d|c3d)::RenderEngine(\s+[a-zA-Z_]|\s*\*|::)'
+legacy_hits="$(grep -nE "$legacy_rx" "$CONSUMER_SRC" 2>/dev/null \
+    | grep -v 'sdk::' || true)"
+if [[ -n "$legacy_hits" ]]; then
+    log "Legacy RenderEngine (non-sdk) usage found:"
+    printf '%s\n' "$legacy_hits" >&2
+    fail "phase4 strict: consumer source still uses legacy chronon3d::RenderEngine (deprecated)"
+fi
+log "P3-H strict pre-build: all five static checks passed"
+
 # ── Configure consumer respecting vcpkg / existing toolchain ─────────
 CONS_PREFIX_PATH="$SDK_PREFIX"
 if [[ -n "${VCPKG_INSTALLED_DIR:-}" ]]; then
@@ -79,20 +140,70 @@ consumer_bin="$CONS_BUILD/check_install"
 [[ -x "$consumer_bin" ]] || fail "consumer binary not found at $consumer_bin"
 
 # ── Helpers (kept local — no need to pollute common.sh) ───────────────
-# Fix (audit P0 #5): moved BEFORE first use (was after exit 0).
-count_non_zero_pixels() {
+# Fix (audit P0 #5): helper moved BEFORE first use (was after exit 0).
+# check_pixel_hash_strict — P3-H strict check: ≥ 1 PNG pixel must have
+# mean RGB luminance > 5/255 (thus R+G+B > 15 in 8-bit).  Replaces the
+# previous diagnostic-only count_non_zero_pixels() with a HARD fail
+# when the rendered PNG would be black (audit P0 #6 follow-up).
+# Return codes:
+#   0 = PASS (≥ 1 such pixel found); stdout holds a diagnostic line.
+#   1 = FAIL (zero such pixels → output PNG is black/below threshold).
+#   2 = TOOL-MISSING (neither python3+PIL nor ImageMagick available).
+check_pixel_hash_strict() {
     local png="$1"
-    local py
-    py="$(printf 'python3 -c "from PIL import Image; img=Image.open(%q); print(sum(1 for p in img.getdata() if p != (0,0,0,0)))"' "$png")"
-    local out
-    if out="$(bash -c "$py" 2>/dev/null)"; then
-        printf '%s' "$out"
-        return 0
+
+    # Python + PIL primary path.  convert('RGBA') guarantees 4-channel
+    # data; we sum per-channel byte values; threshold R+G+B > 15 picks
+    # up any pixel with mean RGB > 5/255.
+    if command -v python3 >/dev/null 2>&1; then
+        local py_rc py_out
+        set +e
+        py_out="$(python3 - "$png" <<'PYEOF' 2>/dev/null)
+import sys
+from PIL import Image
+img = Image.open(sys.argv[1]).convert('RGBA')
+w, h = img.size
+above = 0
+for r, g, b, _a in img.getdata():
+    if (r + g + b) > 15:
+        above += 1
+img.close()
+print(f'PASS above={above}/{w*h} (mean_rgb_per_pixel>5/255)')
+sys.exit(0 if above >= 1 else 1)
+PYEOF
+)"
+        py_rc=$?
+        set -e
+        if [[ "$py_rc" -eq 0 ]]; then
+            printf '%s' "$py_out"
+            return 0
+        fi
+        if [[ "$py_rc" -eq 1 ]]; then
+            return 1
+        fi
+        # py_rc=2 ⇒ PIL not installed (ImportError).  Fall through to IM.
     fi
-    # ImageMagick fallback (heuristic): mean * w * h is a coarse proxy
-    # for total intensity; acceptable as a best-effort sanity check.
-    out="$(identify -format '%[fx:int(mean*w*h)]' "$png" 2>/dev/null || echo '')"
-    printf '%s' "$out"
+
+    # ImageMagick fallback.  Uses the global image mean (averaged over
+    # all pixels in RGB) and compares against > 5/255 normalised.
+    # mean < 5/255 implies the integrated luminance is below the
+    # threshold (sufficient but not necessary condition for FAIL).
+    if command -v identify >/dev/null 2>&1; then
+        local mean
+        mean="$(identify -format '%[fx:mean]' "$png" 2>/dev/null || true)"
+        if [[ -z "$mean" ]]; then
+            return 2   # tool failed — treat as missing
+        fi
+        # mean is normalised to [0,1]. Threshold: 5/255 ≈ 0.0196.
+        if awk -v m="$mean" 'BEGIN { exit !(m > 0.0196) }'; then
+            printf 'PASS (ImageMagick mean=%s > 0.0196)' "$mean"
+            return 0
+        else
+            return 1
+        fi
+    fi
+
+    return 2   # neither Python+PIL nor ImageMagick available
 }
 
 # ── Run consumer + assert [BOUNDARY-OK] ───────────────────────────────
@@ -116,17 +227,21 @@ output_png="$CONS_BUILD/sdk_consumer_output.png"
 png_size="$(stat -c%s "$output_png" 2>/dev/null || echo 0)"
 (( png_size > 0 )) || fail "output PNG is empty: $output_png"
 
-# ── Non-zero pixel-count probe (Python+PIL preferred; IM fallback) ────
-# Fix (audit P0 #6): the strict-A consumer explicitly declares a near-
-# empty / all-black framebuffer is the expected outcome (empty SceneFn
-# → no layers → blank output).  The 1000-pixel minimum has been
-# REMOVED; the pixel probe is now DIAGNOSTIC only.  File size > 0
-# (checked above) is the authoritative gate for PNG round-trip success.
-non_zero="$(count_non_zero_pixels "$output_png" 2>/dev/null || echo '')"
-if [[ -n "$non_zero" ]]; then
-    log "PNG verified: $output_png ($png_size bytes, $non_zero non-zero pixels)"
-else
-    log "PNG verified: $output_png ($png_size bytes, pixel probe skipped — Python+PIL / ImageMagick not available)"
-fi
+# ── STRICT PIXEL-HASH VERIFICATION (≥ 1 pixel with mean RGB > 5/255) ──
+# Replaces the previous "DIAGNOSTIC only" probe: BOUNDARY-OK + exit 0
+# ONLY if ≥ 1 pixel has mean RGB luminance > 5/255.  File size > 0
+# alone is no longer authoritative — a black-framebuffer PNG of size N
+# would have passed the old gate.  Helper rc:
+#   0 = PASS;  1 = FAIL (PNG near-black);  2 = tool-missing.
+set +e
+pixel_hash_out="$(check_pixel_hash_strict "$output_png")"
+hash_rc=$?
+set -e
+case "$hash_rc" in
+    0) log "PNG strict pixel-hash verified: $output_png ($png_size bytes, $pixel_hash_out)" ;;
+    1) fail "phase4 strict: PNG is near-black (0 pixels with mean RGB > 5/255). Output: $output_png" ;;
+    2) fail "phase4 strict: cannot verify pixel-hash — install python3+PIL or ImageMagick" ;;
+    *) fail "phase4 strict: check_pixel_hash_strict returned unknown rc=$hash_rc" ;;
+esac
 
 exit 0
