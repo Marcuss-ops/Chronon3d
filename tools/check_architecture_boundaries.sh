@@ -421,12 +421,12 @@ if [ -f cmake/Chronon3DRegistry.cmake ] && [ -f cmake/Chronon3DConfig.cmake.in ]
     ' cmake/Chronon3DRegistry.cmake | wc -l)
     marker_subs=$(awk '
         />>>\s*AUTO-GENERATED FROM CHRONON3D_SDK_PUBLIC_DEPS/ { in_marker=1; next }
-        /^#\s*<<<\s*$/  # whitespace-tolerant closing-<<< marker { in_marker=0; next }
+        /^#\s*<<<\s*END AUTO-GENERATED BLOCK/ { in_marker=0; next }
         in_marker && /@CHRONON3D_FIND_DEPENDENCY_LINES@/ { print }
     ' cmake/Chronon3DConfig.cmake.in | wc -l)
     marker_finds=$(awk '
         />>>\s*AUTO-GENERATED FROM CHRONON3D_SDK_PUBLIC_DEPS/ { in_marker=1; next }
-        /^#\s*<<<\s*$/  # whitespace-tolerant closing-<<< marker { in_marker=0; next }
+        /^#\s*<<<\s*END AUTO-GENERATED BLOCK/ { in_marker=0; next }
         in_marker && /^[[:space:]]*find_dependency\(/ { print }
     ' cmake/Chronon3DConfig.cmake.in | wc -l)
     drift=""
