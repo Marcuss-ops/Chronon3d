@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@aaf70032` — 2026-07-01. Linux-only.
+> **Snapshot:** `main@c856387a` — 2026-07-02. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@aaf70032` (10/11 PASS — vedi [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md)).
 > Baseline registrata sul commit corrente in questo turno: gate #3 (I5 SoftwareRenderer&) promosso a PASS dal P0-1; gate #10 regressa su unbound-variable script rot (diverso dal CMake-version rot della baseline precedente).
