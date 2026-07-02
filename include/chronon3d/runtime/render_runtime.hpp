@@ -245,11 +245,13 @@ private:
 //
 // Migration blocked by the breadth of call sites.  Tracked for
 // Phase C (post-feature-freeze).
+[[deprecated("Use RenderRuntime::resolver() or dependency injection instead")]]
 void set_process_wide_assets_root(std::string root);
 /// @deprecated Fase B — process-wide global; see deprecation banner above.
 /// Returns by value (not by reference) so callers cannot hold a pointer
 /// past a concurrent `set_process_wide_assets_root` which would move-assign
 /// the underlying string.  Empty if nothing has been configured.
+[[deprecated("Use RenderRuntime::resolver().mount_root() instead")]]
 [[nodiscard]] std::string process_wide_assets_root();
 
 /// @deprecated Fase B — process-wide lazy-static singleton; see
@@ -257,6 +259,7 @@ void set_process_wide_assets_root(std::string root);
 /// Lazy-static; first-mount semantics against `process_wide_assets_root()`;
 /// thread-safety via resolver's internal `shared_mutex`.  Lifetime is the
 /// process.  WP-8 PR 8.1 migration target.
+[[deprecated("Use RenderRuntime::resolver() instead")]]
 [[nodiscard]] const chronon3d::assets::AssetResolver&
 process_wide_resolver();
 
