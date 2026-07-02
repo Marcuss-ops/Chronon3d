@@ -90,7 +90,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_composition(
 
 std::string RenderPipeline::debug_graph(
     const Scene& scene, const Camera& camera, i32 width, i32 height,
-    Frame frame, f32 frame_time, float fps)
+    float fps, Frame frame, f32 frame_time)
 {
     return chronon3d::graph::debug_scene_graph(
         m_runtime.backend(),

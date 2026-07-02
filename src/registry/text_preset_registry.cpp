@@ -1210,7 +1210,7 @@ TextPresetDescriptor caption_box_entry() {
 // ── FASE 5 (TICKET-107) — per-category register helpers lifted out of the
 // anon namespace into `chronon3d::registry::register_helpers_internal` so
 // tests (and any sibling internal TU) can call them in isolation.
-namespace chronon3d::registry::register_helpers_internal {
+namespace register_helpers_internal {
 
 void register_text_preset_cinematic(TextPresetRegistry& r) {
     // ── Cinematic (4) — PR `41cda40c` kept verbatim ──────────────────────
