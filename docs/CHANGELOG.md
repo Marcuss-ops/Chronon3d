@@ -11,6 +11,25 @@ On commit `28004f96` (sdk-public-surface reduction), a buggy bash heredoc leaked
 
 ## Luglio 2026 — Chiusure recenti
 
+### cmake/SDK — TICKET-GATE-10-PHASE-4 case-fix + transitive consumer headers (commit `21b9fb5d`)
+- `cmake/Chronon3DRegistry.cmake`: case-fix in `CHRONON3D_SDK_PUBLIC_DEPS` —
+  `"TBB::tbb|tbb"` → `"TBB::tbb|TBB"`,
+  `"xxHash::xxhash|xxhash"` → `"xxHash::xxhash|xxHash"`. Necessario perché il blocco
+  `find_dependency(...)` auto-generato nell'installed `Chronon3DConfig.cmake`
+  emetteva lookup lowercase non risolvibili su Linux ext4 (case-sensitive FS)
+  contro `vcpkg_installed/x64-linux/share/tbb/TBBConfig.cmake` /
+  `xxHashConfig.cmake` (TitleCase). vcpkg snapshot 2026-05-27-d5b6777d.
+- `cmake/Chronon3DPublicHeaders.cmake`: 44 install-pipeline-only entries —
+  1 inline `core/dirty_fallback_reason.hpp` (transitivo in `core/profiling/counters.hpp`)
+  + 43 transitive-needed mass-appended sotto blocco comment `TICKET-GATE-10-PHASE-4`.
+  Audit invariants (replay via `/tmp/audit_v3.py`): manifest 149 → 193, missing non-internal 174 → 15.
+- AGENTS.md v0.1 freeze Cat-1 (build corrections — install-pipeline plumbing).
+  Zero nuove API pubbliche; nessun `#include` install-time oltre `cmake/`.
+- Audit verificato: 16/16 check pass al gate-1 (`tools/check_architecture_boundaries.sh`).
+  Phase 4 end-to-end verde ancora da certificare in CI.
+- Followup: `TICKET-GATE-10-PHASE-4-FULL` (15 vendored wrappers glm/tracy/magic_enum ancora
+  transitivamente richiesti; nuova triage post-this-commit).
+
 ### Gate-10 consumer-SDK build-rot fix (commit `ac5f7125`)
 - `src/backends/software/software_backend.cpp`: aggiunti include mancanti per `RenderNode` + `SoftwareRegistry` (invalid use of incomplete type nel dispatch `get_shape()->draw`).
 - `cmake/Chronon3DPublicHeaders.cmake`: pulizia (era corrotto da artefatti sed nel fix-forward `59db2da5`).
