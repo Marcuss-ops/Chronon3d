@@ -152,15 +152,49 @@ set(CHRONON3D_REGISTRY_INTERFACE_LIBS
     chronon3d_ffmpeg_full
 )
 
-# ── SDK link-deps (forward-compat §14.5 / §14.6) ─────────────────────────
-# Canonical third-party link contract that the consumer-facing
-# Chronon3D::SDK INTERFACE target will wrap.  §14.6 populates this
-# with the canonical dependency set (glm / fmt / spdlog / tbb /
-# magic_enum / nlohmann_json / xxHash / hwy + conditionals); §14.5
-# reads it to construct the final INTERFACE target so there is ONE
-# in-tree/installed path and ZERO duplication of the link closure.
+# ── SDK public deps — single source of truth ────────────────────────────
+# All Chronon3D::SDK link contracts (chronon3d_sdk INTERFACE's
+# $<INSTALL_INTERFACE:…> entries) AND all Chronon3DConfig.cmake
+# find_dependency() lines are DERIVED from this single list.  Adding
+# or removing a public dep is a one-line change HERE; both downstream
+# surfaces regenerate from this list automatically and
+# tools/check_architecture_boundaries.sh check #16 fail-fasts on
+# drift between list-length and the auto-generated find_dependency
+# block.
 #
-# Empty in §14.2 — pure placeholder, no consumer reads it yet.
-# File-scope (not target-scope) so the list is visible to
-# src/CMakeLists.txt and the install/export block equally.
-set(CHRONON3D_SDK_LINK_DEPS_LIST "")
+# Convention: each entry is the CMake TARGET alias (e.g. `fmt::fmt`).
+# For find_dependency() lines, the package name is derived as the
+# lower-cased portion BEFORE `::` (matches vcpkg's lowercase
+# package-name convention for Config-mode packages).
+#
+# hwy (PRIVATE to chronon3d_graph_core / chronon3d_backend_software)
+# is deliberately kept OUT of this list — its find_dependency() lives
+# HAND-WRITTEN below the auto-marker in Chronon3DConfig.cmake.in
+# because consumers need to resolve it via $<LINK_ONLY:> propagation.
+#
+# Conditional deps (meshoptimizer, blend2d, ZLIB, freetype, harfbuzz,
+# FRIBIDI, OpenEXR) stay hand-written in Chronon3DConfig.cmake.in
+# (gated by CHRONON3D_* / @CHRONON3D_*@ flags, not in this SSoT).
+set(CHRONON3D_SDK_PUBLIC_DEPS
+    glm::glm
+    fmt::fmt
+    spdlog::spdlog_header_only
+    TBB::tbb
+    magic_enum::magic_enum
+    nlohmann_json::nlohmann_json
+    xxHash::xxhash
+)
+
+# Auto-derive the find_dependency line block (consumed by
+# configure_file(... @CHRONON3D_FIND_DEPENDENCY_LINES@) in
+# cmake/Chronon3DConfig.cmake.in's auto-marker block; validated by
+# tools/check_architecture_boundaries.sh check #16).
+set(_chronon3d_find_dep_lines "")
+foreach(_target_alias IN LISTS CHRONON3D_SDK_PUBLIC_DEPS)
+    string(REPLACE "::" ";" _parts "${_target_alias}")
+    list(GET _parts 0 _pkg_name)
+    string(TOLOWER "${_pkg_name}" _pkg_lowercase)
+    string(APPEND _chronon3d_find_dep_lines "find_dependency(${_pkg_lowercase} CONFIG)\n")
+endforeach()
+set(CHRONON3D_FIND_DEPENDENCY_LINES "${_chronon3d_find_dep_lines}"
+    CACHE INTERNAL "Auto-generated find_dependency lines (see cmake/Chronon3DRegistry.cmake)")
