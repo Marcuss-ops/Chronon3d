@@ -67,6 +67,7 @@ Tutti i ticket aperti non nella top-10 (TICKET-024, TICKET-026, TICKET-066, TICK
 | TICKET-068 | crossfade+stroke regression test | Done |
 | TICKET-118 | SoftwareBackend::draw_node real impl + drop dummy TextRunProcessor | Done |
 | TICKET-119 | SoftwareBackend m_owner back-pointer removal + ProcessorSourceExtras bridge | Done |
+| P0-1 | TextRunNode::execute() frame_error propagation (ExecutionFailureCollector) | Done |
 | TICKET-067 | GATE-MNT-01 divergence fix | Done |
 
 Cronologia completa: [`docs/CHANGELOG.md`](docs/CHANGELOG.md) e [`docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md`](docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md).

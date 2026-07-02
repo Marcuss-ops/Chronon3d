@@ -7,6 +7,16 @@
 
 ## Luglio 2026 — Chiusure recenti
 
+### P0 #1 — `TextRunNode::execute()` propaga errori backend
+- Aggiunto `NodeExecutionError` in `render_backend.hpp` (backend_code, node_name, message)
+- Aggiunto `std::shared_ptr<std::optional<NodeExecutionError>> frame_error` su `RenderGraphContext`
+- `clone_for_node_execution()` copia lo shared_ptr per la propagazione clone→executor
+- `TextRunNode::execute()`: 3 path di errore (backend nullo, no capabilities, draw_text_run fallito) popolano `frame_error`
+- `execute_internal()`: seed di `frame_error` prima dei nodi + check dopo → restituisce `nullptr` su errore
+- Invariante: backend error → node failed → frame failed (nullptr) → sink non pubblica
+- 3 TEST_CASE aggiornati per verificare `frame_error` popolato con codice e nome nodo corretti
+- File: `render_backend.hpp`, `render_graph_context.hpp`, `framebuffer_acquire.cpp`, `TextRunNode.cpp`, `executor.cpp`, `test_text_run_node_execute_error.cpp`
+
 ### TICKET-118 — `SoftwareBackend::draw_node` reale + drop dummy `TextRunProcessor`
 - `SoftwareBackend::draw_node` non è più un no-op `// Intentionally empty`:
   ora dispatcha `m_proc_ctx.registry->get_shape(shape.type())->draw(...)`,
