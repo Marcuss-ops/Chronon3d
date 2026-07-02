@@ -53,9 +53,14 @@
 #include <chronon3d/sdk/render_settings.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
-// Additional public types used by the strict-A consumer test
-#include <chronon3d/api/render_engine.hpp>
+// ── Image I/O helper (save_png, etc.) ──────────────────────────────────
 #include <chronon3d/backends/image/image_writer.hpp>
+
+// ── NOTE: chronon3d::RenderEngine (api/render_engine.hpp) is NOT
+//    re-exported through the umbrella.  The canonical public rendering
+//    API is chronon3d::sdk::RenderEngine, included above.  OPP-internal
+//    code that needs chronon3d::RenderEngine must include
+//    <chronon3d/api/render_engine.hpp> directly.
 
 namespace chronon3d {
     // Umbrella header for Chronon3d (P3-I re-export-only shim).
