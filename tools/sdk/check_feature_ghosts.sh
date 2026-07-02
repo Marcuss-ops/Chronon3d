@@ -11,7 +11,8 @@
 # Procedure:
 #   1. Reconfigure the SAME $SDK_BUILD with DIAG=OFF + CONTENT=OFF
 #      (preserving all other cache variables).
-#   2. Rebuild via the `sdk_archive_merge` custom target.
+#   2. Rebuild via the `chronon3d_sdk_impl` target (CMake ≥3.27 natively
+#      aggregates OBJECT .o files into STATIC archives).
 #   3. Reinstall into the SAME $SDK_PREFIX.
 #   4. Inspect the OFF archive: assert NO diagnostics.cpp.o / NO
 #      diagnostics-software.cpp.o / NO content.cpp.o made it.
@@ -51,9 +52,11 @@ cmake -S "$REPO_ROOT" -B "$SDK_BUILD" --preset "$PRESET" \
     -DCHRONON3D_BUILD_CONTENT=OFF 1>&2 \
     || fail "ghost sweep: cmake reconfigure (DIAG=OFF, CONTENT=OFF) failed"
 
-# ── 2. Rebuild sdk_archive_merge ──────────────────────────────────────
-cmake --build "$SDK_BUILD" --target sdk_archive_merge -j8 1>&2 \
-    || fail "ghost sweep: sdk_archive_merge rebuild failed"
+# ── 2. Rebuild chronon3d_sdk_impl ─────────────────────────────────────
+# CMake ≥3.27 natively aggregates OBJECT .o into STATIC archives;
+# the former sdk_archive_merge custom target (ar crs workaround) is retired.
+cmake --build "$SDK_BUILD" --target chronon3d_sdk_impl -j8 1>&2 \
+    || fail "ghost sweep: chronon3d_sdk_impl rebuild failed"
 
 # ── 3. Reinstall into the SAME prefix ────────────────────────────────
 cmake --install "$SDK_BUILD" --prefix "$SDK_PREFIX" 1>&2 \
