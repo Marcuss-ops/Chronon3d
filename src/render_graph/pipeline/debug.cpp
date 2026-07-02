@@ -58,9 +58,9 @@ SceneGraphStats analyze_scene_graph(
     const RenderSettings& settings,
     const CompositionRegistry* registry,
     media::MediaFrameProvider* video_decoder,
+    float fps,
     bool execute,
-    bool include_dot,
-    float fps
+    bool include_dot
 ) {
     SceneGraphStats stats;
     stats.scene_layers = static_cast<int>(scene.layers().size());
