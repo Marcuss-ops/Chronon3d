@@ -73,16 +73,19 @@ public:
     [[nodiscard]] const std::string& name() const { return m_spec.name; }
     [[nodiscard]] const std::string& assets_root() const { return m_spec.assets_root; }
 
+    [[deprecated("Use timeline V2: compile_composition() + evaluate() instead")]]
     [[nodiscard]] Scene evaluate(Frame frame,
                                  std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
         return evaluate(frame, 0.0f, res);
     }
 
+    [[deprecated("Use timeline V2: compile_composition() + evaluate() instead")]]
     [[nodiscard]] Scene evaluate(SampleTime time,
                                  std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
         return evaluate_double(time.frame, time.frame_rate, res);
     }
 
+    [[deprecated("Use timeline V2: compile_composition() + evaluate() instead")]]
     [[nodiscard]] Scene evaluate(Frame frame, f32 frame_time,
                                  std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
         return evaluate_double(static_cast<double>(frame) + static_cast<double>(frame_time),
@@ -103,6 +106,7 @@ public:
     // Parameter ordering: engine BEFORE memres (engine is the more
     // semantically important binding; memres is defaulted so callers
     // don't need to write `get_default_resource()` everywhere).
+    [[deprecated("Use timeline V2: compile_composition() + evaluate() instead")]]
     [[nodiscard]] Scene evaluate(Frame frame, f32 frame_time,
                                  FontEngine* engine,
                                  std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
