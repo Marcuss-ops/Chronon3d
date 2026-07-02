@@ -255,9 +255,9 @@ TEST_CASE("GraphContract: different scenes produce different graphs") {
     auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
 
-    auto stats_a = analyze_scene_graph(renderer.backend(), node_cache, scene_a, camera, W, H, 0, 0.0f, {}, nullptr, nullptr, false, false);
+    auto stats_a = analyze_scene_graph(renderer.backend(), node_cache, scene_a, camera, W, H, 0, 0.0f, {}, nullptr, nullptr, 30.0f, false, false);
     cache::NodeCache node_cache2;
-    auto stats_b = analyze_scene_graph(renderer.backend(), node_cache2, scene_b, camera, W, H, 0, 0.0f, {}, nullptr, nullptr, false, false);
+    auto stats_b = analyze_scene_graph(renderer.backend(), node_cache2, scene_b, camera, W, H, 0, 0.0f, {}, nullptr, nullptr, 30.0f, false, false);
 
     // Different shape types (rect vs circle) should produce different node counts
     // or at minimum different DOT output
