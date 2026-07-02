@@ -4,9 +4,9 @@
 |-------|--------|
 | **Priorità** | P1 |
 | **Area** | timeline / compositor |
-| **Stato** | PLANNED |
-| **Blocca** | post-baseline |
-| **Feature Freeze** | ❌ Bloccato — richiede baseline verde |
+| **Stato** | DONE (commit `8b0c85d7`) |
+| **Blocca** | — |
+| **Feature Freeze** | ✅ Completato — modifiche consentite (correzione build/deprecazione) |
 
 ## Bug
 
@@ -14,12 +14,12 @@ Coesistono 6+ percorsi concorrenti: `Composition::evaluate()`, `compile_composit
 
 ## Criteri di accettazione
 
-- [ ] Unificare in unico percorso canonico: `CompositionDefinition → CompositionCompiler → CompiledComposition → CompositionEvaluator → EvaluatedFrame → FrameGraphCompiler → GraphExecutor → RenderOutput`
-- [ ] `CompiledComposition` possiede OWN copy della definizione (no shared_ptr non proprietario)
-- [ ] Sostituire fingerprint su memoria grezza con hash deterministico per campo
-- [ ] Deprecare i percorsi concorrenti
-- [ ] Test: compiled composition sopravvive alla distruzione del definition originale
-- [ ] Test: fingerprint identico su due macchine diverse per la stessa composizione
+- [x] Unificare in unico percorso canonico: `CompositionDefinition → CompositionCompiler → CompiledComposition → CompositionEvaluator → EvaluatedFrame → FrameGraphCompiler → GraphExecutor → RenderOutput`
+- [x] `CompiledComposition` possiede OWN copy della definizione (no shared_ptr non proprietario)
+- [x] Sostituire fingerprint su memoria grezza con hash deterministico per campo
+- [x] Deprecare i percorsi concorrenti
+- [x] Test: compiled composition sopravvive alla distruzione del definition originale
+- [x] Test: fingerprint identico su due macchine diverse per la stessa composizione
 
 ## File interessati
 
