@@ -33,6 +33,13 @@ static size_t resolve_injected_capacity() {
     return s_image_cache_capacity > 0 ? s_image_cache_capacity : kFallback;
 }
 
+// Fase B (B4) — std::thread::detach() is a known hazard:
+//   - no cancellation mechanism
+//   - no join / ownership of the job
+//   - no error propagation
+//   - no guarantee backend + logging survive through shutdown
+//
+// Migrate to executor-owned preload jobs (Phase C).
 void ImageCache::preload_async(const std::string& path) {
     std::thread([path]() {
         instance().get_or_load(path);
