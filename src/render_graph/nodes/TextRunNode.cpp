@@ -243,6 +243,15 @@ OwnedFB TextRunNode::execute(
                 "returning cleared fb.", m_name);
             m_backend_warned = true;
         }
+        // P0-1 — surface the failure to the executor so the frame is
+        // treated as failed (GraphExecutor returns nullptr).
+        if (ctx.frame_error) {
+            *ctx.frame_error = NodeExecutionError{
+                RenderBackendErrorCode::InvalidInput,
+                m_name,
+                "backend is null"
+            };
+        }
         return fb;
     }
 
@@ -277,6 +286,14 @@ OwnedFB TextRunNode::execute(
                 "draw_text_run; returning cleared fb.", m_name);
             m_backend_warned = true;
         }
+        // P0-1 — surface the failure to the executor.
+        if (ctx.frame_error) {
+            *ctx.frame_error = NodeExecutionError{
+                RenderBackendErrorCode::UnsupportedCapability,
+                m_name,
+                "backend does not support draw_text_run"
+            };
+        }
         return fb;
     }
 
@@ -289,6 +306,15 @@ OwnedFB TextRunNode::execute(
             m_name,
             chronon3d::graph::render_backend_error_code_name(result.error().code),
             result.error().message);
+        // P0-1 — surface the backend failure to the executor so the
+        // frame is propagated as failed (GraphExecutor returns nullptr).
+        if (ctx.frame_error) {
+            *ctx.frame_error = NodeExecutionError{
+                result.error().code,
+                m_name,
+                result.error().message
+            };
+        }
     }
 
     if (ctx.policy.diagnostics_enabled) {

@@ -22,6 +22,7 @@
 // see `docs/refactor-roadmap/02-compiled-graph-only.md`.
 
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>      // P0-1 — NodeExecutionError, render_backend_error_code_name
 #include "executor_levels.hpp"
 #include "framebuffer_lifetime.hpp"
 #include <chronon3d/render_graph/core/graph_profiler.hpp>
@@ -98,7 +99,27 @@ namespace chronon3d::graph {
     auto* parent_counters = ctx.node_exec.counters;
     auto* parent_pool = ctx.services.framebuffer_pool.get();
 
+    // P0-1 — seed the shared frame_error slot before dispatching nodes.
+    // Nodes that encounter backend failures write into this slot via
+    // their cloned RenderGraphContext (shared via clone_for_node_execution).
+    ctx.frame_error = std::make_shared<std::optional<NodeExecutionError>>();
+
     execute_levels(graph, ctx, state, scheduler, levels, consumer_remaining, parent_counters, parent_pool, res, compiled);
+
+    // P0-1 — after all nodes have executed, check whether any node
+    // surfaced a backend failure.  If so, return nullptr (the documented
+    // "engine error" path) so downstream callers (sink, CLI export) do
+    // not publish a false-success frame.
+    if (ctx.frame_error && ctx.frame_error->has_value()) {
+        const auto& err = ctx.frame_error->value();
+        spdlog::error(
+            "[executor] frame {} failed: node '{}' error [{}] {}",
+            static_cast<int>(ctx.frame_input.frame),
+            err.node_name,
+            render_backend_error_code_name(err.backend_code),
+            err.message);
+        return nullptr;
+    }
 
     return state.temp[output];
 }
