@@ -1,7 +1,26 @@
 #pragma once
 
-// ---------------------------------------------------------------------------
-// rich_text.hpp
+// ═══════════════════════════════════════════════════════════════════════════
+// P1-LEGACY-TEXT-PIPELINE — rich_text.hpp is a polyfill workaround for
+// the legacy TextShape pipeline's lack of native multi-font/multi-color
+// text support.  `draw_rich_text()` calls `TextLayoutEngine::layout` and
+// emits individual `l.text(...)` nodes (one per run), creating N separate
+// TextShape objects where the new TextDocument → TextRun pipeline handles
+// multi-styled text natively in a single layout pass.
+//
+// ⚠️  DEPRECATION PATH:
+//   1. Content-layer callers should migrate to `TextDocument` with
+//      `TextStyleSpan` annotations for per-run font/color/size.
+//   2. After ALL callers have migrated, this entire file should be
+//      removed (P1 #4 — dual text pipeline elimination).
+//   3. The architecture gate `tools/check_legacy_text_pipeline.sh`
+//      will BLOCK any NEW calls to `TextLayoutEngine::layout` in
+//      production code outside this file's whitelist entry.
+//
+// Last census: 2026-07-02 — `draw_rich_text()` is the ONLY production
+// caller of `TextLayoutEngine::layout` outside of
+// `rasterize_text_to_bl_image`.
+// ═══════════════════════════════════════════════════════════════════════════
 //
 // Rich text types and rendering: RichTextLine, draw_rich_text(), and
 // associated enums, metrics, and layout options.
