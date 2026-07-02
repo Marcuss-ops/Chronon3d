@@ -8,7 +8,7 @@
 #include <chronon3d/core/scope/execution_scope.hpp>
 #include <chronon3d/render_graph/pipeline/graph_filter.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
-#include <chronon3d/runtime/render_session.hpp>
+#include <chronon3d/internal/runtime/render_session.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <spdlog/spdlog.h>
 
