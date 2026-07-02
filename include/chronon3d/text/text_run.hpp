@@ -121,6 +121,49 @@ struct TextRunLayout {
 /// Multiple frames/components can hold the same pointer without copying.
 using SharedTextRunLayout = std::shared_ptr<const TextRunLayout>;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Fase C1 — CompiledTextRun (planned, deferred to post-feature-freeze)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The render hot path (draw_text_run) currently recomputes several
+// lookup structures on every frame that depend ONLY on the immutable
+// TextRunLayout.  These should be pre-compiled once and cached:
+//
+// Planned CompiledTextRun structure:
+//
+//   struct CompiledTextRun {
+//       SharedTextRunLayout    layout;          // immutable shared layout
+//       std::vector<ResolvedFontSpan> spans;    // pre-resolved font handles
+//       std::vector<std::size_t> glyph_to_span; // per-glyph → span index
+//   };
+//
+//   struct ResolvedFontSpan {
+//       FontFaceHandle handle;   // pre-resolved via TextRenderResources
+//       // NOTE: BLFont is a software-backend dependency. If CompiledTextRun
+//       // moves into include/chronon3d/text/, use a type-erased handle or
+//       // opaque pointer to avoid coupling text_core to Blend2D.
+//       void*          blfont_opaque;  // type-erased BLFont handle
+//       std::uint32_t  glyph_begin, glyph_end;  // same as ShapedFontSpan
+//   };
+//
+//   // Per-frame blur tier classification.  blur values come from
+//   // animated GlyphInstanceState, so tiers are computed O(G) per frame.
+//   // This struct stores the result — it's not pre-compiled.
+//   struct PerFrameBlurTiers {
+//       std::array<std::vector<u32>, 5> tiers;
+//   };
+//
+// Migration plan (post-feature-freeze):
+//   1. CompiledTextRun stored alongside TextRunShape (or inside it)
+//   2. compile(TextRunLayout, TextRenderResources&) → CompiledTextRun
+//   3. draw_text_run receives const CompiledTextRun& instead of
+//      resolving font spans inline
+//   4. ResolvedFontSpan::handle stays valid for the engine lifetime
+//      (TextRenderResources owns the underlying FontFaceHandle pool)
+//
+// Blocked by: new types in public headers → violates feature freeze.
+// ═══════════════════════════════════════════════════════════════════════════
+
 // Forward declaration for AnimatedTextDocument.  TextRunShape holds the
 // doc as a `shared_ptr<const AnimatedTextDocument>`, which only needs a
 // complete type when the template instantiates its deleter; the rest
