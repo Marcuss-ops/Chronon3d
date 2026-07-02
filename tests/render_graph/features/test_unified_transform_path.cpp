@@ -55,7 +55,7 @@ RenderResult render_single_element_scene([[maybe_unused]] const std::string& typ
     auto scene = s.build();
 
     SoftwareRenderer renderer = test::make_renderer();
-    auto fb = renderer.render_scene(scene, camera, width, height);
+    auto fb = renderer.render_scene(scene, camera, width, height, 30.0f)t
     REQUIRE(fb != nullptr);
 
     RenderResult out;

@@ -205,7 +205,8 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
             renderer->backend(), renderer->node_cache(), comp.camera,
             comp.width(), comp.height(),
             args.frame, 0.0f,
-            settings, &registry, nullptr, 30.0f
+            settings, &registry, nullptr,
+            static_cast<float>(comp.frame_rate().fps())
         );
         ctx.frame_input.light_context = scene.light_context();
         if (scene.camera_2_5d().enabled) {
@@ -226,7 +227,8 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
             renderer->backend(), renderer->node_cache(), scene,
             comp.camera, comp.width(), comp.height(),
             args.frame, 0.0f, settings, &registry, nullptr,
-            /*execute=*/true, /*include_dot=*/need_dot
+            /*execute=*/true, /*include_dot=*/need_dot,
+            static_cast<float>(comp.frame_rate().fps())
         );
         fmt::print("{}", format_summary(args.comp_id, args.frame, comp.width(), comp.height(), stats));
         if (need_dot && !write_dot(stats.dot, args.output)) return 1;
@@ -239,7 +241,8 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
         renderer->backend(), renderer->node_cache(), scene,
         comp.camera, comp.width(), comp.height(),
         args.frame, 0.0f, settings, &registry, nullptr,
-        /*execute=*/false, /*include_dot=*/true
+        /*execute=*/false, /*include_dot=*/true,
+        static_cast<float>(comp.frame_rate().fps())
     );
     return write_dot(stats.dot, dot_path) ? 0 : 1;
 }

@@ -414,7 +414,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render(const Composition& comp,
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
                                                             const Camera& camera, i32 width,
-                                                            i32 height) {
+                                                            i32 height, float fps) {
     // Cat-2 font preflight: warm both BLFontFace and FreeTypeFace caches
     // BEFORE any draw_text_run dispatch.  After this call, every
     // render-thread resolve_handle becomes a cache hit (no I/O).  The
@@ -438,14 +438,14 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
         m_settings,
         m_registry,
         m_video_decoder.get(),
-        30.0f,
+        fps,
         "scene"
     );
     return res;
 }
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
-    const Scene& scene, const std::optional<Camera2_5D>& camera, i32 width, i32 height) {
+    const Scene& scene, const std::optional<Camera2_5D>& camera, i32 width, i32 height, float fps) {
     // Cat-2 font preflight + auto-arm — same pattern as the Camera
     // overload above.  RAII guard disarms on every exit path.
     RenderIOFenceGuard fence_guard(nullptr);
@@ -474,7 +474,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
         m_settings,
         m_registry,
         m_video_decoder.get(),
-        30.0f,
+        fps,
         "scene"
     );
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
@@ -486,7 +486,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
 }
 
 std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camera& camera,
-                                                  i32 width, i32 height, Frame frame,
+                                                  i32 width, i32 height, float fps, Frame frame,
                                                   f32 frame_time) const {
     return graph::debug_scene_graph(
         m_runtime->backend(),
@@ -500,7 +500,7 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
         m_settings,
         m_registry,
         m_video_decoder.get(),
-        30.0f
+        fps
     );
 }
 

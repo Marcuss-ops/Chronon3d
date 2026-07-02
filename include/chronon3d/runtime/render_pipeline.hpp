@@ -75,11 +75,13 @@ public:
 
     // ── Primary rendering entry points ─────────────────────────────
     [[nodiscard]] std::shared_ptr<Framebuffer> render_scene(
-        const Scene& scene, const Camera& camera, i32 width, i32 height);
+        const Scene& scene, const Camera& camera, i32 width, i32 height,
+        float fps);
 
     [[nodiscard]] std::shared_ptr<Framebuffer> render_scene(
         const Scene& scene, const std::optional<Camera2_5D>& camera,
-        i32 width, i32 height);
+        i32 width, i32 height,
+        float fps);
 
     [[nodiscard]] std::shared_ptr<Framebuffer> render_composition(
         const Composition& comp, Frame frame);
@@ -87,7 +89,7 @@ public:
     // ── Diagnostics ───────────────────────────────────────────────
     [[nodiscard]] std::string debug_graph(
         const Scene& scene, const Camera& camera, i32 width, i32 height,
-        Frame frame = 0, f32 frame_time = 0.0f);
+        Frame frame = 0, f32 frame_time = 0.0f, float fps);
 
 private:
     SoftwareRenderer* m_renderer;
