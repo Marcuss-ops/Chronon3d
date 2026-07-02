@@ -332,27 +332,27 @@ private:
 /// P1-DEPRECATED — return the process-wide shared TextLayoutCache singleton.
 ///
 /// ⚠️  DEPRECATION PATH (P1 #3):
-///   Migrate callers to `RenderSession::get_layout_cache()` (per-session
+///   Migrate callers to `RenderSession::layout_cache` (per-session
 ///   owned).  Each RenderSession now carries its own TextLayoutCache;
 ///   session isolation guarantees no cross-session cache pollution.
 ///
 ///   Migration guide:
 ///     auto& cache = shared_text_layout_cache();              // OLD
-///     auto& cache = render_session.get_layout_cache();       // NEW
+///     auto& cache = render_session.layout_cache;       // NEW
 ///
 ///   For functions that don't have a RenderSession& in scope:
 ///   thread a `TextLayoutCache*` or `RenderSession&` through the
 ///   call chain (post-baseline work — see docs/FOLLOWUP_TICKETS.md).
 ///
 ///   Tests may create a standalone `TextLayoutCache local_cache` or
-///   use RenderSession{}.get_layout_cache() for isolated test fixtures.
+///   use RenderSession{}.layout_cache() for isolated test fixtures.
 ///
 /// NOTE: [[deprecated]] attribute is deferred until production callsites
 /// are migrated to avoid ~30 build warnings (P1 #3 post-baseline).
 [[nodiscard]] TextLayoutCache& shared_text_layout_cache();
 
 /// P1-DEPRECATED — reset the process-wide shared TextLayoutCache singleton.
-/// Use RenderSession::get_layout_cache().clear() instead.
+/// Use RenderSession::layout_cache.clear() instead.
 void reset_shared_text_layout_cache();
 
 /// Free function to hash a TextRunShape for content fingerprinting.
