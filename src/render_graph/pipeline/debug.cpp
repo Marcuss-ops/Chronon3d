@@ -1,4 +1,4 @@
-#include <chronon3d/runtime/render_session.hpp>
+#include <chronon3d/internal/runtime/render_session.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>

@@ -7,7 +7,7 @@
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/render_graph/registry/graph_node_create_request.hpp>
-#include <chronon3d/render_graph/cache/scene_program_store.hpp>
+#include <chronon3d/internal/render_graph/cache/scene_program_store.hpp>
 #include <memory>
 #include <spdlog/spdlog.h>
 

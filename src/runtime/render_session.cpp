@@ -24,7 +24,7 @@
 // `program_store` via `std::make_unique`.
 // ===========================================================================
 
-#include <chronon3d/runtime/render_session.hpp>
+#include <chronon3d/internal/runtime/render_session.hpp>
 
 namespace chronon3d {
 
