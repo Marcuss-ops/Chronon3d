@@ -186,10 +186,10 @@ set(CHRONON3D_SDK_PUBLIC_DEPS
     "glm::glm|glm"
     "fmt::fmt|fmt"
     "spdlog::spdlog_header_only|spdlog"
-    "TBB::tbb|tbb"
+    "TBB::tbb|TBB"
     "magic_enum::magic_enum|magic_enum"
     "nlohmann_json::nlohmann_json|nlohmann_json"
-    "xxHash::xxhash|xxhash"
+    "xxHash::xxhash|xxHash"
 )
 
 # Auto-derive the find_dependency line block (consumed by
