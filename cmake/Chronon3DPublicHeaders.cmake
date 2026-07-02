@@ -18,7 +18,6 @@ set(CHRONON3D_PUBLIC_HEADERS
 
     # ── Composition type ─────────────────────────────────────────────────
     "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/composition.hpp"
-
     # ── Transitive closure ───────────────────────────────────────────────
     "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/core/animated_value.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/core/animation_track.hpp"
@@ -37,6 +36,12 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/image/image_writer.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/software/render_settings.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/software/sampling/edge_mode.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/video/video_source.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/cache/cache_diagnostics.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/cache/cache_policy.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/cache/framebuffer_pool.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/cache/lru_cache.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/cache/node_cache.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/compositor/alpha.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/compositor/blend_mode.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/compositor/composite_operator.hpp"
@@ -50,7 +55,8 @@ set(CHRONON3D_PUBLIC_HEADERS
     # directory convention (under include/chronon3d/, NOT under internal/).
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/detail/framebuffer_impl.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/framebuffer.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/detail/framebuffer_impl.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/framebuffer_handle.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/framebuffer_slot_view.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/memory_utils.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/profiling/counters.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/profiling/profiling.hpp"
@@ -62,7 +68,17 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/types/sample_time.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/types/time.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/types/types.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_catalog_data.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_category.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_descriptor.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_execution_context.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_ids.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_instance.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_params.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_stage.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_traits.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_type.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/presets/glow_presets.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/geometry/bounds.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/geometry/mesh.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/geometry/vertex.hpp"
@@ -85,15 +101,29 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/math/renderer_state.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/math/transform.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/media/media_placement.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/cache/scene_program_cache.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/internal/render_graph/cache/scene_program_store.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/compiler/compiled_scene_program.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/core/cache_policy.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/core/node_identity.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/core/render_graph_hashing.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/internal/render_graph/core/scene_hasher.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/nodes/render_graph_node.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/render_backend.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/render_graph.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/render_graph_context.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/depth_grade.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/light_context.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/lighting_rig.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/projected_card.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/shadow_settings.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/dirty_history.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/frame_history.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/internal/runtime/render_session.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/internal/runtime/session_services.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/telemetry/render_telemetry_record.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/builder_params.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/arc_length_table.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_descriptor.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_motion_context.hpp"
@@ -103,8 +133,10 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera_2_5d.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera_common_types.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera_projection_source.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/dof.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/lens_model.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/depth_role.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/effect_stack.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/mask_utils.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/scene.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/transition.hpp"
@@ -120,75 +152,17 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/path.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/shape.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/simd/kernels.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/font_engine.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_direction.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_material.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/composition_props.hpp"
-
-    # ── TICKET-GATE-10-PHASE-4 — transitive-closure additions ─────────
-    # The 43 headers below were discovered by walking the recursive
-    # #include <chronon3d/…> graph starting from the manifest entries
-    # above.  They are transitively required by the consumer test
-    # (tests/install_consumer/main.cpp ⊂ #include <chronon3d/chronon3d.hpp>)
-    # to compile against an installed Chronon3D::SDK target — without
-    # these, Phase 4 of tools/install_consumer_test.sh fails at the
-    # consumer's `cmake --build` step.  All 43 live under
-    # include/chronon3d/ (NOT internal/), so they are de-facto public
-    # surface by directory convention; the manifest entry only governs
-    # which subset is INSTALLED, not the API symbol surface.
-    #
-    # Followups (separate workstreams):
-    #   • tools/check_public_headers.py — add a CI-gate that re-runs the
-    #     transitive-closure audit (see tools/audit_aggregate_archive.sh
-    #     for the analogous pattern) so future public-header additions
-    #     auto-fail until the manifest is updated.
-    #   • Pending V0.1 surface review: each of these 43 should be
-    #     triaged as either (a) genuinely public (current batch), or
-    #     (b) accidentally-public (move to include/chronon3d/internal/
-    #     in a follow-up commit).  The bulk insert here is the
-    #     minimal-impact fix that unblocks the gate; triage is
-    #     orthogonal.
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/video/video_source.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/cache/cache_diagnostics.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/cache/cache_policy.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/cache/framebuffer_pool.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/cache/lru_cache.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/cache/node_cache.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/framebuffer_handle.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/framebuffer_slot_view.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_catalog_data.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_category.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_descriptor.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_execution_context.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_ids.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_instance.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_stage.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_traits.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_type.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/presets/glow_presets.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/cache/scene_program_cache.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/compiler/compiled_scene_program.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/core/cache_policy.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/core/node_identity.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/core/render_graph_hashing.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/nodes/render_graph_node.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/render_backend.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/render_graph.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/render_graph_context.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/dirty_history.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/frame_history.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/telemetry/render_telemetry_record.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/builder_params.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/dof.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/effect_stack.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animation/glyph_instance_state.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animation/text_animator_evaluator.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animation/text_animator_properties.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animation/text_animator_spec.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animation/text_animator_stack.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/font_engine.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/glyph_selector.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/paragraph_style.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_animator_property.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_direction.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_material.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_run.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/composition_props.hpp"
 )
