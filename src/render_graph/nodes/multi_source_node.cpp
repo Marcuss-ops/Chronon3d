@@ -180,10 +180,14 @@ NodeExecResult MultiSourceNode::execute(
                         spdlog::error(
                             "[multi-source] node='{}' contains text run items "
                             "but active backend does not support draw_text_run; "
-                            "skipping text render.", m_name);
+                            "aborting frame.", m_name);
                         m_backend_warned = true;
                     }
-                    continue;
+                    return NodeExecResult{NodeExecutionError{
+                        RenderBackendErrorCode::UnsupportedCapability,
+                        m_name,
+                        "backend does not support draw_text_run"
+                    }};
                 }
 
                 auto result = ctx.services.backend->draw_text_run(
@@ -196,6 +200,11 @@ NodeExecResult MultiSourceNode::execute(
                         m_name,
                         chronon3d::graph::render_backend_error_code_name(result.error().code),
                         result.error().message);
+                    return NodeExecResult{NodeExecutionError{
+                        result.error().code,
+                        m_name,
+                        result.error().message
+                    }};
                 }
 
                 if (ctx.policy.diagnostics_enabled) {
@@ -218,6 +227,11 @@ NodeExecResult MultiSourceNode::execute(
 #endif
 
             // ── regular (non-text-run) item ───────────────────────
+            // P0-1 note: draw_node() returns void — errors inside the backend
+            // (e.g. missing processor-context) are logged but cannot be surfaced
+            // to the executor.  Changing draw_node's signature to Result<>
+            // requires a coordinated API/ABI change across SoftwareRenderer,
+            // SoftwareBackend, and all test backends — deferred to Phase C.
             RenderState state;
             state.frame_number = static_cast<int>(ctx.frame_input.frame);
             state.ssaa_factor = ctx.policy.ssaa_factor;

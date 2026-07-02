@@ -122,6 +122,15 @@ TileExecutionResult execute_tile_or_fallback(
                 result.fb = local_executor.execute_with_scope(
                     compiled, ctx, root_scope, local_scheduler);
             }
+            // P0-1 — GraphExecutor returns nullptr when a node surfaced a
+            // backend error (frame_error slot).  Propagate the null result
+            // so the caller can detect the failure.
+            if (!result.fb) {
+                spdlog::error(
+                    "[tile-exec] frame {} single-pass execution failed "
+                    "(executor returned null — check frame_error for details)",
+                    static_cast<int>(frame));
+            }
         }
         // Track tile fallbacks when tile system requested but couldn't execute
         if (dirty_out.use_dirty_tiles && ctx.node_exec.counters) {

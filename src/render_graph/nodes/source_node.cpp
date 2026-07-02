@@ -199,6 +199,9 @@ NodeExecResult SourceNode::execute(
             state.projection  = ctx.frame_input.projection_ctx;
         }
 
+        // P0-1: draw_node() returns void — backend failures (e.g. missing
+        // processor-context, unsupported shape) are logged but cannot propagate
+        // to the executor.  Tracked for Phase C post-freeze.
         ctx.services.backend->draw_node(*fb, m_node, state, ctx.frame_input.camera, ctx.frame_input.width, ctx.frame_input.height);
         fb->set_opaque(full_frame_seed);
 
