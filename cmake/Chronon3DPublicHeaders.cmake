@@ -190,4 +190,39 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/paragraph_style.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_animator_property.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_run.hpp"
+
+    # ── TICKET-GATE-10-PHASE-4-FULL — bulk close of 14 remaining
+    # vendored-wrapper transitive headers (Cat-1 build correction,
+    # install-pipeline plumbing only; zero new public symbols).
+    #
+    # Audit replay path: /tmp/audit_v3.py (running-baseline audit script).
+    #   manifest pre-this-commit : 194
+    #   non-internal closure     : 208
+    #   missing non-internal     : 14 (this chunk closes all 14)
+    #
+    # These are de-facto public wrapper headers forwarding third-party
+    # deps (glm/magic_enum/tracy). They live under include/chronon3d/
+    # (NOT internal/), so per AGENTS.md directory convention they are
+    # eligible for public install.  The manifest entry only governs
+    # which subset is INSTALLED; it does not extend the consumer SDK
+    # symbol surface.
+    #
+    # Iteration budget saved: this commit collapses the next 14
+    # additional 9-min CI cycles into a single Phase-4 verification
+    # run.  See commit 8a3fc8d5 for chunk #1 (the lone non-vendor
+    # entry core/memory/detail/framebuffer_impl.hpp)
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/easing/glm/gtx/easing.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/magic_enum/magic_enum.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/profiling/tracy/Tracy.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/glm/glm.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/glm/gtc/constants.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/glm/gtc/matrix_transform.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/glm/gtc/quaternion.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/glm/gtc/type_ptr.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/glm/gtx/matrix_decompose.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/glm/gtx/quaternion.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/glm/gtx/transform.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/glm/glm.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/glm/glm.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/glm/gtx/quaternion.hpp"
 )
