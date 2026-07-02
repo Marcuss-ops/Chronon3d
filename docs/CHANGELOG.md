@@ -11,6 +11,25 @@ On commit `28004f96` (sdk-public-surface reduction), a buggy bash heredoc leaked
 
 ## Luglio 2026 — Chiusure recenti
 
+### text-run — `kBlurTierRadii` compile-time array restoration (commit TICKET-Phase4-BlurTierRadii)
+- `src/backends/software/processors/text_run/text_run_processor.cpp`: aggiunto
+  `static constexpr std::array<i32, kNumBlurTiers> kBlurTierRadii = {{0, 2, 7, 13, 20}};`
+  accanto al constant già presente `static constexpr int kNumBlurTiers = 5;`
+  (line 577). Valori trascritti verbatim dal documented tier-mapping block
+  già esistente alle righe 568–575. Root cause: l'array era riferito dalla
+  lambda `bucket_radius()` (line 594) e dal render dispatch per-tier (line 828),
+  ma la dichiarazione era andata persa in un precedente upstream refactor di
+  questo TU (probabilmente una `git mv`-style move che ha dimenticato di
+  portarsi dietro la definizione).
+- AGENTS.md v0.1 freeze Cat-1 (build corrections). Zero nuove API pubbliche;
+  valori letterali preservano l'algoritmo di blur documentato (radius mapping
+  tier 0→0, tier 1→2, tier 2→7, tier 3→13, tier 4→20 (capped)).
+- Verification: Phase 4 end-to-end verde ancora da certificare in CI
+  (prossima run `bash tools/install_consumer_test.sh`).
+- Followup pendente: TICKET-Phase4-BlurTierRadii-audit (analogo a
+  TICKET-render-pipeline-fps-defaults-audit) per scan di altri constexpr
+  array riferiti ma non dichiarati in questo TU.
+
 ### runtime — `RenderPipeline::debug_graph` default-arg chain fix (commit `75035f2b`, post-rebase `c40ba16f`)
 - `include/chronon3d/runtime/render_pipeline.hpp:90`: aggiunto `= 0.0f` sentinel
   al parametro `float fps` di `debug_graph(...)`.  Root cause: upstream commit
