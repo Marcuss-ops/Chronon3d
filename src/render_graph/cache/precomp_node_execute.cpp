@@ -34,11 +34,11 @@
 //      shared_ptr keeps program alive through the call (RAII order).
 // =============================================================================
 
-#include <chronon3d/runtime/render_session.hpp>
+#include <chronon3d/internal/runtime/render_session.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/compiler/compiled_scene_program.hpp>  // WP 5.2 — ProgramLease holds shared_ptr<CompiledSceneProgram>; member access (`.empty()`, `.bindings`, `.frame_graph`) requires complete type
-#include <chronon3d/render_graph/core/scene_hasher.hpp>
+#include <chronon3d/internal/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/render_graph/layer/layer_resolver.hpp>
 #include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
 #include <chronon3d/render_graph/builder/precomp_builder_service.hpp>
