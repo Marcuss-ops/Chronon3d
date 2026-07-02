@@ -123,7 +123,7 @@ Chiudere gate #10 (install_consumer_test.sh) per raggiungere 11/11 PASS, poi rev
 | 7 | `check_doc_sync.sh`                         | ✅ PASS    |                                                                            |
 | 8 | `check_filename_drift.sh`                   | ⚠️ PASS*   | warn-mode; 155 drift warning.                                              |
 | 9 | `test_architectural.sh`                     | ✅ PASS    | Static architecture-level rot: 0.                                          |
-| 10 | `install_consumer_test.sh`                | ⚠️ FIX PENDING (double) | (a) `21b9fb5d` cmake case-fix + 44 transitive headers; (b) `75035f2b` runtime default-arg chain su `RenderPipeline::debug_graph`. End-to-end Phase 4 verde ancora da confermare. |
+| 10 | `install_consumer_test.sh`                | ⚠️ FIX PENDING (triple) | (a) `21b9fb5d` cmake case-fix + 44 transitive headers; (b) `75035f2b` runtime default-arg chain su `RenderPipeline::debug_graph`; (c) TICKET-Phase4-BlurTierRadii constexpr array `{{0,2,7,13,20}}` per il blur-tables. End-to-end Phase 4 verde ancora da confermare. |
 | 11 | `check_backend_sanitization.py`            | ✅ PASS    |                                                                            |
 
 **Totale: 10/11 PASS** — gate #10 doppio-fix landed; machine-verified Phase 4 verde ancora richiesto per la revoca formale del feature freeze e per promuovere `c40ba16f` a baseline macchina-verificata.
