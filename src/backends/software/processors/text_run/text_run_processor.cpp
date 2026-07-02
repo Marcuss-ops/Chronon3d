@@ -575,6 +575,18 @@ graph::RenderOpResult draw_text_run(
     // so they CANNOT be pre-compiled — O(G) per frame is required.
     // The tier radii (kBlurTierRadii) are compile-time constants.
     static constexpr int kNumBlurTiers = 5;
+    // Tier radii table — values transcribed from the documented tier
+    // mapping block above (lines ~568-575):
+    //   tier 0: blur = 0     -> radius 0  (no blur)
+    //   tier 1: blur 1-4     -> radius 2
+    //   tier 2: blur 5-8     -> radius 7
+    //   tier 3: blur 9-16    -> radius 13
+    //   tier 4: blur > 16    -> radius 20 (capped)
+    // TICKET-Phase4-BlurTierRadii: declaration was unintentionally lost
+    // in a prior upstream refactor of this TU; this commit restores the
+    // compile-time array referenced by `bucket_radius()` (line ~594)
+    // and the per-tier render dispatch (line ~828).
+    static constexpr std::array<i32, kNumBlurTiers> kBlurTierRadii = {{0, 2, 7, 13, 20}};
 
     // ── Fase 3 — Preclassify glyphs into blur tiers (O(G), once) ────
     BlurTiers active_tiers = build_blur_tiers(shape.glyphs);
