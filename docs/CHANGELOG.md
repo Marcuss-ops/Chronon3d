@@ -11,6 +11,33 @@ On commit `28004f96` (sdk-public-surface reduction), a buggy bash heredoc leaked
 
 ## Luglio 2026 — Chiusure recenti
 
+### hygiene — alphabetize Chronon3DPublicHeaders manifest (retro-fixup to 21b9fb5d)
+- `cmake/Chronon3DPublicHeaders.cmake`: alphabetized the 43 bulk-appended
+  TICKET-GATE-10-PHASE-4 entries into the canonical bucket ordering
+  (`animation/api/assets/cache/compositor/core/effects/graphics/layout/math/media/...`),
+  interleaving them inline with the existing 105 transitive-closure entries
+  rather than appending under a single bulk block.  `internal/` prefix is
+  stripped per module-bucket sort so `internal/render_graph/` sorts under
+  `render_graph/`, preserving the established module-level bucket pattern.
+- Resolved and stripped the temporary bulk-append `TICKET-GATE-10-PHASE-4`
+  comment block (the bulk contract was retired by the inline reset).
+- Deduplicated `core/memory/detail/framebuffer_impl.hpp` (upstream
+  regression introduced during the rebase), enforcing the
+  "every header enumerated explicitly once" invariant.  Added the
+  previously-missing canonical `core/memory/framebuffer_handle.hpp` +
+  `core/memory/framebuffer_slot_view.hpp` entries (file-on-disk existence
+  verified pre-commit).
+- Tracked the `tools/c3d_manifest_alphabetize.py` helper for maintainer
+  idempotency (`tools/` is git-tracked per AGENTS.md and other gates live
+  there).  Future alphabetize passes can replay it via
+  `python3 tools/c3d_manifest_alphabetize.py` to verify zero diff.
+- AGENTS.md v0.1 freeze Cat-1 (build corrections — install-pipeline
+  plumbing).  Zero new public API symbols; strictly internal CMake
+  manifest sorting and audit-trail header preservation.
+- Applied retroactively to commit `21b9fb5d` per code-reviewer-minimax-m3
+  nudge (parallel format to the `render_pipeline.hpp` retro-fixup commit
+  `fc144fa2`).
+
 ### hygiene — trim TICKET-GATE-10-PHASE-4 comment block in `render_pipeline.hpp` (retro-fixup to 75035f2b)
 - `include/chronon3d/runtime/render_pipeline.hpp:90` above the
   [[nodiscard]] `std::string debug_graph(...)` declaration had a 7-line
