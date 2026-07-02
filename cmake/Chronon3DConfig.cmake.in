@@ -47,8 +47,14 @@ if(@CHRONON3D_ENABLE_TEXT@)
     # tries to link against it.  Without this, find_dependency(freetype)
     # fails with "target ZLIB::ZLIB was not found".
     find_dependency(ZLIB)  # Find-module (no CONFIG) — vcpkg provides FindZLIB.cmake
-    find_dependency(freetype CONFIG)
+    # HarfBuzz MUST come BEFORE freetype: freetype's vcpkg config
+    # internally calls find_package(HarfBuzz) in module mode, which
+    # creates FindHarfBuzz.cmake with HARFBUZZ_LIBRARY_RELEASE-NOTFOUND
+    # and sets harfbuzz_FOUND=TRUE; our find_dependency(harfbuzz CONFIG)
+    # would then be silently skipped.  Resolving harfbuzz CONFIG first
+    # ensures the vcpkg config creates proper targets before freetype sees them.
     find_dependency(harfbuzz CONFIG)
+    find_dependency(freetype CONFIG)
 endif()
 if(@CHRONON3D_ENABLE_TEXT@ AND @CHRONON3D_USE_BLEND2D@)
     # FriBidi is found via pkg-config; resolve it for the consumer so
