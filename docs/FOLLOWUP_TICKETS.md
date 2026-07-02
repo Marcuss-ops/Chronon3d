@@ -72,3 +72,6 @@ Tutti i ticket aperti non nella top-10 (TICKET-024, TICKET-026, TICKET-066, TICK
 | TICKET-067 | GATE-MNT-01 divergence fix | Done |
 
 Cronologia completa: [`docs/CHANGELOG.md`](docs/CHANGELOG.md) e [`docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md`](docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md).
+## Fix-forward ticket references (TICKET-NNN reserved)
+
+| TICKET-PUBLIC-MANIFEST-01 | P0 | CMake public-manifest corruption (sed-leak in commit 28004f96) | PARTIAL | install boundary | follow-up commit `fix(cmake): repair public-manifest sed-rejection-artefact corruption` |
