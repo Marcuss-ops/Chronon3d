@@ -183,13 +183,13 @@ set(CHRONON3D_REGISTRY_INTERFACE_LIBS
 # Storing both explicitly avoids silent string(REPLACE) / TOLOWER
 # normalization of package names (TBB stays 'tbb', xxHash stays 'xxhash').
 set(CHRONON3D_SDK_PUBLIC_DEPS
-    glm::glm;glm
-    fmt::fmt;fmt
-    spdlog::spdlog_header_only;spdlog
-    TBB::tbb;tbb
-    magic_enum::magic_enum;magic_enum
-    nlohmann_json::nlohmann_json;nlohmann_json
-    xxHash::xxhash;xxhash
+    "glm::glm|glm"
+    "fmt::fmt|fmt"
+    "spdlog::spdlog_header_only|spdlog"
+    "TBB::tbb|tbb"
+    "magic_enum::magic_enum|magic_enum"
+    "nlohmann_json::nlohmann_json|nlohmann_json"
+    "xxHash::xxhash|xxhash"
 )
 
 # Auto-derive the find_dependency line block (consumed by
@@ -198,8 +198,12 @@ set(CHRONON3D_SDK_PUBLIC_DEPS
 # tools/check_architecture_boundaries.sh check #16).
 set(_chronon3d_find_dep_lines "")
 foreach(_entry IN LISTS CHRONON3D_SDK_PUBLIC_DEPS)
-    # entry is "Target::alias;package_name"; index 0 is the link-target.
-    list(GET _entry 1 _pkg_name)
+    # entry is "Target::alias|package_name"; CMake does NOT treat '|' as a
+    # list delimiter, so each entry survives as ONE string.  Inline split
+    # via string(REPLACE) then list(GET …) to recover the 2 fields.
+    # INVARIANT: neither field of any pair may itself contain '|'.
+    string(REPLACE "|" ";" _pair "${_entry}")
+    list(GET _pair 1 _pkg_name)
     string(APPEND _chronon3d_find_dep_lines "find_dependency(${_pkg_name} CONFIG)\n")
 endforeach()
 # Idempotent rebuild: the foreach loop regenerates the string fresh on

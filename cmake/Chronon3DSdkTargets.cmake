@@ -100,8 +100,11 @@ target_link_libraries(chronon3d_sdk INTERFACE
 # the target's INTERFACE_LINK_LIBRARIES — the canonical multi-call
 # pattern in CMake.
 foreach(_entry IN LISTS CHRONON3D_SDK_PUBLIC_DEPS)
-    # entry is "Target::alias;package_name"; index 0 is the link-target.
-    list(GET _entry 0 _target_alias)
+    # entry is "Target::alias|package_name"; CMake does NOT treat "|" as a
+    # list delimiter, so each entry survives as ONE string.  Inline split
+    # via string(REPLACE) then list(GET ...) to recover the 2 fields.
+    string(REPLACE "|" ";" _pair "${_entry}")
+    list(GET _pair 0 _target_alias)
     target_link_libraries(chronon3d_sdk INTERFACE
         $<INSTALL_INTERFACE:${_target_alias}>
     )
