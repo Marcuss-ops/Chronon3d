@@ -34,13 +34,29 @@ enum class CompositeOperator : unsigned char;
 
 class SoftwareRenderer : public Renderer {
 public:
-    // ── Render entry points (render() canonical for V0.2 SDK) ──────────
+    // ── Render entry points ──────────────────────────────────────────
+    //
+    // Fase C3 — Canonical unified pipeline:
+    //   render(Composition, Frame) → render_composition_frame() → render_scene_via_graph()
+    //
+    // The render_scene() overloads below are @deprecated thin wrappers that
+    // construct a temporary Composition internally.  Migrate callers to
+    // build a Composition explicitly and call render(Composition, Frame).
+    //
+    // Canonical entry point (V0.2 SDK):
     std::shared_ptr<Framebuffer> render(const Composition& comp, Frame frame);
+
+    /// @deprecated Fase C3 — use render(Composition, Frame) instead.
+    /// Constructs a temporary Composition from Scene + Camera internally.
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
                                               i32 width, i32 height, float fps);
+
+    /// @deprecated Fase C3 — use render(Composition, Frame) instead.
+    /// Clones the scene, stamps the optional Camera2_5D, then delegates.
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene,
                                               const std::optional<Camera2_5D>& camera,
                                               i32 width, i32 height, float fps) override;
+    /// @deprecated Fase C3 — diagnostics-only wrapper; use render() for production.
     [[nodiscard]] std::string debug_render_graph(const Scene& scene, const Camera& camera,
                                                  i32 width, i32 height, float fps,
                                                  Frame frame = 0,
