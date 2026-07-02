@@ -22,6 +22,13 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         text/test_text_quality_tracking.cpp
         text/test_text_quality_arabic.cpp
         text/test_text_bidi.cpp
+        # P1-2 -- font determinism regression suite (Feature Freeze cat-2).
+        #   (1) FriBidi compile-time gate (static_assert),
+        #   (2) font fallback chain sentinel (documentation lock),
+        #   (3) same-machine bidi + fallback determinism,
+        #   (4) bidi run-count regression (FriBidi active -> multi-run).
+        # See docs/tickets/TICKET-P1-ACTION-PLAN.md §P1 #2.
+        text/test_text_font_determinism.cpp
         text/test_text_unit_map.cpp
         text/test_text_unit_map_8level.cpp
         text/test_selector_shapes.cpp
