@@ -20,7 +20,7 @@
 
 #include <doctest/doctest.h>
 
-#include <chronon3d/render_graph/cache/scene_program_store.hpp>
+#include <chronon3d/internal/render_graph/cache/scene_program_store.hpp>
 #include <chronon3d/render_graph/cache/scene_program_cache.hpp>
 #include <chronon3d/render_graph/compiler/compiled_scene_program.hpp>
 

@@ -47,7 +47,7 @@
 // the `RenderServices` bundle, and no longer wires them into the
 // `SessionServices` table via `make_session()`.  See
 // `docs/refactor-roadmap/03-render-session-boundary.md` PR 3.1 + the
-// PR 3.0 doc-comment in `<chronon3d/runtime/render_session.hpp>` for
+// PR 3.0 doc-comment in `<chronon3d/internal/runtime/render_session.hpp>` for
 // the migration rationale and the per-session ownership spec.
 //
 // Construction sequence (RenderEngine::Impl drives this):

@@ -22,7 +22,7 @@
 #define DOCTEST_CONFIG_SUPER_FAST_ASSERTS
 #include <doctest/doctest.h>
 
-#include <chronon3d/runtime/render_session.hpp>
+#include <chronon3d/internal/runtime/render_session.hpp>
 #include <chronon3d/runtime/dirty_history.hpp>
 #include <chronon3d/backends/software/software_render_session.hpp>
 

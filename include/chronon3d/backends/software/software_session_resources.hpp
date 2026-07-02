@@ -32,7 +32,7 @@
 // (which composes `RenderSession common + SoftwareSessionResources
 // software`) reaches the scene hasher through
 // `session.common.scene_hasher()`.  This struct no longer needs an
-// include of `<chronon3d/render_graph/core/scene_hasher.hpp>`
+// include of `<chronon3d/internal/render_graph/core/scene_hasher.hpp>`
 // (TICKET-013 boundary invariant restored for this header).
 // ---------------------------------------------------------------------------
 

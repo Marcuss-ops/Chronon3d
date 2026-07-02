@@ -13,7 +13,7 @@
 //   };
 //
 // This wrapper composes:
-//   - `common`  (`<chronon3d/runtime/render_session.hpp>`) holds the
+//   - `common`  (`<chronon3d/internal/runtime/render_session.hpp>`) holds the
 //               renderer-agnostic state: FrameArena, frame_history,
 //               dirty_history, layer_history, telemetry.
 //   - `software` (`<chronon3d/backends/software/software_session_resources.hpp>`)
@@ -31,7 +31,7 @@
 // `SoftwareSessionResources software`) is complete.
 // ---------------------------------------------------------------------------
 
-#include <chronon3d/runtime/render_session.hpp>
+#include <chronon3d/internal/runtime/render_session.hpp>
 #include <chronon3d/backends/software/software_session_resources.hpp>
 
 namespace chronon3d {
