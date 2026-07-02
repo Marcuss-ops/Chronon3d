@@ -7,15 +7,21 @@
 
 ## Luglio 2026 — Chiusure recenti
 
-### P0 #1 — `TextRunNode::execute()` propaga errori backend
-- Aggiunto `NodeExecutionError` in `render_backend.hpp` (backend_code, node_name, message)
-- Aggiunto `std::shared_ptr<std::optional<NodeExecutionError>> frame_error` su `RenderGraphContext`
-- `clone_for_node_execution()` copia lo shared_ptr per la propagazione clone→executor
-- `TextRunNode::execute()`: 3 path di errore (backend nullo, no capabilities, draw_text_run fallito) popolano `frame_error`
-- `execute_internal()`: seed di `frame_error` prima dei nodi + check dopo → restituisce `nullptr` su errore
-- Invariante: backend error → node failed → frame failed (nullptr) → sink non pubblica
-- 3 TEST_CASE aggiornati per verificare `frame_error` popolato con codice e nome nodo corretti
-- File: `render_backend.hpp`, `render_graph_context.hpp`, `framebuffer_acquire.cpp`, `TextRunNode.cpp`, `executor.cpp`, `test_text_run_node_execute_error.cpp`
+### P0 #1 — `RenderGraphNode::execute()` → `Result<OwnedFB, NodeExecutionError>`
+- Cambiato il return type di `RenderGraphNode::execute()` da `OwnedFB` a `NodeExecResult` (`Result<OwnedFB, NodeExecutionError>`)
+- Aggiunto `Result<T,E>` template in `render_backend.hpp` con `take_value()` per move-only types
+- 18+ tipi di nodo aggiornati (headers + .cpp) a restituire `NodeExecResult{...}`
+- `run_node()` in `node_runner.cpp`: unwrappa `Result`, su errore scrive a `ctx.frame_error`
+- `execute_internal()` in `executor.cpp`: controlla `frame_error` dopo i nodi → restituisce `nullptr`
+- Invariante: backend error → node restituisce `NodeExecutionError` → run_node scrive frame_error → executor nullptr → sink non pubblica
+- 36 file modificati, 4 test file aggiornati (mock `execute()` → `return NodeExecResult{}`)
+
+### P0 #2 — `FontLayoutIdentity` unificata su cache/hash/fastpath/prewarm
+- Nuovo `FontLayoutIdentity` struct in `font_engine.hpp` (font_path, font_family, font_weight, font_style, font_size, features)
+- `font_family` aggiunto a `layout_hash()`, `shaping_hash()`, `TextLayoutCacheKey::digest()`, `build_cache_key()`
+- Fast-path in `apply_active_state_to_text_run_shape()` ora confronta `FontLayoutIdentity` invece del solo `source_text`
+- Font overrides non più gated da `font_path.empty()` (×2 in `text_run_driver.cpp`)
+- 5 file modificati: `font_engine.hpp`, `text_run.hpp`, `text_run.cpp`, `text_run_builder.cpp`, `text_run_driver.cpp`
 
 ### TICKET-118 — `SoftwareBackend::draw_node` reale + drop dummy `TextRunProcessor`
 - `SoftwareBackend::draw_node` non è più un no-op `// Intentionally empty`:
