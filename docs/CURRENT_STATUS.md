@@ -1,11 +1,13 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@96e43482` — 2026-07-02. Linux-only.
+> **Snapshot:** `main@73a2aa9b` — 2026-07-02. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@aaf70032` (10/11 PASS — vedi [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md)).
-> Baseline registrata sul commit corrente in questo turno: gate #3 (I5 SoftwareRenderer&) promosso a PASS dal P0-1; gate #10 regressa su unbound-variable script rot (diverso dal CMake-version rot della baseline precedente).
-> Tra `aaf70032` e l'HEAD corrente sono atterrati commit addizionali (TICKET-118 + TICKET-119 closures, P1 #1–#5 fixes).
-> Gate correnti: 8/11 PASS (doc_sync FAIL su R1 — fix in corso; gate 10 FAIL — `Composition::camera` deprecato, pre-esistente).
+> **Baseline corrente:** `main@73a2aa9b` — **9/11 PASS** (NON VERDE).
+> Gate #10 FAIL: `install_consumer_test.sh` — build error in `render_session.cpp` (namespace mismatch, pre-esistente) + `software_backend.cpp` (TICKET-118 missing include `render_node.hpp`).
+> Gate #8 borderline PASS: `check_filename_drift.sh` exit 0 ma 66 warning drift.
+>
+> Tra `aaf70032` e l'HEAD corrente: TICKET-118 + TICKET-119 closures, P1 #1–#5 fixes, P0 #1 (`TextRunNode::execute()` frame_error propagation).
 >
 > Documenti canonici (vedi [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) per il contratto):
 > - Regole operative / feature freeze: [`AGENTS.md`](../AGENTS.md)
@@ -56,6 +58,7 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 | TICKET-005  | post-cascade cleanup                                                  | PARTIAL  | arch-completeness gate 5            |
 | TICKET-118  | `SoftwareBackend::draw_node` real impl + dummy `TextRunProcessor` drop | Done     | cat-3 fake-success closure           |
 | TICKET-119  | `SoftwareBackend` m_owner back-pointer removal + internal bridge       | Done     | cat-3 arch-debt closure              |
+| P0-1        | `TextRunNode::execute()` propaga errori backend via frame_error slot   | Done     | P0 false-success pattern chiuso      |
 | TICKET-022  | camera double look-at compiled path                                   | PARTIAL  | arch-boundary gate 5/6              |
 | TICKET-064  | §9 ExecutionScope — ScopeError/ScopeErrorCode structured error model | PARTIAL  | arch-boundary gate 5                |
 | TICKET-051  | A4.3 per-preset visual diagnostic                                     | PLANNED  | A4.3 visual gate                    |
@@ -64,7 +67,8 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 
 ## Certificazione corrente
 
-Ultima baseline macchina-verificata: `main@aaf70032` — **10/11 PASS** (NON VERDE per freeze; gate #10 PRESET unbound-variable rot).
+Ultima baseline macchina-verificata: `main@aaf70032` — **10/11 PASS**.
+Baseline corrente: `main@73a2aa9b` — **9/11 PASS** (NON VERDE; gate #10 FAIL — include mancante + build rot; gate #8 borderline con 66 warning drift).
 Per la revoca del **feature freeze** (vedi `AGENTS.md`) è richiesto **11/11 PASS sullo stesso commit**.
 Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA, una sola baseline per commit).
 
