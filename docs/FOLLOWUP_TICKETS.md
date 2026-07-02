@@ -75,6 +75,8 @@ Tutti i ticket aperti non nella top-10 (TICKET-024, TICKET-026, TICKET-066, TICK
 | P0-2 | FontLayoutIdentity unificata su cache/hash/fastpath/prewarm (5 file) | Done |
 | TICKET-PUBLIC-MANIFEST-01 | CMake public-manifest sed-artefact repair (commit `59db2da5`) | Done |
 | Gate-10 build rot | consumer SDK + install_consumer_test Phase 1-3 verde (commit `ac5f7125`) | Done |
+| Gate-10 Phase 4 | consumer-SDK CMake case-fix (TBB/xxHash title-case) + 44 transitive consumer headers to `cmake/Chronon3DPublicHeaders.cmake` (commit `21b9fb5d`) | Fix pushed (machine-verified Phase 4 verde still pending) |
+| TICKET-GATE-10-PHASE-4-FULL | 15 missing non-internal transitive headers (vendored glm/tracy/magic_enum wrappers) — audit `/tmp/audit_v3.py` | PLANNED |
 | TICKET-067 | GATE-MNT-01 divergence fix | Done |
 
 Cronologia completa: [`docs/CHANGELOG.md`](docs/CHANGELOG.md) e [`docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md`](docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md).
@@ -83,7 +85,7 @@ Cronologia completa: [`docs/CHANGELOG.md`](docs/CHANGELOG.md) e [`docs/ARCHIVE/F
 | TICKET-PUBLIC-MANIFEST-01 | P0 | CMake public-manifest corruption (sed-leak in commit `28004f96`) | Done | install boundary | fix-forward commit `59db2da5` |
 | TICKET-GATE-7-R1 | P1 | `src/runtime/**` non documentato in `CURRENT_STATUS.md` + `ROADMAP.md` | PLANNED | `check_doc_sync.sh` gate #7 | R1 doc-sync repair (post-commits `28004f96`, `59db2da5`, `ac5f7125`) |
 | TICKET-GATE-4-LEAK | P1 | `reports/perf/main-73a2aa9b-gates.json` tracked con abs-path leak | PLANNED | `check_gitignored_dirs.sh` gate #4 | Reroute or relocate-replace baseline log (`reports/perf/` non dovrebbe essere tracked) |
-| TICKET-GATE-10-PHASE-4 | P1 | consumer-build Phase 4 fallisce su `tbb`/`oneTBB` non disponibile | PARTIAL | `install_consumer_test.sh` gate #10 Phase 4 | configurare vcpkg manifest nel consumer-prefix per `tbb`, oppure installare `liboneTBB` di sistema |
+| TICKET-GATE-10-PHASE-4 | P1 | consumer-build Phase 4 fallisce su `tbb`/`oneTBB` non disponibile | ACTION TAKEN (CI verify pending) | `install_consumer_test.sh` gate #10 Phase 4 | fix pushed in commit `21b9fb5d` (cmake case-fix + 44 transitive headers), Phase 4 verde end-to-end ancora da confermare in CI |
 | TICKET-PUBLIC-MANIFEST-02 | OPP-include-path cascade closure (22 OPP-internal + 1 PUBLIC-manifest + 1 OPP-internal-moved + 1 python-test rewrites) | Done | Cascade-close (2026-07-02). |
 | TICKET-render-session-cpp-brace | OPP-side `src/runtime/render_session.cpp` missing namespace-closing `}` (pre-existing OPP-cpp debt) | Done | Pushed together with TICKET-PUBLIC-MANIFEST-02 to ensure OPP compile progresses to unit 162/340. |
 | TICKET-PUBLIC-MANIFEST-03 | pre-existing OPP-cpp incomplete-type in `src/backends/software/software_backend.cpp` (pre-existing OPP-cpp debt) | PARTIAL | `[SUPERSEDED BY ac5f7125]` — Minimal fix (a): include `<chronon3d/scene/model/render/render_node.hpp>` + `<chronon3d/backends/software/software_registry.hpp>` from `software_backend.cpp` directly. Closed in commit `ac5f7125`. |
