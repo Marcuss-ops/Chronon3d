@@ -5,6 +5,8 @@
 #include <chronon3d/backends/software/text_run_processor.hpp>  // 06 R3b wire-through
 #include <chronon3d/backends/software/software_processor_context.hpp>
 #include "internal/software_processor_services.hpp"  // TICKET-118 (PUBLIC via parent CMakeLists)
+#include <chronon3d/backends/software/software_registry.hpp>    // TICKET-118: SoftwareRegistry full type for draw_node dispatch
+#include <chronon3d/scene/model/render/render_node.hpp>          // TICKET-118: RenderNode full type for draw_node (node.shape.type())
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/trace_categories.hpp>
 #include <chronon3d/scene/model/layer/layer_effect.hpp>
