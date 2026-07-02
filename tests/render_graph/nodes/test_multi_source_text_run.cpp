@@ -12,7 +12,8 @@
 //   3. execute() with a text_run item whose `text_run_shape` is null
 //      returns a non-null framebuffer (the defensive `continue` branch
 //      keeps other items rendering — we don't crash, we just skip the
-//      text with a silent log guarded by m_backend_warned).
+//      text). Fase A6: m_backend_warned throttle removed; node returns
+//      NodeExecutionError immediately on first failure.
 //   4. The full multi-pass execute path (rect + text_run-flagged item
 //      sharing the same framebuffer) returns a non-null fb without
 //      crashing under the SoftwareRenderer backend.

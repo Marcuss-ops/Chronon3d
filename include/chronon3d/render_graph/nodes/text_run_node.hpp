@@ -107,10 +107,14 @@ private:
     std::optional<Mat4> m_matrix_override;
     std::optional<f32> m_opacity_override;
 
-    // ── Log throttle ───────────────────────────────────────────────────
-    // Backend-mismatch diagnostic fires once per node lifetime at error
-    // level, then falls back to debug to keep telemetry quiet at 60 fps.
-    mutable bool m_backend_warned{false};
+    // ── P0-1 / Fase A6 note ──────────────────────────────────────────
+    // m_shape is mutated per-frame by update_text_run_shape_per_frame()
+    // inside execute().  This violates the immutability contract for
+    // compiled graph nodes and creates a data race when two workers
+    // evaluate parallel frames or when random-access rendering overlaps
+    // with glyph mutation.  The fix — splitting TextRunShape into an
+    // immutable TextRunProgram + per-frame EvaluatedTextRun — is tracked
+    // for Phase C (post-feature-freeze).
 };
 
 } // namespace chronon3d::graph
