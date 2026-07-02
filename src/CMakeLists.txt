@@ -127,9 +127,11 @@ if(TARGET chronon3d_text_core)
     target_link_libraries(chronon3d_core INTERFACE chronon3d_text_core)
 endif()
 
-if(CHRONON3D_ENABLE_VIDEO)
-    target_link_libraries(chronon3d_core INTERFACE chronon3d_backend_video)
-endif()
+# P1-CMAKE-01 — chronon3d_backend_video was previously linked to chronon3d_core
+# despite the contract stating "video is linked via chronon3d_software, not core".
+# chronon3d_software already links chronon3d_backend_video below, and
+# chronon3d_pipeline links both core + software, so no consumer loses video.
+# Core is now truly dependency-minimal for server-side / headless use.
 
 add_library(chronon3d_software INTERFACE)
 target_link_libraries(chronon3d_software INTERFACE
