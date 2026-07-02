@@ -11,6 +11,21 @@ On commit `28004f96` (sdk-public-surface reduction), a buggy bash heredoc leaked
 
 ## Luglio 2026 — Chiusure recenti
 
+### runtime — `RenderPipeline::debug_graph` default-arg chain fix (commit `75035f2b`, post-rebase `c40ba16f`)
+- `include/chronon3d/runtime/render_pipeline.hpp:90`: aggiunto `= 0.0f` sentinel
+  al parametro `float fps` di `debug_graph(...)`.  Root cause: upstream commit
+  `6df9b429` "fix(render): P1 #10 - remove hardcoded 30.0f fps defaults" aveva
+  rimosso il default dal parametro 7 ma lasciato i default sui parametri 5/6
+  (`Frame frame = 0`, `f32 frame_time = 0.0f`), violando la regola C++ di
+  default-argument contiguity. C++ compile error in
+  `tools/install_consumer_test.sh` Phase 4 (consumer build esterno).
+- AGENTS.md v0.1 freeze Cat-1 (build corrections). Zero nuovi simboli pubblici;
+  il sentinel `0.0f` preserva l'intento upstream di nessun hardcoded fps literal.
+- Verification: Phase 4 end-to-end verde ancora da certificare in CI.
+- Followup aperto: `TICKET-render-pipeline-fps-defaults-audit` per gli altri
+  `float fps` parametri (header lines 71–79 + free-funs in
+  `src/runtime/render_pipeline.cpp:32,54`) — code-review nit, non-blocking.
+
 ### cmake/SDK — TICKET-GATE-10-PHASE-4 case-fix + transitive consumer headers (commit `21b9fb5d`)
 - `cmake/Chronon3DRegistry.cmake`: case-fix in `CHRONON3D_SDK_PUBLIC_DEPS` —
   `"TBB::tbb|tbb"` → `"TBB::tbb|TBB"`,
