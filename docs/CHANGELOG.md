@@ -11,6 +11,19 @@ On commit `28004f96` (sdk-public-surface reduction), a buggy bash heredoc leaked
 
 ## Luglio 2026 — Chiusure recenti
 
+### Gate-10 consumer-SDK build-rot fix (commit `ac5f7125`)
+- `src/backends/software/software_backend.cpp`: aggiunti include mancanti per `RenderNode` + `SoftwareRegistry` (invalid use of incomplete type nel dispatch `get_shape()->draw`).
+- `cmake/Chronon3DPublicHeaders.cmake`: pulizia (era corrotto da artefatti sed nel fix-forward `59db2da5`).
+- `src/runtime/render_session.cpp`: aggiunta `} // namespace chronon3d` mancante (residuo dopo il relocation commit `28004f96`).
+- `src/backends/software/runtime_adapter.cpp`: `renderer->software_registry()` e `font_engine()` restituiscono ref → aggiunto `&` per `ProcessorSourceExtras` (pointer fields).
+- 4 symlink pointer in `include/chronon3d/{runtime,render_graph/cache,render_graph/core}/*.hpp` → file spostati in `include/chronon3d/internal/` dal commit `28004f96` ma caller non aggiornati; i symlink preservano la source-compat ABI mentre si migra gradualmente.
+- Risultato gate-10 su `main@ac5f7125`: Phase 1.1–3 OK (SDK build + install nel consumer prefix + canary gate verde, 329 .o files nell'archive). Phase 4 (consumer cmake build esterno) ancora FAIL su `tbb` (vedi `TICKET-GATE-10-PHASE-4`).
+
+### TICKET-PUBLIC-MANIFEST-01 — CMake public-manifest sed-artefact repair (commit `59db2da5`)
+- `cmake/Chronon3DPublicHeaders.cmake` era corrotto da artefatti sed `/d\n` iniettati da un heredoc imperfetto durante il commit `28004f96` (sdk-public-surface reduction). CMake-configure falliva con errori `target_sources`.
+- Manifest rebuildato prendendo il contenuto pristine da `git show HEAD~1` (commit `28004f96` prima del bug) con i 4 OPP-relocated entries rimossi (`render_session.hpp`, `session_services.hpp`, `scene_program_store.hpp`, `scene_hasher.hpp` → `internal/`).
+- Aggiunto comment block `INTERNAL` esplicito che documenta la resolution topology.
+
 ### P0 #1 — `RenderGraphNode::execute()` → `Result<OwnedFB, NodeExecutionError>`
 - Cambiato il return type di `RenderGraphNode::execute()` da `OwnedFB` a `NodeExecResult` (`Result<OwnedFB, NodeExecutionError>`)
 - Aggiunto `Result<T,E>` template in `render_backend.hpp` con `take_value()` per move-only types
