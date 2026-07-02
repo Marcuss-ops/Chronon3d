@@ -340,8 +340,9 @@ TEST_CASE("TextRunNode: draw_text_run ExecutionFailure surfaces diagnostic (P0-3
 
 
 // ═══════════════════════════════════════════════════════════════════════
-// §2 — capabilities().text_run == false → ONE diagnostic error
-//      (m_backend_warned throttle); draw_text_run never called.
+// §2 — capabilities().text_run == false → diagnostic error emitted.
+//      (Fase A6: m_backend_warned throttle removed — node returns
+//       NodeExecutionError immediately, so the error only fires once.)
 // ═══════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextRunNode: absent text_run capability is diagnosed once per node (P0-3)") {
@@ -367,7 +368,8 @@ TEST_CASE("TextRunNode: absent text_run capability is diagnosed once per node (P
         OwnedFB fb;
         REQUIRE_NOTHROW(fb = node.execute(ctx, empty_inputs, empty_bboxes));
     }
-    // Second call → throttle blocks re-emit.
+    // Second call → still returns error (Fase A6: no throttle —
+    // node returns NodeExecutionError immediately each time).
     {
         OwnedFB fb;
         REQUIRE_NOTHROW(fb = node.execute(ctx, empty_inputs, empty_bboxes));
@@ -377,7 +379,9 @@ TEST_CASE("TextRunNode: absent text_run capability is diagnosed once per node (P
     CHECK(backend->draw_text_run_calls() == 0);
 
     // Locked invariant: exactly ONE diagnostic error matching the
-    // "does not support" + node name signature (throttle honored).
+    // "does not support" + node name signature (Fase A6: node returns
+    // NodeExecutionError immediately — no throttle, but error only logs
+    // once per execute call which aborts the frame).
     int support_err_count = 0;
     bool contains_node_name = false;
     for (const auto& m : capture.sink()->snapshot()) {
@@ -401,7 +405,9 @@ TEST_CASE("TextRunNode: absent text_run capability is diagnosed once per node (P
 
 
 // ═══════════════════════════════════════════════════════════════════════
-// §3 — backend is null → ONE diagnostic error (m_backend_warned throttle).
+// §3 — backend is null → diagnostic error emitted.
+//      (Fase A6: m_backend_warned throttle removed — node returns
+//       NodeExecutionError immediately.)
 // ═══════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextRunNode: null backend is diagnosed once per node (P0-3)") {

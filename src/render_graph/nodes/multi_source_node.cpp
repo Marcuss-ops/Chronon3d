@@ -176,13 +176,10 @@ NodeExecResult MultiSourceNode::execute(
                 }
 
                 if (!ctx.services.backend->capabilities().text_run) {
-                    if (!m_backend_warned) {
-                        spdlog::error(
-                            "[multi-source] node='{}' contains text run items "
-                            "but active backend does not support draw_text_run; "
-                            "aborting frame.", m_name);
-                        m_backend_warned = true;
-                    }
+                    spdlog::error(
+                        "[multi-source] node='{}' contains text run items "
+                        "but active backend does not support draw_text_run; "
+                        "aborting frame.", m_name);
                     return NodeExecResult{NodeExecutionError{
                         RenderBackendErrorCode::UnsupportedCapability,
                         m_name,

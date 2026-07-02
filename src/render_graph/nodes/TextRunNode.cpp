@@ -236,12 +236,9 @@ NodeExecResult TextRunNode::execute(
     // Resolve backend and dispatch through the virtual draw_text_run.
     auto* backend = ctx.services.backend;
     if (!backend) {
-        if (!m_backend_warned) {
-            spdlog::error(
-                "[text-run] node='{}' cannot render: backend is null; "
-                "returning cleared fb.", m_name);
-            m_backend_warned = true;
-        }
+        spdlog::error(
+            "[text-run] node='{}' cannot render: backend is null; "
+            "returning cleared fb.", m_name);
         return NodeExecResult{NodeExecutionError{
             RenderBackendErrorCode::InvalidInput,
             m_name,
@@ -272,14 +269,11 @@ NodeExecResult TextRunNode::execute(
 
     // PR2 — gate on capabilities first so the fast path (text features
     // present) is a single bool check and only the slow path logs a
-    //    startup-leak-style warning via m_backend_warned.
+    //    startup-leak-style warning.
     if (!backend->capabilities().text_run) {
-        if (!m_backend_warned) {
-            spdlog::error(
-                "[text-run] node='{}' backend does not support "
-                "draw_text_run; returning cleared fb.", m_name);
-            m_backend_warned = true;
-        }
+        spdlog::error(
+            "[text-run] node='{}' backend does not support "
+            "draw_text_run; returning cleared fb.", m_name);
         return NodeExecResult{NodeExecutionError{
             RenderBackendErrorCode::UnsupportedCapability,
             m_name,
