@@ -4,20 +4,18 @@
 > Dettaglio completo di ogni ticket: [`docs/tickets/TICKET-NNN.md`](docs/tickets/).
 > Cronologia completa ticket chiusi + deferred: [`docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md`](docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md).
 
-## Open blockers (top 10 — prioritari per baseline verde)
+## Open blockers (prioritari per baseline verde)
 
 | ID | Priorità | Area | Stato | Blocca | Scheda |
 |---|---|---|---|---|---|
-| TICKET-077 | P0 | gate-3 I2 (LOC) | 🟢 Done | check_software_renderer_boundary | header LOC 223→182, gate-3 I2 PASS |
-| TICKET-079 | P0 | gate-3 I5 (API surface) | 🟢 Done | check_software_renderer_boundary | SWRenderer& → SWRenderer*, gate-3 I5 PASS |
 | TICKET-036 | P0 | camera architecture gate | PLANNED | arch-boundary gate 5/6 | [TICKET-036.md](tickets/TICKET-036.md) |
 | TICKET-011 | P0 | mainline build rot | PLANNED | arch-boundary gate 1–8 | [TICKET-011.md](tickets/TICKET-011.md) |
-| TICKET-044 | P1 | selftest hardcoded paths | PLANNED | arch-boundary gate 5 | [TICKET-044.md](tickets/TICKET-044.md) |
-| TICKET-046 | P1 | filename drift stale refs | PLANNED | arch-boundary gate 5 | [TICKET-046.md](tickets/TICKET-046.md) |
 | TICKET-005 | P1 | post-cascade cleanup | PARTIAL | arch-completeness gate 5 | [TICKET-005.md](tickets/TICKET-005.md) |
 | TICKET-022 | P1 | camera double look-at | PARTIAL | arch-boundary gate 5/6 | [TICKET-022.md](tickets/TICKET-022.md) |
-| TICKET-064 | P1 | ExecutionScope error model | PARTIAL | arch-boundary gate 5 | [TICKET-064.md](tickets/TICKET-064.md) |
+| TICKET-044 | P1 | selftest hardcoded paths | PLANNED | arch-boundary gate 5 | [TICKET-044.md](tickets/TICKET-044.md) |
+| TICKET-046 | P1 | filename drift stale refs | PLANNED | arch-boundary gate 5 | [TICKET-046.md](tickets/TICKET-046.md) |
 | TICKET-051 | P1 | per-preset visual diagnostic | PLANNED | A4.3 visual gate | [TICKET-051.md](tickets/TICKET-051.md) |
+| TICKET-064 | P1 | ExecutionScope error model | PARTIAL | arch-boundary gate 5 | [TICKET-064.md](tickets/TICKET-064.md) |
 
 | TICKET-P1 | P1 | P1 census (5 issues) | PARTIAL | post-baseline text/cache/cmake | [TICKET-P1-ACTION-PLAN.md](tickets/TICKET-P1-ACTION-PLAN.md) |
 
