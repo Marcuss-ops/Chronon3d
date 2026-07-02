@@ -1,10 +1,12 @@
 #pragma once
 
 // ═════════════════════════════════════════════════════════════════════════════
-// Chronon3d — RenderEngine (Public SDK Facade)
+// Chronon3d — RenderEngine (OPP-INTERNAL legacy facade)
 //
-// Single entry point for the rendering SDK.  RenderEngine owns the
-// architecture via RenderEngine::Impl:
+// OPP-internal rendering facade — NOT the canonical public API.
+// External consumers MUST use chronon3d::sdk::RenderEngine instead.
+//
+// RenderEngine owns the architecture via RenderEngine::Impl:
 //
 //   RenderEngine
 //     └── RenderEngine::Impl (PIMPL)
@@ -25,9 +27,10 @@
 // (TICKET-011b–e) can swap out the orchestrator without touching this
 // header.
 //
-// Rule 4 (ANTI_DUPLICATION_RULES): RenderEngine is the single public
-// rendering API.  No other Renderer/RenderService/RenderPipelineRunner
-// class should exist.
+// Rule 4 (ANTI_DUPLICATION_RULES): chronon3d::sdk::RenderEngine is the
+// single public rendering API.  This class (chronon3d::RenderEngine) is
+// the OPP-internal implementation; no other public RenderEngine class
+// should exist.
 // ═════════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/assets/asset_registry.hpp>
@@ -58,7 +61,19 @@ namespace runtime { class RenderRuntime; }
 class SoftwareRenderer;
 
 /**
- * RenderEngine — thin public facade for the Chronon3d SDK.
+ * RenderEngine — OPP-INTERNAL rendering facade.
+ *
+ * @deprecated This class is the OPP-internal (legacy) RenderEngine.
+ *   It is NOT part of the public SDK umbrella and is excluded from
+ *   the canonical V0.1 public API surface.  External consumers MUST
+ *   use `chronon3d::sdk::RenderEngine` instead (included via
+ *   `<chronon3d/chronon3d.hpp>` or `<chronon3d/sdk/render_engine.hpp>`).
+ *
+ *   OPP-internal consumers (CLI, daemon, tests) that need the fuller
+ *   API surface (set_image_backend, set_video_decoder, assets, config,
+ *   clear_caches, reset_counters, settings) may continue to use this
+ *   class but should include `<chronon3d/api/render_engine.hpp>`
+ *   directly — the umbrella no longer re-exports it.
  *
  * Host creates a RenderEngine, optionally sets the assets root and
  * composition registry, then calls render_scene() or render().
