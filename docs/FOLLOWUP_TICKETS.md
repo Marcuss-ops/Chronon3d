@@ -19,6 +19,8 @@
 | TICKET-064 | P1 | ExecutionScope error model | PARTIAL | arch-boundary gate 5 | [TICKET-064.md](tickets/TICKET-064.md) |
 | TICKET-051 | P1 | per-preset visual diagnostic | PLANNED | A4.3 visual gate | [TICKET-051.md](tickets/TICKET-051.md) |
 
+| TICKET-P1 | P1 | P1 census (5 issues) | PLANNED | post-baseline text/cache/cmake | [TICKET-P1-ACTION-PLAN.md](tickets/TICKET-P1-ACTION-PLAN.md) |
+
 Ordinamento: priorità gate-impact desc (P0 > P1), poi per ID.
 
 ## Altri ticket aperti
@@ -32,6 +34,7 @@ Tutti i ticket aperti non nella top-10 (TICKET-024, TICKET-026, TICKET-066, TICK
 | TICKET-077 | gate-3 I2 software_renderer.hpp LOC 223→182 | Done |
 | TICKET-079 | gate-3 I5 attach_software_backend SWRenderer& → SWRenderer* | Done |
 | TICKET-078 | gate-3 I3 non-local includes 7→6 | Done |
+| P1-CMAKE-01 | CMake core/video boundary fix (P1 #5) | Done |
 | TICKET-087 | gate-3 I3 build-fix preflight_fonts | Done |
 | TICKET-106 | gate-3 I5 path-list-parity regression test | Done |
 | TICKET-080 | unicode extraction utf8_decoder + whitespace | Done |
