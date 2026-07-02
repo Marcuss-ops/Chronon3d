@@ -1,10 +1,11 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@c856387a` — 2026-07-02. Linux-only.
+> **Snapshot:** `main@96e43482` — 2026-07-02. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@aaf70032` (10/11 PASS — vedi [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md)).
 > Baseline registrata sul commit corrente in questo turno: gate #3 (I5 SoftwareRenderer&) promosso a PASS dal P0-1; gate #10 regressa su unbound-variable script rot (diverso dal CMake-version rot della baseline precedente).
-> Tra `aaf70032` e l'HEAD corrente sono atterrati commit addizionali (TICKET-118 + TICKET-119 closures); non è ancora stata registrata una nuova baseline macchina-verificata sull'HEAD corrente.
+> Tra `aaf70032` e l'HEAD corrente sono atterrati commit addizionali (TICKET-118 + TICKET-119 closures, P1 #1–#5 fixes).
+> Gate correnti: 8/11 PASS (doc_sync FAIL su R1 — fix in corso; gate 10 FAIL — `Composition::camera` deprecato, pre-esistente).
 >
 > Documenti canonici (vedi [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) per il contratto):
 > - Regole operative / feature freeze: [`AGENTS.md`](../AGENTS.md)
@@ -38,6 +39,7 @@ Un valore `PASS` deve indicare lo SHA e la baseline che lo dimostrano — altrim
 | SDK C++ installabile                            | NOT RUN  | consumer di rendering reale con testo + camera → PNG in certificazione.   |
 | SDK cross-language                              | NOT RUN  | C ABI e formato `.chronon` da progettare.                                |
 | Sistemi meta (Expressions V2 / V3 tile-first)   | PLANNED  | Expressions V2 OFF di default, non installato. V3 subordinato a V1.      |
+| Render runtime (session + caches)               | PARTIAL  | P1 #3: `RenderSession::layout_cache` aggiunto (by-value), `shared_text_layout_cache()` deprecato, callsite migration post-baseline. |
 
 ## Blocker correnti per baseline verde (top 10 attivi)
 
