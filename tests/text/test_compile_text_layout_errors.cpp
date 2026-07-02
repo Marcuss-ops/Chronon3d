@@ -275,9 +275,67 @@ TEST_CASE("build_text_run: multi-font paragraph is NO LONGER skipped (N contract
     }
 }
 
-// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-// TODO(cr-followup) Err(MissingFont) \u2014 empty-engine fixture required.
-// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// ═══════════════════════════════════════════════════════════════════════════
+// 5. P1 #1 REGRESSION — PerRunShapingFailed when a single run fails
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Before P1 #1, when HarfBuzz failed on one run in a multi-run paragraph,
+// the empty PlacedGlyphRun was silently appended to placed_runs, the
+// concatenation still had glyphs from other runs, and the post-merge
+// check `merged.glyphs.empty()` never fired — the failed run's text
+// silently vanished.  Now, with ShapingFailurePolicy::FailWholeParagraph
+// (the default), any single-run failure causes the entire paragraph to
+// return Err(PerRunShapingFailed).
+
+TEST_CASE("compile_text_layout: P1-1 — single-run failure returns Err(PerRunShapingFailed)") {
+    LocalEngine env;
+
+    TextDocument doc;
+    doc.utf8 = "AAAABBBB";
+    doc.defaults.font.font_path   = "assets/fonts/Inter-Bold.ttf";
+    doc.defaults.font.font_family = "Inter";
+    doc.defaults.font.font_weight = 700;
+    doc.defaults.font.font_size   = 32.0f;
+
+    // Override the second half with a font that cannot be loaded.
+    TextStyleSpan bad_span;
+    bad_span.byte_start = 4;
+    bad_span.byte_end   = 8;
+    bad_span.font = FontSpec{};
+    bad_span.font->font_family = "__nonexistent_family_xyzzy__";
+    bad_span.font->font_weight = 400;
+    bad_span.font->font_size   = 32.0f;
+    doc.spans.push_back(bad_span);
+
+    doc.split_paragraphs();
+
+    TextLayoutSpec layout;
+    layout.box = {800.0f, 200.0f};
+
+    TextLayoutRequest   request{&doc, &layout, FontSpec{}};
+    TextCompileServices services{&env.engine, /*cache=*/nullptr};
+
+    auto result = compile_text_layout(request, services);
+
+    // Two possible outcomes, both valid:
+    //   1. Run 1's fallback font succeeds (system has a font matching
+    //      the chain) → Ok, font_spans has 2 entries.
+    //   2. Run 1's fallback font fails (no system font ready) →
+    //      Err(PerRunShapingFailed).
+    if (result.is_ok()) {
+        const auto& layout_val = *result.value();
+        CHECK(layout_val.font_spans.size() >= 1);
+        CHECK_FALSE(layout_val.placed.glyphs.empty());
+    } else {
+        CHECK(result.error().kind == TextLayoutErrorKind::PerRunShapingFailed);
+        CHECK_FALSE(result.error().message.empty());
+        CHECK(result.error().message.find("run 1") != std::string::npos);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TODO(cr-followup) Err(MissingFont) — empty-engine fixture required.
+// ═══════════════════════════════════════════════════════════════════════════
 //
 // Same fixture gap as the prior commit; pending FontEngine::reset_registrations().
-// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// ═══════════════════════════════════════════════════════════════════════════

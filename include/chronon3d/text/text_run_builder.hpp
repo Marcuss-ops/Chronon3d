@@ -164,6 +164,19 @@ enum class TextLayoutErrorKind {
     ///     Direct `compile_text_layout()` callers (e.g. the materializer)
     ///     can use the additive `font_spans` path without rejection.
     UnsupportedMultiFontRun,
+
+    /// Per-run shaping failure: one or more ResolvedTextRun entries in
+    /// a non-empty paragraph failed HarfBuzz shaping (returned zero
+    /// glyphs despite having non-empty text).  Raised by
+    /// compile_text_layout when ShapingFailurePolicy::FailWholeParagraph
+    /// is active (the default).  Previously this was silently skipped —
+    /// the merged PlacedGlyphRun still had glyphs from other runs, so
+    /// the post-merge check `merged.glyphs.empty()` never fired.
+    ///
+    /// P1 #1 closure: per-run Result tracking replaces the implicit
+    /// "skip and continue" with explicit policy.  See
+    /// ShapingFailurePolicy below.
+    PerRunShapingFailed,
 };
 
 /// Structured compile error returned in `Result`'s error channel.
@@ -181,6 +194,27 @@ struct TextLayoutError {
 struct TextCompileServices {
     FontEngine*      engine{nullptr};
     TextLayoutCache* cache{nullptr};
+};
+
+/// Policy for handling per-run shaping failures in compile_text_layout.
+///
+/// When a ResolvedTextRun has non-empty text but HarfBuzz returns zero
+/// glyphs, the compiler applies this policy instead of the previous
+/// implicit "skip and continue" (which caused text to silently vanish
+/// when one of several runs failed — P1 #1).
+///
+/// Default: FailWholeParagraph — any single-run failure causes the
+/// entire paragraph to return Err(PerRunShapingFailed).
+///
+/// Future extensions (post-baseline):
+///   - FallbackFont: retry with a fallback font
+///   - ReplacementGlyph: insert a tofu/U+FFFD glyph
+///   - PlaceholderDiagnostic: emit a visible placeholder for debugging
+enum class ShapingFailurePolicy {
+    /// Any run shaping failure → paragraph compile fails with
+    /// Err(PerRunShapingFailed).  This is the safe default: no text
+    /// is ever silently dropped.
+    FailWholeParagraph,
 };
 
 /// Request type for `compile_text_layout`.  Borrows the caller's data
@@ -211,6 +245,12 @@ struct TextLayoutRequest {
     TextDirection         direction{TextDirection::Auto};
     Bcp47LanguageTag      language{};
     TextShapingFeatures   features{};
+    /// P1 #1 — per-run shaping failure policy.  Default
+    /// FailWholeParagraph: any single-run HarfBuzz failure causes the
+    /// whole paragraph to return Err(PerRunShapingFailed).  This
+    /// replaces the previous implicit "skip empty run and continue"
+    /// which silently dropped text when one of several runs failed.
+    ShapingFailurePolicy  shaping_failure_policy{ShapingFailurePolicy::FailWholeParagraph};
 };
 
 /// Single canonical TextRunLayout compiler.  Always populates `units`
