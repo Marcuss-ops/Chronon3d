@@ -67,7 +67,11 @@ public:
         const chronon3d::Scene& scene,
         const chronon3d::assets::AssetResolver& resolver);
     // ── Construction / destruction ─────────────────────────────────────
+    /// Canonical constructor — borrows an existing RenderRuntime.
     explicit SoftwareRenderer(runtime::RenderRuntime& rt, Config config);
+    /// @deprecated Fase C2 — creates its own runtime internally.
+    /// Use the canonical path: RenderEngine(Config) → Impl unified ctor.
+    [[deprecated("Use RenderEngine(Config) instead of standalone SoftwareRenderer")]]
     explicit SoftwareRenderer(Config config);
     ~SoftwareRenderer() override;
     SoftwareRenderer(SoftwareRenderer const&) = delete;

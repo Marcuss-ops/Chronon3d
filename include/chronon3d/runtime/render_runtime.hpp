@@ -51,17 +51,16 @@
 // PR 3.0 doc-comment in `<chronon3d/internal/runtime/render_session.hpp>` for
 // the migration rationale and the per-session ownership spec.
 //
-// Construction sequence (RenderEngine::Impl drives this):
-//   1) m_runtime(m_config)         → populate() allocates all slots
-//   2) m_renderer(m_runtime, cfg)  → renderer wires its per-instance
-//                                    state (counters, settings, image
-//                                    backend, video decoder, session)
-//   3) m_runtime.attach_backend(   → render_engine constructs
-//        make_unique<SoftwareBackend>  SoftwareBackend with
-//        (m_renderer->counters(),     (renderer-owned counters + settings
-//         m_renderer->settings(),     + runtime-owned pool) and
-//         m_runtime.framebuffer_pool_ attaches it to the runtime
-//         shared()));
+// Fase C2 — Canonical construction sequence (RenderEngine::Impl unified ctor):
+//   1) m_runtime(m_config)            → populate() allocates all slots
+//   2) m_renderer(m_runtime, cfg)     → renderer wires per-instance state
+//   3) SoftwareBackend constructed     → inside Impl ctor body, then
+//      m_runtime.attach_backend()      → runtime owns backend for engine lifetime
+//   4) m_pipeline.emplace(...)         → published after backend is live
+//
+// @deprecated standalone paths (migrate to RenderEngine constructor):
+//   * SoftwareRenderer(Config) — creates its own runtime internally
+//   * RenderRuntime::attach_backend() — use RenderEngine::Impl unified ctor
 // ----------------------------------------------------------------------
 
 #include <cassert>
@@ -146,12 +145,13 @@ public:
     /// The backend is NOT allocated here — see attach_backend().
     void populate();
 
-    /// Attach the engine's `RenderBackend` implementation.  Called by
-    /// RenderEngine::Impl after SoftwareRenderer is constructed (the
-    /// backend ctor needs the renderer's per-instance counters +
-    /// settings, which live on the renderer, not on the runtime).
+    /// @deprecated Fase C2 — backend attachment is now done inside
+    /// RenderEngine::Impl's unified constructor.  Post-construction
+    /// attach is no longer the canonical path; future factory methods
+    /// will construct the runtime with the backend already wired.
     /// After attach_backend() the runtime is the sole owner of the
     /// backend for the rest of the engine lifetime.
+    [[deprecated("Backend is now attached inside RenderEngine::Impl constructor")]]
     void attach_backend(std::unique_ptr<chronon3d::graph::RenderBackend> backend);
 
     // ── Configuration ────────────────────────────────────────────────
