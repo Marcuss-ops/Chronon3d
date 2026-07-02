@@ -158,6 +158,53 @@ Verificare:
 
 ---
 
+## I. Third-party Vendoring Policy
+
+Questa sezione documenta gli header upstream-vendored referenziati dal
+codice OPP-side via `#include <vendor/sub/header>`.  `audit_v3.py` li
+segnala come "missing" nella public manifest (`cmake/Chronon3DPublicHeaders.cmake`):
+sono **false positive** perché i path sono ASSENTI in `include/chronon3d/` —
+vivono invece sotto i package vcpkg dichiarati in `vcpkg.json`.
+
+Triagio (closing): categoria (iii) — document as vendoring policy; nessun
+mossa a `internal/` (i) né install via vcpkg `find_dependency` (ii), perché
+`vcpkg.json` + `cmake/Chronon3DConfig.cmake.in` (righe 14-29) già emetono
+`find_dependency(...)` per il set installato.  Audit findings derivano da
+una interpretazione errata di `#include` resolution; sub-ticket `TICKET-095`
+audit-v3-false-positive-suppress (separato) è in coda.
+
+| #   | Upstream package (vcpkg)        | Phantom path (audit_v3 flag)                                          | TICKET ref          | rationalis                                                            |
+|-----|---------------------------------|-----------------------------------------------------------------------|---------------------|-----------------------------------------------------------------------|
+| 1   | `glm::glm`                      | `include/chronon3d/animation/easing/glm/gtx/easing.hpp`               | [TICKET-081](tickets/TICKET-081.md) | GLM GTX submodule (easing)                                          |
+| 2   | `magic-enum::magic-enum`        | `include/chronon3d/core/magic_enum/magic_enum.hpp`                     | [TICKET-082](tickets/TICKET-082.md) | magic-enum upstream; OPP wrapper at `utility/magic_enum_safe.hpp`     |
+| 3   | `tracy::tracy` (profiling feat) | `include/chronon3d/core/profiling/tracy/Tracy.hpp`                    | [TICKET-083](tickets/TICKET-083.md) | Tracy upstream (gated by `CHRONON3D_ENABLE_PROFILING`)                |
+| 4   | `glm::glm`                      | `include/chronon3d/math/glm/glm.hpp`                                  | [TICKET-084](tickets/TICKET-084.md) | GLM root; wrapper `math/glm_types.hpp`                              |
+| 5   | `glm::glm`                      | `include/chronon3d/math/glm/gtc/constants.hpp`                        | [TICKET-085](tickets/TICKET-085.md) | GLM GTC submodule (constants)                                        |
+| 6   | `glm::glm`                      | `include/chronon3d/math/glm/gtc/matrix_transform.hpp`                 | [TICKET-086](tickets/TICKET-086.md) | GLM GTC submodule (matrix_transform)                                 |
+| 7   | `glm::glm`                      | `include/chronon3d/math/glm/gtc/quaternion.hpp`                       | [TICKET-087](tickets/TICKET-087.md) | GLM GTC submodule (quaternion)                                       |
+| 8   | `glm::glm`                      | `include/chronon3d/math/glm/gtc/type_ptr.hpp`                         | [TICKET-088](tickets/TICKET-088.md) | GLM GTC submodule (type_ptr)                                         |
+| 9   | `glm::glm`                      | `include/chronon3d/math/glm/gtx/matrix_decompose.hpp`                 | [TICKET-089](tickets/TICKET-089.md) | GLM GTX (matrix_decompose; EXPERIMENTAL gated)                       |
+| 10  | `glm::glm`                      | `include/chronon3d/math/glm/gtx/quaternion.hpp`                        | [TICKET-090](tickets/TICKET-090.md) | GLM GTX (quaternion; EXPERIMENTAL gated)                            |
+| 11  | `glm::glm`                      | `include/chronon3d/math/glm/gtx/transform.hpp`                       | [TICKET-091](tickets/TICKET-091.md) | GLM GTX submodule (transform)                                        |
+| 12  | `glm::glm`                      | `include/chronon3d/render_graph/glm/glm.hpp`                          | [TICKET-092](tickets/TICKET-092.md) | GLM root re-use inside render-graph module                            |
+| 13  | `glm::glm`                      | `include/chronon3d/rendering/glm/glm.hpp`                             | [TICKET-093](tickets/TICKET-093.md) | GLM root re-use inside rendering module                              |
+| 14  | `glm::glm`                      | `include/chronon3d/scene/model/camera/glm/gtx/quaternion.hpp`         | [TICKET-094](tickets/TICKET-094.md) | GLM GTX (quaternion) inside camera module                            |
+
+**VCpkg evidence** (vedi `vcpkg.json:dependencies`): `glm`, `magic-enum`,
+`tracy` (gated behind `profiling` feature).  **`cmake/Chronon3DConfig.cmake.in`
+righe 14-29** già emettono `find_dependency(CONFIG)` per il set installato
+(HL auto-generato da `CHRONON3D_SDK_PUBLIC_DEPS` in `Chronon3DRegistry.cmake`).
+
+**Justificazione categoria (iii) — NON (i) / (ii)**:
+
+* **(i) move to `include/chronon3d/internal/`** NON applicabile — i path sono ASSENTI, non c'è nulla da spostare.
+* **(ii) vcpkg `find_dependency(glm CONFIG)`** NON pertinente — `glm::glm` è già installato come dipendenza pubblica, e i sub-moduli (`gtc`, `gtx`) sono parte del package. Aggiungere `find_dependency` specifici sarebbe duplicativo.
+* **(iii) document as vendoring policy** CORRETTO — codice OPP-side `glm::glm`, `magic-enum::magic-enum`, `tracy::tracy` già risolvono transparentemente via target `glm::glm`, `magic-enum::magic-enum`, `tracy::tracy` consumati dal consumer build.
+
+Cross-reference: TICKET-GATE-10-PHASE-4-FULL (parent opener); TICKET-111
+(OPP-side text rot, distinct); TICKET-080 (install_consumer_test env precond,
+distinct).
+
 ## Registro dei finding
 
 | ID      | Categoria | Titolo                                                 | Stato     | Priorità | Evidenza                                                             | Ticket    |
