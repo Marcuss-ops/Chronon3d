@@ -228,30 +228,35 @@ private:
     bool                                              m_populated{false};
 };
 
-// ── Process-wide assets root (TICKET-011a follow-up #2) ────────────
+// ── Process-wide assets root (Fase B — P1 #2: DEPRECATED) ────────────
 //
-// Set by CLI/test init paths that don't construct a RenderRuntime.  Read
-// by `default_assets_root_for_deep_code()` as a fallback when no
-// RenderRuntime is active.  RenderRuntime::set_default_assets_root also
-// writes here so engine init propagates to deep code across the same
-// process without a separate signal.
+// @deprecated Fase B — process-wide global state.  Migrate to
+// RenderRuntime-owned resolver (m_resolver) reachable via
+// `runtime.resolver()`.  Deep code without a RenderRuntime in scope
+// should receive the resolver through dependency injection
+// (RenderRequest → RenderSession → RenderGraphContext → AssetResolver&)
+// rather than reading a process-wide global.
+//
+// Current callers (~24 references across tests, CLI, content modules):
+// set_process_wide_assets_root: render_job_setup.cpp, test_main.cpp,
+//   render_engine.cpp, content tests
+// process_wide_assets_root: render_engine.cpp (assets_root())
+// process_wide_resolver: text_run_driver.cpp, content modules, tests
+//
+// Migration blocked by the breadth of call sites.  Tracked for
+// Phase C (post-feature-freeze).
 void set_process_wide_assets_root(std::string root);
-/// Return the process-wide assets-root fallback by value.  Empty if
-/// nothing has been configured.  Returning by value (not by reference)
-/// keeps the per-function-call mutex guard honest: a returned
-/// reference would dangle if another thread concurrently moved the
-/// underlying module-level string via `set_process_wide_assets_root`.
+/// @deprecated Fase B — process-wide global; see deprecation banner above.
+/// Returns by value (not by reference) so callers cannot hold a pointer
+/// past a concurrent `set_process_wide_assets_root` which would move-assign
+/// the underlying string.  Empty if nothing has been configured.
 [[nodiscard]] std::string process_wide_assets_root();
 
-/// WP-8 PR 8.1 Final — process-wide typed asset resolver for deep code
-/// that has no RenderRuntime in scope (CLI dev paths, content-layer
-/// ergonomics, etc.).  Lazy-static singleton; first-mount semantics
-/// against `process_wide_assets_root()`; thread-safety delegated to the
-/// resolver's internal `shared_mutex` so the multi-thread first call
-/// is serialised + idempotent without an external `std::once_flag`.
-/// Replaces the legacy `runtime::typed_resolver_for_deep_code()`,
-/// which carried an additional active-runtime branch on the deleted
-/// `runtime::set_active_runtime()` channel.
+/// @deprecated Fase B — process-wide lazy-static singleton; see
+/// deprecation banner above.  Migrate to `runtime.resolver()`.
+/// Lazy-static; first-mount semantics against `process_wide_assets_root()`;
+/// thread-safety via resolver's internal `shared_mutex`.  Lifetime is the
+/// process.  WP-8 PR 8.1 migration target.
 [[nodiscard]] const chronon3d::assets::AssetResolver&
 process_wide_resolver();
 
