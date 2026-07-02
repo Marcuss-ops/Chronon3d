@@ -75,3 +75,19 @@ Cronologia completa: [`docs/CHANGELOG.md`](docs/CHANGELOG.md) e [`docs/ARCHIVE/F
 ## Fix-forward ticket references (TICKET-NNN reserved)
 
 | TICKET-PUBLIC-MANIFEST-01 | P0 | CMake public-manifest corruption (sed-leak in commit 28004f96) | PARTIAL | install boundary | follow-up commit `fix(cmake): repair public-manifest sed-rejection-artefact corruption` |
+
+## Cascade-close (TICKET-PUBLIC-MANIFEST-02) + TICKET-PUBLIC-MANIFEST-03 backlog (2026-07-02)
+
+| ID | Area | Status | Notes |
+|---|---|---|---|
+| TICKET-PUBLIC-MANIFEST-02 | OPP-include-path cascade closure (22 OPP-internal + 1 PUBLIC-manifest + 1 OPP-internal-moved + 1 python-test rewrites) | Done | Pushed in this turn. |
+| TICKET-render-session-cpp-brace | OPP-side `src/runtime/render_session.cpp` missing namespace-closing `}` (pre-existing OPP-cpp debt) | Done | Pushed together with TICKET-PUBLIC-MANIFEST-02 to ensure OPP compile progresses to unit 162/340. |
+
+### Open: TICKET-PUBLIC-MANIFEST-03 — pre-existing OPP-cpp incomplete-type in `src/backends/software/software_backend.cpp`
+
+- **Severity**: P1 (blocks OPP compile end-to-end, NOT introduced by commit 28004f96).
+- **Affected files**: `src/backends/software/software_backend.cpp` lines 143, 146, 148, 154; forward-declaration boundary at `include/chronon3d/render_graph/render_backend.hpp` line 21 (`struct RenderNode;`) and `include/chronon3d/backends/software/software_processor_context.hpp` line 34 (`class SoftwareRegistry;`).
+- **Root cause**: OPP-side `SoftwareBackend::draw_node` accesses `node.shape.type()` (full type required) and `m_proc_ctx.registry->get_shape(...)` (full type required), but the public `RenderBackend` interface only forward-declares these types. OPP-side cpp must either include the full types in their source or be moved behind the `SoftwareProcessorContext` boundary.
+- **Suggested remediation**: Either (a) include `<chronon3d/scene/model/render/render_node.hpp>` + `<chronon3d/backends/software/software_registry.hpp>` from `software_backend.cpp` directly (minimal fix), OR (b) restructure so `SoftwareBackend::draw_node`'s reach to full types is mediated through the `m_proc_ctx` bundle (cleaner but larger refactor).
+- **Owner**: Open (no assignee).
+- **Tracking**: `tools/check_architecture_boundaries.sh` already passes (gate-3 is forward-decl-only allowed). OPP compile fails because OPP-side cpp directly uses `node.shape` via raw reference, not a façade.
