@@ -11,6 +11,9 @@ On commit `28004f96` (sdk-public-surface reduction), a buggy bash heredoc leaked
 
 ## Luglio 2026 — Chiusure recenti
 
+### audit — close `TICKET-render-pipeline-fps-defaults-audit` (Policy E; no header change; fps uniformly no-default)
+Audit on `float fps` parameters across `RenderPipeline::render_scene` overloads + `RenderPipeline::debug_graph`: aired originally as code-review nit on commit `fc144fa2`.  **Verdict: no code change** — all scanned methods on `RenderPipeline` (header), the `RenderPipeline::render_scene` member-fn bodies in `src/runtime/render_pipeline.cpp:32,54` (matching header signatures), the lower-level free functions in `include/chronon3d/render_graph/pipeline/render_pipeline.hpp` (`chronon3d::graph::render_scene_via_graph` + `debug_scene_graph`), and `SoftwareRenderer::render_scene` definitions in `include/chronon3d/backends/software/software_renderer.hpp` (+ `.cpp`) ALL require the caller to pass `float fps` explicitly (no default).  This preserves upstream `6df9b429` ("P1 #10 - remove hardcoded 30.0f fps defaults from core pipeline") intent exactly.  The `= 0.0f` sentinel on `debug_graph`'s `frame_time` parameter is unrelated to `fps` and exists strictly to satisfy the C++ default-argument contiguity rule around `Frame frame = 0`.  AGENTS.md v0.1 freeze Cat-1 (build corrections — install-pipeline plumbing).  Zero new public symbols; pure audit closure (No-Ops commit body).  Companion spec: [`docs/tickets/TICKET-095.md`](tickets/TICKET-095.md).  Origin: code-reviewer-minimax-m3 nit on commit `fc144fa2` (3-line comment-trim retro-fixup to `75035f2b`'s default-arg chain fix); non-blocking.
+
 ### hygiene — drop non-idempotent manifest helper script (retro-fixup to eed2cc9b)
 - `tools/c3d_manifest_alphabetize.py` (added previously on `eed2cc9b`):
   dropped because it crashes on already-alphabetized manifests
