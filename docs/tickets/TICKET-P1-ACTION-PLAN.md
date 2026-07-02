@@ -65,23 +65,54 @@ rimozione legacy path, consumer SDK, e allineamento documentazione sono consenti
 
 ---
 
-## P1 #4 — Doppia pipeline testuale (TextShape vs TextRun)
+## P1 #4 — Doppia pipeline testuale (TextShape vs TextRun) ⚠️ IN CENSIMENTO
 
 **File:**
 - Pipeline A (nuova): `TextDocument → TextRunLayout → TextRunShape → draw_text_run`
 - Pipeline B (legacy): `TextShape → TextLayoutEngine::layout → rasterize_text_to_bl_image`
-- `src/backends/text/text_rasterizer_render.cpp` — `rasterize_text_to_bl_image`
+- `src/backends/text/text_rasterizer_render.cpp` — `rasterize_text_to_bl_image` (DEFINITION)
 - `src/backends/software/processors/text/software_text_processor.cpp` — chiama `rasterize_text_to_bl_image`
+- `include/chronon3d/text/rich_text.hpp` — chiama `TextLayoutEngine::layout` + `l.text()` (polyfill)
 
-**Bug attuale:** Due sistemi di shaping/layout/rasterizzazione coesistono. `TextRunNode` dichiara esplicitamente di essere distinto dalla pipeline shape-rasterizer. La pipeline legacy (`TextShape → TextLayoutEngine → rasterize_text_to_bl_image`) è ancora in produzione via `software_text_processor.cpp`.
+### Census completo — `rasterize_text_to_bl_image`
+
+| # | File | Riga | Classificazione | Note |
+|---|---|---|---|---|
+| 1 | `src/backends/text/text_rasterizer_render.cpp` | 360 | **DEFINITION** | La funzione stessa. Consentito. |
+| 2 | `src/backends/text/text_rasterizer_ink.cpp` | 2 | **INTERNAL** | Commento interno, non chiama. Consentito. |
+| 3 | `src/backends/software/processors/text/software_text_processor.cpp` | 87 | **DEPRECATE** | SoftwareTextProcessor::draw(). Renderizza nodi TextShape nel render graph. Deve migrare a `draw_text_run` / TextRunNode. |
+| 4 | `apps/chronon3d_cli/commands/dev/text_audit_engine.cpp` | 271 | **CLI DIAGNOSTIC** | Tool di qualità testo. Consentito come tool dev, ma deve usare la nuova pipeline quando disponibile. |
+| 5 | `tests/text/test_text_material.cpp` | 53, 292 | **TEST** | Test materiali testo. Consentito. |
+| 6 | `include/chronon3d/backends/text/text_rasterizer_utils.hpp` | 52 | **DECLARATION** | Header pubblico. Consentito. |
+
+### Census completo — `TextLayoutEngine::layout`
+
+| # | File | Riga | Classificazione | Note |
+|---|---|---|---|---|
+| 1 | `include/chronon3d/backends/text/text_layout_engine.hpp` | — | **DEFINITION** | La classe stessa. Consentito. |
+| 2 | `src/backends/text/text_rasterizer_render.cpp` | 426 | **DEPRECATE** | Interno a rasterize_text_to_bl_image. Sparirà con la legacy pipeline. |
+| 3 | `include/chronon3d/text/rich_text.hpp` | 238 | **DEPRECATE** | `draw_rich_text()` è un polyfill: usa TextLayoutEngine per misurare e poi emette TextSpec separati per ogni run. TextDocument supporta rich text nativamente — questa DSL è un workaround per i limiti della pipeline legacy. |
+| 4 | `apps/chronon3d_cli/commands/dev/text_audit_engine.cpp` | 234 | **CLI DIAGNOSTIC** | Tool di qualità testo. Consentito. |
+| 5 | `tests/text/test_text_bounds.cpp` | varie | **TEST** | Consentito. |
+| 6 | `tests/text/test_text_layout.cpp` | varie | **TEST** | Consentito. |
+| 7 | `tests/text/test_text_bidi.cpp` | varie | **TEST** | Consentito. |
+| 8 | `tests/text/test_text_quality_glyph.cpp` | varie | **TEST** | Consentito. |
+| 9 | `tests/text/test_text_quality_tracking.cpp` | varie | **TEST** | Consentito. |
+
+### Verdetto
+
+**2 production callsites da deprecare:**
+1. `software_text_processor.cpp:87` → migrare a `draw_text_run`
+2. `rich_text.hpp:238` → migrare `RichTextLine` a `TextDocument` nativo
+
+**Architecture gate:** `tools/check_legacy_text_pipeline.sh` (check #15 in `check_architecture_boundaries.sh`). Blocca nuovi callsite di `rasterize_text_to_bl_image` e `TextLayoutEngine::layout` fuori dai path consentiti (definizioni, test, apps, file deprecati esistenti).
 
 **Azioni:**
-1. [ ] Censimento completo di TUTTI i callsite di `rasterize_text_to_bl_image` e `TextLayoutEngine::layout`
-2. [ ] Censimento completo di TUTTI i callsite di `TextRunNode` / `draw_text_run`
-3. [ ] Per ogni callsite legacy, decidere: adapter verso TextRun, deprecazione, o responsabilità distinta documentata
-4. [ ] Se deprecazione: aggiungere `[[deprecated]]` + warning a compile-time
-5. [ ] Proteggere con architecture gate: `tools/check_architecture_boundaries.sh` deve fallire se vengono aggiunti nuovi callsite legacy
-6. [ ] Rimuovere la pipeline legacy dopo il periodo di deprecazione
+1. [x] Censimento completo di TUTTI i callsite di `rasterize_text_to_bl_image` e `TextLayoutEngine::layout`
+2. [x] Classificazione: 2 production da deprecare (software_text_processor, rich_text), 2 CLI diagnostic, N test
+3. [x] Architecture gate: `tools/check_legacy_text_pipeline.sh` come check #15
+4. [ ] Aggiungere `[[deprecated]]` / comment header su `software_text_processor.cpp` e `rich_text.hpp`
+5. [ ] Rimuovere la pipeline legacy dopo il periodo di deprecazione
 
 **Categoria Feature Freeze:** ⚠️ Parzialmente consentito: il censimento (#1, #2) e l'architecture gate (#5) sono nella categoria 3 (rimozione legacy path). La rimozione effettiva (#6) richiede baseline verde.
 

@@ -1,3 +1,26 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// P1-LEGACY-TEXT-PIPELINE — SoftwareTextProcessor is the production
+// consumer of the legacy TextShape → TextLayoutEngine::layout →
+// rasterize_text_to_bl_image pipeline.  It renders TextShape nodes from
+// the render graph, creating one rasterized image per text node.
+//
+// ⚠️  DEPRECATION PATH:
+//   1. This processor should migrate to `draw_text_run` (the
+//      TextRunNode path: TextDocument → TextRunLayout → TextRunShape
+//      → draw_text_run).  The new pipeline supports per-glyph
+//      animation, multi-font paragraphs, and bidi natively.
+//   2. Migrate the render graph to emit TextRunNode instead of
+//      TextShape nodes for text content.
+//   3. After migration, this entire file + rasterize_text_to_bl_image
+//      can be removed (P1 #4 — dual text pipeline elimination).
+//   4. The architecture gate `tools/check_legacy_text_pipeline.sh`
+//      will BLOCK any NEW calls to `rasterize_text_to_bl_image` in
+//      production code outside this file's whitelist entry.
+//
+// Last census: 2026-07-02 — this is the ONLY production caller of
+// `rasterize_text_to_bl_image` (excluding tests and CLI tools).
+// ═══════════════════════════════════════════════════════════════════════════
+
 // ---------------------------------------------------------------------------
 // software_text_processor.cpp — Text shape processor
 //
