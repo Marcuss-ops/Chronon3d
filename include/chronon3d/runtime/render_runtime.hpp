@@ -2,6 +2,7 @@
 
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/core/config.hpp>
 
 // ----------------------------------------------------------------------
@@ -168,6 +169,10 @@ public:
     // ── Backend slot predicates ──────────────────────────────────────
     [[nodiscard]] bool backend_attached() const noexcept { return static_cast<bool>(m_backend); }
 
+    // ── Image cache (Fase B B1 — per-runtime, no longer process-wide) ─
+    [[nodiscard]] chronon3d::ImageCache&       image_cache()       noexcept { return m_image_cache; }
+    [[nodiscard]] const chronon3d::ImageCache& image_cache() const noexcept { return m_image_cache; }
+
     // ── Pipeline catalogs ────────────────────────────────────────────
     [[nodiscard]] chronon3d::graph::PipelineCatalogs& catalogs() noexcept { return m_catalogs; }
     [[nodiscard]] const chronon3d::graph::PipelineCatalogs& catalogs() const noexcept { return m_catalogs; }
@@ -223,6 +228,9 @@ private:
     // genuinely needs cross-session reach, the right place is via
     // an `ExecutionScope` abstraction (WP-6 scope) or a service helper
     // — not a free-floating runtime-owned instance.
+
+    // Fase B B1 — per-runtime image cache (replaces process-wide singleton)
+    chronon3d::ImageCache                           m_image_cache;
 
     std::unique_ptr<chronon3d::graph::RenderBackend>   m_backend;
     bool                                              m_populated{false};
