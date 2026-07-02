@@ -162,3 +162,4 @@ install_manifest.json
 # durable project tooling.  See `docs/FOLLOWUP_TICKETS.md` TICKET-063.
 tools/_*.py
 sdk_consumer_output.png
+reports/perf/
