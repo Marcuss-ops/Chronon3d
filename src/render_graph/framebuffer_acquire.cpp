@@ -219,6 +219,11 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     // scratch views (transform_scratch, ping_write, reusable_inputs)
     // are intentionally default-initialised in the clone (no aliases to
     // the parent's per-node scratch state).
+
+    // P0-1 — share the frame_error slot so nodes writing errors into
+    // their cloned context are visible to the parent executor.
+    copy.frame_error = frame_error;
+
     return copy;
 }
 

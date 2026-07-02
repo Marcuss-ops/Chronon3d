@@ -302,6 +302,10 @@ TEST_CASE("TextRunNode: draw_text_run ExecutionFailure surfaces diagnostic (P0-3
     std::span<const FramebufferRef> empty_inputs{};
     std::span<const std::optional<raster::BBox>> empty_bboxes{};
     OwnedFB fb;
+    // P0-1 — seed the frame_error slot so the node can surface the
+    // backend failure.  Without this, the node's ctx.frame_error is
+    // null (no-op), and the test only validates the spdlog diagnostic.
+    ctx.frame_error = std::make_shared<std::optional<NodeExecutionError>>();
     REQUIRE_NOTHROW(fb = node.execute(ctx, empty_inputs, empty_bboxes));
 
     // Locked invariant: the dispatch reached the backend exactly once.
@@ -324,6 +328,14 @@ TEST_CASE("TextRunNode: draw_text_run ExecutionFailure surfaces diagnostic (P0-3
     CHECK(found_fail_msg >= 1);
     CHECK(found_node_name);
     CHECK(found_code_name);
+
+    // P0-1 — locked invariant: the node MUST surface the backend
+    // failure through the frame_error slot so the executor can
+    // propagate it to frame-level failure.
+    REQUIRE(ctx.frame_error);
+    REQUIRE(ctx.frame_error->has_value());
+    CHECK(ctx.frame_error->value().node_name == "P03_execfail_node");
+    CHECK(ctx.frame_error->value().backend_code == RenderBackendErrorCode::ExecutionFailure);
 }
 
 
@@ -346,6 +358,9 @@ TEST_CASE("TextRunNode: absent text_run capability is diagnosed once per node (P
 
     std::span<const FramebufferRef> empty_inputs{};
     std::span<const std::optional<raster::BBox>> empty_bboxes{};
+
+    // P0-1 — seed frame_error slot so the node can surface the failure.
+    ctx.frame_error = std::make_shared<std::optional<NodeExecutionError>>();
 
     // First call → diagnostic fires.
     {
@@ -375,6 +390,13 @@ TEST_CASE("TextRunNode: absent text_run capability is diagnosed once per node (P
     }
     CHECK(support_err_count == 1);
     CHECK(contains_node_name);
+
+    // P0-1 — locked invariant: the node MUST surface the capability
+    // failure through frame_error.
+    REQUIRE(ctx.frame_error);
+    REQUIRE(ctx.frame_error->has_value());
+    CHECK(ctx.frame_error->value().node_name == "P03_no_capability_node");
+    CHECK(ctx.frame_error->value().backend_code == RenderBackendErrorCode::UnsupportedCapability);
 }
 
 
@@ -394,6 +416,9 @@ TEST_CASE("TextRunNode: null backend is diagnosed once per node (P0-3)") {
 
     std::span<const FramebufferRef> empty_inputs{};
     std::span<const std::optional<raster::BBox>> empty_bboxes{};
+
+    // P0-1 — seed frame_error slot.
+    ctx.frame_error = std::make_shared<std::optional<NodeExecutionError>>();
 
     {
         OwnedFB fb;
@@ -416,6 +441,13 @@ TEST_CASE("TextRunNode: null backend is diagnosed once per node (P0-3)") {
     }
     CHECK(null_err_count == 1);
     CHECK(contains_node_name);
+
+    // P0-1 — locked invariant: null backend MUST be surfaced through
+    // frame_error.
+    REQUIRE(ctx.frame_error);
+    REQUIRE(ctx.frame_error->has_value());
+    CHECK(ctx.frame_error->value().node_name == "P03_null_backend_node");
+    CHECK(ctx.frame_error->value().backend_code == RenderBackendErrorCode::InvalidInput);
 }
 
 #endif // CHRONON3D_ENABLE_TEXT

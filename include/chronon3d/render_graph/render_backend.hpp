@@ -89,6 +89,19 @@ private:
 
 using RenderOpResult = Result<RenderOpOutcome, RenderBackendError>;
 
+/// Frame-level error surfaced by a render-graph node when its backend
+/// dispatch fails.  Carried on RenderGraphContext via a shared mutable slot
+/// so the executor can propagate the failure to the frame level (return
+/// nullptr = documented "engine error / fall back to empty fb").
+///
+/// P0-1 — closes the false-success pattern where TextRunNode::execute()
+/// returned a valid framebuffer after a backend draw_text_run() failure.
+struct NodeExecutionError {
+    RenderBackendErrorCode backend_code{RenderBackendErrorCode::ExecutionFailure};
+    std::string node_name{};   // which node reported the failure
+    std::string message{};     // free-form diagnostic (source: RenderBackendError::message)
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // RenderBackend
 // ═══════════════════════════════════════════════════════════════════════════
