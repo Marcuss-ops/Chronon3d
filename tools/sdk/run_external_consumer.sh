@@ -122,6 +122,8 @@ CMAKE_ARGS=(
     "-B" "$CONS_BUILD"
     "-DCMAKE_PREFIX_PATH=$CONS_PREFIX_PATH"
     "-DCMAKE_BUILD_TYPE=Release"
+    "-DVCPKG_INSTALLED_DIR=${VCPKG_INSTALLED_DIR:-}"
+    "-DVCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET:-x64-linux}"
 )
 VCPKG_TC="$REPO_ROOT/vcpkg_bootstrap/scripts/buildsystems/vcpkg.cmake"
 if [[ -f "$VCPKG_TC" ]]; then
