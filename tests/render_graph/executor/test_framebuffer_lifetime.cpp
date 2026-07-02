@@ -26,11 +26,11 @@ struct MockNode : RenderGraphNode {
         , m_name(std::move(n)) {}
     [[nodiscard]] std::string_view name() const noexcept override { return m_name; }
     [[nodiscard]] RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
-    OwnedFB execute(RenderGraphContext& ctx,
+    NodeExecResult execute(RenderGraphContext& ctx,
                     std::span<const FramebufferRef> inputs,
                     std::span<const std::optional<raster::BBox>> input_bboxes) override {
         (void)ctx; (void)inputs; (void)input_bboxes;
-        return {};
+        return NodeExecResult{};
     }
     [[nodiscard]] cache::NodeCacheKey cache_key(const RenderGraphContext&) const override { return {}; }
     [[nodiscard]] std::optional<raster::BBox> predicted_bbox(const RenderGraphContext&) const override { return std::nullopt; }

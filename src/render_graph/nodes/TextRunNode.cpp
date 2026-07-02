@@ -199,7 +199,7 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
 // (matches the matte sub-pipeline pattern from
 // graph_builder_layer_pipeline_pass.cpp).
 
-OwnedFB TextRunNode::execute(
+NodeExecResult TextRunNode::execute(
     RenderGraphContext& ctx,
     std::span<const FramebufferRef> /*inputs*/,
     std::span<const std::optional<raster::BBox>> /*input_bboxes*/
@@ -207,9 +207,8 @@ OwnedFB TextRunNode::execute(
     CHRONON_ZONE_C("text_run_render", trace_category::kRasterize);
 
     if (!m_shape) {
-        // Defensive: source pass only emits a TextRunNode when shape is set,
-        // but if a future caller constructs an empty one, return a black frame.
-        return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true);
+        return NodeExecResult{ctx.acquire_owned_fb(
+            ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true)};
     }
 
     // ── PR 8 wire-up ────────────────────────────────────────────────
@@ -243,16 +242,11 @@ OwnedFB TextRunNode::execute(
                 "returning cleared fb.", m_name);
             m_backend_warned = true;
         }
-        // P0-1 — surface the failure to the executor so the frame is
-        // treated as failed (GraphExecutor returns nullptr).
-        if (ctx.frame_error) {
-            *ctx.frame_error = NodeExecutionError{
-                RenderBackendErrorCode::InvalidInput,
-                m_name,
-                "backend is null"
-            };
-        }
-        return fb;
+        return NodeExecResult{NodeExecutionError{
+            RenderBackendErrorCode::InvalidInput,
+            m_name,
+            "backend is null"
+        }};
     }
 
     // Build the world-space transform that mirrors SourceNode's state.matrix.
@@ -286,15 +280,11 @@ OwnedFB TextRunNode::execute(
                 "draw_text_run; returning cleared fb.", m_name);
             m_backend_warned = true;
         }
-        // P0-1 — surface the failure to the executor.
-        if (ctx.frame_error) {
-            *ctx.frame_error = NodeExecutionError{
-                RenderBackendErrorCode::UnsupportedCapability,
-                m_name,
-                "backend does not support draw_text_run"
-            };
-        }
-        return fb;
+        return NodeExecResult{NodeExecutionError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            m_name,
+            "backend does not support draw_text_run"
+        }};
     }
 
     auto result = backend->draw_text_run(
@@ -306,15 +296,11 @@ OwnedFB TextRunNode::execute(
             m_name,
             chronon3d::graph::render_backend_error_code_name(result.error().code),
             result.error().message);
-        // P0-1 — surface the backend failure to the executor so the
-        // frame is propagated as failed (GraphExecutor returns nullptr).
-        if (ctx.frame_error) {
-            *ctx.frame_error = NodeExecutionError{
-                result.error().code,
-                m_name,
-                result.error().message
-            };
-        }
+        return NodeExecResult{NodeExecutionError{
+            result.error().code,
+            m_name,
+            result.error().message
+        }};
     }
 
     if (ctx.policy.diagnostics_enabled) {
@@ -355,7 +341,7 @@ OwnedFB TextRunNode::execute(
     // inside the processor.  Do NOT double-count here — the processor is
     // the single source of truth for telemetry.
 
-    return fb;
+    return NodeExecResult{std::move(fb)};
 }
 
 } // namespace chronon3d::graph

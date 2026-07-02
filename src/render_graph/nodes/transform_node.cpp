@@ -14,7 +14,7 @@
 
 namespace chronon3d::graph {
 
-OwnedFB TransformNode::execute(
+NodeExecResult TransformNode::execute(
     RenderGraphContext& ctx,
     std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>> input_bboxes
@@ -25,7 +25,7 @@ OwnedFB TransformNode::execute(
     }
 
     if (inputs.empty() || !inputs[0]) {
-        return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
+        return NodeExecResult{ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height)};
     }
 
     const FramebufferRef& input = inputs[0];
@@ -58,7 +58,7 @@ OwnedFB TransformNode::execute(
         auto result = ctx.acquire_owned_fb(out_w, out_h, false, out_bounds);
         result->set_opaque(input->is_opaque());
         result->swap_contents(*input);
-        return result;
+        return NodeExecResult{std::move(result)};
     }
 
     // ── Use transform scratch buffer when available — eliminates pool ───
@@ -86,7 +86,7 @@ OwnedFB TransformNode::execute(
         x_max_src = static_cast<f32>(std::clamp(local_x1, 0, input->width()));
         y_max_src = static_cast<f32>(std::clamp(local_y1, 0, input->height()));
         if (x_min_src >= x_max_src || y_min_src >= y_max_src) {
-            return result;
+            return NodeExecResult{std::move(result)};
         }
     }
 
@@ -201,7 +201,7 @@ OwnedFB TransformNode::execute(
                 x0, x1, y0, y1,
                 x_min_src, x_max_src, y_min_src, y_max_src,
                 itx, ity, opacity);
-            return result;
+            return NodeExecResult{std::move(result)};
         }
     }
 
@@ -219,7 +219,7 @@ OwnedFB TransformNode::execute(
                 result.get(), input.get(),
                 x0, x1, y0, y1,
                 itx, ity, opacity);
-            return result;
+            return NodeExecResult{std::move(result)};
         }
     }
 
@@ -342,7 +342,7 @@ OwnedFB TransformNode::execute(
                      ascii_grid);
     }
 
-    return result;
+    return NodeExecResult{std::move(result)};
 }
 
 std::optional<raster::BBox> TransformNode::predicted_bbox(

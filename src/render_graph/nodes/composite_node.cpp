@@ -11,13 +11,14 @@
 
 namespace chronon3d::graph {
 
-OwnedFB CompositeNode::execute(
+NodeExecResult CompositeNode::execute(
     RenderGraphContext& ctx,
     std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>> input_bboxes
 ) {
     if (inputs.size() < 2) {
-        return inputs.empty() ? ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height) : ctx.acquire_owned_fb(*inputs[0]);
+        auto fallback = inputs.empty() ? ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height) : ctx.acquire_owned_fb(*inputs[0]);
+        return NodeExecResult{std::move(fallback)};
     }
 
     const FramebufferRef& bottom = inputs[0];
@@ -57,7 +58,7 @@ OwnedFB CompositeNode::execute(
                 result->set_origin(top->origin_x(), top->origin_y());
                 result->set_opaque(true);
                 result->swap_contents(*top);
-                return result;
+                return NodeExecResult{std::move(result)};
             }
         }
     }
@@ -210,7 +211,7 @@ OwnedFB CompositeNode::execute(
                 nb_us, std::memory_order_relaxed);
         }
     }
-    return result;
+    return NodeExecResult{std::move(result)};
 }
 
 } // namespace chronon3d::graph

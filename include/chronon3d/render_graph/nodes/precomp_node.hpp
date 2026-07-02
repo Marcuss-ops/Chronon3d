@@ -82,7 +82,7 @@ public:
     /// `override` for back-compat with the existing test lattice that
     /// drives `node->execute(ctx, ...)` directly without an explicit
     /// parent ExecutionScope in scope.
-    OwnedFB execute(RenderGraphContext& ctx,
+    NodeExecResult execute(RenderGraphContext& ctx,
                     std::span<const FramebufferRef>,
                     std::span<const std::optional<raster::BBox>>) override;
 
@@ -111,7 +111,7 @@ public:
     /// tile_scope as parent, future diagnostic commands) should use
     /// this overload INSTEAD of the legacy `execute(ctx, ...)` so the
     /// full scope/lease contract is honored at the call site.
-    [[nodiscard]] OwnedFB execute_with_scope(
+    [[nodiscard]] NodeExecResult execute_with_scope(
         ExecutionScope& parent,
         RenderGraphContext& ctx,
         std::span<const FramebufferRef>,
