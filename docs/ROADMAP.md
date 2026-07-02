@@ -19,6 +19,7 @@ riportano lo stesso stato.
 3. Completato: `SoftwareRenderer::settings()` regression (TICKET-039).
 4. Completato: lambda/auto compile rot in text preset visual (TICKET-038).
 5. Chiudere i gap Precomp, execution scope e identity/session che bloccano la baseline.
+   - P1 #3 (parziale): `RenderSession::layout_cache` sostituisce il singleton `shared_text_layout_cache()`. Migrazione callsite post-baseline.
 6. Eseguire core, lean, no-content e full-validation sullo stesso commit.
 7. Rendere architecture e renderer-boundary gate realmente bloccanti.
 8. Eseguire install consumer sullo stesso commit.
