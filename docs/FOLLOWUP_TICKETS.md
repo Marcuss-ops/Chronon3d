@@ -35,7 +35,7 @@ Tutti i ticket aperti non nella top-10 (TICKET-024, TICKET-026, TICKET-066, TICK
 | ID | Area | Commit |
 |---|---|---|
 | TICKET-077 | gate-3 I2 software_renderer.hpp LOC 223→182 | Done |
-| TICKET-079 | gate-3 I5 attach_software_backend SWRenderer& → SWRenderer* | Done |
+| TICKET-079 | gate-3 I5 attach_software_backend SWRenderer& → SWRenderer* (commit `ac5f7125` cleanup phase) | Done |
 | TICKET-078 | gate-3 I3 non-local includes 7→6 | Done |
 | P1-CMAKE-01 | CMake core/video boundary fix (P1 #5) | Done |
 | TICKET-087 | gate-3 I3 build-fix preflight_fonts | Done |
@@ -67,12 +67,20 @@ Tutti i ticket aperti non nella top-10 (TICKET-024, TICKET-026, TICKET-066, TICK
 | TICKET-119 | SoftwareBackend m_owner back-pointer removal + ProcessorSourceExtras bridge | Done |
 | P0-1 | RenderGraphNode::execute() → Result<OwnedFB, NodeExecutionError> (36 file) | Done |
 | P0-2 | FontLayoutIdentity unificata su cache/hash/fastpath/prewarm (5 file) | Done |
+| TICKET-PUBLIC-MANIFEST-01 | CMake public-manifest sed-artefact repair (commit `59db2da5`) | Done |
+| Gate-10 build rot | consumer SDK + install_consumer_test Phase 1-3 verde (commit `ac5f7125`) | Done |
 | TICKET-067 | GATE-MNT-01 divergence fix | Done |
 
 Cronologia completa: [`docs/CHANGELOG.md`](docs/CHANGELOG.md) e [`docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md`](docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md).
 ## Fix-forward ticket references (TICKET-NNN reserved)
 
-| TICKET-PUBLIC-MANIFEST-01 | P0 | CMake public-manifest corruption (sed-leak in commit 28004f96) | PARTIAL | install boundary | follow-up commit `fix(cmake): repair public-manifest sed-rejection-artefact corruption` |
+| TICKET-PUBLIC-MANIFEST-01 | P0 | CMake public-manifest corruption (sed-leak in commit `28004f96`) | Done | install boundary | fix-forward commit `59db2da5` |
+| TICKET-GATE-7-R1 | P1 | `src/runtime/**` non documentato in `CURRENT_STATUS.md` + `ROADMAP.md` | PLANNED | `check_doc_sync.sh` gate #7 | R1 doc-sync repair (post-commits `28004f96`, `59db2da5`, `ac5f7125`) |
+| TICKET-GATE-4-LEAK | P1 | `reports/perf/main-73a2aa9b-gates.json` tracked con abs-path leak | PLANNED | `check_gitignored_dirs.sh` gate #4 | Reroute or relocate-replace baseline log (`reports/perf/` non dovrebbe essere tracked) |
+| TICKET-GATE-10-PHASE-4 | P1 | consumer-build Phase 4 fallisce su `tbb`/`oneTBB` non disponibile | PARTIAL | `install_consumer_test.sh` gate #10 Phase 4 | configurare vcpkg manifest nel consumer-prefix per `tbb`, oppure installare `liboneTBB` di sistema |
+| TICKET-PUBLIC-MANIFEST-02 | OPP-include-path cascade closure (22 OPP-internal + 1 PUBLIC-manifest + 1 OPP-internal-moved + 1 python-test rewrites) | Done | Cascade-close (2026-07-02). |
+| TICKET-render-session-cpp-brace | OPP-side `src/runtime/render_session.cpp` missing namespace-closing `}` (pre-existing OPP-cpp debt) | Done | Pushed together with TICKET-PUBLIC-MANIFEST-02 to ensure OPP compile progresses to unit 162/340. |
+| TICKET-PUBLIC-MANIFEST-03 | pre-existing OPP-cpp incomplete-type in `src/backends/software/software_backend.cpp` (pre-existing OPP-cpp debt) | PARTIAL | `[SUPERSEDED BY ac5f7125]` — Minimal fix (a): include `<chronon3d/scene/model/render/render_node.hpp>` + `<chronon3d/backends/software/software_registry.hpp>` from `software_backend.cpp` directly. Closed in commit `ac5f7125`. |
 
 ## Cascade-close (TICKET-PUBLIC-MANIFEST-02) + TICKET-PUBLIC-MANIFEST-03 backlog (2026-07-02)
 
@@ -87,5 +95,5 @@ Cronologia completa: [`docs/CHANGELOG.md`](docs/CHANGELOG.md) e [`docs/ARCHIVE/F
 - **Affected files**: `src/backends/software/software_backend.cpp` lines 143, 146, 148, 154; forward-declaration boundary at `include/chronon3d/render_graph/render_backend.hpp` line 21 (`struct RenderNode;`) and `include/chronon3d/backends/software/software_processor_context.hpp` line 34 (`class SoftwareRegistry;`).
 - **Root cause**: OPP-side `SoftwareBackend::draw_node` accesses `node.shape.type()` (full type required) and `m_proc_ctx.registry->get_shape(...)` (full type required), but the public `RenderBackend` interface only forward-declares these types. OPP-side cpp must either include the full types in their source or be moved behind the `SoftwareProcessorContext` boundary.
 - **Suggested remediation**: Either (a) include `<chronon3d/scene/model/render/render_node.hpp>` + `<chronon3d/backends/software/software_registry.hpp>` from `software_backend.cpp` directly (minimal fix), OR (b) restructure so `SoftwareBackend::draw_node`'s reach to full types is mediated through the `m_proc_ctx` bundle (cleaner but larger refactor).
-- **Owner**: Open (no assignee).
-- **Tracking**: `tools/check_architecture_boundaries.sh` already passes (gate-3 is forward-decl-only allowed). OPP compile fails because OPP-side cpp directly uses `node.shape` via raw reference, not a façade.
+- **Resolution (ac5f7125)**: option (a) applied — `software_backend.cpp` ora include i full types. Close.
+- **Tracking**: `tools/check_architecture_boundaries.sh` already passes (gate-3 is forward-decl-only allowed).
