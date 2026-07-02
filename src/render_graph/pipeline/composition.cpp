@@ -15,6 +15,11 @@
 #include <tbb/blocked_range.h>
 #include <hwy/highway.h>
 
+// P1 #11 — Composition::evaluate() is deprecated; render_composition_frame
+// is the bridge that still calls it until the V2 migration completes.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Refactor 6 rationale — composition.cpp is intentionally kept whole.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -365,3 +370,5 @@ std::shared_ptr<Framebuffer> render_composition_frame(
 }
 
 } // namespace chronon3d::graph
+
+#pragma GCC diagnostic pop
