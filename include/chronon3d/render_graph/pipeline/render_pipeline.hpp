@@ -1,3 +1,25 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Fase C3 — Canonical composition pipeline (single unified path):
+//
+//   Definition      → Composition::evaluate(frame, frame_engine)
+//   Compiler        → build_or_reuse_graph() → CompiledFrameGraph
+//   Evaluator       → render_composition_frame() [SSAA, motion blur]
+//   GraphCompiler   → render_scene_via_graph() [12-phase pipeline]
+//   Executor        → execute_tile_or_fallback() [tile/single-pass]
+//
+// The canonical entry point for ALL rendering is:
+//   SoftwareRenderer::render(Composition, Frame)
+//     → graph::render_composition_frame()
+//       → render_scene_via_graph()
+//
+// Deprecated paths (thin wrappers, migrate to render()):
+//   * SoftwareRenderer::render_scene(Scene, Camera, ...)          — Fase C3 @deprecated
+//   * SoftwareRenderer::render_scene(Scene, optional<Camera2_5D>) — Fase C3 @deprecated
+//   * SoftwareRenderer::debug_render_graph(...)                   — Fase C3 @deprecated
+//   * RenderPipeline::render_scene(...) x2                        — Fase C3 @deprecated
+//   * RenderPipeline::debug_graph(...)                            — Fase C3 @deprecated
+// ═══════════════════════════════════════════════════════════════════════════
+
 #pragma once
 
 #include <chronon3d/core/types/frame.hpp>
@@ -20,10 +42,12 @@ class SoftwareRenderer;  // sw_sidecar parameter for render_composition_frame
 
 namespace chronon3d::graph {
 
-/**
- * Executes a scene rendering task using the generic RenderBackend.
- * Centralizes the graph creation, context configuration, execution, and telemetry tracking.
- */
+/// Core 12-phase scene-graph pipeline (canonical graph execution path).
+/// Phases: context→fingerprints→resolved-scene reuse→static fast-path→
+/// resolve layers→dirty rect→empty-dirty reuse→ping-pong setup→
+/// build/reuse graph→preallocate→execute tile/fallback→telemetry→commit.
+///
+/// Called by render_composition_frame() and directly by test infrastructure.
 std::shared_ptr<Framebuffer> render_scene_via_graph(
     RenderBackend& backend,
     cache::NodeCache& node_cache,
@@ -58,10 +82,12 @@ std::string debug_scene_graph(
     float fps
 );
 
-/**
- * Renders a single frame of a Composition (handles SSAA, motion blur, telemetry).
- * Replaces software_internal::render_frame — backend-agnostic entry point.
- */
+/// Canonical render path — single unified pipeline entry point.
+/// All rendering flows through: Composition::evaluate → build_or_reuse_graph
+/// → render_scene_via_graph → execute_tile_or_fallback.
+///
+/// Handles SSAA, motion blur (temporal accumulation + velocity),
+/// and telemetry in a single backend-agnostic orchestrator.
 std::shared_ptr<Framebuffer> render_composition_frame(
     RenderBackend& backend,
     cache::NodeCache& node_cache,
