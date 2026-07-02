@@ -110,9 +110,9 @@ SceneGraphStats analyze_scene_graph(
     const RenderSettings& settings,
     const CompositionRegistry* registry,
     media::MediaFrameProvider* video_decoder,
+    float fps,
     bool execute = true,
-    bool include_dot = false,
-    float fps
+    bool include_dot = false
 );
 
 } // namespace chronon3d::graph
