@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@c40ba16f` (commit `c40ba16f3`, docs-sync atop Phase 4 fixes) — 2026-07-02. Linux-only.
+> **Snapshot:** `main@d8a228f7` (Fase C2 — unified Impl ctor) — 2026-07-02. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@aaf70032` (10/11 PASS — vedi [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md)).
 > **Baseline corrente:** `main@c40ba16f` — **10/11 PASS** osservato (gate #10 fix pushed in due commit consecutivi: `21b9fb5d` CMake + `75035f2b` (ora `c40ba16f` post-rebase) runtime default-arg chain on `RenderPipeline::debug_graph`); Phase 4 end-to-end machine-verify ancora da confermare per promuovere a baseline.
@@ -42,7 +42,10 @@ Un valore `PASS` deve indicare lo SHA e la baseline che lo dimostrano — altrim
 | SDK C++ installabile                            | NOT RUN  | consumer di rendering reale con testo + camera → PNG in certificazione.   |
 | SDK cross-language                              | NOT RUN  | C ABI e formato `.chronon` da progettare.                                |
 | Sistemi meta (Expressions V2 / V3 tile-first)   | PLANNED  | Expressions V2 OFF di default, non installato. V3 subordinato a V1.      |
-| Render runtime (session + caches)               | PARTIAL  | P1 #3: `RenderSession::layout_cache` aggiunto (by-value), `shared_text_layout_cache()` deprecato, callsite migration post-baseline. |
+| Render runtime (session + caches)               | PASS     | P0 #B1: ImageCache moved to RenderRuntime. P1 #3: `RenderSession::layout_cache` added. |
+| Render engine construction                      | PASS     | P0 #C2: Impl ctor unified, `optional<path>`. attach_backend() deprecated. |
+| Composition pipeline                            | PASS     | P0 #C3: canonical pipeline documented. render_composition_frame canonical. |
+| Text pre-compilation (CompiledTextRun)          | PLANNED  | P0 #C1: documented in text_run.hpp. Blocked by feature freeze. |
 
 ## Blocker correnti per baseline verde (top 10 attivi)
 
@@ -59,8 +62,11 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 | TICKET-005  | post-cascade cleanup                                                  | PARTIAL  | arch-completeness gate 5            |
 | TICKET-118  | `SoftwareBackend::draw_node` real impl + dummy `TextRunProcessor` drop | Done     | cat-3 fake-success closure           |
 | TICKET-119  | `SoftwareBackend` m_owner back-pointer removal + internal bridge       | Done     | cat-3 arch-debt closure              |
-| P0-1        | `RenderGraphNode::execute()` → `Result<OwnedFB, NodeExecutionError>`      | Done     | P0 false-success pattern chiuso      |
-| P0-2        | `FontLayoutIdentity` unificata su cache/hash/fastpath/prewarm              | Done     | P0 font identity fragmentation chiuso |
+| P0 #1–#6  | RenderGraph error propagation + immutability (Fase A)         | Done     | A1-A6 tutti chiusi; m_backend_warned rimosso.   |
+| P0 #B1    | ImageCache da singleton a RenderRuntime (Fase B)               | Done     | `1fcc9100`; instance() rimosso, thread::detach eliminato. |
+| P0 #C2    | Unify RenderEngine::Impl constructors + deprecate attach_backend | Done     | `d8a228f7`; 2 costruttori → 1 con `optional<path>`. |
+| P0 #C3    | Canonical composition pipeline documentation (Fase C)          | Done     | `3b4dbdc6`; Definition→Compiler→Evaluator→GraphCompiler→Executor doc. |
+| P0 #C1    | CompiledTextRun pre-compilation (Fase C)                       | PLANNED  | Doc-only; blocked by feature freeze.             |
 | TICKET-022  | camera double look-at compiled path                                   | PARTIAL  | arch-boundary gate 5/6              |
 | TICKET-064  | §9 ExecutionScope — ScopeError/ScopeErrorCode structured error model | PARTIAL  | arch-boundary gate 5                |
 | TICKET-051  | A4.3 per-preset visual diagnostic                                     | PLANNED  | A4.3 visual gate                    |

@@ -431,6 +431,17 @@ graph::RenderOpResult draw_text_run(
 
     // ── Resolve font handle via TextRenderResources ──────────────────
     // ── PHASE 1.4: Per-span font handle pre-resolution ──────────
+    //
+    // Fase C1 — PRE-COMPILABLE (deferred to post-feature-freeze):
+    // The font span resolution below (resolve_handle + BLFont::createFromFace)
+    // and the per-glyph→span lookup table depend ONLY on the immutable
+    // TextRunLayout::font_spans.  These should live inside a pre-compiled
+    // CompiledTextRun {SharedTextRunLayout, std::vector<ResolvedFontSpan>,
+    // glyph_to_span} produced once at compile time and cached alongside
+    // the TextRunShape.  The draw_text_run hot path would receive a
+    // const CompiledTextRun& instead of recomputing span_handles,
+    // span_fonts, and per_glyph_span_idx on every frame.
+    //
     // The layout may carry `font_spans` describing the per-glyph font
     // identity breakdown (Phase 1.4+ compile path).  We pre-resolve one
     // FontFaceHandle + BLFont per UNIQUE span, then build a per-glyph
@@ -559,7 +570,10 @@ graph::RenderOpResult draw_text_run(
     //   tier 2: blur 5–8     → radius 7
     //   tier 3: blur 9–16    → radius 13
     //   tier 4: blur > 16    → radius 20 (capped)
-    static constexpr int kBlurTierRadii[5] = { 0, 2, 7, 13, 20 };
+    // Fase C1 — PRE-COMPILABLE (see text_run.hpp CompiledTextRun doc).
+    // Blur tiers depend on per-frame GlyphInstanceState::blur (animated),
+    // so they CANNOT be pre-compiled — O(G) per frame is required.
+    // The tier radii (kBlurTierRadii) are compile-time constants.
     static constexpr int kNumBlurTiers = 5;
 
     // ── Fase 3 — Preclassify glyphs into blur tiers (O(G), once) ────

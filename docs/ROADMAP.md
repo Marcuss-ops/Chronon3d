@@ -5,6 +5,12 @@ successiva per nascondere blocker della precedente.
 
 Stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). Criteri di release: [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md).
 
+### Fase C — Completamento doc (2026-07-02)
+
+- **C2** (`d8a228f7`): Costruttore `RenderEngine::Impl` unificato (`optional<path>`).
+- **C3** (`3b4dbdc6`): Pipeline canonica documentata (Definition→Compiler→Evaluator→GraphCompiler→Executor).
+- **C1** (doc-only): `CompiledTextRun` pianificato in `text_run.hpp`; blocked by feature freeze.
+
 ## M0 — Baseline verificata
 
 ### Obiettivo
