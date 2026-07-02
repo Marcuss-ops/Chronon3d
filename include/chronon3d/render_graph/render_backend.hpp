@@ -139,6 +139,19 @@ public:
         const LensModel& lens,
         const std::optional<raster::BBox>& clip) = 0;
 
+    /// Draw a single RenderNode using the backend's rasteriser.
+    ///
+    /// P0-1 NOTE: draw_node() returns void — the render graph executor cannot
+    /// detect backend failures through this call.  Errors inside SoftwareBackend
+    /// (e.g. missing processor-context, unsupported shape type) are logged via
+    /// spdlog but do not propagate to the frame level.  Changing this signature
+    /// to Result<RenderOpOutcome, RenderBackendError> would require coordinated
+    /// API/ABI changes across SoftwareRenderer, SoftwareBackend, and all test
+    /// backends — tracked for Phase C (post-feature-freeze).
+    ///
+    /// In the meantime, callers that cannot tolerate silent draw failures should
+    /// route through the typed draw_text_run() path which already returns
+    /// RenderOpResult.
     virtual void draw_node(
         Framebuffer& /*fb*/,
         const RenderNode& /*node*/,
