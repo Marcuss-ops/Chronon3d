@@ -489,22 +489,53 @@ compile_text_layout(
     }
 
     // ── Shape + place each resolved run ────────────────────────────
+    // P1 #1 — per-run Result tracking replaces the previous implicit
+    // "skip and continue" (which silently dropped text when one of
+    // several runs failed).  Each run is shaped independently; if a
+    // run with non-empty text produces zero glyphs, the configured
+    // ShapingFailurePolicy is applied.  Default: FailWholeParagraph
+    // — the entire paragraph returns Err(PerRunShapingFailed).
+    //
+    // After the policy gate, Ok values are extracted into placed_runs
+    // for the downstream concatenate + compose + font_spans code (all
+    // unchanged from the pre-P1 #1 pipeline).
     std::vector<PlacedGlyphRun> placed_runs;
     placed_runs.reserve(para.runs.size());
-    for (const auto& run : para.runs) {
-        placed_runs.push_back(shape_resolved_run(run, engine, layout.tracking));
+    for (std::size_t ri = 0; ri < para.runs.size(); ++ri) {
+        const auto& run = para.runs[ri];
+        PlacedGlyphRun placed = shape_resolved_run(run, engine, layout.tracking);
+
+        // ── Per-run failure detection ──────────────────────────
+        // A run whose text is non-empty but HarfBuzz produced zero
+        // glyphs means the font rejected the input (e.g. missing
+        // glyph coverage for a script).  Previously this was silently
+        // skipped — the merged PlacedGlyphRun still had glyphs from
+        // other runs, so the post-merge `merged.glyphs.empty()` check
+        // never fired.  Now we apply the configured policy.
+        if (placed.glyphs.empty() && !run.text.empty()) {
+            switch (request.shaping_failure_policy) {
+            case ShapingFailurePolicy::FailWholeParagraph:
+                return TextLayoutError{
+                    TextLayoutErrorKind::PerRunShapingFailed,
+                    "compile_text_layout: run " + std::to_string(ri)
+                    + " of " + std::to_string(para.runs.size())
+                    + " failed shaping (HarfBuzz produced zero glyphs"
+                    + " for non-empty text '" + run.text + "')"
+                };
+            }
+        }
+        placed_runs.push_back(std::move(placed));
     }
 
     // ── Concatenate into one PlacedGlyphRun ────────────────────────
     PlacedGlyphRun merged = concatenate_runs(placed_runs);
 
-    // ── ShapingFailed check (post-shape) ────────────────────
-    // After resolving shape for every run in the paragraph, if the
-    // merged placed run has zero glyphs AND the paragraph text was
-    // non-empty, then HarfBuzz rejected the input even though a
-    // font was provided.  Surface this as a structured ShapingFailed
-    // error (instead of the previous zero-weight silent fallback
-    // that froze animators with total_units=0).
+    // ── ShapingFailed check (post-shape, ALL-run guard) ─────
+    // After applying per-run policy above, every run in placed_runs
+    // is Ok (any failure would have returned Err).  This guard is the
+    // belt-and-suspenders check for the degenerate case where ALL
+    // runs had empty text (empty paragraph with non-empty para_text
+    // should never happen, but paranoia).
     if (merged.glyphs.empty() && !para_text.empty()) {
         return TextLayoutError{
             TextLayoutErrorKind::ShapingFailed,
