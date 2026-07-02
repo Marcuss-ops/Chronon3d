@@ -64,7 +64,10 @@ struct RenderEngine::Impl {
     // in the body, so std::optional is the right storage here.
     std::optional<runtime::RenderPipeline>       m_pipeline;
 
-    explicit Impl(Config config)
+    // Fase C2 — unified constructor (replaces the two previous overloads).
+    // assets_root is optional; when provided, set_assets_root() is called
+    // after the runtime + renderer + backend wiring is complete.
+    explicit Impl(Config config, std::optional<std::filesystem::path> assets_root = std::nullopt)
         : m_config(std::move(config))
         , m_runtime(m_config)        // RenderRuntime ctor calls populate()
         , m_renderer(std::make_unique<SoftwareRenderer>(m_runtime, m_config))
@@ -90,12 +93,19 @@ struct RenderEngine::Impl {
         };
         auto backend = make_software_backend(services).value();
         attach_processor_context_to_backend_impl(backend.get(), services);
+        // Fase C2 — attach_backend() is @deprecated; direct wiring inside Impl
         m_runtime.attach_backend(std::move(backend));
 
         // TICKET-011a follow-up #1 — publish the RenderPipeline facade.
         m_pipeline.emplace(m_renderer.get(), m_runtime);
 
-        spdlog::debug("RenderEngine::Impl: constructed; runtime backend attached");
+        if (assets_root.has_value()) {
+            set_assets_root(*assets_root);
+            spdlog::debug("RenderEngine::Impl: constructed with assets_root={}",
+                          assets_root->string());
+        } else {
+            spdlog::debug("RenderEngine::Impl: constructed; runtime backend attached");
+        }
     }
 
     // TICKET-118/119 — inline the orchestrator-only processor-context
@@ -121,41 +131,6 @@ struct RenderEngine::Impl {
         backend->attach_processor_context(
             chronon3d::backends::software::internal::make_processor_context(
                 services, extras));
-    }
-
-    Impl(Config config, std::filesystem::path assets_root)
-        : m_config(std::move(config))
-        , m_runtime(m_config)        // populate() — no longer publishes an active-runtime pointer (WP-8 PR 8.1)
-        , m_renderer(std::make_unique<SoftwareRenderer>(m_runtime, m_config))
-    {
-        m_renderer->set_image_backend(std::make_shared<image::StbImageBackend>());
-
-        // TICKET-011 + Fase 1 services-validation — see the matching
-        // constructor above; same factory path: build the services bundle
-        // (NO `owner` field — TICKET-118 removed it), call
-        // `make_software_backend`, unwrap via `.value()`, attach the
-        // orchestrator-only fields via `attach_processor_context(...)`,
-        // then move ownership to the runtime via `attach_backend`.
-        chronon3d::SoftwareBackendServices services{
-            /* counters           = */ m_renderer->counters(),
-            /* settings           = */ &m_renderer->render_settings(),
-            /* framebuffer_pool   = */ m_runtime.framebuffer_pool_shared(),
-            /* asset_resolver     = */ &m_runtime.resolver(),
-            /* text_resources     = */ m_renderer->text_render_resources(),
-            /* images             = */ nullptr,
-            /* text_raster        = */ nullptr,
-            /* debug_config       = */ nullptr,
-        };
-        auto backend = make_software_backend(services).value();
-        attach_processor_context_to_backend_impl(backend.get(), services);
-        m_runtime.attach_backend(std::move(backend));
-
-        // TICKET-011a follow-up #1 — publish the RenderPipeline facade.
-        m_pipeline.emplace(m_renderer.get(), m_runtime);
-
-        set_assets_root(assets_root);   // mounts root + mirrors to process-wide slot (WP-8 PR 8.1)
-        spdlog::debug("RenderEngine::Impl: constructed with assets_root={}",
-                      assets_root.string());
     }
 
     ~Impl() = default;
