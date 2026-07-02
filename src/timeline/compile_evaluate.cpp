@@ -115,11 +115,13 @@ compile_composition(const CompositionDefinition& definition,
 
     CompiledComposition out;
 
-    // (3) Non-owning ref-counted view of the caller-supplied definition.
-    //     The no-op deleter is safe: the caller retains ownership for the
-    //     lifetime of every CompiledComposition derived from this call.
-    out.definition = std::shared_ptr<const CompositionDefinition>(
-        &definition, [](const CompositionDefinition*) noexcept {});
+    // (3) OWNING deep copy of the definition — P1 #11.
+    //     CompiledComposition now owns its own heap copy via make_shared,
+    //     so it survives destruction of the caller's original definition.
+    //     CompositionDefinition is copyable: CompositionSpec (POD + strings),
+    //     SceneFunction (std::function with state-safe captures), and
+    //     optional<CameraDescriptor> (copyable).
+    out.definition = std::make_shared<const CompositionDefinition>(definition);
 
     // (4) Camera compile path (only when a descriptor was supplied).
     // ADL on `camera_v1::CameraDescriptor` finds BOTH an outer wrapper in
@@ -143,22 +145,32 @@ compile_composition(const CompositionDefinition& definition,
             keep, keep.get());
     }
 
-    // (5) FNV-1a fingerprint over the static inputs.
+    // (5) Deterministic per-field fingerprint — P1 #11.
+    //     Replaces the previous raw-memory fnv1a64(&struct, sizeof) which
+    //     hashed padding bytes, std::string internal pointers, and STL
+    //     layout details — all non-portable across compilers/platforms.
+    //     Now each field is hashed individually; std::strings via their
+    //     content bytes, POD fields via their value bytes, and the
+    //     CameraDescriptor via its existing canonical fingerprint function.
     std::uint64_t h = kFnv1aOffset;
-    h = fnv1a64(&definition.composition, sizeof(CompositionSpec));
+
+    // CompositionSpec fields — hash strings by content, not by pointer.
+    h ^= fnv1a64(definition.composition.name.data(), definition.composition.name.size());
+    h ^= fnv1a64(&definition.composition.width,  sizeof(i32));
+    h ^= fnv1a64(&definition.composition.height, sizeof(i32));
+    h ^= fnv1a64(&definition.composition.frame_rate.numerator,   sizeof(i32));
+    h ^= fnv1a64(&definition.composition.frame_rate.denominator, sizeof(i32));
+    h ^= fnv1a64(&definition.composition.duration, sizeof(Frame));
+    h ^= fnv1a64(definition.composition.assets_root.data(), definition.composition.assets_root.size());
+
+    // Camera descriptor — use the canonical per-field fingerprint function.
     if (definition.camera.has_value()) {
-        h ^= fnv1a64(&*definition.camera, sizeof(camera_v1::CameraDescriptor));
+        h ^= camera_v1::compute_camera_descriptor_fingerprint(*definition.camera);
     }
+
+    // Scene function type identity — hash via type_info::hash_code(),
+    // which is deterministic per ABI and independent of addresses.
     if (definition.scene) {
-        // Hash the target-type *identity* via `std::type_info::hash_code()`,
-        // not the bytes of the type_info object itself.  The latter would
-        // depend on libstdc++ layout and the vtable pointer (positional /
-        // ASLR-sensitive), defeating the docstring's "content-stable across
-        // runs on a given ABI" promise.  `hash_code()` is defined by the
-        // standard as a deterministic function of the type identity alone.
-        // `std::function::target_type()` returns the documented sentinel
-        // `typeid(void)` when no target is stored — skip the hash in that
-        // case so empty-functor compositions all share the same bit pattern.
         const auto& target_type = definition.scene.target_type();
         if (target_type != typeid(void)) {
             h ^= static_cast<std::uint64_t>(target_type.hash_code());
