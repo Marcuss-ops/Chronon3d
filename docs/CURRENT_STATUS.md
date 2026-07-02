@@ -129,3 +129,15 @@ Chiudere gate #10 (install_consumer_test.sh) per raggiungere 11/11 PASS, poi rev
 **Totale: 10/11 PASS** — gate #10 doppio-fix landed; machine-verified Phase 4 verde ancora richiesto per la revoca formale del feature freeze e per promuovere `c40ba16f` a baseline macchina-verificata.
 
 _Limite raccomandato: 150 righe (vedi `DOCUMENTATION_GOVERNANCE.md` DoD §10)._
+
+## Gate audit snapshot — `main@efd841f0` (HISTORICAL, 2026-07-02)
+
+> Historical reference (baseline-stale; current HEAD = `fe25f6bc`, 15 commit ahead).
+> Source of truth: [`reports/perf/main-efd841f0-gates.json`](../reports/perf/main-efd841f0-gates.json) (schema `chronon3d.gates.v1`).
+> Per-gate tee logs: [`reports/perf/main-efd841f0-tee/`](../reports/perf/main-efd841f0-tee/).
+> _Source of truth; full 11-row table is in the JSON, non duplicato qui per brevità._
+
+| Gate #10                              | `install_consumer_test.sh` | ❌ FAIL (`regression_type: infra-setup`, 0s elapsed) |
+|---------------------------------------|----------------------------|------------------------------------------------------|
+
+Diagnosi: `Could not find toolchain file: …/vcpkg_bootstrap/scripts/buildsystems/vcpkg.cmake` (env precond `VCPKG_ROOT` non impostata).  **Distinct da TICKET-111** OPP-side text rot.  Forward-fix: `TICKET-install-consumer-vcpkg-bootstrap` ([`docs/FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md)).  Nessuna regressione di codice osservata; tutti gli altri 10 gates PASS (vedi JSON per i dettagli per-gate).
