@@ -102,7 +102,7 @@ public:
     // valid C++ syntax.  No new public symbols; Cat-1 allowed.
     [[nodiscard]] std::string debug_graph(
         const Scene& scene, const Camera& camera, i32 width, i32 height,
-        Frame frame = 0, f32 frame_time = 0.0f, float fps = 0.0f);
+        float fps, Frame frame = 0, f32 frame_time = 0.0f);
 
 private:
     SoftwareRenderer* m_renderer;

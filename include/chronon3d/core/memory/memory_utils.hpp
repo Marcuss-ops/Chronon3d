@@ -11,6 +11,8 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#include <chronon3d/core/types/types.hpp>
+
 namespace chronon3d::memory {
 
 // ── Allocation backend discriminant ────────────────────────────────────────
