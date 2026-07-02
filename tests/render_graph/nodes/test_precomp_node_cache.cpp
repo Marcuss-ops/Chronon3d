@@ -23,11 +23,11 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/runtime/render_session.hpp>
+#include <chronon3d/internal/runtime/render_session.hpp>
 #include <tests/helpers/test_utils.hpp>
 
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
-#include <chronon3d/render_graph/cache/scene_program_store.hpp>
+#include <chronon3d/internal/render_graph/cache/scene_program_store.hpp>
 #include <chronon3d/render_graph/cache/scene_program_cache.hpp>
 #include <chronon3d/render_graph/pipeline/frame_parameter_block.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>

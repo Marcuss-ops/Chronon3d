@@ -37,7 +37,7 @@
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
-#include <chronon3d/render_graph/cache/scene_program_store.hpp>
+#include <chronon3d/internal/render_graph/cache/scene_program_store.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compile_options.hpp>
 #include <chronon3d/cache/node_cache.hpp>

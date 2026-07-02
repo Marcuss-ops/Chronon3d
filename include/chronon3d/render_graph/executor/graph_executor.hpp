@@ -31,7 +31,7 @@
 
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
-#include <chronon3d/runtime/render_session.hpp>
+#include <chronon3d/internal/runtime/render_session.hpp>
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>  // PR 6.1 — reference parameter for execute_with_scope(...)
 

@@ -62,7 +62,7 @@
 // PR-2 rewire (CHANGELOG.md R6): tests now compile via FrameGraphCompiler.
 // ExecutionPlanCache was RETIRED by the PR-2 rewire (see CHANGELOG.md R6).
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
-#include <chronon3d/runtime/render_session.hpp>
+#include <chronon3d/internal/runtime/render_session.hpp>
 #include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>

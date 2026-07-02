@@ -22,7 +22,7 @@
 
 #include <cstdint>                                                  // std::uint32_t
 
-#include <chronon3d/runtime/render_session.hpp>                     // RenderSession
+#include <chronon3d/internal/runtime/render_session.hpp>                     // RenderSession
 #include <chronon3d/scene/camera/camera_v1/camera_session.hpp>     // camera_v1::CameraSession
 
 namespace chronon3d {

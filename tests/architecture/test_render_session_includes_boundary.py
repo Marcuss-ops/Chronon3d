@@ -10,7 +10,11 @@ import sys
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 CHECKS = [
-    ('include/chronon3d/runtime/render_session.hpp',
+    # TICKET-PUBLIC-MANIFEST-02 follow-up: render_session.hpp is now an
+    # OPP-internal header (moved in commit 28004f96). Update the include-
+    # graph boundary guard to point at the internal path so future header
+    # reachability is reported against the canonical post-migration layout.
+    ('include/chronon3d/internal/runtime/render_session.hpp',
      ['backends/software/', 'render_graph/']),
     ('include/chronon3d/render_graph/executor/graph_executor.hpp',
      ['backends/software/']),
@@ -25,7 +29,7 @@ CHECKS = [
 # in this header since the legacy SoftwareRenderSession struct was
 # removed in WP-3 PR 3.4 close-out).
 KNOWN_VIOLATIONS = {
-    'include/chronon3d/runtime/render_session.hpp': {
+    'include/chronon3d/internal/runtime/render_session.hpp': {
         'scene_hasher.hpp': ('WP-3 PR-3.1',
             'per-session ownership of SceneHasher requires full type; '
             'forward-declaration boundary lifted per '

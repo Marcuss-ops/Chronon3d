@@ -36,7 +36,7 @@
 #include <chronon3d/core/scope/execution_scope.hpp>
 #include <chronon3d/core/execution/execution_scope_types.hpp>
 #include <chronon3d/core/memory/arena.hpp>
-#include <chronon3d/runtime/render_session.hpp>
+#include <chronon3d/internal/runtime/render_session.hpp>
 #include <chronon3d/render_graph/core/node_identity.hpp>
 #include <chronon3d/core/types/result.hpp>
 
