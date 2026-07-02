@@ -17,14 +17,12 @@
 | TICKET-051 | P1 | per-preset visual diagnostic | PLANNED | A4.3 visual gate | [TICKET-051.md](tickets/TICKET-051.md) |
 | TICKET-064 | P1 | ExecutionScope error model | PARTIAL | arch-boundary gate 5 | [TICKET-064.md](tickets/TICKET-064.md) |
 
-| TICKET-P1 | P1 | P1 census (5 issues) | PARTIAL | post-baseline text/cache/cmake | [TICKET-P1-ACTION-PLAN.md](tickets/TICKET-P1-ACTION-PLAN.md) |
+| TICKET-P1 | P1 | P1 census (5 issues, done) | DONE | post-baseline text/cache/cmake | [TICKET-P1-ACTION-PLAN.md](tickets/TICKET-P1-ACTION-PLAN.md) |
+| TICKET-P1-PART2 | P1 | P1 census #7–#12 (6 issues) | PLANNED | asset/cache/runtime/framerate/timeline/cmake | [TICKET-P1-ACTION-PLAN-PART2.md](tickets/TICKET-P1-ACTION-PLAN-PART2.md) |
 
 **P1 progress summary (2026-07-02):**
-- P1 #1 DONE — per-run shaping failure policy (`2dbced4c`)
-- P1 #2 DONE — bidi/font fallback deterministic tests (`37c867a6`)
-- P1 #3 IN PROGRESS — `RenderSession::layout_cache` added (by-value), `shared_text_layout_cache()` comment-deprecated, callsite migration deferred to post-baseline
-- P1 #4 DONE — legacy text pipeline census + gate #15 (`2b6a5640`)
-- P1 #5 DONE — CMake core/video boundary fix (`0892a224`)
+- P1 #1–#5 DONE (Part 1 completata, commit `0892a224`)
+- P1 #7–#12 PLANNED (Part 2 censita, commit `8976908a`): asset globale, text monolite, RenderRuntime service locator, frame rate hardcoded, timeline percorsi multipli, CMake fragile
 
 Ordinamento: priorità gate-impact desc (P0 > P1), poi per ID.
 
