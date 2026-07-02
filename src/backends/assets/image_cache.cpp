@@ -4,22 +4,15 @@
 #include <spdlog/spdlog.h>
 #include <atomic>
 #include <cstdlib>
-#include <mutex>
-#include <thread>
 
 namespace chronon3d {
 
-// FASE 3 (TICKET-079) — Injected capacity, set once at startup by SoftwareRenderer.
-// First-call-wins via atomic CAS; eliminates std::once_flag + std::call_once (per
-// AGENTS.md pattern `is serialised + idempotent without an external std::once_flag`).
 namespace {
-
     size_t            s_image_cache_capacity = 0;
     std::atomic<bool> s_image_cache_capacity_flag{false};
-
 } // namespace
 
-void ImageCache::set_capacity_bytes(size_t capacity_bytes) {
+void ImageCache::set_global_capacity_bytes(size_t capacity_bytes) {
     bool expected = false;
     if (s_image_cache_capacity_flag.compare_exchange_strong(
             expected, true,
@@ -28,36 +21,15 @@ void ImageCache::set_capacity_bytes(size_t capacity_bytes) {
     }
 }
 
-static size_t resolve_injected_capacity() {
+static size_t resolve_capacity() {
     constexpr size_t kFallback = 512ULL * 1024ULL * 1024ULL;
     return s_image_cache_capacity > 0 ? s_image_cache_capacity : kFallback;
 }
 
-// Fase B (B4) — std::thread::detach() is a known hazard:
-//   - no cancellation mechanism
-//   - no join / ownership of the job
-//   - no error propagation
-//   - no guarantee backend + logging survive through shutdown
-//
-// Migrate to executor-owned preload jobs (Phase C).
-void ImageCache::preload_async(const std::string& path) {
-    std::thread([path]() {
-        instance().get_or_load(path);
-    }).detach();
-}
+ImageCache::ImageCache(size_t capacity_bytes)
+    : m_cache(capacity_bytes > 0 ? capacity_bytes : resolve_capacity()) {}
 
-ImageCache::ImageCache()
-    : m_cache(resolve_injected_capacity()) {}
-
-const CachedImage* ImageCache::get_or_load(const std::string& path) {
-    auto shared = get_or_load_shared(path);
-    return shared.get();
-}
-
-std::shared_ptr<const CachedImage> ImageCache::get_or_load_shared(const std::string& path) {
-    // Snapshot the backend pointer under a shared lock so concurrent readers
-    // don't block each other.  The refcount increment on the shared_ptr is
-    // cheap and the lock is released before any I/O happens.
+std::shared_ptr<const CachedImage> ImageCache::get_or_load(const std::string& path) {
     std::shared_ptr<image::ImageBackend> backend;
     {
         std::shared_lock<std::shared_mutex> lock(m_backend_mutex);
@@ -68,17 +40,11 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load_shared(const std::str
         return nullptr;
     }
 
-    // compute_if_absent() does the double-checked-locking internally on the
-    // per-shard mutex, so we no longer need a process-wide mutex here.  The
-    // loader is invoked while holding only the shard's lock, so concurrent
-    // loads of images that hash to different shards run in parallel.
     auto shared = m_cache.compute_if_absent(path,
         [&]() -> std::pair<std::shared_ptr<CachedImage>, size_t> {
             const auto t0 = profiling::now();
             auto buffer = backend->load_image(path);
             if (!buffer || !buffer->pixels) {
-                // Cache a null entry (weight 1) so repeated lookups for a
-                // missing file don't re-hit the disk on every frame.
                 return {std::make_shared<CachedImage>(), 1};
             }
 
@@ -86,7 +52,6 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load_shared(const std::str
             entry->width = buffer->width;
             entry->height = buffer->height;
 
-            // Create BLImage and premultiply alpha for Blend2D (PRGB32)
 #ifdef CHRONON3D_USE_BLEND2D
             entry->bl_img.create(entry->width, entry->height, BL_FORMAT_PRGB32);
             BLImageData bl_data;
@@ -105,9 +70,6 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load_shared(const std::str
             }
 #endif
 
-            // Keep a float framebuffer copy for the software raster path. This avoids
-            // re-sampling the BLImage path for scaled images, which is where we observed
-            // striping artifacts.
             entry->fb_img = std::make_shared<Framebuffer>(entry->width, entry->height);
             if (entry->fb_img) {
                 const uint8_t* src = buffer->pixels.get();
@@ -127,7 +89,13 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load_shared(const std::str
             const double load_dur_ms = profiling::elapsed_ms(t0);
             spdlog::info("ImageCache: loaded '{}' ({}x{}) in {:.3f}ms", path, entry->width, entry->height, load_dur_ms);
 
-            const size_t weight = static_cast<size_t>(entry->width) * entry->height * 4;
+            // Fase B1: weight now accounts for both BLImage (PRGB32, 4 bytes/px)
+            // and the float Framebuffer (4 floats/px = 16 bytes/px).
+            const size_t weight = static_cast<size_t>(entry->width) * entry->height * 4  // BLImage
+#ifdef CHRONON3D_USE_BLEND2D
+                                + static_cast<size_t>(entry->width) * entry->height * 16 // Framebuffer float
+#endif
+                                ;
             return {entry, weight};
         });
 
@@ -135,7 +103,7 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load_shared(const std::str
         return nullptr;
     }
     if (!shared->valid()) {
-        spdlog::warn("ImageCache: '{}' is too large ({:.1f} MB) to fit in the cache — decoding on every frame",
+        spdlog::warn("ImageCache: '{}' is too large ({:.1f} MB) to fit in the cache",
                      path, static_cast<double>(shared->width) * shared->height * 4 / (1024.0 * 1024.0));
         return nullptr;
     }

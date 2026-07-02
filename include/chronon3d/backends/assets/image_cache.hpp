@@ -31,77 +31,46 @@ struct CachedImage {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Fase B — Global state deprecation (P1 #1: ImageCache)
+// Fase B B1 — ImageCache is now per-runtime (RenderRuntime-owned).
+// Removed: instance() singleton, preload_async (thread::detach),
+//          raw-pointer get_or_load().
 //
-// ImageCache is currently a process-wide singleton accessed via
-// `ImageCache::instance()`.  This violates the per-engine/per-session
-// isolation model adopted elsewhere (RenderRuntime, RenderSession).
-//
-// Target: move ImageCache ownership into RenderRuntime so each engine
-// instance has its own isolated image cache with:
-//   - per-runtime capacity (no global capacity CAS)
-//   - executor-owned preload jobs (no std::thread::detach)
-//   - `shared_ptr`-only API surface (no raw `get_or_load`)
-//   - typed cache entries (LoadedImage | MissingAsset | DecodeFailure | OverBudget)
-//   - accurate memory weight (BLImage + Framebuffer, not just width*height*4)
-//
-// Migration blocked by ~6 direct call sites in image_renderer.cpp +
-// image_renderer.hpp that would need per-runtime wiring.  Tracked for
-// Phase C (post-feature-freeze).
+// Owned by RenderRuntime; accessed via runtime.image_cache().
 // ═══════════════════════════════════════════════════════════════════════════
 
 class ImageCache {
 public:
-    /// @deprecated Fase B — process-wide singleton; migrate to
-    /// RenderRuntime-owned instance.  See deprecation banner above.
-    static ImageCache& instance() {
-        static ImageCache inst;
-        return inst;
-    }
+    explicit ImageCache(size_t capacity_bytes = 512ULL * 1024 * 1024);
+    ~ImageCache() = default;
+    ImageCache(const ImageCache&) = delete;
+    ImageCache& operator=(const ImageCache&) = delete;
+    ImageCache(ImageCache&&) noexcept = default;
+    ImageCache& operator=(ImageCache&&) noexcept = default;
 
-    static void preload(const std::string& path) {
-        instance().get_or_load(path);
-    }
-
-    /// @deprecated Fase B — uses std::thread::detach() with no
-    /// cancellation/join/error propagation.  Migrate to
-    /// executor-owned preload jobs.  See deprecation banner above.
-    static void preload_async(const std::string& path);
-
-    static std::shared_ptr<const CachedImage> get(const std::string& path) {
-        return instance().get_or_load_shared(path);
-    }
-
-    static void set_capacity_bytes(size_t capacity_bytes);
+    // ── Capacity ────────────────────────────────────────────────────
+    static void set_global_capacity_bytes(size_t capacity_bytes);
 
     void set_backend(std::shared_ptr<image::ImageBackend> backend) {
-        // unique_lock because we mutate the backend pointer
         std::unique_lock<std::shared_mutex> lock(m_backend_mutex);
         m_backend = std::move(backend);
     }
 
     [[nodiscard]] std::shared_ptr<image::ImageBackend> get_backend() {
-        // shared_lock allows concurrent readers (the hot path)
         std::shared_lock<std::shared_mutex> lock(m_backend_mutex);
         return m_backend;
     }
 
-    /// @deprecated Fase B — returns raw pointer from shared_ptr;
-    /// pointer validity depends on LRU eviction.  Migrate to
-    /// shared_ptr-only API.  See deprecation banner above.
-    const CachedImage* get_or_load(const std::string& path);
-    std::shared_ptr<const CachedImage> get_or_load_shared(const std::string& path);
+    /// Load an image from path (synchronous).  Returns shared_ptr to
+    /// immutable CachedImage, or nullptr on failure.
+    [[nodiscard]] std::shared_ptr<const CachedImage>
+    get_or_load(const std::string& path);
+
     void clear();
-    [[nodiscard]] usize size() {
+    [[nodiscard]] usize size() const {
         return m_cache.stats().current_size;
     }
 
 private:
-    ImageCache();
-    ~ImageCache() = default;
-    ImageCache(const ImageCache&) = delete;
-    ImageCache& operator=(const ImageCache&) = delete;
-
     // m_backend is set rarely (once at startup) and read on every cache lookup.
     // shared_mutex lets concurrent get_or_load_shared() readers proceed in parallel
     // while set_backend() takes an exclusive lock. The previous std::mutex
