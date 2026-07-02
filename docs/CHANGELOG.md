@@ -5,7 +5,55 @@
 
 ---
 
-## Giugno 2026 — Chiusure recenti
+## Luglio 2026 — Chiusure recenti
+
+### TICKET-118 — `SoftwareBackend::draw_node` reale + drop dummy `TextRunProcessor`
+- `SoftwareBackend::draw_node` non è più un no-op `// Intentionally empty`:
+  ora dispatcha `m_proc_ctx.registry->get_shape(shape.type())->draw(...)`,
+  con early-return silent sul caso `ShapeType::TextRun` (canonico via
+  `multi_source_node` → `draw_text_run`).
+- Fallback loud-fail: `m_proc_ctx` mai attachato → `spdlog::error` con
+  shape type numberato, così regressioni future su `attach_processor_context`
+  appaiono in CI invece di "completarsi" silenziosamente.
+- Droppato dummy `TextRunProcessor` in `text_run_processor.cpp` (no-op
+  draw + bbox `{0,0,0,0}` + hit_test false). Era un registry marker
+  inutilizzato: il dispatch canonico passa da `TextRunNode` →
+  `SoftwareBackend::draw_text_run` direttamente.
+- Droppata `create_text_run_processor()` (factory + forward-decl + site
+  di registrazione in `builtin_processors.cpp::register_builtin_processors`).
+- Niente nuova API pubblica; niente nuovo `target_link_libraries`.
+
+### TICKET-119 — `SoftwareBackend` m_owner back-pointer removal + internal bridge
+- `SoftwareBackendServices::owner` rimosso (era il `SoftwareRenderer*`
+  back-pointer usato da `draw_text_run` per sourcire la
+  `SoftwareProcessorContext`).  `MissingOwner` Code rimosso; i restanti
+  5 Code mantenuti ma renumbered (MissingCounters=1 →
+  MissingTextResources=5).
+- `SoftwareBackend` ora owner-free lato software: `m_proc_ctx`
+  value-member popolato post-construction via NUOVO metodo pubblico
+  `attach_processor_context(SoftwareProcessorContext)`.
+- Nuovo header INTERNO `src/backends/software/internal/software_processor_services.hpp`
+  (mai installato in `include/chronon3d/`): definisce `ProcessorSourceExtras`
+  (registry + image_backend + font_engine) e la free function
+  `make_processor_context(services, extras)`. Questo è l'unico path che
+  conosce come costruire un `SoftwareProcessorContext` completo da un
+  public `SoftwareBackendServices` + i campi orchestrator-only.
+- `runtime_adapter.cpp::attach_software_backend`, `tests/helpers/test_utils.hpp`
+  ed il file di test di factory (`test_software_backend_factory.cpp`)
+  aggiornati per il nuovo wiring.  Per Option A (DELETE-only) thinker-validated:
+  il test file ha rimosso i check static-grep / NDEBUG su `MissingOwner` e
+  ha aggiunto un nuovo TEST_CASE static-grep che verifica l'applicazione
+  della contractive removal (linee TICKET-118 presenti, MissingOwner assente).
+- Public-API surface delta: **1 new public method** added to
+  `chronon3d::SoftwareBackend` (`attach_processor_context(...)`); the
+  underlying `chronon3d::SoftwareProcessorContext` type was already
+  public.  No new public classes, no new public headers, no new public
+  fields on `SoftwareBackendServices`.
+- ABIs invariant: `ProcessorSourceExtras::font_engine` gadget-field remains
+  `#ifdef CHRONON3D_HAS_BACKEND_TEXT`-gated like
+  `chronon3d::SoftwareProcessorContext::font_engine` (commented in the
+  new header); the parent CMakeLists sets the macro uniformly on the
+  `chronon3d_backend_software` target so all objects see one layout.
 
 ### TICKET-101 — compile_text_layout accetta (TextDocument, paragraph_index)
 - Aggiunto `paragraph_index` a `TextLayoutRequest` (POD extension, zero nuove classi pubbliche)

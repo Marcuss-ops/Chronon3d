@@ -6,6 +6,14 @@
 #include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>   // graph::RenderFrameInfo
+
+// TICKET-118/119 — internal processor-services bridge is the only path
+// that knows how to turn a public `SoftwareBackendServices` bundle into
+// a fully-populated `SoftwareProcessorContext`.  Reachable from tests
+// because `chronon3d_backend_software` exports `${CMAKE_SOURCE_DIR}/src/backends/software`
+// as a PUBLIC include directory (see src/backends/software/CMakeLists.txt).
+#include "internal/software_processor_services.hpp"
+
 #include <xxhash.h>
 #include <cstring>
 #include <memory>
@@ -15,30 +23,23 @@ namespace chronon3d::test {
 
 // ── Renderer factories ────────────────────────────────────────────────────
 
-/// Attach a SoftwareBackend to the renderer's runtime.  Required before
-/// calling render_frame / render_scene — RenderRuntime::backend() throws
-/// when called before attach_backend().  Call after set_settings().
-// 06 R3b boundary refactor — `SoftwareBackend` now requires a non-owning
-// `SoftwareRenderer* owner` as its first constructor argument (the
-// back-pointer used by `draw_text_run` to source the
-// SoftwareProcessorContext bundle).  We pass `renderer` here; lifetime
-// is verified safe because the backend is owned by `renderer->runtime()`,
-// whose `~RenderRuntime()` runs BEFORE `~SoftwareRenderer()` — so m_owner
-// is dangling at the moment the backend's `~SoftwareBackend()` runs,
-// but the destructor NEVER dereferences m_owner (verified 06 R3b:
-// m_owner is read only inside `draw_text_run` dispatch path).
-// TICKET-079: takes SoftwareRenderer* (pointer) instead of
-// SoftwareRenderer& (lvalue ref) — gate-3 I5 compliance.
+/// Attach a `SoftwareBackend` to the renderer's runtime.  Required before
+/// calling `render_frame` / `render_scene` — `RenderRuntime::backend()`
+/// throws when called before `attach_backend()`.  Call after `set_settings()`.
+///
+/// TICKET-118 closure — `SoftwareBackendServices::owner` REMOVED.  The
+/// `SoftwareRenderer* m_owner` back-pointer is gone; orchestrator-only
+/// fields (registry / image_backend / font_engine) are attached post-
+/// construction via `SoftwareBackend::attach_processor_context(...)`,
+/// routed through `backends::software::internal::make_processor_context`.
+/// Lifetime invariant (preserved): `renderer->runtime()` owns the
+/// backend, and `~RenderRuntime()` runs BEFORE `~SoftwareRenderer()`.
+///
+/// TICKET-079: takes `SoftwareRenderer*` (pointer) instead of
+/// `SoftwareRenderer&` (lvalue ref) — gate-3 I5 compliance.
 inline void attach_software_backend(SoftwareRenderer* renderer) {
-    // TICKET-011b + Fase 1 services-validation: build the services bundle
-    // from the live renderer + runtime and route through the validation
-    // factory.  Lifetime: backend is owned by `renderer->runtime()`, whose
-    // `~RenderRuntime()` runs BEFORE `~SoftwareRenderer()` — so m_owner is
-    // dangling at the moment the backend's `~SoftwareBackend()` runs, but
-    // the destructor NEVER dereferences m_owner (verified 06 R3b: m_owner
-    // is read only inside `draw_text_run` dispatch path).
     chronon3d::SoftwareBackendServices services{
-        /* owner              = */ renderer,
+        /* owner REMOVED IN TICKET-118 — was: renderer, */
         /* counters           = */ renderer->counters(),
         /* settings           = */ &renderer->render_settings(),
         /* framebuffer_pool   = */ renderer->runtime().framebuffer_pool_shared(),
@@ -48,8 +49,24 @@ inline void attach_software_backend(SoftwareRenderer* renderer) {
         /* text_raster        = */ nullptr,
         /* debug_config       = */ nullptr,
     };
-    renderer->runtime().attach_backend(
-        chronon3d::make_software_backend(std::move(services)).value());
+    auto backend =
+        chronon3d::make_software_backend(std::move(services)).value();
+
+    // TICKET-119 — wire the orchestrator-only fields through the
+    // internal bridge (mirrors runtime_adapter.cpp).  Lifetime of
+    // extras.* matches `*renderer` which outlives the backend (the
+    // backend is owned by `renderer->runtime()`, and
+    // `~RenderRuntime()` runs BEFORE `~SoftwareRenderer()`).
+    backends::software::internal::ProcessorSourceExtras extras{};
+    extras.registry      = &renderer->software_registry();
+    extras.image_backend = renderer->image_backend();
+#ifdef CHRONON3D_HAS_BACKEND_TEXT
+    extras.font_engine   = &renderer->font_engine();
+#endif
+    backend->attach_processor_context(
+        backends::software::internal::make_processor_context(services, extras));
+
+    renderer->runtime().attach_backend(std::move(backend));
 }
 
 inline SoftwareRenderer make_renderer() {

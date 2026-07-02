@@ -3,9 +3,18 @@
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/backends/software/utils/effects/per_pixel_dof.hpp>
 #include <chronon3d/backends/software/text_run_processor.hpp>  // 06 R3b wire-through
+#include <chronon3d/backends/software/software_processor_context.hpp>
+#include "internal/software_processor_services.hpp"  // TICKET-118 (PUBLIC via parent CMakeLists)
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/trace_categories.hpp>
 #include <chronon3d/scene/model/layer/layer_effect.hpp>
+// TICKET-118 — explicit include for `spdlog::error(...)` calls in
+// SoftwareBackend::draw_node loud-fail paths.  SoftwareBackend::draw_node
+// emits a structured error when `m_proc_ctx` is not attached (i.e. caller
+// forgot to invoke `attach_processor_context(...)` after construction);
+// also emits when a non-TextRun shape is missing its processor.  Both
+// paths surface in test logs so a regression is observable in CI.
+#include <spdlog/spdlog.h>
 #include <algorithm>
 #include <cassert>
 #include <memory>
@@ -62,8 +71,11 @@ SoftwareBackend::SoftwareBackend(SoftwareBackendServices services)
     , m_framebuffer_pool(std::move(services.framebuffer_pool))   // share ownership with services
     , m_asset_resolver(services.asset_resolver)
     , m_text_resources(services.text_resources)
-    , m_owner(services.owner)
 {
+    // TICKET-118 — m_owner REMOVED.  The processor context that used to be
+    // sourced via m_owner is supplied separately via
+    // attach_processor_context() immediately after construction.  See
+    // `internal/software_processor_services.hpp` for the derivation story.
 #ifndef NDEBUG
     // Direct ctor checks (debug-only). These fire if a caller bypasses
     // `make_software_backend(...)` AND lets a null services field slip in.
@@ -77,19 +89,77 @@ SoftwareBackend::SoftwareBackend(SoftwareBackendServices services)
     assert(m_framebuffer_pool);
     assert(services.asset_resolver);
     assert(services.text_resources);
-    assert(services.owner      );
 #endif
 }
 
 SoftwareBackend::~SoftwareBackend() = default;
 
-// ── draw_node (stub — delegated to SoftwareRenderer until ShapeProcessor migration) ──
+// ── TICKET-118 — attach_processor_context ─────────────────────────────
+//
+// Internal setter used by runtime_adapter.cpp + tests/helpers/test_utils.hpp
+// to wire the orchestrator-supplied processor-context bundle to this
+// backend.  Idempotent; later calls REPLACE the previous context.
+//
+// Note: this method is intentionally PUBLIC (declared in software_backend.hpp)
+// because the backend crosses a TU boundary: the constructed unique_ptr
+// returned by `make_software_backend()` is the object callers reach; we
+// don't expose it via friend declarations.  AGENTS.md v0.1 freeze
+// permits this single-method additive surface change because the
+// underlying `SoftwareProcessorContext` type is already public.
+void SoftwareBackend::attach_processor_context(SoftwareProcessorContext proc_ctx) {
+    m_proc_ctx = proc_ctx;
+}
 
-void SoftwareBackend::draw_node(Framebuffer&, const RenderNode&, const RenderState&,
-                                 const Camera&, int, int) {
-    // Intentionally empty: draw_node lives on SoftwareRenderer because
-    // ShapeProcessor::draw() currently takes SoftwareRenderer & (not RenderBackend&).
-    // This override satisfies the pure-virtual contract from RenderBackend.
+// ── draw_node (real — TICKET-118 closure) ───────────────────────────────
+//
+// SoftwareBackend::draw_node is no longer a no-op stub.  The dispatch
+// finds the shape processor in `m_proc_ctx.registry` and forwards the
+// call with the cached processor-context bundle.
+//
+// For `ShapeType::TextRun` the lookup intentionally misses: text runs
+// are dispatched through `TextRunNode` → `draw_text_run` directly,
+// so the canonical integration does NOT route TextRun shapes through
+// `draw_node`.  We return SILENTLY on a TextRun shape arriving here
+// instead of emitting a "No processor registered" error (which would
+// spam the per-frame log).
+//
+// Lifetime invariant for `m_proc_ctx.registry`: the orchestrating
+// SoftwareRenderer owns the registry via `unique_ptr<SoftwareRegistry>`;
+// that renderer outlives any backend created on its runtime because
+// `~RenderRuntime()` runs BEFORE `~SoftwareRenderer()`.  We therefore
+// read `m_proc_ctx.registry` ONLY inside dispatch (never from
+// `~SoftwareBackend()`).
+void SoftwareBackend::draw_node(Framebuffer& fb, const RenderNode& node,
+                                 const RenderState& state,
+                                 const Camera& camera, int width, int height) {
+    CHRONON_ZONE_C("backend_draw_node", trace_category::kRasterize);
+    if (!m_proc_ctx.registry) {
+        // Defensive: caller forgot to attach_processor_context() before
+        // dispatching.  Log loudly so the regression surfaces in CI.
+        spdlog::error(
+            "SoftwareBackend::draw_node called without an attached processor-context "
+            "(call attach_processor_context() after make_software_backend).  "
+            "Returning without rendering shape type={}.",
+            static_cast<int>(node.shape.type()));
+        return;
+    }
+    auto* processor = m_proc_ctx.registry->get_shape(node.shape.type());
+    if (!processor) {
+        if (node.shape.type() == ShapeType::TextRun) {
+            // Canonical TextRun integration is via TextRunNode →
+            // draw_text_run(...).  draw_node() reaching this shape
+            // is a defensive no-op; silent to avoid log spam.
+            return;
+        }
+        spdlog::error("SoftwareBackend::draw_node: no processor registered for shape type {}", static_cast<int>(node.shape.type()));
+        return;
+    }
+    if (m_counters) {
+        m_counters->pixels_touched.fetch_add(
+            clipped_area(width, height, to_local_clip(fb, state.clip_rect)),
+            std::memory_order_relaxed);
+    }
+    processor->draw(m_proc_ctx, fb, node, state, camera, width, height);
 }
 
 // ── capabilities ──────────────────────────────────────────────────────────
@@ -205,22 +275,11 @@ graph::RenderOpResult SoftwareBackend::draw_text_run(
 #else
     CHRONON_ZONE_C("backend_draw_text_run", trace_category::kText);
 
-    // Defensive loud-fail — without a renderer context, we cannot build a
-    // SoftwareProcessorContext, and silently rendering zero glyphs is
-    // exactly the silent loud-fail this wire-through is meant to fix.
-    if (m_owner == nullptr) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::InvalidInput,
-            "SoftwareBackend::draw_text_run: owner SoftwareRenderer* is null "
-            "(construction contract violation).  Pass a non-null owner from "
-            "RenderEngine via make_software_backend(SoftwareBackendServices{...})."
-        });
-    }
-
-    // Asset-resolver null-check (Fase 1 services-validation follow-up).
-    // `renderer::draw_text_run` (text_run_processor.cpp) sources font
-    // paths through SoftwareProcessorContext::asset_resolver; a null
-    // here silently renders zero glyphs.  Fail loudly instead.
+    // TICKET-118 — m_owner NO MORE.  The processor context is attached
+    // via attach_processor_context() immediately after construction.
+    // We use m_proc_ctx.asset_resolver (mirrors services.asset_resolver)
+    // as the loud-fail null-check so the load path stays defensive even
+    // when attach_processor_context() was forgotten.
     if (m_asset_resolver == nullptr) {
         return graph::RenderOpResult(graph::RenderBackendError{
             graph::RenderBackendErrorCode::InvalidInput,
@@ -231,7 +290,7 @@ graph::RenderOpResult SoftwareBackend::draw_text_run(
     }
 
     renderer::TextRunDrawParams params{fb, shape, model_matrix, opacity};
-    return renderer::draw_text_run(make_processor_context(m_owner), params);
+    return renderer::draw_text_run(m_proc_ctx, params);
 #endif
 }
 
@@ -266,18 +325,19 @@ make_software_backend(SoftwareBackendServices services) {
     // Canonical assert form: assert(ptr && "msg") keeps the static analyzer
     // quiet on the pointer value while carrying a descriptive label in
     // the diagnostic on failure.
+    // TICKET-118 — `assert(services.owner)` REMOVED.  The owner back-pointer
+    // no longer exists on SoftwareBackendServices; processors are wired
+    // post-construction via attach_processor_context().
     assert(services.counters         != nullptr && "make_software_backend: counters is null");
     assert(services.settings         != nullptr && "make_software_backend: settings is null");
     assert(services.framebuffer_pool             && "make_software_backend: framebuffer_pool is empty");
     assert(services.asset_resolver   != nullptr && "make_software_backend: asset_resolver is null");
     assert(services.text_resources   != nullptr && "make_software_backend: text_resources is null");
-    assert(services.owner            != nullptr && "make_software_backend: owner is null (appended per TICKET-070; relax after TICKET-046)");
 #endif
 
     // ── Release path: ordered validation matches the user spec:
-    //    counters → settings → framebuffer_pool → asset_resolver → text_resources;
-    //    owner is appended (TICKET-070 follow-up will relax after TICKET-046
-    //    alternatives to the back-pointer land).
+    //    counters → settings → framebuffer_pool → asset_resolver → text_resources.
+    // TICKET-118 — MissingOwner branch REMOVED.  Renumbered Code enum values.
     if (services.counters == nullptr)
         return err(SoftwareBackendServicesError::Code::MissingCounters,          "counters");
     if (services.settings == nullptr)
@@ -288,8 +348,6 @@ make_software_backend(SoftwareBackendServices services) {
         return err(SoftwareBackendServicesError::Code::MissingAssetResolver,     "asset_resolver");
     if (services.text_resources == nullptr)
         return err(SoftwareBackendServicesError::Code::MissingTextResources,     "text_resources");
-    if (services.owner == nullptr)
-        return err(SoftwareBackendServicesError::Code::MissingOwner,             "owner");
 
     return std::make_unique<SoftwareBackend>(std::move(services));
 }

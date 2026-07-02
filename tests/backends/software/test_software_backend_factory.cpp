@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // test_software_backend_factory.cpp — TICKET-070 regression coverage
+// (TICKET-118/119: contractive-removal of `owner` field)
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // Fase 1#10 close-out: verifies the validation-gate factory
@@ -7,6 +8,16 @@
 // services bundles in BOTH the debug-build loud-fail (`assert(...)`) and
 // the release-build structured release (`Result::err(SoftwareBackend...
 // ServicesError)`).
+//
+// TICKET-118 closure — `SoftwareBackendServices::owner` and the
+// `SoftwareBackendServicesError::Code::MissingOwner` enum value have
+// been REMOVED.  Per thinker-with-files-gemini validation, this file
+// applies Option A (DELETE-only): the helper `services_from_renderer`
+// no longer sets the `owner` field (it does not exist), the static-grep
+// layer no longer greps for `MissingOwner` / `assert(services.owner`,
+// and the NDEBUG `null owner` test case has been deleted.  Net test
+// count dropped from 6 to 4 happy-path + 9 missing-service cases
+// (1 + 1 static-grep-asserts + 1 static-grep-codes + 4 Missing* NDEBUG).
 //
 // Three layers of coverage so the regression stays deterministic regardless
 // of build mode:
@@ -36,11 +47,7 @@
 // Framework: doctest, matching tests/text/* + tests/backends/software/*.
 // No new public API surface; no new include or class.  Pure Cat-2
 // regression gate per AGENTS.md freeze policy.
-//
-// Lifetime invariants verified by attach_software_backend (PR-9 + 06 R3b):
-//   m_owner is read ONLY inside `draw_text_run`, and `~RenderRuntime()`
-//   runs BEFORE `~SoftwareRenderer()`, so the field is dangling at the
-//   moment the backend destructs but never dereferenced again.
+// ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/backends/software/software_backend_services.hpp>
@@ -68,9 +75,15 @@ namespace {
 // but does NOT route through `make_software_backend(...).value()` — we're
 // testing that factory in the surrounding TEST_CASE, so we want a
 // hand-built bundle the test can mutate (null a field) before the call.
+//
+// TICKET-118 — the `/* owner = */ &r` field has been REMOVED.  The
+// `SoftwareRenderer*` back-pointer no longer lives on the services
+// bundle; orchestrator-only fields (registry, image_backend, font_engine)
+// are wired via `SoftwareBackend::attach_processor_context(...)` after
+// construction (see `internal/software_processor_services.hpp`).
 SoftwareBackendServices services_from_renderer(SoftwareRenderer& r) noexcept {
     return SoftwareBackendServices{
-        /* owner              = */ &r,
+        /* owner REMOVED IN TICKET-118 — was: &r, */
         /* counters           = */ r.counters(),
         /* settings           = */ &r.render_settings(),
         /* framebuffer_pool   = */ r.runtime().framebuffer_pool_shared(),
@@ -115,6 +128,9 @@ TEST_CASE("make_software_backend: accepts a valid services bundle and returns un
 // 2a. Static-grep: every REQUIRED field has an `assert(...)` guard
 //     running under `#ifndef NDEBUG`.  Pattern precedent:
 //     `tests/text/test_font_io_fence.cpp`.
+//
+//     TICKET-118 — `assert(services.owner` CHECK dropped (the field
+//     has been removed from SoftwareBackendServices).
 // ═════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("make_software_backend: source contains canonical assert() guards for each REQUIRED service (static-grep)") {
@@ -123,13 +139,37 @@ TEST_CASE("make_software_backend: source contains canonical assert() guards for 
     CHECK(source_contains("assert(services.settings"));
     CHECK(source_contains("assert(services.asset_resolver"));
     CHECK(source_contains("assert(services.text_resources"));
-    CHECK(source_contains("assert(services.owner"));
     CHECK(source_contains("assert(services.framebuffer_pool"));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// 2a-bis. Contractive-removal static-grep: the TICKET-118 changes are
+// visibly applied.  Proves the contractive removal didn't regress to a
+// zombie half-applied state.
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("make_software_backend: TICKET-118 contractive-removal of owner is visibly applied (static-grep)") {
+    REQUIRE(std::filesystem::exists(kBackendCppPath));
+    // mandatory: services struct no longer carries the `owner` field.
+    CHECK_FALSE(source_contains("services.owner"));
+    // mandatory: assert/services.owner guard has been removed.
+    CHECK_FALSE(source_contains("assert(services.owner"));
+    // mandatory: MissingOwner Code has been removed (renumbered to
+    // MissingCounters=1, ..., MissingTextResources=5).
+    CHECK_FALSE(source_contains("MissingOwner"));
+    // narrative marker — the source comment line announcing the
+    // contractive removal must be present so a future maintainer can
+    // grep for the TICKET header quickly.
+    CHECK(source_contains("TICKET-118"));
 }
 
 // ═════════════════════════════════════════════════════════════════════════
 // 2b. Static-grep: every REQUIRED field has a `Result::err` release path
 //     via `SoftwareBackendServicesError::Code::MissingX{x}`.
+//
+//     TICKET-118 — `MissingOwner` CHECK dropped (the Code value has
+//     been removed; downstream regression-grep `MissingOwner` would
+//     be a false-positive in the layered coverage model).
 // ═════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("make_software_backend: source contains Result::err release branch for each REQUIRED service (static-grep)") {
@@ -139,7 +179,6 @@ TEST_CASE("make_software_backend: source contains Result::err release branch for
     CHECK(source_contains("MissingFramebufferPool"));
     CHECK(source_contains("MissingAssetResolver"));
     CHECK(source_contains("MissingTextResources"));
-    CHECK(source_contains("MissingOwner"));
 }
 
 #if defined(NDEBUG)
@@ -147,11 +186,15 @@ TEST_CASE("make_software_backend: source contains Result::err release branch for
 // 3. Result::err exercise — release-only.  Debug builds assert() before
 //    Result::err can run, aborting the test runner.
 //
-//    These six TEST_CASEs verify the production release path explicitly:
+//    These TEST_CASEs verify the production release path explicitly:
 //    each REQUIRED service is nulled in turn, and we assert
 //      (a) result.has_value() == false,
 //      (b) result.error().code matches the expected MissingXxx,
 //      (c) result.error().field_name matches the source field name.
+//
+//    TICKET-118 — the `null owner` test case has been deleted (the
+//    `owner` field no longer exists).  Downstream coverage is the
+//    `2a-bis` static-grep above.
 // ═════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("make_software_backend: null counters → Result::err(MissingCounters)") {
@@ -202,15 +245,5 @@ TEST_CASE("make_software_backend: null text_resources → Result::err(MissingTex
     REQUIRE_FALSE(r.has_value());
     CHECK(r.error().code   == SoftwareBackendServicesError::Code::MissingTextResources);
     CHECK(r.error().field_name == "text_resources");
-}
-
-TEST_CASE("make_software_backend: null owner → Result::err(MissingOwner)") {
-    SoftwareRenderer renderer(Config{});
-    auto services = services_from_renderer(renderer);
-    services.owner = nullptr;
-    auto r = make_software_backend(std::move(services));
-    REQUIRE_FALSE(r.has_value());
-    CHECK(r.error().code   == SoftwareBackendServicesError::Code::MissingOwner);
-    CHECK(r.error().field_name == "owner");
 }
 #endif // defined(NDEBUG)

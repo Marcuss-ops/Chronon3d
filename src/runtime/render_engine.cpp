@@ -36,6 +36,10 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
 
+// TICKET-118/119 — internal bridge reachable via PUBLIC include from
+// `chronon3d_backend_software` (see src/backends/software/CMakeLists.txt).
+#include "internal/software_processor_services.hpp"
+
 #include <spdlog/spdlog.h>
 
 #include <optional>
@@ -68,15 +72,13 @@ struct RenderEngine::Impl {
         m_renderer->set_image_backend(std::make_shared<image::StbImageBackend>());
 
         // TICKET-011 + Fase 1 services-validation — build the
-        // SoftwareBackendServices bundle and route through
-        // `make_software_backend(...)` so all REQUIRED services
-        // (counters, settings, framebuffer_pool, asset_resolver,
-        // text_resources, owner) are validated at construction.  A
-        // malformed bundle surfaces here via `.value()` (which asserts
-        // in debug + throws InvalidServices in release via the result
-        // contract) rather than at first draw_text_run dispatch.
+        // SoftwareBackendServices bundle (NO `owner` field — TICKET-118
+        // contractive removal) and route through `make_software_backend`
+        // so all REQUIRED services are validated at construction.  The
+        // orchestrator-only `ProcessorSourceExtras` (registry /
+        // image_backend / font_engine) are attached post-construction via
+        // `SoftwareBackend::attach_processor_context(...)`.
         chronon3d::SoftwareBackendServices services{
-            /* owner              = */ m_renderer.get(),                       // 06 R3b back-pointer
             /* counters           = */ m_renderer->counters(),
             /* settings           = */ &m_renderer->render_settings(),
             /* framebuffer_pool   = */ m_runtime.framebuffer_pool_shared(),
@@ -86,12 +88,39 @@ struct RenderEngine::Impl {
             /* text_raster        = */ nullptr,
             /* debug_config       = */ nullptr,
         };
-        m_runtime.attach_backend(make_software_backend(std::move(services)).value());
+        auto backend = make_software_backend(services).value();
+        attach_processor_context_to_backend_impl(backend.get(), services);
+        m_runtime.attach_backend(std::move(backend));
 
         // TICKET-011a follow-up #1 — publish the RenderPipeline facade.
         m_pipeline.emplace(m_renderer.get(), m_runtime);
 
         spdlog::debug("RenderEngine::Impl: constructed; runtime backend attached");
+    }
+
+    // TICKET-118/119 — inline the orchestrator-only processor-context
+    // attachment on an already-constructed unique_ptr<SoftwareBackend>.
+    // The CALLER retains ownership of `backend` until the subsequent
+    // `m_runtime.attach_backend(std::move(backend))` (which transfers
+    // ownership to the runtime exactly once).  We only DEREF the raw
+    // pointer here to set up `m_proc_ctx`; we never wrap it in a new
+    // unique_ptr (that would double-free).  This mirrors the
+    // `runtime_adapter.cpp` pattern 1:1 — see that file for the
+    // canonical version.
+    template <typename SoftwareBackendT>
+    void attach_processor_context_to_backend_impl(
+        SoftwareBackendT* backend,
+        const chronon3d::SoftwareBackendServices& services
+    ) {
+        chronon3d::backends::software::internal::ProcessorSourceExtras extras{};
+        extras.registry      = &m_renderer->software_registry();
+        extras.image_backend = m_renderer->image_backend();
+#ifdef CHRONON3D_HAS_BACKEND_TEXT
+        extras.font_engine   = &m_renderer->font_engine();
+#endif
+        backend->attach_processor_context(
+            chronon3d::backends::software::internal::make_processor_context(
+                services, extras));
     }
 
     Impl(Config config, std::filesystem::path assets_root)
@@ -102,10 +131,12 @@ struct RenderEngine::Impl {
         m_renderer->set_image_backend(std::make_shared<image::StbImageBackend>());
 
         // TICKET-011 + Fase 1 services-validation — see the matching
-        // constructor above; same factory path: build the services bundle,
-        // call `make_software_backend`, unwrap via `.value()`.
+        // constructor above; same factory path: build the services bundle
+        // (NO `owner` field — TICKET-118 removed it), call
+        // `make_software_backend`, unwrap via `.value()`, attach the
+        // orchestrator-only fields via `attach_processor_context(...)`,
+        // then move ownership to the runtime via `attach_backend`.
         chronon3d::SoftwareBackendServices services{
-            /* owner              = */ m_renderer.get(),                       // 06 R3b back-pointer
             /* counters           = */ m_renderer->counters(),
             /* settings           = */ &m_renderer->render_settings(),
             /* framebuffer_pool   = */ m_runtime.framebuffer_pool_shared(),
@@ -115,7 +146,9 @@ struct RenderEngine::Impl {
             /* text_raster        = */ nullptr,
             /* debug_config       = */ nullptr,
         };
-        m_runtime.attach_backend(make_software_backend(std::move(services)).value());
+        auto backend = make_software_backend(services).value();
+        attach_processor_context_to_backend_impl(backend.get(), services);
+        m_runtime.attach_backend(std::move(backend));
 
         // TICKET-011a follow-up #1 — publish the RenderPipeline facade.
         m_pipeline.emplace(m_renderer.get(), m_runtime);
