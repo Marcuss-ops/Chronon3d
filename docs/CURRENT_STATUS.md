@@ -1,11 +1,12 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@73a2aa9b` — 2026-07-02. Linux-only.
+> **Snapshot:** `main@73a2aa9b` (commit `73a2aa9b31803e844ff4e69110735ce4d74f02f3`, `fix(text): TextRunNode::execute() propagates backend errors (P0 #1)`) — 2026-07-02. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@aaf70032` (10/11 PASS — vedi [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md)).
-> **Baseline corrente:** `main@73a2aa9b` — **9/11 PASS** (NON VERDE).
-> Gate #10 FAIL: `install_consumer_test.sh` — build error in `render_session.cpp` (namespace mismatch, pre-esistente) + `software_backend.cpp` (TICKET-118 missing include `render_node.hpp`).
+> **Baseline corrente:** `main@73a2aa9b` — **10/11 PASS** (NON VERDE).
+> Gate #10 FAIL: `install_consumer_test.sh` — `ninja: build stopped: subcommand failed.` a step 165/340, preceduto da warning `-Wdeprecated-declarations` su `chronon3d::Composition::camera` (rc=1, dt=120.2 s; stessa classe di root-cause del precedente 9/11).
 > Gate #8 borderline PASS: `check_filename_drift.sh` exit 0 ma 66 warning drift.
+> Log macchina-verificato: [`reports/perf/main-73a2aa9b-gates.json`](../reports/perf/main-73a2aa9b-gates.json).
 >
 > Tra `aaf70032` e l'HEAD corrente: TICKET-118 + TICKET-119 closures, P1 #1–#5 fixes, P0 #1 (`TextRunNode::execute()` frame_error propagation).
 >
@@ -68,7 +69,8 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 ## Certificazione corrente
 
 Ultima baseline macchina-verificata: `main@aaf70032` — **10/11 PASS**.
-Baseline corrente: `main@73a2aa9b` — **9/11 PASS** (NON VERDE; gate #10 FAIL — include mancante + build rot; gate #8 borderline con 66 warning drift).
+Baseline corrente: `main@73a2aa9b` — **10/11 PASS** (NON VERDE; gate #10 FAIL — halt `ninja` a step 165/340 con `-Wdeprecated-declarations` su `chronon3d::Composition::camera`; gate #8 borderline con 66 warning drift).
+Log della run: [`reports/perf/main-73a2aa9b-gates.json`](../reports/perf/main-73a2aa9b-gates.json) (11/11 gate eseguiti sequenzialmente; UUID commit `73a2aa9b31803e844ff4e69110735ce4d74f02f3`).
 Per la revoca del **feature freeze** (vedi `AGENTS.md`) è richiesto **11/11 PASS sullo stesso commit**.
 Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA, una sola baseline per commit).
 
@@ -84,6 +86,7 @@ Ottenere un commit `main@<X>` con 11/11 PASS macchina-verificati per promuovere 
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — chiusure recenti.
 - [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md) — ultima baseline macchina-verificata (10/11 PASS).
 - [`docs/baselines/main-21103265-baseline.md`](docs/baselines/main-21103265-baseline.md) — baseline precedente (9/11 PASS).
+- [`reports/perf/main-73a2aa9b-gates.json`](../reports/perf/main-73a2aa9b-gates.json) — log macchina-verificato della 11-gate run su `main@73a2aa9b` (10/11 PASS, gate #10 `install_consumer_test.sh` FAIL).
 - [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) — contratto documentale (single-source-of-truth).
 - [`docs/ARCHIVE/`](docs/ARCHIVE/) — materiale storico (non operativo; nessun riferimento operativo consentito).
 
