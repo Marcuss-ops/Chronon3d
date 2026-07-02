@@ -19,7 +19,7 @@
 
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
-#include <chronon3d/render_graph/core/scene_hasher.hpp>
+#include <chronon3d/internal/render_graph/core/scene_hasher.hpp>
 #include <cstdint>
 
 namespace chronon3d::graph {

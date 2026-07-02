@@ -19,7 +19,7 @@
 // .cpp file `scene_tile_execution.cpp` carries the symmetric fix.
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
-#include <chronon3d/runtime/render_session.hpp>
+#include <chronon3d/internal/runtime/render_session.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>     // PR 6.4 — typed scope plumbing
 #include <chronon3d/core/memory/arena.hpp>              // PR 6.4 — explicit child FrameArena
 #include <spdlog/spdlog.h>

@@ -9,7 +9,7 @@
 // cannot invalidate the caller's reference or the per-bucket cache's
 // identity.
 
-#include <chronon3d/render_graph/cache/scene_program_store.hpp>
+#include <chronon3d/internal/render_graph/cache/scene_program_store.hpp>
 
 #include <spdlog/spdlog.h>
 
