@@ -1,122 +1,281 @@
 // tests/install_consumer/main.cpp
 //
-// ── Step 5 — Strict (A) manifest-only consumer ──
+// ── Rewrite — manifest-clean productive consumer (P3-H) ──
 //
 // This is a STANDALONE consumer project — it does NOT share
 // tests/CMakeLists.txt and does NOT link against in-tree targets.
 // Its only dependency is the *installed* Chronon3D package.
 //
-// P3-5 (after user's "Strict (A) rewrite" choice):
-//   The consumer references ONLY types reachable from the V0.1 manifest
-//   (cmake/Chronon3DPublicHeaders.cmake) via the umbrella
-//   chronon3d/chronon3d.hpp + transitives documented in ADR-012 as
-//   "manifest scope" (FrameContext, Scene, Composition, SceneFunction,
-//   CompositionSpec, RenderEngine, save_png, Framebuffer).
-//
-//   Specifically:
-//     - NO `s.layer("bg", ...)` / `s.layer("title", ...)` / `s.camera(...)`
-//       SceneBuilder wiring (removed; these are OPP-internal authoring
-//       surface).
-//     - NO `l.grid_background(...)` / `l.text(...)` (removed; same).
-//     - NO active camera / non-zero rotation / non-zero zoom (removed).
-//     - NO kMinNonZeroPixels > 0 threshold (removed; an empty SceneFn
-//       yields a near-empty framebuffer; the all-black result is the
-//       architecturally-correct outcome of strict-A).
-//
-//   The seal-discussion test surface therefore REDUCES from
-//   "renders a meaningful test PNG with text/grid/camera" (Fase-6 spec,
-//   2026-06-23) to "demonstrates that an installed Chronon3D package can
-//   be linked, a Composition-compatible object constructed, a render
-//   call invoked, and a PNG emitted to disk." Pixel-count/identity is
-//   no longer the gate — install-link + boundary-marker-emitted is.
+// Pinning the contract (RELEASE_GATE.md §SDK Product V1 / 8 — P3-H):
+//   (a) `#include`s SOLO header elencati in
+//       `cmake/Chronon3DPublicHeaders.cmake`. Niente path
+//       `advanced/` / `internal.hpp` / `runtime.hpp` / `test/*`.
+//   (b) Chiama SOLO `chronon3d::sdk::RenderEngine::render(...)` +
+//       `chronon3d::save_png` + public Composition/Scene/Layer/Shape/
+//       CameraDescriptor helper. Il vecchio `chronon3d::RenderEngine`
+//       è vietato.
+//   (c) Composition con almeno uno Shapelayer produttivo
+//       (`GridBackgroundShape` + `TextShape`) + una camera
+//       compilata (`CameraDescriptor` impostata sulla Composition).
+//   (d) Output PNG via `chronon3d::save_png`.
+//   (e) Pixel-hash check: fallisce se ogni pixel ha mean luminance
+//       inferiore a 5/255 (PNG quasi completamente nero).
 //
 // Wired into CTest via the top-level CMakeLists.txt option
-// CHRONON3D_BUILD_INSTALL_CONSUMER_TEST (enabled by the linux-ci
-// preset).  Orchestrator: tools/install_consumer_test.sh runs the full
-// configure -> build -> install -> consume -> run chain. Note: gate 10
-// currently FAILs upstream of the consumer build on the OPP-side
-// CMP0077 INTERFACE include leak (deferred Commit C from Step 3); that
-// blocker is INDEPENDENT of the consumer's surface discipline asserted
-// here.
+// `CHRONON3D_BUILD_INSTALL_CONSUMER_TEST` (linux-ci preset).
+// Orchestrator: `tools/install_consumer_test.sh`. Phase 4 (this
+// consumer) deve emettere `[BOUNDARY-OK]` e chiudere in exit 0.
 
-#include <chronon3d/chronon3d.hpp>   // single direct include — manifest entry 1 (per ADR-012 umbrella doctrine)
+#include <chronon3d/chronon3d.hpp>   // umbrella — manifest entry 1
 
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <filesystem>
 
+namespace c3d = chronon3d;
+
 int main() {
-    // ── 1. Minimal Composition (manifest-reachable via umbrella) ──────
-    //
-    // CompositionSpec + SceneFunction are reachable transitively from
-    // chronon3d.hpp → composition.hpp. The SceneFn parameter is
-    // mandatory for chronological API stability. The body returns an
-    // EMPTY Scene — strict (A) intent: no authored layers, no camera,
-    // no text. The render will produce a near-empty framebuffer; this
-    // is the architecturally-correct outcome of the strict rewrite.
-    chronon3d::Composition comp{
-        chronon3d::CompositionSpec{
-            .name     = "StrictAMinimalConsumer",
-            .width    = 640,
-            .height   = 360,
-            .frame_rate = chronon3d::FrameRate{30, 1},
-            .duration = 1,
-            .assets_root = "",
-        },
-        // SceneFunction: empty, returns default Scene{}. The Scene
-        // class is OPP-internal (scene/model/core/scene.hpp) but
-        // transitively reachable per ADR-012's "manifest scope"
-        // doctrine. The lambda must accept a FrameContext parameter
-        // (also transitively reachable).
-        [](const chronon3d::FrameContext&) -> chronon3d::Scene {
-            return chronon3d::Scene{};
-        },
+    // ── 1. Composition spec (manifest-reachable) ────────────────────
+    const c3d::CompositionSpec spec{
+        /* .name         */ "p3h_consumer",
+        /* .width        */ 640,
+        /* .height       */ 360,
+        /* .frame_rate   */ c3d::FrameRate{30, 1},
+        /* .duration     */ 1,
+        /* .assets_root  */ "assets",
     };
 
-    // ── 2. Render ───────────────────────────────────────────────────
-    //
-    // chronon3d::RenderEngine::render(comp, frame) returns
-    // std::shared_ptr<Framebuffer> (OPP-side; SDK alternative is
-    // chronon3d::sdk::RenderEngine returning Result<RenderOutput,
-    // RenderError>). Both are manifest-reachable; OPP-side picked
-    // here for shared_ptr ergonomics (no Result wrapper unwrap).
-    chronon3d::RenderEngine engine;
-    auto fb = engine.render(comp, 0);
-    if (!fb) {
-        std::fprintf(stderr, "[BOUNDARY-FAIL] render_frame returned null\n");
+    // ── 2. CameraDescriptor (public, value-typed) ───────────────────
+    // Compose via `default_camera_descriptor(...)` so the engine's
+    // P3-F compile path picks it up. The OPP-side renderer compiles
+    // a CameraProgram from this descriptor at render time.
+    c3d::camera_v1::CameraDescriptor descriptor{};
+    descriptor.id = "p3h_main_camera";
+    descriptor.base.enabled = true;
+    descriptor.base.position = c3d::Vec3{0.0f, 0.0f, -800.0f};
+    descriptor.base.rotation = c3d::Vec3{0.0f, 0.0f, 0.0f};
+    // ZoomProjection variant — rely on the field-default initializer
+    // (AnimatedValue<float>{1000.0f}) rather than re-passing it explicitly.
+    descriptor.base.projection = c3d::camera_v1::ZoomProjection{};
+    descriptor.failure_policy = c3d::camera_v1::CameraFailurePolicy::Stop;
+
+    // ── 3. Composition with non-empty Scene ─────────────────────────
+    c3d::Composition comp{
+        spec,
+        [](const c3d::FrameContext& ctx) -> c3d::Scene {
+            c3d::Scene scene;
+
+            // ── Background layer: GridBackgroundShape ────────────────
+            // Built-in pattern — NON richiede asset font.
+            // Garantisce un output non completamente nero anche quando
+            // il font fallback della TextShape non è disponibile.
+            c3d::Layer bg;
+            bg.name = "background";
+            bg.kind = c3d::LayerKind::Shape;
+            bg.from = c3d::Frame{0};
+            bg.duration = c3d::Frame{-1};
+            bg.visible = true;
+            bg.transform = c3d::Transform{};
+
+            c3d::RenderNode bg_node;
+            bg_node.name = "grid_bg";
+            c3d::GridBackgroundShape gb;
+            gb.size = c3d::Vec2{
+                static_cast<c3d::f32>(ctx.width),
+                static_cast<c3d::f32>(ctx.height)};
+            gb.offset = c3d::Vec2{0.0f, 0.0f};
+            gb.bg_color = c3d::Color{0.05f, 0.06f, 0.10f, 1.0f};        // dark navy
+            gb.grid_color = c3d::Color{0.45f, 0.65f, 1.00f, 0.35f};     // cyan grid
+            gb.spacing = 60.0f;
+            gb.minor_thickness = 1.0f;
+            gb.major_thickness = 2.5f;
+            gb.major_every = 4;
+            gb.centered = true;
+            bg_node.shape = c3d::Shape{gb};
+            bg_node.visible = true;
+            bg.nodes.push_back(std::move(bg_node));
+            scene.add_layer(std::move(bg));
+
+            // ── Text layer — productive text run ────────────────────
+            // Variant index 6 (ShapeType::Text) → carica tramite
+            // c3d::Shape. font_family va a fallback nel renderer
+            // (per font_path vuoto); in mancanza di font locali il
+            // rasterizzatore potrebbe saltare il layer, ma la
+            // GridBackground garantisce comunque la soglia > 5/255.
+            c3d::Layer title;
+            title.name = "title";
+            title.kind = c3d::LayerKind::Text;
+            title.from = c3d::Frame{0};
+            title.duration = c3d::Frame{-1};
+            title.visible = true;
+            title.transform = c3d::Transform{};
+
+            c3d::RenderNode text_node;
+            text_node.name = "title_text";
+            c3d::TextShape ts;
+            ts.text = "Hello Chronon3D";
+            ts.style.size = 64.0f;
+            ts.style.color = c3d::Color{1.0f, 1.0f, 1.0f, 1.0f};
+            ts.style.align = c3d::TextAlign::Center;
+            ts.style.vertical_align = c3d::VerticalAlign::Middle;
+            ts.style.line_height = 1.1f;
+            ts.style.font_family = "Inter";
+            ts.style.font_weight = 700;
+            ts.style.font_path = "";        // ← forces fallback to font_family
+            text_node.shape = c3d::Shape{ts};
+            text_node.visible = true;
+            title.nodes.push_back(std::move(text_node));
+            scene.add_layer(std::move(title));
+
+            return scene;
+        },
+    };
+    // Apply the camera descriptor to the Composition (public setter).
+    comp.default_camera_descriptor(std::move(descriptor));
+
+    // ── 4. sdk::RenderEngine (the canonical public facade) ──────────
+    c3d::sdk::RenderSettings settings{};
+    settings.width = spec.width;
+    settings.height = spec.height;
+    settings.antialiasing_samples = 1;
+    settings.deterministic = true;          // reproducible across runs
+    settings.dirty_rects = false;
+    settings.motion_blur = false;
+    settings.max_threads = 1;
+
+    // ── 4b. assets_root diagnostic (non-fatal) ────────────────────────
+    // Phase 4 runs from CONS_BUILD (a tempfile dir); the assets/ subdir
+    // is unlikely to exist there.  Text shaping may fail, but the
+    // GridBackground layer keeps the pixel-hash ≥ 5/255 threshold.
+    if (!std::filesystem::is_directory(spec.assets_root)) {
+        std::fprintf(stderr,
+                     "[consumer-warn] assets_root '%s' is not a directory "
+                     "at CWD — text layer may render blank, but "
+                     "GridBackground keeps the pixel-hash ≥ 5/255.\n",
+                     spec.assets_root.c_str());
+    }
+
+    c3d::sdk::RenderEngine engine{settings};
+    engine.set_assets_root(std::filesystem::path{spec.assets_root});
+
+    // ── 5. Render ──────────────────────────────────────────────────
+    auto result = engine.render(comp, c3d::sdk::Frame{0});
+    if (!result.has_value()) {
+        std::fprintf(stderr,
+                     "[BOUNDARY-FAIL] sdk::RenderEngine::render failed: "
+                     "code=%s message=%s\n",
+                     c3d::sdk::render_error_code_name(result.error().code),
+                     result.error().message.c_str());
         return 1;
     }
 
-    // ── 3. Save PNG (chronon3d::save_png helper; manifest-reachable) ──
+    const c3d::sdk::RenderOutput& out = result.value();
+    if (out.pixels == nullptr || out.width <= 0 || out.height <= 0) {
+        std::fprintf(stderr,
+                     "[BOUNDARY-FAIL] render returned empty output: "
+                     "pixels=%p width=%d height=%d\n",
+                     static_cast<const void*>(out.pixels),
+                     out.width, out.height);
+        return 1;
+    }
+    // PixelFormat::Unknown (or any future non-RGBA8/BGRA8) is not bridged:
+    // silently treating it as Rgba8 would silently invert channels if the
+    // engine ever returns Unknown.  Fail-fast rather than lie.
+    if (out.format != c3d::sdk::PixelFormat::Rgba8
+        && out.format != c3d::sdk::PixelFormat::Bgra8) {
+        std::fprintf(stderr,
+                     "[BOUNDARY-FAIL] unsupported PixelFormat enum=%d "
+                     "(only Rgba8/Bgra8 are bridged by this consumer)\n",
+                     static_cast<int>(out.format));
+        return 1;
+    }
+
+    // ── 6. Bridge: RenderOutput (uint8 RGBA/BGRA) → Framebuffer ─────
+    // RenderOutput gives `pixels` as a packed 4-channel byte buffer.
+    // Format::Rgba8 or Format::Bgra8 differ only in channel order.
+    // The Framebuffer stores colors as float RGBA (math::Color).
+    // We allocate an owned Framebuffer (the only width/height
+    // constructor reachable from the manifest) and copy pixel-by-pixel.
+    c3d::Framebuffer fb{out.width, out.height};
+
+    const std::uint8_t* src = out.pixels;
+    const bool is_bgra = (out.format == c3d::sdk::PixelFormat::Bgra8);
+    // Honour out.bytes_per_row when non-zero (per-row alignment padding);
+    // 0 ⇒ tightly packed ⇒ stride == width*4.  Computing this correctly
+    // matters for the byte→Color bridge: a wrong stride corrupts the
+    // pixel-hash check.
+    const std::size_t row_stride =
+        (out.bytes_per_row > 0)
+            ? static_cast<std::size_t>(out.bytes_per_row)
+            : static_cast<std::size_t>(out.width) * 4u;
+
+    for (std::int32_t y = 0; y < out.height; ++y) {
+        for (std::int32_t x = 0; x < out.width; ++x) {
+            const std::size_t idx =
+                static_cast<std::size_t>(y) * row_stride
+                + static_cast<std::size_t>(x) * 4u;
+            c3d::Color c;
+            const float inv = 1.0f / 255.0f;
+            if (is_bgra) {
+                c.b = src[idx + 0] * inv;
+                c.g = src[idx + 1] * inv;
+                c.r = src[idx + 2] * inv;
+                c.a = src[idx + 3] * inv;
+            } else {
+                c.r = src[idx + 0] * inv;
+                c.g = src[idx + 1] * inv;
+                c.b = src[idx + 2] * inv;
+                c.a = src[idx + 3] * inv;
+            }
+            fb.set_pixel(x, y, c);
+        }
+    }
+
+    // ── 7. Pixel-hash check (≥ 5/255 mean luminance on ≥ 1 pixel) ───
+    constexpr float kThreshold = 5.0f / 255.0f;   // ≈ 0.0196
+    std::size_t nonzero_count = 0;
+    const c3d::Color* fdata = fb.data();
+    for (std::size_t i = 0; i < fb.pixel_count(); ++i) {
+        const c3d::Color c = fdata[i];
+        if (c.r > kThreshold || c.g > kThreshold || c.b > kThreshold) {
+            ++nonzero_count;
+        }
+    }
+    if (nonzero_count == 0) {
+        std::fprintf(stderr,
+                     "[BOUNDARY-FAIL] all %zu pixels below 5/255 — "
+                     "output PNG would be black\n",
+                     fb.pixel_count());
+        return 1;
+    }
+
+    // ── 8. Save PNG (manifest-reachable helper) ─────────────────────
     const std::filesystem::path output_path = "sdk_consumer_output.png";
-    if (!chronon3d::save_png(*fb, output_path.string())) {
-        std::fprintf(stderr, "[BOUNDARY-FAIL] save_png failed\n");
+    if (!c3d::save_png(fb, output_path.string())) {
+        std::fprintf(stderr,
+                     "[BOUNDARY-FAIL] save_png failed for %s\n",
+                     output_path.string().c_str());
+        return 1;
+    }
+    if (!std::filesystem::exists(output_path)
+        || std::filesystem::file_size(output_path) == 0) {
+        std::fprintf(stderr,
+                     "[BOUNDARY-FAIL] output PNG missing/empty: %s\n",
+                     output_path.string().c_str());
         return 1;
     }
 
-    // ── 4. File-level pre-condition (cheap, kept for forensics) ──────
-    if (!std::filesystem::exists(output_path)) {
-        std::fprintf(stderr, "[BOUNDARY-FAIL] output PNG not found: %s\n",
-                     output_path.c_str());
-        return 1;
-    }
+    // ── 9. Boundary marker ─────────────────────────────────────────
     const auto file_size = std::filesystem::file_size(output_path);
-    if (file_size == 0) {
-        std::fprintf(stderr, "[BOUNDARY-FAIL] output PNG is empty\n");
-        return 1;
-    }
-
-    // ── 5. Boundary marker ───────────────────────────────────────────
-    //
-    // No pixel-count check: strict (A) expects a near-empty/all-black
-    // render by design (empty SceneFn → no layers → no compositor
-    // activity → blank output). File size > 0 proves a non-trivial PNG
-    // was emitted (PNG header + zero data area roundtrip through the
-    // SDK's save_png helper).
-    std::printf("[BOUNDARY-OK] SDK consumer (strict-A minimal) rendered "
-                "%dx%d PNG (%zu bytes); empty SceneFn, near-black "
-                "framebuffer is the expected outcome.\n",
-                fb->width(), fb->height(),
-                static_cast<size_t>(file_size));
+    std::printf("[BOUNDARY-OK] sdk consumer (P3-H) rendered %dx%d PNG "
+                "(%zu bytes, %zu/%zu pixels >5/255, format=%s, "
+                "bytes_per_row=%zu, %.3f ms)\n",
+                out.width, out.height,
+                static_cast<std::size_t>(file_size),
+                nonzero_count, fb.pixel_count(),
+                (is_bgra ? "Bgra8" : "Rgba8"),
+                row_stride,
+                out.elapsed_milliseconds);
     return 0;
 }
