@@ -15,6 +15,7 @@
 | TICKET-044 | P1 | selftest hardcoded paths | PLANNED | arch-boundary gate 5 | [TICKET-044.md](tickets/TICKET-044.md) |
 | TICKET-046 | P1 | filename drift stale refs | PLANNED | arch-boundary gate 5 | [TICKET-046.md](tickets/TICKET-046.md) |
 | TICKET-051 | P1 | per-preset visual diagnostic | PLANNED | A4.3 visual gate | [TICKET-051.md](tickets/TICKET-051.md) |
+| TICKET-080 | P1 | `install_consumer_test.sh` richiede `vcpkg.cmake` toolchain via path relativa al worktree (`<wt>/vcpkg_bootstrap/scripts/buildsystems/vcpkg.cmake`); em-dash su commit history `efd841f0` con `VCPKG_ROOT` non impostata (`regression_type: infra-setup`, code path mai esercitato) | PLANNED | `install_consumer_test.sh` gate #10 (env precond) | [TICKET-080.md](tickets/TICKET-080.md) |
 | TICKET-064 | P1 | ExecutionScope error model | PARTIAL | arch-boundary gate 5 | [TICKET-064.md](tickets/TICKET-064.md) |
 
 | TICKET-P1 | P1 | P1 census (5 issues, done) | DONE | post-baseline text/cache/cmake | [TICKET-P1-ACTION-PLAN.md](tickets/TICKET-P1-ACTION-PLAN.md) |
@@ -83,6 +84,7 @@ Tutti i ticket aperti non nella top-10 (TICKET-024, TICKET-026, TICKET-066, TICK
 | TICKET-067 | GATE-MNT-01 divergence fix | Done |
 
 Cronologia completa: [`docs/CHANGELOG.md`](docs/CHANGELOG.md) e [`docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md`](docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md).
+| Main@efd841f0 gate-audit historical | gate-run snapshot | 10/11 machine-verified on commit `efd841f0` ahead-of-baseline=15; gate #10 `install_consumer_test.sh` FAIL infra-setup with 0s elapsed (carry-over from `bc1c7b9e` `a0e8f14c` text rot forward-fix, code path never exercised) | Done (snapshot) | historical reference | Reproducible with `git worktree add --detach /tmp/gates-efd841f0 efd841f0 && bash <efd841f0>/tools/<gate>.sh`; tee'd per-gate logs in `reports/perf/main-efd841f0-tee/`. |
 ## Fix-forward ticket references (TICKET-NNN reserved)
 
 | TICKET-PUBLIC-MANIFEST-01 | P0 | CMake public-manifest corruption (sed-leak in commit `28004f96`) | Done | install boundary | fix-forward commit `59db2da5` |
