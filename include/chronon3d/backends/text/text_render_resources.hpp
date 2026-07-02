@@ -449,6 +449,24 @@ struct TextRenderResources {
         f32 font_size,
         const assets::AssetResolver& resolver
     );
+
+    // ── P1 #3 hierarchy note ──────────────────────────────────────────
+    // The canonical TextLayoutCache lives on RenderSession::layout_cache
+    // (see render_session.hpp), NOT here.  Rationale:
+    //   • TextLayoutCache is backend-agnostic (pure LRU — no BLFontFace,
+    //     no FT_Face, no blend2d.h).  It belongs in engine-generic
+    //     runtime/ scope.
+    //   • TextRenderResources aggregates BACKEND-SPECIFIC caches
+    //     (BLFontFace → Blend2D, FT_Face → FreeType, GlyphAtlas →
+    //     bitmap tilesheets).
+    // The user-specified hierarchy "RenderSession → TextRenderResources
+    // → LayoutCache" is flattened for this reason: LayoutCache sits
+    // alongside TextRenderResources on RenderSession, not inside it.
+    //
+    // Post-baseline, the GlyphAtlas and raster cache (currently
+    // process-wide singletons in glyph_atlas.cpp and
+    // text_rasterizer_render.cpp) will migrate into this struct
+    // to complete the hierarchy.
 };
 
 // ── Cat-2 font preflight summary ──────────────────────────────────────────

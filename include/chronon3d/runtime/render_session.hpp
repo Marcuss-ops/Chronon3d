@@ -68,6 +68,11 @@
 #include <chronon3d/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/runtime/session_services.hpp>
 
+// P1 #3 — include for the per-session TextLayoutCache member.
+// TextLayoutCache has NO backend dependencies — it is a pure LRU
+// cache of SharedTextRunLayout objects, safe in engine-generic code.
+#include <chronon3d/text/text_run.hpp>
+
 namespace chronon3d {
 
 /// Engine-generic per-session rendering state.
@@ -111,6 +116,13 @@ struct RenderSession {
     FrameHistory   frame_history;
     DirtyHistory   dirty_telemetry;
     runtime::SessionServices services;
+
+    // P1 #3 — per-session text layout cache (replaces
+    // shared_text_layout_cache() process-wide singleton).
+    // TextLayoutCache uses internal PIMPL (unique_ptr<Impl>) so it is
+    // lightweight (~1 pointer) and safely movable.  Default capacity
+    // is 64 MiB, tunable via Config post-baseline.
+    TextLayoutCache layout_cache;
 
     /// Per-frame reset: telemetry counters zeroed; `previous_layers`
     /// preserved (the per-layer diff source-of-truth must survive across

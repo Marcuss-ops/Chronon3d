@@ -52,6 +52,9 @@ void RenderSession::reset_job() {
     // Per-session scene-program-store reset (PR 3.1).  The clear()
     // call affects only this session's program cache.
     program_store_state->clear();
-}
 
-} // namespace chronon3d
+    // P1 #3 — per-session layout cache reset.  Immutable layouts are
+    // safe to discard across jobs; a fresh job with different fonts or
+    // text should not reuse stale cached entries from the previous job.
+    layout_cache.clear();
+}
