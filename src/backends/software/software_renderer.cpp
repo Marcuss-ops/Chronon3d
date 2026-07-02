@@ -148,6 +148,8 @@ SoftwareRenderer::SoftwareRenderer(runtime::RenderRuntime& rt, Config config)
     , m_text_render_resources(std::make_unique<TextRenderResources>())
 #endif
 {
+    // Fase B B1 — wire per-runtime ImageCache (replaces process-wide singleton)
+    m_image_renderer.set_cache(&m_runtime->image_cache());
     backends::software::register_builtin_processors(*m_software_registry);
 }
 
@@ -162,6 +164,8 @@ SoftwareRenderer::SoftwareRenderer(Config config)
     m_font_engine = std::make_unique<FontEngine>(m_runtime->resolver());
     m_text_render_resources = std::make_unique<TextRenderResources>();
 #endif
+    // Fase B B1 — wire per-runtime ImageCache (replaces process-wide singleton)
+    m_image_renderer.set_cache(&m_runtime->image_cache());
     backends::software::register_builtin_processors(*m_software_registry);
 }
 
