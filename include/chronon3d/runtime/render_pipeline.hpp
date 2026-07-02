@@ -91,15 +91,11 @@ public:
 
     // ── Diagnostics (Fase C3 @deprecated — use render_composition()) ──
     /// @deprecated Fase C3 — diagnostics-only wrapper; use preflight tools instead.
-    // TICKET-GATE-10-PHASE-4 fix-up: `float fps` had no default while
-    // parameters 5/6 had defaults, violating the C++ rule that all
-    // parameters after a defaulted parameter must also be defaulted.
-    // Caused by upstream commit `6df9b429` "fix(render): P1 #10 -
-    // remove hardcoded 30.0f fps defaults from core pipeline" which
-    // removed the default from `fps` but kept the prior defaults on
-    // `Frame frame` and `f32 frame_time`.  Sentinel 0.0f preserves
-    // the upstream intent (no hardcoded fps literal) while restoring
-    // valid C++ syntax.  No new public symbols; Cat-1 allowed.
+    // TICKET-GATE-10-PHASE-4 fix-up: upstream `6df9b429` removed the `fps`
+    // default but not from frames 5/6 (Frame, frame_time), violating the
+    // C++ default-argument contiguity rule.  Sentinel `= 0.0f` restores
+    // valid syntax with no new symbols (Cat-1 fix; preserves upstream
+    // "no hardcoded fps literal" intent).
     [[nodiscard]] std::string debug_graph(
         const Scene& scene, const Camera& camera, i32 width, i32 height,
         float fps, Frame frame = 0, f32 frame_time = 0.0f);

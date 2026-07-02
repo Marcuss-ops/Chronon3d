@@ -11,6 +11,16 @@ On commit `28004f96` (sdk-public-surface reduction), a buggy bash heredoc leaked
 
 ## Luglio 2026 — Chiusure recenti
 
+### hygiene — trim TICKET-GATE-10-PHASE-4 comment block in `render_pipeline.hpp` (retro-fixup to 75035f2b)
+- `include/chronon3d/runtime/render_pipeline.hpp:90` above the
+  [[nodiscard]] `std::string debug_graph(...)` declaration had a 7-line
+  TICKET-GATE-10-PHASE-4 fix-up comment; collapsed to 3 lines that keep
+  every actionable breadcrumb (upstream commit `6df9b429`, the C++
+  default-argument contiguity rule, the Cat-1 sentinel `= 0.0f`, and the
+  "no hardcoded fps literal" intent).  Applied retroactively to commit
+  `75035f2b` per code-reviewer-minimax-m3 nudge.  Zero new public
+  symbols; pure-comment reduction.
+
 ### text-run — `kBlurTierRadii` compile-time array restoration (commit TICKET-Phase4-BlurTierRadii)
 - `src/backends/software/processors/text_run/text_run_processor.cpp`: aggiunto
   `static constexpr std::array<i32, kNumBlurTiers> kBlurTierRadii = {{0, 2, 7, 13, 20}};`
