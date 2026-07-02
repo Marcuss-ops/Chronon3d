@@ -1,14 +1,15 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@7c55c735` (commit `7c55c735`, `fix(graph): Result<OwnedFB, NodeExecutionError> — TextRunNode backend errors propagate to frame failure (P0 #1)`) — 2026-07-02. Linux-only.
+> **Snapshot:** `main@ac5f7125` (commit `ac5f7125`, `fix(build): resolve gate-10 consumer SDK build rot`) — 2026-07-02. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@aaf70032` (10/11 PASS — vedi [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md)).
-> **Baseline corrente:** `main@7c55c735` — **9/11 PASS** (NON VERDE).
-> Gate #4 FAIL: `check_gitignored_dirs.sh` — `reports/perf/main-73a2aa9b-gates.json` leaked as tracked file (absolute-path leak).
-> Gate #10 FAIL: `install_consumer_test.sh` — build rot pre-esistente (`render_session.cpp` namespace mismatch + `software_backend.cpp` incomplete type `RenderNode`).
+> **Baseline corrente:** `main@ac5f7125` — **8/11 PASS** (NON VERDE).
+> Gate #4 FAIL: `check_gitignored_dirs.sh` — `reports/perf/main-73a2aa9b-gates.json` è ancora un tracked file con percorso assoluto embedded.
+> Gate #7 FAIL: `check_doc_sync.sh` exit 1 (R1) — le modifiche `src/runtime/**` (commit `28004f96` + `59db2da5`) non sono documentate né in `docs/CURRENT_STATUS.md` né in `docs/ROADMAP.md`.
+> Gate #10 FAIL: `install_consumer_test.sh` — Phase 1.1–3 OK (SDK compila + install nel consumer prefix + canary gate verde), ma Phase 4 (consumer cmake build esterno) fallisce su dipendenza `tbb`/`oneTBB` non fornita dal consumer-config.
 > Gate #8 borderline PASS: `check_filename_drift.sh` exit 0 ma 66 warning drift.
 >
-> Tra `aaf70032` e l'HEAD corrente: TICKET-118 + TICKET-119 closures, P0 #1 (`Result<OwnedFB, NodeExecutionError>` su `RenderGraphNode::execute()`), P0 #2 (`FontLayoutIdentity` unificata su 6 location), P1 #1–#5 fixes.
+> Tra `aaf70032` e l'HEAD corrente sono atterrati: TICKET-118 + TICKET-119 closures, P0 #1, P0 #2, P1 #1–#5 fixes, gate-10 fix (commit `ac5f7125`, 6 build-fix: include mancanti + cmake manifest riparato + namespace closing brace + 4 symlink per file spostati in `internal/`), e TICKET-PUBLIC-MANIFEST-01 (commit `59db2da5`, riparazione manifest corrotto).
 >
 > Documenti canonici (vedi [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) per il contratto):
 > - Regole operative / feature freeze: [`AGENTS.md`](../AGENTS.md)
@@ -70,11 +71,10 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 ## Certificazione corrente
 
 Ultima baseline macchina-verificata: `main@aaf70032` — **10/11 PASS**.
-Baseline corrente: `main@7c55c735` — **9/11 PASS** (NON VERDE; gate #4 FAIL — `reports/perf/main-73a2aa9b-gates.json` tracked file leak; gate #10 FAIL — build rot pre-esistente).
-Per la revoca del **feature freeze** (vedi `AGENTS.md`) è richiesto **11/11 PASS sullo stesso commit**.
-Log della run: [`reports/perf/main-73a2aa9b-gates.json`](../reports/perf/main-73a2aa9b-gates.json) (11/11 gate eseguiti sequenzialmente; short SHA `73a2aa9b` / full SHA `73a2aa9b31803e844ff4e69110735ce4d74f02f3`).
+Baseline corrente: `main@ac5f7125` — **8/11 PASS** (NON VERDE; gate #4 FAIL tracked-asset leak, gate #7 FAIL doc-sync R1, gate #10 FAIL consumer-build Phase 4 tbb).
 Per la revoca del **feature freeze** (vedi `AGENTS.md`) è richiesto **11/11 PASS sullo stesso commit**.
 Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA, una sola baseline per commit).
+Log della run: [`reports/perf/main-73a2aa9b-gates.json`](../reports/perf/main-73a2aa9b-gates.json) (gate snapshot pre-fix, commit `73a2aa9b` → 10/11 PASS con gate #10 ancora FAIL).
 
 ## Prossimo passo operativo
 
@@ -82,7 +82,7 @@ Ottenere un commit `main@<X>` con 11/11 PASS macchina-verificati per promuovere 
 
 ## Link canonici
 
-- [`docs/ROADMAP.md`](docs/ROADMAP.md) — milestone prodotto.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — milestone prodotto (vedi TICKET-GATE-7-R1: Coverage src/runtime/** da aggiungere).
 - [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md) — requisiti permanenti di release.
 - [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) — indice blocker aperti (canonical).
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — chiusure recenti.
@@ -91,5 +91,23 @@ Ottenere un commit `main@<X>` con 11/11 PASS macchina-verificati per promuovere 
 - [`reports/perf/main-73a2aa9b-gates.json`](../reports/perf/main-73a2aa9b-gates.json) — log macchina-verificato della 11-gate run su `main@73a2aa9b` (10/11 PASS, gate #10 `install_consumer_test.sh` FAIL).
 - [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) — contratto documentale (single-source-of-truth).
 - [`docs/ARCHIVE/`](docs/ARCHIVE/) — materiale storico (non operativo; nessun riferimento operativo consentito).
+
+## Gate audit snapshot — `main@ac5f7125` (2026-07-02)
+
+| # | Gate                                        | Esito      | Note                                                                       |
+|---|---------------------------------------------|------------|----------------------------------------------------------------------------|
+| 1 | `check_architecture_boundaries.sh`          | ✅ PASS    | 13/15 check, 2 advisory (non blocker).                                     |
+| 2 | `check_architecture_boundaries_selftest.sh` | ✅ PASS    | 15/15 assertions.                                                          |
+| 3 | `check_software_renderer_boundary.sh`       | ✅ PASS    | I1-I5 tutti rispettati.                                                    |
+| 4 | `check_gitignored_dirs.sh`                  | ❌ FAIL    | `reports/perf/main-73a2aa9b-gates.json` tracked (abs-path leak).          |
+| 5 | `audit_software_renderer.sh`                | ✅ PASS    |                                                                            |
+| 6 | `check_camera_architecture.sh`              | ✅ PASS    | CAM-DOC 04 verde.                                                          |
+| 7 | `check_doc_sync.sh`                         | ❌ FAIL    | exit 1 (R1); richiede sync di `src/runtime/**` in `CURRENT_STATUS` + `ROADMAP`. |
+| 8 | `check_filename_drift.sh`                   | ⚠️ PASS*   | warn-mode; 66 drift warning.                                               |
+| 9 | `test_architectural.sh`                     | ✅ PASS    | Static architecture-level rot: 0.                                          |
+| 10 | `install_consumer_test.sh`                | ❌ FAIL    | Phase 1.1–3 OK (SDK build+install+canary); Phase 4 consumer-build FAIL su `tbb`. |
+| 11 | `check_backend_sanitization.py`            | ✅ PASS    |                                                                            |
+
+**Totale: 8/11 PASS** — 3 gate da chiudere per la baseline verde (gate #4, #7, #10).
 
 _Limite raccomandato: 150 righe (vedi `DOCUMENTATION_GOVERNANCE.md` DoD §10)._
