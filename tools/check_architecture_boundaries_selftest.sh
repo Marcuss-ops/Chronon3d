@@ -299,6 +299,14 @@ else
 fi
 rm -rf "$TMP"
 
+# ── Case 14: fail-on-FAIL semantic meta-check ─────────────────────────
+# Verify that the new tools/check_gate_semantics.sh correctly enforces
+# the "fail-on-FAIL exists semantically" invariant on the current set
+# of sister gate scripts.  Expected: rc=0 (no forbidden 'PASS advisory'
+# pattern detected in any sister gate).
+set +e; bash "$SCRIPT_DIR/check_gate_semantics.sh" >/dev/null 2>&1; rc=$?; set -e
+assert_exit "fail-on-FAIL meta-check (no 'PASS advisory' pattern) -> exit 0" 0 "$rc"
+
 # ── Summary ──────────────────────────────────────────────────────────
 echo ""
 if [ "$FAIL" -gt 0 ]; then

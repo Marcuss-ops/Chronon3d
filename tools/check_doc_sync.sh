@@ -72,6 +72,15 @@ has_change() {
 # (failures always exit regardless of mode).
 log_warn() { if [[ "$wip" -eq 1 ]]; then echo "[WARN:skipped] $1"; return; fi; warnf "$1"; }
 
+# -- R0: nessuna modifica a docs/ARCHIVE/ ------------------------------------------
+# Per AGENTS.md §Insieme canonico della documentazione, docs/ARCHIVE/ è
+# materiale storico (non operativo). Qualsiasi modifica (edit o aggiunta) sotto
+# docs/ARCHIVE/ è un FAIL hard (R0 ha priorità su R1..R5; è la prima regola
+# valutata).
+if has_change '^docs/ARCHIVE/'; then
+  fail "R0: modificati o aggiunti file sotto docs/ARCHIVE/ (materiale storico, non operativo)"
+fi
+
 # -- R1: src/runtime/** ⇒ CURRENT_STATUS.md + ROADMAP.md --------------------------
 # DOC-002: STATUS.md e NEXT_STEPS.md sono archiviati; i canonici sono
 # CURRENT_STATUS.md e ROADMAP.md (AGENTS.md §Documenti canonici).
