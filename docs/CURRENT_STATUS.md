@@ -1,14 +1,14 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@21b9fb5d` (commit `21b9fb5d`, `fix(cmake/SDK): TICKET-GATE-10-PHASE-4 - TitleCase find_dependency + transitive consumer headers`) — 2026-07-02. Linux-only.
+> **Snapshot:** `main@c40ba16f` (commit `c40ba16f3`, docs-sync atop Phase 4 fixes) — 2026-07-02. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@aaf70032` (10/11 PASS — vedi [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md)).
-> **Baseline corrente:** `main@21b9fb5d` — **10/11 PASS** (NON VERDE — gate #10 fix pushed in `21b9fb5d`; Phase 4 consumer compile AWAITING machine verification; revoca del feature freeze non ancora automatica).
+> **Baseline corrente:** `main@c40ba16f` — **10/11 PASS** osservato (gate #10 fix pushed in due commit consecutivi: `21b9fb5d` CMake + `75035f2b` (ora `c40ba16f` post-rebase) runtime default-arg chain on `RenderPipeline::debug_graph`); Phase 4 end-to-end machine-verify ancora da confermare per promuovere a baseline.
 > Gate #4 RISOLTO: `check_gitignored_dirs.sh` — `reports/perf/` aggiunto a `.gitignore` (commit `f6f700b1`).
-> Gate #10 FIX LANDED on disk (commit `21b9fb5d`): case-fix cmake/Chronon3DRegistry.cmake (TBB/xxHash title-case) + 44-entry bulk-insert cmake/Chronon3DPublicHeaders.cmake. Verifica end-to-end di Phase 4 ancora pending (vedi [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) `TICKET-GATE-10-PHASE-4` + nuovo `TICKET-GATE-10-PHASE-4-FULL`).
+> Gate #10 doppio fix pushed su `main`: (a) commit `21b9fb5d` cmake/Chronon3DRegistry.cmake case-fix TBB/xxHash + 44-entry bulk-insert cmake/Chronon3DPublicHeaders.cmake; (b) commit `75035f2b` runtime::RenderPipeline::debug_graph default-arg chain (`float fps = 0.0f` sentinel) per chiudere il C++ syntax error esposto da upstream `6df9b429`. Entrambi sono Cat-1 (build corrections).
 > Gate #8 borderline PASS: `check_filename_drift.sh` exit 0 ma 155 warning drift.
 >
-> Tra `aaf70032` e l'HEAD corrente sono atterrati: TICKET-118/119, P0 #1–#2, P1 #1–#5 fixes, P1 #10 (`6df9b429` + `560750e3`), P1 #12 (`59b2439f`), P1 #10 individuale, gate #4 fix (`f6f700b1`), gate #10 analyze_scene_graph fix (`560750e3`), ticket P1-07..P1-12 individuali (`0295203d`), doc sync commits (`6d951079`, `96e6e88e`), CMake TitleCase + transitive header fix (`21b9fb5d`).
+> Tra `aaf70032` e l'HEAD corrente sono atterrati: TICKET-118/119, P0 #1–#2, P1 #1–#5 fixes, P1 #7 (`16efb496`), P1 #10 (`6df9b429` + `560750e3`), P1 #12 (`59b2439f`), gate #4 fix (`f6f700b1`), gate #10 analyze_scene_graph fix (`560750e3`), ticket P1-07..P1-12 individuali (`0295203d`), doc sync commits (`6d951079`, `96e6e88e`), CMake TitleCase + transitive header fix (`21b9fb5d`), runtime::RenderPipeline default-arg chain fix (`75035f2b` → `c40ba16f` post-rebase).
 >
 > Documenti canonici (vedi [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) per il contratto):
 > - Regole operative / feature freeze: [`AGENTS.md`](../AGENTS.md)
@@ -70,10 +70,10 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 ## Certificazione corrente
 
 Ultima baseline macchina-verificata: `main@aaf70032` — **10/11 PASS**.
-Baseline corrente: `main@21b9fb5d` — **10/11 PASS** (NON VERDE; gate #10 FIX LANDED in `21b9fb5d`, ma Phase 4 consumer compile non ancora confermato in CI).
+Baseline corrente: `main@c40ba16f` — **10/11 PASS osservato** (NON VERDE formale; gate #10 ha due fix pushed in `21b9fb5d` + `75035f2b`, ma manca la CI machine-verified Phase 4 verde per poter revocare il feature freeze).
 Gate #4 (gitignored dirs) risolto da `f6f700b1`.
 Gate #7 (doc-sync) PASS nella run corrente.
-Gate #10: fix pushed on disk (case-fix `cmake/Chronon3DRegistry.cmake` + 44-entry bulk-insert `cmake/Chronon3DPublicHeaders.cmake`). Machine-verified Phase 4 verde ancora richiesto per revocare il feature freeze (vedi `AGENTS.md`).
+Gate #10: due patch pushed in `21b9fb5d` (cmake) + `75035f2b` (runtime). Per la revoca formale serve run `tools/install_consumer_test.sh` end-to-end su `c40ba16f` con tutte le fasi 1.1–4 verdi.
 Per la revoca del **feature freeze** (vedi `AGENTS.md`) è richiesto **11/11 PASS sullo stesso commit**.
 Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA, una sola baseline per commit).
 
@@ -104,7 +104,7 @@ Chiudere gate #10 (install_consumer_test.sh) per raggiungere 11/11 PASS, poi rev
 - [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) — contratto documentale (single-source-of-truth).
 - [`docs/ARCHIVE/`](docs/ARCHIVE/) — materiale storico (non operativo; nessun riferimento operativo consentito).
 
-## Gate audit snapshot — `main@21b9fb5d` (2026-07-02, post-rebase)
+## Gate audit snapshot — `main@c40ba16f` (2026-07-02, post-rebase + runtime-fix)
 
 | # | Gate                                        | Esito      | Note                                                                       |
 |---|---------------------------------------------|------------|----------------------------------------------------------------------------|
@@ -117,9 +117,9 @@ Chiudere gate #10 (install_consumer_test.sh) per raggiungere 11/11 PASS, poi rev
 | 7 | `check_doc_sync.sh`                         | ✅ PASS    |                                                                            |
 | 8 | `check_filename_drift.sh`                   | ⚠️ PASS*   | warn-mode; 155 drift warning.                                              |
 | 9 | `test_architectural.sh`                     | ✅ PASS    | Static architecture-level rot: 0.                                          |
-| 10 | `install_consumer_test.sh`                | ⚠️ FIX PENDING | Fix cmake `21b9fb5d` pushed on disk (case-fix TBB/xxHash + 44 transitive headers); end-to-end Phase 4 green CI ancora da confermare. |
+| 10 | `install_consumer_test.sh`                | ⚠️ FIX PENDING (double) | (a) `21b9fb5d` cmake case-fix + 44 transitive headers; (b) `75035f2b` runtime default-arg chain su `RenderPipeline::debug_graph`. End-to-end Phase 4 verde ancora da confermare. |
 | 11 | `check_backend_sanitization.py`            | ✅ PASS    |                                                                            |
 
-**Totale: 10/11 PASS** — gate #10 fix landed on `21b9fb5d`; machine-verified Phase 4 verde ancora richiesto per la revoca formale del feature freeze e per promuovere `21b9fb5d` a baseline macchina-verificata.
+**Totale: 10/11 PASS** — gate #10 doppio-fix landed; machine-verified Phase 4 verde ancora richiesto per la revoca formale del feature freeze e per promuovere `c40ba16f` a baseline macchina-verificata.
 
 _Limite raccomandato: 150 righe (vedi `DOCUMENTATION_GOVERNANCE.md` DoD §10)._
