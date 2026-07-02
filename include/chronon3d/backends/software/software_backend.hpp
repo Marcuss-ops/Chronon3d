@@ -17,6 +17,7 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/backends/software/software_backend_services.hpp>
+#include <chronon3d/backends/software/software_processor_context.hpp>  // TICKET-118: m_proc_ctx value-member
 #include <memory>
 
 namespace chronon3d {
@@ -35,12 +36,15 @@ namespace chronon3d::cache {
 
 namespace chronon3d {
 
-// 06 R3b follow-up — SoftwareBackend holds a non-owning back-pointer to
-// its orchestrator SoftwareRenderer.  This is a TEMPORARY bridge used by
-// `draw_text_run` (which needs the `SoftwareProcessorContext` bundle the
-// renderer builds).  When 06 R3 drops dual identity, the back-pointer
-// will be replaced with sourcing context directly from `runtime::`
-class SoftwareRenderer;  // forward decl only — keeps I3 budget
+// TICKET-118 — the SoftwareRenderer back-pointer has been REMOVED.
+// SoftwareBackend is now owner-free at the software layer; the
+// orchestrating renderer instead supplies a fully-built
+// `SoftwareProcessorContext` via `attach_processor_context()` after
+// construction.  This contractive change closes the architectural
+// debt that kept the backend tied to its orchestrator (the
+// m_owner transient bridge).  See `internal/software_processor_services.hpp`
+// for the derivation story.
+class SoftwareRenderer;  // forward decl still kept for backward-source compat in callers
 
 class SoftwareBackend : public graph::RenderBackend {
 public:
@@ -55,6 +59,23 @@ public:
     /// on the backend so `RenderBackend::framebuffer_pool()` can return
     /// by-value.
     explicit SoftwareBackend(SoftwareBackendServices services);
+
+    /// Attach the fully-resolved `SoftwareProcessorContext` the backend
+    /// should use for `draw_node`, `draw_text_run`, and shape-processor
+    /// dispatches.  TICKET-118 closed the m_owner back-pointer by
+    /// routing the processor-context bundle through this single public
+    /// setter instead.  The setter is idempotent; later calls REPLACE
+    /// the previous context.  The caller (typically
+    /// `runtime_adapter.cpp` or `tests/helpers/test_utils.hpp`) is
+    /// responsible for building the context via
+    /// `backends::software::internal::make_processor_context` so the
+    /// public surface remains source-only.
+    ///
+    /// Returns void on purpose — this is an unconditional setter, not a
+    /// fallible operation.  Construction-time validation (loud-fail on
+    /// null REQUIRED services) is still owned by
+    /// `make_software_backend()`.
+    void attach_processor_context(SoftwareProcessorContext proc_ctx);
 
     ~SoftwareBackend() override;
 
@@ -111,15 +132,12 @@ private:
     const assets::AssetResolver*                   m_asset_resolver{nullptr};      // REQUIRED (draw_text_run)
     TextRenderResources*                           m_text_resources{nullptr};      // REQUIRED (draw_text_run)
 
-    // 06 R3b — non-owning back-pointer to the orchestrating SoftwareRenderer,
-    // used by `draw_text_run` to source the SoftwareProcessorContext service
-    // bundle (font_engine, asset_resolver, debug_config).  Lifetime invariant
-    // (verified 06 R3b): m_owner is read ONLY inside `draw_text_run` (a
-    // dispatch path, never the destructor), and `~RenderRuntime()` is
-    // `= default`, so the field is never dereferenced after
-    // `~SoftwareRenderer()`.  When R3 sources context directly from
-    // runtime (planned), m_owner will be removed.
-    class SoftwareRenderer*                        m_owner{nullptr};  // 06 R3b back-pointer
+    // TICKET-118 — m_owner REMOVED.  Replaced by `m_proc_ctx` which holds
+    // the orchestrator-supplied processor-context bundle (set via
+    // `attach_processor_context()` immediately after construction).  The
+    // `m_proc_ctx.renderer` field is always nullptr after the new
+    // construction path — no back-pointer to the SoftwareRenderer exists.
+    SoftwareProcessorContext                       m_proc_ctx{};                    // TICKET-118 cached ctx
 };
 
 // ═════════════════════════════════════════════════════════════════════════════

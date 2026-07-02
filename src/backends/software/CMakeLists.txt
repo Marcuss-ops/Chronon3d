@@ -12,6 +12,10 @@ add_library(chronon3d_backend_software OBJECT
     software_renderer.cpp
     software_backend.cpp
     software_processor_context.cpp
+    # TICKET-118 — internal bridge that lets SoftwareBackend build a complete
+    # `SoftwareProcessorContext` without holding a SoftwareRenderer* back-pointer.
+    # Strictly under src/; never installed; not in include/chronon3d/.
+    internal/software_processor_services.cpp
     runtime_adapter.cpp
     buffer_ring.cpp
     scratch_buffer.cpp
@@ -52,7 +56,22 @@ endif()
 if(CHRONON3D_BUILD_DIAGNOSTICS)
     target_link_libraries(chronon3d_backend_software PRIVATE chronon3d_backend_software_diagnostics)
 endif()
-target_include_directories(chronon3d_backend_software PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR})
+# TICKET-118 — BUILD_INTERFACE include dir exposes the new internal bridge
+# (`internal/software_processor_services.hpp`) ONLY to in-build consumers
+# (sibling TUs in the same library, plus test binaries during the build).
+# The header is NEVER installed — `$<BUILD_INTERFACE:...>` is the canonical
+# CMake idiom that satisfies the "no source-tree-prefixed paths in
+# INTERFACE_INCLUDE_DIRECTORIES" check while still propagating the directory
+# for compile-time ""-includes (`#include "internal/software_processor_services.hpp"`).
+# If we ever provide an install rule, we will need to revisit — for now,
+# the internal bridge stays strictly under src/.
+target_include_directories(chronon3d_backend_software
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}
+)
 
 target_precompile_headers(chronon3d_backend_software PRIVATE
     <chronon3d/detail/pch.hpp>

@@ -4,6 +4,7 @@
 >
 > **Ultima baseline macchina-verificata:** `main@aaf70032` (10/11 PASS — vedi [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md)).
 > Baseline registrata sul commit corrente in questo turno: gate #3 (I5 SoftwareRenderer&) promosso a PASS dal P0-1; gate #10 regressa su unbound-variable script rot (diverso dal CMake-version rot della baseline precedente).
+> Tra `aaf70032` e l'HEAD corrente sono atterrati commit addizionali (TICKET-118 + TICKET-119 closures); non è ancora stata registrata una nuova baseline macchina-verificata sull'HEAD corrente.
 >
 > Documenti canonici (vedi [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) per il contratto):
 > - Regole operative / feature freeze: [`AGENTS.md`](../AGENTS.md)
@@ -45,11 +46,14 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 
 | ID          | Area                                                                  | Stato    | Blocca                              |
 | ----------- | --------------------------------------------------------------------- | -------- | ----------------------------------- |
+
 | TICKET-036  | chronon3d_camera_architecture_gate P0                                 | PLANNED  | arch-boundary gate 5/6              |
 | TICKET-044  | arch_boundaries_selftest hardcoded paths                              | PLANNED  | arch-boundary gate 5                |
 | TICKET-046  | filename drift stale references                                       | PLANNED  | arch-boundary gate 5                |
 | TICKET-011  | pre-existing mainline build rot                                       | PLANNED  | arch-boundary gate 1–8              |
 | TICKET-005  | post-cascade cleanup                                                  | PARTIAL  | arch-completeness gate 5            |
+| TICKET-118  | `SoftwareBackend::draw_node` real impl + dummy `TextRunProcessor` drop | Done     | cat-3 fake-success closure           |
+| TICKET-119  | `SoftwareBackend` m_owner back-pointer removal + internal bridge       | Done     | cat-3 arch-debt closure              |
 | TICKET-022  | camera double look-at compiled path                                   | PARTIAL  | arch-boundary gate 5/6              |
 | TICKET-064  | §9 ExecutionScope — ScopeError/ScopeErrorCode structured error model | PARTIAL  | arch-boundary gate 5                |
 | TICKET-051  | A4.3 per-preset visual diagnostic                                     | PLANNED  | A4.3 visual gate                    |
