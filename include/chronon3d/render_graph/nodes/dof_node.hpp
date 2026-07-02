@@ -66,7 +66,7 @@ public:
         return bbox;
     }
 
-    OwnedFB execute(RenderGraphContext& ctx, std::span<const FramebufferRef> inputs, std::span<const std::optional<raster::BBox>> input_bboxes) override {
+    NodeExecResult execute(RenderGraphContext& ctx, std::span<const FramebufferRef> inputs, std::span<const std::optional<raster::BBox>> input_bboxes) override {
         if (inputs.empty() || !inputs[0]) {
             auto empty = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
             empty->clear(Color::transparent());

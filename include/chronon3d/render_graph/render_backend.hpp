@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/scene/model/camera/dof.hpp>
@@ -81,6 +82,8 @@ public:
     [[nodiscard]] explicit operator bool() const noexcept { return ok(); }
 
     [[nodiscard]] const T& value() const { return std::get<T>(m_storage); }
+    [[nodiscard]] T& value() { return std::get<T>(m_storage); }
+    [[nodiscard]] T take_value() { return std::move(std::get<T>(m_storage)); }  // P0-1: move-only types
     [[nodiscard]] const E& error() const { return std::get<E>(m_storage); }
 
 private:
@@ -89,18 +92,24 @@ private:
 
 using RenderOpResult = Result<RenderOpOutcome, RenderBackendError>;
 
-/// Frame-level error surfaced by a render-graph node when its backend
+/// P0-1 — frame-level error surfaced by a render-graph node when its backend
 /// dispatch fails.  Carried on RenderGraphContext via a shared mutable slot
 /// so the executor can propagate the failure to the frame level (return
 /// nullptr = documented "engine error / fall back to empty fb").
 ///
-/// P0-1 — closes the false-success pattern where TextRunNode::execute()
+/// P0-1 closes the false-success pattern where TextRunNode::execute()
 /// returned a valid framebuffer after a backend draw_text_run() failure.
 struct NodeExecutionError {
     RenderBackendErrorCode backend_code{RenderBackendErrorCode::ExecutionFailure};
     std::string node_name{};   // which node reported the failure
     std::string message{};     // free-form diagnostic (source: RenderBackendError::message)
 };
+
+/// Result type for render-graph node execution.
+/// On success: carries an OwnedFB (pool-owned framebuffer).
+/// On failure: carries a NodeExecutionError that the executor propagates
+/// to frame-level failure (GraphExecutor returns nullptr).
+using NodeExecResult = Result<OwnedFB, NodeExecutionError>;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RenderBackend

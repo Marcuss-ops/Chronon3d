@@ -25,16 +25,16 @@
 
 namespace chronon3d::graph {
 
-OwnedFB TrackMatteNode::execute(
+NodeExecResult TrackMatteNode::execute(
     RenderGraphContext& ctx,
     std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>> /*input_bboxes*/
 ) {
     if (inputs.size() < 2 || !inputs[0] || !inputs[1]) {
         if (inputs.empty() || !inputs[0]) {
-            return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
+            return NodeExecResult{ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height)};
         }
-        return ctx.acquire_owned_fb(*inputs[0]);
+        return NodeExecResult{ctx.acquire_owned_fb(*inputs[0])};
     }
 
     const Framebuffer& target = *inputs[0];
@@ -151,7 +151,7 @@ OwnedFB TrackMatteNode::execute(
     }
 
     out->set_opaque(false);
-    return out;
+    return NodeExecResult{std::move(out)};
 }
 
 } // namespace chronon3d::graph

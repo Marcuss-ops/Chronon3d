@@ -56,7 +56,7 @@ public:
 
     cache::NodeCacheKey cache_key(const RenderGraphContext&) const override { return m_key; }
 
-    OwnedFB execute(
+    NodeExecResult execute(
         RenderGraphContext& ctx,
         std::span<const FramebufferRef> inputs,
         std::span<const std::optional<raster::BBox>> input_bboxes

@@ -121,14 +121,14 @@ void PrecompNode::set_on_evict(cache::ProgramEvictCallback cb) {
 // §0 guard for `session == nullptr` is the only divergence from
 // `execute_with_scope` because the canonical body takes `parent`
 // (which already enforces lifetime via the borrowed session ref).
-OwnedFB PrecompNode::execute(
+NodeExecResult PrecompNode::execute(
     RenderGraphContext& ctx,
     std::span<const FramebufferRef> fbs,
     std::span<const std::optional<raster::BBox>> clips)
 {
     auto* session = ctx.services.session;
     if (!session) {
-        return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
+        return NodeExecResult{ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height)};
     }
     const auto precomp_key = instance_key(ctx);
     const auto graph_id =
@@ -150,7 +150,7 @@ OwnedFB PrecompNode::execute(
 // The `parent` reference is BORROWED (lifetime contract documented
 // in `execution_scope.hpp`); the `FrameArena child_arena` is
 // stack-local to this function frame.
-OwnedFB PrecompNode::execute_with_scope(
+NodeExecResult PrecompNode::execute_with_scope(
     ExecutionScope& parent,
     RenderGraphContext& ctx,
     std::span<const FramebufferRef>,
@@ -159,13 +159,13 @@ OwnedFB PrecompNode::execute_with_scope(
     // ── 0. Guard: parent session must be wired (via the borrowed parent ref)
     auto& session = parent.session();
     if (!ctx.services.registry || !ctx.services.registry->contains(m_comp_name)) {
-        return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
+        return NodeExecResult{ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height)};
     }
 
     // ── 1. Calculate nested frame time ───────────────────────────────────
     const Frame nested_frame = ctx.frame_input.frame - m_start_frame;
     if (nested_frame < 0 || (m_duration > 0 && nested_frame >= m_duration)) {
-        return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
+        return NodeExecResult{ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height)};
     }
 
     // ── 2. Hoisted PrecompInstanceKey — single computation reused by §3
@@ -225,7 +225,7 @@ OwnedFB PrecompNode::execute_with_scope(
     // scene_program_store.hpp).
     auto* program = lease.program.get();
     if (!program || program->empty()) {
-        return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
+        return NodeExecResult{ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height)};
     }
 
     // ── 6. Warm up parameter block (no-op if size unchanged) ─────────────
@@ -248,7 +248,7 @@ OwnedFB PrecompNode::execute_with_scope(
         graph_id, &parent, precomp_key.node);
 
     if (!precomp_result) {
-        return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
+        return NodeExecResult{ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height)};
     }
     ExecutionScope& precomp_scope = precomp_result.value();
 
@@ -267,18 +267,18 @@ OwnedFB PrecompNode::execute_with_scope(
     // order means lease destructed LAST in this function frame).
     const auto* inner_executor = session.services.executor;
     if (!inner_executor) {
-        return ctx.acquire_owned_fb(
-            ctx.frame_input.width, ctx.frame_input.height);
+        return NodeExecResult{ctx.acquire_owned_fb(
+            ctx.frame_input.width, ctx.frame_input.height)};
     }
     auto nested_result = inner_executor->execute_with_scope(
         program->frame_graph, nested_ctx, precomp_scope,
         *ctx.services.scheduler);
 
     if (nested_result) {
-        return ctx.acquire_owned_fb(std::move(nested_result));
+        return NodeExecResult{ctx.acquire_owned_fb(std::move(nested_result))};
     }
 
-    return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
+    return NodeExecResult{ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height)};
 }
 
 } // namespace chronon3d::graph
