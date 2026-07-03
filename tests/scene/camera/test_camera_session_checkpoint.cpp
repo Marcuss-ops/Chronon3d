@@ -75,18 +75,18 @@ CameraDescriptor make_stateful_damped_descriptor() {
     return desc;
 }
 
-// ── evaluate_cached_at: canonical acquire / release / eval round-trip ──────
+// ── evaluate_cached_at: canonical acquire / eval / commit round-trip ───────
 Camera2_5D evaluate_cached_at(CameraSessionCache& cache,
                               const CameraProgram& prog,
                               int shot_idx,
                               int target_frame) {
-    CameraSession& sess = cache.acquire(prog, shot_idx,
-                                        kCkptShotStart, target_frame);
+    auto lease = cache.acquire(prog, shot_idx,
+                               kCkptShotStart, target_frame, kCkptFps);
     CameraEvalContext ctx;
     ctx.frame = Frame{target_frame};
     ctx.sample_time = SampleTime::from_frame_int(target_frame, kCkptFps);
-    auto r = prog.evaluate(ctx, sess);
-    cache.release(shot_idx, sess);
+    auto r = prog.evaluate(ctx, lease.session());
+    lease.commit();  // CAM-05: RAII — commit advances last_evaluated_frame
     return r.camera;
 }
 
@@ -185,15 +185,15 @@ TEST_CASE("TICKET-031 §5 sub-frame repeated: same sub-frame ⇒ bit-equal") {
     CameraEvalContext ctx_a;
     ctx_a.frame = Frame{1};
     ctx_a.sample_time = SampleTime::from_frame(1.5, kCkptFps);
-    auto& sess_a = cacheA.acquire(prog, /*shot=*/0, kCkptShotStart, /*target=*/1);
-    Camera2_5D r1 = prog.evaluate(ctx_a, sess_a).camera;
-    cacheA.release(0, sess_a);
+    auto lease_a = cacheA.acquire(prog, /*shot=*/0, kCkptShotStart, /*target=*/1, kCkptFps);
+    Camera2_5D r1 = prog.evaluate(ctx_a, lease_a.session()).camera;
+    lease_a.commit();
 
     CameraSessionCache cacheB;
     CameraEvalContext ctx_b = ctx_a;  // identical sub-frame context
-    auto& sess_b = cacheB.acquire(prog, 0, kCkptShotStart, 1);
-    Camera2_5D r2 = prog.evaluate(ctx_b, sess_b).camera;
-    cacheB.release(0, sess_b);
+    auto lease_b = cacheB.acquire(prog, 0, kCkptShotStart, 1, kCkptFps);
+    Camera2_5D r2 = prog.evaluate(ctx_b, lease_b.session()).camera;
+    lease_b.commit();
 
     CHECK(cameras_equal(r1, r2));
 }
@@ -210,7 +210,7 @@ TEST_CASE("TICKET-031 §6 checkpoint restore: snapshot→mutate→restore ⇒ eq
     CameraSession sess;
     sess.ensure_constraint_states(prog.descriptor()->constraints.size());
     preroll_session_for_frame(prog, /*shot_start=*/0, /*target=*/50,
-                              /*window=*/30, sess);
+                              /*window=*/30, sess, kCkptFps);
 
     CameraStateCheckpoint cp = CameraStateCheckpoint::capture(
         sess,
