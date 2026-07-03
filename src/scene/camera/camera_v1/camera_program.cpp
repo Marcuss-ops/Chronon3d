@@ -83,13 +83,18 @@ static void apply_projection_spec(const ProjectionSpec& spec,
 // ── Free helpers for compiled source dispatch (no header declarations needed) ──
 
 /// Apply orientation from an OrientationSpec variant (free function).
-static void apply_orientation_spec_free(const void* orient_variant,
-                                         const CameraEvalContext& ctx,
-                                         Camera2_5D& cam) {
+/// Returns an optional diagnostic (e.g. warning for degenerate tangent fallback).
+static std::optional<CameraProgramDiagnostic> apply_orientation_spec_free(
+    const void* orient_variant,
+    const CameraEvalContext& ctx,
+    Camera2_5D& cam,
+    const std::optional<Vec3>& tangent,
+    const std::optional<float>& roll_deg,
+    CameraSession& session) {
     const auto& orient = *static_cast<const OrientationSpec*>(orient_variant);
 
     if (std::holds_alternative<FixedOrientation>(orient)) {
-        return;
+        return std::nullopt;
     }
     if (auto* lap = std::get_if<LookAtPoint>(&orient)) {
         Vec3 look_dir = lap->target - cam.position;
@@ -101,7 +106,7 @@ static void apply_orientation_spec_free(const void* orient_variant,
             cam.point_of_interest = lap->target;
             cam.point_of_interest_enabled = true;
         }
-        return;
+        return std::nullopt;
     }
     if (auto* lal = std::get_if<LookAtLayer>(&orient)) {
         if (ctx.transforms) {
@@ -116,14 +121,77 @@ static void apply_orientation_spec_free(const void* orient_variant,
                     cam.point_of_interest = *world_pos;
                     cam.point_of_interest_enabled = true;
                 }
-                return;
+                return std::nullopt;
             }
         }
-        return;
+        return std::nullopt;
     }
-    if (std::holds_alternative<OrientAlongPath>(orient)) {
-        return;
+    if (auto* oap = std::get_if<OrientAlongPath>(&orient)) {
+        // OrientAlongPath — orient the camera along the trajectory tangent.
+        //
+        // Fallback chain for degenerate tangents:
+        //   1. Use the trajectory's tangent if non-degenerate.
+        //   2. Use the session's last_tangent (preserved from a prior frame).
+        //   3. Use the direction toward point_of_interest (if enabled).
+        //   4. Keep the base rotation (no-op).
+        // Each fallback step emits a Warning diagnostic so composition
+        // authors can identify the problem.
+
+        Vec3 fwd;
+        bool have_tangent = false;
+        std::string fallback_reason;
+
+        // Step 1: trajectory tangent.
+        if (tangent && glm::length(*tangent) > 1e-6f) {
+            fwd = glm::normalize(*tangent);
+            have_tangent = true;
+            session.last_tangent = fwd;  // preserve for future degenerate frames
+        }
+        // Step 2: session's last_tangent.
+        else if (session.last_tangent && glm::length(*session.last_tangent) > 1e-6f) {
+            fwd = glm::normalize(*session.last_tangent);
+            have_tangent = true;
+            fallback_reason = "OrientAlongPath: current tangent degenerate, using previous frame tangent";
+        }
+        // Step 3: direction toward POI.
+        else if (cam.point_of_interest_enabled) {
+            Vec3 to_poi = cam.point_of_interest - cam.position;
+            float poi_len = glm::length(to_poi);
+            if (poi_len > 1e-6f) {
+                fwd = glm::normalize(to_poi);
+                have_tangent = true;
+                fallback_reason = "OrientAlongPath: tangent degenerate, using direction toward point_of_interest";
+            }
+        }
+
+        if (!have_tangent) {
+            // Step 4: keep base rotation — no orientation change.
+            return CameraProgramDiagnostic{
+                CameraProgramDiagnostic::Severity::Warning,
+                "OrientAlongPath: no valid tangent, previous tangent, or POI direction — keeping base rotation"
+            };
+        }
+
+        const Quat orientation = quat_look_along(fwd);
+        // OrientAlongPath: the trajectory controls roll, so we do NOT
+        // preserve the base rotation's roll.  Pass 0.0f to clear it,
+        // then set the roll exclusively from the trajectory sample.
+        cam.rotation = quat_to_camera_euler(orientation, 0.0f);
+
+        // Replace roll with trajectory roll (override, not add).
+        if (!oap->keep_horizon && roll_deg) {
+            cam.rotation.z = *roll_deg;
+        }
+
+        if (!fallback_reason.empty()) {
+            return CameraProgramDiagnostic{
+                CameraProgramDiagnostic::Severity::Warning,
+                fallback_reason
+            };
+        }
+        return std::nullopt;
     }
+    return std::nullopt;
 }
 
 /// Evaluate a PoseTracksSource by sampling all animated channels.
@@ -363,18 +431,18 @@ static Camera2_5D eval_orbit_motion(const CameraBaseSpec& base,
 // evaluate_compiled_source — dispatch to the right evaluator by variant.
 // =========================================================================
 
-Camera2_5D CameraProgram::evaluate_compiled_source(const CameraEvalContext& ctx) const {
+EvaluatedCameraSource CameraProgram::evaluate_compiled_source(const CameraEvalContext& ctx) const {
     const auto& source = descriptor_.source;
     const auto& base = descriptor_.base;
 
     if (auto* pts = std::get_if<PoseTracksSource>(&source)) {
         // TICKET-022 / DOC 02 — orientation is no longer passed to source evaluators;
         // CameraProgram::evaluate() applies it once after modifiers.
-        return eval_pose_tracks(base, *pts, ctx);
+        return EvaluatedCameraSource{eval_pose_tracks(base, *pts, ctx), std::nullopt, std::nullopt};
     }
     if (auto* orbit = std::get_if<OrbitMotion>(&source)) {
         bool animated = source_is_time_dependent(source);
-        return eval_orbit_motion(base, *orbit, ctx, animated);
+        return EvaluatedCameraSource{eval_orbit_motion(base, *orbit, ctx, animated), std::nullopt, std::nullopt};
     }
     if (auto* traj = std::get_if<TrajectoryMotion>(&source)) {
         if (traj->trajectory) {
@@ -383,22 +451,47 @@ Camera2_5D CameraProgram::evaluate_compiled_source(const CameraEvalContext& ctx)
             motion_ctx.sample_time = ctx.sample_time;
             motion_ctx.base_position = base.position;
             motion_ctx.base_target = base.point_of_interest;
-            motion_ctx.base_zoom = 1000.0f;
-            motion_ctx.base_fov_deg = 50.0f;
-            motion_ctx.base_focus_distance = base.dof.focus_distance;
 
             auto t = traj->trajectory->sample(motion_ctx);
+
+            // Start from the full CameraBaseSpec — not a stripped-down camera.
+            // The trajectory overrides ONLY position and target; everything
+            // else (lens, projection, DOF, motion blur, parent_name, rotation)
+            // comes from the base spec.
             Camera2_5D cam;
             cam.enabled = base.enabled;
+            cam.is_animated = true;
+
+            // Base rotation (may be overridden by the orientation stage later).
+            cam.rotation = base.rotation;
+
+            // Apply the canonical projection dispatch (Zoom / Fov / PhysicalLens).
+            apply_projection_spec(base.projection, ctx, cam);
+
+            // Lens: from PhysicalLensProjection if active, else from base.
+            if (!std::holds_alternative<PhysicalLensProjection>(base.projection)) {
+                cam.lens = base.lens;
+            }
+
+            // Transfer DOF, motion blur, and parent_name from base.
+            cam.dof = base.dof;
+            cam.motion_blur = base.motion_blur;
+            cam.parent_name = base.parent_name;
+
+            // Override position and target from trajectory sample.
             cam.position = t.position;
-            cam.zoom = 1000.0f;
-            cam.fov_deg = 50.0f;
             cam.point_of_interest = base.point_of_interest;
             if (t.target) cam.point_of_interest = *t.target;
             cam.point_of_interest_enabled = true;
 
             // TICKET-022 / DOC 02 — orientation is applied ONCE in evaluate() after modifiers.
-            return cam;
+            EvaluatedCameraSource result;
+            result.camera = cam;
+            result.tangent = (glm::length(t.tangent) > 1e-6f)
+                ? std::optional<Vec3>(glm::normalize(t.tangent))
+                : std::nullopt;
+            result.roll_deg = t.roll_deg;
+            return result;
         }
     }
 
@@ -417,7 +510,7 @@ Camera2_5D CameraProgram::evaluate_compiled_source(const CameraEvalContext& ctx)
     // CAM-03: central projection dispatch (handles all 3 variants).
     apply_projection_spec(base.projection, ctx, cam);
 
-    return cam;
+    return EvaluatedCameraSource{cam, std::nullopt, std::nullopt};
 }
 
 // ── Compiled constraint evaluation helper ─────────────────────────────────
@@ -539,10 +632,14 @@ static CompiledConstraintResult apply_constraint_spec(
 
 // ── apply_orientation_spec member delegates to free function ────────────────
 
-void CameraProgram::apply_orientation_spec(const void* orient_variant,
-                                            const CameraEvalContext& ctx,
-                                            Camera2_5D& cam) const {
-    apply_orientation_spec_free(orient_variant, ctx, cam);
+std::optional<CameraProgramDiagnostic> CameraProgram::apply_orientation_spec(
+    const void* orient_variant,
+    const CameraEvalContext& ctx,
+    Camera2_5D& cam,
+    const std::optional<Vec3>& tangent,
+    const std::optional<float>& roll_deg,
+    CameraSession& session) const {
+    return apply_orientation_spec_free(orient_variant, ctx, cam, tangent, roll_deg, session);
 }
 
 // TICKET-022 / DOC 02 — apply_orientation_spec_free() has exactly ONE real
@@ -573,7 +670,8 @@ CameraProgramResult CameraProgram::evaluate(const CameraEvalContext& ctx,
     }
 
     // Evaluate source directly (no registry lookup).
-    Camera2_5D intermediate = evaluate_compiled_source(ctx);
+    auto evaluated_source = evaluate_compiled_source(ctx);
+    Camera2_5D intermediate = evaluated_source.camera;
 
     // Apply modifiers (PR1: idle oscillation; CAM-04: handheld noise).
     //
@@ -675,8 +773,14 @@ CameraProgramResult CameraProgram::evaluate(const CameraEvalContext& ctx,
         }
     }
 
-    // Re-apply orientation after modifiers.
-    apply_orientation_spec(&descriptor_.orientation, ctx, intermediate);
+    // Re-apply orientation after modifiers, passing trajectory tangent/roll
+    // for OrientAlongPath support.
+    auto orient_diag = apply_orientation_spec(
+        &descriptor_.orientation, ctx, intermediate,
+        evaluated_source.tangent, evaluated_source.roll_deg, session);
+    if (orient_diag) {
+        result.diagnostics.push_back(*orient_diag);
+    }
 
     // Set is_animated flag.
     intermediate.is_animated = time_dependent_;
