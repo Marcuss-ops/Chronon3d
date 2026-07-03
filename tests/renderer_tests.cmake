@@ -207,7 +207,6 @@ chronon3d_add_test_suite(
     SOURCES
         renderer/camera/test_animated_camera.cpp
         renderer/camera/test_camera_motion.cpp
-        renderer/camera/test_camera_rig.cpp
         renderer/camera/test_dof.cpp
         renderer/camera/test_lens_model.cpp
         renderer/camera/test_per_pixel_dof.cpp

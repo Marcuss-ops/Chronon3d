@@ -30,7 +30,6 @@
 
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/camera/camera_rig.hpp>
-#include <chronon3d/scene/model/camera/camera_shot_profile.hpp>
 
 #include <chronon3d/animations/camera_motion_params.hpp>
 
@@ -106,7 +105,8 @@ Camera2_5D legacy_camera_motion_cam(const CameraMotionParams& p, Frame frame_at_
 struct Fixtures {
     CameraMotionParams motion_params;
     CameraRig          rig;
-    CameraShotProfile  shot;
+
+    // CameraShotProfile REMOVED (STEP 7 dead-code elimination).
 };
 
 Fixtures build_fixtures() {
@@ -253,49 +253,7 @@ TEST_CASE("camera_descriptor_from(CameraRig): bake reproduces evaluate(SampleTim
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// Test 3 — CameraShotProfile adapter delegates to rig adapter (same result).
-// ════════════════════════════════════════════════════════════════════════════
-TEST_CASE("camera_descriptor_from(CameraShotProfile): rig+shot descriptors match at 100 SampleTime points") {
-    Fixtures fx = build_fixtures();
-
-    CameraDescriptor desc_rig = camera_descriptor_from(fx.rig, RigBakeDensity::Default);
-    CameraDescriptor desc_shot = camera_descriptor_from(fx.shot, RigBakeDensity::Default);
-    auto compiled_rig  = compile_camera(desc_rig,  nullptr);
-    auto compiled_shot = compile_camera(desc_shot, nullptr);
-    REQUIRE(compiled_rig.has_value());
-    REQUIRE(compiled_shot.has_value());
-    CameraProgram program_rig  = std::move(compiled_rig).value();
-    CameraProgram program_shot = std::move(compiled_shot).value();
-    CameraSession session_a;
-    CameraSession session_b;
-
-    constexpr float kEpsilon = 1e-6f;  // same bake density + same data → exact
-    constexpr FrameRate kFps{60, 1};
-    for (int i = 0; i <= 100; ++i) {
-        const SampleTime st = SampleTime::from_seconds(
-            static_cast<f64>(i) / 100.0, kFps);
-        CameraEvalContext ctx;
-        ctx.frame = Frame{static_cast<int>(std::round(st.frame))};
-        ctx.sample_time = st;
-
-        auto r_rig  = program_rig.evaluate(ctx, session_a);
-        auto r_shot = program_shot.evaluate(ctx, session_b);
-        REQUIRE(r_rig.ok);
-        REQUIRE(r_shot.ok);
-
-        CHECK(r_rig.camera.position.x ==
-              doctest::Approx(r_shot.camera.position.x).epsilon(kEpsilon));
-        CHECK(r_rig.camera.position.y ==
-              doctest::Approx(r_shot.camera.position.y).epsilon(kEpsilon));
-        CHECK(r_rig.camera.position.z ==
-              doctest::Approx(r_shot.camera.position.z).epsilon(kEpsilon));
-        CHECK(r_rig.camera.zoom ==
-              doctest::Approx(r_shot.camera.zoom).epsilon(kEpsilon));
-    }
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// Test 4 — Densely baked rig matches the legacy to 1e-4 (RA interpolation
+// Test 3 (was Test 4) — Densely baked rig matches the legacy to 1e-4 (RA interpolation
 // class tightens; useful as a smoke gate for downstream numerical consumers).
 // ════════════════════════════════════════════════════════════════════════════
 TEST_CASE("camera_descriptor_from(CameraRig, Dense): tighter identity for smooth orbits") {

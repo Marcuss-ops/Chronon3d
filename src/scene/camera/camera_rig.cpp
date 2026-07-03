@@ -1,6 +1,5 @@
 #include <chronon3d/scene/model/camera/camera_rig.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d {
@@ -220,79 +219,4 @@ Camera2_5D CameraRig::evaluate(
     cam.motion_blur.jitter_seed      = motion_blur.jitter_seed;
 
     return cam;
-}
-
-namespace camera_rig {
-
-Camera2_5D CameraRig::bake(
-    Frame frame,
-    std::pmr::memory_resource* res,
-    [[maybe_unused]] const ResolvedSceneTransforms* resolved
-) const {
-    Camera2_5D cam;
-    cam.enabled                   = enabled;
-    cam.position                  = camera_position.evaluate(frame);
-    cam.rotation                  = camera_rotation.evaluate(frame);
-    cam.zoom                      = zoom.evaluate(frame);
-    cam.fov_deg                   = fov_deg.evaluate(frame);
-    cam.optics_mode               = optics_mode;
-    cam.parent_name               = std::pmr::string{controller_name, res};
-
-    if (mode == RigMode::TwoNode) {
-        cam.point_of_interest_enabled = true;
-        cam.target_name               = std::pmr::string{target_name, res};
-    } else {
-        cam.point_of_interest_enabled = false;
-        cam.target_name.clear();
-    }
-
-    cam.dof = dof;
-    const Vec3 focus_po = cam.point_of_interest_enabled
-                              ? cam.point_of_interest
-                              : cam.position;
-
-    switch (focus_mode) {
-        case CameraFocusMode::ManualDistance:
-            cam.dof.focus_distance = dof.focus_distance;
-            cam.dof.focus_z        = dof.focus_z;
-            break;
-        case CameraFocusMode::PointOfInterest:
-            cam.dof.focus_distance = glm::length(focus_po - cam.position);
-            cam.dof.focus_z        = focus_po.z;
-            break;
-        case CameraFocusMode::TargetLayer:
-            cam.dof.focus_distance = glm::length(focus_po - cam.position);
-            cam.dof.focus_z        = focus_po.z;
-            break;
-        case CameraFocusMode::LockToZoom:
-            cam.dof.focus_distance = cam.zoom;
-            cam.dof.focus_z        = focus_po.z;
-            break;
-    }
-
-    return cam;
-}
-
-    void CameraRig::apply(SceneBuilder& s, Frame frame, std::function<void(SceneBuilder&)> add_target_content) const {
-        s.null_layer(controller_name, [&](LayerBuilder& l) {
-            l.position(controller_position.evaluate(frame))
-             .rotate(controller_rotation.evaluate(frame))
-             .anchor(controller_anchor.evaluate(frame));
-        });
-
-        s.null_layer(target_name, [&](LayerBuilder& l) {
-            l.position(target_position.evaluate(frame))
-             .rotate(target_rotation.evaluate(frame))
-             .anchor(target_anchor.evaluate(frame));
-        });
-
-        add_target_content(s);
-        s.camera().set(bake(frame, s.resource()));
-    }
-
-    void CameraRig::apply(SceneBuilder& s, Frame frame) const {
-        apply(s, frame, [](SceneBuilder&) {});
-    }
-}
-
 } // namespace chronon3d
