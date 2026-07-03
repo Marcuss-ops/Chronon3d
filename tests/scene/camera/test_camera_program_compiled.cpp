@@ -49,6 +49,7 @@
 #include <chronon3d/scene/camera/camera_v1/camera_catalog.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_trajectory.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/model/camera/lens_model.hpp>  // LensPresets for PhysicalLens trajectory test
 #include <chronon3d/animation/path/spatial_bezier_path.hpp>  // §4.B.2: quat_look_along, quat_to_camera_euler (TICKET-022)
 #include <chronon3d/animation/effects/wiggle.hpp>             // §4.B.2: wiggle3D for canonical HandheldNoise verification
 
@@ -296,6 +297,355 @@ TEST_CASE("compiled_invalid_trajectory_empty — "
     auto result = compile_camera(desc, /*catalog=*/nullptr);
     REQUIRE_FALSE(result.has_value());
     REQUIRE(result.error().kind == CameraCompileError::Kind::TrajectoryEmpty);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// §1.B — TrajectoryMotion full CameraBaseSpec transfer + OrientAlongPath
+// ══════════════════════════════════════════════════════════════════════════
+//
+// The original trajectory branch in evaluate_compiled_source() stripped the
+// camera down to position + hardcoded zoom=1000/fov=50 and dropped lens,
+// projection variant, DOF, motion blur, parent_name, roll, tangent, and
+// is_animated.  The fix makes the trajectory branch start from the full
+// CameraBaseSpec, apply the canonical ProjectionSpec dispatch, and carry
+// forward tangent + roll_deg for OrientAlongPath.
+
+TEST_CASE("compiled_trajectory_transfers_projection_spec — "
+          "TrajectoryMotion + FovProjection: camera.fov_deg MUST come from "
+          "the descriptor's ProjectionSpec, NOT hardcoded 50.0f") {
+    auto desc = make_cam01_base_desc("test.traj_fov");
+    desc.base.projection = FovProjection{AnimatedValue<float>{72.0f}};
+
+    auto traj = CameraTrajectoryBuilder()
+                    .move_to(Vec3{0.0f, 0.0f, -1500.0f})
+                    .bezier_to(Vec3{0.0f, 0.0f, 0.0f}, Vec3{0.0f, 0.0f, 0.0f},
+                               Vec3{0.0f, 0.0f, -500.0f})
+                    .duration_frames(90.0f)
+                    .build();
+    REQUIRE(traj);
+    desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+    auto cam = eval_at_or_die_cam01(program, session, Frame{0});
+    CHECK(cam.fov_deg == doctest::Approx(72.0f).epsilon(kCam01Eps));
+    CHECK(cam.optics_mode == CameraOpticsMode::FieldOfView);
+    CHECK(cam.projection_mode == Camera2_5DProjectionMode::Fov);
+}
+
+TEST_CASE("compiled_trajectory_transfers_physical_lens — "
+          "TrajectoryMotion + PhysicalLensProjection: lens MUST come from "
+          "the projection variant, NOT hardcoded defaults") {
+    auto desc = make_cam01_base_desc("test.traj_lens");
+    LensModel lens = LensPresets::full_frame_85mm();
+    lens.f_stop = 5.6f;
+    desc.base.projection = PhysicalLensProjection{lens};
+
+    auto traj = CameraTrajectoryBuilder()
+                    .move_to(Vec3{0.0f, 0.0f, -1500.0f})
+                    .bezier_to(Vec3{0.0f, 0.0f, 0.0f}, Vec3{0.0f, 0.0f, 0.0f},
+                               Vec3{0.0f, 0.0f, -500.0f})
+                    .duration_frames(90.0f)
+                    .build();
+    REQUIRE(traj);
+    desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+    auto cam = eval_at_or_die_cam01(program, session, Frame{0});
+    CHECK(cam.optics_mode == CameraOpticsMode::PhysicalLens);
+    CHECK(cam.lens.focal_length == doctest::Approx(85.0f).epsilon(kCam01Eps));
+    CHECK(cam.lens.f_stop == doctest::Approx(5.6f).epsilon(kCam01Eps));
+    // PhysicalLens resets zoom/fov to 0 (no stale 1000/50).
+    CHECK(cam.zoom == doctest::Approx(0.0f).epsilon(kCam01Eps));
+    CHECK(cam.fov_deg == doctest::Approx(0.0f).epsilon(kCam01Eps));
+}
+
+TEST_CASE("compiled_trajectory_transfers_dof_motion_blur_parent — "
+          "TrajectoryMotion MUST carry forward DOF, motion blur, parent_name "
+          "from CameraBaseSpec (previously dropped)") {
+    auto desc = make_cam01_base_desc("test.traj_extras");
+    desc.base.dof.enabled = true;
+    desc.base.dof.focus_distance = 750.0f;
+    desc.base.dof.aperture = 0.02f;
+    desc.base.motion_blur.mode = MotionBlurMode::TemporalAccumulation;
+    desc.base.motion_blur.samples = 16;
+    desc.base.motion_blur.shutter_angle_deg = 90.0f;
+    desc.base.parent_name = "parent_layer_42";
+
+    auto traj = CameraTrajectoryBuilder()
+                    .move_to(Vec3{0.0f, 0.0f, -1500.0f})
+                    .bezier_to(Vec3{0.0f, 0.0f, 0.0f}, Vec3{0.0f, 0.0f, 0.0f},
+                               Vec3{0.0f, 0.0f, -500.0f})
+                    .duration_frames(90.0f)
+                    .build();
+    REQUIRE(traj);
+    desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+    auto cam = eval_at_or_die_cam01(program, session, Frame{0});
+    CHECK(cam.dof.enabled);
+    CHECK(cam.dof.focus_distance == doctest::Approx(750.0f).epsilon(kCam01Eps));
+    CHECK(cam.dof.aperture == doctest::Approx(0.02f).epsilon(kCam01Eps));
+    CHECK(cam.motion_blur.mode == MotionBlurMode::TemporalAccumulation);
+    CHECK(cam.motion_blur.samples == 16);
+    CHECK(cam.motion_blur.shutter_angle_deg == doctest::Approx(90.0f).epsilon(kCam01Eps));
+    CHECK(cam.parent_name == "parent_layer_42");
+    // is_animated must be true for a trajectory source.
+    CHECK(cam.is_animated);
+}
+
+TEST_CASE("compiled_trajectory_transfers_roll_deg — "
+          "TrajectoryMotion with roll_deg on trajectory points MUST produce "
+          "a non-zero roll when OrientAlongPath is active") {
+    auto desc = make_cam01_base_desc("test.traj_roll");
+
+    auto traj = CameraTrajectoryBuilder()
+                    .move_to(Vec3{0.0f, 0.0f, -1500.0f}, std::nullopt, /*roll_deg=*/15.0f)
+                    .bezier_to(Vec3{0.0f, 0.0f, 0.0f}, Vec3{0.0f, 0.0f, 0.0f},
+                               Vec3{0.0f, 0.0f, -500.0f})
+                    .duration_frames(90.0f)
+                    .build();
+    REQUIRE(traj);
+    desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
+    desc.orientation = OrientAlongPath{/*keep_horizon=*/false};
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+    auto cam = eval_at_or_die_cam01(program, session, Frame{0});
+    // At frame 0, roll from trajectory point[0] is 15 degrees.
+    // The camera should have a non-trivial rotation.z from the trajectory roll.
+    CHECK(std::abs(cam.rotation.z - 15.0f) < 1.0f);
+}
+
+TEST_CASE("compiled_orient_along_path_straight_line — "
+          "OrientAlongPath orients camera along trajectory tangent "
+          "(non-degenerate straight line along +Z)") {
+    auto desc = make_cam01_base_desc("test.oap_straight");
+
+    // Trajectory from (0,0,-1500) to (0,0,-500) → tangent = (0,0,1) = +Z.
+    auto traj = CameraTrajectoryBuilder()
+                    .move_to(Vec3{0.0f, 0.0f, -1500.0f})
+                    .bezier_to(Vec3{0.0f, 0.0f, 0.0f}, Vec3{0.0f, 0.0f, 0.0f},
+                               Vec3{0.0f, 0.0f, -500.0f})
+                    .duration_frames(90.0f)
+                    .build();
+    REQUIRE(traj);
+    desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
+    desc.orientation = OrientAlongPath{/*keep_horizon=*/false};
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+    auto cam = eval_at_or_die_cam01(program, session, Frame{45});
+
+    // With tangent = (0,0,1), the camera should look along +Z.
+    // quat_look_along((0,0,1)) should produce near-identity rotation
+    // (the camera's default forward is +Z in LH convention).
+    // We check that the rotation is small (not a no-op sentinel, but the
+    // correct orientation for a +Z look direction).
+    const float rot_l2 = std::sqrt(cam.rotation.x * cam.rotation.x
+                                   + cam.rotation.y * cam.rotation.y
+                                   + cam.rotation.z * cam.rotation.z);
+    CAPTURE(cam.rotation.x); CAPTURE(cam.rotation.y); CAPTURE(cam.rotation.z);
+    CHECK(rot_l2 < 5.0f);  // should be near-zero for a +Z look
+}
+
+TEST_CASE("compiled_orient_along_path_off_axis — "
+          "OrientAlongPath with a non-axial trajectory produces a "
+          "non-trivial rotation (proves it's not a no-op)") {
+    auto desc = make_cam01_base_desc("test.oap_offaxis");
+
+    // Trajectory from (0,0,-1500) to (1000,0,-500) → tangent has +X component.
+    auto traj = CameraTrajectoryBuilder()
+                    .move_to(Vec3{0.0f, 0.0f, -1500.0f})
+                    .bezier_to(Vec3{0.0f, 0.0f, 0.0f}, Vec3{0.0f, 0.0f, 0.0f},
+                               Vec3{1000.0f, 0.0f, -500.0f})
+                    .duration_frames(90.0f)
+                    .build();
+    REQUIRE(traj);
+    desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
+    desc.orientation = OrientAlongPath{/*keep_horizon=*/false};
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+    auto cam = eval_at_or_die_cam01(program, session, Frame{45});
+
+    // The tangent has a significant +X component, so the camera should
+    // yaw to look in that direction.  rotation.y (pan) should be non-trivial.
+    CAPTURE(cam.rotation.x); CAPTURE(cam.rotation.y); CAPTURE(cam.rotation.z);
+    CHECK(std::abs(cam.rotation.y) > 1.0f);  // at least 1 degree of yaw
+}
+
+TEST_CASE("compiled_orient_along_path_keep_horizon — "
+          "OrientAlongPath with keep_horizon=true zeroes roll even when "
+          "trajectory has roll_deg") {
+    auto desc = make_cam01_base_desc("test.oap_keephorizon");
+
+    auto traj = CameraTrajectoryBuilder()
+                    .move_to(Vec3{0.0f, 0.0f, -1500.0f}, std::nullopt, /*roll_deg=*/20.0f)
+                    .bezier_to(Vec3{0.0f, 0.0f, 0.0f}, Vec3{0.0f, 0.0f, 0.0f},
+                               Vec3{0.0f, 0.0f, -500.0f})
+                    .duration_frames(90.0f)
+                    .build();
+    REQUIRE(traj);
+    desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
+    desc.orientation = OrientAlongPath{/*keep_horizon=*/true};
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+    auto cam = eval_at_or_die_cam01(program, session, Frame{0});
+    // keep_horizon forces roll=0 regardless of trajectory roll_deg.
+    CHECK(cam.rotation.z == doctest::Approx(0.0f).epsilon(kCam01Eps));
+}
+
+TEST_CASE("compiled_orient_along_path_degenerate_hold — "
+          "OrientAlongPath with a Hold segment (zero tangent) falls back "
+          "to POI direction and emits a Warning diagnostic, producing a "
+          "valid non-trivial orientation toward the POI") {
+    auto desc = make_cam01_base_desc("test.oap_hold");
+    desc.base.point_of_interest_enabled = true;
+    desc.base.point_of_interest = Vec3{0.0f, 100.0f, 0.0f};  // off-axis POI
+
+    // Build a trajectory: move to a point, then hold for 30 frames.
+    // During the hold, the tangent is (0,0,0) → degenerate.
+    auto traj = CameraTrajectoryBuilder()
+                    .move_to(Vec3{0.0f, 0.0f, -1000.0f})
+                    .bezier_to(Vec3{0.0f, 0.0f, 0.0f}, Vec3{0.0f, 0.0f, 0.0f},
+                               Vec3{0.0f, 0.0f, -500.0f})
+                    .duration_frames(30.0f)
+                    .hold_for(30.0f)
+                    .build();
+    REQUIRE(traj);
+    REQUIRE(traj->size() == 2);  // 1 bezier + 1 hold
+    desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
+    desc.orientation = OrientAlongPath{/*keep_horizon=*/false};
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+
+    // Evaluate at a frame within the hold segment (segment 0 ends at frame 30,
+    // so frame 45 is mid-hold → tangent = (0,0,0)).
+    CameraEvalContext ctx;
+    ctx.frame = Frame{45};
+    ctx.sample_time = SampleTime::from_frame_int(Frame{45}, kCam01Fps);
+    auto res = program.evaluate(ctx, session);
+    REQUIRE(res.ok);
+
+    // Should have a warning diagnostic about the degenerate tangent fallback.
+    bool found_fallback_warning = false;
+    for (const auto& d : res.diagnostics) {
+        if (d.severity == CameraProgramDiagnostic::Severity::Warning &&
+            d.message.find("OrientAlongPath") != std::string::npos) {
+            found_fallback_warning = true;
+            break;
+        }
+    }
+    CHECK(found_fallback_warning);
+
+    // Verify the fallback actually produced a valid orientation toward POI.
+    // POI = (0,100,0), camera at (0,0,-500) → look_dir = (0,100,500) →
+    // non-trivial pitch (rotation.x).  This proves the fallback didn't
+    // just silently keep base rotation = (0,0,0).
+    CHECK(std::abs(res.camera.rotation.x) > 0.5f);
+}
+
+TEST_CASE("compiled_orient_along_path_with_static_source_no_crash — "
+          "OrientAlongPath with a non-trajectory source (no tangent) "
+          "falls back to POI direction without crashing AND emits a "
+          "Warning diagnostic about the missing tangent") {
+    auto desc = make_cam01_base_desc("test.oap_static");
+    desc.source = StaticCameraSource{};
+    desc.base.point_of_interest_enabled = true;
+    desc.base.point_of_interest = Vec3{0.0f, 0.0f, 0.0f};
+    desc.orientation = OrientAlongPath{/*keep_horizon=*/false};
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+
+    CameraEvalContext ctx;
+    ctx.frame = Frame{0};
+    ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
+    auto res = program.evaluate(ctx, session);
+    REQUIRE(res.ok);
+    // With no tangent and no trajectory, it should fall back to POI direction.
+    // POI is (0,0,0), camera at (0,0,-1000), so it looks along +Z.
+    // This should not crash and should produce a valid camera.
+    CHECK(res.camera.enabled);
+
+    // A static source with OrientAlongPath has no tangent — it MUST emit
+    // a Warning diagnostic about the fallback (step 3 or step 4).
+    bool found_warning = false;
+    for (const auto& d : res.diagnostics) {
+        if (d.severity == CameraProgramDiagnostic::Severity::Warning &&
+            d.message.find("OrientAlongPath") != std::string::npos) {
+            found_warning = true;
+            break;
+        }
+    }
+    CHECK(found_warning);
+}
+
+TEST_CASE("compiled_orient_along_path_last_tangent_persistence — "
+          "OrientAlongPath: after a frame with a valid tangent, a subsequent "
+          "degenerate-tangent frame uses the preserved session.last_tangent "
+          "(fallback step 2), NOT the POI direction (step 3)") {
+    auto desc = make_cam01_base_desc("test.oap_persist");
+    desc.base.point_of_interest_enabled = true;
+    desc.base.point_of_interest = Vec3{0.0f, 100.0f, 0.0f};  // off-axis POI
+
+    // Build a trajectory with an off-axis bezier segment then a hold.
+    // The bezier goes from (0,0,-1000) to (1000,0,-500), giving a tangent
+    // with a +X component.  The hold has tangent = (0,0,0) → degenerate.
+    auto traj = CameraTrajectoryBuilder()
+                    .move_to(Vec3{0.0f, 0.0f, -1000.0f})
+                    .bezier_to(Vec3{0.0f, 0.0f, 0.0f}, Vec3{0.0f, 0.0f, 0.0f},
+                               Vec3{1000.0f, 0.0f, -500.0f})
+                    .duration_frames(30.0f)
+                    .hold_for(30.0f)
+                    .build();
+    REQUIRE(traj);
+    REQUIRE(traj->size() == 2);
+    desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
+    desc.orientation = OrientAlongPath{/*keep_horizon=*/false};
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+
+    // Frame 15: mid-bezier → valid tangent with +X component.
+    // This populates session.last_tangent.
+    CameraEvalContext ctx1;
+    ctx1.frame = Frame{15};
+    ctx1.sample_time = SampleTime::from_frame_int(Frame{15}, kCam01Fps);
+    auto res1 = program.evaluate(ctx1, session);
+    REQUIRE(res1.ok);
+    // The tangent has a +X component, so the camera should yaw right.
+    CHECK(std::abs(res1.camera.rotation.y) > 1.0f);
+
+    // Frame 45: mid-hold → tangent = (0,0,0) → degenerate.
+    // session.last_tangent should be populated from frame 15.
+    CameraEvalContext ctx2;
+    ctx2.frame = Frame{45};
+    ctx2.sample_time = SampleTime::from_frame_int(Frame{45}, kCam01Fps);
+    auto res2 = program.evaluate(ctx2, session);
+    REQUIRE(res2.ok);
+
+    // Should emit a warning about the degenerate tangent fallback.
+    bool found_warning = false;
+    for (const auto& d : res2.diagnostics) {
+        if (d.severity == CameraProgramDiagnostic::Severity::Warning &&
+            d.message.find("previous frame tangent") != std::string::npos) {
+            found_warning = true;
+            break;
+        }
+    }
+    CHECK(found_warning);
+
+    // The fallback uses the preserved tangent (from frame 15, +X component),
+    // NOT the POI direction (which is (0,100,0) - (1000,0,-500) → mostly -X).
+    // If it used POI direction, the yaw would be very different.
+    // The preserved tangent yaw should match the frame-15 yaw.
+    CHECK(res2.camera.rotation.y == doctest::Approx(res1.camera.rotation.y).epsilon(1.0f));
 }
 
 // ══════════════════════════════════════════════════════════════════════════

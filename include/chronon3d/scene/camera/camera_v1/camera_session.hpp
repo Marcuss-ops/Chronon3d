@@ -48,8 +48,10 @@
 //     already carries).
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_constraint.hpp>  // ConstraintSession, ConstraintState
+#include <chronon3d/math/glm_types.hpp>   // Vec3
 
 #include <cstdint>
+#include <optional>
 
 namespace chronon3d::camera_v1 {
 
@@ -70,6 +72,10 @@ struct CameraSession {
     /// single-look-at policy.
     bool skip_look_at_constraint_from_orientation{false};
 
+    /// Last valid trajectory tangent (normalised) — used by OrientAlongPath
+    /// as a fallback when the current frame's tangent is degenerate.
+    std::optional<Vec3> last_tangent;
+
     /// Ensure at least n constraint state slots are allocated.
     void ensure_constraint_states(std::size_t n) {
         constraint_session.ensure_states(n);
@@ -80,6 +86,7 @@ struct CameraSession {
         constraint_session.reset();
         banking_roll = 0.0f;
         skip_look_at_constraint_from_orientation = false;
+        last_tangent.reset();
     }
 };
 
