@@ -48,6 +48,22 @@ struct CameraCompileError {
         ConstraintNotFound,        // named constraint id not in registry
         CircularParent,            // parent hierarchy cycle
         CircularCatalogReference,  // CAM-02: RegisteredMotionRef chain loops back
+        // ── STEP 8 validation additions ──────────────────────────────────
+        EmptyId,                              // descriptor.id is empty
+        InvalidFov,                           // FOV non-finite, <=0, or >= 179°
+        InvalidZoom,                          // zoom <= 0
+        InvalidFocalLength,                   // focal length <= 0
+        InvalidSensorDimensions,              // sensor width/height <= 0
+        InvalidPixelAspect,                   // pixel_aspect <= 0
+        InvalidAnamorphicSqueeze,             // anamorphic_squeeze <= 0
+        InvalidMotionBlurSamples,             // MB samples <= 0
+        InvalidShutterAngle,                  // shutter angle <= 0 or > 360
+        InvalidConstraintRange,               // DistanceConstraint min > max
+        TrajectoryNull,                       // TrajectoryMotion with null shared_ptr
+        InvalidSegmentIndex,                  // segment from_idx >= to_idx or OOB
+        InvalidSegmentDuration,               // segment duration_frames <= 0
+        OrientAlongPathWithoutTrajectory,     // OrientAlongPath without TrajectoryMotion
+        LookAtLayerWithoutTarget,             // LookAtLayer with empty target string
     };
 
     Kind        kind{Kind::Unknown};

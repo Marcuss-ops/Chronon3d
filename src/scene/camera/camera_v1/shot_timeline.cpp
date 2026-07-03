@@ -340,8 +340,8 @@ Camera2_5D ShotTimelineResolver::evaluate(int frame,
         auto& s_from = timeline_session.session_for(pair.idx);
         auto& s_to   = timeline_session.session_for(pair.idx + 1);
 
-        Camera2_5D from_cam = shot.program.evaluate(ctx_from, s_from).camera;
-        Camera2_5D to_cam   = pair.next->program.evaluate(ctx_to, s_to).camera;
+        Camera2_5D from_cam = shot.program.evaluate(ctx_from, s_from).value().camera;
+        Camera2_5D to_cam   = pair.next->program.evaluate(ctx_to, s_to).value().camera;
 
         auto transition = get_transition(shot.transition_out);
         return transition->evaluate(t, from_cam, to_cam);
@@ -354,7 +354,7 @@ Camera2_5D ShotTimelineResolver::evaluate(int frame,
     auto ctx = CameraEvalContext::at(local_frame, kTimelineFps);
 
     auto& shot_session = timeline_session.session_for(pair.idx);
-    return shot.program.evaluate(ctx, shot_session).camera;
+    return shot.program.evaluate(ctx, shot_session).value().camera;
 }
 
 // =========================================================================

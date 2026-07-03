@@ -87,7 +87,7 @@ Camera2_5D evaluate_cached_at(CameraSessionCache& cache,
     ctx.sample_time = SampleTime::from_frame_int(target_frame, kCkptFps);
     auto r = prog.evaluate(ctx, lease.session());
     lease.commit();  // CAM-05: RAII — commit advances last_evaluated_frame
-    return r.camera;
+    return r.value().camera;
 }
 
 // Compile a descriptor once; helper hides the (Result ...) ceremony.
@@ -186,13 +186,13 @@ TEST_CASE("TICKET-031 §5 sub-frame repeated: same sub-frame ⇒ bit-equal") {
     ctx_a.frame = Frame{1};
     ctx_a.sample_time = SampleTime::from_frame(1.5, kCkptFps);
     auto lease_a = cacheA.acquire(prog, /*shot=*/0, kCkptShotStart, /*target=*/1, kCkptFps);
-    Camera2_5D r1 = prog.evaluate(ctx_a, lease_a.session()).camera;
+    Camera2_5D r1 = prog.evaluate(ctx_a, lease_a.session()).value().camera;
     lease_a.commit();
 
     CameraSessionCache cacheB;
     CameraEvalContext ctx_b = ctx_a;  // identical sub-frame context
     auto lease_b = cacheB.acquire(prog, 0, kCkptShotStart, 1, kCkptFps);
-    Camera2_5D r2 = prog.evaluate(ctx_b, lease_b.session()).camera;
+    Camera2_5D r2 = prog.evaluate(ctx_b, lease_b.session()).value().camera;
     lease_b.commit();
 
     CHECK(cameras_equal(r1, r2));
@@ -223,11 +223,10 @@ TEST_CASE("TICKET-031 §6 checkpoint restore: snapshot→mutate→restore ⇒ eq
     CameraEvalContext ctx;
     ctx.frame = Frame{50};
     ctx.sample_time = SampleTime::from_frame_int(50, kCkptFps);
-    Camera2_5D ref = prog.evaluate(ctx, sess).camera;
+    Camera2_5D ref = prog.evaluate(ctx, sess).value().camera;
 
     // Aggressively mutate the session to a deliberately-wrong state.
     sess.banking_roll = -99.0f;
-    sess.constraint_session.banking_roll = 9999.0f;
     for (auto& st : sess.constraint_session.states) {
         st.previous_camera.position       = {7777.0f, 0.0f, -1000.0f};
         st.previous_velocity              = {42.0f, 42.0f, 42.0f};
@@ -240,7 +239,7 @@ TEST_CASE("TICKET-031 §6 checkpoint restore: snapshot→mutate→restore ⇒ eq
     CameraStateCheckpoint::restore(sess, cp);
 
     // Re-evaluate frame 50 — must match the reference exactly.
-    Camera2_5D after = prog.evaluate(ctx, sess).camera;
+    Camera2_5D after = prog.evaluate(ctx, sess).value().camera;
 
     CHECK(cameras_equal(ref, after));
 }

@@ -33,7 +33,7 @@ struct ConstraintState {
 struct ConstraintSession {
     std::vector<ConstraintState> states;
     std::size_t                  active_index{0};
-    float banking_roll{0.0f};   // shared banking state (CameraProgram)
+    // banking_roll moved to CameraSession (STEP 8 dedup)
 
     void ensure_states(std::size_t n) {
         if (states.size() < n) states.resize(n);
@@ -45,7 +45,6 @@ struct ConstraintSession {
     void reset() {
         for (auto& s : states) s = {};
         active_index = 0;
-        banking_roll = 0.0f;
     }
 };
 

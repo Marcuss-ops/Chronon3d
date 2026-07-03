@@ -75,15 +75,15 @@ CameraProgram compile_or_die_cam01(const CameraDescriptor& desc,
     return program;
 }
 
-// Helper: evaluate at Frame + assert res.ok.
+// Helper: evaluate at Frame + assert res.has_value().
 Camera2_5D eval_at_or_die_cam01(const CameraProgram& program,
                            CameraSession& session, Frame frame) {
     CameraEvalContext ctx;
     ctx.frame = frame;
     ctx.sample_time = SampleTime::from_frame_int(frame, kCam01Fps);
     auto res = program.evaluate(ctx, session);
-    REQUIRE(res.ok);
-    return res.camera;
+    REQUIRE(res.has_value());
+    return res.value().camera;
 }
 
 // ── Fixture: zero base, identity orientation, deterministic defaults. ──
@@ -529,11 +529,11 @@ TEST_CASE("compiled_orient_along_path_degenerate_hold — "
     ctx.frame = Frame{45};
     ctx.sample_time = SampleTime::from_frame_int(Frame{45}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
-    REQUIRE(res.ok);
+    REQUIRE(res.has_value());
 
     // Should have a warning diagnostic about the degenerate tangent fallback.
     bool found_fallback_warning = false;
-    for (const auto& d : res.diagnostics) {
+    for (const auto& d : res->diagnostics) {
         if (d.severity == CameraProgramDiagnostic::Severity::Warning &&
             d.message.find("OrientAlongPath") != std::string::npos) {
             found_fallback_warning = true;
@@ -546,7 +546,7 @@ TEST_CASE("compiled_orient_along_path_degenerate_hold — "
     // POI = (0,100,0), camera at (0,0,-500) → look_dir = (0,100,500) →
     // non-trivial pitch (rotation.x).  This proves the fallback didn't
     // just silently keep base rotation = (0,0,0).
-    CHECK(std::abs(res.camera.rotation.x) > 0.5f);
+    CHECK(std::abs(res->camera.rotation.x) > 0.5f);
 }
 
 TEST_CASE("compiled_orient_along_path_with_static_source_no_crash — "
@@ -566,16 +566,16 @@ TEST_CASE("compiled_orient_along_path_with_static_source_no_crash — "
     ctx.frame = Frame{0};
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
-    REQUIRE(res.ok);
+    REQUIRE(res.has_value());
     // With no tangent and no trajectory, it should fall back to POI direction.
     // POI is (0,0,0), camera at (0,0,-1000), so it looks along +Z.
     // This should not crash and should produce a valid camera.
-    CHECK(res.camera.enabled);
+    CHECK(res.value().camera.enabled);
 
     // A static source with OrientAlongPath has no tangent — it MUST emit
     // a Warning diagnostic about the fallback (step 3 or step 4).
     bool found_warning = false;
-    for (const auto& d : res.diagnostics) {
+    for (const auto& d : res->diagnostics) {
         if (d.severity == CameraProgramDiagnostic::Severity::Warning &&
             d.message.find("OrientAlongPath") != std::string::npos) {
             found_warning = true;
@@ -619,7 +619,7 @@ TEST_CASE("compiled_orient_along_path_last_tangent_persistence — "
     auto res1 = program.evaluate(ctx1, session);
     REQUIRE(res1.ok);
     // The tangent has a +X component, so the camera should yaw right.
-    CHECK(std::abs(res1.camera.rotation.y) > 1.0f);
+    CHECK(std::abs(res1->camera.rotation.y) > 1.0f);
 
     // Frame 45: mid-hold → tangent = (0,0,0) → degenerate.
     // session.last_tangent should be populated from frame 15.
@@ -644,7 +644,7 @@ TEST_CASE("compiled_orient_along_path_last_tangent_persistence — "
     // NOT the POI direction (which is (0,100,0) - (1000,0,-500) → mostly -X).
     // If it used POI direction, the yaw would be very different.
     // The preserved tangent yaw should match the frame-15 yaw.
-    CHECK(res2.camera.rotation.y == doctest::Approx(res1.camera.rotation.y).epsilon(1.0f));
+    CHECK(res2->camera.rotation.y == doctest::Approx(res1->camera.rotation.y).epsilon(1.0f));
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -887,11 +887,11 @@ TEST_CASE("compiled_orientation_look_at_layer_no_transforms — "
     ctx.frame = Frame{0};
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
-    REQUIRE(res.ok);
-    CHECK(res.camera.rotation.x == doctest::Approx(0.0f).epsilon(kCam01Eps));
-    CHECK(res.camera.rotation.y == doctest::Approx(0.0f).epsilon(kCam01Eps));
-    CHECK(res.camera.rotation.z == doctest::Approx(0.0f).epsilon(kCam01Eps));
-    CHECK_FALSE(res.camera.point_of_interest_enabled);
+    REQUIRE(res.has_value());
+    CHECK(res->camera.rotation.x == doctest::Approx(0.0f).epsilon(kCam01Eps));
+    CHECK(res->camera.rotation.y == doctest::Approx(0.0f).epsilon(kCam01Eps));
+    CHECK(res->camera.rotation.z == doctest::Approx(0.0f).epsilon(kCam01Eps));
+    CHECK_FALSE(res->camera.point_of_interest_enabled);
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1052,21 +1052,21 @@ TEST_CASE("compiled_orientation_single_look_at_constraint_skipped — "
     ctx.frame = Frame{0};
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
-    REQUIRE(res.ok);
+    REQUIRE(res.has_value());
 
     // POI MUST be orientation's target (A = (500, 0, 0)), NOT constraint's (B = (-500, 0, 0)).
-    CAPTURE(res.camera.point_of_interest.x);
-    CAPTURE(res.camera.point_of_interest.y);
-    CAPTURE(res.camera.point_of_interest.z);
-    CHECK(res.camera.point_of_interest.x == doctest::Approx(500.0f).epsilon(kCam01Eps));
-    CHECK(res.camera.point_of_interest.y == doctest::Approx(0.0f).epsilon(kCam01Eps));
-    CHECK(res.camera.point_of_interest.z == doctest::Approx(0.0f).epsilon(kCam01Eps));
-    CHECK(res.camera.point_of_interest_enabled);
+    CAPTURE(res->camera.point_of_interest.x);
+    CAPTURE(res->camera.point_of_interest.y);
+    CAPTURE(res->camera.point_of_interest.z);
+    CHECK(res->camera.point_of_interest.x == doctest::Approx(500.0f).epsilon(kCam01Eps));
+    CHECK(res->camera.point_of_interest.y == doctest::Approx(0.0f).epsilon(kCam01Eps));
+    CHECK(res->camera.point_of_interest.z == doctest::Approx(0.0f).epsilon(kCam01Eps));
+    CHECK(res->camera.point_of_interest_enabled);
 
     // Single Warning diagnostic recorded (CAM-03 single-look-at policy message).
-    REQUIRE_FALSE(res.diagnostics.empty());
+    REQUIRE_FALSE(res->diagnostics.empty());
     bool found_single_look_at_msg = false;
-    for (const auto& d : res.diagnostics) {
+    for (const auto& d : res->diagnostics) {
         if (d.severity == CameraProgramDiagnostic::Severity::Warning &&
             d.message.find("single look-at policy") != std::string::npos) {
             found_single_look_at_msg = true;
@@ -1076,9 +1076,9 @@ TEST_CASE("compiled_orientation_single_look_at_constraint_skipped — "
     CHECK(found_single_look_at_msg);
 
     // Rotation sanity: rotation is non-trivial (off-axis look-at).
-    const float rot_l2 = std::sqrt(res.camera.rotation.x * res.camera.rotation.x
-                                   + res.camera.rotation.y * res.camera.rotation.y
-                                   + res.camera.rotation.z * res.camera.rotation.z);
+    const float rot_l2 = std::sqrt(res->camera.rotation.x * res->camera.rotation.x
+                                   + res->camera.rotation.y * res->camera.rotation.y
+                                   + res->camera.rotation.z * res->camera.rotation.z);
     CHECK(rot_l2 > 0.5f);  // degrees — matches §4 floor.
 }
 
@@ -1491,9 +1491,9 @@ TEST_CASE("compiled_failure_policy_stop — "
     ctx.frame = Frame{0};
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
-    CHECK_FALSE(res.ok);
-    REQUIRE_FALSE(res.diagnostics.empty());
-    CHECK(res.diagnostics.front().message == "distance-zero");
+    CHECK_FALSE(res.has_value());
+    REQUIRE_FALSE(res->diagnostics.empty());
+    CHECK(res->diagnostics.front().message == "distance-zero");
 }
 
 TEST_CASE("compiled_failure_policy_skip_failed — "
@@ -1507,9 +1507,9 @@ TEST_CASE("compiled_failure_policy_skip_failed — "
     ctx.frame = Frame{0};
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
-    CHECK(res.ok);  // failure was skipped, no subsequent constraints
-    REQUIRE_FALSE(res.diagnostics.empty());
-    CHECK(res.diagnostics.front().message == "distance-zero");
+    CHECK(res.has_value());  // failure was skipped, no subsequent constraints
+    REQUIRE_FALSE(res->diagnostics.empty());
+    CHECK(res->diagnostics.front().message == "distance-zero");
 }
 
 TEST_CASE("compiled_failure_policy_keep_last_valid — "
@@ -1525,8 +1525,8 @@ TEST_CASE("compiled_failure_policy_keep_last_valid — "
     ctx.frame = Frame{0};
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
-    CHECK_FALSE(res.ok);
-    REQUIRE_FALSE(res.diagnostics.empty());
+    CHECK_FALSE(res.has_value());
+    REQUIRE_FALSE(res->diagnostics.empty());
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1593,9 +1593,9 @@ TEST_CASE("compiled_uncompiled_evaluate_returns_error — "
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
 
     auto res = program.evaluate(ctx, session);
-    CHECK_FALSE(res.ok);
-    REQUIRE_FALSE(res.diagnostics.empty());
-    CHECK(res.diagnostics.front().severity
+    CHECK_FALSE(res.has_value());
+    REQUIRE_FALSE(res->diagnostics.empty());
+    CHECK(res->diagnostics.front().severity
           == CameraProgramDiagnostic::Severity::Error);
     // Textual contract: the diagnostic message must mention the actual
     // problem ("compile" / "not compiled").  The canonical message is
@@ -1606,12 +1606,12 @@ TEST_CASE("compiled_uncompiled_evaluate_returns_error — "
     // (A future CAM-* work package may replace text with a structured
     //  CameraDiagnosticCode::NotCompiled enum; the textual lock can then
     //  be dropped or hardened.)
-    CHECK(res.diagnostics.front().message.find("compile")
+    CHECK(res->diagnostics.front().message.find("compile")
           != std::string::npos);
     // Belt-and-braces: in the uncompiled branch, evaluate() must NOT
     // return a junk Camera2_5D as if it had produced anything meaningful.
     // Default-constructed Camera2_5D.enabled is false — verify it.
-    CHECK_FALSE(res.camera.enabled);
+    CHECK_FALSE(res.value().camera.enabled);
 }
 
 // ══════════════════════════════════════════════════════════════════════════
