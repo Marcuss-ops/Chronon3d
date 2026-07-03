@@ -164,14 +164,11 @@ using SharedTextRunLayout = std::shared_ptr<const TextRunLayout>;
 // Blocked by: new types in public headers → violates feature freeze.
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Forward declaration for AnimatedTextDocument.  TextRunShape holds the
-// doc as a `shared_ptr<const AnimatedTextDocument>`, which only needs a
-// complete type when the template instantiates its deleter; the rest
-// of the class only needs the type to be declared.  Avoids pulling the
-// heavyweight `animated_text_document.hpp` (which transitively pulls
-// `text_document.hpp` and `easing/easing.hpp`) into every TU that
-// includes text_run.hpp.
+// Forward declarations.  TextRunShape holds pointers/references to these
+// types but doesn't need their complete definitions — avoids pulling
+// heavyweight headers into every translation unit that includes text_run.hpp.
 class AnimatedTextDocument;
+class TextLayoutCache;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TextRunShape — batched text run with per-glyph animation state

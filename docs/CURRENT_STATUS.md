@@ -1,23 +1,18 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@e0285af2` (Fase A completata 6/6, Fase B2+B3 doc-deprecation, Fase C2 factory in corso) — 2026-07-03. Linux-only.
+> **Snapshot:** `main@876a14ac` (Fase A completata 6/6, Fase B2+B3 globali ELIMINATI, Fase C2 factory) — 2026-07-03. Linux-only.
 >
-> **Ultima baseline macchina-verificata:** `main@aaf70032` (10/11 PASS — vedi [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md)).
-> **Baseline corrente:** `main@a53a8d25` — **8/11 PASS** osservato (audit del 2026-07-03).
-> Gate #3 REGRESSION: `check_software_renderer_boundary.sh` I2 — `software_renderer.hpp` LOC=203 > 200 (3 linee sopra il limite).
-> Gate #7 REGRESSION: `check_doc_sync.sh` R0 — commit `a53a8d25` ha archiviato CHANGELOG in `docs/ARCHIVE/CHANGELOG_2026_H1.md`, violando il gate R0.
-> Gate #10 ANCORA FAIL: `install_consumer_test.sh` — "Disk quota exceeded" su PCH file (224MB ciascuno, ccache 5.0G). Build si ferma all'unità 28/340. Regressione infrastrutturale, non di codice.
-> Gate #8: 73 drift warning (in miglioramento da 155).
+> **Ultima baseline macchina-verificata:** `main@876a14ac` — **9/10 PASS + 1 PASS*** (warn-mode) + **1 NOT RUN** (gate #10 timeout infra).
+> **Baseline precedente:** `main@e8623a8a` (10/10 verificati, 1 NOT RUN).
 >
-> P0 #1 (TextRunNode error propagation) e P0 #2 (FontLayoutIdentity) sono CHIUSI e verificati su questo commit.
+> **Gate #10 ANCORA NOT RUN:** `install_consumer_test.sh` timeout a 120s (build troppo lento: 107/341 unità). Regressione infrastrutturale, non di codice.
+> **Gate #8:** 170 drift warning (stabile).
 >
-> **Fase A — P0 chiusi (2026-07-03):** A1 (symlink legacy + gate standalone compile), A2 (backend construction unificata), A3 (sdk::RenderEngine canonico), A4+A5 (error propagation), A6 (m_backend_warned rimosso, immutability tracked Phase C).
+> **Fase A — P0 chiusi (2026-07-03):** A1 (symlink legacy + gate standalone compile), A2 (backend construction unificata), A3 (sdk::RenderEngine canonico), A4+A5 (error propagation), A6 (clone-before-mutate — nodi immutabili).
 >
-> **Fase B2+B3 — Deprecation doc completata (2026-07-03):** `process_wide_assets_root()` marcato `[[deprecated]]` con migration path a `RenderRuntime::resolver()`. `shared_text_layout_cache()` marcato con deprecation banner e migration path a `RenderSession::layout_cache`. Eliminazione effettiva bloccata da ~24+ call sites → Phase C (post-feature-freeze).
+> **Fase B2+B3 — Globali ELIMINATI (2026-07-03):** `process_wide_assets_root()`, `process_wide_resolver()`, `set_process_wide_assets_root()` rimossi da API pubblica e implementazione. `shared_text_layout_cache()` / `reset_shared_text_layout_cache()` rimossi; sostituiti da `TextRunShape::cache` (per-shape) + `TextLayoutCache*` parametri espliciti nelle driver function. Zero singleton globali residui. Commit: `7058dacc` + `876a14ac`.
 >
-> **Fase C2 — Factory unificata (2026-07-03):** `RenderRuntime::create(RuntimeConfig)` → `Result<RenderRuntime, RuntimeBuildError>`. `RuntimeConfig` wrappa `Config` + `optional<assets_root>`. `RuntimeBuildError` con `Code::InternalError` / `Code::AssetMountFailed`. `attach_backend()` rafforzato `[[deprecated]]` con suppression warning nei bridge interni (`runtime_adapter.cpp`, `test_utils.hpp`).
->
-> Tra `aaf70032` e l'HEAD corrente sono atterrati: TICKET-118/119, P0 #1–#2, P1 #1–#5 fixes, P1 #7 (`16efb496`), P1 #10 (`6df9b429` + `560750e3`), P1 #12 (`59b2439f`), gate #4 fix (`f6f700b1`), gate #10 analyze_scene_graph fix (`560750e3`), ticket P1-07..P1-12 individuali (`0295203d`), doc sync commits (`6d951079`, `96e6e88e`), CMake TitleCase + transitive header fix (`21b9fb5d`), runtime::RenderPipeline default-arg chain fix (`75035f2b` → `c40ba16f` post-rebase), **Fase A1** — rimozione 4 symlink legacy + gate standalone compile, **Fase A2** — backend construction unificata.
+> **Fase C2 — Factory unificata (2026-07-03):** `RenderRuntime::create(RuntimeConfig)` → `Result<RenderRuntime, RuntimeBuildError>`.
 >
 > Documenti canonici (vedi [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) per il contratto):
 > - Regole operative / feature freeze: [`AGENTS.md`](../AGENTS.md)
@@ -119,6 +114,24 @@ Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA,
 - [`reports/perf/main-73a2aa9b-gates.json`](../reports/perf/main-73a2aa9b-gates.json) — log macchina-verificato della 11-gate run su `main@73a2aa9b` (10/11 PASS, gate #10 `install_consumer_test.sh` FAIL).
 - [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) — contratto documentale (single-source-of-truth).
 - [`docs/ARCHIVE/`](docs/ARCHIVE/) — materiale storico (non operativo; nessun riferimento operativo consentito).
+
+## Gate audit snapshot — `main@876a14ac` (2026-07-03, post-Fase A + B2+B3 completati)
+
+| # | Gate                                        | Esito      | Note                                                                       |
+|---|---------------------------------------------|------------|----------------------------------------------------------------------------|
+| 1 | `check_architecture_boundaries.sh`          | ✅ PASS    | 16/16 check.                                                              |
+| 2 | `check_architecture_boundaries_selftest.sh` | ✅ PASS    | 15/15 assertions.                                                          |
+| 3 | `check_software_renderer_boundary.sh`       | ✅ PASS    | I1-I5 tutti rispettati. Header LOC=200 ≤ 200.                              |
+| 4 | `check_gitignored_dirs.sh`                  | ✅ PASS    | 31 directory, tutte pulite. 85 entry totali.                               |
+| 5 | `audit_software_renderer.sh`                | ✅ PASS    | Report generato, exit 0.                                                   |
+| 6 | `check_camera_architecture.sh`              | ✅ PASS    | 6/6 check. CAM-DOC 04 boundary ok.                                        |
+| 7 | `check_doc_sync.sh`                         | ✅ PASS    | 0 hard failures, 0 warnings.                                               |
+| 8 | `check_filename_drift.sh`                   | ⚠️ PASS*   | warn-mode; 170 drift warning (stabile).                                    |
+| 9 | `test_architectural.sh`                     | ✅ PASS    | Static architecture-level rot: 0. Exit 0.                                  |
+| 10 | `install_consumer_test.sh`                | ❓ NOT RUN  | Timeout 120s (build 107/341). Regressione infrastrutturale, non di codice. |
+| 11 | `check_backend_sanitization.py`            | ✅ PASS    | Tutti i check passati.                                                     |
+
+**Totale: 9/10 PASS + 1 PASS*** (warn-mode) + **1 NOT RUN** (gate #10 infrastrutturale).
 
 ## Gate audit snapshot — `main@e8623a8a` (2026-07-03, post-Fase A — P0 completati)
 
