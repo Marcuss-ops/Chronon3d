@@ -34,6 +34,11 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         text/test_selector_shapes.cpp
         text/test_selector_evaluate.cpp
         text/test_selector_combine.cpp
+        # M1.5#2 — locks EffectiveTextState equality contract for the
+        # 5-field fast-path identity (text + FontLayoutIdentity +
+        # direction + language + features).  Pure value-construction,
+        # no font engine needed.
+        text/test_effective_text_state.cpp
         # Bug #7 regression — Fase 1#7 close-out.  Concurrency coverage
         # for the refactored FreeTypeFaceCache (key-indexed cache +
         # shared_ptr<FT_Face> lease anchor on FontFaceHandle).  See
