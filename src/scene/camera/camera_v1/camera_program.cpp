@@ -813,8 +813,27 @@ CameraProgramResult CameraProgram::evaluate(const CameraEvalContext& ctx,
             });
             switch (failure_policy_) {
             case CameraFailurePolicy::Stop:
+                // CAM-03: Stop = true failure.  No camera returned.
+                result.camera = Camera2_5D{};
+                result.camera.enabled = false;
+                result.ok = false;
+                return result;
             case CameraFailurePolicy::KeepLastValidCamera:
-                result.camera = cr.camera;
+                // CAM-03: attempt recovery from the last camera that
+                // passed all constraints.  If no such camera exists,
+                // fall back to a true error (same as Stop).
+                if (session.last_valid_camera) {
+                    result.camera = *session.last_valid_camera;
+                    result.ok = true;
+                    result.diagnostics.push_back({
+                        CameraProgramDiagnostic::Severity::Warning,
+                        "Recovered: constraint failure, using last valid camera"
+                    });
+                    return result;
+                }
+                // No last valid camera to recover — true error.
+                result.camera = Camera2_5D{};
+                result.camera.enabled = false;
                 result.ok = false;
                 return result;
             case CameraFailurePolicy::SkipFailedConstraint:
@@ -826,6 +845,9 @@ CameraProgramResult CameraProgram::evaluate(const CameraEvalContext& ctx,
 
     result.camera = intermediate;
     result.ok = true;
+    // CAM-03: persist the last camera that passed all constraints.
+    // Used by KeepLastValidCamera policy on subsequent failures.
+    session.last_valid_camera = result.camera;
     return result;
 }
 
