@@ -240,7 +240,7 @@ public:
             // CLI/context path that needs the resolver WITHOUT an
             // explicit runtime reference now uses this free function.
             const chronon3d::assets::AssetResolver& resolver =
-                chronon3d::runtime::process_wide_resolver();
+                s_test_resolver;
             static const FontEngine bbox_engine{resolver};
             const FontEngine& engine = bbox_engine;
             FontSpec spec;

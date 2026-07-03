@@ -29,7 +29,6 @@ static void ensure_content_registered_smoke(CompositionRegistry& registry) {
     assets.mount(std::filesystem::current_path());
     // TICKET-011a follow-up #2 — typed process-wide fallback
     // replaces the legacy detail::g_default_assets_root writer.
-    chronon3d::runtime::set_process_wide_assets_root(
         std::filesystem::current_path().string());
     ExtensionContext ctx{registry, nodes, effects, assets};
     register_content_modules(cat, ctx);

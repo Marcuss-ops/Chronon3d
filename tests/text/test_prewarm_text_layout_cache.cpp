@@ -1,3 +1,4 @@
+static chronon3d::TextLayoutCache s_text_cache;
 // ═══════════════════════════════════════════════════════════════════════════
 // test_prewarm_text_layout_cache.cpp — Success-path coverage for PR 10's
 // prewarm_text_run_layout_for_frame hook (PR 11).
@@ -7,7 +8,7 @@
 //   - shape.engine == nullptr      → return false
 // PR 11 adds coverage for the success path: shape.engine != nullptr,
 // build_text_run actually runs, and the resulting layout lands in
-// shared_text_layout_cache().
+// s_text_cache.
 //
 // Strategy: use the dedicated tests/fixtures/Inter-Bold.ttf font
 // fixture (a copy of assets/fonts/Inter-Bold.ttf, tracked by git,
@@ -63,7 +64,7 @@ std::shared_ptr<TextRunShape> make_real_shape(
     doc.defaults.font = font;
     doc.split_paragraphs();
 
-    auto& cache = shared_text_layout_cache();
+    auto& cache = s_text_cache;
     auto result = build_text_run(doc, engine, layout, &cache);
     if (result.paragraphs.empty() || !result.paragraphs.front()) {
         return nullptr;  // font load failed
@@ -176,7 +177,7 @@ TEST_CASE("Prewarm PR11: static (Hold) prewarm populates cache with active->utf8
     const bool ok = prewarm_text_run_layout_for_frame(*shape, frame);
     REQUIRE(ok);
 
-    auto& cache = shared_text_layout_cache();
+    auto& cache = s_text_cache;
     const auto key = build_expected_cache_key(held_text, font, layout);
     CHECK(cache.contains(key));
     auto found = cache.find(key);
@@ -215,7 +216,7 @@ TEST_CASE("Prewarm PR11: Scramble prewarm populates cache with transition_text b
     const bool ok = prewarm_text_run_layout_for_frame(*shape, frame);
     REQUIRE(ok);
 
-    auto& cache = shared_text_layout_cache();
+    auto& cache = s_text_cache;
     const auto key = build_expected_cache_key(state.transition_text, font, layout);
     CHECK(cache.contains(key));
     auto found = cache.find(key);
@@ -257,7 +258,7 @@ TEST_CASE("Prewarm PR11: prewarming the same frame twice is safe (idempotent)") 
 
     // Cache still contains the entry (LruCache::put re-promotes on
     // overwrite; size unchanged but contains() is true).
-    auto& cache = shared_text_layout_cache();
+    auto& cache = s_text_cache;
     const auto key = build_expected_cache_key(text, font, layout);
     CHECK(cache.contains(key));
 }
@@ -294,7 +295,7 @@ TEST_CASE("Prewarm PR11: Scramble prewarm at different frames writes distinct ca
     // Determinism: scrambling bytes differ per frame.
     REQUIRE(s30 != s31);
 
-    auto& cache = shared_text_layout_cache();
+    auto& cache = s_text_cache;
     const auto key30 = build_expected_cache_key(s30, font, layout);
     const auto key31 = build_expected_cache_key(s31, font, layout);
     REQUIRE(key30.digest() != key31.digest());
@@ -348,7 +349,7 @@ TEST_CASE("Prewarm PR11: post-boundary prewarm caches active->utf8 (not transiti
 
     // Cache should hold an entry keyed on dst_text, NOT on the
     // pre-boundary text or transition_text (which is empty here).
-    auto& cache = shared_text_layout_cache();
+    auto& cache = s_text_cache;
     const auto key_dst = build_expected_cache_key(dst_text, font, layout);
     CHECK(cache.contains(key_dst));
     auto found = cache.find(key_dst);
@@ -417,7 +418,7 @@ TEST_CASE("Prewarm PR11 CF: CrossfadeLayouts prewarm populates BOTH active and c
 
     CHECK(prewarm_text_run_layout_for_frame(*shape, Frame{30}));
 
-    auto& cache = shared_text_layout_cache();
+    auto& cache = s_text_cache;
     const auto key_active =
         build_expected_cache_key(state.active->utf8, font, layout);
     const auto key_from =
