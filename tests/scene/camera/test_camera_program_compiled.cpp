@@ -617,7 +617,7 @@ TEST_CASE("compiled_orient_along_path_last_tangent_persistence — "
     ctx1.frame = Frame{15};
     ctx1.sample_time = SampleTime::from_frame_int(Frame{15}, kCam01Fps);
     auto res1 = program.evaluate(ctx1, session);
-    REQUIRE(res1.ok);
+    REQUIRE(res1.has_value());
     // The tangent has a +X component, so the camera should yaw right.
     CHECK(std::abs(res1->camera.rotation.y) > 1.0f);
 
@@ -627,11 +627,11 @@ TEST_CASE("compiled_orient_along_path_last_tangent_persistence — "
     ctx2.frame = Frame{45};
     ctx2.sample_time = SampleTime::from_frame_int(Frame{45}, kCam01Fps);
     auto res2 = program.evaluate(ctx2, session);
-    REQUIRE(res2.ok);
+    REQUIRE(res2.has_value());
 
     // Should emit a warning about the degenerate tangent fallback.
     bool found_warning = false;
-    for (const auto& d : res2.diagnostics) {
+    for (const auto& d : res2->diagnostics) {
         if (d.severity == CameraProgramDiagnostic::Severity::Warning &&
             d.message.find("previous frame tangent") != std::string::npos) {
             found_warning = true;
@@ -1492,8 +1492,7 @@ TEST_CASE("compiled_failure_policy_stop — "
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     CHECK_FALSE(res.has_value());
-    REQUIRE_FALSE(res->diagnostics.empty());
-    CHECK(res->diagnostics.front().message == "distance-zero");
+    CHECK(res.error().message == "distance-zero");
 }
 
 TEST_CASE("compiled_failure_policy_skip_failed — "
@@ -1526,7 +1525,7 @@ TEST_CASE("compiled_failure_policy_keep_last_valid — "
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     CHECK_FALSE(res.has_value());
-    REQUIRE_FALSE(res->diagnostics.empty());
+    CHECK_FALSE(res.error().message.empty());
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1594,24 +1593,10 @@ TEST_CASE("compiled_uncompiled_evaluate_returns_error — "
 
     auto res = program.evaluate(ctx, session);
     CHECK_FALSE(res.has_value());
-    REQUIRE_FALSE(res->diagnostics.empty());
-    CHECK(res->diagnostics.front().severity
-          == CameraProgramDiagnostic::Severity::Error);
-    // Textual contract: the diagnostic message must mention the actual
-    // problem ("compile" / "not compiled").  The canonical message is
-    // constructed in camera_program.cpp::evaluate():
-    //   "CameraProgram not compiled — call compile_camera() first"
-    // This textual lock is brittle by design — if the message is ever
-    // rewording, update BOTH the source string and this test together.
-    // (A future CAM-* work package may replace text with a structured
-    //  CameraDiagnosticCode::NotCompiled enum; the textual lock can then
-    //  be dropped or hardened.)
-    CHECK(res->diagnostics.front().message.find("compile")
+    CHECK(res.error().kind == CameraEvaluationError::Kind::Uncompiled);
+    // Textual contract: the error message must mention "compile" / "not compiled".
+    CHECK(res.error().message.find("compile")
           != std::string::npos);
-    // Belt-and-braces: in the uncompiled branch, evaluate() must NOT
-    // return a junk Camera2_5D as if it had produced anything meaningful.
-    // Default-constructed Camera2_5D.enabled is false — verify it.
-    CHECK_FALSE(res.value().camera.enabled);
 }
 
 // ══════════════════════════════════════════════════════════════════════════

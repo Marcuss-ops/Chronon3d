@@ -101,9 +101,9 @@ Composition abyss_freefall_stagger() {
         const std::string phrase = "LET  FALL";
         const f32 fs = 220.0f;
         auto spec = font_bold();
-        f32 w = measure_text_width(phrase, fs, spec, 4.0f);
+        f32 w = measure_text_width(phrase, fs, spec, 4.0f, *ctx.font_engine);
         f32 ref_x = -w * 0.5f;
-        auto chars = layout_glyphs(phrase, fs, spec, 4.0f, ref_x);
+        auto chars = layout_glyphs(phrase, fs, spec, 4.0f, ref_x, *ctx.font_engine);
         for (size_t i = 0; i < chars.size(); ++i) {
             if (chars[i].ch == " ") continue;
             const f32 delay = 8.0f + static_cast<f32>(i) * 6.0f;

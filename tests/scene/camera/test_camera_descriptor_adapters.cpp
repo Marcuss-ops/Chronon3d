@@ -156,8 +156,6 @@ Fixtures build_fixtures() {
     f.rig.dof.aperture.set(0.015f);
     f.rig.dof.max_blur.set(24.0f);
 
-    // ── 3. CameraShotProfile: same rig wrapped ─────────────────────────
-    f.shot.rig = f.rig;
     return f;
 }
 
