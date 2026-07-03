@@ -46,7 +46,6 @@ struct ProjectedLayer2_5D {
 /// Delegates to camera_projection_contract.
 inline f32 focal_length_from_fov(f32 viewport_height, f32 fov_deg) {
     Camera2_5D tmp;
-    tmp.projection_mode = Camera2_5DProjectionMode::Fov;
     tmp.fov_deg = fov_deg;
     return camera_math::focal_from_camera(tmp, viewport_height);
 }

@@ -30,7 +30,7 @@ CameraApi& CameraApi::zoom(f32 value) {
 CameraApi& CameraApi::fov(f32 fov_deg) {
     owner_->edit_camera([&](Camera2_5D& cam) {
         cam.fov_deg = fov_deg;
-        cam.projection_mode = Camera2_5DProjectionMode::Fov;
+        cam.optics_mode = CameraOpticsMode::FieldOfView;
     });
     return *this;
 }

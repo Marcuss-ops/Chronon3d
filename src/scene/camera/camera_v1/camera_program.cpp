@@ -289,11 +289,9 @@ static void apply_projection_spec(const ProjectionSpec& spec,
         using T = std::decay_t<decltype(p)>;
         if constexpr (std::is_same_v<T, ZoomProjection>) {
             cam.zoom = p.zoom.evaluate(ctx.sample_time);
-            cam.projection_mode = Camera2_5DProjectionMode::Zoom;
             cam.optics_mode = CameraOpticsMode::Zoom;
         } else if constexpr (std::is_same_v<T, FovProjection>) {
             cam.fov_deg = p.fov_deg.evaluate(ctx.sample_time);
-            cam.projection_mode = Camera2_5DProjectionMode::Fov;
             cam.optics_mode = CameraOpticsMode::FieldOfView;
         } else if constexpr (std::is_same_v<T, PhysicalLensProjection>) {
             // CAM-03 / DOC 02: physical-lens perspective.
@@ -304,7 +302,6 @@ static void apply_projection_spec(const ProjectionSpec& spec,
             // pixel_aspect live inside LensModel (sensor_width / sensor_height).
             cam.lens = p.lens;
             cam.optics_mode = CameraOpticsMode::PhysicalLens;
-            cam.projection_mode = Camera2_5DProjectionMode::Zoom;
             cam.zoom = 0.0f;
             cam.fov_deg = 0.0f;
         }
