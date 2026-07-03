@@ -1,36 +1,35 @@
 #pragma once
 
 // ═════════════════════════════════════════════════════════════════════════════
-// Chronon3d — RenderEngine (OPP-INTERNAL legacy facade)
+// Chronon3d — RenderEngine (INTERNAL ADAPTER for sdk::RenderEngine)
 //
-// OPP-internal rendering facade — NOT the canonical public API.
-// External consumers MUST use chronon3d::sdk::RenderEngine instead.
+// Fase A3 — This class is the OPP-internal adapter that powers the
+// canonical public facade `chronon3d::sdk::RenderEngine` via PIMPL.
 //
-// RenderEngine owns the architecture via RenderEngine::Impl:
+//   External consumer:
+//     chronon3d::sdk::RenderEngine  (public API — returns Result<RenderOutput, …>)
+//         │
+//         └── PIMPL  ──wraps──▶  chronon3d::RenderEngine  (INTERNAL ADAPTER)
+//                                     │
+//                                     └── RenderEngine::Impl
+//                                         ├── runtime::RenderRuntime
+//                                         ├── SoftwareRenderer
+//                                         └── AssetRegistry
 //
-//   RenderEngine
-//     └── RenderEngine::Impl (PIMPL)
-//         ├── runtime::RenderRuntime   (engine-lifetime owner)
-//         │                                of cache/pool/executor/
-//         │                                catalogs + plan cache +
-//         │                                default_assets_root)
-//         ├── SoftwareRenderer         (per-instance orchestrator that
-//         │                                BORROWS services from runtime;
-//         │                                demoted to backend adapter in
-//         │                                Phase B per TICKET-011b)
-//         └── AssetRegistry            (mounts assets_root)
+// External consumers MUST use chronon3d::sdk::RenderEngine (included via
+// <chronon3d/chronon3d.hpp> or <chronon3d/sdk/render_engine.hpp>).
 //
-// The public API surface (this header) is unchanged: existing code
-// that calls `engine.set_assets_root(...)` or
-// `engine.render_scene(...)` keeps working unchanged.  Internal state
-// now lives in `RenderEngine::Impl` so future architectural changes
-// (TICKET-011b–e) can swap out the orchestrator without touching this
-// header.
+// OPP-internal consumers (CLI daemon, tests, content composition) that
+// need the fuller API surface (set_image_backend, set_video_decoder,
+// assets, config, clear_caches, reset_counters) may continue to use
+// this class as the internal adapter, but should include this header
+// directly — the umbrella no longer re-exports it.
 //
-// Rule 4 (ANTI_DUPLICATION_RULES): chronon3d::sdk::RenderEngine is the
-// single public rendering API.  This class (chronon3d::RenderEngine) is
-// the OPP-internal implementation; no other public RenderEngine class
-// should exist.
+// Rules:
+// - chronon3d::sdk::RenderEngine is the SINGLE public rendering API.
+// - chronon3d::RenderEngine is the INTERNAL ADAPTER backing it.
+// - No other public RenderEngine class should exist.
+// - No new OPP-internal consumers should be created without ADR.
 // ═════════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/assets/asset_registry.hpp>
@@ -61,24 +60,29 @@ namespace runtime { class RenderRuntime; }
 class SoftwareRenderer;
 
 /**
- * RenderEngine — OPP-INTERNAL rendering facade.
+ * RenderEngine — INTERNAL ADAPTER for sdk::RenderEngine.
  *
- * @deprecated This class is the OPP-internal (legacy) RenderEngine.
- *   It is NOT part of the public SDK umbrella and is excluded from
- *   the canonical V0.1 public API surface.  External consumers MUST
- *   use `chronon3d::sdk::RenderEngine` instead (included via
+ * Fase A3 — This is the OPP-internal adapter that backs the canonical
+ * public SDK facade `chronon3d::sdk::RenderEngine` (PIMPL pattern).
+ *
+ * The `sdk::RenderEngine` PIMPL (in `src/runtime/sdk_render_engine.cpp`)
+ * holds a `chronon3d::RenderEngine` instance and delegates all calls to
+ * it.  The SDK facade returns `Result<RenderOutput, RenderError>`;
+ * this adapter returns `shared_ptr<Framebuffer>` (float RGBA) for
+ * OPP-internal consumers that need direct framebuffer access.
+ *
+ * @deprecated This class is the OPP-internal adapter.  It is NOT part
+ *   of the public SDK umbrella and is excluded from the canonical V0.1
+ *   public API surface.  External consumers MUST use
+ *   `chronon3d::sdk::RenderEngine` instead (included via
  *   `<chronon3d/chronon3d.hpp>` or `<chronon3d/sdk/render_engine.hpp>`).
  *
- *   OPP-internal consumers (CLI, daemon, tests) that need the fuller
- *   API surface (set_image_backend, set_video_decoder, assets, config,
- *   clear_caches, reset_counters, settings) may continue to use this
- *   class but should include `<chronon3d/api/render_engine.hpp>`
- *   directly — the umbrella no longer re-exports it.
+ *   OPP-internal consumers (CLI daemon, tests) that need the fuller
+ *   API surface may continue to use this class but must include
+ *   `<chronon3d/api/render_engine.hpp>` directly.
  *
- * Host creates a RenderEngine, optionally sets the assets root and
- * composition registry, then calls render_scene() or render().
- * All heavy state (caches, pool, executor, plan cache, catalogs,
- * assets registry) lives in RenderEngine::Impl / runtime::RenderRuntime.
+ *   No new OPP-internal consumers of this adapter should be created
+ *   without an ADR justifying why the SDK facade is insufficient.
  */
 class RenderEngine {
 public:
