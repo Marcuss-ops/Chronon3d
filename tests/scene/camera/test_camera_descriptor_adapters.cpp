@@ -197,9 +197,9 @@ TEST_CASE("camera_descriptor_from(CameraMotionParams): bake reproduces legacy at
         CameraEvalContext ctx;
         ctx.frame = Frame{frame_i};
         ctx.sample_time = integer_st;
-        CameraProgramResult result = program.evaluate(ctx, session);
-        REQUIRE(result.ok);
-        Camera2_5D v1 = result.camera;
+        auto result = program.evaluate(ctx, session);
+        REQUIRE(result.has_value());
+        Camera2_5D v1 = result.value().camera;
 
         CHECK(v1.position.x == doctest::Approx(legacy.position.x).epsilon(kEpsilon));
         CHECK(v1.position.y == doctest::Approx(legacy.position.y).epsilon(kEpsilon));
@@ -236,9 +236,9 @@ TEST_CASE("camera_descriptor_from(CameraRig): bake reproduces evaluate(SampleTim
         CameraEvalContext ctx;
         ctx.frame = Frame{static_cast<int>(std::round(st.frame))};
         ctx.sample_time = st;
-        CameraProgramResult result = program.evaluate(ctx, session);
-        REQUIRE(result.ok);
-        Camera2_5D v1 = result.camera;
+        auto result = program.evaluate(ctx, session);
+        REQUIRE(result.has_value());
+        Camera2_5D v1 = result.value().camera;
 
         CHECK(v1.position.x == doctest::Approx(legacy.position.x).epsilon(kEpsilon));
         CHECK(v1.position.y == doctest::Approx(legacy.position.y).epsilon(kEpsilon));
@@ -275,9 +275,9 @@ TEST_CASE("camera_descriptor_from(CameraRig, Dense): tighter identity for smooth
         CameraEvalContext ctx;
         ctx.frame = Frame{static_cast<int>(std::round(st.frame))};
         ctx.sample_time = st;
-        CameraProgramResult result = program.evaluate(ctx, session);
-        REQUIRE(result.ok);
-        Camera2_5D v1 = result.camera;
+        auto result = program.evaluate(ctx, session);
+        REQUIRE(result.has_value());
+        Camera2_5D v1 = result.value().camera;
 
         CHECK(v1.position.x == doctest::Approx(legacy.position.x).epsilon(kEpsilon));
         CHECK(v1.position.z == doctest::Approx(legacy.position.z).epsilon(kEpsilon));
