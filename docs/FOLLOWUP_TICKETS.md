@@ -41,6 +41,8 @@ Tutti i ticket aperti non nella top-10 (TICKET-024, TICKET-026, TICKET-066, TICK
 
 | ID | Area | Commit |
 |---|---|---|
+| M1.5#1 | TextRunNode.cpp orchestratore (Result<OwnedFB,NodeExecutionError>) + 3 helpers in `src/render_graph/nodes/text_run/` (execution / transform / diagnostics) + test_text_run_node_return_channel.cpp locka return channel | Done |
+| TICKET-camera-policy-pre-existing | `src/render_graph/pipeline/camera_change_policy.cpp:24` — `Camera2_5D::projection_mode` non esiste più nel current struct; pre-existing rot (`git diff HEAD -- src/render_graph/pipeline/camera_change_policy.cpp` vuoto → NON causato da M1.5#1). Blocca `chronon3d_render_graph_tests` LINK step. Suggested remediation: ripristinare il field o refactor call-site verso `CameraProjection({...})` come già fa `CameraProjectionResolver`. | PLANNED |
 | TICKET-077 | gate-3 I2 software_renderer.hpp LOC 223→182 | Done |
 | TICKET-079 | gate-3 I5 attach_software_backend SWRenderer& → SWRenderer* (commit `ac5f7125` cleanup phase) | Done |
 | TICKET-078 | gate-3 I3 non-local includes 7→6 | Done |
