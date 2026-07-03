@@ -11,6 +11,7 @@ set(CHRONON3D_RUNTIME_SOURCES
     telemetry/telemetry_manager.cpp
     renderer_warmup.cpp
     render_engine.cpp
+    sdk_render_engine.cpp       # P1-A — sdk::RenderEngine PIMPL impl
     # ── P2 motion-graph pre-warm orchestrator (public facade) ──────────────
     motion_graph_prewarm.cpp
     render_runtime.cpp
