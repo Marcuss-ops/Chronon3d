@@ -56,7 +56,12 @@ namespace chronon3d {
 /// The mutated `glyphs` vector feeds the existing `hash_text_run_shape`
 /// cache key in `TextRunNode::cache_key()` — when glyph state changes
 /// across frames the cache key invalidates the stale entry automatically.
-void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time);
+/// @param cache — TextLayoutCache* for layout reuse.  If nullptr, the
+/// function uses a local throwaway cache (layout is NOT shared across
+/// frames — every call re-shapes).  Production paths MUST supply a
+/// pointer to the engine/session-owned cache.
+void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time,
+                                     TextLayoutCache* cache = nullptr);
 
 // ──────────────────────────────────────────────────────────────────────────
 // apply_active_state_to_text_run_shape — AnimatedTextDocument bridge
@@ -118,11 +123,14 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time);
 ///         may want to invalidate downstream caches); false if a no-op.
 ///         The crossfade slot update is informational and does not
 ///         gate the return value.
+/// @param cache — TextLayoutCache* for layout reuse.  Must be non-null
+/// in production; nullptr in tests uses a local throwaway cache.
 [[nodiscard]] bool apply_active_state_to_text_run_shape(
     TextRunShape& shape,
     const ActiveTextState& state,
     FontEngine& engine,
-    const TextLayoutSpec& layout_spec
+    const TextLayoutSpec& layout_spec,
+    TextLayoutCache* cache = nullptr
 );
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -189,9 +197,12 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time);
 /// Prerequisite for the test: tests/fixtures/Inter-Bold.ttf must be present
 /// (a copy of assets/fonts/Inter-Bold.ttf, tracked by git).  The test bails
 /// with REQUIRE(engine.can_load(...)) if the fixture is missing.
+/// @param cache — TextLayoutCache* for layout reuse.  Must be non-null
+/// in production; nullptr in tests uses a local throwaway cache.
 [[nodiscard]] bool prewarm_text_run_layout_for_frame(
     const TextRunShape& shape,
-    Frame frame
+    Frame frame,
+    TextLayoutCache* cache = nullptr
 );
 
 } // namespace chronon3d

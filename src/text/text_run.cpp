@@ -203,31 +203,21 @@ void TextLayoutCache::set_capacity(size_t capacity_bytes) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// P1-DEPRECATED — process-wide singleton (P1 #3 migration in progress)
+// Fase B3 (DONE) — shared_text_layout_cache() REMOVED from public API.
+// The global still exists as a file-scope static for backward compat
+// during migration (used as default parameter fallback in driver
+// functions).  Production callers pass TextLayoutCache* explicitly.
+// Phase C removes this internal fallback entirely.
 // ═══════════════════════════════════════════════════════════════════════════
-//
-// The canonical layout cache now lives on RenderSession::layout_cache.
-// This singleton remains ONLY for backward compatibility during the
-// migration window.  New code MUST thread a RenderSession& or
-// TextLayoutCache* through the call chain instead.
-//
-// Callsite migration (post-baseline):
-//   src/scene/builders/text_run_builder.cpp:380  → session.layout_cache
-//   src/text/text_run_driver.cpp:112,270,480     → session.layout_cache
-//   include/chronon3d/text/rich_text.hpp:238     → deprecate entire file (P1 #4)
-//   apps/chronon3d_cli/.../text_audit_engine.cpp → standalone TextLayoutCache
-//   tests/text/*.cpp                             → standalone or session
-//
-// Full census + per-callsite plan in docs/FOLLOWUP_TICKETS.md (P1 #3 row).
 
-TextLayoutCache& shared_text_layout_cache() {
+namespace {
+
+TextLayoutCache& internal_shared_text_layout_cache() {
     static TextLayoutCache cache;
     return cache;
 }
 
-void reset_shared_text_layout_cache() {
-    shared_text_layout_cache().clear();
-}
+} // namespace
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TextRunShape hashing

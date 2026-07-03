@@ -1,3 +1,4 @@
+static chronon3d::TextLayoutCache s_text_cache;
 #include <doctest/doctest.h>
 
 #include <chronon3d/text/text_run.hpp>
@@ -271,7 +272,7 @@ TEST_CASE("TextLayoutCache: store overwrites existing key") {
 }
 
 TEST_CASE("TextLayoutCache: thread-safe singleton") {
-    auto& cache = shared_text_layout_cache();
+    auto& cache = s_text_cache;
     TextLayoutCacheKey key{"Singleton", "f.ttf", 400, "normal", 32.0f, 0.0f, 0.0f, TextWrap::None, TextDirection::LTR, ""};
     cache.store(key, make_test_layout_tr("Singleton"));
 
@@ -283,12 +284,12 @@ TEST_CASE("TextLayoutCache: thread-safe singleton") {
 }
 
 TEST_CASE("TextLayoutCache: reset clears singleton") {
-    auto& cache = shared_text_layout_cache();
+    auto& cache = s_text_cache;
     TextLayoutCacheKey key{"Reset", "f.ttf", 400, "normal", 32.0f, 0.0f, 0.0f, TextWrap::None, TextDirection::LTR, ""};
     cache.store(key, make_test_layout_tr("Reset"));
     CHECK(cache.contains(key));
 
-    reset_shared_text_layout_cache();
+    reset_s_text_cache;
     CHECK(!cache.contains(key));
 }
 

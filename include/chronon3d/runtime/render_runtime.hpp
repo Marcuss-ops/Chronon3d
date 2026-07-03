@@ -271,39 +271,10 @@ private:
     bool                                              m_populated{false};
 };
 
-// ── Process-wide assets root (Fase B — P1 #2: DEPRECATED) ────────────
-//
-// @deprecated Fase B — process-wide global state.  Migrate to
-// RenderRuntime-owned resolver (m_resolver) reachable via
-// `runtime.resolver()`.  Deep code without a RenderRuntime in scope
-// should receive the resolver through dependency injection
-// (RenderRequest → RenderSession → RenderGraphContext → AssetResolver&)
-// rather than reading a process-wide global.
-//
-// Current callers (~24 references across tests, CLI, content modules):
-// set_process_wide_assets_root: render_job_setup.cpp, test_main.cpp,
-//   render_engine.cpp, content tests
-// process_wide_assets_root: render_engine.cpp (assets_root())
-// process_wide_resolver: text_run_driver.cpp, content modules, tests
-//
-// Migration blocked by the breadth of call sites.  Tracked for
-// Phase C (post-feature-freeze).
-[[deprecated("Use RenderRuntime::resolver() or dependency injection instead")]]
-void set_process_wide_assets_root(std::string root);
-/// @deprecated Fase B — process-wide global; see deprecation banner above.
-/// Returns by value (not by reference) so callers cannot hold a pointer
-/// past a concurrent `set_process_wide_assets_root` which would move-assign
-/// the underlying string.  Empty if nothing has been configured.
-[[deprecated("Use RenderRuntime::resolver().mount_root() instead")]]
-[[nodiscard]] std::string process_wide_assets_root();
-
-/// @deprecated Fase B — process-wide lazy-static singleton; see
-/// deprecation banner above.  Migrate to `runtime.resolver()`.
-/// Lazy-static; first-mount semantics against `process_wide_assets_root()`;
-/// thread-safety via resolver's internal `shared_mutex`.  Lifetime is the
-/// process.  WP-8 PR 8.1 migration target.
-[[deprecated("Use RenderRuntime::resolver() instead")]]
-[[nodiscard]] const chronon3d::assets::AssetResolver&
-process_wide_resolver();
+// Fase B2 (DONE) — process_wide_assets_root() / process_wide_resolver() REMOVED.
+// Production code must pass AssetResolver& through the call chain
+// (RenderRuntime::resolver(), RenderSession, or dependency injection).
+// Deep code without a runtime in scope should receive the resolver via
+// parameter rather than reading a process-wide global.
 
 } // namespace chronon3d::runtime

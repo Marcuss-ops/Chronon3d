@@ -110,7 +110,7 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time) {
             }
             td.split_paragraphs();
 
-            auto& cache = shared_text_layout_cache();
+            auto& cache = internal_shared_text_layout_cache();
             TextRunBuildResult result = build_text_run(
                 td, *shape.engine, shape.layout_spec, &cache);
 
@@ -272,7 +272,7 @@ bool apply_active_state_to_text_run_shape(
     td.split_paragraphs();
 
     // ── Build via the canonical pipeline (PR 7) ──────────────────────
-    auto& cache = shared_text_layout_cache();
+    auto& cache = internal_shared_text_layout_cache();
     TextRunBuildResult result = build_text_run(td, engine, layout_spec, &cache);
 
     if (result.paragraphs.empty() || !result.paragraphs.front()) {
@@ -391,7 +391,7 @@ bool apply_active_state_to_text_run_shape(
 //
 // Reads (not mutates) the shape, samples the bound AnimatedTextDocument at
 // `frame`, builds the TextDocument the per-frame driver will need, and
-// stores its layout into shared_text_layout_cache().  Idempotent on the
+// stores its layout into internal_shared_text_layout_cache().  Idempotent on the
 // same (text, font, layout) key.
 
 bool prewarm_text_run_layout_for_frame(
@@ -484,7 +484,7 @@ bool prewarm_text_run_layout_for_frame(
     // for already-cached layouts.  The semantic we expose to callers
     // is "operation succeeded" — the cache now contains an entry for
     // `target_text` regardless of how it got there.
-    auto& cache = shared_text_layout_cache();
+    auto& cache = internal_shared_text_layout_cache();
     TextRunBuildResult result =
         build_text_run(td, *shape.engine, shape.layout_spec, &cache);
 

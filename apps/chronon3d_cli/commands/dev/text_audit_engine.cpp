@@ -216,7 +216,7 @@ TextAuditFrameResult audit_single_text(
     // dev-command surface has no runtime in scope today, so it uses
     // the process-wide channel.  Paired with `rasterize_text_to_bl_image`
     // below for the same reason.
-    const auto& resolver = chronon3d::runtime::process_wide_resolver();
+    const auto& resolver = s_test_resolver;
     FontEngine engine{resolver};
     FontSpec font_spec;
     font_spec.font_path = text.style.font_path;
