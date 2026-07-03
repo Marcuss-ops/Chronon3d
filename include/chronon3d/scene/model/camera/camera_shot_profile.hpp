@@ -6,6 +6,9 @@
 
 namespace chronon3d {
 
+// DEPRECATED (STEP 7): CameraShotProfile is superseded by camera_v1::CameraDescriptor.
+// The V1 adapter (camera_descriptor_from(CameraShotProfile)) has been removed.
+// Experimental content may still use this struct; migration to CameraDescriptor is recommended.
 struct CameraShotProfile {
     CameraRig rig;
     CameraShotValidator validator;
