@@ -1,17 +1,19 @@
 // ============================================================================
 // src/runtime/sdk_render_engine.cpp
 //
-// P1-A closure — sdk::RenderEngine PIMPL implementation.
+// Fase A3 — sdk::RenderEngine PIMPL implementation.
 //
-// sdk::RenderEngine is the canonical public SDK facade.  Its PIMPL (struct Impl)
-// holds a chronon3d::RenderEngine instance and delegates all calls to it.
-// This keeps the public header (<chronon3d/sdk/render_engine.hpp>) free of
-// backend/runtime/cache/render-graph includes.
+// This is the SINGLE bridge between the public SDK surface and the
+// internal adapter (`chronon3d::RenderEngine`).  No other translation
+// layer should exist.
 //
-// render() returns Result<RenderOutput, RenderError> by converting the
-// legacy shared_ptr<Framebuffer> (float RGBA pixels) to an RGBA8 pixel
-// buffer owned by this Impl.  The buffer remains valid until the next
-// render() call or engine destruction, per the public API contract.
+// For the full architecture diagram, see the canonical header:
+//   <chronon3d/api/render_engine.hpp>  (§ INTERNAL ADAPTER for sdk::RenderEngine)
+//
+// render() converts the internal shared_ptr<Framebuffer> (float RGBA
+// pixels) to an RGBA8 pixel buffer owned by this Impl.  The buffer
+// remains valid until the next render() call or engine destruction,
+// per the public API contract.
 // ============================================================================
 
 #include <chronon3d/sdk/render_engine.hpp>
