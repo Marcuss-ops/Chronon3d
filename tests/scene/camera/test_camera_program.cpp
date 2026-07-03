@@ -134,8 +134,8 @@ Camera2_5D eval_at(const CameraProgram& program,
     ctx.frame = frame;
     ctx.sample_time = SampleTime::from_frame_int(frame, kFpsDefault);
     auto res = program.evaluate(ctx, session);
-    REQUIRE(res.ok);
-    return res.camera;
+    REQUIRE(res.has_value());
+    return res.value().camera;
 }
 
 } // namespace

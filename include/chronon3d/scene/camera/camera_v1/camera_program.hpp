@@ -50,11 +50,24 @@ struct CameraProgramDiagnostic {
     std::string message;
 };
 
-/// Structured result from CameraProgram::evaluate().
-struct CameraProgramResult {
+/// Structured success result from CameraProgram::evaluate().
+/// Carries the evaluated camera plus non-fatal diagnostics (warnings, infos).
+/// Fatal errors are returned as CameraEvaluationError via Result.
+struct EvaluatedCamera {
     Camera2_5D                              camera;
-    bool                                    ok{true};
     std::vector<CameraProgramDiagnostic>    diagnostics;
+};
+
+/// Fatal error from CameraProgram::evaluate().
+/// Returned via Result<EvaluatedCamera, CameraEvaluationError>.
+struct CameraEvaluationError {
+    enum class Kind : std::uint8_t {
+        Unknown = 0,
+        Uncompiled,          // evaluate() called before compile_camera()
+        ConstraintFailure,   // a constraint failed with Stop policy
+    };
+    Kind        kind{Kind::Unknown};
+    std::string message;
 };
 
 /// Source evaluation result — carries the evaluated camera plus optional
@@ -103,16 +116,14 @@ class CameraProgram {
 public:
     CameraProgram() = default;
 
-    /// Failure policy for constraint evaluation.
-    CameraProgram& failure_policy(CameraFailurePolicy p) { failure_policy_ = p; return *this; }
-
     // ── Compiled evaluate ───────────────────────────────────────────────
     /// Evaluate the compiled program using a slim context (no base state
     /// duplication).  The base state is read from the internal descriptor.
     /// Only valid after compile_camera(); calls without compilation will
     /// produce an error diagnostic.
-    CameraProgramResult evaluate(const CameraEvalContext& ctx,
-                                 CameraSession& session) const;
+    [[nodiscard]] chronon3d::Result<EvaluatedCamera, CameraEvaluationError>
+    evaluate(const CameraEvalContext& ctx,
+             CameraSession& session) const;
 
     // ── Compiled state queries ──────────────────────────────────────────
     /// True after compile_camera() has populated this program.
