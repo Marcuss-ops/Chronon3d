@@ -170,7 +170,8 @@ TEST_CASE("CameraTrajectory handle contract uses local offsets") {
     CHECK(approx(s.position.y, 0.0f));
     CHECK(approx(s.position.z, -1000.0f));
 
-    // Endpoint parity: handles must not perturb the start/end positions.        auto ctx0 = CameraMotionContext::at(Frame{0}, kFps30);
+    // Endpoint parity: handles must not perturb the start/end positions.
+    auto ctx0 = CameraMotionContext::at(Frame{0}, kFps30);
     ctx0.sample_time = SampleTime::from_frame(0.0, kFps30);
     auto s0 = tr->sample(ctx0);
     CHECK(approx_vec(s0.position, make_vec(0, 0, -1000)));

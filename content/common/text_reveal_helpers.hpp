@@ -86,14 +86,8 @@ inline void apply_cinematic_glow(LayerBuilder& l, const CinematicGlowPreset& opt
 // AssetResolver is engine-local so the pointer identity is stable for
 // the runtime lifetime.
 inline FontEngine& shared_glyph_engine(
-    const chronon3d::assets::AssetResolver& resolver) {
-    static const chronon3d::assets::AssetResolver* s_resolver{nullptr};
-    static std::unique_ptr<FontEngine>           s_engine;
-    if (s_resolver != &resolver) {
-        s_engine = std::make_unique<FontEngine>(resolver);
-        s_resolver = &resolver;
-    }
-    return *s_engine;
+    FontEngine& engine) {
+    return engine;
 }
 
 // ── Per-glyph position result ───────────────────────────────────────────
@@ -110,9 +104,8 @@ struct GlyphPos {
 // reference; the bridge was retired in WP-8 PR 8.1).
 inline f32 measure_text_width(const std::string& text, f32 font_size,
                                const FontSpec& spec, f32 tracking,
-                               const chronon3d::assets::AssetResolver& resolver) {
-    FontEngine& eng = shared_glyph_engine(resolver);
-    auto run = eng.shape_text(text, spec, font_size);
+                               FontEngine& engine) {
+    auto run = engine.shape_text(text, spec, font_size);
     if (!run) return 0.0f;
     const size_t n = run->glyphs.size();
     return run->width + tracking * static_cast<f32>(n > 1 ? n - 1 : 0);
@@ -128,9 +121,8 @@ inline std::vector<GlyphPos> layout_glyphs(
     const std::string& text, f32 font_size,
     const FontSpec& spec, f32 tracking,
     f32 ref_offset_x,
-    const chronon3d::assets::AssetResolver& resolver) {
-    FontEngine& eng = shared_glyph_engine(resolver);
-    auto run = eng.shape_text(text, spec, font_size);
+    FontEngine& engine) {
+    auto run = engine.shape_text(text, spec, font_size);
     if (!run || run->glyphs.empty()) return {};
 
     std::vector<GlyphPos> out;
@@ -216,8 +208,10 @@ struct TextRevealDescriptor {
 
 inline void build_text_reveal_line(SceneBuilder& s,
                                    const TextRevealDescriptor& d) {
+    FontEngine* engine = s.font_engine();
+    if (!engine) return;
     auto chars = layout_glyphs(d.text, d.font_size, d.font_spec,
-                               d.tracking, d.ref_offset_x);
+                               d.tracking, d.ref_offset_x, *engine);
     if (chars.empty()) return;
 
     for (size_t i = 0; i < chars.size(); ++i) {

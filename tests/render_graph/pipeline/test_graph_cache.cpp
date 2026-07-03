@@ -30,7 +30,8 @@ static std::shared_ptr<Framebuffer> render_frame(
         frame, 0.0f,
         renderer.render_settings(),
         renderer.composition_registry(),
-        renderer.video_decoder()
+        renderer.video_decoder(),
+        30.0f
     );
 }
 
