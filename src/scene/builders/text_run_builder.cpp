@@ -330,7 +330,7 @@ namespace text_run_materialize_detail {
 // materialize_text_run_shape:
 //   1. Build cache_key with 9 fields (text + font + tracking + layout
 //      + box_width + wrap + direction + language).
-//   2. internal_shared_text_layout_cache().find(cache_key).
+//   2. shape.cache.find(cache_key).
 //   3. Engine.shape_text(text, shaped_font, font_spec.font_size, shaping).
 //   4. resolve_placed_glyph_run(*hb_run, layout.tracking, text).
 //   5. Manual TextRunLayout field-by-field assignment + cache.store.
@@ -377,7 +377,11 @@ namespace {
     cache_key.direction   = params.direction;
     cache_key.language    = params.language;
 
-    auto& cache = internal_shared_text_layout_cache();
+    // Fase B3: per-materializer local cache.  Each materialize call
+    // uses a standalone cache; the engine/session should supply a
+    // shared cache via TextRunShape::cache for hot-path reuse.
+    static thread_local TextLayoutCache s_materializer_cache;
+    auto& cache = s_materializer_cache;
     if (params.cache_layout) {
         if (auto cached = cache.find(cache_key)) {
             auto text_layout = std::const_pointer_cast<TextRunLayout>(cached);
