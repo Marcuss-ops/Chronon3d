@@ -26,8 +26,12 @@ namespace chronon3d {
 
 // ── Projection enums (canonical location) ────────────────────────────────────
 
-enum class Camera2_5DProjectionMode { Zoom, Fov };
 enum class CameraOpticsMode { Zoom, FieldOfView, PhysicalLens };
+
+// DEPRECATED: Camera2_5DProjectionMode is superseded by CameraOpticsMode.
+// Still used by authoring structs (CameraRig, CameraMotionPath, CatmullRomCameraMotion)
+// but Camera2_5D no longer carries this field. Transition to optics_mode.
+enum class Camera2_5DProjectionMode { Zoom, Fov };
 
 // Forward declaration — the full type lives in camera_2_5d.hpp.
 struct Camera2_5D;
@@ -49,7 +53,6 @@ public:
     [[nodiscard]] Vec3 get_position() const;
     [[nodiscard]] f32   get_zoom() const;
     [[nodiscard]] f32   get_fov_deg() const;
-    [[nodiscard]] Camera2_5DProjectionMode get_projection_mode() const;
     [[nodiscard]] CameraOpticsMode get_optics_mode() const;
     [[nodiscard]] const LensModel& get_lens() const;
     [[nodiscard]] bool  get_dof_use_physical_model() const;

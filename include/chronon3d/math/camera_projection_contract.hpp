@@ -109,18 +109,6 @@ inline FocalPx focal_xy_from_camera(const CameraProjectionSource& camera,
                                     f32 viewport_width, f32 viewport_height) {
     FocalPx out{1000.0f, 1000.0f};
 
-    // Canonical projection_mode takes priority over optics_mode (TICKET-007).
-    if (camera.get_projection_mode() == Camera2_5DProjectionMode::Fov) {
-        const f32 fov_rad = glm::radians(camera.get_fov_deg());
-        if (std::tan(fov_rad * 0.5f) > std::numeric_limits<f32>::epsilon()) {
-            const f32 f = (viewport_height * 0.5f) / std::tan(fov_rad * 0.5f);
-            out.x = f;
-            out.y = f;
-            return out;
-        }
-        // degenerate FOV → fall through to optics_mode-driven path
-    }
-
     // Canon: switch purely on optics_mode.
     switch (camera.get_optics_mode()) {
         case CameraOpticsMode::PhysicalLens: {

@@ -32,7 +32,6 @@ Transform3D CameraNullNode::evaluate(Frame frame) const {
 // ===========================================================================
 Camera2_5D CameraNullRig::evaluate(Frame frame) const {
     Camera2_5D cam;
-    cam.projection_mode = projection_mode;
     cam.zoom            = zoom.evaluate(frame);
     cam.fov_deg         = fov_deg.evaluate(frame);
 

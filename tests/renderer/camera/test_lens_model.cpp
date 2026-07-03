@@ -198,7 +198,7 @@ TEST_CASE("focal_from_camera: lens mode with gate-fit Fill") {
     Camera2_5D cam;
     cam.lens = LensPresets::full_frame_50mm();
     cam.dof.use_physical_model = true;
-    cam.projection_mode = Camera2_5DProjectionMode::Zoom;
+    cam.optics_mode = CameraOpticsMode::Zoom;
 
     // FF 50mm on 1920x1080 with Fill gate fit:
     // focal_px = 50 * 1920 / 36 = 2666.67
@@ -210,7 +210,7 @@ TEST_CASE("focal_from_camera: lens mode with anamorphic preset") {
     Camera2_5D cam;
     cam.lens = LensPresets::anamorphic_50mm();
     cam.dof.use_physical_model = true;
-    cam.projection_mode = Camera2_5DProjectionMode::Zoom;
+    cam.optics_mode = CameraOpticsMode::Zoom;
 
     // Anamorphic 50mm on 1920x1080 with Fill gate fit:
     // focal_px = 50 * 1920 / 21.95 = 4373.6
@@ -220,7 +220,7 @@ TEST_CASE("focal_from_camera: lens mode with anamorphic preset") {
 
 TEST_CASE("focal_from_camera: legacy Fov mode unchanged") {
     Camera2_5D cam;
-    cam.projection_mode = Camera2_5DProjectionMode::Fov;
+    cam.optics_mode = CameraOpticsMode::FieldOfView;
     cam.fov_deg = 50.0f;
     // Fov mode ignores lens model when use_physical_model is false.
     f32 focal = camera_math::focal_from_camera(cam, 1080.0f);
@@ -230,7 +230,7 @@ TEST_CASE("focal_from_camera: legacy Fov mode unchanged") {
 
 TEST_CASE("focal_from_camera: legacy Zoom mode unchanged") {
     Camera2_5D cam;
-    cam.projection_mode = Camera2_5DProjectionMode::Zoom;
+    cam.optics_mode = CameraOpticsMode::Zoom;
     cam.zoom = 1000.0f;
     f32 focal = camera_math::focal_from_camera(cam, 1080.0f);
     CHECK(focal == doctest::Approx(1000.0f));

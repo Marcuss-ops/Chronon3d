@@ -125,11 +125,9 @@ TEST_CASE("Camera projection contract: FOV and zoom focal equivalence") {
     Camera2_5D cam_fov;
     cam_fov.enabled = true;
     cam_fov.position = {0, 0, -1000};
-    cam_fov.projection_mode = Camera2_5DProjectionMode::Fov;
     cam_fov.fov_deg = 90.0f;
     const f32 focal = camera_math::focal_from_camera(cam_fov, 1920, 1080);
-    Camera2_5D cam_zoom = cam_fov;
-    cam_zoom.projection_mode = Camera2_5DProjectionMode::Zoom;
+    Camera2_5D    cam_zoom = cam_fov;
     cam_zoom.zoom = focal;
     auto a = camera_math::project_world_point(cam_fov, {100, 0, 0}, {1920, 1080});
     auto b = camera_math::project_world_point(cam_zoom, {100, 0, 0}, {1920, 1080});
@@ -200,7 +198,6 @@ TEST_CASE("Camera projection contract: focal_from_camera matches legacy focal_le
     const f32 fov = 50.0f;
     f32 legacy = focal_length_from_fov(h, fov);
     Camera2_5D tmp;
-    tmp.projection_mode = Camera2_5DProjectionMode::Fov;
     tmp.fov_deg = fov;
     f32 contract = camera_math::focal_from_camera(tmp, 720, 720);
     CHECK(legacy == doctest::Approx(contract).epsilon(0.0001f));

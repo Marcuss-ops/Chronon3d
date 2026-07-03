@@ -39,7 +39,6 @@ static Camera2_5D make_test_camera() {
     Camera2_5D cam;
     cam.position = {0.0f, 0.0f, -1000.0f};
     cam.fov_deg = 50.0f;
-    cam.projection_mode = Camera2_5DProjectionMode::Fov;
     // Default lookAt: camera at (0,0,-1000) looks toward origin
     // No POI set → uses rotation_quaternion which is identity by default
     // With identity rotation, camera looks toward +Z

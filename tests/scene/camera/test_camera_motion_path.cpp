@@ -98,12 +98,9 @@ TEST_CASE("CameraMotionPath: zoom and fov settings") {
                .add_waypoint({100.0f, 0.0f, -1000.0f});
     motion.zoom = 800.0f;
     motion.fov_deg = 35.0f;
-    motion.projection_mode = Camera2_5DProjectionMode::Fov;
-
     Camera2_5D cam = motion.evaluate(0.5f);
     CHECK(cam.zoom == doctest::Approx(800.0f));
     CHECK(cam.fov_deg == doctest::Approx(35.0f));
-    CHECK(cam.projection_mode == Camera2_5DProjectionMode::Fov);
 }
 
 // ── Fluent API Tests ─────────────────────────────────────────────────────
