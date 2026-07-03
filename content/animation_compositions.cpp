@@ -63,6 +63,8 @@ Composition anim_scale_text() {
 
 // ── AnimTypewriter: per-character typewriter reveal ─────────────────────
 Composition anim_typewriter() {
+    // Fase B2 — static local resolver (composition factory has no runtime in scope).
+    static const chronon3d::assets::AssetResolver s_typewriter_resolver;
     return composition({.name = "AnimTypewriter", .width = 1920, .height = 1080, .duration = 90}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_black_background(s);
@@ -73,7 +75,7 @@ Composition anim_typewriter() {
             .tracking = 3.0f,
             .chars_per_frame = 0.3f,
             .easing = EasingCurve{Easing::OutCubic},
-        }, ctx.frame, s_test_resolver);
+        }, ctx.frame, s_typewriter_resolver);
         return s.build();
     });
 }
