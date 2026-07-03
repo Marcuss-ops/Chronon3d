@@ -103,10 +103,9 @@ void build_2line_typewriter(SceneBuilder& s,
                             f32 line_spacing = 85.0f,
                             bool slide_up = false,
                             f32 glow_intensity = 0.0f)
-{
-    auto spec = font_regular();
-    f32 w1 = measure_text_width(line1, size1, spec, TRACKING);
-    f32 w2 = measure_text_width(line2, size2, spec, TRACKING);
+{        auto spec = font_regular();
+        f32 w1 = measure_text_width(line1, size1, spec, TRACKING, *s.font_engine());
+        f32 w2 = measure_text_width(line2, size2, spec, TRACKING, *s.font_engine());
     f32 max_w = std::max(w1, w2);
     f32 ref_x = -max_w * 0.5f;
 
@@ -220,8 +219,8 @@ Composition anim_typewriter_simple() {
 
         // Precompute widths FIRST, then use inline build_text_reveal_line calls
         auto spec = font_regular();
-        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TRACKING);
-        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f, spec, TRACKING);
+        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TRACKING, *s.font_engine());
+        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f, spec, TRACKING, *s.font_engine());
         f32 max_w = std::max(w1, w2);
         f32 ref_x = -max_w * 0.5f;
 
@@ -257,8 +256,8 @@ Composition anim_typewriter_cursor() {
 
         // Precompute needed values BEFORE build_2line_typewriter
         auto spec = font_regular();
-        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TRACKING);
-        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f, spec, TRACKING);
+        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TRACKING, *s.font_engine());
+        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f, spec, TRACKING, *s.font_engine());
         f32 max_w = std::max(w1, w2);
         f32 ref_x = -max_w * 0.5f;
         f32 cursor_x = ref_x + w2 + 6.0f;
@@ -312,8 +311,8 @@ Composition anim_typewriter_slide() {
         add_bg(s);
 
         auto spec = font_regular();
-        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TRACKING);
-        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f, spec, TRACKING);
+        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TRACKING, *s.font_engine());
+        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f, spec, TRACKING, *s.font_engine());
         f32 max_w = std::max(w1, w2);
         f32 ref_x = -max_w * 0.5f;
 
@@ -383,7 +382,7 @@ Composition anim_typewriter_stagger() {
         auto spec = font_regular();
         f32 max_w = 0.0f;
         for (int i = 0; i < 4; ++i) {
-            f32 w = measure_text_width(lines[i].text, lines[i].size, spec, TRACKING);
+            f32 w = measure_text_width(lines[i].text, lines[i].size, spec, TRACKING, *s.font_engine());
             if (w > max_w) max_w = w;
         }
         f32 ref_x = -max_w * 0.5f;
