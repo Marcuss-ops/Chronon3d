@@ -15,7 +15,7 @@
 namespace chronon3d::assets {
 
 void AssetResolver::mount(std::filesystem::path root_path) {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock(*m_mutex);
     if (root_path.empty()) {
         m_root_path.clear();
         return;
@@ -33,17 +33,17 @@ void AssetResolver::mount(std::filesystem::path root_path) {
 }
 
 void AssetResolver::unmount() {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock(*m_mutex);
     m_root_path.clear();
 }
 
 bool AssetResolver::has_mount() const noexcept {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock(*m_mutex);
     return !m_root_path.empty();
 }
 
 std::filesystem::path AssetResolver::mount_root() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock(*m_mutex);
     return m_root_path;
 }
 
@@ -77,7 +77,7 @@ AssetResolver::resolve_locked_(const std::filesystem::path& path) const {
 
 std::optional<std::filesystem::path>
 AssetResolver::resolve(const std::filesystem::path& path) const {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock(*m_mutex);
     auto candidate = resolve_locked_(path);
     if (!candidate.has_value()) {
         return std::nullopt;
@@ -91,7 +91,7 @@ AssetResolver::resolve(const std::filesystem::path& path) const {
 
 std::optional<std::filesystem::path>
 AssetResolver::resolve_lexical(const std::filesystem::path& path) const {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock(*m_mutex);
     return resolve_locked_(path);
 }
 
