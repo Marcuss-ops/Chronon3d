@@ -136,6 +136,12 @@ chronon3d_add_test_suite(
         # post-baseline-verde; this lock prevents regression during the
         # freeze).  Gated on CHRONON3D_ENABLE_TEXT.
         render_graph/nodes/test_text_run_node_execute_error.cpp
+        # M1.5#1 — return-channel contract for TextRunNode::execute().
+        # Locks the canonical `NodeExecResult.ok() == false` + `.error()`
+        # surface (NOT just the `ctx.frame_error` sidecar checked by
+        # the P0-3 lock above).  4 cases: ExecutionFailure,
+        # CapabilitiesOff, NullBackend, Success.
+        render_graph/nodes/test_text_run_node_return_channel.cpp
         render_graph/nodes/test_per_pixel_dof_node_rg_integration.cpp
         render_graph/nodes/test_per_pixel_dof_node_unit.cpp
         render_graph/nodes/test_shadow_node_rg_integration.cpp
