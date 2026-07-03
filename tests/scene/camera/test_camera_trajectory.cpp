@@ -78,7 +78,7 @@ TEST_CASE("CameraTrajectory linear uses segment indices") {
 
     // Frame 0: at P0, tangent toward P1.
     {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(0, 0, 0)));
         CHECK(s.tangent.x > 0.5f);
@@ -87,7 +87,7 @@ TEST_CASE("CameraTrajectory linear uses segment indices") {
 
     // Frame 30: at P1, tangent toward P2.
     {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         ctx.sample_time = SampleTime::from_frame(30.0, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(10, 0, 0)));
@@ -96,7 +96,7 @@ TEST_CASE("CameraTrajectory linear uses segment indices") {
 
     // Frame 60: at P2.
     {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         ctx.sample_time = SampleTime::from_frame(60.0, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(20, 0, 0)));
@@ -113,7 +113,7 @@ TEST_CASE("CameraTrajectory Bezier derivative matches finite difference") {
      .duration_frames(60);
     auto tr = b.build();
 
-    auto ctx = CameraMotionContext::at(Frame{0});
+    auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
     ctx.sample_time = SampleTime::from_frame(30.0, kFps30);
     auto s0 = tr->sample(ctx);
 
@@ -158,7 +158,7 @@ TEST_CASE("CameraTrajectory handle contract uses local offsets") {
      .duration_frames(30);
     auto tr = b.build();
 
-    auto ctx = CameraMotionContext::at(Frame{0});
+    auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
     ctx.sample_time = SampleTime::from_frame(15.0, kFps30);
     auto s = tr->sample(ctx);
 
@@ -170,13 +170,12 @@ TEST_CASE("CameraTrajectory handle contract uses local offsets") {
     CHECK(approx(s.position.y, 0.0f));
     CHECK(approx(s.position.z, -1000.0f));
 
-    // Endpoint parity: handles must not perturb the start/end positions.
-    auto ctx0 = CameraMotionContext::at(Frame{0});
+    // Endpoint parity: handles must not perturb the start/end positions.        auto ctx0 = CameraMotionContext::at(Frame{0}, kFps30);
     ctx0.sample_time = SampleTime::from_frame(0.0, kFps30);
     auto s0 = tr->sample(ctx0);
     CHECK(approx_vec(s0.position, make_vec(0, 0, -1000)));
 
-    auto ctx30 = CameraMotionContext::at(Frame{0});
+    auto ctx30 = CameraMotionContext::at(Frame{0}, kFps30);
     ctx30.sample_time = SampleTime::from_frame(30.0, kFps30);
     auto s30 = tr->sample(ctx30);
     CHECK(approx_vec(s30.position, make_vec(200, 0, -1000)));
@@ -190,27 +189,27 @@ TEST_CASE("CameraTrajectory samples fractional frames") {
 
     // Integer frame 0: position = (0,0,0)
     {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(0, 0, 0)));
     }
     // Frame 15.0 (halfway): position = (50,0,0)
     {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         ctx.sample_time = SampleTime::from_frame(15.0, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(50, 0, 0)));
     }
     // Frame 30.0 (end): position = (100,0,0)
     {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         ctx.sample_time = SampleTime::from_frame(30.0, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(100, 0, 0)));
     }
     // Frame 15.5 (sub-frame): position must differ from frame 15.
     {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         ctx.sample_time = SampleTime::from_frame(15.5, kFps30);
         auto s_sub = tr->sample(ctx);
 
@@ -272,7 +271,7 @@ TEST_CASE("Arc-length spacing CV less than 0.03") {
     constexpr int N = 32;
     std::vector<Vec3> positions;
     for (int i = 0; i <= N; ++i) {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         ctx.sample_time = SampleTime::from_frame(
             static_cast<double>(i) * 60.0 / static_cast<double>(N), kFps30);
         positions.push_back(tr->sample(ctx).position);
@@ -305,14 +304,14 @@ TEST_CASE("Multi-segment trajectory respects every boundary") {
 
     // Segment 0: Linear, frames [0, 30). At frame 0 → P0.
     {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(0, 0, -1000)));
     }
 
     // Segment 0→1 boundary: frame 30 should be P1.
     {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         ctx.sample_time = SampleTime::from_frame(30.0, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(100, 50, -800)));
@@ -320,7 +319,7 @@ TEST_CASE("Multi-segment trajectory respects every boundary") {
 
     // Segment 1: Bezier, midpoint at frame 52.5.
     {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         ctx.sample_time = SampleTime::from_frame(52.5, kFps30);
         auto s = tr->sample(ctx);
         CHECK_FALSE(approx_vec(s.position, make_vec(100, 50, -800)));
@@ -329,7 +328,7 @@ TEST_CASE("Multi-segment trajectory respects every boundary") {
 
     // Segment 1→2 boundary: frame 75 should be P2.
     {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         ctx.sample_time = SampleTime::from_frame(75.0, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(300, 100, -600)));
@@ -337,7 +336,7 @@ TEST_CASE("Multi-segment trajectory respects every boundary") {
 
     // Segment 2: CatmullRom end at frame 135.
     {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         ctx.sample_time = SampleTime::from_frame(135.0, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(500, 0, -400)));
@@ -356,7 +355,7 @@ TEST_CASE("Hold segment preserves exact position") {
 
     // Mid-hold: position should equal P1.
     {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         ctx.sample_time = SampleTime::from_frame(15.0, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(100, 0, 0)));
@@ -366,7 +365,7 @@ TEST_CASE("Hold segment preserves exact position") {
     }
     // End: still at same position.
     {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         ctx.sample_time = SampleTime::from_frame(30.0, kFps30);
         auto s = tr->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(100, 0, 0)));
@@ -386,7 +385,7 @@ TEST_CASE("Zero-length segment never emits NaN") {
     auto tr = b.build();
 
     for (int f = 0; f <= 30; f += 10) {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         ctx.sample_time = SampleTime::from_frame(static_cast<double>(f), kFps30);
         auto s = tr->sample(ctx);
         CHECK_FALSE(std::isnan(s.position.x));
@@ -426,7 +425,7 @@ TEST_CASE("CAM-04: per-segment mini-LUTs are populated and indexed") {
     // positions.  This is a per-segment mini-LUT invariant — the LUT's
     // binary-search + linear-interp is pure on the same inputs.
     for (int f : {0, 15, 25, 50, 60, 90, 119}) {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         ctx.sample_time = SampleTime::from_frame(static_cast<double>(f), kFps30);
         auto s_a = tr_arc->sample(ctx);
         auto s_b = tr_arc->sample(ctx);
@@ -436,13 +435,13 @@ TEST_CASE("CAM-04: per-segment mini-LUTs are populated and indexed") {
     // Boundary parity: frame = segment_durations[i] lands exactly on the
     // shared endpoint of segment i and segment i+1.
     {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         ctx.sample_time = SampleTime::from_frame(15.0, kFps30);
         auto s = tr_arc->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(100, 0, -900)));
     }
     {
-        auto ctx = CameraMotionContext::at(Frame{0});
+        auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
         ctx.sample_time = SampleTime::from_frame(60.0, kFps30);
         auto s = tr_arc->sample(ctx);
         CHECK(approx_vec(s.position, make_vec(300, 0, -700)));
@@ -459,7 +458,7 @@ TEST_CASE("CAM-04: arc-length OFF keeps uniform-t01 fallback") {
     auto tr_no_arc = b.build();
     REQUIRE_FALSE(tr_no_arc->arc_length_parameterized());
 
-    auto ctx = CameraMotionContext::at(Frame{0});
+    auto ctx = CameraMotionContext::at(Frame{0}, kFps30);
     ctx.sample_time = SampleTime::from_frame(15.0, kFps30);
     auto mid = tr_no_arc->sample(ctx);
     // Uniform t01 on a LINEAR segment is just lerp: 0.5 between P0 and P1.

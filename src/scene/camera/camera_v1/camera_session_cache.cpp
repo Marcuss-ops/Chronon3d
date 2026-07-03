@@ -37,7 +37,8 @@ bool preroll_session_for_frame(const CameraProgram& program,
                                int shot_start_frame,
                                int target_frame,
                                int preroll_max_frames,
-                               CameraSession& session) {
+                               CameraSession& session,
+                               FrameRate frame_rate) {
     if (target_frame < shot_start_frame) {
         // Caller has supplied a target before the shot starts; treat as
         // "no pre-roll" — the first real evaluate will land at the
@@ -74,10 +75,9 @@ bool preroll_session_for_frame(const CameraProgram& program,
     // Walk forward through the window.  Integrates with the EMA's
     // forward-only `previous_time` evolution.  Discard Camera2_5D + diag
     // results — we only care about ConstraintSession mutation.
-    // (CameraEvalContext::at(Frame) defaults to FrameRate{30,1} which is
-    // what the pre-roll uses; no explicit `sample_time` override needed.)
+    // CAM-05: FrameRate is explicit from the caller (no hardcoded 30 fps).
     for (int f = lo; f <= hi; ++f) {
-        CameraEvalContext ctx = CameraEvalContext::at(Frame{f});
+        CameraEvalContext ctx = CameraEvalContext::at(Frame{f}, frame_rate);
         (void)program.evaluate(ctx, session);
     }
     return true;
@@ -92,10 +92,11 @@ CameraStateCheckpoint* CameraSessionCache::find(int shot_idx) {
     return it != entries_.end() ? &it->second.checkpoint : nullptr;
 }
 
-CameraSession& CameraSessionCache::acquire(const CameraProgram& program,
+CameraSessionLease CameraSessionCache::acquire(const CameraProgram& program,
                                             int shot_idx,
                                             int shot_start_frame,
-                                            int target_frame) {
+                                            int target_frame,
+                                            FrameRate frame_rate) {
     const CameraDescriptor* desc = program.descriptor();
     const CameraDescriptorFingerprint dd_fp =
         desc ? compute_camera_descriptor_fingerprint(*desc) : 0;
@@ -137,21 +138,39 @@ CameraSession& CameraSessionCache::acquire(const CameraProgram& program,
         // branch on it; discard the bool.
         (void)preroll_session_for_frame(program, shot_start_frame, target_frame,
                                         kCanonicalPrerollMaxFrames,
-                                        e.checkpoint.session);
+                                        e.checkpoint.session,
+                                        frame_rate);
     }
-    e.checkpoint.last_evaluated_frame = target_frame;
-    return e.checkpoint.session;
+    // CAM-05: last_evaluated_frame is now set by CameraSessionLease::commit(),
+    // not eagerly here.  If the caller never calls commit() (exception,
+    // cancelled job, forgotten release), the checkpoint is unchanged.
+    return CameraSessionLease(this, shot_idx,
+                              &e.checkpoint.session, target_frame);
 }
 
-void CameraSessionCache::release(int shot_idx,
-                                 const CameraSession& sess) {
+
+// ── CameraSessionLease ─────────────────────────────────────────────────────
+
+void CameraSessionLease::commit() {
+    if (!committed_) {
+        committed_ = true;
+        cache_->commit_lease(shot_idx_, *session_, target_frame_);
+    }
+}
+
+CameraSessionLease::~CameraSessionLease() {
+    // If not committed, the session state is discarded.
+    // This protects against exceptions, cancelled jobs, and forgotten
+    // release() calls — last_evaluated_frame stays unchanged.
+}
+
+void CameraSessionCache::commit_lease(int shot_idx,
+                                       const CameraSession& session,
+                                       int target_frame) {
     auto it = entries_.find(shot_idx);
     if (it == entries_.end()) return;
-    // Capture the post-eval session (so the next acquire / forward-step or
-    // repprime has the up-to-date EMA state to work from).  The slot's
-    // `last_evaluated_frame` is the sole responsibility of `acquire` — no
-    // second writer here, eliminating silent drift.
-    it->second.checkpoint.session = sess;
+    it->second.checkpoint.session = session;
+    it->second.checkpoint.last_evaluated_frame = target_frame;
 }
 
 void CameraSessionCache::observe_cut_between(int prior_idx, int next_idx) {
