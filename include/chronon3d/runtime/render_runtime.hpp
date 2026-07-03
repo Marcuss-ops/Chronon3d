@@ -161,18 +161,20 @@ public:
 
     // ── Fase C2 — Unified factory (canonical construction path) ──────────
     /// Static factory: constructs a fully-populated RenderRuntime from
-    /// a RuntimeConfig bundle.  Returns RuntimeBuildError on failure
-    /// (e.g. asset mount failure) instead of throwing from a constructor.
-    /// The runtime is immediately usable after create() returns; backend
-    /// attachment is handled by the higher-level RenderEngine layer.
-    [[nodiscard]] static Result<RenderRuntime, RuntimeBuildError>
+    /// a RuntimeConfig bundle.  Returns a heap-allocated runtime (unique_ptr)
+    /// on success, or RuntimeBuildError on failure.  RenderRuntime is not
+    /// movable (contains non-movable mutex-guarded types like AssetRegistry,
+    /// AssetResolver, ImageCache), so the factory returns ownership via
+    /// unique_ptr — the canonical pattern for non-movable types.
+    /// Backend attachment is handled by the higher-level RenderEngine layer.
+    [[nodiscard]] static Result<std::unique_ptr<RenderRuntime>, RuntimeBuildError>
     create(RuntimeConfig cfg);
 
-    // Non-copyable, movable.
+    // Non-copyable, non-movable (contains mutex-guarded types).
     RenderRuntime(const RenderRuntime&) = delete;
     RenderRuntime& operator=(const RenderRuntime&) = delete;
-    RenderRuntime(RenderRuntime&&) noexcept = default;
-    RenderRuntime& operator=(RenderRuntime&&) noexcept = default;
+    RenderRuntime(RenderRuntime&&) = delete;
+    RenderRuntime& operator=(RenderRuntime&&) = delete;
 
     /// Initialise the long-lived infrastructure from the engine Config.
     /// Idempotent: calling populate() on a populated runtime is a no-op.

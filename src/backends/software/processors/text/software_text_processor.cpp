@@ -218,29 +218,13 @@ public:
             const float font_size = std::max(1.0f, txt.style.size);
             const float line_height = font_size * std::max(1.0f, txt.style.line_height);
 
-            // WP-8 PR 8.1 — per-processor static FontEngine, sourced
-            // from the post-bridge process-wide resolver channel.
-            // This `compute_world_bbox` virtual doesn't carry a
-            // `SoftwareRenderer &` argument (signature is fixed), so we
-            // can't use the per-renderer `SoftwareRenderer::font_engine()`
-            // accessor that PR 8.1 introduced for the `draw()` path.
-            //
-            // Function-local static lifetime: the engine's resolver
-            // pointer is captured on first call.  Subsequent calls
-            // reuse the same engine — per-engine asset-isolation holds
-            // because `AssetResolver` is a value member of
-            // `RenderRuntime`, and the process-wide resolver is mounted
-            // by `RenderRuntime::attach_assets_root` → `resolver().mount()`
-            // at engine init, so its mount tracks the same root the
-            // runtime is currently exposing.
-            //
-            // The previous ternary (active_runtime() → bridge) is
-            // RETIRED: WP-8 PR 8.1 deletes both `active_runtime()` and
-            // `runtime::typed_resolver_for_deep_code()`.  Any test/
-            // CLI/context path that needs the resolver WITHOUT an
-            // explicit runtime reference now uses this free function.
+            // WP-8 PR 8.1 / Fase B2 — compute_world_bbox signature is fixed
+            // (no SoftwareRenderer&), so we use a function-local static
+            // AssetResolver.  This resolver is unmounted — FontEngine uses it
+            // only for path-based font lookups, not asset-path resolution.
+            static const chronon3d::assets::AssetResolver s_local_resolver;
             const chronon3d::assets::AssetResolver& resolver =
-                s_test_resolver;
+                s_local_resolver;
             static const FontEngine bbox_engine{resolver};
             const FontEngine& engine = bbox_engine;
             FontSpec spec;

@@ -47,12 +47,10 @@
 
 namespace chronon3d::runtime {
 
-namespace {
-
 // Fase B2 (DONE) — process_wide_assets_root globals REMOVED.
-// The global string + mutex + resolver were eliminated.  Production
-// code must use RenderRuntime::resolver() or pass AssetResolver&
-// through the call chain.
+// The anonymous namespace that previously held the global string +
+// mutex + resolver was removed.  Production code must use
+// RenderRuntime::resolver() or pass AssetResolver& through the call chain.
 
 RenderRuntime::RenderRuntime(chronon3d::Config config)
     : m_config(std::move(config))
@@ -78,17 +76,17 @@ RenderRuntime::RenderRuntime(chronon3d::Config config)
 // through suppression-guarded internal bridges (runtime_adapter.cpp,
 // test_utils.hpp).
 
-Result<RenderRuntime, RuntimeBuildError>
+Result<std::unique_ptr<RenderRuntime>, RuntimeBuildError>
 RenderRuntime::create(RuntimeConfig cfg) {
     try {
-        RenderRuntime runtime(std::move(cfg.config));  // calls populate()
+        auto runtime = std::make_unique<RenderRuntime>(std::move(cfg.config));  // calls populate()
 
         if (cfg.assets_root.has_value()) {
-            runtime.resolver().mount(*cfg.assets_root);
-            runtime.assets().mount(*cfg.assets_root);
+            runtime->resolver().mount(*cfg.assets_root);
+            runtime->assets().mount(*cfg.assets_root);
         }
 
-        return runtime;  // implicit Result(T&&)
+        return runtime;  // implicit Result(unique_ptr&&)
     } catch (const std::exception& e) {
         return RuntimeBuildError{
             RuntimeBuildError::Code::InternalError,
