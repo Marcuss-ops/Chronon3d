@@ -185,6 +185,12 @@ struct LensModel {
     /// Example (1920×1080 viewport, 36×24mm sensor, sensor_aspect=1.5,
     /// viewport_aspect≈1.78): viewport wider than sensor → pillarbox →
     /// effective_viewport = {1080*1.5, 1080} = {1620, 1080}.
+    ///
+    /// Overscan logic: the sensor must fit ENTIRELY inside the viewport
+    /// without cropping.  The limiting dimension is chosen so that the
+    /// effective size never exceeds the viewport bounds:
+    ///   - sensor wider than viewport  (sa > vp_a): full width → letterbox
+    ///   - viewport wider than sensor  (sa < vp_a): full height → pillarbox
     [[nodiscard]] Vec2 effective_viewport(f32 viewport_width, f32 viewport_height) const {
         if (viewport_width <= 0.0f || viewport_height <= 0.0f) {
             return Vec2{0.0f, 0.0f};
@@ -198,13 +204,13 @@ struct LensModel {
         const f32 vp_a = viewport_width / viewport_height;
         const f32 sa   = sensor_aspect();
         if (sa > vp_a) {
-            // Sensor wider than viewport: pillarbox (side bars).
-            // Effective height = viewport_height; effective width = vp_h * sa.
-            return Vec2{viewport_height * sa, viewport_height};
+            // Sensor wider than viewport: letterbox (top/bottom bars).
+            // Use full width; effective height = vp_w / sa.
+            return Vec2{viewport_width, viewport_width / sa};
         }
-        // Viewport wider than sensor: letterbox (top/bottom bars).
-        // Effective width = viewport_width; effective height = vp_w / sa.
-        return Vec2{viewport_width, viewport_width / sa};
+        // Viewport wider than sensor: pillarbox (side bars).
+        // Use full height; effective width = vp_h * sa.
+        return Vec2{viewport_height * sa, viewport_height};
     }
 };
 
