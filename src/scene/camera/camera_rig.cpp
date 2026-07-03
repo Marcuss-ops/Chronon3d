@@ -219,4 +219,6 @@ Camera2_5D CameraRig::evaluate(
     cam.motion_blur.jitter_seed      = motion_blur.jitter_seed;
 
     return cam;
+}
+
 } // namespace chronon3d

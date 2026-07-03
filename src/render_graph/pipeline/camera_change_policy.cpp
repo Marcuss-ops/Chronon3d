@@ -21,7 +21,7 @@ bool camera_changed(
            prev->zoom          != current.zoom      ||
            prev->fov_deg       != current.fov_deg   ||
            prev->rotation      != current.rotation  ||
-           prev->projection_mode != current.projection_mode ||
+           prev->optics_mode  != current.optics_mode  ||
            prev->point_of_interest_enabled != current.point_of_interest_enabled ||
            prev->point_of_interest != current.point_of_interest ||
            prev->parent_name != current.parent_name ||
