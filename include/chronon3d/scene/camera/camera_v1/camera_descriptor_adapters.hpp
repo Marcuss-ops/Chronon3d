@@ -32,8 +32,7 @@
 
 #include <chronon3d/animations/camera_motion_params.hpp>     // CameraMotionParams
 #include <chronon3d/scene/model/camera/camera.hpp>           // Camera (slim legacy struct)
-#include <chronon3d/scene/model/camera/camera_rig.hpp>        // CameraRig
-#include <chronon3d/scene/model/camera/camera_shot_profile.hpp> // CameraShotProfile
+#include <chronon3d/scene/model/camera/camera_rig.hpp>        // CameraRig (modern)
 
 #include <cstdint>
 
@@ -62,13 +61,6 @@ camera_descriptor_from(const chronon3d::animation::CameraMotionParams& p);
 // motion blur are copied from the rig's static fields.
 [[nodiscard]] CameraDescriptor
 camera_descriptor_from(const chronon3d::CameraRig& rig,
-                       RigBakeDensity density = RigBakeDensity::Default);
-
-// ── Pure adapter: CameraShotProfile → CameraDescriptor ────────────────────
-// Delegates to the rig adapter.  Validator / framing / auto_fit / emit_report
-// are post-processing concerns and are NOT carried into the descriptor.
-[[nodiscard]] CameraDescriptor
-camera_descriptor_from(const chronon3d::CameraShotProfile& shot,
                        RigBakeDensity density = RigBakeDensity::Default);
 
 // ── Pure adapter: legacy slim Camera → CameraDescriptor ──────────────────
