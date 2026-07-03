@@ -76,6 +76,12 @@ struct CameraSession {
     /// as a fallback when the current frame's tangent is degenerate.
     std::optional<Vec3> last_tangent;
 
+    /// CAM-03 — last camera that passed all constraints.
+    /// Updated after every successful evaluate().  Used by
+    /// CameraFailurePolicy::KeepLastValidCamera to recover when a
+    /// constraint fails on a subsequent frame.
+    std::optional<Camera2_5D> last_valid_camera;
+
     /// Ensure at least n constraint state slots are allocated.
     void ensure_constraint_states(std::size_t n) {
         constraint_session.ensure_states(n);
@@ -87,6 +93,7 @@ struct CameraSession {
         banking_roll = 0.0f;
         skip_look_at_constraint_from_orientation = false;
         last_tangent.reset();
+        last_valid_camera.reset();
     }
 };
 
