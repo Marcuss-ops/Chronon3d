@@ -264,18 +264,7 @@ camera_descriptor_from(const chronon3d::CameraRig& rig,
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// Adapter 3: CameraShotProfile → CameraDescriptor (delegates to rig)
-// ───────────────────────────────────────────────────────────────────────────
-CameraDescriptor
-camera_descriptor_from(const chronon3d::CameraShotProfile& shot,
-                       RigBakeDensity density) {
-    CameraDescriptor d = camera_descriptor_from(shot.rig, density);
-    d.id = "adapter_camera_shot_profile";
-    return d;
-}
-
-// ───────────────────────────────────────────────────────────────────────────
-// Adapter 4: legacy slim Camera → CameraDescriptor  (P3-E / TICKET-034F+)
+// Adapter 3: legacy slim Camera → CameraDescriptor  (P3-E / TICKET-034F+)
 //
 // The OPP's flat `chronon3d::Camera` struct is the legacy authoring form:
 // a position + rotation + FOV triple.  We capture a STATIC SNAPSHOT into a
