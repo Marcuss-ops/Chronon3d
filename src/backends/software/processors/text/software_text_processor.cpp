@@ -30,8 +30,6 @@
 // ---------------------------------------------------------------------------
 
 #include "software_text_effects.hpp"
-#include <chronon3d/runtime/render_runtime.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
@@ -68,7 +66,7 @@ public:
     void draw(const SoftwareProcessorContext& rctx, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
         CHRONON_ZONE_C("text_render", trace_category::kText);
-        const bool diagnostics_enabled = rctx.renderer->is_diagnostic_mode();
+        const bool diagnostics_enabled = rctx.settings != nullptr && rctx.settings->diagnostics.enabled;
         const auto draw_start = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
         const Mat4& model = state.matrix;
         const f32 opacity = state.opacity;
@@ -100,13 +98,13 @@ public:
         // receives it explicitly below.  `AssetResolver` is a value-member
         // of `RenderRuntime`, so the reference is stable for the
         // renderer's lifetime.
-        const auto& resolver = rctx.renderer->runtime().resolver();
-        FontEngine* engine = node.font_engine ? node.font_engine : &rctx.renderer->font_engine();
+        const auto& resolver = *rctx.asset_resolver;
+        FontEngine* engine = node.font_engine ? node.font_engine : rctx.font_engine;
         // TICKET-007: per-instance DebugConfig forwarded from the
         // owning SoftwareRenderer so text-bbox / ink-bounds / baseline
         // debug overlays honour the engine's debug.text_bbox() flag
         // and never read a process-wide singleton.
-        const chronon3d::DebugConfig* text_debug_cfg = &rctx.renderer->config().debug();
+        const chronon3d::DebugConfig* text_debug_cfg = rctx.debug_config;
         auto raster = rasterize_text_to_bl_image(node.shape.text(), effective_size, 32, resolver, &raster_cache_hit, raster_transform, *engine, text_debug_cfg);
         if (diagnostics_enabled) {
             rasterize_ms = profiling::elapsed_ms(raster_start);
@@ -116,7 +114,7 @@ public:
             return;
         }
 
-        if (rctx.renderer->config().debug().dump_text_raster()) {
+        if (rctx.debug_config != nullptr && rctx.debug_config->dump_text_raster()) {
             BLImageData debug_data;
             if (raster->image.getData(&debug_data) == BL_SUCCESS) {
                 const int sw = debug_data.size.w;
@@ -144,7 +142,7 @@ public:
         }
 
         if (!raster_cache_hit) {
-            rctx.renderer->counters()->text_glyphs_rasterized.fetch_add(
+            rctx.counters->text_glyphs_rasterized.fetch_add(
                 static_cast<uint64_t>(node.shape.text().text.length()),
                 std::memory_order_relaxed
             );
@@ -218,8 +216,8 @@ public:
             const float font_size = std::max(1.0f, txt.style.size);
             const float line_height = font_size * std::max(1.0f, txt.style.line_height);
 
-            // WP-8 PR 8.1 / Fase B2 — compute_world_bbox signature is fixed
-            // (no SoftwareRenderer&), so we use a function-local static
+            // WP-8 PR 8.1 / Fase B2 — compute_world_bbox no longer takes
+            // a SoftwareRenderer parameter; function-local static instead
             // AssetResolver.  This resolver is unmounted — FontEngine uses it
             // only for path-based font lookups, not asset-path resolution.
             static const chronon3d::assets::AssetResolver s_local_resolver;
