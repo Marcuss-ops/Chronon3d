@@ -227,6 +227,12 @@ struct TextRunShape {
     FontEngine* engine{nullptr};
     TextLayoutSpec layout_spec{};
 
+    // Fase B3 — per-shape layout cache (replaces process-wide global).
+    // Set by the materializer/engine to the session-owned TextLayoutCache.
+    // When nullptr, text re-shaping during animation won't be cached
+    // (layouts are built fresh each frame — acceptable for tests).
+    TextLayoutCache* cache{nullptr};
+
     // ── PR 11 — CrossfadeLayouts per-glyph blend state ────────────────
     //
     // Populated by `apply_active_state_to_text_run_shape` ONLY when
