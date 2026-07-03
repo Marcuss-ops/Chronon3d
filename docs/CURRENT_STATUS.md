@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@8fdb0de8` (Fase A2 — unified backend construction via attach_software_backend() factory) — 2026-07-03. Linux-only.
+> **Snapshot:** `main@e8623a8a` (Fase A completata 6/6 — P0 chiusi) — 2026-07-03. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@aaf70032` (10/11 PASS — vedi [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md)).
 > **Baseline corrente:** `main@a53a8d25` — **8/11 PASS** osservato (audit del 2026-07-03).
@@ -11,9 +11,7 @@
 >
 > P0 #1 (TextRunNode error propagation) e P0 #2 (FontLayoutIdentity) sono CHIUSI e verificati su questo commit.
 >
-> **Fase A1 (2026-07-03):** 4 symlink legacy rimossi. Creato gate `tools/check_header_standalone_compile.sh`.
->
-> **Fase A2 (2026-07-03):** Unificata la costruzione del backend — `render_engine.cpp` e `cli_render_utils.cpp` ora usano entrambi `chronon3d::backends::software::attach_software_backend()` come unica factory canonica. Rimossa duplicazione (~65 linee) di SoftwareBackendServices + make_software_backend + ProcessorSourceExtras + attach_processor_context. Rimosso template `attach_processor_context_to_backend_impl()` da RenderEngine::Impl. `services.owner` già assente (TICKET-118).
+> **Fase A — P0 chiusi (2026-07-03):** A1 (symlink legacy + gate standalone compile), A2 (backend construction unificata), A3 (sdk::RenderEngine canonico), A4+A5 (error propagation), A6 (m_backend_warned rimosso, immutability tracked Phase C). Fase B (global state) e Fase C pronte.
 >
 > Tra `aaf70032` e l'HEAD corrente sono atterrati: TICKET-118/119, P0 #1–#2, P1 #1–#5 fixes, P1 #7 (`16efb496`), P1 #10 (`6df9b429` + `560750e3`), P1 #12 (`59b2439f`), gate #4 fix (`f6f700b1`), gate #10 analyze_scene_graph fix (`560750e3`), ticket P1-07..P1-12 individuali (`0295203d`), doc sync commits (`6d951079`, `96e6e88e`), CMake TitleCase + transitive header fix (`21b9fb5d`), runtime::RenderPipeline default-arg chain fix (`75035f2b` → `c40ba16f` post-rebase), **Fase A1** — rimozione 4 symlink legacy + gate standalone compile, **Fase A2** — backend construction unificata.
 >
@@ -118,7 +116,25 @@ Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA,
 - [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) — contratto documentale (single-source-of-truth).
 - [`docs/ARCHIVE/`](docs/ARCHIVE/) — materiale storico (non operativo; nessun riferimento operativo consentito).
 
-## Gate audit snapshot — `main@a53a8d25` (2026-07-03, audit fresco)
+## Gate audit snapshot — `main@e8623a8a` (2026-07-03, post-Fase A — P0 completati)
+
+| # | Gate                                        | Esito      | Note                                                                       |
+|---|---------------------------------------------|------------|----------------------------------------------------------------------------|
+| 1 | `check_architecture_boundaries.sh`          | ✅ PASS    | 16/16 check.                                                              |
+| 2 | `check_architecture_boundaries_selftest.sh` | ✅ PASS    | 15/15 assertions.                                                          |
+| 3 | `check_software_renderer_boundary.sh`       | ✅ PASS    | Tutti gli invarianti rispettati.                                           |
+| 4 | `check_gitignored_dirs.sh`                  | ✅ PASS    | 31 directory, tutte pulite.                                                |
+| 5 | `audit_software_renderer.sh`                | ✅ PASS    | Report generato, exit 0.                                                   |
+| 6 | `check_camera_architecture.sh`              | ✅ PASS    | 6/6 check.                                                                 |
+| 7 | `check_doc_sync.sh`                         | ✅ PASS    | 0 hard failures, 0 warnings.                                               |
+| 8 | `check_filename_drift.sh`                   | ⚠️ PASS*   | warn-mode; 170 drift warning (↑ da 73 — audit hasher header).             |
+| 9 | `test_architectural.sh`                     | ✅ PASS    | Static architecture-level rot: 0.                                          |
+| 10 | `install_consumer_test.sh`                | ❓ NOT RUN  | Timeout (30s); richiede build completa. Bloccato da infra (disk quota PCH). |
+| 11 | `check_backend_sanitization.py`            | ✅ PASS    | Tutti i check passati.                                                     |
+
+**Totale: 10/10 verificati, 1 NOT RUN (gate #10).** 9/10 PASS + 1 PASS* (warn-mode).
+
+## Gate audit snapshot — `main@a53a8d25` (2026-07-03, audit fresco — HISTORICAL)
 
 | # | Gate                                        | Esito      | Note                                                                       |
 |---|---------------------------------------------|------------|----------------------------------------------------------------------------|
