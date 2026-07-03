@@ -203,21 +203,10 @@ void TextLayoutCache::set_capacity(size_t capacity_bytes) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Fase B3 (DONE) — shared_text_layout_cache() REMOVED from public API.
-// The global still exists as a file-scope static for backward compat
-// during migration (used as default parameter fallback in driver
-// functions).  Production callers pass TextLayoutCache* explicitly.
-// Phase C removes this internal fallback entirely.
+// Fase B3 (DONE) — shared_text_layout_cache() ELIMINATED.
+// All caching now routes through TextRunShape::cache (per-shape pointer)
+// set by the materializer/engine.  No process-wide singleton remains.
 // ═══════════════════════════════════════════════════════════════════════════
-
-namespace {
-
-TextLayoutCache& internal_shared_text_layout_cache() {
-    static TextLayoutCache cache;
-    return cache;
-}
-
-} // namespace
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TextRunShape hashing
