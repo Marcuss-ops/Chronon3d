@@ -143,20 +143,40 @@ NodeExecResult MultiSourceNode::execute(
     std::span<const std::optional<raster::BBox>>
 ) {
     CHRONON_ZONE_C("multi_source_render", trace_category::kRasterize);
+
+    // Fase A4 — null backend is a hard error (matches TextRunNode contract).
+    if (!ctx.services.backend) {
+        spdlog::error(
+            "[multi-source] node='{}' cannot render: backend is null; "
+            "aborting frame.", m_name);
+        return NodeExecResult{NodeExecutionError{
+            RenderBackendErrorCode::InvalidInput,
+            m_name,
+            "backend is null"
+        }};
+    }
+
     auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true);
 
-    if (ctx.services.backend) {
-        const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
-        const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
+    const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
+    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
 
-        // text_run items are dispatched to `RenderBackend::draw_text_run`
-        // instead of the generic `RenderBackend::draw_node` because the
-        // former routes through the dedicated text-run processor with the
-        // per-glyph transform stack.  The text is rasterized directly onto
-        // the SHARED `*fb` so it composites SRC_OVER any earlier non-text
-        // items in the same layer (vector order).
+    // ── text_run items are dispatched to `RenderBackend::draw_text_run`
+    // instead of the generic `RenderBackend::draw_node` because the
+    // former routes through the dedicated text-run processor with the
+    // per-glyph transform stack.  The text is rasterized directly onto
+    // the SHARED `*fb` so it composites SRC_OVER any earlier non-text
+    // items in the same layer (vector order).
+    //
+    // Fase A4 — error propagation unified with TextRunNode:
+    //   - draw_text_run failure → NodeExecutionError (immediate return)
+    //   - unsupported capability → NodeExecutionError
+    //   - null shape → skip item (not an error — empty data)
+    //
+    // Regular items use draw_node() which returns void — tracked for
+    // Phase C (requires coordinated API/ABI change).
 
-        for (const auto& item : m_items) {
+    for (const auto& item : m_items) {
             if (!item.node) continue;
 
 #ifdef CHRONON3D_ENABLE_TEXT
@@ -251,11 +271,10 @@ NodeExecResult MultiSourceNode::execute(
                 state.projection  = ctx.frame_input.projection_ctx;
             }
 
-            ctx.services.backend->draw_node(*fb, *item.node, state, ctx.frame_input.camera, ctx.frame_input.width, ctx.frame_input.height);
-        }
-
-        fb->set_opaque(false);
+        ctx.services.backend->draw_node(*fb, *item.node, state, ctx.frame_input.camera, ctx.frame_input.width, ctx.frame_input.height);
     }
+
+    fb->set_opaque(false);
     return NodeExecResult{std::move(fb)};
 }
 

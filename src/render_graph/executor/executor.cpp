@@ -106,10 +106,19 @@ namespace chronon3d::graph {
 
     execute_levels(graph, ctx, state, scheduler, levels, consumer_remaining, parent_counters, parent_pool, res, compiled);
 
-    // P0-1 — after all nodes have executed, check whether any node
-    // surfaced a backend failure.  If so, return nullptr (the documented
-    // "engine error" path) so downstream callers (sink, CLI export) do
-    // not publish a false-success frame.
+    // P0-1 / Fase A5 — after all nodes have executed, check whether any
+    // node surfaced a backend failure.  The structured NodeExecutionError
+    // is stored in `ctx.frame_error` (accessible to callers after a
+    // nullptr return).  We return nullptr as the documented "engine error"
+    // signal; callers interpret null as a failed frame and should NOT
+    // publish an empty framebuffer as success.
+    //
+    // Callers that need structured error detail can read
+    // `*ctx.frame_error` after a nullptr return:
+    //   if (!fb && ctx.frame_error && ctx.frame_error->has_value()) {
+    //       const auto& err = ctx.frame_error->value();
+    //       // err.node_name, err.backend_code, err.message
+    //   }
     if (ctx.frame_error && ctx.frame_error->has_value()) {
         const auto& err = ctx.frame_error->value();
         spdlog::error(
