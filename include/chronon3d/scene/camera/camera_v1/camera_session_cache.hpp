@@ -69,6 +69,52 @@ struct CameraProgram;
 constexpr int kCanonicalPrerollMaxFrames = 30;
 
 // ============================================================================
+// CameraSessionLease — RAII guard returned by CameraSessionCache::acquire().
+//
+// The lease holds a reference to the cached CameraSession.  The caller MUST
+// call `commit()` after a successful `program.evaluate(ctx, lease.session())`
+// to persist the session state and advance `last_evaluated_frame`.  If the
+// lease is destroyed without `commit()`, the session state is discarded and
+// `last_evaluated_frame` remains unchanged — protecting against exceptions,
+// cancelled jobs, and forgotten release() calls.
+//
+// Usage:
+//   auto lease = cache.acquire(program, shot_idx, shot_start, target, fps);
+//   auto result = program.evaluate(ctx, lease.session());
+//   if (result.ok) { lease.commit(); }
+// ============================================================================
+
+class CameraSessionLease {
+public:
+    CameraSession& session() { return *session_; }
+    const CameraSession& session() const { return *session_; }
+
+    /// Commit the post-evaluation session state back to the cache.
+    /// Must be called exactly once after a successful evaluate().
+    void commit();
+
+    CameraSessionLease(const CameraSessionLease&) = delete;
+    CameraSessionLease& operator=(const CameraSessionLease&) = delete;
+    CameraSessionLease(CameraSessionLease&&) noexcept = default;
+    CameraSessionLease& operator=(CameraSessionLease&&) noexcept = default;
+
+    ~CameraSessionLease();
+
+private:
+    friend class CameraSessionCache;
+    CameraSessionLease(CameraSessionCache* cache, int shot_idx,
+                       CameraSession* session, int target_frame)
+        : cache_(cache), shot_idx_(shot_idx),
+          session_(session), target_frame_(target_frame) {}
+
+    CameraSessionCache* cache_;
+    int                 shot_idx_;
+    CameraSession*      session_;
+    int                 target_frame_;
+    bool                committed_{false};
+};
+
+// ============================================================================
 // CameraSessionCache — one-per-worker store of primed `CameraSession`s.
 // ============================================================================
 
@@ -79,27 +125,22 @@ public:
     CameraSessionCache& operator=(const CameraSessionCache&) = delete;
 
     /// Acquire (and prime) the session for `program` on `shot_idx`.  On
-    /// entry the returned `CameraSession&` is guaranteed-valid: either a
-    /// freshly-reset+prerolled session (`cut_seen == true` OR fingerprint
-    /// mismatch OR first-encounter) or a checkpoint-restored session.
-    /// `target_frame` is the absolute frame index the caller is about to
-    /// evaluate; it is recorded in the checkpoint so the next acquire
-    /// can decide whether re-priming is required (forward step vs.
-    /// random far-back).
-    /// Callers must call `release()` after evaluation to capture back.
-    CameraSession& acquire(const CameraProgram& program,
-                           int shot_idx,
-                           int shot_start_frame,
-                           int target_frame);
-
-    /// Capture the session state back into the cache.  The slot's
-    /// `last_evaluated_frame` is owned by `acquire` — `release` only
-    /// captures the post-eval `CameraSession` so the next acquire /
-    /// forward-step or repprime has the up-to-date EMA state to work
-    /// from.  Callers must call `release()` after each evaluate so
-    /// forward-step reuse can carry the prior frame's EMA into the next.
-    void release(int shot_idx,
-                 const CameraSession& sess);
+    /// entry the returned `CameraSessionLease` holds a guaranteed-valid
+    /// session: either a freshly-reset+prerolled session (`cut_seen == true`
+    /// OR fingerprint mismatch OR first-encounter) or a checkpoint-restored
+    /// session.  `target_frame` is the absolute frame index the caller is
+    /// about to evaluate.  `frame_rate` is the caller's project frame rate
+    /// (required for deterministic pre-roll).
+    ///
+    /// The caller must call `lease.commit()` after a successful evaluate()
+    /// to persist the session state and advance last_evaluated_frame.
+    /// If the lease is destroyed without commit(), the session state is
+    /// discarded.
+    CameraSessionLease acquire(const CameraProgram& program,
+                               int shot_idx,
+                               int shot_start_frame,
+                               int target_frame,
+                               FrameRate frame_rate);
 
     /// Mark the connection between `prior_idx` and `next_idx` so that
     /// the next `acquire(next_idx, ...)` forces a full reset + preroll
@@ -131,6 +172,10 @@ private:
     // program gets a fresh cache.  Including shot_idx alone keeps the
     // map trivial and matches the per-shot pre-roll window model.
     std::unordered_map<int, Entry> entries_;
+
+    /// Called by CameraSessionLease::commit() to finalise the lease.
+    void commit_lease(int shot_idx, const CameraSession& session,
+                      int target_frame);
 };
 
 // ============================================================================
@@ -152,6 +197,7 @@ private:
                                              int shot_start_frame,
                                              int target_frame,
                                              int preroll_max_frames,
-                                             CameraSession& session);
+                                             CameraSession& session,
+                                             FrameRate frame_rate);
 
 } // namespace chronon3d::camera_v1
