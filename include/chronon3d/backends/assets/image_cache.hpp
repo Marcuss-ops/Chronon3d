@@ -55,12 +55,12 @@ public:
     static void set_global_capacity_bytes(size_t capacity_bytes);
 
     void set_backend(std::shared_ptr<image::ImageBackend> backend) {
-        std::unique_lock<std::shared_mutex> lock(m_backend_mutex);
+        std::unique_lock<std::shared_mutex> lock(*m_backend_mutex);
         m_backend = std::move(backend);
     }
 
     [[nodiscard]] std::shared_ptr<image::ImageBackend> get_backend() {
-        std::shared_lock<std::shared_mutex> lock(m_backend_mutex);
+        std::shared_lock<std::shared_mutex> lock(*m_backend_mutex);
         return m_backend;
     }
 
@@ -79,8 +79,12 @@ private:
     // shared_mutex lets concurrent get_or_load_shared() readers proceed in parallel
     // while set_backend() takes an exclusive lock. The previous std::mutex
     // serialized all backend reads with cache loads.
+    //
+    // Wrapped in unique_ptr because std::shared_mutex is non-movable;
+    // ImageCache must remain movable for RenderRuntime::create() factory.
     std::shared_ptr<image::ImageBackend> m_backend;
-    mutable std::shared_mutex m_backend_mutex;
+    mutable std::unique_ptr<std::shared_mutex> m_backend_mutex{
+        std::make_unique<std::shared_mutex>()};
 
     // The LruCache is already sharded internally (16 shards by default), so
     // concurrent get_or_load_shared() lookups for different paths proceed in

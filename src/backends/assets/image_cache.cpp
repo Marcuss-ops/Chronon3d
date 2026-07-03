@@ -32,7 +32,7 @@ ImageCache::ImageCache(size_t capacity_bytes)
 std::shared_ptr<const CachedImage> ImageCache::get_or_load(const std::string& path) {
     std::shared_ptr<image::ImageBackend> backend;
     {
-        std::shared_lock<std::shared_mutex> lock(m_backend_mutex);
+        std::shared_lock<std::shared_mutex> lock(*m_backend_mutex);
         backend = m_backend;
     }
     if (!backend) {
