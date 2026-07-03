@@ -1,14 +1,42 @@
+// SPDX-License-Identifier: MIT
+//
+// TextRunNode — orchestrator (M1.5#1).  The hard logic that used to
+// live inline (per-frame shape clone, pre-dispatch validation, world
+// transform, draw dispatch, diagnostic emit) is now extracted into
+// single-responsibility helpers in `text_run/`.  `execute()` reads
+// as a 5-stage pipeline:
+//
+//   0. defensive missing-shape early-return
+//   1. acquire canvas framebuffer
+//   2. validate (null backend / unsupported capability)  → NodeExecutionError
+//   3. prepare per-frame shape + build world matrix + opacity
+//   4. dispatch draw_text_run + surface backend errors  → NodeExecutionError
+//   5. optional diagnostic-mode spdlog::debug
+//
+// `predicted_bbox()` and `cache_key()` are unchanged in behaviour
+// (preserving all regression locks in test_protected_core_contracts.cpp);
+// `predicted_bbox` now reuses `text_run::build_world_matrix` so the
+// canvas coordinate space is identical to `execute()` by
+// construction (deduplication of the SSAA + canvas-center branch).
+
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #ifdef CHRONON3D_ENABLE_TEXT
 #include <chronon3d/text/text_run_geometry.hpp>
-#include <chronon3d/text/text_run_driver.hpp>
 #endif
+// M1.5#1 — internal helpers under src/render_graph/nodes/text_run/
+// (NOT under include/chronon3d/).  Same-directory-relative include
+// matches the convention used by nodes/transform_kernels.cpp for
+// nodes/sampling_utils.hpp.
+#include "text_run/text_run_execution.hpp"
+#include "text_run/text_run_transform.hpp"
+#include "text_run/text_run_diagnostics.hpp"
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+
+#include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <spdlog/spdlog.h>
 
 namespace chronon3d::graph {
 
@@ -35,17 +63,17 @@ TextRunNode::TextRunNode(
       m_centered(centered),
       m_uses_2_5d_projection(uses_2_5d_projection),
       m_matrix_override(std::move(matrix_override)),
-      m_opacity_override(std::move(opacity_override))
+      m_opacity_override(opacity_override)
 {}
 
 // =============================================================================
 // predicted_bbox
 // =============================================================================
 //
-// Mirrors SourceNode::predicted_bbox exactly except the world bbox is computed
-// by `renderer::compute_text_run_world_bbox` (2.5D-aware — per-glyph rotation.x/y
-// shears and scale.z expansion).  Returns nullopt when the shape is
-// missing (defensive; source-pass only emits a TextRunNode when shape is set).
+// 2.5D-aware predicted bbox via renderer's `compute_text_run_world_bbox`.
+// Matrix composition is delegated to `text_run::build_world_matrix()` so
+// the bbox sampling and the rasterization dispatch agree on the canvas
+// coordinate space by construction.
 
 std::optional<raster::BBox> TextRunNode::predicted_bbox(
     const RenderGraphContext& ctx,
@@ -55,25 +83,9 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
         return std::nullopt;
     }
 
-    // SSAA + canvas-centre transforms — identical to SourceNode so the bbox
-    // sits in the same canvas coordinate space downstream.
-    const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(
-        ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
-    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(
-        ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
+    const Mat4 matrix = text_run::build_world_matrix(
+        m_render_ref, ctx, m_uses_2_5d_projection, m_centered, m_matrix_override);
 
-    Mat4 matrix;
-    if (m_uses_2_5d_projection || m_centered) {
-        matrix = canvas_center
-               * ssaa_scale
-               * m_matrix_override.value_or(m_render_ref.world_transform.to_mat4());
-    } else {
-        matrix = ssaa_scale
-               * m_matrix_override.value_or(m_render_ref.world_transform.to_mat4());
-    }
-
-    // Spread is contributed by blur + stroke + 8px safety padding.
-    // Plus any node-level shadow/glow plumbing carried on the RenderNode.
     f32 spread = 0.0f;
     if (m_render_ref.shadow.enabled) {
         spread = std::max(spread,
@@ -86,12 +98,6 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
     }
     spread += 8.0f;
 
-    // 2.5D-aware bbox.  Inside `compute_text_run_world_bbox`:
-    //   - glyph layout_position + position offsets
-    //   - per-glyph rotation.y → horizontal shear expansion
-    //   - per-glyph rotation.x → vertical shear expansion
-    //   - per-glyph scale.z → uniform expansion
-    //   - blur + stroke_width + spread padding
 #ifdef CHRONON3D_ENABLE_TEXT
     auto bbox = renderer::compute_text_run_world_bbox(*m_shape, matrix, spread);
 #else
@@ -110,33 +116,10 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
 // =============================================================================
 // cache_key
 // =============================================================================
-//
-// Combines:
-//   - skeleton key from source pass (scope, frame, size)
-//   - `hash_text_run_shape(*m_shape, ctx.frame_input.sample_time)` — covers
-//     immutable layout + per-glyph animated state + material/paint/
-//     shadows, AND (PR 10) the AnimatedTextDocument state at the
-//     current sample time (transition type + transition_text +
-//     morph_map + mix).  This guarantees Scramble / Morph /
-//     CrossfadeLayouts frames invalidate the executor's per-frame
-//     node cache correctly — without the sample-time fold a
-//     transitioning shape would share a stale entry across frames.
-//   - placement hash from the RenderNode (name + position)
-//   - matrix/opacity override bytes (modular-coordinates path)
-//   - 2.5D camera transform (when projected) so a moving camera does not
-//     serve a stale TextRun frame.
 
 cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const {
     auto key = m_key;
 
-    // Content: layout (cached) + animated glyph state + material +
-    // PR 10 AnimatedTextDocument state at the current integral frame.
-    //
-    // The frame overload folds transition_type + active->utf8 +
-    // active->defaults.font + transition_text bytes + morph_map bytes +
-    // mix into the cache key.  This guarantees Scramble / Morph /
-    // CrossfadeLayouts / font-swap Cut frames invalidate the
-    // executor's per-frame node cache correctly.
 #ifdef CHRONON3D_ENABLE_TEXT
     if (m_shape) {
         key.params_hash = hash_combine(
@@ -151,7 +134,6 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
     key.params_hash = hash_combine(key.params_hash, static_cast<u64>(0xdeadbeef));
 #endif
 
-    // Placement: node name + position (mirrors SourceNode).
     key.source_hash = hash_combine(
         key.source_hash,
         hash_combine(
@@ -159,7 +141,6 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
             hash_bytes(&m_render_ref.world_transform.position,
                        sizeof(Vec3))));
 
-    // Modular-coordinate overrides
     key.params_hash = hash_combine(
         key.params_hash,
         static_cast<u64>(ctx.policy.modular_coordinates));
@@ -174,8 +155,6 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
             hash_bytes(&(*m_opacity_override), sizeof(f32)));
     }
 
-    // 2.5D camera transform — invalidate when the camera moves so the bg
-    // matrix inside compute_text_run_world_bbox is up-to-date.
     if (m_uses_2_5d_projection && ctx.frame_input.has_camera_2_5d) {
         const auto& cam = ctx.frame_input.camera_2_5d;
         key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.position, sizeof(Vec3)));
@@ -191,13 +170,17 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
 }
 
 // =============================================================================
-// execute
+// execute — M1.5#1 ORCHESTRATOR
 // =============================================================================
 //
-// Route through the SoftwareTextRunProcessor (`renderer::draw_text_run`).
-// We resolve the SoftwareRenderer via dynamic_cast on the RenderBackend
-// (matches the matte sub-pipeline pattern from
-// graph_builder_layer_pipeline_pass.cpp).
+// Reads as a 5-stage pipeline.  Every stage delegates to a single
+// helper in text_run/; NODE-LEVEL BOOKKEEPING (acquire fb, route
+// success / failure, dispatch-move, surface error) stays here so the
+// NodeExecResult contract is preserved end-to-end.
+//
+// Pre-condition: covered by tests/render_graph/nodes/test_text_run_node_execute_error.cpp
+// (existing — diagnostic-string lock) AND tests/render_graph/nodes/test_text_run_node_return_channel.cpp
+// (new — return-channel contract).
 
 NodeExecResult TextRunNode::execute(
     RenderGraphContext& ctx,
@@ -206,133 +189,65 @@ NodeExecResult TextRunNode::execute(
 ) {
     CHRONON_ZONE_C("text_run_render", trace_category::kRasterize);
 
+    // ── 0. Defensive: missing shape (source-pass only emits when set). ──
     if (!m_shape) {
-        return NodeExecResult{ctx.acquire_owned_fb(
-            ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true)};
+        return NodeExecResult{
+            ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true)};
     }
 
-    // ── Fase A6 — immutability ──────────────────────────────────────
-    // The compiled node must NEVER mutate m_shape.  Instead, clone the
-    // per-frame mutable state (glyphs, crossfade_*) into a local shape
-    // and evaluate the animator stack into the clone.  draw_text_run
-    // receives the clone, so two concurrent frames on different workers
-    // never race on the same glyph vector.
-    //
-    // Cost: one glyphs-vector copy per frame (O(N) with N=num_glyphs,
-    // typically < 1000).  The layout (shared_ptr) is NOT copied — it
-    // remains shared across frames.
+    // ── 1. Acquire canvas framebuffer (no clear-skip — text can't fill a frame). ──
+    auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true);
+
+    // ── 2. Validate pre-dispatch invariants. ──
+    auto* backend = ctx.services.backend;
+    if (auto err = text_run::validate_execution(backend, m_name)) {
+        return NodeExecResult{std::move(*err)};
+    }
+
+    // ── 3. Prepare per-frame shape (A6 immutability) + world transform + opacity. ──
 #ifdef CHRONON3D_ENABLE_TEXT
-    TextRunShape local_shape = *m_shape;   // shallow: layout is shared_ptr, glyphs deep-copied
-    chronon3d::update_text_run_shape_per_frame(local_shape, ctx.frame_input.sample_time);
-    const TextRunShape& eval_shape = local_shape;
+    const TextRunShape eval_shape =
+        text_run::prepare_per_frame_shape(*m_shape, ctx.frame_input.sample_time);
 #else
     const TextRunShape& eval_shape = *m_shape;
 #endif
 
-    // Acquire full-canvas framebuffer (no clear-skip — text can't fill a frame).
-    auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true);
-
-    // Resolve backend and dispatch through the virtual draw_text_run.
-    auto* backend = ctx.services.backend;
-    if (!backend) {
-        spdlog::error(
-            "[text-run] node='{}' cannot render: backend is null; "
-            "returning cleared fb.", m_name);
-        return NodeExecResult{NodeExecutionError{
-            RenderBackendErrorCode::InvalidInput,
-            m_name,
-            "backend is null"
-        }};
-    }
-
-    // Build the world-space transform that mirrors SourceNode's state.matrix.
-    // draw_text_run only consumes model[3][0..1] for translation today
-    // (future: extend to full model-matrix transform); we still pass
-    // the full matrix so the future path has the data.
-    Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(
-        ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
-    Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(
-        ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
-
-    Mat4 world_matrix;
-    if (m_uses_2_5d_projection || m_centered) {
-        world_matrix = canvas_center
-                     * ssaa_scale
-                     * m_matrix_override.value_or(m_render_ref.world_transform.to_mat4());
-    } else {
-        world_matrix = ssaa_scale
-                     * m_matrix_override.value_or(m_render_ref.world_transform.to_mat4());
-    }
-
+    const Mat4 world_matrix = text_run::build_world_matrix(
+        m_render_ref, ctx, m_uses_2_5d_projection, m_centered, m_matrix_override);
     const f32 opacity = m_opacity_override.value_or(m_render_ref.world_transform.opacity);
 
-    // PR2 — gate on capabilities first so the fast path (text features
-    // present) is a single bool check and only the slow path logs a
-    //    startup-leak-style warning.
-    if (!backend->capabilities().text_run) {
-        spdlog::error(
-            "[text-run] node='{}' backend does not support "
-            "draw_text_run; returning cleared fb.", m_name);
-        return NodeExecResult{NodeExecutionError{
-            RenderBackendErrorCode::UnsupportedCapability,
+    // ── 4. Dispatch draw_text_run + surface backend error. ──
+    auto dispatch = backend->draw_text_run(*fb, eval_shape, world_matrix, opacity);
+    if (!dispatch) {
+        text_run::report_failure(
             m_name,
-            "backend does not support draw_text_run"
+            dispatch.error().code,
+            render_backend_error_code_name(dispatch.error().code),
+            dispatch.error().message);
+        return NodeExecResult{NodeExecutionError{
+            dispatch.error().code,
+            m_name,
+            std::string(dispatch.error().message)
         }};
     }
 
-    auto result = backend->draw_text_run(
-        *fb, eval_shape, world_matrix, opacity);
-
-    if (!result) {
-        spdlog::error(
-            "[text-run] node='{}' draw_text_run failed: [{}] {}",
-            m_name,
-            chronon3d::graph::render_backend_error_code_name(result.error().code),
-            result.error().message);
-        return NodeExecResult{NodeExecutionError{
-            result.error().code,
-            m_name,
-            result.error().message
-        }};
-    }
-
+    // ── 5. Per-frame debug diagnostic (opt-in via ctx.policy.diagnostics_enabled). ──
     if (ctx.policy.diagnostics_enabled) {
-        // DEBUG (not INFO): this fires every frame.  The diagnostic-mode
-        // spammy output is much better at debug level — users who want it
-        // explicitly opt in via Chronon log-level configuration.
-        // PR 10: log the frame overload so the diagnostic value matches
-        // the actual cache key the executor used.
 #ifdef CHRONON3D_ENABLE_TEXT
-        spdlog::debug(
-            "[text-run] node='{}' shape_hash=0x{:016x} glyphs={} drew={} "
-            "opacity={:.3f} tx={:.1f} ty={:.1f}",
-            m_name,
+        text_run::report_diagnostic(
+            m_name, eval_shape, dispatch.value().items_drawn, opacity, world_matrix,
             chronon3d::hash_text_run_shape(
-                eval_shape,
-                ctx.frame_input.sample_time.integral_frame()),
-            eval_shape.glyphs.size(),
-            result ? result.value().items_drawn : 0u,
-            opacity,
-            world_matrix[3][0],
-            world_matrix[3][1]
-        );
+                eval_shape, ctx.frame_input.sample_time.integral_frame()));
 #else
-        spdlog::debug(
-            "[text-run] node='{}' glyphs={} drew={} "
-            "opacity={:.3f} tx={:.1f} ty={:.1f}",
-            m_name,
-            eval_shape.glyphs.size(),
-            result ? result.value().items_drawn : 0u,
-            opacity,
-            world_matrix[3][0],
-            world_matrix[3][1]
-        );
+        text_run::report_diagnostic(
+            m_name, eval_shape, dispatch.value().items_drawn, opacity, world_matrix,
+            std::nullopt);
 #endif
     }
 
     // NOTE: draw_text_run() already increments text_glyphs_rasterized
-    // inside the processor.  Do NOT double-count here — the processor is
-    // the single source of truth for telemetry.
+    // inside the processor.  Do NOT double-count here — the processor
+    // is the single source of truth for telemetry.
 
     return NodeExecResult{std::move(fb)};
 }
