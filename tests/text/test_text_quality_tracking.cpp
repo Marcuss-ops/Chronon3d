@@ -326,7 +326,7 @@ TEST_CASE("TextQuality: typewriter tracking — width matches layout engine") {
     li.font_spec = spec;
     float layout_width = TextLayoutEngine::layout(li).size.x;
 
-    const auto& resolver = chronon3d::runtime::process_wide_resolver();
+    const auto& resolver = s_test_resolver;
     auto tw = ct::compute_typewriter_layout(
         text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec, resolver);
 
@@ -353,7 +353,7 @@ TEST_CASE("TextQuality: typewriter tracking — zero tracking matches layout") {
     li.font_spec = spec;
     float layout_width = TextLayoutEngine::layout(li).size.x;
 
-    const auto& resolver = chronon3d::runtime::process_wide_resolver();
+    const auto& resolver = s_test_resolver;
     auto tw = ct::compute_typewriter_layout(
         text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec, resolver);
 
@@ -372,7 +372,7 @@ TEST_CASE("TextQuality: typewriter tracking — per-char advances sum to total")
     const float tracking = 8.0f;
     const FontSpec spec = inter_bold_quality();
 
-    const auto& resolver = chronon3d::runtime::process_wide_resolver();
+    const auto& resolver = s_test_resolver;
     auto tw = ct::compute_typewriter_layout(
         text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec, resolver);
 
@@ -398,7 +398,7 @@ TEST_CASE("TextQuality: typewriter tracking — with combining marks no double-c
     const float tracking = 20.0f;
     const FontSpec spec = inter_bold_quality();
 
-    const auto& resolver = chronon3d::runtime::process_wide_resolver();
+    const auto& resolver = s_test_resolver;
     auto tw = ct::compute_typewriter_layout(
         text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec, resolver);
 
@@ -435,7 +435,7 @@ TEST_CASE("TextQuality: typewriter tracking — with ZWJ emoji sequence") {
     const float tracking = 10.0f;
     const FontSpec spec = inter_bold_quality();
 
-    const auto& resolver = chronon3d::runtime::process_wide_resolver();
+    const auto& resolver = s_test_resolver;
     auto tw = ct::compute_typewriter_layout(
         text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec, resolver);
 
@@ -459,7 +459,7 @@ TEST_CASE("TextQuality: typewriter tracking — different tracking values scale 
     const float size = 40.0f;
     const FontSpec spec = inter_bold_quality();
 
-    const auto& resolver = chronon3d::runtime::process_wide_resolver();
+    const auto& resolver = s_test_resolver;
     auto tw0 = ct::compute_typewriter_layout(
         text, size, 0.0f, {2000.0f, 2000.0f}, 1.0f, spec, resolver);
     size_t num_chars = tw0.chars.size();
