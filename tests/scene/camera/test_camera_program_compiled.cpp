@@ -330,7 +330,6 @@ TEST_CASE("compiled_trajectory_transfers_projection_spec — "
     auto cam = eval_at_or_die_cam01(program, session, Frame{0});
     CHECK(cam.fov_deg == doctest::Approx(72.0f).epsilon(kCam01Eps));
     CHECK(cam.optics_mode == CameraOpticsMode::FieldOfView);
-    CHECK(cam.projection_mode == Camera2_5DProjectionMode::Fov);
 }
 
 TEST_CASE("compiled_trajectory_transfers_physical_lens — "
@@ -714,7 +713,6 @@ TEST_CASE("compiled_pose_tracks_fov_no_zoom_override — "
     auto cam = eval_at_or_die_cam01(program, session, Frame{30});
 
     CHECK(cam.optics_mode     == CameraOpticsMode::FieldOfView);
-    CHECK(cam.projection_mode == Camera2_5DProjectionMode::Fov);
     CHECK(cam.fov_deg == doctest::Approx(45.0f).epsilon(kCam01Eps));
 }
 
@@ -737,7 +735,6 @@ TEST_CASE("compiled_pose_tracks_fov_with_animated_fov — "
     // At Frame{30}: 50% linear interpolation between 60 and 30 → 45 deg.
     auto cam_mid = eval_at_or_die_cam01(program, session, Frame{30});
     CHECK(cam_mid.optics_mode     == CameraOpticsMode::FieldOfView);
-    CHECK(cam_mid.projection_mode == Camera2_5DProjectionMode::Fov);
     CHECK(cam_mid.fov_deg == doctest::Approx(45.0f).epsilon(0.01f));
 }
 
@@ -767,7 +764,6 @@ TEST_CASE("compiled_pose_tracks_physical_lens_no_clobber — "
     auto cam = eval_at_or_die_cam01(program, session, Frame{30});
 
     CHECK(cam.optics_mode     == CameraOpticsMode::PhysicalLens);
-    CHECK(cam.projection_mode == Camera2_5DProjectionMode::Zoom);
     // PhysicalLens carries a LensModel; canonical source-of-truth.
     CHECK(cam.lens.focal_length  == doctest::Approx(85.0f).epsilon(kCam01Eps));
     CHECK(cam.lens.sensor_width  == doctest::Approx(36.0f).epsilon(kCam01Eps));

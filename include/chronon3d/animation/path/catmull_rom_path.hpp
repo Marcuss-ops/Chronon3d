@@ -509,7 +509,6 @@ struct CatmullRomCameraMotion {
             cam.position = path.empty() ? Vec3{0.0f, 0.0f, -1000.0f} : path.evaluate(0.0f);
             cam.zoom = zoom;
             cam.fov_deg = fov_deg;
-            cam.projection_mode = projection_mode;
             return cam;
         }
 
@@ -521,7 +520,6 @@ struct CatmullRomCameraMotion {
         cam.position = sample.position;
         cam.zoom = zoom;
         cam.fov_deg = fov_deg;
-        cam.projection_mode = projection_mode;
 
         switch (auto_orient) {
             case AutoOrientMode::None:
@@ -555,7 +553,6 @@ struct CatmullRomCameraMotion {
             cam.position = Vec3{0.0f, 0.0f, -1000.0f};
             cam.zoom = zoom;
             cam.fov_deg = fov_deg;
-            cam.projection_mode = projection_mode;
             return cam;
         }
         t = std::clamp(t, 0.0f, 1.0f);
@@ -564,7 +561,6 @@ struct CatmullRomCameraMotion {
         cam.position = sample.position;
         cam.zoom = zoom;
         cam.fov_deg = fov_deg;
-        cam.projection_mode = projection_mode;
 
         switch (auto_orient) {
             case AutoOrientMode::None: break;

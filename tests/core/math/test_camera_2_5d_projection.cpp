@@ -134,7 +134,6 @@ TEST_CASE("Camera2_5D projection: FOV mode changes perspective scale") {
     Camera2_5D cam35;
     cam35.enabled = true;
     cam35.position = {0, 0, -1000};
-    cam35.projection_mode = Camera2_5DProjectionMode::Fov;
     cam35.fov_deg = 35.0f;
 
     Camera2_5D cam70 = cam35;
@@ -209,7 +208,6 @@ TEST_CASE("Camera2_5D projection: direct point projection keeps X and Y orientat
     Camera2_5D cam;
     cam.position = {0.0f, 0.0f, 0.0f};
     cam.zoom = 1000.0f;
-    cam.projection_mode = Camera2_5DProjectionMode::Zoom;
 
     Mat4 view = Mat4(1.0f);
 

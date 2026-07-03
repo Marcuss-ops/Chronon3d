@@ -150,7 +150,6 @@ Fixtures build_fixtures() {
     f.rig.zoom.set(1000.0f);
     f.rig.fov_deg.set(50.0f);
     f.rig.optics_mode = CameraOpticsMode::Zoom;
-    f.rig.projection_mode = Camera2_5DProjectionMode::Zoom;
     f.rig.dof.enabled = true;
     f.rig.dof.focus_mode = CameraFocusMode::ManualDistance;
     f.rig.dof.focus_distance.set(1200.0f);

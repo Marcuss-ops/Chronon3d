@@ -31,10 +31,6 @@ f32 CameraProjectionSource::get_fov_deg() const {
     return m_cam->fov_deg;
 }
 
-Camera2_5DProjectionMode CameraProjectionSource::get_projection_mode() const {
-    return m_cam->projection_mode;
-}
-
 CameraOpticsMode CameraProjectionSource::get_optics_mode() const {
     return m_cam->optics_mode;
 }

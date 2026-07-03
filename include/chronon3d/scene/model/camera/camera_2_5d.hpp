@@ -102,18 +102,18 @@ struct Camera2_5D {
     // backward compatibility (composers that still want Camera2_5D level
     // control over the projection).  See CameraOpticsMode on the rig for
     // the canonical optics contract used by the projection pipeline.
-    Camera2_5DProjectionMode projection_mode{Camera2_5DProjectionMode::Zoom};
+    // REMOVED: Camera2_5DProjectionMode projection_mode — replaced by optics_mode.
 
-    // Optics mode — the canonical contract used by CameraRig and the
-    // projection pipeline.  Decoupled from DoF: a physical lens can be
-    // active (PhysicalLens) while DoF.enabled is false.
+    // Optics mode — the canonical contract used by the projection pipeline.
+    // Decoupled from DoF: a physical lens can be active (PhysicalLens)
+    // while DoF.enabled is false.
     CameraOpticsMode optics_mode{CameraOpticsMode::Zoom};
 
     // Perspective strength. At depth == zoom, perspective_scale == 1.
-    // Used when projection_mode == Zoom or optics_mode == Zoom.
+    // Focal-length zoom value (px). Used when optics_mode == Zoom.
     f32 zoom{1000.0f};
 
-    // Field of view in degrees. Used when projection_mode == Fov.
+    // Field of view in degrees. Used when optics_mode == FieldOfView.
     // 35° ≈ telephoto (less distortion), 70° ≈ wide angle (more parallax).
     f32 fov_deg{50.0f};
 

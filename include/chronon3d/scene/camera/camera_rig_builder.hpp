@@ -52,13 +52,13 @@ public:
     }
 
     CameraRigBuilder& fov(f32 degrees) {
-        rig.projection_mode = Camera2_5DProjectionMode::Fov;
+        rig.optics_mode = CameraOpticsMode::FieldOfView;
         rig.fov_deg.set(degrees);
         return *this;
     }
 
     CameraRigBuilder& zoom(f32 z) {
-        rig.projection_mode = Camera2_5DProjectionMode::Zoom;
+        rig.optics_mode = CameraOpticsMode::Zoom;
         rig.zoom.set(z);
         return *this;
     }

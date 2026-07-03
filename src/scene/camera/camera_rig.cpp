@@ -31,8 +31,7 @@ Camera2_5D CameraRig::evaluate(
 ) const {
     Camera2_5D cam;
     cam.enabled = true;
-    cam.projection_mode = projection_mode;
-    cam.optics_mode     = optics_mode;
+    cam.optics_mode = optics_mode;
 
     Vec3 resolved_target = target.evaluate(time);
     bool target_from_hierarchy = false;
@@ -236,9 +235,6 @@ Camera2_5D CameraRig::bake(
     cam.rotation                  = camera_rotation.evaluate(frame);
     cam.zoom                      = zoom.evaluate(frame);
     cam.fov_deg                   = fov_deg.evaluate(frame);
-    cam.projection_mode           = use_fov
-                                        ? Camera2_5DProjectionMode::Fov
-                                        : Camera2_5DProjectionMode::Zoom;
     cam.optics_mode               = optics_mode;
     cam.parent_name               = std::pmr::string{controller_name, res};
 
