@@ -49,10 +49,14 @@ namespace chronon3d::runtime {
 
 namespace {
 
-// Process-wide fallback assets root for contexts that don't construct
-// a RenderRuntime (CLI tests, content-module test fixtures).  Replaces
-// the legacy `chronon3d::detail::g_default_assets_root`.  Writers:
-//   - runtime::set_process_wide_assets_root (CLI / tests + engine init)
+// Fase B2 — DEPRECATED process-wide fallback assets root.
+// Used ONLY as backward-compat bridge in render_engine.cpp::set_assets_root()
+// and CLI/test fixtures that don't construct a RenderRuntime.
+//
+// Migration path: Route through RenderRuntime::resolver() which is per-engine.
+// The canonical bridge site (render_engine.cpp:105) mirrors writes here
+// for deep-code backward compat; when all deep code reads from the runtime's
+// resolver, the global can be removed (post-feature-freeze).
 std::mutex g_process_root_mutex;
 std::string g_process_wide_assets_root;
 
@@ -173,6 +177,8 @@ const chronon3d::graph::RenderBackend& RenderRuntime::backend() const {
     return *m_backend;
 }
 
+// Fase B2 — @deprecated.  Use RenderRuntime::resolver() per-engine instead.
+// Kept as backward-compat bridge during Phase B migration window.
 void set_process_wide_assets_root(std::string root) {
     std::lock_guard<std::mutex> lock(g_process_root_mutex);
     g_process_wide_assets_root = std::move(root);
