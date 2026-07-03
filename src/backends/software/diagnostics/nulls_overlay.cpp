@@ -22,7 +22,7 @@ void draw_null_overlay(Framebuffer& fb, const Scene& scene, const Camera2_5D& ca
         }
         Mat4 view = camera.view_matrix();
         f32 focal = camera.zoom;
-        if (camera.projection_mode == Camera2_5DProjectionMode::Fov) {
+        if (camera.optics_mode == CameraOpticsMode::FieldOfView) {
             focal = h / (2.0f * std::tan(glm::radians(camera.fov_deg) * 0.5f));
         }
         Vec2 screen;
