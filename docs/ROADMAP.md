@@ -10,6 +10,11 @@ Stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). Criteri di r
 - **A1** (`1bd92daf`): Rimossi 4 symlink legacy (`render_session.hpp`, `session_services.hpp`, `scene_hasher.hpp`, `scene_program_store.hpp`) → accessibili solo via path `internal/`. Creato `tools/check_header_standalone_compile.sh` — compila standalone ogni header pubblico del manifest.
 - **A2** (`8fdb0de8`): Unificata costruzione backend — `render_engine.cpp` e `cli_render_utils.cpp` ora usano entrambi `attach_software_backend()` come factory canonica. Rimosse ~65 linee duplicate di SoftwareBackendServices + make_software_backend + ProcessorSourceExtras.
 
+### Fase B2+B3 — Deprecation global state (2026-07-03)
+
+- **B2** (`2d3cc2dc`): `process_wide_assets_root()` / `process_wide_resolver()` marcati `[[deprecated]]` in `render_runtime.hpp`. Migration path: `RenderRuntime::resolver()` per-engine. Eliminazione effettiva bloccata da ~24 call sites (CLI, test, content modules) → Phase C.
+- **B3** (pre-esistente): `shared_text_layout_cache()` marcato con deprecation banner in `text_run.hpp` / `text_run.cpp`. Migration path: `RenderSession::layout_cache` per-session. Eliminazione bloccata da ~35 call sites → Phase C.
+
 ### Fase C — Completamento doc (2026-07-02)
 
 - **C2** (`d8a228f7`): Costruttore `RenderEngine::Impl` unificato (`optional<path>`).
