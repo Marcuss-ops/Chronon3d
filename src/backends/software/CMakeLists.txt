@@ -50,7 +50,10 @@ if(TARGET chronon3d_backend_text)
     # Expose to the compiler so callers (e.g. software_renderer.cpp) can guard
     # text-backend-only initializers.  Prevents link errors when Blend2D /
     # text backend are disabled.
-    target_compile_definitions(chronon3d_backend_software PRIVATE CHRONON3D_HAS_BACKEND_TEXT)
+    # PUBLIC: required so all consumers (chronon3d_runtime, chronon3d_sdk_impl)
+    # see the same SoftwareProcessorContext/ProcessorSourceExtras layout.
+    # PRIVATE was an ODR violation — see TICKET-GATE-10 stack-smashing fix.
+    target_compile_definitions(chronon3d_backend_software PUBLIC CHRONON3D_HAS_BACKEND_TEXT)
 endif()
 
 if(CHRONON3D_BUILD_DIAGNOSTICS)

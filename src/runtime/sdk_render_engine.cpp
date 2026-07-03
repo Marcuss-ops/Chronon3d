@@ -159,6 +159,11 @@ void RenderEngine::set_settings(const RenderSettings& settings) {
 // ── set_assets_root() ─────────────────────────────────────────────────────
 
 void RenderEngine::set_assets_root(std::filesystem::path root) {
+    // Canonicalize relative paths to absolute: the legacy engine's
+    // AssetResolver::mount() requires an absolute path.
+    if (root.is_relative()) {
+        root = std::filesystem::absolute(root);
+    }
     m_impl->engine.set_assets_root(std::move(root));
 }
 
