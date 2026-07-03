@@ -5,9 +5,10 @@ successiva per nascondere blocker della precedente.
 
 Stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). Criteri di release: [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md).
 
-### Fase A1 — Migrazione header interni + gate standalone compile (2026-07-03)
+### Fase A1–A2 — Migrazione header interni + unificazione backend (2026-07-03)
 
-- **A1** (`b19bcad0`): Rimossi 4 symlink legacy (`render_session.hpp`, `session_services.hpp`, `scene_hasher.hpp`, `scene_program_store.hpp`) → accessibili solo via path `internal/`. Creato `tools/check_header_standalone_compile.sh` — compila standalone ogni header pubblico del manifest.
+- **A1** (`1bd92daf`): Rimossi 4 symlink legacy (`render_session.hpp`, `session_services.hpp`, `scene_hasher.hpp`, `scene_program_store.hpp`) → accessibili solo via path `internal/`. Creato `tools/check_header_standalone_compile.sh` — compila standalone ogni header pubblico del manifest.
+- **A2** (`8fdb0de8`): Unificata costruzione backend — `render_engine.cpp` e `cli_render_utils.cpp` ora usano entrambi `attach_software_backend()` come factory canonica. Rimosse ~65 linee duplicate di SoftwareBackendServices + make_software_backend + ProcessorSourceExtras.
 
 ### Fase C — Completamento doc (2026-07-02)
 

@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@a53a8d25` (Fase A1 — internal header migration closed + standalone compile gate) — 2026-07-03. Linux-only.
+> **Snapshot:** `main@8fdb0de8` (Fase A2 — unified backend construction via attach_software_backend() factory) — 2026-07-03. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@aaf70032` (10/11 PASS — vedi [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md)).
 > **Baseline corrente:** `main@a53a8d25` — **8/11 PASS** osservato (audit del 2026-07-03).
@@ -11,9 +11,11 @@
 >
 > P0 #1 (TextRunNode error propagation) e P0 #2 (FontLayoutIdentity) sono CHIUSI e verificati su questo commit.
 >
-> **Fase A1 (2026-07-03):** 4 symlink legacy rimossi — i file `render_session.hpp`, `session_services.hpp`, `scene_hasher.hpp`, `scene_program_store.hpp` sono ora accessibili solo via path `internal/`. Tutti i consumer già migrati (0 match su vecchi path). Creato gate `tools/check_header_standalone_compile.sh` — compila standalone ogni header del manifest pubblico contro gli include path del progetto + vcpkg. Risultato baseline: 48/147 PASS (include SDK pubblici), 99 FAIL (pre-esistenti, principalmente dipendenze transitive mancanti + conflitto blend2d/xxhash). Il gate è operativo e rileva regressioni future su header installabili.
+> **Fase A1 (2026-07-03):** 4 symlink legacy rimossi. Creato gate `tools/check_header_standalone_compile.sh`.
 >
-> Tra `aaf70032` e l'HEAD corrente sono atterrati: TICKET-118/119, P0 #1–#2, P1 #1–#5 fixes, P1 #7 (`16efb496`), P1 #10 (`6df9b429` + `560750e3`), P1 #12 (`59b2439f`), gate #4 fix (`f6f700b1`), gate #10 analyze_scene_graph fix (`560750e3`), ticket P1-07..P1-12 individuali (`0295203d`), doc sync commits (`6d951079`, `96e6e88e`), CMake TitleCase + transitive header fix (`21b9fb5d`), runtime::RenderPipeline default-arg chain fix (`75035f2b` → `c40ba16f` post-rebase), **Fase A1** — rimozione 4 symlink legacy + gate standalone compile.
+> **Fase A2 (2026-07-03):** Unificata la costruzione del backend — `render_engine.cpp` e `cli_render_utils.cpp` ora usano entrambi `chronon3d::backends::software::attach_software_backend()` come unica factory canonica. Rimossa duplicazione (~65 linee) di SoftwareBackendServices + make_software_backend + ProcessorSourceExtras + attach_processor_context. Rimosso template `attach_processor_context_to_backend_impl()` da RenderEngine::Impl. `services.owner` già assente (TICKET-118).
+>
+> Tra `aaf70032` e l'HEAD corrente sono atterrati: TICKET-118/119, P0 #1–#2, P1 #1–#5 fixes, P1 #7 (`16efb496`), P1 #10 (`6df9b429` + `560750e3`), P1 #12 (`59b2439f`), gate #4 fix (`f6f700b1`), gate #10 analyze_scene_graph fix (`560750e3`), ticket P1-07..P1-12 individuali (`0295203d`), doc sync commits (`6d951079`, `96e6e88e`), CMake TitleCase + transitive header fix (`21b9fb5d`), runtime::RenderPipeline default-arg chain fix (`75035f2b` → `c40ba16f` post-rebase), **Fase A1** — rimozione 4 symlink legacy + gate standalone compile, **Fase A2** — backend construction unificata.
 >
 > Documenti canonici (vedi [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) per il contratto):
 > - Regole operative / feature freeze: [`AGENTS.md`](../AGENTS.md)
