@@ -70,6 +70,55 @@ per pipeline video automatizzate.
 7. Verificare 24/30/60 fps e determinismo seriale/parallelo.
 8. Esporre esempi pubblici tramite `Chronon3D::SDK`.
 
+### M1.5 — Text Pipeline Decomposition Backlog (post-feature-freeze, PLANNED)
+
+> **Origine:** audit di leggibilità/maintainability del 2026-07-03 sull'orchestrator
+> testo. NON avviabile fino a `11/11 PASS` sullo stesso commit (feature freeze
+> attivo, vedi [`AGENTS.md`](../AGENTS.md)). Il backlog è codificato qui, in un
+> canonical, per evitare documenti paralleli vietati da
+> [`DOCUMENTATION_GOVERNANCE.md`](DOCUMENTATION_GOVERNANCE.md).
+>
+> **Regola di stato osservabile:** PASS / FAIL / PARTIAL / NOT RUN / BLOCKED /
+> PLANNED. Tutti i 15 item sono attualmente `PLANNED` (nessun codice toccato
+> durante il freeze). Avvio rigido: prima mini-sequenza `1 → 2 → 3 → 4`.
+
+| #  | File / area target                                              | Pri    | Stato    | Vincolo architetturale                                                                                  |
+|----|------------------------------------------------------------------|--------|----------|----------------------------------------------------------------------------------------------------------|
+| 1  | `src/render_graph/nodes/TextRunNode.cpp`                        | P0     | PLANNED  | `execute()` → orchestratore breve; canale `Result<OwnedFB, NodeExecutionError>`; nessun falso successo. |
+| 2  | `src/text/text_run_driver.cpp`                                  | P0     | PLANNED  | Fast-path su `EffectiveTextState`; nessun singleton globale; split sampler/font/layout.                  |
+| 3  | `include/chronon3d/text/text_run.hpp`                           | P0/P1  | PLANNED  | Sub-header `layout/shape/cache/hash/identity`; singleton rimosso da header pubblico.                    |
+| 4  | `src/text/text_run.cpp`                                         | P0     | PLANNED  | `FontLayoutIdentity` usato in cache-key + layout-hash + shaping-hash + keyframe + prewarm + font-spans. |
+| 5  | `src/text/text_run_builder.cpp`                                 | P1     | PLANNED  | Pipeline canonica: validate → resolve → shape → failure-policy → compose → font-spans → cache-store.    |
+| 6  | `src/backends/software/processors/text_run/text_run_processor.cpp` | P1 | PLANNED  | Scratch allocator / `TextRenderResources`; niente vettori temporanei allocati per draw.                 |
+| 7  | `include/chronon3d/backends/text/text_render_resources.hpp`     | P1     | PLANNED  | Aggregatore leggero; cache/font/atlas/scratch in sub-header separati.                                    |
+| 8  | `src/text/text_resolver.cpp`                                    | P1     | PLANNED  | Unico entry `ResolvedTextTree`; nessun secondo resolver in backend o builder.                            |
+| 9  | `src/backends/software/processors/text/software_text_processor.cpp` | P1  | PLANNED  | Svuotamento progressivo dopo migrazione callsite a `TextRunNode`; rimozione del processor legacy.        |
+| 10 | `include/chronon3d/text/rich_text.hpp`                          | P1     | PLANNED  | Eliminazione completa dopo migrazione `RichTextLine → TextDocument` / `draw_rich_text → text_run(...)`. |
+| 11 | `src/backends/text/text_rasterizer_render.cpp`                  | P1     | PLANNED  | Classificare utility riusabili (`blend2d_glyph_conversion`, `freetype_outline_conversion`) vs legacy.    |
+| 12 | `src/backends/software/software_backend.cpp`                    | P2     | PLANNED  | Factory + dispatch + text + effects in file separati; main = ctor/dtor/accessors.                        |
+| 13 | Registry preset testuali                                        | P2     | PLANNED  | Factory per categoria (basic/kinetic/cinematic/social); registro centrale unico invariato.               |
+| 14 | `docs/FOLLOWUP_TICKETS.md` open-blockers housekeeping           | P2     | PLANNED  | Separare `Done`/`PARTIAL`/`TEST-ONLY DONE`; promuovere back-log da "open" a "recently closed".            |
+| 15 | `docs/tickets/TICKET-P1-ACTION-PLAN.md`                         | P2     | PLANNED  | Convertire in matrice Implementazione / Test / Migrazione / Rimozione legacy (vedi pasted text §15).    |
+
+### Regole vincolanti durante l'esecuzione del backlog M1.5
+
+- **Prima mini-sequenza post-baseline (P0):** `1 → 2 → 3 → 4` — sono i file che oggi
+  combinano maggiore fragilità, falsa riuscita, e identità/cache incoerenti.
+- **Limiti guida** (suggerimento operativo, non obbligo meccanico):
+  - header pubblico: preferibilmente < 250–300 righe;
+  - orchestratore: < 350–450 righe;
+  - funzione normale: < 80 righe;
+  - una sola responsabilità architetturale per file;
+  - nessun **nuovo** singleton, registry, resolver, sampler, cache, service locator;
+  - ogni estrazione deve essere coperta da test prima **e** dopo;
+  - un commit per responsabilità, direttamente su `main` (no branch di feature).
+- **Pre-push gate:** `tools/wrap_push.sh origin main` (atomic FF-merge + gate
+  `check_main_clean.sh`); vedi TICKET-076.
+- **Sincronizzazione documentale:** ogni chiusura aggiorna `CURRENT_STATUS.md` (stato)
+  e `FOLLOWUP_TICKETS.md` (storico) nello **stesso** commit (vincolo gate #7 `check_doc_sync.sh`).
+- **Matrice di avanzamento** (Implementazione / Test / Migrazione / Rimozione legacy)
+  per item — popolata in `docs/baselines/text-decomp-matrix.md` dopo lo sblocco freeze.
+
 ### Non-goal M1
 
 - Text 3D;
