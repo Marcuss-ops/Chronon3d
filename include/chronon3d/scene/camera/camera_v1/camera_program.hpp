@@ -25,6 +25,7 @@
 #include <chronon3d/math/camera_2_5d_projection.hpp>  // Camera2_5D
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -54,6 +55,15 @@ struct CameraProgramResult {
     Camera2_5D                              camera;
     bool                                    ok{true};
     std::vector<CameraProgramDiagnostic>    diagnostics;
+};
+
+/// Source evaluation result — carries the evaluated camera plus optional
+/// trajectory tangent and roll that the orientation stage (OrientAlongPath)
+/// needs.  For non-trajectory sources, tangent and roll_deg are nullopt.
+struct EvaluatedCameraSource {
+    Camera2_5D              camera;
+    std::optional<Vec3>     tangent;
+    std::optional<float>    roll_deg;
 };
 
 // =========================================================================
@@ -140,12 +150,16 @@ private:
 
     // ── Compiled evaluation helpers ─────────────────────────────────────
     /// Evaluate a source variant directly (no registry lookup).
-    Camera2_5D evaluate_compiled_source(const CameraEvalContext& ctx) const;
+    EvaluatedCameraSource evaluate_compiled_source(const CameraEvalContext& ctx) const;
 
     /// Apply orientation from an OrientationSpec variant (passed as opaque ptr).
-    void apply_orientation_spec(const void* orient_variant,
-                                const CameraEvalContext& ctx,
-                                Camera2_5D& cam) const;
+    std::optional<CameraProgramDiagnostic> apply_orientation_spec(
+        const void* orient_variant,
+        const CameraEvalContext& ctx,
+        Camera2_5D& cam,
+        const std::optional<Vec3>& tangent,
+        const std::optional<float>& roll_deg,
+        CameraSession& session) const;
 };
 
 } // namespace chronon3d::camera_v1
