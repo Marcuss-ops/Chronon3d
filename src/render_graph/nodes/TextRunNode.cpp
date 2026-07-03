@@ -211,23 +211,22 @@ NodeExecResult TextRunNode::execute(
             ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true)};
     }
 
-    // ── PR 8 wire-up ────────────────────────────────────────────────
-    // Re-evaluate the AE-style animator stack per frame, writing per-glyph
-    // state back into m_shape->glyphs.  Cheap (no re-shaping); the cache
-    // key below already folds `hash_text_run_shape(*m_shape,
-    // ctx.frame_input.sample_time)` so animated frames invalidate the stale
-    // entry automatically.  No-op when `shape->animators` is empty
-    // (static layout).
+    // ── Fase A6 — immutability ──────────────────────────────────────
+    // The compiled node must NEVER mutate m_shape.  Instead, clone the
+    // per-frame mutable state (glyphs, crossfade_*) into a local shape
+    // and evaluate the animator stack into the clone.  draw_text_run
+    // receives the clone, so two concurrent frames on different workers
+    // never race on the same glyph vector.
     //
-    // PR 10 NOTE: cache-key/pre-mutation ordering is closed.  The
-    // transition_text / morph_map fold inside `hash_text_run_shape`'s
-    // sample-time overload ensures Scramble / Morph frames produce
-    // distinct cache keys.  The wire-up is therefore safe to call before
-    // the executor evaluates `cache_key()` — the order is intentionally
-    // mutated-after-cache-key-fetch because the hash overload mirrors
-    // the post-mutation layout contents.
+    // Cost: one glyphs-vector copy per frame (O(N) with N=num_glyphs,
+    // typically < 1000).  The layout (shared_ptr) is NOT copied — it
+    // remains shared across frames.
 #ifdef CHRONON3D_ENABLE_TEXT
-    chronon3d::update_text_run_shape_per_frame(*m_shape, ctx.frame_input.sample_time);
+    TextRunShape local_shape = *m_shape;   // shallow: layout is shared_ptr, glyphs deep-copied
+    chronon3d::update_text_run_shape_per_frame(local_shape, ctx.frame_input.sample_time);
+    const TextRunShape& eval_shape = local_shape;
+#else
+    const TextRunShape& eval_shape = *m_shape;
 #endif
 
     // Acquire full-canvas framebuffer (no clear-skip — text can't fill a frame).
@@ -282,7 +281,7 @@ NodeExecResult TextRunNode::execute(
     }
 
     auto result = backend->draw_text_run(
-        *fb, *m_shape, world_matrix, opacity);
+        *fb, eval_shape, world_matrix, opacity);
 
     if (!result) {
         spdlog::error(
@@ -309,9 +308,9 @@ NodeExecResult TextRunNode::execute(
             "opacity={:.3f} tx={:.1f} ty={:.1f}",
             m_name,
             chronon3d::hash_text_run_shape(
-                *m_shape,
+                eval_shape,
                 ctx.frame_input.sample_time.integral_frame()),
-            m_shape->glyphs.size(),
+            eval_shape.glyphs.size(),
             result ? result.value().items_drawn : 0u,
             opacity,
             world_matrix[3][0],
@@ -322,7 +321,7 @@ NodeExecResult TextRunNode::execute(
             "[text-run] node='{}' glyphs={} drew={} "
             "opacity={:.3f} tx={:.1f} ty={:.1f}",
             m_name,
-            m_shape->glyphs.size(),
+            eval_shape.glyphs.size(),
             result ? result.value().items_drawn : 0u,
             opacity,
             world_matrix[3][0],

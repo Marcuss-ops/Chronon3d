@@ -75,14 +75,12 @@ private:
     bool m_centered{false};
     bool m_uses_2_5d_projection{false};
 
-    // ── P0-1 / Fase A6 note ──────────────────────────────────────────
-    // TextRunShape items inside m_items are mutated per-frame by
-    // update_text_run_shape_per_frame() inside execute().  Same
-    // immutability violation as TextRunNode — tracked for Phase C.
-    // m_backend_warned (formerly a mutable bool log throttle) was
-    // removed in Fase A6: after the A4+A5 error-propagation fix, the
-    // node returns NodeExecutionError immediately on first failure,
-    // so the per-node-lifetime throttle is dead code.
+    // ── Fase A6 (DONE) — node immutability ───────────────────────────
+    // TextRunShape items inside m_items are READ-ONLY after construction.
+    // Per-frame glyph evaluation happens on a LOCAL clone inside execute(),
+    // so two concurrent frames on different workers never race on the same
+    // glyph vector.  The m_backend_warned mutable throttle was removed in
+    // Fase A4+A5 (nodes return NodeExecutionError immediately on failure).
 };
 
 } // namespace chronon3d::graph
