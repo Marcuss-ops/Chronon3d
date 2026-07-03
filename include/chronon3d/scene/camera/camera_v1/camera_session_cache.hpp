@@ -54,6 +54,10 @@ namespace chronon3d::camera_v1 {
 // subsequent calls reuse the same allocation.
 struct CameraProgram;
 
+// Forward declaration needed by CameraSessionLease's private constructor
+// (which takes CameraSessionCache* before the class is defined below).
+class CameraSessionCache;
+
 /// Number of frames the canonical pre-roll procedure walks back when
 /// priming a session for a stateful program.
 ///
@@ -172,6 +176,8 @@ private:
     // program gets a fresh cache.  Including shot_idx alone keeps the
     // map trivial and matches the per-shot pre-roll window model.
     std::unordered_map<int, Entry> entries_;
+
+    friend class CameraSessionLease;
 
     /// Called by CameraSessionLease::commit() to finalise the lease.
     void commit_lease(int shot_idx, const CameraSession& session,
