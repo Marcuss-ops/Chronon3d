@@ -62,10 +62,8 @@ public:
                                                  Frame frame = 0,
                                                  f32 frame_time = 0.0f) const;
 
-    // Cat-2 font preflight (TICKET-087: in-class decl, gate-3 I3=6)
     [[nodiscard]] chronon3d::FontPreflightSummary preflight_fonts(
-        const chronon3d::Scene& scene,
-        const chronon3d::assets::AssetResolver& resolver);
+        const chronon3d::Scene& scene, const chronon3d::assets::AssetResolver& resolver);
     // ── Construction / destruction ─────────────────────────────────────
     /// Canonical constructor — borrows an existing RenderRuntime.
     explicit SoftwareRenderer(runtime::RenderRuntime& rt, Config config);
@@ -86,7 +84,6 @@ public:
     [[nodiscard]] bool is_diagnostic_mode() const { return m_settings.diagnostics.enabled; }
     void reset_counters();
     [[nodiscard]] const RenderSettings& render_settings() const { return m_settings; }
-    [[nodiscard]] const MotionBlurSettings& motion_blur() const { return m_settings.motion_blur; }
     // ── Cache operations ───────────────────────────────────────────────
     void clear_caches();
     void clear_node_cache()   { node_cache().clear(); }
@@ -146,7 +143,7 @@ public:
     [[nodiscard]] graph::CompiledGraphCache& graph_cache();
     [[nodiscard]] const graph::CompiledGraphCache& graph_cache() const;
     [[nodiscard]] const Config& config() const                            { return m_config; }
-    [[nodiscard]] Config& config()                                        { return m_config; }
+    [[nodiscard]] Config& config() { return m_config; }
     [[nodiscard]] graph::RenderBackend& backend();
     [[nodiscard]] const graph::RenderBackend& backend() const;
     // ── Text render resources ──────────────────────────────────────────
