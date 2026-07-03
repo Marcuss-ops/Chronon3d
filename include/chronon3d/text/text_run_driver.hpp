@@ -1,6 +1,6 @@
+// SPDX-License-Identifier: MIT
 #pragma once
-
-// ═══════════════════════════════════════════════════════════════════════════
+//
 // text_run_driver.hpp — Per-frame driver that wires TextRunLayout (via
 // TextRunShape) into the compositor and animation pipeline (PR 8).
 //
@@ -26,7 +26,15 @@
 // Color/font styling (paint, material, shadows) is preserved across
 // layout swaps — only the immutable layout slot is swapped, and the
 // mutable glyphs vector is re-seeded from the new placed run.
-// ═══════════════════════════════════════════════════════════════════════════
+//
+// M1.5#2 — added `EffectiveTextState` (text + FontLayoutIdentity +
+// direction + language + features) so the fast-path in
+// `apply_active_state_to_text_run_shape` participates in EVERY cache
+// dimension of `build_text_run`, not just text + font.  Pre-M1.5#2 the
+// fast-path silently missed direction/language/features flips — the
+// cache key folded them correctly, so a direction-flip produced a
+// cache MISS in `build_text_run` even when the shape's `layout` slot
+// was not rebuilt, paying a full HarfBuzz pass on every frame.
 
 #include <chronon3d/text/animated_text_document.hpp>
 #include <chronon3d/text/font_engine.hpp>
@@ -35,6 +43,43 @@
 #include <chronon3d/scene/builders/builder_params.hpp>
 
 namespace chronon3d {
+
+// ──────────────────────────────────────────────────────────────────────────
+// M1.5#2 — EffectiveTextState: canonical per-frame text identity.
+// ──────────────────────────────────────────────────────────────────────────
+//
+// The fast-path in `apply_active_state_to_text_run_shape` compares the
+// shape's CURRENT layout state against the TARGET state derived from
+// the `ActiveTextState` sample.  If they're equal, the driver skips
+// `build_text_run` (cache-hit).  EffectiveTextState bundles the five
+// fields that participate in `TextLayoutCacheKey::digest()` so the
+// fast-path sees the SAME identity the cache uses.  Adding a missing
+// dimension here = a false cache hit on `build_text_run`.
+//
+// Pre-M1.5#2 the comparison was source_text + FontLayoutIdentity only
+// (P0-2 fix); direction/language/features were silently ignored even
+// though the cache key folds them (TICKET-103a colligation).  The
+// regression lock in `tests/text/test_effective_text_state.cpp`
+// verifies all 5 dimensions participate.
+
+struct EffectiveTextState {
+    std::string            text;
+    FontLayoutIdentity     font;
+    TextDirection          direction{TextDirection::Auto};
+    Bcp47LanguageTag       language;
+    TextShapingFeatures    features;
+
+    [[nodiscard]] bool operator==(const EffectiveTextState& o) const noexcept {
+        return text      == o.text
+            && font      == o.font
+            && direction == o.direction
+            && language  == o.language
+            && features  == o.features;
+    }
+    [[nodiscard]] bool operator!=(const EffectiveTextState& o) const noexcept {
+        return !(*this == o);
+    }
+};
 
 // ──────────────────────────────────────────────────────────────────────────
 // update_text_run_shape_per_frame — cheap path (no re-shaping)
@@ -91,38 +136,20 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time,
 ///     side.  See `compute_text_run_world_bbox` for the bounding-box
 ///     union and `draw_text_run` for the per-glyph loop.
 ///
-/// Algorithm:
-///   1. Decide `target_text` from `state.transition` + `state.transition_text`.
-///   2. Fast-path: if `shape.layout->source_text == target_text` AND the
-///      layout's font weight/path/style match the active document's
-///      defaults font, skip rebuild on the active side (no-op return).
-///   3. Build a single-paragraph `TextDocument` from `target_text` with
-///      font/style fields copied from the current `shape.layout`.
-///   4. Call `build_text_run` with the shared `TextLayoutCache` so
-///      consecutive frames with the same target text hit cache.
-///   5. Swap the parsed `TextRunLayout` into `shape.layout` (preserving
-///      paint/material/shadows/animators).  Re-seed `shape.glyphs`
-///      from the new placed run via `make_initial_glyph_states`.
-///   6. PR 11 — CrossfadeLayouts lifecycle on `shape.crossfade_*`:
-///        - Inside the gap: shape `state.crossfade_from` via the
-///          same `build_text_run` pipeline; populate
-///          `shape.crossfade_layout`, `shape.crossfade_glyphs`, and
-///          `shape.crossfade_mix`.  Fast-path: skip rebuild when the
-///          existing `shape.crossfade_layout->source_text` matches
-///          `state.crossfade_from->utf8` AND the mix hasn't changed
-///          (cache lookup would hit anyway and re-seeding glyphs is
-///          wasted work for a no-visual-change frame).
-///        - Outside the gap: clear `shape.crossfade_layout`,
-///          `shape.crossfade_glyphs`, and `shape.crossfade_mix` so
-///          the per-frame driver and compositor both short-circuit
-///          on empty slots.
-///   7. Return true (active layout changed) so the caller invalidates
-///      any layout-resident cache downstream.
+/// Algorithm (M1.5#2 decomposition):
+///   1. text_state_sampler::select_target_text(state)        → target_text
+///   2. text_state_sampler::is_in_crossfade_gap(state)       → in_gap
+///   3. text_font_state::compute_effective_font(state, layout) → FontSpec
+///   4. text_layout_rebuild::target_effective_state(...)
+///                                       → EffectiveTextState (target)
+///   5. text_layout_rebuild::current_effective_state(layout) (if any)
+///                                       → EffectiveTextState (current)
+///   6. fast-path: if both states match, return false (no rebuild).
+///   7. otherwise text_layout_rebuild::rebuild_active_side + (if in_gap)
+///      rebuild_crossfade_slot, then swap shape->layout,
+///      re-seed glyphs, and update crossfade_* slots per PR 11 lifecycle.
 ///
-/// @return true iff `shape->layout` (active side) was replaced (caller
-///         may want to invalidate downstream caches); false if a no-op.
-///         The crossfade slot update is informational and does not
-///         gate the return value.
+/// @return true iff active-side layout was replaced.
 /// @param cache — TextLayoutCache* for layout reuse.  Must be non-null
 /// in production; nullptr in tests uses a local throwaway cache.
 [[nodiscard]] bool apply_active_state_to_text_run_shape(
@@ -142,7 +169,7 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time,
 /// follows a Scramble / Morph / CrossfadeLayouts path.
 ///
 /// Purpose
-/// -------
+/// ------
 /// The per-frame driver (`update_text_run_shape_per_frame`) calls
 /// `apply_active_state_to_text_run_shape` on every frame.  For
 /// Scramble / Morph that path runs `build_text_run` (HarfBuzz shaping)
@@ -156,47 +183,21 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time,
 /// first lookup.  The hook is idempotent: storing the same key twice
 /// is a no-op (or, depending on LRU, a fresh LRU promotion).
 ///
+/// Implementation (M1.5#2): delegates to text_state_sampler +
+/// text_font_state + text_layout_rebuild::prewarm_for_frame, symmetric
+/// with `apply_active_state_to_text_run_shape` so the cache key we
+/// build lines up with the key the driver will hit.
+///
 /// Pre-conditions
-/// ---------------
+/// --------------
 ///   * `shape.animated_doc` must be non-null — otherwise no-op.
-///   * `shape.engine`      must be non-null — otherwise no-op (the
-///                          confirm-skip is logged once at debug
-///                          level so production telemetry stays quiet).
+///   * `shape.engine`      must be non-null — otherwise no-op.
 ///   * `frame` must be a valid integral frame.
 ///
 /// Returns `true` when a new layout was inserted into the shared
 /// cache.  Returns `false` for no-op (static shape, no engine,
 /// empty target_text, or layout already cached).
 ///
-/// Caller responsibility: the hook populates the cache but does NOT
-/// invalidate any executor-level per-frame node cache.  When the
-/// executor runs at `frame`, the new transition_text produces a
-/// different `hash_text_run_shape` (the PR 10 sample-time overload
-/// folds transition_text + morph_map), so the NodeCache layer
-/// naturally invalidates via the new key.
-///
-/// Performance
-/// -----------
-/// Cost is bounded by HarfBuzz shaping + paragraph composition for
-/// one TextDocument (the worst case is the first call on a fresh
-/// scene).  After this call, every subsequent frame with the same
-/// transition_text shares the cached layout — the hot path becomes
-/// O(1) cache lookup.
-///
-/// Thread-safety: the helper writes to the shared_text_layout_cache()
-/// singleton, which is internally thread-safe.  Concurrent callers
-/// may race but the cache is idempotent on the same key.
-///
-/// Success-path coverage: tests/text/test_prewarm_text_layout_cache.cpp
-/// (PR 11) exercises the cache-write path with tests/fixtures/Inter-Bold.ttf
-/// loaded via explicit FontSpec — no system-font dependency, fully
-/// deterministic across CI environments.  Covers static (Hold) prewarm,
-/// Scramble prewarm, idempotency, per-frame distinctness, and settled
-/// tail caching.
-///
-/// Prerequisite for the test: tests/fixtures/Inter-Bold.ttf must be present
-/// (a copy of assets/fonts/Inter-Bold.ttf, tracked by git).  The test bails
-/// with REQUIRE(engine.can_load(...)) if the fixture is missing.
 /// @param cache — TextLayoutCache* for layout reuse.  Must be non-null
 /// in production; nullptr in tests uses a local throwaway cache.
 [[nodiscard]] bool prewarm_text_run_layout_for_frame(

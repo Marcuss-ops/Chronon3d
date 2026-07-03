@@ -31,7 +31,13 @@ add_library(chronon3d_text_core OBJECT
     text_resolver.cpp
     text_run.cpp
     text_run_builder.cpp
+    # M1.5#2 — text_run_driver.cpp slimmed into an orchestrator that
+    # delegates the slow-path / prewarm stages to single-responsibility
+    # helpers under driver/.  Internal-only (NOT in include/chronon3d/).
     text_run_driver.cpp
+    driver/text_state_sampler.cpp
+    driver/text_font_state.cpp
+    driver/text_layout_rebuild.cpp
     text_run_geometry.cpp
     unicode/utf8_decoder.cpp
     unicode/whitespace.cpp
