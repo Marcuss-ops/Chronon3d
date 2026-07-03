@@ -32,13 +32,9 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/render_pipeline.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
-#include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/software/runtime_adapter.hpp>  // Fase A2 — attach_software_backend factory
 #include <chronon3d/assets/asset_registry.hpp>
-
-// TICKET-118/119 — internal bridge reachable via PUBLIC include from
-// `chronon3d_backend_software` (see src/backends/software/CMakeLists.txt).
-#include "internal/software_processor_services.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -74,27 +70,12 @@ struct RenderEngine::Impl {
     {
         m_renderer->set_image_backend(std::make_shared<image::StbImageBackend>());
 
-        // TICKET-011 + Fase 1 services-validation — build the
-        // SoftwareBackendServices bundle (NO `owner` field — TICKET-118
-        // contractive removal) and route through `make_software_backend`
-        // so all REQUIRED services are validated at construction.  The
-        // orchestrator-only `ProcessorSourceExtras` (registry /
-        // image_backend / font_engine) are attached post-construction via
-        // `SoftwareBackend::attach_processor_context(...)`.
-        chronon3d::SoftwareBackendServices services{
-            /* counters           = */ m_renderer->counters(),
-            /* settings           = */ &m_renderer->render_settings(),
-            /* framebuffer_pool   = */ m_runtime.framebuffer_pool_shared(),
-            /* asset_resolver     = */ &m_runtime.resolver(),
-            /* text_resources     = */ m_renderer->text_render_resources(),
-            /* images             = */ nullptr,
-            /* text_raster        = */ nullptr,
-            /* debug_config       = */ nullptr,
-        };
-        auto backend = make_software_backend(services).value();
-        attach_processor_context_to_backend_impl(backend.get(), services);
-        // Fase C2 — attach_backend() is @deprecated; direct wiring inside Impl
-        m_runtime.attach_backend(std::move(backend));
+        // Fase A2 — unify backend construction through the canonical
+        // `attach_software_backend()` factory (runtime_adapter.hpp).
+        // This replaces the previously-inlined services bundle +
+        // make_software_backend + attach_processor_context sequence
+        // that was duplicated across 3 files.
+        chronon3d::backends::software::attach_software_backend(m_renderer.get());
 
         // TICKET-011a follow-up #1 — publish the RenderPipeline facade.
         m_pipeline.emplace(m_renderer.get(), m_runtime);
@@ -106,31 +87,6 @@ struct RenderEngine::Impl {
         } else {
             spdlog::debug("RenderEngine::Impl: constructed; runtime backend attached");
         }
-    }
-
-    // TICKET-118/119 — inline the orchestrator-only processor-context
-    // attachment on an already-constructed unique_ptr<SoftwareBackend>.
-    // The CALLER retains ownership of `backend` until the subsequent
-    // `m_runtime.attach_backend(std::move(backend))` (which transfers
-    // ownership to the runtime exactly once).  We only DEREF the raw
-    // pointer here to set up `m_proc_ctx`; we never wrap it in a new
-    // unique_ptr (that would double-free).  This mirrors the
-    // `runtime_adapter.cpp` pattern 1:1 — see that file for the
-    // canonical version.
-    template <typename SoftwareBackendT>
-    void attach_processor_context_to_backend_impl(
-        SoftwareBackendT* backend,
-        const chronon3d::SoftwareBackendServices& services
-    ) {
-        chronon3d::backends::software::internal::ProcessorSourceExtras extras{};
-        extras.registry      = &m_renderer->software_registry();
-        extras.image_backend = m_renderer->image_backend();
-#ifdef CHRONON3D_HAS_BACKEND_TEXT
-        extras.font_engine   = &m_renderer->font_engine();
-#endif
-        backend->attach_processor_context(
-            chronon3d::backends::software::internal::make_processor_context(
-                services, extras));
     }
 
     ~Impl() = default;
