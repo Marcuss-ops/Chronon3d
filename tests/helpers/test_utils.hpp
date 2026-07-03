@@ -66,7 +66,15 @@ inline void attach_software_backend(SoftwareRenderer* renderer) {
     backend->attach_processor_context(
         backends::software::internal::make_processor_context(services, extras));
 
+    // Fase C2 — suppress deprecation warning; this is an internal test bridge.
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
     renderer->runtime().attach_backend(std::move(backend));
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 }
 
 inline SoftwareRenderer make_renderer() {
