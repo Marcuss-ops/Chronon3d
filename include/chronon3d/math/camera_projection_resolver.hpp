@@ -28,7 +28,7 @@
 /// | Screen origin     = CENTRE (centred coords)          |
 /// | Framebuffer Y     = DOWN  (top-left origin)          |
 /// | Rotation order    = ZYX (yaw -> pitch -> roll)       |
-/// | Focal length     = camera_math::focal_from_camera() |
+/// | Focal length     = camera_math::focal_xy_from_camera() |
 /// | Perspective scale = focal / camera_depth             |
 /// | Backface test     = camera-space normal.z < 0        |
 /// | Near plane        = z >= kNearClipZ                  |
@@ -131,7 +131,7 @@ struct CameraProjectionResolver {
     static ProjectedLayer project_layer(const CameraProjectionInput& input) {
         ProjectedLayer out;
 
-        const f32 focal = camera_math::focal_from_camera(
+        const camera_math::FocalPx focal_xy = camera_math::focal_xy_from_camera(
             input.camera, input.viewport.width, input.viewport.height);
         const Mat4 view = camera_math::view_matrix_for_camera(input.camera);
 
@@ -186,7 +186,7 @@ struct CameraProjectionResolver {
         if (input.enable_frustum_culling) {
             out.frustum_result = test_frustum_culling(
                 cam_min_x, cam_max_x, cam_min_y, cam_max_y, cam_min_z, cam_max_z,
-                focal, input.viewport.width, input.viewport.height,
+                focal_xy, input.viewport.width, input.viewport.height,
                 input.far_plane);
             if (out.frustum_result == FrustumResult::Outside) {
                 out.visible = false;
@@ -286,6 +286,7 @@ struct CameraProjectionResolver {
         out.corner_count = corner_count;
 
         // -- 9. Perspective projection to centred screen coords ----------------
+        // TICKET-035: per-axis perspective scale for anamorphic / Stretch.
         f32 depth_sum = 0.0f;
         f32 max_ps = 0.0f;
 
@@ -293,14 +294,15 @@ struct CameraProjectionResolver {
             const Vec3& cp = clipped_corners[i];
             const f32 safe_z = (cp.z > camera_math::kNearClipZ)
                              ? cp.z : camera_math::kNearClipZ;
-            const f32 ps = (safe_z > 0.0f) ? focal / safe_z : 0.0f;
-            max_ps = std::max(max_ps, ps);
+            const f32 ps_x = (safe_z > 0.0f) ? focal_xy.x / safe_z : 0.0f;
+            const f32 ps_y = (safe_z > 0.0f) ? focal_xy.y / safe_z : 0.0f;
+            max_ps = std::max(max_ps, ps_y);
             depth_sum += safe_z;
 
             // Centred screen coords with Y inversion
             out.corners[i] = {
-                cp.x * ps,      // centred X
-                -cp.y * ps,     // centred Y (INVERTED -- Y-down convention)
+                cp.x * ps_x,    // centred X (per-axis scale)
+                -cp.y * ps_y,   // centred Y (INVERTED -- Y-down convention)
                 safe_z          // camera-space depth
             };
             out.uvs[i] = clipped_uvs[i];
@@ -341,15 +343,16 @@ struct CameraProjectionResolver {
     // Tests the camera-space bounding box against the 6 frustum planes.
     // The frustum is defined by the FOV and viewport aspect ratio.
     // Returns Inside / Intersects / Outside.
+    // TICKET-035: per-axis focal for anamorphic / Stretch frustum planes.
     static FrustumResult test_frustum_culling(
         f32 min_x, f32 max_x,
         f32 min_y, f32 max_y,
         f32 min_z, f32 max_z,
-        f32 focal, f32 vp_width, f32 vp_height,
+        camera_math::FocalPx focal_xy, f32 vp_width, f32 vp_height,
         f32 far_plane = kFarClipZ)
     {
-        const f32 tan_half_fov_v = (vp_height * 0.5f) / focal;
-        const f32 tan_half_fov_h = (vp_width  * 0.5f) / focal;
+        const f32 tan_half_fov_v = (vp_height * 0.5f) / focal_xy.y;
+        const f32 tan_half_fov_h = (vp_width  * 0.5f) / focal_xy.x;
 
         const Vec3 corners[8] = {
             {min_x, min_y, min_z}, {max_x, min_y, min_z},
@@ -511,10 +514,11 @@ struct CameraProjectionResolver {
     }
 
     // -- Build the 4x4 perspective projection matrix (backward compat) ---------
-    static Mat4 build_perspective_matrix(f32 focal) {
+    // TICKET-035: per-axis focal_x / focal_y for anamorphic / Stretch.
+    static Mat4 build_perspective_matrix(const camera_math::FocalPx& focal_xy) {
         Mat4 proj(0.0f);
-        proj[0][0] = focal;
-        proj[1][1] = -focal;
+        proj[0][0] = focal_xy.x;
+        proj[1][1] = -focal_xy.y;
         proj[2][2] = 1.0f;
         proj[2][3] = 1.0f;
         proj[3][3] = 0.0001f;
@@ -526,10 +530,10 @@ struct CameraProjectionResolver {
         const CameraProjectionSource& camera, const Mat4& world_transform,
         f32 viewport_width, f32 viewport_height)
     {
-        const f32 focal = camera_math::focal_from_camera(
+        const camera_math::FocalPx focal_xy = camera_math::focal_xy_from_camera(
             camera, viewport_width, viewport_height);
         const Mat4 view = camera_math::view_matrix_for_camera(camera);
-        return build_perspective_matrix(focal) * view * world_transform;
+        return build_perspective_matrix(focal_xy) * view * world_transform;
     }
 };
 
