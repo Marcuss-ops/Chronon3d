@@ -330,10 +330,12 @@ Camera2_5D ShotTimelineResolver::evaluate(int frame,
         // Use persistent sessions so DampedFollow survives across frames.
         // CameraEvalContext has no base_target — the compiled path reads
         // base state from the descriptor (CameraBaseSpec) directly.
-        auto ctx_from = CameraEvalContext::at(local_frame);
+        // CAM-05: explicit FrameRate (TODO: plumb from composition/project).
+        constexpr FrameRate kTimelineFps{30, 1};
+        auto ctx_from = CameraEvalContext::at(local_frame, kTimelineFps);
 
         int next_local = frame - pair.next->start_frame;
-        auto ctx_to = CameraEvalContext::at(std::max(0, next_local));
+        auto ctx_to = CameraEvalContext::at(std::max(0, next_local), kTimelineFps);
 
         auto& s_from = timeline_session.session_for(pair.idx);
         auto& s_to   = timeline_session.session_for(pair.idx + 1);
@@ -348,7 +350,8 @@ Camera2_5D ShotTimelineResolver::evaluate(int frame,
     // No transition — evaluate the current shot directly with local time.
     // CameraEvalContext has no base_target; the compiled path uses the
     // descriptor's CameraBaseSpec directly for base state.
-    auto ctx = CameraEvalContext::at(local_frame);
+    constexpr FrameRate kTimelineFps{30, 1};
+    auto ctx = CameraEvalContext::at(local_frame, kTimelineFps);
 
     auto& shot_session = timeline_session.session_for(pair.idx);
     return shot.program.evaluate(ctx, shot_session).camera;

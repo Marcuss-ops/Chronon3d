@@ -38,10 +38,11 @@ struct CameraMotionContext {
     f32           scene_unit_scale{1.0f};    ///< Unit scale of the scene (for unit-conversion).
 
     /// Factory: a deterministic context at integer frame `f`, no sub-frame.
-    static CameraMotionContext at(Frame f) {
+    /// CAM-05: FrameRate is now explicit — no more hardcoded 30 fps default.
+    static CameraMotionContext at(Frame f, FrameRate frame_rate) {
         CameraMotionContext c;
         c.frame = f;
-        c.sample_time = SampleTime::from_frame_int(f, FrameRate{30, 1});
+        c.sample_time = SampleTime::from_frame_int(f, frame_rate);
         return c;
     }
 };
@@ -75,10 +76,15 @@ struct CameraEvalContext {
     const ResolvedSceneTransforms* transforms{nullptr};
 
     /// Factory: a deterministic context at integer frame `f`, no sub-frame.
-    static CameraEvalContext at(Frame f) {
+    /// CAM-05: FrameRate is now explicit — no more hardcoded 30 fps default.
+    static CameraEvalContext at(Frame f, FrameRate frame_rate,
+                                 std::int32_t vp_w = 1920,
+                                 std::int32_t vp_h = 1080) {
         CameraEvalContext c;
         c.frame = f;
-        c.sample_time = SampleTime::from_frame_int(f, FrameRate{30, 1});
+        c.sample_time = SampleTime::from_frame_int(f, frame_rate);
+        c.viewport_width = vp_w;
+        c.viewport_height = vp_h;
         return c;
     }
 };
