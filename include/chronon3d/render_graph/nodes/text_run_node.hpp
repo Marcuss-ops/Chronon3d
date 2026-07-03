@@ -107,14 +107,12 @@ private:
     std::optional<Mat4> m_matrix_override;
     std::optional<f32> m_opacity_override;
 
-    // ── P0-1 / Fase A6 note ──────────────────────────────────────────
-    // m_shape is mutated per-frame by update_text_run_shape_per_frame()
-    // inside execute().  This violates the immutability contract for
-    // compiled graph nodes and creates a data race when two workers
-    // evaluate parallel frames or when random-access rendering overlaps
-    // with glyph mutation.  The fix — splitting TextRunShape into an
-    // immutable TextRunProgram + per-frame EvaluatedTextRun — is tracked
-    // for Phase C (post-feature-freeze).
+    // ── Fase A6 (DONE) — node immutability ───────────────────────────
+    // m_shape is READ-ONLY after construction.  Per-frame glyph
+    // evaluation happens on a LOCAL clone inside execute(), so two
+    // concurrent frames on different workers never race on the same
+    // glyph vector.  The immutable layout (shared_ptr<const>) is
+    // shared across frames without copying.
 };
 
 } // namespace chronon3d::graph

@@ -88,11 +88,14 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
 
 cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) const {
     auto key = m_key;
-    // Strip the frame number — the items' full world matrices (embedded in
-    // the loop below) already capture frame-to-frame animation changes, so
-    // the frame dimension adds no useful discrimination.  This lets the LRU
-    // cache reuse a rendered result across frames that share the same
-    // effective transform (e.g. settled tail of an animation).
+    // Fase A6 — frame discriminator for animator-driven text changes.
+    // With glyphs no longer mutated in-place, the text_run hash fold
+    // below only captures doc-driven changes (Scramble/Morph/Crossfade).
+    // Animator-driven changes (position/opacity/scale/blur per-frame)
+    // need the frame number to invalidate the cache.  Fold the integral
+    // frame so consecutive frames with different animator states don't
+    // share a stale entry.
+    key.params_hash = hash_combine(key.params_hash, hash_value(static_cast<u64>(ctx.frame_input.sample_time.integral_frame())));
     key.frame = Frame{0};
     key.params_hash = hash_combine(key.params_hash, static_cast<u64>(ctx.policy.modular_coordinates));
 
@@ -180,13 +183,16 @@ NodeExecResult MultiSourceNode::execute(
             if (!item.node) continue;
 
 #ifdef CHRONON3D_ENABLE_TEXT
-            // ── text_run branch ─────────────────────────────────────
+            // ── text_run branch (Fase A6: clone-before-mutate) ─────
             if (item.node->shape.type() == ShapeType::TextRun) {
                 auto run_shape = item.node->shape.text_run_shape_handle().value;
                 if (!run_shape) {
                     continue;
                 }
-                chronon3d::update_text_run_shape_per_frame(*run_shape, ctx.frame_input.sample_time);
+                // Fase A6 — never mutate the shared shape. Clone glyphs
+                // locally, evaluate into the clone, pass clone to backend.
+                TextRunShape local_shape = *run_shape;
+                chronon3d::update_text_run_shape_per_frame(local_shape, ctx.frame_input.sample_time);
 
                 Mat4 world_matrix;
                 if (m_uses_2_5d_projection || m_centered) {
@@ -208,7 +214,7 @@ NodeExecResult MultiSourceNode::execute(
                 }
 
                 auto result = ctx.services.backend->draw_text_run(
-                    *fb, *run_shape, world_matrix,
+                    *fb, local_shape, world_matrix,
                     item.opacity);
 
                 if (!result) {
@@ -232,7 +238,7 @@ NodeExecResult MultiSourceNode::execute(
                         result ? result.value().items_drawn : 0u,
                         item.node->shape.text_run_shape_handle().value->glyphs.size(),
                         chronon3d::hash_text_run_shape(
-                            *item.node->shape.text_run_shape_handle().value,
+                            local_shape,
                             ctx.frame_input.sample_time.integral_frame()),
                         item.opacity,
                         world_matrix[3][0],
