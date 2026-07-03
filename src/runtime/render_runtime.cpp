@@ -68,6 +68,48 @@ RenderRuntime::RenderRuntime(chronon3d::Config config)
     populate();
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Fase C2 — unified factory (canonical construction path)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The factory wraps the single-arg constructor + optional asset mounting
+// into a Result-returning static method.  If `populate()` throws (e.g.
+// scheduler construction failure), the exception is caught and converted
+// to a RuntimeBuildError.  Asset mount failures (invalid path, IO error)
+// also produce a structured error instead of propagating an exception
+// out of the constructor.
+//
+// Backend attachment is deliberately NOT in this factory — the backend
+// depends on per-instance state from SoftwareRenderer (counters, settings)
+// which is constructed at a higher level (RenderEngine::Impl).  The
+// higher-level orchestration calls the (now-deprecated) attach_backend()
+// through suppression-guarded internal bridges (runtime_adapter.cpp,
+// test_utils.hpp).
+
+Result<RenderRuntime, RuntimeBuildError>
+RenderRuntime::create(RuntimeConfig cfg) {
+    try {
+        RenderRuntime runtime(std::move(cfg.config));  // calls populate()
+
+        if (cfg.assets_root.has_value()) {
+            runtime.resolver().mount(*cfg.assets_root);
+            runtime.assets().mount(*cfg.assets_root);
+        }
+
+        return runtime;  // implicit Result(T&&)
+    } catch (const std::exception& e) {
+        return RuntimeBuildError{
+            RuntimeBuildError::Code::InternalError,
+            std::string{"RenderRuntime::create(): populate failed — "} + e.what()
+        };
+    } catch (...) {
+        return RuntimeBuildError{
+            RuntimeBuildError::Code::InternalError,
+            "RenderRuntime::create(): populate failed — unknown exception"
+        };
+    }
+}
+
 RenderRuntime::~RenderRuntime() = default;
 
 void RenderRuntime::populate() {

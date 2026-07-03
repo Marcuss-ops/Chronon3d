@@ -4,6 +4,7 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/core/config.hpp>
+#include <chronon3d/core/types/result.hpp>     // Result<T,E> for create() factory
 
 // ----------------------------------------------------------------------
 // runtime/render_runtime.hpp
@@ -78,7 +79,9 @@
 // SoftwareRegistry ownership moved to SoftwareRenderer; make_session /
 // session_services moved to backends/software/runtime_adapter.hpp.
 
+#include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace chronon3d {
@@ -95,6 +98,30 @@ namespace chronon3d::cache {
 
 namespace chronon3d::runtime {
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Fase C2 — RuntimeBuildError + RuntimeConfig + create() factory
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Structured error returned by RenderRuntime::create() when construction fails.
+struct RuntimeBuildError {
+    enum class Code {
+        InternalError,      ///< Unspecified failure during populate().
+        AssetMountFailed,   ///< assets_root path could not be mounted.
+    };
+
+    Code        code{Code::InternalError};
+    std::string message;
+};
+
+/// Configuration bundle for the unified RenderRuntime::create() factory.
+/// Wraps engine Config with an optional assets_root path (seeds the
+/// per-runtime resolver, replacing the process-wide global fallback).
+struct RuntimeConfig {
+    chronon3d::Config                           config;
+    std::optional<std::filesystem::path>        assets_root;
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
 /// Engine-generic service-locator bundle owned by RenderRuntime.
 ///
 /// HUD: flat pointer bundle so that sessions / per-call contexts
@@ -132,6 +159,15 @@ public:
     explicit RenderRuntime(chronon3d::Config config);
     ~RenderRuntime();
 
+    // ── Fase C2 — Unified factory (canonical construction path) ──────────
+    /// Static factory: constructs a fully-populated RenderRuntime from
+    /// a RuntimeConfig bundle.  Returns RuntimeBuildError on failure
+    /// (e.g. asset mount failure) instead of throwing from a constructor.
+    /// The runtime is immediately usable after create() returns; backend
+    /// attachment is handled by the higher-level RenderEngine layer.
+    [[nodiscard]] static Result<RenderRuntime, RuntimeBuildError>
+    create(RuntimeConfig cfg);
+
     // Non-copyable, movable.
     RenderRuntime(const RenderRuntime&) = delete;
     RenderRuntime& operator=(const RenderRuntime&) = delete;
@@ -145,13 +181,12 @@ public:
     /// The backend is NOT allocated here — see attach_backend().
     void populate();
 
-    /// @deprecated Fase C2 — backend attachment is now done inside
-    /// RenderEngine::Impl's unified constructor.  Post-construction
-    /// attach is no longer the canonical path; future factory methods
-    /// will construct the runtime with the backend already wired.
-    /// After attach_backend() the runtime is the sole owner of the
-    /// backend for the rest of the engine lifetime.
-    [[deprecated("Backend is now attached inside RenderEngine::Impl constructor")]]
+    /// @deprecated Fase C2 — use RenderRuntime::create(RuntimeConfig)
+    /// for new code.  Backend attachment is now the responsibility of
+    /// higher-level orchestration (RenderEngine::Impl, runtime_adapter).
+    /// Internal bridge sites (runtime_adapter.cpp, test utils) may
+    /// suppress -Wdeprecated-declarations when calling this method.
+    [[deprecated("Use RenderRuntime::create(RuntimeConfig) instead; internal bridges may suppress this warning")]]
     void attach_backend(std::unique_ptr<chronon3d::graph::RenderBackend> backend);
 
     // ── Configuration ────────────────────────────────────────────────
