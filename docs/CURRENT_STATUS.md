@@ -1,14 +1,15 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@d8a228f7` (Fase C2 — unified Impl ctor) — 2026-07-02. Linux-only.
+> **Snapshot:** `main@a53a8d25` (docs(changelog): archive H1-2026) — 2026-07-03. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@aaf70032` (10/11 PASS — vedi [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md)).
-> **Baseline corrente:** `main@c40ba16f` — **10/11 PASS** osservato (gate #10 fix pushed in due commit consecutivi: `21b9fb5d` CMake + `75035f2b` (ora `c40ba16f` post-rebase) runtime default-arg chain on `RenderPipeline::debug_graph`); Phase 4 end-to-end machine-verify ancora da confermare per promuovere a baseline.
-> Gate #4 RISOLTO: `check_gitignored_dirs.sh` — `reports/perf/` aggiunto a `.gitignore` (commit `f6f700b1`).
-> Gate #10 doppio fix pushed su `main`: (a) commit `21b9fb5d` cmake/Chronon3DRegistry.cmake case-fix TBB/xxHash + 44-entry bulk-insert cmake/Chronon3DPublicHeaders.cmake; (b) commit `75035f2b` runtime::RenderPipeline::debug_graph default-arg chain (`float fps = 0.0f` sentinel) per chiudere il C++ syntax error esposto da upstream `6df9b429`. Entrambi sono Cat-1 (build corrections).
-> Gate #8 borderline PASS: `check_filename_drift.sh` exit 0 ma 155 warning drift.
+> **Baseline corrente:** `main@a53a8d25` — **8/11 PASS** osservato (audit del 2026-07-03).
+> Gate #3 REGRESSION: `check_software_renderer_boundary.sh` I2 — `software_renderer.hpp` LOC=203 > 200 (3 linee sopra il limite).
+> Gate #7 REGRESSION: `check_doc_sync.sh` R0 — commit `a53a8d25` ha archiviato CHANGELOG in `docs/ARCHIVE/CHANGELOG_2026_H1.md`, violando il gate R0.
+> Gate #10 ANCORA FAIL: `install_consumer_test.sh` — "Disk quota exceeded" su PCH file (224MB ciascuno, ccache 5.0G). Build si ferma all'unità 28/340. Regressione infrastrutturale, non di codice.
+> Gate #8: 73 drift warning (in miglioramento da 155).
 >
-> Tra `aaf70032` e l'HEAD corrente sono atterrati: TICKET-118/119, P0 #1–#2, P1 #1–#5 fixes, P1 #7 (`16efb496`), P1 #10 (`6df9b429` + `560750e3`), P1 #12 (`59b2439f`), gate #4 fix (`f6f700b1`), gate #10 analyze_scene_graph fix (`560750e3`), ticket P1-07..P1-12 individuali (`0295203d`), doc sync commits (`6d951079`, `96e6e88e`), CMake TitleCase + transitive header fix (`21b9fb5d`), runtime::RenderPipeline default-arg chain fix (`75035f2b` → `c40ba16f` post-rebase).
+> P0 #1 (TextRunNode error propagation) e P0 #2 (FontLayoutIdentity) sono CHIUSI e verificati su questo commit.
 >
 > Documenti canonici (vedi [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) per il contratto):
 > - Regole operative / feature freeze: [`AGENTS.md`](../AGENTS.md)
@@ -76,10 +77,8 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 ## Certificazione corrente
 
 Ultima baseline macchina-verificata: `main@aaf70032` — **10/11 PASS**.
-Baseline corrente: `main@c40ba16f` — **10/11 PASS osservato** (NON VERDE formale; gate #10 ha due fix pushed in `21b9fb5d` + `75035f2b`, ma manca la CI machine-verified Phase 4 verde per poter revocare il feature freeze).
-Gate #4 (gitignored dirs) risolto da `f6f700b1`.
-Gate #7 (doc-sync) PASS nella run corrente.
-Gate #10: due patch pushed in `21b9fb5d` (cmake) + `75035f2b` (runtime). Per la revoca formale serve run `tools/install_consumer_test.sh` end-to-end su `c40ba16f` con tutte le fasi 1.1–4 verdi.
+Audit corrente: `main@a53a8d25` — **8/11 PASS** (3 regressioni: gate #3 I2 LOC, gate #7 R0 ARCHIVE, gate #10 Disk quota).
+Nessuna baseline certificata oltre `aaf70032`.
 Per la revoca del **feature freeze** (vedi `AGENTS.md`) è richiesto **11/11 PASS sullo stesso commit**.
 Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA, una sola baseline per commit).
 
@@ -96,7 +95,10 @@ Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA,
 
 ## Prossimo passo operativo
 
-Chiudere gate #10 (install_consumer_test.sh) per raggiungere 11/11 PASS, poi revocare formalmente il feature freeze. I P1 #7, #8, #9, #11 sono pianificati post-baseline verde.
+1. **Gate #3:** Ridurre `software_renderer.hpp` da 203 a ≤200 LOC (tagliare 3 linee).
+2. **Gate #7:** Risolvere la violazione R0 — o aggiornare il gate per consentire archival via commit espliciti, o revert/write un workaround.
+3. **Gate #10:** Liberare spazio su /tmp o usare `TMPDIR` alternativo; ripulire ccache (`ccache -C`); ri-eseguire `install_consumer_test.sh`.
+4. Raggiungere 11/11 PASS sullo stesso commit, poi revocare formalmente il feature freeze.
 
 ## Link canonici
 
@@ -110,7 +112,25 @@ Chiudere gate #10 (install_consumer_test.sh) per raggiungere 11/11 PASS, poi rev
 - [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) — contratto documentale (single-source-of-truth).
 - [`docs/ARCHIVE/`](docs/ARCHIVE/) — materiale storico (non operativo; nessun riferimento operativo consentito).
 
-## Gate audit snapshot — `main@c40ba16f` (2026-07-02, post-rebase + runtime-fix)
+## Gate audit snapshot — `main@a53a8d25` (2026-07-03, audit fresco)
+
+| # | Gate                                        | Esito      | Note                                                                       |
+|---|---------------------------------------------|------------|----------------------------------------------------------------------------|
+| 1 | `check_architecture_boundaries.sh`          | ✅ PASS    | 14/15 check, 3 advisory (10, 12, 13 — non-blocking).                      |
+| 2 | `check_architecture_boundaries_selftest.sh` | ✅ PASS    | 15/15 assertions.                                                          |
+| 3 | `check_software_renderer_boundary.sh`       | ❌ FAIL    | I2: `software_renderer.hpp` LOC=203 > 200.                                 |
+| 4 | `check_gitignored_dirs.sh`                  | ✅ PASS    | 31 directory, tutte pulite.                                                |
+| 5 | `audit_software_renderer.sh`                | ✅ PASS    | Report generato.                                                           |
+| 6 | `check_camera_architecture.sh`              | ✅ PASS    | 6/6 check.                                                                 |
+| 7 | `check_doc_sync.sh`                         | ❌ FAIL    | R0: commit `a53a8d25` ha toccato `docs/ARCHIVE/CHANGELOG_2026_H1.md`.     |
+| 8 | `check_filename_drift.sh`                   | ⚠️ PASS*   | warn-mode; 73 drift warning (↓ da 155).                                    |
+| 9 | `test_architectural.sh`                     | ✅ PASS    | Static architecture-level rot: 0.                                          |
+| 10 | `install_consumer_test.sh`                | ❌ FAIL    | "Disk quota exceeded" su PCH (224MB/file, ccache 5.0G); unit 28/340. Regressione infrastrutturale. |
+| 11 | `check_backend_sanitization.py`            | ✅ PASS    | Tutti i check passati.                                                     |
+
+**Totale: 8/11 PASS** — 3 regressioni da chiudere: gate #3 (I2 LOC), gate #7 (R0 ARCHIVE), gate #10 (disk quota).
+
+## Gate audit snapshot — `main@c40ba16f` (2026-07-02, post-rebase + runtime-fix — HISTORICAL)
 
 | # | Gate                                        | Esito      | Note                                                                       |
 |---|---------------------------------------------|------------|----------------------------------------------------------------------------|
@@ -123,10 +143,10 @@ Chiudere gate #10 (install_consumer_test.sh) per raggiungere 11/11 PASS, poi rev
 | 7 | `check_doc_sync.sh`                         | ✅ PASS    |                                                                            |
 | 8 | `check_filename_drift.sh`                   | ⚠️ PASS*   | warn-mode; 155 drift warning.                                              |
 | 9 | `test_architectural.sh`                     | ✅ PASS    | Static architecture-level rot: 0.                                          |
-| 10 | `install_consumer_test.sh`                | ⚠️ FIX PENDING (triple) | (a) `21b9fb5d` cmake case-fix + 44 transitive headers; (b) `75035f2b` runtime default-arg chain su `RenderPipeline::debug_graph`; (c) TICKET-Phase4-BlurTierRadii constexpr array `{{0,2,7,13,20}}` per il blur-tables. End-to-end Phase 4 verde ancora da confermare. |
+| 10 | `install_consumer_test.sh`                | ⚠️ FIX PENDING (triple) | (a) `21b9fb5d` cmake case-fix + 44 transitive headers; (b) `75035f2b` runtime default-arg chain su `RenderPipeline::debug_graph`; (c) TICKET-Phase4-BlurTierRadii constexpr array `{{0,2,7,13,20}}` per il blur-tables. |
 | 11 | `check_backend_sanitization.py`            | ✅ PASS    |                                                                            |
 
-**Totale: 10/11 PASS** — gate #10 doppio-fix landed; machine-verified Phase 4 verde ancora richiesto per la revoca formale del feature freeze e per promuovere `c40ba16f` a baseline macchina-verificata.
+**Totale storico: 10/11 PASS** osservato su `c40ba16f`.
 
 _Limite raccomandato: 150 righe (vedi `DOCUMENTATION_GOVERNANCE.md` DoD §10)._
 
