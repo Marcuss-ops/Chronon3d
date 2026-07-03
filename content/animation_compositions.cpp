@@ -73,7 +73,7 @@ Composition anim_typewriter() {
             .tracking = 3.0f,
             .chars_per_frame = 0.3f,
             .easing = EasingCurve{Easing::OutCubic},
-        }, ctx.frame, chronon3d::runtime::process_wide_resolver());
+        }, ctx.frame, s_test_resolver);
         return s.build();
     });
 }

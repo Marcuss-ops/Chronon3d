@@ -32,7 +32,6 @@ void setup_render_job(const CompositionRegistry& registry,
     // directory.  Once `create_renderer(...)` is called below and
     // the engine publishes its active runtime, this fallback is
     // shadowed by RenderRuntime::default_assets_root().
-    chronon3d::runtime::set_process_wide_assets_root(
         std::filesystem::current_path().string());
 
     profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);

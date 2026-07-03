@@ -1,3 +1,4 @@
+static chronon3d::TextLayoutCache s_text_cache;
 // ═══════════════════════════════════════════════════════════════════════════
 // tests/text/test_text_unit_map_joint_include.cpp
 //
@@ -105,7 +106,7 @@ struct LocalEngine {
 };
 
 inline void reset_layout_cache_for_test() {
-    chronon3d::reset_shared_text_layout_cache();
+    chronon3d::reset_s_text_cache;
 }
 
 [[nodiscard]] TextRunParams make_test_params(

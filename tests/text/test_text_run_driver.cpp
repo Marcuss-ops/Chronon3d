@@ -1,3 +1,4 @@
+static chronon3d::TextLayoutCache s_text_cache;
 // ═══════════════════════════════════════════════════════════════════════════
 // test_text_run_driver.cpp — Per-frame TextRun driver tests (PR 8)
 //
@@ -46,7 +47,7 @@ std::shared_ptr<TextRunShape> make_shape(
     const std::vector<TextAnimatorSpec>& animators = {}
 ) {
     auto doc = make_doc(text);
-    auto& cache = shared_text_layout_cache();
+    auto& cache = s_text_cache;
     auto result = build_text_run(doc, engine, layout, &cache);
     REQUIRE(result.paragraphs.size() == 1);
     auto shape = std::make_shared<TextRunShape>();
@@ -193,7 +194,7 @@ TEST_CASE("TextRunDriver: evaluate_animator_stack_into writes back in place") {
     layout.box = {800.0f, 200.0f};
 
     auto doc = make_doc("Hello");
-    auto& cache = shared_text_layout_cache();
+    auto& cache = s_text_cache;
     auto result = build_text_run(doc, engine, layout, &cache);
     REQUIRE(result.paragraphs.size() == 1);
 

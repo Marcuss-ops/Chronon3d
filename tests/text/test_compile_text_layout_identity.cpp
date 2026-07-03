@@ -1,3 +1,4 @@
+static chronon3d::TextLayoutCache s_text_cache;
 // ============================================================================
 // test_compile_text_layout_identity.cpp
 //
@@ -69,7 +70,7 @@ struct LocalEngine {
 };
 
 inline void reset_layout_cache_for_test() {
-    chronon3d::reset_shared_text_layout_cache();
+    chronon3d::reset_s_text_cache;
 }
 
 [[nodiscard]] TextRunParams make_test_params(

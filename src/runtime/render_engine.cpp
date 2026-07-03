@@ -99,12 +99,8 @@ struct RenderEngine::Impl {
         // for deep code without a runtime in scope.  Suppress the deprecation
         // warning since this is the canonical bridge site.
 #if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
-        runtime::set_process_wide_assets_root(root_str);
 #if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
 #endif
     }
 

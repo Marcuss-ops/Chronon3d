@@ -99,7 +99,7 @@ TEST_CASE("TextQuality: Arabic — pre-shaped extraction preserves contextual fo
     namespace ct = chronon3d::content::text;
 
     PlacedGlyphRun tw_placed;
-    const auto& resolver = chronon3d::runtime::process_wide_resolver();
+    const auto& resolver = s_test_resolver;
     auto tw = ct::compute_typewriter_layout(
         arabic_word, 48.0f, 0.0f, {2000.0f, 500.0f}, 1.2f, spec, resolver,
         &tw_placed);

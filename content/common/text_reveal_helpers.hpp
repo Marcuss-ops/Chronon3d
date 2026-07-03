@@ -110,8 +110,7 @@ struct GlyphPos {
 // reference; the bridge was retired in WP-8 PR 8.1).
 inline f32 measure_text_width(const std::string& text, f32 font_size,
                                const FontSpec& spec, f32 tracking,
-                               const chronon3d::assets::AssetResolver& resolver =
-                                   chronon3d::runtime::process_wide_resolver()) {
+                               const chronon3d::assets::AssetResolver& resolver) {
     FontEngine& eng = shared_glyph_engine(resolver);
     auto run = eng.shape_text(text, spec, font_size);
     if (!run) return 0.0f;
@@ -129,8 +128,7 @@ inline std::vector<GlyphPos> layout_glyphs(
     const std::string& text, f32 font_size,
     const FontSpec& spec, f32 tracking,
     f32 ref_offset_x,
-    const chronon3d::assets::AssetResolver& resolver =
-        chronon3d::runtime::process_wide_resolver()) {
+    const chronon3d::assets::AssetResolver& resolver) {
     FontEngine& eng = shared_glyph_engine(resolver);
     auto run = eng.shape_text(text, spec, font_size);
     if (!run || run->glyphs.empty()) return {};

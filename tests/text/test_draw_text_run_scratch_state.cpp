@@ -1,3 +1,4 @@
+static chronon3d::TextLayoutCache s_text_cache;
 // ═══════════════════════════════════════════════════════════════════════════
 // test_draw_text_run_scratch_state.cpp — P0-1 regression coverage
 // ═══════════════════════════════════════════════════════════════════════════
@@ -90,7 +91,7 @@ std::shared_ptr<TextRunShape> make_real_shape(
     doc.defaults.font = font;
     doc.split_paragraphs();
 
-    auto& cache = shared_text_layout_cache();
+    auto& cache = s_text_cache;
     auto result = build_text_run(doc, engine, layout, &cache);
     if (result.paragraphs.empty() || !result.paragraphs.front()) {
         return nullptr;

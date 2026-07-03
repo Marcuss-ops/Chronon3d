@@ -372,31 +372,13 @@ private:
     std::unique_ptr<Impl> m_impl;
 };
 
-/// P1-DEPRECATED — return the process-wide shared TextLayoutCache singleton.
-///
-/// ⚠️  DEPRECATION PATH (P1 #3):
-///   Migrate callers to `RenderSession::layout_cache` (per-session
-///   owned).  Each RenderSession now carries its own TextLayoutCache;
-///   session isolation guarantees no cross-session cache pollution.
-///
-///   Migration guide:
-///     auto& cache = shared_text_layout_cache();              // OLD
-///     auto& cache = render_session.layout_cache;       // NEW
-///
-///   For functions that don't have a RenderSession& in scope:
-///   thread a `TextLayoutCache*` or `RenderSession&` through the
-///   call chain (post-baseline work — see docs/FOLLOWUP_TICKETS.md).
-///
-///   Tests may create a standalone `TextLayoutCache local_cache` or
-///   use RenderSession{}.layout_cache() for isolated test fixtures.
-///
-/// NOTE: [[deprecated]] attribute is deferred until production callsites
-/// are migrated to avoid ~30 build warnings (P1 #3 post-baseline).
-[[nodiscard]] TextLayoutCache& shared_text_layout_cache();
-
-/// P1-DEPRECATED — reset the process-wide shared TextLayoutCache singleton.
-/// Use RenderSession::layout_cache.clear() instead.
-void reset_shared_text_layout_cache();
+// Fase B3 (DONE) — shared_text_layout_cache() REMOVED from public API.
+// Production code must pass TextLayoutCache* via the driver functions
+// (update_text_run_shape_per_frame, apply_active_state_to_text_run_shape,
+// prewarm_text_run_layout_for_frame).  Tests may use a standalone
+// TextLayoutCache or RenderSession::layout_cache.  The former global
+// still exists as an internal fallback (text_run.cpp file-scope static)
+// for backward compat during migration; Phase C removes it entirely.
 
 /// Free function to hash a TextRunShape for content fingerprinting.
 ///

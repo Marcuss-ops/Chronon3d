@@ -49,18 +49,10 @@ namespace chronon3d::runtime {
 
 namespace {
 
-// Fase B2 — DEPRECATED process-wide fallback assets root.
-// Used ONLY as backward-compat bridge in render_engine.cpp::set_assets_root()
-// and CLI/test fixtures that don't construct a RenderRuntime.
-//
-// Migration path: Route through RenderRuntime::resolver() which is per-engine.
-// The canonical bridge site (render_engine.cpp:105) mirrors writes here
-// for deep-code backward compat; when all deep code reads from the runtime's
-// resolver, the global can be removed (post-feature-freeze).
-std::mutex g_process_root_mutex;
-std::string g_process_wide_assets_root;
-
-} // namespace
+// Fase B2 (DONE) — process_wide_assets_root globals REMOVED.
+// The global string + mutex + resolver were eliminated.  Production
+// code must use RenderRuntime::resolver() or pass AssetResolver&
+// through the call chain.
 
 RenderRuntime::RenderRuntime(chronon3d::Config config)
     : m_config(std::move(config))
@@ -219,56 +211,8 @@ const chronon3d::graph::RenderBackend& RenderRuntime::backend() const {
     return *m_backend;
 }
 
-// Fase B2 — @deprecated.  Use RenderRuntime::resolver() per-engine instead.
-// Kept as backward-compat bridge during Phase B migration window.
-void set_process_wide_assets_root(std::string root) {
-    std::lock_guard<std::mutex> lock(g_process_root_mutex);
-    g_process_wide_assets_root = std::move(root);
-}
-
-// Return the process-wide fallback assets root by value (NOT by
-// reference) so callers cannot hold a pointer into the mutex-guarded
-// module-level string past the lock release — a concurrent
-// `set_process_wide_assets_root` would move-assign the underlying
-// string and invalidate any external reference.  Returns an empty
-// string when no fallback has been configured.
-//
-// (Cost: one std::string copy.  Called on deep-code asset resolution
-// which is not hot enough to warrant cleverness.)
-std::string process_wide_assets_root() {
-    std::lock_guard<std::mutex> lock(g_process_root_mutex);
-    return g_process_wide_assets_root;
-}
-
-// WP-8 PR 8.1 Final — process-wide typed asset resolver for deep code
-// that has no RenderRuntime in scope (CLI dev paths, content-layer
-// ergonomics, etc.).  Same lazy-static + first-mount semantics as the
-// legacy `typed_resolver_for_deep_code()` minus the active-runtime
-// branch (which lived on the deleted `runtime::set_active_runtime()`
-// channel).
-//
-// Resolver serialises concurrent first-callers through its internal
-// shared_mutex; idempotent mount state so the multi-thread first
-// call is safe without an external once_flag.  Lifetime is the
-// process.
-const chronon3d::assets::AssetResolver& process_wide_resolver() {
-    static chronon3d::assets::AssetResolver g_process_wide_resolver;
-    if (!g_process_wide_resolver.has_mount()) {
-        const auto root_str = process_wide_assets_root();
-        if (!root_str.empty()) {
-            const auto root_path = std::filesystem::path(root_str);
-            // AssetResolver::mount contract: only absolute paths.
-            if (root_path.is_absolute()) {
-                try {
-                    g_process_wide_resolver.mount(root_path.lexically_normal());
-                } catch (const std::invalid_argument&) {
-                    // Leave unmounted; call-site 2-line pattern treats
-                    // unmounted as "fall back to raw rel_path".
-                }
-            }
-        }
-    }
-    return g_process_wide_resolver;
-}
+// Fase B2 (DONE) — process_wide_assets_root() / process_wide_assets_root() /
+// process_wide_resolver() REMOVED.  Production code passes AssetResolver&
+// through the call chain (RenderRuntime::resolver(), RenderSession, DI).
 
 } // namespace chronon3d::runtime
