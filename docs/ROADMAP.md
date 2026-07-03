@@ -15,6 +15,10 @@ Stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). Criteri di r
 - **B2** (`2d3cc2dc`): `process_wide_assets_root()` / `process_wide_resolver()` marcati `[[deprecated]]` in `render_runtime.hpp`. Migration path: `RenderRuntime::resolver()` per-engine. Eliminazione effettiva bloccata da ~24 call sites (CLI, test, content modules) → Phase C.
 - **B3** (pre-esistente): `shared_text_layout_cache()` marcato con deprecation banner in `text_run.hpp` / `text_run.cpp`. Migration path: `RenderSession::layout_cache` per-session. Eliminazione bloccata da ~35 call sites → Phase C.
 
+### Fase C2 — Factory unificata RenderRuntime (2026-07-03)
+
+- **C2** (in corso): `RenderRuntime::create(RuntimeConfig)` → `Result<RenderRuntime, RuntimeBuildError>`. `RuntimeConfig` wrappa `Config` + `optional<assets_root>`. `attach_backend()` rafforzato `[[deprecated]]` con suppression nei bridge interni.
+
 ### Fase C — Completamento doc (2026-07-02)
 
 - **C2** (`d8a228f7`): Costruttore `RenderEngine::Impl` unificato (`optional<path>`).

@@ -94,7 +94,17 @@ void attach_software_backend(chronon3d::SoftwareRenderer* renderer) {
     backend->attach_processor_context(
         internal::make_processor_context(services, extras));
 
+    // Fase C2 — attach_backend() is [[deprecated]] for public consumers.
+    // This bridge is the canonical internal orchestration path; suppress
+    // the deprecation warning so CI stays clean.
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
     renderer->runtime().attach_backend(std::move(backend));
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 }
 
 } // namespace chronon3d::backends::software

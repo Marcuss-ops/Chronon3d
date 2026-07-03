@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@2d3cc2dc` (Fase A completata 6/6, Fase B2+B3 doc-deprecation completata) — 2026-07-03. Linux-only.
+> **Snapshot:** `main@e0285af2` (Fase A completata 6/6, Fase B2+B3 doc-deprecation, Fase C2 factory in corso) — 2026-07-03. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@aaf70032` (10/11 PASS — vedi [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md)).
 > **Baseline corrente:** `main@a53a8d25` — **8/11 PASS** osservato (audit del 2026-07-03).
@@ -14,6 +14,8 @@
 > **Fase A — P0 chiusi (2026-07-03):** A1 (symlink legacy + gate standalone compile), A2 (backend construction unificata), A3 (sdk::RenderEngine canonico), A4+A5 (error propagation), A6 (m_backend_warned rimosso, immutability tracked Phase C).
 >
 > **Fase B2+B3 — Deprecation doc completata (2026-07-03):** `process_wide_assets_root()` marcato `[[deprecated]]` con migration path a `RenderRuntime::resolver()`. `shared_text_layout_cache()` marcato con deprecation banner e migration path a `RenderSession::layout_cache`. Eliminazione effettiva bloccata da ~24+ call sites → Phase C (post-feature-freeze).
+>
+> **Fase C2 — Factory unificata (2026-07-03):** `RenderRuntime::create(RuntimeConfig)` → `Result<RenderRuntime, RuntimeBuildError>`. `RuntimeConfig` wrappa `Config` + `optional<assets_root>`. `RuntimeBuildError` con `Code::InternalError` / `Code::AssetMountFailed`. `attach_backend()` rafforzato `[[deprecated]]` con suppression warning nei bridge interni (`runtime_adapter.cpp`, `test_utils.hpp`).
 >
 > Tra `aaf70032` e l'HEAD corrente sono atterrati: TICKET-118/119, P0 #1–#2, P1 #1–#5 fixes, P1 #7 (`16efb496`), P1 #10 (`6df9b429` + `560750e3`), P1 #12 (`59b2439f`), gate #4 fix (`f6f700b1`), gate #10 analyze_scene_graph fix (`560750e3`), ticket P1-07..P1-12 individuali (`0295203d`), doc sync commits (`6d951079`, `96e6e88e`), CMake TitleCase + transitive header fix (`21b9fb5d`), runtime::RenderPipeline default-arg chain fix (`75035f2b` → `c40ba16f` post-rebase), **Fase A1** — rimozione 4 symlink legacy + gate standalone compile, **Fase A2** — backend construction unificata.
 >
