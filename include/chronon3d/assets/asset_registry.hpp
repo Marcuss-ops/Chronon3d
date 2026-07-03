@@ -3,6 +3,7 @@
 #include <chronon3d/assets/asset_metadata.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -46,18 +47,20 @@ public:
     ~AssetRegistry() = default;
     AssetRegistry(const AssetRegistry&) = delete;
     AssetRegistry& operator=(const AssetRegistry&) = delete;
+    AssetRegistry(AssetRegistry&&) noexcept = default;
+    AssetRegistry& operator=(AssetRegistry&&) noexcept = default;
 
     // ── Mount / clear (non-static) ─────────────────────────────────────
 
     /// Mount the default assets root.  Used as a fallback when no
     /// explicit assets_root is available via resolve_asset_path().
     void mount(const std::filesystem::path& root_path) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock(*m_mutex);
         m_root_path = root_path;
     }
 
     void clear() {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock(*m_mutex);
         m_assets.clear();
         m_by_id.clear();
         m_root_path.clear();
@@ -101,29 +104,29 @@ public:
     }
 
     AssetId import_image(const std::filesystem::path& path) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock(*m_mutex);
         return register_asset_unlocked(path, AssetType::Image, ColorSpace::SRGB, AlphaMode::Straight);
     }
 
     AssetId import_font(const std::filesystem::path& path) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock(*m_mutex);
         return register_asset_unlocked(path, AssetType::Font, ColorSpace::LinearSRGB, AlphaMode::None);
     }
 
     AssetId import_video(const std::filesystem::path& path) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock(*m_mutex);
         return register_asset_unlocked(path, AssetType::Video, ColorSpace::SRGB, AlphaMode::Straight);
     }
 
     AssetId import_audio(const std::filesystem::path& path) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock(*m_mutex);
         return register_asset_unlocked(path, AssetType::Audio, ColorSpace::LinearSRGB, AlphaMode::None);
     }
 
     // ── Metadata accessors (non-static) ────────────────────────────────
 
     [[nodiscard]] std::optional<AssetMetadata> try_metadata(AssetId id) const {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock(*m_mutex);
         const auto it = m_by_id.find(id);
         if (it == m_by_id.end())
             return std::nullopt;
@@ -142,24 +145,24 @@ public:
     }
 
     [[nodiscard]] std::optional<AssetId> find_by_path(const std::filesystem::path& path) const {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock(*m_mutex);
         const AssetId id = asset_id_from_path(path);
         if (m_by_id.contains(id)) return id;
         return std::nullopt;
     }
 
     [[nodiscard]] bool contains(AssetId id) const {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock(*m_mutex);
         return m_by_id.contains(id);
     }
 
     [[nodiscard]] usize size() const {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock(*m_mutex);
         return m_assets.size();
     }
 
     [[nodiscard]] std::vector<AssetMetadata> assets() const {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock(*m_mutex);
         return m_assets;
     }
 
@@ -192,7 +195,9 @@ private:
         return id;
     }
 
-    mutable std::mutex                  m_mutex;
+    // Wrapped in unique_ptr: std::mutex is non-movable; AssetRegistry
+    // must be movable for RenderRuntime::create() factory.
+    mutable std::unique_ptr<std::mutex> m_mutex{std::make_unique<std::mutex>()};
     std::filesystem::path               m_root_path;
     std::vector<AssetMetadata>          m_assets;
     std::unordered_map<AssetId, usize>  m_by_id;
