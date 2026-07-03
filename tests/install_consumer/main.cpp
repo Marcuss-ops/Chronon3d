@@ -136,7 +136,10 @@ int main() {
 
     // P3-F bridge: render_composition_frame() still uses the legacy
     // `comp.camera` field, not the CameraDescriptor.
-    comp.camera.transform.position = c3d::Vec3{0.0f, 0.0f, 1000.0f};
+    // Default camera at (0,0,-1000) looks down -Z (away from scene at z=0).
+    // Rotate 180° to look toward +Z at the GridBackground.
+    comp.camera.transform.position = c3d::Vec3{0.0f, 0.0f, -1000.0f};
+    comp.camera.set_rotation_euler(c3d::Vec3{0.0f, 180.0f, 0.0f});
 
     // ── 4. sdk::RenderEngine (the canonical public facade) ──────────
     c3d::sdk::RenderSettings settings{};
