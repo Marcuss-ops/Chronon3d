@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@a53a8d25` (docs(changelog): archive H1-2026) — 2026-07-03. Linux-only.
+> **Snapshot:** `main@a53a8d25` (Fase A1 — internal header migration closed + standalone compile gate) — 2026-07-03. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@aaf70032` (10/11 PASS — vedi [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md)).
 > **Baseline corrente:** `main@a53a8d25` — **8/11 PASS** osservato (audit del 2026-07-03).
@@ -10,6 +10,10 @@
 > Gate #8: 73 drift warning (in miglioramento da 155).
 >
 > P0 #1 (TextRunNode error propagation) e P0 #2 (FontLayoutIdentity) sono CHIUSI e verificati su questo commit.
+>
+> **Fase A1 (2026-07-03):** 4 symlink legacy rimossi — i file `render_session.hpp`, `session_services.hpp`, `scene_hasher.hpp`, `scene_program_store.hpp` sono ora accessibili solo via path `internal/`. Tutti i consumer già migrati (0 match su vecchi path). Creato gate `tools/check_header_standalone_compile.sh` — compila standalone ogni header del manifest pubblico contro gli include path del progetto + vcpkg. Risultato baseline: 48/147 PASS (include SDK pubblici), 99 FAIL (pre-esistenti, principalmente dipendenze transitive mancanti + conflitto blend2d/xxhash). Il gate è operativo e rileva regressioni future su header installabili.
+>
+> Tra `aaf70032` e l'HEAD corrente sono atterrati: TICKET-118/119, P0 #1–#2, P1 #1–#5 fixes, P1 #7 (`16efb496`), P1 #10 (`6df9b429` + `560750e3`), P1 #12 (`59b2439f`), gate #4 fix (`f6f700b1`), gate #10 analyze_scene_graph fix (`560750e3`), ticket P1-07..P1-12 individuali (`0295203d`), doc sync commits (`6d951079`, `96e6e88e`), CMake TitleCase + transitive header fix (`21b9fb5d`), runtime::RenderPipeline default-arg chain fix (`75035f2b` → `c40ba16f` post-rebase), **Fase A1** — rimozione 4 symlink legacy + gate standalone compile.
 >
 > Documenti canonici (vedi [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) per il contratto):
 > - Regole operative / feature freeze: [`AGENTS.md`](../AGENTS.md)
