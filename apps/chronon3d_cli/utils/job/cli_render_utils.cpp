@@ -2,12 +2,8 @@
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/backends/video/video_frame_decoder.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/backends/software/software_backend.hpp>
-#include <chronon3d/backends/software/software_backend_services.hpp>
+#include <chronon3d/backends/software/runtime_adapter.hpp>  // Fase A2 — attach_software_backend factory
 #include <chronon3d/runtime/render_runtime.hpp>
-
-// TICKET-118/119 — internal bridge for ProcessorSourceExtras + make_processor_context
-#include "internal/software_processor_services.hpp"
 
 #include <cassert>
 #include <spdlog/spdlog.h>
@@ -60,45 +56,11 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     // read.
     assert(renderer != nullptr);
     if (!renderer->runtime().backend_attached()) {
-        // TICKET-118 — `owner` removed from SoftwareBackendServices.
-        // Build the services bundle with aggregate initialization.
-        chronon3d::SoftwareBackendServices services{
-            /* counters           = */ renderer->counters(),
-            /* settings           = */ &renderer->render_settings(),
-            /* framebuffer_pool   = */ renderer->runtime().framebuffer_pool_shared(),
-            /* asset_resolver     = */ &renderer->runtime().resolver(),
-            /* text_resources     = */ renderer->text_render_resources(),
-            /* images             = */ &renderer->image_renderer(),
-            /* text_raster        = */ nullptr,
-            /* debug_config       = */ nullptr,
-        };
-
-        auto factory_result = make_software_backend(services);
-        if (!factory_result.has_value()) {
-            const auto& e = factory_result.error();
-            spdlog::error(
-                "[cli] create_renderer: make_software_backend rejected: code={} field='{}' msg='{}'",
-                static_cast<int>(e.code),
-                e.field_name,
-                e.message);
-            assert(false && "make_software_backend service-validation failure (REQUIRED service null). See cli_render_utils.cpp::create_renderer.");
-            throw std::runtime_error(
-                std::string{"create_renderer: make_software_backend rejected: "}
-                + e.message);
-        }
-
-        // TICKET-119 — attach orchestrator-only fields (registry /
-        // image_backend / font_engine) via the internal bridge.
-        backends::software::internal::ProcessorSourceExtras extras{};
-        extras.registry      = &renderer->software_registry();
-        extras.image_backend = renderer->image_backend();
-#ifdef CHRONON3D_HAS_BACKEND_TEXT
-        extras.font_engine   = &renderer->font_engine();
-#endif
-        factory_result.value()->attach_processor_context(
-            backends::software::internal::make_processor_context(services, extras));
-
-        renderer->runtime().attach_backend(std::move(factory_result.value()));
+        // Fase A2 — unified backend construction via the canonical
+        // `attach_software_backend()` factory (runtime_adapter.hpp).
+        // Replaces the previously-inlined services bundle +
+        // make_software_backend + attach_processor_context duplicate.
+        chronon3d::backends::software::attach_software_backend(renderer.get());
     }
 
     return renderer;
