@@ -256,8 +256,8 @@ evaluate(const CompiledComposition& compiled,
             static_cast<FrameRate>(context.frame_context.frame_rate));
         const auto cam_result =
             compiled.camera_program->evaluate(cam_ctx, session);
-        if (cam_result.ok) {
-            result.camera = cam_result.camera;
+        if (cam_result.has_value()) {
+            result.camera = cam_result->camera;
         }
         // Diagnostics on the CameraProgram::evaluate() result are not
         // surfaced to the V2 evaluate() return channel — they're
