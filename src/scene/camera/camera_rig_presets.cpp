@@ -17,7 +17,7 @@ CameraRig orbit_reveal(std::string target) {
             .key(90, 0.0f, EasingCurve{Easing::OutCubic});
 
     rig.fov_deg.set(50.0f);
-    rig.projection_mode = Camera2_5DProjectionMode::Fov;
+    rig.optics_mode = CameraOpticsMode::FieldOfView;
 
     return rig;
 }
@@ -36,7 +36,7 @@ CameraRig premium_push_in(std::string target) {
     rig.roll.key(0, -1.5f)
             .key(120, 0.0f);
 
-    rig.projection_mode = Camera2_5DProjectionMode::Fov;
+    rig.optics_mode = CameraOpticsMode::FieldOfView;
     rig.fov_deg.set(45.0f);
 
     return rig;
@@ -59,7 +59,7 @@ CameraRig parallax_stack(std::string target) {
     rig.roll.key(0, -1.5f)
             .key(90, 0.0f, EasingCurve{Easing::OutCubic});
 
-    rig.projection_mode = Camera2_5DProjectionMode::Fov;
+    rig.optics_mode = CameraOpticsMode::FieldOfView;
     rig.fov_deg.set(45.0f);
 
     return rig;
@@ -79,7 +79,7 @@ CameraRig slow_dolly_focus(std::string target) {
     rig.orbit_radius.key(0, 1100.0f)
                     .key(90, 800.0f, EasingCurve{Easing::Linear});
 
-    rig.projection_mode = Camera2_5DProjectionMode::Fov;
+    rig.optics_mode = CameraOpticsMode::FieldOfView;
     rig.fov_deg.set(40.0f);
 
     return rig;
@@ -99,7 +99,7 @@ CameraRig card_fan_sweep(std::string target) {
     rig.orbit_radius.key(0, 1300.0f)
                     .key(90, 1300.0f);
 
-    rig.projection_mode = Camera2_5DProjectionMode::Fov;
+    rig.optics_mode = CameraOpticsMode::FieldOfView;
     rig.fov_deg.set(42.0f);
 
     return rig;
@@ -119,7 +119,7 @@ CameraRig hero_title_push(std::string target) {
     rig.orbit_radius.key(0, 1600.0f)
                     .key(90, 750.0f, EasingCurve{Easing::OutExpo});
 
-    rig.projection_mode = Camera2_5DProjectionMode::Fov;
+    rig.optics_mode = CameraOpticsMode::FieldOfView;
     rig.fov_deg.set(38.0f);
 
     return rig;

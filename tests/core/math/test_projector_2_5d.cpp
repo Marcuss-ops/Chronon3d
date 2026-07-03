@@ -156,7 +156,6 @@ TEST_CASE("ProjectionContext: project_card — depth is average of projected cor
 TEST_CASE("ProjectionContext: project_card — Camera2_5D FOV mode gives correct focal") {
     Camera2_5D cam;
     cam.position = {0.0f, 0.0f, -1000.0f};
-    cam.projection_mode = Camera2_5DProjectionMode::Fov;
     cam.fov_deg = 50.0f;
     cam.point_of_interest = {0.0f, 0.0f, 0.0f};
     cam.point_of_interest_enabled = true;
@@ -200,7 +199,6 @@ TEST_CASE("ProjectionContext: Compare simple projection vs projection_matrix") {
     cam.enabled = true;
     cam.position = {0.0f, 0.0f, 0.0f};
     cam.zoom = 1000.0f;
-    cam.projection_mode = Camera2_5DProjectionMode::Zoom;
 
     Transform layer;
     layer.position = {100.0f, 0.0f, 1000.0f};

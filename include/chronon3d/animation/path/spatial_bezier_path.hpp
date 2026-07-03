@@ -336,7 +336,6 @@ struct CameraMotionPath {
             cam.position = path.empty() ? Vec3{0.0f, 0.0f, -1000.0f} : path.evaluate(0.0f);
             cam.zoom = zoom;
             cam.fov_deg = fov_deg;
-            cam.projection_mode = projection_mode;
             return cam;
         }
 
@@ -349,7 +348,6 @@ struct CameraMotionPath {
         cam.position = sample.position;
         cam.zoom = zoom;
         cam.fov_deg = fov_deg;
-        cam.projection_mode = projection_mode;
 
         // Auto-orientation (quaternion-based, no gimbal lock)
         switch (auto_orient) {
@@ -389,7 +387,6 @@ struct CameraMotionPath {
             cam.position = Vec3{0.0f, 0.0f, -1000.0f};
             cam.zoom = zoom;
             cam.fov_deg = fov_deg;
-            cam.projection_mode = projection_mode;
             return cam;
         }
 
@@ -399,7 +396,6 @@ struct CameraMotionPath {
         cam.position = sample.position;
         cam.zoom = zoom;
         cam.fov_deg = fov_deg;
-        cam.projection_mode = projection_mode;
 
         switch (auto_orient) {
             case AutoOrientMode::None:
