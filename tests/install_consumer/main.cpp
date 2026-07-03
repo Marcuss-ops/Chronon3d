@@ -134,6 +134,10 @@ int main() {
     // Apply the camera descriptor to the Composition (public setter).
     comp.default_camera_descriptor(std::move(descriptor));
 
+    // P3-F bridge: render_composition_frame() still uses the legacy
+    // `comp.camera` field, not the CameraDescriptor.
+    comp.camera.transform.position = c3d::Vec3{0.0f, 0.0f, 1000.0f};
+
     // ── 4. sdk::RenderEngine (the canonical public facade) ──────────
     c3d::sdk::RenderSettings settings{};
     settings.width = spec.width;
