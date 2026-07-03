@@ -188,12 +188,14 @@ AnimatedCamera2_5D make_legacy_dolly() {
     return cam;
 }
 
-CameraProgramResult run_compiled(const CameraProgram& program, Frame f) {
+Camera2_5D run_compiled_cam(const CameraProgram& program, Frame f) {
     CameraSession session;
     CameraEvalContext ctx;
     ctx.frame = f;
     ctx.sample_time = SampleTime::from_frame_int(f, kFpsDefault);
-    return program.evaluate(ctx, session);
+    auto res = program.evaluate(ctx, session);
+    REQUIRE(res.has_value());
+    return res.value().camera;
 }
 
 // Build the compiled CameraProgram from the canonical descriptor.
@@ -216,31 +218,23 @@ TEST_CASE("CAM-DOC 04 [1]: compiled CameraProgram::evaluate() produces a populat
 
     // Frame 0: start of the animation.
     {
-        auto res = run_compiled(program, Frame{0});
-        REQUIRE(res.ok);
-        const Camera2_5D& cam = res.camera;
+        auto cam = run_compiled_cam(program, Frame{0});
         CHECK(cam.enabled);
         CHECK(cam.position.z == doctest::Approx(-1200.0f).epsilon(1e-3f));
         CHECK(cam.rotation.x == doctest::Approx(0.0f).epsilon(1e-3f));
-        // The LookAtPoint orientation issued the look-at, so the
-        // point_of_interest_enabled flag must reflect that.
         CHECK(cam.point_of_interest_enabled);
     }
 
     // Frame 90: end of the animation.
     {
-        auto res = run_compiled(program, Frame{90});
-        REQUIRE(res.ok);
-        const Camera2_5D& cam = res.camera;
+        auto cam = run_compiled_cam(program, Frame{90});
         CHECK(cam.position.z == doctest::Approx(-800.0f).epsilon(1e-3f));
         CHECK(cam.rotation.x == doctest::Approx(10.0f).epsilon(1e-3f));
     }
 
     // Frame 45: midpoint.  Position must strictly be between endpoints.
     {
-        auto res = run_compiled(program, Frame{45});
-        REQUIRE(res.ok);
-        const Camera2_5D& cam = res.camera;
+        auto cam = run_compiled_cam(program, Frame{45});
         CHECK(cam.position.z > -1201.0f);
         CHECK(cam.position.z < -799.0f);
         CHECK(cam.rotation.x > 0.0f);
@@ -248,13 +242,8 @@ TEST_CASE("CAM-DOC 04 [1]: compiled CameraProgram::evaluate() produces a populat
     }
 
     // Diagnostics: no error-level entries from a well-formed descriptor.
-    auto bad_desc = desc;
-    bad_desc.id.clear();      // empty id — should compile but evaluate cleanly
-    auto prog2 = compile_or_die(bad_desc);
-    auto res_warmup = run_compiled(prog2, Frame{0});
-    // Whether empty id is flagged is an implementation detail; we only
-    // assert the OK-evaluation guarantee for the canonical fixture above.
-    (void)res_warmup;
+    // NOTE: empty-id descriptors are now rejected at compile time (STEP 8
+    // validation), so this sub-test was removed.
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -278,28 +267,25 @@ TEST_CASE("CAM-DOC 04 [2]: parity compiled pipeline == legacy AnimatedCamera2_5D
     for (Frame f{0}; f <= Frame{90}; f = Frame{f.value + 3}) {
         Camera2_5D legacy_cam = legacy.evaluate(f);
 
-        auto res = run_compiled(program, f);
-        REQUIRE(res.ok);
+        auto cam_parity = run_compiled_cam(program, f);
 
         // Position, rotation, zoom are the parity-critical fields.
         CAPTURE(f.value);
-        CHECK(res.camera.position.x ==
+        CHECK(cam_parity.position.x ==
               doctest::Approx(legacy_cam.position.x).epsilon(kEpsilon));
-        CHECK(res.camera.position.y ==
+        CHECK(cam_parity.position.y ==
               doctest::Approx(legacy_cam.position.y).epsilon(kEpsilon));
-        CHECK(res.camera.position.z ==
+        CHECK(cam_parity.position.z ==
               doctest::Approx(legacy_cam.position.z).epsilon(kEpsilon));
-        CHECK(res.camera.rotation.x ==
+        CHECK(cam_parity.rotation.x ==
               doctest::Approx(legacy_cam.rotation.x).epsilon(kEpsilon));
-        CHECK(res.camera.rotation.y ==
+        CHECK(cam_parity.rotation.y ==
               doctest::Approx(legacy_cam.rotation.y).epsilon(kEpsilon));
-        CHECK(res.camera.rotation.z ==
+        CHECK(cam_parity.rotation.z ==
               doctest::Approx(legacy_cam.rotation.z).epsilon(kEpsilon));
-        CHECK(res.camera.zoom ==
+        CHECK(cam_parity.zoom ==
               doctest::Approx(legacy_cam.zoom).epsilon(kEpsilon));
-        // The LookAtPoint orientation wires the point_of_interest;
-        // the legacy `point_of_interest_enabled` flag must match.
-        CHECK(res.camera.point_of_interest_enabled ==
+        CHECK(cam_parity.point_of_interest_enabled ==
               legacy_cam.point_of_interest_enabled);
     }
 }
@@ -321,21 +307,18 @@ TEST_CASE("CAM-DOC 04 [3]: 5 fresh compile+evaluate rounds — bit-identical Cam
 
         // Round-trip across 3 representative frames.
         // (Each round creates a fresh CameraProgram; CameraSession
-        // is local to run_compiled() and reset on every call.)
+        // is local to run_compiled_cam() and reset on every call.)
         {
-            auto res = run_compiled(program, Frame{0});
-            REQUIRE(res.ok);
-            r0_results.push_back(res.camera);
+            auto cam0 = run_compiled_cam(program, Frame{0});
+            r0_results.push_back(cam0);
         }
         {
-            auto res = run_compiled(program, Frame{45});
-            REQUIRE(res.ok);
-            r45_results.push_back(res.camera);
+            auto cam45 = run_compiled_cam(program, Frame{45});
+            r45_results.push_back(cam45);
         }
         {
-            auto res = run_compiled(program, Frame{90});
-            REQUIRE(res.ok);
-            r90_results.push_back(res.camera);
+            auto cam90 = run_compiled_cam(program, Frame{90});
+            r90_results.push_back(cam90);
         }
     }
 
@@ -384,11 +367,10 @@ TEST_CASE("CAM-DOC 04 [4]: serial vs parallel — 1000 frames, two arrays must b
         CameraSession local_session;
         CameraEvalContext ctx;
         ctx.frame = Frame{i};
-        ctx.sample_time = SampleTime::from_frame_int(Frame{i}, kFpsDefault);
-        auto res = program.evaluate(ctx, local_session);
-        REQUIRE(res.ok);  // runtime requirement; in production this is
+        ctx.sample_time = SampleTime::from_frame_int(Frame{i}, kFpsDefault);            auto res = program.evaluate(ctx, local_session);
+        REQUIRE(res.has_value());  // runtime requirement; in production this is
                           // outside the test budget.
-        return res.camera;
+        return res.value().camera;
     };
 
     // ── Serial pass ──────────────────────────────────────────────
@@ -457,9 +439,8 @@ TEST_CASE("CAM-DOC 04 [5]: random-access — sequence [5,100,0,50,25,10,0] yield
     std::vector<CameraRef> reference;
     for (Frame f : {Frame{0}, Frame{5}, Frame{10},
                     Frame{25}, Frame{50}, Frame{100}}) {
-        auto res = run_compiled(program, f);
-        REQUIRE(res.ok);
-        reference.push_back({f, res.camera});
+        auto cam_ref = run_compiled_cam(program, f);
+        reference.push_back({f, cam_ref});
     }
 
     // Random access sequence.  Repeated Frame{0} entries MUST be
@@ -476,7 +457,7 @@ TEST_CASE("CAM-DOC 04 [5]: random-access — sequence [5,100,0,50,25,10,0] yield
         ctx.frame = f;
         ctx.sample_time = SampleTime::from_frame_int(f, kFpsDefault);
         auto res = program.evaluate(ctx, session);
-        REQUIRE(res.ok);
+        REQUIRE(res.has_value());
 
         // Locate the reference entry for `f`.
         auto it = std::find_if(reference.begin(), reference.end(),
@@ -484,6 +465,6 @@ TEST_CASE("CAM-DOC 04 [5]: random-access — sequence [5,100,0,50,25,10,0] yield
         REQUIRE(it != reference.end());
 
         CAPTURE(f.value);
-        check_camera_2_5d_fields(it->cam, res.camera, kFieldEps);
+        check_camera_2_5d_fields(it->cam, res->camera, kFieldEps);
     }
 }
