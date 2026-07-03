@@ -103,26 +103,35 @@ compile_camera(const CameraDescriptor& descriptor,
                     return inner;
                 }
                 auto recursive = std::move(recursive_result).value();
-                // Preserve the resolved source from the recursive compile
-                // while keeping the top-level descriptor (id, failure_policy, etc.).
-                auto resolved_source = recursive.descriptor_.source;
-                program = std::move(recursive);
-                program.descriptor_ = descriptor;
-                program.descriptor_.source = resolved_source;
-                program.compiled_ = true;
+                // CAM-03 fix: extract ONLY the resolved concrete source variant.
+                // The outer descriptor's failure_policy, time_dependent flag,
+                // and evaluation_dependency MUST be recomputed from the outer
+                // descriptor in steps 2-5 below — we must NOT inherit them from
+                // the referenced preset.  Fall through to steps 2-5.
+                program.descriptor_.source = recursive.descriptor_.source;
+            } else {
+                // Preset not found in catalog.
+                if (!ref->id.empty()) {
+                    leave_scope();
+                    return CameraCompileError{
+                        CameraCompileError::Kind::MotionNotFound,
+                        "motion '" + std::string{ref->id}
+                            + "' not found in catalog"
+                    };
+                }
+            }
+        } else {
+            // No catalog available.
+            if (!ref->id.empty()) {
                 leave_scope();
-                return program;
+                return CameraCompileError{
+                    CameraCompileError::Kind::MotionNotFound,
+                    "motion '" + std::string{ref->id}
+                        + "' not found in catalog"
+                };
             }
         }
-
-        // CameraMotionRegistry is removed — only the catalog is used.
-        if (!ref->id.empty()) {
-            leave_scope();
-            return CameraCompileError{
-                CameraCompileError::Kind::MotionNotFound,
-                "motion '" + std::string{ref->id} + "' not found in catalog"
-            };
-        }
+        // If ref->id is empty: no-op (fall through to steps 2-5).
 
         // source_ member removed in PR12 — the descriptor source is used
         // directly by evaluate_compiled_source() without a separate member.
@@ -143,8 +152,11 @@ compile_camera(const CameraDescriptor& descriptor,
     // ── 3. Compute time_dependent flag ───────────────────────────────────
     // Conservative: any non-static source is assumed time-dependent.
     // Any modifier also makes the camera time-dependent (e.g. IdleOscillation).
+    // CAM-03: use the RESOLVED source (program.descriptor_.source), not the
+    // original descriptor's source (which may still be RegisteredMotionRef
+    // after step 1 resolved it to a concrete variant).
     bool source_is_static =
-        std::holds_alternative<StaticCameraSource>(descriptor.source);
+        std::holds_alternative<StaticCameraSource>(program.descriptor_.source);
     bool has_modifiers = !descriptor.modifiers.empty();
     program.time_dependent_ = !source_is_static || has_modifiers;
 
