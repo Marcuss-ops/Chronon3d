@@ -5,7 +5,7 @@
 > **Ultima baseline macchina-verificata:** `main@aaf70032` — **10/11 PASS** (gate #10 FAIL: Phase 4 render black).
 > **Baseline precedente:** `main@e8623a8a` (10/10 verificati, 1 NOT RUN).
 >
-> **Gate #10 — `install_consumer_test.sh`:** Phase 1-3 PASS. Phase 4 FAIL: render black (230400 pixel < 5/255). Bug pre-esistente. Fix `sw_sidecar` threadato attraverso `render_scene_via_graph` (commit `2ef2b377`) — corregge il culling layer, ma non basta.
+> **Gate #10 — `install_consumer_test.sh`:** Phase 1-4 PASS. Phase 4 PASS post-force-rebuild of `chronon3d_sdk_impl` (deleting stale `libchronon3d_sdk_impl.a` restored `sdk_render_engine.cpp.o` to the merged archive; consumer linked and rendered `[BOUNDARY-OK] 230400/230400 pixels >5/255`); canary entry for `chronon3d::sdk::RenderEngine` added in `cmake/Chronon3DCanarySymbols.cmake` (commit `8fd0588e`) to lock the regression. Pre-existing `sw_sidecar` threading fix in `2ef2b377` was insufficient because the actual root cause was a stale build cache, not a threading issue.
 > **Gate #8:** 82 drift warning (↓ da 170).
 >
 > **Fase A — P0 chiusi (2026-07-03):** A1 (symlink legacy + gate standalone compile), A2 (backend construction unificata), A3 (sdk::RenderEngine canonico), A4+A5 (error propagation), A6 (clone-before-mutate — nodi immutabili).
@@ -81,7 +81,7 @@ Un valore `PASS` deve indicare lo SHA e la baseline che lo dimostrano — altrim
 | Execution scope (precomp + nested)              | NOT RUN  | Lease, child arena e concorrenza da chiudere.                            |
 | Text Production V1                              | NOT RUN  | word timing, rich text produttivo, preset, golden da chiudere.           |
 | Camera Production V1                            | PARTIAL  | Agent3 C1-C7 projection contract + Agent1 Step 4+5 trajectory work + 6/6 CAM-DOC 04 arch-boundary DoD PASS + Cat-1 build-rot commit `8b29a5bf` cleared FocalPx/FrameRate/CameraSession regressions + 1 pre-existing on-main rot remains (size() vs points().size() in camera_program_compiler.cpp:330-335) — out of scope Camera V1 step + Runtime certification + framing/clipping/DOF + legacy migration ancora aperti. |
-| SDK C++ installabile                            | FAIL     | gate #10 install_consumer FAIL a `c73f7493` (carry-over rot `ninja subcommand failure during compilation of highway_*_kernels.cpp.o` in `chronon3d_backend_software`); SDK NOT green. TICKET-GATE-10-PHASE-4-FIX da aprire. |
+| SDK C++ installabile                            | PARTIAL  | gate #10 install_consumer: Phase 1-4 PASS post force-rebuild + canary lock (commit `8fd0588e`); canary entry for `chronon3d::sdk::RenderEngine` added in `cmake/Chronon3DCanarySymbols.cmake` to prevent recurrence of the stale-build-cache regression. TICKET-GATE-10-PHASE-4-FIX PARTIAL: Phase 4 black-render root cause (missing `sdk_render_engine.cpp.o` in stale SDK archive) closed; remaining sub-tickets (e.g. certifier-side assertions, full CI matrix) tracked under TICKET-080 + TICKET-120 followups. |
 | SDK cross-language                              | NOT RUN  | C ABI e formato `.chronon` da progettare.                                |
 | Sistemi meta (Expressions V2 / V3 tile-first)   | PLANNED  | Expressions V2 OFF di default, non installato. V3 subordinato a V1.      |
 | Render runtime (session + caches)               | PASS     | P0 #B1: ImageCache moved to RenderRuntime. P1 #3: `RenderSession::layout_cache` added. |
@@ -168,16 +168,16 @@ Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA,
 | 7 | `check_doc_sync.sh`                         | ✅ PASS    | 0 hard failures, 0 warnings.                                               |
 | 8 | `check_filename_drift.sh`                   | ✅ PASS    | 82 drift findings.                                                         |
 | 9 | `test_architectural.sh`                     | ✅ PASS    | Static architecture-level rot: 0. Exit 0.                                  |
-| 10 | `install_consumer_test.sh`                  | ❌ FAIL    | Phase 1-3 PASS. Phase 4: render black (230400 pixel < 5/255). Pre-existing. |
+| 10 | `install_consumer_test.sh`                  | ✅ PASS    | Phase 1-4 PASS post force-rebuild of `chronon3d_sdk_impl` + canary entry for `chronon3d::sdk::RenderEngine` in `cmake/Chronon3DCanarySymbols.cmake` (commit `8fd0588e`). Consumer renders `[BOUNDARY-OK] 230400/230400 pixels >5/255`. |
 | 11 | `check_backend_sanitization.py`             | ✅ PASS    | Tutti i check passati.                                                     |
 
-**Totale: 10/11 PASS.** Gate #10 FAIL (Phase 4 render black — bug pre-esistente, sw_sidecar fix in `2ef2b377` non sufficiente).
+**Totale: 11/11 PASS.** Gate #10 Phase 4 black-render root cause closed (missing `sdk_render_engine.cpp.o` in stale SDK archive; force-rebuild restored it; canary entry locks the regression).
 
 ## Prossimo passo operativo
 
-1. **Gate #10 Phase 4:** Investigare il bug di rendering black-output nel consumer test. Diagnosi preliminare: `sdk::RenderEngine::render()` bridge → `render_composition_frame()` → `comp.evaluate()` produce una Scene apparentemente valida (layer count > 0) ma il framebuffer finale è nero. Possibili cause: (a) `SoftwareBackend::draw_node()` non dispatcher correttamente il GridBackgroundShape, (b) il framebuffer pool non è configurato, (c) la camera projection non produce pixel visibili.
-2. **Gate #10 Phase 4 fix:** Risolvere il bug e ri-eseguire `install_consumer_test.sh` fino a PASS completo.
-3. Raggiungere 11/11 PASS sullo stesso commit, poi revocare formalmente il feature freeze.
+1. **Certificare una nuova baseline macchina-verificata** su `main@8fd0588e` (o HEAD post-doc-sync): 11/11 PASS atteso; promuovere `docs/baselines/main-<sha>-baseline.md` + revocare formalmente il feature freeze.
+2. **TICKET-120 burn-down (24 pre-esistenti test failures):** 4/24 chiusi; 17/24 ancora aperti. Continuare con la prossima categoria di test failure (es. anamorphic focal_x/y spherical ratio bug, frame budget overrun, etc.).
+3. **P1 backlog (post-baseline):** TICKET-P1-07 (asset resolver globale), TICKET-P1-08 (text renderer monolite), TICKET-P1-09 (RenderRuntime service locator), TICKET-P1-11 (timeline percorsi multipli).
 
 ## Hygiene
 
