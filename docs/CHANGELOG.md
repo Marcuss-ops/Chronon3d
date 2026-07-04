@@ -7,6 +7,14 @@
 
 ## Luglio 2026 — Chiusure recenti
 
+### build(sdk) — TICKET-GATE-10-PHASE-4-BLACK: `sdk::RenderEngine` canary lock (commit `8fd0588e`)
+- `cmake/Chronon3DCanarySymbols.cmake` — added 10th canary entry: `"sdk|chronon3d::sdk::RenderEngine|always|chronon3d_runtime"`. Substring `chronon3d::sdk::RenderEngine` matches all ctor/dtor/render/set_assets_root/set_settings demangled symbols emitted by `src/runtime/sdk_render_engine.cpp` (compiled into `chronon3d_runtime` OBJECT lib, aggregated into `libchronon3d_sdk_impl.a` via the registry's `target_link_libraries(chronon3d_sdk_impl PRIVATE …)` loop).
+- Root cause of the original failure: stale build cache — `libchronon3d_sdk_impl.a` was missing `sdk_render_engine.cpp.o` after a previous refactor (carry-over from `2ef2b377` `sw_sidecar` threading fix and the M1.5#1 + M1.5#2 + M1.5#3 cluster). The external consumer failed at LINK time, not at render time, but the existing diagnostics reported the failure indirectly as a "black PNG" because no pixels were being painted.
+- Force-rebuild of `chronon3d_sdk_impl` (deleting the stale archive then `cmake --build --target chronon3d_sdk_impl`) restored the `.o` to the merged archive; consumer linked and rendered a white-grid PNG: `[BOUNDARY-OK] 230400/230400 pixels >5/255` on `tests/install_consumer/`.
+- The new canary entry is a regression lock: if a future refactor drops `src/runtime/sdk_render_engine.cpp` from the runtime sources, OR the .o is excluded from the SDK archive aggregation, the canary gate (Phase 3.5) fails BEFORE the external consumer test (Phase 4) attempts to link, giving an actionable diagnostic instead of the previous "Phase 4 black-render" failure mode that hid the underlying link error.
+- AGENTS.md v0.1 freeze Cat-1 (build correction — canary gate hardening). No public API change, no new types, no new behavior. Canaries went from 9 entries (8 PRESENT + 1 BEST-EFFORT) to 10 entries (9 PRESENT + 1 BEST-EFFORT, +1 new ALWAYS-gated canary).
+- Verification: canary gate `9 present, 1 skipped (guard OFF), 0 missing`; `nm -C libchronon3d_sdk_impl.a | grep -F 'chronon3d::sdk::RenderEngine'` → 8 hits; gate #10 Phase 4 PASS.
+
 ### test(scene) — TICKET-120 Unity build deconflict: 8 file renames (commit `5985224c`)
 - `tests/scene/camera/test_camera_program_damped_history_force.cpp`: `compile_or_die` → `compile_or_die_damped_history`
 - `tests/scene/camera/test_camera_lookat_layer_missing_transforms.cpp`: `compile_or_die` → `compile_or_die_lookat_diagnostic`
