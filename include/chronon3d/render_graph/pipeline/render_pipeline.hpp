@@ -61,7 +61,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const CompositionRegistry* registry,
     media::MediaFrameProvider* video_decoder,
     float fps,
-    std::string_view diagnostic_label = "scene"
+    std::string_view diagnostic_label = "scene",
+    chronon3d::SoftwareRenderer* sw_sidecar = nullptr
 );
 
 /**

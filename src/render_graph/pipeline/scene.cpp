@@ -60,7 +60,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const CompositionRegistry* registry,
     media::MediaFrameProvider* video_decoder,
     float fps,
-    std::string_view diagnostic_label
+    std::string_view diagnostic_label,
+    chronon3d::SoftwareRenderer* sw_sidecar
 ) {
     ZoneScoped;
     const auto t0 = profiling::now();
@@ -71,6 +72,14 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         backend, node_cache, camera, width, height, frame, frame_time,
         settings, registry, video_decoder, fps
     );
+
+    // Thread the SoftwareRenderer sidecar from upstream callers
+    // (render_composition_frame, SoftwareRenderer::render, etc.) so
+    // that downstream phases (fingerprints, dirty rects, tile execution)
+    // can reach per-instance state without a global lookup.
+    if (sw_sidecar) {
+        ctx.services.sw_renderer_sidecar = sw_sidecar;
+    }
 
     // TICKET-007 — single per-instance seeding point for the DebugConfig
     // pointer.  Every code path that reads `ctx.policy.debug_config`

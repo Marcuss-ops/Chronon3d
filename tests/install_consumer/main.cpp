@@ -85,8 +85,8 @@ int main() {
                 static_cast<c3d::f32>(ctx.width),
                 static_cast<c3d::f32>(ctx.height)};
             gb.offset = c3d::Vec2{0.0f, 0.0f};
-            gb.bg_color = c3d::Color{0.05f, 0.06f, 0.10f, 1.0f};        // dark navy
-            gb.grid_color = c3d::Color{0.45f, 0.65f, 1.00f, 0.35f};     // cyan grid
+            gb.bg_color = c3d::Color{0.30f, 0.32f, 0.40f, 1.0f};        // visible navy (linear > 5/255 after sRGB conversion)
+            gb.grid_color = c3d::Color{0.60f, 0.80f, 1.00f, 0.70f};     // bright cyan grid, high opacity
             gb.spacing = 60.0f;
             gb.minor_thickness = 1.0f;
             gb.major_thickness = 2.5f;
