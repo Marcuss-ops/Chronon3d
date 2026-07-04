@@ -39,6 +39,7 @@
 #include <chronon3d/scene/camera/camera_v1/camera_motion_context.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
+#include <chronon3d/core/types/time.hpp>   // FrameRate (complete type for brace-init + .num/.den access)
 
 #include <algorithm>   // std::sort, std::unique (camera_v1_context_at_unique_per_fps)
 #include <iterator>    // std::distance
@@ -83,8 +84,8 @@ TEST_CASE(
     "collide if the factory silently substituted FrameRate{30, 1}.") {
 
     for (const auto& fz : kFuzz) {
-        CAPTURE(fz.fps.num);
-        CAPTURE(fz.fps.den);
+        CAPTURE(fz.fps.numerator);    // FrameRate data field (see core/types/time.hpp:9-14)
+        CAPTURE(fz.fps.denominator);  // FrameRate data field (see core/types/time.hpp:9-14)
 
         // ── CameraEvalContext ────────────────────────────────────────
         CameraEvalContext ectx = CameraEvalContext::at(Frame{7}, fz.fps);

@@ -47,6 +47,7 @@
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_session.hpp>   // CameraSession complete type (defined at camera_session.hpp:60; camera_program.hpp:36 only forward-declares)
 
 #include <string>
 
