@@ -145,6 +145,28 @@ coprire i movimenti cinematografici necessari al motion graphics 2.5D.
 7. Migliorare DOF senza creare un secondo sistema ottico.
 8. Aggiungere parity test e golden sul percorso compilato.
 9. Migrare preset e composizioni, poi deprecare/rimuovere authoring legacy.
+### M2.A3 — Agent3 ticket cluster: compiler semantics, session policy, cache lease, framerate explicit (PLANNED, post-freeze)
+
+Origine: prompt operativo **Agent3 — Compiler, Session, Errori, Legacy Cleanup** (2026-07-04). Si applica ai file `camera_v1/*` (`include/chronon3d/scene/camera/camera_v1/*.hpp` + `src/scene/camera/camera_v1/*.cpp`) — **non** al type-level deletion già coperto da [ADR-011](adr/ADR-011-camera-legacy-deletion.md) (AnimatedCamera2_5D / dual CameraRig / CameraShotProfile / camera_descriptor_adapters / Camera2_5D::projection_mode). Stato attuale: tutti i sotto-ticket sono **PLANNED** (nessun codice toccato durante freeze). Workstream design-FROZEN 2026-07-04.
+
+Lavori (uno per ticket, commit atomico su `main` — no branch, AGENTS.md §Feature Freeze):
+
+1. **TICKET-A3-METADATA** — `camera_v1::compile_camera()`: rimuovere il `return` anticipato dopo graft del `RegisteredMotionRef`; late-rebuild `failure_policy_` / `time_dependent_` / `evaluation_dependency_` post-graft.
+2. **TICKET-A3-SESSION-POLICY** — `CameraFailurePolicy::KeepLastValidCamera` realmente recupera `CameraSession::last_valid_camera` (oggi segue il ramo di `Stop`).
+3. **TICKET-A3-CACHE-LEASE** — `CameraSessionCache::acquire()` non aggiorna `last_evaluated_frame` prima del completamento della evaluate; lease `commit()` on success only; failed evaluation non muta cache.
+4. **TICKET-A3-CTX-FRAMERATE** — `CameraEvalContext::at(Frame, FrameRate)` + `CameraMotionContext::at(Frame, FrameRate)` audit call-site per residui `FrameRate{30,1}` hardcoded.
+5. **TICKET-A3-PRE-ROLL-FPS** — `preroll_session_for_frame(...)` riceve `FrameRate` esplicito (signature già presente in `camera_session_cache.hpp`; verificare che ogni call-site passi fps non-default).
+6. **TICKET-A3-DAMPED-HISTORY** — `DampedFollowConstraint` forza sempre `ProgramKind::RequiresHistory` durante la fase di metadata classification del compiler.
+7. **TICKET-A3-LOOKAT-DIAGNOSTIC** — `LookAtLayer` senza `transforms` (`CameraEvalContext::transforms == nullptr`) emette `CameraDiagnostic{Code::MissingTransforms, Severity::Warning}` invece di silent fallback.
+8. **TICKET-A3-ADR-013** — ADR-013 (camera_v1 semantics + framerate explicit + cache-lease contract) + ticket-to-code chain verso [ADR-011](adr/ADR-011-camera-legacy-deletion.md) per chiudere il DoD gate (h). Doc-only.
+
+Done-Definition (8 gate, vedi matrice in `docs/FOLLOWUP_TICKETS.md` Agent3 cluster): tutti i gate (a)..(h) sono PASS verificato allo stesso commit. Gate di uscita addizionali:
+
+- `tools/check_camera_architecture.sh` rimane 6/6 PASS dopo ogni commit;
+- `tests/scene/camera/` LINK + RUN;
+- `tools/wrap_push.sh origin main` GATE_PASS prima di ogni push.
+
+Allineato con `docs/camera-plan/04-INTEGRATION_TESTS_AND_LEGACY_REMOVAL.md` PR breakdown (CAM-02 compiler validation / CAM-05 render integration / CAM-06 timeline+state). Avvio rigido post-freeze: `1 → 2 → 3 → 4 → 5 → 6 → 7`, ADR-013 last.
 
 ### Gate di uscita
 
