@@ -815,19 +815,42 @@ CameraProgram::evaluate(const CameraEvalContext& ctx,
                     "constraint[" + std::to_string(i) + "] failed: " + cr.reason
                 };
             case CameraFailurePolicy::KeepLastValidCamera:
-                // CAM-03: attempt recovery from the last camera that
-                // passed all constraints.  If no such camera exists,
-                // fall back to a true error (same as Stop).
-                if (session.last_valid_camera) {
+                // ──────────────────────────────────────────────────────────────────────
+                // TICKET-A3-SESSION-POLICY (Agent3 mission DoD gate (c)):
+                // this is the SOLE wire of `CameraSession::last_valid_camera` in
+                // the evaluator.  The field is WRITTEN at the END of evaluate()
+                // on every successful pass (the final 2 lines below this switch);
+                // this case READS it on failure and returns the cached camera as
+                // the recovery snapshot.  Without this wire, KeepLastValidCamera
+                // would behave identically to Stop — the Agent3 mission
+                // describes exactly this regression (problem #2: "KeepLastValidCamera
+                // segue lo stesso ramo di Stop").  This sentinel must NOT be
+                // removed silently in future refactors.
+                //
+                //   • With a cached valid camera → emit ONE recovery Warning that
+                //     names both the failed constraint index and the reason, and
+                //     return EvaluatedCamera with the cached camera.  The cache
+                //     is preserved (already holds the same value) for subsequent
+                //     recoveries — no re-write needed inside this branch.
+                //   • Without a cached valid camera (first-encounter, or
+                //     session.reset() between evals) → fall through to true
+                //     ConstraintFailure so the caller can re-pre-roll or surface
+                //     the broken composition upstream.
+                //
+                // Regression lock: tests/runtime/test_camera_session_keep_last_valid.cpp
+                // — 2-frame scenario (Frame 0 passes + Frame 1 fails) covering
+                // both branches of this case.
+                // ──────────────────────────────────────────────────────────────────────
+                if (session.last_valid_camera.has_value()) {
                     result.camera = *session.last_valid_camera;
                     result.diagnostics.push_back({
                         CameraProgramDiagnostic::Severity::Warning,
-                        "Recovered: constraint failure, using last valid camera"
+                        std::string("Recovered: constraint ") + std::to_string(i) +
+                            " failed (" + cr.reason + "); using last valid camera"
                     });
-                    session.last_valid_camera = result.camera;
                     return result;
                 }
-                // No last valid camera to recover — true error.
+                // No cached valid camera to recover — true error (same kind as Stop).
                 return CameraEvaluationError{
                     CameraEvaluationError::Kind::ConstraintFailure,
                     "constraint[" + std::to_string(i) + "] failed: " + cr.reason +
