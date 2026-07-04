@@ -56,17 +56,19 @@ TEST_CASE("TICKET-103a (1) TextLayoutCacheKey: same text+font but direction LTR 
     // hit on bidirectional shaping).  Post-TICKET-103a, the cache-key
     // signature honors direction → distinct digests.
     TextLayoutCacheKey ltr_key{
-        /* text          */ "Hello, World",
-        /* font_path     */ "/fonts/Inter-Regular.ttf",
-        /* font_weight   */ 400,
-        /* font_style    */ "normal",
-        /* font_size     */ 32.0f,
-        /* tracking      */ 0.0f,
-        /* box_width     */ 800.0f,
-        /* wrap          */ TextWrap::None,
-        /* direction     */ TextDirection::LTR,
-        /* language      */ Bcp47LanguageTag{"en"},
-        /* paragraph     */ ParagraphStyle{},
+        .text          = "Hello, World",
+        .font_path     = "/fonts/Inter-Regular.ttf",
+        .font_weight   = 400,
+        .font_style    = "normal",
+        .font_size     = 32.0f,
+        .tracking      = 0.0f,
+        .box_width     = 800.0f,
+        .wrap          = TextWrap::None,
+        .direction     = TextDirection::LTR,
+        .language      = Bcp47LanguageTag{"en"},
+        .features      = TextShapingFeatures{},
+        .font_family   = "",
+        .paragraph     = ParagraphStyle{},
     };
     TextLayoutCacheKey rtl_key = ltr_key;
     rtl_key.direction = TextDirection::RTL;
@@ -110,17 +112,19 @@ TEST_CASE("TICKET-103a (2) TextLayoutCacheKey: same text+font but language ar vs
     // script-specific decisions depend on language).  Post-TICKET-103a,
     // the cache-key signature honors language → distinct digests.
     TextLayoutCacheKey en_key{
-        /* text          */ "Hello, World",
-        /* font_path     */ "/fonts/Inter-Regular.ttf",
-        /* font_weight   */ 400,
-        /* font_style    */ "normal",
-        /* font_size     */ 32.0f,
-        /* tracking      */ 0.0f,
-        /* box_width     */ 800.0f,
-        /* wrap          */ TextWrap::None,
-        /* direction     */ TextDirection::LTR,
-        /* language      */ Bcp47LanguageTag{"en"},
-        /* paragraph     */ ParagraphStyle{},
+        .text          = "Hello, World",
+        .font_path     = "/fonts/Inter-Regular.ttf",
+        .font_weight   = 400,
+        .font_style    = "normal",
+        .font_size     = 32.0f,
+        .tracking      = 0.0f,
+        .box_width     = 800.0f,
+        .wrap          = TextWrap::None,
+        .direction     = TextDirection::LTR,
+        .language      = Bcp47LanguageTag{"en"},
+        .features      = TextShapingFeatures{},
+        .font_family   = "",
+        .paragraph     = ParagraphStyle{},
     };
     TextLayoutCacheKey ar_key = en_key;
     ar_key.language = Bcp47LanguageTag{"ar"};
