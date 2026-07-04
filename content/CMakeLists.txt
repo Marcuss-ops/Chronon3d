@@ -34,10 +34,6 @@ add_library(chronon3d_content OBJECT
     showcases/cinematic/dolly_zoom_showcase.cpp
     showcases/cinematic/tilt_sweep_title_v2.cpp
 
-    # ── Examples ───────────────────────────────────────────────────────────
-    examples/text/text_animations.cpp
-    examples/image/image_animated_reveals.cpp
-
     # ── Experimental gateway (only registers diagnostics when enabled) ─────
     experimental/effects-gateway/effect_diagnostics_gateway.cpp
 
