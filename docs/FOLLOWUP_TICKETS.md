@@ -91,6 +91,11 @@ Workstream design-FROZEN 2026-07-04 contro feature-freeze attivo; **nessun codic
 | TICKET-P1-09 | P1 | RenderRuntime service locator | PLANNED | [TICKET-P1-09.md](tickets/TICKET-P1-09.md) |
 | TICKET-P1-11 | P1 | Timeline percorsi multipli | PLANNED | [TICKET-P1-11.md](tickets/TICKET-P1-11.md) |
 | TICKET-render-pipeline-fps-defaults-audit | P1 | audit `render_scene` overloads + free-fun `float fps` params | PLANNED | code-review hygiene, non-blocking |
+| TICKET-GOLDEN-10 | P1 | `golden_emoji_fallback_basic` — M5 color emoji/fallback (post-M4) | PLANNED | [ADR-014 Decision 2](adr/ADR-014-text-golden-coverage.md#decision-2--5-forward-only-tickets-for-the-spec-subset-blocked-by-feature-freeze-v01) |
+| TICKET-GOLDEN-16 | P1 | `golden_anim_character_offset_wave` — Blocco 2 Character Offset pre-shaping | PLANNED | [ADR-014 Decision 2](adr/ADR-014-text-golden-coverage.md#decision-2--5-forward-only-tickets-for-the-spec-subset-blocked-by-feature-freeze-v01) |
+| TICKET-GOLDEN-30 | P1 | `golden_karaoke_word_highlight` — M4 subtitle word timing | PLANNED | [ADR-014 Decision 2](adr/ADR-014-text-golden-coverage.md#decision-2--5-forward-only-tickets-for-the-spec-subset-blocked-by-feature-freeze-v01) |
+| TICKET-GOLDEN-31 | P1 | `golden_character_depth_stack` — M5 per-character 3D + Expressions V2 stable | PLANNED | [ADR-014 Decision 2](adr/ADR-014-text-golden-coverage.md#decision-2--5-forward-only-tickets-for-the-spec-subset-blocked-by-feature-freeze-v01) |
+| TICKET-GOLDEN-32 | P1 | `golden_text_on_arc_path` — post-TXT-09 + Blocco 11 motion blur | PLANNED | [ADR-014 Decision 2](adr/ADR-014-text-golden-coverage.md#decision-2--5-forward-only-tickets-for-the-spec-subset-blocked-by-feature-freeze-v01) |
 
 **P1 progress summary (2026-07-04):**
 - P1 #1–#5: **DONE** (Part 1 completata, commit `0892a224`)
