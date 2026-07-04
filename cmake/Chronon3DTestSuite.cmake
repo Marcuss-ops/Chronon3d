@@ -158,6 +158,16 @@ function(chronon3d_add_test_suite)
     #   chronon3d_enable_test_pch(${NAME})
     #   add_test(NAME ${NAME} COMMAND ${NAME} WORKING_DIRECTORY ...)
     add_executable(${ARG_NAME} ${TEST_MAIN} ${ARG_SOURCES})
+
+    # M1.5#7 — UNITY_BUILD OFF for tests
+    # Tests frequently define global-scope helpers (e.g. fixture_exists,
+    # skip_if_missing, inter_bold, make_real_shape_for_test) with the
+    # SAME signature across multiple files.  When unity build merges
+    # them into a single TU, these collide as redefinition errors.
+    # Whole-project unity build remains ON for source libraries, so
+    # compile time is only affected for test executables.
+    set_target_properties(${ARG_NAME} PROPERTIES UNITY_BUILD OFF)
+
     target_link_libraries(${ARG_NAME} PRIVATE
         ${ARG_LINK_TARGETS}
         doctest::doctest
