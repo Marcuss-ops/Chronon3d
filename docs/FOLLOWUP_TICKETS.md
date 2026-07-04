@@ -13,7 +13,7 @@ Solo ticket realmente aperti (PLANNED / PARTIAL). Nessun DONE in questa sezione.
 | TICKET-036 | P0 | camera architecture gate | PLANNED | arch-boundary gate 5/6 | [TICKET-036.md](tickets/TICKET-036.md) |
 | TICKET-011 | P0 | mainline build rot | PLANNED | arch-boundary gate 1–8 | [TICKET-011.md](tickets/TICKET-011.md) |
 | TICKET-005 | P1 | post-cascade cleanup | PARTIAL | arch-completeness gate 5 | [TICKET-005.md](tickets/TICKET-005.md) |
-| TICKET-022 | P1 | camera double look-at compiled path | PARTIAL | arch-boundary gate 5/6 | [TICKET-022.md](tickets/TICKET-022.md) |
+| ~~TICKET-022~~ | ~~P1~~ | ~~camera double look-at compiled path~~ | ~~PARTIAL~~ | ~~arch-boundary gate 5/6~~ | [TICKET-022.md](tickets/TICKET-022.md) — **chiuso (Recently closed)** |
 | TICKET-044 | P1 | selftest hardcoded paths | PLANNED | arch-boundary gate 5 | [TICKET-044.md](tickets/TICKET-044.md) |
 | TICKET-046 | P1 | filename drift stale references | PLANNED | arch-boundary gate 5 | [TICKET-046.md](tickets/TICKET-046.md) |
 | TICKET-051 | P1 | per-preset visual diagnostic | PLANNED | A4.3 visual gate | [TICKET-051.md](tickets/TICKET-051.md) |
@@ -110,6 +110,10 @@ Workstream design-FROZEN 2026-07-04 contro feature-freeze attivo; **nessun codic
 | TICKET-P1-12 | CMake fragile (ar merge + include_private) | commit `59b2439f` |
 | M1.5#1 | TextRunNode.cpp orchestratore + 3 helpers (`text_run/`) + return-channel test | commit `82d2b0e0` |
 | M1.5#2 | text_run_driver.cpp orchestratore + 3 helpers (`src/text/driver/`) + `EffectiveTextState` | commit `e837e274` |
+| TICKET-021 | Camera V1: PoseTracksSource variance-preserving dispatch | commit `82d2b0e0` (post-sync) + §2.A lock-tests|
+| TICKET-022 | Camera V1: single-application canonical-order lock (orientation + constraint) | commit `82d2b0e0` (post-sync) + §4.B lock-tests |
+| TICKET-024 | Camera V1: orbit position math in camera-local basis | commit `82d2b0e0` (post-sync) + §4.C lock-tests |
+| TICKET-025 | Camera V1: OrientAlongPath semantic correctness (tangent/roll/keep_horizon/degenerate-tangent) | Step 4 + `test_orient_along_path.cpp` lock-tests |
 | TICKET-077 | gate-3 I2: `software_renderer.hpp` LOC 223→182 | — |
 | TICKET-079 | gate-3 I5: `attach_software_backend` SWRenderer& → SWRenderer* | commit `ac5f7125` |
 | TICKET-078 | gate-3 I3: non-local includes 7→6 | — |
