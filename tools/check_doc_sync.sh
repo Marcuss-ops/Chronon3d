@@ -163,6 +163,19 @@ else
   fi
 fi
 
+# -- R-Table: docs/CURRENT_STATUS.md "Stato generale per area" table shape -------
+# Hardening (post Cat-1 recovery commit c5793405): protects against sed-regex
+# fragility that over-matches and silently drops rows from the canonical table.
+# Runs whenever docs/CURRENT_STATUS.md is in the diff range; mirrors the
+# existing R1-R5 diff-scoped pattern.
+if has_change '^docs/CURRENT_STATUS\.md$'; then
+  if bash "$ROOT/tools/check_current_status_table_shape.sh" >/dev/null 2>&1; then
+    okf "R-Table: CURRENT_STATUS.md Stato generale per area table shape canonical (13 body rows + 12 named labels)"
+  else
+    fail "R-Table: CURRENT_STATUS.md table shape drift detected - run tools/check_current_status_table_shape.sh for diagnostic"
+  fi
+fi
+
 # -- Esito finale ------------------------------------------------------------------------
 echo
 echo "Summary: ${errs} hard failure(s), ${warn} warning(s) (wip=$wip)"
