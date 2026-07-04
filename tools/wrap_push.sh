@@ -8,9 +8,15 @@
 # `git push "$@"` if the gate passes.  Drop-in replacement for `git push`
 # (forwards all args including --force / --no-verify / refspec forms).
 #
-# Behaviour (post TICKET-076 closure, 2026-06-30):
+# Behaviour (post TICKET-076 closure, 2026-06-30, + GATE-MNT-01-EXT
+# closure 2026-07-04 — auto-repair of per-branch rebase on push):
 #   1. Parse remote (default: origin) and refspec (default: current branch).
 #   2. `git fetch "$REMOTE"` — bring remote refs up to date.
+#   2.5. (GATE-MNT-01-EXT) If `branch.${TARGET_BRANCH}.rebase` is missing,
+#        set it to `true` so future pulls on this branch use rebase.
+#        Idempotent + forward-only: affects future pulls, NOT this push.
+#        Does NOT override explicit non-'true' values (preserves user
+#        preference); only repairs missing entries (post-clone state).
 #   3. If HEAD != $REMOTE/$REFSPEC AND `is-ancestor HEAD REMOTE_REF`
 #      (i.e., remote is descendant of local AND the history is linear so
 #      an FF-merge is possible) — `git merge --ff-only "$REMOTE/$REFSPEC"`
@@ -26,7 +32,14 @@
 #   - TICKET-067 / TICKET-075: relaxed strict-SHA equality to merge-base
 #     ancestor relation (the gate accepts the "remote is descendant of
 #     local" direction).
-#   - TICKET-076 (this commit): the wrapper AUTOMATICALLY performs the
+#   - GATE-MNT-01-EXT (this commit's companion in
+#     tools/check_main_clean.sh + tools/install_consumer_test.sh):
+#     the wrapper now auto-repairs a MISSING
+#     `branch.${TARGET_BRANCH}.rebase` entry to `true` so future pulls
+#     on this branch use rebase (linear history).  Idempotent +
+#     forward-only; explicit non-'true' values are preserved (only
+#     missing entries are repaired, per user spec).
+#   - TICKET-076: the wrapper AUTOMATICALLY performs the
 #     fast-forward merge on the remote-ahead case so a manual
 #     `git pull --rebase origin <branch>` step is no longer required
 #     between the gate failure and the next push.  Cognition speed-up:
@@ -84,6 +97,22 @@ if ! git fetch "$TARGET_REMOTE" 2>/dev/null; then
     echo "  fix: verify network/auth/remote config, then retry" >&2
     echo "GATE_FAIL"
     exit 1
+fi
+
+# ── Step 2.5: GATE-MNT-01-EXT auto-repair of branch.<TARGET_BRANCH>.rebase=true ──
+# If the per-branch rebase flag is MISSING (e.g. fresh `git clone` or
+# first agent invocation), set it to `true` so future `git pull` on this
+# branch uses rebase instead of merge (linear history per AGENTS.md
+# "Workflow Git obbligatorio").  Idempotent + forward-only: the canonical
+# gate (`tools/check_main_clean.sh` Step 4) is the read-side enforcement;
+# this wrapper provides the proactive repair path so post-clone agent
+# invocations don't trip the gate manually.  Logs the repair so the user
+# knows it happened (silent mutation violates AGENTS.md "non sorprendere
+# l'utente").  Does NOT override explicit "false" / "merges" / "interactive"
+# — only repairs missing entries per user spec.
+if ! git config --local --get branch."$TARGET_BRANCH".rebase 2>/dev/null >/dev/null; then
+    echo "wrap_push.sh: GATE-MNT-01-EXT auto-repair: setting branch.${TARGET_BRANCH}.rebase=true (was unset)"
+    git config branch."$TARGET_BRANCH".rebase true
 fi
 
 # ── Step 3: auto fast-forward if remote is ahead AND FF-pure ──────────────
