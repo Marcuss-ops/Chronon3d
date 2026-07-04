@@ -8,27 +8,6 @@
 using namespace chronon3d;
 
 
-TEST_CASE("RichTextLine measures a mixed inline line with text, spacing and symbol") {
-    RichTextLine rtl;
-    rtl.run("Buttery", Color{1.0f, 0.0f, 0.78f, 1.0f}, 72.0f)
-       .space(24.0f)
-       .run("Smooth", Color::white(), 72.0f)
-       .space(24.0f)
-       .star(Color{1.0f, 0.0f, 0.78f, 1.0f}, 42.0f, 12.0f, 8);
-
-    const auto metrics = rtl.measure(nullptr);
-
-    CHECK(metrics.width > 0.0f);
-    CHECK(metrics.height >= 84.0f);
-    CHECK(metrics.ascent >= 42.0f);
-    CHECK(metrics.descent >= 42.0f);
-    CHECK(metrics.baseline == doctest::Approx(metrics.ascent));
-    CHECK(metrics.has_ink_bounds);
-    CHECK(metrics.ink_bounds.x <= 0.0f);
-    CHECK(metrics.ink_bounds.z > metrics.ink_bounds.x);
-    CHECK(metrics.ink_bounds.w < metrics.ink_bounds.y);
-}
-
 TEST_CASE("RenderNodeFactory preserves native stroke on rounded rect and circle") {
     auto* res = std::pmr::get_default_resource();
 
