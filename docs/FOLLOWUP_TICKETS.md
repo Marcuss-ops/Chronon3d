@@ -11,7 +11,7 @@ Solo ticket realmente aperti (PLANNED / PARTIAL). Nessun DONE in questa sezione.
 | ID | Pri | Area | Stato | Blocca | Scheda |
 |---|---|---|---|---|---|
 | TICKET-036 | P0 | camera architecture gate | PLANNED | arch-boundary gate 5/6 | [TICKET-036.md](tickets/TICKET-036.md) |
-| TICKET-011 | P0 | mainline build rot | PLANNED | arch-boundary gate 1–8 | [TICKET-011.md](tickets/TICKET-011.md) |
+| TICKET-011 | P0 | mainline build rot | PARTIAL | arch-boundary gate 1–8 (cron3d_core_tests rot multi-file eterogeneo, non solo claim iniziale) | [TICKET-011.md](tickets/TICKET-011.md) |
 | TICKET-005 | P1 | post-cascade cleanup | PARTIAL | arch-completeness gate 5 | [TICKET-005.md](tickets/TICKET-005.md) |
 | ~~TICKET-022~~ | ~~P1~~ | ~~camera double look-at compiled path~~ | ~~PARTIAL~~ | ~~arch-boundary gate 5/6~~ | [TICKET-022.md](tickets/TICKET-022.md) — **chiuso (Recently closed)** |
 | TICKET-044 | P1 | selftest hardcoded paths | PLANNED | arch-boundary gate 5 | [TICKET-044.md](tickets/TICKET-044.md) |
