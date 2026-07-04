@@ -47,6 +47,28 @@ add_library(chronon3d_text_core OBJECT
     internal/text_resolver_helpers.cpp
 )
 
+# ── Unity-build exclusion ────────────────────────────────────────────────
+# Two text-core TUs clash when bundled into a single Unity chunk:
+#   - timed_text_document.cpp defines anonymous-namespace hash helpers
+#     (hcombine / hbytes / hstring / hval) that are also defined in one
+#     of the timed_text_adapter_*.cpp files compiled in the same Unity
+#     group.  Compiling as separate TUs eliminates the duplicate-symbol
+#     redefinition error.
+#   - boundary_resolver/text_unit_map.cpp + glyph_selector.cpp end up
+#     in the same Unity chunk, and both pull in a different definition
+#     of `class chronon3d::TextUnitMap` (one in text_unit_map.hpp, the
+#     legacy one in glyph_selector.hpp).  Same fix: compile as separate
+#     TUs to break the ODR-violation-at-compile-time.
+# This is a build-system workaround for pre-existing TU-local name
+# collisions; it does NOT change the public API surface and does NOT
+# alter the semantics of the text subsystem.  Tracked under the
+# "Correzioni di build" exception of the v0.1 feature freeze.
+set_source_files_properties(
+    timed_text_document.cpp
+    boundary_resolver/text_unit_map.cpp
+    PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
+)
+
 # NOTE: chronon3d_text_core does NOT declare its own PUBLIC include directory
 # here.  Public header access is already provided transitively through the
 # PUBLIC link to `chronon3d` (which has both $<BUILD_INTERFACE:…> and
