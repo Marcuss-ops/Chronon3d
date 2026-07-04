@@ -98,6 +98,11 @@ Un valore `PASS` deve indicare lo SHA e la baseline che lo dimostrano — altrim
 ## Stato generale per area
 
 | Area                                            | Stato    | Note sintetiche                                                          |
+|-------------------------------------------------|----------|--------------------------------------------------------------------------|
+| **Camera V1 — CameraSessionLease rollback**    | PARTIAL  | TICKET-ZERO-A1 / §3.1 execution-plan: lease.session() now operates on Entry::working_session (sibling scratch field of checkpoint.session); commit() is sole writepath; uncommitted leases implicitly rollback (companion lock `tests/runtime/test_camera_session_cache_failed_no_commit_session_state.cpp` 3 SUBCASEs covers failed+no_commit / success+commit / success+no_commit paths). ADR-013 Decision 3 source anchor now matches code behavior. `tools/check_camera_architecture.sh` 6/6 PASS. Branch: `main`. |
+
+## Camera Production V1 (storico — entry conservata sotto per staleness convenience; fonte canonica: § "Camera V1" sopra)
+
 | ----------------------------------------------- | -------- | ------------------------------------------------------------------------ |
 | Render graph compilato                          | PARTIAL  | `chronon3d_render_graph_tests` + `chronon3d_core_tests` LINK rot `Camera2_5D::projection_mode` chiuso in `ac514fea` (carry-over closure M1.5#1 + M1.5#2); TICKET-011 `text_unit_map` build rot ancora aperto (LINK blocker separato, fuori scope M1.5). |
 | Software backend                                | PASS     | Gate-3 (I1-I5) tutto verde su `main@775da4d9`. TICKET-077 + TICKET-079 chiusi. |
