@@ -360,4 +360,17 @@ target_compile_definitions(chronon3d_core_tests PRIVATE
 )
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/tests)
 chronon3d_enable_test_pch(chronon3d_core_tests)
+
+# TICKET-011 build-rot fix: unity-build exclusions for test files with
+# anonymous-namespace struct collisions (LocalEngine) and ODR conflicts
+# (canonical class TextUnitMap vs narrow struct TextUnitMap).
+set_source_files_properties(
+    ${CMAKE_CURRENT_SOURCE_DIR}/text/test_compile_text_layout_errors.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/text/test_compile_text_layout_identity.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/text/test_rich_text_paragraph_preservation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/text/test_compile_text_layout_per_paragraph_failure.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_unit_map_joint_include.cpp
+    PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
+)
+
 add_test(NAME chronon3d_core_tests COMMAND chronon3d_core_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
