@@ -10,28 +10,34 @@
 # pattern: each regression-lock pins a SILENT-FALLBACK class of
 # failure, names a stable prefix for diagnostic emission, and links
 # to the source-anchor file that owns the contract.
+#
+# §11.1 / §12.1 — register via chronon3d_add_test_suite() (canonical
+# test-suite registration) so the §12.3 source-registry gate sees
+# these source paths and the test target is tracked under the SDK
+# tier for the §11.4 gate.  The previous raw add_executable / link /
+# include / add_test block bypassed the registry, leaving both
+# `sdk/test_sdk_render_grid_background.cpp` and
+# `sdk/test_sdk_archive_manifest.cpp` as orphan sources (per the
+# §12.3 gate) and the executable off the SDK-tier tracker.
 
-add_executable(chronon3d_sdk_tests
-    ${TEST_MAIN}
-    sdk/test_sdk_render_grid_background.cpp
-    sdk/test_sdk_archive_manifest.cpp
+chronon3d_add_test_suite(
+    NAME chronon3d_sdk_tests
+    TIER SDK
+    SOURCES sdk/test_sdk_render_grid_background.cpp
+            sdk/test_sdk_archive_manifest.cpp
+    # LINK_TARGETS override (AUTHOR_WARNING expected): the default
+    # SDK tier link is just `chronon3d_sdk` (the public INTERFACE
+    # alias); the regression-lock + archive-manifest tests exercise
+    # the SDK facade end-to-end against the full backend, so we link
+    # the same per-subsystem targets the previous raw block did.
+    LINK_TARGETS chronon3d_sdk chronon3d_sdk_impl chronon3d_scene chronon3d_pipeline chronon3d_backend_software
 )
-target_link_libraries(chronon3d_sdk_tests PRIVATE
-    chronon3d_sdk
-    chronon3d_sdk_impl
-    chronon3d_scene
-    chronon3d_pipeline
-    chronon3d_backend_software
-    doctest::doctest)
-target_include_directories(chronon3d_sdk_tests PRIVATE ${CMAKE_SOURCE_DIR})
 
-# TICKET-SDK-PACKAGING-CONSOLIDATION -- pass the canonical archive path
-# to the test source as a preprocessor string literal. Modern cmake
-# auto-escapes values containing spaces, so we use the bare form.
+# TICKET-SDK-PACKAGING-CONSOLIDATION -- pass the canonical archive
+# path to the test source as a preprocessor string literal. Modern
+# cmake auto-escapes values containing spaces, so we use the bare
+# form.  Defined here (after the macro call) because
+# chronon3d_add_test_suite() does not wrap compile definitions.
 target_compile_definitions(chronon3d_sdk_tests PRIVATE
     CHRONON3D_SDK_ARCHIVE_PATH=${CMAKE_BINARY_DIR}/src/libchronon3d_sdk_impl.a
 )
-chronon3d_enable_test_pch(chronon3d_sdk_tests)
-add_test(NAME chronon3d_sdk_tests
-         COMMAND chronon3d_sdk_tests
-         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
