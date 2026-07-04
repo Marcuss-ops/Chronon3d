@@ -1,11 +1,11 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@876a14ac` (Fase A completata 6/6, Fase B2+B3 globali ELIMINATI, Fase C2 factory) — 2026-07-03. Linux-only.
+> **Snapshot:** `main@HEAD` (item #14 FOLLOWUP housekeeping + gate #10 Phase 1-3 fix) — 2026-07-04. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@876a14ac` — **9/10 PASS + 1 PASS*** (warn-mode) + **1 NOT RUN** (gate #10 timeout infra).
 > **Baseline precedente:** `main@e8623a8a` (10/10 verificati, 1 NOT RUN).
 >
-> **Gate #10 ANCORA NOT RUN:** `install_consumer_test.sh` timeout a 120s (build troppo lento: 107/341 unità). Regressione infrastrutturale, non di codice.
+> **Gate #10 — `install_consumer_test.sh`:** Phase 1-3 PASS (configura, build, install, archive canary, canary symbols) dopo fix header `camera_v1` mancanti in `cmake/Chronon3DPublicHeaders.cmake` (+12 header). Phase 4 FAIL: consumer compile OK ma render produce PNG completamente nero (230400 pixel sotto soglia 5/255). Bug pre-esistente (consumer test NOT RUN da giugno). Fix infrastrutturale (disk quota) risolto con `ccache -C`.
 > **Gate #8:** 170 drift warning (stabile).
 >
 > **Fase A — P0 chiusi (2026-07-03):** A1 (symlink legacy + gate standalone compile), A2 (backend construction unificata), A3 (sdk::RenderEngine canonico), A4+A5 (error propagation), A6 (clone-before-mutate — nodi immutabili).
@@ -103,10 +103,9 @@ Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA,
 
 ## Prossimo passo operativo
 
-1. **Gate #3:** Ridurre `software_renderer.hpp` da 203 a ≤200 LOC (tagliare 3 linee).
-2. **Gate #7:** Risolvere la violazione R0 — o aggiornare il gate per consentire archival via commit espliciti, o revert/write un workaround.
-3. **Gate #10:** Liberare spazio su /tmp o usare `TMPDIR` alternativo; ripulire ccache (`ccache -C`); ri-eseguire `install_consumer_test.sh`.
-4. Raggiungere 11/11 PASS sullo stesso commit, poi revocare formalmente il feature freeze.
+1. **Gate #10 Phase 4:** Investigare il bug di rendering black-output nel consumer test. Diagnosi preliminare: `sdk::RenderEngine::render()` bridge → `render_composition_frame()` → `comp.evaluate()` produce una Scene apparentemente valida (layer count > 0) ma il framebuffer finale è nero. Possibili cause: (a) `SoftwareBackend::draw_node()` non dispatcher correttamente il GridBackgroundShape, (b) il framebuffer pool non è configurato, (c) la camera projection non produce pixel visibili.
+2. **Gate #10 Phase 4 fix:** Risolvere il bug e ri-eseguire `install_consumer_test.sh` fino a PASS completo.
+3. Raggiungere 11/11 PASS sullo stesso commit, poi revocare formalmente il feature freeze.
 
 ## Link canonici
 
