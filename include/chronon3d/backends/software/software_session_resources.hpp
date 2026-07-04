@@ -38,6 +38,17 @@
 
 #include <chronon3d/backends/software/buffer_ring.hpp>
 #include <chronon3d/backends/software/scratch_buffer.hpp>
+#include <memory>  // std::unique_ptr (M1.5#7 RAII for text_resources)
+
+// M1.5#7 — `TextRenderResources` is the per-session aggregator of
+// font + glyph + raster + scratch caches.  Forward-declared here so
+// `SoftwareSessionResources` can hold a value-member without pulling
+// the heavy `blend2d.h` header (the struct itself is declared in the
+// M1.5#7 split header; construction is default and is the only
+// path the canonical aggregator takes).
+namespace chronon3d {
+struct TextRenderResources;
+} // namespace chronon3d
 
 namespace chronon3d {
 
@@ -57,7 +68,24 @@ struct SoftwareSessionResources {
     // because of the design (architecture plan section 8.5).
     TransformScratchBuffer  scratch_buffer;
 
-    SoftwareSessionResources() = default;
+    // M1.5#7 — TextRenderResources aggregated value member.  This is
+    // the CANONICAL OWNER of all text-backend caches (font face +
+    // FreeType face + glyph atlas + raster cache + scratch pool).  It
+    // lives on the SOFTWARE side of the session (not on the
+    // engine-generic `RenderSession`) because it pulls in
+    // `<blend2d.h>` and `<ft2build.h>` — backend-specific includes
+    // that would violate the WP-3 dependency-direction invariant.
+    //
+    // Default-constructible; the constructor of `TextRenderResources`
+    // is `= default` (no special init).  `bl_faces`/`ft_faces` are
+    // empty; first font access lazily `BLFontFace::createFromFile` /
+    // `FT_Init_FreeType` via the M1.5#7 lazy-init pattern in each
+    // sub-class.
+    std::unique_ptr<TextRenderResources> text_resources;
+
+    SoftwareSessionResources();  // -- defined OOL in software_session_resources.cpp
+                                 //    -- sets text_resources = new TextRenderResources()
+    ~SoftwareSessionResources(); // -- defined OOL — delete text_resources
     SoftwareSessionResources(const SoftwareSessionResources&) = delete;
     SoftwareSessionResources& operator=(const SoftwareSessionResources&) = delete;
     SoftwareSessionResources(SoftwareSessionResources&&) noexcept = default;

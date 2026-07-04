@@ -12,6 +12,11 @@ add_library(chronon3d_backend_software OBJECT
     software_renderer.cpp
     software_backend.cpp
     software_processor_context.cpp
+    # M1.5#7 — OOL ctor/dtor for `SoftwareSessionResources` (needed because
+    # the default constructor now std::make_unique's a `TextRenderResources`
+    # via raw new and must delete it on destruction — the prior inline `= default`
+    # ctor was sufficient when `TextRenderResources*` defaulted to nullptr).
+    software_session_resources.cpp
     # TICKET-118 — internal bridge that lets SoftwareBackend build a complete
     # `SoftwareProcessorContext` without holding a SoftwareRenderer* back-pointer.
     # Strictly under src/; never installed; not in include/chronon3d/.
