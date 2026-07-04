@@ -328,7 +328,7 @@ compile_camera(const CameraDescriptor& descriptor,
         }
         // Validate individual segments.
         const auto& segs = traj->trajectory->segments();
-        const auto n_pts = traj->trajectory->size();
+        const auto n_pts = traj->trajectory->points().size();
         for (std::size_t i = 0; i < segs.size(); ++i) {
             const auto& seg = segs[i];
             if (seg.from_idx >= seg.to_idx ||
