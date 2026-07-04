@@ -169,6 +169,10 @@ git checkout main
 git pull --ff-only origin main
 ```
 
+> **Per-branch rebase convention (read-side):** future `git pull` (unpulled) su una branch con `branch.<name>.rebase = true` esegue rebase invece di merge non-fast-forward (history lineare). Verificare lo stato con `git config --local --get-regexp '^branch\.'` — ogni entry per-branch DEVE mostrare `rebase = true`. Impostare idempotentemente con `git config branch.<name>.rebase true` (per-repo local, **NON** `--global`).
+>
+> Questo è il pezzo **read-side** della triade main-sync hygiene: per-branch rebase (read, qui) + `tools/wrap_push.sh` GATE-MNT-01 (push-side wrapper) + `tools/check_main_clean.sh` (fail-on-dirty gate). Vedi § GATE-MNT-01 in fondo a questo file per il push-side + il gate canonicali (anchor-resilient: nessuna dipendenza da slug di GitHub; il riferimento è plain-text). Su `main` la verifica canonica è: `git config --local --get branch.main.rebase` ⇒ `true`.
+
 Dopo le modifiche:
 
 ```bash
