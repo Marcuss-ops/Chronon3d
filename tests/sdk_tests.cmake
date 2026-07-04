@@ -14,6 +14,7 @@
 add_executable(chronon3d_sdk_tests
     ${TEST_MAIN}
     sdk/test_sdk_render_grid_background.cpp
+    sdk/test_sdk_archive_manifest.cpp
 )
 target_link_libraries(chronon3d_sdk_tests PRIVATE
     chronon3d_sdk
@@ -23,6 +24,13 @@ target_link_libraries(chronon3d_sdk_tests PRIVATE
     chronon3d_backend_software
     doctest::doctest)
 target_include_directories(chronon3d_sdk_tests PRIVATE ${CMAKE_SOURCE_DIR})
+
+# TICKET-SDK-PACKAGING-CONSOLIDATION -- pass the canonical archive path
+# to the test source as a preprocessor string literal. Modern cmake
+# auto-escapes values containing spaces, so we use the bare form.
+target_compile_definitions(chronon3d_sdk_tests PRIVATE
+    CHRONON3D_SDK_ARCHIVE_PATH=${CMAKE_BINARY_DIR}/src/libchronon3d_sdk_impl.a
+)
 chronon3d_enable_test_pch(chronon3d_sdk_tests)
 add_test(NAME chronon3d_sdk_tests
          COMMAND chronon3d_sdk_tests

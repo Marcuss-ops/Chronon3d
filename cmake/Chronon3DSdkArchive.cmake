@@ -27,3 +27,53 @@ if(NOT EXISTS "${CMAKE_SOURCE_DIR}/cmake/Chronon3DCanarySymbols.cmake")
         "${CMAKE_SOURCE_DIR}/cmake/Chronon3DCanarySymbols.cmake. "
         "tools/install_consumer_test.sh Fase-4 gate will fail loud.")
 endif()
+
+# ==============================================================================
+# CONTRACT: Single-strategy SDK packaging certified (TICKET-SDK-PACKAGING-CONSOLIDATION)
+#   Only ONE aggregated archive is permitted to exist in the build tree:
+#   `libchronon3d_sdk_impl.a`.  All per-subsystem OBJECT libraries are
+#   aggregated into this single boundary file via CMake >=3.27 native
+#   target_link_libraries(STATIC PRIVATE objlib) propagation
+#   (cmake/Chronon3DSdkTargets.cmake ¶50 + ¶60).
+#   NO legacy OBJECT/SHARED/MODULE variants coexist; the former manual
+#   `cmake/sdk_archive_merge.cmake` ar-crs workaround was removed (TICKET-P1-PART2 P1 #12).
+#   The consumer-facing link target is `Chronon3D::SDK` ALIAS `chronon3d_sdk`
+#   (the only Chronon3D:: namespaced public target -- see Chronon3DSdkTargets.cmake ¶123).
+# ==============================================================================
+
+# Defensive configure-time guard: warn if multiple libchronon3d_sdk_*.a files
+# would coexist in the build tree.  This is the in-config guard against a
+# future regression that re-introduces a SHARED/MODULE/secondary-static
+# variant alongside the canonical `libchronon3d_sdk_impl.a`.
+file(GLOB _all_sdk_archives "${CMAKE_BINARY_DIR}/src/libchronon3d_sdk_*.a")
+list(LENGTH _all_sdk_archives _num_archives)
+if(_num_archives GREATER 1)
+    # TICKET-SDK-PACKAGING-CONSOLIDATION — build the diagnostic body in a
+    # single multi-line string and emit ONE message(FATAL_ERROR ...).
+    # An earlier revision used a `foreach(); message(FATAL_ERROR); endforeach()`
+    # pattern which the cmake runtime halts after the first iteration, so
+    # only the first archive path was reported.  Aggregating the body in a
+    # string ensures every offender is enumerated before cmake exits.
+    # TICKET-SDK-PACKAGING-CONSOLIDATION — build the diagnostic body in a
+    # single multi-line string and emit ONE message(FATAL_ERROR ...).
+    # An earlier revision used a `foreach(); message(FATAL_ERROR); endforeach()`
+    # pattern which the cmake runtime halts after the first iteration, so
+    # only the first archive path was reported.  Aggregating the body in a
+    # string ensures every offender is enumerated before cmake exits.
+    #   Explicit string(APPEND _err "\n") between every line vs. relying
+    # on cmake's `\n`-trailing-line concatenation: the explicit form is
+    # invariant under future contributor additions (a 4th line without
+    # a trailing `\n` would otherwise silently merge with the previous
+    # line in cmake's multi-arg `set()` concatenation).
+    set(_err "Chronon3DSdkArchive: MULTIPLE SDK archive files detected.")
+    string(APPEND _err "\n")
+    string(APPEND _err "  Contract violation (TICKET-SDK-PACKAGING-CONSOLIDATION):")
+    string(APPEND _err "\n")
+    string(APPEND _err "  only libchronon3d_sdk_impl.a is permitted, found ${_num_archives}:")
+    string(APPEND _err "\n")
+    foreach(_arch IN LISTS _all_sdk_archives)
+        string(APPEND _err "    ${_arch}")
+        string(APPEND _err "\n")
+    endforeach()
+    message(FATAL_ERROR "${_err}")
+endif()
