@@ -137,6 +137,35 @@ canonico. La revoca richiede un commit esplicito che rimuove questa sezione.
 
 ---
 
+### Install Pipeline Plumbing (Cat-4 ancillary)
+
+Asset class documentale per audit/tooling ancillari al
+`tools/install_consumer_test.sh` pipeline (categoria 4 del feature
+freeze: external consumer SDK).  Questi script NON sono parte dei 11/11
+gate baseline — sono rot-pattern preventive FU4-lineage, invocati
+durante la pipeline install/consumer o stand-alone via `bash`.
+
+Asset category: **`INSTALL_PIPELINE_PLUMBING`**.
+
+| Script                                          | Asset Category              | Function |
+|-------------------------------------------------|-----------------------------|----------|
+| `tools/audit_incomplete_type_pattern.sh`        | INSTALL_PIPELINE_PLUMBING   | std::make_shared\<T\> umbrella-header full-def probe. Emette **`BROKEN`** se l'header canonico del tipo T in `include/chronon3d/` contiene solo `class T;` (forward declaration) invece di `struct T { ... }` (full definition).  FU4 rot preventive (TICKET-GATE-10-PHASE-4-BLACK-FU4 closure lineage). |
+
+Stand-alone usage:
+
+```bash
+bash tools/audit_incomplete_type_pattern.sh                        # default: tests/install_consumer/ + include/chronon3d/
+INCOMPLETE_TYPE_SCAN_PATHS='tests/integration_test/main.cpp src/sdk_consumer/' \
+  bash tools/audit_incomplete_type_pattern.sh                       # override scan paths
+```
+
+Exit codes (custom): 0 = clean, 1 = BROKEN rot detected, 2 = internal
+error.  Status degli script INSTALL_PIPELINE_PLUMBING è tracciato in
+`docs/CHANGELOG.md`; rot-pattern detect è referenziato come blocker in
+`docs/FOLLOWUP_TICKETS.md` quando attiva.
+
+---
+
 ## Priorità obbligatoria
 
 1. Ottenere baseline verde: 11/11 gate sullo stesso commit (feature freeze attivo).
