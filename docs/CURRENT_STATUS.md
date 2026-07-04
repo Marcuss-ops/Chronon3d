@@ -146,7 +146,7 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 | TICKET-036  | chronon3d_camera_architecture_gate P0                                 | PLANNED  | arch-boundary gate 5/6              |
 | TICKET-044  | arch_boundaries_selftest hardcoded paths                              | PLANNED  | arch-boundary gate 5                |
 | TICKET-046  | filename drift stale references                                       | PLANNED  | arch-boundary gate 5                |
-| TICKET-011  | pre-existing mainline build rot                                       | PLANNED  | arch-boundary gate 1–8              |
+| TICKET-011  | pre-existing mainline build rot                                       | PARTIAL  | arch-boundary gate 1–8 (cron3d_core_tests rot multi-file eterogeneo). Sub-ticket (b) cast fix closing — `tests/registry/test_text_preset_descriptor.cpp:75` `CHECK_FALSE(d.fixture)` → `CHECK_FALSE(d.fixture.empty())` chiuso (commit pending this session; file-path+line correction vs original ticket description). Sub-tickets (a/iii) PLANNED.              |
 | TICKET-005  | post-cascade cleanup                                                  | PARTIAL  | arch-completeness gate 5            |
 | TICKET-118  | `SoftwareBackend::draw_node` real impl + dummy `TextRunProcessor` drop | Done     | cat-3 fake-success closure           |
 | TICKET-119  | `SoftwareBackend` m_owner back-pointer removal + internal bridge       | Done     | cat-3 arch-debt closure              |
