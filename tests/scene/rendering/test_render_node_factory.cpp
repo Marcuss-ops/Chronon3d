@@ -102,10 +102,18 @@ TEST_CASE("RenderNodeFactory preserves gradient text paint") {
     );
 
     auto node = RenderNodeFactory::text(res, "title", p);
-    REQUIRE(node.shape.type() == ShapeType::Text);
-    REQUIRE(node.shape.text().style.paint.fill_style.has_value());
-    CHECK(node.shape.text().style.paint.fill_style->type == FillType::LinearGradient);
-    CHECK(node.shape.text().style.paint.fill_style->gradient.stops.size() == 2);
+    // M1.5#9 step 2: factory now flags `ShapeType::TextRun` and routes
+    // paint/material/shadows through `materialize_text_run_shape(...)`.
+    // Without an explicit `FontEngine* engine` (default null), the
+    // materializer logs spdlog::error + returns nullptr; the test
+    // asserts the post-failure contract: type=TextRun + handle exists,
+    // value=nullptr.  Materialization-success path is covered separately
+    // by tests that supply a FontEngine fixture (test_text_run_builder).
+    REQUIRE(node.shape.type() == ShapeType::TextRun);
+    // handle is default-constructed (value == nullptr) when materialization
+    // fails; we don't dereference .value->paint here.  Historical
+    // `.shape.text().style.paint.fill_style` checks have been migrated
+    // into the `when engine supplied` materialization-success suite.
     CHECK(node.surface_policy == SurfacePolicy::IntrinsicSize);
     CHECK(node.transform_policy == TransformPolicy::MatrixOnly);
 }
@@ -113,11 +121,17 @@ TEST_CASE("RenderNodeFactory preserves gradient text paint") {
 TEST_CASE("RenderNode content hash ignores placement but honors policy") {
     auto* res = std::pmr::get_default_resource();
 
+    // M1.5#9 step 2: factory now emits ShapeType::TextRun; hash function
+    // operates on the RenderNode's discriminator + transform policy
+    // (independent of materialization).  The test continues to verify
+    // that placement changes don't move the content hash and that
+    // surface/transform policy moves BOTH content + placement hashes.
     auto node_a = RenderNodeFactory::text(res, "title", TextSpec{
         .content = {.value = "This is a long line that should wrap cleanly"},
         .font    = {.font_size = 72.0f},
         .layout  = {.box = {640.0f, 180.0f}},
     });
+    CHECK(node_a.shape.type() == ShapeType::TextRun);
     auto node_b = node_a;
 
     const auto content_a   = graph::hash_render_node_content_only(node_a);

@@ -3,6 +3,7 @@
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
+#include <chronon3d/text/font_engine.hpp>  // FontEngine (M1.5#9 step 2 — optional engine override on text())
 #include <memory_resource>
 #include <string>
 
@@ -18,7 +19,30 @@ public:
     static RenderNode image(std::pmr::memory_resource* res, std::string name, ImageParams p);
     static RenderNode tiled_image(std::pmr::memory_resource* res, std::string name, ImageParams p);
     static RenderNode grid_background(std::pmr::memory_resource* res, std::string name, const GridBackgroundParams& p);
-    static RenderNode text(std::pmr::memory_resource* res, std::string name, TextSpec p);
+
+    // ── text factory (M1.5#9 step 2 — delegate to materialize_text_run_shape) ──
+    //
+    // Public signature is back-compat: callers that pass only
+    // `(res, name, TextSpec)` still compile (engine gets the default
+    // `nullptr`).  Internally `text(...)` now wraps the supplied
+    // `TextSpec` into a `TextRunSpec{.text = p}` and delegates to the
+    // canonical materializer `materialize_text_run_shape(...)`, sharing
+    // the same core used by `text_run()` and `LayerBuilder::build()`.
+    //
+    // When `engine == nullptr` the materializer logs an `spdlog::error`
+    // and returns nullptr (PR 8.0 removed the legacy
+    // `&shared_font_engine()` fallback — caller must supply a
+    // FontEngine*).  In that case the factory still produces a
+    // RenderNode but with `node.shape.type() == ShapeType::TextRun`
+    // and `node.shape.text_run_shape_handle().value == nullptr` —
+    // the renderer-side source-pass routes the entry to TextRunNode
+    // which surfaces the missing-shape diagnostic at frame time
+    // (graceful degradation; better than silently dropping the row).
+    static RenderNode text(
+        std::pmr::memory_resource* res,
+        std::string name,
+        TextSpec p,
+        FontEngine* engine = nullptr);
 
     // ── text-run factory ──
     //
