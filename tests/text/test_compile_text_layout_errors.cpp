@@ -79,8 +79,8 @@ TEST_CASE("compile_text_layout: empty source returns Err(EmptySource)") {
 
     auto result = compile_text_layout(request, services);
 
-    REQUIRE_FALSE(result.is_ok());
-    CHECK(result.is_err());
+    REQUIRE_FALSE(result.has_value());
+    CHECK(!result.has_value());
     CHECK(result.error().kind == TextLayoutErrorKind::EmptySource);
     CHECK_FALSE(result.error().message.empty());
 }
@@ -106,7 +106,7 @@ TEST_CASE("compile_text_layout: malformed request (null pointers) returns Err(Ma
         TextLayoutRequest      bad_doc{/*doc=*/nullptr, &layout, FontSpec{}};
         TextCompileServices    services{&env.engine, nullptr};
         auto result = compile_text_layout(bad_doc, services);
-        REQUIRE_FALSE(result.is_ok());
+        REQUIRE_FALSE(result.has_value());
         CHECK(result.error().kind == TextLayoutErrorKind::MalformedLayout);
     }
     // Null layout \u2192 Err(MalformedLayout)
@@ -115,7 +115,7 @@ TEST_CASE("compile_text_layout: malformed request (null pointers) returns Err(Ma
         TextLayoutRequest      bad_layout{&some_doc, /*layout=*/nullptr, FontSpec{}};
         TextCompileServices    services{&env.engine, nullptr};
         auto result = compile_text_layout(bad_layout, services);
-        REQUIRE_FALSE(result.is_ok());
+        REQUIRE_FALSE(result.has_value());
         CHECK(result.error().kind == TextLayoutErrorKind::MalformedLayout);
     }
     // Null engine \u2192 Err(ShapingFailed) (intentional asymmetry)
@@ -126,7 +126,7 @@ TEST_CASE("compile_text_layout: malformed request (null pointers) returns Err(Ma
         TextLayoutRequest      no_eng_req{&some_doc, &some_layout, FontSpec{}};
         TextCompileServices    no_eng_svc{/*engine=*/nullptr, /*cache=*/nullptr};
         auto result = compile_text_layout(no_eng_req, no_eng_svc);
-        REQUIRE_FALSE(result.is_ok());
+        REQUIRE_FALSE(result.has_value());
         CHECK(result.error().kind == TextLayoutErrorKind::ShapingFailed);
     }
 }
@@ -179,7 +179,7 @@ TEST_CASE("compile_text_layout: multi-font paragraph compiles Ok + font_spans is
     auto result = compile_text_layout(request, services);
 
     // (a) Compile succeeds on multi-font input.
-    REQUIRE(result.is_ok());
+    REQUIRE(result.has_value());
     const auto& out_layout = *result.value();
 
     // (b) font_spans is a contiguous, non-overlapping decomposition.  Empty
@@ -257,7 +257,7 @@ TEST_CASE("build_text_run: multi-font paragraph is NO LONGER skipped (N contract
     // \u2014 Ok \u21d2 units populated unconditionally).
     for (const auto& l : result.paragraphs) {
         REQUIRE(l != nullptr);
-        REQUIRE(l->source_text.empty() == false || l->units.units.size() >= 0);
+        REQUIRE(l->source_text.empty() == false || l->units.glyph_to_grapheme.size() >= 0);
     }
 
     // The middle paragraph's `font_spans` has at least 2 entries (the 2
@@ -322,7 +322,7 @@ TEST_CASE("compile_text_layout: P1-1 — single-run failure returns Err(PerRunSh
     //      the chain) → Ok, font_spans has 2 entries.
     //   2. Run 1's fallback font fails (no system font ready) →
     //      Err(PerRunShapingFailed).
-    if (result.is_ok()) {
+    if (result.has_value()) {
         const auto& layout_val = *result.value();
         CHECK(layout_val.font_spans.size() >= 1);
         CHECK_FALSE(layout_val.placed.glyphs.empty());
