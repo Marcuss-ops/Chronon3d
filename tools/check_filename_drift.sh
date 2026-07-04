@@ -62,9 +62,11 @@ mapfile -t files < <(find . -type f \
   ! -path './build-*/*' \
   ! -path './_deps/*' \
   ! -path './node_modules/*' \
+  ! -path '*/node_modules/*' \
   ! -path './vcpkg_bootstrap/*' \
   ! -path './vcpkg_installed/*' \
   ! -path './third_party/*' \
+  ! -name 'build_output.txt' \
   ! -regex './tests/.*\.cmake' \
   ! -path './docs/ARCHIVE/*' \
   ! -path './.tmp_gate*/*' \
