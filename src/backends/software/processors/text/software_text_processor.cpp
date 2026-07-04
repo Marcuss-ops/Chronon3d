@@ -20,6 +20,16 @@
 // Last census: 2026-07-02 — this is the ONLY production caller of
 // `rasterize_text_to_bl_image` (excluding tests and CLI tools).
 // ═══════════════════════════════════════════════════════════════════════════
+//
+// ── M1.5#9 — progressive emptying of legacy text pipeline ──
+//
+// See [`docs/tickets/TICKET-M1.5#9-SEQUENCE.md`](../tickets/TICKET-M1.5#9-SEQUENCE.md)
+// for the canonical 5-step sequence (steps 1-5; Step 1 commits this
+// commit's `tests/install_consumer/main.cpp` migration; steps 2-5
+// follow as separate commits). This file is scheduled for deletion
+// in Step 4 of that sequence (along with the rest of the
+// `src/backends/software/processors/text/` directory tree).
+// ═══════════════════════════════════════════════════════════════════════════
 
 // ---------------------------------------------------------------------------
 // software_text_processor.cpp — Text shape processor

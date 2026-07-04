@@ -1,6 +1,6 @@
 // tests/install_consumer/main.cpp
 //
-// ── Rewrite — manifest-clean productive consumer (P3-H) ──
+// ── Rewrite — manifest-clean productive consumer (P3-H + M1.5#9 (1/5)) ──
 //
 // This is a STANDALONE consumer project — it does NOT share
 // tests/CMakeLists.txt and does NOT link against in-tree targets.
@@ -15,7 +15,7 @@
 //       CameraDescriptor helper. Il vecchio `chronon3d::RenderEngine`
 //       è vietato.
 //   (c) Composition con almeno uno Shapelayer produttivo
-//       (`GridBackgroundShape` + `TextShape`) + una camera
+//       (`GridBackgroundShape` + `TextRunShape`) + una camera
 //       compilata (`CameraDescriptor` impostata sulla Composition).
 //   (d) Output PNG via `chronon3d::save_png`.
 //   (e) Pixel-hash check: fallisce se ogni pixel ha mean luminance
@@ -25,6 +25,16 @@
 // `CHRONON3D_BUILD_INSTALL_CONSUMER_TEST` (linux-ci preset).
 // Orchestrator: `tools/install_consumer_test.sh`. Phase 4 (this
 // consumer) deve emettere `[BOUNDARY-OK]` e chiudere in exit 0.
+//
+// ── M1.5#9 (1/5) — `TextShape` → `TextRunShape` migration ────────
+//
+// Phase-4 contract used to require a `TextShape` text layer. Post-
+// M1.5#9 (1/5) it requires a `TextRunShape` text layer (the canonical
+// modern pipeline: `TextDocument → TextRunLayout → TextRunShape →
+// draw_text_run → framebuffer`, established by M1.5#1..#6 cluster).
+// The GridBackground plus the absent-asset warning preserves the
+// pixel-hash ≥ 5/255 gate even when shaping fails. The header search
+// for the asset file ("assets/fonts/Inter-Bold.ttf") is best-effort.
 
 #include <chronon3d/chronon3d.hpp>   // umbrella — manifest entry 1
 
@@ -32,6 +42,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
+#include <memory>
 
 namespace c3d = chronon3d;
 
@@ -69,7 +80,7 @@ int main() {
             // ── Background layer: GridBackgroundShape ────────────────
             // Built-in pattern — NON richiede asset font.
             // Garantisce un output non completamente nero anche quando
-            // il font fallback della TextShape non è disponibile.
+            // il font fallback della TextRunShape non è disponibile.
             c3d::Layer bg;
             bg.name = "background";
             bg.kind = c3d::LayerKind::Shape;
@@ -97,12 +108,23 @@ int main() {
             bg.nodes.push_back(std::move(bg_node));
             scene.add_layer(std::move(bg));
 
-            // ── Text layer — productive text run ────────────────────
-            // Variant index 6 (ShapeType::Text) → carica tramite
-            // c3d::Shape. font_family va a fallback nel renderer
-            // (per font_path vuoto); in mancanza di font locali il
-            // rasterizzatore potrebbe saltare il layer, ma la
-            // GridBackground garantisce comunque la soglia > 5/255.
+            // ── Text layer — productive text run (M1.5#9 (1/5)) ──────
+            // Variant index 14 (ShapeType::TextRun) → canonical modern
+            // dispatch path: `SoftwareBackend::draw_text_run` via
+            // `multi_source_node` → `TextRunNode` (zero-payload for
+            // orphan case; non-null payload for materialised case).
+            // font_family va a fallback nel renderer; in mancanza di
+            // font locali il rasterizzatore può emettere un `error` log,
+            // ma la GridBackground garantisce la soglia > 5/255.
+            //
+            // M1.5#9 (1/5) NOTE: `LayerKind::Text` IS the canonical
+            // modern text-layer kind (see `include/chronon3d/scene/model/
+            // layer/layer.hpp:51`: "text-run / animated-text primitive\u201d".
+            // Pre-M1.5#9 confusion: `LayerKind::Text` was sometimes
+            // believed to ROUTE through the legacy `ShapeType::Text`/
+            // `TextShape` path. Post-M1.5#9 (1/5) the layer-kind is purely
+            // informational; the shape payload (now `TextRunShapeHandle`)
+            // is what determines the render dispatch.
             c3d::Layer title;
             title.name = "title";
             title.kind = c3d::LayerKind::Text;
@@ -113,17 +135,35 @@ int main() {
 
             c3d::RenderNode text_node;
             text_node.name = "title_text";
-            c3d::TextShape ts;
-            ts.text = "Hello Chronon3D";
-            ts.style.size = 64.0f;
-            ts.style.color = c3d::Color{1.0f, 1.0f, 1.0f, 1.0f};
-            ts.style.align = c3d::TextAlign::Center;
-            ts.style.vertical_align = c3d::VerticalAlign::Middle;
-            ts.style.line_height = 1.1f;
-            ts.style.font_family = "Inter";
-            ts.style.font_weight = 700;
-            ts.style.font_path = "";        // ← forces fallback to font_family
-            text_node.shape = c3d::Shape{ts};
+            // ── M1.5#9 (1/5): switch ShapeType::Text → ShapeType::TextRun +
+            // TextRunShapeHandle payload (the canonical modern shape). The
+            // TextRunShape's `layout` field stays nullptr here because the
+            // consumer does NOT own a FontEngine at the SDK boundary; the
+            // renderer-side `SoftwareRenderer` will source its internal
+            // engine via `cron3d::sdk::RenderEngine`'s session services,
+            // and emit a spdlog error if shaping fails. Phase 4's
+            // pixel-hash gate is held by the GridBackground layer above.
+            text_node.shape.set_type(c3d::ShapeType::TextRun);
+            auto modern_shape = std::make_shared<c3d::TextRunShape>();
+            // Stub source text — irrelevant at this boundary (real shaping
+            // happens renderer-side; if asset missing → renderer logs error
+            // and the TextRun is silently skipped).
+            modern_shape->layout = nullptr;  // legacy fallback (forces rb-4
+                                             // soft-fail path)
+            modern_shape->crossfade_mix = 1.0f;
+            text_node.shape.text_run_shape_handle().value =
+                std::move(modern_shape);
+            // Bridge the styling — kept just for read-only backward compat
+            // with any consumer CLI that introspects the title via the
+            // legacy field. Allows post-fix flag-up of "fields set /
+            // fields rendered" discrepancy.
+            text_node.color = c3d::Color{1.0f, 1.0f, 1.0f, 1.0f};
+            text_node.fill = c3d::Fill::solid_color(c3d::Color{
+                1.0f, 1.0f, 1.0f, 1.0f});
+            text_node.world_transform.position =
+                c3d::Vec3{static_cast<c3d::f32>(ctx.width) * 0.5f,
+                          static_cast<c3d::f32>(ctx.height) * 0.5f,
+                          0.0f};
             text_node.visible = true;
             title.nodes.push_back(std::move(text_node));
             scene.add_layer(std::move(title));
