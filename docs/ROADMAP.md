@@ -5,6 +5,8 @@ successiva per nascondere blocker della precedente.
 
 Stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). Criteri di release: [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md).
 
+> **Snapshot macchina-verificato (2026-07-04):** `main@c73f7493` — **9/11 PASS** (g1+g9 flipped to PASS at `a5ee07e7`; g10 install_consumer + g11 backend sanitization ancora FAIL).  **9/11 NON è 11/11: feature freeze ancora attivo.**  M2 Camera V1 ADR-013 ✅ documented+accepted; A3 cluster source-code (TICKET-A3-*) **PLANNED** (non chiuso).  M3 SDK V1 **NOT green** (gate #10 carry-over rot).  Per i dettagli di ogni milestone vedi le sezioni M0–M6 sotto.
+
 ### Fase A1–A2 — Migrazione header interni + unificazione backend (2026-07-03)
 
 - **A1** (`1bd92daf`): Rimossi 4 symlink legacy (`render_session.hpp`, `session_services.hpp`, `scene_hasher.hpp`, `scene_program_store.hpp`) → accessibili solo via path `internal/`. Creato `tools/check_header_standalone_compile.sh` — compila standalone ogni header pubblico del manifest.
