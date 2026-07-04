@@ -85,9 +85,9 @@ TEST_CASE("M1.5#3 lock — text_layout_identity.hpp re-exports identity types") 
         // construction exercises operator==.
         CHECK(a == b);
         FontLayoutIdentity c{};
-        c.font_size = 32.0f;
+        c.size = 32.0f;
         FontLayoutIdentity d{};
-        d.font_size = 48.0f;
+        d.size = 48.0f;
         CHECK_FALSE(c == d);
     }
 }
@@ -290,7 +290,7 @@ TEST_CASE("M1.5#3 lock — text_run.hpp umbrella exposes all canonical types") {
         TextRunLayout l{};
         const FontLayoutIdentity id = font_layout_identity_of(l);
         // Default TextRunLayout.font_size is 72; the projection preserves it.
-        CHECK(id.font_size == l.font_size);
+        CHECK(id.size == l.font_size);
     }
 }
 
