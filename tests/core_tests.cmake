@@ -300,6 +300,15 @@ add_executable(chronon3d_core_tests
     # ↔-registrar equivalence, fail-safe paths).  See
     # tests/registry/test_text_preset_descriptor.cpp for the Sub-cases A1-D2.
     registry/test_text_preset_descriptor.cpp
+    # M1.5#3 — text_run.hpp umbrella contract lock (header-only,
+    # non-gated, no Blend2D dependency).  Static_asserts lock the
+    # 5 sub-header surfaces + umbrella transit coverage + zero
+    # deprecated singleton symbols.  Cat-2 freeze-compliant
+    # (no threads / no time / no PRNG / no font engine).  Runs
+    # unconditionally on every preset; the surrounding target
+    # `chronon3d_core_tests` may carry TICKET-011 LINK rot
+    # independently (separate scope, see FOLLOWUP_TICKETS).
+    text/test_text_run_umbrella_contract.cpp
     ${CORE_BLEND2D_TESTS}
     media/test_media_placement.cpp
     core/test_result.cpp
