@@ -415,7 +415,8 @@ u64 hash_text_run_shape(const TextRunShape& s, Frame frame) {
 
 FontLayoutIdentity font_layout_identity_of(const TextRunLayout& layout) noexcept {
     return font_layout_identity_of(
-        layout.font, layout.font_size, layout.features);
+        layout.font, layout.font_size, layout.features,
+        /*variation_axes=*/{});  // M1.5#4 — TextRunLayout lacks variation_axes yet
 }
 
 } // namespace chronon3d
