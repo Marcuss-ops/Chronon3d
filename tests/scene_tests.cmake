@@ -38,6 +38,15 @@ add_executable(chronon3d_scene_tests
     scene/camera/test_composition_default_camera.cpp   # TICKET-034: CameraDescriptor as canonical default in composition settings
     scene/camera/test_camera_constraints_p5.cpp
     scene/camera/test_camera_session_checkpoint.cpp   # TICKET-031 — stateful constraint checkpoint + canonical pre-roll
+    # TICKET-A3-DAMPED-HISTORY (Agent3 mission DoD gate (b)) — regression
+    # lock that the presence of DampedFollowConstraint in
+    # descriptor.constraints forces CameraProgram::evaluation_dependency()
+    # to CameraEvaluationDependency::RequiresHistory, regardless of any
+    # other indicator (source variant, modifier list, other constraint
+    # types). Pairs with the force-override rule introduced in
+    # src/scene/camera/camera_v1/camera_program_compiler.cpp on the same
+    # commit.
+    scene/camera/test_camera_program_damped_history_force.cpp
     scene/camera/test_camera_framing_solver.cpp
     scene/camera/test_shot_timeline.cpp
     scene/camera/test_camera_trajectory.cpp
