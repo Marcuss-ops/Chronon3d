@@ -82,7 +82,7 @@ dal tail. Triage richiesto:
 
 ## Origine / commit di scoperta
 
-C9a (certifier runtime, questo commit) — `SKIP_UNITY_BUILD_INCLUSION`
+C9a (certifier runtime, `37c03c11`) — `SKIP_UNITY_BUILD_INCLUSION`
 su `chronon3d_text_core` + `using chronon3d::camera_math::FocalPx;` in
 `tests/scene/camera/golden_projection_test.cpp` sbloccano la build del
 target `chronon3d_scene_tests`. Senza C9a questi 24 fail sarebbero
