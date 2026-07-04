@@ -40,7 +40,7 @@ TEST_CASE("empty timeline returns empty camera") {
     ShotTimelineResolver resolver(timeline);
 
     ShotTimelineSession tls;
-    auto cam = resolver.evaluate(0, tls);
+    auto cam = resolver.evaluate(0, tls, FrameRate{30, 1});
     CHECK(approx(cam.position.x, 0.0f));
     CHECK(approx(cam.position.y, 0.0f));
     CHECK(approx(cam.position.z, -1000.0f));
@@ -178,7 +178,7 @@ TEST_CASE("overlap boundary produces non-NaN camera") {
 
     ShotTimelineResolver resolver(timeline);
     ShotTimelineSession tls;
-    auto cam = resolver.evaluate(25, tls);
+    auto cam = resolver.evaluate(25, tls, FrameRate{30, 1});
 
     CHECK_FALSE(std::isnan(cam.position.x));
     CHECK_FALSE(std::isnan(cam.position.y));
