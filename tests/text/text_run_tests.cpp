@@ -289,7 +289,7 @@ TEST_CASE("TextLayoutCache: reset clears singleton") {
     cache.store(key, make_test_layout_tr("Reset"));
     CHECK(cache.contains(key));
 
-    reset_s_text_cache;
+    s_text_cache.clear();
     CHECK(!cache.contains(key));
 }
 

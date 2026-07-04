@@ -224,28 +224,14 @@ size_t TextDocument::split_paragraphs(const ParagraphStyle& default_style) {
 // Hashing
 // ═══════════════════════════════════════════════════════════════════════════
 
+#include "src/text/hash_helpers.hpp"
+
 namespace {
 
-// Small XXH64-based hash combiners (matching the codebase convention from
-// render_graph_hashing.hpp).
-
-[[nodiscard]] u64 hcombine(u64 seed, u64 value) {
-    seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
-    return seed;
-}
-
-[[nodiscard]] u64 hbytes(const void* data, size_t size) {
-    return XXH64(data, size, 0);
-}
-
-[[nodiscard]] u64 hstring(std::string_view sv) {
-    return XXH64(sv.data(), sv.size(), 0);
-}
-
-template <typename T>
-[[nodiscard]] u64 hval(const T& v) {
-    return hbytes(&v, sizeof(v));
-}
+using text::detail::hcombine;
+using text::detail::hbytes;
+using text::detail::hstring;
+using text::detail::hval;
 
 // ── hash_font_spec ─────────────────────────────────────────────────────
 
