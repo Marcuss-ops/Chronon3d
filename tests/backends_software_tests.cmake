@@ -38,6 +38,18 @@ add_executable(chronon3d_backends_software_tests
     # layer that survives both build modes.  See test file header for the
     # full design rationale + test_font_io_fence.cpp pattern precedent.
     backends/software/test_software_backend_factory.cpp
+    # M1.5#6 — four-stage text_run_processor split regression lock.
+    # These tests verify the internal contract of the text scratch pool
+    # (NO vector realloc per draw — strict user spec), the FNV-1a hash
+    # determinism of the raster-stage output, and the CHRONON3D_TEXT_BENCH_PARALLEL
+    # env-var toggle (serial vs parallel mode produces identical output).
+    # NO font fixture required; probes TextScratchManager directly via
+    # the rctx.text_resources ABI (same pointer type the production hot
+    # path uses).  Headers include text_run_processor.hpp but the tests
+    # do NOT call draw_text_run — so no expanded link dependency needed.
+    backends/software/test_text_run_processor_scratch_pool.cpp
+    backends/software/test_text_run_processor_golden_raster.cpp
+    backends/software/test_text_run_processor_bench_serial_vs_parallel.cpp
 )
 
 target_link_libraries(chronon3d_backends_software_tests PRIVATE
