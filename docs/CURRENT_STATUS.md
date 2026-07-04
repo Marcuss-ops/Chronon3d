@@ -1,12 +1,12 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@HEAD` (item #14 FOLLOWUP housekeeping + gate #10 Phase 1-3 fix) — 2026-07-04. Linux-only.
+> **Snapshot:** `main@1078ab46` (11-gate audit: 10/11 PASS, gate #10 Phase 4 black-render pre-existing) — 2026-07-04. Linux-only.
 >
-> **Ultima baseline macchina-verificata:** `main@876a14ac` — **9/10 PASS + 1 PASS*** (warn-mode) + **1 NOT RUN** (gate #10 timeout infra).
+> **Ultima baseline macchina-verificata:** `main@1078ab46` — **10/11 PASS** (gate #10 FAIL: Phase 4 render black).
 > **Baseline precedente:** `main@e8623a8a` (10/10 verificati, 1 NOT RUN).
 >
-> **Gate #10 — `install_consumer_test.sh`:** Phase 1-3 PASS (configura, build, install, archive canary, canary symbols) dopo fix header `camera_v1` mancanti in `cmake/Chronon3DPublicHeaders.cmake` (+12 header). Phase 4 FAIL: consumer compile OK ma render produce PNG completamente nero (230400 pixel sotto soglia 5/255). Bug pre-esistente (consumer test NOT RUN da giugno). Fix infrastrutturale (disk quota) risolto con `ccache -C`.
-> **Gate #8:** 170 drift warning (stabile).
+> **Gate #10 — `install_consumer_test.sh`:** Phase 1-3 PASS. Phase 4 FAIL: render black (230400 pixel < 5/255). Bug pre-esistente. Fix `sw_sidecar` threadato attraverso `render_scene_via_graph` (commit `2ef2b377`) — corregge il culling layer, ma non basta.
+> **Gate #8:** 82 drift warning (↓ da 170).
 >
 > **Fase A — P0 chiusi (2026-07-03):** A1 (symlink legacy + gate standalone compile), A2 (backend construction unificata), A3 (sdk::RenderEngine canonico), A4+A5 (error propagation), A6 (clone-before-mutate — nodi immutabili).
 >
@@ -15,7 +15,9 @@
 > **M1.5#1 (2026-07-03, post-sync):** `TextRunNode.cpp` refactored into a 5-stage orchestrator + 3 single-responsibility helpers in `src/render_graph/nodes/text_run/` (execution / transform / diagnostics). La superficie pubblica è invariata (NodeExecResult da P0-1, predicted_bbox, cache_key); `execute()` ora contiene solo orchestrazione. Nuovo test `test_text_run_node_return_channel.cpp` locka il contratto del **canale di ritorno** `result.ok() / result.error()` per le 3 failure mode (ExecutionFailure, CapabilitiesOff, NullBackend) + il percorso Success. La libreria `chronon3d_graph_nodes` compila clean (`LIB_EXIT=0`); gli esistenti lock diagnostici (`test_text_run_node_execute_error.cpp` P0-3) e i contratti core (`test_protected_core_contracts.cpp::CoreContract:TextRunNode*`) rimangono P0-protected. Note: il build del target di test `chronon3d_render_graph_tests` incontra pre-esistenti errori in `src/render_graph/pipeline/camera_change_policy.cpp` (`Camera2_5D::projection_mode`) — fuori scope M1.5#1, NON causati da questo refactor (`git diff HEAD -- src/render_graph/pipeline/camera_change_policy.cpp` vuoto).
 >> **M1.5#2 (2026-07-03, post-M1.5#1):** `src/text/text_run_driver.cpp` (530 LOC) decomposto in orchestratore breve + 3 moduli single-responsibility in nuova sottodirectory `src/text/driver/`: `text_state_sampler` (target_text + crossfade_target_text + is_in_crossfade_gap), `text_font_state` (compute_effective_font P0-2 compatibile), `text_layout_rebuild` (EffectiveTextState projection + fast_path_match + rebuild_active_side + rebuild_crossfade_slot + prewarm_for_frame). Nuova struct pubblica `EffectiveTextState` (text + FontLayoutIdentity + TextDirection + Bcp47LanguageTag + TextShapingFeatures) introdotta in `include/chronon3d/text/text_run_driver.hpp`; operator== confronta **tutti i 5 campi** in declaration order (cache-key regression lock). Il fast-path in `apply_active_state_to_text_run_shape` ora partecipa a TUTTE le dimensioni di `TextLayoutCacheKey::digest()`, non più solo `source_text + FontLayoutIdentity` come pre-M1.5#2 (P0-2 partial fix). Nuovo test `tests/text/test_effective_text_state.cpp` locka la semantica dei 5 campi + l'uguaglianza + la disuguaglianza + il crossfade lifecycle. La libreria `chronon3d_text_core` compila clean (`LIB_EXIT=0`); gli esistenti `tests/text/test_text_run_driver.cpp` rimangono P0-protected. Nessun nuovo singleton/registry/cache (cache flows via `TextRunShape::cache` o `TextLayoutCache*` esplicito); `process_wide_*` e `shared_text_layout_cache()` invariati in stato `rimosso` (Fase B2+B3 gia' chiusa). Stesso blocker pre-esistente di M1.5#1 blocca `chronon3d_core_tests` LINK step (`camera_change_policy.cpp::Camera2_5D::projection_mode`, fuori scope M1.5#2).
 >
-> **Camera C1–C7 (2026-07-04):** Projection contract chiuso su `main@eb1ce8e5`.  Decomposizione: `FocalPx` + `ViewportRect` POD, `focal_xy_from_camera` per-axis, `effective_viewport` con offset pillarbox/letterbox, anamorphic_squeeze SOLO X, golden test 6-mode (Zoom, FOV 50°, PhysicalLens ARRI Alexa 35, GateFit::Stretch, GateFit::Overscan, Anamorphic 2×) in `tests/scene/camera/golden_projection_test.cpp` con tolleranza 1e-3 hash-free.  Sentinel regression su `effective_viewport` (15 combinazioni × 3 GateFit mode) blocca qualunque regressione subrect-fits-canvas.  Compilazione clean confermata da `tools/check_architecture_boundaries.sh` (gate #1, gate #6).  Certificazione runtime (esecuzione del golden test + suite `chronon3d_scene_tests` link+run) in attesa del prossimo gate #10 macchina-verificato.
+> **Camera C1–C7 (2026-07-04):** Projection contract chiuso su `main@eb1ce8e5`. Golden test 6-mode in `tests/scene/camera/golden_projection_test.cpp`. Certificazione runtime in attesa.
+>
+> **Gate #10 sw_sidecar fix (2026-07-04):** `SoftwareRenderer* sw_sidecar` ora threadato da `render_composition_frame` → `render_scene_via_graph` (commit `2ef2b377`). Corregge il culling layer che si verificava quando `sw_renderer` era null dentro `compute_dirty_rect`. Phase 4 ancora FAIL (render black) — richiede ulteriore debugging.
 >
 > **Fase C2 — Factory unificata (2026-07-03):** `RenderRuntime::create(RuntimeConfig)` → `Result<RenderRuntime, RuntimeBuildError>`.
 >
@@ -100,6 +102,24 @@ Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA,
 | P1 #8 | Text renderer monolite | — | PLANNED |
 | P1 #9 | RenderRuntime service locator | — | PLANNED |
 | P1 #11 | Timeline percorsi multipli | — | PLANNED |
+
+## Gate audit snapshot — `main@1078ab46` (2026-07-04, 11-gate audit)
+
+| # | Gate                                        | Esito      | Note                                                                       |
+|---|---------------------------------------------|------------|----------------------------------------------------------------------------|
+| 1 | `check_architecture_boundaries.sh`          | ✅ PASS    | 15/15 check, 2 advisory (check 12 CMake registry, check 13 vcpkg dep).   |
+| 2 | `check_architecture_boundaries_selftest.sh` | ✅ PASS    | 15/15 assertions.                                                          |
+| 3 | `check_software_renderer_boundary.sh`       | ✅ PASS    | I1-I5 tutti rispettati.                                                    |
+| 4 | `check_gitignored_dirs.sh`                  | ✅ PASS    | Directory pulite.                                                          |
+| 5 | `audit_software_renderer.sh`                | ✅ PASS    | Report generato, exit 0.                                                   |
+| 6 | `check_camera_architecture.sh`              | ✅ PASS    | 6/6 check.                                                                 |
+| 7 | `check_doc_sync.sh`                         | ✅ PASS    | 0 hard failures, 0 warnings.                                               |
+| 8 | `check_filename_drift.sh`                   | ✅ PASS    | 82 drift findings.                                                         |
+| 9 | `test_architectural.sh`                     | ✅ PASS    | Static architecture-level rot: 0. Exit 0.                                  |
+| 10 | `install_consumer_test.sh`                  | ❌ FAIL    | Phase 1-3 PASS. Phase 4: render black (230400 pixel < 5/255). Pre-existing. |
+| 11 | `check_backend_sanitization.py`             | ✅ PASS    | Tutti i check passati.                                                     |
+
+**Totale: 10/11 PASS.** Gate #10 FAIL (Phase 4 render black — bug pre-esistente, sw_sidecar fix in `2ef2b377` non sufficiente).
 
 ## Prossimo passo operativo
 
