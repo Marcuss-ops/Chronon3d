@@ -1,15 +1,43 @@
 #include <chronon3d/backends/text/bidi_segmenter.hpp>
 
+#include <cstdlib>  // std::getenv for CHRONON3D_FORCE_NO_FRIBIDI golden-test env override
+
 #ifdef CHRONON3D_HAS_FRIBIDI
 #include <fribidi.h>
 #endif
 
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace chronon3d {
+
+// ═══════════════════════════════════════════════════════════════════════════
+// M1.5#8 — CHRONON3D_FORCE_NO_FRIBIDI runtime override.
+//
+// The golden test (tests/text/test_text_font_resolver_golden.cpp) exercises
+// the FriBidi-on AND FriBidi-off paths from a SINGLE build, so the golden
+// snapshot can lock determinism end-to-end on either branch.
+//
+// When the env var is set to "1", `segment_bidi_runs` returns a single
+// LTR run regardless of the CHRONON3D_HAS_FRIBIDI compile-time flag.
+// This short-circuits the FriBidi dependency at test time.
+//
+// The check is a single `std::getenv` call (cached per-process via
+// function-local static) — zero per-call cost.
+namespace {
+[[nodiscard]] bool force_no_fribidi_via_env() {
+    static const bool flag = []() noexcept {
+        const char* v = std::getenv("CHRONON3D_FORCE_NO_FRIBIDI");
+        if (!v || v[0] == '\0') return false;
+        // Treat any non-zero value as "on" (1, true, yes, etc.).
+        return !(v[0] == '0' || v[0] == '\0');
+    }();
+    return flag;
+}
+} // namespace
 
 // ── segment_bidi_runs ─────────────────────────────────────────────────────
 //
@@ -27,6 +55,15 @@ namespace chronon3d {
 std::vector<BidiRun> segment_bidi_runs(std::string_view text, int base_dir) {
     std::vector<BidiRun> runs;
     if (text.empty()) return runs;
+
+    // M1.5#8 — golden-test env override.  When CHRONON3D_FORCE_NO_FRIBIDI
+    // is set, skip the FriBidi branch unconditionally and return a
+    // single LTR run.  This is the canonical "FriBidi opzionale,
+    // fallback env" path the user spec calls out.
+    if (force_no_fribidi_via_env()) {
+        runs.push_back({std::string(text), TextDirection::LTR, 0});
+        return runs;
+    }
 
 #ifdef CHRONON3D_HAS_FRIBIDI
 

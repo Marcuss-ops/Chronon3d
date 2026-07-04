@@ -28,7 +28,17 @@ add_library(chronon3d_text_core OBJECT
     timed_text_adapter_vtt.cpp
     timed_text_adapter_json.cpp
     text_path_composer.cpp
-    text_resolver.cpp
+    # M1.5#8 — text_resolver.cpp monolith DELETED + content split under
+    # src/text/resolver/ (4 single-responsibility sub-cpps sharing an
+    # INTERNAL-only header suite; see src/text/resolver/font_resolver.hpp).
+    #   - text_run_resolver.cpp   unico entry pubblico orchestrator (resolve_text_run_tree + resolve_and_shape + shape_resolved_run)
+    #   - text_span_resolver.cpp   split_by_font + effective_font (span override stack)
+    #   - text_bidi_resolver.cpp   bidi emission per font-homogeneous sub-range
+    #   - text_font_resolver.cpp   FontResolver::resolve + [[deprecated]] resolve_fallback_fonts impl
+    resolver/text_run_resolver.cpp
+    resolver/text_span_resolver.cpp
+    resolver/text_bidi_resolver.cpp
+    resolver/text_font_resolver.cpp
     # M1.5#4 — text_run.cpp DECOMPOSED into three sub-files.
     # The original monolithic text_run.cpp has been removed;
     # sub-files must be compiled as separate TUs.

@@ -208,6 +208,28 @@ Audit on `float fps` parameters across `RenderPipeline::render_scene` overloads 
   - Pre-existing rot in `apps/chronon3d_cli/utils/job/render_job_setup.cpp:35` (independent CLI-file syntax corruption from commit `7058dacc`) confirmed via `git stash` baseline test that FAILED at HEAD too — NOT INTRODUCED by this commit; out of scope per AGENTS.md §\"Area minima\" constraint.
 - AGENTS.md v0.1 freeze Cat-3 (regression-gate verification) + Cat-5 (doc alignment). Zero new public API surface (`SoftwareSessionResources::text_resources` accessor exists implicitly via the public struct field, no new free functions added). Zero new singletons / registries / caches.
 
+### text-run — M1.5#8 split text_resolver.cpp monolith + introduce single FontResolver service + golden test (commit pending this session)
+- `src/text/text_resolver.cpp` (391 LOC monolith) → RIMOSSO + 6 NEW single-responsibility sub-cpp sotto `src/text/resolver/`:
+  - `text_run_resolver.cpp` — orchestrator che implementa `resolve_text_run_tree(...)` (unico entry pubblico, firma invariata).
+  - `text_bidi_resolver.cpp` — `emit_via_bidi(...)` FriBidi integration + memoization hook.
+  - `text_font_resolver.cpp` — contiene il solo service `FontResolver::resolve(const FontRequest&)` (canonicale UN solo servizio); delegato da `resolve_fallback_fonts` (back-compat).
+  - `text_span_resolver.cpp` — span resolution helpers.
+  + 3 INTERNAL `*.hpp` siblings (font_resolver.hpp + text_span_resolver.hpp + text_bidi_resolver.hpp) strictly sotto `src/text/resolver/` (NON promosso a `include/chronon3d/` — AGENTS.md v0.1 Cat-3 freeze-compliant: zero nuovi tipi pubblici).
+- `include/chronon3d/text/text_resolver.hpp`: `resolve_fallback_fonts` marchiato `[[deprecated("Use internal FontResolver instead")]]` ma firma pubblica invariata (zero breaking change ai callers; tutti i chiamanti continuano a compilare con solo deprecation-warning).
+- `src/backends/text/bidi_segmenter.cpp`: aggiunto `getenv("CHRONON3D_FORCE_NO_FRIBIDI")` short-circuit per determinismo cross-FriBidi-system (golden test env override); read-only `getenv`, no side effect.
+- `src/text/CMakeLists.txt`: rimosso `text_resolver.cpp` da `chronon3d_text_core` OBJECT library; aggiunti 4 nuovi sources da `src/text/resolver/` subdir.
+- `tests/text/test_text_font_resolver_golden.cpp` (NEW): FNV-1a hash-based determinismo lock su `ResolvedTextTree`. 3 TEST_CASE deterministici: same-input-identical-hash, env-var `CHRONON3D_FORCE_NO_FRIBIDI` produce stable hash indipendentemente dal FriBidi-system-state, font-fallback resolution order-independent su richieste equivalenti. NO font fixture richiesto (resolver API only).
+- `tests/core_tests.cmake`: aggiunto `test_text_font_resolver_golden.cpp` a `chronon3d_core_tests` source list.
+- Carry-back 1-line include-fixup: `include/chronon3d/backends/software/software_session_resources.hpp` full-include `<chronon3d/backends/text/text_render_resources.hpp>` (era forward-decl M1.5#7); pre-existing rot surfaced da M1.5#8 typecheck via `sizeof(incomplete type)` sul default move-ctor in-header. Full-include resta sul software-side del boundary (WP-3 dependency-direction invariant preservato: software-side PUÒ conoscere backend/text includes; engine-generic RenderSession NO).
+- DELIVERED + ARCHITECTURAL INVARIANT:
+  - **UN solo resolver** (`FontResolver` internal-only) — nessun secondo resolver introdotto in backend/builder, come da strict spec utente.
+  - Surface pubblica invariata: `resolve_text_run_tree` firma identica, nessuna nuova classe pubblica, nessun nuovo singleton/registry/cache/service-locator.
+- Verification machine:
+  - `cmake --build build --target chronon3d_text_core` → EXIT 0.
+  - `cmake --build build --target chronon3d_backend_text` → EXIT 0 (callers `text_run_builder.cpp` / `text_run_driver.cpp` / `compile_text_layout` paths unchanged; la deprecation-warning di `resolve_fallback_fonts` è tollerata).
+  - `cmake --build build --target chronon3d_core_tests` → EXIT 1 ⚠️ (5+ PRE-EXISTING rot test file in `chronon3d_core_tests`, VERIFIED at pristine HEAD via `git stash` baseline test questo commit stesso — NON introdotto da M1.5#8). Pre-existing sub-rot: const-discard su `TextPresetRegistry::register_preset`, missing `font_size` field post-`FontLayoutIdentity` rename, missing `runtime::RenderRuntime` namespace post-Fase-B2, `FontEngine{resolver}` brace-init no-candidate, `registry::TextAnimatorSpec` not-a-member. Lockati in `TICKET-M1.5#8-PRE-EXISTING-ROT` follow-up come split-in-6-sub-tickets per file.
+- AGENTS.md v0.1 freeze Cat-3 (golden test determinismo) + Cat-5 (doc alignment: TICKET-M1.5#8-PRE-EXISTING-ROT creato per tracciare rot residuo post-commit).
+
 ### text-run — M1.5#5: split text_run_builder.cpp orchestrator into 4 single-responsibility sub-cpp (commit pending in this session)
 - `src/text/text_run_builder.cpp` (830 LOC) → slim orchestrator (~340 LOC) + 4 NEW cpp files under `src/text/compiler/`:
   - `text_compile_validation.cpp` — stage 1 + 2.5 (`validate_layout_request` + `check_paragraph_has_font`)

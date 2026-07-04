@@ -38,17 +38,18 @@
 
 #include <chronon3d/backends/software/buffer_ring.hpp>
 #include <chronon3d/backends/software/scratch_buffer.hpp>
+#include <chronon3d/backends/text/text_render_resources.hpp>  // M1.5#7+ fixup: std::unique_ptr<TextRenderResources> needs the COMPLETE type at sizeof-check time (default move ctor in header).
 #include <memory>  // std::unique_ptr (M1.5#7 RAII for text_resources)
 
 // M1.5#7 — `TextRenderResources` is the per-session aggregator of
-// font + glyph + raster + scratch caches.  Forward-declared here so
-// `SoftwareSessionResources` can hold a value-member without pulling
-// the heavy `blend2d.h` header (the struct itself is declared in the
-// M1.5#7 split header; construction is default and is the only
-// path the canonical aggregator takes).
-namespace chronon3d {
-struct TextRenderResources;
-} // namespace chronon3d
+// font + glyph + raster + scratch caches.  Declared here via the
+// canonical text-render-resources header (no public-API expansion;
+// text_render_resources.hpp is in include/chronon3d/backends/text/
+// and is consumed only by software-side headers like this one, so the
+// text-specific `<blend2d.h>` / `<ft2build.h>` includes stay scoped
+// to the software backend half — WP-3 dependency-direction invariant
+// preserved).  Construction is default via the `unique_ptr::reset`
+// chain in software_session_resources.cpp.
 
 namespace chronon3d {
 
