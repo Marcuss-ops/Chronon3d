@@ -130,7 +130,8 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         return render_scene_via_graph(
             backend, node_cache, scene, comp.camera, rw, rh, fr, t, settings, registry, video_decoder,
             static_cast<float>(comp.frame_rate().fps()),
-            comp.name()
+            comp.name(),
+            sw_sidecar
         );
     };
 
