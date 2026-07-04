@@ -199,7 +199,12 @@ Camera2_5D run_compiled_cam(const CameraProgram& program, Frame f) {
 }
 
 // Build the compiled CameraProgram from the canonical descriptor.
-CameraProgram compile_or_die(const CameraDescriptor& desc) {
+// TICKET-120 followup (Unity build deconflict) — renamed from
+// `compile_or_die` to file-scoped unique name to avoid the
+// redefinition error in the unified TU built by
+// chronon3d_scene_tests (5 test files share anonymous-namespace
+// `compile_or_die`; see TICKET-120 build-redefinition group).
+CameraProgram compile_or_die_compiled_evaluate(const CameraDescriptor& desc) {
     auto result = compile_camera(desc, /*catalog=*/nullptr);
     REQUIRE(result.has_value());
     auto program = std::move(result).value();
@@ -214,7 +219,7 @@ CameraProgram compile_or_die(const CameraDescriptor& desc) {
 // ════════════════════════════════════════════════════════════════════
 TEST_CASE("CAM-DOC 04 [1]: compiled CameraProgram::evaluate() produces a populated Camera2_5D") {
     CameraDescriptor desc = make_dolly_descriptor();
-    CameraProgram program = compile_or_die(desc);
+    CameraProgram program = compile_or_die_compiled_evaluate(desc);
 
     // Frame 0: start of the animation.
     {
@@ -256,7 +261,7 @@ TEST_CASE("CAM-DOC 04 [2]: parity compiled pipeline == legacy AnimatedCamera2_5D
     // point_of_interest equality and the transform field-by-field.
     AnimatedCamera2_5D legacy = make_legacy_dolly();
     CameraDescriptor desc = make_dolly_descriptor();
-    CameraProgram program = compile_or_die(desc);
+    CameraProgram program = compile_or_die_compiled_evaluate(desc);
 
     // Box-tolerance: linear interpolation between keyframes vs exact
     // keyframe evaluation may diverge up to ~0.5 frame * easing.  We
@@ -303,7 +308,7 @@ TEST_CASE("CAM-DOC 04 [3]: 5 fresh compile+evaluate rounds — bit-identical Cam
 
     for (int round = 0; round < kRounds; ++round) {
         CameraDescriptor desc = make_dolly_descriptor();
-        CameraProgram program = compile_or_die(desc);
+        CameraProgram program = compile_or_die_compiled_evaluate(desc);
 
         // Round-trip across 3 representative frames.
         // (Each round creates a fresh CameraProgram; CameraSession
@@ -352,7 +357,7 @@ TEST_CASE("CAM-DOC 04 [3]: 5 fresh compile+evaluate rounds — bit-identical Cam
 // ════════════════════════════════════════════════════════════════════
 TEST_CASE("CAM-DOC 04 [4]: serial vs parallel — 1000 frames, two arrays must be bit-identical") {
     CameraDescriptor desc = make_dolly_descriptor();
-    CameraProgram program = compile_or_die(desc);
+    CameraProgram program = compile_or_die_compiled_evaluate(desc);
 
     // The compiled CameraProgram is supposed to be immutable and
     // stateless across evaluate() calls.  We exercise this by running
@@ -429,7 +434,7 @@ TEST_CASE("CAM-DOC 04 [4]: serial vs parallel — 1000 frames, two arrays must b
 // modifier pipeline block of `camera_program.cpp::evaluate()`.)
 TEST_CASE("CAM-DOC 04 [5]: random-access — sequence [5,100,0,50,25,10,0] yields the same Camera2_5D per frame") {
     CameraDescriptor desc = make_dolly_descriptor();
-    CameraProgram program = compile_or_die(desc);
+    CameraProgram program = compile_or_die_compiled_evaluate(desc);
 
     // Reference (forward-order) snapshot at frames 0, 10, 25, 50, 100.
     struct CameraRef {

@@ -116,7 +116,11 @@ CameraDescriptor make_handheld_descriptor(std::uint32_t seed = 42) {
 }
 
 // Build the compiled CameraProgram from the canonical descriptor.
-CameraProgram compile_or_die(const CameraDescriptor& desc) {
+// TICKET-120 followup (Unity build deconflict) — renamed from
+// `compile_or_die` to file-scoped unique name to avoid the
+// redefinition error in the unified TU built by
+// chronon3d_scene_tests (see TICKET-120 build-redefinition group).
+CameraProgram compile_or_die_program(const CameraDescriptor& desc) {
     auto result = compile_camera(desc, /*catalog=*/nullptr);
     REQUIRE(result.has_value());
     auto program = std::move(result).value();
@@ -147,7 +151,7 @@ Camera2_5D eval_at(const CameraProgram& program,
 TEST_CASE("handheld_noise_round_trip — "
           "evaluate(t1) twice returns identical Camera2_5D") {
     CameraDescriptor desc = make_handheld_descriptor();
-    CameraProgram program = compile_or_die(desc);
+    CameraProgram program = compile_or_die_program(desc);
     CameraSession session;
 
     // First pass: snapshot at frames 0, 30, 60, 90.
@@ -192,7 +196,7 @@ TEST_CASE("handheld_noise_round_trip — "
 TEST_CASE("handheld_noise_insert_order — "
           "random sequence yields identical per-frame Camera2_5D") {
     CameraDescriptor desc = make_handheld_descriptor();
-    CameraProgram program = compile_or_die(desc);
+    CameraProgram program = compile_or_die_program(desc);
 
     // Forward reference (sorted by frame number).
     struct CameraRef {
@@ -255,7 +259,7 @@ TEST_CASE("handheld_noise_insert_order — "
 TEST_CASE("handheld_noise_per_axis_decorrelation "
           "— at least 2 unique position axis offsets across N>1 frames") {
     CameraDescriptor desc = make_handheld_descriptor(/*seed=*/42);
-    CameraProgram program = compile_or_die(desc);
+    CameraProgram program = compile_or_die_program(desc);
 
     CameraSession session;
     std::vector<Camera2_5D> cams;
@@ -317,7 +321,7 @@ TEST_CASE("handheld_noise_per_axis_decorrelation "
 TEST_CASE("handheld_noise_cross_channel_decorrelation "
           "— position, rotation, zoom offsets have independent seeds") {
     CameraDescriptor desc = make_handheld_descriptor(/*seed=*/42);
-    CameraProgram program = compile_or_die(desc);
+    CameraProgram program = compile_or_die_program(desc);
 
     CameraSession session;
     struct Sample { Vec3 pos; Vec3 rot; double zoom; };
@@ -386,7 +390,7 @@ TEST_CASE("handheld_no_modifier_is_identity — static base + empty modifiers �
     // NO modifiers — modifier loop in evaluate() never fires.
     REQUIRE(desc.modifiers.empty());
 
-    CameraProgram program = compile_or_die(desc);
+    CameraProgram program = compile_or_die_program(desc);
     CameraSession session;
 
     // Sample at multiple frames; despite sampling, the static source

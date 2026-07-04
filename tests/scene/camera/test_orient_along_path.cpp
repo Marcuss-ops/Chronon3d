@@ -74,7 +74,13 @@ using namespace chronon3d::camera_v1;
 
 namespace {
 
-constexpr float kEps = 1e-5f;
+// TICKET-120 followup (Unity build deconflict) — renamed from
+// `kEpsOrientAlongPath` to file-scoped unique name to avoid the redefinition
+// error in the unified TU built by chronon3d_scene_tests (three
+// test files shared an anonymous-namespace `constexpr float kEpsOrientAlongPath`
+// that collide in Unity build: see TICKET-120 build-redefinition
+// group).
+constexpr float kEpsOrientAlongPath = 1e-5f;
 constexpr FrameRate kFps{60, 1};
 
 // ── NaN / Infinity detector for result.camera.rotation ──
@@ -88,7 +94,7 @@ float rotation_l2(const Vec3& r_deg) {
 }
 
 // ── Helpers ──
-CameraProgram compile_or_die(const CameraDescriptor& desc) {
+CameraProgram compile_or_die_orient_along_path(const CameraDescriptor& desc) {
     auto result = compile_camera(desc, /*catalog=*/nullptr);
     REQUIRE(result.has_value());          // fail loudly if the descriptor is
     auto program = std::move(result).value();  // rejected (validator regression visible here)
@@ -147,7 +153,7 @@ TEST_CASE("OrientAlongPath (a) — tangent valid + keep_horizon=true sets "
     desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
     desc.orientation = OrientAlongPath{/*keep_horizon=*/true};
 
-    auto program = compile_or_die(desc);
+    auto program = compile_or_die_orient_along_path(desc);
     CameraSession session;
 
     // Sample at Frame{30} (mid-segment): tangent is the segment direction
@@ -164,7 +170,7 @@ TEST_CASE("OrientAlongPath (a) — tangent valid + keep_horizon=true sets "
     CAPTURE(cam.rotation.x);
     CAPTURE(cam.rotation.y);
     CAPTURE(cam.rotation.z);    CHECK(is_finite3(cam.rotation));        // no NaN / Inf in fallback
-    CHECK(cam.rotation.z == doctest::Approx(0.0f).epsilon(kEps));   // keep_horizon clears roll
+    CHECK(cam.rotation.z == doctest::Approx(0.0f).epsilon(kEpsOrientAlongPath));   // keep_horizon clears roll
     // Forward-magnitude: a look-along-(0,0,1) rotation should be near identity
     // in euler space (no yaw, no pitch, no roll).  The numerical identity is
     // locked canonically in test_camera_program_compiled.cpp §1.B via
@@ -194,7 +200,7 @@ TEST_CASE("OrientAlongPath (b) — tangent valid + keep_horizon=false + "
     REQUIRE(traj->size() == 1);
     REQUIRE(traj->points().size() == 2);
     // Sentinel: confirm the roll value made it onto point[0].
-    REQUIRE(traj->points()[0].roll_deg == doctest::Approx(15.0f).epsilon(kEps));
+    REQUIRE(traj->points()[0].roll_deg == doctest::Approx(15.0f).epsilon(kEpsOrientAlongPath));
 
     CameraDescriptor desc;
     desc.id = "test.oap.b";
@@ -205,7 +211,7 @@ TEST_CASE("OrientAlongPath (b) — tangent valid + keep_horizon=false + "
     desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
     desc.orientation = OrientAlongPath{/*keep_horizon=*/false};   // roll from traj WINS
 
-    auto program = compile_or_die(desc);
+    auto program = compile_or_die_orient_along_path(desc);
     CameraSession session;
 
     // Frame 0 = anchor point P0.  The Linear sampler interpolates roll
@@ -264,7 +270,7 @@ TEST_CASE("OrientAlongPath (c) — degenerate tangent falls back to "
     desc.source = TrajectoryMotion{traj, /*use_arc_length=*/true};
     desc.orientation = OrientAlongPath{/*keep_horizon=*/false};
 
-    auto program = compile_or_die(desc);
+    auto program = compile_or_die_orient_along_path(desc);
     CameraSession session;
 
     // Frame 15: mid-bezier.  Tangent is non-zero (+Z), so
@@ -332,7 +338,7 @@ TEST_CASE("OrientAlongPath (d) — fully degenerate (StaticCameraSource, "
     desc.source = StaticCameraSource{};            // ← tangent = std::nullopt
     desc.orientation = OrientAlongPath{/*keep_horizon=*/false};
 
-    auto program = compile_or_die(desc);
+    auto program = compile_or_die_orient_along_path(desc);
     // Fresh session ⇒ session.last_tangent == std::nullopt ⇒ step 2 cannot fire.
     CameraSession session;
 
