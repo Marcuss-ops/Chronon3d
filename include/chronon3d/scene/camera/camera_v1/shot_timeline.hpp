@@ -16,6 +16,7 @@
 //   ShotTimelineSession  → per-shot persistent constraint state
 //   CameraTransitionCatalog → registry of transition factories (DI, not singleton)
 // ==============================================================================
+#include <chronon3d/core/types/sample_time.hpp>  // FrameRate (TICKET-A3-CTX-FRAMERATE)
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_session.hpp>
@@ -129,7 +130,15 @@ public:
 
     /// Evaluate the camera at `frame` using the timeline + transitions.
     /// Uses local frame time (frame - shot.start_frame) for each shot's program.
-    Camera2_5D evaluate(int frame, ShotTimelineSession& timeline_session) const;
+    /// CAM-05 / TICKET-A3-CTX-FRAMERATE: `fps` is REQUIRED (no default
+    /// fallback to 30 fps).  The CameraEvalContext::at() factory contract
+    /// propagates the caller-supplied FrameRate bit-exactly into
+    /// SampleTime arithmetic; this evaluate() forwards the same contract
+    /// at the timeline-evaluate boundary so DampedFollow + HandheldNoise
+    /// modifiers see the project FPS the upstream pass declared.
+    Camera2_5D evaluate(int frame,
+                         ShotTimelineSession& timeline_session,
+                         FrameRate             fps) const;
 
     /// Set the transition for a specific kind.
     void set_transition(CameraTransitionKind kind,

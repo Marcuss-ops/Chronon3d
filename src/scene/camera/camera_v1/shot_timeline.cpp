@@ -305,7 +305,8 @@ std::shared_ptr<CameraTransition> ShotTimelineResolver::get_transition(
 }
 
 Camera2_5D ShotTimelineResolver::evaluate(int frame,
-                                           ShotTimelineSession& timeline_session) const {
+                                           ShotTimelineSession& timeline_session,
+                                           FrameRate             fps) const {
     if (!timeline_ || timeline_->empty()) return {};
 
     auto pair = timeline_->find_pair(frame);
@@ -330,12 +331,12 @@ Camera2_5D ShotTimelineResolver::evaluate(int frame,
         // Use persistent sessions so DampedFollow survives across frames.
         // CameraEvalContext has no base_target — the compiled path reads
         // base state from the descriptor (CameraBaseSpec) directly.
-        // CAM-05: explicit FrameRate (TODO: plumb from composition/project).
-        constexpr FrameRate kTimelineFps{30, 1};
-        auto ctx_from = CameraEvalContext::at(local_frame, kTimelineFps);
+        // CAM-05 / TICKET-A3-CTX-FRAMERATE: FrameRate is forwarded bit-exact
+        // from the resolver caller (no 30 fps fixture inside the resolver).
+        auto ctx_from = CameraEvalContext::at(local_frame, fps);
 
         int next_local = frame - pair.next->start_frame;
-        auto ctx_to = CameraEvalContext::at(std::max(0, next_local), kTimelineFps);
+        auto ctx_to = CameraEvalContext::at(std::max(0, next_local), fps);
 
         auto& s_from = timeline_session.session_for(pair.idx);
         auto& s_to   = timeline_session.session_for(pair.idx + 1);
@@ -350,8 +351,9 @@ Camera2_5D ShotTimelineResolver::evaluate(int frame,
     // No transition — evaluate the current shot directly with local time.
     // CameraEvalContext has no base_target; the compiled path uses the
     // descriptor's CameraBaseSpec directly for base state.
-    constexpr FrameRate kTimelineFps{30, 1};
-    auto ctx = CameraEvalContext::at(local_frame, kTimelineFps);
+    // CAM-05 / TICKET-A3-CTX-FRAMERATE: FrameRate is forwarded bit-exact
+    // from the resolver caller (no 30 fps fixture inside the resolver).
+    auto ctx = CameraEvalContext::at(local_frame, fps);
 
     auto& shot_session = timeline_session.session_for(pair.idx);
     return shot.program.evaluate(ctx, shot_session).value().camera;
