@@ -30,6 +30,11 @@ add_library(chronon3d_text_core OBJECT
     text_path_composer.cpp
     text_resolver.cpp
     text_run.cpp
+    # M1.5#4 Commit A — extract hash_text_run_shape overloads from
+    # text_run.cpp into a single-responsibility sub-cpp that pairs
+    # with include/chronon3d/text/text_run_hash.hpp (the M1.5#3
+    # umbrella sub-header).  Bodies verbatim; no behavioural changes.
+    text_run_hash.cpp
     text_run_builder.cpp
     # M1.5#2 — text_run_driver.cpp slimmed into an orchestrator that
     # delegates the slow-path / prewarm stages to single-responsibility
