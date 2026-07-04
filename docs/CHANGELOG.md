@@ -6,6 +6,13 @@
 ---
 
 ## Luglio 2026 — Chiusure recenti
+
+### text-run — M1.5#10 (3/4): doc-only sweep confirmation — ZERO `draw_rich_text` callers
+- Machine-verified sweep: `grep -rnE '"'"'\bdraw_rich_text\b'"'"' --include='"'"'*.cpp'"'"' --include='"'"'*.hpp'"'"' --include='"'"'*.h'"'"'` escludendo `rich_text.hpp`/`rich_text.cpp` → ZERO hit produttivi. La `draw_rich_text()` rimane confinata al monolite da eliminare (Step 4).
+- Survey canonical migration: path canonico finale `l.text_run(name, TextRunParams{...})` (M1.5#5 lineage) produce `TextRunShape`; il path legacy emette `l.text(name, TextSpec{...})` che produce `TextShape`. La funzione legacy diventa un no-op post-3-step ed elimina in Step 4 senza sostituti (DELETE senza bridging polyfill).
+- `docs/tickets/TICKET-M1.5#10-SEQUENCE.md` Step 3 heading already DONE (Step 2 commit landed; verified).
+- ZERO code-change in questo commit (doc-only). ZERO new public API surface. AGENTS.md v0.1 Cat-3 freeze-compliant.
+
 ### build(sdk) — TICKET-GATE-10-PHASE-4-BLACK-FU4 sub-block B DONE: install_consumer std::make_shared<TextRunShape>() rotates via consumer-side explicit #include (pivot @ main@`0b365354`)
 - **Risultato ottenuto**: rot di incomplete-type in `tests/install_consumer/main.cpp:147` chiuso su due fronti: (a) REVERT del bottom-include `<chronon3d/text/text_run_shape.hpp>` da `shape.hpp` (introdotto in catena `35cb1127`+`2895bd88`+`63da8946` ma causava rot OPP-internal cascade); (b) ADD di `#include <chronon3d/text/text_run_shape.hpp>` a `tests/install_consumer/main.cpp` (manifest-clean — il path è nel SDK public-header manifest). Gate #10 compile stage ora PASS.
 - **Deviazione postmortem** (Option-preferred → pivot): la bottom-include di `text_run_shape.hpp` in `shape.hpp` rompeva il grafo di include OPP-interno (`shape.hpp → text_run_shape.hpp (bottom) → text_animator_property.hpp → animated_value.hpp → fill_style.hpp → shape.hpp (re-ingress)`) causando compile rot in 4 source file di `chronon3d_registry` target con error `chronon3d::graphics::FillStyle undeclared` + `chronon3d::TextLayoutSpec undeclared`.
