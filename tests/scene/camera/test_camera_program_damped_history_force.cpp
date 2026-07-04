@@ -93,7 +93,13 @@ CameraDescriptor make_pose_tracks_base() {
 }
 
 // Compile helper: hides the Result/optional ceremony.
-CameraProgram compile_or_die(const CameraDescriptor& desc) {
+// TICKET-120 followup (Unity build deconflict) — renamed from
+// `compile_or_die` to file-scoped unique name to avoid the
+// redefinition error in the unified TU built by
+// chronon3d_scene_tests (see TICKET-120 build-redefinition group:
+// damped_history / lookat_diagnostic / program files all had
+// anonymous-namespace `compile_or_die` that collide in Unity build).
+CameraProgram compile_or_die_damped_history(const CameraDescriptor& desc) {
     auto cr = compile_camera(desc, /*catalog=*/nullptr);
     REQUIRE(cr.has_value());
     auto prog = std::move(cr).value();
@@ -117,7 +123,7 @@ TEST_CASE(
     SUBCASE("A. only-DampedFollow fixture (Static + no modifiers + 1 constraint) ⇒ RequiresHistory") {
         CameraDescriptor desc = make_static_base();
         desc.constraints.push_back(DampedFollowConstraint{0.5f});
-        CameraProgram prog = compile_or_die(desc);
+        CameraProgram prog = compile_or_die_damped_history(desc);
         CHECK(prog.evaluation_dependency() ==
               CameraEvaluationDependency::RequiresHistory);
     }
@@ -126,7 +132,7 @@ TEST_CASE(
         CameraDescriptor desc = make_static_base();
         // desc.constraints is intentionally empty (no DampedFollow).
         REQUIRE(desc.constraints.empty());
-        CameraProgram prog = compile_or_die(desc);
+        CameraProgram prog = compile_or_die_damped_history(desc);
         CHECK(prog.evaluation_dependency() ==
               CameraEvaluationDependency::Stateless);
     }
@@ -138,7 +144,7 @@ TEST_CASE(
         desc.constraints.push_back(LookAtConstraint{Vec3{0.0f, 0.0f, 0.0f}});
         desc.constraints.push_back(KeepHorizonConstraint{});
         desc.constraints.push_back(DampedFollowConstraint{0.15f});
-        CameraProgram prog = compile_or_die(desc);
+        CameraProgram prog = compile_or_die_damped_history(desc);
         CHECK(prog.evaluation_dependency() ==
               CameraEvaluationDependency::RequiresHistory);
     }
@@ -149,7 +155,7 @@ TEST_CASE(
         desc.constraints.push_back(DistanceConstraint{10.0f, 1000.0f});
         desc.constraints.push_back(LookAtConstraint{Vec3{0.0f, 0.0f, 0.0f}});
         desc.constraints.push_back(DampedFollowConstraint{0.5f});
-        CameraProgram prog = compile_or_die(desc);
+        CameraProgram prog = compile_or_die_damped_history(desc);
         CHECK(prog.evaluation_dependency() ==
               CameraEvaluationDependency::RequiresHistory);
     }
@@ -158,7 +164,7 @@ TEST_CASE(
         CameraDescriptor desc = make_static_base();
         desc.constraints.push_back(DampedFollowConstraint{0.25f});
         desc.constraints.push_back(DampedFollowConstraint{0.75f});
-        CameraProgram prog = compile_or_die(desc);
+        CameraProgram prog = compile_or_die_damped_history(desc);
         CHECK(prog.evaluation_dependency() ==
               CameraEvaluationDependency::RequiresHistory);
     }
