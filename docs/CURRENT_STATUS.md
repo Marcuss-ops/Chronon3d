@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@6cc290e5` (M1.5#6 — canonical 7-stage pipeline in compile_text_layout landed; M1.5#4 + M1.5#5 + M1.5#6 tutti completati) — 2026-07-04. Linux-only.
+> **Snapshot:** `main@be8bf6cf` (TICKET-GATE-10-AR-RACE — named structural canary for `ar` "reason: Success" failure mode added to canary catalog; commit adds 11th canary entry + `arch:*` case branch + post-nm `ar t` integrity check + symmetric pre-nm `ar t` direct-write; OPEN root-cause investigation tracked as TICKET-GATE-10-AR-RACE-FOLLOWUP) — 2026-07-04. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@aaf70032` — **10/11 PASS** (gate #10 FAIL: Phase 4 render black).
 > **Baseline precedente:** `main@e8623a8a` (10/10 verificati, 1 NOT RUN).
