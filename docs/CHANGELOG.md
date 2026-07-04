@@ -177,6 +177,19 @@ Audit on `float fps` parameters across `RenderPipeline::render_scene` overloads 
   `75035f2b` per code-reviewer-minimax-m3 nudge.  Zero new public
   symbols; pure-comment reduction.
 
+### text-run — M1.5#5: split text_run_builder.cpp orchestrator into 4 single-responsibility sub-cpp (commit pending in this session)
+- `src/text/text_run_builder.cpp` (830 LOC) → slim orchestrator (~340 LOC) + 4 NEW cpp files under `src/text/compiler/`:
+  - `text_compile_validation.cpp` — stage 1 + 2.5 (`validate_layout_request` + `check_paragraph_has_font`)
+  - `text_run_shaping.cpp` — stages 2b/2c/3/4/4.5 (`build_paragraph_text` + `build_cache_key` + `shape_paragraph_runs` + `apply_failure_policy` + `validate_concatenated_run`)
+  - `text_run_composition.cpp` — stages 5/6/6.5 (`compose_paragraph` + `apply_composition_to_placed` + `concatenate_runs`)
+  - `text_font_span_builder.cpp` — stage 7 (`populate_font_spans` with Phase 1.4 multi-font diagnostic)
+- NEW `src/text/compiler/text_compile_internal.hpp` (~210 LOC) — 11 stage helper signatures in `chronon3d::text_internal::compile` namespace. **Strictly internal**: lives in `src/text/compiler/`, NOT in `include/chronon3d/`, NOT installed with SDK (AGENTS.md v0.1 cat-3 freeze-compliant).
+- `compile_text_layout()` (public single entry point) is now a 9-stage linear pipeline of `tci::*` delegation calls — no duplicated inline bodies. Pipeline canon obeys the 7-stage user-requested order verbatim: `validate request → resolve document → shape every run → apply failure policy → compose paragraph → build font spans → store immutable layout`. Order rationale (thinker verdict A2): cache store AFTER `populate_font_spans`; `build_text_unit_map` AFTER `apply_composition_to_placed`.
+- `apply_spacing_collapse` (TICKET-092 closure contract) lives in `namespace text_internal` with forward-declaration BEFORE `compile_text_document` (C++ requires free non-template functions declared before use in same TU).
+- NEW `tests/text/test_text_run_multi_run_failure_policy.cpp` (~190 LOC) — 3 deterministic TEST_CASEs: 3-paragraph accumulator with `LocalEngine` fixture (Config + RenderRuntime + FontEngine via `runtime.resolver()`) + `TextStyleSpan` overrides matching the canonical pattern. No font fixture required (structural-only).
+- Cat-3 freeze-compliant: zero new public API, zero new singletons/registries/caches, public surface (`compile_text_layout` + `build_text_run` + Result types) unchanged.
+- Compile validation: `cmake --build build --target chronon3d_text_core` exit 0, full library `cmake --build build` exit 0. Code-reviewer post-fix: APPROVE FOR COMMIT. Pre-existing `chronon3d_core_tests` LINK rot (TICKET-011 multi-file) out of scope, not introduced by this commit.
+
 ### text-run — `kBlurTierRadii` compile-time array restoration (commit TICKET-Phase4-BlurTierRadii)
 - `src/backends/software/processors/text_run/text_run_processor.cpp`: aggiunto
   `static constexpr std::array<i32, kNumBlurTiers> kBlurTierRadii = {{0, 2, 7, 13, 20}};`
