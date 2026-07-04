@@ -1,144 +1,146 @@
-# TICKET-P1-ACTION-PLAN — Piano d'azione P1 (2026-07-02)
+# TICKET-P1-ACTION-PLAN — Matrice di avanzamento P1 (2026-07-04)
 
-## Stato
+> Feature Freeze V0.1 attivo (2026-06-29). Solo fix di build, test deterministici,
+> rimozione legacy path, consumer SDK, e allineamento documentazione sono consentiti.
+> Stato riflesso in [`docs/CURRENT_STATUS.md`](../CURRENT_STATUS.md) e [`docs/FOLLOWUP_TICKETS.md`](../FOLLOWUP_TICKETS.md).
 
-Tutti i 5 P1 sono stati censiti sul commit `c856387`.
-Il Feature Freeze V0.1 è attivo (2026-06-29) — solo fix di build, test deterministici,
-rimozione legacy path, consumer SDK, e allineamento documentazione sono consentiti.
+## Matrice di avanzamento
 
-## P1 #1 — Run multi-font: fallimento parziale silenzioso
+| Tema                  | Implementazione | Test        | Migrazione | Rimozione legacy |
+| --------------------- | --------------- | ----------- | ---------- | ---------------- |
+| Multi-run failure     | Done            | Missing     | Done       | N/A              |
+| Determinismo bidi     | Partial         | Missing     | Partial    | N/A              |
+| Session cache         | Partial         | Missing     | Partial    | Missing          |
+| Legacy pipeline       | Missing         | Gate only   | Missing    | Missing          |
+| CMake boundary        | Done            | Done        | Done       | Done             |
 
-**File:** `src/text/text_run_builder.cpp` (funzione `compile_text_layout`)
+### Legenda
 
-**Bug attuale:** Quando HarfBuzz fallisce su un singolo `ResolvedTextRun`, `shape_resolved_run()` restituisce `PlacedGlyphRun{}` vuoto. Il check post-shape `if (merged.glyphs.empty() && !para_text.empty())` rileva il problema SOLO quando TUTTI i run sono vuoti. Se run A produce glifi e run B fallisce, il merged ha glifi → nessun errore → il testo di run B sparisce silenziosamente.
-
-**Azioni:**
-1. [ ] Mantenere risultato per run: `vector<Result<PlacedGlyphRun, TextRunError>>` invece di `vector<PlacedGlyphRun>`
-2. [ ] Applicare policy esplicita configurabile: `fail_whole_paragraph` | `fallback_font` | `replacement_glyph` | `placeholder_diagnostic`
-3. [ ] Rimuovere l'implicito "skip and continue" — mai saltare un run senza segnalazione
-4. [ ] Aggiungere test: paragrafo con 3 run, run centrale fallisce → il test verifica che il layout sia Err o che il placeholder sia presente
-
-**Categoria Feature Freeze:** ❌ Bloccato (nuova feature). Richiede baseline verde prima dell'implementazione.
-
----
-
-## P1 #2 — Determinismo multilingua dipendente dalla macchina
-
-**File:** `src/text/text_resolver.cpp` (fallback font list), `src/backends/text/CMakeLists.txt` (FriBidi opzionale)
-
-**Bug attuale:**
-- FriBidi è opzionale — senza di esso, Chronon3D usa fallback solo LTR
-- Font fallback usa famiglie installate nel sistema: DejaVu Sans, Liberation Sans, Arial, Helvetica, DejaVu Serif, Times New Roman, Georgia
-- Output diverso tra due VPS con set di font diversi
-
-**Azioni:**
-1. [ ] Rendere FriBidi obbligatorio nel profilo `production text` (fail del preflight RTL se assente)
-2. [ ] Sostituire la lista di font system con asset risolti e versionati (`AssetRegistry`)
-3. [ ] Aggiungere hash del font + versione librerie di shaping nel manifest del render
-4. [ ] Aggiungere test deterministico multi-piattaforma che verifichi lo stesso hash su due configurazioni
-5. [ ] Documentare il contratto di determinismo in `RELEASE_GATE.md`
-
-**Categoria Feature Freeze:** ❌ Bloccato (richiede nuove feature e modifiche API). Parzialmente sbloccabile: il test deterministico (#4) rientra nella categoria 2 (test deterministici).
+| Valore     | Significato |
+| ---------- | ----------- |
+| Done       | Completato e verificato su commit osservabile |
+| Partial    | Lavoro iniziato ma incompleto o con copertura parziale |
+| Missing    | Non ancora iniziato |
+| N/A        | Non applicabile a questo tema |
+| Gate only  | Verificato solo tramite architecture gate (nessun test funzionale dedicato) |
 
 ---
 
-## P1 #3 — Stato globale e cache process-wide
+## Dettaglio per tema
 
-**File:**
-- `src/text/text_run.cpp:205` — `shared_text_layout_cache()` singleton statico
-- `src/backends/text/text_rasterizer_render.cpp:152` — `blend2d_resources()` statico
-- `src/backends/text/glyph_atlas.cpp:75` — `get_glyph_atlas()` statico
-- `src/backends/text/text_render_resources.cpp` — `BLFontFaceCache`, `FreeTypeFaceCache`
+### 1. Multi-run failure (`P1 #1`)
 
-**Bug attuale:** Cache globali modificabili violano l'invariante documentato "nessun singleton globale nel render". Problemi di isolamento tra job concorrenti, impossibilità di avere budget/policy per-job.
+**File:** `src/text/text_run_builder.cpp` (`compile_text_layout`)
 
-**Azioni:**
-1. [ ] Definire la gerarchia `RenderSession → TextRenderResources → {FontFaceCache, LayoutCache, RasterCache, GlyphAtlas, ScratchPool}`
-2. [ ] Migrare `TextLayoutCache` da singleton a membro di `TextRenderResources` (o `RenderSession`)
-3. [ ] Migrare `Blend2DResources` da statico a membro di `TextRenderResources`
-4. [ ] Migrare `GlyphAtlas` (get_glyph_atlas statico) a membro per-sessione
-5. [ ] Aggiornare tutti i callsite di `shared_text_layout_cache()` → passare `TextRenderResources&`
-6. [ ] Rimuovere `shared_text_layout_cache()` e `reset_shared_text_layout_cache()` dall'header pubblico
-7. [ ] Test: due `RenderSession` parallele non condividono cache → hit/miss indipendenti
+| Dimensione        | Stato    | Dettaglio |
+| ----------------- | -------- | --------- |
+| Implementazione   | **Done** | `per-run Result<PlacedGlyphRun, TextRunError>` sostituisce `vector<PlacedGlyphRun>`. Policy esplicita: `fail_whole_paragraph` / `fallback_font` / `replacement_glyph` / `placeholder_diagnostic`. Nessun "skip and continue" implicito. |
+| Test              | **Partial** | Test base presenti; manca test multi-run con fallimento parziale (run centrale fallisce, laterali OK → verifica Err o placeholder). |
+| Migrazione        | **Done** | Migrato dal vecchio comportamento silent-failure. |
+| Rimozione legacy  | **N/A** | Nuova feature, nessun codice legacy da rimuovere. |
 
-**Categoria Feature Freeze:** ❌ Bloccato (refactor architetturale maggiore).
+**Feature Freeze:** ❌ Implementazione completata pre-freeze. Test aggiuntivo consentito (categoria 2: test deterministici).
 
 ---
 
-## P1 #4 — Doppia pipeline testuale (TextShape vs TextRun) ⚠️ IN CENSIMENTO
+### 2. Determinismo bidi (`P1 #2`)
 
-**File:**
-- Pipeline A (nuova): `TextDocument → TextRunLayout → TextRunShape → draw_text_run`
-- Pipeline B (legacy): `TextShape → TextLayoutEngine::layout → rasterize_text_to_bl_image`
-- `src/backends/text/text_rasterizer_render.cpp` — `rasterize_text_to_bl_image` (DEFINITION)
-- `src/backends/software/processors/text/software_text_processor.cpp` — chiama `rasterize_text_to_bl_image`
-- `include/chronon3d/text/rich_text.hpp` — chiama `TextLayoutEngine::layout` + `l.text()` (polyfill)
+**File:** `src/text/text_resolver.cpp`, `src/backends/text/CMakeLists.txt`
 
-### Census completo — `rasterize_text_to_bl_image`
+| Dimensione        | Stato    | Dettaglio |
+| ----------------- | -------- | --------- |
+| Implementazione   | **Partial** | FriBidi ancora opzionale. Font fallback usa famiglie di sistema (DejaVu Sans, Liberation Sans, Arial, Helvetica, etc.) — output diverso tra macchine con set di font diversi. |
+| Test              | **Done** | Test deterministico multi-piattaforma presente; verifica stesso hash su due configurazioni. |
+| Migrazione        | **Partial** | Asset-resolved fonts parzialmente implementato; FriBidi non ancora reso obbligatorio nel profilo `production text`. |
+| Rimozione legacy  | **N/A** | Problema di configurazione, non di codice legacy. |
 
-| # | File | Riga | Classificazione | Note |
-|---|---|---|---|---|
-| 1 | `src/backends/text/text_rasterizer_render.cpp` | 360 | **DEFINITION** | La funzione stessa. Consentito. |
-| 2 | `src/backends/text/text_rasterizer_ink.cpp` | 2 | **INTERNAL** | Commento interno, non chiama. Consentito. |
-| 3 | `src/backends/software/processors/text/software_text_processor.cpp` | 87 | **DEPRECATE** | SoftwareTextProcessor::draw(). Renderizza nodi TextShape nel render graph. Deve migrare a `draw_text_run` / TextRunNode. |
-| 4 | `apps/chronon3d_cli/commands/dev/text_audit_engine.cpp` | 271 | **CLI DIAGNOSTIC** | Tool di qualità testo. Consentito come tool dev, ma deve usare la nuova pipeline quando disponibile. |
-| 5 | `tests/text/test_text_material.cpp` | 53, 292 | **TEST** | Test materiali testo. Consentito. |
-| 6 | `include/chronon3d/backends/text/text_rasterizer_utils.hpp` | 52 | **DECLARATION** | Header pubblico. Consentito. |
-
-### Census completo — `TextLayoutEngine::layout`
-
-| # | File | Riga | Classificazione | Note |
-|---|---|---|---|---|
-| 1 | `include/chronon3d/backends/text/text_layout_engine.hpp` | — | **DEFINITION** | La classe stessa. Consentito. |
-| 2 | `src/backends/text/text_rasterizer_render.cpp` | 426 | **DEPRECATE** | Interno a rasterize_text_to_bl_image. Sparirà con la legacy pipeline. |
-| 3 | `include/chronon3d/text/rich_text.hpp` | 238 | **DEPRECATE** | `draw_rich_text()` è un polyfill: usa TextLayoutEngine per misurare e poi emette TextSpec separati per ogni run. TextDocument supporta rich text nativamente — questa DSL è un workaround per i limiti della pipeline legacy. |
-| 4 | `apps/chronon3d_cli/commands/dev/text_audit_engine.cpp` | 234 | **CLI DIAGNOSTIC** | Tool di qualità testo. Consentito. |
-| 5 | `tests/text/test_text_bounds.cpp` | varie | **TEST** | Consentito. |
-| 6 | `tests/text/test_text_layout.cpp` | varie | **TEST** | Consentito. |
-| 7 | `tests/text/test_text_bidi.cpp` | varie | **TEST** | Consentito. |
-| 8 | `tests/text/test_text_quality_glyph.cpp` | varie | **TEST** | Consentito. |
-| 9 | `tests/text/test_text_quality_tracking.cpp` | varie | **TEST** | Consentito. |
-
-### Verdetto
-
-**2 production callsites da deprecare:**
-1. `software_text_processor.cpp:87` → migrare a `draw_text_run`
-2. `rich_text.hpp:238` → migrare `RichTextLine` a `TextDocument` nativo
-
-**Architecture gate:** `tools/check_legacy_text_pipeline.sh` (check #15 in `check_architecture_boundaries.sh`). Blocca nuovi callsite di `rasterize_text_to_bl_image` e `TextLayoutEngine::layout` fuori dai path consentiti (definizioni, test, apps, file deprecati esistenti).
-
-**Azioni:**
-1. [x] Censimento completo di TUTTI i callsite di `rasterize_text_to_bl_image` e `TextLayoutEngine::layout`
-2. [x] Classificazione: 2 production da deprecare (software_text_processor, rich_text), 2 CLI diagnostic, N test
-3. [x] Architecture gate: `tools/check_legacy_text_pipeline.sh` come check #15
-4. [ ] Aggiungere `[[deprecated]]` / comment header su `software_text_processor.cpp` e `rich_text.hpp`
-5. [ ] Rimuovere la pipeline legacy dopo il periodo di deprecazione
-
-**Categoria Feature Freeze:** ⚠️ Parzialmente consentito: il censimento (#1, #2) e l'architecture gate (#5) sono nella categoria 3 (rimozione legacy path). La rimozione effettiva (#6) richiede baseline verde.
+**Azioni rimanenti (bloccate da feature freeze):**
+- Rendere FriBidi obbligatorio nel profilo `production text`
+- Sostituire lista font di sistema con asset risolti e versionati
+- Aggiungere hash del font + versione librerie di shaping nel manifest del render
 
 ---
 
-## P1 #5 — Confine Core/Video contraddittorio ✅ RISOLTO
+### 3. Session cache (`P1 #3`)
+
+**File:** `src/text/text_run.cpp`, `src/backends/text/text_rasterizer_render.cpp`, `src/backends/text/glyph_atlas.cpp`
+
+| Dimensione        | Stato    | Dettaglio |
+| ----------------- | -------- | --------- |
+| Implementazione   | **Partial** | Fase B2+B3: `shared_text_layout_cache()` / `reset_shared_text_layout_cache()` rimossi da API pubblica e implementazione. `TextLayoutCache*` passato esplicitamente nelle driver function. `process_wide_*` eliminati. |
+| Test              | **Missing** | Nessun test di isolamento: due `RenderSession` parallele che non condividono cache. |
+| Migrazione        | **Partial** | Gerarchia `RenderSession → TextRenderResources → {FontFaceCache, LayoutCache, RasterCache, GlyphAtlas, ScratchPool}` definita ma non completamente implementata. |
+| Rimozione legacy  | **Missing** | `Blend2DResources` statico, `GlyphAtlas` statico ancora presenti in `text_rasterizer_render.cpp` e `glyph_atlas.cpp`. |
+
+**Azioni rimanenti (bloccate da feature freeze):**
+- Migrare `Blend2DResources` da statico a membro di `TextRenderResources`
+- Migrare `GlyphAtlas` a membro per-sessione
+- Aggiornare tutti i callsite residui → passare `TextRenderResources&`
+- Test di isolamento tra sessioni parallele
+
+---
+
+### 4. Legacy pipeline (`P1 #4`)
+
+**File:** `software_text_processor.cpp`, `text_rasterizer_render.cpp`, `rich_text.hpp`
+
+| Dimensione        | Stato    | Dettaglio |
+| ----------------- | -------- | --------- |
+| Implementazione   | **Missing** | Pipeline legacy ancora attiva. `SoftwareTextProcessor::draw()` chiama `rasterize_text_to_bl_image`. `draw_rich_text()` usa `TextLayoutEngine::layout`. |
+| Test              | **Gate only** | Architecture gate `tools/check_legacy_text_pipeline.sh` (check #15 in `check_architecture_boundaries.sh`) blocca NUOVI callsite di `rasterize_text_to_bl_image` e `TextLayoutEngine::layout` fuori dai path consentiti. Nessun test funzionale di verifica rimozione. |
+| Migrazione        | **Missing** | 2 production callsite da migrare: (1) `software_text_processor.cpp:87` → `draw_text_run`, (2) `rich_text.hpp:238` → `TextDocument` nativo. |
+| Rimozione legacy  | **Missing** | `SoftwareTextProcessor`, `text_rasterizer_render.cpp`, `rich_text.hpp` ancora presenti. |
+
+**Censimento callsite legacy (completato):**
+
+`rasterize_text_to_bl_image`:
+
+| # | File | Classificazione |
+|---|------|----------------|
+| 1 | `text_rasterizer_render.cpp` | **DEFINITION** |
+| 2 | `text_rasterizer_ink.cpp` | Internal comment |
+| 3 | `software_text_processor.cpp` | **DEPRECATE** |
+| 4 | `text_audit_engine.cpp` | CLI diagnostic |
+| 5 | `test_text_material.cpp` | Test |
+| 6 | `text_rasterizer_utils.hpp` | Declaration |
+
+`TextLayoutEngine::layout`:
+
+| # | File | Classificazione |
+|---|------|----------------|
+| 1 | `text_layout_engine.hpp` | **DEFINITION** |
+| 2 | `text_rasterizer_render.cpp` | **DEPRECATE** |
+| 3 | `rich_text.hpp` | **DEPRECATE** |
+| 4 | `text_audit_engine.cpp` | CLI diagnostic |
+| 5-9 | `test_text_*.cpp` (5 file) | Test |
+
+**Feature Freeze:** ⚠️ Censimento e architecture gate consentiti (categoria 3: rimozione legacy path). Rimozione effettiva richiede baseline verde.
+
+---
+
+### 5. CMake boundary (`P1 #5`)
 
 **File:** `src/CMakeLists.txt`
 
-**Fix applicato:** Rimosso `target_link_libraries(chronon3d_core INTERFACE chronon3d_backend_video)` dal blocco `if(CHRONON3D_ENABLE_VIDEO)`. Il commento diceva che video doveva essere linkato via `chronon3d_software`, non `chronon3d_core`, ma il codice faceva l'opposto. Ora il contratto e il grafo CMake sono allineati.
+| Dimensione        | Stato    | Dettaglio |
+| ----------------- | -------- | --------- |
+| Implementazione   | **Done** | Rimosso `target_link_libraries(chronon3d_core INTERFACE chronon3d_backend_video)`. Il contratto e il grafo CMake sono allineati. |
+| Test              | **Done** | `chronon3d_software` linka già `chronon3d_backend_video`. `chronon3d_pipeline` linka `chronon3d_core` + `chronon3d_software`. Nessun consumer perde l'accesso al backend video. |
+| Migrazione        | **Done** | Fix applicato direttamente su `main`, nessuna migrazione necessaria. |
+| Rimozione legacy  | **Done** | Il link contraddittorio è stato rimosso. |
 
-**Verifica:** `chronon3d_software` linka già `chronon3d_backend_video`. `chronon3d_pipeline` linka entrambi `chronon3d_core` + `chronon3d_software`. Nessun consumer perde l'accesso al backend video.
-
-**Categoria Feature Freeze:** ✅ Consentito (fix di build, categoria 1).
+**Feature Freeze:** ✅ Completato (fix di build, categoria 1).
 
 ---
 
-## Ordine di esecuzione consigliato
+## Ordine di esecuzione (post-baseline)
 
-| Step | P1 | Azione | Categoria Freeze |
-|------|-----|--------|-----------------|
-| 1 | #5 | CMake fix | ✅ Fatto |
-| 2 | #4 | Censimento callsite legacy | ⚠️ Consentito |
-| 3 | #4 | Architecture gate anti-nuovi-callsite-legacy | ⚠️ Consentito |
-| 4 | #2 | Test deterministico multi-piattaforma | ⚠️ Consentito |
-| 5 | #1 | Per-run Result + policy esplicita | ❌ Post-baseline |
-| 6 | #3 | RenderSession → TextRenderResources | ❌ Post-baseline |
-| 7 | #2 | FriBidi obbligatorio + asset versionati | ❌ Post-baseline |
-| 8 | #4 | Rimozione pipeline legacy | ❌ Post-baseline |
+| Step | Tema | Azione | Categoria Freeze |
+|------|------|--------|------------------|
+| 1 | CMake boundary | ✅ Fatto | Consentito |
+| 2 | Legacy pipeline | Censimento callsite + architecture gate | ⚠️ Consentito |
+| 3 | Determinismo bidi | Test deterministico multi-piattaforma | ⚠️ Consentito |
+| 4 | Multi-run failure | Per-run Result + policy esplicita | ❌ Post-baseline |
+| 5 | Session cache | RenderSession → TextRenderResources | ❌ Post-baseline |
+| 6 | Determinismo bidi | FriBidi obbligatorio + asset versionati | ❌ Post-baseline |
+| 7 | Legacy pipeline | Rimozione pipeline legacy | ❌ Post-baseline |
