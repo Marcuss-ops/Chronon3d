@@ -47,6 +47,7 @@ add_executable(chronon3d_scene_tests
     # src/scene/camera/camera_v1/camera_program_compiler.cpp on the same
     # commit.
     scene/camera/test_camera_program_damped_history_force.cpp
+    scene/camera/test_camera_program_metadata_late_rebuild.cpp
     scene/camera/test_camera_framing_solver.cpp
     # TICKET-A3-LOOKAT-DIAGNOSTIC (Agent3 mission DoD gate (g)) — locks
     # the contract that LookAtLayer orientation emits a Warning diagnostic

@@ -153,7 +153,7 @@ Origine: prompt operativo **Agent3 — Compiler, Session, Errori, Legacy Cleanup
 
 Lavori (uno per ticket, commit atomico su `main` — no branch, AGENTS.md §Feature Freeze):
 
-1. **TICKET-A3-METADATA** — `camera_v1::compile_camera()`: rimuovere il `return` anticipato dopo graft del `RegisteredMotionRef`; late-rebuild `failure_policy_` / `time_dependent_` / `evaluation_dependency_` post-graft.
+1. **TICKET-A3-METADATA** — `camera_v1::compile_camera()`: rimuovere il `return` anticipato dopo graft del `RegisteredMotionRef`; late-rebuild `failure_policy_` / `time_dependent_` / `evaluation_dependency_` post-graft.  **PARTIAL**: late-rebuild gia' implementato in camera_program_compiler.cpp (CAM-03 fix marker); test lock tests/scene/camera/test_camera_program_metadata_late_rebuild.cpp 5 SUBCASEs committed; test eseguito direttamente 1 TEST_CASE × 32 assertions PASS; 1/8 gate (a) cluster chiuso.
 2. **TICKET-A3-SESSION-POLICY** — `CameraFailurePolicy::KeepLastValidCamera` realmente recupera `CameraSession::last_valid_camera` (oggi segue il ramo di `Stop`).
 3. **TICKET-A3-CACHE-LEASE** — `CameraSessionCache::acquire()` non aggiorna `last_evaluated_frame` prima del completamento della evaluate; lease `commit()` on success only; failed evaluation non muta cache.
 4. **TICKET-A3-CTX-FRAMERATE** — `CameraEvalContext::at(Frame, FrameRate)` + `CameraMotionContext::at(Frame, FrameRate)` audit call-site per residui `FrameRate{30,1}` hardcoded.
