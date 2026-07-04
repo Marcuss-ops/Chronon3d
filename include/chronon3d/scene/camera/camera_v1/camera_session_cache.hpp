@@ -102,6 +102,15 @@ public:
     CameraSessionLease(CameraSessionLease&&) noexcept = default;
     CameraSessionLease& operator=(CameraSessionLease&&) noexcept = default;
 
+    /// Destroy the lease.  TICKET-ZERO-A1 / TICKET-A3-CACHE-LEASE:
+    /// rollback is BY CONSTRUCTION — lease.session() returns
+    /// *Entry::working_session (a sibling field of Entry::checkpoint.session);
+    /// commit() is the SOLE writepath that copies working_session →
+    /// checkpoint.session.  When this destructor runs without commit()
+    /// having been called (exception, cancelled job, forgotten release),
+    /// the working_session scratch is dropped without writeback and
+    /// checkpoint.session is left untouched.  No code runs here; the
+    /// implicit rollback comes from the cache::acquire() rule.
     ~CameraSessionLease();
 
 private:
@@ -169,6 +178,21 @@ public:
 private:
     struct Entry {
         CameraStateCheckpoint          checkpoint;
+
+        // TICKET-ZERO-A1 / TICKET-A3-CACHE-LEASE — working session for
+        // in-flight mutations under an active lease.  Allocated as a
+        // plain value (NOT std::optional) so the in-place std::vector
+        // capacity grows to `descriptor.constraints.size()` on the first
+        // acquire and is REUSED across subsequent acquires.  Acquire()
+        // copies `checkpoint.session` into `working_session` (capacity
+        // reuse, 0 heap allocations per acquire); lease.session() returns
+        // a reference to `working_session`; commit() copies
+        // `working_session` back to `checkpoint.session`.  Uncommitted
+        // leases implicitly rollback — the working_session scratch is
+        // dropped along with the lease destructor and `checkpoint.session`
+        // is untouched.  See ADR-013 Decision 3 + the regression lock in
+        // tests/runtime/test_camera_session_cache_failed_no_commit_session_state.cpp.
+        CameraSession                  working_session{};
     };
 
     // Keyed by shot_idx.  We don't include program_id because the cache

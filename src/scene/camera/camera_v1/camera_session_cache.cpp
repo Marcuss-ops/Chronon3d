@@ -144,8 +144,18 @@ CameraSessionLease CameraSessionCache::acquire(const CameraProgram& program,
     // CAM-05: last_evaluated_frame is now set by CameraSessionLease::commit(),
     // not eagerly here.  If the caller never calls commit() (exception,
     // cancelled job, forgotten release), the checkpoint is unchanged.
+    //
+    // TICKET-ZERO-A1 / TICKET-A3-CACHE-LEASE — copy the (possibly-prerolled)
+    // cache state into the in-flight working_session.  Reuses the in-place
+    // std::vector<ConstraintState> capacity grown by the preroll above (when
+    // applicable) or by the forward_step's prior commit — heap allocations
+    // per acquire are 0 after the first acquire on a given shot_idx.
+    // lease.session() returns a reference to working_session; commit() copies
+    // working_session back to checkpoint.session; uncommitted leases
+    // implicitly rollback (no writeback — checkpoint.session is untouched).
+    e.working_session = e.checkpoint.session;
     return CameraSessionLease(this, shot_idx,
-                              &e.checkpoint.session, target_frame);
+                              &e.working_session, target_frame);
 }
 
 
@@ -159,9 +169,18 @@ void CameraSessionLease::commit() {
 }
 
 CameraSessionLease::~CameraSessionLease() {
-    // If not committed, the session state is discarded.
-    // This protects against exceptions, cancelled jobs, and forgotten
-    // release() calls — last_evaluated_frame stays unchanged.
+    // No-op.  TICKET-ZERO-A1 / TICKET-A3-CACHE-LEASE: rollback is BY
+    // CONSTRUCTION — lease.session() returns *Entry::working_session
+    // (a sibling scratch field on the cache's Entry, separate from
+    // Entry::checkpoint.session).  commit() is the SOLE writepath that
+    // copies working_session → checkpoint.session via commit_lease().
+    // When this destructor runs without commit() having been called
+    // (exception, cancelled job, forgotten release), the working_session
+    // scratch is dropped along with the lease destructor and
+    // checkpoint.session is left untouched.  No code is needed here —
+    // the implicit rollback comes from the cache::acquire() contract
+    // (lease points at the sibling working_session field, NOT at the
+    // cache's committed state).
 }
 
 void CameraSessionCache::commit_lease(int shot_idx,
