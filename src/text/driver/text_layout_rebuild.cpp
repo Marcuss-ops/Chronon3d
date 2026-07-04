@@ -33,7 +33,7 @@ EffectiveTextState target_effective_state(
     s.font       = font_layout_identity_of(
         effective_font,
         effective_font.font_size,
-        /*features=*/""      // layout_spec has no .shaping.features yet
+        /*shaping_features=*/""      // layout_spec has no .shaping.features yet
     );
     // direction / language / features default-constructed:
     //   direction = TextDirection::Auto, language = "", features = ""

@@ -126,11 +126,13 @@ struct FontIdentity {
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // Unlike FontIdentity (which excludes font_size because size is a layout
-// concern), FontLayoutIdentity INCLUDES font_size AND shaping features
-// because these are part of the layout's identity:
+// concern), FontLayoutIdentity INCLUDES size, shaping features, AND
+// variable-font variation_axes because these are part of the layout's identity:
 //   * Two text runs at 16pt vs 72pt produce different glyph placements;
 //   * Different OpenType feature strings (kern=1 vs kern=0) produce
 //     different advances on ligature-heavy runs.
+//   * Variable font axes (wght=400 vs wght=700) produce different glyph
+//     outlines and metrics.
 //
 // Used by ALL locations that hash or compare font identity for layout
 // purposes:
@@ -141,47 +143,49 @@ struct FontIdentity {
 //   5. apply_active_state_to_text_run_shape() fast-path
 //   6. prewarm_text_run_layout_for_frame()
 //
-// P0-2 — closes the font_family omission from layout hashes + the
-// font_path gating that prevented family/weight/style/size overrides
-// when font_path was empty.
+// M1.5#4 — canonical field names: resolved_path, family, weight, style,
+// size, features, variation_axes (prefixed font_ names removed).
 struct FontLayoutIdentity {
-    std::string font_path;       // resolved font file path (may be empty for family-only fallback)
-    std::string font_family;     // CSS family name (case-insensitive, canonicalized)
-    int         font_weight{400};
-    std::string font_style{"normal"};
-    float       font_size{32.0f};
+    std::string resolved_path;   // resolved font file path (may be empty for family-only fallback)
+    std::string family;          // CSS family name (case-insensitive, canonicalized)
+    int         weight{400};
+    std::string style{"normal"};
+    float       size{32.0f};
     std::string features;        // OpenType shaping features (e.g. "kern=1,liga=1")
+    std::string variation_axes;  // OpenType variable font axes (e.g. "wght=700,wdth=100")
 
     [[nodiscard]] bool operator==(const FontLayoutIdentity& o) const noexcept {
-        return font_path == o.font_path &&
-               font_family == o.font_family &&
-               font_weight == o.font_weight &&
-               font_style == o.font_style &&
-               font_size == o.font_size &&
-               features == o.features;
+        return resolved_path == o.resolved_path &&
+               family == o.family &&
+               weight == o.weight &&
+               style == o.style &&
+               size == o.size &&
+               features == o.features &&
+               variation_axes == o.variation_axes;
     }
     [[nodiscard]] bool operator!=(const FontLayoutIdentity& o) const noexcept {
         return !(*this == o);
     }
 };
 
-/// Project a FontSpec + size + features into a FontLayoutIdentity.
+/// Project a FontSpec + size + features + variation_axes into a FontLayoutIdentity.
 /// Canonical entry point for extracting the layout-relevant font identity
-/// from the scattered (font_path, font_family, weight, style, size, features)
-/// tuple used by cache keys, layout hashes, and fast-path comparisons.
+/// from the scattered (font_path, font_family, weight, style, size, features,
+/// variation_axes) tuple used by cache keys, layout hashes, and fast-path comparisons.
 [[nodiscard]] inline FontLayoutIdentity font_layout_identity_of(
     const FontSpec& font,
-    float size,
-    const std::string& features
+    float sz,
+    const std::string& feat,
+    const std::string& var_axes = {}
 ) noexcept {
     return FontLayoutIdentity{
         font.font_path, font.font_family,
         font.font_weight, font.font_style,
-        size, features
+        sz, feat, var_axes
     };
 }
 
-/// Overload that derives size and features from a TextRunLayout reference.
+/// Overload that derives size + features + variation_axes from a TextRunLayout reference.
 /// Kept as a forward-declared free function because it depends on
 /// TextRunLayout (defined in text_run.hpp, which includes this header).
 /// The implementation lives in text_run.cpp.
