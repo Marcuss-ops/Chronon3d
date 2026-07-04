@@ -39,10 +39,15 @@ namespace {
 using namespace chronon3d::camera_v1;
 using chronon3d::test::approx;
 
-constexpr float kEps = 1e-4f;
+// TICKET-120 followup (Unity build deconflict) — renamed from
+// `kEpsTrajectory` to file-scoped unique name to avoid the redefinition
+// error in the unified TU built by chronon3d_scene_tests (three
+// test files shared an anonymous-namespace `kEpsTrajectory` that collide
+// in Unity build: see TICKET-120 build-redefinition group).
+constexpr float kEpsTrajectory = 1e-4f;
 const FrameRate kFps30{30, 1};
 
-inline bool approx_vec(Vec3 a, Vec3 b, float tol = kEps) {
+inline bool approx_vec(Vec3 a, Vec3 b, float tol = kEpsTrajectory) {
     return std::abs(a.x - b.x) <= tol
         && std::abs(a.y - b.y) <= tol
         && std::abs(a.z - b.z) <= tol;

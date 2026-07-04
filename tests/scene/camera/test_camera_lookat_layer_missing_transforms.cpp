@@ -73,7 +73,11 @@ CameraDescriptor make_lookat_layer_desc(
 }
 
 // Compile helper: hides the Result<...> ceremony.
-CameraProgram compile_or_die(const CameraDescriptor& desc) {
+// TICKET-120 followup (Unity build deconflict) — renamed from
+// `compile_or_die` to file-scoped unique name to avoid the
+// redefinition error in the unified TU built by
+// chronon3d_scene_tests (see TICKET-120 build-redefinition group).
+CameraProgram compile_or_die_lookat_diagnostic(const CameraDescriptor& desc) {
     auto cr = compile_camera(desc, /*catalog=*/nullptr);
     REQUIRE(cr.has_value());
     auto prog = std::move(cr).value();
@@ -115,7 +119,7 @@ TEST_CASE(
 
     SUBCASE("A. PRIMARY LOCK — transforms==nullptr ⇒ Warning diagnostic in stream") {
         CameraDescriptor desc = make_lookat_layer_desc();
-        CameraProgram prog = compile_or_die(desc);
+        CameraProgram prog = compile_or_die_lookat_diagnostic(desc);
         CameraSession session;
 
         CameraEvalContext ctx;
@@ -147,7 +151,7 @@ TEST_CASE(
 
     SUBCASE("B. base rotation is preserved (NOT silently corrupted)") {
         CameraDescriptor desc = make_lookat_layer_desc();
-        CameraProgram prog = compile_or_die(desc);
+        CameraProgram prog = compile_or_die_lookat_diagnostic(desc);
         CameraSession session;
 
         CameraEvalContext ctx;
@@ -166,7 +170,7 @@ TEST_CASE(
 
     SUBCASE("C. point_of_interest_enabled stays false (no fake-POI leak)") {
         CameraDescriptor desc = make_lookat_layer_desc();
-        CameraProgram prog = compile_or_die(desc);
+        CameraProgram prog = compile_or_die_lookat_diagnostic(desc);
         CameraSession session;
 
         CameraEvalContext ctx;
@@ -187,7 +191,7 @@ TEST_CASE(
         CameraDescriptor desc = make_lookat_layer_desc(
             /*id_str=*/"test.diag_per_frame",
             /*target_name=*/"per.frame.target");
-        CameraProgram prog = compile_or_die(desc);
+        CameraProgram prog = compile_or_die_lookat_diagnostic(desc);
         CameraSession session;
 
         // Three sequential evaluations, each with transforms=nullptr.
