@@ -6,6 +6,15 @@
 ---
 
 ## Luglio 2026 — Chiusure recenti
+### build(sdk) — TICKET-GATE-10-PHASE-4-BLACK-FU4 sub-block B DONE: install_consumer std::make_shared<TextRunShape>() rotates via consumer-side explicit #include (pivot @ main@`0b365354`)
+- **Risultato ottenuto**: rot di incomplete-type in `tests/install_consumer/main.cpp:147` chiuso su due fronti: (a) REVERT del bottom-include `<chronon3d/text/text_run_shape.hpp>` da `shape.hpp` (introdotto in catena `35cb1127`+`2895bd88`+`63da8946` ma causava rot OPP-internal cascade); (b) ADD di `#include <chronon3d/text/text_run_shape.hpp>` a `tests/install_consumer/main.cpp` (manifest-clean — il path è nel SDK public-header manifest). Gate #10 compile stage ora PASS.
+- **Deviazione postmortem** (Option-preferred → pivot): la bottom-include di `text_run_shape.hpp` in `shape.hpp` rompeva il grafo di include OPP-interno (`shape.hpp → text_run_shape.hpp (bottom) → text_animator_property.hpp → animated_value.hpp → fill_style.hpp → shape.hpp (re-ingress)`) causando compile rot in 4 source file di `chronon3d_registry` target con error `chronon3d::graphics::FillStyle undeclared` + `chronon3d::TextLayoutSpec undeclared`.
+- **Manifest preservation**: le 3 manifest entries `text_run_shape.hpp` + `text_run_layout.hpp` + `animated_text_document.hpp` da `35cb1127`/`2895bd88`/`63da8946` sono preservate (no churn).
+- **Comportamento corretto**: consumer-side explicit include pull-in le full-type TextRunShape nel TU di main.cpp; OPP source chain rimane invariato. Gate #10 compile PASS; link PASS; runtime consumer any-channel PASS con `230400/230400 pixels >5/255`. Phase 4 strict mean-RGB FAIL con `0 pixels mean > 5/255` → NON risolta da FU4 (territorio [TICKET-GATE-10-PHASE-4-BLACK-FU5](tickets/TICKET-GATE-10-PHASE-4-BLACK-FU5.md)).
+- **Test o gate aggiunto**: `bash tools/install_consumer_test.sh` compile stage PASS post-pivot; Phase 4 strict FAIL finche FU5 non chiuso. 11/11 verde non raggiungibile senza FU5.
+- **Compatibilita rilevante**: ABI invariata; zero nuovo public API; zero nuovo singleton/registry/cache. Cross-references: [TICKET-GATE-10-PHASE-4-BLACK-FU4](tickets/TICKET-GATE-10-PHASE-4-BLACK-FU4.md) (stato DONE sub-block B post-pivot), [TICKET-GATE-10-PHASE-4-BLACK-FU5](tickets/TICKET-GATE-10-PHASE-4-BLACK-FU5.md) (NUOVO), [TICKET-RUNTIME-ADAPTER-INCOMPLETE-TYPE](FOLLOWUP_TICKETS.md) (row aggiornata con pivot commit SHA). Commit `0b365354458d9c90aac1f18f60a36c056c0120bd`. AGENTS.md v0.1 freeze Cat-1 + Cat-5 compliant.
+
+
 
 ### software-backend — M1.5#12 (1/4): extract `software_backend_factory.cpp` + UNIQUE validation source invariant
 - `+ src/backends/software/software_backend_factory.cpp` (NEW) — `make_software_backend(SoftwareBackendServices)` estratto verbatimmente dal monolito `software_backend.cpp`. UNICA fonte di validazione REQUIRED-services (`counters` / `settings` / `framebuffer_pool` / `asset_resolver` / `text_resources` in ordine canonico). I 5 `#ifndef NDEBUG` asserts INTERNI restano PARTE della validazione (deleted asserts sono quelli del ctor, non quelli della factory).
