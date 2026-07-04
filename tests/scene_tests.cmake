@@ -65,6 +65,7 @@ add_executable(chronon3d_scene_tests
     # the previous kTimelineFps{30,1} constexpr-removal in
     # src/scene/camera/camera_v1/shot_timeline.cpp on the same commit.
     scene/camera/test_camera_context_framerate_propagation.cpp
+    scene/camera/test_orient_along_path.cpp   # Agent1 DoD: 4-sub-test OrientAlongPath regression lock (Step 4)
     scene/camera/test_camera_stabilization.cpp
     scene/camera/test_camera_projection_contract.cpp
     scene/camera/golden_projection_test.cpp   # C7 — DOC 02 / TICKET-035 freeze: 6-mode golden projection

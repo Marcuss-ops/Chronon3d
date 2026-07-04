@@ -51,7 +51,6 @@ Un valore `PASS` deve indicare lo SHA e la baseline che lo dimostrano — altrim
 | Software backend                                | PASS     | Gate-3 (I1-I5) tutto verde su `main@775da4d9`. TICKET-077 + TICKET-079 chiusi. |
 | Execution scope (precomp + nested)              | NOT RUN  | Lease, child arena e concorrenza da chiudere.                            |
 | Text Production V1                              | NOT RUN  | word timing, rich text produttivo, preset, golden da chiudere.           |
-| Camera Production V1                            | PARTIAL  | Projection contract closed (C1–C7 @ `eb1ce8e5`): `FocalPx`+`ViewportRect`+`focal_xy_from_camera`+`effective_viewport` con offset; golden test 6 mode committed in `tests/scene/camera/golden_projection_test.cpp` e runtime certifier PASS in C9a (`37c03c11`, 71/71 assertions, 6/6 SUBCASEs). 24 fallimenti pre-esistenti in `chronon3d_scene_tests` ([TICKET-120](tickets/TICKET-120.md)) + framing/clipping/DOF + migrazione legacy ancora aperti. |
 | SDK C++ installabile                            | NOT RUN  | consumer di rendering reale con testo + camera → PNG in certificazione.   |
 | SDK cross-language                              | NOT RUN  | C ABI e formato `.chronon` da progettare.                                |
 | Sistemi meta (Expressions V2 / V3 tile-first)   | PLANNED  | Expressions V2 OFF di default, non installato. V3 subordinato a V1.      |
@@ -59,6 +58,23 @@ Un valore `PASS` deve indicare lo SHA e la baseline che lo dimostrano — altrim
 | Render engine construction                      | PASS     | P0 #C2: Impl ctor unified, `optional<path>`. attach_backend() deprecated. |
 | Composition pipeline                            | PASS     | P0 #C3: canonical pipeline documented. render_composition_frame canonical. |
 | Text pre-compilation (CompiledTextRun)          | PLANNED  | P0 #C1: documented in text_run.hpp. Blocked by feature freeze. |
+
+## Camera V1 — DoD (6 CAM-DOC 04 architecture-boundary checks)
+
+Lock canonico per la DoD Camera V1 verificato da `tools/check_camera_architecture.sh` (gate #6 dell'11-gate audit).  **6/6 PASS** su `main@3a5eb193` (snapshot 2026-07-04):
+
+| # | Check                                                                                              | Stato | Verifica (`tools/check_camera_architecture.sh`) |
+|---|-----------------------------------------------------------------------------------------------------|-------|---------------------------------------------------|
+| 1 | AnimatedCamera2_5D RETIRED                                                                          | PASS  | `grep` su `include/chronon3d/{scene,backends,runtime}/...` nessun reference residuo. |
+| 2 | CameraRig authoring RETIRED                                                                          | PASS  | `camera_rig.hpp` non presente in alcun `target_sources`. |
+| 3 | SceneBuilder::animated_camera() RETIRED                                                              | PASS  | nessuna chiamata a `scene_builder::animated_camera` in `src/**` o `content/**`. |
+| 4 | SceneBuilder::camera_rig() RETIRED                                                                   | PASS  | nessuna chiamata a `scene_builder::camera_rig` in `src/**` o `content/**`. |
+| 5 | tan(fov) focal formulas canonical                                                                 | PASS  | un'unica site in `include/chronon3d/scene/math/camera_math.hpp`; nessuna duplicazione. |
+| 6 | compile_camera() call-site policy                                                                    | PASS  | chiamate solo da `runtime_adapter.cpp` (orchestrator); non abusato da nodes/backend. |
+
+**Source of truth:** `tools/check_camera_architecture.sh` (6 grep-comparison checks) — output `6/6 PASS` catturato dal forensic run Step 6 (`docs/audits/2026-07-04-step6-camera-gates.md` quando scritto).
+
+**Note su Camera V1 vs RELEASE_GATE.md:** il canonico `docs/RELEASE_GATE.md` lista 7 condizioni ("all new compositions use CameraDescriptor or CameraProgram" / "CameraSession owned by render job" / "no per-frame lookup/compile" / "orientation/projection single math contract" / "compiled tests link + run in CI" / "legacy adapters parity + removal phase" / "external SDK builds + uses compiled camera"). Le 6 CAM-DOC 04 checks sopra sono la colonna architetturale della DoD; le rimanenti sono runtime/CI/SDK invariants tracciate nel forensic run Step 6 (gate b/d Pass + gate c FAIL su pre-existing rot fuori scope Camera V1 step).
 
 ## Blocker correnti per baseline verde (top 10 attivi)
 
