@@ -7,6 +7,44 @@
 
 ## Luglio 2026 — Chiusure recenti
 
+### test(scene) — TICKET-120 Unity build deconflict: 8 file renames (commit `5985224c`)
+- `tests/scene/camera/test_camera_program_damped_history_force.cpp`: `compile_or_die` → `compile_or_die_damped_history`
+- `tests/scene/camera/test_camera_lookat_layer_missing_transforms.cpp`: `compile_or_die` → `compile_or_die_lookat_diagnostic`
+- `tests/scene/camera/test_camera_program.cpp`: `compile_or_die` → `compile_or_die_program`
+- `tests/scene/camera/test_orient_along_path.cpp`: `compile_or_die` → `compile_or_die_orient_along_path`; `kEps` → `kEpsOrientAlongPath`
+- `tests/scene/camera/golden_projection_test.cpp`: `kEps` → `kEpsGoldenProjection`
+- `tests/scene/camera/test_camera_trajectory.cpp`: `kEps` → `kEpsTrajectory`
+- `tests/scene/camera/test_camera_compiled_evaluate.cpp`: `compile_or_die` → `compile_or_die_compiled_evaluate`
+- Root cause: CMake Unity build mode concatenates .cpp files into one TU; anonymous-namespace symbols with the SAME NAME across files collide. The build errored at 5 different symbols in 6 files, blocking ALL test runs.
+- Fix: rename each symbol to a file-scoped unique name (suffix = file or test family). Each rename is accompanied by a TICKET-120 reference comment explaining the Unity-build deconflict rationale. Pure source-level fix with zero behavior change; all renames preserve call-site semantics.
+- Net test progress: build now succeeds, enabling 6 previously-masked tests to pass + 1 TICKET-035 fix (separate commit `7232722f`) = 7 net test progress.
+- AGENTS.md v0.1 freeze Cat-1 (build corrections — test-side scope). Zero new public API; all renames in test-side TUs.
+
+### test(camera) — TICKET-035 anamorphic_squeeze focal ratio is 3.011 (commit `7232722f`)
+- `tests/scene/camera/test_camera_projection_contract.cpp:572` — the test case
+  `TICKET-035: anamorphic_squeeze 2.0 produces focal_x == 3.011 * focal_y for anamorphic_50mm`
+  had a wrong assertion: `fxy.x == Approx(2.0f * fxy.y).epsilon(0.5f)`. The lens preset
+  `anamorphic_50mm` has sensor 21.95x18.59 (sa = 1.181, NOT 3:2 = 1.5), so under Fill
+  the base per-axis focal ratio on a 16:9 viewport is (1920/21.95) / (1080/18.59) ≈ 1.506.
+  The anamorphic_squeeze of 2.0 multiplies ONLY the X base, so focal_x / focal_y = 1.506 * 2.0
+  = 3.011 (matches the C7 golden test in `golden_projection_test.cpp` SUBCASE "Mode 6/6").
+- Fix 1 (anamorphic case): Changed assertion to
+  `fxy.x == Approx(3.011f * fxy.y).epsilon(0.01f)`, updated test name to "...3.011 * focal_y",
+  and rewrote the comment with the math.
+- Fix 2 (spherical fallback): The test's last CHECK asserted
+  `fxy_spherical.x == Approx(fxy_spherical.y)` for `full_frame_50mm` under Fill, which is
+  wrong: under Fill with sensor aspect (1.5) ≠ viewport aspect (1.778), focal_x / focal_y = 1.185
+  (NOT 1.0). Switched the spherical case to `GateFit::Overscan` to isolate the squeeze-isolation
+  invariant from the per-axis aspect invariant: under Overscan the effective viewport matches
+  sensor aspect, so focal_x == focal_y exactly when squeeze=1.0. Added a `anamorphic_squeeze == 1.0`
+  CHECK to lock the spherical invariant.
+- Net effect: TICKET-035 anamorphic_squeeze test now passes (was 1 of 24 pre-existing failures in
+  TICKET-120). Remaining TICKET-035 test cases (e.g., the separate "EvaluatedProjection
+  active_viewport..." case with the `active_viewport.width == 1620.0f` bug for anamorphic_50mm
+  on 1920x1080) are tracked in TICKET-120 for the next batch.
+- AGENTS.md v0.1 freeze Cat-2 (test deterministici). Zero new public API; lock lives in test-side TU.
+- Refs: TICKET-120, TICKET-035, C7 (golden test ground truth for the 3.011 ratio = 1.506 * 2.0).
+
 ### camera — Camera V1 projection contract: golden 6-mode test (commit `eb1ce8e5`)
 - `tests/scene/camera/golden_projection_test.cpp` (new): 1 `TEST_CASE` × 6 `SUBCASEs` covering Zoom, FOV 50°, PhysicalLens ARRI Alexa 35, GateFit::Stretch, GateFit::Overscan, Anamorphic 2×. Tolerance-based assertions against analytical ground-truth formulas in `include/chronon3d/scene/math/camera_math.hpp`.
 - Closes the Camera V1 projection-contract cluster (C1–C7); Camera V1 DoD 6/6 CAM-DOC 04 arch-boundary checks PASS (`tools/check_camera_architecture.sh`).
