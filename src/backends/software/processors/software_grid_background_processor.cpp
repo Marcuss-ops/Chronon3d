@@ -6,6 +6,7 @@
 #include "../kernels/grid_background_kernel.hpp"
 // R2: draw() now consumes the slim processor context POD.
 #include <chronon3d/backends/software/software_processor_context.hpp>
+#include <cstdio>  // DIAGNOSTIC: fprintf for gate#10 debugging
 
 namespace chronon3d::renderer {
 
@@ -19,6 +20,11 @@ public:
         (void)height;
 
         const auto& g = node.shape.grid_background();
+        std::fprintf(stderr, "[gb-diag] GridBackground::draw() called: size=(%.1f,%.1f) bg=(%.2f,%.2f,%.2f,%.2f) grid=(%.2f,%.2f,%.2f,%.2f) fb=%dx%d\n",
+            g.size.x, g.size.y,
+            g.bg_color.r, g.bg_color.g, g.bg_color.b, g.bg_color.a,
+            g.grid_color.r, g.grid_color.g, g.grid_color.b, g.grid_color.a,
+            fb.width(), fb.height());
         if (g.size.x <= 0.0f || g.size.y <= 0.0f) {
             return;
         }
