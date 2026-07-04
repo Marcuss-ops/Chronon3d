@@ -316,6 +316,13 @@ add_executable(chronon3d_core_tests
     # wire. Lives in tests/runtime/ alongside the other session/services
     # tests (matches the WP-3 PR 3.x convention for cross-frame state tests).
     runtime/test_camera_session_keep_last_valid.cpp
+    # TICKET-A3-CACHE-LEASE (Agent3 mission DoD gate (d)) — locks the
+    # contract that acquire() does NOT advance last_evaluated_frame
+    # (commit() is the sole writepoint) and that a failed evaluation
+    # without commit() leaves the cache entries_ untouched. Pairs with
+    # the existing tests/runtime/test_render_session_reset_and_isolation.cpp
+    # (WP-3 PR 3.x) on the cache-isolation pattern.
+    runtime/test_camera_session_cache_failed_no_commit.cpp
     # TICKET-106 — Cat-2 path-list parity regression.  Source lives at
     # `${CMAKE_SOURCE_DIR}/tools/` per user request (colocated with the
     # gate script it asserts against); compiled into chronon3d_core_tests
