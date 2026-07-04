@@ -81,6 +81,7 @@
 
 #include <functional>  // preserved for std::function signatures reachable via ::chronon3d::TextPresetBuilder.
 #include <map>
+#include <span>  // M1.5#13 (1/4) — `builtin_text_presets()` span accessor.
 #include <string>
 #include <string_view>
 #include <type_traits>  // explicit — for the static_assert alias-drift guard (TICKET-012).
@@ -219,6 +220,37 @@ TextPresetRegistry make_default_text_preset_registry();
 /// Implemented in `src/registry/text_preset_registry.cpp`.
 [[nodiscard]] const TextPresetRegistry&
 builtin_text_preset_registry() noexcept;
+
+/// `builtin_text_presets()` — span accessor (M1.5#13, 1/4)
+///
+/// Companion surface to `builtin_text_preset_registry()`: returns a
+/// non-owning `std::span<const TextPresetDescriptor>` view of the
+/// 22 built-in descriptors (in registry-sorted order).
+///
+/// Architectural invariants:
+///   - Delegated to `builtin_text_preset_registry().list()` so the
+///     SINGLE central registry contract (CSR contract from
+///     ANTI_DUPLICATION_RULES.md §registry/resolver) remains the
+///     canonical source of truth.
+///   - The span's lifetime is the process lifetime (the underlying
+///     static vector lives forever under the magic-static guarantee).
+///   - Companion accessor — does NOT replace
+///     `builtin_text_preset_registry()`; responses needing a
+///     `const TextPresetRegistry&` (e.g. `by_category`,
+///     `contains`) continue to use the registry accessor directly.
+///
+/// Freeze compliance (AGENTS.md v0.1): zero new registry/preset/
+/// sampler; the span is a delegated VIEW onto the existing single
+/// registry.  Defined inline here because the implementation is
+/// a single Meyers-singleton static + span-return and lives next to
+/// the public declaration surface (no .cpp-side definition required).
+[[nodiscard]]
+inline std::span<const TextPresetDescriptor>
+builtin_text_presets() {
+    static const std::vector<TextPresetDescriptor> cache =
+        builtin_text_preset_registry().list();
+    return std::span<const TextPresetDescriptor>(cache);
+}
 
 } // namespace chronon3d::registry
 } // namespace chronon3d
