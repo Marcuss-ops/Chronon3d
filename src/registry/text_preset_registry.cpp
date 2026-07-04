@@ -48,6 +48,7 @@
 // (sees the 4 helpers + register_builtin_presets lifted out of the file-local
 // anon namespace into `chronon3d::registry::register_helpers_internal`).
 #include "text_preset_register_helpers.hpp"
+#include "text_preset_internal_helpers.hpp"  // M1.5#13 (1/4) — shared factory helpers (NOT installed; lives under src/registry/).
 
 #include <chronon3d/scene/builders/scene_builder.hpp>   // full SceneBuilder
 #include <chronon3d/scene/builders/layer_builder.hpp>    // full LayerBuilder
@@ -1244,10 +1245,13 @@ void register_text_preset_emphasis(TextPresetRegistry& r) {
 
 void register_text_preset_subtitle(TextPresetRegistry& r) {
     // ── Subtitle (4) — Stage 3 ───────────────────────────────────────────
-    r.register_preset(minimal_white_entry());
-    r.register_preset(yellow_keyword_entry());
-    r.register_preset(glow_pulse_entry());
-    r.register_preset(caption_box_entry());
+    // M1.5#13 (1/4) — Subtitle-category descriptors now come from the basic
+    // factory TU (text_preset_factories_basic.cpp).  The factory returns an
+    // std::vector<TextPresetDescriptor> in canonical insertion order; the
+    // registry bridge here preserves the seed order verbatim.
+    for (auto& desc : register_helpers_internal::factory_basic::create_text_presets()) {
+        r.register_preset(std::move(desc));
+    }
 }
 void register_builtin_presets(TextPresetRegistry& r) {
     // FASE 5 (TICKET-098) — delegate to per-category helpers; order is:
