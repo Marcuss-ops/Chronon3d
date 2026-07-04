@@ -1,10 +1,10 @@
 # Camera Feature Matrix — Chronon3D
 
-> **Snapshot funzionale camera analizzato:** `main@eb1ce8e5`, 2026-07-04.
+> **Snapshot funzionale camera analizzato:** `main@37c03c11` (C9a, runtime certifier), 2026-07-04.
 >
 > **Ultima baseline macchina-verificata:** `main@446a60e2` (baseline canonica; HEAD corrente non è baselined).
 >
-> **HEAD ricontrollato:** `main@eb1ce8e5`, 2026-07-04.
+> **HEAD ricontrollato:** `main@37c03c11` (C9a, runtime certifier), 2026-07-04.
 >
 > Stato presente: [`CURRENT_STATUS.md`](CURRENT_STATUS.md).
 > Prova operativa: [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md).
@@ -24,7 +24,7 @@
 
 | Obiettivo | Stato | Nota |
 |---|---|---|
-| Camera Production V1 per motion graphics 2.5D | PARTIAL | Projection contract closed (C1–C7 @ `eb1ce8e5`); framing, clipping, DOF, legacy migration ancora aperti. |
+| Camera Production V1 per motion graphics 2.5D | PARTIAL | Projection contract closed; golden test runtime PASS. 24 fallimenti pre-esistenti osservati in `chronon3d_scene_tests` (TICKET-120). Framing, clipping, DOF, legacy migration ancora aperti. |
 | Parità camera molto ampia con After Effects | PARTIAL | Framing, clipping, DOF e path/orientation avanzati non sono tutti completi. |
 
 Per governance (vedi `docs/DOCUMENTATION_GOVERNANCE.md` §Pattern vietati) le
@@ -169,7 +169,7 @@ CameraDescriptor
 | CLI camera validate | 🔵 | Pianificata. |
 | CLI debug video | 🔵 | Pianificata. |
 | JSON report stabile | 🔵 | Schema/versionamento da definire. |
-| Golden camera suite | 🟡 | Suite committed in `tests/scene/camera/golden_projection_test.cpp` (`eb1ce8e5`): 1 TEST_CASE × 6 SUBCASEs (Zoom, FOV 50°, PhysicalLens ARRI, GateFit::Stretch, GateFit::Overscan, Anamorphic 2×) con tolleranza 1e-3, hash-free per stabilità cross-host. Certificazione runtime in attesa del prossimo gate #10 macchina-verificato (compilazione clean confermata da `tools/check_architecture_boundaries.sh`). |
+| Golden camera suite | ✅ | Suite committed in `tests/scene/camera/golden_projection_test.cpp`: 1 TEST_CASE × 6 SUBCASEs (Zoom, FOV 50°, PhysicalLens ARRI, GateFit::Stretch, GateFit::Overscan, Anamorphic 2×) lockati con tolleranza 1e-3, hash-free per stabilità cross-host. Certificazione runtime PASS (71/71 assertions) su C9a (`37c03c11`). Test eseguito in `build/tests/chronon3d_scene_tests` post-C9a (build clean, unity-build escluso per `timed_text_document.cpp` + `boundary_resolver/text_unit_map.cpp` per ODR TU-locali pre-esistenti). |
 
 ## 9. Catena di blocker per la certificazione camera
 

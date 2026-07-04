@@ -19,6 +19,7 @@ Solo ticket realmente aperti (PLANNED / PARTIAL). Nessun DONE in questa sezione.
 | TICKET-051 | P1 | per-preset visual diagnostic | PLANNED | A4.3 visual gate | [TICKET-051.md](tickets/TICKET-051.md) |
 | TICKET-080 | P1 | `install_consumer_test.sh` — vcpkg toolchain path relativa al worktree (`<wt>/vcpkg_bootstrap/...`); regressione `efd841f0` con `VCPKG_ROOT` non impostata (`regression_type: infra-setup`) | PLANNED | gate #10 (env precond) | [TICKET-080.md](tickets/TICKET-080.md) |
 | TICKET-064 | P1 | ExecutionScope error model (ScopeError/ScopeErrorCode) | PARTIAL | arch-boundary gate 5 | [TICKET-064.md](tickets/TICKET-064.md) |
+| TICKET-120 | P1 | C9 — 24 fallimenti pre-esistenti in `chronon3d_scene_tests` (incl. `TICKET-034D` CameraDescriptor fingerprint-serializable SIGABRT in `test_composition_default_camera.cpp:69`; `TICKET-035` anamorphic_squeeze wrong assertion in `test_camera_projection_contract.cpp:572` `CHECK(2666.67 == Approx(2250))`); emersi dopo C9 abilita build clean con `SKIP_UNITY_BUILD_INCLUSION` su `timed_text_document.cpp` + `boundary_resolver/text_unit_map.cpp` (ODR TU-locali pre-esistenti) | PARTIAL | certificazione Camera V1 end-to-end | [TICKET-120.md](tickets/TICKET-120.md) |
 | TICKET-GATE-7-R1 | P1 | `src/runtime/**` non documentato in `CURRENT_STATUS.md` + `ROADMAP.md` | PLANNED | gate #7 doc-sync | — |
 | TICKET-GATE-4-LEAK | P1 | `reports/perf/main-73a2aa9b-gates.json` tracked con abs-path leak | PLANNED | gate #4 gitignored-dirs | — |
 
