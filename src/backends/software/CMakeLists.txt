@@ -11,6 +11,7 @@ add_library(chronon3d_backend_software OBJECT
     software_compositor.cpp
     software_renderer.cpp
     software_backend.cpp
+    software_backend_factory.cpp   # M1.5#12 1/4 — make_software_backend() factory (UNIQUE validation source)
     software_processor_context.cpp
     # M1.5#7 — OOL ctor/dtor for `SoftwareSessionResources` (needed because
     # the default constructor now std::make_unique's a `TextRenderResources`
