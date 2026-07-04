@@ -85,8 +85,8 @@ int main() {
                 static_cast<c3d::f32>(ctx.width),
                 static_cast<c3d::f32>(ctx.height)};
             gb.offset = c3d::Vec2{0.0f, 0.0f};
-            gb.bg_color = c3d::Color{0.30f, 0.32f, 0.40f, 1.0f};        // visible navy (linear > 5/255 after sRGB conversion)
-            gb.grid_color = c3d::Color{0.60f, 0.80f, 1.00f, 0.70f};     // bright cyan grid, high opacity
+            gb.bg_color = c3d::Color{1.0f, 1.0f, 1.0f, 1.0f};        // DIAG: pure white
+            gb.grid_color = c3d::Color{1.0f, 1.0f, 1.0f, 1.0f};     // DIAG: pure white grid
             gb.spacing = 60.0f;
             gb.minor_thickness = 1.0f;
             gb.major_thickness = 2.5f;
@@ -167,6 +167,18 @@ int main() {
     engine.set_assets_root(std::filesystem::path{spec.assets_root});
 
     // ── 5. Render ──────────────────────────────────────────────────
+    // ── 5. Render ──────────────────────────────────────────────────
+    // DIAGNOSTIC: check scene before rendering
+    {
+        auto diag_scene = comp.evaluate(c3d::Frame{0});
+        std::fprintf(stderr, "[consumer-diag] scene has %zu layers\n", diag_scene.layers().size());
+        for (size_t li = 0; li < diag_scene.layers().size(); ++li) {
+            const auto& l = diag_scene.layers()[li];
+            std::fprintf(stderr, "[consumer-diag]   layer[%zu] name='%s' kind=%d nodes=%zu visible=%d\n",
+                li, l.name.c_str(), static_cast<int>(l.kind), l.nodes.size(), l.visible ? 1 : 0);
+        }
+    }
+
     auto result = engine.render(comp, c3d::sdk::Frame{0});
     if (!result.has_value()) {
         std::fprintf(stderr,
@@ -243,6 +255,13 @@ int main() {
     constexpr float kThreshold = 5.0f / 255.0f;   // ≈ 0.0196
     std::size_t nonzero_count = 0;
     const c3d::Color* fdata = fb.data();
+    // DIAGNOSTIC: dump first 5 pixel values
+    std::fprintf(stderr, "[consumer-diag] first 5 pixels (r,g,b,a):\n");
+    for (std::size_t i = 0; i < 5 && i < fb.pixel_count(); ++i) {
+        const c3d::Color c = fdata[i];
+        std::fprintf(stderr, "[consumer-diag]   pixel[%zu] = (%.4f, %.4f, %.4f, %.4f)\n",
+            i, c.r, c.g, c.b, c.a);
+    }
     for (std::size_t i = 0; i < fb.pixel_count(); ++i) {
         const c3d::Color c = fdata[i];
         if (c.r > kThreshold || c.g > kThreshold || c.b > kThreshold) {
