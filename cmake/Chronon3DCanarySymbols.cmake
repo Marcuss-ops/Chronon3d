@@ -114,4 +114,18 @@ set(CHRONON3D_SDK_CANARY_SYMBOLS
     # ctor/dtor/render/set_* demangled symbols; gates the SDK archive
     # aggregation that the external consumer (Phase 4) needs to link.
     "sdk|chronon3d::sdk::RenderEngine|always|chronon3d_runtime"
+
+    # #area=ar_race #lib=chronon3d_sdk_impl  # GUARD=always
+    # TICKET-GATE-10-AR-RACE — archive structural sanity guard.  The
+    # SYMBOL prefix `arch:` marks this entry as a STRUCTURAL canary
+    # (handled by `tools/sdk/check_archive_canaries.sh` `arch:*` branch,
+    # NOT a substring match against the demangled symbol table).  The
+    # gate re-runs `ar t $archive` AFTER the nm check and asserts the
+    # listing is non-empty + matches the pre-nm $ar_count to catch the
+    # binutils "reason: Success" failure mode observed at step [347/347]
+    # (ar exits 0 with an inconsistent destination archive during
+    # `cmake --build`).  Adding / removing `arch:`-prefixed entries
+    # requires the gate to know the target_check keyword — keep them in
+    # sync with `tools/sdk/check_archive_canaries.sh` case branches.
+    "ar_race|arch:ar_t_post_nm_non_empty|always|chronon3d_sdk_impl"
 )
