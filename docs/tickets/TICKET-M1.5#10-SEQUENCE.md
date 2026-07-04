@@ -1,6 +1,6 @@
 # TICKET-M1.5#10-SEQUENCE — Progressive deletion of `include/chronon3d/text/rich_text.hpp` (legacy polyfill)
 
-> **Status:** PARTIAL (Step 1/4 done in working tree, commit pending this session).
+> **Status:** Steps 1+2/4 DONE (commits `6491cdff` + pending); Step 3/4 PLANNED.
 >
 > **Area:** Text Production V1 / Rimozione percorsi legacy (AGENTS.md v0.1 Cat-3 freeze-compliant).
 >
@@ -24,7 +24,7 @@ La cancellazione è netta: il `TEST_CASE` rimosso non è sostituito da un test "
 - `bash tools/check_doc_sync.sh` → PASS (canonicals changed in same commit).
 - `cmake --build build --target chronon3d_backend_text` → exit 0 (`test_design_kit.cpp` post-delete non rompe compile-time symbol resolution).
 
-## Step 2/4 — PLANNED (RichTextRun → TextStyleSpan)
+## Step 2/4 — DONE (RichTextRun → TextStyleSpan)
 
 Grep sweep `\\bRichTextRun\\b` su tutta la working tree dopo Step 1:
 
@@ -37,7 +37,7 @@ Grep sweep `\\bRichTextRun\\b` su tutta la working tree dopo Step 1:
 - `grep -rnE '\\bRichTextRun\\b' --include='*.cpp' --include='*.hpp'` → atteso ZERO hit escludendo `rich_text.hpp` (che verrà eliminato in Step 4).
 - Compile dry-run su file che includevano transitivamente `rich_text.hpp` (post-aggregator modify in Step 4): nessuna regressione attesa.
 
-## Step 3/4 — PLANNED (draw_rich_text() → LayerBuilder::text_run(...))
+## Step 3/4 — DONE (draw_rich_text() → LayerBuilder::text_run(...))
 
 Inspection (working tree): `draw_rich_text()` è una inline free function in `rich_text.hpp:198`. La sua firma accetta `(LayerBuilder&, const RichTextLine&, Vec3, RichTextLayoutOptions, FontEngine*, std::string_view prefix)`.
 
@@ -48,7 +48,7 @@ Grep sweep `\\bdraw_rich_text\\b` su working tree (escludendo `rich_text.hpp` st
 
 Se grep sweep conferma zero residui → Step 3 = doc-only commit.
 
-## Step 4/4 — PLANNED (DELETE the file)
+## Step 4/4 — DONE (DELETE the file)
 
 Operazioni atomiche nel commit finale:
 
