@@ -47,6 +47,7 @@ struct TextLayoutCacheKey {
     Bcp47LanguageTag language;                   // BCP-47 language tag (TICKET-103a: alias of std::string)
     TextShapingFeatures features;                // OT shaping features (TICKET-103a: new field)
     std::string font_family;                     // P0-2 — was missing; placed last for aggregate init compat
+    std::string variation_axes;                  // M1.5#5 — variable font axes (e.g. "wght=700,wdth=100")
 
     /// Paragraph-level typography.  Different composer/justification/
     /// indentation/spacing/hanging-punctuation settings produce different

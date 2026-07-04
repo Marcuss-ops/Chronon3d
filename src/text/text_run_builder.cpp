@@ -172,7 +172,7 @@ compile_text_layout(
     if (services.cache && is_single_font) {
         TextLayoutCacheKey cache_key = tci::build_cache_key(
             para_text, primary_font, layout,
-            request.direction, request.language, request.features);
+            request.direction, request.language, request.features, request.variation_axes);
         if (auto cached = services.cache->find(cache_key)) {
             return std::const_pointer_cast<TextRunLayout>(cached);
         }
@@ -240,7 +240,7 @@ compile_text_layout(
     if (services.cache && is_single_font) {
         TextLayoutCacheKey cache_key = tci::build_cache_key(
             para_text, primary_font, layout,
-            request.direction, request.language, request.features);
+            request.direction, request.language, request.features, request.variation_axes);
         services.cache->store(std::move(cache_key), text_layout);
     }
 

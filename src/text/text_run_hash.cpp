@@ -45,6 +45,7 @@ u64 TextRunLayout::layout_hash() const {
     // identity (e.g. "kern=1" vs "kern=0" produce different glyph
     // advances on ligature-heavy runs).
     seed = hash_combine(seed, hash_string(features));
+    seed = hash_combine(seed, hash_string(variation_axes));  // M1.5#5
     return seed;
 }
 
@@ -65,6 +66,7 @@ u64 TextRunLayout::shaping_hash() const {
     // TICKET-103a — OT shaping features fold into shaping_hash so
     // compile-time cache partitioning discriminates on feature string.
     seed = hash_combine(seed, hash_string(features));
+    seed = hash_combine(seed, hash_string(variation_axes));  // M1.5#5
     return seed;
 }
 

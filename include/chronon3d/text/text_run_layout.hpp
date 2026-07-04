@@ -125,6 +125,7 @@ struct TextRunLayout {
     TextDirection direction{TextDirection::Auto};
     Bcp47LanguageTag language;                  // BCP-47 language tag (TICKET-103a: alias of std::string)
     TextShapingFeatures features;               // OT shaping features (TICKET-103a: new field)
+    std::string variation_axes;                 // M1.5#5 — variable font axes (e.g. "wght=700,wdth=100")
 
     /// Compute a hash of the layout content (text + font + shaping + wrapping).
     /// Stable across different materials/strokes on the same text.

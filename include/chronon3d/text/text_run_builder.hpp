@@ -245,6 +245,7 @@ struct TextLayoutRequest {
     TextDirection         direction{TextDirection::Auto};
     Bcp47LanguageTag      language{};
     TextShapingFeatures   features{};
+    std::string           variation_axes;         // M1.5#5 — variable font axes (e.g. "wght=700,wdth=100")
     /// P1 #1 — per-run shaping failure policy.  Default
     /// FailWholeParagraph: any single-run HarfBuzz failure causes the
     /// whole paragraph to return Err(PerRunShapingFailed).  This
