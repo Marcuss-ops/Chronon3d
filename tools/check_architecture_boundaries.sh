@@ -414,19 +414,25 @@ fi
 # that guarantees it.
 echo -n "  [16/16] SDK public-deps SSoT wiring ... "
 if [ -f cmake/Chronon3DRegistry.cmake ] && [ -f cmake/Chronon3DConfig.cmake.in ]; then
+    # Use POSIX character classes (NOT GNU-awk \s / \S) for cross-platform
+    # portability: mawk-equivalent (default /usr/bin/awk on Debian/Ubuntu)
+    # does NOT support the Perl-style regex escapes \s/\S and silently
+    # never enters the awk-block, returning count 0 for an otherwise
+    # well-formed file.  [[:space:]] + [^[:space:]] are POSIX ERE
+    # equivalents that both mawk AND gawk honor.
     registry_entries=$(awk '
-        /set\s*\(\s*CHRONON3D_SDK_PUBLIC_DEPS/ { in_list=1; next }
-        /^\s*\)\s*$/ { in_list=0 }
-        in_list && /\S/ && !/^\s*#/ && !/^\s*\(/ { print }
+        /set[[:space:]]*\([[:space:]]*CHRONON3D_SDK_PUBLIC_DEPS/ { in_list=1; next }
+        /^[[:space:]]*\)[[:space:]]*$/ { in_list=0 }
+        in_list && /[^[:space:]]/ && !/^[[:space:]]*#/ && !/^[[:space:]]*\(/ { print }
     ' cmake/Chronon3DRegistry.cmake | wc -l)
     marker_subs=$(awk '
-        />>>\s*AUTO-GENERATED FROM CHRONON3D_SDK_PUBLIC_DEPS/ { in_marker=1; next }
-        /^#\s*<<<\s*END AUTO-GENERATED BLOCK/ { in_marker=0; next }
+        />>>[[:space:]]*AUTO-GENERATED FROM CHRONON3D_SDK_PUBLIC_DEPS/ { in_marker=1; next }
+        /^#[[:space:]]*<<<[[:space:]]*END AUTO-GENERATED BLOCK/ { in_marker=0; next }
         in_marker && /@CHRONON3D_FIND_DEPENDENCY_LINES@/ { print }
     ' cmake/Chronon3DConfig.cmake.in | wc -l)
     marker_finds=$(awk '
-        />>>\s*AUTO-GENERATED FROM CHRONON3D_SDK_PUBLIC_DEPS/ { in_marker=1; next }
-        /^#\s*<<<\s*END AUTO-GENERATED BLOCK/ { in_marker=0; next }
+        />>>[[:space:]]*AUTO-GENERATED FROM CHRONON3D_SDK_PUBLIC_DEPS/ { in_marker=1; next }
+        /^#[[:space:]]*<<<[[:space:]]*END AUTO-GENERATED BLOCK/ { in_marker=0; next }
         in_marker && /^[[:space:]]*find_dependency\(/ { print }
     ' cmake/Chronon3DConfig.cmake.in | wc -l)
     drift=""
