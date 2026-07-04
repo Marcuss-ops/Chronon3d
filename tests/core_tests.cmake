@@ -311,6 +311,11 @@ add_executable(chronon3d_core_tests
     # multi-session isolation tests live in tests/runtime/ alongside the
     # other session/services tests.
     runtime/test_render_session_reset_and_isolation.cpp
+    # TICKET-A3-SESSION-POLICY (Agent3 mission DoD gate (c)) — 2-frame
+    # regression lock for the KeepLastValidCamera -> session.last_valid_camera
+    # wire. Lives in tests/runtime/ alongside the other session/services
+    # tests (matches the WP-3 PR 3.x convention for cross-frame state tests).
+    runtime/test_camera_session_keep_last_valid.cpp
     # TICKET-106 — Cat-2 path-list parity regression.  Source lives at
     # `${CMAKE_SOURCE_DIR}/tools/` per user request (colocated with the
     # gate script it asserts against); compiled into chronon3d_core_tests
