@@ -109,6 +109,15 @@ static std::optional<CameraProgramDiagnostic> apply_orientation_spec_free(
         return std::nullopt;
     }
     if (auto* lal = std::get_if<LookAtLayer>(&orient)) {
+        // TICKET-A3-LOOKAT-DIAGNOSTIC (Agent3 mission DoD gate (g)) —
+        // when the transform snapshot is unavailable OR the named
+        // layer does not resolve, emit a Warning diagnostic via the
+        // canonical channel (this `std::optional<CameraProgramDiagnostic>`
+        // return → `CameraProgram::evaluate()` pushes onto
+        // `result.diagnostics`) instead of silent fallback.  The
+        // diagnostic message carries a stable `[MissingTransforms]`
+        // prefix so test code can grep for it without false positives
+        // against unrelated rotation/fallback messages.
         if (ctx.transforms) {
             auto world_pos = ctx.transforms->world_position(lal->target);
             if (world_pos) {
@@ -123,8 +132,26 @@ static std::optional<CameraProgramDiagnostic> apply_orientation_spec_free(
                 }
                 return std::nullopt;
             }
+            // transforms is non-null but world_position returned
+            // nullopt (target layer is not in the snapshot OR has no
+            // world position); emit a Warning diagnostic and leave
+            // cam.rotation at its descriptor base.
+            return CameraProgramDiagnostic{
+                CameraProgramDiagnostic::Severity::Warning,
+                std::string("[MissingTransforms] LookAtLayer target='") +
+                    lal->target +
+                    "': not resolved (world_position returned nullopt); "
+                    "rotation not updated."
+            };
         }
-        return std::nullopt;
+        // transforms is nullptr — canonical missing-transforms case.
+        return CameraProgramDiagnostic{
+            CameraProgramDiagnostic::Severity::Warning,
+            std::string("[MissingTransforms] LookAtLayer target='") +
+                lal->target +
+                "': CameraEvalContext::transforms is nullptr; "
+                "rotation not updated."
+        };
     }
     if (auto* oap = std::get_if<OrientAlongPath>(&orient)) {
         // OrientAlongPath — orient the camera along the trajectory tangent.
