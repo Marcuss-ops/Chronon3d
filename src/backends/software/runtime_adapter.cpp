@@ -14,6 +14,7 @@
 #include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/backends/software/software_backend_services.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
+#include <chronon3d/backends/text/text_render_resources.hpp>  // TICKET-RUNTIME-ADAPTER-INCOMPLETE-TYPE: std::unique_ptr<TextRenderResources> needs the complete type (sizeof-incomplete at the default-deleter instantiation site).
 #include "internal/software_processor_services.hpp"  // TICKET-118/119 (PUBLIC via parent CMakeLists)
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <spdlog/spdlog.h>
