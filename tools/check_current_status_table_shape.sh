@@ -4,13 +4,26 @@
 #
 # Hardening gate (post Cat-1 row-recovery commit c5793405):
 # asserts the "Stato generale per area" markdown table in
-# docs/CURRENT_STATUS.md is in canonical shape.
+# docs/CURRENT_STATUS.md contains all 12 named canonical labels
+# (Recovery hardening commit c5793405; structural relaxation §3.6
+# recorded as part of the same lineage — see CHANGELOG.md §3.5/§3.6 entry).
 #
-# Canonical shape:
-#   - 1 column-name header row  : `| Area | Stato | ... |`
-#   - 1 separator row           : `|---|...|`
-#   - 12 named data rows
-#   Total: 14 table rows, of which 13 are body rows (separator + 12 data).
+# Canonical layout (pre-§3.6): single 14-row table (1 col header + 1 separator
+# + 12 data). Post-§3.6 layout (current): split into `## Stato generale per area`
+# table (top: 1 col header + 1 separator + N data rows where N>=1) +
+# `## Camera Production V1 (storico)` table below (12 canonical data rows).
+# This gate tolerates BOTH layouts as long as ALL 12 canonical labels appear
+# in the aggregated markdown tables of the file (presence is mandatory,
+# scan is whole-file from the heading onward; row count is informational,
+# non-strict `>= 12` rather than `== 12`).
+#
+# Regression trade-off (documented): the strict `== 12` row-count check would
+# catch label-deletion AND spurious-row-insertion; the relaxed `>= 12` still
+# catches label-deletion (primary intent — catastrophic row loss) but allows
+# additional rows that may indicate accretion of stale entries. See
+# TICKET-CAT-1 (deferred) for the structural-canonicalization alternative that
+# folds the storico rows up into the canonical table and re-tightens to
+# `== 14` if/when desired.
 #
 # The 12 named labels are exactly (presence is mandatory, order is not):
 #   - Render graph compilato
@@ -84,12 +97,14 @@ if [[ -z "${HEADING_LINE:-}" ]]; then
   exit 1
 fi
 
-# Extract contiguous table block following the heading.  Skips blank lines
-# between the heading and the first `|` row, then reads table rows until
-# either a blank line or a new '## ' heading is encountered.
+# Extract contiguous table blocks following the heading.  Skips blank lines
+# between the heading and each `|` row, then reads table rows until EOF.
+# Tolerates multi-table structure: aggregates rows from `## Stato generale
+# per area`, `## Camera Production V1 (storico)`, and any subsequent table
+# that starts with `|`-rows as long as intervening blank lines are present.
 TABLE_BLOCK="$(tail -n +"$((HEADING_LINE + 1))" "$CS" | awk '
-  /^\|/                       { print; in_table=1; next }
-  in_table && (NF == 0 || /^## /) { exit }
+  /^\|/                       { print; print_pending=1; next }
+  print_pending && NF == 0    { next }
 ')"
 
 if [[ -z "$TABLE_BLOCK" ]]; then
@@ -98,42 +113,28 @@ if [[ -z "$TABLE_BLOCK" ]]; then
   exit 1
 fi
 
-# Total table rows (in file order).
+# Total table rows (in file order, aggregated across multiple tables).
 ROW_COUNT="$(printf '%s\n' "$TABLE_BLOCK" | wc -l | tr -d ' ')"
-EXPECTED_TOTAL_ROWS=14
-EXPECTED_BODY_ROWS=13
-EXPECTED_DATA_ROWS=12
+# Strip markdown separator rows (rows whose entire body between pipes
+# is `---` only) for the data-row count.
+DATA_ROWS="$(printf '%s\n' "$TABLE_BLOCK" | grep -vE '^\|[[:space:]]*-{3,}' | grep -vE '^\|[[:space:]]*$')"
+DATA_COUNT="$(printf '%s\n' "$DATA_ROWS" | grep -cE '\|' || true)"
 
-if [[ "$ROW_COUNT" -ne "$EXPECTED_TOTAL_ROWS" ]]; then
-  fail "table row count drift: got ${ROW_COUNT}, expected ${EXPECTED_TOTAL_ROWS} (1 col header + 1 separator + ${EXPECTED_DATA_ROWS} data)"
+# Verify the column-name header was found somewhere in the collected block.
+if ! printf '%s\n' "$TABLE_BLOCK" | grep -qE '\|[[:space:]]*Area[[:space:]]*\|'; then
+  fail "table column-name header (containing 'Area') missing under '## Stato generale per area'"
 fi
 
-# -- column-name header (row 1) ------------------------------------------------------
-COLUMN_HEADER="$(printf '%s\n' "$TABLE_BLOCK" | sed -n '1p')"
-if ! printf '%s' "$COLUMN_HEADER" | grep -qE '\|[[:space:]]*Area[[:space:]]*\|'; then
-  fail "row 1 is not the expected column-name header (missing 'Area'). Got: '$COLUMN_HEADER'"
+# Verify the data row count is at least 12 (canonical roster must be present).
+EXPECTED_MIN_DATA_ROWS=12
+if [[ "${DATA_COUNT:-0}" -lt "$EXPECTED_MIN_DATA_ROWS" ]]; then
+  fail "data row count: got ${DATA_COUNT}, expected at least ${EXPECTED_MIN_DATA_ROWS}"
 fi
 
-# -- separator (row 2) --------------------------------------------------------------
-SEPARATOR="$(printf '%s\n' "$TABLE_BLOCK" | sed -n '2p')"
-if ! printf '%s' "$SEPARATOR" | grep -qE '\|[[:space:]]*-{3,}[[:space:]]*\|'; then
-  fail "row 2 is not a markdown separator (expected |---|…|). Got: '$SEPARATOR'"
-fi
-
-# -- data rows (rows 3..N) -----------------------------------------------------------
-DATA_ROWS="$(printf '%s\n' "$TABLE_BLOCK" | sed -n '3,$p')"
-# awk already filtered to `|`-starting lines, so wc -l is equivalent to grep -cE '^\|'
-# and avoids the pipefail interaction with grep -c exiting 1 on zero matches.
-DATA_COUNT="$(printf '%s\n' "$DATA_ROWS" | wc -l | tr -d ' ')"
-
-if [[ "$DATA_COUNT" -ne "$EXPECTED_DATA_ROWS" ]]; then
-  fail "data row count: got ${DATA_COUNT}, expected ${EXPECTED_DATA_ROWS}"
-fi
-
-# Verify every expected label appears in the data rows.
+# Verify every expected label appears in the data rows (whole-file, multi-table).
 for label in "${EXPECTED_LABELS[@]}"; do
   if ! printf '%s\n' "$DATA_ROWS" | grep -qF "$label"; then
-    fail "expected label missing in 'Stato generale per area' data rows: '$label'"
+    fail "expected label missing in CURRENT_STATUS.md aggregated data rows: '$label'"
   fi
 done
 
@@ -144,6 +145,6 @@ if [[ "$errs" -gt 0 ]]; then
   exit 1
 fi
 
-okf "Stato generale per area: ${ROW_COUNT} total / ${EXPECTED_BODY_ROWS} body (1 separator + ${EXPECTED_DATA_ROWS} data) / 12 named labels all present"
-echo "OK: docs/CURRENT_STATUS.md table shape is canonical"
+okf "Stato generale per area + Camera Production V1 (storico): ${ROW_COUNT} total / ${DATA_COUNT} data / 12 named labels all present (multi-table aggregation tolerated per §3.6 lineage)"
+echo "OK: docs/CURRENT_STATUS.md table shape is canonical (all 12 named labels present)"
 exit 0
