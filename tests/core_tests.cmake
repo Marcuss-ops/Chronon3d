@@ -356,6 +356,16 @@ add_executable(chronon3d_core_tests
     # the existing tests/runtime/test_render_session_reset_and_isolation.cpp
     # (WP-3 PR 3.x) on the cache-isolation pattern.
     runtime/test_camera_session_cache_failed_no_commit.cpp
+    # TICKET-ZERO-A1 / TICKET-A3-CACHE-LEASE follow-on — locks the
+    # SESSION STATE rollback contract on top of test_camera_session_cache_
+    # failed_no_commit.cpp (which only locks last_evaluated_frame).
+    # 3 SUBCASEs: (a) failed eval + no commit → checkpoint.session
+    # preserved; (b) successful eval + commit → checkpoint.session
+    # shows post-eval state + last_evaluated_frame advances;
+    # (c) successful eval + no commit → checkpoint.session preserved.
+    # Companion to camera_session_cache_failed_no_commit.cpp on the
+    # working-copy-on-Entry pattern in camera_session_cache.hpp.
+    runtime/test_camera_session_cache_failed_no_commit_session_state.cpp
     # TICKET-106 — Cat-2 path-list parity regression.  Source lives at
     # `${CMAKE_SOURCE_DIR}/tools/` per user request (colocated with the
     # gate script it asserts against); compiled into chronon3d_core_tests
