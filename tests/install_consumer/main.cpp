@@ -38,6 +38,12 @@
 
 #include <chronon3d/chronon3d.hpp>   // umbrella — manifest entry 1
 
+// FU4 (TICKET-GATE-10-PHASE-4-BLACK-FU4): pull in the full type definition
+// of TextRunShape so the std::make_shared<c3d::TextRunShape>() call below
+// compiles clean.  text_run_shape.hpp is in the SDK public-header manifest
+// (cmake/Chronon3DPublicHeaders.cmake) so this include is manifest-clean.
+#include <chronon3d/text/text_run_shape.hpp>
+
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
