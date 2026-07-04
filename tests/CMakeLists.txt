@@ -40,6 +40,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/video_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/media_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/architecture_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/sdk_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/showcase/CMakeLists.txt
 )
 
@@ -137,6 +138,15 @@ endif()
 if(CHRONON3D_ENABLE_VIDEO)
     include(${CMAKE_CURRENT_SOURCE_DIR}/media_tests.cmake)
 endif()
+
+# TICKET-GATE-10-PHASE-4-BLACK SDK public-surface regression locks.
+# Mirrors the gate #10 Phase 4 consumer pixel-hash invariant exactly
+# so a silent-fallback regression in the SDK render path surfaces in
+# BOTH this unit test AND the CI consumer gate. No Blend2D / text
+# guard: the test exercises the SDK facade end-to-end against the
+# installed Chronon3D package (umbrella include), so it compiles in
+# every preset that turns on CHRONON3D_BUILD_TESTS.
+include(${CMAKE_CURRENT_SOURCE_DIR}/sdk_tests.cmake)
 
 # ── Aggregate targets: build test executables grouped by cost/speed ──
 # Note: benchmarks are conditional; included only when TARGET chronon3d_benchmarks exists
