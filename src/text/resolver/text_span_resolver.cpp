@@ -22,7 +22,9 @@
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/text_document.hpp>
+#include <chronon3d/text/text_resolver.hpp>      // ResolvedTextTree + ResolvedParagraph
 #include <chronon3d/text/text_span.hpp>
+#include "text_span_resolver.hpp"  // M1.5#8 — FontSubRange canonical definition
 
 #include "src/text/internal/text_resolver_helpers.hpp"
 
@@ -32,16 +34,12 @@
 
 namespace chronon3d::text::resolver {
 
-// ── FontSubRange — paragraph-local byte range with resolved FontSpec ──────
-//
-// M1.5#8 — pulled out of text_resolver.cpp's anonymous namespace into a
-// named type so other split files (text_bidi_resolver, text_run_resolver)
-// can use it as a parameter without depending on text_resolver.cpp.
-struct FontSubRange {
-    std::size_t byte_start{0};
-    std::size_t byte_end{0};
-    FontSpec    font;
-};
+// NOTE: FontSubRange is declared in include/chronon3d/text/resolver/text_span_resolver.hpp.
+// The duplicate anonymous-namespace definition that previously lived HERE has been removed
+// (M1.5#8 follow-up cat-3) to fix an unity-build ODR redefinition: when this TU is batched
+// with another TU that includes the .hpp, both struct definitions collided.  Migrating all
+// call sites (text_bidi_resolver, text_run_resolver) to the canonical named-type address
+// was completed in M1.5#8 as part of the resolver split.
 
 // ── effective_font — apply span override stack on document defaults ──────
 //
