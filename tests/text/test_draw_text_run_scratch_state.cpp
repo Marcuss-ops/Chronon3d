@@ -1,4 +1,3 @@
-static chronon3d::TextLayoutCache s_text_cache;
 // ═══════════════════════════════════════════════════════════════════════════
 // test_draw_text_run_scratch_state.cpp — P0-1 regression coverage
 // ═══════════════════════════════════════════════════════════════════════════
@@ -52,6 +51,13 @@ using namespace chronon3d;
 using namespace chronon3d::renderer;
 
 namespace {
+
+// s_text_cache — file-local TextLayoutCache used by make_real_shape().
+// TICKET-011 closure line: kept inside the anonymous namespace so that
+// unqualified name lookup from within make_real_shape is unambiguous.
+// Equivalently internal-linkage to a file-static declaration, but no
+// dependence on global-ns visibility at the top of the TU.
+static chronon3d::TextLayoutCache s_text_cache;
 
 constexpr const char* kFontPath = "tests/fixtures/Inter-Bold.ttf";
 
