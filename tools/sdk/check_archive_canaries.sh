@@ -110,11 +110,48 @@ nm -C "$impl_archive" > "$nm_dump" 2>/dev/null \
 # direct form (`ar t > file`) does not.  Counting is unaffected by
 # listing order — pre-nm `$ar_count` and post-nm `$ar_count_postnm`
 # are compared by length only, so the unsorted output is sufficient.
+#
+# TICKET-GATE-10-AR-RACE-FOLLOWUP — diagnostic instrumentation:
+# captures the actual byte count written to a file BEFORE ar t runs
+# and AFTER ar t runs, plus ar's exit code + stderr size, and a
+# standalone control (same archive + same `ar t` command, written to
+# /tmp NOT $GATE_TMP) to disambiguate $GATE_TMP-specific pathologies
+# (tmpfs exhaustion, mktemp cleanup, fd inheritance) from
+# binutils/ar-level issues.  Remove the instrumentation once the root
+# cause is identified.
 ar_list_postnm="$GATE_TMP/ar_postnm.txt"
-ar t "$impl_archive" > "$ar_list_postnm" 2>/dev/null \
-    || log "WARN: ar t post-nm failed (TICKET-GATE-10-AR-RACE drift)"
+ar_stderr_postnm="$GATE_TMP/ar_postnm_stderr.txt"
+
+# Capture file size BEFORE ar t runs (file may not exist yet → size 0).
+ar_pre_size=0
+[[ -f $ar_list_postnm ]] && ar_pre_size=$(stat -c %s "$ar_list_postnm" 2>/dev/null || echo 0)
+log "AR-RACE-FOLLOWUP: pre  GATE_TMP=$GATE_TMP  ar_list_postnm=$ar_list_postnm  file_size=$ar_pre_size"
+
+# Run ar t; route stderr to $ar_stderr_postnm so we can measure if ar wrote anything to stderr.
+ar t "$impl_archive" > "$ar_list_postnm" 2>"$ar_stderr_postnm"
+ar_rc=$?
+ar_post_size=$(stat -c %s "$ar_list_postnm" 2>/dev/null || echo 0)
+ar_stderr_size=$(stat -c %s "$ar_stderr_postnm" 2>/dev/null || echo 0)
+log "AR-RACE-FOLLOWUP: post file_size=$ar_post_size  ar_rc=$ar_rc  stderr_size=$ar_stderr_size"
+(( ar_rc == 0 )) || log "WARN: ar t post-nm failed (TICKET-GATE-10-AR-RACE drift)"
+
 ar_count_postnm="$(wc -l < "$ar_list_postnm" | tr -d ' ')"
 : "${ar_count_postnm:=0}"
+
+# Standalone control: ONLY when primary check fails.  Avoids a redundant
+# multi-GB `ar t` scan on every clean canary run; preserves the diagnostic
+# when the puzzle reproduces.  If the standalone works (file_size > 0,
+# wc_l > 0) but $GATE_TMP doesn't → $GATE_TMP pathology.  If both fail
+# with the same pattern → binutils/ar-level issue.
+if (( ar_count_postnm != ar_count )); then
+    log "AR-RACE-FOLLOWUP: primary drift detected (pre-ar=$ar_count vs post-nm-ar=$ar_count_postnm); running standalone control..."
+    ar_standalone="/tmp/ar_standalone_${$}_$(date +%s).txt"
+    ar t "$impl_archive" > "$ar_standalone" 2>/dev/null
+    ar_standalone_size=$(stat -c %s "$ar_standalone" 2>/dev/null || echo 0)
+    ar_standalone_lc=$(wc -l < "$ar_standalone" 2>/dev/null || echo 0)
+    rm -f "$ar_standalone"
+    log "AR-RACE-FOLLOWUP: ctrl file_size=$ar_standalone_size  wc_l=$ar_standalone_lc  path=/tmp (NOT \$GATE_TMP)"
+fi
 if (( ar_count_postnm == ar_count )); then
     log "TICKET-GATE-10-AR-RACE: ar t post-nm OK ($ar_count_postnm .o, consistent with pre-nm)"
 elif (( ar_count_postnm >= 1 )); then
