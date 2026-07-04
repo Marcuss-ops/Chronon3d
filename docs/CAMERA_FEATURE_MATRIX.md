@@ -1,10 +1,10 @@
 # Camera Feature Matrix — Chronon3D
 
-> **Snapshot funzionale camera analizzato:** `main@25049b2`, 23 giugno 2026.
+> **Snapshot funzionale camera analizzato:** `main@eb1ce8e5`, 2026-07-04.
 >
-> **Ultima baseline eseguita:** `main@446a60e2`.
+> **Ultima baseline macchina-verificata:** `main@446a60e2` (baseline canonica; HEAD corrente non è baselined).
 >
-> **HEAD ricontrollato:** `main@14dbc415`, 23 giugno 2026.
+> **HEAD ricontrollato:** `main@eb1ce8e5`, 2026-07-04.
 >
 > Stato presente: [`CURRENT_STATUS.md`](CURRENT_STATUS.md).
 > Prova operativa: [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md).
@@ -22,15 +22,14 @@
 
 ## Valutazione complessiva
 
-| Obiettivo | Completezza stimata | Nota |
-|---|---:|---|
-| Camera Production V1 per motion graphics 2.5D | 70–75% | Percorso compilato avanzato; certificazione test e migrazione legacy ancora aperte. |
-| Parità camera molto ampia con After Effects | 55–60% | Framing, clipping, DOF e path/orientation avanzati non sono tutti completi. |
+| Obiettivo | Stato | Nota |
+|---|---|---|
+| Camera Production V1 per motion graphics 2.5D | PARTIAL | Projection contract closed (C1–C7 @ `eb1ce8e5`); framing, clipping, DOF, legacy migration ancora aperti. |
+| Parità camera molto ampia con After Effects | PARTIAL | Framing, clipping, DOF e path/orientation avanzati non sono tutti completi. |
 
-Le percentuali sono stime ingegneristiche, non risultati CI. I commit di
-stabilizzazione successivi a `25049b2` non giustificano da soli una variazione
-della stima funzionale camera; cambiano invece lo stato di verificabilità del
-repository.
+Per governance (vedi `docs/DOCUMENTATION_GOVERNANCE.md` §Pattern vietati) le
+stime percentuali manuali di completezza non sono ammesse; lo stato si esprime
+esclusivamente con `PASS / PARTIAL / NOT RUN / BLOCKED / PLANNED`.
 
 ## Stato della verifica corrente
 
@@ -76,12 +75,12 @@ CameraDescriptor
 | Vertical FOV projection | 🟡 | Supportata; fix recente evita che PoseTracks la sovrascriva con Zoom. Regression run da certificare. |
 | Physical Lens projection | 🟡 | Variant e `LensModel` presenti; percorso e parity completa da verificare. |
 | Focal length / sensor size / f-stop | 🟡 | Modello presente e animabile in parti del sistema; ownership da rendere unica. |
-| Focal X/Y separati | 🟡 | Contratto implementato; full parity renderer/solver da chiudere. |
+| Focal X/Y separati | ✅ | TICKET-035 chiuso (C1–C2 @ `eb1ce8e5`): `FocalPx` POD, `focal_xy_from_camera` consume via `LensModel::focal_xy_pixels`. Parità contract ↔ resolver ↔ framing verificata. |
 | GateFit Fill | 🟡 | Presente nel lens/projection contract. |
-| GateFit Overscan/Fit | 🟡 | Contratto presente; active viewport parity da certificare. |
-| GateFit Stretch | 🟡 | Focal X/Y implementati; test end-to-end da certificare. |
-| Pixel aspect | 🟡 | Contratto presente; propagation completa da verificare. |
-| Anamorphic squeeze | 🟡 | Contratto/preset presenti; propagation e bokeh avanzato incompleti. |
+| GateFit Overscan/Fit | ✅ | C1 + C5 + C6 @ `eb1ce8e5`: `effective_viewport()` espone offset pillarbox/letterbox; sentinel regression (`tests/scene/camera/test_camera_projection_contract.cpp` "Sentinel: effective_viewport fits within requested viewport in every GateFit mode") blocca qualunque regressione. |
+| GateFit Stretch | ✅ | C5 + C6 + C7 @ `eb1ce8e5`: focal X/Y indipendenti via `LensModel::focal_xy_pixels`; golden test Mode 4 (`tests/scene/camera/golden_projection_test.cpp`) locka i numeri. |
+| Pixel aspect | 🟡 | Contratto presente e propagato in `EvaluatedProjection::pixel_aspect`; non coperto da golden test dedicato. |
+| Anamorphic squeeze | ✅ | TICKET-035 chiuso (C7 @ `eb1ce8e5`): `anamorphic_squeeze` letto da `LensModel`, applicato SOLO a focal_x. Golden test Mode 6 locka i numeri (ratio `focal_x / focal_y = 3.011` × 1.506 base × 2.0 squeeze). |
 | Near/far plane | 🟡 | Parametri/contratto parziali. |
 | Clipping point | 🟡 | Fondazioni presenti. |
 | Clipping segment/quad/polygon | 🔵 | Necessario per primitive che attraversano il near plane. |
@@ -170,7 +169,7 @@ CameraDescriptor
 | CLI camera validate | 🔵 | Pianificata. |
 | CLI debug video | 🔵 | Pianificata. |
 | JSON report stabile | 🔵 | Schema/versionamento da definire. |
-| Golden camera suite | 🔴 | Necessaria per dichiarare Camera Production V1. |
+| Golden camera suite | 🟡 | Suite committed in `tests/scene/camera/golden_projection_test.cpp` (`eb1ce8e5`): 1 TEST_CASE × 6 SUBCASEs (Zoom, FOV 50°, PhysicalLens ARRI, GateFit::Stretch, GateFit::Overscan, Anamorphic 2×) con tolleranza 1e-3, hash-free per stabilità cross-host. Certificazione runtime in attesa del prossimo gate #10 macchina-verificato (compilazione clean confermata da `tools/check_architecture_boundaries.sh`). |
 
 ## 9. Catena di blocker per la certificazione camera
 

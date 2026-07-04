@@ -143,7 +143,7 @@ coprire i movimenti cinematografici necessari al motion graphics 2.5D.
 5. Portare framing a multi-target, bounds-aware, rule-of-thirds e dead-zone.
 6. Completare clipping near/far necessario al renderer.
 7. Migliorare DOF senza creare un secondo sistema ottico.
-8. Aggiungere parity test e golden sul percorso compilato.
+8. ~~Aggiungere parity test e golden sul percorso compilato.~~ **Chiuso da C1–C7** (golden in `tests/scene/camera/golden_projection_test.cpp`, SHA `eb1ce8e5`; `FocalPx` + `ViewportRect` + `focal_xy_from_camera` + `effective_viewport` con offset; anamorphic_squeeze SOLO X; sentinel regression subrect-fits-canvas).
 9. Migrare preset e composizioni, poi deprecare/rimuovere authoring legacy.
 ### M2.A3 — Agent3 ticket cluster: compiler semantics, session policy, cache lease, framerate explicit (PLANNED, post-freeze)
 
