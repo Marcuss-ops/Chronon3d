@@ -655,7 +655,7 @@ Estende `paragraph_style.hpp::ParagraphStyle` con 14 nuovi campi / flags / helpe
 **Status: 🟢 This PR** — atomic, env-vars Agent3, su `main`.
 
 Nova `TextUnitMap` (in `include/chronon3d/text/text_unit_map.hpp` +
-`src/text/text_unit_map.cpp`) con mapping separati per ogni livello
+`src/text/boundary_resolver/text_unit_map.cpp`) con mapping separati per ogni livello
 d'identità testuale: `Byte ⇄ CodePoint ⇄ GraphemeCluster ⇄ ShapedGlyph
 ⇄ Word ⇄ Line ⇄ Paragraph ⇄ SemanticSpan`.
 

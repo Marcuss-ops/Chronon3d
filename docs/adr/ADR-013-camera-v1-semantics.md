@@ -10,7 +10,7 @@
 
 ## Context and scope
 
-Chronon3d's `camera_v1::*` compiled-evaluation path (`compile_camera()` → `CameraProgram::evaluate(ctx, session)` with optional `CameraSessionCache` for per-worker pre-roll) is the canonical authoring+runtime surface post-F2.3 (per [ADR-011](./ADR-011-camera-legacy-deletion.md)).  The 6-ticket A3 cluster landed 7 individual fixes that each prevent a *class* of silent behavioural drift — but the fixes themselves are scattered across `src/scene/camera/v1/*.cpp` and only the regression-locks in `tests/` make them auditable.
+Chronon3d's `camera_v1::*` compiled-evaluation path (`compile_camera()` → `CameraProgram::evaluate(ctx, session)` with optional `CameraSessionCache` for per-worker pre-roll) is the canonical authoring+runtime surface post-F2.3 (per [ADR-011](./ADR-011-camera-legacy-deletion.md)).  The 6-ticket A3 cluster landed 7 individual fixes that each prevent a *class* of silent behavioural drift — but the fixes themselves are scattered across `src/scene/camera/camera_v1/*.cpp` and only the regression-locks in `tests/` make them auditable.
 
 This ADR consolidates the 6 fixes into a single document so that any future maintainer reading the `camera_v1` source tree has ONE place to look for the contracts.  Each contract has:
 
@@ -43,7 +43,7 @@ The four metadata fields that MUST be rebuilt from the outer descriptor (even if
 
 ### Source anchor
 
-`src/scene/camera/v1/camera_program_compiler.cpp` lines ~78–95 (step 1: graft + CAM-02 cycle-detection exit-point), then ~287–307 (step 3: `failure_policy_`; step 3-N: `time_dependent_`; step 4: `evaluation_dependency_`; step 5: `compiled_ = true` + return).
+`src/scene/camera/camera_v1/camera_program_compiler.cpp` lines ~78–95 (step 1: graft + CAM-02 cycle-detection exit-point), then ~287–307 (step 3: `failure_policy_`; step 3-N: `time_dependent_`; step 4: `evaluation_dependency_`; step 5: `compiled_ = true` + return).
 
 The CAM-03 sentinel block-comment on the post-graft fall-through states the contract verbatim:
 
@@ -73,7 +73,7 @@ The two arms — `Stop` and `SkipFailedConstraint` — MUST NOT touch `session.l
 
 ### Source anchor
 
-`src/scene/camera/v1/camera_program.cpp` lines ~478–522 — the `switch (failure_policy_)` switch inside the constraint loop, dominated by the TICKET-A3-SESSION-POLICY sentinel block-comment (called out as the SOLE wire of `session.last_valid_camera`).  The end-of-evaluate writepoint is at line ~590 (`session.last_valid_camera = result.camera;`).
+`src/scene/camera/camera_v1/camera_program.cpp` lines ~478–522 — the `switch (failure_policy_)` switch inside the constraint loop, dominated by the TICKET-A3-SESSION-POLICY sentinel block-comment (called out as the SOLE wire of `session.last_valid_camera`).  The end-of-evaluate writepoint is at line ~590 (`session.last_valid_camera = result.camera;`).
 
 The struct field is declared in `include/chronon3d/scene/camera/v1/camera_session.hpp` as `std::optional<Camera2_5D> last_valid_camera{}` inside `CameraSession`.  `CameraSession::reset()` (called by `CameraSessionCache`'s must-reprime path) clears the optional.  `CameraSessionCache::find()` and `cache.acquire()` do NOT directly touch it — only `evaluate()` does.
 
@@ -110,7 +110,7 @@ The contract is layered in three places:
 
 `include/chronon3d/scene/camera/v1/camera_session_cache.hpp` lines ~52–110 (`kCanonicalPrerollMaxFrames = 30`, `CameraSessionLease`, `CameraSessionCache::commit_lease(...)`).
 
-`src/scene/camera/v1/camera_session_cache.cpp`:
+`src/scene/camera/camera_v1/camera_session_cache.cpp`:
 - `acquire()`: lines ~107–144 — the `if (must_reprime)` arm writes fingerprint/cut_seen/shot_start_frame and calls `preroll_session_for_frame(...)`.  The CAM-05 sentinel *explicitly* documents that `last_evaluated_frame` is now written by `commit()`.
 - `commit_lease()`: lines ~167–173 — `it->second.checkpoint.session = session; it->second.checkpoint.last_evaluated_frame = target_frame;`.  This is the SOLE writepoint.
 - `~CameraSessionLease()`: lines ~157–162 — empty body; the comment explicitly states "If not committed, the session state is discarded."
@@ -178,7 +178,7 @@ The default-then-promotion pattern guarantees two invariants by construction:
 
 ### Source anchor
 
-`src/scene/camera/v1/camera_program_compiler.cpp` lines ~325–355 (the `// ── 4. CAM-02 — compute evaluation_dependency metadata ─` block):
+`src/scene/camera/camera_v1/camera_program_compiler.cpp` lines ~325–355 (the `// ── 4. CAM-02 — compute evaluation_dependency metadata ─` block):
 
 ```cpp
 program.evaluation_dependency_ = CameraEvaluationDependency::Stateless;
@@ -223,7 +223,7 @@ Other arms of `apply_orientation_spec_free` (`FixedOrientation`, `LookAtPoint`, 
 
 ### Source anchor
 
-`src/scene/camera/v1/camera_program.cpp` lines ~95–135 (the `if (auto* lal = std::get_if<LookAtLayer>(&orient))` block in `apply_orientation_spec_free()`).  The TICKET-A3-LOOKAT-DIAGNOSTIC sentinel block-comment documents the two emission paths.
+`src/scene/camera/camera_v1/camera_program.cpp` lines ~95–135 (the `if (auto* lal = std::get_if<LookAtLayer>(&orient))` block in `apply_orientation_spec_free()`).  The TICKET-A3-LOOKAT-DIAGNOSTIC sentinel block-comment documents the two emission paths.
 
 `CameraProgram::evaluate()` push site: line ~471 (`result.diagnostics.push_back(*orient_diag)` — the canonical channel for ANY orientation-stage diagnostic, not just LookAtLayer).
 
@@ -254,10 +254,10 @@ Channel invariants:
 
 ### Source anchor
 
-* The canonical push site: `src/scene/camera/v1/camera_program.cpp` line ~471 (`result.diagnostics.push_back(*orient_diag)` — already cited in Decision 6, generalised by Decision 7 to all orientation/constraint/modifier helpers).
+* The canonical push site: `src/scene/camera/camera_v1/camera_program.cpp` line ~471 (`result.diagnostics.push_back(*orient_diag)` — already cited in Decision 6, generalised by Decision 7 to all orientation/constraint/modifier helpers).
 * The `Severity` enum: `include/chronon3d/scene/camera/v1/camera_program_diagnostic.hpp` lines ~35–60 (the closed 3-value enum).
 * The struct: `struct CameraProgramDiagnostic { Severity severity; std::string message; /* optional source-anchor */ }` in the same header.
-* The forbidden-channel grep (in-vivo enforcement): `grep -rnE 'std::cerr|std::cout|printf|fmt::print.*stderr|spdlog::(warn|info|error)' src/scene/camera/v1/` must return 0 hits from evaluate-stage helpers (only pre-existing scaffold markers permitted).
+* The forbidden-channel grep (in-vivo enforcement): `grep -rnE 'std::cerr|std::cout|printf|fmt::print.*stderr|spdlog::(warn|info|error)' src/scene/camera/camera_v1/` must return 0 hits from evaluate-stage helpers (only pre-existing scaffold markers permitted).
 
 ### Test lock
 
@@ -287,7 +287,7 @@ Two paired invariants locking the compile-time surface:
 
 ### Source anchor
 
-* **Determinism (gate (i))** — `src/scene/camera/v1/camera_program_compiler.cpp` lines ~1–35 (`compile_camera()` entry-point) + the constraint-loop body that iterates `descriptor.constraints[]` in declaration order (NOT `std::unordered_map`).
+* **Determinism (gate (i))** — `src/scene/camera/camera_v1/camera_program_compiler.cpp` lines ~1–35 (`compile_camera()` entry-point) + the constraint-loop body that iterates `descriptor.constraints[]` in declaration order (NOT `std::unordered_map`).
 * **Post-compile immutability (gate (j))** — `include/chronon3d/scene/camera/v1/camera_program.hpp` lines ~30–110 (the `class CameraProgram` declaration).  No public non-`const` member function that mutates a `CameraProgram` field; `compile_camera()` returns a new program by value.
 * The fingerprint contract: `include/chronon3d/scene/camera/v1/camera_descriptor.hpp` `descriptor_fingerprint()` declaration (~lines 150–170) — bridge between Decision 3's `descriptor_fingerprint` cache-key and Decision 8's compile-determinism lock.
 
@@ -376,7 +376,7 @@ The cluster row's last entry — "TICKET-camera-policy-pre-existing" carryover (
 
 * **Doc-only addition**: no source-code changes; no new SDK surface; no caller-side migration; consumers of `camera_v1::*` continue to work unchanged.  The 6 A3 cluster commits already shipped the source-code changes this ADR documents; this ADR is purely a documentation consolidation.
 * **Doc gate**: `tools/check_doc_sync.sh` runs at CI; a future regression that breaks a contract WITHOUT updating the source anchor in this ADR will surface as "ticket-to-code chain stale."  This is the desired drift signal; not a cost.
-* **Reviewer burden**: cross-document review of `docs/adr/ADR-013-camera-v1-semantics.md` against `src/scene/camera/v1/*.cpp` is now a standing review item per release.  This is the desired burden for a contract ADR.
+* **Reviewer burden**: cross-document review of `docs/adr/ADR-013-camera-v1-semantics.md` against `src/scene/camera/camera_v1/*.cpp` is now a standing review item per release.  This is the desired burden for a contract ADR.
 
 ### Neutral
 

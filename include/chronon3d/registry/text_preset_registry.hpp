@@ -145,7 +145,7 @@ public:
     void register_preset(TextPresetDescriptor preset);
 
     /// Lock the registry — no further `register_preset` calls accepted.
-    /// Pattern mirror: EffectCatalog::freeze() (src/registry/effect_catalog.cpp).
+    /// Pattern mirror: EffectCatalog::freeze() (src/effects/effect_catalog.cpp).
     void freeze() noexcept { m_frozen = true; }
 
     [[nodiscard]] bool is_frozen() const noexcept { return m_frozen; }
