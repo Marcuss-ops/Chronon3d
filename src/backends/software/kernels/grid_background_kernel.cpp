@@ -8,6 +8,16 @@
 #include <cmath>
 #include <vector>
 
+// TICKET-GATE-10-PHASE-4-BLACK: explicit spdlog include for the
+// defensive opacity-guard `spdlog::warn(...)` call inside
+// `render_grid_background_kernel(...)`.  Drawn in here (not relying
+// on transitive includes) so a future refactor that drops the
+// transitive header doesn't silently break the compile.  Backend
+// internal observability via spdlog; the canonical
+// renderer-facing path remains `result.diagnostics` (see ADR-013
+// Decision 6 / TICKET-A3-LOOKAT-DIAGNOSTIC precedent).
+#include <spdlog/spdlog.h>
+
 namespace chronon3d::renderer {
 
 namespace {
@@ -57,15 +67,36 @@ void render_grid_background_kernel(
 
     if (grid.size.x <= 0.0f || grid.size.y <= 0.0f) return;
 
+    // TICKET-GATE-10-PHASE-4-BLACK (defensive opacity guard):
+    // The kernel multiplies `state.opacity` into all colour alphas;
+    // an OPP-side `RenderState` arriving with `opacity == 0` would
+    // cause `bg_adj.a = 0` so `fb.clear(zero-alpha-bg, clip)` becomes
+    // a no-op and grid lines also have alpha 0.  The framebuffer would
+    // then stay at the pool-init zero-cleared state and the consumer
+    // pixel-hash check would fail with "all 230400 pixels below 5/255"
+    // (gate #10 Phase 4).  This guard preserves explicit user opacity
+    // > 0 verbatim; it only promotes a degenerate zero-opacity
+    // RenderState to a sensible default so the background is visible.
+    float effective_opacity = state.opacity;
+    if (effective_opacity <= 0.0f) {
+        spdlog::warn("[grid_background_kernel] TICKET-GATE-10-PHASE-4-BLACK: "
+                     "RenderState.opacity=0 arrived for GridBackgroundShape "
+                     "size=({:.0f},{:.0f}); promoting to 1.0 before paint. "
+                     "If a future refactor re-introduces this degenerate "
+                     "path, the WARN line surfaces in CI logs.",
+                     grid.size.x, grid.size.y);
+        effective_opacity = 1.0f;
+    }
+
     // ── Colour setup ──────────────────────────────────────────────────────
     const Color bg      = grid.bg_color.to_linear();
     const Color minor   = grid.grid_color.to_linear();
     Color major         = minor;
     Color bg_adj        = bg;
-    bg_adj.a *= state.opacity;
+    bg_adj.a *= effective_opacity;          // TICKET-GATE-10-PHASE-4-BLACK: see opacity guard above
     Color minor_adj     = minor;
-    minor_adj.a *= state.opacity;
-    major.a = std::min(1.0f, minor_adj.a * 4.0f);
+    minor_adj.a *= effective_opacity;       // TICKET-GATE-10-PHASE-4-BLACK: see opacity guard above
+    major.a = std::min(1.0f, minor_adj.a * 4.0f);  // TICKET-GATE-10-PHASE-4-BLACK: minor_adj.a drives major.a; see opacity guard above
     Color major_adj     = major;
 
     // ── Geometry constants ────────────────────────────────────────────────
