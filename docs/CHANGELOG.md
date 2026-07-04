@@ -7,6 +7,13 @@
 
 ## Luglio 2026 — Chiusure recenti
 
+### feat(tools) — tools/audit_incomplete_type_pattern.sh (FU4 rot preventive, INSTALL_PIPELINE_PLUMBING asset category)
+
+- **NUOVO script `tools/audit_incomplete_type_pattern.sh`** (NEW asset category `INSTALL_PIPELINE_PLUMBING`, documentato in `AGENTS.md`). FU4 rot preventive: emette `BROKEN` (exit 1) se l'header canonico del tipo T in `include/chronon3d/` (per ogni T estratto da `std::make_shared<T>` in `tests/install_consumer/*`) contiene solo `class T;` (forward declaration) invece di `struct T { ... }` (full definition). Umbrella-as-source-of-truth: l'header pubblico di T DEVE contenere full def (single-line `struct T {` o multi-line `struct T\n{`), non solo forward decl. Lineage: FU4 (TICKET-GATE-10-PHASE-4-BLACK-FU4, DONE @ main@0b365354).
+- **Verifica macchina (questa sessione)** — real-tree PASS (TextRunShape → text_run_shape.hpp, same-line opener match), /tmp BROKEN forward-decl fixture BROKEN exit 1, /tmp CLEAN full-def fixture PASS exit 0. Confirmed contre-exemple synthetic + clean path non false-positive.
+- **Init note tecnico** — sed delimiter `@` (non default `/`); l'alternation `(c3d|chronon3d)` contiene `|` che collideva col sed delimiter originale (root-cause: `sed: -e expression #1, char 113: unknown option to s`). `@` non appare in `std::make_shared<>` call sites né nei type captured.
+- **Doc** — `AGENTS.md` aggiornato con sezione `### Install Pipeline Plumbing (Cat-4 ancillary)` che definisce la asset category `INSTALL_PIPELINE_PLUMBING`.
+
 ### fix(tests,text) — TICKET-011 atomic per-file FontLayoutIdentity field-rename rot (a): `c.font_size`/`d.font_size`/`id.font_size` → `.size` in `tests/text/test_text_run_umbrella_contract.cpp` (commit pending this session)
 
 - **`tests/text/test_text_run_umbrella_contract.cpp:88,90,293`** — 3-line targeted rename: `c.font_size = 32.0f;` → `c.size = 32.0f;` + `d.font_size = 48.0f;` → `d.size = 48.0f;` + `CHECK(id.font_size == l.font_size);` → `CHECK(id.size == l.font_size);` (PARTIAL rename del solo LEFT side, perché `l` è `TextRunLayout` non `FontLayoutIdentity`). I 3 siti sono le uniche occorrenze di `font_X` su istanze di `FontLayoutIdentity`; i 6 hold-outs rimanenti (linee 74 comment, 75, 76, 140, 292 comment, 293 right side `l.font_size`) sono riferimenti legittimi a `FontIdentity` + `TextRunLayout` che M1.5#4 NON ha rinominato (scope del rename era `FontLayoutIdentity` only).
