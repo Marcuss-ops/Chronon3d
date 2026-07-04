@@ -276,8 +276,18 @@ int main() {
         return 1;
     }
 
-    // ── 8. Save PNG (manifest-reachable helper) ─────────────────────
+    // ── 8. Save PNG + PPM (dual diagnostic) ─────────────────────────
     const std::filesystem::path output_path = "sdk_consumer_output.png";
+    // Also save PPM for raw data comparison
+    fb.save_ppm("sdk_consumer_output.ppm");
+    // Dump raw bytes from fb.data() to a binary file for inspection
+    {
+        auto* f = std::fopen("sdk_consumer_raw.bin", "wb");
+        if (f) {
+            std::fwrite(fb.data(), sizeof(c3d::Color), fb.pixel_count(), f);
+            std::fclose(f);
+        }
+    }
     if (!c3d::save_png(fb, output_path.string())) {
         std::fprintf(stderr,
                      "[BOUNDARY-FAIL] save_png failed for %s\n",
