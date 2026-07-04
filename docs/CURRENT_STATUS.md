@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@1078ab46` (11-gate audit: 10/11 PASS, gate #10 Phase 4 black-render pre-existing) — 2026-07-04. Linux-only.
+> **Snapshot:** `main@7232722f` (TICKET-120 build deconflict + TICKET-035 anamorphic_squeeze fix landed; 17/24 pre-existing test failures rimangono) — 2026-07-04. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@aaf70032` — **10/11 PASS** (gate #10 FAIL: Phase 4 render black).
 > **Baseline precedente:** `main@e8623a8a` (10/10 verificati, 1 NOT RUN).
@@ -107,7 +107,7 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 | P0 #C1    | CompiledTextRun pre-compilation (Fase C)                       | PLANNED  | Doc-only; blocked by feature freeze.             |
 | TICKET-022  | camera double look-at compiled path                                   | PARTIAL  | arch-boundary gate 5/6              |
 | TICKET-064  | §9 ExecutionScope — ScopeError/ScopeErrorCode structured error model | PARTIAL  | arch-boundary gate 5                |
-| TICKET-120  | C9a (`37c03c11`) — 24 fallimenti pre-esistenti in `chronon3d_scene_tests` (incl. `TICKET-034D` CameraDescriptor fingerprint SIGABRT, `TICKET-035` anamorphic_squeeze wrong-asset `test_camera_projection_contract.cpp:572`); emersi dopo C9a abilita build clean con `SKIP_UNITY_BUILD_INCLUSION` su 2 file di `chronon3d_text_core` | PARTIAL  | certificazione Camera V1 end-to-end |
+| TICKET-120  | C9a (`37c03c11`) — 24 fallimenti pre-esistenti in `chronon3d_scene_tests` (incl. `TICKET-034D` CameraDescriptor fingerprint SIGABRT, `TICKET-035` anamorphic_squeeze wrong-asset `test_camera_projection_contract.cpp:572`); emersi dopo C9a abilita build clean con `SKIP_UNITY_BUILD_INCLUSION` su 2 file di `chronon3d_text_core` — **Cat-1 progress: 4/24 chiusi** (commit `5985224c` Unity build deconflict + commit `7232722f` TICKET-035 anamorphic_squeeze fix; **17/24 failure rimangono** post-build-fix) | PARTIAL  | certificazione Camera V1 end-to-end |
 | TICKET-051  | A4.3 per-preset visual diagnostic                                     | PLANNED  | A4.3 visual gate                    |
 
 > Ticket chiusi di recente: vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
