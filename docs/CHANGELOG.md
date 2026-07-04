@@ -7,7 +7,20 @@
 
 ## Luglio 2026 — Chiusure recenti
 
-### docs — §3.6 doc-sync: ROADMAP Snapshot + CURRENT_STATUS audit snapshot + FOLLOWUP_TICKETS recently-closed + CHANGELOG closure allineati a post-§3.1 SHA (commit pending §3.6)
+### backends(software) — §3.5 / TICKET-GATE-11-PRINTF-FIX atomic audit (commit `ae3f02ec` + §3.5 doc-sync commit pending)
+- **Audit §3.5** — `grep -rnE '\\bprintf\\b\|\\bfprintf\\b' src/backends/software/ src/ --include='*.cpp' --include='*.hpp'` su HEAD `4abf6954` returns **ZERO matches** in tutto `src/` (broader scope: 0 hit su `src/**`). Il commit `b62ef4429` introdusse un diagnostic `fprintf` in `src/backends/software/processors/software_grid_background_processor.cpp` → `ae3f02ec` lo ha droppato (commit message: `fix(software): gate #11 — drop diagnostic fprintf from GridBackgroundProcessor`). La claim originale del ticket era STALE doc-tracking.
+- **Canonical log API**: codebase usa `spdlog::info / spdlog::warn / spdlog::error` (26 hit in `src/backends/software/`); nessun namespace `chronon3d_log` o `diagnostic_chronicler` definito nel progetto (`grep` 0 hit). Le alternative API suggerite dal task description (chronon3d_log / diagnostic_chronicler) NON esistono; introducendone una si violerebbe l'AGENTS.md Cat-3 (nuova API surface senza ADR). `spdlog` resta il logging canonico.
+- **Tools/check_backend_sanitization.py** PASS exit 0 a HEAD `4abf6954`. Audit non richiede nessuna sostituzione atomic-per-file (atomic commits pattern non applicabile: zero printf da sostituire).
+- **Doc-sync §3.5**:
+  - `docs/FOLLOWUP_TICKETS.md` TICKET-GATE-11-PRINTF-FIX row: PLANNED → DONE (commit `ae3f02ec`); design deviation flag = ticket usa P0 ma claim PT è stale dopo `ae3f02ec`.
+  - `docs/CURRENT_STATUS.md` Gate audit snapshot — `main@2895bd88` §g11 row: rimosso caveat "verify pending — sarà soggetto di FU5 follow-up"; rimpiazzato con "DONE chiuso via commit `ae3f02ec`".
+  - `docs/CHANGELOG.md` (questa entry) — registra §3.5 close-out onesto.
+- **Zero codice toccato** in §3.5. 1 commit per §3.5 doc-sync (audit + close-out ticket); nessun atomic commit per-file perché nessuna sostituzione printf da fare.
+- AGENTS.md v0.1 freeze Cat-1 (doc governance + ticket closure).
+- Verification machine: `bash tools/check_backend_sanitization.py` → exit 0 (PASS) conferma zero printf residuo.
+- Code-reviewer verdict: pending (parallel con `tools/wrap_push.sh origin main` push sequence).
+
+### docs — §3.6 doc-sync: ROADMAP Snapshot + CURRENT_STATUS audit snapshot + FOLLOWUP_TICKETS recently-closed + CHANGELOG closure allineati a post-§3.1 SHA (commit `4abf6954`, 2026-07-04)
 - `docs/ROADMAP.md` Snapshot blockquote aggiornato onestamente da `main@c73f7493` (9/11 PASS pre-§3.1) a `main@2895bd88` (post-FF-pull origin/main): §3.1 CameraSessionLease rollback commit `a8414705` registrato come CHIUSO; macchina-verifica atomica post-§3.1 mostra **8/11 PASS + 1 FAIL (g4 abs-path leak in TICKET-GATE-10-PHASE-4-BLACK-FU4.md) + 1 PASS* (g8 warn-mode, 89 findings) + 1 NOT RUN (g10 heavy build)** — **NON è 11/11: feature freeze ANCORA ATTIVO**.  Nessun falso 11/11 fabbricato.  Nessun `docs/baselines/main-<sha>-baseline.md` creato.  Nessuna rimozione della sezione 🔴 in `AGENTS.md`.
 - `docs/CURRENT_STATUS.md` NUOVA sezione "Gate audit snapshot — `main@2895bd88`" inserita prima del benchmark storico `main@1078ab46`: 11-gate audit table con esito osservato per SHA corrente + caveat \"audit run pre-§3.6-push; post-§3.6 HEAD sarà figlio diretto di `2895bd88`\" per evitare readback staleness.
 - `docs/FOLLOWUP_TICKETS.md`:
