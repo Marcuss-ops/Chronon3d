@@ -29,6 +29,9 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         #   (4) bidi run-count regression (FriBidi active -> multi-run).
         # See docs/tickets/TICKET-P1-ACTION-PLAN.md §P1 #2.
         text/test_text_font_determinism.cpp
+        # M1.5#8 — golden test for FontResolver + resolve_text_run_tree
+        # determinism (FNV-1a hash snapshot + FriBidi env override sanity).
+        text/test_text_font_resolver_golden.cpp
         text/test_text_unit_map.cpp
         text/test_text_unit_map_8level.cpp
         text/test_selector_shapes.cpp
