@@ -41,6 +41,13 @@ add_executable(chronon3d_scene_tests
     scene/camera/test_camera_framing_solver.cpp
     scene/camera/test_shot_timeline.cpp
     scene/camera/test_camera_trajectory.cpp
+    # TICKET-A3-CTX-FRAMERATE (Agent3 mission DoD gate (e)) — locks the
+    # public contract that camera_v1::*Context::at(Frame, FrameRate, ...)
+    # factories propagate the caller-supplied FrameRate bit-exactly into
+    # SampleTime arithmetic, with NO default-init fallback.  Pairs with
+    # the previous kTimelineFps{30,1} constexpr-removal in
+    # src/scene/camera/camera_v1/shot_timeline.cpp on the same commit.
+    scene/camera/test_camera_context_framerate_propagation.cpp
     scene/camera/test_camera_stabilization.cpp
     scene/camera/test_camera_projection_contract.cpp
     scene/camera/golden_projection_test.cpp   # C7 — DOC 02 / TICKET-035 freeze: 6-mode golden projection
