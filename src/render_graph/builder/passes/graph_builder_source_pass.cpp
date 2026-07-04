@@ -24,7 +24,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         return k_invalid_node;
     }
 
-    if (layer.kind == LayerKind::Normal) {
+    if (layer.kind == LayerKind::Normal || layer.kind == LayerKind::Shape || layer.kind == LayerKind::Text) {
         if (layer.nodes.empty()) {
             return graph.add_node(std::make_unique<ClearNode>());
         }
