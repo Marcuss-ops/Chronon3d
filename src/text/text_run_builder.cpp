@@ -69,8 +69,130 @@ namespace chronon3d {
 namespace tci = text_internal::compile;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// compile_text_layout — single canonical TextRunLayout compiler
-//                       (slim orchestrator after M1.5#5)
+// File-local helpers — extracted from compile_text_layout (M1.5#6)
+// ═══════════════════════════════════════════════════════════════════════════
+
+namespace {
+
+/// Build an empty TextRunLayout for paragraphs with zero runs
+/// (e.g. double-newline separators).  Returns a valid layout with
+/// deterministic zero-count TextUnitMap so callers see consistent
+/// state instead of undefined units.
+[[nodiscard]] std::shared_ptr<TextRunLayout>
+build_empty_paragraph_layout(const TextDocument& doc) {
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->source_text.clear();
+    layout->font        = doc.defaults.font;
+    layout->font_size   = doc.defaults.font.font_size;
+    layout->bounds      = {0.0f, 0.0f};
+    layout->line_height = doc.defaults.font.font_size * 1.2f;
+    layout->units       = build_text_unit_map(PlacedGlyphRun{}, std::string{});
+    return layout;
+}
+
+/// Resolve the paragraph tree: use caller-supplied pre_resolved or
+/// resolve locally.  Validates tree.paragraphs and paragraph_index
+/// bounds, then returns a const reference to the target paragraph.
+/// On failure returns the appropriate TextLayoutError.
+[[nodiscard]] Result<const ResolvedParagraph*, TextLayoutError>
+resolve_target_paragraph(
+    const TextDocument& doc,
+    FontEngine& engine,
+    const ResolvedTextTree* pre_resolved,
+    std::size_t paragraph_index,
+    ResolvedTextTree& local_storage
+) {
+    const ResolvedTextTree& tree = (pre_resolved != nullptr)
+        ? *pre_resolved
+        : (local_storage = resolve_text_run_tree(doc, engine), local_storage);
+
+    if (tree.paragraphs.empty()) {
+        return TextLayoutError{
+            TextLayoutErrorKind::EmptySource,
+            "resolve_target_paragraph: resolved tree has no paragraphs"
+        };
+    }
+    if (paragraph_index >= tree.paragraphs.size()) {
+        return TextLayoutError{
+            TextLayoutErrorKind::MalformedLayout,
+            "resolve_target_paragraph: paragraph_index out of range"
+        };
+    }
+    return &tree.paragraphs[paragraph_index];
+}
+
+/// Try to retrieve a cached TextRunLayout for single-font paragraphs.
+/// Returns nullptr on cache miss or when cache is unavailable.
+[[nodiscard]] std::shared_ptr<TextRunLayout>
+try_cache_lookup(
+    TextLayoutCache* cache,
+    bool is_single_font,
+    const std::string& para_text,
+    const FontSpec& primary_font,
+    const TextLayoutSpec& layout,
+    const TextLayoutRequest& request
+) {
+    if (!cache || !is_single_font) return nullptr;
+    TextLayoutCacheKey key = tci::build_cache_key(
+        para_text, primary_font, layout,
+        request.direction, request.language, request.features, request.variation_axes);
+    if (auto cached = cache->find(key)) {
+        return std::const_pointer_cast<TextRunLayout>(cached);
+    }
+    return nullptr;
+}
+
+/// Store a compiled TextRunLayout in the cache (single-font only).
+void store_in_cache(
+    TextLayoutCache* cache,
+    bool is_single_font,
+    const std::string& para_text,
+    const FontSpec& primary_font,
+    const TextLayoutSpec& layout,
+    const TextLayoutRequest& request,
+    std::shared_ptr<TextRunLayout> text_layout
+) {
+    if (!cache || !is_single_font) return;
+    TextLayoutCacheKey key = tci::build_cache_key(
+        para_text, primary_font, layout,
+        request.direction, request.language, request.features, request.variation_axes);
+    cache->store(std::move(key), text_layout);
+}
+
+/// Finalize the remaining TextRunLayout fields after composition +
+/// font_spans.  Sets bounds, tracking, wrap, direction, language,
+/// and line_height from the composed result and layout spec.
+void finalize_text_run_layout(
+    TextRunLayout& text_layout,
+    const ParagraphLayout& composed,
+    const TextLayoutSpec& layout,
+    const ParagraphStyle& comp_style
+) {
+    text_layout.bounds      = composed.bounds;
+    text_layout.tracking    = layout.tracking;
+    text_layout.wrap        = layout.wrap;
+    text_layout.direction   = comp_style.direction;
+    text_layout.language    = comp_style.language;
+    text_layout.line_height = layout.line_height;
+}
+
+/// Resolve the effective paragraph style: use the tree paragraph's
+/// style if non-default, otherwise fall back to the layout spec.
+[[nodiscard]] ParagraphStyle
+effective_paragraph_style(
+    const ResolvedParagraph& para,
+    const TextLayoutSpec& layout
+) {
+    if (!(para.style == ParagraphStyle{})) {
+        return para.style;
+    }
+    return layout.paragraph;
+}
+
+} // namespace
+
+// ═══════════════════════════════════════════════════════════════════════════
+// compile_text_layout — canonical 7-stage pipeline (M1.5#6)
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // INVARIANT: on Ok return, `result.value()->units` is ALWAYS a valid
@@ -79,14 +201,21 @@ namespace tci = text_internal::compile;
 // undefined after Scramble / Morph / CrossfadeLayouts transitions
 // (verdetto Text, Issue #2).
 //
-// Order rationale (verbatim from the thinker verdict on A2):
-//   - cache store MUST happen AFTER populate_font_spans (otherwise
-//     cache hits return a TextRunLayout with empty font_spans, which
-//     would break the renderer on cache hits).
-//   - build_text_unit_map(placed, para_text) MUST happen AFTER
-//     apply_composition_to_placed so the grapheme bounds take the
-//     composed x/y positions (line breaks, justification padding)
-//     into account, NOT the raw baseline coordinates.
+// Canonical pipeline (7 stages):
+//   1. VALIDATE   — validate_layout_request (text_compile_validation)
+//   2. RESOLVE    — resolve_target_paragraph (file-local helper)
+//   3. SHAPE      — shape_paragraph_runs + apply_failure_policy +
+//                   concatenate_runs + validate_concatenated_run
+//                   (text_run_shaping + text_run_composition)
+//   4. FAILURE    — (embedded in stage 3 via apply_failure_policy)
+//   5. COMPOSE    — compose_paragraph + apply_composition_to_placed
+//                   + build_text_unit_map (text_run_composition)
+//   6. FONT-SPANS — populate_font_spans (text_font_span_builder)
+//   7. CACHE      — store_in_cache (file-local helper)
+//
+// Order rationale (thinker verdict A2):
+//   - cache store MUST happen AFTER populate_font_spans
+//   - build_text_unit_map MUST happen AFTER apply_composition_to_placed
 
 Result<std::shared_ptr<TextRunLayout>, TextLayoutError>
 compile_text_layout(
@@ -94,7 +223,9 @@ compile_text_layout(
     TextCompileServices& services,
     const ResolvedTextTree* pre_resolved
 ) {
-    // ── Stage 1 — Validate request + services ──────────────────────
+    // ═══════════════════════════════════════════════════════════════════
+    // Stage 1 — VALIDATE: request + services (delegate)
+    // ═══════════════════════════════════════════════════════════════════
     auto validated = tci::validate_layout_request(request, services);
     if (!validated) return validated.error();
     auto& refs = validated.value();
@@ -102,58 +233,27 @@ compile_text_layout(
     const TextLayoutSpec& layout = refs.layout;
     FontEngine&           engine = refs.engine;
 
-    // ── Stage 2 — Resolve document → paragraph tree ────────────────
-    // Orchestrator-level concern: pre_resolved or resolve locally.
-    // P1-6 — when pre_resolved is non-null, bind `tree` to the
-    // caller's tree by const reference (no copy).  When null, resolve
-    // internally into `local_storage`.  The comma-operator pattern
-    // extends the prvalue lifetime to the scope of `local_storage`,
-    // avoiding a copy of the (potentially large) resolved tree on
-    // the new doc-compile path.
+    // ═══════════════════════════════════════════════════════════════════
+    // Stage 2 — RESOLVE: document → paragraph tree (file-local helper)
+    // ═══════════════════════════════════════════════════════════════════
+    // P1-6: pre_resolved avoids N+1 resolve_text_run_tree() calls.
     ResolvedTextTree local_storage{};
-    const ResolvedTextTree& tree = (pre_resolved != nullptr)
-        ? *pre_resolved
-        : (local_storage = resolve_text_run_tree(doc, engine), local_storage);
+    auto para_or_err = resolve_target_paragraph(
+        doc, engine, pre_resolved, request.paragraph_index, local_storage);
+    if (!para_or_err) return para_or_err.error();
+    const ResolvedParagraph& para = *para_or_err.value();
 
-    // ── Tree guards (orchestrator-level) ──────────────────────────
-    if (tree.paragraphs.empty()) {
-        return TextLayoutError{
-            TextLayoutErrorKind::EmptySource,
-            "compile_text_layout: resolved tree has no paragraphs"
-        };
-    }
-    if (request.paragraph_index >= tree.paragraphs.size()) {
-        return TextLayoutError{
-            TextLayoutErrorKind::MalformedLayout,
-            "compile_text_layout: request.paragraph_index out of range"
-        };
-    }
-
-    const auto& para = tree.paragraphs[request.paragraph_index];
-
-    // ── Empty paragraph short-circuit (Fase 1.1 invariant) ─────────
-    // Two consecutive \n produce a paragraph with no runs.  Return
-    // an empty TextRunLayout with a valid empty TextUnitMap so
-    // callers (e.g. selector/animation) see deterministic counts
-    // (all zero) instead of undefined state.
+    // Empty paragraph short-circuit (Fase 1.1 invariant).
     if (para.runs.empty()) {
-        auto empty_layout = std::make_shared<TextRunLayout>();
-        empty_layout->source_text.clear();
-        empty_layout->font = doc.defaults.font;
-        empty_layout->font_size = doc.defaults.font.font_size;
-        empty_layout->bounds = {0.0f, 0.0f};
-        empty_layout->line_height = doc.defaults.font.font_size * 1.2f;
-        empty_layout->units = build_text_unit_map(PlacedGlyphRun{}, std::string{});
-        return std::move(empty_layout);
+        return build_empty_paragraph_layout(doc);
     }
 
-    // ── Orchestrator-side: primary_font + is_single_font ───────────
+    // ── Pre-stage: primary_font, is_single_font, font check ────────
     const FontSpec primary_font = request.primary_font.font_path.empty()
         ? doc.defaults.font
         : request.primary_font;
     const bool is_single_font = (para.runs.size() == 1);
 
-    // ── Stage 2.5 — MissingFont pre-check (delegate to shaping) ───
     if (!tci::check_paragraph_has_font(para.runs)) {
         return TextLayoutError{
             TextLayoutErrorKind::MissingFont,
@@ -161,49 +261,40 @@ compile_text_layout(
         };
     }
 
-    // ── Stage 2b — Build paragraph source text (delegate) ──────────
+    // ── Pre-stage: build paragraph source text ─────────────────────
     std::string para_text = tci::build_paragraph_text(para.runs);
 
-    // ── Stage 2c — Cache lookup (single-font paragraphs only) ──────
-    // TICKET-103a — direction/language/features now propagated from
-    // the request so LTR vs RTL / ar vs en / kern=1 vs kern=0 any of
-    // these produce a different cache_key and bypass the cached
-    // entry, forcing a re-shape for the new shaping parameters.
-    if (services.cache && is_single_font) {
-        TextLayoutCacheKey cache_key = tci::build_cache_key(
-            para_text, primary_font, layout,
-            request.direction, request.language, request.features, request.variation_axes);
-        if (auto cached = services.cache->find(cache_key)) {
-            return std::const_pointer_cast<TextRunLayout>(cached);
-        }
+    // ── Pre-stage: cache lookup (single-font only) ─────────────────
+    if (auto cached = try_cache_lookup(
+            services.cache, is_single_font, para_text,
+            primary_font, layout, request)) {
+        return cached;
     }
 
-    // ── Stage 3 — Shape every run (delegate to shaping) ───────────
+    // ═══════════════════════════════════════════════════════════════════
+    // Stage 3 — SHAPE: every run → per-run results (delegate)
+    // ═══════════════════════════════════════════════════════════════════
     auto per_run_results = tci::shape_paragraph_runs(
         para.runs, engine, layout.tracking);
 
-    // ── Stage 4 — Apply ShapingFailurePolicy (delegate to shaping) ─
+    // ═══════════════════════════════════════════════════════════════════
+    // Stage 4 — FAILURE-POLICY: apply policy → Ok runs (delegate)
+    // ═══════════════════════════════════════════════════════════════════
     auto placed_or_err = tci::apply_failure_policy(
         std::move(per_run_results), request.shaping_failure_policy);
     if (!placed_or_err) return placed_or_err.error();
     std::vector<PlacedGlyphRun> placed_runs = std::move(placed_or_err.value());
 
-    // ── Stage 6.5 — Concatenate (delegate to composition) ──────────
+    // Concatenate + validate (sub-stages of shape/failure-policy).
     PlacedGlyphRun merged = tci::concatenate_runs(placed_runs);
-
-    // ── Stage 4.5 — All-run guard (delegate to shaping) ────────────
     if (auto check = tci::validate_concatenated_run(merged, para_text); !check) {
         return check.error();
     }
 
-    // ── Stage 5 — Compose paragraph (orchestrator-side: pick style)
-    // The orchestrator picks comp_style (para.style if non-default,
-    // else layout.paragraph) and feeds the box-width adjustment, then
-    // delegates the actual composition call.
-    ParagraphStyle comp_style = layout.paragraph;
-    if (!(para.style == ParagraphStyle{})) {
-        comp_style = para.style;
-    }
+    // ═══════════════════════════════════════════════════════════════════
+    // Stage 5 — COMPOSE: layout → positioned glyphs (delegate)
+    // ═══════════════════════════════════════════════════════════════════
+    ParagraphStyle comp_style = effective_paragraph_style(para, layout);
 
     ParagraphLayout composed = tci::compose_paragraph(
         merged,
@@ -211,11 +302,9 @@ compile_text_layout(
         comp_style,
         para_text
     );
-
-    // ── Stage 6 — Apply composition to placed (delegate) ───────────
     tci::apply_composition_to_placed(merged, composed);
 
-    // ── Build initial TextRunLayout (orchestrator-side assembly) ───
+    // ── Build initial TextRunLayout (orchestrator assembly) ────────
     auto text_layout = std::make_shared<TextRunLayout>();
     text_layout->source_text = para_text;
     text_layout->font        = primary_font;
@@ -224,25 +313,20 @@ compile_text_layout(
     // INVARIANT Fase 1.1: units populated AFTER apply_composition_to_placed.
     text_layout->units       = build_text_unit_map(text_layout->placed, para_text);
 
-    // ── Stage 7 — Populate font_spans (delegate to font_span_builder;
-    //              BEFORE cache store per thinker verdict A2) ───────
+    // ═══════════════════════════════════════════════════════════════════
+    // Stage 6 — FONT-SPANS: per-run font identity blocks (delegate)
+    //           MUST run BEFORE cache store (thinker verdict A2).
+    // ═══════════════════════════════════════════════════════════════════
     tci::populate_font_spans(*text_layout, placed_runs, para.runs);
 
-    // ── Orchestrator-side: assemble remaining TextRunLayout fields ─
-    text_layout->bounds      = composed.bounds;
-    text_layout->tracking    = layout.tracking;
-    text_layout->wrap        = layout.wrap;
-    text_layout->direction   = comp_style.direction;
-    text_layout->language    = comp_style.language;
-    text_layout->line_height = layout.line_height;
+    // Finalize remaining fields.
+    finalize_text_run_layout(*text_layout, composed, layout, comp_style);
 
-    // ── Cache store (AFTER populate_font_spans) ────────────────────
-    if (services.cache && is_single_font) {
-        TextLayoutCacheKey cache_key = tci::build_cache_key(
-            para_text, primary_font, layout,
-            request.direction, request.language, request.features, request.variation_axes);
-        services.cache->store(std::move(cache_key), text_layout);
-    }
+    // ═══════════════════════════════════════════════════════════════════
+    // Stage 7 — CACHE: store immutable layout (file-local helper)
+    // ═══════════════════════════════════════════════════════════════════
+    store_in_cache(services.cache, is_single_font, para_text,
+                   primary_font, layout, request, text_layout);
 
     return std::move(text_layout);
 }
