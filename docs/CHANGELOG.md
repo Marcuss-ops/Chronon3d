@@ -7,6 +7,16 @@
 
 ## Luglio 2026 — Chiusure recenti
 
+### build(sdk) — TICKET-GATE-10-AR-RACE: named structural canary for `ar` "reason: Success" failure mode (commit `be8bf6cf`)
+- `cmake/Chronon3DCanarySymbols.cmake` — added 11th canary entry: `"ar_race|arch:ar_t_post_nm_non_empty|always|chronon3d_sdk_impl"`. The `arch:` prefix marks this as a STRUCTURAL canary (not a substring match against the demangled symbol table). The gate handles the new entry in a dedicated `arch:*` case branch (future `arch:`-prefixed entries are routed to the same sub-case).
+- `tools/sdk/check_archive_canaries.sh`:
+  - New section (b.5) "TICKET-GATE-10-AR-RACE" — re-runs `ar t $archive > $tmp` AFTER the nm step and asserts non-empty + count-consistent with the pre-nm $ar_count. Catches the binutils 2.45 "reason: Success" failure mode observed at `cmake --build` step [347/347] (ar exits 0 but the destination archive is incomplete / inconsistent).
+  - Symmetric pre-nm `ar t` direct-write (no `| sort`) — both pre-nm and post-nm now use `ar t > file`. The count is order-independent, so unsorted listings are sufficient.
+  - New `arch:*` case branch in the canary walk — dispatches SYMBOL tokens starting with `arch:` to a structural sub-case (currently only `ar_t_post_nm_non_empty` is recognised; unknown target_check keywords FAIL loudly with WARN).
+- The canary correctly fires on the current archive: pre-nm `ar t` returns 335 entries, post-nm `ar t` returns 0 entries (despite isolation tests showing the same `ar t` command producing 335 lines standalone). This is the diagnostic signal the user wanted: the canary surfaces an in-script archive accessibility discrepancy that was previously masked.
+- OPEN ROOT CAUSE: in-script `ar t` post-nm returns 0 entries while the same `ar t` in a separate shell returns 335. Direct `ar t > file` works in isolation; the in-script misfire is not yet characterised. Tracked in `docs/FOLLOWUP_TICKETS.md` as `TICKET-GATE-10-AR-RACE-FOLLOWUP` (PLANNED).
+- AGENTS.md v0.1 freeze Cat-1 (build correction — canary catalog addition). No public API change, no new types, no new behavior. Canaries went from 10 entries to 11 entries (10 PRESENT + 1 BEST-EFFORT, +1 new ALWAYS-gated structural canary). Build-correction scope only: cat-1 canary catalog + canary gate hardening.
+
 ### build(sdk) — TICKET-GATE-10-PHASE-4-BLACK: `sdk::RenderEngine` canary lock (commit `8fd0588e`)
 - `cmake/Chronon3DCanarySymbols.cmake` — added 10th canary entry: `"sdk|chronon3d::sdk::RenderEngine|always|chronon3d_runtime"`. Substring `chronon3d::sdk::RenderEngine` matches all ctor/dtor/render/set_assets_root/set_settings demangled symbols emitted by `src/runtime/sdk_render_engine.cpp` (compiled into `chronon3d_runtime` OBJECT lib, aggregated into `libchronon3d_sdk_impl.a` via the registry's `target_link_libraries(chronon3d_sdk_impl PRIVATE …)` loop).
 - Root cause of the original failure: stale build cache — `libchronon3d_sdk_impl.a` was missing `sdk_render_engine.cpp.o` after a previous refactor (carry-over from `2ef2b377` `sw_sidecar` threading fix and the M1.5#1 + M1.5#2 + M1.5#3 cluster). The external consumer failed at LINK time, not at render time, but the existing diagnostics reported the failure indirectly as a "black PNG" because no pixels were being painted.
