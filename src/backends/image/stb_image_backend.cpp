@@ -1,3 +1,13 @@
+// M1.5#7 — shrink stb_image.h AST by removing unused decoders.
+// Test suite & CLI only requires PNG (and JPEG for general web fixtures).
+// BMP/PSD/TGA/GIF/PIC/PNM/HDR modules are removed. ~70% AST reduction.
+#define STBI_NO_BMP
+#define STBI_NO_PSD
+#define STBI_NO_TGA
+#define STBI_NO_GIF
+#define STBI_NO_PIC
+#define STBI_NO_PNM
+#define STBI_NO_HDR
 #define STBI_NO_SIMD
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
