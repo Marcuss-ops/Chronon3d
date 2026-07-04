@@ -24,10 +24,9 @@
 
 #include <doctest/doctest.h>
 
-#include <chronon3d/text/text_run.hpp>          // EffectiveTextState, FontLayoutIdentity
+#include <chronon3d/text/text_run.hpp>          // EffectiveTextState, FontLayoutIdentity, Bcp47LanguageTag, TextShapingFeatures
 #include <chronon3d/text/text_run_driver.hpp>   // operator== / != (umbrella extension)
 #include <chronon3d/text/text_direction.hpp>    // TextDirection
-#include <chronon3d/text/aliases.hpp>           // Bcp47LanguageTag, TextShapingFeatures
 
 using namespace chronon3d;
 

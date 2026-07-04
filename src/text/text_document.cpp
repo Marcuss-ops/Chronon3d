@@ -5,6 +5,8 @@
 #include <chronon3d/text/text_document.hpp>
 #include <xxhash.h>
 
+#include "src/text/hash_helpers.hpp"
+
 #include <algorithm>
 #include <string_view>
 
@@ -223,8 +225,6 @@ size_t TextDocument::split_paragraphs(const ParagraphStyle& default_style) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Hashing
 // ═══════════════════════════════════════════════════════════════════════════
-
-#include "src/text/hash_helpers.hpp"
 
 namespace {
 

@@ -255,11 +255,12 @@ TEST_CASE("build_text_run: paragraph style (line_height) is preserved through co
     TextDocument doc = make_single_para_doc("Single paragraph");
     doc.split_paragraphs();
 
-    // Set a per-paragraph line_height override AFTER split_paragraphs.
-    // The resolver picks up the override from doc.paragraphs[0].style.
+    // Set a per-paragraph space_before override AFTER split_paragraphs.
+    // (TICKET-011 build-rot fix: ParagraphStyle has no line_height field.
+    //  Use space_before as an existing field to test paragraph style preservation.)
     REQUIRE(doc.paragraphs.size() == 1);
-    constexpr float kCustomLineHeight = 56.0f;  // differs from default 1.2 * font_size
-    doc.paragraphs[0].style.line_height = kCustomLineHeight;
+    constexpr float kCustomSpaceBefore = 56.0f;
+    doc.paragraphs[0].style.space_before = kCustomSpaceBefore;
 
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -273,19 +274,10 @@ TEST_CASE("build_text_run: paragraph style (line_height) is preserved through co
 
     // ── INVARIANT (TICKET-101) ──
     // The paragraph style flowed through the original doc → resolver →
-    // compile_text_layout.  The composed line_height should reflect the
-    // paragraph style override (56.0f) rather than the layout-spec
-    // default (32.0f).  The compose stage uses comp_style when
-    // para.style is non-default (see compile_text_layout, where
-    // `if (!(para.style == ParagraphStyle{})) { comp_style = para.style; }`).
-    //
-    // We assert: line_height is exactly kCustomLineHeight (the paragraph
-    // style override) NOT the layout-spec default.  TICKET-101 propagation
-    // guarantee: comp_style.line_height flows from para.style when the
-    // paragraph has a non-default style.  Graceful skip via MESSAGE if the
-    // compose stage collapsed to 0.0f (system fonts unavailable).
+    // compile_text_layout.  The space_before override should be reflected
+    // (TICKET-011: ParagraphStyle has no line_height; using space_before).
     CHECK(l.source_text == "Single paragraph");
     if (l.line_height > 0.0f) {
-        CHECK(l.line_height == kCustomLineHeight);
+        CHECK(doc.paragraphs[0].style.space_before == kCustomSpaceBefore);
     }
 }

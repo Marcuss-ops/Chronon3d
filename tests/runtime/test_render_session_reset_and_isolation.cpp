@@ -25,6 +25,7 @@
 #include <chronon3d/internal/runtime/render_session.hpp>
 #include <chronon3d/runtime/dirty_history.hpp>
 #include <chronon3d/backends/software/software_render_session.hpp>
+#include <chronon3d/core/types/types.hpp>
 
 #include <atomic>
 #include <string>
