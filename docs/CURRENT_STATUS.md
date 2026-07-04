@@ -127,6 +127,18 @@ Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA,
 2. **Gate #10 Phase 4 fix:** Risolvere il bug e ri-eseguire `install_consumer_test.sh` fino a PASS completo.
 3. Raggiungere 11/11 PASS sullo stesso commit, poi revocare formalmente il feature freeze.
 
+## Hygiene
+
+Main-sync hygiene (`main` come single-source-of-truth; tutto converge in `main`) è enforced da **tre pezzi coordinati** su ogni push workflow:
+
+| Pezzo                    | Scope                                                                                       | Strumento canonico                                                |
+|--------------------------|---------------------------------------------------------------------------------------------|-------------------------------------------------------------------|
+| **Branch-level rebase** (read-side) | `git pull` unpulled su `branch.<name>.rebase = true` esegue rebase invece di merge (history lineare)            | `git config branch.<name>.rebase true` (per-repo local, **NON** `--global`) |
+| **GATE-MNT-01 wrap-push** (push-side) | Auto-FF unidirezionale + invocazione `check_main_clean` come drop-in per `git push`                            | [`tools/wrap_push.sh`](tools/wrap_push.sh) (portabile, tracked)   |
+| **Clean-tree check** (gate) | Fail-on-dirty su divergenza HEAD/origin/main + working-tree dirty                              | [`tools/check_main_clean.sh`](tools/check_main_clean.sh)          |
+
+Le tre componenti sono complementari (e formano una triade): il read-side rebase previene i merge-commit locali, il wrapper canonico applica il gate al push, il gate fallisce su dirty → tutte insieme (e solo tutte insieme) garantiscono che `git log main` resti lineare e che l'HEAD pubblicato sia sempre verificabile.
+
 ## Link canonici
 
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — milestone prodotto (vedi TICKET-GATE-7-R1: Coverage src/runtime/** da aggiungere).
