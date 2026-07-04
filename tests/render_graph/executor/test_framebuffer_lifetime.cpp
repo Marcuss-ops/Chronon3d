@@ -30,7 +30,7 @@ struct MockNode : RenderGraphNode {
                     std::span<const FramebufferRef> inputs,
                     std::span<const std::optional<raster::BBox>> input_bboxes) override {
         (void)ctx; (void)inputs; (void)input_bboxes;
-        return NodeExecResult{};
+        return NodeExecResult(NodeExecutionError{RenderBackendErrorCode::ExecutionFailure, "mock"});
     }
     [[nodiscard]] cache::NodeCacheKey cache_key(const RenderGraphContext&) const override { return {}; }
     [[nodiscard]] std::optional<raster::BBox> predicted_bbox(const RenderGraphContext&) const override { return std::nullopt; }
