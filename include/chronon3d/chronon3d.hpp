@@ -53,6 +53,14 @@
 #include <chronon3d/sdk/render_settings.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
+// ── Text run shape (full type re-export; cf. closure narrative TICKET-GATE-10-PHASE-4-BLACK-FU4 sub-block B) ──
+// Pulling the full TextRunShape definition into the umbrella header lets downstream consumers
+// (e.g. tests/install_consumer/main.cpp) instantiate std::make_shared<TextRunShape>() / std::unique_ptr<TextRunShape>
+// without a separate explicit include. Manifest-cleanliness preserved (path already registered in
+// cmake/Chronon3DPublicHeaders.cmake line 181). Forward-declared at scene/model/shape/shape.hpp
+// for OPP-internal TUs that only need shared_ptr<TextRunShape>.
+#include <chronon3d/text/text_run_shape.hpp>
+
 // ── Image I/O helper (save_png, etc.) ──────────────────────────────────
 #include <chronon3d/backends/image/image_writer.hpp>
 
