@@ -7,6 +7,24 @@
 
 ## Luglio 2026 — Chiusure recenti
 
+### software-backend — M1.5#12 (1/4): extract `software_backend_factory.cpp` + UNIQUE validation source invariant
+- `+ src/backends/software/software_backend_factory.cpp` (NEW) — `make_software_backend(SoftwareBackendServices)` estratto verbatimmente dal monolito `software_backend.cpp`. UNICA fonte di validazione REQUIRED-services (`counters` / `settings` / `framebuffer_pool` / `asset_resolver` / `text_resources` in ordine canonico). I 5 `#ifndef NDEBUG` asserts INTERNI restano PARTE della validazione (deleted asserts sono quelli del ctor, non quelli della factory).
+- `~ src/backends/software/software_backend.cpp` — REMOVED `#ifndef NDEBUG` directive + 5 assert lines dal ctor (anti-duplication invariant: factory is UNIQUE validator). Function body `make_software_backend(...)` REMOVED (verbatimmente migrato a factory.cpp). File: 357→286 LOC.
+- `~ src/backends/software/CMakeLists.txt` — added `software_backend_factory.cpp` source line in `chronon3d_backend_software` OBJECT library (UNITY_BUILD OFF preserved).
+- `+ docs/tickets/TICKET-M1.5#12-SEQUENCE.md` (NEW canonical sequence ticket) — documents all 4 steps + architectural invariants (Cat-5 unmodified header, single-responsibility extraction, anti-duplication invariant).
+
+### Architectural invariants preserved (Step 1/4)
+1. UNIQUE validation source: `make_software_backend()` (factory.cpp, line ~38) is the ONLY place that returns a malformed services-bundle `SoftwareBackendServicesError`. Ctor intentionally unvalidated (debug-only asserts REMOVED to satisfy invariant).
+2. ZERO `include/chronon3d/` surface expansion. `software_backend.hpp` UNTOUCHED.
+3. ZERO new public symbols, ZERO new internal-bridge headers (member-function definitions retain private access via `this` across TUs — no `friend` declaration needed).
+4. ZERO content↔backend reverse-edge (factory is `SoftwareBackend&` adjacent, software-frontend boundary per WP-3 preserved).
+5. ZERO `target_compile_definitions` / `target_link_libraries` additions (object library gets new source file only).
+
+### Companion doc-sync
+- `docs/FOLLOWUP_TICKETS.md` — TICKET-M1.5#12-SEQUENCE row added in P1 backlog (PARTIAL → DONE progressive 4-step).
+- `docs/CURRENT_STATUS.md` — M1.5#12 (1/4) progress row added.
+- AGENTS.md v0.1 Cat-1/Cat-5 freeze-compliant: cat-1 build-correction overlap (omitted `target_compile_definitions` + new TU), cat-5 borderline exception (user mandate without surface expansion).
+
 ### backends(software) — §3.5 / TICKET-GATE-11-PRINTF-FIX atomic audit (commit `ae3f02ec` + §3.5 doc-sync commit pending)
 - **Audit §3.5** — `grep -rnE '\\bprintf\\b\|\\bfprintf\\b' src/backends/software/ src/ --include='*.cpp' --include='*.hpp'` su HEAD `4abf6954` returns **ZERO matches** in tutto `src/` (broader scope: 0 hit su `src/**`). Il commit `b62ef4429` introdusse un diagnostic `fprintf` in `src/backends/software/processors/software_grid_background_processor.cpp` → `ae3f02ec` lo ha droppato (commit message: `fix(software): gate #11 — drop diagnostic fprintf from GridBackgroundProcessor`). La claim originale del ticket era STALE doc-tracking.
 - **Canonical log API**: codebase usa `spdlog::info / spdlog::warn / spdlog::error` (26 hit in `src/backends/software/`); nessun namespace `chronon3d_log` o `diagnostic_chronicler` definito nel progetto (`grep` 0 hit). Le alternative API suggerite dal task description (chronon3d_log / diagnostic_chronicler) NON esistono; introducendone una si violerebbe l'AGENTS.md Cat-3 (nuova API surface senza ADR). `spdlog` resta il logging canonico.
@@ -33,6 +51,7 @@
 - AGENTS.md v0.1 freeze Cat-5 (allineamento documentazione).  Zero codice toccato; pure doc-sync di 4 canonicals.
 - Verification machine: `bash tools/check_doc_sync.sh` → atteso PASS (canonical shape + Open blockers strict = TICKET-A3-CACHE-LEASE moved out + TICKET-GATE-4-LEAK aggiornata con nuova leak location); `bash tools/wrap_push.sh origin main` → atteso GATE-MNT-01 PASS (per-branch rebase `true`, tree clean dopo §3.6 commit, FF-pure sul nuovo HEAD post-commit).
 - Code-reviewer verdict: pending (parallel con `tools/wrap_push.sh origin main` push sequence).
+>>>> 0fe1ed34 (refactor(sw-backend): M1.5#12 1/4 — extract make_software_backend() factory (UNIQUE validation source))
 
 ### text-run — M1.5#13 (1/4): refactor del registry preset testuali — extract basic (Subtitle) factory + `builtin_text_presets()` span accessor (commit pending this session)
 - `+ src/registry/text_preset_internal_helpers.hpp` (NEW) — shared internal-only header (NOT installed; lives under `src/registry/`).  Exports `chrono3d::registry::internal::make_presetc_template(preset_id)` + `wire_through_resolver(lb, id, spec)` + `LayerBuilderT` / `SceneBuilderT` / `TextSpecT` aliases.  Verbatim ports from the pre-M1.5#13 anon-namespace helpers in `text_preset_registry.cpp`.  Both functions are `[[nodiscard]] inline` (linker-merged across TUs).
