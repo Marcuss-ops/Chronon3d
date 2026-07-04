@@ -176,6 +176,8 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_direction.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_material.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_run.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_run_layout.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_run_shape.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animated_text_document.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/composition_props.hpp"
 )
