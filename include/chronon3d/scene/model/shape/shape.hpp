@@ -486,18 +486,3 @@ struct Shape {
 };
 
 } // namespace chronon3d
-
-// TextRunShapeHandle only stores shared_ptr<TextRunShape>; the fwd-decl
-// toward the top of this file was sufficient for THIS header.  External
-// consumers that instantiate std::make_shared<TextRunShape>() /
-// std::unique_ptr<TextRunShape> need the full type definition.  Pull in
-// the full definition at the bottom to avoid a hard include cycle
-// (text_run_shape.hpp:22 already includes this header, so we cannot
-// re-include it up-top without breaking its #pragma once semantics;
-// the bottom hook gives consumers a stable view of the whole struct).
-//
-// FU4 (TICKET-GATE-10-PHASE-4-BLACK-FU4): closes the install_consumer
-// SDK incomplet-type rot at tests/install_consumer/main.cpp:147
-// (std::make_shared<c3d::TextRunShape>() with the full type not
-// transitively exposed in the consumer umbrella header).
-#include <chronon3d/text/text_run_shape.hpp>
