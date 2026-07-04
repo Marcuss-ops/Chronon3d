@@ -51,6 +51,7 @@ Un valore `PASS` deve indicare lo SHA e la baseline che lo dimostrano — altrim
 | Software backend                                | PASS     | Gate-3 (I1-I5) tutto verde su `main@775da4d9`. TICKET-077 + TICKET-079 chiusi. |
 | Execution scope (precomp + nested)              | NOT RUN  | Lease, child arena e concorrenza da chiudere.                            |
 | Text Production V1                              | NOT RUN  | word timing, rich text produttivo, preset, golden da chiudere.           |
+| Camera Production V1                            | PARTIAL  | Agent3 C1-C7 projection contract + Agent1 Step 4+5 trajectory work + 6/6 CAM-DOC 04 arch-boundary DoD PASS + Cat-1 build-rot commit `8b29a5bf` cleared FocalPx/FrameRate/CameraSession regressions + 1 pre-existing on-main rot remains (size() vs points().size() in camera_program_compiler.cpp:330-335) — out of scope Camera V1 step + Runtime certification + framing/clipping/DOF + legacy migration ancora aperti. |
 | SDK C++ installabile                            | NOT RUN  | consumer di rendering reale con testo + camera → PNG in certificazione.   |
 | SDK cross-language                              | NOT RUN  | C ABI e formato `.chronon` da progettare.                                |
 | Sistemi meta (Expressions V2 / V3 tile-first)   | PLANNED  | Expressions V2 OFF di default, non installato. V3 subordinato a V1.      |
