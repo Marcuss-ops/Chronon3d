@@ -77,3 +77,30 @@ if(_num_archives GREATER 1)
     endforeach()
     message(FATAL_ERROR "${_err}")
 endif()
+
+# ==============================================================================
+# TICKET-GATE-10-AR-RACE-MITIGATION — defensive `sync` before SDK archive creation
+# ==============================================================================
+# GNU ar 2.45 on ext3/ext4 has a known rename race: `rename(tmp, final)` returns
+# 0 but the file appears missing to subsequent reads. ar then reports the
+# rename error with `strerror(errno=0)` ("reason: Success") — observed at
+# `cmake --build` step [347/347] on `chronon3d_sdk_impl`. Flushing the page
+# cache immediately before the archive step eliminates stale entries that
+# could interfere with the rename. PRE_LINK on a STATIC library runs BEFORE
+# the archive step (per CMake docs) AND CMake skips it when the archive is
+# up-to-date — so this only fires on (re)builds, not every incremental build.
+# Cat-1 build correction; no public API change. See TICKET-GATE-10-AR-RACE-
+# FOLLOWUP for the in-script post-nm `ar t` 0-entries root-cause investigation
+# (separate from this build-time mitigation).
+find_program(SYNC_EXECUTABLE sync)
+if(SYNC_EXECUTABLE AND CMAKE_HOST_UNIX AND NOT CMAKE_CROSSCOMPILING)
+    message(STATUS
+        "TICKET-GATE-10-AR-RACE-MITIGATION: PRE_LINK `sync` armed for "
+        "chronon3d_sdk_impl (mitigates GNU ar 2.45 'reason: Success' "
+        "transient on ext3/ext4; only runs when the archive is rebuilt).")
+    add_custom_command(TARGET chronon3d_sdk_impl PRE_LINK
+        COMMAND "${SYNC_EXECUTABLE}"
+        COMMENT "Flushing page cache defensively before SDK archive creation"
+        VERBATIM
+    )
+endif()
