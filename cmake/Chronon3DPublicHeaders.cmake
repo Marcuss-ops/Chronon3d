@@ -164,6 +164,7 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/path.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/shape.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/simd/kernels.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animated_text_document.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animation/glyph_instance_state.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animation/text_animator_evaluator.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animation/text_animator_properties.hpp"
@@ -178,6 +179,5 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_run.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_run_layout.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_run_shape.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animated_text_document.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/composition_props.hpp"
 )
