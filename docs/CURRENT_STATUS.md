@@ -2,7 +2,7 @@
 
 > **Snapshot:** `main@1078ab46` (11-gate audit: 10/11 PASS, gate #10 Phase 4 black-render pre-existing) — 2026-07-04. Linux-only.
 >
-> **Ultima baseline macchina-verificata:** `main@1078ab46` — **10/11 PASS** (gate #10 FAIL: Phase 4 render black).
+> **Ultima baseline macchina-verificata:** `main@aaf70032` — **10/11 PASS** (gate #10 FAIL: Phase 4 render black).
 > **Baseline precedente:** `main@e8623a8a` (10/10 verificati, 1 NOT RUN).
 >
 > **Gate #10 — `install_consumer_test.sh`:** Phase 1-3 PASS. Phase 4 FAIL: render black (230400 pixel < 5/255). Bug pre-esistente. Fix `sw_sidecar` threadato attraverso `render_scene_via_graph` (commit `2ef2b377`) — corregge il culling layer, ma non basta.
@@ -47,12 +47,12 @@ Un valore `PASS` deve indicare lo SHA e la baseline che lo dimostrano — altrim
 
 | Area                                            | Stato    | Note sintetiche                                                          |
 | ----------------------------------------------- | -------- | ------------------------------------------------------------------------ |
-| Render graph compilato                          | NOT RUN  | Baseline completa da verificare sul commit candidato.                    |
+| Render graph compilato                          | PARTIAL  | `chronon3d_render_graph_tests` + `chronon3d_core_tests` LINK rot `Camera2_5D::projection_mode` chiuso in `ac514fea` (carry-over closure M1.5#1 + M1.5#2); TICKET-011 `text_unit_map` build rot ancora aperto (LINK blocker separato, fuori scope M1.5). |
 | Software backend                                | PASS     | Gate-3 (I1-I5) tutto verde su `main@775da4d9`. TICKET-077 + TICKET-079 chiusi. |
 | Execution scope (precomp + nested)              | NOT RUN  | Lease, child arena e concorrenza da chiudere.                            |
 | Text Production V1                              | NOT RUN  | word timing, rich text produttivo, preset, golden da chiudere.           |
 | Camera Production V1                            | PARTIAL  | Agent3 C1-C7 projection contract + Agent1 Step 4+5 trajectory work + 6/6 CAM-DOC 04 arch-boundary DoD PASS + Cat-1 build-rot commit `8b29a5bf` cleared FocalPx/FrameRate/CameraSession regressions + 1 pre-existing on-main rot remains (size() vs points().size() in camera_program_compiler.cpp:330-335) — out of scope Camera V1 step + Runtime certification + framing/clipping/DOF + legacy migration ancora aperti. |
-| SDK C++ installabile                            | NOT RUN  | consumer di rendering reale con testo + camera → PNG in certificazione.   |
+| SDK C++ installabile                            | FAIL     | gate #10 install_consumer FAIL a `c73f7493` (carry-over rot `ninja subcommand failure during compilation of highway_*_kernels.cpp.o` in `chronon3d_backend_software`); SDK NOT green. TICKET-GATE-10-PHASE-4-FIX da aprire. |
 | SDK cross-language                              | NOT RUN  | C ABI e formato `.chronon` da progettare.                                |
 | Sistemi meta (Expressions V2 / V3 tile-first)   | PLANNED  | Expressions V2 OFF di default, non installato. V3 subordinato a V1.      |
 | Render runtime (session + caches)               | PASS     | P0 #B1: ImageCache moved to RenderRuntime. P1 #3: `RenderSession::layout_cache` added. |
@@ -106,13 +106,13 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 
 ## Certificazione corrente
 
-Ultima baseline macchina-verificata: `main@aaf70032` — **10/11 PASS**.
-Audit corrente: `main@eb8e3a24` — **7/11 PASS** (stable across 9ecb4879 → eb8e3a24: no code regression; pre-regression chain: 10/11 aaf70032 → 9/11 16319557 → 7/11 9ecb4879 → 7/11 eb8e3a24).
-  - gate #1 + #9 SDK public-deps SSoT wiring (Check 16) — pre-esistente sulla lineage `gate-10-...` (carry-over from 9ecb4879).
-  - gate #10 install_consumer — **failure-mode SHIFT this run** (carry-over from 9ecb4879 Phase 4 PNG near-black → now `ninja subcommand failure during compilation of highway_*_kernels.cpp.o` in `chronon3d_backend_software` target). FLAG: richiede independent re-run per disambiguare transient noise vs durable build-rot.
-  - gate #11 backend sanitization `printf` in `software_grid_background_processor.cpp:23` — pre-esistente (intro `b62ef4429`, carry-over from 9ecb4879).
+Ultima baseline macchina-verificata: `main@aaf70032` — **10/11 PASS** (carry-over da 2026-07-04; nessuna baseline certificata >10/11 a `c73f7493`).
+Audit corrente: `main@c73f7493` — **9/11 PASS** (post GATE-MNT-01-EXT + gate-1+#9 SSoT POSIX regex).  **9/11 NON è 11/11: feature freeze ancora attivo.**  Pre-audit chain: 10/11 aaf70032 → 9/11 16319557 → 7/11 9ecb4879 → 7/11 eb8e3a24 → 9/11 c73f7493.
+  - gate #1 + #9 SDK public-deps SSoT wiring (Check 16) — **FLIPPED to PASS at `a5ee07e7`** (POSIX regex migration `\s`→`[[:space:]]`, `\S`→`[^[:space:]]` per mawk-compat in `tools/check_architecture_boundaries.sh` Check 16; pre-existing bug su sistemi con `mawk` default).
+  - gate #10 install_consumer — FAIL (carry-over rot da `9ecb4879`; failure-mode a `c73f7493` = `ninja subcommand failure during compilation of highway_*_kernels.cpp.o` in `chronon3d_backend_software` target; richiede independent re-run per disambiguare transient noise vs durable build rot; TICKET-GATE-10-PHASE-4-FIX da aprire).
+  - gate #11 backend sanitization `printf` in `software_grid_background_processor.cpp:23` — FAIL (pre-esistente, intro `b62ef4429`; TICKET-GATE-11-PRINTF-FIX da aprire).
 Nessuna baseline certificata oltre `aaf70032`.
-Per la revoca del **feature freeze** (vedi `AGENTS.md`) è richiesto **11/11 PASS sullo stesso commit**.
+Per la revoca del **feature freeze** (vedi `AGENTS.md`) è richiesto **11/11 PASS sullo stesso commit**; 9/11 NON è sufficiente.
 Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA, una sola baseline per commit).
 
 ## Chiusure recenti (P1)
