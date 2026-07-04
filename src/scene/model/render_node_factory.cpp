@@ -146,51 +146,122 @@ static Vec3 resolve_text_anchor(TextAnchor anchor, Vec2 box) {
     return {box.x * 0.5f, box.y * 0.5f, 0.0f}; // fallback = Center
 }
 
-RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string name, TextSpec p) {
+// ── M1.5#9 step 2 — RenderNodeFactory::text() ─────────────────────────
+//
+// Refactor: `text(...)` now wraps the supplied `TextSpec` into a
+// `TextRunSpec` and delegates to `materialize_text_run_shape(...)`,
+// the single canonical materializer shared with `text_run()` and
+// `LayerBuilder::build()`.  The legacy `ShapeType::Text` code path
+// that built a `TextShape` (paint / shadows / material / font_path /
+// style.{...}/ box.{...}) is REMOVED from this factory.  Step 3
+// (M1.5#9) will drop the orphan `create_text_processor()` + factory
+// registration in builtin_processors.cpp; step 4 deletes the legacy
+// software_text_processor tree; step 5 deletes the legacy rasterizer
+// infra.
+//
+// Back-compat: existing 3-arg callers `text(res, name, TextSpec)`
+// still compile and behave identically for non-materialization
+// properties (anchor, position, color, fill, layout.box-derived
+// transform).  Materialization of paint / shadows / material / font
+// glyphs is now ROUTED through `materialize_text_run_shape` so
+// downstream consumers see a unified `TextRunShapeHandle` (variant
+// index 14).  When `engine == nullptr` the materializer logs an
+// `spdlog::error` and returns nullptr — the factory still produces a
+// RenderNode with `ShapeType::TextRun` + null `text_run_shape_handle()
+// .value` so the renderer-side source-pass routes the entry to
+// TextRunNode which surfaces the missing-shape diagnostic.
+//
+// World-transform / fill mirror the legacy fields that used to be
+// carried on TextShape::style: `p.position`, `p.layout.box` (for
+// anchor resolution), `p.layout.anchor` (TextAnchor enum), and
+// `p.appearance.color` (carry color + solid fill).  These are
+// independent of the materializer's runtime work.
+RenderNode RenderNodeFactory::text(
+    std::pmr::memory_resource* res,
+    std::string name,
+    TextSpec p,
+    FontEngine* engine /* = nullptr, see header */
+) {
     auto node = base(res, std::move(name));
-    node.shape.set_type(ShapeType::Text);
-    node.shape.text().text = std::move(p.content.value);
-    // Fallback: if the caller left font_path empty, use the project default
-    // (Inter-Bold). Without this, rasterize_text_to_bl_image() returns
-    // std::nullopt and the text is silently dropped from the render.
+
+    // M1.5#9 step 2: switch to ShapeType::TextRun + delegate to the
+    // canonical materializer.  All paint / shadows / material fields
+    // that previously lived on TextShape::style are now routed into
+    // TextRunShape::paint/material/shadows at materialization time.
+    node.shape.set_type(ShapeType::TextRun);
+
+    // ── Read all legacy scalar/string fields BEFORE std::move(p) ──
+    // World-transform (independent of materialization).  These mirror
+    // the legacy fields that used to live on TextShape::{style,box}
+    // so authoring pipeline still resolves text positioning correctly
+    // even when materialization fails (e.g. engine == nullptr).
+    //
+    // ORDERING INVARIANT: read `p.layout.{anchor,box}` and
+    // `p.position` and `p.appearance.{color,shadows,paint,material}`
+    // HERE, before the std::move(p) into run_spec.text below.
+    // Reordering breaks world_transform resolution (the source TextSpec
+    // members would be moved-from by the time these reads happen).
+    const TextAnchor   box_anchor = p.layout.anchor;
+    const Vec2         box_size   = p.layout.box;
+    const Vec3         world_pos  = p.position;
+    const Color        text_color = p.appearance.color;
+
+    // Fallback: if the caller left font_path empty, use the project
+    // default (Inter-Bold).  Without this, the renderer would fail to
+    // locate a font when materializing via the supplied engine.
+    // Preserved from the pre-step-2 implementation for back-compat so
+    // external callers that construct minimal `TextSpec{.content={...}}`
+    // (e.g. tests, presets) still resolve a usable font path before
+    // the engine path-load kicks in.
     if (p.font.font_path.empty()) {
         p.font.font_path = "assets/fonts/Inter-Bold.ttf";
     }
-    node.shape.text().style.font_path = std::move(p.font.font_path);
-    node.shape.text().style.font_family = std::move(p.font.font_family);
-    node.shape.text().style.font_weight = p.font.font_weight;
-    node.shape.text().style.font_style = std::move(p.font.font_style);
-    node.shape.text().style.size = p.font.font_size;
-    node.shape.text().style.color = p.appearance.color;
-    // ── TextAnchor: anchor determines the box attachment point ──
-    node.shape.text().style.anchor    = p.layout.anchor;
-    // ── Intra-box alignment: separate from box anchoring ──
-    node.shape.text().style.align         = p.layout.align;
-    node.shape.text().style.vertical_align = p.layout.vertical_align;
-    node.shape.text().style.line_height = p.layout.line_height;
-    node.shape.text().style.tracking = p.layout.tracking;
-    node.shape.text().style.centering_mode = p.layout.centering_mode;
-    node.shape.text().style.box_style = p.appearance.box_style;
-    node.shape.text().style.paint = p.appearance.paint;
-    node.shape.text().style.shadows = std::move(p.appearance.shadows);
-    node.shape.text().style.material = std::move(p.appearance.material);
 
-    node.shape.text().style.auto_fit = p.layout.auto_fit;
-    node.shape.text().style.auto_scale = p.layout.auto_fit;
-    node.shape.text().style.max_lines = p.layout.max_lines;
-    node.shape.text().style.ellipsis = p.layout.ellipsis;
-    node.shape.text().style.min_size = p.layout.min_font_size;
-    node.shape.text().style.max_size = p.layout.max_font_size;
-    node.shape.text().style.overflow = p.layout.overflow;
-    node.shape.text().style.wrap = p.layout.wrap;
-    node.shape.text().style.pre_shaped = std::move(p.content.pre_shaped);
+    node.world_transform.anchor   = resolve_text_anchor(box_anchor, box_size);
+    node.world_transform.position = world_pos;
+    node.color = text_color;
+    node.fill  = Fill::solid_color(text_color);
 
-    node.shape.text().box.enabled = true;
-    node.shape.text().box.size = p.layout.box;
-    node.world_transform.anchor = resolve_text_anchor(p.layout.anchor, p.layout.box);
-    node.world_transform.position = p.position;
-    node.color = p.appearance.color;
-    node.fill = Fill::solid_color(p.appearance.color);
+    // ── Delegate to canonical materializer ──
+    //
+    // Wrap the legacy TextSpec into the canonical TextRunSpec and
+    // delegate to `materialize_text_run_shape(...)`.  cache_layout=true
+    // mirrors the TextRunBuilder default; animators/selectors are
+    // empty for the simple text() path (callers wanting animated
+    // text should use `text_run()` or `LayerBuilder::text_run(...)`).
+    TextRunSpec run_spec;
+    run_spec.text         = std::move(p);
+    run_spec.cache_layout = true;
+
+#ifdef CHRONON3D_USE_BLEND2D
+    auto shape = materialize_text_run_shape(run_spec, engine, SampleTime{});
+    if (shape) {
+        // Materialization succeeded — engine + shaping/compile/cache
+        // chain resolved.  Stash the materialized TextRunShape on the
+        // handle.  Paint / material / shadows / glyph state live on
+        // `shape` so downstream SoftwareBackend::draw_text_run sees
+        // a fully-populated payload.
+        node.shape.text_run_shape_handle().value = std::move(shape);
+    } else {
+        // Materialization failed (engine null OR shaping/compile
+        // returned Err).  Leave `value = nullptr` so the renderer-
+        // side source-pass routes the entry to TextRunNode which
+        // emits an `spdlog::error` for missing-shape (graceful
+        // degradation).  The factory still flags the entry as
+        // ShapeType::TextRun so the registry routes it correctly.
+        // PR 8.0 — when engine==nullptr, the materializer emits
+        // `spdlog::error("no FontEngine available...")` BEFORE
+        // returning; we just sink the nullptr result.
+    }
+#else  // !CHRONON3D_USE_BLEND2D
+    (void)run_spec;
+    (void)engine;
+    // When BLEND2D is disabled, the materializer symbol is a no-op
+    // (see src/scene/builders/text_run_builder.cpp: `#ifdef
+    // CHRONON3D_USE_BLEND2D`).  The factory still emits a TextRun
+    // node with a null handle so the cluster stays consistent.
+#endif
+
     return node;
 }
 

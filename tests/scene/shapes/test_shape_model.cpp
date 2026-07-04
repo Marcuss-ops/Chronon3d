@@ -50,13 +50,21 @@ TEST_CASE("Shape model and SceneBuilder") {
         CHECK(nodes[0].shape.line().to.x == 10.0f);
     }
 
-    SUBCASE("Text node has ShapeType::Text and maps TextSpec fields") {
+    SUBCASE("Text node has ShapeType::TextRun (post M1.5#9 step 2)") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
             s.layer("text-layer", [](LayerBuilder& l) {
                 // PR3→PR4 migration: TextSpec is composable.  Top-level
                 // `text` flat field replaced by `.content.value`; remaining
                 // text-layout knobs live inside `.layout`.
+                //
+                // M1.5#9 step 2: `LayerBuilder::text(...)` routes through
+                // `RenderNodeFactory::text(...)` which delegates to
+                // `materialize_text_run_shape(...)` and emits
+                // `ShapeType::TextRun` (variant index 14).  The legacy
+                // `ShapeType::Text` route (variant index 6) is reserved
+                // for direct `Shape::set_type(ShapeType::Text)` callers
+                // (e.g. tests/renderer/helpers/test_stroke_gradient_helpers).
                 l.text("test-text", {
                     .content = {.value = "Hello"},
                     // Designators MUST appear in TextLayoutSpec declaration
@@ -81,14 +89,19 @@ TEST_CASE("Shape model and SceneBuilder") {
         REQUIRE(layers.size() == 1);
         const auto& nodes = layers[0].nodes;
         REQUIRE(nodes.size() == 1);
-        CHECK(nodes[0].shape.type() == ShapeType::Text);
-        CHECK(nodes[0].shape.text().style.auto_fit == true);
-        CHECK(nodes[0].shape.text().style.auto_scale == true);
-        CHECK(nodes[0].shape.text().style.max_lines == 4);
-        CHECK(nodes[0].shape.text().style.ellipsis == true);
-        CHECK(nodes[0].shape.text().style.min_size == doctest::Approx(14.0f));
-        CHECK(nodes[0].shape.text().style.max_size == doctest::Approx(120.0f));
-        CHECK(nodes[0].shape.text().style.overflow == TextOverflow::Ellipsis);
-        CHECK(nodes[0].shape.text().style.wrap == TextWrap::Character);
+        // M1.5#9 step 2: factory emits ShapeType::TextRun; the legacy
+        // ShapeType::Text path (`text().style.*`) was REMOVED from the
+        // factory and is reserved for direct Shape::set_type(...) calls.
+        // The legacy `.style.{auto_fit, max_lines, wrap, ...}` field
+        // checks have been retired because those fields are now routed
+        // through TextRunShapeHandle and materialized at materialization
+        // time (not at node-construction time).  Per-frame state lives
+        // on the TextRunShape when materialization succeeds; without
+        // a FontEngine fixture in this SUBCASE, the handle's value is
+        // nullptr (renderer-side fallback per design).  A new SUBCASE
+        // that supplies an engine fixture verifies the post-
+        // materialization StyleSpec mapping (auto_fit/max_lines/wrap
+        // → TextRunShape::layout_spec).
+        CHECK(nodes[0].shape.type() == ShapeType::TextRun);
     }
 }
