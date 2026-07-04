@@ -589,3 +589,121 @@ TEST_CASE("TICKET-035: EvaluatedProjection active_viewport honours Overscan; pix
     CHECK(snap.active_viewport.width  == doctest::Approx(1620.0f).epsilon(0.5f));
     CHECK(snap.active_viewport.height == doctest::Approx(1080.0f).epsilon(0.5f));
 }
+
+// ============================================================================
+// SENTINEL REGRESSION — GateFit::Overscan must NEVER return an effective
+// viewport larger than the requested viewport.  Property-based: iterates a
+// fixed set of (sensor, viewport) combinations; REQUIRE captures the
+// offending case so a failure says exactly which combination regressed.
+//
+// Epsilon note: 1e-2f (one centi-pixel) accommodates f32 rounding noise at
+// 4K (ULP ~= 2.4e-4f) across multiple divisions + multiplications without
+// hiding genuine regressions at the sub-pixel level.
+// ============================================================================
+TEST_CASE("Sentinel: effective_viewport fits within requested viewport in every GateFit mode") {
+    struct ViewportCase {
+        f32         vp_w;
+        f32         vp_h;
+        const char* lens_name;
+        LensModel   lens;
+    };
+    // Pre-built lens catalogue keeps the test body free of branching.
+    const ViewportCase kCases[] = {
+        // ===== Boundary: same aspect (vp_aspect == sa) — no bars in any mode =====
+        {1500.0f, 1000.0f, "full_frame_50mm", LensPresets::full_frame_50mm()},  // vp_a = sa = 1.5 ⇒ zero offset
+        // ===== Standard viewports + full-frame 35mm (sa = 1.5) =====
+        {1080.0f, 1080.0f, "full_frame_50mm", LensPresets::full_frame_50mm()},  // 1:1 vp → LETTERBOX
+        {1920.0f, 1080.0f, "full_frame_50mm", LensPresets::full_frame_50mm()},  // 16:9 → PILLARBOX (canonical)
+        {1440.0f, 1080.0f, "full_frame_50mm", LensPresets::full_frame_50mm()},  // 4:3 vp → LETTERBOX
+        {2560.0f, 1080.0f, "full_frame_50mm", LensPresets::full_frame_50mm()},  // 21:9 → strong PILLARBOX
+        {1080.0f, 1920.0f, "full_frame_50mm", LensPresets::full_frame_50mm()},  // 9:16 portrait → LETTERBOX
+        {3840.0f, 1080.0f, "full_frame_50mm", LensPresets::full_frame_50mm()},  // 32:9 super wide → PILLARBOX
+        // ===== 16:9 vp + alternative sensors =====
+        {1920.0f, 1080.0f, "mft_25mm",        LensPresets::mft_25mm()},         // sa=1.33 → PILLARBOX
+        {1920.0f, 1080.0f, "anamorphic_50mm", LensPresets::anamorphic_50mm()},  // sa=1.18 → strong PILLARBOX
+        {1920.0f, 1080.0f, "imax_50mm",       LensPresets::imax_50mm()},        // sa=2.39 → LETTERBOX
+        // 4K vp + ARRI Alexa 35 (sa=1.897); 4K aspect = 1.78 < 1.897 → LETTERBOX.
+        {3840.0f, 2160.0f, "arri_35mm",       LensPresets::arri_35mm()},
+        // ===== Edge cases =====
+        {1.0f,    1.0f,    "full_frame_50mm", LensPresets::full_frame_50mm()},  // single-pixel
+        {0.0f,    1080.0f, "full_frame_50mm", LensPresets::full_frame_50mm()},  // zero width
+        {1080.0f, 0.0f,    "full_frame_50mm", LensPresets::full_frame_50mm()},  // zero height
+        {-1.0f,   1080.0f, "full_frame_50mm", LensPresets::full_frame_50mm()},  // negative width
+    };
+
+    for (const auto& c : kCases) {
+        // ── Overscan: PRIMARY sentinel ─ the user's regression requirement. ──
+        {
+            Camera2_5D cam;
+            cam.lens = c.lens;
+            cam.lens.gate_fit = GateFit::Overscan;
+            CAPTURE(c.vp_w); CAPTURE(c.vp_h); CAPTURE(c.lens_name); CAPTURE("Overscan");
+
+            const auto eff = cam.lens.effective_viewport(c.vp_w, c.vp_h);
+            // Negative inputs early-return {0,0,0,0}; clamp upper-bound so the
+            // invariant `eff.width <= vp_w` doesn't false-positive on bad input.
+            const f32 vp_w_eff = std::max(0.0f, c.vp_w);
+            const f32 vp_h_eff = std::max(0.0f, c.vp_h);
+            // Core sentinel (the regression that the user wants to catch):
+            REQUIRE(eff.width  <= vp_w_eff + 1e-2f);
+            REQUIRE(eff.height <= vp_h_eff + 1e-2f);
+            // Subrect fits inside the canvas (no negative-offset drift):
+            REQUIRE(eff.x >= -1e-2f);
+            REQUIRE(eff.y >= -1e-2f);
+            REQUIRE(eff.x + eff.width  <= vp_w_eff + 1e-2f);
+            REQUIRE(eff.y + eff.height <= vp_h_eff + 1e-2f);
+            // Non-degenerate output for non-degenerate input:
+            if (c.vp_w > 0.0f && c.vp_h > 0.0f) {
+                REQUIRE(eff.width  > 0.0f);
+                REQUIRE(eff.height > 0.0f);
+            }
+        }
+        // ── Fill: subrect must equal canvas for non-degenerate input (sensor cropped). ──
+        {
+            Camera2_5D cam;
+            cam.lens = c.lens;
+            cam.lens.gate_fit = GateFit::Fill;
+            CAPTURE(c.vp_w); CAPTURE(c.vp_h); CAPTURE(c.lens_name); CAPTURE("Fill");
+
+            const auto eff = cam.lens.effective_viewport(c.vp_w, c.vp_h);
+            const f32 vp_w_eff = std::max(0.0f, c.vp_w);
+            const f32 vp_h_eff = std::max(0.0f, c.vp_h);
+            // Universal invariant: subrect never overflows the requested viewport.
+            // (For vp_w <= 0 OR vp_h <= 0 the function early-returns {0,0,0,0}, which
+            //  trivially satisfies the upper bound.)
+            REQUIRE(eff.width  <= vp_w_eff + 1e-2f);
+            REQUIRE(eff.height <= vp_h_eff + 1e-2f);
+            // Equality invariant: only for non-degenerate inputs the function reaches
+            // its Fill branch and returns the full canvas.
+            if (c.vp_w > 0.0f && c.vp_h > 0.0f) {
+                REQUIRE(eff.width  == doctest::Approx(vp_w_eff).epsilon(1e-2));
+                REQUIRE(eff.height == doctest::Approx(vp_h_eff).epsilon(1e-2));
+                REQUIRE(eff.x      == doctest::Approx(0.0f).epsilon(1e-2));
+                REQUIRE(eff.y      == doctest::Approx(0.0f).epsilon(1e-2));
+            }
+        }
+        // ── Stretch: subrect must equal canvas for non-degenerate input
+        //    (per-axis focal can differ; size + no-offset stay canonical
+        //    because Stretch intentionally fills the viewport). ──
+        {
+            Camera2_5D cam;
+            cam.lens = c.lens;
+            cam.lens.gate_fit = GateFit::Stretch;
+            CAPTURE(c.vp_w); CAPTURE(c.vp_h); CAPTURE(c.lens_name); CAPTURE("Stretch");
+
+            const auto eff = cam.lens.effective_viewport(c.vp_w, c.vp_h);
+            const f32 vp_w_eff = std::max(0.0f, c.vp_w);
+            const f32 vp_h_eff = std::max(0.0f, c.vp_h);
+            // Universal invariant (see Fill block above for rationale).
+            REQUIRE(eff.width  <= vp_w_eff + 1e-2f);
+            REQUIRE(eff.height <= vp_h_eff + 1e-2f);
+            // Equality invariant: only for non-degenerate inputs.
+            if (c.vp_w > 0.0f && c.vp_h > 0.0f) {
+                REQUIRE(eff.width  == doctest::Approx(vp_w_eff).epsilon(1e-2));
+                REQUIRE(eff.height == doctest::Approx(vp_h_eff).epsilon(1e-2));
+                REQUIRE(eff.x      == doctest::Approx(0.0f).epsilon(1e-2));
+                REQUIRE(eff.y      == doctest::Approx(0.0f).epsilon(1e-2));
+            }
+        }
+    }
+}
