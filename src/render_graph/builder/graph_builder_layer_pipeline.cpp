@@ -70,7 +70,7 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
 
     if (!ctx.policy.skip_initial_clear && layer_output != k_invalid_node) {
         const bool simple_opaque_full_frame_layer =
-            layer.kind == LayerKind::Normal &&
+            (layer.kind == LayerKind::Normal || layer.kind == LayerKind::Shape || layer.kind == LayerKind::Text) &&
             layer.nodes.size() == 1 &&
             layer.mask.type == MaskType::None &&
             layer.effects().empty() &&
@@ -106,6 +106,8 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
 
     const bool mask_before_transform =
         layer.kind == LayerKind::Normal ||
+        layer.kind == LayerKind::Shape ||
+        layer.kind == LayerKind::Text ||
         layer.kind == LayerKind::Precomp ||
         layer.kind == LayerKind::Video;
 
