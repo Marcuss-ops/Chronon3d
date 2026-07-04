@@ -15,6 +15,30 @@
 - AGENTS.md v0.1 freeze Cat-3 (test deterministici — golden test). Zero nuovi simboli pubblici; tutti i lock vivono dentro `src/scene/camera/camera_v1/*` (carry-forward), `tests/scene/camera/test_camera_program_compiled.cpp` (§1.B, §2.A, §4.B, §4.C, §10), `tests/scene/camera/test_orient_along_path.cpp` (Step 4), e lo script regen.
 - Companion tickets chiusi: TICKET-021 (variance-preserving dispatch), TICKET-022 (single-application canonical-order lock), TICKET-024 (orbit position camera-local basis), TICKET-025 (OrientAlongPath semantic correctness). Stato promosso da `PARTIAL`/`PLANNED` → `DONE` (vedi `docs/FOLLOWUP_TICKETS.md` Recently closed + `docs/CURRENT_STATUS.md` §Camera V1 DoD sub-section). Note: il full `chronon3d_scene_tests` target è attualmente blocked da 2 pre-esistenti rot su `main` (`golden_projection_test.cpp` 4× `FocalPx` undefined + `camera_program_compiler.cpp:330-335` `size()` vs `points().size()`) — fuori scope del cluster Camera V1; i singoli TU sono compile-clean in isolation.
 
+### build — Cat-1 build rot clear scene_tests link (commit `7ee302bf`)
+- 3 Agent3-introduced test-compile regressions chiuse in atomic commit `7ee302bf`:
+  - `tests/scene/camera/golden_projection_test.cpp`: 4× `FocalPx` → `camera_math::FocalPx` (matches canonical usage in `camera_2_5d_projection.hpp:199`, `camera_projection_resolver.hpp:134/351/518/533`, `evaluated_projection.hpp:124`). Header already includes `camera_projection_contract.hpp`; fix was namespace qualification only.
+  - `tests/scene/camera/test_camera_context_framerate_propagation.cpp`: 2× `fz.fps.num`/`fz.fps.den` → `fz.fps.numerator`/`fz.fps.denominator` (`chronon3d::FrameRate` declared at `core/types/time.hpp:9-26` exposes DATA FIELDS `.numerator`/`.denominator`, not `.num()`/`.den()` — the latter are accessor methods, not fields). Added explicit `#include <chronon3d/core/types/time.hpp>` per IWYU (was previously reachable transitively via `sample_time.hpp`).
+  - `tests/scene/camera/test_camera_lookat_layer_missing_transforms.cpp`: added `#include <chronon3d/scene/camera/camera_v1/camera_session.hpp>` (`camera_program.hpp:36` only forward-declares `struct CameraSession;`; the test constructs `CameraSession session{}` on L118/L150/L169/L190 which requires the complete type).
+- Verification: in-isolated TU compile GC=0 across all 3 fixed TUs; full `chronon3d_scene_tests` link GC=0 (cleared from 3 distinct blockers to 1 remaining pre-existing rot — the `size()`/`points().size()` mismatch in `camera_program_compiler.cpp:330-335`).
+- AGENTS.md v0.1 freeze Cat-1 (build corrections — test-side scope). Zero nuove API pubbliche; tutti i fix vivono dentro test-side TUs + una dichiarazione-namespace-qualifier; nessun header `include/chronon3d/` modificato.
+
+### docs(status) — Camera Production V1 row recovery (commit `c5793405`)
+- `docs/CURRENT_STATUS.md` "Stato generale per area" table had the `Camera Production V1` row accidentally deleted by a faulty sed regex during the `7ee302bf` rebase-conflict resolution:
+  ```sh
+  sed -i '/^| Camera Production V1.*Projection contract closed (C1/d' docs/CURRENT_STATUS.md
+  ```
+  The regex matched BOTH the HEAD-side row AND the REMOTE-side row because both contained the substring `"Projection contract closed (C1..."`; both rows were dropped, leaving the table without the Camera entry.
+- Follow-up commit `c5793405` re-inserts the row between the `Text Production V1` and `SDK C++ installabile` rows with updated post-Cat-1-fix factual state:
+  - Agent3 C1–C7 projection contract (`FocalPx`/`ViewportRect`/`focal_xy_from_camera`/`effective_viewport` con offset; golden test 6-mode committed `tests/scene/camera/golden_projection_test.cpp`).
+  - Agent1 Step 4+5 trajectory work (lens/DOF/motion_blur/parent carry-forward + OrientAlongPath real tangent/roll + keep_horizon + degenerate-tangent safety + §10 GOLDEN regression + TICKET-021/022/024/025 DONE).
+  - 6/6 CAM-DOC 04 arch-boundary DoD PASS (`tools/check_camera_architecture.sh`).
+  - Cat-1 build-rot commit `7ee302bf` cleared FocalPx / FrameRate / CameraSession test-compile regressions; full `chronon3d_scene_tests` link now GREEN.
+  - 1 pre-existing on-`main` rot rimane aperto: `size()` vs `points().size()` in `camera_program_compiler.cpp:330-335` — TICKET independent, out of scope Cat-1 step.
+  - Runtime certification + framing/clipping/DOF + legacy migration ancora aperti.
+- `tools/check_doc_sync.sh` PASS post-recovery (gate #7 AGENTS.md); only the canonical `docs/CURRENT_STATUS.md` was touched.
+- AGENTS.md v0.1 freeze Cat-1 (documentation-only correction; no source/test/tools changes).
+
 ### audit — close `TICKET-render-pipeline-fps-defaults-audit` (Policy E; no header change; fps uniformly no-default)
 Audit on `float fps` parameters across `RenderPipeline::render_scene` overloads + `RenderPipeline::debug_graph`: aired originally as code-review nit on commit `fc144fa2`.  **Verdict: no code change** — all scanned methods on `RenderPipeline` (header), the `RenderPipeline::render_scene` member-fn bodies in `src/runtime/render_pipeline.cpp:32,54` (matching header signatures), the lower-level free functions in `include/chronon3d/render_graph/pipeline/render_pipeline.hpp` (`chronon3d::graph::render_scene_via_graph` + `debug_scene_graph`), and `SoftwareRenderer::render_scene` definitions in `include/chronon3d/backends/software/software_renderer.hpp` (+ `.cpp`) ALL require the caller to pass `float fps` explicitly (no default).  This preserves upstream `6df9b429` ("P1 #10 - remove hardcoded 30.0f fps defaults from core pipeline") intent exactly.  The `= 0.0f` sentinel on `debug_graph`'s `frame_time` parameter is unrelated to `fps` and exists strictly to satisfy the C++ default-argument contiguity rule around `Frame frame = 0`.  AGENTS.md v0.1 freeze Cat-1 (build corrections — install-pipeline plumbing).  Zero new public symbols; pure audit closure (No-Ops commit body).  Companion spec: [`docs/tickets/TICKET-095.md`](tickets/TICKET-095.md).  Origin: code-reviewer-minimax-m3 nit on commit `fc144fa2` (3-line comment-trim retro-fixup to `75035f2b`'s default-arg chain fix); non-blocking.
 
