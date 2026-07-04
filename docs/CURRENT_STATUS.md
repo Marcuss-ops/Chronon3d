@@ -183,6 +183,24 @@ Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA,
 | P1 #9 | RenderRuntime service locator | — | PLANNED |
 | P1 #11 | Timeline percorsi multipli | — | PLANNED |
 
+## Gate audit snapshot — `main@2895bd88` (2026-07-04, post-§3.1 execution-plan + FF-pull origin/main — 11-gate atomic audit)
+
+| # | Gate                                        | Esito      | Note                                                                       |
+|---|---------------------------------------------|------------|----------------------------------------------------------------------------|
+| 1 | `check_architecture_boundaries.sh`          | ✅ PASS    | Exit 0; tutti i check statici rispettati.                                  |
+| 2 | `check_architecture_boundaries_selftest.sh` | ✅ PASS    | Exit 0; 15/15 assertions.                                                  |
+| 3 | `check_software_renderer_boundary.sh`       | ✅ PASS    | Exit 0; I1-I5 tutti rispettati.                                            |
+| 4 | `check_gitignored_dirs.sh`                  | ❌ FAIL    | abs-path leak rilevato in `docs/tickets/TICKET-GATE-10-PHASE-4-BLACK-FU4.md:75` (`cd /home/pierone/Pyt/Chronon3d`); propagazione TICKET-GATE-4-LEAK cluster (stato aggiornato a PARTIAL in `FOLLOWUP_TICKETS.md`). |
+| 5 | `audit_software_renderer.sh`                | ✅ PASS    | Exit 0; report generato.                                                   |
+| 6 | `check_camera_architecture.sh`              | ✅ PASS    | Exit 0; 6/6 check (CameraSessionLease §3.1 commit `a8414705` verified on main). |
+| 7 | `check_doc_sync.sh`                         | ✅ PASS    | Exit 0; doc-sync door-keep between canonicals (FOLLOWUP_TICKETS + ROADMAP + CURRENT_STATUS + CHANGELOG) nello stesso §3.6 commit. |
+| 8 | `check_filename_drift.sh`                   | ⚠️ PASS*   | warn-mode; 89 drift findings (↓ da 170 post-M1.5#6 tightening pass).       |
+| 9 | `test_architectural.sh`                     | ✅ PASS    | Exit 0; static architecture-level rot: 0.                                  |
+| 10 | `install_consumer_test.sh`                  | ❓ NOT RUN | Heavy full-build richiesto; carry-over rot da `9ecb4879` (Phase 4 black-render / `highway_*_kernels.cpp.o` compile rot); TICKET-GATE-10-PHASE-4-FIX parziale + TICKET-RUNTIME-ADAPTER-INCOMPLETE-TYPE build-fix DONE ma certifier-side PARTIAL. |
+| 11 | `check_backend_sanitization.py`             | ✅ PASS    | Exit 0; tutti i check passati (TICKET-GATE-11-PRINTF-FIX verify pending — potrebbe essere stale doc-tracking; sarà soggetto di FU5 follow-up). |
+
+**Totale osservato: 8 atomic PASS + 1 FAIL (g4) + 1 PASS* (g8) + 1 NOT RUN (g10) = 9/11 attivi + 1 NOT RUN + 1 FAIL.**  **NON è 11/11: feature freeze resta attivo.**  Cross-link: ROADMAP.md Snapshot block onesto + FOLLOWUP_TICKETS.md TICKET-GATE-4-LEAK row aggiornato per assorbimento g4 leak.  Nessun file `docs/baselines/main-<sha>-baseline.md` creato (revoca feature freeze richiede 11/11 PASS macchina-verificato sullo stesso commit, non soddisfatto).  **Caveat cronologico**: l'audit snapshot è stato eseguito pre-§3.6-push (HEAD pre-commit = `2895bd88`); il commit §3.6 doc-sync atterra *sopra* questo SHA come figlio diretto, quindi il post-§3.6 HEAD avrà un SHA nuovo.  Questo snapshot rimane quindi il "closest macchina-verificato osservabile" per la finestra pre-§3.6; qualsiasi nuova baseline macchina-verificata dopo §3.6 richiederà una nuova run atomica.
+
 ## Gate audit snapshot — `main@1078ab46` (2026-07-04, 11-gate audit)
 
 | # | Gate                                        | Esito      | Note                                                                       |
