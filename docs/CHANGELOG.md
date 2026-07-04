@@ -7,6 +7,41 @@
 
 ## Luglio 2026 — Chiusure recenti
 
+### camera — Camera V1 projection contract: golden 6-mode test (commit `eb1ce8e5`)
+- `tests/scene/camera/golden_projection_test.cpp` (new): 1 `TEST_CASE` × 6 `SUBCASEs` covering Zoom, FOV 50°, PhysicalLens ARRI Alexa 35, GateFit::Stretch, GateFit::Overscan, Anamorphic 2×. Tolerance-based assertions against analytical ground-truth formulas in `include/chronon3d/scene/math/camera_math.hpp`.
+- Closes the Camera V1 projection-contract cluster (C1–C7); Camera V1 DoD 6/6 CAM-DOC 04 arch-boundary checks PASS (`tools/check_camera_architecture.sh`).
+- AGENTS.md v0.1 freeze Cat-2 (test deterministici — golden test) + Cat-3 (regression-gate verification). Zero new public API; lock lives in `tests/scene/camera/golden_projection_test.cpp` + `include/chronon3d/scene/math/camera_math.hpp`.
+- Companion tickets: TICKET-035 (anamorphic squeeze), TICKET-034D (CameraDescriptor fingerprint). Stato promosso PLANNED → DONE per i sub-tickets chiusi da questo commit.
+
+### docs — Camera V1 docs refresh: Feature Matrix + Architecture Plan + Status (commit `34d0e373`)
+- `docs/FEATURES.md` + `docs/ARCHITECTURE_EVOLUTION_PLAN.md` + `docs/CURRENT_STATUS.md` aggiornati per riflettere lo stato Camera V1 post-C1..C7: contract chiuso, golden test presente, 6/6 CAM-DOC 04 arch-boundary DoD PASS.
+- `docs/CAMERA_FEATURE_MATRIX.md` cross-references aggiunti al Camera V1 DoD sub-section di `docs/CURRENT_STATUS.md`.
+- AGENTS.md v0.1 freeze Cat-5 (allineamento documentazione). Zero codice toccato; solo docs/ canonici.
+- Companion: TICKET-camera-docs-refresh (this commit's umbrella).
+
+### test(camera) — C9a runtime certifier enables `chronon3d_scene_tests` build (commit `734b8486`)
+- Build fix C9a: `SKIP_UNITY_BUILD_INCLUSION` su `timed_text_document.cpp` + `boundary_resolver/text_unit_map.cpp` per chiudere ODR TU-locali pre-esistenti in `chronon3d_text_core`. Senza questo, `chronon3d_scene_tests` link falliva su TU-local ODR conflict e il certifier non poteva girare.
+- Runtime certifier attivo: 1 `TEST_CASE` × 6 `SUBCASEs` del `golden_projection_test.cpp` (vedi C7 entry) ora passa in CI — **71/71 assertion PASS** (toll 1e-3) in `build/tests/chronon3d_scene_tests` post-C9a.
+- Compilazione clean confermata da `tools/check_architecture_boundaries.sh` (gate #1, gate #6).
+- 24 fallimenti pre-esistenti emersi in `chronon3d_scene_tests` (esclusi dal certifier) → vedi TICKET-120 (open). Camera Production V1 resta PARTIAL fino a TICKET-120 chiusura.
+- AGENTS.md v0.1 freeze Cat-1 (build corrections — test-side scope). Zero nuove API pubbliche.
+
+### followup — TICKET-120 OPEN: 24 pre-existing runtime failures surfaced by C9a (commit `734b8486`)
+- `docs/tickets/TICKET-120.md` (new): traccia 24 fallimenti pre-esistenti in `chronon3d_scene_tests` emersi quando C9a ha abilitato il build del target. Fino a C9a, questi fallimenti erano mascherati dai build-level blocker (`SKIP_UNITY_BUILD_INCLUSION` ODR conflicts).
+- 2 sub-tickets già diagnosticati con root cause:
+  - `TICKET-034D`: `CameraDescriptor` fingerprint serialization → `SIGABRT` in `test_camera_projection_contract.cpp`.
+  - `TICKET-035`: anamorphic_squeeze wrong-asset (2.0 ratio usato invece del 3.011 ratio validato in C7) in `test_camera_projection_contract.cpp:572`.
+- 22 fallimenti rimanenti da triagire (cluster: scene_tests pre-existing rot, fuori scope Camera V1 step + C9a).
+- Status: PARTIAL. Sub-progression documentata: TICKET-022 → DONE in commit `16319557` (docs(followup): TICKET-022 → DONE + TICKET-120 Cat-1 progress (3/24)).
+- AGENTS.md v0.1 freeze Cat-5 (allineamento documentazione — nuovo ticket aperto). Zero codice toccato in questo commit; ticket vive in `docs/tickets/`.
+
+### docs — C9b: post-C9a docs refresh + TICKET-120 link (commit `9f108654`)
+- `docs/CURRENT_STATUS.md` §"Stato generale per area" + §"Camera V1 — DoD": aggiornati per riflettere post-C9a state — Camera Production V1 row mostra "certifier runtime PASS 71/71 assertion 6/6 SUBCASEs + 24 fallimenti pre-esistenti aperti in TICKET-120".
+- `docs/FOLLOWUP_TICKETS.md` §"Blocker correnti" + §"Recently closed": TICKET-120 entry added con status PARTIAL, scope 24 fallimenti, 2 sub-tickets diagnosticati (TICKET-034D, TICKET-035).
+- `docs/CHANGELOG.md` (this file): TICKET-120 entry aggiunto (vedi sopra) come parte della chiusura del R5 doc-sync gate.
+- AGENTS.md v0.1 freeze Cat-5 (allineamento documentazione). Zero codice toccato.
+- Companion: TICKET-120 (open).
+
 ### render_graph — TICKET-camera-policy-pre-existing closure (M1.5#1 + M1.5#2 carryover) verified clean on main@83e74169
 - `src/render_graph/pipeline/camera_change_policy.cpp:24` — rot pre-esistente `Camera2_5D::projection_mode` rimossa e migrata a `Camera2_5D::optics_mode` (origin fixata in commit `ac514fea`). Field ora canonico nel camera_v1 schema (`camera_v1::Lens` famiglia in `include/chronon3d/scene/camera/camera_v1/camera_2_5d_projection.hpp`).
 - Verifica macchina su `main@83e74169`:
