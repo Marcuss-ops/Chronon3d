@@ -7,6 +7,17 @@
 
 ## Luglio 2026 — Chiusure recenti
 
+### text-run — M1.5#10 (4/4): DELETE `include/chronon3d/text/rich_text.hpp` + `src/backends/text/rich_text.cpp` (legacy polyfill closed)
+- `git rm include/chronon3d/text/rich_text.hpp` (380 LOC) — `RichTextLine` class + `RichTextRun` struct + `draw_rich_text` inline + 3 enums (`RichTextRunKind` / `RichTextVerticalAnchor` / ...) + 3 metrics structs (`RichTextRunMetrics` / `RichTextLineMetrics` / `RichTextLayoutOptions`) TUTTI rimossi dal public ABI.
+- `git rm src/backends/text/rich_text.cpp` (90 LOC) — `RichTextLine::measure(...)` + `RichTextLine::measure_run(...)` implementations rimosse.
+- `~ include/chronon3d/layout/design_kit.hpp`: drop `text/rich_text.hpp` row dal comment block (line 9 deleted) + drop `#include <chronon3d/text/rich_text.hpp>` (line 17 deleted). Design_kit aggregator ora dichiara SOLO `layout_stack` + `stroked_shapes`.
+- `~ src/backends/text/CMakeLists.txt`: drop `rich_text.cpp` (line 13) da `chronon3d_backend_text` OBJECT library (6 sources -> 5 sources).
+- `~ docs/FOLLOWUP_TICKETS.md`: row M1.5#10-SEQUENCE SPOSTATO dal P1 backlog -> section **Recently-closed (DONE — verificati)**. 4-commit trace: `6491cdff` (1/4) + `8144715a` (2/4) + `42e273be` (3/4) + `<pending 4>`.
+- `~ docs/CURRENT_STATUS.md`: M1.5#10 progress row switched da `1/4 done` a `4/4 done` (canonical legacy polyfill closure).
+- ZERO new public API surface (canonical `l.text(name, TextSpec)` + `l.text_run(name, TextRunParams)` invariato). ZERO new singletons/registries/caches. AGENTS.md v0.1 Cat-3 (Rimozione percorsi legacy) freeze-compliant. Era marcato già `P1-LEGACY-TEXT-PIPELINE`, ora completamente eliminato dal public ABI.
+- `tools/check_doc_sync.sh` PASS · `tools/check_legacy_text_pipeline.sh` PASS · `cmake --build build --target chronon3d_sdk_impl -- -j2` PASS.
+
+
 ### text-run — M1.5#10 (3/4): doc-only sweep confirmation — ZERO `draw_rich_text` callers
 - Machine-verified sweep: `grep -rnE '"'"'\bdraw_rich_text\b'"'"' --include='"'"'*.cpp'"'"' --include='"'"'*.hpp'"'"' --include='"'"'*.h'"'"'` escludendo `rich_text.hpp`/`rich_text.cpp` → ZERO hit produttivi. La `draw_rich_text()` rimane confinata al monolite da eliminare (Step 4).
 - Survey canonical migration: path canonico finale `l.text_run(name, TextRunParams{...})` (M1.5#5 lineage) produce `TextRunShape`; il path legacy emette `l.text(name, TextSpec{...})` che produce `TextShape`. La funzione legacy diventa un no-op post-3-step ed elimina in Step 4 senza sostituti (DELETE senza bridging polyfill).

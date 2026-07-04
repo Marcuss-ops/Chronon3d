@@ -10,7 +10,6 @@ add_library(chronon3d_backend_text OBJECT
     font_engine.cpp
     bidi_segmenter.cpp
     glyph_atlas.cpp                  # M1.5#7 stub — canonical impl in resources/glyph_atlas.cpp
-    rich_text.cpp
     text_render_resources.cpp        # M1.5#7 slimmed — resolve_handle only    # No submodule hierarchy currently (M1.5#7 split deferred to a follow-up
     # commit: it requires migrating text_rasterizer_render.cpp and friends to
     # the per-session instance API, which is out of scope for M1.5#7).
