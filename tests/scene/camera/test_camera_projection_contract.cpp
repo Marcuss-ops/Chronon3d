@@ -555,21 +555,35 @@ TEST_CASE("TICKET-035: GateFit::Overscan letterbox layout (sensor wider than por
     CHECK(eff.height == doctest::Approx(720.0f).epsilon(0.5f));
 }
 
-TEST_CASE("TICKET-035: anamorphic_squeeze 2.0 produces focal_x == 2 * focal_y for anamorphic_50mm") {
+TEST_CASE("TICKET-035: anamorphic_squeeze 2.0 produces focal_x == 3.011 * focal_y for anamorphic_50mm") {
     Camera2_5D cam;
     cam.lens = LensPresets::anamorphic_50mm();    // 50mm anamorphic Fill, anamorphic_squeeze=2.0
     cam.optics_mode = CameraOpticsMode::PhysicalLens;
     auto fxy = camera_math::focal_xy_from_camera(cam, 1920.0f, 1080.0f);
-    // For Fill with 3:2 sensor in 16:9 viewport, the post-aspect fit
-    // produces an equal base focal_x/base_focal_y; anamorphic_squeeze=2 then
-    // inflates focal_x by exactly 2x.
-    CHECK(fxy.x == doctest::Approx(2.0f * fxy.y).epsilon(0.5f));
+    // TICKET-120 / TICKET-035 — anamorphic_50mm has a sensor aspect
+    // 21.95/18.59 ≈ 1.181 (NOT 3:2 = 1.5).  Under Fill, the base per-axis
+    // focal ratio on a 16:9 viewport is (1920/21.95) / (1080/18.59) ≈ 1.506.
+    // The anamorphic_squeeze of 2.0 multiplies ONLY the X base, so the
+    // observed focal_x / focal_y = 1.506 * 2.0 = 3.011 (same value the C7
+    // golden test in golden_projection_test.cpp SUBCASE "Mode 6/6" locks).
+    // The pre-fix 2.0 assertion was a buggy assumption that the per-axis
+    // base ratio was 1.0; the correct ratio is 3.011 (see C7 golden).
+    CHECK(fxy.x == doctest::Approx(3.011f * fxy.y).epsilon(0.01f));
     CHECK(cam.lens.anamorphic_squeeze == doctest::Approx(2.0f));
 
     // Spherical lens with default squeeze 1.0 should NOT inflate focal_x.
+    // TICKET-120 followup — under Fill, the per-axis focal ratio reflects
+    // the viewport/sensor aspect ratio (1.185 for 1920x1080 on 36x24mm),
+    // NOT multiplied by anamorphic_squeeze (which would give 1.185 * 2.0
+    // = 2.37 for an anamorphic_50mm case). Switch to Overscan to isolate
+    // the squeeze-isolation invariant from the per-axis aspect invariant:
+    // under Overscan the effective viewport matches sensor aspect, so
+    // focal_x == focal_y exactly when squeeze=1.0.
     cam.lens = LensPresets::full_frame_50mm();
+    cam.lens.gate_fit = GateFit::Overscan;
     auto fxy_spherical = camera_math::focal_xy_from_camera(cam, 1920.0f, 1080.0f);
     CHECK(fxy_spherical.x == doctest::Approx(fxy_spherical.y).epsilon(1e-4f));
+    CHECK(cam.lens.anamorphic_squeeze == doctest::Approx(1.0f));
 }
 
 TEST_CASE("TICKET-035: EvaluatedProjection active_viewport honours Overscan; pixel_aspect + anamorphic_squeeze from LensModel") {
