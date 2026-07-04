@@ -152,8 +152,8 @@ Workstream design-FROZEN 2026-07-04 contro feature-freeze attivo; **nessun codic
 
 | ID | Area | Note |
 |---|---|---|
-| TICKET-camera-policy-pre-existing (M1.5#1 carryover) | `camera_change_policy.cpp:24` — `Camera2_5D::projection_mode` rot pre-esistente; bloccava `chronon3d_render_graph_tests` LINK. Fixata in `ac514fea` (projection_mode→optics_mode). | Fix pushed; verify sui test target |
-| TICKET-camera-policy-pre-existing (M1.5#2 carryover) | Stesso rot blocca `chronon3d_core_tests`. Fixata in `ac514fea`. | Fix pushed; verify sui test target |
+| TICKET-camera-policy-pre-existing (M1.5#1 carryover) | `camera_change_policy.cpp:24` — `Camera2_5D::projection_mode` rot pre-esistente; bloccava `chronon3d_render_graph_tests` LINK. Fixata in `ac514fea` (projection_mode→optics_mode). | ✅ FIX VERIFIED (0 ref in camera_change_policy.cpp). Test target ancora rotto per TICKET-011 (text_unit_map build rot). |
+| TICKET-camera-policy-pre-existing (M1.5#2 carryover) | Stesso rot blocca `chronon3d_core_tests`. Fixata in `ac514fea`. | ✅ FIX VERIFIED (0 ref in camera_change_policy.cpp). |
 
 ## Altri ticket aperti
 
