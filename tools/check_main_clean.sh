@@ -71,6 +71,22 @@ if [ -n "$(git status -s)" ]; then
     exit 1
 fi
 
-# All three checks passed.
+# 4. Per-branch rebase invariant (GATE-MNT-01-EXT closure; idempotent — see
+#    tools/wrap_push.sh Step 2.5 auto-repair which sets this on push, and
+#    tools/install_consumer_test.sh Step 0 which sets this on consumer-side
+#    bootstrap).  Locking here is the CANONICAL place where the invariant
+#    is enforced, not a hope-and-pray in each wrapper.
+#    Single-line check pattern: `[ ... ] = "true" || { diagnostic; exit 1; }`.
+[ "$(git config --local --get branch.main.rebase 2>/dev/null)" = "true" ] || {
+    echo "GATE_FAIL: branch.main.rebase != 'true' (per-branch rebase invariant violated; GATE-MNT-01-EXT)" >&2
+    echo "  current = $(git config --local --get branch.main.rebase 2>/dev/null || echo '<unset>')" >&2
+    echo "  fix:    git config branch.main.rebase true   (per-repo local, idempotent)" >&2
+    echo "  auto:   tools/wrap_push.sh sets this on push (Step 2.5)" >&2
+    echo "  auto:   tools/install_consumer_test.sh sets this on consumer-bootstrap (Step 0)" >&2
+    echo "GATE_FAIL"
+    exit 1
+}
+
+# All four checks passed.
 echo "GATE_PASS"
 exit 0
