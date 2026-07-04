@@ -202,6 +202,7 @@ Prima di ogni `git push` su `main` il checkout deve essere gated da `tools/check
 1. `git fetch origin` non riesce.
 2. `HEAD` e `origin/main` sono divergenti (nessuno dei due è antenato dell'altro); FF-pull, post-commit-push e uguaglianza sono tutti accettati (vedi `tools/check_main_clean.sh` per l'implementazione).
 3. `git status -s` non vuoto (uncommitted o untracked).
+4. `git config --local --get branch.main.rebase` ≠ `true` (per-branch rebase invariant; chiusura GATE-MNT-01-EXT, idempotent + auto-repair via `tools/wrap_push.sh` Step 2.5 + `tools/install_consumer_test.sh` Step 0).
 
 ### Wrapper canonico (portabile, tracked)
 ```bash
@@ -227,4 +228,23 @@ cp .git/hooks/pre-push.example .git/hooks/pre-push 2>/dev/null || true
 ### Smoke-test del gate
 ```bash
 tools/check_main_clean.sh   # atteso: GATE_PASS, exit 0  (HEAD==origin/main, clean tree)
+```
+
+### Step 1 (GATE-MNT-01-EXT): per-branch rebase verify + auto-repair
+
+**Verify (gate-side, read-enforcement):** `tools/check_main_clean.sh` Step 4 rifiuta con `GATE_FAIL: branch.main.rebase != 'true'` (single-line check: `[ ... ] = "true" || { diagnostic; exit 1; }`).
+
+**Auto-repair (push-side, write-enforcement):** `tools/wrap_push.sh` Step 2.5 imposta `branch.${TARGET_BRANCH}.rebase=true` quando la chiave è **mancante** — idempotent + forward-only (influenza `git pull` futuri). Loggato quando accade (silent mutation = violazione di "non sorprendere l'utente"). I valori espliciti non-`true` sono preservati (esplicito > default operativo).
+
+**Bootstrap (consumer-side):** `tools/install_consumer_test.sh` Step 0 applica la stessa auto-repair su `branch.main.rebase` per il checkout consumer — invocazioni agent post-clone si auto-riparano prima dell'inizio della pipeline install/test.
+
+**Closure lineage:** TICKET-048 (gate wrap) → TICKET-067/075 (merge-base ancestor) → TICKET-076 (auto-FF in wrapper) → **GATE-MNT-01-EXT** (per-branch rebase verify + auto-repair).
+
+**Smoke-test (manuale, presubmit):**
+```bash
+git config --local --unset branch.main.rebase
+tools/check_main_clean.sh     # atteso: GATE_FAIL ... != 'true'
+git config branch.main.rebase true
+tools/check_main_clean.sh     # atteso: GATE_PASS
+tools/wrap_push.sh origin main  # atteso: auto-repair log only on first invocation; push proceeds
 ```

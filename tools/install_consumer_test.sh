@@ -3,7 +3,10 @@
 #
 # ─── End-to-end install boundary CI test for Chronon3D SDK (Phase 1.2 slim) ───
 #
-# Pipeline (4 phases):
+# Pipeline (5 steps):
+#   Step 0  (GATE-MNT-01-EXT bootstrap) ensure branch.main.rebase=true
+#           on consumer-side checkout (idempotent; self-heal; mirror of
+#           tools/wrap_push.sh Step 2.5; forward-only).
 #   Phase 1  inline Step 1+2  Configure + build SDK + install (or skip on FAST)
 #   Phase 2  check_feature_ghosts.sh        Step 2.5 (opt-in)
 #   Phase 3  check_archive_canaries.sh      Step 3 + 3.5  (boundary + canary gate)
@@ -53,6 +56,17 @@ log "fast mode   : ${CHRONON3D_INSTALL_TEST_FAST:-0}"
 log "ghost sweep : ${CHRONON3D_INSTALL_TEST_GHOST_SWEEP:-0}"
 require_cmake_3_27 >/dev/null
 PRESET="${CHRONON3D_INSTALL_TEST_PRESET}"
+
+# ── Step 0: bootstrap GATE-MNT-01-EXT per-branch rebase invariant ─────
+# (mirror of tools/wrap_push.sh Step 2.5).  The install_consumer gate
+# is exercised in CI on freshly-cloned checkouts; ensure the per-branch
+# rebase invariant is set so any future `git pull` on the consumer's
+# checkout uses rebase.  Idempotent + forward-only — affects future
+# pulls, not THIS install run.
+if ! git config --local --get branch.main.rebase 2>/dev/null >/dev/null; then
+    log "Step 0 (GATE-MNT-01-EXT): setting branch.main.rebase=true (was unset)"
+    git config branch.main.rebase true
+fi
 
 # ── Phase 1: configure + build + install SDK (inline) ────────────────
 # This phase MUST stay inline because SDK_BUILD and SDK_PREFIX are the
