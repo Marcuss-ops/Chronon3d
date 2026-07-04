@@ -309,6 +309,27 @@ add_executable(chronon3d_core_tests
     # `chronon3d_core_tests` may carry TICKET-011 LINK rot
     # independently (separate scope, see FOLLOWUP_TICKETS).
     text/test_text_run_umbrella_contract.cpp
+    # M1.5#5 — orchestrator delegation regression lock for the
+    # text_run_builder.cpp -> text/compiler/*.cpp split.  3
+    # deterministic TEST_CASEs (no threads / no time / no PRNG /
+    # no Blend2D) that lock:
+    #   (1) compile_text_document end-to-end: 3 single-font
+    #       paragraphs -> all 3 entries preserved with source_index
+    #       0..2 + complete == every-Ok,
+    #   (2) orchestrator delegation through MissingFont seam:
+    #       middle paragraph with empty font spec -> 3 entries
+    #       preserved (TICKET-092 "Err in middle, Ok siblings
+    #       preserved" pattern) + Err kind == MissingFont at
+    #       source_index 1,
+    #   (3) orchestrator delegation through empty paragraph
+    #       short-circuit seam (TICKET-101): consecutive \n ->
+    #       middle paragraph Ok with empty TextRunLayout (valid
+    #       empty units + bounds {0,0} + line_height = default
+    #       * 1.2).
+    # Non-gated like test_text_run_umbrella_contract.cpp; the test
+    # is structural rather than font-bound, so it runs on every
+    # preset (no Inter-Bold.ttf fixture required).
+    text/test_text_run_multi_run_failure_policy.cpp
     ${CORE_BLEND2D_TESTS}
     media/test_media_placement.cpp
     core/test_result.cpp
