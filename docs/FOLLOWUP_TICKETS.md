@@ -115,6 +115,7 @@ Workstream design-FROZEN 2026-07-04 contro feature-freeze attivo; **nessun codic
 | TICKET-P1-12 | CMake fragile (ar merge + include_private) | commit `59b2439f` |
 | M1.5#1 | TextRunNode.cpp orchestratore + 3 helpers (`text_run/`) + return-channel test | commit `82d2b0e0` |
 | M1.5#2 | text_run_driver.cpp orchestratore + 3 helpers (`src/text/driver/`) + `EffectiveTextState` | commit `e837e274` |
+| M1.5#3 | text_run.hpp umbrella split into 5 sub-headers (`text_layout_identity` / `text_run_layout` / `text_layout_cache` / `text_run_shape` / `text_run_hash`); Fase B3 deprecated singleton symbols (`shared_text_layout_cache` / `reset_shared_text_layout_cache`) rimossi da public API surface; lock contract test `tests/text/test_text_run_umbrella_contract.cpp` (static_assert-driven, cat-2 freeze-compliant, no Blend2D / no font engine dependency) | commit `843dc863` (refactor) + this-commit (lock test + cmake entry + doc sync) |
 | TICKET-021 | Camera V1: PoseTracksSource variance-preserving dispatch | commit `82d2b0e0` (post-sync) + §2.A lock-tests|
 | TICKET-022 | Camera V1: single-application canonical-order lock (orientation + constraint) + 4-camera-trajectory-lookat compiled path covered by §4.B.3 Single-Look-At Policy + §4.B.2 Canonical-order Application | commit `82d2b0e0` (post-sync) + Step 4+5 trajectory work + §4.B.1-§4.B.3 lock-tests in `test_camera_program_compiled.cpp` |
 | TICKET-024 | Camera V1: orbit position math in camera-local basis | commit `82d2b0e0` (post-sync) + §4.C lock-tests |
