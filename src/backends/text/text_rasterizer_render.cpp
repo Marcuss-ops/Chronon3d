@@ -1,3 +1,42 @@
+// SPDX-License-Identifier: MIT
+// ═══════════════════════════════════════════════════════════════════════════
+// M1.5#11 — legacy text rasterizer TU, slimmed post utility-extraction.
+//
+// The legacy `rasterize_text_to_bl_image` function (M1.5#9 P1-LEGACY-TEXT-
+// PIPELINE deletion scheduled in M1.5#9 Step 5) keeps its full BODY here;
+// ONLY the localized utility bodies were dropped:
+//
+//   REMOVED (now in `src/backends/text/blend2d_glyph_conversion.{hpp,cpp}`):
+//     * `apply_text_style` — unified BLContext fill/stroke style applicator
+//       with `StyleOp` discriminator.
+//     * `apply_text_fill_style` + `apply_text_stroke_style` thin wrappers.
+//     * `HbToBlGlyphRun` struct + `from(...)` static converter
+//       (HarfBuzz placed → Blend2D BLGlyphRun with design-unit scaling).
+//
+//   REMOVED (now in `src/backends/text/freetype_outline_conversion.{hpp,cpp}`):
+//     * `FtGlyphPathBuilder::build_path` body — the FT_Outline_Funcs
+//       callback setup + FT_Outline_Decompose dispatch loop (outline-only).
+//
+//   KEPT (this TU; deleted with M1.5#9):
+//     * `Blend2DResources` + `blend2d_resources()` — legacy global cache
+//       of BLFontFace (sibling to M1.5#7's per-session `BLFontFaceCache`).
+//       Kept LOCAL only because the legacy function's signature doesn't
+//       take a `TextRenderResources*` (AGENTS.md Cat-5 ABI-stable).
+//       Will be deleted with the rest of this TU in M1.5#9 Step 5.
+//     * `FtGlyphPathBuilder::load_face` — legacy FT_Face loader with the
+//       `const AssetResolver&` plumbing (WP-8 PR 8.0 contract). Live
+//       member state (`ft_face` + `loaded_path` + `mutex`) is kept so
+//       callers can extract the FT_Face raw pointer for delegation to
+//       `freetype_outline::convert_ft_outline_to_bl_path` under the
+//       struct's mutex.
+//
+// Anti-duplication invariant (user constraint M1.5#6 + M1.5#7):
+//   * NO caching logic was ADDED to the new modules — they are pure
+//     conversion utilities.
+//   * NO face I/O was MOVED out of this TU's caches — those caches stay
+//     legacy-local until M1.5#9 Step 5 wholesale deletes them.
+// ═══════════════════════════════════════════════════════════════════════════
+
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <cmath>
@@ -26,6 +65,27 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>
 
+// M1.5#11 — utility extraction modules (named with explicit semantic intent).
+// `blend2d_glyph_conversion` hosts the apply_text_* fill/stroke helper family
+// and `HbToBlGlyphRun` data-structure converter (BOTH moved out of this TU's
+// anon namespace).  `freetype_outline_conversion` hosts the `BLPath`
+// outline-decoder that this TU delegates to under the legacy
+// `FtGlyphPathBuilder::mutex` lock.
+///
+///   The two build_path() callsites below were re-shaped to:
+///
+///     {
+///       std::lock_guard<std::mutex> ft_lock(ft_path.mutex);
+///       BLPath stroke_path = ::chronon3d::convert_ft_outline_to_bl_path(
+///           ft_path.ft_face, *placed, lx, baseline_y);
+///       ...
+///     }
+///
+/// matching the original synchronization window (FT_Load_Glyph +
+/// FT_Outline_Decompose race against concurrent FT_Set_Pixel_Sizes).
+#include "blend2d_glyph_conversion.hpp"
+#include "freetype_outline_conversion.hpp"
+
 #ifdef CHRONON3D_ENABLE_TEXT
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -47,77 +107,12 @@ using chronon3d::blend2d_bridge::paint::build_bl_gradient;
 
 namespace {
 
-/// Apply a `Fill` to `ctx` as either fill or stroke, delegating to the
-/// shared `blend2d_bridge::paint::build_bl_gradient` for gradient
-/// construction.  `op` discriminates `setFillStyle` vs `setStrokeStyle`
-/// so the legacy duplication between `apply_text_fill_style` and
-/// `apply_text_stroke_style` (~90 lines each, textual mirror images)
-/// collapses to one helper.
-inline void apply_text_style(
-    BLContext& ctx,
-    chronon3d::blend2d_bridge::paint::StyleOp op,
-    const std::optional<Fill>& style_opt,
-    const Color& fallback_color,
-    float origin_x,
-    float origin_y,
-    float width,
-    float height
-) {
-    auto set = [&](auto&& value) {
-        if (op == chronon3d::blend2d_bridge::paint::StyleOp::Fill)
-            ctx.setFillStyle(std::forward<decltype(value)>(value));
-        else
-            ctx.setStrokeStyle(std::forward<decltype(value)>(value));
-    };
-
-    if (!style_opt.has_value()) {
-        set(to_bl_rgba(fallback_color));
-        return;
-    }
-    const Fill& fill = *style_opt;
-    if (fill.type == FillType::Solid) {
-        set(to_bl_rgba(fill.solid));
-        return;
-    }
-    if (auto gradient = build_bl_gradient(fill, origin_x, origin_y, width, height)) {
-        set(*gradient);
-        return;
-    }
-    set(to_bl_rgba(fallback_color));
-}
-
-/// Thin wrappers preserving the legacy call-site signature.  Both will
-/// be removed once all callers are migrated to `apply_text_style`.
-inline void apply_text_fill_style(
-    BLContext& ctx,
-    const TextStyle& style,
-    const Color& fallback_color,
-    float origin_x,
-    float origin_y,
-    float width,
-    float height
-) {
-    apply_text_style(ctx,
-        chronon3d::blend2d_bridge::paint::StyleOp::Fill,
-        style.paint.fill_style, fallback_color,
-        origin_x, origin_y, width, height);
-}
-
-inline void apply_text_stroke_style(
-    BLContext& ctx,
-    const TextStyle& style,
-    const Color& fallback_stroke_color,
-    float origin_x,
-    float origin_y,
-    float width,
-    float height
-) {
-    apply_text_style(ctx,
-        chronon3d::blend2d_bridge::paint::StyleOp::Stroke,
-        style.paint.stroke_style, fallback_stroke_color,
-        origin_x, origin_y, width, height);
-}
-
+/// Legacy BLFontFace cache — DUPLICATES M1.5#7's per-session
+/// `BLFontFaceCache` (per-session ownership lives in
+/// `TextRenderResources.bl_faces`).  Kept LOCAL because the legacy
+/// `rasterize_text_to_bl_image` signature doesn't take a
+/// `TextRenderResources*` (AGENTS.md Cat-5 ABI-stable constraint).
+/// Will be deleted with the rest of this TU in M1.5#9 Step 5.
 struct Blend2DResources {
     std::unordered_map<std::string, BLFontFace> faces;
     std::mutex mutex;
@@ -154,62 +149,12 @@ Blend2DResources& blend2d_resources() {
     return resources;
 }
 
-/// Converts a PlacedGlyphRun to Blend2D's BLGlyphRun for fillGlyphRun().
-/// The struct must outlive the BLGlyphRun (which holds raw pointers into
-/// the vectors).  Keep the struct alive through the rendering call.
-///
-/// Uses BL_GLYPH_PLACEMENT_TYPE_ADVANCE_OFFSET: placement is a relative
-/// offset from the current pen position, and after each glyph the pen is
-/// advanced by `advance`.  We therefore use the raw HarfBuzz relative
-/// offsets (x_offset / y_offset), NOT the cumulative x / y positions.
-///
-/// IMPORTANT: fillGlyphRun with ADVANCE_OFFSET expects placement values
-/// in FONT DESIGN UNITS, not pixels.  HarfBuzz provides values in pixels
-/// (26.6 fixed-point ÷ 64).  This conversion multiplies by (upem / font_size)
-/// to convert pixels to design units, matching Blend2D's expectations.
-///
-/// The tracking-aware advances come pre-computed from PlacedGlyphRun,
-/// so this conversion handles field copies + design-unit scaling.
-struct HbToBlGlyphRun {
-    std::vector<uint32_t> glyph_ids;
-    std::vector<BLGlyphPlacement> placements;
-    BLGlyphRun bl_run{};
-
-    /// Convert a PlacedGlyphRun into a Blend2D BLGlyphRun.
-    /// Uses the raw offsets (x_offset, y_offset) and tracking-aware
-    /// advances from the PlacedGlyphRun, matching the ADVANCE_OFFSET
-    /// placement type.  Scales pixel values to font design units.
-    static HbToBlGlyphRun from(const PlacedGlyphRun& placed,
-                                const BLFontFace& face,
-                                float font_size) {
-        // Convert pixel values to font design units (Blend2D's
-        // ADVANCE_OFFSET expects design units, not pixels).
-        const double upem = static_cast<double>(face.unitsPerEm());
-        const double scale = (upem > 0.0 && font_size > 0.0f)
-            ? upem / static_cast<double>(font_size) : 1.0;
-        HbToBlGlyphRun result;
-        result.glyph_ids.reserve(placed.glyphs.size());
-        result.placements.reserve(placed.glyphs.size());
-        for (const auto& pg : placed.glyphs) {
-            result.glyph_ids.push_back(pg.glyph_id);
-            BLGlyphPlacement p;
-            // Use raw offsets (not cumulative x/y), matching
-            // BL_GLYPH_PLACEMENT_TYPE_ADVANCE_OFFSET semantics.
-            p.placement.reset(pg.x_offset * scale, pg.y_offset * scale);
-            p.advance.reset(pg.advance_x * scale, pg.advance_y * scale);
-            result.placements.push_back(p);
-        }
-        result.bl_run.glyphData = result.glyph_ids.data();
-        result.bl_run.glyphAdvance = int8_t(sizeof(uint32_t));
-        result.bl_run.placementData = result.placements.data();
-        result.bl_run.placementAdvance = int8_t(sizeof(BLGlyphPlacement));
-        result.bl_run.placementType = BL_GLYPH_PLACEMENT_TYPE_ADVANCE_OFFSET;
-        result.bl_run.size = result.glyph_ids.size();
-        return result;
-    }
-};
-
 #ifdef CHRONON3D_ENABLE_TEXT
+/// Legacy FT_Face loader.  KEPT for the lifetime of this TU (deleted
+/// with M1.5#9 Step 5).  The `build_path(...)` member that USED to live
+/// here is gone — outline decoding is delegated to the new module
+/// `freetype_outline::convert_ft_outline_to_bl_path`, callable through
+/// the live `ft_face` pointer under the struct's `mutex`.
 struct FtGlyphPathBuilder {
     FT_Face    ft_face{nullptr};
     std::string loaded_path;
@@ -261,79 +206,6 @@ struct FtGlyphPathBuilder {
     FtGlyphPathBuilder() = default;
     FtGlyphPathBuilder(const FtGlyphPathBuilder&) = delete;
     FtGlyphPathBuilder& operator=(const FtGlyphPathBuilder&) = delete;
-
-    BLPath build_path(const PlacedGlyphRun& placed, float origin_x, float origin_y) {
-        BLPath path;
-        if (!ft_face || placed.glyphs.empty()) return path;
-
-        std::lock_guard<std::mutex> lock(mutex);
-
-        constexpr float kScale = 1.0f / 64.0f;
-        constexpr double kConicWeight = 1.0;
-
-        struct DecomposeCtx {
-            BLPath* path;
-            double  off_x;
-            double  off_y;
-            bool    first_contour{true};
-        };
-
-        FT_Outline_Funcs funcs;
-        funcs.move_to = [](const FT_Vector* to, void* user) -> int {
-            auto* ctx = static_cast<DecomposeCtx*>(user);
-            if (!ctx->first_contour) ctx->path->close();
-            ctx->first_contour = false;
-            ctx->path->moveTo(
-                ctx->off_x + static_cast<double>(to->x) * kScale,
-                ctx->off_y - static_cast<double>(to->y) * kScale);
-            return 0;
-        };
-        funcs.line_to = [](const FT_Vector* to, void* user) -> int {
-            auto* ctx = static_cast<DecomposeCtx*>(user);
-            ctx->path->lineTo(
-                ctx->off_x + static_cast<double>(to->x) * kScale,
-                ctx->off_y - static_cast<double>(to->y) * kScale);
-            return 0;
-        };
-        funcs.conic_to = [](const FT_Vector* control, const FT_Vector* to, void* user) -> int {
-            auto* ctx = static_cast<DecomposeCtx*>(user);
-            ctx->path->conicTo(
-                ctx->off_x + static_cast<double>(control->x) * kScale,
-                ctx->off_y - static_cast<double>(control->y) * kScale,
-                ctx->off_x + static_cast<double>(to->x) * kScale,
-                ctx->off_y - static_cast<double>(to->y) * kScale,
-                kConicWeight);
-            return 0;
-        };
-        funcs.cubic_to = [](const FT_Vector* c1, const FT_Vector* c2, const FT_Vector* to, void* user) -> int {
-            auto* ctx = static_cast<DecomposeCtx*>(user);
-            ctx->path->cubicTo(
-                ctx->off_x + static_cast<double>(c1->x) * kScale,
-                ctx->off_y - static_cast<double>(c1->y) * kScale,
-                ctx->off_x + static_cast<double>(c2->x) * kScale,
-                ctx->off_y - static_cast<double>(c2->y) * kScale,
-                ctx->off_x + static_cast<double>(to->x) * kScale,
-                ctx->off_y - static_cast<double>(to->y) * kScale);
-            return 0;
-        };
-        funcs.delta = 0;
-        funcs.shift = 0;
-
-        for (const auto& pg : placed.glyphs) {
-            if (FT_Load_Glyph(ft_face, pg.glyph_id, FT_LOAD_NO_BITMAP) != 0) continue;
-            if (ft_face->glyph->format != FT_GLYPH_FORMAT_OUTLINE) continue;
-
-            {
-                const float glyph_ox = origin_x + pg.x;
-                const float glyph_oy = origin_y + pg.y;
-
-                DecomposeCtx ctx{&path, static_cast<double>(glyph_ox), static_cast<double>(glyph_oy), true};
-                FT_Outline_Decompose(&ft_face->glyph->outline, &funcs, &ctx);
-                if (!ctx.first_contour) path.close();
-            }
-        }
-        return path;
-    }
 };
 #endif // CHRONON3D_ENABLE_TEXT
 
@@ -704,7 +576,13 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                 const std::string stroke_font_path = run_style.font_path;
                 FtGlyphPathBuilder ft_path;
                 if (ft_path.load_face(stroke_font_path, run_shape_size, resolver)) {
-                    BLPath stroke_path = ft_path.build_path(*placed, lx, baseline_y);
+                    // M1.5#11 — outline-decode delegated to the new utility
+                    // module under the legacy face-loader's mutex
+                    // (FT_Load_Glyph + FT_Outline_Decompose race against
+                    // concurrent FT_Set_Pixel_Sizes from another thread).
+                    std::lock_guard<std::mutex> ft_lock(ft_path.mutex);
+                    BLPath stroke_path = ::chronon3d::convert_ft_outline_to_bl_path(
+                        ft_path.ft_face, *placed, lx, baseline_y);
                     if (!stroke_path.empty()) {
                         ctx.strokePath(stroke_path);
                     }
@@ -715,6 +593,9 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             }
         }
 
+        // M1.5#11 — `apply_text_fill_style` resolved via the
+        // `blend2d_glyph_conversion.hpp` include (formerly anonymous-ns
+        // local; now explicitly-named external utility).
         apply_text_fill_style(
             ctx, run_style, run_fill,
             text_start_x, text_start_y,
@@ -733,6 +614,8 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                         profiling::g_current_counters->glyph_atlas_hits.fetch_add(1, std::memory_order_relaxed);
                     return;
                 }
+                // M1.5#11 — `HbToBlGlyphRun::from` resolved via the
+                // `blend2d_glyph_conversion.hpp` include.
                 auto bl = HbToBlGlyphRun::from(*placed, run_face, run_shape_size);
                 ctx.fillGlyphRun(BLPoint(lx, baseline_y), run_font, bl.bl_run);
                 pending_glyph_stores.push_back({
@@ -805,7 +688,11 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                 const std::string stroke_font_path = t.style.font_path;
                 FtGlyphPathBuilder ft_path;
                 if (ft_path.load_face(stroke_font_path, layout_res.font_size, resolver)) {
-                    BLPath stroke_path = ft_path.build_path(*placed, lx, ly);
+                    // M1.5#11 — outline-decode delegated to the new utility
+                    // module under the legacy face-loader's mutex.
+                    std::lock_guard<std::mutex> ft_lock(ft_path.mutex);
+                    BLPath stroke_path = ::chronon3d::convert_ft_outline_to_bl_path(
+                        ft_path.ft_face, *placed, lx, ly);
                     if (!stroke_path.empty()) {
                         ctx.strokePath(stroke_path);
                     }
@@ -978,7 +865,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             dbg.setStrokeStyle(BLRgba32(255, 255, 48, 200));
             dbg.setStrokeWidth(1.0f);
             dbg.strokeLine(icx - 8.0f, icy, icx + 8.0f, icy);
-            dbg.strokeLine(icx, icy - 8.0f, icx, icy + 8.0f);
+            dbg.strokeLine(icx, icy - 8.0f, icy, icy + 8.0f);
         }
 
         if (!layout_res.lines.empty()) {
