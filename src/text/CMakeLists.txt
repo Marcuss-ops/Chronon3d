@@ -29,12 +29,12 @@ add_library(chronon3d_text_core OBJECT
     timed_text_adapter_json.cpp
     text_path_composer.cpp
     text_resolver.cpp
-    text_run.cpp
-    # M1.5#4 Commit A — extract hash_text_run_shape overloads from
-    # text_run.cpp into a single-responsibility sub-cpp that pairs
-    # with include/chronon3d/text/text_run_hash.hpp (the M1.5#3
-    # umbrella sub-header).  Bodies verbatim; no behavioural changes.
+    # M1.5#4 — text_run.cpp DECOMPOSED into three sub-files.
+    # The original monolithic text_run.cpp has been removed;
+    # sub-files must be compiled as separate TUs.
     text_run_hash.cpp
+    text_layout_cache.cpp
+    text_layout_identity.cpp
     text_run_builder.cpp
     # M1.5#5 — split text_run_builder.cpp orchestrator into 4
     # single-responsibility sub-cpp helpers under compiler/.  Each
@@ -100,7 +100,7 @@ set_source_files_properties(
 # compile time.  The cache target exposes include_private via INTERFACE
 # $<BUILD_INTERFACE:…>, so PRIVATE-link consumers automatically gain
 # `<chronon3d/cache/lru_cache.hpp>` etc. without leaking internal headers
-# to downstreams.  Required for `src/text/text_run.cpp` which uses the
+# to downstreams.  Required for `src/text/text_run_hash.cpp` which uses the
 # generic LRU utility without coupling to chronon3d_cache's whole interface.
 target_link_libraries(chronon3d_text_core
     PUBLIC  chronon3d
