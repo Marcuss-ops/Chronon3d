@@ -107,10 +107,10 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 ## Certificazione corrente
 
 Ultima baseline macchina-verificata: `main@aaf70032` — **10/11 PASS**.
-Audit corrente: `main@9ecb4879` — **7/11 PASS** (REGRESSION; pre-regression chain: 10/11 aaf70032 → 9/11 16319557 → 7/11 9ecb4879).
-  - gate #1 + #9 SDK public-deps SSoT wiring (Check 16) — pre-esistente sulla lineage `gate-10-...` (commit in frame: `b62ef4429` printf intro + i 9 commit `fix(sdk): gate-10 — ...`).
-  - gate #10 install_consumer Phase 4 render-black — pre-esistente; `2ef2b377 sw_sidecar` fix insufficiente.
-  - gate #11 backend sanitization `printf` in `software_grid_background_processor.cpp:23` — pre-esistente (intro `b62ef4429`).
+Audit corrente: `main@eb8e3a24` — **7/11 PASS** (stable across 9ecb4879 → eb8e3a24: no code regression; pre-regression chain: 10/11 aaf70032 → 9/11 16319557 → 7/11 9ecb4879 → 7/11 eb8e3a24).
+  - gate #1 + #9 SDK public-deps SSoT wiring (Check 16) — pre-esistente sulla lineage `gate-10-...` (carry-over from 9ecb4879).
+  - gate #10 install_consumer — **failure-mode SHIFT this run** (carry-over from 9ecb4879 Phase 4 PNG near-black → now `ninja subcommand failure during compilation of highway_*_kernels.cpp.o` in `chronon3d_backend_software` target). FLAG: richiede independent re-run per disambiguare transient noise vs durable build-rot.
+  - gate #11 backend sanitization `printf` in `software_grid_background_processor.cpp:23` — pre-esistente (intro `b62ef4429`, carry-over from 9ecb4879).
 Nessuna baseline certificata oltre `aaf70032`.
 Per la revoca del **feature freeze** (vedi `AGENTS.md`) è richiesto **11/11 PASS sullo stesso commit**.
 Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA, una sola baseline per commit).
@@ -170,6 +170,7 @@ Le tre componenti sono complementari (e formano una triade): il read-side rebase
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — chiusure recenti.
 - [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md) — ultima baseline macchina-verificata (10/11 PASS).
 - [`docs/baselines/main-9ecb4879-baseline.md`](docs/baselines/main-9ecb4879-baseline.md) — baseline di regressione (7/11 PASS, post-A3 cluster su `chore(cmake): UNIFIED-VCPKG-TOOLCHAIN`).
+- [`docs/baselines/main-eb8e3a24-baseline.md`](docs/baselines/main-eb8e3a24-baseline.md) — attestazione di stabilità (7/11 PASS stable, doc-only diff su 9ecb4879).
 - [`docs/baselines/main-21103265-baseline.md`](docs/baselines/main-21103265-baseline.md) — baseline precedente (9/11 PASS).
 - [`reports/perf/main-73a2aa9b-gates.json`](../reports/perf/main-73a2aa9b-gates.json) — log macchina-verificato della 11-gate run su `main@73a2aa9b` (10/11 PASS, gate #10 `install_consumer_test.sh` FAIL).
 - [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) — contratto documentale (single-source-of-truth).
