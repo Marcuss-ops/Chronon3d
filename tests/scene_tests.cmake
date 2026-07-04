@@ -48,6 +48,14 @@ add_executable(chronon3d_scene_tests
     # commit.
     scene/camera/test_camera_program_damped_history_force.cpp
     scene/camera/test_camera_framing_solver.cpp
+    # TICKET-A3-LOOKAT-DIAGNOSTIC (Agent3 mission DoD gate (g)) — locks
+    # the contract that LookAtLayer orientation emits a Warning diagnostic
+    # via the canonical channel (result.diagnostics) with a stable
+    # [MissingTransforms] prefix when CameraEvalContext::transforms is
+    # null OR world_position lookup fails. Pairs with the diagnostic
+    # emission introduced in src/scene/camera/camera_v1/camera_program.cpp
+    # apply_orientation_spec_free() on the same commit.
+    scene/camera/test_camera_lookat_layer_missing_transforms.cpp
     scene/camera/test_shot_timeline.cpp
     scene/camera/test_camera_trajectory.cpp
     # TICKET-A3-CTX-FRAMERATE (Agent3 mission DoD gate (e)) — locks the
