@@ -7,6 +7,25 @@
 
 ## Luglio 2026 — Chiusure recenti
 
+### text-run — M1.5#13 (1/4): refactor del registry preset testuali — extract basic (Subtitle) factory + `builtin_text_presets()` span accessor (commit pending this session)
+- `+ src/registry/text_preset_internal_helpers.hpp` (NEW) — shared internal-only header (NOT installed; lives under `src/registry/`).  Exports `chrono3d::registry::internal::make_presetc_template(preset_id)` + `wire_through_resolver(lb, id, spec)` + `LayerBuilderT` / `SceneBuilderT` / `TextSpecT` aliases.  Verbatim ports from the pre-M1.5#13 anon-namespace helpers in `text_preset_registry.cpp`.  Both functions are `[[nodiscard]] inline` (linker-merged across TUs).
+- `+ src/registry/text_preset_factories_basic.cpp` (NEW) — per-category (basic/Subtitle) factory TU.  Exports `chrono3d::registry::register_helpers_internal::factory_basic::create_text_presets()` returning `std::vector<TextPresetDescriptor>` of length 4 in canonical Subtitle insertion order (minimal_white / yellow_keyword / glow_pulse / caption_box).  Factory is descriptor-only by design (does NOT call `register_preset`).
+- `~ src/registry/text_preset_registry.cpp` — included `text_preset_internal_helpers.hpp`; DELETED anon-namespace `make_presetc_template` + `wire_through_resolver` (verbatim moved); DELETED 4 Subtitle entry() functions (`minimal_white_entry` / `yellow_keyword_entry` / `glow_pulse_entry` / `caption_box_entry`); DELETED 4 Subtitle compose_* helpers; ADDED local using-alias `using chrono3d::registry::internal::wire_through_resolver;` so remaining Reveal/Emphasis/Cinematic lambdas (Steps 2/3/4) keep compiling un-prefixed; UPDATED `register_text_preset_subtitle(r)` bridge to for-loop consume `factory_basic::create_text_presets()`; ADDED `builtin_text_presets()` span accessor impl (delegated to `builtin_text_preset_registry().list()` over process-stable static vector).
+- `~ src/registry/text_preset_register_helpers.hpp` — added per-category forward-declaration namespace `chrono3d::registry::register_helpers_internal::factory_basic` exposing `create_text_presets()` so the umbrella sees the symbol without per-TU duplication.
+- `~ include/chronon3d/registry/text_preset_registry.hpp` (PUBLIC) — added `#include <span>`; added `[[nodiscard]] std::span<const TextPresetDescriptor> builtin_text_presets()` declaration alongside `builtin_text_preset_registry()` (COESISTENZA per user spec — both surfaces available, neither replaces the other).
+- `~ src/registry/CMakeLists.txt` — added `text_preset_factories_basic.cpp` source line in `chronon3d_registry` OBJECT library.
+- `+ docs/tickets/TICKET-M1.5#13-SEQUENCE.md` (NEW canonical sequence ticket) — documents all 4 steps: Step 1 (basic/Subtitle = this commit) + Steps 2/3/4 (PLANNED: kinetic/Reveal, cinematic, social/Emphasis + umbrella rewiring).
+
+### Architectural invariants preserved (Step 1/4)
+1. SINGLE registry: `chrono3d::registry::builtin_text_preset_registry()` remains the single source of truth; `builtin_text_presets()` is a delegated VIEW (per ANTI_DUPLICATION_RULES.md §registry/resolver).
+2. ZERO new registry / preset / sampler / catalog surface.
+3. ZERO `include/chronon3d/` structural expansion (helpers header NOT installed).
+4. ZERO content→core reverse-edge.
+5. AGENTS.md v0.1 Cat-5 freeze-compliant (structural refactor only; `builtin_text_presets()` is user-mandated COESISTENZA alongside the registry accessor).
+
+### Companion accessor user-mandated
+The `std::span<const TextPresetDescriptor> builtin_text_presets()` accessor IS a public-API surface expansion (cat-5 borderline); per M1.5#13 user spec it lives next to `builtin_text_preset_registry()` as the canonical read-only view surface (COESISTENZA, no replacement).  Tracked in `docs/FOLLOWUP_TICKETS.md` as `TICKET-M1.5#13-SEQUENCE` (Step 1/4 DONE; Steps 2-4/4 PLANNED); R-Table R-5 explicitly forbids generic `Done` markers — user-spec multi-dim vocabulary applied.
+
 ### build(backends) — TICKET-RUNTIME-ADAPTER-INCOMPLETE-TYPE: dual `TextRenderResources` include fix unblocks SDK build (commits `5320eb29` + M1.5#8)
 - Two coordinated include fixes closed the pre-existing build rot that blocked `cmake --build --target chronon3d_sdk_impl` at the C++ compilation step BEFORE the archive step. Both share the same root cause: `std::unique_ptr<chronon3d::TextRenderResources>` requires the complete type to apply `sizeof` for the default deleter in the .cpp TU, but the header was forward-declared.
   - Commit `5320eb29`: added `#include <chronon3d/backends/text/text_render_resources.hpp>` to `src/backends/software/runtime_adapter.cpp` (first TU where the incomplete-type error surfaced during the original 140dc919 verification).
@@ -15,6 +34,7 @@
 - `TICKET-RUNTIME-ADAPTER-INCOMPLETE-TYPE` state in `docs/FOLLOWUP_TICKETS.md` updated to multi-dim tracking (canonical pattern for transitional tickets per M1.5#14 vocabulary): **Build fix: DONE (commits `5320eb29` + M1.5#8)** / **Certifier (`install_consumer_test.sh` end-to-end on `main`): PARTIAL** — pending CI re-run su `main` (no baseline macchina-verificata post-fix; pre-fix baseline `aaf70032` 10/11 PASS, post-fix deve essere 11/11 per revocare feature freeze).
 - AGENTS.md v0.1 freeze Cat-1 (build corrections — header include additions). Zero new public API, zero new types, zero new behavior. Both includes are on the software-side of the boundary (WP-3 dependency-direction invariant preserved: software-side PUÒ conoscere backend/text includes; engine-generic RenderSession NO).
 - Companion tickets: TICKET-GATE-10-AR-RACE-MITIGATION (the `sync` PRE_LINK that the build rot was blocking from firing), TICKET-M1.5#7-AUDIT (new proactive audit ticket: scan the rest of the codebase for the same forward-decl + .cpp-full-include pattern; tracked in `docs/FOLLOWUP_TICKETS.md`).
+ (refactor(presets): M1.5#13 (1/4) extract basic/Subtitle factory + span accessor)
 
 ### build(cmake) — TICKET-GATE-10-AR-RACE-MITIGATION: defensive `sync` PRE_LINK on `chronon3d_sdk_impl` (commit `140dc919`)
 - `cmake/Chronon3DSdkArchive.cmake` — appended a defensive `add_custom_command(TARGET chronon3d_sdk_impl PRE_LINK COMMAND sync)` block. The PRE_LINK hook runs BEFORE the static archive step per CMake docs, and CMake skips it when the archive is already up-to-date, so this only fires on (re)builds — not on every incremental `cmake --build`.
