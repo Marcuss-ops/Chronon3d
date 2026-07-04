@@ -78,20 +78,6 @@ SoftwareBackend::SoftwareBackend(SoftwareBackendServices services)
     // sourced via m_owner is supplied separately via
     // attach_processor_context() immediately after construction.  See
     // `internal/software_processor_services.hpp` for the derivation story.
-#ifndef NDEBUG
-    // Direct ctor checks (debug-only). These fire if a caller bypasses
-    // `make_software_backend(...)` AND lets a null services field slip in.
-    // In NDEBUG builds the ctor trusts the services bundle (factory
-    // contract); a malformed bypass becomes a downstream-throw at
-    // first draw_text_run dispatch (the contract-aligned loud-fail).
-    assert(services.counters );
-    assert(services.settings );
-    // framebuffer_pool is a shared_ptr; `m_framebuffer_pool` post-move
-    // is empty iff the services source was empty (no recovery path).
-    assert(m_framebuffer_pool);
-    assert(services.asset_resolver);
-    assert(services.text_resources);
-#endif
 }
 
 SoftwareBackend::~SoftwareBackend() = default;
@@ -298,60 +284,3 @@ graph::RenderOpResult SoftwareBackend::draw_text_run(
 
 } // namespace chronon3d
 
-// ═════════════════════════════════════════════════════════════════════════════
-//  make_software_backend — validation-gate factory.
-// ═════════════════════════════════════════════════════════════════════════════
-
-namespace chronon3d {
-
-Result<std::unique_ptr<SoftwareBackend>, SoftwareBackendServicesError>
-make_software_backend(SoftwareBackendServices services) {
-    // Helper: build a structured SoftwareBackendServicesError for a given
-    // Code + field name.  The message includes both the field name and
-    // the user-ordered field list so logs read deterministic.
-    auto err = [](SoftwareBackendServicesError::Code c,
-                  const char* field) -> SoftwareBackendServicesError {
-        return SoftwareBackendServicesError{
-            c,
-            field,
-            std::string{"make_software_backend: required service '"} + field +
-                "' is null (SoftwareBackendServices is malformed)"
-        };
-    };
-
-    // ── Debug guards: assert on first failure ──
-    // Fires unconditionally in NDEBUG=0 so a caller that forgets to
-    // inspect the Result surfaces the failure in the debugger before
-    // silently proceeding with a malformed backend.
-#ifndef NDEBUG
-    // Canonical assert form: assert(ptr && "msg") keeps the static analyzer
-    // quiet on the pointer value while carrying a descriptive label in
-    // the diagnostic on failure.
-    // TICKET-118 — `assert(services.owner)` REMOVED.  The owner back-pointer
-    // no longer exists on SoftwareBackendServices; processors are wired
-    // post-construction via attach_processor_context().
-    assert(services.counters         != nullptr && "make_software_backend: counters is null");
-    assert(services.settings         != nullptr && "make_software_backend: settings is null");
-    assert(services.framebuffer_pool             && "make_software_backend: framebuffer_pool is empty");
-    assert(services.asset_resolver   != nullptr && "make_software_backend: asset_resolver is null");
-    assert(services.text_resources   != nullptr && "make_software_backend: text_resources is null");
-#endif
-
-    // ── Release path: ordered validation matches the user spec:
-    //    counters → settings → framebuffer_pool → asset_resolver → text_resources.
-    // TICKET-118 — MissingOwner branch REMOVED.  Renumbered Code enum values.
-    if (services.counters == nullptr)
-        return err(SoftwareBackendServicesError::Code::MissingCounters,          "counters");
-    if (services.settings == nullptr)
-        return err(SoftwareBackendServicesError::Code::MissingSettings,          "settings");
-    if (!services.framebuffer_pool)
-        return err(SoftwareBackendServicesError::Code::MissingFramebufferPool,   "framebuffer_pool");
-    if (services.asset_resolver == nullptr)
-        return err(SoftwareBackendServicesError::Code::MissingAssetResolver,     "asset_resolver");
-    if (services.text_resources == nullptr)
-        return err(SoftwareBackendServicesError::Code::MissingTextResources,     "text_resources");
-
-    return std::make_unique<SoftwareBackend>(std::move(services));
-}
-
-} // namespace chronon3d
