@@ -134,7 +134,7 @@ TEST_CASE("Golden projection: 6 canonical modes project expected analytical valu
         cam.optics_mode = CameraOpticsMode::PhysicalLens;
         cam.lens = LensPresets::arri_35mm();   // 50mm, Fill, sa=1.897
 
-        const FocalPx fxy = camera_math::focal_xy_from_camera(cam, kVpW, kVpH);
+        const camera_math::FocalPx fxy = camera_math::focal_xy_from_camera(cam, kVpW, kVpH);
         CHECK(fxy.x == doctest::Approx(3552.35f).epsilon(kEps));
         CHECK(fxy.y == doctest::Approx(3789.47f).epsilon(kEps));
 
@@ -178,7 +178,7 @@ TEST_CASE("Golden projection: 6 canonical modes project expected analytical valu
         cam.lens = LensPresets::full_frame_50mm();
         cam.lens.gate_fit = GateFit::Stretch;
 
-        const FocalPx fxy = camera_math::focal_xy_from_camera(cam, kVpW, kVpH);
+        const camera_math::FocalPx fxy = camera_math::focal_xy_from_camera(cam, kVpW, kVpH);
         CHECK(fxy.x == doctest::Approx(2666.67f).epsilon(kEps));
         CHECK(fxy.y == doctest::Approx(2250.0f).epsilon(kEps));
         CHECK(fxy.x != doctest::Approx(fxy.y).epsilon(0.01f));
@@ -227,7 +227,7 @@ TEST_CASE("Golden projection: 6 canonical modes project expected analytical valu
         CHECK(eff.height == doctest::Approx(1080.0f).epsilon(kEps));
 
         // Step 2: focal is computed against the effective (post-bars) size.
-        const FocalPx fxy = camera_math::focal_xy_from_camera(cam, kVpW, kVpH);
+        const camera_math::FocalPx fxy = camera_math::focal_xy_from_camera(cam, kVpW, kVpH);
         CHECK(fxy.x == doctest::Approx(2250.0f).epsilon(kEps));
         CHECK(fxy.y == doctest::Approx(2250.0f).epsilon(kEps));
 
@@ -269,7 +269,7 @@ TEST_CASE("Golden projection: 6 canonical modes project expected analytical valu
         cam.optics_mode = CameraOpticsMode::PhysicalLens;
         cam.lens = LensPresets::anamorphic_50mm();   // 50mm, 2× squeeze, Fill
 
-        const FocalPx fxy = camera_math::focal_xy_from_camera(cam, kVpW, kVpH);
+        const camera_math::FocalPx fxy = camera_math::focal_xy_from_camera(cam, kVpW, kVpH);
         CHECK(fxy.x == doctest::Approx(8747.15f).epsilon(kEps));
         CHECK(fxy.y == doctest::Approx(2904.79f).epsilon(kEps));
         // The anamorphic squeeze multiplies focal_x by EXACTLY 2.0, but the
