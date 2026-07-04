@@ -77,7 +77,7 @@ inline void reset_layout_cache_for_test() {
     const std::string& utf8,
     float font_size,
     TextDirection direction = TextDirection::LTR,
-    const std::string& language{"en"}
+    const std::string& language = "en"
 ) {
     TextRunParams params;
     params.text.content.value          = utf8;

@@ -1,6 +1,7 @@
 #include "coverage_surface.hpp"
 
 #include <blend2d.h>
+#include <utility>
 
 namespace chronon3d::blend2d_bridge {
 

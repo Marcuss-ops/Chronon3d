@@ -3,7 +3,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
-#include <chronon3d/text/text_animator.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <content/text/text_helpers.hpp>
 
