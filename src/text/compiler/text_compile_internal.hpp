@@ -111,7 +111,8 @@ build_cache_key(
     const TextLayoutSpec& layout,
     TextDirection direction,
     const std::string& language,
-    const std::string& features
+    const std::string& features,
+    const std::string& variation_axes
 );
 
 // ═══════════════════════════════════════════════════════════════════════════

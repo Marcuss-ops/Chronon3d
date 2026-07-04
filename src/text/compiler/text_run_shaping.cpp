@@ -99,7 +99,8 @@ build_cache_key(
     const TextLayoutSpec& layout,
     TextDirection direction,
     const std::string& language,
-    const std::string& features
+    const std::string& features,
+    const std::string& variation_axes
 ) {
     TextLayoutCacheKey key;
     key.text         = full_text;
@@ -114,6 +115,7 @@ build_cache_key(
     key.direction   = direction;             // TICKET-103a — was: TextDirection::Auto
     key.language    = language;              // TICKET-103a — was: cleared string
     key.features    = features;              // TICKET-103a — new field
+    key.variation_axes = variation_axes;     // M1.5#5
     key.paragraph   = layout.paragraph;
     return key;
 }
