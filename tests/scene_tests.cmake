@@ -43,6 +43,7 @@ add_executable(chronon3d_scene_tests
     scene/camera/test_camera_trajectory.cpp
     scene/camera/test_camera_stabilization.cpp
     scene/camera/test_camera_projection_contract.cpp
+    scene/camera/golden_projection_test.cpp   # C7 — DOC 02 / TICKET-035 freeze: 6-mode golden projection
     scene/camera/test_camera_near_plane_clip.cpp
     scene/camera/camera_25d_tests.cpp
     scene/camera/test_camera_hierarchy.cpp
