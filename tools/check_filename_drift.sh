@@ -63,6 +63,7 @@ mapfile -t files < <(find . -type f \
   ! -path './_deps/*' \
   ! -path './node_modules/*' \
   ! -path '*/node_modules/*' \
+  ! -path '*/glm/*' \
   ! -path './vcpkg_bootstrap/*' \
   ! -path './vcpkg_installed/*' \
   ! -path './third_party/*' \

@@ -41,7 +41,7 @@ endif()
 # rules the COMPLETE-type requirement propagates to any TU that includes
 # `image_cache.hpp` (verified cascade before this fix:
 # src/backends/assets/image_cache.cpp, src/backends/software/software_renderer.cpp,
-# src/cache/cache_policy.cpp, src/text/text_preset_registry.cpp via chronon3d_registry).
+# src/cache/cache_policy.cpp, src/registry/text_preset_registry.cpp via chronon3d_registry).
 # PUBLIC link to chronon3d_cache propagates the include_private path through
 # chronon3d_cache's `INTERFACE $<BUILD_INTERFACE:...>` (PRIVATE was insufficient).
 # No cycle risk: chronon3d_cache does not link chronon3d_backend_assets.
