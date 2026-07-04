@@ -156,10 +156,10 @@ TEST_CASE("compile_text_document: central paragraph fails — all 3 CompiledPara
 
     // ── INVARIANT (TICKET-092 #3): per-paragraph outcome is preserved. ──
     // First paragraph (source=0, single-font "Line A") compiles Ok.
-    CHECK(compile_result.paragraphs[0].result.is_ok());
-    if (compile_result.paragraphs[0].result.is_ok()) {
+    CHECK(compile_result.paragraphs[0].result.has_value());
+    if (compile_result.paragraphs[0].result.has_value()) {
         const auto& layout0 = *compile_result.paragraphs[0].result.value();
-        CHECK(layout0.units.units.empty() == false || layout0.source_text.empty() == false);
+        CHECK(layout0.units.glyph_to_grapheme.empty() == false || layout0.source_text.empty() == false);
     }
 
     // Central paragraph (source=1, multi-font "AAAABBBB") is REJECTED
@@ -167,17 +167,17 @@ TEST_CASE("compile_text_document: central paragraph fails — all 3 CompiledPara
     // This is the entry the previous warn+skip pattern would have
     // silently dropped; here it is preserved with the source_index
     // bridge intact.
-    CHECK(compile_result.paragraphs[1].result.is_err());
-    REQUIRE(compile_result.paragraphs[1].result.is_err());
+    CHECK(!compile_result.paragraphs[1].result.has_value());
+    REQUIRE(!compile_result.paragraphs[1].result.has_value());
     CHECK(compile_result.paragraphs[1].result.error().kind
           == TextLayoutErrorKind::UnsupportedMultiFontRun);
     CHECK_FALSE(compile_result.paragraphs[1].result.error().message.empty());
 
     // Last paragraph (source=2, single-font "Line C") compiles Ok.
-    CHECK(compile_result.paragraphs[2].result.is_ok());
-    if (compile_result.paragraphs[2].result.is_ok()) {
+    CHECK(compile_result.paragraphs[2].result.has_value());
+    if (compile_result.paragraphs[2].result.has_value()) {
         const auto& layout2 = *compile_result.paragraphs[2].result.value();
-        CHECK(layout2.units.units.empty() == false || layout2.source_text.empty() == false);
+        CHECK(layout2.units.glyph_to_grapheme.empty() == false || layout2.source_text.empty() == false);
     }
 
     // ── INVARIANT (TICKET-092 #4): complete flag reflects ANY Err. ──
@@ -227,8 +227,8 @@ TEST_CASE("compile_text_document: single-paragraph doc with multi-font — 1 Err
     CHECK(compile_result.paragraphs[0].source_index == 0);
 
     // Multi-font pre-check rejects the paragraph.
-    CHECK(compile_result.paragraphs[0].result.is_err());
-    REQUIRE(compile_result.paragraphs[0].result.is_err());
+    CHECK(!compile_result.paragraphs[0].result.has_value());
+    REQUIRE(!compile_result.paragraphs[0].result.has_value());
     CHECK(compile_result.paragraphs[0].result.error().kind
           == TextLayoutErrorKind::UnsupportedMultiFontRun);
 
@@ -269,16 +269,16 @@ TEST_CASE("compile_text_document: all-single-font 3-paragraph doc — 3 Ok entri
     // because each paragraph resolves to a single run with the same
     // family; system fonts may or may not be installed — the
     // structural invariant is the Ok/Err classification itself).
-    CHECK(compile_result.paragraphs[0].result.is_ok());
-    CHECK(compile_result.paragraphs[1].result.is_ok());
-    CHECK(compile_result.paragraphs[2].result.is_ok());
+    CHECK(compile_result.paragraphs[0].result.has_value());
+    CHECK(compile_result.paragraphs[1].result.has_value());
+    CHECK(compile_result.paragraphs[2].result.has_value());
 
     // complete is true (zero Err entries).
     CHECK(compile_result.complete == true);
 
     // Per-paragraph invariants (Fase 1.1): Ok ⇒ units populated.
     for (const auto& entry : compile_result.paragraphs) {
-        REQUIRE(entry.result.is_ok());
+        REQUIRE(entry.result.has_value());
         const auto& l = *entry.result.value();
         CHECK_FALSE(l.source_text.empty());
     }

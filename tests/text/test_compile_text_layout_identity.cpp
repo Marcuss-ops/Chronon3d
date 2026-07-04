@@ -70,7 +70,7 @@ struct LocalEngine {
 };
 
 inline void reset_layout_cache_for_test() {
-    chronon3d::reset_s_text_cache;
+    // cache reset deferred: TICKET-011 (build-rot fix) — s_text_cache scope is file-local
 }
 
 [[nodiscard]] TextRunParams make_test_params(
@@ -127,7 +127,7 @@ TEST_CASE("materialize_text_run_shape ≡ compile_text_layout (post-refactor ide
 
     // Graceful degradation: if system fonts are absent both paths fail.
     // Skip the comparison rather than CHECK-fail on forged values.
-    if (!shape || !shape->layout || !direct.is_ok()) {
+    if (!shape || !shape->layout || !direct.has_value()) {
         MESSAGE("test skipped: system fonts unavailable for ASCII text");
         return;
     }
@@ -166,7 +166,7 @@ TEST_CASE("materialize_text_run_shape ≡ compile_text_layout (post-refactor ide
 
     // (g) units TextUnitMap populated unconditionally (Fase 1.1 invariant).
     //     Both paths call build_text_unit_map under the hood; counts match.
-    CHECK(materialized.units.units.size() == canonical.units.units.size());
+    CHECK(materialized.units.glyph_to_grapheme.size() == canonical.units.glyph_to_grapheme.size());
 
     // (h) bounds — review TICKET-100 critical feedback: legacy set
     //     bounds = {placed.total_width, placed.total_height}; compile_text_layout
