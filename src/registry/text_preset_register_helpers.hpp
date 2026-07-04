@@ -61,6 +61,35 @@ void register_text_preset_subtitle(TextPresetRegistry& r);
 /// header.
 void register_builtin_presets(TextPresetRegistry& r);
 
+// ── Per-category factory forward-declaration (M1.5#13, 1/4) ────────────
+//
+// The `text_preset_factories_<category>.cpp` source TUs each define an
+// external-linkage function `create_text_presets()` returning
+// `std::vector<TextPresetDescriptor>` for their respective category.
+// The factory TUs are descriptor-only by design (no auto-register —
+// the canonical category-bridge `register_text_preset_<category>(r)`
+// consumes the returned vector and forwards each descriptor to
+// `r.register_preset(...)`).  Forward-declared here so each
+// `text_preset_registry.cpp` consumer sees the symbol without
+// per-TU declaration duplication.  Step 1/4 ships only `factory_basic`;
+// Steps 2/3/4 add the corresponding declarations.
+//
+// ODR note: each per-category TU exposes `create_text_presets()` in
+// its OWN nested namespace (`factory_basic` / `factory_kinetic` /
+// `factory_cinematic` / `factory_social`).  The nested-namespace
+// declaration below uses C++17 inline-nested syntax to avoid ODR
+// collision across TUs.
+namespace factory_basic {
+
+/// Per-category factory surface (basic = Subtitle category).
+/// Returns 4 entries: `minimal_white`, `yellow_keyword`, `glow_pulse`,
+/// `caption_box` (canonical Subtitle insertion order).
+/// Defined in `src/registry/text_preset_factories_basic.cpp`.
+[[nodiscard]] std::vector<TextPresetDescriptor>
+create_text_presets();
+
+} // namespace factory_basic
+
 } // namespace register_helpers_internal
 
 // ── Public re-exports — DELIBERATELY OMITTED (reviewer finding #6) ────────
