@@ -57,6 +57,32 @@ namespace chronon3d {
 //     The sensor image is non-uniformly scaled to fill the viewport, changing
 //     the effective pixel aspect ratio.  Rarely used except for certain
 //     anamorphic workflows or legacy compatibility.
+
+// ── ViewportRect — viewport rectangle with explicit offset ──────────────────
+// TICKET-035 / M2 — Effective viewport descriptor with explicit pillarbox /
+// letterbox offset.  Returned by LensModel::effective_viewport() to expose
+// the post-gate-fit subrect (= viewport size minus the bar regions) and the
+// OPTICAL position of that subrect inside the requested viewport canvas.
+//
+//   - For Fill / Stretch: x = y = 0; width/height = requested viewport.
+//   - For Overscan pillarbox (vp_aspect > sensor_aspect):
+//                       x = (vp_w - eff_w)/2; y = 0;
+//                       width = vp_h * sensor_aspect; height = vp_h.
+//   - For Overscan letterbox (sensor_aspect > vp_aspect):
+//                       x = 0; y = (vp_h - eff_h)/2;
+//                       width = vp_w; height = vp_w / sensor_aspect.
+//
+// Centralises the data — every caller (framing solver, EvaluatedProjection,
+// renderer) reads width/height for size semantics and x/y for the optical
+// position.  The principal point must include the offset to stay centred
+// INSIDE the active subrect, not just the canvas centre.
+struct ViewportRect {
+    f32 x{0.0f};       // left edge of the active subrect (pixels, viewport-relative)
+    f32 y{0.0f};       // top edge of the active subrect  (pixels, viewport-relative)
+    f32 width{0.0f};   // post-gate-fit width  (pixels)
+    f32 height{0.0f};  // post-gate-fit height (pixels)
+};
+
 enum class GateFit {
     Fill,      // Sensor fills viewport (crop if needed)
     Overscan,  // Entire sensor visible (add bars if needed)
@@ -145,16 +171,19 @@ struct LensModel {
             return Vec2{1000.0f, 1000.0f};
         }
 
-        Vec2 eff = effective_viewport(viewport_width, viewport_height);
+        const ViewportRect eff = effective_viewport(viewport_width, viewport_height);
 
         f32 raw_x;
         f32 raw_y;
         switch (gate_fit) {
             case GateFit::Fill:
             case GateFit::Overscan: {
-                // Uniform (per-axis but equal): use effective viewport.
-                raw_x = focal_length * (eff.x / sensor_width);
-                raw_y = focal_length * (eff.y / sensor_height);
+                // Uniform (per-axis but equal): use the EFFECTIVE viewport SIZE
+                // (width/height).  The optical offset (eff.x / eff.y) is irrelevant
+                // to focal derivation since focal/depth only depends on the size
+                // of the projected rectangle.
+                raw_x = focal_length * (eff.width  / sensor_width);
+                raw_y = focal_length * (eff.height / sensor_height);
                 break;
             }
             case GateFit::Stretch: {
@@ -191,26 +220,39 @@ struct LensModel {
     /// effective size never exceeds the viewport bounds:
     ///   - sensor wider than viewport  (sa > vp_a): full width → letterbox
     ///   - viewport wider than sensor  (sa < vp_a): full height → pillarbox
-    [[nodiscard]] Vec2 effective_viewport(f32 viewport_width, f32 viewport_height) const {
+    [[nodiscard]] ViewportRect effective_viewport(f32 viewport_width, f32 viewport_height) const {
         if (viewport_width <= 0.0f || viewport_height <= 0.0f) {
-            return Vec2{0.0f, 0.0f};
+            return ViewportRect{0.0f, 0.0f, 0.0f, 0.0f};
         }
         if (gate_fit != GateFit::Overscan) {
             // Fill: sensor is cropped to fill viewport (effective viewport = viewport as-is).
             // Stretch: sensor stretched non-uniformly to fill viewport (effective viewport = viewport as-is).
-            return Vec2{viewport_width, viewport_height};
+            // No pillarbox / letterbox bars in either mode → x:y = 0:0.
+            return ViewportRect{0.0f, 0.0f, viewport_width, viewport_height};
         }
-        // Overscan: sensor fully visible inside viewport with bars.
+        // Overscan: sensor fully visible inside viewport with bars, opti­cally centred.
         const f32 vp_a = viewport_width / viewport_height;
         const f32 sa   = sensor_aspect();
         if (sa > vp_a) {
             // Sensor wider than viewport: letterbox (top/bottom bars).
-            // Use full width; effective height = vp_w / sa.
-            return Vec2{viewport_width, viewport_width / sa};
+            // Use full width; effective height = vp_w / sa; centre vertically.
+            const f32 eff_h = viewport_width / sa;
+            return ViewportRect{
+                /*x=*/ 0.0f,
+                /*y=*/ (viewport_height - eff_h) * 0.5f,
+                /*width=*/  viewport_width,
+                /*height=*/ eff_h
+            };
         }
         // Viewport wider than sensor: pillarbox (side bars).
-        // Use full height; effective width = vp_h * sa.
-        return Vec2{viewport_height * sa, viewport_height};
+        // Use full height; effective width = vp_h * sa; centre horizontally.
+        const f32 eff_w = viewport_height * sa;
+        return ViewportRect{
+            /*x=*/ (viewport_width - eff_w) * 0.5f,
+            /*y=*/ 0.0f,
+            /*width=*/  eff_w,
+            /*height=*/ viewport_height
+        };
     }
 };
 

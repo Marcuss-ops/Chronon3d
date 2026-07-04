@@ -95,13 +95,22 @@ inline EvaluatedProjection make_evaluated_projection(const Camera2_5D& cam,
                                                       camera_math::Viewport2D vp) {
     EvaluatedProjection out;
 
-    // ── Effective viewport (TICKET-035) ────────────────────────────────
+    // ── Effective viewport (TICKET-035 / M2) ───────────────────────────
     // Honours GateFit::Overscan — the active sub-rectangle inside the
-    // requested viewport that the sensor image fills.  For Fill / Stretch
-    // this equals the requested viewport; for Overscan it's smaller.
-    const Vec2 eff = cam.lens.effective_viewport(vp.width, vp.height);
-    out.active_viewport = camera_math::Viewport2D{eff.x, eff.y};
-    out.principal_point_px = Vec2{eff.x * 0.5f, eff.y * 0.5f};
+    // requested viewport that the sensor image fills, WITH the optical
+    // offset (pillarbox / letterbox bars).  For Fill / Stretch the offset
+    // is zero and width/height equal the requested viewport; for Overscan
+    // the offset encodes the bar-region placement.
+    const ViewportRect eff = cam.lens.effective_viewport(vp.width, vp.height);
+    out.active_viewport = camera_math::Viewport2D{eff.width, eff.height};
+    // Principal point is centred inside the ACTIVE sub-rect (post-offset),
+    // not just the requested viewport.  Without the offset correction the
+    // principal point would drift off-centre under Overscan pillarbox /
+    // letterbox.  (150 + 1620/2 = 960 in the canonical 16:9 + 3:2 case.)
+    out.principal_point_px = Vec2{
+        eff.x + eff.width  * 0.5f,
+        eff.y + eff.height * 0.5f
+    };
 
     // ── Lens-sourced factors (TICKET-035) ──────────────────────────────
     // pixel_aspect and anamorphic_squeeze now come from the canonical
