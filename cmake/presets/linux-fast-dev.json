@@ -8,7 +8,7 @@
       "name": "linux-fast-dev",
       "inherits": "base-linux",
       "displayName": "Linux Fast Dev (build-fast.sh default preset)",
-      "description": "Daily inner-loop preset consumed by build-fast.sh (PRESET=linux-fast-dev, line 101). CLI + tests + text + blend2d, no content/benchmarks/diagnostics/video. BuildType=Debug, ninja, ccache, unity-ON. vcpkg CMAKE_PREFIX_PATH is computed from VCPKG_INSTALLED_DIR (base) + preset triplet dir.",
+      "description": "Daily inner-loop preset consumed by build-fast.sh (PRESET=linux-fast-dev, line 101). CLI + tests + text + blend2d, no content/benchmarks/diagnostics/video. BuildType=Debug, ninja, ccache, unity-ON. vcpkg CMAKE_PREFIX_PATH is consolidated into cmake/Chronon3DVcpkgToolchain.cmake (single source of truth, TICKET-UNIFIED-VCPKG-TOOLCHAIN); preset no longer hardcodes the vcpkg_installed/ substring.",
       "binaryDir": "${sourceDir}/build/chronon/${presetName}",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
@@ -29,7 +29,6 @@
         "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
         "CMAKE_C_COMPILER_LAUNCHER": "ccache",
         "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
-        "CMAKE_PREFIX_PATH": "${sourceDir}/vcpkg_installed/${presetName}/x64-linux/debug;${sourceDir}/vcpkg_installed/${presetName}/x64-linux",
         "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests"
       }
     }
