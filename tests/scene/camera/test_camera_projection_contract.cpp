@@ -505,26 +505,54 @@ TEST_CASE("TICKET-035: GateFit::Stretch produces focal_x != focal_y (independent
     CHECK(fxy.y == doctest::Approx(50.0f * 1080.0f / 24.0f).epsilon(0.5f));
 }
 
-TEST_CASE("TICKET-035: GateFit::Overscan exposes effective viewport (pillarbox for 3:2 sensor in 16:9)") {
+TEST_CASE("TICKET-035: GateFit::Overscan exposes effective viewport + offset (pillarbox for 3:2 sensor in 16:9)") {
     Camera2_5D cam;
     cam.lens = LensPresets::full_frame_50mm();   // 36x24mm sensor, 1.5 aspect
     cam.lens.gate_fit = GateFit::Overscan;
     auto eff = cam.lens.effective_viewport(1920.0f, 1080.0f);
     // Viewport 16:9 (~1.78) > sensor 3:2 (1.5) => pillarbox layout.
-    // Effective height = viewport_height = 1080.
     // Effective width  = viewport_height * sensor_aspect = 1080 * 1.5 = 1620.
-    CHECK(eff.x == doctest::Approx(1620.0f).epsilon(0.5f));
-    CHECK(eff.y == doctest::Approx(1080.0f).epsilon(0.5f));
+    // Effective height = viewport_height = 1080.
+    // Side bars are equal: x offset = (1920 - 1620) / 2 = 150 px.
+    CHECK(eff.width  == doctest::Approx(1620.0f).epsilon(0.5f));
+    CHECK(eff.height == doctest::Approx(1080.0f).epsilon(0.5f));
+    CHECK(eff.x      == doctest::Approx(150.0f).epsilon(0.5f));   // pillarbox offset
+    CHECK(eff.y      == doctest::Approx(0.0f));                   // no vertical bar
 
-    // Fill and Stretch are passthroughs of the requested viewport.
+    // Principal point stays centred at the canvas centre even though the
+    // active subrect is offset (150 + 1620/2 = 960 = canvas horizontal centre).
+    auto snap = chronon3d::camera_v1::make_evaluated_projection(cam, {1920.0f, 1080.0f});
+    CHECK(snap.principal_point_px.x == doctest::Approx(960.0f).epsilon(0.5f));
+    CHECK(snap.principal_point_px.y == doctest::Approx(540.0f).epsilon(0.5f));
+
+    // Fill and Stretch are passthroughs (x:y = 0:0, width/height = vp).
     cam.lens.gate_fit = GateFit::Fill;
     auto eff_fill = cam.lens.effective_viewport(1920.0f, 1080.0f);
-    CHECK(eff_fill.x == doctest::Approx(1920.0f));
-    CHECK(eff_fill.y == doctest::Approx(1080.0f));
+    CHECK(eff_fill.x      == doctest::Approx(0.0f));
+    CHECK(eff_fill.y      == doctest::Approx(0.0f));
+    CHECK(eff_fill.width  == doctest::Approx(1920.0f));
+    CHECK(eff_fill.height == doctest::Approx(1080.0f));
+
     cam.lens.gate_fit = GateFit::Stretch;
     auto eff_str = cam.lens.effective_viewport(1920.0f, 1080.0f);
-    CHECK(eff_str.x == doctest::Approx(1920.0f));
-    CHECK(eff_str.y == doctest::Approx(1080.0f));
+    CHECK(eff_str.x      == doctest::Approx(0.0f));
+    CHECK(eff_str.y      == doctest::Approx(0.0f));
+    CHECK(eff_str.width  == doctest::Approx(1920.0f));
+    CHECK(eff_str.height == doctest::Approx(1080.0f));
+}
+
+TEST_CASE("TICKET-035: GateFit::Overscan letterbox layout (sensor wider than portrait viewport)") {
+    Camera2_5D cam;
+    cam.lens = LensPresets::full_frame_50mm();   // 36x24mm sensor (sa = 1.5)
+    cam.lens.gate_fit = GateFit::Overscan;
+    // Vertical 1080x1920 viewport (vp_a ~= 0.5625) is narrower than sensor
+    // (sa = 1.5) => letterbox layout.  Effective height = vp_w / sa = 1080/1.5
+    // = 720.  Top/bottom bars equal: y offset = (1920 - 720) / 2 = 600 px.
+    auto eff = cam.lens.effective_viewport(1080.0f, 1920.0f);
+    CHECK(eff.x      == doctest::Approx(0.0f));                   // no horizontal bar
+    CHECK(eff.y      == doctest::Approx(600.0f).epsilon(0.5f));
+    CHECK(eff.width  == doctest::Approx(1080.0f).epsilon(0.5f));
+    CHECK(eff.height == doctest::Approx(720.0f).epsilon(0.5f));
 }
 
 TEST_CASE("TICKET-035: anamorphic_squeeze 2.0 produces focal_x == 2 * focal_y for anamorphic_50mm") {
