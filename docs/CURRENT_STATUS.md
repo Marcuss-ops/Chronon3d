@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@be8bf6cf` (TICKET-GATE-10-AR-RACE — named structural canary for `ar` "reason: Success" failure mode added to canary catalog; commit adds 11th canary entry + `arch:*` case branch + post-nm `ar t` integrity check + symmetric pre-nm `ar t` direct-write; OPEN root-cause investigation tracked as TICKET-GATE-10-AR-RACE-FOLLOWUP) — 2026-07-04. Linux-only.
+> **Snapshot:** `main@140dc919` (TICKET-GATE-10-AR-RACE-MITIGATION — defensive `sync` PRE_LINK on `chronon3d_sdk_impl` armed in `cmake/Chronon3DSdkArchive.cmake`; miti gates GNU ar 2.45 'reason: Success' transient on ext3/ext4; cmake re-configure confirms the hook is wired but the build of `chronon3d_sdk_impl` was not end-to-end verified in this commit due to pre-existing `TICKET-RUNTIME-ADAPTER-INCOMPLETE-TYPE` rot that blocks the build at the C++ compilation step BEFORE the archive step) — 2026-07-04. Linux-only.
 >
 > **Ultima baseline macchina-verificata:** `main@aaf70032` — **10/11 PASS** (gate #10 FAIL: Phase 4 render black).
 > **Baseline precedente:** `main@e8623a8a` (10/10 verificati, 1 NOT RUN).
