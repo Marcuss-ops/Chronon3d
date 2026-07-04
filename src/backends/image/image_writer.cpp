@@ -86,11 +86,27 @@ bool save_png(const Framebuffer& framebuffer, const std::string& path) {
             }
             Color c = linear_c.to_srgb(); // Convert from linear to sRGB for saving
             usize index = (y * width + x) * 4;
-            
-            data[index + 0] = static_cast<uint8_t>(std::clamp(c.r * 255.0f, 0.0f, 255.0f));
-            data[index + 1] = static_cast<uint8_t>(std::clamp(c.g * 255.0f, 0.0f, 255.0f));
-            data[index + 2] = static_cast<uint8_t>(std::clamp(c.b * 255.0f, 0.0f, 255.0f));
-            data[index + 3] = static_cast<uint8_t>(std::clamp(c.a * 255.0f, 0.0f, 255.0f));
+
+            // Quantize to 8-bit with proper rounding.
+            //
+            // The previous code used `static_cast<uint8_t>(c.r * 255.0f)` which
+            // TRUNCATES toward zero. At the top end of the sRGB curve
+            // (`to_srgb(1.0)` returns ~0.99999994 in IEEE 754 single precision
+            // because `1.055f - 0.055f` does not collapse to exactly 1.0f),
+            // this produced 254 instead of 255 — visible as off-by-one banding
+            // in install_consumer PNG outputs (TICKET-GATE-10-PHASE-4-BLACK,
+            // M1.5#9 regression isolated via chronon3d_save_png_roundtrip_test).
+            //
+            // `std::round` (rounds-half-away-from-zero) is the canonical
+            // IEEE 754 quantizer used by `Color::linear_to_srgb8_lut()`
+            // construction at color.hpp:24 — mirroring the LUT behaviour
+            // here keeps the two paths bit-equivalent.
+            data[index + 0] = static_cast<uint8_t>(std::clamp(std::round(c.r * 255.0f), 0.0f, 255.0f));
+            data[index + 1] = static_cast<uint8_t>(std::clamp(std::round(c.g * 255.0f), 0.0f, 255.0f));
+            data[index + 2] = static_cast<uint8_t>(std::clamp(std::round(c.b * 255.0f), 0.0f, 255.0f));
+            // Alpha stays in linear space (no sRGB curve) — apply the same
+            // rounding so values just below 1.0 do not silently drop to 254.
+            data[index + 3] = static_cast<uint8_t>(std::clamp(std::round(c.a * 255.0f), 0.0f, 255.0f));
         }
     }
     
