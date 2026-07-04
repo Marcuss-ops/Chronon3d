@@ -7,12 +7,16 @@
 // stacking of TextStyleSpan overrides on top of the document defaults.
 //
 // What lives here:
-//   * `FontSubRange` struct (per-paragraph byte range + resolved FontSpec).
 //   * `effective_font(doc, byte_start)` — applies the LAST covering
 //     TextStyleSpan's font override on top of doc.defaults.font.
 //   * `split_by_font(doc, para_start, para_end)` — gathers span
 //     boundary points in the paragraph range, sorts, dedupes, and emits
 //     one FontSubRange per homogeneous segment.
+//
+// Note: `FontSubRange` itself is canonically declared in
+// `text_span_resolver.hpp` (M1.5#8 — visible to text_bidi_resolver and
+// text_run_resolver which include the header).  This TU consumes the
+// header's type only.
 //
 // What does NOT live here:
 //   * Bidi segmentation (text_bidi_resolver.cpp).
@@ -33,13 +37,6 @@
 #include <vector>
 
 namespace chronon3d::text::resolver {
-
-// NOTE: FontSubRange is declared in include/chronon3d/text/resolver/text_span_resolver.hpp.
-// The duplicate anonymous-namespace definition that previously lived HERE has been removed
-// (M1.5#8 follow-up cat-3) to fix an unity-build ODR redefinition: when this TU is batched
-// with another TU that includes the .hpp, both struct definitions collided.  Migrating all
-// call sites (text_bidi_resolver, text_run_resolver) to the canonical named-type address
-// was completed in M1.5#8 as part of the resolver split.
 
 // ── effective_font — apply span override stack on document defaults ──────
 //
