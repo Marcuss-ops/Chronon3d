@@ -72,7 +72,7 @@ TEST_CASE("TextPresetDescriptor: each built-in populates {id, metadata, builder,
         const auto& r = builtin_text_preset_registry();
         for (const auto& d : r.list()) {
             CAPTURE(d.id);
-            CHECK_FALSE(d.fixture);
+            CHECK_FALSE(d.fixture.empty());
             // Convention: fixture paths are rooted under `tests/visual/`.
             CHECK(d.fixture.rfind("tests/visual/", 0) == 0);
         }
