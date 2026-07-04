@@ -37,6 +37,7 @@ u64 TextLayoutCacheKey::digest() const {
     seed = hash_combine(seed, hash_value(static_cast<int>(direction)));
     seed = hash_combine(seed, hash_string(language));
     seed = hash_combine(seed, hash_string(features));
+    seed = hash_combine(seed, hash_string(variation_axes));  // M1.5#5
 
     // Paragraph-level typography
     seed = hash_combine(seed, hash_value(static_cast<u8>(paragraph.composer)));
