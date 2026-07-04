@@ -7,6 +7,13 @@
 
 ## Luglio 2026 — Chiusure recenti
 
+### build(cmake) — TICKET-GATE-10-AR-RACE-MITIGATION: defensive `sync` PRE_LINK on `chronon3d_sdk_impl` (commit `140dc919`)
+- `cmake/Chronon3DSdkArchive.cmake` — appended a defensive `add_custom_command(TARGET chronon3d_sdk_impl PRE_LINK COMMAND sync)` block. The PRE_LINK hook runs BEFORE the static archive step per CMake docs, and CMake skips it when the archive is already up-to-date, so this only fires on (re)builds — not on every incremental `cmake --build`.
+- Guards: `find_program(SYNC_EXECUTABLE sync)` (no-op on systems without sync), `CMAKE_HOST_UNIX` (excludes Windows which has no native sync), `NOT CMAKE_CROSSCOMPILING` (host's `sync` doesn't affect target's filesystem). Linux-only build per `AGENTS.md`; the cross-compile guard is a cheap defense for future portability.
+- The mitigation is correctly wired (cmake re-configure emits `TICKET-GATE-10-AR-RACE-MITIGATION: PRE_LINK \`sync\` armed for chronon3d_sdk_impl ...`). The build of `chronon3d_sdk_impl` was NOT end-to-end verified in this commit because of a pre-existing build rot in `src/backends/software/runtime_adapter.cpp` (missing `#include <chronon3d/backends/text/text_render_resources.hpp>` for `chronon3d::TextRenderResources`; GCC 15 reports `invalid application of sizeof to incomplete type`). Tracked as `TICKET-RUNTIME-ADAPTER-INCOMPLETE-TYPE` in `docs/FOLLOWUP_TICKETS.md`. The build stops at the C++ compilation step BEFORE reaching the archive step, so the sync never gets a chance to fire — but the mitigation is armed and will fire once the build rot is fixed.
+- AGENTS.md v0.1 freeze Cat-1 (build correction — defensive build plumbing). No new public API, no new types, no new behaviour. The change is a PRE_LINK hook on the existing `chronon3d_sdk_impl` target only.
+- Companion tickets: TICKET-GATE-10-AR-RACE (the canary that DETECTS the failure mode, commit `be8bf6cf`), TICKET-GATE-10-AR-RACE-FOLLOWUP (the in-script post-nm `ar t` 0-entries root-cause investigation, separate from this build-time mitigation), TICKET-RUNTIME-ADAPTER-INCOMPLETE-TYPE (the pre-existing build rot that blocks end-to-end verification of this mitigation).
+
 ### build(sdk) — TICKET-GATE-10-AR-RACE: named structural canary for `ar` "reason: Success" failure mode (commit `be8bf6cf`)
 - `cmake/Chronon3DCanarySymbols.cmake` — added 11th canary entry: `"ar_race|arch:ar_t_post_nm_non_empty|always|chronon3d_sdk_impl"`. The `arch:` prefix marks this as a STRUCTURAL canary (not a substring match against the demangled symbol table). The gate handles the new entry in a dedicated `arch:*` case branch (future `arch:`-prefixed entries are routed to the same sub-case).
 - `tools/sdk/check_archive_canaries.sh`:
