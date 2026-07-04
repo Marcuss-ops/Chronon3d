@@ -108,4 +108,10 @@ set(CHRONON3D_SDK_CANARY_SYMBOLS
     # still be `FAIL` on consumer builds until the manifest filter is
     # fixed upstream.
     "content|chronon3d::register_content_modules|CHRONON3D_BUILD_CONTENT|chronon3d_content"
+
+    # #area=sdk #lib=chronon3d_runtime  # GUARD=always
+    # TICKET-GATE-10-PHASE-4-BLACK regression lock: substring matches all
+    # ctor/dtor/render/set_* demangled symbols; gates the SDK archive
+    # aggregation that the external consumer (Phase 4) needs to link.
+    "sdk|chronon3d::sdk::RenderEngine|always|chronon3d_runtime"
 )
