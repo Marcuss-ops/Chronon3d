@@ -166,14 +166,23 @@ void finalize_text_run_layout(
     TextRunLayout& text_layout,
     const ParagraphLayout& composed,
     const TextLayoutSpec& layout,
-    const ParagraphStyle& comp_style
+    const ParagraphStyle& comp_style,
+    const TextLayoutRequest& request  // M1.5#7 — variation_axes + features plumbed from call site
 ) {
-    text_layout.bounds      = composed.bounds;
-    text_layout.tracking    = layout.tracking;
-    text_layout.wrap        = layout.wrap;
-    text_layout.direction   = comp_style.direction;
-    text_layout.language    = comp_style.language;
-    text_layout.line_height = layout.line_height;
+    text_layout.bounds         = composed.bounds;
+    text_layout.tracking       = layout.tracking;
+    text_layout.wrap           = layout.wrap;
+    text_layout.direction      = comp_style.direction;
+    text_layout.language       = comp_style.language;
+    text_layout.line_height    = layout.line_height;
+    // M1.5#7 — propagate the shaping features string (OpenType tags,
+    // e.g. "kern=1,liga=1,dlig=0") and the variable-font axes tag list
+    // (e.g. "wght=700,wdth=100") from the request into the resulting
+    // TextRunLayout.  These are needed downstream by shape- and
+    // span-cache key fold (font_layout_identity_of, shaping_hash),
+    // and were previously zero/null on every cached layout.
+    text_layout.features       = request.features;
+    text_layout.variation_axes = request.variation_axes;
 }
 
 /// Resolve the effective paragraph style: use the tree paragraph's
@@ -319,8 +328,8 @@ compile_text_layout(
     // ═══════════════════════════════════════════════════════════════════
     tci::populate_font_spans(*text_layout, placed_runs, para.runs);
 
-    // Finalize remaining fields.
-    finalize_text_run_layout(*text_layout, composed, layout, comp_style);
+// Finalize remaining fields.
+finalize_text_run_layout(*text_layout, composed, layout, comp_style, request);
 
     // ═══════════════════════════════════════════════════════════════════
     // Stage 7 — CACHE: store immutable layout (file-local helper)
