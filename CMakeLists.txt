@@ -17,6 +17,16 @@ endif()
 
 # --- Opzioni di Compilazione Globali ---
 add_compile_options(-ffp-contract=off)
+# M1.5#8 / TICKET-GATE-10-PHASE-4-BLACK — suppress -Werror=deprecated-declarations
+# globally.  Inclusion of `include/chronon3d/timeline/composition.hpp` exposes
+# `Composition::evaluate(...)` overloads marked `[[deprecated("Use timeline V2:
+# compile_composition() + evaluate() instead")]]`.  Several production TUs
+# (renderer_warmup, pipeline/composition, precomp_node_execute) still call the
+# legacy overloads and would otherwise block the build of any target that
+# transitively compiles them.  A future migration to timeline V2 will
+# remove this flag.  Scope is global but tight: ONLY the deprecated-declarations
+# diagnostic is downgraded; all other -Werror categories remain active.
+add_compile_options(-Wno-error=deprecated-declarations)
 
 # --- Configurazione Strumenti di Build (ccache / linkers) ---
 if(NOT DEFINED CMAKE_CXX_COMPILER_LAUNCHER AND DEFINED ENV{CMAKE_CXX_COMPILER_LAUNCHER})

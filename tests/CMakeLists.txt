@@ -41,6 +41,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/media_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/architecture_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/sdk_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/debug/CMakeLists.txt
     ${CMAKE_CURRENT_SOURCE_DIR}/showcase/CMakeLists.txt
 )
 
@@ -65,6 +66,15 @@ include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DTestSuite.cmake)
 # exercises the header-only POD default-state only, so it compiles in
 # every preset that turns on `CHRONON3D_BUILD_TESTS`.
 include(${CMAKE_CURRENT_SOURCE_DIR}/backends_software_tests.cmake)
+
+# M1.5#8 / TICKET-GATE-10-PHASE-4-BLACK diagnostic — minimal save_png roundtrip
+# test (white 64x64 Framebuffer → save_png → stbi_load → compare).  Lives in
+# tests/debug/ to keep it isolated from the per-area test suite.  TIER=UNIT
+# (no rendering backend dependency, no fixtures).  AGENTS.md V0.1 cat-1
+# (build-fix diagnostic) freeze-compliant.
+if(CHRONON3D_BUILD_TESTS AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/debug/CMakeLists.txt)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/debug/CMakeLists.txt)
+endif()
 
 # ── Per-area test definitions ───────────────────────────────────────
 # Guarded by CHRONON3D_BUILD_TESTS (the project's own flag) rather than
