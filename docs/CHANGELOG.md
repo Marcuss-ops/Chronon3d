@@ -7,6 +7,19 @@
 
 ## Luglio 2026 — Chiusure recenti
 
+### render_graph — TICKET-camera-policy-pre-existing closure (M1.5#1 + M1.5#2 carryover) verified clean on main@83e74169
+- `src/render_graph/pipeline/camera_change_policy.cpp:24` — rot pre-esistente `Camera2_5D::projection_mode` rimossa e migrata a `Camera2_5D::optics_mode` (origin fixata in commit `ac514fea`). Field ora canonico nel camera_v1 schema (`camera_v1::Lens` famiglia in `include/chronon3d/scene/camera/camera_v1/camera_2_5d_projection.hpp`).
+- Verifica macchina su `main@83e74169`:
+  - `grep -rnE 'Camera2_5D::projection_mode' src/` → **0 hit**.
+  - `prev->optics_mode` + `current.optics_mode` referenze confermate come field canonico sostitutivo.
+  - `tools/test_architectural.sh` + `tools/check_architecture_boundaries.sh` exit 0 (advisory-only FAIL su SDK public-deps SSoT Check 16 = pre-esistente gate-10-... lineage, carry-over non introdotto da questo commit; documentato in `docs/baselines/main-9ecb4879-baseline.md` + `main-eb8e3a24-baseline.md` come `g1+g9` failure-mode costante).
+- Side effects:
+  - `chronon3d_render_graph_tests` LINK blocker M1.5#1 (era `Camera2_5D::projection_mode` rot) chiuso.
+  - `chronon3d_core_tests` LINK blocker M1.5#2 (stesso rot) chiuso.
+  - 1 rot pre-esistente ancora aperto in `chronon3d_scene_tests` linker surface (TICKET-011 / text_unit_map build rot) — fuori scope TICKET-camera-policy-pre-existing.
+- AGENTS.md v0.1 freeze Cat-3 (regression-gate verification) + Cat-5 (doc alignment); zero codice toccato, solo verifica macchina + chiusura documentale.
+- Cross-references: [`docs/FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md) §"Recently closed" (entry promossa su questo commit).
+
 ### camera — Camera V1 trajectory preserves lens/DOF/motion_blur/parent + OrientAlongPath real tangent/roll + keep_horizon toggle + degenerate-tangent safety
 - `src/scene/camera/camera_v1/camera_program.cpp` trajectory branch (`evaluate_compiled_source`) ora preserva **l'intera** `CameraBaseSpec` (lens, DOF, motion blur, parent_name) invece di hardcodare `zoom=1000, fov=50` + drop dei campi residui. Il route canonico è `apply_projection_spec(...)` + carry-forward di `tangent` + `roll_deg` per `OrientAlongPath`.
 - `tests/scene/camera/test_camera_program_compiled.cpp` §1.B: 5 nuove TEST_CASEs lockano il contratto (compiled_trajectory_*: projection_variant, lens, dof/motion_blur/parent, roll_deg). §4.B TICKET-022 single-application canonical-order lock (determinism + canonical rotation + skip-look-at-constraint). §4.C TICKET-024 orbit position in camera-local basis (yaw 0/90/180/270 + track.x camera-local flip + dolly camera-local forward + rotation coherence). §2.A TICKET-021 variance-preserving dispatch per `PoseTracksSource` (FOV/PhysicalLens/AnimatedFOV).

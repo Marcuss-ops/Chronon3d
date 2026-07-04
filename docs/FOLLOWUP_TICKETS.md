@@ -106,6 +106,7 @@ Workstream design-FROZEN 2026-07-04 contro feature-freeze attivo; **nessun codic
 | ID | Area | Commit / Note |
 |---|---|---|
 | TICKET-P1 | P1 census (5 issues, done): text/cache/cmake | commit `0892a224` |
+| TICKET-camera-policy-pre-existing (M1.5#1 + M1.5#2 carryover) | `src/render_graph/pipeline/camera_change_policy.cpp:24` — `Camera2_5D::projection_mode` rot rimossa (sostituita con `Camera2_5D::optics_mode`); riabilitava build di `chronon3d_render_graph_tests` (M1.5#1) e `chronon3d_core_tests` (M1.5#2) | commit `ac514fea` (origin fix, projection_mode→optics_mode) + verified-clean su `main@83e74169` (`grep -rnE 'Camera2_5D::projection_mode' src/` → 0 hit + `prev->optics_mode` + `current.optics_mode` canonici in `camera_change_policy.cpp`); `tools/test_architectural.sh` + `tools/check_architecture_boundaries.sh` script-exit OK (carry-over FAIL su SDK public-deps SSoT Check 16 = pre-esistente gate-10 lineage, non introdotto da questo commit) |
 | TICKET-P1-10 | Frame rate hardcoded | commit `6df9b429` + `560750e3` |
 | TICKET-P1-12 | CMake fragile (ar merge + include_private) | commit `59b2439f` |
 | M1.5#1 | TextRunNode.cpp orchestratore + 3 helpers (`text_run/`) + return-channel test | commit `82d2b0e0` |
@@ -157,8 +158,7 @@ Workstream design-FROZEN 2026-07-04 contro feature-freeze attivo; **nessun codic
 
 | ID | Area | Note |
 |---|---|---|
-| TICKET-camera-policy-pre-existing (M1.5#1 carryover) | `camera_change_policy.cpp:24` — `Camera2_5D::projection_mode` rot pre-esistente; bloccava `chronon3d_render_graph_tests` LINK. Fixata in `ac514fea` (projection_mode→optics_mode). | ✅ FIX VERIFIED (0 ref in camera_change_policy.cpp). Test target ancora rotto per TICKET-011 (text_unit_map build rot). |
-| TICKET-camera-policy-pre-existing (M1.5#2 carryover) | Stesso rot blocca `chronon3d_core_tests`. Fixata in `ac514fea`. | ✅ FIX VERIFIED (0 ref in camera_change_policy.cpp). |
+| _(nessun carry-over residuo: TICKET-camera-policy-pre-existing promosso a Recently closed 2026-07-04)_ | | |
 
 ## Altri ticket aperti
 
