@@ -36,6 +36,20 @@ add_library(chronon3d_text_core OBJECT
     # umbrella sub-header).  Bodies verbatim; no behavioural changes.
     text_run_hash.cpp
     text_run_builder.cpp
+    # M1.5#5 — split text_run_builder.cpp orchestrator into 4
+    # single-responsibility sub-cpp helpers under compiler/.  Each
+    # file owns one of the canonical 9 stages of the pipeline
+    # (validate request + MissingFont check → shape every run +
+    # apply failure policy + all-run guard → compose paragraph +
+    # apply composition to placed + concatenate → populate font
+    # spans).  Bodies verbatim moves from the pre-M1.5#5 monolith;
+    # no behavioural changes.  Internal-only — NOT in
+    # include/chronon3d/, NOT exposed to SDK consumers
+    # (AGENTS.md v0.1 cat-3 freeze-compliant surface).
+    compiler/text_compile_validation.cpp
+    compiler/text_run_shaping.cpp
+    compiler/text_run_composition.cpp
+    compiler/text_font_span_builder.cpp
     # M1.5#2 — text_run_driver.cpp slimmed into an orchestrator that
     # delegates the slow-path / prewarm stages to single-responsibility
     # helpers under driver/.  Internal-only (NOT in include/chronon3d/).
