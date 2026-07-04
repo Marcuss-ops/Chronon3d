@@ -394,21 +394,36 @@ compile_camera(const CameraDescriptor& descriptor,
     program.time_dependent_ = !source_is_static || has_modifiers;
 
     // ── 4. CAM-02 — compute evaluation_dependency metadata ─────────────
-    // Heuristic: a program RequiresHistory iff it accumulates state in
-    // ConstraintSession across frames.  Only DampedFollowConstraint (EMA
-    // of previous_camera + previous_velocity) currently fits this
-    // classification.  All other constraint types (LookAt, KeepHorizon,
-    // Distance, RotationLimit) and pure sources / modifiers are Stateless.
-    bool requires_history = false;
+    // Default heuristic: a program is STATELESS unless an explicit
+    // stateful-constraint marker forces RequiresHistory.  All pure
+    // sources (StaticCameraSource / PoseTracksSource / OrbitMotion /
+    // TrajectoryMotion) and pure modifiers (IdleOscillation,
+    // HandheldNoise) are Stateless — their evaluation is a pure function
+    // of (descriptor, CameraEvalContext).  All non-stateful constraint
+    // types (LookAt, KeepHorizon, Distance, RotationLimit) are Stateless.
+    program.evaluation_dependency_ = CameraEvaluationDependency::Stateless;
+
+    // TICKET-A3-DAMPED-HISTORY (Agent3 mission DoD gate (b)) —
+    // FORCE-override: DampedFollowConstraint is the SOLE constraint that
+    // maintains per-frame EMA state across calls (ConstraintState with
+    // previous_camera + previous_velocity + previous_time + has_previous).
+    // Identity-preserving evaluation with the SAME CameraSession is
+    // required for deterministic state accumulation, which is why this
+    // constraint type forces RequiresHistory regardless of any other
+    // indicator (source variant, modifier list, other constraint types).
+    //
+    // Force-override pattern: default is Stateless, then monotonic
+    // promotion to RequiresHistory if any constraint is a
+    // DampedFollowConstraint.  The break-on-first-match keeps the loop
+    // O(1) once a DampedFollow is encountered (the assignment is the
+    // actual codepath; subsequent iterations are no-ops).
     for (const auto& c : descriptor.constraints) {
         if (std::holds_alternative<DampedFollowConstraint>(c)) {
-            requires_history = true;
+            program.evaluation_dependency_ =
+                CameraEvaluationDependency::RequiresHistory;
             break;
         }
     }
-    program.evaluation_dependency_ = requires_history
-        ? CameraEvaluationDependency::RequiresHistory
-        : CameraEvaluationDependency::Stateless;
 
     // ── 5. Mark as compiled and return ───────────────────────────────────
     program.compiled_ = true;
