@@ -40,6 +40,7 @@
 using namespace chronon3d;
 using chronon3d::camera_math::project_world_point;
 using chronon3d::camera_math::Viewport2D;
+using chronon3d::camera_math::FocalPx;     // TICKET-035 — per-axis focal struct (camera_projection_contract.hpp)
 using chronon3d::camera_v1::make_evaluated_projection;
 using chronon3d::camera_v1::EvaluatedProjection;
 
