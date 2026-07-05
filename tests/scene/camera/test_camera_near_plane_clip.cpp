@@ -114,6 +114,98 @@ TEST_CASE("Near plane clipping: edge exactly on near plane") {
     CHECK(clipped.count >= 4);
 }
 
+TEST_CASE("Near plane clipping: triangle with one corner behind — no exploded geometry") {
+    // A triangle where the top vertex is behind the near plane.
+    // The clipped result must be a quad (4 vertices) with all finite values.
+    std::array<Vec3, 3> tri = {{
+        {-100, -100, 500},   // front-bottom-left
+        { 100, -100, 500},   // front-bottom-right
+        { 0,    100, -100},   // back-top (behind)
+    }};
+
+    auto clipped = camera_math::clip_polygon_against_near_plane(tri, 3);
+
+    CHECK(clipped.visible);
+    CHECK(clipped.was_clipped);
+    CHECK(clipped.count >= 3);
+    CHECK(clipped.count <= 4);
+
+    // No NaN, no infinity, no "exploded" huge values
+    for (int i = 0; i < clipped.count; ++i) {
+        CHECK(std::isfinite(clipped.points[i].x));
+        CHECK(std::isfinite(clipped.points[i].y));
+        CHECK(std::isfinite(clipped.points[i].z));
+        CHECK(std::abs(clipped.points[i].x) < 1e6f);
+        CHECK(std::abs(clipped.points[i].y) < 1e6f);
+        CHECK(clipped.points[i].z >= camera_math::kNearClipZ - 1e-5f);
+    }
+}
+
+TEST_CASE("Near plane clipping: triangle with two corners behind — stable output") {
+    // Triangle with only one corner in front: the clipped result must be
+    // a triangle (3 vertices) with finite values.
+    std::array<Vec3, 3> tri = {{
+        {0,     0,  500},   // front
+        {-100, -100, -100},  // behind
+        { 100, -100, -100},  // behind
+    }};
+
+    auto clipped = camera_math::clip_polygon_against_near_plane(tri, 3);
+
+    CHECK(clipped.visible);
+    CHECK(clipped.was_clipped);
+    CHECK(clipped.count >= 3);
+    CHECK(clipped.count <= 4);
+
+    for (int i = 0; i < clipped.count; ++i) {
+        CHECK(std::isfinite(clipped.points[i].x));
+        CHECK(std::isfinite(clipped.points[i].y));
+        CHECK(std::isfinite(clipped.points[i].z));
+        CHECK(clipped.points[i].z >= camera_math::kNearClipZ - 1e-5f);
+    }
+}
+
+TEST_CASE("Near plane clipping: triangle fully behind is invisible") {
+    std::array<Vec3, 3> tri = {{
+        {-100, -100, -100},
+        { 100, -100, -100},
+        { 0,    100, -100},
+    }};
+
+    auto clipped = camera_math::clip_polygon_against_near_plane(tri, 3);
+
+    CHECK_FALSE(clipped.visible);
+    // count is implementation-defined for invisible output;
+    // the contract only guarantees visible == false.
+}
+
+TEST_CASE("Near plane clipping: pentagon crossing near plane — general polygon") {
+    // 5-vertex polygon straddling the near plane: 2 corners behind, 3 in front.
+    std::array<Vec3, 5> pent = {{
+        {-200, -100, 500},   // front
+        { 200, -100, -100},  // behind
+        { 300,   50, 500},   // front
+        { 0,    150, -100},   // behind
+        {-300,   50, 500},   // front
+    }};
+
+    auto clipped = camera_math::clip_polygon_against_near_plane(pent, 5);
+
+    CHECK(clipped.visible);
+    CHECK(clipped.was_clipped);
+    // With 5 input verts and 2 behind, expect 5-7 output verts
+    CHECK(clipped.count >= 5);
+    CHECK(clipped.count <= 7);
+
+    // All output must be finite and in front of near plane
+    for (int i = 0; i < clipped.count; ++i) {
+        CHECK(std::isfinite(clipped.points[i].x));
+        CHECK(std::isfinite(clipped.points[i].y));
+        CHECK(std::isfinite(clipped.points[i].z));
+        CHECK(clipped.points[i].z >= camera_math::kNearClipZ - 1e-5f);
+    }
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Integration tests: project_layer_2_5d with near-plane crossing
 // ────────────────────────────────────────────────────────────────────────────
