@@ -26,13 +26,12 @@ void setup_render_job(const CompositionRegistry& registry,
     // (fonts, images, etc.) resolve correctly.
     auto& assets = cli_asset_registry();
     assets.mount(std::filesystem::current_path());
-    // TICKET-011a follow-up #2 — seed the typed process-wide
-    // assets root so deep rendering paths that resolve assets
-    // before a RenderRuntime is alive still find the project
-    // directory.  Once `create_renderer(...)` is called below and
-    // the engine publishes its active runtime, this fallback is
-    // shadowed by RenderRuntime::default_assets_root().
-        std::filesystem::current_path().string());
+    // TICKET-011a follow-up #2 (retired) — `process_wide_assets_root()` /
+    // `set_process_wide_assets_root()` were removed in M1.5 Fase B2+B3
+    // (cat-3 legacy-removal freeze, see CURRENT_STATUS.md).  Engine-side
+    // asset resolution is the canonical path now; the previous fallback
+    // here was an orphaned argument list left over from the retire commit
+    // (build-fixing per AGENTS.md v0.1 Cat-1, no public API surface delta).
 
     profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
     profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
