@@ -468,14 +468,82 @@ export CHRONON3D_DASHBOARD_PASSWORD="chronon3d_admin"
 
 Then restart the server. This avoids having to pass it inline every time.
 
+### Deploy Permanente con Systemd (sopravvive ai reboot)
+
+I servizi della dashboard sono gestiti come **user-level systemd services**.
+Non richiedono sudo e partono automaticamente al login dell'utente `pierone`.
+
+**Servizi installati:**
+
+| Service | Porta | Comando |
+|---|---|---|
+| `chronon3d-dashboard-flask` | 8000 | `start_dashboard_shim.py 8000` (venv python3) |
+| `chronon3d-dashboard-vite` | 5173 | `npm run dev` |
+| `chronon3d-golden-pngs` | 8888 | `python3 -m http.server 8888` |
+
+I file `.service` sono tracciati in `tools/telemetry_dashboard/systemd/`.
+
+#### Installazione (one-shot)
+
+```bash
+# Copia i file di servizio
+cp tools/telemetry_dashboard/systemd/*.service ~/.config/systemd/user/
+
+# Ricarica systemd, abilita e avvia
+systemctl --user daemon-reload
+systemctl --user enable chronon3d-dashboard-flask chronon3d-dashboard-vite chronon3d-golden-pngs
+systemctl --user start chronon3d-dashboard-flask chronon3d-dashboard-vite chronon3d-golden-pngs
+
+# Verifica
+systemctl --user status chronon3d-dashboard-flask chronon3d-dashboard-vite chronon3d-golden-pngs
+```
+
+#### Comandi quotidiani
+
+```bash
+# Stato di tutti i servizi
+systemctl --user status 'chronon3d-*'
+
+# Riavviare dopo un cambio codice
+systemctl --user restart chronon3d-dashboard-flask
+
+# Fermare tutto
+systemctl --user stop 'chronon3d-*'
+
+# Log
+journalctl --user -u chronon3d-dashboard-flask -f   # follow in tempo reale
+journalctl --user -u chronon3d-dashboard-vite -n 50  # ultime 50 righe
+
+# Log su file
+cat ~/.chronon3d/logs/flask_backend.log
+cat ~/.chronon3d/logs/vite_frontend.log
+```
+
+> **Nota:** Il servizio Flask usa Python dal virtualenv `~/venv/bin/python3`.
+> Se il venv cambia path, aggiorna `ExecStart` nel file `.service` e reinstalla.
+
+#### Verifica dopo reboot
+
+```bash
+# Dopo un reboot, verifica che tutto sia partito
+systemctl --user is-active chronon3d-dashboard-flask chronon3d-dashboard-vite chronon3d-golden-pngs
+# Output atteso: active / active / active
+
+curl -s -o /dev/null -w '%{http_code}' http://localhost:5173/ && echo ' VITE OK'
+curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/api/runs && echo ' FLASK OK'
+```
+
 ### Fermare e riavviare
 
 ```bash
-# Kill tutti i processi dashboard
+# Kill tutti i processi dashboard (metodo manuale)
 fuser -k 5173/tcp 2>/dev/null   # Vite
 fuser -k 8000/tcp 2>/dev/null   # Flask
 
 # Riavviare (dai comandi nel Quick Start sopra)
+
+# OPPURE con systemd (metodo raccomandato):
+systemctl --user restart chronon3d-dashboard-flask chronon3d-dashboard-vite chronon3d-golden-pngs
 ```
 
 ### Verifica stato
