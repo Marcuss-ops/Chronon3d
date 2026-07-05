@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@484830ee` (ADR-014 Phase A — text golden coverage extension under `tests/text_golden/user_spec/` (12 `*.cpp` skeleton stubs + `target_sources(chronon3d_text_golden_tests ...)` add_test + `tools/test_golden_driver.sh` bash driver + `docs/adr/ADR-014-text-golden-coverage.md` + 5 TICKET-GOLDEN-* forward-only followups in `FOLLOWUP_TICKETS.md`); Phase B continuation lands at `d62a8174` (12 polished scene-builder implementations restored from `/tmp/adr014_full/` out-of-tree backup + 20 PNG goldens re-captured via `CHRONON3D_UPDATE_GOLDENS=1` to gitignored `test_renders/golden/text/user_spec_*.png` + Cat-1 build-rot fix in `src/text/resolver/text_span_resolver.cpp` for redefinition of `struct FontSubRange` re-introduced post-M1.5#8 split, rebase-resolved against upstream `c9415e5b` carry); gate-7 doc-sync green; zero new public SDK surface; AGENTS v0.1 freeze Cat-1 + Cat-2 only). For upstream lineage beyond `484830ee` (incl. M1.5#8 cluster `c9415e5b` + docs-sync `64c947bd`) see gate audit snapshots below — 2026-07-04. Linux-only.
+> **Snapshot:** `main@c472312a` (FASE 3 AE parity completata: projection, orbit, DOF, motion blur, near-plane clipping — 89+ test PASS, 1 sentinel FAIL atteso). Per upstream lineage vedi CHANGELOG — 2026-07-05. Linux-only.
 
 > **ADR-014 (2026-07-04):** 12 user-spec text golden tests added under `tests/text_golden/user_spec/` (compacted into existing `chronon3d_text_golden_tests` target via `target_sources(...)`, `UNITY_BUILD OFF`, `verify_golden` helper reused from `tests/visual/support/golden_test.hpp`). Phase A: 12 `*.cpp` files are skeleton stubs (`#include <doctest/doctest.h>` + trivial `CHECK(true)` with explanatory `MESSAGE`) preserving cmake target validity on a fresh clone while deferring scene-builder implementation to Phase B (post-API-verification follow-up commit). Polished implementations + 20 golden PNGs (captured via `CHRONON3D_UPDATE_GOLDENS=1`) live preserved at `/tmp/adr014_full/` out-of-tree; copy back into `tests/text_golden/user_spec/` before Phase B commit. 5 forward-only tickets (TICKET-GOLDEN-10/16/30/31/32) appended to `FOLLOWUP_TICKETS.md` P1 backlog for spec subset blocked by feature-freeze V0.1. No new public API, no Python deps, no new registry/resolver/sampler/cache. Bash driver `tools/test_golden_driver.sh` (cmake + ctest wrapper, no Python) provided as developer convenience. Source anchors: `docs/adr/ADR-014-text-golden-coverage.md`; `docs/FOLLOWUP_TICKETS.md` P1 backlog. Phase A (doc-only + skeleton) commit satisfies gate #7 `check_doc_sync.sh`; no source code in `include/chronon3d/` was touched.
 >
@@ -144,6 +144,34 @@ Lock canonico per la DoD Camera V1 verificato da `tools/check_camera_architectur
 **Source of truth:** `tools/check_camera_architecture.sh` (6 grep-comparison checks) — output `6/6 PASS` catturato dal forensic run Step 6 (`docs/audits/2026-07-04-step6-camera-gates.md` quando scritto).
 
 **Note su Camera V1 vs RELEASE_GATE.md:** il canonico `docs/RELEASE_GATE.md` lista 7 condizioni ("all new compositions use CameraDescriptor or CameraProgram" / "CameraSession owned by render job" / "no per-frame lookup/compile" / "orientation/projection single math contract" / "compiled tests link + run in CI" / "legacy adapters parity + removal phase" / "external SDK builds + uses compiled camera"). Le 6 CAM-DOC 04 checks sopra sono la colonna architetturale della DoD; le rimanenti sono runtime/CI/SDK invariants tracciate nel forensic run Step 6 (gate b/d Pass + gate c FAIL su pre-existing rot fuori scope Camera V1 step).
+
+## AE Parity Camera Tests — FASE 3 (2026-07-05, `main@c472312a`)
+
+Campagna di verifica AE parity completata sulle categorie camera definite in `docs/CAMERA_FEATURE_MATRIX.md`. Stato osservabile (no stime percentuali):
+
+| Categoria | Test Suite | PASS | FAIL | Note |
+|---|---|---|---|---|
+| **A. Projection & Optics** | AE-CameraContract | 22 | 0 | 176 assertions |
+| | Golden projection (6-mode) | 6 | 0 | 71 assertions, tol 1e-3 |
+| | Camera projection contract | 4 | 0 | GateFit/Overscan/Stretch |
+| | TICKET-035 (anamorphic squeeze) | 9 | 0 | 58 assertions |
+| **B. Orbit/Dolly/Track** | compiled_orbit* | 7 | 0 | yaw basis, dolly local, roll, parent |
+| **C. Trajectory Motion** | compiled_trajectory* | 5 | 1⚠️ | golden sentinel (regen pending) |
+| **D. Depth of Field** | compiled_dof* + DOF transfer | 3 | 0 | animated focus 5-frame, DOF carry-forward |
+| | chronon3d_camera_tests DOF | 10 | 0 | off/blur/aperture/edge cases |
+| **E. Motion Blur** | PR8:* | 12 | 0 | disabled/static/narrow/deterministic/moving |
+| | PR1-Torture deterministic | 1 | 0 | consecutive runs byte-identical |
+| **F. Near Plane Clipping** | Near plane* | 10 | 0 | quad/triangle/pentagon/behind/no NaN |
+| **Totale** | | **89+** | **1⚠️** | sentinel `compiled_trajectory_lens_dof_golden` |
+
+Verdetto: **Chronon3D ha una base camera AE-like solida per projection, physical lens, one-node/two-node orbit, DOF e near-plane clipping. OrientAlongPath completo, constraint solver avanzato e framing restano PARZIALI.**
+
+La colonna `docs/CAMERA_FEATURE_MATRIX.md` è stata aggiornata: Orbit Motion, Clipping segment/quad/polygon, Focus distance/aperture, Temporal multi-sample motion blur promossi da 🟡/🔵 → ✅.
+
+Commits della campagna (tutti su `main`):
+- `1069dab8` — FASE 3D-E: pixel aspect golden + Parent/Null AE parity (6 test, 22/22 PASS)
+- `3e18bfc3` — FASE 3F-G: orbit precision fixes + roll/parent + DOF animated focus (3 test, 18/18 PASS)
+- `c472312a` — FASE 3H-I: near plane triangle + polygon clipping (4 test, 10/10 PASS)
 
 ## Blocker correnti per baseline verde (top 10 attivi)
 
