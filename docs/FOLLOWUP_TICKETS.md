@@ -8,6 +8,8 @@
 
 Solo ticket realmente aperti (PLANNED / PARTIAL). Nessun DONE in questa sezione.
 
+> Scorecard Text Production V1 (snapshot 2026-07-05, osservabile PASS/FAIL/PARTIAL, no %): vedi riga "Text Production V1" di `docs/CURRENT_STATUS.md` per il dettaglio per-area (cat-2 goldens 12/12 IMPL / ae-parity 5/20 IMPL / motion-blur PLANNED / subtitle-word-highlight PLANNED). Anti-greenwashing: nessuna percentuale stimata.
+
 | ID | Pri | Area | Stato | Blocca | Scheda |
 |---|---|---|---|---|---|
 | TICKET-036 | P0 | camera architecture gate | PLANNED | arch-boundary gate 5/6 | [TICKET-036.md](tickets/TICKET-036.md) |
