@@ -6,6 +6,7 @@
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <atomic>
 #include <memory>
 #include <string>
 
@@ -50,8 +51,15 @@ public:
     using Value = std::shared_ptr<Framebuffer>;
 
     explicit NodeCache(size_t capacity_bytes = 2048ULL * 1024 * 1024);
-    NodeCache(NodeCache&&) noexcept = default;
-    NodeCache& operator=(NodeCache&&) noexcept = default;
+
+    // Moving a NodeCache invalidates the `this` pointer captured by the
+    // CacheDiagnostics registration lambdas, causing a use-after-move
+    // crash when format_cache_snapshot() is called after a move.
+    // The move constructor/assignment are deleted to prevent this.
+    NodeCache(NodeCache&&) = delete;
+    NodeCache& operator=(NodeCache&&) = delete;
+
+    ~NodeCache();
 
     [[nodiscard]] Value get(const NodeCacheKey& key);
     void store(const NodeCacheKey& key, Value value);
@@ -67,8 +75,19 @@ public:
     bool erase(const NodeCacheKey& key);
 
 private:
+    // m_diag_handle must be declared BEFORE m_cache so it is destroyed
+    // AFTER m_cache.  The stats_fn lambda captures `this` and accesses
+    // m_cache; destroying m_diag_handle first would unregister the lambda
+    // while m_cache is still alive (safe), but the reverse order would
+    // leave a dangling lambda in CacheDiagnostics pointing to a dead cache.
     CacheDiagnostics::Handle m_diag_handle;
     FramebufferCache m_cache;
+
+    // Guard against use-after-destroy: the CacheDiagnostics registry may
+    // hold a live std::function targeting this NodeCache after the
+    // destructor has run.  We use an atomic flag checked by the lambda
+    // to return empty stats safely.
+    std::atomic<bool> m_diag_alive{true};
 };
 
 } // namespace chronon3d::cache
