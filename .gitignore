@@ -176,3 +176,5 @@ tools/telemetry_dashboard/frontend/node_modules/
 # Global fallback (belt-and-suspenders against future accidental git add .)
 dist/
 node_modules/
+artifacts/
+test_output/
