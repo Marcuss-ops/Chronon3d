@@ -371,3 +371,62 @@ TEST_CASE("OrientAlongPath (d) — fully degenerate (StaticCameraSource, "
     // cam.rotation == base.rotation == (0,0,0) and rotation_l2 == 0.
     CHECK(rotation_l2(cam.rotation) > 0.5f);  // degrees, matches baseline test floor
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// (e) fully degenerate + no POI → step 4: keep base rotation + Warning
+// ══════════════════════════════════════════════════════════════════════════
+//
+// All fallbacks exhausted: tangent=nullopt (StaticCameraSource),
+// last_tangent=nullopt (fresh session), POI=disabled → step 4 fires.
+// The camera MUST keep its base rotation and emit the "keeping base
+// rotation" Warning.  This sub-test is immune to the trajectory validator
+// regression because it uses StaticCameraSource.
+
+TEST_CASE("OrientAlongPath (e) — fully degenerate (no tangent, "
+          "no last_tangent, POI disabled) falls back to step 4: "
+          "keep base rotation AND emit Warning 'keeping base rotation'") {
+    CameraDescriptor desc;
+    desc.id = "test.oap.e";
+    desc.base.enabled = true;
+    // Non-identity base rotation — if step 4 fires correctly, this
+    // value is preserved verbatim (no look-at transform applied).
+    desc.base.position = Vec3{0.0f, 0.0f, -1000.0f};
+    desc.base.rotation = Vec3{12.0f, -8.0f, 3.0f};
+    desc.base.point_of_interest_enabled = false;  // ← POI disabled → step 3 cannot fire
+    desc.base.projection = ZoomProjection{AnimatedValue<float>{1000.0f}};
+    desc.source = StaticCameraSource{};            // ← tangent = std::nullopt → step 1 cannot fire
+    desc.orientation = OrientAlongPath{/*keep_horizon=*/false};
+
+    auto program = compile_or_die_orient_along_path(desc);
+    CameraSession session;  // fresh → last_tangent = std::nullopt → step 2 cannot fire
+
+    CameraEvalContext ctx;
+    ctx.frame = Frame{0};
+    ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kFps);
+    auto res = program.evaluate(ctx, session);
+    REQUIRE(res.has_value());
+
+    auto& cam = res->camera;
+    CAPTURE(cam.rotation.x);
+    CAPTURE(cam.rotation.y);
+    CAPTURE(cam.rotation.z);
+
+    // Step 4: "keeping base rotation" Warning MUST be emitted.
+    CHECK(has_warning_message_containing(res->diagnostics,
+                                          "keeping base rotation"));
+
+    // Base rotation MUST be preserved identically (no fallback look-at applied).
+    CHECK(cam.rotation.x == doctest::Approx(12.0f).epsilon(kEpsOrientAlongPath));
+    CHECK(cam.rotation.y == doctest::Approx(-8.0f).epsilon(kEpsOrientAlongPath));
+    CHECK(cam.rotation.z == doctest::Approx(3.0f).epsilon(kEpsOrientAlongPath));
+
+    // Rotation must be finite (sanity guard against NaN in the fallback chain).
+    CHECK(is_finite3(cam.rotation));
+
+    // Structural guard: step 1, 2, 3 warnings must NOT be present — only
+    // step 4 should fire.
+    CHECK_FALSE(has_warning_message_containing(res->diagnostics,
+                                                "previous frame tangent"));
+    CHECK_FALSE(has_warning_message_containing(res->diagnostics,
+                                                "point_of_interest"));
+}
