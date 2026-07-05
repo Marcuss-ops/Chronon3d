@@ -410,25 +410,104 @@ class _LockedCursor:
 
 
 def _load_existing_db(cursor):
-    """Copy data from the on-disk SQLite DB into the in-memory connection."""
+    """Copy data from the on-disk SQLite DB into the in-memory connection.
+
+    Handles legacy column drift between the on-disk SQLite schema and the
+    canonical in-memory schema read from telemetry_schema.sql:
+      * Legacy column aliases (e.g. `composition` -> `composition_id`) are
+        remapped into the canonical column name when present in the in-memory
+        schema, otherwise the legacy column is silently dropped.
+      * Columns that exist in the on-disk DB but are unknown to the in-memory
+        schema are dropped (forward-only — never widen the in-memory schema
+        from disk content).
+      * When the source schema lacks an explicit `run_id`, a stable synthetic
+        run_id is generated per row from the source `rowid` so that downstream
+        JOINs in `_hydrate_video_metrics` still match the child tables.
+      * `INSERT OR IGNORE` is used so that historical rows with NULL primary
+        keys (legacy TEXT PRIMARY KEY allows multiple NULLs) do not abort
+        the load with an `IntegrityError`.
+    """
     if not DB_PATH.exists():
         return
 
     source = sqlite3.connect(str(DB_PATH))
     source.row_factory = sqlite3.Row
     try:
+        # Forward-only legacy aliases. Extend cautiously as new drift is observed.
+        LEGACY_COLUMN_ALIASES = {
+            'composition': 'composition_id',
+        }
+
         for table in ALL_TABLES:
             try:
-                rows = source.execute(f"SELECT * FROM {table}").fetchall()
+                raw_rows = source.execute(
+                    f"SELECT rowid AS _source_rowid, * FROM {table}"
+                ).fetchall()
             except Exception:
-                rows = []
-            if not rows:
+                raw_rows = []
+            if not raw_rows:
                 continue
-            cols = rows[0].keys()
-            placeholders = ', '.join(['?'] * len(cols))
-            col_list = ', '.join(cols)
-            sql = f"INSERT OR REPLACE INTO {table} ({col_list}) VALUES ({placeholders})"
-            cursor.executemany(sql, [[row[col] for col in cols] for row in rows])
+
+            # Snapshot the in-memory schema columns for this table so we can
+            # filter (rather than crash-and-suppress) legacy / extra columns.
+            try:
+                cursor.execute(f"PRAGMA table_info({table})")
+                valid_cols = {row[1] for row in cursor.fetchall()}
+            except Exception:
+                valid_cols = set()
+            if not valid_cols:
+                continue
+
+            require_run_id = 'run_id' in valid_cols
+            synthetic_seed = 0
+            for src_row in raw_rows:
+                row_dict = {key: src_row[key] for key in src_row.keys()}
+
+                # Synthesize run_id when source schema lacked one — uses the
+                # SQLite rowid so identical legacy rows collapse cleanly.
+                if require_run_id and not row_dict.get('run_id'):
+                    seed = row_dict.pop('_source_rowid', synthetic_seed)
+                    row_dict['run_id'] = f"legacy_{table}_{seed}"
+                    synthetic_seed += 1
+
+                # Per-row guard against alias collisions: if a row carries both
+                # the legacy column (`composition`) and its canonical twin
+                # (`composition_id`), we must not insert the same target column
+                # twice or sqlite3 raises `too many columns`.
+                seen: set[str] = set()
+                insert_cols = []
+                values = []
+                for col, value in row_dict.items():
+                    if col.startswith('_'):
+                        continue
+                    if col in valid_cols and col not in seen:
+                        insert_cols.append(col)
+                        seen.add(col)
+                        values.append(value)
+                    elif col in LEGACY_COLUMN_ALIASES \
+                            and LEGACY_COLUMN_ALIASES[col] in valid_cols \
+                            and LEGACY_COLUMN_ALIASES[col] not in seen:
+                        insert_cols.append(LEGACY_COLUMN_ALIASES[col])
+                        seen.add(LEGACY_COLUMN_ALIASES[col])
+                        values.append(value)
+                    # else: legacy/extra column — silently drop
+
+                if not insert_cols:
+                    continue
+
+                placeholders = ', '.join(['?'] * len(insert_cols))
+                col_list = ', '.join(insert_cols)
+                sql = (
+                    f"INSERT OR IGNORE INTO {table} ({col_list}) "
+                    f"VALUES ({placeholders})"
+                )
+                try:
+                    cursor.execute(sql, values)
+                except Exception:
+                    # Per-row failure (e.g. type coercion of legacy string
+                    # into a numeric column) — keep loading the rest of the
+                    # table instead of aborting the entire DB.
+                    continue
     finally:
         source.close()
 
@@ -680,7 +759,8 @@ def _hydrate_video_metrics(cursor):
                    ),
                    {column_name}
                )
-             WHERE {column_name} IS NULL OR {column_name} = 0
+             WHERE ({column_name} IS NULL OR {column_name} = 0)
+               AND render_runs.run_id NOT LIKE 'legacy\_%' ESCAPE '\\'
             """,
             (phase_name,),
         )
@@ -692,6 +772,7 @@ def _hydrate_video_metrics(cursor):
                COALESCE(chronon_render_only_ms, 0) +
                COALESCE(chronon_conversion_copy_ms, 0) +
                COALESCE(chronon_queue_wait_ms, 0)
+         WHERE run_id NOT LIKE 'legacy\_%' ESCAPE '\\'
         """
     )
 
