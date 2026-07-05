@@ -25,6 +25,7 @@
 #include <vector>
 
 using namespace chronon3d;
+using std::pair;
 using std::string_view;
 using std::vector;
 
