@@ -69,6 +69,7 @@ add_executable(chronon3d_scene_tests
     scene/camera/test_orient_along_path.cpp   # Agent1 DoD: 4-sub-test OrientAlongPath regression lock (Step 4)
     scene/camera/test_camera_stabilization.cpp
     scene/camera/test_camera_projection_contract.cpp
+    scene/camera/test_dof_ae_parity.cpp   # FASE 5 — DOF AE parity: 6 test categories (enable, rack focus, aperture, physical lens, projection independence, disabled fields)
     scene/camera/golden_projection_test.cpp   # C7 — DOC 02 / TICKET-035 freeze: 6-mode golden projection
     scene/camera/test_camera_near_plane_clip.cpp
     scene/camera/camera_25d_tests.cpp
