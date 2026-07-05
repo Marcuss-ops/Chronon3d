@@ -35,17 +35,28 @@ NodeCache::NodeCache(size_t capacity_bytes)
               m_diag_handle = CacheDiagnostics::instance().register_cache(
                   CacheDomain::Nodes,
                   [this]() -> GenericCacheStats {
+                      if (!m_diag_alive.load(std::memory_order_acquire)) return {};
                       auto s = m_cache.stats();
                       return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
                   },
-                  [this] { m_cache.clear(); },
-                  [this] { return m_cache.capacity_mode(); },
+                  [this] {
+                      if (!m_diag_alive.load(std::memory_order_acquire)) return;
+                      m_cache.clear();
+                  },
+                  [this] {
+                      if (!m_diag_alive.load(std::memory_order_acquire)) return CapacityMode::Weight;
+                      return m_cache.capacity_mode();
+                  },
                   p.capacity);
               return p;
           }().capacity,
           2,
           capacity_mode_for(CacheDomain::Nodes))
 {}
+
+NodeCache::~NodeCache() {
+    m_diag_alive.store(false, std::memory_order_release);
+}
 
 std::shared_ptr<Framebuffer> NodeCache::get(const NodeCacheKey& key) {
     auto val = m_cache.get(key);
