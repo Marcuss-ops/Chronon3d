@@ -163,3 +163,16 @@ install_manifest.json
 tools/_*.py
 sdk_consumer_output.png
 reports/perf/
+
+# ── Dashboard frontend build artifacts ────────────────────────────────────────
+# AGENTS.md v0.1 § anti-artefact invariant: NEVER commit dist/ or node_modules/.
+# Frontend lives at tools/telemetry_dashboard/frontend/ and is rebuilt fresh
+# on demand via `cd tools/telemetry_dashboard/frontend && npm install && npm run build`.
+# Both scoped here (dashboard-specific paths) AND globally (fallback for any
+# future frontend apps + raw npm/yarn dependency caches).
+tools/telemetry_dashboard/frontend/dist/
+tools/telemetry_dashboard/frontend/node_modules/
+
+# Global fallback (belt-and-suspenders against future accidental git add .)
+dist/
+node_modules/
