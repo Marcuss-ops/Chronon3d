@@ -1,0 +1,16 @@
+[Unit]
+Description=Chronon3D Dashboard — Vite Frontend (React + HMR)
+After=network-online.target chronon3d-dashboard-flask.service
+Wants=network-online.target chronon3d-dashboard-flask.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Pyt/Chronon3d/tools/telemetry_dashboard/frontend
+ExecStart=/usr/bin/npm run dev
+Restart=always
+RestartSec=3
+StandardOutput=append:%h/.chronon3d/logs/vite_frontend.log
+StandardError=append:%h/.chronon3d/logs/vite_frontend.log
+
+[Install]
+WantedBy=default.target
