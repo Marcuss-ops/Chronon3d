@@ -793,8 +793,12 @@ TEST_CASE("TICKET-035: focal_xy_from_camera returns equal values for spherical F
     Camera2_5D cam;
     cam.lens = LensPresets::full_frame_50mm();   // 50mm spherical, Fill, no squeeze
     cam.optics_mode = CameraOpticsMode::PhysicalLens;
-    auto fxy = camera_math::focal_xy_from_camera(cam, 1920.0f, 1080.0f);
+    // Use a viewport matching the sensor aspect (36x24mm = 3:2 = 1.5)
+    // so focal_x == focal_y for a spherical lens under Fill.
+    // focal = 50 * 1500 / 36 = 50 * 1000 / 24 = 2083.33
+    auto fxy = camera_math::focal_xy_from_camera(cam, 1500.0f, 1000.0f);
     CHECK(fxy.x == doctest::Approx(fxy.y).epsilon(1e-4f));
+    CHECK(fxy.x == doctest::Approx(2083.33f).epsilon(1e-2f));
     CHECK(fxy.x > 0.0f);
     CHECK_FALSE(std::isnan(fxy.x));
     CHECK_FALSE(std::isnan(fxy.y));
