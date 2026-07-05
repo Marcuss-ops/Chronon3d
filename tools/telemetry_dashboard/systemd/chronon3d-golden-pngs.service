@@ -1,0 +1,16 @@
+[Unit]
+Description=Chronon3D — Golden PNG Reference Server (port 8888)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Pyt/Chronon3d/tests/golden/ae_parity
+ExecStart=/usr/bin/python3 -m http.server 8888 --bind 0.0.0.0
+Restart=always
+RestartSec=3
+StandardOutput=append:%h/.chronon3d/logs/golden_pngs.log
+StandardError=append:%h/.chronon3d/logs/golden_pngs.log
+
+[Install]
+WantedBy=default.target
