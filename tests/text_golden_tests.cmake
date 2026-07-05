@@ -51,6 +51,22 @@ target_sources(chronon3d_text_golden_tests
         text_golden/user_spec/12_anim_framerate_determinism.cpp
 )
 
+# ADR-015 (TICKET-AE-PARITY-SUITE) — 5 cinematic AE-parity scene-builders.
+# Cat-2 freeze-compliant (forward-only): zero new public API; verify_golden
+# reuse from tests/visual/support/golden_test.hpp; same harness chain as the
+# 12 user-spec tests above. 5 scene × 2 AR (16:9 + 9:16) × 3 frame (0,15,30)
+# = 30 golden PNG target. Capture blocked by TICKET-GOLDEN-CAPTURE root
+# cause until that ticket is closed (see FOLLOWUP_TICKETS.md); impl ships
+# forward-only until capture pipeline is fixed.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/ae_parity/ae_01_cinematic_title_reveal.cpp
+        text_golden/ae_parity/ae_02_typewriter.cpp
+        text_golden/ae_parity/ae_03_word_cascade.cpp
+        text_golden/ae_parity/ae_04_fill_stroke_shadow.cpp
+        text_golden/ae_parity/ae_05_lower_third.cpp
+)
+
 add_test(
     NAME TextGolden
     COMMAND chronon3d_text_golden_tests
