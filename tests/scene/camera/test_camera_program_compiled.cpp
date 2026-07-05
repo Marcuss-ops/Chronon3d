@@ -612,6 +612,52 @@ TEST_CASE("compiled_trajectory_transfers_dof_motion_blur_parent — "
     CHECK(cam.is_animated);
 }
 
+TEST_CASE("compiled_dof_animated_focus_distance — "
+          "PoseTracksSource + animated focus_distance changes cam.dof.focus_distance "
+          "frame over frame (AE parity: pull-focus animation)") {
+    auto desc = make_cam01_base_desc("test.dof_animated");
+    desc.base.dof.enabled = true;
+    desc.base.dof.aperture = 0.02f;
+    PoseTracksSource pts;
+    pts.position.set(Vec3{0.0f, 0.0f, -1000.0f});
+    // Animated focus: 0 → 500 → 1000 over 120 frames (linear)
+    pts.focus_distance.key(Frame{0},   0.0f)
+                      .key(Frame{60},  500.0f, Easing::Linear)
+                      .key(Frame{120}, 1000.0f, Easing::Linear);
+    desc.source = pts;
+
+    auto program = compile_or_die_cam01(desc);
+    REQUIRE(program.is_time_dependent());
+
+    CameraSession session;
+    // Frame 0: focus=0
+    auto cam0 = eval_at_or_die_cam01(program, session, Frame{0});
+    CHECK(cam0.dof.enabled);
+    CHECK(cam0.dof.focus_distance == doctest::Approx(0.0f).epsilon(kCam01Eps));
+
+    // Frame 30: midpoint of 0→500 → focus=250
+    auto cam30 = eval_at_or_die_cam01(program, session, Frame{30});
+    CHECK(cam30.dof.focus_distance == doctest::Approx(250.0f).epsilon(0.01f));
+
+    // Frame 60: focus=500
+    auto cam60 = eval_at_or_die_cam01(program, session, Frame{60});
+    CHECK(cam60.dof.focus_distance == doctest::Approx(500.0f).epsilon(kCam01Eps));
+
+    // Frame 90: midpoint of 500→1000 → focus=750
+    auto cam90 = eval_at_or_die_cam01(program, session, Frame{90});
+    CHECK(cam90.dof.focus_distance == doctest::Approx(750.0f).epsilon(0.01f));
+
+    // Frame 120: focus=1000
+    auto cam120 = eval_at_or_die_cam01(program, session, Frame{120});
+    CHECK(cam120.dof.focus_distance == doctest::Approx(1000.0f).epsilon(kCam01Eps));
+
+    // Structural guard: focus_distance changes monotonically
+    CHECK(cam0.dof.focus_distance < cam30.dof.focus_distance);
+    CHECK(cam30.dof.focus_distance < cam60.dof.focus_distance);
+    CHECK(cam60.dof.focus_distance < cam90.dof.focus_distance);
+    CHECK(cam90.dof.focus_distance < cam120.dof.focus_distance);
+}
+
 TEST_CASE("compiled_trajectory_transfers_roll_deg — "
           "TrajectoryMotion with roll_deg on trajectory points MUST produce "
           "a non-zero roll when OrientAlongPath is active") {
@@ -1372,8 +1418,9 @@ TEST_CASE("compiled_orbit_basis_forward_per_yaw — "
         auto program = compile_or_die_cam01(desc);
         CameraSession session;
         auto cam = eval_at_or_die_cam01(program, session, Frame{0});
-        CHECK(cam.position.x == doctest::Approx(0.0f).epsilon(kCam01Eps));
-        CHECK(cam.position.y == doctest::Approx(0.0f).epsilon(kCam01Eps));
+        // std::abs() for zero-axis: sin 180° ≈ 0 produces ~8.7e-05 float drift
+        CHECK(std::abs(cam.position.x) < 1e-4f);
+        CHECK(std::abs(cam.position.y) < 1e-4f);
         CHECK(cam.position.z == doctest::Approx(-1000.0f).epsilon(kCam01Eps));
     }
     SUBCASE("yaw=9  ->  pos = (1000, 0, 0)") {
@@ -1392,8 +1439,8 @@ TEST_CASE("compiled_orbit_basis_forward_per_yaw — "
         CameraSession session;
         auto cam = eval_at_or_die_cam01(program, session, Frame{0});
         CHECK(cam.position.x == doctest::Approx(1000.0f).epsilon(kCam01Eps));
-        CHECK(cam.position.y == doctest::Approx(0.0f).epsilon(kCam01Eps));
-        CHECK(cam.position.z == doctest::Approx(0.0f).epsilon(kCam01Eps));
+        CHECK(std::abs(cam.position.y) < 1e-4f);
+        CHECK(std::abs(cam.position.z) < 1e-4f);
     }
     SUBCASE("yaw=270 ->  pos = (-1000, 0, 0)") {
         auto desc = make_cam01_base_desc("test.t024.yaw_270");
@@ -1411,8 +1458,8 @@ TEST_CASE("compiled_orbit_basis_forward_per_yaw — "
         CameraSession session;
         auto cam = eval_at_or_die_cam01(program, session, Frame{0});
         CHECK(cam.position.x == doctest::Approx(-1000.0f).epsilon(kCam01Eps));
-        CHECK(cam.position.y == doctest::Approx(0.0f).epsilon(kCam01Eps));
-        CHECK(cam.position.z == doctest::Approx(0.0f).epsilon(kCam01Eps));
+        CHECK(std::abs(cam.position.y) < 1e-4f);
+        CHECK(std::abs(cam.position.z) < 1e-4f);
     }
 }
 
@@ -1509,8 +1556,9 @@ TEST_CASE("compiled_orbit_dolly_camera_local_basis — "
         CameraSession session;
         auto cam = eval_at_or_die_cam01(program, session, Frame{0});
         CAPTURE(cam.position.x); CAPTURE(cam.position.y); CAPTURE(cam.position.z);
-        CHECK(cam.position.x == doctest::Approx(0.0f).epsilon(kCam01Eps));
-        CHECK(cam.position.y == doctest::Approx(0.0f).epsilon(kCam01Eps));
+        // std::abs() for zero-axis: sin 180° ≈ 0 produces ~4.4e-05 float drift
+        CHECK(std::abs(cam.position.x) < 1e-4f);
+        CHECK(std::abs(cam.position.y) < 1e-4f);
         CHECK(cam.position.z == doctest::Approx(-500.0f).epsilon(kCam01Eps));
     }
 }
@@ -1569,6 +1617,59 @@ TEST_CASE("compiled_orbit_rotation_coherence_independent_of_radius — "
         CHECK(cam.point_of_interest.y == doctest::Approx(0.0f).epsilon(kCam01Eps));
         CHECK(cam.point_of_interest.z == doctest::Approx(0.0f).epsilon(kCam01Eps));
     }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// §4.D — TICKET-024: orbit roll + parent propagation (AE parity)
+// ══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("compiled_orbit_roll_rotation — "
+          "OrbitMotion with roll=30 deg produces non-zero rotation.z on the camera "
+          "(AE parity: orbit roll affects camera bank)") {
+    auto desc = make_cam01_base_desc("test.t024.roll");
+    OrbitMotion orbit;
+    orbit.target.set(Vec3{0.0f, 0.0f, 0.0f});
+    orbit.yaw.set(0.0f);
+    orbit.pitch.set(0.0f);
+    orbit.radius.set(1000.0f);
+    orbit.track.set(Vec3{0.0f, 0.0f, 0.0f});
+    orbit.dolly.set(0.0f);
+    orbit.roll.set(30.0f);  // AE parity: orbit roll → camera bank (rotation.z)
+    desc.source = orbit;
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+    auto cam = eval_at_or_die_cam01(program, session, Frame{0});
+    CAPTURE(cam.rotation.z);
+    CHECK(cam.rotation.z == doctest::Approx(30.0f).epsilon(kCam01Eps));
+    // position unaffected by roll (roll is a rotation around the look axis)
+    CHECK(cam.position.z == doctest::Approx(1000.0f).epsilon(kCam01Eps));
+}
+
+TEST_CASE("compiled_orbit_with_parent — "
+          "OrbitMotion with parent_name set on CameraBaseSpec carries parent_name "
+          "through to the evaluated Camera2_5D (AE parity: orbit camera respects "
+          "parent transform hierarchy)") {
+    auto desc = make_cam01_base_desc("test.t024.parent");
+    desc.base.parent_name = "camera_rig_null";
+    OrbitMotion orbit;
+    orbit.target.set(Vec3{0.0f, 0.0f, 0.0f});
+    orbit.yaw.set(0.0f);
+    orbit.pitch.set(0.0f);
+    orbit.radius.set(1000.0f);
+    orbit.track.set(Vec3{0.0f, 0.0f, 0.0f});
+    orbit.dolly.set(0.0f);
+    orbit.roll.set(0.0f);
+    desc.source = orbit;
+
+    auto program = compile_or_die_cam01(desc);
+    CameraSession session;
+    auto cam = eval_at_or_die_cam01(program, session, Frame{0});
+    // parent_name must propagate through the compiled path
+    CHECK(cam.parent_name == "camera_rig_null");
+    // position/rotation carry through unchanged when no transforms are in context
+    CHECK(cam.position.z == doctest::Approx(1000.0f).epsilon(kCam01Eps));
+    CHECK(cam.rotation.z == doctest::Approx(0.0f).epsilon(kCam01Eps));
 }
 
 // ══════════════════════════════════════════════════════════════════════════
