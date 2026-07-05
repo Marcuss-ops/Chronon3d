@@ -650,6 +650,107 @@ TEST_CASE("AE-CameraContract: PhysicalLens focal_length is used, NOT overridden 
 }
 
 // ============================================================================
+// AE-CameraContract — Parent / Null Object tests
+// ============================================================================
+
+TEST_CASE("AE-CameraContract: parent Y rotation moves camera orbitally") {
+    Transform3D parent;
+    parent.rotation = {0, 90, 0};  // rotate 90° around Y axis
+    ResolvedSceneTransforms resolved = build_projection_resolver({{"null_rot", parent}});
+
+    CameraRig rig;
+    rig.mode = CameraRigMode::OneNode;
+    rig.parent_name = "null_rot";
+    rig.orbit_radius.set(1000.0f);
+    rig.target_name = "";
+
+    const Camera2_5D cam = rig.evaluate(Frame{0}, &resolved);
+    CHECK(cam.is_animated);
+    CHECK_FALSE(cam.point_of_interest_enabled);
+    // Parent rotated 90° around Y: camera at z=-1000 moves to x=±1000
+    CHECK(std::abs(cam.position.x) == doctest::Approx(1000.0f).epsilon(0.01f));
+    CHECK(std::abs(cam.position.z) < 0.5f);
+}
+
+TEST_CASE("AE-CameraContract: camera own rotation preserved with parent (pan unaffected)") {
+    Transform3D parent;
+    parent.rotation = {0, 45, 0};  // parent Y rotation
+    ResolvedSceneTransforms resolved = build_projection_resolver({{"p", parent}});
+
+    CameraRig rig;
+    rig.mode = CameraRigMode::OneNode;
+    rig.parent_name = "p";
+    rig.pan.set(30.0f);  // own camera Y rotation (pan)
+    rig.target_name = "";
+
+    const Camera2_5D cam = rig.evaluate(Frame{0}, &resolved);
+    CHECK(cam.is_animated);
+    CHECK_FALSE(cam.point_of_interest_enabled);
+    // Own pan rotation preserved (not overridden by parent)
+    CHECK(cam.rotation.y == doctest::Approx(30.0f).epsilon(1e-3f));
+    // Parent Y=45° rotation must affect camera position (orbits around origin)
+    CHECK(std::abs(cam.position.x) > 0.01f);
+    // No NaN in rotation
+    CHECK_FALSE(std::isnan(cam.rotation.x));
+    CHECK_FALSE(std::isnan(cam.rotation.z));
+}
+
+TEST_CASE("AE-CameraContract: TwoNode with animated parent and POI tracks target correctly") {
+    Transform3D parent;
+    parent.position = {50, 0, 0};
+    ResolvedSceneTransforms resolved = build_projection_resolver({{"p", parent}});
+
+    CameraRig rig;
+    rig.mode = CameraRigMode::TwoNode;
+    rig.parent_name = "p";
+    // Animated target: moves across frames
+    rig.target.key(Frame{0}, Vec3{100, 0, 0})
+              .key(Frame{60}, Vec3{300, 150, 0});
+    rig.orbit_radius.set(1000.0f);
+
+    const Camera2_5D cam0 = rig.evaluate(Frame{0}, &resolved);
+    const Camera2_5D cam60 = rig.evaluate(Frame{60}, &resolved);
+
+    CHECK(cam0.is_animated);
+    CHECK(cam0.point_of_interest_enabled);
+    CHECK(cam60.point_of_interest_enabled);
+    // POI tracks target + parent offset (parent position {50,0,0} shifts target)
+    CHECK(cam0.point_of_interest.x == doctest::Approx(150.0f).epsilon(1e-3f));
+    CHECK(cam60.point_of_interest.x == doctest::Approx(350.0f).epsilon(1e-3f));
+    CHECK(cam60.point_of_interest.y == doctest::Approx(150.0f).epsilon(1e-3f));
+    // Camera position must change (target moved → camera orbits differently)
+    CHECK(cam60.position != cam0.position);
+}
+
+TEST_CASE("AE-CameraContract: parent deterministic evaluation (random access = sequential)") {
+    Transform3D parent;
+    parent.position = {0, 0, 200};
+    parent.rotation = {10, 0, 0};
+    ResolvedSceneTransforms resolved = build_projection_resolver({{"p", parent}});
+
+    CameraRig rig;
+    rig.mode = CameraRigMode::OneNode;
+    rig.parent_name = "p";
+    rig.track.key(Frame{0}, Vec3{0, 0, 0})
+             .key(Frame{60}, Vec3{100, 50, -300});
+    rig.target_name = "";
+
+    // Evaluate each frame twice — must produce identical results
+    for (Frame f : {Frame{0}, Frame{30}, Frame{60}}) {
+        const Camera2_5D a = rig.evaluate(f, &resolved);
+        const Camera2_5D b = rig.evaluate(f, &resolved);
+        CHECK(a.position == b.position);
+        CHECK(a.rotation == b.rotation);
+        CHECK(a.zoom == doctest::Approx(b.zoom));
+    }
+
+    // Position must differ across frames (track is animated)
+    const Camera2_5D cam0 = rig.evaluate(Frame{0}, &resolved);
+    const Camera2_5D cam60 = rig.evaluate(Frame{60}, &resolved);
+    CHECK(cam60.position != cam0.position);
+}
+
+// ============================================================================
 // CAM-03 (DOC 02) — Projection contract parity tests
 //
 // Verify that the focal-from-camera contract agrees between two derivation
@@ -917,6 +1018,42 @@ TEST_CASE("TICKET-035: EvaluatedProjection active_viewport honours Overscan; pix
     // active_viewport for 3:2 sensor in 16:9 viewport with Overscan == {1620, 1080}.
     CHECK(snap.active_viewport.width  == doctest::Approx(1620.0f).epsilon(0.5f));
     CHECK(snap.active_viewport.height == doctest::Approx(1080.0f).epsilon(0.5f));
+}
+
+TEST_CASE("TICKET-035: pixel_aspect scales focal_x independently (non-square pixel golden)") {
+    // Use a viewport matching the sensor aspect so base focal_x == focal_y.
+    // Then apply pixel_aspect 1.5 — focal_x must be scaled by 1.5×.
+    Camera2_5D cam;
+    cam.optics_mode = CameraOpticsMode::PhysicalLens;
+    cam.lens = LensPresets::full_frame_50mm();  // 36×24mm, sa=1.5
+    cam.lens.pixel_aspect = 1.5f;               // non-square pixels (wider than tall)
+
+    // 1500×1000 matches sensor 3:2 aspect → base focal_x = focal_y = 2083.33
+    auto fxy = camera_math::focal_xy_from_camera(cam, 1500.0f, 1000.0f);
+    // pixel_aspect=1.5 multiplies ONLY focal_x
+    CHECK(fxy.x == doctest::Approx(1.5f * fxy.y).epsilon(1e-3f));
+    CHECK(fxy.y == doctest::Approx(2083.33f).epsilon(1e-3f));
+    CHECK(fxy.x > fxy.y);
+
+    // Also verify the snapshot carries pixel_aspect through
+    auto snap = chronon3d::camera_v1::make_evaluated_projection(cam, {1500.0f, 1000.0f});
+    CHECK(snap.is_anamorphic);  // non-square pixel aspect triggers anamorphic flag
+    CHECK(snap.pixel_aspect == doctest::Approx(1.5f).epsilon(1e-4f));
+    CHECK(snap.focal_x_px == doctest::Approx(1.5f * snap.focal_y_px).epsilon(1e-3f));
+}
+
+TEST_CASE("TICKET-035: pixel_aspect 1.0 (square) produces equal per-axis focal") {
+    Camera2_5D cam;
+    cam.optics_mode = CameraOpticsMode::PhysicalLens;
+    cam.lens = LensPresets::full_frame_50mm();
+    cam.lens.pixel_aspect = 1.0f;  // square pixels — default
+
+    auto fxy = camera_math::focal_xy_from_camera(cam, 1500.0f, 1000.0f);
+    CHECK(fxy.x == doctest::Approx(fxy.y).epsilon(1e-4f));
+
+    auto snap = chronon3d::camera_v1::make_evaluated_projection(cam, {1500.0f, 1000.0f});
+    CHECK_FALSE(snap.is_anamorphic);
+    CHECK(snap.pixel_aspect == doctest::Approx(1.0f).epsilon(1e-4f));
 }
 
 // ============================================================================
