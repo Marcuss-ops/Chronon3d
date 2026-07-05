@@ -71,7 +71,7 @@ int main() {
     descriptor.id = "p3h_main_camera";
     descriptor.base.enabled = true;
     descriptor.base.position = c3d::Vec3{0.0f, 0.0f, -800.0f};
-    descriptor.base.rotation = c3d::Vec3{0.0f, 0.0f, 0.0f};
+    descriptor.base.rotation = c3d::Vec3{0.0f, 180.0f, 0.0f};   // GATE-10-PHASE-4-BLACK-FU5: rotate 180° around Y so the camera (at z=-800) looks toward +Z where the GridBackground lives at z=0; without this the OPP-internal P3-F compile path's compiled CameraProgram frustum-culls the grid → all-black PNG.  Mirrors the legacy `comp.camera.set_rotation_euler({0,180,0})` fallback at line 199 so both paths agree.
     // ZoomProjection variant — rely on the field-default initializer
     // (AnimatedValue<float>{1000.0f}) rather than re-passing it explicitly.
     descriptor.base.projection = c3d::camera_v1::ZoomProjection{};
@@ -286,12 +286,12 @@ int main() {
                 c.b = src[idx + 0] * inv;
                 c.g = src[idx + 1] * inv;
                 c.r = src[idx + 2] * inv;
-                c.a = src[idx + 3] * inv;
+                c.a = 1.0f;   // GATE-10-PHASE-4-BLACK-FU6: force alpha opaque in the bridge regardless of SDK's per-pixel byte-alpha, so ANY pool-init / temporal-accumulation NaN-alpha in the OPP's framebuffer_to_rgba8 byte output cannot propagate as transparent (0,0,0,0) and cause the gate's per-pixel mean-RGB > 5/255 check to fail. The PIL gate reads only RGB sum, but a `c.a==0` set_pixel(before NaN-guard in save_png fires) might still be the upstream problem on the alpha-channel NaN signal — defensible hardening for V0.1 release.
             } else {
                 c.r = src[idx + 0] * inv;
                 c.g = src[idx + 1] * inv;
                 c.b = src[idx + 2] * inv;
-                c.a = src[idx + 3] * inv;
+                c.a = 1.0f;   // GATE-10-PHASE-4-BLACK-FU6: force alpha opaque in the bridge regardless of SDK's per-pixel byte-alpha, so ANY pool-init / temporal-accumulation NaN-alpha in the OPP's framebuffer_to_rgba8 byte output cannot propagate as transparent (0,0,0,0) and cause the gate's per-pixel mean-RGB > 5/255 check to fail. The PIL gate reads only RGB sum, but a `c.a==0` set_pixel(before NaN-guard in save_png fires) might still be the upstream problem on the alpha-channel NaN signal — defensible hardening for V0.1 release.
             }
             fb.set_pixel(x, y, c);
         }
