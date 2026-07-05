@@ -321,6 +321,15 @@ def serve_output(filename):
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_static(path):
+    # Cat-1 defensive: /api/* paths must NOT be intercepted by the SPA static
+    # fallback. React's fetch() expects JSON; send_file(index.html) produces
+    # response.json() SyntaxError → silent unhandled promise rejection →
+    # component tree halts visibly. Returning JSON 404 isolates the failure
+    # so the rest of the dashboard mounts clean and only the missing-API card
+    # surfaces. Anti-duplication: still uses the same shared base_dir to
+    # serve static assets when the path matches a bundled file.
+    if path.startswith('api/'):
+        return jsonify({"error": "API endpoint not found", "path": path}), 404
     base_dir = Path(__file__).resolve().parent / '..' / 'frontend' / 'dist'
     if not path or path == '/':
         return send_file(base_dir / 'index.html')
