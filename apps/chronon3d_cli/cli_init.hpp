@@ -15,6 +15,9 @@
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/composition/register_builtin_compositions.hpp>
 
+// AE parity camera visual comparison scenes (10 compositions, always registered)
+#include "tests/visual/ae_parity/ae_parity_scenes.hpp"
+
 #if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
 #include <content/register_content_modules.hpp>
 #include <chronon3d/extension/extension_catalog.hpp>
@@ -85,6 +88,21 @@ inline void init_compositions(CompositionRegistry& registry) {
     // Register non-content built-in compositions (DarkGridBackground,
     // CameraImageClip).
     chronon3d::register_builtin_compositions(registry);
+
+    // Register AE parity camera visual comparison scenes (AE_CAM_01–AE_CAM_10).
+    // These are always available so visual parity tests can be run via the CLI.
+    // Inlined here (instead of via register_content_modules) because the CLI
+    // does not link chronon3d_content.
+    registry.add("AE_CAM_01_static_grid",   [](const CompositionProps&) { return test::make_ae_cam_01_static_grid(); });
+    registry.add("AE_CAM_02_zoom_fov",      [](const CompositionProps&) { return test::make_ae_cam_02_zoom_fov(); });
+    registry.add("AE_CAM_03_two_node_poi",  [](const CompositionProps&) { return test::make_ae_cam_03_two_node_poi(); });
+    registry.add("AE_CAM_04_parent_null",   [](const CompositionProps&) { return test::make_ae_cam_04_parent_null(); });
+    registry.add("AE_CAM_05_orbit",         [](const CompositionProps&) { return test::make_ae_cam_05_orbit(); });
+    registry.add("AE_CAM_06_dolly_zoom",    [](const CompositionProps&) { return test::make_ae_cam_06_dolly_zoom(); });
+    registry.add("AE_CAM_07_gatefit",       [](const CompositionProps&) { return test::make_ae_cam_07_gatefit(); });
+    registry.add("AE_CAM_08_dof",           [](const CompositionProps&) { return test::make_ae_cam_08_dof(); });
+    registry.add("AE_CAM_09_motion_blur",   [](const CompositionProps&) { return test::make_ae_cam_09_motion_blur(); });
+    registry.add("AE_CAM_10_near_clip",     [](const CompositionProps&) { return test::make_ae_cam_10_near_clip(); });
 }
 
 } // namespace chronon3d::cli
