@@ -339,6 +339,317 @@ TEST_CASE("AE-CameraContract: evaluate() is deterministic in pose and pixels") {
 }
 
 // ============================================================================
+// AE-CameraContract — OneNode completeness tests
+// ============================================================================
+
+TEST_CASE("AE-CameraContract: OneNode track animation moves camera position (no target)") {
+    CameraRig rig;
+    rig.mode = CameraRigMode::OneNode;
+    rig.track.key(Frame{0}, Vec3{0.0f, 0.0f, 0.0f})
+             .key(Frame{60}, Vec3{200.0f, 100.0f, -500.0f}, EasingCurve{Easing::Linear});
+    rig.target_name = "";
+
+    const Camera2_5D cam0 = rig.evaluate(Frame{0});
+    const Camera2_5D cam30 = rig.evaluate(Frame{30});
+    const Camera2_5D cam60 = rig.evaluate(Frame{60});
+
+    CHECK(cam0.is_animated);
+    CHECK_FALSE(cam0.point_of_interest_enabled);
+    // Position must change across frames (track is an offset applied after orbit)
+    CHECK(cam30.position != cam0.position);
+    CHECK(cam60.position != cam30.position);
+    // Track delta between frame 60 and frame 0: (200, 100, -500)
+    const Vec3 delta = cam60.position - cam0.position;
+    CHECK(delta.x == doctest::Approx(200.0f).epsilon(1e-3f));
+    CHECK(delta.y == doctest::Approx(100.0f).epsilon(1e-3f));
+    CHECK(delta.z == doctest::Approx(-500.0f).epsilon(1e-3f));
+}
+
+TEST_CASE("AE-CameraContract: OneNode pan rotation animates camera orientation without target") {
+    CameraRig rig;
+    rig.mode = CameraRigMode::OneNode;
+    rig.pan.key(Frame{0}, 0.0f)
+           .key(Frame{60}, 90.0f, EasingCurve{Easing::Linear});
+    rig.target_name = "";
+
+    const Camera2_5D cam0 = rig.evaluate(Frame{0});
+    const Camera2_5D cam30 = rig.evaluate(Frame{30});
+    const Camera2_5D cam60 = rig.evaluate(Frame{60});
+
+    CHECK(cam0.is_animated);
+    CHECK_FALSE(cam0.point_of_interest_enabled);
+    // Rotation must change across frames (pan controls Y-axis rotation in Euler)
+    CHECK(cam30.rotation != cam0.rotation);
+    CHECK(cam60.rotation != cam30.rotation);
+    // Pan = Y-rotation: mid-frame should be ~45°
+    CHECK(cam30.rotation.y == doctest::Approx(45.0f).epsilon(1e-3f));
+    CHECK(cam60.rotation.y == doctest::Approx(90.0f).epsilon(1e-3f));
+}
+
+TEST_CASE("AE-CameraContract: OneNode zoom animation scales projection without target") {
+    CameraRig rig;
+    rig.mode = CameraRigMode::OneNode;
+    rig.zoom.key(Frame{0}, 500.0f)
+            .key(Frame{60}, 2000.0f);
+    rig.target_name = "";
+
+    const Camera2_5D cam0 = rig.evaluate(Frame{0});
+    const Camera2_5D cam30 = rig.evaluate(Frame{30});
+    const Camera2_5D cam60 = rig.evaluate(Frame{60});
+
+    CHECK(cam0.is_animated);
+    CHECK_FALSE(cam0.point_of_interest_enabled);
+    CHECK(cam0.zoom == doctest::Approx(500.0f).epsilon(1e-3f));
+    CHECK(cam60.zoom == doctest::Approx(2000.0f).epsilon(1e-3f));
+    // Mid-frame zoom must be between start and end
+    CHECK(cam30.zoom > cam0.zoom);
+    CHECK(cam30.zoom < cam60.zoom);
+}
+
+TEST_CASE("AE-CameraContract: OneNode deterministic evaluation across frames 0/30/60") {
+    CameraRig rig;
+    rig.mode = CameraRigMode::OneNode;
+    rig.track.key(Frame{0}, Vec3{0.0f, 0.0f, -1000.0f})
+             .key(Frame{60}, Vec3{300.0f, 200.0f, -800.0f});
+    rig.zoom.key(Frame{0}, 1000.0f)
+            .key(Frame{60}, 1500.0f);
+    rig.target_name = "";
+
+    // Evaluate each frame twice — must produce identical results
+    for (Frame f : {Frame{0}, Frame{30}, Frame{60}}) {
+        const Camera2_5D a = rig.evaluate(f);
+        const Camera2_5D b = rig.evaluate(f);
+        CHECK(a.position == b.position);
+        CHECK(a.rotation == b.rotation);
+        CHECK(a.zoom == doctest::Approx(b.zoom));
+    }
+}
+
+// ============================================================================
+// AE-CameraContract — TwoNode completeness tests
+// ============================================================================
+
+TEST_CASE("AE-CameraContract: TwoNode target X movement rotates camera look-at horizontally") {
+    CameraRig rig;
+    rig.mode = CameraRigMode::TwoNode;
+    rig.orbit_radius.set(1000.0f);
+    rig.target.key(Frame{0}, Vec3{-200.0f, 0.0f, 0.0f})
+              .key(Frame{60}, Vec3{200.0f, 0.0f, 0.0f});
+
+    const Camera2_5D cam0 = rig.evaluate(Frame{0});
+    const Camera2_5D cam60 = rig.evaluate(Frame{60});
+
+    CHECK(cam0.is_animated);
+    CHECK(cam0.point_of_interest_enabled);
+    // POI must track the animated target
+    CHECK(cam0.point_of_interest.x == doctest::Approx(-200.0f).epsilon(1e-3f));
+    CHECK(cam60.point_of_interest.x == doctest::Approx(200.0f).epsilon(1e-3f));
+    // Camera must orbit around the moving target — position changes
+    CHECK(cam60.position.x != doctest::Approx(cam0.position.x).epsilon(1e-3f));
+    // POI correctly tracks target
+    CHECK(cam0.point_of_interest.x == doctest::Approx(-200.0f).epsilon(1e-3f));
+    CHECK(cam60.point_of_interest.x == doctest::Approx(200.0f).epsilon(1e-3f));
+    // Look-at quaternion must be valid (normalised, no NaN) even if direction
+    // doesn't change (orbit keeps camera behind target at constant yaw)
+    const Quat q0 = cam0.resolve_look_at_orientation();
+    const Quat q60 = cam60.resolve_look_at_orientation();
+    CHECK_FALSE(std::isnan(q0.x));
+    CHECK_FALSE(std::isnan(q60.x));
+    const f32 n0 = std::sqrt(q0.x*q0.x + q0.y*q0.y + q0.z*q0.z + q0.w*q0.w);
+    const f32 n60 = std::sqrt(q60.x*q60.x + q60.y*q60.y + q60.z*q60.z + q60.w*q60.w);
+    CHECK(n0 == doctest::Approx(1.0f).epsilon(1e-4f));
+    CHECK(n60 == doctest::Approx(1.0f).epsilon(1e-4f));
+}
+
+TEST_CASE("AE-CameraContract: TwoNode target Y movement rotates camera look-at vertically") {
+    CameraRig rig;
+    rig.mode = CameraRigMode::TwoNode;
+    rig.orbit_radius.set(1000.0f);
+    rig.target.key(Frame{0}, Vec3{0.0f, -300.0f, 0.0f})
+              .key(Frame{60}, Vec3{0.0f, 300.0f, 0.0f});
+
+    const Camera2_5D cam0 = rig.evaluate(Frame{0});
+    const Camera2_5D cam60 = rig.evaluate(Frame{60});
+
+    CHECK(cam0.is_animated);
+    CHECK(cam0.point_of_interest_enabled);
+    // POI must track the animated target
+    CHECK(cam0.point_of_interest.y == doctest::Approx(-300.0f).epsilon(1e-3f));
+    CHECK(cam60.point_of_interest.y == doctest::Approx(300.0f).epsilon(1e-3f));
+    // Camera must orbit around the moving target — position changes
+    CHECK(cam60.position.y != doctest::Approx(cam0.position.y).epsilon(1e-3f));
+    // POI correctly tracks target
+    CHECK(cam0.point_of_interest.y == doctest::Approx(-300.0f).epsilon(1e-3f));
+    CHECK(cam60.point_of_interest.y == doctest::Approx(300.0f).epsilon(1e-3f));
+    // Look-at quaternion must be valid (normalised, no NaN)
+    const Quat q0 = cam0.resolve_look_at_orientation();
+    const Quat q60 = cam60.resolve_look_at_orientation();
+    CHECK_FALSE(std::isnan(q0.x));
+    CHECK_FALSE(std::isnan(q60.x));
+    const f32 n0 = std::sqrt(q0.x*q0.x + q0.y*q0.y + q0.z*q0.z + q0.w*q0.w);
+    const f32 n60 = std::sqrt(q60.x*q60.x + q60.y*q60.y + q60.z*q60.z + q60.w*q60.w);
+    CHECK(n0 == doctest::Approx(1.0f).epsilon(1e-4f));
+    CHECK(n60 == doctest::Approx(1.0f).epsilon(1e-4f));
+}
+
+TEST_CASE("AE-CameraContract: TwoNode target Z movement adjusts orbit distance") {
+    CameraRig rig;
+    rig.mode = CameraRigMode::TwoNode;
+    rig.orbit_radius.set(1000.0f);
+    rig.target.key(Frame{0}, Vec3{0.0f, 0.0f, -1000.0f})
+              .key(Frame{60}, Vec3{0.0f, 0.0f, -200.0f});
+
+    const Camera2_5D cam0 = rig.evaluate(Frame{0});
+    const Camera2_5D cam60 = rig.evaluate(Frame{60});
+
+    CHECK(cam0.is_animated);
+    CHECK(cam0.point_of_interest_enabled);
+    // Camera must orbit around the moving target — position changes
+    CHECK(cam60.position.z != doctest::Approx(cam0.position.z).epsilon(1e-3f));
+    // Z movement changes the camera-to-target distance
+    CHECK(cam0.point_of_interest.z == doctest::Approx(-1000.0f).epsilon(1e-3f));
+    CHECK(cam60.point_of_interest.z == doctest::Approx(-200.0f).epsilon(1e-3f));
+}
+
+TEST_CASE("AE-CameraContract: TwoNode no orientation flip when target passes directly above") {
+    CameraRig rig;
+    rig.mode = CameraRigMode::TwoNode;
+    rig.orbit_radius.set(1000.0f);
+    // Target moves vertically from below camera through above camera
+    rig.target.key(Frame{0}, Vec3{0.0f, -500.0f, 0.0f})
+              .key(Frame{30}, Vec3{0.0f, 0.0f, 0.0f})
+              .key(Frame{60}, Vec3{0.0f, 500.0f, 0.0f});
+
+    const Camera2_5D cam0 = rig.evaluate(Frame{0});
+    const Camera2_5D cam30 = rig.evaluate(Frame{30});
+    const Camera2_5D cam60 = rig.evaluate(Frame{60});
+
+    // TwoNode mode must have POI enabled for resolve_look_at_orientation()
+    CHECK(cam0.point_of_interest_enabled);
+    CHECK(cam30.point_of_interest_enabled);
+    CHECK(cam60.point_of_interest_enabled);
+
+    // All frames must produce valid quaternions (normalised, no NaN)
+    for (const auto& cam : {&cam0, &cam30, &cam60}) {
+        const Quat q = cam->resolve_look_at_orientation();
+        const f32 qnorm = std::sqrt(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w);
+        CHECK(qnorm == doctest::Approx(1.0f).epsilon(1e-4f));
+        CHECK_FALSE(std::isnan(q.x));
+        CHECK_FALSE(std::isnan(q.y));
+        CHECK_FALSE(std::isnan(q.z));
+        CHECK_FALSE(std::isnan(q.w));
+    }
+
+    // Rotation must be smooth — no sign flips in the forward direction
+    auto forward = [](const Camera2_5D& cam) -> Vec3 {
+        const Mat4 vm = cam.view_matrix();
+        return glm::normalize(Vec3{vm[0][2], vm[1][2], vm[2][2]});
+    };
+    const Vec3 fwd0 = forward(cam0);
+    const Vec3 fwd30 = forward(cam30);
+    const Vec3 fwd60 = forward(cam60);
+
+    // Dot products between consecutive frames must be positive
+    // (no sudden 180° flip)
+    CHECK(glm::dot(fwd0, fwd30) > 0.0f);
+    CHECK(glm::dot(fwd30, fwd60) > 0.0f);
+}
+
+// ============================================================================
+// AE-CameraContract — Zoom / FOV / PhysicalLens completeness tests
+// ============================================================================
+
+TEST_CASE("AE-CameraContract: Zoom 1000 produces expected focal and projection") {
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {0, 0, -1000};
+    cam.zoom = 1000;
+    cam.optics_mode = CameraOpticsMode::Zoom;
+
+    const f32 focal = camera_math::focal_from_camera(cam, 1920.0f, 1080.0f);
+    CHECK(focal == doctest::Approx(1000.0f).epsilon(1e-3f));
+
+    auto p = camera_math::project_world_point(cam, Vec3{200, 0, 0},
+                                               camera_math::Viewport2D{1920, 1080});
+    CHECK(p.visible);
+    // At zoom=1000, depth=1000: scale = 1.0, so 200 world px → 200 screen px from centre
+    CHECK(p.screen.x == doctest::Approx(1160.0f).epsilon(1e-3f));
+    CHECK(p.screen.y == doctest::Approx(540.0f).epsilon(1e-3f));
+}
+
+TEST_CASE("AE-CameraContract: 24mm vs 135mm produces different perspective scale") {
+    Camera2_5D wide;
+    wide.enabled = true;
+    wide.position = {0, 0, -1000};
+    wide.optics_mode = CameraOpticsMode::PhysicalLens;
+    wide.lens = LensPresets::full_frame_24mm();
+
+    Camera2_5D tele;
+    tele.enabled = true;
+    tele.position = {0, 0, -1000};
+    tele.optics_mode = CameraOpticsMode::PhysicalLens;
+    tele.lens = LensPresets::full_frame_135mm();
+
+    const f32 wide_focal = camera_math::focal_from_camera(wide, 1920.0f, 1080.0f);
+    const f32 tele_focal = camera_math::focal_from_camera(tele, 1920.0f, 1080.0f);
+
+    // 135mm must have larger focal length than 24mm
+    CHECK(wide_focal < tele_focal);
+    INFO("24mm focal = " << wide_focal);
+    INFO("135mm focal = " << tele_focal);
+
+    // Same world point must project to different screen positions
+    auto p_wide = camera_math::project_world_point(wide, Vec3{100, 0, 0},
+                                                    camera_math::Viewport2D{1920, 1080});
+    auto p_tele = camera_math::project_world_point(tele, Vec3{100, 0, 0},
+                                                    camera_math::Viewport2D{1920, 1080});
+    CHECK(p_wide.visible);
+    CHECK(p_tele.visible);
+    // Tele lens magnifies more → point further from centre
+    CHECK(std::abs(p_tele.screen.x - 960.0f) > std::abs(p_wide.screen.x - 960.0f));
+}
+
+TEST_CASE("AE-CameraContract: FOV 50 degrees produces expected focal and projection") {
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {0, 0, -1000};
+    cam.fov_deg = 50.0f;
+    cam.optics_mode = CameraOpticsMode::FieldOfView;
+
+    const f32 focal = camera_math::focal_from_camera(cam, 1920.0f, 1080.0f);
+    // focal = (1080/2) / tan(25°) ≈ 1158.0
+    CHECK(focal == doctest::Approx(1158.0f).epsilon(0.01f));
+    CHECK(focal > 0.0f);
+
+    auto p = camera_math::project_world_point(cam, Vec3{200, 0, 0},
+                                               camera_math::Viewport2D{1920, 1080});
+    CHECK(p.visible);
+    // At focal≈1158, depth=1000: scale≈1.158, 200*1.158=231.6 from centre=960+231.6≈1191.6
+    CHECK(p.screen.x == doctest::Approx(1191.6f).epsilon(1e-2f));
+    CHECK(p.screen.y == doctest::Approx(540.0f).epsilon(1e-3f));
+    CHECK(p.perspective_scale == doctest::Approx(1.158f).epsilon(1e-3f));
+}
+
+TEST_CASE("AE-CameraContract: PhysicalLens focal_length is used, NOT overridden by zoom") {
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {0, 0, -1000};
+    cam.optics_mode = CameraOpticsMode::PhysicalLens;
+    cam.lens = LensPresets::full_frame_50mm();
+    cam.zoom = 1234.0f;  // must be ignored in PhysicalLens mode
+
+    const f32 focal = camera_math::focal_from_camera(cam, 1920.0f, 1080.0f);
+    CHECK(focal != doctest::Approx(1234.0f).epsilon(0.01f));
+    CHECK(focal > 0.0f);
+    CHECK_FALSE(std::isnan(focal));
+
+    // The focal must come from the lens, not zoom
+    // 50mm on 36x24mm sensor with 1080p viewport:
+    // focal ≈ 50 * 1080 / 24 = 2250
+    CHECK(focal == doctest::Approx(2250.0f).epsilon(1e-2f));
+}
+
+// ============================================================================
 // CAM-03 (DOC 02) — Projection contract parity tests
 //
 // Verify that the focal-from-camera contract agrees between two derivation
