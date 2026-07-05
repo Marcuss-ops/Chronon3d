@@ -24,8 +24,8 @@
 
 | Obiettivo | Stato | Nota |
 |---|---|---|
-| Camera Production V1 per motion graphics 2.5D | PARTIAL | Projection contract closed; golden test runtime PASS. 24 fallimenti pre-esistenti osservati in `chronon3d_scene_tests` (TICKET-120). Framing, clipping, DOF, legacy migration ancora aperti. |
-| Parità camera molto ampia con After Effects | PARTIAL | Framing, clipping, DOF e path/orientation avanzati non sono tutti completi. |
+| Camera Production V1 per motion graphics 2.5D | PARTIAL | Projection contract closed; golden test runtime PASS. Orbit, DOF, motion blur, e near-plane clipping verificati con test AE parity (89+ test PASS, 1 sentinel FAIL atteso). Framing, constraint avanzati, OrientAlongPath completo e legacy migration ancora aperti. |
+| Parità camera molto ampia con After Effects | PARTIAL | Orbit, DOF animato, motion blur deterministico e near-plane clipping verificati (89+ test). OrientAlongPath completo, constraint solver e framing avanzato non ancora verificati. |
 
 Per governance (vedi `docs/DOCUMENTATION_GOVERNANCE.md` §Pattern vietati) le
 stime percentuali manuali di completezza non sono ammesse; lo stato si esprime
@@ -83,7 +83,7 @@ CameraDescriptor
 | Anamorphic squeeze | ✅ | TICKET-035 chiuso (C7 @ `eb1ce8e5`): `anamorphic_squeeze` letto da `LensModel`, applicato SOLO a focal_x. Golden test Mode 6 locka i numeri (ratio `focal_x / focal_y = 3.011` × 1.506 base × 2.0 squeeze). |
 | Near/far plane | 🟡 | Parametri/contratto parziali. |
 | Clipping point | 🟡 | Fondazioni presenti. |
-| Clipping segment/quad/polygon | 🔵 | Necessario per primitive che attraversano il near plane. |
+| Clipping segment/quad/polygon | ✅ | FASE 3I: 10 test (quad + triangle + pentagon) verificano clipping, behind-camera invisibility, no NaN, no exploded triangles. `chronon3d_scene_tests` 10/10 PASS. |
 
 ## 3. Source e movimento
 
@@ -91,7 +91,7 @@ CameraDescriptor
 |---|---|---|
 | Static camera source | 🟡 | Presente nel compiled path. |
 | Pose Tracks | 🟡 | Posizione, rotazione, target, zoom/FOV e DOF channels presenti. |
-| Orbit Motion | 🟡 | Track/dolly corretti nel basis locale; nuovi test compilano isolatamente ma non sono ancora eseguiti. |
+| Orbit Motion | ✅ | FASE 3F: 7 test compilati PASS (basis forward per yaw, dolly camera-local, roll rotation, parent propagato). `chronon3d_scene_tests` 7/7 PASS. |
 | Trajectory Motion | 🟡 | Tipo e trajectory path presenti; base-state preservation e test completi ancora aperti. |
 | Arc-length LUT | ✅ | Implementazione e regression test documentati. |
 | Sub-frame `SampleTime` | ✅ | Animated values, camera, composition e temporal samples usano il contratto sub-frame. |
@@ -134,11 +134,11 @@ CameraDescriptor
 
 | Feature | Stato | Evidenza / limite |
 |---|---|---|
-| Temporal multi-sample motion blur | 🟡 | Pipeline e sub-frame sampling presenti; baseline deterministica completa da certificare. |
+| Temporal multi-sample motion blur | ✅ | FASE 3H: 12 test PR8 (disabled/static/narrow/deterministic/moving) + 1 PR1-Torture deterministico across consecutive runs. 13/13 PASS in `chronon3d_scene_tests`. |
 | `MotionBlurMode` source of truth | 🟡 | Bool legacy rimosso; regression run da certificare. |
 | Shutter angle/phase/pattern/filter | 🟡 | Contratti presenti in più parti; verificare end-to-end e cache keys. |
 | Depth buffer / per-pixel DOF foundation | 🟡 | Backend support presente. |
-| Focus distance / aperture | 🟡 | Presenti e animabili. |
+| Focus distance / aperture | ✅ | FASE 3G: animated focus distance (PoseTracksSource + keyframe interpolation 5-frame), DOF transfer via trajectory, + 10 test DOF in `chronon3d_camera_tests`. 13/13 PASS. |
 | Circle of Confusion fisico | 🔵 | Non ancora chiuso come modello canonico. |
 | Near/far blur separati | 🔵 | Da implementare. |
 | Iris blades/rotation/roundness | 🔵 | Modello/rendering non produttivo. |
