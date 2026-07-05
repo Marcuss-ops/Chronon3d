@@ -166,3 +166,38 @@ add_test(NAME chronon3d_pr3_composition_visual_tests
     COMMAND chronon3d_pr3_composition_visual_tests
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
+
+# ── AE Parity Camera Visual Regression Tests ──
+# 10 AE parity scenes for visual comparison Chronon3D ↔ After Effects.
+# Golden PNGs in tests/golden/ae_parity/; diffs in tests/golden/ae_parity/diff/.
+# Set CHRONON3D_UPDATE_GOLDENS=1 to create / update golden PNGs.
+
+add_executable(chronon3d_ae_parity_tests
+    ${TEST_MAIN}
+    visual/ae_parity/ae_parity_scenes.cpp
+    visual/ae_parity/ae_parity_tests.cpp
+)
+
+target_link_libraries(chronon3d_ae_parity_tests
+    PRIVATE
+        chronon3d_sdk
+        chronon3d_visual_test_support
+        chronon3d_backend_software
+        chronon3d_scene
+        doctest::doctest
+)
+
+target_compile_definitions(chronon3d_ae_parity_tests
+    PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
+
+target_include_directories(chronon3d_ae_parity_tests
+    PRIVATE ${CMAKE_SOURCE_DIR}
+)
+
+set_target_properties(chronon3d_ae_parity_tests PROPERTIES UNITY_BUILD OFF)
+chronon3d_enable_test_pch(chronon3d_ae_parity_tests)
+add_test(NAME chronon3d_ae_parity_tests
+    COMMAND chronon3d_ae_parity_tests
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
