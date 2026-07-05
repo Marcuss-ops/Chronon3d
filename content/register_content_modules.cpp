@@ -27,6 +27,7 @@ namespace chronon3d::content::grid         { void register_grid_compositions(Com
 namespace chronon3d::content::two_point_five_d { void register_2d5_compositions(CompositionRegistry&); }
 #endif
 namespace chronon3d::content::backgrounds  { void register_grid_clean_background(CompositionRegistry&); }
+namespace chronon3d::content::ae_parity    { void register_ae_parity_compositions(CompositionRegistry&); }
 
 namespace chronon3d {
 
@@ -52,6 +53,7 @@ public:
         content::two_point_five_d::register_2d5_compositions(ctx.compositions);
 #endif
         content::backgrounds::register_grid_clean_background(ctx.compositions);
+        content::ae_parity::register_ae_parity_compositions(ctx.compositions);
     }
 };
 
