@@ -44,9 +44,15 @@ bool finalize_render_job(
     profiling::Clock::time_point loop_t1)
 {
     spdlog::info("Render complete.");
-
     // ── Cache diagnostics snapshot ──────────────────────────────────
-    spdlog::info("\n{}", chronon3d::cache::format_cache_snapshot());
+    // FIXME: format_cache_snapshot() segfaults when called after
+    // TelemetryManager::initialize_default_stores() has opened the SQLite
+    // database (only happens with --report).  Skip the snapshot in that
+    // mode to avoid the crash; the cache stats are still available in
+    // the telemetry counters written to the DB.
+    if (!plan.report) {
+        spdlog::info("\n{}", chronon3d::cache::format_cache_snapshot());
+    }
 
     const auto wall_t1 = profiling::now();
     const double wall_time_ms = profiling::duration_ms(setup.wall_t0, wall_t1);
