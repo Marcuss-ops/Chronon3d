@@ -376,78 +376,160 @@ python3 tools/telemetry_dashboard/server.py 5005
 
 ## 8. How to Start Everything
 
-> **Port convention:** Use **5005** for production (Flask serves built frontend + API).
-> Use **5173** for development (Vite dev server with hot-reload proxies to Flask:5005).
+> **Port convention:** Use **8000** for Flask backend (API), **5173** for Vite dev server (React frontend).
+> The Vite dev server proxies `/api`, `/artifact`, and `/socket.io` to Flask on port 8000.
 
-### Quick Start (Production — port 5005)
+### Preliminary: Check Dependencies
 
 ```bash
-# 1. Build the CLI (if not already built)
-cmake --preset linux-fast-dev
-cmake --build build/chronon/linux-fast-dev -j$(nproc)
-
-# 2. Build the frontend (required after every React change!)
+# 1. Check that npm packages are installed
 cd tools/telemetry_dashboard/frontend
-npx vite build
+ls node_modules/.package-lock.json && echo 'NPM OK' || npm install
 cd ../../..
 
-# 3. Render something
-./build/chronon/linux-fast-dev/apps/chronon3d_cli/chronon3d_cli video \
-    MinimalistFocusQuote -o output/focus_quote.mp4
-./build/chronon/linux-fast-dev/apps/chronon3d_cli/chronon3d_cli render \
-    MinimalistFocusQuote --frames 0 -o output/focus_quote_frame.png
-
-# 4. Start Flask server
-CHRONON3D_DASHBOARD_PASSWORD="pierone" \
-    python3 tools/telemetry_dashboard/server.py 5005 &
-
-# 5. Open browser → http://<server-ip>:5005/
+# 2. (Optional) Build frontend dist/ — only needed if you plan to use Flask standalone
+cd tools/telemetry_dashboard/frontend && npx vite build && cd ../../..
 ```
 
-> **Important:** After any change to the React source files, you must rebuild the frontend
-> (`npx vite build`) for the Flask-served version (port 5005) to reflect the updates.
-> The Vite dev server (port 5173) auto-reloads changes immediately.
+### Quick Start — Remote Access (Proven Working Recipe)
 
-### Development Mode (with hot-reload — port 5173)
+This is the exact recipe used to start the dashboard on `149.56.131.97` (2026-07-05):
 
 ```bash
-# Terminal 1: Flask server
-CHRONON3D_DASHBOARD_PASSWORD="pierone" \
-    python3 tools/telemetry_dashboard/server.py 5005
+# ─── Terminal 1: Flask backend (API + WebSocket) ───
+cd /home/pierone/Pyt/Chronon3d
+CHRONON3D_DASHBOARD_PASSWORD="chronon3d_admin" \
+    setsid python3 tools/start_dashboard_shim.py 8000 \
+    </dev/null >/tmp/flask_backend.log 2>&1 &
 
-# Terminal 2: Vite dev server (auto-proxies /api, /artifact, /socket.io to Flask:5005)
+# Verify: curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/api/runs
+# Expected: 200 (returns JSON array of runs)
+
+# ─── Terminal 2: Vite dev server (React with hot-reload) ───
+cd /home/pierone/Pyt/Chronon3d/tools/telemetry_dashboard/frontend
+setsid npm run dev </dev/null >/tmp/vite_dev.log 2>&1 &
+
+# Verify: curl -s -o /dev/null -w '%{http_code}' http://localhost:5173/
+# Expected: 200
+```
+
+> **Why `start_dashboard_shim.py` instead of `server.py` directly?**
+> 
+> `server.py` binds to `127.0.0.1` (loopback only) by default. The shim auto-patches
+> every `host='127.0.0.1'` / `host='localhost'` pattern to `host='0.0.0.0'`, making the
+> dashboard reachable from any machine on the network. This is essential for remote access.
+> The shim requires `CHRONON3D_DASHBOARD_PASSWORD` to be set — it refuses to bind `0.0.0.0`
+> without authentication configured.
+
+### URL di accesso
+
+| Servizio | Porta | URL |
+|---|---|---|
+| Dashboard (Vite) | 5173 | `http://149.56.131.97:5173/` |
+| Flask API | 8000 | `http://149.56.131.97:8000/api/runs` |
+
+> **Password:** `chronon3d_admin`
+
+### Sostituire il tuo IP
+
+```bash
+# Trova l'IP della macchina
+hostname -I | awk '{print $1}'
+
+# Poi sostituisci 149.56.131.97 con il tuo IP negli URL sopra
+```
+
+### Development Mode (with hot-reload)
+
+```bash
+# Terminal 1: Flask backend
+CHRONON3D_DASHBOARD_PASSWORD="chronon3d_admin" \
+    python3 tools/start_dashboard_shim.py 8000
+
+# Terminal 2: Vite dev server (auto-proxies /api, /artifact, /socket.io to Flask:8000)
 cd tools/telemetry_dashboard/frontend
-npx vite --port 5173 --host 0.0.0.0
+npm run dev
 
-# Open browser → http://<server-ip>:5173/
+# Vite avvia su http://0.0.0.0:5173/
+# Apri browser → http://<tuo-ip>:5173/
 ```
 
 > **Tip:** During development, edit React files and see changes instantly on :5173
-> without rebuilding. Only rebuild the `dist/` when deploying to production (:5005).
+> without rebuilding. Only rebuild the `dist/` when deploying to production.
 
 ### Setting the Password Permanently
 
 Add to `~/.bashrc` or `~/.profile`:
 
 ```bash
-export CHRONON3D_DASHBOARD_PASSWORD="your_password"
+export CHRONON3D_DASHBOARD_PASSWORD="chronon3d_admin"
 ```
 
 Then restart the server. This avoids having to pass it inline every time.
 
-### Restarting After Changes
+### Fermare e riavviare
 
 ```bash
-# Kill Flask
-lsof -ti:5005 | xargs kill -9
+# Kill tutti i processi dashboard
+fuser -k 5173/tcp 2>/dev/null   # Vite
+fuser -k 8000/tcp 2>/dev/null   # Flask
 
-# Rebuild frontend (only needed if React source changed)
-cd tools/telemetry_dashboard/frontend && npx vite build && cd ../..
+# Riavviare (dai comandi nel Quick Start sopra)
+```
 
-# Restart Flask
-CHRONON3D_DASHBOARD_PASSWORD="pierone" \
-    nohup python3 tools/telemetry_dashboard/server.py 5005 \
-    > /tmp/telemetry_server.log 2>&1 &
+### Verifica stato
+
+```bash
+# Controlla che i server siano attivi
+curl -s -o /dev/null -w '%{http_code}' http://localhost:5173/ && echo ' VITE OK'
+curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/api/runs && echo ' FLASK OK'
+
+# Controlla i processi
+ps aux | grep -E 'vite|start_dashboard' | grep -v grep
+
+# Controlla le porte
+fuser 5173/tcp
+fuser 8000/tcp
+```
+
+### Dove sono i dati telemetria
+
+Il DB telemetria si trova in `~/.chronon3d/telemetry/chronon3d_render_history.sqlite`.
+
+```bash
+# Controlla il contenuto del DB
+sqlite3 ~/.chronon3d/telemetry/chronon3d_render_history.sqlite \
+  "SELECT COUNT(*) FROM render_runs;"
+
+# Esempio di output: 1225
+
+# Dimensione del DB
+ls -lh ~/.chronon3d/telemetry/chronon3d_render_history.sqlite
+# Esempio: 318M
+```
+
+La dashboard legge automaticamente da questo path. Se il DB è vuoto (0 run),
+la dashboard mostrerà "No runs match your filter". Per popolare il DB:
+
+```bash
+# Usa la CLI Chronon3D per renderizzare e popolare la telemetria
+./build/.../chronon3d_cli render <CompositionName> --frames 0 -o output/frame.png --report
+./build/.../chronon3d_cli video <CompositionName> -o output/video.mp4
+```
+
+> **Importante:** Il comando `render` richiede `--report` per scrivere nel DB.
+> Il comando `video` scrive sempre automaticamente.
+
+### Golden PNGs Server (separato)
+
+Per servire i golden PNG AE parity (o qualsiasi cartella di immagini):
+
+```bash
+cd /home/pierone/Pyt/Chronon3d/tests/golden/ae_parity
+setsid python3 -m http.server 8888 --bind 0.0.0.0 \
+    </dev/null >/dev/null 2>&1 &
+
+# Accedi: http://149.56.131.97:8888/
 ```
 
 ---
@@ -515,15 +597,45 @@ CHRONON3D_DASHBOARD_PASSWORD="pierone" \
 
 3. **Restart both if needed.** See [section 8](#8-how-to-start-everything).
 
+### "No runs match your filter" / "Failed to load runs"
+
+1. **Il backend Flask sta puntando al DB giusto?**
+   ```bash
+   curl -s http://localhost:8000/api/runs | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'{len(d)} runs')"
+   ```
+   Se restituisce `0 runs`, il DB telemetria è vuoto o il backend non lo trova.
+
+2. **Il DB telemetria esiste e ha dati?**
+   ```bash
+   sqlite3 ~/.chronon3d/telemetry/chronon3d_render_history.sqlite \
+     "SELECT COUNT(*) FROM render_runs;"
+   ```
+   Se restituisce `0`, nessun render è mai stato eseguito con telemetria attiva.
+
+3. **Il Flask backend è effettivamente in esecuzione?**
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/api/runs
+   ```
+   Se diverso da `200`, il backend è spento — riavvialo con `start_dashboard_shim.py`.
+
+4. **La dashboard frontend sta chiamando l'API giusta?**
+   La Vite dev server (5173) proxy `/api/*` a Flask (8000). Se Flask è su una porta
+   diversa, modifica `vite.config.js`:
+   ```js
+   proxy: { '/api': 'http://127.0.0.1:8000' }
+   ```
+
 ### Common Pitfalls
 
 | Symptom | Cause | Fix |
 |---|---|---|
+| "No runs match your filter" | DB telemetria vuoto o Flask spento | Vedi checklist sopra |
 | 401 on artifact load but logged in | Token in query param not recognized | Ensure `require_auth` checks `request.args.get('token')` |
 | 404 on artifact | Double path nesting (`output/output/`) | `ALLOWED_ARTIFACT_ROOTS` must include `PROJECT_ROOT` |
 | "Frame preview unavailable" for video runs | Frontend loads MP4 as image | Frame path derivation logic must replace `.mp4` → `_frame.png` |
 | Run not appearing in dashboard | `render` command without `--report` | Add `--report` flag |
-| Server won't start on port 5005 | Old process still running | `lsof -ti:5005 \| xargs kill -9` |
+| Server won't start on port | Old process still running | `fuser -k <PORT>/tcp` |
+| Backend si spegne dopo qualche minuto | Avviato senza `setsid` o `nohup` | Usa `setsid ... </dev/null >/tmp/log 2>&1 &` |
 
 ---
 
