@@ -7,6 +7,29 @@
 
 ## Luglio 2026 — Chiusure recenti
 
+### test(camera) — FASE 3: AE parity camera test campaign (3 commit, 89+ test PASS, `main@c472312a`)
+
+Campagna di verifica AE parity sulle 6 categorie camera definite in `docs/CAMERA_FEATURE_MATRIX.md`. Tre commit atomici su `main`:
+
+- **FASE 3D-E** (`1069dab8`): pixel aspect golden test (6-mode focal_x/focal_y ratio lock per GateFit modes) + Parent/Null AE parity (parent transform propagation, null-object zero-transform, parent+animated camera combined, null+non-identity layer transform). 6 TEST_CASE, 22/22 PASS.
+- **FASE 3F-G** (`3e18bfc3`): orbit precision fixes (4 zero-axis checks: `Approx(0).epsilon(1e-5f)` → `std::abs() < 1e-4f` per sin/cos drift a yaw=90/180/270) + 2 nuovi test orbit (roll_rotation, with_parent) + 1 nuovo test DOF animated focus distance (PoseTracksSource + keyframe interpolation 5-frame + monotonicity guard). Orbit: 7/7 PASS. DOF: 13/13 PASS (3 compiled + 10 chronon3d_camera_tests).
+- **FASE 3H-I** (`c472312a`): near plane clipping AE parity — 4 nuovi test (triangle 1-corner behind, triangle 2-corners behind, triangle fully behind invisible, pentagon crossing near plane). 10/10 PASS. Motion blur verificato pre-esistente: 12 PR8 + 1 PR1-Torture deterministico = 13/13 PASS.
+
+**Riepilogo categorie:**
+
+| Categoria | Test PASS | Stato CAMERA_FEATURE_MATRIX |
+|---|---|---|
+| Projection & Optics | 41 | Già VERIFIED (C1-C7 + C9a) |
+| Orbit/Dolly/Track | 7 | 🟡 → ✅ VERIFIED |
+| Trajectory Motion | 5 + 1⚠️ | Golden sentinel pending regen |
+| Depth of Field | 13 | 🟡 → ✅ VERIFIED |
+| Motion Blur | 13 | 🟡 → ✅ VERIFIED |
+| Near Plane Clipping | 10 | 🔵 → ✅ VERIFIED |
+
+**Doc sync:** `docs/CAMERA_FEATURE_MATRIX.md` (4 righe promosse PARTIAL/PLANNED→VERIFIED), `docs/CURRENT_STATUS.md` (nuova sezione AE Parity + snapshot SHA), `docs/CHANGELOG.md` (questa entry).
+
+AGENTS.md v0.1 freeze Cat-2 (test deterministici) + Cat-5 (allineamento documentazione). Zero nuova superficie API pubblica; tutti i lock vivono in test-side TUs.
+
 ### feat(tools) — tools/audit_incomplete_type_pattern.sh (FU4 rot preventive, INSTALL_PIPELINE_PLUMBING asset category)
 
 - **NUOVO script `tools/audit_incomplete_type_pattern.sh`** (NEW asset category `INSTALL_PIPELINE_PLUMBING`, documentato in `AGENTS.md`). FU4 rot preventive: emette `BROKEN` (exit 1) se l'header canonico del tipo T in `include/chronon3d/` (per ogni T estratto da `std::make_shared<T>` in `tests/install_consumer/*`) contiene solo `class T;` (forward declaration) invece di `struct T { ... }` (full definition). Umbrella-as-source-of-truth: l'header pubblico di T DEVE contenere full def (single-line `struct T {` o multi-line `struct T\n{`), non solo forward decl. Lineage: FU4 (TICKET-GATE-10-PHASE-4-BLACK-FU4, DONE @ main@0b365354).
