@@ -514,36 +514,21 @@ TEST_CASE("PerPixelDOF: 1920x1080 micro-benchmark - drop depth copy (delta repor
     std::filesystem::path out_path = out_dir / "dof_span_before_after.json";
 
     std::ofstream out(out_path);
-    out << "{
-";
-    out << "  "schema": "chronon3d.perf.dof_span.v1",
-";
-    out << "  "workload": {
-";
-    out << "    "width": " << w << ",
-";
-    out << "    "height": " << h << ",
-";
-    out << "    "depth_bytes": " << (static_cast<size_t>(w) * h * sizeof(float)) << ",
-";
-    out << "    "runs": " << n_runs << ",
-";
-    out << "    "warmup": " << n_warmup << "
-";
-    out << "  },
-";
-    out << "  "after_ms": " << after_ms << ",
-";
-    out << "  "before_alloc_copy_ms": " << copy_ms << ",
-";
-    out << "  "before_total_ms": " << before_total_ms << ",
-";
-    out << "  "delta_per_frame_ms": " << delta_ms << ",
-";
-    out << "  "delta_pct": " << delta_pct << "
-";
-    out << "}
-";
+    out << "{\n";
+    out << "  \"schema\": \"chronon3d.perf.dof_span.v1\",\n";
+    out << "  \"workload\": {\n";
+    out << "    \"width\": " << w << ",\n";
+    out << "    \"height\": " << h << ",\n";
+    out << "    \"depth_bytes\": " << (static_cast<size_t>(w) * h * sizeof(float)) << ",\n";
+    out << "    \"runs\": " << n_runs << ",\n";
+    out << "    \"warmup\": " << n_warmup << "\n";
+    out << "  },\n";
+    out << "  \"after_ms\": " << after_ms << ",\n";
+    out << "  \"before_alloc_copy_ms\": " << copy_ms << ",\n";
+    out << "  \"before_total_ms\": " << before_total_ms << ",\n";
+    out << "  \"delta_per_frame_ms\": " << delta_ms << ",\n";
+    out << "  \"delta_pct\": " << delta_pct << "\n";
+    out << "}\n";
     out.close();
 
     // Sanity: 2,073,600 floats * 4 B = 8,294,400 B = 7.91 MiB.
