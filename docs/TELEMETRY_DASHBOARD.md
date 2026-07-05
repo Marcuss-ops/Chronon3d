@@ -18,6 +18,7 @@
 8. [How to Start Everything](#8-how-to-start-everything)
 9. [Troubleshooting Checklist](#9-troubleshooting-checklist)
 10. [File Reference](#10-file-reference)
+11. [Live Infrastructure & Dual-Mode Verification](#11-live-infrastructure--dual-mode-verification-2026-07-05)
 
 ---
 
@@ -668,6 +669,80 @@ setsid python3 -m http.server 8888 --bind 0.0.0.0 \
 |---|---|
 | `frontend/package.json` | Node dependencies (React, apexcharts, reactflow, socket.io) |
 | `src/runtime/telemetry/sqlite/telemetry_schema.sql` | Canonical SQLite schema (shared C++/Python) |
+
+---
+
+## 11. Live Infrastructure & Dual-Mode Verification (2026-07-05)
+
+> **Status (post-3-commit fix chain):** Dashboard is reachable on **both** Vite dev mode (`:5173`) AND Flask prod mode (`:8000`) React 19 trees. Chromium headless DOM dump with `virtual-time-budget=15000` confirms `<div id="root">` populated with `dashboard-container`/`sidebar`/`CHRONON3D`/`TELEMETRY` markers on both endpoints. Zero JS console errors in chromium stderr.
+
+### 3-Commit Fix Lineage
+
+| SHA | Subject | Scope |
+|-----|---------|-------|
+| `aad79a47` | `fix(dashboard): /api/* JSON 404 - React SPA fetch unbreaks (cat-1 defensive)` | Flask catch-all wrapper was swallowing unregistered `/api/*` paths with HTML instead of JSON. Added 4-line guard returning JSON 404 with `error.path` info. Surfaced by initial 500-error debugging. |
+| `82425250` | `chore(gitignore): exclude dashboard frontend dist/ + node_modules/ (AGENTS anti-artefact)` | After `npm install` + `npm run build`, both `dist/` and `node_modules/` were unregistered in git. AGENTS.md § anti-artefact invariant violation waiting to happen. Belt-and-suspenders (scoped + global). |
+| `ba8f6ed2` | `fix(frontend): React ErrorBoundary - surface mount errors instead of empty root` | User-reported `<div id="root">` empty on both Vite dev + Flask prod. New `ErrorBoundary` class component wraps `<App />`; any runtime render error now surfaces as styled monospace dark fallback UI showing `error.message` + `error.stack` + `componentStack`. |
+
+### Live URLs
+
+| URL | Server | Mode | Status |
+|-----|--------|------|--------|
+| `http://51.222.204.158:5173/` | Vite dev server | Hot-reload React | ✅ `dashboard-container` present, root 852-byte content |
+| `http://127.0.0.1:5173/`     | Vite dev server | Same           | ✅ loopback OK |
+| `http://51.222.204.158:8000/` | Flask (Gunicorn/stocketio) | Production static dist/ | ✅ `dashboard-container` present, root populated |
+| `http://127.0.0.1:8000/`      | Flask                  | Same                 | ✅ loopback OK |
+
+### Verification Pattern (re-runnable)
+
+```bash
+# Single chromium headless probe — works for both :5173 and :8000.
+mkdir -p $HOME/chromium-recheck
+chromium-browser \
+  --headless=new --no-sandbox --disable-gpu \
+  --user-data-dir=$HOME/chromium-recheck \
+  --hide-scrollbars --window-size=1280,800 \
+  --virtual-time-budget=15000 \
+  --dump-dom \
+  http://51.222.204.158:8000/ 2>/tmp/chromium_recheck.log > /tmp/dom_recheck.html
+
+# Smoking-gun metrics:
+awk '/<div[^>]*id="root"/,/<\/div>/' /tmp/dom_recheck.html | wc -c
+# Expected: > 100 (vs pre-fix = 0)
+grep -c 'dashboard-container' /tmp/dom_recheck.html
+# Expected: 1 (vs pre-fix = 0)
+grep -oE 'CHRONON3D|TELEMETRY|sidebar' /tmp/dom_recheck.html | sort -u
+# Expected: all 3 markers visible
+```
+
+### `/api/*` JSON contract (preserved by `aad79a47`)
+
+```
+GET /              → 200 + index.html (SPA root)
+GET /api/runs      → 200 + JSON []  (registered; no DB rows expected on fresh deploy)
+GET /api/run/<id>  → 404 + JSON {"error":"Run not found"}  (registered)
+GET /api/health    → 404 + JSON {"error":"API endpoint not found","path":"api/health"}  (defensive guard)
+GET /api/projects  → 404 + JSON  (defensive guard — bundle never calls it; legacy probe)
+POST /api/login    → 200 + JSON {"token":"no-auth","success":true}  (no-op auth)
+```
+
+The catch-all `serve_static` returns JSON 404 (NOT HTML) for any unregistered `/api/*` path, so React's `fetch().json()` never throws `SyntaxError` on an unexpected HTML body.
+
+### Why both modes share identical React source
+
+Both endpoints mount the same `App.jsx` tree:
+- Vite dev (`:5173`) — source via `/src/main.jsx` + `/src/App.jsx` (HMR). Vite proxies `/api`, `/artifact`, `/socket.io` requests to the Flask backend process.
+- Flask prod (`:8000`) — built via `cd tools/telemetry_dashboard/frontend && npm run build`. Serves `dist/index.html` + `dist/assets/index-*.{js,css}`. **Flask IS the API server itself** (no proxy needed — `/api/*` routes are handled by the same process serving the SPA).
+
+The dist/ rebuild is the SYNC mechanism: `aad79a47` source change → rebuild → same React tree on both server types.
+
+### Caveats & forward-only tickets
+
+- **Hard refresh required after first deploy**: Browser may cache a stale empty `<div id="root">` from before the fix chain. `Ctrl+Shift+R` (or DevTools → Network → "Disable cache" + refresh) clears it.
+- **ErrorBoundary fallback UI shown if App.jsx throws**: future render-time errors are explicitly visible (not silent). Stop iterating on root cause if needed.
+- **Operational follow-ups** (informational, not blocking):
+  - `/api/*` bundle-call audit — `grep -oE '/api/[a-z_/-]+' tools/telemetry_dashboard/frontend/dist/assets/*.js` confirms the production bundle only actively calls 3 paths: `/api/runs`, `/api/run/<run_id>`, `/api/graph/<composition_id>`. All 3 are registered handlers in `flask_app.py`. The defensive JSON 404 guard from `aad79a47` is kept as a latent safety net for future bundle additions or direct non-browser probes (not exercised by current SPA traffic but prevents `fetch().json()` SyntaxError regressions).
+  - Verified dual-mode parity: Vite dev `:5173` and Flask prod `:8000` mount the same React tree (verified 2026-07-05 via chromium headless DOM dump). Future operators can rely on this for HMR parity during local development.
 
 ---
 
