@@ -17,6 +17,14 @@ add_executable(chronon3d_cache_tests
     cache/test_lru_cache.cpp
     cache/test_lru_extensions.cpp
     cache/test_frame_cache.cpp
+    # Fix #3 (post-FASE-18 review) -- standalone test for FASE 18's
+    # extracted evict_lru_for helper trio (src/cache/framebuffer_pool_evict.cpp).
+    # Exercises the LRU eviction driver in isolation via the public
+    # release() / stats() / set_budget_bytes() surface. Deterministic,
+    # cat-2 freeze-compliant (no threads / no time / no PRNG).
+    # Also registered in tests/core_tests.cmake (cache subgroup) for
+    # blanket coverage alongside test_framebuffer_pool.cpp.
+    cache/test_evict_lru_for.cpp
     cache/test_video_frame_cache.cpp
     cache/test_framebuffer_pool.cpp
     render_graph/cache/test_scene_program_cache.cpp

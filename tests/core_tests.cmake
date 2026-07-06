@@ -252,6 +252,11 @@ add_executable(chronon3d_core_tests
     cache/test_framebuffer_pool.cpp
     cache/test_video_frame_cache.cpp
     cache/test_persistent_framebuffer_store.cpp
+    # Fix #3 (post-FASE-18 review) -- standalone test for FASE 18's
+    # extracted evict_lru_for helper trio.  Exercises the LRU eviction
+    # driver in isolation via the public release() / stats() / set_budget_bytes()
+    # surface.  Deterministic, cat-2 freeze-compliant.
+    cache/test_evict_lru_for.cpp
     core/test_sharded_telemetry_store.cpp
     core/test_render_counters.cpp
     core/test_cache_eval_dirty_counters.cpp
@@ -261,6 +266,13 @@ add_executable(chronon3d_core_tests
     core/math/test_2_5d_roadmap.cpp
     core/math/test_camera_projection_resolver.cpp
     core/math/test_camera_projection_geometry_safety.cpp
+    # Fix #3 (post-FASE-17 review) -- standalone tests for FASE 17's
+    # extracted inline helpers.  Deterministic, cat-2 freeze-compliant
+    # (no threads / no time / no PRNG).  Test files live alongside
+    # test_camera_projection_resolver.cpp because they share the headers
+    # under test (camera_projection_clip.hpp, camera_projection_frustum.hpp).
+    core/math/test_clip_with_uv.cpp
+    core/math/test_frustum_culling.cpp
     core/geometry/test_geometry.cpp
     core/animation/test_animation.cpp
     core/animation/test_interpolate.cpp
