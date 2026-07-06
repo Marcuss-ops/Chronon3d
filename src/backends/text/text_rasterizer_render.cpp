@@ -40,7 +40,6 @@
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <cmath>
-#include <cctype>
 #include <mutex>
 #include <unordered_map>
 #include <optional>
