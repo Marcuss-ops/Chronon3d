@@ -12,7 +12,6 @@
 
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/text/font_engine.hpp>
-#include <chronon3d/backends/text/bidi_segmenter.hpp>
 
 #include "text_unicode_utils.hpp"
 #include "text_layout_types.hpp"
