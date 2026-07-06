@@ -1,6 +1,7 @@
 #include "text_audit_engine.hpp"
 #include "text_audit_types.hpp"
 #include "text_audit_helpers.hpp"
+#include "text_audit_typewriter.hpp"
 
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
@@ -319,102 +320,6 @@ TextAuditFrameResult audit_single_text(
 
     return result;
 }
-
-namespace {
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Layer text collection helpers
-// ═══════════════════════════════════════════════════════════════════════════
-//
-// SceneBuilder::layer() stores text nodes inside scene.layers()[i].nodes,
-// NOT in scene.nodes().  The audit must walk layers to find text.
-//
-// typewriter_build() creates per-character layers named "{prefix}_c{index}",
-// each containing a single-glyph TextShape.  The audit detects this pattern
-// and aggregates the characters into a composite view.
-
-struct LayerTextNode {
-    TextShape text;
-    std::string layer_name;
-    float layer_opacity{1.0f};
-    float offset_x{0.0f};
-    float offset_y{0.0f};
-};
-
-/// Walk scene.layers() and each layer's nodes to find text shapes.
-std::vector<LayerTextNode> collect_text_from_scene(const Scene& scene) {
-    std::vector<LayerTextNode> result;
-    for (const auto& layer : scene.layers()) {
-        if (!layer.visible) continue;
-        for (const auto& node : layer.nodes) {
-            if (node.shape.type() == ShapeType::Text && !node.shape.text().text.empty()) {
-                LayerTextNode info;
-                info.text = node.shape.text();
-                info.layer_name = std::string(layer.name);
-                info.layer_opacity = layer.transform.opacity;
-                info.offset_x = node.world_transform.position.x;
-                info.offset_y = node.world_transform.position.y;
-                result.push_back(std::move(info));
-            }
-        }
-    }
-    return result;
-}
-
-/// Parse layer name pattern "{prefix}_c{digits}" used by typewriter_build.
-bool parse_typewriter_layer_name(const std::string& name,
-                                  std::string& prefix, int& index) {
-    auto cpos = name.rfind("_c");
-    if (cpos == std::string::npos || cpos == 0) return false;
-    std::string suffix = name.substr(cpos + 2);
-    if (suffix.empty()) return false;
-    for (char c : suffix) {
-        if (!std::isdigit(static_cast<unsigned char>(c))) return false;
-    }
-    prefix = name.substr(0, cpos);
-    index = std::stoi(suffix);
-    return true;
-}
-
-struct TypewriterGroup {
-    std::string prefix;
-    std::vector<LayerTextNode> chars;  // sorted by index
-    std::string full_text;             // concatenation of all char glyphs
-};
-
-/// Detect typewriter_build patterns: groups of single-char layers with
-/// names like "tw_c0", "tw_c1", etc.
-std::vector<TypewriterGroup> detect_typewriter_groups(
-    const std::vector<LayerTextNode>& nodes)
-{
-    std::map<std::string, std::vector<std::pair<int, LayerTextNode>>> groups;
-
-    for (const auto& node : nodes) {
-        std::string prefix;
-        int index;
-        if (parse_typewriter_layer_name(node.layer_name, prefix, index)) {
-            groups[prefix].push_back({index, node});
-        }
-    }
-
-    std::vector<TypewriterGroup> result;
-    for (auto& [prefix, entries] : groups) {
-        if (entries.size() < 2) continue;  // need >=2 chars to be typewriter
-        std::sort(entries.begin(), entries.end(),
-                  [](const auto& a, const auto& b) { return a.first < b.first; });
-
-        TypewriterGroup group;
-        group.prefix = prefix;
-        for (auto& [idx, node] : entries) {
-            group.full_text += node.text.text;
-            group.chars.push_back(std::move(node));
-        }
-        result.push_back(std::move(group));
-    }
-    return result;
-}
-
-} // anonymous namespace (layer text helpers)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // audit_composition — compile scene at each frame and audit text nodes
