@@ -147,7 +147,7 @@ Ispezione manuale dei golden PNG: cinematic title reveal, typewriter, word casca
 | 1 | Build | `chronon3d_cli` compila e linka | **PASS** | CLI binary in `build/chronon/linux-fast-dev/apps/chronon3d_cli/chronon3d_cli` |
 | 2 | CLI | `chronon3d_cli list` | **PASS** | Lista composizioni popolata (60+ composizioni) |
 | 3 | Render base | `render DarkGridBackground --frame 0` | **PASS** | PNG 1920×1080, 104,256 light pixel, non-blank |
-| 4 | SDK esterno | `install_consumer_test.sh` | **FAIL** | Build error in step 298/377 (pre-esistente, non regressione nostra) |
+| 4 | SDK esterno | `install_consumer_test.sh` | **PASS** | [BOUNDARY-OK] — fix: aggiunto `stroke_style.hpp` a `Chronon3DPublicHeaders.cmake` (mancante, causava `fatal error: stroke_style.hpp: No such file` nell'include di `fill_style.hpp`) |
 | 5 | SDK pulito | Consumer fuori repo solo `Chronon3D::SDK` | **PASS** | `main_text.cpp` compila, linka, produce PNG con background visibile |
 | 6 | Testo base | CertTitle 16:9 | **PASS** (struttura) / **BLOCKED** (testo) | Composizione compila e renderizza (5,157 light px dal grid). Testo bloccato da TICKET-104 |
 | 7 | Testo vertical | CertTitleVertical 9:16 | **PASS** (struttura) / **BLOCKED** (testo) | Render 1080×1920 con grid. 887k dark pixel — grid non copre canvas verticale |
@@ -165,10 +165,10 @@ Ispezione manuale dei golden PNG: cinematic title reveal, typewriter, word casca
 
 | Categoria | Count |
 |-----------|-------|
-| **PASS** | 9 |
+| **PASS** | 10 |
 | **PASS (struttura) / BLOCKED (testo via TICKET-104)** | 5 |
 | **EXPECTED FAIL** | 2 |
-| **FAIL** | 0 (Item 4 è pre-esistente, non regressione) |
+| **FAIL** | 0 |
 
 ### Blocker attivo
 
