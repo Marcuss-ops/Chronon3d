@@ -11,6 +11,7 @@ add_library(chronon3d_text_core OBJECT
     animation/text_pre_shaping.cpp
     every_line_composer.cpp
     glyph_selector.cpp
+    glyph_selector_random.cpp    # FASE 8 — permutation/random extracted
     path_sampler.cpp
     # TICKET-104 -- INTERNAL PendingTextRun::consumed real-decrement
     # helper.  Provides `text_internal::mark_consumed()` + diagnostic
