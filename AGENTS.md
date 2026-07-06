@@ -79,61 +79,21 @@ Per il contratto completo di ciascun ruolo, vedi [`docs/DOCUMENTATION_GOVERNANCE
 
 
 
-## 🔴 Feature Freeze — V0.1 (attivo dal 2026-06-29)
+## ✅ Feature Freeze — REVOCATO (2026-07-06)
 
-**Nessuna nuova feature viene accettata fino a baseline verde certificata**
-(11 gate architetturali sullo stesso commit).
+**Baseline verde certificata: `main@7eb5c2ba` — 11/11 PASS.**
 
-### Cosa è BLOCCATO
+Il feature freeze V0.1, attivo dal 2026-06-29, è stato revocato.
+La baseline è documentata in [`docs/baselines/main-7eb5c2ba-baseline.md`](docs/baselines/main-7eb5c2ba-baseline.md).
 
-- Nuove feature camera, testo, rendering, shape, animazioni.
-- Nuovi nodi render graph, effect processor, backend.
-- Nuovi preset, registry, risolutori, sampler.
-- Estensioni V3, tile-first, expressions V2.
-- Nuovi formati di input/output.
+### Regole permanenti (ereditate dal freeze)
 
-### Cosa è CONSENTITO (solo queste categorie)
+Queste regole restano in vigore come best practices, non più come blocco:
 
-1. **Correzioni di build** — CMake, link, include mancanti, dipendenze.
-2. **Test deterministici** — golden test, sentinel hash, regression gate.
-3. **Rimozione percorsi legacy** — dead code, API deprecate, artifact obsoleti.
-4. **Consumer SDK esterno** — certificazione install + link + `render_frame()`.
-5. **Allineamento documentazione** — `docs/CURRENT_STATUS.md`, `ROADMAP.md`, `RELEASE_GATE.md`.
-
-### Cosa è VIETATO
-
-- Stime manuali di completamento (es. "X–Y%") non sono ammissibili.
-  Sostituire con stato osservabile: `PASS` / `FAIL` / `PARTIAL` / `NOT RUN`
-  (fonte canonica: `STATUS.generated.md` prodotto dalla CI quando disponibile).
-- Nuovi `#include`, nuove classi pubbliche, nuovi `target_link_libraries`
-  non strettamente necessari alle 5 categorie sopra.
-- Qualsiasi modifica a `include/chronon3d/` che espanda la superficie API.
-
-### Definizione di "baseline verde"
-
-Tutti gli 11 check architetturali devono restituire PASS sullo **stesso commit**:
-
-```bash
-commit=$(git rev-parse HEAD)
-bash tools/check_architecture_boundaries.sh          # 14 gate
-bash tools/check_architecture_boundaries_selftest.sh # selftest
-bash tools/check_software_renderer_boundary.sh       # sw boundary
-bash tools/check_gitignored_dirs.sh                  # gitignore hygiene
-bash tools/audit_software_renderer.sh                # sw audit
-bash tools/check_camera_architecture.sh              # camera arch
-bash tools/check_doc_sync.sh                         # doc sync
-bash tools/check_filename_drift.sh                   # filename drift
-bash tools/test_architectural.sh                     # TU-level rot
-bash tools/install_consumer_test.sh                  # consumer SDK
-bash tools/check_backend_sanitization.py             # backend sanitization
-# 11/11 PASS → feature freeze revocato
-```
-
-### Revoca
-
-Il feature freeze viene rimosso SOLO quando un commit su `main` registra
-11/11 PASS e la baseline viene documentata in `docs/baselines/` con SHA
-canonico. La revoca richiede un commit esplicito che rimuove questa sezione.
+- **No stime percentuali**: usare stato osservabile `PASS` / `FAIL` / `PARTIAL` / `NOT RUN`.
+- **No espansione API non necessaria**: ogni nuovo simbolo in `include/chronon3d/` va giustificato.
+- **No nuovi singleton/registry/resolver/cache** senza ADR.
+- **No `#include <msdfgen>`, `<libtess2>`, `<unicode[/...]>`** senza ADR.
 
 ---
 
@@ -168,12 +128,12 @@ error.  Status degli script INSTALL_PIPELINE_PLUMBING è tracciato in
 
 ## Priorità obbligatoria
 
-1. Ottenere baseline verde: 11/11 gate sullo stesso commit (feature freeze attivo).
-2. Certificare una sola strategia di packaging CMake per l'SDK (verifica `ar t` + `nm -C`).
-3. Unificare toolchain/preset vcpkg.
-4. Chiudere installazione ed external consumer SDK.
-5. Riallineare `docs/CURRENT_STATUS.md` e `docs/ROADMAP.md` alla baseline osservata (i file `STATUS.md` / `NEXT_STEPS.md` sono ora storici in `docs/ARCHIVE/`).
-6. Solo dopo baseline verde e SDK certificato: Text V1, Camera V1, V0.1 release.
+1. Mantenere baseline verde: 11/11 gate su ogni commit su `main`.
+2. Text V1 completamento (golden test, preset, kinetic typography).
+3. Camera V1 completamento (runtime certification, DOF, motion blur, framing).
+4. V0.1 release (SDK packaging, cross-language ABI, formato `.chronon`).
+5. Certificare una sola strategia di packaging CMake per l'SDK (verifica `ar t` + `nm -C`).
+6. Riallineare `docs/CURRENT_STATUS.md` e `docs/ROADMAP.md` alla baseline osservata.
 
 ## Regole di lavoro
 
