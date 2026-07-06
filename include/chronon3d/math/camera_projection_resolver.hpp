@@ -3,42 +3,56 @@
 // ============================================================================
 // camera_projection_resolver.hpp — Unified Camera Projection Resolver
 //
-/// @file    camera_projection_resolver.hpp
-/// @brief   Single projection resolver for all 2.5D layer types.
-///
-/// Every projection path in Chronon3D should eventually go through
-/// CameraProjectionResolver::project_layer() so that shapes, text, images,
-/// video, precomps, boxes, and grids all use the same math:
-///
-///   Layer local space
-///   -> world transform (via world_matrix)
-///   -> camera view transform (via Camera2_5D::view_matrix())
-///   -> near/far plane clipping (Sutherland-Hodgman + UV interpolation)
-///   -> 6-plane frustum culling
-///   -> perspective projection (focal / depth, Y-down)
-///   -> viewport mapping (centred -> screen coords)
-///   -> backface detection (camera-space normal)
-///
-/// Coordinate Contract (SINGLE SOURCE OF TRUTH):
-/// +------------------------------------------------------+
-/// | World X positive  = right                            |
-/// | World Y positive  = UP  (GLM Y-up convention)        |
-/// | World Z positive  = away from camera (LH system)     |
-/// | Camera forward    = +Z  (look direction)             |
-/// | Screen origin     = CENTRE (centred coords)          |
-/// | Framebuffer Y     = DOWN  (top-left origin)          |
-/// | Rotation order    = ZYX (yaw -> pitch -> roll)       |
-/// | Focal length     = camera_math::focal_xy_from_camera() |
-/// | Perspective scale = focal / camera_depth             |
-/// | Backface test     = camera-space normal.z < 0        |
-/// | Near plane        = z >= kNearClipZ                  |
-/// | Far plane         = z <= kFarClipZ                   |
-/// | Frustum culling   = 6-plane test vs layer bbox       |
-/// +------------------------------------------------------+
-///
-/// After this resolver is adopted, the four legacy projection paths
-/// (camera_projection.cpp, camera_2_5d_projection.hpp,
-///  projection_context.hpp, projection_utils.cpp) should delegate to it.
+// @file    camera_projection_resolver.hpp
+// @brief   Single projection resolver for all 2.5D layer types.
+//
+// Every projection path in Chronon3D should eventually go through
+// CameraProjectionResolver::project_layer() so that shapes, text, images,
+// video, precomps, boxes, and grids all use the same math:
+//
+//   Layer local space
+//   -> world transform (via world_matrix)
+//   -> camera view transform (via Camera2_5D::view_matrix())
+//   -> near/far plane clipping (Sutherland-Hodgman + UV interpolation)
+//   -> 6-plane frustum culling
+//   -> perspective projection (focal / depth, Y-down)
+//   -> viewport mapping (centred -> screen coords)
+//   -> backface detection (camera-space normal)
+//
+// Coordinate Contract (SINGLE SOURCE OF TRUTH):
+// +------------------------------------------------------+
+// | World X positive  = right                            |
+// | World Y positive  = UP  (GLM Y-up convention)        |
+// | World Z positive  = away from camera (LH system)     |
+// | Camera forward    = +Z  (look direction)             |
+// | Screen origin     = CENTRE (centred coords)          |
+// | Framebuffer Y     = DOWN  (top-left origin)          |
+// | Rotation order    = ZYX (yaw -> pitch -> roll)       |
+// | Focal length     = camera_math::focal_xy_from_camera() |
+// | Perspective scale = focal / camera_depth             |
+// | Backface test     = camera-space normal.z < 0        |
+// | Near plane        = z >= kNearClipZ                  |
+// | Far plane         = z <= kFarClipZ                   |
+// | Frustum culling   = 6-plane test vs layer bbox       |
+// +------------------------------------------------------+
+//
+// After this resolver is adopted, the four legacy projection paths
+// (camera_projection.cpp, camera_2_5d_projection.hpp,
+//  projection_context.hpp, projection_utils.cpp) should delegate to it.
+//
+// FASE 17: secondary static methods (test_frustum_culling,
+// compute_signed_area, clip_with_uv, build_perspective_matrix,
+// build_projection_matrix) extracted into:
+//   - camera_projection_frustum.hpp  (test_frustum_culling + compute_signed_area)
+//   - camera_projection_clip.hpp     (clip_with_uv — Sutherland-Hodgman)
+//   - camera_projection_matrix.hpp   (backward-compat matrix builders)
+//
+// Include-ordering note (avoid double-nesting):
+//   The three helper headers each open `namespace chronon3d { ... }`
+//   themselves.  They are included at FILE SCOPE (between two
+//   namespace chronon3d blocks, NOT inside one) to avoid creating
+//   `chronon3d::chronon3d::`.  The enum declarations live in the
+//   first namespace block so the helpers can reference them.
 // ============================================================================
 
 #include <chronon3d/math/glm_types.hpp>
@@ -81,7 +95,26 @@ enum class FrustumResult : uint8_t {
     Outside       = 2,   // Layer is fully outside the view frustum -> cull
 };
 
-// -- Input to CameraProjectionResolver -----------------------------------------
+// ============================================================================
+// FASE 17 — Secondary helper methods (extracted)
+// ============================================================================
+//
+// Included at file scope (NOT inside any namespace) to avoid double-nesting:
+// each helper header opens its own `namespace chronon3d { ... }` so they
+// can also be consumed standalone.  Calling code uses unscoped names
+// (ADL/name lookup resolves them inside `namespace chronon3d`).
+
+} // namespace chronon3d (close first block — helpers go at file scope)
+
+#include <chronon3d/math/camera_projection_frustum.hpp>
+#include <chronon3d/math/camera_projection_clip.hpp>
+#include <chronon3d/math/camera_projection_matrix.hpp>
+
+namespace chronon3d {
+
+// ============================================================================
+// CameraProjectionInput — Input to CameraProjectionResolver
+// ============================================================================
 struct CameraProjectionInput {
     Mat4      world_transform{1.0f};   // Layer's world-space 4x4 matrix
     Vec2      layer_size{100.0f, 100.0f}; // Unscaled width x height of layer
@@ -99,7 +132,9 @@ struct CameraProjectionInput {
     bool enable_frustum_culling{false};
 };
 
-// -- Output from CameraProjectionResolver ---------------------------------------
+// ============================================================================
+// ProjectedLayer — Output from CameraProjectionResolver
+// ============================================================================
 struct ProjectedLayer {
     // Screen-space corners (max 6 after quadrilateral -> hexagon clipping).
     // Each corner has .x and .y as centred screen coordinates (origin at
@@ -125,6 +160,8 @@ struct ProjectedLayer {
 // ============================================================================
 //
 // Thread-safe: no mutable state -- all outputs are returned by value.
+// Secondary methods (frustum, clip, matrix builders) live in dedicated
+// headers included above (FASE 17).  Only project_layer() remains here.
 struct CameraProjectionResolver {
 
     // -- Primary method: project a single layer --------------------------------
@@ -184,7 +221,7 @@ struct CameraProjectionResolver {
 
         // -- 5. 6-plane frustum culling (optional) -----------------------------
         if (input.enable_frustum_culling) {
-            out.frustum_result = test_frustum_culling(
+            out.frustum_result = chronon3d::test_frustum_culling(
                 cam_min_x, cam_max_x, cam_min_y, cam_max_y, cam_min_z, cam_max_z,
                 focal_xy, input.viewport.width, input.viewport.height,
                 input.far_plane);
@@ -234,7 +271,7 @@ struct CameraProjectionResolver {
 
         // First pass: clip against near plane (require z >= nearZ)
         if (any_near) {
-            bool ok = clip_with_uv(
+            bool ok = chronon3d::clip_with_uv(
                 cam_corners.data(), cam_uvs.data(), 4,
                 clipped_corners, clipped_uvs, &corner_count,
                 camera_math::kNearClipZ, true);
@@ -258,7 +295,7 @@ struct CameraProjectionResolver {
             Vec2 far_uvs[6]{};
             int far_count = 0;
 
-            bool ok = clip_with_uv(
+            bool ok = chronon3d::clip_with_uv(
                 clipped_corners, clipped_uvs, corner_count,
                 far_clipped, far_uvs, &far_count,
                 input.far_plane, false);
@@ -315,7 +352,7 @@ struct CameraProjectionResolver {
         if (!out.visible) return out;
 
         // -- 10. Screen-space signed area (for diagnostics, not backface) -------
-        out.signed_area = compute_signed_area(out.corners, corner_count);
+        out.signed_area = chronon3d::compute_signed_area(out.corners, corner_count);
 
         // -- 11. Apply backface policy ------------------------------------------
         if (out.back_facing) {
@@ -337,203 +374,6 @@ struct CameraProjectionResolver {
         }
 
         return out;
-    }
-
-    // -- 6-plane frustum culling test -------------------------------------------
-    // Tests the camera-space bounding box against the 6 frustum planes.
-    // The frustum is defined by the FOV and viewport aspect ratio.
-    // Returns Inside / Intersects / Outside.
-    // TICKET-035: per-axis focal for anamorphic / Stretch frustum planes.
-    static FrustumResult test_frustum_culling(
-        f32 min_x, f32 max_x,
-        f32 min_y, f32 max_y,
-        f32 min_z, f32 max_z,
-        camera_math::FocalPx focal_xy, f32 vp_width, f32 vp_height,
-        f32 far_plane = kFarClipZ)
-    {
-        const f32 tan_half_fov_v = (vp_height * 0.5f) / focal_xy.y;
-        const f32 tan_half_fov_h = (vp_width  * 0.5f) / focal_xy.x;
-
-        const Vec3 corners[8] = {
-            {min_x, min_y, min_z}, {max_x, min_y, min_z},
-            {max_x, max_y, min_z}, {min_x, max_y, min_z},
-            {min_x, min_y, max_z}, {max_x, min_y, max_z},
-            {max_x, max_y, max_z}, {min_x, max_y, max_z},
-        };
-
-        // 6 frustum planes in camera-space (Y-up, camera looks toward +Z):
-        //   Near:  z >= kNearClipZ  ->  (0, 0, 1, -kNearClipZ)
-        //   Far:   z <= far_plane   ->  (0, 0, -1, far_plane)
-        //   Left:  x >= -z * tan_half_fov_h  ->  (1, 0, tan_half_fov_h, 0)
-        //   Right: x <=  z * tan_half_fov_h  ->  (-1, 0, tan_half_fov_h, 0)
-        //   Top:   y <=  z * tan_half_fov_v  ->  (0, -1, tan_half_fov_v, 0)
-        //   Bottom: y >= -z * tan_half_fov_v  ->  (0, 1, tan_half_fov_v, 0)
-
-        struct Plane { f32 nx, ny, nz, d; };
-        const Plane planes[6] = {
-            { 0.0f,  0.0f,  1.0f, -camera_math::kNearClipZ},  // near
-            { 0.0f,  0.0f, -1.0f,  far_plane},                 // far (uses input param)
-            { 1.0f,  0.0f,  tan_half_fov_h,  0.0f},            // left
-            {-1.0f,  0.0f,  tan_half_fov_h,  0.0f},            // right
-            { 0.0f, -1.0f,  tan_half_fov_v,  0.0f},            // top
-            { 0.0f,  1.0f,  tan_half_fov_v,  0.0f},            // bottom
-        };
-
-        bool any_inside = false;
-        bool all_inside = true;
-
-        for (const auto& plane : planes) {
-            int inside_count = 0;
-            for (int i = 0; i < 8; ++i) {
-                const f32 dist = corners[i].x * plane.nx
-                               + corners[i].y * plane.ny
-                               + corners[i].z * plane.nz
-                               + plane.d;
-                if (dist >= 0.0f) {
-                    inside_count++;
-                }
-            }
-
-            if (inside_count == 0) {
-                return FrustumResult::Outside;  // all 8 corners outside this plane
-            }
-
-            // For corners behind the camera (z < 0), some planes are undefined.
-            // We handle this by checking if the bbox intersects z > 0 region.
-            if (inside_count < 8) {
-                all_inside = false;
-            }
-            if (inside_count > 0) {
-                any_inside = true;
-            }
-        }
-
-        // Special case: if the bbox is entirely behind the camera (z < 0 for all corners)
-        if (max_z < 0.0f) {
-            return FrustumResult::Outside;
-        }
-
-        if (all_inside) return FrustumResult::Inside;
-        if (any_inside) return FrustumResult::Intersects;
-        return FrustumResult::Outside;
-    }
-
-    // -- Utility: compute 2D signed area of a polygon --------------------------
-    static f32 compute_signed_area(const Vec3* vertices, int count) {
-        if (count < 3) return 0.0f;
-        f32 area = 0.0f;
-        for (int i = 0; i < count; ++i) {
-            const int j = (i + 1) % count;
-            area += vertices[i].x * vertices[j].y;
-            area -= vertices[j].x * vertices[i].y;
-        }
-        return area * 0.5f;
-    }
-
-    // -- Clip a convex polygon against a Z plane with UV interpolation ---------
-    // Sutherland-Hodgman: processes each edge. When an intersection is found,
-    // UVs are linearly interpolated at the same parametric position.
-    //
-    // @param verts_in   Input vertices (camera-space)
-    // @param uvs_in     Input UVs
-    // @param count_in   Number of input vertices
-    // @param verts_out  Output vertices (clipped)
-    // @param uvs_out    Output UVs
-    // @param count_out  Number of output vertices
-    // @param z_thresh   The Z threshold for clipping
-    // @param clip_above If true, keep vertices where z >= z_thresh (near plane).
-    //                   If false, keep vertices where z <= z_thresh (far plane).
-    // @return true if at least 3 vertices remain and the polygon is visible.
-    static bool clip_with_uv(
-        const Vec3* verts_in, const Vec2* uvs_in, int count_in,
-        Vec3* verts_out, Vec2* uvs_out, int* count_out,
-        f32 z_thresh, bool clip_above)
-    {
-        if (count_in < 3) {
-            *count_out = 0;
-            return false;
-        }
-
-        // Local helper: linearly interpolate vertex and UV at the Z-crossing point
-        auto intersect = [&](const Vec3& a, const Vec2& uv_a,
-                             const Vec3& b, const Vec2& uv_b) -> std::pair<Vec3, Vec2> {
-            const f32 dz = b.z - a.z;
-            const f32 t = (std::abs(dz) > 1e-12f)
-                        ? (z_thresh - a.z) / dz
-                        : 0.5f;
-            return {
-                a + (b - a) * t,
-                uv_a + (uv_b - uv_a) * t
-            };
-        };
-
-        int out_idx = 0;
-
-        for (int i = 0; i < count_in; ++i) {
-            const int j = (i + 1) % count_in;
-            const Vec3& curr = verts_in[i];
-            const Vec3& next = verts_in[j];
-            const Vec2& curr_uv = uvs_in[i];
-            const Vec2& next_uv = uvs_in[j];
-
-            bool curr_inside, next_inside;
-            if (clip_above) {
-                curr_inside = curr.z >= z_thresh;
-                next_inside = next.z >= z_thresh;
-            } else {
-                curr_inside = curr.z <= z_thresh;
-                next_inside = next.z <= z_thresh;
-            }
-
-            if (curr_inside && next_inside) {
-                verts_out[out_idx] = next;
-                uvs_out[out_idx]   = next_uv;
-                out_idx++;
-            } else if (curr_inside && !next_inside) {
-                // Leaving the plane -> emit intersection only
-                auto [mid, mid_uv] = intersect(curr, curr_uv, next, next_uv);
-                verts_out[out_idx] = mid;
-                uvs_out[out_idx]   = mid_uv;
-                out_idx++;
-            } else if (!curr_inside && next_inside) {
-                // Entering the plane -> emit intersection + next
-                auto [mid, mid_uv] = intersect(curr, curr_uv, next, next_uv);
-                verts_out[out_idx] = mid;
-                uvs_out[out_idx]   = mid_uv;
-                out_idx++;
-
-                verts_out[out_idx] = next;
-                uvs_out[out_idx]   = next_uv;
-                out_idx++;
-            }
-            // else: both outside -> emit nothing
-        }
-
-        *count_out = out_idx;
-        return out_idx >= 3;
-    }
-
-    // -- Build the 4x4 perspective projection matrix (backward compat) ---------
-    // TICKET-035: per-axis focal_x / focal_y for anamorphic / Stretch.
-    static Mat4 build_perspective_matrix(const camera_math::FocalPx& focal_xy) {
-        Mat4 proj(0.0f);
-        proj[0][0] = focal_xy.x;
-        proj[1][1] = -focal_xy.y;
-        proj[2][2] = 1.0f;
-        proj[2][3] = 1.0f;
-        proj[3][3] = 0.0001f;
-        return proj;
-    }
-
-    // -- Build complete proj * view * model matrix (backward compat) -----------
-    static Mat4 build_projection_matrix(
-        const CameraProjectionSource& camera, const Mat4& world_transform,
-        f32 viewport_width, f32 viewport_height)
-    {
-        const camera_math::FocalPx focal_xy = camera_math::focal_xy_from_camera(
-            camera, viewport_width, viewport_height);
-        const Mat4 view = camera_math::view_matrix_for_camera(camera);
-        return build_perspective_matrix(focal_xy) * view * world_transform;
     }
 };
 

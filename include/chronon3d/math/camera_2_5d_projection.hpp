@@ -198,7 +198,7 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     const Mat4 view = camera_math::view_matrix_for_camera(camera);
     const camera_math::FocalPx focal_xy = camera_math::focal_xy_from_camera(
         camera, viewport_width, viewport_height);
-    const Mat4 proj_mat = CameraProjectionResolver::build_perspective_matrix(focal_xy);
+    const Mat4 proj_mat = chronon3d::build_perspective_matrix(focal_xy);
     out.projection_matrix = proj_mat * view * layer_matrix;
 
     // ── Diagnostic winding check ────────────────────────────────────────────
