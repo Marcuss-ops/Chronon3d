@@ -42,6 +42,7 @@
 
 #include <doctest/doctest.h>
 #include <helpers/test_utils.hpp>
+#include "test_text_font_fixture.hpp"
 
 #include <filesystem>
 #include <memory>
@@ -59,30 +60,7 @@ namespace {
 // dependence on global-ns visibility at the top of the TU.
 static chronon3d::TextLayoutCache s_text_cache;
 
-constexpr const char* kFontPath = "tests/fixtures/Inter-Bold.ttf";
 
-bool fixture_exists(const char* p) noexcept {
-    if (p == nullptr) return false;
-    std::error_code ec;
-    return std::filesystem::exists(p, ec);
-}
-
-void skip_if_missing(const char* fixture, const char* what) noexcept {
-    if (!fixture_exists(fixture)) {
-        MESSAGE("Skipping: ", what, " requires ", fixture,
-                " which is unavailable.");
-    }
-}
-
-FontSpec inter_bold() {
-    return FontSpec{
-        .font_path   = kFontPath,
-        .font_family = "Inter",
-        .font_weight = 700,
-        .font_style  = "normal",
-        .font_size   = 32.0f,
-    };
-}
 
 /// Build a TextRunShape backed by a real Inter-Bold layout.
 /// Mirrors the helper in test_draw_text_run_crossfade_stroke.cpp.
@@ -228,12 +206,12 @@ TEST_CASE("draw_text_run: null asset_resolver returns InvalidInput (P0-1 regress
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("draw_text_run: stroke render succeeds with per-span font_handle + scratch_state (P0-1 E2E)") {
-    if (!fixture_exists(kFontPath)) {
-        skip_if_missing(kFontPath, "P0-1 E2E (scratch_state + per-span font_handle)");
+    if (!test_text_fixture::fixture_exists(kInterBoldPath)) {
+        test_text_fixture::skip_if_missing(kInterBoldPath, "P0-1 E2E (scratch_state + per-span font_handle)");
         return;
     }
 
-    const FontSpec font = inter_bold();
+    const FontSpec font = test_text_fixture::inter_bold();
     const std::string text = "Hello";
 
     SoftwareRenderer renderer = test::make_renderer();

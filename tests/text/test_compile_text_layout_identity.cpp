@@ -1,4 +1,3 @@
-static chronon3d::TextLayoutCache s_text_cache;
 // ============================================================================
 // test_compile_text_layout_identity.cpp
 //
@@ -51,6 +50,9 @@ static chronon3d::TextLayoutCache s_text_cache;
 #include <string>
 
 using namespace chronon3d;
+
+// s_text_cache — file-local TextLayoutCache (after includes for unity-build safety).
+static chronon3d::TextLayoutCache s_text_cache;
 
 namespace {
 

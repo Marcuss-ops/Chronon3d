@@ -50,6 +50,7 @@ static chronon3d::TextLayoutCache s_text_cache;
 
 #include <doctest/doctest.h>
 #include <helpers/test_utils.hpp>
+#include "test_text_font_fixture.hpp"
 
 #include <filesystem>
 #include <memory>
@@ -57,37 +58,9 @@ static chronon3d::TextLayoutCache s_text_cache;
 
 using namespace chronon3d;
 
+using namespace test_text_fixture;
+
 namespace {
-
-// ── Canonical font fixture for deterministic text tests ────────────────
-constexpr const char* kFontPath = "tests/fixtures/Inter-Bold.ttf";
-
-bool fixture_exists(const char* p) noexcept {
-    if (p == nullptr) return false;
-    std::error_code ec;
-    return std::filesystem::exists(p, ec);
-}
-
-// Skip policy: emit a `MESSAGE("Skipping: ...")` so the test runner shows
-// the reason, then early-return from the TEST_CASE body.  Matches the
-// convention in `tests/text/test_freetype_face_cache_concurrency.cpp`
-// and `tests/text/test_font_io_fence.cpp`.
-void skip_if_missing(const char* fixture, const char* what) noexcept {
-    if (!fixture_exists(fixture)) {
-        MESSAGE("Skipping: ", what, " requires ", fixture,
-                " which is unavailable.");
-    }
-}
-
-FontSpec inter_bold() {
-    return FontSpec{
-        .font_path   = kFontPath,
-        .font_family = "Inter",
-        .font_weight = 700,
-        .font_style  = "normal",
-        .font_size   = 32.0f,
-    };
-}
 
 // Build a TextRunShape backed by a real Inter-Bold layout.  Mirrors the
 // helper used in `tests/text/test_crossfade_stroke.cpp`.
@@ -172,12 +145,12 @@ bool is_known_render_op_error(graph::RenderBackendErrorCode code) noexcept {
 // ═════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("draw_text_run: crossfade + stroke with longer outgoing text does not crash (no-crash regression)") {
-    if (!fixture_exists(kFontPath)) {
-        skip_if_missing(kFontPath, "TICKET-068 E2E (draw_text_run crossfade+stroke)");
+    if (!test_text_fixture::fixture_exists(kInterBoldPath)) {
+        test_text_fixture::skip_if_missing(kInterBoldPath, "TICKET-068 E2E (draw_text_run crossfade+stroke)");
         return;
     }
 
-    const FontSpec font = inter_bold();
+    const FontSpec font = test_text_fixture::inter_bold();
     const std::string active_text    = "ABc";                       // 3 glyphs
     const std::string outgoing_text  =
         "ABcdefghijklmnopqrSTuvWXyZ1234";                            // 33 glyphs (LONG)
@@ -274,12 +247,12 @@ TEST_CASE("draw_text_run: crossfade + stroke with longer outgoing text does not 
 // ═════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("draw_text_run: crossfade + stroke with 33:3 ratio does not crash (no-crash regression)") {
-    if (!fixture_exists(kFontPath)) {
-        skip_if_missing(kFontPath, "TICKET-068 E2E stress (33:3 ratio)");
+    if (!test_text_fixture::fixture_exists(kInterBoldPath)) {
+        test_text_fixture::skip_if_missing(kInterBoldPath, "TICKET-068 E2E stress (33:3 ratio)");
         return;
     }
 
-    const FontSpec font = inter_bold();
+    const FontSpec font = test_text_fixture::inter_bold();
     const std::string active_text    = "ABc";                       // 3 glyphs
     const std::string outgoing_text  =
         "abcdefghijklmnopqrstuvwxyz0123456";                         // 33 glyphs (LONG)
@@ -346,12 +319,12 @@ TEST_CASE("draw_text_run: crossfade + stroke with 33:3 ratio does not crash (no-
 // proof of rendering correctness.
 
 TEST_CASE("draw_text_run: crossfade + stroke produces successful render (E2E render-success gate)") {
-    if (!fixture_exists(kFontPath)) {
-        skip_if_missing(kFontPath, "TICKET-068 E2E render-success");
+    if (!test_text_fixture::fixture_exists(kInterBoldPath)) {
+        test_text_fixture::skip_if_missing(kInterBoldPath, "TICKET-068 E2E render-success");
         return;
     }
 
-    const FontSpec font = inter_bold();
+    const FontSpec font = test_text_fixture::inter_bold();
     const std::string active_text    = "Hello";                     // 5 glyphs
     const std::string outgoing_text  = "HelloWorld";                  // 10 glyphs (LONGER)
 
