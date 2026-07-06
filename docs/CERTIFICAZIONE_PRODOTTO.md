@@ -157,8 +157,8 @@ Ispezione manuale dei golden PNG: cinematic title reveal, typewriter, word casca
 | 11 | Emoji/CJK | 🔥 🎉 🚀 / こんにちは / 中文 | **EXPECTED FAIL** ✅ | 7 annotazioni EXPECTED FAIL nel sorgente. Root cause: color font non supportati (CBDT/CBLC/COLRv1) e CJK richiede font dedicato |
 | 12 | Subtitle | SRT/JSON word timing | **EXPECTED FAIL** ✅ | Feature non ancora implementata (Blocco 10 del text roadmap) |
 | 13 | AE parity | Golden PNG generati | **PASS** (file) / **BLOCKED** (contenuto) | 90 golden PNG in `test_renders/golden/`. Tutti neri: bloccati da TICKET-104. La pipeline di capture funziona |
-| 14 | Determinismo | Stesso frame ×2 = hash identico | **PASS** | MD5: `0d3dcda73e7a1695556378d82e201759` identico su 2 render consecutivi |
-| 15 | Performance | 10 frame 1080p DarkGridBackground | **PASS** | 6049ms totali, ~604ms/frame (single-thread, debug build) |
+| 14 | Determinismo | Stesso frame ×2 = hash identico | **PASS** | SHA256: `a8725e0a...24626608` identico su 2 render CertMultilingual consecutivi (run indipendenti) |
+| 15 | Performance | 300 frame 1080p DarkGridBackground | **PASS** | 299 frame in 180s (~602ms/frame), 25MB disco (83KB/PNG). Max RSS: 279MB, 0 major page faults |
 | 16 | Packaging | `install` + `find_package` | **PASS** | `libchronon3d_sdk_impl.a` (1.7GB), `Chronon3DConfig.cmake`, `Chronon3DTargets.cmake` presenti |
 
 ### Riepilogo
