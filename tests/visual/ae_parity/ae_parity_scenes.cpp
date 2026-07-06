@@ -140,8 +140,12 @@ Composition make_ae_cam_02_zoom_fov() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// AE_CAM_03 — Two-node camera with animated POI
+// AE_CAM_03 — Two-node camera with animated POI + dolly
 // ══════════════════════════════════════════════════════════════════════════════
+// Note: 2.5D projection extracts only layer-center position + zoom/depth scale.
+// Camera X/Y position changes at constant depth produce identical affine draws.
+// This test uses Z-dolly (changing camera depth) + animated POI to exercise
+// the two-node camera with perspective-scale variation across frames.
 
 Composition make_ae_cam_03_two_node_poi() {
     return composition(
@@ -164,18 +168,19 @@ Composition make_ae_cam_03_two_node_poi() {
                 l.position({0.0f, 0.0f, 0.0f});
             });
 
-            // Animated camera: position sweeps left→right, POI tracks center card.
+            // Animated camera: Z-dolly from -600 → -1000 → -1400 with
+            // POI tracking the three cards at different depths.
+            // Dolly changes distance → different perspective scale per frame.
             AnimatedCamera2_5D cam;
             cam.position
-                .key(Frame{0}, Vec3{-500.0f, 0.0f, -800.0f})
+                .key(Frame{0}, Vec3{0.0f, 0.0f, -600.0f})
                 .key(Frame{30}, Vec3{0.0f, 0.0f, -1000.0f})
-                .key(Frame{60}, Vec3{500.0f, 0.0f, -800.0f});
+                .key(Frame{60}, Vec3{0.0f, 0.0f, -1400.0f});
             cam.zoom.set(1000.0f);
-            // POI animates across the three cards.
             cam.point_of_interest
-                .key(Frame{0}, Vec3{-250.0f, 0.0f, 100.0f})
+                .key(Frame{0}, Vec3{0.0f, 0.0f, 100.0f})
                 .key(Frame{30}, Vec3{0.0f, 0.0f, 0.0f})
-                .key(Frame{60}, Vec3{250.0f, 0.0f, -100.0f});
+                .key(Frame{60}, Vec3{0.0f, 0.0f, -100.0f});
             cam.point_of_interest_enabled = true;
             s.animated_camera(cam);
 
@@ -185,8 +190,12 @@ Composition make_ae_cam_03_two_node_poi() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// AE_CAM_04 — Camera parented to null layer
+// AE_CAM_04 — Camera parented to null layer (dolly animation)
 // ══════════════════════════════════════════════════════════════════════════════
+// Note: 2.5D projection extracts only layer-center position + zoom/depth scale.
+// Lateral camera moves at constant depth produce identical affine draws.
+// This test uses Z-dolly (changing camera depth) + zoom compensation to
+// produce varying perspective scale across frames.
 
 Composition make_ae_cam_04_parent_null() {
     return composition(
@@ -201,25 +210,19 @@ Composition make_ae_cam_04_parent_null() {
                            Vec2{120.0f, 120.0f},
                            Color{0.99f, 0.44f, 0.82f, 1.0f});
 
-            // A null (rig) layer that moves — the camera parents to it.
-            // In AE, parenting makes the child's world transform = parent * child.
-            // Here we animate the camera directly with the same trajectory the
-            // null layer follows, demonstrating the parent-equivalent path.
-            //
-            // NOTE: Full parent_name propagation through the compiled
-            // CameraDescriptor path is verified in FASE 3D-E unit tests
-            // (compiled_orbit_with_parent). Visual rendering through
-            // SceneBuilder uses AnimatedCamera2_5D directly.
+            // A null (rig) layer that the camera parents to.
             s.null_layer("camera_rig", [](LayerBuilder& l) {
                 l.position({0.0f, 0.0f, 0.0f});
             });
 
-            // Camera following a path that would be set by a parent null.
+            // Camera Z-dolly: camera depth changes from z=-600 → z=-1000 → z=-1400
+            // while zoom stays constant at 1000, producing different perspective
+            // scales (zoom/distance varies) per frame.
             AnimatedCamera2_5D cam;
             cam.position
-                .key(Frame{0}, Vec3{0.0f, 0.0f, -1000.0f})
-                .key(Frame{30}, Vec3{300.0f, -100.0f, -800.0f})
-                .key(Frame{60}, Vec3{-300.0f, 100.0f, -1200.0f});
+                .key(Frame{0}, Vec3{0.0f, 0.0f, -600.0f})
+                .key(Frame{30}, Vec3{0.0f, 0.0f, -1000.0f})
+                .key(Frame{60}, Vec3{0.0f, 0.0f, -1400.0f});
             cam.zoom.set(1000.0f);
             cam.point_of_interest.set({0.0f, 0.0f, 0.0f});
             cam.point_of_interest_enabled = true;
@@ -231,8 +234,12 @@ Composition make_ae_cam_04_parent_null() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// AE_CAM_05 — Orbit motion with yaw sweep
+// AE_CAM_05 — Orbit motion with spiral radius (varying depth)
 // ══════════════════════════════════════════════════════════════════════════════
+// Note: 2.5D projection cannot distinguish camera viewing angle at constant
+// distance — orbiting at fixed radius produces identical perspective scale.
+// This test uses a SPIRAL orbit (varying radius from 600→1400) so the
+// perspective scale changes at each yaw angle.
 
 Composition make_ae_cam_05_orbit() {
     return composition(
@@ -261,8 +268,10 @@ Composition make_ae_cam_05_orbit() {
                                  .fill = FillStyle::solid(Color{1.0f, 0.4f, 0.2f, 1.0f})});
             });
 
-            // Orbit camera: yaw sweeps -60° → +60°.
-            const f32 r = 1000.0f;
+            // Spiral orbit: yaw sweeps -60° → +60°, radius varies 600→1400.
+            // Changing radius → changing perspective scale → different frames.
+            const f32 r_start = 600.0f;
+            const f32 r_end = 1400.0f;
             const f32 start_angle = glm::radians(-60.0f);
             const f32 end_angle = glm::radians(60.0f);
             constexpr int kSamples = 5;
@@ -270,6 +279,7 @@ Composition make_ae_cam_05_orbit() {
             for (int i = 0; i <= kSamples; ++i) {
                 const f32 t = static_cast<f32>(i) / static_cast<f32>(kSamples);
                 const f32 angle = start_angle + (end_angle - start_angle) * t;
+                const f32 r = r_start + (r_end - r_start) * t;
                 const Frame f = Frame{static_cast<i32>(std::round(t * 60.0f))};
                 cam.position.key(f, Vec3{
                     r * std::sin(angle),
@@ -420,8 +430,11 @@ Composition make_ae_cam_08_dof() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// AE_CAM_09 — Motion blur with fast camera pan
+// AE_CAM_09 — Motion blur with asymmetric camera pan + dolly
 // ══════════════════════════════════════════════════════════════════════════════
+// Note: 2.5D symmetric pan produces mirror-identical affine draws.
+// This test uses asymmetric Z-dolly (depth changing from -600→-1000→-1400)
+// combined with X pan so each frame has a distinct perspective scale.
 
 Composition make_ae_cam_09_motion_blur() {
     return composition(
@@ -431,7 +444,7 @@ Composition make_ae_cam_09_motion_blur() {
             SceneBuilder s(ctx);
             add_grid_background(s);
 
-            // Static cards spread across the scene.
+            // Static cards spread across the scene at various depths.
             add_depth_card(s, "card_1", Vec3{-400.0f, -100.0f, 100.0f},
                            Vec2{60.0f, 80.0f}, Color{0.2f, 0.6f, 1.0f, 1.0f});
             add_depth_card(s, "card_2", Vec3{-200.0f, 50.0f, -50.0f},
@@ -443,21 +456,21 @@ Composition make_ae_cam_09_motion_blur() {
             add_depth_card(s, "card_5", Vec3{400.0f, 100.0f, -100.0f},
                            Vec2{60.0f, 80.0f}, Color{0.7f, 0.2f, 1.0f, 1.0f});
 
-            // Fast panning camera.
-            // NOTE: Motion blur is configured via RenderSettings at render time,
-            // not on AnimatedCamera2_5D. The PR8 motion blur unit tests
-            // (test_camera_motion_blur.cpp) cover the full motion blur pipeline.
-            // This scene provides the fast-camera-movement geometry baseline.
+            // Asymmetric pan + dolly: camera X moves left→center→right while
+            // Z depth also changes (dolly in), producing distinct perspective
+            // scales at each frame.  Non-mirror-symmetric positions ensure
+            // all 3 frames are unique.
+            // NOTE: Motion blur is configured via RenderSettings at render time.
             AnimatedCamera2_5D cam;
             cam.position
-                .key(Frame{0}, Vec3{-800.0f, 0.0f, -800.0f})
+                .key(Frame{0}, Vec3{-800.0f, 0.0f, -600.0f})
                 .key(Frame{15}, Vec3{0.0f, 0.0f, -1000.0f})
-                .key(Frame{30}, Vec3{800.0f, 0.0f, -800.0f});
+                .key(Frame{30}, Vec3{800.0f, 0.0f, -1400.0f});
             cam.zoom.set(1000.0f);
             cam.point_of_interest
-                .key(Frame{0}, Vec3{-400.0f, 0.0f, 0.0f})
+                .key(Frame{0}, Vec3{-400.0f, 0.0f, 100.0f})
                 .key(Frame{15}, Vec3{0.0f, 0.0f, 0.0f})
-                .key(Frame{30}, Vec3{400.0f, 0.0f, 0.0f});
+                .key(Frame{30}, Vec3{400.0f, 0.0f, -100.0f});
             cam.point_of_interest_enabled = true;
 
             s.animated_camera(cam);
