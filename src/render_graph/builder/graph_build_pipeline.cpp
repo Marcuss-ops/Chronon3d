@@ -35,6 +35,12 @@ RenderGraph GraphBuildPipeline::build(const Scene& scene, RenderGraphContext& ct
     build_ctx.scene       = &scene;
     build_ctx.render_ctx  = &ctx;
     build_ctx.graph       = &graph;
+    // Wire the scene's 2.5D camera into the build context so that
+    // LayerPipelinePass knows whether 2.5D projection is active
+    // (cam25d.enabled gate).  Without this, cam25d stays at its
+    // default (enabled=false) and ALL layers are built with
+    // .projected=false, regardless of layer.uses_2_5d_projection.
+    build_ctx.cam25d       = scene.camera_2_5d();
 
     return run_passes(build_ctx);
 }
@@ -50,6 +56,9 @@ RenderGraph GraphBuildPipeline::build_with_resolved(
     build_ctx.scene       = &scene;
     build_ctx.render_ctx  = &ctx;
     build_ctx.graph       = &graph;
+    // Wire the scene's 2.5D camera into the build context (same as
+    // build() — see comment above).
+    build_ctx.cam25d       = scene.camera_2_5d();
 
     // Pre-populate resolved data so ResolvePass skips re-resolution.
     build_ctx.resolved = resolved;

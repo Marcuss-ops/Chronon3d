@@ -55,7 +55,7 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
             if (!proj.visible) {
                 continue;
             }
-            matrix = canvas_center * ssaa_scale * proj.projection_matrix;
+            matrix = canvas_center * ssaa_scale * proj.transform.to_mat4();
         } else if (m_uses_2_5d_projection || m_centered) {
             matrix = canvas_center * ssaa_scale * item.matrix;
         } else {
@@ -230,7 +230,7 @@ NodeExecResult MultiSourceNode::execute(
                     if (!proj.visible) {
                         continue;
                     }
-                    world_matrix = canvas_center * ssaa_scale * proj.projection_matrix;
+                    world_matrix = canvas_center * ssaa_scale * proj.transform.to_mat4();
                 } else if (m_uses_2_5d_projection || m_centered) {
                     world_matrix = canvas_center * ssaa_scale * item.matrix;
                 } else {
@@ -313,7 +313,7 @@ NodeExecResult MultiSourceNode::execute(
                 if (!proj.visible) {
                     continue;
                 }
-                state.matrix = canvas_center * ssaa_scale * proj.projection_matrix;
+                state.matrix = canvas_center * ssaa_scale * proj.transform.to_mat4();
             } else if (m_uses_2_5d_projection) {
                 state.matrix = canvas_center * ssaa_scale * item.matrix;
             } else {
