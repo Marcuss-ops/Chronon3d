@@ -189,6 +189,7 @@ add_executable(chronon3d_cli
     main.cpp
     # AE parity camera visual comparison scenes (10 compositions registered in cli_init.hpp)
     ${CMAKE_SOURCE_DIR}/tests/visual/ae_parity/ae_parity_scenes.cpp
+    ${CMAKE_SOURCE_DIR}/tests/visual/camera_truth/camera_truth_test.cpp
 )
 
 get_target_property(CLI11_INCLUDE_DIRS CLI11::CLI11 INTERFACE_INCLUDE_DIRECTORIES)

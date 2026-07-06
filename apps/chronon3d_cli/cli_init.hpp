@@ -17,6 +17,8 @@
 
 // AE parity camera visual comparison scenes (10 compositions, always registered)
 #include "tests/visual/ae_parity/ae_parity_scenes.hpp"
+// Camera 3D projection truth test
+#include "tests/visual/camera_truth/camera_truth_test.hpp"
 
 #if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
 #include <content/register_content_modules.hpp>
@@ -103,6 +105,9 @@ inline void init_compositions(CompositionRegistry& registry) {
     registry.add("AE_CAM_08_dof",           [](const CompositionProps&) { return test::make_ae_cam_08_dof(); });
     registry.add("AE_CAM_09_motion_blur",   [](const CompositionProps&) { return test::make_ae_cam_09_motion_blur(); });
     registry.add("AE_CAM_10_near_clip",     [](const CompositionProps&) { return test::make_ae_cam_10_near_clip(); });
+
+    // Camera 3D projection truth test
+    registry.add("CameraTruthTest", [](const CompositionProps&) { return test::make_camera_truth_test(); });
 }
 
 } // namespace chronon3d::cli
