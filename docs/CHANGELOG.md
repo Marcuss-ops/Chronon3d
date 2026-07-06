@@ -22,6 +22,38 @@
 
 ---
 
+## Luglio 2026 — Refactoring: Split monoliti (FASI 1–9)
+
+Campagna di split di 9 file monolitici in unità a responsabilità singola.
+30+ commit atomici su `main`, build `chronon3d_cli` verificato a ogni step.
+
+### Riepilogo per FASE
+
+| FASE | File originale | Prima | Dopo | Δ | File creati |
+|------|---------------|-------|------|---|-------------|
+| 1 | `text_preset_registry.cpp` | 1.321 | ~290 | **-78%** | `text_preset_factories_reveal.cpp`, `_cinematic.cpp`, `_emphasis.cpp` |
+| 2 | `text_audit_engine.cpp` | 1.037 | 654 | **-37%** | `text_audit_helpers.cpp/.hpp`, `text_audit_typewriter.cpp/.hpp` |
+| 3 | `text_rasterizer_render.cpp` | 951 | 775 | **-18%** | `text_rasterizer_atlas.hpp`, `_debug.hpp`, `_trim.hpp` |
+| 4 | `camera_program.cpp` | 910 | 523 | **-43%** | `camera_program_sources.cpp/.hpp`, `_constraints.cpp/.hpp` |
+| 5 | `text_layout_engine.hpp` | 886 | 90 | **-90%** | `text_layout_single.hpp`, `text_layout_inline.hpp` |
+| 6 | `camera_program_compiler.cpp` | 838 | 365 | **-56%** | `camera_builtin_presets.cpp/.hpp` |
+| 7 | `glow_pipeline.cpp` | 759 | 550 | **-28%** | `glow_bloom.cpp/.hpp`, `glow_pipeline_converters.cpp` |
+| 8 | `glyph_selector.cpp` | 680 | 514 | **-24%** | `glyph_selector_random.cpp/.hpp` |
+| 9 | `fill_style.hpp` | 642 | 129 | **-80%** | `stroke_style.hpp`, `fill_style_lerp.hpp` |
+
+### Riepilogo complessivo
+
+| Metrica | Valore |
+|---------|--------|
+| File splittati | 9 |
+| Nuovi file creati | 28 (.cpp + .hpp/.h) |
+| Righe rimosse dai file originali | ~4.800 |
+| Riduzione media | **-50%** |
+| Commit su main | ~35 |
+| Build verificata | ✅ `chronon3d_cli` |
+
+---
+
 ## Luglio 2026 — Chiusure recenti
 
 ### telemetry(dashboard) — 8 nuovi render AE_CAM_02..09 nel telemetry DB + dashboard live (commit pending this session)
