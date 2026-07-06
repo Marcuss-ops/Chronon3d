@@ -86,6 +86,7 @@
 #include "blend2d_glyph_conversion.hpp"
 #include "freetype_outline_conversion.hpp"
 #include "text_rasterizer_atlas.hpp"
+#include "text_rasterizer_debug.hpp"
 
 #ifdef CHRONON3D_ENABLE_TEXT
 #include <ft2build.h>
@@ -775,50 +776,9 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     }
 
     // ── Debug: draw bounding box overlays (per-instance debug_cfg — TICKET-007) ──
-    if (debug_cfg && debug_cfg->text_bbox() && !t.text.empty()) {
-        BLContext dbg(img);
-        dbg.setCompOp(BL_COMP_OP_SRC_OVER);
-
-        const float pad_f = static_cast<float>(padding) * 0.5f;
-
-        if (t.box.enabled) {
-            dbg.setStrokeStyle(BLRgba32(255, 48, 48, 200));
-            dbg.setStrokeWidth(2.0f);
-            dbg.strokeRect(pad_f, pad_f, t.box.size.x, t.box.size.y);
-
-            const float cx = pad_f + t.box.size.x * 0.5f;
-            const float cy = pad_f + t.box.size.y * 0.5f;
-            dbg.setStrokeStyle(BLRgba32(0, 255, 255, 200));
-            dbg.setStrokeWidth(1.0f);
-            dbg.strokeLine(cx - 14.0f, cy, cx + 14.0f, cy);
-            dbg.strokeLine(cx, cy - 14.0f, cx, cy + 14.0f);
-        }
-
-        if (ink_left < ink_right) {
-            const float ink_x = static_cast<float>(ink_left);
-            const float ink_y = static_cast<float>(ink_top);
-            const float ink_w2 = static_cast<float>(ink_right - ink_left);
-            const float ink_h = static_cast<float>(ink_bottom - ink_top);
-            dbg.setStrokeStyle(BLRgba32(48, 255, 48, 200));
-            dbg.setStrokeWidth(1.0f);
-            dbg.strokeRect(ink_x, ink_y, ink_w2, ink_h);
-
-            const float icx = static_cast<float>(ink_left + ink_right) * 0.5f;
-            const float icy = static_cast<float>(ink_top + ink_bottom) * 0.5f;
-            dbg.setStrokeStyle(BLRgba32(255, 255, 48, 200));
-            dbg.setStrokeWidth(1.0f);
-            dbg.strokeLine(icx - 8.0f, icy, icx + 8.0f, icy);
-            dbg.strokeLine(icx, icy - 8.0f, icy, icy + 8.0f);
-        }
-
-        if (!layout_res.lines.empty()) {
-            const float baseline_y = text_start_y + layout_res.lines[0].position.y + font.metrics().ascent;
-            dbg.setStrokeStyle(BLRgba32(48, 128, 255, 180));
-            dbg.setStrokeWidth(1.0f);
-            dbg.strokeLine(0.0f, baseline_y, static_cast<float>(img_w), baseline_y);
-        }
-        dbg.end();
-    }
+    detail::draw_debug_overlays(img, debug_cfg, t, static_cast<float>(padding),
+                                ink_left, ink_right, ink_top, ink_bottom,
+                                layout_res, font, text_start_x, img_w);
 
     if (profiling::g_current_counters) {
         auto dur = static_cast<uint64_t>(profiling::elapsed_ms(start_raster));
