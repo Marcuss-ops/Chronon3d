@@ -66,12 +66,10 @@ bool can_run_tests() noexcept {
 }
 
 std::shared_ptr<assets::AssetResolver> make_resolver_with_fixture() {
-    // Use the asset_resolver's default_<root>-from-file factory.  We pick
-    // the project root so the fixture path AND any sibling TTF resolves
-    // lexically (resolver.resolve_lexical returns a filesystem::path that
-    // may be looked-up against subsequent file APIs).
-    return std::make_shared<assets::AssetResolver>(
-        assets::AssetResolver::from_default_assets_root("."));
+    // Construct a default resolver.  Callers must set the assets root
+    // separately if needed; the fixture path is resolved via test fixtures
+    // independent of the resolver's configured root.
+    return std::make_shared<assets::AssetResolver>();
 }
 
 } // namespace

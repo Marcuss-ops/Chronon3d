@@ -1434,7 +1434,7 @@ TEST_CASE("TextPresetRegistry: TICKET-107 per-category register helpers in isola
         // Idempotent: calling register_builtin_presets twice on the same
         // registry throws on the FIRST duplicate id (re-confirms the
         // per-id-table anti-duplication contract).
-        CHECK_THROWS_AS(register_builtin_presets(via_umbrella), std::runtime_error);
+        CHECK_THROWS_AS(reg_helpers::register_builtin_presets(via_umbrella), std::runtime_error);
     }
 
     SUBCASE("52) per-category helpers are independently composable (cinematic + emphasis → 8 entries)") {
@@ -1466,6 +1466,6 @@ TEST_CASE("TextPresetRegistry: TICKET-107 per-category register helpers in isola
         // tilt_sweep_title_v2 follow).  CHECK_THROWS_AS only verifies
         // SOME runtime_error escapes — does NOT assert the specific id
         // (reviewer finding #10).
-        CHECK_THROWS_AS(register_text_preset_cinematic(reg), std::runtime_error);
+        CHECK_THROWS_AS(reg_helpers::register_text_preset_cinematic(reg), std::runtime_error);
     }
 }
