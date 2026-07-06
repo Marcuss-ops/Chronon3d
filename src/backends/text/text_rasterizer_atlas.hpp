@@ -13,6 +13,7 @@
 
 #include <chronon3d/text/glyph_atlas.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
+#include "../software/utils/blend2d_paint.hpp"
 #include <blend2d.h>
 
 #include <string>
