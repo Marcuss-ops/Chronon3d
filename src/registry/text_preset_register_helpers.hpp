@@ -100,6 +100,16 @@ create_text_presets();
 
 } // namespace factory_reveal
 
+namespace factory_cinematic {
+
+/// Per-category factory surface (cinematic = Cinematic category).
+/// Returns 4 entries in canonical Cinematic insertion order.
+/// Defined in `src/registry/text_preset_factories_cinematic.cpp`.
+[[nodiscard]] std::vector<TextPresetDescriptor>
+create_text_presets();
+
+} // namespace factory_cinematic
+
 } // namespace register_helpers_internal
 
 // ── Public re-exports — DELIBERATELY OMITTED (reviewer finding #6) ────────
