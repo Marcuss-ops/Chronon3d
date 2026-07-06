@@ -1,5 +1,42 @@
 #pragma once
 
+// ============================================================================
+// shape.hpp — Top-level Shape wrapper + remaining shape primitives
+//
+// FASE 20 split: shape.hpp was monolithic (488L).  Closed-shape primitives
+// (Rect / RoundedRect / Circle) + their shared `ShapeStroke` were extracted
+// into dedicated headers:
+//
+//   shape_stroke.hpp        (~50L) — StrokeAlignment enum + ShapeStroke
+//   rect_shape.hpp          (~25L) — RectShape
+//   rounded_rect_shape.hpp  (~30L) — RoundedRectShape
+//   circle_shape.hpp        (~25L) — CircleShape
+//   line_shape.hpp          (~50L) — LineStroke + LineShape (separate stroke type)
+//
+// This umbrella header now includes the 5 extracted headers at FILE SCOPE
+// (before the namespace block) so the `ShapePayload` variant below can
+// reference them as complete types (required by std::variant).
+//
+// Remaining shape primitives stay here because they share cross-cutting
+// dependencies (text rendering, media placement, grid/fake-box geometry)
+// that would inflate per-file LOC without clear cohesion wins:
+//   - TextShape + TextStyle + TextPaint + TextShadow + TextBoxStyle
+//   - ImageShape + ImageCrop
+//   - FakeBox3DShape, GridPlaneShape, GridBackgroundShape, FakeExtrudedTextShape
+//   - TiledImageShape, MeshShape, TextRunShapeHandle (variant payloads)
+//
+// Plus the centralised ShapePayload variant + Shape struct with named
+// accessors (one per primitive type).
+// ============================================================================
+
+// FASE 20 extracted primitives — included at FILE SCOPE (so the variant
+// below can use them as complete types).
+#include <chronon3d/scene/model/shape/shape_stroke.hpp>
+#include <chronon3d/scene/model/shape/rect_shape.hpp>
+#include <chronon3d/scene/model/shape/rounded_rect_shape.hpp>
+#include <chronon3d/scene/model/shape/circle_shape.hpp>
+#include <chronon3d/scene/model/shape/line_shape.hpp>
+
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/core/types/types.hpp>
@@ -43,55 +80,7 @@ enum class ShapeType {
 
 enum class PlaneAxis { XZ, XY };
 
-enum class StrokeAlignment {
-    Center,
-    Inside,
-    Outside,
-};
-
-struct ShapeStroke {
-    bool enabled{false};
-    Color color{0.0f, 0.0f, 0.0f, 1.0f};
-    f32 width{1.0f};
-    StrokeAlignment alignment{StrokeAlignment::Center};
-
-    /// Optional gradient fill.  When present, the stroke colours come
-    /// from the gradient instead of the solid `color` field.
-    std::optional<GradientFill> gradient;
-};
-
-struct RectShape {
-    Vec2 size{100.0f, 100.0f};
-    ShapeStroke stroke{};
-};
-
-// Rounded rectangle — corners follow a circular arc of the given radius.
-// Radius is clamped to min(width, height) / 2 at render time.
-struct RoundedRectShape {
-    Vec2 size{100.0f, 100.0f};
-    f32 radius{8.0f};
-    ShapeStroke stroke{};
-};
-
-struct CircleShape {
-    f32 radius{50.0f};
-    ShapeStroke stroke{};
-};
-
-struct LineStroke {
-    f32 trim_start{0.0f};  // normalised [0..1]
-    f32 trim_end{1.0f};
-    bool enabled{true};
-    Color color{1.0f, 1.0f, 1.0f, 1.0f};
-    f32 width{1.0f};
-    StrokeAlignment alignment{StrokeAlignment::Center};
-};
-
-struct LineShape {
-    Vec3 to{0.0f, 0.0f, 0.0f};
-    f32 thickness{1.0f};
-    LineStroke stroke{};
-};
+// (StrokeAlignment moved to shape_stroke.hpp — FASE 20.)
 
 enum class TextAlign { Left, Center, Right };
 enum class VerticalAlign { Top, Middle, Bottom };
@@ -310,7 +299,7 @@ struct FakeExtrudedTextShape {
     Vec3  light_dir{-0.577f, 0.577f, -0.577f};
 };
 
-// ── New distinct variant payloads (PR: fix ambiguous ShapeType → index mapping) ─
+// ── New distinct variant payloads (PR: fix ambiguous ShapeType → index mapping) ──
 
 /// Tiled-image payload — wraps an ImageShape so TiledImage has its own variant
 /// index instead of aliasing ImageShape (index 7).
@@ -481,8 +470,9 @@ struct Shape {
     [[nodiscard]] TiledImageShape&         tiled_image()         { return std::get<12>(payload); }
     [[nodiscard]] const TiledImageShape&   tiled_image()   const { return std::get<12>(payload); }
     [[nodiscard]] MeshShape&               mesh_shape()          { return std::get<13>(payload); }
-    [[nodiscard]] const MeshShape&         mesh_shape()    const { return std::get<13>(payload); }[[nodiscard]] TextRunShapeHandle&      text_run_shape_handle()       { return std::get<14>(payload); }
-[[nodiscard]] const TextRunShapeHandle& text_run_shape_handle() const { return std::get<14>(payload); }
+    [[nodiscard]] const MeshShape&         mesh_shape()    const { return std::get<13>(payload); }
+    [[nodiscard]] TextRunShapeHandle&      text_run_shape_handle()       { return std::get<14>(payload); }
+    [[nodiscard]] const TextRunShapeHandle& text_run_shape_handle() const { return std::get<14>(payload); }
 };
 
 } // namespace chronon3d
