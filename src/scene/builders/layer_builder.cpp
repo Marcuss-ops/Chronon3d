@@ -1,22 +1,21 @@
+// FASE 22: this file retains ONLY the constructors, simple setters, anim
+// accessors, and the font_engine getter/setter.  Motion timeline adapters
+// live in layer_builder_motion.cpp; text_run() + build() live in
+// layer_builder_compile.cpp.  Post-split minimal include surface:
+//   layer_builder.hpp (always) — full class declaration including
+//     SampleTime, AnimatedValue, motion::Timeline (transitive via
+//     animated_transform.hpp), FontEngine forward-decl, all param structs.
+//   font_engine.hpp — needed by font_engine_setter / getter body for
+//     the full FontEngine type (pointer is fine but the include is here
+//     pre-FASE 22 for legacy reasons; keep for grep-compatibility).
+//
+// (text_run_builder.hpp, transform.hpp, sample_time.hpp, effect_ids.hpp,
+//  text_run.hpp, text_animator_property.hpp, glyph_selector.hpp,
+//  pending_text_run_impl.hpp, spdlog/spdlog.h, cmath, utility all moved
+//  to the helpers that actually use them.)
 #include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/scene/builders/text_run_builder.hpp>
-#include <chronon3d/math/transform.hpp>
-#include <chronon3d/core/types/sample_time.hpp>
-#include <chronon3d/effects/effect_ids.hpp>
 #include <chronon3d/text/font_engine.hpp>
-#include <chronon3d/text/text_run.hpp>
-#include <chronon3d/text/text_animator_property.hpp>
-#include <chronon3d/text/glyph_selector.hpp>
-// TICKET-104 -- internal helper consumed by the per-spec
-// materialization site below.  Forward declaration is intentionally
-// NOT exposed via the PUBLIC HPP (cat-3 freeze: zero new public
-// symbols, even in a sub-namespace).  Relative path matches the
-// convention used by tests/text/test_builder_consumed_commit_validation.cpp
-// and reach the internalization header directly.
-#include "../../text/pending_text_run_impl.hpp"
-#include <spdlog/spdlog.h>
 
-#include <cmath>
 #include <utility>
 
 namespace chronon3d {
@@ -186,94 +185,10 @@ AnimatedValue<Vec3>& LayerBuilder::anchor_anim()   { return m_layer.anim_transfo
 AnimatedValue<f32>&  LayerBuilder::opacity_anim()  { return m_layer.anim_transform.opacity; }
 AnimatedValue<f32>&  LayerBuilder::blur_anim()    { return m_layer.anim_transform.blur; }
 
-// ── Motion Timeline adapters ────────────────────────────────────────────────
-// These map a single-axis motion::Timeline<f32> onto the corresponding axis of
-// the layer's animated transform (Vec3 for rotate/position, f32 for opacity).
-// The easing from the timeline is mapped to AnimatedValue's convention
-// (prev->easing controls the outgoing segment) via timeline::Point::outgoing_easing.
-
-namespace {
-
-/// Helper: apply a single-axis timeline to an AnimatedValue<Vec3>,
-/// keeping the other two axes at their base values.
-void apply_axis_timeline(AnimatedValue<Vec3>& dest, Vec3 base,
-                         int axis,  // 0=X, 1=Y, 2=Z
-                         const motion::Timeline<f32>& timeline) {
-    dest.clear();
-    for (const auto& pt : timeline.points()) {
-        Vec3 v = base;
-        v[axis] = pt.value;
-        dest.key(pt.frame, v, pt.outgoing_easing);
-    }
-}
-
-} // anonymous namespace
-
-LayerBuilder& LayerBuilder::rotate_x(const motion::Timeline<f32>& timeline) {
-    Vec3 base = glm::degrees(glm::eulerAngles(m_layer.transform.rotation));
-    apply_axis_timeline(rotate_anim(), base, 0, timeline);
-    return *this;
-}
-
-LayerBuilder& LayerBuilder::rotate_y(const motion::Timeline<f32>& timeline) {
-    Vec3 base = glm::degrees(glm::eulerAngles(m_layer.transform.rotation));
-    apply_axis_timeline(rotate_anim(), base, 1, timeline);
-    return *this;
-}
-
-LayerBuilder& LayerBuilder::rotate_z(const motion::Timeline<f32>& timeline) {
-    Vec3 base = glm::degrees(glm::eulerAngles(m_layer.transform.rotation));
-    apply_axis_timeline(rotate_anim(), base, 2, timeline);
-    return *this;
-}
-
-LayerBuilder& LayerBuilder::position_x(const motion::Timeline<f32>& timeline) {
-    Vec3 base = m_layer.transform.position;
-    apply_axis_timeline(position_anim(), base, 0, timeline);
-    return *this;
-}
-
-LayerBuilder& LayerBuilder::position_y(const motion::Timeline<f32>& timeline) {
-    Vec3 base = m_layer.transform.position;
-    apply_axis_timeline(position_anim(), base, 1, timeline);
-    return *this;
-}
-
-LayerBuilder& LayerBuilder::position_z(const motion::Timeline<f32>& timeline) {
-    Vec3 base = m_layer.transform.position;
-    apply_axis_timeline(position_anim(), base, 2, timeline);
-    return *this;
-}
-
-LayerBuilder& LayerBuilder::opacity_timeline(const motion::Timeline<f32>& timeline) {
-    auto& anim = opacity_anim();
-    anim.clear();
-    for (const auto& pt : timeline.points()) {
-        anim.key(pt.frame, pt.value, pt.outgoing_easing);
-    }
-    return *this;
-}
-
-LayerBuilder& LayerBuilder::scale_x(const motion::Timeline<f32>& timeline) {
-    Vec3 base = m_layer.transform.scale;
-    apply_axis_timeline(scale_anim(), base, 0, timeline);
-    return *this;
-}
-
-LayerBuilder& LayerBuilder::scale_y(const motion::Timeline<f32>& timeline) {
-    Vec3 base = m_layer.transform.scale;
-    apply_axis_timeline(scale_anim(), base, 1, timeline);
-    return *this;
-}
-
-LayerBuilder& LayerBuilder::blur_timeline(const motion::Timeline<f32>& timeline) {
-    auto& anim = blur_anim();
-    anim.clear();
-    for (const auto& pt : timeline.points()) {
-        anim.key(pt.frame, pt.value, pt.outgoing_easing);
-    }
-    return *this;
-}
+// Motion Timeline adapters (apply_axis_timeline helper + 9 motion methods:
+//   rotate_x / rotate_y / rotate_z, position_x / _y / _z, scale_x / _y,
+//   opacity_timeline, blur_timeline)
+// → layer_builder_motion.cpp
 
 // Motion preset methods (slide_in, soft_pop, float_idle, etc.) are now
 // defined in src/scene/builders/commands/motion_preset_methods.cpp.
@@ -296,161 +211,6 @@ FontEngine* LayerBuilder::font_engine() const {
     return m_font_engine;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TextRunBuilder — PR 4 (TextAnimator V2)
-// ═══════════════════════════════════════════════════════════════════════════
-
-TextRunBuilder& LayerBuilder::text_run(std::string name, TextRunParams params) {
-    auto spec_uptr = std::make_unique<PendingTextRun>(PendingTextRun{
-        .name = std::move(name),
-        .params = std::move(params),
-        .consumed = false,
-    });
-    PendingTextRun* spec_ptr = spec_uptr.get();
-    m_text_runs.push_back(std::move(spec_uptr));
-    // Push a fresh builder into the pool, keyed to the same spec we
-    // just added.  The builder holds a non-owning pointer so its
-    // mutators write directly into the spec inside m_text_runs.
-    // Pool storage means the returned reference stays
-    // valid for the lifetime of the LayerBuilder — even across many
-    // `.text_run(...)` calls.
-    m_text_run_builders.push_back(
-        std::make_unique<TextRunBuilder>(this, spec_ptr));
-    return *m_text_run_builders.back();
-}
-
-Layer LayerBuilder::build() {
-    if (m_until_frame && !m_duration_explicit) {
-        m_layer.duration = *m_until_frame - m_layer.from;
-    }
-
-    if (m_layer.depth_role != DepthRole::None) {
-        m_layer.transform.position.z =
-            DepthRoleResolver::z_for(m_layer.depth_role) + m_layer.depth_offset;
-    }
-    m_layer.font_engine = m_font_engine;
-    // Evaluate transform when ANY component is time-dependent (keyframes OR expressions).
-    // Expression-only properties (e.g. "sin(time * 2)") have no keyframes, so
-    // is_animated() alone would skip evaluation — causing stale values.
-    if (m_layer.anim_transform.is_time_dependent()) {
-        const SampleTime local_time = m_layer.local_time(m_current_time);
-        Transform baked = m_layer.anim_transform.evaluate(local_time);
-        if (m_layer.anim_transform.position.is_time_dependent())
-            m_layer.transform.position = baked.position;
-        if (m_layer.anim_transform.rotation_euler.is_time_dependent())
-            m_layer.transform.rotation = baked.rotation;
-        if (m_layer.anim_transform.scale.is_time_dependent())
-            m_layer.transform.scale = baked.scale;
-        if (m_layer.anim_transform.anchor.is_time_dependent())
-            m_layer.transform.anchor = baked.anchor;
-        if (m_layer.anim_transform.opacity.is_time_dependent())
-            m_layer.transform.opacity = baked.opacity;
-    }
-    // Bake animated blur into the effect stack at the current sub-frame time.
-    // Blur can also be expression-only.
-    if (m_layer.anim_transform.blur.is_time_dependent()) {
-        const SampleTime local_time = m_layer.local_time(m_current_time);
-        f32 blur_radius = m_layer.anim_transform.blur.evaluate(local_time);
-        bool found = false;
-        for (auto& effect : m_layer.effects()) {
-            if (auto* blur = std::get_if<BlurParams>(&effect.params)) {
-                blur->radius = blur_radius;
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            m_layer.effects().push_back(EffectInstance{
-                effects::EffectDescriptor{.id = std::string{effects::ids::BlurGaussian}},
-                BlurParams{blur_radius}
-            });
-        }
-    }
-
-    // ── PR 4 — Materialize pending text-run specs ───────────────────
-    //
-    // For each PendingTextRun pushed via `LayerBuilder::text_run(name,
-    // TextRunParams)`, evaluate the animator stack at the layer's
-    // current local time and append a corresponding RenderNode
-    // flagged with ShapeType::TextRun.  The graph-builder
-    // source-pass (PR 3) auto-routes these to a TextRunNode.
-    //
-    // Each entry uses the layer's FontEngine if one was set, falling
-    // back to the process-wide shared FontEngine.  Shaping failures
-    // log warn-level and skip the entry (the layer otherwise renders
-    // as a normal Layer — explicit empty-place behavior).
-    //
-    // P1 refactor note — the placeholder RenderNode is ALWAYS emitted
-    // (ShapeType::TextRun, name set, default transform / color / fill)
-    // even when CHRONON3D_USE_BLEND2D is undefined.  Without this,
-    // BLEND2D-less builds silently swallow every text-run entry and
-    // `built.nodes` ends up empty for text-only layers.  The shape
-    // materialization itself stays gated on BLEND2D (it requires the
-    // harfbuzz-shaped TextLayout / TextRunShape builders); the empty
-    // `text_run_shape_handle().value` matches the per-failure semantics
-    // graph_builder_source_pass already emits a one-shot
-    // `spdlog::error` for.
-    if (!m_text_runs.empty()) {
-        const SampleTime local_time = m_layer.local_time(m_current_time);
-        std::pmr::memory_resource* res = m_layer.nodes.get_allocator().resource();
-
-        for (auto& spec_uptr : m_text_runs) {
-            PendingTextRun& spec = *spec_uptr;
-            if (spec.consumed) continue;
-
-            RenderNode& node = m_layer.nodes.emplace_back(res);
-            node.name = std::pmr::string{spec.name, res};
-            node.shape.set_type(ShapeType::TextRun);
-            node.font_engine = m_font_engine;
-            node.world_transform.position = spec.params.text.position;
-            node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
-            node.world_transform.scale = Vec3{1.0f, 1.0f, 1.0f};
-            node.world_transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-            node.color = spec.params.text.appearance.color;
-            node.fill = Fill::solid_color(spec.params.text.appearance.color);
-
-#ifdef CHRONON3D_USE_BLEND2D
-            // Per-spec FontEngine override (set via trb.font_engine(...))
-            // wins over the layer's default font_engine when present.
-            FontEngine* engine_for_shape = spec.font_engine ? spec.font_engine : m_font_engine;
-
-            // ── PR 9 — forward the AnimatedTextDocument binding ────
-            // When the scene author attached an AnimatedTextDocument
-            // via `.from_animated_document(doc)`, the materializer
-            // samples it at the layer's local integral frame and
-            // routes the resulting ActiveTextState through
-            // `apply_active_state_to_text_run_shape`, so transitions
-            // (Hold / Cut / CrossfadeLayouts / Scramble / Morph)
-            // drive layout swaps automatically.  nullptr → unchanged
-            // behaviour (initial spec.text.content.value stays as the
-            // static literal).
-            auto shape = materialize_text_run_shape(
-                spec.params, engine_for_shape, local_time,
-                spec.animated_doc);
-            if (shape) {
-                node.shape.text_run_shape_handle().value = std::move(shape);
-            }
-#endif
-            // On failure (or BLEND2D OFF), text_run_shape_handle().value
-            // remains null and we rely on the graph-builder source-pass
-            // to emit its existing one-shot `spdlog::error` for null-
-            // shape fallthrough.  We do NOT silently drop the
-            // placeholder node, so the user sees the failure at compose
-            // time, not just in build-time logs.
-            //
-            // TICKET-104 — mark the spec as consumed via the canonical
-            // process-wide counter (`text_internal::mark_consumed`).
-            // The previous direct assignment (`spec.consumed = true;`)
-            // was a silent no-op: the field flipped but no observer
-            // ever noticed.  The new helper increments
-            // `g_consumed_decrements` so tests can assert that the
-            // decrement is REAL.  See src/text/pending_text_run_impl.hpp
-            // for the counter contract.
-            chronon3d::text_internal::mark_consumed(spec);
-        }
-    }
-
-    return std::move(m_layer);
-}
+// text_run(name, params) + build() → layer_builder_compile.cpp
 
 } // namespace chronon3d
