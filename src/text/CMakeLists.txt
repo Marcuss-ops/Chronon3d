@@ -11,6 +11,15 @@ add_library(chronon3d_text_core OBJECT
     animation/text_pre_shaping.cpp
     every_line_composer.cpp
     glyph_selector.cpp
+    # FASE 23 — detail::evaluate_selector_shape + detail::apply_selector_order
+    # (pure-math selector primitives, no TextUnitMap dependency) extracted
+    # from glyph_selector.cpp.
+    glyph_selector_math.cpp
+    # FASE 23 — detail::should_exclude_unit + compile_selector /
+    # compile_selectors / evaluate_compiled_selector /
+    # evaluate_compiled_selectors (CompiledSelector precompute + evaluate path)
+    # extracted from glyph_selector.cpp.
+    glyph_selector_compile.cpp
     glyph_selector_random.cpp    # FASE 8 — permutation/random extracted
     path_sampler.cpp
     # TICKET-104 -- INTERNAL PendingTextRun::consumed real-decrement
