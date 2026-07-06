@@ -700,7 +700,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     // ── Debug: draw bounding box overlays (per-instance debug_cfg — TICKET-007) ──
     detail::draw_debug_overlays(img, debug_cfg, t, static_cast<float>(padding),
                                 ink_left, ink_right, ink_top, ink_bottom,
-                                layout_res, font, text_start_x, img_w);
+                                layout_res, font, text_start_y, img_w);
 
     if (profiling::g_current_counters) {
         auto dur = static_cast<uint64_t>(profiling::elapsed_ms(start_raster));
