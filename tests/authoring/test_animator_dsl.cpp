@@ -984,7 +984,7 @@ using chronon3d::authoring::Text;
 // lock-step with a `friend class testing::TextRunBuilderInspector;`
 // grant on `Text`, so the inspector is the canonical way to reach
 // the underlying `PendingTextRun` from the test side.
-#include "support/text_run_builder_inspection.hpp"
+#include "../support/text_run_builder_inspection.hpp"
 using chronon3d::authoring::testing::TextRunBuilderInspector;
 
 TEST_CASE("Authoring/Layer: text() pushes a PendingTextRun with auto-generated name") {

@@ -206,8 +206,8 @@ TEST_CASE("draw_text_run: null asset_resolver returns InvalidInput (P0-1 regress
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("draw_text_run: stroke render succeeds with per-span font_handle + scratch_state (P0-1 E2E)") {
-    if (!test_text_fixture::fixture_exists(kInterBoldPath)) {
-        test_text_fixture::skip_if_missing(kInterBoldPath, "P0-1 E2E (scratch_state + per-span font_handle)");
+    if (!test_text_fixture::fixture_exists(test_text_fixture::kInterBoldPath)) {
+        test_text_fixture::skip_if_missing(test_text_fixture::kInterBoldPath, "P0-1 E2E (scratch_state + per-span font_handle)");
         return;
     }
 

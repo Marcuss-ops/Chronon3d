@@ -1,4 +1,3 @@
-static chronon3d::TextLayoutCache s_text_cache;
 // ═══════════════════════════════════════════════════════════════════════════
 // test_crossfade_stroke.cpp — TICKET-068 regression test for Bug #5 / Fase 1#5
 // ═══════════════════════════════════════════════════════════════════════════
@@ -42,13 +41,17 @@ static chronon3d::TextLayoutCache s_text_cache;
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/text_run.hpp>
-#include <chronon3d/text/text_run_builder.hpp>  // build_text_run, make_initial_glyph_states, apply_active_state_to_text_run_shape
+#include <chronon3d/text/text_run_builder.hpp>
+#include <chronon3d/text/text_run_driver.hpp>
+#include <chronon3d/text/text_layout_cache.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <doctest/doctest.h>
 #include "test_text_font_fixture.hpp"
 
 #include <memory>
 #include <string>
+
+static chronon3d::TextLayoutCache s_text_cache;
 
 using namespace chronon3d;
 
@@ -91,12 +94,14 @@ std::shared_ptr<AnimatedTextDocument> make_crossfade_longer_outgoing_doc(
     auto doc = std::make_shared<AnimatedTextDocument>();
     SourceTextKeyframe kf0;
     kf0.frame = Frame{0};
-    kf0.document.utf8 = outgoing_text;  // OUTGOING (longer)    kf0.transition = SourceTextTransition::CrossfadeLayouts;
+    kf0.document.utf8 = outgoing_text;  // OUTGOING (longer)
+    kf0.transition = SourceTextTransition::CrossfadeLayouts;
     kf0.document.defaults.font = font;
     doc->add_keyframe(kf0);
     SourceTextKeyframe kf60;
     kf60.frame = Frame{60};
-    kf60.document.utf8 = active_text;  // ACTIVE (shorter)    kf60.document.defaults.font = font;
+    kf60.document.utf8 = active_text;  // ACTIVE (shorter)
+    kf60.document.defaults.font = font;
     doc->add_keyframe(kf60);
     return doc;
 }
@@ -233,5 +238,3 @@ TEST_CASE("TICKET-068: crossfade post-gap clears slots; longer outgoing data doe
     CHECK(shape->crossfade_glyphs.empty());
     CHECK(shape->crossfade_mix == 0.0f);
 }
-
-} // namespace
