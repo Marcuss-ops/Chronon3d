@@ -28,6 +28,7 @@ target_sources(chronon3d_backend_software PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/effects/effect_wave.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/effects/glow_pipeline.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/effects/glow_bloom.cpp       # FASE 7 — extracted bloom mode
+    ${CMAKE_CURRENT_SOURCE_DIR}/effects/glow_pipeline_converters.cpp  # FASE 7 — from() converters
     ${CMAKE_CURRENT_SOURCE_DIR}/effects/effect_glow_impl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/effects/effect_shadow_impl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/effects/effect_bloom_impl.cpp
