@@ -43,16 +43,24 @@
 // FASE 17: secondary static methods (test_frustum_culling,
 // compute_signed_area, clip_with_uv, build_perspective_matrix,
 // build_projection_matrix) extracted into:
-//   - camera_projection_frustum.hpp  (test_frustum_culling + compute_signed_area)
+//   - camera_projection_frustum.hpp  (test_frustum_culling + compute_signed_area;
+//                                     defines enum class FrustumResult)
 //   - camera_projection_clip.hpp     (clip_with_uv — Sutherland-Hodgman)
 //   - camera_projection_matrix.hpp   (backward-compat matrix builders)
 //
-// Include-ordering note (avoid double-nesting):
-//   The three helper headers each open `namespace chronon3d { ... }`
-//   themselves.  They are included at FILE SCOPE (between two
-//   namespace chronon3d blocks, NOT inside one) to avoid creating
-//   `chronon3d::chronon3d::`.  The enum declarations live in the
-//   first namespace block so the helpers can reference them.
+// Fix #2 (post-FASE-17 review): the three helper headers are now included
+// ABOVE the single namespace chronon3d block at FILE SCOPE.  This eliminated
+// the previous two-block structure (close-reopen between the helper includes
+// was a workaround for wanted-to-avoid double-nesting).  Now:
+//   1. frustum.hpp opens `namespace chronon3d { ... }` first and defines
+//      `enum class FrustumResult`;
+//   2. clip.hpp + matrix.hpp open their own `namespace chronon3d { ... }`
+//      and add inline helpers (no new types);
+//   3. Then the parent opens `namespace chronon3d { ... }` ONCE and adds
+//      BackfaceMode / ClipState / kFarClipZ / structs / resolver.
+//
+// The result: a single contiguous namespace block, no double-nesting,
+// FrustumResult defined exactly once.
 // ============================================================================
 
 #include <chronon3d/math/glm_types.hpp>
@@ -60,6 +68,14 @@
 #include <chronon3d/math/near_plane_clip.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/rendering/projected_card.hpp>
+
+// FASE 17 helper headers — included BEFORE the namespace chronon3d block.
+// frustum.hpp introduces FrustumResult (avoids duplicate enum definition).
+// clip.hpp and matrix.hpp contribute inline helpers only (no new types).
+#include <chronon3d/math/camera_projection_frustum.hpp>
+#include <chronon3d/math/camera_projection_clip.hpp>
+#include <chronon3d/math/camera_projection_matrix.hpp>
+
 #include <array>
 #include <algorithm>
 #include <cmath>
@@ -88,29 +104,7 @@ enum class ClipState : uint8_t {
     AllBeyond     = 5,   // All vertices beyond far plane -> invisible
 };
 
-// -- Frustum culling result ----------------------------------------------------
-enum class FrustumResult : uint8_t {
-    Inside        = 0,   // Layer is fully inside the view frustum
-    Intersects    = 1,   // Layer intersects frustum boundary (partially visible)
-    Outside       = 2,   // Layer is fully outside the view frustum -> cull
-};
-
-// ============================================================================
-// FASE 17 — Secondary helper methods (extracted)
-// ============================================================================
-//
-// Included at file scope (NOT inside any namespace) to avoid double-nesting:
-// each helper header opens its own `namespace chronon3d { ... }` so they
-// can also be consumed standalone.  Calling code uses unscoped names
-// (ADL/name lookup resolves them inside `namespace chronon3d`).
-
-} // namespace chronon3d (close first block — helpers go at file scope)
-
-#include <chronon3d/math/camera_projection_frustum.hpp>
-#include <chronon3d/math/camera_projection_clip.hpp>
-#include <chronon3d/math/camera_projection_matrix.hpp>
-
-namespace chronon3d {
+// FrustumResult enum is defined in camera_projection_frustum.hpp (above).
 
 // ============================================================================
 // CameraProjectionInput — Input to CameraProjectionResolver

@@ -17,6 +17,17 @@
 
 namespace chronon3d {
 
+// -- Frustum culling result ----------------------------------------------------
+// Defined here (post-fix #2 migration, FASE 17+): frustum.hpp is the only
+// helper that returns this enum.  Standalone-consumers of frustum.hpp
+// (only camera_projection_resolver.hpp for now) get the enum + the
+// helper in one include.
+enum class FrustumResult : uint8_t {
+    Inside        = 0,   // Layer is fully inside the view frustum
+    Intersects    = 1,   // Layer intersects frustum boundary (partially visible)
+    Outside       = 2,   // Layer is fully outside the view frustum -> cull
+};
+
 // ============================================================================
 // CameraProjectionResolver::test_frustum_culling
 //
