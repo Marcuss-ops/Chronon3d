@@ -200,7 +200,8 @@ NodeExecResult MultiSourceNode::execute(
     // Regular items use draw_node() which returns void — tracked for
     // Phase C (requires coordinated API/ABI change).
 
-    for (const auto& item : m_items) {
+    for (std::size_t i = 0; i < m_items.size(); ++i) {
+            const auto& item = m_items[i];
             if (!item.node) continue;
 
 #ifdef CHRONON3D_ENABLE_TEXT
@@ -334,6 +335,20 @@ NodeExecResult MultiSourceNode::execute(
             }
 
         ctx.services.backend->draw_node(*fb, *item.node, state, ctx.frame_input.camera, ctx.frame_input.width, ctx.frame_input.height);
+
+        if (ctx.policy.diagnostics_enabled) {
+            spdlog::info(
+                "[AE_CAM] frame={} node='{}' item#{} world=({},{},{}) screen=({},{}) depth={} scale={} visible={}",
+                ctx.frame_input.sample_time.integral_frame(),
+                m_name,
+                i,
+                item.matrix[3][0], item.matrix[3][1], item.matrix[3][2],
+                state.matrix[3][0], state.matrix[3][1],
+                state.matrix[3][2],
+                glm::length(Vec3(item.matrix[0])),
+                true
+            );
+        }
     }
 
     fb->set_opaque(false);
