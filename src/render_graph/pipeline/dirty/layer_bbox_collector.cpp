@@ -38,7 +38,7 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                 effective_transform, effective_transform.to_mat4(), cam25d,
                 static_cast<f32>(width), static_cast<f32>(height), ctx.policy.diagnostics_enabled);
             if (proj.visible) {
-                const Mat4 eff_proj = detail::is_native_3d_layer(*rl.layer) ? Mat4(1.0f) : proj.transform.to_mat4();
+                const Mat4 eff_proj = detail::is_native_3d_layer(*rl.layer) ? Mat4(1.0f) : glm::translate(Mat4(1.0f), Vec3(proj.transform.position.x, proj.transform.position.y, 0.0f)) * glm::scale(Mat4(1.0f), Vec3(proj.perspective_scale, proj.perspective_scale, 1.0f));
                 item = LayerGraphItem{
                     .layer = rl.layer,
                     .transform = proj.transform,

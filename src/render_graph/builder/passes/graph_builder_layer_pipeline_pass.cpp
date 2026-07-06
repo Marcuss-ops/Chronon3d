@@ -160,7 +160,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
                 rctx.policy.diagnostics_enabled);
             if (proj.visible) {
                 const Mat4 eff_proj = is_native_3d_layer(layer)
-                    ? Mat4(1.0f) : proj.transform.to_mat4();
+                    ? Mat4(1.0f) : glm::translate(Mat4(1.0f), Vec3(proj.transform.position.x, proj.transform.position.y, 0.0f)) * glm::scale(Mat4(1.0f), Vec3(proj.perspective_scale, proj.perspective_scale, 1.0f));
                 current_3d_bin.push_back(LayerGraphItem{
                     .layer             = resolved_layer.layer,
                     .transform         = proj.transform,
