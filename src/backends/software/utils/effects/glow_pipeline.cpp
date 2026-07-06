@@ -105,93 +105,6 @@ namespace {
     };
 }
 
-// Row-partitioned accumulation.  Each task writes exclusively into its own
-// row of `dst`, so the std::max read-modify-write on `acc.a` is safe to run
-// in parallel across rows.  falloff_lut is a per-call, stack-allocated
-// 257-entry array of `pow(i/255, falloff)`; passed by [TBB-friendly] pointer.
-//
-// Exposed at namespace `chronon3d::renderer` scope (NOT anon) so benchmarks
-// and golden tests can call it directly.  Do not use from production code.
-void accumulate_glow_pass(Framebuffer& dst, const Framebuffer& src,
-                          const GlowPipeline& p, const float* falloff_lut) {
-    const float falloff = std::max(0.01f, p.falloff);
-    const int w = dst.width();
-    const int h = dst.height();
-    const bool use_lut = (falloff != 1.0f) && (falloff_lut != nullptr);
-    tbb::parallel_for(tbb::blocked_range<int>(0, h, kGlowTbbGrain),
-                      [&](const tbb::blocked_range<int>& range) {
-        for (int y = range.begin(); y < range.end(); ++y) {
-            Color* dst_row = dst.pixels_row(y);
-            const Color* src_row = src.pixels_row(y);
-            for (int x = 0; x < w; ++x) {
-                Color g = src_row[x];
-                if (g.a <= 0.0f) continue;
-
-                float shaped;
-                if (use_lut) {
-                    shaped = lookup_shaped(g.a, falloff_lut);
-                } else {
-                    shaped = g.a;  // falloff == 1.0f → identity
-                }
-                if (g.a > 0.0f) {
-                    const float ratio = shaped / g.a;
-                    g.r *= ratio;
-                    g.g *= ratio;
-                    g.b *= ratio;
-                }
-                g.a = shaped;
-
-                Color& acc = dst_row[x];
-                acc.r += g.r;
-                acc.g += g.g;
-                acc.b += g.b;
-                acc.a = std::max(acc.a, g.a);
-            }
-        }
-    });
-}
-
-void accumulate_scaled_glow_pass(Framebuffer& dst, const Framebuffer& src,
-                                 const GlowPipeline& p, float scale,
-                                 const float* falloff_lut) {
-    const float falloff = std::max(0.01f, p.falloff);
-    const int w = dst.width();
-    const int h = dst.height();
-    const bool use_lut = (falloff != 1.0f) && (falloff_lut != nullptr);
-    tbb::parallel_for(tbb::blocked_range<int>(0, h, kGlowTbbGrain),
-                      [&](const tbb::blocked_range<int>& range) {
-        for (int y = range.begin(); y < range.end(); ++y) {
-            Color* dst_row = dst.pixels_row(y);
-            const float sy = (static_cast<float>(y) + 0.5f) * scale;
-            for (int x = 0; x < w; ++x) {
-                const float sx = (static_cast<float>(x) + 0.5f) * scale;
-                Color g = src.sample(sx, sy, SamplingMode::Bilinear);
-                if (g.a <= 0.0f) continue;
-
-                float shaped;
-                if (use_lut) {
-                    shaped = lookup_shaped(g.a, falloff_lut);
-                } else {
-                    shaped = g.a;  // falloff == 1.0f → identity
-                }
-                if (g.a > 0.0f) {
-                    const float ratio = shaped / g.a;
-                    g.r *= ratio;
-                    g.g *= ratio;
-                    g.b *= ratio;
-                }
-                g.a = shaped;
-
-                Color& acc = dst_row[x];
-                acc.r += g.r;
-                acc.g += g.g;
-                acc.b += g.b;
-                acc.a = std::max(acc.a, g.a);
-            }
-        }
-    });
-}
-
 struct GlowLayerPass {
     float radius_scale;
     float intensity_scale;
@@ -411,15 +324,15 @@ void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
 }
 
 } // anonymous namespace
+
 // ── Public per-pass accumulate helpers (renderer-ns scope) ────────────────
 //
-// These are exposed at `chronon3d::renderer` scope so external callers
-// (Google Benchmarks in `tests/bench/micro_benchmarks.cpp`, golden tests)
-// can call them directly.  The shadow copies inside the anonymous namespace
-// below remain for internal callers (run_layer_mode / build_glow_accumulator
-// / run_bloom_mode) so they retain internal linkage and don't pollute global
-// symbol tables.  Do not use from production code — call
-// `GlowPipeline::render` or `renderer::run_glow_pipeline` instead.
+// These are exposed at chronon3d::renderer scope so external callers
+// (Google Benchmarks, golden tests) can call them directly.  Anonymous-
+// namespace callers (build_glow_accumulator) now find these via enclosing
+// namespace lookup (deduplicated in FASE 7 Step 3).
+// Do not use from production code — call GlowPipeline::render or
+// renderer::run_glow_pipeline instead.
 
 void accumulate_glow_pass(Framebuffer& dst, const Framebuffer& src,
                           const GlowPipeline& p, const float* falloff_lut) {
@@ -440,7 +353,7 @@ void accumulate_glow_pass(Framebuffer& dst, const Framebuffer& src,
                 if (use_lut) {
                     shaped = lookup_shaped(g.a, falloff_lut);
                 } else {
-                    shaped = g.a;  // falloff == 1.0f → identity
+                    shaped = g.a;
                 }
                 if (g.a > 0.0f) {
                     const float ratio = shaped / g.a;
@@ -481,7 +394,7 @@ void accumulate_scaled_glow_pass(Framebuffer& dst, const Framebuffer& src,
                 if (use_lut) {
                     shaped = lookup_shaped(g.a, falloff_lut);
                 } else {
-                    shaped = g.a;  // falloff == 1.0f → identity
+                    shaped = g.a;
                 }
                 if (g.a > 0.0f) {
                     const float ratio = shaped / g.a;
@@ -502,57 +415,6 @@ void accumulate_scaled_glow_pass(Framebuffer& dst, const Framebuffer& src,
 }
 
 } // namespace chronon3d::renderer
-
-// ── from() converters (GlowPipeline lives in chronon3d, not renderer) ─
-
-namespace chronon3d {
-
-GlowPipeline GlowPipeline::from(const GlowParams& p) {
-    GlowPipeline out;
-    out.mode = GlowPipeline::Mode::Layer;
-    out.color = p.color;
-    out.radius = p.radius;
-    out.intensity = p.intensity;
-    out.threshold = p.threshold;
-    out.spread = p.spread;
-    out.softness = p.softness;
-    out.falloff = p.falloff;
-    out.core_strength = p.core_strength;
-    out.aura_strength = p.aura_strength;
-    out.bloom_strength = p.bloom_strength;
-    out.outer_downscale = p.outer_downscale;
-    out.preserve_source = p.preserve_source;
-    out.additive = p.additive;
-    out.blend = p.blend;
-    out.layers = p.layers;
-    out.quality = p.quality;
-    return out;
-}
-
-GlowPipeline GlowPipeline::from(const BloomParams& p) {
-    GlowPipeline out;
-    out.mode = GlowPipeline::Mode::Bloom;
-    out.radius = p.radius;
-    out.intensity = p.intensity;
-    out.threshold = p.threshold;
-    out.color = Color{1, 1, 1, 1};   // bloom uses the source pixel colors
-    out.preserve_source = true;       // additive on top of source
-    return out;
-}
-
-GlowPipeline GlowPipeline::from(const DropShadowParams& p) {
-    GlowPipeline out;
-    out.mode = GlowPipeline::Mode::Shadow;
-    out.color = p.color;
-    out.radius = p.radius;
-    out.intensity = 1.0f;
-    // Shadow offset (Vec2) is not yet threaded through GlowPipeline.
-    // apply_shadow_effect() remains in effect_shadow_impl.cpp until a
-    // future refactor adds an offset field to GlowPipeline.
-    return out;
-}
-
-} // namespace chronon3d
 
 // ── Forward declarations ───────────────────────────────────────────────
 namespace chronon3d::renderer {
