@@ -90,6 +90,16 @@ create_text_presets();
 
 } // namespace factory_basic
 
+namespace factory_reveal {
+
+/// Per-category factory surface (reveal = Reveal category).
+/// Returns 10 entries in canonical Reveal insertion order.
+/// Defined in `src/registry/text_preset_factories_reveal.cpp`.
+[[nodiscard]] std::vector<TextPresetDescriptor>
+create_text_presets();
+
+} // namespace factory_reveal
+
 } // namespace register_helpers_internal
 
 // ── Public re-exports — DELIBERATELY OMITTED (reviewer finding #6) ────────
