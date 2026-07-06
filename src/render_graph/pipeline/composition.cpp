@@ -6,6 +6,8 @@
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/animation/temporal/temporal_samples.hpp>     // PR1: single source of truth
+#include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_session.hpp>
 #include "../builder/graph_builder_pipeline.hpp"
 #include "../builder/graph_builder_internal.hpp"
 #include "helpers.hpp"
@@ -186,6 +188,51 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         }
         evaluate_ms = profiling::duration_ms(t_eval0, profiling::now());
         layer_count = static_cast<int>(scene.layers().size());
+
+        // ── TICKET-FIX-DEFAULT-CAMERA: honour Composition::default_camera_descriptor ──
+        //
+        // The V1 legacy render path (`render_composition_frame`) builds the
+        // Scene via `comp.evaluate()` but never reads
+        // `comp.default_camera_descriptor()`.  Compositions that set a
+        // CameraDescriptor (e.g. CameraTruthOrbit with OrbitMotion) get a
+        // default Camera2_5D (enabled=false) on their Scene, which is then
+        // skipped by resolve_scene_camera.  This fix bridges the gap:
+        // compile the descriptor once, evaluate it at the current frame,
+        // and stamp the resulting Camera2_5D onto the Scene so the
+        // downstream projection pipeline picks it up.
+        if (comp.has_default_camera_descriptor()) {
+            const auto& desc = comp.default_camera_descriptor();
+            camera_v1::CameraCompileContext compile_ctx{};
+            auto compiled = camera_v1::compile_camera(
+                desc, /*catalog=*/nullptr, compile_ctx);
+            if (compiled.has_value()) {
+                camera_v1::CameraSession session;
+                auto cam_ctx = camera_v1::CameraEvalContext::at(
+                    frame, comp.frame_rate(), comp.width(), comp.height());
+                auto result = compiled->evaluate(cam_ctx, session);
+                if (result.has_value()) {
+                    scene.set_camera_2_5d(result->camera);
+                    spdlog::debug(
+                        "[default-camera] applied '{}' at frame={} "
+                        "pos=({:.0f},{:.0f},{:.0f}) zoom={:.0f}",
+                        comp.name(), static_cast<int>(frame),
+                        result->camera.position.x,
+                        result->camera.position.y,
+                        result->camera.position.z,
+                        result->camera.zoom);
+                } else {
+                    spdlog::warn(
+                        "[default-camera] evaluate failed for '{}': keeping "
+                        "scene default camera",
+                        comp.name());
+                }
+            } else {
+                spdlog::warn(
+                    "[default-camera] compile_camera failed for '{}': "
+                    "keeping scene default camera",
+                    comp.name());
+            }
+        }
 
         const auto t_scene0 = profiling::now();
         {
