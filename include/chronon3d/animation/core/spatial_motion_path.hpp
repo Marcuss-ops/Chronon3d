@@ -34,6 +34,26 @@
 
 namespace chronon3d {
 
+// ── PathTimingMode — sampling-driver enum for MotionPathSampler3D ──────────
+//
+// FU-1.3 bridge: the spatial sampler can re-parameterise the spatial u
+// (the progress along the bezier curve) either by:
+//
+//   - Parametric: u = temporal_progress (linear-in-time original behaviour).
+//   - ArcLength:  u mapped through the segment's pre-computed arc-length
+//                 LUT so spatial speed is uniform (CV ≤ 0.02, AE-quality).
+//   - EasedArcLength: timing curve AND uniform spatial speed (ease affects
+//                     time, arc-length reparam keeps space uniform).
+//
+// Lives here (not in temporal_curve_1d.hpp) because it is the spatial
+// sampler's input knob, not a 1D timing primitive.  Restored in FASE 19
+// follow-up after the split-path reviewer pass.
+enum class PathTimingMode : uint8_t {
+    Parametric      = 0,
+    ArcLength       = 1,
+    EasedArcLength  = 2,
+};
+
 // ── CubicBezier3D — a single cubic bezier segment in 3D space ──────────────
 //
 // Defined by four control points:
