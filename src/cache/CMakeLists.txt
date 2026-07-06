@@ -7,6 +7,7 @@ add_library(chronon3d_cache OBJECT
     frame_cache.cpp
     node_cache.cpp
     framebuffer_pool.cpp
+    framebuffer_pool_evict.cpp
     persistent_framebuffer_store.cpp
     video_frame_cache.cpp
     lru_log.cpp

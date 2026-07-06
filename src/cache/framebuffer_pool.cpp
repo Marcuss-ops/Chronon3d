@@ -38,22 +38,9 @@ void PoolFbDeleter::operator()(Framebuffer* fb) const noexcept {
 
 namespace chronon3d::cache {
 
-namespace {
-
-int round_up_bucket(int val) {
-    if (val <= 0) return 0;
-    if (val <= 64) {
-        return ((val + 7) / 8) * 8;
-    } else if (val <= 256) {
-        return ((val + 15) / 16) * 16;
-    } else if (val <= 1024) {
-        return ((val + 127) / 128) * 128;
-    } else {
-        return ((val + 127) / 128) * 128;
-    }
-}
-
-} // namespace
+// NOTE (FASE 18): the anonymous round_up_bucket() intra-pixel step helper
+// and all eviction / preallocation / warm-up methods are now in
+// framebuffer_pool_evict.cpp, included by the parent cache CMakeLists.
 
 FramebufferPool::FramebufferPool(size_t max_bytes) {
     // 0 = use kDefaultBudgetBytes (384 MB).
@@ -127,13 +114,16 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_hinted(
     });
 }
 
+// NOTE (FASE 18): round_up_bucket() moved to framebuffer_pool_evict.cpp.
+// acquire_unique() uses the same rounding helper via the public static
+// `round_to_bucket()` method.
+
 std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int height, bool* out_fresh_alloc) {
     if (out_fresh_alloc) *out_fresh_alloc = false;
 
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    const int rounded_w = round_up_bucket(width);
-    const int rounded_h = round_up_bucket(height);
+    auto [rounded_w, rounded_h] = round_to_bucket(width, height);
 
     {
         FramebufferPoolKey key{rounded_w, rounded_h};
@@ -270,89 +260,8 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_shared(int width, int heig
 // release_shared removed (TICKET-011 cleanup; zero callers).
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Eviction helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-bool FramebufferPool::evict_one_from_bucket(FramebufferPoolKey key) {
-    auto it = m_free.find(key);
-    if (it == m_free.end() || it->second.empty()) return false;
-
-    auto& bucket = it->second;
-    // Find LRU entry in this bucket
-    size_t lru_idx = 0;
-    uint64_t min_tick = std::numeric_limits<uint64_t>::max();
-    for (size_t i = 0; i < bucket.size(); ++i) {
-        if (bucket[i].last_used_tick < min_tick) {
-            min_tick = bucket[i].last_used_tick;
-            lru_idx = i;
-        }
-    }
-
-    size_t evicted_bytes = bucket[lru_idx].fb->size_bytes();
-    bucket[lru_idx] = std::move(bucket.back());
-    bucket.pop_back();
-    m_current_bytes -= evicted_bytes;
-    m_evicted_count.fetch_add(1, std::memory_order_relaxed);
-    m_evicted_bytes.fetch_add(evicted_bytes, std::memory_order_relaxed);
-    m_pressure_count.fetch_add(1, std::memory_order_relaxed);
-
-    if (bucket.empty()) {
-        m_free.erase(it);
-    }
-    return true;
-}
-
-bool FramebufferPool::evict_global_lru() {
-    std::optional<FramebufferPoolKey> lru_key;
-    size_t lru_idx = 0;
-    uint64_t min_tick = std::numeric_limits<uint64_t>::max();
-
-    for (auto& [key, bucket] : m_free) {
-        if (bucket.empty()) continue;
-        for (size_t i = 0; i < bucket.size(); ++i) {
-            if (bucket[i].last_used_tick < min_tick) {
-                min_tick = bucket[i].last_used_tick;
-                lru_idx = i;
-                lru_key = key;
-            }
-        }
-    }
-
-    if (!lru_key.has_value()) return false;
-
-    auto it = m_free.find(*lru_key);
-    if (it == m_free.end()) return false;
-
-    auto& bucket = it->second;
-    if (lru_idx >= bucket.size()) return false;
-
-    size_t evicted_bytes = bucket[lru_idx].fb->size_bytes();
-    bucket[lru_idx] = std::move(bucket.back());
-    bucket.pop_back();
-    m_current_bytes -= evicted_bytes;
-    m_evicted_count.fetch_add(1, std::memory_order_relaxed);
-    m_evicted_bytes.fetch_add(evicted_bytes, std::memory_order_relaxed);
-    m_pressure_count.fetch_add(1, std::memory_order_relaxed);
-
-    if (bucket.empty()) {
-        m_free.erase(it);
-    }
-    return true;
-}
-
-bool FramebufferPool::evict_lru_for(size_t incoming_bytes) {
-    if (m_config.max_retained_bytes == 0) return true; // unlimited
-
-    bool evicted_any = false;
-    while (m_current_bytes + incoming_bytes > m_config.max_retained_bytes) {
-        if (!evict_global_lru()) break;
-        evicted_any = true;
-    }
-    return evicted_any;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // release() — with retention budget and per-size-class limit
+// (Eviction helpers have moved to framebuffer_pool_evict.cpp, FASE 18.)
 // ─────────────────────────────────────────────────────────────────────────────
 
 void FramebufferPool::release(Framebuffer* fb) {
@@ -436,106 +345,8 @@ size_t FramebufferPool::available_count() const {
     return count;
 }
 
-namespace {
-
-size_t do_preallocate_into_bucket(
-    std::unordered_map<
-        FramebufferPoolKey,
-        std::vector<PoolEntry>,
-        FramebufferPoolKeyHash
-    >& free_map,
-    size_t& current_bytes,
-    size_t max_bytes,
-    const FramebufferPoolPreallocOptions& options,
-    int rounded_w,
-    int rounded_h,
-    size_t count)
-{
-    FramebufferPoolKey key{rounded_w, rounded_h};
-    size_t created = 0;
-    for (size_t i = 0; i < count; ++i) {
-        auto fb = std::make_unique<Framebuffer>(rounded_w, rounded_h);
-
-        if (options.clear) {
-            fb->clear(Color::transparent());
-        } else if (options.touch_memory) {
-            Color* ptr = fb->data();
-            for (i32 y = 0; y < rounded_h; ++y) {
-                Color* row = ptr + static_cast<size_t>(y) * fb->stride();
-                for (i32 x = 0; x < rounded_w; ++x) {
-                    Color c = row[x];
-                    row[x] = c;
-                }
-            }
-            fb->set_content_cleared(true);
-        }
-
-        const size_t weight = fb->size_bytes();
-        if (max_bytes > 0 && current_bytes + weight > max_bytes) {
-            break;
-        }
-
-        current_bytes += weight;
-        free_map[key].push_back(PoolEntry{std::move(fb), 0});
-        ++created;
-    }
-    return created;
-}
-
-} // namespace
-
-size_t FramebufferPool::preallocate(const FramebufferPoolPreallocOptions& options) {
-    if (options.width <= 0 || options.height <= 0 || options.count == 0) {
-        return 0;
-    }
-
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    const int rounded_w = round_up_bucket(options.width);
-    const int rounded_h = round_up_bucket(options.height);
-
-    return do_preallocate_into_bucket(m_free, m_current_bytes,
-                                      m_config.max_retained_bytes,
-                                      options, rounded_w, rounded_h, options.count);
-}
-
-size_t FramebufferPool::ensure_preallocated(const FramebufferPoolPreallocOptions& options) {
-    if (options.width <= 0 || options.height <= 0 || options.count == 0) {
-        return 0;
-    }
-
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    const int rounded_w = round_up_bucket(options.width);
-    const int rounded_h = round_up_bucket(options.height);
-    FramebufferPoolKey key{rounded_w, rounded_h};
-
-    size_t existing = 0;
-    auto it = m_free.find(key);
-    if (it != m_free.end()) {
-        existing = it->second.size();
-    }
-    if (existing >= options.count) {
-        return 0;
-    }
-
-    const size_t needed = options.count - existing;
-    return do_preallocate_into_bucket(m_free, m_current_bytes,
-                                      m_config.max_retained_bytes,
-                                      options, rounded_w, rounded_h, needed);
-}
-
-std::pair<int, int> FramebufferPool::round_to_bucket(int width, int height) {
-    return {round_up_bucket(width), round_up_bucket(height)};
-}
-
-size_t FramebufferPool::warm_up(const std::vector<FramebufferPoolPreallocOptions>& predictions) {
-    size_t total = 0;
-    for (const auto& opt : predictions) {
-        total += preallocate(opt);
-    }
-    return total;
-}
+// NOTE (FASE 18): preallocate / ensure_preallocated / round_to_bucket /
+// warm_up / do_preallocate_into_bucket moved to framebuffer_pool_evict.cpp.
 
 size_t FramebufferPool::max_bytes() const {
     std::lock_guard<std::mutex> lock(m_mutex);
