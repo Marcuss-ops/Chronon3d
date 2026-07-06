@@ -19,6 +19,8 @@
 #include "tests/visual/ae_parity/ae_parity_scenes.hpp"
 // Camera 3D projection truth test
 #include "tests/visual/camera_truth/camera_truth_test.hpp"
+// AE Camera Text Parity — 360-frame multi-segment stress test
+#include "content/experimental/ae-parity/ae_camera_text_parity.hpp"
 
 #if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
 #include <content/register_content_modules.hpp>
@@ -108,6 +110,10 @@ inline void init_compositions(CompositionRegistry& registry) {
 
     // Camera 3D projection truth test
     registry.add("CameraTruthTest", [](const CompositionProps&) { return test::make_camera_truth_test(); });
+
+    // AE Camera Text Parity — 360-frame multi-segment stress test
+    // (static / dolly-zoom / orbit / rack-focus / whip-pan+motion-blur / stress)
+    registry.add("AECameraTextParity", [](const CompositionProps&) { return chronon3d::content::anims::ae_camera_text_parity(); });
 }
 
 } // namespace chronon3d::cli
