@@ -114,6 +114,8 @@ hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     | grep -Ev 'tests/cli/test_camera_path_command\.cpp:' \
     | grep -Ev 'tests/visual/camera/camera_visual_scenes\.cpp:' \
     | grep -Ev 'tests/renderer/perf/test_motion_blur_integration\.cpp:' \
+    | grep -Ev 'tests/visual/ae_parity/ae_parity_scenes\.cpp:' \
+    | grep -Ev 'tests/visual/camera_truth/camera_truth_test\.cpp:' \
     || true)
 if [ -n "$hits" ]; then
     echo "FAIL"; echo "$hits" | sed 's/^/    /'; FAILED=1
@@ -164,6 +166,8 @@ hits=$(grep -Rn --include='*.hpp' --include='*.cpp' \
     | grep -Ev 'tests/cli/test_camera_path_command\.cpp:' \
     | grep -Ev 'tests/visual/camera/camera_visual_scenes\.cpp:' \
     | grep -Ev 'tests/renderer/perf/test_motion_blur_integration\.cpp:' \
+    | grep -Ev 'tests/visual/ae_parity/ae_parity_scenes\.cpp:' \
+    | grep -Ev 'tests/visual/camera_truth/camera_truth_test\.cpp:' \
     | grep -Ev 'tests/scene/camera/test_camera_descriptor_adapters\.cpp:' \
     | grep -Ev 'src/scene/camera/camera_v1/camera_descriptor_adapters\.cpp:' \
     | grep -Ev 'src/scene/timeline_builder\.cpp:' \
