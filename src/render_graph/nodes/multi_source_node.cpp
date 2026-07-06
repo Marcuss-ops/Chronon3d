@@ -9,6 +9,7 @@
 #include <chronon3d/text/text_run_driver.hpp>
 #endif
 #include <spdlog/spdlog.h>
+#include <cstdlib>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <limits>
 
@@ -33,7 +34,12 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
     i32 y1 = std::numeric_limits<i32>::min();
     bool has_any = false;
 
-    for (const auto& item : m_items) {
+    // CHRONON3D_PROJ_DIAG: indexed-for loop so item index reflects actual vector
+    // position even when null items are skipped (range-for + manual counter was
+    // bug-prone: counter incremented only in null-item-skip branch, leaving
+    // bbox_i stale at 0 for non-null iterations where the diagnostic fires).
+    for (std::size_t bbox_i = 0; bbox_i < m_items.size(); ++bbox_i) {
+        const auto& item = m_items[bbox_i];
         if (!item.node) continue;
         Mat4 matrix;
         if (m_uses_2_5d_projection && ctx.frame_input.has_camera_2_5d) {
@@ -53,6 +59,21 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
                 static_cast<f32>(ctx.frame_input.height),
                 false);
             if (!proj.visible) {
+                // CHRONON3D_PROJ_DIAG: per-frame diagnostic for the proj.visible=false
+                // skip path in predicted_bbox. Gated on env var so zero-cost when unset;
+                // revertable by `unset CHRONON3D_PROJ_DIAG`. Emits user-spec fields:
+                // proj.layer_* + camera.{position,zoom,fov} + world_z_depth + frame.
+                if (std::getenv("CHRONON3D_PROJ_DIAG")) {
+                    spdlog::warn("[PROJ_DIAG] branch=SKIP_NOT_VISIBLE stage=predicted_bbox node='{}' item#{} world_z_depth={:.1f} proj.depth={:.4f} proj.perspective_scale={:.4f} proj.position=({:.1f},{:.1f}) proj.scale=({:.4f},{:.4f}) camera.position=({:.1f},{:.1f},{:.1f}) camera.zoom={:.1f} camera.fov_deg={:.1f} frame={}",
+                        m_name, bbox_i,
+                        item.matrix[3][2],
+                        proj.depth, proj.perspective_scale,
+                        proj.transform.position.x, proj.transform.position.y,
+                        proj.transform.scale.x, proj.transform.scale.y,
+                        ctx.frame_input.camera_2_5d.position.x, ctx.frame_input.camera_2_5d.position.y, ctx.frame_input.camera_2_5d.position.z,
+                        ctx.frame_input.camera_2_5d.zoom, ctx.frame_input.camera_2_5d.fov_deg,
+                        ctx.frame_input.sample_time.integral_frame());
+                }
                 continue;
             }
             matrix = canvas_center * ssaa_scale * glm::translate(Mat4(1.0f), Vec3(proj.transform.position.x, proj.transform.position.y, 0.0f)) * glm::scale(Mat4(1.0f), Vec3(proj.perspective_scale, proj.perspective_scale, 1.0f));
@@ -229,6 +250,21 @@ NodeExecResult MultiSourceNode::execute(
                         static_cast<f32>(ctx.frame_input.height),
                         false);
                     if (!proj.visible) {
+                        // CHRONON3D_PROJ_DIAG: per-frame diagnostic for the proj.visible=false
+                        // skip path in text_run execute branch. Gated on env var so
+                        // zero-cost when unset; revertable by `unset CHRONON3D_PROJ_DIAG`.
+                        // Emits user-spec fields: proj.layer_* + camera.{position,zoom,fov} + world_z_depth + frame.
+                        if (std::getenv("CHRONON3D_PROJ_DIAG")) {
+                            spdlog::warn("[PROJ_DIAG] branch=SKIP_NOT_VISIBLE stage=text_run_execute node='{}' item#{} world_z_depth={:.1f} proj.depth={:.4f} proj.perspective_scale={:.4f} proj.position=({:.1f},{:.1f}) proj.scale=({:.4f},{:.4f}) camera.position=({:.1f},{:.1f},{:.1f}) camera.zoom={:.1f} camera.fov_deg={:.1f} frame={}",
+                                m_name, i,
+                                item.matrix[3][2],
+                                proj.depth, proj.perspective_scale,
+                                proj.transform.position.x, proj.transform.position.y,
+                                proj.transform.scale.x, proj.transform.scale.y,
+                                ctx.frame_input.camera_2_5d.position.x, ctx.frame_input.camera_2_5d.position.y, ctx.frame_input.camera_2_5d.position.z,
+                                ctx.frame_input.camera_2_5d.zoom, ctx.frame_input.camera_2_5d.fov_deg,
+                                ctx.frame_input.sample_time.integral_frame());
+                        }
                         continue;
                     }
                     world_matrix = canvas_center * ssaa_scale * glm::translate(Mat4(1.0f), Vec3(proj.transform.position.x, proj.transform.position.y, 0.0f)) * glm::scale(Mat4(1.0f), Vec3(proj.perspective_scale, proj.perspective_scale, 1.0f));
@@ -328,6 +364,21 @@ NodeExecResult MultiSourceNode::execute(
                     static_cast<f32>(ctx.frame_input.height),
                     false);
                 if (!proj.visible) {
+                    // CHRONON3D_PROJ_DIAG: per-frame diagnostic for the proj.visible=false
+                    // skip path in regular execute branch. Gated on env var so zero-cost
+                    // when unset; revertable by `unset CHRONON3D_PROJ_DIAG`.
+                    // Emits user-spec fields: proj.layer_* + camera.{position,zoom,fov} + world_z_depth + frame.
+                    if (std::getenv("CHRONON3D_PROJ_DIAG")) {
+                        spdlog::warn("[PROJ_DIAG] branch=SKIP_NOT_VISIBLE stage=regular_execute node='{}' item#{} world_z_depth={:.1f} proj.depth={:.4f} proj.perspective_scale={:.4f} proj.position=({:.1f},{:.1f}) proj.scale=({:.4f},{:.4f}) camera.position=({:.1f},{:.1f},{:.1f}) camera.zoom={:.1f} camera.fov_deg={:.1f} frame={}",
+                            m_name, i,
+                            item.matrix[3][2],
+                            proj.depth, proj.perspective_scale,
+                            proj.transform.position.x, proj.transform.position.y,
+                            proj.transform.scale.x, proj.transform.scale.y,
+                            ctx.frame_input.camera_2_5d.position.x, ctx.frame_input.camera_2_5d.position.y, ctx.frame_input.camera_2_5d.position.z,
+                            ctx.frame_input.camera_2_5d.zoom, ctx.frame_input.camera_2_5d.fov_deg,
+                            ctx.frame_input.sample_time.integral_frame());
+                    }
                     continue;
                 }
                 state.matrix = canvas_center * ssaa_scale * glm::translate(Mat4(1.0f), Vec3(proj.transform.position.x, proj.transform.position.y, 0.0f)) * glm::scale(Mat4(1.0f), Vec3(proj.perspective_scale, proj.perspective_scale, 1.0f));
