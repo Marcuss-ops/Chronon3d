@@ -31,22 +31,53 @@ inline bool matrix_near(const Mat4& a, const Mat4& b, f32 eps = 1e-4f) {
 }
 
 /// Determine if a layer should be rendered in centered mode.
+///
+/// TICKET-104 — added the `is_implicit_2d_centering_only` check so the
+/// `centered` flag is also true for canvas-center layers (`pin_to(Anchor::Center)`
+/// on Normal/Shape/Text kinds).  Without this, `source_space_world_matrix`
+/// refuses to strip the implicit canvas-center from `item.world_matrix`
+/// (it requires BOTH `is_implicit_2d_centering_only` AND
+/// `should_use_centered_rendering` to be true), so canvas-center layers
+/// end up with double canvas-center in their final `m_matrix_override`:
+///   item_source_world = item.world_matrix (no strip)
+///   m_matrix_override = item.world_matrix * node.world_transform
+/// For `pin_to(Anchor::Center)` layers, this is `translate(960, 540) *
+/// translate(960, 540) = translate(1920, 1080)` — text goes off-canvas
+/// at the bottom-right corner, executor's predicted_bbox clips to empty,
+/// execute is skipped.  The fix: also return true for canvas-center
+/// layers so the source pass strips the implicit canvas-center and the
+/// node receives a canvas-center-stripped `m_matrix_override` that the
+/// downstream `build_world_matrix` (TICKET-104 fix: skip `canvas_center`
+/// when `matrix_override` is set) re-applies exactly once.
 inline bool should_use_centered_rendering(const LayerGraphItem& item, const RenderGraphContext& ctx) {
     if (!ctx.policy.modular_coordinates) {
         return (item.layer && item.layer->uses_2_5d_projection);
     }
-    return layer_needs_render_transform(item, ctx) && !item.native_3d;
+    return is_implicit_2d_centering_only(item, ctx)
+        || (layer_needs_render_transform(item, ctx) && !item.native_3d);
 }
 
 /// True only when item.transform is exactly the automatic 2D centering transform.
 /// This must NOT count as a user/custom transform.
+///
+/// TICKET-104 — the `LayerKind::Normal` restriction was removed: the
+/// `matrix_near(item.transform.to_mat4(), implicit_canvas_center_matrix(ctx))`
+/// check at the end is the semantic gate.  If a layer's transform is
+/// exactly the canvas-center translation (regardless of kind — Normal,
+/// Shape, Text, etc.), the source pass should strip the implicit
+/// canvas-center before passing the matrix as `matrix_override`, so the
+/// downstream node reapplies it exactly once.  Restricting to
+/// `LayerKind::Normal` made Shape-kind layers (e.g. `bg_grid`) fall
+/// through to the non-stripped path, producing a different matrix than
+/// the Normal-kind TextRunNode for the same `pin_to(Anchor::Center)`
+/// intent.  The kind check is a conservative gate that prevented the
+/// parity fix; the `matrix_near` check is the actual semantic guard.
 inline bool is_implicit_2d_centering_only(const LayerGraphItem& item, const RenderGraphContext& ctx) {
     if (!ctx.policy.modular_coordinates) return false;
     if (!item.layer) return false;
     if (item.projected) return false;
     if (item.native_3d) return false;
     if (item.layer->uses_2_5d_projection) return false;
-    if (item.layer->kind != LayerKind::Normal) return false;
     if (!item.transform.any()) return false;
     if (item.transform.opacity != 1.0f) return false;
 
