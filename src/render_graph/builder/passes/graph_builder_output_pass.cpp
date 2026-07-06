@@ -95,8 +95,9 @@ void OutputPass::run(GraphBuildContext& ctx) {
             1e18f  // sentinel: no layer contributed
         );
         // PR2-cleanup: PerPixelDofNode builds its policy at ctor-time.
-        graph.connect(current, graph.add_node(PerPixelDofNode::create(cam25d)));
-        current = graph.add_node(PerPixelDofNode::create(cam25d));
+        auto dof_node = graph.add_node(PerPixelDofNode::create(cam25d));
+        graph.connect(current, dof_node);
+        current = dof_node;
     }
 
     graph.set_output(current);

@@ -406,11 +406,12 @@ Composition make_ae_cam_08_dof() {
             cam.aperture.set(0.025f);
             cam.max_blur.set(24.0f);
             // Animate focus_z: near card (frame 0) → mid card (frame 60) → far card (frame 120).
-            // Camera at z=-1000; focus_z = cam_z - card_z in world space.
+            // Legacy model: blur = |layer_world_z - focus_z| * aperture.  focus_z must
+            // equal the card's world-space Z for zero blur at the focal point.
             cam.focus_z
-                .key(Frame{0}, -600.0f)    // near card is at z=-400, focus on it
-                .key(Frame{60}, -1000.0f)  // mid card at z=0
-                .key(Frame{120}, -1400.0f); // far card at z=400
+                .key(Frame{0}, -400.0f)    // near card is at z=-400, focus on it
+                .key(Frame{60}, 0.0f)      // mid card at z=0
+                .key(Frame{120}, 400.0f);  // far card at z=400
             s.animated_camera(cam);
 
             return s.build();
